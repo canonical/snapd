@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <linux/sched.h>
+#include <sys/mount.h>
 
 #include "overlay.h"
 #include "utils.h"
@@ -36,6 +37,8 @@ int main(int argc, char **argv)
     };
     if (!make_overlay(OVERLAY_DIRS))
        die("Failed to setup overlay");
+    if (!make_private_tmp())
+       die("failed to create private /tmp dir");
 
    // FIXME: setup cgroup
 

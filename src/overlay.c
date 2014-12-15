@@ -14,7 +14,7 @@
 int pivot_root(const char *new_root, const char *put_old);
 
 
-int make_overlay(const char* dirs[])
+bool make_overlay(const char* dirs[])
 {
     int i = 0;
     int len = 0;
@@ -46,6 +46,18 @@ int make_overlay(const char* dirs[])
        return error("Failed to chroot to .");
     if(chdir("/") != 0)
        return error("Failed to chdir to /");
+
+    return true;
+}
+
+bool make_private_tmp()
+{
+    char private_tmp_template[] = {"/tmp/ubuntu-core-launch-tmp-XXXXXX"};
+    char *private_tmp = mkdtemp(private_tmp_template);
+    if (private_tmp == NULL)
+       return error("failed to create /tmp dir");
+    if(mount(private_tmp, "/tmp/", "none", MS_BIND, "") != 0)
+       error("mounting private /tmp failed");
 
     return true;
 }

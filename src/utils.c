@@ -11,6 +11,7 @@ void die(const char *msg, ...)
    vfprintf(stderr, msg, va);
    va_end(va);
 
+   fprintf(stderr, "\n");
    exit(1);
 }
 
