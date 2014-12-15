@@ -16,6 +16,7 @@ import (
 	"strings"
 	"net/http"
 	"encoding/json"
+	"github.com/olekukonko/tablewriter"
 
 	// my own stuff
 	"snappy"
@@ -135,7 +136,7 @@ func install_snap(snap string, target string) error {
 		defer out.Close()
 		io.Copy(out, archive)
 		if name == "meta.tar.gz" {
-			helpers.Unpack(basedir+name, basedir)
+			snappy.Unpack(basedir+name, basedir)
 		}
 	}
 
@@ -242,10 +243,20 @@ func search_snap(search_term string) error {
 	}
 	embedded := searchData["_embedded"].(map[string]interface{})
 	packages :=  embedded["clickindex:package"].([]interface{})
+
+	// FIXME: how to wrap tablewriter.NewWriter() so that we always
+	//        get the no row/col/center sepators?
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetRowSeparator("")
+	table.SetColumnSeparator("")
+	table.SetCenterSeparator("")
+
 	for _, raw := range(packages) {
 		pkg := raw.(map[string]interface{})
-		fmt.Printf("%s (%s) - %s \n", pkg["name"], pkg["version"], pkg["title"])
+		//fmt.Printf("%s (%s) - %s \n", pkg["name"], pkg["version"], pkg["title"])
+		table.Append([]string{pkg["name"].(string), pkg["version"].(string), pkg["title"].(string)})
 	}
+	table.Render()
 
 	return nil;
 }
