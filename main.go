@@ -14,6 +14,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	// my own stuff
+	"snappy"
 )
 
 const APPS_ROOT = "/tmp/apps"
@@ -129,6 +132,9 @@ func install_snap(snap string, target string) error {
 		}
 		defer out.Close()
 		io.Copy(out, archive)
+		if name == "meta.tar.gz" {
+			helpers.Unpack(basedir+name, basedir)
+		}
 	}
 
 	// the data dirs
@@ -171,6 +177,9 @@ func snap_build(dir string) error {
 		return err
 	}
 	err = cmd.Wait()
+	if err != nil {
+		return err
+	}
 
 	cmd = exec.Command("mksquashfs", ".", "data.squashfs", "-comp", "xz")
 	err = cmd.Start()
