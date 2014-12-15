@@ -22,6 +22,8 @@ int main(int argc, char **argv)
 
     //https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#ubuntu-snapp-launch
 
+    // FIXME: set apparmor rules
+
     // setup env
     setenv("SNAP_APP_DIR", rootdir, 1);
 
