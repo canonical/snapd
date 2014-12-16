@@ -1,23 +1,21 @@
 package snappy
 
 // Representation of a snappy part
-type Part interface {
-	Name() string
-	Tag() string
+type Part struct {
+	Name string
+	Tag string
 
-	CurrentVersion() string
-	LatestVersion() string
+	CurrentVersion string
+	LatestVersion string
 
-	CurrentHash() string
+	CurrentHash string
 
 	// true if part is the currently selected one
-	Active() bool
+	Active bool
 
 	// true if part is installed
-	Installed() bool
+	Installed bool
 
-	// compare two parts; return true if (a < b)
-	Less(a, b Part) bool
 }
 
 // A DataSource (DS) 
@@ -27,8 +25,13 @@ type DataSource interface {
 	Versions() []Part
 
 	// update the specified parts
-	Update(parts []Part) bool
+	Update(parts []Part) (err error)
+
+	Rollback(parts []Part) (err error)
 
 	// return the available tags for a given part
 	Tags(part Part) []string
+
+	// compare two parts; return true if (a < b)
+	Less(a, b Part) bool
 }
