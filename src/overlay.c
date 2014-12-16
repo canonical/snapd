@@ -23,7 +23,7 @@ bool make_overlay(const char* dirs[])
     // FIXME: don't use /mnt, use a special dir just for us
 
     for (i = 0; dirs[i] != NULL; i++) {
-        if (i == 1) {
+        if (i == 0) {
             len = strlen(dirs[i]) + strlen("upperdir=,lowerdir=/") + 2;
             options = alloca(len);
             snprintf(options, len, "upperdir=%s,lowerdir=/", dirs[i]);

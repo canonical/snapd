@@ -11,7 +11,8 @@ int main(int argc, char **argv)
 {
     int i = 0;
 
-    if(argc < 4)
+    const int NR_ARGS = 3;
+    if(argc < NR_ARGS+1)
     {
        fprintf(stderr, "Usage: %s <rootdir> <binary> <apparmor>\n", argv[0]);
        exit(1);
@@ -31,37 +32,38 @@ int main(int argc, char **argv)
         unshare(CLONE_NEWUSER);
     unshare(CLONE_NEWNS);
 
+    // private tmp
+    if (!make_private_tmp())
+       die("failed to create private /tmp dir");
+    
     // FIXME: we need to add all frameworks that need to be overlayed here
     const char* OVERLAY_DIRS[] = {
-       "/",
        rootdir,
        NULL,
     };
     if (!make_overlay(OVERLAY_DIRS))
        die("Failed to setup overlay");
-    if (!make_private_tmp())
-       die("failed to create private /tmp dir");
 
-   // FIXME: setup cgroup for net_cls
+    // FIXME: setup cgroup for net_cls
 
-   // FIXME: setup iptables security table
+    // FIXME: setup iptables security table
 
-   // FIXME: port binding restriction (seccomp?)
+    // FIXME: port binding restriction (seccomp?)
 
-   // FIXME: ensure user specific data dir is availble (create if needed)
+    // FIXME: ensure user specific data dir is availble (create if needed)
 
     // set apparmor rules
     aa_change_onexec(apparmor);
 
-   // run the app
-   chdir(rootdir);
+    // run the app
+    chdir(rootdir);
 
-   char **new_argv = malloc((argc-1)*sizeof(char*));
-   new_argv[0] = (char*)binary;
-   for(i=1; i < argc-2; i++)
-      new_argv[i] = argv[i+2];
-   new_argv[i] = NULL;
-
-   execv(binary, new_argv);
-   //execl("/bin/bash", "/bin/bash", NULL);
+    char **new_argv = malloc((argc-NR_ARGS+1)*sizeof(char*));
+    new_argv[0] = (char*)binary;
+    for(i=1; i < argc-NR_ARGS; i++)
+       new_argv[i] = argv[i+NR_ARGS];
+    new_argv[i] = NULL;
+    
+    execv(binary, new_argv);
+    //execl("/bin/bash", "/bin/bash", NULL);
 }
