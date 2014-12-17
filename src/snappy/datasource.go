@@ -19,6 +19,9 @@ type Part struct {
 }
 
 // A DataSource (DS) 
+// FIXME: we need a way for the caller to determine if _individual_
+// methods are privileged so that the caller can quickly check if an
+// operation would require root before actually calling it.
 type DataSource interface {
 
 	// returns a list of Part objects

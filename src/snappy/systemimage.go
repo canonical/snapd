@@ -10,6 +10,8 @@ func (s *SystemImage) Versions() (versions []Part) {
 }
 
 func (s *SystemImage) Update(parts []Part) (err error) {
+	parts = s.Versions()
+
 	// FIXME
 	return err
 }
