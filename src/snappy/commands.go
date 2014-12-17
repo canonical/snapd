@@ -3,7 +3,6 @@ package snappy
 import (
 	"fmt"
 	"os"
-	"sort"
 	"io/ioutil"
 	"os/exec"
 	"gopkg.in/yaml.v2"
@@ -22,79 +21,13 @@ import (
 
 const APPS_ROOT = "/apps"
 
-type SnappyFunction func(args []string) error
-
-type SnappyCommand struct {
-
-	fp SnappyFunction
-	description string
-}
-
-// jump table
-var commands map[string]SnappyCommand
-
-func init() {
-	// create the jump table
-	commands = make(map[string]SnappyCommand)
-}
-
-// Add a function to the dispatcher
-func registerCommand(cmd string, desc string, f SnappyFunction) {
-	commands[cmd] = SnappyCommand{fp: f, description: desc}
-}
-
-func showUsage() {
-	var keys []string
-
-	// create a slice of command names
-	for cmd := range commands {
-		keys = append(keys, cmd)
-	}
-
-	sort.Strings(keys)
-
-	fmt.Println("Available commands:\n")
-
-	for _, cmd := range keys {
-		help := commands[cmd].description
-		fmt.Printf("  %s (%s)\n", cmd, help)
-	}
-	fmt.Println("")
-}
-
-func CommandDispatch(cmd string, args []string) (err error) {
-	registerCommands()
-
-	return handleCommand(cmd, args)
-}
-
-func handleCommand(cmd string, args []string) (err error) {
-
-	// Special-case
-	if cmd == "help" {
-		showUsage()
-		os.Exit(0)
-	}
-
-	command, exists := commands[cmd]
-
-	if !exists {
-		fmt.Printf("ERROR: Invalid command: %s\n", cmd)
-		showUsage()
-		os.Exit(1)
-	}
-
-	return command.fp(args)
-}
-
 // register all dispatcher functions
 func registerCommands() {
-
-	registerCommand("versions", "display versions of installed parts", cmdVersions)
-	registerCommand("update", "update installed parts", cmdUpdate)
 	registerCommand("build", "build a snap package", cmdBuild)
 	registerCommand("install", "install a snap package", cmdInstall)
 	registerCommand("search", "search for snap packages", cmdSearch)
+	registerCommand("update", "update installed parts", cmdUpdate)
+	registerCommand("versions", "display versions of installed parts", cmdVersions)
 }
 
 func cmdVersions(args []string) (err error) {
@@ -319,7 +252,7 @@ func cmdSearch(args []string) error {
 	//FIXME: hardcoded
 	req.Header.Set("X-Ubuntu-Frameworks", "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Architecture", "amd64")
-	
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
