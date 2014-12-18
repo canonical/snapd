@@ -1,7 +1,6 @@
 package snappy
 
 type SystemImage struct {
-
 }
 
 func (s *SystemImage) Versions() (versions []Part) {

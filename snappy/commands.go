@@ -1,22 +1,23 @@
 package snappy
 
 import (
-	"fmt"
-	"os"
-	"io/ioutil"
-	"os/exec"
-	"gopkg.in/yaml.v2"
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"errors"
-	"github.com/blakesmith/ar"
-	"io"
-	"log"
-	"strings"
-	"net/http"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
+	"os/exec"
+	"strings"
+
+	"github.com/blakesmith/ar"
 	"github.com/olekukonko/tablewriter"
+	"gopkg.in/yaml.v1"
 )
 
 const APPS_ROOT = "/apps"
@@ -282,7 +283,7 @@ func cmdSearch(args []string) error {
 		return nil
 	}
 	embedded := searchData["_embedded"].(map[string]interface{})
-	packages :=  embedded["clickindex:package"].([]interface{})
+	packages := embedded["clickindex:package"].([]interface{})
 
 	// FIXME: how to wrap tablewriter.NewWriter() so that we always
 	//        get the no row/col/center sepators?
@@ -291,13 +292,12 @@ func cmdSearch(args []string) error {
 	table.SetColumnSeparator("")
 	table.SetCenterSeparator("")
 
-	for _, raw := range(packages) {
+	for _, raw := range packages {
 		pkg := raw.(map[string]interface{})
 		//fmt.Printf("%s (%s) - %s \n", pkg["name"], pkg["version"], pkg["title"])
 		table.Append([]string{pkg["name"].(string), pkg["version"].(string), pkg["title"].(string)})
 	}
 	table.Render()
 
-	return nil;
+	return nil
 }
-

@@ -1,12 +1,12 @@
 package snappy
 
 import (
-	"testing"
-	"os/exec"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"testing"
 )
 
 func TestUnpack(t *testing.T) {
@@ -31,14 +31,14 @@ func TestUnpack(t *testing.T) {
 	if err != nil {
 		t.Error("failed to create tmp archive")
 	}
-	
+
 	// unpack
 	unpackdir := filepath.Join(tmpdir, "t")
 	err = Unpack(tmpfile, unpackdir)
 	if err != nil {
 		t.Error("unpack failed: %v", err)
 	}
-	
+
 	_, err = os.Open(filepath.Join(tmpdir, "t/etc/fstab"))
 	if err != nil {
 		t.Error("can not find expected file in unpacked dir")

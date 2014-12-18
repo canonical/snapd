@@ -3,10 +3,10 @@ package snappy
 // Representation of a snappy part
 type Part struct {
 	Name string
-	Tag string
+	Tag  string
 
 	CurrentVersion string
-	LatestVersion string
+	LatestVersion  string
 
 	CurrentHash string
 
@@ -15,10 +15,9 @@ type Part struct {
 
 	// true if part is installed
 	Installed bool
-
 }
 
-// A DataSource (DS) 
+// A DataSource (DS)
 // FIXME: we need a way for the caller to determine if _individual_
 // methods are privileged so that the caller can quickly check if an
 // operation would require root before actually calling it.

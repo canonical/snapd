@@ -4,14 +4,14 @@ package snappy
 
 import (
 	"fmt"
-	"sort"
 	"os"
+	"sort"
 )
+
 type SnappyFunction func(args []string) error
 
 type SnappyCommand struct {
-
-	fp SnappyFunction
+	fp          SnappyFunction
 	description string
 }
 

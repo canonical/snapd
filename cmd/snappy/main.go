@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	// my own stuff
-	"snappy"
+	"launchpad.net/snappy-ubuntu/snappy-golang/snappy"
 )
 
 func main() {
@@ -18,8 +17,8 @@ func main() {
 	err := snappy.CommandDispatch(cmd, os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr,
-		"ERROR: command %s failed: %s\n",
-		cmd, err)
+			"ERROR: command %s failed: %s\n",
+			cmd, err)
 		os.Exit(1)
 	}
 

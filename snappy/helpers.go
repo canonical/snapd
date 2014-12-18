@@ -1,19 +1,19 @@
 package snappy
 
 import (
-	"os"
-	"strings"
+	"archive/tar"
 	"compress/gzip"
 	"io"
-	"archive/tar"
+	"os"
 	"path/filepath"
+	"strings"
 )
 
 func Unpack(archive string, target string) error {
 
 	var f io.Reader
 	var err error
-	
+
 	f, err = os.Open(archive)
 	if err != nil {
 		return err
@@ -56,6 +56,6 @@ func Unpack(archive string, target string) error {
 			}
 		}
 	}
-	
-	return nil;
+
+	return nil
 }
