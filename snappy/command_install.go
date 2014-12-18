@@ -14,12 +14,12 @@ import (
 	"github.com/blakesmith/ar"
 )
 
-func audit_snap(snap string) bool {
+func auditSnap(snap string) bool {
 	// FIXME: we want a bit more here ;)
 	return true
 }
 
-func extract_snap_yaml(snap string) ([]byte, error) {
+func extractYamlFromSnap(snap string) ([]byte, error) {
 	f, err := os.Open(snap)
 	defer f.Close()
 	if err != nil {
@@ -79,10 +79,10 @@ func cmdInstall(args []string) error {
 	// FIXME: Not used atm
 	//target := args[1]
 
-	if !audit_snap(snap) {
+	if !auditSnap(snap) {
 		return errors.New("audit failed")
 	}
-	yaml, err := extract_snap_yaml(snap)
+	yaml, err := extractYamlFromSnap(snap)
 	if err != nil {
 		return err
 	}
