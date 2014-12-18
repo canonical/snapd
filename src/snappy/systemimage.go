@@ -29,3 +29,8 @@ func (s *SystemImage) Less(a, b Part) bool {
 	// FIXME
 	return false
 }
+
+func (s *SystemImage) Privileged() bool {
+	// Root required to mount filesystems, unpack images, et cetera.
+	return true
+}

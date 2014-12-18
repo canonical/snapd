@@ -37,4 +37,10 @@ type DataSource interface {
 
 	// compare two parts; return true if (a < b)
 	Less(a, b Part) bool
+
+	// true if manipulating the DS requires root
+	//
+	// This is rather crude since ideally we'd allow a DS's
+	// methods to individually specify if they are privileged.
+	Privileged() bool
 }

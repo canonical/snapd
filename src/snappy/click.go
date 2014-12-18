@@ -27,3 +27,7 @@ func (c *Click) Less(a, b Part) bool {
 	// FIXME
 	return false
 }
+
+func (c *Click) Privileged() bool {
+	return false
+}
