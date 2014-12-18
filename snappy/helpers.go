@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gopkg.in/yaml.v1"
 )
 
-func Unpack(archive string, target string) error {
+func unpackTar(archive string, target string) error {
 
 	var f io.Reader
 	var err error
@@ -58,4 +60,13 @@ func Unpack(archive string, target string) error {
 	}
 
 	return nil
+}
+
+func getMapFromYaml(data []byte) (map[string]interface{}, error) {
+	m := make(map[string]interface{})
+	err := yaml.Unmarshal(data, &m)
+	if err != nil {
+		return m, err
+	}
+	return m, nil
 }
