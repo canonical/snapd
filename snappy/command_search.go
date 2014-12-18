@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"text/tabwriter"
 	"os"
-
-	"github.com/olekukonko/tablewriter"
 )
+
+const SEARCH_URI = "https://search.apps.ubuntu.com/api/v1/search?q=%s"
+
 
 func cmdSearch(args []string) error {
 	search_term := args[0]
-
-	const SEARCH_URI = "https://search.apps.ubuntu.com/api/v1/search?q=%s"
 
 	url := fmt.Sprintf(SEARCH_URI, search_term)
 	client := &http.Client{}
@@ -34,7 +34,7 @@ func cmdSearch(args []string) error {
 
 	searchData := make(map[string]interface{})
 	body, err := ioutil.ReadAll(resp.Body)
-	//log.Print(string(body))
+	//fmt.Print(string(body))
 	if err != nil {
 		return err
 	}
@@ -45,19 +45,13 @@ func cmdSearch(args []string) error {
 	embedded := searchData["_embedded"].(map[string]interface{})
 	packages := embedded["clickindex:package"].([]interface{})
 
-	// FIXME: how to wrap tablewriter.NewWriter() so that we always
-	//        get the no row/col/center sepators?
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetRowSeparator("")
-	table.SetColumnSeparator("")
-	table.SetCenterSeparator("")
-
+	w := tabwriter.NewWriter(os.Stdout, 5, 3, 1, ' ', 0)
+	fmt.Fprintln(w, "Name\tVersion\tSummary\t")
 	for _, raw := range packages {
 		pkg := raw.(map[string]interface{})
-		//fmt.Printf("%s (%s) - %s \n", pkg["name"], pkg["version"], pkg["title"])
-		table.Append([]string{pkg["name"].(string), pkg["version"].(string), pkg["title"].(string)})
+		fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", pkg["name"], pkg["version"], pkg["title"]))
 	}
-	table.Render()
+	w.Flush()
 
 	return nil
 }
