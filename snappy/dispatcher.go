@@ -50,7 +50,7 @@ func showUsage() {
 func CommandDispatch(cmd string, args []string) (err error) {
 	registerCommands()
 
-	return handleCommand(cmd, args)
+	return handleCommand(cmd, args[1:])
 }
 
 // run the specified command
