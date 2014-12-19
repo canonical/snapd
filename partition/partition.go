@@ -628,42 +628,13 @@ func (p *Partition) RunInChroot(args []string) (err error) {
 	return RunCommand(fullArgs)
 }
 
-func (p *Partition) InstallBootloader() (err error) {
-	switch DEVICE_TYPE {
-	case "generic_amd64":
-		return p.InstallBootloaderGrub()
+func (p *Partition) HandleBootloader() (err error) {
+    bootloader := DetermineBootLoader()
 
-	// FIXME: handle other architectures
-	default:
-		panic(fmt.Sprintf("Cannot handle device %s", DEVICE_TYPE))
-	}
+    // FIXME:
+    //logger - bootloader.Name()
 
-	// Not reached
-	return err
-}
-
-func (p *Partition) InstallBootloaderGrub() (err error) {
-	var args []string
-	var other *BlockDevice
-
-	other = p.OtherRootPartition()
-
-	args = append(args, "grub-install")
-	args = append(args, other.parentName)
-
-	// install grub
-	err = p.RunInChroot(args)
-	if err != nil {
-		return err
-	}
-
-	args = nil
-	args = append(args, "update-grub")
-
-	// create the grub config
-	err = p.RunInChroot(args)
-
-	return err
+    return bootloader.ToggleRootFS(p)
 }
 
 func (p *Partition) GetOtherVersion() (version SystemImageVersion, err error) {
@@ -771,7 +742,7 @@ func (p *Partition) ToggleBootloaderRootfs() (err error) {
 		return err
 	}
 
-	if err = p.InstallBootloader(); err != nil {
+	if err = p.HandleBootloader(); err != nil {
 		return err
 	}
 
