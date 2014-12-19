@@ -13,8 +13,9 @@ func main() {
 		os.Exit(1)
 	}
 	cmd := os.Args[1]
+	args := os.Args[2:]
 
-	err := snappy.CommandDispatch(cmd, os.Args[1:])
+	err := snappy.CommandDispatch(cmd, args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr,
 			"ERROR: command %s failed: %s\n",
