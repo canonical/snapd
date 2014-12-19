@@ -9,7 +9,7 @@ import (
 func cmdVersions(args []string) (err error) {
 
 	// FIXME: find a way to call this prior to executing *any* of
-	// the commands (not just "versions").
+	// the commands (not just "update" and "versions").
 	root := os.Getuid() == 0
 
 	parts := []DataSource{new(Click), new(SystemImage)}

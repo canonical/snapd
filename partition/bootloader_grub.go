@@ -1,28 +1,31 @@
 package partition
 
+import (
+)
+
 type GrubBootLoader struct {
-    partition *Partition
+	partition *Partition
 }
 
 func (g *GrubBootLoader) Name() string {
-    return "grub"
+	return "grub"
 }
 
 func (g *GrubBootLoader) Installed() bool {
-    // crude heuristic
-    err := FileExists("/boot/grub/grub.cfg")
+	// crude heuristic
+	err := FileExists("/boot/grub/grub.cfg")
 
-    if err != nil {
-        return true
-    }
+	if err == nil {
+		return true
+	}
 
-    return false
+	return false
 }
 func (g *GrubBootLoader) ToggleRootFS(p *Partition) (err error) {
 	var args []string
 	var other *BlockDevice
 
-    g.partition = p
+	g.partition = p
 
 	other = p.OtherRootPartition()
 
@@ -41,30 +44,35 @@ func (g *GrubBootLoader) ToggleRootFS(p *Partition) (err error) {
 	// create the grub config
 	err = p.RunInChroot(args)
 
-    return err
+	return err
 }
 
 func (g *GrubBootLoader) GetAllBootVars() (vars []string, err error) {
-    // FIXME
-    return vars, err
+	// FIXME: 'grub-editenv list'
+	return vars, err
 }
 
 func (g *GrubBootLoader) GetBootVar(name string) (value string) {
-    // FIXME
-    return value
+	// FIXME: 'grub-editenv list|grep $name'
+	return value
 }
 
 func (g *GrubBootLoader) SetBootVar(name, value string) (err error) {
-    // FIXME
-    return err
+	// FIXME: 'grub-editenv set name=value'
+	return err
+}
+
+func (g *GrubBootLoader) ClearBootVar(name string) (currentValue string, err error) {
+	// FIXME: 'grub-editenv unset name'
+	return currentValue, err
 }
 
 func (g *GrubBootLoader) GetNextBootRootLabel() (label string) {
-    // FIXME
-    return label
+	// FIXME
+	return label
 }
 
 func (g *GrubBootLoader) GetCurrentBootRootLabel() (label string) {
-    // FIXME
-    return label
+	// FIXME
+	return label
 }

@@ -1,5 +1,11 @@
 package snappy
 
+import (
+	"fmt"
+
+	partition "launchpad.net/snappy-ubuntu/snappy-golang/partition"
+)
+
 type SystemImage struct {
 }
 
@@ -11,8 +17,12 @@ func (s *SystemImage) Versions() (versions []Part) {
 func (s *SystemImage) Update(parts []Part) (err error) {
 	parts = s.Versions()
 
+	p := partition.NewPartition()
+
 	// FIXME
-	return err
+	fmt.Println("FIXME: blindly toggle the rootfs for testing!")
+
+	return p.UpdateBootloader()
 }
 
 func (s *SystemImage) Rollback(parts []Part) (err error) {

@@ -7,6 +7,13 @@ import (
 	"launchpad.net/snappy-ubuntu/snappy-golang/snappy"
 )
 
+func init() {
+     if os.Getenv("SNAPPY_DEBUG") != "" {
+         // FIXME: need a global logger!
+         //setupLogger()
+     }
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: %s <command>\n", os.Args[0])
