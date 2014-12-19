@@ -21,10 +21,19 @@ func (g *GrubBootLoader) Installed() bool {
 
 	return false
 }
+
+// Make the Grub bootloader switch rootfs's.
+//
+// Approach:
+//
+// Re-install grub each time the rootfs is toggled by running
+// grub-install chrooted into the other rootfs. Also update the grub
+// configuration.
 func (g *GrubBootLoader) ToggleRootFS(p *Partition) (err error) {
 	var args []string
 	var other *BlockDevice
 
+	// save
 	g.partition = p
 
 	other = p.OtherRootPartition()
