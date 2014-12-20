@@ -90,23 +90,36 @@ func (u *UbootBootLoader) ToggleRootFS(p *Partition) (err error) {
 
 	var lines []string
 
-	// update the u-boot configuration
-	if lines, err = readLines(uenvPath); err != nil {
-		return err
-	}
+	err = FileExists(uenvPath)
 
-	var new []string
+    // If the file exists, update it. Otherwise create it.
+    // The file _should_ always exist, but since it's on a writable
+    // partition, it's possible the admin removed it by mistake. So
+    // recreate to allow the system to boot!
+    if err == nil {
 
-	for _, line := range lines {
-		if strings.HasPrefix(line, rootfsVar) {
-			// toggle
-			line = fmt.Sprintf("%s=%s", rootfsVar, label)
-		}
+        if lines, err = readLines(uenvPath); err != nil {
+            return err
+        }
 
-		new = append(new, line)
-	}
+        var new []string
 
-	lines = new
+        // update the u-boot configuration
+        for _, line := range lines {
+            if strings.HasPrefix(line, rootfsVar) {
+                // toggle
+                line = fmt.Sprintf("%s=%s", rootfsVar, label)
+            }
+
+            new = append(new, line)
+        }
+
+        lines = new
+
+    } else {
+        line := fmt.Sprintf("%s=%s", rootfsVar, label)
+        lines = append(lines, line)
+    }
 
 	tmpFile := fmt.Sprintf("%s.NEW", uenvPath)
 
