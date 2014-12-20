@@ -71,12 +71,6 @@ const DEFAULT_CACHE_DIR = "/writable/cache"
 // diretory.
 const MOUNT_TARGET = "system"
 
-const (
-	SYSTEM_TYPE_SINGLE_ROOT = iota
-	SYSTEM_TYPE_DUAL_ROOT
-	systemTypeCount
-)
-
 // File creation mode used when any directories are created
 const DIR_MODE = 0750
 
@@ -215,7 +209,7 @@ func setup_signal_handler() {
 }
 
 // Constructor
-func NewPartition() *Partition {
+func New() *Partition {
 	p := new(Partition)
 
 	p.ReadOnlyRoot = false
@@ -279,8 +273,8 @@ func (p *Partition) RootPartitions() []BlockDevice {
 	return roots
 }
 
-// Return true if system uses A/B partitions
-func (p *Partition) UsesABPartitions() bool {
+// Return true if system has dual root partitions.
+func (p *Partition) DualRootPartitions() bool {
 	return len(p.RootPartitions()) == 2
 }
 
@@ -733,6 +727,10 @@ func (p *Partition) UpdateBootloader() (err error) {
 }
 
 func (p *Partition) ToggleBootloaderRootfs() (err error) {
+
+	if p.DualRootPartitions() != true {
+		return errors.New("System is not dual root")
+	}
 
 	if err = p.MountOtherRootfs(); err != nil {
 		return err

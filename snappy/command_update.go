@@ -1,11 +1,17 @@
 package snappy
 
 import (
-    "os"
-    "errors"
+	"os"
+	"errors"
 )
 
 func cmdUpdate(args []string) (err error) {
+
+	if len(args) < 1 {
+		return errors.New("missing part")
+	}
+
+	// FIXME: validate supplied part!
 
 	// FIXME: find a way to call this prior to executing *any* of
 	// the commands (not just this "update" and "versions").

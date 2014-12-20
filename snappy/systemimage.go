@@ -17,10 +17,10 @@ func (s *SystemImage) Versions() (versions []Part) {
 func (s *SystemImage) Update(parts []Part) (err error) {
 	parts = s.Versions()
 
-	p := partition.NewPartition()
+	p := partition.New()
 
 	// FIXME
-	fmt.Println("FIXME: blindly toggle the rootfs for testing!")
+	fmt.Println("FIXME: blindly toggling rootfs for testing!")
 
 	return p.UpdateBootloader()
 }
