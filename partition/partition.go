@@ -583,6 +583,7 @@ func (p *Partition) BindmountRequiredFilesystems() (err error) {
 
 	boot = p.BootPartition()
 	if boot == nil {
+		// No separate boot partition
 		return nil
 	}
 
@@ -623,12 +624,12 @@ func (p *Partition) RunInChroot(args []string) (err error) {
 }
 
 func (p *Partition) HandleBootloader() (err error) {
-	bootloader := DetermineBootLoader()
+	bootloader := DetermineBootLoader(p)
 
 	// FIXME: use logger
 	fmt.Printf("FIXME: HandleBootloader: bootloader=%s\n", bootloader.Name())
 
-	return bootloader.ToggleRootFS(p)
+	return bootloader.ToggleRootFS()
 }
 
 func (p *Partition) GetOtherVersion() (version SystemImageVersion, err error) {

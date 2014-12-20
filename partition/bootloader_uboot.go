@@ -4,20 +4,20 @@ import (
 	"fmt"
 	"strings"
 	"os"
-	"os/exec"
 	"bufio"
 	"path/filepath"
+	"errors"
 )
 
-type UbootBootLoader struct {
+type Uboot struct {
 	partition *Partition
 }
 
-func (u *UbootBootLoader) Name() string {
+func (u *Uboot) Name() string {
 	return "u-boot"
 }
 
-func (u *UbootBootLoader) Installed() bool {
+func (u *Uboot) Installed() bool {
 	// crude heuristic
 	err := FileExists("/boot/uEnv.txt")
 
@@ -38,10 +38,7 @@ func (u *UbootBootLoader) Installed() bool {
 // - Copy the "other" rootfs's kernel+initrd to the boot partition,
 //   renaming them in the process to ensure the next boot uses the
 //   correct versions.
-func (u *UbootBootLoader) ToggleRootFS(p *Partition) (err error) {
-
-	// save
-	u.partition = p
+func (u *Uboot) ToggleRootFS() (err error) {
 
 	// the main uEnv.txt u-boot config file sources this snappy
 	// boot-specific config file.
@@ -52,39 +49,55 @@ func (u *UbootBootLoader) ToggleRootFS(p *Partition) (err error) {
 	// rootfs_var := "snappy_rootfs_label"
 	rootfsVar := "snappy_ab"
 
-	files, err := filepath.Glob(fmt.Sprintf("%s/boot/vmlinuz-*", p.MountTarget))
+	files, err := filepath.Glob(fmt.Sprintf("%s/boot/vmlinuz-*",
+		u.partition.MountTarget))
 	if err != nil {
 		return err
+	}
+
+	if len(files) < 1 {
+		return errors.New("Failed to find kernel")
 	}
 
 	kernel := files[0]
 
-	files, err = filepath.Glob(fmt.Sprintf("%s/boot/initrd.img-*", p.MountTarget))
+	files, err = filepath.Glob(fmt.Sprintf("%s/boot/initrd.img-*",
+		u.partition.MountTarget))
 	if err != nil {
 		return err
 	}
 
+	if len(files) < 1 {
+		return errors.New("Failed to find initrd")
+	}
+
 	initrd := files[0]
 
-	other := p.OtherRootPartition()
+	other := u.partition.OtherRootPartition()
 	label := other.name
-	dir := label[len(label)-1]
+
+	// FIXME: current naming scheme
+	dir := string(label[len(label)-1])
+	// FIXME: preferred naming scheme
+	//dir := label
 
 	bootDir := fmt.Sprintf("/boot/%s", dir)
 
-	uenvPath := fmt.Sprintf("%s/%s", bootDir, snappy_uenv_file)
+	if err = os.MkdirAll(bootDir, DIR_MODE); err != nil {
+		return err
+	}
+
+	uenvPath := fmt.Sprintf("/boot/%s", snappy_uenv_file)
 	kernelDest := fmt.Sprintf("%s/vmlinuz", bootDir)
 	initrdDest := fmt.Sprintf("%s/initrd.img", bootDir)
 
 	// install the kernel into the boot partition
-	cmd := exec.Command("/bin/cp", kernel, kernelDest)
-	if err = cmd.Run(); err != nil {
+	if err = RunCommand([]string{"/bin/cp", kernel, kernelDest}); err != nil {
 		return err
 	}
 
 	// install the initramfs into the boot partition
-	cmd = exec.Command("/bin/cp", initrd, initrdDest)
-	if err = cmd.Run(); err != nil {
+	if err = RunCommand([]string{"/bin/cp", initrd, initrdDest}); err != nil {
 		return err
 	}
 
@@ -92,34 +105,43 @@ func (u *UbootBootLoader) ToggleRootFS(p *Partition) (err error) {
 
 	err = FileExists(uenvPath)
 
-    // If the file exists, update it. Otherwise create it.
-    // The file _should_ always exist, but since it's on a writable
-    // partition, it's possible the admin removed it by mistake. So
-    // recreate to allow the system to boot!
-    if err == nil {
+	name := rootfsVar
 
-        if lines, err = readLines(uenvPath); err != nil {
-            return err
-        }
+	// FIXME: current
+	value := dir
+	// FIXME: preferred
+	//value := label
 
-        var new []string
+	// If the file exists, update it. Otherwise create it.
+	// The file _should_ always exist, but since it's on a writable
+	// partition, it's possible the admin removed it by mistake. So
+	// recreate to allow the system to boot!
+	if err == nil {
+		if lines, err = readLines(uenvPath); err != nil {
+			return err
+		}
 
-        // update the u-boot configuration
-        for _, line := range lines {
-            if strings.HasPrefix(line, rootfsVar) {
-                // toggle
-                line = fmt.Sprintf("%s=%s", rootfsVar, label)
-            }
+		var new []string
 
-            new = append(new, line)
-        }
+		// update the u-boot configuration. Note that we only
+		// change the line we care about. Remember - this file
+		// is writable so might contain comments added by the
+		// admin, etc.
+		for _, line := range lines {
+			if strings.HasPrefix(line, rootfsVar) {
+				// toggle
+				line = fmt.Sprintf("%s=%s", name, value)
+			}
 
-        lines = new
+			new = append(new, line)
+		}
 
-    } else {
-        line := fmt.Sprintf("%s=%s", rootfsVar, label)
-        lines = append(lines, line)
-    }
+		lines = new
+
+	} else {
+		line := fmt.Sprintf("%s=%s", name, value)
+		lines = append(lines, line)
+	}
 
 	tmpFile := fmt.Sprintf("%s.NEW", uenvPath)
 
@@ -127,40 +149,40 @@ func (u *UbootBootLoader) ToggleRootFS(p *Partition) (err error) {
 		return err
 	}
 
-        // atomic update
-        if err = os.Rename(tmpFile, uenvPath); err != nil {
+	// atomic update
+	if err = os.Rename(tmpFile, uenvPath); err != nil {
 		return err
 	}
 
 	return err
 }
 
-func (u *UbootBootLoader) GetAllBootVars() (vars []string, err error) {
+func (u *Uboot) GetAllBootVars() (vars []string, err error) {
 	// FIXME
 	return vars, err
 }
 
-func (u *UbootBootLoader) GetBootVar(name string) (value string) {
+func (u *Uboot) GetBootVar(name string) (value string) {
 	// FIXME
 	return value
 }
 
-func (u *UbootBootLoader) SetBootVar(name, value string) (err error) {
+func (u *Uboot) SetBootVar(name, value string) (err error) {
 	// FIXME
 	return err
 }
 
-func (u *UbootBootLoader) ClearBootVar(name string) (currentValue string, err error) {
+func (u *Uboot) ClearBootVar(name string) (currentValue string, err error) {
 	// FIXME
 	return currentValue, err
 }
 
-func (u *UbootBootLoader) GetNextBootRootLabel() (label string) {
+func (u *Uboot) GetNextBootRootLabel() (label string) {
 	// FIXME
 	return label
 }
 
-func (u *UbootBootLoader) GetCurrentBootRootLabel() (label string) {
+func (u *Uboot) GetCurrentBootRootLabel() (label string) {
 	// FIXME
 	return label
 }

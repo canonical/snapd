@@ -15,7 +15,7 @@ type BootLoader interface {
 
 	// Switch bootloader configuration so that the "other" root
 	// filesystem partitions will be used on next boot.
-	ToggleRootFS(p *Partition) (error)
+	ToggleRootFS() (error)
 
 	// Retrieve a list of all bootloader name=value pairs set
 	// by this program.
@@ -40,9 +40,9 @@ type BootLoader interface {
 	GetCurrentBootRootLabel() (string)
 }
 
-func DetermineBootLoader() BootLoader {
+func DetermineBootLoader(p *Partition) BootLoader {
 
-	bootloaders := []BootLoader{new(GrubBootLoader), new(UbootBootLoader)}
+	bootloaders := []BootLoader{&Grub{p}, &Uboot{p}}
 
 	for _, b := range bootloaders {
 		if b.Installed() == true {
