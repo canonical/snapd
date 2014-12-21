@@ -52,6 +52,12 @@ var signal_handler_registered bool = false
 // ubuntu-device-flash(1).
 const WRITABLE_PARTITION_LABEL = "writable"
 
+const (
+	SYSTEM_TYPE_SINGLE_ROOT = iota // in-place upgrades
+	SYSTEM_TYPE_DUAL_ROOT          // A/B partitions
+	systemTypeCount
+)
+
 // Name of primary root filesystem partition label as created by
 // ubuntu-device-flash(1).
 const ROOTFS_A_LABEL = "system-a"
@@ -100,6 +106,8 @@ type Partition struct {
 	ReadOnlyRoot bool
 
 	MountTarget string
+
+	SystemType int
 }
 
 type BlockDevice struct {
@@ -257,6 +265,18 @@ func (p *Partition) getPartitionDetails() {
 		fmt.Fprintf(os.Stderr, "Failed to query partitions")
 		os.Exit(1)
 	}
+
+	p.determineSystemType()
+}
+
+func (p *Partition) determineSystemType() {
+	if p.DualRootPartitions() == true {
+		p.SystemType = SYSTEM_TYPE_DUAL_ROOT
+	} else if p.SinglelRootPartition() == true {
+		p.SystemType = SYSTEM_TYPE_SINGLE_ROOT
+	} else {
+		panic("Unrecognised system type")
+	}
 }
 
 // Return array of BlockDevices representing available root partitions
@@ -273,9 +293,16 @@ func (p *Partition) RootPartitions() []BlockDevice {
 	return roots
 }
 
-// Return true if system has dual root partitions.
+// Return true if system has dual root partitions configured in the
+// expected manner for a snappy system.
 func (p *Partition) DualRootPartitions() bool {
 	return len(p.RootPartitions()) == 2
+}
+
+// Return true if system has a single root partition configured in the
+// expected manner for a snappy system.
+func (p *Partition) SinglelRootPartition() bool {
+	return len(p.RootPartitions()) == 1
 }
 
 // Return pointer to BlockDevice representing writable partition
@@ -724,7 +751,14 @@ func (p *Partition) GetOtherVersionDetail() (detail string, err error) {
 }
 
 func (p *Partition) UpdateBootloader() (err error) {
-	return p.ToggleBootloaderRootfs()
+	switch p.SystemType {
+	case SYSTEM_TYPE_SINGLE_ROOT:
+		// NOP
+		return nil
+	case SYSTEM_TYPE_DUAL_ROOT:
+		return p.ToggleBootloaderRootfs()
+	default: panic("BUG: unhandled SystemType")
+	}
 }
 
 func (p *Partition) ToggleBootloaderRootfs() (err error) {
