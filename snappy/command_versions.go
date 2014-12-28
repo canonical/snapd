@@ -12,7 +12,7 @@ func cmdVersions(args []string) (err error) {
 	// the commands (not just "update" and "versions").
 	root := os.Getuid() == 0
 
-	parts := []DataSource{new(Click), new(SystemImage)}
+	parts := []DataSource{new(Click), NewSystemImage()}
 
 	for _, part := range parts {
 		if part.Privileged() == true && root != true {
