@@ -162,9 +162,9 @@ func (u *Uboot) GetAllBootVars() (vars []string, err error) {
 	return vars, err
 }
 
-func (u *Uboot) GetBootVar(name string) (value string) {
+func (u *Uboot) GetBootVar(name string) (value string, err error) {
 	// FIXME
-	return value
+	return value, err
 }
 
 func (u *Uboot) SetBootVar(name, value string) (err error) {

@@ -1,6 +1,16 @@
 package partition
 
 import (
+	"strings"
+)
+
+const (
+	BOOTLOADER_GRUB_CONFIG_FILE = "/boot/grub/grub.cfg"
+	BOOTLOADER_GRUB_ENV_FILE = "/boot/grub/grubenv"
+
+	BOOTLOADER_GRUB_ENV_CMD = "/usr/bin/grub-editenv"
+	BOOTLOADER_GRUB_INSTALL_CMD = "/usr/sbin/grub-install"
+	BOOTLOADER_GRUB_UPDATE_CMD = "/usr/sbin/update-grub"
 )
 
 type Grub struct {
@@ -13,7 +23,7 @@ func (g *Grub) Name() string {
 
 func (g *Grub) Installed() bool {
 	// crude heuristic
-	err := FileExists("/boot/grub/grub.cfg")
+	err := FileExists(BOOTLOADER_GRUB_CONFIG_FILE)
 
 	if err == nil {
 		return true
@@ -36,7 +46,7 @@ func (g *Grub) ToggleRootFS() (err error) {
 
 	other = g.partition.OtherRootPartition()
 
-	args = append(args, "grub-install")
+	args = append(args, BOOTLOADER_GRUB_INSTALL_CMD)
 	args = append(args, other.parentName)
 
 	// install grub
@@ -46,7 +56,7 @@ func (g *Grub) ToggleRootFS() (err error) {
 	}
 
 	args = nil
-	args = append(args, "update-grub")
+	args = append(args, BOOTLOADER_GRUB_UPDATE_CMD)
 
 	// create the grub config
 	err = g.partition.RunInChroot(args)
@@ -55,23 +65,67 @@ func (g *Grub) ToggleRootFS() (err error) {
 }
 
 func (g *Grub) GetAllBootVars() (vars []string, err error) {
-	// FIXME: 'grub-editenv list'
-	return vars, err
+	var args []string
+
+	args = append(args, BOOTLOADER_GRUB_ENV_CMD)
+	args = append(args, BOOTLOADER_GRUB_ENV_FILE)
+	args = append(args, "list")
+
+	return GetCommandStdout(args)
 }
 
-func (g *Grub) GetBootVar(name string) (value string) {
-	// FIXME: 'grub-editenv list|grep $name'
-	return value
+func (g *Grub) GetBootVar(name string) (value string, err error) {
+	var values []string
+
+	// Grub doesn't provide a get verb, so retrieve all values and
+	// search for the required variable ourselves.
+	values, err = g.GetAllBootVars()
+
+	if err != nil {
+		return value, err
+	}
+
+	for _, line := range values {
+		if line == "" || line == "\n" {
+			continue
+		}
+
+		fields := strings.Split(string(line), "=")
+		if fields[0] == name {
+			return fields[1], err
+		}
+	}
+
+	return value, err
 }
 
 func (g *Grub) SetBootVar(name, value string) (err error) {
-	// FIXME: 'grub-editenv set name=value'
-	return err
+	var args []string
+
+	args = append(args, BOOTLOADER_GRUB_ENV_CMD)
+	args = append(args, BOOTLOADER_GRUB_ENV_FILE)
+	args = append(args, "set")
+	args = append(args, name)
+	args = append(args, value)
+
+	return RunCommand(args)
 }
 
+// FIXME: not atomic - need locking around snappy command!
 func (g *Grub) ClearBootVar(name string) (currentValue string, err error) {
-	// FIXME: 'grub-editenv unset name'
-	return currentValue, err
+	var args []string
+
+	currentValue, err = g.GetBootVar(name)
+	if err != nil {
+		return currentValue, err
+	}
+
+	args = append(args, BOOTLOADER_GRUB_ENV_CMD)
+	args = append(args, BOOTLOADER_GRUB_ENV_FILE)
+	args = append(args, "unset")
+	args = append(args, name)
+
+	return currentValue, RunCommand(args)
 }
 
 func (g *Grub) GetNextBootRootLabel() (label string) {

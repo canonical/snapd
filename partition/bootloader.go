@@ -15,7 +15,7 @@ type BootLoader interface {
 
 	// Switch bootloader configuration so that the "other" root
 	// filesystem partitions will be used on next boot.
-	ToggleRootFS() (error)
+	ToggleRootFS() error
 
 	// Retrieve a list of all bootloader name=value pairs set
 	// by this program.
@@ -23,7 +23,7 @@ type BootLoader interface {
 
 	// Return the value of the specified bootloader variable, or "" if
 	// not set.
-	GetBootVar(name string) (string)
+	GetBootVar(name string) (string, error)
 
 	// Set the variable specified by name to the given value
 	SetBootVar(name, value string) (error)
@@ -42,7 +42,7 @@ type BootLoader interface {
 
 func DetermineBootLoader(p *Partition) BootLoader {
 
-	bootloaders := []BootLoader{&Grub{p}, &Uboot{p}}
+	bootloaders := []BootLoader{&Uboot{p}, &Grub{p}}
 
 	for _, b := range bootloaders {
 		if b.Installed() == true {
