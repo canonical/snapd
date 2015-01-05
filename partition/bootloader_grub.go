@@ -129,11 +129,11 @@ func (g *Grub) ClearBootVar(name string) (currentValue string, err error) {
 }
 
 func (g *Grub) GetNextBootRootLabel() (label string) {
-	// FIXME
+	// FIXME: call GetBootVar("snappy_ab")
 	return label
 }
 
 func (g *Grub) GetCurrentBootRootLabel() (label string) {
-	// FIXME
+	// FIXME: lsblk output
 	return label
 }
