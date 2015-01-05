@@ -358,6 +358,7 @@ func (p *Partition) GetRequiredChrootMounts() []string {
 }
 
 // Run the command specified by args
+// FIXME: put into utils package
 func RunCommand(args []string) (err error) {
 	if len(args) == 0 {
 		return errors.New("ERROR: no command specified")
@@ -382,6 +383,7 @@ func RunCommand(args []string) (err error) {
 }
 
 // Run command specified by args and return array of output lines.
+// FIXME: put into utils package
 func GetCommandStdout(args []string) (output []string, err error) {
 
 	// FIXME: use logger
@@ -403,6 +405,7 @@ func GetCommandStdout(args []string) (output []string, err error) {
 }
 
 // Return nil if given path exists.
+// FIXME: put into utils package
 func FileExists(path string) (err error) {
 	_, err = os.Stat(path)
 

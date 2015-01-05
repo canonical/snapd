@@ -9,6 +9,14 @@ import (
 	"errors"
 )
 
+const (
+	BOOTLOADER_UBOOT_CONFIG_FILE = "/boot/uEnv.txt"
+
+	// the main uEnv.txt u-boot config file sources this snappy
+	// boot-specific config file.
+	BOOTLOADER_UBOOT_ENV_FILE = "snappy-system.txt"
+)
+
 type Uboot struct {
 	partition *Partition
 }
@@ -19,7 +27,7 @@ func (u *Uboot) Name() string {
 
 func (u *Uboot) Installed() bool {
 	// crude heuristic
-	err := FileExists("/boot/uEnv.txt")
+	err := FileExists(BOOTLOADER_UBOOT_CONFIG_FILE)
 
 	if err == nil {
 		return true
@@ -40,38 +48,21 @@ func (u *Uboot) Installed() bool {
 //   correct versions.
 func (u *Uboot) ToggleRootFS() (err error) {
 
-	// the main uEnv.txt u-boot config file sources this snappy
-	// boot-specific config file.
-	snappy_uenv_file := "snappy-system.txt"
+	var kernel string
+	var initrd string
 
 	// u-boot variable used to denote which rootfs to boot from
 	// FIXME: preferred new name
 	// rootfs_var := "snappy_rootfs_label"
 	rootfsVar := "snappy_ab"
 
-	files, err := filepath.Glob(fmt.Sprintf("%s/boot/vmlinuz-*",
-		u.partition.MountTarget))
-	if err != nil {
+	if kernel, err = u.getKernel(); err != nil {
 		return err
 	}
 
-	if len(files) < 1 {
-		return errors.New("Failed to find kernel")
-	}
-
-	kernel := files[0]
-
-	files, err = filepath.Glob(fmt.Sprintf("%s/boot/initrd.img-*",
-		u.partition.MountTarget))
-	if err != nil {
+	if initrd, err = u.getInitrd(); err != nil {
 		return err
 	}
-
-	if len(files) < 1 {
-		return errors.New("Failed to find initrd")
-	}
-
-	initrd := files[0]
 
 	other := u.partition.OtherRootPartition()
 	label := other.name
@@ -87,7 +78,6 @@ func (u *Uboot) ToggleRootFS() (err error) {
 		return err
 	}
 
-	uenvPath := fmt.Sprintf("/boot/%s", snappy_uenv_file)
 	kernelDest := fmt.Sprintf("%s/vmlinuz", bootDir)
 	initrdDest := fmt.Sprintf("%s/initrd.img", bootDir)
 
@@ -103,7 +93,7 @@ func (u *Uboot) ToggleRootFS() (err error) {
 
 	var lines []string
 
-	err = FileExists(uenvPath)
+	err = FileExists(BOOTLOADER_UBOOT_ENV_FILE)
 
 	name := rootfsVar
 
@@ -113,22 +103,23 @@ func (u *Uboot) ToggleRootFS() (err error) {
 	//value := label
 
 	// If the file exists, update it. Otherwise create it.
+	//
 	// The file _should_ always exist, but since it's on a writable
 	// partition, it's possible the admin removed it by mistake. So
 	// recreate to allow the system to boot!
 	if err == nil {
-		if lines, err = readLines(uenvPath); err != nil {
+		if lines, err = readLines(BOOTLOADER_UBOOT_ENV_FILE); err != nil {
 			return err
 		}
 
 		var new []string
 
 		// update the u-boot configuration. Note that we only
-		// change the line we care about. Remember - this file
+		// change the lines we care about. Remember - this file
 		// is writable so might contain comments added by the
 		// admin, etc.
 		for _, line := range lines {
-			if strings.HasPrefix(line, rootfsVar) {
+			if strings.HasPrefix(line, fmt.Sprintf("%s=", rootfsVar)) {
 				// toggle
 				line = fmt.Sprintf("%s=%s", name, value)
 			}
@@ -143,38 +134,69 @@ func (u *Uboot) ToggleRootFS() (err error) {
 		lines = append(lines, line)
 	}
 
-	tmpFile := fmt.Sprintf("%s.NEW", uenvPath)
-
-	if err := writeLines(lines, tmpFile); err != nil {
-		return err
-	}
-
-	// atomic update
-	if err = os.Rename(tmpFile, uenvPath); err != nil {
-		return err
-	}
-
-	return err
+	// Rewrite the file
+	return atomicFileUpdate(BOOTLOADER_UBOOT_ENV_FILE, lines)
 }
 
 func (u *Uboot) GetAllBootVars() (vars []string, err error) {
-	// FIXME
-	return vars, err
+	return getNameValuePairs(BOOTLOADER_UBOOT_ENV_FILE)
 }
 
 func (u *Uboot) GetBootVar(name string) (value string, err error) {
-	// FIXME
+	var vars []string
+
+	vars, err = u.GetAllBootVars()
+
+	if err != nil {
+		return value, err
+	}
+
+	for _, pair := range vars {
+		fields := strings.Split(string(pair), "=")
+
+		if fields[0] == name {
+			return fields[1], err
+		}
+	}
+
 	return value, err
 }
 
 func (u *Uboot) SetBootVar(name, value string) (err error) {
-	// FIXME
-	return err
+	var lines []string
+
+	if lines, err = readLines(BOOTLOADER_UBOOT_ENV_FILE); err != nil {
+		return err
+	}
+
+	new := fmt.Sprintf("%s=%s", name, value)
+	lines = append(lines, new)
+
+	// Rewrite the file
+	return atomicFileUpdate(BOOTLOADER_UBOOT_ENV_FILE, lines)
 }
 
 func (u *Uboot) ClearBootVar(name string) (currentValue string, err error) {
-	// FIXME
-	return currentValue, err
+	var saved []string
+	var lines []string
+
+	// XXX: note that we do not call GetAllBootVars() since that
+	// strips all comments (which we want to retain).
+	if lines, err = readLines(BOOTLOADER_UBOOT_ENV_FILE); err != nil {
+		return currentValue, err
+	}
+
+	for _, line := range lines {
+		fields := strings.Split(string(line), "=")
+		if fields[0] == name {
+			currentValue = fields[1]
+		} else {
+			saved = append(saved, line)
+		}
+	}
+
+	// Rewrite the file, excluding the name to clear
+	return currentValue, atomicFileUpdate(BOOTLOADER_UBOOT_ENV_FILE, saved)
 }
 
 func (u *Uboot) GetNextBootRootLabel() (label string) {
@@ -187,6 +209,7 @@ func (u *Uboot) GetCurrentBootRootLabel() (label string) {
 	return label
 }
 
+// FIXME: put into utils package
 func readLines(path string) (lines []string, err error) {
 
 	file, err := os.Open(path)
@@ -205,6 +228,7 @@ func readLines(path string) (lines []string, err error) {
 	return lines, scanner.Err()
 }
 
+// FIXME: put into utils package
 func writeLines(lines []string, path string) (err error) {
 
 	file, err := os.Create(path);
@@ -223,4 +247,87 @@ func writeLines(lines []string, path string) (err error) {
 		}
 	}
 	return writer.Flush()
+}
+
+// Returns name=value entries from the specified file, removing all
+// blank lines and comments.
+func getNameValuePairs(file string) (vars []string, err error) {
+	var lines []string
+
+	if lines, err = readLines(file); err != nil {
+		return vars, err
+	}
+
+	for _, line := range lines {
+		// ignore blank lines
+		if line == "" || line == "\n" {
+			continue
+		}
+
+		// ignore comment lines
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		if strings.Index(line, "=") != -1 {
+			vars = append(vars, line)
+		}
+	}
+
+	return vars, err
+}
+
+// Returns full path to current kernel
+func (u *Uboot) getKernel() (path string, err error) {
+
+	files, err := filepath.Glob(fmt.Sprintf("%s/boot/vmlinuz-*",
+		u.partition.MountTarget))
+
+	if err != nil {
+		return path, err
+	}
+
+	if len(files) < 1 {
+		return path, errors.New("Failed to find kernel")
+	}
+
+	path = files[0]
+
+	return path, err
+}
+
+// Returns full path to current initrd / initramfs
+func (u *Uboot) getInitrd() (path string, err error) {
+
+	files, err := filepath.Glob(fmt.Sprintf("%s/boot/initrd.img-*",
+		u.partition.MountTarget))
+
+	if err != nil {
+		return path, err
+	}
+
+	if len(files) < 1 {
+		return path, errors.New("Failed to find initrd")
+	}
+
+	path = files[0]
+
+	return path, err
+}
+
+// Write lines to file atomically
+// FIXME: put into utils package
+func atomicFileUpdate(file string, lines []string) (err error) {
+	tmpFile := fmt.Sprintf("%s.NEW", file)
+
+	if err := writeLines(lines, tmpFile); err != nil {
+		return err
+	}
+
+	// atomic update
+	if err = os.Rename(tmpFile, file); err != nil {
+		return err
+	}
+
+	return err
 }
