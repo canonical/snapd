@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"text/tabwriter"
 	"os"
+	"text/tabwriter"
 )
 
 const SEARCH_URI = "https://search.apps.ubuntu.com/api/v1/search?q=%s"
-
 
 func cmdSearch(args []string) error {
 	search_term := args[0]

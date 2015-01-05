@@ -8,10 +8,10 @@ import (
 )
 
 func init() {
-     if os.Getenv("SNAPPY_DEBUG") != "" {
-         // FIXME: need a global logger!
-         //setupLogger()
-     }
+	if os.Getenv("SNAPPY_DEBUG") != "" {
+		// FIXME: need a global logger!
+		//setupLogger()
+	}
 }
 
 func main() {

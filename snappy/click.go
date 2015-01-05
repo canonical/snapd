@@ -1,7 +1,6 @@
 package snappy
 
 type Click struct {
-	DataSource
 }
 
 func (c *Click) Versions() (versions []Part) {

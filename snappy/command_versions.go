@@ -1,27 +1,25 @@
 package snappy
 
 import (
-	"errors"
 	"fmt"
 	"os"
+	"text/tabwriter"
 )
 
 func cmdVersions(args []string) (err error) {
 
-	// FIXME: find a way to call this prior to executing *any* of
-	// the commands (not just "update" and "versions").
-	root := os.Getuid() == 0
-
-	parts := []DataSource{new(Click), NewSystemImage()}
-
-	for _, part := range parts {
-		if part.Privileged() == true && root != true {
-			return errors.New("must be root")
-		}
+	m := NewMetaRepository()
+	installed, err := m.GetInstalled()
+	if err != nil {
+		return err
 	}
 
-	// FIXME: implement
-	fmt.Printf("FIXME: implement versions\n")
+	w := tabwriter.NewWriter(os.Stdout, 5, 3, 1, ' ', 0)
+	fmt.Fprintln(w, "Name\tVersion\tSummary\t")
+	for _, part := range installed {
+		fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
+	}
+	w.Flush()
 
 	return err
 }
