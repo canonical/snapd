@@ -6,6 +6,13 @@ const (
 	bootloaderTypeCount
 )
 
+const (
+	// bootloader variable used to denote which rootfs to boot from
+	// FIXME: preferred new name
+	// BOOTLOADER_UBOOT_ROOTFS_VAR = "snappy_rootfs_label"
+	BOOTLOADER_ROOTFS_VAR = "snappy_ab"
+)
+
 type BootLoader interface {
 	// Name of the bootloader
 	Name() string
@@ -33,11 +40,11 @@ type BootLoader interface {
 
 	// Return the name of the partition label corresponding to the
 	// rootfs that will be used on next boot.
-	GetNextBootRootLabel() (string)
+	GetNextBootRootLabel() (string, error)
 
 	// Return the name of the partition label for the currently booted
 	// root filesystem.
-	GetCurrentBootRootLabel() (string)
+	GetCurrentBootRootLabel() (string, error)
 }
 
 func DetermineBootLoader(p *Partition) BootLoader {

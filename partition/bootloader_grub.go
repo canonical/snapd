@@ -60,8 +60,14 @@ func (g *Grub) ToggleRootFS() (err error) {
 
 	// create the grub config
 	err = g.partition.RunInChroot(args)
+	if err != nil {
+		return err
+	}
 
-	return err
+	// Record the partition that will be used for next boot. This
+	// isn't necessary for correct operation under grub, but allows
+	// us to query the next boot device easily.
+	return g.SetBootVar(BOOTLOADER_ROOTFS_VAR, other.name)
 }
 
 func (g *Grub) GetAllBootVars() (vars []string, err error) {
@@ -128,12 +134,11 @@ func (g *Grub) ClearBootVar(name string) (currentValue string, err error) {
 	return currentValue, RunCommand(args)
 }
 
-func (g *Grub) GetNextBootRootLabel() (label string) {
-	// FIXME: call GetBootVar("snappy_ab")
-	return label
+func (g *Grub) GetNextBootRootLabel() (label string, err error) {
+	return g.GetBootVar(BOOTLOADER_ROOTFS_VAR)
 }
 
-func (g *Grub) GetCurrentBootRootLabel() (label string) {
+func (g *Grub) GetCurrentBootRootLabel() (label string, err error) {
 	// FIXME: lsblk output
-	return label
+	return label, err
 }

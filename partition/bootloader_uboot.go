@@ -16,10 +16,6 @@ const (
 	// boot-specific config file.
 	BOOTLOADER_UBOOT_ENV_FILE = "snappy-system.txt"
 
-	// u-boot variable used to denote which rootfs to boot from
-	// FIXME: preferred new name
-	// BOOTLOADER_UBOOT_ROOTFS_VAR = "snappy_rootfs_label"
-	BOOTLOADER_UBOOT_ROOTFS_VAR = "snappy_ab"
 )
 
 type Uboot struct {
@@ -95,7 +91,7 @@ func (u *Uboot) ToggleRootFS() (err error) {
 
 	err = FileExists(BOOTLOADER_UBOOT_ENV_FILE)
 
-	name := BOOTLOADER_UBOOT_ROOTFS_VAR
+	name := BOOTLOADER_ROOTFS_VAR
 
 	// FIXME: current
 	value := dir
@@ -114,7 +110,7 @@ func (u *Uboot) ToggleRootFS() (err error) {
 
 		var new []string
 
-		// update the u-boot configuration. Note that we only
+		// Update the u-boot configuration. Note that we only
 		// change the lines we care about. Remember - this file
 		// is writable so might contain comments added by the
 		// admin, etc.
@@ -199,21 +195,20 @@ func (u *Uboot) ClearBootVar(name string) (currentValue string, err error) {
 	return currentValue, atomicFileUpdate(BOOTLOADER_UBOOT_ENV_FILE, saved)
 }
 
-func (u *Uboot) GetNextBootRootLabel() (label string) {
+func (u *Uboot) GetNextBootRootLabel() (label string, err error) {
 	var value string
-	var err error
 
-	if value, err = u.GetBootVar(BOOTLOADER_UBOOT_ROOTFS_VAR); err != nil {
+	if value, err = u.GetBootVar(BOOTLOADER_ROOTFS_VAR); err != nil {
 		// should never happen
-		return label
+		return label, err
 	}
 
-	return value
+	return value, err
 }
 
-func (u *Uboot) GetCurrentBootRootLabel() (label string) {
+func (u *Uboot) GetCurrentBootRootLabel() (label string, err error) {
 	// FIXME: lsblk output
-	return label
+	return label, err
 }
 
 // FIXME: put into utils package
