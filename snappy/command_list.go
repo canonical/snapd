@@ -6,7 +6,7 @@ import (
 	"text/tabwriter"
 )
 
-func cmdVersions(args []string) (err error) {
+func cmdList(args []string) (err error) {
 
 	m := NewMetaRepository()
 	installed, err := m.GetInstalled()

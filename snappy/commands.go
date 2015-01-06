@@ -6,5 +6,5 @@ func registerCommands() {
 	registerCommand("install", "install a snap package", cmdInstall)
 	registerCommand("search", "search for snap packages", cmdSearch)
 	registerCommand("update", "update installed parts", cmdUpdate)
-	registerCommand("versions", "display versions of installed parts", cmdVersions)
+	registerCommand("list", "display versions of installed parts", cmdList)
 }
