@@ -273,7 +273,7 @@ func getNameValuePairs(file string) (vars []string, err error) {
 	return vars, err
 }
 
-// Returns full path to current kernel
+// Returns full path to kernel on the other partition
 func (u *Uboot) getKernel() (path string, err error) {
 
 	files, err := filepath.Glob(fmt.Sprintf("%s/boot/vmlinuz-*",
@@ -292,7 +292,7 @@ func (u *Uboot) getKernel() (path string, err error) {
 	return path, err
 }
 
-// Returns full path to current initrd / initramfs
+// Returns full path to initrd / initramfs on the other partition
 func (u *Uboot) getInitrd() (path string, err error) {
 
 	files, err := filepath.Glob(fmt.Sprintf("%s/boot/initrd.img-*",
