@@ -137,8 +137,3 @@ func (g *Grub) ClearBootVar(name string) (currentValue string, err error) {
 func (g *Grub) GetNextBootRootLabel() (label string, err error) {
 	return g.GetBootVar(BOOTLOADER_ROOTFS_VAR)
 }
-
-func (g *Grub) GetCurrentBootRootLabel() (label string, err error) {
-	// FIXME: lsblk output
-	return label, err
-}

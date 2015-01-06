@@ -206,11 +206,6 @@ func (u *Uboot) GetNextBootRootLabel() (label string, err error) {
 	return value, err
 }
 
-func (u *Uboot) GetCurrentBootRootLabel() (label string, err error) {
-	// FIXME: lsblk output
-	return label, err
-}
-
 // FIXME: put into utils package
 func readLines(path string) (lines []string, err error) {
 

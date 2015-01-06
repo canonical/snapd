@@ -39,12 +39,10 @@ type BootLoader interface {
 	ClearBootVar(name string) (currentValue string, err error)
 
 	// Return the name of the partition label corresponding to the
-	// rootfs that will be used on next boot.
+	// rootfs that will be used on _next_ boot. Note that there is
+	// no corresponding GetCurrentBootRootLabel() since that is
+	// handled via BlockDevice.
 	GetNextBootRootLabel() (string, error)
-
-	// Return the name of the partition label for the currently booted
-	// root filesystem.
-	GetCurrentBootRootLabel() (string, error)
 }
 
 func DetermineBootLoader(p *Partition) BootLoader {
