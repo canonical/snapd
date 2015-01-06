@@ -1,12 +1,12 @@
 package partition
 
 import (
-	"fmt"
-	"strings"
-	"os"
 	"bufio"
-	"path/filepath"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 const (
@@ -15,7 +15,6 @@ const (
 	// the main uEnv.txt u-boot config file sources this snappy
 	// boot-specific config file.
 	BOOTLOADER_UBOOT_ENV_FILE = "snappy-system.txt"
-
 )
 
 type Uboot struct {
@@ -228,7 +227,7 @@ func readLines(path string) (lines []string, err error) {
 // FIXME: put into utils package
 func writeLines(lines []string, path string) (err error) {
 
-	file, err := os.Create(path);
+	file, err := os.Create(path)
 
 	if err != nil {
 		return err

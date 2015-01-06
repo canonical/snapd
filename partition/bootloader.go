@@ -33,7 +33,7 @@ type BootLoader interface {
 	GetBootVar(name string) (string, error)
 
 	// Set the variable specified by name to the given value
-	SetBootVar(name, value string) (error)
+	SetBootVar(name, value string) error
 
 	// Remove the specified variable
 	ClearBootVar(name string) (currentValue string, err error)

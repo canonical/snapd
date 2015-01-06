@@ -69,7 +69,6 @@ func (s *SystemImagePart) Config(configuration []byte) (err error) {
 	return err
 }
 
-
 // Result of UpdateAvailableStatus() call
 type updateStatus struct {
 	is_available      bool
@@ -112,9 +111,9 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 
 func (s *SystemImageRepository) GetInstalled() (parts []Part, err error) {
 	s.dbusInfo()
-	
+
 	parts = append(parts, &SystemImagePart{s.info})
-	
+
 	return parts, err
 }
 
@@ -129,8 +128,8 @@ func (s *SystemImageRepository) dbusInfo() (err error) {
 	if err != nil {
 		return err
 	}
-	
-	return  nil
+
+	return nil
 }
 
 // Check to see if there is a system image update available

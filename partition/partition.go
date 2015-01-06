@@ -366,18 +366,18 @@ func RunCommand(args []string) (err error) {
 
 	// FIXME: use logger
 	/*
-	if debug == true {
+		if debug == true {
 
-		log.debug('running: {}'.format(args))
-	}
+			log.debug('running: {}'.format(args))
+		}
 	*/
 
 	if out, err := exec.Command(args[0], args[1:]...).CombinedOutput(); err != nil {
 		cmdline := strings.Join(args, " ")
 		return errors.New(fmt.Sprintf("Failed to run command '%s': %s (%s)",
-		cmdline,
-		out,
-		err))
+			cmdline,
+			out,
+			err))
 	}
 	return nil
 }
@@ -388,10 +388,10 @@ func GetCommandStdout(args []string) (output []string, err error) {
 
 	// FIXME: use logger
 	/*
-	if debug == true {
+		if debug == true {
 
-		log.debug('running: {}'.format(args))
-	}
+			log.debug('running: {}'.format(args))
+		}
 	*/
 
 	bytes, err := exec.Command(args[0], args[1:]...).Output()
@@ -565,8 +565,8 @@ func (p *Partition) MakeMountPoint() (err error) {
 		// So in read-only mode, use a temporary mountpoint name to
 		// avoid colliding with a running system update.
 		p.MountTarget = fmt.Sprintf("%s-ro-%d",
-		p.MountTarget,
-		os.Getpid())
+			p.MountTarget,
+			os.Getpid())
 	}
 
 	return os.MkdirAll(p.MountTarget, DIR_MODE)
@@ -623,8 +623,8 @@ func (p *Partition) BindmountRequiredFilesystems() (err error) {
 	}
 
 	target := path.Clean(fmt.Sprintf("%s/%s",
-	p.MountTarget,
-	boot.mountpoint))
+		p.MountTarget,
+		boot.mountpoint))
 	err = BindMount(boot.mountpoint, target)
 	if err != nil {
 		return err
@@ -760,7 +760,8 @@ func (p *Partition) UpdateBootloader() (err error) {
 		return nil
 	case SYSTEM_TYPE_DUAL_ROOT:
 		return p.ToggleBootloaderRootfs()
-	default: panic("BUG: unhandled SystemType")
+	default:
+		panic("BUG: unhandled SystemType")
 	}
 }
 

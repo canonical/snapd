@@ -54,6 +54,6 @@ func (m *MetaRepository) GetInstalled() (parts []Part, err error) {
 			parts = append(parts, part)
 		}
 	}
-	
+
 	return parts, err
 }

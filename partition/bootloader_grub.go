@@ -6,11 +6,11 @@ import (
 
 const (
 	BOOTLOADER_GRUB_CONFIG_FILE = "/boot/grub/grub.cfg"
-	BOOTLOADER_GRUB_ENV_FILE = "/boot/grub/grubenv"
+	BOOTLOADER_GRUB_ENV_FILE    = "/boot/grub/grubenv"
 
-	BOOTLOADER_GRUB_ENV_CMD = "/usr/bin/grub-editenv"
+	BOOTLOADER_GRUB_ENV_CMD     = "/usr/bin/grub-editenv"
 	BOOTLOADER_GRUB_INSTALL_CMD = "/usr/sbin/grub-install"
-	BOOTLOADER_GRUB_UPDATE_CMD = "/usr/sbin/update-grub"
+	BOOTLOADER_GRUB_UPDATE_CMD  = "/usr/sbin/update-grub"
 )
 
 type Grub struct {
