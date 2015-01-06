@@ -10,10 +10,12 @@ type CmdInstall struct {
 var cmdInstall CmdInstall
 
 func init() {
-	Parser.AddCommand("install",
+	cmd, _ := Parser.AddCommand("install",
 	"Install a snap package",
 	"Install a snap package",
 	&cmdInstall)
+
+	cmd.Aliases = append(cmd.Aliases, "in")
 }
 
 func (x *CmdInstall) Execute(args []string) (err error) {

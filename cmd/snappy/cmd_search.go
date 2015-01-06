@@ -10,10 +10,12 @@ type CmdSearch struct {
 var cmdSearch CmdSearch
 
 func init() {
-	Parser.AddCommand("search",
+	cmd, _ := Parser.AddCommand("search",
 	"Search for packages to install",
 	"Query the store for available packages",
 	&cmdSearch)
+
+	cmd.Aliases = append(cmd.Aliases, "se")
 }
 
 func (x *CmdSearch) Execute(args []string) (err error) {

@@ -10,10 +10,12 @@ type CmdBuild struct {
 var cmdBuild CmdBuild
 
 func init() {
-	Parser.AddCommand("build",
+	cmd, _ := Parser.AddCommand("build",
 	"Build a package",
 	"Creates a snapp package",
 	&cmdBuild)
+
+	cmd.Aliases = append(cmd.Aliases, "bu")
 }
 
 func (x *CmdBuild) Execute(args []string) (err error) {

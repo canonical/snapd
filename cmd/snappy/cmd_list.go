@@ -11,10 +11,12 @@ type CmdList struct {
 var cmdList CmdList
 
 func init() {
-	Parser.AddCommand("list",
+	cmd, _ := Parser.AddCommand("list",
 	"List installed parts",
 	"Shows all installed parts",
 	&cmdList)
+
+	cmd.Aliases = append(cmd.Aliases, "li")
 }
 
 func (x *CmdList) Execute(args []string) (err error) {
