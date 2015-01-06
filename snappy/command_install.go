@@ -73,7 +73,7 @@ func extractYamlFromSnap(snap string) ([]byte, error) {
 	return nil, errors.New("meta/package.yaml not found")
 }
 
-func cmdInstall(args []string) error {
+func CmdInstall(args []string) error {
 	snap := args[0]
 
 	// FIXME: Not used atm
