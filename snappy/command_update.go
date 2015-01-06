@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-func cmdUpdate(args []string) (err error) {
+func CmdUpdate(args []string) (err error) {
 
 	if len(args) < 1 {
 		return errors.New("missing part")

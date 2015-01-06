@@ -11,7 +11,7 @@ import (
 
 const SEARCH_URI = "https://search.apps.ubuntu.com/api/v1/search?q=%s"
 
-func cmdSearch(args []string) error {
+func CmdSearch(args []string) error {
 	search_term := args[0]
 
 	url := fmt.Sprintf(SEARCH_URI, search_term)

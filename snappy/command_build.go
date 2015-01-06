@@ -7,7 +7,7 @@ import (
 	"os/exec"
 )
 
-func cmdBuild(args []string) error {
+func CmdBuild(args []string) error {
 
 	dir := args[0]
 
