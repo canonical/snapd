@@ -11,9 +11,9 @@ var cmdUpdate CmdUpdate
 
 func init() {
 	cmd, _ := Parser.AddCommand("update",
-	"Update all installed parts",
-	"Ensures system is running with latest parts",
-	&cmdUpdate)
+		"Update all installed parts",
+		"Ensures system is running with latest parts",
+		&cmdUpdate)
 
 	cmd.Aliases = append(cmd.Aliases, "up")
 }

@@ -1,7 +1,6 @@
 package snappy
 
-import (
-)
+import ()
 
 func CmdBooted(args []string) (err error) {
 

@@ -11,9 +11,9 @@ var cmdSearch CmdSearch
 
 func init() {
 	cmd, _ := Parser.AddCommand("search",
-	"Search for packages to install",
-	"Query the store for available packages",
-	&cmdSearch)
+		"Search for packages to install",
+		"Query the store for available packages",
+		&cmdSearch)
 
 	cmd.Aliases = append(cmd.Aliases, "se")
 }

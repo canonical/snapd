@@ -11,9 +11,9 @@ var cmdInstall CmdInstall
 
 func init() {
 	cmd, _ := Parser.AddCommand("install",
-	"Install a snap package",
-	"Install a snap package",
-	&cmdInstall)
+		"Install a snap package",
+		"Install a snap package",
+		&cmdInstall)
 
 	cmd.Aliases = append(cmd.Aliases, "in")
 }

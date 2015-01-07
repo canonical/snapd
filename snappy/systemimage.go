@@ -70,7 +70,6 @@ func (s *SystemImagePart) MarkBootSuccessful() (err error) {
 	return p.MarkBootSuccessful()
 }
 
-
 func (s *SystemImagePart) Uninstall() (err error) {
 	return err
 }

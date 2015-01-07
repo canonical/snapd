@@ -11,9 +11,9 @@ var cmdBuild CmdBuild
 
 func init() {
 	cmd, _ := Parser.AddCommand("build",
-	"Build a package",
-	"Creates a snapp package",
-	&cmdBuild)
+		"Build a package",
+		"Creates a snapp package",
+		&cmdBuild)
 
 	cmd.Aliases = append(cmd.Aliases, "bu")
 }

@@ -19,7 +19,7 @@ const (
 
 	// Initial and final values
 	BOOTLOADER_BOOTMODE_VAR_START_VALUE = "try"
-	BOOTLOADER_BOOTMODE_VAR_END_VALUE = "default"
+	BOOTLOADER_BOOTMODE_VAR_END_VALUE   = "default"
 )
 
 type BootLoader interface {

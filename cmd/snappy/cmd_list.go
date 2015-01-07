@@ -12,9 +12,9 @@ var cmdList CmdList
 
 func init() {
 	cmd, _ := Parser.AddCommand("list",
-	"List installed parts",
-	"Shows all installed parts",
-	&cmdList)
+		"List installed parts",
+		"Shows all installed parts",
+		&cmdList)
 
 	cmd.Aliases = append(cmd.Aliases, "li")
 }

@@ -106,10 +106,10 @@ func (u *Uboot) ToggleRootFS() (err error) {
 	if err == nil {
 		changes := []ConfigFileChange{
 			ConfigFileChange{Name: BOOTLOADER_ROOTFS_VAR,
-					 Value: value,
+				Value: value,
 			},
 			ConfigFileChange{Name: BOOTLOADER_BOOTMODE_VAR,
-					 Value: BOOTLOADER_BOOTMODE_VAR_START_VALUE,
+				Value: BOOTLOADER_BOOTMODE_VAR_START_VALUE,
 			},
 		}
 
@@ -305,10 +305,10 @@ func (u *Uboot) getInitrd() (path string, err error) {
 
 func (u *Uboot) MarkCurrentBootSuccessful() (err error) {
 	changes := []ConfigFileChange{
-			ConfigFileChange{Name: BOOTLOADER_BOOTMODE_VAR,
-					 Value: BOOTLOADER_BOOTMODE_VAR_END_VALUE,
-			},
-		}
+		ConfigFileChange{Name: BOOTLOADER_BOOTMODE_VAR,
+			Value: BOOTLOADER_BOOTMODE_VAR_END_VALUE,
+		},
+	}
 
 	return modifyNameValueFile(BOOTLOADER_UBOOT_ENV_FILE, changes)
 }
