@@ -2,33 +2,33 @@ package snappy
 
 import (
 	"fmt"
-	"runtime"
-	"testing"
 	"log"
 	"reflect"
+	"runtime"
+	"testing"
 
 	dbus "launchpad.net/go-dbus/v1"
 )
 
 type DBusService struct {
-	conn *dbus.Connection
+	conn    *dbus.Connection
 	msgChan chan *dbus.Message
 
 	BusInterface string
-	BusPath string
-	BusName string
+	BusPath      string
+	BusName      string
 
 	actor interface{}
 }
 
 func NewDBusService(conn *dbus.Connection, interf, path, name string, actor interface{}) *DBusService {
 	s := &DBusService{
-		conn: conn,
-		msgChan: make(chan *dbus.Message),
+		conn:         conn,
+		msgChan:      make(chan *dbus.Message),
 		BusInterface: interf,
-		BusPath: path,
-		BusName: name,
-		actor: actor}
+		BusPath:      path,
+		BusName:      name,
+		actor:        actor}
 	runtime.SetFinalizer(s, cleanupDBusService)
 
 	nameOnBus := conn.RequestName(name, dbus.NameFlagDoNotQueue)
@@ -50,15 +50,20 @@ func (s *DBusService) watchBus() {
 			methodName := msg.Member
 			m := reflect.ValueOf(s.actor).MethodByName(methodName)
 			if !m.IsValid() {
-				log.Println(fmt.Sprintf("no method found %v %v ", methodName, s.actor))
-				// FIXME: send dbus error back
+				reply = dbus.NewErrorMessage(msg, "method-not-found", fmt.Sprintf("method %s not found for %s", methodName, s.actor))
+				break
 			}
 			allArgs := msg.AllArgs()
 			params := make([]reflect.Value, len(allArgs))
-			for i, arg := range(allArgs) {
+			for i, arg := range allArgs {
 				params[i] = reflect.ValueOf(arg)
 			}
 			ret := m.Call(params)
+			errVal := ret[len(ret)-1]
+			if !errVal.IsNil() {
+				reply = dbus.NewErrorMessage(msg, "method-returned-error", fmt.Sprintf("%v", reflect.ValueOf(errVal)))
+				break
+			}
 			reply = dbus.NewMethodReturnMessage(msg)
 			for i := 0; i < len(ret)-1; i++ {
 				reply.AppendArgs(ret[i].Interface())
@@ -77,13 +82,10 @@ func cleanupDBusService(s *DBusService) {
 	close(s.msgChan)
 }
 
-
 type MockSystemImage struct {
 }
 
 func (m *MockSystemImage) Information() (map[string]string, error) {
-	log.Println("Information()")
-
 	info := make(map[string]string)
 	info["current_build_number"] = "314"
 	return info, nil
