@@ -331,7 +331,9 @@ func atomicFileUpdate(file string, lines []string) (err error) {
 }
 
 // Rewrite the specified file, applying the specified set of changes.
-// Lines not in the changes slice are left alone.
+// Lines not in the changes slice are left alone. If the file did not
+// originally contain lines matching the Name element of each change a
+// new line is added to the file containing the full Name=Value entry.
 // FIXME: put into utils package
 func modifyNameValueFile(file string, changes []ConfigFileChange) (err error) {
 	var lines []string
