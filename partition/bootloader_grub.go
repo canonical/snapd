@@ -64,6 +64,12 @@ func (g *Grub) ToggleRootFS() (err error) {
 		return err
 	}
 
+	err = g.SetBootVar(BOOTLOADER_BOOTMODE_VAR,
+			   BOOTLOADER_BOOTMODE_VAR_VALUE)
+	if err != nil {
+		return err
+	}
+
 	// Record the partition that will be used for next boot. This
 	// isn't necessary for correct operation under grub, but allows
 	// us to query the next boot device easily.

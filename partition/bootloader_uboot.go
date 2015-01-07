@@ -90,8 +90,6 @@ func (u *Uboot) ToggleRootFS() (err error) {
 
 	err = FileExists(BOOTLOADER_UBOOT_ENV_FILE)
 
-	name := BOOTLOADER_ROOTFS_VAR
-
 	// FIXME: current
 	value := dir
 	// FIXME: preferred
@@ -114,9 +112,15 @@ func (u *Uboot) ToggleRootFS() (err error) {
 		// is writable so might contain comments added by the
 		// admin, etc.
 		for _, line := range lines {
-			if strings.HasPrefix(line, fmt.Sprintf("%s=", name)) {
+			if strings.HasPrefix(line,fmt.Sprintf("%s=", BOOTLOADER_ROOTFS_VAR)) {
 				// toggle
-				line = fmt.Sprintf("%s=%s", name, value)
+				line = fmt.Sprintf("%s=%s", BOOTLOADER_ROOTFS_VAR, value)
+			}
+
+			if strings.HasPrefix(line, fmt.Sprintf("%s=", BOOTLOADER_BOOTMODE_VAR)) {
+				// toggle
+				line = fmt.Sprintf("%s=%s", BOOTLOADER_BOOTMODE_VAR,
+							    BOOTLOADER_BOOTMODE_VAR_VALUE)
 			}
 
 			new = append(new, line)
@@ -125,7 +129,7 @@ func (u *Uboot) ToggleRootFS() (err error) {
 		lines = new
 
 	} else {
-		line := fmt.Sprintf("%s=%s", name, value)
+		line := fmt.Sprintf("%s=%s", BOOTLOADER_ROOTFS_VAR, value)
 		lines = append(lines, line)
 	}
 

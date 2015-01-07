@@ -11,6 +11,12 @@ const (
 	// FIXME: preferred new name
 	// BOOTLOADER_UBOOT_ROOTFS_VAR = "snappy_rootfs_label"
 	BOOTLOADER_ROOTFS_VAR = "snappy_ab"
+
+	// bootloader variable used to determine if boot was successful.
+	// Set to 'try' initially, and then changed to 'regular' by the
+	// system when the boot reaches the required sequence point.
+	BOOTLOADER_BOOTMODE_VAR = "snappy_mode"
+	BOOTLOADER_BOOTMODE_VAR_VALUE = "try"
 )
 
 type BootLoader interface {
