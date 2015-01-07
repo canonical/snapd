@@ -128,6 +128,21 @@ func (s *SystemImageRepository) Information() (err error) {
 	return nil
 }
 
+func (s *SystemImageRepository) GetSetting(key string) (v string, err error) {
+	callName := "GetSetting"
+	msg, err := s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName, key)
+	if err != nil {
+		return v, err
+	}
+
+	err = msg.Args(&v)
+	if err != nil {
+		return v, err
+	}
+
+	return v, nil
+}
+
 // Check to see if there is a system image update available
 func (s *SystemImageRepository) checkForUpdate() (err error) {
 	var updatesAvailableStatusWatch *dbus.SignalWatch

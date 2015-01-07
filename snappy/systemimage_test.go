@@ -53,8 +53,11 @@ func (s *DBusService) watchBus() {
 				log.Println(fmt.Sprintf("no method found %v %v ", methodName, s.actor))
 				// FIXME: send dbus error back
 			}
-			// FIXME: generate params based on msg
-			params := make([]reflect.Value, 0)
+			allArgs := msg.AllArgs()
+			params := make([]reflect.Value, len(allArgs))
+			for i, arg := range(allArgs) {
+				params[i] = reflect.ValueOf(arg)
+			}
 			ret := m.Call(params)
 			reply = dbus.NewMethodReturnMessage(msg)
 			for i := 0; i < len(ret)-1; i++ {
@@ -86,6 +89,10 @@ func (m *MockSystemImage) Information() (map[string]string, error) {
 	return info, nil
 }
 
+func (m *MockSystemImage) GetSetting(key string) (string, error) {
+	return fmt.Sprintf("value-of: %s", key), nil
+}
+
 func TestInfo(t *testing.T) {
 	conn, err := dbus.Connect(dbus.SessionBus)
 	if err != nil {
@@ -110,5 +117,12 @@ func TestInfo(t *testing.T) {
 	if s.info["current_build_number"] != "314" {
 		t.Error("Mock call did not work")
 	}
-	log.Println(s.info)
+
+	value, err := s.GetSetting("all-cool")
+	if err != nil {
+		t.Error("GetSettings returned a error")
+	}
+	if value != "value-of: all-cool" {
+		t.Error("Mock call with arguments did not work")
+	}
 }
