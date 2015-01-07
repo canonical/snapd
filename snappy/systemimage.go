@@ -91,10 +91,6 @@ func (s *SystemImageRepository) Description() string {
 	return "SystemImageRepository"
 }
 
-func (s *SystemImageRepository) Credentials() string {
-	return ""
-}
-
 func (s *SystemImageRepository) Search() (versions []Part, err error) {
 	// FIXME
 	return versions, err
@@ -110,14 +106,14 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 }
 
 func (s *SystemImageRepository) GetInstalled() (parts []Part, err error) {
-	s.dbusInfo()
+	s.Information()
 
 	parts = append(parts, &SystemImagePart{s.info})
 
 	return parts, err
 }
 
-func (s *SystemImageRepository) dbusInfo() (err error) {
+func (s *SystemImageRepository) Information() (err error) {
 	callName := "Information"
 	msg, err := s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
 	if err != nil {
@@ -177,7 +173,7 @@ func (s *SystemImageRepository) checkForUpdate() (err error) {
 			SYSTEM_IMAGE_TIMEOUT_SECS))
 	}
 
-	err = s.dbusInfo()
+	err = s.Information()
 	if err != nil {
 		return err
 	}
@@ -186,9 +182,9 @@ func (s *SystemImageRepository) checkForUpdate() (err error) {
 }
 
 // Hook up the connection to the system-image server
-func (s *SystemImageRepository) dbusSetup() (err error) {
+func (s *SystemImageRepository) dbusSetup(bus dbus.StandardBus) (err error) {
 
-	if s.connection, err = dbus.Connect(dbus.SystemBus); err != nil {
+	if s.connection, err = dbus.Connect(bus); err != nil {
 		return err
 	}
 
@@ -204,16 +200,18 @@ func (s *SystemImageRepository) dbusSetup() (err error) {
 }
 
 // Constructor
-func NewSystemImageRepository() *SystemImageRepository {
+func newSystemImageRepositoryForBus(bus dbus.StandardBus) *SystemImageRepository {
 	s := new(SystemImageRepository)
 
 	s.info = make(map[string]string)
 
-	if err := s.dbusSetup(); err != nil {
+	if err := s.dbusSetup(bus); err != nil {
 		panic(fmt.Sprintf("ERROR: %v", err))
 	}
-
 	return s
+}
+func NewSystemImageRepository() *SystemImageRepository {
+	return newSystemImageRepositoryForBus(dbus.SystemBus)
 }
 
 func (s *SystemImageRepository) Versions() (versions []Part) {
