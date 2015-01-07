@@ -16,7 +16,10 @@ const (
 	// Set to 'try' initially, and then changed to 'regular' by the
 	// system when the boot reaches the required sequence point.
 	BOOTLOADER_BOOTMODE_VAR = "snappy_mode"
-	BOOTLOADER_BOOTMODE_VAR_VALUE = "try"
+
+	// Initial and final values
+	BOOTLOADER_BOOTMODE_VAR_START_VALUE = "try"
+	BOOTLOADER_BOOTMODE_VAR_END_VALUE = "default"
 )
 
 type BootLoader interface {
@@ -27,7 +30,7 @@ type BootLoader interface {
 	Installed() bool
 
 	// Switch bootloader configuration so that the "other" root
-	// filesystem partitions will be used on next boot.
+	// filesystem partition will be used on next boot.
 	ToggleRootFS() error
 
 	// Retrieve a list of all bootloader name=value pairs set
@@ -49,6 +52,10 @@ type BootLoader interface {
 	// no corresponding GetCurrentBootRootLabel() since that is
 	// handled via BlockDevice.
 	GetNextBootRootLabel() (string, error)
+
+	// Update the bootloader configuration to mark the
+	// currently-booted rootfs as having booted successfully.
+	MarkCurrentBootSuccessful() error
 }
 
 func DetermineBootLoader(p *Partition) BootLoader {

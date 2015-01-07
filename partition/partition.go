@@ -84,6 +84,10 @@ const DIR_MODE = 0750
 // the system-image version on the other partition.
 const SYSTEM_IMAGE_CONFIG = "/etc/system-image/client.ini"
 
+var (
+	bootloaderError = errors.New("Unable to determine bootloader")
+)
+
 //--------------------------------------------------------------------
 // Globals
 
@@ -656,6 +660,10 @@ func (p *Partition) RunInChroot(args []string) (err error) {
 func (p *Partition) HandleBootloader() (err error) {
 	bootloader := DetermineBootLoader(p)
 
+	if bootloader == nil {
+		return bootloaderError
+	}
+
 	// FIXME: use logger
 	fmt.Printf("FIXME: HandleBootloader: bootloader=%s\n", bootloader.Name())
 
@@ -763,6 +771,15 @@ func (p *Partition) UpdateBootloader() (err error) {
 	default:
 		panic("BUG: unhandled SystemType")
 	}
+}
+
+func (p *Partition) MarkBootSuccessful() (err error) {
+	bootloader := DetermineBootLoader(p)
+	if bootloader == nil {
+		return bootloaderError
+	}
+
+	return bootloader.MarkCurrentBootSuccessful()
 }
 
 func (p *Partition) ToggleBootloaderRootfs() (err error) {

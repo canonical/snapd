@@ -61,6 +61,16 @@ func (s *SystemImagePart) Install() (err error) {
 	return err
 }
 
+// Mark the *currently* booted rootfs as "good" (it booted :)
+// Note: Not part of the Part interface.
+func (s *SystemImagePart) MarkBootSuccessful() (err error) {
+
+	p := partition.New()
+
+	return p.MarkBootSuccessful()
+}
+
+
 func (s *SystemImagePart) Uninstall() (err error) {
 	return err
 }

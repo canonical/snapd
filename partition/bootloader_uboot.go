@@ -21,6 +21,11 @@ type Uboot struct {
 	partition *Partition
 }
 
+type ConfigFileChange struct {
+	Name  string
+	Value string
+}
+
 func (u *Uboot) Name() string {
 	return "u-boot"
 }
@@ -86,8 +91,6 @@ func (u *Uboot) ToggleRootFS() (err error) {
 		return err
 	}
 
-	var lines []string
-
 	err = FileExists(BOOTLOADER_UBOOT_ENV_FILE)
 
 	// FIXME: current
@@ -101,40 +104,25 @@ func (u *Uboot) ToggleRootFS() (err error) {
 	// partition, it's possible the admin removed it by mistake. So
 	// recreate to allow the system to boot!
 	if err == nil {
-		if lines, err = readLines(BOOTLOADER_UBOOT_ENV_FILE); err != nil {
-			return err
+		changes := []ConfigFileChange{
+			ConfigFileChange{Name: BOOTLOADER_ROOTFS_VAR,
+					 Value: value,
+			},
+			ConfigFileChange{Name: BOOTLOADER_BOOTMODE_VAR,
+					 Value: BOOTLOADER_BOOTMODE_VAR_START_VALUE,
+			},
 		}
 
-		var new []string
-
-		// Update the u-boot configuration. Note that we only
-		// change the lines we care about. Remember - this file
-		// is writable so might contain comments added by the
-		// admin, etc.
-		for _, line := range lines {
-			if strings.HasPrefix(line,fmt.Sprintf("%s=", BOOTLOADER_ROOTFS_VAR)) {
-				// toggle
-				line = fmt.Sprintf("%s=%s", BOOTLOADER_ROOTFS_VAR, value)
-			}
-
-			if strings.HasPrefix(line, fmt.Sprintf("%s=", BOOTLOADER_BOOTMODE_VAR)) {
-				// toggle
-				line = fmt.Sprintf("%s=%s", BOOTLOADER_BOOTMODE_VAR,
-							    BOOTLOADER_BOOTMODE_VAR_VALUE)
-			}
-
-			new = append(new, line)
-		}
-
-		lines = new
-
+		return modifyNameValueFile(BOOTLOADER_UBOOT_ENV_FILE, changes)
 	} else {
+		var lines []string
+
 		line := fmt.Sprintf("%s=%s", BOOTLOADER_ROOTFS_VAR, value)
 		lines = append(lines, line)
-	}
 
-	// Rewrite the file
-	return atomicFileUpdate(BOOTLOADER_UBOOT_ENV_FILE, lines)
+		// Rewrite the file
+		return atomicFileUpdate(BOOTLOADER_UBOOT_ENV_FILE, lines)
+	}
 }
 
 func (u *Uboot) GetAllBootVars() (vars []string, err error) {
@@ -315,7 +303,17 @@ func (u *Uboot) getInitrd() (path string, err error) {
 	return path, err
 }
 
-// Write lines to file atomically
+func (u *Uboot) MarkCurrentBootSuccessful() (err error) {
+	changes := []ConfigFileChange{
+			ConfigFileChange{Name: BOOTLOADER_BOOTMODE_VAR,
+					 Value: BOOTLOADER_BOOTMODE_VAR_END_VALUE,
+			},
+		}
+
+	return modifyNameValueFile(BOOTLOADER_UBOOT_ENV_FILE, changes)
+}
+
+// Write lines to file atomically. File does not have to preexist.
 // FIXME: put into utils package
 func atomicFileUpdate(file string, lines []string) (err error) {
 	tmpFile := fmt.Sprintf("%s.NEW", file)
@@ -330,4 +328,30 @@ func atomicFileUpdate(file string, lines []string) (err error) {
 	}
 
 	return err
+}
+
+// Rewrite the specified file, applying the specified set of changes.
+// Lines not in the changes slice are left alone.
+// FIXME: put into utils package
+func modifyNameValueFile(file string, changes []ConfigFileChange) (err error) {
+	var lines []string
+
+	if lines, err = readLines(file); err != nil {
+		return err
+	}
+
+	var new []string
+
+	for _, line := range lines {
+		for _, change := range changes {
+			if strings.HasPrefix(line, fmt.Sprintf("%s=", change.Name)) {
+				line = fmt.Sprintf("%s=%s", change.Name, change.Value)
+			}
+		}
+		new = append(new, line)
+	}
+
+	lines = new
+
+	return atomicFileUpdate(file, lines)
 }

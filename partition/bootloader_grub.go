@@ -65,7 +65,7 @@ func (g *Grub) ToggleRootFS() (err error) {
 	}
 
 	err = g.SetBootVar(BOOTLOADER_BOOTMODE_VAR,
-			   BOOTLOADER_BOOTMODE_VAR_VALUE)
+			   BOOTLOADER_BOOTMODE_VAR_START_VALUE)
 	if err != nil {
 		return err
 	}
@@ -142,4 +142,9 @@ func (g *Grub) ClearBootVar(name string) (currentValue string, err error) {
 
 func (g *Grub) GetNextBootRootLabel() (label string, err error) {
 	return g.GetBootVar(BOOTLOADER_ROOTFS_VAR)
+}
+
+func (g *Grub) MarkCurrentBootSuccessful() (err error) {
+	return g.SetBootVar(BOOTLOADER_BOOTMODE_VAR,
+			    BOOTLOADER_BOOTMODE_VAR_END_VALUE)
 }
