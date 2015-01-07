@@ -1,6 +1,7 @@
 package partition
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -117,8 +118,11 @@ func (g *Grub) SetBootVar(name, value string) (err error) {
 	args = append(args, BOOTLOADER_GRUB_ENV_CMD)
 	args = append(args, BOOTLOADER_GRUB_ENV_FILE)
 	args = append(args, "set")
-	args = append(args, name)
-	args = append(args, value)
+
+	// XXX: note that strings are not quoted since because
+	// RunCommand() does not use a shell and thus adding quotes
+	// stores them in the environment file (which is not desirable)
+	args = append(args, fmt.Sprintf("%s=%s", name, value))
 
 	return RunCommand(args)
 }
