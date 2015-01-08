@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -107,6 +108,8 @@ type SystemImageRepository struct {
 	connection   *dbus.Connection
 	info         map[string]string
 	UpdateStatus updateStatus
+
+	updateAvailableStatusChannel chan error
 }
 
 func (s *SystemImageRepository) Description() string {
@@ -189,12 +192,10 @@ func (s *SystemImageRepository) getSetting(key string) (v string, err error) {
 	return v, nil
 }
 
-// Check to see if there is a system image update available
-func (s *SystemImageRepository) checkForUpdate() (err error) {
-	var updatesAvailableStatusWatch *dbus.SignalWatch
+func (s *SystemImageRepository) startUpdateAvailableSignalWatcher() (err error) {
+	var updateAvailableStatusWatch *dbus.SignalWatch
 
-	// FIXME: the part below should be refactored into a new goroutine
-	updatesAvailableStatusWatch, err = s.connection.WatchSignal(&dbus.MatchRule{
+	updateAvailableStatusWatch, err = s.connection.WatchSignal(&dbus.MatchRule{
 		Type:      dbus.TypeSignal,
 		Sender:    SYSTEM_IMAGE_BUS_NAME,
 		Interface: SYSTEM_IMAGE_INTERFACE,
@@ -202,44 +203,46 @@ func (s *SystemImageRepository) checkForUpdate() (err error) {
 	if err != nil {
 		return err
 	}
-	defer updatesAvailableStatusWatch.Cancel()
+	runtime.SetFinalizer(updateAvailableStatusWatch, func(u *dbus.SignalWatch) {
+		u.Cancel()
+	})
 
-	// we need to setup a watch goroutine before we call "CheckForUpdate()"
-	// on the dbus if we don't do this we run into a race condition that
-	// CheckForUpdate() sends the signal when the
-	// updatesAvailableStatusWatch is not listening yet
-	ce := make(chan error)
 	go func() {
-		var err error
-		select {
-			// block, waiting for s-i to respond to the CheckForUpdate()
-			// method call
-		case msg := <-updatesAvailableStatusWatch.C:
-			err = msg.Args(&s.UpdateStatus.is_available,
-				&s.UpdateStatus.downloading,
-				&s.UpdateStatus.available_version,
-				&s.UpdateStatus.update_size,
-				&s.UpdateStatus.last_update_date,
-				&s.UpdateStatus.error_reason)
+		// keep the watch
+		for {
+			select {
+			case msg := <-updateAvailableStatusWatch.C:
+				err = msg.Args(&s.UpdateStatus.is_available,
+					&s.UpdateStatus.downloading,
+					&s.UpdateStatus.available_version,
+					&s.UpdateStatus.update_size,
+					&s.UpdateStatus.last_update_date,
+					&s.UpdateStatus.error_reason)
 
-		case <-time.After(SYSTEM_IMAGE_TIMEOUT_SECS * time.Second):
-			err = errors.New(fmt.Sprintf(
-				"ERROR: "+
-					"timed out after %d seconds "+
-					"waiting for system image server to respond",
-				SYSTEM_IMAGE_TIMEOUT_SECS))
+			case <-time.After(SYSTEM_IMAGE_TIMEOUT_SECS * time.Second):
+				err = errors.New(fmt.Sprintf(
+					"ERROR: "+
+						"timed out after %d seconds "+
+						"waiting for system image server to respond",
+					SYSTEM_IMAGE_TIMEOUT_SECS))
+			}
+			s.updateAvailableStatusChannel <- err
 		}
-		ce <- err
 	}()
+	return nil
+}
+
+// Check to see if there is a system image update available
+func (s *SystemImageRepository) checkForUpdate() (err error) {
 
 	callName := "CheckForUpdate"
 	_, err = s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
 	if err != nil {
 		return err
 	}
-	err = <- ce
-	// end-FIXME
-	
+	// wait until we get the signal
+	err = <-s.updateAvailableStatusChannel
+
 	err = s.information()
 	if err != nil {
 		return err
@@ -269,12 +272,17 @@ func (s *SystemImageRepository) dbusSetup(bus dbus.StandardBus) (err error) {
 // Constructor
 func newSystemImageRepositoryForBus(bus dbus.StandardBus) *SystemImageRepository {
 	s := new(SystemImageRepository)
-
 	s.info = make(map[string]string)
 
 	if err := s.dbusSetup(bus); err != nil {
 		panic(fmt.Sprintf("ERROR: %v", err))
 	}
+
+	s.updateAvailableStatusChannel = make(chan error)
+	if err := s.startUpdateAvailableSignalWatcher(); err != nil {
+		panic(fmt.Sprintf("ERROR: %v", err))
+	}
+
 	return s
 }
 func NewSystemImageRepository() *SystemImageRepository {
