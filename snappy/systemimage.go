@@ -21,6 +21,8 @@ const (
 
 type SystemImagePart struct {
 	info map[string]string
+
+	version string
 }
 
 func (s *SystemImagePart) Name() string {
@@ -28,7 +30,7 @@ func (s *SystemImagePart) Name() string {
 }
 
 func (s *SystemImagePart) Version() string {
-	return s.info["current_build_number"]
+	return s.version
 }
 
 func (s *SystemImagePart) Description() string {
@@ -61,6 +63,14 @@ func (s *SystemImagePart) Install() (err error) {
 	return err
 }
 
+func (s *SystemImagePart) Uninstall() (err error) {
+	return err
+}
+
+func (s *SystemImagePart) Config(configuration []byte) (err error) {
+	return err
+}
+
 // Mark the *currently* booted rootfs as "good" (it booted :)
 // Note: Not part of the Part interface.
 func (s *SystemImagePart) MarkBootSuccessful() (err error) {
@@ -68,14 +78,6 @@ func (s *SystemImagePart) MarkBootSuccessful() (err error) {
 	p := partition.New()
 
 	return p.MarkBootSuccessful()
-}
-
-func (s *SystemImagePart) Uninstall() (err error) {
-	return err
-}
-
-func (s *SystemImagePart) Config(configuration []byte) (err error) {
-	return err
 }
 
 // Result of UpdateAvailableStatus() call
@@ -110,6 +112,11 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 	if err = s.checkForUpdate(); err != nil {
 		return parts, err
 	}
+	// FIXME: use version number compare
+	if s.info["current_build_number"] != s.info["target_build_number"] {
+		version := s.info["target_build_number"]
+		parts = append(parts, &SystemImagePart{s.info, version})
+	}
 
 	return parts, err
 }
@@ -117,7 +124,8 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 func (s *SystemImageRepository) GetInstalled() (parts []Part, err error) {
 	s.Information()
 
-	parts = append(parts, &SystemImagePart{s.info})
+	version := s.info["current_build_number"]
+	parts = append(parts, &SystemImagePart{s.info, version})
 
 	return parts, err
 }

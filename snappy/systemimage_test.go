@@ -5,9 +5,9 @@ import (
 	"log"
 	"reflect"
 	"runtime"
-	"testing"
 
 	dbus "launchpad.net/go-dbus/v1"
+	. "launchpad.net/gocheck"
 )
 
 type DBusService struct {
@@ -58,7 +58,10 @@ func (s *DBusService) watchBus() {
 			for i, arg := range allArgs {
 				params[i] = reflect.ValueOf(arg)
 			}
+			// FIMXE: check if params match the method signature
 			ret := m.Call(params)
+			// FIXME: check we always get at least one value
+			//        back
 			errVal := ret[len(ret)-1]
 			if !errVal.IsNil() {
 				reply = dbus.NewErrorMessage(msg, "method-returned-error", fmt.Sprintf("%v", reflect.ValueOf(errVal)))
@@ -87,7 +90,8 @@ type MockSystemImage struct {
 
 func (m *MockSystemImage) Information() (map[string]string, error) {
 	info := make(map[string]string)
-	info["current_build_number"] = "314"
+	info["current_build_number"] = "2.71"
+	info["target_build_number"] = "3.14"
 	return info, nil
 }
 
@@ -95,36 +99,39 @@ func (m *MockSystemImage) GetSetting(key string) (string, error) {
 	return fmt.Sprintf("value-of: %s", key), nil
 }
 
-func TestInfo(t *testing.T) {
+type TestSuite struct{}
+
+func (sx *TestSuite) TestInfo(c *C) {
 	conn, err := dbus.Connect(dbus.SessionBus)
-	if err != nil {
-		t.Error("Failed to get session bus")
-	}
+	c.Assert(err, IsNil)
 	defer conn.Close()
 
 	mockSystemImage := new(MockSystemImage)
 	mockService := NewDBusService(conn, SYSTEM_IMAGE_INTERFACE, SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_BUS_NAME, mockSystemImage)
-	if mockService == nil {
-		t.Error("Can not create DBusService")
-	}
+	c.Assert(mockService, NotNil)
 
 	s := newSystemImageRepositoryForBus(dbus.SessionBus)
-	if s == nil {
-		t.Error("Can not create SystemImageRepository")
-	}
+	c.Assert(s, NotNil)
+
+	// low level dbus
 	err = s.Information()
-	if err != nil {
-		t.Error(fmt.Sprintf("call to Information created a error: %s", err))
-	}
-	if s.info["current_build_number"] != "314" {
-		t.Error("Mock call did not work")
-	}
+	c.Assert(err, IsNil)
+	c.Assert(s.info["current_build_number"], Equals, "2.71")
 
 	value, err := s.GetSetting("all-cool")
-	if err != nil {
-		t.Error("GetSettings returned a error")
-	}
-	if value != "value-of: all-cool" {
-		t.Error("Mock call with arguments did not work")
-	}
+	c.Assert(err, IsNil)
+	c.Assert(value, Equals, "value-of: all-cool")
+
+	// high level Repository interface
+	parts, err := s.GetUpdates()
+	c.Assert(err, IsNil)
+	c.Assert(len(parts), Equals, 1)
+	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
+	c.Assert(parts[0].Version(), Equals, "3.14")
+
+	parts, err = s.GetInstalled()
+	c.Assert(err, IsNil)
+	c.Assert(len(parts), Equals, 1)
+	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
+	c.Assert(parts[0].Version(), Equals, "2.71")
 }
