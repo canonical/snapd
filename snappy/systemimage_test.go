@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
-	"time"
 
 	. "gopkg.in/check.v1"
 	dbus "launchpad.net/go-dbus/v1"
@@ -138,15 +137,10 @@ func (m *MockSystemImage) CheckForUpdate() error {
 		"late_update_date", // laste update date
 		"")                 // error_reason
 
-	// we need to send with a small delay to ensure the watch channel
-	// is ready
-	go func() {
-		time.Sleep(250 * time.Millisecond)
-		if err := m.service.SendSignal(sig); err != nil {
-			// FIXME: do something with the error
-			panic(err)
-		}
-	}()
+	if err := m.service.SendSignal(sig); err != nil {
+		// FIXME: do something with the error
+		panic(err)
+	}
 	return nil
 }
 

@@ -193,6 +193,7 @@ func (s *SystemImageRepository) getSetting(key string) (v string, err error) {
 func (s *SystemImageRepository) checkForUpdate() (err error) {
 	var updatesAvailableStatusWatch *dbus.SignalWatch
 
+	// FIXME: the part below should be refactored into a new goroutine
 	updatesAvailableStatusWatch, err = s.connection.WatchSignal(&dbus.MatchRule{
 		Type:      dbus.TypeSignal,
 		Sender:    SYSTEM_IMAGE_BUS_NAME,
@@ -203,36 +204,42 @@ func (s *SystemImageRepository) checkForUpdate() (err error) {
 	}
 	defer updatesAvailableStatusWatch.Cancel()
 
+	// we need to setup a watch goroutine before we call "CheckForUpdate()"
+	// on the dbus if we don't do this we run into a race condition that
+	// CheckForUpdate() sends the signal when the
+	// updatesAvailableStatusWatch is not listening yet
+	ce := make(chan error)
+	go func() {
+		var err error
+		select {
+			// block, waiting for s-i to respond to the CheckForUpdate()
+			// method call
+		case msg := <-updatesAvailableStatusWatch.C:
+			err = msg.Args(&s.UpdateStatus.is_available,
+				&s.UpdateStatus.downloading,
+				&s.UpdateStatus.available_version,
+				&s.UpdateStatus.update_size,
+				&s.UpdateStatus.last_update_date,
+				&s.UpdateStatus.error_reason)
+
+		case <-time.After(SYSTEM_IMAGE_TIMEOUT_SECS * time.Second):
+			err = errors.New(fmt.Sprintf(
+				"ERROR: "+
+					"timed out after %d seconds "+
+					"waiting for system image server to respond",
+				SYSTEM_IMAGE_TIMEOUT_SECS))
+		}
+		ce <- err
+	}()
+
 	callName := "CheckForUpdate"
 	_, err = s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
 	if err != nil {
 		return err
 	}
-
-	select {
-	// block, waiting for s-i to respond to the CheckForUpdate()
-	// method call
-	case msg := <-updatesAvailableStatusWatch.C:
-		err = msg.Args(&s.UpdateStatus.is_available,
-			&s.UpdateStatus.downloading,
-			&s.UpdateStatus.available_version,
-			&s.UpdateStatus.update_size,
-			&s.UpdateStatus.last_update_date,
-			&s.UpdateStatus.error_reason)
-
-		if err != nil {
-			return err
-		}
-
-	case <-time.After(SYSTEM_IMAGE_TIMEOUT_SECS * time.Second):
-
-		return errors.New(fmt.Sprintf(
-			"ERROR: "+
-				"timed out after %d seconds "+
-				"waiting for system image server to respond",
-			SYSTEM_IMAGE_TIMEOUT_SECS))
-	}
-
+	err = <- ce
+	// end-FIXME
+	
 	err = s.information()
 	if err != nil {
 		return err
