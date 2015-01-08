@@ -5,10 +5,13 @@ import (
 	"log"
 	"reflect"
 	"runtime"
+	"testing"
 
 	dbus "launchpad.net/go-dbus/v1"
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
+// Hook up gocheck into the "go test" runner
+func Test(t *testing.T) { TestingT(t) }
 
 type DBusService struct {
 	conn    *dbus.Connection

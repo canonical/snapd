@@ -3,6 +3,7 @@ package snappy
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 	"crypto/sha256"
 	"encoding/base64"
@@ -29,8 +30,12 @@ type SystemImagePart struct {
 	isActive bool
 }
 
+const (
+	SYSTEM_IMAGE_PART_NAME = "ubuntu-core"
+)
+
 func (s *SystemImagePart) Name() string {
-	return "ubuntu-core"
+	return SYSTEM_IMAGE_PART_NAME
 }
 
 func (s *SystemImagePart) Version() string {
@@ -108,8 +113,22 @@ func (s *SystemImageRepository) Description() string {
 	return "SystemImageRepository"
 }
 
-func (s *SystemImageRepository) Search() (versions []Part, err error) {
-	// FIXME
+func (s *SystemImageRepository) getCurrentPart() Part {
+	s.information()
+	version := s.info["current_build_number"]
+	part := &SystemImagePart{info: s.info,
+		isActive: true,
+		isInstalled: true,
+		version: version}
+	return part
+}
+
+func (s *SystemImageRepository) Search(terms string) (versions []Part, err error) {
+	if strings.Contains(terms, SYSTEM_IMAGE_PART_NAME) {
+		s.information()
+		part := s.getCurrentPart()
+		versions = append(versions, part)
+	}
 	return versions, err
 }
 
@@ -133,12 +152,7 @@ func (s *SystemImageRepository) GetInstalled() (parts []Part, err error) {
 	s.information()
 
 	// current partition
-	version := s.info["current_build_number"]
-	parts = append(parts, &SystemImagePart{
-		info: s.info,
-		isActive: true,
-		isInstalled: true,
-		version: version})
+	parts = append(parts, s.getCurrentPart())
 
 	// FIXME: get data from B partition and fill it in here
 

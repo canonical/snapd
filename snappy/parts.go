@@ -27,7 +27,7 @@ type Repository interface {
 	Description() string
 
 	// action
-	Search() ([]Part, error)
+	Search(terms string) ([]Part, error)
 	GetUpdates() ([]Part, error)
 	GetInstalled() ([]Part, error)
 }

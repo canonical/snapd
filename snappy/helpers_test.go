@@ -10,12 +10,13 @@ import (
 	"strings"
 	"testing"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
-type TestSuite struct {}
+func Test2(t *testing.T) { TestingT(t) }
+type TestSuite2 struct {}
 
-func (ts *TestSuite) TestUnpack(c *C) {
+func (ts *TestSuite2) TestUnpack(c *C) {
 
 	// setup tmpdir
 	tmpdir, err := ioutil.TempDir(os.TempDir(), "meep")
