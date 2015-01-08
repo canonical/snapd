@@ -21,9 +21,10 @@ type Uboot struct {
 	partition *Partition
 }
 
+// Stores a Name and a Value to be added as a name=value pair in a file.
 type ConfigFileChange struct {
-	Name  string
-	Value string
+	Name     string
+	Value    string
 }
 
 func (u *Uboot) Name() string {
@@ -53,8 +54,8 @@ func (u *Uboot) Installed() bool {
 //   correct versions.
 func (u *Uboot) ToggleRootFS() (err error) {
 
-	var kernel string
-	var initrd string
+	var kernel       string
+	var initrd       string
 
 	if kernel, err = u.getKernel(); err != nil {
 		return err
@@ -91,8 +92,6 @@ func (u *Uboot) ToggleRootFS() (err error) {
 		return err
 	}
 
-	err = FileExists(BOOTLOADER_UBOOT_ENV_FILE)
-
 	// FIXME: current
 	value := dir
 	// FIXME: preferred
@@ -103,26 +102,16 @@ func (u *Uboot) ToggleRootFS() (err error) {
 	// The file _should_ always exist, but since it's on a writable
 	// partition, it's possible the admin removed it by mistake. So
 	// recreate to allow the system to boot!
-	if err == nil {
-		changes := []ConfigFileChange{
-			ConfigFileChange{Name: BOOTLOADER_ROOTFS_VAR,
-				Value: value,
-			},
-			ConfigFileChange{Name: BOOTLOADER_BOOTMODE_VAR,
-				Value: BOOTLOADER_BOOTMODE_VAR_START_VALUE,
-			},
-		}
-
-		return modifyNameValueFile(BOOTLOADER_UBOOT_ENV_FILE, changes)
-	} else {
-		var lines []string
-
-		line := fmt.Sprintf("%s=%s", BOOTLOADER_ROOTFS_VAR, value)
-		lines = append(lines, line)
-
-		// Rewrite the file
-		return atomicFileUpdate(BOOTLOADER_UBOOT_ENV_FILE, lines)
+	changes := []ConfigFileChange{
+		ConfigFileChange{Name: BOOTLOADER_ROOTFS_VAR,
+				  Value: value,
+		},
+		ConfigFileChange{Name: BOOTLOADER_BOOTMODE_VAR,
+				  Value: BOOTLOADER_BOOTMODE_VAR_START_VALUE,
+		},
 	}
+
+	return modifyNameValueFile(BOOTLOADER_UBOOT_ENV_FILE, changes)
 }
 
 func (u *Uboot) GetAllBootVars() (vars []string, err error) {
@@ -331,12 +320,15 @@ func atomicFileUpdate(file string, lines []string) (err error) {
 }
 
 // Rewrite the specified file, applying the specified set of changes.
-// Lines not in the changes slice are left alone. If the file did not
-// originally contain lines matching the Name element of each change a
-// new line is added to the file containing the full Name=Value entry.
+// Lines not in the changes slice are left alone.
+// If the original file does not contain any of the name entries (from
+// the corresponding ConfigFileChange objects), those entries are
+// appended to the file.
+//
 // FIXME: put into utils package
 func modifyNameValueFile(file string, changes []ConfigFileChange) (err error) {
 	var lines []string
+	var updated []ConfigFileChange
 
 	if lines, err = readLines(file); err != nil {
 		return err
@@ -348,12 +340,30 @@ func modifyNameValueFile(file string, changes []ConfigFileChange) (err error) {
 		for _, change := range changes {
 			if strings.HasPrefix(line, fmt.Sprintf("%s=", change.Name)) {
 				line = fmt.Sprintf("%s=%s", change.Name, change.Value)
+				updated = append(updated, change)
 			}
 		}
 		new = append(new, line)
 	}
 
 	lines = new
+
+	for _, change := range changes {
+		var got bool = false
+		for _, update := range updated {
+			if update.Name == change.Name {
+				got = true
+				break
+			}
+		}
+
+		if got == false {
+			// name/value pair did not exist in original
+			// file, so append
+			lines = append(lines, fmt.Sprintf("%s=%s",
+				       change.Name, change.Value))
+		}
+	}
 
 	return atomicFileUpdate(file, lines)
 }
