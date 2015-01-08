@@ -6,12 +6,18 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
+	"time"
 
-	dbus "launchpad.net/go-dbus/v1"
 	. "gopkg.in/check.v1"
+	dbus "launchpad.net/go-dbus/v1"
 )
+
 // Hook up gocheck into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
+
+type TestSuite struct{}
+
+var _ = Suite(&TestSuite{})
 
 type DBusService struct {
 	conn    *dbus.Connection
@@ -24,7 +30,11 @@ type DBusService struct {
 	actor interface{}
 }
 
-func NewDBusService(conn *dbus.Connection, interf, path, name string, actor interface{}) *DBusService {
+type DBusServiceActor interface {
+	SetOwner(s *DBusService)
+}
+
+func NewDBusService(conn *dbus.Connection, interf, path, name string, actor DBusServiceActor) *DBusService {
 	s := &DBusService{
 		conn:         conn,
 		msgChan:      make(chan *dbus.Message),
@@ -42,7 +52,14 @@ func NewDBusService(conn *dbus.Connection, interf, path, name string, actor inte
 	}
 	go s.watchBus()
 	conn.RegisterObjectPath(dbus.ObjectPath(path), s.msgChan)
+
+	actor.SetOwner(s)
 	return s
+}
+
+func (s *DBusService) SendSignal(signal *dbus.Message) error {
+	err := s.conn.Send(signal)
+	return err
 }
 
 func (s *DBusService) watchBus() {
@@ -89,18 +106,53 @@ func cleanupDBusService(s *DBusService) {
 }
 
 type MockSystemImage struct {
+	service *DBusService
+
 	info map[string]string
 }
 
-func (m *MockSystemImage) information() (map[string]string, error) {
+func NewMockSystemImage() *MockSystemImage {
+	msi := new(MockSystemImage)
+	msi.info = make(map[string]string)
+
+	return msi
+}
+
+func (m *MockSystemImage) SetOwner(service *DBusService) {
+	m.service = service
+}
+
+func (m *MockSystemImage) Information() (map[string]string, error) {
 	return m.info, nil
 }
 
-func (m *MockSystemImage) getSetting(key string) (string, error) {
-	return fmt.Sprintf("value-of: %s", key), nil
+func (m *MockSystemImage) CheckForUpdate() error {
+	sig := dbus.NewSignalMessage(SYSTEM_IMAGE_OBJECT_PATH,SYSTEM_IMAGE_INTERFACE, "UpdateAvailableStatus")
+
+	var size int32 = 1234
+	sig.AppendArgs(
+		true,               // is_available
+		false,              // downloading
+		"3.14",             // available_version
+		size,               // update_size
+		"late_update_date", // laste update date
+		"")                 // error_reason
+
+	// we need to send with a small delay to ensure the watch channel
+	// is ready
+	go func() {
+		time.Sleep(250 * time.Millisecond)
+		if err := m.service.SendSignal(sig); err != nil {
+			// FIXME: do something with the error
+			panic(err)
+		}
+	}()
+	return nil
 }
 
-type TestSuite struct{}
+func (m *MockSystemImage) GetSetting(key string) (string, error) {
+	return fmt.Sprintf("value-of: %s", key), nil
+}
 
 func (sx *TestSuite) TestInfo(c *C) {
 	conn, err := dbus.Connect(dbus.SessionBus)
@@ -108,10 +160,10 @@ func (sx *TestSuite) TestInfo(c *C) {
 	defer conn.Close()
 
 	// setUp
-	mockSystemImage := new(MockSystemImage)
+	mockSystemImage := NewMockSystemImage()
 	mockService := NewDBusService(conn, SYSTEM_IMAGE_INTERFACE, SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_BUS_NAME, mockSystemImage)
 	c.Assert(mockService, NotNil)
-	mockSystemImage.info["current_build_number"] = "3.14"
+	mockSystemImage.info["current_build_number"] = "2.71"
 	mockSystemImage.info["version_details"] = "ubuntu=20141206,raw-device=20141206,version=77"
 
 	s := newSystemImageRepositoryForBus(dbus.SessionBus)

@@ -1,12 +1,12 @@
 package snappy
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
-	"crypto/sha256"
-	"encoding/base64"
 
 	partition "launchpad.net/snappy-ubuntu/snappy-golang/partition"
 
@@ -25,9 +25,9 @@ const (
 type SystemImagePart struct {
 	info map[string]string
 
-	version string
+	version     string
 	isInstalled bool
-	isActive bool
+	isActive    bool
 }
 
 const (
@@ -49,7 +49,7 @@ func (s *SystemImagePart) Description() string {
 func (s *SystemImagePart) Hash() string {
 	hasher := sha256.New()
 	hasher.Write([]byte(s.info["version_details"]))
-	hexdigest := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+	hexdigest := hex.EncodeToString(hasher.Sum(nil))
 
 	return hexdigest
 }
@@ -117,9 +117,9 @@ func (s *SystemImageRepository) getCurrentPart() Part {
 	s.information()
 	version := s.info["current_build_number"]
 	part := &SystemImagePart{info: s.info,
-		isActive: true,
+		isActive:    true,
 		isInstalled: true,
-		version: version}
+		version:     version}
 	return part
 }
 
@@ -138,10 +138,10 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 		return parts, err
 	}
 	// FIXME: use version number compare
-	if s.info["current_build_number"] != s.info["target_build_number"] {
+	if s.info["current_build_number"] < s.info["target_build_number"] {
 		version := s.info["target_build_number"]
 		parts = append(parts, &SystemImagePart{
-			info: s.info,
+			info:    s.info,
 			version: version})
 	}
 
@@ -213,7 +213,6 @@ func (s *SystemImageRepository) checkForUpdate() (err error) {
 	// block, waiting for s-i to respond to the CheckForUpdate()
 	// method call
 	case msg := <-updatesAvailableStatusWatch.C:
-
 		err = msg.Args(&s.UpdateStatus.is_available,
 			&s.UpdateStatus.downloading,
 			&s.UpdateStatus.available_version,

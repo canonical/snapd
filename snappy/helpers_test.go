@@ -14,7 +14,10 @@ import (
 )
 
 func Test2(t *testing.T) { TestingT(t) }
-type TestSuite2 struct {}
+
+type TestSuite2 struct{}
+
+var _ = Suite(&TestSuite2{})
 
 func (ts *TestSuite2) TestUnpack(c *C) {
 
