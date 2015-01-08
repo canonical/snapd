@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"crypto/sha256"
+	"encoding/base64"
 
 	partition "launchpad.net/snappy-ubuntu/snappy-golang/partition"
 
@@ -23,6 +25,8 @@ type SystemImagePart struct {
 	info map[string]string
 
 	version string
+	isInstalled bool
+	isActive bool
 }
 
 func (s *SystemImagePart) Name() string {
@@ -38,17 +42,19 @@ func (s *SystemImagePart) Description() string {
 }
 
 func (s *SystemImagePart) Hash() string {
-	return "some-hash"
+	hasher := sha256.New()
+	hasher.Write([]byte(s.info["version_details"]))
+	hexdigest := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+	return hexdigest
 }
 
 func (s *SystemImagePart) IsActive() bool {
-	// FIXME
-	return false
+	return s.isActive
 }
 
 func (s *SystemImagePart) IsInstalled() bool {
-	// FIXME
-	return false
+	return s.isInstalled
 }
 
 func (s *SystemImagePart) InstalledSize() int {
@@ -115,22 +121,31 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 	// FIXME: use version number compare
 	if s.info["current_build_number"] != s.info["target_build_number"] {
 		version := s.info["target_build_number"]
-		parts = append(parts, &SystemImagePart{s.info, version})
+		parts = append(parts, &SystemImagePart{
+			info: s.info,
+			version: version})
 	}
 
 	return parts, err
 }
 
 func (s *SystemImageRepository) GetInstalled() (parts []Part, err error) {
-	s.Information()
+	s.information()
 
+	// current partition
 	version := s.info["current_build_number"]
-	parts = append(parts, &SystemImagePart{s.info, version})
+	parts = append(parts, &SystemImagePart{
+		info: s.info,
+		isActive: true,
+		isInstalled: true,
+		version: version})
+
+	// FIXME: get data from B partition and fill it in here
 
 	return parts, err
 }
 
-func (s *SystemImageRepository) Information() (err error) {
+func (s *SystemImageRepository) information() (err error) {
 	callName := "Information"
 	msg, err := s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
 	if err != nil {
@@ -145,7 +160,7 @@ func (s *SystemImageRepository) Information() (err error) {
 	return nil
 }
 
-func (s *SystemImageRepository) GetSetting(key string) (v string, err error) {
+func (s *SystemImageRepository) getSetting(key string) (v string, err error) {
 	callName := "GetSetting"
 	msg, err := s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName, key)
 	if err != nil {
@@ -205,7 +220,7 @@ func (s *SystemImageRepository) checkForUpdate() (err error) {
 			SYSTEM_IMAGE_TIMEOUT_SECS))
 	}
 
-	err = s.Information()
+	err = s.information()
 	if err != nil {
 		return err
 	}

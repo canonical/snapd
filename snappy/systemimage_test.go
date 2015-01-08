@@ -86,16 +86,14 @@ func cleanupDBusService(s *DBusService) {
 }
 
 type MockSystemImage struct {
+	info map[string]string
 }
 
-func (m *MockSystemImage) Information() (map[string]string, error) {
-	info := make(map[string]string)
-	info["current_build_number"] = "2.71"
-	info["target_build_number"] = "3.14"
-	return info, nil
+func (m *MockSystemImage) information() (map[string]string, error) {
+	return m.info, nil
 }
 
-func (m *MockSystemImage) GetSetting(key string) (string, error) {
+func (m *MockSystemImage) getSetting(key string) (string, error) {
 	return fmt.Sprintf("value-of: %s", key), nil
 }
 
@@ -106,32 +104,45 @@ func (sx *TestSuite) TestInfo(c *C) {
 	c.Assert(err, IsNil)
 	defer conn.Close()
 
+	// setUp
 	mockSystemImage := new(MockSystemImage)
 	mockService := NewDBusService(conn, SYSTEM_IMAGE_INTERFACE, SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_BUS_NAME, mockSystemImage)
 	c.Assert(mockService, NotNil)
+	mockSystemImage.info["current_build_number"] = "3.14"
+	mockSystemImage.info["version_details"] = "ubuntu=20141206,raw-device=20141206,version=77"
 
 	s := newSystemImageRepositoryForBus(dbus.SessionBus)
 	c.Assert(s, NotNil)
 
 	// low level dbus
-	err = s.Information()
+	err = s.information()
 	c.Assert(err, IsNil)
 	c.Assert(s.info["current_build_number"], Equals, "2.71")
 
-	value, err := s.GetSetting("all-cool")
+	value, err := s.getSetting("all-cool")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "value-of: all-cool")
 
 	// high level Repository interface
-	parts, err := s.GetUpdates()
-	c.Assert(err, IsNil)
-	c.Assert(len(parts), Equals, 1)
-	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
-	c.Assert(parts[0].Version(), Equals, "3.14")
 
-	parts, err = s.GetInstalled()
+	// whats installed
+	parts, err := s.GetInstalled()
 	c.Assert(err, IsNil)
 	c.Assert(len(parts), Equals, 1)
 	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
 	c.Assert(parts[0].Version(), Equals, "2.71")
+	c.Assert(parts[0].Hash(), Equals, "bf3e9dd92c916d3fa70bbdf5a1014a112fb45b95179ecae0be2836ea2bd91f7f")
+
+	// no update
+	parts, err = s.GetUpdates()
+	c.Assert(err, IsNil)
+	c.Assert(len(parts), Equals, 0)
+
+	// add a update
+	mockSystemImage.info["target_build_number"] = "3.14"
+	parts, err = s.GetUpdates()
+	c.Assert(err, IsNil)
+	c.Assert(len(parts), Equals, 1)
+	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
+	c.Assert(parts[0].Version(), Equals, "3.14")
 }
