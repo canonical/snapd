@@ -3,20 +3,20 @@ package snappy
 import (
 	"regexp"
 	"strconv"
-	"strings"
 )
 
 const (
-	RE_DIGIT = "[0-9]"
-	RE_ALPHA = "[a-zA-Z]"
+	RE_DIGIT              = "[0-9]"
+	RE_ALPHA              = "[a-zA-Z]"
+	RE_DIGIT_OR_NON_DIGIT = "[0-9]+|[^0-9]+"
 )
 
 // golang: seriously? that's sad!
 func max(a, b int) int {
-   if a < b {
-      return b
-   }
-   return a
+	if a < b {
+		return b
+	}
+	return a
 }
 
 // version number compare, inspired by the libapt/python-debian code
@@ -25,22 +25,21 @@ func cmpInt(int_a, int_b int) int {
 		return -1
 	} else if int_a > int_b {
 		return 1
-	} 
+	}
 	return 0
 }
 
-func order(ch uint8) int {
-	var err error
-	
+func chOrder(ch uint8) int {
 	if ch == '~' {
 		return -1
 	}
-	if _, err = regexp.MatchString(string(ch), RE_DIGIT); err == nil {
-		v, _ := strconv.Atoi(string(ch))
-		return v
-	}
-	if _, err = regexp.MatchString(string(ch), RE_ALPHA); err == nil {
+	if matched, _ := regexp.MatchString(RE_ALPHA, string(ch)); matched {
 		return int(ch)
+	}
+
+	// can only happen if cmpString sets '0' because there is no fragment
+	if matched, _ := regexp.MatchString(RE_DIGIT, string(ch)); matched {
+		return 0
 	}
 
 	return int(ch) + 256
@@ -56,10 +55,10 @@ func cmpString(as, bs string) int {
 		if i < len(bs) {
 			b = bs[i]
 		}
-		if order(a) < order(b) {
+		if chOrder(a) < chOrder(b) {
 			return -1
 		}
-		if order(a) > order(b) {
+		if chOrder(a) > chOrder(b) {
 			return +1
 		}
 	}
@@ -72,11 +71,15 @@ func cmpFragment(a, b string) int {
 	if err_a == nil && err_b == nil {
 		return cmpInt(int_a, int_b)
 	}
-	return cmpString(a, b)
+	res := cmpString(a, b)
+	//fmt.Println(a, b, res)
+	return res
 }
 
 func getFragments(a string) []string {
-	return strings.Split(a, ".")
+	re := regexp.MustCompile(RE_DIGIT_OR_NON_DIGIT)
+	matches := re.FindAllString(a, -1)
+	return matches
 }
 
 func VersionCompare(a, b string) int {
@@ -93,6 +96,7 @@ func VersionCompare(a, b string) int {
 			b = frags_b[i]
 		}
 		res := cmpFragment(a, b)
+		//fmt.Println(a, b, res)
 		if res != 0 {
 			return res
 		}

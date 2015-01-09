@@ -148,12 +148,11 @@ func (m *MockSystemImage) GetSetting(key string) (string, error) {
 	return fmt.Sprintf("value-of: %s", key), nil
 }
 
-
-type SITestSuite struct{
-	conn *dbus.Connection
+type SITestSuite struct {
+	conn            *dbus.Connection
 	mockSystemImage *MockSystemImage
-	systemImage *SystemImageRepository
-	
+	systemImage     *SystemImageRepository
+
 	mockService *DBusService
 }
 
