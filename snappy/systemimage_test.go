@@ -145,7 +145,7 @@ func (m *MockSystemImage) CheckForUpdate() error {
 }
 
 func (m *MockSystemImage) DownloadUpdate() error {
-	sig := dbus.NewSignalMessage(SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_INTERFACE, "Rebooting")
+	sig := dbus.NewSignalMessage(SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_INTERFACE, "UpdateDownloaded")
 
 	sig.AppendArgs(
 		true, // status, true if a reboot is required
@@ -207,9 +207,8 @@ func (s *SITestSuite) TestLowLevelGetSetting(c *C) {
 
 func (s *SITestSuite) TestLowLevelDownloadUpdate(c *C) {
 	// add a update
-	needBoot, err := s.systemImage.proxy.DownloadUpdate()
+	err := s.systemImage.proxy.DownloadUpdate()
 	c.Assert(err, IsNil)
-	c.Assert(needBoot, Equals, true)
 }
 
 func (s *SITestSuite) TestTestInstalled(c *C) {

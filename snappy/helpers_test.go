@@ -13,7 +13,7 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func Test2(t *testing.T) { TestingT(t) }
+func MyTest(t *testing.T) { TestingT(t) }
 
 type HTestSuite struct{}
 
