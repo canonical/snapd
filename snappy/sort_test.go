@@ -1,6 +1,8 @@
 package snappy
 
 import (
+	"sort"
+	
 	. "gopkg.in/check.v1"
 )
 
@@ -39,5 +41,11 @@ func (s *SortTestSuite) TestVersionCompare(c *C) {
 	// do we like strange versions? Yes we like strange versions…
 	c.Assert(VersionCompare("0", "0"), Equals, 0)
 	c.Assert(VersionCompare("0", "00"), Equals, 0)
+}
 
+func (s *SortTestSuite) TestSort(c *C) {
+
+	versions := []string{"2.0", "1.0", "1.2.2", "1.2"}
+	sort.Sort(ByVersion(versions))
+	c.Assert(versions, DeepEquals, []string{"1.0", "1.2", "1.2.2", "2.0"})
 }

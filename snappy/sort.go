@@ -103,3 +103,16 @@ func VersionCompare(a, b string) int {
 	}
 	return 0
 }
+
+
+// sort interface
+type ByVersion []string
+func (bv ByVersion) Less(a, b int) bool {
+	return (VersionCompare(bv[a], bv[b]) < 0)
+}
+func (bv ByVersion) Swap(a, b int) {
+	bv[a], bv[b] = bv[b], bv[a]
+}
+func (bv ByVersion) Len() int {
+	return len(bv)
+}
