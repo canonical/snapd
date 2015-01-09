@@ -14,10 +14,6 @@ import (
 // Hook up gocheck into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type TestSuite struct{}
-
-var _ = Suite(&TestSuite{})
-
 type DBusService struct {
 	conn    *dbus.Connection
 	msgChan chan *dbus.Message
@@ -148,48 +144,70 @@ func (m *MockSystemImage) GetSetting(key string) (string, error) {
 	return fmt.Sprintf("value-of: %s", key), nil
 }
 
-func (sx *TestSuite) TestInfo(c *C) {
-	conn, err := dbus.Connect(dbus.SessionBus)
+
+type SITestSuite struct{
+	conn *dbus.Connection
+	mockSystemImage *MockSystemImage
+	systemImage *SystemImageRepository
+	
+	mockService *DBusService
+}
+
+var _ = Suite(&SITestSuite{})
+
+func (s *SITestSuite) SetUpTest(c *C) {
+	var err error
+	s.conn, err = dbus.Connect(dbus.SessionBus)
 	c.Assert(err, IsNil)
-	defer conn.Close()
 
-	// setUp
-	mockSystemImage := NewMockSystemImage()
-	mockService := NewDBusService(conn, SYSTEM_IMAGE_INTERFACE, SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_BUS_NAME, mockSystemImage)
-	c.Assert(mockService, NotNil)
-	mockSystemImage.info["current_build_number"] = "2.71"
-	mockSystemImage.info["version_details"] = "ubuntu=20141206,raw-device=20141206,version=77"
+	s.mockSystemImage = NewMockSystemImage()
+	s.mockService = NewDBusService(s.conn, SYSTEM_IMAGE_INTERFACE, SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_BUS_NAME, s.mockSystemImage)
+	c.Assert(s.mockService, NotNil)
 
-	s := newSystemImageRepositoryForBus(dbus.SessionBus)
+	s.systemImage = newSystemImageRepositoryForBus(dbus.SessionBus)
 	c.Assert(s, NotNil)
 
-	// low level dbus
-	err = s.information()
-	c.Assert(err, IsNil)
-	c.Assert(s.info["current_build_number"], Equals, "2.71")
+	// ensure we always have something installed
+	s.mockSystemImage.info["current_build_number"] = "2.71"
+	s.mockSystemImage.info["version_details"] = "ubuntu=20141206,raw-device=20141206,version=77"
+}
 
-	value, err := s.getSetting("all-cool")
+func (s *SITestSuite) TearDownTest(c *C) {
+	s.conn.Close()
+}
+
+func (s *SITestSuite) TestLowLevelInformation(c *C) {
+	err := s.systemImage.information()
+	c.Assert(err, IsNil)
+	c.Assert(s.systemImage.info["current_build_number"], Equals, "2.71")
+}
+
+func (s *SITestSuite) TestLowLevelGetSetting(c *C) {
+	value, err := s.systemImage.getSetting("all-cool")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "value-of: all-cool")
+}
 
-	// high level Repository interface
-
+func (s *SITestSuite) TestTestInstalled(c *C) {
 	// whats installed
-	parts, err := s.GetInstalled()
+	parts, err := s.systemImage.GetInstalled()
 	c.Assert(err, IsNil)
 	c.Assert(len(parts), Equals, 1)
 	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
 	c.Assert(parts[0].Version(), Equals, "2.71")
 	c.Assert(parts[0].Hash(), Equals, "bf3e9dd92c916d3fa70bbdf5a1014a112fb45b95179ecae0be2836ea2bd91f7f")
+}
 
-	// no update
-	parts, err = s.GetUpdates()
+func (s *SITestSuite) TestGetUpdateNoUpdate(c *C) {
+	parts, err := s.systemImage.GetUpdates()
 	c.Assert(err, IsNil)
 	c.Assert(len(parts), Equals, 0)
+}
 
+func (s *SITestSuite) TestGetUpdateHasUpdate(c *C) {
 	// add a update
-	mockSystemImage.info["target_build_number"] = "3.14"
-	parts, err = s.GetUpdates()
+	s.mockSystemImage.info["target_build_number"] = "3.14"
+	parts, err := s.systemImage.GetUpdates()
 	c.Assert(err, IsNil)
 	c.Assert(len(parts), Equals, 1)
 	c.Assert(parts[0].Name(), Equals, "ubuntu-core")

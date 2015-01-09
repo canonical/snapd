@@ -15,11 +15,11 @@ import (
 
 func Test2(t *testing.T) { TestingT(t) }
 
-type TestSuite2 struct{}
+type HTestSuite struct{}
 
-var _ = Suite(&TestSuite2{})
+var _ = Suite(&HTestSuite{})
 
-func (ts *TestSuite2) TestUnpack(c *C) {
+func (ts *HTestSuite) TestUnpack(c *C) {
 
 	// setup tmpdir
 	tmpdir, err := ioutil.TempDir(os.TempDir(), "meep")
@@ -47,7 +47,7 @@ func (ts *TestSuite2) TestUnpack(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (ts *TestSuite) TestGetMapFromValidYaml(c *C) {
+func (ts *HTestSuite) TestGetMapFromValidYaml(c *C) {
 	m, err := getMapFromYaml([]byte("name: value"))
 	c.Assert(err, IsNil)
 	me := map[string]interface{}{"name": "value"}
@@ -56,7 +56,7 @@ func (ts *TestSuite) TestGetMapFromValidYaml(c *C) {
 	}
 }
 
-func (ts *TestSuite) TestGetMapFromInvalidYaml(c *C) {
+func (ts *HTestSuite) TestGetMapFromInvalidYaml(c *C) {
 	_, err := getMapFromYaml([]byte("%lala%"))
 	c.Assert(err, NotNil)
 }
