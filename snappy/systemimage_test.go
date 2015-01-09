@@ -145,7 +145,7 @@ func (m *MockSystemImage) CheckForUpdate() error {
 }
 
 func (m *MockSystemImage) DownloadUpdate() error {
-	sig := dbus.NewSignalMessage(SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_INTERFACE, "Reboot")
+	sig := dbus.NewSignalMessage(SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_INTERFACE, "Rebooting")
 
 	sig.AppendArgs(
 		true, // status, true if a reboot is required
