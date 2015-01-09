@@ -148,9 +148,9 @@ func (m *MockSystemImage) DownloadUpdate() error {
 	sig := dbus.NewSignalMessage(SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_INTERFACE, "Reboot")
 
 	sig.AppendArgs(
-		true,               // status, true if a reboot is required
+		true, // status, true if a reboot is required
 	)
-	
+
 	if err := m.service.SendSignal(sig); err != nil {
 		// FIXME: do something with the error
 		panic(err)
@@ -237,4 +237,3 @@ func (s *SITestSuite) TestGetUpdateHasUpdate(c *C) {
 	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
 	c.Assert(parts[0].Version(), Equals, "3.14")
 }
-

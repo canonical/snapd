@@ -25,7 +25,8 @@ const (
 )
 
 type SystemImagePart struct {
-	info map[string]string
+	info  map[string]string
+	proxy *systemImageDBusProxy
 
 	version     string
 	isInstalled bool
@@ -73,11 +74,12 @@ func (s *SystemImagePart) DownloadSize() int {
 }
 
 func (s *SystemImagePart) Install() (err error) {
+	_, err = s.proxy.DownloadUpdate()
+	if err != nil {
+		return err
+	}
+
 	p := partition.New()
-
-	// FIXME
-	fmt.Println("FIXME: blindly toggling rootfs for testing!")
-
 	return p.UpdateBootloader()
 }
 
@@ -118,8 +120,11 @@ type systemImageDBusProxy struct {
 	us                           updateStatus
 	updateAvailableStatusChannel chan error
 
-	needsReboot bool
+	// FIXME: we really do not need this as we always reboot
+	needsReboot          bool
 	updateAppliedChannel chan error
+
+	updateFailedChannel chan error
 }
 
 func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
@@ -145,6 +150,12 @@ func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
 
 	p.updateAppliedChannel = make(chan error)
 	if err := p.startUpdateAppliedSignalWatcher(); err != nil {
+		log.Panic(fmt.Sprintf("ERROR: %v", err))
+		return nil
+	}
+
+	p.updateFailedChannel = make(chan error)
+	if err := p.startUpdateFailedSignalWatcher(); err != nil {
 		log.Panic(fmt.Sprintf("ERROR: %v", err))
 		return nil
 	}
@@ -216,14 +227,48 @@ func (s *systemImageDBusProxy) startUpdateAppliedSignalWatcher() (err error) {
 	return nil
 }
 
+func (s *systemImageDBusProxy) startUpdateFailedSignalWatcher() (err error) {
+	channel, err := s.connection.WatchSignal(
+		&dbus.MatchRule{
+			Type:      dbus.TypeSignal,
+			Sender:    SYSTEM_IMAGE_BUS_NAME,
+			Interface: SYSTEM_IMAGE_INTERFACE,
+			Member:    "UpdateFailed"})
+	if err != nil {
+		return err
+	}
+	runtime.SetFinalizer(
+		channel,
+		func(u *dbus.SignalWatch) {
+			u.Cancel()
+		})
+
+	go func() {
+		// keep the watch
+		for {
+			select {
+			case _ = <-channel.C:
+				// FIXME: extract count, reason from msg
+			}
+			s.updateFailedChannel <- errors.New("updateFailed")
+		}
+	}()
+	return nil
+}
+
 func (s *systemImageDBusProxy) DownloadUpdate() (res bool, err error) {
 	callName := "DownloadUpdate"
 	_, err = s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
 	if err != nil {
 		return false, err
 	}
-	err = <- s.updateAppliedChannel
-	
+	select {
+	case _ = <- s.updateAppliedChannel:
+		break
+	case _ = <- s.updateFailedChannel:
+		break
+	}
+
 	return s.needsReboot, nil
 }
 
@@ -312,6 +357,7 @@ func (s *SystemImageRepository) getCurrentPart() Part {
 	part := &SystemImagePart{info: info,
 		isActive:    true,
 		isInstalled: true,
+		proxy:       s.proxy,
 		version:     version}
 	return part
 }
@@ -338,6 +384,7 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 		version := info["target_build_number"]
 		parts = append(parts, &SystemImagePart{
 			info:    info,
+			proxy:   s.proxy,
 			version: version})
 	}
 
