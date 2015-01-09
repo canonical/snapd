@@ -24,6 +24,7 @@ func (s *SortTestSuite) TestVersionCompare(c *C) {
 
 	c.Assert(VersionCompare("1.3", "1.3.1"), Equals, -1)
 
+	c.Assert(VersionCompare("1.0", "1.0~"), Equals, 1)
 	c.Assert(VersionCompare("7.2p2", "7.2"), Equals, 1)
 	c.Assert(VersionCompare("0.4a6", "0.4"), Equals, 1)
 
@@ -32,7 +33,6 @@ func (s *SortTestSuite) TestVersionCompare(c *C) {
 
 	c.Assert(VersionCompare("1.18.36:5.4", "1.18.36:5.5"), Equals, -1)
 	c.Assert(VersionCompare("1.18.36:5.4", "1.18.37:1.1"), Equals, -1)
-	c.Assert(VersionCompare("1.18.36-0.17.35", "1.18.36"), Equals, 1)
 
 	c.Assert(VersionCompare("2.0.7pre1", "2.0.7r"), Equals, -1)
 
@@ -43,8 +43,13 @@ func (s *SortTestSuite) TestVersionCompare(c *C) {
 	c.Assert(VersionCompare("0", "00"), Equals, 0)
 }
 
-func (s *SortTestSuite) TestSort(c *C) {
+func (s *SortTestSuite) TestVersionInvalid(c *C) {
+	c.Assert(VersionIsValid("1:2"), Equals, false)
+	c.Assert(VersionIsValid("1-1"), Equals, false)
+	c.Assert(VersionIsValid("1.0"), Equals, true)
+}
 
+func (s *SortTestSuite) TestSort(c *C) {
 	versions := []string{"2.0", "1.0", "1.2.2", "1.2"}
 	sort.Sort(ByVersion(versions))
 	c.Assert(versions, DeepEquals, []string{"1.0", "1.2", "1.2.2", "2.0"})

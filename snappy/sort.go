@@ -1,7 +1,9 @@
 package snappy
 
 import (
+	"log"
 	"regexp"
+	"strings"
 	"strconv"
 )
 
@@ -9,6 +11,8 @@ const (
 	RE_DIGIT              = "[0-9]"
 	RE_ALPHA              = "[a-zA-Z]"
 	RE_DIGIT_OR_NON_DIGIT = "[0-9]+|[^0-9]+"
+
+	RE_HAS_EPOCH = "^[0-9]+:"
 )
 
 // golang: seriously? that's sad!
@@ -82,7 +86,24 @@ func getFragments(a string) []string {
 	return matches
 }
 
+func VersionIsValid(a string) bool {
+	if matched, _ := regexp.MatchString(RE_HAS_EPOCH, a); matched {
+		return false
+	}
+	if strings.Contains(a, "-") {
+		return false
+	}
+	return true
+}
+
 func VersionCompare(a, b string) int {
+	if !VersionIsValid(a) {
+		log.Printf("Invalid version '%s', expect wrong results", a)
+	}
+	if !VersionIsValid(b) {
+		log.Printf("Invalid version '%s', expect wrong results", b)
+	}
+	
 	frags_a := getFragments(a)
 	frags_b := getFragments(b)
 
