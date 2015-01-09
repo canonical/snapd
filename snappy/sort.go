@@ -104,9 +104,9 @@ func VersionCompare(a, b string) int {
 	return 0
 }
 
-
 // sort interface
 type ByVersion []string
+
 func (bv ByVersion) Less(a, b int) bool {
 	return (VersionCompare(bv[a], bv[b]) < 0)
 }

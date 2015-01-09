@@ -2,7 +2,7 @@ package snappy
 
 import (
 	"sort"
-	
+
 	. "gopkg.in/check.v1"
 )
 
