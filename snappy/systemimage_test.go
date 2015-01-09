@@ -124,6 +124,10 @@ func (m *MockSystemImage) Information() (map[string]string, error) {
 func (m *MockSystemImage) CheckForUpdate() error {
 	sig := dbus.NewSignalMessage(SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_INTERFACE, "UpdateAvailableStatus")
 
+	// FIXME: the data we send in the signal is currently mostly
+	//        irrelevant as SystemImageRepository will recv the
+	//        signal but won't use the data and calls Information()
+	//        again instead
 	var size int32 = 1234
 	sig.AppendArgs(
 		true,               // is_available
