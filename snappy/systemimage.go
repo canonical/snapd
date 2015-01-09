@@ -206,21 +206,26 @@ func (s *systemImageDBusProxy) GetSetting(key string) (v string, err error) {
 	return v, nil
 }
 
-func (s *systemImageDBusProxy) startUpdateAppliedSignalWatcher() (err error) {
-	updateAppliedStatusWatch, err := s.connection.WatchSignal(
+func makeWatcher(conn *dbus.Connection, signalName string) (w *dbus.SignalWatch, err error) {
+	w, err = conn.WatchSignal(
 		&dbus.MatchRule{
 			Type:      dbus.TypeSignal,
 			Sender:    SYSTEM_IMAGE_BUS_NAME,
 			Interface: SYSTEM_IMAGE_INTERFACE,
-			Member:    "Rebooting"})
+			Member: signalName})
+	if err != nil {
+		return w, err
+	}
+	runtime.SetFinalizer(w, func(u *dbus.SignalWatch) {
+		u.Cancel()
+	})
+	return w, err
+}
+func (s *systemImageDBusProxy) startUpdateAppliedSignalWatcher() (err error) {
+	updateAppliedStatusWatch, err := makeWatcher(s.connection, "Rebooting")
 	if err != nil {
 		return err
 	}
-	runtime.SetFinalizer(
-		updateAppliedStatusWatch,
-		func(u *dbus.SignalWatch) {
-			u.Cancel()
-		})
 
 	go func() {
 		// keep the watch
@@ -236,20 +241,10 @@ func (s *systemImageDBusProxy) startUpdateAppliedSignalWatcher() (err error) {
 }
 
 func (s *systemImageDBusProxy) startUpdateDownloadedSignalWatcher() (err error) {
-	updateAppliedStatusWatch, err := s.connection.WatchSignal(
-		&dbus.MatchRule{
-			Type:      dbus.TypeSignal,
-			Sender:    SYSTEM_IMAGE_BUS_NAME,
-			Interface: SYSTEM_IMAGE_INTERFACE,
-			Member:    "UpdateDownloaded"})
+	updateAppliedStatusWatch, err := makeWatcher(s.connection, "UpdateDownloaded")
 	if err != nil {
 		return err
 	}
-	runtime.SetFinalizer(
-		updateAppliedStatusWatch,
-		func(u *dbus.SignalWatch) {
-			u.Cancel()
-		})
 
 	go func() {
 		// keep the watch
@@ -264,20 +259,10 @@ func (s *systemImageDBusProxy) startUpdateDownloadedSignalWatcher() (err error) 
 }
 
 func (s *systemImageDBusProxy) startUpdateFailedSignalWatcher() (err error) {
-	channel, err := s.connection.WatchSignal(
-		&dbus.MatchRule{
-			Type:      dbus.TypeSignal,
-			Sender:    SYSTEM_IMAGE_BUS_NAME,
-			Interface: SYSTEM_IMAGE_INTERFACE,
-			Member:    "UpdateFailed"})
+	channel, err := makeWatcher(s.connection, "UpdateFailed")
 	if err != nil {
 		return err
 	}
-	runtime.SetFinalizer(
-		channel,
-		func(u *dbus.SignalWatch) {
-			u.Cancel()
-		})
 
 	go func() {
 		// keep the watch
