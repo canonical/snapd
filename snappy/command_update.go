@@ -1,20 +1,25 @@
 package snappy
 
 import (
-	"errors"
+	"fmt"
 )
 
 func CmdUpdate(args []string) (err error) {
 
-	if len(args) < 1 {
-		return errors.New("missing part")
+	r := NewMetaRepository()
+	updates, err := r.GetUpdates()
+	if err != nil {
+		return err
 	}
 
-	// FIXME: validate supplied part!
+	// FIXME: handle args
+	for _, part := range updates {
+		fmt.Printf("Installing %s (%s)\n", part.Name(), part.Version())
+		err := part.Install()
+		if err != nil {
+			return err
+		}
+	}
 
-	parts := []Repository{NewSystemImageRepository()}
-
-	// FIXME: testing
-	updates, err := parts[0].GetUpdates()
-	return updates[0].Install()
+	return nil
 }

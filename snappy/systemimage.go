@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"runtime"
 	"strings"
 	"time"
@@ -72,7 +73,12 @@ func (s *SystemImagePart) DownloadSize() int {
 }
 
 func (s *SystemImagePart) Install() (err error) {
-	return err
+	p := partition.New()
+
+	// FIXME
+	fmt.Println("FIXME: blindly toggling rootfs for testing!")
+
+	return p.UpdateBootloader()
 }
 
 func (s *SystemImagePart) Uninstall() (err error) {
@@ -102,82 +108,62 @@ type updateStatus struct {
 	error_reason      string
 }
 
-// Result of Information() method call
-type SystemImageRepository struct {
-	proxy        *dbus.ObjectProxy
-	connection   *dbus.Connection
-	info         map[string]string
-	UpdateStatus updateStatus
+// Result of the Information() call
+type systemImageInfo map[string]string
 
+type systemImageDBusProxy struct {
+	proxy      *dbus.ObjectProxy
+	connection *dbus.Connection
+
+	us                           updateStatus
 	updateAvailableStatusChannel chan error
 }
 
-func (s *SystemImageRepository) Description() string {
-	return "SystemImageRepository"
-}
+func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
+	var err error
+	p := new(systemImageDBusProxy)
 
-func (s *SystemImageRepository) getCurrentPart() Part {
-	s.information()
-	version := s.info["current_build_number"]
-	part := &SystemImagePart{info: s.info,
-		isActive:    true,
-		isInstalled: true,
-		version:     version}
-	return part
-}
-
-func (s *SystemImageRepository) Search(terms string) (versions []Part, err error) {
-	if strings.Contains(terms, SYSTEM_IMAGE_PART_NAME) {
-		s.information()
-		part := s.getCurrentPart()
-		versions = append(versions, part)
-	}
-	return versions, err
-}
-
-func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
-
-	if err = s.checkForUpdate(); err != nil {
-		return parts, err
-	}
-	// FIXME: use version number compare
-	if s.info["current_build_number"] < s.info["target_build_number"] {
-		version := s.info["target_build_number"]
-		parts = append(parts, &SystemImagePart{
-			info:    s.info,
-			version: version})
+	if p.connection, err = dbus.Connect(bus); err != nil {
+		log.Panic("Error: can not connect to the bus")
+		return nil
 	}
 
-	return parts, err
+	p.proxy = p.connection.Object(SYSTEM_IMAGE_BUS_NAME, SYSTEM_IMAGE_OBJECT_PATH)
+	if p.proxy == nil {
+		log.Panic("ERROR: failed to create D-Bus proxy for system-image server")
+		return nil
+	}
+
+	p.updateAvailableStatusChannel = make(chan error)
+	if err := p.startUpdateAvailableSignalWatcher(); err != nil {
+		log.Panic(fmt.Sprintf("ERROR: %v", err))
+		return nil
+	}
+
+	return p
 }
 
-func (s *SystemImageRepository) GetInstalled() (parts []Part, err error) {
-	s.information()
-
-	// current partition
-	parts = append(parts, s.getCurrentPart())
-
-	// FIXME: get data from B partition and fill it in here
-
-	return parts, err
-}
-
-func (s *SystemImageRepository) information() (err error) {
+func (s *systemImageDBusProxy) Information() (info systemImageInfo, err error) {
 	callName := "Information"
 	msg, err := s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
 	if err != nil {
-		return err
+		return info, err
 	}
 
-	err = msg.Args(&s.info)
+	err = msg.Args(&info)
 	if err != nil {
-		return err
+		return info, err
 	}
 
-	return nil
+	// FIXME: workaround version number oddness
+	if info["target_build_number"] == "-1" {
+		info["target_build_number"] = "0~"
+	}
+
+	return info, nil
 }
 
-func (s *SystemImageRepository) getSetting(key string) (v string, err error) {
+func (s *systemImageDBusProxy) GetSetting(key string) (v string, err error) {
 	callName := "GetSetting"
 	msg, err := s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName, key)
 	if err != nil {
@@ -192,32 +178,44 @@ func (s *SystemImageRepository) getSetting(key string) (v string, err error) {
 	return v, nil
 }
 
-func (s *SystemImageRepository) startUpdateAvailableSignalWatcher() (err error) {
-	var updateAvailableStatusWatch *dbus.SignalWatch
-
-	updateAvailableStatusWatch, err = s.connection.WatchSignal(&dbus.MatchRule{
-		Type:      dbus.TypeSignal,
-		Sender:    SYSTEM_IMAGE_BUS_NAME,
-		Interface: SYSTEM_IMAGE_INTERFACE,
-		Member:    "UpdateAvailableStatus"})
+func (s *systemImageDBusProxy) DownloadUpdate() (err error) {
+	callName := "DownloadUpdate"
+	_, err = s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
 	if err != nil {
 		return err
 	}
-	runtime.SetFinalizer(updateAvailableStatusWatch, func(u *dbus.SignalWatch) {
-		u.Cancel()
-	})
+	return nil
+}
+
+func (s *systemImageDBusProxy) startUpdateAvailableSignalWatcher() (err error) {
+	var updateAvailableStatusWatch *dbus.SignalWatch
+
+	updateAvailableStatusWatch, err = s.connection.WatchSignal(
+		&dbus.MatchRule{
+			Type:      dbus.TypeSignal,
+			Sender:    SYSTEM_IMAGE_BUS_NAME,
+			Interface: SYSTEM_IMAGE_INTERFACE,
+			Member:    "UpdateAvailableStatus"})
+	if err != nil {
+		return err
+	}
+	runtime.SetFinalizer(
+		updateAvailableStatusWatch,
+		func(u *dbus.SignalWatch) {
+			u.Cancel()
+		})
 
 	go func() {
 		// keep the watch
 		for {
 			select {
 			case msg := <-updateAvailableStatusWatch.C:
-				err = msg.Args(&s.UpdateStatus.is_available,
-					&s.UpdateStatus.downloading,
-					&s.UpdateStatus.available_version,
-					&s.UpdateStatus.update_size,
-					&s.UpdateStatus.last_update_date,
-					&s.UpdateStatus.error_reason)
+				err = msg.Args(&s.us.is_available,
+					&s.us.downloading,
+					&s.us.available_version,
+					&s.us.update_size,
+					&s.us.last_update_date,
+					&s.us.error_reason)
 
 			case <-time.After(SYSTEM_IMAGE_TIMEOUT_SECS * time.Second):
 				err = errors.New(fmt.Sprintf(
@@ -233,55 +231,27 @@ func (s *SystemImageRepository) startUpdateAvailableSignalWatcher() (err error) 
 }
 
 // Check to see if there is a system image update available
-func (s *SystemImageRepository) checkForUpdate() (err error) {
+func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 
 	callName := "CheckForUpdate"
 	_, err = s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
 	if err != nil {
-		return err
+		return us, err
 	}
 	// wait until we get the signal
 	err = <-s.updateAvailableStatusChannel
 
-	err = s.information()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return s.us, nil
 }
 
-// Hook up the connection to the system-image server
-func (s *SystemImageRepository) dbusSetup(bus dbus.StandardBus) (err error) {
-
-	if s.connection, err = dbus.Connect(bus); err != nil {
-		return err
-	}
-
-	s.proxy = s.connection.Object(SYSTEM_IMAGE_BUS_NAME,
-		SYSTEM_IMAGE_OBJECT_PATH)
-	if s.proxy == nil {
-		return errors.New("ERROR: " +
-			"failed to create D-Bus proxy " +
-			"for system-image server")
-	}
-
-	return err
+type SystemImageRepository struct {
+	proxy *systemImageDBusProxy
 }
 
 // Constructor
 func newSystemImageRepositoryForBus(bus dbus.StandardBus) *SystemImageRepository {
 	s := new(SystemImageRepository)
-	s.info = make(map[string]string)
-
-	if err := s.dbusSetup(bus); err != nil {
-		panic(fmt.Sprintf("ERROR: %v", err))
-	}
-
-	s.updateAvailableStatusChannel = make(chan error)
-	if err := s.startUpdateAvailableSignalWatcher(); err != nil {
-		panic(fmt.Sprintf("ERROR: %v", err))
-	}
+	s.proxy = newSystemImageDBusProxy(bus)
 
 	return s
 }
@@ -289,18 +259,62 @@ func NewSystemImageRepository() *SystemImageRepository {
 	return newSystemImageRepositoryForBus(dbus.SystemBus)
 }
 
-func (s *SystemImageRepository) Versions() (versions []Part) {
-	// FIXME
-	return versions
+func (s *SystemImageRepository) Description() string {
+	return "SystemImageRepository"
 }
 
-func (s *SystemImageRepository) Update(parts []Part) (err error) {
-	parts = s.Versions()
+func (s *SystemImageRepository) getCurrentPart() Part {
+	info, err := s.proxy.Information()
+	if err != nil {
+		panic("proxy.Information failed")
+	}
+	version := info["current_build_number"]
+	part := &SystemImagePart{info: info,
+		isActive:    true,
+		isInstalled: true,
+		version:     version}
+	return part
+}
 
-	p := partition.New()
+func (s *SystemImageRepository) Search(terms string) (versions []Part, err error) {
+	if strings.Contains(terms, SYSTEM_IMAGE_PART_NAME) {
+		s.proxy.Information()
+		part := s.getCurrentPart()
+		versions = append(versions, part)
+	}
+	return versions, err
+}
 
-	// FIXME
-	fmt.Println("FIXME: blindly toggling rootfs for testing!")
+func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 
-	return p.UpdateBootloader()
+	if _, err = s.proxy.CheckForUpdate(); err != nil {
+		return parts, err
+	}
+	info, err := s.proxy.Information()
+	if err != nil {
+		return parts, err
+	}
+	if VersionCompare(info["current_build_number"], info["target_build_number"]) < 0 {
+		version := info["target_build_number"]
+		parts = append(parts, &SystemImagePart{
+			info:    info,
+			version: version})
+	}
+
+	return parts, err
+}
+
+func (s *SystemImageRepository) GetInstalled() (parts []Part, err error) {
+	// current partition
+	parts = append(parts, s.getCurrentPart())
+
+	// FIXME: get data from B partition and fill it in here
+
+	return parts, err
+}
+
+// Hook up the connection to the system-image server
+func (s *SystemImageRepository) dbusSetup(bus dbus.StandardBus) (err error) {
+
+	return err
 }

@@ -144,6 +144,20 @@ func (m *MockSystemImage) CheckForUpdate() error {
 	return nil
 }
 
+func (m *MockSystemImage) DownloadUpdate() error {
+	sig := dbus.NewSignalMessage(SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_INTERFACE, "Rebooting")
+
+	sig.AppendArgs(
+		true,               // status, true if a reboot is required
+	)
+	
+	if err := m.service.SendSignal(sig); err != nil {
+		// FIXME: do something with the error
+		panic(err)
+	}
+	return nil
+}
+
 func (m *MockSystemImage) GetSetting(key string) (string, error) {
 	return fmt.Sprintf("value-of: %s", key), nil
 }
@@ -180,13 +194,13 @@ func (s *SITestSuite) TearDownTest(c *C) {
 }
 
 func (s *SITestSuite) TestLowLevelInformation(c *C) {
-	err := s.systemImage.information()
+	info, err := s.systemImage.proxy.Information()
 	c.Assert(err, IsNil)
-	c.Assert(s.systemImage.info["current_build_number"], Equals, "2.71")
+	c.Assert(info["current_build_number"], Equals, "2.71")
 }
 
 func (s *SITestSuite) TestLowLevelGetSetting(c *C) {
-	value, err := s.systemImage.getSetting("all-cool")
+	value, err := s.systemImage.proxy.GetSetting("all-cool")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "value-of: all-cool")
 }

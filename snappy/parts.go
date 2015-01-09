@@ -47,10 +47,25 @@ func (m *MetaRepository) GetInstalled() (parts []Part, err error) {
 	for _, r := range m.all {
 		installed, err := r.GetInstalled()
 		if err != nil {
-			return []Part{}, err
+			return parts, err
 		}
 		// FIXME: python extend() anyone?
 		for _, part := range installed {
+			parts = append(parts, part)
+		}
+	}
+
+	return parts, err
+}
+
+func (m *MetaRepository) GetUpdates() (parts []Part, err error) {
+	for _, r := range m.all {
+		updates, err := r.GetUpdates()
+		if err != nil {
+			return parts, err
+		}
+		// FIXME: python extend() anyone?
+		for _, part := range updates {
 			parts = append(parts, part)
 		}
 	}

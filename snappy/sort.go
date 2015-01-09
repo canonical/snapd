@@ -3,8 +3,8 @@ package snappy
 import (
 	"log"
 	"regexp"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -103,7 +103,7 @@ func VersionCompare(a, b string) int {
 	if !VersionIsValid(b) {
 		log.Printf("Invalid version '%s', expect wrong results", b)
 	}
-	
+
 	frags_a := getFragments(a)
 	frags_b := getFragments(b)
 
