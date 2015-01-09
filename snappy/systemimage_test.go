@@ -145,7 +145,7 @@ func (m *MockSystemImage) CheckForUpdate() error {
 }
 
 func (m *MockSystemImage) DownloadUpdate() error {
-	sig := dbus.NewSignalMessage(SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_INTERFACE, "Rebooting")
+	sig := dbus.NewSignalMessage(SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_INTERFACE, "Reboot")
 
 	sig.AppendArgs(
 		true,               // status, true if a reboot is required
@@ -205,6 +205,13 @@ func (s *SITestSuite) TestLowLevelGetSetting(c *C) {
 	c.Assert(value, Equals, "value-of: all-cool")
 }
 
+func (s *SITestSuite) TestLowLevelDownloadUpdate(c *C) {
+	// add a update
+	needBoot, err := s.systemImage.proxy.DownloadUpdate()
+	c.Assert(err, IsNil)
+	c.Assert(needBoot, Equals, true)
+}
+
 func (s *SITestSuite) TestTestInstalled(c *C) {
 	// whats installed
 	parts, err := s.systemImage.GetInstalled()
@@ -230,3 +237,4 @@ func (s *SITestSuite) TestGetUpdateHasUpdate(c *C) {
 	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
 	c.Assert(parts[0].Version(), Equals, "3.14")
 }
+

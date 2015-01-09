@@ -117,6 +117,9 @@ type systemImageDBusProxy struct {
 
 	us                           updateStatus
 	updateAvailableStatusChannel chan error
+
+	needsReboot bool
+	updateAppliedChannel chan error
 }
 
 func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
@@ -136,6 +139,12 @@ func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
 
 	p.updateAvailableStatusChannel = make(chan error)
 	if err := p.startUpdateAvailableSignalWatcher(); err != nil {
+		log.Panic(fmt.Sprintf("ERROR: %v", err))
+		return nil
+	}
+
+	p.updateAppliedChannel = make(chan error)
+	if err := p.startUpdateAppliedSignalWatcher(); err != nil {
 		log.Panic(fmt.Sprintf("ERROR: %v", err))
 		return nil
 	}
@@ -178,13 +187,44 @@ func (s *systemImageDBusProxy) GetSetting(key string) (v string, err error) {
 	return v, nil
 }
 
-func (s *systemImageDBusProxy) DownloadUpdate() (err error) {
-	callName := "DownloadUpdate"
-	_, err = s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
+func (s *systemImageDBusProxy) startUpdateAppliedSignalWatcher() (err error) {
+	updateAppliedStatusWatch, err := s.connection.WatchSignal(
+		&dbus.MatchRule{
+			Type:      dbus.TypeSignal,
+			Sender:    SYSTEM_IMAGE_BUS_NAME,
+			Interface: SYSTEM_IMAGE_INTERFACE,
+			Member:    "Reboot"})
 	if err != nil {
 		return err
 	}
+	runtime.SetFinalizer(
+		updateAppliedStatusWatch,
+		func(u *dbus.SignalWatch) {
+			u.Cancel()
+		})
+
+	go func() {
+		// keep the watch
+		for {
+			select {
+			case msg := <-updateAppliedStatusWatch.C:
+				err = msg.Args(&s.needsReboot)
+			}
+			s.updateAppliedChannel <- err
+		}
+	}()
 	return nil
+}
+
+func (s *systemImageDBusProxy) DownloadUpdate() (res bool, err error) {
+	callName := "DownloadUpdate"
+	_, err = s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
+	if err != nil {
+		return false, err
+	}
+	err = <- s.updateAppliedChannel
+	
+	return s.needsReboot, nil
 }
 
 func (s *systemImageDBusProxy) startUpdateAvailableSignalWatcher() (err error) {
