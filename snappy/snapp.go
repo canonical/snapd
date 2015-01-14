@@ -29,7 +29,7 @@ type packageYaml struct {
 	Icon    string
 }
 
-func NewLocalSnappPart(yaml_path string) *SnappPart {
+func NewInstalledSnappPart(yaml_path string) *SnappPart {
 	part := SnappPart{}
 
 	if _, err := os.Stat(yaml_path); os.IsNotExist(err) {
@@ -157,7 +157,7 @@ func (s *SnappLocalRepository) GetInstalled() (parts []Part, err error) {
 			continue
 		}
 
-		snapp := NewLocalSnappPart(yamlfile)
+		snapp := NewInstalledSnappPart(yamlfile)
 		if snapp != nil {
 			parts = append(parts, snapp)
 		}

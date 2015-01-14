@@ -6,7 +6,7 @@ import (
 	"text/tabwriter"
 )
 
-func CmdList(args []string) (err error) {
+func CmdList(args []string, showAll bool) (err error) {
 
 	m := NewMetaRepository()
 	installed, err := m.GetInstalled()
@@ -17,7 +17,9 @@ func CmdList(args []string) (err error) {
 	w := tabwriter.NewWriter(os.Stdout, 5, 3, 1, ' ', 0)
 	fmt.Fprintln(w, "Name\tVersion\tSummary\t")
 	for _, part := range installed {
-		fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
+		if showAll || part.IsActive() {
+			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
+		}
 	}
 	w.Flush()
 

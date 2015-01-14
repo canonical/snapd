@@ -5,7 +5,8 @@ import (
 )
 
 type CmdList struct {
-	Updates []bool `short:"u" long:"updates" description:"Show available updates"`
+	Updates bool `short:"u" long:"updates" description:"Show available updates"`
+	ShowAll bool `short:"a" long:"all" description:"Show all parts"`
 }
 
 var cmdList CmdList
@@ -20,5 +21,5 @@ func init() {
 }
 
 func (x *CmdList) Execute(args []string) (err error) {
-	return snappy.CmdList(args)
+	return snappy.CmdList(args, x.ShowAll)
 }

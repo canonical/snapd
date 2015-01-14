@@ -59,7 +59,7 @@ func makeSnappActive(package_yaml_path string) (err error) {
 }
 
 func (s *SnappTestSuite) TestLocalSnappInvalidPath(c *C) {
-	snapp := NewLocalSnappPart("invalid-path")
+	snapp := NewInstalledSnappPart("invalid-path")
 	c.Assert(snapp, IsNil)
 }
 
@@ -67,7 +67,7 @@ func (s *SnappTestSuite) TestLocalSnappSimple(c *C) {
 	snapp_yaml, err := s.makeMockSnapp()
 	c.Assert(err, IsNil)
 
-	snapp := NewLocalSnappPart(snapp_yaml)
+	snapp := NewInstalledSnappPart(snapp_yaml)
 	c.Assert(snapp, NotNil)
 	c.Assert(snapp.Name(), Equals, "hello-app")
 	c.Assert(snapp.Version(), Equals, "1.10")
@@ -81,7 +81,7 @@ func (s *SnappTestSuite) TestLocalSnappActive(c *C) {
 	c.Assert(err, IsNil)
 	makeSnappActive(snapp_yaml)
 
-	snapp := NewLocalSnappPart(snapp_yaml)
+	snapp := NewInstalledSnappPart(snapp_yaml)
 	c.Assert(snapp.IsActive(), Equals, true)
 }
 
