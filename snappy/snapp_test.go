@@ -1,7 +1,10 @@
 package snappy
 
 import (
+	"io"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 
@@ -104,4 +107,67 @@ func (s *SnappTestSuite) TestLocalSnappRepositorySimple(c *C) {
 	c.Assert(len(installed), Equals, 1)
 	c.Assert(installed[0].Name(), Equals, "hello-app")
 	c.Assert(installed[0].Version(), Equals, "1.10")
+}
+
+const MOCK_SEARCH_JSON = `{
+  "_links": {
+    "self": {
+      "href": "https:\/\/search.apps.ubuntu.com\/api\/v1\/search?q=xkcd"
+    },
+    "curies": [
+      {
+        "templated": true,
+        "name": "clickindex",
+        "href": "https:\/\/search.apps.ubuntu.com\/docs\/relations.html{#rel}"
+      }
+    ]
+  },
+  "_embedded": {
+    "clickindex:package": [
+      {
+        "prices": null,
+        "_links": {
+          "self": {
+            "href": "https:\/\/search.apps.ubuntu.com\/api\/v1\/package\/com.ubuntu.snappy.xkcd-webserver"
+          }
+        },
+        "version": "0.1",
+        "ratings_average": 0.0,
+        "content": "application",
+        "price": 0.0,
+        "icon_url": "https:\/\/myapps.developer.ubuntu.com\/site_media\/appmedia\/2014\/12\/xkcd.svg.png",
+        "title": "Show random XKCD compic via a build-in webserver",
+        "name": "xkcd-webserver.mvo",
+        "publisher": "Canonical"
+      }
+    ]
+  }
+}`
+
+type MockUbuntuStoreServer struct {
+	quit chan int
+
+	searchUri string
+}
+
+func handleSearch(w http.ResponseWriter, r *http.Request) {
+	io.WriteString(w, MOCK_SEARCH_JSON)
+}
+
+func (s *SnappTestSuite) TestUuntuStoreRepository(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(handleSearch))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snapp := NewUbuntuStoreSnappRepository()
+	c.Assert(snapp, NotNil)
+	snapp.searchUri = mockServer.URL + "/%s"
+
+	results, err := snapp.Search("xkcd")
+	c.Assert(err, IsNil)
+	c.Assert(len(results), Equals, 1)
+	c.Assert(results[0].Name(), Equals, "xkcd-webserver.mvo")
+	c.Assert(results[0].Version(), Equals, "0.1")
+	c.Assert(results[0].Description(), Equals, "Show random XKCD compic via a build-in webserver")
+
 }

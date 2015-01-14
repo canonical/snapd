@@ -45,6 +45,7 @@ func NewMetaRepository() *MetaRepository {
 	m := new(MetaRepository)
 	m.all = []Repository{
 		NewSystemImageRepository(),
+		NewUbuntuStoreSnappRepository(),
 		NewLocalSnappRepository(SNAPP_BASE_DIR),
 		NewLocalSnappRepository(SNAPP_OEM_DIR)}
 
@@ -74,6 +75,21 @@ func (m *MetaRepository) GetUpdates() (parts []Part, err error) {
 		}
 		// FIXME: python extend() anyone?
 		for _, part := range updates {
+			parts = append(parts, part)
+		}
+	}
+
+	return parts, err
+}
+
+func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
+	for _, r := range m.all {
+		results, err := r.Search(terms)
+		if err != nil {
+			return parts, err
+		}
+		// FIXME: python extend() anyone?
+		for _, part := range results {
 			parts = append(parts, part)
 		}
 	}

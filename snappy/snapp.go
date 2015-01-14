@@ -1,9 +1,11 @@
 package snappy
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -163,5 +165,122 @@ func (s *SnappLocalRepository) GetInstalled() (parts []Part, err error) {
 		}
 	}
 
+	return parts, err
+}
+
+type RemoteSnappPart struct {
+	raw map[string]interface{}
+}
+
+func (s *RemoteSnappPart) Name() string {
+	return fmt.Sprintf("%s", s.raw["name"])
+}
+
+func (s *RemoteSnappPart) Version() string {
+	return fmt.Sprintf("%s", s.raw["version"])
+}
+
+func (s *RemoteSnappPart) Description() string {
+	return fmt.Sprintf("%s", s.raw["title"])
+}
+
+func (s *RemoteSnappPart) Hash() string {
+	return "FIXME"
+}
+
+func (s *RemoteSnappPart) IsActive() bool {
+	return false
+}
+
+func (s *RemoteSnappPart) IsInstalled() bool {
+	return false
+}
+
+func (s *RemoteSnappPart) InstalledSize() int {
+	return -1
+}
+
+func (s *RemoteSnappPart) DownloadSize() int {
+	return -1
+}
+
+func (s *RemoteSnappPart) Install() (err error) {
+	return err
+}
+
+func (s *RemoteSnappPart) Uninstall() (err error) {
+	return err
+}
+
+func (s *RemoteSnappPart) Config(configuration []byte) (err error) {
+	return err
+}
+
+func NewRemoteSnappPart(data map[string]interface{}) *RemoteSnappPart {
+	return &RemoteSnappPart{raw: data}
+}
+
+type SnappUbuntuStoreRepository struct {
+	searchUri string
+}
+
+func NewUbuntuStoreSnappRepository() *SnappUbuntuStoreRepository {
+	return &SnappUbuntuStoreRepository{
+		searchUri: "https://search.apps.ubuntu.com/api/v1/search?q=%s"}
+}
+
+func (s *SnappUbuntuStoreRepository) Description() string {
+	return fmt.Sprintf("Snapp remote repository for %s", s.searchUri)
+}
+
+func (s *SnappUbuntuStoreRepository) Search(search_term string) (parts []Part, err error) {
+	url := fmt.Sprintf(s.searchUri, search_term)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return parts, err
+	}
+
+	// set headers
+	req.Header.Set("Accept", "application/hal+json")
+	//FIXME: hardcoded
+	req.Header.Set("X-Ubuntu-Frameworks", "ubuntu-core-15.04-dev1")
+	req.Header.Set("X-Ubuntu-Architecture", "amd64")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return parts, err
+	}
+
+	searchData := make(map[string]interface{})
+	body, err := ioutil.ReadAll(resp.Body)
+
+	//log.Print(string(body))
+	if err != nil {
+		return parts, err
+	}
+	err = json.Unmarshal(body, &searchData)
+	if err != nil {
+		return parts, nil
+	}
+	embedded := searchData["_embedded"].(map[string]interface{})
+	packages := embedded["clickindex:package"].([]interface{})
+
+	for _, raw := range packages {
+		snapp := NewRemoteSnappPart(raw.(map[string]interface{}))
+		if snapp != nil {
+			parts = append(parts, snapp)
+		}
+	}
+
+	return parts, err
+}
+
+func (s *SnappUbuntuStoreRepository) GetUpdates() (parts []Part, err error) {
+	// FIXME: get local installed and then query remote
+	return parts, err
+}
+
+func (s *SnappUbuntuStoreRepository) GetInstalled() (parts []Part, err error) {
 	return parts, err
 }
