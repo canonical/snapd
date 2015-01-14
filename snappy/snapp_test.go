@@ -136,7 +136,7 @@ const MOCK_SEARCH_JSON = `{
         "content": "application",
         "price": 0.0,
         "icon_url": "https:\/\/myapps.developer.ubuntu.com\/site_media\/appmedia\/2014\/12\/xkcd.svg.png",
-        "title": "Show random XKCD compic via a build-in webserver",
+        "title": "Show random XKCD comic",
         "name": "xkcd-webserver.mvo",
         "publisher": "Canonical"
       }
@@ -168,6 +168,6 @@ func (s *SnappTestSuite) TestUuntuStoreRepository(c *C) {
 	c.Assert(len(results), Equals, 1)
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver.mvo")
 	c.Assert(results[0].Version(), Equals, "0.1")
-	c.Assert(results[0].Description(), Equals, "Show random XKCD compic via a build-in webserver")
+	c.Assert(results[0].Description(), Equals, "Show random XKCD comic")
 
 }

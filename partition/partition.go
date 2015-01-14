@@ -53,7 +53,8 @@ var signal_handler_registered bool = false
 const WRITABLE_PARTITION_LABEL = "writable"
 
 const (
-	SYSTEM_TYPE_SINGLE_ROOT = iota // in-place upgrades
+	SYSTEM_TYPE_INVALID = iota     // invalid
+	SYSTEM_TYPE_SINGLE_ROOT        // in-place upgrades
 	SYSTEM_TYPE_DUAL_ROOT          // A/B partitions
 	systemTypeCount
 )
@@ -98,6 +99,11 @@ var mounts *list.List
 var bindMounts *list.List
 
 //--------------------------------------------------------------------
+
+type PartitionInterface interface {
+	UpdateBootloader() (err error)
+	MarkBootSuccessful() (err error)
+}
 
 type Partition struct {
 	// all partitions
@@ -231,28 +237,50 @@ func New() *Partition {
 	return p
 }
 
+
+func (p *Partition) UpdateBootloader() (err error) {
+	switch p.SystemType {
+	case SYSTEM_TYPE_SINGLE_ROOT:
+		// NOP
+		return nil
+	case SYSTEM_TYPE_DUAL_ROOT:
+		return p.toggleBootloaderRootfs()
+	default:
+		panic("BUG: unhandled SystemType")
+	}
+}
+
+func (p *Partition) MarkBootSuccessful() (err error) {
+	bootloader := DetermineBootLoader(p)
+	if bootloader == nil {
+		return bootloaderError
+	}
+
+	return bootloader.MarkCurrentBootSuccessful()
+}
+
 // Returns the full path to the cache directory, which is used as a
 // scratch pad, for downloading new images to and bind mounting the
 // rootfs.
-func (p *Partition) CacheDir() string {
+func (p *Partition) cacheDir() string {
 	return DEFAULT_CACHE_DIR
 }
 
 // Get the full path to the mount target directory
 func (p *Partition) getMountTarget() string {
-	return path.Join(p.CacheDir(), MOUNT_TARGET)
+	return path.Join(p.cacheDir(), MOUNT_TARGET)
 }
 
 // Returns a list of root filesystem partition labels
-func (p *Partition) RootPartitionLabels() []string {
+func (p *Partition) rootPartitionLabels() []string {
 	return []string{ROOTFS_A_LABEL, ROOTFS_B_LABEL}
 }
 
 // Returns a list of all recognised partition labels
-func (p *Partition) AllPartitionLabels() []string {
+func (p *Partition) allPartitionLabels() []string {
 	var labels []string
 
-	labels = p.RootPartitionLabels()
+	labels = p.rootPartitionLabels()
 	labels = append(labels, BOOT_PARTITION_LABEL)
 	labels = append(labels, WRITABLE_PARTITION_LABEL)
 
@@ -274,21 +302,21 @@ func (p *Partition) getPartitionDetails() {
 }
 
 func (p *Partition) determineSystemType() {
-	if p.DualRootPartitions() == true {
+	if p.dualRootPartitions() == true {
 		p.SystemType = SYSTEM_TYPE_DUAL_ROOT
-	} else if p.SinglelRootPartition() == true {
+	} else if p.singlelRootPartition() == true {
 		p.SystemType = SYSTEM_TYPE_SINGLE_ROOT
 	} else {
-		panic("Unrecognised system type")
+		p.SystemType = SYSTEM_TYPE_INVALID
 	}
 }
 
 // Return array of BlockDevices representing available root partitions
-func (p *Partition) RootPartitions() []BlockDevice {
+func (p *Partition) rootPartitions() []BlockDevice {
 	var roots []BlockDevice
 
 	for _, part := range p.partitions {
-		ok := stringInSlice(p.RootPartitionLabels(), part.name)
+		ok := stringInSlice(p.rootPartitionLabels(), part.name)
 		if ok == true {
 			roots = append(roots, part)
 		}
@@ -299,18 +327,18 @@ func (p *Partition) RootPartitions() []BlockDevice {
 
 // Return true if system has dual root partitions configured in the
 // expected manner for a snappy system.
-func (p *Partition) DualRootPartitions() bool {
-	return len(p.RootPartitions()) == 2
+func (p *Partition) dualRootPartitions() bool {
+	return len(p.rootPartitions()) == 2
 }
 
 // Return true if system has a single root partition configured in the
 // expected manner for a snappy system.
-func (p *Partition) SinglelRootPartition() bool {
-	return len(p.RootPartitions()) == 1
+func (p *Partition) singlelRootPartition() bool {
+	return len(p.rootPartitions()) == 1
 }
 
 // Return pointer to BlockDevice representing writable partition
-func (p *Partition) WritablePartition() (result *BlockDevice) {
+func (p *Partition) writablePartition() (result *BlockDevice) {
 	for _, part := range p.partitions {
 		if part.name == WRITABLE_PARTITION_LABEL {
 			return &part
@@ -321,7 +349,7 @@ func (p *Partition) WritablePartition() (result *BlockDevice) {
 }
 
 // Return pointer to BlockDevice representing boot partition (if any)
-func (p *Partition) BootPartition() (result *BlockDevice) {
+func (p *Partition) bootPartition() (result *BlockDevice) {
 	for _, part := range p.partitions {
 		if part.name == BOOT_PARTITION_LABEL {
 			return &part
@@ -333,8 +361,8 @@ func (p *Partition) BootPartition() (result *BlockDevice) {
 
 // Return pointer to BlockDevice representing currently mounted root
 // filesystem
-func (p *Partition) RootPartition() (result *BlockDevice) {
-	for _, part := range p.RootPartitions() {
+func (p *Partition) rootPartition() (result *BlockDevice) {
+	for _, part := range p.rootPartitions() {
 		if part.mountpoint == "/" {
 			return &part
 		}
@@ -345,8 +373,8 @@ func (p *Partition) RootPartition() (result *BlockDevice) {
 
 // Return pointer to BlockDevice representing the "other" root
 // filesystem (which is not currently mounted)
-func (p *Partition) OtherRootPartition() (result *BlockDevice) {
-	for _, part := range p.RootPartitions() {
+func (p *Partition) otherRootPartition() (result *BlockDevice) {
+	for _, part := range p.rootPartitions() {
 		if part.mountpoint != "/" {
 			return &part
 		}
@@ -357,7 +385,7 @@ func (p *Partition) OtherRootPartition() (result *BlockDevice) {
 
 // Returns a minimal list of mounts required for running grub-install
 // within a chroot.
-func (p *Partition) GetRequiredChrootMounts() []string {
+func (p *Partition) getRequiredChrootMounts() []string {
 	return []string{"/dev", "/proc", "/sys"}
 }
 
@@ -493,7 +521,7 @@ func stringInSlice(slice []string, value string) bool {
 func (p *Partition) loadPartitionDetails() (err error) {
 	var args []string
 
-	var recognised []string = p.AllPartitionLabels()
+	var recognised []string = p.allPartitionLabels()
 
 	args = append(args, "/bin/lsblk")
 	args = append(args, "--ascii")
@@ -563,7 +591,7 @@ func (p *Partition) loadPartitionDetails() (err error) {
 	return nil
 }
 
-func (p *Partition) MakeMountPoint() (err error) {
+func (p *Partition) makeMountPoint() (err error) {
 	if p.ReadOnlyRoot == true {
 		// A system update "owns" the default mount_target directory.
 		// So in read-only mode, use a temporary mountpoint name to
@@ -577,12 +605,12 @@ func (p *Partition) MakeMountPoint() (err error) {
 }
 
 // Mount the "other" root filesystem
-func (p *Partition) MountOtherRootfs() (err error) {
+func (p *Partition) mountOtherRootfs() (err error) {
 	var other *BlockDevice
 
-	p.MakeMountPoint()
+	p.makeMountPoint()
 
-	other = p.OtherRootPartition()
+	other = p.otherRootPartition()
 
 	if p.ReadOnlyRoot == true {
 		err = Mount(other.device, p.MountTarget, "ro")
@@ -597,16 +625,16 @@ func (p *Partition) MountOtherRootfs() (err error) {
 	return err
 }
 
-func (p *Partition) UnmountOtherRootfs() (err error) {
+func (p *Partition) unmountOtherRootfs() (err error) {
 	return Unmount(p.MountTarget)
 }
 
 // The bootloader requires a few filesystems to be mounted when
 // run from within a chroot.
-func (p *Partition) BindmountRequiredFilesystems() (err error) {
+func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	var boot *BlockDevice
 
-	for _, fs := range p.GetRequiredChrootMounts() {
+	for _, fs := range p.getRequiredChrootMounts() {
 		target := path.Clean(fmt.Sprintf("%s/%s", p.MountTarget, fs))
 
 		err := BindMount(fs, target)
@@ -615,7 +643,7 @@ func (p *Partition) BindmountRequiredFilesystems() (err error) {
 		}
 	}
 
-	boot = p.BootPartition()
+	boot = p.bootPartition()
 	if boot == nil {
 		// No separate boot partition
 		return nil
@@ -638,7 +666,7 @@ func (p *Partition) BindmountRequiredFilesystems() (err error) {
 }
 
 // Undo the effects of BindmountRequiredFilesystems()
-func (p *Partition) UnmountRequiredFilesystems() (err error) {
+func (p *Partition) unmountRequiredFilesystems() (err error) {
 	return undoMounts(bindMounts)
 }
 
@@ -646,7 +674,7 @@ func (p *Partition) UnmountRequiredFilesystems() (err error) {
 // new root filesystem.
 //
 // Errors are fatal.
-func (p *Partition) RunInChroot(args []string) (err error) {
+func (p *Partition) runInChroot(args []string) (err error) {
 	var fullArgs []string
 
 	fullArgs = append(fullArgs, "/usr/sbin/chroot")
@@ -657,7 +685,7 @@ func (p *Partition) RunInChroot(args []string) (err error) {
 	return RunCommand(fullArgs)
 }
 
-func (p *Partition) HandleBootloader() (err error) {
+func (p *Partition) handleBootloader() (err error) {
 	bootloader := DetermineBootLoader(p)
 
 	if bootloader == nil {
@@ -670,11 +698,11 @@ func (p *Partition) HandleBootloader() (err error) {
 	return bootloader.ToggleRootFS()
 }
 
-func (p *Partition) GetOtherVersion() (version SystemImageVersion, err error) {
+func (p *Partition) getOtherVersion() (version SystemImageVersion, err error) {
 
 	// XXX: note that we mount read-only here
 	p.ReadOnlyRoot = true
-	err = p.MountOtherRootfs()
+	err = p.mountOtherRootfs()
 
 	if err != nil {
 		return version, err
@@ -682,7 +710,7 @@ func (p *Partition) GetOtherVersion() (version SystemImageVersion, err error) {
 
 	// Unmount
 	defer func() {
-		err = p.UnmountOtherRootfs()
+		err = p.unmountOtherRootfs()
 	}()
 
 	// Remount mountpoint
@@ -736,7 +764,7 @@ func (p *Partition) GetOtherVersion() (version SystemImageVersion, err error) {
 
 // Currently, system-image-cli(1) does not provide 'version_string'
 // in its verbatim form, hence grope for it for now.
-func (p *Partition) GetOtherVersionDetail() (detail string, err error) {
+func (p *Partition) getOtherVersionDetail() (detail string, err error) {
 	var args []string
 
 	args = append(args, "ubuntu-core-upgrade")
@@ -761,50 +789,29 @@ func (p *Partition) GetOtherVersionDetail() (detail string, err error) {
 	return detail, err
 }
 
-func (p *Partition) UpdateBootloader() (err error) {
-	switch p.SystemType {
-	case SYSTEM_TYPE_SINGLE_ROOT:
-		// NOP
-		return nil
-	case SYSTEM_TYPE_DUAL_ROOT:
-		return p.ToggleBootloaderRootfs()
-	default:
-		panic("BUG: unhandled SystemType")
-	}
-}
+func (p *Partition) toggleBootloaderRootfs() (err error) {
 
-func (p *Partition) MarkBootSuccessful() (err error) {
-	bootloader := DetermineBootLoader(p)
-	if bootloader == nil {
-		return bootloaderError
-	}
-
-	return bootloader.MarkCurrentBootSuccessful()
-}
-
-func (p *Partition) ToggleBootloaderRootfs() (err error) {
-
-	if p.DualRootPartitions() != true {
+	if p.dualRootPartitions() != true {
 		return errors.New("System is not dual root")
 	}
 
-	if err = p.MountOtherRootfs(); err != nil {
+	if err = p.mountOtherRootfs(); err != nil {
 		return err
 	}
 
-	if err = p.BindmountRequiredFilesystems(); err != nil {
+	if err = p.bindmountRequiredFilesystems(); err != nil {
 		return err
 	}
 
-	if err = p.HandleBootloader(); err != nil {
+	if err = p.handleBootloader(); err != nil {
 		return err
 	}
 
-	if err = p.UnmountRequiredFilesystems(); err != nil {
+	if err = p.unmountRequiredFilesystems(); err != nil {
 		return err
 	}
 
-	if err = p.UnmountOtherRootfs(); err != nil {
+	if err = p.unmountOtherRootfs(); err != nil {
 		return err
 	}
 

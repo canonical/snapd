@@ -236,3 +236,33 @@ func (s *SITestSuite) TestGetUpdateHasUpdate(c *C) {
 	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
 	c.Assert(parts[0].Version(), Equals, "3.14")
 }
+
+
+type MockPartition struct {
+	updateBootloaderCalled bool
+	markBootSuccessfulCalled bool
+}
+
+func (p *MockPartition) UpdateBootloader() (err error) {
+	p.updateBootloaderCalled = true
+	return nil
+}
+
+func (p *MockPartition) MarkBootSuccessful() (err error) {
+	p.markBootSuccessfulCalled = true
+	return nil
+}
+
+func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
+	// add a update
+	s.mockSystemImage.info["target_build_number"] = "3.14"
+	parts, err := s.systemImage.GetUpdates()
+
+	sp := parts[0].(*SystemImagePart)
+	mockPartition := MockPartition{}
+	sp.partition = &mockPartition
+	
+	err = sp.Install()
+	c.Assert(err, IsNil)
+	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
+}

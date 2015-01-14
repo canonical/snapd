@@ -24,6 +24,10 @@ const (
 	SYSTEM_IMAGE_TIMEOUT_SECS = 30
 )
 
+const (
+	SYSTEM_IMAGE_PART_NAME = "ubuntu-core"
+)
+
 type SystemImagePart struct {
 	info  map[string]string
 	proxy *systemImageDBusProxy
@@ -31,11 +35,9 @@ type SystemImagePart struct {
 	version     string
 	isInstalled bool
 	isActive    bool
-}
 
-const (
-	SYSTEM_IMAGE_PART_NAME = "ubuntu-core"
-)
+	partition partition.PartitionInterface
+}
 
 func (s *SystemImagePart) Name() string {
 	return SYSTEM_IMAGE_PART_NAME
@@ -79,8 +81,7 @@ func (s *SystemImagePart) Install() (err error) {
 		return err
 	}
 
-	p := partition.New()
-	return p.UpdateBootloader()
+	return s.partition.UpdateBootloader()
 }
 
 func (s *SystemImagePart) Uninstall() (err error) {
@@ -95,9 +96,7 @@ func (s *SystemImagePart) Config(configuration []byte) (err error) {
 // Note: Not part of the Part interface.
 func (s *SystemImagePart) MarkBootSuccessful() (err error) {
 
-	p := partition.New()
-
-	return p.MarkBootSuccessful()
+	return s.partition.MarkBootSuccessful()
 }
 
 // Result of UpdateAvailableStatus() call
@@ -295,11 +294,10 @@ type SystemImageRepository struct {
 
 // Constructor
 func newSystemImageRepositoryForBus(bus dbus.StandardBus) *SystemImageRepository {
-	s := new(SystemImageRepository)
-	s.proxy = newSystemImageDBusProxy(bus)
-
-	return s
+	return &SystemImageRepository{
+		proxy: newSystemImageDBusProxy(bus)}
 }
+
 func NewSystemImageRepository() *SystemImageRepository {
 	return newSystemImageRepositoryForBus(dbus.SystemBus)
 }
@@ -319,7 +317,8 @@ func (s *SystemImageRepository) getCurrentPart() Part {
 		isActive:    true,
 		isInstalled: true,
 		proxy:       s.proxy,
-		version:     version}
+		version:     version,
+		partition: partition.New()}
 	return part
 }
 
@@ -346,7 +345,8 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 		parts = append(parts, &SystemImagePart{
 			info:    info,
 			proxy:   s.proxy,
-			version: version})
+			version: version,
+			partition: partition.New()})
 	}
 
 	return parts, err

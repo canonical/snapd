@@ -65,7 +65,7 @@ func (u *Uboot) ToggleRootFS() (err error) {
 		return err
 	}
 
-	other := u.partition.OtherRootPartition()
+	other := u.partition.otherRootPartition()
 	label := other.name
 
 	// FIXME: current naming scheme

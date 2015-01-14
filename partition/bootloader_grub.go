@@ -45,13 +45,13 @@ func (g *Grub) ToggleRootFS() (err error) {
 	var args []string
 	var other *BlockDevice
 
-	other = g.partition.OtherRootPartition()
+	other = g.partition.otherRootPartition()
 
 	args = append(args, BOOTLOADER_GRUB_INSTALL_CMD)
 	args = append(args, other.parentName)
 
 	// install grub
-	err = g.partition.RunInChroot(args)
+	err = g.partition.runInChroot(args)
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func (g *Grub) ToggleRootFS() (err error) {
 	args = append(args, BOOTLOADER_GRUB_UPDATE_CMD)
 
 	// create the grub config
-	err = g.partition.RunInChroot(args)
+	err = g.partition.runInChroot(args)
 	if err != nil {
 		return err
 	}
