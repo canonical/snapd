@@ -359,9 +359,3 @@ func (s *SystemImageRepository) GetInstalled() (parts []Part, err error) {
 
 	return parts, err
 }
-
-// Hook up the connection to the system-image server
-func (s *SystemImageRepository) dbusSetup(bus dbus.StandardBus) (err error) {
-
-	return err
-}
