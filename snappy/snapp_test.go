@@ -64,7 +64,6 @@ func (s *SnappTestSuite) TestLocalSnappInvalidPath(c *C) {
 }
 
 func (s *SnappTestSuite) TestLocalSnappSimple(c *C) {
-
 	snapp_yaml, err := s.makeMockSnapp()
 	c.Assert(err, IsNil)
 
@@ -72,18 +71,26 @@ func (s *SnappTestSuite) TestLocalSnappSimple(c *C) {
 	c.Assert(snapp, NotNil)
 	c.Assert(snapp.Name(), Equals, "hello-app")
 	c.Assert(snapp.Version(), Equals, "1.10")
+	c.Assert(snapp.IsActive(), Equals, false)
 
 	c.Assert(snapp.basedir, Equals, path.Join(s.tempdir, "apps", "hello-app", "1.10"))
 }
 
-func (s *SnappTestSuite) TestLocalSnappRepositoryInvalid(c *C) {
+func (s *SnappTestSuite) TestLocalSnappActive(c *C) {
+	snapp_yaml, err := s.makeMockSnapp()
+	c.Assert(err, IsNil)
+	makeSnappActive(snapp_yaml)
 
+	snapp := NewLocalSnappPart(snapp_yaml)
+	c.Assert(snapp.IsActive(), Equals, true)
+}
+
+func (s *SnappTestSuite) TestLocalSnappRepositoryInvalid(c *C) {
 	snapp := NewLocalSnappRepository("invalid-path")
 	c.Assert(snapp, IsNil)
 }
 
 func (s *SnappTestSuite) TestLocalSnappRepositorySimple(c *C) {
-
 	yaml_path, err := s.makeMockSnapp()
 	c.Assert(err, IsNil)
 	err = makeSnappActive(yaml_path)

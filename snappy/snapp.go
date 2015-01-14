@@ -55,12 +55,18 @@ func NewLocalSnappPart(yaml_path string) *SnappPart {
 		log.Printf("Can not parse '%s'", yaml_data)
 		return nil
 	}
+	part.basedir = path.Dir(path.Dir(yaml_path))
+	// data from the yaml
 	part.name = m.Name
 	part.version = m.Version
 	part.isInstalled = true
-	// FIXME: figure out if we are active
+	// check if the part is active
+	allVersionsDir := path.Dir(part.basedir)
+	p, _ := filepath.EvalSymlinks(path.Join(allVersionsDir, "current"))
+	if p == part.basedir {
+		part.isActive = true
+	}
 
-	part.basedir = path.Dir(path.Dir(yaml_path))
 	return &part
 }
 
@@ -150,7 +156,7 @@ func (s *SnappLocalRepository) GetInstalled() (parts []Part, err error) {
 		if realpath != yamlfile {
 			continue
 		}
-		
+
 		snapp := NewLocalSnappPart(yamlfile)
 		if snapp != nil {
 			parts = append(parts, snapp)
