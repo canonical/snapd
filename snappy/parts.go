@@ -1,5 +1,10 @@
 package snappy
 
+const (
+	SNAPP_BASE_DIR = "/apps"
+	SNAPP_OEM_DIR  = "/oem"
+)
+
 // Representation of a snappy part
 type Part interface {
 
@@ -38,7 +43,10 @@ type MetaRepository struct {
 
 func NewMetaRepository() *MetaRepository {
 	m := new(MetaRepository)
-	m.all = []Repository{NewSystemImageRepository()}
+	m.all = []Repository{
+		NewSystemImageRepository(),
+		NewLocalSnappRepository(SNAPP_BASE_DIR),
+		NewLocalSnappRepository(SNAPP_OEM_DIR)}
 
 	return m
 }

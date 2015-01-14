@@ -1,25 +1,37 @@
 package snappy
 
 import (
+	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
-	"io/ioutil"
+	"path"
+	"path/filepath"
+
+	"gopkg.in/yaml.v1"
 )
 
 type SnappPart struct {
-	name string
-	version string
+	name        string
+	version     string
 	description string
-	hash string 
-	isActive bool 
-	isInstalled bool 
-	
+	hash        string
+	isActive    bool
+	isInstalled bool
+
+	basedir string
 }
 
-func NewLocalSnappPart(path string) *SnappPart {
+type packageYaml struct {
+	Name    string
+	Version string
+	Vendor  string
+	Icon    string
+}
+
+func NewLocalSnappPart(yaml_path string) *SnappPart {
 	part := SnappPart{}
 
-	yaml_path := path + "/meta/package.yaml"
 	if _, err := os.Stat(yaml_path); os.IsNotExist(err) {
 		log.Printf("No '%s' found", yaml_path)
 		return nil
@@ -36,14 +48,19 @@ func NewLocalSnappPart(path string) *SnappPart {
 		log.Printf("Can not read '%s'", r)
 		return nil
 	}
-	
-	yaml, err := getMapFromYaml(yaml_data)
-	part.name = yaml["name"].(string)
-	part.version = yaml["version"].(string)
+
+	var m packageYaml
+	err = yaml.Unmarshal(yaml_data, &m)
+	if err != nil {
+		log.Printf("Can not parse '%s'", yaml_data)
+		return nil
+	}
+	part.name = m.Name
+	part.version = m.Version
 	part.isInstalled = true
 	// FIXME: figure out if we are active
-	
-	
+
+	part.basedir = path.Dir(path.Dir(yaml_path))
 	return &part
 }
 
@@ -89,4 +106,46 @@ func (s *SnappPart) Uninstall() (err error) {
 
 func (s *SnappPart) Config(configuration []byte) (err error) {
 	return err
+}
+
+type SnappLocalRepository struct {
+	path string
+}
+
+func NewLocalSnappRepository(path string) *SnappLocalRepository {
+	if s, err := os.Stat(path); err != nil || !s.IsDir() {
+		log.Printf("Invalid directory %s (%s)", path, err)
+		return nil
+	}
+	return &SnappLocalRepository{path: path}
+}
+
+func (s *SnappLocalRepository) Description() string {
+	return fmt.Sprintf("Snapp local repository for %s", s.path)
+}
+
+func (s *SnappLocalRepository) Search(terms string) (versions []Part, err error) {
+	return versions, err
+}
+
+func (s *SnappLocalRepository) GetUpdates() (parts []Part, err error) {
+
+	return parts, err
+}
+
+func (s *SnappLocalRepository) GetInstalled() (parts []Part, err error) {
+
+	globExpr := path.Join(s.path, "*", "*", "meta", "package.yaml")
+	matches, err := filepath.Glob(globExpr)
+	if err != nil {
+		return parts, err
+	}
+	for _, yamlfile := range matches {
+		snapp := NewLocalSnappPart(yamlfile)
+		if snapp != nil {
+			parts = append(parts, snapp)
+		}
+	}
+
+	return parts, err
 }

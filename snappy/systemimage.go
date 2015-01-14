@@ -311,7 +311,8 @@ func (s *SystemImageRepository) Description() string {
 func (s *SystemImageRepository) getCurrentPart() Part {
 	info, err := s.proxy.Information()
 	if err != nil {
-		panic("proxy.Information failed")
+		log.Print("proxy.Information failed")
+		return nil
 	}
 	version := info["current_build_number"]
 	part := &SystemImagePart{info: info,
@@ -353,7 +354,10 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 
 func (s *SystemImageRepository) GetInstalled() (parts []Part, err error) {
 	// current partition
-	parts = append(parts, s.getCurrentPart())
+	curr := s.getCurrentPart()
+	if curr != nil {
+		parts = append(parts, curr)
+	}
 
 	// FIXME: get data from B partition and fill it in here
 
