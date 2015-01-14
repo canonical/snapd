@@ -50,6 +50,14 @@ func (s *SnappTestSuite) makeMockSnapp() (snapp_dir string, err error) {
 	return yaml_file, err
 }
 
+func makeSnappActive(package_yaml_path string) (err error) {
+	snappdir := path.Dir(path.Dir(package_yaml_path))
+	parent := path.Dir(snappdir)
+	err = os.Symlink(snappdir, path.Join(parent, "current"))
+
+	return err
+}
+
 func (s *SnappTestSuite) TestLocalSnappInvalidPath(c *C) {
 	snapp := NewLocalSnappPart("invalid-path")
 	c.Assert(snapp, IsNil)
@@ -76,7 +84,9 @@ func (s *SnappTestSuite) TestLocalSnappRepositoryInvalid(c *C) {
 
 func (s *SnappTestSuite) TestLocalSnappRepositorySimple(c *C) {
 
-	_, err := s.makeMockSnapp()
+	yaml_path, err := s.makeMockSnapp()
+	c.Assert(err, IsNil)
+	err = makeSnappActive(yaml_path)
 	c.Assert(err, IsNil)
 
 	snapp := NewLocalSnappRepository(path.Join(s.tempdir, "apps"))

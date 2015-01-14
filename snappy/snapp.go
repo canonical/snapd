@@ -141,6 +141,16 @@ func (s *SnappLocalRepository) GetInstalled() (parts []Part, err error) {
 		return parts, err
 	}
 	for _, yamlfile := range matches {
+
+		// skip "current" and similar symlinks
+		realpath, err := filepath.EvalSymlinks(yamlfile)
+		if err != nil {
+			return parts, err
+		}
+		if realpath != yamlfile {
+			continue
+		}
+		
 		snapp := NewLocalSnappPart(yamlfile)
 		if snapp != nil {
 			parts = append(parts, snapp)
