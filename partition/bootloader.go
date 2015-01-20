@@ -1,12 +1,6 @@
 package partition
 
 const (
-	BOOTLOADER_TYPE_GRUB = iota
-	BOOTLOADER_TYPE_UBOOT
-	bootloaderTypeCount
-)
-
-const (
 	// bootloader variable used to denote which rootfs to boot from
 	// FIXME: preferred new name
 	// BOOTLOADER_UBOOT_ROOTFS_VAR = "snappy_rootfs_label"
@@ -38,6 +32,10 @@ type BootLoader interface {
 	// partitions.
 	SyncBootFiles() error
 
+	// Install any hardware-specific files that system-image
+	// downloaded.
+	HandleAssets() error
+
 	// Retrieve a list of all bootloader name=value pairs set
 	// by this program.
 	GetAllBootVars() ([]string, error)
@@ -65,7 +63,7 @@ type BootLoader interface {
 
 func DetermineBootLoader(p *Partition) BootLoader {
 
-	bootloaders := []BootLoader{&Uboot{p}, &Grub{p}}
+	bootloaders := []BootLoader{NewUboot(p), NewGrub(p)}
 
 	for _, b := range bootloaders {
 		if b.Installed() == true {

@@ -81,6 +81,8 @@ func (s *SystemImagePart) Install() (err error) {
 		return err
 	}
 
+	// FIXME: switch s-i daemon back to current partition
+
 	return s.partition.UpdateBootloader()
 }
 

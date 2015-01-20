@@ -26,7 +26,11 @@ const (
 )
 
 type Uboot struct {
-	partition *Partition
+	partition       *Partition
+	currentLabel     string
+	otherLabel       string
+	currentBootPath  string
+	otherBootPath    string
 }
 
 // Stores a Name and a Value to be added as a name=value pair in a file.
@@ -35,8 +39,33 @@ type ConfigFileChange struct {
 	Value    string
 }
 
+// Create a new Grub bootloader object
+func NewUboot(partition *Partition) *Uboot {
+	u := new(Uboot)
+	u.partition = partition
+
+	current := u.partition.rootPartition()
+	other   := u.partition.otherRootPartition()
+
+	u.currentLabel = current.name
+	u.otherLabel   = other.name
+
+	// each rootfs partition has a corresponding u-boot directory named
+	// from the last character of the partition name ('a' or 'b').
+	currentPartition := u.currentLabel[len(u.currentLabel) - 1]
+	otherPartition   := u.otherLabel[len(u.otherLabel) - 1]
+
+	u.currentBootPath = fmt.Sprintf("%s/%s",
+		BOOTLOADER_UBOOT_DIR, currentPartition)
+
+	u.otherBootPath = fmt.Sprintf("%s/%s",
+		BOOTLOADER_UBOOT_DIR, otherPartition)
+
+	return u
+}
+
 func (u *Uboot) Name() string {
-	return "u-boot"
+	return "uboot"
 }
 
 func (u *Uboot) Installed() bool {
@@ -316,30 +345,83 @@ func (u *Uboot) MarkCurrentBootSuccessful() (err error) {
 }
 
 func (u *Uboot) SyncBootFiles() (err error) {
-	current := u.partition.rootPartition()
-	other   := u.partition.otherRootPartition()
-
-	currentLabel := current.name
-	otherLabel   := other.name
-
-	// each rootfs partition has a corresponding u-boot directory named
-	// from the last character of the partition name ('a' or 'b').
-	currentPartition := currentLabel[len(currentLabel) - 1]
-	otherPartition   := otherLabel[len(otherLabel) - 1]
-
-	currentBootPath := fmt.Sprintf("%s/%s",
-				       BOOTLOADER_UBOOT_DIR, currentPartition)
-
-	otherBootPath := fmt.Sprintf("%s/%s",
-				       BOOTLOADER_UBOOT_DIR, otherPartition)
-
-	srcDir := currentBootPath
-	destDir := otherBootPath
+	srcDir := u.currentBootPath
+	destDir := u.otherBootPath
 
 	// always start from scratch: all files here are owned by us.
 	os.RemoveAll(destDir)
 
 	return RunCommand([]string{"/bin/cp", "-a", srcDir, destDir})
+}
+
+func (u *Uboot) HandleAssets() (err error) {
+
+	assetsDir := u.partition.assetsDir()
+	flashAssetsDir := u.partition.flashAssetsDir()
+
+	destDir := u.otherBootPath
+
+	err = os.MkdirAll(destDir, DIR_MODE)
+	if err != nil {
+		return err
+	}
+
+	if err = FileExists(assetsDir); err == nil {
+
+		kernel := fmt.Sprintf("%s/vmlinuz", assetsDir)
+		initrd := fmt.Sprintf("%s/initrd.img", assetsDir)
+		dtbDir := fmt.Sprintf("%s/dtbs/", assetsDir)
+
+		// install kernel+initrd
+		for _, file := range []string{kernel, initrd} {
+			if err = FileExists(file); err != nil {
+				continue
+			}
+			err = RunCommand([]string{"/bin/cp", file, destDir})
+			if err != nil {
+				return err
+			}
+		}
+
+		// install .dtb files
+		if err = FileExists(dtbDir); err == nil {
+			dtbDestDir := fmt.Sprintf("%s/dtbs", destDir)
+
+			err = os.MkdirAll(dtbDestDir, DIR_MODE)
+			if err != nil {
+				return err
+			}
+
+			files, err := filepath.Glob(fmt.Sprintf("%s/*", dtbDir))
+			if err != nil {
+				return err
+			}
+
+			for _, file := range files {
+				err = RunCommand([]string{"/bin/cp", file, dtbDestDir})
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+		// remove the original unpack directory
+		if err = os.RemoveAll(assetsDir); err != nil {
+			return err
+		}
+	}
+
+	if err = FileExists(flashAssetsDir); err == nil {
+		// FIXME: we don't currently do anything with the
+		// MLO + uImage files yet, but we should!!
+
+		err = os.RemoveAll(flashAssetsDir)
+		if err != nil {
+			return err
+		}
+	}
+
+	return err
 }
 
 // Write lines to file atomically. File does not have to preexist.

@@ -85,6 +85,15 @@ var (
 	bootloaderError = errors.New("Unable to determine bootloader")
 )
 
+// Directory that _may_ get automatically created on unpack that
+// contains updated hardware-specific boot assets (such as initrd, kernel)
+const ASSETS_DIR = "assets"
+
+// Directory that _may_ get automatically created on unpack that
+// contains updated hardware-specific assets that require flashing
+// to the disk (such as uBoot, MLO)
+const FLASH_ASSETS_DIR = "flashtool-assets"
+
 //--------------------------------------------------------------------
 // Globals
 
@@ -260,6 +269,16 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 // rootfs.
 func (p *Partition) cacheDir() string {
 	return DEFAULT_CACHE_DIR
+}
+
+// Return full path to the main assets directory
+func (p *Partition) assetsDir() string {
+	return fmt.Sprintf("%s/%s", p.cacheDir(), ASSETS_DIR)
+}
+
+// Return the full path to the hardware-specific flash assets directory.
+func (p *Partition) flashAssetsDir() string {
+	return fmt.Sprintf("%s/%s", p.cacheDir(), FLASH_ASSETS_DIR)
 }
 
 // Get the full path to the mount target directory
@@ -820,5 +839,10 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return err
 	}
 
-	return err
+	bootloader := DetermineBootLoader(p)
+	if bootloader == nil {
+		return bootloaderError
+	}
+
+	return bootloader.HandleAssets()
 }

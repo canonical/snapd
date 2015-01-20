@@ -18,6 +18,13 @@ type Grub struct {
 	partition *Partition
 }
 
+// Create a new Grub bootloader object
+func NewGrub(partition *Partition) *Grub {
+	g := new(Grub)
+	g.partition = partition
+	return g
+}
+
 func (g *Grub) Name() string {
 	return "grub"
 }
@@ -157,5 +164,12 @@ func (g *Grub) MarkCurrentBootSuccessful() (err error) {
 
 func (g *Grub) SyncBootFiles() (err error) {
 	// NOP
+	return err
+}
+
+func (g *Grub) HandleAssets() (err error) {
+
+	// NOP - since grub is used on generic hardware, it doesn't
+	// need to make use of hardware-specific assets
 	return err
 }
