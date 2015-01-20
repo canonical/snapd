@@ -10,11 +10,19 @@ import (
 )
 
 const (
-	BOOTLOADER_UBOOT_CONFIG_FILE = "/boot/uEnv.txt"
+	BOOTLOADER_UBOOT_DIR         = "/boot/uboot"
+	BOOTLOADER_UBOOT_CONFIG_FILE = "/boot/uboot/uEnv.txt"
+
+	// File created by u-boot itself when
+	// BOOTLOADER_BOOTMODE_VAR_START_VALUE == "try" which the
+	// successfully booted system must remove to flag to u-boot that
+	// this partition is "good".
+	BOOTLOADER_UBOOT_STAMP_FILE = "/boot/uboot/snappy-stamp.txt"
 
 	// the main uEnv.txt u-boot config file sources this snappy
 	// boot-specific config file.
 	BOOTLOADER_UBOOT_ENV_FILE = "snappy-system.txt"
+
 )
 
 type Uboot struct {
@@ -54,8 +62,8 @@ func (u *Uboot) Installed() bool {
 //   correct versions.
 func (u *Uboot) ToggleRootFS() (err error) {
 
-	var kernel       string
-	var initrd       string
+	var kernel string
+	var initrd string
 
 	if kernel, err = u.getKernel(); err != nil {
 		return err
@@ -73,7 +81,7 @@ func (u *Uboot) ToggleRootFS() (err error) {
 	// FIXME: preferred naming scheme
 	//dir := label
 
-	bootDir := fmt.Sprintf("/boot/%s", dir)
+	bootDir := fmt.Sprintf("%s/%s", BOOTLOADER_UBOOT_DIR, dir)
 
 	if err = os.MkdirAll(bootDir, DIR_MODE); err != nil {
 		return err
@@ -299,7 +307,39 @@ func (u *Uboot) MarkCurrentBootSuccessful() (err error) {
 		},
 	}
 
-	return modifyNameValueFile(BOOTLOADER_UBOOT_ENV_FILE, changes)
+	err = modifyNameValueFile(BOOTLOADER_UBOOT_ENV_FILE, changes)
+	if err != nil {
+		return err
+	}
+
+	return os.RemoveAll(BOOTLOADER_UBOOT_STAMP_FILE)
+}
+
+func (u *Uboot) SyncBootFiles() (err error) {
+	current := u.partition.rootPartition()
+	other   := u.partition.otherRootPartition()
+
+	currentLabel := current.name
+	otherLabel   := other.name
+
+	// each rootfs partition has a corresponding u-boot directory named
+	// from the last character of the partition name ('a' or 'b').
+	currentPartition := currentLabel[len(currentLabel) - 1]
+	otherPartition   := otherLabel[len(otherLabel) - 1]
+
+	currentBootPath := fmt.Sprintf("%s/%s",
+				       BOOTLOADER_UBOOT_DIR, currentPartition)
+
+	otherBootPath := fmt.Sprintf("%s/%s",
+				       BOOTLOADER_UBOOT_DIR, otherPartition)
+
+	srcDir := currentBootPath
+	destDir := otherBootPath
+
+	// always start from scratch: all files here are owned by us.
+	os.RemoveAll(destDir)
+
+	return RunCommand([]string{"/bin/cp", "-a", srcDir, destDir})
 }
 
 // Write lines to file atomically. File does not have to preexist.

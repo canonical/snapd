@@ -33,6 +33,11 @@ type BootLoader interface {
 	// filesystem partition will be used on next boot.
 	ToggleRootFS() error
 
+	// Hook function called before system-image starts downloading
+	// and applying archives that allows files to be copied between
+	// partitions.
+	SyncBootFiles() error
+
 	// Retrieve a list of all bootloader name=value pairs set
 	// by this program.
 	GetAllBootVars() ([]string, error)

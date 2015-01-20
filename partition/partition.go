@@ -3,7 +3,6 @@
 //--------------------------------------------------------------------
 // TODO:
 //
-// - XXX: implement apt_pkg.version_compare() !?!
 // - logging
 // - SNAPPY_DEBUG
 // - locking (sync.Mutex)
@@ -41,9 +40,6 @@ import (
 	"syscall"
 )
 
-// FIXME: leverage u-d-f once it's part of snappy
-const DEVICE_TYPE = "generic_amd64"
-
 var debug bool = false
 
 var signal_handler_registered bool = false
@@ -69,7 +65,7 @@ const ROOTFS_A_LABEL = "system-a"
 const ROOTFS_B_LABEL = "system-b"
 
 // name of boot partition label as created by ubuntu-device-flash(1).
-const BOOT_PARTITION_LABEL = "boot"
+const BOOT_PARTITION_LABEL = "system-boot"
 
 // FIXME: Should query system-image-cli (see bug LP:#1380574).
 const DEFAULT_CACHE_DIR = "/writable/cache"
@@ -442,6 +438,15 @@ func FileExists(path string) (err error) {
 	_, err = os.Stat(path)
 
 	return err
+}
+
+func IsDirectory(path string) (bool) {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+
+	return fileInfo.IsDir()
 }
 
 func Mount(source, target, options string) (err error) {

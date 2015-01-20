@@ -23,10 +23,12 @@ func (g *Grub) Name() string {
 }
 
 func (g *Grub) Installed() bool {
-	// crude heuristic
-	err := FileExists(BOOTLOADER_GRUB_CONFIG_FILE)
 
-	if err == nil {
+	// Use same heuristic as the initramfs.
+	err1 := FileExists(BOOTLOADER_GRUB_CONFIG_FILE)
+	err2 := FileExists(BOOTLOADER_GRUB_INSTALL_CMD)
+
+	if err1 == nil && err2 == nil {
 		return true
 	}
 
@@ -151,4 +153,9 @@ func (g *Grub) GetNextBootRootLabel() (label string, err error) {
 func (g *Grub) MarkCurrentBootSuccessful() (err error) {
 	return g.SetBootVar(BOOTLOADER_BOOTMODE_VAR,
 		BOOTLOADER_BOOTMODE_VAR_END_VALUE)
+}
+
+func (g *Grub) SyncBootFiles() (err error) {
+	// NOP
+	return err
 }
