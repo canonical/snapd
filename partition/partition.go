@@ -108,6 +108,7 @@ var bindMounts *list.List
 type PartitionInterface interface {
 	UpdateBootloader() (err error)
 	MarkBootSuccessful() (err error)
+	GetBootloader() (BootLoader, error)
 }
 
 type Partition struct {
@@ -255,10 +256,23 @@ func (p *Partition) UpdateBootloader() (err error) {
 	}
 }
 
+func DetermineBootLoader(p *Partition) (bootloader BootLoader, err error) {
+
+	bootloaders := []BootLoader{NewUboot(p), NewGrub(p)}
+
+	for _, b := range bootloaders {
+		if b.Installed() == true {
+			return b, err
+		}
+	}
+
+	return nil, bootloaderError
+}
+
 func (p *Partition) MarkBootSuccessful() (err error) {
-	bootloader := DetermineBootLoader(p)
-	if bootloader == nil {
-		return bootloaderError
+	bootloader, err := DetermineBootLoader(p)
+	if err != nil {
+		return err
 	}
 
 	return bootloader.MarkCurrentBootSuccessful()
@@ -710,10 +724,10 @@ func (p *Partition) runInChroot(args []string) (err error) {
 }
 
 func (p *Partition) handleBootloader() (err error) {
-	bootloader := DetermineBootLoader(p)
+	bootloader, err := DetermineBootLoader(p)
 
-	if bootloader == nil {
-		return bootloaderError
+	if err != nil {
+		return err
 	}
 
 	// FIXME: use logger
@@ -813,6 +827,10 @@ func (p *Partition) getOtherVersionDetail() (detail string, err error) {
 	return detail, err
 }
 
+func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
+	return DetermineBootLoader(p)
+}
+
 func (p *Partition) toggleBootloaderRootfs() (err error) {
 
 	if p.dualRootPartitions() != true {
@@ -839,9 +857,9 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return err
 	}
 
-	bootloader := DetermineBootLoader(p)
-	if bootloader == nil {
-		return bootloaderError
+	bootloader, err := DetermineBootLoader(p)
+	if err != nil {
+		return err
 	}
 
 	return bootloader.HandleAssets()

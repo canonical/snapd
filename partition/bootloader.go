@@ -61,15 +61,3 @@ type BootLoader interface {
 	MarkCurrentBootSuccessful() error
 }
 
-func DetermineBootLoader(p *Partition) BootLoader {
-
-	bootloaders := []BootLoader{NewUboot(p), NewGrub(p)}
-
-	for _, b := range bootloaders {
-		if b.Installed() == true {
-			return b
-		}
-	}
-
-	return nil
-}

@@ -2,7 +2,6 @@ package partition
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -47,13 +46,13 @@ func NewUboot(partition *Partition) *Uboot {
 	current := u.partition.rootPartition()
 	other   := u.partition.otherRootPartition()
 
-	u.currentLabel = current.name
-	u.otherLabel   = other.name
+	u.currentLabel = string(current.name)
+	u.otherLabel   = string(other.name)
 
 	// each rootfs partition has a corresponding u-boot directory named
 	// from the last character of the partition name ('a' or 'b').
-	currentPartition := u.currentLabel[len(u.currentLabel) - 1]
-	otherPartition   := u.otherLabel[len(u.otherLabel) - 1]
+	currentPartition := string(u.currentLabel[len(u.currentLabel) - 1])
+	otherPartition   := string(u.otherLabel[len(u.otherLabel) - 1])
 
 	u.currentBootPath = fmt.Sprintf("%s/%s",
 		BOOTLOADER_UBOOT_DIR, currentPartition)
@@ -91,48 +90,8 @@ func (u *Uboot) Installed() bool {
 //   correct versions.
 func (u *Uboot) ToggleRootFS() (err error) {
 
-	var kernel string
-	var initrd string
-
-	if kernel, err = u.getKernel(); err != nil {
-		return err
-	}
-
-	if initrd, err = u.getInitrd(); err != nil {
-		return err
-	}
-
-	other := u.partition.otherRootPartition()
-	label := other.name
-
-	// FIXME: current naming scheme
-	dir := string(label[len(label)-1])
-	// FIXME: preferred naming scheme
-	//dir := label
-
-	bootDir := fmt.Sprintf("%s/%s", BOOTLOADER_UBOOT_DIR, dir)
-
-	if err = os.MkdirAll(bootDir, DIR_MODE); err != nil {
-		return err
-	}
-
-	kernelDest := fmt.Sprintf("%s/vmlinuz", bootDir)
-	initrdDest := fmt.Sprintf("%s/initrd.img", bootDir)
-
-	// install the kernel into the boot partition
-	if err = RunCommand([]string{"/bin/cp", kernel, kernelDest}); err != nil {
-		return err
-	}
-
-	// install the initramfs into the boot partition
-	if err = RunCommand([]string{"/bin/cp", initrd, initrdDest}); err != nil {
-		return err
-	}
-
-	// FIXME: current
-	value := dir
-	// FIXME: preferred
-	//value := label
+	// write 1 character partition name ('a' or 'b')
+	value := string(u.otherLabel[len(u.otherLabel) - 1])
 
 	// If the file exists, update it. Otherwise create it.
 	//
@@ -289,44 +248,6 @@ func getNameValuePairs(file string) (vars []string, err error) {
 	}
 
 	return vars, err
-}
-
-// Returns full path to kernel on the other partition
-func (u *Uboot) getKernel() (path string, err error) {
-
-	files, err := filepath.Glob(fmt.Sprintf("%s/boot/vmlinuz-*",
-		u.partition.MountTarget))
-
-	if err != nil {
-		return path, err
-	}
-
-	if len(files) < 1 {
-		return path, errors.New("Failed to find kernel")
-	}
-
-	path = files[0]
-
-	return path, err
-}
-
-// Returns full path to initrd / initramfs on the other partition
-func (u *Uboot) getInitrd() (path string, err error) {
-
-	files, err := filepath.Glob(fmt.Sprintf("%s/boot/initrd.img-*",
-		u.partition.MountTarget))
-
-	if err != nil {
-		return path, err
-	}
-
-	if len(files) < 1 {
-		return path, errors.New("Failed to find initrd")
-	}
-
-	path = files[0]
-
-	return path, err
 }
 
 func (u *Uboot) MarkCurrentBootSuccessful() (err error) {
