@@ -1,3 +1,7 @@
+//--------------------------------------------------------------------
+// Copyright (c) 2014-2015 Canonical Ltd.
+//--------------------------------------------------------------------
+
 package partition
 
 import (
@@ -6,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sort"
 )
 
 const (
@@ -25,11 +30,7 @@ const (
 )
 
 type Uboot struct {
-	partition       *Partition
-	currentLabel     string
-	otherLabel       string
-	currentBootPath  string
-	otherBootPath    string
+	*BootLoaderType
 }
 
 // Stores a Name and a Value to be added as a name=value pair in a file.
@@ -40,31 +41,20 @@ type ConfigFileChange struct {
 
 // Create a new Grub bootloader object
 func NewUboot(partition *Partition) *Uboot {
-	u := new(Uboot)
-	u.partition = partition
-
-	current := u.partition.rootPartition()
-	other   := u.partition.otherRootPartition()
-
-	u.currentLabel = string(current.name)
-	u.otherLabel   = string(other.name)
-
-	// each rootfs partition has a corresponding u-boot directory named
-	// from the last character of the partition name ('a' or 'b').
-	currentPartition := string(u.currentLabel[len(u.currentLabel) - 1])
-	otherPartition   := string(u.otherLabel[len(u.otherLabel) - 1])
+	u := Uboot{BootLoaderType: NewBootLoader(partition)}
 
 	u.currentBootPath = fmt.Sprintf("%s/%s",
-		BOOTLOADER_UBOOT_DIR, currentPartition)
+		BOOTLOADER_UBOOT_DIR, u.currentRootfs)
 
 	u.otherBootPath = fmt.Sprintf("%s/%s",
-		BOOTLOADER_UBOOT_DIR, otherPartition)
+		BOOTLOADER_UBOOT_DIR, u.otherRootfs)
 
-	return u
+	return &u
 }
 
 func (u *Uboot) Name() string {
-	return "uboot"
+	// XXX: same value as used in HARDWARE_SPEC_FILE
+	return "u-boot"
 }
 
 func (u *Uboot) Installed() bool {
@@ -171,7 +161,7 @@ func (u *Uboot) ClearBootVar(name string) (currentValue string, err error) {
 	return currentValue, atomicFileUpdate(BOOTLOADER_UBOOT_ENV_FILE, saved)
 }
 
-func (u *Uboot) GetNextBootRootLabel() (label string, err error) {
+func (u *Uboot) GetNextBootRootFSName() (label string, err error) {
 	var value string
 
 	if value, err = u.GetBootVar(BOOTLOADER_ROOTFS_VAR); err != nil {
@@ -180,6 +170,14 @@ func (u *Uboot) GetNextBootRootLabel() (label string, err error) {
 	}
 
 	return value, err
+}
+
+func (u *Uboot) GetRootFSName() (string) {
+	return u.currentRootfs
+}
+
+func (u *Uboot) GetOtherRootFSName() (string) {
+	return u.otherRootfs
 }
 
 // FIXME: put into utils package
@@ -277,8 +275,62 @@ func (u *Uboot) SyncBootFiles() (err error) {
 
 func (u *Uboot) HandleAssets() (err error) {
 
-	assetsDir := u.partition.assetsDir()
-	flashAssetsDir := u.partition.flashAssetsDir()
+	var dirsToRemove map[string]int
+
+	dirsToRemove = make(map[string]int)
+
+	defer func() {
+		var dirs []string
+
+		// convert to slice
+		for dir, _ := range dirsToRemove {
+			dirs = append(dirs, dir)
+		}
+
+		// reverse sort to ensure a depth-first approach
+		sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
+
+		for _, dir := range dirs {
+			if err = os.RemoveAll(dir); err != nil {
+				panic(err)
+			}
+		}
+	}()
+
+	hardwareSpecFile := u.partition.hardwareSpecFile()
+
+	if err = FileExists(hardwareSpecFile); err != nil {
+		return err
+	}
+
+	hardware, err := u.partition.hardwareSpec()
+	if err != nil {
+		return err
+	}
+
+	kernel := hardware["kernel"].(string)
+	initrd := hardware["initrd"].(string)
+	dtbDir := hardware["dtbs"].(string)
+
+	bootloaderName := hardware["bootloader"].(string)
+	partitionLayout := hardware["partition-layout"].(string)
+
+	// validate
+	if bootloaderName != u.Name() {
+		panic(fmt.Sprintf(
+			"ERROR: bootloader is of type %s but hardware spec requires %s",
+			u.Name(),
+			bootloaderName))
+	}
+
+	// validate
+	switch partitionLayout {
+	case "system-AB":
+		if u.partition.DualRootPartitions() != true {
+			panic(fmt.Sprintf(
+				"ERROR: hardware spec requires dual root partitions"))
+		}
+	}
 
 	destDir := u.otherBootPath
 
@@ -287,54 +339,57 @@ func (u *Uboot) HandleAssets() (err error) {
 		return err
 	}
 
-	if err = FileExists(assetsDir); err == nil {
+	// install kernel+initrd
+	for _, file := range []string{kernel, initrd} {
 
-		kernel := fmt.Sprintf("%s/vmlinuz", assetsDir)
-		initrd := fmt.Sprintf("%s/initrd.img", assetsDir)
-		dtbDir := fmt.Sprintf("%s/dtbs/", assetsDir)
-
-		// install kernel+initrd
-		for _, file := range []string{kernel, initrd} {
-			if err = FileExists(file); err != nil {
-				continue
-			}
-			err = RunCommand([]string{"/bin/cp", file, destDir})
-			if err != nil {
-				return err
-			}
+		if file == "" {
+			continue
 		}
 
-		// install .dtb files
-		if err = FileExists(dtbDir); err == nil {
-			dtbDestDir := fmt.Sprintf("%s/dtbs", destDir)
+		// expand path
+		path := fmt.Sprintf("%s/%s", u.partition.cacheDir(), file)
 
-			err = os.MkdirAll(dtbDestDir, DIR_MODE)
-			if err != nil {
-				return err
-			}
-
-			files, err := filepath.Glob(fmt.Sprintf("%s/*", dtbDir))
-			if err != nil {
-				return err
-			}
-
-			for _, file := range files {
-				err = RunCommand([]string{"/bin/cp", file, dtbDestDir})
-				if err != nil {
-					return err
-				}
-			}
+		if err = FileExists(path); err != nil {
+			continue
 		}
 
-		// remove the original unpack directory
-		if err = os.RemoveAll(assetsDir); err != nil {
+		dir := filepath.Dir(path)
+		dirsToRemove[dir] = 1
+
+		err = RunCommand([]string{"/bin/cp", file, destDir})
+		if err != nil {
 			return err
 		}
 	}
 
+	// install .dtb files
+	if err = FileExists(dtbDir); err == nil {
+		dtbDestDir := fmt.Sprintf("%s/dtbs", destDir)
+
+		err = os.MkdirAll(dtbDestDir, DIR_MODE)
+		if err != nil {
+			return err
+		}
+
+		files, err := filepath.Glob(fmt.Sprintf("%s/*", dtbDir))
+		if err != nil {
+			return err
+		}
+
+		for _, file := range files {
+			err = RunCommand([]string{"/bin/cp", file, dtbDestDir})
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	flashAssetsDir := u.partition.flashAssetsDir()
+
 	if err = FileExists(flashAssetsDir); err == nil {
 		// FIXME: we don't currently do anything with the
-		// MLO + uImage files yet, but we should!!
+		// MLO + uImage files since they are not specified in
+		// the hardware spec. So for now, just remove them.
 
 		err = os.RemoveAll(flashAssetsDir)
 		if err != nil {

@@ -1,5 +1,5 @@
 //--------------------------------------------------------------------
-// Copyright (c) 2014 Canonical Ltd.
+// Copyright (c) 2014-2015 Canonical Ltd.
 //--------------------------------------------------------------------
 // TODO:
 //
@@ -85,6 +85,16 @@ var (
 	bootloaderError = errors.New("Unable to determine bootloader")
 )
 
+// Declarative specification of the type of system which specifies such
+// details as:
+// 
+// - the location of initrd+kernel within the system-image archive.
+// - the location of hardware-specific .dtb files within the
+//   system-image archive.
+// - the type of bootloader that should be used for this system.
+// - expected system partition layout (single or dual rootfs's).
+const HARDWARE_SPEC_FILE = "hardware.yaml"
+
 // Directory that _may_ get automatically created on unpack that
 // contains updated hardware-specific boot assets (such as initrd, kernel)
 const ASSETS_DIR = "assets"
@@ -109,6 +119,7 @@ type PartitionInterface interface {
 	UpdateBootloader() (err error)
 	MarkBootSuccessful() (err error)
 	GetBootloader() (BootLoader, error)
+	NextBootIsOther() (bool)
 }
 
 type Partition struct {
@@ -256,7 +267,7 @@ func (p *Partition) UpdateBootloader() (err error) {
 	}
 }
 
-func DetermineBootLoader(p *Partition) (bootloader BootLoader, err error) {
+func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
 
 	bootloaders := []BootLoader{NewUboot(p), NewGrub(p)}
 
@@ -270,7 +281,7 @@ func DetermineBootLoader(p *Partition) (bootloader BootLoader, err error) {
 }
 
 func (p *Partition) MarkBootSuccessful() (err error) {
-	bootloader, err := DetermineBootLoader(p)
+	bootloader, err := p.GetBootloader()
 	if err != nil {
 		return err
 	}
@@ -278,11 +289,66 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 	return bootloader.MarkCurrentBootSuccessful()
 }
 
+// Return true if the next boot will use the other rootfs
+// partition.
+func (p *Partition) NextBootIsOther() (bool) {
+	var value string
+	var err error
+	var label string
+
+	bootloader, err := p.GetBootloader()
+	if err != nil {
+		return false
+	}
+
+	value, err = bootloader.GetBootVar(BOOTLOADER_BOOTMODE_VAR)
+	if err != nil {
+		return false
+	}
+
+	if value != BOOTLOADER_BOOTMODE_VAR_START_VALUE {
+		return false
+	}
+
+	if label, err = bootloader.GetNextBootRootFSName(); err != nil {
+		return false
+	}
+
+	if label == bootloader.GetOtherRootFSName() {
+		return true
+	}
+
+	return false
+}
+
 // Returns the full path to the cache directory, which is used as a
 // scratch pad, for downloading new images to and bind mounting the
 // rootfs.
 func (p *Partition) cacheDir() string {
 	return DEFAULT_CACHE_DIR
+}
+
+// Return full path to the hardware.yaml file
+func (p *Partition) hardwareSpecFile() (string) {
+	return fmt.Sprintf("%s/%s", p.cacheDir(), HARDWARE_SPEC_FILE)
+}
+
+func (p *Partition) hardwareSpec() (values map[string]interface{}, err error) {
+
+	// FIXME: need to have getMapFromYaml in a utils package
+	/*
+
+	file := p.hardwareSpecFile()
+
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		return values, err
+	}
+
+	return getMapFromYaml(data)
+	*/
+
+	return values, err
 }
 
 // Return full path to the main assets directory
@@ -331,9 +397,9 @@ func (p *Partition) getPartitionDetails() {
 }
 
 func (p *Partition) determineSystemType() {
-	if p.dualRootPartitions() == true {
+	if p.DualRootPartitions() == true {
 		p.SystemType = SYSTEM_TYPE_DUAL_ROOT
-	} else if p.singlelRootPartition() == true {
+	} else if p.SinglelRootPartition() == true {
 		p.SystemType = SYSTEM_TYPE_SINGLE_ROOT
 	} else {
 		p.SystemType = SYSTEM_TYPE_INVALID
@@ -356,13 +422,13 @@ func (p *Partition) rootPartitions() []BlockDevice {
 
 // Return true if system has dual root partitions configured in the
 // expected manner for a snappy system.
-func (p *Partition) dualRootPartitions() bool {
+func (p *Partition) DualRootPartitions() bool {
 	return len(p.rootPartitions()) == 2
 }
 
 // Return true if system has a single root partition configured in the
 // expected manner for a snappy system.
-func (p *Partition) singlelRootPartition() bool {
+func (p *Partition) SinglelRootPartition() bool {
 	return len(p.rootPartitions()) == 1
 }
 
@@ -724,7 +790,7 @@ func (p *Partition) runInChroot(args []string) (err error) {
 }
 
 func (p *Partition) handleBootloader() (err error) {
-	bootloader, err := DetermineBootLoader(p)
+	bootloader, err := p.GetBootloader()
 
 	if err != nil {
 		return err
@@ -827,13 +893,9 @@ func (p *Partition) getOtherVersionDetail() (detail string, err error) {
 	return detail, err
 }
 
-func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
-	return DetermineBootLoader(p)
-}
-
 func (p *Partition) toggleBootloaderRootfs() (err error) {
 
-	if p.dualRootPartitions() != true {
+	if p.DualRootPartitions() != true {
 		return errors.New("System is not dual root")
 	}
 
@@ -857,7 +919,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return err
 	}
 
-	bootloader, err := DetermineBootLoader(p)
+	bootloader, err := p.GetBootloader()
 	if err != nil {
 		return err
 	}

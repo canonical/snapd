@@ -1,3 +1,7 @@
+//--------------------------------------------------------------------
+// Copyright (c) 2014-2015 Canonical Ltd.
+//--------------------------------------------------------------------
+
 package snappy
 
 import (
@@ -120,6 +124,11 @@ func (s *SystemImagePart) MarkBootSuccessful() (err error) {
 func (s *SystemImagePart) Channel() string {
 
 	return s.info["channel_name"]
+}
+
+// Return true if the next boot will use the other root filesystem.
+func (s *SystemImagePart) NextBootIsOther() (bool) {
+	return s.partition.NextBootIsOther()
 }
 
 // Result of UpdateAvailableStatus() call

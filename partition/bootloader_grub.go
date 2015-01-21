@@ -1,3 +1,7 @@
+//--------------------------------------------------------------------
+// Copyright (c) 2014-2015 Canonical Ltd.
+//--------------------------------------------------------------------
+
 package partition
 
 import (
@@ -6,6 +10,7 @@ import (
 )
 
 const (
+	BOOTLOADER_GRUB_DIR         = "/boot/grub"
 	BOOTLOADER_GRUB_CONFIG_FILE = "/boot/grub/grub.cfg"
 	BOOTLOADER_GRUB_ENV_FILE    = "/boot/grub/grubenv"
 
@@ -15,14 +20,17 @@ const (
 )
 
 type Grub struct {
-	partition *Partition
+	*BootLoaderType
 }
 
 // Create a new Grub bootloader object
 func NewGrub(partition *Partition) *Grub {
-	g := new(Grub)
-	g.partition = partition
-	return g
+	g := Grub{BootLoaderType: NewBootLoader(partition)}
+
+	g.currentBootPath = BOOTLOADER_GRUB_DIR
+	g.otherBootPath = g.currentBootPath
+
+	return &g
 }
 
 func (g *Grub) Name() string {
@@ -153,13 +161,21 @@ func (g *Grub) ClearBootVar(name string) (currentValue string, err error) {
 	return currentValue, RunCommand(args)
 }
 
-func (g *Grub) GetNextBootRootLabel() (label string, err error) {
+func (g *Grub) GetNextBootRootFSName() (label string, err error) {
 	return g.GetBootVar(BOOTLOADER_ROOTFS_VAR)
+}
+
+func (g *Grub) GetRootFSName() (string) {
+	return g.currentRootfs
+}
+
+func (g *Grub) GetOtherRootFSName() (string) {
+	return g.otherRootfs
 }
 
 func (g *Grub) MarkCurrentBootSuccessful() (err error) {
 	return g.SetBootVar(BOOTLOADER_BOOTMODE_VAR,
-		BOOTLOADER_BOOTMODE_VAR_END_VALUE)
+			    BOOTLOADER_BOOTMODE_VAR_END_VALUE)
 }
 
 func (g *Grub) SyncBootFiles() (err error) {

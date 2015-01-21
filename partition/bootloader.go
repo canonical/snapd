@@ -1,3 +1,7 @@
+//--------------------------------------------------------------------
+// Copyright (c) 2014-2015 Canonical Ltd.
+//--------------------------------------------------------------------
+
 package partition
 
 const (
@@ -40,8 +44,7 @@ type BootLoader interface {
 	// by this program.
 	GetAllBootVars() ([]string, error)
 
-	// Return the value of the specified bootloader variable, or "" if
-	// not set.
+	// Return the value of the specified bootloader variable
 	GetBootVar(name string) (string, error)
 
 	// Set the variable specified by name to the given value
@@ -50,14 +53,59 @@ type BootLoader interface {
 	// Remove the specified variable
 	ClearBootVar(name string) (currentValue string, err error)
 
-	// Return the name of the partition label corresponding to the
-	// rootfs that will be used on _next_ boot. Note that there is
-	// no corresponding GetCurrentBootRootLabel() since that is
-	// handled via BlockDevice.
-	GetNextBootRootLabel() (string, error)
+	// Return the 1-character name corresponding to the
+	// rootfs currently being used.
+	GetRootFSName() string
+
+	// Return the 1-character name corresponding to the
+	// other rootfs.
+	GetOtherRootFSName() string
+
+	// Return the 1-character name corresponding to the
+	// rootfs that will be used on _next_ boot.
+	//
+	// XXX: Note the distinction between this method and
+	// GetOtherRootFSName(): the latter corresponds to the other
+	// partition, whereas the value returned by this method is 
+	// queried directly from the bootloader.
+	GetNextBootRootFSName() (string, error)
 
 	// Update the bootloader configuration to mark the
 	// currently-booted rootfs as having booted successfully.
 	MarkCurrentBootSuccessful() error
 }
 
+type BootLoaderType struct {
+
+	partition           *Partition
+
+	// partition labels
+	currentLabel         string
+	otherLabel           string
+
+	// each rootfs partition has a corresponding u-boot directory named
+	// from the last character of the partition name ('a' or 'b').
+	currentRootfs        string
+	otherRootfs          string
+
+	// full path to 
+	currentBootPath      string
+	otherBootPath        string
+}
+
+func NewBootLoader(partition *Partition) *BootLoaderType {
+	b := new(BootLoaderType)
+
+	b.partition = partition
+
+	current := partition.rootPartition()
+	other   := partition.otherRootPartition()
+
+	b.currentLabel = string(current.name)
+	b.otherLabel   = string(other.name)
+
+	b.currentRootfs = string(b.currentLabel[len(b.currentLabel) - 1])
+	b.otherRootfs   = string(b.otherLabel[len(b.otherLabel) - 1])
+
+	return b
+}
