@@ -57,10 +57,7 @@ func NewMetaRepository() *MetaRepository {
 
 func (m *MetaRepository) GetInstalled() (parts []Part, err error) {
 	for _, r := range m.all {
-		installed, err := r.GetInstalled()
-		if err != nil {
-			return parts, err
-		}
+		installed, _ := r.GetInstalled()
 		// FIXME: python extend() anyone?
 		for _, part := range installed {
 			parts = append(parts, part)
@@ -72,10 +69,7 @@ func (m *MetaRepository) GetInstalled() (parts []Part, err error) {
 
 func (m *MetaRepository) GetUpdates() (parts []Part, err error) {
 	for _, r := range m.all {
-		updates, err := r.GetUpdates()
-		if err != nil {
-			return parts, err
-		}
+		updates, _ := r.GetUpdates()
 		// FIXME: python extend() anyone?
 		for _, part := range updates {
 			parts = append(parts, part)
@@ -110,7 +104,7 @@ func GetInstalledSnappsByType(snappType string) (res []Part, err error) {
 		if !part.IsActive() {
 			continue
 		}
-		if part.Type() == snappType {
+		if snappType == "*" || part.Type() == snappType {
 			res = append(res, part)
 		}
 	}

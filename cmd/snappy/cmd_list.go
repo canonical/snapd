@@ -21,5 +21,5 @@ func init() {
 }
 
 func (x *CmdList) Execute(args []string) (err error) {
-	return snappy.CmdList(args, x.ShowAll)
+	return snappy.CmdList(args, x.ShowAll, x.Updates)
 }

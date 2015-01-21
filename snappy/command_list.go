@@ -6,13 +6,15 @@ import (
 	"text/tabwriter"
 )
 
-func CmdList(args []string, showAll bool) (err error) {
+func CmdList(args []string, showAll bool, showUpdates bool) (err error) {
 
 	m := NewMetaRepository()
 	installed, err := m.GetInstalled()
 	if err != nil {
 		return err
 	}
+
+	// FIXME: add showUpdates
 
 	w := tabwriter.NewWriter(os.Stdout, 5, 3, 1, ' ', 0)
 	fmt.Fprintln(w, "Name\tVersion\tSummary\t")

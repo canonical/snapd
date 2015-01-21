@@ -1,6 +1,7 @@
 package snappy
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -50,13 +51,16 @@ type searchResults struct {
 		Packages []remoteSnap `json:"clickindex:package"`
 	} `json:"_embedded"`
 }
+type updateResults struct {
+	Packages []remoteSnap
+}
 
 func NewInstalledSnappPart(yaml_path string) *SnappPart {
 	part := SnappPart{}
 
 	if _, err := os.Stat(yaml_path); os.IsNotExist(err) {
 		log.Printf("No '%s' found", yaml_path)
-		return nil
+ 		return nil
 	}
 
 	r, err := os.Open(yaml_path)
@@ -64,7 +68,7 @@ func NewInstalledSnappPart(yaml_path string) *SnappPart {
 		log.Printf("Can not open '%s'", yaml_path)
 		return nil
 	}
-
+  
 	yaml_data, err := ioutil.ReadAll(r)
 	if err != nil {
 		log.Printf("Can not read '%s'", r)
@@ -256,11 +260,13 @@ func NewRemoteSnappPart(data remoteSnap) *RemoteSnappPart {
 
 type SnappUbuntuStoreRepository struct {
 	searchUri string
+	bulkUri string
 }
 
 func NewUbuntuStoreSnappRepository() *SnappUbuntuStoreRepository {
 	return &SnappUbuntuStoreRepository{
-		searchUri: "https://search.apps.ubuntu.com/api/v1/search?q=%s"}
+		searchUri: "https://search.apps.ubuntu.com/api/v1/search?q=%s",
+		bulkUri: "https://myapps.developer.ubuntu.com/dev/api/click-metadata/"}
 }
 
 func (s *SnappUbuntuStoreRepository) Description() string {
@@ -304,7 +310,38 @@ func (s *SnappUbuntuStoreRepository) Search(search_term string) (parts []Part, e
 }
 
 func (s *SnappUbuntuStoreRepository) GetUpdates() (parts []Part, err error) {
-	// FIXME: get local installed and then query remote
+	installed, err := GetInstalledSnappNamesByType("*")
+	json_data, err := json.Marshal(map[string][]string{"name": installed})
+	if err != nil {
+		return parts, err
+	}
+
+	req, err := http.NewRequest("POST", s.bulkUri, bytes.NewBuffer([]byte(string(json_data))))
+	if err != nil {
+		return parts, err
+	}
+	req.Header.Set("content-type", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return parts, err
+	}
+
+	// FIXMME: not working yet
+	var updateData updateResults
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&updateData); err != nil {
+		return nil, err
+	}
+
+	for _, raw := range updateData.Packages {
+		snapp := NewRemoteSnappPart(raw)
+		if snapp != nil {
+			parts = append(parts, snapp)
+		}
+	}
+
+	
 	return parts, err
 }
 
