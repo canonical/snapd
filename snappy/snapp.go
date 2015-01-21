@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v1"
 )
@@ -258,9 +259,10 @@ func (s *SnappUbuntuStoreRepository) Search(search_term string) (parts []Part, e
 
 	// set headers
 	req.Header.Set("Accept", "application/hal+json")
-	//FIXME: hardcoded
-	req.Header.Set("X-Ubuntu-Frameworks", "ubuntu-core-15.04-dev1")
-	req.Header.Set("X-Ubuntu-Architecture", "amd64")
+	frameworks, _ := GetInstalledSnappNamesByType("framework")
+	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
+	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
+	req.Header.Set("X-Ubuntu-Architecture", getArchitecture())
 
 	client := &http.Client{}
 	resp, err := client.Do(req)

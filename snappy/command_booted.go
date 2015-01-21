@@ -4,10 +4,7 @@ import ()
 
 func CmdBooted(args []string) (err error) {
 
-	repo := []Repository{NewSystemImageRepository()}
-
-	parts, err := repo[0].GetInstalled()
-
+	parts, err := GetInstalledSnappsByType("core")
 	if err != nil {
 		return err
 	}

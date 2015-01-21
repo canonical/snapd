@@ -99,3 +99,29 @@ func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
 
 	return parts, err
 }
+
+
+func GetInstalledSnappsByType(snappType string) (res []Part, err error) {
+	m := NewMetaRepository()
+	installed, err := m.GetInstalled()
+	if err != nil {
+		return res, err
+	}
+	for _, part := range installed {
+		if !part.IsActive() {
+			continue
+		}
+		if part.Type() == snappType {
+			res = append(res, part)
+		}
+	}
+	return
+}
+
+func GetInstalledSnappNamesByType(snappType string) (res []string, err error) {
+	installed, err := GetInstalledSnappsByType(snappType)
+	for _, part := range installed {
+		res = append(res, part.Name())
+	}
+	return
+}

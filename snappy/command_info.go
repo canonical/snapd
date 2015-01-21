@@ -7,29 +7,17 @@ import (
 
 func CmdInfo() (err error) {
 
-	m := NewMetaRepository()
-	installed, err := m.GetInstalled()
-	if err != nil {
-		return err
+	release := "unknown"
+	parts, err := GetInstalledSnappsByType("core")
+	if len(parts) == 1 && err == nil {
+		release = parts[0].(*SystemImagePart).Channel()
 	}
 
-	var frameworks []string
-	var apps []string
-	var release string
-	for _, part := range installed {
-		if !part.IsActive() {
-			continue
-		}
-		switch(part.Type()) {
-		case "framework":
-			frameworks = append(frameworks, part.Name())
-		case "app":
-			apps = append(apps, part.Name())
-		case "core":
-			release = part.(*SystemImagePart).Channel()
-		}
-	}
+	frameworks, _ := GetInstalledSnappNamesByType("framework")
+	apps, _ := GetInstalledSnappNamesByType("app")
+	
 	fmt.Printf("release: %s\n", release)
+	fmt.Printf("architecture: %s\n", getArchitecture())
 	fmt.Printf("frameworks: %s\n", strings.Join(frameworks, ", "))
 	fmt.Printf("apps: %s\n", strings.Join(apps, ", "))
 
