@@ -15,7 +15,7 @@ func CmdInfo() (err error) {
 
 	frameworks, _ := GetInstalledSnappNamesByType("framework")
 	apps, _ := GetInstalledSnappNamesByType("app")
-	
+
 	fmt.Printf("release: %s\n", release)
 	fmt.Printf("architecture: %s\n", getArchitecture())
 	fmt.Printf("frameworks: %s\n", strings.Join(frameworks, ", "))

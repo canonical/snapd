@@ -165,17 +165,17 @@ func (g *Grub) GetNextBootRootFSName() (label string, err error) {
 	return g.GetBootVar(BOOTLOADER_ROOTFS_VAR)
 }
 
-func (g *Grub) GetRootFSName() (string) {
+func (g *Grub) GetRootFSName() string {
 	return g.currentRootfs
 }
 
-func (g *Grub) GetOtherRootFSName() (string) {
+func (g *Grub) GetOtherRootFSName() string {
 	return g.otherRootfs
 }
 
 func (g *Grub) MarkCurrentBootSuccessful() (err error) {
 	return g.SetBootVar(BOOTLOADER_BOOTMODE_VAR,
-			    BOOTLOADER_BOOTMODE_VAR_END_VALUE)
+		BOOTLOADER_BOOTMODE_VAR_END_VALUE)
 }
 
 func (g *Grub) SyncBootFiles() (err error) {

@@ -30,6 +30,7 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -38,7 +39,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"io/ioutil"
 
 	"gopkg.in/yaml.v2"
 )
@@ -52,7 +52,7 @@ var signal_handler_registered bool = false
 const WRITABLE_PARTITION_LABEL = "writable"
 
 const (
-	SYSTEM_TYPE_INVALID = iota     // invalid
+	SYSTEM_TYPE_INVALID     = iota // invalid
 	SYSTEM_TYPE_SINGLE_ROOT        // in-place upgrades
 	SYSTEM_TYPE_DUAL_ROOT          // A/B partitions
 	systemTypeCount
@@ -90,7 +90,7 @@ var (
 
 // Declarative specification of the type of system which specifies such
 // details as:
-// 
+//
 // - the location of initrd+kernel within the system-image archive.
 // - the location of hardware-specific .dtb files within the
 //   system-image archive.
@@ -122,7 +122,7 @@ type PartitionInterface interface {
 	UpdateBootloader() (err error)
 	MarkBootSuccessful() (err error)
 	GetBootloader() (BootLoader, error)
-	NextBootIsOther() (bool)
+	NextBootIsOther() bool
 }
 
 type Partition struct {
@@ -164,11 +164,11 @@ type SystemImageVersion struct {
 
 // Representation of HARDWARE_SPEC_FILE
 type HardwareSpecType struct {
-    Kernel           string `yaml:"kernel"`
-    Initrd           string `yaml:"initrd"`
-    DtbDir           string `yaml:"dtbs"`
-    PartitionLayout  string `yaml:"partition-layout"`
-    Bootloader       string `yaml:"bootloader"`
+	Kernel          string `yaml:"kernel"`
+	Initrd          string `yaml:"initrd"`
+	DtbDir          string `yaml:"dtbs"`
+	PartitionLayout string `yaml:"partition-layout"`
+	Bootloader      string `yaml:"bootloader"`
 }
 
 func init() {
@@ -266,7 +266,6 @@ func New() *Partition {
 	return p
 }
 
-
 func (p *Partition) UpdateBootloader() (err error) {
 	switch p.SystemType {
 	case SYSTEM_TYPE_SINGLE_ROOT:
@@ -303,7 +302,7 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 
 // Return true if the next boot will use the other rootfs
 // partition.
-func (p *Partition) NextBootIsOther() (bool) {
+func (p *Partition) NextBootIsOther() bool {
 	var value string
 	var err error
 	var label string
@@ -341,7 +340,7 @@ func (p *Partition) cacheDir() string {
 }
 
 // Return full path to the hardware.yaml file
-func (p *Partition) hardwareSpecFile() (string) {
+func (p *Partition) hardwareSpecFile() string {
 	return fmt.Sprintf("%s/%s", p.cacheDir(), HARDWARE_SPEC_FILE)
 }
 
@@ -549,7 +548,7 @@ func FileExists(path string) (err error) {
 	return err
 }
 
-func IsDirectory(path string) (bool) {
+func IsDirectory(path string) bool {
 	fileInfo, err := os.Stat(path)
 	if err != nil {
 		return false

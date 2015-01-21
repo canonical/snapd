@@ -66,7 +66,7 @@ type BootLoader interface {
 	//
 	// XXX: Note the distinction between this method and
 	// GetOtherRootFSName(): the latter corresponds to the other
-	// partition, whereas the value returned by this method is 
+	// partition, whereas the value returned by this method is
 	// queried directly from the bootloader.
 	GetNextBootRootFSName() (string, error)
 
@@ -76,21 +76,20 @@ type BootLoader interface {
 }
 
 type BootLoaderType struct {
-
-	partition           *Partition
+	partition *Partition
 
 	// partition labels
-	currentLabel         string
-	otherLabel           string
+	currentLabel string
+	otherLabel   string
 
 	// each rootfs partition has a corresponding u-boot directory named
 	// from the last character of the partition name ('a' or 'b').
-	currentRootfs        string
-	otherRootfs          string
+	currentRootfs string
+	otherRootfs   string
 
-	// full path to 
-	currentBootPath      string
-	otherBootPath        string
+	// full path to
+	currentBootPath string
+	otherBootPath   string
 }
 
 func NewBootLoader(partition *Partition) *BootLoaderType {
@@ -99,13 +98,13 @@ func NewBootLoader(partition *Partition) *BootLoaderType {
 	b.partition = partition
 
 	current := partition.rootPartition()
-	other   := partition.otherRootPartition()
+	other := partition.otherRootPartition()
 
 	b.currentLabel = string(current.name)
-	b.otherLabel   = string(other.name)
+	b.otherLabel = string(other.name)
 
-	b.currentRootfs = string(b.currentLabel[len(b.currentLabel) - 1])
-	b.otherRootfs   = string(b.otherLabel[len(b.otherLabel) - 1])
+	b.currentRootfs = string(b.currentLabel[len(b.currentLabel)-1])
+	b.otherRootfs = string(b.otherLabel[len(b.otherLabel)-1])
 
 	return b
 }

@@ -127,7 +127,7 @@ func (s *SystemImagePart) Channel() string {
 }
 
 // Return true if the next boot will use the other root filesystem.
-func (s *SystemImagePart) NextBootIsOther() (bool) {
+func (s *SystemImagePart) NextBootIsOther() bool {
 	return s.partition.NextBootIsOther()
 }
 
@@ -350,7 +350,7 @@ func (s *SystemImageRepository) getCurrentPart() Part {
 		isInstalled: true,
 		proxy:       s.proxy,
 		version:     version,
-		partition: partition.New()}
+		partition:   partition.New()}
 	return part
 }
 
@@ -375,9 +375,9 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 	if VersionCompare(info["current_build_number"], info["target_build_number"]) < 0 {
 		version := info["target_build_number"]
 		parts = append(parts, &SystemImagePart{
-			info:    info,
-			proxy:   s.proxy,
-			version: version,
+			info:      info,
+			proxy:     s.proxy,
+			version:   version,
 			partition: partition.New()})
 	}
 

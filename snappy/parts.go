@@ -19,7 +19,7 @@ type Part interface {
 
 	// app, framework, core
 	Type() string
-	
+
 	InstalledSize() int
 	DownloadSize() int
 
@@ -99,7 +99,6 @@ func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
 
 	return parts, err
 }
-
 
 func GetInstalledSnappsByType(snappType string) (res []Part, err error) {
 	m := NewMetaRepository()

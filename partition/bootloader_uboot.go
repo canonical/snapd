@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sort"
+	"strings"
 )
 
 const (
@@ -26,7 +26,6 @@ const (
 	// the main uEnv.txt u-boot config file sources this snappy
 	// boot-specific config file.
 	BOOTLOADER_UBOOT_ENV_FILE = "snappy-system.txt"
-
 )
 
 type Uboot struct {
@@ -35,8 +34,8 @@ type Uboot struct {
 
 // Stores a Name and a Value to be added as a name=value pair in a file.
 type ConfigFileChange struct {
-	Name     string
-	Value    string
+	Name  string
+	Value string
 }
 
 // Create a new Grub bootloader object
@@ -81,7 +80,7 @@ func (u *Uboot) Installed() bool {
 func (u *Uboot) ToggleRootFS() (err error) {
 
 	// write 1 character partition name ('a' or 'b')
-	value := string(u.otherLabel[len(u.otherLabel) - 1])
+	value := string(u.otherLabel[len(u.otherLabel)-1])
 
 	// If the file exists, update it. Otherwise create it.
 	//
@@ -90,10 +89,10 @@ func (u *Uboot) ToggleRootFS() (err error) {
 	// recreate to allow the system to boot!
 	changes := []ConfigFileChange{
 		ConfigFileChange{Name: BOOTLOADER_ROOTFS_VAR,
-				  Value: value,
+			Value: value,
 		},
 		ConfigFileChange{Name: BOOTLOADER_BOOTMODE_VAR,
-				  Value: BOOTLOADER_BOOTMODE_VAR_START_VALUE,
+			Value: BOOTLOADER_BOOTMODE_VAR_START_VALUE,
 		},
 	}
 
@@ -172,11 +171,11 @@ func (u *Uboot) GetNextBootRootFSName() (label string, err error) {
 	return value, err
 }
 
-func (u *Uboot) GetRootFSName() (string) {
+func (u *Uboot) GetRootFSName() string {
 	return u.currentRootfs
 }
 
-func (u *Uboot) GetOtherRootFSName() (string) {
+func (u *Uboot) GetOtherRootFSName() string {
 	return u.otherRootfs
 }
 
@@ -452,7 +451,7 @@ func modifyNameValueFile(file string, changes []ConfigFileChange) (err error) {
 			// name/value pair did not exist in original
 			// file, so append
 			lines = append(lines, fmt.Sprintf("%s=%s",
-				       change.Name, change.Value))
+				change.Name, change.Value))
 		}
 	}
 

@@ -237,9 +237,8 @@ func (s *SITestSuite) TestGetUpdateHasUpdate(c *C) {
 	c.Assert(parts[0].Version(), Equals, "3.14")
 }
 
-
 type MockPartition struct {
-	updateBootloaderCalled bool
+	updateBootloaderCalled   bool
 	markBootSuccessfulCalled bool
 }
 
@@ -261,7 +260,7 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	sp := parts[0].(*SystemImagePart)
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
-	
+
 	err = sp.Install()
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
