@@ -38,6 +38,9 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"io/ioutil"
+
+	"gopkg.in/yaml.v2"
 )
 
 var debug bool = false
@@ -157,6 +160,15 @@ type SystemImageVersion struct {
 	// However this is soon to changes so wrap the representation in a
 	// struct.
 	Version int
+}
+
+// Representation of HARDWARE_SPEC_FILE
+type HardwareSpecType struct {
+    Kernel           string `yaml:"kernel"`
+    Initrd           string `yaml:"initrd"`
+    DtbDir           string `yaml:"dtbs"`
+    PartitionLayout  string `yaml:"partition-layout"`
+    Bootloader       string `yaml:"bootloader"`
 }
 
 func init() {
@@ -333,22 +345,20 @@ func (p *Partition) hardwareSpecFile() (string) {
 	return fmt.Sprintf("%s/%s", p.cacheDir(), HARDWARE_SPEC_FILE)
 }
 
-func (p *Partition) hardwareSpec() (values map[string]interface{}, err error) {
+func (p *Partition) hardwareSpec() (hardware HardwareSpecType, err error) {
 
-	// FIXME: need to have getMapFromYaml in a utils package
-	/*
+	h := HardwareSpecType{}
 
 	file := p.hardwareSpecFile()
 
 	data, err := ioutil.ReadFile(file)
 	if err != nil {
-		return values, err
+		return h, err
 	}
 
-	return getMapFromYaml(data)
-	*/
+	err = yaml.Unmarshal([]byte(data), &h)
 
-	return values, err
+	return h, err
 }
 
 // Return full path to the main assets directory

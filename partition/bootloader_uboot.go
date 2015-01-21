@@ -308,23 +308,16 @@ func (u *Uboot) HandleAssets() (err error) {
 		return err
 	}
 
-	kernel := hardware["kernel"].(string)
-	initrd := hardware["initrd"].(string)
-	dtbDir := hardware["dtbs"].(string)
-
-	bootloaderName := hardware["bootloader"].(string)
-	partitionLayout := hardware["partition-layout"].(string)
-
 	// validate
-	if bootloaderName != u.Name() {
+	if hardware.Bootloader != u.Name() {
 		panic(fmt.Sprintf(
 			"ERROR: bootloader is of type %s but hardware spec requires %s",
 			u.Name(),
-			bootloaderName))
+			hardware.Bootloader))
 	}
 
 	// validate
-	switch partitionLayout {
+	switch hardware.PartitionLayout {
 	case "system-AB":
 		if u.partition.DualRootPartitions() != true {
 			panic(fmt.Sprintf(
@@ -340,7 +333,7 @@ func (u *Uboot) HandleAssets() (err error) {
 	}
 
 	// install kernel+initrd
-	for _, file := range []string{kernel, initrd} {
+	for _, file := range []string{hardware.Kernel, hardware.Initrd} {
 
 		if file == "" {
 			continue
@@ -363,7 +356,7 @@ func (u *Uboot) HandleAssets() (err error) {
 	}
 
 	// install .dtb files
-	if err = FileExists(dtbDir); err == nil {
+	if err = FileExists(hardware.DtbDir); err == nil {
 		dtbDestDir := fmt.Sprintf("%s/dtbs", destDir)
 
 		err = os.MkdirAll(dtbDestDir, DIR_MODE)
@@ -371,7 +364,7 @@ func (u *Uboot) HandleAssets() (err error) {
 			return err
 		}
 
-		files, err := filepath.Glob(fmt.Sprintf("%s/*", dtbDir))
+		files, err := filepath.Glob(fmt.Sprintf("%s/*", hardware.DtbDir))
 		if err != nil {
 			return err
 		}
