@@ -122,7 +122,7 @@ func (m *MockSystemImage) Information() (map[string]string, error) {
 }
 
 func (m *MockSystemImage) CheckForUpdate() error {
-	sig := dbus.NewSignalMessage(SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_INTERFACE, "UpdateAvailableStatus")
+	sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateAvailableStatus")
 
 	// FIXME: the data we send in the signal is currently mostly
 	//        irrelevant as SystemImageRepository will recv the
@@ -145,7 +145,7 @@ func (m *MockSystemImage) CheckForUpdate() error {
 }
 
 func (m *MockSystemImage) DownloadUpdate() error {
-	sig := dbus.NewSignalMessage(SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_INTERFACE, "UpdateDownloaded")
+	sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateDownloaded")
 
 	sig.AppendArgs(
 		true, // status, true if a reboot is required
@@ -178,7 +178,7 @@ func (s *SITestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.mockSystemImage = NewMockSystemImage()
-	s.mockService = NewDBusService(s.conn, SYSTEM_IMAGE_INTERFACE, SYSTEM_IMAGE_OBJECT_PATH, SYSTEM_IMAGE_BUS_NAME, s.mockSystemImage)
+	s.mockService = NewDBusService(s.conn, systemImageInterface, systemImageObjectPath, systemImageBusName, s.mockSystemImage)
 	c.Assert(s.mockService, NotNil)
 
 	s.systemImage = newSystemImageRepositoryForBus(dbus.SessionBus)
