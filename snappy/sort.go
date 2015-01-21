@@ -8,11 +8,11 @@ import (
 )
 
 const (
-	RE_DIGIT              = "[0-9]"
-	RE_ALPHA              = "[a-zA-Z]"
-	RE_DIGIT_OR_NON_DIGIT = "[0-9]+|[^0-9]+"
+	reDigit           = "[0-9]"
+	reAlpha           = "[a-zA-Z]"
+	reDigitOrNonDigit = "[0-9]+|[^0-9]+"
 
-	RE_HAS_EPOCH = "^[0-9]+:"
+	reHasEpoch = "^[0-9]+:"
 )
 
 // golang: seriously? that's sad!
@@ -37,12 +37,12 @@ func chOrder(ch uint8) int {
 	if ch == '~' {
 		return -1
 	}
-	if matched, _ := regexp.MatchString(RE_ALPHA, string(ch)); matched {
+	if matched, _ := regexp.MatchString(reAlpha, string(ch)); matched {
 		return int(ch)
 	}
 
 	// can only happen if cmpString sets '0' because there is no fragment
-	if matched, _ := regexp.MatchString(RE_DIGIT, string(ch)); matched {
+	if matched, _ := regexp.MatchString(reDigit, string(ch)); matched {
 		return 0
 	}
 
@@ -81,13 +81,13 @@ func cmpFragment(a, b string) int {
 }
 
 func getFragments(a string) []string {
-	re := regexp.MustCompile(RE_DIGIT_OR_NON_DIGIT)
+	re := regexp.MustCompile(reDigitOrNonDigit)
 	matches := re.FindAllString(a, -1)
 	return matches
 }
 
 func VersionIsValid(a string) bool {
-	if matched, _ := regexp.MatchString(RE_HAS_EPOCH, a); matched {
+	if matched, _ := regexp.MatchString(reHasEpoch, a); matched {
 		return false
 	}
 	if strings.Contains(a, "-") {

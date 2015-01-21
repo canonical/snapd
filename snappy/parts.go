@@ -1,8 +1,8 @@
 package snappy
 
 const (
-	SNAPP_BASE_DIR = "/apps"
-	SNAPP_OEM_DIR  = "/oem"
+	snapBaseDir = "/apps"
+	snapOemDir  = "/oem"
 )
 
 // Representation of a snappy part
@@ -49,8 +49,8 @@ func NewMetaRepository() *MetaRepository {
 	m.all = []Repository{
 		NewSystemImageRepository(),
 		NewUbuntuStoreSnappRepository(),
-		NewLocalSnappRepository(SNAPP_BASE_DIR),
-		NewLocalSnappRepository(SNAPP_OEM_DIR)}
+		NewLocalSnappRepository(snapBaseDir),
+		NewLocalSnappRepository(snapOemDir)}
 
 	return m
 }

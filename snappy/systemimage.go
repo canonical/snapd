@@ -20,16 +20,14 @@ import (
 )
 
 const (
-	SYSTEM_IMAGE_BUS_NAME    = "com.canonical.SystemImage"
-	SYSTEM_IMAGE_OBJECT_PATH = "/Service"
-	SYSTEM_IMAGE_INTERFACE   = SYSTEM_IMAGE_BUS_NAME
+	systemImageBusName    = "com.canonical.SystemImage"
+	systemImageObjectPath = "/Service"
+	systemImageInterface  = systemImageBusName
 
 	// XXX: arbitrary value, but surely sufficient?
-	SYSTEM_IMAGE_TIMEOUT_SECS = 30
-)
+	systemImageTimeoutSecs = 30
 
-const (
-	SYSTEM_IMAGE_PART_NAME = "ubuntu-core"
+	systemImagePartName = "ubuntu-core"
 )
 
 type SystemImagePart struct {
@@ -48,7 +46,7 @@ func (s *SystemImagePart) Type() string {
 }
 
 func (s *SystemImagePart) Name() string {
-	return SYSTEM_IMAGE_PART_NAME
+	return systemImagePartName
 }
 
 func (s *SystemImagePart) Version() string {
@@ -162,7 +160,7 @@ func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
 		return nil
 	}
 
-	p.proxy = p.connection.Object(SYSTEM_IMAGE_BUS_NAME, SYSTEM_IMAGE_OBJECT_PATH)
+	p.proxy = p.connection.Object(systemImageBusName, systemImageObjectPath)
 	if p.proxy == nil {
 		log.Panic("ERROR: failed to create D-Bus proxy for system-image server")
 		return nil
@@ -197,7 +195,7 @@ func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
 
 func (s *systemImageDBusProxy) Information() (info systemImageInfo, err error) {
 	callName := "Information"
-	msg, err := s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
+	msg, err := s.proxy.Call(systemImageBusName, callName)
 	if err != nil {
 		return info, err
 	}
@@ -217,7 +215,7 @@ func (s *systemImageDBusProxy) Information() (info systemImageInfo, err error) {
 
 func (s *systemImageDBusProxy) GetSetting(key string) (v string, err error) {
 	callName := "GetSetting"
-	msg, err := s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName, key)
+	msg, err := s.proxy.Call(systemImageBusName, callName, key)
 	if err != nil {
 		return v, err
 	}
@@ -233,8 +231,8 @@ func (s *systemImageDBusProxy) GetSetting(key string) (v string, err error) {
 func (s *systemImageDBusProxy) makeWatcher(signalName string) (received chan *dbus.Message, err error) {
 	watch, err := s.connection.WatchSignal(&dbus.MatchRule{
 		Type:      dbus.TypeSignal,
-		Sender:    SYSTEM_IMAGE_BUS_NAME,
-		Interface: SYSTEM_IMAGE_INTERFACE,
+		Sender:    systemImageBusName,
+		Interface: systemImageInterface,
 		Member:    signalName})
 	if err != nil {
 		return received, err
@@ -255,7 +253,7 @@ func (s *systemImageDBusProxy) makeWatcher(signalName string) (received chan *db
 
 func (s *systemImageDBusProxy) ApplyUpdate() (err error) {
 	callName := "ApplyUpdate"
-	_, err = s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
+	_, err = s.proxy.Call(systemImageBusName, callName)
 	if err != nil {
 		return err
 	}
@@ -271,7 +269,7 @@ func (s *systemImageDBusProxy) ApplyUpdate() (err error) {
 
 func (s *systemImageDBusProxy) DownloadUpdate() (err error) {
 	callName := "DownloadUpdate"
-	_, err = s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
+	_, err = s.proxy.Call(systemImageBusName, callName)
 	if err != nil {
 		return err
 	}
@@ -290,7 +288,7 @@ func (s *systemImageDBusProxy) DownloadUpdate() (err error) {
 func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 
 	callName := "CheckForUpdate"
-	_, err = s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName)
+	_, err = s.proxy.Call(systemImageBusName, callName)
 	if err != nil {
 		return us, err
 	}
@@ -304,12 +302,12 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 			&s.us.last_update_date,
 			&s.us.error_reason)
 
-	case <-time.After(SYSTEM_IMAGE_TIMEOUT_SECS * time.Second):
+	case <-time.After(systemImageTimeoutSecs * time.Second):
 		err = errors.New(fmt.Sprintf(
 			"ERROR: "+
 				"timed out after %d seconds "+
 				"waiting for system image server to respond",
-			SYSTEM_IMAGE_TIMEOUT_SECS))
+			systemImageTimeoutSecs))
 	}
 
 	return s.us, err
@@ -350,7 +348,7 @@ func (s *SystemImageRepository) getCurrentPart() Part {
 }
 
 func (s *SystemImageRepository) Search(terms string) (versions []Part, err error) {
-	if strings.Contains(terms, SYSTEM_IMAGE_PART_NAME) {
+	if strings.Contains(terms, systemImagePartName) {
 		s.proxy.Information()
 		part := s.getCurrentPart()
 		versions = append(versions, part)

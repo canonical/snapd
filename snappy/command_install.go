@@ -91,7 +91,7 @@ func CmdInstall(args []string) error {
 		return err
 	}
 	//log.Print(m["name"])
-	basedir := fmt.Sprintf("%s/%s/versions/%s/", APPS_ROOT, m["name"], m["version"])
+	basedir := fmt.Sprintf("%s/%s/versions/%s/", snapBaseDir, m["name"], m["version"])
 	err = os.MkdirAll(basedir, 0777)
 	if err != nil {
 		return err
@@ -127,7 +127,7 @@ func CmdInstall(args []string) error {
 
 	// the data dirs
 	for _, special_dir := range []string{"backups", "services"} {
-		d := fmt.Sprintf("%s/%s/data/%s/%s/", APPS_ROOT, m["name"], m["version"], special_dir)
+		d := fmt.Sprintf("%s/%s/data/%s/%s/", snapBaseDir, m["name"], m["version"], special_dir)
 		err = os.MkdirAll(d, 0777)
 		if err != nil {
 			return err
