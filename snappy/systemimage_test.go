@@ -260,6 +260,14 @@ func (p *MockPartition) NextBootIsOther() bool {
 	return false
 }
 
+func (p *MockPartition) GetOtherSIConfigPath() string {
+	return ""
+}
+
+func (p *MockPartition) GetSIConfigPath() string {
+	return ""
+}
+
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	// add a update
 	s.mockSystemImage.info["target_build_number"] = "3.14"

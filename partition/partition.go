@@ -123,6 +123,13 @@ type PartitionInterface interface {
 	MarkBootSuccessful() (err error)
 	SyncBootloaderFiles() (err error)
 	NextBootIsOther() (bool)
+
+	// Full path to system-image configuration file
+	GetSIConfigPath() string
+
+	// Full path to system-image configuration file,
+	// mounted from other root partition.
+	GetOtherSIConfigPath() string
 }
 
 type Partition struct {
@@ -727,7 +734,7 @@ func (p *Partition) makeMountPoint() (err error) {
 }
 
 // Mount the "other" root filesystem
-func (p *Partition) mountOtherRootfs() (err error) {
+func (p *Partition) MountOtherRootfs() (err error) {
 	var other *BlockDevice
 
 	p.makeMountPoint()
@@ -747,8 +754,18 @@ func (p *Partition) mountOtherRootfs() (err error) {
 	return err
 }
 
-func (p *Partition) unmountOtherRootfs() (err error) {
+func (p *Partition) UnmountOtherRootfs() (err error) {
 	return Unmount(p.MountTarget)
+}
+
+func (p *Partition) UnmountOtherRootfsAndCleanup() (err error) {
+	err = p.UnmountOtherRootfs()
+
+	if err != nil {
+		return err
+	}
+
+	return os.Remove(p.MountTarget)
 }
 
 // The bootloader requires a few filesystems to be mounted when
@@ -820,11 +837,28 @@ func (p *Partition) handleBootloader() (err error) {
 	return bootloader.ToggleRootFS()
 }
 
+func (p *Partition) GetSIConfigPath() string {
+	return SYSTEM_IMAGE_CONFIG
+}
+
+func (p *Partition) GetOtherSIConfigPath() string {
+	return path.Clean(fmt.Sprintf("%s/%s",
+		p.MountTarget, SYSTEM_IMAGE_CONFIG))
+}
+
 func (p *Partition) getOtherVersion() (version SystemImageVersion, err error) {
+
+	saved := p.ReadOnlyRoot
 
 	// XXX: note that we mount read-only here
 	p.ReadOnlyRoot = true
-	err = p.mountOtherRootfs()
+
+	defer func () {
+		// reset
+		p.ReadOnlyRoot = saved
+	}()
+
+	err = p.MountOtherRootfs()
 
 	if err != nil {
 		return version, err
@@ -832,17 +866,15 @@ func (p *Partition) getOtherVersion() (version SystemImageVersion, err error) {
 
 	// Unmount
 	defer func() {
-		err = p.unmountOtherRootfs()
+		err = p.UnmountOtherRootfs()
 	}()
 
-	// Remount mountpoint
+	// Remove mountpoint
 	defer func() {
 		err = os.Remove(p.MountTarget)
 	}()
 
-	// construct full path to other partitions system-image master
-	// config file
-	file := path.Clean(fmt.Sprintf("%s/%s", p.MountTarget, SYSTEM_IMAGE_CONFIG))
+	file := p.GetOtherSIConfigPath()
 
 	if err = FileExists(file); err != nil {
 		return version, err
@@ -917,7 +949,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return errors.New("System is not dual root")
 	}
 
-	if err = p.mountOtherRootfs(); err != nil {
+	if err = p.MountOtherRootfs(); err != nil {
 		return err
 	}
 
@@ -933,7 +965,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return err
 	}
 
-	if err = p.unmountOtherRootfs(); err != nil {
+	if err = p.UnmountOtherRootfs(); err != nil {
 		return err
 	}
 

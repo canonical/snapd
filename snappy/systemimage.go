@@ -12,6 +12,7 @@ import (
 	"log"
 	"runtime"
 	"strings"
+	"os"
 	"time"
 
 	partition "launchpad.net/snappy-ubuntu/snappy-golang/partition"
@@ -280,6 +281,47 @@ func (s *systemImageDBusProxy) DownloadUpdate() (err error) {
 		return errors.New("downloadFailed")
 		break
 	}
+
+	return err
+}
+
+// FIXME: call!
+// Force system-image-dbus daemon to read the other partitions
+// system-image configuration file so that it can calculate the correct
+// upgrade path.
+func (s *systemImageDBusProxy) ReloadConfiguration(partition partition.Partition) (err error) {
+	callName := "ReloadConfiguration"
+
+	if partition.DualRootPartitions() != true {
+		// Single rootfs, so no need to reload.
+	}
+
+	partition.ReadOnlyRoot = true
+	err = partition.MountOtherRootfs()
+	if err != nil {
+		return err
+	}
+
+	// Unmount and remove mountpoint. This is safe since the
+	// system-image-dbus daemon caches its configuration file,
+	// so once the D-Bus call completes, it no longer cares
+	// about configFile.
+	defer func() {
+		err = partition.UnmountOtherRootfsAndCleanup()
+	}()
+
+	configFile := partition.GetOtherSIConfigPath()
+
+	// FIXME: replace with FileExists() call once it's in a utility
+	// package.
+	_, err = os.Stat(configFile)
+	if err != nil {
+		// file doesn't exist on the other partition, so this
+		// call is effectively a NOP.
+		return nil
+	}
+
+	_, err = s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName, configFile)
 
 	return err
 }
