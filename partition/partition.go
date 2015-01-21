@@ -121,8 +121,8 @@ var bindMounts *list.List
 type PartitionInterface interface {
 	UpdateBootloader() (err error)
 	MarkBootSuccessful() (err error)
-	GetBootloader() (BootLoader, error)
-	NextBootIsOther() bool
+	SyncBootloaderFiles() (err error)
+	NextBootIsOther() (bool)
 }
 
 type Partition struct {
@@ -265,6 +265,15 @@ func New() *Partition {
 
 	return p
 }
+
+func (p *Partition) SyncBootloaderFiles() (err error) {
+	bootloader, err := p.GetBootloader()
+	if err != nil {
+		return err
+	}
+	return bootloader.SyncBootFiles()
+}
+
 
 func (p *Partition) UpdateBootloader() (err error) {
 	switch p.SystemType {

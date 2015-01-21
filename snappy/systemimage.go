@@ -87,12 +87,7 @@ func (s *SystemImagePart) Install() (err error) {
 
 	// Ensure there is always a kernel + initrd to boot with, even
 	// if the update does not provide new versions.
-	bootloader, err := s.partition.GetBootloader()
-	if err != nil {
-		return err
-	}
-
-	err = bootloader.SyncBootFiles()
+	err = s.partition.SyncBootloaderFiles()
 	if err != nil {
 		return err
 	}

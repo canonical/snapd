@@ -240,6 +240,7 @@ func (s *SITestSuite) TestGetUpdateHasUpdate(c *C) {
 type MockPartition struct {
 	updateBootloaderCalled   bool
 	markBootSuccessfulCalled bool
+	syncBootloaderFilesCalled bool
 }
 
 func (p *MockPartition) UpdateBootloader() (err error) {
@@ -250,6 +251,13 @@ func (p *MockPartition) UpdateBootloader() (err error) {
 func (p *MockPartition) MarkBootSuccessful() (err error) {
 	p.markBootSuccessfulCalled = true
 	return nil
+}
+func (p *MockPartition) SyncBootloaderFiles() (err error) {
+	p.syncBootloaderFilesCalled = true
+	return nil
+}
+func (p *MockPartition) NextBootIsOther() bool {
+	return false
 }
 
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
