@@ -36,14 +36,16 @@ type packageYaml struct {
 }
 
 type remoteSnap struct {
-	Publisher      string  `json:"publisher"`
+	Publisher      string  `json:"publisher,omitempty"`
 	Name           string  `json:"name"`
 	Title          string  `json:"title"`
 	IconUrl        string  `json:"icon_url"`
-	Price          float64 `json:"price"`
-	Content        string  `json:"content"`
-	RatingsAverage float64 `json:"ratings_average"`
+	Price          float64 `json:"price,omitempty"`
+	Content        string  `json:"content,omitempty"`
+	RatingsAverage float64 `json:"ratings_average,omitempty"`
 	Version        string  `json:"version"`
+	DownloadUrl    string  `json:"download_url, omitempty"`
+	DownloadSha512 string  `json:"download_sha512, omitempty"`
 }
 
 type searchResults struct {
@@ -51,16 +53,13 @@ type searchResults struct {
 		Packages []remoteSnap `json:"clickindex:package"`
 	} `json:"_embedded"`
 }
-type updateResults struct {
-	Packages []remoteSnap
-}
 
 func NewInstalledSnappPart(yaml_path string) *SnappPart {
 	part := SnappPart{}
 
 	if _, err := os.Stat(yaml_path); os.IsNotExist(err) {
 		log.Printf("No '%s' found", yaml_path)
- 		return nil
+		return nil
 	}
 
 	r, err := os.Open(yaml_path)
@@ -68,7 +67,7 @@ func NewInstalledSnappPart(yaml_path string) *SnappPart {
 		log.Printf("Can not open '%s'", yaml_path)
 		return nil
 	}
-  
+
 	yaml_data, err := ioutil.ReadAll(r)
 	if err != nil {
 		log.Printf("Can not read '%s'", r)
@@ -260,13 +259,13 @@ func NewRemoteSnappPart(data remoteSnap) *RemoteSnappPart {
 
 type SnappUbuntuStoreRepository struct {
 	searchUri string
-	bulkUri string
+	bulkUri   string
 }
 
 func NewUbuntuStoreSnappRepository() *SnappUbuntuStoreRepository {
 	return &SnappUbuntuStoreRepository{
 		searchUri: "https://search.apps.ubuntu.com/api/v1/search?q=%s",
-		bulkUri: "https://myapps.developer.ubuntu.com/dev/api/click-metadata/"}
+		bulkUri:   "https://myapps.developer.ubuntu.com/dev/api/click-metadata/"}
 }
 
 func (s *SnappUbuntuStoreRepository) Description() string {
@@ -311,38 +310,35 @@ func (s *SnappUbuntuStoreRepository) Search(search_term string) (parts []Part, e
 
 func (s *SnappUbuntuStoreRepository) GetUpdates() (parts []Part, err error) {
 	installed, err := GetInstalledSnappNamesByType("*")
-	json_data, err := json.Marshal(map[string][]string{"name": installed})
+	jsonData, err := json.Marshal(map[string][]string{"name": installed})
 	if err != nil {
 		return parts, err
 	}
 
-	req, err := http.NewRequest("POST", s.bulkUri, bytes.NewBuffer([]byte(string(json_data))))
+	req, err := http.NewRequest("POST", s.bulkUri, bytes.NewBuffer([]byte(jsonData)))
 	if err != nil {
-		return parts, err
+		return nil, err
 	}
 	req.Header.Set("content-type", "application/json")
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return parts, err
+		return nil, err
 	}
+	defer resp.Body.Close()
 
-	// FIXMME: not working yet
-	var updateData updateResults
+	var updateData []remoteSnap
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&updateData); err != nil {
 		return nil, err
 	}
 
-	for _, raw := range updateData.Packages {
-		snapp := NewRemoteSnappPart(raw)
-		if snapp != nil {
-			parts = append(parts, snapp)
-		}
+	for _, pkg := range updateData {
+		snapp := NewRemoteSnappPart(pkg)
+		parts = append(parts, snapp)
 	}
 
-	
-	return parts, err
+	return parts, nil
 }
 
 func (s *SnappUbuntuStoreRepository) GetInstalled() (parts []Part, err error) {
