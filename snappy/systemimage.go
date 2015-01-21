@@ -10,9 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"runtime"
 	"strings"
-	"os"
 	"time"
 
 	partition "launchpad.net/snappy-ubuntu/snappy-golang/partition"

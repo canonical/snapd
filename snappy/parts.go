@@ -118,3 +118,12 @@ func GetInstalledSnappNamesByType(snappType string) (res []string, err error) {
 	}
 	return
 }
+
+func findPartByName(needle string, haystack []Part) *Part {
+	for _, part := range haystack {
+		if part.Name() == needle {
+			return &part
+		}
+	}
+	return nil
+}

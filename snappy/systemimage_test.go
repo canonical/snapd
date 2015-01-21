@@ -238,8 +238,8 @@ func (s *SITestSuite) TestGetUpdateHasUpdate(c *C) {
 }
 
 type MockPartition struct {
-	updateBootloaderCalled   bool
-	markBootSuccessfulCalled bool
+	updateBootloaderCalled    bool
+	markBootSuccessfulCalled  bool
 	syncBootloaderFilesCalled bool
 }
 
