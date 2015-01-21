@@ -34,6 +34,23 @@ type packageYaml struct {
 	Type    string
 }
 
+type remoteSnap struct {
+	Publisher      string  `json:"publisher"`
+	Name           string  `json:"name"`
+	Title          string  `json:"title"`
+	IconUrl        string  `json:"icon_url"`
+	Price          float64 `json:"price"`
+	Content        string  `json:"content"`
+	RatingsAverage float64 `json:"ratings_average"`
+	Version        string  `json:"version"`
+}
+
+type searchResults struct {
+	Payload struct {
+		Packages []remoteSnap `json:"clickindex:package"`
+	} `json:"_embedded"`
+}
+
 func NewInstalledSnappPart(yaml_path string) *SnappPart {
 	part := SnappPart{}
 
@@ -181,7 +198,7 @@ func (s *SnappLocalRepository) GetInstalled() (parts []Part, err error) {
 }
 
 type RemoteSnappPart struct {
-	raw map[string]interface{}
+	pkg remoteSnap
 }
 
 func (s *RemoteSnappPart) Type() string {
@@ -190,15 +207,15 @@ func (s *RemoteSnappPart) Type() string {
 }
 
 func (s *RemoteSnappPart) Name() string {
-	return fmt.Sprintf("%s", s.raw["name"])
+	return s.pkg.Name
 }
 
 func (s *RemoteSnappPart) Version() string {
-	return fmt.Sprintf("%s", s.raw["version"])
+	return s.pkg.Version
 }
 
 func (s *RemoteSnappPart) Description() string {
-	return fmt.Sprintf("%s", s.raw["title"])
+	return s.pkg.Title
 }
 
 func (s *RemoteSnappPart) Hash() string {
@@ -233,8 +250,8 @@ func (s *RemoteSnappPart) Config(configuration []byte) (err error) {
 	return err
 }
 
-func NewRemoteSnappPart(data map[string]interface{}) *RemoteSnappPart {
-	return &RemoteSnappPart{raw: data}
+func NewRemoteSnappPart(data remoteSnap) *RemoteSnappPart {
+	return &RemoteSnappPart{pkg: data}
 }
 
 type SnappUbuntuStoreRepository struct {
@@ -269,26 +286,18 @@ func (s *SnappUbuntuStoreRepository) Search(search_term string) (parts []Part, e
 	if err != nil {
 		return parts, err
 	}
+	defer resp.Body.Close()
 
-	searchData := make(map[string]interface{})
-	body, err := ioutil.ReadAll(resp.Body)
+	var searchData searchResults
 
-	//log.Print(string(body))
-	if err != nil {
-		return parts, err
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&searchData); err != nil {
+		return nil, err
 	}
-	err = json.Unmarshal(body, &searchData)
-	if err != nil {
-		return parts, nil
-	}
-	embedded := searchData["_embedded"].(map[string]interface{})
-	packages := embedded["clickindex:package"].([]interface{})
 
-	for _, raw := range packages {
-		snapp := NewRemoteSnappPart(raw.(map[string]interface{}))
-		if snapp != nil {
-			parts = append(parts, snapp)
-		}
+	for _, pkg := range searchData.Payload.Packages {
+		snapp := NewRemoteSnappPart(pkg)
+		parts = append(parts, snapp)
 	}
 
 	return parts, err

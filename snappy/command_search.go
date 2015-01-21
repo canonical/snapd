@@ -11,7 +11,6 @@ func CmdSearch(args []string) (err error) {
 	m := NewMetaRepository()
 	results, err := m.Search(strings.Join(args, ","))
 	if err != nil {
-		fmt.Printf("Error %s", err)
 		return err
 	}
 
