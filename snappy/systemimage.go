@@ -321,7 +321,7 @@ func (s *systemImageDBusProxy) ReloadConfiguration(partition partition.Partition
 		return nil
 	}
 
-	_, err = s.proxy.Call(SYSTEM_IMAGE_BUS_NAME, callName, configFile)
+	_, err = s.proxy.Call(systemImageBusName, callName, configFile)
 
 	return err
 }
