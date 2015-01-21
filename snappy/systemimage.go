@@ -39,6 +39,10 @@ type SystemImagePart struct {
 	partition partition.PartitionInterface
 }
 
+func (s *SystemImagePart) Type() string {
+	return "core"
+}
+
 func (s *SystemImagePart) Name() string {
 	return SYSTEM_IMAGE_PART_NAME
 }
@@ -112,6 +116,10 @@ func (s *SystemImagePart) Config(configuration []byte) (err error) {
 func (s *SystemImagePart) MarkBootSuccessful() (err error) {
 
 	return s.partition.MarkBootSuccessful()
+}
+func (s *SystemImagePart) Channel() string {
+
+	return s.info["channel_name"]
 }
 
 // Result of UpdateAvailableStatus() call

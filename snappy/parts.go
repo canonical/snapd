@@ -17,6 +17,9 @@ type Part interface {
 	IsActive() bool
 	IsInstalled() bool
 
+	// app, framework, core
+	Type() string
+	
 	InstalledSize() int
 	DownloadSize() int
 

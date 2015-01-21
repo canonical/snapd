@@ -20,6 +20,7 @@ type SnappPart struct {
 	hash        string
 	isActive    bool
 	isInstalled bool
+	stype       string
 
 	basedir string
 }
@@ -29,6 +30,7 @@ type packageYaml struct {
 	Version string
 	Vendor  string
 	Icon    string
+	Type    string
 }
 
 func NewInstalledSnappPart(yaml_path string) *SnappPart {
@@ -68,8 +70,17 @@ func NewInstalledSnappPart(yaml_path string) *SnappPart {
 	if p == part.basedir {
 		part.isActive = true
 	}
+	part.stype = m.Type
 
 	return &part
+}
+
+func (s *SnappPart) Type() string {
+	if s.stype != "" {
+		return s.stype
+	}
+	// if not declared its a app
+	return "app"
 }
 
 func (s *SnappPart) Name() string {
@@ -170,6 +181,11 @@ func (s *SnappLocalRepository) GetInstalled() (parts []Part, err error) {
 
 type RemoteSnappPart struct {
 	raw map[string]interface{}
+}
+
+func (s *RemoteSnappPart) Type() string {
+	// FIXME: the store does not publish this info
+	return "app"
 }
 
 func (s *RemoteSnappPart) Name() string {
