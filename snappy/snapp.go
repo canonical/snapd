@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/cheggaaa/pb"
 	"gopkg.in/yaml.v1"
 )
 
@@ -270,7 +271,14 @@ func (s *RemoteSnappPart) Install() (err error) {
 	}
 	defer resp.Body.Close()
 
-	_, err = io.Copy(w, resp.Body)
+	// FIXME: we need something more flexible and less hardcoded here
+	//        - like a progress callback or somesuch
+	pbar := pb.New(int(resp.ContentLength))
+	pbar.ShowSpeed = true
+	pbar.Start()
+
+	mw := io.MultiWriter(w, pbar)
+	_, err = io.Copy(mw, resp.Body)
 	if err != nil {
 		return err
 	}
