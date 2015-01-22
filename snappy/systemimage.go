@@ -285,12 +285,14 @@ func (s *systemImageDBusProxy) DownloadUpdate() (err error) {
 	return err
 }
 
-// FIXME: call!
 // Force system-image-dbus daemon to read the other partitions
 // system-image configuration file so that it can calculate the correct
 // upgrade path.
-func (s *systemImageDBusProxy) ReloadConfiguration(partition partition.Partition) (err error) {
+func (s *systemImageDBusProxy) ReloadConfiguration() (err error) {
+
 	callName := "ReloadConfiguration"
+
+	partition := partition.New()
 
 	if partition.DualRootPartitions() != true {
 		// Single rootfs, so no need to reload.
@@ -328,6 +330,12 @@ func (s *systemImageDBusProxy) ReloadConfiguration(partition partition.Partition
 
 // Check to see if there is a system image update available
 func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
+
+	// Ensure the system-image-dbus daemon is looking at the correct
+	// rootfs's configuration file
+	if err = s.ReloadConfiguration(); err != nil {
+		return us, err
+	}
 
 	callName := "CheckForUpdate"
 	_, err = s.proxy.Call(systemImageBusName, callName)
