@@ -288,38 +288,50 @@ func (s *systemImageDBusProxy) DownloadUpdate() (err error) {
 // Force system-image-dbus daemon to read the other partitions
 // system-image configuration file so that it can calculate the correct
 // upgrade path.
-func (s *systemImageDBusProxy) ReloadConfiguration() (err error) {
+//
+// If reset is true, force system-image to reload its configuration from
+// the current rootfs, otherwise
+func (s *systemImageDBusProxy) ReloadConfiguration(reset bool) (err error) {
+
+	var configFile string
 
 	callName := "ReloadConfiguration"
 
 	partition := partition.New()
+	thisConfigFile := partition.GetSIConfigPath()
+	otherConfigFile := partition.GetOtherSIConfigPath()
 
-	if partition.DualRootPartitions() != true {
-		// Single rootfs, so no need to reload.
+	dual := partition.DualRootPartitions()
+
+	if dual != true || reset {
+		// Single rootfs, so use current rootfs
+		// (which is always used for a reset).
+		configFile = thisConfigFile
+	} else {
+		configFile = otherConfigFile
 	}
 
-	partition.ReadOnlyRoot = true
-	err = partition.MountOtherRootfs()
-	if err != nil {
-		return err
+	if dual {
+		partition.ReadOnlyRoot = true
+		err = partition.MountOtherRootfs()
+		if err != nil {
+			return err
+		}
+
+		// Unmount and remove mountpoint. This is safe since the
+		// system-image-dbus daemon caches its configuration file,
+		// so once the D-Bus call completes, it no longer cares
+		// about configFile.
+		defer func() {
+			err = partition.UnmountOtherRootfsAndCleanup()
+		}()
 	}
-
-	// Unmount and remove mountpoint. This is safe since the
-	// system-image-dbus daemon caches its configuration file,
-	// so once the D-Bus call completes, it no longer cares
-	// about configFile.
-	defer func() {
-		err = partition.UnmountOtherRootfsAndCleanup()
-	}()
-
-	configFile := partition.GetOtherSIConfigPath()
 
 	// FIXME: replace with FileExists() call once it's in a utility
 	// package.
 	_, err = os.Stat(configFile)
 	if err != nil {
-		// file doesn't exist on the other partition, so this
-		// call is effectively a NOP.
+		// file doesn't exist, making this call a NOP.
 		return nil
 	}
 
@@ -333,7 +345,7 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 
 	// Ensure the system-image-dbus daemon is looking at the correct
 	// rootfs's configuration file
-	if err = s.ReloadConfiguration(); err != nil {
+	if err = s.ReloadConfiguration(false); err != nil {
 		return us, err
 	}
 
@@ -358,6 +370,12 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 				"timed out after %d seconds "+
 				"waiting for system image server to respond",
 			systemImageTimeoutSecs))
+	}
+
+	// switch back to using the current rootfs's system-image
+	// configuration.
+	if err = s.ReloadConfiguration(true); err != nil {
+		return us, err
 	}
 
 	return s.us, err
