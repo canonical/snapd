@@ -1,5 +1,9 @@
 package snappy
 
+import (
+	"strings"
+)
+
 const (
 	snapBaseDir = "/apps"
 	snapOemDir  = "/oem"
@@ -85,18 +89,21 @@ func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
 	return parts, err
 }
 
-func GetInstalledSnappsByType(snappType string) (res []Part, err error) {
+func GetInstalledSnappsByType(searchExp string) (res []Part, err error) {
 	m := NewMetaRepository()
 	installed, err := m.GetInstalled()
 	if err != nil {
 		return res, err
 	}
+	snappTypes := strings.Split(searchExp, ",")
 	for _, part := range installed {
 		if !part.IsActive() {
 			continue
 		}
-		if snappType == "*" || part.Type() == snappType {
-			res = append(res, part)
+		for _, snappType := range snappTypes {
+			if part.Type() == snappType {
+				res = append(res, part)
+			}
 		}
 	}
 	return

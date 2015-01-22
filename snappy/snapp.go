@@ -309,7 +309,9 @@ func (s *SnappUbuntuStoreRepository) Search(search_term string) (parts []Part, e
 }
 
 func (s *SnappUbuntuStoreRepository) GetUpdates() (parts []Part, err error) {
-	installed, err := GetInstalledSnappNamesByType("*")
+	// the store only supports apps and framworks currently, so no
+	// sense in sending it our ubuntu-core snapp
+	installed, err := GetInstalledSnappNamesByType("app,framework")
 	if err != nil || len(installed) == 0 {
 		return parts, err
 	}

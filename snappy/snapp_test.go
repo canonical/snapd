@@ -226,7 +226,7 @@ func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdates(c *C) {
 }
 
 func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdatesNoSnapps(c *C) {
-	
+
 	snapp := NewUbuntuStoreSnappRepository()
 	c.Assert(snapp, NotNil)
 
