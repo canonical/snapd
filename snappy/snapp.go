@@ -147,6 +147,8 @@ func (s *SnappPart) Install() (err error) {
 func (s *SnappPart) Uninstall() (err error) {
 	// FIMXE: replace with native code
 	cmd := exec.Command("click", "unregister", "--all-users", s.Name())
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	return err
 }
@@ -274,6 +276,8 @@ func (s *RemoteSnappPart) Install() (err error) {
 	}
 
 	cmd := exec.Command("click", "install", "--all-users", w.Name())
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	if err != nil {
 		return err
