@@ -102,7 +102,7 @@ func (s *SystemImagePart) Install() (err error) {
 }
 
 func (s *SystemImagePart) Uninstall() (err error) {
-	return err
+	return errors.New("Uninstall of a core snapp is not possible")
 }
 
 func (s *SystemImagePart) Config(configuration []byte) (err error) {

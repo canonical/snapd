@@ -3,11 +3,13 @@ package snappy
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
@@ -137,10 +139,13 @@ func (s *SnappPart) DownloadSize() int {
 }
 
 func (s *SnappPart) Install() (err error) {
-	return err
+	return errors.New("Install of a local part is not possible")
 }
 
 func (s *SnappPart) Uninstall() (err error) {
+	// FIMXE: replace with native code
+	cmd := exec.Command("click", "unregister", "--all-users", s.Name())
+	err = cmd.Run()
 	return err
 }
 
@@ -246,7 +251,7 @@ func (s *RemoteSnappPart) Install() (err error) {
 }
 
 func (s *RemoteSnappPart) Uninstall() (err error) {
-	return err
+	return errors.New("Uninstall of a remote part is not possible")
 }
 
 func (s *RemoteSnappPart) Config(configuration []byte) (err error) {

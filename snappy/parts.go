@@ -117,6 +117,23 @@ var GetInstalledSnappNamesByType = func(snappType string) (res []string, err err
 	return
 }
 
+func GetInstalledSnappByName(needle string) Part {
+	m := NewMetaRepository()
+	installed, err := m.GetInstalled()
+	if err != nil {
+		return nil
+	}
+	for _, part := range installed {
+		if !part.IsActive() {
+			continue
+		}
+		if part.Name() == needle {
+			return part
+		}
+	}
+	return nil
+}
+
 func findPartByName(needle string, haystack []Part) *Part {
 	for _, part := range haystack {
 		if part.Name() == needle {
