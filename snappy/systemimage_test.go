@@ -121,6 +121,10 @@ func (m *MockSystemImage) Information() (map[string]string, error) {
 	return m.info, nil
 }
 
+func (m *MockSystemImage) ReloadConfiguration(string) (error) {
+	return nil
+}
+
 func (m *MockSystemImage) CheckForUpdate() error {
 	sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateAvailableStatus")
 
