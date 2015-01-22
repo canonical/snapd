@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"strings"
 
 	. "gopkg.in/check.v1"
 )
@@ -109,6 +110,9 @@ func (s *SnappTestSuite) TestLocalSnappRepositorySimple(c *C) {
 	c.Assert(installed[0].Version(), Equals, "1.10")
 }
 
+/* acquired via:
+   curl  -H 'accept: application/hal+json' -H "X-Ubuntu-Frameworks: ubuntu-core-15.04-dev1" -H "X-Ubuntu-Architecture: amd64" https://search.apps.ubuntu.com/api/v1/search?q=hello
+*/
 const MockSearchJson = `{
   "_links": {
     "self": {
@@ -144,6 +148,9 @@ const MockSearchJson = `{
   }
 }`
 
+/* acquired via:
+curl --data-binary '{"name":["docker","foo","com.ubuntu.snappy.hello-world","httpd-minimal-golang-example","owncloud","xkcd-webserver"]}'  -H 'content-type: application/json' https://myapps.developer.ubuntu.com/dev/api/click-metadata/
+*/
 const MockUpdatesJson = `
 [
     {
@@ -161,6 +168,77 @@ const MockUpdatesJson = `
     }
 ]
 `
+
+/* acquired via
+   curl -H "accept: application/hal+json" -H "X-Ubuntu-Frameworks: ubuntu-core-15.04-dev1" https://search.apps.ubuntu.com/api/v1/package/com.ubuntu.snappy.xkcd-webserver
+*/
+const MockDetailsJson = `
+{
+  "architecture": [
+    "all"
+  ],
+  "allow_unauthenticated": true,
+  "click_version": "0.1",
+  "changelog": "",
+  "date_published": "2014-12-05T13:12:31.785911Z",
+  "license": "Apache License",
+  "name": "xkcd-webserver",
+  "publisher": "Canonical",
+  "blacklist_country_codes": [],
+  "icon_urls": {
+    "256": "https:\/\/myapps.developer.ubuntu.com\/site_media\/appmedia\/2014\/12\/xkcd.svg.png"
+  },
+  "prices": null,
+  "framework": [
+    "ubuntu-core-15.04-dev1"
+  ],
+  "translations": null,
+  "price": 0.0,
+  "click_framework": [
+    "ubuntu-core-15.04-dev1"
+  ],
+  "description": "Snappy\nThis is meant as a fun example for a snappy package.\r\n",
+  "download_sha512": "3a9152b8bff494c036f40e2ca03d1dfaa4ddcfe651eae1c9419980596f48fa95b2f2a91589305af7d55dc08e9489b8392585bbe2286118550b288368e5d9a620",
+  "website": "",
+  "screenshot_urls": [],
+  "department": [
+    "entertainment"
+  ],
+  "company_name": "Canonical",
+  "_links": {
+    "self": {
+      "href": "https:\/\/search.apps.ubuntu.com\/api\/v1\/package\/com.ubuntu.snappy.xkcd-webserver"
+    },
+    "curies": [
+      {
+        "templated": true,
+        "name": "clickindex",
+        "href": "https:\/\/search.apps.ubuntu.com\/docs\/v1\/relations.html{#rel}"
+      }
+    ]
+  },
+  "version": "0.3.1",
+  "developer_name": "Snappy App Dev",
+  "content": "application",
+  "anon_download_url": "https:\/\/public.apps.ubuntu.com\/anon\/download\/com.ubuntu.snappy\/xkcd-webserver\/com.ubuntu.snappy.xkcd-webserver_0.3.1_all.click",
+  "binary_filesize": 21236,
+  "icon_url": "https:\/\/myapps.developer.ubuntu.com\/site_media\/appmedia\/2014\/12\/xkcd.svg.png",
+  "support_url": "mailto:michael.vogt@ubuntu.com",
+  "title": "Show random XKCD compic via a build-in webserver",
+  "ratings_average": 0.0,
+  "id": 1287,
+  "screenshot_url": null,
+  "terms_of_service": "",
+  "download_url": "https:\/\/public.apps.ubuntu.com\/download\/com.ubuntu.snappy\/xkcd-webserver\/com.ubuntu.snappy.xkcd-webserver_0.3.1_all.click",
+  "video_urls": [],
+  "keywords": [
+    "snappy"
+  ],
+  "video_embedded_html_urls": [],
+  "last_updated": "2014-12-05T12:33:05.928364Z",
+  "status": "Published",
+  "whitelist_country_codes": []
+}`
 
 type MockUbuntuStoreServer struct {
 	quit chan int
@@ -240,4 +318,25 @@ func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdatesNoSnapps(c *C) {
 	results, err := snapp.GetUpdates()
 	c.Assert(err, IsNil)
 	c.Assert(len(results), Equals, 0)
+}
+
+func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetDetails(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(strings.HasSuffix(r.URL.String(), "xkcd-webserver"), Equals, true)
+		io.WriteString(w, MockDetailsJson)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snapp := NewUbuntuStoreSnappRepository()
+	c.Assert(snapp, NotNil)
+	snapp.detailsUri = mockServer.URL + "/details/%s"
+
+	// the actual test
+	results, err := snapp.Details("xkcd-webserver")
+	c.Assert(err, IsNil)
+	c.Assert(len(results), Equals, 1)
+	c.Assert(results[0].Name(), Equals, "xkcd-webserver")
+	c.Assert(results[0].Version(), Equals, "0.3.1")
 }

@@ -424,6 +424,15 @@ func (s *SystemImageRepository) Search(terms string) (versions []Part, err error
 	return versions, err
 }
 
+func (s *SystemImageRepository) Details(snappName string) (versions []Part, err error) {
+	if snappName == systemImagePartName {
+		s.proxy.Information()
+		part := s.getCurrentPart()
+		versions = append(versions, part)
+	}
+	return versions, err
+}
+
 func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 
 	if _, err = s.proxy.CheckForUpdate(); err != nil {

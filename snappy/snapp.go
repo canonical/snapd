@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -37,22 +38,23 @@ type packageYaml struct {
 	Type    string
 }
 
-type remoteSnap struct {
-	Publisher      string  `json:"publisher,omitempty"`
-	Name           string  `json:"name"`
-	Title          string  `json:"title"`
-	IconUrl        string  `json:"icon_url"`
-	Price          float64 `json:"price,omitempty"`
-	Content        string  `json:"content,omitempty"`
-	RatingsAverage float64 `json:"ratings_average,omitempty"`
-	Version        string  `json:"version"`
-	DownloadUrl    string  `json:"download_url, omitempty"`
-	DownloadSha512 string  `json:"download_sha512, omitempty"`
+type remoteSnapp struct {
+	Publisher       string  `json:"publisher,omitempty"`
+	Name            string  `json:"name"`
+	Title           string  `json:"title"`
+	IconUrl         string  `json:"icon_url"`
+	Price           float64 `json:"price,omitempty"`
+	Content         string  `json:"content,omitempty"`
+	RatingsAverage  float64 `json:"ratings_average,omitempty"`
+	Version         string  `json:"version"`
+	AnonDownloadUrl string  `json:"anon_download_url, omitempty"`
+	DownloadUrl     string  `json:"download_url, omitempty"`
+	DownloadSha512  string  `json:"download_sha512, omitempty"`
 }
 
 type searchResults struct {
 	Payload struct {
-		Packages []remoteSnap `json:"clickindex:package"`
+		Packages []remoteSnapp `json:"clickindex:package"`
 	} `json:"_embedded"`
 }
 
@@ -173,6 +175,10 @@ func (s *SnappLocalRepository) Search(terms string) (versions []Part, err error)
 	return versions, err
 }
 
+func (s *SnappLocalRepository) Details(terms string) (versions []Part, err error) {
+	return versions, err
+}
+
 func (s *SnappLocalRepository) GetUpdates() (parts []Part, err error) {
 
 	return parts, err
@@ -206,7 +212,7 @@ func (s *SnappLocalRepository) GetInstalled() (parts []Part, err error) {
 }
 
 type RemoteSnappPart struct {
-	pkg remoteSnap
+	pkg remoteSnapp
 }
 
 func (s *RemoteSnappPart) Type() string {
@@ -247,6 +253,32 @@ func (s *RemoteSnappPart) DownloadSize() int {
 }
 
 func (s *RemoteSnappPart) Install() (err error) {
+	w, err := ioutil.TempFile("", s.pkg.Name)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		w.Close()
+		os.Remove(w.Name())
+	}()
+
+	resp, err := http.Get(s.pkg.AnonDownloadUrl)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command("click", "install", "--all-users", w.Name())
+	err = cmd.Run()
+	if err != nil {
+		return err
+	}
+
 	return err
 }
 
@@ -258,27 +290,63 @@ func (s *RemoteSnappPart) Config(configuration []byte) (err error) {
 	return err
 }
 
-func NewRemoteSnappPart(data remoteSnap) *RemoteSnappPart {
+func NewRemoteSnappPart(data remoteSnapp) *RemoteSnappPart {
 	return &RemoteSnappPart{pkg: data}
 }
 
 type SnappUbuntuStoreRepository struct {
-	searchUri string
-	bulkUri   string
+	searchUri  string
+	detailsUri string
+	bulkUri    string
 }
 
 func NewUbuntuStoreSnappRepository() *SnappUbuntuStoreRepository {
 	return &SnappUbuntuStoreRepository{
-		searchUri: "https://search.apps.ubuntu.com/api/v1/search?q=%s",
-		bulkUri:   "https://myapps.developer.ubuntu.com/dev/api/click-metadata/"}
+		searchUri:  "https://search.apps.ubuntu.com/api/v1/search?q=%s",
+		detailsUri: "https://search.apps.ubuntu.com/api/v1/package/%s",
+		bulkUri:    "https://myapps.developer.ubuntu.com/dev/api/click-metadata/"}
 }
 
 func (s *SnappUbuntuStoreRepository) Description() string {
 	return fmt.Sprintf("Snapp remote repository for %s", s.searchUri)
 }
 
-func (s *SnappUbuntuStoreRepository) Search(search_term string) (parts []Part, err error) {
-	url := fmt.Sprintf(s.searchUri, search_term)
+func (s *SnappUbuntuStoreRepository) Details(snappName string) (parts []Part, err error) {
+	url := fmt.Sprintf(s.detailsUri, snappName)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return parts, err
+	}
+
+	// set headers
+	req.Header.Set("Accept", "application/hal+json")
+	frameworks, _ := GetInstalledSnappNamesByType("framework")
+	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
+	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
+	req.Header.Set("X-Ubuntu-Architecture", getArchitecture())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return parts, err
+	}
+	defer resp.Body.Close()
+
+	var detailsData remoteSnapp
+
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&detailsData); err != nil {
+		return nil, err
+	}
+
+	snapp := NewRemoteSnappPart(detailsData)
+	parts = append(parts, snapp)
+
+	return parts, err
+}
+
+func (s *SnappUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err error) {
+	url := fmt.Sprintf(s.searchUri, searchTerm)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return parts, err
@@ -337,7 +405,7 @@ func (s *SnappUbuntuStoreRepository) GetUpdates() (parts []Part, err error) {
 	}
 	defer resp.Body.Close()
 
-	var updateData []remoteSnap
+	var updateData []remoteSnapp
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&updateData); err != nil {
 		return nil, err

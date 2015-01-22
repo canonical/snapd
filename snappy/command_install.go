@@ -73,7 +73,7 @@ func extractYamlFromSnap(snap string) ([]byte, error) {
 	return nil, errors.New("meta/package.yaml not found")
 }
 
-func CmdInstall(args []string) error {
+func xxxCmdInstall(args []string) error {
 	snap := args[0]
 
 	// FIXME: Not used atm
@@ -135,4 +135,21 @@ func CmdInstall(args []string) error {
 	}
 
 	return nil
+}
+
+func CmdInstall(args []string) (err error) {
+	m := NewMetaRepository()
+	for _, name := range args {
+		found, _ := m.Details(name)
+		for _, part := range found {
+			// act only on parts that are downloadable
+			if !part.IsInstalled() {
+				err = part.Install()
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return err
 }

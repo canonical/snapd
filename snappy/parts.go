@@ -40,6 +40,8 @@ type Repository interface {
 
 	// action
 	Search(terms string) ([]Part, error)
+	Details(snappName string) ([]Part, error)
+
 	GetUpdates() ([]Part, error)
 	GetInstalled() ([]Part, error)
 }
@@ -80,6 +82,18 @@ func (m *MetaRepository) GetUpdates() (parts []Part, err error) {
 func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
 	for _, r := range m.all {
 		results, err := r.Search(terms)
+		if err != nil {
+			return parts, err
+		}
+		parts = append(parts, results...)
+	}
+
+	return parts, err
+}
+
+func (m *MetaRepository) Details(snappyName string) (parts []Part, err error) {
+	for _, r := range m.all {
+		results, err := r.Details(snappyName)
 		if err != nil {
 			return parts, err
 		}
