@@ -54,9 +54,16 @@ func NewMetaRepository() *MetaRepository {
 	m := new(MetaRepository)
 	m.all = []Repository{
 		NewSystemImageRepository(),
-		NewUbuntuStoreSnappRepository(),
-		NewLocalSnappRepository(snapBaseDir),
-		NewLocalSnappRepository(snapOemDir)}
+		NewUbuntuStoreSnappRepository()}
+	// these may fail if there is no such directory
+	repo := NewLocalSnappRepository(snapBaseDir)
+	if repo != nil {
+		m.all = append(m.all, repo)
+	}
+	repo = NewLocalSnappRepository(snapOemDir)
+	if repo != nil {
+		m.all = append(m.all, repo)
+	}
 
 	return m
 }
