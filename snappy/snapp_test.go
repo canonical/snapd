@@ -224,3 +224,20 @@ func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdates(c *C) {
 	c.Assert(results[0].Name(), Equals, "hello-world")
 	c.Assert(results[0].Version(), Equals, "1.0.5")
 }
+
+func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdatesNoSnapps(c *C) {
+	
+	snapp := NewUbuntuStoreSnappRepository()
+	c.Assert(snapp, NotNil)
+
+	// ensure we do not hit the net if there is nothing installed
+	// (otherwise the store will send us all snapps)
+	snapp.bulkUri = "http://i-do.not-exist.really-not"
+	mockRestorer := mockGetInstalledSnappNamesByType([]string{})
+	defer mockRestorer()
+
+	// the actual test
+	results, err := snapp.GetUpdates()
+	c.Assert(err, IsNil)
+	c.Assert(len(results), Equals, 0)
+}
