@@ -111,7 +111,7 @@ func GetInstalledSnappsByType(snappType string) (res []Part, err error) {
 	return
 }
 
-func GetInstalledSnappNamesByType(snappType string) (res []string, err error) {
+var GetInstalledSnappNamesByType = func(snappType string) (res []string, err error) {
 	installed, err := GetInstalledSnappsByType(snappType)
 	for _, part := range installed {
 		res = append(res, part.Name())

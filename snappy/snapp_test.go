@@ -187,8 +187,21 @@ func (s *SnappTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Assert(results[0].Description(), Equals, "Show random XKCD comic")
 }
 
+func mockGetInstalledSnappNamesByType(mockSnapps []string) (mockRestorer func()) {
+	origFunc := GetInstalledSnappNamesByType
+	GetInstalledSnappNamesByType = func(snappType string) (res []string, err error) {
+		return mockSnapps, nil
+	}
+	return func() {
+		GetInstalledSnappNamesByType = origFunc
+	}
+}
+
 func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdates(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json_req, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		c.Assert(string(json_req), Equals, `{"name":["hello-world"]}`)
 		io.WriteString(w, MockUpdatesJson)
 	}))
 
@@ -199,6 +212,12 @@ func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdates(c *C) {
 	c.Assert(snapp, NotNil)
 	snapp.bulkUri = mockServer.URL + "/updates/"
 
+	// override the real GetInstalledSnappNamesByType to return our
+	// mock data
+	mockRestorer := mockGetInstalledSnappNamesByType([]string{"hello-world"})
+	defer mockRestorer()
+
+	// the actual test
 	results, err := snapp.GetUpdates()
 	c.Assert(err, IsNil)
 	c.Assert(len(results), Equals, 1)

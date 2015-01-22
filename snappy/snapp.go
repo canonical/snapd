@@ -310,6 +310,9 @@ func (s *SnappUbuntuStoreRepository) Search(search_term string) (parts []Part, e
 
 func (s *SnappUbuntuStoreRepository) GetUpdates() (parts []Part, err error) {
 	installed, err := GetInstalledSnappNamesByType("*")
+	if err != nil || len(installed) == 0 {
+		return parts, err
+	}
 	jsonData, err := json.Marshal(map[string][]string{"name": installed})
 	if err != nil {
 		return parts, err
