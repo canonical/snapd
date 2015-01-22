@@ -109,7 +109,7 @@ func (s *SnappTestSuite) TestLocalSnappRepositorySimple(c *C) {
 	c.Assert(installed[0].Version(), Equals, "1.10")
 }
 
-const MOCK_SEARCH_JSON = `{
+const MockSearchJson = `{
   "_links": {
     "self": {
       "href": "https:\/\/search.apps.ubuntu.com\/api\/v1\/search?q=xkcd"
@@ -144,18 +144,34 @@ const MOCK_SEARCH_JSON = `{
   }
 }`
 
+const MockUpdatesJson = `
+[
+    {
+        "status": "Published", 
+        "name": "hello-world", 
+        "changelog": "", 
+        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/01/hello.svg.png", 
+        "title": "Hello world example", 
+        "binary_filesize": 31166, 
+        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/com.ubuntu.snappy/hello-world/hello-world_1.0.5_all.snap", 
+        "allow_unauthenticated": true, 
+        "version": "1.0.5", 
+        "download_url": "https://public.apps.ubuntu.com/download/com.ubuntu.snappy/hello-world/hello-world_1.0.5_all.snap", 
+        "download_sha512": "3e8b192e18907d8195c2e380edd048870eda4f6dbcba8f65e4625d6efac3c37d11d607147568ade6f002b6baa30762c6da02e7ee462de7c56301ddbdc10d87f6"
+    }
+]
+`
+
 type MockUbuntuStoreServer struct {
 	quit chan int
 
 	searchUri string
 }
 
-func handleSearch(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, MOCK_SEARCH_JSON)
-}
-
-func (s *SnappTestSuite) TestUuntuStoreRepository(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(handleSearch))
+func (s *SnappTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, MockSearchJson)
+	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
@@ -169,5 +185,23 @@ func (s *SnappTestSuite) TestUuntuStoreRepository(c *C) {
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver.mvo")
 	c.Assert(results[0].Version(), Equals, "0.1")
 	c.Assert(results[0].Description(), Equals, "Show random XKCD comic")
+}
 
+func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdates(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, MockUpdatesJson)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snapp := NewUbuntuStoreSnappRepository()
+	c.Assert(snapp, NotNil)
+	snapp.bulkUri = mockServer.URL + "/updates/"
+
+	results, err := snapp.GetUpdates()
+	c.Assert(err, IsNil)
+	c.Assert(len(results), Equals, 1)
+	c.Assert(results[0].Name(), Equals, "hello-world")
+	c.Assert(results[0].Version(), Equals, "1.0.5")
 }
