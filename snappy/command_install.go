@@ -144,6 +144,7 @@ func CmdInstall(args []string) (err error) {
 		for _, part := range found {
 			// act only on parts that are downloadable
 			if !part.IsInstalled() {
+				fmt.Printf("Installing %s\n", part.Name())
 				err = part.Install()
 				if err != nil {
 					return err

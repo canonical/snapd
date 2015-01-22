@@ -121,7 +121,7 @@ func (m *MockSystemImage) Information() (map[string]string, error) {
 	return m.info, nil
 }
 
-func (m *MockSystemImage) ReloadConfiguration(string) (error) {
+func (m *MockSystemImage) ReloadConfiguration(string) error {
 	return nil
 }
 
