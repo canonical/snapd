@@ -58,10 +58,7 @@ func NewMetaRepository() *MetaRepository {
 func (m *MetaRepository) GetInstalled() (parts []Part, err error) {
 	for _, r := range m.all {
 		installed, _ := r.GetInstalled()
-		// FIXME: python extend() anyone?
-		for _, part := range installed {
-			parts = append(parts, part)
-		}
+		parts = append(parts, installed...)
 	}
 
 	return parts, err
@@ -70,10 +67,7 @@ func (m *MetaRepository) GetInstalled() (parts []Part, err error) {
 func (m *MetaRepository) GetUpdates() (parts []Part, err error) {
 	for _, r := range m.all {
 		updates, _ := r.GetUpdates()
-		// FIXME: python extend() anyone?
-		for _, part := range updates {
-			parts = append(parts, part)
-		}
+		parts = append(parts, updates...)
 	}
 
 	return parts, err
@@ -85,10 +79,7 @@ func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
 		if err != nil {
 			return parts, err
 		}
-		// FIXME: python extend() anyone?
-		for _, part := range results {
-			parts = append(parts, part)
-		}
+		parts = append(parts, results...)
 	}
 
 	return parts, err
