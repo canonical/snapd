@@ -296,12 +296,6 @@ func (u *Uboot) HandleAssets() (err error) {
 		}
 	}()
 
-	hardwareSpecFile := u.partition.hardwareSpecFile()
-
-	if err = FileExists(hardwareSpecFile); err != nil {
-		return err
-	}
-
 	hardware, err := u.partition.hardwareSpec()
 	if err != nil {
 		return err

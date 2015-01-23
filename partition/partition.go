@@ -117,20 +117,18 @@ var bindMounts *list.List
 
 //--------------------------------------------------------------------
 
-
 type PartitionInterface interface {
 	UpdateBootloader() (err error)
 	MarkBootSuccessful() (err error)
 	// FIXME: could we make SyncBootloaderFiles part of UpdateBootloader
 	//        to expose even less implementation details?
 	SyncBootloaderFiles() (err error)
-	NextBootIsOther() (bool)
+	NextBootIsOther() bool
 
 	// run the function f with the otherRoot mounted
-	RunWithOther(f func(otherRoot string)(err error)) (err error)
+	RunWithOther(f func(otherRoot string) (err error)) (err error)
 }
 
-// FIXME: can we make this private(?)
 type Partition struct {
 	// all partitions
 	partitions []BlockDevice
@@ -144,8 +142,11 @@ type Partition struct {
 	MountTarget string
 
 	SystemType int
+
+	hardwareSpecFile string
 }
 
+// FIXME: can we make this private(?)
 type BlockDevice struct {
 	// label for partition
 	name string
@@ -215,6 +216,7 @@ func undoMounts(mounts *list.List) (err error) {
 	// order.
 	for e := mounts.Back(); e != nil; e = e.Prev() {
 		if target, ok := e.Value.(string); ok {
+			// FIXME: could we just unmount here?
 			targets = append(targets, target)
 		}
 	}
@@ -262,6 +264,8 @@ func New() *Partition {
 	p.MountTarget = p.getMountTarget()
 	p.getPartitionDetails()
 
+	p.hardwareSpecFile = fmt.Sprint("%s/%s", p.cacheDir(), HARDWARE_SPEC_FILE)
+
 	return p
 }
 
@@ -294,7 +298,6 @@ func (p *Partition) SyncBootloaderFiles() (err error) {
 	}
 	return bootloader.SyncBootFiles()
 }
-
 
 func (p *Partition) UpdateBootloader() (err error) {
 	switch p.SystemType {
@@ -369,18 +372,11 @@ func (p *Partition) cacheDir() string {
 	return DEFAULT_CACHE_DIR
 }
 
-// Return full path to the hardware.yaml file
-func (p *Partition) hardwareSpecFile() string {
-	return fmt.Sprintf("%s/%s", p.cacheDir(), HARDWARE_SPEC_FILE)
-}
-
 func (p *Partition) hardwareSpec() (hardware HardwareSpecType, err error) {
 
 	h := HardwareSpecType{}
 
-	file := p.hardwareSpecFile()
-
-	data, err := ioutil.ReadFile(file)
+	data, err := ioutil.ReadFile(p.hardwareSpecFile)
 	if err != nil {
 		return h, err
 	}
@@ -608,6 +604,9 @@ func Mount(source, target, options string) (err error) {
 	return err
 }
 
+// FIXME: could we unexport this?
+// FIXME2: would it make sense to rename to something like
+//         "UmountAndRemoveFromMountList" to indicate it has side-effects?
 func Unmount(target string) (err error) {
 	var args []string
 
@@ -861,7 +860,7 @@ func (p *Partition) GetOtherVersion() (version string, err error) {
 	// XXX: note that we mount read-only here
 	p.ReadOnlyRoot = true
 
-	defer func () {
+	defer func() {
 		// reset
 		p.ReadOnlyRoot = saved
 	}()
