@@ -55,6 +55,6 @@ To build, once the sources are available and `GOPATH` is set, you can just run
 
 to get the `snappy` binary in your current working directory or
 
-    go install launchpad.net/snappy-ubuntu/snappy-golang/...
+    go install launchpad.net/snappy/...
 
 to have it available in `$GOPATH/bin`
