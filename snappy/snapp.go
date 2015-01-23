@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cheggaaa/pb"
 	"gopkg.in/yaml.v1"
 )
 
@@ -141,7 +140,7 @@ func (s *SnappPart) DownloadSize() int {
 	return -1
 }
 
-func (s *SnappPart) Install() (err error) {
+func (s *SnappPart) Install(pb ProgressMeter) (err error) {
 	return errors.New("Install of a local part is not possible")
 }
 
@@ -255,7 +254,7 @@ func (s *RemoteSnappPart) DownloadSize() int {
 	return -1
 }
 
-func (s *RemoteSnappPart) Install() (err error) {
+func (s *RemoteSnappPart) Install(pbar ProgressMeter) (err error) {
 	w, err := ioutil.TempFile("", s.pkg.Name)
 	if err != nil {
 		return err
@@ -271,14 +270,15 @@ func (s *RemoteSnappPart) Install() (err error) {
 	}
 	defer resp.Body.Close()
 
-	// FIXME: we need something more flexible and less hardcoded here
-	//        - like a progress callback or somesuch
-	pbar := pb.New(int(resp.ContentLength))
-	pbar.ShowSpeed = true
-	pbar.Start()
+	if pbar != nil {
+		pbar.Start(fmt.Sprintf("Starting download of %s", s.Name()), resp.ContentLength)
+		mw := io.MultiWriter(w, pbar)
+		_, err = io.Copy(mw, resp.Body)
+		pbar.Finished("Done")
+	} else {
+		_, err = io.Copy(w, resp.Body)
+	}
 
-	mw := io.MultiWriter(w, pbar)
-	_, err = io.Copy(mw, resp.Body)
 	if err != nil {
 		return err
 	}

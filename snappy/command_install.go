@@ -138,6 +138,8 @@ func xxxCmdInstall(args []string) error {
 }
 
 func CmdInstall(args []string) (err error) {
+	pbar := NewTextProgress()
+
 	m := NewMetaRepository()
 	for _, name := range args {
 		found, _ := m.Details(name)
@@ -145,7 +147,7 @@ func CmdInstall(args []string) (err error) {
 			// act only on parts that are downloadable
 			if !part.IsInstalled() {
 				fmt.Printf("Installing %s\n", part.Name())
-				err = part.Install()
+				err = part.Install(pbar)
 				if err != nil {
 					return err
 				}

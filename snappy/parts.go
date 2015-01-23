@@ -28,7 +28,7 @@ type Part interface {
 	DownloadSize() int
 
 	// Action
-	Install() error
+	Install(pb ProgressMeter) error
 	Uninstall() error
 	Config(configuration []byte) error
 }
@@ -52,7 +52,7 @@ type MetaRepository struct {
 
 func NewMetaRepository() *MetaRepository {
 	// FIXME: make this a configuration file
-	
+
 	m := new(MetaRepository)
 	m.all = []Repository{
 		NewSystemImageRepository(),

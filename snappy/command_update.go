@@ -11,11 +11,12 @@ func CmdUpdate(args []string) (err error) {
 	if err != nil {
 		return err
 	}
+	pbar := NewTextProgress()
 
 	// FIXME: handle args
 	for _, part := range updates {
 		fmt.Printf("Installing %s (%s)\n", part.Name(), part.Version())
-		err := part.Install()
+		err := part.Install(pbar)
 		if err != nil {
 			return err
 		}

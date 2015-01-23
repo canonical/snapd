@@ -281,7 +281,7 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.Install()
+	err = sp.Install(nil)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
 }

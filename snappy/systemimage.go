@@ -82,7 +82,7 @@ func (s *SystemImagePart) DownloadSize() int {
 	return -1
 }
 
-func (s *SystemImagePart) Install() (err error) {
+func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 
 	// Ensure there is always a kernel + initrd to boot with, even
 	// if the update does not provide new versions.
