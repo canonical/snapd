@@ -51,6 +51,8 @@ type MetaRepository struct {
 }
 
 func NewMetaRepository() *MetaRepository {
+	// FIXME: make this a configuration file
+	
 	m := new(MetaRepository)
 	m.all = []Repository{
 		NewSystemImageRepository(),
