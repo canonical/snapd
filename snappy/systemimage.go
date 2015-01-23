@@ -32,10 +32,12 @@ const (
 )
 
 type SystemImagePart struct {
-	info  map[string]string
 	proxy *systemImageDBusProxy
 
-	version     string
+	version        string
+	versionDetails string
+	channelName    string
+
 	isInstalled bool
 	isActive    bool
 
@@ -60,7 +62,7 @@ func (s *SystemImagePart) Description() string {
 
 func (s *SystemImagePart) Hash() string {
 	hasher := sha256.New()
-	hasher.Write([]byte(s.info["version_details"]))
+	hasher.Write([]byte(s.versionDetails))
 	hexdigest := hex.EncodeToString(hasher.Sum(nil))
 
 	return hexdigest
@@ -117,7 +119,7 @@ func (s *SystemImagePart) MarkBootSuccessful() (err error) {
 }
 func (s *SystemImagePart) Channel() string {
 
-	return s.info["channel_name"]
+	return s.channelName
 }
 
 // Return true if the next boot will use the other root filesystem.
@@ -141,6 +143,7 @@ type systemImageInfo map[string]string
 type systemImageDBusProxy struct {
 	proxy      *dbus.ObjectProxy
 	connection *dbus.Connection
+	partition  partition.PartitionInterface
 
 	// the update status
 	us updateStatus
@@ -152,9 +155,14 @@ type systemImageDBusProxy struct {
 	updateFailed          chan *dbus.Message
 }
 
+var newPartition = func() (p partition.PartitionInterface) {
+	return partition.New()
+}
+
 func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
 	var err error
 	p := new(systemImageDBusProxy)
+	p.partition = newPartition()
 
 	if p.connection, err = dbus.Connect(bus); err != nil {
 		log.Panic("Error: can not connect to the bus")
@@ -292,52 +300,23 @@ func (s *systemImageDBusProxy) DownloadUpdate() (err error) {
 // If reset is true, force system-image to reload its configuration from
 // the current rootfs, otherwise
 func (s *systemImageDBusProxy) ReloadConfiguration(reset bool) (err error) {
-
-	var configFile string
-
-	callName := "ReloadConfiguration"
-
-	partition := partition.New()
-	thisConfigFile := partition.GetSIConfigPath()
-	otherConfigFile := partition.GetOtherSIConfigPath()
-
-	dual := partition.DualRootPartitions()
-
-	if dual != true || reset {
-		// Single rootfs, so use current rootfs
-		// (which is always used for a reset).
-		configFile = thisConfigFile
-	} else {
-		configFile = otherConfigFile
-	}
-
-	if dual {
-		partition.ReadOnlyRoot = true
-		err = partition.MountOtherRootfs()
+	// Using RunWithOther() is safe since the
+	// system-image-dbus daemon caches its configuration file,
+	// so once the D-Bus call completes, it no longer cares
+	// about configFile.
+	return s.partition.RunWithOther(func(otherRoot string) (err error) {
+		configFile := otherRoot + partition.SYSTEM_IMAGE_CONFIG
+		// FIXME: replace with FileExists() call once it's in a utility
+		// package.
+		_, err = os.Stat(configFile)
 		if err != nil {
-			return err
+			// file doesn't exist, making this call a NOP.
+			return nil
 		}
-
-		// Unmount and remove mountpoint. This is safe since the
-		// system-image-dbus daemon caches its configuration file,
-		// so once the D-Bus call completes, it no longer cares
-		// about configFile.
-		defer func() {
-			err = partition.UnmountOtherRootfsAndCleanup()
-		}()
-	}
-
-	// FIXME: replace with FileExists() call once it's in a utility
-	// package.
-	_, err = os.Stat(configFile)
-	if err != nil {
-		// file doesn't exist, making this call a NOP.
-		return nil
-	}
-
-	_, err = s.proxy.Call(systemImageBusName, callName, configFile)
-
-	return err
+		callName := "ReloadConfiguration"
+		_, err = s.proxy.Call(systemImageBusName, callName, configFile)
+		return err
+	})
 }
 
 // Check to see if there is a system image update available
@@ -382,13 +361,15 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 }
 
 type SystemImageRepository struct {
-	proxy *systemImageDBusProxy
+	proxy     *systemImageDBusProxy
+	partition partition.PartitionInterface
 }
 
 // Constructor
 func newSystemImageRepositoryForBus(bus dbus.StandardBus) *SystemImageRepository {
 	return &SystemImageRepository{
-		proxy: newSystemImageDBusProxy(bus)}
+		proxy:     newSystemImageDBusProxy(bus),
+		partition: newPartition()}
 }
 
 func NewSystemImageRepository() *SystemImageRepository {
@@ -406,12 +387,53 @@ func (s *SystemImageRepository) getCurrentPart() Part {
 		return nil
 	}
 	version := info["current_build_number"]
-	part := &SystemImagePart{info: info,
-		isActive:    true,
-		isInstalled: true,
-		proxy:       s.proxy,
-		version:     version,
-		partition:   partition.New()}
+	part := &SystemImagePart{
+		isActive:       true,
+		isInstalled:    true,
+		proxy:          s.proxy,
+		version:        version,
+		versionDetails: info["version_details"],
+		channelName:    info["channel_name"],
+		partition:      s.partition}
+	return part
+}
+
+// Returns the part associated with the other rootfs (if any)
+func (s *SystemImageRepository) getOtherPart() Part {
+
+	var part Part
+	s.partition.RunWithOther(func(otherRoot string) (err error) {
+		configFile := otherRoot + partition.SYSTEM_IMAGE_CONFIG
+		_, err = os.Stat(configFile)
+		if err != nil {
+			return nil
+		}
+		// at this point, we know the other rootfs has an s-i revision
+		// on it.
+
+		// load other rootfs's s-i config file.
+		if err = s.proxy.ReloadConfiguration(false); err != nil {
+			return nil
+		}
+
+		info, err := s.proxy.Information()
+
+		part = &SystemImagePart{
+			isActive:       false,
+			isInstalled:    true,
+			proxy:          s.proxy,
+			version:        info["current_build_number"],
+			channelName:    info["channel_name"],
+			versionDetails: info["version_details"],
+			partition:      s.partition}
+		return err
+	})
+
+	// reset
+	if err := s.proxy.ReloadConfiguration(true); err != nil {
+		return nil
+	}
+
 	return part
 }
 
@@ -445,10 +467,11 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 	if VersionCompare(info["current_build_number"], info["target_build_number"]) < 0 {
 		version := info["target_build_number"]
 		parts = append(parts, &SystemImagePart{
-			info:      info,
-			proxy:     s.proxy,
-			version:   version,
-			partition: partition.New()})
+			proxy:          s.proxy,
+			version:        version,
+			versionDetails: info["version_details"],
+			channelName:    info["channel_name"],
+			partition:      s.partition})
 	}
 
 	return parts, err
@@ -461,7 +484,11 @@ func (s *SystemImageRepository) GetInstalled() (parts []Part, err error) {
 		parts = append(parts, curr)
 	}
 
-	// FIXME: get data from B partition and fill it in here
+	// other partition
+	other := s.getOtherPart()
+	if other != nil {
+		parts = append(parts, other)
+	}
 
 	return parts, err
 }

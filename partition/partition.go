@@ -23,7 +23,7 @@
 //--------------------------------------------------------------------
 
 // partition - manipulate disk partitions.
-// The main callables are UpdateBootLoader() and GetOtherVersion().
+// The main callables are UpdateBootLoader()
 package partition
 
 import (
@@ -36,7 +36,6 @@ import (
 	"os/signal"
 	"path"
 	"regexp"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -118,20 +117,20 @@ var bindMounts *list.List
 
 //--------------------------------------------------------------------
 
+
 type PartitionInterface interface {
 	UpdateBootloader() (err error)
 	MarkBootSuccessful() (err error)
+	// FIXME: could we make SyncBootloaderFiles part of UpdateBootloader
+	//        to expose even less implementation details?
 	SyncBootloaderFiles() (err error)
 	NextBootIsOther() (bool)
 
-	// Full path to system-image configuration file
-	GetSIConfigPath() string
-
-	// Full path to system-image configuration file,
-	// mounted from other root partition.
-	GetOtherSIConfigPath() string
+	// run the function f with the otherRoot mounted
+	RunWithOther(f func(otherRoot string)(err error)) (err error)
 }
 
+// FIXME: can we make this private(?)
 type Partition struct {
 	// all partitions
 	partitions []BlockDevice
@@ -160,13 +159,6 @@ type BlockDevice struct {
 
 	// mountpoint (or nil if not mounted)
 	mountpoint string
-}
-
-type SystemImageVersion struct {
-	// Currently, system-image versions are revision numbers.
-	// However this is soon to changes so wrap the representation in a
-	// struct.
-	Version int
 }
 
 // Representation of HARDWARE_SPEC_FILE
@@ -271,6 +263,28 @@ func New() *Partition {
 	p.getPartitionDetails()
 
 	return p
+}
+
+func (p *Partition) RunWithOther(f func(otherRoot string) (err error)) (err error) {
+	dual := p.DualRootPartitions()
+	// FIXME: should we simply
+	if !dual {
+		return f("/")
+	}
+
+	// FIXME: why is this not a parameter of MountOtherRootfs()?
+	p.ReadOnlyRoot = true
+	err = p.MountOtherRootfs()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		err = p.UnmountOtherRootfsAndCleanup()
+	}()
+
+	return f(p.MountTarget)
+
 }
 
 func (p *Partition) SyncBootloaderFiles() (err error) {
@@ -665,7 +679,7 @@ func (p *Partition) loadPartitionDetails() (err error) {
 	pattern := regexp.MustCompile(`(?:[^\s"]|"(?:[^"])*")+`)
 
 	for _, line := range lines {
-		var fields map[string]string = make(map[string]string)
+		fields := make(map[string]string)
 
 		// split the line into 'NAME="quoted value"' fields
 		matches := pattern.FindAllString(line, -1)
@@ -837,16 +851,10 @@ func (p *Partition) handleBootloader() (err error) {
 	return bootloader.ToggleRootFS()
 }
 
-func (p *Partition) GetSIConfigPath() string {
-	return SYSTEM_IMAGE_CONFIG
-}
-
-func (p *Partition) GetOtherSIConfigPath() string {
-	return path.Clean(fmt.Sprintf("%s/%s",
-		p.MountTarget, SYSTEM_IMAGE_CONFIG))
-}
-
-func (p *Partition) getOtherVersion() (version SystemImageVersion, err error) {
+// FIXME: we don't use this right now, but we probably should and expand
+//        it so that it also reads "version_details" and "channel_name"
+//        like it does when s-i-dbus is called with Information()
+func (p *Partition) GetOtherVersion() (version string, err error) {
 
 	saved := p.ReadOnlyRoot
 
@@ -874,7 +882,7 @@ func (p *Partition) getOtherVersion() (version SystemImageVersion, err error) {
 		err = os.Remove(p.MountTarget)
 	}()
 
-	file := p.GetOtherSIConfigPath()
+	file := p.MountTarget + SYSTEM_IMAGE_CONFIG
 
 	if err = FileExists(file); err != nil {
 		return version, err
@@ -882,6 +890,8 @@ func (p *Partition) getOtherVersion() (version SystemImageVersion, err error) {
 
 	var args []string
 
+	// FXIME: system-image-cli should return the same info map
+	//        as the dbus Information call
 	args = append(args, "system-image-cli")
 	args = append(args, "-C")
 	args = append(args, file)
@@ -905,13 +915,7 @@ func (p *Partition) getOtherVersion() (version SystemImageVersion, err error) {
 		}
 	}
 
-	value, err2 := strconv.Atoi(revision)
-
-	if err2 != nil {
-		return version, err2
-	}
-
-	version.Version = value
+	version = revision
 
 	return version, err
 }

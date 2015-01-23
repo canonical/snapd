@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"testing"
 
+	partition "launchpad.net/snappy/partition"
+
 	. "gopkg.in/check.v1"
 	dbus "launchpad.net/go-dbus/v1"
 )
@@ -101,7 +103,8 @@ func cleanupDBusService(s *DBusService) {
 }
 
 type MockSystemImage struct {
-	service *DBusService
+	service   *DBusService
+	partition *partition.Partition
 
 	info map[string]string
 }
@@ -177,6 +180,10 @@ type SITestSuite struct {
 var _ = Suite(&SITestSuite{})
 
 func (s *SITestSuite) SetUpTest(c *C) {
+	newPartition = func() (p partition.PartitionInterface) {
+		return new(MockPartition)
+	}
+
 	var err error
 	s.conn, err = dbus.Connect(dbus.SessionBus)
 	c.Assert(err, IsNil)
@@ -219,10 +226,14 @@ func (s *SITestSuite) TestTestInstalled(c *C) {
 	// whats installed
 	parts, err := s.systemImage.GetInstalled()
 	c.Assert(err, IsNil)
-	c.Assert(len(parts), Equals, 1)
+	// we have one active and one inactive
+	c.Assert(len(parts), Equals, 2)
 	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
 	c.Assert(parts[0].Version(), Equals, "2.71")
 	c.Assert(parts[0].Hash(), Equals, "bf3e9dd92c916d3fa70bbdf5a1014a112fb45b95179ecae0be2836ea2bd91f7f")
+	c.Assert(parts[0].IsActive(), Equals, true)
+	// second partition is not active
+	c.Assert(parts[1].IsActive(), Equals, false)
 }
 
 func (s *SITestSuite) TestGetUpdateNoUpdate(c *C) {
@@ -264,12 +275,8 @@ func (p *MockPartition) NextBootIsOther() bool {
 	return false
 }
 
-func (p *MockPartition) GetOtherSIConfigPath() string {
-	return ""
-}
-
-func (p *MockPartition) GetSIConfigPath() string {
-	return ""
+func (p *MockPartition) RunWithOther(f func(otherRoot string) (err error)) (err error) {
+	return f("/")
 }
 
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
