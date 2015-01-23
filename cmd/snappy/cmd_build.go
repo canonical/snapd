@@ -1,7 +1,7 @@
 package main
 
 import (
-	"launchpad.net/snappy-ubuntu/snappy-golang/snappy"
+	"launchpad.net/snappy/snappy"
 )
 
 type CmdBuild struct {

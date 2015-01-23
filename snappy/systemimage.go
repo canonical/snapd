@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	partition "launchpad.net/snappy-ubuntu/snappy-golang/partition"
+	partition "launchpad.net/snappy/partition"
 
 	dbus "launchpad.net/go-dbus/v1"
 )
