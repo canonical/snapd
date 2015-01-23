@@ -380,60 +380,38 @@ func (s *SystemImageRepository) Description() string {
 	return "SystemImageRepository"
 }
 
-func (s *SystemImageRepository) getCurrentPart() Part {
+func (s *SystemImageRepository) makePartFromSystemImageInfo(isActive bool) Part {
 	info, err := s.proxy.Information()
 	if err != nil {
 		log.Print("proxy.Information failed")
 		return nil
 	}
-	version := info["current_build_number"]
-	part := &SystemImagePart{
-		isActive:       true,
+	return &SystemImagePart{
+		isActive:       isActive,
 		isInstalled:    true,
 		proxy:          s.proxy,
-		version:        version,
+		version:        info["current_build_number"],
 		versionDetails: info["version_details"],
 		channelName:    info["channel_name"],
 		partition:      s.partition}
+}
+
+func (s *SystemImageRepository) getCurrentPart() Part {
+	part := s.makePartFromSystemImageInfo(true)
 	return part
 }
 
 // Returns the part associated with the other rootfs (if any)
 func (s *SystemImageRepository) getOtherPart() Part {
-
-	var part Part
-	s.partition.RunWithOther(func(otherRoot string) (err error) {
-		configFile := otherRoot + partition.SYSTEM_IMAGE_CONFIG
-		_, err = os.Stat(configFile)
-		if err != nil {
-			return nil
-		}
-		// at this point, we know the other rootfs has an s-i revision
-		// on it.
-
-		// load other rootfs's s-i config file.
-		if err = s.proxy.ReloadConfiguration(false); err != nil {
-			return nil
-		}
-
-		info, err := s.proxy.Information()
-
-		part = &SystemImagePart{
-			isActive:       false,
-			isInstalled:    true,
-			proxy:          s.proxy,
-			version:        info["current_build_number"],
-			channelName:    info["channel_name"],
-			versionDetails: info["version_details"],
-			partition:      s.partition}
-		return err
-	})
-
-	// reset
-	if err := s.proxy.ReloadConfiguration(true); err != nil {
+	// load other rootfs's s-i config file and reset when done
+	if err := s.proxy.ReloadConfiguration(false); err != nil {
 		return nil
 	}
+	defer func() {
+		s.proxy.ReloadConfiguration(true)
+	}()
 
+	part := s.makePartFromSystemImageInfo(false)
 	return part
 }
 
