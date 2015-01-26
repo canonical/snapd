@@ -8,11 +8,10 @@ import (
 	"strings"
 )
 
-// Return nil if given path exists.
-func fileExists(path string) (err error) {
-	_, err = os.Stat(path)
-
-	return err
+// Return true if given path exists.
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return (err == nil)
 }
 
 // Return true if the given path exists and is a directory
@@ -25,22 +24,9 @@ func isDirectory(path string) bool {
 	return fileInfo.IsDir()
 }
 
-// Run the commandline specified by the args array chrooted to the
-// new root filesystem.
-//
-// Errors are fatal.
-func (p *Partition) runInChroot(args []string) (err error) {
-	var fullArgs []string
-
-	fullArgs = append(fullArgs, "/usr/sbin/chroot")
-	fullArgs = append(fullArgs, p.MountTarget)
-
-	fullArgs = append(fullArgs, args...)
-
-	return runCommand(fullArgs)
-}
-
 // Run the command specified by args
+// FIXME: would it make sense to differenciate between launch errors and
+//        exit code? (i.e. something like (returnCode, error) ?)
 var runCommand = func(args []string) (err error) {
 	if len(args) == 0 {
 		return errors.New("ERROR: no command specified")
@@ -65,6 +51,7 @@ var runCommand = func(args []string) (err error) {
 }
 
 // Run command specified by args and return array of output lines.
+// FIXME: would it make sense to make this a vararg (args...) ?
 func getCommandStdout(args []string) (output []string, err error) {
 
 	// FIXME: use logger

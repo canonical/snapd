@@ -264,7 +264,6 @@ func stringSliceRemove(slice []string, needle string) (res []string) {
 	}
 	return mounts
 }
-	
 
 // FIXME: would it make sense to rename to something like
 //         "UmountAndRemoveFromMountList" to indicate it has side-effects?
@@ -748,6 +747,9 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return err
 	}
 
+	// FIXME: why not unmountOtherRootfsAndCleanup here (or why
+	//        not unountOtherRootfs without cleanup on the place
+	//        where the cleanup version is used?)
 	if err = p.unmountOtherRootfs(); err != nil {
 		return err
 	}
@@ -758,4 +760,17 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 	}
 
 	return bootloader.HandleAssets()
+}
+
+// Run the commandline specified by the args array chrooted to the
+// new root filesystem.
+func (p *Partition) runInChroot(args []string) (err error) {
+	var fullArgs []string
+
+	fullArgs = append(fullArgs, "/usr/sbin/chroot")
+	fullArgs = append(fullArgs, p.MountTarget)
+
+	fullArgs = append(fullArgs, args...)
+
+	return runCommand(fullArgs)
 }

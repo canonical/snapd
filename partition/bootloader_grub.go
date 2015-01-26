@@ -38,12 +38,8 @@ func (g *Grub) Name() string {
 }
 
 func (g *Grub) Installed() bool {
-
 	// Use same heuristic as the initramfs.
-	err1 := fileExists(BOOTLOADER_GRUB_CONFIG_FILE)
-	err2 := fileExists(BOOTLOADER_GRUB_INSTALL_CMD)
-
-	if err1 == nil && err2 == nil {
+	if fileExists(BOOTLOADER_GRUB_CONFIG_FILE) && fileExists(BOOTLOADER_GRUB_INSTALL_CMD) {
 		return true
 	}
 

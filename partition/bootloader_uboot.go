@@ -58,13 +58,7 @@ func (u *Uboot) Name() string {
 
 func (u *Uboot) Installed() bool {
 	// crude heuristic
-	err := fileExists(BOOTLOADER_UBOOT_CONFIG_FILE)
-
-	if err == nil {
-		return true
-	}
-
-	return false
+	return fileExists(BOOTLOADER_UBOOT_CONFIG_FILE)
 }
 
 // Make the U-Boot bootloader switch rootfs's.
@@ -335,7 +329,7 @@ func (u *Uboot) HandleAssets() (err error) {
 		// expand path
 		path := fmt.Sprintf("%s/%s", u.partition.cacheDir(), file)
 
-		if err = fileExists(path); err != nil {
+		if !fileExists(path) {
 			continue
 		}
 
@@ -349,7 +343,7 @@ func (u *Uboot) HandleAssets() (err error) {
 	}
 
 	// install .dtb files
-	if err = fileExists(hardware.DtbDir); err == nil {
+	if fileExists(hardware.DtbDir) {
 		dtbDestDir := fmt.Sprintf("%s/dtbs", destDir)
 
 		err = os.MkdirAll(dtbDestDir, DIR_MODE)
@@ -372,7 +366,7 @@ func (u *Uboot) HandleAssets() (err error) {
 
 	flashAssetsDir := u.partition.flashAssetsDir()
 
-	if err = fileExists(flashAssetsDir); err == nil {
+	if fileExists(flashAssetsDir) {
 		// FIXME: we don't currently do anything with the
 		// MLO + uImage files since they are not specified in
 		// the hardware spec. So for now, just remove them.

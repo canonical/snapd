@@ -136,10 +136,17 @@ func mockRunCommand(args []string) (err error) {
 
 func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
 	runLsblk = mockRunLsblkDualSnappy
+
+	// FIXME: there should be a generic
+	//        mockFunc(func) (restorer func())
+	savedRunCommand := runCommand
+	defer func() {
+		runCommand = savedRunCommand
+	}()
 	runCommand = mockRunCommand
-	
+
 	p := New()
-	
+
 	p.mountOtherRootfs(false)
 	c.Assert(mounts, DeepEquals, []string{p.MountTarget})
 	p.unmountOtherRootfs()
