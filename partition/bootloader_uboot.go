@@ -312,7 +312,7 @@ func (u *Uboot) HandleAssets() (err error) {
 	// validate
 	switch hardware.PartitionLayout {
 	case "system-AB":
-		if u.partition.DualRootPartitions() != true {
+		if u.partition.dualRootPartitions() != true {
 			panic(fmt.Sprintf(
 				"ERROR: hardware spec requires dual root partitions"))
 		}

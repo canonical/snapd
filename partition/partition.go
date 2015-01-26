@@ -27,7 +27,6 @@
 package partition
 
 import (
-	"container/list"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -106,10 +105,10 @@ const FLASH_ASSETS_DIR = "flashtool-assets"
 // Globals
 
 // list of current mounts that this module has created
-var mounts *list.List
+var mounts []string
 
 // list of current bindmounts this module has created
-var bindMounts *list.List
+var bindMounts []string
 
 //--------------------------------------------------------------------
 
@@ -171,49 +170,13 @@ func init() {
 		setup_signal_handler()
 		signal_handler_registered = true
 	}
-
-	mounts = list.New()
-	bindMounts = list.New()
 }
 
-// Remove specified element from the specified list
-func listRemove(l *list.List, victim string) {
-
-	var toZap *list.Element = nil
-
-	for e := l.Front(); e != nil; e = e.Next() {
-
-		if e.Value == victim {
-			toZap = e
-			break
-		}
-	}
-
-	if toZap != nil {
-		l.Remove(toZap)
-	}
-}
-
-func listAdd(l *list.List, value string) {
-	l.PushBack(value)
-}
-
-// Unmount all mounts created by this program
-func undoMounts(mounts *list.List) (err error) {
-	var targets []string
-
-	// Convert the list back into a slice. Iterate backwards since we
-	// want a reverse-sorted list of mounts to ensure we can unmount in
-	// order.
-	for e := mounts.Back(); e != nil; e = e.Prev() {
-		if target, ok := e.Value.(string); ok {
-			// FIXME: could we just unmount here?
-			targets = append(targets, target)
-		}
-	}
-
-	for _, target := range targets {
-		err := Unmount(target)
+func undoMounts(mounts []string) (err error) {
+	// Iterate backwards since we want a reverse-sorted list of
+	// mounts to ensure we can unmount in order.
+	for i, _ := range mounts {
+		err := unmount(mounts[len(mounts)-i])
 		if err != nil {
 			return err
 		}
@@ -263,232 +226,9 @@ func allPartitionLabels() []string {
 	return labels
 }
 
-// Constructor
-func New() *Partition {
-	p := new(Partition)
-
-	p.getPartitionDetails()
-	p.hardwareSpecFile = fmt.Sprint("%s/%s", p.cacheDir(), HARDWARE_SPEC_FILE)
-
-	return p
-}
-
-func (p *Partition) RunWithOther(f func(otherRoot string) (err error)) (err error) {
-	dual := p.DualRootPartitions()
-	// FIXME: should we simply
-	if !dual {
-		return f("/")
-	}
-
-	// FIXME: why is this not a parameter of MountOtherRootfs()?
-	err = p.MountOtherRootfs(true)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		err = p.UnmountOtherRootfsAndCleanup()
-	}()
-
-	return f(p.MountTarget)
-
-}
-
-func (p *Partition) SyncBootloaderFiles() (err error) {
-	bootloader, err := p.GetBootloader()
-	if err != nil {
-		return err
-	}
-	return bootloader.SyncBootFiles()
-}
-
-func (p *Partition) UpdateBootloader() (err error) {
-	if p.DualRootPartitions() {
-		return p.toggleBootloaderRootfs()
-	}
-	return err
-}
-
-func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
-
-	bootloaders := []BootLoader{NewUboot(p), NewGrub(p)}
-
-	for _, b := range bootloaders {
-		if b.Installed() == true {
-			return b, err
-		}
-	}
-
-	return nil, bootloaderError
-}
-
-func (p *Partition) MarkBootSuccessful() (err error) {
-	bootloader, err := p.GetBootloader()
-	if err != nil {
-		return err
-	}
-
-	return bootloader.MarkCurrentBootSuccessful()
-}
-
-// Return true if the next boot will use the other rootfs
-// partition.
-func (p *Partition) NextBootIsOther() bool {
-	var value string
-	var err error
-	var label string
-
-	bootloader, err := p.GetBootloader()
-	if err != nil {
-		return false
-	}
-
-	value, err = bootloader.GetBootVar(BOOTLOADER_BOOTMODE_VAR)
-	if err != nil {
-		return false
-	}
-
-	if value != BOOTLOADER_BOOTMODE_VAR_START_VALUE {
-		return false
-	}
-
-	if label, err = bootloader.GetNextBootRootFSName(); err != nil {
-		return false
-	}
-
-	if label == bootloader.GetOtherRootFSName() {
-		return true
-	}
-
-	return false
-}
-
-// Returns the full path to the cache directory, which is used as a
-// scratch pad, for downloading new images to and bind mounting the
-// rootfs.
-func (p *Partition) cacheDir() string {
-	return DEFAULT_CACHE_DIR
-}
-
-func (p *Partition) hardwareSpec() (hardware HardwareSpecType, err error) {
-
-	h := HardwareSpecType{}
-
-	data, err := ioutil.ReadFile(p.hardwareSpecFile)
-	if err != nil {
-		return h, err
-	}
-
-	err = yaml.Unmarshal([]byte(data), &h)
-
-	return h, err
-}
-
-// Return full path to the main assets directory
-func (p *Partition) assetsDir() string {
-	return fmt.Sprintf("%s/%s", p.cacheDir(), ASSETS_DIR)
-}
-
-// Return the full path to the hardware-specific flash assets directory.
-func (p *Partition) flashAssetsDir() string {
-	return fmt.Sprintf("%s/%s", p.cacheDir(), FLASH_ASSETS_DIR)
-}
-
-// Get the full path to the mount target directory
-func (p *Partition) getMountTarget() string {
-	return path.Join(p.cacheDir(), MOUNT_TARGET)
-}
-
-func (p *Partition) getPartitionDetails() (err error) {
-
-	p.partitions, err = loadPartitionDetails()
-	if err != nil {
-		return PartitionQueryError
-
-	}
-
-	if !p.DualRootPartitions() && !p.SingleRootPartition() {
-		return PartitionDetectionError
-	}
-
-	return err
-}
-
-// Return array of BlockDevices representing available root partitions
-func (p *Partition) rootPartitions() []BlockDevice {
-	var roots []BlockDevice
-
-	for _, part := range p.partitions {
-		ok := stringInSlice(rootPartitionLabels(), part.name)
-		if ok == true {
-			roots = append(roots, part)
-		}
-	}
-
-	return roots
-}
-
-// Return true if system has dual root partitions configured in the
-// expected manner for a snappy system.
-func (p *Partition) DualRootPartitions() bool {
-	return len(p.rootPartitions()) == 2
-}
-
-// Return true if system has a single root partition configured in the
-// expected manner for a snappy system.
-func (p *Partition) SingleRootPartition() bool {
-	return len(p.rootPartitions()) == 1
-}
-
-// Return pointer to BlockDevice representing writable partition
-func (p *Partition) writablePartition() (result *BlockDevice) {
-	for _, part := range p.partitions {
-		if part.name == WRITABLE_PARTITION_LABEL {
-			return &part
-		}
-	}
-
-	return result
-}
-
-// Return pointer to BlockDevice representing boot partition (if any)
-func (p *Partition) bootPartition() (result *BlockDevice) {
-	for _, part := range p.partitions {
-		if part.name == BOOT_PARTITION_LABEL {
-			return &part
-		}
-	}
-
-	return result
-}
-
-// Return pointer to BlockDevice representing currently mounted root
-// filesystem
-func (p *Partition) rootPartition() (result *BlockDevice) {
-	for _, part := range p.rootPartitions() {
-		if part.mountpoint == "/" {
-			return &part
-		}
-	}
-
-	return result
-}
-
-// Return pointer to BlockDevice representing the "other" root
-// filesystem (which is not currently mounted)
-func (p *Partition) otherRootPartition() (result *BlockDevice) {
-	for _, part := range p.rootPartitions() {
-		if part.mountpoint != "/" {
-			return &part
-		}
-	}
-
-	return result
-}
-
 // Returns a minimal list of mounts required for running grub-install
 // within a chroot.
-func (p *Partition) getRequiredChrootMounts() []string {
+func requiredChrootMounts() []string {
 	return []string{"/dev", "/proc", "/sys"}
 }
 
@@ -556,7 +296,7 @@ func IsDirectory(path string) bool {
 	return fileInfo.IsDir()
 }
 
-func Mount(source, target, options string) (err error) {
+func mount(source, target, options string) (err error) {
 	var args []string
 
 	args = append(args, "/bin/mount")
@@ -571,16 +311,15 @@ func Mount(source, target, options string) (err error) {
 	err = RunCommand(args)
 
 	if err == nil {
-		listAdd(mounts, target)
+		mounts = append(mounts, target)
 	}
 
 	return err
 }
 
-// FIXME: could we unexport this?
 // FIXME2: would it make sense to rename to something like
 //         "UmountAndRemoveFromMountList" to indicate it has side-effects?
-func Unmount(target string) (err error) {
+func unmount(target string) (err error) {
 	var args []string
 
 	args = append(args, "/bin/umount")
@@ -589,17 +328,21 @@ func Unmount(target string) (err error) {
 	err = RunCommand(args)
 
 	if err == nil {
-		listRemove(mounts, target)
+		// FIXME: so this is golang slice remove?!?! really?
+		pos := stringInSlice(mounts, target)
+		if pos >= 0 {
+			mounts = append(mounts[:pos], mounts[pos+1:]...)
+		}
 	}
 
 	return err
 }
 
-func BindMount(source, target string) (err error) {
-	err = Mount(source, target, "bind")
+func bindmount(source, target string) (err error) {
+	err = mount(source, target, "bind")
 
 	if err == nil {
-		listAdd(bindMounts, target)
+		bindMounts = append(bindMounts, target)
 	}
 
 	return err
@@ -620,15 +363,15 @@ func Fsck(device string) (err error) {
 	return RunCommand(args)
 }
 
-// Returns true if value existing in the specfied slice
-func stringInSlice(slice []string, value string) bool {
-	for _, s := range slice {
+// Returns the position of the string in the given slice or -1 if its not found
+func stringInSlice(slice []string, value string) int {
+	for i, s := range slice {
 		if s == value {
-			return true
+			return i
 		}
 	}
 
-	return false
+	return -1
 }
 
 var runLsblk = func() (output []string, err error) {
@@ -674,8 +417,8 @@ func loadPartitionDetails() (partitions []BlockDevice, err error) {
 			continue
 		}
 
-		ok = stringInSlice(recognised, name)
-		if ok == false {
+		pos := stringInSlice(recognised, name)
+		if pos < 0 {
 			// ignore unrecognised partitions
 			continue
 		}
@@ -730,6 +473,224 @@ func (p *Partition) makeMountPoint(readOnlyMount bool) (err error) {
 	return os.MkdirAll(p.MountTarget, DIR_MODE)
 }
 
+// Constructor
+func New() *Partition {
+	p := new(Partition)
+
+	p.getPartitionDetails()
+	p.hardwareSpecFile = fmt.Sprint("%s/%s", p.cacheDir(), HARDWARE_SPEC_FILE)
+
+	return p
+}
+
+func (p *Partition) RunWithOther(f func(otherRoot string) (err error)) (err error) {
+	dual := p.dualRootPartitions()
+	// FIXME: should we simply
+	if !dual {
+		return f("/")
+	}
+
+	// FIXME: why is this not a parameter of MountOtherRootfs()?
+	err = p.MountOtherRootfs(true)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		err = p.UnmountOtherRootfsAndCleanup()
+	}()
+
+	return f(p.MountTarget)
+
+}
+
+func (p *Partition) SyncBootloaderFiles() (err error) {
+	bootloader, err := p.GetBootloader()
+	if err != nil {
+		return err
+	}
+	return bootloader.SyncBootFiles()
+}
+
+func (p *Partition) UpdateBootloader() (err error) {
+	if p.dualRootPartitions() {
+		return p.toggleBootloaderRootfs()
+	}
+	return err
+}
+
+func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
+
+	bootloaders := []BootLoader{NewUboot(p), NewGrub(p)}
+
+	for _, b := range bootloaders {
+		if b.Installed() == true {
+			return b, err
+		}
+	}
+
+	return nil, bootloaderError
+}
+
+func (p *Partition) MarkBootSuccessful() (err error) {
+	bootloader, err := p.GetBootloader()
+	if err != nil {
+		return err
+	}
+
+	return bootloader.MarkCurrentBootSuccessful()
+}
+
+// Return true if the next boot will use the other rootfs
+// partition.
+func (p *Partition) NextBootIsOther() bool {
+	var value string
+	var err error
+	var label string
+
+	bootloader, err := p.GetBootloader()
+	if err != nil {
+		return false
+	}
+
+	value, err = bootloader.GetBootVar(BOOTLOADER_BOOTMODE_VAR)
+	if err != nil {
+		return false
+	}
+
+	if value != BOOTLOADER_BOOTMODE_VAR_START_VALUE {
+		return false
+	}
+
+	if label, err = bootloader.GetNextBootRootFSName(); err != nil {
+		return false
+	}
+
+	if label == bootloader.GetOtherRootFSName() {
+		return true
+	}
+
+	return false
+}
+
+// Returns the full path to the cache directory, which is used as a
+// scratch pad, for downloading new images to and bind mounting the
+// rootfs.
+func (p *Partition) cacheDir() string {
+	return DEFAULT_CACHE_DIR
+}
+
+func (p *Partition) hardwareSpec() (hardware HardwareSpecType, err error) {
+	h := HardwareSpecType{}
+
+	data, err := ioutil.ReadFile(p.hardwareSpecFile)
+	if err != nil {
+		return h, err
+	}
+
+	err = yaml.Unmarshal([]byte(data), &h)
+
+	return h, err
+}
+
+// Return full path to the main assets directory
+func (p *Partition) assetsDir() string {
+	return fmt.Sprintf("%s/%s", p.cacheDir(), ASSETS_DIR)
+}
+
+// Return the full path to the hardware-specific flash assets directory.
+func (p *Partition) flashAssetsDir() string {
+	return fmt.Sprintf("%s/%s", p.cacheDir(), FLASH_ASSETS_DIR)
+}
+
+// Get the full path to the mount target directory
+func (p *Partition) getMountTarget() string {
+	return path.Join(p.cacheDir(), MOUNT_TARGET)
+}
+
+func (p *Partition) getPartitionDetails() (err error) {
+	p.partitions, err = loadPartitionDetails()
+	if err != nil {
+		return err
+
+	}
+	if !p.dualRootPartitions() && !p.singleRootPartition() {
+		return PartitionDetectionError
+	}
+
+	return err
+}
+
+// Return array of BlockDevices representing available root partitions
+func (p *Partition) rootPartitions() (roots []BlockDevice) {
+	for _, part := range p.partitions {
+		pos := stringInSlice(rootPartitionLabels(), part.name)
+		if pos >= 0 {
+			roots = append(roots, part)
+		}
+	}
+
+	return roots
+}
+
+// Return true if system has dual root partitions configured in the
+// expected manner for a snappy system.
+func (p *Partition) dualRootPartitions() bool {
+	return len(p.rootPartitions()) == 2
+}
+
+// Return true if system has a single root partition configured in the
+// expected manner for a snappy system.
+func (p *Partition) singleRootPartition() bool {
+	return len(p.rootPartitions()) == 1
+}
+
+// Return pointer to BlockDevice representing writable partition
+func (p *Partition) writablePartition() (result *BlockDevice) {
+	for _, part := range p.partitions {
+		if part.name == WRITABLE_PARTITION_LABEL {
+			return &part
+		}
+	}
+
+	return result
+}
+
+// Return pointer to BlockDevice representing boot partition (if any)
+func (p *Partition) bootPartition() (result *BlockDevice) {
+	for _, part := range p.partitions {
+		if part.name == BOOT_PARTITION_LABEL {
+			return &part
+		}
+	}
+
+	return result
+}
+
+// Return pointer to BlockDevice representing currently mounted root
+// filesystem
+func (p *Partition) rootPartition() (result *BlockDevice) {
+	for _, part := range p.rootPartitions() {
+		if part.mountpoint == "/" {
+			return &part
+		}
+	}
+
+	return result
+}
+
+// Return pointer to BlockDevice representing the "other" root
+// filesystem (which is not currently mounted)
+func (p *Partition) otherRootPartition() (result *BlockDevice) {
+	for _, part := range p.rootPartitions() {
+		if part.mountpoint != "/" {
+			return &part
+		}
+	}
+
+	return result
+}
+
 // Mount the "other" root filesystem
 func (p *Partition) MountOtherRootfs(readOnlyMount bool) (err error) {
 	var other *BlockDevice
@@ -739,20 +700,20 @@ func (p *Partition) MountOtherRootfs(readOnlyMount bool) (err error) {
 	other = p.otherRootPartition()
 
 	if readOnlyMount == true {
-		err = Mount(other.device, p.MountTarget, "ro")
+		err = mount(other.device, p.MountTarget, "ro")
 	} else {
 		err = Fsck(other.device)
 		if err != nil {
 			return err
 		}
-		err = Mount(other.device, p.MountTarget, "")
+		err = mount(other.device, p.MountTarget, "")
 	}
 
 	return err
 }
 
 func (p *Partition) UnmountOtherRootfs() (err error) {
-	return Unmount(p.MountTarget)
+	return unmount(p.MountTarget)
 }
 
 func (p *Partition) UnmountOtherRootfsAndCleanup() (err error) {
@@ -770,10 +731,10 @@ func (p *Partition) UnmountOtherRootfsAndCleanup() (err error) {
 func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	var boot *BlockDevice
 
-	for _, fs := range p.getRequiredChrootMounts() {
+	for _, fs := range requiredChrootMounts() {
 		target := path.Clean(fmt.Sprintf("%s/%s", p.MountTarget, fs))
 
-		err := BindMount(fs, target)
+		err := bindmount(fs, target)
 		if err != nil {
 			return err
 		}
@@ -793,7 +754,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	target := path.Clean(fmt.Sprintf("%s/%s",
 		p.MountTarget,
 		boot.mountpoint))
-	err = BindMount(boot.mountpoint, target)
+	err = bindmount(boot.mountpoint, target)
 	if err != nil {
 		return err
 	}
@@ -922,7 +883,7 @@ func (p *Partition) getOtherVersionDetail() (detail string, err error) {
 
 func (p *Partition) toggleBootloaderRootfs() (err error) {
 
-	if p.DualRootPartitions() != true {
+	if p.dualRootPartitions() != true {
 		return errors.New("System is not dual root")
 	}
 

@@ -52,7 +52,7 @@ func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
 	c.Assert(hw.Bootloader, Equals, "uboot")
 }
 
-func mockRunLsblkDual() (output []string, err error) {
+func mockRunLsblkDualSnappy() (output []string, err error) {
 	dualData := `
 NAME="sda" LABEL="" PKNAME="" MOUNTPOINT=""
 NAME="sda1" LABEL="" PKNAME="sda" MOUNTPOINT=""
@@ -65,9 +65,67 @@ NAME="sr0" LABEL="" PKNAME="" MOUNTPOINT=""
 	return strings.Split(dualData, "\n"), err
 }
 
-func (s *PartitionTestSuite) TestIsDual(c *C) {
-	runLsblk = mockRunLsblkDual
+func (s *PartitionTestSuite) TestSnappyDualRoot(c *C) {
+	runLsblk = mockRunLsblkDualSnappy
 
 	p := New()
-	c.Assert(p.DualRootPartitions(), Equals, true)
+	c.Assert(p.dualRootPartitions(), Equals, true)
+	c.Assert(p.singleRootPartition(), Equals, false)
+
+	rootPartitions := p.rootPartitions()
+	c.Assert(rootPartitions[0].name, Equals, "system-a")
+	c.Assert(rootPartitions[0].device, Equals, "/dev/sda3")
+	c.Assert(rootPartitions[0].parentName, Equals, "/dev/sda")
+	c.Assert(rootPartitions[1].name, Equals, "system-b")
+	c.Assert(rootPartitions[1].device, Equals, "/dev/sda4")
+	c.Assert(rootPartitions[1].parentName, Equals, "/dev/sda")
+
+	wp := p.writablePartition()
+	c.Assert(wp.name, Equals, "writable")
+	c.Assert(wp.device, Equals, "/dev/sda5")
+	c.Assert(wp.parentName, Equals, "/dev/sda")
+
+	boot := p.bootPartition()
+	c.Assert(boot.name, Equals, "system-boot")
+	c.Assert(boot.device, Equals, "/dev/sda2")
+	c.Assert(boot.parentName, Equals, "/dev/sda")
+
+	root := p.rootPartition()
+	c.Assert(root.name, Equals, "system-a")
+	c.Assert(root.device, Equals, "/dev/sda3")
+	c.Assert(root.parentName, Equals, "/dev/sda")
+
+	other := p.otherRootPartition()
+	c.Assert(other.name, Equals, "system-b")
+	c.Assert(other.device, Equals, "/dev/sda4")
+	c.Assert(other.parentName, Equals, "/dev/sda")
+}
+
+func mockRunLsblkSingleRootSnappy() (output []string, err error) {
+	dualData := `
+NAME="sda" LABEL="" PKNAME="" MOUNTPOINT=""
+NAME="sda1" LABEL="" PKNAME="sda" MOUNTPOINT=""
+NAME="sda2" LABEL="system-boot" PKNAME="sda" MOUNTPOINT=""
+NAME="sda3" LABEL="system-a" PKNAME="sda" MOUNTPOINT="/"
+NAME="sda5" LABEL="writable" PKNAME="sda" MOUNTPOINT="/writable"
+`
+	return strings.Split(dualData, "\n"), err
+}
+func (s *PartitionTestSuite) TestSnappySingleRoot(c *C) {
+	runLsblk = mockRunLsblkSingleRootSnappy
+
+	p := New()
+	c.Assert(p.dualRootPartitions(), Equals, false)
+	c.Assert(p.singleRootPartition(), Equals, true)
+
+	root := p.rootPartition()
+	c.Assert(root.name, Equals, "system-a")
+	c.Assert(root.device, Equals, "/dev/sda3")
+	c.Assert(root.parentName, Equals, "/dev/sda")
+
+	other := p.otherRootPartition()
+	c.Assert(other, IsNil)
+
+	rootPartitions := p.rootPartitions()
+	c.Assert(&rootPartitions[0], DeepEquals, root)
 }
