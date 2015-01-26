@@ -34,7 +34,7 @@ func info() error {
 	apps, _ := snappy.GetInstalledSnappNamesByType("app")
 
 	fmt.Printf("release: %s\n", release)
-	fmt.Printf("architecture: %s\n", getArchitecture())
+	fmt.Printf("architecture: %s\n", snappy.Architecture())
 	fmt.Printf("frameworks: %s\n", strings.Join(frameworks, ", "))
 	fmt.Printf("apps: %s\n", strings.Join(apps, ", "))
 

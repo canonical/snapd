@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"launchpad.net/snappy/snappy"
 )
 
@@ -24,5 +26,12 @@ func (x *CmdInstall) Execute(args []string) (err error) {
 		return err
 	}
 	// call show versions afterwards
-	return snappy.CmdList([]string{}, false, false)
+	installed, err := snappy.ListInstalled()
+	if err != nil {
+		return err
+	}
+
+	showInstalledList(installed, false, os.Stdout)
+
+	return nil
 }

@@ -27,6 +27,9 @@ func (x *CmdUpdate) Execute(args []string) (err error) {
 func update() error {
 	// FIXME: handle args
 	updates, err := snappy.ListUpdates()
+	if err != nil {
+		return err
+	}
 
 	for _, part := range updates {
 		pbar := snappy.NewTextProgress(part.Name())
