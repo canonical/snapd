@@ -50,13 +50,6 @@ var signal_handler_registered bool = false
 // ubuntu-device-flash(1).
 const WRITABLE_PARTITION_LABEL = "writable"
 
-const (
-	SYSTEM_TYPE_INVALID     = iota // invalid
-	SYSTEM_TYPE_SINGLE_ROOT        // in-place upgrades
-	SYSTEM_TYPE_DUAL_ROOT          // A/B partitions
-	systemTypeCount
-)
-
 // Name of primary root filesystem partition label as created by
 // ubuntu-device-flash(1).
 const ROOTFS_A_LABEL = "system-a"
@@ -85,6 +78,9 @@ const SYSTEM_IMAGE_CONFIG = "/etc/system-image/client.ini"
 
 var (
 	bootloaderError = errors.New("Unable to determine bootloader")
+
+	PartitionQueryError     = errors.New("Failed to query partitions")
+	PartitionDetectionError = errors.New("Failed to detect system type")
 )
 
 // Declarative specification of the type of system which specifies such
@@ -136,12 +132,7 @@ type Partition struct {
 	// just root partitions
 	roots []string
 
-	// whether the rootfs that is to be modified be mounted writable
-	ReadOnlyRoot bool
-
 	MountTarget string
-
-	SystemType int
 
 	hardwareSpecFile string
 }
@@ -256,14 +247,27 @@ func setup_signal_handler() {
 	}()
 }
 
+// Returns a list of root filesystem partition labels
+func rootPartitionLabels() []string {
+	return []string{ROOTFS_A_LABEL, ROOTFS_B_LABEL}
+}
+
+// Returns a list of all recognised partition labels
+func allPartitionLabels() []string {
+	var labels []string
+
+	labels = rootPartitionLabels()
+	labels = append(labels, BOOT_PARTITION_LABEL)
+	labels = append(labels, WRITABLE_PARTITION_LABEL)
+
+	return labels
+}
+
 // Constructor
 func New() *Partition {
 	p := new(Partition)
 
-	p.ReadOnlyRoot = false
-	p.MountTarget = p.getMountTarget()
 	p.getPartitionDetails()
-
 	p.hardwareSpecFile = fmt.Sprint("%s/%s", p.cacheDir(), HARDWARE_SPEC_FILE)
 
 	return p
@@ -277,8 +281,7 @@ func (p *Partition) RunWithOther(f func(otherRoot string) (err error)) (err erro
 	}
 
 	// FIXME: why is this not a parameter of MountOtherRootfs()?
-	p.ReadOnlyRoot = true
-	err = p.MountOtherRootfs()
+	err = p.MountOtherRootfs(true)
 	if err != nil {
 		return err
 	}
@@ -300,15 +303,10 @@ func (p *Partition) SyncBootloaderFiles() (err error) {
 }
 
 func (p *Partition) UpdateBootloader() (err error) {
-	switch p.SystemType {
-	case SYSTEM_TYPE_SINGLE_ROOT:
-		// NOP
-		return nil
-	case SYSTEM_TYPE_DUAL_ROOT:
+	if p.DualRootPartitions() {
 		return p.toggleBootloaderRootfs()
-	default:
-		panic("BUG: unhandled SystemType")
 	}
+	return err
 }
 
 func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
@@ -401,46 +399,19 @@ func (p *Partition) getMountTarget() string {
 	return path.Join(p.cacheDir(), MOUNT_TARGET)
 }
 
-// Returns a list of root filesystem partition labels
-func (p *Partition) rootPartitionLabels() []string {
-	return []string{ROOTFS_A_LABEL, ROOTFS_B_LABEL}
-}
+func (p *Partition) getPartitionDetails() (err error) {
 
-// Returns a list of all recognised partition labels
-func (p *Partition) allPartitionLabels() []string {
-	var labels []string
-
-	labels = p.rootPartitionLabels()
-	labels = append(labels, BOOT_PARTITION_LABEL)
-	labels = append(labels, WRITABLE_PARTITION_LABEL)
-
-	return labels
-}
-
-func (p *Partition) getPartitionDetails() {
-	if p.partitions != nil {
-		return
-	}
-
-	err := p.loadPartitionDetails()
+	p.partitions, err = loadPartitionDetails()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to query partitions")
-		os.Exit(1)
+		return PartitionQueryError
+
 	}
 
-	p.determineSystemType()
-}
-
-// FIXME: p.SystemType SYSTEM_TYPE_DUAL_ROOT seems to be redundant with
-//        p.DualRootPartitions
-func (p *Partition) determineSystemType() {
-	if p.DualRootPartitions() == true {
-		p.SystemType = SYSTEM_TYPE_DUAL_ROOT
-	} else if p.SinglelRootPartition() == true {
-		p.SystemType = SYSTEM_TYPE_SINGLE_ROOT
-	} else {
-		p.SystemType = SYSTEM_TYPE_INVALID
+	if !p.DualRootPartitions() && !p.SingleRootPartition() {
+		return PartitionDetectionError
 	}
+
+	return err
 }
 
 // Return array of BlockDevices representing available root partitions
@@ -448,7 +419,7 @@ func (p *Partition) rootPartitions() []BlockDevice {
 	var roots []BlockDevice
 
 	for _, part := range p.partitions {
-		ok := stringInSlice(p.rootPartitionLabels(), part.name)
+		ok := stringInSlice(rootPartitionLabels(), part.name)
 		if ok == true {
 			roots = append(roots, part)
 		}
@@ -465,7 +436,7 @@ func (p *Partition) DualRootPartitions() bool {
 
 // Return true if system has a single root partition configured in the
 // expected manner for a snappy system.
-func (p *Partition) SinglelRootPartition() bool {
+func (p *Partition) SingleRootPartition() bool {
 	return len(p.rootPartitions()) == 1
 }
 
@@ -670,13 +641,13 @@ var runLsblk = func() (output []string, err error) {
 }
 
 // Determine details of the recognised disk partitions
-// available on the system.
-func (p *Partition) loadPartitionDetails() (err error) {
-	var recognised []string = p.allPartitionLabels()
+// available on the system via lsblk
+func loadPartitionDetails() (partitions []BlockDevice, err error) {
+	var recognised []string = allPartitionLabels()
 
 	lines, err := runLsblk()
 	if err != nil {
-		return err
+		return partitions, err
 	}
 	pattern := regexp.MustCompile(`(?:[^\s"]|"(?:[^"])*")+`)
 
@@ -738,34 +709,36 @@ func (p *Partition) loadPartitionDetails() (err error) {
 			parentName: disk,
 		}
 
-		p.partitions = append(p.partitions, bd)
+		partitions = append(partitions, bd)
 	}
 
-	return nil
+	return partitions, nil
 }
 
-func (p *Partition) makeMountPoint() (err error) {
-	if p.ReadOnlyRoot == true {
+func (p *Partition) makeMountPoint(readOnlyMount bool) (err error) {
+	if readOnlyMount == true {
 		// A system update "owns" the default mount_target directory.
 		// So in read-only mode, use a temporary mountpoint name to
 		// avoid colliding with a running system update.
 		p.MountTarget = fmt.Sprintf("%s-ro-%d",
 			p.MountTarget,
 			os.Getpid())
+	} else {
+		p.MountTarget = p.getMountTarget()
 	}
 
 	return os.MkdirAll(p.MountTarget, DIR_MODE)
 }
 
 // Mount the "other" root filesystem
-func (p *Partition) MountOtherRootfs() (err error) {
+func (p *Partition) MountOtherRootfs(readOnlyMount bool) (err error) {
 	var other *BlockDevice
 
-	p.makeMountPoint()
+	p.makeMountPoint(readOnlyMount)
 
 	other = p.otherRootPartition()
 
-	if p.ReadOnlyRoot == true {
+	if readOnlyMount == true {
 		err = Mount(other.device, p.MountTarget, "ro")
 	} else {
 		err = Fsck(other.device)
@@ -866,17 +839,7 @@ func (p *Partition) handleBootloader() (err error) {
 //        like it does when s-i-dbus is called with Information()
 func (p *Partition) GetOtherVersion() (version string, err error) {
 
-	saved := p.ReadOnlyRoot
-
-	// XXX: note that we mount read-only here
-	p.ReadOnlyRoot = true
-
-	defer func() {
-		// reset
-		p.ReadOnlyRoot = saved
-	}()
-
-	err = p.MountOtherRootfs()
+	err = p.MountOtherRootfs(true)
 
 	if err != nil {
 		return version, err
@@ -963,7 +926,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return errors.New("System is not dual root")
 	}
 
-	if err = p.MountOtherRootfs(); err != nil {
+	if err = p.MountOtherRootfs(false); err != nil {
 		return err
 	}
 
