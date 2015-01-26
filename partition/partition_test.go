@@ -129,3 +129,19 @@ func (s *PartitionTestSuite) TestSnappySingleRoot(c *C) {
 	rootPartitions := p.rootPartitions()
 	c.Assert(&rootPartitions[0], DeepEquals, root)
 }
+
+func mockRunCommand(args []string) (err error) {
+	return err
+}
+
+func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
+	runLsblk = mockRunLsblkDualSnappy
+	runCommand = mockRunCommand
+	
+	p := New()
+	
+	p.mountOtherRootfs(false)
+	c.Assert(mounts, DeepEquals, []string{p.MountTarget})
+	p.unmountOtherRootfs()
+	c.Assert(mounts, DeepEquals, []string{})
+}
