@@ -60,3 +60,14 @@ func (ts *HTestSuite) TestGetMapFromInvalidYaml(c *C) {
 	_, err := getMapFromYaml([]byte("%lala%"))
 	c.Assert(err, NotNil)
 }
+
+func (ts *HTestSuite) TestArchitectue(c *C) {
+	goarch = "arm"
+	c.Check(Architecture(), Equals, "armhf")
+
+	goarch = "amd64"
+	c.Check(Architecture(), Equals, "amd64")
+
+	goarch = "386"
+	c.Check(Architecture(), Equals, "i386")
+}
