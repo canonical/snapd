@@ -255,6 +255,17 @@ func mount(source, target, options string) (err error) {
 	return err
 }
 
+// Remove the given string from the string slice
+func stringSliceRemove(slice []string, needle string) (res []string) {
+	// FIXME: so this is golang slice remove?!?! really?
+	pos := stringInSlice(mounts, needle)
+	if pos >= 0 {
+		mounts = append(mounts[:pos], mounts[pos+1:]...)
+	}
+	return mounts
+}
+	
+
 // FIXME: would it make sense to rename to something like
 //         "UmountAndRemoveFromMountList" to indicate it has side-effects?
 // Unmount the given directory and remove it from the global "mounts" slice
@@ -267,11 +278,7 @@ func unmount(target string) (err error) {
 	err = runCommand(args)
 
 	if err == nil {
-		// FIXME: so this is golang slice remove?!?! really?
-		pos := stringInSlice(mounts, target)
-		if pos >= 0 {
-			mounts = append(mounts[:pos], mounts[pos+1:]...)
-		}
+		mounts = stringSliceRemove(mounts, target)
 	}
 
 	return err
