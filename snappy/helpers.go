@@ -72,7 +72,7 @@ func getMapFromYaml(data []byte) (map[string]interface{}, error) {
 	return m, nil
 }
 
-func getArchitecture() string {
+func Architecture() string {
 	// FIXME: we want to move away from dpkg
 	cmd := exec.Command("dpkg", "--print-architecture")
 	output, _ := cmd.CombinedOutput()

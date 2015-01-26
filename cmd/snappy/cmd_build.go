@@ -1,8 +1,6 @@
 package main
 
-import (
-	"launchpad.net/snappy/snappy"
-)
+import "launchpad.net/snappy/snappy"
 
 type CmdBuild struct {
 }
@@ -19,5 +17,5 @@ func init() {
 }
 
 func (x *CmdBuild) Execute(args []string) (err error) {
-	return snappy.CmdBuild(args)
+	return snappy.Build(args[0])
 }

@@ -335,7 +335,7 @@ func (s *SnappUbuntuStoreRepository) Details(snappName string) (parts []Part, er
 	frameworks, _ := GetInstalledSnappNamesByType("framework")
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
-	req.Header.Set("X-Ubuntu-Architecture", getArchitecture())
+	req.Header.Set("X-Ubuntu-Architecture", Architecture())
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -369,7 +369,7 @@ func (s *SnappUbuntuStoreRepository) Search(searchTerm string) (parts []Part, er
 	frameworks, _ := GetInstalledSnappNamesByType("framework")
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
-	req.Header.Set("X-Ubuntu-Architecture", getArchitecture())
+	req.Header.Set("X-Ubuntu-Architecture", Architecture())
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
