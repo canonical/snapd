@@ -2,7 +2,10 @@ package snappy
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
+	"os"
+	"path"
 	"reflect"
 	"runtime"
 	"testing"
@@ -174,6 +177,7 @@ type SITestSuite struct {
 	mockSystemImage *MockSystemImage
 	systemImage     *SystemImageRepository
 
+	tmpdir      string
 	mockService *DBusService
 }
 
@@ -194,20 +198,40 @@ func (s *SITestSuite) SetUpTest(c *C) {
 
 	s.systemImage = newSystemImageRepositoryForBus(dbus.SessionBus)
 	c.Assert(s, NotNil)
+	// setup alternative root for system image
+	tmpdir, err := ioutil.TempDir("", "si-root-")
+	c.Assert(err, IsNil)
+	s.systemImage.myroot = tmpdir
+	makeFakeSystemImageChannelConfig(c, tmpdir+systemImageChannelConfig, "2.71")
+	// setup fake /other partition
+	makeFakeSystemImageChannelConfig(c, tmpdir+"/other/"+systemImageChannelConfig, "3.14")
 
-	// ensure we always have something installed
-	s.mockSystemImage.info["current_build_number"] = "2.71"
-	s.mockSystemImage.info["version_details"] = "ubuntu=20141206,raw-device=20141206,version=77"
+	s.tmpdir = tmpdir
+}
+
+func (s *SITestSuite) TearDownTests(c *C) {
+	os.RemoveAll(s.tmpdir)
+}
+
+func makeFakeSystemImageChannelConfig(c *C, cfgPath, buildNumber string) {
+	os.MkdirAll(path.Dir(cfgPath), 0777)
+	f, err := os.OpenFile(cfgPath, os.O_CREATE|os.O_RDWR, 0666)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	f.Write([]byte(fmt.Sprintf(`
+[service]
+base: system-image.ubuntu.com
+http_port: 80
+https_port: 443
+channel: ubuntu-core/devel-proposed
+device: generic_amd64
+build_number: %s
+version_detail: ubuntu=20141206,raw-device=20141206,version=77
+`, buildNumber)))
 }
 
 func (s *SITestSuite) TearDownTest(c *C) {
 	s.conn.Close()
-}
-
-func (s *SITestSuite) TestLowLevelInformation(c *C) {
-	info, err := s.systemImage.proxy.Information()
-	c.Assert(err, IsNil)
-	c.Assert(info["current_build_number"], Equals, "2.71")
 }
 
 func (s *SITestSuite) TestLowLevelGetSetting(c *C) {
@@ -232,8 +256,10 @@ func (s *SITestSuite) TestTestInstalled(c *C) {
 	c.Assert(parts[0].Version(), Equals, "2.71")
 	c.Assert(parts[0].Hash(), Equals, "bf3e9dd92c916d3fa70bbdf5a1014a112fb45b95179ecae0be2836ea2bd91f7f")
 	c.Assert(parts[0].IsActive(), Equals, true)
-	// second partition is not active
+
+	// second partition is not active and has a different version
 	c.Assert(parts[1].IsActive(), Equals, false)
+	c.Assert(parts[1].Version(), Equals, "3.14")
 }
 
 func (s *SITestSuite) TestGetUpdateNoUpdate(c *C) {
@@ -276,10 +302,24 @@ func (p *MockPartition) NextBootIsOther() bool {
 }
 
 func (p *MockPartition) RunWithOther(f func(otherRoot string) (err error)) (err error) {
-	return f("/")
+	return f("/other")
 }
 
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
+	// add a update
+	s.mockSystemImage.info["target_build_number"] = "3.14"
+	parts, err := s.systemImage.GetUpdates()
+
+	sp := parts[0].(*SystemImagePart)
+	mockPartition := MockPartition{}
+	sp.partition = &mockPartition
+
+	err = sp.Install(nil)
+	c.Assert(err, IsNil)
+	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
+}
+
+func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 	// add a update
 	s.mockSystemImage.info["target_build_number"] = "3.14"
 	parts, err := s.systemImage.GetUpdates()
