@@ -157,7 +157,7 @@ func GetInstalledSnappByName(needle string) Part {
 	return nil
 }
 
-func findPartByName(needle string, haystack []Part) *Part {
+func FindPartByName(needle string, haystack []Part) *Part {
 	for _, part := range haystack {
 		if part.Name() == needle {
 			return &part

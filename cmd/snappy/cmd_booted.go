@@ -1,8 +1,6 @@
 package main
 
-import (
-	"launchpad.net/snappy/snappy"
-)
+import "launchpad.net/snappy/snappy"
 
 type CmdBooted struct {
 }
@@ -17,5 +15,10 @@ func init() {
 }
 
 func (x *CmdBooted) Execute(args []string) (err error) {
-	return snappy.CmdBooted(args)
+	parts, err := snappy.GetInstalledSnappsByType("core")
+	if err != nil {
+		return err
+	}
+
+	return parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
 }

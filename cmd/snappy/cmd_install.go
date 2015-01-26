@@ -19,7 +19,7 @@ func init() {
 }
 
 func (x *CmdInstall) Execute(args []string) (err error) {
-	err = snappy.CmdInstall(args)
+	err = snappy.Install(args)
 	if err != nil {
 		return err
 	}

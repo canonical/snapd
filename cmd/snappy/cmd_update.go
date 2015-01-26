@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"launchpad.net/snappy/snappy"
 )
 
@@ -19,5 +21,21 @@ func init() {
 }
 
 func (x *CmdUpdate) Execute(args []string) (err error) {
-	return snappy.CmdUpdate(args)
+	return update()
+}
+
+func update() error {
+	// FIXME: handle args
+	updates, err := snappy.ListUpdates()
+
+	for _, part := range updates {
+		pbar := snappy.NewTextProgress(part.Name())
+
+		fmt.Printf("Installing %s (%s)\n", part.Name(), part.Version())
+		if err := part.Install(pbar); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
