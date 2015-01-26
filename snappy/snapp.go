@@ -271,10 +271,10 @@ func (s *RemoteSnappPart) Install(pbar ProgressMeter) (err error) {
 	defer resp.Body.Close()
 
 	if pbar != nil {
-		pbar.Start(fmt.Sprintf("Starting download of %s", s.Name()), resp.ContentLength)
+		pbar.Start(resp.ContentLength)
 		mw := io.MultiWriter(w, pbar)
 		_, err = io.Copy(mw, resp.Body)
-		pbar.Finished("Done")
+		pbar.Finished()
 	} else {
 		_, err = io.Copy(w, resp.Body)
 	}
@@ -335,7 +335,7 @@ func (s *SnappUbuntuStoreRepository) Details(snappName string) (parts []Part, er
 	frameworks, _ := GetInstalledSnappNamesByType("framework")
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
-	req.Header.Set("X-Ubuntu-Architecture", getArchitecture())
+	req.Header.Set("X-Ubuntu-Architecture", Architecture())
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -369,7 +369,7 @@ func (s *SnappUbuntuStoreRepository) Search(searchTerm string) (parts []Part, er
 	frameworks, _ := GetInstalledSnappNamesByType("framework")
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
-	req.Header.Set("X-Ubuntu-Architecture", getArchitecture())
+	req.Header.Set("X-Ubuntu-Architecture", Architecture())
 
 	client := &http.Client{}
 	resp, err := client.Do(req)

@@ -1,6 +1,11 @@
 package main
 
 import (
+	"fmt"
+	"io"
+	"os"
+	"text/tabwriter"
+
 	"launchpad.net/snappy/snappy"
 )
 
@@ -21,5 +26,53 @@ func init() {
 }
 
 func (x *CmdList) Execute(args []string) (err error) {
-	return snappy.CmdList(args, x.ShowAll, x.Updates)
+	return x.list()
+}
+
+func (x CmdList) list() error {
+	installed, err := snappy.ListInstalled()
+	if err != nil {
+		return err
+	}
+
+	if x.Updates {
+		updates, err := snappy.ListUpdates()
+		if err != nil {
+			return err
+		}
+		showUpdatesList(installed, updates, x.ShowAll, os.Stdout)
+	} else {
+		showInstalledList(installed, x.ShowAll, os.Stdout)
+	}
+
+	return err
+}
+
+func showInstalledList(installed []snappy.Part, showAll bool, o io.Writer) {
+	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
+	defer w.Flush()
+
+	fmt.Fprintln(w, "Name\tVersion\tSummary\t")
+	for _, part := range installed {
+		if showAll || part.IsActive() {
+			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
+		}
+	}
+}
+
+func showUpdatesList(installed []snappy.Part, updates []snappy.Part, showAll bool, o io.Writer) {
+	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
+	defer w.Flush()
+
+	fmt.Fprintln(w, "Name\tVersion\tUpdate\t")
+	for _, part := range installed {
+		if showAll || part.IsActive() {
+			update := snappy.FindPartByName(part.Name(), updates)
+			ver := "-"
+			if update != nil {
+				ver = (*update).Version()
+			}
+			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), ver))
+		}
+	}
 }
