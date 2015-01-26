@@ -7,34 +7,40 @@ import (
 )
 
 type ProgressMeter interface {
-	Start(msg string, total int64)
+	Start(total int64)
 	Increment()
-	Finished(msg string)
+	Finished()
 
 	// interface for writer
 	Write(p []byte) (n int, err error)
 }
 
 type TextProgress struct {
+	ProgressMeter
 	pbar *pb.ProgressBar
+	pkg  string
 }
 
-func NewTextProgress() *TextProgress {
+func NewTextProgress(pkg string) *TextProgress {
 	t := TextProgress{pbar: pb.New64(0)}
 	t.pbar.ShowSpeed = true
 	return &t
 }
-func (t *TextProgress) Start(msg string, total int64) {
-	fmt.Println(msg)
+
+func (t *TextProgress) Start(total int64) {
+	fmt.Println("Starting download of", t.pkg)
 	t.pbar.Total = total
 	t.pbar.Start()
 }
+
 func (t *TextProgress) Increment() {
 	t.pbar.Increment()
 }
-func (t *TextProgress) Finished(msg string) {
-	t.pbar.FinishPrint(msg)
+
+func (t *TextProgress) Finished() {
+	t.pbar.FinishPrint("Done")
 }
+
 func (t *TextProgress) Write(p []byte) (n int, err error) {
 	return t.pbar.Write(p)
 }

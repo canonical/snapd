@@ -271,10 +271,10 @@ func (s *RemoteSnappPart) Install(pbar ProgressMeter) (err error) {
 	defer resp.Body.Close()
 
 	if pbar != nil {
-		pbar.Start(fmt.Sprintf("Starting download of %s", s.Name()), resp.ContentLength)
+		pbar.Start(resp.ContentLength)
 		mw := io.MultiWriter(w, pbar)
 		_, err = io.Copy(mw, resp.Body)
-		pbar.Finished("Done")
+		pbar.Finished()
 	} else {
 		_, err = io.Copy(w, resp.Body)
 	}
