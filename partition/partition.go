@@ -664,7 +664,7 @@ var runLsblk = func() (output []string, err error) {
 	args := []string{}
 	args = append(args, "/bin/lsblk")
 	args = append(args, "--ascii")
-	args = append(args, "--output-all")
+	args = append(args, "--output=NAME,LABEL,PKNAME,MOUNTPOINT")
 	args = append(args, "--pairs")
 	return GetCommandStdout(args)
 }
@@ -726,7 +726,6 @@ func (p *Partition) loadPartitionDetails() (err error) {
 		// FIXME: we should have a way to mock the "/dev" dir
 		//        or we skip this test lsblk never returns non-existing
 		//        files
-
 		/*
 			if err := FileExists(disk); err != nil {
 				continue
