@@ -31,7 +31,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path"
 	"regexp"
@@ -76,7 +75,7 @@ const DIR_MODE = 0750
 const SYSTEM_IMAGE_CONFIG = "/etc/system-image/client.ini"
 
 var (
-	bootloaderError = errors.New("Unable to determine bootloader")
+	BootloaderError = errors.New("Unable to determine bootloader")
 
 	PartitionQueryError     = errors.New("Failed to query partitions")
 	PartitionDetectionError = errors.New("Failed to detect system type")
@@ -131,12 +130,12 @@ type Partition struct {
 	// just root partitions
 	roots []string
 
+	// FIXME: could we make that part of "Mount*" instead
 	MountTarget string
 
 	hardwareSpecFile string
 }
 
-// FIXME: can we make this private(?)
 type blockDevice struct {
 	// label for partition
 	name string
@@ -232,53 +231,9 @@ func requiredChrootMounts() []string {
 	return []string{"/dev", "/proc", "/sys"}
 }
 
-// Run the command specified by args
-// FIXME: put into utils package
-func runCommand(args []string) (err error) {
-	if len(args) == 0 {
-		return errors.New("ERROR: no command specified")
-	}
-
-	// FIXME: use logger
-	/*
-		if debug == true {
-
-			log.debug('running: {}'.format(args))
-		}
-	*/
-
-	if out, err := exec.Command(args[0], args[1:]...).CombinedOutput(); err != nil {
-		cmdline := strings.Join(args, " ")
-		return errors.New(fmt.Sprintf("Failed to run command '%s': %s (%s)",
-			cmdline,
-			out,
-			err))
-	}
-	return nil
-}
-
-// Run command specified by args and return array of output lines.
-// FIXME: put into utils package
-func getCommandStdout(args []string) (output []string, err error) {
-
-	// FIXME: use logger
-	/*
-		if debug == true {
-
-			log.debug('running: {}'.format(args))
-		}
-	*/
-
-	bytes, err := exec.Command(args[0], args[1:]...).Output()
-	if err != nil {
-		return output, err
-	}
-
-	output = strings.Split(string(bytes), "\n")
-
-	return output, err
-}
-
+// FIXME: would it make sense to rename to something like
+//         "UmountAndRemoveFromMountList" to indicate it has side-effects?
+// Mount the given directory and add it to the "mounts" slice
 func mount(source, target, options string) (err error) {
 	var args []string
 
@@ -300,8 +255,9 @@ func mount(source, target, options string) (err error) {
 	return err
 }
 
-// FIXME2: would it make sense to rename to something like
+// FIXME: would it make sense to rename to something like
 //         "UmountAndRemoveFromMountList" to indicate it has side-effects?
+// Unmount the given directory and remove it from the global "mounts" slice
 func unmount(target string) (err error) {
 	var args []string
 
@@ -332,7 +288,7 @@ func bindmount(source, target string) (err error) {
 }
 
 // Run fsck(8) on specified device.
-func Fsck(device string) (err error) {
+func fsck(device string) (err error) {
 	var args []string
 
 	args = append(args, "/sbin/fsck")
@@ -512,7 +468,7 @@ func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
 		}
 	}
 
-	return nil, bootloaderError
+	return nil, BootloaderError
 }
 
 func (p *Partition) MarkBootSuccessful() (err error) {
@@ -685,7 +641,7 @@ func (p *Partition) mountOtherRootfs(readOnlyMount bool) (err error) {
 	if readOnlyMount == true {
 		err = mount(other.device, p.MountTarget, "ro")
 	} else {
-		err = Fsck(other.device)
+		err = fsck(other.device)
 		if err != nil {
 			return err
 		}
@@ -750,21 +706,6 @@ func (p *Partition) unmountRequiredFilesystems() (err error) {
 	return undoMounts(bindMounts)
 }
 
-// Run the commandline specified by the args array chrooted to the
-// new root filesystem.
-//
-// Errors are fatal.
-func (p *Partition) runInChroot(args []string) (err error) {
-	var fullArgs []string
-
-	fullArgs = append(fullArgs, "/usr/sbin/chroot")
-	fullArgs = append(fullArgs, p.MountTarget)
-
-	fullArgs = append(fullArgs, args...)
-
-	return runCommand(fullArgs)
-}
-
 func (p *Partition) handleBootloader() (err error) {
 	bootloader, err := p.GetBootloader()
 
@@ -776,92 +717,6 @@ func (p *Partition) handleBootloader() (err error) {
 	fmt.Printf("FIXME: HandleBootloader: bootloader=%s\n", bootloader.Name())
 
 	return bootloader.ToggleRootFS()
-}
-
-// FIXME: we don't use this right now, but we probably should and expand
-//        it so that it also reads "version_details" and "channel_name"
-//        like it does when s-i-dbus is called with Information()
-func (p *Partition) GetOtherVersion() (version string, err error) {
-
-	err = p.mountOtherRootfs(true)
-
-	if err != nil {
-		return version, err
-	}
-
-	// Unmount
-	defer func() {
-		err = p.unmountOtherRootfs()
-	}()
-
-	// Remove mountpoint
-	defer func() {
-		err = os.Remove(p.MountTarget)
-	}()
-
-	file := p.MountTarget + SYSTEM_IMAGE_CONFIG
-
-	if err = FileExists(file); err != nil {
-		return version, err
-	}
-
-	var args []string
-
-	// FXIME: system-image-cli should return the same info map
-	//        as the dbus Information call
-	args = append(args, "system-image-cli")
-	args = append(args, "-C")
-	args = append(args, file)
-	args = append(args, "--info")
-
-	lines, err := getCommandStdout(args)
-	if err != nil {
-		return version, err
-	}
-
-	pattern := regexp.MustCompile(`version version: (\d+)`)
-
-	var revision string
-
-	for _, line := range lines {
-		matches := pattern.FindAllStringSubmatch(line, -1)
-
-		if len(matches) == 1 {
-			revision = matches[0][1]
-			break
-		}
-	}
-
-	version = revision
-
-	return version, err
-}
-
-// Currently, system-image-cli(1) does not provide 'version_string'
-// in its verbatim form, hence grope for it for now.
-func (p *Partition) getOtherVersionDetail() (detail string, err error) {
-	var args []string
-
-	args = append(args, "ubuntu-core-upgrade")
-	args = append(args, "--show-other-details")
-
-	lines, err := getCommandStdout(args)
-	if err != nil {
-		return detail, err
-	}
-
-	pattern := regexp.MustCompile(`version_detail: (.*)`)
-
-	for _, line := range lines {
-		matches := pattern.FindAllStringSubmatch(line, -1)
-
-		if len(matches) == 1 {
-			detail = matches[0][1]
-			break
-		}
-	}
-
-	return detail, err
 }
 
 func (p *Partition) toggleBootloaderRootfs() (err error) {
