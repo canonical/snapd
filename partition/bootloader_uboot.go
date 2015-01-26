@@ -269,7 +269,7 @@ func (u *Uboot) SyncBootFiles() (err error) {
 	// always start from scratch: all files here are owned by us.
 	os.RemoveAll(destDir)
 
-	return RunCommand([]string{"/bin/cp", "-a", srcDir, destDir})
+	return runCommand([]string{"/bin/cp", "-a", srcDir, destDir})
 }
 
 func (u *Uboot) HandleAssets() (err error) {
@@ -342,7 +342,7 @@ func (u *Uboot) HandleAssets() (err error) {
 		dir := filepath.Dir(path)
 		dirsToRemove[dir] = 1
 
-		err = RunCommand([]string{"/bin/cp", file, destDir})
+		err = runCommand([]string{"/bin/cp", file, destDir})
 		if err != nil {
 			return err
 		}
@@ -363,7 +363,7 @@ func (u *Uboot) HandleAssets() (err error) {
 		}
 
 		for _, file := range files {
-			err = RunCommand([]string{"/bin/cp", file, dtbDestDir})
+			err = runCommand([]string{"/bin/cp", file, dtbDestDir})
 			if err != nil {
 				return err
 			}

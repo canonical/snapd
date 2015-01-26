@@ -102,7 +102,7 @@ const ASSETS_DIR = "assets"
 const FLASH_ASSETS_DIR = "flashtool-assets"
 
 //--------------------------------------------------------------------
-// Globals
+// FIXME: Globals
 
 // list of current mounts that this module has created
 var mounts []string
@@ -126,7 +126,7 @@ type PartitionInterface interface {
 
 type Partition struct {
 	// all partitions
-	partitions []BlockDevice
+	partitions []blockDevice
 
 	// just root partitions
 	roots []string
@@ -137,7 +137,7 @@ type Partition struct {
 }
 
 // FIXME: can we make this private(?)
-type BlockDevice struct {
+type blockDevice struct {
 	// label for partition
 	name string
 
@@ -153,7 +153,7 @@ type BlockDevice struct {
 }
 
 // Representation of HARDWARE_SPEC_FILE
-type HardwareSpecType struct {
+type hardwareSpecType struct {
 	Kernel          string `yaml:"kernel"`
 	Initrd          string `yaml:"initrd"`
 	DtbDir          string `yaml:"dtbs"`
@@ -234,7 +234,7 @@ func requiredChrootMounts() []string {
 
 // Run the command specified by args
 // FIXME: put into utils package
-func RunCommand(args []string) (err error) {
+func runCommand(args []string) (err error) {
 	if len(args) == 0 {
 		return errors.New("ERROR: no command specified")
 	}
@@ -259,7 +259,7 @@ func RunCommand(args []string) (err error) {
 
 // Run command specified by args and return array of output lines.
 // FIXME: put into utils package
-func GetCommandStdout(args []string) (output []string, err error) {
+func getCommandStdout(args []string) (output []string, err error) {
 
 	// FIXME: use logger
 	/*
@@ -279,23 +279,6 @@ func GetCommandStdout(args []string) (output []string, err error) {
 	return output, err
 }
 
-// Return nil if given path exists.
-// FIXME: put into utils package
-func FileExists(path string) (err error) {
-	_, err = os.Stat(path)
-
-	return err
-}
-
-func IsDirectory(path string) bool {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-
-	return fileInfo.IsDir()
-}
-
 func mount(source, target, options string) (err error) {
 	var args []string
 
@@ -308,7 +291,7 @@ func mount(source, target, options string) (err error) {
 	args = append(args, source)
 	args = append(args, target)
 
-	err = RunCommand(args)
+	err = runCommand(args)
 
 	if err == nil {
 		mounts = append(mounts, target)
@@ -325,7 +308,7 @@ func unmount(target string) (err error) {
 	args = append(args, "/bin/umount")
 	args = append(args, target)
 
-	err = RunCommand(args)
+	err = runCommand(args)
 
 	if err == nil {
 		// FIXME: so this is golang slice remove?!?! really?
@@ -360,7 +343,7 @@ func Fsck(device string) (err error) {
 	args = append(args, "-av")
 	args = append(args, device)
 
-	return RunCommand(args)
+	return runCommand(args)
 }
 
 // Returns the position of the string in the given slice or -1 if its not found
@@ -380,12 +363,12 @@ var runLsblk = func() (output []string, err error) {
 	args = append(args, "--ascii")
 	args = append(args, "--output=NAME,LABEL,PKNAME,MOUNTPOINT")
 	args = append(args, "--pairs")
-	return GetCommandStdout(args)
+	return getCommandStdout(args)
 }
 
 // Determine details of the recognised disk partitions
 // available on the system via lsblk
-func loadPartitionDetails() (partitions []BlockDevice, err error) {
+func loadPartitionDetails() (partitions []blockDevice, err error) {
 	var recognised []string = allPartitionLabels()
 
 	lines, err := runLsblk()
@@ -445,7 +428,7 @@ func loadPartitionDetails() (partitions []BlockDevice, err error) {
 				continue
 			}
 		*/
-		bd := BlockDevice{
+		bd := blockDevice{
 			name:       fields["LABEL"],
 			device:     device,
 			mountpoint: fields["MOUNTPOINT"],
@@ -491,13 +474,13 @@ func (p *Partition) RunWithOther(f func(otherRoot string) (err error)) (err erro
 	}
 
 	// FIXME: why is this not a parameter of MountOtherRootfs()?
-	err = p.MountOtherRootfs(true)
+	err = p.mountOtherRootfs(true)
 	if err != nil {
 		return err
 	}
 
 	defer func() {
-		err = p.UnmountOtherRootfsAndCleanup()
+		err = p.unmountOtherRootfsAndCleanup()
 	}()
 
 	return f(p.MountTarget)
@@ -580,8 +563,8 @@ func (p *Partition) cacheDir() string {
 	return DEFAULT_CACHE_DIR
 }
 
-func (p *Partition) hardwareSpec() (hardware HardwareSpecType, err error) {
-	h := HardwareSpecType{}
+func (p *Partition) hardwareSpec() (hardware hardwareSpecType, err error) {
+	h := hardwareSpecType{}
 
 	data, err := ioutil.ReadFile(p.hardwareSpecFile)
 	if err != nil {
@@ -621,8 +604,8 @@ func (p *Partition) getPartitionDetails() (err error) {
 	return err
 }
 
-// Return array of BlockDevices representing available root partitions
-func (p *Partition) rootPartitions() (roots []BlockDevice) {
+// Return array of blockDevices representing available root partitions
+func (p *Partition) rootPartitions() (roots []blockDevice) {
 	for _, part := range p.partitions {
 		pos := stringInSlice(rootPartitionLabels(), part.name)
 		if pos >= 0 {
@@ -645,8 +628,8 @@ func (p *Partition) singleRootPartition() bool {
 	return len(p.rootPartitions()) == 1
 }
 
-// Return pointer to BlockDevice representing writable partition
-func (p *Partition) writablePartition() (result *BlockDevice) {
+// Return pointer to blockDevice representing writable partition
+func (p *Partition) writablePartition() (result *blockDevice) {
 	for _, part := range p.partitions {
 		if part.name == WRITABLE_PARTITION_LABEL {
 			return &part
@@ -656,8 +639,8 @@ func (p *Partition) writablePartition() (result *BlockDevice) {
 	return result
 }
 
-// Return pointer to BlockDevice representing boot partition (if any)
-func (p *Partition) bootPartition() (result *BlockDevice) {
+// Return pointer to blockDevice representing boot partition (if any)
+func (p *Partition) bootPartition() (result *blockDevice) {
 	for _, part := range p.partitions {
 		if part.name == BOOT_PARTITION_LABEL {
 			return &part
@@ -667,9 +650,9 @@ func (p *Partition) bootPartition() (result *BlockDevice) {
 	return result
 }
 
-// Return pointer to BlockDevice representing currently mounted root
+// Return pointer to blockDevice representing currently mounted root
 // filesystem
-func (p *Partition) rootPartition() (result *BlockDevice) {
+func (p *Partition) rootPartition() (result *blockDevice) {
 	for _, part := range p.rootPartitions() {
 		if part.mountpoint == "/" {
 			return &part
@@ -679,9 +662,9 @@ func (p *Partition) rootPartition() (result *BlockDevice) {
 	return result
 }
 
-// Return pointer to BlockDevice representing the "other" root
+// Return pointer to blockDevice representing the "other" root
 // filesystem (which is not currently mounted)
-func (p *Partition) otherRootPartition() (result *BlockDevice) {
+func (p *Partition) otherRootPartition() (result *blockDevice) {
 	for _, part := range p.rootPartitions() {
 		if part.mountpoint != "/" {
 			return &part
@@ -692,8 +675,8 @@ func (p *Partition) otherRootPartition() (result *BlockDevice) {
 }
 
 // Mount the "other" root filesystem
-func (p *Partition) MountOtherRootfs(readOnlyMount bool) (err error) {
-	var other *BlockDevice
+func (p *Partition) mountOtherRootfs(readOnlyMount bool) (err error) {
+	var other *blockDevice
 
 	p.makeMountPoint(readOnlyMount)
 
@@ -712,12 +695,12 @@ func (p *Partition) MountOtherRootfs(readOnlyMount bool) (err error) {
 	return err
 }
 
-func (p *Partition) UnmountOtherRootfs() (err error) {
+func (p *Partition) unmountOtherRootfs() (err error) {
 	return unmount(p.MountTarget)
 }
 
-func (p *Partition) UnmountOtherRootfsAndCleanup() (err error) {
-	err = p.UnmountOtherRootfs()
+func (p *Partition) unmountOtherRootfsAndCleanup() (err error) {
+	err = p.unmountOtherRootfs()
 
 	if err != nil {
 		return err
@@ -729,7 +712,7 @@ func (p *Partition) UnmountOtherRootfsAndCleanup() (err error) {
 // The bootloader requires a few filesystems to be mounted when
 // run from within a chroot.
 func (p *Partition) bindmountRequiredFilesystems() (err error) {
-	var boot *BlockDevice
+	var boot *blockDevice
 
 	for _, fs := range requiredChrootMounts() {
 		target := path.Clean(fmt.Sprintf("%s/%s", p.MountTarget, fs))
@@ -779,7 +762,7 @@ func (p *Partition) runInChroot(args []string) (err error) {
 
 	fullArgs = append(fullArgs, args...)
 
-	return RunCommand(fullArgs)
+	return runCommand(fullArgs)
 }
 
 func (p *Partition) handleBootloader() (err error) {
@@ -800,7 +783,7 @@ func (p *Partition) handleBootloader() (err error) {
 //        like it does when s-i-dbus is called with Information()
 func (p *Partition) GetOtherVersion() (version string, err error) {
 
-	err = p.MountOtherRootfs(true)
+	err = p.mountOtherRootfs(true)
 
 	if err != nil {
 		return version, err
@@ -808,7 +791,7 @@ func (p *Partition) GetOtherVersion() (version string, err error) {
 
 	// Unmount
 	defer func() {
-		err = p.UnmountOtherRootfs()
+		err = p.unmountOtherRootfs()
 	}()
 
 	// Remove mountpoint
@@ -831,7 +814,7 @@ func (p *Partition) GetOtherVersion() (version string, err error) {
 	args = append(args, file)
 	args = append(args, "--info")
 
-	lines, err := GetCommandStdout(args)
+	lines, err := getCommandStdout(args)
 	if err != nil {
 		return version, err
 	}
@@ -862,7 +845,7 @@ func (p *Partition) getOtherVersionDetail() (detail string, err error) {
 	args = append(args, "ubuntu-core-upgrade")
 	args = append(args, "--show-other-details")
 
-	lines, err := GetCommandStdout(args)
+	lines, err := getCommandStdout(args)
 	if err != nil {
 		return detail, err
 	}
@@ -887,7 +870,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return errors.New("System is not dual root")
 	}
 
-	if err = p.MountOtherRootfs(false); err != nil {
+	if err = p.mountOtherRootfs(false); err != nil {
 		return err
 	}
 
@@ -903,7 +886,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return err
 	}
 
-	if err = p.UnmountOtherRootfs(); err != nil {
+	if err = p.unmountOtherRootfs(); err != nil {
 		return err
 	}
 

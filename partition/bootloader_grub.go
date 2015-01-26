@@ -60,7 +60,7 @@ func (g *Grub) Installed() bool {
 func (g *Grub) ToggleRootFS() (err error) {
 
 	var args []string
-	var other *BlockDevice
+	var other *blockDevice
 
 	other = g.partition.otherRootPartition()
 
@@ -101,7 +101,7 @@ func (g *Grub) GetAllBootVars() (vars []string, err error) {
 	args = append(args, BOOTLOADER_GRUB_ENV_FILE)
 	args = append(args, "list")
 
-	return GetCommandStdout(args)
+	return getCommandStdout(args)
 }
 
 func (g *Grub) GetBootVar(name string) (value string, err error) {
@@ -141,7 +141,7 @@ func (g *Grub) SetBootVar(name, value string) (err error) {
 	// stores them in the environment file (which is not desirable)
 	args = append(args, fmt.Sprintf("%s=%s", name, value))
 
-	return RunCommand(args)
+	return runCommand(args)
 }
 
 // FIXME: not atomic - need locking around snappy command!
@@ -158,7 +158,7 @@ func (g *Grub) ClearBootVar(name string) (currentValue string, err error) {
 	args = append(args, "unset")
 	args = append(args, name)
 
-	return currentValue, RunCommand(args)
+	return currentValue, runCommand(args)
 }
 
 func (g *Grub) GetNextBootRootFSName() (label string, err error) {
