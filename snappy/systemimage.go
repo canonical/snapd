@@ -51,7 +51,7 @@ type SystemImagePart struct {
 	partition partition.PartitionInterface
 }
 
-func (s *SystemImagePart) Type() snapType {
+func (s *SystemImagePart) Type() SnapType {
 	return SnapTypeCore
 }
 

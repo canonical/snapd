@@ -5,13 +5,13 @@ const (
 	snapOemDir  = "/oem"
 )
 
-type snapType string
+type SnapType string
 
 const (
-	SnapTypeApp       snapType = "app"
-	SnapTypeCore      snapType = "core"
-	SnapTypeFramework snapType = "framework"
-	SnapTypeOem       snapType = "oem"
+	SnapTypeApp       SnapType = "app"
+	SnapTypeCore      SnapType = "core"
+	SnapTypeFramework SnapType = "framework"
+	SnapTypeOem       SnapType = "oem"
 )
 
 // Representation of a snappy part
@@ -27,7 +27,7 @@ type Part interface {
 	IsInstalled() bool
 
 	// app, framework, core
-	Type() snapType
+	Type() SnapType
 
 	InstalledSize() int
 	DownloadSize() int
@@ -123,7 +123,7 @@ func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	return parts, err
 }
 
-func InstalledSnapsByType(snapTs ...snapType) (res []Part, err error) {
+func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	if err != nil {
@@ -143,7 +143,7 @@ func InstalledSnapsByType(snapTs ...snapType) (res []Part, err error) {
 	return
 }
 
-var InstalledSnapNamesByType = func(snapTs ...snapType) (res []string, err error) {
+var InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
 	installed, err := InstalledSnapsByType(snapTs...)
 	for _, part := range installed {
 		res = append(res, part.Name())

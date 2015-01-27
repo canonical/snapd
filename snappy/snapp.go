@@ -25,7 +25,7 @@ type SnapPart struct {
 	hash        string
 	isActive    bool
 	isInstalled bool
-	stype       snapType
+	stype       SnapType
 
 	basedir string
 }
@@ -35,7 +35,7 @@ type packageYaml struct {
 	Version string
 	Vendor  string
 	Icon    string
-	Type    snapType
+	Type    SnapType
 }
 
 type remoteSnap struct {
@@ -100,7 +100,7 @@ func NewInstalledSnapPart(yaml_path string) *SnapPart {
 	return &part
 }
 
-func (s *SnapPart) Type() snapType {
+func (s *SnapPart) Type() SnapType {
 	if s.stype != "" {
 		return s.stype
 	}
@@ -215,7 +215,7 @@ type RemoteSnapPart struct {
 	pkg remoteSnap
 }
 
-func (s *RemoteSnapPart) Type() snapType {
+func (s *RemoteSnapPart) Type() SnapType {
 	// FIXME: the store does not publish this info
 	return SnapTypeApp
 }

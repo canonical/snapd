@@ -272,7 +272,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 
 func mockInstalledSnapNamesByType(mockSnaps []string) (mockRestorer func()) {
 	origFunc := InstalledSnapNamesByType
-	InstalledSnapNamesByType = func(snapTs ...snapType) (res []string, err error) {
+	InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
 		return mockSnaps, nil
 	}
 	return func() {
