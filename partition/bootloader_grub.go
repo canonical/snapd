@@ -10,13 +10,13 @@ import (
 )
 
 const (
-	BOOTLOADER_GRUB_DIR         = "/boot/grub"
-	BOOTLOADER_GRUB_CONFIG_FILE = "/boot/grub/grub.cfg"
-	BOOTLOADER_GRUB_ENV_FILE    = "/boot/grub/grubenv"
+	bootloaderGrubDir        = "/boot/grub"
+	bootloaderGrubConfigFile = "/boot/grub/grub.cfg"
+	bootloaderGrubEnvFile    = "/boot/grub/grubenv"
 
-	BOOTLOADER_GRUB_ENV_CMD     = "/usr/bin/grub-editenv"
-	BOOTLOADER_GRUB_INSTALL_CMD = "/usr/sbin/grub-install"
-	BOOTLOADER_GRUB_UPDATE_CMD  = "/usr/sbin/update-grub"
+	bootloaderGrubEnvCmd     = "/usr/bin/grub-editenv"
+	bootloaderGrubInstallCmd = "/usr/sbin/grub-install"
+	bootloaderGrubUpdateCmd  = "/usr/sbin/update-grub"
 )
 
 type Grub struct {
@@ -27,7 +27,7 @@ type Grub struct {
 func NewGrub(partition *Partition) *Grub {
 	g := Grub{BootLoaderType: NewBootLoader(partition)}
 
-	g.currentBootPath = BOOTLOADER_GRUB_DIR
+	g.currentBootPath = bootloaderGrubDir
 	g.otherBootPath = g.currentBootPath
 
 	return &g
@@ -39,11 +39,7 @@ func (g *Grub) Name() string {
 
 func (g *Grub) Installed() bool {
 	// Use same heuristic as the initramfs.
-	if fileExists(BOOTLOADER_GRUB_CONFIG_FILE) && fileExists(BOOTLOADER_GRUB_INSTALL_CMD) {
-		return true
-	}
-
-	return false
+	return fileExists(bootloaderGrubConfigFile) && fileExists(bootloaderGrubInstallCmd)
 }
 
 // Make the Grub bootloader switch rootfs's.
@@ -60,7 +56,7 @@ func (g *Grub) ToggleRootFS() (err error) {
 
 	other = g.partition.otherRootPartition()
 
-	args = append(args, BOOTLOADER_GRUB_INSTALL_CMD)
+	args = append(args, bootloaderGrubInstallCmd)
 	args = append(args, other.parentName)
 
 	// install grub
@@ -70,7 +66,7 @@ func (g *Grub) ToggleRootFS() (err error) {
 	}
 
 	args = nil
-	args = append(args, BOOTLOADER_GRUB_UPDATE_CMD)
+	args = append(args, bootloaderGrubUpdateCmd)
 
 	// create the grub config
 	err = g.partition.runInChroot(args)
@@ -93,11 +89,11 @@ func (g *Grub) ToggleRootFS() (err error) {
 func (g *Grub) GetAllBootVars() (vars []string, err error) {
 	var args []string
 
-	args = append(args, BOOTLOADER_GRUB_ENV_CMD)
-	args = append(args, BOOTLOADER_GRUB_ENV_FILE)
+	args = append(args, bootloaderGrubEnvCmd)
+	args = append(args, bootloaderGrubEnvFile)
 	args = append(args, "list")
 
-	return getCommandStdout(args)
+	return runCommandWithStdout(args)
 }
 
 func (g *Grub) GetBootVar(name string) (value string, err error) {
@@ -128,8 +124,8 @@ func (g *Grub) GetBootVar(name string) (value string, err error) {
 func (g *Grub) SetBootVar(name, value string) (err error) {
 	var args []string
 
-	args = append(args, BOOTLOADER_GRUB_ENV_CMD)
-	args = append(args, BOOTLOADER_GRUB_ENV_FILE)
+	args = append(args, bootloaderGrubEnvCmd)
+	args = append(args, bootloaderGrubEnvFile)
 	args = append(args, "set")
 
 	// XXX: note that strings are not quoted since because
@@ -149,8 +145,8 @@ func (g *Grub) ClearBootVar(name string) (currentValue string, err error) {
 		return currentValue, err
 	}
 
-	args = append(args, BOOTLOADER_GRUB_ENV_CMD)
-	args = append(args, BOOTLOADER_GRUB_ENV_FILE)
+	args = append(args, bootloaderGrubEnvCmd)
+	args = append(args, bootloaderGrubEnvFile)
 	args = append(args, "unset")
 	args = append(args, name)
 

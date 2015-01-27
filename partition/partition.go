@@ -174,9 +174,8 @@ func init() {
 func undoMounts(mounts []string) (err error) {
 	// Iterate backwards since we want a reverse-sorted list of
 	// mounts to ensure we can unmount in order.
-	for i, _ := range mounts {
-		err := unmount(mounts[len(mounts)-i])
-		if err != nil {
+	for i := range mounts {
+		if err := unmount(mounts[len(mounts)-i]); err != nil {
 			return err
 		}
 	}
@@ -258,8 +257,7 @@ func mount(source, target, options string) (err error) {
 // Remove the given string from the string slice
 func stringSliceRemove(slice []string, needle string) (res []string) {
 	// FIXME: so this is golang slice remove?!?! really?
-	pos := stringInSlice(mounts, needle)
-	if pos >= 0 {
+	if pos := stringInSlice(mounts, needle); pos >= 0 {
 		mounts = append(mounts[:pos], mounts[pos+1:]...)
 	}
 	return mounts
@@ -269,13 +267,7 @@ func stringSliceRemove(slice []string, needle string) (res []string) {
 //         "UmountAndRemoveFromMountList" to indicate it has side-effects?
 // Unmount the given directory and remove it from the global "mounts" slice
 func unmount(target string) (err error) {
-	var args []string
-
-	args = append(args, "/bin/umount")
-	args = append(args, target)
-
-	err = runCommand(args)
-
+	err = runCommand([]string{"/bin/umount", target})
 	if err == nil {
 		mounts = stringSliceRemove(mounts, target)
 	}
@@ -295,16 +287,9 @@ func bindmount(source, target string) (err error) {
 
 // Run fsck(8) on specified device.
 func fsck(device string) (err error) {
-	var args []string
-
-	args = append(args, "/sbin/fsck")
-
-	// Paranoia - don't fsck if already mounted
-	args = append(args, "-M")
-
-	args = append(args, "-av")
-	args = append(args, device)
-
+	args := []string{"/sbin/fsck",
+		"-M", // Paranoia - don't fsck if already mounted
+		"-av", device}
 	return runCommand(args)
 }
 
@@ -320,12 +305,11 @@ func stringInSlice(slice []string, value string) int {
 }
 
 var runLsblk = func() (output []string, err error) {
-	args := []string{}
-	args = append(args, "/bin/lsblk")
-	args = append(args, "--ascii")
-	args = append(args, "--output=NAME,LABEL,PKNAME,MOUNTPOINT")
-	args = append(args, "--pairs")
-	return getCommandStdout(args)
+	args := []string{"/bin/lsblk",
+		"--ascii",
+		"--output=NAME,LABEL,PKNAME,MOUNTPOINT",
+		"--pairs"}
+	return runCommandWithStdout(args)
 }
 
 // Determine details of the recognised disk partitions
@@ -677,7 +661,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	var boot *blockDevice
 
 	for _, fs := range requiredChrootMounts() {
-		target := path.Clean(fmt.Sprintf("%s/%s", p.MountTarget, fs))
+		target := path.Join(p.MountTarget, fs)
 
 		err := bindmount(fs, target)
 		if err != nil {
@@ -765,11 +749,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 // Run the commandline specified by the args array chrooted to the
 // new root filesystem.
 func (p *Partition) runInChroot(args []string) (err error) {
-	var fullArgs []string
-
-	fullArgs = append(fullArgs, "/usr/sbin/chroot")
-	fullArgs = append(fullArgs, p.MountTarget)
-
+	fullArgs := []string{"/usr/sbin/chroot", p.MountTarget}
 	fullArgs = append(fullArgs, args...)
 
 	return runCommand(fullArgs)

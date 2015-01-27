@@ -24,10 +24,9 @@ func isDirectory(path string) bool {
 	return fileInfo.IsDir()
 }
 
-// Run the command specified by args
 // FIXME: would it make sense to differenciate between launch errors and
 //        exit code? (i.e. something like (returnCode, error) ?)
-var runCommand = func(args []string) (err error) {
+func runCommandImpl(args []string) (err error) {
 	if len(args) == 0 {
 		return errors.New("ERROR: no command specified")
 	}
@@ -50,9 +49,13 @@ var runCommand = func(args []string) (err error) {
 	return nil
 }
 
+// Run the command specified by args
+// This is a var instead of a function to making mocking in the tests easier
+var runCommand = runCommandImpl
+
 // Run command specified by args and return array of output lines.
 // FIXME: would it make sense to make this a vararg (args...) ?
-func getCommandStdout(args []string) (output []string, err error) {
+func runCommandWithStdout(args []string) (output []string, err error) {
 
 	// FIXME: use logger
 	/*
