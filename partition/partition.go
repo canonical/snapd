@@ -120,7 +120,7 @@ type PartitionInterface interface {
 	NextBootIsOther() bool
 
 	// run the function f with the otherRoot mounted
-	RunWithOther(f func(otherRoot string) (err error)) (err error)
+	RunWithOther(writable bool, f func(otherRoot string) (err error)) (err error)
 }
 
 type Partition struct {
@@ -345,6 +345,10 @@ func loadPartitionDetails() (partitions []blockDevice, err error) {
 			continue
 		}
 
+		if name == "" || name == "\"\"" {
+			continue
+		}
+
 		pos := stringInSlice(recognised, name)
 		if pos < 0 {
 			// ignore unrecognised partitions
@@ -386,17 +390,7 @@ func loadPartitionDetails() (partitions []blockDevice, err error) {
 	return partitions, nil
 }
 
-func (p *Partition) makeMountPoint(readOnlyMount bool) (err error) {
-	if readOnlyMount == true {
-		// A system update "owns" the default mount_target directory.
-		// So in read-only mode, use a temporary mountpoint name to
-		// avoid colliding with a running system update.
-		p.MountTarget = fmt.Sprintf("%s-ro-%d",
-			p.getMountTarget(),
-			os.Getpid())
-	} else {
-		p.MountTarget = p.getMountTarget()
-	}
+func (p *Partition) makeMountPoint() (err error) {
 
 	return os.MkdirAll(p.MountTarget, DIR_MODE)
 }
@@ -404,6 +398,7 @@ func (p *Partition) makeMountPoint(readOnlyMount bool) (err error) {
 // Constructor
 func New() *Partition {
 	p := new(Partition)
+	p.MountTarget = p.getMountTarget()
 
 	p.getPartitionDetails()
 	p.hardwareSpecFile = path.Join(p.cacheDir(), HARDWARE_SPEC_FILE)
@@ -411,25 +406,27 @@ func New() *Partition {
 	return p
 }
 
-func (p *Partition) RunWithOther(f func(otherRoot string) (err error)) (err error) {
+// Mount the other rootfs partition, execute the specified function and
+// unmount "other" before returning.
+func (p *Partition) RunWithOther(writable bool, f func(otherRoot string) (err error)) (err error) {
 	dual := p.dualRootPartitions()
+
 	// FIXME: should we simply
 	if !dual {
 		return f("/")
 	}
 
-	// FIXME: why is this not a parameter of MountOtherRootfs()?
-	err = p.mountOtherRootfs(true)
-	if err != nil {
-		return err
+	if writable {
+		if err = p.remountOther(true); err != nil {
+			return err
+		}
+
+		defer func() {
+			err = p.remountOther(false)
+		}()
 	}
 
-	defer func() {
-		err = p.unmountOtherRootfsAndCleanup()
-	}()
-
 	return f(p.MountTarget)
-
 }
 
 func (p *Partition) SyncBootloaderFiles() (err error) {
@@ -540,13 +537,15 @@ func (p *Partition) getPartitionDetails() (err error) {
 	p.partitions, err = loadPartitionDetails()
 	if err != nil {
 		return err
-
 	}
+
 	if !p.dualRootPartitions() && !p.singleRootPartition() {
 		return PartitionDetectionError
 	}
 
-	return err
+	// XXX: this will soon be handled automatically at boot by
+	// initramfs-tools-ubuntu-core.
+	return p.ensureOtherMountedRO()
 }
 
 // Return array of blockDevices representing available root partitions
@@ -620,14 +619,14 @@ func (p *Partition) otherRootPartition() (result *blockDevice) {
 }
 
 // Mount the "other" root filesystem
-func (p *Partition) mountOtherRootfs(readOnlyMount bool) (err error) {
+func (p *Partition) mountOtherRootfs(readOnly bool) (err error) {
 	var other *blockDevice
 
-	p.makeMountPoint(readOnlyMount)
+	p.makeMountPoint()
 
 	other = p.otherRootPartition()
 
-	if readOnlyMount == true {
+	if readOnly == true {
 		err = mount(other.device, p.MountTarget, "ro")
 	} else {
 		err = fsck(other.device)
@@ -640,18 +639,47 @@ func (p *Partition) mountOtherRootfs(readOnlyMount bool) (err error) {
 	return err
 }
 
-func (p *Partition) unmountOtherRootfs() (err error) {
-	return unmount(p.MountTarget)
-}
+// Ensure the other partition is mounted read-only.
+func (p *Partition) ensureOtherMountedRO() (err error) {
+	mountpoint := p.getMountTarget()
 
-func (p *Partition) unmountOtherRootfsAndCleanup() (err error) {
-	err = p.unmountOtherRootfs()
-
-	if err != nil {
+	if err = runCommand("/bin/mountpoint", mountpoint); err == nil {
+		// already mounted
 		return err
 	}
 
-	return os.Remove(p.MountTarget)
+	return p.mountOtherRootfs(true)
+}
+
+// Remount the already-mounted other partition. Whether the mount
+// should become writable is specified by the writable argument.
+
+// XXX: Note that in the case where writable=true, this isn't a simple
+// toggle - if the partition is already mounted read-only, it needs to
+// be unmounted, fsck(8)'d, then (re-)mounted read-write.
+func (p *Partition) remountOther(writable bool) (err error) {
+	other := p.otherRootPartition()
+
+	if writable == true {
+		err = p.unmountOtherRootfs()
+		if err != nil {
+			return err
+		}
+
+		err = fsck(other.device)
+		if err != nil {
+			return err
+		}
+		return mount(other.device, p.MountTarget, "")
+	} else {
+		// already r/w, so no need to fsck when switching
+		// to r/o.
+		return mount(other.device, p.MountTarget, "-oremount,ro")
+	}
+}
+
+func (p *Partition) unmountOtherRootfs() (err error) {
+	return unmount(p.MountTarget)
 }
 
 // The bootloader requires a few filesystems to be mounted when
@@ -712,7 +740,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return errors.New("System is not dual root")
 	}
 
-	if err = p.mountOtherRootfs(false); err != nil {
+	if err = p.remountOther(true); err != nil {
 		return err
 	}
 
@@ -728,10 +756,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return err
 	}
 
-	// FIXME: why not unmountOtherRootfsAndCleanup here (or why
-	//        not unountOtherRootfs without cleanup on the place
-	//        where the cleanup version is used?)
-	if err = p.unmountOtherRootfs(); err != nil {
+	if err = p.remountOther(false); err != nil {
 		return err
 	}
 

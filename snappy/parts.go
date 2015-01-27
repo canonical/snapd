@@ -12,7 +12,7 @@ const (
 // Representation of a snappy part
 type Part interface {
 
-	// querry
+	// query
 	Name() string
 	Version() string
 	Description() string
