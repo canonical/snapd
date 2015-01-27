@@ -149,6 +149,20 @@ func (m *MockSystemImage) CheckForUpdate() error {
 }
 
 func (m *MockSystemImage) DownloadUpdate() error {
+	// send progress
+	for i := 1; i <= 5; i++ {
+		sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateProgress")
+		sig.AppendArgs(
+			int32(20*i),             // percent (int32)
+			float64(100.0-(20.0*i)), // eta (double)
+		)
+		if err := m.service.SendSignal(sig); err != nil {
+			// FIXME: do something with the error
+			panic(err)
+		}
+	}
+
+	// send done
 	sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateDownloaded")
 
 	sig.AppendArgs(
@@ -272,6 +286,25 @@ func (p *MockPartition) GetSIConfigPath() string {
 	return ""
 }
 
+type MockProgressMeter struct {
+	total    float64
+	progress []float64
+	finished bool
+}
+
+func (m *MockProgressMeter) Start(total float64) {
+	m.total = total
+}
+func (m *MockProgressMeter) Set(current float64) {
+	m.progress = append(m.progress, current)
+}
+func (m *MockProgressMeter) Write(buf []byte) (n int, err error) {
+	return len(buf), err
+}
+func (m *MockProgressMeter) Finished() {
+	m.finished = true
+}
+
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	// add a update
 	s.mockSystemImage.info["target_build_number"] = "3.14"
@@ -281,7 +314,11 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.Install(nil)
+	pb := &MockProgressMeter{}
+	err = sp.Install(pb)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
+	c.Assert(pb.total, Equals, 100.0)
+	c.Assert(pb.finished, Equals, true)
+	c.Assert(pb.progress, DeepEquals, []float64{20.0, 40.0, 60.0, 80.0, 100.0})
 }

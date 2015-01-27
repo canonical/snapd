@@ -271,7 +271,7 @@ func (s *RemoteSnappPart) Install(pbar ProgressMeter) (err error) {
 	defer resp.Body.Close()
 
 	if pbar != nil {
-		pbar.Start(resp.ContentLength)
+		pbar.Start(float64(resp.ContentLength))
 		mw := io.MultiWriter(w, pbar)
 		_, err = io.Copy(mw, resp.Body)
 		pbar.Finished()

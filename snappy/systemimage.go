@@ -84,6 +84,36 @@ func (s *SystemImagePart) DownloadSize() int {
 
 func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 
+	quitCh := make(chan int)
+	if pb != nil {
+		// FIXME: we need to find a way to stop this watcher
+		updateProgressCh, err := s.proxy.makeWatcher("UpdateProgress")
+		if err != nil {
+			log.Panic(fmt.Sprintf("ERROR: %v", err))
+			return nil
+		}
+
+		defer func() {
+			quitCh <- 1
+		}()
+		pb.Start(100.0)
+		go func() {
+			for {
+				var percent int32
+				var eta float64
+				select {
+				case msg := <-updateProgressCh:
+					err := msg.Args(&percent, &eta)
+					if err == nil {
+						pb.Set(float64(percent))
+					}
+				case <-quitCh:
+					break
+				}
+			}
+		}()
+	}
+
 	// Ensure there is always a kernel + initrd to boot with, even
 	// if the update does not provide new versions.
 	err = s.partition.SyncBootloaderFiles()
@@ -97,8 +127,12 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	}
 
 	// FIXME: switch s-i daemon back to current partition
+	err = s.partition.UpdateBootloader()
 
-	return s.partition.UpdateBootloader()
+	if pb != nil {
+		pb.Finished()
+	}
+	return err
 }
 
 func (s *SystemImagePart) Uninstall() (err error) {
@@ -150,6 +184,7 @@ type systemImageDBusProxy struct {
 	updateApplied         chan *dbus.Message
 	updateDownloaded      chan *dbus.Message
 	updateFailed          chan *dbus.Message
+	quitCh                chan int // can be used to stop the watchers
 }
 
 func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
@@ -167,6 +202,7 @@ func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
 		return nil
 	}
 
+	p.quitCh = make(chan int)
 	p.updateAvailableStatus, err = p.makeWatcher("UpdateAvailableStatus")
 	if err != nil {
 		log.Panic(fmt.Sprintf("ERROR: %v", err))
@@ -244,8 +280,11 @@ func (s *systemImageDBusProxy) makeWatcher(signalName string) (received chan *db
 
 	received = make(chan *dbus.Message)
 	go func() {
-		for msg := range watch.C {
-			received <- msg
+		for {
+			select {
+			case msg := <-watch.C:
+				received <- msg
+			}
 		}
 	}()
 

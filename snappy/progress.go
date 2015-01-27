@@ -7,8 +7,8 @@ import (
 )
 
 type ProgressMeter interface {
-	Start(total int64)
-	Increment()
+	Start(total float64)
+	Set(current float64)
 	Finished()
 
 	// interface for writer
@@ -27,14 +27,14 @@ func NewTextProgress(pkg string) *TextProgress {
 	return &t
 }
 
-func (t *TextProgress) Start(total int64) {
+func (t *TextProgress) Start(total float64) {
 	fmt.Println("Starting download of", t.pkg)
-	t.pbar.Total = total
+	t.pbar.Total = int64(total)
 	t.pbar.Start()
 }
 
-func (t *TextProgress) Increment() {
-	t.pbar.Increment()
+func (t *TextProgress) Set(current float64) {
+	t.pbar.Set(int(current))
 }
 
 func (t *TextProgress) Finished() {
