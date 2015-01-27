@@ -11,14 +11,19 @@ type ProgressMeter interface {
 	Set(current float64)
 	Finished()
 
+	// FIXME: better name?
+	// Show progress via a spinner
+	Spin(msg string)
+
 	// interface for writer
 	Write(p []byte) (n int, err error)
 }
 
 type TextProgress struct {
 	ProgressMeter
-	pbar *pb.ProgressBar
-	pkg  string
+	pbar     *pb.ProgressBar
+	pkg      string
+	spinStep int
 }
 
 func NewTextProgress(pkg string) *TextProgress {
@@ -43,4 +48,13 @@ func (t *TextProgress) Finished() {
 
 func (t *TextProgress) Write(p []byte) (n int, err error) {
 	return t.pbar.Write(p)
+}
+
+func (t *TextProgress) Spin(msg string) {
+	states := `|/-\`
+	fmt.Printf("\r%s[%c]", msg, states[t.spinStep])
+	t.spinStep++
+	if t.spinStep >= len(states) {
+		t.spinStep = 0
+	}
 }

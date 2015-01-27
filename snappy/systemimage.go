@@ -105,7 +105,11 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 				case msg := <-updateProgressCh:
 					err := msg.Args(&percent, &eta)
 					if err == nil {
-						pb.Set(float64(percent))
+						if percent >= 0 {
+							pb.Set(float64(percent))
+						} else {
+							pb.Spin("Applying")
+						}
 					}
 				case <-quitCh:
 					break
