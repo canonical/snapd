@@ -3,6 +3,7 @@ package snappy
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -10,6 +11,11 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v1"
+)
+
+var (
+	needRootError = errors.New("This command requires root access. " +
+		"Please re-run using 'sudo'.")
 )
 
 func unpackTar(archive string, target string) error {
