@@ -121,6 +121,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 						}
 					}
 				case <-quitCh:
+					pb.Finished()
 					break
 				}
 			}
@@ -143,7 +144,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	err = s.partition.UpdateBootloader()
 
 	if pb != nil {
-		pb.Finished()
+		quitCh <- 1
 	}
 	return err
 }
