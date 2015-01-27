@@ -33,6 +33,9 @@ const (
 
 	// location of the channel config on the filesystem
 	systemImageChannelConfig = "/etc/system-image/channel.ini"
+
+	// the location for the ReloadConfig
+	systemImageClientConfig = "/etc/system-image/client.ini"
 )
 
 type SystemImagePart struct {
@@ -311,7 +314,7 @@ func (s *systemImageDBusProxy) ReloadConfiguration(reset bool) (err error) {
 	// so once the D-Bus call completes, it no longer cares
 	// about configFile.
 	return s.partition.RunWithOther(func(otherRoot string) (err error) {
-		configFile := otherRoot + systemImageChannelConfig
+		configFile := otherRoot + systemImageClientConfig
 		// FIXME: replace with FileExists() call once it's in a utility
 		// package.
 		_, err = os.Stat(configFile)
