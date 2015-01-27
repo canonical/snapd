@@ -15,6 +15,7 @@ func (ts *ProgressTestSuite) TestSpin(c *C) {
 	f, err := ioutil.TempFile("", "progress-")
 	c.Assert(err, IsNil)
 	defer os.Remove(f.Name())
+	oldStdout := os.Stdout
 	os.Stdout = f
 
 	t := NewTextProgress("no-pkg")
@@ -22,6 +23,7 @@ func (ts *ProgressTestSuite) TestSpin(c *C) {
 		t.Spin("m")
 	}
 
+	os.Stdout = oldStdout
 	f.Sync()
 	f.Seek(0, 0)
 	progress, err := ioutil.ReadAll(f)
