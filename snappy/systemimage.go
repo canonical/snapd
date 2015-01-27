@@ -505,17 +505,15 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 	if _, err = s.proxy.CheckForUpdate(); err != nil {
 		return parts, err
 	}
-	info, err := s.proxy.Information()
-	if err != nil {
-		return parts, err
-	}
-	if VersionCompare(info["current_build_number"], info["target_build_number"]) < 0 {
-		version := info["target_build_number"]
+	current := s.getCurrentPart()
+	current_version := current.Version()
+	target_version := s.proxy.us.available_version
+	if VersionCompare(current_version, target_version) < 0 {
 		parts = append(parts, &SystemImagePart{
 			proxy:          s.proxy,
-			version:        version,
-			versionDetails: info["version_details"],
-			channelName:    info["channel_name"],
+			version:        target_version,
+			versionDetails: "?",
+			channelName:    current.(*SystemImagePart).channelName,
 			partition:      s.partition})
 	}
 
