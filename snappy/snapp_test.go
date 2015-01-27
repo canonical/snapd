@@ -108,7 +108,7 @@ func (s *SnappTestSuite) TestLocalSnappRepositorySimple(c *C) {
 	snapp := NewLocalSnappRepository(path.Join(s.tempdir, "apps"))
 	c.Assert(snapp, NotNil)
 
-	installed, err := snapp.GetInstalled()
+	installed, err := snapp.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(len(installed), Equals, 1)
 	c.Assert(installed[0].Name(), Equals, "hello-app")
@@ -159,16 +159,16 @@ curl --data-binary '{"name":["docker","foo","com.ubuntu.snappy.hello-world","htt
 const MockUpdatesJson = `
 [
     {
-        "status": "Published", 
-        "name": "hello-world", 
-        "changelog": "", 
-        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/01/hello.svg.png", 
-        "title": "Hello world example", 
-        "binary_filesize": 31166, 
-        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/com.ubuntu.snappy/hello-world/hello-world_1.0.5_all.snap", 
-        "allow_unauthenticated": true, 
-        "version": "1.0.5", 
-        "download_url": "https://public.apps.ubuntu.com/download/com.ubuntu.snappy/hello-world/hello-world_1.0.5_all.snap", 
+        "status": "Published",
+        "name": "hello-world",
+        "changelog": "",
+        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/01/hello.svg.png",
+        "title": "Hello world example",
+        "binary_filesize": 31166,
+        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/com.ubuntu.snappy/hello-world/hello-world_1.0.5_all.snap",
+        "allow_unauthenticated": true,
+        "version": "1.0.5",
+        "download_url": "https://public.apps.ubuntu.com/download/com.ubuntu.snappy/hello-world/hello-world_1.0.5_all.snap",
         "download_sha512": "3e8b192e18907d8195c2e380edd048870eda4f6dbcba8f65e4625d6efac3c37d11d607147568ade6f002b6baa30762c6da02e7ee462de7c56301ddbdc10d87f6"
     }
 ]
@@ -270,17 +270,17 @@ func (s *SnappTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Assert(results[0].Description(), Equals, "Show random XKCD comic")
 }
 
-func mockGetInstalledSnappNamesByType(mockSnapps []string) (mockRestorer func()) {
-	origFunc := GetInstalledSnappNamesByType
-	GetInstalledSnappNamesByType = func(snappType string) (res []string, err error) {
+func mockInstalledSnappNamesByType(mockSnapps []string) (mockRestorer func()) {
+	origFunc := InstalledSnappNamesByType
+	InstalledSnappNamesByType = func(snappType string) (res []string, err error) {
 		return mockSnapps, nil
 	}
 	return func() {
-		GetInstalledSnappNamesByType = origFunc
+		InstalledSnappNamesByType = origFunc
 	}
 }
 
-func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdates(c *C) {
+func (s *SnappTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json_req, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
@@ -295,20 +295,20 @@ func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdates(c *C) {
 	c.Assert(snapp, NotNil)
 	snapp.bulkUri = mockServer.URL + "/updates/"
 
-	// override the real GetInstalledSnappNamesByType to return our
+	// override the real InstalledSnappNamesByType to return our
 	// mock data
-	mockRestorer := mockGetInstalledSnappNamesByType([]string{"hello-world"})
+	mockRestorer := mockInstalledSnappNamesByType([]string{"hello-world"})
 	defer mockRestorer()
 
 	// the actual test
-	results, err := snapp.GetUpdates()
+	results, err := snapp.Updates()
 	c.Assert(err, IsNil)
 	c.Assert(len(results), Equals, 1)
 	c.Assert(results[0].Name(), Equals, "hello-world")
 	c.Assert(results[0].Version(), Equals, "1.0.5")
 }
 
-func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdatesNoSnapps(c *C) {
+func (s *SnappTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnapps(c *C) {
 
 	snapp := NewUbuntuStoreSnappRepository()
 	c.Assert(snapp, NotNil)
@@ -316,16 +316,16 @@ func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdatesNoSnapps(c *C) {
 	// ensure we do not hit the net if there is nothing installed
 	// (otherwise the store will send us all snapps)
 	snapp.bulkUri = "http://i-do.not-exist.really-not"
-	mockRestorer := mockGetInstalledSnappNamesByType([]string{})
+	mockRestorer := mockInstalledSnappNamesByType([]string{})
 	defer mockRestorer()
 
 	// the actual test
-	results, err := snapp.GetUpdates()
+	results, err := snapp.Updates()
 	c.Assert(err, IsNil)
 	c.Assert(len(results), Equals, 0)
 }
 
-func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetDetails(c *C) {
+func (s *SnappTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Assert(strings.HasSuffix(r.URL.String(), "xkcd-webserver"), Equals, true)
 		io.WriteString(w, MockDetailsJson)

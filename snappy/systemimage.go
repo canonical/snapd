@@ -416,7 +416,7 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 		partition:      s.partition}, err
 }
 
-func (s *SystemImageRepository) getCurrentPart() Part {
+func (s *SystemImageRepository) CurrentPart() Part {
 	configFile := s.myroot + systemImageChannelConfig
 	part, err := s.makePartFromSystemImageConfigFile(configFile, true)
 	if err != nil {
@@ -426,7 +426,7 @@ func (s *SystemImageRepository) getCurrentPart() Part {
 }
 
 // Returns the part associated with the other rootfs (if any)
-func (s *SystemImageRepository) getOtherPart() Part {
+func (s *SystemImageRepository) OtherPart() Part {
 	var part Part
 	s.partition.RunWithOther(func(otherRoot string) (err error) {
 		configFile := s.myroot + otherRoot + systemImageChannelConfig
@@ -442,7 +442,7 @@ func (s *SystemImageRepository) getOtherPart() Part {
 func (s *SystemImageRepository) Search(terms string) (versions []Part, err error) {
 	if strings.Contains(terms, systemImagePartName) {
 		s.proxy.Information()
-		part := s.getCurrentPart()
+		part := s.CurrentPart()
 		versions = append(versions, part)
 	}
 	return versions, err
@@ -451,14 +451,13 @@ func (s *SystemImageRepository) Search(terms string) (versions []Part, err error
 func (s *SystemImageRepository) Details(snappName string) (versions []Part, err error) {
 	if snappName == systemImagePartName {
 		s.proxy.Information()
-		part := s.getCurrentPart()
+		part := s.CurrentPart()
 		versions = append(versions, part)
 	}
 	return versions, err
 }
 
-func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
-
+func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 	if _, err = s.proxy.CheckForUpdate(); err != nil {
 		return parts, err
 	}
@@ -479,15 +478,15 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 	return parts, err
 }
 
-func (s *SystemImageRepository) GetInstalled() (parts []Part, err error) {
+func (s *SystemImageRepository) Installed() (parts []Part, err error) {
 	// current partition
-	curr := s.getCurrentPart()
+	curr := s.CurrentPart()
 	if curr != nil {
 		parts = append(parts, curr)
 	}
 
 	// other partition
-	other := s.getOtherPart()
+	other := s.OtherPart()
 	if other != nil {
 		parts = append(parts, other)
 	}

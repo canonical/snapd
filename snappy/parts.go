@@ -42,8 +42,8 @@ type Repository interface {
 	Search(terms string) ([]Part, error)
 	Details(snappName string) ([]Part, error)
 
-	GetUpdates() ([]Part, error)
-	GetInstalled() ([]Part, error)
+	Updates() ([]Part, error)
+	Installed() ([]Part, error)
 }
 
 type MetaRepository struct {
@@ -70,9 +70,9 @@ func NewMetaRepository() *MetaRepository {
 	return m
 }
 
-func (m *MetaRepository) GetInstalled() (parts []Part, err error) {
+func (m *MetaRepository) Installed() (parts []Part, err error) {
 	for _, r := range m.all {
-		installed, err := r.GetInstalled()
+		installed, err := r.Installed()
 		if err != nil {
 			return parts, err
 		}
@@ -82,9 +82,9 @@ func (m *MetaRepository) GetInstalled() (parts []Part, err error) {
 	return parts, err
 }
 
-func (m *MetaRepository) GetUpdates() (parts []Part, err error) {
+func (m *MetaRepository) Updates() (parts []Part, err error) {
 	for _, r := range m.all {
-		updates, err := r.GetUpdates()
+		updates, err := r.Updates()
 		if err != nil {
 			return parts, err
 		}
@@ -118,9 +118,9 @@ func (m *MetaRepository) Details(snappyName string) (parts []Part, err error) {
 	return parts, err
 }
 
-func GetInstalledSnappsByType(searchExp string) (res []Part, err error) {
+func InstalledSnappsByType(searchExp string) (res []Part, err error) {
 	m := NewMetaRepository()
-	installed, err := m.GetInstalled()
+	installed, err := m.Installed()
 	if err != nil {
 		return res, err
 	}
@@ -138,17 +138,17 @@ func GetInstalledSnappsByType(searchExp string) (res []Part, err error) {
 	return
 }
 
-var GetInstalledSnappNamesByType = func(snappType string) (res []string, err error) {
-	installed, err := GetInstalledSnappsByType(snappType)
+var InstalledSnappNamesByType = func(snappType string) (res []string, err error) {
+	installed, err := InstalledSnappsByType(snappType)
 	for _, part := range installed {
 		res = append(res, part.Name())
 	}
 	return
 }
 
-func GetInstalledSnappByName(needle string) Part {
+func InstalledSnappByName(needle string) Part {
 	m := NewMetaRepository()
-	installed, err := m.GetInstalled()
+	installed, err := m.Installed()
 	if err != nil {
 		return nil
 	}
