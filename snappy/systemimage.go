@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"runtime"
 	"strings"
 	"time"
@@ -358,7 +359,7 @@ func (s *systemImageDBusProxy) ReloadConfiguration(reset bool) (err error) {
 	// so once the D-Bus call completes, it no longer cares
 	// about configFile.
 	return s.partition.RunWithOther(func(otherRoot string) (err error) {
-		configFile := otherRoot + systemImageClientConfig
+		configFile := path.Join(otherRoot, systemImageClientConfig)
 		// FIXME: replace with FileExists() call once it's in a utility
 		// package.
 		_, err = os.Stat(configFile)
@@ -456,7 +457,7 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 }
 
 func (s *SystemImageRepository) getCurrentPart() Part {
-	configFile := s.myroot + systemImageChannelConfig
+	configFile := path.Join(s.myroot, systemImageChannelConfig)
 	part, err := s.makePartFromSystemImageConfigFile(configFile, true)
 	if err != nil {
 		log.Printf("Can not make system-image part for %s: %s", configFile, err)
@@ -468,7 +469,7 @@ func (s *SystemImageRepository) getCurrentPart() Part {
 func (s *SystemImageRepository) getOtherPart() Part {
 	var part Part
 	s.partition.RunWithOther(func(otherRoot string) (err error) {
-		configFile := s.myroot + otherRoot + systemImageChannelConfig
+		configFile := path.Join(s.myroot, otherRoot, systemImageChannelConfig)
 		part, err = s.makePartFromSystemImageConfigFile(configFile, false)
 		if err != nil {
 			log.Printf("Can not make system-image part for %s: %s", configFile, err)

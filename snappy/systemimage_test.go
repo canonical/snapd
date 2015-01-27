@@ -109,10 +109,11 @@ type MockSystemImage struct {
 	service   *DBusService
 	partition *partition.Partition
 
-	info map[string]string
+	fakeAvailableVersion string
+	info                 map[string]string
 }
 
-func NewMockSystemImage() *MockSystemImage {
+func newMockSystemImage() *MockSystemImage {
 	msi := new(MockSystemImage)
 	msi.info = make(map[string]string)
 
@@ -140,9 +141,9 @@ func (m *MockSystemImage) CheckForUpdate() error {
 	//        again instead
 	var size int32 = 1234
 	sig.AppendArgs(
-		true,               // is_available
-		false,              // downloading
-		"3.14",             // available_version
+		true,  // is_available
+		false, // downloading
+		m.fakeAvailableVersion, // available_version
 		size,               // update_size
 		"late_update_date", // laste update date
 		"")                 // error_reason
@@ -206,7 +207,7 @@ func (s *SITestSuite) SetUpTest(c *C) {
 	s.conn, err = dbus.Connect(dbus.SessionBus)
 	c.Assert(err, IsNil)
 
-	s.mockSystemImage = NewMockSystemImage()
+	s.mockSystemImage = newMockSystemImage()
 	s.mockService = NewDBusService(s.conn, systemImageInterface, systemImageObjectPath, systemImageBusName, s.mockSystemImage)
 	c.Assert(s.mockService, NotNil)
 
@@ -216,9 +217,9 @@ func (s *SITestSuite) SetUpTest(c *C) {
 	tmpdir, err := ioutil.TempDir("", "si-root-")
 	c.Assert(err, IsNil)
 	s.systemImage.myroot = tmpdir
-	makeFakeSystemImageChannelConfig(c, tmpdir+systemImageChannelConfig, "2.71")
+	makeFakeSystemImageChannelConfig(c, path.Join(tmpdir, systemImageChannelConfig), "2.71")
 	// setup fake /other partition
-	makeFakeSystemImageChannelConfig(c, tmpdir+"/other/"+systemImageChannelConfig, "3.14")
+	makeFakeSystemImageChannelConfig(c, path.Join(tmpdir, "other", systemImageChannelConfig), "3.14")
 
 	s.tmpdir = tmpdir
 }
@@ -228,8 +229,8 @@ func (s *SITestSuite) TearDownTests(c *C) {
 }
 
 func makeFakeSystemImageChannelConfig(c *C, cfgPath, buildNumber string) {
-	os.MkdirAll(path.Dir(cfgPath), 0777)
-	f, err := os.OpenFile(cfgPath, os.O_CREATE|os.O_RDWR, 0666)
+	os.MkdirAll(path.Dir(cfgPath), 0775)
+	f, err := os.OpenFile(cfgPath, os.O_CREATE|os.O_RDWR, 0664)
 	c.Assert(err, IsNil)
 	defer f.Close()
 	f.Write([]byte(fmt.Sprintf(`
@@ -277,6 +278,7 @@ func (s *SITestSuite) TestTestInstalled(c *C) {
 }
 
 func (s *SITestSuite) TestGetUpdateNoUpdate(c *C) {
+	s.mockSystemImage.fakeAvailableVersion = "2.71"
 	parts, err := s.systemImage.GetUpdates()
 	c.Assert(err, IsNil)
 	c.Assert(len(parts), Equals, 0)
@@ -284,7 +286,7 @@ func (s *SITestSuite) TestGetUpdateNoUpdate(c *C) {
 
 func (s *SITestSuite) TestGetUpdateHasUpdate(c *C) {
 	// add a update
-	s.mockSystemImage.info["target_build_number"] = "3.14"
+	s.mockSystemImage.fakeAvailableVersion = "3.14"
 	parts, err := s.systemImage.GetUpdates()
 	c.Assert(err, IsNil)
 	c.Assert(len(parts), Equals, 1)
@@ -344,7 +346,7 @@ func (m *MockProgressMeter) Finished() {
 
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	// add a update
-	s.mockSystemImage.info["target_build_number"] = "3.14"
+	s.mockSystemImage.fakeAvailableVersion = "3.14"
 	parts, err := s.systemImage.GetUpdates()
 
 	sp := parts[0].(*SystemImagePart)
@@ -362,7 +364,7 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 
 func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 	// add a update
-	s.mockSystemImage.info["target_build_number"] = "3.14"
+	s.mockSystemImage.fakeAvailableVersion = "3.14"
 	parts, err := s.systemImage.GetUpdates()
 
 	sp := parts[0].(*SystemImagePart)
