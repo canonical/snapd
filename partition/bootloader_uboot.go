@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -42,11 +43,9 @@ type ConfigFileChange struct {
 func NewUboot(partition *Partition) *Uboot {
 	u := Uboot{BootLoaderType: NewBootLoader(partition)}
 
-	u.currentBootPath = fmt.Sprintf("%s/%s",
-		BOOTLOADER_UBOOT_DIR, u.currentRootfs)
+	u.currentBootPath = path.Join(BOOTLOADER_UBOOT_DIR, u.currentRootfs)
 
-	u.otherBootPath = fmt.Sprintf("%s/%s",
-		BOOTLOADER_UBOOT_DIR, u.otherRootfs)
+	u.otherBootPath = path.Join(BOOTLOADER_UBOOT_DIR, u.otherRootfs)
 
 	return &u
 }
@@ -327,7 +326,7 @@ func (u *Uboot) HandleAssets() (err error) {
 		}
 
 		// expand path
-		path := fmt.Sprintf("%s/%s", u.partition.cacheDir(), file)
+		path := path.Join(u.partition.cacheDir(), file)
 
 		if !fileExists(path) {
 			continue
@@ -344,14 +343,14 @@ func (u *Uboot) HandleAssets() (err error) {
 
 	// install .dtb files
 	if fileExists(hardware.DtbDir) {
-		dtbDestDir := fmt.Sprintf("%s/dtbs", destDir)
+		dtbDestDir := path.Join(destDir, "dtbs")
 
 		err = os.MkdirAll(dtbDestDir, DIR_MODE)
 		if err != nil {
 			return err
 		}
 
-		files, err := filepath.Glob(fmt.Sprintf("%s/*", hardware.DtbDir))
+		files, err := filepath.Glob(path.Join(hardware.DtbDir, "*"))
 		if err != nil {
 			return err
 		}

@@ -406,7 +406,7 @@ func New() *Partition {
 	p := new(Partition)
 
 	p.getPartitionDetails()
-	p.hardwareSpecFile = fmt.Sprint("%s/%s", p.cacheDir(), HARDWARE_SPEC_FILE)
+	p.hardwareSpecFile = path.Join(p.cacheDir(), HARDWARE_SPEC_FILE)
 
 	return p
 }
@@ -523,12 +523,12 @@ func (p *Partition) hardwareSpec() (hardware hardwareSpecType, err error) {
 
 // Return full path to the main assets directory
 func (p *Partition) assetsDir() string {
-	return fmt.Sprintf("%s/%s", p.cacheDir(), ASSETS_DIR)
+	return path.Join(p.cacheDir(), ASSETS_DIR)
 }
 
 // Return the full path to the hardware-specific flash assets directory.
 func (p *Partition) flashAssetsDir() string {
-	return fmt.Sprintf("%s/%s", p.cacheDir(), FLASH_ASSETS_DIR)
+	return path.Join(p.cacheDir(), FLASH_ASSETS_DIR)
 }
 
 // Get the full path to the mount target directory
@@ -679,9 +679,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 		return nil
 	}
 
-	target := path.Clean(fmt.Sprintf("%s/%s",
-		p.MountTarget,
-		boot.mountpoint))
+	target := path.Join(p.MountTarget, boot.mountpoint)
 	err = bindmount(boot.mountpoint, target)
 	if err != nil {
 		return err
