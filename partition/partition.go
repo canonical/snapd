@@ -392,7 +392,7 @@ func (p *Partition) makeMountPoint(readOnlyMount bool) (err error) {
 		// So in read-only mode, use a temporary mountpoint name to
 		// avoid colliding with a running system update.
 		p.MountTarget = fmt.Sprintf("%s-ro-%d",
-			p.MountTarget,
+			p.getMountTarget(),
 			os.Getpid())
 	} else {
 		p.MountTarget = p.getMountTarget()
