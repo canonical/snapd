@@ -379,6 +379,7 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 	if err = s.ReloadConfiguration(false); err != nil {
 		return us, err
 	}
+	// FIXME: we can not switch back or DownloadUpdate is unhappy
 
 	callName := "CheckForUpdate"
 	_, err = s.proxy.Call(systemImageBusName, callName)
@@ -401,12 +402,6 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 				"timed out after %d seconds "+
 				"waiting for system image server to respond",
 			systemImageTimeoutSecs))
-	}
-
-	// switch back to using the current rootfs's system-image
-	// configuration.
-	if err = s.ReloadConfiguration(true); err != nil {
-		return us, err
 	}
 
 	return s.us, err
