@@ -3,14 +3,22 @@ package snappy
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"gopkg.in/yaml.v1"
 )
+
+var (
+	needRootError = errors.New("This command requires root access. " +
+		"Please re-run using 'sudo'.")
+)
+
+var goarch = runtime.GOARCH
 
 func unpackTar(archive string, target string) error {
 
@@ -72,9 +80,18 @@ func getMapFromYaml(data []byte) (map[string]interface{}, error) {
 	return m, nil
 }
 
+// Architecture returns the debian equivalent architecture for the
+// currently running architecture.
+//
+// If the architecture does not map any debian architecture, the
+// GOARCH is returned.
 func Architecture() string {
-	// FIXME: we want to move away from dpkg
-	cmd := exec.Command("dpkg", "--print-architecture")
-	output, _ := cmd.CombinedOutput()
-	return strings.TrimSpace(string(output))
+	switch goarch {
+	case "386":
+		return "i386"
+	case "arm":
+		return "armhf"
+	default:
+		return goarch
+	}
 }

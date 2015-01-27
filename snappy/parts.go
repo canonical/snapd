@@ -72,7 +72,10 @@ func NewMetaRepository() *MetaRepository {
 
 func (m *MetaRepository) GetInstalled() (parts []Part, err error) {
 	for _, r := range m.all {
-		installed, _ := r.GetInstalled()
+		installed, err := r.GetInstalled()
+		if err != nil {
+			return parts, err
+		}
 		parts = append(parts, installed...)
 	}
 
@@ -81,7 +84,10 @@ func (m *MetaRepository) GetInstalled() (parts []Part, err error) {
 
 func (m *MetaRepository) GetUpdates() (parts []Part, err error) {
 	for _, r := range m.all {
-		updates, _ := r.GetUpdates()
+		updates, err := r.GetUpdates()
+		if err != nil {
+			return parts, err
+		}
 		parts = append(parts, updates...)
 	}
 

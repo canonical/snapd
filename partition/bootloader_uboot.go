@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -42,11 +43,9 @@ type ConfigFileChange struct {
 func NewUboot(partition *Partition) *Uboot {
 	u := Uboot{BootLoaderType: NewBootLoader(partition)}
 
-	u.currentBootPath = fmt.Sprintf("%s/%s",
-		BOOTLOADER_UBOOT_DIR, u.currentRootfs)
+	u.currentBootPath = path.Join(BOOTLOADER_UBOOT_DIR, u.currentRootfs)
 
-	u.otherBootPath = fmt.Sprintf("%s/%s",
-		BOOTLOADER_UBOOT_DIR, u.otherRootfs)
+	u.otherBootPath = path.Join(BOOTLOADER_UBOOT_DIR, u.otherRootfs)
 
 	return &u
 }
@@ -58,13 +57,7 @@ func (u *Uboot) Name() string {
 
 func (u *Uboot) Installed() bool {
 	// crude heuristic
-	err := FileExists(BOOTLOADER_UBOOT_CONFIG_FILE)
-
-	if err == nil {
-		return true
-	}
-
-	return false
+	return fileExists(BOOTLOADER_UBOOT_CONFIG_FILE)
 }
 
 // Make the U-Boot bootloader switch rootfs's.
@@ -269,7 +262,7 @@ func (u *Uboot) SyncBootFiles() (err error) {
 	// always start from scratch: all files here are owned by us.
 	os.RemoveAll(destDir)
 
-	return RunCommand([]string{"/bin/cp", "-a", srcDir, destDir})
+	return runCommand("/bin/cp", "-a", srcDir, destDir)
 }
 
 func (u *Uboot) HandleAssets() (err error) {
@@ -296,12 +289,6 @@ func (u *Uboot) HandleAssets() (err error) {
 		}
 	}()
 
-	hardwareSpecFile := u.partition.hardwareSpecFile()
-
-	if err = FileExists(hardwareSpecFile); err != nil {
-		return err
-	}
-
 	hardware, err := u.partition.hardwareSpec()
 	if err != nil {
 		return err
@@ -318,7 +305,7 @@ func (u *Uboot) HandleAssets() (err error) {
 	// validate
 	switch hardware.PartitionLayout {
 	case "system-AB":
-		if u.partition.DualRootPartitions() != true {
+		if u.partition.dualRootPartitions() != true {
 			panic(fmt.Sprintf(
 				"ERROR: hardware spec requires dual root partitions"))
 		}
@@ -339,37 +326,37 @@ func (u *Uboot) HandleAssets() (err error) {
 		}
 
 		// expand path
-		path := fmt.Sprintf("%s/%s", u.partition.cacheDir(), file)
+		path := path.Join(u.partition.cacheDir(), file)
 
-		if err = FileExists(path); err != nil {
+		if !fileExists(path) {
 			continue
 		}
 
 		dir := filepath.Dir(path)
 		dirsToRemove[dir] = 1
 
-		err = RunCommand([]string{"/bin/cp", file, destDir})
+		err = runCommand("/bin/cp", file, destDir)
 		if err != nil {
 			return err
 		}
 	}
 
 	// install .dtb files
-	if err = FileExists(hardware.DtbDir); err == nil {
-		dtbDestDir := fmt.Sprintf("%s/dtbs", destDir)
+	if fileExists(hardware.DtbDir) {
+		dtbDestDir := path.Join(destDir, "dtbs")
 
 		err = os.MkdirAll(dtbDestDir, DIR_MODE)
 		if err != nil {
 			return err
 		}
 
-		files, err := filepath.Glob(fmt.Sprintf("%s/*", hardware.DtbDir))
+		files, err := filepath.Glob(path.Join(hardware.DtbDir, "*"))
 		if err != nil {
 			return err
 		}
 
 		for _, file := range files {
-			err = RunCommand([]string{"/bin/cp", file, dtbDestDir})
+			err = runCommand("/bin/cp", file, dtbDestDir)
 			if err != nil {
 				return err
 			}
@@ -378,7 +365,7 @@ func (u *Uboot) HandleAssets() (err error) {
 
 	flashAssetsDir := u.partition.flashAssetsDir()
 
-	if err = FileExists(flashAssetsDir); err == nil {
+	if fileExists(flashAssetsDir) {
 		// FIXME: we don't currently do anything with the
 		// MLO + uImage files since they are not specified in
 		// the hardware spec. So for now, just remove them.

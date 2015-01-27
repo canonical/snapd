@@ -9,6 +9,8 @@ import (
 	"path"
 	"strings"
 
+	partition "launchpad.net/snappy/partition"
+
 	. "gopkg.in/check.v1"
 )
 
@@ -34,6 +36,9 @@ func (s *SnappTestSuite) SetUpTest(c *C) {
 	s.tempdir, err = ioutil.TempDir("", "snapp-test-")
 	if err != nil {
 		panic("Can not create temp dir")
+	}
+	newPartition = func() (p partition.PartitionInterface) {
+		return new(MockPartition)
 	}
 }
 
