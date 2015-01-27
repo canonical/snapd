@@ -87,13 +87,7 @@ func (g *Grub) ToggleRootFS() (err error) {
 }
 
 func (g *Grub) GetAllBootVars() (vars []string, err error) {
-	var args []string
-
-	args = append(args, bootloaderGrubEnvCmd)
-	args = append(args, bootloaderGrubEnvFile)
-	args = append(args, "list")
-
-	return runCommandWithStdout(args)
+	return runCommandWithStdout(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "list")
 }
 
 func (g *Grub) GetBootVar(name string) (value string, err error) {
@@ -122,35 +116,21 @@ func (g *Grub) GetBootVar(name string) (value string, err error) {
 }
 
 func (g *Grub) SetBootVar(name, value string) (err error) {
-	var args []string
-
-	args = append(args, bootloaderGrubEnvCmd)
-	args = append(args, bootloaderGrubEnvFile)
-	args = append(args, "set")
-
-	// XXX: note that strings are not quoted since because
+	// note that strings are not quoted since because
 	// RunCommand() does not use a shell and thus adding quotes
 	// stores them in the environment file (which is not desirable)
-	args = append(args, fmt.Sprintf("%s=%s", name, value))
-
-	return runCommand(args)
+	arg := fmt.Sprintf("%s=%s", name, value)
+	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", arg)
 }
 
 // FIXME: not atomic - need locking around snappy command!
 func (g *Grub) ClearBootVar(name string) (currentValue string, err error) {
-	var args []string
-
 	currentValue, err = g.GetBootVar(name)
 	if err != nil {
 		return currentValue, err
 	}
 
-	args = append(args, bootloaderGrubEnvCmd)
-	args = append(args, bootloaderGrubEnvFile)
-	args = append(args, "unset")
-	args = append(args, name)
-
-	return currentValue, runCommand(args)
+	return currentValue, runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "unset", name)
 }
 
 func (g *Grub) GetNextBootRootFSName() (label string, err error) {

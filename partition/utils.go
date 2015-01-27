@@ -26,7 +26,7 @@ func isDirectory(path string) bool {
 
 // FIXME: would it make sense to differenciate between launch errors and
 //        exit code? (i.e. something like (returnCode, error) ?)
-func runCommandImpl(args []string) (err error) {
+func runCommandImpl(args ...string) (err error) {
 	if len(args) == 0 {
 		return errors.New("ERROR: no command specified")
 	}
@@ -55,7 +55,10 @@ var runCommand = runCommandImpl
 
 // Run command specified by args and return array of output lines.
 // FIXME: would it make sense to make this a vararg (args...) ?
-func runCommandWithStdout(args []string) (output []string, err error) {
+func runCommandWithStdout(args ...string) (output []string, err error) {
+	if len(args) == 0 {
+		return []string{}, errors.New("ERROR: no command specified")
+	}
 
 	// FIXME: use logger
 	/*

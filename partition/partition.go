@@ -237,7 +237,6 @@ func mount(source, target, options string) (err error) {
 	var args []string
 
 	args = append(args, "/bin/mount")
-
 	if options != "" {
 		args = append(args, fmt.Sprintf("-o%s", options))
 	}
@@ -245,7 +244,7 @@ func mount(source, target, options string) (err error) {
 	args = append(args, source)
 	args = append(args, target)
 
-	err = runCommand(args)
+	err = runCommand(args...)
 
 	if err == nil {
 		mounts = append(mounts, target)
@@ -267,7 +266,7 @@ func stringSliceRemove(slice []string, needle string) (res []string) {
 //         "UmountAndRemoveFromMountList" to indicate it has side-effects?
 // Unmount the given directory and remove it from the global "mounts" slice
 func unmount(target string) (err error) {
-	err = runCommand([]string{"/bin/umount", target})
+	err = runCommand("/bin/umount", target)
 	if err == nil {
 		mounts = stringSliceRemove(mounts, target)
 	}
@@ -287,10 +286,10 @@ func bindmount(source, target string) (err error) {
 
 // Run fsck(8) on specified device.
 func fsck(device string) (err error) {
-	args := []string{"/sbin/fsck",
+	return runCommand(
+		"/sbin/fsck",
 		"-M", // Paranoia - don't fsck if already mounted
-		"-av", device}
-	return runCommand(args)
+		"-av", device)
 }
 
 // Returns the position of the string in the given slice or -1 if its not found
@@ -305,11 +304,11 @@ func stringInSlice(slice []string, value string) int {
 }
 
 var runLsblk = func() (output []string, err error) {
-	args := []string{"/bin/lsblk",
+	return runCommandWithStdout(
+		"/bin/lsblk",
 		"--ascii",
 		"--output=NAME,LABEL,PKNAME,MOUNTPOINT",
-		"--pairs"}
-	return runCommandWithStdout(args)
+		"--pairs")
 }
 
 // Determine details of the recognised disk partitions
@@ -752,5 +751,5 @@ func (p *Partition) runInChroot(args []string) (err error) {
 	fullArgs := []string{"/usr/sbin/chroot", p.MountTarget}
 	fullArgs = append(fullArgs, args...)
 
-	return runCommand(fullArgs)
+	return runCommand(fullArgs...)
 }

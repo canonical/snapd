@@ -130,7 +130,7 @@ func (s *PartitionTestSuite) TestSnappySingleRoot(c *C) {
 	c.Assert(&rootPartitions[0], DeepEquals, root)
 }
 
-func mockRunCommand(args []string) (err error) {
+func mockRunCommand(args ...string) (err error) {
 	return err
 }
 
