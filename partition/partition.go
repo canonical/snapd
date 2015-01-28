@@ -653,7 +653,7 @@ func (p *Partition) ensureOtherMountedRO() (err error) {
 
 // Remount the already-mounted other partition. Whether the mount
 // should become writable is specified by the writable argument.
-
+//
 // XXX: Note that in the case where writable=true, this isn't a simple
 // toggle - if the partition is already mounted read-only, it needs to
 // be unmounted, fsck(8)'d, then (re-)mounted read-write.
