@@ -543,9 +543,13 @@ func (p *Partition) getPartitionDetails() (err error) {
 		return PartitionDetectionError
 	}
 
-	// XXX: this will soon be handled automatically at boot by
-	// initramfs-tools-ubuntu-core.
-	return p.ensureOtherMountedRO()
+	if p.dualRootPartitions() {
+		// XXX: this will soon be handled automatically at boot by
+		// initramfs-tools-ubuntu-core.
+		return p.ensureOtherMountedRO()
+	}
+
+	return err
 }
 
 // Return array of blockDevices representing available root partitions
