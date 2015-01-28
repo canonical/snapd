@@ -130,9 +130,6 @@ type Partition struct {
 	// just root partitions
 	roots []string
 
-	// FIXME: could we make that part of "Mount*" instead
-	MountTarget string
-
 	hardwareSpecFile string
 }
 
@@ -392,13 +389,12 @@ func loadPartitionDetails() (partitions []blockDevice, err error) {
 
 func (p *Partition) makeMountPoint() (err error) {
 
-	return os.MkdirAll(p.MountTarget, DIR_MODE)
+	return os.MkdirAll(p.MountTarget(), DIR_MODE)
 }
 
 // Constructor
 func New() *Partition {
 	p := new(Partition)
-	p.MountTarget = p.getMountTarget()
 
 	p.getPartitionDetails()
 	p.hardwareSpecFile = path.Join(p.cacheDir(), HARDWARE_SPEC_FILE)
@@ -426,7 +422,7 @@ func (p *Partition) RunWithOther(writable bool, f func(otherRoot string) (err er
 		}()
 	}
 
-	return f(p.MountTarget)
+	return f(p.MountTarget())
 }
 
 func (p *Partition) SyncBootloaderFiles() (err error) {
@@ -529,7 +525,7 @@ func (p *Partition) flashAssetsDir() string {
 }
 
 // Get the full path to the mount target directory
-func (p *Partition) getMountTarget() string {
+func (p *Partition) MountTarget() string {
 	return path.Join(p.cacheDir(), MOUNT_TARGET)
 }
 
@@ -631,13 +627,13 @@ func (p *Partition) mountOtherRootfs(readOnly bool) (err error) {
 	other = p.otherRootPartition()
 
 	if readOnly == true {
-		err = mount(other.device, p.MountTarget, "ro")
+		err = mount(other.device, p.MountTarget(), "ro")
 	} else {
 		err = fsck(other.device)
 		if err != nil {
 			return err
 		}
-		err = mount(other.device, p.MountTarget, "")
+		err = mount(other.device, p.MountTarget(), "")
 	}
 
 	return err
@@ -645,7 +641,7 @@ func (p *Partition) mountOtherRootfs(readOnly bool) (err error) {
 
 // Ensure the other partition is mounted read-only.
 func (p *Partition) ensureOtherMountedRO() (err error) {
-	mountpoint := p.getMountTarget()
+	mountpoint := p.MountTarget()
 
 	if err = runCommand("/bin/mountpoint", mountpoint); err == nil {
 		// already mounted
@@ -674,16 +670,16 @@ func (p *Partition) remountOther(writable bool) (err error) {
 		if err != nil {
 			return err
 		}
-		return mount(other.device, p.MountTarget, "")
+		return mount(other.device, p.MountTarget(), "")
 	} else {
 		// already r/w, so no need to fsck when switching
 		// to r/o.
-		return mount(other.device, p.MountTarget, "-oremount,ro")
+		return mount(other.device, p.MountTarget(), "-oremount,ro")
 	}
 }
 
 func (p *Partition) unmountOtherRootfs() (err error) {
-	return unmount(p.MountTarget)
+	return unmount(p.MountTarget())
 }
 
 // The bootloader requires a few filesystems to be mounted when
@@ -692,7 +688,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	var boot *blockDevice
 
 	for _, fs := range requiredChrootMounts() {
-		target := path.Join(p.MountTarget, fs)
+		target := path.Join(p.MountTarget(), fs)
 
 		err := bindmount(fs, target)
 		if err != nil {
@@ -711,7 +707,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 		return nil
 	}
 
-	target := path.Join(p.MountTarget, boot.mountpoint)
+	target := path.Join(p.MountTarget(), boot.mountpoint)
 	err = bindmount(boot.mountpoint, target)
 	if err != nil {
 		return err
@@ -775,7 +771,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 // Run the commandline specified by the args array chrooted to the
 // new root filesystem.
 func (p *Partition) runInChroot(args []string) (err error) {
-	fullArgs := []string{"/usr/sbin/chroot", p.MountTarget}
+	fullArgs := []string{"/usr/sbin/chroot", p.MountTarget()}
 	fullArgs = append(fullArgs, args...)
 
 	return runCommand(fullArgs...)

@@ -148,7 +148,7 @@ func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
 	p := New()
 
 	p.mountOtherRootfs(false)
-	c.Assert(mounts, DeepEquals, []string{p.MountTarget})
+	c.Assert(mounts, DeepEquals, []string{p.MountTarget()})
 	p.unmountOtherRootfs()
 	c.Assert(mounts, DeepEquals, []string{})
 }
