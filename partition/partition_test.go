@@ -101,6 +101,26 @@ func (s *PartitionTestSuite) TestSnappyDualRoot(c *C) {
 	c.Assert(other.parentName, Equals, "/dev/sda")
 }
 
+func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
+	runLsblk = mockRunLsblkDualSnappy
+	doRunWithOtherTest(c, (&Partition{}).MountTarget())
+}
+
+func (s *PartitionTestSuite) TestRunWithOtherSingleParitionRO(c *C) {
+	runLsblk = mockRunLsblkSingleRootSnappy
+	doRunWithOtherTest(c, "/")
+}
+func doRunWithOtherTest(c *C, expectedRoot string) {
+	p := New()
+	reportedRoot := ""
+	err := p.RunWithOther(RO, func(otherRoot string) (err error) {
+		reportedRoot = otherRoot
+		return nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(reportedRoot, Equals, expectedRoot)
+}
+
 func mockRunLsblkSingleRootSnappy() (output []string, err error) {
 	dualData := `
 NAME="sda" LABEL="" PKNAME="" MOUNTPOINT=""
