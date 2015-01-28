@@ -253,10 +253,10 @@ func mount(source, target, options string) (err error) {
 // Remove the given string from the string slice
 func stringSliceRemove(slice []string, needle string) (res []string) {
 	// FIXME: so this is golang slice remove?!?! really?
-	if pos := stringInSlice(mounts, needle); pos >= 0 {
-		mounts = append(mounts[:pos], mounts[pos+1:]...)
+	if pos := stringInSlice(slice, needle); pos >= 0 {
+		slice = append(slice[:pos], slice[pos+1:]...)
 	}
-	return mounts
+	return slice
 }
 
 // FIXME: would it make sense to rename to something like
