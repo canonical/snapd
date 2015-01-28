@@ -51,8 +51,8 @@ type SystemImagePart struct {
 	partition partition.PartitionInterface
 }
 
-func (s *SystemImagePart) Type() string {
-	return "core"
+func (s *SystemImagePart) Type() SnapType {
+	return SnapTypeCore
 }
 
 func (s *SystemImagePart) Name() string {
@@ -111,7 +111,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 }
 
 func (s *SystemImagePart) Uninstall() (err error) {
-	return errors.New("Uninstall of a core snapp is not possible")
+	return errors.New("Uninstall of a core snap is not possible")
 }
 
 func (s *SystemImagePart) Config(configuration []byte) (err error) {
@@ -448,8 +448,8 @@ func (s *SystemImageRepository) Search(terms string) (versions []Part, err error
 	return versions, err
 }
 
-func (s *SystemImageRepository) Details(snappName string) (versions []Part, err error) {
-	if snappName == systemImagePartName {
+func (s *SystemImageRepository) Details(snapName string) (versions []Part, err error) {
+	if snapName == systemImagePartName {
 		s.proxy.Information()
 		part := s.currentPart()
 		versions = append(versions, part)

@@ -18,14 +18,14 @@ import (
 	"gopkg.in/yaml.v1"
 )
 
-type SnappPart struct {
+type SnapPart struct {
 	name        string
 	version     string
 	description string
 	hash        string
 	isActive    bool
 	isInstalled bool
-	stype       string
+	stype       SnapType
 
 	basedir string
 }
@@ -35,10 +35,10 @@ type packageYaml struct {
 	Version string
 	Vendor  string
 	Icon    string
-	Type    string
+	Type    SnapType
 }
 
-type remoteSnapp struct {
+type remoteSnap struct {
 	Publisher       string  `json:"publisher,omitempty"`
 	Name            string  `json:"name"`
 	Title           string  `json:"title"`
@@ -54,12 +54,12 @@ type remoteSnapp struct {
 
 type searchResults struct {
 	Payload struct {
-		Packages []remoteSnapp `json:"clickindex:package"`
+		Packages []remoteSnap `json:"clickindex:package"`
 	} `json:"_embedded"`
 }
 
-func NewInstalledSnappPart(yaml_path string) *SnappPart {
-	part := SnappPart{}
+func NewInstalledSnapPart(yaml_path string) *SnapPart {
+	part := SnapPart{}
 
 	if _, err := os.Stat(yaml_path); os.IsNotExist(err) {
 		log.Printf("No '%s' found", yaml_path)
@@ -100,7 +100,7 @@ func NewInstalledSnappPart(yaml_path string) *SnappPart {
 	return &part
 }
 
-func (s *SnappPart) Type() string {
+func (s *SnapPart) Type() SnapType {
 	if s.stype != "" {
 		return s.stype
 	}
@@ -108,43 +108,43 @@ func (s *SnappPart) Type() string {
 	return "app"
 }
 
-func (s *SnappPart) Name() string {
+func (s *SnapPart) Name() string {
 	return s.name
 }
 
-func (s *SnappPart) Version() string {
+func (s *SnapPart) Version() string {
 	return s.version
 }
 
-func (s *SnappPart) Description() string {
+func (s *SnapPart) Description() string {
 	return s.description
 }
 
-func (s *SnappPart) Hash() string {
+func (s *SnapPart) Hash() string {
 	return s.hash
 }
 
-func (s *SnappPart) IsActive() bool {
+func (s *SnapPart) IsActive() bool {
 	return s.isActive
 }
 
-func (s *SnappPart) IsInstalled() bool {
+func (s *SnapPart) IsInstalled() bool {
 	return s.isInstalled
 }
 
-func (s *SnappPart) InstalledSize() int {
+func (s *SnapPart) InstalledSize() int {
 	return -1
 }
 
-func (s *SnappPart) DownloadSize() int {
+func (s *SnapPart) DownloadSize() int {
 	return -1
 }
 
-func (s *SnappPart) Install(pb ProgressMeter) (err error) {
+func (s *SnapPart) Install(pb ProgressMeter) (err error) {
 	return errors.New("Install of a local part is not possible")
 }
 
-func (s *SnappPart) Uninstall() (err error) {
+func (s *SnapPart) Uninstall() (err error) {
 	// FIMXE: replace with native code
 	cmd := exec.Command("click", "unregister", "--all-users", s.Name())
 	cmd.Stdout = os.Stdout
@@ -153,39 +153,39 @@ func (s *SnappPart) Uninstall() (err error) {
 	return err
 }
 
-func (s *SnappPart) Config(configuration []byte) (err error) {
+func (s *SnapPart) Config(configuration []byte) (err error) {
 	return err
 }
 
-type SnappLocalRepository struct {
+type SnapLocalRepository struct {
 	path string
 }
 
-func NewLocalSnappRepository(path string) *SnappLocalRepository {
+func NewLocalSnapRepository(path string) *SnapLocalRepository {
 	if s, err := os.Stat(path); err != nil || !s.IsDir() {
 		log.Printf("Invalid directory %s (%s)", path, err)
 		return nil
 	}
-	return &SnappLocalRepository{path: path}
+	return &SnapLocalRepository{path: path}
 }
 
-func (s *SnappLocalRepository) Description() string {
-	return fmt.Sprintf("Snapp local repository for %s", s.path)
+func (s *SnapLocalRepository) Description() string {
+	return fmt.Sprintf("Snap local repository for %s", s.path)
 }
 
-func (s *SnappLocalRepository) Search(terms string) (versions []Part, err error) {
+func (s *SnapLocalRepository) Search(terms string) (versions []Part, err error) {
 	return versions, err
 }
 
-func (s *SnappLocalRepository) Details(terms string) (versions []Part, err error) {
+func (s *SnapLocalRepository) Details(terms string) (versions []Part, err error) {
 	return versions, err
 }
 
-func (s *SnappLocalRepository) Updates() (parts []Part, err error) {
+func (s *SnapLocalRepository) Updates() (parts []Part, err error) {
 	return parts, err
 }
 
-func (s *SnappLocalRepository) Installed() (parts []Part, err error) {
+func (s *SnapLocalRepository) Installed() (parts []Part, err error) {
 	globExpr := path.Join(s.path, "*", "*", "meta", "package.yaml")
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
@@ -202,57 +202,57 @@ func (s *SnappLocalRepository) Installed() (parts []Part, err error) {
 			continue
 		}
 
-		snapp := NewInstalledSnappPart(yamlfile)
-		if snapp != nil {
-			parts = append(parts, snapp)
+		snap := NewInstalledSnapPart(yamlfile)
+		if snap != nil {
+			parts = append(parts, snap)
 		}
 	}
 
 	return parts, err
 }
 
-type RemoteSnappPart struct {
-	pkg remoteSnapp
+type RemoteSnapPart struct {
+	pkg remoteSnap
 }
 
-func (s *RemoteSnappPart) Type() string {
+func (s *RemoteSnapPart) Type() SnapType {
 	// FIXME: the store does not publish this info
-	return "app"
+	return SnapTypeApp
 }
 
-func (s *RemoteSnappPart) Name() string {
+func (s *RemoteSnapPart) Name() string {
 	return s.pkg.Name
 }
 
-func (s *RemoteSnappPart) Version() string {
+func (s *RemoteSnapPart) Version() string {
 	return s.pkg.Version
 }
 
-func (s *RemoteSnappPart) Description() string {
+func (s *RemoteSnapPart) Description() string {
 	return s.pkg.Title
 }
 
-func (s *RemoteSnappPart) Hash() string {
+func (s *RemoteSnapPart) Hash() string {
 	return "FIXME"
 }
 
-func (s *RemoteSnappPart) IsActive() bool {
+func (s *RemoteSnapPart) IsActive() bool {
 	return false
 }
 
-func (s *RemoteSnappPart) IsInstalled() bool {
+func (s *RemoteSnapPart) IsInstalled() bool {
 	return false
 }
 
-func (s *RemoteSnappPart) InstalledSize() int {
+func (s *RemoteSnapPart) InstalledSize() int {
 	return -1
 }
 
-func (s *RemoteSnappPart) DownloadSize() int {
+func (s *RemoteSnapPart) DownloadSize() int {
 	return -1
 }
 
-func (s *RemoteSnappPart) Install(pbar ProgressMeter) (err error) {
+func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 	w, err := ioutil.TempFile("", s.pkg.Name)
 	if err != nil {
 		return err
@@ -292,37 +292,37 @@ func (s *RemoteSnappPart) Install(pbar ProgressMeter) (err error) {
 	return err
 }
 
-func (s *RemoteSnappPart) Uninstall() (err error) {
+func (s *RemoteSnapPart) Uninstall() (err error) {
 	return errors.New("Uninstall of a remote part is not possible")
 }
 
-func (s *RemoteSnappPart) Config(configuration []byte) (err error) {
+func (s *RemoteSnapPart) Config(configuration []byte) (err error) {
 	return err
 }
 
-func NewRemoteSnappPart(data remoteSnapp) *RemoteSnappPart {
-	return &RemoteSnappPart{pkg: data}
+func NewRemoteSnapPart(data remoteSnap) *RemoteSnapPart {
+	return &RemoteSnapPart{pkg: data}
 }
 
-type SnappUbuntuStoreRepository struct {
+type SnapUbuntuStoreRepository struct {
 	searchUri  string
 	detailsUri string
 	bulkUri    string
 }
 
-func NewUbuntuStoreSnappRepository() *SnappUbuntuStoreRepository {
-	return &SnappUbuntuStoreRepository{
+func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
+	return &SnapUbuntuStoreRepository{
 		searchUri:  "https://search.apps.ubuntu.com/api/v1/search?q=%s",
 		detailsUri: "https://search.apps.ubuntu.com/api/v1/package/%s",
 		bulkUri:    "https://myapps.developer.ubuntu.com/dev/api/click-metadata/"}
 }
 
-func (s *SnappUbuntuStoreRepository) Description() string {
-	return fmt.Sprintf("Snapp remote repository for %s", s.searchUri)
+func (s *SnapUbuntuStoreRepository) Description() string {
+	return fmt.Sprintf("Snap remote repository for %s", s.searchUri)
 }
 
-func (s *SnappUbuntuStoreRepository) Details(snappName string) (parts []Part, err error) {
-	url := fmt.Sprintf(s.detailsUri, snappName)
+func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err error) {
+	url := fmt.Sprintf(s.detailsUri, snapName)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return parts, err
@@ -330,7 +330,7 @@ func (s *SnappUbuntuStoreRepository) Details(snappName string) (parts []Part, er
 
 	// set headers
 	req.Header.Set("Accept", "application/hal+json")
-	frameworks, _ := InstalledSnappNamesByType("framework")
+	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", Architecture())
@@ -342,20 +342,20 @@ func (s *SnappUbuntuStoreRepository) Details(snappName string) (parts []Part, er
 	}
 	defer resp.Body.Close()
 
-	var detailsData remoteSnapp
+	var detailsData remoteSnap
 
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&detailsData); err != nil {
 		return nil, err
 	}
 
-	snapp := NewRemoteSnappPart(detailsData)
-	parts = append(parts, snapp)
+	snap := NewRemoteSnapPart(detailsData)
+	parts = append(parts, snap)
 
 	return parts, err
 }
 
-func (s *SnappUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err error) {
+func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err error) {
 	url := fmt.Sprintf(s.searchUri, searchTerm)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -364,7 +364,7 @@ func (s *SnappUbuntuStoreRepository) Search(searchTerm string) (parts []Part, er
 
 	// set headers
 	req.Header.Set("Accept", "application/hal+json")
-	frameworks, _ := InstalledSnappNamesByType("framework")
+	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", Architecture())
@@ -384,17 +384,17 @@ func (s *SnappUbuntuStoreRepository) Search(searchTerm string) (parts []Part, er
 	}
 
 	for _, pkg := range searchData.Payload.Packages {
-		snapp := NewRemoteSnappPart(pkg)
-		parts = append(parts, snapp)
+		snap := NewRemoteSnapPart(pkg)
+		parts = append(parts, snap)
 	}
 
 	return parts, err
 }
 
-func (s *SnappUbuntuStoreRepository) Updates() (parts []Part, err error) {
+func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// the store only supports apps and framworks currently, so no
-	// sense in sending it our ubuntu-core snapp
-	installed, err := InstalledSnappNamesByType("app,framework")
+	// sense in sending it our ubuntu-core snap
+	installed, err := InstalledSnapNamesByType(SnapTypeApp, SnapTypeFramework)
 	if err != nil || len(installed) == 0 {
 		return parts, err
 	}
@@ -415,20 +415,20 @@ func (s *SnappUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	}
 	defer resp.Body.Close()
 
-	var updateData []remoteSnapp
+	var updateData []remoteSnap
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&updateData); err != nil {
 		return nil, err
 	}
 
 	for _, pkg := range updateData {
-		snapp := NewRemoteSnappPart(pkg)
-		parts = append(parts, snapp)
+		snap := NewRemoteSnapPart(pkg)
+		parts = append(parts, snap)
 	}
 
 	return parts, nil
 }
 
-func (s *SnappUbuntuStoreRepository) Installed() (parts []Part, err error) {
+func (s *SnapUbuntuStoreRepository) Installed() (parts []Part, err error) {
 	return parts, err
 }

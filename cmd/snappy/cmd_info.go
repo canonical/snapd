@@ -25,13 +25,13 @@ func (x *CmdInfo) Execute(args []string) (err error) {
 
 func info() error {
 	release := "unknown"
-	parts, err := snappy.InstalledSnappsByType("core")
+	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)
 	if len(parts) == 1 && err == nil {
 		release = parts[0].(*snappy.SystemImagePart).Channel()
 	}
 
-	frameworks, _ := snappy.InstalledSnappNamesByType("framework")
-	apps, _ := snappy.InstalledSnappNamesByType("app")
+	frameworks, _ := snappy.InstalledSnapNamesByType(snappy.SnapTypeFramework)
+	apps, _ := snappy.InstalledSnapNamesByType(snappy.SnapTypeApp)
 
 	fmt.Printf("release: %s\n", release)
 	fmt.Printf("architecture: %s\n", snappy.Architecture())
