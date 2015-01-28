@@ -661,6 +661,8 @@ func (p *Partition) remountOther(writable bool) (err error) {
 	other := p.otherRootPartition()
 
 	if writable == true {
+		// r/o -> r/w: initially r/o, so no need to fsck before
+		// switching to r/w.
 		err = p.unmountOtherRootfs()
 		if err != nil {
 			return err
@@ -670,10 +672,10 @@ func (p *Partition) remountOther(writable bool) (err error) {
 		if err != nil {
 			return err
 		}
+
 		return mount(other.device, p.MountTarget(), "")
 	} else {
-		// already r/w, so no need to fsck when switching
-		// to r/o.
+		// r/w -> r/o: no fsck required.
 		return mount(other.device, p.MountTarget(), "-oremount,ro")
 	}
 }
