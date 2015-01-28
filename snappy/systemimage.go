@@ -52,8 +52,8 @@ type SystemImagePart struct {
 	partition partition.PartitionInterface
 }
 
-func (s *SystemImagePart) Type() string {
-	return "core"
+func (s *SystemImagePart) Type() SnapType {
+	return SnapTypeCore
 }
 
 func (s *SystemImagePart) Name() string {
@@ -151,7 +151,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 }
 
 func (s *SystemImagePart) Uninstall() (err error) {
-	return errors.New("Uninstall of a core snapp is not possible")
+	return errors.New("Uninstall of a core snap is not possible")
 }
 
 func (s *SystemImagePart) Config(configuration []byte) (err error) {
@@ -456,7 +456,7 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 		partition:      s.partition}, err
 }
 
-func (s *SystemImageRepository) getCurrentPart() Part {
+func (s *SystemImageRepository) currentPart() Part {
 	configFile := path.Join(s.myroot, systemImageChannelConfig)
 	part, err := s.makePartFromSystemImageConfigFile(configFile, true)
 	if err != nil {
@@ -466,7 +466,7 @@ func (s *SystemImageRepository) getCurrentPart() Part {
 }
 
 // Returns the part associated with the other rootfs (if any)
-func (s *SystemImageRepository) getOtherPart() Part {
+func (s *SystemImageRepository) otherPart() Part {
 	var part Part
 	s.partition.RunWithOther(func(otherRoot string) (err error) {
 		configFile := path.Join(s.myroot, otherRoot, systemImageChannelConfig)
@@ -482,27 +482,26 @@ func (s *SystemImageRepository) getOtherPart() Part {
 func (s *SystemImageRepository) Search(terms string) (versions []Part, err error) {
 	if strings.Contains(terms, systemImagePartName) {
 		s.proxy.Information()
-		part := s.getCurrentPart()
+		part := s.currentPart()
 		versions = append(versions, part)
 	}
 	return versions, err
 }
 
-func (s *SystemImageRepository) Details(snappName string) (versions []Part, err error) {
-	if snappName == systemImagePartName {
+func (s *SystemImageRepository) Details(snapName string) (versions []Part, err error) {
+	if snapName == systemImagePartName {
 		s.proxy.Information()
-		part := s.getCurrentPart()
+		part := s.currentPart()
 		versions = append(versions, part)
 	}
 	return versions, err
 }
 
-func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
-
+func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 	if _, err = s.proxy.CheckForUpdate(); err != nil {
 		return parts, err
 	}
-	current := s.getCurrentPart()
+	current := s.currentPart()
 	current_version := current.Version()
 	target_version := s.proxy.us.available_version
 	if VersionCompare(current_version, target_version) < 0 {
@@ -517,15 +516,15 @@ func (s *SystemImageRepository) GetUpdates() (parts []Part, err error) {
 	return parts, err
 }
 
-func (s *SystemImageRepository) GetInstalled() (parts []Part, err error) {
+func (s *SystemImageRepository) Installed() (parts []Part, err error) {
 	// current partition
-	curr := s.getCurrentPart()
+	curr := s.currentPart()
 	if curr != nil {
 		parts = append(parts, curr)
 	}
 
 	// other partition
-	other := s.getOtherPart()
+	other := s.otherPart()
 	if other != nil {
 		parts = append(parts, other)
 	}

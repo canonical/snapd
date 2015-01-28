@@ -25,15 +25,15 @@ binaries:
 `
 )
 
-type SnappTestSuite struct {
+type SnapTestSuite struct {
 	tempdir string
 }
 
-var _ = Suite(&SnappTestSuite{})
+var _ = Suite(&SnapTestSuite{})
 
-func (s *SnappTestSuite) SetUpTest(c *C) {
+func (s *SnapTestSuite) SetUpTest(c *C) {
 	var err error
-	s.tempdir, err = ioutil.TempDir("", "snapp-test-")
+	s.tempdir, err = ioutil.TempDir("", "snap-test-")
 	if err != nil {
 		panic("Can not create temp dir")
 	}
@@ -42,11 +42,11 @@ func (s *SnappTestSuite) SetUpTest(c *C) {
 	}
 }
 
-func (s *SnappTestSuite) TearDownTest(c *C) {
+func (s *SnapTestSuite) TearDownTest(c *C) {
 	os.RemoveAll(s.tempdir)
 }
 
-func (s *SnappTestSuite) makeMockSnapp() (snapp_dir string, err error) {
+func (s *SnapTestSuite) makeMockSnap() (snap_dir string, err error) {
 	meta_dir := path.Join(s.tempdir, "apps", "hello-app", "1.10", "meta")
 	err = os.MkdirAll(meta_dir, 0777)
 	if err != nil {
@@ -55,60 +55,60 @@ func (s *SnappTestSuite) makeMockSnapp() (snapp_dir string, err error) {
 	yaml_file := path.Join(meta_dir, "package.yaml")
 	ioutil.WriteFile(yaml_file, []byte(PACKAGE_HELLO), 0666)
 
-	snapp_dir, _ = path.Split(meta_dir)
+	snap_dir, _ = path.Split(meta_dir)
 	return yaml_file, err
 }
 
-func makeSnappActive(package_yaml_path string) (err error) {
-	snappdir := path.Dir(path.Dir(package_yaml_path))
-	parent := path.Dir(snappdir)
-	err = os.Symlink(snappdir, path.Join(parent, "current"))
+func makeSnapActive(package_yaml_path string) (err error) {
+	snapdir := path.Dir(path.Dir(package_yaml_path))
+	parent := path.Dir(snapdir)
+	err = os.Symlink(snapdir, path.Join(parent, "current"))
 
 	return err
 }
 
-func (s *SnappTestSuite) TestLocalSnappInvalidPath(c *C) {
-	snapp := NewInstalledSnappPart("invalid-path")
-	c.Assert(snapp, IsNil)
+func (s *SnapTestSuite) TestLocalSnapInvalidPath(c *C) {
+	snap := NewInstalledSnapPart("invalid-path")
+	c.Assert(snap, IsNil)
 }
 
-func (s *SnappTestSuite) TestLocalSnappSimple(c *C) {
-	snapp_yaml, err := s.makeMockSnapp()
+func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
+	snapYaml, err := s.makeMockSnap()
 	c.Assert(err, IsNil)
 
-	snapp := NewInstalledSnappPart(snapp_yaml)
-	c.Assert(snapp, NotNil)
-	c.Assert(snapp.Name(), Equals, "hello-app")
-	c.Assert(snapp.Version(), Equals, "1.10")
-	c.Assert(snapp.IsActive(), Equals, false)
+	snap := NewInstalledSnapPart(snapYaml)
+	c.Assert(snap, NotNil)
+	c.Assert(snap.Name(), Equals, "hello-app")
+	c.Assert(snap.Version(), Equals, "1.10")
+	c.Assert(snap.IsActive(), Equals, false)
 
-	c.Assert(snapp.basedir, Equals, path.Join(s.tempdir, "apps", "hello-app", "1.10"))
+	c.Assert(snap.basedir, Equals, path.Join(s.tempdir, "apps", "hello-app", "1.10"))
 }
 
-func (s *SnappTestSuite) TestLocalSnappActive(c *C) {
-	snapp_yaml, err := s.makeMockSnapp()
+func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
+	snapYaml, err := s.makeMockSnap()
 	c.Assert(err, IsNil)
-	makeSnappActive(snapp_yaml)
+	makeSnapActive(snapYaml)
 
-	snapp := NewInstalledSnappPart(snapp_yaml)
-	c.Assert(snapp.IsActive(), Equals, true)
+	snap := NewInstalledSnapPart(snapYaml)
+	c.Assert(snap.IsActive(), Equals, true)
 }
 
-func (s *SnappTestSuite) TestLocalSnappRepositoryInvalid(c *C) {
-	snapp := NewLocalSnappRepository("invalid-path")
-	c.Assert(snapp, IsNil)
+func (s *SnapTestSuite) TestLocalSnapRepositoryInvalid(c *C) {
+	snap := NewLocalSnapRepository("invalid-path")
+	c.Assert(snap, IsNil)
 }
 
-func (s *SnappTestSuite) TestLocalSnappRepositorySimple(c *C) {
-	yaml_path, err := s.makeMockSnapp()
+func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
+	yaml_path, err := s.makeMockSnap()
 	c.Assert(err, IsNil)
-	err = makeSnappActive(yaml_path)
+	err = makeSnapActive(yaml_path)
 	c.Assert(err, IsNil)
 
-	snapp := NewLocalSnappRepository(path.Join(s.tempdir, "apps"))
-	c.Assert(snapp, NotNil)
+	snap := NewLocalSnapRepository(path.Join(s.tempdir, "apps"))
+	c.Assert(snap, NotNil)
 
-	installed, err := snapp.GetInstalled()
+	installed, err := snap.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(len(installed), Equals, 1)
 	c.Assert(installed[0].Name(), Equals, "hello-app")
@@ -159,16 +159,16 @@ curl --data-binary '{"name":["docker","foo","com.ubuntu.snappy.hello-world","htt
 const MockUpdatesJson = `
 [
     {
-        "status": "Published", 
-        "name": "hello-world", 
-        "changelog": "", 
-        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/01/hello.svg.png", 
-        "title": "Hello world example", 
-        "binary_filesize": 31166, 
-        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/com.ubuntu.snappy/hello-world/hello-world_1.0.5_all.snap", 
-        "allow_unauthenticated": true, 
-        "version": "1.0.5", 
-        "download_url": "https://public.apps.ubuntu.com/download/com.ubuntu.snappy/hello-world/hello-world_1.0.5_all.snap", 
+        "status": "Published",
+        "name": "hello-world",
+        "changelog": "",
+        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/01/hello.svg.png",
+        "title": "Hello world example",
+        "binary_filesize": 31166,
+        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/com.ubuntu.snappy/hello-world/hello-world_1.0.5_all.snap",
+        "allow_unauthenticated": true,
+        "version": "1.0.5",
+        "download_url": "https://public.apps.ubuntu.com/download/com.ubuntu.snappy/hello-world/hello-world_1.0.5_all.snap",
         "download_sha512": "3e8b192e18907d8195c2e380edd048870eda4f6dbcba8f65e4625d6efac3c37d11d607147568ade6f002b6baa30762c6da02e7ee462de7c56301ddbdc10d87f6"
     }
 ]
@@ -251,18 +251,18 @@ type MockUbuntuStoreServer struct {
 	searchUri string
 }
 
-func (s *SnappTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
+func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, MockSearchJson)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	snapp := NewUbuntuStoreSnappRepository()
-	c.Assert(snapp, NotNil)
-	snapp.searchUri = mockServer.URL + "/%s"
+	snap := NewUbuntuStoreSnapRepository()
+	c.Assert(snap, NotNil)
+	snap.searchUri = mockServer.URL + "/%s"
 
-	results, err := snapp.Search("xkcd")
+	results, err := snap.Search("xkcd")
 	c.Assert(err, IsNil)
 	c.Assert(len(results), Equals, 1)
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver.mvo")
@@ -270,17 +270,17 @@ func (s *SnappTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Assert(results[0].Description(), Equals, "Show random XKCD comic")
 }
 
-func mockGetInstalledSnappNamesByType(mockSnapps []string) (mockRestorer func()) {
-	origFunc := GetInstalledSnappNamesByType
-	GetInstalledSnappNamesByType = func(snappType string) (res []string, err error) {
-		return mockSnapps, nil
+func mockInstalledSnapNamesByType(mockSnaps []string) (mockRestorer func()) {
+	origFunc := InstalledSnapNamesByType
+	InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
+		return mockSnaps, nil
 	}
 	return func() {
-		GetInstalledSnappNamesByType = origFunc
+		InstalledSnapNamesByType = origFunc
 	}
 }
 
-func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdates(c *C) {
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json_req, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
@@ -291,41 +291,41 @@ func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdates(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	snapp := NewUbuntuStoreSnappRepository()
-	c.Assert(snapp, NotNil)
-	snapp.bulkUri = mockServer.URL + "/updates/"
+	snap := NewUbuntuStoreSnapRepository()
+	c.Assert(snap, NotNil)
+	snap.bulkUri = mockServer.URL + "/updates/"
 
-	// override the real GetInstalledSnappNamesByType to return our
+	// override the real InstalledSnapNamesByType to return our
 	// mock data
-	mockRestorer := mockGetInstalledSnappNamesByType([]string{"hello-world"})
+	mockRestorer := mockInstalledSnapNamesByType([]string{"hello-world"})
 	defer mockRestorer()
 
 	// the actual test
-	results, err := snapp.GetUpdates()
+	results, err := snap.Updates()
 	c.Assert(err, IsNil)
 	c.Assert(len(results), Equals, 1)
 	c.Assert(results[0].Name(), Equals, "hello-world")
 	c.Assert(results[0].Version(), Equals, "1.0.5")
 }
 
-func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetUpdatesNoSnapps(c *C) {
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 
-	snapp := NewUbuntuStoreSnappRepository()
-	c.Assert(snapp, NotNil)
+	snap := NewUbuntuStoreSnapRepository()
+	c.Assert(snap, NotNil)
 
 	// ensure we do not hit the net if there is nothing installed
-	// (otherwise the store will send us all snapps)
-	snapp.bulkUri = "http://i-do.not-exist.really-not"
-	mockRestorer := mockGetInstalledSnappNamesByType([]string{})
+	// (otherwise the store will send us all snaps)
+	snap.bulkUri = "http://i-do.not-exist.really-not"
+	mockRestorer := mockInstalledSnapNamesByType([]string{})
 	defer mockRestorer()
 
 	// the actual test
-	results, err := snapp.GetUpdates()
+	results, err := snap.Updates()
 	c.Assert(err, IsNil)
 	c.Assert(len(results), Equals, 0)
 }
 
-func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetDetails(c *C) {
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Assert(strings.HasSuffix(r.URL.String(), "xkcd-webserver"), Equals, true)
 		io.WriteString(w, MockDetailsJson)
@@ -334,12 +334,12 @@ func (s *SnappTestSuite) TestUbuntuStoreRepositoryGetDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	snapp := NewUbuntuStoreSnappRepository()
-	c.Assert(snapp, NotNil)
-	snapp.detailsUri = mockServer.URL + "/details/%s"
+	snap := NewUbuntuStoreSnapRepository()
+	c.Assert(snap, NotNil)
+	snap.detailsUri = mockServer.URL + "/details/%s"
 
 	// the actual test
-	results, err := snapp.Details("xkcd-webserver")
+	results, err := snap.Details("xkcd-webserver")
 	c.Assert(err, IsNil)
 	c.Assert(len(results), Equals, 1)
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver")

@@ -1,12 +1,17 @@
 package snappy
 
-import (
-	"strings"
-)
-
 const (
 	snapBaseDir = "/apps"
 	snapOemDir  = "/oem"
+)
+
+type SnapType string
+
+const (
+	SnapTypeApp       SnapType = "app"
+	SnapTypeCore      SnapType = "core"
+	SnapTypeFramework SnapType = "framework"
+	SnapTypeOem       SnapType = "oem"
 )
 
 // Representation of a snappy part
@@ -22,7 +27,7 @@ type Part interface {
 	IsInstalled() bool
 
 	// app, framework, core
-	Type() string
+	Type() SnapType
 
 	InstalledSize() int
 	DownloadSize() int
@@ -42,8 +47,8 @@ type Repository interface {
 	Search(terms string) ([]Part, error)
 	Details(snappName string) ([]Part, error)
 
-	GetUpdates() ([]Part, error)
-	GetInstalled() ([]Part, error)
+	Updates() ([]Part, error)
+	Installed() ([]Part, error)
 }
 
 type MetaRepository struct {
@@ -56,13 +61,13 @@ func NewMetaRepository() *MetaRepository {
 	m := new(MetaRepository)
 	m.all = []Repository{
 		NewSystemImageRepository(),
-		NewUbuntuStoreSnappRepository()}
+		NewUbuntuStoreSnapRepository()}
 	// these may fail if there is no such directory
-	repo := NewLocalSnappRepository(snapBaseDir)
+	repo := NewLocalSnapRepository(snapBaseDir)
 	if repo != nil {
 		m.all = append(m.all, repo)
 	}
-	repo = NewLocalSnappRepository(snapOemDir)
+	repo = NewLocalSnapRepository(snapOemDir)
 	if repo != nil {
 		m.all = append(m.all, repo)
 	}
@@ -70,9 +75,9 @@ func NewMetaRepository() *MetaRepository {
 	return m
 }
 
-func (m *MetaRepository) GetInstalled() (parts []Part, err error) {
+func (m *MetaRepository) Installed() (parts []Part, err error) {
 	for _, r := range m.all {
-		installed, err := r.GetInstalled()
+		installed, err := r.Installed()
 		if err != nil {
 			return parts, err
 		}
@@ -82,9 +87,9 @@ func (m *MetaRepository) GetInstalled() (parts []Part, err error) {
 	return parts, err
 }
 
-func (m *MetaRepository) GetUpdates() (parts []Part, err error) {
+func (m *MetaRepository) Updates() (parts []Part, err error) {
 	for _, r := range m.all {
-		updates, err := r.GetUpdates()
+		updates, err := r.Updates()
 		if err != nil {
 			return parts, err
 		}
@@ -106,9 +111,9 @@ func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
 	return parts, err
 }
 
-func (m *MetaRepository) Details(snappyName string) (parts []Part, err error) {
+func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	for _, r := range m.all {
-		results, err := r.Details(snappyName)
+		results, err := r.Details(snapyName)
 		if err != nil {
 			return parts, err
 		}
@@ -118,19 +123,19 @@ func (m *MetaRepository) Details(snappyName string) (parts []Part, err error) {
 	return parts, err
 }
 
-func GetInstalledSnappsByType(searchExp string) (res []Part, err error) {
+func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 	m := NewMetaRepository()
-	installed, err := m.GetInstalled()
+	installed, err := m.Installed()
 	if err != nil {
-		return res, err
+		return nil, err
 	}
-	snappTypes := strings.Split(searchExp, ",")
+
 	for _, part := range installed {
 		if !part.IsActive() {
 			continue
 		}
-		for _, snappType := range snappTypes {
-			if part.Type() == snappType {
+		for i := range snapTs {
+			if part.Type() == snapTs[i] {
 				res = append(res, part)
 			}
 		}
@@ -138,17 +143,17 @@ func GetInstalledSnappsByType(searchExp string) (res []Part, err error) {
 	return
 }
 
-var GetInstalledSnappNamesByType = func(snappType string) (res []string, err error) {
-	installed, err := GetInstalledSnappsByType(snappType)
+var InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
+	installed, err := InstalledSnapsByType(snapTs...)
 	for _, part := range installed {
 		res = append(res, part.Name())
 	}
 	return
 }
 
-func GetInstalledSnappByName(needle string) Part {
+func InstalledSnapByName(needle string) Part {
 	m := NewMetaRepository()
-	installed, err := m.GetInstalled()
+	installed, err := m.Installed()
 	if err != nil {
 		return nil
 	}

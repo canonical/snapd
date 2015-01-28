@@ -263,7 +263,7 @@ func (s *SITestSuite) TestLowLevelDownloadUpdate(c *C) {
 
 func (s *SITestSuite) TestTestInstalled(c *C) {
 	// whats installed
-	parts, err := s.systemImage.GetInstalled()
+	parts, err := s.systemImage.Installed()
 	c.Assert(err, IsNil)
 	// we have one active and one inactive
 	c.Assert(len(parts), Equals, 2)
@@ -277,17 +277,17 @@ func (s *SITestSuite) TestTestInstalled(c *C) {
 	c.Assert(parts[1].Version(), Equals, "3.14")
 }
 
-func (s *SITestSuite) TestGetUpdateNoUpdate(c *C) {
+func (s *SITestSuite) TestUpdateNoUpdate(c *C) {
 	s.mockSystemImage.fakeAvailableVersion = "2.71"
-	parts, err := s.systemImage.GetUpdates()
+	parts, err := s.systemImage.Updates()
 	c.Assert(err, IsNil)
 	c.Assert(len(parts), Equals, 0)
 }
 
-func (s *SITestSuite) TestGetUpdateHasUpdate(c *C) {
+func (s *SITestSuite) TestUpdateHasUpdate(c *C) {
 	// add a update
 	s.mockSystemImage.fakeAvailableVersion = "3.14"
-	parts, err := s.systemImage.GetUpdates()
+	parts, err := s.systemImage.Updates()
 	c.Assert(err, IsNil)
 	c.Assert(len(parts), Equals, 1)
 	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
@@ -347,7 +347,7 @@ func (m *MockProgressMeter) Finished() {
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	// add a update
 	s.mockSystemImage.fakeAvailableVersion = "3.14"
-	parts, err := s.systemImage.GetUpdates()
+	parts, err := s.systemImage.Updates()
 
 	sp := parts[0].(*SystemImagePart)
 	mockPartition := MockPartition{}
@@ -365,7 +365,7 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 	// add a update
 	s.mockSystemImage.fakeAvailableVersion = "3.14"
-	parts, err := s.systemImage.GetUpdates()
+	parts, err := s.systemImage.Updates()
 
 	sp := parts[0].(*SystemImagePart)
 	mockPartition := MockPartition{}
