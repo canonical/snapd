@@ -181,13 +181,11 @@ func (s *SnappLocalRepository) Details(terms string) (versions []Part, err error
 	return versions, err
 }
 
-func (s *SnappLocalRepository) GetUpdates() (parts []Part, err error) {
-
+func (s *SnappLocalRepository) Updates() (parts []Part, err error) {
 	return parts, err
 }
 
-func (s *SnappLocalRepository) GetInstalled() (parts []Part, err error) {
-
+func (s *SnappLocalRepository) Installed() (parts []Part, err error) {
 	globExpr := path.Join(s.path, "*", "*", "meta", "package.yaml")
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
@@ -332,7 +330,7 @@ func (s *SnappUbuntuStoreRepository) Details(snappName string) (parts []Part, er
 
 	// set headers
 	req.Header.Set("Accept", "application/hal+json")
-	frameworks, _ := GetInstalledSnappNamesByType("framework")
+	frameworks, _ := InstalledSnappNamesByType("framework")
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", Architecture())
@@ -366,7 +364,7 @@ func (s *SnappUbuntuStoreRepository) Search(searchTerm string) (parts []Part, er
 
 	// set headers
 	req.Header.Set("Accept", "application/hal+json")
-	frameworks, _ := GetInstalledSnappNamesByType("framework")
+	frameworks, _ := InstalledSnappNamesByType("framework")
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", Architecture())
@@ -393,10 +391,10 @@ func (s *SnappUbuntuStoreRepository) Search(searchTerm string) (parts []Part, er
 	return parts, err
 }
 
-func (s *SnappUbuntuStoreRepository) GetUpdates() (parts []Part, err error) {
+func (s *SnappUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// the store only supports apps and framworks currently, so no
 	// sense in sending it our ubuntu-core snapp
-	installed, err := GetInstalledSnappNamesByType("app,framework")
+	installed, err := InstalledSnappNamesByType("app,framework")
 	if err != nil || len(installed) == 0 {
 		return parts, err
 	}
@@ -431,6 +429,6 @@ func (s *SnappUbuntuStoreRepository) GetUpdates() (parts []Part, err error) {
 	return parts, nil
 }
 
-func (s *SnappUbuntuStoreRepository) GetInstalled() (parts []Part, err error) {
+func (s *SnappUbuntuStoreRepository) Installed() (parts []Part, err error) {
 	return parts, err
 }

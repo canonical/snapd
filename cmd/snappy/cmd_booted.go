@@ -15,7 +15,7 @@ func init() {
 }
 
 func (x *CmdBooted) Execute(args []string) (err error) {
-	parts, err := snappy.GetInstalledSnappsByType("core")
+	parts, err := snappy.InstalledSnappsByType("core")
 	if err != nil {
 		return err
 	}
