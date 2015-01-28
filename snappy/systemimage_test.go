@@ -317,7 +317,7 @@ func (p *MockPartition) NextBootIsOther() bool {
 	return false
 }
 
-func (p *MockPartition) RunWithOther(f func(otherRoot string) (err error)) (err error) {
+func (p *MockPartition) RunWithOther(writable bool, f func(otherRoot string) (err error)) (err error) {
 	return f("/other")
 }
 
