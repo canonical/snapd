@@ -676,7 +676,7 @@ func (p *Partition) remountOther(writable bool) (err error) {
 		return mount(other.device, p.MountTarget(), "")
 	} else {
 		// r/w -> r/o: no fsck required.
-		return mount(other.device, p.MountTarget(), "-oremount,ro")
+		return mount(other.device, p.MountTarget(), "remount,ro")
 	}
 }
 
