@@ -90,26 +90,22 @@ func VersionIsValid(a string) bool {
 	if matched, _ := regexp.MatchString(reHasEpoch, a); matched {
 		return false
 	}
-	if strings.Contains(a, "-") {
+	if strings.Count(a, "-") > 1 {
+		return false
+	}
+	if strings.TrimSpace(a) == "" {
 		return false
 	}
 	return true
 }
 
-func VersionCompare(a, b string) int {
-	if !VersionIsValid(a) {
-		log.Printf("Invalid version '%s', expect wrong results", a)
-	}
-	if !VersionIsValid(b) {
-		log.Printf("Invalid version '%s', expect wrong results", b)
-	}
-
-	frags_a := getFragments(a)
-	frags_b := getFragments(b)
+func compareSubversion(va, vb string) int {
+	frags_a := getFragments(va)
+	frags_b := getFragments(vb)
 
 	for i := 0; i < max(len(frags_a), len(frags_b)); i++ {
-		a = "0"
-		b = "0"
+		a := "0"
+		b := "0"
 		if i < len(frags_a) {
 			a = frags_a[i]
 		}
@@ -123,6 +119,42 @@ func VersionCompare(a, b string) int {
 		}
 	}
 	return 0
+}
+
+// compare two version strings and
+// Returns:
+//   -1 if a is smaller than b
+//    0 if a equals b
+//   +1 if a is bigger than b
+func VersionCompare(va, vb string) (res int) {
+	if !VersionIsValid(va) {
+		log.Printf("Invalid version '%s', using '0' instead. Expect wrong results", va)
+		va = "0"
+	}
+	if !VersionIsValid(vb) {
+		log.Printf("Invalid version '%s', using '0' instead. Expect wrong results", vb)
+		vb = "0"
+	}
+
+	if !strings.Contains(va, "-") {
+		va += "-0"
+	}
+	if !strings.Contains(vb, "-") {
+		vb += "-0"
+	}
+
+	// the main version number (before the "-")
+	main_a := strings.Split(va, "-")[0]
+	main_b := strings.Split(vb, "-")[0]
+	res = compareSubversion(main_a, main_b)
+	if res != 0 {
+		return res
+	}
+
+	// the subversion revision behind the "-"
+	rev_a := strings.Split(va, "-")[1]
+	rev_b := strings.Split(vb, "-")[1]
+	return compareSubversion(rev_a, rev_b)
 }
 
 // sort interface
