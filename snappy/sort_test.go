@@ -38,6 +38,11 @@ func (s *SortTestSuite) TestVersionCompare(c *C) {
 
 	c.Assert(VersionCompare("0.10.0", "0.8.7"), Equals, 1)
 
+	// subrev
+	c.Assert(VersionCompare("1.0-1", "1.0-2"), Equals, -1)
+	c.Assert(VersionCompare("1.0-1.1", "1.0-1"), Equals, 1)
+	c.Assert(VersionCompare("1.0-1.1", "1.0-1.1"), Equals, 0)
+
 	// do we like strange versions? Yes we like strange versions…
 	c.Assert(VersionCompare("0", "0"), Equals, 0)
 	c.Assert(VersionCompare("0", "00"), Equals, 0)
@@ -45,7 +50,7 @@ func (s *SortTestSuite) TestVersionCompare(c *C) {
 
 func (s *SortTestSuite) TestVersionInvalid(c *C) {
 	c.Assert(VersionIsValid("1:2"), Equals, false)
-	c.Assert(VersionIsValid("1-1"), Equals, false)
+	c.Assert(VersionIsValid("1--1"), Equals, false)
 	c.Assert(VersionIsValid("1.0"), Equals, true)
 }
 
