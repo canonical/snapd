@@ -253,10 +253,10 @@ func mount(source, target, options string) (err error) {
 // Remove the given string from the string slice
 func stringSliceRemove(slice []string, needle string) (res []string) {
 	// FIXME: so this is golang slice remove?!?! really?
-	if pos := stringInSlice(mounts, needle); pos >= 0 {
-		mounts = append(mounts[:pos], mounts[pos+1:]...)
+	if pos := stringInSlice(slice, needle); pos >= 0 {
+		slice = append(slice[:pos], slice[pos+1:]...)
 	}
-	return mounts
+	return slice
 }
 
 // FIXME: would it make sense to rename to something like
@@ -653,7 +653,7 @@ func (p *Partition) ensureOtherMountedRO() (err error) {
 
 // Remount the already-mounted other partition. Whether the mount
 // should become writable is specified by the writable argument.
-
+//
 // XXX: Note that in the case where writable=true, this isn't a simple
 // toggle - if the partition is already mounted read-only, it needs to
 // be unmounted, fsck(8)'d, then (re-)mounted read-write.
@@ -661,6 +661,8 @@ func (p *Partition) remountOther(writable bool) (err error) {
 	other := p.otherRootPartition()
 
 	if writable == true {
+		// r/o -> r/w: initially r/o, so no need to fsck before
+		// switching to r/w.
 		err = p.unmountOtherRootfs()
 		if err != nil {
 			return err
@@ -670,10 +672,10 @@ func (p *Partition) remountOther(writable bool) (err error) {
 		if err != nil {
 			return err
 		}
+
 		return mount(other.device, p.MountTarget(), "")
 	} else {
-		// already r/w, so no need to fsck when switching
-		// to r/o.
+		// r/w -> r/o: no fsck required.
 		return mount(other.device, p.MountTarget(), "-oremount,ro")
 	}
 }
