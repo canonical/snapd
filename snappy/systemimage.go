@@ -397,6 +397,7 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 		log.Printf("Can not open '%s': %s", path, err)
 		return part, err
 	}
+	defer f.Close()
 	err = cfg.Read(f)
 	if err != nil {
 		log.Printf("Can not parse config '%s': err", path, err)
