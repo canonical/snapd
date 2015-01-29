@@ -7,12 +7,16 @@ import (
 )
 
 type ProgressMeter interface {
+	// Start progress with max "total" steps
 	Start(total float64)
+
+	// set progress to the "current" step
 	Set(current float64)
+
+	// Finish the progress display
 	Finished()
 
-	// FIXME: better name?
-	// Show progress via a spinner
+	// Indicate indefinite activity by showing a spinner
 	Spin(msg string)
 
 	// interface for writer
