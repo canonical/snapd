@@ -172,3 +172,20 @@ func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
 	p.unmountOtherRootfs()
 	c.Assert(mounts, DeepEquals, []string{})
 }
+
+func (s *PartitionTestSuite) TestStringSliceRemoveExisting(c *C) {
+	haystack := []string{"one", "two", "three"}
+
+	newSlice := stringSliceRemove(haystack, "two")
+	c.Assert(newSlice, DeepEquals, []string{"one", "three"})
+
+	// note here that haystack is no longer "valid", i.e. the
+	// underlying array is modified (which is fine)
+	c.Assert(haystack, DeepEquals, []string{"one", "three", "three"})
+}
+
+func (s *PartitionTestSuite) TestStringSliceRemoveNoexistingNoOp(c *C) {
+	haystack := []string{"6", "28", "496", "8128"}
+	newSlice := stringSliceRemove(haystack, "99")
+	c.Assert(newSlice, DeepEquals, []string{"6", "28", "496", "8128"})
+}
