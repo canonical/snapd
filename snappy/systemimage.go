@@ -93,7 +93,7 @@ func (s *SystemImagePart) DownloadSize() int {
 }
 
 func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
-	var updateProgress *dbus.SignalWatch
+	var updateProgress *SensibleWatch
 	if pb != nil {
 		updateProgress, err = s.proxy.makeWatcher("UpdateProgress")
 		if err != nil {
@@ -139,7 +139,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 
 	if pb != nil {
 		pb.Finished()
-		updateProgress.Cancel()
+		updateProgress.watch.Cancel()
 	}
 	return err
 }
@@ -190,10 +190,10 @@ type systemImageDBusProxy struct {
 	us updateStatus
 
 	// signal watches
-	updateAvailableStatus *dbus.SignalWatch
-	updateApplied         *dbus.SignalWatch
-	updateDownloaded      *dbus.SignalWatch
-	updateFailed          *dbus.SignalWatch
+	updateAvailableStatus *SensibleWatch
+	updateApplied         *SensibleWatch
+	updateDownloaded      *SensibleWatch
+	updateFailed          *SensibleWatch
 }
 
 // this functions only exists to make testing easier, i.e. the testsuite
@@ -280,20 +280,35 @@ func (s *systemImageDBusProxy) GetSetting(key string) (v string, err error) {
 	return v, nil
 }
 
-func (s *systemImageDBusProxy) makeWatcher(signalName string) (watch *dbus.SignalWatch, err error) {
-	watch, err = s.connection.WatchSignal(&dbus.MatchRule{
+// Hrm, go-dbus bug #1416352 makes this nesessary (so sad!)
+type SensibleWatch struct {
+	watch *dbus.SignalWatch
+	C     chan *dbus.Message
+}
+
+func (s *systemImageDBusProxy) makeWatcher(signalName string) (sensibleWatch *SensibleWatch, err error) {
+	watch, err := s.connection.WatchSignal(&dbus.MatchRule{
 		Type:      dbus.TypeSignal,
 		Sender:    systemImageBusName,
 		Interface: systemImageInterface,
 		Member:    signalName})
 	if err != nil {
-		return watch, err
+		return sensibleWatch, err
 	}
 	runtime.SetFinalizer(watch, func(u *dbus.SignalWatch) {
 		u.Cancel()
 	})
+	sensibleWatch = &SensibleWatch{
+		watch: watch,
+		C:     make(chan *dbus.Message)}
+	// without this go routine we will deadlock (#1416352)
+	go func() {
+		for msg := range watch.C {
+			sensibleWatch.C <- msg
+		}
+	}()
 
-	return watch, err
+	return sensibleWatch, err
 }
 
 func (s *systemImageDBusProxy) ApplyUpdate() (err error) {

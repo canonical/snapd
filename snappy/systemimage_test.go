@@ -137,66 +137,57 @@ func (m *MockSystemImage) ReloadConfiguration(string) error {
 }
 
 func (m *MockSystemImage) CheckForUpdate() error {
-	// we need to deplay the sending of the signals to ensure that
-	// the method reply is run first
-	go func() {
-		time.Sleep(200 * time.Millisecond)
+	sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateAvailableStatus")
 
-		sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateAvailableStatus")
+	// FIXME: the data we send in the signal is currently mostly
+	//        irrelevant as SystemImageRepository will recv the
+	//        signal but won't use the data and calls Information()
+	//        again instead
+	var size int32 = 1234
+	sig.AppendArgs(
+		true,  // is_available
+		false, // downloading
+		m.fakeAvailableVersion, // available_version
+		size,               // update_size
+		"late_update_date", // laste update date
+		"")                 // error_reason
 
-		// FIXME: the data we send in the signal is currently mostly
-		//        irrelevant as SystemImageRepository will recv the
-		//        signal but won't use the data and calls Information()
-		//        again instead
-		var size int32 = 1234
-		sig.AppendArgs(
-			true,  // is_available
-			false, // downloading
-			m.fakeAvailableVersion, // available_version
-			size,               // update_size
-			"late_update_date", // laste update date
-			"")                 // error_reason
+	if err := m.service.SendSignal(sig); err != nil {
+		// FIXME: do something with the error
+		panic(err)
+	}
 
-		if err := m.service.SendSignal(sig); err != nil {
-			// FIXME: do something with the error
-			panic(err)
-		}
-	}()
 	return nil
 }
 
 func (m *MockSystemImage) DownloadUpdate() error {
-	// we need to deplay the sending of the signals to ensure that
-	// the method reply is run first
-	go func() {
-		time.Sleep(200 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
-		// send progress
-		for i := 1; i <= 5; i++ {
-			sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateProgress")
-			sig.AppendArgs(
-				int32(20*i),             // percent (int32)
-				float64(100.0-(20.0*i)), // eta (double)
-			)
-			if err := m.service.SendSignal(sig); err != nil {
-				// FIXME: do something with the error
-				panic(err)
-			}
-		}
-		time.Sleep(200 * time.Millisecond)
-
-		// send done
-		sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateDownloaded")
-
+	// send progress
+	for i := 1; i <= 5; i++ {
+		sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateProgress")
 		sig.AppendArgs(
-			true, // status, true if a reboot is required
+			int32(20*i),             // percent (int32)
+			float64(100.0-(20.0*i)), // eta (double)
 		)
 		if err := m.service.SendSignal(sig); err != nil {
 			// FIXME: do something with the error
 			panic(err)
 		}
+	}
+	time.Sleep(200 * time.Millisecond)
 
-	}()
+	// send done
+	sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateDownloaded")
+
+	sig.AppendArgs(
+		true, // status, true if a reboot is required
+	)
+	if err := m.service.SendSignal(sig); err != nil {
+		// FIXME: do something with the error
+		panic(err)
+	}
+
 	return nil
 }
 
