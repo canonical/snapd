@@ -70,10 +70,6 @@ const MOUNT_TARGET = "system"
 // File creation mode used when any directories are created
 const DIR_MODE = 0750
 
-// Name of system-image's master configuration file. Used to query
-// the system-image version on the other partition.
-const SYSTEM_IMAGE_CONFIG = "/etc/system-image/client.ini"
-
 var (
 	BootloaderError = errors.New("Unable to determine bootloader")
 
