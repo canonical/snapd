@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
+	"time"
 
 	partition "launchpad.net/snappy/partition"
 
@@ -57,9 +58,12 @@ func NewDBusService(conn *dbus.Connection, interf, path, name string, actor DBus
 	return s
 }
 
+func (s *DBusService) send(msg *dbus.Message) (err error) {
+	return s.conn.Send(msg)
+}
+
 func (s *DBusService) SendSignal(signal *dbus.Message) error {
-	err := s.conn.Send(signal)
-	return err
+	return s.send(signal)
 }
 
 func (s *DBusService) watchBus() {
@@ -94,7 +98,7 @@ func (s *DBusService) watchBus() {
 		default:
 			log.Println("unknown method call %v", msg)
 		}
-		if err := s.conn.Send(reply); err != nil {
+		if err := s.send(reply); err != nil {
 			log.Println("could not send reply:", err)
 		}
 	}
@@ -133,53 +137,66 @@ func (m *MockSystemImage) ReloadConfiguration(string) error {
 }
 
 func (m *MockSystemImage) CheckForUpdate() error {
-	sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateAvailableStatus")
+	// we need to deplay the sending of the signals to ensure that
+	// the method reply is run first
+	go func() {
+		time.Sleep(200 * time.Millisecond)
 
-	// FIXME: the data we send in the signal is currently mostly
-	//        irrelevant as SystemImageRepository will recv the
-	//        signal but won't use the data and calls Information()
-	//        again instead
-	var size int32 = 1234
-	sig.AppendArgs(
-		true,  // is_available
-		false, // downloading
-		m.fakeAvailableVersion, // available_version
-		size,               // update_size
-		"late_update_date", // laste update date
-		"")                 // error_reason
+		sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateAvailableStatus")
 
-	if err := m.service.SendSignal(sig); err != nil {
-		// FIXME: do something with the error
-		panic(err)
-	}
+		// FIXME: the data we send in the signal is currently mostly
+		//        irrelevant as SystemImageRepository will recv the
+		//        signal but won't use the data and calls Information()
+		//        again instead
+		var size int32 = 1234
+		sig.AppendArgs(
+			true,  // is_available
+			false, // downloading
+			m.fakeAvailableVersion, // available_version
+			size,               // update_size
+			"late_update_date", // laste update date
+			"")                 // error_reason
+
+		if err := m.service.SendSignal(sig); err != nil {
+			// FIXME: do something with the error
+			panic(err)
+		}
+	}()
 	return nil
 }
 
 func (m *MockSystemImage) DownloadUpdate() error {
-	// send progress
-	for i := 1; i <= 5; i++ {
-		sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateProgress")
+	// we need to deplay the sending of the signals to ensure that
+	// the method reply is run first
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+
+		// send progress
+		for i := 1; i <= 5; i++ {
+			sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateProgress")
+			sig.AppendArgs(
+				int32(20*i),             // percent (int32)
+				float64(100.0-(20.0*i)), // eta (double)
+			)
+			if err := m.service.SendSignal(sig); err != nil {
+				// FIXME: do something with the error
+				panic(err)
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+
+		// send done
+		sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateDownloaded")
+
 		sig.AppendArgs(
-			int32(20*i),             // percent (int32)
-			float64(100.0-(20.0*i)), // eta (double)
+			true, // status, true if a reboot is required
 		)
 		if err := m.service.SendSignal(sig); err != nil {
 			// FIXME: do something with the error
 			panic(err)
 		}
-	}
 
-	// send done
-	sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateDownloaded")
-
-	sig.AppendArgs(
-		true, // status, true if a reboot is required
-	)
-
-	if err := m.service.SendSignal(sig); err != nil {
-		// FIXME: do something with the error
-		panic(err)
-	}
+	}()
 	return nil
 }
 

@@ -93,37 +93,30 @@ func (s *SystemImagePart) DownloadSize() int {
 }
 
 func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
-
-	quitCh := make(chan int)
+	var updateProgress *dbus.SignalWatch
 	if pb != nil {
-		// FIXME: we need to find a way to stop this watcher
-		updateProgressCh, err := s.proxy.makeWatcher("UpdateProgress")
+		updateProgress, err = s.proxy.makeWatcher("UpdateProgress")
 		if err != nil {
 			log.Panic(fmt.Sprintf("ERROR: %v", err))
 			return nil
 		}
 
-		defer func() {
-			quitCh <- 1
-		}()
 		pb.Start(100.0)
 		go func() {
-			for {
-				var percent int32
-				var eta float64
-				select {
-				case msg := <-updateProgressCh:
-					err := msg.Args(&percent, &eta)
-					if err == nil {
-						if percent >= 0 {
-							pb.Set(float64(percent))
-						} else {
-							pb.Spin("Applying")
-						}
-					}
-				case <-quitCh:
-					pb.Finished()
+			var percent int32
+			var eta float64
+			for msg := range updateProgress.C {
+				if msg == nil {
 					break
+				}
+				err := msg.Args(&percent, &eta)
+				if err != nil {
+					break
+				}
+				if percent >= 0 {
+					pb.Set(float64(percent))
+				} else {
+					pb.Spin("Applying")
 				}
 			}
 		}()
@@ -145,7 +138,8 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	err = s.partition.UpdateBootloader()
 
 	if pb != nil {
-		quitCh <- 1
+		pb.Finished()
+		updateProgress.Cancel()
 	}
 	return err
 }
@@ -196,11 +190,10 @@ type systemImageDBusProxy struct {
 	us updateStatus
 
 	// signal watches
-	updateAvailableStatus chan *dbus.Message
-	updateApplied         chan *dbus.Message
-	updateDownloaded      chan *dbus.Message
-	updateFailed          chan *dbus.Message
-	quitCh                chan int // can be used to stop the watchers
+	updateAvailableStatus *dbus.SignalWatch
+	updateApplied         *dbus.SignalWatch
+	updateDownloaded      *dbus.SignalWatch
+	updateFailed          *dbus.SignalWatch
 }
 
 // this functions only exists to make testing easier, i.e. the testsuite
@@ -225,7 +218,6 @@ func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
 		return nil
 	}
 
-	p.quitCh = make(chan int)
 	p.updateAvailableStatus, err = p.makeWatcher("UpdateAvailableStatus")
 	if err != nil {
 		log.Panic(fmt.Sprintf("ERROR: %v", err))
@@ -288,30 +280,20 @@ func (s *systemImageDBusProxy) GetSetting(key string) (v string, err error) {
 	return v, nil
 }
 
-func (s *systemImageDBusProxy) makeWatcher(signalName string) (received chan *dbus.Message, err error) {
-	watch, err := s.connection.WatchSignal(&dbus.MatchRule{
+func (s *systemImageDBusProxy) makeWatcher(signalName string) (watch *dbus.SignalWatch, err error) {
+	watch, err = s.connection.WatchSignal(&dbus.MatchRule{
 		Type:      dbus.TypeSignal,
 		Sender:    systemImageBusName,
 		Interface: systemImageInterface,
 		Member:    signalName})
 	if err != nil {
-		return received, err
+		return watch, err
 	}
 	runtime.SetFinalizer(watch, func(u *dbus.SignalWatch) {
 		u.Cancel()
 	})
 
-	received = make(chan *dbus.Message)
-	go func() {
-		for {
-			select {
-			case msg := <-watch.C:
-				received <- msg
-			}
-		}
-	}()
-
-	return received, err
+	return watch, err
 }
 
 func (s *systemImageDBusProxy) ApplyUpdate() (err error) {
@@ -321,9 +303,9 @@ func (s *systemImageDBusProxy) ApplyUpdate() (err error) {
 		return err
 	}
 	select {
-	case _ = <-s.updateApplied:
+	case _ = <-s.updateApplied.C:
 		break
-	case _ = <-s.updateFailed:
+	case _ = <-s.updateFailed.C:
 		return errors.New("updateFailed")
 		break
 	}
@@ -337,9 +319,9 @@ func (s *systemImageDBusProxy) DownloadUpdate() (err error) {
 		return err
 	}
 	select {
-	case _ = <-s.updateDownloaded:
+	case _ = <-s.updateDownloaded.C:
 		s.ApplyUpdate()
-	case _ = <-s.updateFailed:
+	case _ = <-s.updateFailed.C:
 		return errors.New("downloadFailed")
 		break
 	}
@@ -390,7 +372,7 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 	}
 
 	select {
-	case msg := <-s.updateAvailableStatus:
+	case msg := <-s.updateAvailableStatus.C:
 		err = msg.Args(&s.us.is_available,
 			&s.us.downloading,
 			&s.us.available_version,
