@@ -139,7 +139,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 
 	if pb != nil {
 		pb.Finished()
-		updateProgress.watch.Cancel()
+		updateProgress.Cancel()
 	}
 	return err
 }
@@ -286,6 +286,11 @@ type SensibleWatch struct {
 	C     chan *dbus.Message
 }
 
+func (w *SensibleWatch) Cancel() {
+	w.watch.Cancel()
+	close(w.C)
+}
+
 func (s *systemImageDBusProxy) makeWatcher(signalName string) (sensibleWatch *SensibleWatch, err error) {
 	watch, err := s.connection.WatchSignal(&dbus.MatchRule{
 		Type:      dbus.TypeSignal,
@@ -307,6 +312,9 @@ func (s *systemImageDBusProxy) makeWatcher(signalName string) (sensibleWatch *Se
 			sensibleWatch.C <- msg
 		}
 	}()
+	runtime.SetFinalizer(sensibleWatch, func(w *SensibleWatch) {
+		w.Cancel()
+	})
 
 	return sensibleWatch, err
 }
