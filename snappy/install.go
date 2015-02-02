@@ -158,6 +158,13 @@ func installSnap(snapFile, targetDir string) (err error) {
 		return err
 	}
 
+	metaDir := path.Join(instDir, ".click", "info")
+	os.MkdirAll(metaDir, 0755)
+	err = ioutil.WriteFile(path.Join(metaDir, manifest.Name+".manifest"), manifestData, 0644)
+	if err != nil {
+		return
+	}
+
 	err = installClickHooks("/usr/share/click/hooks", instDir, manifest)
 	if err != nil {
 		// FIXME: make the output part of the SnapExtractError

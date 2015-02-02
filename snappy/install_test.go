@@ -121,18 +121,19 @@ func (s *SnapTestSuite) TestHandleClickHooks(c *C) {
 	content := fmt.Sprintf(`Hook-Name: systemd
 Pattern: %s/${id}`, testSymlinkDir)
 	makeClickHook(c, mockHooksDir, "snappy-systemd", content)
-	hookFileTarget := path.Join(s.tempdir, "path-to-systemd-file")
-	ioutil.WriteFile(hookFileTarget, []byte(""), 0644)
+	instDir := path.Join(s.tempdir, "apps", "foo", "1.0")
+	os.MkdirAll(instDir, 0755)
+	ioutil.WriteFile(path.Join(instDir, "path-to-systemd-file"), []byte(""), 0644)
 	manifest := clickManifest{
 		Name:    "foo",
 		Version: "1.0",
 		Hooks: map[string]clickAppHook{
 			"app": clickAppHook{
-				"systemd": hookFileTarget,
+				"systemd": "path-to-systemd-file",
 			},
 		},
 	}
-	err := installClickHooks(mockHooksDir, s.tempdir, manifest)
+	err := installClickHooks(mockHooksDir, instDir, manifest)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version))
 	c.Assert(err, IsNil)
@@ -148,4 +149,8 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	content, err := ioutil.ReadFile(contentFile)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "#!/bin/sh\necho \"hello\"")
+
+	// ensure we have the manifest too
+	_, err = os.Stat(path.Join(s.tempdir, "apps", "foo", "1.0", ".click", "info", "foo.manifest"))
+	c.Assert(err, IsNil)
 }
