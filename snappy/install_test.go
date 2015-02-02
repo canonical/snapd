@@ -83,6 +83,39 @@ func (s *SnapTestSuite) TestReadManifest(c *C) {
 	c.Assert(manifest.Hooks["evil"]["bin-path"], Equals, "bin/evil")
 }
 
+func makeClickHook(c *C, hooksDir, hookName, hookContent string) {
+	if _, err := os.Stat(hooksDir); err != nil {
+		os.MkdirAll(hooksDir, 0755)
+	}
+	ioutil.WriteFile(path.Join(hooksDir, hookName+".hook"), []byte(hookContent), 0644)
+}
+
+func (s *SnapTestSuite) TestReadClickHookFile(c *C) {
+	mockHooksDir := path.Join(s.tempdir, "hooks")
+	makeClickHook(c, mockHooksDir, "snappy-systemd", `Hook-Name: systemd
+User: root
+Exec: /usr/lib/click-systemd/systemd-clickhook
+Pattern: /var/lib/systemd/click/${id}`)
+	hook, err := readClickHookFile(path.Join(mockHooksDir, "snappy-systemd.hook"))
+	c.Assert(err, IsNil)
+	c.Assert(hook.name, Equals, "systemd")
+	c.Assert(hook.user, Equals, "root")
+	c.Assert(hook.exec, Equals, "/usr/lib/click-systemd/systemd-clickhook")
+	c.Assert(hook.pattern, Equals, "/var/lib/systemd/click/${id}")
+}
+
+func (s *SnapTestSuite) TestReadClickHooks(c *C) {
+	mockHooksDir := path.Join(s.tempdir, "hooks")
+	makeClickHook(c, mockHooksDir, "snappy-systemd", `Hook-Name: systemd
+User: root
+Exec: /usr/lib/click-systemd/systemd-clickhook
+Pattern: /var/lib/systemd/click/${id}`)
+	hooks, err := systemClickHooks(mockHooksDir)
+	c.Assert(err, IsNil)
+	c.Assert(len(hooks), Equals, 1)
+	c.Assert(hooks[0].name, Equals, "systemd")
+}
+
 func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	snapFile := s.makeTestSnap(c)
 	targetDir := path.Join(s.tempdir, "apps")

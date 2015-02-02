@@ -4,10 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
+	"strings"
+
+	"github.com/mvo5/goconfigparser"
 )
 
 var (
@@ -23,6 +28,13 @@ type clickManifest struct {
 	Hooks   map[string]clickAppHook `json:"hooks,omitempty"`
 }
 
+type clickHook struct {
+	name    string
+	exec    string
+	user    string
+	pattern string
+}
+
 func auditSnap(snapFile string) bool {
 	// FIXME: we want a bit more here ;)
 	return true
@@ -32,6 +44,40 @@ func readClickManifest(data []byte) (manifest clickManifest, err error) {
 	r := bytes.NewReader(data)
 	dec := json.NewDecoder(r)
 	err = dec.Decode(&manifest)
+	return
+}
+
+func readClickHookFile(hookFile string) (hook clickHook, err error) {
+	// FIXME: fugly, write deb822 style parser
+	cfg := goconfigparser.New()
+	content, err := ioutil.ReadFile(hookFile)
+	if err != nil {
+		return
+	}
+	err = cfg.Read(strings.NewReader("[hook]\n" + string(content)))
+	if err != nil {
+		return
+	}
+	hook.name, err = cfg.Get("hook", "Hook-Name")
+	hook.exec, err = cfg.Get("hook", "Exec")
+	hook.user, err = cfg.Get("hook", "User")
+	hook.pattern, err = cfg.Get("hook", "Pattern")
+	return
+}
+
+func systemClickHooks(hookDir string) (hooks []clickHook, err error) {
+	hookFiles, err := filepath.Glob(path.Join(hookDir, "*.hook"))
+	if err != nil {
+		return
+	}
+	for _, f := range hookFiles {
+		hook, err := readClickHookFile(f)
+		if err != nil {
+			log.Printf("Can't read hook file %s: %s", f, err)
+			continue
+		}
+		hooks = append(hooks, hook)
+	}
 	return
 }
 
