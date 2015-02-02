@@ -168,6 +168,14 @@ func removeSnap(clickDir string) (err error) {
 	if err != nil {
 		return
 	}
+
+	// maybe remove current symlink
+	currentSymlink := path.Join(path.Dir(clickDir), "current")
+	p, _ := filepath.EvalSymlinks(currentSymlink)
+	if clickDir == p {
+		os.Remove(currentSymlink)
+	}
+	
 	return os.RemoveAll(clickDir)
 }
 
