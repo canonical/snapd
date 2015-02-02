@@ -27,8 +27,6 @@ echo "hello"`
 name: foo
 version: 1.0
 vendor: Foo Bar <foo@example.com>
-binaries:
- - name: bin/foo
 `
 	ioutil.WriteFile(packageYaml, []byte(content), 0644)
 	readmeMd := path.Join(tmpdir, "meta", "readme.md")
@@ -104,7 +102,7 @@ Pattern: /var/lib/systemd/click/${id}`)
 	c.Assert(hook.pattern, Equals, "/var/lib/systemd/click/${id}")
 }
 
-func (s *SnapTestSuite) TestReadClickHooks(c *C) {
+func (s *SnapTestSuite) TestReadClickHooksDir(c *C) {
 	mockHooksDir := path.Join(s.tempdir, "hooks")
 	makeClickHook(c, mockHooksDir, "snappy-systemd", `Hook-Name: systemd
 User: root
@@ -113,7 +111,31 @@ Pattern: /var/lib/systemd/click/${id}`)
 	hooks, err := systemClickHooks(mockHooksDir)
 	c.Assert(err, IsNil)
 	c.Assert(len(hooks), Equals, 1)
-	c.Assert(hooks[0].name, Equals, "systemd")
+	c.Assert(hooks["systemd"].name, Equals, "systemd")
+}
+
+func (s *SnapTestSuite) TestHandleClickHooks(c *C) {
+	mockHooksDir := path.Join(s.tempdir, "hooks")
+	os.MkdirAll(path.Join(s.tempdir, "/var/lib/systemd/click/"), 0755)
+	testSymlinkDir := path.Join(s.tempdir, "/var/lib/systemd/click/")
+	content := fmt.Sprintf(`Hook-Name: systemd
+Pattern: %s/${id}`, testSymlinkDir)
+	makeClickHook(c, mockHooksDir, "snappy-systemd", content)
+	hookFileTarget := path.Join(s.tempdir, "path-to-systemd-file")
+	ioutil.WriteFile(hookFileTarget, []byte(""), 0644)
+	manifest := clickManifest{
+		Name:    "foo",
+		Version: "1.0",
+		Hooks: map[string]clickAppHook{
+			"app": clickAppHook{
+				"systemd": hookFileTarget,
+			},
+		},
+	}
+	err := installClickHooks(mockHooksDir, manifest)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version))
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {

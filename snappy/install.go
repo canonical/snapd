@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -62,10 +63,15 @@ func readClickHookFile(hookFile string) (hook clickHook, err error) {
 	hook.exec, err = cfg.Get("hook", "Exec")
 	hook.user, err = cfg.Get("hook", "User")
 	hook.pattern, err = cfg.Get("hook", "Pattern")
+	// FIXME: panic if
+	//    User-Level: yes
+	// as this is not supported
 	return
 }
 
-func systemClickHooks(hookDir string) (hooks []clickHook, err error) {
+func systemClickHooks(hookDir string) (hooks map[string]clickHook, err error) {
+	hooks = make(map[string]clickHook)
+
 	hookFiles, err := filepath.Glob(path.Join(hookDir, "*.hook"))
 	if err != nil {
 		return
@@ -76,13 +82,43 @@ func systemClickHooks(hookDir string) (hooks []clickHook, err error) {
 			log.Printf("Can't read hook file %s: %s", f, err)
 			continue
 		}
-		hooks = append(hooks, hook)
+		hooks[hook.name] = hook
 	}
 	return
 }
 
-func handleClickHooks(manifest clickManifest) (err error) {
+func expandPattern(name, app, version, pattern string) (expanded string) {
+	id := fmt.Sprintf("%s_%s_%s", name, app, version)
+	expanded = strings.Replace(pattern, "${id}", id, -1)
 
+	return
+}
+
+func installClickHooks(hooksDir string, manifest clickManifest) (err error) {
+	systemHooks, err := systemClickHooks(hooksDir)
+	if err != nil {
+		return err
+	}
+	for app, hook := range manifest.Hooks {
+		for hookName, hookTargetFile := range hook {
+			systemHook, ok := systemHooks[hookName]
+			if !ok {
+				continue
+			}
+			err = os.Symlink(hookTargetFile, expandPattern(manifest.Name, app, manifest.Version, systemHook.pattern))
+			if err != nil {
+				return
+			}
+			if systemHook.exec != "" {
+				cmdStr := strings.Split(systemHook.exec, " ")
+				cmd := exec.Command(cmdStr[0], cmdStr...)
+				err = cmd.Run()
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
 	return
 }
 
@@ -118,7 +154,7 @@ func installSnap(snapFile, targetDir string) (err error) {
 		return SnapExtractError
 	}
 
-	err = handleClickHooks(manifest)
+	err = installClickHooks("/usr/share/click/hooks", manifest)
 	if err != nil {
 		// FIXME: make the output part of the SnapExtractError
 		log.Printf("Snap install failed with: %s", output)
