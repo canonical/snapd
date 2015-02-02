@@ -94,7 +94,7 @@ func expandPattern(name, app, version, pattern string) (expanded string) {
 	return
 }
 
-func installClickHooks(hooksDir string, manifest clickManifest) (err error) {
+func installClickHooks(hooksDir, targetDir string, manifest clickManifest) (err error) {
 	systemHooks, err := systemClickHooks(hooksDir)
 	if err != nil {
 		return err
@@ -105,7 +105,10 @@ func installClickHooks(hooksDir string, manifest clickManifest) (err error) {
 			if !ok {
 				continue
 			}
-			err = os.Symlink(hookTargetFile, expandPattern(manifest.Name, app, manifest.Version, systemHook.pattern))
+			src := path.Join(targetDir, hookTargetFile)
+			dst := expandPattern(manifest.Name, app, manifest.Version, systemHook.pattern)
+			os.Remove(dst)
+			err = os.Symlink(src, dst)
 			if err != nil {
 				return
 			}
@@ -132,11 +135,12 @@ func installSnap(snapFile, targetDir string) (err error) {
 	cmd := exec.Command("dpkg-deb", "-I", snapFile, "manifest")
 	manifestData, err := cmd.Output()
 	if err != nil {
-		return SnapExtractError
+		log.Printf("Snap inspect failed: %s", snapFile)
+		return err
 	}
 	manifest, err := readClickManifest([]byte(manifestData))
 	if err != nil {
-		return SnapExtractError
+		return err
 	}
 
 	instDir := path.Join(targetDir, manifest.Name, manifest.Version)
@@ -151,17 +155,36 @@ func installSnap(snapFile, targetDir string) (err error) {
 		// FIXME: make the output part of the SnapExtractError
 		log.Printf("Snap install failed with: %s", output)
 		os.RemoveAll(instDir)
-		return SnapExtractError
+		return err
 	}
 
-	err = installClickHooks("/usr/share/click/hooks", manifest)
+	err = installClickHooks("/usr/share/click/hooks", instDir, manifest)
 	if err != nil {
 		// FIXME: make the output part of the SnapExtractError
 		log.Printf("Snap install failed with: %s", output)
 		os.RemoveAll(instDir)
-		return SnapExtractError
+		return err
 	}
 
+	return err
+}
+
+func Install(args []string) (err error) {
+	m := NewMetaRepository()
+	for _, name := range args {
+		found, _ := m.Details(name)
+		for _, part := range found {
+			// act only on parts that are downloadable
+			if !part.IsInstalled() {
+				pbar := NewTextProgress(part.Name())
+				fmt.Printf("Installing %s\n", part.Name())
+				err = part.Install(pbar)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
 	return err
 }
 
@@ -303,22 +326,4 @@ func xxxCmdInstall(args []string) error {
 	return nil
 }
 
-func Install(args []string) (err error) {
-	m := NewMetaRepository()
-	for _, name := range args {
-		found, _ := m.Details(name)
-		for _, part := range found {
-			// act only on parts that are downloadable
-			if !part.IsInstalled() {
-				pbar := NewTextProgress(part.Name())
-				fmt.Printf("Installing %s\n", part.Name())
-				err = part.Install(pbar)
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return err
-}
 */

@@ -132,7 +132,7 @@ Pattern: %s/${id}`, testSymlinkDir)
 			},
 		},
 	}
-	err := installClickHooks(mockHooksDir, manifest)
+	err := installClickHooks(mockHooksDir, s.tempdir, manifest)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version))
 	c.Assert(err, IsNil)

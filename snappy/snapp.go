@@ -281,10 +281,7 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 		return err
 	}
 
-	cmd := exec.Command("click", "install", "--all-users", w.Name())
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	err = installSnap(w.Name(), "/apps")
 	if err != nil {
 		return err
 	}
