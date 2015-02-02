@@ -33,6 +33,7 @@ type TextProgress struct {
 func NewTextProgress(pkg string) *TextProgress {
 	t := TextProgress{pbar: pb.New64(0)}
 	t.pbar.ShowSpeed = true
+	t.pkg = pkg
 	return &t
 }
 
