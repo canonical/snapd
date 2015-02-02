@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"testing"
@@ -225,9 +225,9 @@ func (s *SITestSuite) SetUpTest(c *C) {
 	tmpdir, err := ioutil.TempDir("", "si-root-")
 	c.Assert(err, IsNil)
 	s.systemImage.myroot = tmpdir
-	makeFakeSystemImageChannelConfig(c, path.Join(tmpdir, systemImageChannelConfig), "2.71")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(tmpdir, systemImageChannelConfig), "2.71")
 	// setup fake /other partition
-	makeFakeSystemImageChannelConfig(c, path.Join(tmpdir, "other", systemImageChannelConfig), "3.14")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(tmpdir, "other", systemImageChannelConfig), "3.14")
 
 	s.tmpdir = tmpdir
 }
@@ -237,7 +237,7 @@ func (s *SITestSuite) TearDownTests(c *C) {
 }
 
 func makeFakeSystemImageChannelConfig(c *C, cfgPath, buildNumber string) {
-	os.MkdirAll(path.Dir(cfgPath), 0775)
+	os.MkdirAll(filepath.Dir(cfgPath), 0775)
 	f, err := os.OpenFile(cfgPath, os.O_CREATE|os.O_RDWR, 0664)
 	c.Assert(err, IsNil)
 	defer f.Close()
