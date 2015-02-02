@@ -278,13 +278,17 @@ func (s *systemImageDBusProxy) GetSetting(key string) (v string, err error) {
 
 // Hrm, go-dbus bug #1416352 makes this nesessary (so sad!)
 type SensibleWatch struct {
-	watch *dbus.SignalWatch
-	C     chan *dbus.Message
+	watch  *dbus.SignalWatch
+	C      chan *dbus.Message
+	closed bool
 }
 
 func (w *SensibleWatch) Cancel() {
 	w.watch.Cancel()
-	close(w.C)
+	if !w.closed {
+		close(w.C)
+		w.closed = true
+	}
 }
 
 func (s *systemImageDBusProxy) makeWatcher(signalName string) (sensibleWatch *SensibleWatch, err error) {
