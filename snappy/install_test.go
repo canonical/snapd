@@ -80,6 +80,7 @@ func (s *SnapTestSuite) TestReadManifest(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(manifest.Name, Equals, "hello-world")
 	c.Assert(manifest.Version, Equals, "1.0.5")
+	c.Assert(manifest.Hooks["evil"]["bin-path"], Equals, "bin/evil")
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {

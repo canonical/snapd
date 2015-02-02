@@ -15,9 +15,12 @@ var (
 	SnapExtractError error = errors.New("Snap extract error")
 )
 
+type clickAppHook map[string]string
+
 type clickManifest struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Name    string                  `json:"name"`
+	Version string                  `json:"version"`
+	Hooks   map[string]clickAppHook `json:"hooks,omitempty"`
 }
 
 func auditSnap(snapFile string) bool {
@@ -28,13 +31,18 @@ func auditSnap(snapFile string) bool {
 func readClickManifest(data []byte) (manifest clickManifest, err error) {
 	r := bytes.NewReader(data)
 	dec := json.NewDecoder(r)
-	if err = dec.Decode(&manifest); err != nil {
-		return
-	}
+	err = dec.Decode(&manifest)
+	return
+}
+
+func handleClickHooks(manifest clickManifest) (err error) {
+
 	return
 }
 
 func installSnap(snapFile, targetDir string) (err error) {
+	// FIXME: drop privs to "snap:snap" here
+
 	if !auditSnap(snapFile) {
 		return SnapAuditError
 	}
@@ -53,6 +61,8 @@ func installSnap(snapFile, targetDir string) (err error) {
 	if _, err := os.Stat(instDir); err != nil {
 		os.MkdirAll(instDir, 0755)
 	}
+	// FIXME: replace this with a native extractor to avoid attack
+	//        surface
 	cmd = exec.Command("dpkg-deb", "--extract", snapFile, instDir)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -61,6 +71,15 @@ func installSnap(snapFile, targetDir string) (err error) {
 		os.RemoveAll(instDir)
 		return SnapExtractError
 	}
+
+	err = handleClickHooks(manifest)
+	if err != nil {
+		// FIXME: make the output part of the SnapExtractError
+		log.Printf("Snap install failed with: %s", output)
+		os.RemoveAll(instDir)
+		return SnapExtractError
+	}
+
 	return err
 }
 
