@@ -238,6 +238,13 @@ func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
 		return nil
 	}
 
+	runtime.SetFinalizer(p, func(p *systemImageDBusProxy) {
+		p.updateAvailableStatus.Cancel()
+		p.updateApplied.Cancel()
+		p.updateDownloaded.Cancel()
+		p.updateFailed.Cancel()
+	})
+
 	return p
 }
 
@@ -285,10 +292,7 @@ type SensibleWatch struct {
 
 func (w *SensibleWatch) Cancel() {
 	w.watch.Cancel()
-	if !w.closed {
-		close(w.C)
-		w.closed = true
-	}
+	close(w.C)
 }
 
 func (s *systemImageDBusProxy) makeWatcher(signalName string) (sensibleWatch *SensibleWatch, err error) {
@@ -309,9 +313,6 @@ func (s *systemImageDBusProxy) makeWatcher(signalName string) (sensibleWatch *Se
 			sensibleWatch.C <- msg
 		}
 	}()
-	runtime.SetFinalizer(sensibleWatch, func(w *SensibleWatch) {
-		w.Cancel()
-	})
 
 	return sensibleWatch, err
 }
