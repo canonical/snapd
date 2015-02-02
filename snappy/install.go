@@ -125,6 +125,52 @@ func installClickHooks(hooksDir, targetDir string, manifest clickManifest) (err 
 	return
 }
 
+func removeClickHooks(hooksDir string, manifest clickManifest) (err error) {
+	systemHooks, err := systemClickHooks(hooksDir)
+	if err != nil {
+		return err
+	}
+	for app, hook := range manifest.Hooks {
+		for hookName, _ := range hook {
+			systemHook, ok := systemHooks[hookName]
+			if !ok {
+				continue
+			}
+			dst := expandPattern(manifest.Name, app, manifest.Version, systemHook.pattern)
+			os.Remove(dst)
+			if systemHook.exec != "" {
+				cmdStr := strings.Split(systemHook.exec, " ")
+				cmd := exec.Command(cmdStr[0], cmdStr...)
+				err = cmd.Run()
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return
+}
+
+func removeSnap(clickDir string) (err error) {
+	manifestFiles, err := filepath.Glob(path.Join(clickDir, ".click", "info", "*.manifest"))
+	if err != nil {
+		return
+	}
+	if len(manifestFiles) != 1 {
+		return errors.New(fmt.Sprintf("Error: got %s manifests in %s", len(manifestFiles), clickDir))
+	}
+	manifestData, err := ioutil.ReadFile(manifestFiles[0])
+	manifest, err := readClickManifest([]byte(manifestData))
+	if err != nil {
+		return
+	}
+	err = removeClickHooks("/usr/share/click/hooks", manifest)
+	if err != nil {
+		return
+	}
+	return os.RemoveAll(clickDir)
+}
+
 func installSnap(snapFile, targetDir string) (err error) {
 	// FIXME: drop privs to "snap:snap" here
 

@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
@@ -145,11 +144,7 @@ func (s *SnapPart) Install(pb ProgressMeter) (err error) {
 }
 
 func (s *SnapPart) Uninstall() (err error) {
-	// FIMXE: replace with native code
-	cmd := exec.Command("click", "unregister", "--all-users", s.Name())
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	err = removeSnap(s.basedir)
 	return err
 }
 

@@ -137,6 +137,12 @@ Pattern: %s/${id}`, testSymlinkDir)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version))
 	c.Assert(err, IsNil)
+
+	// now ensure we can remove
+	err = removeClickHooks(mockHooksDir, manifest)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version))
+	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
@@ -153,4 +159,20 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	// ensure we have the manifest too
 	_, err = os.Stat(path.Join(s.tempdir, "apps", "foo", "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
+}
+
+func (s *SnapTestSuite) TestSnapRemove(c *C) {
+	targetDir := path.Join(s.tempdir, "apps")
+	err := installSnap(s.makeTestSnap(c), targetDir)
+	c.Assert(err, IsNil)
+
+	instDir := path.Join(targetDir, "foo", "1.0")
+	_, err = os.Stat(instDir)
+	c.Assert(err, IsNil)
+
+	err = removeSnap(instDir)
+	c.Assert(err, IsNil)
+
+	_, err = os.Stat(instDir)
+	c.Assert(err, NotNil)
 }
