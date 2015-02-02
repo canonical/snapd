@@ -71,3 +71,17 @@ func (ts *HTestSuite) TestArchitectue(c *C) {
 	goarch = "386"
 	c.Check(Architecture(), Equals, "i386")
 }
+
+func (ts *HTestSuite) TestChdir(c *C) {
+	tmpdir, err := ioutil.TempDir(os.TempDir(), "chdir-")
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(tmpdir)
+
+	cwd, err := os.Getwd()
+	c.Assert(cwd, Not(Equals), tmpdir)
+	chDir(tmpdir, func() {
+		cwd, err := os.Getwd()
+		c.Assert(err, IsNil)
+		c.Assert(cwd, Equals, tmpdir)
+	})
+}

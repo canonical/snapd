@@ -1,6 +1,71 @@
 package snappy
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"log"
+	"os"
+	"os/exec"
+	"path"
+)
+
+var (
+	SnapAuditError   error = errors.New("Snap audit error")
+	SnapExtractError error = errors.New("Snap extract error")
+)
+
+type clickManifest struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+func auditSnap(snapFile string) bool {
+	// FIXME: we want a bit more here ;)
+	return true
+}
+
+func readClickManifest(data []byte) (manifest clickManifest, err error) {
+	r := bytes.NewReader(data)
+	dec := json.NewDecoder(r)
+	if err = dec.Decode(&manifest); err != nil {
+		return
+	}
+	return
+}
+
+func installSnap(snapFile, targetDir string) (err error) {
+	if !auditSnap(snapFile) {
+		return SnapAuditError
+	}
+
+	cmd := exec.Command("dpkg-deb", "-I", snapFile, "manifest")
+	manifestData, err := cmd.Output()
+	if err != nil {
+		return SnapExtractError
+	}
+	manifest, err := readClickManifest([]byte(manifestData))
+	if err != nil {
+		return SnapExtractError
+	}
+
+	instDir := path.Join(targetDir, manifest.Name, manifest.Version)
+	if _, err := os.Stat(instDir); err != nil {
+		os.MkdirAll(instDir, 0755)
+	}
+	cmd = exec.Command("dpkg-deb", "--extract", snapFile, instDir)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// FIXME: make the output part of the SnapExtractError
+		log.Printf("Snap install failed with: %s", output)
+		os.RemoveAll(instDir)
+		return SnapExtractError
+	}
+	return err
+}
+
+/*
+import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
@@ -155,3 +220,4 @@ func Install(args []string) (err error) {
 	}
 	return err
 }
+*/

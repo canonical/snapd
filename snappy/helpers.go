@@ -20,6 +20,18 @@ var (
 
 var goarch = runtime.GOARCH
 
+// helper to run "f" inside the given directory
+func chDir(newDir string, f func()) (err error) {
+	cwd, err := os.Getwd()
+	os.Chdir(newDir)
+	defer os.Chdir(cwd)
+	if err != nil {
+		return err
+	}
+	f()
+	return err
+}
+
 func unpackTar(archive string, target string) error {
 
 	var f io.Reader
