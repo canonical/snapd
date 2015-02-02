@@ -109,8 +109,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 				if msg == nil {
 					break
 				}
-				err := msg.Args(&percent, &eta)
-				if err != nil {
+				if err := msg.Args(&percent, &eta); err != nil {
 					break
 				}
 				if percent >= 0 {
