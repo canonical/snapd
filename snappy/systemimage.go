@@ -106,9 +106,6 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 			var percent int32
 			var eta float64
 			for msg := range updateProgress.C {
-				if msg == nil {
-					break
-				}
 				if err := msg.Args(&percent, &eta); err != nil {
 					break
 				}
