@@ -296,9 +296,6 @@ func (s *systemImageDBusProxy) makeWatcher(signalName string) (sensibleWatch *Se
 	if err != nil {
 		return sensibleWatch, err
 	}
-	runtime.SetFinalizer(watch, func(u *dbus.SignalWatch) {
-		u.Cancel()
-	})
 	sensibleWatch = &SensibleWatch{
 		watch: watch,
 		C:     make(chan *dbus.Message)}
