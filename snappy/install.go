@@ -219,6 +219,12 @@ func installSnap(snapFile, targetDir string) (err error) {
 		return err
 	}
 
+	// FIXME: we want to get rid of the current symlink
+	// update current symlink
+	currentSymlink := path.Join(path.Dir(instDir), "current")
+	os.Remove(currentSymlink)
+	err = os.Symlink(instDir, currentSymlink)
+	
 	return err
 }
 
