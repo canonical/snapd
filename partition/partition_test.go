@@ -101,6 +101,26 @@ func (s *PartitionTestSuite) TestSnappyDualRoot(c *C) {
 	c.Assert(other.parentName, Equals, "/dev/sda")
 }
 
+func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
+	runLsblk = mockRunLsblkDualSnappy
+	doRunWithOtherTest(c, (&Partition{}).MountTarget())
+}
+
+func (s *PartitionTestSuite) TestRunWithOtherSingleParitionRO(c *C) {
+	runLsblk = mockRunLsblkSingleRootSnappy
+	doRunWithOtherTest(c, "/")
+}
+func doRunWithOtherTest(c *C, expectedRoot string) {
+	p := New()
+	reportedRoot := ""
+	err := p.RunWithOther(RO, func(otherRoot string) (err error) {
+		reportedRoot = otherRoot
+		return nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(reportedRoot, Equals, expectedRoot)
+}
+
 func mockRunLsblkSingleRootSnappy() (output []string, err error) {
 	dualData := `
 NAME="sda" LABEL="" PKNAME="" MOUNTPOINT=""
@@ -151,4 +171,21 @@ func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
 	c.Assert(mounts, DeepEquals, []string{p.MountTarget()})
 	p.unmountOtherRootfs()
 	c.Assert(mounts, DeepEquals, []string{})
+}
+
+func (s *PartitionTestSuite) TestStringSliceRemoveExisting(c *C) {
+	haystack := []string{"one", "two", "three"}
+
+	newSlice := stringSliceRemove(haystack, "two")
+	c.Assert(newSlice, DeepEquals, []string{"one", "three"})
+
+	// note here that haystack is no longer "valid", i.e. the
+	// underlying array is modified (which is fine)
+	c.Assert(haystack, DeepEquals, []string{"one", "three", "three"})
+}
+
+func (s *PartitionTestSuite) TestStringSliceRemoveNoexistingNoOp(c *C) {
+	haystack := []string{"6", "28", "496", "8128"}
+	newSlice := stringSliceRemove(haystack, "99")
+	c.Assert(newSlice, DeepEquals, []string{"6", "28", "496", "8128"})
 }

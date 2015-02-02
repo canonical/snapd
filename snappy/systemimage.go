@@ -313,7 +313,7 @@ func (s *systemImageDBusProxy) ReloadConfiguration(reset bool) (err error) {
 	// system-image-dbus daemon caches its configuration file,
 	// so once the D-Bus call completes, it no longer cares
 	// about configFile.
-	return s.partition.RunWithOther(false, func(otherRoot string) (err error) {
+	return s.partition.RunWithOther(partition.RO, func(otherRoot string) (err error) {
 		configFile := otherRoot + systemImageClientConfig
 		// FIXME: replace with FileExists() call once it's in a utility
 		// package.
@@ -397,6 +397,7 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 		log.Printf("Can not open '%s': %s", path, err)
 		return part, err
 	}
+	defer f.Close()
 	err = cfg.Read(f)
 	if err != nil {
 		log.Printf("Can not parse config '%s': err", path, err)
@@ -428,7 +429,7 @@ func (s *SystemImageRepository) currentPart() Part {
 // Returns the part associated with the other rootfs (if any)
 func (s *SystemImageRepository) otherPart() Part {
 	var part Part
-	s.partition.RunWithOther(false, func(otherRoot string) (err error) {
+	s.partition.RunWithOther(partition.RO, func(otherRoot string) (err error) {
 		configFile := s.myroot + otherRoot + systemImageChannelConfig
 		part, err = s.makePartFromSystemImageConfigFile(configFile, false)
 		if err != nil {

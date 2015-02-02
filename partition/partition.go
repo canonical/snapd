@@ -70,10 +70,6 @@ const MOUNT_TARGET = "system"
 // File creation mode used when any directories are created
 const DIR_MODE = 0750
 
-// Name of system-image's master configuration file. Used to query
-// the system-image version on the other partition.
-const SYSTEM_IMAGE_CONFIG = "/etc/system-image/client.ini"
-
 var (
 	BootloaderError = errors.New("Unable to determine bootloader")
 
@@ -111,6 +107,13 @@ var bindMounts []string
 
 //--------------------------------------------------------------------
 
+type MountOption int
+
+const (
+	RO MountOption = iota
+	RW
+)
+
 type PartitionInterface interface {
 	UpdateBootloader() (err error)
 	MarkBootSuccessful() (err error)
@@ -120,7 +123,7 @@ type PartitionInterface interface {
 	NextBootIsOther() bool
 
 	// run the function f with the otherRoot mounted
-	RunWithOther(writable bool, f func(otherRoot string) (err error)) (err error)
+	RunWithOther(rw MountOption, f func(otherRoot string) (err error)) (err error)
 }
 
 type Partition struct {
@@ -404,7 +407,7 @@ func New() *Partition {
 
 // Mount the other rootfs partition, execute the specified function and
 // unmount "other" before returning.
-func (p *Partition) RunWithOther(writable bool, f func(otherRoot string) (err error)) (err error) {
+func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (err error)) (err error) {
 	dual := p.dualRootPartitions()
 
 	// FIXME: should we simply
@@ -412,13 +415,13 @@ func (p *Partition) RunWithOther(writable bool, f func(otherRoot string) (err er
 		return f("/")
 	}
 
-	if writable {
-		if err = p.remountOther(true); err != nil {
+	if option == RW {
+		if err = p.remountOther(RW); err != nil {
 			return err
 		}
 
 		defer func() {
-			err = p.remountOther(false)
+			err = p.remountOther(RO)
 		}()
 	}
 
@@ -657,10 +660,10 @@ func (p *Partition) ensureOtherMountedRO() (err error) {
 // XXX: Note that in the case where writable=true, this isn't a simple
 // toggle - if the partition is already mounted read-only, it needs to
 // be unmounted, fsck(8)'d, then (re-)mounted read-write.
-func (p *Partition) remountOther(writable bool) (err error) {
+func (p *Partition) remountOther(option MountOption) (err error) {
 	other := p.otherRootPartition()
 
-	if writable == true {
+	if option == RW {
 		// r/o -> r/w: initially r/o, so no need to fsck before
 		// switching to r/w.
 		err = p.unmountOtherRootfs()
@@ -676,7 +679,7 @@ func (p *Partition) remountOther(writable bool) (err error) {
 		return mount(other.device, p.MountTarget(), "")
 	} else {
 		// r/w -> r/o: no fsck required.
-		return mount(other.device, p.MountTarget(), "-oremount,ro")
+		return mount(other.device, p.MountTarget(), "remount,ro")
 	}
 }
 
@@ -742,7 +745,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return errors.New("System is not dual root")
 	}
 
-	if err = p.remountOther(true); err != nil {
+	if err = p.remountOther(RW); err != nil {
 		return err
 	}
 
@@ -758,7 +761,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return err
 	}
 
-	if err = p.remountOther(false); err != nil {
+	if err = p.remountOther(RO); err != nil {
 		return err
 	}
 
