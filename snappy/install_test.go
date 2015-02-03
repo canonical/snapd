@@ -1,6 +1,7 @@
 package snappy
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -146,9 +147,13 @@ Pattern: %s/${id}`, testSymlinkDir)
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
+	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
+		return nil
+	}
+
 	snapFile := s.makeTestSnap(c)
 	targetDir := path.Join(s.tempdir, "apps")
-	err := installSnap(snapFile, targetDir)
+	err := installSnap(snapFile, targetDir, false)
 	c.Assert(err, IsNil)
 
 	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
@@ -161,9 +166,28 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *SnapTestSuite) TestSnapRemove(c *C) {
+func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
+	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
+		return errors.New("something went wrong")
+	}
+
+	snapFile := s.makeTestSnap(c)
 	targetDir := path.Join(s.tempdir, "apps")
-	err := installSnap(s.makeTestSnap(c), targetDir)
+	err := installSnap(snapFile, targetDir, false)
+	c.Assert(err, NotNil)
+
+	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
+	_, err = os.Stat(contentFile)
+	c.Assert(err, NotNil)
+}
+
+func (s *SnapTestSuite) TestSnapRemove(c *C) {
+	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
+		return nil
+	}
+
+	targetDir := path.Join(s.tempdir, "apps")
+	err := installSnap(s.makeTestSnap(c), targetDir, false)
 	c.Assert(err, IsNil)
 
 	instDir := path.Join(targetDir, "foo", "1.0")

@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -36,9 +37,44 @@ type clickHook struct {
 	pattern string
 }
 
-func auditSnap(snapFile string) bool {
-	// FIXME: we want a bit more here ;)
-	return true
+const (
+	// from debsig-verify-0.9/debsigs.h
+	DS_SUCCESS             = 0
+	DS_FAIL_NOSIGS         = 10
+	DS_FAIL_UNKNOWN_ORIGIN = 11
+	DS_FAIL_NOPOLICIES     = 12
+	DS_FAIL_BADSIG         = 13
+	DS_FAIL_INTERNAL       = 14
+)
+
+// Tiny wrapper around the debsig-verify commandline
+func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error) {
+	cmd := exec.Command("debsig-verify", clickFile)
+	if err := cmd.Run(); err != nil {
+		// golang, you are kidding me, right?
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			waitStatus := exitErr.Sys().(syscall.WaitStatus)
+			exitCode := waitStatus.ExitStatus()
+			// certain error codes are ok
+			if allowUnauthenticated && (exitCode == DS_FAIL_NOSIGS || exitCode == DS_FAIL_UNKNOWN_ORIGIN || exitCode == DS_FAIL_NOPOLICIES) {
+				log.Println("Signature check failed, but installing anyway as requested")
+				return nil
+			}
+		}
+		return err
+	}
+	return nil
+}
+
+var runDebsigVerify = runDebsigVerifyImpl
+
+func auditSnap(snapFile string, allowUnauthenticated bool) (err error) {
+	err = runDebsigVerify(snapFile, allowUnauthenticated)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func readClickManifest(data []byte) (manifest clickManifest, err error) {
@@ -175,15 +211,18 @@ func removeSnap(clickDir string) (err error) {
 	if clickDir == p {
 		os.Remove(currentSymlink)
 	}
-	
+
 	return os.RemoveAll(clickDir)
 }
 
-func installSnap(snapFile, targetDir string) (err error) {
+func installSnap(snapFile, targetDir string, allowUnauthenticated bool) (err error) {
 	// FIXME: drop privs to "snap:snap" here
 
-	if !auditSnap(snapFile) {
-		return SnapAuditError
+	err = auditSnap(snapFile, allowUnauthenticated)
+	if err != nil {
+		return err
+		// ?
+		//return SnapAuditError
 	}
 
 	cmd := exec.Command("dpkg-deb", "-I", snapFile, "manifest")
@@ -232,7 +271,7 @@ func installSnap(snapFile, targetDir string) (err error) {
 	currentSymlink := path.Join(path.Dir(instDir), "current")
 	os.Remove(currentSymlink)
 	err = os.Symlink(instDir, currentSymlink)
-	
+
 	return err
 }
 
