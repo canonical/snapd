@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
-	"time"
 
 	partition "launchpad.net/snappy/partition"
 
@@ -161,8 +160,6 @@ func (m *MockSystemImage) CheckForUpdate() error {
 }
 
 func (m *MockSystemImage) DownloadUpdate() error {
-	time.Sleep(200 * time.Millisecond)
-
 	// send progress
 	for i := 1; i <= 5; i++ {
 		sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateProgress")
@@ -175,7 +172,6 @@ func (m *MockSystemImage) DownloadUpdate() error {
 			panic(err)
 		}
 	}
-	time.Sleep(200 * time.Millisecond)
 
 	// send done
 	sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateDownloaded")
