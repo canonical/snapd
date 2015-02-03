@@ -406,7 +406,9 @@ func New() *Partition {
 }
 
 // Mount the other rootfs partition, execute the specified function and
-// unmount "other" before returning.
+// unmount "other" before returning. If "other" is mounted read-write,
+// /proc, /sys and /dev will also be bind-mounted at the time the
+// specified function is called.
 func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (err error)) (err error) {
 	dual := p.dualRootPartitions()
 
@@ -422,6 +424,14 @@ func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (e
 
 		defer func() {
 			err = p.remountOther(RO)
+		}()
+
+		if err = p.bindmountRequiredFilesystems(); err != nil {
+			return err
+		}
+
+		defer func() {
+			err = p.unmountRequiredFilesystems()
 		}()
 	}
 
@@ -745,25 +755,9 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return errors.New("System is not dual root")
 	}
 
-	if err = p.remountOther(RW); err != nil {
-		return err
-	}
-
-	if err = p.bindmountRequiredFilesystems(); err != nil {
-		return err
-	}
-
-	if err = p.handleBootloader(); err != nil {
-		return err
-	}
-
-	if err = p.unmountRequiredFilesystems(); err != nil {
-		return err
-	}
-
-	if err = p.remountOther(RO); err != nil {
-		return err
-	}
+	err = p.RunWithOther(RW, func(otherRoot string) (err error) {
+		return p.handleBootloader()
+	})
 
 	bootloader, err := p.GetBootloader()
 	if err != nil {
