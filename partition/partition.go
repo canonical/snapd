@@ -741,6 +741,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 	if p.dualRootPartitions() != true {
 		return errors.New("System is not dual root")
 	}
+
 	bootloader, err := p.GetBootloader()
 	if err != nil {
 		return err
@@ -749,6 +750,10 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 	err = p.RunWithOther(RW, func(otherRoot string) (err error) {
 		return bootloader.ToggleRootFS()
 	})
+
+	if err != nil {
+		return err
+	}
 
 	return bootloader.HandleAssets()
 }
