@@ -117,10 +117,10 @@ func (s *PartitionTestSuite) TestRunWithOtherSingleParitionRO(c *C) {
 	runLsblk = mockRunLsblkSingleRootSnappy
 	p := New()
 	err := p.RunWithOther(RO, func(otherRoot string) (err error) {
-	return nil
+		return nil
 	})
 	c.Assert(err, Equals, NoDualPartitionError)
- }
+}
 
 func mockRunLsblkSingleRootSnappy() (output []string, err error) {
 	dualData := `
