@@ -3,7 +3,6 @@ package partition
 import (
 	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -52,33 +51,150 @@ func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
 	c.Assert(hw.Bootloader, Equals, "uboot")
 }
 
-func mockRunLsblkDualSnappy() (output []string, err error) {
-	dualData := `
-NAME="sda" LABEL="" PKNAME="" MOUNTPOINT=""
-NAME="sda1" LABEL="" PKNAME="sda" MOUNTPOINT=""
-NAME="sda2" LABEL="system-boot" PKNAME="sda" MOUNTPOINT=""
-NAME="sda3" LABEL="system-a" PKNAME="sda" MOUNTPOINT="/"
-NAME="sda4" LABEL="system-b" PKNAME="sda" MOUNTPOINT=""
-NAME="sda5" LABEL="writable" PKNAME="sda" MOUNTPOINT="/writable"
-NAME="sr0" LABEL="" PKNAME="" MOUNTPOINT=""
-`
-	return strings.Split(dualData, "\n"), err
+var bootPartition = "/dev/sda2"
+var currentRootPartition= "/dev/sda3"
+var otherRootPartition= "/dev/sda4"
+var writablePartition = "/dev/sda5"
+
+func getBaseMounts() (mounts []mntEnt) {
+        m := mntEnt{
+            Device:      bootPartition,
+            MountPoint:  "/boot/efi",
+            Type:        "vfat",
+            Options:     []string{"rw", "relatime", "fmask=0022",
+	    "dmask=0022", "codepage=437", "iocharset=iso8859-1",
+	    "shortname=mixed", "errors=remount-ro"},
+            DumpFreq:    0,
+            FsckPassNo:  0,
+        }
+        mounts = append(mounts, m)
+
+        m = mntEnt{
+            Device:      bootPartition,
+            MountPoint:  "/boot/grub",
+            Type:        "vfat",
+            Options:     []string{"rw", "relatime", "fmask=0022",
+	    "dmask=0022", "codepage=437", "iocharset=iso8859-1",
+	    "shortname=mixed", "errors=remount-ro"},
+            DumpFreq:    0,
+            FsckPassNo:  0,
+        }
+        mounts = append(mounts, m)
+
+        m = mntEnt{
+            Device:      currentRootPartition,
+            MountPoint:  "/root",
+            Type:        "ext4",
+            Options:     []string{"ro", "relatime", "data=ordered"},
+            DumpFreq:    0,
+            FsckPassNo:  0,
+        }
+        mounts = append(mounts, m)
+
+        m = mntEnt{
+            Device:      currentRootPartition,
+            MountPoint:  "/",
+            Type:        "ext4",
+            Options:     []string{"ro", "relatime", "data=ordered"},
+            DumpFreq:    0,
+            FsckPassNo:  0,
+        }
+        mounts = append(mounts, m)
+
+        m = mntEnt{
+            Device:      writablePartition,
+            MountPoint:  "/writable",
+            Type:        "ext4",
+            Options:     []string{"ro", "relatime", "discard", "data=ordered"},
+            DumpFreq:    0,
+            FsckPassNo:  0,
+        }
+        mounts = append(mounts, m)
+
+	return mounts
+}
+
+func mockGetSingleRootMounts() (mounts []mntEnt, err error) {
+	return getBaseMounts(), err
+}
+
+func mockGetDualRootMounts() (mounts []mntEnt, err error) {
+
+	single, err := mockGetSingleRootMounts()
+	if err != nil {
+		return mounts, err
+	}
+
+	mounts = append(mounts, single...)
+
+	m := mntEnt{
+            Device:      otherRootPartition,
+            MountPoint:  "/writable/cache/system",
+            Type:        "ext4",
+            Options:     []string{"ro", "relatime", "data=ordered"},
+            DumpFreq:    0,
+            FsckPassNo:  0,
+        }
+        mounts = append(mounts, m)
+
+	return mounts, err
+}
+
+func mockGetSingleRootPartitions() (m map[string]string, err error) {
+	m = make(map[string]string)
+
+	m["system-boot"] = bootPartition
+	m["system-a"] = currentRootPartition
+	m["writable"] = writablePartition
+
+	return m, err
+}
+
+func mockGetDualRootPartitions() (m map[string]string, err error) {
+
+	m, err = mockGetSingleRootPartitions()
+
+	if err != nil {
+		return nil, err
+	}
+
+	m["system-b"] = otherRootPartition
+
+	return m, err
 }
 
 func (s *PartitionTestSuite) TestSnappyDualRoot(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
+
+	getMounts = mockGetDualRootMounts
+	getPartitions = mockGetDualRootPartitions
 
 	p := New()
 	c.Assert(p.dualRootPartitions(), Equals, true)
 	c.Assert(p.singleRootPartition(), Equals, false)
 
 	rootPartitions := p.rootPartitions()
-	c.Assert(rootPartitions[0].name, Equals, "system-a")
-	c.Assert(rootPartitions[0].device, Equals, "/dev/sda3")
-	c.Assert(rootPartitions[0].parentName, Equals, "/dev/sda")
-	c.Assert(rootPartitions[1].name, Equals, "system-b")
-	c.Assert(rootPartitions[1].device, Equals, "/dev/sda4")
-	c.Assert(rootPartitions[1].parentName, Equals, "/dev/sda")
+
+	// XXX: getPartitions() returns a map, and iteration is random.
+	// Hence, we cannot rely on the order of the array returned by
+	// rootPartitions() so take a sniff first...
+	var aIndex int
+	var bIndex int
+
+	if rootPartitions[0].name == "system-a" {
+		aIndex = 0
+		bIndex = 1
+	} else {
+		aIndex = 1
+		bIndex = 0
+	}
+
+	c.Assert(rootPartitions[aIndex].name, Equals, "system-a")
+	c.Assert(rootPartitions[aIndex].device, Equals, "/dev/sda3")
+	c.Assert(rootPartitions[aIndex].parentName, Equals, "/dev/sda")
+
+	c.Assert(rootPartitions[bIndex].name, Equals, "system-b")
+	c.Assert(rootPartitions[bIndex].device, Equals, "/dev/sda4")
+	c.Assert(rootPartitions[bIndex].parentName, Equals, "/dev/sda")
 
 	wp := p.writablePartition()
 	c.Assert(wp.name, Equals, "writable")
@@ -102,7 +218,9 @@ func (s *PartitionTestSuite) TestSnappyDualRoot(c *C) {
 }
 
 func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
+	getMounts = mockGetDualRootMounts
+	getPartitions = mockGetDualRootPartitions
+
 	p := New()
 	reportedRoot := ""
 	err := p.RunWithOther(RO, func(otherRoot string) (err error) {
@@ -114,7 +232,9 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
 }
 
 func (s *PartitionTestSuite) TestRunWithOtherSingleParitionRO(c *C) {
-	runLsblk = mockRunLsblkSingleRootSnappy
+	getMounts = mockGetSingleRootMounts
+	getPartitions = mockGetSingleRootPartitions
+
 	p := New()
 	err := p.RunWithOther(RO, func(otherRoot string) (err error) {
 		return nil
@@ -122,18 +242,9 @@ func (s *PartitionTestSuite) TestRunWithOtherSingleParitionRO(c *C) {
 	c.Assert(err, Equals, NoDualPartitionError)
 }
 
-func mockRunLsblkSingleRootSnappy() (output []string, err error) {
-	dualData := `
-NAME="sda" LABEL="" PKNAME="" MOUNTPOINT=""
-NAME="sda1" LABEL="" PKNAME="sda" MOUNTPOINT=""
-NAME="sda2" LABEL="system-boot" PKNAME="sda" MOUNTPOINT=""
-NAME="sda3" LABEL="system-a" PKNAME="sda" MOUNTPOINT="/"
-NAME="sda5" LABEL="writable" PKNAME="sda" MOUNTPOINT="/writable"
-`
-	return strings.Split(dualData, "\n"), err
-}
 func (s *PartitionTestSuite) TestSnappySingleRoot(c *C) {
-	runLsblk = mockRunLsblkSingleRootSnappy
+	getMounts = mockGetSingleRootMounts
+	getPartitions = mockGetSingleRootPartitions
 
 	p := New()
 	c.Assert(p.dualRootPartitions(), Equals, false)
@@ -156,7 +267,9 @@ func mockRunCommand(args ...string) (err error) {
 }
 
 func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
+
+	getMounts = mockGetDualRootMounts
+	getPartitions = mockGetDualRootPartitions
 
 	// FIXME: there should be a generic
 	//        mockFunc(func) (restorer func())
@@ -192,7 +305,8 @@ func (s *PartitionTestSuite) TestStringSliceRemoveNoexistingNoOp(c *C) {
 }
 
 func (s *PartitionTestSuite) TestUndoMounts(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
+	getMounts = mockGetDualRootMounts
+	getPartitions = mockGetDualRootPartitions
 
 	// FIXME: there should be a generic
 	//        mockFunc(func) (restorer func())
@@ -207,7 +321,17 @@ func (s *PartitionTestSuite) TestUndoMounts(c *C) {
 	// FIXME: mounts is global
 	c.Assert(mounts, DeepEquals, []string{})
 	p.bindmountRequiredFilesystems()
-	c.Assert(len(mounts), Equals, len(requiredChrootMounts()))
+
+	// +1 because requiredChrootMounts() only returns the minimum
+	// set - if the system has a boot partition we expect one more.
+	c.Assert(len(mounts), Equals, len(requiredChrootMounts())+1)
+
+	// check expected values
+	c.Assert(stringInSlice(mounts, "/writable/cache/system/dev"), Not(Equals), -1)
+	c.Assert(stringInSlice(mounts, "/writable/cache/system/proc"), Not(Equals), -1)
+	c.Assert(stringInSlice(mounts, "/writable/cache/system/sys"), Not(Equals), -1)
+	c.Assert(stringInSlice(mounts, "/writable/cache/system/boot/efi"), Not(Equals), -1)
+
 	p.unmountRequiredFilesystems()
 	c.Assert(mounts, DeepEquals, []string{})
 }

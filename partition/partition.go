@@ -330,7 +330,7 @@ func stringInSlice(slice []string, value string) int {
 }
 
 // Returns all current mounts
-func getMounts() (mounts []mntEnt, err error) {
+var getMounts = func() (mounts []mntEnt, err error) {
     lines, err := readLines("/proc/self/mounts")
     if err != nil {
         return mounts, err
@@ -370,7 +370,7 @@ func getMounts() (mounts []mntEnt, err error) {
 //
 // key: name of recognised partition.
 // value: full path to disk device for the partition.
-func getPartitions() (m map[string]string, err error) {
+var getPartitions = func() (m map[string]string, err error) {
 	dir := "/dev/disk/by-partlabel"
 
 	recognised := allPartitionLabels()
