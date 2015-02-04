@@ -52,64 +52,64 @@ func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
 }
 
 var bootPartition = "/dev/sda2"
-var currentRootPartition= "/dev/sda3"
-var otherRootPartition= "/dev/sda4"
+var currentRootPartition = "/dev/sda3"
+var otherRootPartition = "/dev/sda4"
 var writablePartition = "/dev/sda5"
 
 func getBaseMounts() (mounts []mntEnt) {
-        m := mntEnt{
-            Device:      bootPartition,
-            MountPoint:  "/boot/efi",
-            Type:        "vfat",
-            Options:     []string{"rw", "relatime", "fmask=0022",
-	    "dmask=0022", "codepage=437", "iocharset=iso8859-1",
-	    "shortname=mixed", "errors=remount-ro"},
-            DumpFreq:    0,
-            FsckPassNo:  0,
-        }
-        mounts = append(mounts, m)
+	m := mntEnt{
+		Device:     bootPartition,
+		MountPoint: "/boot/efi",
+		Type:       "vfat",
+		Options: []string{"rw", "relatime", "fmask=0022",
+			"dmask=0022", "codepage=437", "iocharset=iso8859-1",
+			"shortname=mixed", "errors=remount-ro"},
+		DumpFreq:   0,
+		FsckPassNo: 0,
+	}
+	mounts = append(mounts, m)
 
-        m = mntEnt{
-            Device:      bootPartition,
-            MountPoint:  "/boot/grub",
-            Type:        "vfat",
-            Options:     []string{"rw", "relatime", "fmask=0022",
-	    "dmask=0022", "codepage=437", "iocharset=iso8859-1",
-	    "shortname=mixed", "errors=remount-ro"},
-            DumpFreq:    0,
-            FsckPassNo:  0,
-        }
-        mounts = append(mounts, m)
+	m = mntEnt{
+		Device:     bootPartition,
+		MountPoint: "/boot/grub",
+		Type:       "vfat",
+		Options: []string{"rw", "relatime", "fmask=0022",
+			"dmask=0022", "codepage=437", "iocharset=iso8859-1",
+			"shortname=mixed", "errors=remount-ro"},
+		DumpFreq:   0,
+		FsckPassNo: 0,
+	}
+	mounts = append(mounts, m)
 
-        m = mntEnt{
-            Device:      currentRootPartition,
-            MountPoint:  "/root",
-            Type:        "ext4",
-            Options:     []string{"ro", "relatime", "data=ordered"},
-            DumpFreq:    0,
-            FsckPassNo:  0,
-        }
-        mounts = append(mounts, m)
+	m = mntEnt{
+		Device:     currentRootPartition,
+		MountPoint: "/root",
+		Type:       "ext4",
+		Options:    []string{"ro", "relatime", "data=ordered"},
+		DumpFreq:   0,
+		FsckPassNo: 0,
+	}
+	mounts = append(mounts, m)
 
-        m = mntEnt{
-            Device:      currentRootPartition,
-            MountPoint:  "/",
-            Type:        "ext4",
-            Options:     []string{"ro", "relatime", "data=ordered"},
-            DumpFreq:    0,
-            FsckPassNo:  0,
-        }
-        mounts = append(mounts, m)
+	m = mntEnt{
+		Device:     currentRootPartition,
+		MountPoint: "/",
+		Type:       "ext4",
+		Options:    []string{"ro", "relatime", "data=ordered"},
+		DumpFreq:   0,
+		FsckPassNo: 0,
+	}
+	mounts = append(mounts, m)
 
-        m = mntEnt{
-            Device:      writablePartition,
-            MountPoint:  "/writable",
-            Type:        "ext4",
-            Options:     []string{"ro", "relatime", "discard", "data=ordered"},
-            DumpFreq:    0,
-            FsckPassNo:  0,
-        }
-        mounts = append(mounts, m)
+	m = mntEnt{
+		Device:     writablePartition,
+		MountPoint: "/writable",
+		Type:       "ext4",
+		Options:    []string{"ro", "relatime", "discard", "data=ordered"},
+		DumpFreq:   0,
+		FsckPassNo: 0,
+	}
+	mounts = append(mounts, m)
 
 	return mounts
 }
@@ -128,14 +128,14 @@ func mockGetDualRootMounts() (mounts []mntEnt, err error) {
 	mounts = append(mounts, single...)
 
 	m := mntEnt{
-            Device:      otherRootPartition,
-            MountPoint:  "/writable/cache/system",
-            Type:        "ext4",
-            Options:     []string{"ro", "relatime", "data=ordered"},
-            DumpFreq:    0,
-            FsckPassNo:  0,
-        }
-        mounts = append(mounts, m)
+		Device:     otherRootPartition,
+		MountPoint: "/writable/cache/system",
+		Type:       "ext4",
+		Options:    []string{"ro", "relatime", "data=ordered"},
+		DumpFreq:   0,
+		FsckPassNo: 0,
+	}
+	mounts = append(mounts, m)
 
 	return mounts, err
 }

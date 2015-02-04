@@ -34,9 +34,9 @@ import (
 	"os/signal"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
-	"strconv"
 
 	"gopkg.in/yaml.v2"
 )
@@ -154,12 +154,12 @@ type blockDevice struct {
 
 // similar to a "struct mntent"
 type mntEnt struct {
-    Device      string
-    MountPoint  string
-    Type        string
-    Options     []string
-    DumpFreq    int
-    FsckPassNo  int
+	Device     string
+	MountPoint string
+	Type       string
+	Options    []string
+	DumpFreq   int
+	FsckPassNo int
 }
 
 // Return the mountpoint for the specified disk partition by inspecting the
@@ -331,39 +331,39 @@ func stringInSlice(slice []string, value string) int {
 
 // Returns all current mounts
 var getMounts = func() (mounts []mntEnt, err error) {
-    lines, err := readLines("/proc/self/mounts")
-    if err != nil {
-        return mounts, err
-    }
+	lines, err := readLines("/proc/self/mounts")
+	if err != nil {
+		return mounts, err
+	}
 
-    for _, line := range lines {
-        fields := strings.Split(line, " ")
+	for _, line := range lines {
+		fields := strings.Split(line, " ")
 
-        options := strings.Split(fields[3], ",")
+		options := strings.Split(fields[3], ",")
 
-        DumpFreq, err := strconv.Atoi(fields[4])
-        if err != nil {
-            return mounts, err
-        }
+		DumpFreq, err := strconv.Atoi(fields[4])
+		if err != nil {
+			return mounts, err
+		}
 
-        FsckPassNo, err := strconv.Atoi(fields[5])
-        if err != nil {
-            return mounts, err
-        }
+		FsckPassNo, err := strconv.Atoi(fields[5])
+		if err != nil {
+			return mounts, err
+		}
 
-        m := mntEnt{
-            Device:      fields[0],
-            MountPoint:  fields[1],
-            Type:        fields[2],
-            Options:     options,
-            DumpFreq:    DumpFreq,
-            FsckPassNo:  FsckPassNo,
-        }
+		m := mntEnt{
+			Device:     fields[0],
+			MountPoint: fields[1],
+			Type:       fields[2],
+			Options:    options,
+			DumpFreq:   DumpFreq,
+			FsckPassNo: FsckPassNo,
+		}
 
-        mounts = append(mounts, m)
-    }
+		mounts = append(mounts, m)
+	}
 
-    return mounts, err
+	return mounts, err
 }
 
 // Returns a hash of recognised partitions in the following form:
@@ -436,9 +436,9 @@ var loadPartitionDetails = func() (partitions []blockDevice, err error) {
 
 		if matches == nil {
 			return partitions,
-			errors.New(
-				fmt.Sprintf("failed to find disk associated " +
-				"with partition %q",device))
+				errors.New(
+					fmt.Sprintf("failed to find disk associated "+
+						"with partition %q", device))
 		}
 
 		disk := matches[0][1]
