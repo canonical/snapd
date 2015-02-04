@@ -189,3 +189,24 @@ func (s *PartitionTestSuite) TestStringSliceRemoveNoexistingNoOp(c *C) {
 	newSlice := stringSliceRemove(haystack, "99")
 	c.Assert(newSlice, DeepEquals, []string{"6", "28", "496", "8128"})
 }
+
+func (s *PartitionTestSuite) TestUndoMounts(c *C) {
+	runLsblk = mockRunLsblkDualSnappy
+
+	// FIXME: there should be a generic
+	//        mockFunc(func) (restorer func())
+	savedRunCommand := runCommand
+	defer func() {
+		runCommand = savedRunCommand
+	}()
+	runCommand = mockRunCommand
+
+	p := New()
+
+	// FIXME: mounts is global
+	c.Assert(mounts, DeepEquals, []string{})
+	p.bindmountRequiredFilesystems()
+	c.Assert(len(mounts), Equals, len(requiredChrootMounts()))
+	p.unmountRequiredFilesystems()
+	c.Assert(mounts, DeepEquals, []string{})
+}

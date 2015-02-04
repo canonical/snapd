@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -83,14 +82,14 @@ func NewInstalledSnapPart(yaml_path string) *SnapPart {
 		log.Printf("Can not parse '%s'", yaml_data)
 		return nil
 	}
-	part.basedir = path.Dir(path.Dir(yaml_path))
+	part.basedir = filepath.Dir(filepath.Dir(yaml_path))
 	// data from the yaml
 	part.name = m.Name
 	part.version = m.Version
 	part.isInstalled = true
 	// check if the part is active
-	allVersionsDir := path.Dir(part.basedir)
-	p, _ := filepath.EvalSymlinks(path.Join(allVersionsDir, "current"))
+	allVersionsDir := filepath.Dir(part.basedir)
+	p, _ := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
 	if p == part.basedir {
 		part.isActive = true
 	}
@@ -181,7 +180,7 @@ func (s *SnapLocalRepository) Updates() (parts []Part, err error) {
 }
 
 func (s *SnapLocalRepository) Installed() (parts []Part, err error) {
-	globExpr := path.Join(s.path, "*", "*", "meta", "package.yaml")
+	globExpr := filepath.Join(s.path, "*", "*", "meta", "package.yaml")
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
 		return parts, err
@@ -264,7 +263,7 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 	defer resp.Body.Close()
 
 	if pbar != nil {
-		pbar.Start(resp.ContentLength)
+		pbar.Start(float64(resp.ContentLength))
 		mw := io.MultiWriter(w, pbar)
 		_, err = io.Copy(mw, resp.Body)
 		pbar.Finished()

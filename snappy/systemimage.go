@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -92,6 +93,30 @@ func (s *SystemImagePart) DownloadSize() int {
 }
 
 func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
+	var updateProgress *SensibleWatch
+	if pb != nil {
+		updateProgress, err = s.proxy.makeWatcher("UpdateProgress")
+		if err != nil {
+			log.Panic(fmt.Sprintf("ERROR: %v", err))
+			return nil
+		}
+
+		pb.Start(100.0)
+		go func() {
+			var percent int32
+			var eta float64
+			for msg := range updateProgress.C {
+				if err := msg.Args(&percent, &eta); err != nil {
+					break
+				}
+				if percent >= 0 {
+					pb.Set(float64(percent))
+				} else {
+					pb.Spin("Applying")
+				}
+			}
+		}()
+	}
 
 	// Ensure there is always a kernel + initrd to boot with, even
 	// if the update does not provide new versions.
@@ -106,8 +131,13 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	}
 
 	// FIXME: switch s-i daemon back to current partition
+	err = s.partition.UpdateBootloader()
 
-	return s.partition.UpdateBootloader()
+	if pb != nil {
+		pb.Finished()
+		updateProgress.Cancel()
+	}
+	return err
 }
 
 func (s *SystemImagePart) Uninstall() (err error) {
@@ -156,10 +186,10 @@ type systemImageDBusProxy struct {
 	us updateStatus
 
 	// signal watches
-	updateAvailableStatus chan *dbus.Message
-	updateApplied         chan *dbus.Message
-	updateDownloaded      chan *dbus.Message
-	updateFailed          chan *dbus.Message
+	updateAvailableStatus *SensibleWatch
+	updateApplied         *SensibleWatch
+	updateDownloaded      *SensibleWatch
+	updateFailed          *SensibleWatch
 }
 
 // this functions only exists to make testing easier, i.e. the testsuite
@@ -208,6 +238,13 @@ func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
 		return nil
 	}
 
+	runtime.SetFinalizer(p, func(p *systemImageDBusProxy) {
+		p.updateAvailableStatus.Cancel()
+		p.updateApplied.Cancel()
+		p.updateDownloaded.Cancel()
+		p.updateFailed.Cancel()
+	})
+
 	return p
 }
 
@@ -246,27 +283,38 @@ func (s *systemImageDBusProxy) GetSetting(key string) (v string, err error) {
 	return v, nil
 }
 
-func (s *systemImageDBusProxy) makeWatcher(signalName string) (received chan *dbus.Message, err error) {
+// Hrm, go-dbus bug #1416352 makes this nesessary (so sad!)
+type SensibleWatch struct {
+	watch  *dbus.SignalWatch
+	C      chan *dbus.Message
+	closed bool
+}
+
+func (w *SensibleWatch) Cancel() {
+	w.watch.Cancel()
+}
+
+func (s *systemImageDBusProxy) makeWatcher(signalName string) (sensibleWatch *SensibleWatch, err error) {
 	watch, err := s.connection.WatchSignal(&dbus.MatchRule{
 		Type:      dbus.TypeSignal,
 		Sender:    systemImageBusName,
 		Interface: systemImageInterface,
 		Member:    signalName})
 	if err != nil {
-		return received, err
+		return sensibleWatch, err
 	}
-	runtime.SetFinalizer(watch, func(u *dbus.SignalWatch) {
-		u.Cancel()
-	})
-
-	received = make(chan *dbus.Message)
+	sensibleWatch = &SensibleWatch{
+		watch: watch,
+		C:     make(chan *dbus.Message)}
+	// without this go routine we will deadlock (#1416352)
 	go func() {
 		for msg := range watch.C {
-			received <- msg
+			sensibleWatch.C <- msg
 		}
+		close(sensibleWatch.C)
 	}()
 
-	return received, err
+	return sensibleWatch, err
 }
 
 func (s *systemImageDBusProxy) ApplyUpdate() (err error) {
@@ -276,9 +324,9 @@ func (s *systemImageDBusProxy) ApplyUpdate() (err error) {
 		return err
 	}
 	select {
-	case _ = <-s.updateApplied:
+	case _ = <-s.updateApplied.C:
 		break
-	case _ = <-s.updateFailed:
+	case _ = <-s.updateFailed.C:
 		return errors.New("updateFailed")
 		break
 	}
@@ -292,9 +340,9 @@ func (s *systemImageDBusProxy) DownloadUpdate() (err error) {
 		return err
 	}
 	select {
-	case _ = <-s.updateDownloaded:
+	case _ = <-s.updateDownloaded.C:
 		s.ApplyUpdate()
-	case _ = <-s.updateFailed:
+	case _ = <-s.updateFailed.C:
 		return errors.New("downloadFailed")
 		break
 	}
@@ -314,7 +362,7 @@ func (s *systemImageDBusProxy) ReloadConfiguration(reset bool) (err error) {
 	// so once the D-Bus call completes, it no longer cares
 	// about configFile.
 	return s.partition.RunWithOther(partition.RO, func(otherRoot string) (err error) {
-		configFile := otherRoot + systemImageClientConfig
+		configFile := filepath.Join(otherRoot, systemImageClientConfig)
 		// FIXME: replace with FileExists() call once it's in a utility
 		// package.
 		_, err = os.Stat(configFile)
@@ -336,6 +384,7 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 	if err = s.ReloadConfiguration(false); err != nil {
 		return us, err
 	}
+	// FIXME: we can not switch back or DownloadUpdate is unhappy
 
 	callName := "CheckForUpdate"
 	_, err = s.proxy.Call(systemImageBusName, callName)
@@ -344,7 +393,7 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 	}
 
 	select {
-	case msg := <-s.updateAvailableStatus:
+	case msg := <-s.updateAvailableStatus.C:
 		err = msg.Args(&s.us.is_available,
 			&s.us.downloading,
 			&s.us.available_version,
@@ -358,12 +407,6 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 				"timed out after %d seconds "+
 				"waiting for system image server to respond",
 			systemImageTimeoutSecs))
-	}
-
-	// switch back to using the current rootfs's system-image
-	// configuration.
-	if err = s.ReloadConfiguration(true); err != nil {
-		return us, err
 	}
 
 	return s.us, err
@@ -418,7 +461,7 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 }
 
 func (s *SystemImageRepository) currentPart() Part {
-	configFile := s.myroot + systemImageChannelConfig
+	configFile := filepath.Join(s.myroot, systemImageChannelConfig)
 	part, err := s.makePartFromSystemImageConfigFile(configFile, true)
 	if err != nil {
 		log.Printf("Can not make system-image part for %s: %s", configFile, err)
@@ -430,7 +473,7 @@ func (s *SystemImageRepository) currentPart() Part {
 func (s *SystemImageRepository) otherPart() Part {
 	var part Part
 	s.partition.RunWithOther(partition.RO, func(otherRoot string) (err error) {
-		configFile := s.myroot + otherRoot + systemImageChannelConfig
+		configFile := filepath.Join(s.myroot, otherRoot, systemImageChannelConfig)
 		part, err = s.makePartFromSystemImageConfigFile(configFile, false)
 		if err != nil {
 			log.Printf("Can not make system-image part for %s: %s", configFile, err)
@@ -462,17 +505,15 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 	if _, err = s.proxy.CheckForUpdate(); err != nil {
 		return parts, err
 	}
-	info, err := s.proxy.Information()
-	if err != nil {
-		return parts, err
-	}
-	if VersionCompare(info["current_build_number"], info["target_build_number"]) < 0 {
-		version := info["target_build_number"]
+	current := s.currentPart()
+	current_version := current.Version()
+	target_version := s.proxy.us.available_version
+	if VersionCompare(current_version, target_version) < 0 {
 		parts = append(parts, &SystemImagePart{
 			proxy:          s.proxy,
-			version:        version,
-			versionDetails: info["version_details"],
-			channelName:    info["channel_name"],
+			version:        target_version,
+			versionDetails: "?",
+			channelName:    current.(*SystemImagePart).channelName,
 			partition:      s.partition})
 	}
 

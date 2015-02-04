@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 
 	partition "launchpad.net/snappy/partition"
@@ -47,22 +47,22 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 }
 
 func (s *SnapTestSuite) makeMockSnap() (snap_dir string, err error) {
-	meta_dir := path.Join(s.tempdir, "apps", "hello-app", "1.10", "meta")
+	meta_dir := filepath.Join(s.tempdir, "apps", "hello-app", "1.10", "meta")
 	err = os.MkdirAll(meta_dir, 0777)
 	if err != nil {
 		return "", err
 	}
-	yaml_file := path.Join(meta_dir, "package.yaml")
+	yaml_file := filepath.Join(meta_dir, "package.yaml")
 	ioutil.WriteFile(yaml_file, []byte(PACKAGE_HELLO), 0666)
 
-	snap_dir, _ = path.Split(meta_dir)
+	snap_dir, _ = filepath.Split(meta_dir)
 	return yaml_file, err
 }
 
 func makeSnapActive(package_yaml_path string) (err error) {
-	snapdir := path.Dir(path.Dir(package_yaml_path))
-	parent := path.Dir(snapdir)
-	err = os.Symlink(snapdir, path.Join(parent, "current"))
+	snapdir := filepath.Dir(filepath.Dir(package_yaml_path))
+	parent := filepath.Dir(snapdir)
+	err = os.Symlink(snapdir, filepath.Join(parent, "current"))
 
 	return err
 }
@@ -82,7 +82,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
 
-	c.Assert(snap.basedir, Equals, path.Join(s.tempdir, "apps", "hello-app", "1.10"))
+	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", "hello-app", "1.10"))
 }
 
 func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
@@ -105,7 +105,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 	err = makeSnapActive(yaml_path)
 	c.Assert(err, IsNil)
 
-	snap := NewLocalSnapRepository(path.Join(s.tempdir, "apps"))
+	snap := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
 	c.Assert(snap, NotNil)
 
 	installed, err := snap.Installed()

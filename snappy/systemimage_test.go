@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"testing"
@@ -57,9 +57,12 @@ func NewDBusService(conn *dbus.Connection, interf, path, name string, actor DBus
 	return s
 }
 
+func (s *DBusService) send(msg *dbus.Message) (err error) {
+	return s.conn.Send(msg)
+}
+
 func (s *DBusService) SendSignal(signal *dbus.Message) error {
-	err := s.conn.Send(signal)
-	return err
+	return s.send(signal)
 }
 
 func (s *DBusService) watchBus() {
@@ -94,7 +97,7 @@ func (s *DBusService) watchBus() {
 		default:
 			log.Println("unknown method call %v", msg)
 		}
-		if err := s.conn.Send(reply); err != nil {
+		if err := s.send(reply); err != nil {
 			log.Println("could not send reply:", err)
 		}
 	}
@@ -109,10 +112,11 @@ type MockSystemImage struct {
 	service   *DBusService
 	partition *partition.Partition
 
-	info map[string]string
+	fakeAvailableVersion string
+	info                 map[string]string
 }
 
-func NewMockSystemImage() *MockSystemImage {
+func newMockSystemImage() *MockSystemImage {
 	msi := new(MockSystemImage)
 	msi.info = make(map[string]string)
 
@@ -140,9 +144,9 @@ func (m *MockSystemImage) CheckForUpdate() error {
 	//        again instead
 	var size int32 = 1234
 	sig.AppendArgs(
-		true,               // is_available
-		false,              // downloading
-		"3.14",             // available_version
+		true,  // is_available
+		false, // downloading
+		m.fakeAvailableVersion, // available_version
 		size,               // update_size
 		"late_update_date", // laste update date
 		"")                 // error_reason
@@ -151,20 +155,35 @@ func (m *MockSystemImage) CheckForUpdate() error {
 		// FIXME: do something with the error
 		panic(err)
 	}
+
 	return nil
 }
 
 func (m *MockSystemImage) DownloadUpdate() error {
+	// send progress
+	for i := 1; i <= 5; i++ {
+		sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateProgress")
+		sig.AppendArgs(
+			int32(20*i),             // percent (int32)
+			float64(100.0-(20.0*i)), // eta (double)
+		)
+		if err := m.service.SendSignal(sig); err != nil {
+			// FIXME: do something with the error
+			panic(err)
+		}
+	}
+
+	// send done
 	sig := dbus.NewSignalMessage(systemImageObjectPath, systemImageInterface, "UpdateDownloaded")
 
 	sig.AppendArgs(
 		true, // status, true if a reboot is required
 	)
-
 	if err := m.service.SendSignal(sig); err != nil {
 		// FIXME: do something with the error
 		panic(err)
 	}
+
 	return nil
 }
 
@@ -192,7 +211,7 @@ func (s *SITestSuite) SetUpTest(c *C) {
 	s.conn, err = dbus.Connect(dbus.SessionBus)
 	c.Assert(err, IsNil)
 
-	s.mockSystemImage = NewMockSystemImage()
+	s.mockSystemImage = newMockSystemImage()
 	s.mockService = NewDBusService(s.conn, systemImageInterface, systemImageObjectPath, systemImageBusName, s.mockSystemImage)
 	c.Assert(s.mockService, NotNil)
 
@@ -202,9 +221,9 @@ func (s *SITestSuite) SetUpTest(c *C) {
 	tmpdir, err := ioutil.TempDir("", "si-root-")
 	c.Assert(err, IsNil)
 	s.systemImage.myroot = tmpdir
-	makeFakeSystemImageChannelConfig(c, tmpdir+systemImageChannelConfig, "2.71")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(tmpdir, systemImageChannelConfig), "2.71")
 	// setup fake /other partition
-	makeFakeSystemImageChannelConfig(c, tmpdir+"/other/"+systemImageChannelConfig, "3.14")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(tmpdir, "other", systemImageChannelConfig), "3.14")
 
 	s.tmpdir = tmpdir
 }
@@ -214,8 +233,8 @@ func (s *SITestSuite) TearDownTests(c *C) {
 }
 
 func makeFakeSystemImageChannelConfig(c *C, cfgPath, buildNumber string) {
-	os.MkdirAll(path.Dir(cfgPath), 0777)
-	f, err := os.OpenFile(cfgPath, os.O_CREATE|os.O_RDWR, 0666)
+	os.MkdirAll(filepath.Dir(cfgPath), 0775)
+	f, err := os.OpenFile(cfgPath, os.O_CREATE|os.O_RDWR, 0664)
 	c.Assert(err, IsNil)
 	defer f.Close()
 	f.Write([]byte(fmt.Sprintf(`
@@ -263,6 +282,7 @@ func (s *SITestSuite) TestTestInstalled(c *C) {
 }
 
 func (s *SITestSuite) TestUpdateNoUpdate(c *C) {
+	s.mockSystemImage.fakeAvailableVersion = "2.71"
 	parts, err := s.systemImage.Updates()
 	c.Assert(err, IsNil)
 	c.Assert(len(parts), Equals, 0)
@@ -270,7 +290,7 @@ func (s *SITestSuite) TestUpdateNoUpdate(c *C) {
 
 func (s *SITestSuite) TestUpdateHasUpdate(c *C) {
 	// add a update
-	s.mockSystemImage.info["target_build_number"] = "3.14"
+	s.mockSystemImage.fakeAvailableVersion = "3.14"
 	parts, err := s.systemImage.Updates()
 	c.Assert(err, IsNil)
 	c.Assert(len(parts), Equals, 1)
@@ -305,23 +325,50 @@ func (p *MockPartition) RunWithOther(option partition.MountOption, f func(otherR
 	return f("/other")
 }
 
+type MockProgressMeter struct {
+	total    float64
+	progress []float64
+	finished bool
+	spin     bool
+}
+
+func (m *MockProgressMeter) Start(total float64) {
+	m.total = total
+}
+func (m *MockProgressMeter) Set(current float64) {
+	m.progress = append(m.progress, current)
+}
+func (m *MockProgressMeter) Spin(msg string) {
+	m.spin = true
+}
+func (m *MockProgressMeter) Write(buf []byte) (n int, err error) {
+	return len(buf), err
+}
+func (m *MockProgressMeter) Finished() {
+	m.finished = true
+}
+
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	// add a update
-	s.mockSystemImage.info["target_build_number"] = "3.14"
+	s.mockSystemImage.fakeAvailableVersion = "3.14"
 	parts, err := s.systemImage.Updates()
 
 	sp := parts[0].(*SystemImagePart)
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.Install(nil)
+	pb := &MockProgressMeter{}
+	err = sp.Install(pb)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
+	c.Assert(pb.total, Equals, 100.0)
+	c.Assert(pb.finished, Equals, true)
+	c.Assert(pb.progress, DeepEquals, []float64{20.0, 40.0, 60.0, 80.0, 100.0})
 }
 
 func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 	// add a update
-	s.mockSystemImage.info["target_build_number"] = "3.14"
+	s.mockSystemImage.fakeAvailableVersion = "3.14"
 	parts, err := s.systemImage.Updates()
 
 	sp := parts[0].(*SystemImagePart)
