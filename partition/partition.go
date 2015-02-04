@@ -191,7 +191,7 @@ func init() {
 		debug = true
 	}
 
-	if signal_handler_registered == false {
+	if !signal_handler_registered {
 		setup_signal_handler()
 		signal_handler_registered = true
 	}
@@ -477,6 +477,8 @@ func New() *Partition {
 	return p
 }
 
+var NoDualPartitionError = errors.New("No dual partition")
+
 // Mount the other rootfs partition, execute the specified function and
 // unmount "other" before returning. If "other" is mounted read-write,
 // /proc, /sys and /dev will also be bind-mounted at the time the
@@ -484,9 +486,8 @@ func New() *Partition {
 func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (err error)) (err error) {
 	dual := p.dualRootPartitions()
 
-	// FIXME: should we simply
 	if !dual {
-		return f("/")
+		return NoDualPartitionError
 	}
 
 	if option == RW {
@@ -530,7 +531,7 @@ func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
 	bootloaders := []BootLoader{NewUboot(p), NewGrub(p)}
 
 	for _, b := range bootloaders {
-		if b.Installed() == true {
+		if b.Installed() {
 			return b, err
 		}
 	}
@@ -711,7 +712,7 @@ func (p *Partition) mountOtherRootfs(readOnly bool) (err error) {
 
 	other = p.otherRootPartition()
 
-	if readOnly == true {
+	if readOnly {
 		err = mount(other.device, p.MountTarget(), "ro")
 	} else {
 		err = fsck(other.device)
@@ -808,30 +809,21 @@ func (p *Partition) unmountRequiredFilesystems() (err error) {
 	return undoMounts(bindMounts)
 }
 
-func (p *Partition) handleBootloader() (err error) {
-	bootloader, err := p.GetBootloader()
+func (p *Partition) toggleBootloaderRootfs() (err error) {
 
+	if !p.dualRootPartitions() {
+		return errors.New("System is not dual root")
+	}
+
+	bootloader, err := p.GetBootloader()
 	if err != nil {
 		return err
 	}
 
-	// FIXME: use logger
-	//fmt.Printf("FIXME: HandleBootloader: bootloader=%s\n", bootloader.Name())
-
-	return bootloader.ToggleRootFS()
-}
-
-func (p *Partition) toggleBootloaderRootfs() (err error) {
-
-	if p.dualRootPartitions() != true {
-		return errors.New("System is not dual root")
-	}
-
 	err = p.RunWithOther(RW, func(otherRoot string) (err error) {
-		return p.handleBootloader()
+		return bootloader.ToggleRootFS()
 	})
 
-	bootloader, err := p.GetBootloader()
 	if err != nil {
 		return err
 	}
