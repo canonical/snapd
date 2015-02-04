@@ -366,7 +366,7 @@ func (s *systemImageDBusProxy) ReloadConfiguration(reset bool) (err error) {
 		// FIXME: replace with FileExists() call once it's in a utility
 		// package.
 		_, err = os.Stat(configFile)
-		if err != nil {
+		if err != nil && os.IsNotExist(err) {
 			// file doesn't exist, making this call a NOP.
 			return nil
 		}
@@ -475,7 +475,7 @@ func (s *SystemImageRepository) otherPart() Part {
 	err := s.partition.RunWithOther(partition.RO, func(otherRoot string) (err error) {
 		configFile := filepath.Join(s.myroot, otherRoot, systemImageChannelConfig)
 		_, err = os.Stat(configFile)
-		if err != nil {
+		if err != nil && os.IsNotExist(err) {
 			// config file doesn't exist, meaning the other
 			// partition is empty. However, this is not an
 			// error condition (atleast for amd64 images
