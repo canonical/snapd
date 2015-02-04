@@ -37,7 +37,7 @@ import (
 	"strings"
 	"syscall"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v1"
 )
 
 var debug bool = false
