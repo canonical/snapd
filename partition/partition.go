@@ -36,6 +36,7 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+	"strconv"
 
 	"gopkg.in/yaml.v2"
 )
@@ -149,6 +150,31 @@ type blockDevice struct {
 
 	// mountpoint (or nil if not mounted)
 	mountpoint string
+}
+
+// similar to a "struct mntent"
+type mntEnt struct {
+    Device      string
+    MountPoint  string
+    Type        string
+    Options     []string
+    DumpFreq    int
+    FsckPassNo  int
+}
+
+// Return the mountpoint for the specified disk partition by inspecting the
+// provided mount entries.
+func getMountPoint(mounts []mntEnt, partition string) string {
+	for _, entry := range mounts {
+		// Note that we have to special-case the rootfs mount
+		// since there are *two* entries in the mount table; one
+		// for mountpoint "/root", the other for "/".
+		if entry.Device == partition && entry.MountPoint != "/root" {
+			return entry.MountPoint
+		}
+	}
+
+	return ""
 }
 
 // Representation of HARDWARE_SPEC_FILE
@@ -303,91 +329,137 @@ func stringInSlice(slice []string, value string) int {
 	return -1
 }
 
-var runLsblk = func() (output []string, err error) {
-	return runCommandWithStdout(
-		"/bin/lsblk",
-		"--ascii",
-		"--output=NAME,LABEL,PKNAME,MOUNTPOINT",
-		"--pairs")
+// Returns all current mounts
+func getMounts() (mounts []mntEnt, err error) {
+    lines, err := readLines("/proc/self/mounts")
+    if err != nil {
+        return mounts, err
+    }
+
+    for _, line := range lines {
+        fields := strings.Split(line, " ")
+
+        options := strings.Split(fields[3], ",")
+
+        DumpFreq, err := strconv.Atoi(fields[4])
+        if err != nil {
+            return mounts, err
+        }
+
+        FsckPassNo, err := strconv.Atoi(fields[5])
+        if err != nil {
+            return mounts, err
+        }
+
+        m := mntEnt{
+            Device:      fields[0],
+            MountPoint:  fields[1],
+            Type:        fields[2],
+            Options:     options,
+            DumpFreq:    DumpFreq,
+            FsckPassNo:  FsckPassNo,
+        }
+
+        mounts = append(mounts, m)
+    }
+
+    return mounts, err
 }
 
-// Determine details of the recognised disk partitions
-// available on the system via lsblk
-func loadPartitionDetails() (partitions []blockDevice, err error) {
-	var recognised []string = allPartitionLabels()
+// Returns a hash of recognised partitions in the following form:
+//
+// key: name of recognised partition.
+// value: full path to disk device for the partition.
+func getPartitions() (m map[string]string, err error) {
+	dir := "/dev/disk/by-partlabel"
 
-	lines, err := runLsblk()
+	recognised := allPartitionLabels()
+
+	m = make(map[string]string)
+
+	entries, err := ioutil.ReadDir(dir)
 	if err != nil {
-		return partitions, err
+		return m, err
 	}
-	pattern := regexp.MustCompile(`(?:[^\s"]|"(?:[^"])*")+`)
 
-	for _, line := range lines {
-		fields := make(map[string]string)
-
-		// split the line into 'NAME="quoted value"' fields
-		matches := pattern.FindAllString(line, -1)
-
-		for _, match := range matches {
-			tmp := strings.Split(match, "=")
-			name := tmp[0]
-
-			// remove quotes
-			value := strings.Trim(tmp[1], `"`)
-
-			// store
-			fields[name] = value
-		}
-
-		// Look for expected partition labels
-		name, ok := fields["LABEL"]
-		if ok == false {
-			continue
-		}
-
-		if name == "" || name == "\"\"" {
-			continue
-		}
-
-		pos := stringInSlice(recognised, name)
+	for _, entry := range entries {
+		pos := stringInSlice(recognised, entry.Name())
 		if pos < 0 {
 			// ignore unrecognised partitions
 			continue
 		}
+		isSymLink := (entry.Mode() & os.ModeSymlink) == os.ModeSymlink
 
-		// reconstruct full path to disk partition device
-		device := fmt.Sprintf("/dev/%s", fields["NAME"])
+		fullPath := path.Join(dir, entry.Name())
 
-		// FIXME: we should have a way to mock the "/dev" dir
-		//        or we skip this test lsblk never returns non-existing
-		//        devices
-		/*
-			if err := FileExists(device); err != nil {
-				continue
+		if isSymLink {
+			dest, err := os.Readlink(fullPath)
+			if err != nil {
+				return m, err
 			}
-		*/
-		// reconstruct full path to entire disk device
-		disk := fmt.Sprintf("/dev/%s", fields["PKNAME"])
 
-		// FIXME: we should have a way to mock the "/dev" dir
-		//        or we skip this test lsblk never returns non-existing
-		//        files
-		/*
-			if err := FileExists(disk); err != nil {
-				continue
+			var cleaned string
+
+			if strings.HasPrefix(dest, "..") {
+				cleaned = path.Clean(path.Join(dir, dest))
+			} else {
+				cleaned = path.Clean(dest)
 			}
-		*/
+
+			fullPath = cleaned
+		}
+
+		m[entry.Name()] = fullPath
+	}
+
+	return m, err
+}
+
+// Determine details of the recognised disk partitions
+// available on the system via lsblk
+var loadPartitionDetails = func() (partitions []blockDevice, err error) {
+
+	pm, err := getPartitions()
+	if err != nil {
+		return partitions, err
+	}
+
+	mounts, err := getMounts()
+
+	diskPattern := regexp.MustCompile(`(/dev/[^\d]*)\d+`)
+
+	for name, device := range pm {
+		// convert partition device to parent disk device by stripping
+		// off the numeric partition number.
+		// FIXME: this is crude and probably fragile.
+		matches := diskPattern.FindAllStringSubmatch(device, -1)
+
+		if matches == nil {
+			return partitions,
+			errors.New(
+				fmt.Sprintf("failed to find disk associated " +
+				"with partition %q",device))
+		}
+
+		disk := matches[0][1]
+
+		if !fileExists(disk) {
+			continue
+		}
+
+		mountPoint := getMountPoint(mounts, device)
+
 		bd := blockDevice{
-			name:       fields["LABEL"],
+			name:       name,
 			device:     device,
-			mountpoint: fields["MOUNTPOINT"],
+			mountpoint: mountPoint,
 			parentName: disk,
 		}
 
 		partitions = append(partitions, bd)
 	}
 
-	return partitions, nil
+	return partitions, err
 }
 
 func (p *Partition) makeMountPoint() (err error) {
@@ -620,7 +692,7 @@ func (p *Partition) rootPartition() (result *blockDevice) {
 }
 
 // Return pointer to blockDevice representing the "other" root
-// filesystem (which is not currently mounted)
+// filesystem (which is not currently active)
 func (p *Partition) otherRootPartition() (result *blockDevice) {
 	for _, part := range p.rootPartitions() {
 		if part.mountpoint != "/" {
@@ -744,7 +816,7 @@ func (p *Partition) handleBootloader() (err error) {
 	}
 
 	// FIXME: use logger
-	fmt.Printf("FIXME: HandleBootloader: bootloader=%s\n", bootloader.Name())
+	//fmt.Printf("FIXME: HandleBootloader: bootloader=%s\n", bootloader.Name())
 
 	return bootloader.ToggleRootFS()
 }
