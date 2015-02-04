@@ -144,7 +144,7 @@ func (s *SnapPart) Install(pb ProgressMeter) (err error) {
 }
 
 func (s *SnapPart) Uninstall() (err error) {
-	err = removeSnap(s.basedir)
+	err = removeClick(s.basedir)
 	return err
 }
 
@@ -277,7 +277,7 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 	}
 
 	allowUnauthenticated := os.Getenv("SNAP_ALLOW_UNAUTHENTICATED") != ""
-	err = installSnap(w.Name(), "/apps", allowUnauthenticated)
+	err = installClick(w.Name(), snapBaseDir, allowUnauthenticated)
 	if err != nil {
 		return err
 	}

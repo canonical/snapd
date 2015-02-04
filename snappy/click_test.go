@@ -153,7 +153,7 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 
 	snapFile := s.makeTestSnap(c)
 	targetDir := path.Join(s.tempdir, "apps")
-	err := installSnap(snapFile, targetDir, false)
+	err := installClick(snapFile, targetDir, false)
 	c.Assert(err, IsNil)
 
 	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
@@ -173,7 +173,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
 
 	snapFile := s.makeTestSnap(c)
 	targetDir := path.Join(s.tempdir, "apps")
-	err := installSnap(snapFile, targetDir, false)
+	err := installClick(snapFile, targetDir, false)
 	c.Assert(err, NotNil)
 
 	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
@@ -187,14 +187,14 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	}
 
 	targetDir := path.Join(s.tempdir, "apps")
-	err := installSnap(s.makeTestSnap(c), targetDir, false)
+	err := installClick(s.makeTestSnap(c), targetDir, false)
 	c.Assert(err, IsNil)
 
 	instDir := path.Join(targetDir, "foo", "1.0")
 	_, err = os.Stat(instDir)
 	c.Assert(err, IsNil)
 
-	err = removeSnap(instDir)
+	err = removeClick(instDir)
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
