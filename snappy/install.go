@@ -1,9 +1,6 @@
 package snappy
 
-import (
-	"fmt"
-)
- 
+import "fmt"
 
 func Install(args []string) (err error) {
 	m := NewMetaRepository()
