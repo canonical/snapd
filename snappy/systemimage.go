@@ -292,7 +292,6 @@ type SensibleWatch struct {
 
 func (w *SensibleWatch) Cancel() {
 	w.watch.Cancel()
-	close(w.C)
 }
 
 func (s *systemImageDBusProxy) makeWatcher(signalName string) (sensibleWatch *SensibleWatch, err error) {
@@ -312,6 +311,7 @@ func (s *systemImageDBusProxy) makeWatcher(signalName string) (sensibleWatch *Se
 		for msg := range watch.C {
 			sensibleWatch.C <- msg
 		}
+		close(sensibleWatch.C)
 	}()
 
 	return sensibleWatch, err

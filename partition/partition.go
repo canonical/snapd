@@ -736,30 +736,21 @@ func (p *Partition) unmountRequiredFilesystems() (err error) {
 	return undoMounts(bindMounts)
 }
 
-func (p *Partition) handleBootloader() (err error) {
-	bootloader, err := p.GetBootloader()
-
-	if err != nil {
-		return err
-	}
-
-	// FIXME: use logger
-	fmt.Printf("FIXME: HandleBootloader: bootloader=%s\n", bootloader.Name())
-
-	return bootloader.ToggleRootFS()
-}
-
 func (p *Partition) toggleBootloaderRootfs() (err error) {
 
 	if p.dualRootPartitions() != true {
 		return errors.New("System is not dual root")
 	}
 
+	bootloader, err := p.GetBootloader()
+	if err != nil {
+		return err
+	}
+
 	err = p.RunWithOther(RW, func(otherRoot string) (err error) {
-		return p.handleBootloader()
+		return bootloader.ToggleRootFS()
 	})
 
-	bootloader, err := p.GetBootloader()
 	if err != nil {
 		return err
 	}
