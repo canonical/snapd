@@ -32,11 +32,7 @@ type SnapTestSuite struct {
 var _ = Suite(&SnapTestSuite{})
 
 func (s *SnapTestSuite) SetUpTest(c *C) {
-	var err error
-	s.tempdir, err = ioutil.TempDir("", "snap-test-")
-	if err != nil {
-		panic("Can not create temp dir")
-	}
+	s.tempdir = c.MkDir()
 	newPartition = func() (p partition.PartitionInterface) {
 		return new(MockPartition)
 	}
@@ -44,10 +40,6 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	snapDataDir = filepath.Join(s.tempdir, "/var/lib/apps/")
 	snapAppsDir = filepath.Join(s.tempdir, "/apps/")
 	snapOemDir = filepath.Join(s.tempdir, "/oem/")
-}
-
-func (s *SnapTestSuite) TearDownTest(c *C) {
-	os.RemoveAll(s.tempdir)
 }
 
 func (s *SnapTestSuite) makeMockSnap() (snap_dir string, err error) {

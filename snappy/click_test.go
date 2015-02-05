@@ -13,8 +13,7 @@ import (
 )
 
 func (s *SnapTestSuite) makeTestSnap(c *C, packageYamlContent string) (snapFile string) {
-	tmpdir, err := ioutil.TempDir(s.tempdir, "make-snap")
-	c.Assert(err, IsNil)
+	tmpdir := c.MkDir()
 	// content
 	os.MkdirAll(path.Join(tmpdir, "bin"), 0755)
 	content := `#!/bin/sh
@@ -36,7 +35,7 @@ vendor: Foo Bar <foo@example.com>
 	content = "Random\nExample"
 	ioutil.WriteFile(readmeMd, []byte(content), 0644)
 	// build it
-	err = chDir(tmpdir, func() {
+	err := chDir(tmpdir, func() {
 		cmd := exec.Command("snappy", "build", tmpdir)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
