@@ -3,7 +3,7 @@
 set -ev
 
 export GOPATH=$(mktemp -d)
-trap 'rm -r "$GOPATH"' EXIT
+trap 'rm -rf "$GOPATH"' EXIT
 
 echo Checking formatting
 fmt=$(gofmt -l .)
@@ -14,11 +14,13 @@ if [ -n "$fmt" ]; then
     exit 1
 fi
 
+echo Installing godeps
+go get launchpad.net/godeps
+
 echo Obtaining dependencies
-go get -d -v launchpad.net/snappy/...
+godeps -u dependencies.tsv
 
 # this is a hack, but not sure tarmac is golang friendly
-rm -r $GOPATH/src/launchpad.net/snappy
 mkdir $GOPATH/src/launchpad.net/snappy
 
 cp -r . $GOPATH/src/launchpad.net/snappy/
