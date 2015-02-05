@@ -28,6 +28,7 @@ echo "hello"`
 		packageYamlContent = `
 name: foo
 version: 1.0
+icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
 	}
@@ -243,6 +244,7 @@ func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
 	snapFile := s.makeTestSnap(c, `name: foo
 version: 1.0
 type: oem
+icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
 	err := installClick(snapFile, false)
 	c.Assert(err, IsNil)
