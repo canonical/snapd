@@ -21,7 +21,6 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -65,10 +64,7 @@ func allowUnauthenticatedOkExitCode(exitCode int) bool {
 func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error) {
 	cmd := exec.Command("debsig-verify", clickFile)
 	if err := cmd.Run(); err != nil {
-		// golang, you are kidding me, right?
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			waitStatus := exitErr.Sys().(syscall.WaitStatus)
-			exitCode := waitStatus.ExitStatus()
+		if exitCode, err := exitCode(err); err == nil {
 			if allowUnauthenticated && allowUnauthenticatedOkExitCode(exitCode) {
 				log.Println("Signature check failed, but installing anyway as requested")
 				return nil

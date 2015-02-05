@@ -85,3 +85,27 @@ func (ts *HTestSuite) TestChdir(c *C) {
 		c.Assert(cwd, Equals, tmpdir)
 	})
 }
+
+func (ts *HTestSuite) TestExitCode(c *C) {
+	cmd := exec.Command("true")
+	err := cmd.Run()
+	c.Assert(err, IsNil)
+
+	cmd = exec.Command("false")
+	err = cmd.Run()
+	c.Assert(err, NotNil)
+	e, err := exitCode(err)
+	c.Assert(err, IsNil)
+	c.Assert(e, Equals, 1)
+
+	cmd = exec.Command("sh", "-c", "exit 7")
+	err = cmd.Run()
+	e, err = exitCode(err)
+	c.Assert(e, Equals, 7)
+
+	// ensure that non exec.ExitError values give a error
+	_, err = os.Stat("/random/file/that/is/not/there")
+	c.Assert(err, NotNil)
+	_, err = exitCode(err)
+	c.Assert(err, NotNil)
+}
