@@ -2,7 +2,6 @@ package snappy
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -239,8 +238,7 @@ func (s *SITestSuite) SetUpTest(c *C) {
 	s.systemImage = newSystemImageRepositoryForBus(dbus.SessionBus)
 	c.Assert(s, NotNil)
 	// setup alternative root for system image
-	tmpdir, err := ioutil.TempDir("", "si-root-")
-	c.Assert(err, IsNil)
+	tmpdir := c.MkDir()
 	s.systemImage.myroot = tmpdir
 	makeFakeSystemImageChannelConfig(c, filepath.Join(tmpdir, systemImageChannelConfig), "2.71")
 	// setup fake /other partition

@@ -1,7 +1,6 @@
 package partition
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 
@@ -15,14 +14,7 @@ type UtilsTestSuite struct {
 var _ = Suite(&UtilsTestSuite{})
 
 func (s *UtilsTestSuite) SetUpTest(c *C) {
-	var err error
-	s.tmp, err = ioutil.TempDir("", "")
-	c.Assert(err, IsNil)
-	c.Assert(s.tmp, NotNil)
-}
-
-func (s *UtilsTestSuite) TearDownTest(c *C) {
-	os.RemoveAll(s.tmp)
+	s.tmp = c.MkDir()
 }
 
 func (s *UtilsTestSuite) TestFileExists(c *C) {
