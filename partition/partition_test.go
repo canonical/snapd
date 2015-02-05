@@ -103,14 +103,6 @@ func (s *PartitionTestSuite) TestSnappyDualRoot(c *C) {
 
 func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
 	runLsblk = mockRunLsblkDualSnappy
-	doRunWithOtherTest(c, (&Partition{}).MountTarget())
-}
-
-func (s *PartitionTestSuite) TestRunWithOtherSingleParitionRO(c *C) {
-	runLsblk = mockRunLsblkSingleRootSnappy
-	doRunWithOtherTest(c, "/")
-}
-func doRunWithOtherTest(c *C, expectedRoot string) {
 	p := New()
 	reportedRoot := ""
 	err := p.RunWithOther(RO, func(otherRoot string) (err error) {
@@ -118,7 +110,16 @@ func doRunWithOtherTest(c *C, expectedRoot string) {
 		return nil
 	})
 	c.Assert(err, IsNil)
-	c.Assert(reportedRoot, Equals, expectedRoot)
+	c.Assert(reportedRoot, Equals, (&Partition{}).MountTarget())
+}
+
+func (s *PartitionTestSuite) TestRunWithOtherSingleParitionRO(c *C) {
+	runLsblk = mockRunLsblkSingleRootSnappy
+	p := New()
+	err := p.RunWithOther(RO, func(otherRoot string) (err error) {
+		return nil
+	})
+	c.Assert(err, Equals, NoDualPartitionError)
 }
 
 func mockRunLsblkSingleRootSnappy() (output []string, err error) {

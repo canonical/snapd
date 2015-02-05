@@ -305,7 +305,7 @@ func (u *Uboot) HandleAssets() (err error) {
 	// validate
 	switch hardware.PartitionLayout {
 	case "system-AB":
-		if u.partition.dualRootPartitions() != true {
+		if !u.partition.dualRootPartitions() {
 			panic(fmt.Sprintf(
 				"ERROR: hardware spec requires dual root partitions"))
 		}
@@ -434,7 +434,7 @@ func modifyNameValueFile(file string, changes []ConfigFileChange) (err error) {
 			}
 		}
 
-		if got == false {
+		if !got {
 			// name/value pair did not exist in original
 			// file, so append
 			lines = append(lines, fmt.Sprintf("%s=%s",
