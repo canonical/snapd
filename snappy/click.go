@@ -211,13 +211,13 @@ func removeClickHooks(hooksDir string, manifest clickManifest) (err error) {
 			}
 		}
 	}
-	return
+	return err
 }
 
 func removeClick(clickDir string) (err error) {
 	manifestFiles, err := filepath.Glob(path.Join(clickDir, ".click", "info", "*.manifest"))
 	if err != nil {
-		return
+		return err
 	}
 	if len(manifestFiles) != 1 {
 		return errors.New(fmt.Sprintf("Error: got %s manifests in %s", len(manifestFiles), clickDir))
@@ -225,11 +225,11 @@ func removeClick(clickDir string) (err error) {
 	manifestData, err := ioutil.ReadFile(manifestFiles[0])
 	manifest, err := readClickManifest([]byte(manifestData))
 	if err != nil {
-		return
+		return err
 	}
 	err = removeClickHooks("/usr/share/click/hooks", manifest)
 	if err != nil {
-		return
+		return err
 	}
 
 	// maybe remove current symlink
