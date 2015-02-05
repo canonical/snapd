@@ -58,3 +58,15 @@ to get the `snappy` binary in your current working directory or
     go install launchpad.net/snappy/...
 
 to have it available in `$GOPATH/bin`
+
+### Dependencies handling
+
+To generate dependencies.tsv you need "launchpad.net/godeps" and run
+
+    godeps launchpad.net/snappy/partition launchpad.net/snappy/snappy 
+
+to update them:
+
+    godeps -u dependencies.tsv
+
+
