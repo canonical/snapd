@@ -64,6 +64,10 @@ const BOOT_PARTITION_LABEL = "system-boot"
 // FIXME: Should query system-image-cli (see bug LP:#1380574).
 const DEFAULT_CACHE_DIR = "/writable/cache"
 
+// Directory created by udev that allows a non-priv user to list the
+// available disk partitions by partition label.
+const diskDeviceDir = "/dev/disk/by-partlabel"
+
 // Directory to mount writable root filesystem below the cache
 // diretory.
 const MOUNT_TARGET = "system"
@@ -341,12 +345,12 @@ var getMounts = func() (mounts []mntEnt, err error) {
 
 		options := strings.Split(fields[3], ",")
 
-		DumpFreq, err := strconv.Atoi(fields[4])
+		dumpFreq, err := strconv.Atoi(fields[4])
 		if err != nil {
 			return mounts, err
 		}
 
-		FsckPassNo, err := strconv.Atoi(fields[5])
+		fsckPassNo, err := strconv.Atoi(fields[5])
 		if err != nil {
 			return mounts, err
 		}
@@ -356,8 +360,8 @@ var getMounts = func() (mounts []mntEnt, err error) {
 			MountPoint: fields[1],
 			Type:       fields[2],
 			Options:    options,
-			DumpFreq:   DumpFreq,
-			FsckPassNo: FsckPassNo,
+			DumpFreq:   dumpFreq,
+			FsckPassNo: fsckPassNo,
 		}
 
 		mounts = append(mounts, m)
@@ -371,13 +375,12 @@ var getMounts = func() (mounts []mntEnt, err error) {
 // key: name of recognised partition.
 // value: full path to disk device for the partition.
 var getPartitions = func() (m map[string]string, err error) {
-	dir := "/dev/disk/by-partlabel"
 
 	recognised := allPartitionLabels()
 
 	m = make(map[string]string)
 
-	entries, err := ioutil.ReadDir(dir)
+	entries, err := ioutil.ReadDir(diskDeviceDir)
 	if err != nil {
 		return m, err
 	}
@@ -390,7 +393,7 @@ var getPartitions = func() (m map[string]string, err error) {
 		}
 		isSymLink := (entry.Mode() & os.ModeSymlink) == os.ModeSymlink
 
-		fullPath := path.Join(dir, entry.Name())
+		fullPath := path.Join(diskDeviceDir, entry.Name())
 
 		if isSymLink {
 			dest, err := os.Readlink(fullPath)
@@ -401,7 +404,7 @@ var getPartitions = func() (m map[string]string, err error) {
 			var cleaned string
 
 			if strings.HasPrefix(dest, "..") {
-				cleaned = path.Clean(path.Join(dir, dest))
+				cleaned = path.Clean(path.Join(diskDeviceDir, dest))
 			} else {
 				cleaned = path.Clean(dest)
 			}
@@ -436,9 +439,7 @@ var loadPartitionDetails = func() (partitions []blockDevice, err error) {
 
 		if matches == nil {
 			return partitions,
-				errors.New(
-					fmt.Sprintf("failed to find disk associated "+
-						"with partition %q", device))
+				errors.New(fmt.Sprintf("failed to find disk associated with partition %q", device))
 		}
 
 		disk := matches[0][1]
