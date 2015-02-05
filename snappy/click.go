@@ -51,6 +51,17 @@ const (
 	DS_FAIL_INTERNAL       = 14
 )
 
+// Execute the hook.Exec command
+func (s *clickHook) execHook() (err error) {
+	// the spec says this is passed to the shell
+	cmd := exec.Command("sh", "-c", s.exec)
+	if err = cmd.Run(); err != nil {
+		log.Printf("Failed to run hook %s: %s", s.exec, err)
+		return err
+	}
+	return nil
+}
+
 // This function checks if the given exitCode is "ok" when running with
 // --allow-unauthenticated. We allow package with no signature or with
 // a unknown policy or with no policies at all. We do not allow overriding
@@ -174,10 +185,7 @@ func installClickHooks(hooksDir, targetDir string, manifest clickManifest) (err 
 				return err
 			}
 			if systemHook.exec != "" {
-				// the spec says this is passed to the shell
-				cmd := exec.Command("sh", "-c", systemHook.exec)
-				if err = cmd.Run(); err != nil {
-					log.Printf("Failed to run hook %s: %s", systemHook.exec, err)
+				if err := systemHook.execHook(); err != nil {
 					return err
 				}
 			}
@@ -202,10 +210,7 @@ func removeClickHooks(hooksDir string, manifest clickManifest) (err error) {
 				log.Printf("Warning: failed to remove %s: %s", dst, err)
 			}
 			if systemHook.exec != "" {
-				cmdStr := strings.Split(systemHook.exec, " ")
-				cmd := exec.Command(cmdStr[0], cmdStr...)
-				err = cmd.Run()
-				if err != nil {
+				if err := systemHook.execHook(); err != nil {
 					return err
 				}
 			}
