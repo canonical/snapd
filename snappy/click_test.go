@@ -12,7 +12,7 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func (s *SnapTestSuite) makeTestSnap(c *C) (snapFile string) {
+func (s *SnapTestSuite) makeTestSnap(c *C, packageYamlContent string) (snapFile string) {
 	tmpdir, err := ioutil.TempDir(s.tempdir, "make-snap")
 	c.Assert(err, IsNil)
 	// content
@@ -24,12 +24,14 @@ echo "hello"`
 	// meta
 	os.MkdirAll(path.Join(tmpdir, "meta"), 0755)
 	packageYaml := path.Join(tmpdir, "meta", "package.yaml")
-	content = `
+	if packageYamlContent == "" {
+		packageYamlContent = `
 name: foo
 version: 1.0
 vendor: Foo Bar <foo@example.com>
 `
-	ioutil.WriteFile(packageYaml, []byte(content), 0644)
+	}
+	ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
 	readmeMd := path.Join(tmpdir, "meta", "readme.md")
 	content = "Random\nExample"
 	ioutil.WriteFile(readmeMd, []byte(content), 0644)
@@ -181,9 +183,8 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 		return nil
 	}
 
-	snapFile := s.makeTestSnap(c)
-	targetDir := path.Join(s.tempdir, "apps")
-	err := installClick(snapFile, targetDir, false)
+	snapFile := s.makeTestSnap(c, "")
+	err := installClick(snapFile, false)
 	c.Assert(err, IsNil)
 
 	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
@@ -205,9 +206,8 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
 		return errors.New("something went wrong")
 	}
 
-	snapFile := s.makeTestSnap(c)
-	targetDir := path.Join(s.tempdir, "apps")
-	err := installClick(snapFile, targetDir, false)
+	snapFile := s.makeTestSnap(c, "")
+	err := installClick(snapFile, false)
 	c.Assert(err, NotNil)
 
 	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
@@ -221,7 +221,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	}
 
 	targetDir := path.Join(s.tempdir, "apps")
-	err := installClick(s.makeTestSnap(c), targetDir, false)
+	err := installClick(s.makeTestSnap(c, ""), false)
 	c.Assert(err, IsNil)
 
 	instDir := path.Join(targetDir, "foo", "1.0")
@@ -233,4 +233,23 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 
 	_, err = os.Stat(instDir)
 	c.Assert(err, NotNil)
+}
+
+func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
+	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
+		return nil
+	}
+
+	snapFile := s.makeTestSnap(c, `name: foo
+version: 1.0
+type: oem
+vendor: Foo Bar <foo@example.com>`)
+	err := installClick(snapFile, false)
+	c.Assert(err, IsNil)
+
+	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
+	_, err = os.Stat(contentFile)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(path.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
+	c.Assert(err, IsNil)
 }

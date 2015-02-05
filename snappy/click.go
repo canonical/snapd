@@ -30,6 +30,7 @@ type clickAppHook map[string]string
 type clickManifest struct {
 	Name    string                  `json:"name"`
 	Version string                  `json:"version"`
+	Type    string                  `json:"type,omitempty"`
 	Hooks   map[string]clickAppHook `json:"hooks,omitempty"`
 }
 
@@ -243,7 +244,7 @@ func removeClick(clickDir string) (err error) {
 	return os.RemoveAll(clickDir)
 }
 
-func installClick(snapFile, targetDir string, allowUnauthenticated bool) (err error) {
+func installClick(snapFile string, allowUnauthenticated bool) (err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
 
@@ -268,6 +269,12 @@ func installClick(snapFile, targetDir string, allowUnauthenticated bool) (err er
 	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
 	if err := ensureDir(dataDir, 0755); err != nil {
 		log.Printf("WARNING: Can not create %s", dataDir)
+	}
+
+	targetDir := snapAppsDir
+	// the "oem" parts are special
+	if manifest.Type == "oem" {
+		targetDir = snapOemDir
 	}
 
 	instDir := filepath.Join(targetDir, manifest.Name, manifest.Version)

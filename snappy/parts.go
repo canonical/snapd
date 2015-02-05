@@ -2,7 +2,7 @@ package snappy
 
 // var instead of const to make it possible to override in the tests
 var (
-	snapBaseDir = "/apps"
+	snapAppsDir = "/apps"
 	snapOemDir  = "/oem"
 	snapDataDir = "/var/lib/apps"
 )
@@ -65,7 +65,7 @@ func NewMetaRepository() *MetaRepository {
 		NewSystemImageRepository(),
 		NewUbuntuStoreSnapRepository()}
 	// these may fail if there is no such directory
-	repo := NewLocalSnapRepository(snapBaseDir)
+	repo := NewLocalSnapRepository(snapAppsDir)
 	if repo != nil {
 		m.all = append(m.all, repo)
 	}
