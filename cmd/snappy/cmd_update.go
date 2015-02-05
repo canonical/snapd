@@ -21,10 +21,18 @@ func init() {
 }
 
 func (x *CmdUpdate) Execute(args []string) (err error) {
+	if !isRoot() {
+		return requiresRootErr
+	}
+
 	return update()
 }
 
 func update() error {
+	if !isRoot() {
+		return requiresRootErr
+	}
+
 	// FIXME: handle args
 	updates, err := snappy.ListUpdates()
 	if err != nil {

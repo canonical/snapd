@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"os"
+	"syscall"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -12,6 +14,9 @@ func init() {
 		//setupLogger()
 	}
 }
+
+// fixed errors the command can return
+var requiresRootErr = errors.New("command requires sudo (root)")
 
 // Global snappy command-line options
 type Options struct {
@@ -26,4 +31,8 @@ func main() {
 	if _, err := Parser.Parse(); err != nil {
 		os.Exit(1)
 	}
+}
+
+func isRoot() bool {
+	return syscall.Getuid() == 0
 }

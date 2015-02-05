@@ -21,6 +21,10 @@ func init() {
 }
 
 func (x *CmdInstall) Execute(args []string) (err error) {
+	if !isRoot() {
+		return requiresRootErr
+	}
+
 	err = snappy.Install(args)
 	if err != nil {
 		return err
