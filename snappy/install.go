@@ -1,17 +1,12 @@
 package snappy
 
 import (
-	"errors"
 	"fmt"
-)
-
-// FIXME: make this a proper error type instead of errorString
-var (
-	SnapAuditError   error = errors.New("Snap audit error")
-	SnapExtractError error = errors.New("Snap extract error")
+	"strings"
 )
 
 func Install(args []string) (err error) {
+	didSomething := false
 	m := NewMetaRepository()
 	for _, name := range args {
 		found, _ := m.Details(name)
@@ -24,8 +19,13 @@ func Install(args []string) (err error) {
 				if err != nil {
 					return err
 				}
+				didSomething = true
 			}
 		}
 	}
+	if !didSomething {
+		return fmt.Errorf("Could not install anything for '%s'", strings.Join(args, ","))
+	}
+
 	return err
 }
