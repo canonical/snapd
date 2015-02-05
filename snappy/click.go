@@ -97,20 +97,28 @@ func readClickHookFile(hookFile string) (hook clickHook, err error) {
 	cfg := goconfigparser.New()
 	content, err := ioutil.ReadFile(hookFile)
 	if err != nil {
-		return
+		fmt.Printf("WARNING: failed to read %s", hookFile)
+		return hook, err
 	}
 	err = cfg.Read(strings.NewReader("[hook]\n" + string(content)))
 	if err != nil {
-		return
+		fmt.Printf("WARNING: failed to parse %s", hookFile)
+		return hook, err
 	}
-	hook.name, err = cfg.Get("hook", "Hook-Name")
-	hook.exec, err = cfg.Get("hook", "Exec")
-	hook.user, err = cfg.Get("hook", "User")
-	hook.pattern, err = cfg.Get("hook", "Pattern")
+	hook.name, _ = cfg.Get("hook", "Hook-Name")
+	hook.exec, _ = cfg.Get("hook", "Exec")
+	hook.user, _ = cfg.Get("hook", "User")
+	hook.pattern, _ = cfg.Get("hook", "Pattern")
 	// FIXME: error on supported hook features like
 	//    User-Level: yes
 	//    Trigger: yes
 	//    Single-Version: yes
+
+	// urgh, click allows empty "Hook-Name"
+	if hook.name == "" {
+		hook.name = strings.Split(filepath.Base(hookFile), ".")[0]
+	}
+
 	return hook, err
 }
 
@@ -153,6 +161,7 @@ func installClickHooks(hooksDir, targetDir string, manifest clickManifest) (err 
 		for hookName, hookTargetFile := range hook {
 			systemHook, ok := systemHooks[hookName]
 			if !ok {
+				log.Printf("WARNING: Skipping hook %s", hookName)
 				continue
 			}
 			src := path.Join(targetDir, hookTargetFile)
@@ -166,7 +175,6 @@ func installClickHooks(hooksDir, targetDir string, manifest clickManifest) (err 
 			if systemHook.exec != "" {
 				// the spec says this is passed to the shell
 				cmd := exec.Command("sh", "-c", systemHook.exec)
-				log.Printf("Running hook: %s", cmd)
 				if err = cmd.Run(); err != nil {
 					log.Printf("Failed to run hook %s: %s", systemHook.exec, err)
 					return err

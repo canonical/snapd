@@ -80,6 +80,7 @@ func (s *SnapTestSuite) TestReadManifest(c *C) {
 	c.Assert(manifest.Name, Equals, "hello-world")
 	c.Assert(manifest.Version, Equals, "1.0.5")
 	c.Assert(manifest.Hooks["evil"]["bin-path"], Equals, "bin/evil")
+	c.Assert(manifest.Hooks["evil"]["apparmor"], Equals, "meta/evil.apparmor")
 }
 
 func makeClickHook(c *C, hooksDir, hookName, hookContent string) {
@@ -101,6 +102,13 @@ Pattern: /var/lib/systemd/click/${id}`)
 	c.Assert(hook.user, Equals, "root")
 	c.Assert(hook.exec, Equals, "/usr/lib/click-systemd/systemd-clickhook")
 	c.Assert(hook.pattern, Equals, "/var/lib/systemd/click/${id}")
+
+	// click allows non-existing "Hook-Name" and uses the filename then
+	makeClickHook(c, mockHooksDir, "apparmor", `
+Pattern: /var/lib/apparmor/click/${id}`)
+	hook, err = readClickHookFile(path.Join(mockHooksDir, "apparmor.hook"))
+	c.Assert(err, IsNil)
+	c.Assert(hook.name, Equals, "apparmor")
 }
 
 func (s *SnapTestSuite) TestReadClickHooksDir(c *C) {
@@ -124,7 +132,7 @@ func (s *SnapTestSuite) TestHandleClickHooks(c *C) {
 	content := fmt.Sprintf(`Hook-Name: systemd
 Pattern: %s/${id}`, testSymlinkDir)
 	makeClickHook(c, mockHooksDir, "snappy-systemd", content)
-	
+
 	os.MkdirAll(path.Join(s.tempdir, "/var/lib/apparmor/click/"), 0755)
 	testSymlinkDir2 := path.Join(s.tempdir, "/var/lib/apparmor/click/")
 	content = fmt.Sprintf(`Hook-Name: apparmor
