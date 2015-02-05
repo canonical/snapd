@@ -111,12 +111,10 @@ func (ts *HTestSuite) TestExitCode(c *C) {
 }
 
 func (ts *HTestSuite) TestEnsureDir(c *C) {
-	tempdir, err := ioutil.TempDir("", "ensure-dir")
-	c.Assert(err, IsNil)
-	defer os.RemoveAll(tempdir)
+	tempdir := c.MkDir()
 
 	target := filepath.Join(tempdir, "meep")
-	err = ensureDir(target, 0755)
+	err := ensureDir(target, 0755)
 	c.Assert(err, IsNil)
 	st, err := os.Stat(target)
 	c.Assert(err, IsNil)
