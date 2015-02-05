@@ -78,24 +78,22 @@ func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error
 var runDebsigVerify = runDebsigVerifyImpl
 
 func auditClick(snapFile string, allowUnauthenticated bool) (err error) {
-	err = runDebsigVerify(snapFile, allowUnauthenticated)
-	if err != nil {
-		return err
-	}
-	// FIXME: check what more we need to do here
-
-	return nil
+	// FIXME: check what more we need to do here, click is also doing
+	//        permission checks
+	return runDebsigVerify(snapFile, allowUnauthenticated)
 }
 
 func readClickManifest(data []byte) (manifest clickManifest, err error) {
 	r := bytes.NewReader(data)
 	dec := json.NewDecoder(r)
 	err = dec.Decode(&manifest)
-	return
+	return manifest, err
 }
 
 func readClickHookFile(hookFile string) (hook clickHook, err error) {
-	// FIXME: fugly, write deb822 style parser
+	// FIXME: fugly, write deb822 style parser if we keep this
+	// FIXME2: the hook file will go probably entirely and gets
+	//         implemented naively in go so ok for now :)
 	cfg := goconfigparser.New()
 	content, err := ioutil.ReadFile(hookFile)
 	if err != nil {
@@ -109,10 +107,11 @@ func readClickHookFile(hookFile string) (hook clickHook, err error) {
 	hook.exec, err = cfg.Get("hook", "Exec")
 	hook.user, err = cfg.Get("hook", "User")
 	hook.pattern, err = cfg.Get("hook", "Pattern")
-	// FIXME: panic if
+	// FIXME: error on supported hook features like
 	//    User-Level: yes
-	// as this is not supported
-	return
+	//    Trigger: yes
+	//    Single-Version: yes
+	return hook, err
 }
 
 func systemClickHooks(hookDir string) (hooks map[string]clickHook, err error) {
@@ -135,6 +134,11 @@ func systemClickHooks(hookDir string) (hooks map[string]clickHook, err error) {
 
 func expandHookPattern(name, app, version, pattern string) (expanded string) {
 	id := fmt.Sprintf("%s_%s_%s", name, app, version)
+	// FIXME: support the other patterns (and see if they are used at all):
+	//        - short-id
+	//        - user (probably not!)
+	//        - home (probably not!)
+	//        - $$ (?)
 	expanded = strings.Replace(pattern, "${id}", id, -1)
 
 	return
@@ -153,16 +157,18 @@ func installClickHooks(hooksDir, targetDir string, manifest clickManifest) (err 
 			}
 			src := path.Join(targetDir, hookTargetFile)
 			dst := expandHookPattern(manifest.Name, app, manifest.Version, systemHook.pattern)
-			os.Remove(dst)
-			err = os.Symlink(src, dst)
-			if err != nil {
-				return
+			if err := os.Remove(dst); err != nil {
+				log.Printf("Warning: failed to remove %s: %s", dst, err)
+			}
+			if err := os.Symlink(src, dst); err != nil {
+				return err
 			}
 			if systemHook.exec != "" {
-				cmdStr := strings.Split(systemHook.exec, " ")
-				cmd := exec.Command(cmdStr[0], cmdStr...)
-				err = cmd.Run()
-				if err != nil {
+				// the spec says this is passed to the shell
+				cmd := exec.Command("sh", "-c", systemHook.exec)
+				log.Printf("Running hook: %s", cmd)
+				if err = cmd.Run(); err != nil {
+					log.Printf("Failed to run hook %s: %s", systemHook.exec, err)
 					return err
 				}
 			}
@@ -183,7 +189,9 @@ func removeClickHooks(hooksDir string, manifest clickManifest) (err error) {
 				continue
 			}
 			dst := expandHookPattern(manifest.Name, app, manifest.Version, systemHook.pattern)
-			os.Remove(dst)
+			if err := os.Remove(dst); err != nil {
+				log.Printf("Warning: failed to remove %s: %s", dst, err)
+			}
 			if systemHook.exec != "" {
 				cmdStr := strings.Split(systemHook.exec, " ")
 				cmd := exec.Command(cmdStr[0], cmdStr...)
@@ -219,7 +227,9 @@ func removeClick(clickDir string) (err error) {
 	currentSymlink := path.Join(path.Dir(clickDir), "current")
 	p, _ := filepath.EvalSymlinks(currentSymlink)
 	if clickDir == p {
-		os.Remove(currentSymlink)
+		if err := os.Remove(currentSymlink); err != nil {
+			log.Printf("Warning: failed to remove %s: %s", currentSymlink, err)
+		}
 	}
 
 	return os.RemoveAll(clickDir)
@@ -227,6 +237,7 @@ func removeClick(clickDir string) (err error) {
 
 func installClick(snapFile, targetDir string, allowUnauthenticated bool) (err error) {
 	// FIXME: drop privs to "snap:snap" here
+	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
 
 	err = auditClick(snapFile, allowUnauthenticated)
 	if err != nil {
@@ -257,7 +268,9 @@ func installClick(snapFile, targetDir string, allowUnauthenticated bool) (err er
 	if err != nil {
 		// FIXME: make the output part of the SnapExtractError
 		log.Printf("Snap install failed with: %s", output)
-		os.RemoveAll(instDir)
+		if err := os.RemoveAll(instDir); err != nil {
+			log.Printf("Warning: failed to remove %s: %s", instDir, err)
+		}
 		return err
 	}
 
@@ -272,14 +285,18 @@ func installClick(snapFile, targetDir string, allowUnauthenticated bool) (err er
 	if err != nil {
 		// FIXME: make the output part of the SnapExtractError
 		log.Printf("Snap install failed with: %s", output)
-		os.RemoveAll(instDir)
+		if err := os.RemoveAll(instDir); err != nil {
+			log.Printf("Warning: failed to remove %s: %s", instDir, err)
+		}
 		return err
 	}
 
 	// FIXME: we want to get rid of the current symlink
 	// update current symlink
 	currentSymlink := path.Join(path.Dir(instDir), "current")
-	os.Remove(currentSymlink)
+	if err := os.Remove(currentSymlink); err != nil {
+		log.Printf("Warning: failed to remove %s: %s", currentSymlink, err)
+	}
 	err = os.Symlink(instDir, currentSymlink)
 
 	return err
