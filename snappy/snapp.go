@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v1"
+	yaml "launchpad.net/goyaml"
 )
 
 type SnapPart struct {

@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strings"
 
-	"gopkg.in/yaml.v1"
+	yaml "launchpad.net/goyaml"
 )
 
 var (

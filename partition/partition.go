@@ -37,7 +37,7 @@ import (
 	"strings"
 	"syscall"
 
-	"gopkg.in/yaml.v1"
+	yaml "launchpad.net/goyaml"
 )
 
 var debug bool = false
