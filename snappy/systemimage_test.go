@@ -5,9 +5,11 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
 	partition "launchpad.net/snappy/partition"
@@ -198,9 +200,28 @@ type SITestSuite struct {
 
 	tmpdir      string
 	mockService *DBusService
+
+	privateDbusPid string
 }
 
 var _ = Suite(&SITestSuite{})
+
+func (s *SITestSuite) SetUpSuite(c *C) {
+	// setup our own private dbus session
+	cmd := exec.Command("dbus-daemon", "--print-address", "--session", "--fork", "--print-pid")
+	rawOutput, err := cmd.Output()
+	c.Assert(err, IsNil)
+	output := strings.Split(string(rawOutput), "\n")
+	s.privateDbusPid = output[1]
+	dbusEnv := output[0]
+	os.Setenv("DBUS_SESSION_BUS_ADDRESS", dbusEnv)
+}
+
+func (s *SITestSuite) TearDownSuite(c *C) {
+	cmd := exec.Command("kill", s.privateDbusPid)
+	err := cmd.Run()
+	c.Assert(err, IsNil)
+}
 
 func (s *SITestSuite) SetUpTest(c *C) {
 	newPartition = func() (p partition.PartitionInterface) {
@@ -228,8 +249,9 @@ func (s *SITestSuite) SetUpTest(c *C) {
 	s.tmpdir = tmpdir
 }
 
-func (s *SITestSuite) TearDownTests(c *C) {
+func (s *SITestSuite) TearDownTest(c *C) {
 	os.RemoveAll(s.tmpdir)
+	s.conn.Close()
 }
 
 func makeFakeSystemImageChannelConfig(c *C, cfgPath, buildNumber string) {
@@ -247,10 +269,6 @@ device: generic_amd64
 build_number: %s
 version_detail: ubuntu=20141206,raw-device=20141206,version=77
 `, buildNumber)))
-}
-
-func (s *SITestSuite) TearDownTest(c *C) {
-	s.conn.Close()
 }
 
 func (s *SITestSuite) TestLowLevelGetSetting(c *C) {
