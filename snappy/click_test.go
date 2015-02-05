@@ -117,27 +117,49 @@ Pattern: /var/lib/systemd/click/${id}`)
 
 func (s *SnapTestSuite) TestHandleClickHooks(c *C) {
 	mockHooksDir := path.Join(s.tempdir, "hooks")
+
+	// two hooks to ensure iterating works correct
 	os.MkdirAll(path.Join(s.tempdir, "/var/lib/systemd/click/"), 0755)
 	testSymlinkDir := path.Join(s.tempdir, "/var/lib/systemd/click/")
 	content := fmt.Sprintf(`Hook-Name: systemd
 Pattern: %s/${id}`, testSymlinkDir)
 	makeClickHook(c, mockHooksDir, "snappy-systemd", content)
+	
+	os.MkdirAll(path.Join(s.tempdir, "/var/lib/apparmor/click/"), 0755)
+	testSymlinkDir2 := path.Join(s.tempdir, "/var/lib/apparmor/click/")
+	content = fmt.Sprintf(`Hook-Name: apparmor
+Pattern: %s/${id}`, testSymlinkDir2)
+	makeClickHook(c, mockHooksDir, "click-apparmor", content)
+
 	instDir := path.Join(s.tempdir, "apps", "foo", "1.0")
 	os.MkdirAll(instDir, 0755)
 	ioutil.WriteFile(path.Join(instDir, "path-to-systemd-file"), []byte(""), 0644)
+	ioutil.WriteFile(path.Join(instDir, "path-to-apparmor-file"), []byte(""), 0644)
 	manifest := clickManifest{
 		Name:    "foo",
 		Version: "1.0",
 		Hooks: map[string]clickAppHook{
 			"app": clickAppHook{
-				"systemd": "path-to-systemd-file",
+				"systemd":  "path-to-systemd-file",
+				"apparmor": "path-to-apparmor-file",
 			},
 		},
 	}
 	err := installClickHooks(mockHooksDir, instDir, manifest)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version))
+	p := fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version)
+	_, err = os.Stat(p)
 	c.Assert(err, IsNil)
+	symlinkTarget, err := filepath.EvalSymlinks(p)
+	c.Assert(err, IsNil)
+	c.Assert(symlinkTarget, Equals, path.Join(instDir, "path-to-systemd-file"))
+
+	p = fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir2, manifest.Name, "app", manifest.Version)
+	_, err = os.Stat(p)
+	c.Assert(err, IsNil)
+	symlinkTarget, err = filepath.EvalSymlinks(p)
+	c.Assert(err, IsNil)
+	c.Assert(symlinkTarget, Equals, path.Join(instDir, "path-to-apparmor-file"))
 
 	// now ensure we can remove
 	err = removeClickHooks(mockHooksDir, manifest)
