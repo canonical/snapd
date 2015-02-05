@@ -121,3 +121,14 @@ func Architecture() string {
 		return goarch
 	}
 }
+
+// Ensure the given directory exists and if not create it with the given
+// permissions
+func ensureDir(dir string, perm os.FileMode) (err error) {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, perm); err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -194,6 +194,10 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	// ensure we have the manifest too
 	_, err = os.Stat(path.Join(s.tempdir, "apps", "foo", "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
+
+	// ensure we have the data dir
+	_, err = os.Stat(path.Join(s.tempdir, "var", "lib", "apps", "foo", "1.0"))
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {

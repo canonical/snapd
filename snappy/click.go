@@ -265,10 +265,16 @@ func installClick(snapFile, targetDir string, allowUnauthenticated bool) (err er
 		return err
 	}
 
-	instDir := path.Join(targetDir, manifest.Name, manifest.Version)
-	if _, err := os.Stat(instDir); err != nil {
-		os.MkdirAll(instDir, 0755)
+	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
+	if err := ensureDir(dataDir, 0755); err != nil {
+		log.Printf("WARNING: Can not create %s", dataDir)
 	}
+
+	instDir := filepath.Join(targetDir, manifest.Name, manifest.Version)
+	if err := ensureDir(instDir, 0755); err != nil {
+		log.Printf("WARNING: Can not create %s", instDir)
+	}
+
 	// FIXME: replace this with a native extractor to avoid attack
 	//        surface
 	cmd = exec.Command("dpkg-deb", "--extract", snapFile, instDir)

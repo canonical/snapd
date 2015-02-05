@@ -1,8 +1,10 @@
 package snappy
 
-const (
+// var instead of const to make it possible to override in the tests
+var (
 	snapBaseDir = "/apps"
 	snapOemDir  = "/oem"
+	snapDataDir = "/var/lib/apps"
 )
 
 type SnapType string
