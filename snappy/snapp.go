@@ -16,6 +16,8 @@ import (
 	"gopkg.in/yaml.v1"
 )
 
+var RemoteSnapNotFoundError = errors.New("Remote Snap not found")
+
 type SnapPart struct {
 	name        string
 	version     string
@@ -334,8 +336,16 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 	}
 	defer resp.Body.Close()
 
-	var detailsData remoteSnap
+	// check statusCode
+	switch {
+	case resp.StatusCode == 404:
+		return parts, RemoteSnapNotFoundError
+	case resp.StatusCode != 200:
+		return parts, fmt.Errorf("SnapUbuntuStoreRepository: unexpected http statusCode %i for %s", resp.StatusCode, snapName)
+	}
 
+	// and decode json
+	var detailsData remoteSnap
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&detailsData); err != nil {
 		return nil, err

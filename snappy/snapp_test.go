@@ -248,6 +248,7 @@ const MockDetailsJson = `
   "status": "Published",
   "whitelist_country_codes": []
 }`
+const MockNoDetailsJson = `{"errors": ["No such package"], "result": "error"}`
 
 type MockUbuntuStoreServer struct {
 	quit chan int
@@ -348,4 +349,24 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(len(results), Equals, 1)
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver")
 	c.Assert(results[0].Version(), Equals, "0.3.1")
+}
+
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(strings.HasSuffix(r.URL.String(), "no-such-pkg"), Equals, true)
+		w.WriteHeader(404)
+		io.WriteString(w, MockNoDetailsJson)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := NewUbuntuStoreSnapRepository()
+	c.Assert(snap, NotNil)
+	snap.detailsUri = mockServer.URL + "/details/%s"
+
+	// the actual test
+	results, err := snap.Details("no-such-pkg")
+	c.Assert(len(results), Equals, 0)
+	c.Assert(err, NotNil)
 }
