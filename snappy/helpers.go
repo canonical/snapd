@@ -6,9 +6,11 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 
 	"gopkg.in/yaml.v1"
 )
@@ -19,6 +21,30 @@ var (
 )
 
 var goarch = runtime.GOARCH
+
+// helper to run "f" inside the given directory
+func chDir(newDir string, f func()) (err error) {
+	cwd, err := os.Getwd()
+	os.Chdir(newDir)
+	defer os.Chdir(cwd)
+	if err != nil {
+		return err
+	}
+	f()
+	return err
+}
+
+// extract the exit code from the error of a failed cmd.Run() or the
+// original error if its not a exec.ExitError
+func exitCode(runErr error) (e int, err error) {
+	// golang, you are kidding me, right?
+	if exitErr, ok := runErr.(*exec.ExitError); ok {
+		waitStatus := exitErr.Sys().(syscall.WaitStatus)
+		e = waitStatus.ExitStatus()
+		return e, nil
+	}
+	return e, runErr
+}
 
 func unpackTar(archive string, target string) error {
 
@@ -94,4 +120,15 @@ func Architecture() string {
 	default:
 		return goarch
 	}
+}
+
+// Ensure the given directory exists and if not create it with the given
+// permissions
+func ensureDir(dir string, perm os.FileMode) (err error) {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, perm); err != nil {
+			return err
+		}
+	}
+	return nil
 }

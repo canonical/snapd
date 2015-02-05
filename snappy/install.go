@@ -1,6 +1,15 @@
 package snappy
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// FIXME: make this a proper error type instead of errorString
+var (
+	SnapAuditError   error = errors.New("Snap audit error")
+	SnapExtractError error = errors.New("Snap extract error")
+)
 
 func Install(args []string) (err error) {
 	m := NewMetaRepository()

@@ -40,6 +40,10 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	newPartition = func() (p partition.PartitionInterface) {
 		return new(MockPartition)
 	}
+
+	snapDataDir = filepath.Join(s.tempdir, "/var/lib/apps/")
+	snapAppsDir = filepath.Join(s.tempdir, "/apps/")
+	snapOemDir = filepath.Join(s.tempdir, "/oem/")
 }
 
 func (s *SnapTestSuite) TearDownTest(c *C) {

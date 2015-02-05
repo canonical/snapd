@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -144,11 +143,7 @@ func (s *SnapPart) Install(pb ProgressMeter) (err error) {
 }
 
 func (s *SnapPart) Uninstall() (err error) {
-	// FIMXE: replace with native code
-	cmd := exec.Command("click", "unregister", "--all-users", s.Name())
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	err = removeClick(s.basedir)
 	return err
 }
 
@@ -280,10 +275,8 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 		return err
 	}
 
-	cmd := exec.Command("click", "install", "--all-users", w.Name())
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	allowUnauthenticated := os.Getenv("SNAP_ALLOW_UNAUTHENTICATED") != ""
+	err = installClick(w.Name(), allowUnauthenticated)
 	if err != nil {
 		return err
 	}

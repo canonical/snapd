@@ -71,3 +71,53 @@ func (ts *HTestSuite) TestArchitectue(c *C) {
 	goarch = "386"
 	c.Check(Architecture(), Equals, "i386")
 }
+
+func (ts *HTestSuite) TestChdir(c *C) {
+	tmpdir, err := ioutil.TempDir(os.TempDir(), "chdir-")
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(tmpdir)
+
+	cwd, err := os.Getwd()
+	c.Assert(cwd, Not(Equals), tmpdir)
+	chDir(tmpdir, func() {
+		cwd, err := os.Getwd()
+		c.Assert(err, IsNil)
+		c.Assert(cwd, Equals, tmpdir)
+	})
+}
+
+func (ts *HTestSuite) TestExitCode(c *C) {
+	cmd := exec.Command("true")
+	err := cmd.Run()
+	c.Assert(err, IsNil)
+
+	cmd = exec.Command("false")
+	err = cmd.Run()
+	c.Assert(err, NotNil)
+	e, err := exitCode(err)
+	c.Assert(err, IsNil)
+	c.Assert(e, Equals, 1)
+
+	cmd = exec.Command("sh", "-c", "exit 7")
+	err = cmd.Run()
+	e, err = exitCode(err)
+	c.Assert(e, Equals, 7)
+
+	// ensure that non exec.ExitError values give a error
+	_, err = os.Stat("/random/file/that/is/not/there")
+	c.Assert(err, NotNil)
+	_, err = exitCode(err)
+	c.Assert(err, NotNil)
+}
+
+func (ts *HTestSuite) TestEnsureDir(c *C) {
+	tempdir := c.MkDir()
+
+	target := filepath.Join(tempdir, "meep")
+	err := ensureDir(target, 0755)
+	c.Assert(err, IsNil)
+	st, err := os.Stat(target)
+	c.Assert(err, IsNil)
+	c.Assert(st.IsDir(), Equals, true)
+	c.Assert(st.Mode(), Equals, os.ModeDir|0755)
+}
