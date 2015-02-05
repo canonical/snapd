@@ -66,7 +66,9 @@ const DEFAULT_CACHE_DIR = "/writable/cache"
 
 // Directory created by udev that allows a non-priv user to list the
 // available disk partitions by partition label.
-const diskDeviceDir = "/dev/disk/by-partlabel"
+var diskDeviceDir = "/dev/disk/by-partlabel"
+
+var mountsFile = "/proc/self/mounts"
 
 // Directory to mount writable root filesystem below the cache
 // diretory.
@@ -254,12 +256,6 @@ func allPartitionLabels() []string {
 	return labels
 }
 
-// Returns a minimal list of mounts required for running grub-install
-// within a chroot.
-func requiredChrootMounts() []string {
-	return []string{"/dev", "/proc", "/sys"}
-}
-
 // FIXME: would it make sense to rename to something like
 //         "UmountAndRemoveFromMountList" to indicate it has side-effects?
 // Mount the given directory and add it to the "mounts" slice
@@ -334,8 +330,8 @@ func stringInSlice(slice []string, value string) int {
 }
 
 // Returns all current mounts
-var getMounts = func() (mounts []mntEnt, err error) {
-	lines, err := readLines("/proc/self/mounts")
+var getMounts = func(mountsFile string) (mounts []mntEnt, err error) {
+	lines, err := readLines(mountsFile)
 	if err != nil {
 		return mounts, err
 	}
@@ -374,13 +370,13 @@ var getMounts = func() (mounts []mntEnt, err error) {
 //
 // key: name of recognised partition.
 // value: full path to disk device for the partition.
-var getPartitions = func() (m map[string]string, err error) {
+func getPartitions(deviceDir string) (m map[string]string, err error) {
 
 	recognised := allPartitionLabels()
 
 	m = make(map[string]string)
 
-	entries, err := ioutil.ReadDir(diskDeviceDir)
+	entries, err := ioutil.ReadDir(deviceDir)
 	if err != nil {
 		return m, err
 	}
@@ -393,7 +389,7 @@ var getPartitions = func() (m map[string]string, err error) {
 		}
 		isSymLink := (entry.Mode() & os.ModeSymlink) == os.ModeSymlink
 
-		fullPath := path.Join(diskDeviceDir, entry.Name())
+		fullPath := path.Join(deviceDir, entry.Name())
 
 		if isSymLink {
 			dest, err := os.Readlink(fullPath)
@@ -404,7 +400,7 @@ var getPartitions = func() (m map[string]string, err error) {
 			var cleaned string
 
 			if strings.HasPrefix(dest, "..") {
-				cleaned = path.Clean(path.Join(diskDeviceDir, dest))
+				cleaned = path.Clean(path.Join(deviceDir, dest))
 			} else {
 				cleaned = path.Clean(dest)
 			}
@@ -420,16 +416,20 @@ var getPartitions = func() (m map[string]string, err error) {
 
 // Determine details of the recognised disk partitions
 // available on the system via lsblk
-var loadPartitionDetails = func() (partitions []blockDevice, err error) {
+func loadPartitionDetails() (partitions []blockDevice, err error) {
 
-	pm, err := getPartitions()
+	pm, err := getPartitions(diskDeviceDir)
 	if err != nil {
 		return partitions, err
 	}
 
-	mounts, err := getMounts()
+	mounts, err := getMounts(mountsFile)
+	if err != nil {
+		return partitions, err
+	}
 
-	diskPattern := regexp.MustCompile(`(/dev/[^\d]*)\d+`)
+	// XXX: allow a prefix (".*") for test code.
+	diskPattern := regexp.MustCompile(`(.*/dev/[^\d]*)\d+`)
 
 	for name, device := range pm {
 		// convert partition device to parent disk device by stripping
@@ -776,7 +776,9 @@ func (p *Partition) unmountOtherRootfs() (err error) {
 func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	var boot *blockDevice
 
-	for _, fs := range requiredChrootMounts() {
+	// Minimal list of mounts required for running grub-install
+	// within a chroot.
+	for _, fs := range []string{"/dev", "/proc", "/sys"} {
 		target := path.Join(p.MountTarget(), fs)
 
 		err := bindmount(fs, target)
