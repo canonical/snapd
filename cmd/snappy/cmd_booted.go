@@ -15,6 +15,10 @@ func init() {
 }
 
 func (x *CmdBooted) Execute(args []string) (err error) {
+	if !isRoot() {
+		return requiresRootErr
+	}
+
 	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)
 	if err != nil {
 		return err

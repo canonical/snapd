@@ -19,6 +19,10 @@ func init() {
 }
 
 func (x *CmdRemove) Execute(args []string) (err error) {
+	if !isRoot() {
+		return requiresRootErr
+	}
+
 	for _, part := range args {
 		fmt.Printf("Removing %s\n", part)
 
