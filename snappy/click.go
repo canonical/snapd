@@ -51,6 +51,16 @@ const (
 	DS_FAIL_INTERNAL       = 14
 )
 
+// This function checks if the given exitCode is "ok" when running with
+// --allow-unauthenticated. We allow package with no signature or with
+// a unknown policy or with no policies at all. We do not allow overriding
+// bad signatures
+func allowUnauthenticatedOkExitCode(exitCode int) bool {
+	return (exitCode == DS_FAIL_NOSIGS ||
+		exitCode == DS_FAIL_UNKNOWN_ORIGIN ||
+		exitCode == DS_FAIL_NOPOLICIES)
+}
+
 // Tiny wrapper around the debsig-verify commandline
 func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error) {
 	cmd := exec.Command("debsig-verify", clickFile)
@@ -59,8 +69,7 @@ func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			waitStatus := exitErr.Sys().(syscall.WaitStatus)
 			exitCode := waitStatus.ExitStatus()
-			// certain error codes are ok
-			if allowUnauthenticated && (exitCode == DS_FAIL_NOSIGS || exitCode == DS_FAIL_UNKNOWN_ORIGIN || exitCode == DS_FAIL_NOPOLICIES) {
+			if allowUnauthenticated && allowUnauthenticatedOkExitCode(exitCode) {
 				log.Println("Signature check failed, but installing anyway as requested")
 				return nil
 			}
