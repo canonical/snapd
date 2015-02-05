@@ -94,7 +94,7 @@ func readClickManifest(data []byte) (manifest clickManifest, err error) {
 func readClickHookFile(hookFile string) (hook clickHook, err error) {
 	// FIXME: fugly, write deb822 style parser if we keep this
 	// FIXME2: the hook file will go probably entirely and gets
-	//         implemented naively in go so ok for now :)
+	//         implemented natively in go so ok for now :)
 	cfg := goconfigparser.New()
 	content, err := ioutil.ReadFile(hookFile)
 	if err != nil {
