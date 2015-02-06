@@ -337,7 +337,12 @@ var getMounts = func(mountsFile string) (mounts []mntEnt, err error) {
 	}
 
 	for _, line := range lines {
-		fields := strings.Split(line, " ")
+		fields := strings.Fields(line)
+
+		if len(fields) < 6 {
+			// handle invalid input.
+			continue
+		}
 
 		options := strings.Split(fields[3], ",")
 
@@ -378,7 +383,7 @@ func getPartitions(deviceDir string) (m map[string]string, err error) {
 
 	entries, err := ioutil.ReadDir(deviceDir)
 	if err != nil {
-		return m, err
+		return nil, err
 	}
 
 	for _, entry := range entries {
@@ -394,7 +399,7 @@ func getPartitions(deviceDir string) (m map[string]string, err error) {
 		if isSymLink {
 			dest, err := os.Readlink(fullPath)
 			if err != nil {
-				return m, err
+				return nil, err
 			}
 
 			var cleaned string
@@ -411,7 +416,7 @@ func getPartitions(deviceDir string) (m map[string]string, err error) {
 		m[entry.Name()] = fullPath
 	}
 
-	return m, err
+	return m, nil
 }
 
 // Determine details of the recognised disk partitions
@@ -420,12 +425,12 @@ func loadPartitionDetails() (partitions []blockDevice, err error) {
 
 	pm, err := getPartitions(diskDeviceDir)
 	if err != nil {
-		return partitions, err
+		return nil, err
 	}
 
 	mounts, err := getMounts(mountsFile)
 	if err != nil {
-		return partitions, err
+		return nil, err
 	}
 
 	// XXX: allow a prefix (".*") for test code.
@@ -438,7 +443,7 @@ func loadPartitionDetails() (partitions []blockDevice, err error) {
 		matches := diskPattern.FindAllStringSubmatch(device, -1)
 
 		if matches == nil {
-			return partitions,
+			return nil,
 				errors.New(fmt.Sprintf("failed to find disk associated with partition %q", device))
 		}
 
@@ -460,7 +465,7 @@ func loadPartitionDetails() (partitions []blockDevice, err error) {
 		partitions = append(partitions, bd)
 	}
 
-	return partitions, err
+	return partitions, nil
 }
 
 func (p *Partition) makeMountPoint() (err error) {

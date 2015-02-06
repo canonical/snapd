@@ -97,7 +97,7 @@ func makeDeviceDirs(disk string, deviceMap map[string]string) (parent string, li
 
 	parent, err = ioutil.TempDir("", "mounts-parent-")
 	if err != nil {
-		return parent, linkDir, err
+		return "", "", err
 	}
 
 	devDir := path.Join(parent, "dev")
@@ -106,13 +106,13 @@ func makeDeviceDirs(disk string, deviceMap map[string]string) (parent string, li
 
 	// Create the fake overall disk device
 	if err = createEmptyFile(path.Join(devDir, disk)); err != nil {
-		return parent, linkDir, err
+		return "", "", err
 	}
 
 	for name, label := range deviceMap {
 		// Create the fake partition device
 		if err = createEmptyFile(path.Join(devDir, name)); err != nil {
-			return parent, linkDir, err
+			return "", "", err
 		}
 
 		relativePath := fmt.Sprintf("../../%s", name)
@@ -123,10 +123,10 @@ func makeDeviceDirs(disk string, deviceMap map[string]string) (parent string, li
 			return cmd.Run()
 		})
 		if err != nil {
-			return parent, linkDir, err
+			return "", "", err
 		}
 	}
-	return parent, linkDir, err
+	return parent, linkDir, nil
 }
 
 func makeMountsFileAndDevices(dualRootfs bool) (mountsFile string, parentDevDir string, devDir string, err error) {
@@ -145,7 +145,7 @@ func makeMountsFileAndDevices(dualRootfs bool) (mountsFile string, parentDevDir 
 
 	parentDevDir, devDir, err = makeDeviceDirs(disk, devs)
 	if err != nil {
-		return mountsFile, parentDevDir, devDir, err
+		return "", "", "", err
 	}
 
 	replacements := make(map[string]string)
