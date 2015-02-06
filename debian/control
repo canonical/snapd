@@ -13,6 +13,7 @@ Build-Depends: dbus,
                golang-gocheck-dev,
                golang-pb-dev,
                golang-goyaml-dev,
+               golang-go-dbus-dev,
 Standards-Version: 3.9.6
 Homepage: https://launchpad.net/snappy
 Vcs-Browser: http://bazaar.launchpad.net/~snappy-dev/snappy/trunk/files
@@ -20,7 +21,6 @@ Vcs-Bzr: lp:snappy
 
 Package: ubuntu-snappy
 Architecture: any
-Conflicts: ubuntu-core-snappy
 Depends: apparmor-easyprof-ubuntu-snappy,
          debsig-verify,
          snappy-systemd,
