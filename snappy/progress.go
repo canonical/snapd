@@ -31,6 +31,7 @@ type TextProgress struct {
 }
 
 func NewTextProgress(pkg string) *TextProgress {
+	// TODO go back to New64 once we update the pb package.
 	t := TextProgress{pbar: pb.New(0)}
 	t.pbar.ShowSpeed = true
 	t.pkg = pkg
