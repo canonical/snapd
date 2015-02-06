@@ -61,16 +61,18 @@ func NewMetaRepository() *MetaRepository {
 	// FIXME: make this a configuration file
 
 	m := new(MetaRepository)
-	m.all = []Repository{
-		NewSystemImageRepository(),
-		NewUbuntuStoreSnapRepository()}
-	// these may fail if there is no such directory
-	repo := NewLocalSnapRepository(snapAppsDir)
-	if repo != nil {
+	m.all = []Repository{}
+	// its ok if repos fail if e.g. no dbus is available
+	if repo := NewSystemImageRepository(); repo != nil {
 		m.all = append(m.all, repo)
 	}
-	repo = NewLocalSnapRepository(snapOemDir)
-	if repo != nil {
+	if repo := NewUbuntuStoreSnapRepository(); repo != nil {
+		m.all = append(m.all, repo)
+	}
+	if repo := NewLocalSnapRepository(snapAppsDir); repo != nil {
+		m.all = append(m.all, repo)
+	}
+	if repo := NewLocalSnapRepository(snapOemDir); repo != nil {
 		m.all = append(m.all, repo)
 	}
 
