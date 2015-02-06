@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	. "gopkg.in/check.v1"
+	. "launchpad.net/gocheck"
 )
 
 // Hook up gocheck into the "go test" runner

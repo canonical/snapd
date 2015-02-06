@@ -30,8 +30,5 @@ cd $GOPATH/src/launchpad.net/snappy
 echo Building
 go build -v launchpad.net/snappy/...
 
-echo Obtaining test dependencies
-go get gopkg.in/check.v1
-
 echo Running tests from $(pwd)
 go test ./...
