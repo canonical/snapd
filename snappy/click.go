@@ -178,8 +178,10 @@ func installClickHooks(hooksDir, targetDir string, manifest clickManifest) (err 
 			}
 			src := path.Join(targetDir, hookTargetFile)
 			dst := expandHookPattern(manifest.Name, app, manifest.Version, systemHook.pattern)
-			if err := os.Remove(dst); err != nil {
-				log.Printf("Warning: failed to remove %s: %s", dst, err)
+			if _, err := os.Stat(dst); err == nil {
+				if err := os.Remove(dst); err != nil {
+					log.Printf("Warning: failed to remove %s: %s", dst, err)
+				}
 			}
 			if err := os.Symlink(src, dst); err != nil {
 				return err
@@ -206,8 +208,10 @@ func removeClickHooks(hooksDir string, manifest clickManifest) (err error) {
 				continue
 			}
 			dst := expandHookPattern(manifest.Name, app, manifest.Version, systemHook.pattern)
-			if err := os.Remove(dst); err != nil {
-				log.Printf("Warning: failed to remove %s: %s", dst, err)
+			if _, err := os.Stat(dst); err == nil {
+				if err := os.Remove(dst); err != nil {
+					log.Printf("Warning: failed to remove %s: %s", dst, err)
+				}
 			}
 			if systemHook.exec != "" {
 				if err := systemHook.execHook(); err != nil {
