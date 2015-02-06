@@ -3,7 +3,7 @@ package snappy
 import (
 	"sort"
 
-	. "gopkg.in/check.v1"
+	. "launchpad.net/gocheck"
 )
 
 type SortTestSuite struct {

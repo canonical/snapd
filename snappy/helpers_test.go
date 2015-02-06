@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	. "gopkg.in/check.v1"
+	. "launchpad.net/gocheck"
 )
 
 func MyTest(t *testing.T) { TestingT(t) }
