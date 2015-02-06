@@ -204,37 +204,37 @@ func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
 	p.partition = newPartition()
 
 	if p.connection, err = dbus.Connect(bus); err != nil {
-		log.Panic("Error: can not connect to the bus")
+		log.Printf("Warning: can not connect to the bus")
 		return nil
 	}
 
 	p.proxy = p.connection.Object(systemImageBusName, systemImageObjectPath)
 	if p.proxy == nil {
-		log.Panic("ERROR: failed to create D-Bus proxy for system-image server")
+		log.Printf("Warning: failed to create D-Bus proxy for system-image server")
 		return nil
 	}
 
 	p.updateAvailableStatus, err = p.makeWatcher("UpdateAvailableStatus")
 	if err != nil {
-		log.Panic(fmt.Sprintf("ERROR: %v", err))
+		log.Printf(fmt.Sprintf("Warning: %v", err))
 		return nil
 	}
 
 	p.updateApplied, err = p.makeWatcher("Rebooting")
 	if err != nil {
-		log.Panic(fmt.Sprintf("ERROR: %v", err))
+		log.Printf(fmt.Sprintf("Warning: %v", err))
 		return nil
 	}
 
 	p.updateDownloaded, err = p.makeWatcher("UpdateDownloaded")
 	if err != nil {
-		log.Panic(fmt.Sprintf("ERROR: %v", err))
+		log.Printf(fmt.Sprintf("Warning: %v", err))
 		return nil
 	}
 
 	p.updateFailed, err = p.makeWatcher("UpdateFailed")
 	if err != nil {
-		log.Panic(fmt.Sprintf("ERROR: %v", err))
+		log.Printf(fmt.Sprintf("Warning: %v", err))
 		return nil
 	}
 
@@ -403,7 +403,7 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 
 	case <-time.After(systemImageTimeoutSecs * time.Second):
 		err = errors.New(fmt.Sprintf(
-			"ERROR: "+
+			"Warning: "+
 				"timed out after %d seconds "+
 				"waiting for system image server to respond",
 			systemImageTimeoutSecs))
