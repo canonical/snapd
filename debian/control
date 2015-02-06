@@ -2,18 +2,18 @@ Source: ubuntu-snappy
 Section: devel
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
-Build-Depends: dbus,
+Build-Depends: bash-completion,
+               dbus,
                debhelper (>= 9),
                dh-golang,
                dh-systemd,
-               bash-completion,
                golang-go,
-               golang-go-flags-dev,
-               golang-goconfigparser-dev,
-               golang-gocheck-dev,
-               golang-pb-dev,
-               golang-goyaml-dev,
                golang-go-dbus-dev,
+               golang-go-flags-dev,
+               golang-gocheck-dev,
+               golang-goconfigparser-dev,
+               golang-goyaml-dev,
+               golang-pb-dev,
 Standards-Version: 3.9.6
 Homepage: https://launchpad.net/snappy
 Vcs-Browser: http://bazaar.launchpad.net/~snappy-dev/snappy/trunk/files
