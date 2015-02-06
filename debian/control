@@ -20,7 +20,6 @@ Vcs-Bzr: lp:snappy
 
 Package: ubuntu-snappy
 Architecture: any
-Conflicts: ubuntu-core-snappy
 Depends: apparmor-easyprof-ubuntu-snappy,
          debsig-verify,
          snappy-systemd,
