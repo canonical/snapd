@@ -1,0 +1,23 @@
+#---------------------------------------------------------------------
+# Unfortunately, the lsblk(8) command requires root privileges to allow
+# it to query the disk partition labels. Worse, if run as a non-priv
+# user, it simply display the information that it can query without
+# error and exits zero! Since snappy needs to run lsblk but does not
+# want to have to require the user be root in all cases, this unit
+# generate the lsblk output for snappy to consume. This isn't ideal, but
+# does avoid having to use set-uid helpers. Added to which, although the
+# generated file is essentially a static cache, the partition labels are
+# not expected to change.
+#---------------------------------------------------------------------
+
+[Unit]
+Description=Generate lsblk output for snappy
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/mkdir -m 0755 -p /run/snappy
+ExecStart=/bin/sh -c '/bin/lsblk --ascii --pairs --output=NAME,LABEL,PKNAME,MOUNTPOINT > /run/snappy/lsblk.txt'
+ExecStartPost=/bin/chmod 644 /run/snappy/lsblk.txt
+
+[Install]
+WantedBy=local-fs.target
