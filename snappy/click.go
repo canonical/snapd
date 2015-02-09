@@ -349,8 +349,7 @@ func setActiveClick(baseDir string) (err error) {
 		if err != nil {
 			return err
 		}
-
-		if err := removeClickHooks(currentActiveDir, currentActiveManifest); err != nil {
+		if err := removeClickHooks("/usr/share/click/hooks", currentActiveManifest); err != nil {
 			return err
 		}
 	}
