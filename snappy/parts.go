@@ -38,6 +38,8 @@ type Part interface {
 	Install(pb ProgressMeter) error
 	Uninstall() error
 	Config(configuration []byte) error
+	// make a inactive part active
+	SetActive() error
 }
 
 type Repository interface {

@@ -92,6 +92,18 @@ func (s *SystemImagePart) DownloadSize() int {
 	return -1
 }
 
+func (s *SystemImagePart) SetActive() (err error) {
+	// nothing to do
+	if s.IsActive() {
+		return nil
+	}
+
+	// FIXME: UpdateBootloader is a bit generic, this should really be
+	//        something like ToggleNextBootToOtherParition (but slightly
+	//        shorter ;)
+	return s.partition.UpdateBootloader()
+}
+
 func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	var updateProgress *SensibleWatch
 	if pb != nil {

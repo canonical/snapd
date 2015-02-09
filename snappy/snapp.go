@@ -144,6 +144,10 @@ func (s *SnapPart) Install(pb ProgressMeter) (err error) {
 	return errors.New("Install of a local part is not possible")
 }
 
+func (s *SnapPart) SetActive() (err error) {
+	return setActiveClick(s.basedir)
+}
+
 func (s *SnapPart) Uninstall() (err error) {
 	err = removeClick(s.basedir)
 	return err
@@ -284,6 +288,10 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 	}
 
 	return err
+}
+
+func (s *RemoteSnapPart) SetActive() (err error) {
+	return errors.New("A remote part must be installed first")
 }
 
 func (s *RemoteSnapPart) Uninstall() (err error) {

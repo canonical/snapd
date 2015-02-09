@@ -254,3 +254,35 @@ vendor: Foo Bar <foo@example.com>`)
 	_, err = os.Stat(path.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
 }
+
+func (s *SnapTestSuite) TestClickSetActive(c *C) {
+	packageYaml := `name: foo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+`
+	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
+	c.Assert(installClick(snapFile, true), IsNil)
+
+	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
+	c.Assert(installClick(snapFile, true), IsNil)
+
+	// ensure v2 is active
+	repo := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
+	parts, err := repo.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(len(parts), Equals, 2)
+	c.Assert(parts[0].Version(), Equals, "1.0")
+	c.Assert(parts[0].IsActive(), Equals, false)
+	c.Assert(parts[1].Version(), Equals, "2.0")
+	c.Assert(parts[1].IsActive(), Equals, true)
+
+	// set v1 active
+	err = setActiveClick(parts[0].(*SnapPart).basedir)
+	parts, err = repo.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(parts[0].Version(), Equals, "1.0")
+	c.Assert(parts[0].IsActive(), Equals, true)
+	c.Assert(parts[1].Version(), Equals, "2.0")
+	c.Assert(parts[1].IsActive(), Equals, false)
+
+}
