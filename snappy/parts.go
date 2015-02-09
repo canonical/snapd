@@ -155,7 +155,7 @@ var InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error
 	return
 }
 
-func InstalledSnapByName(needle string) Part {
+func ActivePartByName(needle string) Part {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	if err != nil {
