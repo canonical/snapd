@@ -12,6 +12,8 @@ var cloudMetaDataFile = "/var/lib/cloud/seed/nocloud-net/meta-data"
 // check if the image is in developer mode
 // FIXME: this is a bit crude right now, but it seems like there is not more
 //        meta-data to check right now
+// TODO: add feature to ubuntu-device-flash to write better info file when
+//       the image is in developer mode
 func inDeveloperMode() bool {
 	f, err := os.Open(cloudMetaDataFile)
 	if err != nil {
