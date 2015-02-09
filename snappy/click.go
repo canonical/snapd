@@ -51,6 +51,9 @@ const (
 	DS_FAIL_INTERNAL       = 14
 )
 
+// var to make it testable
+var clickSystemHooksDir = "/usr/share/click/hooks"
+
 // Execute the hook.Exec command
 func (s *clickHook) execHook() (err error) {
 	// the spec says this is passed to the shell
@@ -134,10 +137,10 @@ func readClickHookFile(hookFile string) (hook clickHook, err error) {
 	return hook, err
 }
 
-func systemClickHooks(hookDir string) (hooks map[string]clickHook, err error) {
+func systemClickHooks() (hooks map[string]clickHook, err error) {
 	hooks = make(map[string]clickHook)
 
-	hookFiles, err := filepath.Glob(path.Join(hookDir, "*.hook"))
+	hookFiles, err := filepath.Glob(path.Join(clickSystemHooksDir, "*.hook"))
 	if err != nil {
 		return
 	}
@@ -164,8 +167,8 @@ func expandHookPattern(name, app, version, pattern string) (expanded string) {
 	return
 }
 
-func installClickHooks(hooksDir, targetDir string, manifest clickManifest) (err error) {
-	systemHooks, err := systemClickHooks(hooksDir)
+func installClickHooks(targetDir string, manifest clickManifest) (err error) {
+	systemHooks, err := systemClickHooks()
 	if err != nil {
 		return err
 	}
@@ -196,8 +199,8 @@ func installClickHooks(hooksDir, targetDir string, manifest clickManifest) (err 
 	return
 }
 
-func removeClickHooks(hooksDir string, manifest clickManifest) (err error) {
-	systemHooks, err := systemClickHooks(hooksDir)
+func removeClickHooks(manifest clickManifest) (err error) {
+	systemHooks, err := systemClickHooks()
 	if err != nil {
 		return err
 	}
@@ -241,7 +244,7 @@ func removeClick(clickDir string) (err error) {
 	if err != nil {
 		return err
 	}
-	err = removeClickHooks("/usr/share/click/hooks", manifest)
+	err = removeClickHooks(manifest)
 	if err != nil {
 		return err
 	}
@@ -349,7 +352,7 @@ func setActiveClick(baseDir string) (err error) {
 		if err != nil {
 			return err
 		}
-		if err := removeClickHooks("/usr/share/click/hooks", currentActiveManifest); err != nil {
+		if err := removeClickHooks(currentActiveManifest); err != nil {
 			return err
 		}
 	}
@@ -359,7 +362,7 @@ func setActiveClick(baseDir string) (err error) {
 	if err != nil {
 		return err
 	}
-	err = installClickHooks("/usr/share/click/hooks", baseDir, newActiveManifest)
+	err = installClickHooks(baseDir, newActiveManifest)
 	if err != nil {
 		return err
 	}

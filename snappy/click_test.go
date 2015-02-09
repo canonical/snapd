@@ -119,7 +119,8 @@ func (s *SnapTestSuite) TestReadClickHooksDir(c *C) {
 User: root
 Exec: /usr/lib/click-systemd/systemd-clickhook
 Pattern: /var/lib/systemd/click/${id}`)
-	hooks, err := systemClickHooks(mockHooksDir)
+	clickSystemHooksDir = mockHooksDir
+	hooks, err := systemClickHooks()
 	c.Assert(err, IsNil)
 	c.Assert(len(hooks), Equals, 1)
 	c.Assert(hooks["systemd"].name, Equals, "systemd")
@@ -155,7 +156,8 @@ Pattern: %s/${id}`, testSymlinkDir2)
 			},
 		},
 	}
-	err := installClickHooks(mockHooksDir, instDir, manifest)
+	clickSystemHooksDir = mockHooksDir
+	err := installClickHooks(instDir, manifest)
 	c.Assert(err, IsNil)
 	p := fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version)
 	_, err = os.Stat(p)
@@ -172,7 +174,8 @@ Pattern: %s/${id}`, testSymlinkDir2)
 	c.Assert(symlinkTarget, Equals, path.Join(instDir, "path-to-apparmor-file"))
 
 	// now ensure we can remove
-	err = removeClickHooks(mockHooksDir, manifest)
+	clickSystemHooksDir = mockHooksDir
+	err = removeClickHooks(manifest)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version))
 	c.Assert(err, NotNil)
