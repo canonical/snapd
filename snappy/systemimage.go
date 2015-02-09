@@ -148,6 +148,15 @@ func (s *SystemImagePart) Config(configuration []byte) (err error) {
 	return err
 }
 
+func (s *SystemImagePart) NeedsReboot() bool {
+
+	if !s.IsActive() && s.NextBootIsOther() {
+		return true
+	}
+
+	return false
+}
+
 // Mark the *currently* booted rootfs as "good" (it booted :)
 // Note: Not part of the Part interface.
 func (s *SystemImagePart) MarkBootSuccessful() (err error) {

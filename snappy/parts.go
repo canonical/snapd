@@ -38,6 +38,9 @@ type Part interface {
 	Install(pb ProgressMeter) error
 	Uninstall() error
 	Config(configuration []byte) error
+
+	// Will become active on the next reboot
+	NeedsReboot() bool
 }
 
 type Repository interface {
