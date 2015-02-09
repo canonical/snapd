@@ -174,10 +174,22 @@ func InstalledSnapByName(needle string) Part {
 	return nil
 }
 
+// FIXME: return a list here as we may have multiple parts with the same
+//        name but different versions
 func FindPartByName(needle string, haystack []Part) *Part {
 	for _, part := range haystack {
 		if part.Name() == needle {
 			return &part
+		}
+	}
+	return nil
+}
+
+// Return the part with the name/version in the given slice of parts
+func FindPartByNameAndVersion(needle, version string, haystack []Part) Part {
+	for _, part := range haystack {
+		if part.Name() == needle && part.Version() == version {
+			return part
 		}
 	}
 	return nil
