@@ -519,6 +519,12 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 	current := s.currentPart()
 	current_version := current.Version()
 	target_version := s.proxy.us.available_version
+
+	if target_version == "" {
+		// no newer version available
+		return parts, err
+	}
+
 	if VersionCompare(current_version, target_version) < 0 {
 		parts = append(parts, &SystemImagePart{
 			proxy:          s.proxy,
