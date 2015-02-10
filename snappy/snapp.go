@@ -157,6 +157,10 @@ func (s *SnapPart) Config(configuration []byte) (err error) {
 	return err
 }
 
+func (s *SnapPart) NeedsReboot() bool {
+	return false
+}
+
 type SnapLocalRepository struct {
 	path string
 }
@@ -300,6 +304,10 @@ func (s *RemoteSnapPart) Uninstall() (err error) {
 
 func (s *RemoteSnapPart) Config(configuration []byte) (err error) {
 	return err
+}
+
+func (s *RemoteSnapPart) NeedsReboot() bool {
+	return false
 }
 
 func NewRemoteSnapPart(data remoteSnap) *RemoteSnapPart {

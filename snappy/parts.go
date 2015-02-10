@@ -27,8 +27,10 @@ type Part interface {
 	Hash() string
 	IsActive() bool
 	IsInstalled() bool
+	// Will become active on the next reboot
+	NeedsReboot() bool
 
-	// app, framework, core
+	// Returns app, framework, core
 	Type() SnapType
 
 	InstalledSize() int
