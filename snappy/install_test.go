@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	. "gopkg.in/check.v1"
+	. "launchpad.net/gocheck"
 )
 
 func makeCloudInitMetaData(c *C, content string) string {
