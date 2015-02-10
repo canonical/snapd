@@ -1,0 +1,5 @@
+ubuntu-snappy (0.1-0ubuntu1) vivid; urgency=medium 
+
+  * Initial packaging
+
+ -- Sergio Schvezov <sergio.schvezov@canonical.com>  Fri, 06 Feb 2015 02:25:43 -0200

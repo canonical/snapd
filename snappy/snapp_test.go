@@ -11,7 +11,7 @@ import (
 
 	partition "launchpad.net/snappy/partition"
 
-	. "gopkg.in/check.v1"
+	. "launchpad.net/gocheck"
 )
 
 const (

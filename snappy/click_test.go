@@ -9,7 +9,7 @@ import (
 	"path"
 	"path/filepath"
 
-	. "gopkg.in/check.v1"
+	. "launchpad.net/gocheck"
 )
 
 func (s *SnapTestSuite) makeTestSnap(c *C, packageYamlContent string) (snapFile string) {

@@ -148,6 +148,15 @@ func (s *SystemImagePart) Config(configuration []byte) (err error) {
 	return err
 }
 
+func (s *SystemImagePart) NeedsReboot() bool {
+
+	if !s.IsActive() && s.NextBootIsOther() {
+		return true
+	}
+
+	return false
+}
+
 // Mark the *currently* booted rootfs as "good" (it booted :)
 // Note: Not part of the Part interface.
 func (s *SystemImagePart) MarkBootSuccessful() (err error) {
@@ -204,37 +213,37 @@ func newSystemImageDBusProxy(bus dbus.StandardBus) *systemImageDBusProxy {
 	p.partition = newPartition()
 
 	if p.connection, err = dbus.Connect(bus); err != nil {
-		log.Panic("Error: can not connect to the bus")
+		log.Printf("Warning: can not connect to the bus")
 		return nil
 	}
 
 	p.proxy = p.connection.Object(systemImageBusName, systemImageObjectPath)
 	if p.proxy == nil {
-		log.Panic("ERROR: failed to create D-Bus proxy for system-image server")
+		log.Printf("Warning: failed to create D-Bus proxy for system-image server")
 		return nil
 	}
 
 	p.updateAvailableStatus, err = p.makeWatcher("UpdateAvailableStatus")
 	if err != nil {
-		log.Panic(fmt.Sprintf("ERROR: %v", err))
+		log.Printf(fmt.Sprintf("Warning: %v", err))
 		return nil
 	}
 
 	p.updateApplied, err = p.makeWatcher("Rebooting")
 	if err != nil {
-		log.Panic(fmt.Sprintf("ERROR: %v", err))
+		log.Printf(fmt.Sprintf("Warning: %v", err))
 		return nil
 	}
 
 	p.updateDownloaded, err = p.makeWatcher("UpdateDownloaded")
 	if err != nil {
-		log.Panic(fmt.Sprintf("ERROR: %v", err))
+		log.Printf(fmt.Sprintf("Warning: %v", err))
 		return nil
 	}
 
 	p.updateFailed, err = p.makeWatcher("UpdateFailed")
 	if err != nil {
-		log.Panic(fmt.Sprintf("ERROR: %v", err))
+		log.Printf(fmt.Sprintf("Warning: %v", err))
 		return nil
 	}
 
@@ -403,7 +412,7 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 
 	case <-time.After(systemImageTimeoutSecs * time.Second):
 		err = errors.New(fmt.Sprintf(
-			"ERROR: "+
+			"Warning: "+
 				"timed out after %d seconds "+
 				"waiting for system image server to respond",
 			systemImageTimeoutSecs))
@@ -519,6 +528,12 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 	current := s.currentPart()
 	current_version := current.Version()
 	target_version := s.proxy.us.available_version
+
+	if target_version == "" {
+		// no newer version available
+		return parts, err
+	}
+
 	if VersionCompare(current_version, target_version) < 0 {
 		parts = append(parts, &SystemImagePart{
 			proxy:          s.proxy,

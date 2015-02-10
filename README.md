@@ -61,12 +61,15 @@ to have it available in `$GOPATH/bin`
 
 ### Dependencies handling
 
-To generate dependencies.tsv you need "launchpad.net/godeps" and run
+To generate dependencies.tsv you need `godeps`, so
 
-    godeps launchpad.net/snappy/partition launchpad.net/snappy/snappy 
+    go get launchpad.net/godeps
 
-to update them:
+To obtain the correct dependencies for the project, run:
 
-    godeps -u dependencies.tsv
+    godeps -t -u dependencies.tsv
 
+If the dependencies need updating
+
+    godeps -t ./... > dependencies.tsv
 
