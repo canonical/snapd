@@ -34,7 +34,6 @@ import (
 	"os/signal"
 	"path"
 	"regexp"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -63,12 +62,6 @@ const BOOT_PARTITION_LABEL = "system-boot"
 
 // FIXME: Should query system-image-cli (see bug LP:#1380574).
 const DEFAULT_CACHE_DIR = "/writable/cache"
-
-// Directory created by udev that allows a non-priv user to list the
-// available disk partitions by partition label.
-var diskDeviceDir = "/dev/disk/by-partlabel"
-
-var mountsFile = "/proc/self/mounts"
 
 // Directory to mount writable root filesystem below the cache
 // diretory.
@@ -158,31 +151,6 @@ type blockDevice struct {
 	mountpoint string
 }
 
-// similar to a "struct mntent"
-type mntEnt struct {
-	Device     string
-	MountPoint string
-	Type       string
-	Options    []string
-	DumpFreq   int
-	FsckPassNo int
-}
-
-// Return the mountpoint for the specified disk partition by inspecting the
-// provided mount entries.
-func getMountPoint(mounts []mntEnt, partition string) string {
-	for _, entry := range mounts {
-		// Note that we have to special-case the rootfs mount
-		// since there are *two* entries in the mount table; one
-		// for mountpoint "/root", the other for "/".
-		if entry.Device == partition && entry.MountPoint != "/root" {
-			return entry.MountPoint
-		}
-	}
-
-	return ""
-}
-
 // Representation of HARDWARE_SPEC_FILE
 type hardwareSpecType struct {
 	Kernel          string `yaml:"kernel"`
@@ -254,6 +222,12 @@ func allPartitionLabels() []string {
 	labels = append(labels, WRITABLE_PARTITION_LABEL)
 
 	return labels
+}
+
+// Returns a minimal list of mounts required for running grub-install
+// within a chroot.
+func requiredChrootMounts() []string {
+	return []string{"/dev", "/proc", "/sys"}
 }
 
 // FIXME: would it make sense to rename to something like
@@ -329,136 +303,84 @@ func stringInSlice(slice []string, value string) int {
 	return -1
 }
 
-// Returns all current mounts
-var getMounts = func(mountsFile string) (mounts []mntEnt, err error) {
-	lines, err := readLines(mountsFile)
-	if err != nil {
-		return mounts, err
-	}
-
-	for _, line := range lines {
-		fields := strings.Fields(line)
-
-		if len(fields) < 6 {
-			// handle invalid input.
-			continue
-		}
-
-		options := strings.Split(fields[3], ",")
-
-		dumpFreq, err := strconv.Atoi(fields[4])
-		if err != nil {
-			return mounts, err
-		}
-
-		fsckPassNo, err := strconv.Atoi(fields[5])
-		if err != nil {
-			return mounts, err
-		}
-
-		m := mntEnt{
-			Device:     fields[0],
-			MountPoint: fields[1],
-			Type:       fields[2],
-			Options:    options,
-			DumpFreq:   dumpFreq,
-			FsckPassNo: fsckPassNo,
-		}
-
-		mounts = append(mounts, m)
-	}
-
-	return mounts, err
-}
-
-// Returns a hash of recognised partitions in the following form:
-//
-// key: name of recognised partition.
-// value: full path to disk device for the partition.
-func getPartitions(deviceDir string) (m map[string]string, err error) {
-
-	recognised := allPartitionLabels()
-
-	m = make(map[string]string)
-
-	entries, err := ioutil.ReadDir(deviceDir)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, entry := range entries {
-		pos := stringInSlice(recognised, entry.Name())
-		if pos < 0 {
-			// ignore unrecognised partitions
-			continue
-		}
-		isSymLink := (entry.Mode() & os.ModeSymlink) == os.ModeSymlink
-
-		fullPath := path.Join(deviceDir, entry.Name())
-
-		if isSymLink {
-			dest, err := os.Readlink(fullPath)
-			if err != nil {
-				return nil, err
-			}
-
-			var cleaned string
-
-			if strings.HasPrefix(dest, "..") {
-				cleaned = path.Clean(path.Join(deviceDir, dest))
-			} else {
-				cleaned = path.Clean(dest)
-			}
-
-			fullPath = cleaned
-		}
-
-		m[entry.Name()] = fullPath
-	}
-
-	return m, nil
+var runLsblk = func() (output []string, err error) {
+	return runCommandWithStdout(
+		"/bin/lsblk",
+		"--ascii",
+		"--output=NAME,LABEL,PKNAME,MOUNTPOINT",
+		"--pairs")
 }
 
 // Determine details of the recognised disk partitions
 // available on the system via lsblk
 func loadPartitionDetails() (partitions []blockDevice, err error) {
+	var recognised []string = allPartitionLabels()
 
-	pm, err := getPartitions(diskDeviceDir)
+	lines, err := runLsblk()
 	if err != nil {
-		return nil, err
+		return partitions, err
 	}
+	pattern := regexp.MustCompile(`(?:[^\s"]|"(?:[^"])*")+`)
 
-	mounts, err := getMounts(mountsFile)
-	if err != nil {
-		return nil, err
-	}
+	for _, line := range lines {
+		fields := make(map[string]string)
 
-	// XXX: allow a prefix (".*") for test code.
-	diskPattern := regexp.MustCompile(`(.*/dev/[^\d]*)\d+`)
+		// split the line into 'NAME="quoted value"' fields
+		matches := pattern.FindAllString(line, -1)
 
-	for name, device := range pm {
-		// convert partition device to parent disk device by stripping
-		// off the numeric partition number.
-		// FIXME: this is crude and probably fragile.
-		matches := diskPattern.FindAllStringSubmatch(device, -1)
+		for _, match := range matches {
+			tmp := strings.Split(match, "=")
+			name := tmp[0]
 
-		if matches == nil {
-			return nil,
-				errors.New(fmt.Sprintf("failed to find disk associated with partition %q", device))
+			// remove quotes
+			value := strings.Trim(tmp[1], `"`)
+
+			// store
+			fields[name] = value
 		}
 
-		disk := matches[0][1]
-
-		if !fileExists(disk) {
+		// Look for expected partition labels
+		name, ok := fields["LABEL"]
+		if !ok {
 			continue
 		}
 
-		mountPoint := getMountPoint(mounts, device)
+		if name == "" || name == "\"\"" {
+			continue
+		}
 
+		pos := stringInSlice(recognised, name)
+		if pos < 0 {
+			// ignore unrecognised partitions
+			continue
+		}
+
+		// reconstruct full path to disk partition device
+		device := fmt.Sprintf("/dev/%s", fields["NAME"])
+
+		// FIXME: we should have a way to mock the "/dev" dir
+		//        or we skip this test lsblk never returns non-existing
+		//        devices
+		/*
+			if err := FileExists(device); err != nil {
+				continue
+			}
+		*/
+		// reconstruct full path to entire disk device
+		disk := fmt.Sprintf("/dev/%s", fields["PKNAME"])
+
+		// FIXME: we should have a way to mock the "/dev" dir
+		//        or we skip this test lsblk never returns non-existing
+		//        files
+		/*
+			if err := FileExists(disk); err != nil {
+				continue
+			}
+		*/
 		bd := blockDevice{
-			name:       name,
+			name:       fields["LABEL"],
 			device:     device,
-			mountpoint: mountPoint,
+			mountpoint: fields["MOUNTPOINT"],
 			parentName: disk,
 		}
 
@@ -699,7 +621,7 @@ func (p *Partition) rootPartition() (result *blockDevice) {
 }
 
 // Return pointer to blockDevice representing the "other" root
-// filesystem (which is not currently active)
+// filesystem (which is not currently mounted)
 func (p *Partition) otherRootPartition() (result *blockDevice) {
 	for _, part := range p.rootPartitions() {
 		if part.mountpoint != "/" {
@@ -781,9 +703,7 @@ func (p *Partition) unmountOtherRootfs() (err error) {
 func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	var boot *blockDevice
 
-	// Minimal list of mounts required for running grub-install
-	// within a chroot.
-	for _, fs := range []string{"/dev", "/proc", "/sys"} {
+	for _, fs := range requiredChrootMounts() {
 		target := path.Join(p.MountTarget(), fs)
 
 		err := bindmount(fs, target)
