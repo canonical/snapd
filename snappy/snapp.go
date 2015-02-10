@@ -281,11 +281,7 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 		return err
 	}
 
-	var flags InstallFlags
-	if os.Getenv("SNAP_ALLOW_UNAUTHENTICATED") != "" {
-		flags |= AllowUnauthenticated
-	}
-	err = installClick(w.Name(), flags)
+	err = installClick(w.Name(), 0)
 	if err != nil {
 		return err
 	}
