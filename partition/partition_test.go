@@ -301,7 +301,7 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRWFuncErr(c *C) {
 	c.Assert(err.Error(), Equals, "canary")
 
 	// ensure cleanup happend
-	
+
 	// FIXME: mounts is global
 	c.Assert(mounts, DeepEquals, []string{})
 }
