@@ -1,6 +1,7 @@
 package partition
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -113,6 +114,30 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
 	c.Assert(reportedRoot, Equals, (&Partition{}).MountTarget())
 }
 
+func (s *PartitionTestSuite) TestRunWithOtherDualParitionRWFuncErr(c *C) {
+	runLsblk = mockRunLsblkDualSnappy
+
+	savedRunCommand := runCommand
+	defer func() {
+		runCommand = savedRunCommand
+	}()
+	runCommand = mockRunCommand
+
+	p := New()
+	err := p.RunWithOther(RW, func(otherRoot string) (err error) {
+		return errors.New("canary")
+	})
+
+	// ensure we actually got the right error
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "canary")
+
+	// ensure cleanup happend
+
+	// FIXME: mounts is global
+	c.Assert(mounts, DeepEquals, []string{})
+}
+
 func (s *PartitionTestSuite) TestRunWithOtherSingleParitionRO(c *C) {
 	runLsblk = mockRunLsblkSingleRootSnappy
 	p := New()
@@ -207,7 +232,11 @@ func (s *PartitionTestSuite) TestUndoMounts(c *C) {
 	// FIXME: mounts is global
 	c.Assert(mounts, DeepEquals, []string{})
 	p.bindmountRequiredFilesystems()
-	c.Assert(len(mounts), Equals, len(requiredChrootMounts()))
+	c.Assert(mounts, DeepEquals, []string{
+		p.MountTarget() + "/dev",
+		p.MountTarget() + "/proc",
+		p.MountTarget() + "/sys",
+	})
 	p.unmountRequiredFilesystems()
 	c.Assert(mounts, DeepEquals, []string{})
 }
