@@ -51,6 +51,13 @@ const (
 	DS_FAIL_INTERNAL       = 14
 )
 
+type InstallFlags uint
+
+const (
+	// Allow to install a snap even if it can not be authenticated
+	AllowUnauthenticated InstallFlags = 1 << iota
+)
+
 // Execute the hook.Exec command
 func (s *clickHook) execHook() (err error) {
 	// the spec says this is passed to the shell
@@ -253,10 +260,11 @@ func removeClick(clickDir string) (err error) {
 	return os.RemoveAll(clickDir)
 }
 
-func installClick(snapFile string, allowUnauthenticated bool) (err error) {
+func installClick(snapFile string, flags InstallFlags) (err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
 
+	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
 	err = auditClick(snapFile, allowUnauthenticated)
 	if err != nil {
 		return err

@@ -184,7 +184,7 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	}
 
 	snapFile := s.makeTestSnap(c, "")
-	err := installClick(snapFile, false)
+	err := installClick(snapFile, 0)
 	c.Assert(err, IsNil)
 
 	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
@@ -207,12 +207,30 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
 	}
 
 	snapFile := s.makeTestSnap(c, "")
-	err := installClick(snapFile, false)
+	err := installClick(snapFile, 0)
 	c.Assert(err, NotNil)
 
 	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, NotNil)
+}
+
+// ensure that the right parameters are passed to runDebsigVerify()
+func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyPassesUnauth(c *C) {
+	var expectedUnauth bool
+	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
+		c.Assert(allowUnauth, Equals, expectedUnauth)
+		return nil
+	}
+
+	expectedUnauth = true
+	snapFile := s.makeTestSnap(c, "")
+	err := installClick(snapFile, AllowUnauthenticated)
+	c.Assert(err, IsNil)
+
+	expectedUnauth = false
+	err = installClick(snapFile, 0)
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
@@ -221,7 +239,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	}
 
 	targetDir := path.Join(s.tempdir, "apps")
-	err := installClick(s.makeTestSnap(c, ""), false)
+	err := installClick(s.makeTestSnap(c, ""), 0)
 	c.Assert(err, IsNil)
 
 	instDir := path.Join(targetDir, "foo", "1.0")
@@ -245,7 +263,7 @@ version: 1.0
 type: oem
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
-	err := installClick(snapFile, false)
+	err := installClick(snapFile, 0)
 	c.Assert(err, IsNil)
 
 	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
