@@ -497,24 +497,35 @@ func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (e
 	}
 
 	if option == RW {
-		if err = p.remountOther(RW); err != nil {
+		if err := p.remountOther(RW); err != nil {
 			return err
 		}
 
 		defer func() {
-			err = p.remountOther(RO)
+			// we can't reuse err here as this will override
+			// the error value we got from calling "f()"
+			derr := p.remountOther(RO)
+			if derr != nil && err == nil {
+				err = derr
+			}
 		}()
 
-		if err = p.bindmountRequiredFilesystems(); err != nil {
+		if err := p.bindmountRequiredFilesystems(); err != nil {
 			return err
 		}
 
 		defer func() {
-			err = p.unmountRequiredFilesystems()
+			// we can't reuse err here as this will override
+			// the error value we got from calling "f()"
+			derr := p.unmountRequiredFilesystems()
+			if derr != nil && err == nil {
+				err = derr
+			}
 		}()
 	}
 
-	return f(p.MountTarget())
+	err = f(p.MountTarget())
+	return err
 }
 
 func (p *Partition) SyncBootloaderFiles() (err error) {

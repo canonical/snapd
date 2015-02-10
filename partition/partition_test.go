@@ -1,6 +1,7 @@
 package partition
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -272,6 +273,32 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Assert(reportedRoot, Equals, (&Partition{}).MountTarget())
+}
+
+func (s *PartitionTestSuite) TestRunWithOtherDualParitionRWFuncErr(c *C) {
+	mockMountsFile, parentDevDir, deviceDir, err := makeMountsFileAndDevices(true)
+	c.Assert(err, IsNil)
+	defer func() {
+		os.Remove(mockMountsFile)
+		os.RemoveAll(parentDevDir)
+	}()
+	diskDeviceDir = deviceDir
+	mountsFile = mockMountsFile
+
+	savedRunCommand := runCommand
+	defer func() {
+		runCommand = savedRunCommand
+	}()
+	runCommand = mockRunCommand
+
+	p := New()
+	reportedRoot := ""
+	err = p.RunWithOther(RW, func(otherRoot string) (err error) {
+		reportedRoot = otherRoot
+		return errors.New("canary")
+	})
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, "canary")
 }
 
 func (s *PartitionTestSuite) TestRunWithOtherSingleParitionRO(c *C) {
