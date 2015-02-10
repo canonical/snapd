@@ -93,8 +93,8 @@ func (s *SystemImagePart) DownloadSize() int {
 }
 
 func (s *SystemImagePart) SetActive() (err error) {
-	// nothing to do
-	if s.IsActive() {
+	// nothing to do if already active and ther is no switch scheduled
+	if s.IsActive() && !s.partition.NextBootIsOther() {
 		return nil
 	}
 
@@ -162,7 +162,7 @@ func (s *SystemImagePart) Config(configuration []byte) (err error) {
 
 func (s *SystemImagePart) NeedsReboot() bool {
 
-	if !s.IsActive() && s.NextBootIsOther() {
+	if !s.IsActive() && s.partition.NextBootIsOther() {
 		return true
 	}
 
@@ -178,11 +178,6 @@ func (s *SystemImagePart) MarkBootSuccessful() (err error) {
 func (s *SystemImagePart) Channel() string {
 
 	return s.channelName
-}
-
-// Return true if the next boot will use the other root filesystem.
-func (s *SystemImagePart) NextBootIsOther() bool {
-	return s.partition.NextBootIsOther()
 }
 
 // Result of UpdateAvailableStatus() call
