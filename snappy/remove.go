@@ -10,6 +10,6 @@ func Remove(partName string) error {
 	if err := part.Uninstall(); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
