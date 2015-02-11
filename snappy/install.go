@@ -40,8 +40,11 @@ func Install(args []string) (err error) {
 		if _, err := os.Stat(name); err == nil {
 			// we allow unauthenticated package when in developer
 			// mode
-			allowUnauthenticated := inDeveloperMode()
-			if err := installClick(name, allowUnauthenticated); err != nil {
+			var flags InstallFlags
+			if inDeveloperMode() {
+				flags |= AllowUnauthenticated
+			}
+			if err := installClick(name, flags); err != nil {
 				return err
 			}
 			didSomething = true

@@ -19,10 +19,10 @@ icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
 	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
-	c.Assert(installClick(snapFile, true), IsNil)
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 
 	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
-	c.Assert(installClick(snapFile, true), IsNil)
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 
 	m := NewMetaRepository()
 	installed, err := m.Installed()
