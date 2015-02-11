@@ -458,7 +458,6 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 	cfg := goconfigparser.New()
 	f, err := os.Open(path)
 	if err != nil {
-		log.Printf("Can not open '%s': %s", path, err)
 		return part, err
 	}
 	defer f.Close()
@@ -485,7 +484,7 @@ func (s *SystemImageRepository) currentPart() Part {
 	configFile := filepath.Join(s.myroot, systemImageChannelConfig)
 	part, err := s.makePartFromSystemImageConfigFile(configFile, true)
 	if err != nil {
-		log.Printf("Can not make system-image part for %s: %s", configFile, err)
+		return nil
 	}
 	return part
 }
