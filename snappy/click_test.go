@@ -119,7 +119,8 @@ func (s *SnapTestSuite) TestReadClickHooksDir(c *C) {
 User: root
 Exec: /usr/lib/click-systemd/systemd-clickhook
 Pattern: /var/lib/systemd/click/${id}`)
-	hooks, err := systemClickHooks(mockHooksDir)
+	clickSystemHooksDir = mockHooksDir
+	hooks, err := systemClickHooks()
 	c.Assert(err, IsNil)
 	c.Assert(len(hooks), Equals, 1)
 	c.Assert(hooks["systemd"].name, Equals, "systemd")
@@ -155,7 +156,8 @@ Pattern: %s/${id}`, testSymlinkDir2)
 			},
 		},
 	}
-	err := installClickHooks(mockHooksDir, instDir, manifest)
+	clickSystemHooksDir = mockHooksDir
+	err := installClickHooks(instDir, manifest)
 	c.Assert(err, IsNil)
 	p := fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version)
 	_, err = os.Stat(p)
@@ -172,19 +174,16 @@ Pattern: %s/${id}`, testSymlinkDir2)
 	c.Assert(symlinkTarget, Equals, path.Join(instDir, "path-to-apparmor-file"))
 
 	// now ensure we can remove
-	err = removeClickHooks(mockHooksDir, manifest)
+	clickSystemHooksDir = mockHooksDir
+	err = removeClickHooks(manifest)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version))
 	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
-	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
-		return nil
-	}
-
 	snapFile := s.makeTestSnap(c, "")
-	err := installClick(snapFile, false)
+	err := installClick(snapFile, 0)
 	c.Assert(err, IsNil)
 
 	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
@@ -207,7 +206,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
 	}
 
 	snapFile := s.makeTestSnap(c, "")
-	err := installClick(snapFile, false)
+	err := installClick(snapFile, 0)
 	c.Assert(err, NotNil)
 
 	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
@@ -215,13 +214,27 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (s *SnapTestSuite) TestSnapRemove(c *C) {
+// ensure that the right parameters are passed to runDebsigVerify()
+func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyPassesUnauth(c *C) {
+	var expectedUnauth bool
 	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
+		c.Assert(allowUnauth, Equals, expectedUnauth)
 		return nil
 	}
 
+	expectedUnauth = true
+	snapFile := s.makeTestSnap(c, "")
+	err := installClick(snapFile, AllowUnauthenticated)
+	c.Assert(err, IsNil)
+
+	expectedUnauth = false
+	err = installClick(snapFile, 0)
+	c.Assert(err, IsNil)
+}
+
+func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	targetDir := path.Join(s.tempdir, "apps")
-	err := installClick(s.makeTestSnap(c, ""), false)
+	err := installClick(s.makeTestSnap(c, ""), 0)
 	c.Assert(err, IsNil)
 
 	instDir := path.Join(targetDir, "foo", "1.0")
@@ -236,16 +249,12 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
-	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
-		return nil
-	}
-
 	snapFile := s.makeTestSnap(c, `name: foo
 version: 1.0
 type: oem
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
-	err := installClick(snapFile, false)
+	err := installClick(snapFile, 0)
 	c.Assert(err, IsNil)
 
 	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
@@ -253,4 +262,36 @@ vendor: Foo Bar <foo@example.com>`)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(path.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
+}
+
+func (s *SnapTestSuite) TestClickSetActive(c *C) {
+	packageYaml := `name: foo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+`
+	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+
+	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+
+	// ensure v2 is active
+	repo := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
+	parts, err := repo.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(len(parts), Equals, 2)
+	c.Assert(parts[0].Version(), Equals, "1.0")
+	c.Assert(parts[0].IsActive(), Equals, false)
+	c.Assert(parts[1].Version(), Equals, "2.0")
+	c.Assert(parts[1].IsActive(), Equals, true)
+
+	// set v1 active
+	err = setActiveClick(parts[0].(*SnapPart).basedir)
+	parts, err = repo.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(parts[0].Version(), Equals, "1.0")
+	c.Assert(parts[0].IsActive(), Equals, true)
+	c.Assert(parts[1].Version(), Equals, "2.0")
+	c.Assert(parts[1].IsActive(), Equals, false)
+
 }

@@ -62,7 +62,6 @@ func NewInstalledSnapPart(yaml_path string) *SnapPart {
 	part := SnapPart{}
 
 	if _, err := os.Stat(yaml_path); os.IsNotExist(err) {
-		log.Printf("No '%s' found", yaml_path)
 		return nil
 	}
 
@@ -144,6 +143,10 @@ func (s *SnapPart) Install(pb ProgressMeter) (err error) {
 	return errors.New("Install of a local part is not possible")
 }
 
+func (s *SnapPart) SetActive() (err error) {
+	return setActiveClick(s.basedir)
+}
+
 func (s *SnapPart) Uninstall() (err error) {
 	err = removeClick(s.basedir)
 	return err
@@ -163,7 +166,6 @@ type SnapLocalRepository struct {
 
 func NewLocalSnapRepository(path string) *SnapLocalRepository {
 	if s, err := os.Stat(path); err != nil || !s.IsDir() {
-		log.Printf("Invalid directory %s (%s)", path, err)
 		return nil
 	}
 	return &SnapLocalRepository{path: path}
@@ -281,13 +283,16 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 		return err
 	}
 
-	allowUnauthenticated := os.Getenv("SNAP_ALLOW_UNAUTHENTICATED") != ""
-	err = installClick(w.Name(), allowUnauthenticated)
+	err = installClick(w.Name(), 0)
 	if err != nil {
 		return err
 	}
 
 	return err
+}
+
+func (s *RemoteSnapPart) SetActive() (err error) {
+	return errors.New("A remote part must be installed first")
 }
 
 func (s *RemoteSnapPart) Uninstall() (err error) {

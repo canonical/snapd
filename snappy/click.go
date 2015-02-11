@@ -51,6 +51,16 @@ const (
 	DS_FAIL_INTERNAL       = 14
 )
 
+// var to make it testable
+var clickSystemHooksDir = "/usr/share/click/hooks"
+
+type InstallFlags uint
+
+const (
+	// Allow to install a snap even if it can not be authenticated
+	AllowUnauthenticated InstallFlags = 1 << iota
+)
+
 // Execute the hook.Exec command
 func (s *clickHook) execHook() (err error) {
 	// the spec says this is passed to the shell
@@ -134,10 +144,10 @@ func readClickHookFile(hookFile string) (hook clickHook, err error) {
 	return hook, err
 }
 
-func systemClickHooks(hookDir string) (hooks map[string]clickHook, err error) {
+func systemClickHooks() (hooks map[string]clickHook, err error) {
 	hooks = make(map[string]clickHook)
 
-	hookFiles, err := filepath.Glob(path.Join(hookDir, "*.hook"))
+	hookFiles, err := filepath.Glob(path.Join(clickSystemHooksDir, "*.hook"))
 	if err != nil {
 		return
 	}
@@ -164,8 +174,8 @@ func expandHookPattern(name, app, version, pattern string) (expanded string) {
 	return
 }
 
-func installClickHooks(hooksDir, targetDir string, manifest clickManifest) (err error) {
-	systemHooks, err := systemClickHooks(hooksDir)
+func installClickHooks(targetDir string, manifest clickManifest) (err error) {
+	systemHooks, err := systemClickHooks()
 	if err != nil {
 		return err
 	}
@@ -196,8 +206,8 @@ func installClickHooks(hooksDir, targetDir string, manifest clickManifest) (err 
 	return
 }
 
-func removeClickHooks(hooksDir string, manifest clickManifest) (err error) {
-	systemHooks, err := systemClickHooks(hooksDir)
+func removeClickHooks(manifest clickManifest) (err error) {
+	systemHooks, err := systemClickHooks()
 	if err != nil {
 		return err
 	}
@@ -223,20 +233,25 @@ func removeClickHooks(hooksDir string, manifest clickManifest) (err error) {
 	return err
 }
 
-func removeClick(clickDir string) (err error) {
+func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err error) {
 	manifestFiles, err := filepath.Glob(path.Join(clickDir, ".click", "info", "*.manifest"))
 	if err != nil {
-		return err
+		return manifest, err
 	}
 	if len(manifestFiles) != 1 {
-		return errors.New(fmt.Sprintf("Error: got %s manifests in %s", len(manifestFiles), clickDir))
+		return manifest, errors.New(fmt.Sprintf("Error: got %s manifests in %s", len(manifestFiles), clickDir))
 	}
 	manifestData, err := ioutil.ReadFile(manifestFiles[0])
-	manifest, err := readClickManifest([]byte(manifestData))
+	manifest, err = readClickManifest([]byte(manifestData))
+	return manifest, err
+}
+
+func removeClick(clickDir string) (err error) {
+	manifest, err := readClickManifestFromClickDir(clickDir)
 	if err != nil {
 		return err
 	}
-	err = removeClickHooks("/usr/share/click/hooks", manifest)
+	err = removeClickHooks(manifest)
 	if err != nil {
 		return err
 	}
@@ -253,10 +268,11 @@ func removeClick(clickDir string) (err error) {
 	return os.RemoveAll(clickDir)
 }
 
-func installClick(snapFile string, allowUnauthenticated bool) (err error) {
+func installClick(snapFile string, flags InstallFlags) (err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
 
+	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
 	err = auditClick(snapFile, allowUnauthenticated)
 	if err != nil {
 		return err
@@ -311,23 +327,60 @@ func installClick(snapFile string, allowUnauthenticated bool) (err error) {
 		return
 	}
 
-	err = installClickHooks("/usr/share/click/hooks", instDir, manifest)
+	currentActiveDir, err := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
+	err = setActiveClick(instDir)
 	if err != nil {
 		// FIXME: make the output part of the SnapExtractError
 		log.Printf("Snap install failed with: %s", output)
 		if err := os.RemoveAll(instDir); err != nil {
 			log.Printf("Warning: failed to remove %s: %s", instDir, err)
 		}
+		// ensure to revert on install failure
+		if currentActiveDir != "" {
+			setActiveClick(currentActiveDir)
+		}
+		return err
+	}
+
+	return nil
+}
+
+func setActiveClick(baseDir string) (err error) {
+	currentActiveSymlink := filepath.Join(baseDir, "..", "current")
+	currentActiveDir, err := filepath.EvalSymlinks(currentActiveSymlink)
+
+	// already active, nothing to do
+	if baseDir == currentActiveDir {
+		return nil
+	}
+
+	// there is already a active part
+	if currentActiveDir != "" {
+		currentActiveManifest, err := readClickManifestFromClickDir(currentActiveDir)
+		if err != nil {
+			return err
+		}
+		if err := removeClickHooks(currentActiveManifest); err != nil {
+			return err
+		}
+	}
+
+	// make new part active
+	newActiveManifest, err := readClickManifestFromClickDir(baseDir)
+	if err != nil {
+		return err
+	}
+	err = installClickHooks(baseDir, newActiveManifest)
+	if err != nil {
 		return err
 	}
 
 	// FIXME: we want to get rid of the current symlink
-	// update current symlink
-	currentSymlink := path.Join(path.Dir(instDir), "current")
-	if err := os.Remove(currentSymlink); err != nil {
-		log.Printf("Warning: failed to remove %s: %s", currentSymlink, err)
+	if _, err := os.Stat(currentActiveSymlink); err == nil {
+		if err := os.Remove(currentActiveSymlink); err != nil {
+			log.Printf("Warning: failed to remove %s: %s", currentActiveSymlink, err)
+		}
 	}
-	err = os.Symlink(instDir, currentSymlink)
-
+	err = os.Symlink(baseDir, currentActiveSymlink)
 	return err
 }
