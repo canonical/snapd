@@ -57,7 +57,7 @@ func mockRunLsblkDualSnappy() (output []string, err error) {
 	dualData := `
 NAME="sda" LABEL="" PKNAME="" MOUNTPOINT=""
 NAME="sda1" LABEL="" PKNAME="sda" MOUNTPOINT=""
-NAME="sda2" LABEL="system-boot" PKNAME="sda" MOUNTPOINT=""
+NAME="sda2" LABEL="system-boot" PKNAME="sda" MOUNTPOINT="/boot/efi"
 NAME="sda3" LABEL="system-a" PKNAME="sda" MOUNTPOINT="/"
 NAME="sda4" LABEL="system-b" PKNAME="sda" MOUNTPOINT=""
 NAME="sda5" LABEL="writable" PKNAME="sda" MOUNTPOINT="/writable"
@@ -236,6 +236,7 @@ func (s *PartitionTestSuite) TestUndoMounts(c *C) {
 		p.MountTarget() + "/dev",
 		p.MountTarget() + "/proc",
 		p.MountTarget() + "/sys",
+		p.MountTarget() + "/boot/efi",
 	})
 	p.unmountRequiredFilesystems()
 	c.Assert(mounts, DeepEquals, []string{})

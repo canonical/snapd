@@ -707,9 +707,17 @@ func (p *Partition) unmountOtherRootfs() (err error) {
 // The bootloader requires a few filesystems to be mounted when
 // run from within a chroot.
 func (p *Partition) bindmountRequiredFilesystems() (err error) {
-	var boot *blockDevice
 
-	for _, fs := range []string{"/dev", "/proc", "/sys"} {
+	// we always requires these
+	requiredChrootMounts := []string{"/dev", "/proc", "/sys"}
+
+	// if there is a boot partition we also bind-mount it
+	boot := p.bootPartition()
+	if boot != nil && boot.mountpoint != "" {
+		requiredChrootMounts = append(requiredChrootMounts, boot.mountpoint)
+	}
+
+	for _, fs := range requiredChrootMounts {
 		target := path.Join(p.MountTarget(), fs)
 
 		err := bindmountAndAddToGlobalMountList(fs, target)
@@ -718,24 +726,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 		}
 	}
 
-	boot = p.bootPartition()
-	if boot == nil {
-		// No separate boot partition
-		return nil
-	}
-
-	if boot.mountpoint == "" {
-		// Impossible situation
-		return nil
-	}
-
-	target := path.Join(p.MountTarget(), boot.mountpoint)
-	err = bindmountAndAddToGlobalMountList(boot.mountpoint, target)
-	if err != nil {
-		return err
-	}
-
-	return err
+	return nil
 }
 
 // Undo the effects of BindmountRequiredFilesystems()
