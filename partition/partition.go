@@ -755,12 +755,3 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 
 	return bootloader.HandleAssets()
 }
-
-// Run the commandline specified by the args array chrooted to the
-// new root filesystem.
-func (p *Partition) runInChroot(args []string) (err error) {
-	fullArgs := []string{"/usr/sbin/chroot", p.MountTarget()}
-	fullArgs = append(fullArgs, args...)
-
-	return runCommand(fullArgs...)
-}

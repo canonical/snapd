@@ -58,7 +58,7 @@ func (g *Grub) ToggleRootFS() (err error) {
 	args = append(args, other.parentName)
 
 	// install grub
-	err = g.partition.runInChroot(args)
+	err = runInChroot(g.partition.MountTarget(), args)
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func (g *Grub) ToggleRootFS() (err error) {
 	args = append(args, bootloaderGrubUpdateCmd)
 
 	// create the grub config
-	err = g.partition.runInChroot(args)
+	err = runInChroot(g.partition.MountTarget(), args)
 	if err != nil {
 		return err
 	}

@@ -8,6 +8,14 @@ import (
 	"strings"
 )
 
+// Run the commandline specified by the args array chrooted to the given dir
+var runInChroot = func(chrootDir string, args []string) (err error) {
+	fullArgs := []string{"/usr/sbin/chroot", chrootDir}
+	fullArgs = append(fullArgs, args...)
+
+	return runCommand(fullArgs...)
+}
+
 // Return true if given path exists.
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
