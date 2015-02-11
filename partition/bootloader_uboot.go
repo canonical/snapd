@@ -279,8 +279,11 @@ func (u *Uboot) HandleAssets() (err error) {
 		sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
 
 		for _, dir := range dirs {
-			if err = os.RemoveAll(dir); err != nil {
-				panic(err)
+			if derr := os.RemoveAll(dir); derr != nil {
+				// pass error to parent (if none exists already)
+				if err == nil {
+					err = derr
+				}
 			}
 		}
 	}()
@@ -292,18 +295,18 @@ func (u *Uboot) HandleAssets() (err error) {
 
 	// validate
 	if hardware.Bootloader != u.Name() {
-		panic(fmt.Sprintf(
+		return fmt.Errorf(
 			"ERROR: bootloader is of type %s but hardware spec requires %s",
 			u.Name(),
-			hardware.Bootloader))
+			hardware.Bootloader)
 	}
 
 	// validate
 	switch hardware.PartitionLayout {
 	case "system-AB":
 		if !u.partition.dualRootPartitions() {
-			panic(fmt.Sprintf(
-				"ERROR: hardware spec requires dual root partitions"))
+			return fmt.Errorf(
+				"ERROR: hardware spec requires dual root partitions")
 		}
 	}
 
