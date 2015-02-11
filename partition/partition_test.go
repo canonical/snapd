@@ -39,7 +39,7 @@ kernel: assets/vmlinuz
 initrd: assets/initrd.img
 dtbs: assets/dtbs
 partition-layout: system-AB
-bootloader: uboot
+bootloader: u-boot
 `))
 	return tmp, err
 }
@@ -60,7 +60,7 @@ func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
 	c.Assert(hw.Initrd, Equals, "assets/initrd.img")
 	c.Assert(hw.DtbDir, Equals, "assets/dtbs")
 	c.Assert(hw.PartitionLayout, Equals, "system-AB")
-	c.Assert(hw.Bootloader, Equals, "uboot")
+	c.Assert(hw.Bootloader, Equals, "u-boot")
 }
 
 func mockRunLsblkDualSnappy() (output []string, err error) {
