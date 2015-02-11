@@ -360,9 +360,32 @@ func installClick(snapFile string, allowUnauthenticated bool) (err error) {
 	return nil
 }
 
+// Copy all data for "snapName" from "oldVersion" to "newVersion"
+// (but never overwrite)
 func copySnapData(snapName, oldVersion, newVersion string) (err error) {
-	oldPath := filepath.Join(snapDataDir, snapName, oldVersion)
-	newPath := filepath.Join(snapDataDir, snapName, newVersion)
+
+	// collect the directories, homes first
+	oldDataDirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, oldVersion))
+	if err != nil {
+		return err
+	}
+	// then system data
+	oldSystemPath := filepath.Join(snapDataDir, snapName, oldVersion)
+	oldDataDirs = append(oldDataDirs, oldSystemPath)
+
+	for _, oldDir := range oldDataDirs {
+		// replace the trailing "../$old-ver" with the "../$new-ver"
+		newDir := filepath.Join(filepath.Dir(oldDir), newVersion)
+		if err := copySnapDataDirectory(oldDir, newDir); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Lowlevel copy the snap data (but never override existing data)
+func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	if _, err := os.Stat(oldPath); err == nil {
 		if _, err := os.Stat(newPath); err != nil {
 			// there is no golang "CopyFile"

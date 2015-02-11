@@ -290,7 +290,13 @@ vendor: Foo Bar <foo@example.com>
 
 }
 
-func (s *SnapTestSuite) TestClickCopySystemData(c *C) {
+func (s *SnapTestSuite) TestClickCopyData(c *C) {
+	snapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "apps")
+	homeDir := filepath.Join(s.tempdir, "home", "user1", "apps")
+	homeData := filepath.Join(homeDir, "foo", "1.0")
+	err := ensureDir(homeData, 0755)
+	c.Assert(err, IsNil)
+
 	packageYaml := `name: foo
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
@@ -300,9 +306,10 @@ vendor: Foo Bar <foo@example.com>
 	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
 	c.Assert(installClick(snapFile, true), IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, "foo", "1.0", "canary.txt")
-	err := ioutil.WriteFile(canaryDataFile, canaryData, 0644)
+	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
 	c.Assert(err, IsNil)
-	fmt.Println(canaryDataFile)
+	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), canaryData, 0644)
+	c.Assert(err, IsNil)
 
 	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
 	c.Assert(installClick(snapFile, true), IsNil)
@@ -311,4 +318,29 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
 
+	newHomeDataCanaryFile := filepath.Join(homeDir, "foo", "2.0", "canary.home")
+	content, err = ioutil.ReadFile(newHomeDataCanaryFile)
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, canaryData)
+}
+
+// ensure that even with no home dir there is no error and the
+// system data gets copied
+func (s *SnapTestSuite) TestClickCopyDataNoUserHomes(c *C) {
+	// this home dir path does not exist
+	snapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "apps")
+
+	packageYaml := `name: foo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+`
+	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
+	c.Assert(installClick(snapFile, true), IsNil)
+	canaryDataFile := filepath.Join(snapDataDir, "foo", "1.0", "canary.txt")
+	err := ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
+
+	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
+	c.Assert(installClick(snapFile, true), IsNil)
+	_, err = os.Stat(filepath.Join(snapDataDir, "foo", "2.0", "canary.txt"))
+	c.Assert(err, IsNil)
 }
