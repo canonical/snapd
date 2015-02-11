@@ -75,10 +75,6 @@ type BootLoader interface {
 type BootLoaderType struct {
 	partition *Partition
 
-	// partition labels
-	currentLabel string
-	otherLabel   string
-
 	// each rootfs partition has a corresponding u-boot directory named
 	// from the last character of the partition name ('a' or 'b').
 	currentRootfs string
@@ -94,14 +90,11 @@ func NewBootLoader(partition *Partition) *BootLoaderType {
 
 	b.partition = partition
 
-	current := partition.rootPartition()
-	other := partition.otherRootPartition()
+	currentLabel := partition.rootPartition().name
+	otherLabel := partition.otherRootPartition().name
 
-	b.currentLabel = string(current.name)
-	b.otherLabel = string(other.name)
-
-	b.currentRootfs = string(b.currentLabel[len(b.currentLabel)-1])
-	b.otherRootfs = string(b.otherLabel[len(b.otherLabel)-1])
+	b.currentRootfs = string(currentLabel[len(currentLabel)-1])
+	b.otherRootfs = string(otherLabel[len(otherLabel)-1])
 
 	return b
 }
