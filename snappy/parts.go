@@ -159,7 +159,7 @@ var InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error
 	return
 }
 
-func InstalledSnapByName(needle string) Part {
+func ActiveSnapByName(needle string) Part {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	if err != nil {
@@ -176,15 +176,13 @@ func InstalledSnapByName(needle string) Part {
 	return nil
 }
 
-// FIXME: return a list here as we may have multiple parts with the same
-//        name but different versions
-func FindPartByName(needle string, haystack []Part) *Part {
+func FindSnapsByName(needle string, haystack []Part) (res []Part) {
 	for _, part := range haystack {
 		if part.Name() == needle {
-			return &part
+			res = append(res, part)
 		}
 	}
-	return nil
+	return res
 }
 
 // Return the part with the name/version in the given slice of parts

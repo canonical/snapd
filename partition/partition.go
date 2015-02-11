@@ -207,7 +207,7 @@ func undoMounts(mounts []string) (err error) {
 	// Iterate backwards since we want a reverse-sorted list of
 	// mounts to ensure we can unmount in order.
 	for i := range mounts {
-		if err := unmount(mounts[len(mounts)-i-1]); err != nil {
+		if err := unmountAndRemoveFromGlobalMountList(mounts[len(mounts)-i-1]); err != nil {
 			return err
 		}
 	}
@@ -256,9 +256,6 @@ func allPartitionLabels() []string {
 	return labels
 }
 
-// FIXME: would it make sense to rename to something like
-//         "UmountAndRemoveFromMountList" to indicate it has side-effects?
-// Mount the given directory and add it to the "mounts" slice
 func mount(source, target, options string) (err error) {
 	var args []string
 
@@ -270,8 +267,12 @@ func mount(source, target, options string) (err error) {
 	args = append(args, source)
 	args = append(args, target)
 
-	err = runCommand(args...)
+	return runCommand(args...)
+}
 
+// Mount the given directory and add it to the "mounts" slice
+func mountAndAddToGlobalMountList(source, target, options string) (err error) {
+	err = mount(source, target, options)
 	if err == nil {
 		mounts = append(mounts, target)
 	}
@@ -291,7 +292,7 @@ func stringSliceRemove(slice []string, needle string) (res []string) {
 // FIXME: would it make sense to rename to something like
 //         "UmountAndRemoveFromMountList" to indicate it has side-effects?
 // Unmount the given directory and remove it from the global "mounts" slice
-func unmount(target string) (err error) {
+func unmountAndRemoveFromGlobalMountList(target string) (err error) {
 	err = runCommand("/bin/umount", target)
 	if err == nil {
 		mounts = stringSliceRemove(mounts, target)
@@ -300,8 +301,8 @@ func unmount(target string) (err error) {
 	return err
 }
 
-func bindmount(source, target string) (err error) {
-	err = mount(source, target, "bind")
+func bindmountAndAddToGlobalMountList(source, target string) (err error) {
+	err = mountAndAddToGlobalMountList(source, target, "bind")
 
 	if err == nil {
 		bindMounts = append(bindMounts, target)
@@ -497,24 +498,35 @@ func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (e
 	}
 
 	if option == RW {
-		if err = p.remountOther(RW); err != nil {
+		if err := p.remountOther(RW); err != nil {
 			return err
 		}
 
 		defer func() {
-			err = p.remountOther(RO)
+			// we can't reuse err here as this will override
+			// the error value we got from calling "f()"
+			derr := p.remountOther(RO)
+			if derr != nil && err == nil {
+				err = derr
+			}
 		}()
 
-		if err = p.bindmountRequiredFilesystems(); err != nil {
+		if err := p.bindmountRequiredFilesystems(); err != nil {
 			return err
 		}
 
 		defer func() {
-			err = p.unmountRequiredFilesystems()
+			// we can't reuse err here as this will override
+			// the error value we got from calling "f()"
+			derr := p.unmountRequiredFilesystems()
+			if derr != nil && err == nil {
+				err = derr
+			}
 		}()
 	}
 
-	return f(p.MountTarget())
+	err = f(p.MountTarget())
+	return err
 }
 
 func (p *Partition) SyncBootloaderFiles() (err error) {
@@ -719,13 +731,13 @@ func (p *Partition) mountOtherRootfs(readOnly bool) (err error) {
 	other = p.otherRootPartition()
 
 	if readOnly {
-		err = mount(other.device, p.MountTarget(), "ro")
+		err = mountAndAddToGlobalMountList(other.device, p.MountTarget(), "ro")
 	} else {
 		err = fsck(other.device)
 		if err != nil {
 			return err
 		}
-		err = mount(other.device, p.MountTarget(), "")
+		err = mountAndAddToGlobalMountList(other.device, p.MountTarget(), "")
 	}
 
 	return err
@@ -773,7 +785,7 @@ func (p *Partition) remountOther(option MountOption) (err error) {
 }
 
 func (p *Partition) unmountOtherRootfs() (err error) {
-	return unmount(p.MountTarget())
+	return unmountAndRemoveFromGlobalMountList(p.MountTarget())
 }
 
 // The bootloader requires a few filesystems to be mounted when
@@ -786,7 +798,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	for _, fs := range []string{"/dev", "/proc", "/sys"} {
 		target := path.Join(p.MountTarget(), fs)
 
-		err := bindmount(fs, target)
+		err := bindmountAndAddToGlobalMountList(fs, target)
 		if err != nil {
 			return err
 		}
@@ -804,7 +816,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	}
 
 	target := path.Join(p.MountTarget(), boot.mountpoint)
-	err = bindmount(boot.mountpoint, target)
+	err = bindmountAndAddToGlobalMountList(boot.mountpoint, target)
 	if err != nil {
 		return err
 	}
