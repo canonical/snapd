@@ -395,3 +395,29 @@ func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
 }
+
+func (s *SITestSuite) TestSystemImagePartSetActiveAlreadyActive(c *C) {
+	parts, err := s.systemImage.Installed()
+
+	sp := parts[0].(*SystemImagePart)
+	c.Assert(sp.IsActive(), Equals, true)
+	mockPartition := MockPartition{}
+	sp.partition = &mockPartition
+
+	err = sp.SetActive()
+	c.Assert(err, IsNil)
+	c.Assert(mockPartition.updateBootloaderCalled, Equals, false)
+}
+
+func (s *SITestSuite) TestSystemImagePartSetActiveMakeActive(c *C) {
+	parts, err := s.systemImage.Installed()
+
+	sp := parts[1].(*SystemImagePart)
+	c.Assert(sp.IsActive(), Equals, false)
+	mockPartition := MockPartition{}
+	sp.partition = &mockPartition
+
+	err = sp.SetActive()
+	c.Assert(err, IsNil)
+	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
+}

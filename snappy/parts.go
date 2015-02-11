@@ -27,8 +27,10 @@ type Part interface {
 	Hash() string
 	IsActive() bool
 	IsInstalled() bool
+	// Will become active on the next reboot
+	NeedsReboot() bool
 
-	// app, framework, core
+	// Returns app, framework, core
 	Type() SnapType
 
 	InstalledSize() int
@@ -38,9 +40,8 @@ type Part interface {
 	Install(pb ProgressMeter) error
 	Uninstall() error
 	Config(configuration []byte) error
-
-	// Will become active on the next reboot
-	NeedsReboot() bool
+	// make a inactive part active
+	SetActive() error
 }
 
 type Repository interface {
@@ -175,10 +176,22 @@ func InstalledSnapByName(needle string) Part {
 	return nil
 }
 
+// FIXME: return a list here as we may have multiple parts with the same
+//        name but different versions
 func FindPartByName(needle string, haystack []Part) *Part {
 	for _, part := range haystack {
 		if part.Name() == needle {
 			return &part
+		}
+	}
+	return nil
+}
+
+// Return the part with the name/version in the given slice of parts
+func FindPartByNameAndVersion(needle, version string, haystack []Part) Part {
+	for _, part := range haystack {
+		if part.Name() == needle && part.Version() == version {
+			return part
 		}
 	}
 	return nil

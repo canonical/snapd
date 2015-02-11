@@ -92,6 +92,22 @@ func (s *SystemImagePart) DownloadSize() int {
 	return -1
 }
 
+func (s *SystemImagePart) SetActive() (err error) {
+	// active and no switch scheduled -> nothing to do
+	if s.IsActive() && !s.partition.NextBootIsOther() {
+		return nil
+	}
+	// not currently active but switch scheduled already -> nothing to do
+	if !s.IsActive() && s.partition.NextBootIsOther() {
+		return nil
+	}
+
+	// FIXME: UpdateBootloader is a bit generic, this should really be
+	//        something like ToggleNextBootToOtherParition (but slightly
+	//        shorter ;)
+	return s.partition.UpdateBootloader()
+}
+
 func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	var updateProgress *SensibleWatch
 	if pb != nil {
@@ -150,7 +166,7 @@ func (s *SystemImagePart) Config(configuration []byte) (err error) {
 
 func (s *SystemImagePart) NeedsReboot() bool {
 
-	if !s.IsActive() && s.NextBootIsOther() {
+	if !s.IsActive() && s.partition.NextBootIsOther() {
 		return true
 	}
 
@@ -166,11 +182,6 @@ func (s *SystemImagePart) MarkBootSuccessful() (err error) {
 func (s *SystemImagePart) Channel() string {
 
 	return s.channelName
-}
-
-// Return true if the next boot will use the other root filesystem.
-func (s *SystemImagePart) NextBootIsOther() bool {
-	return s.partition.NextBootIsOther()
 }
 
 // Result of UpdateAvailableStatus() call

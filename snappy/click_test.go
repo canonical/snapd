@@ -119,7 +119,8 @@ func (s *SnapTestSuite) TestReadClickHooksDir(c *C) {
 User: root
 Exec: /usr/lib/click-systemd/systemd-clickhook
 Pattern: /var/lib/systemd/click/${id}`)
-	hooks, err := systemClickHooks(mockHooksDir)
+	clickSystemHooksDir = mockHooksDir
+	hooks, err := systemClickHooks()
 	c.Assert(err, IsNil)
 	c.Assert(len(hooks), Equals, 1)
 	c.Assert(hooks["systemd"].name, Equals, "systemd")
@@ -155,7 +156,8 @@ Pattern: %s/${id}`, testSymlinkDir2)
 			},
 		},
 	}
-	err := installClickHooks(mockHooksDir, instDir, manifest)
+	clickSystemHooksDir = mockHooksDir
+	err := installClickHooks(instDir, manifest)
 	c.Assert(err, IsNil)
 	p := fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version)
 	_, err = os.Stat(p)
@@ -172,7 +174,8 @@ Pattern: %s/${id}`, testSymlinkDir2)
 	c.Assert(symlinkTarget, Equals, path.Join(instDir, "path-to-apparmor-file"))
 
 	// now ensure we can remove
-	err = removeClickHooks(mockHooksDir, manifest)
+	clickSystemHooksDir = mockHooksDir
+	err = removeClickHooks(manifest)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version))
 	c.Assert(err, NotNil)
@@ -253,4 +256,36 @@ vendor: Foo Bar <foo@example.com>`)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(path.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
+}
+
+func (s *SnapTestSuite) TestClickSetActive(c *C) {
+	packageYaml := `name: foo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+`
+	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
+	c.Assert(installClick(snapFile, true), IsNil)
+
+	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
+	c.Assert(installClick(snapFile, true), IsNil)
+
+	// ensure v2 is active
+	repo := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
+	parts, err := repo.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(len(parts), Equals, 2)
+	c.Assert(parts[0].Version(), Equals, "1.0")
+	c.Assert(parts[0].IsActive(), Equals, false)
+	c.Assert(parts[1].Version(), Equals, "2.0")
+	c.Assert(parts[1].IsActive(), Equals, true)
+
+	// set v1 active
+	err = setActiveClick(parts[0].(*SnapPart).basedir)
+	parts, err = repo.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(parts[0].Version(), Equals, "1.0")
+	c.Assert(parts[0].IsActive(), Equals, true)
+	c.Assert(parts[1].Version(), Equals, "2.0")
+	c.Assert(parts[1].IsActive(), Equals, false)
+
 }
