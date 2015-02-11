@@ -332,8 +332,10 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	// FIXME: we want to get rid of the current symlink
 	// update current symlink
 	currentSymlink := path.Join(path.Dir(instDir), "current")
-	if err := os.Remove(currentSymlink); err != nil {
-		log.Printf("Warning: failed to remove %s: %s", currentSymlink, err)
+	if _, err := os.Stat(currentSymlink); err == nil {
+		if err := os.Remove(currentSymlink); err != nil {
+			log.Printf("Warning: failed to remove %s: %s", currentSymlink, err)
+		}
 	}
 	err = os.Symlink(instDir, currentSymlink)
 
