@@ -289,3 +289,26 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(parts[1].IsActive(), Equals, false)
 
 }
+
+func (s *SnapTestSuite) TestClickCopySystemData(c *C) {
+	packageYaml := `name: foo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+`
+	canaryData := []byte("ni ni ni")
+
+	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
+	c.Assert(installClick(snapFile, true), IsNil)
+	canaryDataFile := filepath.Join(snapDataDir, "foo", "1.0", "canary.txt")
+	err := ioutil.WriteFile(canaryDataFile, canaryData, 0644)
+	c.Assert(err, IsNil)
+	fmt.Println(canaryDataFile)
+
+	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
+	c.Assert(installClick(snapFile, true), IsNil)
+	newCanaryDataFile := filepath.Join(snapDataDir, "foo", "2.0", "canary.txt")
+	content, err := ioutil.ReadFile(newCanaryDataFile)
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, canaryData)
+
+}

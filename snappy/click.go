@@ -284,9 +284,6 @@ func installClick(snapFile string, allowUnauthenticated bool) (err error) {
 	}
 
 	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
-	if err := ensureDir(dataDir, 0755); err != nil {
-		log.Printf("WARNING: Can not create %s", dataDir)
-	}
 
 	targetDir := snapAppsDir
 	// the "oem" parts are special
@@ -299,6 +296,18 @@ func installClick(snapFile string, allowUnauthenticated bool) (err error) {
 		log.Printf("WARNING: Can not create %s", instDir)
 	}
 
+	// if anything goes wrong here we cleanup
+	defer func() {
+		if err == nil {
+			return
+		}
+		if _, err := os.Stat(instDir); err == nil {
+			if err := os.RemoveAll(instDir); err != nil {
+				log.Printf("Warning: failed to remove %s: %s", instDir, err)
+			}
+		}
+	}()
+
 	// FIXME: replace this with a native extractor to avoid attack
 	//        surface
 	cmd = exec.Command("dpkg-deb", "--extract", snapFile, instDir)
@@ -306,12 +315,10 @@ func installClick(snapFile string, allowUnauthenticated bool) (err error) {
 	if err != nil {
 		// FIXME: make the output part of the SnapExtractError
 		log.Printf("Snap install failed with: %s", output)
-		if err := os.RemoveAll(instDir); err != nil {
-			log.Printf("Warning: failed to remove %s: %s", instDir, err)
-		}
 		return err
 	}
-
+	// legacy, the hooks (e.g. apparmor) need this. Once we converted
+	// all hooks this can go away
 	metaDir := path.Join(instDir, ".click", "info")
 	os.MkdirAll(metaDir, 0755)
 	err = ioutil.WriteFile(path.Join(metaDir, manifest.Name+".manifest"), manifestData, 0644)
@@ -319,14 +326,30 @@ func installClick(snapFile string, allowUnauthenticated bool) (err error) {
 		return
 	}
 
-	currentActiveDir, err := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
+	// deal with the data, if there was a previous version, copy the data
+	// otherwise just create a empty data dir
+	if currentActiveDir != "" {
+		oldManifest, err := readClickManifestFromClickDir(currentActiveDir)
+		if err != nil {
+			return err
+		}
+		oldVersion := oldManifest.Version
+		newVersion := manifest.Version
+		err = copySnapData(manifest.Name, oldVersion, newVersion)
+		if err != nil {
+			return err
+		}
+	} else {
+		if err := ensureDir(dataDir, 0755); err != nil {
+			log.Printf("WARNING: Can not create %s", dataDir)
+			return err
+		}
+	}
+
+	// and finally make active
 	err = setActiveClick(instDir)
 	if err != nil {
-		// FIXME: make the output part of the SnapExtractError
-		log.Printf("Snap install failed with: %s", output)
-		if err := os.RemoveAll(instDir); err != nil {
-			log.Printf("Warning: failed to remove %s: %s", instDir, err)
-		}
 		// ensure to revert on install failure
 		if currentActiveDir != "" {
 			setActiveClick(currentActiveDir)
@@ -334,6 +357,21 @@ func installClick(snapFile string, allowUnauthenticated bool) (err error) {
 		return err
 	}
 
+	return nil
+}
+
+func copySnapData(snapName, oldVersion, newVersion string) (err error) {
+	oldPath := filepath.Join(snapDataDir, snapName, oldVersion)
+	newPath := filepath.Join(snapDataDir, snapName, newVersion)
+	if _, err := os.Stat(oldPath); err == nil {
+		if _, err := os.Stat(newPath); err != nil {
+			// there is no golang "CopyFile"
+			cmd := exec.Command("cp", "-val", oldPath, newPath)
+			if err := cmd.Run(); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
