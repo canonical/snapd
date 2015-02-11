@@ -9,7 +9,7 @@ import (
 )
 
 // Run the commandline specified by the args array chrooted to the given dir
-var runInChroot = func(chrootDir string, args []string) (err error) {
+var runInChroot = func(chrootDir string, args ...string) (err error) {
 	fullArgs := []string{"/usr/sbin/chroot", chrootDir}
 	fullArgs = append(fullArgs, args...)
 

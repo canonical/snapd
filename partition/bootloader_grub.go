@@ -49,31 +49,21 @@ func (g *Grub) Name() string {
 // configuration.
 func (g *Grub) ToggleRootFS() (err error) {
 
-	var args []string
-	var other *blockDevice
-
-	other = g.partition.otherRootPartition()
-
-	args = append(args, bootloaderGrubInstallCmd)
-	args = append(args, other.parentName)
+	other := g.partition.otherRootPartition()
 
 	// install grub
-	err = runInChroot(g.partition.MountTarget(), args)
+	err = runInChroot(g.partition.MountTarget(), bootloaderGrubInstallCmd, other.parentName)
 	if err != nil {
 		return err
 	}
-
-	args = nil
-	args = append(args, bootloaderGrubUpdateCmd)
 
 	// create the grub config
-	err = runInChroot(g.partition.MountTarget(), args)
+	err = runInChroot(g.partition.MountTarget(), bootloaderGrubUpdateCmd)
 	if err != nil {
 		return err
 	}
 
-	err = g.SetBootVar(BOOTLOADER_BOOTMODE_VAR,
-		BOOTLOADER_BOOTMODE_VAR_START_VALUE)
+	err = g.SetBootVar(BOOTLOADER_BOOTMODE_VAR, BOOTLOADER_BOOTMODE_VAR_START_VALUE)
 	if err != nil {
 		return err
 	}
