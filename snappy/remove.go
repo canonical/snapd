@@ -1,11 +1,14 @@
 package snappy
 
+import "fmt"
+
 func Remove(partName string) error {
 	part := ActiveSnapByName(partName)
-	if part != nil {
-		if err := part.Uninstall(); err != nil {
-			return err
-		}
+	if part == nil {
+		return fmt.Errorf("Can not find snap %s", partName)
+	}
+	if err := part.Uninstall(); err != nil {
+		return err
 	}
 
 	return nil

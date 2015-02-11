@@ -148,6 +148,15 @@ func (s *SystemImagePart) Config(configuration []byte) (err error) {
 	return err
 }
 
+func (s *SystemImagePart) NeedsReboot() bool {
+
+	if !s.IsActive() && s.NextBootIsOther() {
+		return true
+	}
+
+	return false
+}
+
 // Mark the *currently* booted rootfs as "good" (it booted :)
 // Note: Not part of the Part interface.
 func (s *SystemImagePart) MarkBootSuccessful() (err error) {
@@ -519,6 +528,12 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 	current := s.currentPart()
 	current_version := current.Version()
 	target_version := s.proxy.us.available_version
+
+	if target_version == "" {
+		// no newer version available
+		return parts, err
+	}
+
 	if VersionCompare(current_version, target_version) < 0 {
 		parts = append(parts, &SystemImagePart{
 			proxy:          s.proxy,
