@@ -93,8 +93,12 @@ func (s *SystemImagePart) DownloadSize() int {
 }
 
 func (s *SystemImagePart) SetActive() (err error) {
-	// nothing to do if already active and ther is no switch scheduled
+	// active and no switch scheduled -> nothing to do
 	if s.IsActive() && !s.partition.NextBootIsOther() {
+		return nil
+	}
+	// not currently active but switch scheduled already -> nothing to do
+	if !s.IsActive() && s.partition.NextBootIsOther() {
 		return nil
 	}
 
