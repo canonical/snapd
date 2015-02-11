@@ -342,10 +342,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		if err != nil {
 			return err
 		}
-		oldVersion := oldManifest.Version
-		newVersion := manifest.Version
-		err = copySnapData(manifest.Name, oldVersion, newVersion)
-		if err != nil {
+		if err := copySnapData(manifest.Name, oldManifest.Version, manifest.Version); err != nil {
 			return err
 		}
 	} else {
@@ -396,8 +393,9 @@ func copySnapData(snapName, oldVersion, newVersion string) (err error) {
 func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	if _, err := os.Stat(oldPath); err == nil {
 		if _, err := os.Stat(newPath); err != nil {
-			// there is no golang "CopyFile"
-			cmd := exec.Command("cp", "-val", oldPath, newPath)
+			// there is no golang "CopyFile" and we want hardlinks
+			// by default to save space
+			cmd := exec.Command("cp", "-al", oldPath, newPath)
 			if err := cmd.Run(); err != nil {
 				return err
 			}
@@ -415,7 +413,7 @@ func setActiveClick(baseDir string) (err error) {
 		return nil
 	}
 
-	// there is already a active part
+	// there is already an active part
 	if currentActiveDir != "" {
 		currentActiveManifest, err := readClickManifestFromClickDir(currentActiveDir)
 		if err != nil {
