@@ -182,10 +182,6 @@ Pattern: %s/${id}`, testSymlinkDir2)
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
-	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
-		return nil
-	}
-
 	snapFile := s.makeTestSnap(c, "")
 	err := installClick(snapFile, 0)
 	c.Assert(err, IsNil)
@@ -237,10 +233,6 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyPassesUnauth(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
-	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
-		return nil
-	}
-
 	targetDir := path.Join(s.tempdir, "apps")
 	err := installClick(s.makeTestSnap(c, ""), 0)
 	c.Assert(err, IsNil)
@@ -257,10 +249,6 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
-	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
-		return nil
-	}
-
 	snapFile := s.makeTestSnap(c, `name: foo
 version: 1.0
 type: oem
