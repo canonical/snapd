@@ -67,10 +67,10 @@ func showUpdatesList(installed []snappy.Part, updates []snappy.Part, showAll boo
 	fmt.Fprintln(w, "Name\tVersion\tUpdate\t")
 	for _, part := range installed {
 		if showAll || part.IsActive() {
-			update := snappy.FindPartByName(part.Name(), updates)
 			ver := "-"
-			if update != nil {
-				ver = (*update).Version()
+			update := snappy.FindSnapsByName(part.Name(), updates)
+			if len(update) == 1 {
+				ver = update[0].Version()
 			}
 			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), ver))
 		}
