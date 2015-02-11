@@ -62,7 +62,6 @@ func NewInstalledSnapPart(yaml_path string) *SnapPart {
 	part := SnapPart{}
 
 	if _, err := os.Stat(yaml_path); os.IsNotExist(err) {
-		log.Printf("No '%s' found", yaml_path)
 		return nil
 	}
 
@@ -167,7 +166,6 @@ type SnapLocalRepository struct {
 
 func NewLocalSnapRepository(path string) *SnapLocalRepository {
 	if s, err := os.Stat(path); err != nil || !s.IsDir() {
-		log.Printf("Invalid directory %s (%s)", path, err)
 		return nil
 	}
 	return &SnapLocalRepository{path: path}

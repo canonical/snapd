@@ -7,10 +7,19 @@ type CmdSet struct {
 
 var cmdSet CmdSet
 
+const setHelp = `Set properties of system or package
+
+Supported properties are:
+  active=VERSION
+
+Example:
+  set hello-world active=1.0
+`
+
 func init() {
 	_, _ = Parser.AddCommand("set",
 		"Set properties of system or package",
-		"Set properties of system or package",
+		setHelp,
 		&cmdSet)
 }
 
