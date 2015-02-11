@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const (
+var (
 	bootloaderGrubDir        = "/boot/grub"
 	bootloaderGrubConfigFile = "/boot/grub/grub.cfg"
 	bootloaderGrubEnvFile    = "/boot/grub/grubenv"
@@ -25,6 +25,9 @@ type Grub struct {
 
 // Create a new Grub bootloader object
 func NewGrub(partition *Partition) *Grub {
+	if !fileExists(bootloaderGrubConfigFile) || !fileExists(bootloaderGrubInstallCmd) {
+		return nil
+	}
 	g := Grub{BootLoaderType: NewBootLoader(partition)}
 
 	g.currentBootPath = bootloaderGrubDir
@@ -35,11 +38,6 @@ func NewGrub(partition *Partition) *Grub {
 
 func (g *Grub) Name() string {
 	return "grub"
-}
-
-func (g *Grub) Installed() bool {
-	// Use same heuristic as the initramfs.
-	return fileExists(bootloaderGrubConfigFile) && fileExists(bootloaderGrubInstallCmd)
 }
 
 // Make the Grub bootloader switch rootfs's.
@@ -152,12 +150,12 @@ func (g *Grub) MarkCurrentBootSuccessful() (err error) {
 
 func (g *Grub) SyncBootFiles() (err error) {
 	// NOP
-	return err
+	return nil
 }
 
 func (g *Grub) HandleAssets() (err error) {
 
 	// NOP - since grub is used on generic hardware, it doesn't
 	// need to make use of hardware-specific assets
-	return err
+	return nil
 }

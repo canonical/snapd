@@ -14,19 +14,19 @@ import (
 	"strings"
 )
 
-const (
-	BOOTLOADER_UBOOT_DIR         = "/boot/uboot"
-	BOOTLOADER_UBOOT_CONFIG_FILE = "/boot/uboot/uEnv.txt"
+var (
+	bootloaderUbootDir        = "/boot/uboot"
+	bootloaderUbootConfigFile = "/boot/uboot/uEnv.txt"
 
 	// File created by u-boot itself when
 	// BOOTLOADER_BOOTMODE_VAR_START_VALUE == "try" which the
 	// successfully booted system must remove to flag to u-boot that
 	// this partition is "good".
-	BOOTLOADER_UBOOT_STAMP_FILE = "/boot/uboot/snappy-stamp.txt"
+	bootloaderUbootStampFile = "/boot/uboot/snappy-stamp.txt"
 
 	// the main uEnv.txt u-boot config file sources this snappy
 	// boot-specific config file.
-	BOOTLOADER_UBOOT_ENV_FILE = "/boot/uboot/snappy-system.txt"
+	bootloaderUbootEnvFile = "/boot/uboot/snappy-system.txt"
 )
 
 type Uboot struct {
@@ -41,11 +41,15 @@ type ConfigFileChange struct {
 
 // Create a new Grub bootloader object
 func NewUboot(partition *Partition) *Uboot {
+	if !fileExists(bootloaderUbootConfigFile) {
+		return nil
+	}
+
 	u := Uboot{BootLoaderType: NewBootLoader(partition)}
 
-	u.currentBootPath = path.Join(BOOTLOADER_UBOOT_DIR, u.currentRootfs)
+	u.currentBootPath = path.Join(bootloaderUbootDir, u.currentRootfs)
 
-	u.otherBootPath = path.Join(BOOTLOADER_UBOOT_DIR, u.otherRootfs)
+	u.otherBootPath = path.Join(bootloaderUbootDir, u.otherRootfs)
 
 	return &u
 }
@@ -53,11 +57,6 @@ func NewUboot(partition *Partition) *Uboot {
 func (u *Uboot) Name() string {
 	// XXX: same value as used in HARDWARE_SPEC_FILE
 	return "u-boot"
-}
-
-func (u *Uboot) Installed() bool {
-	// crude heuristic
-	return fileExists(BOOTLOADER_UBOOT_CONFIG_FILE)
 }
 
 // Make the U-Boot bootloader switch rootfs's.
@@ -89,11 +88,11 @@ func (u *Uboot) ToggleRootFS() (err error) {
 		},
 	}
 
-	return modifyNameValueFile(BOOTLOADER_UBOOT_ENV_FILE, changes)
+	return modifyNameValueFile(bootloaderUbootEnvFile, changes)
 }
 
 func (u *Uboot) GetAllBootVars() (vars []string, err error) {
-	return getNameValuePairs(BOOTLOADER_UBOOT_ENV_FILE)
+	return getNameValuePairs(bootloaderUbootEnvFile)
 }
 
 func (u *Uboot) GetBootVar(name string) (value string, err error) {
@@ -119,7 +118,7 @@ func (u *Uboot) GetBootVar(name string) (value string, err error) {
 func (u *Uboot) SetBootVar(name, value string) (err error) {
 	var lines []string
 
-	if lines, err = readLines(BOOTLOADER_UBOOT_ENV_FILE); err != nil {
+	if lines, err = readLines(bootloaderUbootEnvFile); err != nil {
 		return err
 	}
 
@@ -127,7 +126,7 @@ func (u *Uboot) SetBootVar(name, value string) (err error) {
 	lines = append(lines, new)
 
 	// Rewrite the file
-	return atomicFileUpdate(BOOTLOADER_UBOOT_ENV_FILE, lines)
+	return atomicFileUpdate(bootloaderUbootEnvFile, lines)
 }
 
 func (u *Uboot) ClearBootVar(name string) (currentValue string, err error) {
@@ -136,7 +135,7 @@ func (u *Uboot) ClearBootVar(name string) (currentValue string, err error) {
 
 	// XXX: note that we do not call GetAllBootVars() since that
 	// strips all comments (which we want to retain).
-	if lines, err = readLines(BOOTLOADER_UBOOT_ENV_FILE); err != nil {
+	if lines, err = readLines(bootloaderUbootEnvFile); err != nil {
 		return currentValue, err
 	}
 
@@ -150,7 +149,7 @@ func (u *Uboot) ClearBootVar(name string) (currentValue string, err error) {
 	}
 
 	// Rewrite the file, excluding the name to clear
-	return currentValue, atomicFileUpdate(BOOTLOADER_UBOOT_ENV_FILE, saved)
+	return currentValue, atomicFileUpdate(bootloaderUbootEnvFile, saved)
 }
 
 func (u *Uboot) GetNextBootRootFSName() (label string, err error) {
@@ -247,12 +246,12 @@ func (u *Uboot) MarkCurrentBootSuccessful() (err error) {
 		},
 	}
 
-	err = modifyNameValueFile(BOOTLOADER_UBOOT_ENV_FILE, changes)
+	err = modifyNameValueFile(bootloaderUbootEnvFile, changes)
 	if err != nil {
 		return err
 	}
 
-	return os.RemoveAll(BOOTLOADER_UBOOT_STAMP_FILE)
+	return os.RemoveAll(bootloaderUbootStampFile)
 }
 
 func (u *Uboot) SyncBootFiles() (err error) {

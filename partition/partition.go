@@ -465,7 +465,7 @@ func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
 	bootloaders := []BootLoader{NewUboot(p), NewGrub(p)}
 
 	for _, b := range bootloaders {
-		if b.Installed() {
+		if b != nil {
 			return b, err
 		}
 	}

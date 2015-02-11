@@ -15,9 +15,19 @@ func Test(t *testing.T) { TestingT(t) }
 
 // partition specific testsuite
 type PartitionTestSuite struct {
+	tempdir string
 }
 
 var _ = Suite(&PartitionTestSuite{})
+
+func (s *PartitionTestSuite) SetUpTest(c *C) {
+	s.tempdir = c.MkDir()
+	runLsblk = mockRunLsblkDualSnappy
+}
+
+func (s *PartitionTestSuite) TearDownTest(c *C) {
+	os.RemoveAll(s.tempdir)
+}
 
 func makeHardwareYaml() (tmp *os.File, err error) {
 	tmp, err = ioutil.TempFile("", "hw-")
@@ -67,8 +77,6 @@ NAME="sr0" LABEL="" PKNAME="" MOUNTPOINT=""
 }
 
 func (s *PartitionTestSuite) TestSnappyDualRoot(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
-
 	p := New()
 	c.Assert(p.dualRootPartitions(), Equals, true)
 	c.Assert(p.singleRootPartition(), Equals, false)
@@ -103,7 +111,6 @@ func (s *PartitionTestSuite) TestSnappyDualRoot(c *C) {
 }
 
 func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
 	p := New()
 	reportedRoot := ""
 	err := p.RunWithOther(RO, func(otherRoot string) (err error) {
@@ -115,8 +122,6 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
 }
 
 func (s *PartitionTestSuite) TestRunWithOtherDualParitionRWFuncErr(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
-
 	savedRunCommand := runCommand
 	defer func() {
 		runCommand = savedRunCommand
@@ -181,8 +186,6 @@ func mockRunCommand(args ...string) (err error) {
 }
 
 func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
-
 	// FIXME: there should be a generic
 	//        mockFunc(func) (restorer func())
 	savedRunCommand := runCommand
@@ -217,8 +220,6 @@ func (s *PartitionTestSuite) TestStringSliceRemoveNoexistingNoOp(c *C) {
 }
 
 func (s *PartitionTestSuite) TestUndoMounts(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
-
 	// FIXME: there should be a generic
 	//        mockFunc(func) (restorer func())
 	savedRunCommand := runCommand

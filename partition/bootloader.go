@@ -24,9 +24,6 @@ type BootLoader interface {
 	// Name of the bootloader
 	Name() string
 
-	// Returns true if the bootloader type is installed
-	Installed() bool
-
 	// Switch bootloader configuration so that the "other" root
 	// filesystem partition will be used on next boot.
 	ToggleRootFS() error
