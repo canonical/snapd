@@ -71,7 +71,7 @@ func (g *Grub) ToggleRootFS() (err error) {
 	// Record the partition that will be used for next boot. This
 	// isn't necessary for correct operation under grub, but allows
 	// us to query the next boot device easily.
-	return g.SetBootVar(BOOTLOADER_ROOTFS_VAR, other.name)
+	return g.SetBootVar(BOOTLOADER_ROOTFS_VAR, g.otherRootfs)
 }
 
 func (g *Grub) GetAllBootVars() (vars []string, err error) {

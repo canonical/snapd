@@ -9,6 +9,7 @@ import (
 )
 
 const fakeUbootEnvData = `
+snappy_ab=a
 `
 
 func (s *PartitionTestSuite) makeFakeUbootEnv(c *C) {
@@ -39,16 +40,30 @@ func (s *PartitionTestSuite) TestNewUboot(c *C) {
 	c.Assert(u, NotNil)
 }
 
+func (s *PartitionTestSuite) TestUbootGetBootVar(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	partition := New()
+	u := NewUboot(partition)
+
+	nextBoot, err := u.GetBootVar("snappy_ab")
+	c.Assert(err, IsNil)
+	// the https://developer.ubuntu.com/en/snappy/porting guide says
+	// we always use the short names
+	c.Assert(nextBoot, Equals, "a")
+}
+
 func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
 	s.makeFakeUbootEnv(c)
 
 	partition := New()
 	u := NewUboot(partition)
 	c.Assert(u, NotNil)
+
 	err := u.ToggleRootFS()
 	c.Assert(err, IsNil)
 
 	nextBoot, err := u.GetBootVar("snappy_ab")
 	c.Assert(err, IsNil)
-	c.Assert(nextBoot, Equals, "system-b")
+	c.Assert(nextBoot, Equals, "b")
 }

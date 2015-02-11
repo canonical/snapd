@@ -71,9 +71,6 @@ func (u *Uboot) Name() string {
 //   correct versions.
 func (u *Uboot) ToggleRootFS() (err error) {
 
-	// write 1 character partition name ('a' or 'b')
-	value := string(u.otherLabel[len(u.otherLabel)-1])
-
 	// If the file exists, update it. Otherwise create it.
 	//
 	// The file _should_ always exist, but since it's on a writable
@@ -81,7 +78,7 @@ func (u *Uboot) ToggleRootFS() (err error) {
 	// recreate to allow the system to boot!
 	changes := []ConfigFileChange{
 		ConfigFileChange{Name: BOOTLOADER_ROOTFS_VAR,
-			Value: value,
+			Value: string(u.otherRootfs),
 		},
 		ConfigFileChange{Name: BOOTLOADER_BOOTMODE_VAR,
 			Value: BOOTLOADER_BOOTMODE_VAR_START_VALUE,

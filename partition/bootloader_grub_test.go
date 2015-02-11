@@ -76,7 +76,9 @@ func (s *PartitionTestSuite) TestToggleRootFS(c *C) {
 	expectedGrubSet := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_mode=try"}
 	c.Assert(allCommands[3], DeepEquals, expectedGrubSet)
 
-	expectedGrubSet = singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_ab=system-b"}
+	// the https://developer.ubuntu.com/en/snappy/porting guide says
+	// we always use the short names
+	expectedGrubSet = singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_ab=b"}
 	c.Assert(allCommands[4], DeepEquals, expectedGrubSet)
 
 }
