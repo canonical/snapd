@@ -3,7 +3,7 @@ package snappy
 import "fmt"
 
 func Remove(partName string) error {
-	part := InstalledSnapByName(partName)
+	part := ActiveSnapByName(partName)
 	if part == nil {
 		return fmt.Errorf("Can not find snap %s", partName)
 	}
