@@ -484,34 +484,12 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 
 // Return true if the next boot will use the other rootfs
 // partition.
-func (p *Partition) NextBootIsOther() bool {
-	var value string
-	var err error
-	var label string
-
+func (p *Partition) NextBootIsOther(bootloader BootLoader) bool {
 	bootloader, err := p.GetBootloader()
 	if err != nil {
 		return false
 	}
-
-	value, err = bootloader.GetBootVar(BOOTLOADER_BOOTMODE_VAR)
-	if err != nil {
-		return false
-	}
-
-	if value != BOOTLOADER_BOOTMODE_VAR_START_VALUE {
-		return false
-	}
-
-	if label, err = bootloader.GetNextBootRootFSName(); err != nil {
-		return false
-	}
-
-	if label == bootloader.GetOtherRootFSName() {
-		return true
-	}
-
-	return false
+	return nextBootIsOther(bootloader)
 }
 
 // Returns the full path to the cache directory, which is used as a

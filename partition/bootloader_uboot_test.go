@@ -51,6 +51,9 @@ func (s *PartitionTestSuite) TestUbootGetBootVar(c *C) {
 	// the https://developer.ubuntu.com/en/snappy/porting guide says
 	// we always use the short names
 	c.Assert(nextBoot, Equals, "a")
+
+	// ensure that nextBootIsOther works too
+	c.Assert(nextBootIsOther(u), Equals, false)
 }
 
 func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
@@ -66,4 +69,7 @@ func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
 	nextBoot, err := u.GetBootVar("snappy_ab")
 	c.Assert(err, IsNil)
 	c.Assert(nextBoot, Equals, "b")
+
+	// ensure that nextBootIsOther works too
+	c.Assert(nextBootIsOther(u), Equals, true)
 }

@@ -98,3 +98,27 @@ func NewBootLoader(partition *Partition) *BootLoaderType {
 
 	return b
 }
+
+// Return true if the next boot will use the other rootfs
+// partition.
+func nextBootIsOther(bootloader BootLoader) bool {
+	value, err := bootloader.GetBootVar(BOOTLOADER_BOOTMODE_VAR)
+	if err != nil {
+		return false
+	}
+
+	if value != BOOTLOADER_BOOTMODE_VAR_START_VALUE {
+		return false
+	}
+
+	fsname, err := bootloader.GetNextBootRootFSName()
+	if err != nil {
+		return false
+	}
+
+	if fsname == bootloader.GetOtherRootFSName() {
+		return true
+	}
+
+	return false
+}
