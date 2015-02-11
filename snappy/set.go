@@ -12,7 +12,7 @@ func setActive(pkg, ver string) (err error) {
 		return err
 	}
 
-	part := FindPartByNameAndVersion(pkg, ver, installed)
+	part := FindSnapByNameAndVersion(pkg, ver, installed)
 	if part == nil {
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
 	}

@@ -186,7 +186,7 @@ func FindSnapsByName(needle string, haystack []Part) (res []Part) {
 }
 
 // Return the part with the name/version in the given slice of parts
-func FindPartByNameAndVersion(needle, version string, haystack []Part) Part {
+func FindSnapByNameAndVersion(needle, version string, haystack []Part) Part {
 	for _, part := range haystack {
 		if part.Name() == needle && part.Version() == version {
 			return part
