@@ -4,6 +4,11 @@ import (
 	. "launchpad.net/gocheck"
 )
 
+func (s *SnapTestSuite) TestSetPropertyEmpty(c *C) {
+	err := SetProperty([]string{})
+	c.Assert(err, NotNil)
+}
+
 func (s *SnapTestSuite) TestSetProperty(c *C) {
 	var activePkg, activeVer string
 	mockSetActive := func(k, v string) error {

@@ -26,6 +26,9 @@ var setFuncs = map[string]func(k, v string) error{
 }
 
 func SetProperty(args []string) (err error) {
+	if len(args) < 1 {
+		return fmt.Errorf("Need at least one argument for set")
+	}
 
 	// check if the first argument is of the form property=value,
 	// if so, the spec says we need to put "ubuntu-core" here
