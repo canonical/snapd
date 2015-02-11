@@ -28,5 +28,5 @@ func (x *CmdSet) Execute(args []string) (err error) {
 }
 
 func set(args []string) (err error) {
-	return snappy.SetProperty(args)
+	return snappy.ParseSetPropertyCmdline(args...)
 }

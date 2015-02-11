@@ -25,7 +25,7 @@ var setFuncs = map[string]func(k, v string) error{
 	"active": setActive,
 }
 
-func SetProperty(args []string) (err error) {
+func ParseSetPropertyCmdline(args ...string) (err error) {
 	if len(args) < 1 {
 		return fmt.Errorf("Need at least one argument for set")
 	}
@@ -39,7 +39,10 @@ func SetProperty(args []string) (err error) {
 
 	pkg := args[0]
 	for _, propVal := range args[1:] {
-		s := strings.Split(propVal, "=")
+		s := strings.SplitN(propVal, "=", 2)
+		if len(s) != 2 {
+			return fmt.Errorf("Can not parse property %s", propVal)
+		}
 		prop := s[0]
 		f, ok := setFuncs[prop]
 		if !ok {
