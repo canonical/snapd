@@ -26,7 +26,7 @@ const (
 
 	// the main uEnv.txt u-boot config file sources this snappy
 	// boot-specific config file.
-	BOOTLOADER_UBOOT_ENV_FILE = "snappy-system.txt"
+	BOOTLOADER_UBOOT_ENV_FILE = "/boot/uboot/snappy-system.txt"
 )
 
 type Uboot struct {
