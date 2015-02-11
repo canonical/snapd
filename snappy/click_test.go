@@ -187,7 +187,7 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	}
 
 	snapFile := s.makeTestSnap(c, "")
-	err := installClick(snapFile, false)
+	err := installClick(snapFile, 0)
 	c.Assert(err, IsNil)
 
 	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
@@ -210,12 +210,30 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
 	}
 
 	snapFile := s.makeTestSnap(c, "")
-	err := installClick(snapFile, false)
+	err := installClick(snapFile, 0)
 	c.Assert(err, NotNil)
 
 	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, NotNil)
+}
+
+// ensure that the right parameters are passed to runDebsigVerify()
+func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyPassesUnauth(c *C) {
+	var expectedUnauth bool
+	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
+		c.Assert(allowUnauth, Equals, expectedUnauth)
+		return nil
+	}
+
+	expectedUnauth = true
+	snapFile := s.makeTestSnap(c, "")
+	err := installClick(snapFile, AllowUnauthenticated)
+	c.Assert(err, IsNil)
+
+	expectedUnauth = false
+	err = installClick(snapFile, 0)
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
@@ -224,7 +242,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	}
 
 	targetDir := path.Join(s.tempdir, "apps")
-	err := installClick(s.makeTestSnap(c, ""), false)
+	err := installClick(s.makeTestSnap(c, ""), 0)
 	c.Assert(err, IsNil)
 
 	instDir := path.Join(targetDir, "foo", "1.0")
@@ -248,7 +266,7 @@ version: 1.0
 type: oem
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
-	err := installClick(snapFile, false)
+	err := installClick(snapFile, 0)
 	c.Assert(err, IsNil)
 
 	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
@@ -264,10 +282,10 @@ icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
 	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
-	c.Assert(installClick(snapFile, true), IsNil)
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 
 	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
-	c.Assert(installClick(snapFile, true), IsNil)
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 
 	// ensure v2 is active
 	repo := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
@@ -304,7 +322,7 @@ vendor: Foo Bar <foo@example.com>
 	canaryData := []byte("ni ni ni")
 
 	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
-	c.Assert(installClick(snapFile, true), IsNil)
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, "foo", "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
 	c.Assert(err, IsNil)
@@ -312,7 +330,7 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(err, IsNil)
 
 	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
-	c.Assert(installClick(snapFile, true), IsNil)
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 	newCanaryDataFile := filepath.Join(snapDataDir, "foo", "2.0", "canary.txt")
 	content, err := ioutil.ReadFile(newCanaryDataFile)
 	c.Assert(err, IsNil)
@@ -335,12 +353,12 @@ icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
 	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
-	c.Assert(installClick(snapFile, true), IsNil)
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, "foo", "1.0", "canary.txt")
 	err := ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 
 	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
-	c.Assert(installClick(snapFile, true), IsNil)
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 	_, err = os.Stat(filepath.Join(snapDataDir, "foo", "2.0", "canary.txt"))
 	c.Assert(err, IsNil)
 }
