@@ -95,6 +95,8 @@ func (u *Uboot) GetAllBootVars() (vars []string, err error) {
 }
 
 func (u *Uboot) GetBootVar(name string) (value string, err error) {
+
+	// FIXME: this looks like the implementation in bootloader_grub.go
 	var vars []string
 
 	vars, err = u.GetAllBootVars()

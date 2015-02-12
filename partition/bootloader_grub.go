@@ -81,6 +81,8 @@ func (g *Grub) GetAllBootVars() (vars []string, err error) {
 func (g *Grub) GetBootVar(name string) (value string, err error) {
 	var values []string
 
+	// FIXME: this looks like the implementation in bootloader_grub.go
+	
 	// Grub doesn't provide a get verb, so retrieve all values and
 	// search for the required variable ourselves.
 	values, err = g.GetAllBootVars()
