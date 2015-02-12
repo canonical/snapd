@@ -120,7 +120,7 @@ type PartitionInterface interface {
 	// FIXME: could we make SyncBootloaderFiles part of UpdateBootloader
 	//        to expose even less implementation details?
 	SyncBootloaderFiles() (err error)
-	NextBootIsOther() bool
+	IsNextBootOther() bool
 
 	// run the function f with the otherRoot mounted
 	RunWithOther(rw MountOption, f func(otherRoot string) (err error)) (err error)
@@ -484,7 +484,7 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 
 // Return true if the next boot will use the other rootfs
 // partition.
-func (p *Partition) NextBootIsOther() bool {
+func (p *Partition) IsNextBootOther() bool {
 	bootloader, err := p.GetBootloader()
 	if err != nil {
 		return false
