@@ -100,10 +100,10 @@ func (u *Uboot) GetAllBootVars() (vars []string, err error) {
 func (u *Uboot) GetBootVar(name string) (value string, err error) {
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
-	err = cfg.ReadFile(bootloaderUbootEnvFile)
-	if err != nil {
+	if err := cfg.ReadFile(bootloaderUbootEnvFile); err != nil {
 		return "", nil
 	}
+
 	return cfg.Get("", name)
 }
 

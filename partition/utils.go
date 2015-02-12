@@ -66,10 +66,12 @@ func runCommandWithStdoutImpl(args ...string) (output string, err error) {
 	if len(args) == 0 {
 		return "", errors.New("no command specified")
 	}
+
 	bytes, err := exec.Command(args[0], args[1:]...).Output()
 	if err != nil {
 		return "", err
 	}
+
 	return string(bytes), err
 }
 

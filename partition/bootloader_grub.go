@@ -81,8 +81,9 @@ func (g *Grub) ToggleRootFS() (err error) {
 func (g *Grub) GetAllBootVars() (vars []string, err error) {
 	output, err := runCommandWithStdout(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "list")
 	if err != nil {
-		return vars, err
+		return nil, err
 	}
+
 	return strings.Split(output, "\n"), nil
 }
 
@@ -93,12 +94,13 @@ func (g *Grub) GetBootVar(name string) (value string, err error) {
 	if err != nil {
 		return "", err
 	}
+
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
-	err = cfg.ReadString(output)
-	if err != nil {
+	if err := cfg.ReadString(output); err != nil {
 		return "", err
 	}
+
 	return cfg.Get("", name)
 }
 

@@ -307,6 +307,7 @@ var runLsblk = func() (out []string, err error) {
 	if err != nil {
 		return out, err
 	}
+
 	return strings.Split(output, "\n"), nil
 }
 
