@@ -56,7 +56,7 @@ func (s *PartitionTestSuite) TestUbootGetBootVar(c *C) {
 	partition := New()
 	u := NewUboot(partition)
 
-	nextBoot, err := u.GetBootVar("snappy_ab")
+	nextBoot, err := u.GetBootVar(bootloaderRootfsVar)
 	c.Assert(err, IsNil)
 	// the https://developer.ubuntu.com/en/snappy/porting guide says
 	// we always use the short names
@@ -76,7 +76,7 @@ func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
 	err := u.ToggleRootFS()
 	c.Assert(err, IsNil)
 
-	nextBoot, err := u.GetBootVar("snappy_ab")
+	nextBoot, err := u.GetBootVar(bootloaderRootfsVar)
 	c.Assert(err, IsNil)
 	c.Assert(nextBoot, Equals, "b")
 
