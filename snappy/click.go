@@ -239,7 +239,7 @@ func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err
 		return manifest, err
 	}
 	if len(manifestFiles) != 1 {
-		return manifest, errors.New(fmt.Sprintf("Error: got %s manifests in %s", len(manifestFiles), clickDir))
+		return manifest, errors.New(fmt.Sprintf("Error: got %v manifests in %v", len(manifestFiles), clickDir))
 	}
 	manifestData, err := ioutil.ReadFile(manifestFiles[0])
 	manifest, err = readClickManifest([]byte(manifestData))
