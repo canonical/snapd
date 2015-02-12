@@ -6,7 +6,8 @@ package partition
 
 import (
 	"fmt"
-	"strings"
+
+	"github.com/mvo5/goconfigparser"
 )
 
 var (
@@ -77,30 +78,20 @@ func (g *Grub) ToggleRootFS() (err error) {
 }
 
 func (g *Grub) GetBootVar(name string) (value string, err error) {
-	var values []string
-
-	// FIXME: this looks like the implementation in bootloader_grub.go
-
 	// Grub doesn't provide a get verb, so retrieve all values and
 	// search for the required variable ourselves.
-	values, err = runCommandWithStdout(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "list")
-
+	output, err := runCommandWithStdout(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "list")
 	if err != nil {
-		return value, err
+		return "", err
 	}
 
-	for _, line := range values {
-		if line == "" || line == "\n" {
-			continue
-		}
-
-		fields := strings.Split(string(line), "=")
-		if fields[0] == name {
-			return fields[1], err
-		}
+	cfg := goconfigparser.New()
+	cfg.AllowNoSectionHeader = true
+	if err := cfg.ReadString(output); err != nil {
+		return "", err
 	}
 
-	return value, err
+	return cfg.Get("", name)
 }
 
 func (g *Grub) setBootVar(name, value string) (err error) {

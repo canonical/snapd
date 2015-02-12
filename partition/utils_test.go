@@ -42,8 +42,8 @@ func (s *UtilsTestSuite) TestRunCommand(c *C) {
 }
 
 func (s *UtilsTestSuite) TestRunCommandWithStdout(c *C) {
-	runCommand = runCommandImpl
-	output, err := runCommandWithStdout("sh", "-c", "printf foo")
+	runCommandWithStdout = runCommandWithStdoutImpl
+	output, err := runCommandWithStdout("sh", "-c", "printf 'foo\nbar'")
 	c.Assert(err, IsNil)
-	c.Assert(output, DeepEquals, []string{"foo"})
+	c.Assert(output, DeepEquals, "foo\nbar")
 }
