@@ -36,4 +36,11 @@ echo Running tests from $(pwd)
 go test ./...
 
 echo Running lint
-golint ./...
+# FIXME: get rid of the "grep" below
+lint=$(golint ./...|grep -v "should have comment or be unexported")
+if [ -n "$lint" ]; then
+    echo "Lint complains:"
+    echo $lint
+    exit 1
+fi
+

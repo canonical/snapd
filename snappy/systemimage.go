@@ -505,7 +505,7 @@ func (s *SystemImageRepository) otherPart() Part {
 		}
 		return err
 	})
-	if err == partition.NoDualPartitionError {
+	if err == partition.ErrNoDualPartition {
 		return nil
 	}
 	return part
