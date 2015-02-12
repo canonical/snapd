@@ -40,6 +40,15 @@ func (s *PartitionTestSuite) TestNewUboot(c *C) {
 	c.Assert(u, NotNil)
 }
 
+func (s *PartitionTestSuite) TestNewUbootSinglePartition(c *C) {
+	runLsblk = mockRunLsblkSingleRootSnappy
+	s.makeFakeUbootEnv(c)
+
+	partition := New()
+	u := NewUboot(partition)
+	c.Assert(u, IsNil)
+}
+
 func (s *PartitionTestSuite) TestUbootGetBootVar(c *C) {
 	s.makeFakeUbootEnv(c)
 
@@ -53,7 +62,7 @@ func (s *PartitionTestSuite) TestUbootGetBootVar(c *C) {
 	c.Assert(nextBoot, Equals, "a")
 
 	// ensure that nextBootIsOther works too
-	c.Assert(nextBootIsOther(u), Equals, false)
+	c.Assert(isNextBootOther(u), Equals, false)
 }
 
 func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
@@ -71,5 +80,5 @@ func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
 	c.Assert(nextBoot, Equals, "b")
 
 	// ensure that nextBootIsOther works too
-	c.Assert(nextBootIsOther(u), Equals, true)
+	c.Assert(isNextBootOther(u), Equals, true)
 }

@@ -44,6 +44,15 @@ func (s *PartitionTestSuite) TestNewGrub(c *C) {
 	c.Assert(g.Name(), Equals, "grub")
 }
 
+func (s *PartitionTestSuite) TestNewGrubSinglePartition(c *C) {
+	runLsblk = mockRunLsblkSingleRootSnappy
+	s.makeFakeGrubEnv(c)
+
+	partition := New()
+	g := NewGrub(partition)
+	c.Assert(g, IsNil)
+}
+
 type singleCommand []string
 
 var allCommands = []singleCommand{}

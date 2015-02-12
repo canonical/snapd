@@ -19,7 +19,7 @@ var (
 	bootloaderUbootConfigFile = "/boot/uboot/uEnv.txt"
 
 	// File created by u-boot itself when
-	// BOOTLOADER_BOOTMODE_VAR_START_VALUE == "try" which the
+	// bootloaderBootmodeTry == "try" which the
 	// successfully booted system must remove to flag to u-boot that
 	// this partition is "good".
 	bootloaderUbootStampFile = "/boot/uboot/snappy-stamp.txt"
@@ -45,10 +45,12 @@ func NewUboot(partition *Partition) *Uboot {
 		return nil
 	}
 
-	u := Uboot{BootLoaderType: NewBootLoader(partition)}
-
+	b := NewBootLoader(partition)
+	if b == nil {
+		return nil
+	}
+	u := Uboot{BootLoaderType: b}
 	u.currentBootPath = path.Join(bootloaderUbootDir, u.currentRootfs)
-
 	u.otherBootPath = path.Join(bootloaderUbootDir, u.otherRootfs)
 
 	return &u
@@ -77,11 +79,11 @@ func (u *Uboot) ToggleRootFS() (err error) {
 	// partition, it's possible the admin removed it by mistake. So
 	// recreate to allow the system to boot!
 	changes := []ConfigFileChange{
-		ConfigFileChange{Name: BOOTLOADER_ROOTFS_VAR,
+		ConfigFileChange{Name: bootloaderRootfsVar,
 			Value: string(u.otherRootfs),
 		},
-		ConfigFileChange{Name: BOOTLOADER_BOOTMODE_VAR,
-			Value: BOOTLOADER_BOOTMODE_VAR_START_VALUE,
+		ConfigFileChange{Name: bootloaderBootmodeVar,
+			Value: bootloaderBootmodeTry,
 		},
 	}
 
@@ -152,7 +154,7 @@ func (u *Uboot) ClearBootVar(name string) (currentValue string, err error) {
 func (u *Uboot) GetNextBootRootFSName() (label string, err error) {
 	var value string
 
-	if value, err = u.GetBootVar(BOOTLOADER_ROOTFS_VAR); err != nil {
+	if value, err = u.GetBootVar(bootloaderRootfsVar); err != nil {
 		// should never happen
 		return label, err
 	}
@@ -238,8 +240,8 @@ func getNameValuePairs(file string) (vars []string, err error) {
 
 func (u *Uboot) MarkCurrentBootSuccessful() (err error) {
 	changes := []ConfigFileChange{
-		ConfigFileChange{Name: BOOTLOADER_BOOTMODE_VAR,
-			Value: BOOTLOADER_BOOTMODE_VAR_END_VALUE,
+		ConfigFileChange{Name: bootloaderBootmodeVar,
+			Value: bootloaderBootmodeSuccess,
 		},
 	}
 

@@ -489,7 +489,7 @@ func (p *Partition) NextBootIsOther(bootloader BootLoader) bool {
 	if err != nil {
 		return false
 	}
-	return nextBootIsOther(bootloader)
+	return isNextBootOther(bootloader)
 }
 
 // Returns the full path to the cache directory, which is used as a
@@ -613,7 +613,7 @@ func (p *Partition) otherRootPartition() (result *blockDevice) {
 		}
 	}
 
-	return result
+	return nil
 }
 
 // Mount the "other" root filesystem

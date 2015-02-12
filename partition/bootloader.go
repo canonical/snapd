@@ -8,16 +8,16 @@ const (
 	// bootloader variable used to denote which rootfs to boot from
 	// FIXME: preferred new name
 	// BOOTLOADER_UBOOT_ROOTFS_VAR = "snappy_rootfs_label"
-	BOOTLOADER_ROOTFS_VAR = "snappy_ab"
+	bootloaderRootfsVar = "snappy_ab"
 
 	// bootloader variable used to determine if boot was successful.
 	// Set to 'try' initially, and then changed to 'regular' by the
 	// system when the boot reaches the required sequence point.
-	BOOTLOADER_BOOTMODE_VAR = "snappy_mode"
+	bootloaderBootmodeVar = "snappy_mode"
 
 	// Initial and final values
-	BOOTLOADER_BOOTMODE_VAR_START_VALUE = "try"
-	BOOTLOADER_BOOTMODE_VAR_END_VALUE   = "default"
+	bootloaderBootmodeTry     = "try"
+	bootloaderBootmodeSuccess = "default"
 )
 
 type BootLoader interface {
@@ -91,6 +91,12 @@ func NewBootLoader(partition *Partition) *BootLoaderType {
 	b.partition = partition
 
 	currentLabel := partition.rootPartition().name
+
+	// FIXME: is this the right thing to do? i.e. what should we do
+	//        on a single partition system?
+	if partition.otherRootPartition() == nil {
+		return nil
+	}
 	otherLabel := partition.otherRootPartition().name
 
 	b.currentRootfs = string(currentLabel[len(currentLabel)-1])
@@ -101,13 +107,13 @@ func NewBootLoader(partition *Partition) *BootLoaderType {
 
 // Return true if the next boot will use the other rootfs
 // partition.
-func nextBootIsOther(bootloader BootLoader) bool {
-	value, err := bootloader.GetBootVar(BOOTLOADER_BOOTMODE_VAR)
+func isNextBootOther(bootloader BootLoader) bool {
+	value, err := bootloader.GetBootVar(bootloaderBootmodeVar)
 	if err != nil {
 		return false
 	}
 
-	if value != BOOTLOADER_BOOTMODE_VAR_START_VALUE {
+	if value != bootloaderBootmodeTry {
 		return false
 	}
 
