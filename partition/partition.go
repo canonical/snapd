@@ -153,11 +153,11 @@ type blockDevice struct {
 
 // Representation of HARDWARE_SPEC_FILE
 type hardwareSpecType struct {
-	Kernel          string `yaml:"kernel"`
-	Initrd          string `yaml:"initrd"`
-	DtbDir          string `yaml:"dtbs"`
-	PartitionLayout string `yaml:"partition-layout"`
-	Bootloader      string `yaml:"bootloader"`
+	Kernel          string         `yaml:"kernel"`
+	Initrd          string         `yaml:"initrd"`
+	DtbDir          string         `yaml:"dtbs"`
+	PartitionLayout string         `yaml:"partition-layout"`
+	Bootloader      BootloaderName `yaml:"bootloader"`
 }
 
 func init() {
@@ -465,8 +465,8 @@ func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
 	bootloaders := []BootLoader{NewUboot(p), NewGrub(p)}
 
 	for _, b := range bootloaders {
-		if b.Installed() {
-			return b, err
+		if b != nil {
+			return b, nil
 		}
 	}
 
@@ -485,33 +485,11 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 // Return true if the next boot will use the other rootfs
 // partition.
 func (p *Partition) NextBootIsOther() bool {
-	var value string
-	var err error
-	var label string
-
 	bootloader, err := p.GetBootloader()
 	if err != nil {
 		return false
 	}
-
-	value, err = bootloader.GetBootVar(BOOTLOADER_BOOTMODE_VAR)
-	if err != nil {
-		return false
-	}
-
-	if value != BOOTLOADER_BOOTMODE_VAR_START_VALUE {
-		return false
-	}
-
-	if label, err = bootloader.GetNextBootRootFSName(); err != nil {
-		return false
-	}
-
-	if label == bootloader.GetOtherRootFSName() {
-		return true
-	}
-
-	return false
+	return isNextBootOther(bootloader)
 }
 
 // Returns the full path to the cache directory, which is used as a
@@ -635,7 +613,7 @@ func (p *Partition) otherRootPartition() (result *blockDevice) {
 		}
 	}
 
-	return result
+	return nil
 }
 
 // Mount the "other" root filesystem
@@ -754,13 +732,4 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 	}
 
 	return bootloader.HandleAssets()
-}
-
-// Run the commandline specified by the args array chrooted to the
-// new root filesystem.
-func (p *Partition) runInChroot(args []string) (err error) {
-	fullArgs := []string{"/usr/sbin/chroot", p.MountTarget()}
-	fullArgs = append(fullArgs, args...)
-
-	return runCommand(fullArgs...)
 }

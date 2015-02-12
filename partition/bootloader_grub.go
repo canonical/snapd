@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const (
+var (
 	bootloaderGrubDir        = "/boot/grub"
 	bootloaderGrubConfigFile = "/boot/grub/grub.cfg"
 	bootloaderGrubEnvFile    = "/boot/grub/grubenv"
@@ -23,23 +23,26 @@ type Grub struct {
 	*BootLoaderType
 }
 
+const BootloaderNameGrub BootloaderName = "grub"
+
 // Create a new Grub bootloader object
 func NewGrub(partition *Partition) *Grub {
-	g := Grub{BootLoaderType: NewBootLoader(partition)}
-
+	if !fileExists(bootloaderGrubConfigFile) || !fileExists(bootloaderGrubInstallCmd) {
+		return nil
+	}
+	b := NewBootLoader(partition)
+	if b == nil {
+		return nil
+	}
+	g := &Grub{BootLoaderType: b}
 	g.currentBootPath = bootloaderGrubDir
 	g.otherBootPath = g.currentBootPath
 
-	return &g
+	return g
 }
 
-func (g *Grub) Name() string {
-	return "grub"
-}
-
-func (g *Grub) Installed() bool {
-	// Use same heuristic as the initramfs.
-	return fileExists(bootloaderGrubConfigFile) && fileExists(bootloaderGrubInstallCmd)
+func (g *Grub) Name() BootloaderName {
+	return BootloaderNameGrub
 }
 
 // Make the Grub bootloader switch rootfs's.
@@ -51,39 +54,26 @@ func (g *Grub) Installed() bool {
 // configuration.
 func (g *Grub) ToggleRootFS() (err error) {
 
-	var args []string
-	var other *blockDevice
-
-	other = g.partition.otherRootPartition()
-
-	args = append(args, bootloaderGrubInstallCmd)
-	args = append(args, other.parentName)
+	other := g.partition.otherRootPartition()
 
 	// install grub
-	err = g.partition.runInChroot(args)
-	if err != nil {
+	if err := runInChroot(g.partition.MountTarget(), bootloaderGrubInstallCmd, other.parentName); err != nil {
 		return err
 	}
-
-	args = nil
-	args = append(args, bootloaderGrubUpdateCmd)
 
 	// create the grub config
-	err = g.partition.runInChroot(args)
-	if err != nil {
+	if err := runInChroot(g.partition.MountTarget(), bootloaderGrubUpdateCmd); err != nil {
 		return err
 	}
 
-	err = g.SetBootVar(BOOTLOADER_BOOTMODE_VAR,
-		BOOTLOADER_BOOTMODE_VAR_START_VALUE)
-	if err != nil {
+	if err := g.SetBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry); err != nil {
 		return err
 	}
 
 	// Record the partition that will be used for next boot. This
 	// isn't necessary for correct operation under grub, but allows
 	// us to query the next boot device easily.
-	return g.SetBootVar(BOOTLOADER_ROOTFS_VAR, other.name)
+	return g.SetBootVar(bootloaderRootfsVar, g.otherRootfs)
 }
 
 func (g *Grub) GetAllBootVars() (vars []string, err error) {
@@ -92,6 +82,8 @@ func (g *Grub) GetAllBootVars() (vars []string, err error) {
 
 func (g *Grub) GetBootVar(name string) (value string, err error) {
 	var values []string
+
+	// FIXME: this looks like the implementation in bootloader_grub.go
 
 	// Grub doesn't provide a get verb, so retrieve all values and
 	// search for the required variable ourselves.
@@ -134,7 +126,7 @@ func (g *Grub) ClearBootVar(name string) (currentValue string, err error) {
 }
 
 func (g *Grub) GetNextBootRootFSName() (label string, err error) {
-	return g.GetBootVar(BOOTLOADER_ROOTFS_VAR)
+	return g.GetBootVar(bootloaderRootfsVar)
 }
 
 func (g *Grub) GetRootFSName() string {
@@ -146,18 +138,17 @@ func (g *Grub) GetOtherRootFSName() string {
 }
 
 func (g *Grub) MarkCurrentBootSuccessful() (err error) {
-	return g.SetBootVar(BOOTLOADER_BOOTMODE_VAR,
-		BOOTLOADER_BOOTMODE_VAR_END_VALUE)
+	return g.SetBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
 }
 
 func (g *Grub) SyncBootFiles() (err error) {
 	// NOP
-	return err
+	return nil
 }
 
 func (g *Grub) HandleAssets() (err error) {
 
 	// NOP - since grub is used on generic hardware, it doesn't
 	// need to make use of hardware-specific assets
-	return err
+	return nil
 }

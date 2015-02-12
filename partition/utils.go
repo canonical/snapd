@@ -8,6 +8,14 @@ import (
 	"strings"
 )
 
+// Run the commandline specified by the args array chrooted to the given dir
+var runInChroot = func(chrootDir string, args ...string) (err error) {
+	fullArgs := []string{"/usr/sbin/chroot", chrootDir}
+	fullArgs = append(fullArgs, args...)
+
+	return runCommand(fullArgs...)
+}
+
 // Return true if given path exists.
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
@@ -28,7 +36,7 @@ func isDirectory(path string) bool {
 //        exit code? (i.e. something like (returnCode, error) ?)
 func runCommandImpl(args ...string) (err error) {
 	if len(args) == 0 {
-		return errors.New("ERROR: no command specified")
+		return errors.New("no command specified")
 	}
 
 	// FIXME: use logger
@@ -57,7 +65,7 @@ var runCommand = runCommandImpl
 // FIXME: would it make sense to make this a vararg (args...) ?
 func runCommandWithStdout(args ...string) (output []string, err error) {
 	if len(args) == 0 {
-		return []string{}, errors.New("ERROR: no command specified")
+		return []string{}, errors.New("no command specified")
 	}
 
 	// FIXME: use logger
