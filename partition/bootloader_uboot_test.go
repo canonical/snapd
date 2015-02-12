@@ -38,6 +38,7 @@ func (s *PartitionTestSuite) TestNewUboot(c *C) {
 	partition := New()
 	u := NewUboot(partition)
 	c.Assert(u, NotNil)
+	c.Assert(u.Name(), Equals, BootloaderNameUboot)
 }
 
 func (s *PartitionTestSuite) TestNewUbootSinglePartition(c *C) {

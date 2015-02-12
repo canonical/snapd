@@ -23,6 +23,8 @@ type Grub struct {
 	*BootLoaderType
 }
 
+const BootloaderNameGrub BootloaderName = "grub"
+
 // Create a new Grub bootloader object
 func NewGrub(partition *Partition) *Grub {
 	if !fileExists(bootloaderGrubConfigFile) || !fileExists(bootloaderGrubInstallCmd) {
@@ -39,8 +41,8 @@ func NewGrub(partition *Partition) *Grub {
 	return g
 }
 
-func (g *Grub) Name() string {
-	return "grub"
+func (g *Grub) Name() BootloaderName {
+	return BootloaderNameGrub
 }
 
 // Make the Grub bootloader switch rootfs's.
@@ -82,7 +84,7 @@ func (g *Grub) GetBootVar(name string) (value string, err error) {
 	var values []string
 
 	// FIXME: this looks like the implementation in bootloader_grub.go
-	
+
 	// Grub doesn't provide a get verb, so retrieve all values and
 	// search for the required variable ourselves.
 	values, err = g.GetAllBootVars()

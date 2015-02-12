@@ -153,11 +153,11 @@ type blockDevice struct {
 
 // Representation of HARDWARE_SPEC_FILE
 type hardwareSpecType struct {
-	Kernel          string `yaml:"kernel"`
-	Initrd          string `yaml:"initrd"`
-	DtbDir          string `yaml:"dtbs"`
-	PartitionLayout string `yaml:"partition-layout"`
-	Bootloader      string `yaml:"bootloader"`
+	Kernel          string         `yaml:"kernel"`
+	Initrd          string         `yaml:"initrd"`
+	DtbDir          string         `yaml:"dtbs"`
+	PartitionLayout string         `yaml:"partition-layout"`
+	Bootloader      BootloaderName `yaml:"bootloader"`
 }
 
 func init() {

@@ -29,6 +29,8 @@ var (
 	bootloaderUbootEnvFile = "/boot/uboot/snappy-system.txt"
 )
 
+const BootloaderNameUboot BootloaderName = "u-boot"
+
 type Uboot struct {
 	*BootLoaderType
 }
@@ -56,9 +58,8 @@ func NewUboot(partition *Partition) *Uboot {
 	return &u
 }
 
-func (u *Uboot) Name() string {
-	// XXX: same value as used in HARDWARE_SPEC_FILE
-	return "u-boot"
+func (u *Uboot) Name() BootloaderName {
+	return BootloaderNameUboot
 }
 
 // Make the U-Boot bootloader switch rootfs's.
