@@ -12,7 +12,6 @@ package snappy
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -43,12 +42,12 @@ type clickHook struct {
 
 const (
 	// from debsig-verify-0.9/debsigs.h
-	DS_SUCCESS             = 0
-	DS_FAIL_NOSIGS         = 10
-	DS_FAIL_UNKNOWN_ORIGIN = 11
-	DS_FAIL_NOPOLICIES     = 12
-	DS_FAIL_BADSIG         = 13
-	DS_FAIL_INTERNAL       = 14
+	dsSuccess           = 0
+	dsFailNosigs        = 10
+	dsFailUnknownOrigin = 11
+	dsFailNopolicies    = 12
+	dsFailBadsig        = 13
+	dsFailInternal      = 14
 )
 
 // var to make it testable
@@ -57,7 +56,7 @@ var clickSystemHooksDir = "/usr/share/click/hooks"
 type InstallFlags uint
 
 const (
-	// Allow to install a snap even if it can not be authenticated
+	// AllowUnauthenticated allows to install a snap even if it can not be authenticated
 	AllowUnauthenticated InstallFlags = 1 << iota
 )
 
@@ -77,9 +76,9 @@ func (s *clickHook) execHook() (err error) {
 // a unknown policy or with no policies at all. We do not allow overriding
 // bad signatures
 func allowUnauthenticatedOkExitCode(exitCode int) bool {
-	return (exitCode == DS_FAIL_NOSIGS ||
-		exitCode == DS_FAIL_UNKNOWN_ORIGIN ||
-		exitCode == DS_FAIL_NOPOLICIES)
+	return (exitCode == dsFailNosigs ||
+		exitCode == dsFailUnknownOrigin ||
+		exitCode == dsFailNopolicies)
 }
 
 // Tiny wrapper around the debsig-verify commandline
@@ -212,7 +211,7 @@ func removeClickHooks(manifest clickManifest) (err error) {
 		return err
 	}
 	for app, hook := range manifest.Hooks {
-		for hookName, _ := range hook {
+		for hookName := range hook {
 			systemHook, ok := systemHooks[hookName]
 			if !ok {
 				continue
@@ -239,7 +238,7 @@ func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err
 		return manifest, err
 	}
 	if len(manifestFiles) != 1 {
-		return manifest, errors.New(fmt.Sprintf("Error: got %s manifests in %s", len(manifestFiles), clickDir))
+		return manifest, fmt.Errorf("Error: got %s manifests in %s", len(manifestFiles), clickDir)
 	}
 	manifestData, err := ioutil.ReadFile(manifestFiles[0])
 	manifest, err = readClickManifest([]byte(manifestData))

@@ -3,7 +3,6 @@ package snappy
 import (
 	"archive/tar"
 	"compress/gzip"
-	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -13,11 +12,6 @@ import (
 	"syscall"
 
 	yaml "launchpad.net/goyaml"
-)
-
-var (
-	needRootError = errors.New("This command requires root access. " +
-		"Please re-run using 'sudo'.")
 )
 
 var goarch = runtime.GOARCH

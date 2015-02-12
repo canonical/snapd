@@ -42,13 +42,13 @@ type remoteSnap struct {
 	Publisher       string  `json:"publisher,omitempty"`
 	Name            string  `json:"name"`
 	Title           string  `json:"title"`
-	IconUrl         string  `json:"icon_url"`
+	IconURL         string  `json:"icon_url"`
 	Price           float64 `json:"price,omitempty"`
 	Content         string  `json:"content,omitempty"`
 	RatingsAverage  float64 `json:"ratings_average,omitempty"`
 	Version         string  `json:"version"`
-	AnonDownloadUrl string  `json:"anon_download_url, omitempty"`
-	DownloadUrl     string  `json:"download_url, omitempty"`
+	AnonDownloadURL string  `json:"anon_download_url, omitempty"`
+	DownloadURL     string  `json:"download_url, omitempty"`
 	DownloadSha512  string  `json:"download_sha512, omitempty"`
 }
 
@@ -58,32 +58,32 @@ type searchResults struct {
 	} `json:"_embedded"`
 }
 
-func NewInstalledSnapPart(yaml_path string) *SnapPart {
+func NewInstalledSnapPart(yamlPath string) *SnapPart {
 	part := SnapPart{}
 
-	if _, err := os.Stat(yaml_path); os.IsNotExist(err) {
+	if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
 		return nil
 	}
 
-	r, err := os.Open(yaml_path)
+	r, err := os.Open(yamlPath)
 	if err != nil {
-		log.Printf("Can not open '%s'", yaml_path)
+		log.Printf("Can not open '%s'", yamlPath)
 		return nil
 	}
 
-	yaml_data, err := ioutil.ReadAll(r)
+	yamlData, err := ioutil.ReadAll(r)
 	if err != nil {
 		log.Printf("Can not read '%s'", r)
 		return nil
 	}
 
 	var m packageYaml
-	err = yaml.Unmarshal(yaml_data, &m)
+	err = yaml.Unmarshal(yamlData, &m)
 	if err != nil {
-		log.Printf("Can not parse '%s'", yaml_data)
+		log.Printf("Can not parse '%s'", yamlData)
 		return nil
 	}
-	part.basedir = filepath.Dir(filepath.Dir(yaml_path))
+	part.basedir = filepath.Dir(filepath.Dir(yamlPath))
 	// data from the yaml
 	part.name = m.Name
 	part.version = m.Version
@@ -264,7 +264,7 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 		os.Remove(w.Name())
 	}()
 
-	resp, err := http.Get(s.pkg.AnonDownloadUrl)
+	resp, err := http.Get(s.pkg.AnonDownloadURL)
 	if err != nil {
 		return err
 	}

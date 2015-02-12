@@ -17,7 +17,7 @@ const (
 	SnapTypeOem       SnapType = "oem"
 )
 
-// Representation of a snappy part
+// Part representation of a snappy part
 type Part interface {
 
 	// query
@@ -186,7 +186,8 @@ func FindSnapsByName(needle string, haystack []Part) (res []Part) {
 	return res
 }
 
-// Return the part with the name/version in the given slice of parts
+// FindSnapByNameAndVersion returns the part with the name/version in the
+// given slice of parts
 func FindSnapByNameAndVersion(needle, version string, haystack []Part) Part {
 	for _, part := range haystack {
 		if part.Name() == needle && part.Version() == version {
