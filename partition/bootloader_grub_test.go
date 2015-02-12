@@ -109,3 +109,11 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(v, Equals, "default")
 }
+
+func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
+	s.makeFakeGrubEnv(c)
+	p := New()
+	bootloader, err := p.GetBootloader()
+	c.Assert(err, IsNil)
+	c.Assert(bootloader.Name(), Equals, BootloaderNameGrub)
+}
