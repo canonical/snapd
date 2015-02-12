@@ -16,7 +16,7 @@ func init() {
 
 func (x *CmdBooted) Execute(args []string) (err error) {
 	if !isRoot() {
-		return requiresRootErr
+		return ErrRequiresRoot
 	}
 
 	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)

@@ -20,7 +20,7 @@ func init() {
 
 func (x *CmdRemove) Execute(args []string) (err error) {
 	if !isRoot() {
-		return requiresRootErr
+		return ErrRequiresRoot
 	}
 
 	for _, part := range args {

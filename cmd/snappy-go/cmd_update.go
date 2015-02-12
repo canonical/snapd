@@ -22,7 +22,7 @@ func init() {
 
 func (x *CmdUpdate) Execute(args []string) (err error) {
 	if !isRoot() {
-		return requiresRootErr
+		return ErrRequiresRoot
 	}
 
 	return update()
@@ -30,7 +30,7 @@ func (x *CmdUpdate) Execute(args []string) (err error) {
 
 func update() error {
 	if !isRoot() {
-		return requiresRootErr
+		return ErrRequiresRoot
 	}
 
 	// FIXME: handle args
