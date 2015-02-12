@@ -24,10 +24,10 @@ func max(a, b int) int {
 }
 
 // version number compare, inspired by the libapt/python-debian code
-func cmpInt(int_a, int_b int) int {
-	if int_a < int_b {
+func cmpInt(intA, intB int) int {
+	if intA < intB {
 		return -1
-	} else if int_a > int_b {
+	} else if intA > intB {
 		return 1
 	}
 	return 0
@@ -70,10 +70,10 @@ func cmpString(as, bs string) int {
 }
 
 func cmpFragment(a, b string) int {
-	int_a, err_a := strconv.Atoi(a)
-	int_b, err_b := strconv.Atoi(b)
-	if err_a == nil && err_b == nil {
-		return cmpInt(int_a, int_b)
+	intA, errA := strconv.Atoi(a)
+	intB, errB := strconv.Atoi(b)
+	if errA == nil && errB == nil {
+		return cmpInt(intA, intB)
 	}
 	res := cmpString(a, b)
 	//fmt.Println(a, b, res)
@@ -100,17 +100,17 @@ func VersionIsValid(a string) bool {
 }
 
 func compareSubversion(va, vb string) int {
-	frags_a := getFragments(va)
-	frags_b := getFragments(vb)
+	fragsA := getFragments(va)
+	fragsB := getFragments(vb)
 
-	for i := 0; i < max(len(frags_a), len(frags_b)); i++ {
+	for i := 0; i < max(len(fragsA), len(fragsB)); i++ {
 		a := "0"
 		b := "0"
-		if i < len(frags_a) {
-			a = frags_a[i]
+		if i < len(fragsA) {
+			a = fragsA[i]
 		}
-		if i < len(frags_b) {
-			b = frags_b[i]
+		if i < len(fragsB) {
+			b = fragsB[i]
 		}
 		res := cmpFragment(a, b)
 		//fmt.Println(a, b, res)
@@ -121,7 +121,7 @@ func compareSubversion(va, vb string) int {
 	return 0
 }
 
-// compare two version strings and
+// VersionCompare compare two version strings and
 // Returns:
 //   -1 if a is smaller than b
 //    0 if a equals b
@@ -144,20 +144,20 @@ func VersionCompare(va, vb string) (res int) {
 	}
 
 	// the main version number (before the "-")
-	main_a := strings.Split(va, "-")[0]
-	main_b := strings.Split(vb, "-")[0]
-	res = compareSubversion(main_a, main_b)
+	mainA := strings.Split(va, "-")[0]
+	mainB := strings.Split(vb, "-")[0]
+	res = compareSubversion(mainA, mainB)
 	if res != 0 {
 		return res
 	}
 
 	// the subversion revision behind the "-"
-	rev_a := strings.Split(va, "-")[1]
-	rev_b := strings.Split(vb, "-")[1]
-	return compareSubversion(rev_a, rev_b)
+	revA := strings.Split(va, "-")[1]
+	revB := strings.Split(vb, "-")[1]
+	return compareSubversion(revA, revB)
 }
 
-// sort interface
+// ByVersion provides a sort interface
 type ByVersion []string
 
 func (bv ByVersion) Less(a, b int) bool {

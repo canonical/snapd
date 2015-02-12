@@ -16,7 +16,7 @@ import (
 	yaml "launchpad.net/goyaml"
 )
 
-var RemoteSnapNotFoundError = errors.New("Remote Snap not found")
+var ErrRemoteSnapNotFound = errors.New("Remote Snap not found")
 
 type SnapPart struct {
 	name        string
@@ -312,24 +312,24 @@ func NewRemoteSnapPart(data remoteSnap) *RemoteSnapPart {
 }
 
 type SnapUbuntuStoreRepository struct {
-	searchUri  string
-	detailsUri string
-	bulkUri    string
+	searchURI  string
+	detailsURI string
+	bulkURI    string
 }
 
 func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
 	return &SnapUbuntuStoreRepository{
-		searchUri:  "https://search.apps.ubuntu.com/api/v1/search?q=%s",
-		detailsUri: "https://search.apps.ubuntu.com/api/v1/package/%s",
-		bulkUri:    "https://myapps.developer.ubuntu.com/dev/api/click-metadata/"}
+		searchURI:  "https://search.apps.ubuntu.com/api/v1/search?q=%s",
+		detailsURI: "https://search.apps.ubuntu.com/api/v1/package/%s",
+		bulkURI:    "https://myapps.developer.ubuntu.com/dev/api/click-metadata/"}
 }
 
 func (s *SnapUbuntuStoreRepository) Description() string {
-	return fmt.Sprintf("Snap remote repository for %s", s.searchUri)
+	return fmt.Sprintf("Snap remote repository for %s", s.searchURI)
 }
 
 func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err error) {
-	url := fmt.Sprintf(s.detailsUri, snapName)
+	url := fmt.Sprintf(s.detailsURI, snapName)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return parts, err
@@ -352,7 +352,7 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 	// check statusCode
 	switch {
 	case resp.StatusCode == 404:
-		return parts, RemoteSnapNotFoundError
+		return parts, ErrRemoteSnapNotFound
 	case resp.StatusCode != 200:
 		return parts, fmt.Errorf("SnapUbuntuStoreRepository: unexpected http statusCode %i for %s", resp.StatusCode, snapName)
 	}
@@ -371,7 +371,7 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 }
 
 func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err error) {
-	url := fmt.Sprintf(s.searchUri, searchTerm)
+	url := fmt.Sprintf(s.searchURI, searchTerm)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return parts, err
@@ -418,7 +418,7 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 		return parts, err
 	}
 
-	req, err := http.NewRequest("POST", s.bulkUri, bytes.NewBuffer([]byte(jsonData)))
+	req, err := http.NewRequest("POST", s.bulkURI, bytes.NewBuffer([]byte(jsonData)))
 	if err != nil {
 		return nil, err
 	}

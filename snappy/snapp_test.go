@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	PACKAGE_HELLO = `
+	packageHello = `
 name: hello-app
 version: 1.10
 vendor: Michael Vogt <mvo@ubuntu.com>
@@ -48,21 +48,21 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	}
 }
 
-func (s *SnapTestSuite) makeMockSnap() (snap_dir string, err error) {
-	meta_dir := filepath.Join(s.tempdir, "apps", "hello-app", "1.10", "meta")
-	err = os.MkdirAll(meta_dir, 0777)
+func (s *SnapTestSuite) makeMockSnap() (snapDir string, err error) {
+	metaDir := filepath.Join(s.tempdir, "apps", "hello-app", "1.10", "meta")
+	err = os.MkdirAll(metaDir, 0777)
 	if err != nil {
 		return "", err
 	}
-	yaml_file := filepath.Join(meta_dir, "package.yaml")
-	ioutil.WriteFile(yaml_file, []byte(PACKAGE_HELLO), 0666)
+	yamlFile := filepath.Join(metaDir, "package.yaml")
+	ioutil.WriteFile(yamlFile, []byte(packageHello), 0666)
 
-	snap_dir, _ = filepath.Split(meta_dir)
-	return yaml_file, err
+	snapDir, _ = filepath.Split(metaDir)
+	return yamlFile, err
 }
 
-func makeSnapActive(package_yaml_path string) (err error) {
-	snapdir := filepath.Dir(filepath.Dir(package_yaml_path))
+func makeSnapActive(packageYamlPath string) (err error) {
+	snapdir := filepath.Dir(filepath.Dir(packageYamlPath))
 	parent := filepath.Dir(snapdir)
 	err = os.Symlink(snapdir, filepath.Join(parent, "current"))
 
@@ -102,9 +102,9 @@ func (s *SnapTestSuite) TestLocalSnapRepositoryInvalid(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
-	yaml_path, err := s.makeMockSnap()
+	yamlPath, err := s.makeMockSnap()
 	c.Assert(err, IsNil)
-	err = makeSnapActive(yaml_path)
+	err = makeSnapActive(yamlPath)
 	c.Assert(err, IsNil)
 
 	snap := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
@@ -120,7 +120,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 /* acquired via:
    curl  -H 'accept: application/hal+json' -H "X-Ubuntu-Frameworks: ubuntu-core-15.04-dev1" -H "X-Ubuntu-Architecture: amd64" https://search.apps.ubuntu.com/api/v1/search?q=hello
 */
-const MockSearchJson = `{
+const MockSearchJSON = `{
   "_links": {
     "self": {
       "href": "https:\/\/search.apps.ubuntu.com\/api\/v1\/search?q=xkcd"
@@ -158,7 +158,7 @@ const MockSearchJson = `{
 /* acquired via:
 curl --data-binary '{"name":["docker","foo","com.ubuntu.snappy.hello-world","httpd-minimal-golang-example","owncloud","xkcd-webserver"]}'  -H 'content-type: application/json' https://myapps.developer.ubuntu.com/dev/api/click-metadata/
 */
-const MockUpdatesJson = `
+const MockUpdatesJSON = `
 [
     {
         "status": "Published",
@@ -179,7 +179,7 @@ const MockUpdatesJson = `
 /* acquired via
    curl -H "accept: application/hal+json" -H "X-Ubuntu-Frameworks: ubuntu-core-15.04-dev1" https://search.apps.ubuntu.com/api/v1/package/com.ubuntu.snappy.xkcd-webserver
 */
-const MockDetailsJson = `
+const MockDetailsJSON = `
 {
   "architecture": [
     "all"
@@ -246,24 +246,24 @@ const MockDetailsJson = `
   "status": "Published",
   "whitelist_country_codes": []
 }`
-const MockNoDetailsJson = `{"errors": ["No such package"], "result": "error"}`
+const MockNoDetailsJSON = `{"errors": ["No such package"], "result": "error"}`
 
 type MockUbuntuStoreServer struct {
 	quit chan int
 
-	searchUri string
+	searchURI string
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, MockSearchJson)
+		io.WriteString(w, MockSearchJSON)
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.searchUri = mockServer.URL + "/%s"
+	snap.searchURI = mockServer.URL + "/%s"
 
 	results, err := snap.Search("xkcd")
 	c.Assert(err, IsNil)
@@ -285,10 +285,10 @@ func mockInstalledSnapNamesByType(mockSnaps []string) (mockRestorer func()) {
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json_req, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Assert(string(json_req), Equals, `{"name":["hello-world"]}`)
-		io.WriteString(w, MockUpdatesJson)
+		c.Assert(string(jsonReq), Equals, `{"name":["hello-world"]}`)
+		io.WriteString(w, MockUpdatesJSON)
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -296,7 +296,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.bulkUri = mockServer.URL + "/updates/"
+	snap.bulkURI = mockServer.URL + "/updates/"
 
 	// override the real InstalledSnapNamesByType to return our
 	// mock data
@@ -318,7 +318,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 
 	// ensure we do not hit the net if there is nothing installed
 	// (otherwise the store will send us all snaps)
-	snap.bulkUri = "http://i-do.not-exist.really-not"
+	snap.bulkURI = "http://i-do.not-exist.really-not"
 	mockRestorer := mockInstalledSnapNamesByType([]string{})
 	defer mockRestorer()
 
@@ -331,7 +331,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Assert(strings.HasSuffix(r.URL.String(), "xkcd-webserver"), Equals, true)
-		io.WriteString(w, MockDetailsJson)
+		io.WriteString(w, MockDetailsJSON)
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -339,7 +339,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.detailsUri = mockServer.URL + "/details/%s"
+	snap.detailsURI = mockServer.URL + "/details/%s"
 
 	// the actual test
 	results, err := snap.Details("xkcd-webserver")
@@ -353,7 +353,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Assert(strings.HasSuffix(r.URL.String(), "no-such-pkg"), Equals, true)
 		w.WriteHeader(404)
-		io.WriteString(w, MockNoDetailsJson)
+		io.WriteString(w, MockNoDetailsJSON)
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -361,7 +361,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.detailsUri = mockServer.URL + "/details/%s"
+	snap.detailsURI = mockServer.URL + "/details/%s"
 
 	// the actual test
 	results, err := snap.Details("no-such-pkg")

@@ -174,7 +174,7 @@ func (s *SystemImagePart) NeedsReboot() bool {
 	return false
 }
 
-// Mark the *currently* booted rootfs as "good" (it booted :)
+// MarkBootSuccessful marks the *currently* booted rootfs as "good" (it booted :)
 // Note: Not part of the Part interface.
 func (s *SystemImagePart) MarkBootSuccessful() (err error) {
 
@@ -187,12 +187,12 @@ func (s *SystemImagePart) Channel() string {
 
 // Result of UpdateAvailableStatus() call
 type updateStatus struct {
-	is_available      bool
-	downloading       bool
-	available_version string
-	update_size       int32
-	last_update_date  string
-	error_reason      string
+	isAvailable      bool
+	downloading      bool
+	availableVersion string
+	updateSize       int32
+	lastUpdateDate   string
+	errorReason      string
 }
 
 // Result of the Information() call
@@ -304,7 +304,7 @@ func (s *systemImageDBusProxy) GetSetting(key string) (v string, err error) {
 	return v, nil
 }
 
-// Hrm, go-dbus bug #1416352 makes this nesessary (so sad!)
+// SensibleWatch is a workaround for go-dbus bug #1416352 makes this nesessary (so sad!)
 type SensibleWatch struct {
 	watch  *dbus.SignalWatch
 	C      chan *dbus.Message
@@ -415,19 +415,16 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 
 	select {
 	case msg := <-s.updateAvailableStatus.C:
-		err = msg.Args(&s.us.is_available,
+		err = msg.Args(&s.us.isAvailable,
 			&s.us.downloading,
-			&s.us.available_version,
-			&s.us.update_size,
-			&s.us.last_update_date,
-			&s.us.error_reason)
+			&s.us.availableVersion,
+			&s.us.updateSize,
+			&s.us.lastUpdateDate,
+			&s.us.errorReason)
 
 	case <-time.After(systemImageTimeoutSecs * time.Second):
-		err = errors.New(fmt.Sprintf(
-			"Warning: "+
-				"timed out after %d seconds "+
-				"waiting for system image server to respond",
-			systemImageTimeoutSecs))
+		err = fmt.Errorf("Warning: timed out after %d seconds waiting for system image server to respond",
+			systemImageTimeoutSecs)
 	}
 
 	return s.us, err
@@ -537,18 +534,18 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 		return parts, err
 	}
 	current := s.currentPart()
-	current_version := current.Version()
-	target_version := s.proxy.us.available_version
+	currentVersion := current.Version()
+	targetVersion := s.proxy.us.availableVersion
 
-	if target_version == "" {
+	if targetVersion == "" {
 		// no newer version available
 		return parts, err
 	}
 
-	if VersionCompare(current_version, target_version) < 0 {
+	if VersionCompare(currentVersion, targetVersion) < 0 {
 		parts = append(parts, &SystemImagePart{
 			proxy:          s.proxy,
-			version:        target_version,
+			version:        targetVersion,
 			versionDetails: "?",
 			channelName:    current.(*SystemImagePart).channelName,
 			partition:      s.partition})
