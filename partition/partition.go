@@ -467,9 +467,10 @@ func (p *Partition) UpdateBootloader() (err error) {
 
 func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
 
-	bootloaders := []BootLoader{NewUboot(p), NewGrub(p)}
+	ctors := []func(*Partition)BootLoader{NewUboot, NewGrub}
 
-	for _, b := range bootloaders {
+	for _, f := range ctors {
+		b := f(p)
 		if b != nil {
 			return b, nil
 		}
