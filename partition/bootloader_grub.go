@@ -55,19 +55,16 @@ func (g *Grub) ToggleRootFS() (err error) {
 	other := g.partition.otherRootPartition()
 
 	// install grub
-	err = runInChroot(g.partition.MountTarget(), bootloaderGrubInstallCmd, other.parentName)
-	if err != nil {
+	if err := runInChroot(g.partition.MountTarget(), bootloaderGrubInstallCmd, other.parentName); err != nil {
 		return err
 	}
 
 	// create the grub config
-	err = runInChroot(g.partition.MountTarget(), bootloaderGrubUpdateCmd)
-	if err != nil {
+	if err := runInChroot(g.partition.MountTarget(), bootloaderGrubUpdateCmd); err != nil {
 		return err
 	}
 
-	err = g.SetBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry)
-	if err != nil {
+	if err := g.SetBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry); err != nil {
 		return err
 	}
 
