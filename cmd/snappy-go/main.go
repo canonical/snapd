@@ -18,7 +18,7 @@ func init() {
 // fixed errors the command can return
 var ErrRequiresRoot = errors.New("command requires sudo (root)")
 
-// Global snappy command-line options
+// Options represents the global snappy command-line options
 type Options struct {
 	// No global options yet
 }

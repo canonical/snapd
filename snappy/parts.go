@@ -10,6 +10,7 @@ var (
 
 type SnapType string
 
+// The various types of snap parts we support
 const (
 	SnapTypeApp       SnapType = "app"
 	SnapTypeCore      SnapType = "core"

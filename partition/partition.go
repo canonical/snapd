@@ -113,7 +113,9 @@ var bindMounts []string
 type MountOption int
 
 const (
+	// RO mounts the partition read-only
 	RO MountOption = iota
+	// RW mounts the partition read-only
 	RW
 )
 

@@ -37,7 +37,7 @@ go test ./...
 
 echo Running lint
 # FIXME: get rid of the "grep" below
-lint=$(golint ./...|grep -v "should have comment or be unexported")
+lint=$(golint ./...|grep -v "should have comment or be unexported"|grep -v "and that stutters")
 if [ -n "$lint" ]; then
     echo "Lint complains:"
     echo $lint
