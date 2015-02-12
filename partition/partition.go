@@ -298,12 +298,17 @@ func stringInSlice(slice []string, value string) int {
 	return -1
 }
 
-var runLsblk = func() (output []string, err error) {
-	return runCommandWithStdout(
+var runLsblk = func() (out []string, err error) {
+	output, err := runCommandWithStdout(
 		"/bin/lsblk",
 		"--ascii",
 		"--output=NAME,LABEL,PKNAME,MOUNTPOINT",
 		"--pairs")
+	if err != nil {
+		return out, err
+	}
+
+	return strings.Split(output, "\n"), nil
 }
 
 // Determine details of the recognised disk partitions

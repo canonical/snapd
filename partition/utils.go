@@ -61,27 +61,19 @@ func runCommandImpl(args ...string) (err error) {
 // This is a var instead of a function to making mocking in the tests easier
 var runCommand = runCommandImpl
 
-// Run command specified by args and return array of output lines.
-// FIXME: would it make sense to make this a vararg (args...) ?
-func runCommandWithStdout(args ...string) (output []string, err error) {
+// Run command specified by args and return the output
+func runCommandWithStdoutImpl(args ...string) (output string, err error) {
 	if len(args) == 0 {
-		return []string{}, errors.New("no command specified")
+		return "", errors.New("no command specified")
 	}
-
-	// FIXME: use logger
-	/*
-		if debug == true {
-
-			log.debug('running: {}'.format(args))
-		}
-	*/
 
 	bytes, err := exec.Command(args[0], args[1:]...).Output()
 	if err != nil {
-		return output, err
+		return "", err
 	}
 
-	output = strings.Split(string(bytes), "\n")
-
-	return output, err
+	return string(bytes), err
 }
+
+// This is a var instead of a function to making mocking in the tests easier
+var runCommandWithStdout = runCommandWithStdoutImpl
