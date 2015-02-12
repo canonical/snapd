@@ -488,7 +488,7 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 
 // Return true if the next boot will use the other rootfs
 // partition.
-func (p *Partition) NextBootIsOther(bootloader BootLoader) bool {
+func (p *Partition) NextBootIsOther() bool {
 	bootloader, err := p.GetBootloader()
 	if err != nil {
 		return false
