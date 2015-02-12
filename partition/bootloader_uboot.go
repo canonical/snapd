@@ -49,7 +49,7 @@ func NewUboot(partition *Partition) BootLoader {
 		return nil
 	}
 
-	b := NewBootLoader(partition)
+	b := newBootLoader(partition)
 	if b == nil {
 		return nil
 	}

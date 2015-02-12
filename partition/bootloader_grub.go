@@ -32,7 +32,7 @@ func NewGrub(partition *Partition) BootLoader {
 	if !fileExists(bootloaderGrubConfigFile) || !fileExists(bootloaderGrubInstallCmd) {
 		return nil
 	}
-	b := NewBootLoader(partition)
+	b := newBootLoader(partition)
 	if b == nil {
 		return nil
 	}
