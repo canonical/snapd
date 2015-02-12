@@ -38,12 +38,12 @@ type Uboot struct {
 }
 
 // Stores a Name and a Value to be added as a name=value pair in a file.
-type ConfigFileChange struct {
+type configFileChange struct {
 	Name  string
 	Value string
 }
 
-// Create a new Grub bootloader object
+// NewUboot create a new Grub bootloader object
 func NewUboot(partition *Partition) *Uboot {
 	if !fileExists(bootloaderUbootConfigFile) {
 		return nil
@@ -64,7 +64,7 @@ func (u *Uboot) Name() BootloaderName {
 	return BootloaderNameUboot
 }
 
-// Make the U-Boot bootloader switch rootfs's.
+// ToggleRootFS make the U-Boot bootloader switch rootfs's.
 //
 // Approach:
 //
@@ -81,11 +81,11 @@ func (u *Uboot) ToggleRootFS() (err error) {
 	// The file _should_ always exist, but since it's on a writable
 	// partition, it's possible the admin removed it by mistake. So
 	// recreate to allow the system to boot!
-	changes := []ConfigFileChange{
-		ConfigFileChange{Name: bootloaderRootfsVar,
+	changes := []configFileChange{
+		configFileChange{Name: bootloaderRootfsVar,
 			Value: string(u.otherRootfs),
 		},
-		ConfigFileChange{Name: bootloaderBootmodeVar,
+		configFileChange{Name: bootloaderBootmodeVar,
 			Value: bootloaderBootmodeTry,
 		},
 	}
@@ -229,8 +229,8 @@ func getNameValuePairs(file string) (vars []string, err error) {
 }
 
 func (u *Uboot) MarkCurrentBootSuccessful() (err error) {
-	changes := []ConfigFileChange{
-		ConfigFileChange{Name: bootloaderBootmodeVar,
+	changes := []configFileChange{
+		configFileChange{Name: bootloaderBootmodeVar,
 			Value: bootloaderBootmodeSuccess,
 		},
 	}
@@ -262,7 +262,7 @@ func (u *Uboot) HandleAssets() (err error) {
 		var dirs []string
 
 		// convert to slice
-		for dir, _ := range dirsToRemove {
+		for dir := range dirsToRemove {
 			dirs = append(dirs, dir)
 		}
 
@@ -303,7 +303,7 @@ func (u *Uboot) HandleAssets() (err error) {
 
 	destDir := u.otherBootPath
 
-	if err := os.MkdirAll(destDir, DIR_MODE); err != nil {
+	if err := os.MkdirAll(destDir, dirMode); err != nil {
 		return err
 	}
 
@@ -333,7 +333,7 @@ func (u *Uboot) HandleAssets() (err error) {
 	if fileExists(hardware.DtbDir) {
 		dtbDestDir := path.Join(destDir, "dtbs")
 
-		if err := os.MkdirAll(dtbDestDir, DIR_MODE); err != nil {
+		if err := os.MkdirAll(dtbDestDir, dirMode); err != nil {
 			return err
 		}
 
@@ -384,12 +384,12 @@ func atomicFileUpdate(file string, lines []string) (err error) {
 // Rewrite the specified file, applying the specified set of changes.
 // Lines not in the changes slice are left alone.
 // If the original file does not contain any of the name entries (from
-// the corresponding ConfigFileChange objects), those entries are
+// the corresponding configFileChange objects), those entries are
 // appended to the file.
 //
 // FIXME: put into utils package
-func modifyNameValueFile(file string, changes []ConfigFileChange) (err error) {
-	var updated []ConfigFileChange
+func modifyNameValueFile(file string, changes []configFileChange) (err error) {
+	var updated []configFileChange
 
 	lines, err := readLines(file)
 	if err != nil {
@@ -411,7 +411,7 @@ func modifyNameValueFile(file string, changes []ConfigFileChange) (err error) {
 	lines = new
 
 	for _, change := range changes {
-		var got bool = false
+		got := false
 		for _, update := range updated {
 			if update.Name == change.Name {
 				got = true

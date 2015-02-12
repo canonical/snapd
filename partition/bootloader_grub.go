@@ -27,7 +27,7 @@ type Grub struct {
 
 const BootloaderNameGrub BootloaderName = "grub"
 
-// Create a new Grub bootloader object
+// NewGrub create a new Grub bootloader object
 func NewGrub(partition *Partition) *Grub {
 	if !fileExists(bootloaderGrubConfigFile) || !fileExists(bootloaderGrubInstallCmd) {
 		return nil
@@ -47,7 +47,7 @@ func (g *Grub) Name() BootloaderName {
 	return BootloaderNameGrub
 }
 
-// Make the Grub bootloader switch rootfs's.
+// ToggleRootFS make the Grub bootloader switch rootfs's.
 //
 // Approach:
 //
@@ -112,6 +112,7 @@ func (g *Grub) SetBootVar(name, value string) (err error) {
 	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", arg)
 }
 
+// ClearBootVar clears a boot var
 // FIXME: not atomic - need locking around snappy command!
 func (g *Grub) ClearBootVar(name string) (currentValue string, err error) {
 	currentValue, err = g.GetBootVar(name)
