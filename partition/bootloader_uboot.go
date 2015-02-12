@@ -118,9 +118,8 @@ func (u *Uboot) GetBootVar(name string) (value string, err error) {
 }
 
 func (u *Uboot) SetBootVar(name, value string) (err error) {
-	var lines []string
-
-	if lines, err = readLines(bootloaderUbootEnvFile); err != nil {
+	lines, err := readLines(bootloaderUbootEnvFile)
+	if err != nil {
 		return err
 	}
 
@@ -133,11 +132,11 @@ func (u *Uboot) SetBootVar(name, value string) (err error) {
 
 func (u *Uboot) ClearBootVar(name string) (currentValue string, err error) {
 	var saved []string
-	var lines []string
 
 	// XXX: note that we do not call GetAllBootVars() since that
 	// strips all comments (which we want to retain).
-	if lines, err = readLines(bootloaderUbootEnvFile); err != nil {
+	lines, err := readLines(bootloaderUbootEnvFile)
+	if err != nil {
 		return currentValue, err
 	}
 
@@ -155,9 +154,8 @@ func (u *Uboot) ClearBootVar(name string) (currentValue string, err error) {
 }
 
 func (u *Uboot) GetNextBootRootFSName() (label string, err error) {
-	var value string
-
-	if value, err = u.GetBootVar(bootloaderRootfsVar); err != nil {
+	value, err := u.GetBootVar(bootloaderRootfsVar)
+	if err != nil {
 		// should never happen
 		return label, err
 	}
@@ -206,7 +204,7 @@ func writeLines(lines []string, path string) (err error) {
 	writer := bufio.NewWriter(file)
 
 	for _, line := range lines {
-		if _, err = fmt.Fprintln(writer, line); err != nil {
+		if _, err := fmt.Fprintln(writer, line); err != nil {
 			return err
 		}
 	}
@@ -216,9 +214,8 @@ func writeLines(lines []string, path string) (err error) {
 // Returns name=value entries from the specified file, removing all
 // blank lines and comments.
 func getNameValuePairs(file string) (vars []string, err error) {
-	var lines []string
-
-	if lines, err = readLines(file); err != nil {
+	lines, err := readLines(file)
+	if err != nil {
 		return vars, err
 	}
 
@@ -248,8 +245,7 @@ func (u *Uboot) MarkCurrentBootSuccessful() (err error) {
 		},
 	}
 
-	err = modifyNameValueFile(bootloaderUbootEnvFile, changes)
-	if err != nil {
+	if err := modifyNameValueFile(bootloaderUbootEnvFile, changes); err != nil {
 		return err
 	}
 
@@ -301,7 +297,7 @@ func (u *Uboot) HandleAssets() (err error) {
 	// validate
 	if hardware.Bootloader != u.Name() {
 		return fmt.Errorf(
-			"ERROR: bootloader is of type %s but hardware spec requires %s",
+			"bootloader is of type %s but hardware spec requires %s",
 			u.Name(),
 			hardware.Bootloader)
 	}
@@ -311,14 +307,13 @@ func (u *Uboot) HandleAssets() (err error) {
 	case "system-AB":
 		if !u.partition.dualRootPartitions() {
 			return fmt.Errorf(
-				"ERROR: hardware spec requires dual root partitions")
+				"hardware spec requires dual root partitions")
 		}
 	}
 
 	destDir := u.otherBootPath
 
-	err = os.MkdirAll(destDir, DIR_MODE)
-	if err != nil {
+	if err := os.MkdirAll(destDir, DIR_MODE); err != nil {
 		return err
 	}
 
@@ -339,8 +334,7 @@ func (u *Uboot) HandleAssets() (err error) {
 		dir := filepath.Dir(path)
 		dirsToRemove[dir] = 1
 
-		err = runCommand("/bin/cp", file, destDir)
-		if err != nil {
+		if err := runCommand("/bin/cp", file, destDir); err != nil {
 			return err
 		}
 	}
@@ -349,8 +343,7 @@ func (u *Uboot) HandleAssets() (err error) {
 	if fileExists(hardware.DtbDir) {
 		dtbDestDir := path.Join(destDir, "dtbs")
 
-		err = os.MkdirAll(dtbDestDir, DIR_MODE)
-		if err != nil {
+		if err := os.MkdirAll(dtbDestDir, DIR_MODE); err != nil {
 			return err
 		}
 
@@ -360,8 +353,7 @@ func (u *Uboot) HandleAssets() (err error) {
 		}
 
 		for _, file := range files {
-			err = runCommand("/bin/cp", file, dtbDestDir)
-			if err != nil {
+			if err := runCommand("/bin/cp", file, dtbDestDir); err != nil {
 				return err
 			}
 		}
@@ -374,8 +366,7 @@ func (u *Uboot) HandleAssets() (err error) {
 		// MLO + uImage files since they are not specified in
 		// the hardware spec. So for now, just remove them.
 
-		err = os.RemoveAll(flashAssetsDir)
-		if err != nil {
+		if err := os.RemoveAll(flashAssetsDir); err != nil {
 			return err
 		}
 	}
@@ -393,11 +384,11 @@ func atomicFileUpdate(file string, lines []string) (err error) {
 	}
 
 	// atomic update
-	if err = os.Rename(tmpFile, file); err != nil {
+	if err := os.Rename(tmpFile, file); err != nil {
 		return err
 	}
 
-	return err
+	return nil
 }
 
 // Rewrite the specified file, applying the specified set of changes.
@@ -408,10 +399,10 @@ func atomicFileUpdate(file string, lines []string) (err error) {
 //
 // FIXME: put into utils package
 func modifyNameValueFile(file string, changes []ConfigFileChange) (err error) {
-	var lines []string
 	var updated []ConfigFileChange
 
-	if lines, err = readLines(file); err != nil {
+	lines, err := readLines(file)
+	if err != nil {
 		return err
 	}
 
