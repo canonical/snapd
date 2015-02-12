@@ -2,9 +2,10 @@ package snappy
 
 // var instead of const to make it possible to override in the tests
 var (
-	snapAppsDir = "/apps"
-	snapOemDir  = "/oem"
-	snapDataDir = "/var/lib/apps"
+	snapAppsDir      = "/apps"
+	snapOemDir       = "/oem"
+	snapDataDir      = "/var/lib/apps"
+	snapDataHomeGlob = "/home/*/apps/"
 )
 
 type SnapType string
@@ -186,7 +187,7 @@ func FindSnapsByName(needle string, haystack []Part) (res []Part) {
 }
 
 // Return the part with the name/version in the given slice of parts
-func FindPartByNameAndVersion(needle, version string, haystack []Part) Part {
+func FindSnapByNameAndVersion(needle, version string, haystack []Part) Part {
 	for _, part := range haystack {
 		if part.Name() == needle && part.Version() == version {
 			return part
