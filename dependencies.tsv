@@ -1,6 +1,7 @@
 github.com/cheggaaa/pb	git	e8c7cc515bfde3e267957a3b110080ceed51354e	2014-12-02T07:01:21Z
-github.com/jessevdk/go-flags	git	1c87b9727cd7c200be13a5d8280d7ea514469235	2014-10-28T14:56:24Z
-github.com/mvo5/goconfigparser	git	fadf381f5212c1ef2d69df6e9bd856d0f7faa946	2015-01-26T10:52:31Z
-launchpad.net/go-dbus/v1	bzr	samuele.pedroni@canonical.com-20141120101654-fed9wci2tkz2ndc0	133
+github.com/jessevdk/go-flags	git	1679536dcc895411a9f5848d9a0250be7856448c	2014-12-03T07:11:32Z
+github.com/mvo5/goconfigparser	git	26426272dda20cc76aa1fa44286dc743d2972fe8	2015-02-12T09:37:50Z
+launchpad.net/go-dbus/v1	bzr	jlenton@gmail.com-20150203130125-kqqbam1jsp3tmlk5	136
 launchpad.net/gocheck	bzr	gustavo@niemeyer.net-20140225173054-xu9zlkf9kxhvow02	87
 launchpad.net/goyaml	bzr	gustavo@niemeyer.net-20140305200416-7gh64vkcckre5mob	51
+

@@ -1,6 +1,7 @@
 package partition
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -90,4 +91,21 @@ func (s *PartitionTestSuite) TestToggleRootFS(c *C) {
 	expectedGrubSet = singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_ab=b"}
 	c.Assert(allCommands[4], DeepEquals, expectedGrubSet)
 
+}
+
+func mockGrubEditenvList(cmd ...string) (string, error) {
+	mockGrubEditenvOutput := fmt.Sprintf("%s=default", bootloaderBootmodeVar)
+	return mockGrubEditenvOutput, nil
+}
+
+func (s *PartitionTestSuite) TestGetBootVer(c *C) {
+	s.makeFakeGrubEnv(c)
+	runCommandWithStdout = mockGrubEditenvList
+
+	partition := New()
+	g := NewGrub(partition)
+
+	v, err := g.GetBootVar(bootloaderBootmodeVar)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, "default")
 }

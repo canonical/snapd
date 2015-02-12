@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/mvo5/goconfigparser"
 )
 
 var (
@@ -96,25 +98,13 @@ func (u *Uboot) GetAllBootVars() (vars []string, err error) {
 }
 
 func (u *Uboot) GetBootVar(name string) (value string, err error) {
-
-	// FIXME: this looks like the implementation in bootloader_grub.go
-	var vars []string
-
-	vars, err = u.GetAllBootVars()
-
+	cfg := goconfigparser.New()
+	cfg.AllowNoSectionHeader = true
+	err = cfg.ReadFile(bootloaderUbootEnvFile)
 	if err != nil {
-		return value, err
+		return "", nil
 	}
-
-	for _, pair := range vars {
-		fields := strings.Split(string(pair), "=")
-
-		if fields[0] == name {
-			return fields[1], err
-		}
-	}
-
-	return value, err
+	return cfg.Get("", name)
 }
 
 func (u *Uboot) SetBootVar(name, value string) (err error) {

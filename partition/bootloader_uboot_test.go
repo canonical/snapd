@@ -9,7 +9,33 @@ import (
 )
 
 const fakeUbootEnvData = `
+# This is a snappy variables and boot logic file and is entirely generated and
+# managed by Snappy. Modifications may break boot
+######
+# functions to load kernel, initrd and fdt from various env values
+loadfiles=run loadkernel; run loadinitrd; run loadfdt
+loadkernel=load mmc ${mmcdev}:${mmcpart} ${loadaddr} ${snappy_ab}/${kernel_file}
+loadinitrd=load mmc ${mmcdev}:${mmcpart} ${initrd_addr} ${snappy_ab}/${initrd_file}; setenv initrd_size ${filesize}
+loadfdt=load mmc ${mmcdev}:${mmcpart} ${fdtaddr} ${snappy_ab}/dtbs/${fdtfile}
+
+# standard kernel and initrd file names; NB: fdtfile is set early from bootcmd
+kernel_file=vmlinuz
+initrd_file=initrd.img
+fdtfile=am335x-boneblack.dtb
+
+# extra kernel cmdline args, set via mmcroot
+snappy_cmdline=init=/lib/systemd/systemd ro panic=-1 fixrtc
+
+# boot logic
+# either "a" or "b"; target partition we want to boot
 snappy_ab=a
+# stamp file indicating a new version is being tried; removed by s-i after boot
+snappy_stamp=snappy-stamp.txt
+# either "regular" (normal boot) or "try" when trying a new version
+snappy_mode=default
+# if we're trying a new version, check if stamp file is already there to revert
+# to other version
+snappy_boot=if test "${snappy_mode}" = "try"; then if test -e mmc ${bootpart} ${snappy_stamp}; then if test "${snappy_ab}" = "a"; then setenv snappy_ab "b"; else setenv snappy_ab "a"; fi; else fatwrite mmc ${mmcdev}:${mmcpart} 0x0 ${snappy_stamp} 0; fi; fi; run loadfiles; setenv mmcroot /dev/disk/by-label/system-${snappy_ab} ${snappy_cmdline}; run mmcargs; bootz ${loadaddr} ${initrd_addr}:${initrd_size} ${fdtaddr}
 `
 
 func (s *PartitionTestSuite) makeFakeUbootEnv(c *C) {
@@ -82,4 +108,20 @@ func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
 
 	// ensure that nextBootIsOther works too
 	c.Assert(isNextBootOther(u), Equals, true)
+}
+
+func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	partition := New()
+	u := NewUboot(partition)
+	c.Assert(u, NotNil)
+
+	v, err := u.GetBootVar(bootloaderBootmodeVar)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, "default")
+
+	v, err = u.GetBootVar(bootloaderRootfsVar)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, "a")
 }
