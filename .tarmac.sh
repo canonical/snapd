@@ -16,6 +16,8 @@ fi
 
 echo Installing godeps
 go get launchpad.net/godeps
+echo Install golint
+go get github.com/golang/lint/golint
 export PATH=$PATH:$GOPATH/bin
 
 echo Obtaining dependencies
@@ -32,3 +34,6 @@ go build -v launchpad.net/snappy/...
 
 echo Running tests from $(pwd)
 go test ./...
+
+echo Running lint
+golint ./...
