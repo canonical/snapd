@@ -22,7 +22,7 @@ const (
 
 type bootloaderName string
 
-type BootLoader interface {
+type bootLoader interface {
 	// Name of the bootloader
 	Name() bootloaderName
 
@@ -109,7 +109,7 @@ func newBootloader(partition *Partition) *bootloaderType {
 
 // Return true if the next boot will use the other rootfs
 // partition.
-func isNextBootOther(bootloader BootLoader) bool {
+func isNextBootOther(bootloader bootLoader) bool {
 	value, err := bootloader.GetBootVar(bootloaderBootmodeVar)
 	if err != nil {
 		return false

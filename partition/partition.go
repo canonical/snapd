@@ -468,9 +468,9 @@ func (p *Partition) UpdateBootloader() (err error) {
 	return err
 }
 
-func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
+func (p *Partition) GetBootloader() (bootloader bootLoader, err error) {
 
-	bootloaders := []BootLoader{NewUboot(p), NewGrub(p)}
+	bootloaders := []bootLoader{NewUboot(p), NewGrub(p)}
 
 	for _, b := range bootloaders {
 		if b != nil {
