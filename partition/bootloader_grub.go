@@ -25,7 +25,7 @@ type Grub struct {
 	*BootLoaderType
 }
 
-const BootloaderNameGrub BootloaderName = "grub"
+const bootloaderNameGrub bootloaderName = "grub"
 
 // NewGrub create a new Grub bootloader object
 func NewGrub(partition *Partition) *Grub {
@@ -43,8 +43,8 @@ func NewGrub(partition *Partition) *Grub {
 	return g
 }
 
-func (g *Grub) Name() BootloaderName {
-	return BootloaderNameGrub
+func (g *Grub) Name() bootloaderName {
+	return bootloaderNameGrub
 }
 
 // ToggleRootFS make the Grub bootloader switch rootfs's.

@@ -20,11 +20,11 @@ const (
 	bootloaderBootmodeSuccess = "default"
 )
 
-type BootloaderName string
+type bootloaderName string
 
 type BootLoader interface {
 	// Name of the bootloader
-	Name() BootloaderName
+	Name() bootloaderName
 
 	// Switch bootloader configuration so that the "other" root
 	// filesystem partition will be used on next boot.

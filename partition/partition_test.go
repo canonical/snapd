@@ -60,7 +60,7 @@ func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
 	c.Assert(hw.Initrd, Equals, "assets/initrd.img")
 	c.Assert(hw.DtbDir, Equals, "assets/dtbs")
 	c.Assert(hw.PartitionLayout, Equals, "system-AB")
-	c.Assert(hw.Bootloader, Equals, BootloaderNameUboot)
+	c.Assert(hw.Bootloader, Equals, bootloaderNameUboot)
 }
 
 func mockRunLsblkDualSnappy() (output []string, err error) {

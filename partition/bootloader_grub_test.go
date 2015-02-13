@@ -42,7 +42,7 @@ func (s *PartitionTestSuite) TestNewGrub(c *C) {
 	partition := New()
 	g := NewGrub(partition)
 	c.Assert(g, NotNil)
-	c.Assert(g.Name(), Equals, BootloaderNameGrub)
+	c.Assert(g.Name(), Equals, bootloaderNameGrub)
 }
 
 func (s *PartitionTestSuite) TestNewGrubSinglePartition(c *C) {

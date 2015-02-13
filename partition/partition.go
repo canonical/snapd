@@ -162,7 +162,7 @@ type hardwareSpecType struct {
 	Initrd          string         `yaml:"initrd"`
 	DtbDir          string         `yaml:"dtbs"`
 	PartitionLayout string         `yaml:"partition-layout"`
-	Bootloader      BootloaderName `yaml:"bootloader"`
+	Bootloader      bootloaderName `yaml:"bootloader"`
 }
 
 func init() {
