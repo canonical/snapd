@@ -73,7 +73,7 @@ func NewInstalledSnapPart(yaml_path string) *SnapPart {
 
 	yaml_data, err := ioutil.ReadAll(r)
 	if err != nil {
-		log.Printf("Can not read '%s'", r)
+		log.Printf("Can not read '%v'", r)
 		return nil
 	}
 
@@ -354,7 +354,7 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 	case resp.StatusCode == 404:
 		return parts, RemoteSnapNotFoundError
 	case resp.StatusCode != 200:
-		return parts, fmt.Errorf("SnapUbuntuStoreRepository: unexpected http statusCode %i for %s", resp.StatusCode, snapName)
+		return parts, fmt.Errorf("SnapUbuntuStoreRepository: unexpected http statusCode %v for %s", resp.StatusCode, snapName)
 	}
 
 	// and decode json

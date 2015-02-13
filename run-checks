@@ -1,0 +1,34 @@
+#!/bin/sh
+
+set -e
+
+echo Checking formatting
+fmt=$(gofmt -l .)
+
+if [ -n "$fmt" ]; then
+    echo "Formatting wrong in following files"
+    echo $fmt
+    exit 1
+fi
+
+echo Installing godeps
+go get launchpad.net/godeps
+export PATH=$PATH:$GOPATH/bin
+
+echo Obtaining dependencies
+godeps -u dependencies.tsv
+
+
+
+echo Building
+go build -v launchpad.net/snappy/...
+
+
+# tests
+echo Running tests from $(pwd)
+go test ./...
+
+
+# go vet
+echo Running vet
+go vet ./...
