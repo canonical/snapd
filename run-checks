@@ -45,3 +45,5 @@ if [ -n "$lint" ]; then
     echo $lint
     exit 1
 fi
+
+echo "All good, what could possibly go wrong"
