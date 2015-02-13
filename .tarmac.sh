@@ -2,42 +2,13 @@
 
 set -ev
 
+# we always run in a fresh dir in tarmac
 export GOPATH=$(mktemp -d)
 trap 'rm -rf "$GOPATH"' EXIT
 
-echo Checking formatting
-fmt=$(gofmt -l .)
-
-if [ -n "$fmt" ]; then
-    echo "Formatting wrong in following files"
-    echo $fmt
-    exit 1
-fi
-
-echo Installing godeps
-go get launchpad.net/godeps
-export PATH=$PATH:$GOPATH/bin
-
-echo Obtaining dependencies
-godeps -u dependencies.tsv
-
 # this is a hack, but not sure tarmac is golang friendly
-mkdir $GOPATH/src/launchpad.net/snappy
-
-cp -r . $GOPATH/src/launchpad.net/snappy/
+mkdir -p $GOPATH/src/launchpad.net/snappy
+cp -a . $GOPATH/src/launchpad.net/snappy/
 cd $GOPATH/src/launchpad.net/snappy
 
-echo Building
-go build -v launchpad.net/snappy/...
-
-echo Running tests from $(pwd)
-go test ./...
-
-# "go vet" is also available via "apt install golang-go.tools"
-echo Checking if govet is available
-if ! go tool | grep vet; then
-  go get code.google.com/p/go.tools/cmd/vet
-fi
-
-echo Running vet
-go vet ./...
+./run-checks
