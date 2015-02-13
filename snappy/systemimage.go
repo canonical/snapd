@@ -39,6 +39,8 @@ const (
 	systemImageClientConfig = "/etc/system-image/client.ini"
 )
 
+// SystemImagePart represents a "core" snap that is managed via the SystemImage
+// client
 type SystemImagePart struct {
 	proxy *systemImageDBusProxy
 
@@ -52,22 +54,27 @@ type SystemImagePart struct {
 	partition partition.Interface
 }
 
+// Type returns SnapTypeCore for this snap
 func (s *SystemImagePart) Type() SnapType {
 	return SnapTypeCore
 }
 
+// Name returns the name
 func (s *SystemImagePart) Name() string {
 	return systemImagePartName
 }
 
+// Version returns the version
 func (s *SystemImagePart) Version() string {
 	return s.version
 }
 
+// Description returns the description
 func (s *SystemImagePart) Description() string {
 	return "ubuntu-core description"
 }
 
+// Hash returns the hash
 func (s *SystemImagePart) Hash() string {
 	hasher := sha256.New()
 	hasher.Write([]byte(s.versionDetails))
@@ -76,22 +83,27 @@ func (s *SystemImagePart) Hash() string {
 	return hexdigest
 }
 
+// IsActive returns true if the snap is active
 func (s *SystemImagePart) IsActive() bool {
 	return s.isActive
 }
 
+// IsInstalled returns true if the snap is installed
 func (s *SystemImagePart) IsInstalled() bool {
 	return s.isInstalled
 }
 
+// InstalledSize returns the size of the installed snap
 func (s *SystemImagePart) InstalledSize() int {
 	return -1
 }
 
+// DownloadSize returns the dowload size
 func (s *SystemImagePart) DownloadSize() int {
 	return -1
 }
 
+// SetActive sets the snap active
 func (s *SystemImagePart) SetActive() (err error) {
 	nextBootIsOther := s.partition.NextBootIsOther()
 	// active and no switch scheduled -> nothing to do
@@ -109,6 +121,7 @@ func (s *SystemImagePart) SetActive() (err error) {
 	return s.partition.UpdateBootloader()
 }
 
+// Install installs the snap
 func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	var updateProgress *SensibleWatch
 	if pb != nil {
@@ -157,14 +170,17 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	return err
 }
 
+// Uninstall can not be used for "core" snaps
 func (s *SystemImagePart) Uninstall() (err error) {
 	return errors.New("Uninstall of a core snap is not possible")
 }
 
+// Config is used to to configure the snap
 func (s *SystemImagePart) Config(configuration []byte) (err error) {
 	return err
 }
 
+// NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *SystemImagePart) NeedsReboot() bool {
 
 	if !s.IsActive() && s.partition.NextBootIsOther() {
@@ -174,14 +190,16 @@ func (s *SystemImagePart) NeedsReboot() bool {
 	return false
 }
 
-// MarkBootSuccessful marks the *currently* booted rootfs as "good" (it booted :)
+// MarkBootSuccessful marks the *currently* booted rootfs as "good"
+// (it booted :)
 // Note: Not part of the Part interface.
 func (s *SystemImagePart) MarkBootSuccessful() (err error) {
 
 	return s.partition.MarkBootSuccessful()
 }
-func (s *SystemImagePart) Channel() string {
 
+// Channel returns the system-image-server channel used
+func (s *SystemImagePart) Channel() string {
 	return s.channelName
 }
 
@@ -304,13 +322,15 @@ func (s *systemImageDBusProxy) GetSetting(key string) (v string, err error) {
 	return v, nil
 }
 
-// SensibleWatch is a workaround for go-dbus bug #1416352 makes this nesessary (so sad!)
+// SensibleWatch is a workaround for go-dbus bug #1416352 makes this
+// nesessary (so sad!)
 type SensibleWatch struct {
 	watch  *dbus.SignalWatch
 	C      chan *dbus.Message
 	closed bool
 }
 
+// Cancel cancels watching
 func (w *SensibleWatch) Cancel() {
 	w.watch.Cancel()
 }
@@ -430,6 +450,7 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 	return s.us, err
 }
 
+// SystemImageRepository is the type used for the system-image-server
 type SystemImageRepository struct {
 	proxy     *systemImageDBusProxy
 	partition partition.Interface
@@ -443,10 +464,12 @@ func newSystemImageRepositoryForBus(bus dbus.StandardBus) *SystemImageRepository
 		partition: newPartition()}
 }
 
+// NewSystemImageRepository returns a new SystemImageRepository
 func NewSystemImageRepository() *SystemImageRepository {
 	return newSystemImageRepositoryForBus(dbus.SystemBus)
 }
 
+// Description describes the repository
 func (s *SystemImageRepository) Description() string {
 	return "SystemImageRepository"
 }
@@ -511,6 +534,7 @@ func (s *SystemImageRepository) otherPart() Part {
 	return part
 }
 
+// Search searches the SystemImageRepository for the given terms
 func (s *SystemImageRepository) Search(terms string) (versions []Part, err error) {
 	if strings.Contains(terms, systemImagePartName) {
 		s.proxy.Information()
@@ -520,6 +544,7 @@ func (s *SystemImageRepository) Search(terms string) (versions []Part, err error
 	return versions, err
 }
 
+// Details returns details for the given snap
 func (s *SystemImageRepository) Details(snapName string) (versions []Part, err error) {
 	if snapName == systemImagePartName {
 		s.proxy.Information()
@@ -529,6 +554,7 @@ func (s *SystemImageRepository) Details(snapName string) (versions []Part, err e
 	return versions, err
 }
 
+// Updates returns the available updates
 func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 	if _, err = s.proxy.CheckForUpdate(); err != nil {
 		return parts, err
@@ -554,6 +580,7 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 	return parts, err
 }
 
+// Installed returns the installed snaps from this repository
 func (s *SystemImageRepository) Installed() (parts []Part, err error) {
 	// current partition
 	curr := s.currentPart()

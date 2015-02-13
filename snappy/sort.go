@@ -86,7 +86,8 @@ func getFragments(a string) []string {
 	return matches
 }
 
-// Returns true if the given string is a valid snap version number
+// VersionIsValid returns true if the given string is a valid snap
+// version number
 func VersionIsValid(a string) bool {
 	if matched, _ := regexp.MatchString(reHasEpoch, a); matched {
 		return false
