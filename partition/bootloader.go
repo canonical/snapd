@@ -87,7 +87,7 @@ type bootloaderType struct {
 	otherBootPath   string
 }
 
-func NewBootLoader(partition *Partition) *bootloaderType {
+func newBootloader(partition *Partition) *bootloaderType {
 	b := new(bootloaderType)
 
 	b.partition = partition
