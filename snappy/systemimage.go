@@ -369,7 +369,6 @@ func (s *systemImageDBusProxy) ApplyUpdate() (err error) {
 		break
 	case _ = <-s.updateFailed.C:
 		return errors.New("updateFailed")
-		break
 	}
 	return nil
 }
@@ -385,7 +384,6 @@ func (s *systemImageDBusProxy) DownloadUpdate() (err error) {
 		s.ApplyUpdate()
 	case _ = <-s.updateFailed.C:
 		return errors.New("downloadFailed")
-		break
 	}
 
 	return err
@@ -483,7 +481,7 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 	defer f.Close()
 	err = cfg.Read(f)
 	if err != nil {
-		log.Printf("Can not parse config '%s': err", path, err)
+		log.Printf("Can not parse config '%s': %s", path, err)
 		return part, err
 	}
 

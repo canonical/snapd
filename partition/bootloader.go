@@ -87,7 +87,21 @@ type bootloaderType struct {
 	otherBootPath   string
 }
 
-func newBootloader(partition *Partition) *bootloaderType {
+// Factory method that returns a new bootloader for the given partition
+func getBootloader(p *Partition) (bootloader bootLoader, err error) {
+	ctors := []func(*Partition) bootLoader{newUboot, newGrub}
+
+	for _, f := range ctors {
+		b := f(p)
+		if b != nil {
+			return b, nil
+		}
+	}
+
+	return nil, ErrBootloader
+}
+
+func newBootLoader(partition *Partition) *bootloaderType {
 	b := new(bootloaderType)
 
 	b.partition = partition

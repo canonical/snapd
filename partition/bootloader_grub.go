@@ -28,11 +28,11 @@ type grub struct {
 const bootloaderNameGrub bootloaderName = "grub"
 
 // newGrub create a new Grub bootloader object
-func newGrub(partition *Partition) *grub {
+func newGrub(partition *Partition) bootLoader {
 	if !fileExists(bootloaderGrubConfigFile) || !fileExists(bootloaderGrubInstallCmd) {
 		return nil
 	}
-	b := newBootloader(partition)
+	b := newBootLoader(partition)
 	if b == nil {
 		return nil
 	}

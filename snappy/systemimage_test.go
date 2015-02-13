@@ -96,7 +96,7 @@ func (s *DBusService) watchBus() {
 				reply.AppendArgs(ret[i].Interface())
 			}
 		default:
-			log.Println("unknown method call %v", msg)
+			log.Printf("unknown method call %v\n", msg)
 		}
 		if err := s.send(reply); err != nil {
 			log.Println("could not send reply:", err)

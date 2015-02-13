@@ -44,12 +44,12 @@ type configFileChange struct {
 }
 
 // newUboot create a new Grub bootloader object
-func newUboot(partition *Partition) *uboot {
+func newUboot(partition *Partition) bootLoader {
 	if !fileExists(bootloaderUbootConfigFile) {
 		return nil
 	}
 
-	b := newBootloader(partition)
+	b := newBootLoader(partition)
 	if b == nil {
 		return nil
 	}
