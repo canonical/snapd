@@ -34,7 +34,7 @@ var (
 const bootloaderNameUboot bootloaderName = "u-boot"
 
 type Uboot struct {
-	*BootLoaderType
+	*bootloaderType
 }
 
 // Stores a Name and a Value to be added as a name=value pair in a file.
@@ -53,7 +53,7 @@ func NewUboot(partition *Partition) *Uboot {
 	if b == nil {
 		return nil
 	}
-	u := Uboot{BootLoaderType: b}
+	u := Uboot{bootloaderType: b}
 	u.currentBootPath = path.Join(bootloaderUbootDir, u.currentRootfs)
 	u.otherBootPath = path.Join(bootloaderUbootDir, u.otherRootfs)
 

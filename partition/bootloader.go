@@ -74,7 +74,7 @@ type BootLoader interface {
 	MarkCurrentBootSuccessful() error
 }
 
-type BootLoaderType struct {
+type bootloaderType struct {
 	partition *Partition
 
 	// each rootfs partition has a corresponding u-boot directory named
@@ -87,8 +87,8 @@ type BootLoaderType struct {
 	otherBootPath   string
 }
 
-func NewBootLoader(partition *Partition) *BootLoaderType {
-	b := new(BootLoaderType)
+func NewBootLoader(partition *Partition) *bootloaderType {
+	b := new(bootloaderType)
 
 	b.partition = partition
 

@@ -22,7 +22,7 @@ var (
 )
 
 type Grub struct {
-	*BootLoaderType
+	*bootloaderType
 }
 
 const bootloaderNameGrub bootloaderName = "grub"
@@ -36,7 +36,7 @@ func NewGrub(partition *Partition) *Grub {
 	if b == nil {
 		return nil
 	}
-	g := &Grub{BootLoaderType: b}
+	g := &Grub{bootloaderType: b}
 	g.currentBootPath = bootloaderGrubDir
 	g.otherBootPath = g.currentBootPath
 
