@@ -451,7 +451,7 @@ func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (e
 }
 
 func (p *Partition) SyncBootloaderFiles() (err error) {
-	bootloader, err := p.GetBootloader()
+	bootloader, err := getBootloader(p)
 	if err != nil {
 		return err
 	}
@@ -465,21 +465,8 @@ func (p *Partition) UpdateBootloader() (err error) {
 	return err
 }
 
-func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
-
-	bootloaders := []BootLoader{NewUboot(p), NewGrub(p)}
-
-	for _, b := range bootloaders {
-		if b != nil {
-			return b, nil
-		}
-	}
-
-	return nil, BootloaderError
-}
-
 func (p *Partition) MarkBootSuccessful() (err error) {
-	bootloader, err := p.GetBootloader()
+	bootloader, err := getBootloader(p)
 	if err != nil {
 		return err
 	}
@@ -490,7 +477,7 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 // Return true if the next boot will use the other rootfs
 // partition.
 func (p *Partition) NextBootIsOther() bool {
-	bootloader, err := p.GetBootloader()
+	bootloader, err := getBootloader(p)
 	if err != nil {
 		return false
 	}
@@ -723,7 +710,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return errors.New("System is not dual root")
 	}
 
-	bootloader, err := p.GetBootloader()
+	bootloader, err := getBootloader(p)
 	if err != nil {
 		return err
 	}
