@@ -53,6 +53,8 @@ const (
 // var to make it testable
 var clickSystemHooksDir = "/usr/share/click/hooks"
 
+// InstallFlags can be used to pass additional flags to the install of a
+// snap
 type InstallFlags uint
 
 const (
