@@ -490,7 +490,7 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 	return bootloader.MarkCurrentBootSuccessful()
 }
 
-// NextBootIsOther return true if the next boot will use the other rootfs
+// IsNextBootOther return true if the next boot will use the other rootfs
 // partition.
 func (p *Partition) IsNextBootOther() bool {
 	bootloader, err := getBootloader(p)
