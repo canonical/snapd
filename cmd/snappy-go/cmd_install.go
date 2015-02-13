@@ -6,21 +6,20 @@ import (
 	"launchpad.net/snappy/snappy"
 )
 
-type CmdInstall struct {
+type cmdInstall struct {
 }
 
-var cmdInstall CmdInstall
-
 func init() {
-	cmd, _ := Parser.AddCommand("install",
+	var cmdInstallData cmdInstall
+	cmd, _ := parser.AddCommand("install",
 		"Install a snap package",
 		"Install a snap package",
-		&cmdInstall)
+		&cmdInstallData)
 
 	cmd.Aliases = append(cmd.Aliases, "in")
 }
 
-func (x *CmdInstall) Execute(args []string) (err error) {
+func (x *cmdInstall) Execute(args []string) (err error) {
 	if !isRoot() {
 		return ErrRequiresRoot
 	}

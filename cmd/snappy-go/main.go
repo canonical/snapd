@@ -8,6 +8,17 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
+// fixed errors the command can return
+var ErrRequiresRoot = errors.New("command requires sudo (root)")
+
+type options struct {
+	// No global options yet
+}
+
+var optionsData options
+
+var parser = flags.NewParser(&optionsData, flags.Default)
+
 func init() {
 	if os.Getenv("SNAPPY_DEBUG") != "" {
 		// FIXME: need a global logger!
@@ -15,20 +26,8 @@ func init() {
 	}
 }
 
-// fixed errors the command can return
-var ErrRequiresRoot = errors.New("command requires sudo (root)")
-
-// Options represents the global snappy command-line options
-type Options struct {
-	// No global options yet
-}
-
-var options Options
-
-var Parser = flags.NewParser(&options, flags.Default)
-
 func main() {
-	if _, err := Parser.Parse(); err != nil {
+	if _, err := parser.Parse(); err != nil {
 		os.Exit(1)
 	}
 }

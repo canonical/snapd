@@ -2,19 +2,18 @@ package main
 
 import "launchpad.net/snappy/snappy"
 
-type CmdBooted struct {
+type cmdBooted struct {
 }
-
-var cmdBooted CmdBooted
 
 func init() {
-	Parser.AddCommand("booted",
+	var cmdBootedData cmdBooted
+	parser.AddCommand("booted",
 		"Flag that rootfs booted successfully",
 		"Not necessary to run this command manually",
-		&cmdBooted)
+		&cmdBootedData)
 }
 
-func (x *CmdBooted) Execute(args []string) (err error) {
+func (x *cmdBooted) Execute(args []string) (err error) {
 	if !isRoot() {
 		return ErrRequiresRoot
 	}

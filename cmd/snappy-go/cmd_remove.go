@@ -6,19 +6,18 @@ import (
 	"launchpad.net/snappy/snappy"
 )
 
-type CmdRemove struct {
+type cmdRemove struct {
 }
-
-var cmdRemove CmdRemove
 
 func init() {
-	_, _ = Parser.AddCommand("remove",
+	var cmdRemoveData cmdRemove
+	_, _ = parser.AddCommand("remove",
 		"Remove a snapp part",
 		"Remove a snapp part",
-		&cmdRemove)
+		&cmdRemoveData)
 }
 
-func (x *CmdRemove) Execute(args []string) (err error) {
+func (x *cmdRemove) Execute(args []string) (err error) {
 	if !isRoot() {
 		return ErrRequiresRoot
 	}
