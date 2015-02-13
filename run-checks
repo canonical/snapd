@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -e
+set -ev
 
 echo Checking formatting
 fmt=$(gofmt -l .)
@@ -13,6 +13,10 @@ fi
 
 echo Installing godeps
 go get launchpad.net/godeps
+export PATH=$PATH:$GOPATH/bin
+
+echo Install golint
+go get github.com/golang/lint/golint
 export PATH=$PATH:$GOPATH/bin
 
 echo Obtaining dependencies
@@ -32,3 +36,12 @@ go test ./...
 # go vet
 echo Running vet
 go vet ./...
+
+# golint
+echo Running lint
+lint=$(golint ./...)
+if [ -n "$lint" ]; then
+    echo "Lint complains:"
+    echo $lint
+    exit 1
+fi

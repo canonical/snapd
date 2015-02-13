@@ -25,6 +25,7 @@ var setFuncs = map[string]func(k, v string) error{
 	"active": setActive,
 }
 
+// SetProperty sets a system property from the args list
 func SetProperty(args []string) (err error) {
 	if len(args) < 1 {
 		return fmt.Errorf("Need at least one argument for set")
