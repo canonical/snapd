@@ -72,11 +72,15 @@ const mountTarget = "system"
 const dirMode = 0750
 
 var (
+	// ErrBootloader is returned if the bootloader can not be determined
 	ErrBootloader = errors.New("Unable to determine bootloader")
 
-	ErrPartitionQuery     = errors.New("Failed to query partitions")
+	// ErrPartitionDetection is returned if the partition type can not
+	// be detected
 	ErrPartitionDetection = errors.New("Failed to detect system type")
 
+	// ErrNoDualPartition is returned if you try to use a dual
+	// partition feature on a single partition
 	ErrNoDualPartition = errors.New("No dual partition")
 )
 
@@ -110,6 +114,8 @@ var bindMounts []string
 
 //--------------------------------------------------------------------
 
+// MountOption represents how the partition should be mounted, currently
+// RO (read-only) and RW (read-write) are supported
 type MountOption int
 
 const (
@@ -119,6 +125,7 @@ const (
 	RW
 )
 
+// Interface provides the interface to interact with a partition
 type Interface interface {
 	UpdateBootloader() (err error)
 	MarkBootSuccessful() (err error)
@@ -131,6 +138,7 @@ type Interface interface {
 	RunWithOther(rw MountOption, f func(otherRoot string) (err error)) (err error)
 }
 
+// Partition is the type to interact with the partition
 type Partition struct {
 	// all partitions
 	partitions []blockDevice
@@ -453,14 +461,18 @@ func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (e
 	return err
 }
 
+// SyncBootloaderFiles syncs the bootloader files
+// FIXME: can we unexport this?
 func (p *Partition) SyncBootloaderFiles() (err error) {
-	bootloader, err := p.GetBootloader()
+	bootloader, err := p.getBootloader()
 	if err != nil {
 		return err
 	}
 	return bootloader.SyncBootFiles()
 }
 
+// UpdateBootloader toggles the bootloader and should probably called
+// ToggleBootloader
 func (p *Partition) UpdateBootloader() (err error) {
 	if p.dualRootPartitions() {
 		return p.toggleBootloaderRootfs()
@@ -468,9 +480,9 @@ func (p *Partition) UpdateBootloader() (err error) {
 	return err
 }
 
-func (p *Partition) GetBootloader() (bootloader bootLoader, err error) {
+func (p *Partition) getBootloader() (bootloader bootLoader, err error) {
 
-	bootloaders := []bootLoader{NewUboot(p), NewGrub(p)}
+	bootloaders := []bootLoader{newUboot(p), newGrub(p)}
 
 	for _, b := range bootloaders {
 		if b != nil {
@@ -481,8 +493,9 @@ func (p *Partition) GetBootloader() (bootloader bootLoader, err error) {
 	return nil, ErrBootloader
 }
 
+// MarkBootSuccessful marks this boot as successful
 func (p *Partition) MarkBootSuccessful() (err error) {
-	bootloader, err := p.GetBootloader()
+	bootloader, err := p.getBootloader()
 	if err != nil {
 		return err
 	}
@@ -493,7 +506,7 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 // NextBootIsOther return true if the next boot will use the other rootfs
 // partition.
 func (p *Partition) NextBootIsOther() bool {
-	bootloader, err := p.GetBootloader()
+	bootloader, err := p.getBootloader()
 	if err != nil {
 		return false
 	}
@@ -725,7 +738,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return errors.New("System is not dual root")
 	}
 
-	bootloader, err := p.GetBootloader()
+	bootloader, err := p.getBootloader()
 	if err != nil {
 		return err
 	}

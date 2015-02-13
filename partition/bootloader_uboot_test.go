@@ -54,7 +54,7 @@ func (s *PartitionTestSuite) makeFakeUbootEnv(c *C) {
 
 func (s *PartitionTestSuite) TestNewUbootNoUbootReturnsNil(c *C) {
 	partition := New()
-	u := NewUboot(partition)
+	u := newUboot(partition)
 	c.Assert(u, IsNil)
 }
 
@@ -62,7 +62,7 @@ func (s *PartitionTestSuite) TestNewUboot(c *C) {
 	s.makeFakeUbootEnv(c)
 
 	partition := New()
-	u := NewUboot(partition)
+	u := newUboot(partition)
 	c.Assert(u, NotNil)
 	c.Assert(u.Name(), Equals, bootloaderNameUboot)
 }
@@ -72,7 +72,7 @@ func (s *PartitionTestSuite) TestNewUbootSinglePartition(c *C) {
 	s.makeFakeUbootEnv(c)
 
 	partition := New()
-	u := NewUboot(partition)
+	u := newUboot(partition)
 	c.Assert(u, IsNil)
 }
 
@@ -80,7 +80,7 @@ func (s *PartitionTestSuite) TestUbootGetBootVar(c *C) {
 	s.makeFakeUbootEnv(c)
 
 	partition := New()
-	u := NewUboot(partition)
+	u := newUboot(partition)
 
 	nextBoot, err := u.GetBootVar(bootloaderRootfsVar)
 	c.Assert(err, IsNil)
@@ -96,7 +96,7 @@ func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
 	s.makeFakeUbootEnv(c)
 
 	partition := New()
-	u := NewUboot(partition)
+	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
 	err := u.ToggleRootFS()
@@ -114,7 +114,7 @@ func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
 	s.makeFakeUbootEnv(c)
 
 	partition := New()
-	u := NewUboot(partition)
+	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
 	v, err := u.GetBootVar(bootloaderBootmodeVar)

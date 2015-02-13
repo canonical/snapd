@@ -33,7 +33,7 @@ var (
 
 const bootloaderNameUboot bootloaderName = "u-boot"
 
-type Uboot struct {
+type uboot struct {
 	*bootloaderType
 }
 
@@ -43,8 +43,8 @@ type configFileChange struct {
 	Value string
 }
 
-// NewUboot create a new Grub bootloader object
-func NewUboot(partition *Partition) *Uboot {
+// newUboot create a new Grub bootloader object
+func newUboot(partition *Partition) *uboot {
 	if !fileExists(bootloaderUbootConfigFile) {
 		return nil
 	}
@@ -53,14 +53,14 @@ func NewUboot(partition *Partition) *Uboot {
 	if b == nil {
 		return nil
 	}
-	u := Uboot{bootloaderType: b}
+	u := uboot{bootloaderType: b}
 	u.currentBootPath = path.Join(bootloaderUbootDir, u.currentRootfs)
 	u.otherBootPath = path.Join(bootloaderUbootDir, u.otherRootfs)
 
 	return &u
 }
 
-func (u *Uboot) Name() bootloaderName {
+func (u *uboot) Name() bootloaderName {
 	return bootloaderNameUboot
 }
 
@@ -74,7 +74,7 @@ func (u *Uboot) Name() bootloaderName {
 // - Copy the "other" rootfs's kernel+initrd to the boot partition,
 //   renaming them in the process to ensure the next boot uses the
 //   correct versions.
-func (u *Uboot) ToggleRootFS() (err error) {
+func (u *uboot) ToggleRootFS() (err error) {
 
 	// If the file exists, update it. Otherwise create it.
 	//
@@ -93,11 +93,11 @@ func (u *Uboot) ToggleRootFS() (err error) {
 	return modifyNameValueFile(bootloaderUbootEnvFile, changes)
 }
 
-func (u *Uboot) GetAllBootVars() (vars []string, err error) {
+func (u *uboot) GetAllBootVars() (vars []string, err error) {
 	return getNameValuePairs(bootloaderUbootEnvFile)
 }
 
-func (u *Uboot) GetBootVar(name string) (value string, err error) {
+func (u *uboot) GetBootVar(name string) (value string, err error) {
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
 	if err := cfg.ReadFile(bootloaderUbootEnvFile); err != nil {
@@ -107,7 +107,7 @@ func (u *Uboot) GetBootVar(name string) (value string, err error) {
 	return cfg.Get("", name)
 }
 
-func (u *Uboot) SetBootVar(name, value string) (err error) {
+func (u *uboot) SetBootVar(name, value string) (err error) {
 	lines, err := readLines(bootloaderUbootEnvFile)
 	if err != nil {
 		return err
@@ -120,7 +120,7 @@ func (u *Uboot) SetBootVar(name, value string) (err error) {
 	return atomicFileUpdate(bootloaderUbootEnvFile, lines)
 }
 
-func (u *Uboot) ClearBootVar(name string) (currentValue string, err error) {
+func (u *uboot) ClearBootVar(name string) (currentValue string, err error) {
 	var saved []string
 
 	// XXX: note that we do not call GetAllBootVars() since that
@@ -143,7 +143,7 @@ func (u *Uboot) ClearBootVar(name string) (currentValue string, err error) {
 	return currentValue, atomicFileUpdate(bootloaderUbootEnvFile, saved)
 }
 
-func (u *Uboot) GetNextBootRootFSName() (label string, err error) {
+func (u *uboot) GetNextBootRootFSName() (label string, err error) {
 	value, err := u.GetBootVar(bootloaderRootfsVar)
 	if err != nil {
 		// should never happen
@@ -153,11 +153,11 @@ func (u *Uboot) GetNextBootRootFSName() (label string, err error) {
 	return value, err
 }
 
-func (u *Uboot) GetRootFSName() string {
+func (u *uboot) GetRootFSName() string {
 	return u.currentRootfs
 }
 
-func (u *Uboot) GetOtherRootFSName() string {
+func (u *uboot) GetOtherRootFSName() string {
 	return u.otherRootfs
 }
 
@@ -228,7 +228,7 @@ func getNameValuePairs(file string) (vars []string, err error) {
 	return vars, err
 }
 
-func (u *Uboot) MarkCurrentBootSuccessful() (err error) {
+func (u *uboot) MarkCurrentBootSuccessful() (err error) {
 	changes := []configFileChange{
 		configFileChange{Name: bootloaderBootmodeVar,
 			Value: bootloaderBootmodeSuccess,
@@ -242,7 +242,7 @@ func (u *Uboot) MarkCurrentBootSuccessful() (err error) {
 	return os.RemoveAll(bootloaderUbootStampFile)
 }
 
-func (u *Uboot) SyncBootFiles() (err error) {
+func (u *uboot) SyncBootFiles() (err error) {
 	srcDir := u.currentBootPath
 	destDir := u.otherBootPath
 
@@ -252,7 +252,7 @@ func (u *Uboot) SyncBootFiles() (err error) {
 	return runCommand("/bin/cp", "-a", srcDir, destDir)
 }
 
-func (u *Uboot) HandleAssets() (err error) {
+func (u *uboot) HandleAssets() (err error) {
 
 	var dirsToRemove map[string]int
 
