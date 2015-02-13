@@ -93,10 +93,6 @@ func (u *uboot) ToggleRootFS() (err error) {
 	return modifyNameValueFile(bootloaderUbootEnvFile, changes)
 }
 
-func (u *uboot) GetAllBootVars() (vars []string, err error) {
-	return getNameValuePairs(bootloaderUbootEnvFile)
-}
-
 func (u *uboot) GetBootVar(name string) (value string, err error) {
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
@@ -105,42 +101,6 @@ func (u *uboot) GetBootVar(name string) (value string, err error) {
 	}
 
 	return cfg.Get("", name)
-}
-
-func (u *uboot) SetBootVar(name, value string) (err error) {
-	lines, err := readLines(bootloaderUbootEnvFile)
-	if err != nil {
-		return err
-	}
-
-	new := fmt.Sprintf("%s=%s", name, value)
-	lines = append(lines, new)
-
-	// Rewrite the file
-	return atomicFileUpdate(bootloaderUbootEnvFile, lines)
-}
-
-func (u *uboot) ClearBootVar(name string) (currentValue string, err error) {
-	var saved []string
-
-	// XXX: note that we do not call GetAllBootVars() since that
-	// strips all comments (which we want to retain).
-	lines, err := readLines(bootloaderUbootEnvFile)
-	if err != nil {
-		return currentValue, err
-	}
-
-	for _, line := range lines {
-		fields := strings.Split(string(line), "=")
-		if fields[0] == name {
-			currentValue = fields[1]
-		} else {
-			saved = append(saved, line)
-		}
-	}
-
-	// Rewrite the file, excluding the name to clear
-	return currentValue, atomicFileUpdate(bootloaderUbootEnvFile, saved)
 }
 
 func (u *uboot) GetNextBootRootFSName() (label string, err error) {

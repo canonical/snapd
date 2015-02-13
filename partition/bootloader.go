@@ -39,18 +39,8 @@ type bootLoader interface {
 	// downloaded.
 	HandleAssets() error
 
-	// Retrieve a list of all bootloader name=value pairs set
-	// by this program.
-	GetAllBootVars() ([]string, error)
-
 	// Return the value of the specified bootloader variable
 	GetBootVar(name string) (string, error)
-
-	// Set the variable specified by name to the given value
-	SetBootVar(name, value string) error
-
-	// Remove the specified variable
-	ClearBootVar(name string) (currentValue string, err error)
 
 	// Return the 1-character name corresponding to the
 	// rootfs currently being used.

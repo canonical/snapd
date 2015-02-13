@@ -6,7 +6,6 @@ package partition
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -68,23 +67,14 @@ func (g *grub) ToggleRootFS() (err error) {
 		return err
 	}
 
-	if err := g.SetBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry); err != nil {
+	if err := g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry); err != nil {
 		return err
 	}
 
 	// Record the partition that will be used for next boot. This
 	// isn't necessary for correct operation under grub, but allows
 	// us to query the next boot device easily.
-	return g.SetBootVar(bootloaderRootfsVar, g.otherRootfs)
-}
-
-func (g *grub) GetAllBootVars() (vars []string, err error) {
-	output, err := runCommandWithStdout(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "list")
-	if err != nil {
-		return nil, err
-	}
-
-	return strings.Split(output, "\n"), nil
+	return g.setBootVar(bootloaderRootfsVar, g.otherRootfs)
 }
 
 func (g *grub) GetBootVar(name string) (value string, err error) {
@@ -104,23 +94,12 @@ func (g *grub) GetBootVar(name string) (value string, err error) {
 	return cfg.Get("", name)
 }
 
-func (g *grub) SetBootVar(name, value string) (err error) {
+func (g *grub) setBootVar(name, value string) (err error) {
 	// note that strings are not quoted since because
 	// RunCommand() does not use a shell and thus adding quotes
 	// stores them in the environment file (which is not desirable)
 	arg := fmt.Sprintf("%s=%s", name, value)
 	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", arg)
-}
-
-// ClearBootVar clears a boot var
-// FIXME: not atomic - need locking around snappy command!
-func (g *grub) ClearBootVar(name string) (currentValue string, err error) {
-	currentValue, err = g.GetBootVar(name)
-	if err != nil {
-		return currentValue, err
-	}
-
-	return currentValue, runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "unset", name)
 }
 
 func (g *grub) GetNextBootRootFSName() (label string, err error) {
@@ -136,7 +115,7 @@ func (g *grub) GetOtherRootFSName() string {
 }
 
 func (g *grub) MarkCurrentBootSuccessful() (err error) {
-	return g.SetBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
+	return g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
 }
 
 func (g *grub) SyncBootFiles() (err error) {

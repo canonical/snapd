@@ -333,7 +333,7 @@ func (p *MockPartition) SyncBootloaderFiles() (err error) {
 	p.syncBootloaderFilesCalled = true
 	return nil
 }
-func (p *MockPartition) NextBootIsOther() bool {
+func (p *MockPartition) IsNextBootOther() bool {
 	return false
 }
 
