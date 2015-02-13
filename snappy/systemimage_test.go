@@ -223,7 +223,7 @@ func (s *SITestSuite) TearDownSuite(c *C) {
 }
 
 func (s *SITestSuite) SetUpTest(c *C) {
-	newPartition = func() (p partition.PartitionInterface) {
+	newPartition = func() (p partition.Interface) {
 		return new(MockPartition)
 	}
 

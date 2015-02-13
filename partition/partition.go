@@ -119,7 +119,7 @@ const (
 	RW
 )
 
-type PartitionInterface interface {
+type Interface interface {
 	UpdateBootloader() (err error)
 	MarkBootSuccessful() (err error)
 	// FIXME: could we make SyncBootloaderFiles part of UpdateBootloader

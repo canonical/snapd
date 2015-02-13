@@ -33,7 +33,7 @@ var _ = Suite(&SnapTestSuite{})
 
 func (s *SnapTestSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
-	newPartition = func() (p partition.PartitionInterface) {
+	newPartition = func() (p partition.Interface) {
 		return new(MockPartition)
 	}
 

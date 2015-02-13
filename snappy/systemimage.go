@@ -49,7 +49,7 @@ type SystemImagePart struct {
 	isInstalled bool
 	isActive    bool
 
-	partition partition.PartitionInterface
+	partition partition.Interface
 }
 
 func (s *SystemImagePart) Type() SnapType {
@@ -201,7 +201,7 @@ type systemImageInfo map[string]string
 type systemImageDBusProxy struct {
 	proxy      *dbus.ObjectProxy
 	connection *dbus.Connection
-	partition  partition.PartitionInterface
+	partition  partition.Interface
 
 	// the update status
 	us updateStatus
@@ -215,7 +215,7 @@ type systemImageDBusProxy struct {
 
 // this functions only exists to make testing easier, i.e. the testsuite
 // will replace newPartition() to return a mockPartition
-var newPartition = func() (p partition.PartitionInterface) {
+var newPartition = func() (p partition.Interface) {
 	return partition.New()
 }
 
@@ -432,7 +432,7 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 
 type SystemImageRepository struct {
 	proxy     *systemImageDBusProxy
-	partition partition.PartitionInterface
+	partition partition.Interface
 	myroot    string
 }
 
