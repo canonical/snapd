@@ -33,5 +33,11 @@ go build -v launchpad.net/snappy/...
 echo Running tests from $(pwd)
 go test ./...
 
+# "go vet" is also available via "apt install golang-go.tools"
+echo Checking if govet is available
+if ! go tool | grep vet; then
+  go get code.google.com/p/go.tools/cmd/vet
+fi
+
 echo Running vet
 go vet ./...
