@@ -480,6 +480,7 @@ func (p *Partition) UpdateBootloader() (err error) {
 	return err
 }
 
+// MarkBootSuccessful marks the boot as successful
 func (p *Partition) MarkBootSuccessful() (err error) {
 	bootloader, err := getBootloader(p)
 	if err != nil {
