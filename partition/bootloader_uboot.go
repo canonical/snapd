@@ -31,40 +31,40 @@ var (
 	bootloaderUbootEnvFile = "/boot/uboot/snappy-system.txt"
 )
 
-const BootloaderNameUboot BootloaderName = "u-boot"
+const bootloaderNameUboot bootloaderName = "u-boot"
 
-type Uboot struct {
-	*BootLoaderType
+type uboot struct {
+	*bootloaderType
 }
 
 // Stores a Name and a Value to be added as a name=value pair in a file.
-type ConfigFileChange struct {
+type configFileChange struct {
 	Name  string
 	Value string
 }
 
-// Create a new Grub bootloader object
-func NewUboot(partition *Partition) *Uboot {
+// newUboot create a new Grub bootloader object
+func newUboot(partition *Partition) bootLoader {
 	if !fileExists(bootloaderUbootConfigFile) {
 		return nil
 	}
 
-	b := NewBootLoader(partition)
+	b := newBootLoader(partition)
 	if b == nil {
 		return nil
 	}
-	u := Uboot{BootLoaderType: b}
+	u := uboot{bootloaderType: b}
 	u.currentBootPath = path.Join(bootloaderUbootDir, u.currentRootfs)
 	u.otherBootPath = path.Join(bootloaderUbootDir, u.otherRootfs)
 
 	return &u
 }
 
-func (u *Uboot) Name() BootloaderName {
-	return BootloaderNameUboot
+func (u *uboot) Name() bootloaderName {
+	return bootloaderNameUboot
 }
 
-// Make the U-Boot bootloader switch rootfs's.
+// ToggleRootFS make the U-Boot bootloader switch rootfs's.
 //
 // Approach:
 //
@@ -74,18 +74,18 @@ func (u *Uboot) Name() BootloaderName {
 // - Copy the "other" rootfs's kernel+initrd to the boot partition,
 //   renaming them in the process to ensure the next boot uses the
 //   correct versions.
-func (u *Uboot) ToggleRootFS() (err error) {
+func (u *uboot) ToggleRootFS() (err error) {
 
 	// If the file exists, update it. Otherwise create it.
 	//
 	// The file _should_ always exist, but since it's on a writable
 	// partition, it's possible the admin removed it by mistake. So
 	// recreate to allow the system to boot!
-	changes := []ConfigFileChange{
-		ConfigFileChange{Name: bootloaderRootfsVar,
+	changes := []configFileChange{
+		configFileChange{Name: bootloaderRootfsVar,
 			Value: string(u.otherRootfs),
 		},
-		ConfigFileChange{Name: bootloaderBootmodeVar,
+		configFileChange{Name: bootloaderBootmodeVar,
 			Value: bootloaderBootmodeTry,
 		},
 	}
@@ -93,7 +93,7 @@ func (u *Uboot) ToggleRootFS() (err error) {
 	return modifyNameValueFile(bootloaderUbootEnvFile, changes)
 }
 
-func (u *Uboot) GetBootVar(name string) (value string, err error) {
+func (u *uboot) GetBootVar(name string) (value string, err error) {
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
 	if err := cfg.ReadFile(bootloaderUbootEnvFile); err != nil {
@@ -103,7 +103,7 @@ func (u *Uboot) GetBootVar(name string) (value string, err error) {
 	return cfg.Get("", name)
 }
 
-func (u *Uboot) GetNextBootRootFSName() (label string, err error) {
+func (u *uboot) GetNextBootRootFSName() (label string, err error) {
 	value, err := u.GetBootVar(bootloaderRootfsVar)
 	if err != nil {
 		// should never happen
@@ -113,11 +113,11 @@ func (u *Uboot) GetNextBootRootFSName() (label string, err error) {
 	return value, err
 }
 
-func (u *Uboot) GetRootFSName() string {
+func (u *uboot) GetRootFSName() string {
 	return u.currentRootfs
 }
 
-func (u *Uboot) GetOtherRootFSName() string {
+func (u *uboot) GetOtherRootFSName() string {
 	return u.otherRootfs
 }
 
@@ -188,9 +188,9 @@ func getNameValuePairs(file string) (vars []string, err error) {
 	return vars, err
 }
 
-func (u *Uboot) MarkCurrentBootSuccessful() (err error) {
-	changes := []ConfigFileChange{
-		ConfigFileChange{Name: bootloaderBootmodeVar,
+func (u *uboot) MarkCurrentBootSuccessful() (err error) {
+	changes := []configFileChange{
+		configFileChange{Name: bootloaderBootmodeVar,
 			Value: bootloaderBootmodeSuccess,
 		},
 	}
@@ -202,7 +202,7 @@ func (u *Uboot) MarkCurrentBootSuccessful() (err error) {
 	return os.RemoveAll(bootloaderUbootStampFile)
 }
 
-func (u *Uboot) SyncBootFiles() (err error) {
+func (u *uboot) SyncBootFiles() (err error) {
 	srcDir := u.currentBootPath
 	destDir := u.otherBootPath
 
@@ -212,7 +212,7 @@ func (u *Uboot) SyncBootFiles() (err error) {
 	return runCommand("/bin/cp", "-a", srcDir, destDir)
 }
 
-func (u *Uboot) HandleAssets() (err error) {
+func (u *uboot) HandleAssets() (err error) {
 
 	var dirsToRemove map[string]int
 
@@ -222,7 +222,7 @@ func (u *Uboot) HandleAssets() (err error) {
 		var dirs []string
 
 		// convert to slice
-		for dir, _ := range dirsToRemove {
+		for dir := range dirsToRemove {
 			dirs = append(dirs, dir)
 		}
 
@@ -263,7 +263,7 @@ func (u *Uboot) HandleAssets() (err error) {
 
 	destDir := u.otherBootPath
 
-	if err := os.MkdirAll(destDir, DIR_MODE); err != nil {
+	if err := os.MkdirAll(destDir, dirMode); err != nil {
 		return err
 	}
 
@@ -293,7 +293,7 @@ func (u *Uboot) HandleAssets() (err error) {
 	if fileExists(hardware.DtbDir) {
 		dtbDestDir := path.Join(destDir, "dtbs")
 
-		if err := os.MkdirAll(dtbDestDir, DIR_MODE); err != nil {
+		if err := os.MkdirAll(dtbDestDir, dirMode); err != nil {
 			return err
 		}
 
@@ -344,12 +344,12 @@ func atomicFileUpdate(file string, lines []string) (err error) {
 // Rewrite the specified file, applying the specified set of changes.
 // Lines not in the changes slice are left alone.
 // If the original file does not contain any of the name entries (from
-// the corresponding ConfigFileChange objects), those entries are
+// the corresponding configFileChange objects), those entries are
 // appended to the file.
 //
 // FIXME: put into utils package
-func modifyNameValueFile(file string, changes []ConfigFileChange) (err error) {
-	var updated []ConfigFileChange
+func modifyNameValueFile(file string, changes []configFileChange) (err error) {
+	var updated []configFileChange
 
 	lines, err := readLines(file)
 	if err != nil {
@@ -371,7 +371,7 @@ func modifyNameValueFile(file string, changes []ConfigFileChange) (err error) {
 	lines = new
 
 	for _, change := range changes {
-		var got bool = false
+		got := false
 		for _, update := range updated {
 			if update.Name == change.Name {
 				got = true

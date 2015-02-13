@@ -39,6 +39,8 @@ const (
 	systemImageClientConfig = "/etc/system-image/client.ini"
 )
 
+// SystemImagePart represents a "core" snap that is managed via the SystemImage
+// client
 type SystemImagePart struct {
 	proxy *systemImageDBusProxy
 
@@ -49,25 +51,30 @@ type SystemImagePart struct {
 	isInstalled bool
 	isActive    bool
 
-	partition partition.PartitionInterface
+	partition partition.Interface
 }
 
+// Type returns SnapTypeCore for this snap
 func (s *SystemImagePart) Type() SnapType {
 	return SnapTypeCore
 }
 
+// Name returns the name
 func (s *SystemImagePart) Name() string {
 	return systemImagePartName
 }
 
+// Version returns the version
 func (s *SystemImagePart) Version() string {
 	return s.version
 }
 
+// Description returns the description
 func (s *SystemImagePart) Description() string {
 	return "ubuntu-core description"
 }
 
+// Hash returns the hash
 func (s *SystemImagePart) Hash() string {
 	hasher := sha256.New()
 	hasher.Write([]byte(s.versionDetails))
@@ -76,22 +83,27 @@ func (s *SystemImagePart) Hash() string {
 	return hexdigest
 }
 
+// IsActive returns true if the snap is active
 func (s *SystemImagePart) IsActive() bool {
 	return s.isActive
 }
 
+// IsInstalled returns true if the snap is installed
 func (s *SystemImagePart) IsInstalled() bool {
 	return s.isInstalled
 }
 
+// InstalledSize returns the size of the installed snap
 func (s *SystemImagePart) InstalledSize() int {
 	return -1
 }
 
+// DownloadSize returns the dowload size
 func (s *SystemImagePart) DownloadSize() int {
 	return -1
 }
 
+// SetActive sets the snap active
 func (s *SystemImagePart) SetActive() (err error) {
 	isNextBootOther := s.partition.IsNextBootOther()
 	// active and no switch scheduled -> nothing to do
@@ -109,6 +121,7 @@ func (s *SystemImagePart) SetActive() (err error) {
 	return s.partition.UpdateBootloader()
 }
 
+// Install installs the snap
 func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	var updateProgress *SensibleWatch
 	if pb != nil {
@@ -157,14 +170,17 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	return err
 }
 
+// Uninstall can not be used for "core" snaps
 func (s *SystemImagePart) Uninstall() (err error) {
 	return errors.New("Uninstall of a core snap is not possible")
 }
 
+// Config is used to to configure the snap
 func (s *SystemImagePart) Config(configuration []byte) (err error) {
 	return err
 }
 
+// NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *SystemImagePart) NeedsReboot() bool {
 
 	if !s.IsActive() && s.partition.IsNextBootOther() {
@@ -174,25 +190,27 @@ func (s *SystemImagePart) NeedsReboot() bool {
 	return false
 }
 
-// Mark the *currently* booted rootfs as "good" (it booted :)
+// MarkBootSuccessful marks the *currently* booted rootfs as "good"
+// (it booted :)
 // Note: Not part of the Part interface.
 func (s *SystemImagePart) MarkBootSuccessful() (err error) {
 
 	return s.partition.MarkBootSuccessful()
 }
-func (s *SystemImagePart) Channel() string {
 
+// Channel returns the system-image-server channel used
+func (s *SystemImagePart) Channel() string {
 	return s.channelName
 }
 
 // Result of UpdateAvailableStatus() call
 type updateStatus struct {
-	is_available      bool
-	downloading       bool
-	available_version string
-	update_size       int32
-	last_update_date  string
-	error_reason      string
+	isAvailable      bool
+	downloading      bool
+	availableVersion string
+	updateSize       int32
+	lastUpdateDate   string
+	errorReason      string
 }
 
 // Result of the Information() call
@@ -201,7 +219,7 @@ type systemImageInfo map[string]string
 type systemImageDBusProxy struct {
 	proxy      *dbus.ObjectProxy
 	connection *dbus.Connection
-	partition  partition.PartitionInterface
+	partition  partition.Interface
 
 	// the update status
 	us updateStatus
@@ -215,7 +233,7 @@ type systemImageDBusProxy struct {
 
 // this functions only exists to make testing easier, i.e. the testsuite
 // will replace newPartition() to return a mockPartition
-var newPartition = func() (p partition.PartitionInterface) {
+var newPartition = func() (p partition.Interface) {
 	return partition.New()
 }
 
@@ -304,13 +322,15 @@ func (s *systemImageDBusProxy) GetSetting(key string) (v string, err error) {
 	return v, nil
 }
 
-// Hrm, go-dbus bug #1416352 makes this nesessary (so sad!)
+// SensibleWatch is a workaround for go-dbus bug #1416352 makes this
+// nesessary (so sad!)
 type SensibleWatch struct {
 	watch  *dbus.SignalWatch
 	C      chan *dbus.Message
 	closed bool
 }
 
+// Cancel cancels watching
 func (w *SensibleWatch) Cancel() {
 	w.watch.Cancel()
 }
@@ -349,7 +369,6 @@ func (s *systemImageDBusProxy) ApplyUpdate() (err error) {
 		break
 	case _ = <-s.updateFailed.C:
 		return errors.New("updateFailed")
-		break
 	}
 	return nil
 }
@@ -365,7 +384,6 @@ func (s *systemImageDBusProxy) DownloadUpdate() (err error) {
 		s.ApplyUpdate()
 	case _ = <-s.updateFailed.C:
 		return errors.New("downloadFailed")
-		break
 	}
 
 	return err
@@ -415,27 +433,25 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 
 	select {
 	case msg := <-s.updateAvailableStatus.C:
-		err = msg.Args(&s.us.is_available,
+		err = msg.Args(&s.us.isAvailable,
 			&s.us.downloading,
-			&s.us.available_version,
-			&s.us.update_size,
-			&s.us.last_update_date,
-			&s.us.error_reason)
+			&s.us.availableVersion,
+			&s.us.updateSize,
+			&s.us.lastUpdateDate,
+			&s.us.errorReason)
 
 	case <-time.After(systemImageTimeoutSecs * time.Second):
-		err = errors.New(fmt.Sprintf(
-			"Warning: "+
-				"timed out after %d seconds "+
-				"waiting for system image server to respond",
-			systemImageTimeoutSecs))
+		err = fmt.Errorf("Warning: timed out after %d seconds waiting for system image server to respond",
+			systemImageTimeoutSecs)
 	}
 
 	return s.us, err
 }
 
+// SystemImageRepository is the type used for the system-image-server
 type SystemImageRepository struct {
 	proxy     *systemImageDBusProxy
-	partition partition.PartitionInterface
+	partition partition.Interface
 	myroot    string
 }
 
@@ -446,10 +462,12 @@ func newSystemImageRepositoryForBus(bus dbus.StandardBus) *SystemImageRepository
 		partition: newPartition()}
 }
 
+// NewSystemImageRepository returns a new SystemImageRepository
 func NewSystemImageRepository() *SystemImageRepository {
 	return newSystemImageRepositoryForBus(dbus.SystemBus)
 }
 
+// Description describes the repository
 func (s *SystemImageRepository) Description() string {
 	return "SystemImageRepository"
 }
@@ -463,7 +481,7 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 	defer f.Close()
 	err = cfg.Read(f)
 	if err != nil {
-		log.Printf("Can not parse config '%s': err", path, err)
+		log.Printf("Can not parse config '%s': %s", path, err)
 		return part, err
 	}
 
@@ -508,12 +526,13 @@ func (s *SystemImageRepository) otherPart() Part {
 		}
 		return err
 	})
-	if err == partition.NoDualPartitionError {
+	if err == partition.ErrNoDualPartition {
 		return nil
 	}
 	return part
 }
 
+// Search searches the SystemImageRepository for the given terms
 func (s *SystemImageRepository) Search(terms string) (versions []Part, err error) {
 	if strings.Contains(terms, systemImagePartName) {
 		s.proxy.Information()
@@ -523,6 +542,7 @@ func (s *SystemImageRepository) Search(terms string) (versions []Part, err error
 	return versions, err
 }
 
+// Details returns details for the given snap
 func (s *SystemImageRepository) Details(snapName string) (versions []Part, err error) {
 	if snapName == systemImagePartName {
 		s.proxy.Information()
@@ -532,23 +552,24 @@ func (s *SystemImageRepository) Details(snapName string) (versions []Part, err e
 	return versions, err
 }
 
+// Updates returns the available updates
 func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 	if _, err = s.proxy.CheckForUpdate(); err != nil {
 		return parts, err
 	}
 	current := s.currentPart()
-	current_version := current.Version()
-	target_version := s.proxy.us.available_version
+	currentVersion := current.Version()
+	targetVersion := s.proxy.us.availableVersion
 
-	if target_version == "" {
+	if targetVersion == "" {
 		// no newer version available
 		return parts, err
 	}
 
-	if VersionCompare(current_version, target_version) < 0 {
+	if VersionCompare(currentVersion, targetVersion) < 0 {
 		parts = append(parts, &SystemImagePart{
 			proxy:          s.proxy,
-			version:        target_version,
+			version:        targetVersion,
 			versionDetails: "?",
 			channelName:    current.(*SystemImagePart).channelName,
 			partition:      s.partition})
@@ -557,6 +578,7 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 	return parts, err
 }
 
+// Installed returns the installed snaps from this repository
 func (s *SystemImageRepository) Installed() (parts []Part, err error) {
 	// current partition
 	curr := s.currentPart()

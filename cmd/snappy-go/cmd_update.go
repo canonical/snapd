@@ -6,23 +6,22 @@ import (
 	"launchpad.net/snappy/snappy"
 )
 
-type CmdUpdate struct {
+type cmdUpdate struct {
 }
 
-var cmdUpdate CmdUpdate
-
 func init() {
-	cmd, _ := Parser.AddCommand("update",
+	var cmdUpdateData cmdUpdate
+	cmd, _ := parser.AddCommand("update",
 		"Update all installed parts",
 		"Ensures system is running with latest parts",
-		&cmdUpdate)
+		&cmdUpdateData)
 
 	cmd.Aliases = append(cmd.Aliases, "up")
 }
 
-func (x *CmdUpdate) Execute(args []string) (err error) {
+func (x *cmdUpdate) Execute(args []string) (err error) {
 	if !isRoot() {
-		return requiresRootErr
+		return ErrRequiresRoot
 	}
 
 	return update()
@@ -30,7 +29,7 @@ func (x *CmdUpdate) Execute(args []string) (err error) {
 
 func update() error {
 	if !isRoot() {
-		return requiresRootErr
+		return ErrRequiresRoot
 	}
 
 	// FIXME: handle args

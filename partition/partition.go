@@ -22,7 +22,8 @@
 // with this program.  If not, see <http://www.gnu.org/licenses/>.
 //--------------------------------------------------------------------
 
-// partition - manipulate disk partitions.
+// Package partition manipulate disk partitions.
+//
 // The main callables are UpdateBootLoader()
 package partition
 
@@ -40,41 +41,47 @@ import (
 	yaml "launchpad.net/goyaml"
 )
 
-var debug bool = false
+var debug = false
 
-var signal_handler_registered bool = false
+var signalHandlerRegistered = false
 
 // Name of writable user data partition label as created by
 // ubuntu-device-flash(1).
-const WRITABLE_PARTITION_LABEL = "writable"
+const writablePartitionLabel = "writable"
 
 // Name of primary root filesystem partition label as created by
 // ubuntu-device-flash(1).
-const ROOTFS_A_LABEL = "system-a"
+const rootfsAlabel = "system-a"
 
 // Name of primary root filesystem partition label as created by
 // ubuntu-device-flash(1). Note that this partition will
 // only be present if this is an A/B upgrade system.
-const ROOTFS_B_LABEL = "system-b"
+const rootfsBlabel = "system-b"
 
 // name of boot partition label as created by ubuntu-device-flash(1).
-const BOOT_PARTITION_LABEL = "system-boot"
+const bootPartitionLabel = "system-boot"
 
 // FIXME: Should query system-image-cli (see bug LP:#1380574).
-const DEFAULT_CACHE_DIR = "/writable/cache"
+const defaultCacheDir = "/writable/cache"
 
 // Directory to mount writable root filesystem below the cache
 // diretory.
-const MOUNT_TARGET = "system"
+const mountTarget = "system"
 
 // File creation mode used when any directories are created
-const DIR_MODE = 0750
+const dirMode = 0750
 
 var (
-	BootloaderError = errors.New("Unable to determine bootloader")
+	// ErrBootloader is returned if the bootloader can not be determined
+	ErrBootloader = errors.New("Unable to determine bootloader")
 
-	PartitionQueryError     = errors.New("Failed to query partitions")
-	PartitionDetectionError = errors.New("Failed to detect system type")
+	// ErrPartitionDetection is returned if the partition type can not
+	// be detected
+	ErrPartitionDetection = errors.New("Failed to detect system type")
+
+	// ErrNoDualPartition is returned if you try to use a dual
+	// partition feature on a single partition
+	ErrNoDualPartition = errors.New("No dual partition")
 )
 
 // Declarative specification of the type of system which specifies such
@@ -85,16 +92,16 @@ var (
 //   system-image archive.
 // - the type of bootloader that should be used for this system.
 // - expected system partition layout (single or dual rootfs's).
-const HARDWARE_SPEC_FILE = "hardware.yaml"
+const hardwareSpecFile = "hardware.yaml"
 
 // Directory that _may_ get automatically created on unpack that
 // contains updated hardware-specific boot assets (such as initrd, kernel)
-const ASSETS_DIR = "assets"
+const assetsDir = "assets"
 
 // Directory that _may_ get automatically created on unpack that
 // contains updated hardware-specific assets that require flashing
 // to the disk (such as uBoot, MLO)
-const FLASH_ASSETS_DIR = "flashtool-assets"
+const flashAssetsDir = "flashtool-assets"
 
 //--------------------------------------------------------------------
 // FIXME: Globals
@@ -107,14 +114,19 @@ var bindMounts []string
 
 //--------------------------------------------------------------------
 
+// MountOption represents how the partition should be mounted, currently
+// RO (read-only) and RW (read-write) are supported
 type MountOption int
 
 const (
+	// RO mounts the partition read-only
 	RO MountOption = iota
+	// RW mounts the partition read-only
 	RW
 )
 
-type PartitionInterface interface {
+// Interface provides the interface to interact with a partition
+type Interface interface {
 	UpdateBootloader() (err error)
 	MarkBootSuccessful() (err error)
 	// FIXME: could we make SyncBootloaderFiles part of UpdateBootloader
@@ -126,6 +138,7 @@ type PartitionInterface interface {
 	RunWithOther(rw MountOption, f func(otherRoot string) (err error)) (err error)
 }
 
+// Partition is the type to interact with the partition
 type Partition struct {
 	// all partitions
 	partitions []blockDevice
@@ -157,7 +170,7 @@ type hardwareSpecType struct {
 	Initrd          string         `yaml:"initrd"`
 	DtbDir          string         `yaml:"dtbs"`
 	PartitionLayout string         `yaml:"partition-layout"`
-	Bootloader      BootloaderName `yaml:"bootloader"`
+	Bootloader      bootloaderName `yaml:"bootloader"`
 }
 
 func init() {
@@ -165,9 +178,9 @@ func init() {
 		debug = true
 	}
 
-	if !signal_handler_registered {
-		setup_signal_handler()
-		signal_handler_registered = true
+	if !signalHandlerRegistered {
+		setupSignalHandler()
+		signalHandlerRegistered = true
 	}
 }
 
@@ -183,7 +196,7 @@ func undoMounts(mounts []string) (err error) {
 	return err
 }
 
-func signal_handler(sig os.Signal) {
+func signalHandler(sig os.Signal) {
 	err := undoMounts(mounts)
 	if err != nil {
 		// FIXME: use logger
@@ -191,7 +204,7 @@ func signal_handler(sig os.Signal) {
 	}
 }
 
-func setup_signal_handler() {
+func setupSignalHandler() {
 	ch := make(chan os.Signal, 1)
 
 	// add the signals we care about
@@ -203,14 +216,14 @@ func setup_signal_handler() {
 		sig := <-ch
 
 		// handle it
-		signal_handler(sig)
+		signalHandler(sig)
 		os.Exit(1)
 	}()
 }
 
 // Returns a list of root filesystem partition labels
 func rootPartitionLabels() []string {
-	return []string{ROOTFS_A_LABEL, ROOTFS_B_LABEL}
+	return []string{rootfsAlabel, rootfsBlabel}
 }
 
 // Returns a list of all recognised partition labels
@@ -218,8 +231,8 @@ func allPartitionLabels() []string {
 	var labels []string
 
 	labels = rootPartitionLabels()
-	labels = append(labels, BOOT_PARTITION_LABEL)
-	labels = append(labels, WRITABLE_PARTITION_LABEL)
+	labels = append(labels, bootPartitionLabel)
+	labels = append(labels, writablePartitionLabel)
 
 	return labels
 }
@@ -314,7 +327,7 @@ var runLsblk = func() (out []string, err error) {
 // Determine details of the recognised disk partitions
 // available on the system via lsblk
 func loadPartitionDetails() (partitions []blockDevice, err error) {
-	var recognised []string = allPartitionLabels()
+	recognised := allPartitionLabels()
 
 	lines, err := runLsblk()
 	if err != nil {
@@ -392,30 +405,28 @@ func loadPartitionDetails() (partitions []blockDevice, err error) {
 
 func (p *Partition) makeMountPoint() (err error) {
 
-	return os.MkdirAll(p.MountTarget(), DIR_MODE)
+	return os.MkdirAll(p.MountTarget(), dirMode)
 }
 
-// Constructor
+// New creates a new partition type
 func New() *Partition {
 	p := new(Partition)
 
 	p.getPartitionDetails()
-	p.hardwareSpecFile = path.Join(p.cacheDir(), HARDWARE_SPEC_FILE)
+	p.hardwareSpecFile = path.Join(p.cacheDir(), hardwareSpecFile)
 
 	return p
 }
 
-var NoDualPartitionError = errors.New("No dual partition")
-
-// Mount the other rootfs partition, execute the specified function and
-// unmount "other" before returning. If "other" is mounted read-write,
-// /proc, /sys and /dev will also be bind-mounted at the time the
-// specified function is called.
+// RunWithOther mount the other rootfs partition, execute the
+// specified function and unmount "other" before returning. If "other"
+// is mounted read-write, /proc, /sys and /dev will also be
+// bind-mounted at the time the specified function is called.
 func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (err error)) (err error) {
 	dual := p.dualRootPartitions()
 
 	if !dual {
-		return NoDualPartitionError
+		return ErrNoDualPartition
 	}
 
 	if option == RW {
@@ -450,14 +461,18 @@ func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (e
 	return err
 }
 
+// SyncBootloaderFiles syncs the bootloader files
+// FIXME: can we unexport this?
 func (p *Partition) SyncBootloaderFiles() (err error) {
-	bootloader, err := p.GetBootloader()
+	bootloader, err := getBootloader(p)
 	if err != nil {
 		return err
 	}
 	return bootloader.SyncBootFiles()
 }
 
+// UpdateBootloader toggles the bootloader and should probably called
+// ToggleBootloader
 func (p *Partition) UpdateBootloader() (err error) {
 	if p.dualRootPartitions() {
 		return p.toggleBootloaderRootfs()
@@ -465,21 +480,9 @@ func (p *Partition) UpdateBootloader() (err error) {
 	return err
 }
 
-func (p *Partition) GetBootloader() (bootloader BootLoader, err error) {
-
-	bootloaders := []BootLoader{NewUboot(p), NewGrub(p)}
-
-	for _, b := range bootloaders {
-		if b != nil {
-			return b, nil
-		}
-	}
-
-	return nil, BootloaderError
-}
-
+// MarkBootSuccessful marks the boot as successful
 func (p *Partition) MarkBootSuccessful() (err error) {
-	bootloader, err := p.GetBootloader()
+	bootloader, err := getBootloader(p)
 	if err != nil {
 		return err
 	}
@@ -487,10 +490,10 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 	return bootloader.MarkCurrentBootSuccessful()
 }
 
-// Return true if the next boot will use the other rootfs
+// NextBootIsOther return true if the next boot will use the other rootfs
 // partition.
 func (p *Partition) IsNextBootOther() bool {
-	bootloader, err := p.GetBootloader()
+	bootloader, err := getBootloader(p)
 	if err != nil {
 		return false
 	}
@@ -501,7 +504,7 @@ func (p *Partition) IsNextBootOther() bool {
 // scratch pad, for downloading new images to and bind mounting the
 // rootfs.
 func (p *Partition) cacheDir() string {
-	return DEFAULT_CACHE_DIR
+	return defaultCacheDir
 }
 
 func (p *Partition) hardwareSpec() (hardware hardwareSpecType, err error) {
@@ -519,17 +522,17 @@ func (p *Partition) hardwareSpec() (hardware hardwareSpecType, err error) {
 
 // Return full path to the main assets directory
 func (p *Partition) assetsDir() string {
-	return path.Join(p.cacheDir(), ASSETS_DIR)
+	return path.Join(p.cacheDir(), assetsDir)
 }
 
 // Return the full path to the hardware-specific flash assets directory.
 func (p *Partition) flashAssetsDir() string {
-	return path.Join(p.cacheDir(), FLASH_ASSETS_DIR)
+	return path.Join(p.cacheDir(), flashAssetsDir)
 }
 
-// Get the full path to the mount target directory
+// MountTarget gets the full path to the mount target directory
 func (p *Partition) MountTarget() string {
-	return path.Join(p.cacheDir(), MOUNT_TARGET)
+	return path.Join(p.cacheDir(), mountTarget)
 }
 
 func (p *Partition) getPartitionDetails() (err error) {
@@ -539,7 +542,7 @@ func (p *Partition) getPartitionDetails() (err error) {
 	}
 
 	if !p.dualRootPartitions() && !p.singleRootPartition() {
-		return PartitionDetectionError
+		return ErrPartitionDetection
 	}
 
 	if p.dualRootPartitions() {
@@ -578,7 +581,7 @@ func (p *Partition) singleRootPartition() bool {
 // Return pointer to blockDevice representing writable partition
 func (p *Partition) writablePartition() (result *blockDevice) {
 	for _, part := range p.partitions {
-		if part.name == WRITABLE_PARTITION_LABEL {
+		if part.name == writablePartitionLabel {
 			return &part
 		}
 	}
@@ -589,7 +592,7 @@ func (p *Partition) writablePartition() (result *blockDevice) {
 // Return pointer to blockDevice representing boot partition (if any)
 func (p *Partition) bootPartition() (result *blockDevice) {
 	for _, part := range p.partitions {
-		if part.name == BOOT_PARTITION_LABEL {
+		if part.name == bootPartitionLabel {
 			return &part
 		}
 	}
@@ -677,10 +680,9 @@ func (p *Partition) remountOther(option MountOption) (err error) {
 		}
 
 		return mount(other.device, p.MountTarget(), "")
-	} else {
-		// r/w -> r/o: no fsck required.
-		return mount(other.device, p.MountTarget(), "remount,ro")
 	}
+	// r/w -> r/o: no fsck required.
+	return mount(other.device, p.MountTarget(), "remount,ro")
 }
 
 func (p *Partition) unmountOtherRootfs() (err error) {
@@ -723,7 +725,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return errors.New("System is not dual root")
 	}
 
-	bootloader, err := p.GetBootloader()
+	bootloader, err := getBootloader(p)
 	if err != nil {
 		return err
 	}

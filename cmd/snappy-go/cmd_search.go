@@ -8,21 +8,20 @@ import (
 	"launchpad.net/snappy/snappy"
 )
 
-type CmdSearch struct {
+type cmdSearch struct {
 }
 
-var cmdSearch CmdSearch
-
 func init() {
-	cmd, _ := Parser.AddCommand("search",
+	var cmdSearchData cmdSearch
+	cmd, _ := parser.AddCommand("search",
 		"Search for packages to install",
 		"Query the store for available packages",
-		&cmdSearch)
+		&cmdSearchData)
 
 	cmd.Aliases = append(cmd.Aliases, "se")
 }
 
-func (x *CmdSearch) Execute(args []string) (err error) {
+func (x *cmdSearch) Execute(args []string) (err error) {
 	return search(args)
 }
 

@@ -9,27 +9,26 @@ import (
 	"launchpad.net/snappy/snappy"
 )
 
-type CmdList struct {
+type cmdList struct {
 	Updates bool `short:"u" long:"updates" description:"Show available updates"`
 	ShowAll bool `short:"a" long:"all" description:"Show all parts"`
 }
 
-var cmdList CmdList
-
 func init() {
-	cmd, _ := Parser.AddCommand("list",
+	var cmdListData cmdList
+	cmd, _ := parser.AddCommand("list",
 		"List installed parts",
 		"Shows all installed parts",
-		&cmdList)
+		&cmdListData)
 
 	cmd.Aliases = append(cmd.Aliases, "li")
 }
 
-func (x *CmdList) Execute(args []string) (err error) {
+func (x *cmdList) Execute(args []string) (err error) {
 	return x.list()
 }
 
-func (x CmdList) list() error {
+func (x cmdList) list() error {
 	installed, err := snappy.ListInstalled()
 	if err != nil {
 		return err

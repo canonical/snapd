@@ -6,6 +6,7 @@ import (
 	"github.com/cheggaaa/pb"
 )
 
+// ProgressMeter is a interface to show progress to the user
 type ProgressMeter interface {
 	// Start progress with max "total" steps
 	Start(total float64)
@@ -23,6 +24,7 @@ type ProgressMeter interface {
 	Write(p []byte) (n int, err error)
 }
 
+// TextProgress show progress on the terminal
 type TextProgress struct {
 	ProgressMeter
 	pbar     *pb.ProgressBar
@@ -30,6 +32,7 @@ type TextProgress struct {
 	spinStep int
 }
 
+// NewTextProgress returns a new TextProgress type
 func NewTextProgress(pkg string) *TextProgress {
 	// TODO go back to New64 once we update the pb package.
 	t := TextProgress{pbar: pb.New(0)}
@@ -38,24 +41,31 @@ func NewTextProgress(pkg string) *TextProgress {
 	return &t
 }
 
+// Start starts showing progress
 func (t *TextProgress) Start(total float64) {
 	fmt.Println("Starting download of", t.pkg)
 	t.pbar.Total = int64(total)
 	t.pbar.Start()
 }
 
+// Set sets the progress to the current value
 func (t *TextProgress) Set(current float64) {
 	t.pbar.Set(int(current))
 }
 
+// Finished stops displaying the progress
 func (t *TextProgress) Finished() {
 	t.pbar.FinishPrint("Done")
 }
 
+// Write is there so that progress can implment a Writer and can be
+// used to display progress of io operations
 func (t *TextProgress) Write(p []byte) (n int, err error) {
 	return t.pbar.Write(p)
 }
 
+// Spin advances a spinner, i.e. can be used to show progress for operations
+// that have a unknown duration
 func (t *TextProgress) Spin(msg string) {
 	states := `|/-\`
 	fmt.Printf("\r%s[%c]", msg, states[t.spinStep])

@@ -31,6 +31,8 @@ func inDeveloperMode() bool {
 	return false
 }
 
+// Install the givens snap names provided via args. This can be local
+// files or snaps that are queried from the store
 func Install(args []string) (err error) {
 	didSomething := false
 	m := NewMetaRepository()

@@ -32,7 +32,7 @@ func (s *PartitionTestSuite) TestNewGrubNoGrubReturnsNil(c *C) {
 	bootloaderGrubConfigFile = "no-such-dir"
 
 	partition := New()
-	g := NewGrub(partition)
+	g := newGrub(partition)
 	c.Assert(g, IsNil)
 }
 
@@ -40,9 +40,9 @@ func (s *PartitionTestSuite) TestNewGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
 	partition := New()
-	g := NewGrub(partition)
+	g := newGrub(partition)
 	c.Assert(g, NotNil)
-	c.Assert(g.Name(), Equals, BootloaderNameGrub)
+	c.Assert(g.Name(), Equals, bootloaderNameGrub)
 }
 
 func (s *PartitionTestSuite) TestNewGrubSinglePartition(c *C) {
@@ -50,7 +50,7 @@ func (s *PartitionTestSuite) TestNewGrubSinglePartition(c *C) {
 	s.makeFakeGrubEnv(c)
 
 	partition := New()
-	g := NewGrub(partition)
+	g := newGrub(partition)
 	c.Assert(g, IsNil)
 }
 
@@ -68,7 +68,7 @@ func (s *PartitionTestSuite) TestToggleRootFS(c *C) {
 	allCommands = []singleCommand{}
 
 	partition := New()
-	g := NewGrub(partition)
+	g := newGrub(partition)
 	c.Assert(g, NotNil)
 	err := g.ToggleRootFS()
 	c.Assert(err, IsNil)
@@ -103,9 +103,17 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 	runCommandWithStdout = mockGrubEditenvList
 
 	partition := New()
-	g := NewGrub(partition)
+	g := newGrub(partition)
 
 	v, err := g.GetBootVar(bootloaderBootmodeVar)
 	c.Assert(err, IsNil)
 	c.Assert(v, Equals, "default")
+}
+
+func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
+	s.makeFakeGrubEnv(c)
+	p := New()
+	bootloader, err := getBootloader(p)
+	c.Assert(err, IsNil)
+	c.Assert(bootloader.Name(), Equals, bootloaderNameGrub)
 }
