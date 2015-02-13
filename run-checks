@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -e
+set -ev
 
 echo Checking formatting
 fmt=$(gofmt -l .)
@@ -39,7 +39,7 @@ go vet ./...
 
 # golint
 echo Running lint
-lint=$(golint ./...|grep -v "should have comment or be unexported")
+lint=$(golint ./...)
 if [ -n "$lint" ]; then
     echo "Lint complains:"
     echo $lint
