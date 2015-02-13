@@ -15,9 +15,19 @@ func Test(t *testing.T) { TestingT(t) }
 
 // partition specific testsuite
 type PartitionTestSuite struct {
+	tempdir string
 }
 
 var _ = Suite(&PartitionTestSuite{})
+
+func (s *PartitionTestSuite) SetUpTest(c *C) {
+	s.tempdir = c.MkDir()
+	runLsblk = mockRunLsblkDualSnappy
+}
+
+func (s *PartitionTestSuite) TearDownTest(c *C) {
+	os.RemoveAll(s.tempdir)
+}
 
 func makeHardwareYaml() (tmp *os.File, err error) {
 	tmp, err = ioutil.TempFile("", "hw-")
@@ -29,7 +39,7 @@ kernel: assets/vmlinuz
 initrd: assets/initrd.img
 dtbs: assets/dtbs
 partition-layout: system-AB
-bootloader: uboot
+bootloader: u-boot
 `))
 	return tmp, err
 }
@@ -50,7 +60,7 @@ func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
 	c.Assert(hw.Initrd, Equals, "assets/initrd.img")
 	c.Assert(hw.DtbDir, Equals, "assets/dtbs")
 	c.Assert(hw.PartitionLayout, Equals, "system-AB")
-	c.Assert(hw.Bootloader, Equals, "uboot")
+	c.Assert(hw.Bootloader, Equals, bootloaderNameUboot)
 }
 
 func mockRunLsblkDualSnappy() (output []string, err error) {
@@ -67,8 +77,6 @@ NAME="sr0" LABEL="" PKNAME="" MOUNTPOINT=""
 }
 
 func (s *PartitionTestSuite) TestSnappyDualRoot(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
-
 	p := New()
 	c.Assert(p.dualRootPartitions(), Equals, true)
 	c.Assert(p.singleRootPartition(), Equals, false)
@@ -103,7 +111,6 @@ func (s *PartitionTestSuite) TestSnappyDualRoot(c *C) {
 }
 
 func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
 	p := New()
 	reportedRoot := ""
 	err := p.RunWithOther(RO, func(otherRoot string) (err error) {
@@ -115,8 +122,6 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
 }
 
 func (s *PartitionTestSuite) TestRunWithOtherDualParitionRWFuncErr(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
-
 	savedRunCommand := runCommand
 	defer func() {
 		runCommand = savedRunCommand
@@ -144,7 +149,7 @@ func (s *PartitionTestSuite) TestRunWithOtherSingleParitionRO(c *C) {
 	err := p.RunWithOther(RO, func(otherRoot string) (err error) {
 		return nil
 	})
-	c.Assert(err, Equals, NoDualPartitionError)
+	c.Assert(err, Equals, ErrNoDualPartition)
 }
 
 func mockRunLsblkSingleRootSnappy() (output []string, err error) {
@@ -181,8 +186,6 @@ func mockRunCommand(args ...string) (err error) {
 }
 
 func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
-
 	// FIXME: there should be a generic
 	//        mockFunc(func) (restorer func())
 	savedRunCommand := runCommand
@@ -217,8 +220,6 @@ func (s *PartitionTestSuite) TestStringSliceRemoveNoexistingNoOp(c *C) {
 }
 
 func (s *PartitionTestSuite) TestUndoMounts(c *C) {
-	runLsblk = mockRunLsblkDualSnappy
-
 	// FIXME: there should be a generic
 	//        mockFunc(func) (restorer func())
 	savedRunCommand := runCommand

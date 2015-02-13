@@ -8,24 +8,23 @@ const (
 	// bootloader variable used to denote which rootfs to boot from
 	// FIXME: preferred new name
 	// BOOTLOADER_UBOOT_ROOTFS_VAR = "snappy_rootfs_label"
-	BOOTLOADER_ROOTFS_VAR = "snappy_ab"
+	bootloaderRootfsVar = "snappy_ab"
 
 	// bootloader variable used to determine if boot was successful.
 	// Set to 'try' initially, and then changed to 'regular' by the
 	// system when the boot reaches the required sequence point.
-	BOOTLOADER_BOOTMODE_VAR = "snappy_mode"
+	bootloaderBootmodeVar = "snappy_mode"
 
 	// Initial and final values
-	BOOTLOADER_BOOTMODE_VAR_START_VALUE = "try"
-	BOOTLOADER_BOOTMODE_VAR_END_VALUE   = "default"
+	bootloaderBootmodeTry     = "try"
+	bootloaderBootmodeSuccess = "default"
 )
 
-type BootLoader interface {
-	// Name of the bootloader
-	Name() string
+type bootloaderName string
 
-	// Returns true if the bootloader type is installed
-	Installed() bool
+type bootLoader interface {
+	// Name of the bootloader
+	Name() bootloaderName
 
 	// Switch bootloader configuration so that the "other" root
 	// filesystem partition will be used on next boot.
@@ -75,12 +74,8 @@ type BootLoader interface {
 	MarkCurrentBootSuccessful() error
 }
 
-type BootLoaderType struct {
+type bootloaderType struct {
 	partition *Partition
-
-	// partition labels
-	currentLabel string
-	otherLabel   string
 
 	// each rootfs partition has a corresponding u-boot directory named
 	// from the last character of the partition name ('a' or 'b').
@@ -92,19 +87,60 @@ type BootLoaderType struct {
 	otherBootPath   string
 }
 
-func NewBootLoader(partition *Partition) *BootLoaderType {
-	b := new(BootLoaderType)
+// Factory method that returns a new bootloader for the given partition
+func getBootloader(p *Partition) (bootloader bootLoader, err error) {
+	ctors := []func(*Partition) bootLoader{newUboot, newGrub}
+
+	for _, f := range ctors {
+		b := f(p)
+		if b != nil {
+			return b, nil
+		}
+	}
+
+	return nil, ErrBootloader
+}
+
+func newBootLoader(partition *Partition) *bootloaderType {
+	b := new(bootloaderType)
 
 	b.partition = partition
 
-	current := partition.rootPartition()
-	other := partition.otherRootPartition()
+	currentLabel := partition.rootPartition().name
 
-	b.currentLabel = string(current.name)
-	b.otherLabel = string(other.name)
+	// FIXME: is this the right thing to do? i.e. what should we do
+	//        on a single partition system?
+	if partition.otherRootPartition() == nil {
+		return nil
+	}
+	otherLabel := partition.otherRootPartition().name
 
-	b.currentRootfs = string(b.currentLabel[len(b.currentLabel)-1])
-	b.otherRootfs = string(b.otherLabel[len(b.otherLabel)-1])
+	b.currentRootfs = string(currentLabel[len(currentLabel)-1])
+	b.otherRootfs = string(otherLabel[len(otherLabel)-1])
 
 	return b
+}
+
+// Return true if the next boot will use the other rootfs
+// partition.
+func isNextBootOther(bootloader bootLoader) bool {
+	value, err := bootloader.GetBootVar(bootloaderBootmodeVar)
+	if err != nil {
+		return false
+	}
+
+	if value != bootloaderBootmodeTry {
+		return false
+	}
+
+	fsname, err := bootloader.GetNextBootRootFSName()
+	if err != nil {
+		return false
+	}
+
+	if fsname == bootloader.GetOtherRootFSName() {
+		return true
+	}
+
+	return false
 }

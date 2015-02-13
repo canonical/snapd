@@ -34,15 +34,16 @@ func (s *UtilsTestSuite) TestIsDirectory(c *C) {
 }
 
 func (s *UtilsTestSuite) TestRunCommand(c *C) {
-	err := runCommand("false")
+	err := runCommandImpl("false")
 	c.Assert(err, NotNil)
 
-	err = runCommand("no-such-command")
+	err = runCommandImpl("no-such-command")
 	c.Assert(err, NotNil)
 }
 
 func (s *UtilsTestSuite) TestRunCommandWithStdout(c *C) {
-	output, err := runCommandWithStdout("sh", "-c", "printf foo")
+	runCommandWithStdout = runCommandWithStdoutImpl
+	output, err := runCommandWithStdout("sh", "-c", "printf 'foo\nbar'")
 	c.Assert(err, IsNil)
-	c.Assert(output, DeepEquals, []string{"foo"})
+	c.Assert(output, DeepEquals, "foo\nbar")
 }

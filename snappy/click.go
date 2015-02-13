@@ -12,7 +12,6 @@ package snappy
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -43,21 +42,23 @@ type clickHook struct {
 
 const (
 	// from debsig-verify-0.9/debsigs.h
-	DS_SUCCESS             = 0
-	DS_FAIL_NOSIGS         = 10
-	DS_FAIL_UNKNOWN_ORIGIN = 11
-	DS_FAIL_NOPOLICIES     = 12
-	DS_FAIL_BADSIG         = 13
-	DS_FAIL_INTERNAL       = 14
+	dsSuccess           = 0
+	dsFailNosigs        = 10
+	dsFailUnknownOrigin = 11
+	dsFailNopolicies    = 12
+	dsFailBadsig        = 13
+	dsFailInternal      = 14
 )
 
 // var to make it testable
 var clickSystemHooksDir = "/usr/share/click/hooks"
 
+// InstallFlags can be used to pass additional flags to the install of a
+// snap
 type InstallFlags uint
 
 const (
-	// Allow to install a snap even if it can not be authenticated
+	// AllowUnauthenticated allows to install a snap even if it can not be authenticated
 	AllowUnauthenticated InstallFlags = 1 << iota
 )
 
@@ -77,9 +78,9 @@ func (s *clickHook) execHook() (err error) {
 // a unknown policy or with no policies at all. We do not allow overriding
 // bad signatures
 func allowUnauthenticatedOkExitCode(exitCode int) bool {
-	return (exitCode == DS_FAIL_NOSIGS ||
-		exitCode == DS_FAIL_UNKNOWN_ORIGIN ||
-		exitCode == DS_FAIL_NOPOLICIES)
+	return (exitCode == dsFailNosigs ||
+		exitCode == dsFailUnknownOrigin ||
+		exitCode == dsFailNopolicies)
 }
 
 // Tiny wrapper around the debsig-verify commandline
@@ -212,7 +213,7 @@ func removeClickHooks(manifest clickManifest) (err error) {
 		return err
 	}
 	for app, hook := range manifest.Hooks {
-		for hookName, _ := range hook {
+		for hookName := range hook {
 			systemHook, ok := systemHooks[hookName]
 			if !ok {
 				continue
@@ -239,7 +240,7 @@ func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err
 		return manifest, err
 	}
 	if len(manifestFiles) != 1 {
-		return manifest, errors.New(fmt.Sprintf("Error: got %s manifests in %s", len(manifestFiles), clickDir))
+		return manifest, fmt.Errorf("Error: got %v manifests in %v", len(manifestFiles), clickDir)
 	}
 	manifestData, err := ioutil.ReadFile(manifestFiles[0])
 	manifest, err = readClickManifest([]byte(manifestData))
@@ -292,9 +293,6 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	}
 
 	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
-	if err := ensureDir(dataDir, 0755); err != nil {
-		log.Printf("WARNING: Can not create %s", dataDir)
-	}
 
 	targetDir := snapAppsDir
 	// the "oem" parts are special
@@ -307,6 +305,18 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		log.Printf("WARNING: Can not create %s", instDir)
 	}
 
+	// if anything goes wrong here we cleanup
+	defer func() {
+		if err == nil {
+			return
+		}
+		if _, err := os.Stat(instDir); err == nil {
+			if err := os.RemoveAll(instDir); err != nil {
+				log.Printf("Warning: failed to remove %s: %s", instDir, err)
+			}
+		}
+	}()
+
 	// FIXME: replace this with a native extractor to avoid attack
 	//        surface
 	cmd = exec.Command("dpkg-deb", "--extract", snapFile, instDir)
@@ -314,12 +324,10 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	if err != nil {
 		// FIXME: make the output part of the SnapExtractError
 		log.Printf("Snap install failed with: %s", output)
-		if err := os.RemoveAll(instDir); err != nil {
-			log.Printf("Warning: failed to remove %s: %s", instDir, err)
-		}
 		return err
 	}
-
+	// legacy, the hooks (e.g. apparmor) need this. Once we converted
+	// all hooks this can go away
 	metaDir := path.Join(instDir, ".click", "info")
 	os.MkdirAll(metaDir, 0755)
 	err = ioutil.WriteFile(path.Join(metaDir, manifest.Name+".manifest"), manifestData, 0644)
@@ -327,14 +335,27 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		return
 	}
 
-	currentActiveDir, err := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
+	// deal with the data, if there was a previous version, copy the data
+	// otherwise just create a empty data dir
+	if currentActiveDir != "" {
+		oldManifest, err := readClickManifestFromClickDir(currentActiveDir)
+		if err != nil {
+			return err
+		}
+		if err := copySnapData(manifest.Name, oldManifest.Version, manifest.Version); err != nil {
+			return err
+		}
+	} else {
+		if err := ensureDir(dataDir, 0755); err != nil {
+			log.Printf("WARNING: Can not create %s", dataDir)
+			return err
+		}
+	}
+
+	// and finally make active
 	err = setActiveClick(instDir)
 	if err != nil {
-		// FIXME: make the output part of the SnapExtractError
-		log.Printf("Snap install failed with: %s", output)
-		if err := os.RemoveAll(instDir); err != nil {
-			log.Printf("Warning: failed to remove %s: %s", instDir, err)
-		}
 		// ensure to revert on install failure
 		if currentActiveDir != "" {
 			setActiveClick(currentActiveDir)
@@ -342,6 +363,45 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		return err
 	}
 
+	return nil
+}
+
+// Copy all data for "snapName" from "oldVersion" to "newVersion"
+// (but never overwrite)
+func copySnapData(snapName, oldVersion, newVersion string) (err error) {
+
+	// collect the directories, homes first
+	oldDataDirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, oldVersion))
+	if err != nil {
+		return err
+	}
+	// then system data
+	oldSystemPath := filepath.Join(snapDataDir, snapName, oldVersion)
+	oldDataDirs = append(oldDataDirs, oldSystemPath)
+
+	for _, oldDir := range oldDataDirs {
+		// replace the trailing "../$old-ver" with the "../$new-ver"
+		newDir := filepath.Join(filepath.Dir(oldDir), newVersion)
+		if err := copySnapDataDirectory(oldDir, newDir); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Lowlevel copy the snap data (but never override existing data)
+func copySnapDataDirectory(oldPath, newPath string) (err error) {
+	if _, err := os.Stat(oldPath); err == nil {
+		if _, err := os.Stat(newPath); err != nil {
+			// there is no golang "CopyFile" and we want hardlinks
+			// by default to save space
+			cmd := exec.Command("cp", "-al", oldPath, newPath)
+			if err := cmd.Run(); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -354,7 +414,7 @@ func setActiveClick(baseDir string) (err error) {
 		return nil
 	}
 
-	// there is already a active part
+	// there is already an active part
 	if currentActiveDir != "" {
 		currentActiveManifest, err := readClickManifestFromClickDir(currentActiveDir)
 		if err != nil {

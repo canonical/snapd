@@ -12,7 +12,7 @@ func setActive(pkg, ver string) (err error) {
 		return err
 	}
 
-	part := FindPartByNameAndVersion(pkg, ver, installed)
+	part := FindSnapByNameAndVersion(pkg, ver, installed)
 	if part == nil {
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
 	}
@@ -25,6 +25,7 @@ var setFuncs = map[string]func(k, v string) error{
 	"active": setActive,
 }
 
+// ParseSetPropertyCmdline sets a system property from the args list
 func ParseSetPropertyCmdline(args ...string) (err error) {
 	if len(args) < 1 {
 		return fmt.Errorf("Need at least one argument for set")
