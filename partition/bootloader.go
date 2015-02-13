@@ -20,11 +20,11 @@ const (
 	bootloaderBootmodeSuccess = "default"
 )
 
-type BootloaderName string
+type bootloaderName string
 
-type BootLoader interface {
+type bootLoader interface {
 	// Name of the bootloader
-	Name() BootloaderName
+	Name() bootloaderName
 
 	// Switch bootloader configuration so that the "other" root
 	// filesystem partition will be used on next boot.
@@ -74,7 +74,7 @@ type BootLoader interface {
 	MarkCurrentBootSuccessful() error
 }
 
-type BootLoaderType struct {
+type bootloaderType struct {
 	partition *Partition
 
 	// each rootfs partition has a corresponding u-boot directory named
@@ -88,25 +88,23 @@ type BootLoaderType struct {
 }
 
 // Factory method that returns a new bootloader for the given partition
-func getBootloader(p *Partition) (bootloader BootLoader, err error) {
-	// try uboot 
-	uboot := NewUboot(p)
-	if uboot != nil {
+func getBootloader(p *Partition) (bootloader bootLoader, err error) {
+	// try uboot
+	if uboot := newUboot(p); uboot != nil {
 		return uboot, nil
 	}
 
 	// no, try grub
-	grub := NewGrub(p)
-	if grub != nil {
+	if grub := newGrub(p); grub != nil {
 		return grub, nil
 	}
 
 	// no, weeeee
-	return nil, BootloaderError
+	return nil, ErrBootloader
 }
 
-func newBootLoader(partition *Partition) *BootLoaderType {
-	b := new(BootLoaderType)
+func newBootLoader(partition *Partition) *bootloaderType {
+	b := new(bootloaderType)
 
 	b.partition = partition
 
@@ -127,7 +125,7 @@ func newBootLoader(partition *Partition) *BootLoaderType {
 
 // Return true if the next boot will use the other rootfs
 // partition.
-func isNextBootOther(bootloader BootLoader) bool {
+func isNextBootOther(bootloader bootLoader) bool {
 	value, err := bootloader.GetBootVar(bootloaderBootmodeVar)
 	if err != nil {
 		return false

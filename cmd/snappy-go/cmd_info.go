@@ -7,19 +7,18 @@ import (
 	"launchpad.net/snappy/snappy"
 )
 
-type CmdInfo struct {
+type cmdInfo struct {
 }
-
-var cmdInfo CmdInfo
 
 func init() {
-	_, _ = Parser.AddCommand("info",
+	var cmdInfoData cmdInfo
+	_, _ = parser.AddCommand("info",
 		"Information about your snappy system",
 		"Information about your snappy system",
-		&cmdInfo)
+		&cmdInfoData)
 }
 
-func (x *CmdInfo) Execute(args []string) (err error) {
+func (x *cmdInfo) Execute(args []string) (err error) {
 	return info()
 }
 

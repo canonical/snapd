@@ -49,10 +49,8 @@ func runCommandImpl(args ...string) (err error) {
 
 	if out, err := exec.Command(args[0], args[1:]...).CombinedOutput(); err != nil {
 		cmdline := strings.Join(args, " ")
-		return errors.New(fmt.Sprintf("Failed to run command '%s': %s (%s)",
-			cmdline,
-			out,
-			err))
+		return fmt.Errorf("Failed to run command '%s': %s (%s)",
+			cmdline, out, err)
 	}
 	return nil
 }

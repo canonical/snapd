@@ -8,8 +8,10 @@ var (
 	snapDataHomeGlob = "/home/*/apps/"
 )
 
+// SnapType represents the kind of snap (app, core, frameworks, oem)
 type SnapType string
 
+// The various types of snap parts we support
 const (
 	SnapTypeApp       SnapType = "app"
 	SnapTypeCore      SnapType = "core"
@@ -17,7 +19,7 @@ const (
 	SnapTypeOem       SnapType = "oem"
 )
 
-// Representation of a snappy part
+// Part representation of a snappy part
 type Part interface {
 
 	// query
@@ -45,6 +47,7 @@ type Part interface {
 	SetActive() error
 }
 
+// Repository is the interface for a collection of snaps
 type Repository interface {
 
 	// query
@@ -58,10 +61,13 @@ type Repository interface {
 	Installed() ([]Part, error)
 }
 
+// MetaRepository contains all available single repositories can can be used
+// to query in a single place
 type MetaRepository struct {
 	all []Repository
 }
 
+// NewMetaRepository returns a new MetaRepository
 func NewMetaRepository() *MetaRepository {
 	// FIXME: make this a configuration file
 
@@ -84,6 +90,7 @@ func NewMetaRepository() *MetaRepository {
 	return m
 }
 
+// Installed returns all installed parts
 func (m *MetaRepository) Installed() (parts []Part, err error) {
 	for _, r := range m.all {
 		installed, err := r.Installed()
@@ -96,6 +103,7 @@ func (m *MetaRepository) Installed() (parts []Part, err error) {
 	return parts, err
 }
 
+// Updates returns all updatable parts
 func (m *MetaRepository) Updates() (parts []Part, err error) {
 	for _, r := range m.all {
 		updates, err := r.Updates()
@@ -108,6 +116,7 @@ func (m *MetaRepository) Updates() (parts []Part, err error) {
 	return parts, err
 }
 
+// Search searches all repositories for the given search term
 func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
 	for _, r := range m.all {
 		results, err := r.Search(terms)
@@ -120,6 +129,7 @@ func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
 	return parts, err
 }
 
+// Details returns details for the given snap name
 func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	for _, r := range m.all {
 		results, err := r.Details(snapyName)
@@ -132,6 +142,7 @@ func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	return parts, err
 }
 
+// InstalledSnapsByType returns all installed snaps with the given type
 func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
@@ -152,6 +163,7 @@ func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 	return
 }
 
+// InstalledSnapNamesByType returns all installed snap names with the given type
 var InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
 	installed, err := InstalledSnapsByType(snapTs...)
 	for _, part := range installed {
@@ -160,6 +172,7 @@ var InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error
 	return
 }
 
+// ActiveSnapByName returns all active snaps with the given name
 func ActiveSnapByName(needle string) Part {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
@@ -177,6 +190,8 @@ func ActiveSnapByName(needle string) Part {
 	return nil
 }
 
+// FindSnapsByName returns all snaps with the given name in the "haystack"
+// slice of parts (useful for filtering)
 func FindSnapsByName(needle string, haystack []Part) (res []Part) {
 	for _, part := range haystack {
 		if part.Name() == needle {
@@ -186,7 +201,8 @@ func FindSnapsByName(needle string, haystack []Part) (res []Part) {
 	return res
 }
 
-// Return the part with the name/version in the given slice of parts
+// FindSnapByNameAndVersion returns the part with the name/version in the
+// given slice of parts
 func FindSnapByNameAndVersion(needle, version string, haystack []Part) Part {
 	for _, part := range haystack {
 		if part.Name() == needle && part.Version() == version {

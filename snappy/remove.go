@@ -22,7 +22,7 @@ func Remove(partSpec string) error {
 	}
 
 	if part == nil {
-		return PackageNotFoundErr
+		return ErrPackageNotFound
 	}
 	if err := part.Uninstall(); err != nil {
 		return err

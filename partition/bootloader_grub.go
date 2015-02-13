@@ -21,14 +21,14 @@ var (
 	bootloaderGrubUpdateCmd  = "/usr/sbin/update-grub"
 )
 
-type Grub struct {
-	*BootLoaderType
+type grub struct {
+	*bootloaderType
 }
 
-const BootloaderNameGrub BootloaderName = "grub"
+const bootloaderNameGrub bootloaderName = "grub"
 
-// Create a new Grub bootloader object
-func NewGrub(partition *Partition) BootLoader {
+// newGrub create a new Grub bootloader object
+func newGrub(partition *Partition) bootLoader {
 	if !fileExists(bootloaderGrubConfigFile) || !fileExists(bootloaderGrubInstallCmd) {
 		return nil
 	}
@@ -36,25 +36,25 @@ func NewGrub(partition *Partition) BootLoader {
 	if b == nil {
 		return nil
 	}
-	g := &Grub{BootLoaderType: b}
+	g := &grub{bootloaderType: b}
 	g.currentBootPath = bootloaderGrubDir
 	g.otherBootPath = g.currentBootPath
 
 	return g
 }
 
-func (g *Grub) Name() BootloaderName {
-	return BootloaderNameGrub
+func (g *grub) Name() bootloaderName {
+	return bootloaderNameGrub
 }
 
-// Make the Grub bootloader switch rootfs's.
+// ToggleRootFS make the Grub bootloader switch rootfs's.
 //
 // Approach:
 //
 // Re-install grub each time the rootfs is toggled by running
 // grub-install chrooted into the other rootfs. Also update the grub
 // configuration.
-func (g *Grub) ToggleRootFS() (err error) {
+func (g *grub) ToggleRootFS() (err error) {
 
 	other := g.partition.otherRootPartition()
 
@@ -78,7 +78,7 @@ func (g *Grub) ToggleRootFS() (err error) {
 	return g.SetBootVar(bootloaderRootfsVar, g.otherRootfs)
 }
 
-func (g *Grub) GetAllBootVars() (vars []string, err error) {
+func (g *grub) GetAllBootVars() (vars []string, err error) {
 	output, err := runCommandWithStdout(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "list")
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func (g *Grub) GetAllBootVars() (vars []string, err error) {
 	return strings.Split(output, "\n"), nil
 }
 
-func (g *Grub) GetBootVar(name string) (value string, err error) {
+func (g *grub) GetBootVar(name string) (value string, err error) {
 	// Grub doesn't provide a get verb, so retrieve all values and
 	// search for the required variable ourselves.
 	output, err := runCommandWithStdout(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "list")
@@ -104,7 +104,7 @@ func (g *Grub) GetBootVar(name string) (value string, err error) {
 	return cfg.Get("", name)
 }
 
-func (g *Grub) SetBootVar(name, value string) (err error) {
+func (g *grub) SetBootVar(name, value string) (err error) {
 	// note that strings are not quoted since because
 	// RunCommand() does not use a shell and thus adding quotes
 	// stores them in the environment file (which is not desirable)
@@ -112,8 +112,9 @@ func (g *Grub) SetBootVar(name, value string) (err error) {
 	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", arg)
 }
 
+// ClearBootVar clears a boot var
 // FIXME: not atomic - need locking around snappy command!
-func (g *Grub) ClearBootVar(name string) (currentValue string, err error) {
+func (g *grub) ClearBootVar(name string) (currentValue string, err error) {
 	currentValue, err = g.GetBootVar(name)
 	if err != nil {
 		return currentValue, err
@@ -122,28 +123,28 @@ func (g *Grub) ClearBootVar(name string) (currentValue string, err error) {
 	return currentValue, runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "unset", name)
 }
 
-func (g *Grub) GetNextBootRootFSName() (label string, err error) {
+func (g *grub) GetNextBootRootFSName() (label string, err error) {
 	return g.GetBootVar(bootloaderRootfsVar)
 }
 
-func (g *Grub) GetRootFSName() string {
+func (g *grub) GetRootFSName() string {
 	return g.currentRootfs
 }
 
-func (g *Grub) GetOtherRootFSName() string {
+func (g *grub) GetOtherRootFSName() string {
 	return g.otherRootfs
 }
 
-func (g *Grub) MarkCurrentBootSuccessful() (err error) {
+func (g *grub) MarkCurrentBootSuccessful() (err error) {
 	return g.SetBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
 }
 
-func (g *Grub) SyncBootFiles() (err error) {
+func (g *grub) SyncBootFiles() (err error) {
 	// NOP
 	return nil
 }
 
-func (g *Grub) HandleAssets() (err error) {
+func (g *grub) HandleAssets() (err error) {
 
 	// NOP - since grub is used on generic hardware, it doesn't
 	// need to make use of hardware-specific assets
