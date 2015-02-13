@@ -34,7 +34,7 @@ Add `$GOPATH/bin` to your `PATH`, so you can run the go programs you install:
 
 The easiest way to get the source for `snappy` is to use the `go get` command.
 
-    go get -d -v launchpad.net/snappy-ubuntu/snappy-golang/...
+    go get -d -v launchpad.net/snappy/...
 
 This command will checkout the source of `snappy` and inspect it for any unmet
 Go package dependencies, downloading those as well. `go get` will also build
@@ -44,14 +44,14 @@ the `-d` flag. More details on the `go get` flags are available using
     go help get
 
 At this point you will have the git local repository of the `snappy` source at
-`$GOPATH/launchpad.net/snappy-ubuntu/snappy-golang`. The source for any
+`$GOPATH/launchpad.net/snappy/snappy-go`. The source for any
 dependent packages will also be available inside `$GOPATH`.
 
 ### Building
 
 To build, once the sources are available and `GOPATH` is set, you can just run
 
-    go build launchpad.net/snappy-ubuntu/snappy-golang/cmd/snappy
+    go build launchpad.net/snappy/snappy-go/cmd/snappy
 
 to get the `snappy` binary in your current working directory or
 
