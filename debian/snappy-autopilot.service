@@ -1,0 +1,7 @@
+[Unit]
+Description=Ubuntu Core Snappy Autopiot
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/snappy-go update
