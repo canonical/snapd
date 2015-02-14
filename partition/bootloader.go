@@ -79,15 +79,17 @@ type bootloaderType struct {
 
 // Factory method that returns a new bootloader for the given partition
 func getBootloader(p *Partition) (bootloader bootLoader, err error) {
-	ctors := []func(*Partition) bootLoader{newUboot, newGrub}
-
-	for _, f := range ctors {
-		b := f(p)
-		if b != nil {
-			return b, nil
-		}
+	// try uboot
+	if uboot := newUboot(p); uboot != nil {
+		return uboot, nil
 	}
 
+	// no, try grub
+	if grub := newGrub(p); grub != nil {
+		return grub, nil
+	}
+
+	// no, weeeee
 	return nil, ErrBootloader
 }
 
