@@ -15,9 +15,9 @@ type cmdInfo struct {
 	} `positional-args:"yes"`
 }
 
-const shortHelp = `A concise summary of key attributes of the snappy system, such as the release and channel.`
+const shortInfoHelp = `Display a summary of key attributes of the snappy system.`
 
-const longHelp = `A concise summary of key attributes of the snappy system, such as the release and channel.
+const longInfoHelp = `A concise summary of key attributes of the snappy system, such as the release and channel.
 
 The verbose output includes the specific version information for the factory image, the running image and the image that will be run on reboot, together with a list of the available channels for this image.
 
@@ -27,7 +27,7 @@ The verbose version of the info command for a package will also tell you the ava
 
 func init() {
 	var cmdInfoData cmdInfo
-	if _, err := parser.AddCommand("info", shortHelp, longHelp, &cmdInfoData); err != nil {
+	if _, err := parser.AddCommand("info", shortInfoHelp, longInfoHelp, &cmdInfoData); err != nil {
 		// panic here as something must be terribly wrong if there is an
 		// error here
 		panic(err)
