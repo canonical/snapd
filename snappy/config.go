@@ -3,6 +3,7 @@ package snappy
 import (
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,10 @@ import (
 
 func snapConfig(snapDir, rawConfig string) (newConfig string, err error) {
 	configScript := filepath.Join(snapDir, "hooks", "config")
+	if _, err := os.Stat(configScript); err != nil {
+		return "", fmt.Errorf("No config for '%s'", snapDir)
+	}
+	
 	cmd := exec.Command(configScript)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

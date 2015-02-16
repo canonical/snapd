@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 
 	"launchpad.net/snappy/snappy"
 )
@@ -12,6 +11,7 @@ import (
 type cmdConfig struct {
 	Positional struct {
 		PackageName string `positional-arg-name:"package name" description:"Set configuration for a specific installed package"`
+		ConfigFile string `positional-arg-name:"config file" description:"The configuration for the given file"`
 	} `positional-args:"yes"`
 }
 
@@ -37,8 +37,16 @@ func (x *cmdConfig) Execute(args []string) (err error) {
 	if pkgname == "" {
 		return errors.New("Config needs a packagename")
 	}
+	configFile := x.Positional.ConfigFile
+	if configFile == "" {
+		return errors.New("Config needs a configFile as second argument")
+	}
 
-	input, err := ioutil.ReadAll(os.Stdin)
+	input, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return err
+	}
+	
 	snap := snappy.ActiveSnapByName(pkgname)
 	if snap == nil {
 		return fmt.Errorf("No snap: '%s' found", pkgname)
@@ -47,6 +55,7 @@ func (x *cmdConfig) Execute(args []string) (err error) {
 	if err != nil {
 		return err
 	}
+	// output the new configuration
 	fmt.Println(newConfig)
 
 	return nil
