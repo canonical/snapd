@@ -63,10 +63,35 @@ func showInstalledList(installed []snappy.Part, showAll bool, o io.Writer) {
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
 	defer w.Flush()
 
+	// Initialise to handle systems without a provisioned "other"
+	otherVersion := "0"
+	currentVersion := "0"
+	otherName := ""
+	needsReboot := false
+
 	fmt.Fprintln(w, "Name\tVersion\tSummary\t")
 	for _, part := range installed {
+
+		if part.NeedsReboot() {
+			needsReboot = true
+		}
+		if part.IsActive() {
+			currentVersion = part.Version()
+		} else {
+			otherVersion = part.Version()
+			otherName = part.Name()
+		}
+
 		if showAll || part.IsActive() {
 			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
+		}
+	}
+
+	if needsReboot {
+		if snappy.VersionCompare(otherVersion, currentVersion) > 0 {
+			fmt.Fprintln(w, fmt.Sprintf("Reboot to use the new %s.", otherName))
+		} else {
+			fmt.Fprintln(w, fmt.Sprintf("Reboot to use %s version %s.", otherName, otherVersion))
 		}
 	}
 }
