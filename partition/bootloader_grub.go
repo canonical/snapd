@@ -36,8 +36,6 @@ func newGrub(partition *Partition) bootLoader {
 		return nil
 	}
 	g := &grub{bootloaderType: b}
-	g.currentBootPath = bootloaderGrubDir
-	g.otherBootPath = g.currentBootPath
 
 	return g
 }
