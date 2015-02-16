@@ -115,10 +115,7 @@ func (s *SystemImagePart) SetActive() (err error) {
 		return nil
 	}
 
-	// FIXME: UpdateBootloader is a bit generic, this should really be
-	//        something like ToggleNextBootToOtherParition (but slightly
-	//        shorter ;)
-	return s.partition.UpdateBootloader()
+	return s.partition.ToggleNextBoot()
 }
 
 // Install installs the snap
@@ -161,7 +158,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	}
 
 	// FIXME: switch s-i daemon back to current partition
-	err = s.partition.UpdateBootloader()
+	err = s.partition.ToggleNextBoot()
 
 	if pb != nil {
 		pb.Finished()

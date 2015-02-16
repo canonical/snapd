@@ -315,13 +315,13 @@ func (s *SITestSuite) TestUpdateHasUpdate(c *C) {
 }
 
 type MockPartition struct {
-	updateBootloaderCalled    bool
+	toggleNextBootCalled      bool
 	markBootSuccessfulCalled  bool
 	syncBootloaderFilesCalled bool
 }
 
-func (p *MockPartition) UpdateBootloader() (err error) {
-	p.updateBootloaderCalled = true
+func (p *MockPartition) ToggleNextBoot() (err error) {
+	p.toggleNextBootCalled = true
 	return nil
 }
 
@@ -376,7 +376,7 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	pb := &MockProgressMeter{}
 	err = sp.Install(pb)
 	c.Assert(err, IsNil)
-	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
+	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 	c.Assert(pb.total, Equals, 100.0)
 	c.Assert(pb.finished, Equals, true)
 	c.Assert(pb.progress, DeepEquals, []float64{20.0, 40.0, 60.0, 80.0, 100.0})
@@ -393,7 +393,7 @@ func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 
 	err = sp.Install(nil)
 	c.Assert(err, IsNil)
-	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
+	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 }
 
 func (s *SITestSuite) TestSystemImagePartSetActiveAlreadyActive(c *C) {
@@ -406,7 +406,7 @@ func (s *SITestSuite) TestSystemImagePartSetActiveAlreadyActive(c *C) {
 
 	err = sp.SetActive()
 	c.Assert(err, IsNil)
-	c.Assert(mockPartition.updateBootloaderCalled, Equals, false)
+	c.Assert(mockPartition.toggleNextBootCalled, Equals, false)
 }
 
 func (s *SITestSuite) TestSystemImagePartSetActiveMakeActive(c *C) {
@@ -419,5 +419,5 @@ func (s *SITestSuite) TestSystemImagePartSetActiveMakeActive(c *C) {
 
 	err = sp.SetActive()
 	c.Assert(err, IsNil)
-	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
+	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 }
