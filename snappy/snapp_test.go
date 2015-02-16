@@ -48,16 +48,15 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	}
 }
 
-func (s *SnapTestSuite) makeMockSnap() (snapDir string, err error) {
+func (s *SnapTestSuite) makeMockSnap() (yamlFile string, err error) {
 	metaDir := filepath.Join(s.tempdir, "apps", "hello-app", "1.10", "meta")
 	err = os.MkdirAll(metaDir, 0777)
 	if err != nil {
 		return "", err
 	}
-	yamlFile := filepath.Join(metaDir, "package.yaml")
+	yamlFile = filepath.Join(metaDir, "package.yaml")
 	ioutil.WriteFile(yamlFile, []byte(packageHello), 0666)
 
-	snapDir, _ = filepath.Split(metaDir)
 	return yamlFile, err
 }
 

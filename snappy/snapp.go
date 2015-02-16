@@ -166,7 +166,7 @@ func (s *SnapPart) Uninstall() (err error) {
 
 // Config is used to to configure the snap
 func (s *SnapPart) Config(configuration []byte) (err error) {
-	return err
+	return snapConfig(s.basedir, string(configuration))
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
