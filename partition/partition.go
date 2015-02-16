@@ -701,6 +701,10 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	if boot != nil && boot.mountpoint != "" {
 		requiredChrootMounts = append(requiredChrootMounts, boot.mountpoint)
 	}
+	// grub is special and needs this additional dir
+	if _, err := os.Stat("/boot/grub"); err != nil {
+		requiredChrootMounts = append(requiredChrootMounts, "/boot/grub")
+	}
 
 	for _, fs := range requiredChrootMounts {
 		target := path.Join(p.MountTarget(), fs)
