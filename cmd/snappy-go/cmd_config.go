@@ -11,7 +11,7 @@ import (
 type cmdConfig struct {
 	Positional struct {
 		PackageName string `positional-arg-name:"package name" description:"Set configuration for a specific installed package"`
-		ConfigFile string `positional-arg-name:"config file" description:"The configuration for the given file"`
+		ConfigFile  string `positional-arg-name:"config file" description:"The configuration for the given file"`
 	} `positional-args:"yes"`
 }
 
@@ -46,7 +46,7 @@ func (x *cmdConfig) Execute(args []string) (err error) {
 	if err != nil {
 		return err
 	}
-	
+
 	snap := snappy.ActiveSnapByName(pkgname)
 	if snap == nil {
 		return fmt.Errorf("No snap: '%s' found", pkgname)

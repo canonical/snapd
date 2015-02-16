@@ -14,7 +14,10 @@ func snapConfig(snapDir, rawConfig string) (newConfig string, err error) {
 	if _, err := os.Stat(configScript); err != nil {
 		return "", fmt.Errorf("No config for '%s'", snapDir)
 	}
-	
+	return runConfigScript(configScript, rawConfig)
+}
+
+func runConfigScript(configScript, rawConfig string) (newConfig string, err error) {
 	cmd := exec.Command(configScript)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
