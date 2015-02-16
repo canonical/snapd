@@ -63,7 +63,7 @@ type bootLoader interface {
 	// currently-booted rootfs as having booted successfully.
 	MarkCurrentBootSuccessful() error
 
-	// Return he additional required bind mouns for this bootloader
+	// Return the additional required bind mounts for this bootloader
 	AdditionalBindMounts() []string
 }
 
