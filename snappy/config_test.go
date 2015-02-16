@@ -12,17 +12,20 @@ import (
 
 const configPassthroughScript = `#!/bin/sh
 
-# just dump out for the tes
-cat - > %s/config.out
+# temp location to store cfg
+CFG="%s/config.out"
 
-# return resul
-printf "ok: true\n"
+# just dump out for the tes
+cat - > $CFG
+
+# and config
+cat $CFG
 `
 
-const configErrorScript = `#!/bin/sh -ex
+const configErrorScript = `#!/bin/sh
 
-printf "ok: false\n"
-printf "error: some error\n"
+printf "error: some error"
+exit 1
 `
 
 const configYaml = `
@@ -48,18 +51,21 @@ func (s *SnapTestSuite) TestConfigSimple(c *C) {
 	snapDir, err := s.makeMockSnapWithConfig(c, mockConfig)
 	c.Assert(err, IsNil)
 
-	err = snapConfig(snapDir, configYaml)
+	newConfig, err := snapConfig(snapDir, configYaml)
 	c.Assert(err, IsNil)
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "config.out"))
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte(configYaml))
+	c.Assert(newConfig, Equals, configYaml)
 }
 
 func (s *SnapTestSuite) TestConfigError(c *C) {
 	snapDir, err := s.makeMockSnapWithConfig(c, configErrorScript)
 	c.Assert(err, IsNil)
 
-	err = snapConfig(snapDir, configYaml)
+	newConfig, err := snapConfig(snapDir, configYaml)
 	c.Assert(err, NotNil)
-	c.Assert(strings.HasSuffix(err.Error(), "failed with: 'some error'"), Equals, true)
+	c.Assert(newConfig, Equals, "")
+	fmt.Println(err)
+	c.Assert(strings.HasSuffix(err.Error(), "failed with: 'error: some error'"), Equals, true)
 }

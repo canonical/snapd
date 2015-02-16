@@ -43,5 +43,11 @@ func (x *cmdConfig) Execute(args []string) (err error) {
 	if snap == nil {
 		return fmt.Errorf("No snap: '%s' found", pkgname)
 	}
-	return snap.Config(input)
+	newConfig, err := snap.Config(input)
+	if err != nil {
+		return err
+	}
+	fmt.Println(newConfig)
+
+	return nil
 }
