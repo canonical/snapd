@@ -701,9 +701,15 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	if boot != nil && boot.mountpoint != "" {
 		requiredChrootMounts = append(requiredChrootMounts, boot.mountpoint)
 	}
-	// grub is special and needs this additional dir
-	if _, err := os.Stat("/boot/grub"); err != nil {
-		requiredChrootMounts = append(requiredChrootMounts, "/boot/grub")
+
+	// add additional bootloader mounts, this is currently required
+	// for grub as it reinstalls the bootloader on each update
+	// If we stop doing that, we can remove this mount
+	bootloader, err := getBootloader(p)
+	if err == nil && bootloader != nil {
+		for _, mount := range bootloader.AdditionalBindMounts() {
+			requiredChrootMounts = append(requiredChrootMounts, mount)
+		}
 	}
 
 	for _, fs := range requiredChrootMounts {

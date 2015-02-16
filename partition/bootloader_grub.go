@@ -129,3 +129,7 @@ func (g *grub) HandleAssets() (err error) {
 	// need to make use of hardware-specific assets
 	return nil
 }
+
+func (g *grub) AdditionalBindMounts() []string {
+	return []string{"/boot/grub"}
+}

@@ -62,6 +62,9 @@ type bootLoader interface {
 	// Update the bootloader configuration to mark the
 	// currently-booted rootfs as having booted successfully.
 	MarkCurrentBootSuccessful() error
+
+	// Return he additional required bind mouns for this bootloader
+	AdditionalBindMounts() []string
 }
 
 type bootloaderType struct {
