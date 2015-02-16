@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -37,10 +36,30 @@ func init() {
 func (x *cmdInfo) Execute(args []string) (err error) {
 	// TODO implement per package info
 	if x.Positional.PackageName != "" {
-		return errors.New("Information request for specific packages not implemented")
+		return snapInfo(x.Positional.PackageName, x.Verbose)
 	}
 
 	return info()
+}
+
+func snapInfo(pkgname string, verbose bool) error {
+	snap := snappy.ActiveSnapByName(pkgname)
+	if snap == nil {
+		return fmt.Errorf("No snap '%s' found", pkgname)
+	}
+
+	// FIXME: implement channels
+	fmt.Printf("channel: %s\n", "edge")
+	fmt.Printf("version: %s\n", snap.Version())
+	// FIXME: implement me
+	fmt.Printf("updated: %s\n", "n/a")
+	if verbose {
+		fmt.Printf("installed: %s\n", "n/a")
+		fmt.Printf("binary-size: %v\n", snap.InstalledSize())
+		fmt.Printf("data-size: %s\n", "n/a")
+		// FIXME: implement backup list per spec
+	}
+	return nil
 }
 
 func info() error {
