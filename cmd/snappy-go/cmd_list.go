@@ -69,6 +69,46 @@ func showInstalledList(installed []snappy.Part, showAll bool, o io.Writer) {
 			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
 		}
 	}
+	showRebootMessage(installed, o)
+}
+
+func showRebootMessage(installed []snappy.Part, o io.Writer) {
+	// Initialise to handle systems without a provisioned "other"
+	otherVersion := "0"
+	currentVersion := "0"
+	otherName := ""
+	needsReboot := false
+
+	for _, part := range installed {
+		// FIXME: extend this later to look at more than just
+		//        core - once we do that the logic here needs
+		//        to be modified as the current code assumes
+		//        there are only two version instaleld and
+		//        there is only a single part that may requires
+		//        a reboot
+		if part.Type() != snappy.SnapTypeCore {
+			continue
+		}
+
+		if part.NeedsReboot() {
+			needsReboot = true
+		}
+
+		if part.IsActive() {
+			currentVersion = part.Version()
+		} else {
+			otherVersion = part.Version()
+			otherName = part.Name()
+		}
+	}
+
+	if needsReboot {
+		if snappy.VersionCompare(otherVersion, currentVersion) > 0 {
+			fmt.Fprintln(o, fmt.Sprintf("Reboot to use the new %s.", otherName))
+		} else {
+			fmt.Fprintln(o, fmt.Sprintf("Reboot to use %s version %s.", otherName, otherVersion))
+		}
+	}
 }
 
 func showUpdatesList(installed []snappy.Part, updates []snappy.Part, showAll bool, o io.Writer) {
