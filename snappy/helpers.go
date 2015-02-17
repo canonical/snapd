@@ -143,11 +143,12 @@ func makeMapFromEnvList(env []string) map[string]string {
 	return envMap
 }
 
-// makeConfigEnv returns a environment suitable for passing to
+// makeSnapHookEnv returns an environment suitable for passing to
 // os/exec.Cmd.Env
 //
-// The environment contain additional SNAP_* variables that can
-// are required when calling a meta/hook/ script
+// The returned environment contains additional SNAP_* variables that
+// are required when calling a meta/hook/ script and that will override
+// any already existing SNAP_* variables in os.Environment()
 func makeSnapHookEnv(part *SnapPart) (env []string) {
 	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
 	snapEnv := map[string]string{

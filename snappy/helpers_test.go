@@ -121,12 +121,12 @@ func (ts *HTestSuite) TestEnsureDir(c *C) {
 func (ts *HTestSuite) TestMakeMapFromEnvList(c *C) {
 	envList := []string{
 		"PATH=/usr/bin:/bin",
-		"DBUS_SESSION_BUS_ADDRESS=unix:abstract=/tmp/1234",
+		"DBUS_SESSION_BUS_ADDRESS=unix:abstract=something1234",
 	}
 	envMap := makeMapFromEnvList(envList)
 	c.Assert(envMap, DeepEquals, map[string]string{
 		"PATH": "/usr/bin:/bin",
-		"DBUS_SESSION_BUS_ADDRESS": "unix:abstract=/tmp/1234",
+		"DBUS_SESSION_BUS_ADDRESS": "unix:abstract=something1234",
 	})
 }
 

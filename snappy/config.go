@@ -14,7 +14,7 @@ import (
 // It takes a rawConfig string that is passed as the new configuration
 // This string can be empty.
 //
-// It returns the newConfig from or an error
+// It returns the newConfig or an error
 func snapConfig(snapDir, rawConfig string) (newConfig string, err error) {
 	configScript := filepath.Join(snapDir, "meta", "hooks", "config")
 	if _, err := os.Stat(configScript); err != nil {
