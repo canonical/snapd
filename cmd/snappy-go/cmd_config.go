@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 
 	"launchpad.net/snappy/snappy"
 )
@@ -37,21 +38,26 @@ func (x *cmdConfig) Execute(args []string) (err error) {
 	if pkgname == "" {
 		return errors.New("Config needs a packagename")
 	}
-	configFile := x.Positional.ConfigFile
-	if configFile == "" {
-		return errors.New("Config needs a configFile as second argument")
-	}
 
-	input, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		return err
+	var configInput []byte
+	configFile := x.Positional.ConfigFile
+	switch {
+	case configFile == "-":
+		if configInput, err = ioutil.ReadAll(os.Stdin); err != nil {
+			return err
+		}
+	case configFile != "":
+		if configInput, err = ioutil.ReadFile(configFile); err != nil {
+			return err
+		}
 	}
 
 	snap := snappy.ActiveSnapByName(pkgname)
 	if snap == nil {
 		return fmt.Errorf("No snap: '%s' found", pkgname)
 	}
-	newConfig, err := snap.Config(input)
+
+	newConfig, err := snap.Config(configInput)
 	if err != nil {
 		return err
 	}
