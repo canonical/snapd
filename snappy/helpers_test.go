@@ -138,7 +138,7 @@ func (ts *HTestSuite) TestMakeMapFromEnvListInvalidInput(c *C) {
 	c.Assert(envMap, DeepEquals, map[string]string(nil))
 }
 
-func (s *HTestSuite) TestMakeConfigEnv(c *C) {
+func (ts *HTestSuite) TestMakeConfigEnv(c *C) {
 	tempdir := c.MkDir()
 	yamlFile, err := makeMockSnap(tempdir)
 	c.Assert(err, IsNil)

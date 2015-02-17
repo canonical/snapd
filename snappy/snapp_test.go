@@ -14,17 +14,6 @@ import (
 	. "launchpad.net/gocheck"
 )
 
-const (
-	packageHello = `
-name: hello-app
-version: 1.10
-vendor: Michael Vogt <mvo@ubuntu.com>
-icon: meta/hello.svg
-binaries:
- - name: bin/hello
-`
-)
-
 type SnapTestSuite struct {
 	tempdir string
 }
