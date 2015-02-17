@@ -131,5 +131,7 @@ func (g *grub) HandleAssets() (err error) {
 }
 
 func (g *grub) AdditionalBindMounts() []string {
+	// grub needs this in addition to "system-boot" as its the
+	// well known location for its configuration
 	return []string{"/boot/grub"}
 }
