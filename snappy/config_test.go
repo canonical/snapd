@@ -37,12 +37,13 @@ config:
 func (s *SnapTestSuite) makeMockSnapWithConfig(c *C, configScript string) (snapDir string, err error) {
 	yamlFile, err := s.makeMockSnap()
 	c.Assert(err, IsNil)
-	snapDir = filepath.Dir(yamlFile)
-	err = os.Mkdir(filepath.Join(snapDir, "hooks"), 0755)
+	metaDir := filepath.Dir(yamlFile)
+	err = os.Mkdir(filepath.Join(metaDir, "hooks"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(snapDir, "hooks", "config"), []byte(configScript), 0755)
+	err = ioutil.WriteFile(filepath.Join(metaDir, "hooks", "config"), []byte(configScript), 0755)
 	c.Assert(err, IsNil)
 
+	snapDir = filepath.Dir(metaDir)
 	return snapDir, nil
 }
 
@@ -67,4 +68,24 @@ func (s *SnapTestSuite) TestConfigError(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(newConfig, Equals, "")
 	c.Assert(strings.HasSuffix(err.Error(), "failed with: 'error: some error'"), Equals, true)
+}
+
+func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
+	yamlFile, err := s.makeMockSnap()
+	c.Assert(err, IsNil)
+	snap := NewInstalledSnapPart(yamlFile)
+	c.Assert(snap, NotNil)
+
+	os.Setenv("SNAP_NAME", "override-me")
+	defer os.Setenv("SNAP_NAME", "")
+
+	env := makeConfigEnv(snap)
+
+	// now ensure that the environment we get back is what we want
+	envMap := makeMapFromEnvList(env)
+	// regular env is unaltered
+	c.Assert(envMap["PATH"], Equals, os.Getenv("PATH"))
+	// SNAP_* is overriden
+	c.Assert(envMap["SNAP_NAME"], Equals, "hello-app")
+	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
 }

@@ -9,20 +9,74 @@ import (
 	"strings"
 )
 
+// makeMapFromEnvList takes a string list of the form "key=value"
+// and returns a map[string]string from that list
+// This is useful for os.Environ() manipulation
+func makeMapFromEnvList(env []string) map[string]string {
+	envMap := map[string]string{}
+	for _, l := range env {
+		split := strings.SplitN(l, "=", 2)
+		envMap[split[0]] = split[1]
+	}
+	return envMap
+}
+
+// makeConfigEnv returns a environment suitable for passing to
+// os/exec.Cmd.Env
+//
+// It contain additional SNAP_* variables
+func makeConfigEnv(part *SnapPart) (env []string) {
+	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
+	snapEnv := map[string]string{
+		"SNAP_NAME":          part.Name(),
+		"SNAP_VERSION":       part.Version(),
+		"SNAP_APP_PATH":      part.basedir,
+		"SNAP_APP_DATA_PATH": snapDataDir,
+	}
+
+	// merge regular env and new snapEnv
+	envMap := makeMapFromEnvList(os.Environ())
+	for k, v := range snapEnv {
+		envMap[k] = v
+	}
+
+	// flatten
+	for k, v := range envMap {
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	return env
+}
+
+// snapConfig configures a installed snap in the given directory
+//
+// It takes a rawConfig string that is passed as the new configuration
+// This string can be empty.
+//
+// It returns the newConfig from or an error
 func snapConfig(snapDir, rawConfig string) (newConfig string, err error) {
-	configScript := filepath.Join(snapDir, "hooks", "config")
+	configScript := filepath.Join(snapDir, "meta", "hooks", "config")
 	if _, err := os.Stat(configScript); err != nil {
 		return "", fmt.Errorf("No config for '%s'", snapDir)
 	}
-	return runConfigScript(configScript, rawConfig)
+
+	part := NewInstalledSnapPart(filepath.Join(snapDir, "meta", "package.yaml"))
+	if part == nil {
+		return "", fmt.Errorf("No snap found in '%s'", snapDir)
+	}
+
+	return runConfigScript(configScript, rawConfig, makeConfigEnv(part))
 }
 
-func runConfigScript(configScript, rawConfig string) (newConfig string, err error) {
+// runConfigScript is a helper that just runs the config script and passes
+// the rawConfig via stdin and reads/returns the output
+func runConfigScript(configScript, rawConfig string, env []string) (newConfig string, err error) {
 	cmd := exec.Command(configScript)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return "", err
 	}
+	cmd.Env = env
 
 	// meh, really golang?
 	go func() {

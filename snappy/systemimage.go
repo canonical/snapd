@@ -179,7 +179,7 @@ func (s *SystemImagePart) Uninstall() (err error) {
 func (s *SystemImagePart) Config(configuration []byte) (new string, err error) {
 	// system-image is special and we provide a ubuntu-core-config
 	// script via cloud-init
-	return runConfigScript("/usr/bin/ubuntu-core-config", string(configuration))
+	return runConfigScript("/usr/bin/ubuntu-core-config", string(configuration), nil)
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
