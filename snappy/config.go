@@ -18,12 +18,12 @@ import (
 func snapConfig(snapDir, rawConfig string) (newConfig string, err error) {
 	configScript := filepath.Join(snapDir, "meta", "hooks", "config")
 	if _, err := os.Stat(configScript); err != nil {
-		return "", fmt.Errorf("No config for '%s'", snapDir)
+		return "", ErrConfigNotFound
 	}
 
 	part := NewInstalledSnapPart(filepath.Join(snapDir, "meta", "package.yaml"))
 	if part == nil {
-		return "", fmt.Errorf("No snap found in '%s'", snapDir)
+		return "", ErrPackageNotFound
 	}
 
 	return runConfigScript(configScript, rawConfig, makeSnapHookEnv(part))
@@ -41,8 +41,11 @@ func runConfigScript(configScript, rawConfig string, env []string) (newConfig st
 
 	// meh, really golang?
 	go func() {
-		defer stdin.Close()
+		// copy all data in a go-routine
 		io.Copy(stdin, strings.NewReader(rawConfig))
+		// and Close in the go-routine so that cmd.CombinedOutput()
+		// gets its EOF
+		stdin.Close()
 	}()
 
 	output, err := cmd.CombinedOutput()
