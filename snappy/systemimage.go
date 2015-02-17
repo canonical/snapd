@@ -160,6 +160,9 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 		return err
 	}
 
+	// Check that the final system state is as expected.
+	s.verifyUpgradeWasApplied()
+
 	// FIXME: switch s-i daemon back to current partition
 	err = s.partition.UpdateBootloader()
 
@@ -168,6 +171,35 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 		updateProgress.Cancel()
 	}
 	return err
+}
+
+// Ensure the expected version update was applied to the expected partition.
+func (s *SystemImagePart) verifyUpgradeWasApplied() {
+	// The upgrade has now been applied, so check that the expected
+	// update was applied by comparing "self" (which is the newest
+	// system-image revision with that installed on the other
+	// partition.
+
+	repo := NewSystemImageRepository()
+
+	// Determine the latest installed part.
+	latestPart := repo.otherPart()
+	if latestPart == nil {
+		// If there is no other part, this system must be a
+		// single rootfs one, so re-query current to find the
+		// latest installed part.
+		latestPart = repo.currentPart()
+	}
+
+	if latestPart == nil {
+		log.Printf("ERROR: could not find latest installed partition")
+		return
+	}
+
+	if s.version != latestPart.Version() {
+		log.Printf("ERROR: found latest installed version %q (expected %q)",
+		latestPart.Version(), s.version)
+	}
 }
 
 // Uninstall can not be used for "core" snaps
