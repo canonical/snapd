@@ -11,7 +11,7 @@ We plan to support a schema file for the yaml as well to make e.g. web
 based editing of the config simpler.  The format of the configuration
 is as follow:
     
-config: # why does it need to start with a config entry?
+config:
      packagename:
         key: value
     another-pkg:
@@ -84,20 +84,6 @@ Example to set a non-existing config:
         status:
             ubuntu-core:
                 error: Unknown config option "tea-in-the-morning"
-
-Example of the port setting after install:
-    snappy -> meta/hooks/config
-        config:
-            foo:
-                port: 80
-    [port 80 is already taken on the system]
-    snappy -> meta/hooks/config
-    config:
-      foo:
-        port: 8180
-    meta/hooks/config -> snappy (exit 1):
-        status:
-            foo:
-                errror: port 8180 is not suport
 [snappy fails the install of the app]
+
 

@@ -9,18 +9,6 @@ import (
 	"strings"
 )
 
-// makeMapFromEnvList takes a string list of the form "key=value"
-// and returns a map[string]string from that list
-// This is useful for os.Environ() manipulation
-func makeMapFromEnvList(env []string) map[string]string {
-	envMap := map[string]string{}
-	for _, l := range env {
-		split := strings.SplitN(l, "=", 2)
-		envMap[split[0]] = split[1]
-	}
-	return envMap
-}
-
 // makeConfigEnv returns a environment suitable for passing to
 // os/exec.Cmd.Env
 //
