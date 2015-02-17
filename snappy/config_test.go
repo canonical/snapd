@@ -69,23 +69,3 @@ func (s *SnapTestSuite) TestConfigError(c *C) {
 	c.Assert(newConfig, Equals, "")
 	c.Assert(strings.HasSuffix(err.Error(), "failed with: 'error: some error'"), Equals, true)
 }
-
-func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
-	yamlFile, err := s.makeMockSnap()
-	c.Assert(err, IsNil)
-	snap := NewInstalledSnapPart(yamlFile)
-	c.Assert(snap, NotNil)
-
-	os.Setenv("SNAP_NAME", "override-me")
-	defer os.Setenv("SNAP_NAME", "")
-
-	env := makeConfigEnv(snap)
-
-	// now ensure that the environment we get back is what we want
-	envMap := makeMapFromEnvList(env)
-	// regular env is unaltered
-	c.Assert(envMap["PATH"], Equals, os.Getenv("PATH"))
-	// SNAP_* is overriden
-	c.Assert(envMap["SNAP_NAME"], Equals, "hello-app")
-	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
-}

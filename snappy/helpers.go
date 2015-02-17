@@ -3,6 +3,7 @@ package snappy
 import (
 	"archive/tar"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -140,4 +141,32 @@ func makeMapFromEnvList(env []string) map[string]string {
 		envMap[split[0]] = split[1]
 	}
 	return envMap
+}
+
+// makeConfigEnv returns a environment suitable for passing to
+// os/exec.Cmd.Env
+//
+// The environment contain additional SNAP_* variables that can
+// are required when calling a meta/hook/ script
+func makeSnapHookEnv(part *SnapPart) (env []string) {
+	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
+	snapEnv := map[string]string{
+		"SNAP_NAME":          part.Name(),
+		"SNAP_VERSION":       part.Version(),
+		"SNAP_APP_PATH":      part.basedir,
+		"SNAP_APP_DATA_PATH": snapDataDir,
+	}
+
+	// merge regular env and new snapEnv
+	envMap := makeMapFromEnvList(os.Environ())
+	for k, v := range snapEnv {
+		envMap[k] = v
+	}
+
+	// flatten
+	for k, v := range envMap {
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	return env
 }

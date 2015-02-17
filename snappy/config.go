@@ -9,33 +9,6 @@ import (
 	"strings"
 )
 
-// makeConfigEnv returns a environment suitable for passing to
-// os/exec.Cmd.Env
-//
-// It contain additional SNAP_* variables
-func makeConfigEnv(part *SnapPart) (env []string) {
-	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
-	snapEnv := map[string]string{
-		"SNAP_NAME":          part.Name(),
-		"SNAP_VERSION":       part.Version(),
-		"SNAP_APP_PATH":      part.basedir,
-		"SNAP_APP_DATA_PATH": snapDataDir,
-	}
-
-	// merge regular env and new snapEnv
-	envMap := makeMapFromEnvList(os.Environ())
-	for k, v := range snapEnv {
-		envMap[k] = v
-	}
-
-	// flatten
-	for k, v := range envMap {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
-
-	return env
-}
-
 // snapConfig configures a installed snap in the given directory
 //
 // It takes a rawConfig string that is passed as the new configuration
@@ -53,7 +26,7 @@ func snapConfig(snapDir, rawConfig string) (newConfig string, err error) {
 		return "", fmt.Errorf("No snap found in '%s'", snapDir)
 	}
 
-	return runConfigScript(configScript, rawConfig, makeConfigEnv(part))
+	return runConfigScript(configScript, rawConfig, makeSnapHookEnv(part))
 }
 
 // runConfigScript is a helper that just runs the config script and passes
