@@ -15,9 +15,8 @@ var (
 	bootloaderGrubConfigFile = "/boot/grub/grub.cfg"
 	bootloaderGrubEnvFile    = "/boot/grub/grubenv"
 
-	bootloaderGrubEnvCmd     = "/usr/bin/grub-editenv"
-	bootloaderGrubInstallCmd = "/usr/sbin/grub-install"
-	bootloaderGrubUpdateCmd  = "/usr/sbin/update-grub"
+	bootloaderGrubEnvCmd    = "/usr/bin/grub-editenv"
+	bootloaderGrubUpdateCmd = "/usr/sbin/update-grub"
 )
 
 type grub struct {
@@ -28,7 +27,7 @@ const bootloaderNameGrub bootloaderName = "grub"
 
 // newGrub create a new Grub bootloader object
 func newGrub(partition *Partition) bootLoader {
-	if !fileExists(bootloaderGrubConfigFile) || !fileExists(bootloaderGrubInstallCmd) {
+	if !fileExists(bootloaderGrubConfigFile) || !fileExists(bootloaderGrubUpdateCmd) {
 		return nil
 	}
 	b := newBootLoader(partition)
@@ -50,17 +49,8 @@ func (g *grub) Name() bootloaderName {
 //
 // Approach:
 //
-// Re-install grub each time the rootfs is toggled by running
-// grub-install chrooted into the other rootfs. Also update the grub
-// configuration.
+// Update the grub configuration.
 func (g *grub) ToggleRootFS() (err error) {
-
-	other := g.partition.otherRootPartition()
-
-	// install grub
-	if err := runInChroot(g.partition.MountTarget(), bootloaderGrubInstallCmd, other.parentName); err != nil {
-		return err
-	}
 
 	// create the grub config
 	if err := runInChroot(g.partition.MountTarget(), bootloaderGrubUpdateCmd); err != nil {

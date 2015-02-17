@@ -645,6 +645,12 @@ func (p *Partition) mountOtherRootfs(readOnly bool) (err error) {
 	return err
 }
 
+// Create a read-only bindmount of the currently-mounted rootfs at the
+// specified mountpoint location (which must already exist).
+func (p *Partition) bindmountThisRootfsRO(target string) (err error) {
+	return mountAndAddToGlobalMountList("/", target, "bind,ro")
+}
+
 // Ensure the other partition is mounted read-only.
 func (p *Partition) ensureOtherMountedRO() (err error) {
 	mountpoint := p.MountTarget()
@@ -711,7 +717,15 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 		}
 	}
 
-	return nil
+	// Grub also requires access to both rootfs's when run from
+	// within a chroot (to allow it to create menu entries for
+	// both), so bindmount the real rootfs.
+	targetInChroot := path.Join(p.MountTarget(), p.MountTarget())
+
+	// FIXME: we should really remove this after the unmount
+	os.MkdirAll(targetInChroot, dirMode)
+
+	return p.bindmountThisRootfsRO(targetInChroot)
 }
 
 // Undo the effects of BindmountRequiredFilesystems()
