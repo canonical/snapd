@@ -66,6 +66,5 @@ func (s *SnapTestSuite) TestConfigError(c *C) {
 	newConfig, err := snapConfig(snapDir, configYaml)
 	c.Assert(err, NotNil)
 	c.Assert(newConfig, Equals, "")
-	fmt.Println(err)
 	c.Assert(strings.HasSuffix(err.Error(), "failed with: 'error: some error'"), Equals, true)
 }
