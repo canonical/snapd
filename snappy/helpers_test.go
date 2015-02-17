@@ -128,5 +128,12 @@ func (ts *HTestSuite) TestMakeMapFromEnvList(c *C) {
 		"PATH": "/usr/bin:/bin",
 		"DBUS_SESSION_BUS_ADDRESS": "unix:abstract=/tmp/1234",
 	})
+}
 
+func (ts *HTestSuite) TestMakeMapFromEnvListInvalidInput(c *C) {
+	envList := []string{
+		"nonsesne",
+	}
+	envMap := makeMapFromEnvList(envList)
+	c.Assert(envMap, DeepEquals, map[string]string(nil))
 }
