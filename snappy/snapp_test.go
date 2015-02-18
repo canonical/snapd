@@ -85,6 +85,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Assert(snap.IsActive(), Equals, false)
 
 	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", "hello-app", "1.10"))
+	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
 func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
@@ -347,6 +348,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(len(results), Equals, 1)
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver")
 	c.Assert(results[0].Version(), Equals, "0.3.1")
+	c.Assert(results[0].DownloadSize(), Equals, int64(21236))
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {

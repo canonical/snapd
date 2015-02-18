@@ -51,6 +51,8 @@ type SystemImagePart struct {
 	isInstalled bool
 	isActive    bool
 
+	updateSize int64
+
 	partition partition.Interface
 }
 
@@ -94,13 +96,13 @@ func (s *SystemImagePart) IsInstalled() bool {
 }
 
 // InstalledSize returns the size of the installed snap
-func (s *SystemImagePart) InstalledSize() int {
+func (s *SystemImagePart) InstalledSize() int64 {
 	return -1
 }
 
 // DownloadSize returns the dowload size
-func (s *SystemImagePart) DownloadSize() int {
-	return -1
+func (s *SystemImagePart) DownloadSize() int64 {
+	return s.updateSize
 }
 
 // SetActive sets the snap active
@@ -571,6 +573,7 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 			proxy:          s.proxy,
 			version:        targetVersion,
 			versionDetails: "?",
+			updateSize:     int64(s.proxy.us.updateSize),
 			channelName:    current.(*SystemImagePart).channelName,
 			partition:      s.partition})
 	}
