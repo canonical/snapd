@@ -152,7 +152,11 @@ func (s *SnapPart) DownloadSize() int {
 
 // Date returns the last update date
 func (s *SnapPart) Date() time.Time {
-	st, _ := os.Stat(s.basedir)
+	st, err := os.Stat(s.basedir)
+	if err != nil {
+		return time.Time{}
+	}
+
 	return st.ModTime()
 }
 
@@ -300,6 +304,7 @@ func (s *RemoteSnapPart) Date() time.Time {
 	if err != nil {
 		return time.Time{}
 	}
+
 	return p
 }
 
