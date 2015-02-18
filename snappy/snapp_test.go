@@ -347,6 +347,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(len(results), Equals, 1)
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver")
 	c.Assert(results[0].Version(), Equals, "0.3.1")
+	c.Assert(results[0].Hash(), Equals, "3a9152b8bff494c036f40e2ca03d1dfaa4ddcfe651eae1c9419980596f48fa95b2f2a91589305af7d55dc08e9489b8392585bbe2286118550b288368e5d9a620")
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {

@@ -263,7 +263,7 @@ func (s *RemoteSnapPart) Description() string {
 
 // Hash returns the hash
 func (s *RemoteSnapPart) Hash() string {
-	return "FIXME"
+	return s.pkg.DownloadSha512
 }
 
 // IsActive returns true if the snap is active
