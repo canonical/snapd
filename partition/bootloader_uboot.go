@@ -36,7 +36,7 @@ const bootloaderNameUboot bootloaderName = "u-boot"
 type uboot struct {
 	*bootloaderType
 
-	// full path to
+	// full path to rootfs-specific assets on boot partition
 	currentBootPath string
 	otherBootPath   string
 }
