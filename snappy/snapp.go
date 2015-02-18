@@ -51,6 +51,7 @@ type remoteSnap struct {
 	DownloadURL     string  `json:"download_url, omitempty"`
 	DownloadSha512  string  `json:"download_sha512, omitempty"`
 	LastUpdated     string  `json:"last_updated, omitempty"`
+	DownloadSize    int64   `json:"binary_filesize, omitempty"`
 }
 
 type searchResults struct {
@@ -141,12 +142,19 @@ func (s *SnapPart) IsInstalled() bool {
 }
 
 // InstalledSize returns the size of the installed snap
-func (s *SnapPart) InstalledSize() int {
-	return -1
+func (s *SnapPart) InstalledSize() int64 {
+	// FIXME: cache this at install time maybe?
+	totalSize := int64(0)
+	f := func(_ string, info os.FileInfo, err error) error {
+		totalSize += info.Size()
+		return err
+	}
+	filepath.Walk(s.basedir, f)
+	return totalSize
 }
 
 // DownloadSize returns the dowload size
-func (s *SnapPart) DownloadSize() int {
+func (s *SnapPart) DownloadSize() int64 {
 	return -1
 }
 
@@ -289,13 +297,13 @@ func (s *RemoteSnapPart) IsInstalled() bool {
 }
 
 // InstalledSize returns the size of the installed snap
-func (s *RemoteSnapPart) InstalledSize() int {
+func (s *RemoteSnapPart) InstalledSize() int64 {
 	return -1
 }
 
 // DownloadSize returns the dowload size
-func (s *RemoteSnapPart) DownloadSize() int {
-	return -1
+func (s *RemoteSnapPart) DownloadSize() int64 {
+	return s.pkg.DownloadSize
 }
 
 // Date returns the last update time

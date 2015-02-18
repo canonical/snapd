@@ -41,8 +41,8 @@ type Part interface {
 	// Returns app, framework, core
 	Type() SnapType
 
-	InstalledSize() int
-	DownloadSize() int
+	InstalledSize() int64
+	DownloadSize() int64
 
 	// Action
 	Install(pb ProgressMeter) error
