@@ -34,7 +34,7 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 		return err
 	}
 
-	showInstalledList(installed, false, os.Stdout)
+	showInstalledList(installed, os.Stdout)
 
 	return nil
 }
