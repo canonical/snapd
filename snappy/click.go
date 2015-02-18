@@ -269,6 +269,17 @@ func removeClick(clickDir string) (err error) {
 	return os.RemoveAll(clickDir)
 }
 
+func writeHashesFile(snapFile, instDir string) error {
+	hashsum, err := sha512sum(snapFile)
+	if err != nil {
+		return err
+	}
+
+	s := fmt.Sprintf("sha512: %s", hashsum)
+	hashesFile := filepath.Join(instDir, "meta", "hashes")
+	return ioutil.WriteFile(hashesFile, []byte(s), 0644)
+}
+
 func installClick(snapFile string, flags InstallFlags) (err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
@@ -326,6 +337,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		log.Printf("Snap install failed with: %s", output)
 		return err
 	}
+
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
 	// all hooks this can go away
 	metaDir := path.Join(instDir, ".click", "info")
@@ -333,6 +345,11 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	err = ioutil.WriteFile(path.Join(metaDir, manifest.Name+".manifest"), manifestData, 0644)
 	if err != nil {
 		return
+	}
+
+	// write the hashes now
+	if err := writeHashesFile(snapFile, instDir); err != nil {
+		return err
 	}
 
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))

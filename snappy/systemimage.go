@@ -5,7 +5,7 @@
 package snappy
 
 import (
-	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -79,7 +79,7 @@ func (s *SystemImagePart) Description() string {
 
 // Hash returns the hash
 func (s *SystemImagePart) Hash() string {
-	hasher := sha256.New()
+	hasher := sha512.New()
 	hasher.Write([]byte(s.versionDetails))
 	hexdigest := hex.EncodeToString(hasher.Sum(nil))
 

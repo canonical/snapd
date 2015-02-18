@@ -2,6 +2,7 @@ package snappy
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -136,6 +137,17 @@ func (ts *HTestSuite) TestMakeMapFromEnvListInvalidInput(c *C) {
 	}
 	envMap := makeMapFromEnvList(envList)
 	c.Assert(envMap, DeepEquals, map[string]string(nil))
+}
+
+func (ts *HTestSuite) TestSha512sum(c *C) {
+	tempdir := c.MkDir()
+
+	p := filepath.Join(tempdir, "foo")
+	err := ioutil.WriteFile(p, []byte("x"), 0644)
+	c.Assert(err, IsNil)
+	hashsum, err := sha512sum(p)
+	c.Assert(err, IsNil)
+	c.Assert(hashsum, Equals, "a4abd4448c49562d828115d13a1fccea927f52b4d5459297f8b43e42da89238bc13626e43dcb38ddb082488927ec904fb42057443983e88585179d50551afe62")
 }
 
 func (ts *HTestSuite) TestMakeConfigEnv(c *C) {

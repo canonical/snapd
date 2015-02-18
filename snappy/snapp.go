@@ -38,6 +38,12 @@ type packageYaml struct {
 	Type    SnapType
 }
 
+// the meta/hashes file, yaml so that we can extend it later with
+// more/different hashes
+type hashesYaml struct {
+	Sha512 string
+}
+
 type remoteSnap struct {
 	Publisher       string  `json:"publisher,omitempty"`
 	Name            string  `json:"name"`
@@ -98,6 +104,17 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 		part.isActive = true
 	}
 	part.stype = m.Type
+
+	// read hash, its ok if its not there, some older versions of
+	// snappy did not write this file
+	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes"))
+	if err == nil {
+		var h hashesYaml
+		err = yaml.Unmarshal(hashesData, &h)
+		if err == nil {
+			part.hash = h.Sha512
+		}
+	}
 
 	return &part
 }
@@ -283,7 +300,7 @@ func (s *RemoteSnapPart) Description() string {
 
 // Hash returns the hash
 func (s *RemoteSnapPart) Hash() string {
-	return "FIXME"
+	return s.pkg.DownloadSha512
 }
 
 // IsActive returns true if the snap is active
