@@ -59,6 +59,7 @@ func snapInfo(pkgname string, verbose bool) error {
 		fmt.Printf("data-size: %s\n", "n/a")
 		// FIXME: implement backup list per spec
 	}
+
 	return nil
 }
 
