@@ -47,6 +47,7 @@ type SystemImagePart struct {
 	version        string
 	versionDetails string
 	channelName    string
+	lastUpdate     time.Time
 
 	isInstalled bool
 	isActive    bool
@@ -103,6 +104,11 @@ func (s *SystemImagePart) InstalledSize() int64 {
 // DownloadSize returns the dowload size
 func (s *SystemImagePart) DownloadSize() int64 {
 	return s.updateSize
+}
+
+// Date returns the last update date
+func (s *SystemImagePart) Date() time.Time {
+	return s.lastUpdate
 }
 
 // SetActive sets the snap active
@@ -489,6 +495,11 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 		log.Printf("Can not parse config '%s': %s", path, err)
 		return part, err
 	}
+	st, err := os.Stat(path)
+	if err != nil {
+		log.Printf("Can stat '%s': %s", path, err)
+		return part, err
+	}
 
 	currentBuildNumber, err := cfg.Get("service", "build_number")
 	versionDetails, err := cfg.Get("service", "version_detail")
@@ -500,6 +511,7 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 		version:        currentBuildNumber,
 		versionDetails: versionDetails,
 		channelName:    channelName,
+		lastUpdate:     st.ModTime(),
 		partition:      s.partition}, err
 }
 
@@ -570,12 +582,14 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 		// no newer version available
 		return parts, err
 	}
+	lastUpdate, _ := time.Parse("2006-01-02 15:04:05", s.proxy.us.lastUpdateDate)
 
 	if VersionCompare(currentVersion, targetVersion) < 0 {
 		parts = append(parts, &SystemImagePart{
 			proxy:          s.proxy,
 			version:        targetVersion,
 			versionDetails: "?",
+			lastUpdate:     lastUpdate,
 			updateSize:     int64(s.proxy.us.updateSize),
 			channelName:    current.(*SystemImagePart).channelName,
 			partition:      s.partition})

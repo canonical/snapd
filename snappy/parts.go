@@ -1,5 +1,7 @@
 package snappy
 
+import "time"
+
 // var instead of const to make it possible to override in the tests
 var (
 	snapAppsDir      = "/apps"
@@ -32,6 +34,9 @@ type Part interface {
 	IsInstalled() bool
 	// Will become active on the next reboot
 	NeedsReboot() bool
+
+	// returns the date when the snap was last updated
+	Date() time.Time
 
 	// Returns app, framework, core
 	Type() SnapType

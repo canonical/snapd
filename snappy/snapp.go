@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	yaml "launchpad.net/goyaml"
 )
@@ -49,6 +50,7 @@ type remoteSnap struct {
 	AnonDownloadURL string  `json:"anon_download_url, omitempty"`
 	DownloadURL     string  `json:"download_url, omitempty"`
 	DownloadSha512  string  `json:"download_sha512, omitempty"`
+	LastUpdated     string  `json:"last_updated, omitempty"`
 	DownloadSize    int64   `json:"binary_filesize, omitempty"`
 }
 
@@ -154,6 +156,16 @@ func (s *SnapPart) InstalledSize() int64 {
 // DownloadSize returns the dowload size
 func (s *SnapPart) DownloadSize() int64 {
 	return -1
+}
+
+// Date returns the last update date
+func (s *SnapPart) Date() time.Time {
+	st, err := os.Stat(s.basedir)
+	if err != nil {
+		return time.Time{}
+	}
+
+	return st.ModTime()
 }
 
 // Install installs the snap
@@ -292,6 +304,16 @@ func (s *RemoteSnapPart) InstalledSize() int64 {
 // DownloadSize returns the dowload size
 func (s *RemoteSnapPart) DownloadSize() int64 {
 	return s.pkg.DownloadSize
+}
+
+// Date returns the last update time
+func (s *RemoteSnapPart) Date() time.Time {
+	p, err := time.Parse("2006-01-02T15:04:05.000000Z", s.pkg.LastUpdated)
+	if err != nil {
+		return time.Time{}
+	}
+
+	return p
 }
 
 // Install installs the snap

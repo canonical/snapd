@@ -148,9 +148,9 @@ func (m *MockSystemImage) CheckForUpdate() error {
 		true,  // is_available
 		false, // downloading
 		m.fakeAvailableVersion, // available_version
-		size,               // update_size
-		"late_update_date", // laste update date
-		"")                 // error_reason
+		size, // update_size
+		"2022-03-04 05:06:07", // last update date
+		"") // error_reason
 
 	if err := m.service.SendSignal(sig); err != nil {
 		// FIXME: do something with the error
