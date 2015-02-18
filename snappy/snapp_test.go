@@ -15,17 +15,6 @@ import (
 	. "launchpad.net/gocheck"
 )
 
-const (
-	packageHello = `
-name: hello-app
-version: 1.10
-vendor: Michael Vogt <mvo@ubuntu.com>
-icon: meta/hello.svg
-binaries:
- - name: bin/hello
-`
-)
-
 type SnapTestSuite struct {
 	tempdir string
 }
@@ -49,17 +38,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	}
 }
 
-func (s *SnapTestSuite) makeMockSnap() (snapDir string, err error) {
-	metaDir := filepath.Join(s.tempdir, "apps", "hello-app", "1.10", "meta")
-	err = os.MkdirAll(metaDir, 0777)
-	if err != nil {
-		return "", err
-	}
-	yamlFile := filepath.Join(metaDir, "package.yaml")
-	ioutil.WriteFile(yamlFile, []byte(packageHello), 0666)
-
-	snapDir, _ = filepath.Split(metaDir)
-	return yamlFile, err
+func (s *SnapTestSuite) makeMockSnap() (yamlFile string, err error) {
+	return makeMockSnap(s.tempdir)
 }
 
 func makeSnapActive(packageYamlPath string) (err error) {
@@ -91,6 +71,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Assert(snap.Date(), Equals, st.ModTime())
 
 	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", "hello-app", "1.10"))
+	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
 func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
@@ -354,6 +335,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver")
 	c.Assert(results[0].Version(), Equals, "0.3.1")
 	c.Assert(results[0].Date(), Equals, time.Date(2014, time.December, 05, 12, 33, 05, 928364000, time.UTC))
+	c.Assert(results[0].DownloadSize(), Equals, int64(21236))
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {

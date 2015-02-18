@@ -312,6 +312,7 @@ func (s *SITestSuite) TestUpdateHasUpdate(c *C) {
 	c.Assert(len(parts), Equals, 1)
 	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
 	c.Assert(parts[0].Version(), Equals, "3.14")
+	c.Assert(parts[0].DownloadSize(), Equals, int64(1234))
 }
 
 type MockPartition struct {

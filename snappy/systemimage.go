@@ -52,6 +52,8 @@ type SystemImagePart struct {
 	isInstalled bool
 	isActive    bool
 
+	updateSize int64
+
 	partition partition.Interface
 }
 
@@ -95,13 +97,13 @@ func (s *SystemImagePart) IsInstalled() bool {
 }
 
 // InstalledSize returns the size of the installed snap
-func (s *SystemImagePart) InstalledSize() int {
+func (s *SystemImagePart) InstalledSize() int64 {
 	return -1
 }
 
 // DownloadSize returns the dowload size
-func (s *SystemImagePart) DownloadSize() int {
-	return -1
+func (s *SystemImagePart) DownloadSize() int64 {
+	return s.updateSize
 }
 
 // Date returns the last update date
@@ -182,8 +184,11 @@ func (s *SystemImagePart) Uninstall() (err error) {
 }
 
 // Config is used to to configure the snap
-func (s *SystemImagePart) Config(configuration []byte) (err error) {
-	return err
+func (s *SystemImagePart) Config(configuration []byte) (new string, err error) {
+	// system-image is special and we provide a ubuntu-core-config
+	// script via cloud-init
+	const coreConfig = "/usr/bin/ubuntu-core-config"
+	return runConfigScript(coreConfig, string(configuration), nil)
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
@@ -585,6 +590,7 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 			version:        targetVersion,
 			versionDetails: "?",
 			lastUpdate:     lastUpdate,
+			updateSize:     int64(s.proxy.us.updateSize),
 			channelName:    current.(*SystemImagePart).channelName,
 			partition:      s.partition})
 	}

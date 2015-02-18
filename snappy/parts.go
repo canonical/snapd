@@ -41,13 +41,16 @@ type Part interface {
 	// Returns app, framework, core
 	Type() SnapType
 
-	InstalledSize() int
-	DownloadSize() int
+	InstalledSize() int64
+	DownloadSize() int64
 
-	// Action
+	// Install the snap
 	Install(pb ProgressMeter) error
+	// Uninstall the snap
 	Uninstall() error
-	Config(configuration []byte) error
+	// Config takes a yaml configuration and returns the full snap
+	// config with the changes. Note that "configuration" may be empty.
+	Config(configuration []byte) (newConfig string, err error)
 	// make a inactive part active
 	SetActive() error
 }
