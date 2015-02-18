@@ -1,6 +1,11 @@
 package main
 
-import "launchpad.net/snappy/snappy"
+import (
+	"fmt"
+	"strings"
+
+	"launchpad.net/snappy/snappy"
+)
 
 type cmdSet struct {
 }
@@ -27,5 +32,26 @@ func (x *cmdSet) Execute(args []string) (err error) {
 }
 
 func set(args []string) (err error) {
-	return snappy.SetProperty(args)
+	pkgname, args, err := parseSetPropertyCmdline(args...)
+	if err != nil {
+		return err
+	}
+
+	return snappy.SetProperty(pkgname, args...)
+}
+
+func parseSetPropertyCmdline(args ...string) (pkgname string, out []string, err error) {
+	if len(args) < 1 {
+		return pkgname, args, fmt.Errorf("Need at least one argument for set")
+	}
+
+	// check if the first argument is of the form property=value,
+	// if so, the spec says we need to put "ubuntu-core" here
+	if strings.Contains(args[0], "=") {
+		// go version of prepend()
+		args = append([]string{"ubuntu-core"}, args...)
+	}
+	pkgname = args[0]
+
+	return pkgname, args[1:], nil
 }

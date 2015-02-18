@@ -4,42 +4,46 @@ import (
 	. "launchpad.net/gocheck"
 )
 
-func (s *SnapTestSuite) TestSetPropertyEmpty(c *C) {
-	err := SetProperty([]string{})
+func (s *SnapTestSuite) TestParseSetPropertyCmdlineEmpty(c *C) {
+	err := SetProperty("ubuntu-core", []string{}...)
 	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) TestSetProperty(c *C) {
-	var activePkg, activeVer string
-	mockSetActive := func(k, v string) error {
-		activePkg = k
-		activeVer = v
+	var ratingPkg, ratingVal string
+	mockSetRating := func(k, v string) error {
+		ratingPkg = k
+		ratingVal = v
 		return nil
 	}
 	setFuncs = map[string]func(k, v string) error{
-		"active": mockSetActive,
+		"rating": mockSetRating,
 		"null":   func(k, v string) error { return nil },
 	}
 
 	// the "null" property in this test does nothing, its just
 	// there to ensure that setFunc works with multiple entries
-	err := SetProperty([]string{"hello-world", "null=1.61"})
+	err := SetProperty("hello-world", "null=1.61")
 	c.Assert(err, IsNil)
 
-	// simple-case for set-active
-	err = SetProperty([]string{"hello-world", "active=2.71"})
+	// simple-case for set
+	err = SetProperty("hello-world", "rating=4")
 	c.Assert(err, IsNil)
-	c.Assert(activePkg, Equals, "hello-world")
-	c.Assert(activeVer, Equals, "2.71")
-
-	// special case, see spec
-	// ensure that just "active=$ver" uses "ubuntu-core" as the pkg
-	err = SetProperty([]string{"active=181"})
-	c.Assert(err, IsNil)
-	c.Assert(activePkg, Equals, "ubuntu-core")
-	c.Assert(activeVer, Equals, "181")
+	c.Assert(ratingPkg, Equals, "hello-world")
+	c.Assert(ratingVal, Equals, "4")
 
 	// ensure unknown property raises a error
-	err = SetProperty([]string{"no-such-property=foo"})
+	err = SetProperty("ubuntu-core", "no-such-property=foo")
 	c.Assert(err, NotNil)
+
+	// ensure incorrect format raises a error
+	err = SetProperty("hello-world", "rating")
+	c.Assert(err, NotNil)
+
+	// ensure additional "=" in SetProperty are ok (even though this is
+	// not a valid rating of course)
+	err = SetProperty("hello-world", "rating=1=2")
+	c.Assert(err, IsNil)
+	c.Assert(ratingPkg, Equals, "hello-world")
+	c.Assert(ratingVal, Equals, "1=2")
 }
