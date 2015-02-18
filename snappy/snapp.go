@@ -49,6 +49,7 @@ type remoteSnap struct {
 	AnonDownloadURL string  `json:"anon_download_url, omitempty"`
 	DownloadURL     string  `json:"download_url, omitempty"`
 	DownloadSha512  string  `json:"download_sha512, omitempty"`
+	DownloadSize    int     `json:"binary_filesize, omitempty"`
 }
 
 type searchResults struct {
@@ -283,7 +284,7 @@ func (s *RemoteSnapPart) InstalledSize() int {
 
 // DownloadSize returns the dowload size
 func (s *RemoteSnapPart) DownloadSize() int {
-	return -1
+	return s.pkg.DownloadSize
 }
 
 // Install installs the snap
