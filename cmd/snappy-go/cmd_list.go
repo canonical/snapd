@@ -61,7 +61,6 @@ func (x cmdList) list() error {
 
 func showInstalledList(installed []snappy.Part, showAll bool, o io.Writer) {
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
-	defer w.Flush()
 
 	fmt.Fprintln(w, "Name\tVersion\tSummary\t")
 	for _, part := range installed {
@@ -69,6 +68,10 @@ func showInstalledList(installed []snappy.Part, showAll bool, o io.Writer) {
 			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
 		}
 	}
+
+	// Ensure the list output appears before the reboot message
+	w.Flush()
+
 	showRebootMessage(installed, o)
 }
 
