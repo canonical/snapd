@@ -94,12 +94,12 @@ func (s *SystemImagePart) IsInstalled() bool {
 }
 
 // InstalledSize returns the size of the installed snap
-func (s *SystemImagePart) InstalledSize() int {
+func (s *SystemImagePart) InstalledSize() int64 {
 	return -1
 }
 
 // DownloadSize returns the dowload size
-func (s *SystemImagePart) DownloadSize() int {
+func (s *SystemImagePart) DownloadSize() int64 {
 	return -1
 }
 
