@@ -490,6 +490,11 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 		log.Printf("Can not parse config '%s': %s", path, err)
 		return part, err
 	}
+	st, err := os.Stat(path)
+	if err != nil {
+		log.Printf("Can stat '%s': %s", path, err)
+		return part, err
+	}
 
 	currentBuildNumber, err := cfg.Get("service", "build_number")
 	versionDetails, err := cfg.Get("service", "version_detail")
@@ -501,6 +506,7 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 		version:        currentBuildNumber,
 		versionDetails: versionDetails,
 		channelName:    channelName,
+		lastUpdate:     st.ModTime(),
 		partition:      s.partition}, err
 }
 
