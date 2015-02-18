@@ -8,21 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	partition "launchpad.net/snappy/partition"
 
 	. "launchpad.net/gocheck"
-)
-
-const (
-	packageHello = `
-name: hello-app
-version: 1.10
-vendor: Michael Vogt <mvo@ubuntu.com>
-icon: meta/hello.svg
-binaries:
- - name: bin/hello
-`
 )
 
 type SnapTestSuite struct {
@@ -48,17 +38,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	}
 }
 
-func (s *SnapTestSuite) makeMockSnap() (snapDir string, err error) {
-	metaDir := filepath.Join(s.tempdir, "apps", "hello-app", "1.10", "meta")
-	err = os.MkdirAll(metaDir, 0777)
-	if err != nil {
-		return "", err
-	}
-	yamlFile := filepath.Join(metaDir, "package.yaml")
-	ioutil.WriteFile(yamlFile, []byte(packageHello), 0666)
-
-	snapDir, _ = filepath.Split(metaDir)
-	return yamlFile, err
+func (s *SnapTestSuite) makeMockSnap() (yamlFile string, err error) {
+	return makeMockSnap(s.tempdir)
 }
 
 func makeSnapActive(packageYamlPath string) (err error) {
@@ -84,7 +65,13 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
 
+	// ensure we get valid Date()
+	st, err := os.Stat(snap.basedir)
+	c.Assert(err, IsNil)
+	c.Assert(snap.Date(), Equals, st.ModTime())
+
 	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", "hello-app", "1.10"))
+	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
 func (s *SnapTestSuite) TestLocalSnapHash(c *C) {
@@ -360,6 +347,8 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver")
 	c.Assert(results[0].Version(), Equals, "0.3.1")
 	c.Assert(results[0].Hash(), Equals, "3a9152b8bff494c036f40e2ca03d1dfaa4ddcfe651eae1c9419980596f48fa95b2f2a91589305af7d55dc08e9489b8392585bbe2286118550b288368e5d9a620")
+	c.Assert(results[0].Date(), Equals, time.Date(2014, time.December, 05, 12, 33, 05, 928364000, time.UTC))
+	c.Assert(results[0].DownloadSize(), Equals, int64(21236))
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {

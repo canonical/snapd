@@ -25,28 +25,23 @@ var setFuncs = map[string]func(k, v string) error{
 	"active": setActive,
 }
 
-// SetProperty sets a system property from the args list
-func SetProperty(args []string) (err error) {
+// SetProperty sets a property for the given pkgname from the args list
+func SetProperty(pkgname string, args ...string) (err error) {
 	if len(args) < 1 {
 		return fmt.Errorf("Need at least one argument for set")
 	}
 
-	// check if the first argument is of the form property=value,
-	// if so, the spec says we need to put "ubuntu-core" here
-	if strings.Contains(args[0], "=") {
-		// go version of prepend()
-		args = append([]string{"ubuntu-core"}, args...)
-	}
-
-	pkg := args[0]
-	for _, propVal := range args[1:] {
-		s := strings.Split(propVal, "=")
+	for _, propVal := range args {
+		s := strings.SplitN(propVal, "=", 2)
+		if len(s) != 2 {
+			return fmt.Errorf("Can not parse property %s", propVal)
+		}
 		prop := s[0]
 		f, ok := setFuncs[prop]
 		if !ok {
 			return fmt.Errorf("Unknown property %s", prop)
 		}
-		err := f(pkg, s[1])
+		err := f(pkgname, s[1])
 		if err != nil {
 			return err
 		}

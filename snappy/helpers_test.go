@@ -119,6 +119,26 @@ func (ts *HTestSuite) TestEnsureDir(c *C) {
 	c.Assert(st.Mode(), Equals, os.ModeDir|0755)
 }
 
+func (ts *HTestSuite) TestMakeMapFromEnvList(c *C) {
+	envList := []string{
+		"PATH=/usr/bin:/bin",
+		"DBUS_SESSION_BUS_ADDRESS=unix:abstract=something1234",
+	}
+	envMap := makeMapFromEnvList(envList)
+	c.Assert(envMap, DeepEquals, map[string]string{
+		"PATH": "/usr/bin:/bin",
+		"DBUS_SESSION_BUS_ADDRESS": "unix:abstract=something1234",
+	})
+}
+
+func (ts *HTestSuite) TestMakeMapFromEnvListInvalidInput(c *C) {
+	envList := []string{
+		"nonsesne",
+	}
+	envMap := makeMapFromEnvList(envList)
+	c.Assert(envMap, DeepEquals, map[string]string(nil))
+}
+
 func (ts *HTestSuite) TestSha512sum(c *C) {
 	tempdir := c.MkDir()
 
@@ -128,4 +148,25 @@ func (ts *HTestSuite) TestSha512sum(c *C) {
 	hashsum, err := sha512sum(p)
 	c.Assert(err, IsNil)
 	c.Assert(hashsum, Equals, "a4abd4448c49562d828115d13a1fccea927f52b4d5459297f8b43e42da89238bc13626e43dcb38ddb082488927ec904fb42057443983e88585179d50551afe62")
+}
+
+func (ts *HTestSuite) TestMakeConfigEnv(c *C) {
+	tempdir := c.MkDir()
+	yamlFile, err := makeMockSnap(tempdir)
+	c.Assert(err, IsNil)
+	snap := NewInstalledSnapPart(yamlFile)
+	c.Assert(snap, NotNil)
+
+	os.Setenv("SNAP_NAME", "override-me")
+	defer os.Setenv("SNAP_NAME", "")
+
+	env := makeSnapHookEnv(snap)
+
+	// now ensure that the environment we get back is what we want
+	envMap := makeMapFromEnvList(env)
+	// regular env is unaltered
+	c.Assert(envMap["PATH"], Equals, os.Getenv("PATH"))
+	// SNAP_* is overriden
+	c.Assert(envMap["SNAP_NAME"], Equals, "hello-app")
+	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
 }

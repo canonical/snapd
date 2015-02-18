@@ -1,5 +1,7 @@
 package snappy
 
+import "time"
+
 // var instead of const to make it possible to override in the tests
 var (
 	snapAppsDir      = "/apps"
@@ -33,16 +35,22 @@ type Part interface {
 	// Will become active on the next reboot
 	NeedsReboot() bool
 
+	// returns the date when the snap was last updated
+	Date() time.Time
+
 	// Returns app, framework, core
 	Type() SnapType
 
-	InstalledSize() int
-	DownloadSize() int
+	InstalledSize() int64
+	DownloadSize() int64
 
-	// Action
+	// Install the snap
 	Install(pb ProgressMeter) error
+	// Uninstall the snap
 	Uninstall() error
-	Config(configuration []byte) error
+	// Config takes a yaml configuration and returns the full snap
+	// config with the changes. Note that "configuration" may be empty.
+	Config(configuration []byte) (newConfig string, err error)
 	// make a inactive part active
 	SetActive() error
 }
