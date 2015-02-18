@@ -348,8 +348,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	}
 
 	// write the hashes now
-	err = writeHashesFile(snapFile, instDir)
-	if err != nil {
+	if err := writeHashesFile(snapFile, instDir); err != nil {
 		return err
 	}
 
