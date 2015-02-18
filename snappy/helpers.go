@@ -3,6 +3,8 @@ package snappy
 import (
 	"archive/tar"
 	"compress/gzip"
+	"crypto/sha512"
+	"encoding/hex"
 	"io"
 	"os"
 	"os/exec"
@@ -125,4 +127,19 @@ func ensureDir(dir string, perm os.FileMode) (err error) {
 		}
 	}
 	return nil
+}
+
+func sha512sum(infile string) (hexdigest string, err error) {
+	r, err := os.Open(infile)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+
+	hasher := sha512.New()
+	if _, err := io.Copy(hasher, r); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }

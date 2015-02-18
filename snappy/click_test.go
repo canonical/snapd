@@ -186,18 +186,23 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	err := installClick(snapFile, 0)
 	c.Assert(err, IsNil)
 
-	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
+	baseDir := filepath.Join(snapAppsDir, "foo", "1.0")
+	contentFile := filepath.Join(baseDir, "bin", "foo")
 	content, err := ioutil.ReadFile(contentFile)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "#!/bin/sh\necho \"hello\"")
 
 	// ensure we have the manifest too
-	_, err = os.Stat(path.Join(s.tempdir, "apps", "foo", "1.0", ".click", "info", "foo.manifest"))
+	_, err = os.Stat(filepath.Join(baseDir, ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
 
 	// ensure we have the data dir
 	_, err = os.Stat(path.Join(s.tempdir, "var", "lib", "apps", "foo", "1.0"))
 	c.Assert(err, IsNil)
+
+	// ensure we have the hashes
+	snap := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"))
+	c.Assert(snap.Hash(), Not(Equals), "")
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
