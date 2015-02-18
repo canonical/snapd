@@ -36,6 +36,7 @@ func set(args []string) (err error) {
 	if err != nil {
 		return err
 	}
+
 	return snappy.SetProperty(pkgname, args...)
 }
 

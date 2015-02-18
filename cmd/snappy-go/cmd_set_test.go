@@ -17,15 +17,15 @@ var _ = Suite(&CmdTestSuite{})
 func (s *CmdTestSuite) TestParseSetPropertyCmdline(c *C) {
 
 	// simple case
-	pkgname, args, err := parseSetPropertyCmdline("hello-world", "active=1")
+	pkgname, args, err := parseSetPropertyCmdline("hello-world", "channel=edge")
 	c.Assert(err, IsNil)
 	c.Assert(pkgname, Equals, "hello-world")
-	c.Assert(args, DeepEquals, []string{"active=1"})
+	c.Assert(args, DeepEquals, []string{"channel=edge"})
 
 	// special case, see spec
 	// ensure that just "active=$ver" uses "ubuntu-core" as the pkg
-	pkgname, args, err = parseSetPropertyCmdline("active=181")
+	pkgname, args, err = parseSetPropertyCmdline("channel=alpha")
 	c.Assert(err, IsNil)
 	c.Assert(pkgname, Equals, "ubuntu-core")
-	c.Assert(args, DeepEquals, []string{"active=181"})
+	c.Assert(args, DeepEquals, []string{"channel=alpha"})
 }
