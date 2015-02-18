@@ -47,6 +47,7 @@ type SystemImagePart struct {
 	version        string
 	versionDetails string
 	channelName    string
+	lastUpdate     time.Time
 
 	isInstalled bool
 	isActive    bool
@@ -101,6 +102,11 @@ func (s *SystemImagePart) InstalledSize() int {
 // DownloadSize returns the dowload size
 func (s *SystemImagePart) DownloadSize() int {
 	return -1
+}
+
+// Date returns the last update date
+func (s *SystemImagePart) Date() time.Time {
+	return s.lastUpdate
 }
 
 // SetActive sets the snap active
@@ -565,12 +571,14 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 		// no newer version available
 		return parts, err
 	}
+	lastUpdate, _ := time.Parse("2006-01-02 15:04:05", s.proxy.us.lastUpdateDate)
 
 	if VersionCompare(currentVersion, targetVersion) < 0 {
 		parts = append(parts, &SystemImagePart{
 			proxy:          s.proxy,
 			version:        targetVersion,
 			versionDetails: "?",
+			lastUpdate:     lastUpdate,
 			channelName:    current.(*SystemImagePart).channelName,
 			partition:      s.partition})
 	}
