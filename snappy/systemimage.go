@@ -127,8 +127,9 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 			log.Panic(fmt.Sprintf("ERROR: %v", err))
 			return nil
 		}
-
 		pb.Start(100.0)
+
+		// the progress display go-routine
 		go func() {
 			var percent int32
 			var eta float64
@@ -143,6 +144,12 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 				}
 			}
 		}()
+
+		// ensure the progress finishes when we are done
+		defer func() {
+			pb.Finished()
+			updateProgress.Cancel()
+		}()
 	}
 
 	// Ensure there is always a kernel + initrd to boot with, even
@@ -155,11 +162,6 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	err = s.proxy.DownloadUpdate()
 	if err != nil {
 		return err
-	}
-
-	if pb != nil {
-		pb.Finished()
-		updateProgress.Cancel()
 	}
 
 	// FIXME: switch s-i daemon back to current partition
