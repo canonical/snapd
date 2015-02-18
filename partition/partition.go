@@ -731,7 +731,9 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	targetInChroot := path.Join(p.MountTarget(), p.MountTarget())
 
 	// FIXME: we should really remove this after the unmount
-	os.MkdirAll(targetInChroot, dirMode)
+	if err = os.MkdirAll(targetInChroot, dirMode); err != nil {
+		return err
+	}
 
 	return p.bindmountThisRootfsRO(targetInChroot)
 }
