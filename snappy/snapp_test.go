@@ -14,17 +14,6 @@ import (
 	. "launchpad.net/gocheck"
 )
 
-const (
-	packageHello = `
-name: hello-app
-version: 1.10
-vendor: Michael Vogt <mvo@ubuntu.com>
-icon: meta/hello.svg
-binaries:
- - name: bin/hello
-`
-)
-
 type SnapTestSuite struct {
 	tempdir string
 }
@@ -48,17 +37,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	}
 }
 
-func (s *SnapTestSuite) makeMockSnap() (snapDir string, err error) {
-	metaDir := filepath.Join(s.tempdir, "apps", "hello-app", "1.10", "meta")
-	err = os.MkdirAll(metaDir, 0777)
-	if err != nil {
-		return "", err
-	}
-	yamlFile := filepath.Join(metaDir, "package.yaml")
-	ioutil.WriteFile(yamlFile, []byte(packageHello), 0666)
-
-	snapDir, _ = filepath.Split(metaDir)
-	return yamlFile, err
+func (s *SnapTestSuite) makeMockSnap() (yamlFile string, err error) {
+	return makeMockSnap(s.tempdir)
 }
 
 func makeSnapActive(packageYamlPath string) (err error) {

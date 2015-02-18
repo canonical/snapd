@@ -178,8 +178,11 @@ func (s *SystemImagePart) Uninstall() (err error) {
 }
 
 // Config is used to to configure the snap
-func (s *SystemImagePart) Config(configuration []byte) (err error) {
-	return err
+func (s *SystemImagePart) Config(configuration []byte) (new string, err error) {
+	// system-image is special and we provide a ubuntu-core-config
+	// script via cloud-init
+	const coreConfig = "/usr/bin/ubuntu-core-config"
+	return runConfigScript(coreConfig, string(configuration), nil)
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot

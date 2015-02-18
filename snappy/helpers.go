@@ -3,6 +3,7 @@ package snappy
 import (
 	"archive/tar"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -125,4 +126,48 @@ func ensureDir(dir string, perm os.FileMode) (err error) {
 		}
 	}
 	return nil
+}
+
+// makeMapFromEnvList takes a string list of the form "key=value"
+// and returns a map[string]string from that list
+// This is useful for os.Environ() manipulation
+func makeMapFromEnvList(env []string) map[string]string {
+	envMap := map[string]string{}
+	for _, l := range env {
+		split := strings.SplitN(l, "=", 2)
+		if len(split) != 2 {
+			return nil
+		}
+		envMap[split[0]] = split[1]
+	}
+	return envMap
+}
+
+// makeSnapHookEnv returns an environment suitable for passing to
+// os/exec.Cmd.Env
+//
+// The returned environment contains additional SNAP_* variables that
+// are required when calling a meta/hook/ script and that will override
+// any already existing SNAP_* variables in os.Environment()
+func makeSnapHookEnv(part *SnapPart) (env []string) {
+	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
+	snapEnv := map[string]string{
+		"SNAP_NAME":          part.Name(),
+		"SNAP_VERSION":       part.Version(),
+		"SNAP_APP_PATH":      part.basedir,
+		"SNAP_APP_DATA_PATH": snapDataDir,
+	}
+
+	// merge regular env and new snapEnv
+	envMap := makeMapFromEnvList(os.Environ())
+	for k, v := range snapEnv {
+		envMap[k] = v
+	}
+
+	// flatten
+	for k, v := range envMap {
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	return env
 }
