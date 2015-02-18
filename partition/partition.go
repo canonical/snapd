@@ -125,12 +125,12 @@ const (
 
 // Interface provides the interface to interact with a partition
 type Interface interface {
-	ToggleNextBoot() (err error)
+	ToggleNextBoot() error
 
-	MarkBootSuccessful() (err error)
+	MarkBootSuccessful() error
 	// FIXME: could we make SyncBootloaderFiles part of ToogleBootloader
 	//        to expose even less implementation details?
-	SyncBootloaderFiles() (err error)
+	SyncBootloaderFiles() error
 	IsNextBootOther() bool
 
 	// run the function f with the otherRoot mounted

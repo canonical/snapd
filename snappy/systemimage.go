@@ -157,14 +157,13 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 		return err
 	}
 
-	// FIXME: switch s-i daemon back to current partition
-	err = s.partition.ToggleNextBoot()
-
 	if pb != nil {
 		pb.Finished()
 		updateProgress.Cancel()
 	}
-	return err
+
+	// FIXME: switch s-i daemon back to current partition
+	return s.partition.ToggleNextBoot()
 }
 
 // Uninstall can not be used for "core" snaps

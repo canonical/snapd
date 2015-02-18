@@ -320,16 +320,16 @@ type MockPartition struct {
 	syncBootloaderFilesCalled bool
 }
 
-func (p *MockPartition) ToggleNextBoot() (err error) {
+func (p *MockPartition) ToggleNextBoot() error {
 	p.toggleNextBootCalled = true
 	return nil
 }
 
-func (p *MockPartition) MarkBootSuccessful() (err error) {
+func (p *MockPartition) MarkBootSuccessful() error {
 	p.markBootSuccessfulCalled = true
 	return nil
 }
-func (p *MockPartition) SyncBootloaderFiles() (err error) {
+func (p *MockPartition) SyncBootloaderFiles() error {
 	p.syncBootloaderFilesCalled = true
 	return nil
 }
