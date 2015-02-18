@@ -10,14 +10,14 @@ func (s *SnapTestSuite) TestParseSetPropertyCmdlineEmpty(c *C) {
 }
 
 func (s *SnapTestSuite) TestSetProperty(c *C) {
-	var activePkg, activeVer string
-	mockSetActive := func(k, v string) error {
-		activePkg = k
-		activeVer = v
+	var ratingPkg, ratingVal string
+	mockSetRating := func(k, v string) error {
+		ratingPkg = k
+		ratingVal = v
 		return nil
 	}
 	setFuncs = map[string]func(k, v string) error{
-		"active": mockSetActive,
+		"rating": mockSetRating,
 		"null":   func(k, v string) error { return nil },
 	}
 
@@ -26,24 +26,24 @@ func (s *SnapTestSuite) TestSetProperty(c *C) {
 	err := SetProperty("hello-world", "null=1.61")
 	c.Assert(err, IsNil)
 
-	// simple-case for set-active
-	err = SetProperty("hello-world", "active=2.71")
+	// simple-case for set
+	err = SetProperty("hello-world", "rating=4")
 	c.Assert(err, IsNil)
-	c.Assert(activePkg, Equals, "hello-world")
-	c.Assert(activeVer, Equals, "2.71")
+	c.Assert(ratingPkg, Equals, "hello-world")
+	c.Assert(ratingVal, Equals, "4")
 
 	// ensure unknown property raises a error
 	err = SetProperty("ubuntu-core", "no-such-property=foo")
 	c.Assert(err, NotNil)
 
 	// ensure incorrect format raises a error
-	err = SetProperty("hello-world", "active")
+	err = SetProperty("hello-world", "rating")
 	c.Assert(err, NotNil)
 
-	// ensure additional "=" in active are ok (even though this is
-	// not a valid version number)
-	err = SetProperty("hello-world", "active=1.0=really2.0")
+	// ensure additional "=" in SetProperty are ok (even though this is
+	// not a valid rating of course)
+	err = SetProperty("hello-world", "rating=1=2")
 	c.Assert(err, IsNil)
-	c.Assert(activePkg, Equals, "hello-world")
-	c.Assert(activeVer, Equals, "1.0=really2.0")
+	c.Assert(ratingPkg, Equals, "hello-world")
+	c.Assert(ratingVal, Equals, "1=2")
 }
