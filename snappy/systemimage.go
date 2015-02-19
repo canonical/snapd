@@ -180,7 +180,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 }
 
 // Ensure the expected version update was applied to the expected partition.
-func (s *SystemImagePart) verifyUpgradeWasApplied() (err error) {
+func (s *SystemImagePart) verifyUpgradeWasApplied() error {
 	// The upgrade has now been applied, so check that the expected
 	// update was applied by comparing "self" (which is the newest
 	// system-image revision with that installed on the other
