@@ -74,10 +74,6 @@ type bootloaderType struct {
 	// from the last character of the partition name ('a' or 'b').
 	currentRootfs string
 	otherRootfs   string
-
-	// full path to
-	currentBootPath string
-	otherBootPath   string
 }
 
 // Factory method that returns a new bootloader for the given partition
