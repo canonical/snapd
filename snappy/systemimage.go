@@ -123,10 +123,7 @@ func (s *SystemImagePart) SetActive() (err error) {
 		return nil
 	}
 
-	// FIXME: UpdateBootloader is a bit generic, this should really be
-	//        something like ToggleNextBootToOtherParition (but slightly
-	//        shorter ;)
-	return s.partition.UpdateBootloader()
+	return s.partition.ToggleNextBoot()
 }
 
 // Install installs the snap
@@ -138,8 +135,9 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 			log.Panic(fmt.Sprintf("ERROR: %v", err))
 			return nil
 		}
-
 		pb.Start(100.0)
+
+		// the progress display go-routine
 		go func() {
 			var percent int32
 			var eta float64
@@ -153,6 +151,12 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 					pb.Spin("Applying")
 				}
 			}
+		}()
+
+		// ensure the progress finishes when we are done
+		defer func() {
+			pb.Finished()
+			updateProgress.Cancel()
 		}()
 	}
 
@@ -169,13 +173,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	}
 
 	// FIXME: switch s-i daemon back to current partition
-	err = s.partition.UpdateBootloader()
-
-	if pb != nil {
-		pb.Finished()
-		updateProgress.Cancel()
-	}
-	return err
+	return s.partition.ToggleNextBoot()
 }
 
 // Uninstall can not be used for "core" snaps
