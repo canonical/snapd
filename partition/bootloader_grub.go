@@ -36,8 +36,6 @@ func newGrub(partition *Partition) bootLoader {
 		return nil
 	}
 	g := &grub{bootloaderType: b}
-	g.currentBootPath = bootloaderGrubDir
-	g.otherBootPath = g.currentBootPath
 
 	return g
 }
@@ -128,4 +126,10 @@ func (g *grub) HandleAssets() (err error) {
 	// NOP - since grub is used on generic hardware, it doesn't
 	// need to make use of hardware-specific assets
 	return nil
+}
+
+func (g *grub) AdditionalBindMounts() []string {
+	// grub needs this in addition to "system-boot" as its the
+	// well known location for its configuration
+	return []string{"/boot/grub"}
 }

@@ -148,9 +148,9 @@ func (m *MockSystemImage) CheckForUpdate() error {
 		true,  // is_available
 		false, // downloading
 		m.fakeAvailableVersion, // available_version
-		size,               // update_size
-		"late_update_date", // laste update date
-		"")                 // error_reason
+		size, // update_size
+		"2022-03-04 05:06:07", // last update date
+		"") // error_reason
 
 	if err := m.service.SendSignal(sig); err != nil {
 		// FIXME: do something with the error
@@ -289,7 +289,7 @@ func (s *SITestSuite) TestTestInstalled(c *C) {
 	c.Assert(len(parts), Equals, 2)
 	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
 	c.Assert(parts[0].Version(), Equals, "2.71")
-	c.Assert(parts[0].Hash(), Equals, "bf3e9dd92c916d3fa70bbdf5a1014a112fb45b95179ecae0be2836ea2bd91f7f")
+	c.Assert(parts[0].Hash(), Equals, "e09c13f68fccef3b2fe0f5c8ff5c61acf2173b170b1f2a3646487147690b0970ef6f2c555d7bcb072035f29ee4ea66a6df7f6bb320d358d3a7d78a0c37a8a549")
 	c.Assert(parts[0].IsActive(), Equals, true)
 
 	// second partition is not active and has a different version
@@ -312,24 +312,25 @@ func (s *SITestSuite) TestUpdateHasUpdate(c *C) {
 	c.Assert(len(parts), Equals, 1)
 	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
 	c.Assert(parts[0].Version(), Equals, "3.14")
+	c.Assert(parts[0].DownloadSize(), Equals, int64(1234))
 }
 
 type MockPartition struct {
-	updateBootloaderCalled    bool
+	toggleNextBootCalled      bool
 	markBootSuccessfulCalled  bool
 	syncBootloaderFilesCalled bool
 }
 
-func (p *MockPartition) UpdateBootloader() (err error) {
-	p.updateBootloaderCalled = true
+func (p *MockPartition) ToggleNextBoot() error {
+	p.toggleNextBootCalled = true
 	return nil
 }
 
-func (p *MockPartition) MarkBootSuccessful() (err error) {
+func (p *MockPartition) MarkBootSuccessful() error {
 	p.markBootSuccessfulCalled = true
 	return nil
 }
-func (p *MockPartition) SyncBootloaderFiles() (err error) {
+func (p *MockPartition) SyncBootloaderFiles() error {
 	p.syncBootloaderFilesCalled = true
 	return nil
 }
@@ -376,7 +377,7 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	pb := &MockProgressMeter{}
 	err = sp.Install(pb)
 	c.Assert(err, IsNil)
-	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
+	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 	c.Assert(pb.total, Equals, 100.0)
 	c.Assert(pb.finished, Equals, true)
 	c.Assert(pb.progress, DeepEquals, []float64{20.0, 40.0, 60.0, 80.0, 100.0})
@@ -393,7 +394,7 @@ func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 
 	err = sp.Install(nil)
 	c.Assert(err, IsNil)
-	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
+	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 }
 
 func (s *SITestSuite) TestSystemImagePartSetActiveAlreadyActive(c *C) {
@@ -406,7 +407,7 @@ func (s *SITestSuite) TestSystemImagePartSetActiveAlreadyActive(c *C) {
 
 	err = sp.SetActive()
 	c.Assert(err, IsNil)
-	c.Assert(mockPartition.updateBootloaderCalled, Equals, false)
+	c.Assert(mockPartition.toggleNextBootCalled, Equals, false)
 }
 
 func (s *SITestSuite) TestSystemImagePartSetActiveMakeActive(c *C) {
@@ -419,5 +420,5 @@ func (s *SITestSuite) TestSystemImagePartSetActiveMakeActive(c *C) {
 
 	err = sp.SetActive()
 	c.Assert(err, IsNil)
-	c.Assert(mockPartition.updateBootloaderCalled, Equals, true)
+	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 }

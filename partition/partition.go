@@ -22,9 +22,7 @@
 // with this program.  If not, see <http://www.gnu.org/licenses/>.
 //--------------------------------------------------------------------
 
-// Package partition manipulate disk partitions.
-//
-// The main callables are UpdateBootLoader()
+// Package partition manipulate snappy disk partitions
 package partition
 
 import (
@@ -127,11 +125,12 @@ const (
 
 // Interface provides the interface to interact with a partition
 type Interface interface {
-	UpdateBootloader() (err error)
-	MarkBootSuccessful() (err error)
-	// FIXME: could we make SyncBootloaderFiles part of UpdateBootloader
+	ToggleNextBoot() error
+
+	MarkBootSuccessful() error
+	// FIXME: could we make SyncBootloaderFiles part of ToogleBootloader
 	//        to expose even less implementation details?
-	SyncBootloaderFiles() (err error)
+	SyncBootloaderFiles() error
 	IsNextBootOther() bool
 
 	// run the function f with the otherRoot mounted
@@ -471,9 +470,8 @@ func (p *Partition) SyncBootloaderFiles() (err error) {
 	return bootloader.SyncBootFiles()
 }
 
-// UpdateBootloader toggles the bootloader and should probably called
-// ToggleBootloader
-func (p *Partition) UpdateBootloader() (err error) {
+// ToggleNextBoot toggles the roofs that should be used on the next boot
+func (p *Partition) ToggleNextBoot() (err error) {
 	if p.dualRootPartitions() {
 		return p.toggleBootloaderRootfs()
 	}
@@ -700,6 +698,14 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	boot := p.bootPartition()
 	if boot != nil && boot.mountpoint != "" {
 		requiredChrootMounts = append(requiredChrootMounts, boot.mountpoint)
+	}
+
+	// add additional bootloader mounts, this is required for grub
+	bootloader, err := getBootloader(p)
+	if err == nil && bootloader != nil {
+		for _, mount := range bootloader.AdditionalBindMounts() {
+			requiredChrootMounts = append(requiredChrootMounts, mount)
+		}
 	}
 
 	for _, fs := range requiredChrootMounts {

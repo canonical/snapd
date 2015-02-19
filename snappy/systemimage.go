@@ -5,7 +5,7 @@
 package snappy
 
 import (
-	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -47,9 +47,12 @@ type SystemImagePart struct {
 	version        string
 	versionDetails string
 	channelName    string
+	lastUpdate     time.Time
 
 	isInstalled bool
 	isActive    bool
+
+	updateSize int64
 
 	partition partition.Interface
 }
@@ -76,7 +79,7 @@ func (s *SystemImagePart) Description() string {
 
 // Hash returns the hash
 func (s *SystemImagePart) Hash() string {
-	hasher := sha256.New()
+	hasher := sha512.New()
 	hasher.Write([]byte(s.versionDetails))
 	hexdigest := hex.EncodeToString(hasher.Sum(nil))
 
@@ -94,13 +97,18 @@ func (s *SystemImagePart) IsInstalled() bool {
 }
 
 // InstalledSize returns the size of the installed snap
-func (s *SystemImagePart) InstalledSize() int {
+func (s *SystemImagePart) InstalledSize() int64 {
 	return -1
 }
 
 // DownloadSize returns the dowload size
-func (s *SystemImagePart) DownloadSize() int {
-	return -1
+func (s *SystemImagePart) DownloadSize() int64 {
+	return s.updateSize
+}
+
+// Date returns the last update date
+func (s *SystemImagePart) Date() time.Time {
+	return s.lastUpdate
 }
 
 // SetActive sets the snap active
@@ -115,10 +123,7 @@ func (s *SystemImagePart) SetActive() (err error) {
 		return nil
 	}
 
-	// FIXME: UpdateBootloader is a bit generic, this should really be
-	//        something like ToggleNextBootToOtherParition (but slightly
-	//        shorter ;)
-	return s.partition.UpdateBootloader()
+	return s.partition.ToggleNextBoot()
 }
 
 // Install installs the snap
@@ -130,8 +135,9 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 			log.Panic(fmt.Sprintf("ERROR: %v", err))
 			return nil
 		}
-
 		pb.Start(100.0)
+
+		// the progress display go-routine
 		go func() {
 			var percent int32
 			var eta float64
@@ -145,6 +151,12 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 					pb.Spin("Applying")
 				}
 			}
+		}()
+
+		// ensure the progress finishes when we are done
+		defer func() {
+			pb.Finished()
+			updateProgress.Cancel()
 		}()
 	}
 
@@ -161,13 +173,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	}
 
 	// FIXME: switch s-i daemon back to current partition
-	err = s.partition.UpdateBootloader()
-
-	if pb != nil {
-		pb.Finished()
-		updateProgress.Cancel()
-	}
-	return err
+	return s.partition.ToggleNextBoot()
 }
 
 // Uninstall can not be used for "core" snaps
@@ -176,8 +182,11 @@ func (s *SystemImagePart) Uninstall() (err error) {
 }
 
 // Config is used to to configure the snap
-func (s *SystemImagePart) Config(configuration []byte) (err error) {
-	return err
+func (s *SystemImagePart) Config(configuration []byte) (new string, err error) {
+	// system-image is special and we provide a ubuntu-core-config
+	// script via cloud-init
+	const coreConfig = "/usr/bin/ubuntu-core-config"
+	return runConfigScript(coreConfig, string(configuration), nil)
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
@@ -484,6 +493,11 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 		log.Printf("Can not parse config '%s': %s", path, err)
 		return part, err
 	}
+	st, err := os.Stat(path)
+	if err != nil {
+		log.Printf("Can stat '%s': %s", path, err)
+		return part, err
+	}
 
 	currentBuildNumber, err := cfg.Get("service", "build_number")
 	versionDetails, err := cfg.Get("service", "version_detail")
@@ -495,6 +509,7 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 		version:        currentBuildNumber,
 		versionDetails: versionDetails,
 		channelName:    channelName,
+		lastUpdate:     st.ModTime(),
 		partition:      s.partition}, err
 }
 
@@ -565,12 +580,15 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 		// no newer version available
 		return parts, err
 	}
+	lastUpdate, _ := time.Parse("2006-01-02 15:04:05", s.proxy.us.lastUpdateDate)
 
 	if VersionCompare(currentVersion, targetVersion) < 0 {
 		parts = append(parts, &SystemImagePart{
 			proxy:          s.proxy,
 			version:        targetVersion,
 			versionDetails: "?",
+			lastUpdate:     lastUpdate,
+			updateSize:     int64(s.proxy.us.updateSize),
 			channelName:    current.(*SystemImagePart).channelName,
 			partition:      s.partition})
 	}

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	yaml "launchpad.net/goyaml"
 )
@@ -37,6 +38,12 @@ type packageYaml struct {
 	Type    SnapType
 }
 
+// the meta/hashes file, yaml so that we can extend it later with
+// more/different hashes
+type hashesYaml struct {
+	Sha512 string
+}
+
 type remoteSnap struct {
 	Publisher       string  `json:"publisher,omitempty"`
 	Name            string  `json:"name"`
@@ -49,6 +56,8 @@ type remoteSnap struct {
 	AnonDownloadURL string  `json:"anon_download_url, omitempty"`
 	DownloadURL     string  `json:"download_url, omitempty"`
 	DownloadSha512  string  `json:"download_sha512, omitempty"`
+	LastUpdated     string  `json:"last_updated, omitempty"`
+	DownloadSize    int64   `json:"binary_filesize, omitempty"`
 }
 
 type searchResults struct {
@@ -96,6 +105,17 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 	}
 	part.stype = m.Type
 
+	// read hash, its ok if its not there, some older versions of
+	// snappy did not write this file
+	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes"))
+	if err == nil {
+		var h hashesYaml
+		err = yaml.Unmarshal(hashesData, &h)
+		if err == nil {
+			part.hash = h.Sha512
+		}
+	}
+
 	return &part
 }
 
@@ -139,13 +159,30 @@ func (s *SnapPart) IsInstalled() bool {
 }
 
 // InstalledSize returns the size of the installed snap
-func (s *SnapPart) InstalledSize() int {
-	return -1
+func (s *SnapPart) InstalledSize() int64 {
+	// FIXME: cache this at install time maybe?
+	totalSize := int64(0)
+	f := func(_ string, info os.FileInfo, err error) error {
+		totalSize += info.Size()
+		return err
+	}
+	filepath.Walk(s.basedir, f)
+	return totalSize
 }
 
 // DownloadSize returns the dowload size
-func (s *SnapPart) DownloadSize() int {
+func (s *SnapPart) DownloadSize() int64 {
 	return -1
+}
+
+// Date returns the last update date
+func (s *SnapPart) Date() time.Time {
+	st, err := os.Stat(s.basedir)
+	if err != nil {
+		return time.Time{}
+	}
+
+	return st.ModTime()
 }
 
 // Install installs the snap
@@ -165,8 +202,8 @@ func (s *SnapPart) Uninstall() (err error) {
 }
 
 // Config is used to to configure the snap
-func (s *SnapPart) Config(configuration []byte) (err error) {
-	return err
+func (s *SnapPart) Config(configuration []byte) (new string, err error) {
+	return snapConfig(s.basedir, string(configuration))
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
@@ -263,7 +300,7 @@ func (s *RemoteSnapPart) Description() string {
 
 // Hash returns the hash
 func (s *RemoteSnapPart) Hash() string {
-	return "FIXME"
+	return s.pkg.DownloadSha512
 }
 
 // IsActive returns true if the snap is active
@@ -277,13 +314,23 @@ func (s *RemoteSnapPart) IsInstalled() bool {
 }
 
 // InstalledSize returns the size of the installed snap
-func (s *RemoteSnapPart) InstalledSize() int {
+func (s *RemoteSnapPart) InstalledSize() int64 {
 	return -1
 }
 
 // DownloadSize returns the dowload size
-func (s *RemoteSnapPart) DownloadSize() int {
-	return -1
+func (s *RemoteSnapPart) DownloadSize() int64 {
+	return s.pkg.DownloadSize
+}
+
+// Date returns the last update time
+func (s *RemoteSnapPart) Date() time.Time {
+	p, err := time.Parse("2006-01-02T15:04:05.000000Z", s.pkg.LastUpdated)
+	if err != nil {
+		return time.Time{}
+	}
+
+	return p
 }
 
 // Install installs the snap
@@ -335,8 +382,8 @@ func (s *RemoteSnapPart) Uninstall() (err error) {
 }
 
 // Config is used to to configure the snap
-func (s *RemoteSnapPart) Config(configuration []byte) (err error) {
-	return err
+func (s *RemoteSnapPart) Config(configuration []byte) (new string, err error) {
+	return "", err
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot

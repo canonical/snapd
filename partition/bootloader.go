@@ -62,6 +62,9 @@ type bootLoader interface {
 	// Update the bootloader configuration to mark the
 	// currently-booted rootfs as having booted successfully.
 	MarkCurrentBootSuccessful() error
+
+	// Return the additional required chroot bind mounts for this bootloader
+	AdditionalBindMounts() []string
 }
 
 type bootloaderType struct {
@@ -71,23 +74,21 @@ type bootloaderType struct {
 	// from the last character of the partition name ('a' or 'b').
 	currentRootfs string
 	otherRootfs   string
-
-	// full path to
-	currentBootPath string
-	otherBootPath   string
 }
 
 // Factory method that returns a new bootloader for the given partition
 func getBootloader(p *Partition) (bootloader bootLoader, err error) {
-	ctors := []func(*Partition) bootLoader{newUboot, newGrub}
-
-	for _, f := range ctors {
-		b := f(p)
-		if b != nil {
-			return b, nil
-		}
+	// try uboot
+	if uboot := newUboot(p); uboot != nil {
+		return uboot, nil
 	}
 
+	// no, try grub
+	if grub := newGrub(p); grub != nil {
+		return grub, nil
+	}
+
+	// no, weeeee
 	return nil, ErrBootloader
 }
 
