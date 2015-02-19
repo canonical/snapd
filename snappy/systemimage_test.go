@@ -424,6 +424,11 @@ func (s *SITestSuite) TestSystemImagePartSetActiveMakeActive(c *C) {
 }
 
 func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedSuccess(c *C) {
+	// our layout is:
+	//  - "2.71" on current
+	//  - "3.14" on other
+	// by faking 3.14 as an update we can test the
+	// verifyUpgradeWasApplied logic
 	s.mockSystemImage.fakeAvailableVersion = "3.14"
 	parts, err := s.systemImage.Updates()
 
@@ -433,9 +438,13 @@ func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedSuccess(c *C) {
 }
 
 func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedFailure(c *C) {
-	// the other is *not* updated
+	// see TestTestVerifyUpgradeWasAppliedSuccess
+	//
+	// but this time the other part is *not* updated, i.e. we set it to
+	// something else
 	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "2.71")
 
+	// we pretend to have a update, but the update was not applied
 	s.mockSystemImage.fakeAvailableVersion = "3.14"
 	parts, err := s.systemImage.Updates()
 

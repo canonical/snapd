@@ -39,6 +39,8 @@ const (
 	systemImageClientConfig = "/etc/system-image/client.ini"
 )
 
+// This is the root directory of the filesystem. Its only useful to
+// change when writing tests
 var systemImageRoot = "/"
 
 // SystemImagePart represents a "core" snap that is managed via the SystemImage
@@ -483,16 +485,17 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 	return s.us, err
 }
 
-func makePartFromSystemImageConfigFile(partition partition.Interface, proxy *systemImageDBusProxy, path string, isActive bool) (part Part, err error) {
+// Creates a systemImagePart from a system-image-dbus channel.ini config file
+func makePartFromSystemImageConfigFile(partition partition.Interface, proxy *systemImageDBusProxy, channelIniPath string, isActive bool) (part Part, err error) {
 	cfg := goconfigparser.New()
-	f, err := os.Open(path)
+	f, err := os.Open(channelIniPath)
 	if err != nil {
 		return part, err
 	}
 	defer f.Close()
 	err = cfg.Read(f)
 	if err != nil {
-		log.Printf("Can not parse config '%s': %s", path, err)
+		log.Printf("Can not parse config '%s': %s", channelIniPath, err)
 		return part, err
 	}
 
@@ -509,6 +512,7 @@ func makePartFromSystemImageConfigFile(partition partition.Interface, proxy *sys
 		partition:      partition}, err
 }
 
+// Returns the part associated with the current rootfs
 func makeCurrentPart(p partition.Interface, proxy *systemImageDBusProxy) Part {
 	configFile := filepath.Join(systemImageRoot, systemImageChannelConfig)
 	part, err := makePartFromSystemImageConfigFile(p, proxy, configFile, true)
