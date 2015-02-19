@@ -1,5 +1,5 @@
 [Unit]
-Description=Ubuntu Core Snappy Autopiot
+Description=Ubuntu Core Snappy Autopilot
 After=network.target
 
 [Service]
