@@ -148,6 +148,12 @@ func (s *SnapPart) Hash() string {
 	return s.hash
 }
 
+// Channel returns the channel used
+func (s *SnapPart) Channel() string {
+	// FIXME: real channel support
+	return "edge"
+}
+
 // IsActive returns true if the snap is active
 func (s *SnapPart) IsActive() bool {
 	return s.isActive
@@ -301,6 +307,12 @@ func (s *RemoteSnapPart) Description() string {
 // Hash returns the hash
 func (s *RemoteSnapPart) Hash() string {
 	return s.pkg.DownloadSha512
+}
+
+// Channel returns the channel used
+func (s *RemoteSnapPart) Channel() string {
+	// FIXME: real channel support, this requires server work
+	return "edge"
 }
 
 // IsActive returns true if the snap is active
