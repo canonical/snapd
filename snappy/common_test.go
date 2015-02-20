@@ -11,6 +11,29 @@ import (
 	. "launchpad.net/gocheck"
 )
 
+// makeMockSnap creates a mock snap that doesn't really exist on disk
+func makeMockSnap(tempdir string) (yamlFile string, err error) {
+	const packageHello = `name: hello-app
+version: 1.10
+vendor: Michael Vogt <mvo@ubuntu.com>
+icon: meta/hello.svg
+binaries:
+ - name: bin/hello
+`
+
+	metaDir := filepath.Join(tempdir, "apps", "hello-app", "1.10", "meta")
+	err = os.MkdirAll(metaDir, 0777)
+	if err != nil {
+		return "", err
+	}
+	yamlFile = filepath.Join(metaDir, "package.yaml")
+	ioutil.WriteFile(yamlFile, []byte(packageHello), 0666)
+
+	return yamlFile, err
+}
+
+// makeTestSnap creates a real snap package installed on disk
+// using packageYaml as its meta/package.yaml
 func makeTestSnap(c *C, packageYamlContent string) (snapFile string) {
 	tmpdir := c.MkDir()
 	// content
@@ -51,6 +74,9 @@ vendor: Foo Bar <foo@example.com>
 	return path.Join(tmpdir, snapFile)
 }
 
+// makeTwoTestSnaps creates two real snaps of SnapType of name
+// "foo", with version "1.0" and "2.0", "2.0" being marked as the
+// active snap.
 func makeTwoTestSnaps(c *C, snapType SnapType) {
 	packageYaml := `name: foo
 icon: foo.svg
