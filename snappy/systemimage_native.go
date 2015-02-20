@@ -89,8 +89,8 @@ func systemImageClientCheckForUpdates(configFile string) (us updateStatus, err e
 }
 
 type progressJSON struct {
-	Now   int
-	Total int
+	Now   float64
+	Total float64
 }
 
 type spinnerJSON struct {
@@ -118,6 +118,9 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 
 	if pb != nil {
 		scanner := bufio.NewScanner(stdout)
+		// s-i is funny, total changes
+		total := 0.0
+		
 		for scanner.Scan() {
 			l := strings.SplitN(scanner.Text(), ":", 2)
 			// invalid line, ignore
@@ -133,8 +136,11 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 				if err := dec.Decode(&progressData); err != nil {
 					continue
 				}
-				pb.Start(float64(progressData.Total))
-				pb.Set(float64(progressData.Now))
+				if total != progressData.Total {
+					total = progressData.Total
+					pb.Start(total)
+				}
+				pb.Set(progressData.Now)
 			case key == "SPINNER":
 				var spinnerData spinnerJSON
 				dec := json.NewDecoder(jsonStream)

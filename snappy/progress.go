@@ -44,6 +44,10 @@ func NewTextProgress(pkg string) *TextProgress {
 // Start starts showing progress
 func (t *TextProgress) Start(total float64) {
 	fmt.Println("Starting download of", t.pkg)
+	// we can start multiple times, system-image-cli is funny
+	if t.pbar.Total > 0 {
+		t.pbar.Finish()
+	}
 	t.pbar.Total = int64(total)
 	t.pbar.Start()
 }
