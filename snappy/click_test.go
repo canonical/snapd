@@ -5,52 +5,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 
 	. "launchpad.net/gocheck"
 )
-
-func (s *SnapTestSuite) makeTestSnap(c *C, packageYamlContent string) (snapFile string) {
-	tmpdir := c.MkDir()
-	// content
-	os.MkdirAll(path.Join(tmpdir, "bin"), 0755)
-	content := `#!/bin/sh
-echo "hello"`
-	exampleBinary := path.Join(tmpdir, "bin", "foo")
-	ioutil.WriteFile(exampleBinary, []byte(content), 0755)
-	// meta
-	os.MkdirAll(path.Join(tmpdir, "meta"), 0755)
-	packageYaml := path.Join(tmpdir, "meta", "package.yaml")
-	if packageYamlContent == "" {
-		packageYamlContent = `
-name: foo
-version: 1.0
-icon: foo.svg
-vendor: Foo Bar <foo@example.com>
-`
-	}
-	ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
-	readmeMd := path.Join(tmpdir, "meta", "readme.md")
-	content = "Random\nExample"
-	ioutil.WriteFile(readmeMd, []byte(content), 0644)
-	// build it
-	err := chDir(tmpdir, func() {
-		cmd := exec.Command("snappy", "build", tmpdir)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			fmt.Println(string(output))
-		}
-		c.Assert(err, IsNil)
-		allSnapFiles, err := filepath.Glob("*.snap")
-		c.Assert(err, IsNil)
-		c.Assert(len(allSnapFiles), Equals, 1)
-		snapFile = allSnapFiles[0]
-	})
-	c.Assert(err, IsNil)
-	return path.Join(tmpdir, snapFile)
-}
 
 func (s *SnapTestSuite) TestReadManifest(c *C) {
 	manifestData := []byte(`{
@@ -182,7 +141,7 @@ Pattern: %s/${id}`, testSymlinkDir2)
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
-	snapFile := s.makeTestSnap(c, "")
+	snapFile := makeTestSnap(c, "")
 	err := installClick(snapFile, 0)
 	c.Assert(err, IsNil)
 
@@ -210,7 +169,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
 		return errors.New("something went wrong")
 	}
 
-	snapFile := s.makeTestSnap(c, "")
+	snapFile := makeTestSnap(c, "")
 	err := installClick(snapFile, 0)
 	c.Assert(err, NotNil)
 
@@ -228,7 +187,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyPassesUnauth(c *C) {
 	}
 
 	expectedUnauth = true
-	snapFile := s.makeTestSnap(c, "")
+	snapFile := makeTestSnap(c, "")
 	err := installClick(snapFile, AllowUnauthenticated)
 	c.Assert(err, IsNil)
 
@@ -239,7 +198,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyPassesUnauth(c *C) {
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	targetDir := path.Join(s.tempdir, "apps")
-	err := installClick(s.makeTestSnap(c, ""), 0)
+	err := installClick(makeTestSnap(c, ""), 0)
 	c.Assert(err, IsNil)
 
 	instDir := path.Join(targetDir, "foo", "1.0")
@@ -254,7 +213,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
-	snapFile := s.makeTestSnap(c, `name: foo
+	snapFile := makeTestSnap(c, `name: foo
 version: 1.0
 type: oem
 icon: foo.svg
@@ -274,10 +233,10 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
-	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
+	snapFile := makeTestSnap(c, packageYaml+"version: 1.0")
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 
-	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
+	snapFile = makeTestSnap(c, packageYaml+"version: 2.0")
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 
 	// ensure v2 is active
@@ -314,7 +273,7 @@ vendor: Foo Bar <foo@example.com>
 `
 	canaryData := []byte("ni ni ni")
 
-	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
+	snapFile := makeTestSnap(c, packageYaml+"version: 1.0")
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, "foo", "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
@@ -322,7 +281,7 @@ vendor: Foo Bar <foo@example.com>
 	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), canaryData, 0644)
 	c.Assert(err, IsNil)
 
-	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
+	snapFile = makeTestSnap(c, packageYaml+"version: 2.0")
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 	newCanaryDataFile := filepath.Join(snapDataDir, "foo", "2.0", "canary.txt")
 	content, err := ioutil.ReadFile(newCanaryDataFile)
@@ -345,12 +304,12 @@ func (s *SnapTestSuite) TestClickCopyDataNoUserHomes(c *C) {
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
-	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
+	snapFile := makeTestSnap(c, packageYaml+"version: 1.0")
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, "foo", "1.0", "canary.txt")
 	err := ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 
-	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
+	snapFile = makeTestSnap(c, packageYaml+"version: 2.0")
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 	_, err = os.Stat(filepath.Join(snapDataDir, "foo", "2.0", "canary.txt"))
 	c.Assert(err, IsNil)
