@@ -1,10 +1,14 @@
 package snappy
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os/exec"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/mvo5/goconfigparser"
@@ -82,4 +86,75 @@ func systemImageClientCheckForUpdates(configFile string) (us updateStatus, err e
 	}
 
 	return us, nil
+}
+
+type progressJSON struct {
+	Now   int
+	Total int
+}
+
+type spinnerJSON struct {
+	Message string
+}
+
+type errorJSON struct {
+	Error string
+}
+
+func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) {
+	cmd := exec.Command(systemImageCli, "--machine-readable", "-C", configFile)
+
+	var stdout io.Reader
+	if pb != nil {
+		stdout, err = cmd.StdoutPipe()
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	if pb != nil {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			l := strings.SplitN(scanner.Text(), ":", 2)
+			// invalid line, ignore
+			if len(l) != 2 {
+				continue
+			}
+			key := l[0]
+			jsonStream := strings.NewReader(l[1])
+			switch {
+			case key == "PROGRESS":
+				var progressData progressJSON
+				dec := json.NewDecoder(jsonStream)
+				if err := dec.Decode(&progressData); err != nil {
+					continue
+				}
+				pb.Start(float64(progressData.Total))
+				pb.Set(float64(progressData.Now))
+			case key == "SPINNER":
+				var spinnerData spinnerJSON
+				dec := json.NewDecoder(jsonStream)
+				if err := dec.Decode(&spinnerData); err != nil {
+					continue
+				}
+				pb.Spin(spinnerData.Message)
+			case key == "ERROR":
+				var errorData errorJSON
+				dec := json.NewDecoder(jsonStream)
+				if err := dec.Decode(&errorData); err != nil {
+					continue
+				}
+				err = fmt.Errorf("Error from %s: %s", systemImageCli, errorData.Error)
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			return err
+		}
+	}
+
+	return cmd.Wait()
 }
