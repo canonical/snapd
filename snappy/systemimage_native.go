@@ -95,11 +95,7 @@ type progressJSON struct {
 }
 
 type spinnerJSON struct {
-	Message string
-}
-
-type errorJSON struct {
-	Error string
+	Message string `json:"msg, omitempty"`
 }
 
 func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) {
@@ -150,16 +146,18 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 				var spinnerData spinnerJSON
 				dec := json.NewDecoder(jsonStream)
 				if err := dec.Decode(&spinnerData); err != nil {
+					fmt.Println("Can not decode spinner json", err)
 					continue
 				}
 				pb.Spin(spinnerData.Message)
 			case key == "ERROR":
-				var errorData errorJSON
+				var errorData string
 				dec := json.NewDecoder(jsonStream)
 				if err := dec.Decode(&errorData); err != nil {
+					fmt.Println("Can not decode json: ", err)
 					continue
 				}
-				err = fmt.Errorf("Error from %s: %s", systemImageCli, errorData.Error)
+				err = fmt.Errorf("Error from %s: %s", systemImageCli, errorData)
 			}
 		}
 		if err != nil {
