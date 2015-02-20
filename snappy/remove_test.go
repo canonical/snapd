@@ -86,4 +86,5 @@ func (s *SnapTestSuite) TestSnapRemoveActiveOemFails(c *C) {
 	c.Assert(installed[0].Name(), Equals, "foo.oem")
 	c.Assert(installed[0].Type(), Equals, SnapTypeOem)
 	c.Assert(installed[0].Version(), Equals, "2.0")
+	c.Assert(len(installed), Equals, 1)
 }
