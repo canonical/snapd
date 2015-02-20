@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"os/exec"
 	"path"
 	"strings"
@@ -120,8 +121,12 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 		scanner := bufio.NewScanner(stdout)
 		// s-i is funny, total changes
 		total := 0.0
-		
+
 		for scanner.Scan() {
+			if os.Getenv("SNAPPY_DEBUG") != "" {
+				fmt.Println(scanner.Text())
+			}
+
 			l := strings.SplitN(scanner.Text(), ":", 2)
 			// invalid line, ignore
 			if len(l) != 2 {
