@@ -203,6 +203,9 @@ func (s *SnapPart) SetActive() (err error) {
 
 // Uninstall remove the snap from the system
 func (s *SnapPart) Uninstall() (err error) {
+	// OEM snaps should not be removed as they are a key
+	// building block for OEMs. Prunning non active ones
+	// is acceptible.
 	if s.stype == SnapTypeOem && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
