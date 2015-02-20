@@ -203,7 +203,7 @@ func (s *SnapPart) SetActive() (err error) {
 
 // Uninstall remove the snap from the system
 func (s *SnapPart) Uninstall() (err error) {
-	if s.stype == SnapTypeOem {
+	if s.stype == SnapTypeOem && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 

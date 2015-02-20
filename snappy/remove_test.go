@@ -28,7 +28,7 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(len(installed), Equals, 2)
 }
 
-func (s *SnapTestSuite) makeOemSnap(c *C) {
+func (s *SnapTestSuite) makeTwoOemTestSnaps(c *C) {
 	packageYaml := `name: foo.oem
 icon: oem.svg
 vendor: Foo Bar <foo@oem.com>
@@ -37,10 +37,13 @@ type: oem
 	snapFile := s.makeTestSnap(c, packageYaml+"version: 1.0")
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 
+	snapFile = s.makeTestSnap(c, packageYaml+"version: 2.0")
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	c.Assert(err, IsNil)
-	c.Assert(len(installed), Equals, 1)
+	c.Assert(len(installed), Equals, 2)
 }
 
 func (s *SnapTestSuite) TestSnapRemoveByVersion(c *C) {
@@ -65,11 +68,16 @@ func (s *SnapTestSuite) TestSnapRemoveActive(c *C) {
 	c.Assert(installed[0].Version(), Equals, "1.0")
 }
 
-func (s *SnapTestSuite) TestSnapRemoveOemFails(c *C) {
-	s.makeOemSnap(c)
+func (s *SnapTestSuite) TestSnapRemoveActiveOemFails(c *C) {
+	s.makeTwoOemTestSnaps(c)
 
 	err := Remove("foo.oem")
+	c.Assert(err, DeepEquals, ErrPackageNotRemovable)
 
+	err = Remove("foo.oem=1.0")
+	c.Assert(err, IsNil)
+
+	err = Remove("foo.oem")
 	c.Assert(err, DeepEquals, ErrPackageNotRemovable)
 
 	m := NewMetaRepository()
@@ -77,4 +85,5 @@ func (s *SnapTestSuite) TestSnapRemoveOemFails(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed[0].Name(), Equals, "foo.oem")
 	c.Assert(installed[0].Type(), Equals, SnapTypeOem)
+	c.Assert(installed[0].Version(), Equals, "2.0")
 }
