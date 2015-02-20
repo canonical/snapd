@@ -7,13 +7,10 @@ package snappy
 import (
 	"crypto/sha512"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -42,21 +39,8 @@ const (
 	systemImageClientConfig = "/etc/system-image/client.ini"
 )
 
-type channelImage struct {
-	Descripton     string `json:"description,omitempty"`
-	Type           string `json:"type, omitempty"`
-	Version        int    `json:"version, omitempty"`
-	VersionDetails string `json:"version_details, omitempty"`
-	Files          []channelImageFiles `json:"files"`
-}
-
-type channelImageFiles struct {
-	Size int64 `json:"size"`
-}
-
-type channelJSON struct {
-	Images []channelImage `json:"images"`
-}
+// override for testing
+var systemImageRoot = "/"
 
 // SystemImagePart represents a "core" snap that is managed via the SystemImage
 // client
@@ -231,16 +215,6 @@ func (s *SystemImagePart) Channel() string {
 	return s.channelName
 }
 
-// Result of UpdateAvailableStatus() call
-type updateStatus struct {
-	isAvailable      bool
-	downloading      bool
-	availableVersion string
-	updateSize       int32
-	lastUpdateDate   string
-	errorReason      string
-}
-
 type systemImageDBusProxy struct {
 	proxy      *dbus.ObjectProxy
 	connection *dbus.Connection
@@ -255,8 +229,6 @@ type systemImageDBusProxy struct {
 	updateDownloaded      *SensibleWatch
 	updateFailed          *SensibleWatch
 }
-
-var systemImageServer = "https://system-image.ubuntu.com/"
 
 // this functions only exists to make testing easier, i.e. the testsuite
 // will replace newPartition() to return a mockPartition
@@ -479,7 +451,7 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 }
 
 func (s *SystemImageRepository) currentPart() Part {
-	configFile := filepath.Join(s.myroot, systemImageChannelConfig)
+	configFile := filepath.Join(systemImageRoot, systemImageChannelConfig)
 	part, err := s.makePartFromSystemImageConfigFile(configFile, true)
 	if err != nil {
 		return nil
@@ -491,7 +463,7 @@ func (s *SystemImageRepository) currentPart() Part {
 func (s *SystemImageRepository) otherPart() Part {
 	var part Part
 	err := s.partition.RunWithOther(partition.RO, func(otherRoot string) (err error) {
-		configFile := filepath.Join(s.myroot, otherRoot, systemImageChannelConfig)
+		configFile := filepath.Join(systemImageRoot, otherRoot, systemImageChannelConfig)
 		_, err = os.Stat(configFile)
 		if err != nil && os.IsNotExist(err) {
 			// config file doesn't exist, meaning the other
@@ -532,57 +504,18 @@ func (s *SystemImageRepository) Details(snapName string) (versions []Part, err e
 
 // Updates returns the available updates
 func (s *SystemImageRepository) Updates() (parts []Part, err error) {
-
-	configFile := filepath.Join(s.myroot, systemImageChannelConfig)
-	cfg := goconfigparser.New()
-	if err := cfg.ReadFile(configFile); err != nil {
-		return parts, err
-	}
-	channel, _ := cfg.Get("service", "channel")
-	device, _ := cfg.Get("service", "device")
-
-	indexURL := systemImageServer + path.Join(channel, device, "index.json")
-	fmt.Println(indexURL)
-
-	resp, err := http.Get(indexURL)
-	if err != nil {
-		return parts, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return parts, fmt.Errorf("systemImageDbusProxy: unexpected http statusCode %v for %s", resp.StatusCode, indexURL)
-	}
-
-	// and decode json
-	var channelData channelJSON
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&channelData); err != nil {
-		return nil, err
-	}
-
-	// FIXME: find latest image of type "full" here
-	lastUpdate, _ := time.Parse(http.TimeFormat, resp.Header.Get("Last-Modified"))
-	latestImage := channelData.Images[len(channelData.Images)-1]
-	targetVersion := fmt.Sprintf("%d", latestImage.Version)
-	targetVersionDetails := latestImage.VersionDetails
-
-	// FIXME: this is not accurate right now as it does not take
-	//        the deltas into account
-	updateSize := int64(0)
-	for _, f := range(latestImage.Files) {
-		updateSize += f.Size
-	}
+	configFile := filepath.Join(systemImageRoot, systemImageChannelConfig)
+	updateStatus, err := systemImageClientCheckForUpdates(configFile)
 
 	current := s.currentPart()
 	currentVersion := current.Version()
-	if VersionCompare(currentVersion, targetVersion) < 0 {
+	if VersionCompare(currentVersion, updateStatus.targetVersion) < 0 {
 		parts = append(parts, &SystemImagePart{
 			proxy:          s.proxy,
-			version:        targetVersion,
-			versionDetails: targetVersionDetails,
-			lastUpdate:     lastUpdate,
-			updateSize:     updateSize,
+			version:        updateStatus.targetVersion,
+			versionDetails: updateStatus.targetVersionDetails,
+			lastUpdate:     updateStatus.lastUpdate,
+			updateSize:     updateStatus.updateSize,
 			channelName:    current.(*SystemImagePart).channelName,
 			partition:      s.partition})
 	}
