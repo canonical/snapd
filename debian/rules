@@ -9,8 +9,11 @@ export DH_GOPKG := launchpad.net/snappy
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd
 
 override_dh_systemd_enable:
-	dh_systemd_enable --name snappy-boot-ok snappy.boot-ok.service
-	dh_systemd_enable --name snappy-cache-lsblk snappy.cache-lsblk.service
+	dh_systemd_enable ubuntu-core-snappy.boot-ok.service
+	# we want autopilot disabled by default for now
+	# it is explicitly listed here so it's not enabled
+	# by mistake.
+	# dh_systemd_enable snappy-autopilot.timer
 
 override_dh_auto_install:
 	dh_auto_install -O--buildsystem=golang
