@@ -48,11 +48,9 @@ func snapInfo(pkgname string, verbose bool) error {
 		return fmt.Errorf("No snap '%s' found", pkgname)
 	}
 
-	// FIXME: implement channels
-	fmt.Printf("channel: %s\n", "edge")
+	fmt.Printf("channel: %s\n", snap.Channel())
 	fmt.Printf("version: %s\n", snap.Version())
-	// FIXME: implement me
-	fmt.Printf("updated: %s\n", "n/a")
+	fmt.Printf("updated: %s\n", snap.Date())
 	if verbose {
 		fmt.Printf("installed: %s\n", "n/a")
 		fmt.Printf("binary-size: %v\n", snap.InstalledSize())
