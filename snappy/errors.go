@@ -16,6 +16,10 @@ var (
 	// found in a remote repository
 	ErrRemoteSnapNotFound = errors.New("Remote Snap not found")
 
+	// ErrPackageNotRemovable is returned when trying to remove a package
+	// that cannot be removed.
+	ErrPackageNotRemovable = errors.New("snappy package cannot be removed")
+
 	// ErrConfigNotFound is returned if a snap without a config is
 	// getting configured
 	ErrConfigNotFound = errors.New("No config found for this snap")

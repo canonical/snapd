@@ -203,8 +203,11 @@ func (s *SnapPart) SetActive() (err error) {
 
 // Uninstall remove the snap from the system
 func (s *SnapPart) Uninstall() (err error) {
-	err = removeClick(s.basedir)
-	return err
+	if s.stype == SnapTypeOem {
+		return ErrPackageNotRemovable
+	}
+
+	return removeClick(s.basedir)
 }
 
 // Config is used to to configure the snap
