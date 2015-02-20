@@ -34,21 +34,17 @@ type TextProgress struct {
 
 // NewTextProgress returns a new TextProgress type
 func NewTextProgress(pkg string) *TextProgress {
-	// TODO go back to New64 once we update the pb package.
-	t := TextProgress{pbar: pb.New(0)}
-	t.pbar.ShowSpeed = true
-	t.pkg = pkg
-	return &t
+	return &TextProgress{pkg: pkg}
 }
 
 // Start starts showing progress
 func (t *TextProgress) Start(total float64) {
 	fmt.Println("Starting download of", t.pkg)
-	// we can start multiple times, system-image-cli is funny
-	if t.pbar.Total > 0 {
-		t.pbar.Finish()
-	}
+
+	// TODO go to New64 once we update the pb package.
+	t.pbar = pb.New(0)
 	t.pbar.Total = int64(total)
+	t.pbar.ShowSpeed = true
 	t.pbar.Start()
 }
 

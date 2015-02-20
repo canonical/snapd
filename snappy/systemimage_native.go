@@ -162,6 +162,10 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 				err = fmt.Errorf("Error from %s: %s", systemImageCli, errorData.Error)
 			}
 		}
+		if err != nil {
+			return err
+		}
+
 		if err := scanner.Err(); err != nil {
 			return err
 		}
