@@ -39,6 +39,10 @@ const (
 	systemImageClientConfig = "/etc/system-image/client.ini"
 )
 
+// This is the root directory of the filesystem. Its only useful to
+// change when writing tests
+var systemImageRoot = "/"
+
 // SystemImagePart represents a "core" snap that is managed via the SystemImage
 // client
 type SystemImagePart struct {
@@ -172,8 +176,41 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 		return err
 	}
 
+	// Check that the final system state is as expected.
+	if err = s.verifyUpgradeWasApplied(); err != nil {
+		return err
+	}
+
 	// FIXME: switch s-i daemon back to current partition
 	return s.partition.ToggleNextBoot()
+}
+
+// Ensure the expected version update was applied to the expected partition.
+func (s *SystemImagePart) verifyUpgradeWasApplied() error {
+	// The upgrade has now been applied, so check that the expected
+	// update was applied by comparing "self" (which is the newest
+	// system-image revision with that installed on the other
+	// partition.
+
+	// Determine the latest installed part.
+	latestPart := makeOtherPart(s.partition, s.proxy)
+	if latestPart == nil {
+		// If there is no other part, this system must be a
+		// single rootfs one, so re-query current to find the
+		// latest installed part.
+		latestPart = makeCurrentPart(s.partition, s.proxy)
+	}
+
+	if latestPart == nil {
+		return errors.New("could not find latest installed partition")
+	}
+
+	if s.version != latestPart.Version() {
+		return fmt.Errorf("found latest installed version %q (expected %q)",
+			latestPart.Version(), s.version)
+	}
+
+	return nil
 }
 
 // Uninstall can not be used for "core" snaps
@@ -457,11 +494,78 @@ func (s *systemImageDBusProxy) CheckForUpdate() (us updateStatus, err error) {
 	return s.us, err
 }
 
+// Creates a systemImagePart from a system-image-dbus channel.ini config file
+func makePartFromSystemImageConfigFile(partition partition.Interface, proxy *systemImageDBusProxy, channelIniPath string, isActive bool) (part Part, err error) {
+	cfg := goconfigparser.New()
+	f, err := os.Open(channelIniPath)
+	if err != nil {
+		return part, err
+	}
+	defer f.Close()
+	err = cfg.Read(f)
+	if err != nil {
+		log.Printf("Can not parse config '%s': %s", channelIniPath, err)
+		return part, err
+	}
+	st, err := os.Stat(channelIniPath)
+	if err != nil {
+		log.Printf("Can stat '%s': %s", channelIniPath, err)
+		return part, err
+	}
+
+	currentBuildNumber, err := cfg.Get("service", "build_number")
+	versionDetails, err := cfg.Get("service", "version_detail")
+	channelName, err := cfg.Get("service", "channel")
+	return &SystemImagePart{
+		isActive:       isActive,
+		isInstalled:    true,
+		proxy:          proxy,
+		version:        currentBuildNumber,
+		versionDetails: versionDetails,
+		channelName:    channelName,
+		lastUpdate:     st.ModTime(),
+		partition:      partition}, err
+}
+
+// Returns the part associated with the current rootfs
+func makeCurrentPart(p partition.Interface, proxy *systemImageDBusProxy) Part {
+	configFile := filepath.Join(systemImageRoot, systemImageChannelConfig)
+	part, err := makePartFromSystemImageConfigFile(p, proxy, configFile, true)
+	if err != nil {
+		return nil
+	}
+	return part
+}
+
+// Returns the part associated with the other rootfs (if any)
+func makeOtherPart(p partition.Interface, proxy *systemImageDBusProxy) Part {
+	var part Part
+	err := p.RunWithOther(partition.RO, func(otherRoot string) (err error) {
+		configFile := filepath.Join(systemImageRoot, otherRoot, systemImageChannelConfig)
+		_, err = os.Stat(configFile)
+		if err != nil && os.IsNotExist(err) {
+			// config file doesn't exist, meaning the other
+			// partition is empty. However, this is not an
+			// error condition (atleast for amd64 images
+			// which only have 1 partition pre-installed).
+			return nil
+		}
+		part, err = makePartFromSystemImageConfigFile(p, proxy, configFile, false)
+		if err != nil {
+			log.Printf("Can not make system-image part for %s: %s", configFile, err)
+		}
+		return err
+	})
+	if err == partition.ErrNoDualPartition {
+		return nil
+	}
+	return part
+}
+
 // SystemImageRepository is the type used for the system-image-server
 type SystemImageRepository struct {
 	proxy     *systemImageDBusProxy
 	partition partition.Interface
-	myroot    string
 }
 
 // Constructor
@@ -481,77 +585,11 @@ func (s *SystemImageRepository) Description() string {
 	return "SystemImageRepository"
 }
 
-func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, isActive bool) (part Part, err error) {
-	cfg := goconfigparser.New()
-	f, err := os.Open(path)
-	if err != nil {
-		return part, err
-	}
-	defer f.Close()
-	err = cfg.Read(f)
-	if err != nil {
-		log.Printf("Can not parse config '%s': %s", path, err)
-		return part, err
-	}
-	st, err := os.Stat(path)
-	if err != nil {
-		log.Printf("Can stat '%s': %s", path, err)
-		return part, err
-	}
-
-	currentBuildNumber, err := cfg.Get("service", "build_number")
-	versionDetails, err := cfg.Get("service", "version_detail")
-	channelName, err := cfg.Get("service", "channel")
-	return &SystemImagePart{
-		isActive:       isActive,
-		isInstalled:    true,
-		proxy:          s.proxy,
-		version:        currentBuildNumber,
-		versionDetails: versionDetails,
-		channelName:    channelName,
-		lastUpdate:     st.ModTime(),
-		partition:      s.partition}, err
-}
-
-func (s *SystemImageRepository) currentPart() Part {
-	configFile := filepath.Join(s.myroot, systemImageChannelConfig)
-	part, err := s.makePartFromSystemImageConfigFile(configFile, true)
-	if err != nil {
-		return nil
-	}
-	return part
-}
-
-// Returns the part associated with the other rootfs (if any)
-func (s *SystemImageRepository) otherPart() Part {
-	var part Part
-	err := s.partition.RunWithOther(partition.RO, func(otherRoot string) (err error) {
-		configFile := filepath.Join(s.myroot, otherRoot, systemImageChannelConfig)
-		_, err = os.Stat(configFile)
-		if err != nil && os.IsNotExist(err) {
-			// config file doesn't exist, meaning the other
-			// partition is empty. However, this is not an
-			// error condition (atleast for amd64 images
-			// which only have 1 partition pre-installed).
-			return nil
-		}
-		part, err = s.makePartFromSystemImageConfigFile(configFile, false)
-		if err != nil {
-			log.Printf("Can not make system-image part for %s: %s", configFile, err)
-		}
-		return err
-	})
-	if err == partition.ErrNoDualPartition {
-		return nil
-	}
-	return part
-}
-
 // Search searches the SystemImageRepository for the given terms
 func (s *SystemImageRepository) Search(terms string) (versions []Part, err error) {
 	if strings.Contains(terms, systemImagePartName) {
 		s.proxy.Information()
-		part := s.currentPart()
+		part := makeCurrentPart(s.partition, s.proxy)
 		versions = append(versions, part)
 	}
 	return versions, err
@@ -561,7 +599,7 @@ func (s *SystemImageRepository) Search(terms string) (versions []Part, err error
 func (s *SystemImageRepository) Details(snapName string) (versions []Part, err error) {
 	if snapName == systemImagePartName {
 		s.proxy.Information()
-		part := s.currentPart()
+		part := makeCurrentPart(s.partition, s.proxy)
 		versions = append(versions, part)
 	}
 	return versions, err
@@ -572,7 +610,7 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 	if _, err = s.proxy.CheckForUpdate(); err != nil {
 		return parts, err
 	}
-	current := s.currentPart()
+	current := makeCurrentPart(s.partition, s.proxy)
 	currentVersion := current.Version()
 	targetVersion := s.proxy.us.availableVersion
 
@@ -599,13 +637,13 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 // Installed returns the installed snaps from this repository
 func (s *SystemImageRepository) Installed() (parts []Part, err error) {
 	// current partition
-	curr := s.currentPart()
+	curr := makeCurrentPart(s.partition, s.proxy)
 	if curr != nil {
 		parts = append(parts, curr)
 	}
 
 	// other partition
-	other := s.otherPart()
+	other := makeOtherPart(s.partition, s.proxy)
 	if other != nil {
 		parts = append(parts, other)
 	}

@@ -239,7 +239,7 @@ func (s *SITestSuite) SetUpTest(c *C) {
 	c.Assert(s, NotNil)
 	// setup alternative root for system image
 	tmpdir := c.MkDir()
-	s.systemImage.myroot = tmpdir
+	systemImageRoot = tmpdir
 	makeFakeSystemImageChannelConfig(c, filepath.Join(tmpdir, systemImageChannelConfig), "2.71")
 	// setup fake /other partition
 	makeFakeSystemImageChannelConfig(c, filepath.Join(tmpdir, "other", systemImageChannelConfig), "3.14")
@@ -250,6 +250,7 @@ func (s *SITestSuite) SetUpTest(c *C) {
 func (s *SITestSuite) TearDownTest(c *C) {
 	os.RemoveAll(s.tmpdir)
 	s.conn.Close()
+	systemImageRoot = "/"
 }
 
 func makeFakeSystemImageChannelConfig(c *C, cfgPath, buildNumber string) {
@@ -421,4 +422,35 @@ func (s *SITestSuite) TestSystemImagePartSetActiveMakeActive(c *C) {
 	err = sp.SetActive()
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
+}
+
+func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedSuccess(c *C) {
+	// our layout is:
+	//  - "2.71" on current
+	//  - "3.14" on other
+	// by faking 3.14 as an update we can test the
+	// verifyUpgradeWasApplied logic
+	s.mockSystemImage.fakeAvailableVersion = "3.14"
+	parts, err := s.systemImage.Updates()
+
+	part := parts[0].(*SystemImagePart)
+	err = part.verifyUpgradeWasApplied()
+	c.Assert(err, IsNil)
+}
+
+func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedFailure(c *C) {
+	// see TestTestVerifyUpgradeWasAppliedSuccess
+	//
+	// but this time the other part is *not* updated, i.e. we set it to
+	// something else
+	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "2.71")
+
+	// we pretend to have a update, but the update was not applied
+	s.mockSystemImage.fakeAvailableVersion = "3.14"
+	parts, err := s.systemImage.Updates()
+
+	part := parts[0].(*SystemImagePart)
+	err = part.verifyUpgradeWasApplied()
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, `found latest installed version "2.71" (expected "3.14")`)
 }
