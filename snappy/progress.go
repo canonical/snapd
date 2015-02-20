@@ -55,7 +55,9 @@ func (t *TextProgress) Set(current float64) {
 
 // Finished stops displaying the progress
 func (t *TextProgress) Finished() {
-	t.pbar.FinishPrint("Done")
+	if t.pbar != nil {
+		t.pbar.FinishPrint("Done")
+	}
 }
 
 // Write is there so that progress can implment a Writer and can be
