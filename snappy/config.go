@@ -30,7 +30,7 @@ func snapConfig(snapDir, rawConfig string) (newConfig string, err error) {
 	}
 
 	appArmorProfile := fmt.Sprintf("%s_%s_%s", part.Name(), "snappy-config", part.Version())
-	
+
 	return runConfigScript(configScript, appArmorProfile, rawConfig, makeSnapHookEnv(part))
 }
 
