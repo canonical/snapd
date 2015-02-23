@@ -31,18 +31,20 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	runCommand = runCommandImpl
 }
 
-func makeHardwareYaml(c *C) (outPath string) {
+func makeHardwareYaml(c *C, hardwareYaml string) (outPath string) {
 	tmp, err := ioutil.TempFile(c.MkDir(), "hw-")
 	defer tmp.Close()
 	c.Assert(err, IsNil)
 
-	hardwareYaml := `
+	if hardwareYaml == "" {
+		hardwareYaml = `
 kernel: assets/vmlinuz
 initrd: assets/initrd.img
 dtbs: assets/dtbs
 partition-layout: system-AB
 bootloader: u-boot
 `
+	}
 	_, err = tmp.Write([]byte(hardwareYaml))
 	c.Assert(err, IsNil)
 
@@ -53,7 +55,7 @@ func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
 	p := New()
 	c.Assert(p, NotNil)
 
-	p.hardwareSpecFile = makeHardwareYaml(c)
+	p.hardwareSpecFile = makeHardwareYaml(c, "")
 	hw, err := p.hardwareSpec()
 	c.Assert(err, IsNil)
 	c.Assert(hw.Kernel, Equals, "assets/vmlinuz")

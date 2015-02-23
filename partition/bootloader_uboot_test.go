@@ -134,6 +134,15 @@ func (s *PartitionTestSuite) TestGetBootloaderWithUboot(c *C) {
 	c.Assert(bootloader.Name(), Equals, bootloaderNameUboot)
 }
 
+func makeMockAssetsDir(c *C) {
+	for _, f := range([]string{"assets/vmlinuz","assets/initrd.img", "assets/dtbs/foo.dtb", "assets/dtbs/bar.dtb"}) {
+		p := filepath.Join(defaultCacheDir, f)
+		os.MkdirAll(filepath.Dir(p), 0755)
+		err := ioutil.WriteFile(p, []byte(""), 0644)
+		c.Assert(err, IsNil)
+	}
+}
+
 func (s *PartitionTestSuite) TestHandleAssets(c *C) {
 	s.makeFakeUbootEnv(c)
 	p := New()
@@ -141,19 +150,14 @@ func (s *PartitionTestSuite) TestHandleAssets(c *C) {
 	c.Assert(err, IsNil)
 
 	// mock the hardwareYaml and the cacheDir
-	p.hardwareSpecFile = makeHardwareYaml(c)
+	p.hardwareSpecFile = makeHardwareYaml(c, "")
 	defaultCacheDir = c.MkDir()
 	defer func() {
 		defaultCacheDir = realDefaultCacheDir
 	}()
 
 	// create mock assets/
-	for _, f := range([]string{"assets/vmlinuz","assets/initrd.img", "assets/dtbs/foo.dtb", "assets/dtbs/bar.dtb"}) {
-		p := filepath.Join(defaultCacheDir, f)
-		os.MkdirAll(filepath.Dir(p), 0755)
-		err := ioutil.WriteFile(p, []byte(""), 0644)
-		c.Assert(err, IsNil)
-	}
+	makeMockAssetsDir(c)
 
 	// run the handle assets code
 	err = bootloader.HandleAssets()
@@ -173,4 +177,41 @@ func (s *PartitionTestSuite) TestHandleAssets(c *C) {
 	// ensure nothing left behind
 	_, err = os.Stat(filepath.Join(defaultCacheDir, "assets"))
 	c.Assert(os.IsNotExist(err), Equals, true)
+}
+
+func (s *PartitionTestSuite) TestHandleAssetsVerifyBootloader(c *C) {
+	s.makeFakeUbootEnv(c)
+	p := New()
+	bootloader, err := getBootloader(p)
+	c.Assert(err, IsNil)
+
+	// mock the hardwareYaml and the cacheDir
+	p.hardwareSpecFile = makeHardwareYaml(c, "bootloader: grub")
+	defaultCacheDir = c.MkDir()
+	defer func() {
+		defaultCacheDir = realDefaultCacheDir
+	}()
+
+	err = bootloader.HandleAssets()
+	c.Assert(err, NotNil)
+}
+
+func (s *PartitionTestSuite) TestHandleAssetsFailVerifyPartitionLayout(c *C) {
+	s.makeFakeUbootEnv(c)
+	p := New()
+	bootloader, err := getBootloader(p)
+	c.Assert(err, IsNil)
+
+	// mock the hardwareYaml and the cacheDir
+	p.hardwareSpecFile = makeHardwareYaml(c, `
+bootloader: u-boot
+partition-layout: inplace
+`)
+	defaultCacheDir = c.MkDir()
+	defer func() {
+		defaultCacheDir = realDefaultCacheDir
+	}()
+
+	err = bootloader.HandleAssets()
+	c.Assert(err, NotNil)
 }

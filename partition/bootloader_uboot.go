@@ -223,7 +223,7 @@ func (u *uboot) HandleAssets() (err error) {
 		return err
 	}
 
-	// validate
+	// validate bootloader
 	if hardware.Bootloader != u.Name() {
 		return fmt.Errorf(
 			"bootloader is of type %s but hardware spec requires %s",
@@ -231,17 +231,13 @@ func (u *uboot) HandleAssets() (err error) {
 			hardware.Bootloader)
 	}
 
-	// validate
-	switch hardware.PartitionLayout {
-	case "system-AB":
-		if !u.partition.dualRootPartitions() {
-			return fmt.Errorf(
-				"hardware spec requires dual root partitions")
-		}
+	// validate partition layout
+	if u.partition.dualRootPartitions() && hardware.PartitionLayout != "system-AB" {
+		return fmt.Errorf("hardware spec requires dual root partitions")
 	}
 
+	// ensure we have the destdir
 	destDir := u.otherBootPath
-
 	if err := os.MkdirAll(destDir, dirMode); err != nil {
 		return err
 	}
