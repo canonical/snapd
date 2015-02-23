@@ -167,4 +167,8 @@ func (s *PartitionTestSuite) TestHandleAssets(c *C) {
 	c.Assert(err, IsNil)
 	_, err = os.Stat(filepath.Join(otherBootPath, "dtbs/foo.dtb"))
 	c.Assert(err, IsNil)
+
+	// ensure nothing left behind
+	_, err = os.Stat(filepath.Join(defaultCacheDir, "assets"))
+	c.Assert(os.IsNotExist(err), Equals, true)
 }
