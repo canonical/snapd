@@ -192,7 +192,6 @@ func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
 		runCommand = runCommandImpl
 	}()
 
-
 	p := New()
 
 	p.mountOtherRootfs(false)

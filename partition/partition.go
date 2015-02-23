@@ -61,6 +61,7 @@ const bootPartitionLabel = "system-boot"
 
 // its useful to override this in tests
 const realDefaultCacheDir = "/writable/cache"
+
 // FIXME: Should query system-image-cli (see bug LP:#1380574).
 var defaultCacheDir = realDefaultCacheDir
 

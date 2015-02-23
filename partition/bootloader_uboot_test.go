@@ -135,7 +135,7 @@ func (s *PartitionTestSuite) TestGetBootloaderWithUboot(c *C) {
 }
 
 func makeMockAssetsDir(c *C) {
-	for _, f := range([]string{"assets/vmlinuz","assets/initrd.img", "assets/dtbs/foo.dtb", "assets/dtbs/bar.dtb"}) {
+	for _, f := range []string{"assets/vmlinuz", "assets/initrd.img", "assets/dtbs/foo.dtb", "assets/dtbs/bar.dtb"} {
 		p := filepath.Join(defaultCacheDir, f)
 		os.MkdirAll(filepath.Dir(p), 0755)
 		err := ioutil.WriteFile(p, []byte(""), 0644)
@@ -165,14 +165,10 @@ func (s *PartitionTestSuite) TestHandleAssets(c *C) {
 
 	// ensure the files are where we expect them
 	otherBootPath := bootloader.(*uboot).otherBootPath
-	_, err = os.Stat(filepath.Join(otherBootPath, "vmlinuz"))
-	c.Assert(err, IsNil)
-	_, err = os.Stat(filepath.Join(otherBootPath, "initrd.img"))
-	c.Assert(err, IsNil)
-	_, err = os.Stat(filepath.Join(otherBootPath, "dtbs/foo.dtb"))
-	c.Assert(err, IsNil)
-	_, err = os.Stat(filepath.Join(otherBootPath, "dtbs/bar.dtb"))
-	c.Assert(err, IsNil)
+	for _, f := range []string{"vmlinuz", "initrd.img", "dtbs/foo.dtb", "dtbs/bar.dtb"} {
+		_, err = os.Stat(filepath.Join(otherBootPath, f))
+		c.Assert(err, IsNil)
+	}
 
 	// ensure nothing left behind
 	_, err = os.Stat(filepath.Join(defaultCacheDir, "assets"))
