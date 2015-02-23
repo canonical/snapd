@@ -9,6 +9,9 @@ import (
 	"strings"
 )
 
+// can be overriden by tests
+var aaExec = "aa-exec"
+
 // snapConfig configures a installed snap in the given directory
 //
 // It takes a rawConfig string that is passed as the new configuration
@@ -26,13 +29,15 @@ func snapConfig(snapDir, rawConfig string) (newConfig string, err error) {
 		return "", ErrPackageNotFound
 	}
 
-	return runConfigScript(configScript, rawConfig, makeSnapHookEnv(part))
+	appArmorProfile := fmt.Sprintf("%s_%s_%s", part.Name(), "snappy-config", part.Version())
+	
+	return runConfigScript(configScript, appArmorProfile, rawConfig, makeSnapHookEnv(part))
 }
 
 // runConfigScript is a helper that just runs the config script and passes
 // the rawConfig via stdin and reads/returns the output
-func runConfigScript(configScript, rawConfig string, env []string) (newConfig string, err error) {
-	cmd := exec.Command(configScript)
+func runConfigScript(configScript, appArmorProfile, rawConfig string, env []string) (newConfig string, err error) {
+	cmd := exec.Command(aaExec, "-p", appArmorProfile, configScript)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return "", err

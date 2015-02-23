@@ -28,6 +28,14 @@ printf "error: some error"
 exit 1
 `
 
+const mockAaExecScript = `#!/bin/sh
+[ "$1" = "-d" ]
+shift
+[ -n "$1" ]
+shift
+exec "$@"
+`
+
 const configYaml = `
 config:
   hello-world:

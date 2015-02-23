@@ -30,12 +30,16 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	snapDataDir = filepath.Join(s.tempdir, "/var/lib/apps/")
 	snapAppsDir = filepath.Join(s.tempdir, "/apps/")
 	snapOemDir = filepath.Join(s.tempdir, "/oem/")
-
+	
 	// we may not have debsig-verify installed (and we don't need it
 	// for the unittests)
 	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
 		return nil
 	}
+
+	aaExec = filepath.Join(s.tempdir, "aa-exec")
+	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) makeMockSnap() (yamlFile string, err error) {
