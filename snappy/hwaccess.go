@@ -63,3 +63,22 @@ func AddHWAccess(snapname, device string) error {
 	cmd := exec.Command(aaClickHookCmd, "-f")
 	return cmd.Run()
 }
+
+// ListHWAccess returns a list of hardware-device strings that the snap
+// can access
+func ListHWAccess(snapname string) ([]string, error) {
+
+	var appArmorAdditional appArmorAdditionalJSON
+	additionalFile := getHWAccessJSONFile(snapname)
+	f, err := os.Open(additionalFile)
+	if err != nil {
+		return []string{}, err
+	}
+
+	dec := json.NewDecoder(f)
+	if err := dec.Decode(&appArmorAdditional); err != nil {
+		return []string{}, err
+	}
+
+	return appArmorAdditional.WritePath, nil
+}

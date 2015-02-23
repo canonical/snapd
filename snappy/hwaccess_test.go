@@ -63,3 +63,13 @@ func (s *SnapTestSuite) TestAddHWAccessHookFails(c *C) {
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 	c.Assert(err.Error(), Equals, "exit status 1")
 }
+
+func (s *SnapTestSuite) TestListHWAccess(c *C) {
+	makeMockSnap(s.tempdir)
+	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
+	err = AddHWAccess("hello-app", "/sys/devices/gpio1")
+
+	writePaths, err := ListHWAccess("hello-app")
+	c.Assert(err, IsNil)
+	c.Assert(writePaths, DeepEquals, []string{"/dev/ttyUSB0", "/sys/devices/gpio1"})
+}
