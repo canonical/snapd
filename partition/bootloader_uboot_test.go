@@ -148,7 +148,7 @@ func (s *PartitionTestSuite) TestHandleAssets(c *C) {
 	}()
 
 	// create mock assets/
-	for _, f := range([]string{"assets/vmlinuz","assets/initrd.img", "assets/dtbs/foo.dtb"}) {
+	for _, f := range([]string{"assets/vmlinuz","assets/initrd.img", "assets/dtbs/foo.dtb", "assets/dtbs/bar.dtb"}) {
 		p := filepath.Join(defaultCacheDir, f)
 		os.MkdirAll(filepath.Dir(p), 0755)
 		err := ioutil.WriteFile(p, []byte(""), 0644)
@@ -166,6 +166,8 @@ func (s *PartitionTestSuite) TestHandleAssets(c *C) {
 	_, err = os.Stat(filepath.Join(otherBootPath, "initrd.img"))
 	c.Assert(err, IsNil)
 	_, err = os.Stat(filepath.Join(otherBootPath, "dtbs/foo.dtb"))
+	c.Assert(err, IsNil)
+	_, err = os.Stat(filepath.Join(otherBootPath, "dtbs/bar.dtb"))
 	c.Assert(err, IsNil)
 
 	// ensure nothing left behind
