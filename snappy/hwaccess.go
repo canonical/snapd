@@ -82,3 +82,51 @@ func ListHWAccess(snapname string) ([]string, error) {
 
 	return appArmorAdditional.WritePath, nil
 }
+
+// RemoveHWAccess allows the given snap package to access the given hardware
+// device
+func RemoveHWAccess(snapname, device string) error {
+	if !strings.HasPrefix(device, "/dev") && !strings.HasPrefix(device, "/sys/devices") {
+		return ErrInvalidHWDevice
+	}
+
+	// update .additional file
+	additionalFile := getHWAccessJSONFile(snapname)
+	if _, err := os.Stat(additionalFile); err != nil {
+		return err
+	}
+
+	f, _ := os.Open(additionalFile)
+	dec := json.NewDecoder(f)
+	var appArmorAdditional appArmorAdditionalJSON
+	if err := dec.Decode(&appArmorAdditional); err != nil {
+		return err
+	}
+
+	// remove write path, please golang make this easier!
+	newWritePath := []string{}
+	for _, p := range appArmorAdditional.WritePath {
+		if p != device {
+			newWritePath = append(newWritePath, device)
+		}
+	}
+	if len(newWritePath) == len(appArmorAdditional.WritePath) {
+		return fmt.Errorf("Can not find '%s' access for '%s'", device, snapname)
+	}
+	appArmorAdditional.WritePath = newWritePath
+
+	// and write it out again
+	out, err := json.MarshalIndent(appArmorAdditional, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	// and write it out
+	if err := ioutil.WriteFile(additionalFile, out, 0640); err != nil {
+		return err
+	}
+
+	// re-generate apparmor fules
+	cmd := exec.Command(aaClickHookCmd, "-f")
+	return cmd.Run()
+}

@@ -73,3 +73,28 @@ func (s *SnapTestSuite) TestListHWAccess(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(writePaths, DeepEquals, []string{"/dev/ttyUSB0", "/sys/devices/gpio1"})
 }
+
+func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
+	makeMockSnap(s.tempdir)
+	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
+
+	writePaths, err := ListHWAccess("hello-app")
+	c.Assert(err, IsNil)
+	c.Assert(writePaths, DeepEquals, []string{"/dev/ttyUSB0"})
+
+	err = RemoveHWAccess("hello-app", "/dev/ttyUSB0")
+	c.Assert(err, IsNil)
+
+	writePaths, err = ListHWAccess("hello-app")
+	c.Assert(err, IsNil)
+	c.Assert(writePaths, DeepEquals, []string{})
+}
+
+func (s *SnapTestSuite) TestRemoveHWAccessFail(c *C) {
+	makeMockSnap(s.tempdir)
+	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
+	c.Assert(err, IsNil)
+
+	err = RemoveHWAccess("hello-app", "/dev/something")
+	c.Assert(err.Error(), Equals, "Can not find '/dev/something' access for 'hello-app'")
+}
