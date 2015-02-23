@@ -133,3 +133,34 @@ func (s *PartitionTestSuite) TestGetBootloaderWithUboot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(bootloader.Name(), Equals, bootloaderNameUboot)
 }
+
+func (s *PartitionTestSuite) TestHandleAssets(c *C) {
+	s.makeFakeUbootEnv(c)
+	p := New()
+	bootloader, err := getBootloader(p)
+	c.Assert(err, IsNil)
+
+	// mock the hardwareYaml and the cacheDir
+	p.hardwareSpecFile = makeHardwareYaml(c)
+	defaultCacheDir = c.MkDir()
+	defer func() {
+		defaultCacheDir = realDefaultCacheDir
+	}()
+
+	// create mock assets/
+	for _, f := range([]string{"assets/vmlinuz", "assets/initrd.img"}) {
+		p := filepath.Join(defaultCacheDir, f)
+		os.MkdirAll(filepath.Dir(p), 0755)
+		err := ioutil.WriteFile(p, []byte(""), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// run the handle assets code
+	err = bootloader.HandleAssets()
+	c.Assert(err, IsNil)
+
+	// ensure the files are where we expect them
+	otherBootPath := bootloader.(*uboot).otherBootPath
+	_, err = os.Stat(filepath.Join(otherBootPath, "vmlinuz"))
+	c.Assert(err, IsNil)
+}

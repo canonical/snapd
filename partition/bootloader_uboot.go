@@ -282,7 +282,7 @@ func (u *uboot) HandleAssets() (err error) {
 		path := path.Join(u.partition.cacheDir(), file)
 
 		if !fileExists(path) {
-			continue
+			return fmt.Errorf("can not find file %s", path)
 		}
 
 		dir := filepath.Dir(path)

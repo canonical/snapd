@@ -59,8 +59,10 @@ const rootfsBlabel = "system-b"
 // name of boot partition label as created by ubuntu-device-flash(1).
 const bootPartitionLabel = "system-boot"
 
+// its useful to override this in tests
+const realDefaultCacheDir = "/writable/cache"
 // FIXME: Should query system-image-cli (see bug LP:#1380574).
-const defaultCacheDir = "/writable/cache"
+var defaultCacheDir = realDefaultCacheDir
 
 // Directory to mount writable root filesystem below the cache
 // diretory.

@@ -27,33 +27,33 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 
 func (s *PartitionTestSuite) TearDownTest(c *C) {
 	os.RemoveAll(s.tempdir)
+	// always restore the runCommand
+	runCommand = runCommandImpl
 }
 
-func makeHardwareYaml() (tmp *os.File, err error) {
-	tmp, err = ioutil.TempFile("", "hw-")
-	if err != nil {
-		return tmp, err
-	}
-	tmp.Write([]byte(`
+func makeHardwareYaml(c *C) (outPath string) {
+	tmp, err := ioutil.TempFile(c.MkDir(), "hw-")
+	defer tmp.Close()
+	c.Assert(err, IsNil)
+
+	hardwareYaml := `
 kernel: assets/vmlinuz
 initrd: assets/initrd.img
 dtbs: assets/dtbs
 partition-layout: system-AB
 bootloader: u-boot
-`))
-	return tmp, err
+`
+	_, err = tmp.Write([]byte(hardwareYaml))
+	c.Assert(err, IsNil)
+
+	return tmp.Name()
 }
 
 func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
 	p := New()
 	c.Assert(p, NotNil)
 
-	tmp, err := makeHardwareYaml()
-	defer func() {
-		os.Remove(tmp.Name())
-	}()
-
-	p.hardwareSpecFile = tmp.Name()
+	p.hardwareSpecFile = makeHardwareYaml(c)
 	hw, err := p.hardwareSpec()
 	c.Assert(err, IsNil)
 	c.Assert(hw.Kernel, Equals, "assets/vmlinuz")
@@ -122,11 +122,10 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
 }
 
 func (s *PartitionTestSuite) TestRunWithOtherDualParitionRWFuncErr(c *C) {
-	savedRunCommand := runCommand
-	defer func() {
-		runCommand = savedRunCommand
-	}()
 	runCommand = mockRunCommand
+	defer func() {
+		runCommand = runCommandImpl
+	}()
 
 	p := New()
 	err := p.RunWithOther(RW, func(otherRoot string) (err error) {
@@ -186,13 +185,11 @@ func mockRunCommand(args ...string) (err error) {
 }
 
 func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
-	// FIXME: there should be a generic
-	//        mockFunc(func) (restorer func())
-	savedRunCommand := runCommand
-	defer func() {
-		runCommand = savedRunCommand
-	}()
 	runCommand = mockRunCommand
+	defer func() {
+		runCommand = runCommandImpl
+	}()
+
 
 	p := New()
 
@@ -220,13 +217,10 @@ func (s *PartitionTestSuite) TestStringSliceRemoveNoexistingNoOp(c *C) {
 }
 
 func (s *PartitionTestSuite) TestUndoMounts(c *C) {
-	// FIXME: there should be a generic
-	//        mockFunc(func) (restorer func())
-	savedRunCommand := runCommand
-	defer func() {
-		runCommand = savedRunCommand
-	}()
 	runCommand = mockRunCommand
+	defer func() {
+		runCommand = runCommandImpl
+	}()
 
 	p := New()
 
