@@ -22,14 +22,28 @@ binaries:
 `
 
 	metaDir := filepath.Join(tempdir, "apps", "hello-app", "1.10", "meta")
-	err = os.MkdirAll(metaDir, 0777)
-	if err != nil {
+	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
 	}
 	yamlFile = filepath.Join(metaDir, "package.yaml")
-	ioutil.WriteFile(yamlFile, []byte(packageHello), 0666)
+	if err := ioutil.WriteFile(yamlFile, []byte(packageHello), 0644); err != nil {
+		return "", err
+	}
 
-	return yamlFile, err
+	const securityJSON = `{
+  "policy_vendor": "ubuntu-snappy"
+  "policy_version": 1.3
+}`
+	appArmorDir := filepath.Join(tempdir, "var", "lib", "apparmor", "clicks")
+	if err := os.MkdirAll(appArmorDir, 0775); err != nil {
+		return "", err
+	}
+	apparmorFile := filepath.Join(appArmorDir, "hello-app_hello_1.10.json")
+	if err := ioutil.WriteFile(apparmorFile, []byte(securityJSON), 0644); err != nil {
+		return "", err
+	}
+
+	return yamlFile, nil
 }
 
 // makeTestSnap creates a real snap package installed on disk
