@@ -13,7 +13,7 @@ func (s *SnapTestSuite) TestAddHWAccessSimple(c *C) {
 
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
-	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app_hello_1.10.json.additional"))
+	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, `{
   "write_path": [
@@ -40,7 +40,7 @@ func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
 	err = AddHWAccess("hello-app", "/sys/devices/gpio1")
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app_hello_1.10.json.additional"))
+	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, `{
   "write_path": [
