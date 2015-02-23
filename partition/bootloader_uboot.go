@@ -294,14 +294,15 @@ func (u *uboot) HandleAssets() (err error) {
 	}
 
 	// install .dtb files
-	if fileExists(hardware.DtbDir) {
+	dtbDir := filepath.Join(u.partition.cacheDir(), hardware.DtbDir)
+	if fileExists(dtbDir) {
 		dtbDestDir := path.Join(destDir, "dtbs")
 
 		if err := os.MkdirAll(dtbDestDir, dirMode); err != nil {
 			return err
 		}
 
-		files, err := filepath.Glob(path.Join(hardware.DtbDir, "*"))
+		files, err := filepath.Glob(path.Join(dtbDir, "*"))
 		if err != nil {
 			return err
 		}
