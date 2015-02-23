@@ -1,16 +1,14 @@
 package main
 
 import (
-
 	"launchpad.net/snappy/snappy"
 )
 
 type cmdHWAssign struct {
 	Positional struct {
 		PackageName string `positional-arg-name:"package name" description:"Assign hardware to a specific installed package"`
-		DevicePath string `positional-arg-name:"device path" description:"The hardware device path (e.g. /dev/ttyUSB0)"`
+		DevicePath  string `positional-arg-name:"device path" description:"The hardware device path (e.g. /dev/ttyUSB0)"`
 	} `positional-args:"yes"`
-
 }
 
 const shortHWAssignHelp = `Assign a hardware device to a package`

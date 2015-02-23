@@ -7,22 +7,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
-
-func makeAdditionalJSON(device string) string {
-	s := fmt.Sprintf(`{
-  "write_path": [
-    "%s"
-  ]
-}`, device)
-	return s
-}
 
 type appArmorAdditionalJSON struct {
 	WritePath []string `json:"write_path"`
 }
 
+// AddHWAccess allows the given snap package to access the given hardware
+// device
 func AddHWAccess(snapname, device string) error {
+	if !strings.HasPrefix(device, "/dev") && !strings.HasPrefix(device, "/sys/devices") {
+		return ErrInvalidHWDevice
+	}
+
 	globExpr := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_*.json", snapname))
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {

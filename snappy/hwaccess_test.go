@@ -23,6 +23,14 @@ func (s *SnapTestSuite) TestAddHWAccessSimple(c *C) {
 
 }
 
+func (s *SnapTestSuite) TestAddHWAccessInvalidDevice(c *C) {
+	aaClickHookCmd = "true"
+	makeMockSnap(s.tempdir)
+
+	err := AddHWAccess("hello-app", "ttyUSB0")
+	c.Assert(err, Equals, ErrInvalidHWDevice)
+}
+
 func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
 	aaClickHookCmd = "true"
 	makeMockSnap(s.tempdir)

@@ -23,4 +23,8 @@ var (
 	// ErrConfigNotFound is returned if a snap without a config is
 	// getting configured
 	ErrConfigNotFound = errors.New("No config found for this snap")
+
+	// ErrInvalidHWDevice is returned when a invalid hardware device
+	// is given in the hw-assign command
+	ErrInvalidHWDevice = errors.New("Invalid hardware device")
 )
