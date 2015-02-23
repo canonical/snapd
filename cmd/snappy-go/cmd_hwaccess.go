@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"launchpad.net/snappy/snappy"
 )
 
@@ -28,5 +30,10 @@ func (x *cmdHWAssign) Execute(args []string) (err error) {
 		return ErrRequiresRoot
 	}
 
-	return snappy.AddHWAccess(x.Positional.PackageName, x.Positional.DevicePath)
+	if err := snappy.AddHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
+		return err
+	}
+
+	fmt.Printf("'%s' is now allowed to access '%s'\n", x.Positional.PackageName, x.Positional.DevicePath)
+	return nil
 }
