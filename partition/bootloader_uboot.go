@@ -288,7 +288,7 @@ func (u *uboot) HandleAssets() (err error) {
 		dir := filepath.Dir(path)
 		dirsToRemove[dir] = 1
 
-		if err := runCommand("/bin/cp", file, destDir); err != nil {
+		if err := runCommand("/bin/cp", path, destDir); err != nil {
 			return err
 		}
 	}
