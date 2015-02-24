@@ -11,8 +11,9 @@ import (
 	. "launchpad.net/gocheck"
 )
 
-// makeMockSnap creates a mock snap that doesn't really exist on disk
-func makeMockSnap(tempdir string) (yamlFile string, err error) {
+// makeInstalledMockSnap creates a installed mock snap without any
+// content other than the meta data
+func makeInstalledMockSnap(tempdir string) (yamlFile string, err error) {
 	const packageHello = `name: hello-app
 version: 1.10
 vendor: Michael Vogt <mvo@ubuntu.com>
@@ -32,7 +33,7 @@ binaries:
 	return yamlFile, err
 }
 
-// makeTestSnap creates a real snap package installed on disk
+// makeTestSnap creates a real snap package that can be installed on disk
 // using packageYaml as its meta/package.yaml
 func makeTestSnap(c *C, packageYamlContent string) (snapFile string) {
 	tmpdir := c.MkDir()
