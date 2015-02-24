@@ -24,6 +24,42 @@ func validDevice(device string) bool {
 	return strings.HasPrefix(device, "/dev") || strings.HasPrefix(device, "/sys/devices")
 }
 
+func readHWAccessJSONFile(snapname string) (appArmorAdditionalJSON, error) {
+	var appArmorAdditional appArmorAdditionalJSON
+
+	additionalFile := getHWAccessJSONFile(snapname)
+	f, err := os.Open(additionalFile)
+	if err != nil {
+		return appArmorAdditional, err
+	}
+
+	dec := json.NewDecoder(f)
+	if err := dec.Decode(&appArmorAdditional); err != nil {
+		return appArmorAdditional, err
+	}
+
+	return appArmorAdditional, nil
+}
+
+func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditionalJSON) error {
+	out, err := json.MarshalIndent(appArmorAdditional, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	additionalFile := getHWAccessJSONFile(snapname)
+	if err := ioutil.WriteFile(additionalFile, out, 0640); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func regenerateAppArmorRules() error {
+	cmd := exec.Command(aaClickHookCmd, "-f")
+	return cmd.Run()
+}
+
 // AddHWAccess allows the given snap package to access the given hardware
 // device
 func AddHWAccess(snapname, device string) error {
@@ -41,48 +77,31 @@ func AddHWAccess(snapname, device string) error {
 		return ErrPackageNotFound
 	}
 
-	// update .additional file
-	var appArmorAdditional appArmorAdditionalJSON
-	// merge existing file
-	additionalFile := getHWAccessJSONFile(snapname)
-	if _, err = os.Stat(additionalFile); err == nil {
-		f, _ := os.Open(additionalFile)
-		dec := json.NewDecoder(f)
-		if err := dec.Decode(&appArmorAdditional); err != nil {
-			return err
-		}
+	// read .additional file, its ok if the file does not exist (yet)
+	appArmorAdditional, err := readHWAccessJSONFile(snapname)
+	if err != nil && !os.IsNotExist(err) {
+		return err
 	}
 
-	// add new write path
+	// add the new write path
 	appArmorAdditional.WritePath = append(appArmorAdditional.WritePath, device)
-	out, err := json.MarshalIndent(appArmorAdditional, "", "  ")
+
+	// and write the data out
+	err = writeHWAccessJSONFile(snapname, appArmorAdditional)
 	if err != nil {
 		return err
 	}
 
-	// and write it out
-	if err := ioutil.WriteFile(additionalFile, out, 0640); err != nil {
-		return err
-	}
-
 	// re-generate apparmor fules
-	cmd := exec.Command(aaClickHookCmd, "-f")
-	return cmd.Run()
+	return regenerateAppArmorRules()
 }
 
 // ListHWAccess returns a list of hardware-device strings that the snap
 // can access
 func ListHWAccess(snapname string) ([]string, error) {
 
-	var appArmorAdditional appArmorAdditionalJSON
-	additionalFile := getHWAccessJSONFile(snapname)
-	f, err := os.Open(additionalFile)
+	appArmorAdditional, err := readHWAccessJSONFile(snapname)
 	if err != nil {
-		return []string{}, err
-	}
-
-	dec := json.NewDecoder(f)
-	if err := dec.Decode(&appArmorAdditional); err != nil {
 		return []string{}, err
 	}
 
@@ -96,16 +115,8 @@ func RemoveHWAccess(snapname, device string) error {
 		return ErrInvalidHWDevice
 	}
 
-	// update .additional file
-	additionalFile := getHWAccessJSONFile(snapname)
-	if _, err := os.Stat(additionalFile); err != nil {
-		return err
-	}
-
-	f, _ := os.Open(additionalFile)
-	dec := json.NewDecoder(f)
-	var appArmorAdditional appArmorAdditionalJSON
-	if err := dec.Decode(&appArmorAdditional); err != nil {
+	appArmorAdditional, err := readHWAccessJSONFile(snapname)
+	if err != nil {
 		return err
 	}
 
@@ -122,17 +133,11 @@ func RemoveHWAccess(snapname, device string) error {
 	appArmorAdditional.WritePath = newWritePath
 
 	// and write it out again
-	out, err := json.MarshalIndent(appArmorAdditional, "", "  ")
+	err = writeHWAccessJSONFile(snapname, appArmorAdditional)
 	if err != nil {
 		return err
 	}
 
-	// and write it out
-	if err := ioutil.WriteFile(additionalFile, out, 0640); err != nil {
-		return err
-	}
-
 	// re-generate apparmor fules
-	cmd := exec.Command(aaClickHookCmd, "-f")
-	return cmd.Run()
+	return regenerateAppArmorRules()
 }
