@@ -14,14 +14,20 @@ type appArmorAdditionalJSON struct {
 	WritePath []string `json:"write_path"`
 }
 
+// return the json filename to add to the security json
 func getHWAccessJSONFile(snapname string) string {
 	return filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.json.additional", snapname))
+}
+
+// Return true if the device string is a valid device
+func validDevice(device string) bool {
+	return strings.HasPrefix(device, "/dev") || strings.HasPrefix(device, "/sys/devices")
 }
 
 // AddHWAccess allows the given snap package to access the given hardware
 // device
 func AddHWAccess(snapname, device string) error {
-	if !strings.HasPrefix(device, "/dev") && !strings.HasPrefix(device, "/sys/devices") {
+	if !validDevice(device) {
 		return ErrInvalidHWDevice
 	}
 
@@ -86,7 +92,7 @@ func ListHWAccess(snapname string) ([]string, error) {
 // RemoveHWAccess allows the given snap package to access the given hardware
 // device
 func RemoveHWAccess(snapname, device string) error {
-	if !strings.HasPrefix(device, "/dev") && !strings.HasPrefix(device, "/sys/devices") {
+	if !validDevice(device) {
 		return ErrInvalidHWDevice
 	}
 
