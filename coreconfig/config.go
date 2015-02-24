@@ -1,8 +1,10 @@
 package coreconfig
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"reflect"
 	"strings"
 
@@ -14,8 +16,17 @@ const (
 	tzPathDefault     string = "/etc/timezone"
 )
 
+const (
+	autopilotTimer         string = "snappy-autopilot.timer"
+	autopilotTimerEnabled  string = "enabled"
+	autopilotTimerDisabled string = "disabled"
+)
+
+var ErrInvalidUnitStatus = errors.New("invalid unit status")
+
 type systemConfig struct {
-	Timezone string `yaml:"timezone"`
+	Autopilot bool   `yaml:"autopilot"`
+	Timezone  string `yaml:"timezone"`
 }
 
 type configYaml struct {
@@ -29,8 +40,13 @@ func newSystemConfig() (*systemConfig, error) {
 		return nil, err
 	}
 
+	autopilot, err := getAutopilot()
+	if err != nil {
+		return nil, err
+	}
 	config := &systemConfig{
-		Timezone: tz,
+		Autopilot: autopilot,
+		Timezone:  tz,
 	}
 
 	return config, nil
@@ -85,6 +101,14 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 			if err := setTimezone(newConfig.Timezone); err != nil {
 				return "", err
 			}
+		case "Autopilot":
+			if oldConfig.Autopilot == newConfig.Autopilot {
+				continue
+			}
+
+			if err := setAutopilot(newConfig.Autopilot); err != nil {
+				return "", err
+			}
 		}
 	}
 
@@ -116,4 +140,57 @@ var getTimezone = func() (timezone string, err error) {
 // if it can't.
 var setTimezone = func(timezone string) error {
 	return ioutil.WriteFile(tzFile(), []byte(timezone), 0644)
+}
+
+// for testing purposes
+var (
+	cmdAutopilotEnabled = []string{"is-enabled", autopilotTimer}
+	cmdSystemctl        = "systemctl"
+)
+
+// getAutopilot returns the autopilot state
+var getAutopilot = func() (state bool, err error) {
+	out, err := exec.Command(cmdSystemctl, cmdAutopilotEnabled...).Output()
+	if err != nil {
+		return false, err
+	}
+
+	status := strings.TrimSpace(string(out))
+
+	if status == autopilotTimerEnabled {
+		return true, nil
+	} else if status == autopilotTimerDisabled {
+		return false, nil
+	} else {
+		return false, ErrInvalidUnitStatus
+	}
+}
+
+// for testing purposes
+var (
+	cmdEnableAutopilot  = []string{"enable", autopilotTimer}
+	cmdStartAutopilot   = []string{"start", autopilotTimer}
+	cmdDisableAutopilot = []string{"disable", autopilotTimer}
+	cmdStopAutopilot    = []string{"stop", autopilotTimer}
+)
+
+// setAutopilot enables and starts, or stops and disables autopilot
+var setAutopilot = func(stateEnabled bool) error {
+	if stateEnabled {
+		if err := exec.Command(cmdSystemctl, cmdEnableAutopilot...).Run(); err != nil {
+			return err
+		}
+		if err := exec.Command(cmdSystemctl, cmdStartAutopilot...).Run(); err != nil {
+			return err
+		}
+	} else {
+		if err := exec.Command(cmdSystemctl, cmdStopAutopilot...).Run(); err != nil {
+			return err
+		}
+		if err := exec.Command(cmdSystemctl, cmdDisableAutopilot...).Run(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
