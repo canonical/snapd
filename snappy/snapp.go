@@ -427,7 +427,7 @@ func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
 	return &SnapUbuntuStoreRepository{
 		searchURI:  "https://search.apps.ubuntu.com/api/v1/search?q=%s",
 		detailsURI: "https://search.apps.ubuntu.com/api/v1/package/%s",
-		bulkURI:    "https://myapps.developer.ubuntu.com/dev/api/click-metadata/"}
+		bulkURI:    "https://search.apps.ubuntu.com/api/v1/click-metadata"}
 }
 
 // Description describes the repository
