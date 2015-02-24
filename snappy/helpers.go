@@ -7,17 +7,25 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	yaml "launchpad.net/goyaml"
 )
 
 var goarch = runtime.GOARCH
+
+func init() {
+	// golang does not init Seed() itself
+	rand.Seed(time.Now().UTC().UnixNano())
+}
 
 // helper to run "f" inside the given directory
 func chDir(newDir string, f func()) (err error) {
@@ -187,4 +195,29 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	}
 
 	return env
+}
+
+// return a random string of length length
+func makeRandomString(length int) string {
+	var letters = "abcdefghijklmnopqrstuvwxyABCDEFGHIJKLMNOPQRSTUVWXY"
+
+	out := ""
+	for i := 0; i < length; i++ {
+		out += string(letters[rand.Intn(len(letters))])
+	}
+
+	return out
+}
+
+// atomicWriteFile updates the filename atomically and works otherwise
+// exactly like io/ioutil.WriteFile()
+func atomicWriteFile(filename string, data []byte, perm os.FileMode) error {
+	tmp := filename + ".new"
+
+	if err := ioutil.WriteFile(tmp, data, 0640); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+
+	return os.Rename(tmp, filename)
 }

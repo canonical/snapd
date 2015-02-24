@@ -3,6 +3,7 @@ package snappy
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -169,4 +170,32 @@ func (ts *HTestSuite) TestMakeConfigEnv(c *C) {
 	// SNAP_* is overriden
 	c.Assert(envMap["SNAP_NAME"], Equals, "hello-app")
 	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
+}
+
+func (ts *HTestSuite) TestMakeRandomString(c *C) {
+	// for our tests
+	rand.Seed(1)
+
+	s1 := makeRandomString(10)
+	c.Assert(s1, Equals, "GMWjGsAPga")
+
+	s2 := makeRandomString(5)
+	c.Assert(s2, Equals, "TlmOD")
+}
+
+func (ts *HTestSuite) TestAtomicWriteFile(c *C) {
+	tmpdir := c.MkDir()
+
+	p := filepath.Join(tmpdir, "foo")
+	err := atomicWriteFile(p, []byte("canary"), 0644)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(p)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "canary")
+
+	// no files left behind!
+	d, err := ioutil.ReadDir(tmpdir)
+	c.Assert(err, IsNil)
+	c.Assert(len(d), Equals, 1)
 }

@@ -3,7 +3,6 @@ package snappy
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -47,8 +46,9 @@ func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditiona
 		return err
 	}
 
+	// atmoic write
 	additionalFile := getHWAccessJSONFile(snapname)
-	if err := ioutil.WriteFile(additionalFile, out, 0640); err != nil {
+	if err := atomicWriteFile(additionalFile, out, 0640); err != nil {
 		return err
 	}
 
