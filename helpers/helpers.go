@@ -1,11 +1,10 @@
-package snappy
+package helpers
 
 import (
 	"archive/tar"
 	"compress/gzip"
 	"crypto/sha512"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -19,8 +18,8 @@ import (
 
 var goarch = runtime.GOARCH
 
-// helper to run "f" inside the given directory
-func chDir(newDir string, f func()) (err error) {
+// ChDir runs runs "f" inside the given directory
+func ChDir(newDir string, f func()) (err error) {
 	cwd, err := os.Getwd()
 	os.Chdir(newDir)
 	defer os.Chdir(cwd)
@@ -31,9 +30,9 @@ func chDir(newDir string, f func()) (err error) {
 	return err
 }
 
-// extract the exit code from the error of a failed cmd.Run() or the
+// ExitCode extract the exit code from the error of a failed cmd.Run() or the
 // original error if its not a exec.ExitError
-func exitCode(runErr error) (e int, err error) {
+func ExitCode(runErr error) (e int, err error) {
 	// golang, you are kidding me, right?
 	if exitErr, ok := runErr.(*exec.ExitError); ok {
 		waitStatus := exitErr.Sys().(syscall.WaitStatus)
@@ -119,9 +118,9 @@ func Architecture() string {
 	}
 }
 
-// Ensure the given directory exists and if not create it with the given
-// permissions
-func ensureDir(dir string, perm os.FileMode) (err error) {
+// EnsureDir ensures that the given directory exists and if
+// not create it with the given permissions
+func EnsureDir(dir string, perm os.FileMode) (err error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dir, perm); err != nil {
 			return err
@@ -130,7 +129,8 @@ func ensureDir(dir string, perm os.FileMode) (err error) {
 	return nil
 }
 
-func sha512sum(infile string) (hexdigest string, err error) {
+// Sha512sum returns the sha512 of the given file as a hexdigest
+func Sha512sum(infile string) (hexdigest string, err error) {
 	r, err := os.Open(infile)
 	if err != nil {
 		return "", err
@@ -145,10 +145,10 @@ func sha512sum(infile string) (hexdigest string, err error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// makeMapFromEnvList takes a string list of the form "key=value"
+// MakeMapFromEnvList takes a string list of the form "key=value"
 // and returns a map[string]string from that list
 // This is useful for os.Environ() manipulation
-func makeMapFromEnvList(env []string) map[string]string {
+func MakeMapFromEnvList(env []string) map[string]string {
 	envMap := map[string]string{}
 	for _, l := range env {
 		split := strings.SplitN(l, "=", 2)
@@ -158,33 +158,4 @@ func makeMapFromEnvList(env []string) map[string]string {
 		envMap[split[0]] = split[1]
 	}
 	return envMap
-}
-
-// makeSnapHookEnv returns an environment suitable for passing to
-// os/exec.Cmd.Env
-//
-// The returned environment contains additional SNAP_* variables that
-// are required when calling a meta/hook/ script and that will override
-// any already existing SNAP_* variables in os.Environment()
-func makeSnapHookEnv(part *SnapPart) (env []string) {
-	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
-	snapEnv := map[string]string{
-		"SNAP_NAME":          part.Name(),
-		"SNAP_VERSION":       part.Version(),
-		"SNAP_APP_PATH":      part.basedir,
-		"SNAP_APP_DATA_PATH": snapDataDir,
-	}
-
-	// merge regular env and new snapEnv
-	envMap := makeMapFromEnvList(os.Environ())
-	for k, v := range snapEnv {
-		envMap[k] = v
-	}
-
-	// flatten
-	for k, v := range envMap {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
-
-	return env
 }

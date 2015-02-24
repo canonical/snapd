@@ -1,4 +1,4 @@
-package snappy
+package helpers
 
 import (
 	"fmt"
