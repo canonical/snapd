@@ -39,6 +39,11 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	}
 }
 
+func (s *SnapTestSuite) TearDownTest(c *C) {
+	// ensure all functions are back to their original state
+	regenerateAppArmorRules = regenerateAppArmorRulesImpl
+}
+
 func (s *SnapTestSuite) makeMockSnap() (yamlFile string, err error) {
 	return makeMockSnap(s.tempdir)
 }

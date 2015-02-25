@@ -7,9 +7,18 @@ import (
 	. "launchpad.net/gocheck"
 )
 
+func mockRegenerateAppArmorRules() *bool {
+	regenerateAppArmorRulesWasCalled := false
+	regenerateAppArmorRules = func() error {
+		regenerateAppArmorRulesWasCalled = true
+		return nil
+	}
+	return &regenerateAppArmorRulesWasCalled
+}
+
 func (s *SnapTestSuite) TestAddHWAccessSimple(c *C) {
-	aaClickHookCmd = "true"
 	makeMockSnap(s.tempdir)
+	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
 
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
@@ -20,15 +29,17 @@ func (s *SnapTestSuite) TestAddHWAccessSimple(c *C) {
     "/dev/ttyUSB0"
   ]
 }`)
-
+	// ensure the regenerate code was called
+	c.Assert(*regenerateAppArmorRulesWasCalled, Equals, true)
 }
 
 func (s *SnapTestSuite) TestAddHWAccessInvalidDevice(c *C) {
-	aaClickHookCmd = "true"
+	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
 	makeMockSnap(s.tempdir)
 
 	err := AddHWAccess("hello-app", "ttyUSB0")
 	c.Assert(err, Equals, ErrInvalidHWDevice)
+	c.Assert(*regenerateAppArmorRulesWasCalled, Equals, false)
 }
 
 func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
@@ -52,8 +63,11 @@ func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
 }
 
 func (s *SnapTestSuite) TestAddHWAccessUnknownPackage(c *C) {
+	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
+
 	err := AddHWAccess("xxx", "/dev/ttyUSB0")
 	c.Assert(err, Equals, ErrPackageNotFound)
+	c.Assert(*regenerateAppArmorRulesWasCalled, Equals, false)
 }
 
 func (s *SnapTestSuite) TestAddHWAccessHookFails(c *C) {
@@ -75,6 +89,8 @@ func (s *SnapTestSuite) TestListHWAccess(c *C) {
 }
 
 func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
+	aaClickHookCmd = "true"
+
 	makeMockSnap(s.tempdir)
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 
@@ -82,8 +98,10 @@ func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(writePaths, DeepEquals, []string{"/dev/ttyUSB0"})
 
+	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
 	err = RemoveHWAccess("hello-app", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
+	c.Assert(*regenerateAppArmorRulesWasCalled, Equals, true)
 
 	writePaths, err = ListHWAccess("hello-app")
 	c.Assert(err, IsNil)
@@ -95,6 +113,8 @@ func (s *SnapTestSuite) TestRemoveHWAccessFail(c *C) {
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
 
+	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
 	err = RemoveHWAccess("hello-app", "/dev/something")
 	c.Assert(err, Equals, ErrHWAccessRemoveNotFound)
+	c.Assert(*regenerateAppArmorRulesWasCalled, Equals, false)
 }

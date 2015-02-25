@@ -54,9 +54,11 @@ func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditiona
 	return nil
 }
 
-func regenerateAppArmorRules() error {
+func regenerateAppArmorRulesImpl() error {
 	return exec.Command(aaClickHookCmd, "-f").Run()
 }
+
+var regenerateAppArmorRules = regenerateAppArmorRulesImpl
 
 // AddHWAccess allows the given snap package to access the given hardware
 // device
