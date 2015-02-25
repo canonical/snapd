@@ -31,4 +31,8 @@ var (
 	// ErrHWAccessRemoveNotFound is returned if the user tries to
 	// remove a device that does not exist
 	ErrHWAccessRemoveNotFound = errors.New("can not find device in hw-access list")
+
+	// ErrHWAccessAlreadyAdded is returned if you try to add a device
+	// that is already in the hwaccess list
+	ErrHWAccessAlreadyAdded = errors.New("device is already in hw-access list")
 )

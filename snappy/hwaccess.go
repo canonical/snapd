@@ -83,6 +83,12 @@ func AddHWAccess(snapname, device string) error {
 		return err
 	}
 
+	// check for dupes, please golang make this simpler
+	for _, p := range appArmorAdditional.WritePath {
+		if p == device {
+			return ErrHWAccessAlreadyAdded
+		}
+	}
 	// add the new write path
 	appArmorAdditional.WritePath = append(appArmorAdditional.WritePath, device)
 

@@ -62,6 +62,20 @@ func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
 
 }
 
+func (s *SnapTestSuite) TestAddHWAccessAddSameDeviceTwice(c *C) {
+	aaClickHookCmd = "true"
+	makeMockSnap(s.tempdir)
+
+	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
+	c.Assert(err, IsNil)
+	err = AddHWAccess("hello-app", "/dev/ttyUSB0")
+	c.Assert(err, Equals, ErrHWAccessAlreadyAdded)
+
+	writePaths, err := ListHWAccess("hello-app")
+	c.Assert(err, IsNil)
+	c.Assert(writePaths, DeepEquals, []string{"/dev/ttyUSB0"})
+}
+
 func (s *SnapTestSuite) TestAddHWAccessUnknownPackage(c *C) {
 	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
 

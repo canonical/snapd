@@ -29,7 +29,7 @@ func outputHWAccessForPkgname(pkgname string, writePaths []string) {
 	if len(writePaths) == 0 {
 		fmt.Printf("'%s:' is not allowed to access additional hardware\n", pkgname)
 	} else {
-		fmt.Printf("'%s:' '%s'\n", pkgname, strings.Join(writePaths, ", "))
+		fmt.Printf("%s: %s\n", pkgname, strings.Join(writePaths, ", "))
 	}
 }
 
