@@ -180,6 +180,7 @@ func installClickHooks(targetDir string, manifest clickManifest) (err error) {
 	if err != nil {
 		return err
 	}
+
 	for app, hook := range manifest.Hooks {
 		for hookName, hookTargetFile := range hook {
 			systemHook, ok := systemHooks[hookName]
@@ -194,11 +195,13 @@ func installClickHooks(targetDir string, manifest clickManifest) (err error) {
 					log.Printf("Warning: failed to remove %s: %s", dst, err)
 				}
 			}
+
 			if err := os.Symlink(src, dst); err != nil {
 				return err
 			}
 			if systemHook.exec != "" {
 				if err := systemHook.execHook(); err != nil {
+					os.Remove(dst)
 					return err
 				}
 			}
@@ -372,12 +375,12 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 
 		// at this point we must stop/disable the snap so that we
 		// can safely copy the data
+		os.Remove(filepath.Join(instDir, "..", "current"))
 		if err := removeClickHooks(oldManifest); err != nil {
 			// restore the pervious version
 			setActiveClick(currentActiveDir)
 			return err
 		}
-		os.Remove(filepath.Join(instDir, "..", "current"))
 
 		if err := copySnapData(manifest.Name, oldManifest.Version, manifest.Version); err != nil {
 			// restore the previous version
@@ -392,8 +395,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	}
 
 	// and finally make active
-	err = setActiveClick(instDir)
-	if err != nil {
+	if err := setActiveClick(instDir); err != nil {
 		// ensure to revert on install failure
 		if currentActiveDir != "" {
 			setActiveClick(currentActiveDir)
@@ -407,7 +409,6 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 // Copy all data for "snapName" from "oldVersion" to "newVersion"
 // (but never overwrite)
 func copySnapData(snapName, oldVersion, newVersion string) (err error) {
-
 	// collect the directories, homes first
 	oldDataDirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, oldVersion))
 	if err != nil {
@@ -445,7 +446,7 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 
 func setActiveClick(baseDir string) (err error) {
 	currentActiveSymlink := filepath.Join(baseDir, "..", "current")
-	currentActiveDir, err := filepath.EvalSymlinks(currentActiveSymlink)
+	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
 
 	// already active, nothing to do
 	if baseDir == currentActiveDir {
@@ -468,8 +469,10 @@ func setActiveClick(baseDir string) (err error) {
 	if err != nil {
 		return err
 	}
-	err = installClickHooks(baseDir, newActiveManifest)
-	if err != nil {
+
+	if err := installClickHooks(baseDir, newActiveManifest); err != nil {
+		// cleanup the failed hooks
+		removeClickHooks(newActiveManifest)
 		return err
 	}
 
@@ -479,6 +482,6 @@ func setActiveClick(baseDir string) (err error) {
 			log.Printf("Warning: failed to remove %s: %s", currentActiveSymlink, err)
 		}
 	}
-	err = os.Symlink(baseDir, currentActiveSymlink)
-	return err
+
+	return os.Symlink(baseDir, currentActiveSymlink)
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	. "launchpad.net/gocheck"
 )
@@ -326,7 +327,7 @@ func (s *SnapTestSuite) TestClickCopyRemovesHooksFirst(c *C) {
 User: root
 Exec: (cd %s && printf "now: $(find . -name "*.tracehook")\n") >> %s/hook.trace
 Pattern: %s/${id}.tracehook`, s.tempdir, s.tempdir, s.tempdir)
-	makeClickHook(c, mockHooksDir, "badhook", hookContent)
+	makeClickHook(c, mockHooksDir, "tracehook", hookContent)
 
 	packageYaml := `name: bar
 icon: foo.svg
@@ -354,4 +355,45 @@ integration:
 now: 
 now: ./bar_app_2.0.tracehook
 `)
+}
+
+func (s *SnapTestSuite) TestClickCopyDataHookFails(c *C) {
+	mockHooksDir := path.Join(s.tempdir, "hooks")
+	clickSystemHooksDir = mockHooksDir
+
+	// this is a special hook that fails on a 2.0 upgrade, this way
+	// we can ensure that upgrades can work
+	hookContent := fmt.Sprintf(`Hook-Name: hooky
+User: root
+Exec: if test -e %s/bar_app_2.0.hooky; then false; fi
+Pattern: %s/${id}.hooky`, s.tempdir, s.tempdir)
+	makeClickHook(c, mockHooksDir, "hooky", hookContent)
+
+	packageYaml := `name: bar
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+integration:
+ app:
+  hooky: meta/package.yaml
+`
+
+	// install 1.0 and then upgrade to 2.0
+	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+	canaryDataFile := filepath.Join(snapDataDir, "bar", "1.0", "canary.txt")
+	err := ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
+
+	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
+	err = installClick(snapFile, AllowUnauthenticated)
+	c.Assert(err, NotNil)
+
+	// installing 2.0 will fail in the hooks,
+	//   so ensure we fall back to v1.0
+	content, err := ioutil.ReadFile(filepath.Join(snapAppsDir, "bar", "current", "meta", "package.yaml"))
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), "version: 1.0"), Equals, true)
+
+	// no leftovers from the failed install
+	_, err = os.Stat(filepath.Join(snapAppsDir, "bar", "2.0", "meta", "package.yaml"))
+	c.Assert(err, NotNil)
 }
