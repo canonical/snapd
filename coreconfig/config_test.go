@@ -41,7 +41,8 @@ func (cts *ConfigTestSuite) TearDownTest(c *C) {
 func (cts *ConfigTestSuite) TestGet(c *C) {
 	// TODO figure out if we care about exact output or just want valid yaml.
 	expectedOutput := `config:
-  timezone: America/Argentina/Cordoba
+  ubuntu-core:
+    timezone: America/Argentina/Cordoba
 `
 
 	rawConfig, err := Get()
@@ -53,7 +54,8 @@ func (cts *ConfigTestSuite) TestGet(c *C) {
 func (cts *ConfigTestSuite) TestSet(c *C) {
 	// TODO figure out if we care about exact output or just want valid yaml.
 	expected := `config:
-  timezone: America/Argentina/Mendoza
+  ubuntu-core:
+    timezone: America/Argentina/Mendoza
 `
 
 	rawConfig, err := Set(expected)
@@ -63,7 +65,8 @@ func (cts *ConfigTestSuite) TestSet(c *C) {
 
 func (cts *ConfigTestSuite) TestSetInvalid(c *C) {
 	input := `config:
-  timezone America/Argentina/Mendoza
+  ubuntu-core:
+    timezone America/Argentina/Mendoza
 `
 
 	rawConfig, err := Set(input)
@@ -73,7 +76,8 @@ func (cts *ConfigTestSuite) TestSetInvalid(c *C) {
 
 func (cts *ConfigTestSuite) TestNoChangeSet(c *C) {
 	input := `config:
-  timezone: America/Argentina/Cordoba
+  ubuntu-core:
+    timezone: America/Argentina/Cordoba
 `
 
 	rawConfig, err := Set(input)
@@ -107,7 +111,8 @@ func (cts *ConfigTestSuite) TestErrorOnTzSet(c *C) {
 	setTimezone = func(string) error { return errors.New("Bad mock tz") }
 
 	input := `config:
-  timezone: America/Argentina/Mendoza
+  ubuntu-core:
+    timezone: America/Argentina/Mendoza
 `
 
 	rawConfig, err := Set(input)

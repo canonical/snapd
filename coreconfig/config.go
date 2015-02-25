@@ -18,8 +18,12 @@ type systemConfig struct {
 	Timezone string `yaml:"timezone"`
 }
 
+type coreConfig struct {
+	UbuntuCore *systemConfig `yaml:"ubuntu-core"`
+}
+
 type configYaml struct {
-	Config *systemConfig
+	Config coreConfig
 }
 
 func newSystemConfig() (*systemConfig, error) {
@@ -48,7 +52,7 @@ func Get() (rawConfig string, err error) {
 		return "", err
 	}
 
-	out, err := yamlMarshal(&configYaml{config})
+	out, err := yamlMarshal(&configYaml{Config: coreConfig{config}})
 	if err != nil {
 		return "", err
 	}
@@ -70,7 +74,7 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 	if err != nil {
 		return "", err
 	}
-	newConfig := configWrap.Config
+	newConfig := configWrap.Config.UbuntuCore
 
 	rNewConfig := reflect.ValueOf(newConfig).Elem()
 	rType := rNewConfig.Type()
