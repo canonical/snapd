@@ -214,6 +214,29 @@ printf '{"type": "error", "msg": "some error msg"}\n'
 	c.Assert(strings.HasSuffix(err.Error(), "some error msg"), Equals, true)
 }
 
+func (s *SITestSuite) TestSystemImagePartInstallUpdatesCrashes(c *C) {
+	scriptContent := `#!/bin/sh
+printf "random\nerror string" >&2
+exit 1
+`
+	err := ioutil.WriteFile(systemImageCli, []byte(scriptContent), 0755)
+	c.Assert(err, IsNil)
+
+	// add a update
+	mockSystemImageIndexJSON = fmt.Sprintf(mockSystemImageIndexJSONTemplate, "2")
+	parts, err := s.systemImage.Updates()
+
+	sp := parts[0].(*SystemImagePart)
+	mockPartition := MockPartition{}
+	sp.partition = &mockPartition
+
+	// do the install and pretend something goes wrong
+	err = sp.Install(nil)
+
+	//
+	c.Assert(err.Error(), Equals, fmt.Sprintf("%s failed with return code 1: random\nerror string", systemImageCli))
+}
+
 func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 	// add a update
 	mockSystemImageIndexJSON = fmt.Sprintf(mockSystemImageIndexJSONTemplate, "2")

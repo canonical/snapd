@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -99,6 +100,7 @@ type genericJSON struct {
 func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) {
 	cmd := exec.Command(systemImageCli, "--machine-readable", "-C", configFile)
 
+	// collect progress over stdout
 	var stdout io.Reader
 	if pb != nil {
 		stdout, err = cmd.StdoutPipe()
@@ -107,10 +109,22 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 		}
 	}
 
+	// collect error message (traceback etc)
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+	var stderrContent []byte
+	go func() {
+		stderrContent, _ = ioutil.ReadAll(stderr)
+	}()
+
+	// run it
 	if err := cmd.Start(); err != nil {
 		return err
 	}
 
+	// and parse progress
 	if pb != nil {
 		scanner := bufio.NewScanner(stdout)
 		// s-i is funny, total changes during the runs
@@ -147,5 +161,10 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 		}
 	}
 
-	return cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		retCode, _ := exitCode(err)
+		return fmt.Errorf("%s failed with return code %v: %s", systemImageCli, retCode, string(stderrContent))
+	}
+
+	return err
 }
