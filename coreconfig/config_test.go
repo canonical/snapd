@@ -94,8 +94,9 @@ func (cts *ConfigTestSuite) TestSet(c *C) {
 func (cts *ConfigTestSuite) TestSetTimezone(c *C) {
 	// TODO figure out if we care about exact output or just want valid yaml.
 	expected := `config:
-  autopilot: false
-  timezone: America/Argentina/Mendoza
+  ubuntu-core:
+    autopilot: false
+    timezone: America/Argentina/Mendoza
 `
 
 	rawConfig, err := Set(expected)
@@ -107,8 +108,9 @@ func (cts *ConfigTestSuite) TestSetTimezone(c *C) {
 func (cts *ConfigTestSuite) TestSetAutopilot(c *C) {
 	// TODO figure out if we care about exact output or just want valid yaml.
 	expected := `config:
-  autopilot: true
-  timezone: America/Argentina/Cordoba
+  ubuntu-core:
+    autopilot: true
+    timezone: America/Argentina/Cordoba
 `
 
 	enabled := false
@@ -190,8 +192,9 @@ func (cts *ConfigTestSuite) TestBadAutopilotOnGet(c *C) {
 
 func (cts *ConfigTestSuite) TestErrorOnAutopilotSet(c *C) {
 	input := `config:
-  autopilot: true
-  timezone: America/Argentina/Mendoza
+  ubuntu-core:
+    autopilot: true
+    timezone: America/Argentina/Mendoza
 `
 
 	enabled := false
