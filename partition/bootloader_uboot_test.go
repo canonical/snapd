@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "launchpad.net/gocheck"
 )
@@ -166,8 +167,10 @@ func (s *PartitionTestSuite) TestHandleAssets(c *C) {
 	// ensure the files are where we expect them
 	otherBootPath := bootloader.(*uboot).otherBootPath
 	for _, f := range []string{"vmlinuz", "initrd.img", "dtbs/foo.dtb", "dtbs/bar.dtb"} {
-		_, err = os.Stat(filepath.Join(otherBootPath, f))
+		content, err := ioutil.ReadFile(filepath.Join(otherBootPath, f))
 		c.Assert(err, IsNil)
+		// match content
+		c.Assert(strings.HasSuffix(string(content), f), Equals, true)
 	}
 
 	// ensure nothing left behind
