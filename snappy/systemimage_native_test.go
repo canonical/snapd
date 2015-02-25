@@ -94,7 +94,6 @@ func runMockSystemImageWebServer() *httptest.Server {
 }
 
 func (s *SITestSuite) TestCheckForUpdates(c *C) {
-
 	mockConfigFile := filepath.Join(c.MkDir(), "channel.init")
 	makeFakeSystemImageChannelConfig(c, mockConfigFile, "1")
 	updateStatus, err := systemImageClientCheckForUpdates(mockConfigFile)

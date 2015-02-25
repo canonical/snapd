@@ -89,13 +89,11 @@ func systemImageClientCheckForUpdates(configFile string) (us updateStatus, err e
 	return us, nil
 }
 
-type progressJSON struct {
-	Now   float64
-	Total float64
-}
-
-type spinnerJSON struct {
-	Message string `json:"msg, omitempty"`
+type genericJSON struct {
+	Type    string  `json:"type, omitempty"`
+	Message string  `json:"msg, omitempty"`
+	Now     float64 `json:"now, omitempty"`
+	Total   float64 `json:"total, omitempty"`
 }
 
 func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) {
@@ -115,7 +113,7 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 
 	if pb != nil {
 		scanner := bufio.NewScanner(stdout)
-		// s-i is funny, total changes
+		// s-i is funny, total changes during the runs
 		total := 0.0
 
 		for scanner.Scan() {
@@ -123,45 +121,25 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 				fmt.Println(scanner.Text())
 			}
 
-			l := strings.SplitN(scanner.Text(), ":", 2)
-			// invalid line, ignore
-			if len(l) != 2 {
+			jsonStream := strings.NewReader(scanner.Text())
+			dec := json.NewDecoder(jsonStream)
+			var genericData genericJSON
+			if err := dec.Decode(&genericData); err != nil {
 				continue
 			}
-			key := l[0]
-			jsonStream := strings.NewReader(l[1])
+
 			switch {
-			case key == "PROGRESS":
-				var progressData progressJSON
-				dec := json.NewDecoder(jsonStream)
-				if err := dec.Decode(&progressData); err != nil {
-					continue
-				}
-				if total != progressData.Total {
-					total = progressData.Total
+			case genericData.Type == "spinner":
+				pb.Spin(genericData.Message)
+			case genericData.Type == "error":
+				return fmt.Errorf("error from %s: %s", systemImageCli, genericData.Message)
+			case genericData.Type == "progress":
+				if total != genericData.Total {
+					total = genericData.Total
 					pb.Start(total)
 				}
-				pb.Set(progressData.Now)
-			case key == "SPINNER":
-				var spinnerData spinnerJSON
-				dec := json.NewDecoder(jsonStream)
-				if err := dec.Decode(&spinnerData); err != nil {
-					fmt.Println("Can not decode spinner json", err)
-					continue
-				}
-				pb.Spin(spinnerData.Message)
-			case key == "ERROR":
-				var errorData string
-				dec := json.NewDecoder(jsonStream)
-				if err := dec.Decode(&errorData); err != nil {
-					fmt.Println("Can not decode json: ", err)
-					continue
-				}
-				err = fmt.Errorf("Error from %s: %s", systemImageCli, errorData)
+				pb.Set(genericData.Now)
 			}
-		}
-		if err != nil {
-			return err
 		}
 
 		if err := scanner.Err(); err != nil {

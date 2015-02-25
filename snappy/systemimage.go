@@ -130,31 +130,6 @@ func (s *SystemImagePart) SetActive() (err error) {
 // Install installs the snap
 func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	if pb != nil {
-		/*
-			updateProgress, err = s.proxy.makeWatcher("UpdateProgress")
-			if err != nil {
-				log.Panic(fmt.Sprintf("ERROR: %v", err))
-				return nil
-			}
-			pb.Start(100.0)
-
-			// the progress display go-routine
-			go func() {
-				var percent int32
-				var eta float64
-				for msg := range updateProgress.C {
-					if err := msg.Args(&percent, &eta); err != nil {
-						break
-					}
-					if percent >= 0 {
-						pb.Set(float64(percent))
-					} else {
-						pb.Spin("Applying")
-					}
-				}
-			}()
-		*/
-
 		// ensure the progress finishes when we are done
 		defer func() {
 			pb.Finished()

@@ -53,11 +53,12 @@ func (s *SITestSuite) TearDownTest(c *C) {
 func makeMockSystemImageCli(c *C, tempdir string) string {
 	s := `#!/bin/sh
 
-printf 'PROGRESS:{"now": 20, "total":100}\n'
-printf 'PROGRESS:{"now": 40, "total":100}\n'
-printf 'PROGRESS:{"now": 60, "total":100}\n'
-printf 'PROGRESS:{"now": 80, "total":100}\n'
-printf 'PROGRESS:{"now": 100, "total":100}\n'
+printf '{"type": "progress", "now": 20, "total":100}\n'
+printf '{"type": "progress", "now": 40, "total":100}\n'
+printf '{"type": "progress", "now": 60, "total":100}\n'
+printf '{"type": "progress", "now": 80, "total":100}\n'
+printf '{"type": "progress", "now": 100, "total":100}\n'
+printf '{"type": "spinner", "msg": "Applying"}\n'
 `
 	mockScript := filepath.Join(tempdir, "system-image-cli")
 	err := ioutil.WriteFile(mockScript, []byte(s), 0755)
@@ -149,6 +150,7 @@ type MockProgressMeter struct {
 	progress []float64
 	finished bool
 	spin     bool
+	spinMsg  string
 }
 
 func (m *MockProgressMeter) Start(total float64) {
@@ -159,6 +161,7 @@ func (m *MockProgressMeter) Set(current float64) {
 }
 func (m *MockProgressMeter) Spin(msg string) {
 	m.spin = true
+	m.spinMsg = msg
 }
 func (m *MockProgressMeter) Write(buf []byte) (n int, err error) {
 	return len(buf), err
@@ -182,6 +185,8 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 	c.Assert(pb.total, Equals, 100.0)
+	c.Assert(pb.spin, Equals, true)
+	c.Assert(pb.spinMsg, Equals, "Applying")
 	c.Assert(pb.finished, Equals, true)
 	c.Assert(pb.progress, DeepEquals, []float64{20.0, 40.0, 60.0, 80.0, 100.0})
 }
