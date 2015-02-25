@@ -184,7 +184,7 @@ func installClickHooks(targetDir string, manifest clickManifest) (err error) {
 		for hookName, hookTargetFile := range hook {
 			systemHook, ok := systemHooks[hookName]
 			if !ok {
-				log.Printf("WARNING: Skipping hook %s", hookName)
+				log.Printf("WARNING: Skipping non existing hook %s", hookName)
 				continue
 			}
 			src := path.Join(targetDir, hookTargetFile)
@@ -207,23 +207,26 @@ func installClickHooks(targetDir string, manifest clickManifest) (err error) {
 	return
 }
 
-func removeClickHooks(manifest clickManifest) (err error) {
+func removeClickHooks(manifest clickManifest) error {
 	systemHooks, err := systemClickHooks()
 	if err != nil {
 		return err
 	}
+
 	for app, hook := range manifest.Hooks {
 		for hookName := range hook {
 			systemHook, ok := systemHooks[hookName]
 			if !ok {
 				continue
 			}
+
 			dst := expandHookPattern(manifest.Name, app, manifest.Version, systemHook.pattern)
 			if _, err := os.Stat(dst); err == nil {
 				if err := os.Remove(dst); err != nil {
 					log.Printf("Warning: failed to remove %s: %s", dst, err)
 				}
 			}
+
 			if systemHook.exec != "" {
 				if err := systemHook.execHook(); err != nil {
 					return err
@@ -231,7 +234,8 @@ func removeClickHooks(manifest clickManifest) (err error) {
 			}
 		}
 	}
-	return err
+
+	return nil
 }
 
 func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err error) {
@@ -353,14 +357,31 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	}
 
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
-	// deal with the data, if there was a previous version, copy the data
+	// deal with the data:
+	//
+	// if there was a previous version, stop it
+	// from being active so that it stops running and can no longer be
+	// started thencopy the data
+	//
 	// otherwise just create a empty data dir
 	if currentActiveDir != "" {
 		oldManifest, err := readClickManifestFromClickDir(currentActiveDir)
 		if err != nil {
 			return err
 		}
+
+		// at this point we must stop/disable the snap so that we
+		// can safely copy the data
+		if err := removeClickHooks(oldManifest); err != nil {
+			// restore the pervious version
+			setActiveClick(currentActiveDir)
+			return err
+		}
+		os.Remove(filepath.Join(instDir, "..", "current"))
+
 		if err := copySnapData(manifest.Name, oldManifest.Version, manifest.Version); err != nil {
+			// restore the previous version
+			setActiveClick(currentActiveDir)
 			return err
 		}
 	} else {

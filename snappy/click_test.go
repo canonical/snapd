@@ -314,3 +314,44 @@ vendor: Foo Bar <foo@example.com>
 	_, err = os.Stat(filepath.Join(snapDataDir, "foo", "2.0", "canary.txt"))
 	c.Assert(err, IsNil)
 }
+
+func (s *SnapTestSuite) TestClickCopyRemovesHooksFirst(c *C) {
+	mockHooksDir := path.Join(s.tempdir, "hooks")
+	clickSystemHooksDir = mockHooksDir
+
+	// this hook will create a hook.trace file with the *.hook
+	// files generated, this is then later used to verify that
+	// the hook files got generated/removed in the right order
+	hookContent := fmt.Sprintf(`Hook-Name: tracehook
+User: root
+Exec: (cd %s && printf "now: $(find . -name "*.tracehook")\n") >> %s/hook.trace
+Pattern: %s/${id}.tracehook`, s.tempdir, s.tempdir, s.tempdir)
+	makeClickHook(c, mockHooksDir, "badhook", hookContent)
+
+	packageYaml := `name: bar
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+integration:
+ app:
+  tracehook: meta/package.yaml
+`
+	// install 1.0 and then upgrade to 2.0
+	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+	canaryDataFile := filepath.Join(snapDataDir, "bar", "1.0", "canary.txt")
+	err := ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
+
+	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+	_, err = os.Stat(filepath.Join(snapDataDir, "bar", "2.0", "canary.txt"))
+	c.Assert(err, IsNil)
+
+	// read the hook trace file, this shows that 1.0 was active, then
+	// it go de-activated and finally 2.0 got activated
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "hook.trace"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `now: ./bar_app_1.0.tracehook
+now: 
+now: ./bar_app_2.0.tracehook
+`)
+}
