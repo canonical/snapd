@@ -31,6 +31,11 @@ func (x *cmdHWAssign) Execute(args []string) (err error) {
 	}
 
 	if err := snappy.AddHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
+		if err == snappy.ErrHWAccessAlreadyAdded {
+			fmt.Printf("'%s' previously allowed access to '%s'. Skipping\n", x.Positional.PackageName, x.Positional.DevicePath)
+			return nil
+		}
+
 		return err
 	}
 
