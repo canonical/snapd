@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	yaml "launchpad.net/goyaml"
+	"gopkg.in/yaml.v2"
 )
 
 // SnapPart represents a generic snap type
