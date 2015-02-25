@@ -1,10 +1,9 @@
 package snappy
 
-import (
-	"fmt"
-)
+import ()
 
-// Build the given sourceDirectory
-func Build(sourceDirectory string) error {
-	return fmt.Errorf("Build not implemented yet")
+// Build the given sourceDirectory and return the generated snap file
+func Build(sourceDirectory string) (string, error) {
+
+	return "", nil
 }
