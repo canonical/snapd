@@ -46,7 +46,6 @@ func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditiona
 		return err
 	}
 
-	// atmoic write
 	additionalFile := getHWAccessJSONFile(snapname)
 	if err := atomicWriteFile(additionalFile, out, 0640); err != nil {
 		return err
@@ -56,8 +55,7 @@ func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditiona
 }
 
 func regenerateAppArmorRules() error {
-	cmd := exec.Command(aaClickHookCmd, "-f")
-	return cmd.Run()
+	return exec.Command(aaClickHookCmd, "-f").Run()
 }
 
 // AddHWAccess allows the given snap package to access the given hardware
@@ -102,7 +100,7 @@ func ListHWAccess(snapname string) ([]string, error) {
 
 	appArmorAdditional, err := readHWAccessJSONFile(snapname)
 	if err != nil {
-		return []string{}, err
+		return nil, err
 	}
 
 	return appArmorAdditional.WritePath, nil
@@ -128,7 +126,7 @@ func RemoveHWAccess(snapname, device string) error {
 		}
 	}
 	if len(newWritePath) == len(appArmorAdditional.WritePath) {
-		return fmt.Errorf("Can not find '%s' access for '%s'", device, snapname)
+		return ErrHWAccessRemoveNotFound
 	}
 	appArmorAdditional.WritePath = newWritePath
 

@@ -26,5 +26,9 @@ var (
 
 	// ErrInvalidHWDevice is returned when a invalid hardware device
 	// is given in the hw-assign command
-	ErrInvalidHWDevice = errors.New("Invalid hardware device")
+	ErrInvalidHWDevice = errors.New("invalid hardware device")
+
+	// ErrHWAccessRemoveNotFound is returned if the user tries to
+	// remove a device that does not exist
+	ErrHWAccessRemoveNotFound = errors.New("can not find device in hw-access list")
 )

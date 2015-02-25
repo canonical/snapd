@@ -96,5 +96,5 @@ func (s *SnapTestSuite) TestRemoveHWAccessFail(c *C) {
 	c.Assert(err, IsNil)
 
 	err = RemoveHWAccess("hello-app", "/dev/something")
-	c.Assert(err.Error(), Equals, "Can not find '/dev/something' access for 'hello-app'")
+	c.Assert(err, Equals, ErrHWAccessRemoveNotFound)
 }

@@ -15,7 +15,7 @@ type cmdHWUnassign struct {
 
 const shortHWUnassignHelp = `Unassign a hardware device to a package`
 
-const longHWUnassignHelp = `This command allows remove access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package.`
+const longHWUnassignHelp = `This command removes access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package.`
 
 func init() {
 	var cmdHWUnassignData cmdHWUnassign

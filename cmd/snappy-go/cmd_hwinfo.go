@@ -15,7 +15,7 @@ type cmdHWInfo struct {
 
 const shortHWInfoHelp = `List assigned hardware device for a package`
 
-const longHWInfoHelp = `This command list what hardware a installed package can access`
+const longHWInfoHelp = `This command list what hardware an installed package can access`
 
 func init() {
 	var cmdHWInfoData cmdHWInfo
