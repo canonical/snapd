@@ -232,6 +232,14 @@ func (cts *ConfigTestSuite) TestInvalidAutopilotUnitStatus(c *C) {
 	c.Assert(autopilot, Equals, false)
 }
 
+func (cts *ConfigTestSuite) TestInvalidAutopilotExitStatus(c *C) {
+	cmdAutopilotEnabled = []string{"-c", "exit 2"}
+
+	autopilot, err := getAutopilot()
+	c.Assert(err, NotNil)
+	c.Assert(autopilot, Equals, false)
+}
+
 func (cts *ConfigTestSuite) TestInvalidGetAutopilotCommand(c *C) {
 	cmdSystemctl = "/bin/sh"
 	cmdAutopilotEnabled = []string{"-c", "/bin/false"}

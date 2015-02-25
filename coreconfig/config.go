@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"reflect"
 	"strings"
+	"syscall"
 
 	"gopkg.in/yaml.v2"
 )
@@ -155,8 +156,13 @@ var (
 // getAutopilot returns the autopilot state
 var getAutopilot = func() (state bool, err error) {
 	out, err := exec.Command(cmdSystemctl, cmdAutopilotEnabled...).Output()
-	if err != nil {
-		return false, err
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		waitStatus := exitErr.Sys().(syscall.WaitStatus)
+
+		// when a service is disabled the exit status is 1
+		if e := waitStatus.ExitStatus(); e != 1 {
+			return false, err
+		}
 	}
 
 	status := strings.TrimSpace(string(out))
