@@ -28,7 +28,8 @@ func (s *SnapTestSuite) TestAddHWAccessSimple(c *C) {
   "write_path": [
     "/dev/ttyUSB0"
   ]
-}`)
+}
+`)
 	// ensure the regenerate code was called
 	c.Assert(*regenerateAppArmorRulesWasCalled, Equals, true)
 }
@@ -58,7 +59,8 @@ func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
     "/dev/ttyUSB0",
     "/sys/devices/gpio1"
   ]
-}`)
+}
+`)
 
 }
 
@@ -128,6 +130,26 @@ func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
 	writePaths, err = ListHWAccess("hello-app")
 	c.Assert(err, IsNil)
 	c.Assert(writePaths, DeepEquals, []string{})
+}
+
+func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
+	aaClickHookCmd = "true"
+	makeMockSnap(s.tempdir)
+
+	// setup
+	err := AddHWAccess("hello-app", "/dev/bar")
+	AddHWAccess("hello-app", "/dev/bar*")
+	// ensure its there
+	writePaths, _ := ListHWAccess("hello-app")
+	c.Assert(writePaths, DeepEquals, []string{"/dev/bar", "/dev/bar*"})
+
+	// remove
+	err = RemoveHWAccess("hello-app", "/dev/bar")
+	c.Assert(err, IsNil)
+
+	// ensure the right thing was removed
+	writePaths, _ = ListHWAccess("hello-app")
+	c.Assert(writePaths, DeepEquals, []string{"/dev/bar*"})
 }
 
 func (s *SnapTestSuite) TestRemoveHWAccessFail(c *C) {

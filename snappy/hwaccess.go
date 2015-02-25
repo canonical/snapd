@@ -131,7 +131,7 @@ func RemoveHWAccess(snapname, device string) error {
 	newWritePath := []string{}
 	for _, p := range appArmorAdditional.WritePath {
 		if p != device {
-			newWritePath = append(newWritePath, device)
+			newWritePath = append(newWritePath, p)
 		}
 	}
 	if len(newWritePath) == len(appArmorAdditional.WritePath) {
