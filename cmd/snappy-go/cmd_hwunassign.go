@@ -10,7 +10,7 @@ type cmdHWUnassign struct {
 	Positional struct {
 		PackageName string `positional-arg-name:"package name" description:"Remove hardware from a specific installed package"`
 		DevicePath  string `positional-arg-name:"device path" description:"The hardware device path (e.g. /dev/ttyUSB0)"`
-	} `positional-args:"yes"`
+	} `required:"true" positional-args:"yes"`
 }
 
 const shortHWUnassignHelp = `Unassign a hardware device to a package`

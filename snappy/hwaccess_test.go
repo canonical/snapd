@@ -78,6 +78,14 @@ func (s *SnapTestSuite) TestAddHWAccessHookFails(c *C) {
 	c.Assert(err.Error(), Equals, "exit status 1")
 }
 
+func (s *SnapTestSuite) TestListHWAccessNoAdditionalAccess(c *C) {
+	makeMockSnap(s.tempdir)
+
+	writePaths, err := ListHWAccess("hello-app")
+	c.Assert(err, IsNil)
+	c.Assert(len(writePaths), Equals, 0)
+}
+
 func (s *SnapTestSuite) TestListHWAccess(c *C) {
 	makeMockSnap(s.tempdir)
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")

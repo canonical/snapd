@@ -35,6 +35,11 @@ func (x *cmdHWInfo) Execute(args []string) (err error) {
 		return err
 	}
 
-	fmt.Printf("'%s:' '%s'\n", x.Positional.PackageName, strings.Join(writePaths, ", "))
+	if len(writePaths) == 0 {
+		fmt.Printf("'%s:' is not allowed to access additional hardware\n", x.Positional.PackageName)
+	} else {
+		fmt.Printf("'%s:' '%s'\n", x.Positional.PackageName, strings.Join(writePaths, ", "))
+	}
+
 	return nil
 }

@@ -99,9 +99,8 @@ func AddHWAccess(snapname, device string) error {
 // ListHWAccess returns a list of hardware-device strings that the snap
 // can access
 func ListHWAccess(snapname string) ([]string, error) {
-
 	appArmorAdditional, err := readHWAccessJSONFile(snapname)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
