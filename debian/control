@@ -12,7 +12,7 @@ Build-Depends: bash-completion,
                golang-go-flags-dev,
                golang-gocheck-dev,
                golang-goconfigparser-dev,
-               golang-goyaml-dev,
+               golang-yaml.v2-dev,
                golang-pb-dev,
                ubuntu-core-snappy,
 Standards-Version: 3.9.6
