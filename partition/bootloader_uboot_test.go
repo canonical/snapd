@@ -138,7 +138,7 @@ func makeMockAssetsDir(c *C) {
 	for _, f := range []string{"assets/vmlinuz", "assets/initrd.img", "assets/dtbs/foo.dtb", "assets/dtbs/bar.dtb"} {
 		p := filepath.Join(defaultCacheDir, f)
 		os.MkdirAll(filepath.Dir(p), 0755)
-		err := ioutil.WriteFile(p, []byte(""), 0644)
+		err := ioutil.WriteFile(p, []byte(f), 0644)
 		c.Assert(err, IsNil)
 	}
 }

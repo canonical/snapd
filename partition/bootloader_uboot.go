@@ -232,7 +232,7 @@ func (u *uboot) HandleAssets() (err error) {
 	}
 
 	// validate partition layout
-	if u.partition.dualRootPartitions() && hardware.PartitionLayout != "system-AB" {
+	if u.partition.dualRootPartitions() && hardware.PartitionLayout != bootloaderSystemAB {
 		return fmt.Errorf("hardware spec requires dual root partitions")
 	}
 
@@ -263,6 +263,9 @@ func (u *uboot) HandleAssets() (err error) {
 			return err
 		}
 	}
+
+	// TODO: look at the OEM package for dtb changes too once that is
+	//       fully speced
 
 	// install .dtb files
 	dtbSrcDir := filepath.Join(u.partition.cacheDir(), hardware.DtbDir)

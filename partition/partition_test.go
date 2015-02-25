@@ -33,8 +33,8 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 
 func makeHardwareYaml(c *C, hardwareYaml string) (outPath string) {
 	tmp, err := ioutil.TempFile(c.MkDir(), "hw-")
-	defer tmp.Close()
 	c.Assert(err, IsNil)
+	defer tmp.Close()
 
 	if hardwareYaml == "" {
 		hardwareYaml = `
@@ -61,7 +61,7 @@ func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
 	c.Assert(hw.Kernel, Equals, "assets/vmlinuz")
 	c.Assert(hw.Initrd, Equals, "assets/initrd.img")
 	c.Assert(hw.DtbDir, Equals, "assets/dtbs")
-	c.Assert(hw.PartitionLayout, Equals, "system-AB")
+	c.Assert(hw.PartitionLayout, Equals, bootloaderSystemAB)
 	c.Assert(hw.Bootloader, Equals, bootloaderNameUboot)
 }
 
@@ -125,9 +125,6 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
 
 func (s *PartitionTestSuite) TestRunWithOtherDualParitionRWFuncErr(c *C) {
 	runCommand = mockRunCommand
-	defer func() {
-		runCommand = runCommandImpl
-	}()
 
 	p := New()
 	err := p.RunWithOther(RW, func(otherRoot string) (err error) {
@@ -188,11 +185,9 @@ func mockRunCommand(args ...string) (err error) {
 
 func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
 	runCommand = mockRunCommand
-	defer func() {
-		runCommand = runCommandImpl
-	}()
 
 	p := New()
+	c.Assert(p, NotNil)
 
 	p.mountOtherRootfs(false)
 	c.Assert(mounts, DeepEquals, []string{p.MountTarget()})
@@ -219,11 +214,9 @@ func (s *PartitionTestSuite) TestStringSliceRemoveNoexistingNoOp(c *C) {
 
 func (s *PartitionTestSuite) TestUndoMounts(c *C) {
 	runCommand = mockRunCommand
-	defer func() {
-		runCommand = runCommandImpl
-	}()
 
 	p := New()
+	c.Assert(c, NotNil)
 
 	// FIXME: mounts is global
 	c.Assert(mounts, DeepEquals, []string{})
