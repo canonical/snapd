@@ -45,6 +45,8 @@ func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditiona
 	if err != nil {
 		return err
 	}
+	// append final newline
+	out = append(out, '\n')
 
 	additionalFile := getHWAccessJSONFile(snapname)
 	if err := atomicWriteFile(additionalFile, out, 0640); err != nil {
