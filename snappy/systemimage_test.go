@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	partition "launchpad.net/snappy/partition"
@@ -189,6 +190,28 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	c.Assert(pb.spinMsg, Equals, "Applying")
 	c.Assert(pb.finished, Equals, true)
 	c.Assert(pb.progress, DeepEquals, []float64{20.0, 40.0, 60.0, 80.0, 100.0})
+}
+
+func (s *SITestSuite) TestSystemImagePartInstallUpdatesBroken(c *C) {
+	// fake a broken upgrade
+	scriptContent := `#!/bin/sh
+printf '{"type": "error", "msg": "some error msg"}\n'
+`
+	err := ioutil.WriteFile(systemImageCli, []byte(scriptContent), 0755)
+	c.Assert(err, IsNil)
+
+	// add a update
+	mockSystemImageIndexJSON = fmt.Sprintf(mockSystemImageIndexJSONTemplate, "2")
+	parts, err := s.systemImage.Updates()
+
+	sp := parts[0].(*SystemImagePart)
+	mockPartition := MockPartition{}
+	sp.partition = &mockPartition
+
+	pb := &MockProgressMeter{}
+	// do the install
+	err = sp.Install(pb)
+	c.Assert(strings.HasSuffix(err.Error(), "some error msg"), Equals, true)
 }
 
 func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
