@@ -27,8 +27,10 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 
 func (s *PartitionTestSuite) TearDownTest(c *C) {
 	os.RemoveAll(s.tempdir)
-	// always restore the runCommand
+
+	// always restore what we might have mocked away
 	runCommand = runCommandImpl
+	defaultCacheDir = realDefaultCacheDir
 }
 
 func makeHardwareYaml(c *C, hardwareYaml string) (outPath string) {
