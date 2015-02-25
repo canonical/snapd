@@ -65,8 +65,9 @@ func (cts *ConfigTestSuite) TearDownTest(c *C) {
 func (cts *ConfigTestSuite) TestGet(c *C) {
 	// TODO figure out if we care about exact output or just want valid yaml.
 	expectedOutput := `config:
-  autopilot: false
-  timezone: America/Argentina/Cordoba
+  ubuntu-core:
+    autopilot: false
+    timezone: America/Argentina/Cordoba
 `
 
 	rawConfig, err := Get()
@@ -78,8 +79,9 @@ func (cts *ConfigTestSuite) TestGet(c *C) {
 func (cts *ConfigTestSuite) TestSet(c *C) {
 	// TODO figure out if we care about exact output or just want valid yaml.
 	expected := `config:
-  autopilot: true
-  timezone: America/Argentina/Mendoza
+  ubuntu-core:
+    autopilot: true
+    timezone: America/Argentina/Mendoza
 `
 
 	cmdAutopilotEnabled = []string{"-c", "echo enabled"}
@@ -120,8 +122,9 @@ func (cts *ConfigTestSuite) TestSetAutopilot(c *C) {
 
 func (cts *ConfigTestSuite) TestSetInvalid(c *C) {
 	input := `config:
-  autopilot: false
-  timezone America/Argentina/Mendoza
+  ubuntu-core:
+    autopilot: false
+    timezone America/Argentina/Mendoza
 `
 
 	rawConfig, err := Set(input)
@@ -131,8 +134,9 @@ func (cts *ConfigTestSuite) TestSetInvalid(c *C) {
 
 func (cts *ConfigTestSuite) TestNoChangeSet(c *C) {
 	input := `config:
-  autopilot: false
-  timezone: America/Argentina/Cordoba
+  ubuntu-core:
+    autopilot: false
+    timezone: America/Argentina/Cordoba
 `
 
 	rawConfig, err := Set(input)
@@ -166,8 +170,9 @@ func (cts *ConfigTestSuite) TestErrorOnTzSet(c *C) {
 	setTimezone = func(string) error { return errors.New("Bad mock tz") }
 
 	input := `config:
-  autopilot: false
-  timezone: America/Argentina/Mendoza
+  ubuntu-core:
+    autopilot: false
+    timezone: America/Argentina/Mendoza
 `
 
 	rawConfig, err := Set(input)
