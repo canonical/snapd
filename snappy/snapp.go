@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	yaml "launchpad.net/goyaml"
+	"gopkg.in/yaml.v2"
 )
 
 // SnapPart represents a generic snap type
@@ -148,6 +148,12 @@ func (s *SnapPart) Hash() string {
 	return s.hash
 }
 
+// Channel returns the channel used
+func (s *SnapPart) Channel() string {
+	// FIXME: real channel support
+	return "edge"
+}
+
 // IsActive returns true if the snap is active
 func (s *SnapPart) IsActive() bool {
 	return s.isActive
@@ -197,8 +203,14 @@ func (s *SnapPart) SetActive() (err error) {
 
 // Uninstall remove the snap from the system
 func (s *SnapPart) Uninstall() (err error) {
-	err = removeClick(s.basedir)
-	return err
+	// OEM snaps should not be removed as they are a key
+	// building block for OEMs. Prunning non active ones
+	// is acceptible.
+	if s.stype == SnapTypeOem && s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	return removeClick(s.basedir)
 }
 
 // Config is used to to configure the snap
@@ -301,6 +313,12 @@ func (s *RemoteSnapPart) Description() string {
 // Hash returns the hash
 func (s *RemoteSnapPart) Hash() string {
 	return s.pkg.DownloadSha512
+}
+
+// Channel returns the channel used
+func (s *RemoteSnapPart) Channel() string {
+	// FIXME: real channel support, this requires server work
+	return "edge"
 }
 
 // IsActive returns true if the snap is active
@@ -406,10 +424,11 @@ type SnapUbuntuStoreRepository struct {
 
 // NewUbuntuStoreSnapRepository creates a new SnapUbuntuStoreRepository
 func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
+	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &SnapUbuntuStoreRepository{
 		searchURI:  "https://search.apps.ubuntu.com/api/v1/search?q=%s",
 		detailsURI: "https://search.apps.ubuntu.com/api/v1/package/%s",
-		bulkURI:    "https://myapps.developer.ubuntu.com/dev/api/click-metadata/"}
+		bulkURI:    "https://search.apps.ubuntu.com/api/v1/click-metadata"}
 }
 
 // Description describes the repository

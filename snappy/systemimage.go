@@ -8,12 +8,14 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"launchpad.net/snappy/coreconfig"
 	partition "launchpad.net/snappy/partition"
 
 	"github.com/mvo5/goconfigparser"
@@ -34,7 +36,8 @@ var (
 	systemImageCli = "system-image-cli"
 )
 
-// override for testing
+// This is the root directory of the filesystem. Its only useful to
+// change when writing tests
 var systemImageRoot = "/"
 
 // will replace newPartition() to return a mockPartition
@@ -162,7 +165,40 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 		return err
 	}
 
+	// Check that the final system state is as expected.
+	if err = s.verifyUpgradeWasApplied(); err != nil {
+		return err
+	}
+
 	return s.partition.ToggleNextBoot()
+}
+
+// Ensure the expected version update was applied to the expected partition.
+func (s *SystemImagePart) verifyUpgradeWasApplied() error {
+	// The upgrade has now been applied, so check that the expected
+	// update was applied by comparing "self" (which is the newest
+	// system-image revision with that installed on the other
+	// partition.
+
+	// Determine the latest installed part.
+	latestPart := makeOtherPart(s.partition)
+	if latestPart == nil {
+		// If there is no other part, this system must be a
+		// single rootfs one, so re-query current to find the
+		// latest installed part.
+		latestPart = makeCurrentPart(s.partition)
+	}
+
+	if latestPart == nil {
+		return errors.New("could not find latest installed partition")
+	}
+
+	if s.version != latestPart.Version() {
+		return fmt.Errorf("found latest installed version %q (expected %q)",
+			latestPart.Version(), s.version)
+	}
+
+	return nil
 }
 
 // Uninstall can not be used for "core" snaps
@@ -171,11 +207,12 @@ func (s *SystemImagePart) Uninstall() (err error) {
 }
 
 // Config is used to to configure the snap
-func (s *SystemImagePart) Config(configuration []byte) (new string, err error) {
-	// system-image is special and we provide a ubuntu-core-config
-	// script via cloud-init
-	const coreConfig = "/usr/bin/ubuntu-core-config"
-	return runConfigScript(coreConfig, string(configuration), nil)
+func (s *SystemImagePart) Config(configuration []byte) (newConfig string, err error) {
+	if cfg := string(configuration); cfg != "" {
+		return coreconfig.Set(cfg)
+	}
+
+	return coreconfig.Get()
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
@@ -204,7 +241,6 @@ func (s *SystemImagePart) Channel() string {
 // SystemImageRepository is the type used for the system-image-server
 type SystemImageRepository struct {
 	partition partition.Interface
-	myroot    string
 }
 
 // NewSystemImageRepository returns a new SystemImageRepository
@@ -213,26 +249,21 @@ func NewSystemImageRepository() *SystemImageRepository {
 		partition: newPartition()}
 }
 
-// Description describes the repository
-func (s *SystemImageRepository) Description() string {
-	return "SystemImageRepository"
-}
-
-func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, isActive bool) (part Part, err error) {
+func makePartFromSystemImageConfigFile(p partition.Interface, channelIniPath string, isActive bool) (part Part, err error) {
 	cfg := goconfigparser.New()
-	f, err := os.Open(path)
+	f, err := os.Open(channelIniPath)
 	if err != nil {
 		return part, err
 	}
 	defer f.Close()
 	err = cfg.Read(f)
 	if err != nil {
-		log.Printf("Can not parse config '%s': %s", path, err)
+		log.Printf("Can not parse config '%s': %s", channelIniPath, err)
 		return part, err
 	}
-	st, err := os.Stat(path)
+	st, err := os.Stat(channelIniPath)
 	if err != nil {
-		log.Printf("Can stat '%s': %s", path, err)
+		log.Printf("Can stat '%s': %s", channelIniPath, err)
 		return part, err
 	}
 
@@ -246,12 +277,13 @@ func (s *SystemImageRepository) makePartFromSystemImageConfigFile(path string, i
 		versionDetails: versionDetails,
 		channelName:    channelName,
 		lastUpdate:     st.ModTime(),
-		partition:      s.partition}, err
+		partition:      p}, err
 }
 
-func (s *SystemImageRepository) currentPart() Part {
+// Returns the part associated with the current rootfs
+func makeCurrentPart(p partition.Interface) Part {
 	configFile := filepath.Join(systemImageRoot, systemImageChannelConfig)
-	part, err := s.makePartFromSystemImageConfigFile(configFile, true)
+	part, err := makePartFromSystemImageConfigFile(p, configFile, true)
 	if err != nil {
 		return nil
 	}
@@ -259,9 +291,9 @@ func (s *SystemImageRepository) currentPart() Part {
 }
 
 // Returns the part associated with the other rootfs (if any)
-func (s *SystemImageRepository) otherPart() Part {
+func makeOtherPart(p partition.Interface) Part {
 	var part Part
-	err := s.partition.RunWithOther(partition.RO, func(otherRoot string) (err error) {
+	err := p.RunWithOther(partition.RO, func(otherRoot string) (err error) {
 		configFile := filepath.Join(systemImageRoot, otherRoot, systemImageChannelConfig)
 		_, err = os.Stat(configFile)
 		if err != nil && os.IsNotExist(err) {
@@ -271,7 +303,7 @@ func (s *SystemImageRepository) otherPart() Part {
 			// which only have 1 partition pre-installed).
 			return nil
 		}
-		part, err = s.makePartFromSystemImageConfigFile(configFile, false)
+		part, err = makePartFromSystemImageConfigFile(p, configFile, false)
 		if err != nil {
 			log.Printf("Can not make system-image part for %s: %s", configFile, err)
 		}
@@ -283,10 +315,15 @@ func (s *SystemImageRepository) otherPart() Part {
 	return part
 }
 
+// Description describes the repository
+func (s *SystemImageRepository) Description() string {
+	return "SystemImageRepository"
+}
+
 // Search searches the SystemImageRepository for the given terms
 func (s *SystemImageRepository) Search(terms string) (versions []Part, err error) {
 	if strings.Contains(terms, systemImagePartName) {
-		part := s.currentPart()
+		part := makeCurrentPart(s.partition)
 		versions = append(versions, part)
 	}
 	return versions, err
@@ -295,7 +332,7 @@ func (s *SystemImageRepository) Search(terms string) (versions []Part, err error
 // Details returns details for the given snap
 func (s *SystemImageRepository) Details(snapName string) (versions []Part, err error) {
 	if snapName == systemImagePartName {
-		part := s.currentPart()
+		part := makeCurrentPart(s.partition)
 		versions = append(versions, part)
 	}
 	return versions, err
@@ -306,7 +343,7 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 	configFile := filepath.Join(systemImageRoot, systemImageChannelConfig)
 	updateStatus, err := systemImageClientCheckForUpdates(configFile)
 
-	current := s.currentPart()
+	current := makeCurrentPart(s.partition)
 	currentVersion := current.Version()
 	if VersionCompare(currentVersion, updateStatus.targetVersion) < 0 {
 		parts = append(parts, &SystemImagePart{
@@ -324,13 +361,13 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 // Installed returns the installed snaps from this repository
 func (s *SystemImageRepository) Installed() (parts []Part, err error) {
 	// current partition
-	curr := s.currentPart()
+	curr := makeCurrentPart(s.partition)
 	if curr != nil {
 		parts = append(parts, curr)
 	}
 
 	// other partition
-	other := s.otherPart()
+	other := makeOtherPart(s.partition)
 	if other != nil {
 		parts = append(parts, other)
 	}

@@ -1,0 +1,11 @@
+[Unit]
+Description=Ubuntu Core Snappy Autopilot
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+AccuracySec=30min
+Unit=snappy-autopilot.service
+
+[Install]
+WantedBy=multi-user.target

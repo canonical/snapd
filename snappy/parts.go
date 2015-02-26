@@ -38,6 +38,9 @@ type Part interface {
 	// returns the date when the snap was last updated
 	Date() time.Time
 
+	// returns the channel of the part
+	Channel() string
+
 	// Returns app, framework, core
 	Type() SnapType
 

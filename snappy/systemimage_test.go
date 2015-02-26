@@ -40,6 +40,8 @@ func (s *SITestSuite) SetUpTest(c *C) {
 	makeFakeSystemImageChannelConfig(c, filepath.Join(tempdir, "other", systemImageChannelConfig), "2")
 
 	// run test webserver instead of talking to the real one
+	//
+	// The mock webserver versions  "1" and "2"
 	s.mockSystemImageWebServer = runMockSystemImageWebServer()
 	c.Assert(s.mockSystemImageWebServer, NotNil)
 
@@ -49,6 +51,7 @@ func (s *SITestSuite) SetUpTest(c *C) {
 
 func (s *SITestSuite) TearDownTest(c *C) {
 	s.mockSystemImageWebServer.Close()
+	systemImageRoot = "/"
 }
 
 func makeMockSystemImageCli(c *C, tempdir string) string {
@@ -275,4 +278,32 @@ func (s *SITestSuite) TestSystemImagePartSetActiveMakeActive(c *C) {
 	err = sp.SetActive()
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
+}
+
+func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedSuccess(c *C) {
+	// our layout is:
+	//  - "1" on current
+	//  - "2" on other
+	// the webserver will tell us that "2" is latest
+	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "2")
+	parts, err := s.systemImage.Updates()
+
+	part := parts[0].(*SystemImagePart)
+	err = part.verifyUpgradeWasApplied()
+	c.Assert(err, IsNil)
+}
+
+func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedFailure(c *C) {
+	// see TestTestVerifyUpgradeWasAppliedSuccess
+	//
+	// but this time the other part is *not* updated, i.e. we set it to
+	// something else
+	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "1")
+
+	// the update will have "2" and we only installed "1" on other
+	parts, err := s.systemImage.Updates()
+	part := parts[0].(*SystemImagePart)
+	err = part.verifyUpgradeWasApplied()
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, `found latest installed version "1" (expected "2")`)
 }
