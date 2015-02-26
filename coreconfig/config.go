@@ -23,6 +23,8 @@ const (
 	autopilotTimerDisabled string = "disabled"
 )
 
+// ErrInvalidUnitStatus signals that a unit is not returning a status
+// of "enabled" or "disabled".
 var ErrInvalidUnitStatus = errors.New("invalid unit status")
 
 type systemConfig struct {
