@@ -163,6 +163,9 @@ func (m *MockProgressMeter) Start(total float64) {
 func (m *MockProgressMeter) Set(current float64) {
 	m.progress = append(m.progress, current)
 }
+func (m *MockProgressMeter) SetTotal(total float64) {
+	m.total = total
+}
 func (m *MockProgressMeter) Spin(msg string) {
 	m.spin = true
 	m.spinMsg = msg

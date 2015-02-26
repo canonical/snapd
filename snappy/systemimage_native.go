@@ -130,6 +130,7 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 		scanner := bufio.NewScanner(stdout)
 		// s-i is funny, total changes during the runs
 		total := 0.0
+		pb.Start(100)
 
 		for scanner.Scan() {
 			if os.Getenv("SNAPPY_DEBUG") != "" {
@@ -151,7 +152,7 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 			case genericData.Type == "progress":
 				if total != genericData.Total {
 					total = genericData.Total
-					pb.Start(total)
+					pb.SetTotal(total)
 				}
 				pb.Set(genericData.Now)
 			}
