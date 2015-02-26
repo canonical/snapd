@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"launchpad.net/snappy/coreconfig"
 	partition "launchpad.net/snappy/partition"
 
 	"github.com/mvo5/goconfigparser"
@@ -219,11 +220,12 @@ func (s *SystemImagePart) Uninstall() (err error) {
 }
 
 // Config is used to to configure the snap
-func (s *SystemImagePart) Config(configuration []byte) (new string, err error) {
-	// system-image is special and we provide a ubuntu-core-config
-	// script via cloud-init
-	const coreConfig = "/usr/bin/ubuntu-core-config"
-	return runConfigScript(coreConfig, "unconfined", string(configuration), nil)
+func (s *SystemImagePart) Config(configuration []byte) (newConfig string, err error) {
+	if cfg := string(configuration); cfg != "" {
+		return coreconfig.Set(cfg)
+	}
+
+	return coreconfig.Get()
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot

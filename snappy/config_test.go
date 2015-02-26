@@ -42,8 +42,8 @@ config:
     key: value
 `
 
-func (s *SnapTestSuite) makeMockSnapWithConfig(c *C, configScript string) (snapDir string, err error) {
-	yamlFile, err := s.makeMockSnap()
+func (s *SnapTestSuite) makeInstalledMockSnapWithConfig(c *C, configScript string) (snapDir string, err error) {
+	yamlFile, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 	metaDir := filepath.Dir(yamlFile)
 	err = os.Mkdir(filepath.Join(metaDir, "hooks"), 0755)
@@ -57,7 +57,7 @@ func (s *SnapTestSuite) makeMockSnapWithConfig(c *C, configScript string) (snapD
 
 func (s *SnapTestSuite) TestConfigSimple(c *C) {
 	mockConfig := fmt.Sprintf(configPassthroughScript, s.tempdir)
-	snapDir, err := s.makeMockSnapWithConfig(c, mockConfig)
+	snapDir, err := s.makeInstalledMockSnapWithConfig(c, mockConfig)
 	c.Assert(err, IsNil)
 
 	newConfig, err := snapConfig(snapDir, configYaml)
@@ -69,7 +69,7 @@ func (s *SnapTestSuite) TestConfigSimple(c *C) {
 }
 
 func (s *SnapTestSuite) TestConfigError(c *C) {
-	snapDir, err := s.makeMockSnapWithConfig(c, configErrorScript)
+	snapDir, err := s.makeInstalledMockSnapWithConfig(c, configErrorScript)
 	c.Assert(err, IsNil)
 
 	newConfig, err := snapConfig(snapDir, configYaml)

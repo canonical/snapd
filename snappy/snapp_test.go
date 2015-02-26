@@ -42,8 +42,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *SnapTestSuite) makeMockSnap() (yamlFile string, err error) {
-	return makeMockSnap(s.tempdir)
+func (s *SnapTestSuite) makeInstalledMockSnap() (yamlFile string, err error) {
+	return makeInstalledMockSnap(s.tempdir)
 }
 
 func makeSnapActive(packageYamlPath string) (err error) {
@@ -60,7 +60,7 @@ func (s *SnapTestSuite) TestLocalSnapInvalidPath(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
-	snapYaml, err := s.makeMockSnap()
+	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 
 	snap := NewInstalledSnapPart(snapYaml)
@@ -79,7 +79,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapHash(c *C) {
-	snapYaml, err := s.makeMockSnap()
+	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 
 	hashesFile := filepath.Join(filepath.Dir(snapYaml), "hashes")
@@ -91,7 +91,7 @@ func (s *SnapTestSuite) TestLocalSnapHash(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
-	snapYaml, err := s.makeMockSnap()
+	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYaml)
 
@@ -105,7 +105,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositoryInvalid(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
-	yamlPath, err := s.makeMockSnap()
+	yamlPath, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 	err = makeSnapActive(yamlPath)
 	c.Assert(err, IsNil)
