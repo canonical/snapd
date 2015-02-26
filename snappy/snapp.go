@@ -31,11 +31,13 @@ type SnapPart struct {
 }
 
 type packageYaml struct {
-	Name    string
-	Version string
-	Vendor  string
-	Icon    string
-	Type    SnapType
+	Name         string
+	Version      string
+	Vendor       string
+	Icon         string
+	Type         SnapType
+	Architecture string `yaml:"architecture"`
+	Framework    string
 }
 
 // the meta/hashes file, yaml so that we can extend it later with
@@ -66,32 +68,42 @@ type searchResults struct {
 	} `json:"_embedded"`
 }
 
-// NewInstalledSnapPart returns a new SnapPart from the given yamlPath
-func NewInstalledSnapPart(yamlPath string) *SnapPart {
-	part := SnapPart{}
-
+func readPackageYaml(yamlPath string) (*packageYaml, error) {
 	if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
-		return nil
+		return nil, err
 	}
 
 	r, err := os.Open(yamlPath)
 	if err != nil {
 		log.Printf("Can not open '%s'", yamlPath)
-		return nil
+		return nil, err
 	}
 
 	yamlData, err := ioutil.ReadAll(r)
 	if err != nil {
 		log.Printf("Can not read '%v'", r)
-		return nil
+		return nil, err
 	}
 
 	var m packageYaml
 	err = yaml.Unmarshal(yamlData, &m)
 	if err != nil {
 		log.Printf("Can not parse '%s'", yamlData)
+		return nil, err
+	}
+
+	return &m, nil
+}
+
+// NewInstalledSnapPart returns a new SnapPart from the given yamlPath
+func NewInstalledSnapPart(yamlPath string) *SnapPart {
+	part := SnapPart{}
+
+	m, err := readPackageYaml(yamlPath)
+	if err != nil {
 		return nil
 	}
+
 	part.basedir = filepath.Dir(filepath.Dir(yamlPath))
 	// data from the yaml
 	part.name = m.Name

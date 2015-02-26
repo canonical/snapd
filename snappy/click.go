@@ -27,10 +27,16 @@ import (
 type clickAppHook map[string]string
 
 type clickManifest struct {
-	Name    string                  `json:"name"`
-	Version string                  `json:"version"`
-	Type    string                  `json:"type,omitempty"`
-	Hooks   map[string]clickAppHook `json:"hooks,omitempty"`
+	Name          string                  `json:"name"`
+	Version       string                  `json:"version"`
+	Type          string                  `json:"type,omitempty"`
+	Framework     string                  `json:"framework,omitempty"`
+	Description   string                  `json:"description,omitempty"`
+	Icon          string                  `json:"icon,omitempty"`
+	InstalledSize string                  `json:"installed-size,omitempty"`
+	Maintainer    string                  `json:"maintainer,omitempty"`
+	Title         string                  `json:"title,omitempty"`
+	Hooks         map[string]clickAppHook `json:"hooks,omitempty"`
 }
 
 type clickHook struct {
