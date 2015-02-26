@@ -19,6 +19,9 @@ name: hello
 version: 1.0.1
 vendor: Foo <foo@example.com>
 architecture: all
+integration:
+ app:
+  apparmor-profile: meta/hello.apparmor
 `
 	metaDir := filepath.Join(tempdir, "meta")
 	err := os.Mkdir(metaDir, 0755)
@@ -65,7 +68,12 @@ func (s *SnapTestSuite) TestBuildSimple(c *C) {
  "version": "1.0.1",
  "description": "fixme-description",
  "installed-size": "fixme-999",
- "title": "fixme-title"
+ "title": "fixme-title",
+ "hooks": {
+  "app": {
+   "apparmor-profile": "meta/hello.apparmor"
+  }
+ }
 }`
 	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_1.0.1_all.snap", "manifest").Output()
 	c.Assert(err, IsNil)

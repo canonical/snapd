@@ -71,7 +71,7 @@ Description: %s
 		InstalledSize: installedSize,
 		Title:         title,
 		Description:   description,
-		// FIXME: hooks
+		Hooks:         m.Integration,
 	}
 	manifestContent, err := json.MarshalIndent(cm, "", " ")
 	if err != nil {

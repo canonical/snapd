@@ -38,6 +38,9 @@ type packageYaml struct {
 	Type         SnapType
 	Architecture string `yaml:"architecture"`
 	Framework    string
+	// this is a bit ugly, but right now integration is a one:one
+	// mapping of click hooks
+	Integration map[string]clickAppHook
 }
 
 // the meta/hashes file, yaml so that we can extend it later with
