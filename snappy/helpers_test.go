@@ -153,7 +153,7 @@ func (ts *HTestSuite) TestSha512sum(c *C) {
 
 func (ts *HTestSuite) TestMakeConfigEnv(c *C) {
 	tempdir := c.MkDir()
-	yamlFile, err := makeMockSnap(tempdir)
+	yamlFile, err := makeInstalledMockSnap(tempdir)
 	c.Assert(err, IsNil)
 	snap := NewInstalledSnapPart(yamlFile)
 	c.Assert(snap, NotNil)
