@@ -13,7 +13,7 @@ import (
 	"strings"
 	"syscall"
 
-	yaml "launchpad.net/goyaml"
+	"gopkg.in/yaml.v2"
 )
 
 var goarch = runtime.GOARCH
