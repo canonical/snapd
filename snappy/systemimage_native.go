@@ -114,9 +114,10 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 	if err != nil {
 		return err
 	}
-	var stderrContent []byte
+	stderrCh := make(chan []byte)
 	go func() {
-		stderrContent, _ = ioutil.ReadAll(stderr)
+		stderrContent, _ := ioutil.ReadAll(stderr)
+		stderrCh <- stderrContent
 	}()
 
 	// run it
@@ -162,6 +163,7 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 	}
 
 	if err := cmd.Wait(); err != nil {
+		stderrContent := <-stderrCh
 		retCode, _ := exitCode(err)
 		return fmt.Errorf("%s failed with return code %v: %s", systemImageCli, retCode, string(stderrContent))
 	}
