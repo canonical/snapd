@@ -10,12 +10,10 @@ import (
 )
 
 const staticPreinst = `#! /bin/sh
-echo "Click packages may not be installed directly using dpkg."
-echo "Use 'click install' instead."
+echo "Snap packages may not be installed directly using dpkg."
+echo "Use 'snappy install' instead."
 exit 1
 `
-
-const clickVersion = "0.4"
 
 // Build the given sourceDirectory and return the generated snap file
 func Build(sourceDir string) (string, error) {
@@ -44,23 +42,32 @@ func Build(sourceDir string) (string, error) {
 		return "", err
 	}
 
-	// FIXME: get du output
+	// FIXME: get "du" output
 	installedSize := "fixme-999"
+	// FIXME: readme.md parsing
 	title := "fixme-title"
 	description := "fixme-description"
 
 	controlContent := fmt.Sprintf(`Package: %s
 Version: %s
-Click-Version: %s
 Architecture: %s
 Maintainer: %s
 Installed-Size: %s
 Description: %s
  %s
-`, m.Name, m.Version, clickVersion, m.Architecture, m.Vendor, installedSize, title, description)
+`, m.Name, m.Version, m.Architecture, m.Vendor, installedSize, title, description)
 	if err := ioutil.WriteFile(filepath.Join(debianDir, "control"), []byte(controlContent), 0644); err != nil {
 		return "", err
 	}
+
+	// FIXME: auto-generate:
+	// - framework "ubuntu-core-15.04-dev1 (store compat)
+	// - systemd yaml files and hook entr (*or* native support
+	//   for the snappy-systemd hook)
+	//   plus: default security.json templates
+	// - click-bin-path files and hook entry (*or* native support)
+	//   plus:  default security.json templates
+	// - snappy-config apparmor security.json & hook entry
 
 	// manifest
 	cm := clickManifest{
