@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 
+	"launchpad.net/snappy/helpers"
+
 	"github.com/mvo5/goconfigparser"
 )
 
@@ -49,7 +51,7 @@ type configFileChange struct {
 
 // newUboot create a new Grub bootloader object
 func newUboot(partition *Partition) bootLoader {
-	if !fileExists(bootloaderUbootConfigFile) {
+	if !helpers.FileExists(bootloaderUbootConfigFile) {
 		return nil
 	}
 
@@ -281,7 +283,7 @@ func (u *uboot) HandleAssets() (err error) {
 		// expand path
 		path := path.Join(u.partition.cacheDir(), file)
 
-		if !fileExists(path) {
+		if !helpers.FileExists(path) {
 			continue
 		}
 
@@ -294,7 +296,7 @@ func (u *uboot) HandleAssets() (err error) {
 	}
 
 	// install .dtb files
-	if fileExists(hardware.DtbDir) {
+	if helpers.FileExists(hardware.DtbDir) {
 		dtbDestDir := path.Join(destDir, "dtbs")
 
 		if err := os.MkdirAll(dtbDestDir, dirMode); err != nil {
@@ -315,7 +317,7 @@ func (u *uboot) HandleAssets() (err error) {
 
 	flashAssetsDir := u.partition.flashAssetsDir()
 
-	if fileExists(flashAssetsDir) {
+	if helpers.FileExists(flashAssetsDir) {
 		// FIXME: we don't currently do anything with the
 		// MLO + uImage files since they are not specified in
 		// the hardware spec. So for now, just remove them.

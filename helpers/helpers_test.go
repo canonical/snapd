@@ -149,3 +149,35 @@ func (ts *HTestSuite) TestSha512sum(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(hashsum, Equals, "a4abd4448c49562d828115d13a1fccea927f52b4d5459297f8b43e42da89238bc13626e43dcb38ddb082488927ec904fb42057443983e88585179d50551afe62")
 }
+
+func (ts *HTestSuite) TestFileDoesNotExist(c *C) {
+	c.Assert(FileExists("/i-do-not-exist"), Equals, false)
+}
+
+func (ts *HTestSuite) TestFileExistsSimple(c *C) {
+	fname := filepath.Join(c.MkDir(), "foo")
+	err := ioutil.WriteFile(fname, []byte(fname), 0644)
+	c.Assert(err, IsNil)
+
+	c.Assert(FileExists(fname), Equals, true)
+}
+
+func (ts *HTestSuite) TestFileExistsExistsOddPermissions(c *C) {
+	fname := filepath.Join(c.MkDir(), "foo")
+	err := ioutil.WriteFile(fname, []byte(fname), 0100)
+	c.Assert(err, IsNil)
+
+	c.Assert(FileExists(fname), Equals, true)
+}
+
+func (ts *HTestSuite) TestIsDirectoryDoesNotExist(c *C) {
+	c.Assert(IsDirectory("/i-do-not-exist"), Equals, false)
+}
+
+func (ts *HTestSuite) TestIsDirectorySimple(c *C) {
+	dname := filepath.Join(c.MkDir(), "bar")
+	err := os.Mkdir(dname, 0700)
+	c.Assert(err, IsNil)
+
+	c.Assert(IsDirectory(dname), Equals, true)
+}
