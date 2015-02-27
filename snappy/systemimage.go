@@ -155,11 +155,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 			configFile = otherConfigFile
 		}
 
-		err = systemImageDownloadUpdate(configFile, pb)
-		if err != nil {
-			return err
-		}
-		return nil
+		return systemImageDownloadUpdate(configFile, pb)
 	})
 	if err != nil {
 		return err
@@ -245,8 +241,7 @@ type SystemImageRepository struct {
 
 // NewSystemImageRepository returns a new SystemImageRepository
 func NewSystemImageRepository() *SystemImageRepository {
-	return &SystemImageRepository{
-		partition: newPartition()}
+	return &SystemImageRepository{partition: newPartition()}
 }
 
 func makePartFromSystemImageConfigFile(p partition.Interface, channelIniPath string, isActive bool) (part Part, err error) {
@@ -344,8 +339,9 @@ func (s *SystemImageRepository) Updates() (parts []Part, err error) {
 	updateStatus, err := systemImageClientCheckForUpdates(configFile)
 
 	current := makeCurrentPart(s.partition)
-	currentVersion := current.Version()
-	if VersionCompare(currentVersion, updateStatus.targetVersion) < 0 {
+	// no VersionCompare here because the channel provides a "order" and
+	// that may go backwards when switching channels(?)
+	if current.Version() != updateStatus.targetVersion {
 		parts = append(parts, &SystemImagePart{
 			version:        updateStatus.targetVersion,
 			versionDetails: updateStatus.targetVersionDetails,
