@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"launchpad.net/snappy/snappy"
 )
@@ -45,6 +46,10 @@ func update() error {
 		if err := part.Install(pbar); err != nil {
 			return err
 		}
+	}
+
+	if len(updates) > 0 {
+		showVerboseList(updates, os.Stdout)
 	}
 
 	return nil
