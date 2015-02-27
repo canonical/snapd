@@ -6,17 +6,25 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"io"
+	"io/ioutil"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"gopkg.in/yaml.v2"
 )
 
 var goarch = runtime.GOARCH
+
+func init() {
+	// golang does not init Seed() itself
+	rand.Seed(time.Now().UTC().UnixNano())
+}
 
 // ChDir runs runs "f" inside the given directory
 func ChDir(newDir string, f func()) (err error) {
@@ -176,4 +184,29 @@ func IsDirectory(path string) bool {
 	}
 
 	return fileInfo.IsDir()
+}
+
+// return a random string of length length
+func makeRandomString(length int) string {
+	var letters = "abcdefghijklmnopqrstuvwxyABCDEFGHIJKLMNOPQRSTUVWXY"
+
+	out := ""
+	for i := 0; i < length; i++ {
+		out += string(letters[rand.Intn(len(letters))])
+	}
+
+	return out
+}
+
+// AtomicWriteFile updates the filename atomically and works otherwise
+// exactly like io/ioutil.WriteFile()
+func AtomicWriteFile(filename string, data []byte, perm os.FileMode) error {
+	tmp := filename + ".new"
+
+	if err := ioutil.WriteFile(tmp, data, 0640); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+
+	return os.Rename(tmp, filename)
 }

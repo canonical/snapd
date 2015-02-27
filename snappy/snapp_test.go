@@ -31,12 +31,18 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	snapDataDir = filepath.Join(s.tempdir, "/var/lib/apps/")
 	snapAppsDir = filepath.Join(s.tempdir, "/apps/")
 	snapOemDir = filepath.Join(s.tempdir, "/oem/")
+	snapAppArmorDir = filepath.Join(s.tempdir, "/var/lib/apparmor/clicks/")
 
 	// we may not have debsig-verify installed (and we don't need it
 	// for the unittests)
 	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
 		return nil
 	}
+}
+
+func (s *SnapTestSuite) TearDownTest(c *C) {
+	// ensure all functions are back to their original state
+	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 }
 
 func (s *SnapTestSuite) makeInstalledMockSnap() (yamlFile string, err error) {
