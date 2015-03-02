@@ -32,6 +32,10 @@ type StoreToken struct {
 	ConsumerKey    string `json:"consumer_key"`
 }
 
+type ssoMsg struct {
+	Code string `json:"code"`
+}
+
 // RequestStoreToken requests a token for accessing the ubuntu store
 func RequestStoreToken(username, password, tokenName, otp string) (*StoreToken, error) {
 	data := map[string]string{
@@ -64,6 +68,15 @@ func RequestStoreToken(username, password, tokenName, otp string) (*StoreToken, 
 	case resp.StatusCode == 403:
 		return nil, errors.New("invalid credentials")
 	case resp.StatusCode != 200 && resp.StatusCode != 201:
+		var msg ssoMsg
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&msg); err != nil {
+			return nil, err
+		}
+		if msg.Code == "TWOFACTOR_REQUIRED" {
+			return nil, ErrAuthenticationNeeds2fa
+		}
+
 		return nil, fmt.Errorf("failed to get store token: %v (%v)", resp.StatusCode, resp)
 	}
 

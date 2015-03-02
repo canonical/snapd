@@ -36,9 +36,17 @@ func (x *cmdLogin) Execute(args []string) (err error) {
 	if err != nil {
 		return err
 	}
-	// FIXME: implement 2factor auth
+
 	otp := ""
 	token, err := snappy.RequestStoreToken(username, string(password), tokenName, otp)
+	// we need 2fa
+	if err == snappy.ErrAuthenticationNeeds2fa {
+		fmt.Print("2fa code: ")
+		otp, _ := terminal.ReadPassword(0)
+		fmt.Print("\n")
+		token, err = snappy.RequestStoreToken(username, string(password), tokenName, string(otp))
+	}
+
 	if err != nil {
 		return err
 	}
