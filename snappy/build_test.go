@@ -32,9 +32,9 @@ func makeExampleSnapSourceDir(c *C, packageYaml string) string {
 	c.Assert(err, IsNil)
 
 	// meta/readme.md
-	readme := `some text
+	readme := `some title
 
-with some more text`
+some description`
 	err = ioutil.WriteFile(filepath.Join(metaDir, "readme.md"), []byte(readme), 0644)
 	c.Assert(err, IsNil)
 
@@ -76,9 +76,9 @@ integration:
  "name": "hello",
  "version": "1.0.1",
  "framework": "ubuntu-core-15.04-dev1",
- "description": "fixme-description",
+ "description": "some description",
  "installed-size": "17",
- "title": "fixme-title",
+ "title": "some title",
  "hooks": {
   "app": {
    "apparmor-profile": "meta/hello.apparmor"
@@ -119,9 +119,9 @@ binaries:
  "name": "hello",
  "version": "2.0.1",
  "framework": "ubuntu-core-15.04-dev1",
- "description": "fixme-description",
+ "description": "some description",
  "installed-size": "17",
- "title": "fixme-title",
+ "title": "some title",
  "hooks": {
   "hello-world": {
    "apparmor": "meta/hello-world.apparmor",
@@ -157,9 +157,9 @@ services:
  "name": "hello",
  "version": "3.0.1",
  "framework": "ubuntu-core-15.04-dev1",
- "description": "fixme-description",
+ "description": "some description",
  "installed-size": "17",
- "title": "fixme-title",
+ "title": "some title",
  "hooks": {
   "foo": {
    "apparmor": "meta/foo.apparmor",
@@ -179,7 +179,7 @@ services:
 	snappySystemdContent, err := ioutil.ReadFile(filepath.Join(unpackDir, "meta/foo.snappy-systemd"))
 	c.Assert(err, IsNil)
 	c.Assert(string(snappySystemdContent), Equals, `{
- "description": "fixme-description",
+ "description": "some description",
  "name": "foo",
  "start": "bin/hello-world"
 }`)
@@ -211,7 +211,7 @@ vendor: Foo <foo@example.com>
  "framework": "ubuntu-core-15.04-dev1",
  "description": "fixme-description",
  "installed-size": "17",
- "title": "fixme-title",
+ "title": "some title",
  "hooks": {
   "snappy-config": {
    "apparmor": "meta/snappy-config.apparmor",

@@ -35,4 +35,8 @@ var (
 	// ErrHWAccessAlreadyAdded is returned if you try to add a device
 	// that is already in the hwaccess list
 	ErrHWAccessAlreadyAdded = errors.New("device is already in hw-access list")
+
+	// ErrReadmeInvalid is returned if the package contains a invalid
+	// meta/readme.md
+	ErrReadmeInvalid = errors.New("meta/readme.md invalid")
 )

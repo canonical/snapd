@@ -1,6 +1,7 @@
 package snappy
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -29,6 +30,34 @@ const defaultApparmorJSON = `{
     "policy_vendor": "ubuntu-snappy",
     "policy_version": 1.3
 }`
+
+func parseReadme(readme string) (title, description string, err error) {
+	file, err := os.Open(readme)
+	if err != nil {
+		return "", "", err
+	}
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		if title == "" {
+			title = scanner.Text()
+			continue
+		}
+
+		if description != "" && scanner.Text() == "" {
+			break
+		}
+		description += scanner.Text()
+	}
+	if title == "" {
+		return "", "", ErrReadmeInvalid
+	}
+	if description == "" {
+		description = "no description"
+	}
+
+	return title, description, nil
+}
 
 // Build the given sourceDirectory and return the generated snap file
 func Build(sourceDir string) (string, error) {
@@ -68,9 +97,11 @@ func Build(sourceDir string) (string, error) {
 		}
 	}
 
-	// FIXME: readme.md parsing
-	title := "fixme-title"
-	description := "fixme-description"
+	// readme.md parsing
+	title, description, err := parseReadme(filepath.Join(buildDir, "meta", "readme.md"))
+	if err != nil {
+		return "", err
+	}
 
 	// defaults
 	if m.Architecture == "" {
