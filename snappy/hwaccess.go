@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"launchpad.net/snappy/helpers"
 )
 
 type appArmorAdditionalJSON struct {
@@ -49,7 +51,7 @@ func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditiona
 	out = append(out, '\n')
 
 	additionalFile := getHWAccessJSONFile(snapname)
-	if err := atomicWriteFile(additionalFile, out, 0640); err != nil {
+	if err := helpers.AtomicWriteFile(additionalFile, out, 0640); err != nil {
 		return err
 	}
 

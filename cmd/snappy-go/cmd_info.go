@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -72,7 +73,7 @@ func info() error {
 	apps, _ := snappy.InstalledSnapNamesByType(snappy.SnapTypeApp)
 
 	fmt.Printf("release: %s\n", release)
-	fmt.Printf("architecture: %s\n", snappy.Architecture())
+	fmt.Printf("architecture: %s\n", helpers.Architecture())
 	fmt.Printf("frameworks: %s\n", strings.Join(frameworks, ", "))
 	fmt.Printf("apps: %s\n", strings.Join(apps, ", "))
 

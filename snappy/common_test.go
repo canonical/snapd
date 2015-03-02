@@ -8,6 +8,8 @@ import (
 	"path"
 	"path/filepath"
 
+	"launchpad.net/snappy/helpers"
+
 	. "launchpad.net/gocheck"
 )
 
@@ -73,7 +75,7 @@ vendor: Foo Bar <foo@example.com>
 	content = "Random\nExample"
 	ioutil.WriteFile(readmeMd, []byte(content), 0644)
 	// build it
-	err := chDir(tmpdir, func() {
+	err := helpers.ChDir(tmpdir, func() {
 		cmd := exec.Command("snappy", "build", tmpdir)
 		output, err := cmd.CombinedOutput()
 		if err != nil {

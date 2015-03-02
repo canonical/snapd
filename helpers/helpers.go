@@ -1,11 +1,10 @@
-package snappy
+package helpers
 
 import (
 	"archive/tar"
 	"compress/gzip"
 	"crypto/sha512"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -27,8 +26,8 @@ func init() {
 	rand.Seed(time.Now().UTC().UnixNano())
 }
 
-// helper to run "f" inside the given directory
-func chDir(newDir string, f func()) (err error) {
+// ChDir runs runs "f" inside the given directory
+func ChDir(newDir string, f func()) (err error) {
 	cwd, err := os.Getwd()
 	os.Chdir(newDir)
 	defer os.Chdir(cwd)
@@ -39,9 +38,9 @@ func chDir(newDir string, f func()) (err error) {
 	return err
 }
 
-// extract the exit code from the error of a failed cmd.Run() or the
+// ExitCode extract the exit code from the error of a failed cmd.Run() or the
 // original error if its not a exec.ExitError
-func exitCode(runErr error) (e int, err error) {
+func ExitCode(runErr error) (e int, err error) {
 	// golang, you are kidding me, right?
 	if exitErr, ok := runErr.(*exec.ExitError); ok {
 		waitStatus := exitErr.Sys().(syscall.WaitStatus)
@@ -127,9 +126,9 @@ func Architecture() string {
 	}
 }
 
-// Ensure the given directory exists and if not create it with the given
-// permissions
-func ensureDir(dir string, perm os.FileMode) (err error) {
+// EnsureDir ensures that the given directory exists and if
+// not create it with the given permissions
+func EnsureDir(dir string, perm os.FileMode) (err error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dir, perm); err != nil {
 			return err
@@ -138,7 +137,8 @@ func ensureDir(dir string, perm os.FileMode) (err error) {
 	return nil
 }
 
-func sha512sum(infile string) (hexdigest string, err error) {
+// Sha512sum returns the sha512 of the given file as a hexdigest
+func Sha512sum(infile string) (hexdigest string, err error) {
 	r, err := os.Open(infile)
 	if err != nil {
 		return "", err
@@ -153,10 +153,10 @@ func sha512sum(infile string) (hexdigest string, err error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// makeMapFromEnvList takes a string list of the form "key=value"
+// MakeMapFromEnvList takes a string list of the form "key=value"
 // and returns a map[string]string from that list
 // This is useful for os.Environ() manipulation
-func makeMapFromEnvList(env []string) map[string]string {
+func MakeMapFromEnvList(env []string) map[string]string {
 	envMap := map[string]string{}
 	for _, l := range env {
 		split := strings.SplitN(l, "=", 2)
@@ -168,33 +168,22 @@ func makeMapFromEnvList(env []string) map[string]string {
 	return envMap
 }
 
-// makeSnapHookEnv returns an environment suitable for passing to
-// os/exec.Cmd.Env
-//
-// The returned environment contains additional SNAP_* variables that
-// are required when calling a meta/hook/ script and that will override
-// any already existing SNAP_* variables in os.Environment()
-func makeSnapHookEnv(part *SnapPart) (env []string) {
-	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
-	snapEnv := map[string]string{
-		"SNAP_NAME":          part.Name(),
-		"SNAP_VERSION":       part.Version(),
-		"SNAP_APP_PATH":      part.basedir,
-		"SNAP_APP_DATA_PATH": snapDataDir,
+// FileExists return true if given path can be stat()ed by us. Note that
+// it may return false on e.g. permission issues.
+func FileExists(path string) bool {
+	_, err := os.Stat(path)
+	return (err == nil)
+}
+
+// IsDirectory return true if the given path can be stat()ed by us and
+// is a directory. Note that it may return false on e.g. permission issues.
+func IsDirectory(path string) bool {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return false
 	}
 
-	// merge regular env and new snapEnv
-	envMap := makeMapFromEnvList(os.Environ())
-	for k, v := range snapEnv {
-		envMap[k] = v
-	}
-
-	// flatten
-	for k, v := range envMap {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
-
-	return env
+	return fileInfo.IsDir()
 }
 
 // return a random string of length length
@@ -209,9 +198,9 @@ func makeRandomString(length int) string {
 	return out
 }
 
-// atomicWriteFile updates the filename atomically and works otherwise
+// AtomicWriteFile updates the filename atomically and works otherwise
 // exactly like io/ioutil.WriteFile()
-func atomicWriteFile(filename string, data []byte, perm os.FileMode) error {
+func AtomicWriteFile(filename string, data []byte, perm os.FileMode) error {
 	tmp := filename + ".new"
 
 	if err := ioutil.WriteFile(tmp, data, 0640); err != nil {

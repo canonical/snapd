@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	partition "launchpad.net/snappy/partition"
+	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/partition"
 
 	. "launchpad.net/gocheck"
 )
@@ -375,4 +376,24 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	results, err := snap.Details("no-such-pkg")
 	c.Assert(len(results), Equals, 0)
 	c.Assert(err, NotNil)
+}
+
+func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
+	yamlFile, err := makeInstalledMockSnap(s.tempdir)
+	c.Assert(err, IsNil)
+	snap := NewInstalledSnapPart(yamlFile)
+	c.Assert(snap, NotNil)
+
+	os.Setenv("SNAP_NAME", "override-me")
+	defer os.Setenv("SNAP_NAME", "")
+
+	env := makeSnapHookEnv(snap)
+
+	// now ensure that the environment we get back is what we want
+	envMap := helpers.MakeMapFromEnvList(env)
+	// regular env is unaltered
+	c.Assert(envMap["PATH"], Equals, os.Getenv("PATH"))
+	// SNAP_* is overriden
+	c.Assert(envMap["SNAP_NAME"], Equals, "hello-app")
+	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
 }
