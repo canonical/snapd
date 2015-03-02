@@ -210,3 +210,25 @@ func (ts *HTestSuite) TestAtomicWriteFile(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(d), Equals, 1)
 }
+
+func (ts *HTestSuite) TestCurrentHomeDirHOMEenv(c *C) {
+	tmpdir := c.MkDir()
+
+	oldHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", oldHome)
+
+	os.Setenv("HOME", tmpdir)
+	home, err := CurrentHomeDir()
+	c.Assert(err, IsNil)
+	c.Assert(home, Equals, tmpdir)
+}
+
+func (ts *HTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
+	oldHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", oldHome)
+
+	os.Setenv("HOME", "")
+	home, err := CurrentHomeDir()
+	c.Assert(err, IsNil)
+	c.Assert(home, Equals, oldHome)
+}

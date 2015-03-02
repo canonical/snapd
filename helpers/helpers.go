@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -209,4 +210,19 @@ func AtomicWriteFile(filename string, data []byte, perm os.FileMode) error {
 	}
 
 	return os.Rename(tmp, filename)
+}
+
+// CurrentHomeDir returns the homedir of the current user. It looks at
+// $HOME first and then at passwd
+func CurrentHomeDir() (string, error) {
+	home := os.Getenv("HOME")
+	if home != "" {
+		return home, nil
+	}
+
+	user, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+	return user.HomeDir, nil
 }
