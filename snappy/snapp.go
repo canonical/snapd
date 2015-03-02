@@ -364,11 +364,26 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 		os.Remove(w.Name())
 	}()
 
-	resp, err := http.Get(s.pkg.AnonDownloadURL)
+	// try anonymous download first and fallback to authenticated
+	url := s.pkg.AnonDownloadURL
+	if url == "" {
+		url = s.pkg.DownloadURL
+	}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+	setUbuntuStoreHeaders(req)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("Unexpected status code %v", resp.StatusCode)
+	}
 
 	if pbar != nil {
 		pbar.Start(float64(resp.ContentLength))
