@@ -16,7 +16,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 
-	yaml "launchpad.net/goyaml"
+	"gopkg.in/yaml.v2"
 )
 
 // SnapPart represents a generic snap type
