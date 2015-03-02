@@ -12,6 +12,9 @@ import (
 	"launchpad.net/snappy/helpers"
 )
 
+// the du(1) command, useful to override for testing
+var duCmd = "du"
+
 const staticPreinst = `#! /bin/sh
 echo "Snap packages may not be installed directly using dpkg."
 echo "Use 'snappy install' instead."
@@ -144,7 +147,7 @@ func Build(sourceDir string) (string, error) {
 	}
 
 	// get "du" output
-	cmd := exec.Command("du", "-k", "-s", "--apparent-size", buildDir)
+	cmd := exec.Command(duCmd, "-k", "-s", "--apparent-size", buildDir)
 	output, err := cmd.Output()
 	installedSize := strings.Fields(string(output))[0]
 
@@ -178,7 +181,7 @@ Description: %s
 	if err := ioutil.WriteFile(filepath.Join(debianDir, "manifest"), []byte(manifestContent), 0644); err != nil {
 		return "", err
 	}
-	
+
 	// preinst
 	if err := ioutil.WriteFile(filepath.Join(debianDir, "preinst"), []byte(staticPreinst), 0755); err != nil {
 		return "", err

@@ -10,6 +10,17 @@ import (
 	. "launchpad.net/gocheck"
 )
 
+func makeFakeDuCommand(c *C) string {
+	tempdir := c.MkDir()
+	duCmdPath := filepath.Join(tempdir, "du")
+	fakeDuContent := `#!/bin/sh
+echo 17 some-dir`
+	err := ioutil.WriteFile(duCmdPath, []byte(fakeDuContent), 0755)
+	c.Assert(err, IsNil)
+
+	return duCmdPath
+}
+
 func makeExampleSnapSourceDir(c *C, packageYaml string) string {
 	tempdir := c.MkDir()
 
