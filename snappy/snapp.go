@@ -558,6 +558,9 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	}
 	// set headers
 	setUbuntuStoreHeaders(req)
+	// the updates call is a special snowflake right now
+	// (see LP: #1427155)
+	req.Header.Set("Accept", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
