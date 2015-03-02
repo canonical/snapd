@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 const staticPreinst = `#! /bin/sh
@@ -49,6 +50,17 @@ func Build(sourceDir string) (string, error) {
 	debianDir := filepath.Join(buildDir, "DEBIAN")
 	if err := os.MkdirAll(debianDir, 0755); err != nil {
 		return "", err
+	}
+
+	// FIXME: the store needs this right now
+	if !strings.Contains(m.Framework, "ubuntu-core-15.04-dev1") {
+		l := strings.Split(m.Framework, ",")
+		if l[0] == "" {
+			m.Framework = "ubuntu-core-15.04-dev1"
+		} else {
+			l = append(l, "ubuntu-core-15.04-dev1")
+			m.Framework = strings.Join(l, ", ")
+		}
 	}
 
 	// FIXME: get "du" output
@@ -139,9 +151,6 @@ Description: %s
 		m.Integration[hookName] = make(map[string]string)
 		m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
 	}
-
-	// FIXME: auto-generate:
-	// - framework "ubuntu-core-15.04-dev1 (store compat)
 
 	// manifest
 	cm := clickManifest{

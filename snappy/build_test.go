@@ -64,6 +64,7 @@ integration:
 	const expectedJSON = `{
  "name": "hello",
  "version": "1.0.1",
+ "framework": "ubuntu-core-15.04-dev1",
  "description": "fixme-description",
  "installed-size": "fixme-999",
  "title": "fixme-title",
@@ -107,6 +108,7 @@ binaries:
 	const expectedJSON = `{
  "name": "hello",
  "version": "2.0.1",
+ "framework": "ubuntu-core-15.04-dev1",
  "description": "fixme-description",
  "installed-size": "fixme-999",
  "title": "fixme-title",
@@ -145,6 +147,7 @@ services:
 	const expectedJSON = `{
  "name": "hello",
  "version": "3.0.1",
+ "framework": "ubuntu-core-15.04-dev1",
  "description": "fixme-description",
  "installed-size": "fixme-999",
  "title": "fixme-title",
@@ -196,6 +199,7 @@ vendor: Foo <foo@example.com>
 	const expectedJSON = `{
  "name": "hello",
  "version": "4.0.1",
+ "framework": "ubuntu-core-15.04-dev1",
  "description": "fixme-description",
  "installed-size": "fixme-999",
  "title": "fixme-title",
