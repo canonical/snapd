@@ -14,7 +14,9 @@ import (
 	"strings"
 	"time"
 
-	yaml "launchpad.net/goyaml"
+	"launchpad.net/snappy/helpers"
+
+	"gopkg.in/yaml.v2"
 )
 
 // SnapPart represents a generic snap type
@@ -443,10 +445,11 @@ type SnapUbuntuStoreRepository struct {
 
 // NewUbuntuStoreSnapRepository creates a new SnapUbuntuStoreRepository
 func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
+	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &SnapUbuntuStoreRepository{
 		searchURI:  "https://search.apps.ubuntu.com/api/v1/search?q=%s",
 		detailsURI: "https://search.apps.ubuntu.com/api/v1/package/%s",
-		bulkURI:    "https://myapps.developer.ubuntu.com/dev/api/click-metadata/"}
+		bulkURI:    "https://search.apps.ubuntu.com/api/v1/click-metadata"}
 }
 
 // Description describes the repository
@@ -467,7 +470,7 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
-	req.Header.Set("X-Ubuntu-Architecture", Architecture())
+	req.Header.Set("X-Ubuntu-Architecture", helpers.Architecture())
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -510,7 +513,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err
 	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
-	req.Header.Set("X-Ubuntu-Architecture", Architecture())
+	req.Header.Set("X-Ubuntu-Architecture", helpers.Architecture())
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -576,4 +579,33 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 // Installed returns the installed snaps from this repository
 func (s *SnapUbuntuStoreRepository) Installed() (parts []Part, err error) {
 	return parts, err
+}
+
+// makeSnapHookEnv returns an environment suitable for passing to
+// os/exec.Cmd.Env
+//
+// The returned environment contains additional SNAP_* variables that
+// are required when calling a meta/hook/ script and that will override
+// any already existing SNAP_* variables in os.Environment()
+func makeSnapHookEnv(part *SnapPart) (env []string) {
+	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
+	snapEnv := map[string]string{
+		"SNAP_NAME":          part.Name(),
+		"SNAP_VERSION":       part.Version(),
+		"SNAP_APP_PATH":      part.basedir,
+		"SNAP_APP_DATA_PATH": snapDataDir,
+	}
+
+	// merge regular env and new snapEnv
+	envMap := helpers.MakeMapFromEnvList(os.Environ())
+	for k, v := range snapEnv {
+		envMap[k] = v
+	}
+
+	// flatten
+	for k, v := range envMap {
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	return env
 }

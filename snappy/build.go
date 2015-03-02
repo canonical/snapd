@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"launchpad.net/snappy/helpers"
 )
 
 const staticPreinst = `#! /bin/sh
@@ -185,7 +187,7 @@ Description: %s
 	cmd := exec.Command("fakeroot", "dpkg-deb", "--build", buildDir, snapName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		retCode, _ := exitCode(err)
+		retCode, _ := helpers.ExitCode(err)
 		return "", fmt.Errorf("failed with %d: %s", retCode, output)
 	}
 

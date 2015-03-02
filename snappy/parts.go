@@ -8,6 +8,9 @@ var (
 	snapOemDir       = "/oem"
 	snapDataDir      = "/var/lib/apps"
 	snapDataHomeGlob = "/home/*/apps/"
+	snapAppArmorDir  = "/var/lib/apparmor/clicks"
+
+	aaClickHookCmd = "aa-clickhook"
 )
 
 // SnapType represents the kind of snap (app, core, frameworks, oem)

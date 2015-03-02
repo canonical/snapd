@@ -18,6 +18,9 @@ const (
 	// Initial and final values
 	bootloaderBootmodeTry     = "try"
 	bootloaderBootmodeSuccess = "default"
+
+	// textual description in hardware.yaml for AB systems
+	bootloaderSystemAB = "system-AB"
 )
 
 type bootloaderName string
