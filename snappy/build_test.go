@@ -66,7 +66,7 @@ integration:
  "version": "1.0.1",
  "framework": "ubuntu-core-15.04-dev1",
  "description": "fixme-description",
- "installed-size": "fixme-999",
+ "installed-size": "17",
  "title": "fixme-title",
  "hooks": {
   "app": {
@@ -109,7 +109,7 @@ binaries:
  "version": "2.0.1",
  "framework": "ubuntu-core-15.04-dev1",
  "description": "fixme-description",
- "installed-size": "fixme-999",
+ "installed-size": "17",
  "title": "fixme-title",
  "hooks": {
   "hello-world": {
@@ -147,7 +147,7 @@ services:
  "version": "3.0.1",
  "framework": "ubuntu-core-15.04-dev1",
  "description": "fixme-description",
- "installed-size": "fixme-999",
+ "installed-size": "17",
  "title": "fixme-title",
  "hooks": {
   "foo": {
@@ -199,7 +199,7 @@ vendor: Foo <foo@example.com>
  "version": "4.0.1",
  "framework": "ubuntu-core-15.04-dev1",
  "description": "fixme-description",
- "installed-size": "fixme-999",
+ "installed-size": "17",
  "title": "fixme-title",
  "hooks": {
   "snappy-config": {

@@ -65,23 +65,9 @@ func Build(sourceDir string) (string, error) {
 		}
 	}
 
-	// FIXME: get "du" output
-	installedSize := "fixme-999"
 	// FIXME: readme.md parsing
 	title := "fixme-title"
 	description := "fixme-description"
-
-	controlContent := fmt.Sprintf(`Package: %s
-Version: %s
-Architecture: %s
-Maintainer: %s
-Installed-Size: %s
-Description: %s
- %s
-`, m.Name, m.Version, m.Architecture, m.Vendor, installedSize, title, description)
-	if err := ioutil.WriteFile(filepath.Join(debianDir, "control"), []byte(controlContent), 0644); err != nil {
-		return "", err
-	}
 
 	// defaults
 	if m.Architecture == "" {
@@ -145,6 +131,7 @@ Description: %s
 		}
 	}
 
+	// generate config hook apparmor
 	configHookFile := filepath.Join(buildDir, "meta", "hooks", "config")
 	if _, err := os.Stat(configHookFile); err == nil {
 		hookName := "snappy-config"
@@ -154,6 +141,23 @@ Description: %s
 		}
 		m.Integration[hookName] = make(map[string]string)
 		m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+	}
+
+	// get "du" output
+	cmd := exec.Command("du", "-k", "-s", "--apparent-size", buildDir)
+	output, err := cmd.Output()
+	installedSize := strings.Fields(string(output))[0]
+
+	controlContent := fmt.Sprintf(`Package: %s
+Version: %s
+Architecture: %s
+Maintainer: %s
+Installed-Size: %s
+Description: %s
+ %s
+`, m.Name, m.Version, m.Architecture, m.Vendor, installedSize, title, description)
+	if err := ioutil.WriteFile(filepath.Join(debianDir, "control"), []byte(controlContent), 0644); err != nil {
+		return "", err
 	}
 
 	// manifest
@@ -174,7 +178,7 @@ Description: %s
 	if err := ioutil.WriteFile(filepath.Join(debianDir, "manifest"), []byte(manifestContent), 0644); err != nil {
 		return "", err
 	}
-
+	
 	// preinst
 	if err := ioutil.WriteFile(filepath.Join(debianDir, "preinst"), []byte(staticPreinst), 0755); err != nil {
 		return "", err
@@ -184,8 +188,8 @@ Description: %s
 	snapName := fmt.Sprintf("%s_%s_%s.snap", m.Name, m.Version, m.Architecture)
 	// FIXME: we want a native build here without dpkg-deb to be
 	//        about to build on non-ubuntu/debian systems
-	cmd := exec.Command("fakeroot", "dpkg-deb", "--build", buildDir, snapName)
-	output, err := cmd.CombinedOutput()
+	cmd = exec.Command("fakeroot", "dpkg-deb", "--build", buildDir, snapName)
+	output, err = cmd.CombinedOutput()
 	if err != nil {
 		retCode, _ := helpers.ExitCode(err)
 		return "", fmt.Errorf("failed with %d: %s", retCode, output)
