@@ -109,3 +109,12 @@ func ReadStoreToken() (*StoreToken, error) {
 
 	return &readStoreToken, nil
 }
+
+// FIXME: replace with a real oauth1 library - or wait until oauth2 becomes
+// available
+//
+// minimal oauth v1 signature
+func makeOauthPlaintextSignature(req *http.Request, token *StoreToken) string {
+	s := fmt.Sprintf(`OAuth oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="%s", oauth_token="%s", oauth_signature="%s%26%s"`, token.ConsumerKey, token.TokenKey, token.ConsumerSecret, token.TokenSecret)
+	return s
+}

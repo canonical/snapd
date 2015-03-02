@@ -440,6 +440,11 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", helpers.Architecture())
+
+	ssoToken, err := ReadStoreToken()
+	if err == nil {
+		req.Header.Set("Authorization", makeOauthPlaintextSignature(req, ssoToken))
+	}
 }
 
 // Description describes the repository
