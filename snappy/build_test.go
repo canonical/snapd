@@ -10,19 +10,10 @@ import (
 	. "launchpad.net/gocheck"
 )
 
-func makeExampleSnapSourceDir(c *C) string {
+func makeExampleSnapSourceDir(c *C, packageYaml string) string {
 	tempdir := c.MkDir()
 
-	// meta/package.yaml
-	const packageYaml = `
-name: hello
-version: 1.0.1
-vendor: Foo <foo@example.com>
-architecture: all
-integration:
- app:
-  apparmor-profile: meta/hello.apparmor
-`
+	// use meta/package.yaml
 	metaDir := filepath.Join(tempdir, "meta")
 	err := os.Mkdir(metaDir, 0755)
 	c.Assert(err, IsNil)
@@ -51,7 +42,14 @@ printf "hello world"
 }
 
 func (s *SnapTestSuite) TestBuildSimple(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c)
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+architecture: all
+integration:
+ app:
+  apparmor-profile: meta/hello.apparmor
+`)
 
 	resultSnap, err := Build(sourceDir)
 	c.Assert(err, IsNil)
@@ -86,4 +84,41 @@ func (s *SnapTestSuite) TestBuildSimple(c *C) {
 		c.Assert(strings.Contains(string(readFiles), needle), Equals, true)
 	}
 
+}
+
+func (s *SnapTestSuite) TestBuildAutoGenerateIntegrationHooks(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 2.0.1
+vendor: Foo <foo@example.com>
+binaries:
+ app:
+  name: bin/hello-world
+`)
+
+	resultSnap, err := Build(sourceDir)
+	c.Assert(err, IsNil)
+	defer os.Remove(resultSnap)
+
+	// check that there is result
+	_, err = os.Stat(resultSnap)
+	c.Assert(err, IsNil)
+	c.Assert(resultSnap, Equals, "hello_2.0.1_all.snap")
+
+	// check that the json looks valid
+	const expectedJSON = `{
+ "name": "hello",
+ "version": "2.0.1",
+ "description": "fixme-description",
+ "installed-size": "fixme-999",
+ "title": "fixme-title",
+ "hooks": {
+  "app": {
+   "apparmor": "meta/hello-world.apparmor",
+   "bin-path": "bin/hello-world"
+  }
+ }
+}`
+	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_2.0.1_all.snap", "manifest").Output()
+	c.Assert(err, IsNil)
+	c.Assert(string(readJSON), Equals, expectedJSON)
 }
