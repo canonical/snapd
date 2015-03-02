@@ -224,5 +224,6 @@ func CurrentHomeDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return user.HomeDir, nil
 }

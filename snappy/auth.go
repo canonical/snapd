@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -112,13 +112,14 @@ func WriteStoreToken(token StoreToken) error {
 // ReadStoreToken reads a token previously write via WriteStoreToken
 func ReadStoreToken() (*StoreToken, error) {
 	targetFile := storeTokenFilename()
-	tokenContent, err := ioutil.ReadFile(targetFile)
+	f, err := os.Open(targetFile)
 	if err != nil {
 		return nil, err
 	}
 
 	var readStoreToken StoreToken
-	if err := json.Unmarshal(tokenContent, &readStoreToken); err != nil {
+	dec := json.NewDecoder(f)
+	if err := dec.Decode(&readStoreToken); err != nil {
 		return nil, err
 	}
 

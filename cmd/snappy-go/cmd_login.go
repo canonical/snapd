@@ -16,7 +16,7 @@ type cmdLogin struct {
 
 const shortLoginHelp = `Log into the store`
 
-const longLoginHelp = `This command logs out into the store`
+const longLoginHelp = `This command logs the given username into the store`
 
 func init() {
 	var cmdLoginData cmdLogin
