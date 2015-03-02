@@ -59,6 +59,92 @@ func parseReadme(readme string) (title, description string, err error) {
 	return title, description, nil
 }
 
+func handleBinaries(buildDir string, m *packageYaml) error {
+	for _, v := range m.Binaries {
+		hookName := filepath.Base(v["name"])
+
+		if _, ok := m.Integration[hookName]; !ok {
+			m.Integration[hookName] = make(map[string]string)
+		}
+		m.Integration[hookName]["bin-path"] = v["name"]
+
+		_, hasApparmor := m.Integration[hookName]["apparmor"]
+		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
+		if !hasApparmor && !hasApparmorProfile {
+			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
+			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
+				return err
+			}
+			m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+		}
+	}
+
+	return nil
+}
+
+func handleServices(buildDir, description string, m *packageYaml) error {
+	for _, v := range m.Services {
+		hookName := filepath.Base(v["name"])
+
+		if _, ok := m.Integration[hookName]; !ok {
+			m.Integration[hookName] = make(map[string]string)
+		}
+
+		// generate snappyd systemd unit json
+		if v["description"] == "" {
+			v["description"] = description
+		}
+		snappySystemdContent, err := json.MarshalIndent(v, "", " ")
+		if err != nil {
+			return err
+		}
+		snappySystemdContentFile := filepath.Join("meta", hookName+".snappy-systemd")
+		if err := ioutil.WriteFile(filepath.Join(buildDir, snappySystemdContentFile), []byte(snappySystemdContent), 0644); err != nil {
+			return err
+		}
+		m.Integration[hookName]["snappy-systemd"] = snappySystemdContentFile
+
+		// generate apparmor
+		_, hasApparmor := m.Integration[hookName]["apparmor"]
+		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
+		if !hasApparmor && !hasApparmorProfile {
+			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
+			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
+				return err
+			}
+			m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+		}
+	}
+
+	return nil
+}
+
+func handleConfigHookApparmor(buildDir string, m *packageYaml) error {
+	configHookFile := filepath.Join(buildDir, "meta", "hooks", "config")
+	if !helpers.FileExists(configHookFile) {
+		return nil
+	}
+
+	hookName := "snappy-config"
+	defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
+	if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
+		return err
+	}
+	m.Integration[hookName] = make(map[string]string)
+	m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+
+	return nil
+}
+
+func getDuOutput(buildDir string) (string, error) {
+	cmd := exec.Command(duCmd, "-k", "-s", "--apparent-size", buildDir)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.Fields(string(output))[0], nil
+}
+
 // Build the given sourceDirectory and return the generated snap file
 func Build(sourceDir string) (string, error) {
 
@@ -112,75 +198,25 @@ func Build(sourceDir string) (string, error) {
 	}
 
 	// generate compat hooks for binaries
-	for _, v := range m.Binaries {
-		hookName := filepath.Base(v["name"])
-
-		if _, ok := m.Integration[hookName]; !ok {
-			m.Integration[hookName] = make(map[string]string)
-		}
-		m.Integration[hookName]["bin-path"] = v["name"]
-
-		_, hasApparmor := m.Integration[hookName]["apparmor"]
-		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-		if !hasApparmor && !hasApparmorProfile {
-			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
-				return "", err
-			}
-			m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
-		}
+	if err := handleBinaries(buildDir, m); err != nil {
+		return "", err
 	}
 
 	// generate compat hooks for services
-	for _, v := range m.Services {
-		hookName := filepath.Base(v["name"])
-
-		if _, ok := m.Integration[hookName]; !ok {
-			m.Integration[hookName] = make(map[string]string)
-		}
-
-		// generate snappyd systemd unit json
-		if v["description"] == "" {
-			v["description"] = description
-		}
-		snappySystemdContent, err := json.MarshalIndent(v, "", " ")
-		if err != nil {
-			return "", err
-		}
-		snappySystemdContentFile := filepath.Join("meta", hookName+".snappy-systemd")
-		if err := ioutil.WriteFile(filepath.Join(buildDir, snappySystemdContentFile), []byte(snappySystemdContent), 0644); err != nil {
-			return "", err
-		}
-		m.Integration[hookName]["snappy-systemd"] = snappySystemdContentFile
-
-		// generate apparmor
-		_, hasApparmor := m.Integration[hookName]["apparmor"]
-		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-		if !hasApparmor && !hasApparmorProfile {
-			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
-				return "", err
-			}
-			m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
-		}
+	if err := handleServices(buildDir, description, m); err != nil {
+		return "", err
 	}
 
 	// generate config hook apparmor
-	configHookFile := filepath.Join(buildDir, "meta", "hooks", "config")
-	if _, err := os.Stat(configHookFile); err == nil {
-		hookName := "snappy-config"
-		defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-		if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
-			return "", err
-		}
-		m.Integration[hookName] = make(map[string]string)
-		m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+	if err := handleConfigHookApparmor(buildDir, m); err != nil {
+		return "", err
 	}
 
 	// get "du" output
-	cmd := exec.Command(duCmd, "-k", "-s", "--apparent-size", buildDir)
-	output, err := cmd.Output()
-	installedSize := strings.Fields(string(output))[0]
+	installedSize, err := getDuOutput(buildDir)
+	if err != nil {
+		return "", err
+	}
 
 	controlContent := fmt.Sprintf(`Package: %s
 Version: %s
@@ -222,8 +258,8 @@ Description: %s
 	snapName := fmt.Sprintf("%s_%s_%s.snap", m.Name, m.Version, m.Architecture)
 	// FIXME: we want a native build here without dpkg-deb to be
 	//        about to build on non-ubuntu/debian systems
-	cmd = exec.Command("fakeroot", "dpkg-deb", "--build", buildDir, snapName)
-	output, err = cmd.CombinedOutput()
+	cmd := exec.Command("fakeroot", "dpkg-deb", "--build", buildDir, snapName)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		retCode, _ := helpers.ExitCode(err)
 		return "", fmt.Errorf("failed with %d: %s", retCode, output)
