@@ -129,9 +129,19 @@ Description: %s
 		}
 	}
 
+	configHookFile := filepath.Join(buildDir, "meta", "hooks", "config")
+	if _, err := os.Stat(configHookFile); err == nil {
+		hookName := "snappy-config"
+		defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
+		if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
+			return "", err
+		}
+		m.Integration[hookName] = make(map[string]string)
+		m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+	}
+
 	// FIXME: auto-generate:
 	// - framework "ubuntu-core-15.04-dev1 (store compat)
-	// - snappy-config apparmor security.json & hook entry
 
 	// manifest
 	cm := clickManifest{

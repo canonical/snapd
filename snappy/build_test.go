@@ -172,3 +172,37 @@ services:
  "start": "bin/hello-world"
 }`)
 }
+
+func (s *SnapTestSuite) TestBuildAutoGenerateConfigAppArmor(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 4.0.1
+vendor: Foo <foo@example.com>
+`)
+	hooksDir := filepath.Join(sourceDir, "meta", "hooks")
+	os.MkdirAll(hooksDir, 0755)
+	err := ioutil.WriteFile(filepath.Join(hooksDir, "config"), []byte(""), 0755)
+	c.Assert(err, IsNil)
+
+	resultSnap, err := Build(sourceDir)
+	c.Assert(err, IsNil)
+	defer os.Remove(resultSnap)
+
+	// check that there is result
+	_, err = os.Stat(resultSnap)
+	c.Assert(err, IsNil)
+	c.Assert(resultSnap, Equals, "hello_4.0.1_all.snap")
+
+	// check that the json looks valid
+	const expectedJSON = `{
+ "name": "hello",
+ "version": "4.0.1",
+ "description": "fixme-description",
+ "installed-size": "fixme-999",
+ "title": "fixme-title",
+ "hooks": {
+  "snappy-config": {
+   "apparmor": "meta/snappy-config.apparmor",
+  }
+ }
+}`
+}
