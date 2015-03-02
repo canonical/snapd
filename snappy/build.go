@@ -90,34 +90,36 @@ Description: %s
 	}
 
 	// generate compat hooks for binaries
-	for k, v := range m.Binaries {
-		if _, ok := m.Integration[k]; !ok {
-			m.Integration[k] = make(map[string]string)
-		}
-		m.Integration[k]["bin-path"] = v["name"]
+	for _, v := range m.Binaries {
 		hookName := filepath.Base(v["name"])
 
-		_, hasApparmor := m.Integration[k]["apparmor"]
-		_, hasApparmorProfile := m.Integration[k]["apparmor-profile"]
+		if _, ok := m.Integration[hookName]; !ok {
+			m.Integration[hookName] = make(map[string]string)
+		}
+		m.Integration[hookName]["bin-path"] = v["name"]
+
+		_, hasApparmor := m.Integration[hookName]["apparmor"]
+		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
 		if !hasApparmor && !hasApparmorProfile {
 			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
 			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
 				return "", err
 			}
-			m.Integration[k]["apparmor"] = defaultApparmorJSONFile
+			m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
 		}
 	}
 
 	// generate compat hooks for services
-	for k, v := range m.Services {
-		if _, ok := m.Integration[k]; !ok {
-			m.Integration[k] = make(map[string]string)
+	for _, v := range m.Services {
+		hookName := filepath.Base(v["name"])
+
+		if _, ok := m.Integration[hookName]; !ok {
+			m.Integration[hookName] = make(map[string]string)
 		}
 
 		// generate snappyd systemd unit json
-		hookName := filepath.Base(v["name"])
-		if m.Services[k]["description"] == "" {
-			m.Services[k]["description"] = description
+		if v["description"] == "" {
+			v["description"] = description
 		}
 		snappySystemdContent, err := json.MarshalIndent(v, "", " ")
 		if err != nil {
@@ -127,17 +129,17 @@ Description: %s
 		if err := ioutil.WriteFile(filepath.Join(buildDir, snappySystemdContentFile), []byte(snappySystemdContent), 0644); err != nil {
 			return "", err
 		}
-		m.Integration[k]["snappy-systemd"] = snappySystemdContentFile
+		m.Integration[hookName]["snappy-systemd"] = snappySystemdContentFile
 
 		// generate apparmor
-		_, hasApparmor := m.Integration[k]["apparmor"]
-		_, hasApparmorProfile := m.Integration[k]["apparmor-profile"]
+		_, hasApparmor := m.Integration[hookName]["apparmor"]
+		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
 		if !hasApparmor && !hasApparmorProfile {
 			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
 			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
 				return "", err
 			}
-			m.Integration[k]["apparmor"] = defaultApparmorJSONFile
+			m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
 		}
 	}
 

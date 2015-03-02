@@ -91,8 +91,7 @@ func (s *SnapTestSuite) TestBuildAutoGenerateIntegrationHooksBinaries(c *C) {
 version: 2.0.1
 vendor: Foo <foo@example.com>
 binaries:
- app:
-  name: bin/hello-world
+ - name: bin/hello-world
 `)
 
 	resultSnap, err := Build(sourceDir)
@@ -113,7 +112,7 @@ binaries:
  "installed-size": "fixme-999",
  "title": "fixme-title",
  "hooks": {
-  "app": {
+  "hello-world": {
    "apparmor": "meta/hello-world.apparmor",
    "bin-path": "bin/hello-world"
   }
@@ -129,9 +128,8 @@ func (s *SnapTestSuite) TestBuildAutoGenerateIntegrationHooksServices(c *C) {
 version: 3.0.1
 vendor: Foo <foo@example.com>
 services:
- app:
-  name: foo
-  start: bin/hello-world
+ - name: foo
+   start: bin/hello-world
 `)
 
 	resultSnap, err := Build(sourceDir)
@@ -152,7 +150,7 @@ services:
  "installed-size": "fixme-999",
  "title": "fixme-title",
  "hooks": {
-  "app": {
+  "foo": {
    "apparmor": "meta/foo.apparmor",
    "snappy-systemd": "meta/foo.snappy-systemd"
   }

@@ -30,9 +30,6 @@ type SnapPart struct {
 	basedir string
 }
 
-type packageYamlBinaries map[string]string
-type packageYamlServices map[string]string
-
 type packageYaml struct {
 	Name         string
 	Version      string
@@ -42,8 +39,8 @@ type packageYaml struct {
 	Architecture string `yaml:"architecture"`
 	Framework    string
 
-	Binaries map[string]packageYamlBinaries
-	Services map[string]packageYamlServices
+	Binaries [](map[string]string)
+	Services [](map[string]string)
 
 	// this is a bit ugly, but right now integration is a one:one
 	// mapping of click hooks
