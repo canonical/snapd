@@ -89,7 +89,40 @@ Description: %s
 		_, hasApparmorProfile := m.Integration[k]["apparmor-profile"]
 		if !hasApparmor && !hasApparmorProfile {
 			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-			if err := ioutil.WriteFile(filepath.Join(sourceDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
+			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
+				return "", err
+			}
+			m.Integration[k]["apparmor"] = defaultApparmorJSONFile
+		}
+	}
+
+	// generate compat hooks for services
+	for k, v := range m.Services {
+		if _, ok := m.Integration[k]; !ok {
+			m.Integration[k] = make(map[string]string)
+		}
+
+		// generate snappyd systemd unit json
+		hookName := filepath.Base(v["name"])
+		if m.Services[k]["description"] == "" {
+			m.Services[k]["description"] = description
+		}
+		snappySystemdContent, err := json.MarshalIndent(v, "", " ")
+		if err != nil {
+			return "", err
+		}
+		snappySystemdContentFile := filepath.Join("meta", hookName+".snappy-systemd")
+		if err := ioutil.WriteFile(filepath.Join(buildDir, snappySystemdContentFile), []byte(snappySystemdContent), 0644); err != nil {
+			return "", err
+		}
+		m.Integration[k]["snappy-systemd"] = snappySystemdContentFile
+
+		// generate apparmor
+		_, hasApparmor := m.Integration[k]["apparmor"]
+		_, hasApparmorProfile := m.Integration[k]["apparmor-profile"]
+		if !hasApparmor && !hasApparmorProfile {
+			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
+			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
 				return "", err
 			}
 			m.Integration[k]["apparmor"] = defaultApparmorJSONFile
@@ -98,11 +131,6 @@ Description: %s
 
 	// FIXME: auto-generate:
 	// - framework "ubuntu-core-15.04-dev1 (store compat)
-	// - systemd yaml files and hook entr (*or* native support
-	//   for the snappy-systemd hook)
-	//   plus: default security.json templates
-	// - click-bin-path files and hook entry (*or* native support)
-	//   plus:  default security.json templates
 	// - snappy-config apparmor security.json & hook entry
 
 	// manifest
