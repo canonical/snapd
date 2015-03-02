@@ -65,3 +65,14 @@ func (s *SnapTestSuite) TestWriteStoreToken(c *C) {
  "consumer_key": ""
 }`)
 }
+
+func (s *SnapTestSuite) TestReadStoreToken(c *C) {
+	os.Setenv("HOME", s.tempdir)
+	mockStoreToken := StoreToken{TokenName: "meep"}
+	err := WriteStoreToken(mockStoreToken)
+	c.Assert(err, IsNil)
+
+	readToken, err := ReadStoreToken()
+	c.Assert(err, IsNil)
+	c.Assert(readToken.TokenName, Equals, "meep")
+}

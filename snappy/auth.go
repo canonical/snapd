@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -73,14 +74,15 @@ func RequestStoreToken(username, password, tokenName, otp string) (*StoreToken, 
 	return &token, nil
 }
 
+func storeTokenFilename() string {
+	homeDir, _ := helpers.CurrentHomeDir()
+	return filepath.Join(homeDir, ".config", "snappy", "sso.json")
+}
+
 // WriteStoreToken takes the token and stores it on the filesystem for
 // later reading via ReadStoreToken()
 func WriteStoreToken(token StoreToken) error {
-	homeDir, err := helpers.CurrentHomeDir()
-	if err != nil {
-		return err
-	}
-	targetFile := filepath.Join(homeDir, ".config", "snappy", "sso.json")
+	targetFile := storeTokenFilename()
 	if err := helpers.EnsureDir(filepath.Dir(targetFile), 0700); err != nil {
 		return err
 	}
@@ -90,4 +92,20 @@ func WriteStoreToken(token StoreToken) error {
 	}
 
 	return helpers.AtomicWriteFile(targetFile, []byte(outStr), 0600)
+}
+
+// ReadStoreToken reads a token previously write via WriteStoreToken
+func ReadStoreToken() (*StoreToken, error) {
+	targetFile := storeTokenFilename()
+	tokenContent, err := ioutil.ReadFile(targetFile)
+	if err != nil {
+		return nil, err
+	}
+
+	var readStoreToken StoreToken
+	if err := json.Unmarshal(tokenContent, &readStoreToken); err != nil {
+		return nil, err
+	}
+
+	return &readStoreToken, nil
 }
