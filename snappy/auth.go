@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"launchpad.net/snappy/helpers"
 )
@@ -17,6 +18,7 @@ var (
 	ubuntuoneOauthAPI = ubuntuoneAPIBase + "/tokens/oauth"
 )
 
+// StoreToken contains the personal token to access the store
 type StoreToken struct {
 	OpenID      string `json:"openid"`
 	TokenName   string `json:"token_name"`
@@ -115,6 +117,11 @@ func ReadStoreToken() (*StoreToken, error) {
 //
 // minimal oauth v1 signature
 func makeOauthPlaintextSignature(req *http.Request, token *StoreToken) string {
-	s := fmt.Sprintf(`OAuth oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="%s", oauth_token="%s", oauth_signature="%s%26%s"`, token.ConsumerKey, token.TokenKey, token.ConsumerSecret, token.TokenSecret)
+	// hrm, rfc5849 says that nonce, timestamp are not used for PLAINTEXT
+	// but our sso server is unhappy without, so
+	nonce := helpers.MakeRandomString(60)
+	timestamp := time.Now().Unix()
+
+	s := fmt.Sprintf(`OAuth oauth_nonce="%s", oauth_timestamp="%v", oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="%s", oauth_token="%s", oauth_signature="%s%%26%s"`, nonce, timestamp, token.ConsumerKey, token.TokenKey, token.ConsumerSecret, token.TokenSecret)
 	return s
 }

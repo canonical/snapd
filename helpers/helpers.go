@@ -187,8 +187,8 @@ func IsDirectory(path string) bool {
 	return fileInfo.IsDir()
 }
 
-// return a random string of length length
-func makeRandomString(length int) string {
+// MakeRandomString returns a random string of length length
+func MakeRandomString(length int) string {
 	var letters = "abcdefghijklmnopqrstuvwxyABCDEFGHIJKLMNOPQRSTUVWXY"
 
 	out := ""

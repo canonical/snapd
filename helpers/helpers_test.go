@@ -187,10 +187,10 @@ func (ts *HTestSuite) TestMakeRandomString(c *C) {
 	// for our tests
 	rand.Seed(1)
 
-	s1 := makeRandomString(10)
+	s1 := MakeRandomString(10)
 	c.Assert(s1, Equals, "GMWjGsAPga")
 
-	s2 := makeRandomString(5)
+	s2 := MakeRandomString(5)
 	c.Assert(s2, Equals, "TlmOD")
 }
 
