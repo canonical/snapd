@@ -82,7 +82,12 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 	return nil
 }
 
-func handleServices(buildDir, description string, m *packageYaml) error {
+func handleServices(buildDir string, m *packageYaml) error {
+	_, description, err := parseReadme(filepath.Join(buildDir, "meta", "readme.md"))
+	if err != nil {
+		return err
+	}
+
 	for _, v := range m.Services {
 		hookName := filepath.Base(v["name"])
 
@@ -145,6 +150,91 @@ func getDuOutput(buildDir string) (string, error) {
 	return strings.Fields(string(output))[0], nil
 }
 
+func writeDebianControl(buildDir string, m *packageYaml) error {
+	debianDir := filepath.Join(buildDir, "DEBIAN")
+	if err := os.MkdirAll(debianDir, 0755); err != nil {
+		return err
+	}
+
+	// get "du" output
+	installedSize, err := getDuOutput(buildDir)
+	if err != nil {
+		return err
+	}
+
+	// title description
+	title, description, err := parseReadme(filepath.Join(buildDir, "meta", "readme.md"))
+	if err != nil {
+		return err
+	}
+
+	// debian control
+	controlContent := fmt.Sprintf(`Package: %s
+Version: %s
+Architecture: %s
+Maintainer: %s
+Installed-Size: %s
+Description: %s
+ %s
+`, m.Name, m.Version, m.Architecture, m.Vendor, installedSize, title, description)
+	if err := ioutil.WriteFile(filepath.Join(debianDir, "control"), []byte(controlContent), 0644); err != nil {
+		return err
+	}
+
+	// preinst
+	if err := ioutil.WriteFile(filepath.Join(debianDir, "preinst"), []byte(staticPreinst), 0755); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writeClickManifest(buildDir string, m *packageYaml) error {
+	// get "du" output
+	installedSize, err := getDuOutput(buildDir)
+	if err != nil {
+		return err
+	}
+
+	// title description
+	title, description, err := parseReadme(filepath.Join(buildDir, "meta", "readme.md"))
+	if err != nil {
+		return err
+	}
+
+	cm := clickManifest{
+		Name:          m.Name,
+		Version:       m.Version,
+		Framework:     m.Framework,
+		Icon:          m.Icon,
+		InstalledSize: installedSize,
+		Title:         title,
+		Description:   description,
+		Hooks:         m.Integration,
+	}
+	manifestContent, err := json.MarshalIndent(cm, "", " ")
+	if err != nil {
+		return err
+	}
+
+	if err := ioutil.WriteFile(filepath.Join(buildDir, "DEBIAN", "manifest"), []byte(manifestContent), 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func copyToBuildDir(sourceDir, buildDir string) error {
+	// FIXME: too simplistic, we need a ignore pattern for stuff
+	//        like "*~" etc
+	os.Remove(buildDir)
+	if err := exec.Command("cp", "-a", sourceDir, buildDir).Run(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Build the given sourceDirectory and return the generated snap file
 func Build(sourceDir string) (string, error) {
 
@@ -161,14 +251,7 @@ func Build(sourceDir string) (string, error) {
 	}
 	defer os.RemoveAll(buildDir)
 
-	// FIXME: too simplistic, we need a ignore pattern for stuff
-	//        like "*~" etc
-	os.Remove(buildDir)
-	if err := exec.Command("cp", "-a", sourceDir, buildDir).Run(); err != nil {
-		return "", err
-	}
-	debianDir := filepath.Join(buildDir, "DEBIAN")
-	if err := os.MkdirAll(debianDir, 0755); err != nil {
+	if err := copyToBuildDir(sourceDir, buildDir); err != nil {
 		return "", err
 	}
 
@@ -181,12 +264,6 @@ func Build(sourceDir string) (string, error) {
 			l = append(l, "ubuntu-core-15.04-dev1")
 			m.Framework = strings.Join(l, ", ")
 		}
-	}
-
-	// readme.md parsing
-	title, description, err := parseReadme(filepath.Join(buildDir, "meta", "readme.md"))
-	if err != nil {
-		return "", err
 	}
 
 	// defaults
@@ -203,7 +280,7 @@ func Build(sourceDir string) (string, error) {
 	}
 
 	// generate compat hooks for services
-	if err := handleServices(buildDir, description, m); err != nil {
+	if err := handleServices(buildDir, m); err != nil {
 		return "", err
 	}
 
@@ -212,45 +289,12 @@ func Build(sourceDir string) (string, error) {
 		return "", err
 	}
 
-	// get "du" output
-	installedSize, err := getDuOutput(buildDir)
-	if err != nil {
-		return "", err
-	}
-
-	controlContent := fmt.Sprintf(`Package: %s
-Version: %s
-Architecture: %s
-Maintainer: %s
-Installed-Size: %s
-Description: %s
- %s
-`, m.Name, m.Version, m.Architecture, m.Vendor, installedSize, title, description)
-	if err := ioutil.WriteFile(filepath.Join(debianDir, "control"), []byte(controlContent), 0644); err != nil {
+	if err := writeDebianControl(buildDir, m); err != nil {
 		return "", err
 	}
 
 	// manifest
-	cm := clickManifest{
-		Name:          m.Name,
-		Version:       m.Version,
-		Framework:     m.Framework,
-		Icon:          m.Icon,
-		InstalledSize: installedSize,
-		Title:         title,
-		Description:   description,
-		Hooks:         m.Integration,
-	}
-	manifestContent, err := json.MarshalIndent(cm, "", " ")
-	if err != nil {
-		return "", err
-	}
-	if err := ioutil.WriteFile(filepath.Join(debianDir, "manifest"), []byte(manifestContent), 0644); err != nil {
-		return "", err
-	}
-
-	// preinst
-	if err := ioutil.WriteFile(filepath.Join(debianDir, "preinst"), []byte(staticPreinst), 0755); err != nil {
+	if err := writeClickManifest(buildDir, m); err != nil {
 		return "", err
 	}
 
