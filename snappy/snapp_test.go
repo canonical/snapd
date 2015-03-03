@@ -43,6 +43,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 func (s *SnapTestSuite) TearDownTest(c *C) {
 	// ensure all functions are back to their original state
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
+	InstalledSnapNamesByType = installedSnapNamesByTypeImpl
 }
 
 func (s *SnapTestSuite) makeInstalledMockSnap() (yamlFile string, err error) {
@@ -279,13 +280,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Assert(results[0].Description(), Equals, "Show random XKCD comic")
 }
 
-func mockInstalledSnapNamesByType(mockSnaps []string) (mockRestorer func()) {
-	origFunc := InstalledSnapNamesByType
+func mockInstalledSnapNamesByType(mockSnaps []string) {
 	InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
 		return mockSnaps, nil
-	}
-	return func() {
-		InstalledSnapNamesByType = origFunc
 	}
 }
 
@@ -306,8 +303,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 
 	// override the real InstalledSnapNamesByType to return our
 	// mock data
-	mockRestorer := mockInstalledSnapNamesByType([]string{"hello-world"})
-	defer mockRestorer()
+	mockInstalledSnapNamesByType([]string{"hello-world"})
 
 	// the actual test
 	results, err := snap.Updates()
@@ -325,8 +321,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 	// ensure we do not hit the net if there is nothing installed
 	// (otherwise the store will send us all snaps)
 	snap.bulkURI = "http://i-do.not-exist.really-not"
-	mockRestorer := mockInstalledSnapNamesByType([]string{})
-	defer mockRestorer()
+	mockInstalledSnapNamesByType([]string{})
 
 	// the actual test
 	results, err := snap.Updates()

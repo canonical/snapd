@@ -174,16 +174,20 @@ func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 			}
 		}
 	}
-	return
+
+	return res, nil
 }
 
 // InstalledSnapNamesByType returns all installed snap names with the given type
-var InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
+var InstalledSnapNamesByType = installedSnapNamesByTypeImpl
+
+func installedSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
 	installed, err := InstalledSnapsByType(snapTs...)
 	for _, part := range installed {
 		res = append(res, part.Name())
 	}
-	return
+
+	return res, nil
 }
 
 // ActiveSnapByName returns all active snaps with the given name
@@ -201,6 +205,7 @@ func ActiveSnapByName(needle string) Part {
 			return part
 		}
 	}
+
 	return nil
 }
 
