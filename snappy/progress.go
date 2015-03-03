@@ -14,6 +14,9 @@ type ProgressMeter interface {
 	// set progress to the "current" step
 	Set(current float64)
 
+	// set "total" steps needed
+	SetTotal(total float64)
+
 	// Finish the progress display
 	Finished()
 
@@ -34,17 +37,18 @@ type TextProgress struct {
 
 // NewTextProgress returns a new TextProgress type
 func NewTextProgress(pkg string) *TextProgress {
-	// TODO go back to New64 once we update the pb package.
-	t := TextProgress{pbar: pb.New(0)}
-	t.pbar.ShowSpeed = true
-	t.pkg = pkg
-	return &t
+	return &TextProgress{pkg: pkg}
 }
 
 // Start starts showing progress
 func (t *TextProgress) Start(total float64) {
 	fmt.Println("Starting download of", t.pkg)
+
+	// TODO go to New64 once we update the pb package.
+	t.pbar = pb.New(0)
 	t.pbar.Total = int64(total)
+	t.pbar.ShowSpeed = true
+	t.pbar.SetUnits(pb.U_BYTES)
 	t.pbar.Start()
 }
 
@@ -53,9 +57,16 @@ func (t *TextProgress) Set(current float64) {
 	t.pbar.Set(int(current))
 }
 
+// SetTotal set the total steps needed
+func (t *TextProgress) SetTotal(total float64) {
+	t.pbar.Total = int64(total)
+}
+
 // Finished stops displaying the progress
 func (t *TextProgress) Finished() {
-	t.pbar.FinishPrint("Done")
+	if t.pbar != nil {
+		t.pbar.FinishPrint("Done")
+	}
 }
 
 // Write is there so that progress can implment a Writer and can be
