@@ -587,7 +587,7 @@ func (p *Partition) writablePartition() (result *blockDevice) {
 		}
 	}
 
-	return result
+	return nil
 }
 
 // Return pointer to blockDevice representing boot partition (if any)
@@ -598,7 +598,7 @@ func (p *Partition) bootPartition() (result *blockDevice) {
 		}
 	}
 
-	return result
+	return nil
 }
 
 // Return pointer to blockDevice representing currently mounted root
@@ -610,7 +610,7 @@ func (p *Partition) rootPartition() (result *blockDevice) {
 		}
 	}
 
-	return result
+	return nil
 }
 
 // Return pointer to blockDevice representing the "other" root

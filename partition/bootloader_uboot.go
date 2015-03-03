@@ -112,10 +112,10 @@ func (u *uboot) GetNextBootRootFSName() (label string, err error) {
 	value, err := u.GetBootVar(bootloaderRootfsVar)
 	if err != nil {
 		// should never happen
-		return label, err
+		return "", err
 	}
 
-	return value, err
+	return value, nil
 }
 
 func (u *uboot) GetRootFSName() string {
