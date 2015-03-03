@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	. "launchpad.net/gocheck"
+	"launchpad.net/snappy/helpers"
 )
 
 const fakeUbootEnvData = `
@@ -171,8 +172,8 @@ func (s *PartitionTestSuite) TestHandleAssets(c *C) {
 	}
 
 	// ensure nothing left behind
-	_, err = os.Stat(filepath.Join(defaultCacheDir, "assets"))
-	c.Assert(os.IsNotExist(err), Equals, true)
+	c.Assert(helpers.FileExists(filepath.Join(defaultCacheDir, "assets")), Equals, false)
+	c.Assert(helpers.FileExists(p.hardwareSpecFile), Equals, false)
 }
 
 func (s *PartitionTestSuite) TestHandleAssetsVerifyBootloader(c *C) {

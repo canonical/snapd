@@ -224,6 +224,8 @@ func (u *uboot) HandleAssets() (err error) {
 	if err != nil {
 		return err
 	}
+	// ensure to remove the file once we are done
+	defer os.Remove(u.partition.hardwareSpecFile)
 
 	// validate bootloader
 	if hardware.Bootloader != u.Name() {
