@@ -27,39 +27,43 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 
 func (s *PartitionTestSuite) TearDownTest(c *C) {
 	os.RemoveAll(s.tempdir)
+
+	// always restore what we might have mocked away
+	runCommand = runCommandImpl
+	defaultCacheDir = realDefaultCacheDir
 }
 
-func makeHardwareYaml() (tmp *os.File, err error) {
-	tmp, err = ioutil.TempFile("", "hw-")
-	if err != nil {
-		return tmp, err
-	}
-	tmp.Write([]byte(`
+func makeHardwareYaml(c *C, hardwareYaml string) (outPath string) {
+	tmp, err := ioutil.TempFile(c.MkDir(), "hw-")
+	c.Assert(err, IsNil)
+	defer tmp.Close()
+
+	if hardwareYaml == "" {
+		hardwareYaml = `
 kernel: assets/vmlinuz
 initrd: assets/initrd.img
 dtbs: assets/dtbs
 partition-layout: system-AB
 bootloader: u-boot
-`))
-	return tmp, err
+`
+	}
+	_, err = tmp.Write([]byte(hardwareYaml))
+	c.Assert(err, IsNil)
+
+	return tmp.Name()
 }
 
 func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
 	p := New()
 	c.Assert(p, NotNil)
 
-	tmp, err := makeHardwareYaml()
-	defer func() {
-		os.Remove(tmp.Name())
-	}()
-
-	p.hardwareSpecFile = tmp.Name()
+	p.hardwareSpecFile = makeHardwareYaml(c, "")
 	hw, err := p.hardwareSpec()
 	c.Assert(err, IsNil)
 	c.Assert(hw.Kernel, Equals, "assets/vmlinuz")
 	c.Assert(hw.Initrd, Equals, "assets/initrd.img")
 	c.Assert(hw.DtbDir, Equals, "assets/dtbs")
-	c.Assert(hw.PartitionLayout, Equals, "system-AB")
+	c.Assert(hw.PartitionLayout, Equals, bootloaderSystemAB)
 	c.Assert(hw.Bootloader, Equals, bootloaderNameUboot)
 }
 
@@ -122,10 +126,6 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
 }
 
 func (s *PartitionTestSuite) TestRunWithOtherDualParitionRWFuncErr(c *C) {
-	savedRunCommand := runCommand
-	defer func() {
-		runCommand = savedRunCommand
-	}()
 	runCommand = mockRunCommand
 
 	p := New()
@@ -186,15 +186,10 @@ func mockRunCommand(args ...string) (err error) {
 }
 
 func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
-	// FIXME: there should be a generic
-	//        mockFunc(func) (restorer func())
-	savedRunCommand := runCommand
-	defer func() {
-		runCommand = savedRunCommand
-	}()
 	runCommand = mockRunCommand
 
 	p := New()
+	c.Assert(p, NotNil)
 
 	p.mountOtherRootfs(false)
 	c.Assert(mounts, DeepEquals, []string{p.MountTarget()})
@@ -220,15 +215,10 @@ func (s *PartitionTestSuite) TestStringSliceRemoveNoexistingNoOp(c *C) {
 }
 
 func (s *PartitionTestSuite) TestUndoMounts(c *C) {
-	// FIXME: there should be a generic
-	//        mockFunc(func) (restorer func())
-	savedRunCommand := runCommand
-	defer func() {
-		runCommand = savedRunCommand
-	}()
 	runCommand = mockRunCommand
 
 	p := New()
+	c.Assert(c, NotNil)
 
 	// FIXME: mounts is global
 	c.Assert(mounts, DeepEquals, []string{})

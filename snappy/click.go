@@ -21,6 +21,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"launchpad.net/snappy/helpers"
+
 	"github.com/mvo5/goconfigparser"
 )
 
@@ -87,7 +89,7 @@ func allowUnauthenticatedOkExitCode(exitCode int) bool {
 func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error) {
 	cmd := exec.Command("debsig-verify", clickFile)
 	if err := cmd.Run(); err != nil {
-		if exitCode, err := exitCode(err); err == nil {
+		if exitCode, err := helpers.ExitCode(err); err == nil {
 			if allowUnauthenticated && allowUnauthenticatedOkExitCode(exitCode) {
 				log.Println("Signature check failed, but installing anyway as requested")
 				return nil
@@ -270,7 +272,7 @@ func removeClick(clickDir string) (err error) {
 }
 
 func writeHashesFile(snapFile, instDir string) error {
-	hashsum, err := sha512sum(snapFile)
+	hashsum, err := helpers.Sha512sum(snapFile)
 	if err != nil {
 		return err
 	}
@@ -312,7 +314,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	}
 
 	instDir := filepath.Join(targetDir, manifest.Name, manifest.Version)
-	if err := ensureDir(instDir, 0755); err != nil {
+	if err := helpers.EnsureDir(instDir, 0755); err != nil {
 		log.Printf("WARNING: Can not create %s", instDir)
 	}
 
@@ -364,7 +366,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 			return err
 		}
 	} else {
-		if err := ensureDir(dataDir, 0755); err != nil {
+		if err := helpers.EnsureDir(dataDir, 0755); err != nil {
 			log.Printf("WARNING: Can not create %s", dataDir)
 			return err
 		}

@@ -8,26 +8,34 @@ import (
 	"path"
 	"path/filepath"
 
+	"launchpad.net/snappy/helpers"
+
 	. "launchpad.net/gocheck"
 )
 
 // makeInstalledMockSnap creates a installed mock snap without any
 // content other than the meta data
-func makeInstalledMockSnap(tempdir string) (yamlFile string, err error) {
+func makeInstalledMockSnap(tempdir, packageYamlContent string) (yamlFile string, err error) {
 	const packageHello = `name: hello-app
 version: 1.10
 vendor: Michael Vogt <mvo@ubuntu.com>
 icon: meta/hello.svg
 binaries:
  - name: bin/hello
+services:
+ - name: svc1
 `
+
+	if packageYamlContent == "" {
+		packageYamlContent = packageHello
+	}
 
 	metaDir := filepath.Join(tempdir, "apps", "hello-app", "1.10", "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
 	}
 	yamlFile = filepath.Join(metaDir, "package.yaml")
-	if err := ioutil.WriteFile(yamlFile, []byte(packageHello), 0644); err != nil {
+	if err := ioutil.WriteFile(yamlFile, []byte(packageYamlContent), 0644); err != nil {
 		return "", err
 	}
 
@@ -73,7 +81,7 @@ vendor: Foo Bar <foo@example.com>
 	content = "Random\nExample"
 	ioutil.WriteFile(readmeMd, []byte(content), 0644)
 	// build it
-	err := chDir(tmpdir, func() {
+	err := helpers.ChDir(tmpdir, func() {
 		cmd := exec.Command("snappy", "build", tmpdir)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
