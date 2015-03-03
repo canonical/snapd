@@ -31,4 +31,8 @@ var (
 	// ErrHWAccessAlreadyAdded is returned if you try to add a device
 	// that is already in the hwaccess list
 	ErrHWAccessAlreadyAdded = errors.New("device is already in hw-access list")
+
+	// ErrNotInstalled is returned when the snap is not installed
+	ErrNotInstalled = errors.New("the given snap is not installed")
+
 )

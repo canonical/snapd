@@ -292,6 +292,7 @@ func (s *SITestSuite) TestTestInstalled(c *C) {
 	c.Assert(parts[0].Version(), Equals, "2.71")
 	c.Assert(parts[0].Hash(), Equals, "e09c13f68fccef3b2fe0f5c8ff5c61acf2173b170b1f2a3646487147690b0970ef6f2c555d7bcb072035f29ee4ea66a6df7f6bb320d358d3a7d78a0c37a8a549")
 	c.Assert(parts[0].IsActive(), Equals, true)
+	c.Assert(parts[0].Channel(), Equals, "ubuntu-core/devel-proposed")
 
 	// second partition is not active and has a different version
 	c.Assert(parts[1].IsActive(), Equals, false)
@@ -430,4 +431,13 @@ func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedFailure(c *C) {
 	err = part.verifyUpgradeWasApplied()
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, `found latest installed version "2.71" (expected "3.14")`)
+}
+
+func (s *SITestSuite) TestCanNotUninstalled(c *C) {
+	// whats installed
+	parts, err := s.systemImage.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(len(parts), Equals, 2)
+
+	c.Assert(parts[0].Uninstall(), Equals, ErrPackageNotRemovable)
 }

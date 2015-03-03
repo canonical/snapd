@@ -216,7 +216,7 @@ func (s *SystemImagePart) verifyUpgradeWasApplied() error {
 
 // Uninstall can not be used for "core" snaps
 func (s *SystemImagePart) Uninstall() (err error) {
-	return errors.New("Uninstall of a core snap is not possible")
+	return ErrPackageNotRemovable
 }
 
 // Config is used to to configure the snap

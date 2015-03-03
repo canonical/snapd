@@ -405,12 +405,12 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 
 // SetActive sets the snap active
 func (s *RemoteSnapPart) SetActive() (err error) {
-	return errors.New("A remote part must be installed first")
+	return ErrNotInstalled
 }
 
 // Uninstall remove the snap from the system
 func (s *RemoteSnapPart) Uninstall() (err error) {
-	return errors.New("Uninstall of a remote part is not possible")
+	return ErrNotInstalled
 }
 
 // Config is used to to configure the snap

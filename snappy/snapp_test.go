@@ -278,6 +278,8 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver.mvo")
 	c.Assert(results[0].Version(), Equals, "0.1")
 	c.Assert(results[0].Description(), Equals, "Show random XKCD comic")
+
+	c.Assert(results[0].Channel(), Equals, "edge")
 }
 
 func mockInstalledSnapNamesByType(mockSnaps []string) {
@@ -414,4 +416,11 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
 	st, err := os.Stat(snapPackage)
 	c.Assert(err, IsNil)
 	c.Assert(p.written, Equals, int(st.Size()))
+}
+
+func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
+	snap := RemoteSnapPart{}
+
+	c.Assert(snap.SetActive(), Equals, ErrNotInstalled)
+	c.Assert(snap.Uninstall(), Equals, ErrNotInstalled)
 }
