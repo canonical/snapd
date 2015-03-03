@@ -235,3 +235,28 @@ func (s *PartitionTestSuite) TestUndoMounts(c *C) {
 	p.unmountRequiredFilesystems()
 	c.Assert(mounts, DeepEquals, []string{})
 }
+
+func mockRunLsblkNoSnappy() (output []string, err error) {
+	dualData := `
+NAME="sda" LABEL="" PKNAME="" MOUNTPOINT=""
+NAME="sda1" LABEL="meep" PKNAME="sda" MOUNTPOINT="/"
+NAME="sr0" LABEL="" PKNAME="" MOUNTPOINT=""
+`
+	return strings.Split(dualData, "\n"), err
+}
+
+func (s *PartitionTestSuite) TestSnappyNoSnappyPartitions(c *C) {
+	runLsblk = mockRunLsblkNoSnappy
+
+	p := New()
+	err := p.getPartitionDetails()
+	c.Assert(err, Equals, ErrPartitionDetection)
+
+	c.Assert(p.dualRootPartitions(), Equals, false)
+	c.Assert(p.singleRootPartition(), Equals, false)
+
+	c.Assert(p.rootPartition(), IsNil)
+	c.Assert(p.bootPartition(), IsNil)
+	c.Assert(p.writablePartition(), IsNil)
+	c.Assert(p.otherRootPartition(), IsNil)
+}
