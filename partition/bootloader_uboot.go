@@ -10,8 +10,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"strings"
+
+	"launchpad.net/snappy/helpers"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -49,7 +50,7 @@ type configFileChange struct {
 
 // newUboot create a new Grub bootloader object
 func newUboot(partition *Partition) bootLoader {
-	if !fileExists(bootloaderUbootConfigFile) {
+	if !helpers.FileExists(bootloaderUbootConfigFile) {
 		return nil
 	}
 
@@ -218,37 +219,13 @@ func (u *uboot) SyncBootFiles() (err error) {
 
 func (u *uboot) HandleAssets() (err error) {
 
-	var dirsToRemove map[string]int
-
-	dirsToRemove = make(map[string]int)
-
-	defer func() {
-		var dirs []string
-
-		// convert to slice
-		for dir := range dirsToRemove {
-			dirs = append(dirs, dir)
-		}
-
-		// reverse sort to ensure a depth-first approach
-		sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
-
-		for _, dir := range dirs {
-			if derr := os.RemoveAll(dir); derr != nil {
-				// pass error to parent (if none exists already)
-				if err == nil {
-					err = derr
-				}
-			}
-		}
-	}()
-
+	// check if we have anything
 	hardware, err := u.partition.hardwareSpec()
 	if err != nil {
 		return err
 	}
 
-	// validate
+	// validate bootloader
 	if hardware.Bootloader != u.Name() {
 		return fmt.Errorf(
 			"bootloader is of type %s but hardware spec requires %s",
@@ -256,17 +233,13 @@ func (u *uboot) HandleAssets() (err error) {
 			hardware.Bootloader)
 	}
 
-	// validate
-	switch hardware.PartitionLayout {
-	case "system-AB":
-		if !u.partition.dualRootPartitions() {
-			return fmt.Errorf(
-				"hardware spec requires dual root partitions")
-		}
+	// validate partition layout
+	if u.partition.dualRootPartitions() && hardware.PartitionLayout != bootloaderSystemAB {
+		return fmt.Errorf("hardware spec requires dual root partitions")
 	}
 
+	// ensure we have the destdir
 	destDir := u.otherBootPath
-
 	if err := os.MkdirAll(destDir, dirMode); err != nil {
 		return err
 	}
@@ -281,27 +254,33 @@ func (u *uboot) HandleAssets() (err error) {
 		// expand path
 		path := path.Join(u.partition.cacheDir(), file)
 
-		if !fileExists(path) {
-			continue
+		if !helpers.FileExists(path) {
+			return fmt.Errorf("can not find file %s", path)
 		}
 
-		dir := filepath.Dir(path)
-		dirsToRemove[dir] = 1
+		// ensure we remove the dir later
+		defer os.RemoveAll(filepath.Dir(path))
 
-		if err := runCommand("/bin/cp", file, destDir); err != nil {
+		if err := runCommand("/bin/cp", path, destDir); err != nil {
 			return err
 		}
 	}
 
-	// install .dtb files
-	if fileExists(hardware.DtbDir) {
-		dtbDestDir := path.Join(destDir, "dtbs")
+	// TODO: look at the OEM package for dtb changes too once that is
+	//       fully speced
 
+	// install .dtb files
+	dtbSrcDir := filepath.Join(u.partition.cacheDir(), hardware.DtbDir)
+	if helpers.FileExists(dtbSrcDir) {
+		// ensure we cleanup the source dir
+		defer os.RemoveAll(dtbSrcDir)
+
+		dtbDestDir := path.Join(destDir, "dtbs")
 		if err := os.MkdirAll(dtbDestDir, dirMode); err != nil {
 			return err
 		}
 
-		files, err := filepath.Glob(path.Join(hardware.DtbDir, "*"))
+		files, err := filepath.Glob(path.Join(dtbSrcDir, "*"))
 		if err != nil {
 			return err
 		}
@@ -315,7 +294,7 @@ func (u *uboot) HandleAssets() (err error) {
 
 	flashAssetsDir := u.partition.flashAssetsDir()
 
-	if fileExists(flashAssetsDir) {
+	if helpers.FileExists(flashAssetsDir) {
 		// FIXME: we don't currently do anything with the
 		// MLO + uImage files since they are not specified in
 		// the hardware spec. So for now, just remove them.

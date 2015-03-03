@@ -14,8 +14,27 @@ import (
 	"strings"
 	"time"
 
+	"launchpad.net/snappy/helpers"
+
 	"gopkg.in/yaml.v2"
 )
+
+// Port is used to declare the Port and Negotiable status of such port
+// that is bound to a Service.
+type Port struct {
+	Port       string `yaml:"port"`
+	Negotiable bool   `yaml:"negotiable,omitempty"`
+}
+
+// Service represents a service inside a SnapPart
+type Service struct {
+	Name        string `yaml:"name"`
+	Description string `yaml:"description,omitempty"`
+	Ports       struct {
+		Internal map[string]Port `yaml:"internal,omitempty"`
+		External map[string]Port `yaml:"external,omitempty"`
+	} `yaml:"ports,omitempty"`
+}
 
 // SnapPart represents a generic snap type
 type SnapPart struct {
@@ -26,16 +45,18 @@ type SnapPart struct {
 	isActive    bool
 	isInstalled bool
 	stype       SnapType
+	services    []Service
 
 	basedir string
 }
 
 type packageYaml struct {
-	Name    string
-	Version string
-	Vendor  string
-	Icon    string
-	Type    SnapType
+	Name     string
+	Version  string
+	Vendor   string
+	Icon     string
+	Type     SnapType
+	Services []Service `yaml:"services,omitempty"`
 }
 
 // the meta/hashes file, yaml so that we can extend it later with
@@ -97,6 +118,8 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 	part.name = m.Name
 	part.version = m.Version
 	part.isInstalled = true
+	part.services = m.Services
+
 	// check if the part is active
 	allVersionsDir := filepath.Dir(part.basedir)
 	p, _ := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
@@ -189,6 +212,11 @@ func (s *SnapPart) Date() time.Time {
 	}
 
 	return st.ModTime()
+}
+
+// Services return a list of Service the package declares
+func (s *SnapPart) Services() []Service {
+	return s.services
 }
 
 // Install installs the snap
@@ -449,7 +477,7 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
-	req.Header.Set("X-Ubuntu-Architecture", Architecture())
+	req.Header.Set("X-Ubuntu-Architecture", helpers.Architecture())
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -492,7 +520,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err
 	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
-	req.Header.Set("X-Ubuntu-Architecture", Architecture())
+	req.Header.Set("X-Ubuntu-Architecture", helpers.Architecture())
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -558,4 +586,33 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 // Installed returns the installed snaps from this repository
 func (s *SnapUbuntuStoreRepository) Installed() (parts []Part, err error) {
 	return parts, err
+}
+
+// makeSnapHookEnv returns an environment suitable for passing to
+// os/exec.Cmd.Env
+//
+// The returned environment contains additional SNAP_* variables that
+// are required when calling a meta/hook/ script and that will override
+// any already existing SNAP_* variables in os.Environment()
+func makeSnapHookEnv(part *SnapPart) (env []string) {
+	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
+	snapEnv := map[string]string{
+		"SNAP_NAME":          part.Name(),
+		"SNAP_VERSION":       part.Version(),
+		"SNAP_APP_PATH":      part.basedir,
+		"SNAP_APP_DATA_PATH": snapDataDir,
+	}
+
+	// merge regular env and new snapEnv
+	envMap := helpers.MakeMapFromEnvList(os.Environ())
+	for k, v := range snapEnv {
+		envMap[k] = v
+	}
+
+	// flatten
+	for k, v := range envMap {
+		env = append(env, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	return env
 }

@@ -23,4 +23,16 @@ var (
 	// ErrConfigNotFound is returned if a snap without a config is
 	// getting configured
 	ErrConfigNotFound = errors.New("No config found for this snap")
+
+	// ErrInvalidHWDevice is returned when a invalid hardware device
+	// is given in the hw-assign command
+	ErrInvalidHWDevice = errors.New("invalid hardware device")
+
+	// ErrHWAccessRemoveNotFound is returned if the user tries to
+	// remove a device that does not exist
+	ErrHWAccessRemoveNotFound = errors.New("can not find device in hw-access list")
+
+	// ErrHWAccessAlreadyAdded is returned if you try to add a device
+	// that is already in the hwaccess list
+	ErrHWAccessAlreadyAdded = errors.New("device is already in hw-access list")
 )

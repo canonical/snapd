@@ -7,6 +7,8 @@ package partition
 import (
 	"fmt"
 
+	"launchpad.net/snappy/helpers"
+
 	"github.com/mvo5/goconfigparser"
 )
 
@@ -28,7 +30,7 @@ const bootloaderNameGrub bootloaderName = "grub"
 
 // newGrub create a new Grub bootloader object
 func newGrub(partition *Partition) bootLoader {
-	if !fileExists(bootloaderGrubConfigFile) || !fileExists(bootloaderGrubInstallCmd) {
+	if !helpers.FileExists(bootloaderGrubConfigFile) || !helpers.FileExists(bootloaderGrubInstallCmd) {
 		return nil
 	}
 	b := newBootLoader(partition)

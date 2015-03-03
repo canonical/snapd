@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "launchpad.net/gocheck"
 )
@@ -132,4 +133,75 @@ func (s *PartitionTestSuite) TestGetBootloaderWithUboot(c *C) {
 	bootloader, err := getBootloader(p)
 	c.Assert(err, IsNil)
 	c.Assert(bootloader.Name(), Equals, bootloaderNameUboot)
+}
+
+func makeMockAssetsDir(c *C) {
+	for _, f := range []string{"assets/vmlinuz", "assets/initrd.img", "assets/dtbs/foo.dtb", "assets/dtbs/bar.dtb"} {
+		p := filepath.Join(defaultCacheDir, f)
+		os.MkdirAll(filepath.Dir(p), 0755)
+		err := ioutil.WriteFile(p, []byte(f), 0644)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *PartitionTestSuite) TestHandleAssets(c *C) {
+	s.makeFakeUbootEnv(c)
+	p := New()
+	bootloader, err := getBootloader(p)
+	c.Assert(err, IsNil)
+
+	// mock the hardwareYaml and the cacheDir
+	p.hardwareSpecFile = makeHardwareYaml(c, "")
+	defaultCacheDir = c.MkDir()
+
+	// create mock assets/
+	makeMockAssetsDir(c)
+
+	// run the handle assets code
+	err = bootloader.HandleAssets()
+	c.Assert(err, IsNil)
+
+	// ensure the files are where we expect them
+	otherBootPath := bootloader.(*uboot).otherBootPath
+	for _, f := range []string{"vmlinuz", "initrd.img", "dtbs/foo.dtb", "dtbs/bar.dtb"} {
+		content, err := ioutil.ReadFile(filepath.Join(otherBootPath, f))
+		c.Assert(err, IsNil)
+		// match content
+		c.Assert(strings.HasSuffix(string(content), f), Equals, true)
+	}
+
+	// ensure nothing left behind
+	_, err = os.Stat(filepath.Join(defaultCacheDir, "assets"))
+	c.Assert(os.IsNotExist(err), Equals, true)
+}
+
+func (s *PartitionTestSuite) TestHandleAssetsVerifyBootloader(c *C) {
+	s.makeFakeUbootEnv(c)
+	p := New()
+	bootloader, err := getBootloader(p)
+	c.Assert(err, IsNil)
+
+	// mock the hardwareYaml and the cacheDir
+	p.hardwareSpecFile = makeHardwareYaml(c, "bootloader: grub")
+	defaultCacheDir = c.MkDir()
+
+	err = bootloader.HandleAssets()
+	c.Assert(err, NotNil)
+}
+
+func (s *PartitionTestSuite) TestHandleAssetsFailVerifyPartitionLayout(c *C) {
+	s.makeFakeUbootEnv(c)
+	p := New()
+	bootloader, err := getBootloader(p)
+	c.Assert(err, IsNil)
+
+	// mock the hardwareYaml and the cacheDir
+	p.hardwareSpecFile = makeHardwareYaml(c, `
+bootloader: u-boot
+partition-layout: inplace
+`)
+	defaultCacheDir = c.MkDir()
+
+	err = bootloader.HandleAssets()
+	c.Assert(err, NotNil)
 }

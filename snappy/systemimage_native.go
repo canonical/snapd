@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/mvo5/goconfigparser"
+
+	"launchpad.net/snappy/helpers"
 )
 
 var systemImageServer = "https://system-image.ubuntu.com/"
@@ -165,7 +167,7 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 
 	if err := cmd.Wait(); err != nil {
 		stderrContent := <-stderrCh
-		retCode, _ := exitCode(err)
+		retCode, _ := helpers.ExitCode(err)
 		return fmt.Errorf("%s failed with return code %v: %s", systemImageCli, retCode, string(stderrContent))
 	}
 

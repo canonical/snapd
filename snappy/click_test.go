@@ -8,6 +8,8 @@ import (
 	"path"
 	"path/filepath"
 
+	"launchpad.net/snappy/helpers"
+
 	. "launchpad.net/gocheck"
 )
 
@@ -264,7 +266,7 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	snapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "apps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "apps")
 	homeData := filepath.Join(homeDir, "foo", "1.0")
-	err := ensureDir(homeData, 0755)
+	err := helpers.EnsureDir(homeData, 0755)
 	c.Assert(err, IsNil)
 
 	packageYaml := `name: foo
