@@ -166,33 +166,6 @@ func writeLines(lines []string, path string) (err error) {
 	return writer.Flush()
 }
 
-// Returns name=value entries from the specified file, removing all
-// blank lines and comments.
-func getNameValuePairs(file string) (vars []string, err error) {
-	lines, err := readLines(file)
-	if err != nil {
-		return vars, err
-	}
-
-	for _, line := range lines {
-		// ignore blank lines
-		if line == "" || line == "\n" {
-			continue
-		}
-
-		// ignore comment lines
-		if strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		if strings.Index(line, "=") != -1 {
-			vars = append(vars, line)
-		}
-	}
-
-	return vars, err
-}
-
 func (u *uboot) MarkCurrentBootSuccessful() (err error) {
 	changes := []configFileChange{
 		configFileChange{Name: bootloaderBootmodeVar,
