@@ -30,3 +30,16 @@ icon: meta/hello.svg`)
 	c.Assert(len(parts), Equals, 1)
 	c.Assert(parts[0].Name(), Equals, "framework1")
 }
+
+func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {
+	_, err := makeInstalledMockSnap(s.tempdir)
+	c.Assert(err, IsNil)
+
+	m := NewMetaRepository()
+	c.Assert(m, NotNil)
+
+	parts, err := m.Details("hello-app")
+	c.Assert(err, IsNil)
+	c.Assert(len(parts), Equals, 1)
+	c.Assert(parts[0].Name(), Equals, "hello-app")
+}

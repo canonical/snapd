@@ -251,8 +251,15 @@ func (s *SnapLocalRepository) Search(terms string) (versions []Part, err error) 
 }
 
 // Details returns details for the given snap
-func (s *SnapLocalRepository) Details(terms string) (versions []Part, err error) {
-	return versions, err
+func (s *SnapLocalRepository) Details(name string) (versions []Part, err error) {
+	globExpr := filepath.Join(s.path, name, "*", "meta", "package.yaml")
+	parts, err := s.partsForGlobExpr(globExpr)
+
+	if len(parts) == 0 {
+		return nil, ErrPackageNotFound
+	}
+
+	return parts, nil
 }
 
 // Updates returns the available updates
@@ -263,6 +270,10 @@ func (s *SnapLocalRepository) Updates() (parts []Part, err error) {
 // Installed returns the installed snaps from this repository
 func (s *SnapLocalRepository) Installed() (parts []Part, err error) {
 	globExpr := filepath.Join(s.path, "*", "*", "meta", "package.yaml")
+	return s.partsForGlobExpr(globExpr)
+}
+
+func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, err error) {
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
 		return nil, err
@@ -464,7 +475,7 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 	// check statusCode
 	switch {
 	case resp.StatusCode == 404:
-		return parts, ErrRemoteSnapNotFound
+		return nil, ErrPackageNotFound
 	case resp.StatusCode != 200:
 		return parts, fmt.Errorf("SnapUbuntuStoreRepository: unexpected http statusCode %v for %s", resp.StatusCode, snapName)
 	}

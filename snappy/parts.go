@@ -147,7 +147,10 @@ func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
 func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	for _, r := range m.all {
 		results, err := r.Details(snapyName)
-		if err != nil {
+		switch {
+		case err == ErrPackageNotFound:
+			continue
+		case err != nil:
 			return parts, err
 		}
 		parts = append(parts, results...)

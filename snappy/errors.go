@@ -12,10 +12,6 @@ var (
 	// the caller is not root
 	ErrNeedRoot = errors.New("This command requires root access. Please re-run using 'sudo'.")
 
-	// ErrRemoteSnapNotFound indicates that no snap with that name was
-	// found in a remote repository
-	ErrRemoteSnapNotFound = errors.New("Remote Snap not found")
-
 	// ErrPackageNotRemovable is returned when trying to remove a package
 	// that cannot be removed.
 	ErrPackageNotRemovable = errors.New("snappy package cannot be removed")
