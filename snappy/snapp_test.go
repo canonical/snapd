@@ -46,7 +46,7 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 }
 
 func (s *SnapTestSuite) makeInstalledMockSnap() (yamlFile string, err error) {
-	return makeInstalledMockSnap(s.tempdir)
+	return makeInstalledMockSnap(s.tempdir, "")
 }
 
 func makeSnapActive(packageYamlPath string) (err error) {
@@ -71,6 +71,10 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Assert(snap.Name(), Equals, "hello-app")
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
+
+	services := snap.Services()
+	c.Assert(services, HasLen, 1)
+	c.Assert(services[0].Name, Equals, "svc1")
 
 	// ensure we get valid Date()
 	st, err := os.Stat(snap.basedir)
@@ -379,7 +383,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 }
 
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
-	yamlFile, err := makeInstalledMockSnap(s.tempdir)
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
 	snap := NewInstalledSnapPart(yamlFile)
 	c.Assert(snap, NotNil)
@@ -396,4 +400,63 @@ func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	// SNAP_* is overriden
 	c.Assert(envMap["SNAP_NAME"], Equals, "hello-app")
 	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
+}
+
+func (s *SnapTestSuite) TestServicesWithPorts(c *C) {
+	const packageHello = `name: hello-app
+version: 1.10
+vendor: Michael Vogt <mvo@ubuntu.com>
+icon: meta/hello.svg
+binaries:
+ - name: bin/hello
+services:
+ - name: svc1
+   description: "Service #1"
+   ports:
+      external:
+        ui:
+          port: 8080/tcp
+        nothing:
+          port: 8081/tcp
+          negotiable: yes
+ - name: svc2
+   description: "Service #2"
+`
+
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, packageHello)
+	c.Assert(err, IsNil)
+
+	snap := NewInstalledSnapPart(yamlFile)
+	c.Assert(snap, NotNil)
+
+	c.Assert(snap.Name(), Equals, "hello-app")
+	c.Assert(snap.Version(), Equals, "1.10")
+	c.Assert(snap.IsActive(), Equals, false)
+
+	services := snap.Services()
+	c.Assert(services, HasLen, 2)
+
+	c.Assert(services[0].Name, Equals, "svc1")
+	c.Assert(services[0].Description, Equals, "Service #1")
+
+	external1Ui, ok := services[0].Ports.External["ui"]
+	c.Assert(ok, Equals, true)
+	c.Assert(external1Ui.Port, Equals, "8080/tcp")
+	c.Assert(external1Ui.Negotiable, Equals, false)
+
+	external1Nothing, ok := services[0].Ports.External["nothing"]
+	c.Assert(ok, Equals, true)
+	c.Assert(external1Nothing.Port, Equals, "8081/tcp")
+	c.Assert(external1Nothing.Negotiable, Equals, true)
+
+	c.Assert(services[1].Name, Equals, "svc2")
+	c.Assert(services[1].Description, Equals, "Service #2")
+
+	// ensure we get valid Date()
+	st, err := os.Stat(snap.basedir)
+	c.Assert(err, IsNil)
+	c.Assert(snap.Date(), Equals, st.ModTime())
+
+	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", "hello-app", "1.10"))
+	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
