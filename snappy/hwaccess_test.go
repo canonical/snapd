@@ -112,6 +112,11 @@ func (s *SnapTestSuite) TestListHWAccess(c *C) {
 	c.Assert(writePaths, DeepEquals, []string{"/dev/ttyUSB0", "/sys/devices/gpio1"})
 }
 
+func (s *SnapTestSuite) TestRemoveHWAccessInvalidDevice(c *C) {
+	err := RemoveHWAccess("hello-app", "meep")
+	c.Assert(err, Equals, ErrInvalidHWDevice)
+}
+
 func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
 	aaClickHookCmd = "true"
 
