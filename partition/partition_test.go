@@ -268,6 +268,7 @@ type mockBootloader struct {
 	ToggleRootFSCalled              bool
 	HandleAssetsCalled              bool
 	MarkCurrentBootSuccessfulCalled bool
+	SyncBootFilesCalled             bool
 }
 
 func (b *mockBootloader) Name() bootloaderName {
@@ -278,6 +279,7 @@ func (b *mockBootloader) ToggleRootFS() error {
 	return nil
 }
 func (b *mockBootloader) SyncBootFiles() error {
+	b.SyncBootFilesCalled = true
 	return nil
 }
 func (b *mockBootloader) HandleAssets() error {
@@ -333,4 +335,19 @@ func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
 	err := p.MarkBootSuccessful()
 	c.Assert(err, IsNil)
 	c.Assert(b.MarkCurrentBootSuccessfulCalled, Equals, true)
+}
+
+func (s *PartitionTestSuite) TestSyncBootFiles(c *C) {
+	runCommand = mockRunCommand
+	b := &mockBootloader{}
+	getBootloader = func(p *Partition) (bootLoader, error) {
+		return b, nil
+	}
+
+	p := New()
+	c.Assert(c, NotNil)
+
+	err := p.SyncBootloaderFiles()
+	c.Assert(err, IsNil)
+	c.Assert(b.SyncBootFilesCalled, Equals, true)
 }
