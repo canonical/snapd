@@ -126,6 +126,7 @@ func (s *SnapPart) Type() SnapType {
 	if s.stype != "" {
 		return s.stype
 	}
+
 	// if not declared its a app
 	return "app"
 }

@@ -10,8 +10,47 @@ import (
 
 	"launchpad.net/snappy/helpers"
 
+	"gopkg.in/yaml.v2"
 	. "launchpad.net/gocheck"
 )
+
+func makeInstalledMockSnapFromPackageYaml(tempdir, yamlContent string) (yamlFile string, err error) {
+
+	var m packageYaml
+	if err := yaml.Unmarshal([]byte(yamlContent), &m); err != nil {
+		return "", err
+	}
+
+	metaDir := filepath.Join(tempdir, "apps", m.Name, m.Version, "meta")
+	if err := os.MkdirAll(metaDir, 0775); err != nil {
+		return "", err
+	}
+	yamlFile = filepath.Join(metaDir, "package.yaml")
+	if err := ioutil.WriteFile(yamlFile, []byte(yamlContent), 0644); err != nil {
+		return "", err
+	}
+
+	return yamlFile, nil
+}
+
+func addDefaultApparmorJSON(tempdir, apparmorJSONPath string) error {
+	appArmorDir := filepath.Join(tempdir, "var", "lib", "apparmor", "clicks")
+	if err := os.MkdirAll(appArmorDir, 0775); err != nil {
+		return err
+	}
+
+	const securityJSON = `{
+  "policy_vendor": "ubuntu-snappy"
+  "policy_version": 1.3
+}`
+
+	apparmorFile := filepath.Join(appArmorDir, apparmorJSONPath)
+	if err := ioutil.WriteFile(apparmorFile, []byte(securityJSON), 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 // makeInstalledMockSnap creates a installed mock snap without any
 // content other than the meta data
@@ -20,29 +59,19 @@ func makeInstalledMockSnap(tempdir string) (yamlFile string, err error) {
 version: 1.10
 vendor: Michael Vogt <mvo@ubuntu.com>
 icon: meta/hello.svg
-binaries:
+version: 1.10
+vendor: Michael Vogt <mvo@ubuntu.com>
+icon: meta/hello.svg
+obinaries:
  - name: bin/hello
 `
 
-	metaDir := filepath.Join(tempdir, "apps", "hello-app", "1.10", "meta")
-	if err := os.MkdirAll(metaDir, 0775); err != nil {
-		return "", err
-	}
-	yamlFile = filepath.Join(metaDir, "package.yaml")
-	if err := ioutil.WriteFile(yamlFile, []byte(packageHello), 0644); err != nil {
+	yamlFile, err = makeInstalledMockSnapFromPackageYaml(tempdir, packageHello)
+	if err != nil {
 		return "", err
 	}
 
-	const securityJSON = `{
-  "policy_vendor": "ubuntu-snappy"
-  "policy_version": 1.3
-}`
-	appArmorDir := filepath.Join(tempdir, "var", "lib", "apparmor", "clicks")
-	if err := os.MkdirAll(appArmorDir, 0775); err != nil {
-		return "", err
-	}
-	apparmorFile := filepath.Join(appArmorDir, "hello-app_hello_1.10.json")
-	if err := ioutil.WriteFile(apparmorFile, []byte(securityJSON), 0644); err != nil {
+	if err := addDefaultApparmorJSON(tempdir, "hello-app_hello_1.10.json"); err != nil {
 		return "", err
 	}
 
