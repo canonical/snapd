@@ -216,6 +216,7 @@ func (s *PartitionTestSuite) TestStringSliceRemoveNoexistingNoOp(c *C) {
 
 func (s *PartitionTestSuite) TestUndoMounts(c *C) {
 	runCommand = mockRunCommand
+	s.makeFakeGrubEnv(c)
 
 	p := New()
 	c.Assert(c, NotNil)
@@ -228,6 +229,8 @@ func (s *PartitionTestSuite) TestUndoMounts(c *C) {
 		p.MountTarget() + "/proc",
 		p.MountTarget() + "/sys",
 		p.MountTarget() + "/boot/efi",
+		// this comes from the grub bootloader via AdditionalBindMounts
+		p.MountTarget() + "/boot/grub",
 	})
 	p.unmountRequiredFilesystems()
 	c.Assert(mounts, DeepEquals, []string{})
