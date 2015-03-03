@@ -501,18 +501,18 @@ func makePartFromSystemImageConfigFile(partition partition.Interface, proxy *sys
 	cfg := goconfigparser.New()
 	f, err := os.Open(channelIniPath)
 	if err != nil {
-		return part, err
+		return nil, err
 	}
 	defer f.Close()
 	err = cfg.Read(f)
 	if err != nil {
 		log.Printf("Can not parse config '%s': %s", channelIniPath, err)
-		return part, err
+		return nil, err
 	}
 	st, err := os.Stat(channelIniPath)
 	if err != nil {
 		log.Printf("Can stat '%s': %s", channelIniPath, err)
-		return part, err
+		return nil, err
 	}
 
 	currentBuildNumber, err := cfg.Get("service", "build_number")
