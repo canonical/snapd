@@ -144,3 +144,28 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(err, IsNil)
 	c.Assert(len(installed), Equals, 2)
 }
+
+type MockProgressMeter struct {
+	total    float64
+	progress []float64
+	finished bool
+	spin     bool
+	written  int
+}
+
+func (m *MockProgressMeter) Start(total float64) {
+	m.total = total
+}
+func (m *MockProgressMeter) Set(current float64) {
+	m.progress = append(m.progress, current)
+}
+func (m *MockProgressMeter) Spin(msg string) {
+	m.spin = true
+}
+func (m *MockProgressMeter) Write(buf []byte) (n int, err error) {
+	m.written += len(buf)
+	return len(buf), err
+}
+func (m *MockProgressMeter) Finished() {
+	m.finished = true
+}

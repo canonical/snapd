@@ -392,3 +392,26 @@ func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	c.Assert(envMap["SNAP_NAME"], Equals, "hello-app")
 	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
 }
+
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
+	snapPackage := makeTestSnapPackage(c, "")
+	snapR, err := os.Open(snapPackage)
+	c.Assert(err, IsNil)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(w, snapR)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := RemoteSnapPart{}
+	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
+
+	p := &MockProgressMeter{}
+	err = snap.Install(p)
+	c.Assert(err, IsNil)
+	st, err := os.Stat(snapPackage)
+	c.Assert(err, IsNil)
+	c.Assert(p.written, Equals, int(st.Size()))
+}
