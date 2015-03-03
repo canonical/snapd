@@ -415,9 +415,9 @@ services:
    ports:
       external:
         ui:
-          port: 8080/http
+          port: 8080/tcp
         nothing:
-          port: 8081/http
+          port: 8081/tcp
           negotiable: yes
  - name: svc2
    description: "Service #2"
@@ -441,12 +441,12 @@ services:
 
 	external1Ui, ok := services[0].Ports.External["ui"]
 	c.Assert(ok, Equals, true)
-	c.Assert(external1Ui.Port, Equals, "8080/http")
+	c.Assert(external1Ui.Port, Equals, "8080/tcp")
 	c.Assert(external1Ui.Negotiable, Equals, false)
 
 	external1Nothing, ok := services[0].Ports.External["nothing"]
 	c.Assert(ok, Equals, true)
-	c.Assert(external1Nothing.Port, Equals, "8081/http")
+	c.Assert(external1Nothing.Port, Equals, "8081/tcp")
 	c.Assert(external1Nothing.Negotiable, Equals, true)
 
 	c.Assert(services[1].Name, Equals, "svc2")
