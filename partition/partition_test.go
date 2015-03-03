@@ -2,6 +2,7 @@ package partition
 
 import (
 	"errors"
+
 	"io/ioutil"
 	"os"
 	"strings"
@@ -20,6 +21,10 @@ type PartitionTestSuite struct {
 
 var _ = Suite(&PartitionTestSuite{})
 
+func mockRunCommand(args ...string) (err error) {
+	return err
+}
+
 func (s *PartitionTestSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 	runLsblk = mockRunLsblkDualSnappy
@@ -31,6 +36,7 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	// always restore what we might have mocked away
 	runCommand = runCommandImpl
 	defaultCacheDir = realDefaultCacheDir
+	getBootloader = getBootloaderImpl
 }
 
 func makeHardwareYaml(c *C, hardwareYaml string) (outPath string) {
@@ -181,10 +187,6 @@ func (s *PartitionTestSuite) TestSnappySingleRoot(c *C) {
 	c.Assert(&rootPartitions[0], DeepEquals, root)
 }
 
-func mockRunCommand(args ...string) (err error) {
-	return err
-}
-
 func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
 	runCommand = mockRunCommand
 
@@ -259,4 +261,76 @@ func (s *PartitionTestSuite) TestSnappyNoSnappyPartitions(c *C) {
 	c.Assert(p.bootPartition(), IsNil)
 	c.Assert(p.writablePartition(), IsNil)
 	c.Assert(p.otherRootPartition(), IsNil)
+}
+
+// mock bootloader for the tests
+type mockBootloader struct {
+	ToggleRootFSCalled              bool
+	HandleAssetsCalled              bool
+	MarkCurrentBootSuccessfulCalled bool
+}
+
+func (b *mockBootloader) Name() bootloaderName {
+	return "mocky"
+}
+func (b *mockBootloader) ToggleRootFS() error {
+	b.ToggleRootFSCalled = true
+	return nil
+}
+func (b *mockBootloader) SyncBootFiles() error {
+	return nil
+}
+func (b *mockBootloader) HandleAssets() error {
+	b.HandleAssetsCalled = true
+	return nil
+}
+func (b *mockBootloader) GetBootVar(name string) (string, error) {
+	return "", nil
+}
+func (b *mockBootloader) GetRootFSName() string {
+	return ""
+}
+func (b *mockBootloader) GetOtherRootFSName() string {
+	return ""
+}
+func (b *mockBootloader) GetNextBootRootFSName() (string, error) {
+	return "", nil
+}
+func (b *mockBootloader) MarkCurrentBootSuccessful() error {
+	b.MarkCurrentBootSuccessfulCalled = true
+	return nil
+}
+func (b *mockBootloader) AdditionalBindMounts() []string {
+	return nil
+}
+
+func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
+	runCommand = mockRunCommand
+	b := &mockBootloader{}
+	getBootloader = func(p *Partition) (bootLoader, error) {
+		return b, nil
+	}
+
+	p := New()
+	c.Assert(c, NotNil)
+
+	err := p.toggleBootloaderRootfs()
+	c.Assert(err, IsNil)
+	c.Assert(b.ToggleRootFSCalled, Equals, true)
+	c.Assert(b.HandleAssetsCalled, Equals, true)
+}
+
+func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
+	runCommand = mockRunCommand
+	b := &mockBootloader{}
+	getBootloader = func(p *Partition) (bootLoader, error) {
+		return b, nil
+	}
+
+	p := New()
+	c.Assert(c, NotNil)
+
+	err := p.MarkBootSuccessful()
+	c.Assert(err, IsNil)
+	c.Assert(b.MarkCurrentBootSuccessfulCalled, Equals, true)
 }
