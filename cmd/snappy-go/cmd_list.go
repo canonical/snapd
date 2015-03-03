@@ -89,7 +89,6 @@ func showVerboseList(installed []snappy.Part, o io.Writer) {
 		if part.IsActive() {
 			active = "*"
 		}
-		// FIXME: not speced how do indicate that a part needs a reboot
 		if part.NeedsReboot() {
 			active = "!"
 		}
