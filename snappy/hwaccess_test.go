@@ -99,7 +99,7 @@ func (s *SnapTestSuite) TestListHWAccessNoAdditionalAccess(c *C) {
 
 	writePaths, err := ListHWAccess("hello-app")
 	c.Assert(err, IsNil)
-	c.Assert(len(writePaths), Equals, 0)
+	c.Assert(writePaths, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestListHWAccess(c *C) {
@@ -110,6 +110,11 @@ func (s *SnapTestSuite) TestListHWAccess(c *C) {
 	writePaths, err := ListHWAccess("hello-app")
 	c.Assert(err, IsNil)
 	c.Assert(writePaths, DeepEquals, []string{"/dev/ttyUSB0", "/sys/devices/gpio1"})
+}
+
+func (s *SnapTestSuite) TestRemoveHWAccessInvalidDevice(c *C) {
+	err := RemoveHWAccess("hello-app", "meep")
+	c.Assert(err, Equals, ErrInvalidHWDevice)
 }
 
 func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {

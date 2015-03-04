@@ -147,6 +147,7 @@ func (s *SnapPart) Type() SnapType {
 	if s.stype != "" {
 		return s.stype
 	}
+
 	// if not declared its a app
 	return "app"
 }
@@ -276,28 +277,39 @@ func (s *SnapLocalRepository) Search(terms string) (versions []Part, err error) 
 }
 
 // Details returns details for the given snap
-func (s *SnapLocalRepository) Details(terms string) (versions []Part, err error) {
-	return versions, err
+func (s *SnapLocalRepository) Details(name string) (versions []Part, err error) {
+	globExpr := filepath.Join(s.path, name, "*", "meta", "package.yaml")
+	parts, err := s.partsForGlobExpr(globExpr)
+
+	if len(parts) == 0 {
+		return nil, ErrPackageNotFound
+	}
+
+	return parts, nil
 }
 
 // Updates returns the available updates
 func (s *SnapLocalRepository) Updates() (parts []Part, err error) {
-	return parts, err
+	return nil, err
 }
 
 // Installed returns the installed snaps from this repository
 func (s *SnapLocalRepository) Installed() (parts []Part, err error) {
 	globExpr := filepath.Join(s.path, "*", "*", "meta", "package.yaml")
+	return s.partsForGlobExpr(globExpr)
+}
+
+func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, err error) {
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
-		return parts, err
+		return nil, err
 	}
 	for _, yamlfile := range matches {
 
 		// skip "current" and similar symlinks
 		realpath, err := filepath.EvalSymlinks(yamlfile)
 		if err != nil {
-			return parts, err
+			return nil, err
 		}
 		if realpath != yamlfile {
 			continue
@@ -309,7 +321,7 @@ func (s *SnapLocalRepository) Installed() (parts []Part, err error) {
 		}
 	}
 
-	return parts, err
+	return parts, nil
 }
 
 // RemoteSnapPart represents a snap available on the server
@@ -419,12 +431,12 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 
 // SetActive sets the snap active
 func (s *RemoteSnapPart) SetActive() (err error) {
-	return errors.New("A remote part must be installed first")
+	return ErrNotInstalled
 }
 
 // Uninstall remove the snap from the system
 func (s *RemoteSnapPart) Uninstall() (err error) {
-	return errors.New("Uninstall of a remote part is not possible")
+	return ErrNotInstalled
 }
 
 // Config is used to to configure the snap
@@ -469,7 +481,7 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 	url := fmt.Sprintf(s.detailsURI, snapName)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return parts, err
+		return nil, err
 	}
 
 	// set headers
@@ -482,14 +494,14 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return parts, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	// check statusCode
 	switch {
 	case resp.StatusCode == 404:
-		return parts, ErrRemoteSnapNotFound
+		return nil, ErrPackageNotFound
 	case resp.StatusCode != 200:
 		return parts, fmt.Errorf("SnapUbuntuStoreRepository: unexpected http statusCode %v for %s", resp.StatusCode, snapName)
 	}
@@ -504,7 +516,7 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 	snap := NewRemoteSnapPart(detailsData)
 	parts = append(parts, snap)
 
-	return parts, err
+	return parts, nil
 }
 
 // Search searches the repository for the given searchTerm
@@ -512,7 +524,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err
 	url := fmt.Sprintf(s.searchURI, searchTerm)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return parts, err
+		return nil, err
 	}
 
 	// set headers
@@ -525,7 +537,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return parts, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
@@ -541,7 +553,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err
 		parts = append(parts, snap)
 	}
 
-	return parts, err
+	return parts, nil
 }
 
 // Updates returns the available updates
@@ -550,11 +562,11 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// sense in sending it our ubuntu-core snap
 	installed, err := InstalledSnapNamesByType(SnapTypeApp, SnapTypeFramework)
 	if err != nil || len(installed) == 0 {
-		return parts, err
+		return nil, err
 	}
 	jsonData, err := json.Marshal(map[string][]string{"name": installed})
 	if err != nil {
-		return parts, err
+		return nil, err
 	}
 
 	req, err := http.NewRequest("POST", s.bulkURI, bytes.NewBuffer([]byte(jsonData)))
@@ -585,7 +597,7 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 
 // Installed returns the installed snaps from this repository
 func (s *SnapUbuntuStoreRepository) Installed() (parts []Part, err error) {
-	return parts, err
+	return nil, err
 }
 
 // makeSnapHookEnv returns an environment suitable for passing to

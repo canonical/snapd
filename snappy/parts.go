@@ -147,7 +147,10 @@ func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
 func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	for _, r := range m.all {
 		results, err := r.Details(snapyName)
-		if err != nil {
+		switch {
+		case err == ErrPackageNotFound:
+			continue
+		case err != nil:
 			return parts, err
 		}
 		parts = append(parts, results...)
@@ -174,16 +177,20 @@ func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 			}
 		}
 	}
-	return
+
+	return res, nil
 }
 
 // InstalledSnapNamesByType returns all installed snap names with the given type
-var InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
+var InstalledSnapNamesByType = installedSnapNamesByTypeImpl
+
+func installedSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
 	installed, err := InstalledSnapsByType(snapTs...)
 	for _, part := range installed {
 		res = append(res, part.Name())
 	}
-	return
+
+	return res, nil
 }
 
 // ActiveSnapByName returns all active snaps with the given name
@@ -201,6 +208,7 @@ func ActiveSnapByName(needle string) Part {
 			return part
 		}
 	}
+
 	return nil
 }
 

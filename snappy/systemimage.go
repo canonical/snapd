@@ -199,7 +199,7 @@ func (s *SystemImagePart) verifyUpgradeWasApplied() error {
 
 // Uninstall can not be used for "core" snaps
 func (s *SystemImagePart) Uninstall() (err error) {
-	return errors.New("Uninstall of a core snap is not possible")
+	return ErrPackageNotRemovable
 }
 
 // Config is used to to configure the snap
@@ -248,18 +248,18 @@ func makePartFromSystemImageConfigFile(p partition.Interface, channelIniPath str
 	cfg := goconfigparser.New()
 	f, err := os.Open(channelIniPath)
 	if err != nil {
-		return part, err
+		return nil, err
 	}
 	defer f.Close()
 	err = cfg.Read(f)
 	if err != nil {
 		log.Printf("Can not parse config '%s': %s", channelIniPath, err)
-		return part, err
+		return nil, err
 	}
 	st, err := os.Stat(channelIniPath)
 	if err != nil {
 		log.Printf("Can stat '%s': %s", channelIniPath, err)
-		return part, err
+		return nil, err
 	}
 
 	currentBuildNumber, err := cfg.Get("service", "build_number")

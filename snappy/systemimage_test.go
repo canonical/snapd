@@ -93,11 +93,12 @@ func (s *SITestSuite) TestTestInstalled(c *C) {
 	parts, err := s.systemImage.Installed()
 	c.Assert(err, IsNil)
 	// we have one active and one inactive
-	c.Assert(len(parts), Equals, 2)
+	c.Assert(parts, HasLen, 2)
 	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
 	c.Assert(parts[0].Version(), Equals, "1")
 	c.Assert(parts[0].Hash(), Equals, "e09c13f68fccef3b2fe0f5c8ff5c61acf2173b170b1f2a3646487147690b0970ef6f2c555d7bcb072035f29ee4ea66a6df7f6bb320d358d3a7d78a0c37a8a549")
 	c.Assert(parts[0].IsActive(), Equals, true)
+	c.Assert(parts[0].Channel(), Equals, "ubuntu-core/devel-proposed")
 
 	// second partition is not active and has a different version
 	c.Assert(parts[1].IsActive(), Equals, false)
@@ -108,7 +109,7 @@ func (s *SITestSuite) TestUpdateNoUpdate(c *C) {
 	mockSystemImageIndexJSON = fmt.Sprintf(mockSystemImageIndexJSONTemplate, "1")
 	parts, err := s.systemImage.Updates()
 	c.Assert(err, IsNil)
-	c.Assert(len(parts), Equals, 0)
+	c.Assert(parts, HasLen, 0)
 }
 
 func (s *SITestSuite) TestUpdateHasUpdate(c *C) {
@@ -116,7 +117,7 @@ func (s *SITestSuite) TestUpdateHasUpdate(c *C) {
 	mockSystemImageIndexJSON = fmt.Sprintf(mockSystemImageIndexJSONTemplate, "2")
 	parts, err := s.systemImage.Updates()
 	c.Assert(err, IsNil)
-	c.Assert(len(parts), Equals, 1)
+	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
 	c.Assert(parts[0].Version(), Equals, "2")
 	c.Assert(parts[0].DownloadSize(), Equals, int64(123166488))
@@ -147,34 +148,6 @@ func (p *MockPartition) IsNextBootOther() bool {
 
 func (p *MockPartition) RunWithOther(option partition.MountOption, f func(otherRoot string) (err error)) (err error) {
 	return f("/other")
-}
-
-type MockProgressMeter struct {
-	total    float64
-	progress []float64
-	finished bool
-	spin     bool
-	spinMsg  string
-}
-
-func (m *MockProgressMeter) Start(total float64) {
-	m.total = total
-}
-func (m *MockProgressMeter) Set(current float64) {
-	m.progress = append(m.progress, current)
-}
-func (m *MockProgressMeter) SetTotal(total float64) {
-	m.total = total
-}
-func (m *MockProgressMeter) Spin(msg string) {
-	m.spin = true
-	m.spinMsg = msg
-}
-func (m *MockProgressMeter) Write(buf []byte) (n int, err error) {
-	return len(buf), err
-}
-func (m *MockProgressMeter) Finished() {
-	m.finished = true
 }
 
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
@@ -309,4 +282,13 @@ func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedFailure(c *C) {
 	err = part.verifyUpgradeWasApplied()
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, `found latest installed version "1" (expected "2")`)
+}
+
+func (s *SITestSuite) TestCannotUninstall(c *C) {
+	// whats installed
+	parts, err := s.systemImage.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(parts, HasLen, 2)
+
+	c.Assert(parts[0].Uninstall(), Equals, ErrPackageNotRemovable)
 }

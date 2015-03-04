@@ -29,8 +29,9 @@ func (ts *HTestSuite) TestUnpack(c *C) {
 	// ok, slightly silly
 	path := "/etc/fstab"
 
-	// create test data
-	cmd := exec.Command("tar", "cvzf", tmpfile, path)
+	// create test dir and also test file
+	someDir := c.MkDir()
+	cmd := exec.Command("tar", "cvzf", tmpfile, path, someDir)
 	output, err := cmd.CombinedOutput()
 	c.Assert(err, IsNil)
 	if !strings.Contains(string(output), "/etc/fstab") {
@@ -42,8 +43,18 @@ func (ts *HTestSuite) TestUnpack(c *C) {
 	err = unpackTar(tmpfile, unpackdir)
 	c.Assert(err, IsNil)
 
+	// we have the expected file
 	_, err = os.Open(filepath.Join(tmpdir, "t/etc/fstab"))
 	c.Assert(err, IsNil)
+
+	// and the expected dir is there and has the right mode
+	unpackedSomeDir := filepath.Join(tmpdir, "t", someDir)
+	c.Assert(IsDirectory(unpackedSomeDir), Equals, true)
+	st1, err := os.Stat(unpackedSomeDir)
+	c.Assert(err, IsNil)
+	st2, err := os.Stat(someDir)
+	c.Assert(err, IsNil)
+	c.Assert(st1.Mode(), Equals, st2.Mode())
 }
 
 func (ts *HTestSuite) TestGetMapFromValidYaml(c *C) {
