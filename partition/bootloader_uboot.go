@@ -191,12 +191,16 @@ func (u *uboot) SyncBootFiles() (err error) {
 }
 
 func (u *uboot) HandleAssets() (err error) {
-
-	// check if we have anything
+	// check if we have anything, if there is no hardware yaml, there is nothing
+	// to process.
 	hardware, err := u.partition.hardwareSpec()
-	if err != nil {
+	if err == ErrNoHardwareYaml {
+		return nil
+	} else if err != nil {
 		return err
 	}
+	// ensure to remove the file once we are done
+	defer os.Remove(u.partition.hardwareSpecFile)
 
 	// validate bootloader
 	if hardware.Bootloader != u.Name() {

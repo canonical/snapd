@@ -14,10 +14,24 @@ import (
 	. "launchpad.net/gocheck"
 )
 
-func makeInstalledMockSnapFromPackageYaml(tempdir, yamlContent string) (yamlFile string, err error) {
+// makeInstalledMockSnap creates a installed mock snap without any
+// content other than the meta data
+func makeInstalledMockSnap(tempdir, packageYamlContent string) (yamlFile string, err error) {
+	const packageHello = `name: hello-app
+version: 1.10
+vendor: Michael Vogt <mvo@ubuntu.com>
+icon: meta/hello.svg
+binaries:
+ - name: bin/hello
+services:
+ - name: svc1
+`
+	if packageYamlContent == "" {
+		packageYamlContent = packageHello
+	}
 
 	var m packageYaml
-	if err := yaml.Unmarshal([]byte(yamlContent), &m); err != nil {
+	if err := yaml.Unmarshal([]byte(packageYamlContent), &m); err != nil {
 		return "", err
 	}
 
@@ -26,7 +40,11 @@ func makeInstalledMockSnapFromPackageYaml(tempdir, yamlContent string) (yamlFile
 		return "", err
 	}
 	yamlFile = filepath.Join(metaDir, "package.yaml")
-	if err := ioutil.WriteFile(yamlFile, []byte(yamlContent), 0644); err != nil {
+	if err := ioutil.WriteFile(yamlFile, []byte(packageYamlContent), 0644); err != nil {
+		return "", err
+	}
+
+	if err := addDefaultApparmorJSON(tempdir, "hello-app_hello_1.10.json"); err != nil {
 		return "", err
 	}
 
@@ -50,32 +68,6 @@ func addDefaultApparmorJSON(tempdir, apparmorJSONPath string) error {
 	}
 
 	return nil
-}
-
-// makeInstalledMockSnap creates a installed mock snap without any
-// content other than the meta data
-func makeInstalledMockSnap(tempdir string) (yamlFile string, err error) {
-	const packageHello = `name: hello-app
-version: 1.10
-vendor: Michael Vogt <mvo@ubuntu.com>
-icon: meta/hello.svg
-version: 1.10
-vendor: Michael Vogt <mvo@ubuntu.com>
-icon: meta/hello.svg
-obinaries:
- - name: bin/hello
-`
-
-	yamlFile, err = makeInstalledMockSnapFromPackageYaml(tempdir, packageHello)
-	if err != nil {
-		return "", err
-	}
-
-	if err := addDefaultApparmorJSON(tempdir, "hello-app_hello_1.10.json"); err != nil {
-		return "", err
-	}
-
-	return yamlFile, nil
 }
 
 // makeTestSnapPackage creates a real snap package that can be installed on
@@ -150,6 +142,7 @@ type MockProgressMeter struct {
 	progress []float64
 	finished bool
 	spin     bool
+	spinMsg  string
 	written  int
 }
 
@@ -159,8 +152,12 @@ func (m *MockProgressMeter) Start(total float64) {
 func (m *MockProgressMeter) Set(current float64) {
 	m.progress = append(m.progress, current)
 }
+func (m *MockProgressMeter) SetTotal(total float64) {
+	m.total = total
+}
 func (m *MockProgressMeter) Spin(msg string) {
 	m.spin = true
+	m.spinMsg = msg
 }
 func (m *MockProgressMeter) Write(buf []byte) (n int, err error) {
 	m.written += len(buf)

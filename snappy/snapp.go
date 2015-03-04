@@ -19,6 +19,23 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// Port is used to declare the Port and Negotiable status of such port
+// that is bound to a Service.
+type Port struct {
+	Port       string `yaml:"port"`
+	Negotiable bool   `yaml:"negotiable,omitempty"`
+}
+
+// Service represents a service inside a SnapPart
+type Service struct {
+	Name        string `yaml:"name"`
+	Description string `yaml:"description,omitempty"`
+	Ports       struct {
+		Internal map[string]Port `yaml:"internal,omitempty"`
+		External map[string]Port `yaml:"external,omitempty"`
+	} `yaml:"ports,omitempty"`
+}
+
 // SnapPart represents a generic snap type
 type SnapPart struct {
 	name        string
@@ -28,16 +45,18 @@ type SnapPart struct {
 	isActive    bool
 	isInstalled bool
 	stype       SnapType
+	services    []Service
 
 	basedir string
 }
 
 type packageYaml struct {
-	Name    string
-	Version string
-	Vendor  string
-	Icon    string
-	Type    SnapType
+	Name     string
+	Version  string
+	Vendor   string
+	Icon     string
+	Type     SnapType
+	Services []Service `yaml:"services,omitempty"`
 }
 
 // the meta/hashes file, yaml so that we can extend it later with
@@ -99,6 +118,8 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 	part.name = m.Name
 	part.version = m.Version
 	part.isInstalled = true
+	part.services = m.Services
+
 	// check if the part is active
 	allVersionsDir := filepath.Dir(part.basedir)
 	p, _ := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
@@ -192,6 +213,11 @@ func (s *SnapPart) Date() time.Time {
 	}
 
 	return st.ModTime()
+}
+
+// Services return a list of Service the package declares
+func (s *SnapPart) Services() []Service {
+	return s.services
 }
 
 // Install installs the snap

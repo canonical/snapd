@@ -5,14 +5,14 @@ import (
 )
 
 func (s *SnapTestSuite) TestInstalledSnapByType(c *C) {
-	yamlPath, err := makeInstalledMockSnapFromPackageYaml(s.tempdir, `name: app1
+	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app1
 version: 1.10
 vendor: Michael Vogt <mvo@ubuntu.com>
 icon: meta/hello.svg`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	yamlPath, err = makeInstalledMockSnapFromPackageYaml(s.tempdir, `name: framework1
+	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: framework1
 version: 1.0
 type: framework
 vendor: Michael Vogt <mvo@ubuntu.com>
@@ -32,7 +32,7 @@ icon: meta/hello.svg`)
 }
 
 func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir)
+	_, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
 
 	m := NewMetaRepository()
@@ -54,7 +54,7 @@ func (s *SnapTestSuite) FindSnapsByNameNotAvailable(c *C) {
 }
 
 func (s *SnapTestSuite) FindSnapsByNameFound(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir)
+	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository(snapAppsDir)
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
