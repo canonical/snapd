@@ -118,6 +118,10 @@ func parseSIProgress(pb ProgressMeter, stdout io.Reader) error {
 		dec := json.NewDecoder(jsonStream)
 		var genericData genericJSON
 		if err := dec.Decode(&genericData); err != nil {
+			// we ignore invalid json here and continue
+			// the parsing if s-i-cli or ubuntu-core-upgrader
+			// output something unexpected (like stray debug
+			// output or whatnot)
 			continue
 		}
 
