@@ -99,19 +99,64 @@ type genericJSON struct {
 	Total   float64 `json:"total, omitempty"`
 }
 
-func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) {
-	cmd := exec.Command(systemImageCli, "--machine-readable", "-C", configFile)
+func parseSIProgress(pb ProgressMeter, stdout io.Reader) error {
+	if pb == nil {
+		pb = &NullProgress{}
+	}
 
-	// collect progress over stdout
-	var stdout io.Reader
-	if pb != nil {
-		stdout, err = cmd.StdoutPipe()
-		if err != nil {
-			return err
+	scanner := bufio.NewScanner(stdout)
+	// s-i is funny, total changes during the runs
+	total := 0.0
+	pb.Start(100)
+
+	for scanner.Scan() {
+		if os.Getenv("SNAPPY_DEBUG") != "" {
+			fmt.Println(scanner.Text())
+		}
+
+		jsonStream := strings.NewReader(scanner.Text())
+		dec := json.NewDecoder(jsonStream)
+		var genericData genericJSON
+		if err := dec.Decode(&genericData); err != nil {
+			// we ignore invalid json here and continue
+			// the parsing if s-i-cli or ubuntu-core-upgrader
+			// output something unexpected (like stray debug
+			// output or whatnot)
+			continue
+		}
+
+		switch {
+		case genericData.Type == "spinner":
+			pb.Spin(genericData.Message)
+		case genericData.Type == "error":
+			return fmt.Errorf("error from %s: %s", systemImageCli, genericData.Message)
+		case genericData.Type == "progress":
+			if total != genericData.Total {
+				total = genericData.Total
+				pb.SetTotal(total)
+			}
+			pb.Set(genericData.Now)
 		}
 	}
 
-	// collect error message (traceback etc)
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) {
+	cmd := exec.Command(systemImageCli, "--machine-readable", "-C", configFile)
+
+	// collect progress over stdout pipe if we want progress
+	var stdout io.Reader
+	stdout, err = cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	// collect error message (traceback etc in a separate goroutine)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return err
@@ -127,46 +172,15 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 		return err
 	}
 
-	// and parse progress
-	if pb != nil {
-		scanner := bufio.NewScanner(stdout)
-		// s-i is funny, total changes during the runs
-		total := 0.0
-		pb.Start(100)
-
-		for scanner.Scan() {
-			if os.Getenv("SNAPPY_DEBUG") != "" {
-				fmt.Println(scanner.Text())
-			}
-
-			jsonStream := strings.NewReader(scanner.Text())
-			dec := json.NewDecoder(jsonStream)
-			var genericData genericJSON
-			if err := dec.Decode(&genericData); err != nil {
-				continue
-			}
-
-			switch {
-			case genericData.Type == "spinner":
-				pb.Spin(genericData.Message)
-			case genericData.Type == "error":
-				return fmt.Errorf("error from %s: %s", systemImageCli, genericData.Message)
-			case genericData.Type == "progress":
-				if total != genericData.Total {
-					total = genericData.Total
-					pb.SetTotal(total)
-				}
-				pb.Set(genericData.Now)
-			}
-		}
-
-		if err := scanner.Err(); err != nil {
-			return err
-		}
+	// and parse progress synchronously
+	if err := parseSIProgress(pb, stdout); err != nil {
+		return err
 	}
 
+	// we need to read all of stderr *before* calling cmd.Wait() to avoid
+	// a race, see docs for "os/exec:func (*Cmd) StdoutPipe"
+	stderrContent := <-stderrCh
 	if err := cmd.Wait(); err != nil {
-		stderrContent := <-stderrCh
 		retCode, _ := helpers.ExitCode(err)
 		return fmt.Errorf("%s failed with return code %v: %s", systemImageCli, retCode, string(stderrContent))
 	}

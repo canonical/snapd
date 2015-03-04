@@ -27,6 +27,35 @@ type ProgressMeter interface {
 	Write(p []byte) (n int, err error)
 }
 
+// NullProgress is a ProgressMeter that does nothing
+type NullProgress struct {
+}
+
+// Start does nothing
+func (t *NullProgress) Start(total float64) {
+}
+
+// Set does nothing
+func (t *NullProgress) Set(current float64) {
+}
+
+// SetTotal does nothing
+func (t *NullProgress) SetTotal(total float64) {
+}
+
+// Finished does nothing
+func (t *NullProgress) Finished() {
+}
+
+// Write does nothing
+func (t *NullProgress) Write(p []byte) (n int, err error) {
+	return n, nil
+}
+
+// Spin does nothing
+func (t *NullProgress) Spin(msg string) {
+}
+
 // TextProgress show progress on the terminal
 type TextProgress struct {
 	ProgressMeter
