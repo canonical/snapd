@@ -62,6 +62,7 @@ func (x *cmdLogin) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("Login successful")
 
 	return snappy.WriteStoreToken(*token)
 }
