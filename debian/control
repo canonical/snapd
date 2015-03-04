@@ -3,12 +3,10 @@ Section: devel
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: bash-completion,
-               dbus,
                debhelper (>= 9),
                dh-golang,
                dh-systemd,
                golang-go,
-               golang-go-dbus-dev,
                golang-go-flags-dev,
                golang-gocheck-dev,
                golang-goconfigparser-dev,
@@ -25,7 +23,6 @@ Architecture: any
 Depends: apparmor-easyprof-ubuntu-snappy,
          debsig-verify,
          snappy-systemd,
-         system-image-dbus (>= 2.5-0ubuntu1+ppa15),
          ${misc:Depends},
          ${shlibs:Depends},
 Built-Using: ${misc:Built-Using}

@@ -2,5 +2,4 @@ github.com/cheggaaa/pb	git	e8c7cc515bfde3e267957a3b110080ceed51354e	2014-12-02T0
 github.com/jessevdk/go-flags	git	15347ef417a300349807983f15af9e65cd2e1b3a	2015-01-25T08:53:51Z
 github.com/mvo5/goconfigparser	git	26426272dda20cc76aa1fa44286dc743d2972fe8	2015-02-12T09:37:50Z
 gopkg.in/yaml.v2	git	49c95bdc21843256fb6c4e0d370a05f24a0bf213	2015-02-24T22:57:58Z
-launchpad.net/go-dbus/v1	bzr	jlenton@gmail.com-20150203130125-kqqbam1jsp3tmlk5	136
 launchpad.net/gocheck	bzr	gustavo@niemeyer.net-20140225173054-xu9zlkf9kxhvow02	87
