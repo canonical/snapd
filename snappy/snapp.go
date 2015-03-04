@@ -38,7 +38,7 @@ type packageYaml struct {
 	Vendor       string
 	Icon         string
 	Type         SnapType
-	Architecture string `yaml:"architecture"`
+	Architecture string
 	Framework    string
 
 	Binaries [](map[string]string)

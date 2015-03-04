@@ -13,9 +13,6 @@ import (
 	"launchpad.net/snappy/helpers"
 )
 
-// the du(1) command, useful to override for testing
-var duCmd = "du"
-
 const staticPreinst = `#! /bin/sh
 echo "Snap packages may not be installed directly using dpkg."
 echo "Use 'snappy install' instead."
@@ -141,12 +138,16 @@ func handleConfigHookApparmor(buildDir string, m *packageYaml) error {
 	return nil
 }
 
-func getDuOutput(buildDir string) (string, error) {
-	cmd := exec.Command(duCmd, "-k", "-s", "--apparent-size", buildDir)
+// the du(1) command, useful to override for testing
+var duCmd = "du"
+
+func getDirSize(buildDir string) (string, error) {
+	cmd := exec.Command(duCmd, "-s", "--apparent-size", buildDir)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
 	}
+
 	return strings.Fields(string(output))[0], nil
 }
 
@@ -156,8 +157,8 @@ func writeDebianControl(buildDir string, m *packageYaml) error {
 		return err
 	}
 
-	// get "du" output
-	installedSize, err := getDuOutput(buildDir)
+	// get "du" output, a deb needs the size in 1k blocks
+	installedSize, err := getDirSize(buildDir)
 	if err != nil {
 		return err
 	}
@@ -169,6 +170,8 @@ func writeDebianControl(buildDir string, m *packageYaml) error {
 	}
 
 	// debian control
+
+	// FIXME: use template package
 	controlContent := fmt.Sprintf(`Package: %s
 Version: %s
 Architecture: %s
@@ -181,17 +184,13 @@ Description: %s
 		return err
 	}
 
-	// preinst
-	if err := ioutil.WriteFile(filepath.Join(debianDir, "preinst"), []byte(staticPreinst), 0755); err != nil {
-		return err
-	}
-
-	return nil
+	// write static preinst
+	return ioutil.WriteFile(filepath.Join(debianDir, "preinst"), []byte(staticPreinst), 0755)
 }
 
 func writeClickManifest(buildDir string, m *packageYaml) error {
 	// get "du" output
-	installedSize, err := getDuOutput(buildDir)
+	installedSize, err := getDirSize(buildDir)
 	if err != nil {
 		return err
 	}
@@ -228,11 +227,8 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 	// FIXME: too simplistic, we need a ignore pattern for stuff
 	//        like "*~" etc
 	os.Remove(buildDir)
-	if err := exec.Command("cp", "-a", sourceDir, buildDir).Run(); err != nil {
-		return err
-	}
 
-	return nil
+	return exec.Command("cp", "-a", sourceDir, buildDir).Run()
 }
 
 // Build the given sourceDirectory and return the generated snap file
