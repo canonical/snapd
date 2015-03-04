@@ -2,6 +2,7 @@ package partition
 
 import (
 	"errors"
+
 	"io/ioutil"
 	"os"
 	"strings"
@@ -20,6 +21,10 @@ type PartitionTestSuite struct {
 
 var _ = Suite(&PartitionTestSuite{})
 
+func mockRunCommand(args ...string) (err error) {
+	return err
+}
+
 func (s *PartitionTestSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 	runLsblk = mockRunLsblkDualSnappy
@@ -31,6 +36,7 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	// always restore what we might have mocked away
 	runCommand = runCommandImpl
 	defaultCacheDir = realDefaultCacheDir
+	getBootloader = getBootloaderImpl
 }
 
 func makeHardwareYaml(c *C, hardwareYaml string) (outPath string) {
@@ -181,10 +187,6 @@ func (s *PartitionTestSuite) TestSnappySingleRoot(c *C) {
 	c.Assert(&rootPartitions[0], DeepEquals, root)
 }
 
-func mockRunCommand(args ...string) (err error) {
-	return err
-}
-
 func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
 	runCommand = mockRunCommand
 
@@ -216,6 +218,7 @@ func (s *PartitionTestSuite) TestStringSliceRemoveNoexistingNoOp(c *C) {
 
 func (s *PartitionTestSuite) TestUndoMounts(c *C) {
 	runCommand = mockRunCommand
+	s.makeFakeGrubEnv(c)
 
 	p := New()
 	c.Assert(c, NotNil)
@@ -228,7 +231,123 @@ func (s *PartitionTestSuite) TestUndoMounts(c *C) {
 		p.MountTarget() + "/proc",
 		p.MountTarget() + "/sys",
 		p.MountTarget() + "/boot/efi",
+		// this comes from the grub bootloader via AdditionalBindMounts
+		p.MountTarget() + "/boot/grub",
 	})
 	p.unmountRequiredFilesystems()
 	c.Assert(mounts, DeepEquals, []string{})
+}
+
+func mockRunLsblkNoSnappy() (output []string, err error) {
+	dualData := `
+NAME="sda" LABEL="" PKNAME="" MOUNTPOINT=""
+NAME="sda1" LABEL="meep" PKNAME="sda" MOUNTPOINT="/"
+NAME="sr0" LABEL="" PKNAME="" MOUNTPOINT=""
+`
+	return strings.Split(dualData, "\n"), err
+}
+
+func (s *PartitionTestSuite) TestSnappyNoSnappyPartitions(c *C) {
+	runLsblk = mockRunLsblkNoSnappy
+
+	p := New()
+	err := p.getPartitionDetails()
+	c.Assert(err, Equals, ErrPartitionDetection)
+
+	c.Assert(p.dualRootPartitions(), Equals, false)
+	c.Assert(p.singleRootPartition(), Equals, false)
+
+	c.Assert(p.rootPartition(), IsNil)
+	c.Assert(p.bootPartition(), IsNil)
+	c.Assert(p.writablePartition(), IsNil)
+	c.Assert(p.otherRootPartition(), IsNil)
+}
+
+// mock bootloader for the tests
+type mockBootloader struct {
+	ToggleRootFSCalled              bool
+	HandleAssetsCalled              bool
+	MarkCurrentBootSuccessfulCalled bool
+	SyncBootFilesCalled             bool
+}
+
+func (b *mockBootloader) Name() bootloaderName {
+	return "mocky"
+}
+func (b *mockBootloader) ToggleRootFS() error {
+	b.ToggleRootFSCalled = true
+	return nil
+}
+func (b *mockBootloader) SyncBootFiles() error {
+	b.SyncBootFilesCalled = true
+	return nil
+}
+func (b *mockBootloader) HandleAssets() error {
+	b.HandleAssetsCalled = true
+	return nil
+}
+func (b *mockBootloader) GetBootVar(name string) (string, error) {
+	return "", nil
+}
+func (b *mockBootloader) GetRootFSName() string {
+	return ""
+}
+func (b *mockBootloader) GetOtherRootFSName() string {
+	return ""
+}
+func (b *mockBootloader) GetNextBootRootFSName() (string, error) {
+	return "", nil
+}
+func (b *mockBootloader) MarkCurrentBootSuccessful() error {
+	b.MarkCurrentBootSuccessfulCalled = true
+	return nil
+}
+func (b *mockBootloader) AdditionalBindMounts() []string {
+	return nil
+}
+
+func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
+	runCommand = mockRunCommand
+	b := &mockBootloader{}
+	getBootloader = func(p *Partition) (bootLoader, error) {
+		return b, nil
+	}
+
+	p := New()
+	c.Assert(c, NotNil)
+
+	err := p.toggleBootloaderRootfs()
+	c.Assert(err, IsNil)
+	c.Assert(b.ToggleRootFSCalled, Equals, true)
+	c.Assert(b.HandleAssetsCalled, Equals, true)
+}
+
+func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
+	runCommand = mockRunCommand
+	b := &mockBootloader{}
+	getBootloader = func(p *Partition) (bootLoader, error) {
+		return b, nil
+	}
+
+	p := New()
+	c.Assert(c, NotNil)
+
+	err := p.MarkBootSuccessful()
+	c.Assert(err, IsNil)
+	c.Assert(b.MarkCurrentBootSuccessfulCalled, Equals, true)
+}
+
+func (s *PartitionTestSuite) TestSyncBootFiles(c *C) {
+	runCommand = mockRunCommand
+	b := &mockBootloader{}
+	getBootloader = func(p *Partition) (bootLoader, error) {
+		return b, nil
+	}
+
+	p := New()
+	c.Assert(c, NotNil)
+
+	err := p.SyncBootloaderFiles()
+	c.Assert(err, IsNil)
+	c.Assert(b.SyncBootFilesCalled, Equals, true)
 }

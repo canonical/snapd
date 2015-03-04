@@ -83,7 +83,7 @@ Pattern: /var/lib/systemd/click/${id}`)
 	clickSystemHooksDir = mockHooksDir
 	hooks, err := systemClickHooks()
 	c.Assert(err, IsNil)
-	c.Assert(len(hooks), Equals, 1)
+	c.Assert(hooks, HasLen, 1)
 	c.Assert(hooks["systemd"].name, Equals, "systemd")
 }
 
@@ -245,7 +245,7 @@ vendor: Foo Bar <foo@example.com>
 	repo := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
 	parts, err := repo.Installed()
 	c.Assert(err, IsNil)
-	c.Assert(len(parts), Equals, 2)
+	c.Assert(parts, HasLen, 2)
 	c.Assert(parts[0].Version(), Equals, "1.0")
 	c.Assert(parts[0].IsActive(), Equals, false)
 	c.Assert(parts[1].Version(), Equals, "2.0")

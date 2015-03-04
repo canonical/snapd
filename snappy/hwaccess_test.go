@@ -17,7 +17,7 @@ func mockRegenerateAppArmorRules() *bool {
 }
 
 func (s *SnapTestSuite) TestAddHWAccessSimple(c *C) {
-	makeInstalledMockSnap(s.tempdir)
+	makeInstalledMockSnap(s.tempdir, "")
 	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
 
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
@@ -36,7 +36,7 @@ func (s *SnapTestSuite) TestAddHWAccessSimple(c *C) {
 
 func (s *SnapTestSuite) TestAddHWAccessInvalidDevice(c *C) {
 	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
-	makeInstalledMockSnap(s.tempdir)
+	makeInstalledMockSnap(s.tempdir, "")
 
 	err := AddHWAccess("hello-app", "ttyUSB0")
 	c.Assert(err, Equals, ErrInvalidHWDevice)
@@ -45,7 +45,7 @@ func (s *SnapTestSuite) TestAddHWAccessInvalidDevice(c *C) {
 
 func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
 	aaClickHookCmd = "true"
-	makeInstalledMockSnap(s.tempdir)
+	makeInstalledMockSnap(s.tempdir, "")
 
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
@@ -66,7 +66,7 @@ func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
 
 func (s *SnapTestSuite) TestAddHWAccessAddSameDeviceTwice(c *C) {
 	aaClickHookCmd = "true"
-	makeInstalledMockSnap(s.tempdir)
+	makeInstalledMockSnap(s.tempdir, "")
 
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
@@ -88,22 +88,22 @@ func (s *SnapTestSuite) TestAddHWAccessUnknownPackage(c *C) {
 
 func (s *SnapTestSuite) TestAddHWAccessHookFails(c *C) {
 	aaClickHookCmd = "false"
-	makeInstalledMockSnap(s.tempdir)
+	makeInstalledMockSnap(s.tempdir, "")
 
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 	c.Assert(err.Error(), Equals, "exit status 1")
 }
 
 func (s *SnapTestSuite) TestListHWAccessNoAdditionalAccess(c *C) {
-	makeInstalledMockSnap(s.tempdir)
+	makeInstalledMockSnap(s.tempdir, "")
 
 	writePaths, err := ListHWAccess("hello-app")
 	c.Assert(err, IsNil)
-	c.Assert(len(writePaths), Equals, 0)
+	c.Assert(writePaths, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestListHWAccess(c *C) {
-	makeInstalledMockSnap(s.tempdir)
+	makeInstalledMockSnap(s.tempdir, "")
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 	err = AddHWAccess("hello-app", "/sys/devices/gpio1")
 
@@ -112,10 +112,15 @@ func (s *SnapTestSuite) TestListHWAccess(c *C) {
 	c.Assert(writePaths, DeepEquals, []string{"/dev/ttyUSB0", "/sys/devices/gpio1"})
 }
 
+func (s *SnapTestSuite) TestRemoveHWAccessInvalidDevice(c *C) {
+	err := RemoveHWAccess("hello-app", "meep")
+	c.Assert(err, Equals, ErrInvalidHWDevice)
+}
+
 func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
 	aaClickHookCmd = "true"
 
-	makeInstalledMockSnap(s.tempdir)
+	makeInstalledMockSnap(s.tempdir, "")
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 
 	writePaths, err := ListHWAccess("hello-app")
@@ -134,7 +139,7 @@ func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
 
 func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
 	aaClickHookCmd = "true"
-	makeInstalledMockSnap(s.tempdir)
+	makeInstalledMockSnap(s.tempdir, "")
 
 	// setup
 	err := AddHWAccess("hello-app", "/dev/bar")
@@ -153,7 +158,7 @@ func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
 }
 
 func (s *SnapTestSuite) TestRemoveHWAccessFail(c *C) {
-	makeInstalledMockSnap(s.tempdir)
+	makeInstalledMockSnap(s.tempdir, "")
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
 
