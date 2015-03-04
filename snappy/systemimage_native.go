@@ -165,8 +165,10 @@ func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) 
 		}
 	}
 
+	// we need to read all of stderr *before* calling cmd.Wait() to avoid
+	// a race, see docs for "os/exec:func (*Cmd) StdoutPipe"
+	stderrContent := <-stderrCh
 	if err := cmd.Wait(); err != nil {
-		stderrContent := <-stderrCh
 		retCode, _ := helpers.ExitCode(err)
 		return fmt.Errorf("%s failed with return code %v: %s", systemImageCli, retCode, string(stderrContent))
 	}
