@@ -222,6 +222,18 @@ func (ts *HTestSuite) TestAtomicWriteFile(c *C) {
 	c.Assert(len(d), Equals, 1)
 }
 
+func (ts *HTestSuite) TestAtomicWriteFilePermissions(c *C) {
+	tmpdir := c.MkDir()
+
+	p := filepath.Join(tmpdir, "foo")
+	err := AtomicWriteFile(p, []byte(""), 0600)
+	c.Assert(err, IsNil)
+
+	st, err := os.Stat(p)
+	c.Assert(err, IsNil)
+	c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0600))
+}
+
 func (ts *HTestSuite) TestCurrentHomeDirHOMEenv(c *C) {
 	tmpdir := c.MkDir()
 

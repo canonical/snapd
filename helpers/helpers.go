@@ -204,7 +204,7 @@ func MakeRandomString(length int) string {
 func AtomicWriteFile(filename string, data []byte, perm os.FileMode) error {
 	tmp := filename + ".new"
 
-	if err := ioutil.WriteFile(tmp, data, 0640); err != nil {
+	if err := ioutil.WriteFile(tmp, data, perm); err != nil {
 		os.Remove(tmp)
 		return err
 	}
