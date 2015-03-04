@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 
 	"code.google.com/p/go.crypto/ssh/terminal"
 
@@ -39,11 +41,15 @@ func (x *cmdLogin) Execute(args []string) (err error) {
 
 	otp := ""
 	token, err := snappy.RequestStoreToken(username, string(password), tokenName, otp)
-	// we need 2fa
+	// check if we need 2fa
 	if err == snappy.ErrAuthenticationNeeds2fa {
 		fmt.Print("2fa code: ")
-		otp, _ := terminal.ReadPassword(0)
-		fmt.Print("\n")
+		reader := bufio.NewReader(os.Stdin)
+		// the browser shows it as well (and Sergio wants to see it ;)
+		otp, _, err := reader.ReadLine()
+		if err != nil {
+			return err
+		}
 		token, err = snappy.RequestStoreToken(username, string(password), tokenName, string(otp))
 	}
 
