@@ -206,3 +206,28 @@ partition-layout: inplace
 	err = bootloader.HandleAssets()
 	c.Assert(err, NotNil)
 }
+
+func (s *PartitionTestSuite) TestHandleAssetsNoHardwareYaml(c *C) {
+	s.makeFakeUbootEnv(c)
+	p := New()
+	bootloader, err := getBootloader(p)
+	c.Assert(err, IsNil)
+
+	defaultCacheDir = c.MkDir()
+
+	c.Assert(bootloader.HandleAssets(), IsNil)
+}
+
+func (s *PartitionTestSuite) TestHandleAssetsBadHardwareYaml(c *C) {
+	s.makeFakeUbootEnv(c)
+	p := New()
+	bootloader, err := getBootloader(p)
+	c.Assert(err, IsNil)
+
+	p.hardwareSpecFile = makeHardwareYaml(c, `
+bootloader u-boot
+`)
+	defaultCacheDir = c.MkDir()
+
+	c.Assert(bootloader.HandleAssets(), NotNil)
+}
