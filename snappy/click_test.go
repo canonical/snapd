@@ -309,6 +309,7 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, "foo", "1.0", "canary.txt")
 	err := ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
+	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
@@ -341,6 +342,7 @@ integration:
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, "bar", "1.0", "canary.txt")
 	err := ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
+	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
@@ -382,6 +384,7 @@ integration:
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, "bar", "1.0", "canary.txt")
 	err := ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
+	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
 	err = installClick(snapFile, AllowUnauthenticated)
@@ -394,6 +397,6 @@ integration:
 	c.Assert(strings.Contains(string(content), "version: 1.0"), Equals, true)
 
 	// no leftovers from the failed install
-	_, err = os.Stat(filepath.Join(snapAppsDir, "bar", "2.0", "meta", "package.yaml"))
+	_, err = os.Stat(filepath.Join(snapAppsDir, "bar", "2.0"))
 	c.Assert(err, NotNil)
 }

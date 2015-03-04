@@ -364,7 +364,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	//
 	// if there was a previous version, stop it
 	// from being active so that it stops running and can no longer be
-	// started thencopy the data
+	// started then copy the data
 	//
 	// otherwise just create a empty data dir
 	if currentActiveDir != "" {
@@ -373,9 +373,12 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 			return err
 		}
 
+		// we need to stop making it active
+		if err := unsetActiveClick(currentActiveDir); err != nil {
+			return err
+		}
 		// at this point we must stop/disable the snap so that we
 		// can safely copy the data
-		os.Remove(filepath.Join(instDir, "..", "current"))
 		if err := removeClickHooks(oldManifest); err != nil {
 			// restore the pervious version
 			setActiveClick(currentActiveDir)
@@ -442,6 +445,10 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 		}
 	}
 	return nil
+}
+
+func unsetActiveClick(currentActiveDir string) error {
+	return os.Remove(filepath.Join(currentActiveDir, "..", "current"))
 }
 
 func setActiveClick(baseDir string) (err error) {
