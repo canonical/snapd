@@ -89,16 +89,18 @@ func RequestStoreToken(username, password, tokenName, otp string) (*StoreToken, 
 	return &token, nil
 }
 
+// FIXME: maybe use a name in /var/lib/users/$user/snappy instead?
+//        as sabdfl prefers $HOME to be for user created data?
 func storeTokenFilename() string {
 	homeDir, _ := helpers.CurrentHomeDir()
-	return filepath.Join(homeDir, ".config", "snappy", "sso.json")
+	return filepath.Join(homeDir, "apps", "snappy", "auth", "sso.json")
 }
 
 // WriteStoreToken takes the token and stores it on the filesystem for
 // later reading via ReadStoreToken()
 func WriteStoreToken(token StoreToken) error {
 	targetFile := storeTokenFilename()
-	if err := helpers.EnsureDir(filepath.Dir(targetFile), 0700); err != nil {
+	if err := helpers.EnsureDir(filepath.Dir(targetFile), 0750); err != nil {
 		return err
 	}
 	outStr, err := json.MarshalIndent(token, "", " ")

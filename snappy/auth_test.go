@@ -49,7 +49,7 @@ func (s *SnapTestSuite) TestWriteStoreToken(c *C) {
 	err := WriteStoreToken(mockStoreToken)
 
 	c.Assert(err, IsNil)
-	outFile := filepath.Join(s.tempdir, ".config", "snappy", "sso.json")
+	outFile := filepath.Join(s.tempdir, "apps", "snappy", "auth", "sso.json")
 	c.Assert(helpers.FileExists(outFile), Equals, true)
 	content, err := ioutil.ReadFile(outFile)
 	c.Assert(err, IsNil)
