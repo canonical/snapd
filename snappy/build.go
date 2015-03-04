@@ -142,7 +142,7 @@ func handleConfigHookApparmor(buildDir string, m *packageYaml) error {
 // the du(1) command, useful to override for testing
 var duCmd = "du"
 
-func getDirSize(buildDir string) (string, error) {
+func dirSize(buildDir string) (string, error) {
 	cmd := exec.Command(duCmd, "-s", "--apparent-size", buildDir)
 	output, err := cmd.Output()
 	if err != nil {
@@ -159,7 +159,7 @@ func writeDebianControl(buildDir string, m *packageYaml) error {
 	}
 
 	// get "du" output, a deb needs the size in 1k blocks
-	installedSize, err := getDirSize(buildDir)
+	installedSize, err := dirSize(buildDir)
 	if err != nil {
 		return err
 	}
@@ -202,8 +202,7 @@ Description: {{.Title}}
 }
 
 func writeClickManifest(buildDir string, m *packageYaml) error {
-	// get "du" output
-	installedSize, err := getDirSize(buildDir)
+	installedSize, err := dirSize(buildDir)
 	if err != nil {
 		return err
 	}
