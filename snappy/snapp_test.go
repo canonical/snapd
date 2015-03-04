@@ -126,7 +126,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 
 	installed, err := snap.Installed()
 	c.Assert(err, IsNil)
-	c.Assert(len(installed), Equals, 1)
+	c.Assert(installed, HasLen, 1)
 	c.Assert(installed[0].Name(), Equals, "hello-app")
 	c.Assert(installed[0].Version(), Equals, "1.10")
 }
@@ -281,7 +281,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 
 	results, err := snap.Search("xkcd")
 	c.Assert(err, IsNil)
-	c.Assert(len(results), Equals, 1)
+	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver.mvo")
 	c.Assert(results[0].Version(), Equals, "0.1")
 	c.Assert(results[0].Description(), Equals, "Show random XKCD comic")
@@ -317,7 +317,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	// the actual test
 	results, err := snap.Updates()
 	c.Assert(err, IsNil)
-	c.Assert(len(results), Equals, 1)
+	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, "hello-world")
 	c.Assert(results[0].Version(), Equals, "1.0.5")
 }
@@ -335,7 +335,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 	// the actual test
 	results, err := snap.Updates()
 	c.Assert(err, IsNil)
-	c.Assert(len(results), Equals, 0)
+	c.Assert(results, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
@@ -354,7 +354,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	// the actual test
 	results, err := snap.Details("xkcd-webserver")
 	c.Assert(err, IsNil)
-	c.Assert(len(results), Equals, 1)
+	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver")
 	c.Assert(results[0].Version(), Equals, "0.3.1")
 	c.Assert(results[0].Hash(), Equals, "3a9152b8bff494c036f40e2ca03d1dfaa4ddcfe651eae1c9419980596f48fa95b2f2a91589305af7d55dc08e9489b8392585bbe2286118550b288368e5d9a620")
@@ -378,7 +378,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 
 	// the actual test
 	results, err := snap.Details("no-such-pkg")
-	c.Assert(len(results), Equals, 0)
+	c.Assert(results, HasLen, 0)
 	c.Assert(err, NotNil)
 }
 

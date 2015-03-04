@@ -22,12 +22,12 @@ icon: meta/hello.svg`)
 
 	parts, err := InstalledSnapsByType(SnapTypeApp)
 	c.Assert(err, IsNil)
-	c.Assert(len(parts), Equals, 1)
+	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "app1")
 
 	parts, err = InstalledSnapsByType(SnapTypeFramework)
 	c.Assert(err, IsNil)
-	c.Assert(len(parts), Equals, 1)
+	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "framework1")
 }
 
@@ -40,7 +40,7 @@ func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {
 
 	parts, err := m.Details("hello-app")
 	c.Assert(err, IsNil)
-	c.Assert(len(parts), Equals, 1)
+	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "hello-app")
 }
 
@@ -50,7 +50,7 @@ func (s *SnapTestSuite) FindSnapsByNameNotAvailable(c *C) {
 	c.Assert(err, IsNil)
 
 	parts := FindSnapsByName("not-available", installed)
-	c.Assert(len(parts), Equals, 0)
+	c.Assert(parts, HasLen, 0)
 }
 
 func (s *SnapTestSuite) FindSnapsByNameFound(c *C) {
@@ -58,9 +58,9 @@ func (s *SnapTestSuite) FindSnapsByNameFound(c *C) {
 	repo := NewLocalSnapRepository(snapAppsDir)
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
-	c.Assert(len(installed), Equals, 1)
+	c.Assert(installed, HasLen, 1)
 
 	parts := FindSnapsByName("hello-app", installed)
-	c.Assert(len(parts), Equals, 1)
+	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "hello-app")
 }

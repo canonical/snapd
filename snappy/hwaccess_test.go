@@ -99,7 +99,7 @@ func (s *SnapTestSuite) TestListHWAccessNoAdditionalAccess(c *C) {
 
 	writePaths, err := ListHWAccess("hello-app")
 	c.Assert(err, IsNil)
-	c.Assert(len(writePaths), Equals, 0)
+	c.Assert(writePaths, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestListHWAccess(c *C) {

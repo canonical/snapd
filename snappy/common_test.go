@@ -63,11 +63,7 @@ func addDefaultApparmorJSON(tempdir, apparmorJSONPath string) error {
 }`
 
 	apparmorFile := filepath.Join(appArmorDir, apparmorJSONPath)
-	if err := ioutil.WriteFile(apparmorFile, []byte(securityJSON), 0644); err != nil {
-		return err
-	}
-
-	return nil
+	return ioutil.WriteFile(apparmorFile, []byte(securityJSON), 0644)
 }
 
 // makeTestSnapPackage creates a real snap package that can be installed on
@@ -105,7 +101,7 @@ vendor: Foo Bar <foo@example.com>
 		c.Assert(err, IsNil)
 		allSnapFiles, err := filepath.Glob("*.snap")
 		c.Assert(err, IsNil)
-		c.Assert(len(allSnapFiles), Equals, 1)
+		c.Assert(allSnapFiles, HasLen, 1)
 		snapFile = allSnapFiles[0]
 	})
 	c.Assert(err, IsNil)
@@ -134,7 +130,7 @@ vendor: Foo Bar <foo@example.com>
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	c.Assert(err, IsNil)
-	c.Assert(len(installed), Equals, 2)
+	c.Assert(installed, HasLen, 2)
 }
 
 type MockProgressMeter struct {
