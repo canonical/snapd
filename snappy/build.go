@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"launchpad.net/snappy/helpers"
 )
@@ -169,20 +170,32 @@ func writeDebianControl(buildDir string, m *packageYaml) error {
 		return err
 	}
 
-	// debian control
-
-	// FIXME: use template package
-	controlContent := fmt.Sprintf(`Package: %s
-Version: %s
-Architecture: %s
-Maintainer: %s
-Installed-Size: %s
-Description: %s
- %s
-`, m.Name, m.Version, m.Architecture, m.Vendor, installedSize, title, description)
-	if err := ioutil.WriteFile(filepath.Join(debianDir, "control"), []byte(controlContent), 0644); err != nil {
+	// create debian/control
+	debianControlFile, err := os.OpenFile(filepath.Join(debianDir, "control"), os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
 		return err
 	}
+	defer debianControlFile.Close()
+
+	// generate debian/control content
+	const debianControlTemplate = `Package: {{.Name}}
+Version: {{.Version}}
+Architecture: {{.Architecture}}
+Maintainer: {{.Vendor}}
+Installed-Size: {{.InstalledSize}}
+Description: {{.Title}}
+ {{.Descripton}}
+`
+	t := template.Must(template.New("control").Parse(debianControlTemplate))
+	debianControlData := struct {
+		packageYaml
+		InstalledSize string
+		Title         string
+		Description   string
+	}{
+		*m, installedSize, title, description,
+	}
+	t.Execute(debianControlFile, debianControlData)
 
 	// write static preinst
 	return ioutil.WriteFile(filepath.Join(debianDir, "preinst"), []byte(staticPreinst), 0755)
