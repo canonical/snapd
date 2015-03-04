@@ -2,7 +2,6 @@ package snappy
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -65,8 +64,8 @@ func RequestStoreToken(username, password, tokenName, otp string) (*StoreToken, 
 	defer resp.Body.Close()
 
 	switch {
-	case resp.StatusCode == 403:
-		return nil, errors.New("invalid credentials")
+	case resp.StatusCode == 403 || resp.StatusCode == 401:
+		return nil, ErrInvalidCredentials
 	case resp.StatusCode != 200 && resp.StatusCode != 201:
 		var msg ssoMsg
 		dec := json.NewDecoder(resp.Body)

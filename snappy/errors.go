@@ -38,4 +38,7 @@ var (
 
 	// ErrNotInstalled is returned when the snap is not installed
 	ErrNotInstalled = errors.New("the given snap is not installed")
+
+	// ErrInvalidCredentials is returned on login error
+	ErrInvalidCredentials = errors.New("invalid credentials")
 )
