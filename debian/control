@@ -23,6 +23,7 @@ Architecture: any
 Depends: apparmor-easyprof-ubuntu-snappy,
          debsig-verify,
          snappy-systemd,
+         system-image-cli (>= 2.5-0ubuntu1+ppa15),
          ${misc:Depends},
          ${shlibs:Depends},
 Built-Using: ${misc:Built-Using}
