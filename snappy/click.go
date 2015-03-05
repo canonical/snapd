@@ -267,10 +267,6 @@ func removeClick(clickDir string) (err error) {
 		return err
 	}
 
-	if err := removePackageYamlBinaries(clickDir); err != nil {
-		return err
-	}
-
 	if err := removeClickHooks(manifest); err != nil {
 		return err
 	}
@@ -279,6 +275,11 @@ func removeClick(clickDir string) (err error) {
 	currentSymlink := path.Join(path.Dir(clickDir), "current")
 	p, _ := filepath.EvalSymlinks(currentSymlink)
 	if clickDir == p {
+
+		if err := removePackageYamlBinaries(clickDir); err != nil {
+			return err
+		}
+
 		if err := os.Remove(currentSymlink); err != nil {
 			log.Printf("Warning: failed to remove %s: %s", currentSymlink, err)
 		}
