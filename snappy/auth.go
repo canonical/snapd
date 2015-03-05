@@ -32,7 +32,18 @@ type StoreToken struct {
 }
 
 type ssoMsg struct {
-	Code string `json:"code"`
+	Code    string `json:"code"`
+	Message string `json:message"`
+}
+
+// returns true if the http status code is in the "success" range (2xx)
+func httpStatusCodeSuccess(httpStatusCode int) bool {
+	return httpStatusCode/100 == 2
+}
+
+// returns true if the http status code is in the "client-error" range (4xx)
+func httpStatusCodeClientError(httpStatusCode int) bool {
+	return httpStatusCode/100 == 4
 }
 
 // RequestStoreToken requests a token for accessing the ubuntu store
@@ -63,10 +74,10 @@ func RequestStoreToken(username, password, tokenName, otp string) (*StoreToken, 
 	}
 	defer resp.Body.Close()
 
+	// check return code, error on 4xx and anything !200
 	switch {
-	case resp.StatusCode == 403 || resp.StatusCode == 401:
-		return nil, ErrInvalidCredentials
-	case resp.StatusCode != 200 && resp.StatusCode != 201:
+	case httpStatusCodeClientError(resp.StatusCode):
+		// we get a error code, check json details
 		var msg ssoMsg
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&msg); err != nil {
@@ -76,6 +87,11 @@ func RequestStoreToken(username, password, tokenName, otp string) (*StoreToken, 
 			return nil, ErrAuthenticationNeeds2fa
 		}
 
+		// XXX: maybe return msg.Message as well to the client?
+		return nil, ErrInvalidCredentials
+
+	case !httpStatusCodeSuccess(resp.StatusCode):
+		// unexpected result, bail
 		return nil, fmt.Errorf("failed to get store token: %v (%v)", resp.StatusCode, resp)
 	}
 

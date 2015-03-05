@@ -13,6 +13,24 @@ import (
 	. "launchpad.net/gocheck"
 )
 
+const mockStoreInvalidLoginCode = 401
+const mockStoreInvalidLogin = `
+{
+    "message": "Provided email/password is not correct.", 
+    "code": "INVALID_CREDENTIALS", 
+    "extra": {}
+}
+`
+
+const mockStoreNeeds2faHttpCode = 401
+const mockStoreNeeds2fa = `
+{
+    "message": "2-factor authentication required.", 
+    "code": "TWOFACTOR_REQUIRED", 
+    "extra": {}
+}
+`
+
 const mockStoreReturnToken = `
 {
     "openid": "the-open-id-string-that-is-also-the-consumer-key-in-our-store", 
@@ -41,6 +59,32 @@ func (s *SnapTestSuite) TestRequestStoreToken(c *C) {
 	c.Assert(token.TokenSecret, Equals, "the-token-secret")
 	c.Assert(token.ConsumerSecret, Equals, "the-consumer-secret")
 	c.Assert(token.ConsumerKey, Equals, "the-consumer-key")
+}
+
+func (s *SnapTestSuite) TestRequestStoreTokenNeeds2fa(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(mockStoreNeeds2faHttpCode)
+		io.WriteString(w, mockStoreNeeds2fa)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+	ubuntuoneOauthAPI = mockServer.URL + "/token/oauth"
+
+	_, err := RequestStoreToken("foo@example.com", "passwd", "some-token-name", "")
+	c.Assert(err, Equals, ErrAuthenticationNeeds2fa)
+}
+
+func (s *SnapTestSuite) TestRequestStoreTokenInvalidLogin(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(mockStoreInvalidLoginCode)
+		io.WriteString(w, mockStoreInvalidLogin)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+	ubuntuoneOauthAPI = mockServer.URL + "/token/oauth"
+
+	_, err := RequestStoreToken("foo@example.com", "passwd", "some-token-name", "")
+	c.Assert(err, Equals, ErrInvalidCredentials)
 }
 
 func (s *SnapTestSuite) TestWriteStoreToken(c *C) {
