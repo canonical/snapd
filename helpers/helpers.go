@@ -29,6 +29,8 @@ var lockfileName = func() string {
 	return "/run/snappy.lock"
 }
 
+// FileLock is a Lock file object used to serialise access for
+// privileged operations.
 type FileLock struct {
 	Filename string
 	realFile *os.File
@@ -229,7 +231,7 @@ var isRoot = func() bool {
 	return syscall.Getuid() == 0
 }
 
-// Called when a privileged operation begins
+// StartPrivileged should be called when a privileged operation begins.
 func StartPrivileged() (lock *FileLock, err error) {
 	if !isRoot() {
 		// FIXME: return ErrRequiresRoot
@@ -246,12 +248,12 @@ func StartPrivileged() (lock *FileLock, err error) {
 	return lock, nil
 }
 
-// Called when a privileged operation ends
+// StopPrivileged should be called to flag the end of a privileged operation.
 func StopPrivileged(lock *FileLock) (err error) {
 	return lock.Unlock()
 }
 
-// Acquire a file lock. Returns ErrAlreadyLocked on error.
+// NewFileLock creates a new lock object (but does not lock it).
 func NewFileLock(path string) (lock *FileLock) {
 
 	lock = new(FileLock)
@@ -260,6 +262,7 @@ func NewFileLock(path string) (lock *FileLock) {
 	return lock
 }
 
+// Lock the FileLock object.
 func (l *FileLock) Lock() (err error) {
 
 	// XXX: don't try to create exclusively - we care if the file failed to
@@ -280,6 +283,7 @@ func (l *FileLock) Lock() (err error) {
 	return nil
 }
 
+// Unlock the FileLock object.
 func (l *FileLock) Unlock() (err error) {
 	// unlink first
 	if err = os.Remove(l.Filename); err != nil {
