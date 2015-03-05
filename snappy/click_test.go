@@ -389,3 +389,12 @@ binaries:
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
 }
+
+func (s *SnapTestSuite) TestSnappyGetAaProfile(c *C) {
+	m := packageYaml{Name: "foo",
+		Version: "1.0"}
+
+	c.Assert(getAaProfile(&m, Binary{Name: "bin/app"}), Equals, "foo_app_1.0")
+	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", Apparmor: "some-security-json"}), Equals, "some-security-json")
+	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", ApparmorProfile: "some-profile"}), Equals, "some-profile")
+}

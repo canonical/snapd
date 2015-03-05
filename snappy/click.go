@@ -368,20 +368,18 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 }
 
 func getAaProfile(m *packageYaml, binary Binary) string {
+	// check if there is a specific apparmor profile
+	if binary.ApparmorProfile != "" {
+		return binary.ApparmorProfile
+	}
+	// ... or apparmor.json
+	if binary.Apparmor != "" {
+		return binary.Apparmor
+	}
+
 	// FIXME: we need to generate a default aa profile here instead
-	// once we have click-apparmor in snappy itself
-	clickhookPath := fmt.Sprintf("/var/lib/apparmor/clicks/%s_%s_%s.json", m.Name, filepath.Dir(binary.Name), m.Version)
-	if helpers.FileExists(clickhookPath) {
-		return clickhookPath
-	}
-
-	customProfilePath := fmt.Sprintf("/var/lib/apparmor/profiles/profile_%s_%s_%s", m.Name, filepath.Dir(binary.Name), m.Version)
-
-	if helpers.FileExists(customProfilePath) {
-		return customProfilePath
-	}
-
-	return "unconfined"
+	// of relying on a default one shipped by the package
+	return fmt.Sprintf("%s_%s_%s", m.Name, filepath.Base(binary.Name), m.Version)
 }
 
 func addPackageYamlBinaries(baseDir string) error {
