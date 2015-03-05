@@ -1,8 +1,8 @@
 package main
 
 import (
-	"launchpad.net/snappy/snappy"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/snappy"
 )
 
 type cmdBooted struct {
