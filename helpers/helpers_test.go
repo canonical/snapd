@@ -198,10 +198,10 @@ func (ts *HTestSuite) TestMakeRandomString(c *C) {
 	// for our tests
 	rand.Seed(1)
 
-	s1 := makeRandomString(10)
+	s1 := MakeRandomString(10)
 	c.Assert(s1, Equals, "GMWjGsAPga")
 
-	s2 := makeRandomString(5)
+	s2 := MakeRandomString(5)
 	c.Assert(s2, Equals, "TlmOD")
 }
 
@@ -220,4 +220,38 @@ func (ts *HTestSuite) TestAtomicWriteFile(c *C) {
 	d, err := ioutil.ReadDir(tmpdir)
 	c.Assert(err, IsNil)
 	c.Assert(len(d), Equals, 1)
+}
+
+func (ts *HTestSuite) TestAtomicWriteFilePermissions(c *C) {
+	tmpdir := c.MkDir()
+
+	p := filepath.Join(tmpdir, "foo")
+	err := AtomicWriteFile(p, []byte(""), 0600)
+	c.Assert(err, IsNil)
+
+	st, err := os.Stat(p)
+	c.Assert(err, IsNil)
+	c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0600))
+}
+
+func (ts *HTestSuite) TestCurrentHomeDirHOMEenv(c *C) {
+	tmpdir := c.MkDir()
+
+	oldHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", oldHome)
+
+	os.Setenv("HOME", tmpdir)
+	home, err := CurrentHomeDir()
+	c.Assert(err, IsNil)
+	c.Assert(home, Equals, tmpdir)
+}
+
+func (ts *HTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
+	oldHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", oldHome)
+
+	os.Setenv("HOME", "")
+	home, err := CurrentHomeDir()
+	c.Assert(err, IsNil)
+	c.Assert(home, Equals, oldHome)
 }

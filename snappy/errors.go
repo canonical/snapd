@@ -32,6 +32,13 @@ var (
 	// that is already in the hwaccess list
 	ErrHWAccessAlreadyAdded = errors.New("device is already in hw-access list")
 
+	// ErrAuthenticationNeeds2fa is returned if the authentication
+	// needs 2factor
+	ErrAuthenticationNeeds2fa = errors.New("authentication needs second factor")
+
 	// ErrNotInstalled is returned when the snap is not installed
 	ErrNotInstalled = errors.New("the given snap is not installed")
+
+	// ErrInvalidCredentials is returned on login error
+	ErrInvalidCredentials = errors.New("invalid credentials")
 )

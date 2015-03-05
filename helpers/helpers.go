@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -186,8 +187,8 @@ func IsDirectory(path string) bool {
 	return fileInfo.IsDir()
 }
 
-// return a random string of length length
-func makeRandomString(length int) string {
+// MakeRandomString returns a random string of length length
+func MakeRandomString(length int) string {
 	var letters = "abcdefghijklmnopqrstuvwxyABCDEFGHIJKLMNOPQRSTUVWXY"
 
 	out := ""
@@ -203,10 +204,26 @@ func makeRandomString(length int) string {
 func AtomicWriteFile(filename string, data []byte, perm os.FileMode) error {
 	tmp := filename + ".new"
 
-	if err := ioutil.WriteFile(tmp, data, 0640); err != nil {
+	if err := ioutil.WriteFile(tmp, data, perm); err != nil {
 		os.Remove(tmp)
 		return err
 	}
 
 	return os.Rename(tmp, filename)
+}
+
+// CurrentHomeDir returns the homedir of the current user. It looks at
+// $HOME first and then at passwd
+func CurrentHomeDir() (string, error) {
+	home := os.Getenv("HOME")
+	if home != "" {
+		return home, nil
+	}
+
+	user, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+
+	return user.HomeDir, nil
 }
