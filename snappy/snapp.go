@@ -402,11 +402,26 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 		os.Remove(w.Name())
 	}()
 
-	resp, err := http.Get(s.pkg.AnonDownloadURL)
+	// try anonymous download first and fallback to authenticated
+	url := s.pkg.AnonDownloadURL
+	if url == "" {
+		url = s.pkg.DownloadURL
+	}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+	setUbuntuStoreHeaders(req)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("Unexpected status code %v", resp.StatusCode)
+	}
 
 	if pbar != nil {
 		pbar.Start(float64(resp.ContentLength))
@@ -471,6 +486,20 @@ func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
 		bulkURI:    "https://search.apps.ubuntu.com/api/v1/click-metadata"}
 }
 
+// small helper that sets the correct http headers for the ubuntu store
+func setUbuntuStoreHeaders(req *http.Request) {
+	req.Header.Set("Accept", "application/hal+json")
+	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
+	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
+	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
+	req.Header.Set("X-Ubuntu-Architecture", helpers.Architecture())
+
+	ssoToken, err := ReadStoreToken()
+	if err == nil {
+		req.Header.Set("Authorization", makeOauthPlaintextSignature(req, ssoToken))
+	}
+}
+
 // Description describes the repository
 func (s *SnapUbuntuStoreRepository) Description() string {
 	return fmt.Sprintf("Snap remote repository for %s", s.searchURI)
@@ -485,11 +514,7 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 	}
 
 	// set headers
-	req.Header.Set("Accept", "application/hal+json")
-	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
-	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
-	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
-	req.Header.Set("X-Ubuntu-Architecture", helpers.Architecture())
+	setUbuntuStoreHeaders(req)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -528,11 +553,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err
 	}
 
 	// set headers
-	req.Header.Set("Accept", "application/hal+json")
-	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
-	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
-	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
-	req.Header.Set("X-Ubuntu-Architecture", helpers.Architecture())
+	setUbuntuStoreHeaders(req)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -573,7 +594,12 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("content-type", "application/json")
+	// set headers
+	setUbuntuStoreHeaders(req)
+	// the updates call is a special snowflake right now
+	// (see LP: #1427155)
+	req.Header.Set("Accept", "application/json")
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
