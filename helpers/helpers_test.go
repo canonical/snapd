@@ -20,6 +20,20 @@ type HTestSuite struct{}
 
 var _ = Suite(&HTestSuite{})
 
+func mockIsRoot() bool {
+	return true
+}
+
+func mockLockfileName() string {
+	dir, _:= ioutil.TempDir("", "lock")
+	return filepath.Join(dir, "lock")
+}
+
+func (ts *HTestSuite) SetUpTest(c *C) {
+	isRoot = mockIsRoot
+	lockfileName = mockLockfileName
+}
+
 func (ts *HTestSuite) TestUnpack(c *C) {
 
 	// setup tmpdir
@@ -220,4 +234,44 @@ func (ts *HTestSuite) TestAtomicWriteFile(c *C) {
 	d, err := ioutil.ReadDir(tmpdir)
 	c.Assert(err, IsNil)
 	c.Assert(len(d), Equals, 1)
+}
+
+func (ts *HTestSuite) TestLocking(c *C) {
+	lockfile := filepath.Join(c.MkDir(), "lock")
+
+	c.Assert(FileExists(lockfile), Equals, false)
+
+	lock := NewFileLock(lockfile)
+
+	c.Assert(lock.Filename, Equals, lockfile)
+	c.Assert(lock.realFile, IsNil)
+
+	err := lock.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(FileExists(lockfile), Equals, true)
+	c.Assert(lock.Filename, Equals, lockfile)
+	c.Assert(lock.realFile, Not(IsNil))
+
+	err = lock.Unlock()
+	c.Assert(err, IsNil)
+	c.Assert(FileExists(lockfile), Equals, false)
+
+}
+
+func (ts *HTestSuite) TestPrivileged(c *C) {
+	lock, err := StartPrivileged()
+
+	c.Assert(err, IsNil)
+	c.Assert(lock, Not(IsNil))
+
+	lockfile := lock.Filename
+	c.Assert(lockfile, Not(Equals), "")
+	c.Assert(lock.realFile, Not(IsNil))
+
+	c.Assert(FileExists(lockfile), Equals, true)
+
+	err = StopPrivileged(lock)
+	c.Assert(err, IsNil)
+	c.Assert(FileExists(lockfile), Equals, false)
 }

@@ -23,8 +23,10 @@ import (
 
 var goarch = runtime.GOARCH
 
-// name of lockfile created to serialise privileged operations
-var lockfileName = "/run/snappy.lock"
+// Returns name of lockfile created to serialise privileged operations
+var lockfileName = func() string {
+	return "/run/snappy.lock"
+}
 
 type FileLock struct {
 	Filename string
@@ -233,7 +235,7 @@ func StartPrivileged() (lock *FileLock, err error) {
 		return nil, errors.New("command requires sudo (root)")
 	}
 
-	lock = NewFileLock(lockfileName)
+	lock = NewFileLock(lockfileName())
 
 	if err = lock.Lock(); err != nil {
 		// FIXME: return ErrPrivOpInProgress
@@ -252,7 +254,7 @@ func StopPrivileged(lock *FileLock) (err error) {
 func NewFileLock(path string) (lock *FileLock) {
 
 	lock = new(FileLock)
-	lock.Filename = lockfileName
+	lock.Filename = path
 
 	return lock
 }
