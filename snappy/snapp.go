@@ -38,9 +38,9 @@ type Service struct {
 
 // Binary represents a single binary inside the binaries: package.yaml
 type Binary struct {
-	Name            string `yaml:"name"`
-	Apparmor        string `yaml:"apparmor"`
-	ApparmorProfile string `yaml:"apparmor-profile"`
+	Name             string `yaml:"name"`
+	SecurityTemplate string `yaml:"security-template"`
+	SecurityPolicy   string `yaml:"security-policy"`
 }
 
 // SnapPart represents a generic snap type

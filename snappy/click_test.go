@@ -374,8 +374,8 @@ func (s *SnapTestSuite) TestSnappyGetAaProfile(c *C) {
 		Version: "1.0"}
 
 	c.Assert(getAaProfile(&m, Binary{Name: "bin/app"}), Equals, "foo_app_1.0")
-	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", Apparmor: "some-security-json"}), Equals, "some-security-json")
-	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", ApparmorProfile: "some-profile"}), Equals, "some-profile")
+	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", SecurityTemplate: "some-security-json"}), Equals, "some-security-json")
+	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", SecurityPolicy: "some-profile"}), Equals, "some-profile")
 }
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {

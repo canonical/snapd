@@ -370,12 +370,12 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 
 func getAaProfile(m *packageYaml, binary Binary) string {
 	// check if there is a specific apparmor profile
-	if binary.ApparmorProfile != "" {
-		return binary.ApparmorProfile
+	if binary.SecurityPolicy != "" {
+		return binary.SecurityPolicy
 	}
 	// ... or apparmor.json
-	if binary.Apparmor != "" {
-		return binary.Apparmor
+	if binary.SecurityTemplate != "" {
+		return binary.SecurityTemplate
 	}
 
 	// FIXME: we need to generate a default aa profile here instead
