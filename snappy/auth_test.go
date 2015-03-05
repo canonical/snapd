@@ -22,7 +22,7 @@ const mockStoreInvalidLogin = `
 }
 `
 
-const mockStoreNeeds2faHttpCode = 401
+const mockStoreNeeds2faHTTPCode = 401
 const mockStoreNeeds2fa = `
 {
     "message": "2-factor authentication required.", 
@@ -63,7 +63,7 @@ func (s *SnapTestSuite) TestRequestStoreToken(c *C) {
 
 func (s *SnapTestSuite) TestRequestStoreTokenNeeds2fa(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(mockStoreNeeds2faHttpCode)
+		w.WriteHeader(mockStoreNeeds2faHTTPCode)
 		io.WriteString(w, mockStoreNeeds2fa)
 	}))
 	c.Assert(mockServer, NotNil)

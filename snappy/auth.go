@@ -33,7 +33,7 @@ type StoreToken struct {
 
 type ssoMsg struct {
 	Code    string `json:"code"`
-	Message string `json:message"`
+	Message string `json:"message"`
 }
 
 // returns true if the http status code is in the "success" range (2xx)
