@@ -24,6 +24,14 @@ import (
 
 var goarch = runtime.GOARCH
 
+// ErrAlreadyLocked is returned when an attempts is made to lock an
+// already-locked FileLock.
+var ErrAlreadyLocked = errors.New("already locked")
+
+// ErrNotLocked is returned when an attempts is made to unlock an
+// unlocked FileLock.
+var ErrNotLocked = errors.New("not locked")
+
 // Returns name of lockfile created to serialise privileged operations
 var lockfileName = func() string {
 	return "/run/snappy.lock"
@@ -263,6 +271,7 @@ func NewFileLock(path string) (lock *FileLock) {
 }
 
 // Lock the FileLock object.
+// Returns ErrAlreadyLocked if an existing lock is in place.
 func (l *FileLock) Lock() (err error) {
 
 	// XXX: don't try to create exclusively - we care if the file failed to
@@ -277,14 +286,20 @@ func (l *FileLock) Lock() (err error) {
 
 	err = syscall.Flock(int(l.realFile.Fd()), syscall.LOCK_EX)
 	if err != nil {
-		return err
+		return ErrAlreadyLocked
 	}
 
 	return nil
 }
 
 // Unlock the FileLock object.
+// Returns ErrNotLocked if no existing lock is in place.
 func (l *FileLock) Unlock() (err error) {
+	err = syscall.Flock(int(l.realFile.Fd()), syscall.LOCK_UN)
+	if err != nil {
+		return ErrNotLocked
+	}
+
 	// unlink first
 	if err = os.Remove(l.Filename); err != nil {
 		return err
