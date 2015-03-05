@@ -326,6 +326,12 @@ func removeLock() (err error) {
 	    return err
     }
 
-    return lock.file.Close()
+    if err = lock.file.Close(); err != nil {
+	    return err
+    }
+
+    lock = nil
+
+    return nil
 }
 
