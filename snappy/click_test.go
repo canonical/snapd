@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"launchpad.net/snappy/helpers"
 
@@ -368,6 +369,15 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	c.Assert(generatedWrapper, Equals, expectedWrapper)
 }
 
+func (s *SnapTestSuite) TestSnappyGetAaProfile(c *C) {
+	m := packageYaml{Name: "foo",
+		Version: "1.0"}
+
+	c.Assert(getAaProfile(&m, Binary{Name: "bin/app"}), Equals, "foo_app_1.0")
+	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", Apparmor: "some-security-json"}), Equals, "some-security-json")
+	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", ApparmorProfile: "some-profile"}), Equals, "some-profile")
+}
+
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {
 	packageYaml := `name: foo.mvo
 icon: foo.svg
@@ -383,6 +393,7 @@ binaries:
 	binaryWrapper := filepath.Join(snapBinariesDir, "foo.foo.mvo")
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, true)
 
+	// and that it gets removed on remove
 	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
 	err := removeClick(snapDir)
 	c.Assert(err, IsNil)
@@ -390,11 +401,29 @@ binaries:
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
 }
 
-func (s *SnapTestSuite) TestSnappyGetAaProfile(c *C) {
-	m := packageYaml{Name: "foo",
-		Version: "1.0"}
+func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {
+	packageYaml := `name: foo.mvo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+binaries:
+ - name: bin/foo
+`
+	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 
-	c.Assert(getAaProfile(&m, Binary{Name: "bin/app"}), Equals, "foo_app_1.0")
-	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", Apparmor: "some-security-json"}), Equals, "some-security-json")
-	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", ApparmorProfile: "some-profile"}), Equals, "some-profile")
+	// ensure that the binary wrapper file go generated with the right
+	// path
+	oldSnapBin := filepath.Join(snapAppsDir, "foo.mvo", "1.0", "bin", "foo")
+	binaryWrapper := filepath.Join(snapBinariesDir, "foo.foo.mvo")
+	content, err := ioutil.ReadFile(binaryWrapper)
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), oldSnapBin), Equals, true)
+
+	// and that it gets updated on upgrade
+	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+	newSnapBin := filepath.Join(snapAppsDir, "foo.mvo", "2.0", "bin", "foo")
+	content, err = ioutil.ReadFile(binaryWrapper)
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), newSnapBin), Equals, true)
 }
