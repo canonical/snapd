@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"launchpad.net/snappy/snappy"
+	"launchpad.net/snappy/helpers"
 )
 
 type cmdRemove struct {
@@ -18,8 +19,8 @@ func init() {
 }
 
 func (x *cmdRemove) Execute(args []string) (err error) {
-	if !isRoot() {
-		return ErrRequiresRoot
+	if err := helpers.StartPrivileged(); err != nil {
+		return err
 	}
 
 	for _, part := range args {
@@ -30,5 +31,5 @@ func (x *cmdRemove) Execute(args []string) (err error) {
 		}
 	}
 
-	return nil
+	return helpers.StopPrivileged()
 }

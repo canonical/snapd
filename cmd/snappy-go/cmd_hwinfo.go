@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/snappy"
+	"launchpad.net/snappy/helpers"
 )
 
 type cmdHWInfo struct {
@@ -50,8 +51,8 @@ func outputHWAccessForAll() error {
 }
 
 func (x *cmdHWInfo) Execute(args []string) (err error) {
-	if !isRoot() {
-		return ErrRequiresRoot
+	if err := helpers.StartPrivileged(); err != nil {
+		return err
 	}
 
 	// use specific package
@@ -66,5 +67,9 @@ func (x *cmdHWInfo) Execute(args []string) (err error) {
 	}
 
 	// no package -> show additional access for all installed snaps
-	return outputHWAccessForAll()
+	if err = outputHWAccessForAll(); err != nil {
+		return err
+	}
+
+	return helpers.StopPrivileged()
 }

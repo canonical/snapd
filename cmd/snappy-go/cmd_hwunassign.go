@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"launchpad.net/snappy/snappy"
+	"launchpad.net/snappy/helpers"
 )
 
 type cmdHWUnassign struct {
@@ -26,8 +27,8 @@ func init() {
 }
 
 func (x *cmdHWUnassign) Execute(args []string) (err error) {
-	if !isRoot() {
-		return ErrRequiresRoot
+	if err := helpers.StartPrivileged(); err != nil {
+		return err
 	}
 
 	if err := snappy.RemoveHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
@@ -35,5 +36,5 @@ func (x *cmdHWUnassign) Execute(args []string) (err error) {
 	}
 
 	fmt.Printf("'%s' is no longer allowed to access '%s'\n", x.Positional.PackageName, x.Positional.DevicePath)
-	return nil
+	return helpers.StopPrivileged()
 }

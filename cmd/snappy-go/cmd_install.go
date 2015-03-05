@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"launchpad.net/snappy/snappy"
+	"launchpad.net/snappy/helpers"
 )
 
 type cmdInstall struct {
@@ -20,8 +21,8 @@ func init() {
 }
 
 func (x *cmdInstall) Execute(args []string) (err error) {
-	if !isRoot() {
-		return ErrRequiresRoot
+	if err := helpers.StartPrivileged(); err != nil {
+		return err
 	}
 
 	err = snappy.Install(args)
@@ -36,5 +37,5 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 
 	showInstalledList(installed, os.Stdout)
 
-	return nil
+	return helpers.StopPrivileged()
 }

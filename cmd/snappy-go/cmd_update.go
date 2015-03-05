@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"launchpad.net/snappy/snappy"
+	"launchpad.net/snappy/helpers"
 )
 
 type cmdUpdate struct {
@@ -21,18 +22,18 @@ func init() {
 }
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
-	if !isRoot() {
-		return ErrRequiresRoot
+	if err := helpers.StartPrivileged(); err != nil {
+		return err
 	}
 
-	return update()
+	if err = update(); err != nil {
+		return err
+	}
+
+	return helpers.StopPrivileged()
 }
 
 func update() error {
-	if !isRoot() {
-		return ErrRequiresRoot
-	}
-
 	// FIXME: handle args
 	updates, err := snappy.ListUpdates()
 	if err != nil {

@@ -10,20 +10,63 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
+	"log"
+
+	"errors"
 
 	"gopkg.in/yaml.v2"
 )
 
 var goarch = runtime.GOARCH
 
+// name of lockfile created to serialise privileged operations
+const lockfileName = "/writable/cache/.lockfile"
+
+type SnappyLock struct {
+	filename string
+	file *os.File
+}
+
+var lock *SnappyLock
+
+func signalHandler(sig os.Signal) {
+	if lock == nil {
+		return
+	}
+
+	if err := removeLock(); err != nil {
+		log.Printf("failed to remove lockfile: %q", lock.filename)
+	}
+}
+
+func setupSignalHandler() {
+	ch := make(chan os.Signal, 1)
+
+	// add the signals we care about
+	signal.Notify(ch, os.Interrupt)
+	signal.Notify(ch, syscall.SIGTERM)
+
+	go func() {
+		// block waiting for a signal
+		sig := <-ch
+
+		// handle it
+		signalHandler(sig)
+		os.Exit(1)
+	}()
+}
+
 func init() {
 	// golang does not init Seed() itself
 	rand.Seed(time.Now().UTC().UnixNano())
+
+	setupSignalHandler()
 }
 
 // ChDir runs runs "f" inside the given directory
@@ -210,3 +253,79 @@ func AtomicWriteFile(filename string, data []byte, perm os.FileMode) error {
 
 	return os.Rename(tmp, filename)
 }
+
+// Determine if caller is running as the superuser
+func isRoot() bool {
+	return syscall.Getuid() == 0
+}
+
+// Called when a privileged operation begins
+func StartPrivileged() (err error) {
+	if !isRoot() {
+		// FIXME: return ErrRequiresRoot
+		return errors.New("command requires sudo (root)")
+	}
+
+	if err = createLock(); err != nil {
+		// FIXME: return ErrPrivOpInProgress
+		return errors.New("privileged operation already in progress")
+	}
+
+	return nil
+}
+
+// Called when a privileged operation ends
+func StopPrivileged() (err error) {
+	return removeLock()
+}
+
+// Create an exclusive lock
+func createLock() (err error) {
+
+	flags := (os.O_CREATE | os.O_WRONLY | os.O_EXCL)
+
+	lock = new(SnappyLock)
+
+	lock.filename = lockfileName
+
+	for {
+		lock.file, err = os.OpenFile(lock.filename, flags, 0600)
+
+		if err != nil {
+			return err
+		}
+
+		err = syscall.Flock(int(lock.file.Fd()), syscall.LOCK_EX)
+
+		if err != nil {
+			return err
+		}
+
+		if FileExists(lock.filename) {
+			break
+		}
+
+		// detected a race where the previous owner removed the file just
+		// after we acquired the lock. So try again.
+		log.Printf("Failed to acquire lock - trying again")
+	}
+
+	return nil
+}
+
+// Remove the specified lock
+func removeLock() (err error) {
+
+    err = syscall.Flock(int(lock.file.Fd()), syscall.LOCK_UN)
+    if err != nil {
+        return err
+    }
+
+    // unlink first
+    if err = os.Remove(lock.filename); err != nil {
+	    return err
+    }
+
+    return lock.file.Close()
+}
+

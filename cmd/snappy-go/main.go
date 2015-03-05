@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"os"
-	"syscall"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -30,8 +29,4 @@ func main() {
 	if _, err := parser.Parse(); err != nil {
 		os.Exit(1)
 	}
-}
-
-func isRoot() bool {
-	return syscall.Getuid() == 0
 }

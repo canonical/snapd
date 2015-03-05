@@ -1,6 +1,9 @@
 package main
 
-import "launchpad.net/snappy/snappy"
+import (
+	"launchpad.net/snappy/snappy"
+	"launchpad.net/snappy/helpers"
+)
 
 type cmdBooted struct {
 }
@@ -14,8 +17,8 @@ func init() {
 }
 
 func (x *cmdBooted) Execute(args []string) (err error) {
-	if !isRoot() {
-		return ErrRequiresRoot
+	if err := helpers.StartPrivileged(); err != nil {
+		return err
 	}
 
 	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)
@@ -23,5 +26,10 @@ func (x *cmdBooted) Execute(args []string) (err error) {
 		return err
 	}
 
-	return parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
+	err = parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
+	if err != nil {
+		return err
+	}
+
+	return helpers.StopPrivileged()
 }
