@@ -10,13 +10,11 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
-	"log"
 
 	"errors"
 
@@ -26,47 +24,16 @@ import (
 var goarch = runtime.GOARCH
 
 // name of lockfile created to serialise privileged operations
-const lockfileName = "/run/snappy.lock"
+var lockfileName = "/run/snappy.lock"
 
-type SnappyLock struct {
-	filename string
-	file *os.File
-}
-
-var lock *SnappyLock
-
-func signalHandler(sig os.Signal) {
-	if lock == nil {
-		return
-	}
-
-	if err := removeLock(); err != nil {
-		log.Printf("failed to remove lockfile: %q", lock.filename)
-	}
-}
-
-func setupSignalHandler() {
-	ch := make(chan os.Signal, 1)
-
-	// add the signals we care about
-	signal.Notify(ch, os.Interrupt)
-	signal.Notify(ch, syscall.SIGTERM)
-
-	go func() {
-		// block waiting for a signal
-		sig := <-ch
-
-		// handle it
-		signalHandler(sig)
-		os.Exit(1)
-	}()
+type FileLock struct {
+	Filename string
+	realFile *os.File
 }
 
 func init() {
 	// golang does not init Seed() itself
 	rand.Seed(time.Now().UTC().UnixNano())
-
-	setupSignalHandler()
 }
 
 // ChDir runs runs "f" inside the given directory
@@ -170,7 +137,7 @@ func Architecture() string {
 }
 
 // EnsureDir ensures that the given directory exists and if
-// not create it with the given permissions
+// not creates it with the given permissions.
 func EnsureDir(dir string, perm os.FileMode) (err error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dir, perm); err != nil {
@@ -255,41 +222,54 @@ func AtomicWriteFile(filename string, data []byte, perm os.FileMode) error {
 }
 
 // Determine if caller is running as the superuser
-func isRoot() bool {
+var isRoot = func() bool {
 	return syscall.Getuid() == 0
 }
 
 // Called when a privileged operation begins
-func StartPrivileged() (err error) {
+func StartPrivileged() (lock *FileLock, err error) {
 	if !isRoot() {
 		// FIXME: return ErrRequiresRoot
-		return errors.New("command requires sudo (root)")
+		return nil, errors.New("command requires sudo (root)")
 	}
 
-	if err = createLock(); err != nil {
+	lock = NewFileLock(lockfileName)
+
+	if err = lock.Lock(); err != nil {
 		// FIXME: return ErrPrivOpInProgress
-		return errors.New("privileged operation already in progress")
+		return nil, errors.New("privileged operation already in progress")
 	}
 
-	return nil
+	return lock, nil
 }
 
 // Called when a privileged operation ends
-func StopPrivileged() (err error) {
-	return removeLock()
+func StopPrivileged(lock *FileLock) (err error) {
+	return lock.Unlock()
 }
 
-// Create an exclusive lock
-func createLock() (err error) {
+// Acquire a file lock. Returns ErrAlreadyLocked on error.
+func NewFileLock(path string) (lock *FileLock) {
 
-	flags := (os.O_CREATE | os.O_WRONLY | os.O_EXCL)
+	lock = new(FileLock)
+	lock.Filename = lockfileName
 
-	lock = new(SnappyLock)
+	return lock
+}
 
-	lock.filename = lockfileName
+func (l *FileLock) Lock() (err error) {
 
-	lock.file, err = os.OpenFile(lock.filename, flags, 0600)
+	// XXX: don't try to create exclusively - we care if the file failed to
+	// be created, but we don't care if it already existed as the lock _on_ the
+	// file is the most important thing.
+	flags := (os.O_CREATE | os.O_WRONLY)
 
+	l.realFile, err = os.OpenFile(l.Filename, flags, 0600)
+	if err != nil {
+		return err
+	}
+
+	err = syscall.Flock(int(l.realFile.Fd()), syscall.LOCK_EX)
 	if err != nil {
 		return err
 	}
@@ -297,20 +277,16 @@ func createLock() (err error) {
 	return nil
 }
 
-// Remove the specified lock
-func removeLock() (err error) {
+func (l *FileLock) Unlock() (err error) {
+	// unlink first
+	if err = os.Remove(l.Filename); err != nil {
+		return err
+	}
 
-    // unlink first
-    if err = os.Remove(lock.filename); err != nil {
-	    return err
-    }
+	if err = l.realFile.Close(); err != nil {
+		return err
+	}
 
-    if err = lock.file.Close(); err != nil {
-	    return err
-    }
-
-    lock = nil
-
-    return nil
+	return nil
 }
 

@@ -27,7 +27,9 @@ func init() {
 }
 
 func (x *cmdHWUnassign) Execute(args []string) (err error) {
-	if err := helpers.StartPrivileged(); err != nil {
+	var lock *helpers.FileLock
+
+	if lock, err = helpers.StartPrivileged(); err != nil {
 		return err
 	}
 
@@ -36,5 +38,5 @@ func (x *cmdHWUnassign) Execute(args []string) (err error) {
 	}
 
 	fmt.Printf("'%s' is no longer allowed to access '%s'\n", x.Positional.PackageName, x.Positional.DevicePath)
-	return helpers.StopPrivileged()
+	return helpers.StopPrivileged(lock)
 }

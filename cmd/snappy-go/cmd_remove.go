@@ -19,7 +19,9 @@ func init() {
 }
 
 func (x *cmdRemove) Execute(args []string) (err error) {
-	if err := helpers.StartPrivileged(); err != nil {
+	var lock *helpers.FileLock
+
+	if lock, err = helpers.StartPrivileged(); err != nil {
 		return err
 	}
 
@@ -31,5 +33,5 @@ func (x *cmdRemove) Execute(args []string) (err error) {
 		}
 	}
 
-	return helpers.StopPrivileged()
+	return helpers.StopPrivileged(lock)
 }

@@ -22,7 +22,9 @@ func init() {
 }
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
-	if err := helpers.StartPrivileged(); err != nil {
+	var lock *helpers.FileLock
+
+	if lock, err = helpers.StartPrivileged(); err != nil {
 		return err
 	}
 
@@ -30,7 +32,7 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 		return err
 	}
 
-	return helpers.StopPrivileged()
+	return helpers.StopPrivileged(lock)
 }
 
 func update() error {
