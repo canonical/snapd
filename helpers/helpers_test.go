@@ -276,6 +276,7 @@ func (ts *HTestSuite) TestLocking(c *C) {
 	c.Assert(FileExists(lockfile), Equals, false)
 
 	lock := NewFileLock(lockfile)
+	c.Assert(lock, Not(IsNil))
 
 	c.Assert(lock.Filename, Equals, lockfile)
 	c.Assert(lock.realFile, IsNil)
