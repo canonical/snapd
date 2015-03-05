@@ -26,7 +26,7 @@ import (
 var goarch = runtime.GOARCH
 
 // name of lockfile created to serialise privileged operations
-const lockfileName = "/writable/cache/.lockfile"
+const lockfileName = "/run/snappy.lock"
 
 type SnappyLock struct {
 	filename string
@@ -288,26 +288,10 @@ func createLock() (err error) {
 
 	lock.filename = lockfileName
 
-	for {
-		lock.file, err = os.OpenFile(lock.filename, flags, 0600)
+	lock.file, err = os.OpenFile(lock.filename, flags, 0600)
 
-		if err != nil {
-			return err
-		}
-
-		err = syscall.Flock(int(lock.file.Fd()), syscall.LOCK_EX)
-
-		if err != nil {
-			return err
-		}
-
-		if FileExists(lock.filename) {
-			break
-		}
-
-		// detected a race where the previous owner removed the file just
-		// after we acquired the lock. So try again.
-		log.Printf("Failed to acquire lock - trying again")
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -315,11 +299,6 @@ func createLock() (err error) {
 
 // Remove the specified lock
 func removeLock() (err error) {
-
-    err = syscall.Flock(int(lock.file.Fd()), syscall.LOCK_UN)
-    if err != nil {
-        return err
-    }
 
     // unlink first
     if err = os.Remove(lock.filename); err != nil {
