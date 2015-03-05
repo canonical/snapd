@@ -36,6 +36,13 @@ type Service struct {
 	} `yaml:"ports,omitempty"`
 }
 
+// Binary represents a single binary inside the binaries: package.yaml
+type Binary struct {
+	Name             string `yaml:"name"`
+	SecurityTemplate string `yaml:"security-template"`
+	SecurityPolicy   string `yaml:"security-policy"`
+}
+
 // SnapPart represents a generic snap type
 type SnapPart struct {
 	name        string
@@ -57,6 +64,7 @@ type packageYaml struct {
 	Icon     string
 	Type     SnapType
 	Services []Service `yaml:"services,omitempty"`
+	Binaries []Binary  `yaml:"binaries,omitempty"`
 }
 
 // the meta/hashes file, yaml so that we can extend it later with
@@ -87,32 +95,32 @@ type searchResults struct {
 	} `json:"_embedded"`
 }
 
-// NewInstalledSnapPart returns a new SnapPart from the given yamlPath
-func NewInstalledSnapPart(yamlPath string) *SnapPart {
-	part := SnapPart{}
+func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 
-	if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
-		return nil
-	}
-
-	r, err := os.Open(yamlPath)
+	yamlData, err := ioutil.ReadFile(yamlPath)
 	if err != nil {
-		log.Printf("Can not open '%s'", yamlPath)
-		return nil
-	}
-
-	yamlData, err := ioutil.ReadAll(r)
-	if err != nil {
-		log.Printf("Can not read '%v'", r)
-		return nil
+		return nil, err
 	}
 
 	var m packageYaml
 	err = yaml.Unmarshal(yamlData, &m)
 	if err != nil {
 		log.Printf("Can not parse '%s'", yamlData)
+		return nil, err
+	}
+
+	return &m, nil
+}
+
+// NewInstalledSnapPart returns a new SnapPart from the given yamlPath
+func NewInstalledSnapPart(yamlPath string) *SnapPart {
+	part := SnapPart{}
+
+	m, err := parsePackageYamlFile(yamlPath)
+	if err != nil {
 		return nil
 	}
+
 	part.basedir = filepath.Dir(filepath.Dir(yamlPath))
 	// data from the yaml
 	part.name = m.Name

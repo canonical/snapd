@@ -1,6 +1,9 @@
 package snappy
 
-import "time"
+import (
+	"path/filepath"
+	"time"
+)
 
 // var instead of const to make it possible to override in the tests
 var (
@@ -9,6 +12,8 @@ var (
 	snapDataDir      = "/var/lib/apps"
 	snapDataHomeGlob = "/home/*/apps/"
 	snapAppArmorDir  = "/var/lib/apparmor/clicks"
+
+	snapBinariesDir = filepath.Join(snapAppsDir, "bin")
 
 	aaClickHookCmd = "aa-clickhook"
 )
