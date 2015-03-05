@@ -24,13 +24,15 @@ import (
 
 var goarch = runtime.GOARCH
 
-// ErrAlreadyLocked is returned when an attempts is made to lock an
-// already-locked FileLock.
-var ErrAlreadyLocked = errors.New("already locked")
+var (
+	// ErrAlreadyLocked is returned when an attempts is made to lock an
+	// already-locked FileLock.
+	ErrAlreadyLocked = errors.New("already locked")
 
-// ErrNotLocked is returned when an attempts is made to unlock an
-// unlocked FileLock.
-var ErrNotLocked = errors.New("not locked")
+	// ErrNotLocked is returned when an attempts is made to unlock an
+	// unlocked FileLock.
+	ErrNotLocked = errors.New("not locked")
+)
 
 // Returns name of lockfile created to serialise privileged operations
 var lockfileName = func() string {
@@ -242,7 +244,7 @@ var isRoot = func() bool {
 // StartPrivileged should be called when a privileged operation begins.
 func StartPrivileged() (lock *FileLock, err error) {
 	if !isRoot() {
-		// FIXME: return ErrRequiresRoot
+		// FIXME: return ErrNeedRoot
 		return nil, errors.New("command requires sudo (root)")
 	}
 
@@ -258,6 +260,11 @@ func StartPrivileged() (lock *FileLock, err error) {
 
 // StopPrivileged should be called to flag the end of a privileged operation.
 func StopPrivileged(lock *FileLock) (err error) {
+	if !isRoot() {
+		// FIXME: return ErrNeedRoot
+		return errors.New("command requires sudo (root)")
+	}
+
 	return lock.Unlock()
 }
 
