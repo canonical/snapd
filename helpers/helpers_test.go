@@ -20,19 +20,6 @@ type HTestSuite struct{}
 
 var _ = Suite(&HTestSuite{})
 
-func mockIsRoot() bool {
-	return true
-}
-
-func (ts *HTestSuite) SetUpTest(c *C) {
-	isRoot = mockIsRoot
-
-	dir := c.MkDir()
-	lockfileName = func() string {
-		return filepath.Join(dir, "lock")
-	}
-}
-
 func (ts *HTestSuite) TestUnpack(c *C) {
 
 	// setup tmpdir
@@ -267,46 +254,4 @@ func (ts *HTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
 	home, err := CurrentHomeDir()
 	c.Assert(err, IsNil)
 	c.Assert(home, Equals, oldHome)
-}
-
-func (ts *HTestSuite) TestLocking(c *C) {
-	lockfile := filepath.Join(c.MkDir(), "lock")
-
-	c.Assert(FileExists(lockfile), Equals, false)
-
-	lock := NewFileLock(lockfile)
-	c.Assert(lock, Not(IsNil))
-
-	c.Assert(lock.Filename, Equals, lockfile)
-	c.Assert(lock.realFile, IsNil)
-
-	err := lock.Lock()
-	c.Assert(err, IsNil)
-
-	c.Assert(FileExists(lockfile), Equals, true)
-	c.Assert(lock.Filename, Equals, lockfile)
-	c.Assert(lock.realFile, Not(IsNil))
-
-	err = lock.Unlock()
-	c.Assert(err, IsNil)
-	c.Assert(FileExists(lockfile), Equals, false)
-
-}
-
-func (ts *HTestSuite) TestPrivileged(c *C) {
-	priv, err := NewPrivileged()
-
-	c.Assert(err, IsNil)
-	c.Assert(priv, Not(IsNil))
-	c.Assert(priv.lock, Not(IsNil))
-
-	lockfile := priv.lock.Filename
-	c.Assert(lockfile, Not(Equals), "")
-	c.Assert(priv.lock.realFile, Not(IsNil))
-
-	c.Assert(FileExists(lockfile), Equals, true)
-
-	err = priv.Stop()
-	c.Assert(err, IsNil)
-	c.Assert(FileExists(lockfile), Equals, false)
 }

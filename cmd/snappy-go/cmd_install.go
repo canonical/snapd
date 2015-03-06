@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 
-	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -19,9 +18,9 @@ func init() {
 }
 
 func (x *cmdInstall) Execute(args []string) (err error) {
-	var priv *helpers.Privileged
+	var priv *Privileged
 
-	if priv, err = helpers.NewPrivileged(); err != nil {
+	if priv, err = NewPrivileged(); err != nil {
 		return err
 	}
 	defer func() { err = priv.Stop() }()
