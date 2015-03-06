@@ -6,15 +6,11 @@ import (
 
 var (
 	// ErrPackageNotFound is returned when a snap can not be found
-	ErrPackageNotFound = errors.New("Snappy package not found")
+	ErrPackageNotFound = errors.New("snappy package not found")
 
 	// ErrNeedRoot is returned when a command needs root privs but
 	// the caller is not root
-	ErrNeedRoot = errors.New("This command requires root access. Please re-run using 'sudo'.")
-
-	// ErrRemoteSnapNotFound indicates that no snap with that name was
-	// found in a remote repository
-	ErrRemoteSnapNotFound = errors.New("Remote Snap not found")
+	ErrNeedRoot = errors.New("this command requires root access. Please re-run using 'sudo'")
 
 	// ErrPackageNotRemovable is returned when trying to remove a package
 	// that cannot be removed.
@@ -22,5 +18,27 @@ var (
 
 	// ErrConfigNotFound is returned if a snap without a config is
 	// getting configured
-	ErrConfigNotFound = errors.New("No config found for this snap")
+	ErrConfigNotFound = errors.New("no config found for this snap")
+
+	// ErrInvalidHWDevice is returned when a invalid hardware device
+	// is given in the hw-assign command
+	ErrInvalidHWDevice = errors.New("invalid hardware device")
+
+	// ErrHWAccessRemoveNotFound is returned if the user tries to
+	// remove a device that does not exist
+	ErrHWAccessRemoveNotFound = errors.New("can not find device in hw-access list")
+
+	// ErrHWAccessAlreadyAdded is returned if you try to add a device
+	// that is already in the hwaccess list
+	ErrHWAccessAlreadyAdded = errors.New("device is already in hw-access list")
+
+	// ErrAuthenticationNeeds2fa is returned if the authentication
+	// needs 2factor
+	ErrAuthenticationNeeds2fa = errors.New("authentication needs second factor")
+
+	// ErrNotInstalled is returned when the snap is not installed
+	ErrNotInstalled = errors.New("the given snap is not installed")
+
+	// ErrInvalidCredentials is returned on login error
+	ErrInvalidCredentials = errors.New("invalid credentials")
 )

@@ -7,6 +7,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
+
+	"launchpad.net/snappy/helpers"
 
 	. "launchpad.net/gocheck"
 )
@@ -81,7 +84,7 @@ Pattern: /var/lib/systemd/click/${id}`)
 	clickSystemHooksDir = mockHooksDir
 	hooks, err := systemClickHooks()
 	c.Assert(err, IsNil)
-	c.Assert(len(hooks), Equals, 1)
+	c.Assert(hooks, HasLen, 1)
 	c.Assert(hooks["systemd"].name, Equals, "systemd")
 }
 
@@ -243,7 +246,7 @@ vendor: Foo Bar <foo@example.com>
 	repo := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
 	parts, err := repo.Installed()
 	c.Assert(err, IsNil)
-	c.Assert(len(parts), Equals, 2)
+	c.Assert(parts, HasLen, 2)
 	c.Assert(parts[0].Version(), Equals, "1.0")
 	c.Assert(parts[0].IsActive(), Equals, false)
 	c.Assert(parts[1].Version(), Equals, "2.0")
@@ -264,7 +267,7 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	snapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "apps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "apps")
 	homeData := filepath.Join(homeDir, "foo", "1.0")
-	err := ensureDir(homeData, 0755)
+	err := helpers.EnsureDir(homeData, 0755)
 	c.Assert(err, IsNil)
 
 	packageYaml := `name: foo
@@ -313,4 +316,114 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 	_, err = os.Stat(filepath.Join(snapDataDir, "foo", "2.0", "canary.txt"))
 	c.Assert(err, IsNil)
+}
+
+const expectedWrapper = `#!/bin/sh
+# !!!never remove this line!!!
+##TARGET=/apps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit
+
+set -e
+
+TMPDIR="/tmp/snapps/pastebinit.mvo/1.4.0.0.1/tmp"
+if [ ! -d "$TMPDIR" ]; then
+    mkdir -p -m1777 "$TMPDIR"
+fi
+export TMPDIR
+export TEMPDIR="$TMPDIR"
+
+# app paths (deprecated)
+export SNAPP_APP_PATH="/apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAPP_APP_DATA_PATH="/var/lib//apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAPP_APP_USER_DATA_PATH="$HOME//apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAPP_APP_TMPDIR="$TMPDIR"
+export SNAPP_OLD_PWD="$(pwd)"
+
+# app paths
+export SNAP_APP_PATH="/apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAP_APP_DATA_PATH="/var/lib//apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAP_APP_USER_DATA_PATH="$HOME//apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAP_APP_TMPDIR="$TMPDIR"
+
+# FIXME: this will need to become snappy arch or something
+export SNAPPY_APP_ARCH="$(dpkg --print-architecture)"
+
+if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
+   mkdir -p "$SNAP_APP_USER_DATA_PATH"
+fi
+export HOME="$SNAP_APP_USER_DATA_PATH"
+
+# export old pwd
+export SNAP_OLD_PWD="$(pwd)"
+cd /apps/pastebinit.mvo/1.4.0.0.1/
+aa-exec -p pastebinit.mvo_pastebinit_1.4.0.0.1 -- /apps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
+`
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
+	binary := Binary{Name: "bin/pastebinit"}
+	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
+	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
+	m := packageYaml{Name: "pastebinit.mvo",
+		Version: "1.4.0.0.1"}
+
+	generatedWrapper := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	c.Assert(generatedWrapper, Equals, expectedWrapper)
+}
+
+func (s *SnapTestSuite) TestSnappyGetAaProfile(c *C) {
+	m := packageYaml{Name: "foo",
+		Version: "1.0"}
+
+	c.Assert(getAaProfile(&m, Binary{Name: "bin/app"}), Equals, "foo_app_1.0")
+	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", SecurityTemplate: "some-security-json"}), Equals, "some-security-json")
+	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", SecurityPolicy: "some-profile"}), Equals, "some-profile")
+}
+
+func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {
+	packageYaml := `name: foo.mvo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+binaries:
+ - name: bin/foo
+`
+	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+
+	// ensure that the binary wrapper file go generated with the right
+	// name
+	binaryWrapper := filepath.Join(snapBinariesDir, "foo.foo.mvo")
+	c.Assert(helpers.FileExists(binaryWrapper), Equals, true)
+
+	// and that it gets removed on remove
+	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
+	err := removeClick(snapDir)
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
+	c.Assert(helpers.FileExists(snapDir), Equals, false)
+}
+
+func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {
+	packageYaml := `name: foo.mvo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+binaries:
+ - name: bin/foo
+`
+	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+
+	// ensure that the binary wrapper file go generated with the right
+	// path
+	oldSnapBin := filepath.Join(snapAppsDir, "foo.mvo", "1.0", "bin", "foo")
+	binaryWrapper := filepath.Join(snapBinariesDir, "foo.foo.mvo")
+	content, err := ioutil.ReadFile(binaryWrapper)
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), oldSnapBin), Equals, true)
+
+	// and that it gets updated on upgrade
+	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+	newSnapBin := filepath.Join(snapAppsDir, "foo.mvo", "2.0", "bin", "foo")
+	content, err = ioutil.ReadFile(binaryWrapper)
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), newSnapBin), Equals, true)
 }

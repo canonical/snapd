@@ -18,6 +18,9 @@ const (
 	// Initial and final values
 	bootloaderBootmodeTry     = "try"
 	bootloaderBootmodeSuccess = "default"
+
+	// textual description in hardware.yaml for AB systems
+	bootloaderSystemAB = "system-AB"
 )
 
 type bootloaderName string
@@ -77,7 +80,9 @@ type bootloaderType struct {
 }
 
 // Factory method that returns a new bootloader for the given partition
-func getBootloader(p *Partition) (bootloader bootLoader, err error) {
+var getBootloader = getBootloaderImpl
+
+func getBootloaderImpl(p *Partition) (bootloader bootLoader, err error) {
 	// try uboot
 	if uboot := newUboot(p); uboot != nil {
 		return uboot, nil
