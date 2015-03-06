@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -26,7 +27,7 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 
 	err = snappy.Install(args)
 	if err != nil {
-		return err
+		return logger.LogError(err)
 	}
 	// call show versions afterwards
 	installed, err := snappy.ListInstalled()

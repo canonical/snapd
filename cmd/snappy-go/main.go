@@ -2,8 +2,11 @@ package main
 
 import (
 	"errors"
+	"log"
 	"os"
 	"syscall"
+
+	logger "launchpad.net/snappy/logger"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -20,10 +23,10 @@ var optionsData options
 var parser = flags.NewParser(&optionsData, flags.Default)
 
 func init() {
-	if os.Getenv("SNAPPY_DEBUG") != "" {
-		// FIXME: need a global logger!
-		//setupLogger()
-	}
+	snappyLogger := logger.New()
+
+	// This will affect all subsequent log.* calls (in all modules).
+	log.SetOutput(snappyLogger)
 }
 
 func main() {

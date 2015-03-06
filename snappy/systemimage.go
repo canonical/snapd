@@ -16,7 +16,8 @@ import (
 	"strings"
 	"time"
 
-	partition "launchpad.net/snappy/partition"
+	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/partition"
 
 	"github.com/mvo5/goconfigparser"
 	dbus "launchpad.net/go-dbus/v1"
@@ -136,8 +137,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	if pb != nil {
 		updateProgress, err = s.proxy.makeWatcher("UpdateProgress")
 		if err != nil {
-			log.Panic(fmt.Sprintf("ERROR: %v", err))
-			return nil
+			panic(logger.LogError(err))
 		}
 		pb.Start(100.0)
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -29,7 +30,7 @@ func init() {
 	if _, err := parser.AddCommand("info", shortInfoHelp, longInfoHelp, &cmdInfoData); err != nil {
 		// panic here as something must be terribly wrong if there is an
 		// error here
-		panic(err)
+		panic(logger.LogError(err))
 	}
 }
 

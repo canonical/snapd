@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -26,7 +27,7 @@ func (x *cmdRemove) Execute(args []string) (err error) {
 		fmt.Printf("Removing %s\n", part)
 
 		if err := snappy.Remove(part); err != nil {
-			return err
+			return logger.LogError(err)
 		}
 	}
 

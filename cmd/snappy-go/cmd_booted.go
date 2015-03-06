@@ -1,6 +1,9 @@
 package main
 
-import "launchpad.net/snappy/snappy"
+import (
+	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/snappy"
+)
 
 type cmdBooted struct {
 }
@@ -20,8 +23,8 @@ func (x *cmdBooted) Execute(args []string) (err error) {
 
 	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)
 	if err != nil {
-		return err
+		return logger.LogError(err)
 	}
 
-	return parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
+	return logger.LogError(parts[0].(*snappy.SystemImagePart).MarkBootSuccessful())
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -37,7 +38,7 @@ func set(args []string) (err error) {
 		return err
 	}
 
-	return snappy.SetProperty(pkgname, args...)
+	return logger.LogError(snappy.SetProperty(pkgname, args...))
 }
 
 func parseSetPropertyCmdline(args ...string) (pkgname string, out []string, err error) {
