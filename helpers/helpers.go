@@ -242,15 +242,15 @@ var isRoot = func() bool {
 }
 
 // StartPrivileged should be called when a privileged operation begins.
-func StartPrivileged() (lock *FileLock, err error) {
+func StartPrivileged() (*FileLock, error) {
 	if !isRoot() {
 		// FIXME: return ErrNeedRoot
 		return nil, errors.New("command requires sudo (root)")
 	}
 
-	lock = NewFileLock(lockfileName())
+	lock := NewFileLock(lockfileName())
 
-	if err = lock.Lock(); err != nil {
+	if err := lock.Lock(); err != nil {
 		// FIXME: return ErrPrivOpInProgress
 		return nil, errors.New("privileged operation already in progress")
 	}
@@ -259,7 +259,7 @@ func StartPrivileged() (lock *FileLock, err error) {
 }
 
 // StopPrivileged should be called to flag the end of a privileged operation.
-func StopPrivileged(lock *FileLock) (err error) {
+func StopPrivileged(lock *FileLock) error {
 	if !isRoot() {
 		// FIXME: return ErrNeedRoot
 		return errors.New("command requires sudo (root)")
@@ -269,30 +269,28 @@ func StopPrivileged(lock *FileLock) (err error) {
 }
 
 // NewFileLock creates a new lock object (but does not lock it).
-func NewFileLock(path string) (lock *FileLock) {
-
-	lock = new(FileLock)
-	lock.Filename = path
-
-	return lock
+func NewFileLock(path string) *FileLock {
+	return &FileLock{Filename: path}
 }
 
 // Lock the FileLock object.
 // Returns ErrAlreadyLocked if an existing lock is in place.
-func (l *FileLock) Lock() (err error) {
+func (l *FileLock) Lock() error {
+
+	var err error
 
 	// XXX: don't try to create exclusively - we care if the file failed to
 	// be created, but we don't care if it already existed as the lock _on_ the
 	// file is the most important thing.
 	flags := (os.O_CREATE | os.O_WRONLY)
 
-	l.realFile, err = os.OpenFile(l.Filename, flags, 0600)
+	f, err := os.OpenFile(l.Filename, flags, 0600)
 	if err != nil {
 		return err
 	}
+	l.realFile = f
 
-	err = syscall.Flock(int(l.realFile.Fd()), syscall.LOCK_EX)
-	if err != nil {
+	if err = syscall.Flock(int(l.realFile.Fd()), syscall.LOCK_EX); err != nil {
 		return ErrAlreadyLocked
 	}
 
@@ -301,18 +299,17 @@ func (l *FileLock) Lock() (err error) {
 
 // Unlock the FileLock object.
 // Returns ErrNotLocked if no existing lock is in place.
-func (l *FileLock) Unlock() (err error) {
-	err = syscall.Flock(int(l.realFile.Fd()), syscall.LOCK_UN)
-	if err != nil {
+func (l *FileLock) Unlock() error {
+	if err := syscall.Flock(int(l.realFile.Fd()), syscall.LOCK_UN); err != nil {
 		return ErrNotLocked
 	}
 
 	// unlink first
-	if err = os.Remove(l.Filename); err != nil {
+	if err := os.Remove(l.Filename); err != nil {
 		return err
 	}
 
-	if err = l.realFile.Close(); err != nil {
+	if err := l.realFile.Close(); err != nil {
 		return err
 	}
 

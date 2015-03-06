@@ -56,6 +56,7 @@ func (x *cmdHWInfo) Execute(args []string) (err error) {
 	if lock, err = helpers.StartPrivileged(); err != nil {
 		return err
 	}
+	defer func() { err = helpers.StopPrivileged(lock) }()
 
 	// use specific package
 	pkgname := x.Positional.PackageName
@@ -69,9 +70,5 @@ func (x *cmdHWInfo) Execute(args []string) (err error) {
 	}
 
 	// no package -> show additional access for all installed snaps
-	if err = outputHWAccessForAll(); err != nil {
-		return err
-	}
-
-	return helpers.StopPrivileged(lock)
+	return outputHWAccessForAll()
 }

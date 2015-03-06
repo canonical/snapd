@@ -21,16 +21,12 @@ func (x *cmdBooted) Execute(args []string) (err error) {
 	if lock, err = helpers.StartPrivileged(); err != nil {
 		return err
 	}
+	defer func() { err = helpers.StopPrivileged(lock) }()
 
 	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)
 	if err != nil {
 		return err
 	}
 
-	err = parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
-	if err != nil {
-		return err
-	}
-
-	return helpers.StopPrivileged(lock)
+	return parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
 }

@@ -24,6 +24,7 @@ func (x *cmdRemove) Execute(args []string) (err error) {
 	if lock, err = helpers.StartPrivileged(); err != nil {
 		return err
 	}
+	defer func() { err = helpers.StopPrivileged(lock) }()
 
 	for _, part := range args {
 		fmt.Printf("Removing %s\n", part)
@@ -33,5 +34,5 @@ func (x *cmdRemove) Execute(args []string) (err error) {
 		}
 	}
 
-	return helpers.StopPrivileged(lock)
+	return err
 }

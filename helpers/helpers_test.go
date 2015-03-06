@@ -24,14 +24,13 @@ func mockIsRoot() bool {
 	return true
 }
 
-func mockLockfileName() string {
-	dir, _ := ioutil.TempDir("", "lock")
-	return filepath.Join(dir, "lock")
-}
-
 func (ts *HTestSuite) SetUpTest(c *C) {
 	isRoot = mockIsRoot
-	lockfileName = mockLockfileName
+
+	dir := c.MkDir()
+	lockfileName = func() string {
+		return filepath.Join(dir, "lock")
+	}
 }
 
 func (ts *HTestSuite) TestUnpack(c *C) {

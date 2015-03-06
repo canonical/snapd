@@ -26,6 +26,7 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 	if lock, err = helpers.StartPrivileged(); err != nil {
 		return err
 	}
+	defer func() { err = helpers.StopPrivileged(lock) }()
 
 	err = snappy.Install(args)
 	if err != nil {
@@ -39,5 +40,5 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 
 	showInstalledList(installed, os.Stdout)
 
-	return helpers.StopPrivileged(lock)
+	return err
 }

@@ -32,6 +32,7 @@ func (x *cmdHWAssign) Execute(args []string) (err error) {
 	if lock, err = helpers.StartPrivileged(); err != nil {
 		return err
 	}
+	defer func() { err = helpers.StopPrivileged(lock) }()
 
 	if err := snappy.AddHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
 		if err == snappy.ErrHWAccessAlreadyAdded {
@@ -43,5 +44,5 @@ func (x *cmdHWAssign) Execute(args []string) (err error) {
 	}
 
 	fmt.Printf("'%s' is now allowed to access '%s'\n", x.Positional.PackageName, x.Positional.DevicePath)
-	return helpers.StopPrivileged(lock)
+	return err
 }

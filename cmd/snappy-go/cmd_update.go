@@ -27,12 +27,9 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 	if lock, err = helpers.StartPrivileged(); err != nil {
 		return err
 	}
+	defer func() { err = helpers.StopPrivileged(lock) }()
 
-	if err = update(); err != nil {
-		return err
-	}
-
-	return helpers.StopPrivileged(lock)
+	return update()
 }
 
 func update() error {

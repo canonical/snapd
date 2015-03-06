@@ -32,11 +32,12 @@ func (x *cmdHWUnassign) Execute(args []string) (err error) {
 	if lock, err = helpers.StartPrivileged(); err != nil {
 		return err
 	}
+	defer func() { err = helpers.StopPrivileged(lock) }()
 
 	if err := snappy.RemoveHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
 		return err
 	}
 
 	fmt.Printf("'%s' is no longer allowed to access '%s'\n", x.Positional.PackageName, x.Positional.DevicePath)
-	return helpers.StopPrivileged(lock)
+	return err
 }
