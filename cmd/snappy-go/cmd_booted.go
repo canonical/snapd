@@ -17,11 +17,12 @@ func init() {
 }
 
 func (x *cmdBooted) Execute(args []string) (err error) {
-	var lock *helpers.FileLock
-	if lock, err = helpers.StartPrivileged(); err != nil {
+	var priv *helpers.Privileged
+
+	if priv, err = helpers.NewPrivileged(); err != nil {
 		return err
 	}
-	defer func() { err = helpers.StopPrivileged(lock) }()
+	defer func() { err = priv.Stop() }()
 
 	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)
 	if err != nil {

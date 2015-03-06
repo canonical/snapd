@@ -51,12 +51,12 @@ func outputHWAccessForAll() error {
 }
 
 func (x *cmdHWInfo) Execute(args []string) (err error) {
-	var lock *helpers.FileLock
+	var priv *helpers.Privileged
 
-	if lock, err = helpers.StartPrivileged(); err != nil {
+	if priv, err = helpers.NewPrivileged(); err != nil {
 		return err
 	}
-	defer func() { err = helpers.StopPrivileged(lock) }()
+	defer func() { err = priv.Stop() }()
 
 	// use specific package
 	pkgname := x.Positional.PackageName

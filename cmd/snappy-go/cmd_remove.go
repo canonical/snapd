@@ -19,12 +19,12 @@ func init() {
 }
 
 func (x *cmdRemove) Execute(args []string) (err error) {
-	var lock *helpers.FileLock
+	var priv *helpers.Privileged
 
-	if lock, err = helpers.StartPrivileged(); err != nil {
+	if priv, err = helpers.NewPrivileged(); err != nil {
 		return err
 	}
-	defer func() { err = helpers.StopPrivileged(lock) }()
+	defer func() { err = priv.Stop() }()
 
 	for _, part := range args {
 		fmt.Printf("Removing %s\n", part)

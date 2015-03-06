@@ -21,12 +21,12 @@ func init() {
 }
 
 func (x *cmdInstall) Execute(args []string) (err error) {
-	var lock *helpers.FileLock
+	var priv *helpers.Privileged
 
-	if lock, err = helpers.StartPrivileged(); err != nil {
+	if priv, err = helpers.NewPrivileged(); err != nil {
 		return err
 	}
-	defer func() { err = helpers.StopPrivileged(lock) }()
+	defer func() { err = priv.Stop() }()
 
 	err = snappy.Install(args)
 	if err != nil {

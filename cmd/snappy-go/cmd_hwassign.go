@@ -27,12 +27,12 @@ func init() {
 }
 
 func (x *cmdHWAssign) Execute(args []string) (err error) {
-	var lock *helpers.FileLock
+	var priv *helpers.Privileged
 
-	if lock, err = helpers.StartPrivileged(); err != nil {
+	if priv, err = helpers.NewPrivileged(); err != nil {
 		return err
 	}
-	defer func() { err = helpers.StopPrivileged(lock) }()
+	defer func() { err = priv.Stop() }()
 
 	if err := snappy.AddHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
 		if err == snappy.ErrHWAccessAlreadyAdded {

@@ -46,6 +46,12 @@ type FileLock struct {
 	realFile *os.File
 }
 
+// Privileged type that encapsulates everything needed to run a
+// privileged operation.
+type Privileged struct {
+	lock *FileLock
+}
+
 func init() {
 	// golang does not init Seed() itself
 	rand.Seed(time.Now().UTC().UnixNano())
@@ -241,36 +247,33 @@ var isRoot = func() bool {
 	return syscall.Getuid() == 0
 }
 
-// StartPrivileged should be called when a privileged operation begins.
-func StartPrivileged() (*FileLock, error) {
+// NewFileLock creates a new lock object (but does not lock it).
+func NewFileLock(path string) *FileLock {
+	return &FileLock{Filename: path}
+}
+
+// NewPrivileged should be called when starting a privileged operation.
+func NewPrivileged() (*Privileged, error) {
+
 	if !isRoot() {
 		// FIXME: return ErrNeedRoot
 		return nil, errors.New("command requires sudo (root)")
 	}
 
-	lock := NewFileLock(lockfileName())
+	p := new(Privileged)
+	p.lock = NewFileLock(lockfileName())
 
-	if err := lock.Lock(); err != nil {
-		// FIXME: return ErrPrivOpInProgress
-		return nil, errors.New("privileged operation already in progress")
-	}
-
-	return lock, nil
+	return p, p.lock.Lock()
 }
 
-// StopPrivileged should be called to flag the end of a privileged operation.
-func StopPrivileged(lock *FileLock) error {
+// Stop should be called to signifiy that all privileged operations have
+// completed.
+func (p *Privileged) Stop() error {
 	if !isRoot() {
 		// FIXME: return ErrNeedRoot
 		return errors.New("command requires sudo (root)")
 	}
-
-	return lock.Unlock()
-}
-
-// NewFileLock creates a new lock object (but does not lock it).
-func NewFileLock(path string) *FileLock {
-	return &FileLock{Filename: path}
+	return p.lock.Unlock()
 }
 
 // Lock the FileLock object.

@@ -294,18 +294,19 @@ func (ts *HTestSuite) TestLocking(c *C) {
 }
 
 func (ts *HTestSuite) TestPrivileged(c *C) {
-	lock, err := StartPrivileged()
+	priv, err := NewPrivileged()
 
 	c.Assert(err, IsNil)
-	c.Assert(lock, Not(IsNil))
+	c.Assert(priv, Not(IsNil))
+	c.Assert(priv.lock, Not(IsNil))
 
-	lockfile := lock.Filename
+	lockfile := priv.lock.Filename
 	c.Assert(lockfile, Not(Equals), "")
-	c.Assert(lock.realFile, Not(IsNil))
+	c.Assert(priv.lock.realFile, Not(IsNil))
 
 	c.Assert(FileExists(lockfile), Equals, true)
 
-	err = StopPrivileged(lock)
+	err = priv.Stop()
 	c.Assert(err, IsNil)
 	c.Assert(FileExists(lockfile), Equals, false)
 }
