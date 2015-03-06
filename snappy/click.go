@@ -411,7 +411,7 @@ WantedBy=multi-user.target
 }
 
 func generateServiceFileName(m *packageYaml, service Service) string {
-	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version))
+	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
 }
 
 var runSystemctl = runSystemctlImpl
@@ -698,18 +698,18 @@ func setActiveClick(baseDir string) (err error) {
 		return err
 	}
 
+	// and now the cick hooks
+	err = installClickHooks(baseDir, newActiveManifest)
+	if err != nil {
+		return err
+	}
+
 	// add the "binaries:" from the package.yaml
 	if err := addPackageYamlBinaries(baseDir); err != nil {
 		return err
 	}
 	// add the "services:" from the package.yaml
 	if err := addPackageYamlServices(baseDir); err != nil {
-		return err
-	}
-
-	// and now the cick hooks
-	err = installClickHooks(baseDir, newActiveManifest)
-	if err != nil {
 		return err
 	}
 
