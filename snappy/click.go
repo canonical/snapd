@@ -414,6 +414,12 @@ func generateServiceFileName(m *packageYaml, service Service) string {
 	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version))
 }
 
+var runSystemctl = runSystemctlImpl
+
+func runSystemctlImpl(cmd ...string) error {
+	return exec.Command("systemctl", cmd...).Run()
+}
+
 func addPackageYamlServices(baseDir string) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
@@ -426,7 +432,18 @@ func addPackageYamlServices(baseDir string) error {
 		if err := ioutil.WriteFile(generateServiceFileName(m, service), []byte(content), 0755); err != nil {
 			return err
 		}
-		// FIXME: enable, start
+
+		// enable, start
+		serviceName := filepath.Base(generateServiceFileName(m, service))
+		if err := runSystemctl("daemon-reload"); err != nil {
+			return err
+		}
+		if err := runSystemctl("enable", serviceName); err != nil {
+			return err
+		}
+		if err := runSystemctl("start", serviceName); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -438,8 +455,19 @@ func removePackageYamlServices(baseDir string) error {
 		return err
 	}
 	for _, service := range m.Services {
-		// FIXME: disable, stop
+		serviceName := filepath.Base(generateServiceFileName(m, service))
+		if err := runSystemctl("stop", serviceName); err != nil {
+			return err
+		}
+		if err := runSystemctl("disable", serviceName); err != nil {
+			return err
+		}
+		// FIXME: wait for the service to be really stopped
+
 		os.Remove(generateServiceFileName(m, service))
+	}
+	if err := runSystemctl("daemon-reload"); err != nil {
+		return err
 	}
 
 	return nil

@@ -41,6 +41,9 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
 		return nil
 	}
+	runSystemctl = func(cmd ...string) error {
+		return nil
+	}
 
 	// ensure we do not look at the system
 	systemImageRoot = s.tempdir
