@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
