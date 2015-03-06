@@ -77,7 +77,7 @@ func (t *TextProgress) Start(total float64) {
 	t.pbar = pb.New(0)
 	t.pbar.Total = int64(total)
 	t.pbar.ShowSpeed = true
-	t.pbar.SetUnits(pb.U_BYTES)
+	t.pbar.Units = pb.U_BYTES
 	t.pbar.Start()
 }
 
