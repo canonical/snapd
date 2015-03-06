@@ -59,12 +59,12 @@ func parseReadme(readme string) (title, description string, err error) {
 
 func handleBinaries(buildDir string, m *packageYaml) error {
 	for _, v := range m.Binaries {
-		hookName := filepath.Base(v["name"])
+		hookName := filepath.Base(v.Name)
 
 		if _, ok := m.Integration[hookName]; !ok {
 			m.Integration[hookName] = make(map[string]string)
 		}
-		m.Integration[hookName]["bin-path"] = v["name"]
+		m.Integration[hookName]["bin-path"] = v.Name
 
 		_, hasApparmor := m.Integration[hookName]["apparmor"]
 		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
@@ -87,15 +87,15 @@ func handleServices(buildDir string, m *packageYaml) error {
 	}
 
 	for _, v := range m.Services {
-		hookName := filepath.Base(v["name"])
+		hookName := filepath.Base(v.Name)
 
 		if _, ok := m.Integration[hookName]; !ok {
 			m.Integration[hookName] = make(map[string]string)
 		}
 
 		// generate snappyd systemd unit json
-		if v["description"] == "" {
-			v["description"] = description
+		if v.Description == "" {
+			v.Description = description
 		}
 		snappySystemdContent, err := json.MarshalIndent(v, "", " ")
 		if err != nil {
@@ -247,7 +247,7 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 func Build(sourceDir string) (string, error) {
 
 	// ensure we have valid content
-	m, err := readPackageYaml(filepath.Join(sourceDir, "meta", "package.yaml"))
+	m, err := parsePackageYamlFile(filepath.Join(sourceDir, "meta", "package.yaml"))
 	if err != nil {
 		return "", err
 	}

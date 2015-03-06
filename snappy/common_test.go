@@ -10,43 +10,60 @@ import (
 
 	"launchpad.net/snappy/helpers"
 
+	"gopkg.in/yaml.v2"
 	. "launchpad.net/gocheck"
 )
 
 // makeInstalledMockSnap creates a installed mock snap without any
 // content other than the meta data
-func makeInstalledMockSnap(tempdir string) (yamlFile string, err error) {
+func makeInstalledMockSnap(tempdir, packageYamlContent string) (yamlFile string, err error) {
 	const packageHello = `name: hello-app
 version: 1.10
 vendor: Michael Vogt <mvo@ubuntu.com>
 icon: meta/hello.svg
 binaries:
  - name: bin/hello
+services:
+ - name: svc1
 `
+	if packageYamlContent == "" {
+		packageYamlContent = packageHello
+	}
 
-	metaDir := filepath.Join(tempdir, "apps", "hello-app", "1.10", "meta")
+	var m packageYaml
+	if err := yaml.Unmarshal([]byte(packageYamlContent), &m); err != nil {
+		return "", err
+	}
+
+	metaDir := filepath.Join(tempdir, "apps", m.Name, m.Version, "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
 	}
 	yamlFile = filepath.Join(metaDir, "package.yaml")
-	if err := ioutil.WriteFile(yamlFile, []byte(packageHello), 0644); err != nil {
+	if err := ioutil.WriteFile(yamlFile, []byte(packageYamlContent), 0644); err != nil {
 		return "", err
+	}
+
+	if err := addDefaultApparmorJSON(tempdir, "hello-app_hello_1.10.json"); err != nil {
+		return "", err
+	}
+
+	return yamlFile, nil
+}
+
+func addDefaultApparmorJSON(tempdir, apparmorJSONPath string) error {
+	appArmorDir := filepath.Join(tempdir, "var", "lib", "apparmor", "clicks")
+	if err := os.MkdirAll(appArmorDir, 0775); err != nil {
+		return err
 	}
 
 	const securityJSON = `{
   "policy_vendor": "ubuntu-snappy"
   "policy_version": 1.3
 }`
-	appArmorDir := filepath.Join(tempdir, "var", "lib", "apparmor", "clicks")
-	if err := os.MkdirAll(appArmorDir, 0775); err != nil {
-		return "", err
-	}
-	apparmorFile := filepath.Join(appArmorDir, "hello-app_hello_1.10.json")
-	if err := ioutil.WriteFile(apparmorFile, []byte(securityJSON), 0644); err != nil {
-		return "", err
-	}
 
-	return yamlFile, nil
+	apparmorFile := filepath.Join(appArmorDir, apparmorJSONPath)
+	return ioutil.WriteFile(apparmorFile, []byte(securityJSON), 0644)
 }
 
 // makeTestSnapPackage creates a real snap package that can be installed on
@@ -84,7 +101,7 @@ vendor: Foo Bar <foo@example.com>
 		c.Assert(err, IsNil)
 		allSnapFiles, err := filepath.Glob("*.snap")
 		c.Assert(err, IsNil)
-		c.Assert(len(allSnapFiles), Equals, 1)
+		c.Assert(allSnapFiles, HasLen, 1)
 		snapFile = allSnapFiles[0]
 	})
 	c.Assert(err, IsNil)
@@ -113,5 +130,35 @@ vendor: Foo Bar <foo@example.com>
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	c.Assert(err, IsNil)
-	c.Assert(len(installed), Equals, 2)
+	c.Assert(installed, HasLen, 2)
+}
+
+type MockProgressMeter struct {
+	total    float64
+	progress []float64
+	finished bool
+	spin     bool
+	spinMsg  string
+	written  int
+}
+
+func (m *MockProgressMeter) Start(total float64) {
+	m.total = total
+}
+func (m *MockProgressMeter) Set(current float64) {
+	m.progress = append(m.progress, current)
+}
+func (m *MockProgressMeter) SetTotal(total float64) {
+	m.total = total
+}
+func (m *MockProgressMeter) Spin(msg string) {
+	m.spin = true
+	m.spinMsg = msg
+}
+func (m *MockProgressMeter) Write(buf []byte) (n int, err error) {
+	m.written += len(buf)
+	return len(buf), err
+}
+func (m *MockProgressMeter) Finished() {
+	m.finished = true
 }

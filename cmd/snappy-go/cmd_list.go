@@ -63,7 +63,7 @@ func (x cmdList) list() error {
 }
 
 func formatDate(t time.Time) string {
-	return fmt.Sprintf("%v-%02d-%v", t.Year(), int(t.Month()), t.Day())
+	return fmt.Sprintf("%v-%02d-%02d", t.Year(), int(t.Month()), t.Day())
 }
 
 func showInstalledList(installed []snappy.Part, o io.Writer) {
@@ -88,6 +88,9 @@ func showVerboseList(installed []snappy.Part, o io.Writer) {
 		active := ""
 		if part.IsActive() {
 			active = "*"
+		}
+		if part.NeedsReboot() {
+			active = "!"
 		}
 		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%s\t%s\t%s\t", part.Name(), active, formatDate(part.Date()), part.Version(), part.Description()))
 	}

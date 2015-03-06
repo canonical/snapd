@@ -29,8 +29,9 @@ func (ts *HTestSuite) TestUnpack(c *C) {
 	// ok, slightly silly
 	path := "/etc/fstab"
 
-	// create test data
-	cmd := exec.Command("tar", "cvzf", tmpfile, path)
+	// create test dir and also test file
+	someDir := c.MkDir()
+	cmd := exec.Command("tar", "cvzf", tmpfile, path, someDir)
 	output, err := cmd.CombinedOutput()
 	c.Assert(err, IsNil)
 	if !strings.Contains(string(output), "/etc/fstab") {
@@ -42,8 +43,18 @@ func (ts *HTestSuite) TestUnpack(c *C) {
 	err = unpackTar(tmpfile, unpackdir)
 	c.Assert(err, IsNil)
 
+	// we have the expected file
 	_, err = os.Open(filepath.Join(tmpdir, "t/etc/fstab"))
 	c.Assert(err, IsNil)
+
+	// and the expected dir is there and has the right mode
+	unpackedSomeDir := filepath.Join(tmpdir, "t", someDir)
+	c.Assert(IsDirectory(unpackedSomeDir), Equals, true)
+	st1, err := os.Stat(unpackedSomeDir)
+	c.Assert(err, IsNil)
+	st2, err := os.Stat(someDir)
+	c.Assert(err, IsNil)
+	c.Assert(st1.Mode(), Equals, st2.Mode())
 }
 
 func (ts *HTestSuite) TestGetMapFromValidYaml(c *C) {
@@ -187,10 +198,10 @@ func (ts *HTestSuite) TestMakeRandomString(c *C) {
 	// for our tests
 	rand.Seed(1)
 
-	s1 := makeRandomString(10)
+	s1 := MakeRandomString(10)
 	c.Assert(s1, Equals, "GMWjGsAPga")
 
-	s2 := makeRandomString(5)
+	s2 := MakeRandomString(5)
 	c.Assert(s2, Equals, "TlmOD")
 }
 
@@ -209,4 +220,38 @@ func (ts *HTestSuite) TestAtomicWriteFile(c *C) {
 	d, err := ioutil.ReadDir(tmpdir)
 	c.Assert(err, IsNil)
 	c.Assert(len(d), Equals, 1)
+}
+
+func (ts *HTestSuite) TestAtomicWriteFilePermissions(c *C) {
+	tmpdir := c.MkDir()
+
+	p := filepath.Join(tmpdir, "foo")
+	err := AtomicWriteFile(p, []byte(""), 0600)
+	c.Assert(err, IsNil)
+
+	st, err := os.Stat(p)
+	c.Assert(err, IsNil)
+	c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0600))
+}
+
+func (ts *HTestSuite) TestCurrentHomeDirHOMEenv(c *C) {
+	tmpdir := c.MkDir()
+
+	oldHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", oldHome)
+
+	os.Setenv("HOME", tmpdir)
+	home, err := CurrentHomeDir()
+	c.Assert(err, IsNil)
+	c.Assert(home, Equals, tmpdir)
+}
+
+func (ts *HTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
+	oldHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", oldHome)
+
+	os.Setenv("HOME", "")
+	home, err := CurrentHomeDir()
+	c.Assert(err, IsNil)
+	c.Assert(home, Equals, oldHome)
 }

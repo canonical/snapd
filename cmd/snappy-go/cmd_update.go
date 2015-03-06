@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"launchpad.net/snappy/snappy"
 )
@@ -28,10 +29,6 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 }
 
 func update() error {
-	if !isRoot() {
-		return ErrRequiresRoot
-	}
-
 	// FIXME: handle args
 	updates, err := snappy.ListUpdates()
 	if err != nil {
@@ -45,6 +42,10 @@ func update() error {
 		if err := part.Install(pbar); err != nil {
 			return err
 		}
+	}
+
+	if len(updates) > 0 {
+		showVerboseList(updates, os.Stdout)
 	}
 
 	return nil

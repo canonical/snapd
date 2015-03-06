@@ -22,9 +22,7 @@ func (s *PartitionTestSuite) makeFakeGrubEnv(c *C) {
 	err = ioutil.WriteFile(bootloaderGrubEnvFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	// mock some stuff
-	bootloaderGrubInstallCmd = "/bin/true"
-	bootloaderGrubEnvCmd = "/bin/true"
+	// do not run commands for real
 	runCommand = mockRunCommandWithCapture
 }
 

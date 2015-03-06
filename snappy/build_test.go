@@ -178,10 +178,14 @@ services:
 
 	snappySystemdContent, err := ioutil.ReadFile(filepath.Join(unpackDir, "meta/foo.snappy-systemd"))
 	c.Assert(err, IsNil)
+	// FIXME: the fact that ports is writen out is really not ideal,
+	//        but this will soon go away and snappy itself will write
+	//        the systemd file instead of the hook
 	c.Assert(string(snappySystemdContent), Equals, `{
- "description": "some description",
  "name": "foo",
- "start": "bin/hello-world"
+ "description": "some description",
+ "start": "bin/hello-world",
+ "ports": {}
 }`)
 }
 
