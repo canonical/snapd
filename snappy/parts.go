@@ -14,6 +14,7 @@ var (
 	snapAppArmorDir  = "/var/lib/apparmor/clicks"
 
 	snapBinariesDir = filepath.Join(snapAppsDir, "bin")
+	snapServicesDir = "/etc/systemd/services"
 
 	aaClickHookCmd = "aa-clickhook"
 )

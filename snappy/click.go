@@ -55,7 +55,8 @@ const (
 
 // ignore hooks of this type
 var ignoreHooks = map[string]bool{
-	"bin-path": true,
+	"bin-path":       true,
+	"snappy-systemd": true,
 }
 
 // var to make it testable
@@ -191,7 +192,8 @@ func installClickHooks(targetDir string, manifest clickManifest) (err error) {
 	for app, hook := range manifest.Hooks {
 		for hookName, hookTargetFile := range hook {
 			// ignore hooks that only exist for compatibility
-			// with the old snappy-python (like bin-path)
+			// with the old snappy-python (like bin-path,
+			// snappy-systemd)
 			if ignoreHooks[hookName] {
 				continue
 			}
@@ -277,6 +279,9 @@ func removeClick(clickDir string) (err error) {
 	if clickDir == p {
 
 		if err := removePackageYamlBinaries(clickDir); err != nil {
+			return err
+		}
+		if err := removePackageYamlServices(clickDir); err != nil {
 			return err
 		}
 
@@ -368,7 +373,79 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	return templateOut.String()
 }
 
-func getAaProfile(m *packageYaml, binary Binary) string {
+func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) string {
+
+	serviceTemplate := `[Unit]
+Description={{.Description}}
+After=apparmor.service
+Requires=apparmor.service
+X-Snappy=yes
+
+[Service]
+ExecStart={{.FullPathStart}}
+WorkingDirectory={{.AppPath}}
+Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}"
+AppArmorProfile={{.AaProfile}}
+{{if .Stop}}ExecStop={{.Stop}}{{end}}
+{{if .PostStop}}ExecPostStop={{.PostStop}}{{end}}
+{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout}}{{end}}
+
+[Install]
+WantedBy=multi-user.target
+`
+	var templateOut bytes.Buffer
+	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
+	wrapperData := struct {
+		packageYaml
+		Service
+		AppPath       string
+		AaProfile     string
+		FullPathStart string
+		AppTriple     string
+	}{
+		*m, service, baseDir, aaProfile, filepath.Join(baseDir, service.Start), fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version),
+	}
+	t.Execute(&templateOut, wrapperData)
+
+	return templateOut.String()
+}
+
+func generateServiceFileName(m *packageYaml, service Service) string {
+	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version))
+}
+
+func addPackageYamlServices(baseDir string) error {
+	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
+	if err != nil {
+		return err
+	}
+
+	for _, service := range m.Services {
+		aaProfile := fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version)
+		content := generateSnapServicesFile(service, baseDir, aaProfile, m)
+		if err := ioutil.WriteFile(generateServiceFileName(m, service), []byte(content), 0755); err != nil {
+			return err
+		}
+		// FIXME: enable, start
+	}
+
+	return nil
+}
+
+func removePackageYamlServices(baseDir string) error {
+	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
+	if err != nil {
+		return err
+	}
+	for _, service := range m.Services {
+		// FIXME: disable, stop
+		os.Remove(generateServiceFileName(m, service))
+	}
+
+	return nil
+}
+
+func getBinaryAaProfile(m *packageYaml, binary Binary) string {
 	// check if there is a specific apparmor profile
 	if binary.SecurityPolicy != "" {
 		return binary.SecurityPolicy
@@ -394,7 +471,7 @@ func addPackageYamlBinaries(baseDir string) error {
 	}
 
 	for _, binary := range m.Binaries {
-		aaProfile := getAaProfile(m, binary)
+		aaProfile := getBinaryAaProfile(m, binary)
 		content := generateSnapBinaryWrapper(binary, baseDir, aaProfile, m)
 		if err := ioutil.WriteFile(generateBinaryName(m, binary), []byte(content), 0755); err != nil {
 			return err
@@ -578,6 +655,10 @@ func setActiveClick(baseDir string) (err error) {
 			return err
 		}
 
+		if err := removePackageYamlServices(currentActiveDir); err != nil {
+			return err
+		}
+
 		if err := removeClickHooks(currentActiveManifest); err != nil {
 			return err
 		}
@@ -591,6 +672,10 @@ func setActiveClick(baseDir string) (err error) {
 
 	// add the "binaries:" from the package.yaml
 	if err := addPackageYamlBinaries(baseDir); err != nil {
+		return err
+	}
+	// add the "services:" from the package.yaml
+	if err := addPackageYamlServices(baseDir); err != nil {
 		return err
 	}
 
