@@ -23,7 +23,7 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 	if len(args) == 0 {
 		args = []string{"."}
 	}
-	
+
 	snapPackage, err := snappy.Build(args[0])
 	if err != nil {
 		return err
