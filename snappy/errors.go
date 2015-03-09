@@ -45,4 +45,8 @@ var (
 
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
+
+	// ErrInvalidPackageYaml is returned is a package.yaml file can not
+	// be parsed
+	ErrInvalidPackageYaml = errors.New("can not parse package.yaml")
 )

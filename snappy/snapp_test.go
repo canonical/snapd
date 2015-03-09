@@ -495,3 +495,38 @@ services:
 	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", "hello-app", "1.10"))
 	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
+
+func (s *SnapTestSuite) TestPackageYamlMultipleArchitecturesParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+architecture: [i386, armhf]
+`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Architectures, DeepEquals, []string{"i386", "armhf"})
+}
+
+func (s *SnapTestSuite) TestPackageYamlSingleArchitecturesParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+architecture: i386
+`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Architectures, DeepEquals, []string{"i386"})
+}
+
+func (s *SnapTestSuite) TestPackageYamlNoArchitecturesParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Architectures, DeepEquals, []string{"all"})
+}

@@ -29,6 +29,14 @@ const defaultApparmorJSON = `{
     "policy_version": 1.3
 }`
 
+// small helper that return the architecture or "multi" if its multiple arches
+func architectureForDeb(m *packageYaml) string {
+	if len(m.Architectures) > 1 {
+		return "multi"
+	}
+	return m.Architectures[0]
+}
+
 func parseReadme(readme string) (title, description string, err error) {
 	file, err := os.Open(readme)
 	if err != nil {
@@ -180,7 +188,7 @@ func writeDebianControl(buildDir string, m *packageYaml) error {
 	// generate debian/control content
 	const debianControlTemplate = `Package: {{.Name}}
 Version: {{.Version}}
-Architecture: {{.Architecture}}
+Architecture: {{.ArchitectureForDeb}}
 Maintainer: {{.Vendor}}
 Installed-Size: {{.InstalledSize}}
 Description: {{.Title}}
@@ -189,11 +197,12 @@ Description: {{.Title}}
 	t := template.Must(template.New("control").Parse(debianControlTemplate))
 	debianControlData := struct {
 		packageYaml
-		InstalledSize string
-		Title         string
-		Description   string
+		InstalledSize      string
+		Title              string
+		Description        string
+		ArchitectureForDeb string
 	}{
-		*m, installedSize, title, description,
+		*m, installedSize, title, description, architectureForDeb(m),
 	}
 	t.Execute(debianControlFile, debianControlData)
 
@@ -274,10 +283,7 @@ func Build(sourceDir string) (string, error) {
 		}
 	}
 
-	// defaults
-	if m.Architecture == "" {
-		m.Architecture = "all"
-	}
+	// defaults, mangling
 	if m.Integration == nil {
 		m.Integration = make(map[string]clickAppHook)
 	}
@@ -307,7 +313,8 @@ func Build(sourceDir string) (string, error) {
 	}
 
 	// build the package
-	snapName := fmt.Sprintf("%s_%s_%s.snap", m.Name, m.Version, m.Architecture)
+	snapName := fmt.Sprintf("%s_%s_%v.snap", m.Name, m.Version, architectureForDeb(m))
+
 	// FIXME: we want a native build here without dpkg-deb to be
 	//        about to build on non-ubuntu/debian systems
 	cmd := exec.Command("fakeroot", "dpkg-deb", "--build", buildDir, snapName)

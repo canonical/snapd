@@ -56,7 +56,7 @@ func (s *SnapTestSuite) TestBuildSimple(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 vendor: Foo <foo@example.com>
-architecture: all
+architecture: ["i386", "amd64"]
 integration:
  app:
   apparmor-profile: meta/hello.apparmor
@@ -69,7 +69,7 @@ integration:
 	// check that there is result
 	_, err = os.Stat(resultSnap)
 	c.Assert(err, IsNil)
-	c.Assert(resultSnap, Equals, "hello_1.0.1_all.snap")
+	c.Assert(resultSnap, Equals, "hello_1.0.1_multi.snap")
 
 	// check that the json looks valid
 	const expectedJSON = `{
@@ -85,12 +85,12 @@ integration:
   }
  }
 }`
-	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_1.0.1_all.snap", "manifest").Output()
+	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_1.0.1_multi.snap", "manifest").Output()
 	c.Assert(err, IsNil)
 	c.Assert(string(readJSON), Equals, expectedJSON)
 
 	// check that the content looks sane
-	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_all.snap").Output()
+	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_multi.snap").Output()
 	c.Assert(err, IsNil)
 	for _, needle := range []string{"./meta/package.yaml", "./meta/readme.md", "./bin/hello-world"} {
 		c.Assert(strings.Contains(string(readFiles), needle), Equals, true)

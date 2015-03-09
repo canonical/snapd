@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -64,13 +65,18 @@ type SnapPart struct {
 }
 
 type packageYaml struct {
-	Name         string
-	Version      string
-	Vendor       string
-	Icon         string
-	Type         SnapType
-	Architecture string
-	Framework    string
+	Name    string
+	Version string
+	Vendor  string
+	Icon    string
+	Type    SnapType
+
+	// the spec allows a string or a list here *ick* so we need
+	// to convert that into something sensible via reflect
+	ArchitectureAsListOrString interface{} `yaml:"architecture"`
+	Architectures              []string
+
+	Framework string
 
 	Services []Service `yaml:"services,omitempty"`
 	Binaries []Binary  `yaml:"binaries,omitempty"`
@@ -120,6 +126,21 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 	if err != nil {
 		log.Printf("Can not parse '%s'", yamlData)
 		return nil, err
+	}
+
+	// parse the architecture: field that is either a string or a list
+	// or empty (yes, you read that correctly)
+	v := reflect.ValueOf(m.ArchitectureAsListOrString)
+	switch v.Kind() {
+	case reflect.Invalid:
+		m.Architectures = []string{"all"}
+	case reflect.String:
+		m.Architectures = []string{v.String()}
+	case reflect.Slice:
+		v2 := m.ArchitectureAsListOrString.([]interface{})
+		for _, arch := range v2 {
+			m.Architectures = append(m.Architectures, arch.(string))
+		}
 	}
 
 	return &m, nil
