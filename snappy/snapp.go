@@ -23,7 +23,7 @@ import (
 // Port is used to declare the Port and Negotiable status of such port
 // that is bound to a Service.
 type Port struct {
-	Port       string `yaml:"port"`
+	Port       string `yaml:"port,omitempty"`
 	Negotiable bool   `yaml:"negotiable,omitempty"`
 }
 
@@ -37,7 +37,8 @@ type Service struct {
 	Poststop    string `yaml:"poststop,omitempty" json:"poststop,omitempty"`
 	StopTimeout string `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
 
-	Ports struct {
+	// must be a pointer so that it can be "nil" and omitempty works
+	Ports *struct {
 		Internal map[string]Port `yaml:"internal,omitempty" json:"internal,omitempty"`
 		External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
 	} `yaml:"ports,omitempty" json:"ports,omitempty"`
