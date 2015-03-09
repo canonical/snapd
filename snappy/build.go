@@ -14,9 +14,10 @@ import (
 	"launchpad.net/snappy/helpers"
 )
 
+// FIXME: this is lie we tell click to make it happy for now
 const staticPreinst = `#! /bin/sh
-echo "Snap packages may not be installed directly using dpkg."
-echo "Use 'snappy install' instead."
+echo "Click packages may not be installed directly using dpkg."
+echo "Use 'click install' instead."
 exit 1
 `
 
@@ -186,8 +187,11 @@ func writeDebianControl(buildDir string, m *packageYaml) error {
 	defer debianControlFile.Close()
 
 	// generate debian/control content
+	// FIXME: remove "Click-Version: 0.4" once we no longer need compat
+	//        with snappy-python
 	const debianControlTemplate = `Package: {{.Name}}
 Version: {{.Version}}
+Click-Version: 0.4
 Architecture: {{.ArchitectureForDeb}}
 Maintainer: {{.Vendor}}
 Installed-Size: {{.InstalledSize}}
