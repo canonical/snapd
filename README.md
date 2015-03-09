@@ -59,6 +59,34 @@ to get the `snappy` binary in your current working directory or
 
 to have it available in `$GOPATH/bin`
 
+### Contributing
+
+Contributions are always welcome! Please make sure that you sign the
+Canonical contributor licence agreement at
+http://www.ubuntu.com/legal/contributors 
+
+To get the source and propose a merge, this is what typically needs to
+be done:
+
+     bzr branch lp:snappy my-work
+     cd my-work
+     [hack on mywork]
+     bzr lp-propose
+
+We value good tests, so when you fix a bug or add a new feature we highly
+encourage you to create a test in $source_testing.go. See also the section
+about Testing.
+
+### Testing
+
+To run the various tests that we have to ensure a high quality source just run:
+
+    ./run-checks
+
+This will check if the source format is consistent, that it build, all tests
+work as expected and that "go vet" and "golint" have nothing to complain.
+
+
 ### Dependencies handling
 
 To generate dependencies.tsv you need `godeps`, so
