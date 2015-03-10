@@ -439,7 +439,7 @@ services:
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
 
-	servicesFile := filepath.Join(snapServicesDir, "foo.mvo_service_1.0")
+	servicesFile := filepath.Join(snapServicesDir, "foo.mvo_service_1.0.service")
 	c.Assert(helpers.FileExists(servicesFile), Equals, true)
 
 	// and that it gets removed on remove
