@@ -45,7 +45,7 @@ type Binary struct {
 
 // SnapPart represents a generic snap type
 type SnapPart struct {
-	m           *packageYaml 
+	m           *packageYaml
 	description string
 	hash        string
 	isActive    bool
