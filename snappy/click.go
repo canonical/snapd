@@ -230,6 +230,13 @@ func removeClickHooks(manifest clickManifest) (err error) {
 	}
 	for app, hook := range manifest.Hooks {
 		for hookName := range hook {
+			// ignore hooks that only exist for compatibility
+			// with the old snappy-python (like bin-path,
+			// snappy-systemd)
+			if ignoreHooks[hookName] {
+				continue
+			}
+
 			systemHook, ok := systemHooks[hookName]
 			if !ok {
 				continue
