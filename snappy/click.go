@@ -281,16 +281,8 @@ func removeClick(clickDir string) (err error) {
 	currentSymlink := path.Join(path.Dir(clickDir), "current")
 	p, _ := filepath.EvalSymlinks(currentSymlink)
 	if clickDir == p {
-
-		if err := removePackageBinaries(clickDir); err != nil {
+		if err := unsetActiveClick(p); err != nil {
 			return err
-		}
-		if err := removePackageServices(clickDir); err != nil {
-			return err
-		}
-
-		if err := os.Remove(currentSymlink); err != nil {
-			log.Printf("Warning: failed to remove %s: %s", currentSymlink, err)
 		}
 	}
 
@@ -667,6 +659,43 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	return nil
 }
 
+func unsetActiveClick(clickDir string) error {
+	currentSymlink := filepath.Join(clickDir, "..", "current")
+
+	// sanity check
+	currentActiveDir, err := filepath.EvalSymlinks(currentSymlink)
+	if err != nil {
+		return err
+	}
+	if clickDir != currentActiveDir {
+		return ErrSnapNotActive
+	}
+
+	// remove generated services, binaries, clickHooks
+	if err := removePackageBinaries(clickDir); err != nil {
+		return err
+	}
+
+	if err := removePackageServices(clickDir); err != nil {
+		return err
+	}
+
+	manifest, err := readClickManifestFromClickDir(clickDir)
+	if err != nil {
+		return err
+	}
+	if err := removeClickHooks(manifest); err != nil {
+		return err
+	}
+
+	// and finally the current symlink
+	if err := os.Remove(currentSymlink); err != nil {
+		log.Printf("Warning: failed to remove %s: %s", currentSymlink, err)
+	}
+
+	return nil
+}
+
 func setActiveClick(baseDir string) (err error) {
 	currentActiveSymlink := filepath.Join(baseDir, "..", "current")
 	currentActiveDir, err := filepath.EvalSymlinks(currentActiveSymlink)
@@ -678,22 +707,7 @@ func setActiveClick(baseDir string) (err error) {
 
 	// there is already an active part
 	if currentActiveDir != "" {
-		currentActiveManifest, err := readClickManifestFromClickDir(currentActiveDir)
-		if err != nil {
-			return err
-		}
-
-		if err := removePackageBinaries(currentActiveDir); err != nil {
-			return err
-		}
-
-		if err := removePackageServices(currentActiveDir); err != nil {
-			return err
-		}
-
-		if err := removeClickHooks(currentActiveManifest); err != nil {
-			return err
-		}
+		unsetActiveClick(currentActiveDir)
 	}
 
 	// make new part active
