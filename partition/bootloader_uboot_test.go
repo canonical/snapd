@@ -41,15 +41,14 @@ snappy_boot=if test "${snappy_mode}" = "try"; then if test -e mmc ${bootpart} ${
 `
 
 func (s *PartitionTestSuite) makeFakeUbootEnv(c *C) {
-	bootloaderUbootDir = filepath.Join(s.tempdir, "boot", "uboot")
 	err := os.MkdirAll(bootloaderUbootDir, 0755)
 	c.Assert(err, IsNil)
+
 	// this file just needs to exist
-	bootloaderUbootConfigFile = filepath.Join(bootloaderUbootDir, "uEnv.txt")
 	err = ioutil.WriteFile(bootloaderUbootConfigFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	bootloaderUbootEnvFile = filepath.Join(bootloaderUbootDir, "uEnv.txt")
+	// this file needs specific data
 	err = ioutil.WriteFile(bootloaderUbootEnvFile, []byte(fakeUbootEnvData), 0644)
 	c.Assert(err, IsNil)
 }
