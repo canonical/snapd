@@ -285,10 +285,10 @@ func removeClick(clickDir string) (err error) {
 	p, _ := filepath.EvalSymlinks(currentSymlink)
 	if clickDir == p {
 
-		if err := removePackageYamlBinaries(clickDir); err != nil {
+		if err := removePackageBinaries(clickDir); err != nil {
 			return err
 		}
-		if err := removePackageYamlServices(clickDir); err != nil {
+		if err := removePackageServices(clickDir); err != nil {
 			return err
 		}
 
@@ -427,7 +427,7 @@ func runSystemctlImpl(cmd ...string) error {
 	return exec.Command("systemctl", cmd...).Run()
 }
 
-func addPackageYamlServices(baseDir string) error {
+func addPackageServices(baseDir string) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
 		return err
@@ -456,7 +456,7 @@ func addPackageYamlServices(baseDir string) error {
 	return nil
 }
 
-func removePackageYamlServices(baseDir string) error {
+func removePackageServices(baseDir string) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
 		return err
@@ -495,7 +495,7 @@ func getBinaryAaProfile(m *packageYaml, binary Binary) string {
 	return fmt.Sprintf("%s_%s_%s", m.Name, filepath.Base(binary.Name), m.Version)
 }
 
-func addPackageYamlBinaries(baseDir string) error {
+func addPackageBinaries(baseDir string) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
 		return err
@@ -516,7 +516,7 @@ func addPackageYamlBinaries(baseDir string) error {
 	return nil
 }
 
-func removePackageYamlBinaries(baseDir string) error {
+func removePackageBinaries(baseDir string) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
 		return err
@@ -686,11 +686,11 @@ func setActiveClick(baseDir string) (err error) {
 			return err
 		}
 
-		if err := removePackageYamlBinaries(currentActiveDir); err != nil {
+		if err := removePackageBinaries(currentActiveDir); err != nil {
 			return err
 		}
 
-		if err := removePackageYamlServices(currentActiveDir); err != nil {
+		if err := removePackageServices(currentActiveDir); err != nil {
 			return err
 		}
 
@@ -705,18 +705,18 @@ func setActiveClick(baseDir string) (err error) {
 		return err
 	}
 
-	// and now the cick hooks
+	// and now the click hooks
 	err = installClickHooks(baseDir, newActiveManifest)
 	if err != nil {
 		return err
 	}
 
 	// add the "binaries:" from the package.yaml
-	if err := addPackageYamlBinaries(baseDir); err != nil {
+	if err := addPackageBinaries(baseDir); err != nil {
 		return err
 	}
 	// add the "services:" from the package.yaml
-	if err := addPackageYamlServices(baseDir); err != nil {
+	if err := addPackageServices(baseDir); err != nil {
 		return err
 	}
 
