@@ -1,6 +1,10 @@
 package snappy
 
-import "time"
+import (
+	"net"
+	"path/filepath"
+	"time"
+)
 
 // var instead of const to make it possible to override in the tests
 var (
@@ -8,6 +12,12 @@ var (
 	snapOemDir       = "/oem"
 	snapDataDir      = "/var/lib/apps"
 	snapDataHomeGlob = "/home/*/apps/"
+	snapAppArmorDir  = "/var/lib/apparmor/clicks"
+
+	snapBinariesDir = filepath.Join(snapAppsDir, "bin")
+	snapServicesDir = "/etc/systemd/system"
+
+	aaClickHookCmd = "aa-clickhook"
 )
 
 // SnapType represents the kind of snap (app, core, frameworks, oem)
@@ -144,7 +154,13 @@ func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
 func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	for _, r := range m.all {
 		results, err := r.Details(snapyName)
-		if err != nil {
+		// ignore network errors here, we will also collect
+		// local results
+		_, netError := err.(net.Error)
+		switch {
+		case err == ErrPackageNotFound || netError:
+			continue
+		case err != nil:
 			return parts, err
 		}
 		parts = append(parts, results...)
@@ -171,16 +187,20 @@ func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 			}
 		}
 	}
-	return
+
+	return res, nil
 }
 
 // InstalledSnapNamesByType returns all installed snap names with the given type
-var InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
+var InstalledSnapNamesByType = installedSnapNamesByTypeImpl
+
+func installedSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
 	installed, err := InstalledSnapsByType(snapTs...)
 	for _, part := range installed {
 		res = append(res, part.Name())
 	}
-	return
+
+	return res, nil
 }
 
 // ActiveSnapByName returns all active snaps with the given name
@@ -198,6 +218,7 @@ func ActiveSnapByName(needle string) Part {
 			return part
 		}
 	}
+
 	return nil
 }
 

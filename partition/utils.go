@@ -3,7 +3,6 @@ package partition
 import (
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 )
@@ -14,22 +13,6 @@ var runInChroot = func(chrootDir string, args ...string) (err error) {
 	fullArgs = append(fullArgs, args...)
 
 	return runCommand(fullArgs...)
-}
-
-// Return true if given path exists.
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return (err == nil)
-}
-
-// Return true if the given path exists and is a directory
-func isDirectory(path string) bool {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-
-	return fileInfo.IsDir()
 }
 
 // FIXME: would it make sense to differenciate between launch errors and
