@@ -43,6 +43,11 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	// fake "du"
 	duCmd = makeFakeDuCommand(c)
 
+	// do not attempt to hit the real store servers in the tests
+	storeSearchURI = ""
+	storeDetailsURI = ""
+	storeBulkURI = ""
+
 	// ensure we do not look at the system
 	systemImageRoot = s.tempdir
 }
@@ -280,9 +285,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	storeSearchURI = mockServer.URL + "/%s"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.searchURI = mockServer.URL + "/%s"
 
 	results, err := snap.Search("xkcd")
 	c.Assert(err, IsNil)
@@ -311,9 +316,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	storeBulkURI = mockServer.URL + "/updates/"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.bulkURI = mockServer.URL + "/updates/"
 
 	// override the real InstalledSnapNamesByType to return our
 	// mock data
@@ -329,6 +334,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 
+	storeDetailsURI = "https://some-uri"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -352,9 +358,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	storeDetailsURI = mockServer.URL + "/details/%s"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.detailsURI = mockServer.URL + "/details/%s"
 
 	// the actual test
 	results, err := snap.Details("xkcd-webserver")
@@ -377,9 +383,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	storeDetailsURI = mockServer.URL + "/details/%s"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.detailsURI = mockServer.URL + "/details/%s"
 
 	// the actual test
 	results, err := snap.Details("no-such-pkg")

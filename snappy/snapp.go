@@ -520,13 +520,23 @@ type SnapUbuntuStoreRepository struct {
 	bulkURI    string
 }
 
+var (
+	storeSearchURI  = "https://search.apps.ubuntu.com/api/v1/search?q=%s"
+	storeDetailsURI = "https://search.apps.ubuntu.com/api/v1/package/%s"
+	storeBulkURI    = "https://search.apps.ubuntu.com/api/v1/click-metadata"
+)
+
 // NewUbuntuStoreSnapRepository creates a new SnapUbuntuStoreRepository
 func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
+	if storeSearchURI == "" && storeDetailsURI == "" && storeBulkURI == "" {
+		return nil
+	}
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &SnapUbuntuStoreRepository{
-		searchURI:  "https://search.apps.ubuntu.com/api/v1/search?q=%s",
-		detailsURI: "https://search.apps.ubuntu.com/api/v1/package/%s",
-		bulkURI:    "https://search.apps.ubuntu.com/api/v1/click-metadata"}
+		searchURI:  storeSearchURI,
+		detailsURI: storeDetailsURI,
+		bulkURI:    storeBulkURI,
+	}
 }
 
 // small helper that sets the correct http headers for the ubuntu store
