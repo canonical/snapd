@@ -34,6 +34,11 @@ type Service struct {
 		Internal map[string]Port `yaml:"internal,omitempty"`
 		External map[string]Port `yaml:"external,omitempty"`
 	} `yaml:"ports,omitempty"`
+
+	Start       string `yaml:"start"`
+	Stop        string `yaml:"stop"`
+	PostStop    string `yaml:"post-stop"`
+	StopTimeout string `yaml:"stop-timeout"`
 }
 
 // Binary represents a single binary inside the binaries: package.yaml
