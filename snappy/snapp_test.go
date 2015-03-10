@@ -53,6 +53,10 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	storeDetailsURI = ""
 	storeBulkURI = ""
 
+	aaExec = filepath.Join(s.tempdir, "aa-exec")
+	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
+	c.Assert(err, IsNil)
+
 	// ensure we do not look at the system
 	systemImageRoot = s.tempdir
 }
