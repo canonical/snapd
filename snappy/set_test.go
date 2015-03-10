@@ -1,6 +1,10 @@
 package snappy
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
+
 	. "launchpad.net/gocheck"
 )
 
@@ -46,4 +50,26 @@ func (s *SnapTestSuite) TestSetProperty(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ratingPkg, Equals, "hello-world")
 	c.Assert(ratingVal, Equals, "1=2")
+}
+
+func (s *SnapTestSuite) TestSetActive(c *C) {
+	makeTwoTestSnaps(c, SnapTypeApp)
+
+	path, err := filepath.EvalSymlinks(filepath.Join(snapAppsDir, "foo", "current"))
+	c.Assert(err, IsNil)
+	c.Assert(strings.HasSuffix(path, "/foo/2.0"), Equals, true)
+
+	// setActive has some ugly print
+	devnull, err := os.Open(os.DevNull)
+	c.Assert(err, IsNil)
+	oldStdout := os.Stdout
+	os.Stdout = devnull
+	defer func() {
+		os.Stdout = oldStdout
+	}()
+
+	err = setActive("foo", "1.0")
+	c.Assert(err, IsNil)
+	path, err = filepath.EvalSymlinks(filepath.Join(snapAppsDir, "foo", "current"))
+	c.Assert(strings.HasSuffix(path, "/foo/1.0"), Equals, true)
 }

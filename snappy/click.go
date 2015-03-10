@@ -20,6 +20,9 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"text/template"
+
+	"launchpad.net/snappy/helpers"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -29,7 +32,7 @@ type clickAppHook map[string]string
 type clickManifest struct {
 	Name    string                  `json:"name"`
 	Version string                  `json:"version"`
-	Type    string                  `json:"type,omitempty"`
+	Type    SnapType                `json:"type,omitempty"`
 	Hooks   map[string]clickAppHook `json:"hooks,omitempty"`
 }
 
@@ -49,6 +52,11 @@ const (
 	dsFailBadsig        = 13
 	dsFailInternal      = 14
 )
+
+// ignore hooks of this type
+var ignoreHooks = map[string]bool{
+	"bin-path": true,
+}
 
 // var to make it testable
 var clickSystemHooksDir = "/usr/share/click/hooks"
@@ -87,7 +95,7 @@ func allowUnauthenticatedOkExitCode(exitCode int) bool {
 func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error) {
 	cmd := exec.Command("debsig-verify", clickFile)
 	if err := cmd.Run(); err != nil {
-		if exitCode, err := exitCode(err); err == nil {
+		if exitCode, err := helpers.ExitCode(err); err == nil {
 			if allowUnauthenticated && allowUnauthenticatedOkExitCode(exitCode) {
 				log.Println("Signature check failed, but installing anyway as requested")
 				return nil
@@ -182,6 +190,12 @@ func installClickHooks(targetDir string, manifest clickManifest) (err error) {
 	}
 	for app, hook := range manifest.Hooks {
 		for hookName, hookTargetFile := range hook {
+			// ignore hooks that only exist for compatibility
+			// with the old snappy-python (like bin-path)
+			if ignoreHooks[hookName] {
+				continue
+			}
+
 			systemHook, ok := systemHooks[hookName]
 			if !ok {
 				log.Printf("WARNING: Skipping hook %s", hookName)
@@ -252,8 +266,8 @@ func removeClick(clickDir string) (err error) {
 	if err != nil {
 		return err
 	}
-	err = removeClickHooks(manifest)
-	if err != nil {
+
+	if err := removeClickHooks(manifest); err != nil {
 		return err
 	}
 
@@ -261,6 +275,11 @@ func removeClick(clickDir string) (err error) {
 	currentSymlink := path.Join(path.Dir(clickDir), "current")
 	p, _ := filepath.EvalSymlinks(currentSymlink)
 	if clickDir == p {
+
+		if err := removePackageYamlBinaries(clickDir); err != nil {
+			return err
+		}
+
 		if err := os.Remove(currentSymlink); err != nil {
 			log.Printf("Warning: failed to remove %s: %s", currentSymlink, err)
 		}
@@ -270,7 +289,7 @@ func removeClick(clickDir string) (err error) {
 }
 
 func writeHashesFile(snapFile, instDir string) error {
-	hashsum, err := sha512sum(snapFile)
+	hashsum, err := helpers.Sha512sum(snapFile)
 	if err != nil {
 		return err
 	}
@@ -278,6 +297,123 @@ func writeHashesFile(snapFile, instDir string) error {
 	s := fmt.Sprintf("sha512: %s", hashsum)
 	hashesFile := filepath.Join(instDir, "meta", "hashes")
 	return ioutil.WriteFile(hashesFile, []byte(s), 0644)
+}
+
+// generate the name
+func generateBinaryName(m *packageYaml, binary Binary) string {
+	var binName string
+	if m.Type == SnapTypeFramework {
+		binName = filepath.Base(binary.Name)
+	} else {
+		binName = fmt.Sprintf("%s.%s", filepath.Base(binary.Name), m.Name)
+	}
+
+	return filepath.Join(snapBinariesDir, binName)
+}
+
+func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) string {
+	wrapperTemplate := `#!/bin/sh
+# !!!never remove this line!!!
+##TARGET={{.Target}}
+
+set -e
+
+TMPDIR="/tmp/snapps/{{.Name}}/{{.Version}}/tmp"
+if [ ! -d "$TMPDIR" ]; then
+    mkdir -p -m1777 "$TMPDIR"
+fi
+export TMPDIR
+export TEMPDIR="$TMPDIR"
+
+# app paths (deprecated)
+export SNAPP_APP_PATH="{{.Path}}"
+export SNAPP_APP_DATA_PATH="/var/lib/{{.Path}}"
+export SNAPP_APP_USER_DATA_PATH="$HOME/{{.Path}}"
+export SNAPP_APP_TMPDIR="$TMPDIR"
+export SNAPP_OLD_PWD="$(pwd)"
+
+# app paths
+export SNAP_APP_PATH="{{.Path}}"
+export SNAP_APP_DATA_PATH="/var/lib/{{.Path}}"
+export SNAP_APP_USER_DATA_PATH="$HOME/{{.Path}}"
+export SNAP_APP_TMPDIR="$TMPDIR"
+
+# FIXME: this will need to become snappy arch or something
+export SNAPPY_APP_ARCH="$(dpkg --print-architecture)"
+
+if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
+   mkdir -p "$SNAP_APP_USER_DATA_PATH"
+fi
+export HOME="$SNAP_APP_USER_DATA_PATH"
+
+# export old pwd
+export SNAP_OLD_PWD="$(pwd)"
+cd {{.Path}}
+aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
+`
+	actualBinPath := filepath.Join(pkgPath, binary.Name)
+
+	var templateOut bytes.Buffer
+	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
+	wrapperData := struct {
+		packageYaml
+		Target    string
+		Path      string
+		AaProfile string
+	}{
+		*m, actualBinPath, pkgPath, aaProfile,
+	}
+	t.Execute(&templateOut, wrapperData)
+
+	return templateOut.String()
+}
+
+func getAaProfile(m *packageYaml, binary Binary) string {
+	// check if there is a specific apparmor profile
+	if binary.SecurityPolicy != "" {
+		return binary.SecurityPolicy
+	}
+	// ... or apparmor.json
+	if binary.SecurityTemplate != "" {
+		return binary.SecurityTemplate
+	}
+
+	// FIXME: we need to generate a default aa profile here instead
+	// of relying on a default one shipped by the package
+	return fmt.Sprintf("%s_%s_%s", m.Name, filepath.Base(binary.Name), m.Version)
+}
+
+func addPackageYamlBinaries(baseDir string) error {
+	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(snapBinariesDir, 0755); err != nil {
+		return err
+	}
+
+	for _, binary := range m.Binaries {
+		aaProfile := getAaProfile(m, binary)
+		content := generateSnapBinaryWrapper(binary, baseDir, aaProfile, m)
+		if err := ioutil.WriteFile(generateBinaryName(m, binary), []byte(content), 0755); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func removePackageYamlBinaries(baseDir string) error {
+	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
+	if err != nil {
+		return err
+	}
+	for _, binary := range m.Binaries {
+		os.Remove(generateBinaryName(m, binary))
+	}
+
+	return nil
 }
 
 func installClick(snapFile string, flags InstallFlags) (err error) {
@@ -307,12 +443,12 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 
 	targetDir := snapAppsDir
 	// the "oem" parts are special
-	if manifest.Type == "oem" {
+	if manifest.Type == SnapTypeOem {
 		targetDir = snapOemDir
 	}
 
 	instDir := filepath.Join(targetDir, manifest.Name, manifest.Version)
-	if err := ensureDir(instDir, 0755); err != nil {
+	if err := helpers.EnsureDir(instDir, 0755); err != nil {
 		log.Printf("WARNING: Can not create %s", instDir)
 	}
 
@@ -340,9 +476,9 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
 	// all hooks this can go away
-	metaDir := path.Join(instDir, ".click", "info")
-	os.MkdirAll(metaDir, 0755)
-	err = ioutil.WriteFile(path.Join(metaDir, manifest.Name+".manifest"), manifestData, 0644)
+	clickMetaDir := path.Join(instDir, ".click", "info")
+	os.MkdirAll(clickMetaDir, 0755)
+	err = ioutil.WriteFile(path.Join(clickMetaDir, manifest.Name+".manifest"), manifestData, 0644)
 	if err != nil {
 		return
 	}
@@ -364,7 +500,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 			return err
 		}
 	} else {
-		if err := ensureDir(dataDir, 0755); err != nil {
+		if err := helpers.EnsureDir(dataDir, 0755); err != nil {
 			log.Printf("WARNING: Can not create %s", dataDir)
 			return err
 		}
@@ -437,6 +573,11 @@ func setActiveClick(baseDir string) (err error) {
 		if err != nil {
 			return err
 		}
+
+		if err := removePackageYamlBinaries(currentActiveDir); err != nil {
+			return err
+		}
+
 		if err := removeClickHooks(currentActiveManifest); err != nil {
 			return err
 		}
@@ -447,6 +588,13 @@ func setActiveClick(baseDir string) (err error) {
 	if err != nil {
 		return err
 	}
+
+	// add the "binaries:" from the package.yaml
+	if err := addPackageYamlBinaries(baseDir); err != nil {
+		return err
+	}
+
+	// and now the cick hooks
 	err = installClickHooks(baseDir, newActiveManifest)
 	if err != nil {
 		return err
