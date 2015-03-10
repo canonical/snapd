@@ -369,13 +369,13 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	c.Assert(generatedWrapper, Equals, expectedWrapper)
 }
 
-func (s *SnapTestSuite) TestSnappyGetAaProfile(c *C) {
+func (s *SnapTestSuite) TestSnappyGetBinaryAaProfile(c *C) {
 	m := packageYaml{Name: "foo",
 		Version: "1.0"}
 
-	c.Assert(getAaProfile(&m, Binary{Name: "bin/app"}), Equals, "foo_app_1.0")
-	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", SecurityTemplate: "some-security-json"}), Equals, "some-security-json")
-	c.Assert(getAaProfile(&m, Binary{Name: "bin/app", SecurityPolicy: "some-profile"}), Equals, "some-profile")
+	c.Assert(getBinaryAaProfile(&m, Binary{Name: "bin/app"}), Equals, "foo_app_1.0")
+	c.Assert(getBinaryAaProfile(&m, Binary{Name: "bin/app", SecurityTemplate: "some-security-json"}), Equals, "some-security-json")
+	c.Assert(getBinaryAaProfile(&m, Binary{Name: "bin/app", SecurityPolicy: "some-profile"}), Equals, "some-profile")
 }
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {
@@ -426,4 +426,60 @@ binaries:
 	content, err = ioutil.ReadFile(binaryWrapper)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), newSnapBin), Equals, true)
+}
+
+func (s *SnapTestSuite) TestSnappyHandleServicesOnInstall(c *C) {
+	packageYaml := `name: foo.mvo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+services:
+ - name: service
+   start: bin/hello
+`
+	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+
+	servicesFile := filepath.Join(snapServicesDir, "foo.mvo_service_1.0.service")
+	c.Assert(helpers.FileExists(servicesFile), Equals, true)
+
+	// and that it gets removed on remove
+	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
+	err := removeClick(snapDir)
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(servicesFile), Equals, false)
+	c.Assert(helpers.FileExists(snapDir), Equals, false)
+}
+
+const expectedService = `[Unit]
+Description=The docker app deployment mechanism
+After=apparmor.service
+Requires=apparmor.service
+X-Snappy=yes
+
+[Service]
+ExecStart=/apps/docker/1.3.3.001/bin/docker.wrap
+WorkingDirectory=/apps/docker/1.3.3.001/
+Environment="SNAPP_APP_PATH=/apps/docker/1.3.3.001/" "SNAPP_APP_DATA_PATH=/var/lib/apps/docker/1.3.3.001/" "SNAPP_APP_USER_DATA_PATH=%h/apps/docker/1.3.3.001/" "SNAP_APP_PATH=/apps/docker/1.3.3.001/" "SNAP_APP_DATA_PATH=/var/lib/apps/docker/1.3.3.001/" "SNAP_APP_USER_DATA_PATH=%h/apps/docker/1.3.3.001/" "SNAP_APP=docker_docker_1.3.3.001"
+AppArmorProfile=docker_docker_1.3.3.001
+
+
+
+
+[Install]
+WantedBy=multi-user.target
+`
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapServicesFile(c *C) {
+	service := Service{Name: "docker",
+		Start:       "bin/docker.wrap",
+		Description: "The docker app deployment mechanism",
+	}
+	pkgPath := "/apps/docker/1.3.3.001/"
+	aaProfile := "docker_docker_1.3.3.001"
+	m := packageYaml{Name: "docker",
+		Version: "1.3.3.001",
+	}
+
+	generated := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	c.Assert(generated, Equals, expectedService)
 }

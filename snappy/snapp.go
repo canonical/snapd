@@ -34,7 +34,7 @@ type Service struct {
 
 	Start       string `yaml:"start,omitempty" json:"start,omitempty"`
 	Stop        string `yaml:"stop,omitempty" json:"stop,omitempty"`
-	Poststop    string `yaml:"poststop,omitempty" json:"poststop,omitempty"`
+	PostStop    string `yaml:"poststop,omitempty" json:"poststop,omitempty"`
 	StopTimeout string `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
 
 	// must be a pointer so that it can be "nil" and omitempty works

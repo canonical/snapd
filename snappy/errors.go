@@ -49,4 +49,8 @@ var (
 	// ErrInvalidPackageYaml is returned is a package.yaml file can not
 	// be parsed
 	ErrInvalidPackageYaml = errors.New("can not parse package.yaml")
+
+	// ErrSnapNotActive is returned if you try to unset a snap from
+	// active to inactive
+	ErrSnapNotActive = errors.New("snap not active")
 )
