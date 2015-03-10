@@ -31,7 +31,7 @@ const defaultApparmorJSON = `{
 }`
 
 // small helper that return the architecture or "multi" if its multiple arches
-func architectureForDeb(m *packageYaml) string {
+func debArchitecture(m *packageYaml) string {
 	if len(m.Architectures) > 1 {
 		return "multi"
 	}
@@ -192,7 +192,7 @@ func writeDebianControl(buildDir string, m *packageYaml) error {
 	const debianControlTemplate = `Package: {{.Name}}
 Version: {{.Version}}
 Click-Version: 0.4
-Architecture: {{.ArchitectureForDeb}}
+Architecture: {{.DebArchitecture}}
 Maintainer: {{.Vendor}}
 Installed-Size: {{.InstalledSize}}
 Description: {{.Title}}
@@ -201,12 +201,12 @@ Description: {{.Title}}
 	t := template.Must(template.New("control").Parse(debianControlTemplate))
 	debianControlData := struct {
 		packageYaml
-		InstalledSize      string
-		Title              string
-		Description        string
-		ArchitectureForDeb string
+		InstalledSize   string
+		Title           string
+		Description     string
+		DebArchitecture string
 	}{
-		*m, installedSize, title, description, architectureForDeb(m),
+		*m, installedSize, title, description, debArchitecture(m),
 	}
 	t.Execute(debianControlFile, debianControlData)
 
@@ -317,7 +317,7 @@ func Build(sourceDir string) (string, error) {
 	}
 
 	// build the package
-	snapName := fmt.Sprintf("%s_%s_%v.snap", m.Name, m.Version, architectureForDeb(m))
+	snapName := fmt.Sprintf("%s_%s_%v.snap", m.Name, m.Version, debArchitecture(m))
 
 	// FIXME: we want a native build here without dpkg-deb to be
 	//        about to build on non-ubuntu/debian systems
