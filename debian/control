@@ -14,6 +14,7 @@ Build-Depends: bash-completion,
                golang-pb-dev,
                golang-go.crypto-dev,
                ubuntu-core-snappy,
+               fakeroot,
 Standards-Version: 3.9.6
 Homepage: https://launchpad.net/snappy
 Vcs-Browser: http://bazaar.launchpad.net/~snappy-dev/snappy/trunk/files
@@ -24,6 +25,7 @@ Architecture: any
 Depends: apparmor-easyprof-ubuntu-snappy,
          debsig-verify,
          system-image-cli (>= 2.5-0ubuntu1+ppa15),
+         fakeroot,
          ${misc:Depends},
          ${shlibs:Depends},
 Built-Using: ${misc:Built-Using}
