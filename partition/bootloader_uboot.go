@@ -17,19 +17,27 @@ import (
 	"github.com/mvo5/goconfigparser"
 )
 
-var (
-	bootloaderUbootDir        = "/boot/uboot"
-	bootloaderUbootConfigFile = "/boot/uboot/uEnv.txt"
+const (
+	bootloaderUbootDirReal        = "/boot/uboot"
+	bootloaderUbootConfigFileReal = "/boot/uboot/uEnv.txt"
 
 	// File created by u-boot itself when
 	// bootloaderBootmodeTry == "try" which the
 	// successfully booted system must remove to flag to u-boot that
 	// this partition is "good".
-	bootloaderUbootStampFile = "/boot/uboot/snappy-stamp.txt"
+	bootloaderUbootStampFileReal = "/boot/uboot/snappy-stamp.txt"
 
 	// the main uEnv.txt u-boot config file sources this snappy
 	// boot-specific config file.
-	bootloaderUbootEnvFile = "/boot/uboot/snappy-system.txt"
+	bootloaderUbootEnvFileReal = "/boot/uboot/snappy-system.txt"
+)
+
+// var to make it testable
+var (
+	bootloaderUbootDir        = bootloaderUbootDirReal
+	bootloaderUbootConfigFile = bootloaderUbootConfigFileReal
+	bootloaderUbootStampFile  = bootloaderUbootStampFileReal
+	bootloaderUbootEnvFile    = bootloaderUbootEnvFileReal
 )
 
 const bootloaderNameUboot bootloaderName = "u-boot"

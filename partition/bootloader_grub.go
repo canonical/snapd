@@ -12,14 +12,25 @@ import (
 	"github.com/mvo5/goconfigparser"
 )
 
-var (
-	bootloaderGrubDir        = "/boot/grub"
-	bootloaderGrubConfigFile = "/boot/grub/grub.cfg"
-	bootloaderGrubEnvFile    = "/boot/grub/grubenv"
+const (
+	bootloaderGrubDirReal        = "/boot/grub"
+	bootloaderGrubConfigFileReal = "/boot/grub/grub.cfg"
+	bootloaderGrubEnvFileReal    = "/boot/grub/grubenv"
 
-	bootloaderGrubEnvCmd     = "/usr/bin/grub-editenv"
-	bootloaderGrubInstallCmd = "/usr/sbin/grub-install"
-	bootloaderGrubUpdateCmd  = "/usr/sbin/update-grub"
+	bootloaderGrubEnvCmdReal     = "/usr/bin/grub-editenv"
+	bootloaderGrubInstallCmdReal = "/usr/sbin/grub-install"
+	bootloaderGrubUpdateCmdReal  = "/usr/sbin/update-grub"
+)
+
+// var to make it testable
+var (
+	bootloaderGrubDir        = bootloaderGrubDirReal
+	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
+	bootloaderGrubEnvFile    = bootloaderGrubEnvFileReal
+
+	bootloaderGrubEnvCmd     = bootloaderGrubEnvCmdReal
+	bootloaderGrubInstallCmd = bootloaderGrubInstallCmdReal
+	bootloaderGrubUpdateCmd  = bootloaderGrubUpdateCmdReal
 )
 
 type grub struct {
