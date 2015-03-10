@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -22,23 +23,25 @@ import (
 // Port is used to declare the Port and Negotiable status of such port
 // that is bound to a Service.
 type Port struct {
-	Port       string `yaml:"port"`
+	Port       string `yaml:"port,omitempty"`
 	Negotiable bool   `yaml:"negotiable,omitempty"`
 }
 
 // Service represents a service inside a SnapPart
 type Service struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description,omitempty"`
-	Ports       struct {
-		Internal map[string]Port `yaml:"internal,omitempty"`
-		External map[string]Port `yaml:"external,omitempty"`
-	} `yaml:"ports,omitempty"`
+	Name        string `yaml:"name" json:"name,omitempty"`
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 
-	Start       string `yaml:"start"`
-	Stop        string `yaml:"stop"`
-	PostStop    string `yaml:"post-stop"`
-	StopTimeout string `yaml:"stop-timeout"`
+	Start       string `yaml:"start,omitempty" json:"start,omitempty"`
+	Stop        string `yaml:"stop,omitempty" json:"stop,omitempty"`
+	PostStop    string `yaml:"poststop,omitempty" json:"poststop,omitempty"`
+	StopTimeout string `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
+
+	// must be a pointer so that it can be "nil" and omitempty works
+	Ports *struct {
+		Internal map[string]Port `yaml:"internal,omitempty" json:"internal,omitempty"`
+		External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
+	} `yaml:"ports,omitempty" json:"ports,omitempty"`
 }
 
 // Binary represents a single binary inside the binaries: package.yaml
@@ -63,13 +66,25 @@ type SnapPart struct {
 }
 
 type packageYaml struct {
-	Name     string
-	Version  string
-	Vendor   string
-	Icon     string
-	Type     SnapType
+	Name    string
+	Version string
+	Vendor  string
+	Icon    string
+	Type    SnapType
+
+	// the spec allows a string or a list here *ick* so we need
+	// to convert that into something sensible via reflect
+	DeprecatedArchitecture interface{} `yaml:"architecture"`
+	Architectures          []string
+
+	Framework string
+
 	Services []Service `yaml:"services,omitempty"`
 	Binaries []Binary  `yaml:"binaries,omitempty"`
+
+	// this is a bit ugly, but right now integration is a one:one
+	// mapping of click hooks
+	Integration map[string]clickAppHook
 }
 
 // the meta/hashes file, yaml so that we can extend it later with
@@ -112,6 +127,21 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 	if err != nil {
 		log.Printf("Can not parse '%s'", yamlData)
 		return nil, err
+	}
+
+	// parse the architecture: field that is either a string or a list
+	// or empty (yes, you read that correctly)
+	v := reflect.ValueOf(m.DeprecatedArchitecture)
+	switch v.Kind() {
+	case reflect.Invalid:
+		m.Architectures = []string{"all"}
+	case reflect.String:
+		m.Architectures = []string{v.String()}
+	case reflect.Slice:
+		v2 := m.DeprecatedArchitecture.([]interface{})
+		for _, arch := range v2 {
+			m.Architectures = append(m.Architectures, arch.(string))
+		}
 	}
 
 	return &m, nil

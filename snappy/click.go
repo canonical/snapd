@@ -30,10 +30,16 @@ import (
 type clickAppHook map[string]string
 
 type clickManifest struct {
-	Name    string                  `json:"name"`
-	Version string                  `json:"version"`
-	Type    SnapType                `json:"type,omitempty"`
-	Hooks   map[string]clickAppHook `json:"hooks,omitempty"`
+	Name          string                  `json:"name"`
+	Version       string                  `json:"version"`
+	Type          SnapType                `json:"type,omitempty"`
+	Framework     string                  `json:"framework,omitempty"`
+	Description   string                  `json:"description,omitempty"`
+	Icon          string                  `json:"icon,omitempty"`
+	InstalledSize string                  `json:"installed-size,omitempty"`
+	Maintainer    string                  `json:"maintainer,omitempty"`
+	Title         string                  `json:"title,omitempty"`
+	Hooks         map[string]clickAppHook `json:"hooks,omitempty"`
 }
 
 type clickHook struct {
@@ -401,7 +407,10 @@ WantedBy=multi-user.target
 	}{
 		*m, service, baseDir, aaProfile, filepath.Join(baseDir, service.Start), fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version),
 	}
-	t.Execute(&templateOut, wrapperData)
+	if err := t.Execute(&templateOut, wrapperData); err != nil {
+		// this can never happen, except we forget a variable
+		panic(err)
+	}
 
 	return templateOut.String()
 }

@@ -45,6 +45,9 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 		return nil
 	}
 
+	// fake "du"
+	duCmd = makeFakeDuCommand(c)
+
 	// do not attempt to hit the real store servers in the tests
 	storeSearchURI = ""
 	storeDetailsURI = ""
@@ -58,6 +61,7 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	// ensure all functions are back to their original state
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 	InstalledSnapNamesByType = installedSnapNamesByTypeImpl
+	duCmd = "du"
 }
 
 func (s *SnapTestSuite) makeInstalledMockSnap() (yamlFile string, err error) {
@@ -501,4 +505,39 @@ services:
 
 	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", "hello-app", "1.10"))
 	c.Assert(snap.InstalledSize(), Not(Equals), -1)
+}
+
+func (s *SnapTestSuite) TestPackageYamlMultipleArchitecturesParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+architecture: [i386, armhf]
+`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Architectures, DeepEquals, []string{"i386", "armhf"})
+}
+
+func (s *SnapTestSuite) TestPackageYamlSingleArchitecturesParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+architecture: i386
+`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Architectures, DeepEquals, []string{"i386"})
+}
+
+func (s *SnapTestSuite) TestPackageYamlNoArchitecturesParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Architectures, DeepEquals, []string{"all"})
 }

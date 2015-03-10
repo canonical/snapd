@@ -1,6 +1,10 @@
 package main
 
-import "launchpad.net/snappy/snappy"
+import (
+	"fmt"
+
+	"launchpad.net/snappy/snappy"
+)
 
 type cmdBuild struct {
 }
@@ -16,5 +20,15 @@ func init() {
 }
 
 func (x *cmdBuild) Execute(args []string) (err error) {
-	return snappy.Build(args[0])
+	if len(args) == 0 {
+		args = []string{"."}
+	}
+
+	snapPackage, err := snappy.Build(args[0])
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Generated '%s' snap\n", snapPackage)
+	return nil
 }
