@@ -41,4 +41,8 @@ var (
 
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
+
+	// ErrSnapNotActive is returned if you try to unset a snap from
+	// active to inactive
+	ErrSnapNotActive = errors.New("snap not active")
 )

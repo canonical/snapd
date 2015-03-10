@@ -51,7 +51,7 @@ dependent packages will also be available inside `$GOPATH`.
 
 To build, once the sources are available and `GOPATH` is set, you can just run
 
-    go build launchpad.net/snappy/snappy-go/cmd/snappy
+    go build launchpad.net/snappy/cmd/snappy-go
 
 to get the `snappy` binary in your current working directory or
 
