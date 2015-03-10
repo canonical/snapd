@@ -2,9 +2,9 @@ package partition
 
 import (
 	"errors"
-
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -28,6 +28,12 @@ func mockRunCommand(args ...string) (err error) {
 func (s *PartitionTestSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 	runLsblk = mockRunLsblkDualSnappy
+
+	bootloaderGrubDir = filepath.Join(s.tempdir, "boot", "grub")
+	bootloaderGrubConfigFile = filepath.Join(bootloaderGrubDir, "grub.cfg")
+	bootloaderGrubEnvFile = filepath.Join(bootloaderGrubDir, "grubenv")
+	bootloaderGrubInstallCmd = filepath.Join(s.tempdir, "grub-install")
+	bootloaderGrubUpdateCmd = filepath.Join(s.tempdir, "update-grub")
 }
 
 func (s *PartitionTestSuite) TearDownTest(c *C) {
@@ -37,6 +43,11 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	runCommand = runCommandImpl
 	defaultCacheDir = realDefaultCacheDir
 	getBootloader = getBootloaderImpl
+
+	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
+	bootloaderGrubEnvFile = bootloaderGrubEnvFileReal
+	bootloaderGrubInstallCmd = bootloaderGrubInstallCmdReal
+	bootloaderGrubUpdateCmd = bootloaderGrubUpdateCmdReal
 }
 
 func makeHardwareYaml(c *C, hardwareYaml string) (outPath string) {

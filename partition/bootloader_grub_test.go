@@ -4,27 +4,25 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	. "launchpad.net/gocheck"
 )
 
-func mockGrubFile(c *C, mockVarName *string, newPath string, mode os.FileMode) {
+func mockGrubFile(c *C, newPath string, mode os.FileMode) {
 	err := ioutil.WriteFile(newPath, []byte(""), mode)
 	c.Assert(err, IsNil)
-	*mockVarName = newPath
 }
 
 func (s *PartitionTestSuite) makeFakeGrubEnv(c *C) {
-	bootloaderGrubDir = filepath.Join(s.tempdir, "boot", "grub")
+	// create bootloader
 	err := os.MkdirAll(bootloaderGrubDir, 0755)
 	c.Assert(err, IsNil)
 
 	// these files just needs to exist
-	mockGrubFile(c, &bootloaderGrubConfigFile, filepath.Join(bootloaderGrubDir, "grub.cfg"), 0644)
-	mockGrubFile(c, &bootloaderGrubEnvFile, filepath.Join(bootloaderGrubDir, "grubenv"), 0644)
-	mockGrubFile(c, &bootloaderGrubInstallCmd, filepath.Join(s.tempdir, "grub-install"), 0755)
-	mockGrubFile(c, &bootloaderGrubUpdateCmd, filepath.Join(s.tempdir, "update-grub"), 0755)
+	mockGrubFile(c, bootloaderGrubConfigFile, 0644)
+	mockGrubFile(c, bootloaderGrubEnvFile, 0644)
+	mockGrubFile(c, bootloaderGrubInstallCmd, 0755)
+	mockGrubFile(c, bootloaderGrubUpdateCmd, 0755)
 
 	// do not run commands for real
 	runCommand = mockRunCommandWithCapture
