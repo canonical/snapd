@@ -184,13 +184,18 @@ func expandHookPattern(name, app, version, pattern string) (expanded string) {
 	return
 }
 
-func installClickHooks(targetDir string, manifest clickManifest) (err error) {
+type iterHooksFunc func(src, dst string, systemHook clickHook) error
+
+// iterHooks will run the callback "f" for the given manifest
+// so that the call back can arrange e.g. a new link
+func iterHooks(manifest clickManifest, f iterHooksFunc) error {
 	systemHooks, err := systemClickHooks()
 	if err != nil {
 		return err
 	}
+
 	for app, hook := range manifest.Hooks {
-		for hookName, hookTargetFile := range hook {
+		for hookName, hookSourceFile := range hook {
 			// ignore hooks that only exist for compatibility
 			// with the old snappy-python (like bin-path,
 			// snappy-systemd)
@@ -203,16 +208,20 @@ func installClickHooks(targetDir string, manifest clickManifest) (err error) {
 				log.Printf("WARNING: Skipping hook %s", hookName)
 				continue
 			}
-			src := path.Join(targetDir, hookTargetFile)
+
 			dst := expandHookPattern(manifest.Name, app, manifest.Version, systemHook.pattern)
+
 			if _, err := os.Stat(dst); err == nil {
 				if err := os.Remove(dst); err != nil {
 					log.Printf("Warning: failed to remove %s: %s", dst, err)
 				}
 			}
-			if err := os.Symlink(src, dst); err != nil {
+
+			// run iter func here
+			if err := f(hookSourceFile, dst, systemHook); err != nil {
 				return err
 			}
+
 			if systemHook.exec != "" {
 				if err := systemHook.execHook(); err != nil {
 					return err
@@ -220,41 +229,29 @@ func installClickHooks(targetDir string, manifest clickManifest) (err error) {
 			}
 		}
 	}
-	return
+
+	return nil
+}
+
+func installClickHooks(targetDir string, manifest clickManifest) (err error) {
+	return iterHooks(manifest, func(src, dst string, systemHook clickHook) error {
+		// setup the new link target here, iterHooks will take
+		// care of running the hook
+		realSrc := path.Join(targetDir, src)
+		if err := os.Symlink(realSrc, dst); err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 func removeClickHooks(manifest clickManifest) (err error) {
-	systemHooks, err := systemClickHooks()
-	if err != nil {
-		return err
-	}
-	for app, hook := range manifest.Hooks {
-		for hookName := range hook {
-			// ignore hooks that only exist for compatibility
-			// with the old snappy-python (like bin-path,
-			// snappy-systemd)
-			if ignoreHooks[hookName] {
-				continue
-			}
-
-			systemHook, ok := systemHooks[hookName]
-			if !ok {
-				continue
-			}
-			dst := expandHookPattern(manifest.Name, app, manifest.Version, systemHook.pattern)
-			if _, err := os.Stat(dst); err == nil {
-				if err := os.Remove(dst); err != nil {
-					log.Printf("Warning: failed to remove %s: %s", dst, err)
-				}
-			}
-			if systemHook.exec != "" {
-				if err := systemHook.execHook(); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return err
+	return iterHooks(manifest, func(src, dst string, systemHook clickHook) error {
+		// nothing we need to do here, the iterHookss will remove
+		// the hook symlink and call the hook itself
+		return nil
+	})
 }
 
 func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err error) {
