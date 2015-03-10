@@ -386,6 +386,8 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		}
 
 		if err := copySnapData(manifest.Name, oldManifest.Version, manifest.Version); err != nil {
+			// FIXME: remove newDir
+			
 			// restore the previous version
 			setActiveClick(currentActiveDir)
 			return err
