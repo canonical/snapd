@@ -53,14 +53,12 @@ type Binary struct {
 
 // SnapPart represents a generic snap type
 type SnapPart struct {
-	name        string
-	version     string
+	m           *packageYaml
 	description string
 	hash        string
 	isActive    bool
 	isInstalled bool
 	stype       SnapType
-	services    []Service
 
 	basedir string
 }
@@ -158,10 +156,8 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 
 	part.basedir = filepath.Dir(filepath.Dir(yamlPath))
 	// data from the yaml
-	part.name = m.Name
-	part.version = m.Version
 	part.isInstalled = true
-	part.services = m.Services
+	part.m = m
 
 	// check if the part is active
 	allVersionsDir := filepath.Dir(part.basedir)
@@ -169,7 +165,6 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 	if p == part.basedir {
 		part.isActive = true
 	}
-	part.stype = m.Type
 
 	// read hash, its ok if its not there, some older versions of
 	// snappy did not write this file
@@ -187,8 +182,8 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 
 // Type returns the type of the SnapPart (app, oem, ...)
 func (s *SnapPart) Type() SnapType {
-	if s.stype != "" {
-		return s.stype
+	if s.m.Type != "" {
+		return s.m.Type
 	}
 
 	// if not declared its a app
@@ -197,12 +192,12 @@ func (s *SnapPart) Type() SnapType {
 
 // Name returns the name
 func (s *SnapPart) Name() string {
-	return s.name
+	return s.m.Name
 }
 
 // Version returns the version
 func (s *SnapPart) Version() string {
-	return s.version
+	return s.m.Version
 }
 
 // Description returns the description
@@ -219,6 +214,11 @@ func (s *SnapPart) Hash() string {
 func (s *SnapPart) Channel() string {
 	// FIXME: real channel support
 	return "edge"
+}
+
+// Icon returns the path to the icon
+func (s *SnapPart) Icon() string {
+	return filepath.Join(s.basedir, s.m.Icon)
 }
 
 // IsActive returns true if the snap is active
@@ -260,7 +260,7 @@ func (s *SnapPart) Date() time.Time {
 
 // Services return a list of Service the package declares
 func (s *SnapPart) Services() []Service {
-	return s.services
+	return s.m.Services
 }
 
 // Install installs the snap
@@ -278,7 +278,7 @@ func (s *SnapPart) Uninstall() (err error) {
 	// OEM snaps should not be removed as they are a key
 	// building block for OEMs. Prunning non active ones
 	// is acceptible.
-	if s.stype == SnapTypeOem && s.IsActive() {
+	if s.m.Type == SnapTypeOem && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 
@@ -402,6 +402,11 @@ func (s *RemoteSnapPart) Hash() string {
 func (s *RemoteSnapPart) Channel() string {
 	// FIXME: real channel support, this requires server work
 	return "edge"
+}
+
+// Icon returns the icon
+func (s *RemoteSnapPart) Icon() string {
+	return s.pkg.IconURL
 }
 
 // IsActive returns true if the snap is active

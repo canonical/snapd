@@ -234,6 +234,11 @@ func (s *SystemImagePart) Channel() string {
 	return s.channelName
 }
 
+// Icon returns the icon path
+func (s *SystemImagePart) Icon() string {
+	return ""
+}
+
 // SystemImageRepository is the type used for the system-image-server
 type SystemImageRepository struct {
 	partition partition.Interface
