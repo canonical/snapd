@@ -43,11 +43,11 @@ func (ts *HTestSuite) TestUnpack(c *C) {
 	unpackdir := filepath.Join(tmpdir, "t")
 	f, err := os.Open(tmpfile)
 	c.Assert(err, IsNil)
-	
+
 	f2, err := gzip.NewReader(f)
 	c.Assert(err, IsNil)
 
-	err = UnpackTar(f2, unpackdir)
+	err = UnpackTar(f2, unpackdir, nil)
 	c.Assert(err, IsNil)
 
 	// we have the expected file

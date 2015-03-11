@@ -50,8 +50,13 @@ func ExitCode(runErr error) (e int, err error) {
 	return e, runErr
 }
 
-func UnpackTar(f io.Reader, target string) error {
-	tr := tar.NewReader(f)
+// UnpackTarTransformFunc can be used to change the names during unpack
+// or to return a error for files that are not acceptable
+type UnpackTarTransformFunc func(path string) (newPath string, err error)
+
+// UnpackTar unpacks the given tar file into the target directory
+func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
+	tr := tar.NewReader(r)
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
@@ -61,7 +66,17 @@ func UnpackTar(f io.Reader, target string) error {
 		if err != nil {
 			return err
 		}
-		path := filepath.Join(target, hdr.Name)
+
+		// run tar transform func
+		name := hdr.Name
+		if fn != nil {
+			name, err = fn(hdr.Name)
+			if err != nil {
+				return err
+			}
+		}
+
+		path := filepath.Join(targetDir, name)
 		info := hdr.FileInfo()
 		if info.IsDir() {
 			err := os.MkdirAll(path, info.Mode())

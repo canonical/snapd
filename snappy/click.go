@@ -5,14 +5,13 @@ package snappy
    Limitations:
    - no per-user registration
    - no user-level hooks
-   - dpkg-deb --unpack is used to "install" instead of "dpkg -i"
    - more(?)
 */
 
 import (
 	"bytes"
-	"compress/gzip"
 	"compress/bzip2"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -543,6 +542,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		//return SnapAuditError
 	}
 
+	// FIXME: replace
 	cmd := exec.Command("dpkg-deb", "-I", snapFile, "manifest")
 	manifestData, err := cmd.Output()
 	if err != nil {
@@ -751,6 +751,15 @@ func setActiveClick(baseDir string) (err error) {
 	return err
 }
 
+func clickVerifyContentFn(path string) (string, error) {
+	path = filepath.Clean(path)
+	if strings.Contains(path, "..") {
+		return "", ErrSnapInvalidContent
+	}
+
+	return path, nil
+}
+
 func unpackDeb(debFile, targetDir string) error {
 	f, err := os.Open(debFile)
 	if err != nil {
@@ -758,6 +767,7 @@ func unpackDeb(debFile, targetDir string) error {
 	}
 	defer f.Close()
 
+	// find the right ar member
 	arReader := ar.NewReader(f)
 	var header *ar.Header
 	for {
@@ -770,6 +780,7 @@ func unpackDeb(debFile, targetDir string) error {
 		}
 	}
 
+	// find out what compression
 	var dataReader io.Reader
 	switch {
 	case strings.HasSuffix(header.Name, ".gz"):
@@ -779,9 +790,11 @@ func unpackDeb(debFile, targetDir string) error {
 		}
 	case strings.HasSuffix(header.Name, ".bzip2"):
 		dataReader = bzip2.NewReader(f)
+	// FIXME: .xz!
 	default:
 		return fmt.Errorf("Can not handle %s", header.Name)
 	}
 
-	return helpers.UnpackTar(dataReader, targetDir)
+	// and unpack
+	return helpers.UnpackTar(dataReader, targetDir, clickVerifyContentFn)
 }
