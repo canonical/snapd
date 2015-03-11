@@ -234,6 +234,7 @@ func writeClickManifest(buildDir string, m *packageYaml) error {
 		InstalledSize: installedSize,
 		Title:         title,
 		Description:   description,
+		Maintainer:    m.Vendor,
 		Hooks:         m.Integration,
 	}
 	manifestContent, err := json.MarshalIndent(cm, "", " ")
