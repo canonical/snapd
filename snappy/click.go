@@ -318,6 +318,14 @@ func generateBinaryName(m *packageYaml, binary Binary) string {
 	return filepath.Join(snapBinariesDir, binName)
 }
 
+func binPathForBinary(pkgPath string, binary Binary) string {
+	if binary.Exec != "" {
+		return filepath.Join(pkgPath, binary.Exec)
+	}
+
+	return filepath.Join(pkgPath, binary.Name)
+}
+
 func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) string {
 	wrapperTemplate := `#!/bin/sh
 # !!!never remove this line!!!
@@ -358,7 +366,7 @@ export SNAP_OLD_PWD="$(pwd)"
 cd {{.Path}}
 aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 `
-	actualBinPath := filepath.Join(pkgPath, binary.Name)
+	actualBinPath := binPathForBinary(pkgPath, binary)
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
