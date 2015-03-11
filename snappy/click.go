@@ -27,7 +27,6 @@ import (
 
 	"launchpad.net/snappy/helpers"
 
-	// FIXME: license unclear
 	"github.com/blakesmith/ar"
 	"github.com/mvo5/goconfigparser"
 )
@@ -578,7 +577,6 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		}
 	}()
 
-	// FIXME: replace this with a native extractor/verifier
 	err = unpackDeb(snapFile, instDir)
 	if err != nil {
 		return err
