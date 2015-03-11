@@ -2,9 +2,13 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 
 	"launchpad.net/snappy/snappy"
 )
+
+const clickReview = "click-review"
 
 type cmdBuild struct {
 }
@@ -28,6 +32,12 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 	if err != nil {
 		return err
 	}
+
+	cmd := exec.Command(clickReview, snapPackage)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	// we ignore the error for now
+	_ = cmd.Run()
 
 	fmt.Printf("Generated '%s' snap\n", snapPackage)
 	return nil
