@@ -31,19 +31,88 @@ const (
 	SnapTypeOem       SnapType = "oem"
 )
 
-// Part representation of a snappy part
-type Part interface {
-
-	// query
-	Name() string
-	Version() string
-	Description() string
-
-	Hash() string
-	IsActive() bool
-	IsInstalled() bool
+// Rebootable is called to verify if a snappy package needs rebooting to be
+// activated.
+type Rebootable interface {
 	// Will become active on the next reboot
 	NeedsReboot() bool
+}
+
+// Typer allows snappy parts to return the snappy type of package.
+type Typer interface {
+	// Returns app, framework, core
+	Type() SnapType
+}
+
+// Named implements the snappy package name
+type Named interface {
+	Name() string
+}
+
+// Versioned implements package versioning.
+type Versioned interface {
+	Version() string
+}
+
+// Activated implements activation queries.
+type Activated interface {
+	IsActive() bool
+}
+
+// Installed implements installation queries.
+type Installed interface {
+	IsInstalled() bool
+}
+
+// Descriptor implements description functions for snappy packages.
+type Descriptor interface {
+	Description() string
+}
+
+// Hasher implements the snappy packages hash functions.
+type Hasher interface {
+	Hash() string
+}
+
+// Iconic allows the snappy package to return an icon.
+type Iconic interface {
+	// returns the path to the icon (local or uri)
+	Icon() string
+}
+
+// Installer implements installation for the snappy packages.
+type Installer interface {
+	// Install the snap
+	Install(pb ProgressMeter) error
+	// Uninstall the snap
+	Uninstall() error
+}
+
+// Services implements snappy packages that offer services
+type Services interface {
+	Services() []Service
+}
+
+// Configure implements configuration for the snappy packages.
+type Configure interface {
+	// Config takes a yaml configuration and returns the full snap
+	// config with the changes. Note that "configuration" may be empty.
+	Config(configuration []byte) (newConfig string, err error)
+}
+
+// Part representation of a snappy part
+type Part interface {
+	Named
+	Hasher
+	Rebootable
+	Typer
+	Iconic
+	Installer
+	Configure
+	Versioned
+	Activated
+	Installed
+	Descriptor
 
 	// returns the date when the snap was last updated
 	Date() time.Time
@@ -51,22 +120,9 @@ type Part interface {
 	// returns the channel of the part
 	Channel() string
 
-	// returns the path to the icon (local or uri)
-	Icon() string
-
-	// Returns app, framework, core
-	Type() SnapType
-
 	InstalledSize() int64
 	DownloadSize() int64
 
-	// Install the snap
-	Install(pb ProgressMeter) error
-	// Uninstall the snap
-	Uninstall() error
-	// Config takes a yaml configuration and returns the full snap
-	// config with the changes. Note that "configuration" may be empty.
-	Config(configuration []byte) (newConfig string, err error)
 	// make a inactive part active
 	SetActive() error
 }

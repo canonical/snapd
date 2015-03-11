@@ -27,6 +27,12 @@ type Port struct {
 	Negotiable bool   `yaml:"negotiable,omitempty"`
 }
 
+// Ports is a representation of Internal and External ports mapped with a Port.
+type Ports struct {
+	Internal map[string]Port `yaml:"internal,omitempty" json:"internal,omitempty"`
+	External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
+}
+
 // Service represents a service inside a SnapPart
 type Service struct {
 	Name        string `yaml:"name" json:"name,omitempty"`
@@ -38,10 +44,7 @@ type Service struct {
 	StopTimeout string `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
 
 	// must be a pointer so that it can be "nil" and omitempty works
-	Ports *struct {
-		Internal map[string]Port `yaml:"internal,omitempty" json:"internal,omitempty"`
-		External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
-	} `yaml:"ports,omitempty" json:"ports,omitempty"`
+	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
 }
 
 // Binary represents a single binary inside the binaries: package.yaml
