@@ -11,8 +11,11 @@ package snappy
 
 import (
 	"bytes"
+	"compress/gzip"
+	"compress/bzip2"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -24,6 +27,8 @@ import (
 
 	"launchpad.net/snappy/helpers"
 
+	// FIXME: license unclear
+	"github.com/blakesmith/ar"
 	"github.com/mvo5/goconfigparser"
 )
 
@@ -574,13 +579,9 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		}
 	}()
 
-	// FIXME: replace this with a native extractor to avoid attack
-	//        surface
-	cmd = exec.Command("dpkg-deb", "--extract", snapFile, instDir)
-	output, err := cmd.CombinedOutput()
+	// FIXME: replace this with a native extractor/verifier
+	err = unpackDeb(snapFile, instDir)
 	if err != nil {
-		// FIXME: make the output part of the SnapExtractError
-		log.Printf("Snap install failed with: %s", output)
 		return err
 	}
 
@@ -748,4 +749,39 @@ func setActiveClick(baseDir string) (err error) {
 	}
 	err = os.Symlink(baseDir, currentActiveSymlink)
 	return err
+}
+
+func unpackDeb(debFile, targetDir string) error {
+	f, err := os.Open(debFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	arReader := ar.NewReader(f)
+	var header *ar.Header
+	for {
+		header, err = arReader.Next()
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(header.Name, "data.tar") {
+			break
+		}
+	}
+
+	var dataReader io.Reader
+	switch {
+	case strings.HasSuffix(header.Name, ".gz"):
+		dataReader, err = gzip.NewReader(f)
+		if err != nil {
+			return err
+		}
+	case strings.HasSuffix(header.Name, ".bzip2"):
+		dataReader = bzip2.NewReader(f)
+	default:
+		return fmt.Errorf("Can not handle %s", header.Name)
+	}
+
+	return helpers.UnpackTar(dataReader, targetDir)
 }
