@@ -2,7 +2,6 @@ package helpers
 
 import (
 	"archive/tar"
-	"compress/gzip"
 	"crypto/sha512"
 	"encoding/hex"
 	"io"
@@ -51,23 +50,7 @@ func ExitCode(runErr error) (e int, err error) {
 	return e, runErr
 }
 
-func unpackTar(archive string, target string) error {
-
-	var f io.Reader
-	var err error
-
-	f, err = os.Open(archive)
-	if err != nil {
-		return err
-	}
-
-	if strings.HasSuffix(archive, ".gz") {
-		f, err = gzip.NewReader(f)
-		if err != nil {
-			return err
-		}
-	}
-
+func UnpackTar(f io.Reader, target string) error {
 	tr := tar.NewReader(f)
 	for {
 		hdr, err := tr.Next()
