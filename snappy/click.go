@@ -9,6 +9,7 @@ package snappy
 */
 
 import (
+	"archive/tar"
 	"bytes"
 	"compress/bzip2"
 	"compress/gzip"
@@ -542,9 +543,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		//return SnapAuditError
 	}
 
-	// FIXME: replace
-	cmd := exec.Command("dpkg-deb", "-I", snapFile, "manifest")
-	manifestData, err := cmd.Output()
+	manifestData, err := readDebControlMember(snapFile, "manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
 		return err
@@ -760,10 +759,10 @@ func clickVerifyContentFn(path string) (string, error) {
 	return path, nil
 }
 
-func unpackDeb(debFile, targetDir string) error {
+func skipToArMember(debFile, memberPrefix string) (io.Reader, error) {
 	f, err := os.Open(debFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer f.Close()
 
@@ -773,9 +772,9 @@ func unpackDeb(debFile, targetDir string) error {
 	for {
 		header, err = arReader.Next()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if strings.HasPrefix(header.Name, "data.tar") {
+		if strings.HasPrefix(header.Name, memberPrefix) {
 			break
 		}
 	}
@@ -786,13 +785,47 @@ func unpackDeb(debFile, targetDir string) error {
 	case strings.HasSuffix(header.Name, ".gz"):
 		dataReader, err = gzip.NewReader(f)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	case strings.HasSuffix(header.Name, ".bzip2"):
 		dataReader = bzip2.NewReader(f)
 	// FIXME: .xz!
 	default:
-		return fmt.Errorf("Can not handle %s", header.Name)
+		return nil, fmt.Errorf("Can not handle %s", header.Name)
+	}
+
+	return dataReader, nil
+}
+
+func readDebControlMember(debFile, controlMember string) ([]byte, error) {
+	dataReader, err := skipToArMember(debFile, "control.tar")
+	if err != nil {
+		return nil, err
+	}
+
+	var content []byte
+	err = helpers.TarIterate(dataReader, func(tr *tar.Reader, hdr *tar.Header) error {
+		if filepath.Clean(hdr.Name) == controlMember {
+			content, err = ioutil.ReadAll(tr)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return content, nil
+}
+
+func unpackDeb(debFile, targetDir string) error {
+	dataReader, err := skipToArMember(debFile, "data.tar")
+	if err != nil {
+		return err
 	}
 
 	// and unpack

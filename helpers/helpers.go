@@ -50,12 +50,12 @@ func ExitCode(runErr error) (e int, err error) {
 	return e, runErr
 }
 
-// UnpackTarTransformFunc can be used to change the names during unpack
-// or to return a error for files that are not acceptable
-type UnpackTarTransformFunc func(path string) (newPath string, err error)
+// TarIterFunc is called for each file inside a tar archive
+type TarIterFunc func(r *tar.Reader, hdr *tar.Header) error
 
-// UnpackTar unpacks the given tar file into the target directory
-func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
+// TarIterate will take a io.Reader and call the fn callback on each tar
+// archive member
+func TarIterate(r io.Reader, fn TarIterFunc) error {
 	tr := tar.NewReader(r)
 	for {
 		hdr, err := tr.Next()
@@ -67,6 +67,21 @@ func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
 			return err
 		}
 
+		if err := fn(tr, hdr); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// UnpackTarTransformFunc can be used to change the names during unpack
+// or to return a error for files that are not acceptable
+type UnpackTarTransformFunc func(path string) (newPath string, err error)
+
+// UnpackTar unpacks the given tar file into the target directory
+func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
+	return TarIterate(r, func(tr *tar.Reader, hdr *tar.Header) (err error) {
 		// run tar transform func
 		name := hdr.Name
 		if fn != nil {
@@ -95,9 +110,9 @@ func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
 				return err
 			}
 		}
-	}
 
-	return nil
+		return nil
+	})
 }
 
 func getMapFromYaml(data []byte) (map[string]interface{}, error) {
