@@ -322,7 +322,7 @@ func Build(sourceDir string) (string, error) {
 
 	// FIXME: we want a native build here without dpkg-deb to be
 	//        about to build on non-ubuntu/debian systems
-	cmd := exec.Command("fakeroot", "dpkg-deb", "--build", buildDir, snapName)
+	cmd := exec.Command("fakeroot", "dpkg-deb", "-Zgzip", "--build", buildDir, snapName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		retCode, _ := helpers.ExitCode(err)

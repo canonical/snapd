@@ -4,7 +4,6 @@ import (
 	. "launchpad.net/gocheck"
 )
 
-
 func (s *SnapTestSuite) TestClickVerifyContentFnSimple(c *C) {
 	newPath, err := clickVerifyContentFn("foo")
 	c.Assert(err, IsNil)
