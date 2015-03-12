@@ -230,6 +230,7 @@ func writeClickManifest(buildDir string, m *packageYaml) error {
 		Name:          m.Name,
 		Version:       m.Version,
 		Framework:     m.Framework,
+		Type:          m.Type,
 		Icon:          m.Icon,
 		InstalledSize: installedSize,
 		Title:         title,
