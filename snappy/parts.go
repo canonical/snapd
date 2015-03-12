@@ -51,6 +51,9 @@ type Part interface {
 	// returns the channel of the part
 	Channel() string
 
+	// returns the path to the icon (local or uri)
+	Icon() string
+
 	// Returns app, framework, core
 	Type() SnapType
 

@@ -13,7 +13,6 @@ Build-Depends: bash-completion,
                golang-yaml.v2-dev,
                golang-pb-dev,
                golang-go.crypto-dev,
-               ubuntu-core-snappy,
                fakeroot,
 Standards-Version: 3.9.6
 Homepage: https://launchpad.net/snappy
