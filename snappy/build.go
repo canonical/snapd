@@ -200,13 +200,15 @@ Description: {{.Title}}
 `
 	t := template.Must(template.New("control").Parse(debianControlTemplate))
 	debianControlData := struct {
-		packageYaml
+		Name            string
+		Version         string
+		Vendor          string
 		InstalledSize   string
 		Title           string
 		Description     string
 		DebArchitecture string
 	}{
-		*m, installedSize, title, description, debArchitecture(m),
+		m.Name, m.Version, m.Vendor, installedSize, title, description, debArchitecture(m),
 	}
 	t.Execute(debianControlFile, debianControlData)
 

@@ -363,12 +363,13 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
 	wrapperData := struct {
-		packageYaml
+		Name      string
+		Version   string
 		Target    string
 		Path      string
 		AaProfile string
 	}{
-		*m, actualBinPath, pkgPath, aaProfile,
+		m.Name, m.Version, actualBinPath, pkgPath, aaProfile,
 	}
 	t.Execute(&templateOut, wrapperData)
 
