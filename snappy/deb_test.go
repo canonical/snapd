@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	. "launchpad.net/gocheck"
+	"launchpad.net/snappy/helpers"
 )
 
 var testDebControl = []byte(`Package: foo
@@ -17,11 +18,21 @@ Description: some description
 
 func makeTestDeb(c *C) string {
 	builddir := c.MkDir()
+
+	// debian stuff
 	err := os.MkdirAll(filepath.Join(builddir, "DEBIAN"), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(builddir, "DEBIAN", "control"), testDebControl, 0644)
 	c.Assert(err, IsNil)
 
+	// some content
+	binPath := filepath.Join(builddir, "usr", "bin")
+	err = os.MkdirAll(binPath, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(binPath, "foo"), []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	// build it
 	debName := filepath.Join(builddir, "foo_1.0_all.deb")
 	cmd := exec.Command("fakeroot", "dpkg-deb", "-Zgzip", "--build", builddir, debName)
 	err = cmd.Run()
@@ -36,6 +47,17 @@ func (s *SnapTestSuite) TestSnapDebControlContent(c *C) {
 	content, err := d.controlContent("control")
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, string(testDebControl))
+}
+
+func (s *SnapTestSuite) TestSnapDebUnpack(c *C) {
+	targetDir := c.MkDir()
+
+	debName := makeTestDeb(c)
+	d := clickDeb{path: debName}
+	err := d.unpack(targetDir)
+	c.Assert(err, IsNil)
+	expectedFile := filepath.Join(targetDir, "usr", "bin", "foo")
+	c.Assert(helpers.FileExists(expectedFile), Equals, true)
 }
 
 func (s *SnapTestSuite) TestClickVerifyContentFnSimple(c *C) {
