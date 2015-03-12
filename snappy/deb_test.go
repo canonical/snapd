@@ -1,6 +1,7 @@
 package snappy
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -16,7 +17,7 @@ Architecture: all
 Description: some description
 `)
 
-func makeTestDeb(c *C) string {
+func makeTestDeb(c *C, compressor string) string {
 	builddir := c.MkDir()
 
 	// debian stuff
@@ -34,7 +35,7 @@ func makeTestDeb(c *C) string {
 
 	// build it
 	debName := filepath.Join(builddir, "foo_1.0_all.deb")
-	cmd := exec.Command("fakeroot", "dpkg-deb", "-Zgzip", "--build", builddir, debName)
+	cmd := exec.Command("fakeroot", "dpkg-deb", fmt.Sprintf("-Z%s", compressor), "--build", builddir, debName)
 	err = cmd.Run()
 	c.Assert(err, IsNil)
 
@@ -42,7 +43,8 @@ func makeTestDeb(c *C) string {
 }
 
 func (s *SnapTestSuite) TestSnapDebControlContent(c *C) {
-	debName := makeTestDeb(c)
+	debName := makeTestDeb(c, "gzip")
+
 	d := clickDeb{path: debName}
 	content, err := d.controlContent("control")
 	c.Assert(err, IsNil)
@@ -52,12 +54,14 @@ func (s *SnapTestSuite) TestSnapDebControlContent(c *C) {
 func (s *SnapTestSuite) TestSnapDebUnpack(c *C) {
 	targetDir := c.MkDir()
 
-	debName := makeTestDeb(c)
-	d := clickDeb{path: debName}
-	err := d.unpack(targetDir)
-	c.Assert(err, IsNil)
-	expectedFile := filepath.Join(targetDir, "usr", "bin", "foo")
-	c.Assert(helpers.FileExists(expectedFile), Equals, true)
+	for _, comp := range []string{"gzip", "bzip2", "xz"} {
+		debName := makeTestDeb(c, comp)
+		d := clickDeb{path: debName}
+		err := d.unpack(targetDir)
+		c.Assert(err, IsNil)
+		expectedFile := filepath.Join(targetDir, "usr", "bin", "foo")
+		c.Assert(helpers.FileExists(expectedFile), Equals, true)
+	}
 }
 
 func (s *SnapTestSuite) TestClickVerifyContentFnSimple(c *C) {
