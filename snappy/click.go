@@ -9,13 +9,9 @@ package snappy
 */
 
 import (
-	"archive/tar"
 	"bytes"
-	"compress/bzip2"
-	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -27,7 +23,6 @@ import (
 
 	"launchpad.net/snappy/helpers"
 
-	"github.com/blakesmith/ar"
 	"github.com/mvo5/goconfigparser"
 )
 
@@ -542,7 +537,8 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		//return SnapAuditError
 	}
 
-	manifestData, err := readDebControlMember(snapFile, "manifest")
+	d := clickDeb{path: snapFile}
+	manifestData, err := d.controlContent("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
 		return err
@@ -577,7 +573,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		}
 	}()
 
-	err = unpackDeb(snapFile, instDir)
+	err = d.unpack(instDir)
 	if err != nil {
 		return err
 	}
@@ -746,86 +742,4 @@ func setActiveClick(baseDir string) (err error) {
 	}
 	err = os.Symlink(baseDir, currentActiveSymlink)
 	return err
-}
-
-func clickVerifyContentFn(path string) (string, error) {
-	path = filepath.Clean(path)
-	if strings.Contains(path, "..") {
-		return "", ErrSnapInvalidContent
-	}
-
-	return path, nil
-}
-
-func skipToArMember(debFile, memberPrefix string) (io.Reader, error) {
-	f, err := os.Open(debFile)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	// find the right ar member
-	arReader := ar.NewReader(f)
-	var header *ar.Header
-	for {
-		header, err = arReader.Next()
-		if err != nil {
-			return nil, err
-		}
-		if strings.HasPrefix(header.Name, memberPrefix) {
-			break
-		}
-	}
-
-	// find out what compression
-	var dataReader io.Reader
-	switch {
-	case strings.HasSuffix(header.Name, ".gz"):
-		dataReader, err = gzip.NewReader(f)
-		if err != nil {
-			return nil, err
-		}
-	case strings.HasSuffix(header.Name, ".bzip2"):
-		dataReader = bzip2.NewReader(f)
-	// FIXME: .xz!
-	default:
-		return nil, fmt.Errorf("Can not handle %s", header.Name)
-	}
-
-	return dataReader, nil
-}
-
-func readDebControlMember(debFile, controlMember string) ([]byte, error) {
-	dataReader, err := skipToArMember(debFile, "control.tar")
-	if err != nil {
-		return nil, err
-	}
-
-	var content []byte
-	err = helpers.TarIterate(dataReader, func(tr *tar.Reader, hdr *tar.Header) error {
-		if filepath.Clean(hdr.Name) == controlMember {
-			content, err = ioutil.ReadAll(tr)
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return content, nil
-}
-
-func unpackDeb(debFile, targetDir string) error {
-	dataReader, err := skipToArMember(debFile, "data.tar")
-	if err != nil {
-		return err
-	}
-
-	// and unpack
-	return helpers.UnpackTar(dataReader, targetDir, clickVerifyContentFn)
 }
