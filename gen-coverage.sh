@@ -17,4 +17,7 @@ OUTPUTDIR=${1:-$(pwd)}
 (cd coreconfig &&
         $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-coreconfig.html)
 
+(cd clickdeb &&
+        $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-clickdeb.html)
+
 echo "Coverage html reports are available in $OUTPUTDIR"

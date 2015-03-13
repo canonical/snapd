@@ -53,8 +53,4 @@ var (
 	// ErrSnapNotActive is returned if you try to unset a snap from
 	// active to inactive
 	ErrSnapNotActive = errors.New("snap not active")
-
-	// ErrSnapInvalidContent is returned if a snap package contains
-	// invalid content
-	ErrSnapInvalidContent = errors.New("snap contains invalid content")
 )

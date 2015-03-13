@@ -21,6 +21,7 @@ import (
 	"strings"
 	"text/template"
 
+	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 
 	"github.com/mvo5/goconfigparser"
@@ -537,8 +538,8 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		//return SnapAuditError
 	}
 
-	d := clickDeb{path: snapFile}
-	manifestData, err := d.controlContent("manifest")
+	d := clickdeb.ClickDeb{Path: snapFile}
+	manifestData, err := d.ControlContent("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
 		return err
@@ -573,7 +574,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		}
 	}()
 
-	err = d.unpack(instDir)
+	err = d.Unpack(instDir)
 	if err != nil {
 		return err
 	}

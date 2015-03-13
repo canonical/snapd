@@ -1,4 +1,4 @@
-package snappy
+package clickdeb
 
 import (
 	"fmt"
@@ -6,10 +6,19 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"testing"
 
 	. "launchpad.net/gocheck"
 	"launchpad.net/snappy/helpers"
 )
+
+// Hook up gocheck into the "go test" runner.
+func Test(t *testing.T) { TestingT(t) }
+
+type ClickDebTestSuite struct {
+}
+
+var _ = Suite(&ClickDebTestSuite{})
 
 var testDebControl = []byte(`Package: foo
 Version: 1.0
@@ -42,41 +51,41 @@ func makeTestDeb(c *C, compressor string) string {
 	return debName
 }
 
-func (s *SnapTestSuite) TestSnapDebControlContent(c *C) {
+func (s *ClickDebTestSuite) TestSnapDebControlContent(c *C) {
 	debName := makeTestDeb(c, "gzip")
 
-	d := clickDeb{path: debName}
-	content, err := d.controlContent("control")
+	d := ClickDeb{Path: debName}
+	content, err := d.ControlContent("control")
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, string(testDebControl))
 }
 
-func (s *SnapTestSuite) TestSnapDebUnpack(c *C) {
+func (s *ClickDebTestSuite) TestSnapDebUnpack(c *C) {
 	targetDir := c.MkDir()
 
 	for _, comp := range []string{"gzip", "bzip2", "xz"} {
 		debName := makeTestDeb(c, comp)
-		d := clickDeb{path: debName}
-		err := d.unpack(targetDir)
+		d := ClickDeb{Path: debName}
+		err := d.Unpack(targetDir)
 		c.Assert(err, IsNil)
 		expectedFile := filepath.Join(targetDir, "usr", "bin", "foo")
 		c.Assert(helpers.FileExists(expectedFile), Equals, true)
 	}
 }
 
-func (s *SnapTestSuite) TestClickVerifyContentFnSimple(c *C) {
+func (s *ClickDebTestSuite) TestClickVerifyContentFnSimple(c *C) {
 	newPath, err := clickVerifyContentFn("foo")
 	c.Assert(err, IsNil)
 	c.Assert(newPath, Equals, "foo")
 }
 
-func (s *SnapTestSuite) TestClickVerifyContentFnStillOk(c *C) {
+func (s *ClickDebTestSuite) TestClickVerifyContentFnStillOk(c *C) {
 	newPath, err := clickVerifyContentFn("./foo/bar/../baz")
 	c.Assert(err, IsNil)
 	c.Assert(newPath, Equals, "foo/baz")
 }
 
-func (s *SnapTestSuite) TestClickVerifyContentFnNotOk(c *C) {
+func (s *ClickDebTestSuite) TestClickVerifyContentFnNotOk(c *C) {
 	_, err := clickVerifyContentFn("./foo/../../baz")
 	c.Assert(err, Equals, ErrSnapInvalidContent)
 }
