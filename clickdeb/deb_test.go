@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -26,7 +27,7 @@ Architecture: all
 Description: some description
 `)
 
-func makeTestDeb(c *C, compressor string) string {
+func makeTestDebDir(c *C) string {
 	builddir := c.MkDir()
 
 	// debian stuff
@@ -39,16 +40,44 @@ func makeTestDeb(c *C, compressor string) string {
 	binPath := filepath.Join(builddir, "usr", "bin")
 	err = os.MkdirAll(binPath, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(binPath, "foo"), []byte(""), 0644)
+	err = ioutil.WriteFile(filepath.Join(binPath, "foo"), []byte("foo"), 0644)
 	c.Assert(err, IsNil)
+
+	return builddir
+}
+
+func makeTestDeb(c *C, compressor string) string {
+	builddir := makeTestDebDir(c)
 
 	// build it
 	debName := filepath.Join(builddir, "foo_1.0_all.deb")
 	cmd := exec.Command("fakeroot", "dpkg-deb", fmt.Sprintf("-Z%s", compressor), "--build", builddir, debName)
-	err = cmd.Run()
+	err := cmd.Run()
 	c.Assert(err, IsNil)
 
 	return debName
+}
+
+func (s *ClickDebTestSuite) TestSnapDebPack(c *C) {
+	builddir := makeTestDebDir(c)
+
+	debDir := c.MkDir()
+	d := ClickDeb{Path: filepath.Join(debDir, "foo_1.0_all.deb")}
+	err := d.Pack(builddir)
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(d.Path), Equals, true)
+
+	// control
+	cmd := exec.Command("dpkg-deb", "-I", d.Path)
+	output, err := cmd.CombinedOutput()
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(output), "Package: foo\n"), Equals, true)
+
+	// data
+	cmd = exec.Command("dpkg-deb", "-c", d.Path)
+	output, err = cmd.CombinedOutput()
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(output), "./usr/bin/foo"), Equals, true)
 }
 
 func (s *ClickDebTestSuite) TestSnapDebControlContent(c *C) {

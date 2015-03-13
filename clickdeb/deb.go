@@ -111,6 +111,187 @@ func (d *ClickDeb) Unpack(targetDir string) error {
 	return helpers.UnpackTar(dataReader, targetDir, clickVerifyContentFn)
 }
 
+func addFileToAr(arWriter *ar.Writer, filename string) error {
+	stat, err := os.Stat(filename)
+	if err != nil {
+		return err
+	}
+	dataF, err := os.Open(filename)
+	if err != nil {
+		return nil
+	}
+	defer dataF.Close()
+	size := stat.Size()
+	if size%2 == 1 {
+		size++
+	}
+	hdr := &ar.Header{
+		Name: filepath.Base(filename),
+		Mode: int64(stat.Mode()),
+		Size: size,
+	}
+	arWriter.WriteHeader(hdr)
+	_, err = io.Copy(arWriter, dataF)
+	// io.Copy() is confused by the fact that a ar file must be even
+	// aligned, so it may return a bigger amounts of bytes written
+	// than requested. This is not a error so we ignore it
+	if err != io.ErrShortWrite {
+		return err
+	}
+
+	return nil
+}
+
+func addDataToAr(arWriter *ar.Writer, filename string, data []byte) error {
+	size := int64(len(data))
+	if size%2 == 1 {
+		size++
+	}
+	hdr := &ar.Header{
+		Name: filename,
+		Mode: 0644,
+		Size: size,
+	}
+	arWriter.WriteHeader(hdr)
+	_, err := arWriter.Write([]byte(data))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func IsSymlink(mode os.FileMode) bool {
+	return (mode & os.ModeSymlink) == 1
+}
+
+type TarIterFunc func(path string) bool
+
+func TarCreate(tarname string, sourceDir string, fn TarIterFunc) error {
+	w, err := os.Create(tarname)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
+	// FIXME: hardcoded gzip
+	gzipWriter := gzip.NewWriter(w)
+	defer gzipWriter.Close()
+	tarWriter := tar.NewWriter(gzipWriter)
+	defer tarWriter.Close()
+
+	helpers.ChDir(sourceDir, func() {
+		err = filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+			st, err := os.Stat(path)
+			if err != nil {
+				return err
+			}
+			if !st.Mode().IsRegular() && !IsSymlink(st.Mode()) {
+				return nil
+			}
+
+			add := true
+			if fn != nil {
+				add = fn(path)
+			}
+			if !add {
+				return nil
+			}
+
+			// huh? golang, come on!
+			target, _ := os.Readlink(path)
+			hdr, err := tar.FileInfoHeader(info, target)
+			if err != nil {
+				return err
+			}
+			hdr.Name = "./" + path
+			hdr.Uid = 0
+			hdr.Gid = 0
+			hdr.Uname = "root"
+			hdr.Gname = "root"
+
+			if err := tarWriter.WriteHeader(hdr); err != nil {
+				return err
+			}
+
+			f, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			_, err = io.Copy(tarWriter, f)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		})
+	})
+
+	return err
+}
+
+// Pack takes a build debian directory with DEBIAN/ dir and creates a
+// deb from it
+func (d *ClickDeb) Pack(sourceDir string) error {
+	var err error
+
+	// create file
+	d.file, err = os.Create(d.Path)
+	if err != nil {
+		return err
+	}
+	defer d.file.Close()
+
+	// control
+	tempdir, err := ioutil.TempDir("", "data")
+	defer os.RemoveAll(tempdir)
+	if err != nil {
+		return err
+	}
+
+	// control
+	controlName := filepath.Join(tempdir, "control.tar.gz")
+	if err := TarCreate(controlName, filepath.Join(sourceDir, "DEBIAN"), nil); err != nil {
+		return err
+	}
+
+	// data
+	dataName := filepath.Join(tempdir, "data.tar.gz")
+	err = TarCreate(dataName, sourceDir, func(path string) bool {
+		if strings.HasPrefix(path, "DEBIAN/") {
+			return false
+		}
+
+		return true
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// create ar
+	arWriter := ar.NewWriter(d.file)
+	arWriter.WriteGlobalHeader()
+
+	// debian magic
+	if err := addDataToAr(arWriter, "debian-binary", []byte("2.0\n")); err != nil {
+		return err
+	}
+
+	// control file
+	if err := addFileToAr(arWriter, controlName); err != nil {
+		return err
+	}
+
+	// data file
+	if err := addFileToAr(arWriter, dataName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (d *ClickDeb) skipToArMember(memberPrefix string) (io.Reader, error) {
 	var err error
 
