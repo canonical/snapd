@@ -28,7 +28,7 @@ const (
 	systemImageChannelConfig = "/etc/system-image/channel.ini"
 
 	// the location for the ReloadConfig
-	systemImageClientConfig = "/etc/system-image/client.ini"
+	systemImageClientConfig = "/etc/system-image/config.d"
 )
 
 var (
@@ -148,14 +148,14 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 
 	// find out what config file to use, the other partition may be
 	// empty so we need to fallback to the current one if it is
-	configFile := systemImageClientConfig
+	config := systemImageClientConfig
 	err = s.partition.RunWithOther(partition.RO, func(otherRoot string) (err error) {
-		otherConfigFile := filepath.Join(systemImageRoot, otherRoot, systemImageClientConfig)
-		if _, err := os.Stat(otherConfigFile); err == nil {
-			configFile = otherConfigFile
+		otherConfig := filepath.Join(systemImageRoot, otherRoot, systemImageClientConfig)
+		if _, err := os.Stat(otherConfig); err == nil {
+			config = otherConfig
 		}
 
-		return systemImageDownloadUpdate(configFile, pb)
+		return systemImageDownloadUpdate(config, pb)
 	})
 	if err != nil {
 		return err

@@ -48,9 +48,9 @@ type channelJSON struct {
 	Images []channelImage     `json:"images"`
 }
 
-func systemImageClientCheckForUpdates(configFile string) (us updateStatus, err error) {
+func systemImageClientCheckForUpdates(config string) (us updateStatus, err error) {
 	cfg := goconfigparser.New()
-	if err := cfg.ReadFile(configFile); err != nil {
+	if err := cfg.ReadFile(config); err != nil {
 		return us, err
 	}
 	channel, _ := cfg.Get("service", "channel")
@@ -147,7 +147,7 @@ func parseSIProgress(pb ProgressMeter, stdout io.Reader) error {
 }
 
 func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) {
-	cmd := exec.Command(systemImageCli, "--machine-readable", "-C", configFile)
+	cmd := exec.Command(systemImageCli, "--progress", "json", "-C", configFile)
 
 	// collect progress over stdout pipe if we want progress
 	var stdout io.Reader
