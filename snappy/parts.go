@@ -31,6 +31,11 @@ const (
 	SnapTypeOem       SnapType = "oem"
 )
 
+// Services implements snappy packages that offer services
+type Services interface {
+	Services() []Service
+}
+
 // Part representation of a snappy part
 type Part interface {
 
