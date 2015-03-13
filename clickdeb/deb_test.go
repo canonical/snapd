@@ -78,6 +78,7 @@ func (s *ClickDebTestSuite) TestSnapDebPack(c *C) {
 	output, err = cmd.CombinedOutput()
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(output), "./usr/bin/foo"), Equals, true)
+	c.Assert(strings.Contains(string(output), "DEBIAN"), Equals, false)
 }
 
 func (s *ClickDebTestSuite) TestSnapDebControlContent(c *C) {

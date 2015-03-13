@@ -180,52 +180,50 @@ func TarCreate(tarname string, sourceDir string, fn TarIterFunc) error {
 	tarWriter := tar.NewWriter(gzipWriter)
 	defer tarWriter.Close()
 
-	helpers.ChDir(sourceDir, func() {
-		err = filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
-			st, err := os.Stat(path)
-			if err != nil {
-				return err
-			}
-			if !st.Mode().IsRegular() && !IsSymlink(st.Mode()) {
-				return nil
-			}
-
-			add := true
-			if fn != nil {
-				add = fn(path)
-			}
-			if !add {
-				return nil
-			}
-
-			// huh? golang, come on!
-			target, _ := os.Readlink(path)
-			hdr, err := tar.FileInfoHeader(info, target)
-			if err != nil {
-				return err
-			}
-			hdr.Name = "./" + path
-			hdr.Uid = 0
-			hdr.Gid = 0
-			hdr.Uname = "root"
-			hdr.Gname = "root"
-
-			if err := tarWriter.WriteHeader(hdr); err != nil {
-				return err
-			}
-
-			f, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-			_, err = io.Copy(tarWriter, f)
-			if err != nil {
-				return err
-			}
-
+	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		st, err := os.Stat(path)
+		if err != nil {
+			return err
+		}
+		if !st.Mode().IsRegular() && !IsSymlink(st.Mode()) {
 			return nil
-		})
+		}
+
+		add := true
+		if fn != nil {
+			add = fn(path)
+		}
+		if !add {
+			return nil
+		}
+
+		// huh? golang, come on!
+		target, _ := os.Readlink(path)
+		hdr, err := tar.FileInfoHeader(info, target)
+		if err != nil {
+			return err
+		}
+		hdr.Name = "." + path[len(sourceDir):]
+		hdr.Uid = 0
+		hdr.Gid = 0
+		hdr.Uname = "root"
+		hdr.Gname = "root"
+
+		if err := tarWriter.WriteHeader(hdr); err != nil {
+			return err
+		}
+
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		_, err = io.Copy(tarWriter, f)
+		if err != nil {
+			return err
+		}
+
+		return nil
 	})
 
 	return err
@@ -243,7 +241,7 @@ func (d *ClickDeb) Pack(sourceDir string) error {
 	}
 	defer d.file.Close()
 
-	// control
+	// tmp
 	tempdir, err := ioutil.TempDir("", "data")
 	defer os.RemoveAll(tempdir)
 	if err != nil {
@@ -259,7 +257,7 @@ func (d *ClickDeb) Pack(sourceDir string) error {
 	// data
 	dataName := filepath.Join(tempdir, "data.tar.gz")
 	err = TarCreate(dataName, sourceDir, func(path string) bool {
-		if strings.HasPrefix(path, "DEBIAN/") {
+		if strings.HasPrefix(path, filepath.Join(sourceDir, "DEBIAN")) {
 			return false
 		}
 
