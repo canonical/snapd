@@ -81,7 +81,9 @@ type packageYaml struct {
 	Binaries []Binary  `yaml:"binaries,omitempty"`
 
 	// oem snap only
-	StoreId string `yaml:"store-id,omitempty"`
+	Store struct {
+		Id string `yaml:"id,omitempty"`
+	} `yaml:"store,omitempty"`
 
 	// this is a bit ugly, but right now integration is a one:one
 	// mapping of click hooks
@@ -560,7 +562,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	// check if the oem part sets a custom store-id
 	oems, _ := InstalledSnapsByType(SnapTypeOem)
 	if len(oems) == 1 {
-		storeId := oems[0].(*SnapPart).m.StoreId
+		storeId := oems[0].(*SnapPart).m.Store.Id
 		if storeId != "" {
 			req.Header.Set("X-Ubuntu-Store", storeId)
 		}
