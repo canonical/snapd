@@ -1,6 +1,7 @@
 package snappy
 
 import (
+	"net"
 	"path/filepath"
 	"time"
 )
@@ -14,6 +15,7 @@ var (
 	snapAppArmorDir  = "/var/lib/apparmor/clicks"
 
 	snapBinariesDir = filepath.Join(snapAppsDir, "bin")
+	snapServicesDir = "/etc/systemd/system"
 
 	aaClickHookCmd = "aa-clickhook"
 )
@@ -28,6 +30,11 @@ const (
 	SnapTypeFramework SnapType = "framework"
 	SnapTypeOem       SnapType = "oem"
 )
+
+// Services implements snappy packages that offer services
+type Services interface {
+	Services() []Service
+}
 
 // Part representation of a snappy part
 type Part interface {
@@ -48,6 +55,9 @@ type Part interface {
 
 	// returns the channel of the part
 	Channel() string
+
+	// returns the path to the icon (local or uri)
+	Icon() string
 
 	// Returns app, framework, core
 	Type() SnapType
@@ -152,8 +162,11 @@ func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
 func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	for _, r := range m.all {
 		results, err := r.Details(snapyName)
+		// ignore network errors here, we will also collect
+		// local results
+		_, netError := err.(net.Error)
 		switch {
-		case err == ErrPackageNotFound:
+		case err == ErrPackageNotFound || netError:
 			continue
 		case err != nil:
 			return parts, err

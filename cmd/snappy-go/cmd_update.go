@@ -13,12 +13,10 @@ type cmdUpdate struct {
 
 func init() {
 	var cmdUpdateData cmdUpdate
-	cmd, _ := parser.AddCommand("update",
+	_, _ = parser.AddCommand("update",
 		"Update all installed parts",
 		"Ensures system is running with latest parts",
 		&cmdUpdateData)
-
-	cmd.Aliases = append(cmd.Aliases, "up")
 }
 
 func (x *cmdUpdate) Execute(args []string) (err error) {

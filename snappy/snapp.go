@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -22,18 +23,28 @@ import (
 // Port is used to declare the Port and Negotiable status of such port
 // that is bound to a Service.
 type Port struct {
-	Port       string `yaml:"port"`
+	Port       string `yaml:"port,omitempty"`
 	Negotiable bool   `yaml:"negotiable,omitempty"`
+}
+
+// Ports is a representation of Internal and External ports mapped with a Port.
+type Ports struct {
+	Internal map[string]Port `yaml:"internal,omitempty" json:"internal,omitempty"`
+	External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
 }
 
 // Service represents a service inside a SnapPart
 type Service struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description,omitempty"`
-	Ports       struct {
-		Internal map[string]Port `yaml:"internal,omitempty"`
-		External map[string]Port `yaml:"external,omitempty"`
-	} `yaml:"ports,omitempty"`
+	Name        string `yaml:"name" json:"name,omitempty"`
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+
+	Start       string `yaml:"start,omitempty" json:"start,omitempty"`
+	Stop        string `yaml:"stop,omitempty" json:"stop,omitempty"`
+	PostStop    string `yaml:"poststop,omitempty" json:"poststop,omitempty"`
+	StopTimeout string `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
+
+	// must be a pointer so that it can be "nil" and omitempty works
+	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
 }
 
 // Binary represents a single binary inside the binaries: package.yaml
@@ -45,26 +56,36 @@ type Binary struct {
 
 // SnapPart represents a generic snap type
 type SnapPart struct {
-	name        string
-	version     string
+	m           *packageYaml
 	description string
 	hash        string
 	isActive    bool
 	isInstalled bool
 	stype       SnapType
-	services    []Service
 
 	basedir string
 }
 
 type packageYaml struct {
-	Name     string
-	Version  string
-	Vendor   string
-	Icon     string
-	Type     SnapType
+	Name    string
+	Version string
+	Vendor  string
+	Icon    string
+	Type    SnapType
+
+	// the spec allows a string or a list here *ick* so we need
+	// to convert that into something sensible via reflect
+	DeprecatedArchitecture interface{} `yaml:"architecture"`
+	Architectures          []string
+
+	Framework string
+
 	Services []Service `yaml:"services,omitempty"`
 	Binaries []Binary  `yaml:"binaries,omitempty"`
+
+	// this is a bit ugly, but right now integration is a one:one
+	// mapping of click hooks
+	Integration map[string]clickAppHook
 }
 
 // the meta/hashes file, yaml so that we can extend it later with
@@ -109,6 +130,21 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 		return nil, err
 	}
 
+	// parse the architecture: field that is either a string or a list
+	// or empty (yes, you read that correctly)
+	v := reflect.ValueOf(m.DeprecatedArchitecture)
+	switch v.Kind() {
+	case reflect.Invalid:
+		m.Architectures = []string{"all"}
+	case reflect.String:
+		m.Architectures = []string{v.String()}
+	case reflect.Slice:
+		v2 := m.DeprecatedArchitecture.([]interface{})
+		for _, arch := range v2 {
+			m.Architectures = append(m.Architectures, arch.(string))
+		}
+	}
+
 	return &m, nil
 }
 
@@ -123,10 +159,8 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 
 	part.basedir = filepath.Dir(filepath.Dir(yamlPath))
 	// data from the yaml
-	part.name = m.Name
-	part.version = m.Version
 	part.isInstalled = true
-	part.services = m.Services
+	part.m = m
 
 	// check if the part is active
 	allVersionsDir := filepath.Dir(part.basedir)
@@ -134,7 +168,6 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 	if p == part.basedir {
 		part.isActive = true
 	}
-	part.stype = m.Type
 
 	// read hash, its ok if its not there, some older versions of
 	// snappy did not write this file
@@ -152,8 +185,8 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 
 // Type returns the type of the SnapPart (app, oem, ...)
 func (s *SnapPart) Type() SnapType {
-	if s.stype != "" {
-		return s.stype
+	if s.m.Type != "" {
+		return s.m.Type
 	}
 
 	// if not declared its a app
@@ -162,12 +195,12 @@ func (s *SnapPart) Type() SnapType {
 
 // Name returns the name
 func (s *SnapPart) Name() string {
-	return s.name
+	return s.m.Name
 }
 
 // Version returns the version
 func (s *SnapPart) Version() string {
-	return s.version
+	return s.m.Version
 }
 
 // Description returns the description
@@ -184,6 +217,11 @@ func (s *SnapPart) Hash() string {
 func (s *SnapPart) Channel() string {
 	// FIXME: real channel support
 	return "edge"
+}
+
+// Icon returns the path to the icon
+func (s *SnapPart) Icon() string {
+	return filepath.Join(s.basedir, s.m.Icon)
 }
 
 // IsActive returns true if the snap is active
@@ -225,7 +263,7 @@ func (s *SnapPart) Date() time.Time {
 
 // Services return a list of Service the package declares
 func (s *SnapPart) Services() []Service {
-	return s.services
+	return s.m.Services
 }
 
 // Install installs the snap
@@ -243,7 +281,7 @@ func (s *SnapPart) Uninstall() (err error) {
 	// OEM snaps should not be removed as they are a key
 	// building block for OEMs. Prunning non active ones
 	// is acceptible.
-	if s.stype == SnapTypeOem && s.IsActive() {
+	if s.m.Type == SnapTypeOem && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 
@@ -369,6 +407,11 @@ func (s *RemoteSnapPart) Channel() string {
 	return "edge"
 }
 
+// Icon returns the icon
+func (s *RemoteSnapPart) Icon() string {
+	return s.pkg.IconURL
+}
+
 // IsActive returns true if the snap is active
 func (s *RemoteSnapPart) IsActive() bool {
 	return false
@@ -485,13 +528,23 @@ type SnapUbuntuStoreRepository struct {
 	bulkURI    string
 }
 
+var (
+	storeSearchURI  = "https://search.apps.ubuntu.com/api/v1/search?q=%s"
+	storeDetailsURI = "https://search.apps.ubuntu.com/api/v1/package/%s"
+	storeBulkURI    = "https://search.apps.ubuntu.com/api/v1/click-metadata"
+)
+
 // NewUbuntuStoreSnapRepository creates a new SnapUbuntuStoreRepository
 func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
+	if storeSearchURI == "" && storeDetailsURI == "" && storeBulkURI == "" {
+		return nil
+	}
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &SnapUbuntuStoreRepository{
-		searchURI:  "https://search.apps.ubuntu.com/api/v1/search?q=%s",
-		detailsURI: "https://search.apps.ubuntu.com/api/v1/package/%s",
-		bulkURI:    "https://search.apps.ubuntu.com/api/v1/click-metadata"}
+		searchURI:  storeSearchURI,
+		detailsURI: storeDetailsURI,
+		bulkURI:    storeBulkURI,
+	}
 }
 
 // small helper that sets the correct http headers for the ubuntu store
