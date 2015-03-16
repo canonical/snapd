@@ -323,7 +323,7 @@ func Build(sourceDir string) (string, error) {
 
 	// build it
 	d := clickdeb.ClickDeb{Path: snapName}
-	if err := d.Pack(buildDir); err != nil {
+	if err := d.Build(buildDir); err != nil {
 		return "", err
 	}
 

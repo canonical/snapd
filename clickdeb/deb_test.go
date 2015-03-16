@@ -59,12 +59,12 @@ func makeTestDeb(c *C, compressor string) string {
 	return debName
 }
 
-func (s *ClickDebTestSuite) TestSnapDebPack(c *C) {
+func (s *ClickDebTestSuite) TestSnapDebBuild(c *C) {
 	builddir := makeTestDebDir(c)
 
 	debDir := c.MkDir()
 	d := ClickDeb{Path: filepath.Join(debDir, "foo_1.0_all.deb")}
-	err := d.Pack(builddir)
+	err := d.Build(builddir)
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(d.Path), Equals, true)
 

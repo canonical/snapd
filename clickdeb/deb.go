@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"launchpad.net/snappy/helpers"
 
@@ -130,9 +131,10 @@ func addFileToAr(arWriter *ar.Writer, filename string) error {
 		size++
 	}
 	hdr := &ar.Header{
-		Name: filepath.Base(filename),
-		Mode: int64(stat.Mode()),
-		Size: size,
+		Name:    filepath.Base(filename),
+		ModTime: time.Now(),
+		Mode:    int64(stat.Mode()),
+		Size:    size,
 	}
 	arWriter.WriteHeader(hdr)
 	_, err = io.Copy(arWriter, dataF)
@@ -153,9 +155,10 @@ func addDataToAr(arWriter *ar.Writer, filename string, data []byte) error {
 		size++
 	}
 	hdr := &ar.Header{
-		Name: filename,
-		Mode: 0644,
-		Size: size,
+		Name:    filename,
+		ModTime: time.Now(),
+		Mode:    0644,
+		Size:    size,
 	}
 	arWriter.WriteHeader(hdr)
 	_, err := arWriter.Write([]byte(data))
@@ -248,9 +251,9 @@ func tarGzCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 	return err
 }
 
-// Pack takes a build debian directory with DEBIAN/ dir and creates a
-// deb from it
-func (d *ClickDeb) Pack(sourceDir string) error {
+// Build takes a build debian directory with DEBIAN/ dir and creates a
+// clickdeb from it
+func (d *ClickDeb) Build(sourceDir string) error {
 	var err error
 
 	// create file
@@ -267,22 +270,17 @@ func (d *ClickDeb) Pack(sourceDir string) error {
 		return err
 	}
 
-	// control
+	// create control data (for click compat)
 	controlName := filepath.Join(tempdir, "control.tar.gz")
 	if err := tarGzCreate(controlName, filepath.Join(sourceDir, "DEBIAN"), nil); err != nil {
 		return err
 	}
 
-	// data
+	// create content data
 	dataName := filepath.Join(tempdir, "data.tar.gz")
 	err = tarGzCreate(dataName, sourceDir, func(path string) bool {
-		if strings.HasPrefix(path, filepath.Join(sourceDir, "DEBIAN")) {
-			return false
-		}
-
-		return true
+		return !strings.HasPrefix(path, filepath.Join(sourceDir, "DEBIAN"))
 	})
-
 	if err != nil {
 		return err
 	}
@@ -293,6 +291,11 @@ func (d *ClickDeb) Pack(sourceDir string) error {
 
 	// debian magic
 	if err := addDataToAr(arWriter, "debian-binary", []byte("2.0\n")); err != nil {
+		return err
+	}
+
+	// click magic
+	if err := addDataToAr(arWriter, "_click-binary", []byte("0.4\n")); err != nil {
 		return err
 	}
 
@@ -325,7 +328,7 @@ func (d *ClickDeb) skipToArMember(memberPrefix string) (io.Reader, error) {
 		}
 	}
 
-	// find out what compression
+	// figure out what compression to use
 	var dataReader io.Reader
 	switch {
 	case strings.HasSuffix(header.Name, ".gz"):
