@@ -2,8 +2,10 @@ package snappy
 
 import (
 	"bufio"
+	"crypto/sha512"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -12,6 +14,8 @@ import (
 	"text/template"
 
 	"launchpad.net/snappy/helpers"
+
+	"gopkg.in/yaml.v2"
 )
 
 // FIXME: this is lie we tell click to make it happy for now
@@ -161,6 +165,69 @@ func dirSize(buildDir string) (string, error) {
 	return strings.Fields(string(output))[0], nil
 }
 
+type fileHash struct {
+	Name   string      `yaml:"name"`
+	Size   *int64      `yaml:"size,omitempty"`
+	Sha512 string      `yaml:"sha512,omitempty"`
+	Mode   os.FileMode `yaml:"mode"`
+}
+
+type fileHashes struct {
+	Files []fileHash
+}
+
+func writeHashes(buildDir string) error {
+	debianDir := filepath.Join(buildDir, "DEBIAN")
+	os.MkdirAll(debianDir, 0755)
+
+	hashes := fileHashes{}
+
+	err := filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error {
+		if strings.HasPrefix(path[len(buildDir):], "/DEBIAN") {
+			return nil
+		}
+		if path == buildDir {
+			return nil
+		}
+
+		sha512sum := ""
+		var size *int64
+		if info.Mode().IsRegular() {
+			h := sha512.New()
+			f, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			io.Copy(h, f)
+
+			sha512sum = fmt.Sprintf("%x", h.Sum(nil))
+			fsize := info.Size()
+			size = &fsize
+		}
+
+		hashes.Files = append(hashes.Files, fileHash{
+			Name:   path[len(buildDir)+1:],
+			Size:   size,
+			Sha512: sha512sum,
+			// FIXME: not portable
+			Mode: info.Mode(),
+		})
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	content, err := yaml.Marshal(hashes)
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(filepath.Join(debianDir, "hashes.yaml"), []byte(content), 0644)
+}
+
 func writeDebianControl(buildDir string, m *packageYaml) error {
 	debianDir := filepath.Join(buildDir, "DEBIAN")
 	if err := os.MkdirAll(debianDir, 0755); err != nil {
@@ -307,6 +374,11 @@ func Build(sourceDir string) (string, error) {
 
 	// generate config hook apparmor
 	if err := handleConfigHookApparmor(buildDir, m); err != nil {
+		return "", err
+	}
+
+	// hashes
+	if err := writeHashes(buildDir); err != nil {
 		return "", err
 	}
 
