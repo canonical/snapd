@@ -7,6 +7,7 @@ the following attributes:
    device files, sensors, cameras, etc)
  * Frameworks are delivered via snaps
  * Frameworks can be installed on the same system without conflicts
+ * Framework `binaries` may be used without prepending the package name
  * Frameworks run in a carefully crafted security profile
  * Frameworks are tightly coupled with separately maintained security policies
    that extend the security policy available to apps consuming a framework
@@ -21,11 +22,21 @@ the following attributes:
    access to the system. As such, the contract will include terms to ensure
    timely security updates and that the framework will not abuse this access
 
+Note: snappy frameworks are somewhat different from the Ubuntu for Phones
+[click frameworks](https://wiki.ubuntu.com/Click/Frameworks) and are more
+flexible. Most importantly, click frameworks for Ubuntu for Phones map to a
+particular release and are contracts between the platform (OS) and apps. Snappy
+splits out the platform (OS) and the framework such that the contract is split
+between the `framework` and the platform `release` (OS) (the `release` and
+installed `frameworks` can be seen via `snappy info`).
+
+*TBD: how do apps declare they depend on a particular release?*
+
 ## Store process
-We want to allow framework authors to go fast and allow separate ownership of
-frameworks from framework policies. Therefore, we split the security policy
-from the framework package itself and introduce two separate snap package
-types: framework and framework-policy.
+For the official Ubuntu Store, we want to allow framework authors to go fast
+and allow separate ownership of frameworks from framework policies. Therefore,
+we split the security policy from the framework package itself and introduce
+two separate snap package types: framework and framework-policy.
 
 To support the above definition:
 
@@ -59,10 +70,9 @@ For frameworks, meta/packaging.yaml should contain something like:
       - name: bar
         description: "desc for bar service"
         start: bin/bar
-
-The framework yaml does not reference the framework, snappy will query the
-store for the associated framework policy and `snappy install` will install the
-policy at the same time as the framework.
+    binaries:
+      - name: bin/baz
+        description: "desc for baz binary"
 
 ALTERNATIVE: instead of specifying `frameworks: foo-policy`, snappy could
 query the store for the associated framework policy and `snappy install` would
@@ -172,4 +182,17 @@ _(removes both foo and foo-policy)_
     frameworks: foo
     framework-policies: foo-policy
     apps: hello-world
+
+A convenience afforded to frameworks is that commands don't require that the
+package name be prepended. Eg, using the above package.yaml, either of these
+may be used:
+
+    $ foo.baz --version
+    1.1.235
+
+    $ baz --version
+    1.1.235
+
+
+
 
