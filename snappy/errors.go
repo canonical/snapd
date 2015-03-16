@@ -32,6 +32,10 @@ var (
 	// that is already in the hwaccess list
 	ErrHWAccessAlreadyAdded = errors.New("device is already in hw-access list")
 
+	// ErrReadmeInvalid is returned if the package contains a invalid
+	// meta/readme.md
+	ErrReadmeInvalid = errors.New("meta/readme.md invalid")
+
 	// ErrAuthenticationNeeds2fa is returned if the authentication
 	// needs 2factor
 	ErrAuthenticationNeeds2fa = errors.New("authentication needs second factor")
@@ -46,4 +50,12 @@ var (
 
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
+
+	// ErrInvalidPackageYaml is returned is a package.yaml file can not
+	// be parsed
+	ErrInvalidPackageYaml = errors.New("can not parse package.yaml")
+
+	// ErrSnapNotActive is returned if you try to unset a snap from
+	// active to inactive
+	ErrSnapNotActive = errors.New("snap not active")
 )

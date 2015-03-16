@@ -31,6 +31,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	snapDataDir = filepath.Join(s.tempdir, "/var/lib/apps/")
 	snapAppsDir = filepath.Join(s.tempdir, "/apps/")
 	snapBinariesDir = filepath.Join(s.tempdir, "/apps/bin")
+	snapServicesDir = filepath.Join(s.tempdir, "/etc/systemd/system")
+	os.MkdirAll(snapServicesDir, 0755)
 	snapOemDir = filepath.Join(s.tempdir, "/oem/")
 	snapAppArmorDir = filepath.Join(s.tempdir, "/var/lib/apparmor/clicks/")
 
@@ -39,6 +41,21 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
 		return nil
 	}
+	runSystemctl = func(cmd ...string) error {
+		return nil
+	}
+
+	// fake "du"
+	duCmd = makeFakeDuCommand(c)
+
+	// do not attempt to hit the real store servers in the tests
+	storeSearchURI = ""
+	storeDetailsURI = ""
+	storeBulkURI = ""
+
+	aaExec = filepath.Join(s.tempdir, "aa-exec")
+	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
+	c.Assert(err, IsNil)
 
 	// ensure we do not look at the system
 	systemImageRoot = s.tempdir
@@ -48,6 +65,7 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	// ensure all functions are back to their original state
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 	InstalledSnapNamesByType = installedSnapNamesByTypeImpl
+	duCmd = "du"
 }
 
 func (s *SnapTestSuite) makeInstalledMockSnap() (yamlFile string, err error) {
@@ -276,9 +294,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	storeSearchURI = mockServer.URL + "/%s"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.searchURI = mockServer.URL + "/%s"
 
 	results, err := snap.Search("xkcd")
 	c.Assert(err, IsNil)
@@ -307,9 +325,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	storeBulkURI = mockServer.URL + "/updates/"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.bulkURI = mockServer.URL + "/updates/"
 
 	// override the real InstalledSnapNamesByType to return our
 	// mock data
@@ -325,6 +343,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 
+	storeDetailsURI = "https://some-uri"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -348,9 +367,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	storeDetailsURI = mockServer.URL + "/details/%s"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.detailsURI = mockServer.URL + "/details/%s"
 
 	// the actual test
 	results, err := snap.Details("xkcd-webserver")
@@ -373,9 +392,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	storeDetailsURI = mockServer.URL + "/details/%s"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.detailsURI = mockServer.URL + "/details/%s"
 
 	// the actual test
 	results, err := snap.Details("no-such-pkg")
@@ -490,4 +509,39 @@ services:
 
 	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", "hello-app", "1.10"))
 	c.Assert(snap.InstalledSize(), Not(Equals), -1)
+}
+
+func (s *SnapTestSuite) TestPackageYamlMultipleArchitecturesParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+architecture: [i386, armhf]
+`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Architectures, DeepEquals, []string{"i386", "armhf"})
+}
+
+func (s *SnapTestSuite) TestPackageYamlSingleArchitecturesParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+architecture: i386
+`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Architectures, DeepEquals, []string{"i386"})
+}
+
+func (s *SnapTestSuite) TestPackageYamlNoArchitecturesParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Architectures, DeepEquals, []string{"all"})
 }
