@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -118,4 +119,50 @@ func (s *ClickDebTestSuite) TestClickVerifyContentFnStillOk(c *C) {
 func (s *ClickDebTestSuite) TestClickVerifyContentFnNotOk(c *C) {
 	_, err := clickVerifyContentFn("./foo/../../baz")
 	c.Assert(err, Equals, ErrSnapInvalidContent)
+}
+
+func (s *ClickDebTestSuite) TestTarCreate(c *C) {
+	// setup
+	builddir := c.MkDir()
+	err := os.MkdirAll(filepath.Join(builddir, "etc"), 0700)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(builddir, "foo"), []byte("foo"), 0644)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(builddir, "exclude-me"), []byte("me"), 0644)
+	c.Assert(err, IsNil)
+
+	err = os.Symlink("foo", filepath.Join(builddir, "link-to-foo"))
+	c.Assert(err, IsNil)
+
+	// create tar
+	tempdir := c.MkDir()
+	tarfile := filepath.Join(tempdir, "data.tar.gz")
+	err = tarGzCreate(tarfile, builddir, func(path string) bool {
+		return !strings.HasSuffix(path, "exclude-me")
+	})
+	c.Assert(err, IsNil)
+
+	// verify
+	output, err := exec.Command("tar", "tvf", tarfile).CombinedOutput()
+	c.Assert(err, IsNil)
+
+	// exclusion works
+	c.Assert(strings.Contains(string(output), "exclude-me"), Equals, false)
+
+	// we got the expected content for the file
+	r, err := regexp.Compile("-rw-r--r--[ ]+root/root[ ]+3[ ]+(.*)./foo")
+	c.Assert(err, IsNil)
+	c.Assert(r.Match(output), Equals, true)
+
+	// and for the dir
+	r, err = regexp.Compile("drwx------[ ]+root/root[ ]+0[ ]+(.*)./etc")
+	c.Assert(err, IsNil)
+	c.Assert(r.Match(output), Equals, true)
+
+	// and for the symlink
+	r, err = regexp.Compile("lrwxrwxrwx[ ]+root/root[ ]+0[ ]+(.*)./link-to-foo -> foo")
+	c.Assert(err, IsNil)
+	c.Assert(r.Match(output), Equals, true)
 }

@@ -24,6 +24,7 @@ var (
 	ErrSnapInvalidContent = errors.New("snap contains invalid content")
 )
 
+// simple pipe based xz reader
 func xzPipeReader(r io.Reader) io.Reader {
 	pr, pw := io.Pipe()
 	cmd := exec.Command("xz", "--decompress", "--stdout")
@@ -38,6 +39,8 @@ func xzPipeReader(r io.Reader) io.Reader {
 	return pr
 }
 
+// ensure that the content of our data is valid:
+// - no relative path allowed to prevent writing outside of the parent dir
 func clickVerifyContentFn(path string) (string, error) {
 	path = filepath.Clean(path)
 	if strings.Contains(path, "..") {
@@ -111,6 +114,7 @@ func (d *ClickDeb) Unpack(targetDir string) error {
 	return helpers.UnpackTar(dataReader, targetDir, clickVerifyContentFn)
 }
 
+// FIXME: this should move into the "ar" library itself
 func addFileToAr(arWriter *ar.Writer, filename string) error {
 	stat, err := os.Stat(filename)
 	if err != nil {
@@ -142,6 +146,7 @@ func addFileToAr(arWriter *ar.Writer, filename string) error {
 	return nil
 }
 
+// FIXME: this should move into the "ar" library itself
 func addDataToAr(arWriter *ar.Writer, filename string, data []byte) error {
 	size := int64(len(data))
 	if size%2 == 1 {
@@ -161,43 +166,54 @@ func addDataToAr(arWriter *ar.Writer, filename string, data []byte) error {
 	return nil
 }
 
-func IsSymlink(mode os.FileMode) bool {
-	return (mode & os.ModeSymlink) == 1
+func isSymlink(mode os.FileMode) bool {
+	return (mode & os.ModeSymlink) == os.ModeSymlink
 }
 
-type TarIterFunc func(path string) bool
+// tarExcludeFunc is a helper for tarCreate that is called for each file
+// that is about to be added. If it returns "false" the file is skipped
+type tarExcludeFunc func(path string) bool
 
-func TarCreate(tarname string, sourceDir string, fn TarIterFunc) error {
+// tarCreate creates a tarfile for a clickdeb, all files in the archive
+// belong to root (same as dpkg-deb)
+func tarGzCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 	w, err := os.Create(tarname)
 	if err != nil {
 		return err
 	}
 	defer w.Close()
 
-	// FIXME: hardcoded gzip
-	gzipWriter := gzip.NewWriter(w)
+	// we can only support gzip for now because we want this code to
+	// run on anything that go supports (including macos, windows).
+	// so the only option is using a native compressor
+	gzipWriter, err := gzip.NewWriterLevel(w, 9)
+	if err != nil {
+		return err
+	}
 	defer gzipWriter.Close()
+
 	tarWriter := tar.NewWriter(gzipWriter)
 	defer tarWriter.Close()
 
 	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
-		st, err := os.Stat(path)
+		st, err := os.Lstat(path)
 		if err != nil {
 			return err
 		}
-		if !st.Mode().IsRegular() && !IsSymlink(st.Mode()) {
+
+		// check if we support this type
+		if !st.Mode().IsRegular() && !isSymlink(st.Mode()) && !st.Mode().IsDir() {
 			return nil
 		}
 
-		add := true
+		// check our exclude function
 		if fn != nil {
-			add = fn(path)
-		}
-		if !add {
-			return nil
+			if !fn(path) {
+				return nil
+			}
 		}
 
-		// huh? golang, come on!
+		// huh? golang, come on! the symlink stuff is a bit complicated
 		target, _ := os.Readlink(path)
 		hdr, err := tar.FileInfoHeader(info, target)
 		if err != nil {
@@ -213,14 +229,17 @@ func TarCreate(tarname string, sourceDir string, fn TarIterFunc) error {
 			return err
 		}
 
-		f, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		_, err = io.Copy(tarWriter, f)
-		if err != nil {
-			return err
+		// add content
+		if st.Mode().IsRegular() {
+			f, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			_, err = io.Copy(tarWriter, f)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -250,13 +269,13 @@ func (d *ClickDeb) Pack(sourceDir string) error {
 
 	// control
 	controlName := filepath.Join(tempdir, "control.tar.gz")
-	if err := TarCreate(controlName, filepath.Join(sourceDir, "DEBIAN"), nil); err != nil {
+	if err := tarGzCreate(controlName, filepath.Join(sourceDir, "DEBIAN"), nil); err != nil {
 		return err
 	}
 
 	// data
 	dataName := filepath.Join(tempdir, "data.tar.gz")
-	err = TarCreate(dataName, sourceDir, func(path string) bool {
+	err = tarGzCreate(dataName, sourceDir, func(path string) bool {
 		if strings.HasPrefix(path, filepath.Join(sourceDir, "DEBIAN")) {
 			return false
 		}
