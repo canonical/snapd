@@ -32,7 +32,7 @@ func init() {
 	if err != nil {
 		// panic here as something must be terribly wrong if there is an
 		// error here
-		panic(logger.LogError(err))
+		logger.LogAndPanic(err)
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "li")

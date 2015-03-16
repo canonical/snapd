@@ -30,7 +30,7 @@ func init() {
 	if _, err := parser.AddCommand("config", shortConfigHelp, longConfigHelp, &cmdConfigData); err != nil {
 		// panic here as something must be terribly wrong if there is an
 		// error here
-		panic(logger.LogError(err))
+		logger.LogAndPanic(err)
 	}
 }
 
