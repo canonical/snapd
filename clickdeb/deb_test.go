@@ -82,11 +82,11 @@ func (s *ClickDebTestSuite) TestSnapDebBuild(c *C) {
 	c.Assert(strings.Contains(string(output), "DEBIAN"), Equals, false)
 }
 
-func (s *ClickDebTestSuite) TestSnapDebControlContent(c *C) {
+func (s *ClickDebTestSuite) TestSnapDebControlMember(c *C) {
 	debName := makeTestDeb(c, "gzip")
 
 	d := ClickDeb{Path: debName}
-	content, err := d.ControlContent("control")
+	content, err := d.ControlMember("control")
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, string(testDebControl))
 }

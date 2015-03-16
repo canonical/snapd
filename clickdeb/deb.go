@@ -59,11 +59,9 @@ type ClickDeb struct {
 	file *os.File
 }
 
-// ControlContent returns the content of the given control data member
+// ControlMember returns the content of the given control member file
 // (e.g. the content of the "manifest" file in the control.tar.gz ar member)
-func (d *ClickDeb) ControlContent(controlMember string) ([]byte, error) {
-	var err error
-
+func (d *ClickDeb) ControlMember(controlMember string) (content []byte, err error) {
 	d.file, err = os.Open(d.Path)
 	if err != nil {
 		return nil, err
@@ -75,7 +73,6 @@ func (d *ClickDeb) ControlContent(controlMember string) ([]byte, error) {
 		return nil, err
 	}
 
-	var content []byte
 	err = helpers.TarIterate(dataReader, func(tr *tar.Reader, hdr *tar.Header) error {
 		if filepath.Clean(hdr.Name) == controlMember {
 			content, err = ioutil.ReadAll(tr)
@@ -117,15 +114,17 @@ func (d *ClickDeb) Unpack(targetDir string) error {
 
 // FIXME: this should move into the "ar" library itself
 func addFileToAr(arWriter *ar.Writer, filename string) error {
-	stat, err := os.Stat(filename)
-	if err != nil {
-		return err
-	}
 	dataF, err := os.Open(filename)
 	if err != nil {
 		return nil
 	}
 	defer dataF.Close()
+
+	stat, err := dataF.Stat()
+	if err != nil {
+		return err
+	}
+
 	size := stat.Size()
 	if size%2 == 1 {
 		size++
@@ -265,10 +264,10 @@ func (d *ClickDeb) Build(sourceDir string) error {
 
 	// tmp
 	tempdir, err := ioutil.TempDir("", "data")
-	defer os.RemoveAll(tempdir)
 	if err != nil {
 		return err
 	}
+	defer os.RemoveAll(tempdir)
 
 	// create control data (for click compat)
 	controlName := filepath.Join(tempdir, "control.tar.gz")
