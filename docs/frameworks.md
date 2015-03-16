@@ -43,8 +43,8 @@ policy will be uploaded to the store for that particular framework, after which
 the framework author is free to iterate on the framework unencumbered.
 
 When searching the store, the framework name is sent to the store as part of
-the installed frameworks http request (e.g. if 'name: docker' then the store
-will see 'frameworks: docker' in the http request).
+the installed frameworks http request (e.g. if 'name: foo' then the store
+will see 'frameworks: foo' in the http request).
 
 ## Usage
 ### framework yaml
@@ -86,10 +86,90 @@ For framework policy, meta/packaging.yaml should contain something like:
     security-policy: somedir
     profiles:
       - name: bar
-        docker: meta/docker-daemon.profile
+        foo: meta/foo-daemon.profile
 
 
 
 
 Required fields for framework policies
 TODO
+
+
+### User experience
+
+In general:
+
+ * user should not have to care or even know about security policy when
+   installing frameworks (ie, should not show up in search, should be installed
+   with framework)
+ * user should know when there are policy updates
+
+The command line experience is:
+
+    $ snappy search foo
+    Name      Version      Description
+    foo       1.1.234      The foo framework
+
+    $ snappy install foo
+    Installing foo-policy
+    Starting download of foo-policy
+    0.07 MB / 0.07 MB [==============================] 100.00 % 122.16 KB/s
+    Done
+    Installing foo
+    Starting download of foo
+    4.03 MB / 4.03 MB [==============================] 100.00 % 124.66 KB/s
+    Done
+    Name                 Date       Version   Summary
+    foo-policy           2015-03-16 1.1.0     The foo framework policy
+    foo                  2015-03-16 1.1.234   The foo framework
+
+    $ snappy list
+    Name                 Date       Version   Summary
+    ubuntu-core          2015-03-16 333       ubuntu-core description
+    foo-policy           2015-03-16 1.1.0     The foo framework policy
+    foo                  2015-03-16 1.1.234   The foo framework
+    hello-world          2015-02-23 1.0.5
+
+    $ snappy list --updates
+    Name                  Date      Version
+    ubuntu-core          2015-03-16 333      ubuntu-core description
+    foo-policy           2015-03-16 1.1.0    The foo framework policy
+    foo*                 2015-03-16 1.1.234  The foo framework
+    hello-world          2015-02-23 1.0.5
+
+    $ sudo snappy update
+    Installing foo (1.1.235)
+    4.03 MB / 4.03 MB [==============================] 100.00 % 124.66 KB/s
+    Done
+    Name                 Date       Version   Summary
+    foo                  2015-03-17 1.1.235   The foo framework
+
+    $ snappy list --updates
+    Name                  Date      Version
+    ubuntu-core          2015-03-16 333      ubuntu-core description
+    foo-policy           2015-03-16 1.1.0    The foo framework policy
+    foo                  2015-03-17 1.1.235  The foo framework
+    hello-world          2015-02-23 1.0.5
+
+    $ snappy remove foo-policy
+    foo-policy cannot be removed while foo is installed.
+
+    $ snappy remove foo
+    Removing foo
+    Removing foo-policy
+
+_(removes both foo and foo-policy)_
+
+    $ snappy info
+    release: ubuntu-core/devel-proposed
+    architecture: amd64
+    frameworks: foo
+    apps: hello-world
+
+    $ snappy info --verbose
+    release: ubuntu-core/devel-proposed
+    architecture: amd64
+    frameworks: foo
+    framework-policies: foo-policy
+    apps: hello-world
+
