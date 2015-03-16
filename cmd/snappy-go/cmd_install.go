@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 
+	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -18,12 +19,19 @@ func init() {
 }
 
 func (x *cmdInstall) Execute(args []string) (err error) {
-	var priv *Privileged
-
-	if priv, err = NewPrivileged(); err != nil {
+	privMutex := priv.New()
+	if err := privMutex.TryLock(); err != nil {
+		if err == priv.ErrNeedRoot {
+			err = snappy.ErrNeedRoot
+		}
 		return err
 	}
-	defer func() { err = priv.Stop() }()
+	defer func() {
+		err = privMutex.Unlock()
+		if err == priv.ErrNeedRoot {
+			err = snappy.ErrNeedRoot
+		}
+	}()
 
 	err = snappy.Install(args)
 	if err != nil {
