@@ -48,15 +48,6 @@ func (ts *LoggerTestSuite) SetUpTest(c *C) {
 	getSyslog = mockGetSyslog
 }
 
-func (w *MockLogWriter) write(m string) error {
-	_, err := w.buf.Write([]byte(m))
-	return err
-}
-
-func (w *MockLogWriter) Write(bytes []byte) (n int, err error) {
-	return w.buf.Write(bytes)
-}
-
 func (w *MockLogWriter) Debug(m string) error {
 	_, err := w.buf.Write([]byte(fmt.Sprintf("DEBUG: %s\n", m)))
 	return err
@@ -89,7 +80,7 @@ func sliceContainsString(array []string, value string) bool {
 	return strings.Contains(str, value)
 }
 
-// Return true if array contains the patter regex.
+// Return true if array contains the pattern regex.
 func sliceContainsRegex(array []string, regex string) bool {
 	str := string(strings.Join(array, ""))
 
