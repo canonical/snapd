@@ -55,20 +55,18 @@ func clickVerifyContentFn(path string) (string, error) {
 // deb package)
 type ClickDeb struct {
 	Path string
-
-	file *os.File
 }
 
 // ControlMember returns the content of the given control member file
 // (e.g. the content of the "manifest" file in the control.tar.gz ar member)
 func (d *ClickDeb) ControlMember(controlMember string) (content []byte, err error) {
-	d.file, err = os.Open(d.Path)
+	file, err := os.Open(d.Path)
 	if err != nil {
 		return nil, err
 	}
-	defer d.file.Close()
+	defer file.Close()
 
-	dataReader, err := d.skipToArMember("control.tar")
+	dataReader, err := skipToArMember(file, "control.tar")
 	if err != nil {
 		return nil, err
 	}
@@ -97,13 +95,13 @@ func (d *ClickDeb) ControlMember(controlMember string) (content []byte, err erro
 func (d *ClickDeb) Unpack(targetDir string) error {
 	var err error
 
-	d.file, err = os.Open(d.Path)
+	file, err := os.Open(d.Path)
 	if err != nil {
 		return err
 	}
-	defer d.file.Close()
+	defer file.Close()
 
-	dataReader, err := d.skipToArMember("data.tar")
+	dataReader, err := skipToArMember(file, "data.tar")
 	if err != nil {
 		return err
 	}
@@ -256,11 +254,11 @@ func (d *ClickDeb) Build(sourceDir string) error {
 	var err error
 
 	// create file
-	d.file, err = os.Create(d.Path)
+	file, err := os.Create(d.Path)
 	if err != nil {
 		return err
 	}
-	defer d.file.Close()
+	defer file.Close()
 
 	// tmp
 	tempdir, err := ioutil.TempDir("", "data")
@@ -285,7 +283,7 @@ func (d *ClickDeb) Build(sourceDir string) error {
 	}
 
 	// create ar
-	arWriter := ar.NewWriter(d.file)
+	arWriter := ar.NewWriter(file)
 	arWriter.WriteGlobalHeader()
 
 	// debian magic
@@ -311,11 +309,11 @@ func (d *ClickDeb) Build(sourceDir string) error {
 	return nil
 }
 
-func (d *ClickDeb) skipToArMember(memberPrefix string) (io.Reader, error) {
+func skipToArMember(file *os.File, memberPrefix string) (io.Reader, error) {
 	var err error
 
 	// find the right ar member
-	arReader := ar.NewReader(d.file)
+	arReader := ar.NewReader(file)
 	var header *ar.Header
 	for {
 		header, err = arReader.Next()
@@ -331,14 +329,14 @@ func (d *ClickDeb) skipToArMember(memberPrefix string) (io.Reader, error) {
 	var dataReader io.Reader
 	switch {
 	case strings.HasSuffix(header.Name, ".gz"):
-		dataReader, err = gzip.NewReader(d.file)
+		dataReader, err = gzip.NewReader(file)
 		if err != nil {
 			return nil, err
 		}
 	case strings.HasSuffix(header.Name, ".bz2"):
-		dataReader = bzip2.NewReader(d.file)
+		dataReader = bzip2.NewReader(file)
 	case strings.HasSuffix(header.Name, ".xz"):
-		dataReader = xzPipeReader(d.file)
+		dataReader = xzPipeReader(file)
 	default:
 		return nil, fmt.Errorf("Can not handle %s", header.Name)
 	}
