@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"syscall"
 
@@ -22,7 +23,10 @@ var optionsData options
 var parser = flags.NewParser(&optionsData, flags.Default)
 
 func init() {
-	logger.ActivateLogger()
+	err := logger.ActivateLogger()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
+	}
 }
 
 func main() {

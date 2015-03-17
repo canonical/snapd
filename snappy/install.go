@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"launchpad.net/snappy/logger"
 )
 
 var cloudMetaDataFile = "/var/lib/cloud/seed/nocloud-net/meta-data"
@@ -47,7 +49,7 @@ func Install(args []string) (err error) {
 				flags |= AllowUnauthenticated
 			}
 			if err := installClick(name, flags); err != nil {
-				return err
+				return logger.LogError(err)
 			}
 			didSomething = true
 			continue
@@ -62,7 +64,7 @@ func Install(args []string) (err error) {
 				fmt.Printf("Installing %s\n", part.Name())
 				err = part.Install(pbar)
 				if err != nil {
-					return err
+					return logger.LogError(err)
 				}
 				didSomething = true
 			}

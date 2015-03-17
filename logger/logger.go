@@ -3,7 +3,6 @@ package logger
 import (
 	"fmt"
 	"log/syslog"
-	"os"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -14,10 +13,9 @@ import (
 // Name used in the prefix for all logged messages
 const LoggerName = "snappy"
 
+// LogWriterInterface allows the tests to replace the syslog
+// implementation.
 type LogWriterInterface interface {
-	// io.Writer
-	Write(p []byte) (n int, err error)
-
 	// syslog.Writer
 	Debug(m string) error
 	Info(m string) error
@@ -28,7 +26,6 @@ type LogWriterInterface interface {
 
 // LogWriter object that handles writing log entries
 type LogWriter struct {
-	//systemLog *syslog.Writer
 	systemLog LogWriterInterface
 }
 
@@ -57,18 +54,23 @@ func (l *LogWriter) Write(level loggo.Level, name string, filename string, line 
 		f = l.systemLog.Crit
 	}
 
-	// write record
+	// write the log record.
+	//
+	// Note that with loggo, the actual logging functions never
+	// return errors, so although these syslog functions may fail,
+	// there's not much we can do about it.
 	f(record)
 
-	if level < loggo.ERROR {
-		return
+	if level >= loggo.ERROR {
+		l.logStacktrace(level, name, filename, line, timestamp, f)
 	}
+}
 
-	// add a stack trace for important messages
+func (l *LogWriter) logStacktrace(level loggo.Level, name string, filename string, line int, timestamp time.Time, f func(string) error) {
 	stack := debug.Stack()
 
 	str := "Stack trace:"
-	record = l.Format(level, name, filename, line, timestamp, str)
+	record := l.Format(level, name, filename, line, timestamp, str)
 	f(record)
 
 	for _, entry := range strings.Split(string(stack), "\n") {
@@ -93,46 +95,49 @@ var getSyslog = func(priority syslog.Priority, tag string) (w LogWriterInterface
 	return syslog.New(syslog.LOG_NOTICE|syslog.LOG_LOCAL0, LoggerName)
 }
 
-// NewLogWriter creates a new LogWriter.
-func NewLogWriter() *LogWriter {
-	var err error
+// newLogWriter creates a new LogWriter.
+func newLogWriter() (l *LogWriter, err error) {
 
-	l := new(LogWriter)
+	l = new(LogWriter)
 
 	// Note that the log level here is just the default - Write()
 	// will alter it as needed.
 	l.systemLog, err = getSyslog(syslog.LOG_NOTICE|syslog.LOG_LOCAL0, LoggerName)
-
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to connect to syslog - persistent logging will be disabled: %s", err)
+		return nil, err
 	}
 
+	return l, nil
+}
+
+// ActivateLogger handles creating, configuring and enabling a new syslog logger.
+func ActivateLogger() (err error) {
 	// Remove any existing loggers of the type we care about.
 	//
 	// No check on the success of these operations is performed since the
 	// loggo API does not allow the existing loggers to be iterated so we
 	// cannot know if there is already a syslog writer registered (for
-	// example if NewLogWriter() gets called multiple times).
+	// example if newLogWriter() gets called multiple times).
 	_, _, _ = loggo.RemoveWriter("default")
 	_, _, _ = loggo.RemoveWriter("syslog")
 
-	// activate our syslog logger
-	err = loggo.RegisterWriter("syslog", l, loggo.TRACE)
+	writer, err := newLogWriter()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to register syslog logger: %q\n", err)
+		return err
 	}
 
-	return l
-}
-
-// Activate handles creating, configuring and enabling a new syslog logger.
-func ActivateLogger() {
-	loggo.RegisterWriter("syslog", NewLogWriter(), loggo.TRACE)
+	// activate our syslog logger
+	err = loggo.RegisterWriter("syslog", writer, loggo.TRACE)
+	if err != nil {
+		return err
+	}
 
 	logger := loggo.GetLogger(LoggerName)
 
 	// ensure that all log messages are output
 	logger.SetLogLevel(loggo.TRACE)
+
+	return nil
 }
 
 // LogAndPanic logs the specified error, including a backtrace, then calls

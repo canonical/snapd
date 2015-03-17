@@ -2,6 +2,8 @@ package snappy
 
 import (
 	"strings"
+
+	"launchpad.net/snappy/logger"
 )
 
 // Remove a part by a partSpec string, this can be "name" or "name=version"
@@ -25,5 +27,5 @@ func Remove(partSpec string) error {
 		return ErrPackageNotFound
 	}
 
-	return part.Uninstall()
+	return logger.LogError(part.Uninstall())
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -31,7 +30,7 @@ func update() error {
 	// FIXME: handle args
 	updates, err := snappy.ListUpdates()
 	if err != nil {
-		return logger.LogError(err)
+		return err
 	}
 
 	for _, part := range updates {
@@ -39,7 +38,7 @@ func update() error {
 
 		fmt.Printf("Installing %s (%s)\n", part.Name(), part.Version())
 		if err := part.Install(pbar); err != nil {
-			return logger.LogError(err)
+			return err
 		}
 	}
 
