@@ -85,9 +85,9 @@ Required fields for framework snaps:
    this snap
 
 
-### TODO: framework-policy yaml
+### _TODO:_ framework-policy yaml
 
-For framework policy, meta/packaging.yaml should contain something like:
+_TODO:_ For framework policy, meta/packaging.yaml should contain something like:
 
     name: foo-policy
     version: 1.1.0
@@ -99,10 +99,7 @@ For framework policy, meta/packaging.yaml should contain something like:
         foo: meta/foo-daemon.profile
 
 
-
-
-Required fields for framework policies
-TODO
+_TODO:_ Required fields for framework policies
 
 
 ### User experience
