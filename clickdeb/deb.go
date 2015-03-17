@@ -66,7 +66,8 @@ func (d *ClickDeb) ControlMember(controlMember string) (content []byte, err erro
 	}
 	defer file.Close()
 
-	dataReader, err := skipToArMember(file, "control.tar")
+	arReader := ar.NewReader(file)
+	dataReader, err := skipToArMember(arReader, "control.tar")
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +102,8 @@ func (d *ClickDeb) Unpack(targetDir string) error {
 	}
 	defer file.Close()
 
-	dataReader, err := skipToArMember(file, "data.tar")
+	arReader := ar.NewReader(file)
+	dataReader, err := skipToArMember(arReader, "data.tar")
 	if err != nil {
 		return err
 	}
@@ -309,11 +311,10 @@ func (d *ClickDeb) Build(sourceDir string) error {
 	return nil
 }
 
-func skipToArMember(file *os.File, memberPrefix string) (io.Reader, error) {
+func skipToArMember(arReader *ar.Reader, memberPrefix string) (io.Reader, error) {
 	var err error
 
 	// find the right ar member
-	arReader := ar.NewReader(file)
 	var header *ar.Header
 	for {
 		header, err = arReader.Next()
@@ -329,14 +330,14 @@ func skipToArMember(file *os.File, memberPrefix string) (io.Reader, error) {
 	var dataReader io.Reader
 	switch {
 	case strings.HasSuffix(header.Name, ".gz"):
-		dataReader, err = gzip.NewReader(file)
+		dataReader, err = gzip.NewReader(arReader)
 		if err != nil {
 			return nil, err
 		}
 	case strings.HasSuffix(header.Name, ".bz2"):
-		dataReader = bzip2.NewReader(file)
+		dataReader = bzip2.NewReader(arReader)
 	case strings.HasSuffix(header.Name, ".xz"):
-		dataReader = xzPipeReader(file)
+		dataReader = xzPipeReader(arReader)
 	default:
 		return nil, fmt.Errorf("Can not handle %s", header.Name)
 	}
