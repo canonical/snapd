@@ -50,7 +50,7 @@ frameworks from framework policies which will allow framework authors to go
 fast.
 
 ## Usage
-### framework yaml
+### TODO: framework yaml
 
 For frameworks, meta/packaging.yaml should contain something like:
 
@@ -64,13 +64,52 @@ For frameworks, meta/packaging.yaml should contain something like:
     binaries:
       - name: bin/baz
         description: "desc for baz binary"
-    security-policy:
-      ...
 
 Required fields for framework snaps:
 
  * `type: framework` - defines the type of snap this is
- * `security-policy`: TODO
+
+In addition to the required yaml fields, the security policy used by apps is
+shipped in the `meta/framework-policy` directory according to the following
+hierarchy:
+
+ * meta/framework-policy/
+     * apparmor/
+         * policygroups/
+             * group1
+             * group2
+         * templates/
+             * template1
+             * template2
+
+Because frameworks must be coinstallable, all shipped policy files will be
+prepended with the framework name followed by an underscore. Apps must
+reference the policy using the full name. For example, if the `foo` framework
+ships `meta/framework-policy/apparmor/policygroups/bar-client`, then apps must
+reference this as `foo_bar-client`.
+
+While the above provides a lot of flexibility, it is important to remember a
+framework snap need only provide what apps will use. For example, if the `foo`
+framework is designed to have clients connect to the `bar` service over DBus,
+then the framework snap might provide
+`meta/framework-policy/apparmor/policygroups/foo_bar-client` and nothing else.
+
+### App yaml
+
+For apps wanting to use a particular framework, meta/package.yaml simply
+references the security policy provided by the framework. Eg, if a service in
+the `norf` app wants to access the `bar` service provided by the `foo`
+framework in the above framework yaml example, it might use:
+
+    name: norf
+    version: 2.3
+    frameworks:
+      - foo
+    services:
+      - name: qux
+        description: "desc for qux service"
+        start: bin/qux
+        caps: foo_bar-client
 
 ### User experience
 
