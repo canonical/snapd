@@ -230,6 +230,7 @@ func iterHooks(manifest clickManifest, f iterHooksFunc) error {
 
 			if systemHook.exec != "" {
 				if err := systemHook.execHook(); err != nil {
+					os.Remove(dst)
 					return err
 				}
 			}
@@ -595,14 +596,36 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	}
 
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
-	// deal with the data, if there was a previous version, copy the data
+	// deal with the data:
+	//
+	// if there was a previous version, stop it
+	// from being active so that it stops running and can no longer be
+	// started then copy the data
+	//
 	// otherwise just create a empty data dir
 	if currentActiveDir != "" {
 		oldManifest, err := readClickManifestFromClickDir(currentActiveDir)
 		if err != nil {
 			return err
 		}
+
+		// we need to stop making it active
+		if err := unsetActiveClick(currentActiveDir); err != nil {
+			return err
+		}
+		// at this point we must stop/disable the snap so that we
+		// can safely copy the data
+		if err := removeClickHooks(oldManifest); err != nil {
+			// restore the pervious version
+			setActiveClick(currentActiveDir)
+			return err
+		}
+
 		if err := copySnapData(manifest.Name, oldManifest.Version, manifest.Version); err != nil {
+			// FIXME: remove newDir
+
+			// restore the previous version
+			setActiveClick(currentActiveDir)
 			return err
 		}
 	} else {
@@ -613,8 +636,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	}
 
 	// and finally make active
-	err = setActiveClick(instDir)
-	if err != nil {
+	if err := setActiveClick(instDir); err != nil {
 		// ensure to revert on install failure
 		if currentActiveDir != "" {
 			setActiveClick(currentActiveDir)
@@ -628,7 +650,6 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 // Copy all data for "snapName" from "oldVersion" to "newVersion"
 // (but never overwrite)
 func copySnapData(snapName, oldVersion, newVersion string) (err error) {
-
 	// collect the directories, homes first
 	oldDataDirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, oldVersion))
 	if err != nil {
@@ -703,7 +724,7 @@ func unsetActiveClick(clickDir string) error {
 
 func setActiveClick(baseDir string) (err error) {
 	currentActiveSymlink := filepath.Join(baseDir, "..", "current")
-	currentActiveDir, err := filepath.EvalSymlinks(currentActiveSymlink)
+	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
 
 	// already active, nothing to do
 	if baseDir == currentActiveDir {
@@ -721,9 +742,9 @@ func setActiveClick(baseDir string) (err error) {
 		return err
 	}
 
-	// and now the click hooks
-	err = installClickHooks(baseDir, newActiveManifest)
-	if err != nil {
+	if err := installClickHooks(baseDir, newActiveManifest); err != nil {
+		// cleanup the failed hooks
+		removeClickHooks(newActiveManifest)
 		return err
 	}
 
@@ -742,6 +763,6 @@ func setActiveClick(baseDir string) (err error) {
 			log.Printf("Warning: failed to remove %s: %s", currentActiveSymlink, err)
 		}
 	}
-	err = os.Symlink(baseDir, currentActiveSymlink)
-	return err
+
+	return os.Symlink(baseDir, currentActiveSymlink)
 }
