@@ -16,6 +16,11 @@ override_dh_systemd_enable:
 	# we want autopilot disabled by default for now
 	dh_systemd_enable --no-enable snappy-autopilot.timer snappy-autopilot.service
 
+override_dh_systemd_start:
+	# ensure those disabled units are not started as well
+	dh_systemd_start --no-start ubuntu-core-snappy.boot-ok.service
+	dh_systemd_start --no-start snappy-autopilot.timer snappy-autopilot.service
+
 override_dh_auto_install:
 	dh_auto_install -O--buildsystem=golang
 	# Making the packages private
