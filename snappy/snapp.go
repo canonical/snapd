@@ -82,7 +82,7 @@ type packageYaml struct {
 
 	// oem snap only
 	Store struct {
-		Id string `yaml:"id,omitempty"`
+		ID string `yaml:"id,omitempty"`
 	} `yaml:"store,omitempty"`
 
 	// this is a bit ugly, but right now integration is a one:one
@@ -562,9 +562,9 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	// check if the oem part sets a custom store-id
 	oems, _ := InstalledSnapsByType(SnapTypeOem)
 	if len(oems) == 1 {
-		storeId := oems[0].(*SnapPart).m.Store.Id
-		if storeId != "" {
-			req.Header.Set("X-Ubuntu-Store", storeId)
+		storeID := oems[0].(*SnapPart).m.Store.ID
+		if storeID != "" {
+			req.Header.Set("X-Ubuntu-Store", storeID)
 		}
 	}
 

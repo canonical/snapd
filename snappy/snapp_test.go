@@ -361,8 +361,8 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// no store ID by default
-		storeId := r.Header.Get("X-Ubuntu-Store")
-		c.Assert(storeId, Equals, "")
+		storeID := r.Header.Get("X-Ubuntu-Store")
+		c.Assert(storeID, Equals, "")
 
 		c.Assert(strings.HasSuffix(r.URL.String(), "xkcd-webserver"), Equals, true)
 		io.WriteString(w, MockDetailsJSON)
@@ -553,8 +553,8 @@ vendor: Michael Vogt <mvo@ubuntu.com>
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryOemStoreId(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// ensure we get the right header
-		storeId := r.Header.Get("X-Ubuntu-Store")
-		c.Assert(storeId, Equals, "my-store")
+		storeID := r.Header.Get("X-Ubuntu-Store")
+		c.Assert(storeID, Equals, "my-store")
 		w.WriteHeader(404)
 	}))
 	c.Assert(mockServer, NotNil)
