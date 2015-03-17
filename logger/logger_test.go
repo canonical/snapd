@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/syslog"
-	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -99,16 +98,6 @@ func sliceContainsRegex(array []string, regex string) bool {
 	matches := pattern.FindAllStringSubmatch(str, -1)
 
 	return matches != nil
-}
-
-func fileSize(path string) int64 {
-	st, err := os.Stat(path)
-
-	if err != nil {
-		return -1
-	}
-
-	return st.Size()
 }
 
 func (ts *LoggerTestSuite) TestNewLogWriter(c *C) {
