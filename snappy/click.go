@@ -541,7 +541,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	}
 
 	d := clickdeb.ClickDeb{Path: snapFile}
-	manifestData, err := d.ControlContent("manifest")
+	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
 		return err

@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -26,7 +28,7 @@ Architecture: all
 Description: some description
 `)
 
-func makeTestDeb(c *C, compressor string) string {
+func makeTestDebDir(c *C) string {
 	builddir := c.MkDir()
 
 	// debian stuff
@@ -39,23 +41,52 @@ func makeTestDeb(c *C, compressor string) string {
 	binPath := filepath.Join(builddir, "usr", "bin")
 	err = os.MkdirAll(binPath, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(binPath, "foo"), []byte(""), 0644)
+	err = ioutil.WriteFile(filepath.Join(binPath, "foo"), []byte("foo"), 0644)
 	c.Assert(err, IsNil)
+
+	return builddir
+}
+
+func makeTestDeb(c *C, compressor string) string {
+	builddir := makeTestDebDir(c)
 
 	// build it
 	debName := filepath.Join(builddir, "foo_1.0_all.deb")
 	cmd := exec.Command("fakeroot", "dpkg-deb", fmt.Sprintf("-Z%s", compressor), "--build", builddir, debName)
-	err = cmd.Run()
+	err := cmd.Run()
 	c.Assert(err, IsNil)
 
 	return debName
 }
 
-func (s *ClickDebTestSuite) TestSnapDebControlContent(c *C) {
+func (s *ClickDebTestSuite) TestSnapDebBuild(c *C) {
+	builddir := makeTestDebDir(c)
+
+	debDir := c.MkDir()
+	d := ClickDeb{Path: filepath.Join(debDir, "foo_1.0_all.deb")}
+	err := d.Build(builddir)
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(d.Path), Equals, true)
+
+	// control
+	cmd := exec.Command("dpkg-deb", "-I", d.Path)
+	output, err := cmd.CombinedOutput()
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(output), "Package: foo\n"), Equals, true)
+
+	// data
+	cmd = exec.Command("dpkg-deb", "-c", d.Path)
+	output, err = cmd.CombinedOutput()
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(output), "./usr/bin/foo"), Equals, true)
+	c.Assert(strings.Contains(string(output), "DEBIAN"), Equals, false)
+}
+
+func (s *ClickDebTestSuite) TestSnapDebControlMember(c *C) {
 	debName := makeTestDeb(c, "gzip")
 
 	d := ClickDeb{Path: debName}
-	content, err := d.ControlContent("control")
+	content, err := d.ControlMember("control")
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, string(testDebControl))
 }
@@ -88,4 +119,50 @@ func (s *ClickDebTestSuite) TestClickVerifyContentFnStillOk(c *C) {
 func (s *ClickDebTestSuite) TestClickVerifyContentFnNotOk(c *C) {
 	_, err := clickVerifyContentFn("./foo/../../baz")
 	c.Assert(err, Equals, ErrSnapInvalidContent)
+}
+
+func (s *ClickDebTestSuite) TestTarCreate(c *C) {
+	// setup
+	builddir := c.MkDir()
+	err := os.MkdirAll(filepath.Join(builddir, "etc"), 0700)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(builddir, "foo"), []byte("foo"), 0644)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(builddir, "exclude-me"), []byte("me"), 0644)
+	c.Assert(err, IsNil)
+
+	err = os.Symlink("foo", filepath.Join(builddir, "link-to-foo"))
+	c.Assert(err, IsNil)
+
+	// create tar
+	tempdir := c.MkDir()
+	tarfile := filepath.Join(tempdir, "data.tar.gz")
+	err = tarGzCreate(tarfile, builddir, func(path string) bool {
+		return !strings.HasSuffix(path, "exclude-me")
+	})
+	c.Assert(err, IsNil)
+
+	// verify
+	output, err := exec.Command("tar", "tvf", tarfile).CombinedOutput()
+	c.Assert(err, IsNil)
+
+	// exclusion works
+	c.Assert(strings.Contains(string(output), "exclude-me"), Equals, false)
+
+	// we got the expected content for the file
+	r, err := regexp.Compile("-rw-r--r--[ ]+root/root[ ]+3[ ]+(.*)./foo")
+	c.Assert(err, IsNil)
+	c.Assert(r.Match(output), Equals, true)
+
+	// and for the dir
+	r, err = regexp.Compile("drwx------[ ]+root/root[ ]+0[ ]+(.*)./etc")
+	c.Assert(err, IsNil)
+	c.Assert(r.Match(output), Equals, true)
+
+	// and for the symlink
+	r, err = regexp.Compile("lrwxrwxrwx[ ]+root/root[ ]+0[ ]+(.*)./link-to-foo -> foo")
+	c.Assert(err, IsNil)
+	c.Assert(r.Match(output), Equals, true)
 }
