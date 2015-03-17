@@ -1,19 +1,19 @@
 package logger
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"log/syslog"
 	"os"
 	"path/filepath"
-	"bufio"
-	"testing"
-	"strings"
 	"regexp"
+	"strings"
+	"testing"
 	"time"
-	"errors"
 
-	. "launchpad.net/gocheck"
 	"github.com/juju/loggo"
+	. "launchpad.net/gocheck"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -107,7 +107,7 @@ func (w *MockLogWriter) Crit(m string) error {
 func sliceContainsString(array []string, value string) bool {
 	str := string(strings.Join(array, ""))
 
-	return strings.Contains (str, value)
+	return strings.Contains(str, value)
 }
 
 // Return true if array contains the patter regex.

@@ -89,7 +89,7 @@ func (l *LogWriter) Format(level loggo.Level, module, filename string, line int,
 }
 
 // A variable to make testing easier
-var getSyslog = func (priority syslog.Priority, tag string) (w LogWriterInterface, err error) {
+var getSyslog = func(priority syslog.Priority, tag string) (w LogWriterInterface, err error) {
 	return syslog.New(syslog.LOG_NOTICE|syslog.LOG_LOCAL0, LoggerName)
 }
 
