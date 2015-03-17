@@ -95,7 +95,7 @@ func showInstalledList(installed []snappy.Part, o io.Writer) {
 func showVerboseList(installed []snappy.Part, o io.Writer) {
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
 
-	fmt.Fprintln(w, "Name\tDate\tVersion\tSummary\t")
+	fmt.Fprintln(w, "Name\tDate\tVersion\tDeveloper\t")
 	for _, part := range installed {
 		active := ""
 		if part.IsActive() {
