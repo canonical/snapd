@@ -5,7 +5,6 @@ package snappy
    Limitations:
    - no per-user registration
    - no user-level hooks
-   - dpkg-deb --unpack is used to "install" instead of "dpkg -i"
    - more(?)
 */
 
@@ -22,6 +21,7 @@ import (
 	"strings"
 	"text/template"
 
+	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 
 	"github.com/mvo5/goconfigparser"
@@ -539,8 +539,8 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		//return SnapAuditError
 	}
 
-	cmd := exec.Command("dpkg-deb", "-I", snapFile, "manifest")
-	manifestData, err := cmd.Output()
+	d := clickdeb.ClickDeb{Path: snapFile}
+	manifestData, err := d.ControlContent("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
 		return err
@@ -575,13 +575,8 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		}
 	}()
 
-	// FIXME: replace this with a native extractor to avoid attack
-	//        surface
-	cmd = exec.Command("dpkg-deb", "--extract", snapFile, instDir)
-	output, err := cmd.CombinedOutput()
+	err = d.Unpack(instDir)
 	if err != nil {
-		// FIXME: make the output part of the SnapExtractError
-		log.Printf("Snap install failed with: %s", output)
 		return err
 	}
 
