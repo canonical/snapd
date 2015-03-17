@@ -44,7 +44,6 @@ type Part interface {
 	Version() string
 	Description() string
 
-
 	Hash() string
 	IsActive() bool
 	IsInstalled() bool
