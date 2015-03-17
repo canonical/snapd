@@ -69,7 +69,7 @@ func formatDate(t time.Time) string {
 
 // takes a "pkg.developer" and returns (name, developer)
 func pkgAndDeveloper(fullname string) (name, developer string) {
-	l := strings.SplitN(fullname, ".", 1)
+	l := strings.SplitN(fullname, ".", 2)
 	if len(l) == 1 {
 		return fullname, ""
 	}
