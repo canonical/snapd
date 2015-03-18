@@ -65,15 +65,6 @@ var ignoreHooks = map[string]bool{
 	"snappy-systemd": true,
 }
 
-// InstallFlags can be used to pass additional flags to the install of a
-// snap
-type InstallFlags uint
-
-const (
-	// AllowUnauthenticated allows to install a snap even if it can not be authenticated
-	AllowUnauthenticated InstallFlags = 1 << iota
-)
-
 // Execute the hook.Exec command
 func (s *clickHook) execHook() (err error) {
 	// the spec says this is passed to the shell

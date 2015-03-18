@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+// InstallFlags can be used to pass additional flags to the install of a
+// snap
+type InstallFlags uint
+
+const (
+	// AllowUnauthenticated allows to install a snap even if it can not be authenticated
+	AllowUnauthenticated InstallFlags = 1 << iota
+)
+
 // check if the image is in developer mode
 // FIXME: this is a bit crude right now, but it seems like there is not more
 //        meta-data to check right now
@@ -31,7 +40,7 @@ func inDeveloperMode() bool {
 
 // Install the givens snap names provided via args. This can be local
 // files or snaps that are queried from the store
-func Install(name string) (err error) {
+func Install(name string, flags InstallFlags) (err error) {
 
 	// consume local parts
 	if _, err := os.Stat(name); err == nil {
