@@ -78,6 +78,7 @@ integration:
  "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
+ "maintainer": "Foo \u003cfoo@example.com\u003e",
  "title": "some title",
  "hooks": {
   "app": {
@@ -121,6 +122,7 @@ binaries:
  "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
+ "maintainer": "Foo \u003cfoo@example.com\u003e",
  "title": "some title",
  "hooks": {
   "hello-world": {
@@ -159,6 +161,7 @@ services:
  "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
+ "maintainer": "Foo \u003cfoo@example.com\u003e",
  "title": "some title",
  "hooks": {
   "foo": {
@@ -211,6 +214,7 @@ vendor: Foo <foo@example.com>
  "framework": "ubuntu-core-15.04-dev1",
  "description": "fixme-description",
  "installed-size": "17",
+ "maintainer": "Foo \u003cfoo@example.com\u003e",
  "title": "some title",
  "hooks": {
   "snappy-config": {

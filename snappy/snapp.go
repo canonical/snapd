@@ -83,6 +83,11 @@ type packageYaml struct {
 	Services []Service `yaml:"services,omitempty"`
 	Binaries []Binary  `yaml:"binaries,omitempty"`
 
+	// oem snap only
+	Store struct {
+		ID string `yaml:"id,omitempty"`
+	} `yaml:"store,omitempty"`
+
 	// this is a bit ugly, but right now integration is a one:one
 	// mapping of click hooks
 	Integration map[string]clickAppHook
@@ -550,11 +555,23 @@ func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
 // small helper that sets the correct http headers for the ubuntu store
 func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
+
+	// frameworks
 	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", helpers.Architecture())
 
+	// check if the oem part sets a custom store-id
+	oems, _ := InstalledSnapsByType(SnapTypeOem)
+	if len(oems) == 1 {
+		storeID := oems[0].(*SnapPart).m.Store.ID
+		if storeID != "" {
+			req.Header.Set("X-Ubuntu-Store", storeID)
+		}
+	}
+
+	// sso
 	ssoToken, err := ReadStoreToken()
 	if err == nil {
 		req.Header.Set("Authorization", makeOauthPlaintextSignature(req, ssoToken))
