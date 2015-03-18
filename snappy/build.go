@@ -2,10 +2,8 @@ package snappy
 
 import (
 	"bufio"
-	"crypto/sha512"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -165,6 +163,8 @@ func dirSize(buildDir string) (string, error) {
 	return strings.Fields(string(output))[0], nil
 }
 
+// the file securiy information, note that we do not store the Uid/Gid
+// here because its irrelevant, on unpack the uid/gid is set to "snap"
 type fileHash struct {
 	Name   string      `yaml:"name"`
 	Size   *int64      `yaml:"size,omitempty"`
@@ -193,15 +193,10 @@ func writeHashes(buildDir string) error {
 		sha512sum := ""
 		var size *int64
 		if info.Mode().IsRegular() {
-			h := sha512.New()
-			f, err := os.Open(path)
+			sha512sum, err = helpers.Sha512sum(path)
 			if err != nil {
 				return err
 			}
-			defer f.Close()
-			io.Copy(h, f)
-
-			sha512sum = fmt.Sprintf("%x", h.Sum(nil))
 			fsize := info.Size()
 			size = &fsize
 		}
@@ -210,7 +205,8 @@ func writeHashes(buildDir string) error {
 			Name:   path[len(buildDir)+1:],
 			Size:   size,
 			Sha512: sha512sum,
-			// FIXME: not portable
+			// FIXME: not portable, this output is different on
+			//        windows, macos
 			Mode: info.Mode(),
 		})
 
