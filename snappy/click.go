@@ -423,8 +423,6 @@ func generateServiceFileName(m *packageYaml, service Service) string {
 	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
 }
 
-var runSystemctl = runSystemctlImpl
-
 type ErrSystemCtl struct {
 	cmd      []string
 	exitCode int
@@ -434,15 +432,27 @@ func (e *ErrSystemCtl) Error() string {
 	return fmt.Sprintf("%v failed with %d", e.cmd, e.exitCode)
 }
 
-func runSystemctlImpl(cmd ...string) error {
+var runSystemctl = runSystemctlImpl
+
+func runSystemctlImpl(cmdStr ...string) error {
 	args := []string{"systemctl", "--root", globalRootDir}
-	args = append(args, cmd...)
-	err := exec.Command(args[0], args...).Run()
+	args = append(args, cmdStr...)
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
 	if err != nil {
 		exitCode, _ := helpers.ExitCode(err)
 		return &ErrSystemCtl{cmd: args,
 			exitCode: exitCode}
 	}
+	return nil
+}
+func runSystemctlInhibit(cmd ...string) error {
+	if cmd[0] == "enable" {
+		return runSystemctlImpl(cmd...)
+	}
+
 	return nil
 }
 
@@ -563,8 +573,10 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 
 	if (flags & InhibitHooks) != 0 {
 		execHook = execHookNop
+		runSystemctl = runSystemctlInhibit
 	} else {
 		execHook = execHookImpl
+		runSystemctl = runSystemctlImpl
 	}
 
 	d := clickdeb.ClickDeb{Path: snapFile}
