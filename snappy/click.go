@@ -65,14 +65,21 @@ var ignoreHooks = map[string]bool{
 	"snappy-systemd": true,
 }
 
+// var to allow it to be a non-op
+var execHook = execHookImpl
+
 // Execute the hook.Exec command
-func (s *clickHook) execHook() (err error) {
+func execHookImpl(execCmd string) (err error) {
 	// the spec says this is passed to the shell
-	cmd := exec.Command("sh", "-c", s.exec)
+	cmd := exec.Command("sh", "-c", execCmd)
 	if err = cmd.Run(); err != nil {
-		log.Printf("Failed to run hook %s: %s", s.exec, err)
+		log.Printf("Failed to run hook %s: %s", execCmd, err)
 		return err
 	}
+	return nil
+}
+
+func execHookNop(exec string) error {
 	return nil
 }
 
@@ -217,7 +224,7 @@ func iterHooks(manifest clickManifest, f iterHooksFunc) error {
 			}
 
 			if systemHook.exec != "" {
-				if err := systemHook.execHook(); err != nil {
+				if err := execHook(systemHook.exec); err != nil {
 					os.Remove(dst)
 					return err
 				}
@@ -526,6 +533,12 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		return err
 		// ?
 		//return SnapAuditError
+	}
+
+	if (flags & InhibitHooks) != 0 {
+		execHook = execHookNop
+	} else {
+		execHook = execHookImpl
 	}
 
 	d := clickdeb.ClickDeb{Path: snapFile}

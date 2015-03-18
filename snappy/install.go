@@ -14,6 +14,7 @@ type InstallFlags uint
 const (
 	// AllowUnauthenticated allows to install a snap even if it can not be authenticated
 	AllowUnauthenticated InstallFlags = 1 << iota
+	InhibitHooks
 )
 
 // check if the image is in developer mode
