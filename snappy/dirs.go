@@ -14,6 +14,9 @@ var (
 
 	snapBinariesDir string
 	snapServicesDir string
+
+	clickSystemHooksDir string
+	cloudMetaDataFile   string
 )
 
 // SetRootDir allows settings a new global root directory, this is useful
@@ -27,6 +30,10 @@ func SetRootDir(rootdir string) {
 
 	snapBinariesDir = filepath.Join(rootdir, snapAppsDir, "bin")
 	snapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
+
+	clickSystemHooksDir = filepath.Join(rootdir, "/usr/share/click/hooks")
+
+	cloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
 }
 
 func init() {

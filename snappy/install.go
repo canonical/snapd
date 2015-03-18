@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-var cloudMetaDataFile = "/var/lib/cloud/seed/nocloud-net/meta-data"
-
 // check if the image is in developer mode
 // FIXME: this is a bit crude right now, but it seems like there is not more
 //        meta-data to check right now
