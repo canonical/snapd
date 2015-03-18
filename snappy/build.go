@@ -170,6 +170,9 @@ type fileHash struct {
 	Size   *int64      `yaml:"size,omitempty"`
 	Sha512 string      `yaml:"sha512,omitempty"`
 	Mode   os.FileMode `yaml:"mode"`
+	// FIXME: not used yet, our tar implementation does not
+	//        support it yet and writeHashes doesn't either
+	XAttr map[string]string `yaml:"xattr,omitempty"`
 }
 
 type fileHashes struct {
