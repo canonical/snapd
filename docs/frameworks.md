@@ -107,7 +107,7 @@ might contain something like:
 
     /apps/foo/*/bin/exe  ixr,
     /apps/foo/*/data/** r,
-    /var/lib/apps/foo/run/state r,
+    /var/lib/apps/foo/*/run/state r,
     dbus (receive, send)
          bus=system
          peer=(label=foo_bar_*),
