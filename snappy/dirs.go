@@ -6,6 +6,8 @@ import (
 
 // the various file paths
 var (
+	globalRootDir string
+
 	snapAppsDir      string
 	snapOemDir       string
 	snapDataDir      string
@@ -22,6 +24,8 @@ var (
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
+	globalRootDir = rootdir
+
 	snapAppsDir = filepath.Join(rootdir, "/apps")
 	snapOemDir = filepath.Join(rootdir, "/oem")
 	snapDataDir = filepath.Join(rootdir, "/var/lib/apps")

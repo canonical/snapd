@@ -180,9 +180,7 @@ func expandHookPattern(name, app, version, pattern string) (expanded string) {
 	//        - user (probably not!)
 	//        - home (probably not!)
 	//        - $$ (?)
-	expanded = strings.Replace(pattern, "${id}", id, -1)
-
-	return
+	return strings.Replace(pattern, "${id}", id, -1)
 }
 
 type iterHooksFunc func(src, dst string, systemHook clickHook) error
@@ -210,7 +208,7 @@ func iterHooks(manifest clickManifest, f iterHooksFunc) error {
 				continue
 			}
 
-			dst := expandHookPattern(manifest.Name, app, manifest.Version, systemHook.pattern)
+			dst := filepath.Join(globalRootDir, expandHookPattern(manifest.Name, app, manifest.Version, systemHook.pattern))
 
 			if _, err := os.Stat(dst); err == nil {
 				if err := os.Remove(dst); err != nil {

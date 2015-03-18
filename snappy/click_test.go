@@ -94,14 +94,14 @@ func (s *SnapTestSuite) TestHandleClickHooks(c *C) {
 	// two hooks to ensure iterating works correct
 	os.MkdirAll(path.Join(s.tempdir, "/var/lib/systemd/click/"), 0755)
 	testSymlinkDir := path.Join(s.tempdir, "/var/lib/systemd/click/")
-	content := fmt.Sprintf(`Hook-Name: systemd
-Pattern: %s/${id}`, testSymlinkDir)
+	content := `Hook-Name: systemd
+Pattern: /var/lib/systemd/click/${id}`
 	makeClickHook(c, mockHooksDir, "snappy-systemd", content)
 
 	os.MkdirAll(path.Join(s.tempdir, "/var/lib/apparmor/click/"), 0755)
 	testSymlinkDir2 := path.Join(s.tempdir, "/var/lib/apparmor/click/")
-	content = fmt.Sprintf(`Hook-Name: apparmor
-Pattern: %s/${id}`, testSymlinkDir2)
+	content = `Hook-Name: apparmor
+Pattern: /var/lib/apparmor/click/${id}`
 	makeClickHook(c, mockHooksDir, "click-apparmor", content)
 
 	instDir := path.Join(s.tempdir, "apps", "foo", "1.0")
@@ -329,7 +329,7 @@ func (s *SnapTestSuite) TestClickCopyRemovesHooksFirst(c *C) {
 	hookContent := fmt.Sprintf(`Hook-Name: tracehook
 User: root
 Exec: (cd %s && printf "now: $(find . -name "*.tracehook")\n") >> %s/hook.trace
-Pattern: %s/${id}.tracehook`, s.tempdir, s.tempdir, s.tempdir)
+Pattern: ${id}.tracehook`, s.tempdir, s.tempdir)
 	makeClickHook(c, mockHooksDir, "tracehook", hookContent)
 
 	packageYaml := `name: bar
@@ -370,7 +370,7 @@ func (s *SnapTestSuite) TestClickCopyDataHookFails(c *C) {
 	hookContent := fmt.Sprintf(`Hook-Name: hooky
 User: root
 Exec: if test -e %s/bar_app_2.0.hooky; then echo "this log message is harmless and can be ignored"; false; fi
-Pattern: %s/${id}.hooky`, s.tempdir, s.tempdir)
+Pattern: ${id}.hooky`, s.tempdir)
 	makeClickHook(c, mockHooksDir, "hooky", hookContent)
 
 	packageYaml := `name: bar
