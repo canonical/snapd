@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 
@@ -93,16 +92,9 @@ vendor: Foo Bar <foo@example.com>
 	ioutil.WriteFile(readmeMd, []byte(content), 0644)
 	// build it
 	err := helpers.ChDir(tmpdir, func() {
-		cmd := exec.Command("snappy", "build", tmpdir)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			fmt.Println(string(output))
-		}
+		var err error
+		snapFile, err = Build(tmpdir)
 		c.Assert(err, IsNil)
-		allSnapFiles, err := filepath.Glob("*.snap")
-		c.Assert(err, IsNil)
-		c.Assert(allSnapFiles, HasLen, 1)
-		snapFile = allSnapFiles[0]
 	})
 	c.Assert(err, IsNil)
 	return path.Join(tmpdir, snapFile)

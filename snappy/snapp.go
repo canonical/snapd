@@ -27,6 +27,12 @@ type Port struct {
 	Negotiable bool   `yaml:"negotiable,omitempty"`
 }
 
+// Ports is a representation of Internal and External ports mapped with a Port.
+type Ports struct {
+	Internal map[string]Port `yaml:"internal,omitempty" json:"internal,omitempty"`
+	External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
+}
+
 // Service represents a service inside a SnapPart
 type Service struct {
 	Name        string `yaml:"name" json:"name,omitempty"`
@@ -38,10 +44,7 @@ type Service struct {
 	StopTimeout string `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
 
 	// must be a pointer so that it can be "nil" and omitempty works
-	Ports *struct {
-		Internal map[string]Port `yaml:"internal,omitempty" json:"internal,omitempty"`
-		External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
-	} `yaml:"ports,omitempty" json:"ports,omitempty"`
+	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
 }
 
 // Binary represents a single binary inside the binaries: package.yaml
@@ -53,14 +56,12 @@ type Binary struct {
 
 // SnapPart represents a generic snap type
 type SnapPart struct {
-	name        string
-	version     string
+	m           *packageYaml
 	description string
 	hash        string
 	isActive    bool
 	isInstalled bool
 	stype       SnapType
-	services    []Service
 
 	basedir string
 }
@@ -81,6 +82,11 @@ type packageYaml struct {
 
 	Services []Service `yaml:"services,omitempty"`
 	Binaries []Binary  `yaml:"binaries,omitempty"`
+
+	// oem snap only
+	Store struct {
+		ID string `yaml:"id,omitempty"`
+	} `yaml:"store,omitempty"`
 
 	// this is a bit ugly, but right now integration is a one:one
 	// mapping of click hooks
@@ -158,10 +164,8 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 
 	part.basedir = filepath.Dir(filepath.Dir(yamlPath))
 	// data from the yaml
-	part.name = m.Name
-	part.version = m.Version
 	part.isInstalled = true
-	part.services = m.Services
+	part.m = m
 
 	// check if the part is active
 	allVersionsDir := filepath.Dir(part.basedir)
@@ -169,7 +173,6 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 	if p == part.basedir {
 		part.isActive = true
 	}
-	part.stype = m.Type
 
 	// read hash, its ok if its not there, some older versions of
 	// snappy did not write this file
@@ -187,8 +190,8 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 
 // Type returns the type of the SnapPart (app, oem, ...)
 func (s *SnapPart) Type() SnapType {
-	if s.stype != "" {
-		return s.stype
+	if s.m.Type != "" {
+		return s.m.Type
 	}
 
 	// if not declared its a app
@@ -197,12 +200,12 @@ func (s *SnapPart) Type() SnapType {
 
 // Name returns the name
 func (s *SnapPart) Name() string {
-	return s.name
+	return s.m.Name
 }
 
 // Version returns the version
 func (s *SnapPart) Version() string {
-	return s.version
+	return s.m.Version
 }
 
 // Description returns the description
@@ -219,6 +222,11 @@ func (s *SnapPart) Hash() string {
 func (s *SnapPart) Channel() string {
 	// FIXME: real channel support
 	return "edge"
+}
+
+// Icon returns the path to the icon
+func (s *SnapPart) Icon() string {
+	return filepath.Join(s.basedir, s.m.Icon)
 }
 
 // IsActive returns true if the snap is active
@@ -260,7 +268,7 @@ func (s *SnapPart) Date() time.Time {
 
 // Services return a list of Service the package declares
 func (s *SnapPart) Services() []Service {
-	return s.services
+	return s.m.Services
 }
 
 // Install installs the snap
@@ -278,7 +286,7 @@ func (s *SnapPart) Uninstall() (err error) {
 	// OEM snaps should not be removed as they are a key
 	// building block for OEMs. Prunning non active ones
 	// is acceptible.
-	if s.stype == SnapTypeOem && s.IsActive() {
+	if s.m.Type == SnapTypeOem && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 
@@ -402,6 +410,11 @@ func (s *RemoteSnapPart) Hash() string {
 func (s *RemoteSnapPart) Channel() string {
 	// FIXME: real channel support, this requires server work
 	return "edge"
+}
+
+// Icon returns the icon
+func (s *RemoteSnapPart) Icon() string {
+	return s.pkg.IconURL
 }
 
 // IsActive returns true if the snap is active
@@ -542,11 +555,23 @@ func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
 // small helper that sets the correct http headers for the ubuntu store
 func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
+
+	// frameworks
 	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", helpers.Architecture())
 
+	// check if the oem part sets a custom store-id
+	oems, _ := InstalledSnapsByType(SnapTypeOem)
+	if len(oems) == 1 {
+		storeID := oems[0].(*SnapPart).m.Store.ID
+		if storeID != "" {
+			req.Header.Set("X-Ubuntu-Store", storeID)
+		}
+	}
+
+	// sso
 	ssoToken, err := ReadStoreToken()
 	if err == nil {
 		req.Header.Set("Authorization", makeOauthPlaintextSignature(req, ssoToken))

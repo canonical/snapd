@@ -31,6 +31,11 @@ const (
 	SnapTypeOem       SnapType = "oem"
 )
 
+// Services implements snappy packages that offer services
+type Services interface {
+	Services() []Service
+}
+
 // Part representation of a snappy part
 type Part interface {
 
@@ -50,6 +55,9 @@ type Part interface {
 
 	// returns the channel of the part
 	Channel() string
+
+	// returns the path to the icon (local or uri)
+	Icon() string
 
 	// Returns app, framework, core
 	Type() SnapType
