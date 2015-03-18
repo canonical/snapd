@@ -437,7 +437,9 @@ func addPackageServices(baseDir string) error {
 	for _, service := range m.Services {
 		aaProfile := fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version)
 		content := generateSnapServicesFile(service, baseDir, aaProfile, m)
-		if err := ioutil.WriteFile(generateServiceFileName(m, service), []byte(content), 0755); err != nil {
+		serviceFilename := generateServiceFileName(m, service)
+		helpers.EnsureDir(filepath.Dir(serviceFilename), 0755)
+		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0755); err != nil {
 			return err
 		}
 
