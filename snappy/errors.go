@@ -53,4 +53,8 @@ var (
 	// ErrSnapNotActive is returned if you try to unset a snap from
 	// active to inactive
 	ErrSnapNotActive = errors.New("snap not active")
+
+	// ErrBuildPlatformNotSupported is returned if you build on
+	// a not (yet) supported platform
+	ErrBuildPlatformNotSupported = errors.New("building on a not (yet) supported platform")
 )

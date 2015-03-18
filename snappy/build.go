@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"text/template"
 
@@ -164,15 +165,17 @@ func dirSize(buildDir string) (string, error) {
 	return strings.Fields(string(output))[0], nil
 }
 
-func writeHashes(buildDir, dataTar string) (err error) {
+func writeHashes(buildDir, dataTar string) error {
+
 	debianDir := filepath.Join(buildDir, "DEBIAN")
 	os.MkdirAll(debianDir, 0755)
 
 	hashes := hashesYaml{}
-	hashes.ArchiveSha512, err = helpers.Sha512sum(dataTar)
+	sha512, err := helpers.Sha512sum(dataTar)
 	if err != nil {
 		return err
 	}
+	hashes.ArchiveSha512 = sha512
 
 	err = filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error {
 		if strings.HasPrefix(path[len(buildDir):], "/DEBIAN") {
@@ -193,6 +196,10 @@ func writeHashes(buildDir, dataTar string) (err error) {
 			}
 			fsize := info.Size()
 			size = &fsize
+		}
+
+		if runtime.GOOS != "linux" {
+			return ErrBuildPlatformNotSupported
 		}
 
 		hashes.Files = append(hashes.Files, fileHash{
