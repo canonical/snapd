@@ -45,6 +45,9 @@ func Install(name string, flags InstallFlags) (err error) {
 	if os.Getenv("SNAPPY_ALLOW_UNAUTHENTICATED") != "" {
 		flags |= AllowUnauthenticated
 	}
+	if os.Getenv("SNAPPY_INHIBIT_HOOKS") != "" {
+		flags |= InhibitHooks
+	}
 	
 	// consume local parts
 	if _, err := os.Stat(name); err == nil {
