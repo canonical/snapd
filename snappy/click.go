@@ -611,12 +611,8 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 
 		// we need to stop making it active
 		if err := unsetActiveClick(currentActiveDir); err != nil {
-			return err
-		}
-		// at this point we must stop/disable the snap so that we
-		// can safely copy the data
-		if err := removeClickHooks(oldManifest); err != nil {
-			// restore the pervious version
+			// if anything goes wrong try to activate the old
+			// one again and pass the error on
 			setActiveClick(currentActiveDir)
 			return err
 		}

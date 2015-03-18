@@ -357,7 +357,6 @@ integration:
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, `now: ./bar_app_1.0.tracehook
 now: 
-now: 
 now: ./bar_app_2.0.tracehook
 `)
 }
