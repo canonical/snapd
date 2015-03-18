@@ -97,7 +97,7 @@ type ErrSignature struct {
 	exitCode int
 }
 func (e *ErrSignature) Error() string {
-	return fmt.Sprintf("Signature verification failed wit %d", e.exitCode)
+	return fmt.Sprintf("Signature verification failed with %d", e.exitCode)
 }
 
 // Tiny wrapper around the debsig-verify commandline
