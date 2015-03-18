@@ -94,6 +94,24 @@ framework is designed to have clients connect to the `bar` service over DBus,
 then the framework snap might provide
 `meta/framework-policy/apparmor/policygroups/foo_bar-client` and nothing else.
 
+The contents of files in the `apparmor` directory use apparmor syntax as
+described in `apparmor.d(5)`. When specifying DBus rules, set the peer label to
+refer to the AppArmor label (APP\_ID) of the service to be accessed. Also, to
+ensure frameworks are coinstallable, the service should be implemented so its
+DBus `path` uses the format `/pkgname/service`.
+
+For example, using the above exampe where the `foo` framework ships a `bar`
+DBus system service, a `bin/exe` utility, some data files and also a runtime
+state file, then `meta/framework-policy/apparmor/policygroups/bar-client`
+might contain something like:
+
+    /apps/foo/*/bin/exe  ixr,
+    /apps/foo/*/data/** r,
+    /var/lib/apps/foo/run/state r,
+    dbus (receive, send)
+         bus=system
+         peer=(label=foo_bar_*),
+
 ### App yaml
 
 For apps wanting to use a particular framework, meta/package.yaml simply
