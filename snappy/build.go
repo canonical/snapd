@@ -183,6 +183,8 @@ func writeHashes(buildDir, dataTar string) (err error) {
 		}
 
 		sha512sum := ""
+		// pointer so that omitempty works (we don't want size for
+		// directories or symlinks)
 		var size *int64
 		if info.Mode().IsRegular() {
 			sha512sum, err = helpers.Sha512sum(path)
