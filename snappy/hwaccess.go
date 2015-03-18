@@ -11,6 +11,8 @@ import (
 	"launchpad.net/snappy/helpers"
 )
 
+var aaClickHookCmd = "aa-clickhook"
+
 type appArmorAdditionalJSON struct {
 	WritePath []string `json:"write_path"`
 }
