@@ -47,6 +47,6 @@ func init() {
 	if root == "" {
 		root = "/"
 	}
-	
+
 	SetRootDir(root)
 }
