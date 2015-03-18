@@ -252,7 +252,7 @@ func tarGzCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 
 // Build takes a build debian directory with DEBIAN/ dir and creates a
 // clickdeb from it
-func (d *ClickDeb) Build(sourceDir string) error {
+func (d *ClickDeb) Build(sourceDir string, dataTarFinishedCallback func(dataName string) error) error {
 	var err error
 
 	// create file
@@ -269,18 +269,25 @@ func (d *ClickDeb) Build(sourceDir string) error {
 	}
 	defer os.RemoveAll(tempdir)
 
-	// create control data (for click compat)
-	controlName := filepath.Join(tempdir, "control.tar.gz")
-	if err := tarGzCreate(controlName, filepath.Join(sourceDir, "DEBIAN"), nil); err != nil {
-		return err
-	}
-
 	// create content data
 	dataName := filepath.Join(tempdir, "data.tar.gz")
 	err = tarGzCreate(dataName, sourceDir, func(path string) bool {
 		return !strings.HasPrefix(path, filepath.Join(sourceDir, "DEBIAN"))
 	})
 	if err != nil {
+		return err
+	}
+
+	// this allows us to add hashes
+	if dataTarFinishedCallback != nil {
+		if err := dataTarFinishedCallback(dataName); err != nil {
+			return err
+		}
+	}
+
+	// create control data (for click compat)
+	controlName := filepath.Join(tempdir, "control.tar.gz")
+	if err := tarGzCreate(controlName, filepath.Join(sourceDir, "DEBIAN"), nil); err != nil {
 		return err
 	}
 

@@ -296,15 +296,14 @@ func removeClick(clickDir string) (err error) {
 	return os.RemoveAll(clickDir)
 }
 
-func writeHashesFile(snapFile, instDir string) error {
-	hashsum, err := helpers.Sha512sum(snapFile)
+func writeHashesFile(d *clickdeb.ClickDeb, instDir string) error {
+	hashesFile := filepath.Join(instDir, "meta", "hashes.yaml")
+	hashesData, err := d.ControlMember("hashes.yaml")
 	if err != nil {
 		return err
 	}
 
-	s := fmt.Sprintf("sha512: %s", hashsum)
-	hashesFile := filepath.Join(instDir, "meta", "hashes")
-	return ioutil.WriteFile(hashesFile, []byte(s), 0644)
+	return ioutil.WriteFile(hashesFile, hashesData, 0644)
 }
 
 // generate the name
@@ -540,7 +539,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		//return SnapAuditError
 	}
 
-	d := clickdeb.ClickDeb{Path: snapFile}
+	d := &clickdeb.ClickDeb{Path: snapFile}
 	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
@@ -591,7 +590,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	}
 
 	// write the hashes now
-	if err := writeHashesFile(snapFile, instDir); err != nil {
+	if err := writeHashesFile(d, instDir); err != nil {
 		return err
 	}
 

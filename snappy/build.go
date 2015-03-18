@@ -164,29 +164,17 @@ func dirSize(buildDir string) (string, error) {
 	return strings.Fields(string(output))[0], nil
 }
 
-// the file securiy information, note that we do not store the Uid/Gid
-// here because its irrelevant, on unpack the uid/gid is set to "snap"
-type fileHash struct {
-	Name   string      `yaml:"name"`
-	Size   *int64      `yaml:"size,omitempty"`
-	Sha512 string      `yaml:"sha512,omitempty"`
-	Mode   os.FileMode `yaml:"mode"`
-	// FIXME: not used yet, our tar implementation does not
-	//        support it yet and writeHashes doesn't either
-	XAttr map[string]string `yaml:"xattr,omitempty"`
-}
-
-type fileHashes struct {
-	Files []fileHash
-}
-
-func writeHashes(buildDir string) error {
+func writeHashes(buildDir, dataTar string) (err error) {
 	debianDir := filepath.Join(buildDir, "DEBIAN")
 	os.MkdirAll(debianDir, 0755)
 
-	hashes := fileHashes{}
+	hashes := hashesYaml{}
+	hashes.ArchiveSha512, err = helpers.Sha512sum(dataTar)
+	if err != nil {
+		return err
+	}
 
-	err := filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error {
 		if strings.HasPrefix(path[len(buildDir):], "/DEBIAN") {
 			return nil
 		}
@@ -378,11 +366,6 @@ func Build(sourceDir string) (string, error) {
 		return "", err
 	}
 
-	// hashes
-	if err := writeHashes(buildDir); err != nil {
-		return "", err
-	}
-
 	if err := writeDebianControl(buildDir, m); err != nil {
 		return "", err
 	}
@@ -397,7 +380,11 @@ func Build(sourceDir string) (string, error) {
 
 	// build it
 	d := clickdeb.ClickDeb{Path: snapName}
-	if err := d.Build(buildDir); err != nil {
+	err = d.Build(buildDir, func(dataTar string) error {
+		// write hashes of the files plus the generated data tar
+		return writeHashes(buildDir, dataTar)
+	})
+	if err != nil {
 		return "", err
 	}
 

@@ -112,8 +112,8 @@ func (s *SnapTestSuite) TestLocalSnapHash(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 
-	hashesFile := filepath.Join(filepath.Dir(snapYaml), "hashes")
-	err = ioutil.WriteFile(hashesFile, []byte("sha512: F00F00"), 0644)
+	hashesFile := filepath.Join(filepath.Dir(snapYaml), "hashes.yaml")
+	err = ioutil.WriteFile(hashesFile, []byte("archive-sha512: F00F00"), 0644)
 	c.Assert(err, IsNil)
 
 	snap := NewInstalledSnapPart(snapYaml)
