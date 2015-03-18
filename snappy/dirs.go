@@ -1,6 +1,7 @@
 package snappy
 
 import (
+	"os"
 	"path/filepath"
 )
 
@@ -42,5 +43,10 @@ func SetRootDir(rootdir string) {
 
 func init() {
 	// init the global directories at startup
-	SetRootDir("/")
+	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
+	if root == "" {
+		root = "/"
+	}
+	
+	SetRootDir(root)
 }

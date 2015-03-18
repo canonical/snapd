@@ -42,7 +42,10 @@ func inDeveloperMode() bool {
 // Install the givens snap names provided via args. This can be local
 // files or snaps that are queried from the store
 func Install(name string, flags InstallFlags) (err error) {
-
+	if os.Getenv("SNAPPY_ALLOW_UNAUTHENTICATED") != "" {
+		flags |= AllowUnauthenticated
+	}
+	
 	// consume local parts
 	if _, err := os.Stat(name); err == nil {
 		// we allow unauthenticated package when in developer
