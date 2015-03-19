@@ -360,6 +360,10 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// no store ID by default
+		storeID := r.Header.Get("X-Ubuntu-Store")
+		c.Assert(storeID, Equals, "")
+
 		c.Assert(strings.HasSuffix(r.URL.String(), "xkcd-webserver"), Equals, true)
 		io.WriteString(w, MockDetailsJSON)
 	}))
@@ -544,4 +548,33 @@ vendor: Michael Vogt <mvo@ubuntu.com>
 	m, err := parsePackageYamlFile(y)
 	c.Assert(err, IsNil)
 	c.Assert(m.Architectures, DeepEquals, []string{"all"})
+}
+
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryOemStoreId(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// ensure we get the right header
+		storeID := r.Header.Get("X-Ubuntu-Store")
+		c.Assert(storeID, Equals, "my-store")
+		w.WriteHeader(404)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	// install custom oem snap with store-id
+	packageYaml, err := makeInstalledMockSnap(s.tempdir, `name: oem-test
+version: 1.0
+vendor: mvo
+store:
+ id: my-store
+type: oem
+`)
+	c.Assert(err, IsNil)
+	makeSnapActive(packageYaml)
+
+	storeDetailsURI = mockServer.URL + "/%s"
+	repo := NewUbuntuStoreSnapRepository()
+	c.Assert(repo, NotNil)
+
+	// we just ensure that the right header is set
+	repo.Details("xkcd")
 }
