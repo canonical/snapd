@@ -62,7 +62,7 @@ type ErrSignature struct {
 }
 
 func (e *ErrSignature) Error() string {
-	return fmt.Sprintf("Signature verification failed with exit code %d", e.exitCode)
+	return fmt.Sprintf("Signature verification failed with exit status %d", e.exitCode)
 }
 
 // ErrSystemCtl is returned if the systemctl command failed
@@ -72,5 +72,15 @@ type ErrSystemCtl struct {
 }
 
 func (e *ErrSystemCtl) Error() string {
-	return fmt.Sprintf("%v failed with %d", e.cmd, e.exitCode)
+	return fmt.Sprintf("%v failed with exit status %d", e.cmd, e.exitCode)
+}
+
+// ErrHookFailed is returned if a hook command fails
+type ErrHookFailed struct {
+	cmd      string
+	exitCode int
+}
+
+func (e *ErrHookFailed) Error() string {
+	return fmt.Sprintf("hook command %v failed with exit status %d", e.cmd, e.exitCode)
 }

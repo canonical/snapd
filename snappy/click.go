@@ -82,9 +82,13 @@ func (s *clickHook) execHook() (err error) {
 	// the spec says this is passed to the shell
 	cmd := exec.Command("sh", "-c", s.exec)
 	if err = cmd.Run(); err != nil {
-		log.Printf("Failed to run hook %s: %s", s.exec, err)
+		if exitCode, err := helpers.ExitCode(err); err != nil {
+			return &ErrHookFailed{cmd: s.exec,
+				exitCode: exitCode}
+		}
 		return err
 	}
+
 	return nil
 }
 
