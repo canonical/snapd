@@ -27,7 +27,7 @@ type MockLogWriter struct {
 
 var mockWriter *MockLogWriter
 
-func mockGetSyslog(priority syslog.Priority, tag string) (w LogWriterInterface, err error) {
+func mockGetSyslog(priority syslog.Priority, tag string) (w logWriterInterface, err error) {
 	mockWriter = &MockLogWriter{}
 	return mockWriter, nil
 }
@@ -41,6 +41,8 @@ func readLines() (lines []string) {
 	if last == "" {
 		lines = lines[:length-1]
 	}
+	// clear the buffer to avoid contents accumulating indefinitely
+	mockWriter.buf.Reset()
 	return lines
 }
 
@@ -92,10 +94,23 @@ func sliceContainsRegex(array []string, regex string) bool {
 }
 
 func (ts *LoggerTestSuite) TestNewLogWriter(c *C) {
-	w, err := newLogWriter()
+	var w, w2 *LogWriter
+	var err error
+
+	w, err = newLogWriter()
 	c.Assert(err, IsNil)
 	c.Assert(w, Not(IsNil))
 	c.Assert(w.systemLog, Not(IsNil))
+
+	w2, err = newLogWriter()
+	c.Assert(err, IsNil)
+	c.Assert(w2, Not(IsNil))
+	c.Assert(w2.systemLog, Not(IsNil))
+
+	// There should be a single shared syslog connection, hence the
+	// systemLog objects should be identical.
+	c.Assert(w.systemLog, Equals, w2.systemLog)
+	c.Assert(w.systemLog, DeepEquals, w2.systemLog)
 }
 
 func (ts *LoggerTestSuite) TestWrite(c *C) {
@@ -189,6 +204,7 @@ func (ts *LoggerTestSuite) checkLogLevel(c *C, level, msg string) {
 	}
 
 	lines := readLines()
+
 
 	if expectBacktrace {
 		c.Assert(len(lines) > 1, Equals, true)

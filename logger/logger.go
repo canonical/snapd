@@ -5,6 +5,7 @@ import (
 	"log/syslog"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/juju/loggo"
@@ -13,9 +14,9 @@ import (
 // Name used in the prefix for all logged messages
 const LoggerName = "snappy"
 
-// LogWriterInterface allows the tests to replace the syslog
+// logWriterInterface allows the tests to replace the syslog
 // implementation.
-type LogWriterInterface interface {
+type logWriterInterface interface {
 	// syslog.Writer
 	Debug(m string) error
 	Info(m string) error
@@ -26,8 +27,14 @@ type LogWriterInterface interface {
 
 // LogWriter object that handles writing log entries
 type LogWriter struct {
-	systemLog LogWriterInterface
+	systemLog logWriterInterface
 }
+
+// Used to ensure that only a single connection to syslog is created
+var once sync.Once
+
+// A single connection to the system logger
+var syslogConnection logWriterInterface
 
 // Write sends the log details specified by the params to the logging
 // back-end (in this case syslog).
@@ -91,21 +98,28 @@ func (l *LogWriter) Format(level loggo.Level, module, filename string, line int,
 }
 
 // A variable to make testing easier
-var getSyslog = func(priority syslog.Priority, tag string) (w LogWriterInterface, err error) {
+var getSyslog = func(priority syslog.Priority, tag string) (w logWriterInterface, err error) {
 	return syslog.New(syslog.LOG_NOTICE|syslog.LOG_LOCAL0, LoggerName)
 }
 
-// newLogWriter creates a new LogWriter.
+// newLogWriter creates a new LogWriter, ensuring that only a single
+// connection to the system logger is created.
 func newLogWriter() (l *LogWriter, err error) {
 
 	l = new(LogWriter)
 
-	// Note that the log level here is just the default - Write()
-	// will alter it as needed.
-	l.systemLog, err = getSyslog(syslog.LOG_NOTICE|syslog.LOG_LOCAL0, LoggerName)
+	once.Do(func() {
+
+		// Note that the log level here is just the default - Write()
+		// will alter it as needed.
+		syslogConnection, err = getSyslog(syslog.LOG_NOTICE|syslog.LOG_LOCAL0, LoggerName)
+	})
+
 	if err != nil {
 		return nil, err
 	}
+
+	l.systemLog = syslogConnection
 
 	return l, nil
 }
