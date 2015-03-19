@@ -94,14 +94,6 @@ func allowUnauthenticatedOkExitCode(exitCode int) bool {
 		exitCode == dsFailNopolicies)
 }
 
-type ErrSignature struct {
-	exitCode int
-}
-
-func (e *ErrSignature) Error() string {
-	return fmt.Sprintf("Signature verification failed with %d", e.exitCode)
-}
-
 // Tiny wrapper around the debsig-verify commandline
 func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error) {
 	cmd := exec.Command("debsig-verify", clickFile)
@@ -422,15 +414,6 @@ WantedBy=multi-user.target
 
 func generateServiceFileName(m *packageYaml, service Service) string {
 	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
-}
-
-type ErrSystemCtl struct {
-	cmd      []string
-	exitCode int
-}
-
-func (e *ErrSystemCtl) Error() string {
-	return fmt.Sprintf("%v failed with %d", e.cmd, e.exitCode)
 }
 
 var runSystemctl = runSystemctlImpl
