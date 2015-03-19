@@ -435,13 +435,10 @@ func (e *ErrSystemCtl) Error() string {
 
 var runSystemctl = runSystemctlImpl
 
-func runSystemctlImpl(cmdStr ...string) error {
+func runSystemctlImpl(cmd ...string) error {
 	args := []string{"systemctl", "--root", globalRootDir}
-	args = append(args, cmdStr...)
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
+	args = append(args, cmd...)
+	err := exec.Command(args[0], args[1:]...).Run()
 	if err != nil {
 		exitCode, _ := helpers.ExitCode(err)
 		return &ErrSystemCtl{cmd: args,

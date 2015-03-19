@@ -2,6 +2,7 @@ package snappy
 
 import (
 	"errors"
+	"fmt"
 )
 
 var (
@@ -54,3 +55,22 @@ var (
 	// active to inactive
 	ErrSnapNotActive = errors.New("snap not active")
 )
+
+// ErrSignature is returned if a snap failed the signature verification
+type ErrSignature struct {
+	exitCode int
+}
+
+func (e *ErrSignature) Error() string {
+	return fmt.Sprintf("Signature verification failed with exit code %d", e.exitCode)
+}
+
+// ErrSystemCtl is returned if the systemctl command failed
+type ErrSystemCtl struct {
+	cmd      []string
+	exitCode int
+}
+
+func (e *ErrSystemCtl) Error() string {
+	return fmt.Sprintf("%v failed with %d", e.cmd, e.exitCode)
+}
