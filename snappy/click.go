@@ -101,6 +101,7 @@ func allowUnauthenticatedOkExitCode(exitCode int) bool {
 type ErrSignature struct {
 	exitCode int
 }
+
 func (e *ErrSignature) Error() string {
 	return fmt.Sprintf("Signature verification failed wit %d", e.exitCode)
 }
@@ -431,8 +432,25 @@ func generateServiceFileName(m *packageYaml, service Service) string {
 
 var runSystemctl = runSystemctlImpl
 
+type ErrSystemCtl struct {
+	cmd      []string
+	exitCode int
+}
+
+func (e *ErrSystemCtl) Error() string {
+	return fmt.Sprintf("%v failed with %d", e.cmd, e.exitCode)
+}
+
 func runSystemctlImpl(cmd ...string) error {
-	return exec.Command("systemctl", cmd...).Run()
+	args := []string{"systemctl", "--root", globalRootDir}
+	args = append(args, cmd...)
+	err := exec.Command(args[0], args...).Run()
+	if err != nil {
+		exitCode, _ := helpers.ExitCode(err)
+		return &ErrSystemCtl{cmd: args,
+			exitCode: exitCode}
+	}
+	return nil
 }
 
 func addPackageServices(baseDir string) error {
