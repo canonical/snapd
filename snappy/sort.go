@@ -172,7 +172,7 @@ func (bv ByVersion) Len() int {
 	return len(bv)
 }
 
-// BySnap provides a sort interface
+// BySnapVersion provides a sort interface
 type BySnapVersion []Part
 
 func (bv BySnapVersion) Less(a, b int) bool {
