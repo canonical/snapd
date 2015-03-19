@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -40,7 +41,13 @@ func (ts *HTestSuite) TestUnpack(c *C) {
 
 	// unpack
 	unpackdir := filepath.Join(tmpdir, "t")
-	err = unpackTar(tmpfile, unpackdir)
+	f, err := os.Open(tmpfile)
+	c.Assert(err, IsNil)
+
+	f2, err := gzip.NewReader(f)
+	c.Assert(err, IsNil)
+
+	err = UnpackTar(f2, unpackdir, nil)
 	c.Assert(err, IsNil)
 
 	// we have the expected file

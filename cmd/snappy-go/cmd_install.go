@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"launchpad.net/snappy/snappy"
@@ -22,10 +23,16 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 		return ErrRequiresRoot
 	}
 
-	err = snappy.Install(args)
-	if err != nil {
-		return err
+	for _, part := range args {
+		err = snappy.Install(part)
+		if err == snappy.ErrPackageNotFound {
+			return fmt.Errorf("No package '%s' for %s", part, ubuntuCoreChannel())
+		}
+		if err != nil {
+			return err
+		}
 	}
+
 	// call show versions afterwards
 	installed, err := snappy.ListInstalled()
 	if err != nil {
