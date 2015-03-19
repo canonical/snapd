@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"text/template"
 
@@ -571,12 +572,18 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		//return SnapAuditError
 	}
 
-	if (flags & InhibitHooks) != 0 {
-		execHook = execHookNop
-		runSystemctl = runSystemctlInhibit
-	} else {
-		execHook = execHookImpl
-		runSystemctl = runSystemctlImpl
+	// FIXME: ugly test just to see if the tests already hooked this
+	runSystemctlP := reflect.ValueOf(runSystemctl)
+	runSystemctlInhibitP := reflect.ValueOf(runSystemctlInhibit)
+	runSystemctlImplP := reflect.ValueOf(runSystemctlImpl)
+	if runSystemctlP == runSystemctlInhibitP || runSystemctlP == runSystemctlImplP {
+		if (flags & InhibitHooks) != 0 {
+			execHook = execHookNop
+			runSystemctl = runSystemctlInhibit
+		} else {
+			execHook = execHookImpl
+			runSystemctl = runSystemctlImpl
+		}
 	}
 
 	d := clickdeb.ClickDeb{Path: snapFile}
