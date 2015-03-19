@@ -431,12 +431,12 @@ var runSystemctl = runSystemctlImpl
 func runSystemctlImpl(cmd ...string) error {
 	args := []string{"systemctl"}
 	args = append(args, cmd...)
-	err := exec.Command(args[0], args[1:]...).Run()
-	if err != nil {
+	if err := exec.Command(args[0], args[1:]...).Run(); err != nil {
 		exitCode, _ := helpers.ExitCode(err)
 		return &ErrSystemCtl{cmd: args,
 			exitCode: exitCode}
 	}
+
 	return nil
 }
 

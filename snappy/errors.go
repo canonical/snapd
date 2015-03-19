@@ -62,7 +62,7 @@ type ErrSignature struct {
 }
 
 func (e *ErrSignature) Error() string {
-	return fmt.Sprintf("Signature verification failed with exit status %d", e.exitCode)
+	return fmt.Sprintf("Signature verification failed with exit status %v", e.exitCode)
 }
 
 // ErrSystemCtl is returned if the systemctl command failed
