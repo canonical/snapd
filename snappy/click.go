@@ -579,7 +579,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	// we need to call the external helper so that we can reliable drop
 	// privs
 	if strings.HasSuffix(os.Args[0], "snappy-go") {
-		cmd := exec.Command(os.Args[0], "--internal-unpack", d.Path, instDir)
+		cmd := exec.Command(os.Args[0], "internal-unpack", d.Path, instDir)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("can not unpack %s to %s", d.Path, instDir)
 		}
