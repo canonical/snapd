@@ -799,5 +799,6 @@ func setActiveClick(baseDir string) (err error) {
 		}
 	}
 
-	return os.Symlink(baseDir, currentActiveSymlink)
+	// symlink is relative to parent dir
+	return os.Symlink(filepath.Base(baseDir), currentActiveSymlink)
 }
