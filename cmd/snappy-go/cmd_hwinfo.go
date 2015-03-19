@@ -55,9 +55,7 @@ func (x *cmdHWInfo) Execute(args []string) (err error) {
 	if err := privMutex.TryLock(); err != nil {
 		return err
 	}
-	defer func() {
-		err = privMutex.Unlock()
-	}()
+	defer privMutex.Unlock()
 
 	// use specific package
 	pkgname := x.Positional.PackageName

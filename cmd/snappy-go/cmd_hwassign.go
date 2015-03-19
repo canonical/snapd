@@ -31,9 +31,7 @@ func (x *cmdHWAssign) Execute(args []string) (err error) {
 	if err := privMutex.TryLock(); err != nil {
 		return err
 	}
-	defer func() {
-		err = privMutex.Unlock()
-	}()
+	defer privMutex.Unlock()
 
 	if err := snappy.AddHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
 		if err == snappy.ErrHWAccessAlreadyAdded {
@@ -45,5 +43,5 @@ func (x *cmdHWAssign) Execute(args []string) (err error) {
 	}
 
 	fmt.Printf("'%s' is now allowed to access '%s'\n", x.Positional.PackageName, x.Positional.DevicePath)
-	return err
+	return nil
 }

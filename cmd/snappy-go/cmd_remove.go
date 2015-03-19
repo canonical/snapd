@@ -23,9 +23,7 @@ func (x *cmdRemove) Execute(args []string) (err error) {
 	if err := privMutex.TryLock(); err != nil {
 		return err
 	}
-	defer func() {
-		err = privMutex.Unlock()
-	}()
+	defer privMutex.Unlock()
 
 	for _, part := range args {
 		fmt.Printf("Removing %s\n", part)
@@ -35,5 +33,5 @@ func (x *cmdRemove) Execute(args []string) (err error) {
 		}
 	}
 
-	return err
+	return nil
 }

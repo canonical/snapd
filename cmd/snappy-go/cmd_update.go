@@ -24,9 +24,7 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 	if err := privMutex.TryLock(); err != nil {
 		return err
 	}
-	defer func() {
-		err = privMutex.Unlock()
-	}()
+	defer privMutex.Unlock()
 
 	return update()
 }

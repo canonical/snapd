@@ -24,9 +24,7 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 	if err := privMutex.TryLock(); err != nil {
 		return err
 	}
-	defer func() {
-		err = privMutex.Unlock()
-	}()
+	defer privMutex.Unlock()
 
 	for _, part := range args {
 		err = snappy.Install(part)
@@ -46,5 +44,5 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 
 	showInstalledList(installed, os.Stdout)
 
-	return err
+	return nil
 }

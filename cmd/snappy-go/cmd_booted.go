@@ -21,9 +21,7 @@ func (x *cmdBooted) Execute(args []string) (err error) {
 	if err := privMutex.TryLock(); err != nil {
 		return err
 	}
-	defer func() {
-		err = privMutex.Unlock()
-	}()
+	defer privMutex.Unlock()
 
 	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)
 	if err != nil {
