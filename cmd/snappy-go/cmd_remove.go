@@ -21,16 +21,10 @@ func init() {
 func (x *cmdRemove) Execute(args []string) (err error) {
 	privMutex := priv.New()
 	if err := privMutex.TryLock(); err != nil {
-		if err == priv.ErrNeedRoot {
-			err = snappy.ErrNeedRoot
-		}
 		return err
 	}
 	defer func() {
 		err = privMutex.Unlock()
-		if err == priv.ErrNeedRoot {
-			err = snappy.ErrNeedRoot
-		}
 	}()
 
 	for _, part := range args {

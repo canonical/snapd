@@ -19,16 +19,10 @@ func init() {
 func (x *cmdBooted) Execute(args []string) (err error) {
 	privMutex := priv.New()
 	if err := privMutex.TryLock(); err != nil {
-		if err == priv.ErrNeedRoot {
-			err = snappy.ErrNeedRoot
-		}
 		return err
 	}
 	defer func() {
 		err = privMutex.Unlock()
-		if err == priv.ErrNeedRoot {
-			err = snappy.ErrNeedRoot
-		}
 	}()
 
 	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)
