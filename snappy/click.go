@@ -576,9 +576,18 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		}
 	}()
 
-	err = d.Unpack(instDir)
-	if err != nil {
-		return err
+	// we need to call the external helper so that we can reliable drop
+	// privs
+	if strings.HasSuffix(os.Args[0], "snappy-go") {
+		cmd := exec.Command(os.Args[0], "--internal-unpack", d.Path, instDir)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("can not unpack %s to %s", d.Path, instDir)
+		}
+	} else {
+		// internal
+		if err := d.Unpack(instDir); err != nil {
+			return err
+		}
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
