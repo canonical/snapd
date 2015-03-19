@@ -205,7 +205,6 @@ func (ts *LoggerTestSuite) checkLogLevel(c *C, level, msg string) {
 
 	lines := readLines()
 
-
 	if expectBacktrace {
 		c.Assert(len(lines) > 1, Equals, true)
 	} else {
