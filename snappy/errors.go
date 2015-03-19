@@ -95,3 +95,13 @@ type ErrDataCopyFailed struct {
 func (e *ErrDataCopyFailed) Error() string {
 	return fmt.Sprintf("data copy from %v to %v failed with exit status %d", e.oldPath, e.newPath, e.exitCode)
 }
+
+// ErrUpgradeVerificationFailed is returned if the upgrade has not
+// worked (i.e. no new version on the other partition)
+type ErrUpgradeVerificationFailed struct {
+	msg string
+}
+
+func (e *ErrUpgradeVerificationFailed) Error() string {
+	return fmt.Sprintf("upgrade verification failed: %s", e.msg)
+}
