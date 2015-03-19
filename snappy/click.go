@@ -326,7 +326,7 @@ func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *pack
 
 set -e
 
-TMPDIR="/tmp/snapps/{{.Name}}/{{.Version}}/tmp"
+TMPDIR="/tmp/snaps/{{.Name}}/{{.Version}}/tmp"
 if [ ! -d "$TMPDIR" ]; then
     mkdir -p -m1777 "$TMPDIR"
 fi
