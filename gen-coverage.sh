@@ -12,6 +12,8 @@ OUTPUTDIR=${1:-$(pwd)}
         $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-snappy.html)
 (cd partition &&
         $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-partition.html)
+(cd logger &&
+        $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-logger.html)
 (cd helpers &&
         $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-helpers.html)
 (cd coreconfig &&

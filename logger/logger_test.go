@@ -193,6 +193,10 @@ func (ts *LoggerTestSuite) checkLogLevel(c *C, level, msg string) {
 		c.Assert(logger.IsInfoEnabled(), Equals, true)
 		logger.Infof(msg)
 
+	case "WARNING":
+		c.Assert(logger.IsWarningEnabled(), Equals, true)
+		logger.Warningf(msg)
+
 	case "ERROR":
 		c.Assert(logger.IsErrorEnabled(), Equals, true)
 		logger.Errorf(msg)
@@ -219,7 +223,7 @@ func (ts *LoggerTestSuite) checkLogLevel(c *C, level, msg string) {
 
 func (ts *LoggerTestSuite) TestLogLevels(c *C) {
 	msg := "an error message"
-	levels := []string{"DEBUG", "INFO", "ERROR", "CRITICAL"}
+	levels := []string{"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
 	for _, level := range levels {
 		ts.checkLogLevel(c, level, msg)
@@ -251,8 +255,24 @@ func (ts *LoggerTestSuite) TestLogAndPanic(c *C) {
 	level := "CRITICAL"
 	msg := "I am a fatal error"
 
+	panicked := false
+
 	err := ActivateLogger()
 	c.Assert(err, IsNil)
+
+	// If the specified error is nil, no panic is expected and no
+	// log entry should be added.
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicked = true
+			}
+		}()
+		LogAndPanic(nil)
+	}()
+
+	c.Assert(panicked, Equals, false)
+	c.Assert(len(readLines()), Equals, 0)
 
 	err = errors.New(msg)
 
