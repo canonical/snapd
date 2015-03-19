@@ -68,7 +68,7 @@ func (s *SnapTestSuite) TestSetActive(c *C) {
 		os.Stdout = oldStdout
 	}()
 
-	err = setActive("foo", "1.0")
+	err = MakeSnapActiveByNameAndVersion("foo", "1.0")
 	c.Assert(err, IsNil)
 	path, err = filepath.EvalSymlinks(filepath.Join(snapAppsDir, "foo", "current"))
 	c.Assert(strings.HasSuffix(path, "/foo/1.0"), Equals, true)

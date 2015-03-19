@@ -171,3 +171,16 @@ func (bv ByVersion) Swap(a, b int) {
 func (bv ByVersion) Len() int {
 	return len(bv)
 }
+
+// BySnap provides a sort interface
+type BySnapVersion []Part
+
+func (bv BySnapVersion) Less(a, b int) bool {
+	return (VersionCompare(bv[a].Version(), bv[b].Version()) < 0)
+}
+func (bv BySnapVersion) Swap(a, b int) {
+	bv[a], bv[b] = bv[b], bv[a]
+}
+func (bv BySnapVersion) Len() int {
+	return len(bv)
+}
