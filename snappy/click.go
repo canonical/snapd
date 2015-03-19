@@ -98,17 +98,25 @@ func allowUnauthenticatedOkExitCode(exitCode int) bool {
 		exitCode == dsFailNopolicies)
 }
 
+type ErrSignature struct {
+	exitCode int
+}
+func (e *ErrSignature) Error() string {
+	return fmt.Sprintf("Signature verification failed wit %d", e.exitCode)
+}
+
 // Tiny wrapper around the debsig-verify commandline
 func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error) {
 	cmd := exec.Command("debsig-verify", clickFile)
 	if err := cmd.Run(); err != nil {
-		if exitCode, err := helpers.ExitCode(err); err == nil {
+		exitCode, err := helpers.ExitCode(err)
+		if err == nil {
 			if allowUnauthenticated && allowUnauthenticatedOkExitCode(exitCode) {
 				log.Println("Signature check failed, but installing anyway as requested")
 				return nil
 			}
 		}
-		return err
+		return &ErrSignature{exitCode: exitCode}
 	}
 	return nil
 }
