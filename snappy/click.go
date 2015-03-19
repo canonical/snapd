@@ -687,6 +687,12 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 			// by default to save space
 			cmd := exec.Command("cp", "-al", oldPath, newPath)
 			if err := cmd.Run(); err != nil {
+				if exitCode, err := helpers.ExitCode(err); err != nil {
+					return &ErrDataCopyFailed{
+						oldPath:  oldPath,
+						newPath:  newPath,
+						exitCode: exitCode}
+				}
 				return err
 			}
 		}
