@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/user"
 	"strconv"
@@ -9,6 +10,8 @@ import (
 	"launchpad.net/snappy/clickdeb"
 )
 
+// for compat with the old snappy, once that is gone we can drop to a
+// different user
 const dropPrivsUser = "clickpkg"
 
 type cmdInternalUnpack struct {
@@ -45,11 +48,20 @@ func unpackAndDropPrivs(snapFile, targetDir string) error {
 			}
 		}
 
+		if err := syscall.Setgroups([]int{gid}); err != nil {
+			return err
+		}
+
 		if err := syscall.Setgid(gid); err != nil {
 			return err
 		}
 		if err := syscall.Setuid(uid); err != nil {
 			return err
+		}
+
+		// extra paranoia
+		if syscall.Getuid() != uid || syscall.Getgid() != gid {
+			return fmt.Errorf("Droping privileges failed, uid is %v, gid is %v", syscall.Getuid(), syscall.Getgid())
 		}
 	}
 
