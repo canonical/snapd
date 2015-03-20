@@ -105,7 +105,7 @@ func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error
 				return nil
 			}
 		}
-		return &ErrSignature{exitCode: exitCode}
+		return err
 	}
 	return nil
 }
@@ -445,7 +445,7 @@ func addPackageServices(baseDir string) error {
 
 	for _, service := range m.Services {
 		aaProfile := fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version)
-		content := generateSnapServicesFile(service, baseDir, aaProfile, m)
+		content := generateSnapServicesFile(service, baseDir[len(globalRootDir):], aaProfile, m)
 		serviceFilename := generateServiceFileName(m, service)
 		helpers.EnsureDir(filepath.Dir(serviceFilename), 0755)
 		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0755); err != nil {
@@ -519,7 +519,7 @@ func addPackageBinaries(baseDir string) error {
 
 	for _, binary := range m.Binaries {
 		aaProfile := getBinaryAaProfile(m, binary)
-		content := generateSnapBinaryWrapper(binary, baseDir, aaProfile, m)
+		content := generateSnapBinaryWrapper(binary, baseDir[len(globalRootDir):], aaProfile, m)
 		if err := ioutil.WriteFile(generateBinaryName(m, binary), []byte(content), 0755); err != nil {
 			return err
 		}
