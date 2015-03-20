@@ -24,6 +24,7 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 	}
 
 	for _, part := range args {
+		fmt.Printf("Installing %s\n", part)
 		err = snappy.Install(part)
 		if err == snappy.ErrPackageNotFound {
 			return fmt.Errorf("No package '%s' for %s", part, ubuntuCoreChannel())
