@@ -3,9 +3,11 @@
 #include <stdlib.h>
 #include <linux/sched.h>
 #include <sys/mount.h>
+#include <sys/apparmor.h>
 
 #include "overlay.h"
 #include "utils.h"
+#include "seccomp.h"
 
 int main(int argc, char **argv)
 {
@@ -20,16 +22,23 @@ int main(int argc, char **argv)
 
     const char *rootdir = argv[1];
     const char *binary = argv[2];
-    const char *apparmor = argv[3];
+    const char *aa_profile = argv[3];
 
     //https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#ubuntu-snapp-launch
 
     // setup env
     setenv("SNAP_APP_DIR", rootdir, 1);
 
+#if 0 // not working
     // private tmp
+    int rc = unshare(CLONE_NEWNS);
+    if (rc != 0) {
+       fprintf(stderr, "unshare failed %i", rc);
+       exit(1);
+    }
     if (!make_private_tmp())
        die("failed to create private /tmp dir");
+#endif
     
     // FIXME: setup cgroup for net_cls
 
@@ -39,11 +48,11 @@ int main(int argc, char **argv)
 
     // FIXME: ensure user specific data dir is availble (create if needed)
 
+    // set seccomp
+    seccomp_load_filters(aa_profile);
+    
     // set apparmor rules
-    aa_change_onexec(apparmor);
-
-    // run the app
-    chdir(rootdir);
+    aa_change_onexec(aa_profile);
 
     char **new_argv = malloc((argc-NR_ARGS+1)*sizeof(char*));
     new_argv[0] = (char*)binary;
@@ -51,6 +60,5 @@ int main(int argc, char **argv)
        new_argv[i] = argv[i+NR_ARGS];
     new_argv[i] = NULL;
     
-    execv(binary, new_argv);
-    //execl("/bin/bash", "/bin/bash", NULL);
+    return execv(binary, new_argv);
 }

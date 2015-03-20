@@ -1,10 +1,10 @@
 
 CFLAGS= -O2 -Wall -Werror
-LIBS = -lapparmor
+LIBS = -lapparmor -lseccomp
 
 BIN = ubuntu-core-launcher
 SRCS = $(wildcard *.c)
-OBJS = $(SRCS:.cpp=.o)
+OBJS = $(SRCS:.c=.o)
 
 ubuntu-core-launcher: $(OBJS)
 	$(CC) $(OBJS) -o $@ $(LIBS)
@@ -14,4 +14,4 @@ ubuntu-core-launcher: $(OBJS)
 
 # To remove generated files
 clean:
-	rm -f *.o
+	rm -f *.o ${BIN}
