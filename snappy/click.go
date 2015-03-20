@@ -578,6 +578,12 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 
 	// we need to call the external helper so that we can reliable drop
 	// privs
+	//
+	// FIXME: this is problematic because:
+	// - this code is used in libraries so we can not just use os.Argv[0]
+	// - this code runs during the tests when os.Argv[0] is go itself
+	//
+	// maybe check: $PATH and $GOPATH/bin ?
 	if strings.HasSuffix(os.Args[0], "snappy-go") {
 		cmd := exec.Command(os.Args[0], "internal-unpack", d.Path, instDir)
 		if err := cmd.Run(); err != nil {
