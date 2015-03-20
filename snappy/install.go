@@ -1,7 +1,6 @@
 package snappy
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -68,7 +67,6 @@ func Install(name string, flags InstallFlags) (err error) {
 		// act only on parts that are downloadable
 		if !part.IsInstalled() {
 			pbar := NewTextProgress(part.Name())
-			fmt.Printf("Installing %s\n", part.Name())
 			return part.Install(pbar, flags)
 		}
 	}
