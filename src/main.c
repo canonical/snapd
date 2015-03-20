@@ -29,17 +29,7 @@ int main(int argc, char **argv)
     // setup env
     setenv("SNAP_APP_DIR", rootdir, 1);
 
-#if 0 // not working
-    // private tmp
-    int rc = unshare(CLONE_NEWNS);
-    if (rc != 0) {
-       fprintf(stderr, "unshare failed %i", rc);
-       exit(1);
-    }
-    if (!make_private_tmp())
-       die("failed to create private /tmp dir");
-#endif
-    
+   
     // FIXME: setup cgroup for net_cls
 
     // FIXME: setup iptables security table
