@@ -4,7 +4,7 @@ import (
 	"launchpad.net/snappy/helpers"
 )
 
-var arch = helpers.Architecture()
+var arch = helpers.UbuntuArchitecture()
 
 // Architecture returns the native architecture that snappy runs on
 func Architecture() string {

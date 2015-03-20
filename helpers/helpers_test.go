@@ -78,15 +78,15 @@ func (ts *HTestSuite) TestGetMapFromInvalidYaml(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (ts *HTestSuite) TestArchitectue(c *C) {
+func (ts *HTestSuite) TestUbuntuArchitectue(c *C) {
 	goarch = "arm"
-	c.Check(Architecture(), Equals, "armhf")
+	c.Check(UbuntuArchitecture(), Equals, "armhf")
 
 	goarch = "amd64"
-	c.Check(Architecture(), Equals, "amd64")
+	c.Check(UbuntuArchitecture(), Equals, "amd64")
 
 	goarch = "386"
-	c.Check(Architecture(), Equals, "i386")
+	c.Check(UbuntuArchitecture(), Equals, "i386")
 }
 
 func (ts *HTestSuite) TestChdir(c *C) {
