@@ -37,12 +37,12 @@ int main(int argc, char **argv)
     // FIXME: port binding restriction (seccomp?)
 
     // FIXME: ensure user specific data dir is availble (create if needed)
-
-    // set seccomp
-    seccomp_load_filters(aa_profile);
     
     // set apparmor rules
     aa_change_onexec(aa_profile);
+
+    // set seccomp
+    seccomp_load_filters(aa_profile);
 
     char **new_argv = malloc((argc-NR_ARGS+1)*sizeof(char*));
     new_argv[0] = (char*)binary;
