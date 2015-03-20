@@ -43,6 +43,11 @@ var (
 	// ErrNotInstalled is returned when the snap is not installed
 	ErrNotInstalled = errors.New("the given snap is not installed")
 
+	// ErrPrivOpInProgress is returned when a privileged operation
+	// cannot be performed since an existing privileged operation is
+	// still running.
+	ErrPrivOpInProgress = errors.New("privileged operation already in progress")
+
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
 

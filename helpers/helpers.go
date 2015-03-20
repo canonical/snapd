@@ -141,7 +141,7 @@ func Architecture() string {
 }
 
 // EnsureDir ensures that the given directory exists and if
-// not create it with the given permissions
+// not creates it with the given permissions.
 func EnsureDir(dir string, perm os.FileMode) (err error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dir, perm); err != nil {

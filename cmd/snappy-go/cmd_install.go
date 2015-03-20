@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -19,9 +20,11 @@ func init() {
 }
 
 func (x *cmdInstall) Execute(args []string) (err error) {
-	if !isRoot() {
-		return ErrRequiresRoot
+	privMutex := priv.New()
+	if err := privMutex.TryLock(); err != nil {
+		return err
 	}
+	defer privMutex.Unlock()
 
 	for _, part := range args {
 		fmt.Printf("Installing %s\n", part)
