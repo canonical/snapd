@@ -69,7 +69,7 @@ func Install(name string, flags InstallFlags) (err error) {
 		if !part.IsInstalled() {
 			pbar := NewTextProgress(part.Name())
 			fmt.Printf("Installing %s\n", part.Name())
-			return part.Install(pbar)
+			return part.Install(pbar, flags)
 		}
 	}
 

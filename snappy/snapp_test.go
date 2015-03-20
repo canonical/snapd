@@ -437,7 +437,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
 	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
 
 	p := &MockProgressMeter{}
-	err = snap.Install(p)
+	err = snap.Install(p, 0)
 	c.Assert(err, IsNil)
 	st, err := os.Stat(snapPackage)
 	c.Assert(err, IsNil)

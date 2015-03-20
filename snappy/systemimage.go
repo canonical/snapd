@@ -131,7 +131,7 @@ func (s *SystemImagePart) SetActive() (err error) {
 }
 
 // Install installs the snap
-func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
+func (s *SystemImagePart) Install(pb ProgressMeter, flags InstallFlags) (err error) {
 	if pb != nil {
 		// ensure the progress finishes when we are done
 		defer func() {
