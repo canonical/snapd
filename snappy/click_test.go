@@ -409,7 +409,7 @@ const expectedWrapper = `#!/bin/sh
 
 set -e
 
-TMPDIR="/tmp/snapps/pastebinit.mvo/1.4.0.0.1/tmp"
+TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
 if [ ! -d "$TMPDIR" ]; then
     mkdir -p -m1777 "$TMPDIR"
 fi
