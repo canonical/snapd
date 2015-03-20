@@ -21,7 +21,6 @@ bool make_overlay(const char* dirs[])
     char* options;
 
     // FIXME: don't use /mnt, use a special dir just for us
-
     for (i = 0; dirs[i] != NULL; i++) {
         if (i == 0) {
             len = strlen(dirs[i]) + strlen("upperdir=,lowerdir=/") + 2;
@@ -41,7 +40,8 @@ bool make_overlay(const char* dirs[])
     if(chdir("/mnt") != 0)
        return error("Failed to chdir to /mnt");
     if(pivot_root(".", ".") != 0)
-       return error("Failed  pivot_root()");
+       //return error("Failed  pivot_root()");
+       error("Failed  pivot_root()");
     if(chroot(".") != 0)
        return error("Failed to chroot to .");
     if(chdir("/") != 0)

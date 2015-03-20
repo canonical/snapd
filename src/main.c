@@ -27,23 +27,10 @@ int main(int argc, char **argv)
     // setup env
     setenv("SNAP_APP_DIR", rootdir, 1);
 
-    // setup mount namespace
-    if (geteuid())
-        unshare(CLONE_NEWUSER);
-    unshare(CLONE_NEWNS);
-
     // private tmp
     if (!make_private_tmp())
        die("failed to create private /tmp dir");
     
-    // FIXME: we need to add all frameworks that need to be overlayed here
-    const char* OVERLAY_DIRS[] = {
-       rootdir,
-       NULL,
-    };
-    if (!make_overlay(OVERLAY_DIRS))
-       die("Failed to setup overlay");
-
     // FIXME: setup cgroup for net_cls
 
     // FIXME: setup iptables security table
