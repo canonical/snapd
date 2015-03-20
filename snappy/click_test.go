@@ -568,3 +568,14 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServicesFile(c *C) {
 	generated := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
 	c.Assert(generated, Equals, expectedService)
 }
+
+func (s *SnapTestSuite) TestFindBinaryInPath(c *C) {
+	fakeBinDir := c.MkDir()
+	runMePath := filepath.Join(fakeBinDir, "runme")
+	err := ioutil.WriteFile(runMePath, []byte(""), 0755)
+	c.Assert(err, IsNil)
+
+	fakePATH := fmt.Sprintf("/some/dir:%s", fakeBinDir)
+	c.Assert(findBinaryInPath("runme", fakePATH), Equals, runMePath)
+	c.Assert(findBinaryInPath("no-such-binary-nowhere", fakePATH), Equals, "")
+}

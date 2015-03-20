@@ -19,6 +19,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"text/template"
 
 	"launchpad.net/snappy/clickdeb"
@@ -528,6 +529,55 @@ func removePackageBinaries(baseDir string) error {
 	return nil
 }
 
+// takes a name and PATH (colon separated) and returns the full qualified path
+func findBinaryInPath(name, path string) string {
+	for _, entry := range strings.Split(path, ":") {
+		fname := filepath.Join(entry, name)
+		if helpers.FileExists(fname) {
+			return fname
+		}
+	}
+
+	return ""
+}
+
+// unpackWithDropPrivs is a helper that will unapck the ClickDeb content
+// into the target dir and drop privs when doing this.
+//
+// To do this reliably in go we need to exec a helper as we can not
+// just fork() and drop privs in the child (no support for stock fork in go)
+func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
+	// no need to drop privs, we are not root
+	if syscall.Getuid() != 0 {
+		return d.Unpack(instDir)
+	}
+
+	// find priv helper executable
+	privHelper := ""
+	for _, path := range []string{"PATH", "GOPATH"} {
+		privHelper = findBinaryInPath("snappy-go", os.Getenv(path))
+		if privHelper != "" {
+			break
+		}
+	}
+	if privHelper == "" {
+		return ErrUnpackHelperNotFound
+	}
+
+	cmd := exec.Command(privHelper, "internal-unpack", d.Path, instDir)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return &ErrUnpackFailed{
+			snapFile: d.Path,
+			instDir:  instDir,
+			origErr:  err,
+		}
+	}
+
+	return nil
+}
+
 func installClick(snapFile string, flags InstallFlags) (err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
@@ -578,22 +628,8 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 
 	// we need to call the external helper so that we can reliable drop
 	// privs
-	//
-	// FIXME: this is problematic because:
-	// - this code is used in libraries so we can not just use os.Argv[0]
-	// - this code runs during the tests when os.Argv[0] is go itself
-	//
-	// maybe check: $PATH and $GOPATH/bin ?
-	if strings.HasSuffix(os.Args[0], "snappy-go") {
-		cmd := exec.Command(os.Args[0], "internal-unpack", d.Path, instDir)
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("can not unpack %s to %s", d.Path, instDir)
-		}
-	} else {
-		// internal
-		if err := d.Unpack(instDir); err != nil {
-			return err
-		}
+	if err := unpackWithDropPrivs(&d, instDir); err != nil {
+		return err
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted

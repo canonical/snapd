@@ -2,6 +2,7 @@ package snappy
 
 import (
 	"errors"
+	"fmt"
 )
 
 var (
@@ -53,4 +54,18 @@ var (
 	// ErrSnapNotActive is returned if you try to unset a snap from
 	// active to inactive
 	ErrSnapNotActive = errors.New("snap not active")
+
+	// ErrUnpackHelperNotFound is returned if the unpack helper
+	// can not be found
+	ErrUnpackHelperNotFound = errors.New("unpack helper not found, do you hae snappy installed in your PATH or GOPATH?")
 )
+
+type ErrUnpackFailed struct {
+	snapFile string
+	instDir  string
+	origErr  error
+}
+
+func (e *ErrUnpackFailed) Error() string {
+	return fmt.Sprintf("unpack %s to %s failed with %s", e.snapFile, e.instDir, e.origErr)
+}
