@@ -106,14 +106,15 @@ func allowUnauthenticatedOkExitCode(exitCode int) bool {
 func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error) {
 	cmd := exec.Command("debsig-verify", clickFile)
 	if err := cmd.Run(); err != nil {
-		exitCode, err := helpers.ExitCode(err)
-		if err == nil {
+		if exitCode, err := helpers.ExitCode(err); err == nil {
 			if allowUnauthenticated && allowUnauthenticatedOkExitCode(exitCode) {
 				log.Println("Signature check failed, but installing anyway as requested")
 				return nil
 			}
+			return &ErrSignature{exitCode: exitCode}
 		}
-		return &ErrSignature{exitCode: exitCode}
+		// not a exit code error, something else, pass on
+		return err
 	}
 	return nil
 }
