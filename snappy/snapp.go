@@ -272,7 +272,7 @@ func (s *SnapPart) Services() []Service {
 }
 
 // Install installs the snap
-func (s *SnapPart) Install(pb ProgressMeter) (err error) {
+func (s *SnapPart) Install(pb ProgressMeter, flags InstallFlags) (err error) {
 	return errors.New("Install of a local part is not possible")
 }
 
@@ -448,7 +448,7 @@ func (s *RemoteSnapPart) Date() time.Time {
 }
 
 // Install installs the snap
-func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
+func (s *RemoteSnapPart) Install(pbar ProgressMeter, flags InstallFlags) (err error) {
 	w, err := ioutil.TempFile("", s.pkg.Name)
 	if err != nil {
 		return err
@@ -492,7 +492,7 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 		return err
 	}
 
-	err = installClick(w.Name(), 0)
+	err = installClick(w.Name(), flags)
 	if err != nil {
 		return err
 	}

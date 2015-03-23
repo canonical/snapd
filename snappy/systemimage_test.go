@@ -161,7 +161,7 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 
 	pb := &MockProgressMeter{}
 	// do the install
-	err = sp.Install(pb)
+	err = sp.Install(pb, 0)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 	c.Assert(pb.total, Equals, 100.0)
@@ -189,7 +189,7 @@ printf '{"type": "error", "msg": "some error msg"}\n'
 
 	pb := &MockProgressMeter{}
 	// do the install
-	err = sp.Install(pb)
+	err = sp.Install(pb, 0)
 	c.Assert(strings.HasSuffix(err.Error(), "some error msg"), Equals, true)
 }
 
@@ -210,7 +210,7 @@ exit 1
 	sp.partition = &mockPartition
 
 	// do the install and pretend something goes wrong
-	err = sp.Install(nil)
+	err = sp.Install(nil, 0)
 
 	//
 	c.Assert(err.Error(), Equals, fmt.Sprintf("%s failed with return code 1: random\nerror string", systemImageCli))
@@ -225,7 +225,7 @@ func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.Install(nil)
+	err = sp.Install(nil, 0)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 }
