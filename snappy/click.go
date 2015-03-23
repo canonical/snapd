@@ -420,13 +420,6 @@ func runSystemctlImpl(cmd ...string) error {
 	}
 	return nil
 }
-func runSystemctlInhibit(cmd ...string) error {
-	if cmd[0] == "enable" {
-		return runSystemctlImpl(cmd...)
-	}
-
-	return nil
-}
 
 func addPackageServices(baseDir string, inhibitHooks bool) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
