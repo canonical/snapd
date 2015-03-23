@@ -421,6 +421,13 @@ func runSystemctlImpl(cmd ...string) error {
 	return nil
 }
 
+// takes a directory and removes the global root, this is needed
+// when the SetGlobalRoot option is used and we need to generate
+// content for the "Services" and "Binaries" section
+func stripGlobalRootDir(dir string) string {
+	return dir[len(globalRootDir):]
+}
+
 func addPackageServices(baseDir string, inhibitHooks bool) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
@@ -429,7 +436,12 @@ func addPackageServices(baseDir string, inhibitHooks bool) error {
 
 	for _, service := range m.Services {
 		aaProfile := fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version)
-		content := generateSnapServicesFile(service, baseDir[len(globalRootDir):], aaProfile, m)
+		// this will remove the global base dir when generating the
+		// service file, this ensures that /apps/foo/1.0/bin/start
+		// is in the service file when the SetGlobalRoot() option
+		// is used
+		realBaseDir := stripGlobalRootDir(baseDir)
+		content := generateSnapServicesFile(service, realBaseDir, aaProfile, m)
 		serviceFilename := generateServiceFileName(m, service)
 		helpers.EnsureDir(filepath.Dir(serviceFilename), 0755)
 		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0755); err != nil {
@@ -512,7 +524,12 @@ func addPackageBinaries(baseDir string) error {
 
 	for _, binary := range m.Binaries {
 		aaProfile := getBinaryAaProfile(m, binary)
-		content := generateSnapBinaryWrapper(binary, baseDir[len(globalRootDir):], aaProfile, m)
+		// this will remove the global base dir when generating the
+		// service file, this ensures that /apps/foo/1.0/bin/start
+		// is in the service file when the SetGlobalRoot() option
+		// is used
+		realBaseDir := stripGlobalRootDir(baseDir)
+		content := generateSnapBinaryWrapper(binary, realBaseDir, aaProfile, m)
 		if err := ioutil.WriteFile(generateBinaryName(m, binary), []byte(content), 0755); err != nil {
 			return err
 		}
