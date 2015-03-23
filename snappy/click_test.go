@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/mvo5/goconfigparser"
+
 	"launchpad.net/snappy/helpers"
 
 	. "launchpad.net/gocheck"
@@ -47,7 +49,12 @@ func (s *SnapTestSuite) TestReadManifest(c *C) {
 	c.Assert(manifest.Hooks["evil"]["apparmor"], Equals, "meta/evil.apparmor")
 }
 
-func makeClickHook(c *C, hookName, hookContent string) {
+func makeClickHook(c *C, hookContent string) {
+	cfg := goconfigparser.New()
+	c.Assert(cfg.ReadString("[hook]\n"+hookContent), IsNil)
+	hookName, err := cfg.Get("hook", "Hook-Name")
+	c.Assert(err, IsNil)
+
 	if _, err := os.Stat(clickSystemHooksDir); err != nil {
 		os.MkdirAll(clickSystemHooksDir, 0755)
 	}
@@ -55,11 +62,11 @@ func makeClickHook(c *C, hookName, hookContent string) {
 }
 
 func (s *SnapTestSuite) TestReadClickHookFile(c *C) {
-	makeClickHook(c, "snappy-systemd", `Hook-Name: systemd
+	makeClickHook(c, `Hook-Name: systemd
 User: root
 Exec: /usr/lib/click-systemd/systemd-clickhook
 Pattern: /var/lib/systemd/click/${id}`)
-	hook, err := readClickHookFile(path.Join(clickSystemHooksDir, "snappy-systemd.hook"))
+	hook, err := readClickHookFile(path.Join(clickSystemHooksDir, "systemd.hook"))
 	c.Assert(err, IsNil)
 	c.Assert(hook.name, Equals, "systemd")
 	c.Assert(hook.user, Equals, "root")
@@ -67,7 +74,7 @@ Pattern: /var/lib/systemd/click/${id}`)
 	c.Assert(hook.pattern, Equals, "/var/lib/systemd/click/${id}")
 
 	// click allows non-existing "Hook-Name" and uses the filename then
-	makeClickHook(c, "apparmor", `
+	makeClickHook(c, `Hook-Name: apparmor
 Pattern: /var/lib/apparmor/click/${id}`)
 	hook, err = readClickHookFile(path.Join(clickSystemHooksDir, "apparmor.hook"))
 	c.Assert(err, IsNil)
@@ -75,7 +82,7 @@ Pattern: /var/lib/apparmor/click/${id}`)
 }
 
 func (s *SnapTestSuite) TestReadClickHooksDir(c *C) {
-	makeClickHook(c, "snappy-systemd", `Hook-Name: systemd
+	makeClickHook(c, `Hook-Name: systemd
 User: root
 Exec: /usr/lib/click-systemd/systemd-clickhook
 Pattern: /var/lib/systemd/click/${id}`)
@@ -91,13 +98,13 @@ func (s *SnapTestSuite) TestHandleClickHooks(c *C) {
 	testSymlinkDir := path.Join(s.tempdir, "/var/lib/systemd/click/")
 	content := fmt.Sprintf(`Hook-Name: systemd
 Pattern: %s/${id}`, testSymlinkDir)
-	makeClickHook(c, "snappy-systemd", content)
+	makeClickHook(c, content)
 
 	os.MkdirAll(path.Join(s.tempdir, "/var/lib/apparmor/click/"), 0755)
 	testSymlinkDir2 := path.Join(s.tempdir, "/var/lib/apparmor/click/")
 	content = fmt.Sprintf(`Hook-Name: apparmor
 Pattern: %s/${id}`, testSymlinkDir2)
-	makeClickHook(c, "click-apparmor", content)
+	makeClickHook(c, content)
 
 	instDir := path.Join(s.tempdir, "apps", "foo", "1.0")
 	os.MkdirAll(instDir, 0755)
@@ -320,7 +327,7 @@ func (s *SnapTestSuite) TestClickCopyRemovesHooksFirst(c *C) {
 User: root
 Exec: (cd %s && printf "now: $(find . -name "*.tracehook")\n") >> %s/hook.trace
 Pattern: %s/${id}.tracehook`, s.tempdir, s.tempdir, s.tempdir)
-	makeClickHook(c, "tracehook", hookContent)
+	makeClickHook(c, hookContent)
 
 	packageYaml := `name: bar
 icon: foo.svg
@@ -358,7 +365,7 @@ func (s *SnapTestSuite) TestClickCopyDataHookFails(c *C) {
 User: root
 Exec: if test -e %s/bar_app_2.0.hooky; then echo "this log message is harmless and can be ignored"; false; fi
 Pattern: %s/${id}.hooky`, s.tempdir, s.tempdir)
-	makeClickHook(c, "hooky", hookContent)
+	makeClickHook(c, hookContent)
 
 	packageYaml := `name: bar
 icon: foo.svg
