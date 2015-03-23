@@ -1,7 +1,11 @@
 package snappy
 
 import (
+	"bufio"
 	"fmt"
+	"io"
+	"os"
+	"unicode"
 
 	"github.com/cheggaaa/pb"
 )
@@ -25,6 +29,9 @@ type ProgressMeter interface {
 
 	// interface for writer
 	Write(p []byte) (n int, err error)
+
+	// ask the user whether they agree to the given license's text
+	Agreed(intro, licenseFile string) bool
 }
 
 // NullProgress is a ProgressMeter that does nothing
@@ -54,6 +61,11 @@ func (t *NullProgress) Write(p []byte) (n int, err error) {
 
 // Spin does nothing
 func (t *NullProgress) Spin(msg string) {
+}
+
+// Agreed does nothing
+func (t *NullProgress) Agreed(intro, licenseFile string) bool {
+	return false
 }
 
 // TextProgress show progress on the terminal
@@ -113,4 +125,32 @@ func (t *TextProgress) Spin(msg string) {
 	if t.spinStep >= len(states) {
 		t.spinStep = 0
 	}
+}
+
+// ask the user whether they agree to the given license text
+func (t *TextProgress) Agreed(intro, licenseFile string) bool {
+	if _, err := fmt.Println(intro); err != nil {
+		return false
+	}
+
+	// XXX: send it through a pager instead of this ugly thing
+	in, err := os.Open(licenseFile)
+	if err != nil {
+		return false
+	}
+	defer in.Close()
+	if _, err := io.Copy(os.Stdout, in); err != nil {
+		return false
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	if _, err := fmt.Print("Do you agree? [y/n] "); err != nil {
+		return false
+	}
+	r, _, err := reader.ReadRune()
+	if err != nil {
+		return false
+	}
+
+	return unicode.ToLower(r) == 'y'
 }

@@ -154,3 +154,6 @@ func (m *MockProgressMeter) Write(buf []byte) (n int, err error) {
 func (m *MockProgressMeter) Finished() {
 	m.finished = true
 }
+func (m *MockProgressMeter) Agreed(string, string) bool {
+	return false
+}
