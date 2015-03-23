@@ -176,9 +176,7 @@ func expandHookPattern(name, app, version, pattern string) (expanded string) {
 	//        - user (probably not!)
 	//        - home (probably not!)
 	//        - $$ (?)
-	expanded = strings.Replace(pattern, "${id}", id, -1)
-
-	return
+	return strings.Replace(pattern, "${id}", id, -1)
 }
 
 type iterHooksFunc func(src, dst string, systemHook clickHook) error
