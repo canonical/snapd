@@ -278,7 +278,7 @@ func (s *SnapPart) Install(pb ProgressMeter, flags InstallFlags) (err error) {
 
 // SetActive sets the snap active
 func (s *SnapPart) SetActive() (err error) {
-	return setActiveClick(s.basedir)
+	return setActiveClick(s.basedir, false)
 }
 
 // Uninstall remove the snap from the system

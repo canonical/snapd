@@ -18,7 +18,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"text/template"
 
@@ -66,21 +65,13 @@ var ignoreHooks = map[string]bool{
 	"snappy-systemd": true,
 }
 
-// var to allow it to be a non-op
-var execHook = execHookImpl
-
-// Execute the hook.Exec command
-func execHookImpl(execCmd string) (err error) {
+func execHook(execCmd string) (err error) {
 	// the spec says this is passed to the shell
 	cmd := exec.Command("sh", "-c", execCmd)
 	if err = cmd.Run(); err != nil {
 		log.Printf("Failed to run hook %s: %s", execCmd, err)
 		return err
 	}
-	return nil
-}
-
-func execHookNop(exec string) error {
 	return nil
 }
 
@@ -189,7 +180,7 @@ type iterHooksFunc func(src, dst string, systemHook clickHook) error
 
 // iterHooks will run the callback "f" for the given manifest
 // so that the call back can arrange e.g. a new link
-func iterHooks(manifest clickManifest, f iterHooksFunc) error {
+func iterHooks(manifest clickManifest, inhibitHooks bool, f iterHooksFunc) error {
 	systemHooks, err := systemClickHooks()
 	if err != nil {
 		return err
@@ -223,7 +214,7 @@ func iterHooks(manifest clickManifest, f iterHooksFunc) error {
 				return err
 			}
 
-			if systemHook.exec != "" {
+			if systemHook.exec != "" && !inhibitHooks {
 				if err := execHook(systemHook.exec); err != nil {
 					os.Remove(dst)
 					return err
@@ -235,8 +226,8 @@ func iterHooks(manifest clickManifest, f iterHooksFunc) error {
 	return nil
 }
 
-func installClickHooks(targetDir string, manifest clickManifest) (err error) {
-	return iterHooks(manifest, func(src, dst string, systemHook clickHook) error {
+func installClickHooks(targetDir string, manifest clickManifest, inhibitHooks bool) (err error) {
+	return iterHooks(manifest, inhibitHooks, func(src, dst string, systemHook clickHook) error {
 		// setup the new link target here, iterHooks will take
 		// care of running the hook
 		realSrc := path.Join(targetDir, src)
@@ -248,8 +239,8 @@ func installClickHooks(targetDir string, manifest clickManifest) (err error) {
 	})
 }
 
-func removeClickHooks(manifest clickManifest) (err error) {
-	return iterHooks(manifest, func(src, dst string, systemHook clickHook) error {
+func removeClickHooks(manifest clickManifest, inhibitHooks bool) (err error) {
+	return iterHooks(manifest, inhibitHooks, func(src, dst string, systemHook clickHook) error {
 		// nothing we need to do here, the iterHookss will remove
 		// the hook symlink and call the hook itself
 		return nil
@@ -275,7 +266,7 @@ func removeClick(clickDir string) (err error) {
 		return err
 	}
 
-	if err := removeClickHooks(manifest); err != nil {
+	if err := removeClickHooks(manifest, false); err != nil {
 		return err
 	}
 
@@ -283,7 +274,7 @@ func removeClick(clickDir string) (err error) {
 	currentSymlink := path.Join(path.Dir(clickDir), "current")
 	p, _ := filepath.EvalSymlinks(currentSymlink)
 	if clickDir == p {
-		if err := unsetActiveClick(p); err != nil {
+		if err := unsetActiveClick(p, false); err != nil {
 			return err
 		}
 	}
@@ -437,7 +428,7 @@ func runSystemctlInhibit(cmd ...string) error {
 	return nil
 }
 
-func addPackageServices(baseDir string) error {
+func addPackageServices(baseDir string, inhibitHooks bool) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
 		return err
@@ -452,16 +443,25 @@ func addPackageServices(baseDir string) error {
 			return err
 		}
 
-		// enable, start
+		// daemon-reload and start only if we are not in the
+		// inhibitHooks mode
+		//
+		// *but* always run enable (which just sets a symlink)
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		if err := runSystemctl("daemon-reload"); err != nil {
-			return err
+		if !inhibitHooks {
+			if err := runSystemctl("daemon-reload"); err != nil {
+				return err
+			}
 		}
+
 		if err := runSystemctl("enable", serviceName); err != nil {
 			return err
 		}
-		if err := runSystemctl("start", serviceName); err != nil {
-			return err
+
+		if !inhibitHooks {
+			if err := runSystemctl("start", serviceName); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -552,20 +552,6 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		//return SnapAuditError
 	}
 
-	// FIXME: ugly test just to see if the tests already hooked this
-	runSystemctlP := reflect.ValueOf(runSystemctl)
-	runSystemctlInhibitP := reflect.ValueOf(runSystemctlInhibit)
-	runSystemctlImplP := reflect.ValueOf(runSystemctlImpl)
-	if runSystemctlP == runSystemctlInhibitP || runSystemctlP == runSystemctlImplP {
-		if (flags & InhibitHooks) != 0 {
-			execHook = execHookNop
-			runSystemctl = runSystemctlInhibit
-		} else {
-			execHook = execHookImpl
-			runSystemctl = runSystemctlImpl
-		}
-	}
-
 	d := clickdeb.ClickDeb{Path: snapFile}
 	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
@@ -621,6 +607,8 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		return err
 	}
 
+	inhibitHooks := (flags & InhibitHooks) != 0
+
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 	// deal with the data:
 	//
@@ -636,10 +624,10 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 		}
 
 		// we need to stop making it active
-		if err := unsetActiveClick(currentActiveDir); err != nil {
+		if err := unsetActiveClick(currentActiveDir, inhibitHooks); err != nil {
 			// if anything goes wrong try to activate the old
 			// one again and pass the error on
-			setActiveClick(currentActiveDir)
+			setActiveClick(currentActiveDir, inhibitHooks)
 			return err
 		}
 
@@ -647,7 +635,7 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 			// FIXME: remove newDir
 
 			// restore the previous version
-			setActiveClick(currentActiveDir)
+			setActiveClick(currentActiveDir, inhibitHooks)
 			return err
 		}
 	} else {
@@ -658,10 +646,10 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	}
 
 	// and finally make active
-	if err := setActiveClick(instDir); err != nil {
+	if err := setActiveClick(instDir, inhibitHooks); err != nil {
 		// ensure to revert on install failure
 		if currentActiveDir != "" {
-			setActiveClick(currentActiveDir)
+			setActiveClick(currentActiveDir, inhibitHooks)
 		}
 		return err
 	}
@@ -707,7 +695,7 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	return nil
 }
 
-func unsetActiveClick(clickDir string) error {
+func unsetActiveClick(clickDir string, inhibitHooks bool) error {
 	currentSymlink := filepath.Join(clickDir, "..", "current")
 
 	// sanity check
@@ -732,7 +720,7 @@ func unsetActiveClick(clickDir string) error {
 	if err != nil {
 		return err
 	}
-	if err := removeClickHooks(manifest); err != nil {
+	if err := removeClickHooks(manifest, inhibitHooks); err != nil {
 		return err
 	}
 
@@ -744,7 +732,7 @@ func unsetActiveClick(clickDir string) error {
 	return nil
 }
 
-func setActiveClick(baseDir string) (err error) {
+func setActiveClick(baseDir string, inhibitHooks bool) (err error) {
 	currentActiveSymlink := filepath.Join(baseDir, "..", "current")
 	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
 
@@ -755,7 +743,7 @@ func setActiveClick(baseDir string) (err error) {
 
 	// there is already an active part
 	if currentActiveDir != "" {
-		unsetActiveClick(currentActiveDir)
+		unsetActiveClick(currentActiveDir, inhibitHooks)
 	}
 
 	// make new part active
@@ -764,9 +752,9 @@ func setActiveClick(baseDir string) (err error) {
 		return err
 	}
 
-	if err := installClickHooks(baseDir, newActiveManifest); err != nil {
+	if err := installClickHooks(baseDir, newActiveManifest, inhibitHooks); err != nil {
 		// cleanup the failed hooks
-		removeClickHooks(newActiveManifest)
+		removeClickHooks(newActiveManifest, inhibitHooks)
 		return err
 	}
 
@@ -775,7 +763,7 @@ func setActiveClick(baseDir string) (err error) {
 		return err
 	}
 	// add the "services:" from the package.yaml
-	if err := addPackageServices(baseDir); err != nil {
+	if err := addPackageServices(baseDir, inhibitHooks); err != nil {
 		return err
 	}
 
