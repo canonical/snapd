@@ -120,7 +120,7 @@ Pattern: %s/${id}`, testSymlinkDir2)
 			},
 		},
 	}
-	err := installClickHooks(instDir, manifest)
+	err := installClickHooks(instDir, manifest, false)
 	c.Assert(err, IsNil)
 	p := fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version)
 	_, err = os.Stat(p)
@@ -137,7 +137,7 @@ Pattern: %s/${id}`, testSymlinkDir2)
 	c.Assert(symlinkTarget, Equals, path.Join(instDir, "path-to-apparmor-file"))
 
 	// now ensure we can remove
-	err = removeClickHooks(manifest)
+	err = removeClickHooks(manifest, false)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version))
 	c.Assert(err, NotNil)
@@ -253,7 +253,7 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(parts[1].IsActive(), Equals, true)
 
 	// set v1 active
-	err = setActiveClick(parts[0].(*SnapPart).basedir)
+	err = setActiveClick(parts[0].(*SnapPart).basedir, false)
 	parts, err = repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(parts[0].Version(), Equals, "1.0")
@@ -569,7 +569,8 @@ func (s *SnapTestSuite) TestLocalSnapInstallRunHooks(c *C) {
 
 	hookContent := fmt.Sprintf(`Hook-Name: systemd
 User: root
-Pattern: %s/${id}`, hookSymlinkDir)
+Exec: touch %s/i-ran
+Pattern: %s/${id}`, s.tempdir, hookSymlinkDir)
 	makeClickHook(c, hookContent)
 
 	packageYaml := `name: foo
@@ -584,6 +585,36 @@ integration:
 	// install it
 	c.Assert(installClick(snapFile, 0), IsNil)
 
-	// verify content
+	// verify we have the symlink
 	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, "foo_app_1.0")), Equals, true)
+	// and the hook exec was called
+	c.Assert(helpers.FileExists(filepath.Join(s.tempdir, "i-ran")), Equals, true)
+}
+
+func (s *SnapTestSuite) TestLocalSnapInstallInhibitHooks(c *C) {
+	hookSymlinkDir := filepath.Join(s.tempdir, "/var/lib/click/hooks/systemd")
+	c.Assert(os.MkdirAll(hookSymlinkDir, 0755), IsNil)
+
+	hookContent := fmt.Sprintf(`Hook-Name: systemd
+User: root
+Exec: touch %s/i-ran
+Pattern: %s/${id}`, s.tempdir, hookSymlinkDir)
+	makeClickHook(c, hookContent)
+
+	packageYaml := `name: foo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+integration:
+ app:
+  systemd: meta/package.yaml
+`
+	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+
+	// install it
+	c.Assert(installClick(snapFile, InhibitHooks), IsNil)
+
+	// verify we have the symlink
+	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, "foo_app_1.0")), Equals, true)
+	// but the hook exec was not called
+	c.Assert(helpers.FileExists(filepath.Join(s.tempdir, "i-ran")), Equals, false)
 }
