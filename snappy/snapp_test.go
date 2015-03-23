@@ -550,6 +550,14 @@ vendor: Michael Vogt <mvo@ubuntu.com>
 	c.Assert(m.Architectures, DeepEquals, []string{"all"})
 }
 
+func (s *SnapTestSuite) TestPackageYamlLicenseParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`explicit-license-agreement: Y`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.ExplicitLicenseAgreement, Equals, true)
+}
+
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryOemStoreId(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// ensure we get the right header

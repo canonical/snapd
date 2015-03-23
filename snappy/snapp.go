@@ -91,6 +91,8 @@ type packageYaml struct {
 	// this is a bit ugly, but right now integration is a one:one
 	// mapping of click hooks
 	Integration map[string]clickAppHook
+
+	ExplicitLicenseAgreement bool `yaml:"explicit-license-agreement"`
 }
 
 // the meta/hashes file, yaml so that we can extend it later with
