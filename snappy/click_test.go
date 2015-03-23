@@ -529,6 +529,27 @@ services:
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
 }
 
+func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
+	allSystemctl := []string{}
+	runSystemctl = func(cmd ...string) error {
+		allSystemctl = append(allSystemctl, cmd[0])
+		return nil
+	}
+
+	packageYaml := `name: foo.mvo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+services:
+ - name: service
+   start: bin/hello
+`
+	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	c.Assert(installClick(snapFile, InhibitHooks), IsNil)
+
+	c.Assert(allSystemctl[0], Equals, "enable")
+	c.Assert(allSystemctl, HasLen, 1)
+}
+
 const expectedService = `[Unit]
 Description=The docker app deployment mechanism
 After=apparmor.service

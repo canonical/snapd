@@ -418,7 +418,7 @@ func runSystemctlImpl(cmd ...string) error {
 	return exec.Command("systemctl", cmd...).Run()
 }
 
-func addPackageServices(baseDir string) error {
+func addPackageServices(baseDir string, inhibitHooks bool) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
 		return err
@@ -431,16 +431,25 @@ func addPackageServices(baseDir string) error {
 			return err
 		}
 
-		// enable, start
+		// daemon-reload and start only if we are not in the
+		// inhibitHooks mode
+		//
+		// *but* always run enable (which just sets a symlink)
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		if err := runSystemctl("daemon-reload"); err != nil {
-			return err
+		if !inhibitHooks {
+			if err := runSystemctl("daemon-reload"); err != nil {
+				return err
+			}
 		}
+
 		if err := runSystemctl("enable", serviceName); err != nil {
 			return err
 		}
-		if err := runSystemctl("start", serviceName); err != nil {
-			return err
+
+		if !inhibitHooks {
+			if err := runSystemctl("start", serviceName); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -742,7 +751,7 @@ func setActiveClick(baseDir string, inhibitHooks bool) (err error) {
 		return err
 	}
 	// add the "services:" from the package.yaml
-	if err := addPackageServices(baseDir); err != nil {
+	if err := addPackageServices(baseDir, inhibitHooks); err != nil {
 		return err
 	}
 
