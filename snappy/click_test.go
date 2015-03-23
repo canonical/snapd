@@ -562,3 +562,28 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServicesFile(c *C) {
 	generated := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
 	c.Assert(generated, Equals, expectedService)
 }
+
+func (s *SnapTestSuite) TestLocalSnapInstallRunHooks(c *C) {
+	hookSymlinkDir := filepath.Join(s.tempdir, "/var/lib/click/hooks/systemd")
+	c.Assert(os.MkdirAll(hookSymlinkDir, 0755), IsNil)
+
+	hookContent := fmt.Sprintf(`Hook-Name: systemd
+User: root
+Pattern: %s/${id}`, hookSymlinkDir)
+	makeClickHook(c, hookContent)
+
+	packageYaml := `name: foo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+integration:
+ app:
+  systemd: meta/package.yaml
+`
+	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+
+	// install it
+	c.Assert(installClick(snapFile, 0), IsNil)
+
+	// verify content
+	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, "foo_app_1.0")), Equals, true)
+}
