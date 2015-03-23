@@ -642,3 +642,42 @@ integration:
 	// but the hook exec was not called
 	c.Assert(helpers.FileExists(filepath.Join(s.tempdir, "i-ran")), Equals, false)
 }
+
+func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
+	// ensure that even with a global rootdir the paths in the generated
+	// .services file are setup correctly (i.e. that the global root
+	// is stripped)
+	c.Assert(globalRootDir, Not(Equals), "/")
+
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	c.Assert(err, IsNil)
+	baseDir := filepath.Dir(filepath.Dir(yamlFile))
+	err = addPackageServices(baseDir, false)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), "\nExecStart=/apps/hello-app/1.10/bin/hello\n"), Equals, true)
+}
+
+func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
+	// ensure that even with a global rootdir the paths in the generated
+	// .services file are setup correctly (i.e. that the global root
+	// is stripped)
+	c.Assert(globalRootDir, Not(Equals), "/")
+
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	c.Assert(err, IsNil)
+	baseDir := filepath.Dir(filepath.Dir(yamlFile))
+	err = addPackageBinaries(baseDir)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/apps/bin/hello.hello-app"))
+	c.Assert(err, IsNil)
+
+	needle := `
+cd /apps/hello-app/1.10
+aa-exec -p hello-app_hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
+`
+	c.Assert(strings.Contains(string(content), needle), Equals, true)
+}

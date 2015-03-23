@@ -33,7 +33,7 @@ func SetRootDir(rootdir string) {
 	snapDataHomeGlob = filepath.Join(rootdir, "/home/*/apps/")
 	snapAppArmorDir = filepath.Join(rootdir, "/var/lib/apparmor/clicks")
 
-	snapBinariesDir = filepath.Join(rootdir, snapAppsDir, "bin")
+	snapBinariesDir = filepath.Join(snapAppsDir, "bin")
 	snapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 
 	clickSystemHooksDir = filepath.Join(rootdir, "/usr/share/click/hooks")

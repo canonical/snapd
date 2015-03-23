@@ -24,6 +24,7 @@ binaries:
  - name: bin/hello
 services:
  - name: svc1
+   start: bin/hello
 `
 	if packageYamlContent == "" {
 		packageYamlContent = packageHello
