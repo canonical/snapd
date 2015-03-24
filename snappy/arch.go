@@ -8,12 +8,12 @@ import (
 type ArchitectureType string
 
 const (
-	// I386 is the i386 architecture
-	I386 ArchitectureType = "i386"
-	// Amd64 is the amd64 architecture
-	Amd64 = "amd64"
-	// Armhf is the armhf architecture
-	Armhf = "armhf"
+	// Archi386 is the i386 architecture
+	Archi386 ArchitectureType = "i386"
+	// ArchAmd64 is the amd64 architecture
+	ArchAmd64 = "amd64"
+	// ArchArmhf is the armhf architecture
+	ArchArmhf = "armhf"
 )
 
 var arch = ArchitectureType(helpers.UbuntuArchitecture())

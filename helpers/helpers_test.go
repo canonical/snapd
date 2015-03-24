@@ -78,7 +78,7 @@ func (ts *HTestSuite) TestGetMapFromInvalidYaml(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (ts *HTestSuite) TestUbuntuArchitectue(c *C) {
+func (ts *HTestSuite) TestUbuntuArchitecture(c *C) {
 	goarch = "arm"
 	c.Check(UbuntuArchitecture(), Equals, "armhf")
 
