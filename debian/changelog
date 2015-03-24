@@ -1,4 +1,10 @@
-ubuntu-core-launcher (0.1) vivid; urgency=low
+ubuntu-core-launcher (0.1~ppa2) vivid; urgency=low
+
+  * add missing b-d
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 24 Mar 2015 09:48:53 +0100
+
+ubuntu-core-launcher (0.1~ppa1) vivid; urgency=low
 
   * initial version, set default filter dir to:
     "/var/lib/snappy/seccomp/profiles/"
