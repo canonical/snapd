@@ -448,15 +448,17 @@ func (s *RemoteSnapPart) Date() time.Time {
 	return p
 }
 
-// Install installs the snap
-func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
+// Download downloads the snap and returns the filename
+func (s *RemoteSnapPart) Download(pbar ProgressMeter) (string, error) {
+
 	w, err := ioutil.TempFile("", s.pkg.Name)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() {
-		w.Close()
-		os.Remove(w.Name())
+		if err != nil {
+			os.Remove(w.Name())
+		}
 	}()
 
 	// try anonymous download first and fallback to authenticated
@@ -466,18 +468,18 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 	}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	setUbuntuStoreHeaders(req)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("Unexpected status code %v", resp.StatusCode)
+		return "", fmt.Errorf("Unexpected status code %v", resp.StatusCode)
 	}
 
 	if pbar != nil {
@@ -490,10 +492,21 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 	}
 
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	err = installClick(w.Name(), 0)
+	return w.Name(), w.Sync()
+}
+
+// Install installs the snap
+func (s *RemoteSnapPart) Install(pbar ProgressMeter) error {
+	downloadedSnap, err := s.Download(pbar)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(downloadedSnap)
+
+	err = installClick(downloadedSnap, 0)
 	if err != nil {
 		return err
 	}
