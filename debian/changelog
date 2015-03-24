@@ -1,5 +1,6 @@
 ubuntu-core-launcher (0.1) vivid; urgency=low
 
-  * initial version
+  * initial version, set default filter dir to:
+    "/var/lib/snappy/seccomp/profiles/"
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 24 Mar 2015 08:15:07 +0100

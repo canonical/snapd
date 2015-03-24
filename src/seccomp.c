@@ -8,10 +8,10 @@
 
 #include "utils.h"
 
-const char *filter_profile_dir = "/var/lib/security/seccomp/profiles/";
+const char *filter_profile_dir = "/var/lib/snappy/seccomp/profiles/";
 
 // strip whitespace from the end of the given string (inplace)
-void trimRight(char *s) {
+void trim_right(char *s) {
    int end = strlen(s)-1;
    while(end >= 0 && isspace(s[end])) {
       s[end] = 0;
@@ -43,19 +43,29 @@ int seccomp_load_filters(const char *filter_profile)
    char buf[80];
    while (fgets(buf, sizeof(buf), f) != NULL)
    {
-      // kill final newline
-      trimRight(buf);
-      if (strlen(buf) == 0) {
+      // comment, ignore
+      if(buf[0] == '#')
          continue;
-      }
+
+      // kill final newline
+      trim_right(buf);
+      if (strlen(buf) == 0)
+         continue;
+
+      // check for special "@unrestricted" command
+      if (strncmp(buf, "@unrestricted", sizeof(buf)) == 0)
+         goto out;
+
+      // a normal line with a syscall
       rc = seccomp_rule_add_exact(ctx, SCMP_ACT_ALLOW, 
                                   seccomp_syscall_resolve_name(buf), 0);
       if (rc != 0) {
-         fprintf(stderr, "seccomp_rule_add_exact failed with %i for %s\n", rc, buf);
+         fprintf(stderr, "seccomp_rule_add_exact failed with %i for '%s'\n", rc, buf);
          goto out;
       }
    }
 
+   // load it into the kernel
    rc = seccomp_load(ctx);
    if (rc != 0) {
       fprintf(stderr, "seccomp_load failed with %i\n", rc);
