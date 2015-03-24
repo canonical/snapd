@@ -8,7 +8,9 @@ the following attributes:
 * Frameworks provide a significant benefit for many users
 * Frameworks are delivered via snaps
 * Frameworks can be installed on the same system without conflicts
-* Framework `binaries` may be used without prepending the package name
+* Frameworks typically will use a toplevel namespace
+* Framework `binaries` may be used without prepending the package name and
+  these binary names are governed by the framework onboarding process (below)
 * Frameworks run in a carefully crafted security profile
 * Frameworks are tightly coupled with separately maintained security policies
   that extend the security policy available to apps consuming a framework
@@ -17,12 +19,12 @@ the following attributes:
 * Frameworks in the official Ubuntu store are designed jointly with Canonical
   as part of the framework onboarding process
 * Framework policies in the official Ubuntu store are controlled, designed,
-  developed and uploaded to store by Canonical as part of that process
+  and developed by Canonical with the framework authors as part of that process
 * Framework policy will automatically be installed when a framework is
   installed
 * Unlike apps, frameworks have special permissions which allow them elevated
-  access to the system. As such, the contract will include terms to ensure
-  timely security updates and that the framework will not abuse this access
+  access to the system. For the official Ubuntu store, a contract will include
+  terms to ensure framework safety and maintenance
 
 Importantly, frameworks are not generally:
 
@@ -30,6 +32,7 @@ Importantly, frameworks are not generally:
 * used as a method to share code (ie, don't create a framework with libraries
   just for the sake of apps to be able to use them)
 * used as a method to bypass app isolation
+* able to be forked (a user may of course always sideload a modified framework)
 
 Note: snappy frameworks are somewhat different from the Ubuntu for Phones
 [click frameworks](https://wiki.ubuntu.com/Click/Frameworks) and are more
@@ -55,9 +58,8 @@ for which it applies. To support this:
 * For frameworks shipped in the official Ubuntu store, framework authors will
   enter a contract to provide any needed security updates and not be malicious
 
-For the official Ubuntu Store, we will eventually allow separate ownership of
-frameworks from framework policies which will allow framework authors to go
-fast.
+For the official Ubuntu Store, we may eventually allow separate ownership of
+frameworks from framework policies.
 
 ## Usage
 ### TODO: framework yaml
