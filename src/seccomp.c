@@ -3,12 +3,13 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 #include <seccomp.h>
 
 #include "utils.h"
 
-const char *filter_profile_dir = "/var/lib/snappy/seccomp/profiles/";
+char *filter_profile_dir = "/var/lib/snappy/seccomp/profiles/";
 
 // strip whitespace from the end of the given string (inplace)
 void trim_right(char *s) {
@@ -29,9 +30,11 @@ int seccomp_load_filters(const char *filter_profile)
    if (ctx == NULL)
       return ENOMEM;
 
+   if (getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR") != NULL)
+      filter_profile_dir = getenv("SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR");
+
    char profile_path[128];
-   rc = snprintf(profile_path, sizeof(profile_path), "%s/%s", filter_profile_dir, filter_profile);
-   if (rc < 0) {
+   if (snprintf(profile_path, sizeof(profile_path), "%s/%s", filter_profile_dir, filter_profile) < 0) {
       goto out;
    }
 

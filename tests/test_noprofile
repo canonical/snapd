@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e
+
+. $(pwd)/common.sh
+
+printf "Test that a non-existing profile causes the launcher to not start"
+if ! $L /tmp no-such-profile  /bin/ls >$TMP/testlog 2>&1 ; then
+   PASS
+else
+   FAIL
+fi
