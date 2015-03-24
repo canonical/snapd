@@ -2,6 +2,7 @@ package snappy
 
 import (
 	"errors"
+	"fmt"
 )
 
 var (
@@ -59,3 +60,53 @@ var (
 	// active to inactive
 	ErrSnapNotActive = errors.New("snap not active")
 )
+
+// ErrSignature is returned if a snap failed the signature verification
+type ErrSignature struct {
+	exitCode int
+}
+
+func (e *ErrSignature) Error() string {
+	return fmt.Sprintf("Signature verification failed with exit status %v", e.exitCode)
+}
+
+// ErrSystemCtl is returned if the systemctl command failed
+type ErrSystemCtl struct {
+	cmd      []string
+	exitCode int
+}
+
+func (e *ErrSystemCtl) Error() string {
+	return fmt.Sprintf("%v failed with exit status %d", e.cmd, e.exitCode)
+}
+
+// ErrHookFailed is returned if a hook command fails
+type ErrHookFailed struct {
+	cmd      string
+	exitCode int
+}
+
+func (e *ErrHookFailed) Error() string {
+	return fmt.Sprintf("hook command %v failed with exit status %d", e.cmd, e.exitCode)
+}
+
+// ErrDataCopyFailed is returned if copying the snap data fialed
+type ErrDataCopyFailed struct {
+	oldPath  string
+	newPath  string
+	exitCode int
+}
+
+func (e *ErrDataCopyFailed) Error() string {
+	return fmt.Sprintf("data copy from %v to %v failed with exit status %d", e.oldPath, e.newPath, e.exitCode)
+}
+
+// ErrUpgradeVerificationFailed is returned if the upgrade has not
+// worked (i.e. no new version on the other partition)
+type ErrUpgradeVerificationFailed struct {
+	msg string
+}
+
+func (e *ErrUpgradeVerificationFailed) Error() string {
+	return fmt.Sprintf("upgrade verification failed: %s", e.msg)
+}
