@@ -1,3 +1,9 @@
+ubuntu-core-launcher (0.1~ppa5) vivid; urgency=low
+
+  * ignore syscalls unavailable on the given kenerl/arch
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 24 Mar 2015 18:09:44 +0100
+
 ubuntu-core-launcher (0.1~ppa4) vivid; urgency=low
 
   * seccomp tests are too architecture specific, run them only on

@@ -22,6 +22,9 @@ execve
 
 arch_prctl
 exit_group
+
+# unknown syscalls are ignore
+i-dont-exit
 EOF
 
 # ensure that the command "true" can run with the right filter

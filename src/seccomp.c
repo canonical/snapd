@@ -23,6 +23,7 @@ void trim_right(char *s) {
 int seccomp_load_filters(const char *filter_profile)
 {
    int rc = 0;
+   int syscall_nr = -1;
    scmp_filter_ctx ctx = NULL;
    FILE *f = NULL;
 
@@ -59,9 +60,13 @@ int seccomp_load_filters(const char *filter_profile)
       if (strncmp(buf, "@unrestricted", sizeof(buf)) == 0)
          goto out;
 
+      syscall_nr = seccomp_syscall_resolve_name(buf);
+      // syscall not available on this arch/kernel
+      if (syscall_nr == __NR_SCMP_ERROR)
+         continue;
+      
       // a normal line with a syscall
-      rc = seccomp_rule_add_exact(ctx, SCMP_ACT_ALLOW, 
-                                  seccomp_syscall_resolve_name(buf), 0);
+      rc = seccomp_rule_add_exact(ctx, SCMP_ACT_ALLOW, syscall_nr, 0);
       if (rc != 0) {
          fprintf(stderr, "seccomp_rule_add_exact failed with %i for '%s'\n", rc, buf);
          goto out;
