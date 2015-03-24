@@ -1,13 +1,14 @@
 
-CFLAGS= -O2 -Wall -Werror
-LIBS = -lapparmor -lseccomp
+CFLAGS= -O2 -Wall -Werror $(shell dpkg-buildflags --get CFLAGS)
+LD_FLAGS = $(shell dpkg-buildflags --get LDFLAGS)
+LIBS = -lapparmor -lseccomp 
 
 BIN = ubuntu-core-launcher
 SRCS = $(wildcard *.c)
 OBJS = $(SRCS:.c=.o)
 
 ubuntu-core-launcher: $(OBJS)
-	$(CC) $(OBJS) -o $@ $(LIBS)
+	$(CC) $(OBJS) -o $@ $(LD_FLAGS) $(LIBS)
 
 %.o: %.c
 	$(CC) -c $(CFLAGS) $< -o $@
