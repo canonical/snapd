@@ -1,0 +1,35 @@
+#!/bin/sh
+
+set -e
+
+. $(pwd)/common.sh
+
+cat >$TMP/myprofile <<EOF
+# filter that works ok for true
+open
+close
+
+mmap
+munmap
+mprotect
+
+fstat
+access
+read
+
+brk
+execve
+
+arch_prctl
+exit_group
+EOF
+
+# ensure that the command "true" can run with the right filter
+
+printf "Test that good whitelist"
+if $L /tmp myprofile /bin/true 2>/dev/null; then
+   PASS
+else
+    dmesg|tail -n1
+    FAIL
+fi
