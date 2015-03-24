@@ -1,3 +1,10 @@
+ubuntu-core-launcher (0.1~ppa4) vivid; urgency=low
+
+  * seccomp tests are too architecture specific, run them only on
+    the amd64 build
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 24 Mar 2015 10:41:35 +0100
+
 ubuntu-core-launcher (0.1~ppa3) vivid; urgency=low
 
   * add missing b-d for apparmor
