@@ -12,6 +12,11 @@ ubuntu-core-launcher: $(OBJS)
 %.o: %.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
-# To remove generated files
+distclean: clean
 clean:
 	rm -f *.o ${BIN}
+
+install:
+	install -m755 $(BIN) ${DESTDIR}/usr/bin
+
+.PHONY: test
