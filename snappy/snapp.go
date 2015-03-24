@@ -560,7 +560,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
-	req.Header.Set("X-Ubuntu-Architecture", Architecture())
+	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 
 	// check if the oem part sets a custom store-id
 	oems, _ := InstalledSnapsByType(SnapTypeOem)
