@@ -454,6 +454,21 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	c.Assert(generatedWrapper, Equals, expectedWrapper)
 }
 
+func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
+	binary := Binary{Name: "bin/pastebinit"}
+	pkgPath := "/apps/pastebinit.mvo/1.0/"
+	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/apps/pastebinit.mvo/1.0/bin/pastebinit")
+}
+
+func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
+	binary := Binary{
+		Name: "pastebinit",
+		Exec: "bin/random-pastebin",
+	}
+	pkgPath := "/apps/pastebinit.mvo/1.1/"
+	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/apps/pastebinit.mvo/1.1/bin/random-pastebin")
+}
+
 func (s *SnapTestSuite) TestSnappyGetBinaryAaProfile(c *C) {
 	m := packageYaml{Name: "foo",
 		Version: "1.0"}
