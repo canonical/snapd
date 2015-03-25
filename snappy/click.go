@@ -425,7 +425,13 @@ func generateServiceFileName(m *packageYaml, service Service) string {
 var runSystemctl = runSystemctlImpl
 
 func runSystemctlImpl(cmd ...string) error {
-	args := []string{"systemctl", "--root", globalRootDir}
+	// FIXME: find an elegant solution, only enable works with --root
+	// +3 == "systemctl" + "daemon-reload", globalRootDir
+	args := make([]string, 0, len(cmd)+3)
+	args = append(args, "systemctl")
+	if len(cmd) > 0 && cmd[0] == "enable" {
+		args = append(args, "--root", globalRootDir)
+	}
 	args = append(args, cmd...)
 	if err := exec.Command(args[0], args[1:]...).Run(); err != nil {
 		exitCode, _ := helpers.ExitCode(err)
@@ -440,6 +446,10 @@ func runSystemctlImpl(cmd ...string) error {
 // when the SetRoot option is used and we need to generate
 // content for the "Services" and "Binaries" section
 func stripGlobalRootDir(dir string) string {
+	if globalRootDir == "/" {
+		return dir
+	}
+
 	return dir[len(globalRootDir):]
 }
 
