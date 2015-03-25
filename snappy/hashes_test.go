@@ -5,8 +5,36 @@ import (
 	"os"
 	"path/filepath"
 
+	"gopkg.in/yaml.v2"
+
 	. "launchpad.net/gocheck"
 )
+
+var fileHashYaml = `name: foo
+size: 10
+mode: "0644"
+`
+
+var size = int64(10)
+var fileHashStruct = fileHash{
+	Name: "foo",
+	Size: &size,
+	Mode: newYamlFileMode(0644),
+}
+
+func (s *SnapTestSuite) TestHashesYamlUnmarshal(c *C) {
+	var h fileHash
+	err := yaml.Unmarshal([]byte(fileHashYaml), &h)
+	c.Assert(err, IsNil)
+
+	c.Assert(h, DeepEquals, fileHashStruct)
+}
+
+func (s *SnapTestSuite) TestHashesYamlMarshal(c *C) {
+	y, err := yaml.Marshal(&fileHashStruct)
+	c.Assert(err, IsNil)
+	c.Assert(string(y), Equals, fileHashYaml)
+}
 
 func (s *SnapTestSuite) TestBuildCreateDebianHashesSimple(c *C) {
 	tempdir := c.MkDir()
