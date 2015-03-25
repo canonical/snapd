@@ -55,5 +55,10 @@ func (x *cmdRollback) Execute(args []string) (err error) {
 		ver = snaps[len(snaps)-2].Version()
 	}
 
-	return snappy.MakeSnapActiveByNameAndVersion(pkg, ver)
+	if err := snappy.MakeSnapActiveByNameAndVersion(pkg, ver); err != nil {
+		return err
+	}
+	fmt.Printf("Setting %s to active version %s\n", pkg, ver)
+
+	return nil
 }
