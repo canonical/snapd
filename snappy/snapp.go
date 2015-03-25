@@ -129,9 +129,12 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parsePackageYamlData(yamlData)
+}
 
+func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	var m packageYaml
-	err = yaml.Unmarshal(yamlData, &m)
+	err := yaml.Unmarshal(yamlData, &m)
 	if err != nil {
 		log.Printf("Can not parse '%s'", yamlData)
 		return nil, err
@@ -494,7 +497,7 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 		return err
 	}
 
-	err = installClick(w.Name(), 0)
+	err = installClick(w.Name(), 0, nil)
 	if err != nil {
 		return err
 	}

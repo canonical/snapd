@@ -43,7 +43,8 @@ func Install(name string) (err error) {
 			flags |= AllowUnauthenticated
 		}
 
-		return installClick(name, flags)
+		pbar := NewTextProgress(name)
+		return installClick(name, flags, pbar)
 	}
 
 	// check repos next

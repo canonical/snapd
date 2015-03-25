@@ -58,4 +58,7 @@ var (
 	// ErrSnapNotActive is returned if you try to unset a snap from
 	// active to inactive
 	ErrSnapNotActive = errors.New("snap not active")
+
+	ErrLicenseNotAccepted = errors.New("license not accepted")
+	ErrLicenseNotProvided = errors.New("package.yaml requires license, but no license was provided")
 )

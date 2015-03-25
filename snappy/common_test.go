@@ -68,6 +68,10 @@ func addDefaultApparmorJSON(tempdir, apparmorJSONPath string) error {
 // makeTestSnapPackage creates a real snap package that can be installed on
 // disk using packageYaml as its meta/package.yaml
 func makeTestSnapPackage(c *C, packageYamlContent string) (snapFile string) {
+	return makeTestSnapPackageFull(c, packageYamlContent, true)
+}
+
+func makeTestSnapPackageFull(c *C, packageYamlContent string, makeLicense bool) (snapFile string) {
 	tmpdir := c.MkDir()
 	// content
 	os.MkdirAll(path.Join(tmpdir, "bin"), 0755)
@@ -90,6 +94,11 @@ vendor: Foo Bar <foo@example.com>
 	readmeMd := path.Join(tmpdir, "meta", "readme.md")
 	content = "Random\nExample"
 	ioutil.WriteFile(readmeMd, []byte(content), 0644)
+	if makeLicense {
+		license := path.Join(tmpdir, "meta", "license.txt")
+		content = "WTFPL"
+		ioutil.WriteFile(license, []byte(content), 0644)
+	}
 	// build it
 	err := helpers.ChDir(tmpdir, func() {
 		var err error
@@ -114,10 +123,10 @@ vendor: Foo Bar <foo@example.com>
 	}
 
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+	c.Assert(installClick(snapFile, AllowUnauthenticated, nil), IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+	c.Assert(installClick(snapFile, AllowUnauthenticated, nil), IsNil)
 
 	m := NewMetaRepository()
 	installed, err := m.Installed()
