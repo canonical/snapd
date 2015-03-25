@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"text/tabwriter"
+	"time"
 
 	"launchpad.net/snappy/snappy"
 )
@@ -51,24 +53,62 @@ func (x cmdList) list() error {
 		if err != nil {
 			return err
 		}
-		showUpdatesList(installed, updates, x.Verbose, os.Stdout)
+		showUpdatesList(installed, updates, os.Stdout)
+	} else if x.Verbose {
+		showVerboseList(installed, os.Stdout)
 	} else {
-		showInstalledList(installed, x.Verbose, os.Stdout)
+		showInstalledList(installed, os.Stdout)
 	}
 
 	return err
 }
 
-func showInstalledList(installed []snappy.Part, showAll bool, o io.Writer) {
-	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
-	defer w.Flush()
+func formatDate(t time.Time) string {
+	return fmt.Sprintf("%v-%02d-%02d", t.Year(), int(t.Month()), t.Day())
+}
 
-	fmt.Fprintln(w, "Name\tVersion\tSummary\t")
+// takes a "pkg.developer" and returns (name, developer)
+func pkgAndDeveloper(fullname string) (name, developer string) {
+	l := strings.SplitN(fullname, ".", 2)
+	if len(l) == 1 {
+		return fullname, ""
+	}
+
+	return l[0], l[1]
+}
+
+func showInstalledList(installed []snappy.Part, o io.Writer) {
+	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
+
+	fmt.Fprintln(w, "Name\tDate\tVersion\tDeveloper\t")
 	for _, part := range installed {
-		if showAll || part.IsActive() {
-			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
+		if part.IsActive() {
+			pkg, developer := pkgAndDeveloper(part.Name())
+			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t%s\t", pkg, formatDate(part.Date()), part.Version(), developer))
 		}
 	}
+	w.Flush()
+
+	showRebootMessage(installed, o)
+}
+
+func showVerboseList(installed []snappy.Part, o io.Writer) {
+	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
+
+	fmt.Fprintln(w, "Name\tDate\tVersion\tDeveloper\t")
+	for _, part := range installed {
+		active := ""
+		if part.IsActive() {
+			active = "*"
+		}
+		if part.NeedsReboot() {
+			active = "!"
+		}
+		pkg, developer := pkgAndDeveloper(part.Name())
+		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%s\t%s\t%s\t", pkg, active, formatDate(part.Date()), part.Version(), developer))
+	}
+	w.Flush()
+
 	showRebootMessage(installed, o)
 }
 
@@ -111,20 +151,25 @@ func showRebootMessage(installed []snappy.Part, o io.Writer) {
 	}
 }
 
-func showUpdatesList(installed []snappy.Part, updates []snappy.Part, showAll bool, o io.Writer) {
+func showUpdatesList(installed []snappy.Part, updates []snappy.Part, o io.Writer) {
 	// TODO tabwriter and output in general to adapt to the spec
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
 	defer w.Flush()
 
-	fmt.Fprintln(w, "Name\tVersion\tUpdate\t")
+	fmt.Fprintln(w, "Name\tDate\tVersion\t")
 	for _, part := range installed {
-		if showAll || part.IsActive() {
-			ver := "-"
-			update := snappy.FindSnapsByName(part.Name(), updates)
-			if len(update) == 1 {
-				ver = update[0].Version()
-			}
-			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), ver))
+		if !part.IsActive() {
+			continue
 		}
+		hasUpdate := ""
+		ver := part.Version()
+		date := part.Date()
+		update := snappy.FindSnapsByName(part.Name(), updates)
+		if len(update) == 1 {
+			hasUpdate = "*"
+			ver = update[0].Version()
+			date = update[0].Date()
+		}
+		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%v\t%s\t", part.Name(), hasUpdate, formatDate(date), ver))
 	}
 }

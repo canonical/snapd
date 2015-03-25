@@ -3,31 +3,37 @@ Section: devel
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: bash-completion,
-               dbus,
                debhelper (>= 9),
                dh-golang,
                dh-systemd,
                golang-go,
-               golang-go-dbus-dev,
                golang-go-flags-dev,
                golang-gocheck-dev,
                golang-goconfigparser-dev,
-               golang-goyaml-dev,
+               golang-yaml.v2-dev,
                golang-pb-dev,
-               ubuntu-core-snappy,
+               golang-go.crypto-dev,
+               golang-ar-dev,
+               fakeroot,
 Standards-Version: 3.9.6
 Homepage: https://launchpad.net/snappy
 Vcs-Browser: http://bazaar.launchpad.net/~snappy-dev/snappy/trunk/files
 Vcs-Bzr: lp:snappy
 
+Package: golang-snappy-dev
+Architecture: all
+Description: snappy development go packages.
+ Use these to use the snappy API.
+
 Package: ubuntu-snappy
 Architecture: any
 Depends: apparmor-easyprof-ubuntu-snappy,
          debsig-verify,
-         snappy-systemd,
-         system-image-dbus (>= 2.5-0ubuntu1+ppa15),
+         system-image-cli (>= 2.5-0ubuntu1+ppa15),
+         fakeroot,
          ${misc:Depends},
          ${shlibs:Depends},
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
  Manage an Ubuntu system with snappy.
+

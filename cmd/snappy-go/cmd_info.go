@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -37,19 +36,42 @@ func init() {
 func (x *cmdInfo) Execute(args []string) (err error) {
 	// TODO implement per package info
 	if x.Positional.PackageName != "" {
-		return errors.New("Information request for specific packages not implemented")
+		return snapInfo(x.Positional.PackageName, x.Verbose)
 	}
 
 	return info()
 }
 
-func info() error {
-	release := "unknown"
-	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)
-	if len(parts) == 1 && err == nil {
-		release = parts[0].(*snappy.SystemImagePart).Channel()
+func snapInfo(pkgname string, verbose bool) error {
+	snap := snappy.ActiveSnapByName(pkgname)
+	if snap == nil {
+		return fmt.Errorf("No snap '%s' found", pkgname)
 	}
 
+	fmt.Printf("channel: %s\n", snap.Channel())
+	fmt.Printf("version: %s\n", snap.Version())
+	fmt.Printf("updated: %s\n", snap.Date())
+	if verbose {
+		fmt.Printf("installed: %s\n", "n/a")
+		fmt.Printf("binary-size: %v\n", snap.InstalledSize())
+		fmt.Printf("data-size: %s\n", "n/a")
+		// FIXME: implement backup list per spec
+	}
+
+	return nil
+}
+
+func ubuntuCoreChannel() string {
+	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)
+	if len(parts) == 1 && err == nil {
+		return parts[0].Channel()
+	}
+
+	return "unknown"
+}
+
+func info() error {
+	release := ubuntuCoreChannel()
 	frameworks, _ := snappy.InstalledSnapNamesByType(snappy.SnapTypeFramework)
 	apps, _ := snappy.InstalledSnapNamesByType(snappy.SnapTypeApp)
 
@@ -58,5 +80,5 @@ func info() error {
 	fmt.Printf("frameworks: %s\n", strings.Join(frameworks, ", "))
 	fmt.Printf("apps: %s\n", strings.Join(apps, ", "))
 
-	return err
+	return nil
 }

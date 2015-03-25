@@ -1,11 +1,23 @@
 package snappy
 
+import (
+	"net"
+	"path/filepath"
+	"time"
+)
+
 // var instead of const to make it possible to override in the tests
 var (
 	snapAppsDir      = "/apps"
 	snapOemDir       = "/oem"
 	snapDataDir      = "/var/lib/apps"
 	snapDataHomeGlob = "/home/*/apps/"
+	snapAppArmorDir  = "/var/lib/apparmor/clicks"
+
+	snapBinariesDir = filepath.Join(snapAppsDir, "bin")
+	snapServicesDir = "/etc/systemd/system"
+
+	aaClickHookCmd = "aa-clickhook"
 )
 
 // SnapType represents the kind of snap (app, core, frameworks, oem)
@@ -18,6 +30,11 @@ const (
 	SnapTypeFramework SnapType = "framework"
 	SnapTypeOem       SnapType = "oem"
 )
+
+// Services implements snappy packages that offer services
+type Services interface {
+	Services() []Service
+}
 
 // Part representation of a snappy part
 type Part interface {
@@ -33,16 +50,28 @@ type Part interface {
 	// Will become active on the next reboot
 	NeedsReboot() bool
 
+	// returns the date when the snap was last updated
+	Date() time.Time
+
+	// returns the channel of the part
+	Channel() string
+
+	// returns the path to the icon (local or uri)
+	Icon() string
+
 	// Returns app, framework, core
 	Type() SnapType
 
-	InstalledSize() int
-	DownloadSize() int
+	InstalledSize() int64
+	DownloadSize() int64
 
-	// Action
+	// Install the snap
 	Install(pb ProgressMeter) error
+	// Uninstall the snap
 	Uninstall() error
-	Config(configuration []byte) error
+	// Config takes a yaml configuration and returns the full snap
+	// config with the changes. Note that "configuration" may be empty.
+	Config(configuration []byte) (newConfig string, err error)
 	// make a inactive part active
 	SetActive() error
 }
@@ -133,7 +162,13 @@ func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
 func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	for _, r := range m.all {
 		results, err := r.Details(snapyName)
-		if err != nil {
+		// ignore network errors here, we will also collect
+		// local results
+		_, netError := err.(net.Error)
+		switch {
+		case err == ErrPackageNotFound || netError:
+			continue
+		case err != nil:
 			return parts, err
 		}
 		parts = append(parts, results...)
@@ -160,16 +195,20 @@ func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 			}
 		}
 	}
-	return
+
+	return res, nil
 }
 
 // InstalledSnapNamesByType returns all installed snap names with the given type
-var InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
+var InstalledSnapNamesByType = installedSnapNamesByTypeImpl
+
+func installedSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
 	installed, err := InstalledSnapsByType(snapTs...)
 	for _, part := range installed {
 		res = append(res, part.Name())
 	}
-	return
+
+	return res, nil
 }
 
 // ActiveSnapByName returns all active snaps with the given name
@@ -187,6 +226,7 @@ func ActiveSnapByName(needle string) Part {
 			return part
 		}
 	}
+
 	return nil
 }
 

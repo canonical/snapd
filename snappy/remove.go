@@ -24,9 +24,6 @@ func Remove(partSpec string) error {
 	if part == nil {
 		return ErrPackageNotFound
 	}
-	if err := part.Uninstall(); err != nil {
-		return err
-	}
 
-	return nil
+	return part.Uninstall()
 }

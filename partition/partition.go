@@ -22,9 +22,7 @@
 // with this program.  If not, see <http://www.gnu.org/licenses/>.
 //--------------------------------------------------------------------
 
-// Package partition manipulate disk partitions.
-//
-// The main callables are UpdateBootLoader()
+// Package partition manipulate snappy disk partitions
 package partition
 
 import (
@@ -38,7 +36,7 @@ import (
 	"strings"
 	"syscall"
 
-	yaml "launchpad.net/goyaml"
+	"gopkg.in/yaml.v2"
 )
 
 var debug = false
@@ -61,8 +59,11 @@ const rootfsBlabel = "system-b"
 // name of boot partition label as created by ubuntu-device-flash(1).
 const bootPartitionLabel = "system-boot"
 
+// its useful to override this in tests
+const realDefaultCacheDir = "/writable/cache"
+
 // FIXME: Should query system-image-cli (see bug LP:#1380574).
-const defaultCacheDir = "/writable/cache"
+var defaultCacheDir = realDefaultCacheDir
 
 // Directory to mount writable root filesystem below the cache
 // diretory.
@@ -82,6 +83,11 @@ var (
 	// ErrNoDualPartition is returned if you try to use a dual
 	// partition feature on a single partition
 	ErrNoDualPartition = errors.New("No dual partition")
+
+	// ErrNoHardwareYaml is returned when no hardware yaml is found in
+	// the update, this means that there is nothing to process with regards
+	// to device parts.
+	ErrNoHardwareYaml = errors.New("no hardware.yaml")
 )
 
 // Declarative specification of the type of system which specifies such
@@ -127,11 +133,12 @@ const (
 
 // Interface provides the interface to interact with a partition
 type Interface interface {
-	UpdateBootloader() (err error)
-	MarkBootSuccessful() (err error)
-	// FIXME: could we make SyncBootloaderFiles part of UpdateBootloader
+	ToggleNextBoot() error
+
+	MarkBootSuccessful() error
+	// FIXME: could we make SyncBootloaderFiles part of ToogleBootloader
 	//        to expose even less implementation details?
-	SyncBootloaderFiles() (err error)
+	SyncBootloaderFiles() error
 	IsNextBootOther() bool
 
 	// run the function f with the otherRoot mounted
@@ -471,9 +478,8 @@ func (p *Partition) SyncBootloaderFiles() (err error) {
 	return bootloader.SyncBootFiles()
 }
 
-// UpdateBootloader toggles the bootloader and should probably called
-// ToggleBootloader
-func (p *Partition) UpdateBootloader() (err error) {
+// ToggleNextBoot toggles the roofs that should be used on the next boot
+func (p *Partition) ToggleNextBoot() (err error) {
 	if p.dualRootPartitions() {
 		return p.toggleBootloaderRootfs()
 	}
@@ -507,17 +513,23 @@ func (p *Partition) cacheDir() string {
 	return defaultCacheDir
 }
 
-func (p *Partition) hardwareSpec() (hardware hardwareSpecType, err error) {
+func (p *Partition) hardwareSpec() (hardwareSpecType, error) {
 	h := hardwareSpecType{}
 
 	data, err := ioutil.ReadFile(p.hardwareSpecFile)
-	if err != nil {
+	// if hardware.yaml does not exist it just means that there was no
+	// device part in the update.
+	if os.IsNotExist(err) {
+		return h, ErrNoHardwareYaml
+	} else if err != nil {
 		return h, err
 	}
 
-	err = yaml.Unmarshal([]byte(data), &h)
+	if err := yaml.Unmarshal([]byte(data), &h); err != nil {
+		return h, err
+	}
 
-	return h, err
+	return h, nil
 }
 
 // Return full path to the main assets directory
@@ -586,7 +598,7 @@ func (p *Partition) writablePartition() (result *blockDevice) {
 		}
 	}
 
-	return result
+	return nil
 }
 
 // Return pointer to blockDevice representing boot partition (if any)
@@ -597,7 +609,7 @@ func (p *Partition) bootPartition() (result *blockDevice) {
 		}
 	}
 
-	return result
+	return nil
 }
 
 // Return pointer to blockDevice representing currently mounted root
@@ -609,7 +621,7 @@ func (p *Partition) rootPartition() (result *blockDevice) {
 		}
 	}
 
-	return result
+	return nil
 }
 
 // Return pointer to blockDevice representing the "other" root

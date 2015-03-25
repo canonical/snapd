@@ -1,7 +1,6 @@
 package snappy
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -33,44 +32,30 @@ func inDeveloperMode() bool {
 
 // Install the givens snap names provided via args. This can be local
 // files or snaps that are queried from the store
-func Install(args []string) (err error) {
-	didSomething := false
+func Install(name string) (err error) {
+
+	// consume local parts
+	if _, err := os.Stat(name); err == nil {
+		// we allow unauthenticated package when in developer
+		// mode
+		var flags InstallFlags
+		if inDeveloperMode() {
+			flags |= AllowUnauthenticated
+		}
+
+		return installClick(name, flags)
+	}
+
+	// check repos next
 	m := NewMetaRepository()
-	for _, name := range args {
-
-		// consume local parts
-		if _, err := os.Stat(name); err == nil {
-			// we allow unauthenticated package when in developer
-			// mode
-			var flags InstallFlags
-			if inDeveloperMode() {
-				flags |= AllowUnauthenticated
-			}
-			if err := installClick(name, flags); err != nil {
-				return err
-			}
-			didSomething = true
-			continue
-		}
-
-		// check repos next
-		found, _ := m.Details(name)
-		for _, part := range found {
-			// act only on parts that are downloadable
-			if !part.IsInstalled() {
-				pbar := NewTextProgress(part.Name())
-				fmt.Printf("Installing %s\n", part.Name())
-				err = part.Install(pbar)
-				if err != nil {
-					return err
-				}
-				didSomething = true
-			}
+	found, _ := m.Details(name)
+	for _, part := range found {
+		// act only on parts that are downloadable
+		if !part.IsInstalled() {
+			pbar := NewTextProgress(part.Name())
+			return part.Install(pbar)
 		}
 	}
-	if !didSomething {
-		return fmt.Errorf("Could not install anything for '%s'", strings.Join(args, ","))
-	}
 
-	return err
+	return ErrPackageNotFound
 }

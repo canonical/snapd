@@ -8,21 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
-	partition "launchpad.net/snappy/partition"
+	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/partition"
 
 	. "launchpad.net/gocheck"
-)
-
-const (
-	packageHello = `
-name: hello-app
-version: 1.10
-vendor: Michael Vogt <mvo@ubuntu.com>
-icon: meta/hello.svg
-binaries:
- - name: bin/hello
-`
 )
 
 type SnapTestSuite struct {
@@ -39,26 +30,46 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 
 	snapDataDir = filepath.Join(s.tempdir, "/var/lib/apps/")
 	snapAppsDir = filepath.Join(s.tempdir, "/apps/")
+	snapBinariesDir = filepath.Join(s.tempdir, "/apps/bin")
+	snapServicesDir = filepath.Join(s.tempdir, "/etc/systemd/system")
+	os.MkdirAll(snapServicesDir, 0755)
 	snapOemDir = filepath.Join(s.tempdir, "/oem/")
+	snapAppArmorDir = filepath.Join(s.tempdir, "/var/lib/apparmor/clicks/")
 
 	// we may not have debsig-verify installed (and we don't need it
 	// for the unittests)
 	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
 		return nil
 	}
+	runSystemctl = func(cmd ...string) error {
+		return nil
+	}
+
+	// fake "du"
+	duCmd = makeFakeDuCommand(c)
+
+	// do not attempt to hit the real store servers in the tests
+	storeSearchURI = ""
+	storeDetailsURI = ""
+	storeBulkURI = ""
+
+	aaExec = filepath.Join(s.tempdir, "aa-exec")
+	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
+	c.Assert(err, IsNil)
+
+	// ensure we do not look at the system
+	systemImageRoot = s.tempdir
 }
 
-func (s *SnapTestSuite) makeMockSnap() (snapDir string, err error) {
-	metaDir := filepath.Join(s.tempdir, "apps", "hello-app", "1.10", "meta")
-	err = os.MkdirAll(metaDir, 0777)
-	if err != nil {
-		return "", err
-	}
-	yamlFile := filepath.Join(metaDir, "package.yaml")
-	ioutil.WriteFile(yamlFile, []byte(packageHello), 0666)
+func (s *SnapTestSuite) TearDownTest(c *C) {
+	// ensure all functions are back to their original state
+	regenerateAppArmorRules = regenerateAppArmorRulesImpl
+	InstalledSnapNamesByType = installedSnapNamesByTypeImpl
+	duCmd = "du"
+}
 
-	snapDir, _ = filepath.Split(metaDir)
-	return yamlFile, err
+func (s *SnapTestSuite) makeInstalledMockSnap() (yamlFile string, err error) {
+	return makeInstalledMockSnap(s.tempdir, "")
 }
 
 func makeSnapActive(packageYamlPath string) (err error) {
@@ -75,7 +86,7 @@ func (s *SnapTestSuite) TestLocalSnapInvalidPath(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
-	snapYaml, err := s.makeMockSnap()
+	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 
 	snap := NewInstalledSnapPart(snapYaml)
@@ -84,11 +95,33 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
 
+	services := snap.Services()
+	c.Assert(services, HasLen, 1)
+	c.Assert(services[0].Name, Equals, "svc1")
+
+	// ensure we get valid Date()
+	st, err := os.Stat(snap.basedir)
+	c.Assert(err, IsNil)
+	c.Assert(snap.Date(), Equals, st.ModTime())
+
 	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", "hello-app", "1.10"))
+	c.Assert(snap.InstalledSize(), Not(Equals), -1)
+}
+
+func (s *SnapTestSuite) TestLocalSnapHash(c *C) {
+	snapYaml, err := s.makeInstalledMockSnap()
+	c.Assert(err, IsNil)
+
+	hashesFile := filepath.Join(filepath.Dir(snapYaml), "hashes")
+	err = ioutil.WriteFile(hashesFile, []byte("sha512: F00F00"), 0644)
+	c.Assert(err, IsNil)
+
+	snap := NewInstalledSnapPart(snapYaml)
+	c.Assert(snap.Hash(), Equals, "F00F00")
 }
 
 func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
-	snapYaml, err := s.makeMockSnap()
+	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYaml)
 
@@ -102,7 +135,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositoryInvalid(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
-	yamlPath, err := s.makeMockSnap()
+	yamlPath, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 	err = makeSnapActive(yamlPath)
 	c.Assert(err, IsNil)
@@ -112,7 +145,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 
 	installed, err := snap.Installed()
 	c.Assert(err, IsNil)
-	c.Assert(len(installed), Equals, 1)
+	c.Assert(installed, HasLen, 1)
 	c.Assert(installed[0].Name(), Equals, "hello-app")
 	c.Assert(installed[0].Version(), Equals, "1.10")
 }
@@ -261,25 +294,23 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	storeSearchURI = mockServer.URL + "/%s"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.searchURI = mockServer.URL + "/%s"
 
 	results, err := snap.Search("xkcd")
 	c.Assert(err, IsNil)
-	c.Assert(len(results), Equals, 1)
+	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver.mvo")
 	c.Assert(results[0].Version(), Equals, "0.1")
 	c.Assert(results[0].Description(), Equals, "Show random XKCD comic")
+
+	c.Assert(results[0].Channel(), Equals, "edge")
 }
 
-func mockInstalledSnapNamesByType(mockSnaps []string) (mockRestorer func()) {
-	origFunc := InstalledSnapNamesByType
+func mockInstalledSnapNamesByType(mockSnaps []string) {
 	InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
 		return mockSnaps, nil
-	}
-	return func() {
-		InstalledSnapNamesByType = origFunc
 	}
 }
 
@@ -294,42 +325,45 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	storeBulkURI = mockServer.URL + "/updates/"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.bulkURI = mockServer.URL + "/updates/"
 
 	// override the real InstalledSnapNamesByType to return our
 	// mock data
-	mockRestorer := mockInstalledSnapNamesByType([]string{"hello-world"})
-	defer mockRestorer()
+	mockInstalledSnapNamesByType([]string{"hello-world"})
 
 	// the actual test
 	results, err := snap.Updates()
 	c.Assert(err, IsNil)
-	c.Assert(len(results), Equals, 1)
+	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, "hello-world")
 	c.Assert(results[0].Version(), Equals, "1.0.5")
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 
+	storeDetailsURI = "https://some-uri"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
 	// ensure we do not hit the net if there is nothing installed
 	// (otherwise the store will send us all snaps)
 	snap.bulkURI = "http://i-do.not-exist.really-not"
-	mockRestorer := mockInstalledSnapNamesByType([]string{})
-	defer mockRestorer()
+	mockInstalledSnapNamesByType([]string{})
 
 	// the actual test
 	results, err := snap.Updates()
 	c.Assert(err, IsNil)
-	c.Assert(len(results), Equals, 0)
+	c.Assert(results, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// no store ID by default
+		storeID := r.Header.Get("X-Ubuntu-Store")
+		c.Assert(storeID, Equals, "")
+
 		c.Assert(strings.HasSuffix(r.URL.String(), "xkcd-webserver"), Equals, true)
 		io.WriteString(w, MockDetailsJSON)
 	}))
@@ -337,16 +371,19 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	storeDetailsURI = mockServer.URL + "/details/%s"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.detailsURI = mockServer.URL + "/details/%s"
 
 	// the actual test
 	results, err := snap.Details("xkcd-webserver")
 	c.Assert(err, IsNil)
-	c.Assert(len(results), Equals, 1)
+	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, "xkcd-webserver")
 	c.Assert(results[0].Version(), Equals, "0.3.1")
+	c.Assert(results[0].Hash(), Equals, "3a9152b8bff494c036f40e2ca03d1dfaa4ddcfe651eae1c9419980596f48fa95b2f2a91589305af7d55dc08e9489b8392585bbe2286118550b288368e5d9a620")
+	c.Assert(results[0].Date(), Equals, time.Date(2014, time.December, 05, 12, 33, 05, 928364000, time.UTC))
+	c.Assert(results[0].DownloadSize(), Equals, int64(21236))
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
@@ -359,12 +396,185 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	storeDetailsURI = mockServer.URL + "/details/%s"
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
-	snap.detailsURI = mockServer.URL + "/details/%s"
 
 	// the actual test
 	results, err := snap.Details("no-such-pkg")
-	c.Assert(len(results), Equals, 0)
+	c.Assert(results, HasLen, 0)
 	c.Assert(err, NotNil)
+}
+
+func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	c.Assert(err, IsNil)
+	snap := NewInstalledSnapPart(yamlFile)
+	c.Assert(snap, NotNil)
+
+	os.Setenv("SNAP_NAME", "override-me")
+	defer os.Setenv("SNAP_NAME", "")
+
+	env := makeSnapHookEnv(snap)
+
+	// now ensure that the environment we get back is what we want
+	envMap := helpers.MakeMapFromEnvList(env)
+	// regular env is unaltered
+	c.Assert(envMap["PATH"], Equals, os.Getenv("PATH"))
+	// SNAP_* is overriden
+	c.Assert(envMap["SNAP_NAME"], Equals, "hello-app")
+	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
+}
+
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
+	snapPackage := makeTestSnapPackage(c, "")
+	snapR, err := os.Open(snapPackage)
+	c.Assert(err, IsNil)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(w, snapR)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := RemoteSnapPart{}
+	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
+
+	p := &MockProgressMeter{}
+	err = snap.Install(p)
+	c.Assert(err, IsNil)
+	st, err := os.Stat(snapPackage)
+	c.Assert(err, IsNil)
+	c.Assert(p.written, Equals, int(st.Size()))
+}
+
+func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
+	snap := RemoteSnapPart{}
+
+	c.Assert(snap.SetActive(), Equals, ErrNotInstalled)
+	c.Assert(snap.Uninstall(), Equals, ErrNotInstalled)
+}
+
+func (s *SnapTestSuite) TestServicesWithPorts(c *C) {
+	const packageHello = `name: hello-app
+version: 1.10
+vendor: Michael Vogt <mvo@ubuntu.com>
+icon: meta/hello.svg
+binaries:
+ - name: bin/hello
+services:
+ - name: svc1
+   description: "Service #1"
+   ports:
+      external:
+        ui:
+          port: 8080/tcp
+        nothing:
+          port: 8081/tcp
+          negotiable: yes
+ - name: svc2
+   description: "Service #2"
+`
+
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, packageHello)
+	c.Assert(err, IsNil)
+
+	snap := NewInstalledSnapPart(yamlFile)
+	c.Assert(snap, NotNil)
+
+	c.Assert(snap.Name(), Equals, "hello-app")
+	c.Assert(snap.Version(), Equals, "1.10")
+	c.Assert(snap.IsActive(), Equals, false)
+
+	services := snap.Services()
+	c.Assert(services, HasLen, 2)
+
+	c.Assert(services[0].Name, Equals, "svc1")
+	c.Assert(services[0].Description, Equals, "Service #1")
+
+	external1Ui, ok := services[0].Ports.External["ui"]
+	c.Assert(ok, Equals, true)
+	c.Assert(external1Ui.Port, Equals, "8080/tcp")
+	c.Assert(external1Ui.Negotiable, Equals, false)
+
+	external1Nothing, ok := services[0].Ports.External["nothing"]
+	c.Assert(ok, Equals, true)
+	c.Assert(external1Nothing.Port, Equals, "8081/tcp")
+	c.Assert(external1Nothing.Negotiable, Equals, true)
+
+	c.Assert(services[1].Name, Equals, "svc2")
+	c.Assert(services[1].Description, Equals, "Service #2")
+
+	// ensure we get valid Date()
+	st, err := os.Stat(snap.basedir)
+	c.Assert(err, IsNil)
+	c.Assert(snap.Date(), Equals, st.ModTime())
+
+	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", "hello-app", "1.10"))
+	c.Assert(snap.InstalledSize(), Not(Equals), -1)
+}
+
+func (s *SnapTestSuite) TestPackageYamlMultipleArchitecturesParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+architecture: [i386, armhf]
+`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Architectures, DeepEquals, []string{"i386", "armhf"})
+}
+
+func (s *SnapTestSuite) TestPackageYamlSingleArchitecturesParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+architecture: i386
+`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Architectures, DeepEquals, []string{"i386"})
+}
+
+func (s *SnapTestSuite) TestPackageYamlNoArchitecturesParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Architectures, DeepEquals, []string{"all"})
+}
+
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryOemStoreId(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// ensure we get the right header
+		storeID := r.Header.Get("X-Ubuntu-Store")
+		c.Assert(storeID, Equals, "my-store")
+		w.WriteHeader(404)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	// install custom oem snap with store-id
+	packageYaml, err := makeInstalledMockSnap(s.tempdir, `name: oem-test
+version: 1.0
+vendor: mvo
+store:
+ id: my-store
+type: oem
+`)
+	c.Assert(err, IsNil)
+	makeSnapActive(packageYaml)
+
+	storeDetailsURI = mockServer.URL + "/%s"
+	repo := NewUbuntuStoreSnapRepository()
+	c.Assert(repo, NotNil)
+
+	// we just ensure that the right header is set
+	repo.Details("xkcd")
 }
