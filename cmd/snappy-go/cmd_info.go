@@ -34,7 +34,6 @@ func init() {
 }
 
 func (x *cmdInfo) Execute(args []string) (err error) {
-	// TODO implement per package info
 	if x.Positional.PackageName != "" {
 		return snapInfo(x.Positional.PackageName, x.Verbose)
 	}

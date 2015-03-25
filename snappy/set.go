@@ -5,24 +5,9 @@ import (
 	"strings"
 )
 
-func setActive(pkg, ver string) (err error) {
-	m := NewMetaRepository()
-	installed, err := m.Installed()
-	if err != nil {
-		return err
-	}
-
-	part := FindSnapByNameAndVersion(pkg, ver, installed)
-	if part == nil {
-		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
-	}
-	fmt.Printf("Setting %s to active version %s\n", pkg, ver)
-	return part.SetActive()
-}
-
 // map from
 var setFuncs = map[string]func(k, v string) error{
-	"active": setActive,
+	"active": makeSnapActiveByNameAndVersion,
 }
 
 // SetProperty sets a property for the given pkgname from the args list
