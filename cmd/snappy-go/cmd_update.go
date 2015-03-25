@@ -40,7 +40,7 @@ func update() error {
 		pbar := snappy.NewTextProgress(part.Name())
 
 		fmt.Printf("Installing %s (%s)\n", part.Name(), part.Version())
-		if err := part.Install(pbar); err != nil {
+		if err := part.Install(pbar, 0); err != nil {
 			return err
 		}
 	}

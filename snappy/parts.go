@@ -2,22 +2,7 @@ package snappy
 
 import (
 	"net"
-	"path/filepath"
 	"time"
-)
-
-// var instead of const to make it possible to override in the tests
-var (
-	snapAppsDir      = "/apps"
-	snapOemDir       = "/oem"
-	snapDataDir      = "/var/lib/apps"
-	snapDataHomeGlob = "/home/*/apps/"
-	snapAppArmorDir  = "/var/lib/apparmor/clicks"
-
-	snapBinariesDir = filepath.Join(snapAppsDir, "bin")
-	snapServicesDir = "/etc/systemd/system"
-
-	aaClickHookCmd = "aa-clickhook"
 )
 
 // SnapType represents the kind of snap (app, core, frameworks, oem)
@@ -66,7 +51,7 @@ type Part interface {
 	DownloadSize() int64
 
 	// Install the snap
-	Install(pb ProgressMeter) error
+	Install(pb ProgressMeter, flags InstallFlags) error
 	// Uninstall the snap
 	Uninstall() error
 	// Config takes a yaml configuration and returns the full snap
