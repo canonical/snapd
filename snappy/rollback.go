@@ -25,7 +25,7 @@ func Rollback(pkg, ver string) error {
 		ver = snaps[len(snaps)-2].Version()
 	}
 
-	if err := MakeSnapActiveByNameAndVersion(pkg, ver); err != nil {
+	if err := makeSnapActiveByNameAndVersion(pkg, ver); err != nil {
 		return err
 	}
 

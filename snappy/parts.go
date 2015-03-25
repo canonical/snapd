@@ -255,7 +255,7 @@ func FindSnapByNameAndVersion(needle, version string, haystack []Part) Part {
 
 // MakeSnapActiveByNameAndVersion makes the given snap version the active
 // version
-func MakeSnapActiveByNameAndVersion(pkg, ver string) error {
+func makeSnapActiveByNameAndVersion(pkg, ver string) error {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	if err != nil {

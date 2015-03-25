@@ -7,7 +7,7 @@ import (
 
 // map from
 var setFuncs = map[string]func(k, v string) error{
-	"active": MakeSnapActiveByNameAndVersion,
+	"active": makeSnapActiveByNameAndVersion,
 }
 
 // SetProperty sets a property for the given pkgname from the args list
