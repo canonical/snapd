@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-var cloudMetaDataFile = "/var/lib/cloud/seed/nocloud-net/meta-data"
-
 // InstallFlags can be used to pass additional flags to the install of a
 // snap
 type InstallFlags uint

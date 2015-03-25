@@ -94,16 +94,20 @@ Pattern: /var/lib/systemd/click/${id}`)
 
 func (s *SnapTestSuite) TestHandleClickHooks(c *C) {
 	// two hooks to ensure iterating works correct
-	os.MkdirAll(path.Join(s.tempdir, "/var/lib/systemd/click/"), 0755)
 	testSymlinkDir := path.Join(s.tempdir, "/var/lib/systemd/click/")
-	content := fmt.Sprintf(`Hook-Name: systemd
-Pattern: %s/${id}`, testSymlinkDir)
+	os.MkdirAll(testSymlinkDir, 0755)
+
+	content := `Hook-Name: systemd
+Pattern: /var/lib/systemd/click/${id}
+`
 	makeClickHook(c, content)
 
 	os.MkdirAll(path.Join(s.tempdir, "/var/lib/apparmor/click/"), 0755)
 	testSymlinkDir2 := path.Join(s.tempdir, "/var/lib/apparmor/click/")
-	content = fmt.Sprintf(`Hook-Name: apparmor
-Pattern: %s/${id}`, testSymlinkDir2)
+	os.MkdirAll(testSymlinkDir2, 0755)
+	content = `Hook-Name: apparmor
+Pattern: /var/lib/apparmor/click/${id}
+`
 	makeClickHook(c, content)
 
 	instDir := path.Join(s.tempdir, "apps", "foo", "1.0")
@@ -326,7 +330,7 @@ func (s *SnapTestSuite) TestClickCopyRemovesHooksFirst(c *C) {
 	hookContent := fmt.Sprintf(`Hook-Name: tracehook
 User: root
 Exec: (cd %s && printf "now: $(find . -name "*.tracehook")\n") >> %s/hook.trace
-Pattern: %s/${id}.tracehook`, s.tempdir, s.tempdir, s.tempdir)
+Pattern: /${id}.tracehook`, s.tempdir, s.tempdir)
 	makeClickHook(c, hookContent)
 
 	packageYaml := `name: bar
@@ -364,7 +368,7 @@ func (s *SnapTestSuite) TestClickCopyDataHookFails(c *C) {
 	hookContent := fmt.Sprintf(`Hook-Name: hooky
 User: root
 Exec: if test -e %s/bar_app_2.0.hooky; then echo "this log message is harmless and can be ignored"; false; fi
-Pattern: %s/${id}.hooky`, s.tempdir, s.tempdir)
+Pattern: /${id}.hooky`, s.tempdir)
 	makeClickHook(c, hookContent)
 
 	packageYaml := `name: bar
@@ -507,7 +511,7 @@ binaries:
 
 	// ensure that the binary wrapper file go generated with the right
 	// path
-	oldSnapBin := filepath.Join(snapAppsDir, "foo.mvo", "1.0", "bin", "foo")
+	oldSnapBin := filepath.Join(snapAppsDir[len(globalRootDir):], "foo.mvo", "1.0", "bin", "foo")
 	binaryWrapper := filepath.Join(snapBinariesDir, "foo.foo.mvo")
 	content, err := ioutil.ReadFile(binaryWrapper)
 	c.Assert(err, IsNil)
@@ -516,7 +520,7 @@ binaries:
 	// and that it gets updated on upgrade
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
 	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
-	newSnapBin := filepath.Join(snapAppsDir, "foo.mvo", "2.0", "bin", "foo")
+	newSnapBin := filepath.Join(snapAppsDir[len(globalRootDir):], "foo.mvo", "2.0", "bin", "foo")
 	content, err = ioutil.ReadFile(binaryWrapper)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), newSnapBin), Equals, true)
@@ -606,7 +610,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallRunHooks(c *C) {
 	hookContent := fmt.Sprintf(`Hook-Name: systemd
 User: root
 Exec: touch %s/i-ran
-Pattern: %s/${id}`, s.tempdir, hookSymlinkDir)
+Pattern: /var/lib/click/hooks/systemd/${id}`, s.tempdir)
 	makeClickHook(c, hookContent)
 
 	packageYaml := `name: foo
@@ -634,7 +638,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallInhibitHooks(c *C) {
 	hookContent := fmt.Sprintf(`Hook-Name: systemd
 User: root
 Exec: touch %s/i-ran
-Pattern: %s/${id}`, s.tempdir, hookSymlinkDir)
+Pattern: /var/lib/click/hooks/systemd/${id}`, s.tempdir)
 	makeClickHook(c, hookContent)
 
 	packageYaml := `name: foo
@@ -653,4 +657,43 @@ integration:
 	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, "foo_app_1.0")), Equals, true)
 	// but the hook exec was not called
 	c.Assert(helpers.FileExists(filepath.Join(s.tempdir, "i-ran")), Equals, false)
+}
+
+func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
+	// ensure that even with a global rootdir the paths in the generated
+	// .services file are setup correctly (i.e. that the global root
+	// is stripped)
+	c.Assert(globalRootDir, Not(Equals), "/")
+
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	c.Assert(err, IsNil)
+	baseDir := filepath.Dir(filepath.Dir(yamlFile))
+	err = addPackageServices(baseDir, false)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), "\nExecStart=/apps/hello-app/1.10/bin/hello\n"), Equals, true)
+}
+
+func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
+	// ensure that even with a global rootdir the paths in the generated
+	// .services file are setup correctly (i.e. that the global root
+	// is stripped)
+	c.Assert(globalRootDir, Not(Equals), "/")
+
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	c.Assert(err, IsNil)
+	baseDir := filepath.Dir(filepath.Dir(yamlFile))
+	err = addPackageBinaries(baseDir)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/apps/bin/hello.hello-app"))
+	c.Assert(err, IsNil)
+
+	needle := `
+cd /apps/hello-app/1.10
+aa-exec -p hello-app_hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
+`
+	c.Assert(strings.Contains(string(content), needle), Equals, true)
 }

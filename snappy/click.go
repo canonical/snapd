@@ -65,9 +65,6 @@ var ignoreHooks = map[string]bool{
 	"snappy-systemd": true,
 }
 
-// var to make it testable
-var clickSystemHooksDir = "/usr/share/click/hooks"
-
 // Execute the hook.Exec command
 func execHook(execCmd string) (err error) {
 	// the spec says this is passed to the shell
@@ -97,7 +94,8 @@ func allowUnauthenticatedOkExitCode(exitCode int) bool {
 func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error) {
 	cmd := exec.Command("debsig-verify", clickFile)
 	if err := cmd.Run(); err != nil {
-		if exitCode, err := helpers.ExitCode(err); err == nil {
+		exitCode, err := helpers.ExitCode(err)
+		if err == nil {
 			if allowUnauthenticated && allowUnauthenticatedOkExitCode(exitCode) {
 				log.Println("Signature check failed, but installing anyway as requested")
 				return nil
@@ -210,7 +208,7 @@ func iterHooks(manifest clickManifest, inhibitHooks bool, f iterHooksFunc) error
 				continue
 			}
 
-			dst := expandHookPattern(manifest.Name, app, manifest.Version, systemHook.pattern)
+			dst := filepath.Join(globalRootDir, expandHookPattern(manifest.Name, app, manifest.Version, systemHook.pattern))
 
 			if _, err := os.Stat(dst); err == nil {
 				if err := os.Remove(dst); err != nil {
@@ -427,7 +425,7 @@ func generateServiceFileName(m *packageYaml, service Service) string {
 var runSystemctl = runSystemctlImpl
 
 func runSystemctlImpl(cmd ...string) error {
-	args := []string{"systemctl"}
+	args := []string{"systemctl", "--root", globalRootDir}
 	args = append(args, cmd...)
 	if err := exec.Command(args[0], args[1:]...).Run(); err != nil {
 		exitCode, _ := helpers.ExitCode(err)
@@ -438,6 +436,13 @@ func runSystemctlImpl(cmd ...string) error {
 	return nil
 }
 
+// takes a directory and removes the global root, this is needed
+// when the SetRoot option is used and we need to generate
+// content for the "Services" and "Binaries" section
+func stripGlobalRootDir(dir string) string {
+	return dir[len(globalRootDir):]
+}
+
 func addPackageServices(baseDir string, inhibitHooks bool) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
@@ -446,8 +451,15 @@ func addPackageServices(baseDir string, inhibitHooks bool) error {
 
 	for _, service := range m.Services {
 		aaProfile := fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version)
-		content := generateSnapServicesFile(service, baseDir, aaProfile, m)
-		if err := ioutil.WriteFile(generateServiceFileName(m, service), []byte(content), 0755); err != nil {
+		// this will remove the global base dir when generating the
+		// service file, this ensures that /apps/foo/1.0/bin/start
+		// is in the service file when the SetRoot() option
+		// is used
+		realBaseDir := stripGlobalRootDir(baseDir)
+		content := generateSnapServicesFile(service, realBaseDir, aaProfile, m)
+		serviceFilename := generateServiceFileName(m, service)
+		helpers.EnsureDir(filepath.Dir(serviceFilename), 0755)
+		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0755); err != nil {
 			return err
 		}
 
@@ -527,7 +539,12 @@ func addPackageBinaries(baseDir string) error {
 
 	for _, binary := range m.Binaries {
 		aaProfile := getBinaryAaProfile(m, binary)
-		content := generateSnapBinaryWrapper(binary, baseDir, aaProfile, m)
+		// this will remove the global base dir when generating the
+		// service file, this ensures that /apps/foo/1.0/bin/start
+		// is in the service file when the SetRoot() option
+		// is used
+		realBaseDir := stripGlobalRootDir(baseDir)
+		content := generateSnapBinaryWrapper(binary, realBaseDir, aaProfile, m)
 		if err := ioutil.WriteFile(generateBinaryName(m, binary), []byte(content), 0755); err != nil {
 			return err
 		}
@@ -788,5 +805,6 @@ func setActiveClick(baseDir string, inhibitHooks bool) error {
 		}
 	}
 
-	return os.Symlink(baseDir, currentActiveSymlink)
+	// symlink is relative to parent dir
+	return os.Symlink(filepath.Base(baseDir), currentActiveSymlink)
 }
