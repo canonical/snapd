@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"sort"
 
+	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -39,23 +39,8 @@ func (x *cmdRollback) Execute(args []string) (err error) {
 	if pkg == "" {
 		return errNeedPackageName
 	}
-	// no version specified, find the previous one
-	if ver == "" {
-		m := snappy.NewMetaRepository()
-		installed, err := m.Installed()
-		if err != nil {
-			return err
-		}
-		snaps := snappy.FindSnapsByName(pkg, installed)
-		if len(snaps) < 2 {
-			return fmt.Errorf("no version to rollback to")
-		}
-		sort.Sort(snappy.BySnapVersion(snaps))
-		// -1 is the most recent, -2 the previous one
-		ver = snaps[len(snaps)-2].Version()
-	}
 
-	if err := snappy.MakeSnapActiveByNameAndVersion(pkg, ver); err != nil {
+	if err := snappy.Rollback(pkg, ver); err != nil {
 		return err
 	}
 	fmt.Printf("Setting %s to active version %s\n", pkg, ver)
