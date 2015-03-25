@@ -36,6 +36,9 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	snapOemDir = filepath.Join(s.tempdir, "/oem/")
 	snapAppArmorDir = filepath.Join(s.tempdir, "/var/lib/apparmor/clicks/")
 
+	clickSystemHooksDir = filepath.Join(s.tempdir, "/usr/share/click/hooks")
+	os.MkdirAll(clickSystemHooksDir, 0755)
+
 	// we may not have debsig-verify installed (and we don't need it
 	// for the unittests)
 	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
@@ -442,7 +445,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
 	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
 
 	p := &MockProgressMeter{}
-	err = snap.Install(p)
+	err = snap.Install(p, 0)
 	c.Assert(err, IsNil)
 	st, err := os.Stat(snapPackage)
 	c.Assert(err, IsNil)
