@@ -1,2 +1,0 @@
-debian/*.service /lib/systemd/system/
-debian/*.timer /lib/systemd/system/

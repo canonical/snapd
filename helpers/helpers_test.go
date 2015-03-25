@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -40,7 +41,13 @@ func (ts *HTestSuite) TestUnpack(c *C) {
 
 	// unpack
 	unpackdir := filepath.Join(tmpdir, "t")
-	err = unpackTar(tmpfile, unpackdir)
+	f, err := os.Open(tmpfile)
+	c.Assert(err, IsNil)
+
+	f2, err := gzip.NewReader(f)
+	c.Assert(err, IsNil)
+
+	err = UnpackTar(f2, unpackdir, nil)
 	c.Assert(err, IsNil)
 
 	// we have the expected file
@@ -71,15 +78,15 @@ func (ts *HTestSuite) TestGetMapFromInvalidYaml(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (ts *HTestSuite) TestArchitectue(c *C) {
+func (ts *HTestSuite) TestUbuntuArchitecture(c *C) {
 	goarch = "arm"
-	c.Check(Architecture(), Equals, "armhf")
+	c.Check(UbuntuArchitecture(), Equals, "armhf")
 
 	goarch = "amd64"
-	c.Check(Architecture(), Equals, "amd64")
+	c.Check(UbuntuArchitecture(), Equals, "amd64")
 
 	goarch = "386"
-	c.Check(Architecture(), Equals, "i386")
+	c.Check(UbuntuArchitecture(), Equals, "i386")
 }
 
 func (ts *HTestSuite) TestChdir(c *C) {

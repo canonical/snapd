@@ -2,7 +2,6 @@ package helpers
 
 import (
 	"archive/tar"
-	"compress/gzip"
 	"crypto/sha512"
 	"encoding/hex"
 	"io"
@@ -51,24 +50,13 @@ func ExitCode(runErr error) (e int, err error) {
 	return e, runErr
 }
 
-func unpackTar(archive string, target string) error {
+// TarIterFunc is called for each file inside a tar archive
+type TarIterFunc func(r *tar.Reader, hdr *tar.Header) error
 
-	var f io.Reader
-	var err error
-
-	f, err = os.Open(archive)
-	if err != nil {
-		return err
-	}
-
-	if strings.HasSuffix(archive, ".gz") {
-		f, err = gzip.NewReader(f)
-		if err != nil {
-			return err
-		}
-	}
-
-	tr := tar.NewReader(f)
+// TarIterate will take a io.Reader and call the fn callback on each tar
+// archive member
+func TarIterate(r io.Reader, fn TarIterFunc) error {
+	tr := tar.NewReader(r)
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
@@ -78,7 +66,32 @@ func unpackTar(archive string, target string) error {
 		if err != nil {
 			return err
 		}
-		path := filepath.Join(target, hdr.Name)
+
+		if err := fn(tr, hdr); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// UnpackTarTransformFunc can be used to change the names during unpack
+// or to return a error for files that are not acceptable
+type UnpackTarTransformFunc func(path string) (newPath string, err error)
+
+// UnpackTar unpacks the given tar file into the target directory
+func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
+	return TarIterate(r, func(tr *tar.Reader, hdr *tar.Header) (err error) {
+		// run tar transform func
+		name := hdr.Name
+		if fn != nil {
+			name, err = fn(hdr.Name)
+			if err != nil {
+				return err
+			}
+		}
+
+		path := filepath.Join(targetDir, name)
 		info := hdr.FileInfo()
 		if info.IsDir() {
 			err := os.MkdirAll(path, info.Mode())
@@ -97,9 +110,9 @@ func unpackTar(archive string, target string) error {
 				return err
 			}
 		}
-	}
 
-	return nil
+		return nil
+	})
 }
 
 func getMapFromYaml(data []byte) (map[string]interface{}, error) {
@@ -111,12 +124,12 @@ func getMapFromYaml(data []byte) (map[string]interface{}, error) {
 	return m, nil
 }
 
-// Architecture returns the debian equivalent architecture for the
+// UbuntuArchitecture returns the debian equivalent architecture for the
 // currently running architecture.
 //
 // If the architecture does not map any debian architecture, the
 // GOARCH is returned.
-func Architecture() string {
+func UbuntuArchitecture() string {
 	switch goarch {
 	case "386":
 		return "i386"
@@ -128,7 +141,7 @@ func Architecture() string {
 }
 
 // EnsureDir ensures that the given directory exists and if
-// not create it with the given permissions
+// not creates it with the given permissions.
 func EnsureDir(dir string, perm os.FileMode) (err error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dir, perm); err != nil {

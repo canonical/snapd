@@ -11,6 +11,7 @@ import (
 	"strings"
 	"text/template"
 
+	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 )
 
@@ -237,6 +238,7 @@ func writeClickManifest(buildDir string, m *packageYaml) error {
 		InstalledSize: installedSize,
 		Title:         title,
 		Description:   description,
+		Maintainer:    m.Vendor,
 		Hooks:         m.Integration,
 	}
 	manifestContent, err := json.MarshalIndent(cm, "", " ")
@@ -322,13 +324,10 @@ func Build(sourceDir string) (string, error) {
 	// build the package
 	snapName := fmt.Sprintf("%s_%s_%v.snap", m.Name, m.Version, debArchitecture(m))
 
-	// FIXME: we want a native build here without dpkg-deb to be
-	//        about to build on non-ubuntu/debian systems
-	cmd := exec.Command("fakeroot", "dpkg-deb", "--build", buildDir, snapName)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		retCode, _ := helpers.ExitCode(err)
-		return "", fmt.Errorf("failed with %d: %s", retCode, output)
+	// build it
+	d := clickdeb.ClickDeb{Path: snapName}
+	if err := d.Build(buildDir); err != nil {
+		return "", err
 	}
 
 	return snapName, nil

@@ -50,6 +50,7 @@ type Service struct {
 // Binary represents a single binary inside the binaries: package.yaml
 type Binary struct {
 	Name             string `yaml:"name"`
+	Exec             string `yaml:"exec"`
 	SecurityTemplate string `yaml:"security-template"`
 	SecurityPolicy   string `yaml:"security-policy"`
 }
@@ -82,6 +83,11 @@ type packageYaml struct {
 
 	Services []Service `yaml:"services,omitempty"`
 	Binaries []Binary  `yaml:"binaries,omitempty"`
+
+	// oem snap only
+	Store struct {
+		ID string `yaml:"id,omitempty"`
+	} `yaml:"store,omitempty"`
 
 	// this is a bit ugly, but right now integration is a one:one
 	// mapping of click hooks
@@ -267,13 +273,13 @@ func (s *SnapPart) Services() []Service {
 }
 
 // Install installs the snap
-func (s *SnapPart) Install(pb ProgressMeter) (err error) {
+func (s *SnapPart) Install(pb ProgressMeter, flags InstallFlags) (err error) {
 	return errors.New("Install of a local part is not possible")
 }
 
 // SetActive sets the snap active
 func (s *SnapPart) SetActive() (err error) {
-	return setActiveClick(s.basedir)
+	return setActiveClick(s.basedir, false)
 }
 
 // Uninstall remove the snap from the system
@@ -442,15 +448,17 @@ func (s *RemoteSnapPart) Date() time.Time {
 	return p
 }
 
-// Install installs the snap
-func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
+// Download downloads the snap and returns the filename
+func (s *RemoteSnapPart) Download(pbar ProgressMeter) (string, error) {
+
 	w, err := ioutil.TempFile("", s.pkg.Name)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() {
-		w.Close()
-		os.Remove(w.Name())
+		if err != nil {
+			os.Remove(w.Name())
+		}
 	}()
 
 	// try anonymous download first and fallback to authenticated
@@ -460,18 +468,18 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 	}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	setUbuntuStoreHeaders(req)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("Unexpected status code %v", resp.StatusCode)
+		return "", fmt.Errorf("Unexpected status code %v", resp.StatusCode)
 	}
 
 	if pbar != nil {
@@ -484,10 +492,21 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter) (err error) {
 	}
 
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	err = installClick(w.Name(), 0)
+	return w.Name(), w.Sync()
+}
+
+// Install installs the snap
+func (s *RemoteSnapPart) Install(pbar ProgressMeter, flags InstallFlags) error {
+	downloadedSnap, err := s.Download(pbar)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(downloadedSnap)
+
+	err = installClick(downloadedSnap, flags)
 	if err != nil {
 		return err
 	}
@@ -550,11 +569,23 @@ func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
 // small helper that sets the correct http headers for the ubuntu store
 func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
+
+	// frameworks
 	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
-	req.Header.Set("X-Ubuntu-Architecture", helpers.Architecture())
+	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 
+	// check if the oem part sets a custom store-id
+	oems, _ := InstalledSnapsByType(SnapTypeOem)
+	if len(oems) == 1 {
+		storeID := oems[0].(*SnapPart).m.Store.ID
+		if storeID != "" {
+			req.Header.Set("X-Ubuntu-Store", storeID)
+		}
+	}
+
+	// sso
 	ssoToken, err := ReadStoreToken()
 	if err == nil {
 		req.Header.Set("Authorization", makeOauthPlaintextSignature(req, ssoToken))

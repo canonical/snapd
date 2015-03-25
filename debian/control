@@ -13,11 +13,17 @@ Build-Depends: bash-completion,
                golang-yaml.v2-dev,
                golang-pb-dev,
                golang-go.crypto-dev,
+               golang-ar-dev,
                fakeroot,
 Standards-Version: 3.9.6
 Homepage: https://launchpad.net/snappy
 Vcs-Browser: http://bazaar.launchpad.net/~snappy-dev/snappy/trunk/files
 Vcs-Bzr: lp:snappy
+
+Package: golang-snappy-dev
+Architecture: all
+Description: snappy development go packages.
+ Use these to use the snappy API.
 
 Package: ubuntu-snappy
 Architecture: any
@@ -30,3 +36,4 @@ Depends: apparmor-easyprof-ubuntu-snappy,
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
  Manage an Ubuntu system with snappy.
+

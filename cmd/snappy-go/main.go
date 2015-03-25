@@ -3,7 +3,9 @@ package main
 import (
 	"errors"
 	"os"
-	"syscall"
+
+	"launchpad.net/snappy/priv"
+	"launchpad.net/snappy/snappy"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -28,10 +30,11 @@ func init() {
 
 func main() {
 	if _, err := parser.Parse(); err != nil {
+		if err == priv.ErrNeedRoot {
+			// make the generic root error more specific for
+			// the CLI user.
+			err = snappy.ErrNeedRoot
+		}
 		os.Exit(1)
 	}
-}
-
-func isRoot() bool {
-	return syscall.Getuid() == 0
 }
