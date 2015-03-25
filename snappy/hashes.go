@@ -3,7 +3,6 @@ package snappy
 import (
 	"fmt"
 	"os"
-	"strconv"
 )
 
 type yamlFileMode struct {
@@ -15,8 +14,7 @@ func newYamlFileMode(mode os.FileMode) *yamlFileMode {
 }
 
 func (v *yamlFileMode) MarshalYAML() (interface{}, error) {
-	s := fmt.Sprintf("0%o", v.mode)
-	return s, nil
+	return v.mode.String(), nil
 }
 
 func (v *yamlFileMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -26,11 +24,26 @@ func (v *yamlFileMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	mode, err := strconv.ParseInt(modeAsStr, 8, 0)
-	if err != nil {
-		return err
+	var m os.FileMode
+	switch modeAsStr[0] {
+	case 'd':
+		m |= os.ModeDir
+	case '-':
+		// default
+		m |= 0
+	case 'L':
+		m |= os.ModeSymlink
+	default:
+		return fmt.Errorf("Unknown file mode %s", modeAsStr)
 	}
-	v.mode = os.FileMode(mode)
+
+	const rwx = "rwxrwxrwx"
+	for i, c := range modeAsStr[1:] {
+		if byte(c) == rwx[i] {
+			m |= (1 << uint(9-1-i))
+		}
+	}
+	v.mode = m
 
 	return nil
 }

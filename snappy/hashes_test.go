@@ -12,14 +12,14 @@ import (
 
 var fileHashYaml = `name: foo
 size: 10
-mode: "0644"
+mode: drw-r--r--
 `
 
 var size = int64(10)
 var fileHashStruct = fileHash{
 	Name: "foo",
 	Size: &size,
-	Mode: newYamlFileMode(0644),
+	Mode: newYamlFileMode(0644 | os.ModeDir),
 }
 
 func (s *SnapTestSuite) TestHashesYamlUnmarshal(c *C) {
@@ -33,6 +33,7 @@ func (s *SnapTestSuite) TestHashesYamlUnmarshal(c *C) {
 func (s *SnapTestSuite) TestHashesYamlMarshal(c *C) {
 	y, err := yaml.Marshal(&fileHashStruct)
 	c.Assert(err, IsNil)
+
 	c.Assert(string(y), Equals, fileHashYaml)
 }
 
@@ -71,16 +72,16 @@ func (s *SnapTestSuite) TestBuildCreateDebianHashesSimple(c *C) {
 	c.Assert(string(content), Equals, `archive-sha512: cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e
 files:
 - name: bin
-  mode: "020000000755"
+  mode: drwxr-xr-x
 - name: bin/bar
   size: 4
   sha512: cc06808cbbee0510331aa97974132e8dc296aeb795be229d064bae784b0a87a5cf4281d82e8c99271b75db2148f08a026c1a60ed9cabdb8cac6d24242dac4063
-  mode: "0644"
+  mode: -rw-r--r--
 - name: broken-link
-  mode: "01000000777"
+  mode: Lrwxrwxrwx
 - name: foo
   size: 0
   sha512: cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e
-  mode: "0644"
+  mode: -rw-r--r--
 `)
 }
