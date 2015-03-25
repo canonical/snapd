@@ -617,7 +617,7 @@ services:
    start: bin/hello
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	c.Assert(installClick(snapFile, InhibitHooks), IsNil)
+	c.Assert(installClick(snapFile, InhibitHooks, nil), IsNil)
 
 	c.Assert(allSystemctl[0], Equals, "enable")
 	c.Assert(allSystemctl, HasLen, 1)
@@ -677,7 +677,7 @@ integration:
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 
 	// install it
-	c.Assert(installClick(snapFile, 0), IsNil)
+	c.Assert(installClick(snapFile, 0, nil), IsNil)
 
 	// verify we have the symlink
 	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, "foo_app_1.0")), Equals, true)
@@ -705,7 +705,7 @@ integration:
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 
 	// install it
-	c.Assert(installClick(snapFile, InhibitHooks), IsNil)
+	c.Assert(installClick(snapFile, InhibitHooks, nil), IsNil)
 
 	// verify we have the symlink
 	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, "foo_app_1.0")), Equals, true)

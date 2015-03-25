@@ -81,6 +81,7 @@ func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error
 	defer file.Close()
 
 	arReader := ar.NewReader(file)
+	println("***", arMember)
 	dataReader, err := skipToArMember(arReader, arMember)
 	if err != nil {
 		return nil, err
@@ -335,6 +336,7 @@ func skipToArMember(arReader *ar.Reader, memberPrefix string) (io.Reader, error)
 		if err != nil {
 			return nil, err
 		}
+		println("`--", header.Name, "...", memberPrefix)
 		if strings.HasPrefix(header.Name, memberPrefix) {
 			break
 		}
