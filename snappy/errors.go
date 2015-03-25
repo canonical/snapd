@@ -65,12 +65,14 @@ var (
 	ErrUnpackHelperNotFound = errors.New("unpack helper not found, do you hae snappy installed in your PATH or GOPATH?")
 )
 
+// ErrUnpackFailed is the error type for a snap unpack problem
 type ErrUnpackFailed struct {
 	snapFile string
 	instDir  string
 	origErr  error
 }
 
+// ErrUnpackFailed is returned if unpacking a snap fails
 func (e *ErrUnpackFailed) Error() string {
 	return fmt.Sprintf("unpack %s to %s failed with %s", e.snapFile, e.instDir, e.origErr)
 }
