@@ -198,10 +198,6 @@ func writeHashes(buildDir, dataTar string) error {
 			size = &fsize
 		}
 
-		if runtime.GOOS != "linux" {
-			return ErrBuildPlatformNotSupported
-		}
-
 		hashes.Files = append(hashes.Files, fileHash{
 			Name:   path[len(buildDir)+1:],
 			Size:   size,
