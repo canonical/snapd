@@ -235,7 +235,7 @@ func iterHooks(manifest clickManifest, inhibitHooks bool, f iterHooksFunc) error
 	return nil
 }
 
-func installClickHooks(targetDir string, manifest clickManifest, inhibitHooks bool) (err error) {
+func installClickHooks(targetDir string, manifest clickManifest, inhibitHooks bool) error {
 	return iterHooks(manifest, inhibitHooks, func(src, dst string, systemHook clickHook) error {
 		// setup the new link target here, iterHooks will take
 		// care of running the hook
@@ -746,7 +746,7 @@ func unsetActiveClick(clickDir string, inhibitHooks bool) error {
 	return nil
 }
 
-func setActiveClick(baseDir string, inhibitHooks bool) (err error) {
+func setActiveClick(baseDir string, inhibitHooks bool) error {
 	currentActiveSymlink := filepath.Join(baseDir, "..", "current")
 	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
 
