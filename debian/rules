@@ -15,9 +15,8 @@ override_dh_systemd_enable:
 		--no-enable \
 		-pubuntu-snappy \
 		ubuntu-core-snappy.boot-ok.service
-	# we want autopilot disabled by default for now
+	# we want autopilot enabled by default
 	dh_systemd_enable \
-		--no-enable \
 		-pubuntu-snappy \
 		snappy-autopilot.timer \
 		snappy-autopilot.service
