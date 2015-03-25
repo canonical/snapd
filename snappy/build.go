@@ -208,7 +208,7 @@ func writeHashes(buildDir, dataTar string) error {
 			Sha512: sha512sum,
 			// FIXME: not portable, this output is different on
 			//        windows, macos
-			Mode: info.Mode(),
+			Mode: newYamlFileMode(info.Mode()),
 		})
 
 		return nil
