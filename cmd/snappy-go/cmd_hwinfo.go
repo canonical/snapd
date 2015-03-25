@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -50,9 +51,11 @@ func outputHWAccessForAll() error {
 }
 
 func (x *cmdHWInfo) Execute(args []string) (err error) {
-	if !isRoot() {
-		return ErrRequiresRoot
+	privMutex := priv.New()
+	if err := privMutex.TryLock(); err != nil {
+		return err
 	}
+	defer privMutex.Unlock()
 
 	// use specific package
 	pkgname := x.Positional.PackageName

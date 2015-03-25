@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -26,9 +27,11 @@ func init() {
 }
 
 func (x *cmdHWUnassign) Execute(args []string) (err error) {
-	if !isRoot() {
-		return ErrRequiresRoot
+	privMutex := priv.New()
+	if err := privMutex.TryLock(); err != nil {
+		return err
 	}
+	defer privMutex.Unlock()
 
 	if err := snappy.RemoveHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
 		return err
