@@ -3,7 +3,6 @@ package snappy
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"os"
 	"unicode"
 
@@ -128,18 +127,13 @@ func (t *TextProgress) Spin(msg string) {
 }
 
 // ask the user whether they agree to the given license text
-func (t *TextProgress) Agreed(intro, licenseFile string) bool {
+func (t *TextProgress) Agreed(intro, license string) bool {
 	if _, err := fmt.Println(intro); err != nil {
 		return false
 	}
 
 	// XXX: send it through a pager instead of this ugly thing
-	in, err := os.Open(licenseFile)
-	if err != nil {
-		return false
-	}
-	defer in.Close()
-	if _, err := io.Copy(os.Stdout, in); err != nil {
+	if _, err := fmt.Println(license); err != nil {
 		return false
 	}
 

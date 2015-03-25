@@ -33,14 +33,6 @@ func (ts *ProgressTestSuite) TestSpin(c *C) {
 }
 
 func (ts *ProgressTestSuite) testAgreed(answer string, value bool, c *C) {
-	license := "Void where empty."
-	flic, err := ioutil.TempFile("", "progress-lic-")
-	c.Assert(err, IsNil)
-	defer os.Remove(flic.Name())
-	fmt.Fprintln(flic, license)
-	flic.Sync()
-	flic.Close()
-
 	fout, err := ioutil.TempFile("", "progress-out-")
 	c.Assert(err, IsNil)
 	oldStdout := os.Stdout
@@ -66,8 +58,10 @@ func (ts *ProgressTestSuite) testAgreed(answer string, value bool, c *C) {
 	_, err = fin.Seek(0, 0)
 	c.Assert(err, IsNil)
 
+	license := "Void where empty."
+
 	t := NewTextProgress("no-pkg")
-	c.Check(t.Agreed("blah blah", flic.Name()), Equals, value)
+	c.Check(t.Agreed("blah blah", license), Equals, value)
 
 	_, err = fout.Seek(0, 0)
 	c.Assert(err, IsNil)
