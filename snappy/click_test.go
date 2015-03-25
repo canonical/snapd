@@ -102,6 +102,7 @@ Pattern: /var/lib/systemd/click/${id}
 `
 	makeClickHook(c, content)
 
+	os.MkdirAll(path.Join(s.tempdir, "/var/lib/apparmor/click/"), 0755)
 	testSymlinkDir2 := path.Join(s.tempdir, "/var/lib/apparmor/click/")
 	os.MkdirAll(testSymlinkDir2, 0755)
 	content = `Hook-Name: apparmor
@@ -449,6 +450,21 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 
 	generatedWrapper := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
 	c.Assert(generatedWrapper, Equals, expectedWrapper)
+}
+
+func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
+	binary := Binary{Name: "bin/pastebinit"}
+	pkgPath := "/apps/pastebinit.mvo/1.0/"
+	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/apps/pastebinit.mvo/1.0/bin/pastebinit")
+}
+
+func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
+	binary := Binary{
+		Name: "pastebinit",
+		Exec: "bin/random-pastebin",
+	}
+	pkgPath := "/apps/pastebinit.mvo/1.1/"
+	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/apps/pastebinit.mvo/1.1/bin/random-pastebin")
 }
 
 func (s *SnapTestSuite) TestSnappyGetBinaryAaProfile(c *C) {

@@ -281,7 +281,9 @@ func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedFailure(c *C) {
 	part := parts[0].(*SystemImagePart)
 	err = part.verifyUpgradeWasApplied()
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, `found latest installed version "1" (expected "2")`)
+	_, isErrUpgradeVerificationFailed := err.(*ErrUpgradeVerificationFailed)
+	c.Assert(isErrUpgradeVerificationFailed, Equals, true)
+	c.Assert(err.Error(), Equals, `upgrade verification failed: found "1" but expected "2"`)
 }
 
 func (s *SITestSuite) TestCannotUninstall(c *C) {

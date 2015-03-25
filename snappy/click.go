@@ -65,13 +65,18 @@ var ignoreHooks = map[string]bool{
 	"snappy-systemd": true,
 }
 
+// Execute the hook.Exec command
 func execHook(execCmd string) (err error) {
 	// the spec says this is passed to the shell
 	cmd := exec.Command("sh", "-c", execCmd)
 	if err = cmd.Run(); err != nil {
-		log.Printf("Failed to run hook %s: %s", execCmd, err)
+		if exitCode, err := helpers.ExitCode(err); err != nil {
+			return &ErrHookFailed{cmd: execCmd,
+				exitCode: exitCode}
+		}
 		return err
 	}
+
 	return nil
 }
 
@@ -95,7 +100,9 @@ func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error
 				log.Println("Signature check failed, but installing anyway as requested")
 				return nil
 			}
+			return &ErrSignature{exitCode: exitCode}
 		}
+		// not a exit code error, something else, pass on
 		return err
 	}
 	return nil
@@ -226,7 +233,7 @@ func iterHooks(manifest clickManifest, inhibitHooks bool, f iterHooksFunc) error
 	return nil
 }
 
-func installClickHooks(targetDir string, manifest clickManifest, inhibitHooks bool) (err error) {
+func installClickHooks(targetDir string, manifest clickManifest, inhibitHooks bool) error {
 	return iterHooks(manifest, inhibitHooks, func(src, dst string, systemHook clickHook) error {
 		// setup the new link target here, iterHooks will take
 		// care of running the hook
@@ -305,6 +312,14 @@ func generateBinaryName(m *packageYaml, binary Binary) string {
 	return filepath.Join(snapBinariesDir, binName)
 }
 
+func binPathForBinary(pkgPath string, binary Binary) string {
+	if binary.Exec != "" {
+		return filepath.Join(pkgPath, binary.Exec)
+	}
+
+	return filepath.Join(pkgPath, binary.Name)
+}
+
 func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) string {
 	wrapperTemplate := `#!/bin/sh
 # !!!never remove this line!!!
@@ -345,7 +360,7 @@ export SNAP_OLD_PWD="$(pwd)"
 cd {{.Path}}
 aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 `
-	actualBinPath := filepath.Join(pkgPath, binary.Name)
+	actualBinPath := binPathForBinary(pkgPath, binary)
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
@@ -412,12 +427,12 @@ var runSystemctl = runSystemctlImpl
 func runSystemctlImpl(cmd ...string) error {
 	args := []string{"systemctl", "--root", globalRootDir}
 	args = append(args, cmd...)
-	err := exec.Command(args[0], args[1:]...).Run()
-	if err != nil {
+	if err := exec.Command(args[0], args[1:]...).Run(); err != nil {
 		exitCode, _ := helpers.ExitCode(err)
 		return &ErrSystemCtl{cmd: args,
 			exitCode: exitCode}
 	}
+
 	return nil
 }
 
@@ -698,6 +713,12 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 			// by default to save space
 			cmd := exec.Command("cp", "-al", oldPath, newPath)
 			if err := cmd.Run(); err != nil {
+				if exitCode, err := helpers.ExitCode(err); err != nil {
+					return &ErrDataCopyFailed{
+						oldPath:  oldPath,
+						newPath:  newPath,
+						exitCode: exitCode}
+				}
 				return err
 			}
 		}
@@ -742,7 +763,7 @@ func unsetActiveClick(clickDir string, inhibitHooks bool) error {
 	return nil
 }
 
-func setActiveClick(baseDir string, inhibitHooks bool) (err error) {
+func setActiveClick(baseDir string, inhibitHooks bool) error {
 	currentActiveSymlink := filepath.Join(baseDir, "..", "current")
 	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
 

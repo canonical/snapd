@@ -11,7 +11,7 @@ import (
 type InstallFlags uint
 
 const (
-	// AllowUnauthenticated allows to install a snap even if it can not be a uthenticated
+	// AllowUnauthenticated allows to install a snap even if it can not be authenticated
 	AllowUnauthenticated InstallFlags = 1 << iota
 	// InhibitHooks will ensure that the hooks are not run
 	InhibitHooks
