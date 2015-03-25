@@ -5,7 +5,9 @@ import (
 	"sort"
 )
 
-// Rollback will roll the given pkg back to the given ver
+// Rollback will roll the given pkg back to the given ver. If the version
+// is empty the previous installed version will be used.
+//
 // The version needs to be installed on disk
 func Rollback(pkg, ver string) error {
 
