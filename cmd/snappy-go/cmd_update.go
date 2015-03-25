@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -19,9 +20,11 @@ func init() {
 }
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
-	if !isRoot() {
-		return ErrRequiresRoot
+	privMutex := priv.New()
+	if err := privMutex.TryLock(); err != nil {
+		return err
 	}
+	defer privMutex.Unlock()
 
 	return update()
 }
@@ -37,7 +40,7 @@ func update() error {
 		pbar := snappy.NewTextProgress(part.Name())
 
 		fmt.Printf("Installing %s (%s)\n", part.Name(), part.Version())
-		if err := part.Install(pbar); err != nil {
+		if err := part.Install(pbar, 0); err != nil {
 			return err
 		}
 	}
