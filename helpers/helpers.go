@@ -124,12 +124,12 @@ func getMapFromYaml(data []byte) (map[string]interface{}, error) {
 	return m, nil
 }
 
-// Architecture returns the debian equivalent architecture for the
+// UbuntuArchitecture returns the debian equivalent architecture for the
 // currently running architecture.
 //
 // If the architecture does not map any debian architecture, the
 // GOARCH is returned.
-func Architecture() string {
+func UbuntuArchitecture() string {
 	switch goarch {
 	case "386":
 		return "i386"
