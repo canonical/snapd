@@ -73,6 +73,7 @@ type ErrUnpackFailed struct {
 
 func (e *ErrUnpackFailed) Error() string {
 	return fmt.Sprintf("unpack %s to %s failed with %s", e.snapFile, e.instDir, e.origErr)
+}
 
 // ErrSignature is returned if a snap failed the signature verification
 type ErrSignature struct {

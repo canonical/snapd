@@ -240,4 +240,3 @@ func CurrentHomeDir() (string, error) {
 
 	return user.HomeDir, nil
 }
-
