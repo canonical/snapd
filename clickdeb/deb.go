@@ -126,9 +126,6 @@ func addFileToAr(arWriter *ar.Writer, filename string) error {
 	}
 
 	size := stat.Size()
-	if size%2 == 1 {
-		size++
-	}
 	hdr := &ar.Header{
 		Name:    filepath.Base(filename),
 		ModTime: time.Now(),
@@ -150,9 +147,6 @@ func addFileToAr(arWriter *ar.Writer, filename string) error {
 // FIXME: this should move into the "ar" library itself
 func addDataToAr(arWriter *ar.Writer, filename string, data []byte) error {
 	size := int64(len(data))
-	if size%2 == 1 {
-		size++
-	}
 	hdr := &ar.Header{
 		Name:    filename,
 		ModTime: time.Now(),
