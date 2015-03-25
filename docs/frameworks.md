@@ -62,7 +62,7 @@ For the official Ubuntu Store, we may eventually allow separate ownership of
 frameworks from framework policies.
 
 ## Usage
-### TODO: framework yaml
+### framework yaml
 
 For frameworks, meta/packaging.yaml should contain something like:
 
@@ -204,7 +204,7 @@ may be used:
     1.1.235
 
 
-## TODO/Open questions
+## Open questions
 
 The following are considerations that may affect the above for when we build on
 this work:
