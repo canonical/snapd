@@ -571,8 +571,8 @@ services:
 
 const expectedService = `[Unit]
 Description=The docker app deployment mechanism
-After=apparmor.service
-Requires=apparmor.service
+After=apparmor.service click-system-hooks.service
+Requires=apparmor.service click-system-hooks.service
 X-Snappy=yes
 
 [Service]
