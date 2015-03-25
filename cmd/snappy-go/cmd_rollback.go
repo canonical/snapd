@@ -35,15 +35,16 @@ func (x *cmdRollback) Execute(args []string) (err error) {
 	defer privMutex.Unlock()
 
 	pkg := x.Positional.PackageName
-	ver := x.Positional.Version
+	version := x.Positional.Version
 	if pkg == "" {
 		return errNeedPackageName
 	}
 
-	if err := snappy.Rollback(pkg, ver); err != nil {
+	nowVersion, err := snappy.Rollback(pkg, version)
+	if err != nil {
 		return err
 	}
-	fmt.Printf("Setting %s to active version %s\n", pkg, ver)
+	fmt.Printf("Setting %s to version %s\n", pkg, nowVersion)
 
 	return nil
 }

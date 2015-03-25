@@ -9,18 +9,18 @@ import (
 // is empty the previous installed version will be used.
 //
 // The version needs to be installed on disk
-func Rollback(pkg, ver string) error {
+func Rollback(pkg, ver string) (version string, err error) {
 
 	// no version specified, find the previous one
 	if ver == "" {
 		m := NewMetaRepository()
 		installed, err := m.Installed()
 		if err != nil {
-			return err
+			return "", err
 		}
 		snaps := FindSnapsByName(pkg, installed)
 		if len(snaps) < 2 {
-			return fmt.Errorf("no version to rollback to")
+			return "", fmt.Errorf("no version to rollback to")
 		}
 		sort.Sort(BySnapVersion(snaps))
 		// -1 is the most recent, -2 the previous one
@@ -28,8 +28,8 @@ func Rollback(pkg, ver string) error {
 	}
 
 	if err := makeSnapActiveByNameAndVersion(pkg, ver); err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return ver, nil
 }
