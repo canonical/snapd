@@ -9,26 +9,30 @@ import (
 
 type cmdRollback struct {
 	Positional struct {
-		PackageName string `positional-arg-name:"package name" description:"The package to rolblack "`
-		Version     string `positional-arg-name:"version" description:"The version to rolblack to"`
+		PackageName string `positional-arg-name:"package name" description:"The package to rollback "`
+		Version     string `positional-arg-name:"version" description:"The version to rollback to"`
 	} `positional-args:"yes"`
 }
 
-const rollbackHelp = `Rollback to a previous version of a snap
+const shortRollbackHelp = "Rollback to a previous version of a package"
+
+const longRollbackHelp = `Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.
 `
 
 func init() {
 	var cmdRollbackData cmdRollback
 	_, _ = parser.AddCommand("rollback",
-		"Rollback to a previous version of a package",
-		rollbackHelp,
+		shortRollbackHelp,
+		longRollbackHelp,
 		&cmdRollbackData)
 }
 
 func (x *cmdRollback) Execute(args []string) (err error) {
-	if !isRoot() {
-		return ErrRequiresRoot
+	privMutex := priv.New()
+	if err := privMutex.TryLock(); err != nil {
+		return err
 	}
+	defer privMutex.Unlock()
 
 	pkg := x.Positional.PackageName
 	ver := x.Positional.Version

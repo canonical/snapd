@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -18,9 +19,11 @@ func init() {
 }
 
 func (x *cmdRemove) Execute(args []string) (err error) {
-	if !isRoot() {
-		return ErrRequiresRoot
+	privMutex := priv.New()
+	if err := privMutex.TryLock(); err != nil {
+		return err
 	}
+	defer privMutex.Unlock()
 
 	for _, part := range args {
 		fmt.Printf("Removing %s\n", part)

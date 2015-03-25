@@ -59,7 +59,17 @@ func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditiona
 }
 
 func regenerateAppArmorRulesImpl() error {
-	return exec.Command(aaClickHookCmd, "-f").Run()
+	if err := exec.Command(aaClickHookCmd, "-f").Run(); err != nil {
+		if exitCode, err := helpers.ExitCode(err); err != nil {
+			return &ErrHookFailed{
+				cmd:      aaClickHookCmd,
+				exitCode: exitCode,
+			}
+		}
+		return err
+	}
+
+	return nil
 }
 
 var regenerateAppArmorRules = regenerateAppArmorRulesImpl

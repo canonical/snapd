@@ -7,7 +7,6 @@ package snappy
 import (
 	"crypto/sha512"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -186,12 +185,15 @@ func (s *SystemImagePart) verifyUpgradeWasApplied() error {
 	}
 
 	if latestPart == nil {
-		return errors.New("could not find latest installed partition")
+		return &ErrUpgradeVerificationFailed{
+			msg: "could not find latest installed partition",
+		}
 	}
 
 	if s.version != latestPart.Version() {
-		return fmt.Errorf("found latest installed version %q (expected %q)",
-			latestPart.Version(), s.version)
+		return &ErrUpgradeVerificationFailed{
+			msg: fmt.Sprintf("found %q but expected %q", latestPart.Version(), s.version),
+		}
 	}
 
 	return nil

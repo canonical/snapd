@@ -124,12 +124,12 @@ func getMapFromYaml(data []byte) (map[string]interface{}, error) {
 	return m, nil
 }
 
-// Architecture returns the debian equivalent architecture for the
+// UbuntuArchitecture returns the debian equivalent architecture for the
 // currently running architecture.
 //
 // If the architecture does not map any debian architecture, the
 // GOARCH is returned.
-func Architecture() string {
+func UbuntuArchitecture() string {
 	switch goarch {
 	case "386":
 		return "i386"
@@ -141,7 +141,7 @@ func Architecture() string {
 }
 
 // EnsureDir ensures that the given directory exists and if
-// not create it with the given permissions
+// not creates it with the given permissions.
 func EnsureDir(dir string, perm os.FileMode) (err error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dir, perm); err != nil {
