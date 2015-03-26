@@ -81,7 +81,10 @@ Required fields for framework snaps:
 
 * `type: framework` - defines the type of snap this is
 
-In addition to the required yaml fields, the security policy used by apps is
+Frameworks will typically need specialized security policy. See `security.md`
+for details.
+
+In addition to the above yaml fields, the security policy used by apps is
 shipped in the `meta/framework-policy` directory according to the following
 hierarchy:
 
@@ -142,6 +145,9 @@ framework in the above framework yaml example, it might use:
         caps:
           - networking
           - foo_bar-client
+
+See `security.md` for more information on specifying `caps` and a
+`security-template` as provided by the framework snap.
 
 ### User experience
 
