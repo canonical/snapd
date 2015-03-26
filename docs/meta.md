@@ -25,37 +25,51 @@ The following keys are optional:
  * explicit-license-agreement: set to "Y" if the user needs to accept a
    special meta/license.txt before the snap can be installed
  
- * type: the type of the snap, can be:
-   * app - the default
+ * type: (optional) the type of the snap, can be:
+   * app - the default if empty
    * oem - a special snap that OEMs can use to customize snappy for
            their hardware
-   * framework - a special snap with more power, see frameworks.md
+   * framework - a specialized snap that extends the system that other
+                 snaps may use
 
- * architectures: a yaml list of supported architectures
+ * architectures: (optional) a yaml list of supported architectures
+                  ["all"] if empty
  * framework: the frameworks the snap needs as dependencies
 
  * services: the servies (daemons) that the snap provides
- * name: name of the service
-   * description: description of the service
-   * start: the command to start the service
-   * stop: the command to stop the service
-   * stop-timeout: the time in seconds to wait for the service to stop
+   * name: (required) name of the service
+   * description: (required) description of the service
+   * start: (required) the command to start the service
+   * stop: (optional) the command to stop the service
+   * stop-timeout: (optional) the time in seconds to wait for the
+                   service to stop
    * poststop: a command that runs after the service has stopped
-
+   * caps: (optional) list of additional security policies to add.
+           See security.md for details
+   * security-template: (optional) alternate security template to use
+                        instead of `default`. See security.md for details 
+   * security-override: (optional) high level overrides to use when
+                        `security-template` and `caps` are not
+                        sufficient.  See security.md for details
+   * security-policy: (optional) hand-crafted low-level raw security
+                      policy to use instead of using default
+                      template-based  security policy. See
+                      security.md for details
+ 
  * binaries: the binaries (executables) that the snap provies
    * name: the name of the binary, the user will be able to call it
-           as $name.$pkgname
+           as $name.$pkgname (required)
    * exec: the program that gets execute (can be omited if name points
            to a binary already)
-   * security-template: the security template to use (can be omitted,
-                        the default template is used in this case
-   * security-policy: the special security policy to use (can be omitted)
+   * caps: (optional) see entry in services (above)
+   * security-template: (optional) see entry in services (above)
+   * security-override: (optional) see entry in services (above)
+   * security-policy: (optional) see entry in services (above)   
  
 ## license.txt
 
-A license text that the user must accepted before the snap can be
+A license text that the user must accept before the snap can be
 installed.
-
 
 ## hooks/ directory
 
