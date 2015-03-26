@@ -59,6 +59,17 @@ var (
 	// ErrSnapNotActive is returned if you try to unset a snap from
 	// active to inactive
 	ErrSnapNotActive = errors.New("snap not active")
+
+	// ErrLicenseNotAccepted is returned when the user does not accept the
+	// license
+	ErrLicenseNotAccepted = errors.New("license not accepted")
+	// ErrLicenseBlank is returned when the package specifies that
+	// accepting license is required, but the license file was empty or
+	// blank
+	ErrLicenseBlank = errors.New("package.yaml requires accepting a license, but license file was blank")
+	// ErrLicenseNotProvided is returned when the package specifies that
+	// accepting a license is required, but no license file is provided
+	ErrLicenseNotProvided = errors.New("package.yaml requires license, but no license was provided")
 )
 
 // ErrSignature is returned if a snap failed the signature verification

@@ -92,6 +92,8 @@ type packageYaml struct {
 	// this is a bit ugly, but right now integration is a one:one
 	// mapping of click hooks
 	Integration map[string]clickAppHook
+
+	ExplicitLicenseAgreement bool `yaml:"explicit-license-agreement"`
 }
 
 // the meta/hashes file, yaml so that we can extend it later with
@@ -128,9 +130,12 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parsePackageYamlData(yamlData)
+}
 
+func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	var m packageYaml
-	err = yaml.Unmarshal(yamlData, &m)
+	err := yaml.Unmarshal(yamlData, &m)
 	if err != nil {
 		log.Printf("Can not parse '%s'", yamlData)
 		return nil, err
@@ -506,7 +511,7 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter, flags InstallFlags) error {
 	}
 	defer os.Remove(downloadedSnap)
 
-	err = installClick(downloadedSnap, flags)
+	err = installClick(downloadedSnap, flags, nil)
 	if err != nil {
 		return err
 	}

@@ -44,6 +44,12 @@ func makeTestDebDir(c *C) string {
 	err = ioutil.WriteFile(filepath.Join(binPath, "foo"), []byte("foo"), 0644)
 	c.Assert(err, IsNil)
 
+	// a silly package.yaml
+	err = os.MkdirAll(filepath.Join(builddir, "meta"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(builddir, "meta", "package.yaml"), []byte("name: foo"), 0644)
+	c.Assert(err, IsNil)
+
 	return builddir
 }
 
@@ -89,6 +95,14 @@ func (s *ClickDebTestSuite) TestSnapDebControlMember(c *C) {
 	content, err := d.ControlMember("control")
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, string(testDebControl))
+}
+
+func (s *ClickDebTestSuite) TestSnapDebMetaMember(c *C) {
+	debName := makeTestDeb(c, "gzip")
+	d := ClickDeb{Path: debName}
+	yaml, err := d.MetaMember("package.yaml")
+	c.Assert(err, IsNil)
+	c.Assert(string(yaml), Equals, "name: foo")
 }
 
 func (s *ClickDebTestSuite) TestSnapDebUnpack(c *C) {

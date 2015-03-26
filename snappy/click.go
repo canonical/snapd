@@ -576,7 +576,11 @@ func removePackageBinaries(baseDir string) error {
 	return nil
 }
 
-func installClick(snapFile string, flags InstallFlags) (err error) {
+type agreer interface {
+	Agreed(intro, license string) bool
+}
+
+func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
 
@@ -597,6 +601,25 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	manifest, err := readClickManifest([]byte(manifestData))
 	if err != nil {
 		return err
+	}
+
+	yamlData, err := d.MetaMember("package.yaml")
+	if err != nil {
+		return err
+	}
+	m, err := parsePackageYamlData(yamlData)
+	if m.ExplicitLicenseAgreement {
+		if ag == nil {
+			return ErrLicenseNotAccepted
+		}
+		license, err := d.MetaMember("license.txt")
+		if err != nil || len(license) == 0 {
+			return ErrLicenseNotProvided
+		}
+		msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
+		if !ag.Agreed(msg, string(license)) {
+			return ErrLicenseNotAccepted
+		}
 	}
 
 	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
