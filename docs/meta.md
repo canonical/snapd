@@ -22,7 +22,7 @@ for a snap package. The following keys are mandatory:
 
 The following keys are optional:
  * icon: a svg icon for the snap that is displayed in the store
- * explicit-license-agreemen: set to "Y" if the user needs to accept a
+ * explicit-license-agreement: set to "Y" if the user needs to accept a
    special meta/license.txt before the snap can be installed
  
  * type: the type of the snap, can be:
