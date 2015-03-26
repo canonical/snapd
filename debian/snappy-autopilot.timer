@@ -2,9 +2,9 @@
 Description=Ubuntu Core Snappy Autopilot
 
 [Timer]
-OnCalendar=daily
+OnCalendar=hourly
 Persistent=true
-AccuracySec=30min
+AccuracySec=15min
 Unit=snappy-autopilot.service
 
 [Install]

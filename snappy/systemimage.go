@@ -1,6 +1,19 @@
-//--------------------------------------------------------------------
-// Copyright (c) 2014-2015 Canonical Ltd.
-//--------------------------------------------------------------------
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
 
 package snappy
 
@@ -15,7 +28,7 @@ import (
 	"time"
 
 	"launchpad.net/snappy/coreconfig"
-	partition "launchpad.net/snappy/partition"
+	"launchpad.net/snappy/partition"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -130,7 +143,7 @@ func (s *SystemImagePart) SetActive() (err error) {
 }
 
 // Install installs the snap
-func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
+func (s *SystemImagePart) Install(pb ProgressMeter, flags InstallFlags) (err error) {
 	if pb != nil {
 		// ensure the progress finishes when we are done
 		defer func() {

@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
@@ -28,13 +45,11 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 		return new(MockPartition)
 	}
 
-	snapDataDir = filepath.Join(s.tempdir, "/var/lib/apps/")
-	snapAppsDir = filepath.Join(s.tempdir, "/apps/")
-	snapBinariesDir = filepath.Join(s.tempdir, "/apps/bin")
-	snapServicesDir = filepath.Join(s.tempdir, "/etc/systemd/system")
+	SetRootDir(s.tempdir)
 	os.MkdirAll(snapServicesDir, 0755)
-	snapOemDir = filepath.Join(s.tempdir, "/oem/")
-	snapAppArmorDir = filepath.Join(s.tempdir, "/var/lib/apparmor/clicks/")
+
+	clickSystemHooksDir = filepath.Join(s.tempdir, "/usr/share/click/hooks")
+	os.MkdirAll(clickSystemHooksDir, 0755)
 
 	// we may not have debsig-verify installed (and we don't need it
 	// for the unittests)
@@ -442,7 +457,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
 	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
 
 	p := &MockProgressMeter{}
-	err = snap.Install(p)
+	err = snap.Install(p, 0)
 	c.Assert(err, IsNil)
 	st, err := os.Stat(snapPackage)
 	c.Assert(err, IsNil)
@@ -548,6 +563,14 @@ vendor: Michael Vogt <mvo@ubuntu.com>
 	m, err := parsePackageYamlFile(y)
 	c.Assert(err, IsNil)
 	c.Assert(m.Architectures, DeepEquals, []string{"all"})
+}
+
+func (s *SnapTestSuite) TestPackageYamlLicenseParsing(c *C) {
+	y := filepath.Join(s.tempdir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`explicit-license-agreement: Y`), 0644)
+	m, err := parsePackageYamlFile(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.ExplicitLicenseAgreement, Equals, true)
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryOemStoreId(c *C) {

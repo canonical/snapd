@@ -1,23 +1,26 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
+	"fmt"
 	"net"
-	"path/filepath"
 	"time"
-)
-
-// var instead of const to make it possible to override in the tests
-var (
-	snapAppsDir      = "/apps"
-	snapOemDir       = "/oem"
-	snapDataDir      = "/var/lib/apps"
-	snapDataHomeGlob = "/home/*/apps/"
-	snapAppArmorDir  = "/var/lib/apparmor/clicks"
-
-	snapBinariesDir = filepath.Join(snapAppsDir, "bin")
-	snapServicesDir = "/etc/systemd/system"
-
-	aaClickHookCmd = "aa-clickhook"
 )
 
 // SnapType represents the kind of snap (app, core, frameworks, oem)
@@ -66,7 +69,7 @@ type Part interface {
 	DownloadSize() int64
 
 	// Install the snap
-	Install(pb ProgressMeter) error
+	Install(pb ProgressMeter, flags InstallFlags) error
 	// Uninstall the snap
 	Uninstall() error
 	// Config takes a yaml configuration and returns the full snap
@@ -250,4 +253,21 @@ func FindSnapByNameAndVersion(needle, version string, haystack []Part) Part {
 		}
 	}
 	return nil
+}
+
+// MakeSnapActiveByNameAndVersion makes the given snap version the active
+// version
+func makeSnapActiveByNameAndVersion(pkg, ver string) error {
+	m := NewMetaRepository()
+	installed, err := m.Installed()
+	if err != nil {
+		return err
+	}
+
+	part := FindSnapByNameAndVersion(pkg, ver, installed)
+	if part == nil {
+		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
+	}
+
+	return part.SetActive()
 }

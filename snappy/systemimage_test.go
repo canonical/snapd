@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
@@ -161,7 +178,7 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 
 	pb := &MockProgressMeter{}
 	// do the install
-	err = sp.Install(pb)
+	err = sp.Install(pb, 0)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 	c.Assert(pb.total, Equals, 100.0)
@@ -189,7 +206,7 @@ printf '{"type": "error", "msg": "some error msg"}\n'
 
 	pb := &MockProgressMeter{}
 	// do the install
-	err = sp.Install(pb)
+	err = sp.Install(pb, 0)
 	c.Assert(strings.HasSuffix(err.Error(), "some error msg"), Equals, true)
 }
 
@@ -210,7 +227,7 @@ exit 1
 	sp.partition = &mockPartition
 
 	// do the install and pretend something goes wrong
-	err = sp.Install(nil)
+	err = sp.Install(nil, 0)
 
 	//
 	c.Assert(err.Error(), Equals, fmt.Sprintf("%s failed with return code 1: random\nerror string", systemImageCli))
@@ -225,7 +242,7 @@ func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.Install(nil)
+	err = sp.Install(nil, 0)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 }

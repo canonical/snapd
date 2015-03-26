@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
@@ -13,6 +30,7 @@ import (
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"regexp"
 )
 
 // FIXME: this is lie we tell click to make it happy for now
@@ -261,6 +279,25 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 	return exec.Command("cp", "-a", sourceDir, buildDir).Run()
 }
 
+var nonEmptyLicense = regexp.MustCompile(`(?s)\S+`).Match
+
+func checkLicenseExists(sourceDir string) error {
+	lic := filepath.Join(sourceDir, "meta", "license.txt")
+	if _, err := os.Stat(lic); err != nil {
+		return err
+	}
+	buf, err := ioutil.ReadFile(lic)
+	if err != nil {
+		return err
+	}
+	if !nonEmptyLicense(buf) {
+		return ErrLicenseBlank
+	}
+	return nil
+}
+
+var licenseChecker = checkLicenseExists
+
 // Build the given sourceDirectory and return the generated snap file
 func Build(sourceDir string) (string, error) {
 
@@ -268,6 +305,13 @@ func Build(sourceDir string) (string, error) {
 	m, err := parsePackageYamlFile(filepath.Join(sourceDir, "meta", "package.yaml"))
 	if err != nil {
 		return "", err
+	}
+
+	if m.ExplicitLicenseAgreement {
+		err = licenseChecker(sourceDir)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	// create build dir
