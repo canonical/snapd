@@ -9,7 +9,7 @@ import (
 	"github.com/cheggaaa/pb"
 )
 
-// ProgressMeter is a interface to show progress to the user
+// ProgressMeter is an interface to show progress to the user
 type ProgressMeter interface {
 	// Start progress with max "total" steps
 	Start(total float64)
@@ -126,7 +126,7 @@ func (t *TextProgress) Spin(msg string) {
 	}
 }
 
-// ask the user whether they agree to the given license text
+// Agreed asks the user whether they agree to the given license text
 func (t *TextProgress) Agreed(intro, license string) bool {
 	if _, err := fmt.Println(intro); err != nil {
 		return false

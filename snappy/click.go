@@ -594,7 +594,7 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 
 	yamlData, err := d.MetaMember("package.yaml")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	m, err := parsePackageYamlData(yamlData)
 	if m.ExplicitLicenseAgreement {
@@ -603,7 +603,6 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 		}
 		license, err := d.MetaMember("license.txt")
 		if err != nil || len(license) == 0 {
-			// XXX: also check this one at build time
 			return ErrLicenseNotProvided
 		}
 		msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
