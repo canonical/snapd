@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"launchpad.net/snappy/coreconfig"
-	partition "launchpad.net/snappy/partition"
+	"launchpad.net/snappy/partition"
 
 	"github.com/mvo5/goconfigparser"
 )

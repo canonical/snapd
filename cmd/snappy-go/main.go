@@ -2,10 +2,13 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
+
+	"launchpad.net/snappy/logger"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -22,9 +25,9 @@ var optionsData options
 var parser = flags.NewParser(&optionsData, flags.Default)
 
 func init() {
-	if os.Getenv("SNAPPY_DEBUG") != "" {
-		// FIXME: need a global logger!
-		//setupLogger()
+	err := logger.ActivateLogger()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
 	}
 }
 

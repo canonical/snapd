@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -29,7 +30,7 @@ func init() {
 	if _, err := parser.AddCommand("config", shortConfigHelp, longConfigHelp, &cmdConfigData); err != nil {
 		// panic here as something must be terribly wrong if there is an
 		// error here
-		panic(err)
+		logger.LogAndPanic(err)
 	}
 }
 

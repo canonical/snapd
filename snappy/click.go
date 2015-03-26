@@ -23,6 +23,7 @@ import (
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/logger"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -412,7 +413,7 @@ WantedBy=multi-user.target
 	}
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
 		// this can never happen, except we forget a variable
-		panic(err)
+		logger.LogAndPanic(err)
 	}
 
 	return templateOut.String()

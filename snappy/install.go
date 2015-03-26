@@ -4,6 +4,8 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"launchpad.net/snappy/logger"
 )
 
 // InstallFlags can be used to pass additional flags to the install of a
@@ -61,7 +63,7 @@ func Install(name string, flags InstallFlags) (err error) {
 		// act only on parts that are downloadable
 		if !part.IsInstalled() {
 			pbar := NewTextProgress(part.Name())
-			return part.Install(pbar, flags)
+			return logger.LogError(part.Install(pbar, flags))
 		}
 	}
 

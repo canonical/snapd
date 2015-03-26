@@ -3,6 +3,8 @@ package snappy
 import (
 	"fmt"
 	"strings"
+
+	"launchpad.net/snappy/logger"
 )
 
 // map from
@@ -28,7 +30,7 @@ func SetProperty(pkgname string, args ...string) (err error) {
 		}
 		err := f(pkgname, s[1])
 		if err != nil {
-			return err
+			return logger.LogError(err)
 		}
 	}
 

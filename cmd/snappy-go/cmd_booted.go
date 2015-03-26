@@ -1,6 +1,7 @@
 package main
 
 import (
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
@@ -25,8 +26,8 @@ func (x *cmdBooted) Execute(args []string) (err error) {
 
 	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)
 	if err != nil {
-		return err
+		return logger.LogError(err)
 	}
 
-	return parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
+	return logger.LogError(parts[0].(*snappy.SystemImagePart).MarkBootSuccessful())
 }
