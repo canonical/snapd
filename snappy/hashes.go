@@ -14,7 +14,29 @@ func newYamlFileMode(mode os.FileMode) *yamlFileMode {
 }
 
 func (v *yamlFileMode) MarshalYAML() (interface{}, error) {
-	return v.mode.String(), nil
+	buf := []byte("----------")
+
+	switch {
+	case (v.mode & os.ModeDir) != 0:
+		buf[0] = 'd'
+	case (v.mode & os.ModeSymlink) != 0:
+		buf[0] = 'l'
+	case (v.mode & os.ModeType) == 0:
+		buf[0] = 'f'
+	default:
+		return "", fmt.Errorf("Unknown file mode %s", v.mode)
+	}
+
+	const rwx = "rwxrwxrwx"
+	for i, c := range rwx {
+		if v.mode&(1<<uint(9-1-i)) != 0 {
+			buf[i+1] = byte(c)
+		} else {
+			buf[i+1] = '-'
+		}
+	}
+
+	return string(buf), nil
 }
 
 func (v *yamlFileMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -28,10 +50,10 @@ func (v *yamlFileMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	switch modeAsStr[0] {
 	case 'd':
 		m |= os.ModeDir
-	case '-':
+	case 'f':
 		// default
 		m |= 0
-	case 'L':
+	case 'l':
 		m |= os.ModeSymlink
 	default:
 		return fmt.Errorf("Unknown file mode %s", modeAsStr)
