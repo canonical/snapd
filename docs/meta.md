@@ -55,6 +55,15 @@ The following keys are optional:
                       policy to use instead of using default
                       template-based  security policy. See
                       security.md for details
+   * ports: (optional) define what ports the service will work
+     * internal: the ports the service is going to connect to
+       * tagname: a free form name
+         * port: (optional) number/protocol, e.g. 80/tcp
+         * negotiable: (optional) Y if the app can use a different port
+     * external: the ports the service offer to the world
+       * tagname: a free form name, some names have meaning like "ui"
+         * port: (optional) see above
+         * negotionalble: (optional) see above
  
  * binaries: the binaries (executables) that the snap provies
    * name: the name of the binary, the user will be able to call it
