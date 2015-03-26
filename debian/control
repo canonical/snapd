@@ -15,6 +15,7 @@ Build-Depends: bash-completion,
                golang-go.crypto-dev,
                golang-ar-dev,
                fakeroot,
+               golang-juju-loggo-dev,
 Standards-Version: 3.9.6
 Homepage: https://launchpad.net/snappy
 Vcs-Browser: http://bazaar.launchpad.net/~snappy-dev/snappy/trunk/files
