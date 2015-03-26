@@ -16,8 +16,8 @@ the snap and the first paragraph as the description in the store.
 This file describes the snap package and is the most important file
 for a snap package. The following keys are mandatory:
 
- * name: the name of the snap
- * version: the version of the snap
+ * name: the name of the snap (only [a-z0-9-])
+ * version: the version of the snap (only [a-zA-Z0-9.+-] are allowed)
  * vendor: the vendor of the snap
 
 The following keys are optional:
@@ -37,7 +37,7 @@ The following keys are optional:
  * framework: the frameworks the snap needs as dependencies
 
  * services: the servies (daemons) that the snap provides
-   * name: (required) name of the service
+   * name: (required) name of the service (only [a-zA-Z0-9-+._])
    * description: (required) description of the service
    * start: (required) the command to start the service
    * stop: (optional) the command to stop the service
@@ -66,8 +66,8 @@ The following keys are optional:
          * negotionalble: (optional) see above
  
  * binaries: the binaries (executables) that the snap provies
-   * name: the name of the binary, the user will be able to call it
-           as $name.$pkgname (required)
+   * name: (required) the name of the binary, the user will be able to
+           call it as $name.$pkgname (only [a-zA-Z0-9-+._])
    * exec: the program that gets execute (can be omited if name points
            to a binary already)
    * caps: (optional) see entry in services (above)
