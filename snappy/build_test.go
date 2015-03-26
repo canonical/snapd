@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
@@ -222,4 +239,87 @@ vendor: Foo <foo@example.com>
   }
  }
 }`
+}
+
+func (s *SnapTestSuite) TestBuildNoManifestFails(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "")
+	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "package.yaml")), IsNil)
+	_, err := Build(sourceDir)
+	c.Assert(err, NotNil) // XXX maybe make the error more explicit
+}
+
+func (s *SnapTestSuite) TestBuildManifestRequiresMissingLicense(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+architecture: ["i386", "amd64"]
+integration:
+ app:
+  apparmor-profile: meta/hello.apparmor
+explicit-license-agreement: Y
+`)
+	_, err := Build(sourceDir)
+	c.Assert(err, NotNil) // XXX maybe make the error more explicit
+}
+
+func (s *SnapTestSuite) TestBuildManifestRequiresBlankLicense(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+architecture: ["i386", "amd64"]
+integration:
+ app:
+  apparmor-profile: meta/hello.apparmor
+explicit-license-agreement: Y
+`)
+	lic := filepath.Join(sourceDir, "meta", "license.txt")
+	ioutil.WriteFile(lic, []byte("\n"), 0755)
+	_, err := Build(sourceDir)
+	c.Assert(err, Equals, ErrLicenseBlank)
+}
+
+func (s *SnapTestSuite) TestCopyCopies(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	// actually this'll be on /tmp so it'll be a link
+	target := c.MkDir()
+	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
+	c.Check(err, IsNil)
+	c.Check(out, DeepEquals, []byte{})
+}
+
+func (s *SnapTestSuite) TestCopyActuallyCopies(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	// hoping to get the non-linking behaviour
+	target, err := ioutil.TempDir("/dev/shm", "copy")
+	c.Assert(err, IsNil)
+	defer os.Remove(target)
+	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
+	c.Check(err, IsNil)
+	c.Check(out, DeepEquals, []byte{})
+}
+
+func (s *SnapTestSuite) TestCopyExcludesBackups(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	target := c.MkDir()
+	// add a backup file
+	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
+	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	out, err := exec.Command("diff", "-qr", sourceDir, target).Output()
+	c.Check(err, NotNil)
+	c.Check(string(out), Matches, `(?m)Only in \S+: foo~`)
+}
+
+func (s *SnapTestSuite) TestCopyExcludesWholeDirs(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	target := c.MkDir()
+	// add a file inside a skipped dir
+	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
+	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	out, _ := exec.Command("find", sourceDir).Output()
+	out, err := exec.Command("diff", "-qr", sourceDir, target).Output()
+	c.Check(err, NotNil)
+	c.Check(string(out), Matches, `(?m)Only in \S+: \.bzr`)
 }

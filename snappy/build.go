@@ -1,13 +1,32 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -21,6 +40,45 @@ echo "Click packages may not be installed directly using dpkg."
 echo "Use 'click install' instead."
 exit 1
 `
+
+// from click's click.build.ClickBuilderBase, and there from
+// @Dpkg::Source::Package::tar_ignore_default_pattern;
+// changed to regexps from globs for sanity (hah)
+//
+// Please resist the temptation of optimizing the regexp by grouping
+// things by hand. People will find it unreadable enough as it is.
+var shouldExclude = regexp.MustCompile(strings.Join([]string{
+	`\.snap$`, // added
+	`\.click$`,
+	`^\..*\.sw.$`,
+	`~$`,
+	`^,,`,
+	`^\.[#~]`,
+	`^\.arch-ids$`,
+	`^\.arch-inventory$`,
+	`^\.bzr$`,
+	`^\.bzr-builddeb$`,
+	`^\.bzr\.backup$`,
+	`^\.bzr\.tags$`,
+	`^\.bzrignore$`,
+	`^\.cvsignore$`,
+	`^\.git$`,
+	`^\.gitattributes$`,
+	`^\.gitignore$`,
+	`^\.gitmodules$`,
+	`^\.hg$`,
+	`^\.hgignore$`,
+	`^\.hgsigs$`,
+	`^\.hgtags$`,
+	`^\.shelf$`,
+	`^\.svn$`,
+	`^CVS$`,
+	`^DEADJOE$`,
+	`^RCS$`,
+	`^_MTN$`,
+	`^_darcs$`,
+	`^{arch}$`,
+}, "|")).MatchString
 
 const defaultApparmorJSON = `{
     "template": "default",
@@ -254,12 +312,81 @@ func writeClickManifest(buildDir string, m *packageYaml) error {
 }
 
 func copyToBuildDir(sourceDir, buildDir string) error {
-	// FIXME: too simplistic, we need a ignore pattern for stuff
-	//        like "*~" etc
-	os.Remove(buildDir)
+	sourceDir, err := filepath.Abs(sourceDir)
+	if err != nil {
+		return err
+	}
 
-	return exec.Command("cp", "-a", sourceDir, buildDir).Run()
+	err = os.Remove(buildDir)
+	if err != nil && !os.IsNotExist(err) {
+		// this shouldn't happen, but.
+		return err
+	}
+
+	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, errin error) (err error) {
+		if errin != nil {
+			return errin
+		}
+
+		if shouldExclude(filepath.Base(path)) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		dest := filepath.Join(buildDir, path[len(sourceDir):])
+		if info.IsDir() {
+			return os.Mkdir(dest, info.Mode())
+		}
+
+		// it's a file. Maybe we can link it?
+		if os.Link(path, dest) == nil {
+			// whee
+			return nil
+		}
+		// sigh. ok, copy it is.
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+
+		out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode())
+		if err != nil {
+			return err
+		}
+		defer func() {
+			// XXX: write a test for this. I dare you. I double-dare you.
+			xerr := out.Close()
+			if err == nil {
+				err = xerr
+			}
+		}()
+		_, err = io.Copy(out, in)
+		// no need to sync, as it's a tempdir
+		return err
+	})
 }
+
+var nonEmptyLicense = regexp.MustCompile(`(?s)\S+`).Match
+
+func checkLicenseExists(sourceDir string) error {
+	lic := filepath.Join(sourceDir, "meta", "license.txt")
+	if _, err := os.Stat(lic); err != nil {
+		return err
+	}
+	buf, err := ioutil.ReadFile(lic)
+	if err != nil {
+		return err
+	}
+	if !nonEmptyLicense(buf) {
+		return ErrLicenseBlank
+	}
+	return nil
+}
+
+var licenseChecker = checkLicenseExists
 
 // Build the given sourceDirectory and return the generated snap file
 func Build(sourceDir string) (string, error) {
@@ -268,6 +395,13 @@ func Build(sourceDir string) (string, error) {
 	m, err := parsePackageYamlFile(filepath.Join(sourceDir, "meta", "package.yaml"))
 	if err != nil {
 		return "", err
+	}
+
+	if m.ExplicitLicenseAgreement {
+		err = licenseChecker(sourceDir)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	// create build dir

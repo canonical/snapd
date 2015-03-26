@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 /* This part of the code implements enough of the click file format
@@ -23,6 +40,7 @@ import (
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/logger"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -382,8 +400,8 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 
 	serviceTemplate := `[Unit]
 Description={{.Description}}
-After=apparmor.service
-Requires=apparmor.service
+After=apparmor.service click-system-hooks.service
+Requires=apparmor.service click-system-hooks.service
 X-Snappy=yes
 
 [Service]
@@ -412,7 +430,7 @@ WantedBy=multi-user.target
 	}
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
 		// this can never happen, except we forget a variable
-		panic(err)
+		logger.LogAndPanic(err)
 	}
 
 	return templateOut.String()
@@ -425,7 +443,13 @@ func generateServiceFileName(m *packageYaml, service Service) string {
 var runSystemctl = runSystemctlImpl
 
 func runSystemctlImpl(cmd ...string) error {
-	args := []string{"systemctl", "--root", globalRootDir}
+	// FIXME: find an elegant solution, only enable works with --root
+	// +3 == "systemctl" + "daemon-reload", globalRootDir
+	args := make([]string, 0, len(cmd)+3)
+	args = append(args, "systemctl")
+	if len(cmd) > 0 && cmd[0] == "enable" {
+		args = append(args, "--root", globalRootDir)
+	}
 	args = append(args, cmd...)
 	if err := exec.Command(args[0], args[1:]...).Run(); err != nil {
 		exitCode, _ := helpers.ExitCode(err)
@@ -440,6 +464,10 @@ func runSystemctlImpl(cmd ...string) error {
 // when the SetRoot option is used and we need to generate
 // content for the "Services" and "Binaries" section
 func stripGlobalRootDir(dir string) string {
+	if globalRootDir == "/" {
+		return dir
+	}
+
 	return dir[len(globalRootDir):]
 }
 
@@ -565,7 +593,11 @@ func removePackageBinaries(baseDir string) error {
 	return nil
 }
 
-func installClick(snapFile string, flags InstallFlags) (err error) {
+type agreer interface {
+	Agreed(intro, license string) bool
+}
+
+func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
 
@@ -586,6 +618,25 @@ func installClick(snapFile string, flags InstallFlags) (err error) {
 	manifest, err := readClickManifest([]byte(manifestData))
 	if err != nil {
 		return err
+	}
+
+	yamlData, err := d.MetaMember("package.yaml")
+	if err != nil {
+		return err
+	}
+	m, err := parsePackageYamlData(yamlData)
+	if m.ExplicitLicenseAgreement {
+		if ag == nil {
+			return ErrLicenseNotAccepted
+		}
+		license, err := d.MetaMember("license.txt")
+		if err != nil || len(license) == 0 {
+			return ErrLicenseNotProvided
+		}
+		msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
+		if !ag.Agreed(msg, string(license)) {
+			return ErrLicenseNotAccepted
+		}
 	}
 
 	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
