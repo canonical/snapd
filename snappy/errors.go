@@ -61,6 +61,7 @@ var (
 	ErrSnapNotActive = errors.New("snap not active")
 
 	ErrLicenseNotAccepted = errors.New("license not accepted")
+	ErrLicenseBlank       = errors.New("package.yaml requires accepting a license, but license file was blank")
 	ErrLicenseNotProvided = errors.New("package.yaml requires license, but no license was provided")
 )
 

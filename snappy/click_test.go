@@ -234,6 +234,9 @@ func (s *SnapTestSuite) TestLocalSnapInstallNegAccepterFails(c *C) {
 // if the snap asks for accepting a license, and an agreer is provided, but
 // the click has no license, install fails
 func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {
+	licenseChecker = func(string) error { return nil }
+	defer func() { licenseChecker = checkLicenseExists }()
+
 	pkg := makeTestSnapPackageFull(c, "explicit-license-agreement: Y", false)
 	err := installClick(pkg, 0, &agreerator{y: true})
 	c.Check(err, Equals, ErrLicenseNotProvided)
