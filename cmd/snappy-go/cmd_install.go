@@ -9,6 +9,7 @@ import (
 )
 
 type cmdInstall struct {
+	AllowUnauthenticated bool `long:"allow-unauthenticated" description:"Install snaps even if the signature can not be verified."`
 }
 
 func init() {
@@ -26,9 +27,14 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 	}
 	defer privMutex.Unlock()
 
+	var flags snappy.InstallFlags
+	if x.AllowUnauthenticated {
+		flags |= snappy.AllowUnauthenticated
+	}
+
 	for _, part := range args {
 		fmt.Printf("Installing %s\n", part)
-		err = snappy.Install(part, 0)
+		err = snappy.Install(part, flags)
 		if err == snappy.ErrPackageNotFound {
 			return fmt.Errorf("No package '%s' for %s", part, ubuntuCoreChannel())
 		}
