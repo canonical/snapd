@@ -15,10 +15,14 @@ override_dh_systemd_enable:
 		--no-enable \
 		-pubuntu-snappy \
 		ubuntu-core-snappy.boot-ok.service
-	# we want autopilot enabled by default
+	# we want the autopilot timer enabled by default
 	dh_systemd_enable \
 		-pubuntu-snappy \
-		snappy-autopilot.timer \
+		snappy-autopilot.timer
+	# but the autopilot service disabled
+	dh_systemd_enable \
+		--no-enable \
+		-pubuntu-snappy \
 		snappy-autopilot.service
 
 override_dh_systemd_start:
@@ -27,10 +31,14 @@ override_dh_systemd_start:
 		--no-start \
 		-pubuntu-snappy \
 		ubuntu-core-snappy.boot-ok.service
+	# we want to start the autopilot timer
+	dh_systemd_start \
+		-pubuntu-snappy \
+		snappy-autopilot.timer
+	# but not start the service
 	dh_systemd_start \
 		--no-start \
 		-pubuntu-snappy \
-		snappy-autopilot.timer \
 		snappy-autopilot.service
 
 override_dh_auto_install:
