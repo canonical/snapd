@@ -1,4 +1,2 @@
 debian/*.service /lib/systemd/system/
 debian/*.timer /lib/systemd/system/
-data/completion/snappy-go /usr/share/bash-completion/completions/
-/usr/bin/snappy-go
