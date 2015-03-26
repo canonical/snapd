@@ -9,7 +9,7 @@ the following attributes:
 * Frameworks are delivered via snaps
 * Frameworks can be installed on the same system without conflicts
 * Frameworks typically will use a toplevel namespace
-* Framework `binaries` may be used without prepending the package name and
+* Framework `binaries` may be used without appending the package name and
   these binary names are governed by the framework onboarding process (below)
 * Frameworks run in a carefully crafted security profile
 * Frameworks are tightly coupled with separately maintained security policies
@@ -194,11 +194,8 @@ The command line experience is:
     apps: hello-world
 
 A convenience afforded to frameworks is that commands don't require that the
-package name be prepended. Eg, using the above `package.yaml`, either of these
+package name be appended. Eg, using the above `package.yaml`, either of these
 may be used:
-
-    $ foo.baz --version
-    1.1.235
 
     $ baz --version
     1.1.235
@@ -228,5 +225,9 @@ this work:
 
 * if we implement this, how should we declare `bar-srv` access to `bar-srv` is
   restricted in this manner?
+* should we allow users the ability to to use the `binaries` with the appended
+  package name? Eg:
+    $ baz.foo --version
+    1.1.235
 * ...
 
