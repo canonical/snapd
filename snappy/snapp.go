@@ -273,13 +273,13 @@ func (s *SnapPart) Services() []Service {
 }
 
 // Install installs the snap
-func (s *SnapPart) Install(pb ProgressMeter) (err error) {
+func (s *SnapPart) Install(pb ProgressMeter, flags InstallFlags) (err error) {
 	return errors.New("Install of a local part is not possible")
 }
 
 // SetActive sets the snap active
 func (s *SnapPart) SetActive() (err error) {
-	return setActiveClick(s.basedir)
+	return setActiveClick(s.basedir, false)
 }
 
 // Uninstall remove the snap from the system
@@ -499,14 +499,14 @@ func (s *RemoteSnapPart) Download(pbar ProgressMeter) (string, error) {
 }
 
 // Install installs the snap
-func (s *RemoteSnapPart) Install(pbar ProgressMeter) error {
+func (s *RemoteSnapPart) Install(pbar ProgressMeter, flags InstallFlags) error {
 	downloadedSnap, err := s.Download(pbar)
 	if err != nil {
 		return err
 	}
 	defer os.Remove(downloadedSnap)
 
-	err = installClick(downloadedSnap, 0)
+	err = installClick(downloadedSnap, flags)
 	if err != nil {
 		return err
 	}

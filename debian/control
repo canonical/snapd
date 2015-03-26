@@ -26,6 +26,13 @@ Description: snappy development go packages.
  Use these to use the snappy API.
 
 Package: ubuntu-snappy
+Architecture: all
+Depends: ubuntu-snappy-cli (= ${binary:Version}),
+         ${misc:Depends},
+Description: System components for Ubuntu Core Snappy.
+ Components and services that take care of an Ubuntu system with snappy.
+
+Package: ubuntu-snappy-cli
 Architecture: any
 Depends: apparmor-easyprof-ubuntu-snappy,
          debsig-verify,
