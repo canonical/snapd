@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package clickdeb
 
 import (
@@ -42,6 +59,12 @@ func makeTestDebDir(c *C) string {
 	err = os.MkdirAll(binPath, 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(binPath, "foo"), []byte("foo"), 0644)
+	c.Assert(err, IsNil)
+
+	// a silly package.yaml
+	err = os.MkdirAll(filepath.Join(builddir, "meta"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(builddir, "meta", "package.yaml"), []byte("name: foo"), 0644)
 	c.Assert(err, IsNil)
 
 	return builddir
@@ -89,6 +112,14 @@ func (s *ClickDebTestSuite) TestSnapDebControlMember(c *C) {
 	content, err := d.ControlMember("control")
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, string(testDebControl))
+}
+
+func (s *ClickDebTestSuite) TestSnapDebMetaMember(c *C) {
+	debName := makeTestDeb(c, "gzip")
+	d := ClickDeb{Path: debName}
+	yaml, err := d.MetaMember("package.yaml")
+	c.Assert(err, IsNil)
+	c.Assert(string(yaml), Equals, "name: foo")
 }
 
 func (s *ClickDebTestSuite) TestSnapDebUnpack(c *C) {

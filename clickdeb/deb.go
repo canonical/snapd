@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package clickdeb
 
 import (
@@ -60,6 +77,20 @@ type ClickDeb struct {
 // ControlMember returns the content of the given control member file
 // (e.g. the content of the "manifest" file in the control.tar.gz ar member)
 func (d *ClickDeb) ControlMember(controlMember string) (content []byte, err error) {
+	return d.member("control.tar", controlMember)
+}
+
+// MetaMember returns the content of the given meta file (e.g. the content of
+// the "package.yaml" file) from the data.tar.gz ar member's meta/ directory
+func (d *ClickDeb) MetaMember(metaMember string) (content []byte, err error) {
+	return d.member("data.tar", filepath.Join("meta", metaMember))
+}
+
+// member(arMember, tarMember) returns the content of the given tar member of
+// the given ar member tar.
+//
+// Confused? look at ControlMember and MetaMember, which this generalises.
+func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error) {
 	file, err := os.Open(d.Path)
 	if err != nil {
 		return nil, err
@@ -67,13 +98,13 @@ func (d *ClickDeb) ControlMember(controlMember string) (content []byte, err erro
 	defer file.Close()
 
 	arReader := ar.NewReader(file)
-	dataReader, err := skipToArMember(arReader, "control.tar")
+	dataReader, err := skipToArMember(arReader, arMember)
 	if err != nil {
 		return nil, err
 	}
 
 	err = helpers.TarIterate(dataReader, func(tr *tar.Reader, hdr *tar.Header) error {
-		if filepath.Clean(hdr.Name) == controlMember {
+		if filepath.Clean(hdr.Name) == tarMember {
 			content, err = ioutil.ReadAll(tr)
 			if err != nil {
 				return err
@@ -126,9 +157,6 @@ func addFileToAr(arWriter *ar.Writer, filename string) error {
 	}
 
 	size := stat.Size()
-	if size%2 == 1 {
-		size++
-	}
 	hdr := &ar.Header{
 		Name:    filepath.Base(filename),
 		ModTime: time.Now(),
@@ -150,9 +178,6 @@ func addFileToAr(arWriter *ar.Writer, filename string) error {
 // FIXME: this should move into the "ar" library itself
 func addDataToAr(arWriter *ar.Writer, filename string, data []byte) error {
 	size := int64(len(data))
-	if size%2 == 1 {
-		size++
-	}
 	hdr := &ar.Header{
 		Name:    filename,
 		ModTime: time.Now(),

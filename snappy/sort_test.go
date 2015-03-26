@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
@@ -58,4 +75,14 @@ func (s *SortTestSuite) TestSort(c *C) {
 	versions := []string{"2.0", "1.0", "1.2.2", "1.2"}
 	sort.Sort(ByVersion(versions))
 	c.Assert(versions, DeepEquals, []string{"1.0", "1.2", "1.2.2", "2.0"})
+}
+
+func (s *SortTestSuite) TestSortSnaps(c *C) {
+	snaps := []Part{
+		&RemoteSnapPart{pkg: remoteSnap{Version: "2.0"}},
+		&RemoteSnapPart{pkg: remoteSnap{Version: "1.0"}},
+	}
+	sort.Sort(BySnapVersion(snaps))
+	c.Assert(snaps[0].Version(), Equals, "1.0")
+	c.Assert(snaps[1].Version(), Equals, "2.0")
 }

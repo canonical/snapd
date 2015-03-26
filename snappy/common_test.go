@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
@@ -69,6 +86,10 @@ func addDefaultApparmorJSON(tempdir, apparmorJSONPath string) error {
 // makeTestSnapPackage creates a real snap package that can be installed on
 // disk using packageYaml as its meta/package.yaml
 func makeTestSnapPackage(c *C, packageYamlContent string) (snapFile string) {
+	return makeTestSnapPackageFull(c, packageYamlContent, true)
+}
+
+func makeTestSnapPackageFull(c *C, packageYamlContent string, makeLicense bool) (snapFile string) {
 	tmpdir := c.MkDir()
 	// content
 	os.MkdirAll(path.Join(tmpdir, "bin"), 0755)
@@ -91,6 +112,11 @@ vendor: Foo Bar <foo@example.com>
 	readmeMd := path.Join(tmpdir, "meta", "readme.md")
 	content = "Random\nExample"
 	ioutil.WriteFile(readmeMd, []byte(content), 0644)
+	if makeLicense {
+		license := path.Join(tmpdir, "meta", "license.txt")
+		content = "WTFPL"
+		ioutil.WriteFile(license, []byte(content), 0644)
+	}
 	// build it
 	err := helpers.ChDir(tmpdir, func() {
 		var err error
@@ -115,10 +141,10 @@ vendor: Foo Bar <foo@example.com>
 	}
 
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+	c.Assert(installClick(snapFile, AllowUnauthenticated, nil), IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	c.Assert(installClick(snapFile, AllowUnauthenticated), IsNil)
+	c.Assert(installClick(snapFile, AllowUnauthenticated, nil), IsNil)
 
 	m := NewMetaRepository()
 	installed, err := m.Installed()
@@ -154,4 +180,7 @@ func (m *MockProgressMeter) Write(buf []byte) (n int, err error) {
 }
 func (m *MockProgressMeter) Finished() {
 	m.finished = true
+}
+func (m *MockProgressMeter) Agreed(string, string) bool {
+	return false
 }

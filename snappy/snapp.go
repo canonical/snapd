@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
@@ -92,6 +109,8 @@ type packageYaml struct {
 	// this is a bit ugly, but right now integration is a one:one
 	// mapping of click hooks
 	Integration map[string]clickAppHook
+
+	ExplicitLicenseAgreement bool `yaml:"explicit-license-agreement"`
 }
 
 type remoteSnap struct {
@@ -122,9 +141,12 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parsePackageYamlData(yamlData)
+}
 
+func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	var m packageYaml
-	err = yaml.Unmarshal(yamlData, &m)
+	err := yaml.Unmarshal(yamlData, &m)
 	if err != nil {
 		log.Printf("Can not parse '%s'", yamlData)
 		return nil, err
@@ -500,7 +522,7 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter, flags InstallFlags) error {
 	}
 	defer os.Remove(downloadedSnap)
 
-	err = installClick(downloadedSnap, flags)
+	err = installClick(downloadedSnap, flags, nil)
 	if err != nil {
 		return err
 	}
