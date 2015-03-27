@@ -1,2 +1,2 @@
-/usr/bin/snappy-go
-data/completion/snappy-go /usr/share/bash-completion/completions/
+/usr/bin/snappy
+data/completion/snappy /usr/share/bash-completion/completions/
