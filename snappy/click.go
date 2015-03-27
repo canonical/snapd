@@ -421,12 +421,12 @@ WantedBy=multi-user.target
 	wrapperData := struct {
 		packageYaml
 		Service
-		AppPath       string
-		AaProfile     string
-		FullPathStart string
-		FullPathStop string
+		AppPath          string
+		AaProfile        string
+		FullPathStart    string
+		FullPathStop     string
 		FullPathPostStop string
-		AppTriple     string
+		AppTriple        string
 	}{
 		*m, service, baseDir, aaProfile,
 		filepath.Join(baseDir, service.Start),
