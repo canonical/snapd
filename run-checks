@@ -2,8 +2,6 @@
 
 set -ev
 
-LANG=C
-
 if which goctest >/dev/null; then
     goctest="goctest"
 else
