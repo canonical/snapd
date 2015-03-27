@@ -722,8 +722,11 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	}
 
 	for _, pkg := range updateData {
-		snap := NewRemoteSnapPart(pkg)
-		parts = append(parts, snap)
+		current := ActiveSnapByName(pkg.Name)
+		if current == nil || current.Version() != pkg.Version {
+			snap := NewRemoteSnapPart(pkg)
+			parts = append(parts, snap)
+		}
 	}
 
 	return parts, nil
