@@ -43,7 +43,6 @@ Please use the "list" command instead to see what is installed.
 The "list -u" (or "list --updates") will show you the available updates
 and "list -v" (or "list --verbose") will show all installed versions.
 `)
-	
 
 	return nil
 }
