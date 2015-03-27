@@ -62,7 +62,7 @@ var (
 
 	// ErrUnpackHelperNotFound is returned if the unpack helper
 	// can not be found
-	ErrUnpackHelperNotFound = errors.New("unpack helper not found, do you hae snappy installed in your PATH or GOPATH?")
+	ErrUnpackHelperNotFound = errors.New("unpack helper not found, do you have snappy installed in your PATH or GOPATH?")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem
