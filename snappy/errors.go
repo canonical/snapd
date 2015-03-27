@@ -77,6 +77,10 @@ var (
 	// active to inactive
 	ErrSnapNotActive = errors.New("snap not active")
 
+	// ErrBuildPlatformNotSupported is returned if you build on
+	// a not (yet) supported platform
+	ErrBuildPlatformNotSupported = errors.New("building on a not (yet) supported platform")
+
 	// ErrUnpackHelperNotFound is returned if the unpack helper
 	// can not be found
 	ErrUnpackHelperNotFound = errors.New("unpack helper not found, do you have snappy installed in your PATH or GOPATH?")

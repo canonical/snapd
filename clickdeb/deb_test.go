@@ -87,7 +87,7 @@ func (s *ClickDebTestSuite) TestSnapDebBuild(c *C) {
 
 	debDir := c.MkDir()
 	d := ClickDeb{Path: filepath.Join(debDir, "foo_1.0_all.deb")}
-	err := d.Build(builddir)
+	err := d.Build(builddir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(d.Path), Equals, true)
 

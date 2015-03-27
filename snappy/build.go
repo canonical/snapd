@@ -32,6 +32,8 @@ import (
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+
+	"gopkg.in/yaml.v2"
 )
 
 // FIXME: this is lie we tell click to make it happy for now
@@ -223,6 +225,62 @@ func dirSize(buildDir string) (string, error) {
 	}
 
 	return strings.Fields(string(output))[0], nil
+}
+
+func writeHashes(buildDir, dataTar string) error {
+
+	debianDir := filepath.Join(buildDir, "DEBIAN")
+	os.MkdirAll(debianDir, 0755)
+
+	hashes := hashesYaml{}
+	sha512, err := helpers.Sha512sum(dataTar)
+	if err != nil {
+		return err
+	}
+	hashes.ArchiveSha512 = sha512
+
+	err = filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error {
+		if strings.HasPrefix(path[len(buildDir):], "/DEBIAN") {
+			return nil
+		}
+		if path == buildDir {
+			return nil
+		}
+
+		sha512sum := ""
+		// pointer so that omitempty works (we don't want size for
+		// directories or symlinks)
+		var size *int64
+		if info.Mode().IsRegular() {
+			sha512sum, err = helpers.Sha512sum(path)
+			if err != nil {
+				return err
+			}
+			fsize := info.Size()
+			size = &fsize
+		}
+
+		hashes.Files = append(hashes.Files, fileHash{
+			Name:   path[len(buildDir)+1:],
+			Size:   size,
+			Sha512: sha512sum,
+			// FIXME: not portable, this output is different on
+			//        windows, macos
+			Mode: newYamlFileMode(info.Mode()),
+		})
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	content, err := yaml.Marshal(hashes)
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(filepath.Join(debianDir, "hashes.yaml"), []byte(content), 0644)
 }
 
 func writeDebianControl(buildDir string, m *packageYaml) error {
@@ -463,7 +521,11 @@ func Build(sourceDir string) (string, error) {
 
 	// build it
 	d := clickdeb.ClickDeb{Path: snapName}
-	if err := d.Build(buildDir); err != nil {
+	err = d.Build(buildDir, func(dataTar string) error {
+		// write hashes of the files plus the generated data tar
+		return writeHashes(buildDir, dataTar)
+	})
+	if err != nil {
 		return "", err
 	}
 

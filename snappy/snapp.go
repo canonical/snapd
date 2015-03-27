@@ -113,12 +113,6 @@ type packageYaml struct {
 	ExplicitLicenseAgreement bool `yaml:"explicit-license-agreement"`
 }
 
-// the meta/hashes file, yaml so that we can extend it later with
-// more/different hashes
-type hashesYaml struct {
-	Sha512 string
-}
-
 type remoteSnap struct {
 	Publisher       string  `json:"publisher,omitempty"`
 	Name            string  `json:"name"`
@@ -199,12 +193,12 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 
 	// read hash, its ok if its not there, some older versions of
 	// snappy did not write this file
-	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes"))
+	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes.yaml"))
 	if err == nil {
 		var h hashesYaml
 		err = yaml.Unmarshal(hashesData, &h)
 		if err == nil {
-			part.hash = h.Sha512
+			part.hash = h.ArchiveSha512
 		}
 	}
 
