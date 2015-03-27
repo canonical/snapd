@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
@@ -63,6 +80,17 @@ var (
 	// ErrUnpackHelperNotFound is returned if the unpack helper
 	// can not be found
 	ErrUnpackHelperNotFound = errors.New("unpack helper not found, do you have snappy installed in your PATH or GOPATH?")
+
+	// ErrLicenseNotAccepted is returned when the user does not accept the
+	// license
+	ErrLicenseNotAccepted = errors.New("license not accepted")
+	// ErrLicenseBlank is returned when the package specifies that
+	// accepting license is required, but the license file was empty or
+	// blank
+	ErrLicenseBlank = errors.New("package.yaml requires accepting a license, but license file was blank")
+	// ErrLicenseNotProvided is returned when the package specifies that
+	// accepting a license is required, but no license file is provided
+	ErrLicenseNotProvided = errors.New("package.yaml requires license, but no license was provided")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem
