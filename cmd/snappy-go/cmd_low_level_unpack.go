@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"launchpad.net/snappy/clickdeb"
+	"launchpad.net/snappy/helpers"
 )
 
 // #include <sys/prctl.h>
@@ -37,7 +38,7 @@ type cmdInternalUnpack struct {
 
 func unpackAndDropPrivs(snapFile, targetDir string) error {
 
-	if syscall.Getuid() == 0 {
+	if helpers.ShouldDropPrivs() {
 		u, err := user.Lookup(dropPrivsUser)
 		if err != nil {
 			return err
@@ -81,7 +82,7 @@ func unpackAndDropPrivs(snapFile, targetDir string) error {
 
 		// extra paranoia
 		if syscall.Getuid() != uid || syscall.Getgid() != gid {
-			return fmt.Errorf("Droping privileges failed, uid is %v, gid is %v", syscall.Getuid(), syscall.Getgid())
+			return fmt.Errorf("Dropping privileges failed, uid is %v, gid is %v", syscall.Getuid(), syscall.Getgid())
 		}
 	}
 

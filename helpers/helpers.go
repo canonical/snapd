@@ -240,3 +240,18 @@ func CurrentHomeDir() (string, error) {
 
 	return user.HomeDir, nil
 }
+
+// ShouldDropPrivs returns true if the application runs with sufficient
+// privileges so that it should drop them
+func ShouldDropPrivs() bool {
+	if groups, err := syscall.Getgroups(); err == nil {
+		for _, gid := range groups {
+			if gid == 0 {
+				return true
+			}
+		}
+	}
+
+	return syscall.Getuid() == 0 || syscall.Getgid() == 0
+
+}
