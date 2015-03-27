@@ -38,7 +38,6 @@ func (s *PartitionTestSuite) makeFakeGrubEnv(c *C) {
 	// these files just needs to exist
 	mockGrubFile(c, bootloaderGrubConfigFile, 0644)
 	mockGrubFile(c, bootloaderGrubEnvFile, 0644)
-	mockGrubFile(c, bootloaderGrubInstallCmd, 0755)
 	mockGrubFile(c, bootloaderGrubUpdateCmd, 0755)
 
 	// do not run commands for real
@@ -94,20 +93,18 @@ func (s *PartitionTestSuite) TestToggleRootFS(c *C) {
 	mp := singleCommand{"/bin/mountpoint", "/writable/cache/system"}
 	c.Assert(allCommands[0], DeepEquals, mp)
 
-	expectedGrubInstall := singleCommand{"/usr/sbin/chroot", "/writable/cache/system", bootloaderGrubInstallCmd, "/dev/sda"}
-	c.Assert(allCommands[1], DeepEquals, expectedGrubInstall)
-
 	expectedGrubUpdate := singleCommand{"/usr/sbin/chroot", "/writable/cache/system", bootloaderGrubUpdateCmd}
-	c.Assert(allCommands[2], DeepEquals, expectedGrubUpdate)
+	c.Assert(allCommands[1], DeepEquals, expectedGrubUpdate)
 
 	expectedGrubSet := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_mode=try"}
-	c.Assert(allCommands[3], DeepEquals, expectedGrubSet)
+	c.Assert(allCommands[2], DeepEquals, expectedGrubSet)
 
 	// the https://developer.ubuntu.com/en/snappy/porting guide says
 	// we always use the short names
 	expectedGrubSet = singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_ab=b"}
-	c.Assert(allCommands[4], DeepEquals, expectedGrubSet)
+	c.Assert(allCommands[3], DeepEquals, expectedGrubSet)
 
+	c.Assert(len(allCommands), Equals, 4)
 }
 
 func mockGrubEditenvList(cmd ...string) (string, error) {
