@@ -233,8 +233,8 @@ func writeDebianControl(buildDir string, m *packageYaml) error {
 		return err
 	}
 
-	// title description
-	title, description, err := parseReadme(filepath.Join(buildDir, "meta", "readme.md"))
+	// title
+	title, _, err := parseReadme(filepath.Join(buildDir, "meta", "readme.md"))
 	if err != nil {
 		return err
 	}
@@ -256,7 +256,6 @@ Architecture: {{.DebArchitecture}}
 Maintainer: {{.Vendor}}
 Installed-Size: {{.InstalledSize}}
 Description: {{.Title}}
- {{.Description}}
 `
 	t := template.Must(template.New("control").Parse(debianControlTemplate))
 	debianControlData := struct {
@@ -265,10 +264,9 @@ Description: {{.Title}}
 		Vendor          string
 		InstalledSize   string
 		Title           string
-		Description     string
 		DebArchitecture string
 	}{
-		m.Name, m.Version, m.Vendor, installedSize, title, description, debArchitecture(m),
+		m.Name, m.Version, m.Vendor, installedSize, title, debArchitecture(m),
 	}
 	t.Execute(debianControlFile, debianControlData)
 
