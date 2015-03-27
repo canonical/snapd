@@ -10,6 +10,20 @@ import (
 	"launchpad.net/snappy/clickdeb"
 )
 
+// #include <sys/prctl.h>
+// #include <errno.h>
+// int prctl_no_new_privs()
+// {
+//   // see prctl(2), needs linux3.5 at runtime
+//   // use magic constant for PR_SET_NO_NEW_PRIVS to avoid it at buildtime
+//   // (buildds are on linux3.2)
+//   int ret = prctl(38, 1, 0, 0, 0);
+//   if (ret < 0 && errno != EINVAL)
+//      return ret;
+//   return 0;
+// }
+import "C"
+
 // for compat with the old snappy, once that is gone we can drop to a
 // different user
 const dropPrivsUser = "clickpkg"
@@ -46,6 +60,12 @@ func unpackAndDropPrivs(snapFile, targetDir string) error {
 			if err := os.Chown(p, uid, gid); err != nil {
 				return err
 			}
+		}
+
+		// run prctl(PR_SET_NO_NEW_PRIVS)
+		rc := C.prctl_no_new_privs()
+		if rc < 0 {
+			return fmt.Errorf("prctl(PR_SET_NO_NEW_PRIVS) failed with %v", rc)
 		}
 
 		if err := syscall.Setgroups([]int{gid}); err != nil {
