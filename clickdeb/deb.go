@@ -246,7 +246,15 @@ func tarGzCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 		if err != nil {
 			return err
 		}
-		hdr.Name = "." + path[len(sourceDir):]
+
+		// exclude "."
+		relativePath := "." + path[len(sourceDir):]
+		if relativePath == "." {
+			return nil
+		}
+
+		// add header, note that all files belong to root
+		hdr.Name = relativePath
 		hdr.Uid = 0
 		hdr.Gid = 0
 		hdr.Uname = "root"

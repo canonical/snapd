@@ -196,4 +196,9 @@ func (s *ClickDebTestSuite) TestTarCreate(c *C) {
 	r, err = regexp.Compile("lrwxrwxrwx[ ]+root/root[ ]+0[ ]+(.*)./link-to-foo -> foo")
 	c.Assert(err, IsNil)
 	c.Assert(r.Match(output), Equals, true)
+
+	// and no "." dir
+	r, err = regexp.Compile(`(.*)\.\n`)
+	c.Assert(err, IsNil)
+	c.Assert(r.Match(output), Equals, false)
 }

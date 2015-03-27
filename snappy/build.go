@@ -120,7 +120,8 @@ func parseReadme(readme string) (title, description string, err error) {
 	if title == "" {
 		return "", "", ErrReadmeInvalid
 	}
-	if description == "" {
+
+	if strings.TrimSpace(description) == "" {
 		description = "no description"
 	}
 
@@ -167,6 +168,10 @@ func handleServices(buildDir string, m *packageYaml) error {
 		if v.Description == "" {
 			v.Description = description
 		}
+
+		// omit the name from the json to make the
+		// click-reviewers-tool happy
+		v.Name = ""
 		snappySystemdContent, err := json.MarshalIndent(v, "", " ")
 		if err != nil {
 			return err
@@ -290,8 +295,8 @@ func writeDebianControl(buildDir string, m *packageYaml) error {
 		return err
 	}
 
-	// title description
-	title, description, err := parseReadme(filepath.Join(buildDir, "meta", "readme.md"))
+	// title
+	title, _, err := parseReadme(filepath.Join(buildDir, "meta", "readme.md"))
 	if err != nil {
 		return err
 	}
@@ -313,7 +318,6 @@ Architecture: {{.DebArchitecture}}
 Maintainer: {{.Vendor}}
 Installed-Size: {{.InstalledSize}}
 Description: {{.Title}}
- {{.Descripton}}
 `
 	t := template.Must(template.New("control").Parse(debianControlTemplate))
 	debianControlData := struct {
@@ -322,10 +326,9 @@ Description: {{.Title}}
 		Vendor          string
 		InstalledSize   string
 		Title           string
-		Description     string
 		DebArchitecture string
 	}{
-		m.Name, m.Version, m.Vendor, installedSize, title, description, debArchitecture(m),
+		m.Name, m.Version, m.Vendor, installedSize, title, debArchitecture(m),
 	}
 	t.Execute(debianControlFile, debianControlData)
 

@@ -278,6 +278,12 @@ func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
+	allSystemctl := []string{}
+	runSystemctl = func(cmd ...string) error {
+		allSystemctl = append(allSystemctl, cmd[0])
+		return nil
+	}
+
 	targetDir := path.Join(s.tempdir, "apps")
 	err := installClick(makeTestSnapPackage(c, ""), 0, nil)
 	c.Assert(err, IsNil)
@@ -291,6 +297,9 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 
 	_, err = os.Stat(instDir)
 	c.Assert(err, NotNil)
+
+	// we don't run unneeded systemctl reloads
+	c.Assert(allSystemctl, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
@@ -677,6 +686,22 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServicesFile(c *C) {
 	c.Assert(generated, Equals, expectedService)
 }
 
+func (s *SnapTestSuite) TestFindBinaryInPath(c *C) {
+	fakeBinDir := c.MkDir()
+	runMePath := filepath.Join(fakeBinDir, "runme")
+	err := ioutil.WriteFile(runMePath, []byte(""), 0755)
+	c.Assert(err, IsNil)
+
+	p := filepath.Join(fakeBinDir, "not-executable")
+	err = ioutil.WriteFile(p, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	fakePATH := fmt.Sprintf("/some/dir:%s", fakeBinDir)
+	c.Assert(findBinaryInPath("runme", fakePATH), Equals, runMePath)
+	c.Assert(findBinaryInPath("no-such-binary-nowhere", fakePATH), Equals, "")
+	c.Assert(findBinaryInPath("not-executable", fakePATH), Equals, "")
+}
+
 func (s *SnapTestSuite) TestLocalSnapInstallRunHooks(c *C) {
 	hookSymlinkDir := filepath.Join(s.tempdir, "/var/lib/click/hooks/systemd")
 	c.Assert(os.MkdirAll(hookSymlinkDir, 0755), IsNil)
@@ -770,4 +795,40 @@ cd /apps/hello-app/1.10
 aa-exec -p hello-app_hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
 `
 	c.Assert(strings.Contains(string(content), needle), Equals, true)
+}
+
+var expectedServiceWrapper = `[Unit]
+Description=A fun webserver
+After=apparmor.service click-system-hooks.service
+Requires=apparmor.service click-system-hooks.service
+X-Snappy=yes
+
+[Service]
+ExecStart=/apps/xkcd-webserver.canonical/0.3.4/bin/foo start
+WorkingDirectory=/apps/xkcd-webserver.canonical/0.3.4/
+Environment="SNAPP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_USER_DATA_PATH=%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP=xckd-webserver.canonical_xkcd-webserver_0.3.4"
+AppArmorProfile=xkcd-webserver.canonical_xkcd-webserver_0.3.4
+ExecStop=/apps/xkcd-webserver.canonical/0.3.4/bin/foo stop
+ExecStopPost=/apps/xkcd-webserver.canonical/0.3.4/bin/foo post-stop
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+`
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
+	service := Service{Name: "xkcd-webserver",
+		Start:       "bin/foo start",
+		Stop:        "bin/foo stop",
+		PostStop:    "bin/foo post-stop",
+		StopTimeout: "30",
+		Description: "A fun webserver",
+	}
+	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
+	m := packageYaml{Name: "xckd-webserver.canonical",
+		Version: "0.3.4"}
+
+	generatedWrapper := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	c.Assert(generatedWrapper, Equals, expectedServiceWrapper)
 }

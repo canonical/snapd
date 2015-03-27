@@ -28,18 +28,19 @@ Description: snappy development go packages.
 
 Package: ubuntu-snappy
 Architecture: all
-Depends: ubuntu-snappy-cli (= ${binary:Version}), ${misc:Depends}
+Depends: apparmor-easyprof-ubuntu-snappy,
+         debsig-verify,
+         system-image-cli (>= 2.5-0ubuntu1+ppa15),
+         ubuntu-snappy-cli (= ${binary:Version}),
+         ${misc:Depends}
 Description: System components for Ubuntu Core Snappy.
  Components and services that take care of an Ubuntu system with snappy.
 
 Package: ubuntu-snappy-cli
 Architecture: any
-Depends: apparmor-easyprof-ubuntu-snappy,
-         debsig-verify,
-         fakeroot,
-         system-image-cli (>= 2.5-0ubuntu1+ppa15),
-         ${misc:Depends},
-         ${shlibs:Depends}
+Depends: fakeroot, ${misc:Depends}, ${shlibs:Depends}
+Replaces: ubuntu-core-snappy (<< 0.2~ppa90)
+Breaks: ubuntu-core-snappy (<< 0.2~ppa90)
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
  Manage an Ubuntu system with snappy.

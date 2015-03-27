@@ -42,6 +42,10 @@ func mockRunCommand(args ...string) (err error) {
 	return err
 }
 
+func mockMakeDirectory(path string, mode os.FileMode) error {
+	return nil
+}
+
 func (s *PartitionTestSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 	runLsblk = mockRunLsblkDualSnappy
@@ -50,13 +54,14 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 	bootloaderGrubDir = filepath.Join(s.tempdir, "boot", "grub")
 	bootloaderGrubConfigFile = filepath.Join(bootloaderGrubDir, "grub.cfg")
 	bootloaderGrubEnvFile = filepath.Join(bootloaderGrubDir, "grubenv")
-	bootloaderGrubInstallCmd = filepath.Join(s.tempdir, "grub-install")
 	bootloaderGrubUpdateCmd = filepath.Join(s.tempdir, "update-grub")
 
 	// and uboot
 	bootloaderUbootDir = filepath.Join(s.tempdir, "boot", "uboot")
 	bootloaderUbootConfigFile = filepath.Join(bootloaderUbootDir, "uEnv.txt")
 	bootloaderUbootEnvFile = filepath.Join(bootloaderUbootDir, "uEnv.txt")
+
+	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
 
 func (s *PartitionTestSuite) TearDownTest(c *C) {
@@ -70,7 +75,6 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	// grub vars
 	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
 	bootloaderGrubEnvFile = bootloaderGrubEnvFileReal
-	bootloaderGrubInstallCmd = bootloaderGrubInstallCmdReal
 	bootloaderGrubUpdateCmd = bootloaderGrubUpdateCmdReal
 
 	// uboot vars
@@ -78,6 +82,7 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	bootloaderUbootConfigFile = bootloaderUbootConfigFileReal
 	bootloaderUbootEnvFile = bootloaderUbootEnvFileReal
 
+	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
 
 func makeHardwareYaml(c *C, hardwareYaml string) (outPath string) {
@@ -127,6 +132,46 @@ NAME="sr0" LABEL="" PKNAME="" MOUNTPOINT=""
 	return strings.Split(dualData, "\n"), err
 }
 
+func (s *PartitionTestSuite) TestMountEntryArray(c *C) {
+	mea := mountEntryArray{}
+
+	c.Assert(mea.Len(), Equals, 0)
+
+	me := mountEntry{source: "/dev",
+		target:    "/dev",
+		options:   "bind",
+		bindMount: true}
+
+	mea = append(mea, me)
+	c.Assert(mea.Len(), Equals, 1)
+
+	me = mountEntry{source: "/foo",
+		target:    "/foo",
+		options:   "",
+		bindMount: false}
+
+	mea = append(mea, me)
+	c.Assert(mea.Len(), Equals, 2)
+
+	c.Assert(mea.Less(0, 1), Equals, true)
+	c.Assert(mea.Less(1, 0), Equals, false)
+
+	mea.Swap(0, 1)
+	c.Assert(mea.Less(0, 1), Equals, false)
+	c.Assert(mea.Less(1, 0), Equals, true)
+
+	results := removeMountByTarget(mea, "invalid")
+
+	// No change expected
+	c.Assert(results, DeepEquals, mea)
+
+	results = removeMountByTarget(mea, "/dev")
+
+	c.Assert(len(results), Equals, 1)
+	c.Assert(results[0], Equals, mountEntry{source: "/foo",
+		target: "/foo", options: "", bindMount: false})
+}
+
 func (s *PartitionTestSuite) TestSnappyDualRoot(c *C) {
 	p := New()
 	c.Assert(p.dualRootPartitions(), Equals, true)
@@ -173,7 +218,10 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
 }
 
 func (s *PartitionTestSuite) TestRunWithOtherDualParitionRWFuncErr(c *C) {
+	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
+
 	runCommand = mockRunCommand
+	makeDirectory = mockMakeDirectory
 
 	p := New()
 	err := p.RunWithOther(RW, func(otherRoot string) (err error) {
@@ -186,8 +234,16 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRWFuncErr(c *C) {
 
 	// ensure cleanup happend
 
-	// FIXME: mounts is global
-	c.Assert(mounts, DeepEquals, []string{})
+	// FIXME: mounts are global
+	expected := mountEntry{source: "/dev/sda4",
+		target: "/writable/cache/system", options: "", bindMount: false}
+
+	// At program exit, "other" should still be mounted
+	c.Assert(mounts, DeepEquals, mountEntryArray{expected})
+
+	undoMounts(false)
+
+	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
 
 func (s *PartitionTestSuite) TestRunWithOtherSingleParitionRO(c *C) {
@@ -235,48 +291,94 @@ func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
 	c.Assert(p, NotNil)
 
 	p.mountOtherRootfs(false)
-	c.Assert(mounts, DeepEquals, []string{p.MountTarget()})
+	expected := mountEntry{source: "/dev/sda4",
+		target: "/writable/cache/system", options: "", bindMount: false}
+
+	c.Assert(mounts, DeepEquals, mountEntryArray{expected})
+
 	p.unmountOtherRootfs()
-	c.Assert(mounts, DeepEquals, []string{})
+	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
 
-func (s *PartitionTestSuite) TestStringSliceRemoveExisting(c *C) {
-	haystack := []string{"one", "two", "three"}
-
-	newSlice := stringSliceRemove(haystack, "two")
-	c.Assert(newSlice, DeepEquals, []string{"one", "three"})
-
-	// note here that haystack is no longer "valid", i.e. the
-	// underlying array is modified (which is fine)
-	c.Assert(haystack, DeepEquals, []string{"one", "three", "three"})
-}
-
-func (s *PartitionTestSuite) TestStringSliceRemoveNoexistingNoOp(c *C) {
-	haystack := []string{"6", "28", "496", "8128"}
-	newSlice := stringSliceRemove(haystack, "99")
-	c.Assert(newSlice, DeepEquals, []string{"6", "28", "496", "8128"})
-}
-
-func (s *PartitionTestSuite) TestUndoMounts(c *C) {
+func (s *PartitionTestSuite) TestUnmountRequiredFilesystems(c *C) {
 	runCommand = mockRunCommand
 	s.makeFakeGrubEnv(c)
 
 	p := New()
 	c.Assert(c, NotNil)
 
-	// FIXME: mounts is global
-	c.Assert(mounts, DeepEquals, []string{})
 	p.bindmountRequiredFilesystems()
-	c.Assert(mounts, DeepEquals, []string{
-		p.MountTarget() + "/dev",
-		p.MountTarget() + "/proc",
-		p.MountTarget() + "/sys",
-		p.MountTarget() + "/boot/efi",
+	c.Assert(mounts, DeepEquals, mountEntryArray{
+		mountEntry{source: "/dev", target: p.MountTarget() + "/dev",
+			options: "bind", bindMount: true},
+
+		mountEntry{source: "/proc", target: p.MountTarget() + "/proc",
+			options: "bind", bindMount: true},
+
+		mountEntry{source: "/sys", target: p.MountTarget() + "/sys",
+			options: "bind", bindMount: true},
+		mountEntry{source: "/boot/efi", target: p.MountTarget() + "/boot/efi",
+			options: "bind", bindMount: true},
+
 		// this comes from the grub bootloader via AdditionalBindMounts
-		p.MountTarget() + "/boot/grub",
+		mountEntry{source: "/boot/grub", target: p.MountTarget() + "/boot/grub",
+			options: "bind", bindMount: true},
+
+		// Required to allow grub inside the chroot to access
+		// the "current" rootfs outside the chroot (used
+		// to generate the grub menuitems).
+		mountEntry{source: "/",
+			target:  p.MountTarget() + p.MountTarget(),
+			options: "bind,ro", bindMount: true},
 	})
 	p.unmountRequiredFilesystems()
-	c.Assert(mounts, DeepEquals, []string{})
+	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
+}
+
+func (s *PartitionTestSuite) TestUndoMounts(c *C) {
+	runCommand = mockRunCommand
+
+	p := New()
+	c.Assert(c, NotNil)
+
+	err := p.remountOther(RW)
+	c.Assert(err, IsNil)
+
+	p.bindmountRequiredFilesystems()
+	c.Assert(mounts, DeepEquals, mountEntryArray{
+
+		mountEntry{source: "/dev/sda4", target: "/writable/cache/system",
+			options: "", bindMount: false},
+
+		mountEntry{source: "/dev", target: p.MountTarget() + "/dev",
+			options: "bind", bindMount: true},
+
+		mountEntry{source: "/proc", target: p.MountTarget() + "/proc",
+			options: "bind", bindMount: true},
+
+		mountEntry{source: "/sys", target: p.MountTarget() + "/sys",
+			options: "bind", bindMount: true},
+
+		mountEntry{source: "/boot/efi", target: p.MountTarget() + "/boot/efi",
+			options: "bind", bindMount: true},
+
+		mountEntry{source: "/",
+			target:  p.MountTarget() + p.MountTarget(),
+			options: "bind,ro", bindMount: true},
+	})
+
+	// should leave non-bind mounts
+	undoMounts(true)
+
+	c.Assert(mounts, DeepEquals, mountEntryArray{
+		mountEntry{source: "/dev/sda4", target: "/writable/cache/system",
+			options: "", bindMount: false},
+	})
+
+	// should unmount everything
+	undoMounts(false)
+
+	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
 
 func mockRunLsblkNoSnappy() (output []string, err error) {
@@ -361,6 +463,9 @@ func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(b.ToggleRootFSCalled, Equals, true)
 	c.Assert(b.HandleAssetsCalled, Equals, true)
+
+	p.unmountOtherRootfs()
+	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
 
 func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
