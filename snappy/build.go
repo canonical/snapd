@@ -165,6 +165,10 @@ func handleServices(buildDir string, m *packageYaml) error {
 		if v.Description == "" {
 			v.Description = description
 		}
+
+		// omit the name from the json to make the
+		// click-reviewers-tool happy
+		v.Name = ""
 		snappySystemdContent, err := json.MarshalIndent(v, "", " ")
 		if err != nil {
 			return err
