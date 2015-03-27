@@ -570,8 +570,11 @@ func removePackageBinaries(baseDir string) error {
 func findBinaryInPath(name, path string) string {
 	for _, entry := range strings.Split(path, ":") {
 		fname := filepath.Join(entry, name)
-		if helpers.FileExists(fname) {
-			return fname
+		if st, err := os.Stat(fname); err == nil {
+			// check for any x bit
+			if st.Mode()&0111 != 0 {
+				return fname
+			}
 		}
 	}
 

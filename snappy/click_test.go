@@ -609,9 +609,14 @@ func (s *SnapTestSuite) TestFindBinaryInPath(c *C) {
 	err := ioutil.WriteFile(runMePath, []byte(""), 0755)
 	c.Assert(err, IsNil)
 
+	p := filepath.Join(fakeBinDir, "not-executable")
+	err = ioutil.WriteFile(p, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
 	fakePATH := fmt.Sprintf("/some/dir:%s", fakeBinDir)
 	c.Assert(findBinaryInPath("runme", fakePATH), Equals, runMePath)
 	c.Assert(findBinaryInPath("no-such-binary-nowhere", fakePATH), Equals, "")
+	c.Assert(findBinaryInPath("not-executable", fakePATH), Equals, "")
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallRunHooks(c *C) {
