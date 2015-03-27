@@ -796,3 +796,39 @@ aa-exec -p hello-app_hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
 `
 	c.Assert(strings.Contains(string(content), needle), Equals, true)
 }
+
+var expectedServiceWrapper = `[Unit]
+Description=A fun webserver
+After=apparmor.service click-system-hooks.service
+Requires=apparmor.service click-system-hooks.service
+X-Snappy=yes
+
+[Service]
+ExecStart=/apps/xkcd-webserver.canonical/0.3.4/bin/foo start
+WorkingDirectory=/apps/xkcd-webserver.canonical/0.3.4/
+Environment="SNAPP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_USER_DATA_PATH=%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP=xckd-webserver.canonical_xkcd-webserver_0.3.4"
+AppArmorProfile=xkcd-webserver.canonical_xkcd-webserver_0.3.4
+ExecStop=/apps/xkcd-webserver.canonical/0.3.4/bin/foo stop
+ExecStopPost=/apps/xkcd-webserver.canonical/0.3.4/bin/foo post-stop
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+`
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
+	service := Service{Name: "xkcd-webserver",
+		Start:       "bin/foo start",
+		Stop:        "bin/foo stop",
+		PostStop:    "bin/foo post-stop",
+		StopTimeout: "30",
+		Description: "A fun webserver",
+	}
+	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
+	m := packageYaml{Name: "xckd-webserver.canonical",
+		Version: "0.3.4"}
+
+	generatedWrapper := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	c.Assert(generatedWrapper, Equals, expectedServiceWrapper)
+}
