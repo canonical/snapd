@@ -277,3 +277,49 @@ explicit-license-agreement: Y
 	_, err := Build(sourceDir)
 	c.Assert(err, Equals, ErrLicenseBlank)
 }
+
+func (s *SnapTestSuite) TestCopyCopies(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	// actually this'll be on /tmp so it'll be a link
+	target := c.MkDir()
+	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
+	c.Check(err, IsNil)
+	c.Check(out, DeepEquals, []byte{})
+}
+
+func (s *SnapTestSuite) TestCopyActuallyCopies(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	// hoping to get the non-linking behaviour
+	target, err := ioutil.TempDir("/dev/shm", "copy")
+	c.Assert(err, IsNil)
+	defer os.Remove(target)
+	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
+	c.Check(err, IsNil)
+	c.Check(out, DeepEquals, []byte{})
+}
+
+func (s *SnapTestSuite) TestCopyExcludesBackups(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	target := c.MkDir()
+	// add a backup file
+	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
+	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	out, err := exec.Command("diff", "-qr", sourceDir, target).Output()
+	c.Check(err, NotNil)
+	c.Check(string(out), Matches, `(?m)Only in \S+: foo~`)
+}
+
+func (s *SnapTestSuite) TestCopyExcludesWholeDirs(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	target := c.MkDir()
+	// add a file inside a skipped dir
+	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
+	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	out, _ := exec.Command("find", sourceDir).Output()
+	out, err := exec.Command("diff", "-qr", sourceDir, target).Output()
+	c.Check(err, NotNil)
+	c.Check(string(out), Matches, `(?m)Only in \S+: \.bzr`)
+}
