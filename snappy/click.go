@@ -409,8 +409,8 @@ ExecStart={{.FullPathStart}}
 WorkingDirectory={{.AppPath}}
 Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}"
 AppArmorProfile={{.AaProfile}}
-{{if .Stop}}ExecStop={{.Stop}}{{end}}
-{{if .PostStop}}ExecPostStop={{.PostStop}}{{end}}
+{{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
+{{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout}}{{end}}
 
 [Install]
@@ -424,9 +424,15 @@ WantedBy=multi-user.target
 		AppPath       string
 		AaProfile     string
 		FullPathStart string
+		FullPathStop string
+		FullPathPostStop string
 		AppTriple     string
 	}{
-		*m, service, baseDir, aaProfile, filepath.Join(baseDir, service.Start), fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version),
+		*m, service, baseDir, aaProfile,
+		filepath.Join(baseDir, service.Start),
+		filepath.Join(baseDir, service.Stop),
+		filepath.Join(baseDir, service.PostStop),
+		fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version),
 	}
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
 		// this can never happen, except we forget a variable
