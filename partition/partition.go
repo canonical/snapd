@@ -140,6 +140,7 @@ type mountEntry struct {
 	bindMount bool
 }
 
+// mountEntryArray represents an array of mountEntry objects.
 type mountEntryArray []mountEntry
 
 // current mounts that this package has created.
