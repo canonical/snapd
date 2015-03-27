@@ -632,7 +632,7 @@ func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
 	// find priv helper executable
 	privHelper := ""
 	for _, path := range []string{"PATH", "GOPATH"} {
-		privHelper = findBinaryInPath("snappy-go", os.Getenv(path))
+		privHelper = findBinaryInPath("snappy", os.Getenv(path))
 		if privHelper != "" {
 			break
 		}
