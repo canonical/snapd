@@ -686,6 +686,22 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServicesFile(c *C) {
 	c.Assert(generated, Equals, expectedService)
 }
 
+func (s *SnapTestSuite) TestFindBinaryInPath(c *C) {
+	fakeBinDir := c.MkDir()
+	runMePath := filepath.Join(fakeBinDir, "runme")
+	err := ioutil.WriteFile(runMePath, []byte(""), 0755)
+	c.Assert(err, IsNil)
+
+	p := filepath.Join(fakeBinDir, "not-executable")
+	err = ioutil.WriteFile(p, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	fakePATH := fmt.Sprintf("/some/dir:%s", fakeBinDir)
+	c.Assert(findBinaryInPath("runme", fakePATH), Equals, runMePath)
+	c.Assert(findBinaryInPath("no-such-binary-nowhere", fakePATH), Equals, "")
+	c.Assert(findBinaryInPath("not-executable", fakePATH), Equals, "")
+}
+
 func (s *SnapTestSuite) TestLocalSnapInstallRunHooks(c *C) {
 	hookSymlinkDir := filepath.Join(s.tempdir, "/var/lib/click/hooks/systemd")
 	c.Assert(os.MkdirAll(hookSymlinkDir, 0755), IsNil)

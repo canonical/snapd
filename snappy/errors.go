@@ -77,6 +77,10 @@ var (
 	// active to inactive
 	ErrSnapNotActive = errors.New("snap not active")
 
+	// ErrUnpackHelperNotFound is returned if the unpack helper
+	// can not be found
+	ErrUnpackHelperNotFound = errors.New("unpack helper not found, do you have snappy installed in your PATH or GOPATH?")
+
 	// ErrLicenseNotAccepted is returned when the user does not accept the
 	// license
 	ErrLicenseNotAccepted = errors.New("license not accepted")
@@ -88,6 +92,18 @@ var (
 	// accepting a license is required, but no license file is provided
 	ErrLicenseNotProvided = errors.New("package.yaml requires license, but no license was provided")
 )
+
+// ErrUnpackFailed is the error type for a snap unpack problem
+type ErrUnpackFailed struct {
+	snapFile string
+	instDir  string
+	origErr  error
+}
+
+// ErrUnpackFailed is returned if unpacking a snap fails
+func (e *ErrUnpackFailed) Error() string {
+	return fmt.Sprintf("unpack %s to %s failed with %s", e.snapFile, e.instDir, e.origErr)
+}
 
 // ErrSignature is returned if a snap failed the signature verification
 type ErrSignature struct {
