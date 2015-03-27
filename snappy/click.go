@@ -533,8 +533,12 @@ func removePackageServices(baseDir string) error {
 
 		os.Remove(generateServiceFileName(m, service))
 	}
-	if err := runSystemctl("daemon-reload"); err != nil {
-		return err
+
+	// only reload if we actually had services
+	if len(m.Services) > 0 {
+		if err := runSystemctl("daemon-reload"); err != nil {
+			return err
+		}
 	}
 
 	return nil

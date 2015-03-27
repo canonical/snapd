@@ -278,6 +278,12 @@ func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
+	allSystemctl := []string{}
+	runSystemctl = func(cmd ...string) error {
+		allSystemctl = append(allSystemctl, cmd[0])
+		return nil
+	}
+
 	targetDir := path.Join(s.tempdir, "apps")
 	err := installClick(makeTestSnapPackage(c, ""), 0, nil)
 	c.Assert(err, IsNil)
@@ -291,6 +297,9 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 
 	_, err = os.Stat(instDir)
 	c.Assert(err, NotNil)
+
+	// we don't run unneeded systemctl reloads
+	c.Assert(allSystemctl, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
