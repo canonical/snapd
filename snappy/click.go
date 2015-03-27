@@ -19,7 +19,6 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"text/template"
 
 	"launchpad.net/snappy/clickdeb"
@@ -588,7 +587,7 @@ func findBinaryInPath(name, path string) string {
 // just fork() and drop privs in the child (no support for stock fork in go)
 func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
 	// no need to drop privs, we are not root
-	if syscall.Getuid() != 0 {
+	if !helpers.ShouldDropPrivs() {
 		return d.Unpack(instDir)
 	}
 
