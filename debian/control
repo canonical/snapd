@@ -40,6 +40,8 @@ Depends: apparmor-easyprof-ubuntu-snappy,
          system-image-cli (>= 2.5-0ubuntu1+ppa15),
          ${misc:Depends},
          ${shlibs:Depends}
+Replaces: ubuntu-core-snappy (<< 0.2~ppa90)
+Breaks: ubuntu-core-snappy (<< 0.2~ppa90)
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
  Manage an Ubuntu system with snappy.

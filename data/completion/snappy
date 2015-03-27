@@ -11,4 +11,4 @@ _complete() {
     return 0
 }
 
-complete -F _complete snappy-go
+complete -F _complete snappy
