@@ -118,7 +118,8 @@ func parseReadme(readme string) (title, description string, err error) {
 	if title == "" {
 		return "", "", ErrReadmeInvalid
 	}
-	if description == "" {
+
+	if strings.TrimSpace(description) == "" {
 		description = "no description"
 	}
 
@@ -255,7 +256,7 @@ Architecture: {{.DebArchitecture}}
 Maintainer: {{.Vendor}}
 Installed-Size: {{.InstalledSize}}
 Description: {{.Title}}
- {{.Descripton}}
+ {{.Description}}
 `
 	t := template.Must(template.New("control").Parse(debianControlTemplate))
 	debianControlData := struct {
