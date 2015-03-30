@@ -152,10 +152,13 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 			continue
 		}
 
-		// generate apparmor stuff
+		// generate apparmor template
 		apparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-		securityJSONContent := defaultApparmorJSON
-		if err := ioutil.WriteFile(filepath.Join(buildDir, securityJSONContent), []byte(defaultApparmorJSON), 0644); err != nil {
+		securityJSONContent, err := generateApparmorJSONContent(v)
+		if err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(filepath.Join(buildDir, apparmorJSONFile), securityJSONContent, 0644); err != nil {
 			return err
 		}
 
@@ -199,13 +202,15 @@ func handleServices(buildDir string, m *packageYaml) error {
 		// generate apparmor
 		_, hasApparmor := m.Integration[hookName]["apparmor"]
 		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-		if !hasApparmor && !hasApparmorProfile {
-			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
-				return err
-			}
-			m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+		if hasApparmor || hasApparmorProfile {
+			continue
 		}
+
+		defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
+		if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
+			return err
+		}
+		m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
 	}
 
 	return nil

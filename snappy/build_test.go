@@ -347,3 +347,32 @@ func (s *SnapTestSuite) TestHandleBinariesSecurityOverride(c *C) {
 	c.Assert(handleBinaries(temp, &packageYaml), IsNil)
 	c.Assert(packageYaml.Integration["foo"]["apparmor"], Equals, "meta/nondefault.json")
 }
+
+func (s *SnapTestSuite) TestHandleBinariesSecurityCaps(c *C) {
+	temp := c.MkDir()
+	os.MkdirAll(filepath.Join(temp, "meta"), 0755)
+	packageYaml := packageYaml{
+		Name:        "foo-app",
+		Integration: make(map[string]clickAppHook),
+		Binaries: []Binary{
+			Binary{
+				Name:         "foo",
+				Exec:         "bin/foo-wrapper",
+				SecurityCaps: []string{"cap1"},
+			},
+		},
+	}
+
+	c.Assert(handleBinaries(temp, &packageYaml), IsNil)
+	c.Assert(packageYaml.Integration["foo"]["apparmor"], Equals, "meta/foo.apparmor")
+	content, err := ioutil.ReadFile(filepath.Join(temp, "meta", "foo.apparmor"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `{
+  "template": "default",
+  "policy_groups": [
+    "cap1"
+  ],
+  "policy_vendor": "ubuntu-snappy",
+  "policy_version": 1.3
+}`)
+}
