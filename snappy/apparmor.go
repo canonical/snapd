@@ -2,6 +2,7 @@ package snappy
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 )
@@ -66,4 +67,19 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 	m.Integration[hookName]["apparmor"] = apparmorJSONFile
 
 	return nil
+}
+
+func getAaProfile(m *packageYaml, name string, s *SecurityDefinitions) string {
+	// check if there is a specific apparmor profile
+	if s.SecurityPolicy != "" {
+		return s.SecurityPolicy
+	}
+	// ... or apparmor.json
+	if s.SecurityTemplate != "" {
+		return s.SecurityTemplate
+	}
+
+	// FIXME: we need to generate a default aa profile here instead
+	// of relying on a default one shipped by the package
+	return fmt.Sprintf("%s_%s_%s", m.Name, filepath.Base(name), m.Version)
 }
