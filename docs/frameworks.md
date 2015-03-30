@@ -64,7 +64,7 @@ frameworks from framework policies.
 ## Usage
 ### framework yaml
 
-For frameworks, meta/packaging.yaml should contain something like:
+For frameworks, meta/package.yaml should contain something like:
 
     name: foo
     version: 1.1.234
