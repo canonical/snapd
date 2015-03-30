@@ -395,7 +395,7 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	return templateOut.String()
 }
 
-func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) string {
+func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) (string, error) {
 
 	serviceTemplate := `[Unit]
 Description={{.Description}}
@@ -438,7 +438,7 @@ WantedBy=multi-user.target
 		logger.LogAndPanic(err)
 	}
 
-	return templateOut.String()
+	return templateOut.String(), nil
 }
 
 func generateServiceFileName(m *packageYaml, service Service) string {
@@ -489,7 +489,10 @@ func addPackageServices(baseDir string, inhibitHooks bool) error {
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
-		content := generateSnapServicesFile(service, realBaseDir, aaProfile, m)
+		content, err := generateSnapServicesFile(service, realBaseDir, aaProfile, m)
+		if err != nil {
+			return err
+		}
 		serviceFilename := generateServiceFileName(m, service)
 		helpers.EnsureDir(filepath.Dir(serviceFilename), 0755)
 		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0755); err != nil {
@@ -500,7 +503,7 @@ func addPackageServices(baseDir string, inhibitHooks bool) error {
 		// inhibitHooks mode
 		//
 		// *but* always run enable (which just sets a symlink)
-		serviceName := filepath.Base(generateServiceFileName(m, service))
+		serviceName := filepath.Base(serviceFilename)
 		if !inhibitHooks {
 			if err := runSystemctl("daemon-reload"); err != nil {
 				return err

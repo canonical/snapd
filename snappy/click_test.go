@@ -652,40 +652,6 @@ services:
 	c.Assert(allSystemctl, HasLen, 1)
 }
 
-const expectedService = `[Unit]
-Description=The docker app deployment mechanism
-After=apparmor.service click-system-hooks.service
-Requires=apparmor.service click-system-hooks.service
-X-Snappy=yes
-
-[Service]
-ExecStart=/apps/docker/1.3.3.001/bin/docker.wrap
-WorkingDirectory=/apps/docker/1.3.3.001/
-Environment="SNAPP_APP_PATH=/apps/docker/1.3.3.001/" "SNAPP_APP_DATA_PATH=/var/lib/apps/docker/1.3.3.001/" "SNAPP_APP_USER_DATA_PATH=%h/apps/docker/1.3.3.001/" "SNAP_APP_PATH=/apps/docker/1.3.3.001/" "SNAP_APP_DATA_PATH=/var/lib/apps/docker/1.3.3.001/" "SNAP_APP_USER_DATA_PATH=%h/apps/docker/1.3.3.001/" "SNAP_APP=docker_docker_1.3.3.001"
-AppArmorProfile=docker_docker_1.3.3.001
-
-
-
-
-[Install]
-WantedBy=multi-user.target
-`
-
-func (s *SnapTestSuite) TestSnappyGenerateSnapServicesFile(c *C) {
-	service := Service{Name: "docker",
-		Start:       "bin/docker.wrap",
-		Description: "The docker app deployment mechanism",
-	}
-	pkgPath := "/apps/docker/1.3.3.001/"
-	aaProfile := "docker_docker_1.3.3.001"
-	m := packageYaml{Name: "docker",
-		Version: "1.3.3.001",
-	}
-
-	generated := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
-	c.Assert(generated, Equals, expectedService)
-}
-
 func (s *SnapTestSuite) TestFindBinaryInPath(c *C) {
 	fakeBinDir := c.MkDir()
 	runMePath := filepath.Join(fakeBinDir, "runme")
@@ -829,6 +795,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
 	m := packageYaml{Name: "xckd-webserver.canonical",
 		Version: "0.3.4"}
 
-	generatedWrapper := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedServiceWrapper)
 }
