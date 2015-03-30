@@ -41,17 +41,17 @@ func generateApparmorJSONContent(s *SecurityDefinitions) ([]byte, error) {
 
 func handleApparmor(buildDir string, m *packageYaml, hookName string, s *SecurityDefinitions) error {
 
+	// ensure we have a hook
+	if _, ok := m.Integration[hookName]; !ok {
+		m.Integration[hookName] = clickAppHook{}
+	}
+
 	// legacy use of "Integration" - the user should
 	// use the new format, nothing needs to be done
 	_, hasApparmor := m.Integration[hookName]["apparmor"]
 	_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
 	if hasApparmor || hasApparmorProfile {
 		return nil
-	}
-
-	// ensure we have a hook
-	if _, ok := m.Integration[hookName]; !ok {
-		m.Integration[hookName] = clickAppHook{}
 	}
 
 	// see if we have a custom security policy
@@ -82,8 +82,6 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 }
 
 func getAaProfile(m *packageYaml, appName string) string {
-	// FIXME: we need to generate a default aa profile here instead
-	// of relying on a default one shipped by the package
 	cleanedName := strings.Replace(appName, "/", "-", -1)
 	return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version)
 }
