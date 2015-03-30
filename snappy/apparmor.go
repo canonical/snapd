@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 )
 
 type apparmorJSONTemplate struct {
@@ -48,6 +49,17 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 		return nil
 	}
 
+	// ensure we have a hook
+	if _, ok := m.Integration[hookName]; !ok {
+		m.Integration[hookName] = clickAppHook{}
+	}
+
+	// see if we have a custom security policy
+	if s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != "" {
+		m.Integration[hookName]["apparmor-policy"] = s.SecurityPolicy.Apparmor
+		return nil
+	}
+
 	// see if we have a security override
 	if s.SecurityOverride != nil && s.SecurityOverride.Apparmor != "" {
 		m.Integration[hookName]["apparmor"] = s.SecurityOverride.Apparmor
@@ -69,17 +81,9 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 	return nil
 }
 
-func getAaProfile(m *packageYaml, name string, s *SecurityDefinitions) string {
-	// check if there is a specific apparmor profile
-	if s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != "" {
-		return s.SecurityPolicy.Apparmor
-	}
-	// ... or apparmor.json
-	if s.SecurityTemplate != "" {
-		return s.SecurityTemplate
-	}
-
+func getAaProfile(m *packageYaml, appName string) string {
 	// FIXME: we need to generate a default aa profile here instead
 	// of relying on a default one shipped by the package
-	return fmt.Sprintf("%s_%s_%s", m.Name, filepath.Base(name), m.Version)
+	cleanedName := strings.Replace(appName, "/", "-", -1)
+	return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version)
 }
