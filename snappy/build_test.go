@@ -376,3 +376,57 @@ func (s *SnapTestSuite) TestHandleBinariesSecurityCaps(c *C) {
   "policy_version": 1.3
 }`)
 }
+
+func (s *SnapTestSuite) TestHandleBinariesSecurityTemplate(c *C) {
+	temp := c.MkDir()
+	os.MkdirAll(filepath.Join(temp, "meta"), 0755)
+	packageYaml := packageYaml{
+		Name:        "foo-app",
+		Integration: make(map[string]clickAppHook),
+		Binaries: []Binary{
+			Binary{
+				Name:             "foo",
+				Exec:             "bin/foo-wrapper",
+				SecurityTemplate: "docker-foo",
+			},
+		},
+	}
+
+	c.Assert(handleBinaries(temp, &packageYaml), IsNil)
+	c.Assert(packageYaml.Integration["foo"]["apparmor"], Equals, "meta/foo.apparmor")
+	content, err := ioutil.ReadFile(filepath.Join(temp, "meta", "foo.apparmor"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `{
+  "template": "docker-foo",
+  "policy_vendor": "ubuntu-snappy",
+  "policy_version": 1.3
+}`)
+}
+
+func (s *SnapTestSuite) TestHandleBinariesSecurityDefaults(c *C) {
+	temp := c.MkDir()
+	os.MkdirAll(filepath.Join(temp, "meta"), 0755)
+	packageYaml := packageYaml{
+		Name:        "foo-app",
+		Integration: make(map[string]clickAppHook),
+		Binaries: []Binary{
+			Binary{
+				Name: "foo",
+				Exec: "bin/foo-wrapper",
+			},
+		},
+	}
+
+	c.Assert(handleBinaries(temp, &packageYaml), IsNil)
+	c.Assert(packageYaml.Integration["foo"]["apparmor"], Equals, "meta/foo.apparmor")
+	content, err := ioutil.ReadFile(filepath.Join(temp, "meta", "foo.apparmor"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `{
+  "template": "default",
+  "policy_groups": [
+    "network"
+  ],
+  "policy_vendor": "ubuntu-snappy",
+  "policy_version": 1.3
+}`)
+}
