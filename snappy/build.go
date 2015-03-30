@@ -135,17 +135,31 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 		if _, ok := m.Integration[hookName]; !ok {
 			m.Integration[hookName] = make(map[string]string)
 		}
+		// legacy click hook
 		m.Integration[hookName]["bin-path"] = v.Name
 
+		// legacy use of "Integration" - the user should
+		// use the new format, nothing needs to be done
 		_, hasApparmor := m.Integration[hookName]["apparmor"]
 		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-		if !hasApparmor && !hasApparmorProfile {
-			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
-				return err
-			}
-			m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+		if hasApparmor || hasApparmorProfile {
+			continue
 		}
+
+		// see if we have a security override
+		if v.SecurityOverride != "" {
+			m.Integration[hookName]["apparmor"] = v.SecurityOverride
+			continue
+		}
+
+		// generate apparmor stuff
+		apparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
+		securityJSONContent := defaultApparmorJSON
+		if err := ioutil.WriteFile(filepath.Join(buildDir, securityJSONContent), []byte(defaultApparmorJSON), 0644); err != nil {
+			return err
+		}
+
+		m.Integration[hookName]["apparmor"] = apparmorJSONFile
 	}
 
 	return nil

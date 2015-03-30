@@ -326,3 +326,24 @@ func (s *SnapTestSuite) TestCopyExcludesWholeDirs(c *C) {
 	c.Check(err, NotNil)
 	c.Check(string(out), Matches, `(?m)Only in \S+: \.bzr`)
 }
+
+func (s *SnapTestSuite) TestHandleBinariesSecurityOverride(c *C) {
+	temp := c.MkDir()
+	os.MkdirAll(filepath.Join(temp, "meta"), 0755)
+	err := ioutil.WriteFile(filepath.Join(temp, "meta", "nondefault.json"), []byte(""), 0644)
+	c.Assert(err, IsNil)
+	packageYaml := packageYaml{
+		Name:        "foo-app",
+		Integration: make(map[string]clickAppHook),
+		Binaries: []Binary{
+			Binary{
+				Name:             "foo",
+				Exec:             "bin/foo-wrapper",
+				SecurityOverride: "meta/nondefault.json",
+			},
+		},
+	}
+
+	c.Assert(handleBinaries(temp, &packageYaml), IsNil)
+	c.Assert(packageYaml.Integration["foo"]["apparmor"], Equals, "meta/nondefault.json")
+}
