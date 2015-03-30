@@ -62,14 +62,16 @@ func xzPipeReader(r io.Reader) io.Reader {
 type xzPipeWriter struct {
 	cmd *exec.Cmd
 	w   io.Writer
+	pw  io.WriteCloser
 }
 
 func NewXZPipeWriter(w io.Writer) *xzPipeWriter {
-	return &xzPipeWriter{w: w}
-}
+	x := &xzPipeWriter{
+		w: w,
+	}
 
-func (x *xzPipeWriter) Start() io.WriteCloser {
 	pr, pw := io.Pipe()
+	x.pw = pw
 	x.cmd = exec.Command("xz", "--compress", "--stdout")
 	x.cmd.Stdin = pr
 	x.cmd.Stdout = x.w
@@ -80,10 +82,15 @@ func (x *xzPipeWriter) Start() io.WriteCloser {
 		x.cmd.Start()
 	}()
 
-	return pw
+	return x
+}
+
+func (x *xzPipeWriter) Write(buf []byte) (int, error) {
+	return x.pw.Write(buf)
 }
 
 func (x *xzPipeWriter) Close() error {
+	x.pw.Close()
 	return x.cmd.Wait()
 }
 
@@ -245,9 +252,7 @@ func tarCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 	case strings.HasSuffix(tarname, ".gz"):
 		compressor, err = gzip.NewWriterLevel(w, 9)
 	case strings.HasSuffix(tarname, ".xz"):
-		pw := NewXZPipeWriter(w)
-		defer pw.Close()
-		compressor = pw.Start()
+		compressor = NewXZPipeWriter(w)
 	default:
 		return fmt.Errorf("unknown compression extension %s", tarname)
 	}
