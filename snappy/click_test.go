@@ -531,8 +531,20 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	m := packageYaml{Name: "pastebinit.mvo",
 		Version: "1.4.0.0.1"}
 
-	generatedWrapper := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedWrapper)
+}
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
+	binary := Binary{Name: "bin/pastebinit\nSomething nasty"}
+	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
+	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
+	m := packageYaml{Name: "pastebinit.mvo",
+		Version: "1.4.0.0.1"}
+
+	_, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
@@ -837,4 +849,18 @@ func (s *SnapTestSuite) TestServiceWhitelistError(c *C) {
 	err := verifyServiceYaml(Service{Name: "x\n"})
 	c.Assert(err.Error(), Equals, `services description field 'Name' contains illegal 'x
 ' (legal: '^[A-Za-z0-9/. -:]*$')`)
+}
+
+func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
+	c.Assert(verifyBinariesYaml(Binary{Name: "foo"}), IsNil)
+	c.Assert(verifyBinariesYaml(Binary{Exec: "foo"}), IsNil)
+	c.Assert(verifyBinariesYaml(Binary{SecurityTemplate: "foo"}), IsNil)
+	c.Assert(verifyBinariesYaml(Binary{SecurityPolicy: "foo"}), IsNil)
+}
+
+func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
+	c.Assert(verifyBinariesYaml(Binary{Name: "x\n"}), NotNil)
+	c.Assert(verifyBinariesYaml(Binary{Exec: "x\n"}), NotNil)
+	c.Assert(verifyBinariesYaml(Binary{SecurityTemplate: "x\n"}), NotNil)
+	c.Assert(verifyBinariesYaml(Binary{SecurityPolicy: "x\n"}), NotNil)
 }

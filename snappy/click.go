@@ -85,6 +85,10 @@ var ignoreHooks = map[string]bool{
 	"snappy-systemd": true,
 }
 
+// servicesBinariesStringsWhitelist is the whitelist of legal chars
+// in the "binaries" and "services" section of the package.yaml
+const servicesBinariesStringsWhitelist = `^[A-Za-z0-9/. -:]*$`
+
 // Execute the hook.Exec command
 func execHook(execCmd string) (err error) {
 	// the spec says this is passed to the shell
@@ -339,7 +343,11 @@ func binPathForBinary(pkgPath string, binary Binary) string {
 	return filepath.Join(pkgPath, binary.Name)
 }
 
-func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) string {
+func verifyBinariesYaml(binary Binary) error {
+	return verifyStructStringsAgainstWhitelist(binary, servicesBinariesStringsWhitelist)
+}
+
+func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) (string, error) {
 	wrapperTemplate := `#!/bin/sh
 # !!!never remove this line!!!
 ##TARGET={{.Target}}
@@ -379,6 +387,11 @@ export SNAP_OLD_PWD="$(pwd)"
 cd {{.Path}}
 aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 `
+
+	if err := verifyBinariesYaml(binary); err != nil {
+		return "", err
+	}
+
 	actualBinPath := binPathForBinary(pkgPath, binary)
 
 	var templateOut bytes.Buffer
@@ -394,7 +407,7 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	}
 	t.Execute(&templateOut, wrapperData)
 
-	return templateOut.String()
+	return templateOut.String(), nil
 }
 
 // verifyStructStringsAgainstWhitelist takes a struct and ensures that
@@ -428,9 +441,7 @@ func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error 
 }
 
 func verifyServiceYaml(service Service) error {
-	const whitelist = `^[A-Za-z0-9/. -:]*$`
-
-	return verifyStructStringsAgainstWhitelist(service, whitelist)
+	return verifyStructStringsAgainstWhitelist(service, servicesBinariesStringsWhitelist)
 }
 
 func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) (string, error) {
@@ -625,7 +636,11 @@ func addPackageBinaries(baseDir string) error {
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
-		content := generateSnapBinaryWrapper(binary, realBaseDir, aaProfile, m)
+		content, err := generateSnapBinaryWrapper(binary, realBaseDir, aaProfile, m)
+		if err != nil {
+			return err
+		}
+
 		if err := ioutil.WriteFile(generateBinaryName(m, binary), []byte(content), 0755); err != nil {
 			return err
 		}
