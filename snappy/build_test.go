@@ -430,7 +430,7 @@ func (s *SnapTestSuite) TestHandleBinariesSecurityDefaults(c *C) {
 	c.Assert(string(content), Equals, `{
   "template": "default",
   "policy_groups": [
-    "network"
+    "networking"
   ],
   "policy_vendor": "ubuntu-snappy",
   "policy_version": 1.3

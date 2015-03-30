@@ -27,7 +27,7 @@ func generateApparmorJSONContent(s *SecurityDefinitions) ([]byte, error) {
 	}
 
 	if t.Template == "default" && len(t.PolicyGroups) == 0 {
-		t.PolicyGroups = []string{"network"}
+		t.PolicyGroups = []string{"networking"}
 	}
 
 	outStr, err := json.MarshalIndent(t, "", "  ")
