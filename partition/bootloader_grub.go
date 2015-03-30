@@ -32,12 +32,14 @@ const (
 
 	bootloaderGrubEnvCmdReal    = "/usr/bin/grub-editenv"
 	bootloaderGrubUpdateCmdReal = "/usr/sbin/update-grub"
+	bootloaderGrubStampVarReal  = "snappy_stamp"
 )
 
 // var to make it testable
 var (
 	bootloaderGrubDir        = bootloaderGrubDirReal
 	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
+	bootloaderGrubStampVar   = bootloaderGrubStampVarReal
 	bootloaderGrubEnvFile    = bootloaderGrubEnvFileReal
 
 	bootloaderGrubEnvCmd    = bootloaderGrubEnvCmdReal
@@ -128,6 +130,10 @@ func (g *grub) GetOtherRootFSName() string {
 }
 
 func (g *grub) MarkCurrentBootSuccessful() (err error) {
+	// disable the variable set by grub on boot.
+	if err := g.setBootVar(bootloaderGrubStampVar, "0"); err != nil {
+		return err
+	}
 	return g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
 }
 
