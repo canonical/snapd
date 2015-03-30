@@ -35,6 +35,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -395,7 +396,55 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	return templateOut.String()
 }
 
+func verifyServiceYaml(service Service) error {
+	const whiteList = `^[A-Za-z0-9/. -:]*$`
+	r := regexp.MustCompile(whiteList)
+
+	// check all members of the services struct
+	if !r.MatchString(service.Name) {
+		return &ErrServiceIllegalContent{
+			field:   "Name",
+			content: service.Name,
+		}
+	}
+	if !r.MatchString(service.Description) {
+		return &ErrServiceIllegalContent{
+			field:   "Description",
+			content: service.Description,
+		}
+	}
+	if !r.MatchString(service.Start) {
+		return &ErrServiceIllegalContent{
+			field:   "Start",
+			content: service.Start,
+		}
+	}
+	if !r.MatchString(service.Stop) {
+		return &ErrServiceIllegalContent{
+			field:   "Stop",
+			content: service.Stop,
+		}
+	}
+	if !r.MatchString(service.PostStop) {
+		return &ErrServiceIllegalContent{
+			field:   "PostStop",
+			content: service.PostStop,
+		}
+	}
+	if !r.MatchString(service.StopTimeout) {
+		return &ErrServiceIllegalContent{
+			field:   "StopTimeout",
+			content: service.StopTimeout,
+		}
+	}
+
+	return nil
+}
+
 func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) (string, error) {
+	if err := verifyServiceYaml(service); err != nil {
+		return "", err
+	}
 
 	serviceTemplate := `[Unit]
 Description={{.Description}}

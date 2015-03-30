@@ -158,3 +158,14 @@ type ErrUpgradeVerificationFailed struct {
 func (e *ErrUpgradeVerificationFailed) Error() string {
 	return fmt.Sprintf("upgrade verification failed: %s", e.msg)
 }
+
+// ErrServiceIllegalContent is returned if a service contains
+// illegal (non-whitelisted) chars
+type ErrServiceIllegalContent struct {
+	field   string
+	content string
+}
+
+func (e *ErrServiceIllegalContent) Error() string {
+	return fmt.Sprintf("services description field '%s' contains illegal '%s'", e.field, e.content)
+}

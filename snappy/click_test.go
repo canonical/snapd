@@ -799,3 +799,38 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedServiceWrapper)
 }
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
+	service := Service{Name: "xkcd-webserver",
+		Start:       "bin/foo start",
+		Stop:        "bin/foo stop",
+		PostStop:    "bin/foo post-stop",
+		StopTimeout: "30",
+		Description: "A fun webserver\nExec=foo",
+	}
+	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
+	m := packageYaml{Name: "xckd-webserver.canonical",
+		Version: "0.3.4"}
+
+	_, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	c.Assert(err, NotNil)
+}
+
+func (s *SnapTestSuite) TestServiceWhitelistSimple(c *C) {
+	c.Assert(verifyServiceYaml(Service{Name: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(Service{Description: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(Service{Start: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(Service{Stop: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(Service{PostStop: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(Service{StopTimeout: "foo"}), IsNil)
+}
+
+func (s *SnapTestSuite) TestServiceWhitelistIllegal(c *C) {
+	c.Assert(verifyServiceYaml(Service{Name: "x\n"}), NotNil)
+	c.Assert(verifyServiceYaml(Service{Description: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(Service{Start: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(Service{Stop: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(Service{PostStop: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(Service{StopTimeout: "foo\n"}), NotNil)
+}
