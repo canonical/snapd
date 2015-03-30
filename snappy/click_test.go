@@ -823,7 +823,6 @@ func (s *SnapTestSuite) TestServiceWhitelistSimple(c *C) {
 	c.Assert(verifyServiceYaml(Service{Start: "foo"}), IsNil)
 	c.Assert(verifyServiceYaml(Service{Stop: "foo"}), IsNil)
 	c.Assert(verifyServiceYaml(Service{PostStop: "foo"}), IsNil)
-	c.Assert(verifyServiceYaml(Service{StopTimeout: "foo"}), IsNil)
 }
 
 func (s *SnapTestSuite) TestServiceWhitelistIllegal(c *C) {
@@ -832,5 +831,10 @@ func (s *SnapTestSuite) TestServiceWhitelistIllegal(c *C) {
 	c.Assert(verifyServiceYaml(Service{Start: "foo\n"}), NotNil)
 	c.Assert(verifyServiceYaml(Service{Stop: "foo\n"}), NotNil)
 	c.Assert(verifyServiceYaml(Service{PostStop: "foo\n"}), NotNil)
-	c.Assert(verifyServiceYaml(Service{StopTimeout: "foo\n"}), NotNil)
+}
+
+func (s *SnapTestSuite) TestServiceWhitelistError(c *C) {
+	err := verifyServiceYaml(Service{Name: "x\n"})
+	c.Assert(err.Error(), Equals, `services description field 'Name' contains illegal 'x
+' (legal: '^[A-Za-z0-9/. -:]*$')`)
 }

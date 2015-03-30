@@ -35,6 +35,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"text/template"
@@ -396,49 +397,40 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	return templateOut.String()
 }
 
-func verifyServiceYaml(service Service) error {
-	const whiteList = `^[A-Za-z0-9/. -:]*$`
-	r := regexp.MustCompile(whiteList)
+// verifyStructStringsAgainstWhitelist takes a struct and ensures that
+// the given whitelist regexp matches all string fields of the struct
+//
+// Note that nested data is not supported (yet)
+func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error {
+	r, err := regexp.Compile(whitelist)
+	if err != nil {
+		return err
+	}
 
-	// check all members of the services struct
-	if !r.MatchString(service.Name) {
-		return &ErrServiceIllegalContent{
-			field:   "Name",
-			content: service.Name,
-		}
-	}
-	if !r.MatchString(service.Description) {
-		return &ErrServiceIllegalContent{
-			field:   "Description",
-			content: service.Description,
-		}
-	}
-	if !r.MatchString(service.Start) {
-		return &ErrServiceIllegalContent{
-			field:   "Start",
-			content: service.Start,
-		}
-	}
-	if !r.MatchString(service.Stop) {
-		return &ErrServiceIllegalContent{
-			field:   "Stop",
-			content: service.Stop,
-		}
-	}
-	if !r.MatchString(service.PostStop) {
-		return &ErrServiceIllegalContent{
-			field:   "PostStop",
-			content: service.PostStop,
-		}
-	}
-	if !r.MatchString(service.StopTimeout) {
-		return &ErrServiceIllegalContent{
-			field:   "StopTimeout",
-			content: service.StopTimeout,
+	// check all members of the services struct against our whitelist
+	t := reflect.TypeOf(s)
+	v := reflect.ValueOf(s)
+	for i := 0; i < t.NumField(); i++ {
+		if v.Field(i).Kind() == reflect.String {
+			key := t.Field(i).Name
+			value := v.Field(i).String()
+			if !r.MatchString(value) {
+				return &ErrStructIllegalContent{
+					field:     key,
+					content:   value,
+					whitelist: whitelist,
+				}
+			}
 		}
 	}
 
 	return nil
+}
+
+func verifyServiceYaml(service Service) error {
+	const whitelist = `^[A-Za-z0-9/. -:]*$`
+
+	return verifyStructStringsAgainstWhitelist(service, whitelist)
 }
 
 func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) (string, error) {

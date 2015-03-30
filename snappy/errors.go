@@ -159,13 +159,14 @@ func (e *ErrUpgradeVerificationFailed) Error() string {
 	return fmt.Sprintf("upgrade verification failed: %s", e.msg)
 }
 
-// ErrServiceIllegalContent is returned if a service contains
-// illegal (non-whitelisted) chars
-type ErrServiceIllegalContent struct {
-	field   string
-	content string
+// ErrStructIllegalContent is returned if a struct contains illegal content
+// as matched via "verifyWhitelistForStruct"
+type ErrStructIllegalContent struct {
+	field     string
+	content   string
+	whitelist string
 }
 
-func (e *ErrServiceIllegalContent) Error() string {
-	return fmt.Sprintf("services description field '%s' contains illegal '%s'", e.field, e.content)
+func (e *ErrStructIllegalContent) Error() string {
+	return fmt.Sprintf("services description field '%s' contains illegal '%s' (legal: '%s')", e.field, e.content, e.whitelist)
 }
