@@ -199,7 +199,6 @@ services:
 	snappySystemdContent, err := ioutil.ReadFile(filepath.Join(unpackDir, "meta/foo.snappy-systemd"))
 	c.Assert(err, IsNil)
 	c.Assert(string(snappySystemdContent), Equals, `{
- "name": "foo",
  "description": "some description",
  "start": "bin/hello-world"
 }`)
@@ -306,7 +305,9 @@ func (s *SnapTestSuite) TestCopyExcludesBackups(c *C) {
 	// add a backup file
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
 	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
-	out, err := exec.Command("diff", "-qr", sourceDir, target).Output()
+	cmd := exec.Command("diff", "-qr", sourceDir, target)
+	cmd.Env = append(cmd.Env, "LANG=C")
+	out, err := cmd.Output()
 	c.Check(err, NotNil)
 	c.Check(string(out), Matches, `(?m)Only in \S+: foo~`)
 }
@@ -319,7 +320,9 @@ func (s *SnapTestSuite) TestCopyExcludesWholeDirs(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
 	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
 	out, _ := exec.Command("find", sourceDir).Output()
-	out, err := exec.Command("diff", "-qr", sourceDir, target).Output()
+	cmd := exec.Command("diff", "-qr", sourceDir, target)
+	cmd.Env = append(cmd.Env, "LANG=C")
+	out, err := cmd.Output()
 	c.Check(err, NotNil)
 	c.Check(string(out), Matches, `(?m)Only in \S+: \.bzr`)
 }

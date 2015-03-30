@@ -307,15 +307,14 @@ func removeClick(clickDir string) (err error) {
 	return os.RemoveAll(clickDir)
 }
 
-func writeHashesFile(snapFile, instDir string) error {
-	hashsum, err := helpers.Sha512sum(snapFile)
+func writeHashesFile(d *clickdeb.ClickDeb, instDir string) error {
+	hashesFile := filepath.Join(instDir, "meta", "hashes.yaml")
+	hashesData, err := d.ControlMember("hashes.yaml")
 	if err != nil {
 		return err
 	}
 
-	s := fmt.Sprintf("sha512: %s", hashsum)
-	hashesFile := filepath.Join(instDir, "meta", "hashes")
-	return ioutil.WriteFile(hashesFile, []byte(s), 0644)
+	return ioutil.WriteFile(hashesFile, hashesData, 0644)
 }
 
 // generate the name
@@ -409,8 +408,8 @@ ExecStart={{.FullPathStart}}
 WorkingDirectory={{.AppPath}}
 Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}"
 AppArmorProfile={{.AaProfile}}
-{{if .Stop}}ExecStop={{.Stop}}{{end}}
-{{if .PostStop}}ExecPostStop={{.PostStop}}{{end}}
+{{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
+{{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout}}{{end}}
 
 [Install]
@@ -421,12 +420,18 @@ WantedBy=multi-user.target
 	wrapperData := struct {
 		packageYaml
 		Service
-		AppPath       string
-		AaProfile     string
-		FullPathStart string
-		AppTriple     string
+		AppPath          string
+		AaProfile        string
+		FullPathStart    string
+		FullPathStop     string
+		FullPathPostStop string
+		AppTriple        string
 	}{
-		*m, service, baseDir, aaProfile, filepath.Join(baseDir, service.Start), fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version),
+		*m, service, baseDir, aaProfile,
+		filepath.Join(baseDir, service.Start),
+		filepath.Join(baseDir, service.Stop),
+		filepath.Join(baseDir, service.PostStop),
+		fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version),
 	}
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
 		// this can never happen, except we forget a variable
@@ -533,8 +538,12 @@ func removePackageServices(baseDir string) error {
 
 		os.Remove(generateServiceFileName(m, service))
 	}
-	if err := runSystemctl("daemon-reload"); err != nil {
-		return err
+
+	// only reload if we actually had services
+	if len(m.Services) > 0 {
+		if err := runSystemctl("daemon-reload"); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -593,6 +602,58 @@ func removePackageBinaries(baseDir string) error {
 	return nil
 }
 
+// takes a name and PATH (colon separated) and returns the full qualified path
+func findBinaryInPath(name, path string) string {
+	for _, entry := range strings.Split(path, ":") {
+		fname := filepath.Join(entry, name)
+		if st, err := os.Stat(fname); err == nil {
+			// check for any x bit
+			if st.Mode()&0111 != 0 {
+				return fname
+			}
+		}
+	}
+
+	return ""
+}
+
+// unpackWithDropPrivs is a helper that will unapck the ClickDeb content
+// into the target dir and drop privs when doing this.
+//
+// To do this reliably in go we need to exec a helper as we can not
+// just fork() and drop privs in the child (no support for stock fork in go)
+func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
+	// no need to drop privs, we are not root
+	if !helpers.ShouldDropPrivs() {
+		return d.Unpack(instDir)
+	}
+
+	// find priv helper executable
+	privHelper := ""
+	for _, path := range []string{"PATH", "GOPATH"} {
+		privHelper = findBinaryInPath("snappy", os.Getenv(path))
+		if privHelper != "" {
+			break
+		}
+	}
+	if privHelper == "" {
+		return ErrUnpackHelperNotFound
+	}
+
+	cmd := exec.Command(privHelper, "internal-unpack", d.Path, instDir)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return &ErrUnpackFailed{
+			snapFile: d.Path,
+			instDir:  instDir,
+			origErr:  err,
+		}
+	}
+
+	return nil
+}
+
 type agreer interface {
 	Agreed(intro, license string) bool
 }
@@ -609,7 +670,7 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 		//return SnapAuditError
 	}
 
-	d := clickdeb.ClickDeb{Path: snapFile}
+	d := &clickdeb.ClickDeb{Path: snapFile}
 	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
@@ -664,8 +725,9 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 		}
 	}()
 
-	err = d.Unpack(instDir)
-	if err != nil {
+	// we need to call the external helper so that we can reliable drop
+	// privs
+	if err := unpackWithDropPrivs(d, instDir); err != nil {
 		return err
 	}
 
@@ -679,7 +741,7 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 	}
 
 	// write the hashes now
-	if err := writeHashesFile(snapFile, instDir); err != nil {
+	if err := writeHashesFile(d, instDir); err != nil {
 		return err
 	}
 

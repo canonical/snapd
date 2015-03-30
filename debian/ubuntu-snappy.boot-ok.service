@@ -3,7 +3,7 @@ Description=Notify bootloader that boot was successful
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/snappy-go booted
+ExecStart=/usr/bin/snappy booted
 
 [Install]
 WantedBy=getty.target

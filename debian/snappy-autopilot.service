@@ -4,4 +4,4 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/snappy-go update
+ExecStart=/usr/bin/snappy update

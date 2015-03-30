@@ -52,35 +52,49 @@ func init() {
 }
 
 func (x *cmdConfig) Execute(args []string) (err error) {
-	pkgname := x.Positional.PackageName
-	if pkgname == "" {
-		return errors.New("Config needs a packagename")
-	}
-
-	var configInput []byte
+	pkgName := x.Positional.PackageName
 	configFile := x.Positional.ConfigFile
-	switch {
-	case configFile == "-":
-		if configInput, err = ioutil.ReadAll(os.Stdin); err != nil {
-			return err
-		}
-	case configFile != "":
-		if configInput, err = ioutil.ReadFile(configFile); err != nil {
-			return err
-		}
+
+	// FIXME transform this into something that returns the config for
+	// the full system
+	if pkgName == "" {
+		return errors.New("package name is required")
 	}
 
-	snap := snappy.ActiveSnapByName(pkgname)
-	if snap == nil {
-		return fmt.Errorf("No snap: '%s' found", pkgname)
-	}
-
-	newConfig, err := snap.Config(configInput)
-	if err != nil {
+	newConfig, err := configurePackage(pkgName, configFile)
+	if err == snappy.ErrPackageNotFound {
+		return fmt.Errorf("No snap: '%s' found", pkgName)
+	} else if err != nil {
 		return err
 	}
+
 	// output the new configuration
 	fmt.Println(newConfig)
 
 	return nil
+}
+
+func configurePackage(pkgName, configFile string) (string, error) {
+	config, err := readConfiguration(configFile)
+	if err != nil {
+		return "", err
+	}
+
+	snap := snappy.ActiveSnapByName(pkgName)
+	if snap == nil {
+		return "", snappy.ErrPackageNotFound
+	}
+
+	return snap.Config(config)
+}
+
+func readConfiguration(configInput string) (config []byte, err error) {
+	switch configInput {
+	case "-":
+		return ioutil.ReadAll(os.Stdin)
+	case "":
+		return nil, nil
+	default:
+		return ioutil.ReadFile(configInput)
+	}
 }
