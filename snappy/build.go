@@ -138,31 +138,10 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 		// legacy click hook
 		m.Integration[hookName]["bin-path"] = v.Name
 
-		// legacy use of "Integration" - the user should
-		// use the new format, nothing needs to be done
-		_, hasApparmor := m.Integration[hookName]["apparmor"]
-		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-		if hasApparmor || hasApparmorProfile {
-			continue
-		}
-
-		// see if we have a security override
-		if v.SecurityOverride != "" {
-			m.Integration[hookName]["apparmor"] = v.SecurityOverride
-			continue
-		}
-
-		// generate apparmor template
-		apparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-		securityJSONContent, err := generateApparmorJSONContent(v)
-		if err != nil {
+		// handle the apparmor stuff
+		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
 			return err
 		}
-		if err := ioutil.WriteFile(filepath.Join(buildDir, apparmorJSONFile), securityJSONContent, 0644); err != nil {
-			return err
-		}
-
-		m.Integration[hookName]["apparmor"] = apparmorJSONFile
 	}
 
 	return nil
@@ -199,18 +178,10 @@ func handleServices(buildDir string, m *packageYaml) error {
 		}
 		m.Integration[hookName]["snappy-systemd"] = snappySystemdContentFile
 
-		// generate apparmor
-		_, hasApparmor := m.Integration[hookName]["apparmor"]
-		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-		if hasApparmor || hasApparmorProfile {
-			continue
-		}
-
-		defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-		if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
+		// handle the apparmor stuff
+		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
 			return err
 		}
-		m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
 	}
 
 	return nil
