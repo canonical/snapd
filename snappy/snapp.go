@@ -50,12 +50,23 @@ type Ports struct {
 	External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
 }
 
+// SecurityOverrideDefinition is used to override apparmor or seccomp
+// security defaults
+type SecurityOverrideDefinition struct {
+	Apparmor string `yaml:"apparmor" json:"apparmor"`
+}
+
 // SecurityDefinitions contains the common apparmor/seccomp definitions
 type SecurityDefinitions struct {
-	SecurityTemplate string   `yaml:"security-template,omitempty" json:"security-template,omitempty"`
-	SecurityPolicy   string   `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
-	SecurityOverride string   `yaml:"security-override,omitempty" json:"security-override,omitempty"`
-	SecurityCaps     []string `yaml:"caps,omitempty" json:"caps,omitempty"`
+	// SecurityTemplate is a template like "default"
+	SecurityTemplate string `yaml:"security-template,omitempty" json:"security-template,omitempty"`
+	// SecurityOverride is a override for the high level security json
+	SecurityOverride *SecurityOverrideDefinition `yaml:"security-override,omitempty" json:"security-override,omitempty"`
+	// SecurityPolicy is a hand-crafted low-level policy
+	SecurityPolicy *SecurityOverrideDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
+
+	//
+	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
 }
 
 // Service represents a service inside a SnapPart

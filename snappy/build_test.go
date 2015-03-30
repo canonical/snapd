@@ -340,7 +340,9 @@ func (s *SnapTestSuite) TestHandleBinariesSecurityOverride(c *C) {
 				Name: "foo",
 				Exec: "bin/foo-wrapper",
 				SecurityDefinitions: SecurityDefinitions{
-					SecurityOverride: "meta/nondefault.json",
+					SecurityOverride: &SecurityOverrideDefinition{
+						Apparmor: "meta/nondefault.json",
+					},
 				},
 			},
 		},

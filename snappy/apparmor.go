@@ -49,8 +49,8 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 	}
 
 	// see if we have a security override
-	if s.SecurityOverride != "" {
-		m.Integration[hookName]["apparmor"] = s.SecurityOverride
+	if s.SecurityOverride != nil && s.SecurityOverride.Apparmor != "" {
+		m.Integration[hookName]["apparmor"] = s.SecurityOverride.Apparmor
 		return nil
 	}
 
@@ -71,8 +71,8 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 
 func getAaProfile(m *packageYaml, name string, s *SecurityDefinitions) string {
 	// check if there is a specific apparmor profile
-	if s.SecurityPolicy != "" {
-		return s.SecurityPolicy
+	if s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != "" {
+		return s.SecurityPolicy.Apparmor
 	}
 	// ... or apparmor.json
 	if s.SecurityTemplate != "" {

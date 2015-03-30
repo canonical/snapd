@@ -22,7 +22,9 @@ func (s *SnapTestSuite) TestSnappyGetAaProfile(c *C) {
 	b = Binary{
 		Name: "bin/app",
 		SecurityDefinitions: SecurityDefinitions{
-			SecurityPolicy: "some-profile",
+			SecurityPolicy: &SecurityOverrideDefinition{
+				Apparmor: "some-profile",
+			},
 		},
 	}
 	c.Assert(getAaProfile(&m, b.Name, &b.SecurityDefinitions), Equals, "some-profile")
