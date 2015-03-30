@@ -44,6 +44,8 @@ func init() {
 
 func (x *cmdInstall) Execute(args []string) (err error) {
 	pkgName := x.Positional.PackageName
+	configFile := x.Positional.ConfigFile
+
 	// FIXME patch goflags to allow for specific n required positional arguments
 	if pkgName == "" {
 		return errors.New("package name is required")
@@ -67,8 +69,10 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 		return err
 	}
 
-	if _, err := configurePackage(pkgName, x.Positional.ConfigFile); err != nil {
-		return err
+	if configFile != "" {
+		if _, err := configurePackage(pkgName, configFile); err != nil {
+			return err
+		}
 	}
 
 	// call show versions afterwards
