@@ -337,9 +337,11 @@ func (s *SnapTestSuite) TestHandleBinariesSecurityOverride(c *C) {
 		Integration: make(map[string]clickAppHook),
 		Binaries: []Binary{
 			Binary{
-				Name:             "foo",
-				Exec:             "bin/foo-wrapper",
-				SecurityOverride: "meta/nondefault.json",
+				Name: "foo",
+				Exec: "bin/foo-wrapper",
+				SecurityDefinitions: SecurityDefinitions{
+					SecurityOverride: "meta/nondefault.json",
+				},
 			},
 		},
 	}
@@ -356,9 +358,11 @@ func (s *SnapTestSuite) TestHandleBinariesSecurityCaps(c *C) {
 		Integration: make(map[string]clickAppHook),
 		Binaries: []Binary{
 			Binary{
-				Name:         "foo",
-				Exec:         "bin/foo-wrapper",
-				SecurityCaps: []string{"cap1"},
+				Name: "foo",
+				Exec: "bin/foo-wrapper",
+				SecurityDefinitions: SecurityDefinitions{
+					SecurityCaps: []string{"cap1"},
+				},
 			},
 		},
 	}
@@ -385,9 +389,11 @@ func (s *SnapTestSuite) TestHandleBinariesSecurityTemplate(c *C) {
 		Integration: make(map[string]clickAppHook),
 		Binaries: []Binary{
 			Binary{
-				Name:             "foo",
-				Exec:             "bin/foo-wrapper",
-				SecurityTemplate: "docker-foo",
+				Name: "foo",
+				Exec: "bin/foo-wrapper",
+				SecurityDefinitions: SecurityDefinitions{
+					SecurityTemplate: "docker-foo",
+				},
 			},
 		},
 	}

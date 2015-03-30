@@ -50,6 +50,14 @@ type Ports struct {
 	External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
 }
 
+// SecurityDefinitions contains the common apparmor/seccomp definitions
+type SecurityDefinitions struct {
+	SecurityTemplate string   `yaml:"security-template,omitempty" json:"security-template,omitempty"`
+	SecurityPolicy   string   `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
+	SecurityOverride string   `yaml:"security-override,omitempty" json:"security-override,omitempty"`
+	SecurityCaps     []string `yaml:"caps,omitempty" json:"caps,omitempty"`
+}
+
 // Service represents a service inside a SnapPart
 type Service struct {
 	Name        string `yaml:"name" json:"name,omitempty"`
@@ -62,16 +70,16 @@ type Service struct {
 
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
+
+	SecurityDefinitions
 }
 
 // Binary represents a single binary inside the binaries: package.yaml
 type Binary struct {
-	Name             string   `yaml:"name"`
-	Exec             string   `yaml:"exec"`
-	SecurityTemplate string   `yaml:"security-template"`
-	SecurityPolicy   string   `yaml:"security-policy"`
-	SecurityOverride string   `yaml:"security-override"`
-	SecurityCaps     []string `yaml:"caps"`
+	Name string `yaml:"name"`
+	Exec string `yaml:"exec"`
+
+	SecurityDefinitions
 }
 
 // SnapPart represents a generic snap type
