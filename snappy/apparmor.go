@@ -27,7 +27,9 @@ func generateApparmorJSONContent(s *SecurityDefinitions) ([]byte, error) {
 		t.Template = "default"
 	}
 
-	if t.Template == "default" && len(t.PolicyGroups) == 0 {
+	// FIXME: this is snappy specific, on other systems like the
+	//        phone we may want different defaults.
+	if len(t.PolicyGroups) == 0 {
 		t.PolicyGroups = []string{"networking"}
 	}
 
