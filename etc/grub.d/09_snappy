@@ -358,18 +358,25 @@ this_label=$(get_label_from_device "$this_root")
 handle_menu_entry "$this_root" "$this_label" "$this_mountpoint"
 
 other_mountpoint="/writable/cache/system"
-if ! $(mountpoint -q "$other_mountpoint"); then
-    die "$other_mountpoint is not a mountpoint"
+
+# When this script is run on a real snappy system, even if there is only
+# a single rootfs provisioned, the other rootfs partition is expected to
+# be formatted and mounted.
+#
+# However this script is also run at provisioning time where
+# $other_mountpoint will not be a mountpoint. Therefore in the provisioning
+# scenario, only a single menuentry will be generated if only a single
+# rootfs is provisioned.
+if $(mountpoint -q "$other_mountpoint"); then
+    other_label=$(get_other_rootfs_label "$this_label")
+
+    other_root=$(get_device_from_label "$other_label")
+    [ -z "$other_root" ] && {
+        die "cannot determine rootfs"
+    }
+
+    handle_menu_entry "$other_root" "$other_label" "$other_mountpoint"
 fi
-
-other_label=$(get_other_rootfs_label "$this_label")
-
-other_root=$(get_device_from_label "$other_label")
-[ -z "$other_root" ] && {
-    die "cannot determine rootfs"
-}
-
-handle_menu_entry "$other_root" "$other_label" "$other_mountpoint"
 
 # Toggle rootfs if previous boot failed.
 #
