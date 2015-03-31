@@ -640,7 +640,7 @@ func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
 		return ErrUnpackHelperNotFound
 	}
 
-	cmd := exec.Command(privHelper, "internal-unpack", d.Path, instDir)
+	cmd := exec.Command(privHelper, "internal-unpack", d.Path, instDir, globalRootDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

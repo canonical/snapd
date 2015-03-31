@@ -131,3 +131,26 @@ func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(bootloader.Name(), Equals, bootloaderNameGrub)
 }
+
+func (s *PartitionTestSuite) TestGrubMarkCurrentBootSuccessful(c *C) {
+	s.makeFakeGrubEnv(c)
+	allCommands = []singleCommand{}
+
+	partition := New()
+	g := newGrub(partition)
+	c.Assert(g, NotNil)
+	err := g.MarkCurrentBootSuccessful()
+	c.Assert(err, IsNil)
+
+	// this is always called
+	mp := singleCommand{"/bin/mountpoint", "/writable/cache/system"}
+	c.Assert(allCommands[0], DeepEquals, mp)
+
+	expectedGrubSet := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "unset", "snappy_trial_boot"}
+
+	c.Assert(allCommands[1], DeepEquals, expectedGrubSet)
+
+	expectedGrubSet2 := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_mode=default"}
+
+	c.Assert(allCommands[2], DeepEquals, expectedGrubSet2)
+}

@@ -1,10 +1,30 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package main
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"os"
-	"os/user"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"launchpad.net/snappy/clickdeb"
@@ -33,13 +53,55 @@ type cmdInternalUnpack struct {
 	Positional struct {
 		SnapFile  string `positional-arg-name:"snap file" description:"INTERNAL ONLY"`
 		TargetDir string `positional-arg-name:"target dir" description:"INTERNAL ONLY"`
+		RootDir   string `positional-arg-name:"root dir" description:"INTERNAL ONLY"`
 	} `positional-args:"yes"`
 }
 
-func unpackAndDropPrivs(snapFile, targetDir string) error {
+func passwdFile(rootDir, file string) string {
+	inRootPasswdFile := filepath.Join(rootDir, "etc", file)
+	if _, err := os.Stat(inRootPasswdFile); err == nil {
+		return inRootPasswdFile
+	}
+
+	return filepath.Join("/etc/", file)
+}
+
+func uid(user, passwdFile string) (uid string, err error) {
+	f, err := os.Open(passwdFile)
+	if err != nil {
+		return "", err
+	}
+
+	scannerf := bufio.NewScanner(f)
+	for scannerf.Scan() {
+		if err := scannerf.Err(); err != nil {
+			return "", err
+		}
+
+		line := scannerf.Text()
+		if strings.HasPrefix(line, user) {
+			userLine := strings.Split(line, ":")
+			if len(userLine) > 2 {
+				return userLine[2], nil
+			}
+		}
+	}
+
+	return "", errors.New("failed to find user uid/gid")
+}
+
+func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 
 	if helpers.ShouldDropPrivs() {
-		u, err := user.Lookup(dropPrivsUser)
+
+		passFile := passwdFile(rootDir, "passwd")
+		u, err := uid(dropPrivsUser, passFile)
+		if err != nil {
+			return err
+		}
+
+		groupFile := passwdFile(rootDir, "group")
+		g, err := uid(dropPrivsUser, groupFile)
 		if err != nil {
 			return err
 		}
@@ -49,11 +111,11 @@ func unpackAndDropPrivs(snapFile, targetDir string) error {
 		}
 
 		var uid, gid int
-		uid, err = strconv.Atoi(u.Uid)
+		uid, err = strconv.Atoi(u)
 		if err != nil {
 			return err
 		}
-		gid, err = strconv.Atoi(u.Gid)
+		gid, err = strconv.Atoi(g)
 		if err != nil {
 			return err
 		}
@@ -101,5 +163,5 @@ func init() {
 }
 
 func (x *cmdInternalUnpack) Execute(args []string) (err error) {
-	return unpackAndDropPrivs(x.Positional.SnapFile, x.Positional.TargetDir)
+	return unpackAndDropPrivs(x.Positional.SnapFile, x.Positional.TargetDir, x.Positional.RootDir)
 }
