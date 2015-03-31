@@ -63,7 +63,7 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 	}
 
 	fmt.Printf("Installing %s\n", pkgName)
-	if err := snappy.Install(pkgName, flags); err == snappy.ErrPackageNotFound {
+	if _, err := snappy.Install(pkgName, flags); err == snappy.ErrPackageNotFound {
 		return fmt.Errorf("No package '%s' for %s", pkgName, ubuntuCoreChannel())
 	} else if err != nil {
 		return err
