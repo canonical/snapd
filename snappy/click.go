@@ -658,14 +658,14 @@ type agreer interface {
 	Agreed(intro, license string) bool
 }
 
-func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
+func installClick(snapFile string, flags InstallFlags, ag agreer) (name string, err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
 
 	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
 	err = auditClick(snapFile, allowUnauthenticated)
 	if err != nil {
-		return err
+		return "", err
 		// ?
 		//return SnapAuditError
 	}
@@ -674,29 +674,29 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
-		return err
+		return "", err
 	}
 	manifest, err := readClickManifest([]byte(manifestData))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	yamlData, err := d.MetaMember("package.yaml")
 	if err != nil {
-		return err
+		return "", err
 	}
 	m, err := parsePackageYamlData(yamlData)
 	if m.ExplicitLicenseAgreement {
 		if ag == nil {
-			return ErrLicenseNotAccepted
+			return "", ErrLicenseNotAccepted
 		}
 		license, err := d.MetaMember("license.txt")
 		if err != nil || len(license) == 0 {
-			return ErrLicenseNotProvided
+			return "", ErrLicenseNotProvided
 		}
 		msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
 		if !ag.Agreed(msg, string(license)) {
-			return ErrLicenseNotAccepted
+			return "", ErrLicenseNotAccepted
 		}
 	}
 
@@ -728,7 +728,7 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 	// we need to call the external helper so that we can reliable drop
 	// privs
 	if err := unpackWithDropPrivs(d, instDir); err != nil {
-		return err
+		return "", err
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
@@ -737,12 +737,12 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 	os.MkdirAll(clickMetaDir, 0755)
 	err = ioutil.WriteFile(path.Join(clickMetaDir, manifest.Name+".manifest"), manifestData, 0644)
 	if err != nil {
-		return
+		return "", err
 	}
 
 	// write the hashes now
 	if err := writeHashesFile(d, instDir); err != nil {
-		return err
+		return "", err
 	}
 
 	inhibitHooks := (flags & InhibitHooks) != 0
@@ -758,7 +758,7 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 	if currentActiveDir != "" {
 		oldManifest, err := readClickManifestFromClickDir(currentActiveDir)
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		// we need to stop making it active
@@ -766,7 +766,7 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 			// if anything goes wrong try to activate the old
 			// one again and pass the error on
 			setActiveClick(currentActiveDir, inhibitHooks)
-			return err
+			return "", err
 		}
 
 		if err := copySnapData(manifest.Name, oldManifest.Version, manifest.Version); err != nil {
@@ -774,12 +774,12 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 
 			// restore the previous version
 			setActiveClick(currentActiveDir, inhibitHooks)
-			return err
+			return "", err
 		}
 	} else {
 		if err := helpers.EnsureDir(dataDir, 0755); err != nil {
 			log.Printf("WARNING: Can not create %s", dataDir)
-			return err
+			return "", err
 		}
 	}
 
@@ -789,10 +789,10 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (err error) {
 		if currentActiveDir != "" {
 			setActiveClick(currentActiveDir, inhibitHooks)
 		}
-		return err
+		return "", err
 	}
 
-	return nil
+	return manifest.Name, nil
 }
 
 // Copy all data for "snapName" from "oldVersion" to "newVersion"

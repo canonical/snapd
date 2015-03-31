@@ -71,7 +71,8 @@ func Install(name string, flags InstallFlags) (err error) {
 		}
 
 		pbar := NewTextProgress(name)
-		return installClick(name, flags, pbar)
+		_, err = installClick(name, flags, pbar)
+		return err
 	}
 
 	// check repos next

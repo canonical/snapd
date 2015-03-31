@@ -522,7 +522,7 @@ func (s *RemoteSnapPart) Install(pbar ProgressMeter, flags InstallFlags) error {
 	}
 	defer os.Remove(downloadedSnap)
 
-	err = installClick(downloadedSnap, flags, nil)
+	_, err = installClick(downloadedSnap, flags, nil)
 	if err != nil {
 		return err
 	}
