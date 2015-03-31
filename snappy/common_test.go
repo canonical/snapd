@@ -141,10 +141,12 @@ vendor: Foo Bar <foo@example.com>
 	}
 
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	c.Assert(installClick(snapFile, AllowUnauthenticated, nil), IsNil)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil)
+	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	c.Assert(installClick(snapFile, AllowUnauthenticated, nil), IsNil)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil)
+	c.Assert(err, IsNil)
 
 	m := NewMetaRepository()
 	installed, err := m.Installed()

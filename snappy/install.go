@@ -60,7 +60,7 @@ func inDeveloperMode() bool {
 
 // Install the givens snap names provided via args. This can be local
 // files or snaps that are queried from the store
-func Install(name string, flags InstallFlags) (err error) {
+func Install(name string, flags InstallFlags) (string, error) {
 
 	// consume local parts
 	if _, err := os.Stat(name); err == nil {
@@ -71,7 +71,8 @@ func Install(name string, flags InstallFlags) (err error) {
 		}
 
 		pbar := NewTextProgress(name)
-		return installClick(name, flags, pbar)
+		_, err = installClick(name, flags, pbar)
+		return "", err
 	}
 
 	// check repos next
@@ -81,9 +82,10 @@ func Install(name string, flags InstallFlags) (err error) {
 		// act only on parts that are downloadable
 		if !part.IsInstalled() {
 			pbar := NewTextProgress(part.Name())
-			return logger.LogError(part.Install(pbar, flags))
+			name, err := part.Install(pbar, flags)
+			return name, logger.LogError(err)
 		}
 	}
 
-	return ErrPackageNotFound
+	return "", ErrPackageNotFound
 }
