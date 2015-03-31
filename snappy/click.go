@@ -178,7 +178,7 @@ func systemClickHooks() (hooks map[string]clickHook, err error) {
 
 	hookFiles, err := filepath.Glob(path.Join(clickSystemHooksDir, "*.hook"))
 	if err != nil {
-		return
+		return nil, err
 	}
 	for _, f := range hookFiles {
 		hook, err := readClickHookFile(f)
@@ -188,7 +188,8 @@ func systemClickHooks() (hooks map[string]clickHook, err error) {
 		}
 		hooks[hook.name] = hook
 	}
-	return
+
+	return hooks, err
 }
 
 func expandHookPattern(name, app, version, pattern string) (expanded string) {
@@ -920,4 +921,22 @@ func setActiveClick(baseDir string, inhibitHooks bool) error {
 
 	// symlink is relative to parent dir
 	return os.Symlink(filepath.Base(baseDir), currentActiveSymlink)
+}
+
+// RunHooks will run all click system hooks
+func RunHooks() error {
+	systemHooks, err := systemClickHooks()
+	if err != nil {
+		return err
+	}
+
+	for _, hook := range systemHooks {
+		if hook.exec != "" {
+			if err := execHook(hook.exec); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
