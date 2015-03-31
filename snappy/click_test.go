@@ -561,15 +561,6 @@ func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
 	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/apps/pastebinit.mvo/1.1/bin/random-pastebin")
 }
 
-func (s *SnapTestSuite) TestSnappyGetBinaryAaProfile(c *C) {
-	m := packageYaml{Name: "foo",
-		Version: "1.0"}
-
-	c.Assert(getBinaryAaProfile(&m, Binary{Name: "bin/app"}), Equals, "foo_app_1.0")
-	c.Assert(getBinaryAaProfile(&m, Binary{Name: "bin/app", SecurityTemplate: "some-security-json"}), Equals, "some-security-json")
-	c.Assert(getBinaryAaProfile(&m, Binary{Name: "bin/app", SecurityPolicy: "some-profile"}), Equals, "some-profile")
-}
-
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {
 	packageYaml := `name: foo.mvo
 icon: foo.svg
@@ -810,7 +801,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 
 	needle := `
 cd /apps/hello-app/1.10
-aa-exec -p hello-app_hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
+aa-exec -p hello-app_bin-hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
 `
 	c.Assert(strings.Contains(string(content), needle), Equals, true)
 }

@@ -483,7 +483,7 @@ func addPackageServices(baseDir string, inhibitHooks bool) error {
 	}
 
 	for _, service := range m.Services {
-		aaProfile := fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version)
+		aaProfile := getAaProfile(m, service.Name)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -549,21 +549,6 @@ func removePackageServices(baseDir string) error {
 	return nil
 }
 
-func getBinaryAaProfile(m *packageYaml, binary Binary) string {
-	// check if there is a specific apparmor profile
-	if binary.SecurityPolicy != "" {
-		return binary.SecurityPolicy
-	}
-	// ... or apparmor.json
-	if binary.SecurityTemplate != "" {
-		return binary.SecurityTemplate
-	}
-
-	// FIXME: we need to generate a default aa profile here instead
-	// of relying on a default one shipped by the package
-	return fmt.Sprintf("%s_%s_%s", m.Name, filepath.Base(binary.Name), m.Version)
-}
-
 func addPackageBinaries(baseDir string) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
@@ -575,7 +560,7 @@ func addPackageBinaries(baseDir string) error {
 	}
 
 	for _, binary := range m.Binaries {
-		aaProfile := getBinaryAaProfile(m, binary)
+		aaProfile := getAaProfile(m, binary.Name)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
