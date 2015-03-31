@@ -116,7 +116,9 @@ func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
 				return nil
 			}
 		} else {
-			err := os.MkdirAll(filepath.Dir(path), 0777)
+			if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
+				return err
+			}
 			out, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, info.Mode())
 			if err != nil {
 				return err
