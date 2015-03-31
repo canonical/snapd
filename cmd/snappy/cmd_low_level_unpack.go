@@ -146,6 +146,5 @@ func init() {
 }
 
 func (x *cmdInternalUnpack) Execute(args []string) (err error) {
-	fmt.Println(x.Positional)
 	return unpackAndDropPrivs(x.Positional.SnapFile, x.Positional.TargetDir, x.Positional.RootDir)
 }
