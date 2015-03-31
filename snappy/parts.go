@@ -69,7 +69,7 @@ type Part interface {
 	DownloadSize() int64
 
 	// Install the snap
-	Install(pb ProgressMeter, flags InstallFlags) error
+	Install(pb ProgressMeter, flags InstallFlags) (name string, err error)
 	// Uninstall the snap
 	Uninstall() error
 	// Config takes a yaml configuration and returns the full snap

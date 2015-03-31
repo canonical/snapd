@@ -143,7 +143,7 @@ func (s *SystemImagePart) SetActive() (err error) {
 }
 
 // Install installs the snap
-func (s *SystemImagePart) Install(pb ProgressMeter, flags InstallFlags) (err error) {
+func (s *SystemImagePart) Install(pb ProgressMeter, flags InstallFlags) (name string, err error) {
 	if pb != nil {
 		// ensure the progress finishes when we are done
 		defer func() {
@@ -155,7 +155,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter, flags InstallFlags) (err err
 	// if the update does not provide new versions.
 	err = s.partition.SyncBootloaderFiles()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// find out what config file to use, the other partition may be
@@ -170,15 +170,18 @@ func (s *SystemImagePart) Install(pb ProgressMeter, flags InstallFlags) (err err
 		return systemImageDownloadUpdate(configFile, pb)
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Check that the final system state is as expected.
 	if err = s.verifyUpgradeWasApplied(); err != nil {
-		return err
+		return "", err
 	}
 
-	return s.partition.ToggleNextBoot()
+	if err = s.partition.ToggleNextBoot(); err != nil {
+		return "", err
+	}
+	return systemImagePartName, nil
 }
 
 // Ensure the expected version update was applied to the expected partition.

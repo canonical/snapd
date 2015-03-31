@@ -63,11 +63,12 @@ func inDeveloperMode() bool {
 
 // Install the givens snap names provided via args. This can be local
 // files or snaps that are queried from the store
-func Install(name string, flags InstallFlags) (err error) {
-	if name, err = doInstall(name, flags); err != nil {
-		return logger.LogError(err)
+func Install(name string, flags InstallFlags) (string, error) {
+	name, err := doInstall(name, flags)
+	if err != nil {
+		return "", logger.LogError(err)
 	}
-	return logger.LogError(doGarbageCollect(name, flags))
+	return name, logger.LogError(doGarbageCollect(name, flags))
 }
 
 func doInstall(name string, flags InstallFlags) (string, error) {
@@ -90,7 +91,7 @@ func doInstall(name string, flags InstallFlags) (string, error) {
 		// act only on parts that are downloadable
 		if !part.IsInstalled() {
 			pbar := NewTextProgress(part.Name())
-			return name, part.Install(pbar, flags)
+			return part.Install(pbar, flags)
 		}
 	}
 

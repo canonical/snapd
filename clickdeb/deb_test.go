@@ -169,11 +169,17 @@ func (s *ClickDebTestSuite) TestTarCreate(c *C) {
 
 	// create tar
 	tempdir := c.MkDir()
-	tarfile := filepath.Join(tempdir, "data.tar.gz")
-	err = tarGzCreate(tarfile, builddir, func(path string) bool {
+	tarfile := filepath.Join(tempdir, "data.tar.xz")
+	tarfile = "/tmp/lala.tar.xz"
+	err = tarCreate(tarfile, builddir, func(path string) bool {
 		return !strings.HasSuffix(path, "exclude-me")
 	})
 	c.Assert(err, IsNil)
+
+	// verify that the file is flushed
+	st, err := os.Stat(tarfile)
+	c.Assert(err, IsNil)
+	c.Assert(st.Size(), Not(Equals), int64(0))
 
 	// verify
 	output, err := exec.Command("tar", "tvf", tarfile).CombinedOutput()

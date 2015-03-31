@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -55,6 +56,40 @@ func xzPipeReader(r io.Reader) io.Reader {
 	}()
 
 	return pr
+}
+
+// simple pipe based xz writer
+type xzPipeWriter struct {
+	cmd *exec.Cmd
+	w   io.Writer
+	pw  io.WriteCloser
+	pr  io.ReadCloser
+}
+
+func newXZPipeWriter(w io.Writer) *xzPipeWriter {
+	x := &xzPipeWriter{
+		w: w,
+	}
+
+	x.pr, x.pw = io.Pipe()
+	x.cmd = exec.Command("xz", "--compress", "--stdout")
+	x.cmd.Stdin = x.pr
+	x.cmd.Stdout = x.w
+	x.cmd.Stderr = os.Stderr
+
+	// Start is async
+	x.cmd.Start()
+
+	return x
+}
+
+func (x *xzPipeWriter) Write(buf []byte) (int, error) {
+	return x.pw.Write(buf)
+}
+
+func (x *xzPipeWriter) Close() error {
+	x.pr.Close()
+	return x.cmd.Wait()
 }
 
 // ensure that the content of our data is valid:
@@ -203,23 +238,28 @@ type tarExcludeFunc func(path string) bool
 
 // tarCreate creates a tarfile for a clickdeb, all files in the archive
 // belong to root (same as dpkg-deb)
-func tarGzCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
+func tarCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 	w, err := os.Create(tarname)
 	if err != nil {
 		return err
 	}
 	defer w.Close()
 
-	// we can only support gzip for now because we want this code to
-	// run on anything that go supports (including macos, windows).
-	// so the only option is using a native compressor
-	gzipWriter, err := gzip.NewWriterLevel(w, 9)
+	var compressor io.WriteCloser
+	switch {
+	case strings.HasSuffix(tarname, ".gz"):
+		compressor, err = gzip.NewWriterLevel(w, 9)
+	case strings.HasSuffix(tarname, ".xz"):
+		compressor = newXZPipeWriter(w)
+	default:
+		return fmt.Errorf("unknown compression extension %s", tarname)
+	}
 	if err != nil {
 		return err
 	}
-	defer gzipWriter.Close()
+	defer compressor.Close()
 
-	tarWriter := tar.NewWriter(gzipWriter)
+	tarWriter := tar.NewWriter(compressor)
 	defer tarWriter.Close()
 
 	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
@@ -303,8 +343,12 @@ func (d *ClickDeb) Build(sourceDir string, dataTarFinishedCallback func(dataName
 	defer os.RemoveAll(tempdir)
 
 	// create content data
-	dataName := filepath.Join(tempdir, "data.tar.gz")
-	err = tarGzCreate(dataName, sourceDir, func(path string) bool {
+	dataName := filepath.Join(tempdir, "data.tar.xz")
+	// use the build-in gzip on non-linux platforms
+	if runtime.GOOS != "linux" {
+		dataName = filepath.Join(tempdir, "data.tar.gz")
+	}
+	err = tarCreate(dataName, sourceDir, func(path string) bool {
 		return !strings.HasPrefix(path, filepath.Join(sourceDir, "DEBIAN"))
 	})
 	if err != nil {
@@ -320,7 +364,7 @@ func (d *ClickDeb) Build(sourceDir string, dataTarFinishedCallback func(dataName
 
 	// create control data (for click compat)
 	controlName := filepath.Join(tempdir, "control.tar.gz")
-	if err := tarGzCreate(controlName, filepath.Join(sourceDir, "DEBIAN"), nil); err != nil {
+	if err := tarCreate(controlName, filepath.Join(sourceDir, "DEBIAN"), nil); err != nil {
 		return err
 	}
 

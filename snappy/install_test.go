@@ -51,7 +51,9 @@ public-keys:
 
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	snapFile := makeTestSnapPackage(c, "")
-	c.Assert(Install(snapFile, AllowUnauthenticated|DoInstallGC), IsNil)
+	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC)
+	c.Assert(err, IsNil)
+	c.Check(name, Equals, "foo")
 }
 
 func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
@@ -66,15 +68,15 @@ icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	err = Install(snapFile, flags)
+	_, err = Install(snapFile, flags)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	err = Install(snapFile, flags)
+	_, err = Install(snapFile, flags)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 3.0")
-	err = Install(snapFile, flags)
+	_, err = Install(snapFile, flags)
 	c.Assert(err, IsNil)
 }
 
