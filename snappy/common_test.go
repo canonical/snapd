@@ -120,7 +120,7 @@ vendor: Foo Bar <foo@example.com>
 	// build it
 	err := helpers.ChDir(tmpdir, func() {
 		var err error
-		snapFile, err = Build(tmpdir)
+		snapFile, err = Build(tmpdir, "")
 		c.Assert(err, IsNil)
 	})
 	c.Assert(err, IsNil)

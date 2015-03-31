@@ -338,14 +338,14 @@ integration:
 `)
 
 	outputDir := filepath.Join(c.MkDir(), "output")
+	snapOutput := filepath.Join(outputDir, "hello_1.0.1_multi.snap")
 	resultSnap, err := Build(sourceDir, outputDir)
 	c.Assert(err, IsNil)
-	defer os.Remove(resultSnap)
 
 	// check that there is result
 	_, err = os.Stat(resultSnap)
 	c.Assert(err, IsNil)
-	c.Assert(resultSnap, Equals, filepath.Join(outputDir, "hello_1.0.1_multi.snap"))
+	c.Assert(resultSnap, Equals, snapOutput)
 
 	// check that the json looks valid
 	const expectedJSON = `{
@@ -362,12 +362,12 @@ integration:
   }
  }
 }`
-	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_1.0.1_multi.snap", "manifest").Output()
+	readJSON, err := exec.Command("dpkg-deb", "-I", snapOutput, "manifest").Output()
 	c.Assert(err, IsNil)
 	c.Assert(string(readJSON), Equals, expectedJSON)
 
 	// check that the content looks sane
-	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_multi.snap").Output()
+	readFiles, err := exec.Command("dpkg-deb", "-c", snapOutput).Output()
 	c.Assert(err, IsNil)
 	for _, needle := range []string{"./meta/package.yaml", "./meta/readme.md", "./bin/hello-world"} {
 		c.Assert(strings.Contains(string(readFiles), needle), Equals, true)
