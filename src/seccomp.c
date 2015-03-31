@@ -4,6 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <sys/prctl.h>
 
 #include <seccomp.h>
 
@@ -64,13 +65,22 @@ int seccomp_load_filters(const char *filter_profile)
       // syscall not available on this arch/kernel
       if (syscall_nr == __NR_SCMP_ERROR)
          continue;
-      
+
       // a normal line with a syscall
       rc = seccomp_rule_add_exact(ctx, SCMP_ACT_ALLOW, syscall_nr, 0);
       if (rc != 0) {
-         fprintf(stderr, "seccomp_rule_add_exact failed with %i for '%s'\n", rc, buf);
-         goto out;
+         rc = seccomp_rule_add(ctx, SCMP_ACT_ALLOW, syscall_nr, 0);
+	 if (rc != 0) {
+             fprintf(stderr, "seccomp_rule_add failed with %i for '%s'\n", rc, buf);
+             goto out;
+	 }
       }
+   }
+
+   // Make sure we can't elevate later
+   if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
+      perror("prctl(NO_NEW_PRIVS)");
+      goto out;
    }
 
    // load it into the kernel
@@ -80,7 +90,7 @@ int seccomp_load_filters(const char *filter_profile)
       goto out;
    }
 
-   
+
  out:
    if (f != NULL) {
       fclose(f);

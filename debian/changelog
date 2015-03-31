@@ -1,3 +1,10 @@
+ubuntu-core-launcher (0.1~ppa6) vivid; urgency=medium
+
+  * fallback to seccomp_rule_add() if seccomp_rule_add_exact() fails
+  * call prctl(PR_SET_NO_NEW_PRIVS, 1)
+
+ -- Jamie Strandboge <jamie@ubuntu.com>  Tue, 31 Mar 2015 08:02:52 -0500
+
 ubuntu-core-launcher (0.1~ppa5) vivid; urgency=low
 
   * ignore syscalls unavailable on the given kenerl/arch
