@@ -58,7 +58,7 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 
 	// see if we have a custom security policy
 	if s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != "" {
-		m.Integration[hookName]["apparmor-policy"] = s.SecurityPolicy.Apparmor
+		m.Integration[hookName]["apparmor-profile"] = s.SecurityPolicy.Apparmor
 		return nil
 	}
 
