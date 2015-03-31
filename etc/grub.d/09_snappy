@@ -305,7 +305,7 @@ handle_menu_entry()
     fi
     list=$(get_kernels "$mount_prefix")
 
-    linux=$(version_find_latest "$list")
+    linux=$(version_find_latest $list)
     basename=$(basename "$linux")
     dirname=$(dirname "$linux")
     rel_dirname=$(make_system_path_relative_to_its_root "$dirname")
