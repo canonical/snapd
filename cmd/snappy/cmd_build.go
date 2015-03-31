@@ -28,13 +28,16 @@ import (
 const clickReview = "click-review"
 
 type cmdBuild struct {
+	Output string `long:"output" short:"o" description:"Specify an alternate output directory for the resulting package"`
 }
+
+const longBuildHelp = `Creates a snap package and if available, runs the review scripts.`
 
 func init() {
 	var cmdBuildData cmdBuild
 	cmd, _ := parser.AddCommand("build",
-		"Build a package",
-		"Creates a snapp package",
+		"Builds a snap package",
+		longBuildHelp,
 		&cmdBuildData)
 
 	cmd.Aliases = append(cmd.Aliases, "bu")
@@ -45,7 +48,7 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 		args = []string{"."}
 	}
 
-	snapPackage, err := snappy.Build(args[0])
+	snapPackage, err := snappy.Build(args[0], x.Output)
 	if err != nil {
 		return err
 	}
