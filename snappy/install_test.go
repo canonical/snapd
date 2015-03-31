@@ -20,8 +20,10 @@ package snappy
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	. "launchpad.net/gocheck"
+	"launchpad.net/snappy/helpers"
 )
 
 func makeCloudInitMetaData(c *C, content string) string {
@@ -45,4 +47,38 @@ public-keys:
 `)
 	defer os.Remove(cloudMetaDataFile)
 	c.Assert(inDeveloperMode(), Equals, true)
+}
+
+func (s *SnapTestSuite) TestInstallInstall(c *C) {
+	snapFile := makeTestSnapPackage(c, "")
+	c.Assert(Install(snapFile, AllowUnauthenticated|DoInstallGC), IsNil)
+}
+
+// check that on install we remove all but the two newest package versions
+func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
+	snapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "apps")
+	homeDir := filepath.Join(s.tempdir, "home", "user1", "apps")
+	homeData := filepath.Join(homeDir, "foo", "1.0")
+	err := helpers.EnsureDir(homeData, 0755)
+	c.Assert(err, IsNil)
+
+	packageYaml := `name: foo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+`
+	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	err = Install(snapFile, AllowUnauthenticated|DoInstallGC)
+	c.Assert(err, IsNil)
+
+	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
+	err = Install(snapFile, AllowUnauthenticated|DoInstallGC)
+	c.Assert(err, IsNil)
+
+	snapFile = makeTestSnapPackage(c, packageYaml+"version: 3.0")
+	err = Install(snapFile, AllowUnauthenticated|DoInstallGC)
+	c.Assert(err, IsNil)
+
+	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo", "*"))
+	c.Assert(err, IsNil)
+	c.Assert(globs, HasLen, 2+1) // +1 for "current"
 }
