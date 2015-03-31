@@ -30,11 +30,13 @@ const clickReview = "click-review"
 type cmdBuild struct {
 }
 
+const longBuildHelp = `Creates a snap package and if available, runs the review scripts.`
+
 func init() {
 	var cmdBuildData cmdBuild
 	cmd, _ := parser.AddCommand("build",
-		"Build a package",
-		"Creates a snapp package",
+		"Builds a snap package",
+		longBuildHelp,
 		&cmdBuildData)
 
 	cmd.Aliases = append(cmd.Aliases, "bu")
