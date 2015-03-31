@@ -57,9 +57,6 @@ linux_entry_ext()
 
   echo "menuentry '$name' ${CLASS} \$menuentry_id_option 'gnulinux-simple-$boot_device_id' {" | sed "s/^/$submenu_indentation/"
 
-  if [ "$quick_boot" = 1 ]; then
-      echo "	recordfail" | sed "s/^/$submenu_indentation/"
-  fi
   if [ x$type != xrecovery ] ; then
       save_default_entry | grub_add_tab
   fi
@@ -172,13 +169,13 @@ get_initrd()
   local i=
 
   for i in "initrd.img-${version}" "initrd-${version}.img" "initrd-${version}.gz" \
-	   "initrd-${version}" "initramfs-${version}.img" \
-	   "initrd.img-${alt_version}" "initrd-${alt_version}.img" \
-	   "initrd-${alt_version}" "initramfs-${alt_version}.img" \
-	   "initramfs-genkernel-${version}" \
-	   "initramfs-genkernel-${alt_version}" \
-	   "initramfs-genkernel-${GENKERNEL_ARCH}-${version}" \
-	   "initramfs-genkernel-${GENKERNEL_ARCH}-${alt_version}"; do
+           "initrd-${version}" "initramfs-${version}.img" \
+           "initrd.img-${alt_version}" "initrd-${alt_version}.img" \
+           "initrd-${alt_version}" "initramfs-${alt_version}.img" \
+           "initramfs-genkernel-${version}" \
+           "initramfs-genkernel-${alt_version}" \
+           "initramfs-genkernel-${GENKERNEL_ARCH}-${version}" \
+           "initramfs-genkernel-${GENKERNEL_ARCH}-${alt_version}"; do
     if test -e "${dir}/${i}" ; then
       initrd="${dir}/${i}"
       break
@@ -308,7 +305,7 @@ handle_menu_entry()
     fi
     list=$(get_kernels "$mount_prefix")
 
-    linux=$(version_find_latest "$list")
+    linux=$(version_find_latest $list)
     basename=$(basename "$linux")
     dirname=$(dirname "$linux")
     rel_dirname=$(make_system_path_relative_to_its_root "$dirname")
@@ -361,50 +358,74 @@ this_label=$(get_label_from_device "$this_root")
 handle_menu_entry "$this_root" "$this_label" "$this_mountpoint"
 
 other_mountpoint="/writable/cache/system"
-if ! $(mountpoint -q "$other_mountpoint"); then
-    die "$other_mountpoint is not a mountpoint"
+
+# When this script is run on a real snappy system, even if there is only
+# a single rootfs provisioned, the other rootfs partition is expected to
+# be formatted and mounted.
+#
+# However this script is also run at provisioning time where
+# $other_mountpoint will not be a mountpoint. Therefore in the provisioning
+# scenario, only a single menuentry will be generated if only a single
+# rootfs is provisioned.
+if $(mountpoint -q "$other_mountpoint"); then
+    other_label=$(get_other_rootfs_label "$this_label")
+
+    other_root=$(get_device_from_label "$other_label")
+    [ -z "$other_root" ] && {
+        die "cannot determine rootfs"
+    }
+
+    handle_menu_entry "$other_root" "$other_label" "$other_mountpoint"
 fi
-
-other_label=$(get_other_rootfs_label "$this_label")
-
-other_root=$(get_device_from_label "$other_label")
-[ -z "$other_root" ] && {
-    die "cannot determine rootfs"
-}
-
-handle_menu_entry "$other_root" "$other_label" "$other_mountpoint"
 
 # Toggle rootfs if previous boot failed.
 #
-# Since grub sets recordfail, if it is _already_ set when grub starts
-# and we're in try mode, the previous boot must have failed to unset
-# recordfail, hence toggle the rootfs.
+# Since grub sets snappy_trial_boot, if it is _already_ set when grub starts
+# and we're in try mode, the previous boot must have failed to unset it,
+# so toggle the rootfs.
 sed "s/^/$submenu_indentation/" << EOF
-  if [ -z "\$snappy_mode" ]; then
-      set snappy_mode=default
-      save_env snappy_mode
-  fi
-  if [ -z "\$snappy_ab" ]; then
-      set snappy_ab=a
-      save_env snappy_ab
-  fi
-
-  if [ "\$snappy_mode" = "try" ]; then
-    if [ "\$recordfail" = "1" ]; then
-        if [ "\$snappy_ab" = "a" ]; then
-            set default="$(make_name system-b)"
-            set snappy_ab=b
-        else
-            set snappy_ab=a
-            set default="$(make_name system-a)"
-        fi
+    # set defaults
+    if [ -z "\$snappy_mode" ]; then
+        set snappy_mode=default
+        save_env snappy_mode
+    fi
+    if [ -z "\$snappy_ab" ]; then
+        set snappy_ab=a
         save_env snappy_ab
     fi
-  else
-      if [ "\$snappy_ab" = "a" ]; then
-          set default="$(make_name system-a)"
-      else
-          set default="$(make_name system-b)"
-      fi
-  fi
+
+    if [ "\$snappy_mode" = "try" ]; then
+        if [ "\$snappy_trial_boot" = "1" ]; then
+            # Previous boot failed to unset snappy_trial_boot, so toggle
+            # rootfs.
+            if [ "\$snappy_ab" = "a" ]; then
+                set default="$(make_name system-b)"
+                set snappy_ab=b
+            else
+                set snappy_ab=a
+                set default="$(make_name system-a)"
+            fi
+            save_env snappy_ab
+        else
+            # Trial mode so set the snappy_trial_boot (which snappy is
+            # expected to unset).
+            #
+            # Note: don't use the standard recordfail variable since that forces
+            # the menu to be displayed and sets an infinite timeout if set.
+            set snappy_trial_boot=1
+            save_env snappy_trial_boot
+
+            if [ "\$snappy_ab" = "a" ]; then
+                set default="$(make_name system-a)"
+            else
+                set default="$(make_name system-b)"
+            fi
+        fi
+    else
+        if [ "\$snappy_ab" = "a" ]; then
+            set default="$(make_name system-a)"
+        else
+            set default="$(make_name system-b)"
+        fi
+    fi
 EOF

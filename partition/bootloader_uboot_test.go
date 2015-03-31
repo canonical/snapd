@@ -247,3 +247,43 @@ bootloader u-boot
 
 	c.Assert(bootloader.HandleAssets(), NotNil)
 }
+
+func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	// To simulate what uboot does for a "try" mode boot, create a
+	// stamp file. uboot will expect this file to be removed by
+	// "snappy booted" if the system boots successfully. If this
+	// file exists when uboot starts, it will know that the previous
+	// boot failed, and will therefore toggle to the other rootfs.
+	err := ioutil.WriteFile(bootloaderUbootStampFile, []byte(""), 0640)
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(bootloaderUbootStampFile), Equals, true)
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	// enter "try" mode so that we check to ensure that snappy
+	// correctly modifies the snappy_mode variable from "try" to "default" to
+	// denote a good boot.
+	err = u.ToggleRootFS()
+	c.Assert(err, IsNil)
+
+	c.Assert(helpers.FileExists(bootloaderUbootEnvFile), Equals, true)
+	bytes, err := ioutil.ReadFile(bootloaderUbootEnvFile)
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, true)
+	c.Assert(strings.Contains(string(bytes), "snappy_mode=default"), Equals, false)
+
+	err = u.MarkCurrentBootSuccessful()
+	c.Assert(err, IsNil)
+
+	c.Assert(helpers.FileExists(bootloaderUbootStampFile), Equals, false)
+	c.Assert(helpers.FileExists(bootloaderUbootEnvFile), Equals, true)
+
+	bytes, err = ioutil.ReadFile(bootloaderUbootEnvFile)
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, false)
+	c.Assert(strings.Contains(string(bytes), "snappy_mode=default"), Equals, true)
+}
