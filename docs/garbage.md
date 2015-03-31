@@ -33,5 +33,4 @@ Purging part of your system purges all versions of it.
 
 You can disable garbage collection with the `--no-gc` commandline option, or
 when removing or purging a part, by specifying the version on which to operate
-explicitly (in which case `--gc` will enable gc again, and will apply from the
-specified version back).
+explicitly.

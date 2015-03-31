@@ -105,55 +105,33 @@ func doGarbageCollect(name string, flags InstallFlags) (err error) {
 	}
 
 	m := NewMetaRepository()
-	found, _ := m.Details(name)
-	for _, part := range found {
-		if !part.IsInstalled() {
-			continue
-		}
-		parts = append(parts, part)
+	installed, err := m.Installed()
+	if err != nil {
+		return err
 	}
+	parts = FindSnapsByName(name, installed)
 	if len(parts) < 3 {
 		// not enough things installed to do gc
 		return nil
 	}
 	sort.Sort(parts)
-	active := -1
-	needsReboot := false
+	active := -1 // active is the index of the active part in parts (-1 if no active part)
 	for i, part := range parts {
 		if part.IsActive() {
 			if active > -1 {
-				// xxx: is this even possible?
-				return ErrGarbageCollectImpossible("more than one active??")
+				return ErrGarbageCollectImpossible("more than one active (should not happen).")
 			}
 			active = i
 		}
 		if part.NeedsReboot() {
-			needsReboot = true
+			return nil // don't do gc on parts that need reboot.
 		}
 	}
-	if needsReboot {
-		if len(parts) < 4 {
-			return nil
-		}
-		if active > -1 && active != len(parts)-2 {
-			// xxx: this is a scenario that errors that maybe shouldn't:
-			//  . boot with v1 (have v0 installed but not active)
-			//  . install v2, which asks for reboot (active: v1; v2 not active but needsreboot)
-			//  . install v3, which asks for reboot (active: v1; v2, v3 needsreboot [<- would we get two needsreboot? not sure])
-			//  . reboots, everything happy
-			// garbage collection should probably collect v0 and v2?
-			// xxx to the xxx: not sure if this is a supported scenario
-			return ErrGarbageCollectImpossible("unimplemented")
-		}
-		parts = parts[:len(parts)-3]
-	} else {
-		if active > -1 && active != len(parts)-1 {
-			return ErrGarbageCollectImpossible("current not latest")
-		}
-		parts = parts[:len(parts)-2]
+	if active < 1 {
+		// how was this an install?
+		return nil
 	}
-
-	for _, part := range parts {
+	for _, part := range parts[:active-1] {
 		if err = part.Uninstall(); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
