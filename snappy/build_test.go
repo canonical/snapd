@@ -79,7 +79,7 @@ integration:
   apparmor-profile: meta/hello.apparmor
 `)
 
-	resultSnap, err := Build(sourceDir)
+	resultSnap, err := Build(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -123,7 +123,7 @@ binaries:
  - name: bin/hello-world
 `)
 
-	resultSnap, err := Build(sourceDir)
+	resultSnap, err := Build(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -162,7 +162,7 @@ services:
    start: bin/hello-world
 `)
 
-	resultSnap, err := Build(sourceDir)
+	resultSnap, err := Build(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -214,7 +214,7 @@ vendor: Foo <foo@example.com>
 	err := ioutil.WriteFile(filepath.Join(hooksDir, "config"), []byte(""), 0755)
 	c.Assert(err, IsNil)
 
-	resultSnap, err := Build(sourceDir)
+	resultSnap, err := Build(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -243,7 +243,7 @@ vendor: Foo <foo@example.com>
 func (s *SnapTestSuite) TestBuildNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "package.yaml")), IsNil)
-	_, err := Build(sourceDir)
+	_, err := Build(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
 }
 
@@ -257,7 +257,7 @@ integration:
   apparmor-profile: meta/hello.apparmor
 explicit-license-agreement: Y
 `)
-	_, err := Build(sourceDir)
+	_, err := Build(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
 }
 
@@ -273,7 +273,7 @@ explicit-license-agreement: Y
 `)
 	lic := filepath.Join(sourceDir, "meta", "license.txt")
 	ioutil.WriteFile(lic, []byte("\n"), 0755)
-	_, err := Build(sourceDir)
+	_, err := Build(sourceDir, "")
 	c.Assert(err, Equals, ErrLicenseBlank)
 }
 
@@ -325,4 +325,51 @@ func (s *SnapTestSuite) TestCopyExcludesWholeDirs(c *C) {
 	out, err := cmd.Output()
 	c.Check(err, NotNil)
 	c.Check(string(out), Matches, `(?m)Only in \S+: \.bzr`)
+}
+
+func (s *SnapTestSuite) TestBuildSimpleOutputDir(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+architecture: ["i386", "amd64"]
+integration:
+ app:
+  apparmor-profile: meta/hello.apparmor
+`)
+
+	outputDir := filepath.Join(c.MkDir(), "output")
+	resultSnap, err := Build(sourceDir, outputDir)
+	c.Assert(err, IsNil)
+	defer os.Remove(resultSnap)
+
+	// check that there is result
+	_, err = os.Stat(resultSnap)
+	c.Assert(err, IsNil)
+	c.Assert(resultSnap, Equals, filepath.Join(outputDir, "hello_1.0.1_multi.snap"))
+
+	// check that the json looks valid
+	const expectedJSON = `{
+ "name": "hello",
+ "version": "1.0.1",
+ "framework": "ubuntu-core-15.04-dev1",
+ "description": "some description",
+ "installed-size": "17",
+ "maintainer": "Foo \u003cfoo@example.com\u003e",
+ "title": "some title",
+ "hooks": {
+  "app": {
+   "apparmor-profile": "meta/hello.apparmor"
+  }
+ }
+}`
+	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_1.0.1_multi.snap", "manifest").Output()
+	c.Assert(err, IsNil)
+	c.Assert(string(readJSON), Equals, expectedJSON)
+
+	// check that the content looks sane
+	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_multi.snap").Output()
+	c.Assert(err, IsNil)
+	for _, needle := range []string{"./meta/package.yaml", "./meta/readme.md", "./bin/hello-world"} {
+		c.Assert(strings.Contains(string(readFiles), needle), Equals, true)
+	}
 }

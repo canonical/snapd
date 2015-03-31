@@ -450,7 +450,7 @@ func checkLicenseExists(sourceDir string) error {
 var licenseChecker = checkLicenseExists
 
 // Build the given sourceDirectory and return the generated snap file
-func Build(sourceDir string) (string, error) {
+func Build(sourceDir, targetDir string) (string, error) {
 
 	// ensure we have valid content
 	m, err := parsePackageYamlFile(filepath.Join(sourceDir, "meta", "package.yaml"))
@@ -518,6 +518,15 @@ func Build(sourceDir string) (string, error) {
 
 	// build the package
 	snapName := fmt.Sprintf("%s_%s_%v.snap", m.Name, m.Version, debArchitecture(m))
+
+	if targetDir != "" {
+		snapName = filepath.Join(targetDir, snapName)
+		if _, err := os.Stat(targetDir); os.IsNotExist(err) {
+			if err := os.MkdirAll(targetDir, 0755); err != nil {
+				return "", err
+			}
+		}
+	}
 
 	// build it
 	d := clickdeb.ClickDeb{Path: snapName}
