@@ -63,6 +63,7 @@ type xzPipeWriter struct {
 	cmd *exec.Cmd
 	w   io.Writer
 	pw  io.WriteCloser
+	pr  io.ReadCloser
 }
 
 func NewXZPipeWriter(w io.Writer) *xzPipeWriter {
@@ -70,10 +71,9 @@ func NewXZPipeWriter(w io.Writer) *xzPipeWriter {
 		w: w,
 	}
 
-	pr, pw := io.Pipe()
-	x.pw = pw
+	x.pr, x.pw = io.Pipe()
 	x.cmd = exec.Command("xz", "--compress", "--stdout")
-	x.cmd.Stdin = pr
+	x.cmd.Stdin = x.pr
 	x.cmd.Stdout = x.w
 	x.cmd.Stderr = os.Stderr
 
@@ -88,7 +88,7 @@ func (x *xzPipeWriter) Write(buf []byte) (int, error) {
 }
 
 func (x *xzPipeWriter) Close() error {
-	x.pw.Close()
+	x.pr.Close()
 	return x.cmd.Wait()
 }
 
