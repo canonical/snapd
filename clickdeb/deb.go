@@ -77,10 +77,8 @@ func NewXZPipeWriter(w io.Writer) *xzPipeWriter {
 	x.cmd.Stdout = x.w
 	x.cmd.Stderr = os.Stderr
 
-	// run xz in its own go-routine
-	go func() {
-		x.cmd.Start()
-	}()
+	// Start is async
+	x.cmd.Start()
 
 	return x
 }
