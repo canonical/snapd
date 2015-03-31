@@ -1,5 +1,5 @@
 [Unit]
-Description=Run click hooks
+Description=Run snappy compatibility hooks
 Before=apparmor.service
 
 [Service]
