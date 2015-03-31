@@ -251,7 +251,11 @@ bootloader u-boot
 func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	// create stamp file
+	// To simulate what uboot does for a "try" mode boot, create a
+	// stamp file. uboot will expect this file to be removed by
+	// "snappy booted" if the system boots successfully. If this
+	// file exists when uboot starts, it will know that the previous
+	// boot failed, and will therefore toggle to the other rootfs.
 	err := ioutil.WriteFile(bootloaderUbootStampFile, []byte(""), 0640)
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(bootloaderUbootStampFile), Equals, true)
@@ -260,7 +264,9 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
-	// enter try mode
+	// enter "try" mode so that we check to ensure that snappy
+	// correctly modifies the snappy_mode variable from "try" to "default" to
+	// denote a good boot.
 	err = u.ToggleRootFS()
 	c.Assert(err, IsNil)
 
