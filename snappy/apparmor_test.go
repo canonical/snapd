@@ -114,7 +114,7 @@ func (a *ApparmorTestSuite) TestSnappyHandleApparmorPolicy(c *C) {
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
 
-	c.Assert(a.m.Integration["app"]["apparmor-policy"], Equals, "meta/custom-policy.apparmor")
+	c.Assert(a.m.Integration["app"]["apparmor-profile"], Equals, "meta/custom-policy.apparmor")
 }
 
 func (a *ApparmorTestSuite) TestSnappyGetAaProfile(c *C) {
