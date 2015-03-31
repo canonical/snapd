@@ -406,7 +406,7 @@ X-Snappy=yes
 [Service]
 ExecStart={{.FullPathStart}}
 WorkingDirectory={{.AppPath}}
-Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}"
+Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}" "TMPDIR=/tmp/snaps/{{.packageYaml.Name}}/{{.Version}}/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/{{.packageYaml.Name}}/{{.Version}}/tmp"
 AppArmorProfile={{.AaProfile}}
 {{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}

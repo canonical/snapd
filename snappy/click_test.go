@@ -661,7 +661,7 @@ X-Snappy=yes
 [Service]
 ExecStart=/apps/docker/1.3.3.001/bin/docker.wrap
 WorkingDirectory=/apps/docker/1.3.3.001/
-Environment="SNAPP_APP_PATH=/apps/docker/1.3.3.001/" "SNAPP_APP_DATA_PATH=/var/lib/apps/docker/1.3.3.001/" "SNAPP_APP_USER_DATA_PATH=%h/apps/docker/1.3.3.001/" "SNAP_APP_PATH=/apps/docker/1.3.3.001/" "SNAP_APP_DATA_PATH=/var/lib/apps/docker/1.3.3.001/" "SNAP_APP_USER_DATA_PATH=%h/apps/docker/1.3.3.001/" "SNAP_APP=docker_docker_1.3.3.001"
+Environment="SNAPP_APP_PATH=/apps/docker/1.3.3.001/" "SNAPP_APP_DATA_PATH=/var/lib/apps/docker/1.3.3.001/" "SNAPP_APP_USER_DATA_PATH=%h/apps/docker/1.3.3.001/" "SNAP_APP_PATH=/apps/docker/1.3.3.001/" "SNAP_APP_DATA_PATH=/var/lib/apps/docker/1.3.3.001/" "SNAP_APP_USER_DATA_PATH=%h/apps/docker/1.3.3.001/" "SNAP_APP=docker_docker_1.3.3.001" "TMPDIR=/tmp/snaps/docker/1.3.3.001/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/docker/1.3.3.001/tmp"
 AppArmorProfile=docker_docker_1.3.3.001
 
 
@@ -806,7 +806,7 @@ X-Snappy=yes
 [Service]
 ExecStart=/apps/xkcd-webserver.canonical/0.3.4/bin/foo start
 WorkingDirectory=/apps/xkcd-webserver.canonical/0.3.4/
-Environment="SNAPP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_USER_DATA_PATH=%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP=xckd-webserver.canonical_xkcd-webserver_0.3.4"
+Environment="SNAPP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_USER_DATA_PATH=%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP=xckd-webserver.canonical_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xckd-webserver.canonical/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xckd-webserver.canonical/0.3.4/tmp"
 AppArmorProfile=xkcd-webserver.canonical_xkcd-webserver_0.3.4
 ExecStop=/apps/xkcd-webserver.canonical/0.3.4/bin/foo stop
 ExecStopPost=/apps/xkcd-webserver.canonical/0.3.4/bin/foo post-stop
