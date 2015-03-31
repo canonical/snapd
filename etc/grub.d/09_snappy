@@ -169,13 +169,13 @@ get_initrd()
   local i=
 
   for i in "initrd.img-${version}" "initrd-${version}.img" "initrd-${version}.gz" \
-	   "initrd-${version}" "initramfs-${version}.img" \
-	   "initrd.img-${alt_version}" "initrd-${alt_version}.img" \
-	   "initrd-${alt_version}" "initramfs-${alt_version}.img" \
-	   "initramfs-genkernel-${version}" \
-	   "initramfs-genkernel-${alt_version}" \
-	   "initramfs-genkernel-${GENKERNEL_ARCH}-${version}" \
-	   "initramfs-genkernel-${GENKERNEL_ARCH}-${alt_version}"; do
+           "initrd-${version}" "initramfs-${version}.img" \
+           "initrd.img-${alt_version}" "initrd-${alt_version}.img" \
+           "initrd-${alt_version}" "initramfs-${alt_version}.img" \
+           "initramfs-genkernel-${version}" \
+           "initramfs-genkernel-${alt_version}" \
+           "initramfs-genkernel-${GENKERNEL_ARCH}-${version}" \
+           "initramfs-genkernel-${GENKERNEL_ARCH}-${alt_version}"; do
     if test -e "${dir}/${i}" ; then
       initrd="${dir}/${i}"
       break
@@ -373,48 +373,52 @@ handle_menu_entry "$other_root" "$other_label" "$other_mountpoint"
 
 # Toggle rootfs if previous boot failed.
 #
-# Since grub sets snappy_stamp, if it is _already_ set when grub starts
+# Since grub sets snappy_trial_boot, if it is _already_ set when grub starts
 # and we're in try mode, the previous boot must have failed to unset it,
 # so toggle the rootfs.
 sed "s/^/$submenu_indentation/" << EOF
-  # set defaults
-  if [ -z "\$snappy_mode" ]; then
-      set snappy_mode=default
-      save_env snappy_mode
-  fi
-  if [ -z "\$snappy_ab" ]; then
-      set snappy_ab=a
-      save_env snappy_ab
-  fi
+    # set defaults
+    if [ -z "\$snappy_mode" ]; then
+        set snappy_mode=default
+        save_env snappy_mode
+    fi
+    if [ -z "\$snappy_ab" ]; then
+        set snappy_ab=a
+        save_env snappy_ab
+    fi
 
-  if [ "\$snappy_mode" = "try" ]; then
-    if [ "\$snappy_stamp" = "1" ]; then
-          # previous boot failed to clear snappy_stamp, so toggle rootfs
-          if [ "\$snappy_ab" = "a" ]; then
-              set default="$(make_name system-b)"
-              set snappy_ab=b
-          else
-              set snappy_ab=a
-              set default="$(make_name system-a)"
-          fi
-          save_env snappy_ab
-      else
-          # Note: don't use the standard recordfail variable since that forces
-          # the menu to be displayed and sets an infinite timeout if set!
-          set snappy_stamp=1
-          save_env snappy_stamp
+    if [ "\$snappy_mode" = "try" ]; then
+        if [ "\$snappy_trial_boot" = "1" ]; then
+            # Previous boot failed to unset snappy_trial_boot, so toggle
+            # rootfs.
+            if [ "\$snappy_ab" = "a" ]; then
+                set default="$(make_name system-b)"
+                set snappy_ab=b
+            else
+                set snappy_ab=a
+                set default="$(make_name system-a)"
+            fi
+            save_env snappy_ab
+        else
+            # Trial mode so set the snappy_trial_boot (which snappy is
+            # expected to unset).
+            #
+            # Note: don't use the standard recordfail variable since that forces
+            # the menu to be displayed and sets an infinite timeout if set.
+            set snappy_trial_boot=1
+            save_env snappy_trial_boot
 
-          if [ "\$snappy_ab" = "a" ]; then
-              set default="$(make_name system-a)"
-          else
-              set default="$(make_name system-b)"
-          fi
-      fi
-  else
-      if [ "\$snappy_ab" = "a" ]; then
-          set default="$(make_name system-a)"
-      else
-          set default="$(make_name system-b)"
-      fi
-  fi
+            if [ "\$snappy_ab" = "a" ]; then
+                set default="$(make_name system-a)"
+            else
+                set default="$(make_name system-b)"
+            fi
+        fi
+    else
+        if [ "\$snappy_ab" = "a" ]; then
+            set default="$(make_name system-a)"
+        else
+            set default="$(make_name system-b)"
+        fi
+    fi
 EOF

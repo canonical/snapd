@@ -30,17 +30,17 @@ const (
 	bootloaderGrubConfigFileReal = "/boot/grub/grub.cfg"
 	bootloaderGrubEnvFileReal    = "/boot/grub/grubenv"
 
-	bootloaderGrubEnvCmdReal    = "/usr/bin/grub-editenv"
-	bootloaderGrubUpdateCmdReal = "/usr/sbin/update-grub"
-	bootloaderGrubStampVarReal  = "snappy_stamp"
+	bootloaderGrubEnvCmdReal       = "/usr/bin/grub-editenv"
+	bootloaderGrubUpdateCmdReal    = "/usr/sbin/update-grub"
+	bootloaderGrubTrialBootVarReal = "snappy_trial_boot"
 )
 
 // var to make it testable
 var (
-	bootloaderGrubDir        = bootloaderGrubDirReal
-	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
-	bootloaderGrubStampVar   = bootloaderGrubStampVarReal
-	bootloaderGrubEnvFile    = bootloaderGrubEnvFileReal
+	bootloaderGrubDir          = bootloaderGrubDirReal
+	bootloaderGrubConfigFile   = bootloaderGrubConfigFileReal
+	bootloaderGrubTrialBootVar = bootloaderGrubTrialBootVarReal
+	bootloaderGrubEnvFile      = bootloaderGrubEnvFileReal
 
 	bootloaderGrubEnvCmd    = bootloaderGrubEnvCmdReal
 	bootloaderGrubUpdateCmd = bootloaderGrubUpdateCmdReal
@@ -117,6 +117,10 @@ func (g *grub) setBootVar(name, value string) (err error) {
 	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", arg)
 }
 
+func (g *grub) unsetBootVar(name string) (err error) {
+	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "unset", name)
+}
+
 func (g *grub) GetNextBootRootFSName() (label string, err error) {
 	return g.GetBootVar(bootloaderRootfsVar)
 }
@@ -130,8 +134,9 @@ func (g *grub) GetOtherRootFSName() string {
 }
 
 func (g *grub) MarkCurrentBootSuccessful() (err error) {
-	// disable the variable set by grub on boot.
-	if err := g.setBootVar(bootloaderGrubStampVar, "0"); err != nil {
+	// Clear the variable set by grub on boot to denote a good
+	// boot.
+	if err := g.unsetBootVar(bootloaderGrubTrialBootVar); err != nil {
 		return err
 	}
 	return g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
