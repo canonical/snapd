@@ -64,8 +64,7 @@ func readUid(user, passwdFile string) (uid int, err error) {
 		line := scannerf.Text()
 		splitLine := strings.Split(line, ":")
 		if len(splitLine) > 2 && splitLine[0] == user {
-			uid, err := strconv.Atoi(splitLine[2])
-			return uid, err
+			return strconv.Atoi(splitLine[2])
 		}
 	}
 

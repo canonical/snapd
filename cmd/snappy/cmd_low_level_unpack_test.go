@@ -18,14 +18,15 @@
 package main
 
 import (
-	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	. "launchpad.net/gocheck"
 )
 
 func makeTempFile(c *C, content string) *os.File {
-	f, err := ioutil.TempFile("", "")
+	tempdir := c.MkDir()
+	f, err := os.Create(filepath.Join(tempdir, "foo"))
 	c.Assert(err, IsNil)
 	f.Write([]byte(content))
 	f.Sync()
@@ -38,7 +39,6 @@ func (s *CmdTestSuite) TestUidReaderPasswd(c *C) {
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
 clickpkg:x:101:104::/nonexistent:/bin/false
 `)
-	defer os.Remove(f.Name())
 
 	uid, err := readUid("clickpkg", f.Name())
 	c.Assert(err, IsNil)
@@ -50,7 +50,6 @@ func (s *CmdTestSuite) TestUidReaderGroups(c *C) {
 daemon:x:1:
 clickpkg:x:104:
 `)
-	defer os.Remove(f.Name())
 
 	gid, err := readUid("clickpkg", f.Name())
 	c.Assert(err, IsNil)
@@ -68,4 +67,23 @@ clickpkg:x:102:105::/nonexistent:/bin/false
 	uid, err := readUid("clickpkg", f.Name())
 	c.Assert(err, IsNil)
 	c.Assert(uid, Equals, 102)
+}
+
+func (s *CmdTestSuite) TestUidReaderInvalidPasswd(c *C) {
+	f := makeTempFile(c, `root:
+daemon:
+clickpkg:x:
+`)
+
+	_, err := readUid("clickpkg", f.Name())
+	c.Assert(err, NotNil)
+}
+
+func (s *CmdTestSuite) TestUidReaderInvalidPasswd2(c *C) {
+	f := makeTempFile(c, `root:
+daemon:
+`)
+
+	_, err := readUid("clickpkg", f.Name())
+	c.Assert(err, NotNil)
 }
