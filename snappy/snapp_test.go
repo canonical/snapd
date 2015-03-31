@@ -601,3 +601,73 @@ type: oem
 	// we just ensure that the right header is set
 	repo.Details("xkcd")
 }
+
+var securityBinaryPackageYaml = []byte(`name: test-snap.jdstrand
+version: 1.2.8
+vendor: Jamie Strandboge <jamie@canonical.com>
+icon: meta/hello.svg
+binaries:
+ - name: testme
+   exec: bin/testme
+   description: "testme client"
+   caps:
+     - "foo_group"
+   security-template: "foo_template"
+ - name: testme-override
+   exec: bin/testme-override
+   security-override:
+     apparmor: meta/testme-override.apparmor
+ - name: testme-policy
+   exec: bin/testme-policy
+   security-policy:
+     apparmor: meta/testme-policy.profile
+`)
+
+func (s *SnapTestSuite) TestPackageYamlSecurityBinaryParsing(c *C) {
+	m, err := parsePackageYamlData(securityBinaryPackageYaml)
+	c.Assert(err, IsNil)
+
+	c.Assert(m.Binaries[0].Name, Equals, "testme")
+	c.Assert(m.Binaries[0].Exec, Equals, "bin/testme")
+	c.Assert(m.Binaries[0].SecurityCaps, HasLen, 1)
+	c.Assert(m.Binaries[0].SecurityCaps[0], Equals, "foo_group")
+	c.Assert(m.Binaries[0].SecurityTemplate, Equals, "foo_template")
+
+	c.Assert(m.Binaries[1].Name, Equals, "testme-override")
+	c.Assert(m.Binaries[1].Exec, Equals, "bin/testme-override")
+	c.Assert(m.Binaries[1].SecurityCaps, HasLen, 0)
+	c.Assert(m.Binaries[1].SecurityOverride.Apparmor, Equals, "meta/testme-override.apparmor")
+
+	c.Assert(m.Binaries[2].Name, Equals, "testme-policy")
+	c.Assert(m.Binaries[2].Exec, Equals, "bin/testme-policy")
+	c.Assert(m.Binaries[2].SecurityCaps, HasLen, 0)
+	c.Assert(m.Binaries[2].SecurityPolicy.Apparmor, Equals, "meta/testme-policy.profile")
+}
+
+var securityServicePackageYaml = []byte(`name: test-snap.jdstrand
+version: 1.2.8
+vendor: Jamie Strandboge <jamie@canonical.com>
+icon: meta/hello.svg
+services:
+ - name: testme-service
+   start: bin/testme-service.start
+   stop: bin/testme-service.stop
+   description: "testme service"
+   caps:
+     - "networking"
+     - "foo_group"
+   security-template: "foo_template"
+`)
+
+func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
+	m, err := parsePackageYamlData(securityServicePackageYaml)
+	c.Assert(err, IsNil)
+
+	c.Assert(m.Services[0].Name, Equals, "testme-service")
+	c.Assert(m.Services[0].Start, Equals, "bin/testme-service.start")
+	c.Assert(m.Services[0].Stop, Equals, "bin/testme-service.stop")
+	c.Assert(m.Services[0].SecurityCaps, HasLen, 2)
+	c.Assert(m.Services[0].SecurityCaps[0], Equals, "networking")
+	c.Assert(m.Services[0].SecurityCaps[1], Equals, "foo_group")
+	c.Assert(m.Services[0].SecurityTemplate, Equals, "foo_template")
+}

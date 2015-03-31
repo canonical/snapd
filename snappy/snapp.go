@@ -82,7 +82,7 @@ type Service struct {
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
 
-	SecurityDefinitions
+	SecurityDefinitions `yaml:",inline"`
 }
 
 // Binary represents a single binary inside the binaries: package.yaml
@@ -90,7 +90,7 @@ type Binary struct {
 	Name string `yaml:"name"`
 	Exec string `yaml:"exec"`
 
-	SecurityDefinitions
+	SecurityDefinitions `yaml:",inline"`
 }
 
 // SnapPart represents a generic snap type
