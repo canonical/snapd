@@ -50,7 +50,7 @@ snappy_cmdline=init=/lib/systemd/systemd ro panic=-1 fixrtc
 snappy_ab=a
 # stamp file indicating a new version is being tried; removed by s-i after boot
 snappy_stamp=snappy-stamp.txt
-# either "regular" (normal boot) or "try" when trying a new version
+# either "default" (normal boot) or "try" when trying a new version
 snappy_mode=default
 # if we're trying a new version, check if stamp file is already there to revert
 # to other version
