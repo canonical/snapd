@@ -60,8 +60,9 @@ options are available to modify the confinement:
 * `caps`: (optional) list of (easy to understand, human readable) additional
   security policies to add. The system will translate these to generate
   AppArmor and seccomp policy. Note: these are separate from `capabilities(7)`.
-  When `caps` and `security-template` are not specified, defaults to client
-  networking. Not compatible with `security-override` or `security-policy`.
+  When `caps` and `security-template` are not specified, `caps` defaults to
+  client networking. Not compatible with `security-override` or
+  `security-policy`.
  * AppArmor access is deny by default and apps are restricted to their
    app-specific directories, libraries, etc (enforcing ro, rw, etc).
    Additional access beyond what is allowed by the declared `security-template`
@@ -71,8 +72,8 @@ options are available to modify the confinement:
    beyond what is allowed by the `security-template` is declared via this
    option
 * `security-template`: (optional) alternate security template to use instead of
-  `default`. When specified, `caps` defaults to empty list. Not compatible with
-  `security-override` or `security-policy`.
+  `default`. When specified without `caps`, `caps` defaults to being empty. Not
+  compatible with `security-override` or `security-policy`.
 * `security-override`: (optional) high level overrides to use when
   `security-template` and `caps` are not sufficient - see
   [Advanced usage](https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement)
