@@ -94,6 +94,11 @@ func (l *LogWriter) logStacktrace(level loggo.Level, name string, filename strin
 // Format handles how each log entry should appear.
 // Note that the timestamp field is not used as syslog adds that for us.
 func (l *LogWriter) Format(level loggo.Level, module, filename string, line int, timestamp time.Time, message string) string {
+	if level < loggo.ERROR {
+		// keep it relatively succinct for low priority messages
+		return fmt.Sprintf("%s:%s:%s", level, module, message)
+	}
+
 	return fmt.Sprintf("%s:%s:%s:%d:%s", level, module, filename, line, message)
 }
 
