@@ -841,3 +841,17 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
 	generatedWrapper := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
 	c.Assert(generatedWrapper, Equals, expectedServiceWrapper)
 }
+
+func (s *SnapTestSuite) TestSnappyRunHooks(c *C) {
+	hookWasRunStamp := fmt.Sprintf("%s/systemd-was-run", s.tempdir)
+	c.Assert(helpers.FileExists(hookWasRunStamp), Equals, false)
+
+	makeClickHook(c, fmt.Sprintf(`Hook-Name: systemd
+User: root
+Exec: touch %s
+Pattern: /var/lib/systemd/click/${id}`, hookWasRunStamp))
+
+	err := RunHooks()
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(hookWasRunStamp), Equals, true)
+}
