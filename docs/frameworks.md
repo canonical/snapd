@@ -201,8 +201,7 @@ The command line experience is:
     apps: hello-world
 
 A convenience afforded to frameworks is that commands don't require that the
-package name be appended. Eg, using the above `package.yaml`, either of these
-may be used:
+package name be appended. Eg, using the above `package.yaml`, use:
 
     $ baz --version
     1.1.235
