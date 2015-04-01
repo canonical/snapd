@@ -82,15 +82,6 @@ var shouldExclude = regexp.MustCompile(strings.Join([]string{
 	`^{arch}$`,
 }, "|")).MatchString
 
-const defaultApparmorJSON = `{
-    "template": "default",
-    "policy_groups": [
-        "networking"
-    ],
-    "policy_vendor": "ubuntu-snappy",
-    "policy_version": 1.3
-}`
-
 // small helper that return the architecture or "multi" if its multiple arches
 func debArchitecture(m *packageYaml) string {
 	if len(m.Architectures) > 1 {
@@ -135,16 +126,12 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 		if _, ok := m.Integration[hookName]; !ok {
 			m.Integration[hookName] = make(map[string]string)
 		}
+		// legacy click hook
 		m.Integration[hookName]["bin-path"] = v.Name
 
-		_, hasApparmor := m.Integration[hookName]["apparmor"]
-		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-		if !hasApparmor && !hasApparmorProfile {
-			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
-				return err
-			}
-			m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+		// handle the apparmor stuff
+		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
+			return err
 		}
 	}
 
@@ -182,15 +169,9 @@ func handleServices(buildDir string, m *packageYaml) error {
 		}
 		m.Integration[hookName]["snappy-systemd"] = snappySystemdContentFile
 
-		// generate apparmor
-		_, hasApparmor := m.Integration[hookName]["apparmor"]
-		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-		if !hasApparmor && !hasApparmorProfile {
-			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
-				return err
-			}
-			m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+		// handle the apparmor stuff
+		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
+			return err
 		}
 	}
 
@@ -204,12 +185,17 @@ func handleConfigHookApparmor(buildDir string, m *packageYaml) error {
 	}
 
 	hookName := "snappy-config"
-	defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-	if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
+	s := &SecurityDefinitions{}
+	content, err := generateApparmorJSONContent(s)
+	if err != nil {
+		return err
+	}
+	configApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
+	if err := ioutil.WriteFile(filepath.Join(buildDir, configApparmorJSONFile), content, 0644); err != nil {
 		return err
 	}
 	m.Integration[hookName] = make(map[string]string)
-	m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+	m.Integration[hookName]["apparmor"] = configApparmorJSONFile
 
 	return nil
 }

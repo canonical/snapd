@@ -11,6 +11,7 @@ the following attributes:
 * Frameworks typically will use a toplevel namespace
 * Framework `binaries` may be used without appending the package name and
   these binary names are governed by the framework onboarding process (below)
+* Frameworks must not depend on other frameworks
 * Frameworks run in a carefully crafted security profile
 * Frameworks are tightly coupled with separately maintained security policies
   that extend the security policy available to apps consuming a framework
