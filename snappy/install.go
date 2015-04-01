@@ -68,6 +68,7 @@ func Install(name string, flags InstallFlags) (string, error) {
 	if err != nil {
 		return "", logger.LogError(err)
 	}
+
 	return name, logger.LogError(doGarbageCollect(name, flags))
 }
 
@@ -98,7 +99,10 @@ func doInstall(name string, flags InstallFlags) (string, error) {
 	return "", ErrPackageNotFound
 }
 
-func doGarbageCollect(name string, flags InstallFlags) (err error) {
+// doGarbageCollect removes all versions two older than the current active
+// version, as long as NeedsReboot() is false on all the versions found, and
+// DoInstallGC is set.
+func doGarbageCollect(name string, flags InstallFlags) error {
 	var parts BySnapVersion
 
 	if (flags & DoInstallGC) == 0 {
@@ -110,13 +114,16 @@ func doGarbageCollect(name string, flags InstallFlags) (err error) {
 	if err != nil {
 		return err
 	}
+
 	parts = FindSnapsByName(name, installed)
 	if len(parts) < 3 {
 		// not enough things installed to do gc
 		return nil
 	}
+
 	sort.Sort(parts)
 	active := -1 // active is the index of the active part in parts (-1 if no active part)
+
 	for i, part := range parts {
 		if part.IsActive() {
 			if active > -1 {
@@ -128,12 +135,14 @@ func doGarbageCollect(name string, flags InstallFlags) (err error) {
 			return nil // don't do gc on parts that need reboot.
 		}
 	}
+
 	if active < 1 {
 		// how was this an install?
 		return nil
 	}
+
 	for _, part := range parts[:active-1] {
-		if err = part.Uninstall(); err != nil {
+		if err := part.Uninstall(); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}
