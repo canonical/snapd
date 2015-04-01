@@ -38,7 +38,7 @@ type SystemctlTestSuite struct {
 var _ = Suite(&SystemctlTestSuite{})
 
 func (s *SystemctlTestSuite) SetUpTest(c *C) {
-	Systemctl = s.myRun
+	SystemctlCmd = s.myRun
 	s.i = 0
 	s.argses = nil
 	s.errors = nil
@@ -46,7 +46,7 @@ func (s *SystemctlTestSuite) SetUpTest(c *C) {
 }
 
 func (s *SystemctlTestSuite) TearDownTest(c *C) {
-	Systemctl = run
+	SystemctlCmd = run
 }
 
 func (s *SystemctlTestSuite) myRun(args ...string) (out []byte, err error) {
@@ -62,13 +62,13 @@ func (s *SystemctlTestSuite) myRun(args ...string) (out []byte, err error) {
 }
 
 func (s *SystemctlTestSuite) TestDaemonReload(c *C) {
-	err := DaemonReload()
+	err := New("").DaemonReload()
 	c.Assert(err, IsNil)
 	c.Assert(s.argses, DeepEquals, [][]string{{"daemon-reload"}})
 }
 
 func (s *SystemctlTestSuite) TestStart(c *C) {
-	err := Start("foo")
+	err := New("").Start("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo"}})
 }
@@ -81,7 +81,7 @@ func (s *SystemctlTestSuite) TestStop(c *C) {
 		[]byte("ActiveState=inactive\n"),
 	}
 	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := Stop("foo")
+	err := New("").Stop("foo")
 	c.Assert(err, IsNil)
 	c.Assert(s.argses, HasLen, 4)
 	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
@@ -100,18 +100,18 @@ func (s *SystemctlTestSuite) TestStopTimeout(c *C) {
 		stopDelay = oldDelay
 	}()
 
-	err := Stop("foo")
+	err := New("").Stop("foo")
 	c.Assert(err, FitsTypeOf, &Timeout{})
 }
 
 func (s *SystemctlTestSuite) TestDisable(c *C) {
-	err := Disable("foo")
+	err := New("xyzzy").Disable("foo")
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"--root", RootDir, "disable", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo"}})
 }
 
 func (s *SystemctlTestSuite) TestEnable(c *C) {
-	err := Enable("foo")
+	err := New("xyzzy").Enable("foo")
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"--root", RootDir, "enable", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 }

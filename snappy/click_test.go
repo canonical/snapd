@@ -282,7 +282,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	allSystemctl := []string{}
-	systemctl.Run = func(cmd ...string) ([]byte, error) {
+	systemctl.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		allSystemctl = append(allSystemctl, cmd[0])
 		return nil, nil
 	}
@@ -640,7 +640,7 @@ services:
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
 	allSystemctl := []string{}
-	systemctl.Run = func(cmd ...string) ([]byte, error) {
+	systemctl.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		allSystemctl = append(allSystemctl, cmd...)
 		return []byte("ActiveState=inactive\n"), nil
 	}

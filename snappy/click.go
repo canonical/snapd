@@ -483,18 +483,19 @@ func addPackageServices(baseDir string, inhibitHooks bool) error {
 		//
 		// *but* always run enable (which just sets a symlink)
 		serviceName := filepath.Base(generateServiceFileName(m, service))
+		sysd := systemctl.New(globalRootDir)
 		if !inhibitHooks {
-			if err := systemctl.DaemonReload(); err != nil {
+			if err := sysd.DaemonReload(); err != nil {
 				return err
 			}
 		}
 
-		if err := systemctl.Enable(serviceName); err != nil {
+		if err := sysd.Enable(serviceName); err != nil {
 			return err
 		}
 
 		if !inhibitHooks {
-			if err := systemctl.Start(serviceName); err != nil {
+			if err := sysd.Start(serviceName); err != nil {
 				return err
 			}
 		}
@@ -508,12 +509,13 @@ func removePackageServices(baseDir string) error {
 	if err != nil {
 		return err
 	}
+	sysd := systemctl.New(globalRootDir)
 	for _, service := range m.Services {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		if err := systemctl.Stop(serviceName); err != nil {
+		if err := sysd.Stop(serviceName); err != nil {
 			return err
 		}
-		if err := systemctl.Disable(serviceName); err != nil {
+		if err := sysd.Disable(serviceName); err != nil {
 			return err
 		}
 		// FIXME: wait for the service to be really stopped
@@ -523,7 +525,7 @@ func removePackageServices(baseDir string) error {
 
 	// only reload if we actually had services
 	if len(m.Services) > 0 {
-		if err := systemctl.DaemonReload(); err != nil {
+		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
 	}

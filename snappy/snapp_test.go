@@ -57,7 +57,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
 		return nil
 	}
-	systemctl.Run = func(cmd ...string) ([]byte, error) {
+	systemctl.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 

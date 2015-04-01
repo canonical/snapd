@@ -20,8 +20,6 @@ package snappy
 import (
 	"os"
 	"path/filepath"
-
-	"launchpad.net/snappy/systemctl"
 )
 
 // the various file paths
@@ -45,7 +43,6 @@ var (
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
 	globalRootDir = rootdir
-	systemctl.RootDir = rootdir
 
 	snapAppsDir = filepath.Join(rootdir, "/apps")
 	snapOemDir = filepath.Join(rootdir, "/oem")

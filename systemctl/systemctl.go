@@ -27,8 +27,6 @@ import (
 )
 
 var (
-	// RootDir is the path to the root directory, used for systemctl's Enable/Disable commands
-	RootDir = "/"
 	// the output of "show" must match this for Stop to be done:
 	stopDoneRx = regexp.MustCompile(`(?m)\AActiveState=(?:failed|inactive)$`)
 	// how many times should Stop check show's output
@@ -48,44 +46,62 @@ func run(args ...string) ([]byte, error) {
 	return bs, nil
 }
 
-// Systemctl is called from the commands to actually call out to
+// SystemctlCmd is called from the commands to actually call out to
 // systemctl. It's exported so it can be overridden by testing.
-var Systemctl = run
+var SystemctlCmd = run
+
+// SystemCtl exposes a minimal interface to manage systemd via the systemctl command.
+type SystemCtl interface {
+	DaemonReload() error
+	Enable(service string) error
+	Disable(service string) error
+	Start(service string) error
+	Stop(service string) error
+}
+
+// New returns a SystemCtl that uses the given rootDir
+func New(rootDir string) SystemCtl {
+	return &systemCtl{rootDir: rootDir}
+}
+
+type systemCtl struct {
+	rootDir string
+}
 
 // DaemonReload reloads systemd's configuration.
-func DaemonReload() error {
-	_, err := Systemctl("daemon-reload")
+func (*systemCtl) DaemonReload() error {
+	_, err := SystemctlCmd("daemon-reload")
 	return err
 }
 
 // Enable the given service
-func Enable(serviceName string) error {
-	_, err := Systemctl("--root", RootDir, "enable", serviceName)
+func (s *systemCtl) Enable(serviceName string) error {
+	_, err := SystemctlCmd("--root", s.rootDir, "enable", serviceName)
 	return err
 }
 
 // Disable the given service
-func Disable(serviceName string) error {
-	_, err := Systemctl("--root", RootDir, "disable", serviceName)
+func (s *systemCtl) Disable(serviceName string) error {
+	_, err := SystemctlCmd("--root", s.rootDir, "disable", serviceName)
 	return err
 }
 
 // Start the given service
-func Start(serviceName string) error {
-	_, err := Systemctl("start", serviceName)
+func (*systemCtl) Start(serviceName string) error {
+	_, err := SystemctlCmd("start", serviceName)
 	return err
 }
 
 // Stop the given service, and wait until it has stopped.
-func Stop(serviceName string) error {
-	if _, err := Systemctl("stop", serviceName); err != nil {
+func (*systemCtl) Stop(serviceName string) error {
+	if _, err := SystemctlCmd("stop", serviceName); err != nil {
 		return err
 	}
 
 	// and now wait for it to actually stop
 	stopped := false
 	for i := 0; i < stopSteps; i++ {
-		bs, err := Systemctl("show", "--property=ActiveState", serviceName)
+		bs, err := SystemctlCmd("show", "--property=ActiveState", serviceName)
 		if err != nil {
 			return err
 		}
