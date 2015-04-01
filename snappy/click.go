@@ -178,7 +178,7 @@ func systemClickHooks() (hooks map[string]clickHook, err error) {
 
 	hookFiles, err := filepath.Glob(path.Join(clickSystemHooksDir, "*.hook"))
 	if err != nil {
-		return
+		return nil, err
 	}
 	for _, f := range hookFiles {
 		hook, err := readClickHookFile(f)
@@ -188,7 +188,8 @@ func systemClickHooks() (hooks map[string]clickHook, err error) {
 		}
 		hooks[hook.name] = hook
 	}
-	return
+
+	return hooks, err
 }
 
 func expandHookPattern(name, app, version, pattern string) (expanded string) {
@@ -406,7 +407,7 @@ X-Snappy=yes
 [Service]
 ExecStart={{.FullPathStart}}
 WorkingDirectory={{.AppPath}}
-Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}"
+Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}" "TMPDIR=/tmp/snaps/{{.packageYaml.Name}}/{{.Version}}/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/{{.packageYaml.Name}}/{{.Version}}/tmp"
 AppArmorProfile={{.AaProfile}}
 {{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
@@ -483,7 +484,7 @@ func addPackageServices(baseDir string, inhibitHooks bool) error {
 	}
 
 	for _, service := range m.Services {
-		aaProfile := fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version)
+		aaProfile := getAaProfile(m, service.Name)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -549,21 +550,6 @@ func removePackageServices(baseDir string) error {
 	return nil
 }
 
-func getBinaryAaProfile(m *packageYaml, binary Binary) string {
-	// check if there is a specific apparmor profile
-	if binary.SecurityPolicy != "" {
-		return binary.SecurityPolicy
-	}
-	// ... or apparmor.json
-	if binary.SecurityTemplate != "" {
-		return binary.SecurityTemplate
-	}
-
-	// FIXME: we need to generate a default aa profile here instead
-	// of relying on a default one shipped by the package
-	return fmt.Sprintf("%s_%s_%s", m.Name, filepath.Base(binary.Name), m.Version)
-}
-
 func addPackageBinaries(baseDir string) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
@@ -575,7 +561,7 @@ func addPackageBinaries(baseDir string) error {
 	}
 
 	for _, binary := range m.Binaries {
-		aaProfile := getBinaryAaProfile(m, binary)
+		aaProfile := getAaProfile(m, binary.Name)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -920,4 +906,22 @@ func setActiveClick(baseDir string, inhibitHooks bool) error {
 
 	// symlink is relative to parent dir
 	return os.Symlink(filepath.Base(baseDir), currentActiveSymlink)
+}
+
+// RunHooks will run all click system hooks
+func RunHooks() error {
+	systemHooks, err := systemClickHooks()
+	if err != nil {
+		return err
+	}
+
+	for _, hook := range systemHooks {
+		if hook.exec != "" {
+			if err := execHook(hook.exec); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
