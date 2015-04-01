@@ -66,28 +66,26 @@ func passwdFile(rootDir, file string) string {
 	return filepath.Join("/etc/", file)
 }
 
-func uid(user, passwdFile string) (uid string, err error) {
+func readUid(user, passwdFile string) (uid int, err error) {
 	f, err := os.Open(passwdFile)
 	if err != nil {
-		return "", err
+		return -1, err
 	}
 
 	scannerf := bufio.NewScanner(f)
 	for scannerf.Scan() {
 		if err := scannerf.Err(); err != nil {
-			return "", err
+			return -1, err
 		}
 
 		line := scannerf.Text()
-		if strings.HasPrefix(line, user) {
-			userLine := strings.Split(line, ":")
-			if len(userLine) > 2 {
-				return userLine[2], nil
-			}
+		splitLine := strings.Split(line, ":")
+		if len(splitLine) > 2 && splitLine[0] == user {
+			return strconv.Atoi(splitLine[2])
 		}
 	}
 
-	return "", errors.New("failed to find user uid/gid")
+	return -1, errors.New("failed to find user uid/gid")
 }
 
 func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
@@ -95,13 +93,13 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 	if helpers.ShouldDropPrivs() {
 
 		passFile := passwdFile(rootDir, "passwd")
-		u, err := uid(dropPrivsUser, passFile)
+		uid, err := readUid(dropPrivsUser, passFile)
 		if err != nil {
 			return err
 		}
 
 		groupFile := passwdFile(rootDir, "group")
-		g, err := uid(dropPrivsUser, groupFile)
+		gid, err := readUid(dropPrivsUser, groupFile)
 		if err != nil {
 			return err
 		}
@@ -110,15 +108,6 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 			return err
 		}
 
-		var uid, gid int
-		uid, err = strconv.Atoi(u)
-		if err != nil {
-			return err
-		}
-		gid, err = strconv.Atoi(g)
-		if err != nil {
-			return err
-		}
 		for _, p := range []string{snapFile, targetDir} {
 			if err := os.Chown(p, uid, gid); err != nil {
 				return err
