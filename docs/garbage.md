@@ -13,8 +13,10 @@ A snap present in a system can be in several states:
 
 note that a *removed* snap is still present; the data has not been *purged*.
 
-> Also note that garbage collection only applies to snaps packaged as `.snap`
-> files, and does not (currently) apply to `ubuntu-core` nor `enablement`.
+> Also note that garbage collection only applies to snappy parts packaged
+> using the snap format (at this time: apps, frameworks, oem), and does not
+> (currently) apply to snappy base system parts (e.g. ubuntu-core) nor snappy
+> enablement parts (device tarball with kernel).
 
 When a snap is updated, its data is copied (actually right now it's a link tree,
 a tree of directories containing hard links to the files, but I'm not sure
@@ -31,41 +33,6 @@ remove the one before that, and purge anything prior. This means that at most
 three versions of a snap will be present on the system, with the third one
 being `removed` but not `purged`.
 
-> For example, if you let's look at installing and updating `hello-world`
-> through a few versions. Let's say you have version 1.0.1 installed, and you
-> do a `snappy update` which downloads version 1.0.2,
->
->     $ sudo snappy update
->     Installing hello-world.canonical (1.0.2)
->     Starting download of hello-world.canonical
->     30.99 KB / 30.99 KB [======================]
->     Done
->     Name        Date    Version Developer
->     hello-world 1-01-01 1.0.2   canonical
->     $ snappy list | grep hello
->     hello-world 2015-03-31 1.0.2   canonical
->     $ snappy list -v | grep hello
->     hello-world  2015-03-31 1.0.1   canonical
->     hello-world* 2015-03-31 1.0.2   canonical
->
-> so, it downloaded `1.0.2`, made it active, and left `1.0.1` installed. Let's
-> do it again!
->
->     $ sudo snappy update
->     Installing hello-world.canonical (1.0.3)
->     Starting download of hello-world.canonical
->     30.99 KB / 30.99 KB [======================]
->     Done
->     Name        Date    Version Developer
->     hello-world 1-01-01 1.0.3   canonical
->     $ snappy list -v | grep hello
->     hello-world# 2015-03-31 1.0.1   canonical
->     hello-world  2015-03-31 1.0.2   canonical
->     hello-world* 2015-03-31 1.0.3   canonical
->
-> and `1.0.1` is mostly gone. If we were to iterate it once again, `1.0.1`
-> would drop off completely.
-
 Explicitly removing a snap from your system will also remove *and purge* all
 prior versions.
 
@@ -74,6 +41,43 @@ Purging a snap from your system purges all versions of it.
 You can disable garbage collection with the `--no-gc` commandline option, or
 when removing or purging a part, by specifying the version on which to operate
 explicitly.
+
+## Example
+
+Let's look at installing and updating `hello-world` through a few
+versions. Let's say you have version 1.0.1 installed, and you do a `snappy
+update` which downloads version 1.0.2,
+
+    $ sudo snappy update
+    Installing hello-world.canonical (1.0.2)
+    Starting download of hello-world.canonical
+    30.99 KB / 30.99 KB [======================]
+    Done
+    Name        Date    Version Developer
+    hello-world 1-01-01 1.0.2   canonical
+    $ snappy list | grep hello
+    hello-world 2015-03-31 1.0.2   canonical
+    $ snappy list -v | grep hello
+    hello-world  2015-03-31 1.0.1   canonical
+    hello-world* 2015-03-31 1.0.2   canonical
+
+so, it downloaded `1.0.2`, made it active, and left `1.0.1` installed. Let's
+do it again!
+
+    $ sudo snappy update
+    Installing hello-world.canonical (1.0.3)
+    Starting download of hello-world.canonical
+    30.99 KB / 30.99 KB [======================]
+    Done
+    Name        Date    Version Developer
+    hello-world 1-01-01 1.0.3   canonical
+    $ snappy list -v | grep hello
+    hello-world# 2015-03-31 1.0.1   canonical
+    hello-world  2015-03-31 1.0.2   canonical
+    hello-world* 2015-03-31 1.0.3   canonical
+
+and `1.0.1` is mostly gone. If we were to iterate it once again, `1.0.1`
+would drop off completely.
 
 ## Future work and/or discussion
 
