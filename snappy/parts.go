@@ -42,7 +42,7 @@ type Services interface {
 	Services() []Service
 }
 
-// Config allow requesting an oem's config
+// Configuration allows requesting an oem snappy package type's config
 type Configuration interface {
 	OemConfig() SystemConfig
 }
