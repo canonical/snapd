@@ -41,6 +41,7 @@ import (
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/systemctl"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -446,26 +447,6 @@ func generateServiceFileName(m *packageYaml, service Service) string {
 	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
 }
 
-var runSystemctl = runSystemctlImpl
-
-func runSystemctlImpl(cmd ...string) error {
-	// FIXME: find an elegant solution, only enable works with --root
-	// +3 == "systemctl" + "daemon-reload", globalRootDir
-	args := make([]string, 0, len(cmd)+3)
-	args = append(args, "systemctl")
-	if len(cmd) > 0 && cmd[0] == "enable" {
-		args = append(args, "--root", globalRootDir)
-	}
-	args = append(args, cmd...)
-	if err := exec.Command(args[0], args[1:]...).Run(); err != nil {
-		exitCode, _ := helpers.ExitCode(err)
-		return &ErrSystemCtl{cmd: args,
-			exitCode: exitCode}
-	}
-
-	return nil
-}
-
 // takes a directory and removes the global root, this is needed
 // when the SetRoot option is used and we need to generate
 // content for the "Services" and "Binaries" section
@@ -503,17 +484,17 @@ func addPackageServices(baseDir string, inhibitHooks bool) error {
 		// *but* always run enable (which just sets a symlink)
 		serviceName := filepath.Base(generateServiceFileName(m, service))
 		if !inhibitHooks {
-			if err := runSystemctl("daemon-reload"); err != nil {
+			if err := systemctl.DaemonReload(); err != nil {
 				return err
 			}
 		}
 
-		if err := runSystemctl("enable", serviceName); err != nil {
+		if err := systemctl.Enable(serviceName); err != nil {
 			return err
 		}
 
 		if !inhibitHooks {
-			if err := runSystemctl("start", serviceName); err != nil {
+			if err := systemctl.Start(serviceName); err != nil {
 				return err
 			}
 		}
@@ -529,10 +510,10 @@ func removePackageServices(baseDir string) error {
 	}
 	for _, service := range m.Services {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		if err := runSystemctl("stop", serviceName); err != nil {
+		if err := systemctl.Stop(serviceName); err != nil {
 			return err
 		}
-		if err := runSystemctl("disable", serviceName); err != nil {
+		if err := systemctl.Disable(serviceName); err != nil {
 			return err
 		}
 		// FIXME: wait for the service to be really stopped
@@ -542,7 +523,7 @@ func removePackageServices(baseDir string) error {
 
 	// only reload if we actually had services
 	if len(m.Services) > 0 {
-		if err := runSystemctl("daemon-reload"); err != nil {
+		if err := systemctl.DaemonReload(); err != nil {
 			return err
 		}
 	}

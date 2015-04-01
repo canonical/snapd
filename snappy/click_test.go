@@ -29,6 +29,7 @@ import (
 	"github.com/mvo5/goconfigparser"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/systemctl"
 
 	. "launchpad.net/gocheck"
 )
@@ -281,9 +282,9 @@ func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	allSystemctl := []string{}
-	runSystemctl = func(cmd ...string) error {
+	systemctl.Run = func(cmd ...string) ([]byte, error) {
 		allSystemctl = append(allSystemctl, cmd[0])
-		return nil
+		return nil, nil
 	}
 
 	targetDir := path.Join(s.tempdir, "apps")
@@ -639,9 +640,9 @@ services:
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
 	allSystemctl := []string{}
-	runSystemctl = func(cmd ...string) error {
-		allSystemctl = append(allSystemctl, cmd[0])
-		return nil
+	systemctl.Run = func(cmd ...string) ([]byte, error) {
+		allSystemctl = append(allSystemctl, cmd...)
+		return []byte("ActiveState=inactive\n"), nil
 	}
 
 	packageYaml := `name: foo.mvo
@@ -655,8 +656,7 @@ services:
 	_, err := installClick(snapFile, InhibitHooks, nil)
 	c.Assert(err, IsNil)
 
-	c.Assert(allSystemctl[0], Equals, "enable")
-	c.Assert(allSystemctl, HasLen, 1)
+	c.Assert(allSystemctl, DeepEquals, []string{"--root", globalRootDir, "enable", "foo.mvo_service_1.0.service"})
 }
 
 const expectedService = `[Unit]

@@ -29,6 +29,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/systemctl"
 
 	. "launchpad.net/gocheck"
 )
@@ -56,8 +57,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
 		return nil
 	}
-	runSystemctl = func(cmd ...string) error {
-		return nil
+	systemctl.Run = func(cmd ...string) ([]byte, error) {
+		return []byte("ActiveState=inactive\n"), nil
 	}
 
 	// fake "du"
