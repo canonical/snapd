@@ -28,6 +28,7 @@ import (
 
 type cmdInstall struct {
 	AllowUnauthenticated bool `long:"allow-unauthenticated" description:"Install snaps even if the signature can not be verified."`
+	DisableGC            bool `long:"no-gc" description:"Do not clean up old versions of the package."`
 	Positional           struct {
 		PackageName string `positional-arg-name:"package name" description:"Set configuration for a specific installed package"`
 		ConfigFile  string `positional-arg-name:"config file" description:"The configuration for the given file"`
@@ -57,7 +58,10 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 	}
 	defer privMutex.Unlock()
 
-	var flags snappy.InstallFlags
+	flags := snappy.DoInstallGC
+	if x.DisableGC {
+		flags = 0
+	}
 	if x.AllowUnauthenticated {
 		flags |= snappy.AllowUnauthenticated
 	}

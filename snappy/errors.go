@@ -158,3 +158,11 @@ type ErrUpgradeVerificationFailed struct {
 func (e *ErrUpgradeVerificationFailed) Error() string {
 	return fmt.Sprintf("upgrade verification failed: %s", e.msg)
 }
+
+// ErrGarbageCollectImpossible is alerting about some of the assumptions of the
+// garbage collector not being true (and thus not safe to run the gc).
+type ErrGarbageCollectImpossible string
+
+func (e ErrGarbageCollectImpossible) Error() string {
+	return "garbage collection impossible: prerequisites untrue: " + string(e)
+}

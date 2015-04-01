@@ -20,6 +20,7 @@ package snappy
 import (
 	"io/ioutil"
 	"os"
+	"sort"
 	"strings"
 
 	"launchpad.net/snappy/logger"
@@ -34,6 +35,8 @@ const (
 	AllowUnauthenticated InstallFlags = 1 << iota
 	// InhibitHooks will ensure that the hooks are not run
 	InhibitHooks
+	// DoInstallGC will ensure that garbage collection is done
+	DoInstallGC
 )
 
 // check if the image is in developer mode
@@ -61,7 +64,15 @@ func inDeveloperMode() bool {
 // Install the givens snap names provided via args. This can be local
 // files or snaps that are queried from the store
 func Install(name string, flags InstallFlags) (string, error) {
+	name, err := doInstall(name, flags)
+	if err != nil {
+		return "", logger.LogError(err)
+	}
 
+	return name, logger.LogError(doGarbageCollect(name, flags))
+}
+
+func doInstall(name string, flags InstallFlags) (string, error) {
 	// consume local parts
 	if _, err := os.Stat(name); err == nil {
 		// we allow unauthenticated package when in developer
@@ -71,8 +82,7 @@ func Install(name string, flags InstallFlags) (string, error) {
 		}
 
 		pbar := NewTextProgress(name)
-		_, err = installClick(name, flags, pbar)
-		return "", err
+		return installClick(name, flags, pbar)
 	}
 
 	// check repos next
@@ -82,10 +92,60 @@ func Install(name string, flags InstallFlags) (string, error) {
 		// act only on parts that are downloadable
 		if !part.IsInstalled() {
 			pbar := NewTextProgress(part.Name())
-			name, err := part.Install(pbar, flags)
-			return name, logger.LogError(err)
+			return part.Install(pbar, flags)
 		}
 	}
 
 	return "", ErrPackageNotFound
+}
+
+// doGarbageCollect removes all versions two older than the current active
+// version, as long as NeedsReboot() is false on all the versions found, and
+// DoInstallGC is set.
+func doGarbageCollect(name string, flags InstallFlags) error {
+	var parts BySnapVersion
+
+	if (flags & DoInstallGC) == 0 {
+		return nil
+	}
+
+	m := NewMetaRepository()
+	installed, err := m.Installed()
+	if err != nil {
+		return err
+	}
+
+	parts = FindSnapsByName(name, installed)
+	if len(parts) < 3 {
+		// not enough things installed to do gc
+		return nil
+	}
+
+	sort.Sort(parts)
+	active := -1 // active is the index of the active part in parts (-1 if no active part)
+
+	for i, part := range parts {
+		if part.IsActive() {
+			if active > -1 {
+				return ErrGarbageCollectImpossible("more than one active (should not happen).")
+			}
+			active = i
+		}
+		if part.NeedsReboot() {
+			return nil // don't do gc on parts that need reboot.
+		}
+	}
+
+	if active < 1 {
+		// how was this an install?
+		return nil
+	}
+
+	for _, part := range parts[:active-1] {
+		if err := part.Uninstall(); err != nil {
+			return ErrGarbageCollectImpossible(err.Error())
+		}
+	}
+
+	return nil
 }
