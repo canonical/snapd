@@ -68,7 +68,7 @@ func Install(name string, flags InstallFlags) (string, error) {
 	if err != nil {
 		return "", logger.LogError(err)
 	}
-	return name, logger.LogError(doGarbageCollect(name, flags))
+	return name, logger.LogError(GarbageCollect(name, flags))
 }
 
 func doInstall(name string, flags InstallFlags) (string, error) {
@@ -98,7 +98,7 @@ func doInstall(name string, flags InstallFlags) (string, error) {
 	return "", ErrPackageNotFound
 }
 
-func doGarbageCollect(name string, flags InstallFlags) (err error) {
+func GarbageCollect(name string, flags InstallFlags) (err error) {
 	var parts BySnapVersion
 
 	if (flags & DoInstallGC) == 0 {

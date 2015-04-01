@@ -26,6 +26,7 @@ import (
 )
 
 type cmdUpdate struct {
+	DisableGC bool `long:"no-gc" description:"Do not clean up old versions of the package."`
 }
 
 func init() {
@@ -43,11 +44,12 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 	}
 	defer privMutex.Unlock()
 
-	return update()
-}
+	// FIXME: handle (more?) args
+	flags := snappy.DoInstallGC
+	if x.DisableGC {
+		flags = 0
+	}
 
-func update() error {
-	// FIXME: handle args
 	updates, err := snappy.ListUpdates()
 	if err != nil {
 		return err
@@ -57,7 +59,10 @@ func update() error {
 		pbar := snappy.NewTextProgress(part.Name())
 
 		fmt.Printf("Installing %s (%s)\n", part.Name(), part.Version())
-		if _, err := part.Install(pbar, 0); err != nil {
+		if _, err := part.Install(pbar, flags); err != nil {
+			return err
+		}
+		if err := snappy.GarbageCollect(part.Name(), flags); err != nil {
 			return err
 		}
 	}
