@@ -59,9 +59,6 @@ being `removed` but not `purged`.
 >     Name        Date    Version Developer
 >     hello-world 1-01-01 1.0.3   canonical
 >     $ snappy list -v | grep hello
->     hello-world  2015-03-31 1.0.2   canonical
->     hello-world* 2015-03-31 1.0.3   canonical
->     $ snappy list -v --include-removed | grep hello
 >     hello-world# 2015-03-31 1.0.1   canonical
 >     hello-world  2015-03-31 1.0.2   canonical
 >     hello-world* 2015-03-31 1.0.3   canonical
@@ -80,8 +77,7 @@ explicitly.
 
 ## Future work and/or discussion
 
-* The above mentions `purge`, and the `--include-removed` option to `list`,
-  which are still TBD.
+* The above mentions `purge`, which is still TBD.
 * If/when old data dirs are backed up instead of copied, the gc mechanism will
   need to adapt. Not a big issue, but we need to be aware of it (tests will
   fail anyway, so we should be good).
