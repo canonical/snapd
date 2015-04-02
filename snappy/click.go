@@ -26,9 +26,11 @@ package snappy
 */
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -36,6 +38,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"text/template"
 
 	"launchpad.net/snappy/clickdeb"
@@ -306,6 +309,11 @@ func removeClick(clickDir string) (err error) {
 		}
 	}
 
+	if manifest.Type == SnapTypeFramework {
+		if err := frameworkPolicyDo(fmkPolRemove, manifest.Name, clickDir, "/var/lib/snappy"); err != nil {
+			return err
+		}
+	}
 	return os.RemoveAll(clickDir)
 }
 
@@ -627,6 +635,107 @@ type agreer interface {
 	Agreed(intro, license string) bool
 }
 
+// isWritablePath checks whether the given path is in /etc/system-image/writable-paths
+func isWritablePath(path string) (bool, error) {
+	f, err := os.Open("/etc/system-image/writable-paths")
+	if err != nil {
+		return false, err
+	}
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.SplitN(scanner.Text(), " \t", 2)
+		if len(line) == 2 && line[0] == path {
+			return true, nil
+		}
+	}
+
+	return false, scanner.Err()
+}
+
+type fmkPolOp uint
+
+const (
+	fmkPolCopy fmkPolOp = iota
+	fmkPolRemove
+)
+
+func polHelper(op fmkPolOp, glob string, targetDir string, suffix string) (err error) {
+	if err = os.MkdirAll(targetDir, 0755); err != nil {
+		return fmt.Errorf("unable to make %v directory: %v", targetDir, err)
+	}
+	files, err := filepath.Glob(glob)
+	if err != nil {
+		return fmt.Errorf("unable to glob %v: %v", glob, err)
+	}
+	for _, file := range files {
+		targetFile := filepath.Join(targetDir, suffix+"_"+filepath.Base(file))
+		switch op {
+		case fmkPolRemove:
+			if err = os.Remove(targetFile); err != nil {
+				return fmt.Errorf("unable to remove %v: %v", targetFile, err)
+			}
+		case fmkPolCopy:
+			// do the copy
+			fin, err := os.Open(file)
+			if err != nil {
+				return fmt.Errorf("unable to read %v: %v", file, err)
+			}
+			defer func() {
+				if cerr := fin.Close(); cerr != nil && err == nil {
+					err = fmt.Errorf("when closing %v: %v", file, cerr)
+				}
+			}()
+			fout, err := os.Create(targetFile)
+			if err != nil {
+				return fmt.Errorf("unable to create %v: %v", targetFile, err)
+			}
+			defer func() {
+				if cerr := fout.Close(); cerr != nil && err == nil {
+					err = fmt.Errorf("when closing %v: %v", targetFile, cerr)
+				}
+			}()
+			if _, err = io.Copy(fout, fin); err != nil {
+				return fmt.Errorf("unable to copy %v to %v: %v", file, targetFile, err)
+			}
+			if err = fout.Sync(); err != nil {
+				return fmt.Errorf("when syncing %v: %v", targetFile, err)
+			}
+		}
+	}
+	return nil
+}
+
+func frameworkPolicyDo(op fmkPolOp, pkgName string, instPath string, secbase string) (err error) {
+	var isW bool
+
+	isW, err = isWritablePath(secbase)
+	if err != nil {
+		return fmt.Errorf("unable to determine whether %v is writable: %v", secbase, err)
+	}
+	if !isW {
+		if err = syscall.Mount("", "/", "", syscall.MS_REMOUNT, ""); err != nil {
+			return fmt.Errorf("unable to mount / rw: %v", err)
+		}
+		defer func() {
+			umountErr := syscall.Mount("", "/", "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
+			if umountErr != nil && err == nil {
+				err = fmt.Errorf("unable to mount / ro: %v", umountErr)
+			}
+		}()
+	}
+
+	pol := filepath.Join(instPath, "meta", "framework-policy")
+	for _, i := range []string{"apparmor", "seccomp"} {
+		for _, j := range []string{"policygroups", "templates"} {
+			if err = polHelper(op, filepath.Join(pol, i, j, "*"), filepath.Join(secbase, i, j), pkgName); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func installClick(snapFile string, flags InstallFlags, ag agreer) (name string, err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
@@ -698,6 +807,12 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (name string, 
 	// privs
 	if err := unpackWithDropPrivs(d, instDir); err != nil {
 		return "", err
+	}
+
+	if manifest.Type == SnapTypeFramework {
+		if err := frameworkPolicyDo(fmkPolCopy, manifest.Name, instDir, "/var/lib/snappy"); err != nil {
+			return "", err
+		}
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
