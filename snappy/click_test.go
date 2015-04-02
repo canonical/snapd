@@ -29,7 +29,7 @@ import (
 	"github.com/mvo5/goconfigparser"
 
 	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/systemctl"
+	"launchpad.net/snappy/systemd"
 
 	. "launchpad.net/gocheck"
 )
@@ -282,7 +282,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	allSystemctl := []string{}
-	systemctl.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		allSystemctl = append(allSystemctl, cmd[0])
 		return nil, nil
 	}
@@ -640,7 +640,7 @@ services:
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
 	allSystemctl := []string{}
-	systemctl.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		allSystemctl = append(allSystemctl, cmd...)
 		return []byte("ActiveState=inactive\n"), nil
 	}

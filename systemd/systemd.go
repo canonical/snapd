@@ -15,7 +15,7 @@
  *
  */
 
-package systemctl
+package systemd
 
 import (
 	"fmt"
@@ -50,8 +50,8 @@ func run(args ...string) ([]byte, error) {
 // systemctl. It's exported so it can be overridden by testing.
 var SystemctlCmd = run
 
-// SystemCtl exposes a minimal interface to manage systemd via the systemctl command.
-type SystemCtl interface {
+// Systemd exposes a minimal interface to manage systemd via the systemctl command.
+type Systemd interface {
 	DaemonReload() error
 	Enable(service string) error
 	Disable(service string) error
@@ -59,41 +59,41 @@ type SystemCtl interface {
 	Stop(service string) error
 }
 
-// New returns a SystemCtl that uses the given rootDir
-func New(rootDir string) SystemCtl {
-	return &systemCtl{rootDir: rootDir}
+// New returns a Systemd that uses the given rootDir
+func New(rootDir string) Systemd {
+	return &systemd{rootDir: rootDir}
 }
 
-type systemCtl struct {
+type systemd struct {
 	rootDir string
 }
 
 // DaemonReload reloads systemd's configuration.
-func (*systemCtl) DaemonReload() error {
+func (*systemd) DaemonReload() error {
 	_, err := SystemctlCmd("daemon-reload")
 	return err
 }
 
 // Enable the given service
-func (s *systemCtl) Enable(serviceName string) error {
+func (s *systemd) Enable(serviceName string) error {
 	_, err := SystemctlCmd("--root", s.rootDir, "enable", serviceName)
 	return err
 }
 
 // Disable the given service
-func (s *systemCtl) Disable(serviceName string) error {
+func (s *systemd) Disable(serviceName string) error {
 	_, err := SystemctlCmd("--root", s.rootDir, "disable", serviceName)
 	return err
 }
 
 // Start the given service
-func (*systemCtl) Start(serviceName string) error {
+func (*systemd) Start(serviceName string) error {
 	_, err := SystemctlCmd("start", serviceName)
 	return err
 }
 
 // Stop the given service, and wait until it has stopped.
-func (*systemCtl) Stop(serviceName string) error {
+func (*systemd) Stop(serviceName string) error {
 	if _, err := SystemctlCmd("stop", serviceName); err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func (*systemCtl) Stop(serviceName string) error {
 	return nil
 }
 
-// Error is returned if the systemctl command failed
+// Error is returned if the systemd action failed
 type Error struct {
 	cmd      []string
 	exitCode int
@@ -129,7 +129,7 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("%v failed with exit status %d", e.cmd, e.exitCode)
 }
 
-// Timeout is returned if the systemctl action failed to reach the
+// Timeout is returned if the systemd action failed to reach the
 // expected state in a reasonable amount of time
 type Timeout struct {
 	action  string
