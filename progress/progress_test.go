@@ -95,3 +95,24 @@ func (ts *ProgressTestSuite) TestAgreed(c *C) {
 	ts.testAgreed("Y", true, c)
 	ts.testAgreed("N", false, c)
 }
+
+func (ts *ProgressTestSuite) TestStatus(c *C) {
+	fout, err := ioutil.TempFile("", "status-out-")
+	c.Assert(err, IsNil)
+	oldStdout := os.Stdout
+	os.Stdout = fout
+	defer func() {
+		os.Stdout = oldStdout
+		os.Remove(fout.Name())
+		fout.Close()
+	}()
+
+	t := NewTextProgress("no-pkg")
+	t.Status("blah blah")
+
+	_, err = fout.Seek(0, 0)
+	c.Assert(err, IsNil)
+	out, err := ioutil.ReadAll(fout)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "blah blah\n")
+}
