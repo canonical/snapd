@@ -8,7 +8,16 @@ them if you want to run different ones.
 ## User experience
 
 ### Search
-XXX: TBD
+
+    $ snappy search apache
+    apache    A popular web server
+    12 forks of "apache" not shown. Use --show-all to see all available forks.
+
+    $ snappy search clock
+    clock/asac     Even a broken clock is right twice a day
+    clock/stevesh  Proper implementation of a clock
+    clock/matilda  A waltzing clock
+
 
 ### Installing packages
     $ snappy install apache
@@ -45,14 +54,14 @@ When you update, you always update to the original package you installed,
 regardless of whether the mapping for apache has changed.
 
 ## Manifest & metadata
-Package manifests will only contain the package name (apache), the origin of 
+Package manifests will only contain the package name (`apache`), the origin of 
 the app will be fed by the store separately.
-This can either be a separate API call, or part of the existing /api/v1/package
-call.
+This can either be a separate API call, or part of the existing 
+`/api/v1/package`call.
 
 ## Filesystem
 Apps will be installed on the filesystem with their package name and origin:
-/apps/apache/beuno/1.1/
+`/apps/apache/beuno/1.1/`
 
 ## Garbage collection
 Unsure what to do, whether to clean up aggressively like versions or not. (TODO)
@@ -73,7 +82,7 @@ realize their UX/app story, but we explicitly leave that problem out for now).
 
 ## Implementation details
 The packages will continue to be accessed in the store using their full
-namespaces in the store (/api/v1/apache.beuno)
+namespaces in the store (`/api/v1/apache.beuno`)
 On install, Snappy will ask you to choose which apache to use on runtime
 if you have more than one (defaults to what you are installing)
 There will have to be a (secure) way of persisting the user’s selection 
@@ -89,7 +98,7 @@ becomes the gaming engine, you will need to be pushed out to a different name.
 
 ## Open questions
  * Due to developer namespaces not being specified in the manifest files, 
-   sideloading multiple lanes for the same app may be impossible or convoluted
- * must finalize what the APP_ID is going to be (composed? no devname? etc)
+   sideloading multiple lanes for the same app will be convoluted
+ * Must finalize what the `APP_ID` is going to be (composed? no devname? etc)
  * How do we avoid clashes with installed packages in core and snaps installed 
    from the store?  (ie., someone uploads a snap named "ls")
