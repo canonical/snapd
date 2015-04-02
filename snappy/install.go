@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/progress"
 )
 
 // InstallFlags can be used to pass additional flags to the install of a
@@ -81,7 +82,7 @@ func doInstall(name string, flags InstallFlags) (string, error) {
 			flags |= AllowUnauthenticated
 		}
 
-		pbar := NewTextProgress(name)
+		pbar := progress.NewTextProgress(name)
 		return installClick(name, flags, pbar)
 	}
 
@@ -91,7 +92,7 @@ func doInstall(name string, flags InstallFlags) (string, error) {
 	for _, part := range found {
 		// act only on parts that are downloadable
 		if !part.IsInstalled() {
-			pbar := NewTextProgress(part.Name())
+			pbar := progress.NewTextProgress(part.Name())
 			return part.Install(pbar, flags)
 		}
 	}

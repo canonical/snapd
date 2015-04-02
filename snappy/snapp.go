@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/progress"
 
 	"gopkg.in/yaml.v2"
 )
@@ -310,7 +311,7 @@ func (s *SnapPart) Services() []Service {
 }
 
 // Install installs the snap
-func (s *SnapPart) Install(pb ProgressMeter, flags InstallFlags) (name string, err error) {
+func (s *SnapPart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
 	return "", errors.New("Install of a local part is not possible")
 }
 
@@ -486,7 +487,7 @@ func (s *RemoteSnapPart) Date() time.Time {
 }
 
 // Download downloads the snap and returns the filename
-func (s *RemoteSnapPart) Download(pbar ProgressMeter) (string, error) {
+func (s *RemoteSnapPart) Download(pbar progress.Meter) (string, error) {
 
 	w, err := ioutil.TempFile("", s.pkg.Name)
 	if err != nil {
@@ -536,7 +537,7 @@ func (s *RemoteSnapPart) Download(pbar ProgressMeter) (string, error) {
 }
 
 // Install installs the snap
-func (s *RemoteSnapPart) Install(pbar ProgressMeter, flags InstallFlags) (string, error) {
+func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (string, error) {
 	downloadedSnap, err := s.Download(pbar)
 	if err != nil {
 		return "", err
