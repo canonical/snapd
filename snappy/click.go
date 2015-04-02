@@ -308,7 +308,7 @@ func removeClick(clickDir string) (err error) {
 	}
 
 	if manifest.Type == SnapTypeFramework {
-		if err := policy.FrameworkOp(policy.Remove, manifest.Name, clickDir); err != nil {
+		if err := policy.Remove(manifest.Name, clickDir); err != nil {
 			return err
 		}
 	}
@@ -707,7 +707,7 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (name string, 
 	}
 
 	if manifest.Type == SnapTypeFramework {
-		if err := policy.FrameworkOp(policy.Install, manifest.Name, instDir); err != nil {
+		if err := policy.Install(manifest.Name, instDir); err != nil {
 			return "", err
 		}
 	}

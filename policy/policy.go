@@ -33,18 +33,15 @@ var (
 type policyOp uint
 
 const (
-	// Install copies the policy files from the framework snap to the
-	// right place, with the necessary renaming.
-	Install policyOp = iota
-	// Remove cleans the policy files up again.
-	Remove
+	install policyOp = iota
+	remove
 )
 
 func (op policyOp) String() string {
 	switch op {
-	case Remove:
+	case remove:
 		return "Remove"
-	case Install:
+	case install:
 		return "Install"
 	default:
 		return fmt.Sprintf("policyOp(%d)", op)
@@ -79,11 +76,11 @@ func helper(op policyOp, glob string, targetDir string, suffix string) (err erro
 		}
 		targetFile := filepath.Join(targetDir, suffix+filepath.Base(file))
 		switch op {
-		case Remove:
+		case remove:
 			if err = os.Remove(targetFile); err != nil {
 				return fmt.Errorf("unable to remove %v: %v", targetFile, err)
 			}
-		case Install:
+		case install:
 			// do the copy
 			fin, err := os.Open(file)
 			if err != nil {
@@ -116,16 +113,28 @@ func helper(op policyOp, glob string, targetDir string, suffix string) (err erro
 	return nil
 }
 
-// FrameworkOp perform the given operation (either Install or Remove) on the
+// frameworkOp perform the given operation (either Install or Remove) on the
 // given package that's installed in the given path.
-func FrameworkOp(op policyOp, pkgName string, instPath string) (err error) {
+func frameworkOp(op policyOp, pkgName string, instPath string) error {
 	pol := filepath.Join(instPath, "meta", "framework-policy")
 	for _, i := range []string{"apparmor", "seccomp"} {
 		for _, j := range []string{"policygroups", "templates"} {
-			if err = helper(op, filepath.Join(pol, i, j, "*"), filepath.Join(secbase, i, j), pkgName+"_"); err != nil {
+			if err := helper(op, filepath.Join(pol, i, j, "*"), filepath.Join(secbase, i, j), pkgName+"_"); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// Install sets up the framework's policy from the given snap that's
+// installed in the given path.
+func Install(pkgName string, instPath string) error {
+	return frameworkOp(install, pkgName, instPath)
+}
+
+// Remove cleans up the framework's policy from the given snap that's
+// installed in the given path.
+func Remove(pkgName string, instPath string) error {
+	return frameworkOp(remove, pkgName, instPath)
 }
