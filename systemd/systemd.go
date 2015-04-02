@@ -28,7 +28,7 @@ import (
 
 var (
 	// the output of "show" must match this for Stop to be done:
-	stopDoneRx = regexp.MustCompile(`(?m)\AActiveState=(?:failed|inactive)$`)
+	isStopDone = regexp.MustCompile(`(?m)\AActiveState=(?:failed|inactive)$`).Match
 	// how many times should Stop check show's output
 	stopSteps = 4 * 30
 	// how much time should Stop wait between calls to show
@@ -105,7 +105,7 @@ func (*systemd) Stop(serviceName string) error {
 		if err != nil {
 			return err
 		}
-		if stopDoneRx.Match(bs) {
+		if isStopDone(bs) {
 			stopped = true
 			break
 		}
