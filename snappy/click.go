@@ -483,18 +483,16 @@ func addPackageServices(baseDir string, inhibitHooks bool) error {
 		//
 		// *but* always run enable (which just sets a symlink)
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		sysd := systemd.New(globalRootDir)
 		if !inhibitHooks {
+			sysd := systemd.New(globalRootDir)
 			if err := sysd.DaemonReload(); err != nil {
 				return err
 			}
-		}
 
-		if err := sysd.Enable(serviceName); err != nil {
-			return err
-		}
+			if err := sysd.Enable(serviceName); err != nil {
+				return err
+			}
 
-		if !inhibitHooks {
 			if err := sysd.Start(serviceName); err != nil {
 				return err
 			}
