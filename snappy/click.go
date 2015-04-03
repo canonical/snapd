@@ -42,7 +42,7 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/policy"
-	"launchpad.net/snappy/systemctl"
+	"launchpad.net/snappy/systemd"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -489,18 +489,16 @@ func addPackageServices(baseDir string, inhibitHooks bool) error {
 		//
 		// *but* always run enable (which just sets a symlink)
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		sysd := systemctl.New(globalRootDir)
 		if !inhibitHooks {
+			sysd := systemd.New(globalRootDir)
 			if err := sysd.DaemonReload(); err != nil {
 				return err
 			}
-		}
 
-		if err := sysd.Enable(serviceName); err != nil {
-			return err
-		}
+			if err := sysd.Enable(serviceName); err != nil {
+				return err
+			}
 
-		if !inhibitHooks {
 			if err := sysd.Start(serviceName); err != nil {
 				return err
 			}
@@ -515,7 +513,7 @@ func removePackageServices(baseDir string) error {
 	if err != nil {
 		return err
 	}
-	sysd := systemctl.New(globalRootDir)
+	sysd := systemd.New(globalRootDir)
 	for _, service := range m.Services {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
 		if err := sysd.Stop(serviceName); err != nil {
