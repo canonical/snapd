@@ -19,7 +19,6 @@ package snappy
 
 import (
 	"errors"
-	"reflect"
 
 	"gopkg.in/yaml.v2"
 )
@@ -30,32 +29,6 @@ var (
 	errNoConf         = errors.New("no conf")
 	errNoSnapToConfig = errors.New("configuring an invalid snappy package")
 )
-
-// sanitize config removes the system config elements which are
-// to be consumed by the snappy system and not the snap's configuration
-// hook
-func sanitizeConfig(conf interface{}) (interface{}, error) {
-	v := reflect.ValueOf(conf)
-
-	if kind := v.Kind(); kind != reflect.Slice && kind != reflect.Map && kind != reflect.Array {
-		return conf, nil
-	}
-
-	if v.IsNil() {
-		return nil, errNoConf
-	}
-
-	if configMap, ok := conf.(map[interface{}]interface{}); ok {
-		delete(configMap, oemConfigRemovable)
-		if len(configMap) == 0 {
-			return nil, errNoConf
-		}
-
-		return interface{}(configMap), nil
-	}
-
-	return conf, nil
-}
 
 func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 	configWrap := map[string]map[string]interface{}{
@@ -85,29 +58,19 @@ func OemConfig() error {
 		return errors.New("no config")
 	}
 
-	for pkgName, v := range snap.OemConfig() {
-		if v == nil {
-			continue
+	for pkgName, conf := range snap.OemConfig() {
+		configData, err := wrapConfig(pkgName, conf)
+		if err != nil {
+			return err
 		}
 
-		if conf, err := sanitizeConfig(v); err == errNoConf {
-			continue
-		} else if err != nil {
+		snap := ActiveSnapByName(pkgName)
+		if snap == nil {
+			return errNoSnapToConfig
+		}
+
+		if _, err := snap.Config(configData); err != nil {
 			return err
-		} else {
-			configData, err := wrapConfig(pkgName, conf)
-			if err != nil {
-				return err
-			}
-
-			snap := ActiveSnapByName(pkgName)
-			if snap == nil {
-				return errNoSnapToConfig
-			}
-
-			if _, err := snap.Config(configData); err != nil {
-				return err
-			}
 		}
 	}
 
