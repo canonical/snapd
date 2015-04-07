@@ -401,7 +401,6 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 	serviceTemplate := `[Unit]
 Description={{.Description}}
 After=ubuntu-snappy.run-hooks.service
-Requires=ubuntu-snappy.run-hooks.service
 X-Snappy=yes
 
 [Service]
