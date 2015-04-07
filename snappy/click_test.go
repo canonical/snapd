@@ -669,7 +669,6 @@ services:
 const expectedService = `[Unit]
 Description=The docker app deployment mechanism
 After=ubuntu-snappy.run-hooks.service
-Requires=ubuntu-snappy.run-hooks.service
 X-Snappy=yes
 
 [Service]
@@ -816,7 +815,6 @@ aa-exec -p hello-app_bin-hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
 var expectedServiceWrapper = `[Unit]
 Description=A fun webserver
 After=ubuntu-snappy.run-hooks.service
-Requires=ubuntu-snappy.run-hooks.service
 X-Snappy=yes
 
 [Service]
