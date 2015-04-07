@@ -69,7 +69,7 @@ func Install(name string, flags InstallFlags) (string, error) {
 		return "", logger.LogError(err)
 	}
 
-	return name, logger.LogError(doGarbageCollect(name, flags))
+	return name, logger.LogError(GarbageCollect(name, flags))
 }
 
 func doInstall(name string, flags InstallFlags) (string, error) {
@@ -99,10 +99,10 @@ func doInstall(name string, flags InstallFlags) (string, error) {
 	return "", ErrPackageNotFound
 }
 
-// doGarbageCollect removes all versions two older than the current active
+// GarbageCollect removes all versions two older than the current active
 // version, as long as NeedsReboot() is false on all the versions found, and
 // DoInstallGC is set.
-func doGarbageCollect(name string, flags InstallFlags) error {
+func GarbageCollect(name string, flags InstallFlags) error {
 	var parts BySnapVersion
 
 	if (flags & DoInstallGC) == 0 {
