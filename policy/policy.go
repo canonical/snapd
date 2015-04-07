@@ -49,13 +49,13 @@ func (op policyOp) String() string {
 }
 
 // iterOp iterates over all the files found with the given glob, making the
-// basename (with the given suffix prepended) the target file in the given
+// basename (with the given prefix prepended) the target file in the given
 // target directory. It then performs op on that target file: either copying
 // from the globbed file to the target file, or removing the target file.
 // Directories are created as needed. Errors out with any of the things that
 // could go wrong with this, including a file found by glob not being a
 // regular file.
-func iterOp(op policyOp, glob string, targetDir string, suffix string) (err error) {
+func iterOp(op policyOp, glob string, targetDir string, prefix string) (err error) {
 	if err = os.MkdirAll(targetDir, 0755); err != nil {
 		return fmt.Errorf("unable to make %v directory: %v", targetDir, err)
 	}
@@ -78,7 +78,7 @@ func iterOp(op policyOp, glob string, targetDir string, suffix string) (err erro
 			return fmt.Errorf("unable to do %s for %v: not a regular file", op, file)
 		}
 
-		targetFile := filepath.Join(targetDir, suffix+filepath.Base(file))
+		targetFile := filepath.Join(targetDir, prefix+filepath.Base(file))
 		switch op {
 		case remove:
 			if err := os.Remove(targetFile); err != nil {
