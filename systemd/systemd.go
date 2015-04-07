@@ -29,7 +29,7 @@ import (
 var (
 	// the output of "show" must match this for Stop to be done:
 	isStopDone = regexp.MustCompile(`(?m)\AActiveState=(?:failed|inactive)$`).Match
-	// how many times should Stop check show's output
+	// how many times should Stop check show's output between calls to Notify
 	stopSteps = 4 * 30
 	// how much time should Stop wait between calls to show
 	stopDelay = 250 * time.Millisecond
@@ -56,16 +56,21 @@ type Systemd interface {
 	Enable(service string) error
 	Disable(service string) error
 	Start(service string) error
-	Stop(service string) error
+	Stop(service string, timeout time.Duration) error
+}
+
+type reporter interface {
+	Notify(string)
 }
 
 // New returns a Systemd that uses the given rootDir
-func New(rootDir string) Systemd {
-	return &systemd{rootDir: rootDir}
+func New(rootDir string, rep reporter) Systemd {
+	return &systemd{rootDir: rootDir, reporter: rep}
 }
 
 type systemd struct {
-	rootDir string
+	rootDir  string
+	reporter reporter
 }
 
 // DaemonReload reloads systemd's configuration.
@@ -93,30 +98,33 @@ func (*systemd) Start(serviceName string) error {
 }
 
 // Stop the given service, and wait until it has stopped.
-func (*systemd) Stop(serviceName string) error {
+func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 	if _, err := SystemctlCmd("stop", serviceName); err != nil {
 		return err
 	}
 
 	// and now wait for it to actually stop
 	stopped := false
-	for i := 0; i < stopSteps; i++ {
-		bs, err := SystemctlCmd("show", "--property=ActiveState", serviceName)
-		if err != nil {
-			return err
+	max := time.Now().Add(timeout)
+	for time.Now().Before(max) {
+		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", serviceName))
+		for i := 0; i < stopSteps; i++ {
+			bs, err := SystemctlCmd("show", "--property=ActiveState", serviceName)
+			if err != nil {
+				return err
+			}
+			if isStopDone(bs) {
+				stopped = true
+				break
+			}
+			time.Sleep(stopDelay)
 		}
-		if isStopDone(bs) {
-			stopped = true
-			break
+		if stopped {
+			return nil
 		}
-		time.Sleep(stopDelay)
 	}
 
-	if !stopped {
-		return &Timeout{action: "stop", service: serviceName}
-	}
-
-	return nil
+	return &Timeout{action: "stop", service: serviceName}
 }
 
 // Error is returned if the systemd action failed

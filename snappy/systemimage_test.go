@@ -255,7 +255,7 @@ func (s *SITestSuite) TestSystemImagePartSetActiveAlreadyActive(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.SetActive()
+	err = sp.SetActive(nil)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, false)
 }
@@ -268,7 +268,7 @@ func (s *SITestSuite) TestSystemImagePartSetActiveMakeActive(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.SetActive()
+	err = sp.SetActive(nil)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 }
@@ -309,5 +309,5 @@ func (s *SITestSuite) TestCannotUninstall(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 2)
 
-	c.Assert(parts[0].Uninstall(), Equals, ErrPackageNotRemovable)
+	c.Assert(parts[0].Uninstall(nil), Equals, ErrPackageNotRemovable)
 }
