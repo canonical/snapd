@@ -48,16 +48,16 @@ func (s *policySuite) SetUpTest(c *C) {
 			base := filepath.Join(s.orig, "meta", "framework-policy", i, j)
 			c.Assert(os.MkdirAll(base, 0755), IsNil)
 			for k := 0; k < 3; k++ {
-				name := fmt.Sprintf(filepath.Join(base, "%s%d"), j, k)
-				content := fmt.Sprintf("%s/%s%d", i, j, k)
+				name := filepath.Join(base, fmt.Sprintf("%s%d", j, k))
+				content := fmt.Sprintf("%s::%s%d", i, j, k)
 				c.Assert(ioutil.WriteFile(name, []byte(content), 0644), IsNil)
 			}
 		}
 	}
 }
 
-func (s *policySuite) TestHelperInstallRemove(c *C) {
-	err := helper(install, filepath.Join(s.appg, "*"), s.dest, "foo_")
+func (s *policySuite) TestIterOpInstallRemove(c *C) {
+	err := iterOp(install, filepath.Join(s.appg, "*"), s.dest, "foo_")
 	c.Check(err, IsNil)
 	g, err := filepath.Glob(filepath.Join(s.dest, "*"))
 	c.Check(err, IsNil)
@@ -70,63 +70,63 @@ func (s *policySuite) TestHelperInstallRemove(c *C) {
 	// check the contents of one of them
 	bs, err := ioutil.ReadFile(g[0])
 	c.Check(err, IsNil)
-	c.Check(string(bs), Equals, "apparmor/policygroups0")
+	c.Check(string(bs), Equals, "apparmor::policygroups0")
 	// now, remove it
-	err = helper(remove, filepath.Join(s.appg, "*"), s.dest, "foo_")
+	err = iterOp(remove, filepath.Join(s.appg, "*"), s.dest, "foo_")
 	c.Check(err, IsNil)
 	g, err = filepath.Glob(filepath.Join(s.dest, "*"))
 	c.Check(err, IsNil)
 	c.Check(g, HasLen, 0)
 }
 
-func (s *policySuite) TestHelperInstallMkdir(c *C) {
+func (s *policySuite) TestIterOpInstallMkdir(c *C) {
 	dest := filepath.Join(s.dest, "bar")
 	_, err := os.Stat(dest)
 	c.Assert(os.IsNotExist(err), Equals, true)
-	err = helper(install, filepath.Join(s.appg, "*"), dest, "foo_")
+	err = iterOp(install, filepath.Join(s.appg, "*"), dest, "foo_")
 	c.Check(err, IsNil)
 	bs, err := ioutil.ReadFile(filepath.Join(dest, "foo_policygroups0"))
 	c.Check(err, IsNil)
-	c.Check(string(bs), Equals, "apparmor/policygroups0")
+	c.Check(string(bs), Equals, "apparmor::policygroups0")
 }
 
-func (s *policySuite) TestHelperBadTargetdir(c *C) {
-	err := helper(42, "/*", "/root/if-you-see-this-directory-something-is-horribly-wrong", "__")
+func (s *policySuite) TestIterOpBadTargetdir(c *C) {
+	err := iterOp(42, "/*", "/root/if-you-see-this-directory-something-is-horribly-wrong", "__")
 	c.Check(err, ErrorMatches, `.*unable.*make.*directory.*`)
 }
 
-func (s *policySuite) TestHelperBadFile(c *C) {
+func (s *policySuite) TestIterOpBadFile(c *C) {
 	fn := filepath.Join(s.appg, "badbad")
 	c.Assert(os.Symlink(fn, fn), IsNil)
-	err := helper(42, filepath.Join(s.appg, "*"), s.dest, "foo_")
+	err := iterOp(42, filepath.Join(s.appg, "*"), s.dest, "foo_")
 	c.Check(err, ErrorMatches, ".*not a regular file.*")
 }
 
-func (s *policySuite) TestHelperBadOp(c *C) {
-	err := helper(42, filepath.Join(s.appg, "*"), s.dest, "foo_")
+func (s *policySuite) TestIterOpBadOp(c *C) {
+	err := iterOp(42, filepath.Join(s.appg, "*"), s.dest, "foo_")
 	c.Check(err, ErrorMatches, ".*unknown operation.*")
 }
 
-func (s *policySuite) TestHelperInstallBadFilemode(c *C) {
+func (s *policySuite) TestIterOpInstallBadFilemode(c *C) {
 	fn := filepath.Join(s.appg, "policygroups0")
 	c.Assert(os.Chmod(fn, 0), IsNil)
-	err := helper(install, filepath.Join(s.appg, "*"), s.dest, "foo_")
+	err := iterOp(install, filepath.Join(s.appg, "*"), s.dest, "foo_")
 	c.Check(err, ErrorMatches, ".*unable to read.*")
 }
 
-func (s *policySuite) TestHelperInstallBadTarget(c *C) {
+func (s *policySuite) TestIterOpInstallBadTarget(c *C) {
 	c.Assert(os.Chmod(s.dest, 0), IsNil)
 	defer os.Chmod(s.dest, 0755)
-	err := helper(install, filepath.Join(s.appg, "*"), s.dest, "foo_")
+	err := iterOp(install, filepath.Join(s.appg, "*"), s.dest, "foo_")
 	c.Check(err, ErrorMatches, ".*unable to create.*")
 }
 
-func (s *policySuite) TestHelperRemoveBadDirmode(c *C) {
-	err := helper(install, filepath.Join(s.appg, "*"), s.dest, "foo_")
+func (s *policySuite) TestIterOpRemoveBadDirmode(c *C) {
+	err := iterOp(install, filepath.Join(s.appg, "*"), s.dest, "foo_")
 	c.Assert(err, IsNil)
 	c.Assert(os.Chmod(s.dest, 0), IsNil)
 	defer os.Chmod(s.dest, 0755)
-	err = helper(remove, filepath.Join(s.appg, "*"), s.dest, "foo_")
+	err = iterOp(remove, filepath.Join(s.appg, "*"), s.dest, "foo_")
 	c.Assert(err, ErrorMatches, ".*unable to remove.*")
 }
 
@@ -146,7 +146,7 @@ func (s *policySuite) TestFrameworkRoundtrip(c *C) {
 }
 
 func (s *policySuite) TestFrameworkError(c *C) {
-	// check we get errors from the helper, is all
+	// check we get errors from the iterOp, is all
 	c.Check(frameworkOp(42, "foo", s.orig), ErrorMatches, ".*unknown operation.*")
 }
 
