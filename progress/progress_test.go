@@ -96,8 +96,8 @@ func (ts *ProgressTestSuite) TestAgreed(c *C) {
 	ts.testAgreed("N", false, c)
 }
 
-func (ts *ProgressTestSuite) TestStatus(c *C) {
-	fout, err := ioutil.TempFile("", "status-out-")
+func (ts *ProgressTestSuite) TestNotify(c *C) {
+	fout, err := ioutil.TempFile("", "notify-out-")
 	c.Assert(err, IsNil)
 	oldStdout := os.Stdout
 	os.Stdout = fout
@@ -108,7 +108,7 @@ func (ts *ProgressTestSuite) TestStatus(c *C) {
 	}()
 
 	t := NewTextProgress("no-pkg")
-	t.Status("blah blah")
+	t.Notify("blah blah")
 
 	_, err = fout.Seek(0, 0)
 	c.Assert(err, IsNil)
