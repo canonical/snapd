@@ -628,6 +628,10 @@ services:
 
 	servicesFile := filepath.Join(snapServicesDir, "foo.mvo_service_1.0.service")
 	c.Assert(helpers.FileExists(servicesFile), Equals, true)
+	st, err := os.Stat(servicesFile)
+	c.Assert(err, IsNil)
+	// should _not_ be executable
+	c.Assert(st.Mode().String(), Equals, "-rw-r--r--")
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
@@ -661,8 +665,8 @@ services:
 
 const expectedService = `[Unit]
 Description=The docker app deployment mechanism
-After=apparmor.service click-system-hooks.service
-Requires=apparmor.service click-system-hooks.service
+After=ubuntu-snappy.run-hooks.service
+Requires=ubuntu-snappy.run-hooks.service
 X-Snappy=yes
 
 [Service]
@@ -808,8 +812,8 @@ aa-exec -p hello-app_bin-hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
 
 var expectedServiceWrapper = `[Unit]
 Description=A fun webserver
-After=apparmor.service click-system-hooks.service
-Requires=apparmor.service click-system-hooks.service
+After=ubuntu-snappy.run-hooks.service
+Requires=ubuntu-snappy.run-hooks.service
 X-Snappy=yes
 
 [Service]

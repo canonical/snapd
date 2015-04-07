@@ -400,8 +400,8 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 
 	serviceTemplate := `[Unit]
 Description={{.Description}}
-After=apparmor.service click-system-hooks.service
-Requires=apparmor.service click-system-hooks.service
+After=ubuntu-snappy.run-hooks.service
+Requires=ubuntu-snappy.run-hooks.service
 X-Snappy=yes
 
 [Service]
@@ -493,7 +493,7 @@ func addPackageServices(baseDir string, inhibitHooks bool) error {
 		content := generateSnapServicesFile(service, realBaseDir, aaProfile, m)
 		serviceFilename := generateServiceFileName(m, service)
 		helpers.EnsureDir(filepath.Dir(serviceFilename), 0755)
-		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0755); err != nil {
+		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0644); err != nil {
 			return err
 		}
 

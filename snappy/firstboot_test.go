@@ -24,6 +24,7 @@ import (
 	"time"
 
 	. "launchpad.net/gocheck"
+	"launchpad.net/snappy/progress"
 )
 
 type fakePart struct {
@@ -98,7 +99,7 @@ func (p *fakePart) SetActive() error {
 	return nil
 }
 
-func (p *fakePart) Install(ProgressMeter, InstallFlags) (string, error) {
+func (p *fakePart) Install(progress.Meter, InstallFlags) (string, error) {
 	return "", nil
 }
 
