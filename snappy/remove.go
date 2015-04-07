@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/progress"
 )
 
 // RemoveFlags can be used to pass additional flags to the snap removal request
@@ -63,7 +64,8 @@ func Remove(partSpec string, flags RemoveFlags) error {
 	}
 
 	for _, part := range parts {
-		if err := part.Uninstall(); err != nil {
+		pbar := progress.NewTextProgress(part.Name())
+		if err := part.Uninstall(pbar); err != nil {
 			return logger.LogError(err)
 		}
 	}

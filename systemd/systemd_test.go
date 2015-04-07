@@ -19,10 +19,18 @@ package systemd
 
 import (
 	"testing"
+	"time"
 
 	. "launchpad.net/gocheck"
-	"time"
 )
+
+type testreporter struct {
+	msgs []string
+}
+
+func (tr *testreporter) Notify(msg string) {
+	tr.msgs = append(tr.msgs, msg)
+}
 
 // Hook up gocheck into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
@@ -33,6 +41,7 @@ type SystemdTestSuite struct {
 	argses [][]string
 	errors []error
 	outs   [][]byte
+	rep    *testreporter
 }
 
 var _ = Suite(&SystemdTestSuite{})
@@ -43,6 +52,7 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	s.argses = nil
 	s.errors = nil
 	s.outs = nil
+	s.rep = new(testreporter)
 }
 
 func (s *SystemdTestSuite) TearDownTest(c *C) {
@@ -62,13 +72,13 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
 }
 
 func (s *SystemdTestSuite) TestDaemonReload(c *C) {
-	err := New("").DaemonReload()
+	err := New("", s.rep).DaemonReload()
 	c.Assert(err, IsNil)
 	c.Assert(s.argses, DeepEquals, [][]string{{"daemon-reload"}})
 }
 
 func (s *SystemdTestSuite) TestStart(c *C) {
-	err := New("").Start("foo")
+	err := New("", s.rep).Start("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo"}})
 }
@@ -81,7 +91,7 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 		[]byte("ActiveState=inactive\n"),
 	}
 	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New("").Stop("foo")
+	err := New("", s.rep).Stop("foo", time.Millisecond)
 	c.Assert(err, IsNil)
 	c.Assert(s.argses, HasLen, 4)
 	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
@@ -100,18 +110,19 @@ func (s *SystemdTestSuite) TestStopTimeout(c *C) {
 		stopDelay = oldDelay
 	}()
 
-	err := New("").Stop("foo")
+	err := New("", s.rep).Stop("foo", 10*time.Millisecond)
 	c.Assert(err, FitsTypeOf, &Timeout{})
+	c.Check(s.rep.msgs[0], Equals, "Waiting for foo to stop.")
 }
 
 func (s *SystemdTestSuite) TestDisable(c *C) {
-	err := New("xyzzy").Disable("foo")
+	err := New("xyzzy", s.rep).Disable("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestEnable(c *C) {
-	err := New("xyzzy").Enable("foo")
+	err := New("xyzzy", s.rep).Enable("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 }

@@ -469,8 +469,8 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
 func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
 	snap := RemoteSnapPart{}
 
-	c.Assert(snap.SetActive(), Equals, ErrNotInstalled)
-	c.Assert(snap.Uninstall(), Equals, ErrNotInstalled)
+	c.Assert(snap.SetActive(nil), Equals, ErrNotInstalled)
+	c.Assert(snap.Uninstall(nil), Equals, ErrNotInstalled)
 }
 
 func (s *SnapTestSuite) TestServicesWithPorts(c *C) {
