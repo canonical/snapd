@@ -25,6 +25,7 @@ import (
 )
 
 type cmdRemove struct {
+	DisableGC bool `long:"no-gc" description:"Do not clean up old versions of the package."`
 }
 
 func init() {
@@ -42,10 +43,15 @@ func (x *cmdRemove) Execute(args []string) (err error) {
 	}
 	defer privMutex.Unlock()
 
+	flags := snappy.DoRemoveGC
+	if x.DisableGC {
+		flags = 0
+	}
+
 	for _, part := range args {
 		fmt.Printf("Removing %s\n", part)
 
-		if err := snappy.Remove(part); err != nil {
+		if err := snappy.Remove(part, flags); err != nil {
 			return err
 		}
 	}
