@@ -44,11 +44,11 @@ func init() {
 }
 
 func (x *cmdInstall) Execute(args []string) (err error) {
-	pkgName := x.Positional.PackageName
+	possiblepkgName := x.Positional.PackageName
 	configFile := x.Positional.ConfigFile
 
 	// FIXME patch goflags to allow for specific n required positional arguments
-	if pkgName == "" {
+	if possiblepkgName == "" {
 		return errors.New("package name is required")
 	}
 
@@ -66,10 +66,12 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 		flags |= snappy.AllowUnauthenticated
 	}
 
-	fmt.Printf("Installing %s\n", pkgName)
-	pkgName, err = snappy.Install(pkgName, flags)
+	fmt.Printf("Installing %s\n", possiblepkgName)
+	var pkgName string
+
+	pkgName, err = snappy.Install(possiblepkgName, flags)
 	if err == snappy.ErrPackageNotFound {
-		return fmt.Errorf("No package '%s' for %s", pkgName, ubuntuCoreChannel())
+		return fmt.Errorf("No package '%s' for %s", possiblepkgName, ubuntuCoreChannel())
 	} else if err != nil {
 		return err
 	}
