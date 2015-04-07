@@ -470,6 +470,7 @@ func checkPackageForNameClashes(baseDir string) error {
 	if err != nil {
 		return err
 	}
+
 	return m.checkForNameClashes()
 }
 
