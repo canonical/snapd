@@ -400,8 +400,8 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 
 	serviceTemplate := `[Unit]
 Description={{.Description}}
-After=apparmor.service click-system-hooks.service
-Requires=apparmor.service click-system-hooks.service
+After=ubuntu-snappy.run-hooks.service
+Requires=ubuntu-snappy.run-hooks.service
 X-Snappy=yes
 
 [Service]
