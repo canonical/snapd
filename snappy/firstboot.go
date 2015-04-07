@@ -19,6 +19,7 @@ package snappy
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -43,6 +44,9 @@ func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 	return yaml.Marshal(configWrap)
 }
 
+var activeSnapByName = ActiveSnapByName
+var installedSnapsByType = InstalledSnapsByType
+
 // OemConfig checks for an oem snap and if found applies the configuration
 // set there to the system flagging that it run so it is effectively only
 // run once
@@ -50,8 +54,9 @@ func OemConfig() error {
 	if firstBootHasRun() {
 		return ErrFirstBootRan
 	}
+	defer stampFirstBoot()
 
-	oemSnap, err := InstalledSnapsByType(SnapTypeOem)
+	oemSnap, err := installedSnapsByType(SnapTypeOem)
 	if err != nil {
 		return err
 	}
@@ -66,12 +71,13 @@ func OemConfig() error {
 	}
 
 	for pkgName, conf := range snap.OemConfig() {
+		fmt.Println(pkgName)
 		configData, err := wrapConfig(pkgName, conf)
 		if err != nil {
 			return err
 		}
 
-		snap := ActiveSnapByName(pkgName)
+		snap := activeSnapByName(pkgName)
 		if snap == nil {
 			return errNoSnapToConfig
 		}
@@ -81,7 +87,7 @@ func OemConfig() error {
 		}
 	}
 
-	return stampFirstBoot()
+	return nil
 }
 
 var stampFile = filepath.Join(firstbootDir, "stamp")
