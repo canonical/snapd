@@ -674,3 +674,17 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 	c.Assert(m.Services[0].SecurityCaps[1], Equals, "foo_group")
 	c.Assert(m.Services[0].SecurityTemplate, Equals, "foo_template")
 }
+
+func (s *SnapTestSuite) TestDetectsNameClash(c *C) {
+	data := []byte(`name: afoo
+version: 1.0
+services:
+ - name: foo
+binaries:
+ - name: foo
+`)
+	yaml, err := parsePackageYamlData(data)
+	c.Assert(err, IsNil)
+	err = yaml.checkForNameClashes()
+	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
+}

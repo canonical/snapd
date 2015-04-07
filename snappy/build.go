@@ -445,10 +445,13 @@ func Build(sourceDir, targetDir string) (string, error) {
 	}
 
 	if m.ExplicitLicenseAgreement {
-		err = licenseChecker(sourceDir)
-		if err != nil {
+		if err := licenseChecker(sourceDir); err != nil {
 			return "", err
 		}
+	}
+
+	if err := m.checkForNameClashes(); err != nil {
+		return "", err
 	}
 
 	// create build dir

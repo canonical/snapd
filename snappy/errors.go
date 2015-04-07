@@ -156,3 +156,10 @@ type ErrGarbageCollectImpossible string
 func (e ErrGarbageCollectImpossible) Error() string {
 	return "garbage collection impossible: prerequisites untrue: " + string(e)
 }
+
+// ErrNameClash reports a conflict between a named service and binary in a package.
+type ErrNameClash string
+
+func (e ErrNameClash) Error() string {
+	return "you can't have a binary and service both called " + string(e)
+}

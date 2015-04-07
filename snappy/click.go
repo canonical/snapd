@@ -465,6 +465,14 @@ func stripGlobalRootDir(dir string) string {
 	return dir[len(globalRootDir):]
 }
 
+func checkPackageForNameClashes(baseDir string) error {
+	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
+	if err != nil {
+		return err
+	}
+	return m.checkForNameClashes()
+}
+
 func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
@@ -666,7 +674,16 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 	if err != nil {
 		return "", err
 	}
+
 	m, err := parsePackageYamlData(yamlData)
+	if err != nil {
+		return "", err
+	}
+
+	if err := m.checkForNameClashes(); err != nil {
+		return "", err
+	}
+
 	if m.ExplicitLicenseAgreement {
 		if inter == nil {
 			return "", ErrLicenseNotAccepted

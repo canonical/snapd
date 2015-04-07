@@ -194,6 +194,20 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	return &m, nil
 }
 
+func (m *packageYaml) checkForNameClashes() error {
+	d := make(map[string]struct{})
+	for _, bin := range m.Binaries {
+		d[filepath.Base(bin.Name)] = struct{}{}
+	}
+	for _, svc := range m.Services {
+		if _, ok := d[svc.Name]; ok {
+			return ErrNameClash(svc.Name)
+		}
+	}
+
+	return nil
+}
+
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
 func NewInstalledSnapPart(yamlPath string) *SnapPart {
 	part := SnapPart{}
