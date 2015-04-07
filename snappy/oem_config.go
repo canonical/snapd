@@ -19,6 +19,9 @@ package snappy
 
 import (
 	"errors"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v2"
 )
@@ -44,6 +47,10 @@ func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 // set there to the system flagging that it run so it is effectively only
 // run once
 func OemConfig() error {
+	if firstBootHasRun() {
+		return ErrFirstBootRan
+	}
+
 	oemSnap, err := InstalledSnapsByType(SnapTypeOem)
 	if err != nil {
 		return err
@@ -74,5 +81,17 @@ func OemConfig() error {
 		}
 	}
 
-	return nil
+	return stampFirstBoot()
+}
+
+var stampFile = filepath.Join(firstbootDir, "stamp")
+
+func stampFirstBoot() error {
+	return ioutil.WriteFile(stampFile, []byte{}, 0644)
+}
+
+func firstBootHasRun() bool {
+	_, err := os.Stat(stampFile)
+
+	return err == nil
 }

@@ -17,11 +17,15 @@
 
 package main
 
-import "launchpad.net/snappy/snappy"
+import (
+	"fmt"
+
+	"launchpad.net/snappy/snappy"
+)
 
 func init() {
 	var cmdInternalFirstBootOemConfig cmdInternalFirstBootOemConfig
-	if _, err := parser.AddCommand("firstboot-oem", "internal", "internal", &cmdInternalFirstBootOemConfig); err != nil {
+	if _, err := parser.AddCommand("firstboot", "internal", "internal", &cmdInternalFirstBootOemConfig); err != nil {
 		// panic here as something must be terribly wrong if there is an
 		// error here
 		panic(err)
@@ -30,6 +34,12 @@ func init() {
 
 type cmdInternalFirstBootOemConfig struct{}
 
-func (x *cmdInternalFirstBootOemConfig) Execute(args []string) (err error) {
-	return snappy.OemConfig()
+func (x *cmdInternalFirstBootOemConfig) Execute(args []string) error {
+	err := snappy.OemConfig()
+	if err == snappy.ErrFirstBootRan {
+		fmt.Println("First boot has already run")
+		return nil
+	}
+
+	return err
 }

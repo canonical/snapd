@@ -1,0 +1,10 @@
+[Unit]
+Description=Run snappy compatibility hooks
+Before=apparmor.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/snappy internal-run-hooks
+
+[Install]
+WantedBy=getty.target
