@@ -15,15 +15,19 @@
  *
  */
 
-package snappy
+package progress
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
+	"testing"
 
-	"fmt"
 	. "launchpad.net/gocheck"
 )
+
+// Hook up gocheck into the "go test" runner
+func Test(t *testing.T) { TestingT(t) }
 
 type ProgressTestSuite struct{}
 

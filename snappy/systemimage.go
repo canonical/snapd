@@ -29,6 +29,7 @@ import (
 
 	"launchpad.net/snappy/coreconfig"
 	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/progress"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -143,7 +144,7 @@ func (s *SystemImagePart) SetActive() (err error) {
 }
 
 // Install installs the snap
-func (s *SystemImagePart) Install(pb ProgressMeter, flags InstallFlags) (name string, err error) {
+func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
 	if pb != nil {
 		// ensure the progress finishes when we are done
 		defer func() {
