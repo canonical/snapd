@@ -186,3 +186,4 @@ func (m *MockProgressMeter) Finished() {
 func (m *MockProgressMeter) Agreed(string, string) bool {
 	return false
 }
+func (m *MockProgressMeter) Notify(string) {}
