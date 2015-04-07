@@ -4,7 +4,7 @@ Before=apparmor.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/snappy internal-run-hooks
+ExecStart=/usr/bin/snappy firstboot
 
 [Install]
 WantedBy=getty.target
