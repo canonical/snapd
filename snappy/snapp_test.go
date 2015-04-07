@@ -589,8 +589,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryOemStoreId(c *C) {
 	packageYaml, err := makeInstalledMockSnap(s.tempdir, `name: oem-test
 version: 1.0
 vendor: mvo
-store:
- id: my-store
+oem:
+  store:
+    id: my-store
 type: oem
 `)
 	c.Assert(err, IsNil)

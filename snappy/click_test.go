@@ -629,6 +629,10 @@ services:
 
 	servicesFile := filepath.Join(snapServicesDir, "foo.mvo_service_1.0.service")
 	c.Assert(helpers.FileExists(servicesFile), Equals, true)
+	st, err := os.Stat(servicesFile)
+	c.Assert(err, IsNil)
+	// should _not_ be executable
+	c.Assert(st.Mode().String(), Equals, "-rw-r--r--")
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
