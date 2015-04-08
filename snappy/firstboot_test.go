@@ -21,13 +21,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	. "launchpad.net/gocheck"
-	"launchpad.net/snappy/progress"
 )
 
 type fakePart struct {
+	SnapPart
 	config    []byte
 	oemConfig SystemConfig
 	snapType  SnapType
@@ -45,69 +44,6 @@ func (p *fakePart) OemConfig() SystemConfig {
 func (p *fakePart) Type() SnapType {
 	return p.snapType
 }
-
-// if we ha smaller interfaces this wouldn't be needed
-func (p *fakePart) Channel() string {
-	return ""
-}
-
-func (p *fakePart) Date() time.Time {
-	return time.Now()
-}
-
-func (p *fakePart) Description() string {
-	return ""
-}
-
-func (p *fakePart) DownloadSize() int64 {
-	return 0
-}
-
-func (p *fakePart) InstalledSize() int64 {
-	return 0
-}
-
-func (p *fakePart) Version() string {
-	return ""
-}
-
-func (p *fakePart) Name() string {
-	return ""
-}
-
-func (p *fakePart) Hash() string {
-	return ""
-}
-
-func (p *fakePart) Icon() string {
-	return ""
-}
-
-func (p *fakePart) IsActive() bool {
-	return true
-}
-
-func (p *fakePart) NeedsReboot() bool {
-	return false
-}
-
-func (p *fakePart) IsInstalled() bool {
-	return true
-}
-
-func (p *fakePart) SetActive() error {
-	return nil
-}
-
-func (p *fakePart) Install(progress.Meter, InstallFlags) (string, error) {
-	return "", nil
-}
-
-func (p *fakePart) Uninstall() error {
-	return nil
-}
-
-// end of stubbing
 
 type FirstBootTestSuite struct {
 	oemConfig map[string]interface{}
