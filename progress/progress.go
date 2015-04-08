@@ -48,6 +48,9 @@ type Meter interface {
 
 	// ask the user whether they agree to the given license's text
 	Agreed(intro, licenseFile string) bool
+
+	// notify the user of miscelaneous events
+	Notify(string)
 }
 
 // NullProgress is a Meter that does nothing
@@ -74,6 +77,9 @@ func (t *NullProgress) Finished() {
 func (t *NullProgress) Write(p []byte) (n int, err error) {
 	return n, nil
 }
+
+// Notify does nothing
+func (t *NullProgress) Notify(string) {}
 
 // Spin does nothing
 func (t *NullProgress) Spin(msg string) {
@@ -164,4 +170,9 @@ func (t *TextProgress) Agreed(intro, license string) bool {
 	}
 
 	return unicode.ToLower(r) == 'y'
+}
+
+// Notify the user of miscelaneous events
+func (*TextProgress) Notify(msg string) {
+	fmt.Println(msg)
 }

@@ -161,6 +161,7 @@ type MockProgressMeter struct {
 	spin     bool
 	spinMsg  string
 	written  int
+	notified []string
 }
 
 func (m *MockProgressMeter) Start(total float64) {
@@ -185,4 +186,7 @@ func (m *MockProgressMeter) Finished() {
 }
 func (m *MockProgressMeter) Agreed(string, string) bool {
 	return false
+}
+func (m *MockProgressMeter) Notify(msg string) {
+	m.notified = append(m.notified, msg)
 }

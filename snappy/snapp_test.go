@@ -29,6 +29,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/systemd"
 
 	. "launchpad.net/gocheck"
 )
@@ -56,8 +57,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
 		return nil
 	}
-	runSystemctl = func(cmd ...string) error {
-		return nil
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		return []byte("ActiveState=inactive\n"), nil
 	}
 
 	// fake "du"
@@ -465,11 +466,44 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
 	c.Assert(p.written, Equals, int(st.Size()))
 }
 
+func (s *SnapTestSuite) TestRemoteSnapUpgradeService(c *C) {
+	snapPackage := makeTestSnapPackage(c, `name: foo
+version: 1.0
+services:
+ - name: svc
+`)
+	snapR, err := os.Open(snapPackage)
+	c.Assert(err, IsNil)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(w, snapR)
+		snapR.Seek(0, 0)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := RemoteSnapPart{}
+	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
+
+	p := &MockProgressMeter{}
+	name, err := snap.Install(p, 0)
+	c.Assert(err, IsNil)
+	c.Check(name, Equals, "foo")
+	c.Check(p.notified, HasLen, 0)
+
+	_, err = snap.Install(p, 0)
+	c.Assert(err, IsNil)
+	c.Check(name, Equals, "foo")
+	c.Check(p.notified, HasLen, 1)
+	c.Check(p.notified[0], Matches, "Waiting for .* stop.")
+}
+
 func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
 	snap := RemoteSnapPart{}
 
-	c.Assert(snap.SetActive(), Equals, ErrNotInstalled)
-	c.Assert(snap.Uninstall(), Equals, ErrNotInstalled)
+	c.Assert(snap.SetActive(nil), Equals, ErrNotInstalled)
+	c.Assert(snap.Uninstall(nil), Equals, ErrNotInstalled)
 }
 
 func (s *SnapTestSuite) TestServicesWithPorts(c *C) {
@@ -672,4 +706,18 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 	c.Assert(m.Services[0].SecurityCaps[0], Equals, "networking")
 	c.Assert(m.Services[0].SecurityCaps[1], Equals, "foo_group")
 	c.Assert(m.Services[0].SecurityTemplate, Equals, "foo_template")
+}
+
+func (s *SnapTestSuite) TestDetectsNameClash(c *C) {
+	data := []byte(`name: afoo
+version: 1.0
+services:
+ - name: foo
+binaries:
+ - name: foo
+`)
+	yaml, err := parsePackageYamlData(data)
+	c.Assert(err, IsNil)
+	err = yaml.checkForNameClashes()
+	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
 }

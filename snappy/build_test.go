@@ -373,3 +373,16 @@ integration:
 		c.Assert(strings.Contains(string(readFiles), needle), Equals, true)
 	}
 }
+
+func (s *SnapTestSuite) TestBuildChecksForClashes(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+services:
+ - name: foo
+binaries:
+ - name: foo
+`)
+	_, err := Build(sourceDir, "")
+	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
+}
