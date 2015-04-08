@@ -38,9 +38,6 @@ const (
 	InhibitHooks
 	// DoInstallGC will ensure that garbage collection is done
 	DoInstallGC
-
-	// NoInstallProgress will disable progress reporting
-	NoInstallProgress
 )
 
 // check if the image is in developer mode
@@ -87,9 +84,6 @@ func doInstall(name string, flags InstallFlags) (string, error) {
 			flags |= AllowUnauthenticated
 		}
 
-		// Note that NoInstallProgress is handled at the click
-		// level to allow for a license agreement to be accepted
-		// first.
 		pbar = progress.NewTextProgress(name)
 
 		return installClick(name, flags, pbar)
@@ -101,7 +95,7 @@ func doInstall(name string, flags InstallFlags) (string, error) {
 	for _, part := range found {
 		// act only on parts that are downloadable
 		if !part.IsInstalled() {
-			if (flags & NoInstallProgress) == 0 {
+			if AttachedToTerminal() {
 				pbar = progress.NewTextProgress(part.Name())
 			} else {
 				pbar = &progress.NullProgress{}

@@ -26,7 +26,6 @@ import (
 
 type cmdRemove struct {
 	DisableGC bool `long:"no-gc" description:"Do not clean up old versions of the package."`
-	Quiet     bool `short:"q" long:"quiet" description:"Do not show progress"`
 }
 
 func init() {
@@ -47,9 +46,6 @@ func (x *cmdRemove) Execute(args []string) (err error) {
 	flags := snappy.DoRemoveGC
 	if x.DisableGC {
 		flags = 0
-	}
-	if x.Quiet {
-		flags |= snappy.NoRemoveProgress
 	}
 
 	for _, part := range args {

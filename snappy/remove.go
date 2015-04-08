@@ -31,9 +31,6 @@ const (
 	// DoRemoveGC will ensure that garbage collection is done, unless a
 	// version is specified.
 	DoRemoveGC RemoveFlags = 1 << iota
-
-	// NoRemoveProgress will disable progress reporting
-	NoRemoveProgress
 )
 
 // Remove a part by a partSpec string, this can be "name" or "name=version"
@@ -68,7 +65,7 @@ func Remove(partSpec string, flags RemoveFlags) error {
 
 	for _, part := range parts {
 		var pbar progress.Meter
-		if (flags & NoRemoveProgress) == 0 {
+		if AttachedToTerminal() {
 			pbar = progress.NewTextProgress(part.Name())
 		} else {
 			pbar = &progress.NullProgress{}

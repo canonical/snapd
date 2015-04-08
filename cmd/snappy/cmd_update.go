@@ -28,7 +28,6 @@ import (
 
 type cmdUpdate struct {
 	DisableGC bool `long:"no-gc" description:"Do not clean up old versions of the package."`
-	Quiet     bool `short:"q" long:"quiet" description:"Do not show progress"`
 }
 
 func init() {
@@ -51,9 +50,6 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 	if x.DisableGC {
 		flags = 0
 	}
-	if x.Quiet {
-		flags |= snappy.NoInstallProgress
-	}
 
 	updates, err := snappy.ListUpdates()
 	if err != nil {
@@ -63,7 +59,7 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 	for _, part := range updates {
 		var pbar progress.Meter
 
-		if (flags & snappy.NoInstallProgress) == 0 {
+		if snappy.AttachedToTerminal() {
 			pbar = progress.NewTextProgress(part.Name())
 		} else {
 			pbar = &progress.NullProgress{}
