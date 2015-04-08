@@ -29,6 +29,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/systemd"
 
 	. "launchpad.net/gocheck"
 )
@@ -56,8 +57,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
 		return nil
 	}
-	runSystemctl = func(cmd ...string) error {
-		return nil
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		return []byte("ActiveState=inactive\n"), nil
 	}
 
 	// fake "du"
@@ -468,8 +469,8 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
 func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
 	snap := RemoteSnapPart{}
 
-	c.Assert(snap.SetActive(), Equals, ErrNotInstalled)
-	c.Assert(snap.Uninstall(), Equals, ErrNotInstalled)
+	c.Assert(snap.SetActive(nil), Equals, ErrNotInstalled)
+	c.Assert(snap.Uninstall(nil), Equals, ErrNotInstalled)
 }
 
 func (s *SnapTestSuite) TestServicesWithPorts(c *C) {

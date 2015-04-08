@@ -41,8 +41,10 @@ import (
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/systemd"
 
 	"github.com/mvo5/goconfigparser"
+	"time"
 )
 
 type clickAppHook map[string]string
@@ -286,7 +288,7 @@ func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err
 	return manifest, err
 }
 
-func removeClick(clickDir string) (err error) {
+func removeClick(clickDir string, inter interacter) (err error) {
 	manifest, err := readClickManifestFromClickDir(clickDir)
 	if err != nil {
 		return err
@@ -300,7 +302,7 @@ func removeClick(clickDir string) (err error) {
 	currentSymlink := path.Join(path.Dir(clickDir), "current")
 	p, _ := filepath.EvalSymlinks(currentSymlink)
 	if clickDir == p {
-		if err := unsetActiveClick(p, false); err != nil {
+		if err := unsetActiveClick(p, false, inter); err != nil {
 			return err
 		}
 	}
@@ -448,26 +450,6 @@ func generateServiceFileName(m *packageYaml, service Service) string {
 	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
 }
 
-var runSystemctl = runSystemctlImpl
-
-func runSystemctlImpl(cmd ...string) error {
-	// FIXME: find an elegant solution, only enable works with --root
-	// +3 == "systemctl" + "daemon-reload", globalRootDir
-	args := make([]string, 0, len(cmd)+3)
-	args = append(args, "systemctl")
-	if len(cmd) > 0 && cmd[0] == "enable" {
-		args = append(args, "--root", globalRootDir)
-	}
-	args = append(args, cmd...)
-	if err := exec.Command(args[0], args[1:]...).Run(); err != nil {
-		exitCode, _ := helpers.ExitCode(err)
-		return &ErrSystemCtl{cmd: args,
-			exitCode: exitCode}
-	}
-
-	return nil
-}
-
 // takes a directory and removes the global root, this is needed
 // when the SetRoot option is used and we need to generate
 // content for the "Services" and "Binaries" section
@@ -479,7 +461,7 @@ func stripGlobalRootDir(dir string) string {
 	return dir[len(globalRootDir):]
 }
 
-func addPackageServices(baseDir string, inhibitHooks bool) error {
+func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
 		return err
@@ -505,17 +487,16 @@ func addPackageServices(baseDir string, inhibitHooks bool) error {
 		// *but* always run enable (which just sets a symlink)
 		serviceName := filepath.Base(generateServiceFileName(m, service))
 		if !inhibitHooks {
-			if err := runSystemctl("daemon-reload"); err != nil {
+			sysd := systemd.New(globalRootDir, inter)
+			if err := sysd.DaemonReload(); err != nil {
 				return err
 			}
-		}
 
-		if err := runSystemctl("enable", serviceName); err != nil {
-			return err
-		}
+			if err := sysd.Enable(serviceName); err != nil {
+				return err
+			}
 
-		if !inhibitHooks {
-			if err := runSystemctl("start", serviceName); err != nil {
+			if err := sysd.Start(serviceName); err != nil {
 				return err
 			}
 		}
@@ -524,17 +505,24 @@ func addPackageServices(baseDir string, inhibitHooks bool) error {
 	return nil
 }
 
-func removePackageServices(baseDir string) error {
+func removePackageServices(baseDir string, inter interacter) error {
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
 	if err != nil {
 		return err
 	}
+	sysd := systemd.New(globalRootDir, inter)
 	for _, service := range m.Services {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		if err := runSystemctl("stop", serviceName); err != nil {
+		// XXX: parsing should be done waaay before this (in the yaml loading!)
+		timeout, err := time.ParseDuration(service.StopTimeout)
+		if err != nil {
+			// XXX: whatevs
+			timeout = 30 * time.Second
+		}
+		if err := sysd.Stop(serviceName, timeout); err != nil {
 			return err
 		}
-		if err := runSystemctl("disable", serviceName); err != nil {
+		if err := sysd.Disable(serviceName); err != nil {
 			return err
 		}
 		// FIXME: wait for the service to be really stopped
@@ -544,7 +532,7 @@ func removePackageServices(baseDir string) error {
 
 	// only reload if we actually had services
 	if len(m.Services) > 0 {
-		if err := runSystemctl("daemon-reload"); err != nil {
+		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
 	}
@@ -642,11 +630,12 @@ func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
 	return nil
 }
 
-type agreer interface {
+type interacter interface {
 	Agreed(intro, license string) bool
+	Notify(status string)
 }
 
-func installClick(snapFile string, flags InstallFlags, ag agreer) (name string, err error) {
+func installClick(snapFile string, flags InstallFlags, inter interacter) (name string, err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
 
@@ -675,7 +664,7 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (name string, 
 	}
 	m, err := parsePackageYamlData(yamlData)
 	if m.ExplicitLicenseAgreement {
-		if ag == nil {
+		if inter == nil {
 			return "", ErrLicenseNotAccepted
 		}
 		license, err := d.MetaMember("license.txt")
@@ -683,7 +672,7 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (name string, 
 			return "", ErrLicenseNotProvided
 		}
 		msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
-		if !ag.Agreed(msg, string(license)) {
+		if !inter.Agreed(msg, string(license)) {
 			return "", ErrLicenseNotAccepted
 		}
 	}
@@ -750,10 +739,10 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (name string, 
 		}
 
 		// we need to stop making it active
-		if err := unsetActiveClick(currentActiveDir, inhibitHooks); err != nil {
+		if err := unsetActiveClick(currentActiveDir, inhibitHooks, inter); err != nil {
 			// if anything goes wrong try to activate the old
 			// one again and pass the error on
-			setActiveClick(currentActiveDir, inhibitHooks)
+			setActiveClick(currentActiveDir, inhibitHooks, inter)
 			return "", err
 		}
 
@@ -761,7 +750,7 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (name string, 
 			// FIXME: remove newDir
 
 			// restore the previous version
-			setActiveClick(currentActiveDir, inhibitHooks)
+			setActiveClick(currentActiveDir, inhibitHooks, inter)
 			return "", err
 		}
 	} else {
@@ -772,10 +761,10 @@ func installClick(snapFile string, flags InstallFlags, ag agreer) (name string, 
 	}
 
 	// and finally make active
-	if err := setActiveClick(instDir, inhibitHooks); err != nil {
+	if err := setActiveClick(instDir, inhibitHooks, inter); err != nil {
 		// ensure to revert on install failure
 		if currentActiveDir != "" {
-			setActiveClick(currentActiveDir, inhibitHooks)
+			setActiveClick(currentActiveDir, inhibitHooks, inter)
 		}
 		return "", err
 	}
@@ -827,7 +816,7 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	return nil
 }
 
-func unsetActiveClick(clickDir string, inhibitHooks bool) error {
+func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) error {
 	currentSymlink := filepath.Join(clickDir, "..", "current")
 
 	// sanity check
@@ -844,7 +833,7 @@ func unsetActiveClick(clickDir string, inhibitHooks bool) error {
 		return err
 	}
 
-	if err := removePackageServices(clickDir); err != nil {
+	if err := removePackageServices(clickDir, inter); err != nil {
 		return err
 	}
 
@@ -864,7 +853,7 @@ func unsetActiveClick(clickDir string, inhibitHooks bool) error {
 	return nil
 }
 
-func setActiveClick(baseDir string, inhibitHooks bool) error {
+func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 	currentActiveSymlink := filepath.Join(baseDir, "..", "current")
 	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
 
@@ -875,7 +864,7 @@ func setActiveClick(baseDir string, inhibitHooks bool) error {
 
 	// there is already an active part
 	if currentActiveDir != "" {
-		unsetActiveClick(currentActiveDir, inhibitHooks)
+		unsetActiveClick(currentActiveDir, inhibitHooks, inter)
 	}
 
 	// make new part active
@@ -895,7 +884,7 @@ func setActiveClick(baseDir string, inhibitHooks bool) error {
 		return err
 	}
 	// add the "services:" from the package.yaml
-	if err := addPackageServices(baseDir, inhibitHooks); err != nil {
+	if err := addPackageServices(baseDir, inhibitHooks, inter); err != nil {
 		return err
 	}
 

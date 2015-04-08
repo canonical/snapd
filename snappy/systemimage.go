@@ -129,7 +129,7 @@ func (s *SystemImagePart) Date() time.Time {
 }
 
 // SetActive sets the snap active
-func (s *SystemImagePart) SetActive() (err error) {
+func (s *SystemImagePart) SetActive(pb progress.Meter) (err error) {
 	isNextBootOther := s.partition.IsNextBootOther()
 	// active and no switch scheduled -> nothing to do
 	if s.IsActive() && !isNextBootOther {
@@ -217,7 +217,7 @@ func (s *SystemImagePart) verifyUpgradeWasApplied() error {
 }
 
 // Uninstall can not be used for "core" snaps
-func (s *SystemImagePart) Uninstall() (err error) {
+func (s *SystemImagePart) Uninstall(progress.Meter) error {
 	return ErrPackageNotRemovable
 }
 

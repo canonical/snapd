@@ -73,12 +73,12 @@ type Part interface {
 	// Install the snap
 	Install(pb progress.Meter, flags InstallFlags) (name string, err error)
 	// Uninstall the snap
-	Uninstall() error
+	Uninstall(pb progress.Meter) error
 	// Config takes a yaml configuration and returns the full snap
 	// config with the changes. Note that "configuration" may be empty.
 	Config(configuration []byte) (newConfig string, err error)
 	// make a inactive part active
-	SetActive() error
+	SetActive(pb progress.Meter) error
 }
 
 // Repository is the interface for a collection of snaps
@@ -271,5 +271,5 @@ func makeSnapActiveByNameAndVersion(pkg, ver string) error {
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
 	}
 
-	return part.SetActive()
+	return part.SetActive(nil)
 }

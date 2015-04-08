@@ -318,12 +318,12 @@ func (s *SnapPart) Install(pb progress.Meter, flags InstallFlags) (name string, 
 }
 
 // SetActive sets the snap active
-func (s *SnapPart) SetActive() (err error) {
-	return setActiveClick(s.basedir, false)
+func (s *SnapPart) SetActive(pb progress.Meter) (err error) {
+	return setActiveClick(s.basedir, false, pb)
 }
 
 // Uninstall remove the snap from the system
-func (s *SnapPart) Uninstall() (err error) {
+func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 	// OEM snaps should not be removed as they are a key
 	// building block for OEMs. Prunning non active ones
 	// is acceptible.
@@ -331,7 +331,7 @@ func (s *SnapPart) Uninstall() (err error) {
 		return ErrPackageNotRemovable
 	}
 
-	return removeClick(s.basedir)
+	return removeClick(s.basedir, pb)
 }
 
 // Config is used to to configure the snap
@@ -550,12 +550,12 @@ func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (strin
 }
 
 // SetActive sets the snap active
-func (s *RemoteSnapPart) SetActive() (err error) {
+func (s *RemoteSnapPart) SetActive(progress.Meter) error {
 	return ErrNotInstalled
 }
 
 // Uninstall remove the snap from the system
-func (s *RemoteSnapPart) Uninstall() (err error) {
+func (s *RemoteSnapPart) Uninstall(progress.Meter) error {
 	return ErrNotInstalled
 }
 

@@ -29,6 +29,8 @@ import (
 	"github.com/mvo5/goconfigparser"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/progress"
+	"launchpad.net/snappy/systemd"
 
 	. "launchpad.net/gocheck"
 )
@@ -233,6 +235,7 @@ func (a *agreerator) Agreed(intro, license string) bool {
 	a.license = license
 	return a.y
 }
+func (a *agreerator) Notify(string) {}
 
 // if the snap asks for accepting a license, and an agreer isn't provided,
 // install fails
@@ -281,9 +284,9 @@ func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	allSystemctl := []string{}
-	runSystemctl = func(cmd ...string) error {
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		allSystemctl = append(allSystemctl, cmd[0])
-		return nil
+		return nil, nil
 	}
 
 	targetDir := path.Join(s.tempdir, "apps")
@@ -294,7 +297,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	_, err = os.Stat(instDir)
 	c.Assert(err, IsNil)
 
-	err = removeClick(instDir)
+	err = removeClick(instDir, nil)
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
@@ -344,7 +347,7 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(parts[1].IsActive(), Equals, true)
 
 	// set v1 active
-	err = setActiveClick(parts[0].(*SnapPart).basedir, false)
+	err = setActiveClick(parts[0].(*SnapPart).basedir, false, nil)
 	parts, err = repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(parts[0].Version(), Equals, "1.0")
@@ -579,7 +582,7 @@ binaries:
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
-	err = removeClick(snapDir)
+	err = removeClick(snapDir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
@@ -635,17 +638,17 @@ services:
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
-	err = removeClick(snapDir)
+	err = removeClick(snapDir, new(progress.NullProgress))
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(servicesFile), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
 }
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
-	allSystemctl := []string{}
-	runSystemctl = func(cmd ...string) error {
-		allSystemctl = append(allSystemctl, cmd[0])
-		return nil
+	allSystemctl := [][]string{}
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		allSystemctl = append(allSystemctl, cmd)
+		return []byte("ActiveState=inactive\n"), nil
 	}
 
 	packageYaml := `name: foo.mvo
@@ -656,11 +659,11 @@ services:
    start: bin/hello
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, InhibitHooks, nil)
+	_, err := installClick(snapFile, 0, nil)
 	c.Assert(err, IsNil)
 
-	c.Assert(allSystemctl[0], Equals, "enable")
-	c.Assert(allSystemctl, HasLen, 1)
+	c.Assert(allSystemctl, HasLen, 3)
+	c.Assert(allSystemctl[1], DeepEquals, []string{"--root", globalRootDir, "enable", "foo.mvo_service_1.0.service"})
 }
 
 const expectedService = `[Unit]
@@ -779,7 +782,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = addPackageServices(baseDir, false)
+	err = addPackageServices(baseDir, false, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
