@@ -20,6 +20,7 @@ package snappy
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 var (
@@ -166,4 +167,11 @@ type ErrNameClash string
 
 func (e ErrNameClash) Error() string {
 	return fmt.Sprintf("you can't have a binary and service both called %s", string(e))
+}
+
+// ErrMissingFrameworks reports a conflict between the frameworks needed by an app and those installed in the system
+type ErrMissingFrameworks []string
+
+func (e ErrMissingFrameworks) Error() string {
+	return fmt.Sprintf("missing frameworks: %s", strings.Join(e, ", "))
 }

@@ -753,3 +753,16 @@ binaries:
 	err = yaml.checkForNameClashes()
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
 }
+
+func (s *SnapTestSuite) TestDetectsMissingFrameworks(c *C) {
+	data := []byte(`name: afoo
+version: 1.0
+frameworks:
+ - missing
+ - also-missing
+`)
+	yaml, err := parsePackageYamlData(data)
+	c.Assert(err, IsNil)
+	err = yaml.checkForFrameworks()
+	c.Assert(err, ErrorMatches, `missing frameworks: missing, also-missing`)
+}

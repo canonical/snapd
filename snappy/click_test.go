@@ -890,3 +890,15 @@ binaries:
 	_, err = installClick(snapName, 0, nil)
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
 }
+
+func (s *SnapTestSuite) TestInstallChecksFrameworks(c *C) {
+	packageYaml := `name: foo
+version: 0.1
+vendor: Foo Bar <foo@example.com>
+frameworks:
+  - missing
+`
+	snapFile := makeTestSnapPackage(c, packageYaml)
+	_, err := installClick(snapFile, 0, nil)
+	c.Assert(err, ErrorMatches, `.*missing framework.*`)
+}

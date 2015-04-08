@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -236,6 +237,29 @@ func (m *packageYaml) FrameworksForClick() string {
 	}
 
 	return strings.Join(fmks, ",")
+}
+
+func (m *packageYaml) checkForFrameworks() error {
+	installed, err := InstalledSnapNamesByType(SnapTypeFramework)
+	if err != nil {
+		return err
+	}
+	sort.Strings(installed)
+
+	missing := make([]string, 0, len(m.Frameworks))
+
+	for _, f := range m.Frameworks {
+		i := sort.SearchStrings(installed, f)
+		if i >= len(installed) || installed[i] != f {
+			missing = append(missing, f)
+		}
+	}
+
+	if len(missing) > 0 {
+		return ErrMissingFrameworks(missing)
+	}
+
+	return nil
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath

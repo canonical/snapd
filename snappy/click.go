@@ -687,6 +687,10 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		return "", err
 	}
 
+	if err := m.checkForFrameworks(); err != nil {
+		return "", err
+	}
+
 	if m.ExplicitLicenseAgreement {
 		if inter == nil {
 			return "", ErrLicenseNotAccepted
