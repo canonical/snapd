@@ -99,5 +99,6 @@ func stampFirstBoot() error {
 func firstBootHasRun() bool {
 	_, err := os.Stat(stampFile)
 
+	// TODO support all the variations of this file being misplaced.
 	return err == nil
 }
