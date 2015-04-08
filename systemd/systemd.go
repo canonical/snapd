@@ -37,10 +37,10 @@ var (
 
 // run calls systemctl with the given args, returning its standard output (and wrapped error)
 func run(args ...string) ([]byte, error) {
-	bs, err := exec.Command("systemctl", args...).Output()
+	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
 		exitCode, _ := helpers.ExitCode(err)
-		return nil, &Error{cmd: args, exitCode: exitCode}
+		return nil, &Error{cmd: args, exitCode: exitCode, msg: bs}
 	}
 
 	return bs, nil
@@ -130,11 +130,12 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 // Error is returned if the systemd action failed
 type Error struct {
 	cmd      []string
+	msg      []byte
 	exitCode int
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("%v failed with exit status %d", e.cmd, e.exitCode)
+	return fmt.Sprintf("%v failed with exit status %d: %s", e.cmd, e.exitCode, e.msg)
 }
 
 // Timeout is returned if the systemd action failed to reach the

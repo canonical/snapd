@@ -71,6 +71,10 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
 	return out, err
 }
 
+func (s *SystemdTestSuite) errorRun(args ...string) (out []byte, err error) {
+	return nil, &Error{cmd: args, exitCode: 1, msg: []byte("error on error")}
+}
+
 func (s *SystemdTestSuite) TestDaemonReload(c *C) {
 	err := New("", s.rep).DaemonReload()
 	c.Assert(err, IsNil)
@@ -125,4 +129,10 @@ func (s *SystemdTestSuite) TestEnable(c *C) {
 	err := New("xyzzy", s.rep).Enable("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestErrorRun(c *C) {
+	SystemctlCmd = s.errorRun
+	err := New("xyzzy", s.rep).Enable("foo")
+	c.Assert(err.Error(), Equals, "[--root xyzzy enable foo] failed with exit status 1: error on error")
 }
