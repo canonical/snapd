@@ -807,7 +807,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 
 	needle := `
 cd /apps/hello-app/1.10
-aa-exec -p hello-app_bin-hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
+aa-exec -p hello-app_hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
 `
 	c.Assert(strings.Contains(string(content), needle), Equals, true)
 }
