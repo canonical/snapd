@@ -466,6 +466,39 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
 	c.Assert(p.written, Equals, int(st.Size()))
 }
 
+func (s *SnapTestSuite) TestRemoteSnapUpgradeService(c *C) {
+	snapPackage := makeTestSnapPackage(c, `name: foo
+version: 1.0
+services:
+ - name: svc
+`)
+	snapR, err := os.Open(snapPackage)
+	c.Assert(err, IsNil)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(w, snapR)
+		snapR.Seek(0, 0)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := RemoteSnapPart{}
+	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
+
+	p := &MockProgressMeter{}
+	name, err := snap.Install(p, 0)
+	c.Assert(err, IsNil)
+	c.Check(name, Equals, "foo")
+	c.Check(p.notified, HasLen, 0)
+
+	_, err = snap.Install(p, 0)
+	c.Assert(err, IsNil)
+	c.Check(name, Equals, "foo")
+	c.Check(p.notified, HasLen, 1)
+	c.Check(p.notified[0], Matches, "Waiting for .* stop.")
+}
+
 func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
 	snap := RemoteSnapPart{}
 
