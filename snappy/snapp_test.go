@@ -708,6 +708,40 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 	c.Assert(m.Services[0].SecurityTemplate, Equals, "foo_template")
 }
 
+func (s *SnapTestSuite) TestPackageYamlFrameworkParsing(c *C) {
+	m, err := parsePackageYamlData([]byte(`name: foo
+framework: one, two
+`))
+	c.Assert(err, IsNil)
+	c.Assert(m.Frameworks, HasLen, 3) // +1 for ubuntu-core
+	c.Check(m.Frameworks[:2], DeepEquals, []string{"one", "two"})
+	c.Check(m.Frameworks[2], Matches, `ubuntu-core.*`)
+	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
+}
+
+func (s *SnapTestSuite) TestPackageYamlFrameworksParsing(c *C) {
+	m, err := parsePackageYamlData([]byte(`name: foo
+frameworks:
+ - one
+ - two
+`))
+	c.Assert(err, IsNil)
+	c.Assert(m.Frameworks, HasLen, 3) // +1 for ubuntu-core
+	c.Check(m.Frameworks[:2], DeepEquals, []string{"one", "two"})
+	c.Check(m.Frameworks[2], Matches, `ubuntu-core.*`)
+	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
+}
+
+func (s *SnapTestSuite) TestPackageYamlFrameworkAndFrameworksFails(c *C) {
+	_, err := parsePackageYamlData([]byte(`name: foo
+frameworks:
+ - one
+ - two
+framework: three, four
+`))
+	c.Assert(err, Equals, ErrInvalidFrameworkSpecInYaml)
+}
+
 func (s *SnapTestSuite) TestDetectsNameClash(c *C) {
 	data := []byte(`name: afoo
 version: 1.0
