@@ -41,6 +41,7 @@ import (
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/systemd"
 
 	"github.com/mvo5/goconfigparser"
@@ -307,6 +308,11 @@ func removeClick(clickDir string, inter interacter) (err error) {
 		}
 	}
 
+	if manifest.Type == SnapTypeFramework {
+		if err := policy.Remove(manifest.Name, clickDir); err != nil {
+			return err
+		}
+	}
 	return os.RemoveAll(clickDir)
 }
 
@@ -706,6 +712,12 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 	// privs
 	if err := unpackWithDropPrivs(d, instDir); err != nil {
 		return "", err
+	}
+
+	if manifest.Type == SnapTypeFramework {
+		if err := policy.Install(manifest.Name, instDir); err != nil {
+			return "", err
+		}
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
