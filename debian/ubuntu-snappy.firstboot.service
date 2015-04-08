@@ -1,10 +1,10 @@
 [Unit]
-Description=Run snappy compatibility hooks
-Before=apparmor.service
+Description=Run snappy firstboot setup
+Before=cloud-init.service
 
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/snappy firstboot
 
 [Install]
-WantedBy=getty.target
+WantedBy=multi-user.target

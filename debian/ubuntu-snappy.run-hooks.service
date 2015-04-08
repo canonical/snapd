@@ -1,5 +1,6 @@
 [Unit]
 Description=Run snappy compatibility hooks
+After=ubuntu-snappy.firstboot.service
 
 [Service]
 Type=oneshot
