@@ -205,17 +205,6 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		m.DeprecatedFramework = ""
 	}
 
-	fmkCore := false
-	for _, a := range m.Frameworks {
-		if a == "ubuntu-core-15.04-dev1" {
-			fmkCore = true
-			break
-		}
-	}
-	if !fmkCore {
-		m.Frameworks = append(m.Frameworks, "ubuntu-core-15.04-dev1")
-	}
-
 	return &m, nil
 }
 
@@ -234,7 +223,19 @@ func (m *packageYaml) checkForNameClashes() error {
 }
 
 func (m *packageYaml) FrameworksForClick() string {
-	return strings.Join(m.Frameworks, ",")
+	fmks := m.Frameworks
+	fmkCore := false
+	for _, a := range fmks {
+		if a == "ubuntu-core-15.04-dev1" {
+			fmkCore = true
+			break
+		}
+	}
+	if !fmkCore {
+		fmks = append(fmks, "ubuntu-core-15.04-dev1")
+	}
+
+	return strings.Join(fmks, ",")
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath

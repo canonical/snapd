@@ -713,9 +713,8 @@ func (s *SnapTestSuite) TestPackageYamlFrameworkParsing(c *C) {
 framework: one, two
 `))
 	c.Assert(err, IsNil)
-	c.Assert(m.Frameworks, HasLen, 3) // +1 for ubuntu-core
-	c.Check(m.Frameworks[:2], DeepEquals, []string{"one", "two"})
-	c.Check(m.Frameworks[2], Matches, `ubuntu-core.*`)
+	c.Assert(m.Frameworks, HasLen, 2)
+	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
 	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
 }
 
@@ -726,9 +725,8 @@ frameworks:
  - two
 `))
 	c.Assert(err, IsNil)
-	c.Assert(m.Frameworks, HasLen, 3) // +1 for ubuntu-core
-	c.Check(m.Frameworks[:2], DeepEquals, []string{"one", "two"})
-	c.Check(m.Frameworks[2], Matches, `ubuntu-core.*`)
+	c.Assert(m.Frameworks, HasLen, 2)
+	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
 	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
 }
 
