@@ -28,7 +28,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -342,12 +341,9 @@ func (d *ClickDeb) Build(sourceDir string, dataTarFinishedCallback func(dataName
 	}
 	defer os.RemoveAll(tempdir)
 
-	// create content data
-	dataName := filepath.Join(tempdir, "data.tar.xz")
-	// use the build-in gzip on non-linux platforms
-	if runtime.GOOS != "linux" {
-		dataName = filepath.Join(tempdir, "data.tar.gz")
-	}
+	// create content data, we use gz to support signing verification
+	// other platforms
+	dataName := filepath.Join(tempdir, "data.tar.gz")
 	err = tarCreate(dataName, sourceDir, func(path string) bool {
 		return !strings.HasPrefix(path, filepath.Join(sourceDir, "DEBIAN"))
 	})
