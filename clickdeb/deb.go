@@ -342,7 +342,7 @@ func (d *ClickDeb) Build(sourceDir string, dataTarFinishedCallback func(dataName
 	defer os.RemoveAll(tempdir)
 
 	// create content data, we use gz to support signing verification
-	// other platforms
+	// on more platforms and releases.
 	dataName := filepath.Join(tempdir, "data.tar.gz")
 	err = tarCreate(dataName, sourceDir, func(path string) bool {
 		return !strings.HasPrefix(path, filepath.Join(sourceDir, "DEBIAN"))
