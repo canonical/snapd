@@ -341,8 +341,8 @@ func (d *ClickDeb) Build(sourceDir string, dataTarFinishedCallback func(dataName
 	}
 	defer os.RemoveAll(tempdir)
 
-	// create content data, we use gz to support signing verification
-	// on more platforms and releases.
+	// we use gz to support signature verification on older ubuntu releases
+	// like trusty that does not support xz yet
 	dataName := filepath.Join(tempdir, "data.tar.gz")
 	err = tarCreate(dataName, sourceDir, func(path string) bool {
 		return !strings.HasPrefix(path, filepath.Join(sourceDir, "DEBIAN"))
