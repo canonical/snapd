@@ -311,3 +311,12 @@ func (s *SITestSuite) TestCannotUninstall(c *C) {
 
 	c.Assert(parts[0].Uninstall(nil), Equals, ErrPackageNotRemovable)
 }
+
+func (s *SITestSuite) TestFrameworks(c *C) {
+	parts, err := s.systemImage.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(parts, HasLen, 2)
+	fmks, err := parts[0].Frameworks()
+	c.Assert(err, IsNil)
+	c.Check(fmks, HasLen, 0)
+}

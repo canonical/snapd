@@ -79,6 +79,9 @@ type Part interface {
 	Config(configuration []byte) (newConfig string, err error)
 	// make a inactive part active
 	SetActive(pb progress.Meter) error
+
+	// get the list of frameworks needed by the part
+	Frameworks() ([]string, error)
 }
 
 // Repository is the interface for a collection of snaps

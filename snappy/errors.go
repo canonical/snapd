@@ -100,6 +100,10 @@ var (
 	// ErrLicenseNotProvided is returned when the package specifies that
 	// accepting a license is required, but no license file is provided
 	ErrLicenseNotProvided = errors.New("package.yaml requires license, but no license was provided")
+
+	// ErrNotImplemented may be returned when an implementation of
+	// an interface is partial.
+	ErrNotImplemented = errors.New("not implemented")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem
