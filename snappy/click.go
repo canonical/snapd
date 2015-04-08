@@ -42,6 +42,7 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/policy"
+	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
 
 	"github.com/mvo5/goconfigparser"
@@ -681,6 +682,11 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		if !inter.Agreed(msg, string(license)) {
 			return "", ErrLicenseNotAccepted
 		}
+	}
+
+	if (flags & NoInstallProgress) == 0 {
+		// Enter quiet mode after having accepted the license.
+		inter = &progress.NullProgress{}
 	}
 
 	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)

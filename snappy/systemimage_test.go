@@ -28,6 +28,8 @@ import (
 
 	partition "launchpad.net/snappy/partition"
 
+	"launchpad.net/snappy/progress"
+
 	. "launchpad.net/gocheck"
 )
 
@@ -165,6 +167,23 @@ func (p *MockPartition) IsNextBootOther() bool {
 
 func (p *MockPartition) RunWithOther(option partition.MountOption, f func(otherRoot string) (err error)) (err error) {
 	return f("/other")
+}
+
+func (s *SITestSuite) TestSystemImagePartInstallRemoveNilProgress(c *C) {
+	// add a update
+	mockSystemImageIndexJSON = fmt.Sprintf(mockSystemImageIndexJSONTemplate, "2")
+	parts, err := s.systemImage.Updates()
+
+	sp := parts[0].(*SystemImagePart)
+	mockPartition := MockPartition{}
+	sp.partition = &mockPartition
+
+	pb := &progress.NullProgress{}
+	_, err = sp.Install(pb, 0)
+	c.Assert(err, IsNil)
+
+	err = sp.Uninstall(pb)
+	c.Assert(err, Equals, ErrPackageNotRemovable)
 }
 
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {

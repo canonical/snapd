@@ -29,6 +29,7 @@ import (
 type cmdInstall struct {
 	AllowUnauthenticated bool `long:"allow-unauthenticated" description:"Install snaps even if the signature can not be verified."`
 	DisableGC            bool `long:"no-gc" description:"Do not clean up old versions of the package."`
+	Quiet                bool `short:"q" long:"quiet" description:"Do not show progress"`
 	Positional           struct {
 		PackageName string `positional-arg-name:"package name" description:"Set configuration for a specific installed package"`
 		ConfigFile  string `positional-arg-name:"config file" description:"The configuration for the given file"`
@@ -64,6 +65,9 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 	}
 	if x.AllowUnauthenticated {
 		flags |= snappy.AllowUnauthenticated
+	}
+	if x.Quiet {
+		flags |= snappy.NoInstallProgress
 	}
 
 	fmt.Printf("Installing %s\n", possiblepkgName)
