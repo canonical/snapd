@@ -27,12 +27,12 @@ import (
 	"strings"
 
 	"github.com/mvo5/goconfigparser"
+	. "launchpad.net/gocheck"
 
+	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
-
-	. "launchpad.net/gocheck"
 )
 
 func (s *SnapTestSuite) TestReadManifest(c *C) {
@@ -859,4 +859,34 @@ Pattern: /var/lib/systemd/click/${id}`, hookWasRunStamp))
 	err := RunHooks()
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(hookWasRunStamp), Equals, true)
+}
+
+func (s *SnapTestSuite) TestInstallChecksForClashes(c *C) {
+	// creating the thing by hand (as build refuses to)...
+	tmpdir := c.MkDir()
+	os.MkdirAll(path.Join(tmpdir, "meta"), 0755)
+	yaml := []byte(`name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+services:
+ - name: foo
+binaries:
+ - name: foo
+`)
+	yamlFile := path.Join(tmpdir, "meta", "package.yaml")
+	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
+	readmeMd := path.Join(tmpdir, "meta", "readme.md")
+	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
+	m, err := parsePackageYamlData(yaml)
+	c.Assert(err, IsNil)
+	c.Assert(writeDebianControl(tmpdir, m), IsNil)
+	c.Assert(writeClickManifest(tmpdir, m), IsNil)
+	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
+	d := &clickdeb.ClickDeb{Path: snapName}
+	c.Assert(d.Build(tmpdir, func(dataTar string) error {
+		return writeHashes(tmpdir, dataTar)
+	}), IsNil)
+
+	_, err = installClick(snapName, 0, nil)
+	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
 }

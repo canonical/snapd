@@ -154,5 +154,12 @@ func (e *ErrUpgradeVerificationFailed) Error() string {
 type ErrGarbageCollectImpossible string
 
 func (e ErrGarbageCollectImpossible) Error() string {
-	return "garbage collection impossible: prerequisites untrue: " + string(e)
+	return fmt.Sprintf("garbage collection impossible: prerequisites untrue: %s", string(e))
+}
+
+// ErrNameClash reports a conflict between a named service and binary in a package.
+type ErrNameClash string
+
+func (e ErrNameClash) Error() string {
+	return fmt.Sprintf("you can't have a binary and service both called %s", string(e))
 }
