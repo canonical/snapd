@@ -332,18 +332,14 @@ func generateBinaryName(m *packageYaml, binary Binary) string {
 	if m.Type == SnapTypeFramework {
 		binName = filepath.Base(binary.Name)
 	} else {
-		binName = fmt.Sprintf("%s.%s", filepath.Base(binary.Name), m.Name)
+		binName = fmt.Sprintf("%s.%s", binary.Name, m.Name)
 	}
 
 	return filepath.Join(snapBinariesDir, binName)
 }
 
 func binPathForBinary(pkgPath string, binary Binary) string {
-	if binary.Exec != "" {
-		return filepath.Join(pkgPath, binary.Exec)
-	}
-
-	return filepath.Join(pkgPath, binary.Name)
+	return filepath.Join(pkgPath, binary.Exec)
 }
 
 func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) string {
@@ -564,7 +560,7 @@ func addPackageBinaries(baseDir string) error {
 	}
 
 	for _, binary := range m.Binaries {
-		aaProfile := getAaProfile(m, filepath.Base(binary.Name))
+		aaProfile := getAaProfile(m, binary.Name)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option

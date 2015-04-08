@@ -165,6 +165,7 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return parsePackageYamlData(yamlData)
 }
 
@@ -191,13 +192,24 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		}
 	}
 
+	// For backward compatiblity we allow that there is no "exec:" line
+	// in the binary definition and that its derrived from the name.
+	//
+	// Generate the right exec line here
+	for i := range m.Binaries {
+		if m.Binaries[i].Exec == "" {
+			m.Binaries[i].Exec = m.Binaries[i].Name
+			m.Binaries[i].Name = filepath.Base(m.Binaries[i].Exec)
+		}
+	}
+
 	return &m, nil
 }
 
 func (m *packageYaml) checkForNameClashes() error {
 	d := make(map[string]struct{})
 	for _, bin := range m.Binaries {
-		d[filepath.Base(bin.Name)] = struct{}{}
+		d[bin.Name] = struct{}{}
 	}
 	for _, svc := range m.Services {
 		if _, ok := d[svc.Name]; ok {

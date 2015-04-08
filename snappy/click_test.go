@@ -539,7 +539,7 @@ aa-exec -p pastebinit.mvo_pastebinit_1.4.0.0.1 -- /apps/pastebinit.mvo/1.4.0.0.1
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
-	binary := Binary{Name: "bin/pastebinit"}
+	binary := Binary{Name: "pastebinit", Exec: "bin/pastebinit"}
 	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
 	m := packageYaml{Name: "pastebinit.mvo",
@@ -550,7 +550,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
-	binary := Binary{Name: "bin/pastebinit"}
+	binary := Binary{Name: "pastebinit", Exec: "bin/pastebinit"}
 	pkgPath := "/apps/pastebinit.mvo/1.0/"
 	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/apps/pastebinit.mvo/1.0/bin/pastebinit")
 }
