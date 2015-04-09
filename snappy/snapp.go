@@ -29,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 
@@ -106,6 +107,8 @@ type SnapPart struct {
 	basedir string
 }
 
+var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
+
 type packageYaml struct {
 	Name    string
 	Version string
@@ -118,7 +121,8 @@ type packageYaml struct {
 	DeprecatedArchitecture interface{} `yaml:"architecture"`
 	Architectures          []string
 
-	Framework string
+	DeprecatedFramework string   `yaml:"framework,omitempty"`
+	Frameworks          []string `yaml:"frameworks,omitempty"`
 
 	Services []Service `yaml:"services,omitempty"`
 	Binaries []Binary  `yaml:"binaries,omitempty"`
@@ -191,6 +195,16 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		}
 	}
 
+	if m.DeprecatedFramework != "" {
+		log.Printf(`Use of deprecated "framework" key in yaml`)
+		if len(m.Frameworks) != 0 {
+			return nil, ErrInvalidFrameworkSpecInYaml
+		}
+
+		m.Frameworks = commasplitter(m.DeprecatedFramework, -1)
+		m.DeprecatedFramework = ""
+	}
+
 	return &m, nil
 }
 
@@ -206,6 +220,22 @@ func (m *packageYaml) checkForNameClashes() error {
 	}
 
 	return nil
+}
+
+func (m *packageYaml) FrameworksForClick() string {
+	fmks := m.Frameworks
+	fmkCore := false
+	for _, a := range fmks {
+		if a == "ubuntu-core-15.04-dev1" {
+			fmkCore = true
+			break
+		}
+	}
+	if !fmkCore {
+		fmks = append(fmks, "ubuntu-core-15.04-dev1")
+	}
+
+	return strings.Join(fmks, ",")
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
