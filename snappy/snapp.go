@@ -134,6 +134,7 @@ type packageYaml struct {
 			ID string `yaml:"id,omitempty"`
 		} `yaml:"store,omitempty"`
 	} `yaml:"oem,omitempty"`
+	Config SystemConfig `yaml:"config,omitempty"`
 
 	// this is a bit ugly, but right now integration is a one:one
 	// mapping of click hooks
@@ -378,6 +379,11 @@ func (s *SnapPart) Date() time.Time {
 // Services return a list of Service the package declares
 func (s *SnapPart) Services() []Service {
 	return s.m.Services
+}
+
+// OemConfig return a list of packages to configure
+func (s *SnapPart) OemConfig() SystemConfig {
+	return s.m.Config
 }
 
 // Install installs the snap

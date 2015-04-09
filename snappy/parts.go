@@ -28,6 +28,9 @@ import (
 // SnapType represents the kind of snap (app, core, frameworks, oem)
 type SnapType string
 
+// SystemConfig is a config map holding configs for multiple packages
+type SystemConfig map[string]interface{}
+
 // The various types of snap parts we support
 const (
 	SnapTypeApp       SnapType = "app"
@@ -39,6 +42,11 @@ const (
 // Services implements snappy packages that offer services
 type Services interface {
 	Services() []Service
+}
+
+// Configuration allows requesting an oem snappy package type's config
+type Configuration interface {
+	OemConfig() SystemConfig
 }
 
 // Part representation of a snappy part
