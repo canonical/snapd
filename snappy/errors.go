@@ -108,6 +108,10 @@ var (
 	// ErrNotImplemented may be returned when an implementation of
 	// an interface is partial.
 	ErrNotImplemented = errors.New("not implemented")
+
+	// ErrNoOemConfiguration may be returned when there is a SnapTypeOem installed
+	// but does not provide a configuration.
+	ErrNoOemConfiguration = errors.New("no configuration entry found in the oem snap")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem

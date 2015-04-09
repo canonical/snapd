@@ -28,10 +28,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const oemConfigRemovable = "removable"
-
 var (
-	errNoConf         = errors.New("no conf")
 	errNoSnapToConfig = errors.New("configuring an invalid snappy package")
 )
 
@@ -68,7 +65,7 @@ func OemConfig() error {
 
 	snap, ok := oemSnap[0].(Configuration)
 	if !ok {
-		return errors.New("no config")
+		return ErrNoOemConfiguration
 	}
 
 	for pkgName, conf := range snap.OemConfig() {
@@ -79,7 +76,9 @@ func OemConfig() error {
 
 		snap := activeSnapByName(pkgName)
 		if snap == nil {
-			return errNoSnapToConfig
+			// We want to error early as this is a disparity and oem snap
+			// packaging error.
+			return logger.LogError(errNoSnapToConfig)
 		}
 
 		if _, err := snap.Config(configData); err != nil {
