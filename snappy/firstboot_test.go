@@ -59,6 +59,8 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 
 	s.oemConfig = make(SystemConfig)
 	s.oemConfig["myapp"] = configMyApp
+
+	s.mockInstalledSnapNamesByType()
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
@@ -66,16 +68,26 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	installedSnapsByType = InstalledSnapsByType
 }
 
-func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
+func (s *FirstBootTestSuite) mockInstalledSnapNamesByType() *fakePart {
 	fakeOem := fakePart{oemConfig: s.oemConfig, snapType: SnapTypeOem}
 	installedSnapsByType = func(snapsTs ...SnapType) ([]Part, error) {
-		return []Part{&fakeOem}, nil
+		return []Part{&fakeOem, &fakeOem}, nil
 	}
 
+	return &fakeOem
+}
+
+func (s *FirstBootTestSuite) mockActiveSnapByName() *fakePart {
 	fakeMyApp := fakePart{snapType: SnapTypeApp}
 	activeSnapByName = func(needle string) Part {
 		return &fakeMyApp
 	}
+
+	return &fakeMyApp
+}
+
+func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
+	fakeMyApp := s.mockActiveSnapByName()
 
 	c.Assert(OemConfig(), IsNil)
 	myAppConfig := fmt.Sprintf("config:\n  myapp:\n    hostname: myhostname\n")
@@ -86,15 +98,7 @@ func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
-	fakeOem := fakePart{oemConfig: s.oemConfig, snapType: SnapTypeOem}
-	installedSnapsByType = func(snapsTs ...SnapType) ([]Part, error) {
-		return []Part{&fakeOem, &fakeOem}, nil
-	}
-
-	fakeMyApp := fakePart{snapType: SnapTypeApp}
-	activeSnapByName = func(needle string) Part {
-		return &fakeMyApp
-	}
+	s.mockActiveSnapByName()
 
 	c.Assert(OemConfig(), IsNil)
 	_, err := os.Stat(stampFile)
