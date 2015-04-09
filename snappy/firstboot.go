@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 
 	"gopkg.in/yaml.v2"
@@ -107,8 +108,5 @@ func stampFirstBoot() error {
 }
 
 func firstBootHasRun() bool {
-	_, err := os.Stat(stampFile)
-
-	// TODO support all the variations of this file being misplaced.
-	return err == nil
+	return helpers.FileExists(stampFile)
 }

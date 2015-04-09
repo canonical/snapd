@@ -205,7 +205,7 @@ func MakeMapFromEnvList(env []string) map[string]string {
 // it may return false on e.g. permission issues.
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
-	return (err == nil)
+	return err == nil
 }
 
 // IsDirectory return true if the given path can be stat()ed by us and
