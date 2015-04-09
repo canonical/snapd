@@ -45,9 +45,9 @@ const (
 var ErrInvalidUnitStatus = errors.New("invalid unit status")
 
 type systemConfig struct {
-	Autopilot bool   `yaml:"autopilot"`
-	Timezone  string `yaml:"timezone"`
-	Hostname  string `yaml:"hostname"`
+	Autopilot *bool   `yaml:"autopilot,omitempty"`
+	Timezone  *string `yaml:"timezone,omitempty"`
+	Hostname  *string `yaml:"hostname,omitempty"`
 }
 
 type coreConfig struct {
@@ -75,9 +75,9 @@ func newSystemConfig() (*systemConfig, error) {
 	}
 
 	config := &systemConfig{
-		Autopilot: autopilot,
-		Timezone:  tz,
-		Hostname:  hostname,
+		Autopilot: &autopilot,
+		Timezone:  &tz,
+		Hostname:  &hostname,
 	}
 
 	return config, nil
@@ -122,30 +122,33 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 	rNewConfig := reflect.ValueOf(newConfig).Elem()
 	rType := rNewConfig.Type()
 	for i := 0; i < rNewConfig.NumField(); i++ {
-		field := rType.Field(i).Name
-		switch field {
+		if rNewConfig.Field(i).IsNil() {
+			continue
+		}
+
+		switch rType.Field(i).Name {
 		case "Timezone":
-			if oldConfig.Timezone == newConfig.Timezone {
+			if *oldConfig.Timezone == *newConfig.Timezone {
 				continue
 			}
 
-			if err := setTimezone(newConfig.Timezone); err != nil {
+			if err := setTimezone(*newConfig.Timezone); err != nil {
 				return "", err
 			}
 		case "Autopilot":
-			if oldConfig.Autopilot == newConfig.Autopilot {
+			if *oldConfig.Autopilot == *newConfig.Autopilot {
 				continue
 			}
 
-			if err := setAutopilot(newConfig.Autopilot); err != nil {
+			if err := setAutopilot(*newConfig.Autopilot); err != nil {
 				return "", err
 			}
 		case "Hostname":
-			if oldConfig.Hostname == newConfig.Hostname {
+			if *oldConfig.Hostname == *newConfig.Hostname {
 				continue
 			}
 
-			if err := setHostname([]byte(newConfig.Hostname)); err != nil {
+			if err := setHostname([]byte(*newConfig.Hostname)); err != nil {
 				return "", err
 			}
 		}
