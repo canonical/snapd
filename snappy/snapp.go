@@ -404,7 +404,7 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return err
 	}
 	if len(deps) != 0 {
-		return ErrFrameworkBusy(deps)
+		return ErrFrameworkInUse(deps)
 	}
 
 	return removeClick(s.basedir, pb)
