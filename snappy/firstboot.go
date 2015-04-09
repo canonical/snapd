@@ -19,7 +19,6 @@ package snappy
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -73,7 +72,6 @@ func OemConfig() error {
 	}
 
 	for pkgName, conf := range snap.OemConfig() {
-		fmt.Println(pkgName)
 		configData, err := wrapConfig(pkgName, conf)
 		if err != nil {
 			return logger.LogError(err)
