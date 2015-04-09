@@ -24,6 +24,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"launchpad.net/snappy/logger"
+
 	"gopkg.in/yaml.v2"
 )
 
@@ -58,7 +60,7 @@ func OemConfig() error {
 
 	oemSnap, err := installedSnapsByType(SnapTypeOem)
 	if err != nil {
-		return err
+		return logger.LogError(err)
 	}
 
 	if len(oemSnap) < 1 {
@@ -74,7 +76,7 @@ func OemConfig() error {
 		fmt.Println(pkgName)
 		configData, err := wrapConfig(pkgName, conf)
 		if err != nil {
-			return err
+			return logger.LogError(err)
 		}
 
 		snap := activeSnapByName(pkgName)
@@ -83,7 +85,7 @@ func OemConfig() error {
 		}
 
 		if _, err := snap.Config(configData); err != nil {
-			return err
+			return logger.LogError(err)
 		}
 	}
 
