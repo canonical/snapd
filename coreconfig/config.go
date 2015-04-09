@@ -47,6 +47,7 @@ var ErrInvalidUnitStatus = errors.New("invalid unit status")
 type systemConfig struct {
 	Autopilot bool   `yaml:"autopilot"`
 	Timezone  string `yaml:"timezone"`
+	Hostname  string `yaml:"hostname"`
 }
 
 type coreConfig struct {
@@ -68,9 +69,15 @@ func newSystemConfig() (*systemConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	hostname, err := getHostname()
+	if err != nil {
+		return nil, err
+	}
+
 	config := &systemConfig{
 		Autopilot: autopilot,
 		Timezone:  tz,
+		Hostname:  hostname,
 	}
 
 	return config, nil
@@ -131,6 +138,14 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 			}
 
 			if err := setAutopilot(newConfig.Autopilot); err != nil {
+				return "", err
+			}
+		case "Hostname":
+			if oldConfig.Hostname == newConfig.Hostname {
+				continue
+			}
+
+			if err := setHostname([]byte(newConfig.Hostname)); err != nil {
 				return "", err
 			}
 		}
@@ -223,3 +238,9 @@ var setAutopilot = func(stateEnabled bool) error {
 
 	return nil
 }
+
+// getHostname returns the hostname for the host
+var getHostname = os.Hostname
+
+// setHostname sets the hostname for the host
+var setHostname = syscall.Sethostname

@@ -35,6 +35,8 @@ var (
 	originalSetTimezone         = setTimezone
 	originalGetAutopilot        = getAutopilot
 	originalSetAutopilot        = setAutopilot
+	originalGetHostname         = getHostname
+	originalSetHostname         = setHostname
 	originalYamlMarshal         = yamlMarshal
 	originalCmdEnableAutopilot  = cmdEnableAutopilot
 	originalCmdDisableAutopilot = cmdDisableAutopilot
@@ -61,6 +63,13 @@ func (cts *ConfigTestSuite) SetUpTest(c *C) {
 	cmdAutopilotEnabled = []string{"-c", "echo disabled"}
 	cmdEnableAutopilot = []string{"-c", "/bin/true"}
 	cmdStartAutopilot = []string{"-c", "/bin/true"}
+
+	hostname := "testhost"
+	getHostname = func() (string, error) { return hostname, nil }
+	setHostname = func(host []byte) error {
+		hostname = string(host)
+		return nil
+	}
 }
 
 func (cts *ConfigTestSuite) TearDownTest(c *C) {
@@ -68,6 +77,8 @@ func (cts *ConfigTestSuite) TearDownTest(c *C) {
 	setTimezone = originalSetTimezone
 	getAutopilot = originalGetAutopilot
 	setAutopilot = originalSetAutopilot
+	getHostname = originalGetHostname
+	setHostname = originalSetHostname
 	yamlMarshal = originalYamlMarshal
 	cmdEnableAutopilot = originalCmdEnableAutopilot
 	cmdDisableAutopilot = originalCmdDisableAutopilot
@@ -85,6 +96,7 @@ func (cts *ConfigTestSuite) TestGet(c *C) {
   ubuntu-core:
     autopilot: false
     timezone: America/Argentina/Cordoba
+    hostname: testhost
 `
 
 	rawConfig, err := Get()
@@ -99,6 +111,7 @@ func (cts *ConfigTestSuite) TestSet(c *C) {
   ubuntu-core:
     autopilot: true
     timezone: America/Argentina/Mendoza
+    hostname: testhost
 `
 
 	cmdAutopilotEnabled = []string{"-c", "echo enabled"}
@@ -114,6 +127,7 @@ func (cts *ConfigTestSuite) TestSetTimezone(c *C) {
   ubuntu-core:
     autopilot: false
     timezone: America/Argentina/Mendoza
+    hostname: testhost
 `
 
 	rawConfig, err := Set(expected)
@@ -128,6 +142,7 @@ func (cts *ConfigTestSuite) TestSetAutopilot(c *C) {
   ubuntu-core:
     autopilot: true
     timezone: America/Argentina/Cordoba
+    hostname: testhost
 `
 
 	enabled := false
@@ -139,11 +154,26 @@ func (cts *ConfigTestSuite) TestSetAutopilot(c *C) {
 	c.Assert(rawConfig, Equals, expected)
 }
 
+// TestSetHostname is a broad test, close enough to be an integration test.
+func (cts *ConfigTestSuite) TestSetHostname(c *C) {
+	expected := `config:
+  ubuntu-core:
+    autopilot: false
+    timezone: America/Argentina/Cordoba
+    hostname: NEWtesthost
+`
+
+	rawConfig, err := Set(expected)
+	c.Assert(err, IsNil)
+	c.Assert(rawConfig, Equals, expected)
+}
+
 func (cts *ConfigTestSuite) TestSetInvalid(c *C) {
 	input := `config:
   ubuntu-core:
     autopilot: false
     timezone America/Argentina/Mendoza
+    hostname: testhost
 `
 
 	rawConfig, err := Set(input)
@@ -156,6 +186,7 @@ func (cts *ConfigTestSuite) TestNoChangeSet(c *C) {
   ubuntu-core:
     autopilot: false
     timezone: America/Argentina/Cordoba
+    hostname: testhost
 `
 
 	rawConfig, err := Set(input)
@@ -192,6 +223,7 @@ func (cts *ConfigTestSuite) TestErrorOnTzSet(c *C) {
   ubuntu-core:
     autopilot: false
     timezone: America/Argentina/Mendoza
+    hostname: testhost
 `
 
 	rawConfig, err := Set(input)
@@ -212,11 +244,42 @@ func (cts *ConfigTestSuite) TestErrorOnAutopilotSet(c *C) {
   ubuntu-core:
     autopilot: true
     timezone: America/Argentina/Mendoza
+    hostname: testhost
 `
 
 	enabled := false
 	getAutopilot = func() (bool, error) { return enabled, nil }
 	setAutopilot = func(state bool) error { enabled = state; return errors.New("setAutopilot error") }
+
+	rawConfig, err := Set(input)
+	c.Assert(err, NotNil)
+	c.Assert(rawConfig, Equals, "")
+}
+
+func (cts *ConfigTestSuite) TestErrorOnSetHostname(c *C) {
+	input := `config:
+  ubuntu-core:
+    autopilot: false
+    timezone: America/Argentina/Cordoba
+    hostname: NEWtesthost
+`
+
+	setHostname = func([]byte) error { return errors.New("this is bad") }
+
+	rawConfig, err := Set(input)
+	c.Assert(err, NotNil)
+	c.Assert(rawConfig, Equals, "")
+}
+
+func (cts *ConfigTestSuite) TestErrorOnGetHostname(c *C) {
+	input := `config:
+  ubuntu-core:
+    autopilot: false
+    timezone: America/Argentina/Cordoba
+    hostname: NEWtesthost
+`
+
+	getHostname = func() (string, error) { return "", errors.New("this is bad") }
 
 	rawConfig, err := Set(input)
 	c.Assert(err, NotNil)
