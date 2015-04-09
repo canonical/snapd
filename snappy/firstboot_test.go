@@ -100,5 +100,5 @@ func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
 	_, err := os.Stat(stampFile)
 	c.Assert(err, IsNil)
 
-	c.Assert(OemConfig(), Equals, ErrFirstBootRan)
+	c.Assert(OemConfig(), Equals, ErrNotFirstBoot)
 }

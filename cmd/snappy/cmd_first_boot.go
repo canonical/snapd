@@ -36,7 +36,7 @@ type cmdInternalFirstBootOemConfig struct{}
 
 func (x *cmdInternalFirstBootOemConfig) Execute(args []string) error {
 	err := snappy.OemConfig()
-	if err == snappy.ErrFirstBootRan {
+	if err == snappy.ErrNotFirstBoot {
 		fmt.Println("First boot has already run")
 		return nil
 	}

@@ -52,7 +52,7 @@ var installedSnapsByType = InstalledSnapsByType
 // run once
 func OemConfig() error {
 	if firstBootHasRun() {
-		return ErrFirstBootRan
+		return ErrNotFirstBoot
 	}
 	defer stampFirstBoot()
 

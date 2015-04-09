@@ -96,9 +96,9 @@ var (
 	// accepting a license is required, but no license file is provided
 	ErrLicenseNotProvided = errors.New("package.yaml requires license, but no license was provided")
 
-	// ErrFirstBootRan is an error that indicates that the first boot has already
+	// ErrNotFirstBoot is an error that indicates that the first boot has already
 	// run
-	ErrFirstBootRan = errors.New("first boot has already ran")
+	ErrNotFirstBoot = errors.New("this is not your first boot")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem
