@@ -781,3 +781,40 @@ frameworks:
 	err = yaml.checkForFrameworks()
 	c.Assert(err, ErrorMatches, `missing frameworks: missing, also-missing`)
 }
+
+func (s *SnapTestSuite) TestDetectsFrameworksInUse(c *C) {
+	_, err := makeInstalledMockSnap(s.tempdir, `name: foo
+version: 1.0
+frameworks:
+ - fmk
+`)
+	c.Assert(err, IsNil)
+
+	yaml, err := parsePackageYamlData([]byte(`name: fmk
+version: 1.0
+type: framework`))
+	c.Assert(err, IsNil)
+	part := &SnapPart{m: yaml}
+	deps, err := part.Dependents()
+	c.Assert(err, IsNil)
+	c.Check(deps, DeepEquals, []string{"foo"})
+}
+
+func (s *SnapTestSuite) TestRemoveChecksFrameworks(c *C) {
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, `name: fmk
+version: 1.0
+type: framework`)
+	c.Assert(err, IsNil)
+	yaml, err := parsePackageYamlFile(yamlFile)
+
+	_, err = makeInstalledMockSnap(s.tempdir, `name: foo
+version: 1.0
+frameworks:
+ - fmk
+`)
+	c.Assert(err, IsNil)
+
+	part := &SnapPart{m: yaml}
+	err = part.Uninstall(new(MockProgressMeter))
+	c.Check(err, ErrorMatches, `framework still in use by: foo`)
+}

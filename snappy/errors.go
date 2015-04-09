@@ -179,3 +179,10 @@ type ErrMissingFrameworks []string
 func (e ErrMissingFrameworks) Error() string {
 	return fmt.Sprintf("missing frameworks: %s", strings.Join(e, ", "))
 }
+
+// ErrFrameworkInUse reports that a framework is still needed by apps currently installed
+type ErrFrameworkInUse []string
+
+func (e ErrFrameworkInUse) Error() string {
+	return fmt.Sprintf("framework still in use by: %s", strings.Join(e, ", "))
+}
