@@ -153,7 +153,6 @@ frameworks:
  - two
 `)
 	c.Assert(err, IsNil)
-	makeSnapActive(snapYaml)
 
 	snap := NewInstalledSnapPart(snapYaml)
 	fmk, err := snap.Frameworks()
