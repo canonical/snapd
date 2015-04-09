@@ -145,6 +145,21 @@ func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
 	c.Assert(snap.IsActive(), Equals, true)
 }
 
+func (s *SnapTestSuite) TestLocalSnapFrameworks(c *C) {
+	snapYaml, err := makeInstalledMockSnap(s.tempdir, `name: foo
+version: 1.0
+frameworks:
+ - one
+ - two
+`)
+	c.Assert(err, IsNil)
+
+	snap := NewInstalledSnapPart(snapYaml)
+	fmk, err := snap.Frameworks()
+	c.Assert(err, IsNil)
+	c.Check(fmk, DeepEquals, []string{"one", "two"})
+}
+
 func (s *SnapTestSuite) TestLocalSnapRepositoryInvalid(c *C) {
 	snap := NewLocalSnapRepository("invalid-path")
 	c.Assert(snap, IsNil)
@@ -708,6 +723,38 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 	c.Assert(m.Services[0].SecurityTemplate, Equals, "foo_template")
 }
 
+func (s *SnapTestSuite) TestPackageYamlFrameworkParsing(c *C) {
+	m, err := parsePackageYamlData([]byte(`name: foo
+framework: one, two
+`))
+	c.Assert(err, IsNil)
+	c.Assert(m.Frameworks, HasLen, 2)
+	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
+	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
+}
+
+func (s *SnapTestSuite) TestPackageYamlFrameworksParsing(c *C) {
+	m, err := parsePackageYamlData([]byte(`name: foo
+frameworks:
+ - one
+ - two
+`))
+	c.Assert(err, IsNil)
+	c.Assert(m.Frameworks, HasLen, 2)
+	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
+	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
+}
+
+func (s *SnapTestSuite) TestPackageYamlFrameworkAndFrameworksFails(c *C) {
+	_, err := parsePackageYamlData([]byte(`name: foo
+frameworks:
+ - one
+ - two
+framework: three, four
+`))
+	c.Assert(err, Equals, ErrInvalidFrameworkSpecInYaml)
+}
+
 func (s *SnapTestSuite) TestDetectsNameClash(c *C) {
 	data := []byte(`name: afoo
 version: 1.0
@@ -720,4 +767,54 @@ binaries:
 	c.Assert(err, IsNil)
 	err = yaml.checkForNameClashes()
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
+}
+
+func (s *SnapTestSuite) TestDetectsMissingFrameworks(c *C) {
+	data := []byte(`name: afoo
+version: 1.0
+frameworks:
+ - missing
+ - also-missing
+`)
+	yaml, err := parsePackageYamlData(data)
+	c.Assert(err, IsNil)
+	err = yaml.checkForFrameworks()
+	c.Assert(err, ErrorMatches, `missing frameworks: missing, also-missing`)
+}
+
+func (s *SnapTestSuite) TestDetectsFrameworksInUse(c *C) {
+	_, err := makeInstalledMockSnap(s.tempdir, `name: foo
+version: 1.0
+frameworks:
+ - fmk
+`)
+	c.Assert(err, IsNil)
+
+	yaml, err := parsePackageYamlData([]byte(`name: fmk
+version: 1.0
+type: framework`))
+	c.Assert(err, IsNil)
+	part := &SnapPart{m: yaml}
+	deps, err := part.Dependents()
+	c.Assert(err, IsNil)
+	c.Check(deps, DeepEquals, []string{"foo"})
+}
+
+func (s *SnapTestSuite) TestRemoveChecksFrameworks(c *C) {
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, `name: fmk
+version: 1.0
+type: framework`)
+	c.Assert(err, IsNil)
+	yaml, err := parsePackageYamlFile(yamlFile)
+
+	_, err = makeInstalledMockSnap(s.tempdir, `name: foo
+version: 1.0
+frameworks:
+ - fmk
+`)
+	c.Assert(err, IsNil)
+
+	part := &SnapPart{m: yaml}
+	err = part.Uninstall(new(MockProgressMeter))
+	c.Check(err, ErrorMatches, `framework still in use by: foo`)
 }

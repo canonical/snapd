@@ -258,6 +258,12 @@ func (s *SystemImagePart) Icon() string {
 	return ""
 }
 
+// Frameworks returns the list of frameworks needed by the snap
+func (s *SystemImagePart) Frameworks() ([]string, error) {
+	// system image parts can't depend on frameworks.
+	return nil, nil
+}
+
 // SystemImageRepository is the type used for the system-image-server
 type SystemImageRepository struct {
 	partition partition.Interface
