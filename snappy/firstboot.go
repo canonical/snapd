@@ -90,9 +90,20 @@ func OemConfig() error {
 	return nil
 }
 
+const firstbootDir = "/var/lib/snappy/firstboot"
+
 var stampFile = filepath.Join(firstbootDir, "stamp")
 
 func stampFirstBoot() error {
+	// filepath.Dir instead of firstbootDir directly to ease testing
+	stampDir := filepath.Dir(stampFile)
+
+	if _, err := os.Stat(stampDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(stampDir, 0755); err != nil {
+			return err
+		}
+	}
+
 	return ioutil.WriteFile(stampFile, []byte{}, 0644)
 }
 
