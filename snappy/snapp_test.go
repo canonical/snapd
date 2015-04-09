@@ -145,6 +145,21 @@ func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
 	c.Assert(snap.IsActive(), Equals, true)
 }
 
+func (s *SnapTestSuite) TestLocalSnapFrameworks(c *C) {
+	snapYaml, err := makeInstalledMockSnap(s.tempdir, `name: foo
+version: 1.0
+frameworks:
+ - one
+ - two
+`)
+	c.Assert(err, IsNil)
+
+	snap := NewInstalledSnapPart(snapYaml)
+	fmk, err := snap.Frameworks()
+	c.Assert(err, IsNil)
+	c.Check(fmk, DeepEquals, []string{"one", "two"})
+}
+
 func (s *SnapTestSuite) TestLocalSnapRepositoryInvalid(c *C) {
 	snap := NewLocalSnapRepository("invalid-path")
 	c.Assert(snap, IsNil)

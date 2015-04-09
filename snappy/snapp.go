@@ -412,6 +412,11 @@ func (s *SnapPart) NeedsReboot() bool {
 	return false
 }
 
+// Frameworks returns the list of frameworks needed by the snap
+func (s *SnapPart) Frameworks() ([]string, error) {
+	return s.m.Frameworks, nil
+}
+
 // SnapLocalRepository is the type for a local snap repository
 type SnapLocalRepository struct {
 	path string
@@ -635,6 +640,11 @@ func (s *RemoteSnapPart) Config(configuration []byte) (new string, err error) {
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *RemoteSnapPart) NeedsReboot() bool {
 	return false
+}
+
+// Frameworks returns the list of frameworks needed by the snap
+func (s *RemoteSnapPart) Frameworks() ([]string, error) {
+	return nil, ErrNotImplemented
 }
 
 // NewRemoteSnapPart returns a new RemoteSnapPart from the given
