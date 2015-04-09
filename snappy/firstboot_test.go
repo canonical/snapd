@@ -71,7 +71,7 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 func (s *FirstBootTestSuite) mockInstalledSnapNamesByType() *fakePart {
 	fakeOem := fakePart{oemConfig: s.oemConfig, snapType: SnapTypeOem}
 	installedSnapsByType = func(snapsTs ...SnapType) ([]Part, error) {
-		return []Part{&fakeOem, &fakeOem}, nil
+		return []Part{&fakeOem}, nil
 	}
 
 	return &fakeOem
@@ -105,4 +105,14 @@ func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(OemConfig(), Equals, ErrNotFirstBoot)
+}
+
+func (s *FirstBootTestSuite) TestNoErrorWhenNoOEM(c *C) {
+	installedSnapsByType = func(snapsTs ...SnapType) ([]Part, error) {
+		return nil, nil
+	}
+
+	c.Assert(OemConfig(), IsNil)
+	_, err := os.Stat(stampFile)
+	c.Assert(err, IsNil)
 }

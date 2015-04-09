@@ -63,7 +63,7 @@ func OemConfig() error {
 	}
 
 	if len(oemSnap) < 1 {
-		return errors.New("no oem snap")
+		return nil
 	}
 
 	snap, ok := oemSnap[0].(Configuration)
