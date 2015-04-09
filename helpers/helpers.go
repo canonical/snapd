@@ -32,8 +32,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"gopkg.in/yaml.v2"
 )
 
 var goarch = runtime.GOARCH
@@ -132,15 +130,6 @@ func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
 
 		return nil
 	})
-}
-
-func getMapFromYaml(data []byte) (map[string]interface{}, error) {
-	m := make(map[string]interface{})
-	err := yaml.Unmarshal(data, &m)
-	if err != nil {
-		return m, err
-	}
-	return m, nil
 }
 
 // UbuntuArchitecture returns the debian equivalent architecture for the
