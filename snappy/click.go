@@ -824,7 +824,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 			return
 		}
 		if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
-			log.Printf("when setting old %s version (%s) back to active: %v", manifest.Name, oldManifest.Version, cerrr)
+			log.Printf("when setting old %s version back to active: %v", manifest.Name, cerr)
 		}
 	}()
 	if err != nil {
@@ -836,7 +836,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 
 // removeSnapData removes the data for the given version of the given snap
 func removeSnapData(snapName, version string) error {
-	dirs, err := snapDataDirs(snapName, oldVersion)
+	dirs, err := snapDataDirs(snapName, version)
 	if err != nil {
 		return err
 	}
@@ -858,7 +858,7 @@ func snapDataDirs(snapName, version string) ([]string, error) {
 		return nil, err
 	}
 	// then system data
-	systemPath := filepath.Join(snapDataDir, snapName, oldVersion)
+	systemPath := filepath.Join(snapDataDir, snapName, version)
 	dirs = append(dirs, systemPath)
 
 	return dirs, nil
