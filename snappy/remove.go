@@ -20,6 +20,7 @@ package snappy
 import (
 	"strings"
 
+	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 )
@@ -65,7 +66,7 @@ func Remove(partSpec string, flags RemoveFlags) error {
 
 	for _, part := range parts {
 		var pbar progress.Meter
-		if AttachedToTerminal() {
+		if helpers.AttachedToTerminal() {
 			pbar = progress.NewTextProgress(part.Name())
 		} else {
 			pbar = &progress.NullProgress{}

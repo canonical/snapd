@@ -34,6 +34,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v2"
+
+	"launchpad.net/snappy/native"
 )
 
 var goarch = runtime.GOARCH
@@ -273,4 +275,12 @@ func ShouldDropPrivs() bool {
 
 	return syscall.Getuid() == 0 || syscall.Getgid() == 0
 
+}
+
+// AttachedToTerminal returns true if the calling process is attached to
+// a terminal device.
+func AttachedToTerminal() bool {
+	fd := int(os.Stdin.Fd())
+
+	return native.Isatty(fd)
 }

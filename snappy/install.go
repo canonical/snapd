@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strings"
 
+	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 )
@@ -95,7 +96,7 @@ func doInstall(name string, flags InstallFlags) (string, error) {
 	for _, part := range found {
 		// act only on parts that are downloadable
 		if !part.IsInstalled() {
-			if AttachedToTerminal() {
+			if helpers.AttachedToTerminal() {
 				pbar = progress.NewTextProgress(part.Name())
 			} else {
 				pbar = &progress.NullProgress{}

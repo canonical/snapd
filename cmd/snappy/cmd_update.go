@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 
+	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -59,7 +60,7 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 	for _, part := range updates {
 		var pbar progress.Meter
 
-		if snappy.AttachedToTerminal() {
+		if helpers.AttachedToTerminal() {
 			pbar = progress.NewTextProgress(part.Name())
 		} else {
 			pbar = &progress.NullProgress{}

@@ -684,7 +684,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		}
 	}
 
-	if !AttachedToTerminal() {
+	if !helpers.AttachedToTerminal() {
 		// Enter quiet mode after having accepted the license.
 		inter = &progress.NullProgress{}
 	}
