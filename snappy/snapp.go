@@ -273,7 +273,7 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 	return NewSnapPartFromYaml(yamlPath, m)
 }
 
-// NewSnapPartFromYaml returns a new SnapPArt from the given *packageYaml at yamlPath
+// NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
 func NewSnapPartFromYaml(yamlPath string, m *packageYaml) *SnapPart {
 	part := &SnapPart{
 		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
@@ -510,7 +510,9 @@ func (s *SnapPart) RefreshDependentsSecurity() error {
 	}
 
 	for _, dep := range deps {
-		dep.TouchAppArmorJSON()
+		if err := dep.TouchAppArmorJSON(); err != nil {
+			return err
+		}
 	}
 
 	if err := exec.Command(aaClickHookCmd).Run(); err != nil {
