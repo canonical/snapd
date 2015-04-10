@@ -37,6 +37,7 @@ var (
 	originalSetAutopilot        = setAutopilot
 	originalGetHostname         = getHostname
 	originalSetHostname         = setHostname
+	originalSyscallSethostname  = syscallSethostname
 	originalYamlMarshal         = yamlMarshal
 	originalCmdEnableAutopilot  = cmdEnableAutopilot
 	originalCmdDisableAutopilot = cmdDisableAutopilot
@@ -44,6 +45,7 @@ var (
 	originalCmdStopAutopilot    = cmdStopAutopilot
 	originalCmdAutopilotEnabled = cmdAutopilotEnabled
 	originalCmdSystemctl        = cmdSystemctl
+	originalHostnamePath        = hostnamePath
 )
 
 type ConfigTestSuite struct {
@@ -66,8 +68,8 @@ func (cts *ConfigTestSuite) SetUpTest(c *C) {
 
 	hostname := "testhost"
 	getHostname = func() (string, error) { return hostname, nil }
-	setHostname = func(host []byte) error {
-		hostname = string(host)
+	setHostname = func(host string) error {
+		hostname = host
 		return nil
 	}
 }
@@ -79,6 +81,8 @@ func (cts *ConfigTestSuite) TearDownTest(c *C) {
 	setAutopilot = originalSetAutopilot
 	getHostname = originalGetHostname
 	setHostname = originalSetHostname
+	syscallSethostname = originalSyscallSethostname
+	hostnamePath = originalHostnamePath
 	yamlMarshal = originalYamlMarshal
 	cmdEnableAutopilot = originalCmdEnableAutopilot
 	cmdDisableAutopilot = originalCmdDisableAutopilot
@@ -283,7 +287,7 @@ func (cts *ConfigTestSuite) TestErrorOnSetHostname(c *C) {
     hostname: NEWtesthost
 `
 
-	setHostname = func([]byte) error { return errors.New("this is bad") }
+	setHostname = func(string) error { return errors.New("this is bad") }
 
 	rawConfig, err := Set(input)
 	c.Assert(err, NotNil)
@@ -369,4 +373,26 @@ func (cts *ConfigTestSuite) TestSetAutopilots(c *C) {
 
 	cmdStopAutopilot = []string{"-c", "/bin/false"}
 	c.Assert(setAutopilot(false), NotNil)
+}
+
+func (cts *ConfigTestSuite) TestSetHostnameImpl(c *C) {
+	syscallSethostname = func([]byte) error { return nil }
+	hostnamePath = filepath.Join(c.MkDir(), "hostname")
+	setHostname = originalSetHostname
+
+	err := setHostname("newhostname")
+	c.Assert(err, IsNil)
+
+	contents, err := ioutil.ReadFile(hostnamePath)
+	c.Assert(err, IsNil)
+	c.Assert(string(contents), Equals, "newhostname")
+}
+
+func (cts *ConfigTestSuite) TestSetHostnameImplErrors(c *C) {
+	expectedErr := errors.New("what happened?")
+	syscallSethostname = func([]byte) error { return expectedErr }
+	setHostname = originalSetHostname
+
+	err := setHostname("newhostname")
+	c.Assert(err, DeepEquals, expectedErr)
 }
