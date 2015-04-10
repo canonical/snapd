@@ -90,7 +90,7 @@ var ignoreHooks = map[string]bool{
 
 // servicesBinariesStringsWhitelist is the whitelist of legal chars
 // in the "binaries" and "services" section of the package.yaml
-const servicesBinariesStringsWhitelist = `^[A-Za-z0-9/. -:]*$`
+const servicesBinariesStringsWhitelist = `^[A-Za-z0-9/. _#:-]*$`
 
 // Execute the hook.Exec command
 func execHook(execCmd string) (err error) {
@@ -421,8 +421,6 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 
 // verifyStructStringsAgainstWhitelist takes a struct and ensures that
 // the given whitelist regexp matches all string fields of the struct
-//
-// Note that nested data is not supported (yet)
 func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error {
 	r, err := regexp.Compile(whitelist)
 	if err != nil {
@@ -433,6 +431,18 @@ func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error 
 	t := reflect.TypeOf(s)
 	v := reflect.ValueOf(s)
 	for i := 0; i < t.NumField(); i++ {
+
+		// FIXME: is there a better way?
+		if t.Field(i).Name != "typ" && v.Field(i).Kind() == reflect.Ptr {
+			vi := v.Field(i).Elem()
+			if vi.Kind() == reflect.Struct {
+				return verifyStructStringsAgainstWhitelist(vi.Interface(), whitelist)
+			}
+		}
+		if v.Field(i).Kind() == reflect.Struct {
+			vi := v.Field(i).Interface()
+			return verifyStructStringsAgainstWhitelist(vi, whitelist)
+		}
 		if v.Field(i).Kind() == reflect.String {
 			key := t.Field(i).Name
 			value := v.Field(i).String()

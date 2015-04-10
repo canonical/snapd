@@ -863,21 +863,38 @@ func (s *SnapTestSuite) TestServiceWhitelistIllegal(c *C) {
 func (s *SnapTestSuite) TestServiceWhitelistError(c *C) {
 	err := verifyServiceYaml(Service{Name: "x\n"})
 	c.Assert(err.Error(), Equals, `services description field 'Name' contains illegal 'x
-' (legal: '^[A-Za-z0-9/. -:]*$')`)
+' (legal: '^[A-Za-z0-9/. _#:-]*$')`)
 }
 
 func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
 	c.Assert(verifyBinariesYaml(Binary{Name: "foo"}), IsNil)
 	c.Assert(verifyBinariesYaml(Binary{Exec: "foo"}), IsNil)
-	c.Assert(verifyBinariesYaml(Binary{SecurityTemplate: "foo"}), IsNil)
-	c.Assert(verifyBinariesYaml(Binary{SecurityPolicy: "foo"}), IsNil)
+	c.Assert(verifyBinariesYaml(Binary{
+		SecurityDefinitions: SecurityDefinitions{
+			SecurityTemplate: "foo"},
+	}), IsNil)
+	c.Assert(verifyBinariesYaml(Binary{
+		SecurityDefinitions: SecurityDefinitions{
+			SecurityPolicy: &SecurityOverrideDefinition{
+				Apparmor: "foo"},
+		},
+	}), IsNil)
 }
 
 func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
+	c.Assert(verifyBinariesYaml(Binary{Name: "test!me"}), NotNil)
 	c.Assert(verifyBinariesYaml(Binary{Name: "x\n"}), NotNil)
 	c.Assert(verifyBinariesYaml(Binary{Exec: "x\n"}), NotNil)
-	c.Assert(verifyBinariesYaml(Binary{SecurityTemplate: "x\n"}), NotNil)
-	c.Assert(verifyBinariesYaml(Binary{SecurityPolicy: "x\n"}), NotNil)
+	c.Assert(verifyBinariesYaml(Binary{
+		SecurityDefinitions: SecurityDefinitions{
+			SecurityTemplate: "x\n"},
+	}), NotNil)
+	c.Assert(verifyBinariesYaml(Binary{
+		SecurityDefinitions: SecurityDefinitions{
+			SecurityPolicy: &SecurityOverrideDefinition{
+				Apparmor: "x\n"},
+		},
+	}), NotNil)
 }
 
 func (s *SnapTestSuite) TestSnappyRunHooks(c *C) {

@@ -171,6 +171,7 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return parsePackageYamlData(yamlData)
 }
 
@@ -205,6 +206,19 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 
 		m.Frameworks = commasplitter(m.DeprecatedFramework, -1)
 		m.DeprecatedFramework = ""
+	}
+
+	// do all checks here
+	for _, binary := range m.Binaries {
+		if err := verifyBinariesYaml(binary); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, service := range m.Services {
+		if err := verifyServiceYaml(service); err != nil {
+			return nil, err
+		}
 	}
 
 	return &m, nil
