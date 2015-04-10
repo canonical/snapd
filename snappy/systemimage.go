@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"launchpad.net/snappy/coreconfig"
+	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/progress"
 
@@ -39,6 +40,14 @@ const (
 
 	// location of the channel config on the filesystem
 	systemImageChannelConfig = "/etc/system-image/channel.ini"
+
+	// location of marker file created by the upgrader just before
+	// provisioning the other rootfs and removed when the
+	// provisioning has completed.
+	//
+	// If this file exists, the provisioning failed (maybe due to a
+	// power outage), so the rootfs must be considered "empty".
+	upgraderMarkerFile = "/.snappy-update-in-progress"
 
 	// the location for the ReloadConfig
 	systemImageClientConfig = "/etc/system-image/client.ini"
@@ -315,19 +324,43 @@ func makeCurrentPart(p partition.Interface) Part {
 	return part
 }
 
+// otherIsEmpty returns true if the rootfs path specified should be
+// considered empty.
+//
+// Note that the rootfs _may_ not actually be strictly empty, but it
+// must be considered empty if it is incomplete.
+func otherIsEmpty(root string) bool {
+	markerFile := filepath.Join(systemImageRoot, root, upgraderMarkerFile)
+	configFile := filepath.Join(systemImageRoot, root, systemImageChannelConfig)
+
+	if helpers.FileExists(markerFile) {
+		// The upgraders marker file exists, meaning
+		// that "other" contains an incomplete rootfs
+		// image, so treat it as empty.
+		return true
+	}
+
+	if helpers.FileExists(configFile) {
+		// The config file exists, so rootfs is complete.
+		return false
+	}
+
+	// The config file does not exist meaning the other
+	// partition is empty. However, this is not an
+	// error condition (atleast for amd64 images
+	// which only have 1 partition pre-installed).
+	return true
+}
+
 // Returns the part associated with the other rootfs (if any)
 func makeOtherPart(p partition.Interface) Part {
 	var part Part
 	err := p.RunWithOther(partition.RO, func(otherRoot string) (err error) {
-		configFile := filepath.Join(systemImageRoot, otherRoot, systemImageChannelConfig)
-		_, err = os.Stat(configFile)
-		if err != nil && os.IsNotExist(err) {
-			// config file doesn't exist, meaning the other
-			// partition is empty. However, this is not an
-			// error condition (atleast for amd64 images
-			// which only have 1 partition pre-installed).
+		if otherIsEmpty(otherRoot) {
 			return nil
 		}
+
+		configFile := filepath.Join(systemImageRoot, otherRoot, systemImageChannelConfig)
 		part, err = makePartFromSystemImageConfigFile(p, configFile, false)
 		if err != nil {
 			log.Printf("Can not make system-image part for %s: %s", configFile, err)

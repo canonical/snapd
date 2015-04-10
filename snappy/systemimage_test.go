@@ -303,6 +303,29 @@ func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedFailure(c *C) {
 	c.Assert(err.Error(), Equals, `upgrade verification failed: found "1" but expected "2"`)
 }
 
+func (s *SITestSuite) TestOtherIsEmpty(c *C) {
+	otherRoot := "/other"
+	otherRootFull := filepath.Join(systemImageRoot, otherRoot)
+
+	siConfig := filepath.Join(otherRootFull, "etc/system-image/channel.ini")
+	markerFile := filepath.Join(otherRootFull, ".snappy-update-in-progress")
+
+	// the tests create si-config files for "current" and "other"
+	c.Assert(otherIsEmpty(otherRoot), Equals, false)
+
+	err := ioutil.WriteFile(markerFile, []byte(""), 0640)
+	c.Assert(err, IsNil)
+
+	// marker exists, so should be considered empty
+	c.Assert(otherIsEmpty(otherRoot), Equals, true)
+
+	os.Remove(markerFile)
+	c.Assert(otherIsEmpty(otherRoot), Equals, false)
+
+	os.Remove(siConfig)
+	c.Assert(otherIsEmpty(otherRoot), Equals, true)
+}
+
 func (s *SITestSuite) TestCannotUninstall(c *C) {
 	// whats installed
 	parts, err := s.systemImage.Installed()
