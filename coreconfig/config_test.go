@@ -194,6 +194,25 @@ func (cts *ConfigTestSuite) TestNoChangeSet(c *C) {
 	c.Assert(rawConfig, Equals, input)
 }
 
+func (cts *ConfigTestSuite) TestPartialInput(c *C) {
+	expected := `config:
+  ubuntu-core:
+    autopilot: false
+    timezone: America/Argentina/Cordoba
+    hostname: testhost
+`
+
+	input := `config:
+  ubuntu-core:
+    autopilot: false
+    timezone: America/Argentina/Cordoba
+`
+
+	rawConfig, err := Set(input)
+	c.Assert(err, IsNil)
+	c.Assert(rawConfig, Equals, expected)
+}
+
 func (cts *ConfigTestSuite) TestNoEnvironmentTz(c *C) {
 	os.Setenv(tzPathEnvironment, "")
 
