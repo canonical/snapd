@@ -829,6 +829,24 @@ func (s *SnapTestSuite) TestTouchAppArmorJSON(c *C) {
 	c.Check(ft.Before(fi.ModTime()), Equals, true)
 }
 
+func (s *SnapTestSuite) TestTouchAppArmorJSONFails(c *C) {
+	oldDir := snapAppArmorDir
+	defer func() {
+		toucher = helpers.Touch
+		snapAppArmorDir = oldDir
+	}()
+	snapAppArmorDir = c.MkDir()
+	toucher = func(string) error { return ErrNotImplemented }
+	fn := filepath.Join(snapAppArmorDir, "foo_stuff.json")
+	c.Assert(os.Symlink(fn, fn), IsNil)
+
+	yaml, err := parsePackageYamlData([]byte(`name: foo`))
+	c.Assert(err, IsNil)
+	part := &SnapPart{m: yaml}
+
+	c.Assert(part.TouchAppArmorJSON(), NotNil)
+}
+
 func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
 	oldCmd := aaClickHookCmd
 	oldDir := snapAppArmorDir
