@@ -148,7 +148,7 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 				continue
 			}
 
-			if err := setHostname([]byte(*newConfig.Hostname)); err != nil {
+			if err := setHostname(*newConfig.Hostname); err != nil {
 				return "", err
 			}
 		}
@@ -245,5 +245,16 @@ var setAutopilot = func(stateEnabled bool) error {
 // getHostname returns the hostname for the host
 var getHostname = os.Hostname
 
+var hostnamePath = "/etc/writable/hostname"
+var syscallSethostname = syscall.Sethostname
+
 // setHostname sets the hostname for the host
-var setHostname = syscall.Sethostname
+var setHostname = func(hostname string) error {
+	hostnameB := []byte(hostname)
+
+	if err := syscallSethostname(hostnameB); err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(hostnamePath, hostnameB, 0644)
+}
