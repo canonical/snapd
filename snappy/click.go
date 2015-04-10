@@ -831,7 +831,21 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		return "", err
 	}
 
+	// oh, one more thing: refresh the security bits
+	if err := refreshDependentsSecurity(currentActiveDir, instDir, m); err != nil {
+		return "", err
+	}
+
 	return manifest.Name, nil
+}
+
+// refreshDependentsSecurity figures out which policies changed
+// between oldDir and newDir, and calls RefreshDependentsSecurity with
+// this information.
+//
+// XXX: it currently does a poor job of the first half of this
+func refreshDependentsSecurity(newDir string, oldDir string, newM *packageYaml) error {
+	return NewSnapPartFromYaml(newDir, newM).RefreshDependentsSecurity()
 }
 
 // removeSnapData removes the data for the given version of the given snap

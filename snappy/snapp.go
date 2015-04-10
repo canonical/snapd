@@ -27,6 +27,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -264,17 +265,21 @@ func (m *packageYaml) checkForFrameworks() error {
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
 func NewInstalledSnapPart(yamlPath string) *SnapPart {
-	part := SnapPart{}
-
 	m, err := parsePackageYamlFile(yamlPath)
 	if err != nil {
 		return nil
 	}
 
-	part.basedir = filepath.Dir(filepath.Dir(yamlPath))
-	// data from the yaml
-	part.isInstalled = true
-	part.m = m
+	return NewSnapPartFromYaml(yamlPath, m)
+}
+
+// NewSnapPartFromYaml returns a new SnapPArt from the given *packageYaml at yamlPath
+func NewSnapPartFromYaml(yamlPath string, m *packageYaml) *SnapPart {
+	part := &SnapPart{
+		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
+		isInstalled: true,
+		m:           m,
+	}
 
 	// check if the part is active
 	allVersionsDir := filepath.Dir(part.basedir)
@@ -294,7 +299,7 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 		}
 	}
 
-	return &part
+	return part
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
@@ -399,7 +404,7 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return ErrPackageNotRemovable
 	}
 
-	deps, err := s.Dependents()
+	deps, err := s.DependentNames()
 	if err != nil {
 		return err
 	}
@@ -425,16 +430,33 @@ func (s *SnapPart) Frameworks() ([]string, error) {
 	return s.m.Frameworks, nil
 }
 
+// DependentNames returns a list of the names of apps installed that
+// depend on this one
+//
+// /!\ not part of the Part interface.
+func (s *SnapPart) DependentNames() ([]string, error) {
+	deps, err := s.Dependents()
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, len(deps))
+	for i, dep := range deps {
+		names[i] = dep.Name()
+	}
+
+	return names, nil
+}
+
 // Dependents gives the list of apps installed that depend on this one
 //
 // /!\ not part of the Part interface.
-func (s *SnapPart) Dependents() ([]string, error) {
+func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 	if s.Type() != SnapTypeFramework {
 		// only frameworks are depended on
 		return nil, nil
 	}
 
-	var needed []string
+	var needed []*SnapPart
 
 	installed, err := NewMetaRepository().Installed()
 	if err != nil {
@@ -449,12 +471,53 @@ func (s *SnapPart) Dependents() ([]string, error) {
 		}
 		for _, fmk := range fmks {
 			if fmk == name {
-				needed = append(needed, part.Name())
+				part, ok := part.(*SnapPart)
+				if !ok {
+					return nil, errors.New("installed dependent snap is not a *SnapPart?!?")
+				}
+				needed = append(needed, part)
 			}
 		}
 	}
 
 	return needed, nil
+}
+
+// TouchAppArmorJSON updates the timestamp on the snap's apparmor json symlink
+func (s *SnapPart) TouchAppArmorJSON() error {
+	// TODO: receive a list of policies that have changed, and only touch
+	// things if we use one of those policies
+
+	fns, err := filepath.Glob(filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_*.json", s.Name())))
+	if err != nil {
+		return err
+	}
+
+	for _, fn := range fns {
+		if err := helpers.Touch(fn); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// RefreshDependentsSecurity refreshes the security policies of dependent snaps
+func (s *SnapPart) RefreshDependentsSecurity() error {
+	deps, err := s.Dependents()
+	if err != nil {
+		return err
+	}
+
+	for _, dep := range deps {
+		dep.TouchAppArmorJSON()
+	}
+
+	if err := exec.Command(aaClickHookCmd).Run(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // SnapLocalRepository is the type for a local snap repository
