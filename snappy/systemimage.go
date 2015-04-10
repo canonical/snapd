@@ -173,7 +173,7 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 	configFile := systemImageClientConfig
 	err = s.partition.RunWithOther(partition.RO, func(otherRoot string) (err error) {
 		otherConfigFile := filepath.Join(systemImageRoot, otherRoot, systemImageClientConfig)
-		if _, err := os.Stat(otherConfigFile); err == nil {
+		if !otherIsEmpty(otherRoot) && helpers.FileExists(otherConfigFile) {
 			configFile = otherConfigFile
 		}
 
