@@ -832,7 +832,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 	}
 
 	// oh, one more thing: refresh the security bits
-	if err := refreshDependentsSecurity(currentActiveDir, instDir, m); err != nil {
+	if err := refreshDependentsSecurity(instDir, currentActiveDir, m); err != nil {
 		return "", err
 	}
 
