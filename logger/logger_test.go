@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package logger
 
 import (
@@ -26,6 +43,8 @@ type MockLogWriter struct {
 }
 
 var mockWriter *MockLogWriter
+
+var loggoLevels = []string{"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
 func mockGetSyslog(priority syslog.Priority, tag string) (w logWriterInterface, err error) {
 	mockWriter = &MockLogWriter{}
@@ -122,18 +141,41 @@ func (ts *LoggerTestSuite) TestWrite(c *C) {
 	t := time.Now()
 	strTime := fmt.Sprintf("%s", t)
 
-	w.Write(loggo.DEBUG, "module", "filename", 1234, t, "a message")
-	lines := readLines()
-	c.Assert(len(lines), Equals, 1)
+	for _, l := range loggoLevels {
+		level := stringToLogLevel(l)
 
-	c.Assert(sliceContainsString(lines, "module"), Equals, true)
-	c.Assert(sliceContainsString(lines, "filename"), Equals, true)
-	c.Assert(sliceContainsString(lines, "1234"), Equals, true)
+		w.Write(level, "module", "filename", 1234, t, "a message")
+		lines := readLines()
 
-	// We discard the timestamp as syslog adds that itself
-	c.Assert(sliceContainsString(lines, strTime), Equals, false)
+		if level < loggo.ERROR {
+			c.Assert(len(lines), Equals, 1)
+		} else {
+			c.Assert(len(lines) > 1, Equals, true)
 
-	c.Assert(sliceContainsString(lines, "a message"), Equals, true)
+			c.Assert(sliceContainsString(lines, "filename"), Equals, true)
+			c.Assert(sliceContainsString(lines, "1234"), Equals, true)
+		}
+
+		c.Assert(sliceContainsString(lines, "module"), Equals, true)
+
+		// We discard the timestamp as syslog adds that itself
+		c.Assert(sliceContainsString(lines, strTime), Equals, false)
+
+		c.Assert(sliceContainsString(lines, "a message"), Equals, true)
+	}
+
+}
+
+// Convert a loggo log level string representation into a real log
+// level.
+func stringToLogLevel(name string) loggo.Level {
+	level, ok := loggo.ParseLevel(name)
+
+	if !ok {
+		panic(fmt.Sprintf("unknown loggo level string: %q", name))
+	}
+
+	return level
 }
 
 func (ts *LoggerTestSuite) TestFormat(c *C) {
@@ -142,11 +184,17 @@ func (ts *LoggerTestSuite) TestFormat(c *C) {
 	c.Assert(w, Not(IsNil))
 	c.Assert(w.systemLog, Not(IsNil))
 
-	out := w.Format(loggo.ERROR, "module", "filename", 1234, time.Now(), "a message")
+	for _, l := range loggoLevels {
+		level := stringToLogLevel(l)
 
-	expected := fmt.Sprintf("%s:%s:%s:%d:%s", "ERROR", "module", "filename", 1234, "a message")
-
-	c.Assert(out, Equals, expected)
+		if level < loggo.ERROR {
+			out := w.Format(level, "module", "filename", 1234, time.Now(), "a message")
+			c.Assert(out, Equals, fmt.Sprintf("%s:%s:%s", l, "module", "a message"))
+		} else {
+			out := w.Format(level, "module", "filename", 1234, time.Now(), "a message")
+			c.Assert(out, Equals, fmt.Sprintf("%s:%s:%s:%d:%s", l, "module", "filename", 1234, "a message"))
+		}
+	}
 }
 
 func (ts *LoggerTestSuite) TestLogStackTrace(c *C) {
@@ -223,9 +271,8 @@ func (ts *LoggerTestSuite) checkLogLevel(c *C, level, msg string) {
 
 func (ts *LoggerTestSuite) TestLogLevels(c *C) {
 	msg := "an error message"
-	levels := []string{"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
-	for _, level := range levels {
+	for _, level := range loggoLevels {
 		ts.checkLogLevel(c, level, msg)
 	}
 }

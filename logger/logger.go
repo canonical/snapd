@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package logger
 
 import (
@@ -94,6 +111,11 @@ func (l *LogWriter) logStacktrace(level loggo.Level, name string, filename strin
 // Format handles how each log entry should appear.
 // Note that the timestamp field is not used as syslog adds that for us.
 func (l *LogWriter) Format(level loggo.Level, module, filename string, line int, timestamp time.Time, message string) string {
+	if level < loggo.ERROR {
+		// keep it relatively succinct for low priority messages
+		return fmt.Sprintf("%s:%s:%s", level, module, message)
+	}
+
 	return fmt.Sprintf("%s:%s:%s:%d:%s", level, module, filename, line, message)
 }
 

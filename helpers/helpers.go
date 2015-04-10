@@ -32,8 +32,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"gopkg.in/yaml.v2"
 )
 
 var goarch = runtime.GOARCH
@@ -116,7 +114,9 @@ func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
 				return nil
 			}
 		} else {
-			err := os.MkdirAll(filepath.Dir(path), 0777)
+			if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
+				return err
+			}
 			out, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, info.Mode())
 			if err != nil {
 				return err
@@ -130,15 +130,6 @@ func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
 
 		return nil
 	})
-}
-
-func getMapFromYaml(data []byte) (map[string]interface{}, error) {
-	m := make(map[string]interface{})
-	err := yaml.Unmarshal(data, &m)
-	if err != nil {
-		return m, err
-	}
-	return m, nil
 }
 
 // UbuntuArchitecture returns the debian equivalent architecture for the
@@ -203,7 +194,7 @@ func MakeMapFromEnvList(env []string) map[string]string {
 // it may return false on e.g. permission issues.
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
-	return (err == nil)
+	return err == nil
 }
 
 // IsDirectory return true if the given path can be stat()ed by us and

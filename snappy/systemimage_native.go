@@ -33,6 +33,7 @@ import (
 	"github.com/mvo5/goconfigparser"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/progress"
 )
 
 var systemImageServer = "https://system-image.ubuntu.com/"
@@ -116,9 +117,9 @@ type genericJSON struct {
 	Total   float64 `json:"total, omitempty"`
 }
 
-func parseSIProgress(pb ProgressMeter, stdout io.Reader) error {
+func parseSIProgress(pb progress.Meter, stdout io.Reader) error {
 	if pb == nil {
-		pb = &NullProgress{}
+		pb = &progress.NullProgress{}
 	}
 
 	scanner := bufio.NewScanner(stdout)
@@ -163,7 +164,7 @@ func parseSIProgress(pb ProgressMeter, stdout io.Reader) error {
 	return nil
 }
 
-func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) {
+func systemImageDownloadUpdate(configFile string, pb progress.Meter) (err error) {
 	cmd := exec.Command(systemImageCli, "--machine-readable", "-C", configFile)
 
 	// collect progress over stdout pipe if we want progress

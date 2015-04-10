@@ -21,10 +21,15 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"launchpad.net/snappy/progress"
 )
 
 // SnapType represents the kind of snap (app, core, frameworks, oem)
 type SnapType string
+
+// SystemConfig is a config map holding configs for multiple packages
+type SystemConfig map[string]interface{}
 
 // The various types of snap parts we support
 const (
@@ -37,6 +42,11 @@ const (
 // Services implements snappy packages that offer services
 type Services interface {
 	Services() []Service
+}
+
+// Configuration allows requesting an oem snappy package type's config
+type Configuration interface {
+	OemConfig() SystemConfig
 }
 
 // Part representation of a snappy part
@@ -69,14 +79,17 @@ type Part interface {
 	DownloadSize() int64
 
 	// Install the snap
-	Install(pb ProgressMeter, flags InstallFlags) error
+	Install(pb progress.Meter, flags InstallFlags) (name string, err error)
 	// Uninstall the snap
-	Uninstall() error
+	Uninstall(pb progress.Meter) error
 	// Config takes a yaml configuration and returns the full snap
 	// config with the changes. Note that "configuration" may be empty.
 	Config(configuration []byte) (newConfig string, err error)
 	// make a inactive part active
-	SetActive() error
+	SetActive(pb progress.Meter) error
+
+	// get the list of frameworks needed by the part
+	Frameworks() ([]string, error)
 }
 
 // Repository is the interface for a collection of snaps
@@ -269,5 +282,5 @@ func makeSnapActiveByNameAndVersion(pkg, ver string) error {
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
 	}
 
-	return part.SetActive()
+	return part.SetActive(nil)
 }

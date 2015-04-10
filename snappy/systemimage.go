@@ -29,6 +29,7 @@ import (
 
 	"launchpad.net/snappy/coreconfig"
 	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/progress"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -128,7 +129,7 @@ func (s *SystemImagePart) Date() time.Time {
 }
 
 // SetActive sets the snap active
-func (s *SystemImagePart) SetActive() (err error) {
+func (s *SystemImagePart) SetActive(pb progress.Meter) (err error) {
 	isNextBootOther := s.partition.IsNextBootOther()
 	// active and no switch scheduled -> nothing to do
 	if s.IsActive() && !isNextBootOther {
@@ -143,7 +144,7 @@ func (s *SystemImagePart) SetActive() (err error) {
 }
 
 // Install installs the snap
-func (s *SystemImagePart) Install(pb ProgressMeter, flags InstallFlags) (err error) {
+func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
 	if pb != nil {
 		// ensure the progress finishes when we are done
 		defer func() {
@@ -155,7 +156,7 @@ func (s *SystemImagePart) Install(pb ProgressMeter, flags InstallFlags) (err err
 	// if the update does not provide new versions.
 	err = s.partition.SyncBootloaderFiles()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// find out what config file to use, the other partition may be
@@ -170,15 +171,18 @@ func (s *SystemImagePart) Install(pb ProgressMeter, flags InstallFlags) (err err
 		return systemImageDownloadUpdate(configFile, pb)
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Check that the final system state is as expected.
 	if err = s.verifyUpgradeWasApplied(); err != nil {
-		return err
+		return "", err
 	}
 
-	return s.partition.ToggleNextBoot()
+	if err = s.partition.ToggleNextBoot(); err != nil {
+		return "", err
+	}
+	return systemImagePartName, nil
 }
 
 // Ensure the expected version update was applied to the expected partition.
@@ -213,7 +217,7 @@ func (s *SystemImagePart) verifyUpgradeWasApplied() error {
 }
 
 // Uninstall can not be used for "core" snaps
-func (s *SystemImagePart) Uninstall() (err error) {
+func (s *SystemImagePart) Uninstall(progress.Meter) error {
 	return ErrPackageNotRemovable
 }
 
@@ -252,6 +256,12 @@ func (s *SystemImagePart) Channel() string {
 // Icon returns the icon path
 func (s *SystemImagePart) Icon() string {
 	return ""
+}
+
+// Frameworks returns the list of frameworks needed by the snap
+func (s *SystemImagePart) Frameworks() ([]string, error) {
+	// system image parts can't depend on frameworks.
+	return nil, nil
 }
 
 // SystemImageRepository is the type used for the system-image-server

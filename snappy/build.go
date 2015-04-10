@@ -82,15 +82,6 @@ var shouldExclude = regexp.MustCompile(strings.Join([]string{
 	`^{arch}$`,
 }, "|")).MatchString
 
-const defaultApparmorJSON = `{
-    "template": "default",
-    "policy_groups": [
-        "networking"
-    ],
-    "policy_vendor": "ubuntu-snappy",
-    "policy_version": 1.3
-}`
-
 // small helper that return the architecture or "multi" if its multiple arches
 func debArchitecture(m *packageYaml) string {
 	if len(m.Architectures) > 1 {
@@ -135,16 +126,12 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 		if _, ok := m.Integration[hookName]; !ok {
 			m.Integration[hookName] = make(map[string]string)
 		}
+		// legacy click hook
 		m.Integration[hookName]["bin-path"] = v.Name
 
-		_, hasApparmor := m.Integration[hookName]["apparmor"]
-		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-		if !hasApparmor && !hasApparmorProfile {
-			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
-				return err
-			}
-			m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+		// handle the apparmor stuff
+		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
+			return err
 		}
 	}
 
@@ -182,15 +169,9 @@ func handleServices(buildDir string, m *packageYaml) error {
 		}
 		m.Integration[hookName]["snappy-systemd"] = snappySystemdContentFile
 
-		// generate apparmor
-		_, hasApparmor := m.Integration[hookName]["apparmor"]
-		_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-		if !hasApparmor && !hasApparmorProfile {
-			defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-			if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
-				return err
-			}
-			m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+		// handle the apparmor stuff
+		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
+			return err
 		}
 	}
 
@@ -204,12 +185,17 @@ func handleConfigHookApparmor(buildDir string, m *packageYaml) error {
 	}
 
 	hookName := "snappy-config"
-	defaultApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-	if err := ioutil.WriteFile(filepath.Join(buildDir, defaultApparmorJSONFile), []byte(defaultApparmorJSON), 0644); err != nil {
+	s := &SecurityDefinitions{}
+	content, err := generateApparmorJSONContent(s)
+	if err != nil {
+		return err
+	}
+	configApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
+	if err := ioutil.WriteFile(filepath.Join(buildDir, configApparmorJSONFile), content, 0644); err != nil {
 		return err
 	}
 	m.Integration[hookName] = make(map[string]string)
-	m.Integration[hookName]["apparmor"] = defaultApparmorJSONFile
+	m.Integration[hookName]["apparmor"] = configApparmorJSONFile
 
 	return nil
 }
@@ -351,7 +337,7 @@ func writeClickManifest(buildDir string, m *packageYaml) error {
 	cm := clickManifest{
 		Name:          m.Name,
 		Version:       m.Version,
-		Framework:     m.Framework,
+		Framework:     m.FrameworksForClick(),
 		Type:          m.Type,
 		Icon:          m.Icon,
 		InstalledSize: installedSize,
@@ -450,7 +436,7 @@ func checkLicenseExists(sourceDir string) error {
 var licenseChecker = checkLicenseExists
 
 // Build the given sourceDirectory and return the generated snap file
-func Build(sourceDir string) (string, error) {
+func Build(sourceDir, targetDir string) (string, error) {
 
 	// ensure we have valid content
 	m, err := parsePackageYamlFile(filepath.Join(sourceDir, "meta", "package.yaml"))
@@ -459,10 +445,13 @@ func Build(sourceDir string) (string, error) {
 	}
 
 	if m.ExplicitLicenseAgreement {
-		err = licenseChecker(sourceDir)
-		if err != nil {
+		if err := licenseChecker(sourceDir); err != nil {
 			return "", err
 		}
+	}
+
+	if err := m.checkForNameClashes(); err != nil {
+		return "", err
 	}
 
 	// create build dir
@@ -474,17 +463,6 @@ func Build(sourceDir string) (string, error) {
 
 	if err := copyToBuildDir(sourceDir, buildDir); err != nil {
 		return "", err
-	}
-
-	// FIXME: the store needs this right now
-	if !strings.Contains(m.Framework, "ubuntu-core-15.04-dev1") {
-		l := strings.Split(m.Framework, ",")
-		if l[0] == "" {
-			m.Framework = "ubuntu-core-15.04-dev1"
-		} else {
-			l = append(l, "ubuntu-core-15.04-dev1")
-			m.Framework = strings.Join(l, ", ")
-		}
 	}
 
 	// defaults, mangling
@@ -518,6 +496,15 @@ func Build(sourceDir string) (string, error) {
 
 	// build the package
 	snapName := fmt.Sprintf("%s_%s_%v.snap", m.Name, m.Version, debArchitecture(m))
+
+	if targetDir != "" {
+		snapName = filepath.Join(targetDir, snapName)
+		if _, err := os.Stat(targetDir); os.IsNotExist(err) {
+			if err := os.MkdirAll(targetDir, 0755); err != nil {
+				return "", err
+			}
+		}
+	}
 
 	// build it
 	d := clickdeb.ClickDeb{Path: snapName}

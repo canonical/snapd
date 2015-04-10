@@ -120,7 +120,7 @@ vendor: Foo Bar <foo@example.com>
 	// build it
 	err := helpers.ChDir(tmpdir, func() {
 		var err error
-		snapFile, err = Build(tmpdir)
+		snapFile, err = Build(tmpdir, "")
 		c.Assert(err, IsNil)
 	})
 	c.Assert(err, IsNil)
@@ -141,10 +141,12 @@ vendor: Foo Bar <foo@example.com>
 	}
 
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	c.Assert(installClick(snapFile, AllowUnauthenticated, nil), IsNil)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil)
+	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	c.Assert(installClick(snapFile, AllowUnauthenticated, nil), IsNil)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil)
+	c.Assert(err, IsNil)
 
 	m := NewMetaRepository()
 	installed, err := m.Installed()
@@ -159,6 +161,7 @@ type MockProgressMeter struct {
 	spin     bool
 	spinMsg  string
 	written  int
+	notified []string
 }
 
 func (m *MockProgressMeter) Start(total float64) {
@@ -183,4 +186,7 @@ func (m *MockProgressMeter) Finished() {
 }
 func (m *MockProgressMeter) Agreed(string, string) bool {
 	return false
+}
+func (m *MockProgressMeter) Notify(msg string) {
+	m.notified = append(m.notified, msg)
 }

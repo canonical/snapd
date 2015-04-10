@@ -178,7 +178,7 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 
 	pb := &MockProgressMeter{}
 	// do the install
-	err = sp.Install(pb, 0)
+	_, err = sp.Install(pb, 0)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 	c.Assert(pb.total, Equals, 100.0)
@@ -206,7 +206,7 @@ printf '{"type": "error", "msg": "some error msg"}\n'
 
 	pb := &MockProgressMeter{}
 	// do the install
-	err = sp.Install(pb, 0)
+	_, err = sp.Install(pb, 0)
 	c.Assert(strings.HasSuffix(err.Error(), "some error msg"), Equals, true)
 }
 
@@ -227,7 +227,7 @@ exit 1
 	sp.partition = &mockPartition
 
 	// do the install and pretend something goes wrong
-	err = sp.Install(nil, 0)
+	_, err = sp.Install(nil, 0)
 
 	//
 	c.Assert(err.Error(), Equals, fmt.Sprintf("%s failed with return code 1: random\nerror string", systemImageCli))
@@ -242,7 +242,7 @@ func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.Install(nil, 0)
+	_, err = sp.Install(nil, 0)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 }
@@ -255,7 +255,7 @@ func (s *SITestSuite) TestSystemImagePartSetActiveAlreadyActive(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.SetActive()
+	err = sp.SetActive(nil)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, false)
 }
@@ -268,7 +268,7 @@ func (s *SITestSuite) TestSystemImagePartSetActiveMakeActive(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.SetActive()
+	err = sp.SetActive(nil)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 }
@@ -309,5 +309,14 @@ func (s *SITestSuite) TestCannotUninstall(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 2)
 
-	c.Assert(parts[0].Uninstall(), Equals, ErrPackageNotRemovable)
+	c.Assert(parts[0].Uninstall(nil), Equals, ErrPackageNotRemovable)
+}
+
+func (s *SITestSuite) TestFrameworks(c *C) {
+	parts, err := s.systemImage.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(parts, HasLen, 2)
+	fmks, err := parts[0].Frameworks()
+	c.Assert(err, IsNil)
+	c.Check(fmks, HasLen, 0)
 }

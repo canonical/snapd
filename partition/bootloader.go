@@ -19,13 +19,12 @@ package partition
 
 const (
 	// bootloader variable used to denote which rootfs to boot from
-	// FIXME: preferred new name
-	// BOOTLOADER_UBOOT_ROOTFS_VAR = "snappy_rootfs_label"
 	bootloaderRootfsVar = "snappy_ab"
 
 	// bootloader variable used to determine if boot was successful.
-	// Set to 'try' initially, and then changed to 'regular' by the
-	// system when the boot reaches the required sequence point.
+	// Set to value of either bootloaderBootmodeTry (when attempting
+	// to boot a new rootfs) or bootloaderBootmodeSuccess (to denote
+	// that the boot of the new rootfs was successful).
 	bootloaderBootmodeVar = "snappy_mode"
 
 	// Initial and final values

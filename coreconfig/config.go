@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package coreconfig
 
 import (
@@ -28,8 +45,9 @@ const (
 var ErrInvalidUnitStatus = errors.New("invalid unit status")
 
 type systemConfig struct {
-	Autopilot bool   `yaml:"autopilot"`
-	Timezone  string `yaml:"timezone"`
+	Autopilot *bool   `yaml:"autopilot,omitempty"`
+	Timezone  *string `yaml:"timezone,omitempty"`
+	Hostname  *string `yaml:"hostname,omitempty"`
 }
 
 type coreConfig struct {
@@ -51,9 +69,15 @@ func newSystemConfig() (*systemConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	hostname, err := getHostname()
+	if err != nil {
+		return nil, err
+	}
+
 	config := &systemConfig{
-		Autopilot: autopilot,
-		Timezone:  tz,
+		Autopilot: &autopilot,
+		Timezone:  &tz,
+		Hostname:  &hostname,
 	}
 
 	return config, nil
@@ -98,22 +122,33 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 	rNewConfig := reflect.ValueOf(newConfig).Elem()
 	rType := rNewConfig.Type()
 	for i := 0; i < rNewConfig.NumField(); i++ {
-		field := rType.Field(i).Name
-		switch field {
+		if rNewConfig.Field(i).IsNil() {
+			continue
+		}
+
+		switch rType.Field(i).Name {
 		case "Timezone":
-			if oldConfig.Timezone == newConfig.Timezone {
+			if *oldConfig.Timezone == *newConfig.Timezone {
 				continue
 			}
 
-			if err := setTimezone(newConfig.Timezone); err != nil {
+			if err := setTimezone(*newConfig.Timezone); err != nil {
 				return "", err
 			}
 		case "Autopilot":
-			if oldConfig.Autopilot == newConfig.Autopilot {
+			if *oldConfig.Autopilot == *newConfig.Autopilot {
 				continue
 			}
 
-			if err := setAutopilot(newConfig.Autopilot); err != nil {
+			if err := setAutopilot(*newConfig.Autopilot); err != nil {
+				return "", err
+			}
+		case "Hostname":
+			if *oldConfig.Hostname == *newConfig.Hostname {
+				continue
+			}
+
+			if err := setHostname(*newConfig.Hostname); err != nil {
 				return "", err
 			}
 		}
@@ -205,4 +240,21 @@ var setAutopilot = func(stateEnabled bool) error {
 	}
 
 	return nil
+}
+
+// getHostname returns the hostname for the host
+var getHostname = os.Hostname
+
+var hostnamePath = "/etc/writable/hostname"
+var syscallSethostname = syscall.Sethostname
+
+// setHostname sets the hostname for the host
+var setHostname = func(hostname string) error {
+	hostnameB := []byte(hostname)
+
+	if err := syscallSethostname(hostnameB); err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(hostnamePath, hostnameB, 0644)
 }

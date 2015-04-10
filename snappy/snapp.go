@@ -29,10 +29,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/progress"
 
 	"gopkg.in/yaml.v2"
 )
@@ -50,6 +53,25 @@ type Ports struct {
 	External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
 }
 
+// SecurityOverrideDefinition is used to override apparmor or seccomp
+// security defaults
+type SecurityOverrideDefinition struct {
+	Apparmor string `yaml:"apparmor" json:"apparmor"`
+}
+
+// SecurityDefinitions contains the common apparmor/seccomp definitions
+type SecurityDefinitions struct {
+	// SecurityTemplate is a template like "default"
+	SecurityTemplate string `yaml:"security-template,omitempty" json:"security-template,omitempty"`
+	// SecurityOverride is a override for the high level security json
+	SecurityOverride *SecurityOverrideDefinition `yaml:"security-override,omitempty" json:"security-override,omitempty"`
+	// SecurityPolicy is a hand-crafted low-level policy
+	SecurityPolicy *SecurityOverrideDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
+
+	//
+	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
+}
+
 // Service represents a service inside a SnapPart
 type Service struct {
 	Name        string `yaml:"name" json:"name,omitempty"`
@@ -62,14 +84,16 @@ type Service struct {
 
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
+
+	SecurityDefinitions `yaml:",inline"`
 }
 
 // Binary represents a single binary inside the binaries: package.yaml
 type Binary struct {
-	Name             string `yaml:"name"`
-	Exec             string `yaml:"exec"`
-	SecurityTemplate string `yaml:"security-template"`
-	SecurityPolicy   string `yaml:"security-policy"`
+	Name string `yaml:"name"`
+	Exec string `yaml:"exec"`
+
+	SecurityDefinitions `yaml:",inline"`
 }
 
 // SnapPart represents a generic snap type
@@ -84,6 +108,8 @@ type SnapPart struct {
 	basedir string
 }
 
+var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
+
 type packageYaml struct {
 	Name    string
 	Version string
@@ -96,15 +122,19 @@ type packageYaml struct {
 	DeprecatedArchitecture interface{} `yaml:"architecture"`
 	Architectures          []string
 
-	Framework string
+	DeprecatedFramework string   `yaml:"framework,omitempty"`
+	Frameworks          []string `yaml:"frameworks,omitempty"`
 
 	Services []Service `yaml:"services,omitempty"`
 	Binaries []Binary  `yaml:"binaries,omitempty"`
 
 	// oem snap only
-	Store struct {
-		ID string `yaml:"id,omitempty"`
-	} `yaml:"store,omitempty"`
+	OEM struct {
+		Store struct {
+			ID string `yaml:"id,omitempty"`
+		} `yaml:"store,omitempty"`
+	} `yaml:"oem,omitempty"`
+	Config SystemConfig `yaml:"config,omitempty"`
 
 	// this is a bit ugly, but right now integration is a one:one
 	// mapping of click hooks
@@ -167,7 +197,70 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		}
 	}
 
+	if m.DeprecatedFramework != "" {
+		log.Printf(`Use of deprecated "framework" key in yaml`)
+		if len(m.Frameworks) != 0 {
+			return nil, ErrInvalidFrameworkSpecInYaml
+		}
+
+		m.Frameworks = commasplitter(m.DeprecatedFramework, -1)
+		m.DeprecatedFramework = ""
+	}
+
 	return &m, nil
+}
+
+func (m *packageYaml) checkForNameClashes() error {
+	d := make(map[string]struct{})
+	for _, bin := range m.Binaries {
+		d[filepath.Base(bin.Name)] = struct{}{}
+	}
+	for _, svc := range m.Services {
+		if _, ok := d[svc.Name]; ok {
+			return ErrNameClash(svc.Name)
+		}
+	}
+
+	return nil
+}
+
+func (m *packageYaml) FrameworksForClick() string {
+	fmks := m.Frameworks
+	fmkCore := false
+	for _, a := range fmks {
+		if a == "ubuntu-core-15.04-dev1" {
+			fmkCore = true
+			break
+		}
+	}
+	if !fmkCore {
+		fmks = append(fmks, "ubuntu-core-15.04-dev1")
+	}
+
+	return strings.Join(fmks, ",")
+}
+
+func (m *packageYaml) checkForFrameworks() error {
+	installed, err := InstalledSnapNamesByType(SnapTypeFramework)
+	if err != nil {
+		return err
+	}
+	sort.Strings(installed)
+
+	missing := make([]string, 0, len(m.Frameworks))
+
+	for _, f := range m.Frameworks {
+		i := sort.SearchStrings(installed, f)
+		if i >= len(installed) || installed[i] != f {
+			missing = append(missing, f)
+		}
+	}
+
+	if len(missing) > 0 {
+		return ErrMissingFrameworks(missing)
+	}
+
+	return nil
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
@@ -288,18 +381,23 @@ func (s *SnapPart) Services() []Service {
 	return s.m.Services
 }
 
+// OemConfig return a list of packages to configure
+func (s *SnapPart) OemConfig() SystemConfig {
+	return s.m.Config
+}
+
 // Install installs the snap
-func (s *SnapPart) Install(pb ProgressMeter, flags InstallFlags) (err error) {
-	return errors.New("Install of a local part is not possible")
+func (s *SnapPart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
+	return "", errors.New("Install of a local part is not possible")
 }
 
 // SetActive sets the snap active
-func (s *SnapPart) SetActive() (err error) {
-	return setActiveClick(s.basedir, false)
+func (s *SnapPart) SetActive(pb progress.Meter) (err error) {
+	return setActiveClick(s.basedir, false, pb)
 }
 
 // Uninstall remove the snap from the system
-func (s *SnapPart) Uninstall() (err error) {
+func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 	// OEM snaps should not be removed as they are a key
 	// building block for OEMs. Prunning non active ones
 	// is acceptible.
@@ -307,7 +405,15 @@ func (s *SnapPart) Uninstall() (err error) {
 		return ErrPackageNotRemovable
 	}
 
-	return removeClick(s.basedir)
+	deps, err := s.Dependents()
+	if err != nil {
+		return err
+	}
+	if len(deps) != 0 {
+		return ErrFrameworkInUse(deps)
+	}
+
+	return removeClick(s.basedir, pb)
 }
 
 // Config is used to to configure the snap
@@ -318,6 +424,43 @@ func (s *SnapPart) Config(configuration []byte) (new string, err error) {
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *SnapPart) NeedsReboot() bool {
 	return false
+}
+
+// Frameworks returns the list of frameworks needed by the snap
+func (s *SnapPart) Frameworks() ([]string, error) {
+	return s.m.Frameworks, nil
+}
+
+// Dependents gives the list of apps installed that depend on this one
+//
+// /!\ not part of the Part interface.
+func (s *SnapPart) Dependents() ([]string, error) {
+	if s.Type() != SnapTypeFramework {
+		// only frameworks are depended on
+		return nil, nil
+	}
+
+	var needed []string
+
+	installed, err := NewMetaRepository().Installed()
+	if err != nil {
+		return nil, err
+	}
+
+	name := s.Name()
+	for _, part := range installed {
+		fmks, err := part.Frameworks()
+		if err != nil {
+			return nil, err
+		}
+		for _, fmk := range fmks {
+			if fmk == name {
+				needed = append(needed, part.Name())
+			}
+		}
+	}
+
+	return needed, nil
 }
 
 // SnapLocalRepository is the type for a local snap repository
@@ -465,7 +608,7 @@ func (s *RemoteSnapPart) Date() time.Time {
 }
 
 // Download downloads the snap and returns the filename
-func (s *RemoteSnapPart) Download(pbar ProgressMeter) (string, error) {
+func (s *RemoteSnapPart) Download(pbar progress.Meter) (string, error) {
 
 	w, err := ioutil.TempFile("", s.pkg.Name)
 	if err != nil {
@@ -515,28 +658,23 @@ func (s *RemoteSnapPart) Download(pbar ProgressMeter) (string, error) {
 }
 
 // Install installs the snap
-func (s *RemoteSnapPart) Install(pbar ProgressMeter, flags InstallFlags) error {
+func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (string, error) {
 	downloadedSnap, err := s.Download(pbar)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer os.Remove(downloadedSnap)
 
-	err = installClick(downloadedSnap, flags, nil)
-	if err != nil {
-		return err
-	}
-
-	return err
+	return installClick(downloadedSnap, flags, pbar)
 }
 
 // SetActive sets the snap active
-func (s *RemoteSnapPart) SetActive() (err error) {
+func (s *RemoteSnapPart) SetActive(progress.Meter) error {
 	return ErrNotInstalled
 }
 
 // Uninstall remove the snap from the system
-func (s *RemoteSnapPart) Uninstall() (err error) {
+func (s *RemoteSnapPart) Uninstall(progress.Meter) error {
 	return ErrNotInstalled
 }
 
@@ -548,6 +686,11 @@ func (s *RemoteSnapPart) Config(configuration []byte) (new string, err error) {
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *RemoteSnapPart) NeedsReboot() bool {
 	return false
+}
+
+// Frameworks returns the list of frameworks needed by the snap
+func (s *RemoteSnapPart) Frameworks() ([]string, error) {
+	return nil, ErrNotImplemented
 }
 
 // NewRemoteSnapPart returns a new RemoteSnapPart from the given
@@ -595,7 +738,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	// check if the oem part sets a custom store-id
 	oems, _ := InstalledSnapsByType(SnapTypeOem)
 	if len(oems) == 1 {
-		storeID := oems[0].(*SnapPart).m.Store.ID
+		storeID := oems[0].(*SnapPart).m.OEM.Store.ID
 		if storeID != "" {
 			req.Header.Set("X-Ubuntu-Store", storeID)
 		}

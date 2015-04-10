@@ -20,41 +20,26 @@ package main
 import (
 	"fmt"
 
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
-type cmdRemove struct {
-	DisableGC bool `long:"no-gc" description:"Do not clean up old versions of the package."`
-}
-
 func init() {
-	var cmdRemoveData cmdRemove
-	_, _ = parser.AddCommand("remove",
-		"Remove a snapp part",
-		"Remove a snapp part",
-		&cmdRemoveData)
+	var cmdInternalFirstBootOemConfig cmdInternalFirstBootOemConfig
+	if _, err := parser.AddCommand("firstboot", "internal", "internal", &cmdInternalFirstBootOemConfig); err != nil {
+		// panic here as something must be terribly wrong if there is an
+		// error here
+		panic(err)
+	}
 }
 
-func (x *cmdRemove) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+type cmdInternalFirstBootOemConfig struct{}
 
-	flags := snappy.DoRemoveGC
-	if x.DisableGC {
-		flags = 0
+func (x *cmdInternalFirstBootOemConfig) Execute(args []string) error {
+	err := snappy.OemConfig()
+	if err == snappy.ErrNotFirstBoot {
+		fmt.Println("First boot has already run")
+		return nil
 	}
 
-	for _, part := range args {
-		fmt.Printf("Removing %s\n", part)
-
-		if err := snappy.Remove(part, flags); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return err
 }

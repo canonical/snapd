@@ -33,8 +33,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var debug = false
-
 var signalHandlerRegistered = false
 
 // Name of writable user data partition label as created by
@@ -213,10 +211,6 @@ func removeMountByTarget(mnts mountEntryArray, target string) (results mountEntr
 }
 
 func init() {
-	if os.Getenv("SNAPPY_DEBUG") != "" {
-		debug = true
-	}
-
 	if !signalHandlerRegistered {
 		setupSignalHandler()
 		signalHandlerRegistered = true

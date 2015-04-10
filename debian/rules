@@ -13,7 +13,15 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-pubuntu-snappy \
 		ubuntu-snappy.boot-ok.service
-	# we want the autopilot timer enabled by default
+	# enable the compat hooks for click
+	dh_systemd_enable \
+		-pubuntu-snappy \
+		ubuntu-snappy.run-hooks.service
+	# enable the first boot service
+	dh_systemd_enable \
+		-pubuntu-snappy \
+		ubuntu-snappy.firstboot.service
+# we want the autopilot timer enabled by default
 	dh_systemd_enable \
 		-pubuntu-snappy \
 		snappy-autopilot.timer
@@ -28,7 +36,11 @@ override_dh_systemd_start:
 	dh_systemd_start \
 		-pubuntu-snappy \
 		ubuntu-snappy.boot-ok.service
-	# we want to start the autopilot timer
+	# start run-hooks
+	dh_systemd_start \
+		-pubuntu-snappy \
+		ubuntu-snappy.run-hooks.service
+# we want to start the autopilot timer
 	dh_systemd_start \
 		-pubuntu-snappy \
 		snappy-autopilot.timer

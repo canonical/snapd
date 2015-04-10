@@ -28,6 +28,7 @@ import (
 
 type cmdInstall struct {
 	AllowUnauthenticated bool `long:"allow-unauthenticated" description:"Install snaps even if the signature can not be verified."`
+	DisableGC            bool `long:"no-gc" description:"Do not clean up old versions of the package."`
 	Positional           struct {
 		PackageName string `positional-arg-name:"package name" description:"Set configuration for a specific installed package"`
 		ConfigFile  string `positional-arg-name:"config file" description:"The configuration for the given file"`
@@ -43,9 +44,11 @@ func init() {
 }
 
 func (x *cmdInstall) Execute(args []string) (err error) {
-	pkgName := x.Positional.PackageName
+	possiblepkgName := x.Positional.PackageName
+	configFile := x.Positional.ConfigFile
+
 	// FIXME patch goflags to allow for specific n required positional arguments
-	if pkgName == "" {
+	if possiblepkgName == "" {
 		return errors.New("package name is required")
 	}
 
@@ -55,20 +58,28 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 	}
 	defer privMutex.Unlock()
 
-	var flags snappy.InstallFlags
+	flags := snappy.DoInstallGC
+	if x.DisableGC {
+		flags = 0
+	}
 	if x.AllowUnauthenticated {
 		flags |= snappy.AllowUnauthenticated
 	}
 
-	fmt.Printf("Installing %s\n", pkgName)
-	if err := snappy.Install(pkgName, flags); err == snappy.ErrPackageNotFound {
-		return fmt.Errorf("No package '%s' for %s", pkgName, ubuntuCoreChannel())
+	fmt.Printf("Installing %s\n", possiblepkgName)
+	var pkgName string
+
+	pkgName, err = snappy.Install(possiblepkgName, flags)
+	if err == snappy.ErrPackageNotFound {
+		return fmt.Errorf("No package '%s' for %s", possiblepkgName, ubuntuCoreChannel())
 	} else if err != nil {
 		return err
 	}
 
-	if _, err := configurePackage(pkgName, x.Positional.ConfigFile); err != nil {
-		return err
+	if configFile != "" {
+		if _, err := configurePackage(pkgName, configFile); err != nil {
+			return err
+		}
 	}
 
 	// call show versions afterwards
