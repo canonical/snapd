@@ -853,6 +853,7 @@ func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
 	defer func() {
 		aaClickHookCmd = oldCmd
 		snapAppArmorDir = oldDir
+		toucher = helpers.Touch
 	}()
 	aaClickHookCmd = "/bin/true"
 	snapAppArmorDir = c.MkDir()
@@ -881,6 +882,14 @@ type: framework`))
 	fi, err = os.Lstat(fn)
 	c.Assert(err, IsNil)
 	c.Check(ft.Before(fi.ModTime()), Equals, true)
+
+	// a few error cases now
+	aaClickHookCmd = "/bin/false"
+	c.Assert(part.RefreshDependentsSecurity(), NotNil)
+
+	aaClickHookCmd = "/bin/true"
+	toucher = func(string) error { return ErrNotImplemented }
+	c.Assert(part.RefreshDependentsSecurity(), NotNil)
 }
 
 func (s *SnapTestSuite) TestRemoveChecksFrameworks(c *C) {
