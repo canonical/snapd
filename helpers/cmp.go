@@ -25,6 +25,8 @@ import (
 
 const bufsz = 16 * 1024
 
+// FilesAreEqual compares the two files' contents and returns whether
+// they are the same.
 func FilesAreEqual(a, b string) bool {
 	fa, err := os.Open(a)
 	if err != nil {
@@ -71,5 +73,4 @@ func streamsEqual(fa, fb io.Reader) bool {
 			return false
 		}
 	}
-	panic("can't happen")
 }
