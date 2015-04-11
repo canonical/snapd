@@ -108,10 +108,8 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 			return err
 		}
 
-		for _, p := range []string{snapFile, targetDir} {
-			if err := os.Chown(p, uid, gid); err != nil {
-				return err
-			}
+		if err := os.Chown(targetDir, uid, gid); err != nil {
+			return err
 		}
 
 		// run prctl(PR_SET_NO_NEW_PRIVS)
