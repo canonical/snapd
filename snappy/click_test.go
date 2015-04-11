@@ -282,6 +282,58 @@ func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 	c.Check(ag.license, Equals, "WTFPL")
 }
 
+// If a previous version is installed with the same license version, the agreer
+// isn't called
+func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
+	ag := &agreerator{y: true}
+	yaml := "name: foox\nexplicit-license-agreement: Y\nlicense-version: 2\n"
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
+	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
+	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+
+	pkg := makeTestSnapPackage(c, yaml+"version: 2")
+	_, err = installClick(pkg, 0, ag)
+	c.Assert(err, Equals, nil)
+	c.Check(ag.intro, Equals, "")
+	c.Check(ag.license, Equals, "")
+}
+
+// If a previous version is installed with the same license version, but without
+// explicit license agreement set, the agreer *is* called
+func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
+	ag := &agreerator{y: true}
+	yaml := "name: foox\nlicense-version: 2\n"
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
+	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
+	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+
+	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y")
+	_, err = installClick(pkg, 0, ag)
+	c.Assert(err, Equals, nil)
+	c.Check(ag.license, Equals, "WTFPL")
+}
+
+// If a previous version is installed with a different license version, the
+// agreer *is* called
+func (s *SnapTestSuite) TEstDifferentLicenseVersion(c *C) {
+	ag := &agreerator{y: true}
+	yaml := "name: foox\nexplicit-license-agreement: Y\n"
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"license-version: 2\nversion: 1")
+	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
+	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+
+	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
+	_, err = installClick(pkg, 0, ag)
+	c.Assert(err, Equals, nil)
+	c.Check(ag.license, Equals, "WTFPL")
+}
+
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	allSystemctl := []string{}
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {

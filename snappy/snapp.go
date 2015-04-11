@@ -140,7 +140,8 @@ type packageYaml struct {
 	// mapping of click hooks
 	Integration map[string]clickAppHook
 
-	ExplicitLicenseAgreement bool `yaml:"explicit-license-agreement"`
+	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement"`
+	LicenseVersion           string `yaml:"license-version"`
 }
 
 type remoteSnap struct {
