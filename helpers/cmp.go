@@ -19,8 +19,10 @@ package helpers
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
+	"path/filepath"
 )
 
 const bufsz = 16 * 1024
@@ -73,4 +75,37 @@ func streamsEqual(fa, fb io.Reader) bool {
 			return false
 		}
 	}
+}
+
+// ErrDirNotSuperset means that there are files in the first directory that are
+// missing from the second one
+var ErrDirNotSuperset = errors.New("not a superset")
+
+// IsSupersetDirUpdated compares two directories, where the files in the first
+// are supposed to be a subset of the ones in the second, and returns whether
+// the subset of files in the second that are in the first have changed.
+//
+// If the second directory is not a superset of the first, returns an error.
+//
+// Subdirectories are ignored.
+func IsSupersetDirUpdated(a, b string) (bool, error) {
+	fas, err := filepath.Glob(filepath.Join(a, "*"))
+	if err != nil {
+		return false, err
+	}
+
+	for _, fa := range fas {
+		if IsDirectory(fa) {
+			continue
+		}
+		fb := filepath.Join(b, filepath.Base(fa))
+		if !FileExists(fb) {
+			return true, ErrDirNotSuperset
+		}
+		if !FilesAreEqual(fa, fb) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
