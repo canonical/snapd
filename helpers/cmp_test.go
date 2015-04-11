@@ -81,45 +81,43 @@ func (ts *HTestSuite) TestCmpStreams(c *C) {
 	}
 }
 
-func (ts *HTestSuite) TestIsSupersetDirUpdated(c *C) {
+func (ts *HTestSuite) TestSupersetDirUpdated(c *C) {
 	d1 := c.MkDir()
 	d2 := c.MkDir()
 
 	// 1. empty directories are not updated, and all ok
-	updated, err := IsSupersetDirUpdated(d1, d2)
+	updated, err := SupersetDirUpdated(d1, d2)
 	c.Check(err, IsNil)
-	c.Check(updated, Equals, false)
+	c.Check(updated, HasLen, 0)
 
 	// 2. a directory with an extra file in it is ok as a superset...
 	c.Assert(ioutil.WriteFile(filepath.Join(d2, "foo"), []byte("x"), 0644), IsNil)
-	updated, err = IsSupersetDirUpdated(d1, d2)
+	updated, err = SupersetDirUpdated(d1, d2)
 	c.Check(err, IsNil)
-	c.Check(updated, Equals, false)
+	c.Check(updated, HasLen, 0)
 
 	//   ... but not as a subset
-	updated, err = IsSupersetDirUpdated(d2, d1)
+	_, err = SupersetDirUpdated(d2, d1)
 	c.Check(err, Equals, ErrDirNotSuperset)
-	// although, just in case, we report it as updated as well
-	c.Check(updated, Equals, true)
 
 	// 3. if files are equal, it's not updated
 	c.Assert(ioutil.WriteFile(filepath.Join(d1, "foo"), []byte("x"), 0644), IsNil)
-	updated, err = IsSupersetDirUpdated(d1, d2)
+	updated, err = SupersetDirUpdated(d1, d2)
 	c.Check(err, IsNil)
-	c.Check(updated, Equals, false)
+	c.Check(updated, HasLen, 0)
 
 	// 4. sub-directories are ignored
 	c.Assert(os.Mkdir(filepath.Join(d1, "dir"), 0755), IsNil)
-	updated, err = IsSupersetDirUpdated(d1, d2)
+	updated, err = SupersetDirUpdated(d1, d2)
 	c.Check(err, IsNil)
-	c.Check(updated, Equals, false)
+	c.Check(updated, HasLen, 0)
 
-	// 5. if files are different, it's updated
+	// 5. all files that are different are returned
+	c.Assert(ioutil.WriteFile(filepath.Join(d1, "foo"), []byte("y"), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d1, "bar"), []byte("x"), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d2, "bar"), []byte("y"), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d2, "baz"), []byte("x"), 0644), IsNil)
-	updated, err = IsSupersetDirUpdated(d1, d2)
+	updated, err = SupersetDirUpdated(d1, d2)
 	c.Check(err, IsNil)
-	c.Check(updated, Equals, true)
-
+	c.Check(updated, DeepEquals, []string{"bar", "foo"})
 }
