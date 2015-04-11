@@ -119,5 +119,5 @@ func (ts *HTestSuite) TestSupersetDirUpdated(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(d2, "baz"), []byte("x"), 0644), IsNil)
 	updated, err = SupersetDirUpdated(d1, d2)
 	c.Check(err, IsNil)
-	c.Check(updated, DeepEquals, []string{"bar", "foo"})
+	c.Check(updated, DeepEquals, map[string]bool{"bar": true, "foo": true})
 }
