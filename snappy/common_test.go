@@ -75,8 +75,8 @@ func addDefaultApparmorJSON(tempdir, apparmorJSONPath string) error {
 	}
 
 	const securityJSON = `{
-  "policy_vendor": "ubuntu-snappy"
-  "policy_version": 1.3
+  "policy_vendor": "ubuntu-core"
+  "policy_version": 15.04
 }`
 
 	apparmorFile := filepath.Join(appArmorDir, apparmorJSONPath)

@@ -19,8 +19,10 @@ func generateApparmorJSONContent(s *SecurityDefinitions) ([]byte, error) {
 	t := apparmorJSONTemplate{
 		Template:      s.SecurityTemplate,
 		PolicyGroups:  s.SecurityCaps,
-		PolicyVendor:  "ubuntu-snappy",
-		PolicyVersion: 1.3,
+		// TODO: this won't work with Ubuntu Personal, etc
+		PolicyVendor:  "ubuntu-core",
+		// TODO: this should perhaps be autodetected
+		PolicyVersion: 15.04,
 	}
 
 	// FIXME: this is snappy specific, on other systems like the

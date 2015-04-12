@@ -50,8 +50,8 @@ func (a *ApparmorTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
   "policy_groups": [
     "networking"
   ],
-  "policy_vendor": "ubuntu-snappy",
-  "policy_version": 1.3
+  "policy_vendor": "ubuntu-core",
+  "policy_version": 15.04
 }`)
 }
 
