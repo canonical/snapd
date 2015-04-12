@@ -106,6 +106,7 @@ func clickVerifyContentFn(path string) (string, error) {
 // deb package)
 type ClickDeb struct {
 	Path string
+	File *os.File
 }
 
 // ControlMember returns the content of the given control member file
@@ -125,11 +126,15 @@ func (d *ClickDeb) MetaMember(metaMember string) (content []byte, err error) {
 //
 // Confused? look at ControlMember and MetaMember, which this generalises.
 func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error) {
-	file, err := os.Open(d.Path)
-	if err != nil {
-		return nil, err
+	file := d.File
+
+	if file == nil {
+		file, err = os.Open(d.Path)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
 	}
-	defer file.Close()
 
 	arReader := ar.NewReader(file)
 	dataReader, err := skipToArMember(arReader, arMember)
@@ -161,11 +166,14 @@ func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error
 func (d *ClickDeb) Unpack(targetDir string) error {
 	var err error
 
-	file, err := os.Open(d.Path)
-	if err != nil {
-		return err
+	file := d.File
+	if file == nil {
+		file, err = os.Open(d.Path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
 	}
-	defer file.Close()
 
 	arReader := ar.NewReader(file)
 	dataReader, err := skipToArMember(arReader, "data.tar")
@@ -327,12 +335,15 @@ func tarCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 func (d *ClickDeb) Build(sourceDir string, dataTarFinishedCallback func(dataName string) error) error {
 	var err error
 
-	// create file
-	file, err := os.Create(d.Path)
-	if err != nil {
-		return err
+	file := d.File
+	if file == nil {
+		// create file
+		file, err = os.Create(d.Path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
 	}
-	defer file.Close()
 
 	// tmp
 	tempdir, err := ioutil.TempDir("", "data")
