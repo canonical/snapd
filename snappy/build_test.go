@@ -200,7 +200,8 @@ services:
 	c.Assert(err, IsNil)
 	c.Assert(string(snappySystemdContent), Equals, `{
  "description": "some description",
- "start": "bin/hello-world"
+ "start": "bin/hello-world",
+ "stop-timeout": "30s"
 }`)
 }
 
