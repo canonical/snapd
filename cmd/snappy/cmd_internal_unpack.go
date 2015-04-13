@@ -90,7 +90,7 @@ func readUid(user, passwdFile string) (uid int, err error) {
 
 func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 
-	file, err := os.Open(snapFile)
+	d, err := clickdeb.Open(snapFile)
 	if err != nil {
 		return err
 	}
@@ -138,11 +138,6 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 		if syscall.Getuid() != uid || syscall.Getgid() != gid {
 			return fmt.Errorf("Dropping privileges failed, uid is %v, gid is %v", syscall.Getuid(), syscall.Getgid())
 		}
-	}
-
-	d := clickdeb.ClickDeb{
-		Path: snapFile,
-		File: file,
 	}
 
 	return d.Unpack(targetDir)

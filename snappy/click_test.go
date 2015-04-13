@@ -882,7 +882,8 @@ binaries:
 	c.Assert(writeDebianControl(tmpdir, m), IsNil)
 	c.Assert(writeClickManifest(tmpdir, m), IsNil)
 	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
-	d := &clickdeb.ClickDeb{Path: snapName}
+	d, err := clickdeb.Create(snapName)
+	c.Assert(err, IsNil)
 	c.Assert(d.Build(tmpdir, func(dataTar string) error {
 		return writeHashes(tmpdir, dataTar)
 	}), IsNil)

@@ -507,7 +507,11 @@ func Build(sourceDir, targetDir string) (string, error) {
 	}
 
 	// build it
-	d := clickdeb.ClickDeb{Path: snapName}
+	d, err := clickdeb.Create(snapName)
+	if err != nil {
+		return "", err
+	}
+
 	err = d.Build(buildDir, func(dataTar string) error {
 		// write hashes of the files plus the generated data tar
 		return writeHashes(buildDir, dataTar)
