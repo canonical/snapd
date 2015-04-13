@@ -112,6 +112,36 @@ type MetaRepository struct {
 	all []Repository
 }
 
+// NewMetaStoreRepository returns a MetaRepository of stores
+func NewMetaStoreRepository() *MetaRepository {
+	m := new(MetaRepository)
+	m.all = []Repository{}
+
+	if repo := NewUbuntuStoreSnapRepository(); repo != nil {
+		m.all = append(m.all, repo)
+	}
+
+	return m
+}
+
+// NewMetaLocalRepository returns a MetaRepository of stores
+func NewMetaLocalRepository() *MetaRepository {
+	m := new(MetaRepository)
+	m.all = []Repository{}
+
+	if repo := NewSystemImageRepository(); repo != nil {
+		m.all = append(m.all, repo)
+	}
+	if repo := NewLocalSnapRepository(snapAppsDir); repo != nil {
+		m.all = append(m.all, repo)
+	}
+	if repo := NewLocalSnapRepository(snapOemDir); repo != nil {
+		m.all = append(m.all, repo)
+	}
+
+	return m
+}
+
 // NewMetaRepository returns a new MetaRepository
 func NewMetaRepository() *MetaRepository {
 	// FIXME: make this a configuration file
