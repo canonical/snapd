@@ -75,7 +75,7 @@ func Install(name string, flags InstallFlags) (string, error) {
 
 func doInstall(name string, flags InstallFlags) (string, error) {
 	// consume local parts
-	if _, err := os.Stat(name); err == nil {
+	if fi, err := os.Stat(name); err == nil && fi.Mode().IsRegular() {
 		// we allow unauthenticated package when in developer
 		// mode
 		if inDeveloperMode() {

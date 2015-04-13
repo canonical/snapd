@@ -193,8 +193,8 @@ func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	return parts, err
 }
 
-// InstalledSnapsByType returns all installed snaps with the given type
-func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
+// ActiveSnapsByType returns all installed snaps with the given type
+func ActiveSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	if err != nil {
@@ -215,11 +215,11 @@ func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 	return res, nil
 }
 
-// InstalledSnapNamesByType returns all installed snap names with the given type
-var InstalledSnapNamesByType = installedSnapNamesByTypeImpl
+// ActiveSnapNamesByType returns all installed snap names with the given type
+var ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 
-func installedSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
-	installed, err := InstalledSnapsByType(snapTs...)
+func activeSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
+	installed, err := ActiveSnapsByType(snapTs...)
 	for _, part := range installed {
 		res = append(res, part.Name())
 	}
