@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
 
@@ -72,6 +73,27 @@ type SecurityDefinitions struct {
 
 	//
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
+}
+
+func (sd *SecurityDefinitions) NeedsAppArmorUpdate(policies, templates map[string]bool) bool {
+	if sd.SecurityPolicy != nil {
+		return false
+	}
+
+	if sd.SecurityOverride != nil {
+		// XXX: actually inspect the override to figure out in more detail
+		return true
+	}
+
+	if templates[sd.SecurityTemplate] {
+		return true
+	}
+	for _, cap := range sd.SecurityCaps {
+		if policies[cap] {
+			return true
+		}
+	}
+	return false
 }
 
 // Service represents a service inside a SnapPart
@@ -393,6 +415,11 @@ func (s *SnapPart) Services() []Service {
 	return s.m.Services
 }
 
+// Binaries return a list of Service the package declares
+func (s *SnapPart) Binaries() []Binary {
+	return s.m.Binaries
+}
+
 // Install installs the snap
 func (s *SnapPart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
 	return "", errors.New("Install of a local part is not possible")
@@ -517,8 +544,25 @@ type restartJob struct {
 	timeout time.Duration
 }
 
+func (s *SnapPart) NeedsAppArmorUpdate(policies, templates map[string]bool) bool {
+	for _, svc := range s.Services() {
+		if svc.NeedsAppArmorUpdate(policies, templates) {
+			return true
+		}
+	}
+	for _, bin := range s.Binaries() {
+		if bin.NeedsAppArmorUpdate(policies, templates) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // RefreshDependentsSecurity refreshes the security policies of dependent snaps
 func (s *SnapPart) RefreshDependentsSecurity(inter interacter) error {
+	upPol, upTpl := policy.AppArmorDelta(s.Name(), s.basedir)
+
 	deps, err := s.Dependents()
 	if err != nil {
 		return err
@@ -527,12 +571,14 @@ func (s *SnapPart) RefreshDependentsSecurity(inter interacter) error {
 	var restart []restartJob
 
 	for _, dep := range deps {
-		if err := dep.UpdateAppArmorJSONTimestamp(); err != nil {
-			return err
-		}
-		for _, svc := range dep.Services() {
-			svcName := generateServiceFileName(dep.m, svc)
-			restart = append(restart, restartJob{svcName, time.Duration(svc.StopTimeout)})
+		if dep.NeedsAppArmorUpdate(upPol, upTpl) {
+			if err := dep.UpdateAppArmorJSONTimestamp(); err != nil {
+				return err
+			}
+			for _, svc := range dep.Services() {
+				svcName := generateServiceFileName(dep.m, svc)
+				restart = append(restart, restartJob{svcName, time.Duration(svc.StopTimeout)})
+			}
 		}
 	}
 
@@ -542,7 +588,11 @@ func (s *SnapPart) RefreshDependentsSecurity(inter interacter) error {
 
 	sysd := systemd.New(globalRootDir, inter)
 	for _, r := range restart {
-		sysd.Restart(r.name, r.timeout)
+		if err := sysd.Restart(r.name, r.timeout); err != nil {
+			// we don't want to stop restarting the dependents
+			// because one of them fails
+			inter.Notify(fmt.Sprintf(" when restarting %s: %v", r.name, err))
+		}
 	}
 
 	return nil

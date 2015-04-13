@@ -868,6 +868,10 @@ func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
 version: 1.0
 frameworks:
  - fmk
+binaries:
+ - name: hello
+   security-override:
+    apparmor: foo
 `)
 	c.Assert(err, IsNil)
 
@@ -910,4 +914,61 @@ frameworks:
 	part := &SnapPart{m: yaml}
 	err = part.Uninstall(new(MockProgressMeter))
 	c.Check(err, ErrorMatches, `framework still in use by: foo`)
+}
+
+func (s *SnapTestSuite) TestSecDefNeedsAppArmorUpdateSecurityPolicy(c *C) {
+	// if a security policy is defined, never flag for update
+	sd := &SecurityDefinitions{SecurityPolicy: &SecurityOverrideDefinition{}}
+	c.Check(sd.NeedsAppArmorUpdate(nil, nil), Equals, false)
+}
+
+func (s *SnapTestSuite) TestSecDefNeedsAppArmorUpdateSecurityOverride(c *C) {
+	// if a security override is defined, always flag for update
+	sd := &SecurityDefinitions{SecurityOverride: &SecurityOverrideDefinition{}}
+	c.Check(sd.NeedsAppArmorUpdate(nil, nil), Equals, true)
+}
+
+func (s *SnapTestSuite) TestSecDefNeedsAppArmorUpdateTemplatePresent(c *C) {
+	// if the template is in the map, it needs updating
+	sd := &SecurityDefinitions{SecurityTemplate: "foo_bar"}
+	c.Check(sd.NeedsAppArmorUpdate(nil, map[string]bool{"foo_bar": true}), Equals, true)
+}
+
+func (s *SnapTestSuite) TestSecDefNeedsAppArmorUpdateTemplateAbsent(c *C) {
+	// if the template is not in the map, it does not
+	sd := &SecurityDefinitions{SecurityTemplate: "foo_bar"}
+	c.Check(sd.NeedsAppArmorUpdate(nil, nil), Equals, false)
+}
+
+func (s *SnapTestSuite) TestSecDefNeedsAppArmorUpdatePolicyPresent(c *C) {
+	// if the cap is in the map, it needs updating
+	sd := &SecurityDefinitions{SecurityCaps: []string{"foo_bar"}}
+	c.Check(sd.NeedsAppArmorUpdate(map[string]bool{"foo_bar": true}, nil), Equals, true)
+}
+
+func (s *SnapTestSuite) TestSecDefNeedsAppArmorUpdatePolicyAbsent(c *C) {
+	// if the cap is not in the map, it does not
+	sd := &SecurityDefinitions{SecurityCaps: []string{"foo_quux"}}
+	c.Check(sd.NeedsAppArmorUpdate(map[string]bool{"foo_bar": true}, nil), Equals, false)
+}
+
+func (s *SnapTestSuite) TestSnapPartNeedsAppArmorUpdateService(c *C) {
+	// if one of the services needs updating, the part needs updating
+	svc := Service{SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	part := &SnapPart{m: &packageYaml{Services: []Service{svc}}}
+	c.Check(part.NeedsAppArmorUpdate(nil, map[string]bool{"foo": true}), Equals, true)
+}
+
+func (s *SnapTestSuite) TestSnapPartNeedsAppArmorUpdateBinary(c *C) {
+	// if one of the binaries needs updating, the part needs updating
+	bin := Binary{SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	part := &SnapPart{m: &packageYaml{Binaries: []Binary{bin}}}
+	c.Check(part.NeedsAppArmorUpdate(nil, map[string]bool{"foo": true}), Equals, true)
+}
+
+func (s *SnapTestSuite) TestSnapPartNeedsAppArmorUpdateNothing(c *C) {
+	svc := Service{SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	bin := Binary{SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	part := &SnapPart{m: &packageYaml{Services: []Service{svc}, Binaries: []Binary{bin}}}
+	c.Check(part.NeedsAppArmorUpdate(nil, nil), Equals, false)
 }
