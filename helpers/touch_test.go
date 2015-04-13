@@ -25,7 +25,7 @@ import (
 	. "launchpad.net/gocheck"
 )
 
-func (ts *HTestSuite) TestTouch(c *C) {
+func (ts *HTestSuite) TestUpdateTimestamp(c *C) {
 	// empirical
 	minRes := 25 * time.Millisecond
 
@@ -51,7 +51,7 @@ func (ts *HTestSuite) TestTouch(c *C) {
 
 	// this should update bar's timestamp to be newer than foo's
 	// (even though bar is a symlink to foo)
-	c.Assert(Touch(bar), IsNil)
+	c.Assert(UpdateTimestamp(bar), IsNil)
 
 	fifoo, err = os.Lstat(foo)
 	c.Assert(err, IsNil)
@@ -60,15 +60,15 @@ func (ts *HTestSuite) TestTouch(c *C) {
 	c.Assert(fifoo.ModTime().Before(fibar.ModTime()), Equals, true)
 }
 
-func (ts *HTestSuite) TestTouchDoesNotCreate(c *C) {
+func (ts *HTestSuite) TestUpdateTimestampDoesNotCreate(c *C) {
 	d := c.MkDir()
 	foo := filepath.Join(d, "foo")
 
-	c.Check(Touch(foo), NotNil)
+	c.Check(UpdateTimestamp(foo), NotNil)
 	_, err := os.Stat(foo)
 	c.Check(os.IsNotExist(err), Equals, true)
 }
 
-func (ts *HTestSuite) TestTouchBailsOnRelative(c *C) {
-	c.Check(Touch("./foo"), Equals, ErrNotAbsPath)
+func (ts *HTestSuite) TestUpdateTimestampBailsOnRelative(c *C) {
+	c.Check(UpdateTimestamp("./foo"), Equals, ErrNotAbsPath)
 }
