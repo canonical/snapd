@@ -432,8 +432,11 @@ func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error 
 	v := reflect.ValueOf(s)
 	for i := 0; i < t.NumField(); i++ {
 
-		// FIXME: is there a better way?
-		if t.Field(i).Name != "typ" && v.Field(i).Kind() == reflect.Ptr {
+		// PkgPath means its a unexported field and we can ignore it
+		if t.Field(i).PkgPath != "" {
+			continue
+		}
+		if v.Field(i).Kind() == reflect.Ptr {
 			vi := v.Field(i).Elem()
 			if vi.Kind() == reflect.Struct {
 				return verifyStructStringsAgainstWhitelist(vi.Interface(), whitelist)
