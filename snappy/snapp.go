@@ -72,15 +72,46 @@ type SecurityDefinitions struct {
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
 }
 
+// Timeout is a time.Duration that knows how to roundtrip to json
+type Timeout time.Duration
+
+// DefaultTimeout specifies the timeout for services that do not specify StopTimeout
+var DefaultTimeout = Timeout(30 * time.Second)
+
+// MarshalJSON is from the json.Marshaler interface
+func (t Timeout) MarshalJSON() ([]byte, error) {
+	return json.Marshal(t.String())
+}
+
+// UnmarshalJSON is from the json.Unmarshaler interface
+func (t *Timeout) UnmarshalJSON(buf []byte) error {
+	dur, err := time.ParseDuration(string(buf))
+	if err != nil {
+		return err
+	}
+	*t = Timeout(dur)
+	return nil
+}
+
+// String returns a string representing the duration
+func (t Timeout) String() string {
+	return time.Duration(t).String()
+}
+
+// Seconds returns the duration as a floating point number of seconds.
+func (t Timeout) Seconds() float64 {
+	return time.Duration(t).Seconds()
+}
+
 // Service represents a service inside a SnapPart
 type Service struct {
 	Name        string `yaml:"name" json:"name,omitempty"`
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 
-	Start       string `yaml:"start,omitempty" json:"start,omitempty"`
-	Stop        string `yaml:"stop,omitempty" json:"stop,omitempty"`
-	PostStop    string `yaml:"poststop,omitempty" json:"poststop,omitempty"`
-	StopTimeout string `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
+	Start       string  `yaml:"start,omitempty" json:"start,omitempty"`
+	Stop        string  `yaml:"stop,omitempty" json:"stop,omitempty"`
+	PostStop    string  `yaml:"poststop,omitempty" json:"poststop,omitempty"`
+	StopTimeout Timeout `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
 
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
@@ -204,6 +235,13 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 
 		m.Frameworks = commasplitter(m.DeprecatedFramework, -1)
 		m.DeprecatedFramework = ""
+	}
+
+	for i, svc := range m.Services {
+		if svc.StopTimeout == 0 {
+			svc.StopTimeout = DefaultTimeout
+			m.Services[i] = svc
+		}
 	}
 
 	return &m, nil
