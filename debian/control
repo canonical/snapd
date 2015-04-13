@@ -30,7 +30,7 @@ Package: ubuntu-snappy
 Architecture: all
 Depends: apparmor-easyprof-ubuntu-snappy,
          debsig-verify,
-         system-image-cli (>= 2.5-0ubuntu1+ppa15),
+         system-image-snappy-cli,
          ubuntu-snappy-cli (= ${binary:Version}),
          ubuntu-core-upgrader,
          ${misc:Depends}
