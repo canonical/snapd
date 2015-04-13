@@ -875,9 +875,10 @@ frameworks:
 version: 1.0
 type: framework`))
 	c.Assert(err, IsNil)
+	inter := new(MockProgressMeter)
 	part := &SnapPart{m: yaml}
 
-	c.Assert(part.RefreshDependentsSecurity(), IsNil)
+	c.Assert(part.RefreshDependentsSecurity(inter), IsNil)
 
 	fi, err = os.Lstat(fn)
 	c.Assert(err, IsNil)
@@ -885,11 +886,11 @@ type: framework`))
 
 	// a few error cases now
 	aaClickHookCmd = "/bin/false"
-	c.Assert(part.RefreshDependentsSecurity(), NotNil)
+	c.Assert(part.RefreshDependentsSecurity(inter), NotNil)
 
 	aaClickHookCmd = "/bin/true"
 	timestampUpdater = func(string) error { return ErrNotImplemented }
-	c.Assert(part.RefreshDependentsSecurity(), NotNil)
+	c.Assert(part.RefreshDependentsSecurity(inter), NotNil)
 }
 
 func (s *SnapTestSuite) TestRemoveChecksFrameworks(c *C) {
