@@ -37,6 +37,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/progress"
+	"launchpad.net/snappy/systemd"
 
 	"gopkg.in/yaml.v2"
 )
@@ -542,21 +543,37 @@ func (s *SnapPart) UpdateAppArmorJSONTimestamp() error {
 	return nil
 }
 
+type restartJob struct {
+	name    string
+	timeout time.Duration
+}
+
 // RefreshDependentsSecurity refreshes the security policies of dependent snaps
-func (s *SnapPart) RefreshDependentsSecurity() error {
+func (s *SnapPart) RefreshDependentsSecurity(inter interacter) error {
 	deps, err := s.Dependents()
 	if err != nil {
 		return err
 	}
 
+	var restart []restartJob
+
 	for _, dep := range deps {
 		if err := dep.UpdateAppArmorJSONTimestamp(); err != nil {
 			return err
+		}
+		for _, svc := range dep.Services() {
+			svcName := generateServiceFileName(dep.m, svc)
+			restart = append(restart, restartJob{svcName, time.Duration(svc.StopTimeout)})
 		}
 	}
 
 	if err := exec.Command(aaClickHookCmd).Run(); err != nil {
 		return err
+	}
+
+	sysd := systemd.New(globalRootDir, inter)
+	for _, r := range restart {
+		sysd.Restart(r.name, r.timeout)
 	}
 
 	return nil
