@@ -140,7 +140,4 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 
 	_, err = Install("foo", 0)
 	c.Assert(err, Equals, ErrAlreadyInstalled)
-
-	_, err = Install("foo", AllowReinstall)
-	c.Assert(err, IsNil)
 }

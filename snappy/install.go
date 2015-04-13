@@ -38,8 +38,6 @@ const (
 	InhibitHooks
 	// DoInstallGC will ensure that garbage collection is done
 	DoInstallGC
-	// AllowReinstall will allow an install to proceed despite the same thing already being installed
-	AllowReinstall
 )
 
 // check if the image is in developer mode
@@ -98,11 +96,9 @@ func doInstall(name string, flags InstallFlags) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			if flags&AllowReinstall == 0 {
-				cur := FindSnapByNameAndVersion(part.Name(), part.Version(), installed)
-				if cur != nil {
-					return "", ErrAlreadyInstalled
-				}
+			cur := FindSnapByNameAndVersion(part.Name(), part.Version(), installed)
+			if cur != nil {
+				return "", ErrAlreadyInstalled
 			}
 			pbar := progress.NewTextProgress(part.Name())
 			return part.Install(pbar, flags)
