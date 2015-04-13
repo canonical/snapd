@@ -24,10 +24,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"launchpad.net/snappy/helpers"
 )
 
 var (
-	secbase = "/var/lib/snappy"
+	// SecBase is the directory to which the security policies and templates
+	// are copied
+	SecBase = "/var/lib/snappy"
 )
 
 type policyOp uint
@@ -127,7 +131,7 @@ func frameworkOp(op policyOp, pkgName string, instPath string) error {
 	pol := filepath.Join(instPath, "meta", "framework-policy")
 	for _, i := range []string{"apparmor", "seccomp"} {
 		for _, j := range []string{"policygroups", "templates"} {
-			if err := iterOp(op, filepath.Join(pol, i, j, "*"), filepath.Join(secbase, i, j), pkgName+"_"); err != nil {
+			if err := iterOp(op, filepath.Join(pol, i, j, "*"), filepath.Join(SecBase, i, j), pkgName+"_"); err != nil {
 				return err
 			}
 		}
@@ -146,4 +150,19 @@ func Install(pkgName string, instPath string) error {
 // installed in the given path.
 func Remove(pkgName string, instPath string) error {
 	return frameworkOp(remove, pkgName, instPath)
+}
+
+func aaUp(old, suf, new, dir string) map[string]bool {
+	return helpers.DirUpdated(filepath.Join(old, dir), suf, filepath.Join(new, dir))
+}
+
+// AppArmorDelta returns which policies and templates have are updated in the
+// package at newPath, as compared to those installed in the system.
+func AppArmorDelta(pkgName string, newPath string) (policies map[string]bool, templates map[string]bool) {
+	newaa := filepath.Join(newPath, "meta", "framework-policy", "apparmor")
+	oldaa := filepath.Join(SecBase, "apparmor")
+
+	suf := pkgName + "_"
+
+	return aaUp(oldaa, suf, newaa, "policygroups"), aaUp(oldaa, suf, newaa, "templates")
 }
