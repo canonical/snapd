@@ -483,10 +483,10 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 	return needed, nil
 }
 
-var toucher = helpers.Touch
+var timestampUpdater = helpers.UpdateTimestamp
 
-// TouchAppArmorJSON updates the timestamp on the snap's apparmor json symlink
-func (s *SnapPart) TouchAppArmorJSON() error {
+// UpdateAppArmorJSONTimestamp updates the timestamp on the snap's apparmor json symlink
+func (s *SnapPart) UpdateAppArmorJSONTimestamp() error {
 	// TODO: receive a list of policies that have changed, and only touch
 	// things if we use one of those policies
 
@@ -496,7 +496,7 @@ func (s *SnapPart) TouchAppArmorJSON() error {
 	}
 
 	for _, fn := range fns {
-		if err := toucher(fn); err != nil {
+		if err := timestampUpdater(fn); err != nil {
 			return err
 		}
 	}
@@ -512,7 +512,7 @@ func (s *SnapPart) RefreshDependentsSecurity() error {
 	}
 
 	for _, dep := range deps {
-		if err := dep.TouchAppArmorJSON(); err != nil {
+		if err := dep.UpdateAppArmorJSONTimestamp(); err != nil {
 			return err
 		}
 	}
