@@ -86,10 +86,6 @@ func streamsEqual(fa, fb io.Reader) bool {
 	}
 }
 
-// ErrDirNotSuperset means that there are files in the first directory that are
-// missing from the second one
-var ErrDirNotSuperset = errors.New("not a superset")
-
 // DirUpdated compares two directories, and returns which files that
 // have the prefix in the first one have been updated in the second one.
 //
