@@ -61,19 +61,19 @@ func streamsEqual(fa, fb io.Reader) bool {
 	bufa := make([]byte, bufsz)
 	bufb := make([]byte, bufsz)
 	for {
-		ra, erra := io.ReadFull(fa, bufa)
-		rb, errb := io.ReadFull(fb, bufb)
+		ra, erra := io.ReadAtLeast(fa, bufa, bufsz)
+		rb, errb := io.ReadAtLeast(fb, bufb, bufsz)
 		if erra == io.EOF && errb == io.EOF {
 			return true
 		}
 		if erra != nil || errb != nil {
-			// if both files finished in the middle of a ReadFull,
-			// (returning io.ErrUnexpectedEOF), having read the same
-			// amount (so ra==rb), then we still need to check what
-			// was read to know whether they're equal.  Otherwise,
-			// we know they're not equal (because we count any read
-			// error as a being non-equal also).
-			tailMightBeEqual := erra == io.ErrUnexpectedEOF && errb == io.ErrUnexpectedEOF && ra == rb
+			// if both files finished in the middle of a
+			// ReadAtLeast, (returning io.ErrUnexpectedEOF), then we
+			// still need to check what was read to know whether
+			// they're equal.  Otherwise, we know they're not equal
+			// (because we count any read error as a being non-equal
+			// also).
+			tailMightBeEqual := erra == io.ErrUnexpectedEOF && errb == io.ErrUnexpectedEOF
 			if !tailMightBeEqual {
 				return false
 			}
