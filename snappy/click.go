@@ -645,8 +645,12 @@ func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
 	return nil
 }
 
-type interacter interface {
+type agreer interface {
 	Agreed(intro, license string) bool
+}
+
+type interacter interface {
+	agreer
 	Notify(status string)
 }
 
@@ -700,30 +704,8 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 	instDir := filepath.Join(targetDir, manifest.Name, manifest.Version)
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 
-	if m.ExplicitLicenseAgreement {
-		if inter == nil {
-			return "", ErrLicenseNotAccepted
-		}
-
-		license, err := d.MetaMember("license.txt")
-		if err != nil || len(license) == 0 {
-			return "", ErrLicenseNotProvided
-		}
-
-		oldM, err := parsePackageYamlFile(filepath.Join(currentActiveDir, "meta", "package.yaml"))
-		if err != nil && !os.IsNotExist(err) {
-			return "", err
-		}
-
-		// don't ask for the license if
-		// * the previous version also asked for license confirmation, and
-		// * the license version is the same
-		if !(err == nil && oldM.ExplicitLicenseAgreement && oldM.LicenseVersion == m.LicenseVersion) {
-			msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
-			if !inter.Agreed(msg, string(license)) {
-				return "", ErrLicenseNotAccepted
-			}
-		}
+	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
+		return "", err
 	}
 
 	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)

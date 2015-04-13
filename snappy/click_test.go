@@ -319,7 +319,7 @@ func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
 
 // If a previous version is installed with a different license version, the
 // agreer *is* called
-func (s *SnapTestSuite) TEstDifferentLicenseVersion(c *C) {
+func (s *SnapTestSuite) TestDifferentLicenseVersion(c *C) {
 	ag := &agreerator{y: true}
 	yaml := "name: foox\nexplicit-license-agreement: Y\n"
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"license-version: 2\nversion: 1")
