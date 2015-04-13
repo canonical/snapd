@@ -79,7 +79,7 @@ func snapInfo(pkgname string, verbose bool) error {
 }
 
 func ubuntuCoreChannel() string {
-	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)
+	parts, err := snappy.ActiveSnapsByType(snappy.SnapTypeCore)
 	if len(parts) == 1 && err == nil {
 		return parts[0].Channel()
 	}
@@ -89,8 +89,8 @@ func ubuntuCoreChannel() string {
 
 func info() error {
 	release := ubuntuCoreChannel()
-	frameworks, _ := snappy.InstalledSnapNamesByType(snappy.SnapTypeFramework)
-	apps, _ := snappy.InstalledSnapNamesByType(snappy.SnapTypeApp)
+	frameworks, _ := snappy.ActiveSnapNamesByType(snappy.SnapTypeFramework)
+	apps, _ := snappy.ActiveSnapNamesByType(snappy.SnapTypeApp)
 
 	fmt.Printf("release: %s\n", release)
 	fmt.Printf("architecture: %s\n", snappy.Architecture())
