@@ -62,6 +62,9 @@ var (
 	// ErrNotInstalled is returned when the snap is not installed
 	ErrNotInstalled = errors.New("the given snap is not installed")
 
+	// ErrAlreadyInstalled is returned when the snap is already installed
+	ErrAlreadyInstalled = errors.New("the given snap is already installed")
+
 	// ErrPrivOpInProgress is returned when a privileged operation
 	// cannot be performed since an existing privileged operation is
 	// still running.
