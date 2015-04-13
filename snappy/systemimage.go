@@ -38,10 +38,17 @@ import (
 const (
 	systemImagePartName = "ubuntu-core"
 
-	// location of the channel config on the filesystem
+	// location of the channel config on the filesystem.
+	//
+	// This file specifies the s-i version installed on the rootfs
+	// and hence s-i updates this file on every update applied to
+	// the rootfs (by unpacking file "version-$version.tar.xz").
 	systemImageChannelConfig = "/etc/system-image/channel.ini"
 
-	// the location for the ReloadConfig
+	// location of the client config.
+	//
+	// The full path to this file needs to be passed to
+	// systemImageCli when querying a different rootfs.
 	systemImageClientConfig = "/etc/system-image/client.ini"
 )
 
@@ -164,6 +171,9 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 	// empty so we need to fallback to the current one if it is
 	configFile := systemImageClientConfig
 	err = s.partition.RunWithOther(partition.RO, func(otherRoot string) (err error) {
+		// XXX: Note that systemImageDownloadUpdate() requires
+		// the s-i _client_ config file whereas otherIsEmpty()
+		// checks the s-i _channel_ config file.
 		otherConfigFile := filepath.Join(systemImageRoot, otherRoot, systemImageClientConfig)
 		if !otherIsEmpty(otherRoot) && helpers.FileExists(otherConfigFile) {
 			configFile = otherConfigFile
@@ -321,17 +331,27 @@ func makeCurrentPart(p partition.Interface) Part {
 //
 // Note that the rootfs _may_ not actually be strictly empty, but it
 // must be considered empty if it is incomplete.
+//
+// This function encapsulates the heuristics to determine if the rootfs
+// is complete.
 func otherIsEmpty(root string) bool {
 	configFile := filepath.Join(systemImageRoot, root, systemImageChannelConfig)
 
 	st, err := os.Stat(configFile)
 
 	if err == nil && st.Size() > 0 {
+		// the channel config file exists and has a "reasonable"
+		// size. The upgrade therefore completed successfully,
+		// so consider the rootfs complete.
 		return false
 	}
 
-	// If the s-i config file either does not exist, or has a size
-	// of zero (indicating the upgrader failed on a previous boot),
+	// The upgrader pre-creates the s-i channel config file as a
+	// zero-sized file when "other" is first provisioned.
+	//
+	// So if this file either does not exist, or has a size of zero
+	// (indicating the upgrader failed to complete the s-i unpack on
+	// a previous boot [which would have made configFile >0 bytes]),
 	// the other partition is considered empty.
 
 	return true
