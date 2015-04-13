@@ -37,6 +37,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	"time"
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
@@ -45,7 +46,6 @@ import (
 	"launchpad.net/snappy/systemd"
 
 	"github.com/mvo5/goconfigparser"
-	"time"
 )
 
 type clickAppHook map[string]string
@@ -418,7 +418,7 @@ Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPat
 AppArmorProfile={{.AaProfile}}
 {{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
-{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout}}{{end}}
+{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
 
 [Install]
 WantedBy=multi-user.target
@@ -528,13 +528,7 @@ func removePackageServices(baseDir string, inter interacter) error {
 	sysd := systemd.New(globalRootDir, inter)
 	for _, service := range m.Services {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		// XXX: parsing should be done waaay before this (in the yaml loading!)
-		timeout, err := time.ParseDuration(service.StopTimeout)
-		if err != nil {
-			// XXX: whatevs
-			timeout = 30 * time.Second
-		}
-		if err := sysd.Stop(serviceName, timeout); err != nil {
+		if err := sysd.Stop(serviceName, time.Duration(service.StopTimeout)); err != nil {
 			return err
 		}
 		if err := sysd.Disable(serviceName); err != nil {
