@@ -131,7 +131,6 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	defer mockServer.Close()
 
 	name, err := Install("foo", 0, &progress.NullProgress{})
-	panic(err)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
