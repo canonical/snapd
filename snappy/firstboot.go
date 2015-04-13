@@ -44,7 +44,7 @@ func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 }
 
 var activeSnapByName = ActiveSnapByName
-var installedSnapsByType = InstalledSnapsByType
+var activeSnapsByType = ActiveSnapsByType
 
 // OemConfig checks for an oem snap and if found applies the configuration
 // set there to the system flagging that it run so it is effectively only
@@ -55,7 +55,7 @@ func OemConfig() error {
 	}
 	defer stampFirstBoot()
 
-	oemSnap, err := installedSnapsByType(SnapTypeOem)
+	oemSnap, err := activeSnapsByType(SnapTypeOem)
 	if err != nil {
 		return logger.LogError(err)
 	}

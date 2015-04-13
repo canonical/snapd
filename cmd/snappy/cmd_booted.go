@@ -41,7 +41,7 @@ func (x *cmdBooted) Execute(args []string) (err error) {
 	}
 	defer privMutex.Unlock()
 
-	parts, err := snappy.InstalledSnapsByType(snappy.SnapTypeCore)
+	parts, err := snappy.ActiveSnapsByType(snappy.SnapTypeCore)
 	if err != nil {
 		return logger.LogError(err)
 	}

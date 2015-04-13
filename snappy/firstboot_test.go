@@ -60,17 +60,17 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	s.oemConfig = make(SystemConfig)
 	s.oemConfig["myapp"] = configMyApp
 
-	s.mockInstalledSnapNamesByType()
+	s.mockActiveSnapNamesByType()
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	activeSnapByName = ActiveSnapByName
-	installedSnapsByType = InstalledSnapsByType
+	activeSnapsByType = ActiveSnapsByType
 }
 
-func (s *FirstBootTestSuite) mockInstalledSnapNamesByType() *fakePart {
+func (s *FirstBootTestSuite) mockActiveSnapNamesByType() *fakePart {
 	fakeOem := fakePart{oemConfig: s.oemConfig, snapType: SnapTypeOem}
-	installedSnapsByType = func(snapsTs ...SnapType) ([]Part, error) {
+	activeSnapsByType = func(snapsTs ...SnapType) ([]Part, error) {
 		return []Part{&fakeOem}, nil
 	}
 
@@ -108,7 +108,7 @@ func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestNoErrorWhenNoOEM(c *C) {
-	installedSnapsByType = func(snapsTs ...SnapType) ([]Part, error) {
+	activeSnapsByType = func(snapsTs ...SnapType) ([]Part, error) {
 		return nil, nil
 	}
 
