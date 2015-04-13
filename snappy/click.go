@@ -405,13 +405,12 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 	serviceTemplate := `[Unit]
 Description={{.Description}}
 After=ubuntu-snappy.run-hooks.service
-Requires=ubuntu-snappy.run-hooks.service
 X-Snappy=yes
 
 [Service]
 ExecStart={{.FullPathStart}}
 WorkingDirectory={{.AppPath}}
-Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}" "TMPDIR=/tmp/snaps/{{.packageYaml.Name}}/{{.Version}}/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/{{.packageYaml.Name}}/{{.Version}}/tmp"
+Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}" "TMPDIR=/tmp/snaps/{{.Name}}/{{.Version}}/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/{{.Name}}/{{.Version}}/tmp"
 AppArmorProfile={{.AaProfile}}
 {{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
@@ -423,8 +422,11 @@ WantedBy=multi-user.target
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
 	wrapperData := struct {
-		packageYaml
+		// embed service struct
 		Service
+		// but we need more
+		Name             string
+		Version          string
 		AppPath          string
 		AaProfile        string
 		FullPathStart    string
@@ -432,7 +434,7 @@ WantedBy=multi-user.target
 		FullPathPostStop string
 		AppTriple        string
 	}{
-		*m, service, baseDir, aaProfile,
+		service, m.Name, m.Version, baseDir, aaProfile,
 		filepath.Join(baseDir, service.Start),
 		filepath.Join(baseDir, service.Stop),
 		filepath.Join(baseDir, service.PostStop),
@@ -678,6 +680,10 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 	}
 
 	if err := m.checkForNameClashes(); err != nil {
+		return "", err
+	}
+
+	if err := m.checkForFrameworks(); err != nil {
 		return "", err
 	}
 

@@ -17,6 +17,10 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-pubuntu-snappy \
 		ubuntu-snappy.run-hooks.service
+	# enable the first boot service
+	dh_systemd_enable \
+		-pubuntu-snappy \
+		ubuntu-snappy.firstboot.service
 # we want the autopilot timer enabled by default
 	dh_systemd_enable \
 		-pubuntu-snappy \

@@ -669,7 +669,6 @@ services:
 const expectedService = `[Unit]
 Description=The docker app deployment mechanism
 After=ubuntu-snappy.run-hooks.service
-Requires=ubuntu-snappy.run-hooks.service
 X-Snappy=yes
 
 [Service]
@@ -816,7 +815,6 @@ aa-exec -p hello-app_hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
 var expectedServiceWrapper = `[Unit]
 Description=A fun webserver
 After=ubuntu-snappy.run-hooks.service
-Requires=ubuntu-snappy.run-hooks.service
 X-Snappy=yes
 
 [Service]
@@ -891,4 +889,16 @@ binaries:
 
 	_, err = installClick(snapName, 0, nil)
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
+}
+
+func (s *SnapTestSuite) TestInstallChecksFrameworks(c *C) {
+	packageYaml := `name: foo
+version: 0.1
+vendor: Foo Bar <foo@example.com>
+frameworks:
+  - missing
+`
+	snapFile := makeTestSnapPackage(c, packageYaml)
+	_, err := installClick(snapFile, 0, nil)
+	c.Assert(err, ErrorMatches, `.*missing framework.*`)
 }

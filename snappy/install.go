@@ -75,7 +75,7 @@ func Install(name string, flags InstallFlags) (string, error) {
 
 func doInstall(name string, flags InstallFlags) (string, error) {
 	// consume local parts
-	if _, err := os.Stat(name); err == nil {
+	if fi, err := os.Stat(name); err == nil && fi.Mode().IsRegular() {
 		// we allow unauthenticated package when in developer
 		// mode
 		if inDeveloperMode() {
@@ -92,6 +92,14 @@ func doInstall(name string, flags InstallFlags) (string, error) {
 	for _, part := range found {
 		// act only on parts that are downloadable
 		if !part.IsInstalled() {
+			installed, err := m.Installed()
+			if err != nil {
+				return "", err
+			}
+			cur := FindSnapByNameAndVersion(part.Name(), part.Version(), installed)
+			if cur != nil {
+				return "", ErrAlreadyInstalled
+			}
 			pbar := progress.NewTextProgress(part.Name())
 			return part.Install(pbar, flags)
 		}

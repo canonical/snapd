@@ -35,6 +35,8 @@ type policySuite struct {
 	orig string
 	dest string
 	appg string
+
+	secbase string
 }
 
 var _ = Suite(&policySuite{})
@@ -54,6 +56,11 @@ func (s *policySuite) SetUpTest(c *C) {
 			}
 		}
 	}
+	s.secbase = secbase
+}
+
+func (s *policySuite) TearDownTest(c *C) {
+	secbase = s.secbase
 }
 
 func (s *policySuite) TestIterOpInstallRemove(c *C) {
@@ -131,9 +138,7 @@ func (s *policySuite) TestIterOpRemoveBadDirmode(c *C) {
 }
 
 func (s *policySuite) TestFrameworkRoundtrip(c *C) {
-	origSecbase := secbase
 	secbase = s.dest
-	defer func() { secbase = origSecbase }()
 	c.Check(Install("foo", s.orig), IsNil)
 	// check the files were copied, with the packagename prepended properly
 	g, err := filepath.Glob(filepath.Join(secbase, "*", "*", "foo_*"))
@@ -147,6 +152,7 @@ func (s *policySuite) TestFrameworkRoundtrip(c *C) {
 
 func (s *policySuite) TestFrameworkError(c *C) {
 	// check we get errors from the iterOp, is all
+	secbase = s.dest
 	c.Check(frameworkOp(42, "foo", s.orig), ErrorMatches, ".*unknown operation.*")
 }
 

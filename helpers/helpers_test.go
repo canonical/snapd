@@ -19,13 +19,11 @@ package helpers
 
 import (
 	"compress/gzip"
-	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -79,20 +77,6 @@ func (ts *HTestSuite) TestUnpack(c *C) {
 	st2, err := os.Stat(someDir)
 	c.Assert(err, IsNil)
 	c.Assert(st1.Mode(), Equals, st2.Mode())
-}
-
-func (ts *HTestSuite) TestGetMapFromValidYaml(c *C) {
-	m, err := getMapFromYaml([]byte("name: value"))
-	c.Assert(err, IsNil)
-	me := map[string]interface{}{"name": "value"}
-	if !reflect.DeepEqual(m, me) {
-		c.Error(fmt.Sprintf("Unexpected map %v != %v", m, me))
-	}
-}
-
-func (ts *HTestSuite) TestGetMapFromInvalidYaml(c *C) {
-	_, err := getMapFromYaml([]byte("%lala%"))
-	c.Assert(err, NotNil)
 }
 
 func (ts *HTestSuite) TestUbuntuArchitecture(c *C) {

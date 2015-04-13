@@ -80,7 +80,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 func (s *SnapTestSuite) TearDownTest(c *C) {
 	// ensure all functions are back to their original state
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
-	InstalledSnapNamesByType = installedSnapNamesByTypeImpl
+	ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 	duCmd = "du"
 }
 
@@ -143,6 +143,21 @@ func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
 
 	snap := NewInstalledSnapPart(snapYaml)
 	c.Assert(snap.IsActive(), Equals, true)
+}
+
+func (s *SnapTestSuite) TestLocalSnapFrameworks(c *C) {
+	snapYaml, err := makeInstalledMockSnap(s.tempdir, `name: foo
+version: 1.0
+frameworks:
+ - one
+ - two
+`)
+	c.Assert(err, IsNil)
+
+	snap := NewInstalledSnapPart(snapYaml)
+	fmk, err := snap.Frameworks()
+	c.Assert(err, IsNil)
+	c.Check(fmk, DeepEquals, []string{"one", "two"})
 }
 
 func (s *SnapTestSuite) TestLocalSnapRepositoryInvalid(c *C) {
@@ -324,8 +339,8 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Assert(results[0].Channel(), Equals, "edge")
 }
 
-func mockInstalledSnapNamesByType(mockSnaps []string) {
-	InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
+func mockActiveSnapNamesByType(mockSnaps []string) {
+	ActiveSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
 		return mockSnaps, nil
 	}
 }
@@ -345,9 +360,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
-	// override the real InstalledSnapNamesByType to return our
+	// override the real ActiveSnapNamesByType to return our
 	// mock data
-	mockInstalledSnapNamesByType([]string{"hello-world"})
+	mockActiveSnapNamesByType([]string{"hello-world"})
 
 	// the actual test
 	results, err := snap.Updates()
@@ -366,7 +381,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 	// ensure we do not hit the net if there is nothing installed
 	// (otherwise the store will send us all snaps)
 	snap.bulkURI = "http://i-do.not-exist.really-not"
-	mockInstalledSnapNamesByType([]string{})
+	mockActiveSnapNamesByType([]string{})
 
 	// the actual test
 	results, err := snap.Updates()
@@ -464,6 +479,39 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
 	st, err := os.Stat(snapPackage)
 	c.Assert(err, IsNil)
 	c.Assert(p.written, Equals, int(st.Size()))
+}
+
+func (s *SnapTestSuite) TestRemoteSnapUpgradeService(c *C) {
+	snapPackage := makeTestSnapPackage(c, `name: foo
+version: 1.0
+services:
+ - name: svc
+`)
+	snapR, err := os.Open(snapPackage)
+	c.Assert(err, IsNil)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(w, snapR)
+		snapR.Seek(0, 0)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := RemoteSnapPart{}
+	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
+
+	p := &MockProgressMeter{}
+	name, err := snap.Install(p, 0)
+	c.Assert(err, IsNil)
+	c.Check(name, Equals, "foo")
+	c.Check(p.notified, HasLen, 0)
+
+	_, err = snap.Install(p, 0)
+	c.Assert(err, IsNil)
+	c.Check(name, Equals, "foo")
+	c.Check(p.notified, HasLen, 1)
+	c.Check(p.notified[0], Matches, "Waiting for .* stop.")
 }
 
 func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
@@ -675,6 +723,38 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 	c.Assert(m.Services[0].SecurityTemplate, Equals, "foo_template")
 }
 
+func (s *SnapTestSuite) TestPackageYamlFrameworkParsing(c *C) {
+	m, err := parsePackageYamlData([]byte(`name: foo
+framework: one, two
+`))
+	c.Assert(err, IsNil)
+	c.Assert(m.Frameworks, HasLen, 2)
+	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
+	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
+}
+
+func (s *SnapTestSuite) TestPackageYamlFrameworksParsing(c *C) {
+	m, err := parsePackageYamlData([]byte(`name: foo
+frameworks:
+ - one
+ - two
+`))
+	c.Assert(err, IsNil)
+	c.Assert(m.Frameworks, HasLen, 2)
+	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
+	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
+}
+
+func (s *SnapTestSuite) TestPackageYamlFrameworkAndFrameworksFails(c *C) {
+	_, err := parsePackageYamlData([]byte(`name: foo
+frameworks:
+ - one
+ - two
+framework: three, four
+`))
+	c.Assert(err, Equals, ErrInvalidFrameworkSpecInYaml)
+}
+
 func (s *SnapTestSuite) TestDetectsNameClash(c *C) {
 	data := []byte(`name: afoo
 version: 1.0
@@ -687,4 +767,54 @@ binaries:
 	c.Assert(err, IsNil)
 	err = yaml.checkForNameClashes()
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
+}
+
+func (s *SnapTestSuite) TestDetectsMissingFrameworks(c *C) {
+	data := []byte(`name: afoo
+version: 1.0
+frameworks:
+ - missing
+ - also-missing
+`)
+	yaml, err := parsePackageYamlData(data)
+	c.Assert(err, IsNil)
+	err = yaml.checkForFrameworks()
+	c.Assert(err, ErrorMatches, `missing frameworks: missing, also-missing`)
+}
+
+func (s *SnapTestSuite) TestDetectsFrameworksInUse(c *C) {
+	_, err := makeInstalledMockSnap(s.tempdir, `name: foo
+version: 1.0
+frameworks:
+ - fmk
+`)
+	c.Assert(err, IsNil)
+
+	yaml, err := parsePackageYamlData([]byte(`name: fmk
+version: 1.0
+type: framework`))
+	c.Assert(err, IsNil)
+	part := &SnapPart{m: yaml}
+	deps, err := part.Dependents()
+	c.Assert(err, IsNil)
+	c.Check(deps, DeepEquals, []string{"foo"})
+}
+
+func (s *SnapTestSuite) TestRemoveChecksFrameworks(c *C) {
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, `name: fmk
+version: 1.0
+type: framework`)
+	c.Assert(err, IsNil)
+	yaml, err := parsePackageYamlFile(yamlFile)
+
+	_, err = makeInstalledMockSnap(s.tempdir, `name: foo
+version: 1.0
+frameworks:
+ - fmk
+`)
+	c.Assert(err, IsNil)
+
+	part := &SnapPart{m: yaml}
+	err = part.Uninstall(new(MockProgressMeter))
+	c.Check(err, ErrorMatches, `framework still in use by: foo`)
 }

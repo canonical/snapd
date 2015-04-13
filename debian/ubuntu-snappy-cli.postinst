@@ -1,0 +1,10 @@
+#!/bin/sh
+
+if [ "$1" = configure ]; then
+    adduser --system \
+        --disabled-password \
+        --home /nonexistent \
+        --no-create-home \
+        --group \
+        clickpkg
+fi
