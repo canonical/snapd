@@ -27,6 +27,7 @@ import (
 
 	. "launchpad.net/gocheck"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/progress"
 )
 
 func makeCloudInitMetaData(c *C, content string) string {
@@ -54,7 +55,7 @@ public-keys:
 
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	snapFile := makeTestSnapPackage(c, "")
-	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC)
+	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 }
@@ -71,15 +72,15 @@ icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err = Install(snapFile, flags)
+	_, err = Install(snapFile, flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = Install(snapFile, flags)
+	_, err = Install(snapFile, flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 3.0")
-	_, err = Install(snapFile, flags)
+	_, err = Install(snapFile, flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 }
 
@@ -129,15 +130,11 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	// ugh, progress bars from tests
-	stdout := os.Stdout
-	defer func() { os.Stdout = stdout }()
-	os.Stdout = nil
-
-	name, err := Install("foo", 0)
+	name, err := Install("foo", 0, &progress.NullProgress{})
+	panic(err)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	_, err = Install("foo", 0)
+	_, err = Install("foo", 0, &progress.NullProgress{})
 	c.Assert(err, Equals, ErrAlreadyInstalled)
 }

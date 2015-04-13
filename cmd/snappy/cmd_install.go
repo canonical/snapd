@@ -23,6 +23,7 @@ import (
 	"os"
 
 	"launchpad.net/snappy/priv"
+	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -69,7 +70,8 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 	fmt.Printf("Installing %s\n", possiblepkgName)
 	var pkgName string
 
-	pkgName, err = snappy.Install(possiblepkgName, flags)
+	pbar := progress.NewTextProgress(possiblepkgName)
+	pkgName, err = snappy.Install(possiblepkgName, flags, pbar)
 	if err == snappy.ErrPackageNotFound {
 		return fmt.Errorf("No package '%s' for %s", possiblepkgName, ubuntuCoreChannel())
 	} else if err != nil {
