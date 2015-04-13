@@ -156,7 +156,7 @@ func aaUp(old, suf, new, dir string) map[string]bool {
 	return helpers.DirUpdated(filepath.Join(old, dir), suf, filepath.Join(new, dir))
 }
 
-// AppArmorDelta returns which policies and templates have are updated in the
+// AppArmorDelta returns which policies and templates are updated in the
 // package at newPath, as compared to those installed in the system.
 func AppArmorDelta(pkgName string, newPath string) (policies map[string]bool, templates map[string]bool) {
 	newaa := filepath.Join(newPath, "meta", "framework-policy", "apparmor")
