@@ -88,23 +88,23 @@ var ErrDirNotSuperset = errors.New("not a superset")
 // If the second directory is not a superset of the first, returns an error.
 //
 // Subdirectories are ignored.
-func SupersetDirUpdated(a, b string) (map[string]bool, error) {
-	fas, err := filepath.Glob(filepath.Join(a, "*"))
+func SupersetDirUpdated(dirA, dirB string) (map[string]bool, error) {
+	filesA, err := filepath.Glob(filepath.Join(dirA, "*"))
 	if err != nil {
 		return nil, err
 	}
 
 	updated := make(map[string]bool)
-	for _, fa := range fas {
-		if IsDirectory(fa) {
+	for _, fileA := range filesA {
+		if IsDirectory(fileA) {
 			continue
 		}
-		name := filepath.Base(fa)
-		fb := filepath.Join(b, name)
-		if !FileExists(fb) {
+		name := filepath.Base(fileA)
+		fileB := filepath.Join(dirB, name)
+		if !FileExists(fileB) {
 			return nil, ErrDirNotSuperset
 		}
-		if !FilesAreEqual(fa, fb) {
+		if !FilesAreEqual(fileA, fileB) {
 			updated[name] = true
 		}
 	}
