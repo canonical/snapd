@@ -127,14 +127,6 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 	return &Timeout{action: "stop", service: serviceName}
 }
 
-// Restart the service, waiting for it to stop before starting it again.
-func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
-	if err := s.Stop(serviceName, timeout); err != nil {
-		return err
-	}
-	return s.Start(serviceName)
-}
-
 // Error is returned if the systemd action failed
 type Error struct {
 	cmd      []string
