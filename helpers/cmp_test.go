@@ -81,49 +81,36 @@ func (ts *HTestSuite) TestCmpStreams(c *C) {
 	}
 }
 
-func (ts *HTestSuite) TestSupersetDirUpdated(c *C) {
+func (ts *HTestSuite) TestDirUpdated(c *C) {
 	d1 := c.MkDir()
 	d2 := c.MkDir()
 
 	// 1. empty directories are not updated, and all ok
-	updated, err := SupersetDirUpdated(d1, "", d2)
-	c.Check(err, IsNil)
-	c.Check(updated, HasLen, 0)
+	c.Check(DirUpdated(d1, "", d2), HasLen, 0)
 
-	// 2. a directory with an extra file in it is ok as a superset...
+	// 2. a directory with an extra file in it is ignored,
 	c.Assert(ioutil.WriteFile(filepath.Join(d2, "foo"), []byte("x"), 0644), IsNil)
-	updated, err = SupersetDirUpdated(d1, "", d2)
-	c.Check(err, IsNil)
-	c.Check(updated, HasLen, 0)
+	c.Check(DirUpdated(d1, "", d2), HasLen, 0)
 
-	//   ... but not as a subset
-	_, err = SupersetDirUpdated(d2, "", d1)
-	c.Check(err, Equals, ErrDirNotSuperset)
+	//   (on either side)
+	c.Check(DirUpdated(d2, "", d1), HasLen, 0)
 
 	// 3. if files are equal, it's not updated
 	c.Assert(ioutil.WriteFile(filepath.Join(d1, "foo"), []byte("x"), 0644), IsNil)
-	updated, err = SupersetDirUpdated(d1, "", d2)
-	c.Check(err, IsNil)
-	c.Check(updated, HasLen, 0)
+	c.Check(DirUpdated(d1, "", d2), HasLen, 0)
 
 	// 4. sub-directories are ignored
 	c.Assert(os.Mkdir(filepath.Join(d1, "dir"), 0755), IsNil)
-	updated, err = SupersetDirUpdated(d1, "", d2)
-	c.Check(err, IsNil)
-	c.Check(updated, HasLen, 0)
+	c.Check(DirUpdated(d1, "", d2), HasLen, 0)
 
 	// 5. all files that are different are returned
 	c.Assert(ioutil.WriteFile(filepath.Join(d1, "foo"), []byte("y"), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d1, "bar"), []byte("x"), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d2, "bar"), []byte("y"), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d2, "baz"), []byte("x"), 0644), IsNil)
-	updated, err = SupersetDirUpdated(d1, "", d2)
-	c.Check(err, IsNil)
-	c.Check(updated, DeepEquals, map[string]bool{"bar": true, "foo": true})
+	c.Check(DirUpdated(d1, "", d2), DeepEquals, map[string]bool{"bar": true, "foo": true})
 
-	// 6. test prefixes
+	// 6. as long as they have the prefix
 	c.Assert(os.Rename(filepath.Join(d1, "foo"), filepath.Join(d1, "quux_foo")), IsNil)
-	updated, err = SupersetDirUpdated(d1, "quux_", d2)
-	c.Check(err, IsNil)
-	c.Check(updated, DeepEquals, map[string]bool{"foo": true})
+	c.Check(DirUpdated(d1, "quux_", d2), DeepEquals, map[string]bool{"foo": true})
 }
