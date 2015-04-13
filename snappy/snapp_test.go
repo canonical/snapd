@@ -805,7 +805,7 @@ type: framework`))
 	c.Check(names, DeepEquals, []string{"foo"})
 }
 
-func (s *SnapTestSuite) TestTouchAppArmorJSON(c *C) {
+func (s *SnapTestSuite) TestUpdateAppArmorJSONTimestamp(c *C) {
 	oldDir := snapAppArmorDir
 	defer func() {
 		snapAppArmorDir = oldDir
@@ -822,21 +822,21 @@ func (s *SnapTestSuite) TestTouchAppArmorJSON(c *C) {
 	c.Assert(err, IsNil)
 	part := &SnapPart{m: yaml}
 
-	c.Assert(part.TouchAppArmorJSON(), IsNil)
+	c.Assert(part.UpdateAppArmorJSONTimestamp(), IsNil)
 
 	fi, err = os.Lstat(fn)
 	c.Assert(err, IsNil)
 	c.Check(ft.Before(fi.ModTime()), Equals, true)
 }
 
-func (s *SnapTestSuite) TestTouchAppArmorJSONFails(c *C) {
+func (s *SnapTestSuite) TestUpdateAppArmorJSONTimestampFails(c *C) {
 	oldDir := snapAppArmorDir
 	defer func() {
-		toucher = helpers.Touch
+		timestampUpdater = helpers.UpdateTimestamp
 		snapAppArmorDir = oldDir
 	}()
 	snapAppArmorDir = c.MkDir()
-	toucher = func(string) error { return ErrNotImplemented }
+	timestampUpdater = func(string) error { return ErrNotImplemented }
 	fn := filepath.Join(snapAppArmorDir, "foo_stuff.json")
 	c.Assert(os.Symlink(fn, fn), IsNil)
 
@@ -844,7 +844,7 @@ func (s *SnapTestSuite) TestTouchAppArmorJSONFails(c *C) {
 	c.Assert(err, IsNil)
 	part := &SnapPart{m: yaml}
 
-	c.Assert(part.TouchAppArmorJSON(), NotNil)
+	c.Assert(part.UpdateAppArmorJSONTimestamp(), NotNil)
 }
 
 func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
@@ -853,7 +853,7 @@ func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
 	defer func() {
 		aaClickHookCmd = oldCmd
 		snapAppArmorDir = oldDir
-		toucher = helpers.Touch
+		timestampUpdater = helpers.UpdateTimestamp
 	}()
 	aaClickHookCmd = "/bin/true"
 	snapAppArmorDir = c.MkDir()
@@ -888,7 +888,7 @@ type: framework`))
 	c.Assert(part.RefreshDependentsSecurity(), NotNil)
 
 	aaClickHookCmd = "/bin/true"
-	toucher = func(string) error { return ErrNotImplemented }
+	timestampUpdater = func(string) error { return ErrNotImplemented }
 	c.Assert(part.RefreshDependentsSecurity(), NotNil)
 }
 
