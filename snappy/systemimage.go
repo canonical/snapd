@@ -41,14 +41,6 @@ const (
 	// location of the channel config on the filesystem
 	systemImageChannelConfig = "/etc/system-image/channel.ini"
 
-	// location of marker file created by the upgrader just before
-	// provisioning the other rootfs and removed when the
-	// provisioning has completed.
-	//
-	// If this file exists, the provisioning failed (maybe due to a
-	// power outage), so the rootfs must be considered "empty".
-	upgraderMarkerFile = "/.snappy-update-in-progress"
-
 	// the location for the ReloadConfig
 	systemImageClientConfig = "/etc/system-image/client.ini"
 )
@@ -330,25 +322,18 @@ func makeCurrentPart(p partition.Interface) Part {
 // Note that the rootfs _may_ not actually be strictly empty, but it
 // must be considered empty if it is incomplete.
 func otherIsEmpty(root string) bool {
-	markerFile := filepath.Join(systemImageRoot, root, upgraderMarkerFile)
 	configFile := filepath.Join(systemImageRoot, root, systemImageChannelConfig)
 
-	if helpers.FileExists(markerFile) {
-		// The upgraders marker file exists, meaning
-		// that "other" contains an incomplete rootfs
-		// image, so treat it as empty.
-		return true
-	}
+	st, err := os.Stat(configFile)
 
-	if helpers.FileExists(configFile) {
-		// The config file exists, so rootfs is complete.
+	if err == nil && st.Size() > 0 {
 		return false
 	}
 
-	// The config file does not exist meaning the other
-	// partition is empty. However, this is not an
-	// error condition (atleast for amd64 images
-	// which only have 1 partition pre-installed).
+	// If the s-i config file either does not exist, or has a size
+	// of zero (indicating the upgrader failed on a previous boot),
+	// the other partition is considered empty.
+
 	return true
 }
 

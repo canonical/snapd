@@ -308,18 +308,23 @@ func (s *SITestSuite) TestOtherIsEmpty(c *C) {
 	otherRootFull := filepath.Join(systemImageRoot, otherRoot)
 
 	siConfig := filepath.Join(otherRootFull, "etc/system-image/channel.ini")
-	markerFile := filepath.Join(otherRootFull, ".snappy-update-in-progress")
 
 	// the tests create si-config files for "current" and "other"
 	c.Assert(otherIsEmpty(otherRoot), Equals, false)
 
-	err := ioutil.WriteFile(markerFile, []byte(""), 0640)
+	// make the siConfig zero bytes (as is done by the upgrader when
+	// first populating "other" to denote that the update is in
+	// progress.
+	err := ioutil.WriteFile(siConfig, []byte(""), 0640)
 	c.Assert(err, IsNil)
-
-	// marker exists, so should be considered empty
 	c.Assert(otherIsEmpty(otherRoot), Equals, true)
 
-	os.Remove(markerFile)
+	err = ioutil.WriteFile(siConfig, []byte("\n"), 0640)
+	c.Assert(err, IsNil)
+	c.Assert(otherIsEmpty(otherRoot), Equals, false)
+
+	err = ioutil.WriteFile(siConfig, []byte("foo"), 0640)
+	c.Assert(err, IsNil)
 	c.Assert(otherIsEmpty(otherRoot), Equals, false)
 
 	os.Remove(siConfig)
