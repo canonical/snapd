@@ -94,6 +94,7 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 	if err != nil {
 		return err
 	}
+	defer d.Close()
 
 	if helpers.ShouldDropPrivs() {
 

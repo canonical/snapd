@@ -511,6 +511,7 @@ func Build(sourceDir, targetDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer d.Close()
 
 	err = d.Build(buildDir, func(dataTar string) error {
 		// write hashes of the files plus the generated data tar

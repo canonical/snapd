@@ -666,6 +666,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 	if err != nil {
 		return "", err
 	}
+	defer d.Close()
 	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
