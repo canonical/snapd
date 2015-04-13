@@ -28,6 +28,9 @@ import (
 // SnapType represents the kind of snap (app, core, frameworks, oem)
 type SnapType string
 
+// SystemConfig is a config map holding configs for multiple packages
+type SystemConfig map[string]interface{}
+
 // The various types of snap parts we support
 const (
 	SnapTypeApp       SnapType = "app"
@@ -39,6 +42,11 @@ const (
 // Services implements snappy packages that offer services
 type Services interface {
 	Services() []Service
+}
+
+// Configuration allows requesting an oem snappy package type's config
+type Configuration interface {
+	OemConfig() SystemConfig
 }
 
 // Part representation of a snappy part
@@ -79,6 +87,9 @@ type Part interface {
 	Config(configuration []byte) (newConfig string, err error)
 	// make a inactive part active
 	SetActive(pb progress.Meter) error
+
+	// get the list of frameworks needed by the part
+	Frameworks() ([]string, error)
 }
 
 // Repository is the interface for a collection of snaps
@@ -182,8 +193,8 @@ func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	return parts, err
 }
 
-// InstalledSnapsByType returns all installed snaps with the given type
-func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
+// ActiveSnapsByType returns all installed snaps with the given type
+func ActiveSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	if err != nil {
@@ -204,11 +215,11 @@ func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 	return res, nil
 }
 
-// InstalledSnapNamesByType returns all installed snap names with the given type
-var InstalledSnapNamesByType = installedSnapNamesByTypeImpl
+// ActiveSnapNamesByType returns all installed snap names with the given type
+var ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 
-func installedSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
-	installed, err := InstalledSnapsByType(snapTs...)
+func activeSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
+	installed, err := ActiveSnapsByType(snapTs...)
 	for _, part := range installed {
 		res = append(res, part.Name())
 	}

@@ -18,7 +18,10 @@
 package snappy
 
 import (
+	"io"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 
@@ -96,4 +99,45 @@ func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(globs, HasLen, 3+1) // +1 for "current"
+}
+
+func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
+	snapPackage := makeTestSnapPackage(c, "name: foo\nversion: 2")
+	snapR, err := os.Open(snapPackage)
+	c.Assert(err, IsNil)
+	defer snapR.Close()
+
+	var url string
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/details/foo":
+			io.WriteString(w, `{
+"name": "foo", "version": "2",
+"anon_download_url": "`+url+`"
+}`)
+		case "/dl":
+			snapR.Seek(0, 0)
+			io.Copy(w, snapR)
+		default:
+			panic("unexpected url path: " + r.URL.Path)
+		}
+	}))
+
+	url = mockServer.URL + "/dl"
+	storeDetailsURI = mockServer.URL + "/details/%s"
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	// ugh, progress bars from tests
+	stdout := os.Stdout
+	defer func() { os.Stdout = stdout }()
+	os.Stdout = nil
+
+	name, err := Install("foo", 0)
+	c.Assert(err, IsNil)
+	c.Check(name, Equals, "foo")
+
+	_, err = Install("foo", 0)
+	c.Assert(err, Equals, ErrAlreadyInstalled)
 }

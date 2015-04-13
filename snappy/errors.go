@@ -20,6 +20,7 @@ package snappy
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 var (
@@ -61,6 +62,9 @@ var (
 	// ErrNotInstalled is returned when the snap is not installed
 	ErrNotInstalled = errors.New("the given snap is not installed")
 
+	// ErrAlreadyInstalled is returned when the snap is already installed
+	ErrAlreadyInstalled = errors.New("the given snap is already installed")
+
 	// ErrPrivOpInProgress is returned when a privileged operation
 	// cannot be performed since an existing privileged operation is
 	// still running.
@@ -69,9 +73,13 @@ var (
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
 
-	// ErrInvalidPackageYaml is returned is a package.yaml file can not
+	// ErrInvalidPackageYaml is returned if a package.yaml file can not
 	// be parsed
 	ErrInvalidPackageYaml = errors.New("can not parse package.yaml")
+
+	// ErrInvalidFrameworkSpecInYaml is returned if a package.yaml
+	// has both frameworks and framework entries.
+	ErrInvalidFrameworkSpecInYaml = errors.New(`yaml can't have both "frameworks" and (deprecated) "framework" keys`)
 
 	// ErrSnapNotActive is returned if you try to unset a snap from
 	// active to inactive
@@ -95,6 +103,18 @@ var (
 	// ErrLicenseNotProvided is returned when the package specifies that
 	// accepting a license is required, but no license file is provided
 	ErrLicenseNotProvided = errors.New("package.yaml requires license, but no license was provided")
+
+	// ErrNotFirstBoot is an error that indicates that the first boot has already
+	// run
+	ErrNotFirstBoot = errors.New("this is not your first boot")
+
+	// ErrNotImplemented may be returned when an implementation of
+	// an interface is partial.
+	ErrNotImplemented = errors.New("not implemented")
+
+	// ErrNoOemConfiguration may be returned when there is a SnapTypeOem installed
+	// but does not provide a configuration.
+	ErrNoOemConfiguration = errors.New("no configuration entry found in the oem snap")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem
@@ -162,4 +182,18 @@ type ErrNameClash string
 
 func (e ErrNameClash) Error() string {
 	return fmt.Sprintf("you can't have a binary and service both called %s", string(e))
+}
+
+// ErrMissingFrameworks reports a conflict between the frameworks needed by an app and those installed in the system
+type ErrMissingFrameworks []string
+
+func (e ErrMissingFrameworks) Error() string {
+	return fmt.Sprintf("missing frameworks: %s", strings.Join(e, ", "))
+}
+
+// ErrFrameworkInUse reports that a framework is still needed by apps currently installed
+type ErrFrameworkInUse []string
+
+func (e ErrFrameworkInUse) Error() string {
+	return fmt.Sprintf("framework still in use by: %s", strings.Join(e, ", "))
 }

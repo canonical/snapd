@@ -29,6 +29,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -106,6 +108,8 @@ type SnapPart struct {
 	basedir string
 }
 
+var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
+
 type packageYaml struct {
 	Name    string
 	Version string
@@ -118,7 +122,8 @@ type packageYaml struct {
 	DeprecatedArchitecture interface{} `yaml:"architecture"`
 	Architectures          []string
 
-	Framework string
+	DeprecatedFramework string   `yaml:"framework,omitempty"`
+	Frameworks          []string `yaml:"frameworks,omitempty"`
 
 	Services []Service `yaml:"services,omitempty"`
 	Binaries []Binary  `yaml:"binaries,omitempty"`
@@ -129,6 +134,7 @@ type packageYaml struct {
 			ID string `yaml:"id,omitempty"`
 		} `yaml:"store,omitempty"`
 	} `yaml:"oem,omitempty"`
+	Config SystemConfig `yaml:"config,omitempty"`
 
 	// this is a bit ugly, but right now integration is a one:one
 	// mapping of click hooks
@@ -191,6 +197,16 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		}
 	}
 
+	if m.DeprecatedFramework != "" {
+		log.Printf(`Use of deprecated "framework" key in yaml`)
+		if len(m.Frameworks) != 0 {
+			return nil, ErrInvalidFrameworkSpecInYaml
+		}
+
+		m.Frameworks = commasplitter(m.DeprecatedFramework, -1)
+		m.DeprecatedFramework = ""
+	}
+
 	return &m, nil
 }
 
@@ -203,6 +219,45 @@ func (m *packageYaml) checkForNameClashes() error {
 		if _, ok := d[svc.Name]; ok {
 			return ErrNameClash(svc.Name)
 		}
+	}
+
+	return nil
+}
+
+func (m *packageYaml) FrameworksForClick() string {
+	fmks := m.Frameworks
+	fmkCore := false
+	for _, a := range fmks {
+		if a == "ubuntu-core-15.04-dev1" {
+			fmkCore = true
+			break
+		}
+	}
+	if !fmkCore {
+		fmks = append(fmks, "ubuntu-core-15.04-dev1")
+	}
+
+	return strings.Join(fmks, ",")
+}
+
+func (m *packageYaml) checkForFrameworks() error {
+	installed, err := ActiveSnapNamesByType(SnapTypeFramework)
+	if err != nil {
+		return err
+	}
+	sort.Strings(installed)
+
+	missing := make([]string, 0, len(m.Frameworks))
+
+	for _, f := range m.Frameworks {
+		i := sort.SearchStrings(installed, f)
+		if i >= len(installed) || installed[i] != f {
+			missing = append(missing, f)
+		}
+	}
+
+	if len(missing) > 0 {
+		return ErrMissingFrameworks(missing)
 	}
 
 	return nil
@@ -326,6 +381,11 @@ func (s *SnapPart) Services() []Service {
 	return s.m.Services
 }
 
+// OemConfig return a list of packages to configure
+func (s *SnapPart) OemConfig() SystemConfig {
+	return s.m.Config
+}
+
 // Install installs the snap
 func (s *SnapPart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
 	return "", errors.New("Install of a local part is not possible")
@@ -345,6 +405,14 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return ErrPackageNotRemovable
 	}
 
+	deps, err := s.Dependents()
+	if err != nil {
+		return err
+	}
+	if len(deps) != 0 {
+		return ErrFrameworkInUse(deps)
+	}
+
 	return removeClick(s.basedir, pb)
 }
 
@@ -356,6 +424,43 @@ func (s *SnapPart) Config(configuration []byte) (new string, err error) {
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *SnapPart) NeedsReboot() bool {
 	return false
+}
+
+// Frameworks returns the list of frameworks needed by the snap
+func (s *SnapPart) Frameworks() ([]string, error) {
+	return s.m.Frameworks, nil
+}
+
+// Dependents gives the list of apps installed that depend on this one
+//
+// /!\ not part of the Part interface.
+func (s *SnapPart) Dependents() ([]string, error) {
+	if s.Type() != SnapTypeFramework {
+		// only frameworks are depended on
+		return nil, nil
+	}
+
+	var needed []string
+
+	installed, err := NewMetaRepository().Installed()
+	if err != nil {
+		return nil, err
+	}
+
+	name := s.Name()
+	for _, part := range installed {
+		fmks, err := part.Frameworks()
+		if err != nil {
+			return nil, err
+		}
+		for _, fmk := range fmks {
+			if fmk == name {
+				needed = append(needed, part.Name())
+			}
+		}
+	}
+
+	return needed, nil
 }
 
 // SnapLocalRepository is the type for a local snap repository
@@ -583,6 +688,11 @@ func (s *RemoteSnapPart) NeedsReboot() bool {
 	return false
 }
 
+// Frameworks returns the list of frameworks needed by the snap
+func (s *RemoteSnapPart) Frameworks() ([]string, error) {
+	return nil, ErrNotImplemented
+}
+
 // NewRemoteSnapPart returns a new RemoteSnapPart from the given
 // remoteSnap data
 func NewRemoteSnapPart(data remoteSnap) *RemoteSnapPart {
@@ -620,13 +730,13 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
 
 	// frameworks
-	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
+	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 
 	// check if the oem part sets a custom store-id
-	oems, _ := InstalledSnapsByType(SnapTypeOem)
+	oems, _ := ActiveSnapsByType(SnapTypeOem)
 	if len(oems) == 1 {
 		storeID := oems[0].(*SnapPart).m.OEM.Store.ID
 		if storeID != "" {
@@ -722,7 +832,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err
 func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// the store only supports apps and framworks currently, so no
 	// sense in sending it our ubuntu-core snap
-	installed, err := InstalledSnapNamesByType(SnapTypeApp, SnapTypeFramework)
+	installed, err := ActiveSnapNamesByType(SnapTypeApp, SnapTypeFramework)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}

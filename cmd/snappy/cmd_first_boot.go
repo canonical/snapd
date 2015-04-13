@@ -18,33 +18,28 @@
 package main
 
 import (
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
+	"fmt"
+
 	"launchpad.net/snappy/snappy"
 )
 
-type cmdBooted struct {
-}
-
 func init() {
-	var cmdBootedData cmdBooted
-	parser.AddCommand("booted",
-		"Flag that rootfs booted successfully",
-		"Not necessary to run this command manually",
-		&cmdBootedData)
+	var cmdInternalFirstBootOemConfig cmdInternalFirstBootOemConfig
+	if _, err := parser.AddCommand("firstboot", "internal", "internal", &cmdInternalFirstBootOemConfig); err != nil {
+		// panic here as something must be terribly wrong if there is an
+		// error here
+		panic(err)
+	}
 }
 
-func (x *cmdBooted) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+type cmdInternalFirstBootOemConfig struct{}
 
-	parts, err := snappy.ActiveSnapsByType(snappy.SnapTypeCore)
-	if err != nil {
-		return logger.LogError(err)
+func (x *cmdInternalFirstBootOemConfig) Execute(args []string) error {
+	err := snappy.OemConfig()
+	if err == snappy.ErrNotFirstBoot {
+		fmt.Println("First boot has already run")
+		return nil
 	}
 
-	return logger.LogError(parts[0].(*snappy.SystemImagePart).MarkBootSuccessful())
+	return err
 }

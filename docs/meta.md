@@ -34,7 +34,7 @@ The following keys are optional:
 
  * architectures: (optional) a yaml list of supported architectures
                   ["all"] if empty
- * framework: the frameworks the snap needs as dependencies
+ * frameworks: a list of the frameworks the snap needs as dependencies
 
  * services: the servies (daemons) that the snap provides
    * name: (required) name of the service (only [a-zA-Z0-9+.-])
