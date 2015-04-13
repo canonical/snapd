@@ -57,6 +57,7 @@ type Systemd interface {
 	Disable(service string) error
 	Start(service string) error
 	Stop(service string, timeout time.Duration) error
+	Restart(service string, timeout time.Duration) error
 }
 
 type reporter interface {
