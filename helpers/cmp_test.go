@@ -86,29 +86,29 @@ func (ts *HTestSuite) TestSupersetDirUpdated(c *C) {
 	d2 := c.MkDir()
 
 	// 1. empty directories are not updated, and all ok
-	updated, err := SupersetDirUpdated(d1, d2)
+	updated, err := SupersetDirUpdated(d1, "", d2)
 	c.Check(err, IsNil)
 	c.Check(updated, HasLen, 0)
 
 	// 2. a directory with an extra file in it is ok as a superset...
 	c.Assert(ioutil.WriteFile(filepath.Join(d2, "foo"), []byte("x"), 0644), IsNil)
-	updated, err = SupersetDirUpdated(d1, d2)
+	updated, err = SupersetDirUpdated(d1, "", d2)
 	c.Check(err, IsNil)
 	c.Check(updated, HasLen, 0)
 
 	//   ... but not as a subset
-	_, err = SupersetDirUpdated(d2, d1)
+	_, err = SupersetDirUpdated(d2, "", d1)
 	c.Check(err, Equals, ErrDirNotSuperset)
 
 	// 3. if files are equal, it's not updated
 	c.Assert(ioutil.WriteFile(filepath.Join(d1, "foo"), []byte("x"), 0644), IsNil)
-	updated, err = SupersetDirUpdated(d1, d2)
+	updated, err = SupersetDirUpdated(d1, "", d2)
 	c.Check(err, IsNil)
 	c.Check(updated, HasLen, 0)
 
 	// 4. sub-directories are ignored
 	c.Assert(os.Mkdir(filepath.Join(d1, "dir"), 0755), IsNil)
-	updated, err = SupersetDirUpdated(d1, d2)
+	updated, err = SupersetDirUpdated(d1, "", d2)
 	c.Check(err, IsNil)
 	c.Check(updated, HasLen, 0)
 
@@ -117,7 +117,13 @@ func (ts *HTestSuite) TestSupersetDirUpdated(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(d1, "bar"), []byte("x"), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d2, "bar"), []byte("y"), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d2, "baz"), []byte("x"), 0644), IsNil)
-	updated, err = SupersetDirUpdated(d1, d2)
+	updated, err = SupersetDirUpdated(d1, "", d2)
 	c.Check(err, IsNil)
 	c.Check(updated, DeepEquals, map[string]bool{"bar": true, "foo": true})
+
+	// 6. test prefixes
+	c.Assert(os.Rename(filepath.Join(d1, "foo"), filepath.Join(d1, "quux_foo")), IsNil)
+	updated, err = SupersetDirUpdated(d1, "quux_", d2)
+	c.Check(err, IsNil)
+	c.Check(updated, DeepEquals, map[string]bool{"foo": true})
 }

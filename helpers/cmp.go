@@ -90,15 +90,15 @@ func streamsEqual(fa, fb io.Reader) bool {
 // missing from the second one
 var ErrDirNotSuperset = errors.New("not a superset")
 
-// SupersetDirUpdated compares two directories, where the files in the first
-// are supposed to be a subset of the ones in the second, and returns a map
-// of files that have changed.
+// SupersetDirUpdated compares two directories, where the files in the
+// first that have the prefix are supposed to be a subset of the ones
+// in the second, and returns a map of files that have changed.
 //
 // If the second directory is not a superset of the first, returns an error.
 //
 // Subdirectories are ignored.
-func SupersetDirUpdated(dirA, dirB string) (map[string]bool, error) {
-	filesA, err := filepath.Glob(filepath.Join(dirA, "*"))
+func SupersetDirUpdated(dirA, pfxA, dirB string) (map[string]bool, error) {
+	filesA, err := filepath.Glob(filepath.Join(dirA, pfxA+"*"))
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func SupersetDirUpdated(dirA, dirB string) (map[string]bool, error) {
 		if IsDirectory(fileA) {
 			continue
 		}
-		name := filepath.Base(fileA)
+		name := filepath.Base(fileA)[len(pfxA):]
 		fileB := filepath.Join(dirB, name)
 		if !FileExists(fileB) {
 			return nil, ErrDirNotSuperset
