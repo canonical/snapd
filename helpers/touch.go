@@ -38,12 +38,12 @@ import (
 
 var ErrNotAbsPath = errors.New("not an absolute path")
 
-// Touch updates the timestamp of the file at pathname. It does not
-// create it if it does not exist. It does not dereference it if it is
-// a symlink. It's like `touch -c -h pathname`.
+// UpdateTimestamp updates the timestamp of the file at pathname. It does not
+// create it if it does not exist. It does not dereference it if it is a
+// symlink. It's like `touch -c -h pathname`.
 //
 // pathname must be absolute.
-func Touch(pathname string) error {
+func UpdateTimestamp(pathname string) error {
 	if !filepath.IsAbs(pathname) {
 		return ErrNotAbsPath
 	}
