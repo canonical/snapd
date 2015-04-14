@@ -625,12 +625,12 @@ func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
 		return ErrUnpackHelperNotFound
 	}
 
-	cmd := exec.Command(privHelper, "internal-unpack", d.Path, instDir, globalRootDir)
+	cmd := exec.Command(privHelper, "internal-unpack", d.Name(), instDir, globalRootDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return &ErrUnpackFailed{
-			snapFile: d.Path,
+			snapFile: d.Name(),
 			instDir:  instDir,
 			origErr:  err,
 		}
@@ -656,7 +656,11 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		//return SnapAuditError
 	}
 
-	d := &clickdeb.ClickDeb{Path: snapFile}
+	d, err := clickdeb.Open(snapFile)
+	if err != nil {
+		return "", err
+	}
+	defer d.Close()
 	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
