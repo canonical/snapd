@@ -404,12 +404,6 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	return templateOut.String()
 }
 
-func generateSeccompPolicy(aaProfile string, m *packageYaml) error {
-	fmt.Print("generateSecurityPolicy")
-	return nil
-
-}
-
 func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) string {
 
 	serviceTemplate := `[Unit]
@@ -607,17 +601,33 @@ func addSecurityPolicy(baseDir string) error {
 		return err
 	}
 
-	for _, service := range m.Services {
-		// TODO: getSecurityProfile() should be getSecurityProfile
-		profileName := getSecurityProfile(m, filepath.Base(service.Name))
-		fmt.Printf("TODO: addSecurityPolicy (service): %s\n",
-			profileName)
+	// TODO: combine into one loop
+	for _, svc := range m.Services {
+		profileName := getSecurityProfile(m, filepath.Base(svc.Name))
+		content, err := generateSeccompPolicy(m, baseDir, svc.Name, svc.SecurityDefinitions)
+		if err != nil {
+			return err
+		}
+		fn := filepath.Join(getSeccompProfilesDir(), profileName)
+		fmt.Printf("addSecurityPolicy (%s): %s\n%s\n",
+			profileName, fn, content)
+		if err := ioutil.WriteFile(fn, []byte(content), 0644); err != nil {
+			return err
+		}
 	}
 
-	for _, binary := range m.Binaries {
-		profileName := getSecurityProfile(m, filepath.Base(binary.Name))
-		fmt.Printf("TODO: addSecurityPolicy (binary): %s\n",
-			profileName)
+	for _, bin := range m.Binaries {
+		profileName := getSecurityProfile(m, filepath.Base(bin.Name))
+		content, err := generateSeccompPolicy(m, baseDir, bin.Name, bin.SecurityDefinitions)
+		if err != nil {
+			return err
+		}
+		fn := filepath.Join(getSeccompProfilesDir(), profileName)
+		fmt.Printf("addSecurityPolicy (%s): %s\n%s\n",
+			profileName, fn, content)
+		if err := ioutil.WriteFile(fn, []byte(content), 0644); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -631,16 +641,17 @@ func removeSecurityPolicy(baseDir string) error {
 		return err
 	}
 
+	// FIXME: combine into one loop
 	for _, service := range m.Services {
 		profileName := getSecurityProfile(m, filepath.Base(service.Name))
-		fmt.Printf("TODO: removeSecurityPolicy (service): %s\n",
-			profileName)
+		fn := filepath.Join(getSeccompProfilesDir(), profileName)
+		os.Remove(fn)
 	}
 
 	for _, binary := range m.Binaries {
 		profileName := getSecurityProfile(m, filepath.Base(binary.Name))
-		fmt.Printf("TODO: removeSecurityPolicy (binary): %s\n",
-			profileName)
+		fn := filepath.Join(getSeccompProfilesDir(), profileName)
+		os.Remove(fn)
 	}
 
 	return nil

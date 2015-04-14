@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"launchpad.net/snappy/policy"
 )
 
 type apparmorJSONTemplate struct {
@@ -86,4 +89,83 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 func getSecurityProfile(m *packageYaml, appName string) string {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
 	return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version)
+}
+
+// seccomp specific
+func generateSeccompPolicy(m *packageYaml, baseDir string, appName string, sd SecurityDefinitions) ([]byte, error) {
+	if sd.SecurityPolicy != nil && sd.SecurityPolicy.Seccomp != "" {
+		fn := filepath.Join(baseDir, sd.SecurityPolicy.Seccomp)
+		content, err := ioutil.ReadFile(fn)
+		if err != nil {
+			fmt.Printf("WARNING: failed to read %s\n", fn)
+		}
+		return content, err
+	}
+
+	// defaults
+	policy_vendor := "ubuntu-core"
+	policy_version := 15.04
+	template := "default"
+	caps := make([]string, 0)
+	caps = append(caps, "networking")
+	syscalls := make([]string, 0)
+
+	if sd.SecurityOverride != nil {
+		fmt.Printf("TODO: SecurityOverride\n")
+	} else {
+		if sd.SecurityTemplate != "" {
+			template = sd.SecurityTemplate
+		}
+
+		if sd.SecurityCaps != nil {
+			caps = sd.SecurityCaps
+		}
+	}
+
+	// FIXME: caps is empty, syscalls is empty
+	cmd := "sc-filtergen"
+	/*
+	args := []string{"--include-policy-dir", filepath.Join(policy.SecBase, "seccomp"),
+	                 "--policy-vendor", policy_vendor,
+	                 "--policy-version", fmt.Sprintf("%.2f", policy_version),
+		         "--template", template,
+		         "--policy-groups", strings.Join(caps, ","),
+			 "--syscalls", strings.Join(syscalls, ",")}
+	*/
+	args := make([]string, 0)
+	args = append(args, fmt.Sprintf("--include-policy-dir=%s", filepath.Join(policy.SecBase, "seccomp")))
+	args = append(args, fmt.Sprintf("--policy-vendor=%s", policy_vendor))
+	args = append(args, fmt.Sprintf("--policy-version=%.2f", policy_version))
+	args = append(args, fmt.Sprintf("--template=%s", template))
+	if len(caps) > 0 {
+		args = append(args, fmt.Sprintf("--policy-groups=%s", strings.Join(caps, ",")))
+	}
+	if len(syscalls) > 0 {
+		args = append(args, fmt.Sprintf("--syscalls=%s", strings.Join(syscalls, ",")))
+	}
+
+	content, err := exec.Command(cmd, args...).Output()
+	if err != nil {
+		fmt.Printf("WARNING: %v failed\n", args)
+	}
+
+	fmt.Print(content)
+
+	return content, err
+}
+
+func getSeccompProfilesDir() string {
+	return filepath.Join(policy.SecBase, "seccomp/profiles")
+}
+
+func getProfileNames(m *packageYaml) []string {
+	profiles := make([]string, 0)
+	for _, svc := range m.Services {
+		profiles = append(profiles, svc.Name)
+	}
+	for _, bin := range m.Binaries {
+		profiles = append(profiles, bin.Name)
+	}
+
+	return profiles
 }
