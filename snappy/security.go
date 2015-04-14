@@ -122,16 +122,8 @@ func generateSeccompPolicy(m *packageYaml, baseDir string, appName string, sd Se
 		}
 	}
 
-	// FIXME: caps is empty, syscalls is empty
+	// Build up the command line
 	cmd := "sc-filtergen"
-	/*
-	args := []string{"--include-policy-dir", filepath.Join(policy.SecBase, "seccomp"),
-	                 "--policy-vendor", policy_vendor,
-	                 "--policy-version", fmt.Sprintf("%.2f", policy_version),
-		         "--template", template,
-		         "--policy-groups", strings.Join(caps, ","),
-			 "--syscalls", strings.Join(syscalls, ",")}
-	*/
 	args := make([]string, 0)
 	args = append(args, fmt.Sprintf("--include-policy-dir=%s", filepath.Join(policy.SecBase, "seccomp")))
 	args = append(args, fmt.Sprintf("--policy-vendor=%s", policy_vendor))

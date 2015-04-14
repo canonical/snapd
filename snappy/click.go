@@ -609,8 +609,6 @@ func addSecurityPolicy(baseDir string) error {
 			return err
 		}
 		fn := filepath.Join(getSeccompProfilesDir(), profileName)
-		fmt.Printf("addSecurityPolicy (%s): %s\n%s\n",
-			profileName, fn, content)
 		if err := ioutil.WriteFile(fn, []byte(content), 0644); err != nil {
 			return err
 		}
@@ -623,8 +621,6 @@ func addSecurityPolicy(baseDir string) error {
 			return err
 		}
 		fn := filepath.Join(getSeccompProfilesDir(), profileName)
-		fmt.Printf("addSecurityPolicy (%s): %s\n%s\n",
-			profileName, fn, content)
 		if err := ioutil.WriteFile(fn, []byte(content), 0644); err != nil {
 			return err
 		}
