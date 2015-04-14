@@ -116,6 +116,8 @@ var (
 	// but does not provide a configuration.
 	ErrNoOemConfiguration = errors.New("no configuration entry found in the oem snap")
 
+	// ErrInstalledNonSnapPart is returned if a part that is purportedly
+	// installed turns out to not be a SnapPart.
 	ErrInstalledNonSnapPart = errors.New("installed dependent snap is not a SnapPart")
 )
 
