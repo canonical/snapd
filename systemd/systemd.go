@@ -19,7 +19,9 @@ package systemd
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"time"
 
@@ -81,8 +83,14 @@ func (*systemd) DaemonReload() error {
 
 // Enable the given service
 func (s *systemd) Enable(serviceName string) error {
-	_, err := SystemctlCmd("--root", s.rootDir, "enable", serviceName)
-	return err
+	servicesSystemdTarget := "multi-user.target"
+	snapServicesDir := "/etc/systemd/system"
+
+	enableSymlink := filepath.Join(s.rootDir, snapServicesDir, servicesSystemdTarget+".wants", serviceName)
+
+	serviceFilename := filepath.Join(s.rootDir, snapServicesDir, serviceName)
+
+	return os.Symlink(serviceFilename[len(s.rootDir):], enableSymlink)
 }
 
 // Disable the given service

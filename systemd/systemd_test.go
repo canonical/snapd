@@ -18,6 +18,8 @@
 package systemd
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -126,13 +128,17 @@ func (s *SystemdTestSuite) TestDisable(c *C) {
 }
 
 func (s *SystemdTestSuite) TestEnable(c *C) {
-	err := New("xyzzy", s.rep).Enable("foo")
+	sysd := New("xyzzy", s.rep)
+	sysd.(*systemd).rootDir = c.MkDir()
+	err := os.MkdirAll(filepath.Join(sysd.(*systemd).rootDir, "/etc/systemd/system/multi-user.target.wants"), 0755)
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
-}
 
-func (s *SystemdTestSuite) TestErrorRun(c *C) {
-	SystemctlCmd = s.errorRun
-	err := New("xyzzy", s.rep).Enable("foo")
-	c.Assert(err.Error(), Equals, "[--root xyzzy enable foo] failed with exit status 1: error on error")
+	err = sysd.Enable("foo")
+	c.Assert(err, IsNil)
+
+	// check symlink
+	enableLink := filepath.Join(sysd.(*systemd).rootDir, "/etc/systemd/system/multi-user.target.wants/foo")
+	target, err := os.Readlink(enableLink)
+	c.Assert(err, IsNil)
+	c.Assert(target, Equals, "/etc/systemd/system/foo")
 }
