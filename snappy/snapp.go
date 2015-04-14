@@ -136,6 +136,7 @@ type packageYaml struct {
 			ID string `yaml:"id,omitempty"`
 		} `yaml:"store,omitempty"`
 	} `yaml:"oem,omitempty"`
+	Config SystemConfig `yaml:"config,omitempty"`
 
 	// this is a bit ugly, but right now integration is a one:one
 	// mapping of click hooks
@@ -208,10 +209,9 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		m.DeprecatedFramework = ""
 	}
 
-	for i, svc := range m.Services {
-		if svc.StopTimeout == 0 {
-			svc.StopTimeout = DefaultTimeout
-			m.Services[i] = svc
+	for i := range m.Services {
+		if m.Services[i].StopTimeout == 0 {
+			m.Services[i].StopTimeout = DefaultTimeout
 		}
 	}
 
@@ -249,7 +249,7 @@ func (m *packageYaml) FrameworksForClick() string {
 }
 
 func (m *packageYaml) checkForFrameworks() error {
-	installed, err := InstalledSnapNamesByType(SnapTypeFramework)
+	installed, err := ActiveSnapNamesByType(SnapTypeFramework)
 	if err != nil {
 		return err
 	}
@@ -391,6 +391,11 @@ func (s *SnapPart) Date() time.Time {
 // Services return a list of Service the package declares
 func (s *SnapPart) Services() []Service {
 	return s.m.Services
+}
+
+// OemConfig return a list of packages to configure
+func (s *SnapPart) OemConfig() SystemConfig {
+	return s.m.Config
 }
 
 // Install installs the snap
@@ -815,13 +820,13 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
 
 	// frameworks
-	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
+	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 
 	// check if the oem part sets a custom store-id
-	oems, _ := InstalledSnapsByType(SnapTypeOem)
+	oems, _ := ActiveSnapsByType(SnapTypeOem)
 	if len(oems) == 1 {
 		storeID := oems[0].(*SnapPart).m.OEM.Store.ID
 		if storeID != "" {
@@ -917,7 +922,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err
 func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// the store only supports apps and framworks currently, so no
 	// sense in sending it our ubuntu-core snap
-	installed, err := InstalledSnapNamesByType(SnapTypeApp, SnapTypeFramework)
+	installed, err := ActiveSnapNamesByType(SnapTypeApp, SnapTypeFramework)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}
