@@ -17,4 +17,6 @@
 
 package snappy
 
-const snappyStoreUbuntuRelease = "15.04-core"
+// the postfix we append to the release that is send to the store
+// FIXME: find a better way to detect the postfix
+const releasePostfix = "-core"

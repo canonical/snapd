@@ -394,7 +394,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	c.Assert(err, IsNil)
 
 	setUbuntuStoreHeaders(req)
-	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, "15.04-core")
+	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, helpers.LsbRelease()+releasePostfix)
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {

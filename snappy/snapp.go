@@ -825,7 +825,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
-	req.Header.Set("X-Ubuntu-Release", snappyStoreUbuntuRelease)
+	req.Header.Set("X-Ubuntu-Release", helpers.LsbRelease()+releasePostfix)
 
 	// check if the oem part sets a custom store-id
 	oems, _ := ActiveSnapsByType(SnapTypeOem)
