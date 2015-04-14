@@ -814,6 +814,11 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		return "", err
 	}
 
+	// oh, one more thing: refresh the security bits
+	if err := NewSnapPartFromYaml(instDir, m).RefreshDependentsSecurity(inter); err != nil {
+		return "", err
+	}
+
 	return manifest.Name, nil
 }
 
