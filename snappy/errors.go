@@ -115,6 +115,8 @@ var (
 	// ErrNoOemConfiguration may be returned when there is a SnapTypeOem installed
 	// but does not provide a configuration.
 	ErrNoOemConfiguration = errors.New("no configuration entry found in the oem snap")
+
+	ErrInstalledNonSnapPart = errors.New("installed dependent snap is not a SnapPart")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem
