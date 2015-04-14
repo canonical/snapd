@@ -404,6 +404,12 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	return templateOut.String()
 }
 
+func generateSeccompPolicy(aaProfile string, m *packageYaml) error {
+	fmt.Print("generateSecurityPolicy")
+	return nil
+
+}
+
 func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) string {
 
 	serviceTemplate := `[Unit]
@@ -483,7 +489,7 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 	}
 
 	for _, service := range m.Services {
-		aaProfile := getAaProfile(m, service.Name)
+		aaProfile := getSecurityProfile(m, service.Name)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -566,7 +572,7 @@ func addPackageBinaries(baseDir string) error {
 	}
 
 	for _, binary := range m.Binaries {
-		aaProfile := getAaProfile(m, filepath.Base(binary.Name))
+		aaProfile := getSecurityProfile(m, filepath.Base(binary.Name))
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -588,6 +594,53 @@ func removePackageBinaries(baseDir string) error {
 	}
 	for _, binary := range m.Binaries {
 		os.Remove(generateBinaryName(m, binary))
+	}
+
+	return nil
+}
+
+func addSecurityPolicy(baseDir string) error {
+	// TODO: move apparmor policy generation here
+	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta",
+		"package.yaml"))
+	if err != nil {
+		return err
+	}
+
+	for _, service := range m.Services {
+		// TODO: getSecurityProfile() should be getSecurityProfile
+		profileName := getSecurityProfile(m, filepath.Base(service.Name))
+		fmt.Printf("TODO: addSecurityPolicy (service): %s\n",
+			profileName)
+	}
+
+	for _, binary := range m.Binaries {
+		profileName := getSecurityProfile(m, filepath.Base(binary.Name))
+		fmt.Printf("TODO: addSecurityPolicy (binary): %s\n",
+			profileName)
+	}
+
+	return nil
+}
+
+func removeSecurityPolicy(baseDir string) error {
+	// TODO: move apparmor policy removal
+	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta",
+		"package.yaml"))
+	if err != nil {
+		return err
+	}
+
+	for _, service := range m.Services {
+		profileName := getSecurityProfile(m, filepath.Base(service.Name))
+		fmt.Printf("TODO: removeSecurityPolicy (service): %s\n",
+			profileName)
+	}
+
+	for _, binary := range m.Binaries {
+		profileName := getSecurityProfile(m, filepath.Base(binary.Name))
+		fmt.Printf("TODO: removeSecurityPolicy (binary): %s\n",
+			profileName)
 	}
 
 	return nil
@@ -862,12 +915,16 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 		return ErrSnapNotActive
 	}
 
-	// remove generated services, binaries, clickHooks
+	// remove generated services, binaries, clickHooks, security policy
 	if err := removePackageBinaries(clickDir); err != nil {
 		return err
 	}
 
 	if err := removePackageServices(clickDir, inter); err != nil {
+		return err
+	}
+
+	if err := removeSecurityPolicy(clickDir); err != nil {
 		return err
 	}
 
@@ -910,6 +967,10 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 	if err := installClickHooks(baseDir, newActiveManifest, inhibitHooks); err != nil {
 		// cleanup the failed hooks
 		removeClickHooks(newActiveManifest, inhibitHooks)
+		return err
+	}
+	// generate the security policy from the package.yaml
+	if err := addSecurityPolicy(baseDir); err != nil {
 		return err
 	}
 

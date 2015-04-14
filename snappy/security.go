@@ -83,7 +83,7 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 	return nil
 }
 
-func getAaProfile(m *packageYaml, appName string) string {
+func getSecurityProfile(m *packageYaml, appName string) string {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
 	return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version)
 }

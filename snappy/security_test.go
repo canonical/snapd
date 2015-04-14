@@ -8,14 +8,14 @@ import (
 	. "launchpad.net/gocheck"
 )
 
-type ApparmorTestSuite struct {
+type SecurityTestSuite struct {
 	buildDir string
 	m        *packageYaml
 }
 
-var _ = Suite(&ApparmorTestSuite{})
+var _ = Suite(&SecurityTestSuite{})
 
-func (a *ApparmorTestSuite) SetUpTest(c *C) {
+func (a *SecurityTestSuite) SetUpTest(c *C) {
 	a.buildDir = c.MkDir()
 	os.MkdirAll(filepath.Join(a.buildDir, "meta"), 0755)
 
@@ -26,7 +26,7 @@ func (a *ApparmorTestSuite) SetUpTest(c *C) {
 	}
 }
 
-func (a *ApparmorTestSuite) verifyApparmorFile(c *C, expected string) {
+func (a *SecurityTestSuite) verifyApparmorFile(c *C, expected string) {
 
 	// ensure the integraton hook is setup correctly for click-apparmor
 	c.Assert(a.m.Integration["app"]["apparmor"], Equals, "meta/app.apparmor")
@@ -38,7 +38,7 @@ func (a *ApparmorTestSuite) verifyApparmorFile(c *C, expected string) {
 }
 
 // no special security settings generate the default
-func (a *ApparmorTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
+func (a *SecurityTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
 	sec := &SecurityDefinitions{}
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
@@ -55,7 +55,7 @@ func (a *ApparmorTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
 }`)
 }
 
-func (a *ApparmorTestSuite) TestSnappyHandleApparmorCaps(c *C) {
+func (a *SecurityTestSuite) TestSnappyHandleApparmorCaps(c *C) {
 	sec := &SecurityDefinitions{
 		SecurityCaps: []string{"cap1", "cap2"},
 	}
@@ -75,7 +75,7 @@ func (a *ApparmorTestSuite) TestSnappyHandleApparmorCaps(c *C) {
 }`)
 }
 
-func (a *ApparmorTestSuite) TestSnappyHandleApparmorTemplate(c *C) {
+func (a *SecurityTestSuite) TestSnappyHandleApparmorTemplate(c *C) {
 	sec := &SecurityDefinitions{
 		SecurityTemplate: "docker-client",
 	}
@@ -91,7 +91,7 @@ func (a *ApparmorTestSuite) TestSnappyHandleApparmorTemplate(c *C) {
 }`)
 }
 
-func (a *ApparmorTestSuite) TestSnappyHandleApparmorOverride(c *C) {
+func (a *SecurityTestSuite) TestSnappyHandleApparmorOverride(c *C) {
 	sec := &SecurityDefinitions{
 		SecurityOverride: &SecurityOverrideDefinition{
 			Apparmor: "meta/custom.json",
@@ -104,7 +104,7 @@ func (a *ApparmorTestSuite) TestSnappyHandleApparmorOverride(c *C) {
 	c.Assert(a.m.Integration["app"]["apparmor"], Equals, "meta/custom.json")
 }
 
-func (a *ApparmorTestSuite) TestSnappyHandleApparmorPolicy(c *C) {
+func (a *SecurityTestSuite) TestSnappyHandleApparmorPolicy(c *C) {
 	sec := &SecurityDefinitions{
 		SecurityPolicy: &SecurityOverrideDefinition{
 			Apparmor: "meta/custom-policy.apparmor",
@@ -115,13 +115,4 @@ func (a *ApparmorTestSuite) TestSnappyHandleApparmorPolicy(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(a.m.Integration["app"]["apparmor-profile"], Equals, "meta/custom-policy.apparmor")
-}
-
-func (a *ApparmorTestSuite) TestSnappyGetAaProfile(c *C) {
-	m := packageYaml{
-		Name:    "foo",
-		Version: "1.0",
-	}
-	b := Binary{Name: "bin/app"}
-	c.Assert(getAaProfile(&m, b.Name), Equals, "foo_bin-app_1.0")
 }
