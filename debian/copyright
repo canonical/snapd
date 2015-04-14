@@ -3,7 +3,7 @@ Upstream-Name: snappy
 Source: https://launchpad.net/snappy
 
 Files: *
-Copyright: Copyright (C) 2013 Canonical, Ltd.
+Copyright: Copyright (C) 2014,2015 Canonical, Ltd.
 License: GPL-3
  This program is free software: you can redistribute it and/or modify it
  under the terms of the the GNU General Public License version 3, as

@@ -23,6 +23,7 @@ Vcs-Bzr: lp:snappy
 
 Package: golang-snappy-dev
 Architecture: all
+Depends: ${misc:Depends}
 Description: snappy development go packages.
  Use these to use the snappy API.
 
