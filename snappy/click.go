@@ -763,15 +763,6 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 
 	inhibitHooks := (flags & InhibitHooks) != 0
 
-	dataCleanup := func() {
-		if err == nil {
-			return
-		}
-		if cerr := removeSnapData(manifest.Name, manifest.Version); cerr != nil {
-			log.Printf("when clenaning up data for %s %s: %v", manifest.Name, manifest.Version, cerr)
-		}
-	}
-
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 	// deal with the data:
 	//
@@ -800,16 +791,20 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		}
 
 		err = copySnapData(manifest.Name, oldManifest.Version, manifest.Version)
-		defer dataCleanup()
-		if err != nil {
-			return "", err
-		}
 	} else {
-		if err := helpers.EnsureDir(dataDir, 0755); err != nil {
-			log.Printf("WARNING: Can not create %s", dataDir)
-			return "", err
+		err = helpers.EnsureDir(dataDir, 0755)
+	}
+
+	defer func() {
+		if err != nil {
+			if cerr := removeSnapData(manifest.Name, manifest.Version); cerr != nil {
+				log.Printf("when clenaning up data for %s %s: %v", manifest.Name, manifest.Version, cerr)
+			}
 		}
-		defer dataCleanup()
+	}()
+
+	if err != nil {
+		return "", err
 	}
 
 	// and finally make active
