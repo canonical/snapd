@@ -80,7 +80,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 func (s *SnapTestSuite) TearDownTest(c *C) {
 	// ensure all functions are back to their original state
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
-	InstalledSnapNamesByType = installedSnapNamesByTypeImpl
+	ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 	duCmd = "du"
 }
 
@@ -339,8 +339,8 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Assert(results[0].Channel(), Equals, "edge")
 }
 
-func mockInstalledSnapNamesByType(mockSnaps []string) {
-	InstalledSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
+func mockActiveSnapNamesByType(mockSnaps []string) {
+	ActiveSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
 		return mockSnaps, nil
 	}
 }
@@ -360,9 +360,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
-	// override the real InstalledSnapNamesByType to return our
+	// override the real ActiveSnapNamesByType to return our
 	// mock data
-	mockInstalledSnapNamesByType([]string{"hello-world"})
+	mockActiveSnapNamesByType([]string{"hello-world"})
 
 	// the actual test
 	results, err := snap.Updates()
@@ -381,7 +381,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 	// ensure we do not hit the net if there is nothing installed
 	// (otherwise the store will send us all snaps)
 	snap.bulkURI = "http://i-do.not-exist.really-not"
-	mockInstalledSnapNamesByType([]string{})
+	mockActiveSnapNamesByType([]string{})
 
 	// the actual test
 	results, err := snap.Updates()
