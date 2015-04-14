@@ -42,6 +42,10 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// the postfix we append to the release that is send to the store
+// FIXME: find a better way to detect the postfix
+const releasePostfix = "-core"
+
 // Port is used to declare the Port and Negotiable status of such port
 // that is bound to a Service.
 type Port struct {
