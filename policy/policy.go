@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	secbase = "/var/lib/snappy"
+	SecBase = "/var/lib/snappy"
 )
 
 type policyOp uint
@@ -127,7 +127,7 @@ func frameworkOp(op policyOp, pkgName string, instPath string) error {
 	pol := filepath.Join(instPath, "meta", "framework-policy")
 	for _, i := range []string{"apparmor", "seccomp"} {
 		for _, j := range []string{"policygroups", "templates"} {
-			if err := iterOp(op, filepath.Join(pol, i, j, "*"), filepath.Join(secbase, i, j), pkgName+"_"); err != nil {
+			if err := iterOp(op, filepath.Join(pol, i, j, "*"), filepath.Join(SecBase, i, j), pkgName+"_"); err != nil {
 				return err
 			}
 		}
