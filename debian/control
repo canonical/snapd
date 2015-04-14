@@ -40,7 +40,7 @@ Description: System components for Ubuntu Core Snappy.
 
 Package: ubuntu-snappy-cli
 Architecture: any
-Depends: fakeroot, ${misc:Depends}, ${shlibs:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}, adduser
 Replaces: ubuntu-core-snappy (<< 0.2~ppa90)
 Breaks: ubuntu-core-snappy (<< 0.2~ppa90)
 Built-Using: ${misc:Built-Using}
