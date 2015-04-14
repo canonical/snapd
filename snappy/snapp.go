@@ -209,7 +209,7 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	}
 
 	// For backward compatiblity we allow that there is no "exec:" line
-	// in the binary definition and that its derrived from the name.
+	// in the binary definition and that its derived from the name.
 	//
 	// Generate the right exec line here
 	for i := range m.Binaries {
