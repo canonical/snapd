@@ -206,10 +206,9 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		m.DeprecatedFramework = ""
 	}
 
-	for i, svc := range m.Services {
-		if svc.StopTimeout == 0 {
-			svc.StopTimeout = DefaultTimeout
-			m.Services[i] = svc
+	for i := range m.Services {
+		if m.Services[i].StopTimeout == 0 {
+			m.Services[i].StopTimeout = DefaultTimeout
 		}
 	}
 
