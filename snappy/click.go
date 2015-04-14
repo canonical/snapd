@@ -720,10 +720,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 
 	// if anything goes wrong here we cleanup
 	defer func() {
-		if err == nil {
-			return
-		}
-		if _, err := os.Stat(instDir); err == nil {
+		if err != nil {
 			if err := os.RemoveAll(instDir); err != nil {
 				log.Printf("Warning: failed to remove %s: %s", instDir, err)
 			}
@@ -740,14 +737,22 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		if err := policy.Install(manifest.Name, instDir); err != nil {
 			return "", err
 		}
+		defer func() {
+			if err != nil {
+				if cerr := policy.Remove(manifest.Name, instDir); cerr != nil {
+					log.Printf("Warning: failed to remove policies for %s: %v", manifest.Name, err)
+				}
+			}
+		}()
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
 	// all hooks this can go away
 	clickMetaDir := path.Join(instDir, ".click", "info")
-	os.MkdirAll(clickMetaDir, 0755)
-	err = ioutil.WriteFile(path.Join(clickMetaDir, manifest.Name+".manifest"), manifestData, 0644)
-	if err != nil {
+	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
+		return "", err
+	}
+	if err := ioutil.WriteFile(path.Join(clickMetaDir, manifest.Name+".manifest"), manifestData, 0644); err != nil {
 		return "", err
 	}
 
@@ -773,50 +778,88 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		}
 
 		// we need to stop making it active
-		if err := unsetActiveClick(currentActiveDir, inhibitHooks, inter); err != nil {
-			// if anything goes wrong try to activate the old
-			// one again and pass the error on
-			setActiveClick(currentActiveDir, inhibitHooks, inter)
+		err = unsetActiveClick(currentActiveDir, inhibitHooks, inter)
+		defer func() {
+			if err != nil {
+				if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+					log.Printf("setting old version back to active failed: %v", cerr)
+				}
+			}
+		}()
+		if err != nil {
 			return "", err
 		}
 
-		if err := copySnapData(manifest.Name, oldManifest.Version, manifest.Version); err != nil {
-			// FIXME: remove newDir
-
-			// restore the previous version
-			setActiveClick(currentActiveDir, inhibitHooks, inter)
-			return "", err
-		}
+		err = copySnapData(manifest.Name, oldManifest.Version, manifest.Version)
 	} else {
-		if err := helpers.EnsureDir(dataDir, 0755); err != nil {
-			log.Printf("WARNING: Can not create %s", dataDir)
-			return "", err
+		err = helpers.EnsureDir(dataDir, 0755)
+	}
+
+	defer func() {
+		if err != nil {
+			if cerr := removeSnapData(manifest.Name, manifest.Version); cerr != nil {
+				log.Printf("when clenaning up data for %s %s: %v", manifest.Name, manifest.Version, cerr)
+			}
 		}
+	}()
+
+	if err != nil {
+		return "", err
 	}
 
 	// and finally make active
-	if err := setActiveClick(instDir, inhibitHooks, inter); err != nil {
-		// ensure to revert on install failure
-		if currentActiveDir != "" {
-			setActiveClick(currentActiveDir, inhibitHooks, inter)
+	err = setActiveClick(instDir, inhibitHooks, inter)
+	defer func() {
+		if err != nil && currentActiveDir != "" {
+			if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+				log.Printf("when setting old %s version back to active: %v", manifest.Name, cerr)
+			}
 		}
+	}()
+	if err != nil {
 		return "", err
 	}
 
 	return manifest.Name, nil
 }
 
-// Copy all data for "snapName" from "oldVersion" to "newVersion"
-// (but never overwrite)
-func copySnapData(snapName, oldVersion, newVersion string) (err error) {
-	// collect the directories, homes first
-	oldDataDirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, oldVersion))
+// removeSnapData removes the data for the given version of the given snap
+func removeSnapData(snapName, version string) error {
+	dirs, err := snapDataDirs(snapName, version)
 	if err != nil {
 		return err
 	}
+
+	for _, dir := range dirs {
+		if err := os.RemoveAll(dir); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// snapDataDirs returns the list of data directories for the given snap version
+func snapDataDirs(snapName, version string) ([]string, error) {
+	// collect the directories, homes first
+	dirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, version))
+	if err != nil {
+		return nil, err
+	}
 	// then system data
-	oldSystemPath := filepath.Join(snapDataDir, snapName, oldVersion)
-	oldDataDirs = append(oldDataDirs, oldSystemPath)
+	systemPath := filepath.Join(snapDataDir, snapName, version)
+	dirs = append(dirs, systemPath)
+
+	return dirs, nil
+}
+
+// Copy all data for "snapName" from "oldVersion" to "newVersion"
+// (but never overwrite)
+func copySnapData(snapName, oldVersion, newVersion string) (err error) {
+	oldDataDirs, err := snapDataDirs(snapName, oldVersion)
+	if err != nil {
+		return err
+	}
 
 	for _, oldDir := range oldDataDirs {
 		// replace the trailing "../$old-ver" with the "../$new-ver"
