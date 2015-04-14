@@ -835,7 +835,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
-		StopTimeout: "30",
+		StopTimeout: DefaultTimeout,
 		Description: "A fun webserver",
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"

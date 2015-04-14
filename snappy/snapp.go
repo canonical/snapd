@@ -77,10 +77,10 @@ type Service struct {
 	Name        string `yaml:"name" json:"name,omitempty"`
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 
-	Start       string `yaml:"start,omitempty" json:"start,omitempty"`
-	Stop        string `yaml:"stop,omitempty" json:"stop,omitempty"`
-	PostStop    string `yaml:"poststop,omitempty" json:"poststop,omitempty"`
-	StopTimeout string `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
+	Start       string  `yaml:"start,omitempty" json:"start,omitempty"`
+	Stop        string  `yaml:"stop,omitempty" json:"stop,omitempty"`
+	PostStop    string  `yaml:"poststop,omitempty" json:"poststop,omitempty"`
+	StopTimeout Timeout `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
 
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
@@ -205,6 +205,12 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 
 		m.Frameworks = commasplitter(m.DeprecatedFramework, -1)
 		m.DeprecatedFramework = ""
+	}
+
+	for i := range m.Services {
+		if m.Services[i].StopTimeout == 0 {
+			m.Services[i].StopTimeout = DefaultTimeout
+		}
 	}
 
 	return &m, nil
