@@ -62,6 +62,9 @@ var (
 	// ErrNotInstalled is returned when the snap is not installed
 	ErrNotInstalled = errors.New("the given snap is not installed")
 
+	// ErrAlreadyInstalled is returned when the snap is already installed
+	ErrAlreadyInstalled = errors.New("the given snap is already installed")
+
 	// ErrPrivOpInProgress is returned when a privileged operation
 	// cannot be performed since an existing privileged operation is
 	// still running.
@@ -101,9 +104,17 @@ var (
 	// accepting a license is required, but no license file is provided
 	ErrLicenseNotProvided = errors.New("package.yaml requires license, but no license was provided")
 
+	// ErrNotFirstBoot is an error that indicates that the first boot has already
+	// run
+	ErrNotFirstBoot = errors.New("this is not your first boot")
+
 	// ErrNotImplemented may be returned when an implementation of
 	// an interface is partial.
 	ErrNotImplemented = errors.New("not implemented")
+
+	// ErrNoOemConfiguration may be returned when there is a SnapTypeOem installed
+	// but does not provide a configuration.
+	ErrNoOemConfiguration = errors.New("no configuration entry found in the oem snap")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem
