@@ -15,7 +15,7 @@ type apparmorJSONTemplate struct {
 	PolicyVersion float64  `json:"policy_version"`
 }
 
-func generateApparmorJSONContent(s *SecurityDefinitions) ([]byte, error) {
+func (s *SecurityDefinitions) generateApparmorJSONContent() ([]byte, error) {
 	t := apparmorJSONTemplate{
 		Template:      s.SecurityTemplate,
 		PolicyGroups:  s.SecurityCaps,
@@ -75,7 +75,7 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 
 	// generate apparmor template
 	apparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-	securityJSONContent, err := generateApparmorJSONContent(s)
+	securityJSONContent, err := s.generateApparmorJSONContent()
 	if err != nil {
 		return err
 	}
