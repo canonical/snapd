@@ -452,6 +452,7 @@ func (s *SnapPart) DependentNames() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	names := make([]string, len(deps))
 	for i, dep := range deps {
 		names[i] = dep.Name()
@@ -486,7 +487,7 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 			if fmk == name {
 				part, ok := part.(*SnapPart)
 				if !ok {
-					return nil, errors.New("installed dependent snap is not a *SnapPart?!?")
+					return nil, ErrInstalledNonSnapPart
 				}
 				needed = append(needed, part)
 			}
