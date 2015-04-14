@@ -18,6 +18,12 @@ type apparmorJSONTemplate struct {
 	PolicyVersion float64  `json:"policy_version"`
 }
 
+var defaultTemplate = "default"
+var defaultPolicyGroups = []string{"networking"}
+// TODO: autodetect, this won't work for personal
+var defaultPolicyVendor = "ubuntu-core"
+var defaultPolicyVersion = 15.04
+
 func generateApparmorJSONContent(s *SecurityDefinitions) ([]byte, error) {
 	t := apparmorJSONTemplate{
 		Template:      s.SecurityTemplate,
@@ -29,11 +35,11 @@ func generateApparmorJSONContent(s *SecurityDefinitions) ([]byte, error) {
 	// FIXME: this is snappy specific, on other systems like the
 	//        phone we may want different defaults.
 	if t.Template == "" && len(t.PolicyGroups) == 0 {
-		t.PolicyGroups = []string{"networking"}
+		t.PolicyGroups = defaultPolicyGroups
 	}
 
 	if t.Template == "" {
-		t.Template = "default"
+		t.Template = defaultTemplate
 	}
 
 	outStr, err := json.MarshalIndent(t, "", "  ")
@@ -103,20 +109,22 @@ func generateSeccompPolicy(m *packageYaml, baseDir string, appName string, sd Se
 	}
 
 	// defaults
-	policy_vendor := "ubuntu-core"
-	policy_version := 15.04
-	template := "default"
+	policy_vendor := defaultPolicyVendor
+	policy_version := defaultPolicyVersion
+	template := defaultTemplate
 	caps := make([]string, 0)
-	caps = append(caps, "networking")
+	for _, p := range defaultPolicyGroups {
+	    caps = append(caps, p)
+	}
 	syscalls := make([]string, 0)
 
 	if sd.SecurityOverride != nil {
 		fmt.Printf("TODO: SecurityOverride\n")
+		// TODO: read in yaml and override everything
 	} else {
 		if sd.SecurityTemplate != "" {
 			template = sd.SecurityTemplate
 		}
-
 		if sd.SecurityCaps != nil {
 			caps = sd.SecurityCaps
 		}
@@ -140,8 +148,6 @@ func generateSeccompPolicy(m *packageYaml, baseDir string, appName string, sd Se
 	if err != nil {
 		fmt.Printf("WARNING: %v failed\n", args)
 	}
-
-	fmt.Print(content)
 
 	return content, err
 }
