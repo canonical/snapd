@@ -182,7 +182,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 }
 
 /* acquired via:
-   curl  -H 'accept: application/hal+json' -H "X-Ubuntu-Frameworks: ubuntu-core-15.04-dev1" -H "X-Ubuntu-Architecture: amd64" https://search.apps.ubuntu.com/api/v1/search?q=hello
+   curl  -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" https://search.apps.ubuntu.com/api/v1/search?q=hello
 */
 const MockSearchJSON = `{
   "_links": {
@@ -241,7 +241,7 @@ const MockUpdatesJSON = `
 `
 
 /* acquired via
-   curl -H "accept: application/hal+json" -H "X-Ubuntu-Frameworks: ubuntu-core-15.04-dev1" https://search.apps.ubuntu.com/api/v1/package/com.ubuntu.snappy.xkcd-webserver
+   curl -H "accept: application/hal+json" -H "X-Ubuntu-Release: 15.04-core" https://search.apps.ubuntu.com/api/v1/package/com.ubuntu.snappy.xkcd-webserver
 */
 const MockDetailsJSON = `
 {
@@ -261,12 +261,10 @@ const MockDetailsJSON = `
   },
   "prices": null,
   "framework": [
-    "ubuntu-core-15.04-dev1"
   ],
   "translations": null,
   "price": 0.0,
   "click_framework": [
-    "ubuntu-core-15.04-dev1"
   ],
   "description": "Snappy\nThis is meant as a fun example for a snappy package.\r\n",
   "download_sha512": "3a9152b8bff494c036f40e2ca03d1dfaa4ddcfe651eae1c9419980596f48fa95b2f2a91589305af7d55dc08e9489b8392585bbe2286118550b288368e5d9a620",
@@ -738,7 +736,7 @@ framework: one, two
 	c.Assert(err, IsNil)
 	c.Assert(m.Frameworks, HasLen, 2)
 	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
-	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
+	c.Check(m.FrameworksForClick(), Matches, "one,two")
 }
 
 func (s *SnapTestSuite) TestPackageYamlFrameworksParsing(c *C) {
@@ -750,7 +748,7 @@ frameworks:
 	c.Assert(err, IsNil)
 	c.Assert(m.Frameworks, HasLen, 2)
 	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
-	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
+	c.Check(m.FrameworksForClick(), Matches, "one,two")
 }
 
 func (s *SnapTestSuite) TestPackageYamlFrameworkAndFrameworksFails(c *C) {
