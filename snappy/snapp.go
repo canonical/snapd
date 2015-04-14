@@ -75,6 +75,8 @@ type SecurityDefinitions struct {
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
 }
 
+// NeedsAppArmorUpdate checks whether the security definitions are impacted by
+// changes to policies or templates.
 func (sd *SecurityDefinitions) NeedsAppArmorUpdate(policies, templates map[string]bool) bool {
 	if sd.SecurityPolicy != nil {
 		return false
@@ -549,6 +551,8 @@ type restartJob struct {
 	timeout time.Duration
 }
 
+// NeedsAppArmorUpdate checks whether changes to the given policies
+// and templates impacts the snap
 func (s *SnapPart) NeedsAppArmorUpdate(policies, templates map[string]bool) bool {
 	for _, svc := range s.Services() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
