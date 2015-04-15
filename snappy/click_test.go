@@ -38,7 +38,6 @@ import (
 func (s *SnapTestSuite) TestReadManifest(c *C) {
 	manifestData := []byte(`{
    "description": "This is a simple hello world example.",
-    "framework": "ubuntu-core-15.04-dev1",
     "hooks": {
         "echo": {
             "apparmor": "meta/echo.apparmor",
@@ -279,6 +278,58 @@ func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 	_, err := installClick(pkg, 0, ag)
 	c.Assert(err, Equals, nil)
 	c.Check(ag.intro, Matches, ".*foobar.*requires.*license.*")
+	c.Check(ag.license, Equals, "WTFPL")
+}
+
+// If a previous version is installed with the same license version, the agreer
+// isn't called
+func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
+	ag := &agreerator{y: true}
+	yaml := "name: foox\nexplicit-license-agreement: Y\nlicense-version: 2\n"
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
+	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
+	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+
+	pkg := makeTestSnapPackage(c, yaml+"version: 2")
+	_, err = installClick(pkg, 0, ag)
+	c.Assert(err, Equals, nil)
+	c.Check(ag.intro, Equals, "")
+	c.Check(ag.license, Equals, "")
+}
+
+// If a previous version is installed with the same license version, but without
+// explicit license agreement set, the agreer *is* called
+func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
+	ag := &agreerator{y: true}
+	yaml := "name: foox\nlicense-version: 2\n"
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
+	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
+	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+
+	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y")
+	_, err = installClick(pkg, 0, ag)
+	c.Assert(err, Equals, nil)
+	c.Check(ag.license, Equals, "WTFPL")
+}
+
+// If a previous version is installed with a different license version, the
+// agreer *is* called
+func (s *SnapTestSuite) TestDifferentLicenseVersion(c *C) {
+	ag := &agreerator{y: true}
+	yaml := "name: foox\nexplicit-license-agreement: Y\n"
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"license-version: 2\nversion: 1")
+	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
+	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+
+	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
+	_, err = installClick(pkg, 0, ag)
+	c.Assert(err, Equals, nil)
 	c.Check(ag.license, Equals, "WTFPL")
 }
 
@@ -659,11 +710,11 @@ services:
    start: bin/hello
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, 0, nil)
+	_, err := installClick(snapFile, InhibitHooks, nil)
 	c.Assert(err, IsNil)
 
-	c.Assert(allSystemctl, HasLen, 3)
-	c.Assert(allSystemctl[1], DeepEquals, []string{"--root", globalRootDir, "enable", "foo.mvo_service_1.0.service"})
+	c.Assert(allSystemctl, HasLen, 0)
+
 }
 
 const expectedService = `[Unit]
@@ -835,7 +886,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
-		StopTimeout: "30",
+		StopTimeout: DefaultTimeout,
 		Description: "A fun webserver",
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
@@ -882,7 +933,9 @@ binaries:
 	c.Assert(writeDebianControl(tmpdir, m), IsNil)
 	c.Assert(writeClickManifest(tmpdir, m), IsNil)
 	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
-	d := &clickdeb.ClickDeb{Path: snapName}
+	d, err := clickdeb.Create(snapName)
+	c.Assert(err, IsNil)
+	defer d.Close()
 	c.Assert(d.Build(tmpdir, func(dataTar string) error {
 		return writeHashes(tmpdir, dataTar)
 	}), IsNil)

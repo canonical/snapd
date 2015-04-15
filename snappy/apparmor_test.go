@@ -86,6 +86,7 @@ func (a *ApparmorTestSuite) TestSnappyHandleApparmorTemplate(c *C) {
 	// verify file content
 	a.verifyApparmorFile(c, `{
   "template": "docker-client",
+  "policy_groups": [],
   "policy_vendor": "ubuntu-snappy",
   "policy_version": 1.3
 }`)

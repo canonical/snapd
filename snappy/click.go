@@ -37,15 +37,14 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	"time"
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/systemd"
 
 	"github.com/mvo5/goconfigparser"
-	"time"
 )
 
 type clickAppHook map[string]string
@@ -401,51 +400,12 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 }
 
 func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) string {
-
-	serviceTemplate := `[Unit]
-Description={{.Description}}
-After=ubuntu-snappy.run-hooks.service
-X-Snappy=yes
-
-[Service]
-ExecStart={{.FullPathStart}}
-WorkingDirectory={{.AppPath}}
-Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}" "TMPDIR=/tmp/snaps/{{.Name}}/{{.Version}}/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/{{.Name}}/{{.Version}}/tmp"
-AppArmorProfile={{.AaProfile}}
-{{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
-{{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
-{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout}}{{end}}
-
-[Install]
-WantedBy=multi-user.target
-`
-	var templateOut bytes.Buffer
-	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
-	wrapperData := struct {
-		// embed service struct
-		Service
-		// but we need more
-		Name             string
-		Version          string
-		AppPath          string
-		AaProfile        string
-		FullPathStart    string
-		FullPathStop     string
-		FullPathPostStop string
-		AppTriple        string
-	}{
-		service, m.Name, m.Version, baseDir, aaProfile,
-		filepath.Join(baseDir, service.Start),
-		filepath.Join(baseDir, service.Stop),
-		filepath.Join(baseDir, service.PostStop),
-		fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version),
-	}
-	if err := t.Execute(&templateOut, wrapperData); err != nil {
-		// this can never happen, except we forget a variable
-		logger.LogAndPanic(err)
-	}
-
-	return templateOut.String()
+	return systemd.New(globalRootDir, nil).GenServiceFile(
+		&systemd.ServiceDescription{
+			m.Name, service.Name, m.Version, service.Description,
+			baseDir, service.Start, service.Stop, service.PostStop,
+			time.Duration(service.StopTimeout), aaProfile,
+		})
 }
 
 func generateServiceFileName(m *packageYaml, service Service) string {
@@ -497,16 +457,19 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 		//
 		// *but* always run enable (which just sets a symlink)
 		serviceName := filepath.Base(generateServiceFileName(m, service))
+		sysd := systemd.New(globalRootDir, inter)
 		if !inhibitHooks {
-			sysd := systemd.New(globalRootDir, inter)
 			if err := sysd.DaemonReload(); err != nil {
 				return err
 			}
+		}
 
-			if err := sysd.Enable(serviceName); err != nil {
-				return err
-			}
+		// we always enable the service even in inhibit hooks
+		if err := sysd.Enable(serviceName); err != nil {
+			return err
+		}
 
+		if !inhibitHooks {
 			if err := sysd.Start(serviceName); err != nil {
 				return err
 			}
@@ -524,13 +487,7 @@ func removePackageServices(baseDir string, inter interacter) error {
 	sysd := systemd.New(globalRootDir, inter)
 	for _, service := range m.Services {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		// XXX: parsing should be done waaay before this (in the yaml loading!)
-		timeout, err := time.ParseDuration(service.StopTimeout)
-		if err != nil {
-			// XXX: whatevs
-			timeout = 30 * time.Second
-		}
-		if err := sysd.Stop(serviceName, timeout); err != nil {
+		if err := sysd.Stop(serviceName, time.Duration(service.StopTimeout)); err != nil {
 			return err
 		}
 		if err := sysd.Disable(serviceName); err != nil {
@@ -627,12 +584,12 @@ func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
 		return ErrUnpackHelperNotFound
 	}
 
-	cmd := exec.Command(privHelper, "internal-unpack", d.Path, instDir, globalRootDir)
+	cmd := exec.Command(privHelper, "internal-unpack", d.Name(), instDir, globalRootDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return &ErrUnpackFailed{
-			snapFile: d.Path,
+			snapFile: d.Name(),
 			instDir:  instDir,
 			origErr:  err,
 		}
@@ -641,8 +598,12 @@ func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
 	return nil
 }
 
-type interacter interface {
+type agreer interface {
 	Agreed(intro, license string) bool
+}
+
+type interacter interface {
+	agreer
 	Notify(status string)
 }
 
@@ -658,7 +619,11 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		//return SnapAuditError
 	}
 
-	d := &clickdeb.ClickDeb{Path: snapFile}
+	d, err := clickdeb.Open(snapFile)
+	if err != nil {
+		return "", err
+	}
+	defer d.Close()
 	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
@@ -687,22 +652,6 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		return "", err
 	}
 
-	if m.ExplicitLicenseAgreement {
-		if inter == nil {
-			return "", ErrLicenseNotAccepted
-		}
-		license, err := d.MetaMember("license.txt")
-		if err != nil || len(license) == 0 {
-			return "", ErrLicenseNotProvided
-		}
-		msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
-		if !inter.Agreed(msg, string(license)) {
-			return "", ErrLicenseNotAccepted
-		}
-	}
-
-	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
-
 	targetDir := snapAppsDir
 	// the "oem" parts are special
 	if manifest.Type == SnapTypeOem {
@@ -710,16 +659,21 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 	}
 
 	instDir := filepath.Join(targetDir, manifest.Name, manifest.Version)
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
+
+	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
+		return "", err
+	}
+
+	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
+
 	if err := helpers.EnsureDir(instDir, 0755); err != nil {
 		log.Printf("WARNING: Can not create %s", instDir)
 	}
 
 	// if anything goes wrong here we cleanup
 	defer func() {
-		if err == nil {
-			return
-		}
-		if _, err := os.Stat(instDir); err == nil {
+		if err != nil {
 			if err := os.RemoveAll(instDir); err != nil {
 				log.Printf("Warning: failed to remove %s: %s", instDir, err)
 			}
@@ -736,14 +690,22 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		if err := policy.Install(manifest.Name, instDir); err != nil {
 			return "", err
 		}
+		defer func() {
+			if err != nil {
+				if cerr := policy.Remove(manifest.Name, instDir); cerr != nil {
+					log.Printf("Warning: failed to remove policies for %s: %v", manifest.Name, err)
+				}
+			}
+		}()
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
 	// all hooks this can go away
 	clickMetaDir := path.Join(instDir, ".click", "info")
-	os.MkdirAll(clickMetaDir, 0755)
-	err = ioutil.WriteFile(path.Join(clickMetaDir, manifest.Name+".manifest"), manifestData, 0644)
-	if err != nil {
+	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
+		return "", err
+	}
+	if err := ioutil.WriteFile(path.Join(clickMetaDir, manifest.Name+".manifest"), manifestData, 0644); err != nil {
 		return "", err
 	}
 
@@ -754,7 +716,6 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 
 	inhibitHooks := (flags & InhibitHooks) != 0
 
-	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 	// deal with the data:
 	//
 	// if there was a previous version, stop it
@@ -769,50 +730,95 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		}
 
 		// we need to stop making it active
-		if err := unsetActiveClick(currentActiveDir, inhibitHooks, inter); err != nil {
-			// if anything goes wrong try to activate the old
-			// one again and pass the error on
-			setActiveClick(currentActiveDir, inhibitHooks, inter)
+		err = unsetActiveClick(currentActiveDir, inhibitHooks, inter)
+		defer func() {
+			if err != nil {
+				if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+					log.Printf("setting old version back to active failed: %v", cerr)
+				}
+			}
+		}()
+		if err != nil {
 			return "", err
 		}
 
-		if err := copySnapData(manifest.Name, oldManifest.Version, manifest.Version); err != nil {
-			// FIXME: remove newDir
-
-			// restore the previous version
-			setActiveClick(currentActiveDir, inhibitHooks, inter)
-			return "", err
-		}
+		err = copySnapData(manifest.Name, oldManifest.Version, manifest.Version)
 	} else {
-		if err := helpers.EnsureDir(dataDir, 0755); err != nil {
-			log.Printf("WARNING: Can not create %s", dataDir)
-			return "", err
+		err = helpers.EnsureDir(dataDir, 0755)
+	}
+
+	defer func() {
+		if err != nil {
+			if cerr := removeSnapData(manifest.Name, manifest.Version); cerr != nil {
+				log.Printf("when clenaning up data for %s %s: %v", manifest.Name, manifest.Version, cerr)
+			}
 		}
+	}()
+
+	if err != nil {
+		return "", err
 	}
 
 	// and finally make active
-	if err := setActiveClick(instDir, inhibitHooks, inter); err != nil {
-		// ensure to revert on install failure
-		if currentActiveDir != "" {
-			setActiveClick(currentActiveDir, inhibitHooks, inter)
+	err = setActiveClick(instDir, inhibitHooks, inter)
+	defer func() {
+		if err != nil && currentActiveDir != "" {
+			if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+				log.Printf("when setting old %s version back to active: %v", manifest.Name, cerr)
+			}
 		}
+	}()
+	if err != nil {
 		return "", err
+	}
+
+	// oh, one more thing: refresh the security bits
+	if !inhibitHooks {
+		if err := NewSnapPartFromYaml(instDir, m).RefreshDependentsSecurity(inter); err != nil {
+			return "", err
+		}
 	}
 
 	return manifest.Name, nil
 }
 
-// Copy all data for "snapName" from "oldVersion" to "newVersion"
-// (but never overwrite)
-func copySnapData(snapName, oldVersion, newVersion string) (err error) {
-	// collect the directories, homes first
-	oldDataDirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, oldVersion))
+// removeSnapData removes the data for the given version of the given snap
+func removeSnapData(snapName, version string) error {
+	dirs, err := snapDataDirs(snapName, version)
 	if err != nil {
 		return err
 	}
+
+	for _, dir := range dirs {
+		if err := os.RemoveAll(dir); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// snapDataDirs returns the list of data directories for the given snap version
+func snapDataDirs(snapName, version string) ([]string, error) {
+	// collect the directories, homes first
+	dirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, version))
+	if err != nil {
+		return nil, err
+	}
 	// then system data
-	oldSystemPath := filepath.Join(snapDataDir, snapName, oldVersion)
-	oldDataDirs = append(oldDataDirs, oldSystemPath)
+	systemPath := filepath.Join(snapDataDir, snapName, version)
+	dirs = append(dirs, systemPath)
+
+	return dirs, nil
+}
+
+// Copy all data for "snapName" from "oldVersion" to "newVersion"
+// (but never overwrite)
+func copySnapData(snapName, oldVersion, newVersion string) (err error) {
+	oldDataDirs, err := snapDataDirs(snapName, oldVersion)
+	if err != nil {
+		return err
+	}
 
 	for _, oldDir := range oldDataDirs {
 		// replace the trailing "../$old-ver" with the "../$new-ver"
@@ -829,9 +835,8 @@ func copySnapData(snapName, oldVersion, newVersion string) (err error) {
 func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	if _, err := os.Stat(oldPath); err == nil {
 		if _, err := os.Stat(newPath); err != nil {
-			// there is no golang "CopyFile" and we want hardlinks
-			// by default to save space
-			cmd := exec.Command("cp", "-al", oldPath, newPath)
+			// there is no golang "CopyFile"
+			cmd := exec.Command("cp", "-a", oldPath, newPath)
 			if err := cmd.Run(); err != nil {
 				if exitCode, err := helpers.ExitCode(err); err != nil {
 					return &ErrDataCopyFailed{

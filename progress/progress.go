@@ -75,7 +75,7 @@ func (t *NullProgress) Finished() {
 
 // Write does nothing
 func (t *NullProgress) Write(p []byte) (n int, err error) {
-	return n, nil
+	return len(p), nil
 }
 
 // Notify does nothing

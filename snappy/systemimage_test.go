@@ -111,7 +111,8 @@ func (s *SITestSuite) TestTestInstalled(c *C) {
 	c.Assert(err, IsNil)
 	// we have one active and one inactive
 	c.Assert(parts, HasLen, 2)
-	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
+	c.Assert(parts[0].Name(), Equals, systemImagePartName)
+	c.Assert(parts[0].Namespace(), Equals, systemImagePartNamespace)
 	c.Assert(parts[0].Version(), Equals, "1")
 	c.Assert(parts[0].Hash(), Equals, "e09c13f68fccef3b2fe0f5c8ff5c61acf2173b170b1f2a3646487147690b0970ef6f2c555d7bcb072035f29ee4ea66a6df7f6bb320d358d3a7d78a0c37a8a549")
 	c.Assert(parts[0].IsActive(), Equals, true)
@@ -303,6 +304,34 @@ func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedFailure(c *C) {
 	c.Assert(err.Error(), Equals, `upgrade verification failed: found "1" but expected "2"`)
 }
 
+func (s *SITestSuite) TestOtherIsEmpty(c *C) {
+	otherRoot := "/other"
+	otherRootFull := filepath.Join(systemImageRoot, otherRoot)
+
+	siConfig := filepath.Join(otherRootFull, "etc/system-image/channel.ini")
+
+	// the tests create si-config files for "current" and "other"
+	c.Assert(otherIsEmpty(otherRoot), Equals, false)
+
+	// make the siConfig zero bytes (as is done by the upgrader when
+	// first populating "other" to denote that the update is in
+	// progress.
+	err := ioutil.WriteFile(siConfig, []byte(""), 0640)
+	c.Assert(err, IsNil)
+	c.Assert(otherIsEmpty(otherRoot), Equals, true)
+
+	err = ioutil.WriteFile(siConfig, []byte("\n"), 0640)
+	c.Assert(err, IsNil)
+	c.Assert(otherIsEmpty(otherRoot), Equals, false)
+
+	err = ioutil.WriteFile(siConfig, []byte("foo"), 0640)
+	c.Assert(err, IsNil)
+	c.Assert(otherIsEmpty(otherRoot), Equals, false)
+
+	os.Remove(siConfig)
+	c.Assert(otherIsEmpty(otherRoot), Equals, true)
+}
+
 func (s *SITestSuite) TestCannotUninstall(c *C) {
 	// whats installed
 	parts, err := s.systemImage.Installed()
@@ -319,4 +348,12 @@ func (s *SITestSuite) TestFrameworks(c *C) {
 	fmks, err := parts[0].Frameworks()
 	c.Assert(err, IsNil)
 	c.Check(fmks, HasLen, 0)
+}
+
+func (s *SITestSuite) TestNamespace(c *C) {
+	parts, err := s.systemImage.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(parts, HasLen, 2)
+	c.Assert(parts[0].Namespace(), Equals, systemImagePartNamespace)
+	c.Assert(parts[1].Namespace(), Equals, systemImagePartNamespace)
 }
