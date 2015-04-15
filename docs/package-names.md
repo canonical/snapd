@@ -12,27 +12,27 @@ We will deliver this feature in 2 phases:
 
 #### Search
 
-    $ snappy search apache
-    apache          A popular web server
-    apache/stevesh  Apache with ultra cores enabled
-    apache/matilda  Apache with dancing monkeys
+    $ snappy search vim
+    vim/snappy     A popular text editor
+    vim/stevesh    Vim + python plugins
+    vim/matilda    Vim with a pink batman themes
 
 
 #### Installing packages
 
-    $ snappy install apache
-    Installing apache/apachefoundation
+    $ snappy install vim
+    Installing vim/snappy
     4.03 MB / 4.03 MB [==============================] 100.00 % 124.66 KB/s
     Done
 
 
-    $ snappy install apache/matilda
-    Installing apache/matilda
-    Error: Cannot install apache/matilda, you already have a package called "apache" installed.
+    $ snappy install vim/matilda
+    Installing vim/matilda
+    Error: Cannot install vim/matilda, you already have a package called "vim" installed.
 
 
 #### Running applications
-    $ apache.start
+    $ vim.edit
 
 
 ## Phase 2
@@ -102,9 +102,9 @@ You can only sideload one fork of an app, there is no switching on sideloads.
 ## Touch & other GUIs
 Snappy will provide the basic building blocks, each platform can decide how to 
 deal with it.
-The store will guarantee the uniqueness of a package name and an origin, 
-Snappy will allow packages with the same name to be co-installed but will not 
-be co-runnable.
+The store will guarantee the uniqueness of a package name and origin 
+combination, Snappy will allow packages with the same name to be co-installed 
+but will not be co-runnable.
 How UIs will be mapped to the primitives described in this document is not yet 
 defined. As part of that effort new requirements and feature nuances for 
 snappy namespaces could arise that snappy will work with engineering teams to 
