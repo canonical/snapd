@@ -819,17 +819,17 @@ func init() {
 		panic(err)
 	}
 
-	storeSearchURI, err = storeBaseURI.Parse("search")
+	storeSearchURI, err = storeBaseURI.Parse("search/")
 	if err != nil {
 		panic(err)
 	}
 
-	storeDetailsURI, err = storeBaseURI.Parse("package")
+	storeDetailsURI, err = storeBaseURI.Parse("package/")
 	if err != nil {
 		panic(err)
 	}
 
-	storeBulkURI, err = storeBaseURI.Parse("click-metadata")
+	storeBulkURI, err = storeBaseURI.Parse("click-metadata/")
 	if err != nil {
 		panic(err)
 	}
