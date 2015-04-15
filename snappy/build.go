@@ -337,7 +337,7 @@ func writeClickManifest(buildDir string, m *packageYaml) error {
 	cm := clickManifest{
 		Name:          m.Name,
 		Version:       m.Version,
-		Framework:     m.Framework,
+		Framework:     m.FrameworksForClick(),
 		Type:          m.Type,
 		Icon:          m.Icon,
 		InstalledSize: installedSize,
@@ -445,10 +445,13 @@ func Build(sourceDir, targetDir string) (string, error) {
 	}
 
 	if m.ExplicitLicenseAgreement {
-		err = licenseChecker(sourceDir)
-		if err != nil {
+		if err := licenseChecker(sourceDir); err != nil {
 			return "", err
 		}
+	}
+
+	if err := m.checkForNameClashes(); err != nil {
+		return "", err
 	}
 
 	// create build dir
@@ -460,17 +463,6 @@ func Build(sourceDir, targetDir string) (string, error) {
 
 	if err := copyToBuildDir(sourceDir, buildDir); err != nil {
 		return "", err
-	}
-
-	// FIXME: the store needs this right now
-	if !strings.Contains(m.Framework, "ubuntu-core-15.04-dev1") {
-		l := strings.Split(m.Framework, ",")
-		if l[0] == "" {
-			m.Framework = "ubuntu-core-15.04-dev1"
-		} else {
-			l = append(l, "ubuntu-core-15.04-dev1")
-			m.Framework = strings.Join(l, ", ")
-		}
 	}
 
 	// defaults, mangling
@@ -515,7 +507,12 @@ func Build(sourceDir, targetDir string) (string, error) {
 	}
 
 	// build it
-	d := clickdeb.ClickDeb{Path: snapName}
+	d, err := clickdeb.Create(snapName)
+	if err != nil {
+		return "", err
+	}
+	defer d.Close()
+
 	err = d.Build(buildDir, func(dataTar string) error {
 		// write hashes of the files plus the generated data tar
 		return writeHashes(buildDir, dataTar)

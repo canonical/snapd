@@ -23,7 +23,6 @@ import (
 	"sort"
 	"strings"
 
-	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 )
@@ -65,8 +64,8 @@ func inDeveloperMode() bool {
 
 // Install the givens snap names provided via args. This can be local
 // files or snaps that are queried from the store
-func Install(name string, flags InstallFlags) (string, error) {
-	name, err := doInstall(name, flags)
+func Install(name string, flags InstallFlags, meter progress.Meter) (string, error) {
+	name, err := doInstall(name, flags, meter)
 	if err != nil {
 		return "", logger.LogError(err)
 	}
@@ -74,35 +73,32 @@ func Install(name string, flags InstallFlags) (string, error) {
 	return name, logger.LogError(GarbageCollect(name, flags))
 }
 
-func doInstall(name string, flags InstallFlags) (string, error) {
-	var pbar progress.Meter
-
+func doInstall(name string, flags InstallFlags, meter progress.Meter) (string, error) {
 	// consume local parts
-	if _, err := os.Stat(name); err == nil {
+	if fi, err := os.Stat(name); err == nil && fi.Mode().IsRegular() {
 		// we allow unauthenticated package when in developer
 		// mode
 		if inDeveloperMode() {
 			flags |= AllowUnauthenticated
 		}
 
-		pbar = progress.NewTextProgress(name)
-
-		return installClick(name, flags, pbar)
+		return installClick(name, flags, meter)
 	}
 
 	// check repos next
-	m := NewMetaRepository()
-	found, _ := m.Details(name)
+	mStore := NewMetaStoreRepository()
+	installed, err := NewMetaLocalRepository().Installed()
+	if err != nil {
+		return "", err
+	}
+
+	found, _ := mStore.Details(name)
 	for _, part := range found {
-		// act only on parts that are downloadable
-		if !part.IsInstalled() {
-			if helpers.AttachedToTerminal() {
-				pbar = progress.NewTextProgress(part.Name())
-			} else {
-				pbar = &progress.NullProgress{}
-			}
-			return part.Install(pbar, flags)
+		cur := FindSnapByNameAndVersion(part.Name(), part.Version(), installed)
+		if cur != nil {
+			return "", ErrAlreadyInstalled
 		}
+		return part.Install(meter, flags)
 	}
 
 	return "", ErrPackageNotFound

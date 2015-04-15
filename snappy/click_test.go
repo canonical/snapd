@@ -27,18 +27,17 @@ import (
 	"strings"
 
 	"github.com/mvo5/goconfigparser"
+	. "launchpad.net/gocheck"
 
+	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
-
-	. "launchpad.net/gocheck"
 )
 
 func (s *SnapTestSuite) TestReadManifest(c *C) {
 	manifestData := []byte(`{
    "description": "This is a simple hello world example.",
-    "framework": "ubuntu-core-15.04-dev1",
     "hooks": {
         "echo": {
             "apparmor": "meta/echo.apparmor",
@@ -835,7 +834,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
-		StopTimeout: "30",
+		StopTimeout: DefaultTimeout,
 		Description: "A fun webserver",
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
@@ -859,4 +858,48 @@ Pattern: /var/lib/systemd/click/${id}`, hookWasRunStamp))
 	err := RunHooks()
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(hookWasRunStamp), Equals, true)
+}
+
+func (s *SnapTestSuite) TestInstallChecksForClashes(c *C) {
+	// creating the thing by hand (as build refuses to)...
+	tmpdir := c.MkDir()
+	os.MkdirAll(path.Join(tmpdir, "meta"), 0755)
+	yaml := []byte(`name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+services:
+ - name: foo
+binaries:
+ - name: foo
+`)
+	yamlFile := path.Join(tmpdir, "meta", "package.yaml")
+	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
+	readmeMd := path.Join(tmpdir, "meta", "readme.md")
+	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
+	m, err := parsePackageYamlData(yaml)
+	c.Assert(err, IsNil)
+	c.Assert(writeDebianControl(tmpdir, m), IsNil)
+	c.Assert(writeClickManifest(tmpdir, m), IsNil)
+	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
+	d, err := clickdeb.Create(snapName)
+	c.Assert(err, IsNil)
+	defer d.Close()
+	c.Assert(d.Build(tmpdir, func(dataTar string) error {
+		return writeHashes(tmpdir, dataTar)
+	}), IsNil)
+
+	_, err = installClick(snapName, 0, nil)
+	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
+}
+
+func (s *SnapTestSuite) TestInstallChecksFrameworks(c *C) {
+	packageYaml := `name: foo
+version: 0.1
+vendor: Foo Bar <foo@example.com>
+frameworks:
+  - missing
+`
+	snapFile := makeTestSnapPackage(c, packageYaml)
+	_, err := installClick(snapFile, 0, nil)
+	c.Assert(err, ErrorMatches, `.*missing framework.*`)
 }

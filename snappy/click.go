@@ -37,6 +37,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	"time"
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
@@ -46,7 +47,6 @@ import (
 	"launchpad.net/snappy/systemd"
 
 	"github.com/mvo5/goconfigparser"
-	"time"
 )
 
 type clickAppHook map[string]string
@@ -419,7 +419,7 @@ Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPat
 AppArmorProfile={{.AaProfile}}
 {{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
-{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout}}{{end}}
+{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
 
 [Install]
 WantedBy=multi-user.target
@@ -466,6 +466,15 @@ func stripGlobalRootDir(dir string) string {
 	}
 
 	return dir[len(globalRootDir):]
+}
+
+func checkPackageForNameClashes(baseDir string) error {
+	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
+	if err != nil {
+		return err
+	}
+
+	return m.checkForNameClashes()
 }
 
 func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) error {
@@ -520,13 +529,7 @@ func removePackageServices(baseDir string, inter interacter) error {
 	sysd := systemd.New(globalRootDir, inter)
 	for _, service := range m.Services {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		// XXX: parsing should be done waaay before this (in the yaml loading!)
-		timeout, err := time.ParseDuration(service.StopTimeout)
-		if err != nil {
-			// XXX: whatevs
-			timeout = 30 * time.Second
-		}
-		if err := sysd.Stop(serviceName, timeout); err != nil {
+		if err := sysd.Stop(serviceName, time.Duration(service.StopTimeout)); err != nil {
 			return err
 		}
 		if err := sysd.Disable(serviceName); err != nil {
@@ -623,12 +626,12 @@ func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
 		return ErrUnpackHelperNotFound
 	}
 
-	cmd := exec.Command(privHelper, "internal-unpack", d.Path, instDir, globalRootDir)
+	cmd := exec.Command(privHelper, "internal-unpack", d.Name(), instDir, globalRootDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return &ErrUnpackFailed{
-			snapFile: d.Path,
+			snapFile: d.Name(),
 			instDir:  instDir,
 			origErr:  err,
 		}
@@ -654,7 +657,11 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		//return SnapAuditError
 	}
 
-	d := &clickdeb.ClickDeb{Path: snapFile}
+	d, err := clickdeb.Open(snapFile)
+	if err != nil {
+		return "", err
+	}
+	defer d.Close()
 	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
@@ -669,7 +676,20 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 	if err != nil {
 		return "", err
 	}
+
 	m, err := parsePackageYamlData(yamlData)
+	if err != nil {
+		return "", err
+	}
+
+	if err := m.checkForNameClashes(); err != nil {
+		return "", err
+	}
+
+	if err := m.checkForFrameworks(); err != nil {
+		return "", err
+	}
+
 	if m.ExplicitLicenseAgreement {
 		if inter == nil {
 			return "", ErrLicenseNotAccepted
@@ -704,10 +724,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 
 	// if anything goes wrong here we cleanup
 	defer func() {
-		if err == nil {
-			return
-		}
-		if _, err := os.Stat(instDir); err == nil {
+		if err != nil {
 			if err := os.RemoveAll(instDir); err != nil {
 				log.Printf("Warning: failed to remove %s: %s", instDir, err)
 			}
@@ -724,14 +741,22 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		if err := policy.Install(manifest.Name, instDir); err != nil {
 			return "", err
 		}
+		defer func() {
+			if err != nil {
+				if cerr := policy.Remove(manifest.Name, instDir); cerr != nil {
+					log.Printf("Warning: failed to remove policies for %s: %v", manifest.Name, err)
+				}
+			}
+		}()
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
 	// all hooks this can go away
 	clickMetaDir := path.Join(instDir, ".click", "info")
-	os.MkdirAll(clickMetaDir, 0755)
-	err = ioutil.WriteFile(path.Join(clickMetaDir, manifest.Name+".manifest"), manifestData, 0644)
-	if err != nil {
+	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
+		return "", err
+	}
+	if err := ioutil.WriteFile(path.Join(clickMetaDir, manifest.Name+".manifest"), manifestData, 0644); err != nil {
 		return "", err
 	}
 
@@ -757,50 +782,93 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		}
 
 		// we need to stop making it active
-		if err := unsetActiveClick(currentActiveDir, inhibitHooks, inter); err != nil {
-			// if anything goes wrong try to activate the old
-			// one again and pass the error on
-			setActiveClick(currentActiveDir, inhibitHooks, inter)
+		err = unsetActiveClick(currentActiveDir, inhibitHooks, inter)
+		defer func() {
+			if err != nil {
+				if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+					log.Printf("setting old version back to active failed: %v", cerr)
+				}
+			}
+		}()
+		if err != nil {
 			return "", err
 		}
 
-		if err := copySnapData(manifest.Name, oldManifest.Version, manifest.Version); err != nil {
-			// FIXME: remove newDir
-
-			// restore the previous version
-			setActiveClick(currentActiveDir, inhibitHooks, inter)
-			return "", err
-		}
+		err = copySnapData(manifest.Name, oldManifest.Version, manifest.Version)
 	} else {
-		if err := helpers.EnsureDir(dataDir, 0755); err != nil {
-			log.Printf("WARNING: Can not create %s", dataDir)
-			return "", err
+		err = helpers.EnsureDir(dataDir, 0755)
+	}
+
+	defer func() {
+		if err != nil {
+			if cerr := removeSnapData(manifest.Name, manifest.Version); cerr != nil {
+				log.Printf("when clenaning up data for %s %s: %v", manifest.Name, manifest.Version, cerr)
+			}
 		}
+	}()
+
+	if err != nil {
+		return "", err
 	}
 
 	// and finally make active
-	if err := setActiveClick(instDir, inhibitHooks, inter); err != nil {
-		// ensure to revert on install failure
-		if currentActiveDir != "" {
-			setActiveClick(currentActiveDir, inhibitHooks, inter)
+	err = setActiveClick(instDir, inhibitHooks, inter)
+	defer func() {
+		if err != nil && currentActiveDir != "" {
+			if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+				log.Printf("when setting old %s version back to active: %v", manifest.Name, cerr)
+			}
 		}
+	}()
+	if err != nil {
+		return "", err
+	}
+
+	// oh, one more thing: refresh the security bits
+	if err := NewSnapPartFromYaml(instDir, m).RefreshDependentsSecurity(inter); err != nil {
 		return "", err
 	}
 
 	return manifest.Name, nil
 }
 
-// Copy all data for "snapName" from "oldVersion" to "newVersion"
-// (but never overwrite)
-func copySnapData(snapName, oldVersion, newVersion string) (err error) {
-	// collect the directories, homes first
-	oldDataDirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, oldVersion))
+// removeSnapData removes the data for the given version of the given snap
+func removeSnapData(snapName, version string) error {
+	dirs, err := snapDataDirs(snapName, version)
 	if err != nil {
 		return err
 	}
+
+	for _, dir := range dirs {
+		if err := os.RemoveAll(dir); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// snapDataDirs returns the list of data directories for the given snap version
+func snapDataDirs(snapName, version string) ([]string, error) {
+	// collect the directories, homes first
+	dirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, version))
+	if err != nil {
+		return nil, err
+	}
 	// then system data
-	oldSystemPath := filepath.Join(snapDataDir, snapName, oldVersion)
-	oldDataDirs = append(oldDataDirs, oldSystemPath)
+	systemPath := filepath.Join(snapDataDir, snapName, version)
+	dirs = append(dirs, systemPath)
+
+	return dirs, nil
+}
+
+// Copy all data for "snapName" from "oldVersion" to "newVersion"
+// (but never overwrite)
+func copySnapData(snapName, oldVersion, newVersion string) (err error) {
+	oldDataDirs, err := snapDataDirs(snapName, oldVersion)
+	if err != nil {
+		return err
+	}
 
 	for _, oldDir := range oldDataDirs {
 		// replace the trailing "../$old-ver" with the "../$new-ver"
