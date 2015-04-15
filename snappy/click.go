@@ -331,7 +331,7 @@ func generateBinaryName(m *packageYaml, binary Binary) string {
 	if m.Type == SnapTypeFramework {
 		binName = filepath.Base(binary.Name)
 	} else {
-		binName = fmt.Sprintf("%s.%s", filepath.Base(binary.Name), m.Name)
+		binName = fmt.Sprintf("%s.%s", m.Name, filepath.Base(binary.Name))
 	}
 
 	return filepath.Join(snapBinariesDir, binName)
