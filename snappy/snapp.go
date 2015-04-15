@@ -859,7 +859,7 @@ func init() {
 		panic(err)
 	}
 
-	storeSearchURI, err = storeBaseURI.Parse("search/")
+	storeSearchURI, err = storeBaseURI.Parse("search")
 	if err != nil {
 		panic(err)
 	}
@@ -869,7 +869,7 @@ func init() {
 		panic(err)
 	}
 
-	storeBulkURI, err = storeBaseURI.Parse("click-metadata/")
+	storeBulkURI, err = storeBaseURI.Parse("click-metadata")
 	if err != nil {
 		panic(err)
 	}
