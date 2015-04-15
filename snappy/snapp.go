@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -794,27 +795,49 @@ func NewRemoteSnapPart(data remoteSnap) *RemoteSnapPart {
 
 // SnapUbuntuStoreRepository represents the ubuntu snap store
 type SnapUbuntuStoreRepository struct {
-	searchURI  string
-	detailsURI string
+	searchURI  *url.URL
+	detailsURI *url.URL
 	bulkURI    string
 }
 
 var (
-	storeSearchURI  = "https://search.apps.ubuntu.com/api/v1/search?q=%s"
-	storeDetailsURI = "https://search.apps.ubuntu.com/api/v1/package/%s"
-	storeBulkURI    = "https://search.apps.ubuntu.com/api/v1/click-metadata"
+	storeSearchURI  *url.URL
+	storeDetailsURI *url.URL
+	storeBulkURI    *url.URL
 )
+
+func init() {
+	storeBaseURI, err := url.Parse("https://search.apps.ubuntu.com/api/v1/")
+	if err != nil {
+		panic(err)
+	}
+
+	storeSearchURI, err = storeBaseURI.Parse("search")
+	if err != nil {
+		panic(err)
+	}
+
+	storeDetailsURI, err = storeBaseURI.Parse("package")
+	if err != nil {
+		panic(err)
+	}
+
+	storeBulkURI, err = storeBaseURI.Parse("click-metadata")
+	if err != nil {
+		panic(err)
+	}
+}
 
 // NewUbuntuStoreSnapRepository creates a new SnapUbuntuStoreRepository
 func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
-	if storeSearchURI == "" && storeDetailsURI == "" && storeBulkURI == "" {
+	if storeSearchURI == nil && storeDetailsURI == nil && storeBulkURI == nil {
 		return nil
 	}
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &SnapUbuntuStoreRepository{
 		searchURI:  storeSearchURI,
 		detailsURI: storeDetailsURI,
-		bulkURI:    storeBulkURI,
+		bulkURI:    storeBulkURI.String(),
 	}
 }
 
@@ -851,8 +874,11 @@ func (s *SnapUbuntuStoreRepository) Description() string {
 
 // Details returns details for the given snap in this repository
 func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err error) {
-	url := fmt.Sprintf(s.detailsURI, snapName)
-	req, err := http.NewRequest("GET", url, nil)
+	url, err := s.detailsURI.Parse(snapName)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -890,8 +916,10 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 
 // Search searches the repository for the given searchTerm
 func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err error) {
-	url := fmt.Sprintf(s.searchURI, searchTerm)
-	req, err := http.NewRequest("GET", url, nil)
+	q := s.searchURI.Query()
+	q.Set("q", searchTerm)
+	s.searchURI.RawQuery = q.Encode()
+	req, err := http.NewRequest("GET", s.searchURI.String(), nil)
 	if err != nil {
 		return nil, err
 	}
