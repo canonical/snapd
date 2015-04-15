@@ -13,22 +13,22 @@ We will deliver this feature in 2 phases:
 #### Search
 
     $ snappy search vim
-    vim/snappy     A popular text editor
-    vim/stevesh    Vim + python plugins
-    vim/matilda    Vim with a pink batman themes
+    vim.snappy     A popular text editor
+    vim.stevesh    Vim + python plugins
+    vim.matilda    Vim with a pink batman themes
 
 
 #### Installing packages
 
     $ snappy install vim
-    Installing vim/snappy
+    Installing vim.snappy
     4.03 MB / 4.03 MB [==============================] 100.00 % 124.66 KB/s
     Done
 
 
-    $ snappy install vim/matilda
-    Installing vim/matilda
-    Error: Cannot install vim/matilda, you already have a package called "vim" installed.
+    $ snappy install vim.matilda
+    Installing vim.matilda
+    Error: Cannot install vim.matilda, you already have a package called "vim" installed.
 
 
 #### Running applications
@@ -41,9 +41,9 @@ We will deliver this feature in 2 phases:
 
 #### Search
 
-    $ snappy search apache
-    apache    A popular web server
-    12 forks of "apache" not shown. Use --show-all to see all available forks.
+    $ snappy search vim
+    vim    A popular text editor
+    12 forks of "vim" not shown. Use --show-all to see all available forks.
 
     $ snappy search clock
     clock/asac     Even a broken clock is right twice a day
@@ -52,46 +52,46 @@ We will deliver this feature in 2 phases:
 
 
 #### Installing packages
-    $ snappy install apache
-    Installing apache/apachefoundation
+    $ snappy install vim
+    Installing vim/snappy
     4.03 MB / 4.03 MB [==============================] 100.00 % 124.66 KB/s
     Done
 
-    $ snappy install apache/giuseppe
-    Installing apache/giuseppe
+    $ snappy install vim/giuseppe
+    Installing vim/giuseppe
     6.33 MB / 6.33 MB [==============================] 100.00 % 114.01 KB/s
     Done
-    Switch to apache/giuseppe from apache/apachefoundation? (Y/n)
+    Switch to vim/giuseppe from vim/snappy? (Y/n)
     $ Y
     Name             Date        Version     Developer
-    apache           2015-01-15  1.1         apachefoundation
-    apache           2015-01-15  1.7         giuseppe*
+    vim           2015-01-15  1.1         vimfoundation
+    vim           2015-01-15  1.7         giuseppe*
 
-    $ snappy switch apache/apachefoundation
+    $ snappy switch vim/vimfoundation
     Name             Date        Version     Developer
-    apache           2015-01-15  1.1         apachefoundation*
-    apache           2015-01-15  1.7         giuseppe
+    vim           2015-01-15  1.1         vimfoundation*
+    vim           2015-01-15  1.7         giuseppe
 
 
 #### Running applications
-    $ apache.start
+    $ vim.edit
 
 Notes:
     runtime does not need to remember that an alias was installed it just 
     tracks what the alias resolved to maybe one can later ask "what is the 
-    current default of apache" or "what would it resolve to... maybe --dry run"
+    current default of vim" or "what would it resolve to... maybe --dry run"
 
 #### Updates
 When you update, you always update to the original package you installed, 
-regardless of whether the mapping for apache has changed.
+regardless of whether the mapping for vim has changed.
 
 ## Manifest & metadata
-Package manifests will only contain the package name (`apache`), the origin of 
+Package manifests will only contain the package name (`vim`), the origin of 
 the app will be fed by the store separately.
 
 ## Filesystem
 Apps will be installed on the filesystem with their package name and origin:
-`/apps/apache/beuno/1.1/`
+`/apps/vim.beuno/1.1/`
 
 ## Garbage collection
 No automatic garbage collection of installed forks.
@@ -115,11 +115,11 @@ realize their UX/app story, but we explicitly leave that problem out for now).
 
 ## Implementation details
 The packages will continue to be accessed in the store using their full
-namespaces (`/api/v1/apache.beuno`)
-On install, Snappy will ask you to choose which apache to use on runtime
+namespaces (`/api/v1/vim.beuno`)
+On install, Snappy will ask you to choose which vim to use on runtime
 if you have more than one (defaults to what you are installing)
 There will have to be a (secure) way of persisting the user’s selection 
-of which apache is active
+of which vim is active
 
 ## Ecosystem details
 Package names will now mean a specific piece of software. We will have to make 
