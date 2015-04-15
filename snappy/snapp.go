@@ -36,6 +36,7 @@ import (
 	"strings"
 	"time"
 
+	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
@@ -151,7 +152,8 @@ type packageYaml struct {
 	// mapping of click hooks
 	Integration map[string]clickAppHook
 
-	ExplicitLicenseAgreement bool `yaml:"explicit-license-agreement"`
+	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement,omitempty"`
+	LicenseVersion           string `yaml:"license-version,omitempty"`
 }
 
 type remoteSnap struct {
@@ -263,6 +265,44 @@ func (m *packageYaml) checkForFrameworks() error {
 
 	if len(missing) > 0 {
 		return ErrMissingFrameworks(missing)
+	}
+
+	return nil
+}
+
+// checkLicenseAgreement returns nil if it's ok to proceed with installing the
+// package, as deduced from the license agreement (which might involve asking
+// the user), or an error that explains the reason why installation should not
+// proceed.
+func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, currentActiveDir string) error {
+	if !m.ExplicitLicenseAgreement {
+		return nil
+	}
+
+	if ag == nil {
+		return ErrLicenseNotAccepted
+	}
+
+	license, err := d.MetaMember("license.txt")
+	if err != nil || len(license) == 0 {
+		return ErrLicenseNotProvided
+	}
+
+	oldM, err := parsePackageYamlFile(filepath.Join(currentActiveDir, "meta", "package.yaml"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	// don't ask for the license if
+	// * the previous version also asked for license confirmation, and
+	// * the license version is the same
+	if err == nil && oldM.ExplicitLicenseAgreement && oldM.LicenseVersion == m.LicenseVersion {
+		return nil
+	}
+
+	msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
+	if !ag.Agreed(msg, string(license)) {
+		return ErrLicenseNotAccepted
 	}
 
 	return nil

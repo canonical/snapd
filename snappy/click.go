@@ -602,8 +602,12 @@ func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
 	return nil
 }
 
-type interacter interface {
+type agreer interface {
 	Agreed(intro, license string) bool
+}
+
+type interacter interface {
+	agreer
 	Notify(status string)
 }
 
@@ -652,22 +656,6 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		return "", err
 	}
 
-	if m.ExplicitLicenseAgreement {
-		if inter == nil {
-			return "", ErrLicenseNotAccepted
-		}
-		license, err := d.MetaMember("license.txt")
-		if err != nil || len(license) == 0 {
-			return "", ErrLicenseNotProvided
-		}
-		msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
-		if !inter.Agreed(msg, string(license)) {
-			return "", ErrLicenseNotAccepted
-		}
-	}
-
-	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
-
 	targetDir := snapAppsDir
 	// the "oem" parts are special
 	if manifest.Type == SnapTypeOem {
@@ -675,6 +663,14 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 	}
 
 	instDir := filepath.Join(targetDir, manifest.Name, manifest.Version)
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
+
+	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
+		return "", err
+	}
+
+	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
+
 	if err := helpers.EnsureDir(instDir, 0755); err != nil {
 		log.Printf("WARNING: Can not create %s", instDir)
 	}
@@ -724,7 +720,6 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 
 	inhibitHooks := (flags & InhibitHooks) != 0
 
-	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 	// deal with the data:
 	//
 	// if there was a previous version, stop it
