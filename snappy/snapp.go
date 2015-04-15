@@ -105,11 +105,10 @@ type Binary struct {
 // SnapPart represents a generic snap type
 type SnapPart struct {
 	m           *packageYaml
-	description string
+	namespace   string
 	hash        string
 	isActive    bool
 	isInstalled bool
-	stype       SnapType
 
 	basedir string
 }
@@ -278,6 +277,7 @@ func NewSnapPartFromYaml(yamlPath string, m *packageYaml) *SnapPart {
 	part := &SnapPart{
 		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
 		isInstalled: true,
+		namespace:   "sideload",
 		m:           m,
 	}
 
@@ -324,7 +324,12 @@ func (s *SnapPart) Version() string {
 
 // Description returns the description
 func (s *SnapPart) Description() string {
-	return s.description
+	return "NOT IMPLEMENTED"
+}
+
+// Namespace returns the namespace
+func (s *SnapPart) Namespace() string {
+	return s.namespace
 }
 
 // Hash returns the hash
@@ -642,6 +647,11 @@ func (s *RemoteSnapPart) Version() string {
 // Description returns the description
 func (s *RemoteSnapPart) Description() string {
 	return s.pkg.Title
+}
+
+// Namespace is the origin
+func (s *RemoteSnapPart) Namespace() string {
+	return "{NOT_IMPLEMENTED}"
 }
 
 // Hash returns the hash

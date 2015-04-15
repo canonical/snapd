@@ -555,6 +555,7 @@ services:
 	c.Assert(snap, NotNil)
 
 	c.Assert(snap.Name(), Equals, "hello-app")
+	c.Assert(snap.Namespace(), Equals, "sideload")
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
 
