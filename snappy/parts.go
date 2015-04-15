@@ -20,6 +20,7 @@ package snappy
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"time"
 
 	"launchpad.net/snappy/progress"
@@ -212,8 +213,9 @@ func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 		// ignore network errors here, we will also collect
 		// local results
 		_, netError := err.(net.Error)
+		_, urlError := err.(*url.Error)
 		switch {
-		case err == ErrPackageNotFound || netError:
+		case err == ErrPackageNotFound || netError || urlError:
 			continue
 		case err != nil:
 			return parts, err

@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,9 +66,9 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	duCmd = makeFakeDuCommand(c)
 
 	// do not attempt to hit the real store servers in the tests
-	storeSearchURI = ""
-	storeDetailsURI = ""
-	storeBulkURI = ""
+	storeSearchURI, _ = url.Parse("")
+	storeDetailsURI, _ = url.Parse("")
+	storeBulkURI, _ = url.Parse("")
 
 	aaExec = filepath.Join(s.tempdir, "aa-exec")
 	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
@@ -323,7 +324,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	storeSearchURI = mockServer.URL + "/%s"
+	var err error
+	storeSearchURI, err = url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -354,7 +357,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	storeBulkURI = mockServer.URL + "/updates/"
+	var err error
+	storeBulkURI, err = url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -372,7 +377,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 
-	storeDetailsURI = "https://some-uri"
+	var err error
+	storeDetailsURI, err = url.Parse("https://some-uri")
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -408,7 +415,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	storeDetailsURI = mockServer.URL + "/details/%s"
+	var err error
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -433,7 +442,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	storeDetailsURI = mockServer.URL + "/details/%s"
+	var err error
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -652,7 +663,8 @@ type: oem
 	c.Assert(err, IsNil)
 	makeSnapActive(packageYaml)
 
-	storeDetailsURI = mockServer.URL + "/%s"
+	storeDetailsURI, err = url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
 	repo := NewUbuntuStoreSnapRepository()
 	c.Assert(repo, NotNil)
 
