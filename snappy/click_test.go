@@ -658,11 +658,11 @@ services:
    start: bin/hello
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, 0, nil)
+	_, err := installClick(snapFile, InhibitHooks, nil)
 	c.Assert(err, IsNil)
 
-	c.Assert(allSystemctl, HasLen, 3)
-	c.Assert(allSystemctl[1], DeepEquals, []string{"--root", globalRootDir, "enable", "foo.mvo_service_1.0.service"})
+	c.Assert(allSystemctl, HasLen, 0)
+
 }
 
 const expectedService = `[Unit]
