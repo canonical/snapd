@@ -43,9 +43,14 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// the postfix we append to the release that is send to the store
-// FIXME: find a better way to detect the postfix
-const releasePostfix = "-core"
+const (
+	// the postfix we append to the release that is send to the store
+	// FIXME: find a better way to detect the postfix
+	releasePostfix = "-core"
+
+	// the namespace for sideloaded snaps
+	sideloadedNamesapce = "sideload"
+)
 
 // Port is used to declare the Port and Negotiable status of such port
 // that is bound to a Service.
@@ -278,7 +283,7 @@ func NewSnapPartFromYaml(yamlPath string, m *packageYaml) *SnapPart {
 	part := &SnapPart{
 		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
 		isInstalled: true,
-		namespace:   "sideload",
+		namespace:   sideloadedNamesapce,
 		m:           m,
 	}
 
@@ -325,6 +330,7 @@ func (s *SnapPart) Version() string {
 
 // Description returns the description
 func (s *SnapPart) Description() string {
+	// TODO: implement.
 	return "NOT IMPLEMENTED"
 }
 
@@ -652,6 +658,7 @@ func (s *RemoteSnapPart) Description() string {
 
 // Namespace is the origin
 func (s *RemoteSnapPart) Namespace() string {
+	// TODO: implement.
 	return "{NOT_IMPLEMENTED}"
 }
 
