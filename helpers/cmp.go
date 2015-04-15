@@ -90,11 +90,7 @@ func streamsEqual(fa, fb io.Reader) bool {
 //
 // Subdirectories are ignored.
 func DirUpdated(dirA, pfxA, dirB string) map[string]bool {
-	filesA, err := filepath.Glob(filepath.Join(dirA, pfxA+"*"))
-	if err != nil {
-		// there is currently no way for glob to error
-		panic(err)
-	}
+	filesA, _ := filepath.Glob(filepath.Join(dirA, pfxA+"*"))
 
 	updated := make(map[string]bool)
 	for _, fileA := range filesA {
