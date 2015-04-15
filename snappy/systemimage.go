@@ -59,7 +59,7 @@ const (
 	//
 	// Sideloaded systems cannot be safely upgraded since there are
 	// no device-part updates on the system-image server.
-	sideLoadedMarkerFile = "/var/lib/snappy/sideloaded"
+	sideLoadedMarkerFile = "/boot/.sideloaded"
 )
 
 var (

@@ -356,7 +356,7 @@ func (s *SITestSuite) TestCannotUpdateIfSideLoaded(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	sideLoaded := filepath.Join(systemImageRoot, "/var/lib/snappy", "sideloaded")
+	sideLoaded := filepath.Join(systemImageRoot, "/boot/.sideloaded")
 
 	err = os.MkdirAll(filepath.Dir(sideLoaded), 0775)
 	c.Assert(err, IsNil)
