@@ -42,9 +42,14 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// the postfix we append to the release that is send to the store
-// FIXME: find a better way to detect the postfix
-const releasePostfix = "-core"
+const (
+	// the postfix we append to the release that is send to the store
+	// FIXME: find a better way to detect the postfix
+	releasePostfix = "-core"
+
+	// the namespace for sideloaded snaps
+	sideloadedNamesapce = "sideload"
+)
 
 // Port is used to declare the Port and Negotiable status of such port
 // that is bound to a Service.
@@ -105,11 +110,10 @@ type Binary struct {
 // SnapPart represents a generic snap type
 type SnapPart struct {
 	m           *packageYaml
-	description string
+	namespace   string
 	hash        string
 	isActive    bool
 	isInstalled bool
-	stype       SnapType
 
 	basedir string
 }
@@ -278,6 +282,7 @@ func NewSnapPartFromYaml(yamlPath string, m *packageYaml) *SnapPart {
 	part := &SnapPart{
 		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
 		isInstalled: true,
+		namespace:   sideloadedNamesapce,
 		m:           m,
 	}
 
@@ -324,7 +329,13 @@ func (s *SnapPart) Version() string {
 
 // Description returns the description
 func (s *SnapPart) Description() string {
-	return s.description
+	// TODO: implement.
+	return "NOT IMPLEMENTED"
+}
+
+// Namespace returns the namespace
+func (s *SnapPart) Namespace() string {
+	return s.namespace
 }
 
 // Hash returns the hash
@@ -642,6 +653,12 @@ func (s *RemoteSnapPart) Version() string {
 // Description returns the description
 func (s *RemoteSnapPart) Description() string {
 	return s.pkg.Title
+}
+
+// Namespace is the origin
+func (s *RemoteSnapPart) Namespace() string {
+	// TODO: implement.
+	return "{NOT_IMPLEMENTED}"
 }
 
 // Hash returns the hash
