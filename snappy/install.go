@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/progress"
 )
 
 // InstallFlags can be used to pass additional flags to the install of a
@@ -63,46 +64,50 @@ func inDeveloperMode() bool {
 
 // Install the givens snap names provided via args. This can be local
 // files or snaps that are queried from the store
-func Install(name string, flags InstallFlags) (string, error) {
-	name, err := doInstall(name, flags)
+func Install(name string, flags InstallFlags, meter progress.Meter) (string, error) {
+	name, err := doInstall(name, flags, meter)
 	if err != nil {
 		return "", logger.LogError(err)
 	}
 
-	return name, logger.LogError(doGarbageCollect(name, flags))
+	return name, logger.LogError(GarbageCollect(name, flags))
 }
 
-func doInstall(name string, flags InstallFlags) (string, error) {
+func doInstall(name string, flags InstallFlags, meter progress.Meter) (string, error) {
 	// consume local parts
-	if _, err := os.Stat(name); err == nil {
+	if fi, err := os.Stat(name); err == nil && fi.Mode().IsRegular() {
 		// we allow unauthenticated package when in developer
 		// mode
 		if inDeveloperMode() {
 			flags |= AllowUnauthenticated
 		}
 
-		pbar := NewTextProgress(name)
-		return installClick(name, flags, pbar)
+		return installClick(name, flags, meter)
 	}
 
 	// check repos next
-	m := NewMetaRepository()
-	found, _ := m.Details(name)
+	mStore := NewMetaStoreRepository()
+	installed, err := NewMetaLocalRepository().Installed()
+	if err != nil {
+		return "", err
+	}
+
+	found, _ := mStore.Details(name)
 	for _, part := range found {
-		// act only on parts that are downloadable
-		if !part.IsInstalled() {
-			pbar := NewTextProgress(part.Name())
-			return part.Install(pbar, flags)
+		cur := FindSnapByNameAndVersion(part.Name(), part.Version(), installed)
+		if cur != nil {
+			return "", ErrAlreadyInstalled
 		}
+		return part.Install(meter, flags)
 	}
 
 	return "", ErrPackageNotFound
 }
 
-// doGarbageCollect removes all versions two older than the current active
+// GarbageCollect removes all versions two older than the current active
 // version, as long as NeedsReboot() is false on all the versions found, and
 // DoInstallGC is set.
-func doGarbageCollect(name string, flags InstallFlags) error {
+func GarbageCollect(name string, flags InstallFlags) error {
 	var parts BySnapVersion
 
 	if (flags & DoInstallGC) == 0 {
@@ -142,7 +147,8 @@ func doGarbageCollect(name string, flags InstallFlags) error {
 	}
 
 	for _, part := range parts[:active-1] {
-		if err := part.Uninstall(); err != nil {
+		pbar := progress.NewTextProgress(part.Name())
+		if err := part.Uninstall(pbar); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}

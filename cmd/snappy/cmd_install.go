@@ -23,6 +23,7 @@ import (
 	"os"
 
 	"launchpad.net/snappy/priv"
+	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -67,7 +68,9 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 	}
 
 	fmt.Printf("Installing %s\n", pkgName)
-	pkgName, err = snappy.Install(pkgName, flags)
+
+	pbar := progress.NewTextProgress(pkgName)
+	realPkgName, err := snappy.Install(pkgName, flags, pbar)
 	if err == snappy.ErrPackageNotFound {
 		return fmt.Errorf("No package '%s' for %s", pkgName, ubuntuCoreChannel())
 	} else if err != nil {
@@ -75,7 +78,7 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 	}
 
 	if configFile != "" {
-		if _, err := configurePackage(pkgName, configFile); err != nil {
+		if _, err := configurePackage(realPkgName, configFile); err != nil {
 			return err
 		}
 	}

@@ -1,10 +1,10 @@
 [Unit]
 Description=Run snappy compatibility hooks
-Before=apparmor.service
+After=ubuntu-snappy.firstboot.service
 
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/snappy internal-run-hooks
 
 [Install]
-WantedBy=getty.target
+WantedBy=multi-user.target

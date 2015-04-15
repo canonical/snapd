@@ -19,11 +19,12 @@ package snappy
 
 import (
 	. "launchpad.net/gocheck"
+	"launchpad.net/snappy/progress"
 )
 
 func (s *SnapTestSuite) TestRemoveNonExistingRaisesError(c *C) {
 	pkgName := "some-random-non-existing-stuff"
-	err := Remove(pkgName)
+	err := Remove(pkgName, 0, &progress.NullProgress{})
 	c.Assert(err, NotNil)
 	c.Assert(err, Equals, ErrPackageNotFound)
 }
@@ -31,7 +32,7 @@ func (s *SnapTestSuite) TestRemoveNonExistingRaisesError(c *C) {
 func (s *SnapTestSuite) TestSnapRemoveByVersion(c *C) {
 	makeTwoTestSnaps(c, SnapTypeApp)
 
-	err := Remove("foo=1.0")
+	err := Remove("foo=1.0", 0, &progress.NullProgress{})
 
 	m := NewMetaRepository()
 	installed, err := m.Installed()
@@ -42,7 +43,7 @@ func (s *SnapTestSuite) TestSnapRemoveByVersion(c *C) {
 func (s *SnapTestSuite) TestSnapRemoveActive(c *C) {
 	makeTwoTestSnaps(c, SnapTypeApp)
 
-	err := Remove("foo")
+	err := Remove("foo", 0, &progress.NullProgress{})
 
 	m := NewMetaRepository()
 	installed, err := m.Installed()
@@ -53,13 +54,13 @@ func (s *SnapTestSuite) TestSnapRemoveActive(c *C) {
 func (s *SnapTestSuite) TestSnapRemoveActiveOemFails(c *C) {
 	makeTwoTestSnaps(c, SnapTypeOem)
 
-	err := Remove("foo")
+	err := Remove("foo", 0, &progress.NullProgress{})
 	c.Assert(err, DeepEquals, ErrPackageNotRemovable)
 
-	err = Remove("foo=1.0")
+	err = Remove("foo=1.0", 0, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	err = Remove("foo")
+	err = Remove("foo", 0, &progress.NullProgress{})
 	c.Assert(err, DeepEquals, ErrPackageNotRemovable)
 
 	m := NewMetaRepository()
@@ -69,4 +70,14 @@ func (s *SnapTestSuite) TestSnapRemoveActiveOemFails(c *C) {
 	c.Assert(installed[0].Type(), Equals, SnapTypeOem)
 	c.Assert(installed[0].Version(), Equals, "2.0")
 	c.Assert(installed, HasLen, 1)
+}
+
+func (s *SnapTestSuite) TestSnapRemoveGC(c *C) {
+	makeTwoTestSnaps(c, SnapTypeApp)
+	err := Remove("foo", DoRemoveGC, &progress.NullProgress{})
+	c.Assert(err, IsNil)
+	m := NewMetaRepository()
+	installed, err := m.Installed()
+	c.Assert(err, IsNil)
+	c.Check(installed, HasLen, 0)
 }

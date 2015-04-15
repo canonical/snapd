@@ -21,10 +21,15 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"launchpad.net/snappy/progress"
 )
 
 // SnapType represents the kind of snap (app, core, frameworks, oem)
 type SnapType string
+
+// SystemConfig is a config map holding configs for multiple packages
+type SystemConfig map[string]interface{}
 
 // The various types of snap parts we support
 const (
@@ -37,6 +42,11 @@ const (
 // Services implements snappy packages that offer services
 type Services interface {
 	Services() []Service
+}
+
+// Configuration allows requesting an oem snappy package type's config
+type Configuration interface {
+	OemConfig() SystemConfig
 }
 
 // Part representation of a snappy part
@@ -69,14 +79,17 @@ type Part interface {
 	DownloadSize() int64
 
 	// Install the snap
-	Install(pb ProgressMeter, flags InstallFlags) (name string, err error)
+	Install(pb progress.Meter, flags InstallFlags) (name string, err error)
 	// Uninstall the snap
-	Uninstall() error
+	Uninstall(pb progress.Meter) error
 	// Config takes a yaml configuration and returns the full snap
 	// config with the changes. Note that "configuration" may be empty.
 	Config(configuration []byte) (newConfig string, err error)
 	// make a inactive part active
-	SetActive() error
+	SetActive(pb progress.Meter) error
+
+	// get the list of frameworks needed by the part
+	Frameworks() ([]string, error)
 }
 
 // Repository is the interface for a collection of snaps
@@ -97,6 +110,36 @@ type Repository interface {
 // to query in a single place
 type MetaRepository struct {
 	all []Repository
+}
+
+// NewMetaStoreRepository returns a MetaRepository of stores
+func NewMetaStoreRepository() *MetaRepository {
+	m := new(MetaRepository)
+	m.all = []Repository{}
+
+	if repo := NewUbuntuStoreSnapRepository(); repo != nil {
+		m.all = append(m.all, repo)
+	}
+
+	return m
+}
+
+// NewMetaLocalRepository returns a MetaRepository of stores
+func NewMetaLocalRepository() *MetaRepository {
+	m := new(MetaRepository)
+	m.all = []Repository{}
+
+	if repo := NewSystemImageRepository(); repo != nil {
+		m.all = append(m.all, repo)
+	}
+	if repo := NewLocalSnapRepository(snapAppsDir); repo != nil {
+		m.all = append(m.all, repo)
+	}
+	if repo := NewLocalSnapRepository(snapOemDir); repo != nil {
+		m.all = append(m.all, repo)
+	}
+
+	return m
 }
 
 // NewMetaRepository returns a new MetaRepository
@@ -180,8 +223,8 @@ func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	return parts, err
 }
 
-// InstalledSnapsByType returns all installed snaps with the given type
-func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
+// ActiveSnapsByType returns all installed snaps with the given type
+func ActiveSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	if err != nil {
@@ -202,11 +245,11 @@ func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 	return res, nil
 }
 
-// InstalledSnapNamesByType returns all installed snap names with the given type
-var InstalledSnapNamesByType = installedSnapNamesByTypeImpl
+// ActiveSnapNamesByType returns all installed snap names with the given type
+var ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 
-func installedSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
-	installed, err := InstalledSnapsByType(snapTs...)
+func activeSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
+	installed, err := ActiveSnapsByType(snapTs...)
 	for _, part := range installed {
 		res = append(res, part.Name())
 	}
@@ -269,5 +312,5 @@ func makeSnapActiveByNameAndVersion(pkg, ver string) error {
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
 	}
 
-	return part.SetActive()
+	return part.SetActive(nil)
 }

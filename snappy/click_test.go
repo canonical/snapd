@@ -27,16 +27,17 @@ import (
 	"strings"
 
 	"github.com/mvo5/goconfigparser"
-
-	"launchpad.net/snappy/helpers"
-
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/snappy/clickdeb"
+	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/progress"
+	"launchpad.net/snappy/systemd"
 )
 
 func (s *SnapTestSuite) TestReadManifest(c *C) {
 	manifestData := []byte(`{
    "description": "This is a simple hello world example.",
-    "framework": "ubuntu-core-15.04-dev1",
     "hooks": {
         "echo": {
             "apparmor": "meta/echo.apparmor",
@@ -233,6 +234,7 @@ func (a *agreerator) Agreed(intro, license string) bool {
 	a.license = license
 	return a.y
 }
+func (a *agreerator) Notify(string) {}
 
 // if the snap asks for accepting a license, and an agreer isn't provided,
 // install fails
@@ -281,9 +283,9 @@ func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	allSystemctl := []string{}
-	runSystemctl = func(cmd ...string) error {
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		allSystemctl = append(allSystemctl, cmd[0])
-		return nil
+		return nil, nil
 	}
 
 	targetDir := path.Join(s.tempdir, "apps")
@@ -294,7 +296,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	_, err = os.Stat(instDir)
 	c.Assert(err, IsNil)
 
-	err = removeClick(instDir)
+	err = removeClick(instDir, nil)
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
@@ -344,7 +346,7 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(parts[1].IsActive(), Equals, true)
 
 	// set v1 active
-	err = setActiveClick(parts[0].(*SnapPart).basedir, false)
+	err = setActiveClick(parts[0].(*SnapPart).basedir, false, nil)
 	parts, err = repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(parts[0].Version(), Equals, "1.0")
@@ -579,7 +581,7 @@ binaries:
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
-	err = removeClick(snapDir)
+	err = removeClick(snapDir, nil)
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
@@ -628,20 +630,24 @@ services:
 
 	servicesFile := filepath.Join(snapServicesDir, "foo.mvo_service_1.0.service")
 	c.Assert(helpers.FileExists(servicesFile), Equals, true)
+	st, err := os.Stat(servicesFile)
+	c.Assert(err, IsNil)
+	// should _not_ be executable
+	c.Assert(st.Mode().String(), Equals, "-rw-r--r--")
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
-	err = removeClick(snapDir)
+	err = removeClick(snapDir, new(progress.NullProgress))
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(servicesFile), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
 }
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
-	allSystemctl := []string{}
-	runSystemctl = func(cmd ...string) error {
-		allSystemctl = append(allSystemctl, cmd[0])
-		return nil
+	allSystemctl := [][]string{}
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		allSystemctl = append(allSystemctl, cmd)
+		return []byte("ActiveState=inactive\n"), nil
 	}
 
 	packageYaml := `name: foo.mvo
@@ -652,17 +658,16 @@ services:
    start: bin/hello
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, InhibitHooks, nil)
+	_, err := installClick(snapFile, 0, nil)
 	c.Assert(err, IsNil)
 
-	c.Assert(allSystemctl[0], Equals, "enable")
-	c.Assert(allSystemctl, HasLen, 1)
+	c.Assert(allSystemctl, HasLen, 3)
+	c.Assert(allSystemctl[1], DeepEquals, []string{"--root", globalRootDir, "enable", "foo.mvo_service_1.0.service"})
 }
 
 const expectedService = `[Unit]
 Description=The docker app deployment mechanism
-After=apparmor.service click-system-hooks.service
-Requires=apparmor.service click-system-hooks.service
+After=ubuntu-snappy.run-hooks.service
 X-Snappy=yes
 
 [Service]
@@ -776,7 +781,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = addPackageServices(baseDir, false)
+	err = addPackageServices(baseDir, false, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
@@ -801,15 +806,14 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 
 	needle := `
 cd /apps/hello-app/1.10
-aa-exec -p hello-app_bin-hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
+aa-exec -p hello-app_hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
 `
 	c.Assert(strings.Contains(string(content), needle), Equals, true)
 }
 
 var expectedServiceWrapper = `[Unit]
 Description=A fun webserver
-After=apparmor.service click-system-hooks.service
-Requires=apparmor.service click-system-hooks.service
+After=ubuntu-snappy.run-hooks.service
 X-Snappy=yes
 
 [Service]
@@ -830,7 +834,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
-		StopTimeout: "30",
+		StopTimeout: DefaultTimeout,
 		Description: "A fun webserver",
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
@@ -854,4 +858,48 @@ Pattern: /var/lib/systemd/click/${id}`, hookWasRunStamp))
 	err := RunHooks()
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(hookWasRunStamp), Equals, true)
+}
+
+func (s *SnapTestSuite) TestInstallChecksForClashes(c *C) {
+	// creating the thing by hand (as build refuses to)...
+	tmpdir := c.MkDir()
+	os.MkdirAll(path.Join(tmpdir, "meta"), 0755)
+	yaml := []byte(`name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+services:
+ - name: foo
+binaries:
+ - name: foo
+`)
+	yamlFile := path.Join(tmpdir, "meta", "package.yaml")
+	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
+	readmeMd := path.Join(tmpdir, "meta", "readme.md")
+	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
+	m, err := parsePackageYamlData(yaml)
+	c.Assert(err, IsNil)
+	c.Assert(writeDebianControl(tmpdir, m), IsNil)
+	c.Assert(writeClickManifest(tmpdir, m), IsNil)
+	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
+	d, err := clickdeb.Create(snapName)
+	c.Assert(err, IsNil)
+	defer d.Close()
+	c.Assert(d.Build(tmpdir, func(dataTar string) error {
+		return writeHashes(tmpdir, dataTar)
+	}), IsNil)
+
+	_, err = installClick(snapName, 0, nil)
+	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
+}
+
+func (s *SnapTestSuite) TestInstallChecksFrameworks(c *C) {
+	packageYaml := `name: foo
+version: 0.1
+vendor: Foo Bar <foo@example.com>
+frameworks:
+  - missing
+`
+	snapFile := makeTestSnapPackage(c, packageYaml)
+	_, err := installClick(snapFile, 0, nil)
+	c.Assert(err, ErrorMatches, `.*missing framework.*`)
 }
