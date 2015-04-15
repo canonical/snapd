@@ -4,10 +4,42 @@ A developer specifies the flat package name in the manifest file, only one of
 the same package name can be active at any time, you have to switch between 
 them if you want to run different ones.
 
+We will deliver this feature in 2 phases:
 
-## User experience
+## Phase 1
 
-### Search
+### User experience
+
+#### Search
+
+    $ snappy search apache
+    apache          A popular web server
+    apache/stevesh  Apache with ultra cores enabled
+    apache/matilda  Apache with dancing monkeys
+
+
+#### Installing packages
+
+    $ snappy install apache
+    Installing apache/apachefoundation
+    4.03 MB / 4.03 MB [==============================] 100.00 % 124.66 KB/s
+    Done
+
+
+    $ snappy install apache/matilda
+    Installing apache/matilda
+    Error: Cannot install apache/matilda, you already have a package called "apache" installed.
+
+
+#### Running applications
+    $ apache.start
+
+
+## Phase 2
+
+### User experience
+
+#### Search
 
     $ snappy search apache
     apache    A popular web server
@@ -19,14 +51,14 @@ them if you want to run different ones.
     clock/matilda  A waltzing clock
 
 
-### Installing packages
+#### Installing packages
     $ snappy install apache
     Installing apache/apachefoundation
     4.03 MB / 4.03 MB [==============================] 100.00 % 124.66 KB/s
     Done
 
     $ snappy install apache/giuseppe
-    Installing apache/apachefoundation
+    Installing apache/giuseppe
     6.33 MB / 6.33 MB [==============================] 100.00 % 114.01 KB/s
     Done
     Switch to apache/giuseppe from apache/apachefoundation? (Y/n)
@@ -41,7 +73,7 @@ them if you want to run different ones.
     apache           2015-01-15  1.7         giuseppe
 
 
-### Running applications
+#### Running applications
     $ apache.start
 
 Notes:
@@ -49,22 +81,23 @@ Notes:
     tracks what the alias resolved to maybe one can later ask "what is the 
     current default of apache" or "what would it resolve to... maybe --dry run"
 
-### Updates
+#### Updates
 When you update, you always update to the original package you installed, 
 regardless of whether the mapping for apache has changed.
 
 ## Manifest & metadata
 Package manifests will only contain the package name (`apache`), the origin of 
 the app will be fed by the store separately.
-This can either be a separate API call, or part of the existing 
-`/api/v1/package`call.
 
 ## Filesystem
 Apps will be installed on the filesystem with their package name and origin:
 `/apps/apache/beuno/1.1/`
 
 ## Garbage collection
-Unsure what to do, whether to clean up aggressively like versions or not. (TODO)
+No automatic garbage collection of installed forks.
+
+## Sideloading
+You can only sideload one fork of an app, there is no switching on sideloads.
 
 ## Touch & other GUIs
 Snappy will provide the basic building blocks, each platform can decide how to 
@@ -82,7 +115,7 @@ realize their UX/app story, but we explicitly leave that problem out for now).
 
 ## Implementation details
 The packages will continue to be accessed in the store using their full
-namespaces in the store (`/api/v1/apache.beuno`)
+namespaces (`/api/v1/apache.beuno`)
 On install, Snappy will ask you to choose which apache to use on runtime
 if you have more than one (defaults to what you are installing)
 There will have to be a (secure) way of persisting the user’s selection 
@@ -97,8 +130,4 @@ There are long-term consequences for picking a package name. If you choose
 becomes the gaming engine, you will need to be pushed out to a different name.
 
 ## Open questions
- * Due to developer namespaces not being specified in the manifest files, 
-   sideloading multiple lanes for the same app will be convoluted
  * Must finalize what the `APP_ID` is going to be (composed? no devname? etc)
- * How do we avoid clashes with installed packages in core and snaps installed 
-   from the store?  (ie., someone uploads a snap named "ls")
