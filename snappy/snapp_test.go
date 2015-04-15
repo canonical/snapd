@@ -53,6 +53,9 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	clickSystemHooksDir = filepath.Join(s.tempdir, "/usr/share/click/hooks")
 	os.MkdirAll(clickSystemHooksDir, 0755)
 
+	// create a fake systemd environment
+	os.MkdirAll(filepath.Join(snapServicesDir, "multi-user.target.wants"), 0755)
+
 	// we may not have debsig-verify installed (and we don't need it
 	// for the unittests)
 	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {

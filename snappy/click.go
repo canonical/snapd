@@ -41,7 +41,6 @@ import (
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/systemd"
 
@@ -405,51 +404,12 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 }
 
 func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) string {
-
-	serviceTemplate := `[Unit]
-Description={{.Description}}
-After=ubuntu-snappy.run-hooks.service
-X-Snappy=yes
-
-[Service]
-ExecStart={{.FullPathStart}}
-WorkingDirectory={{.AppPath}}
-Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}" "TMPDIR=/tmp/snaps/{{.Name}}/{{.Version}}/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/{{.Name}}/{{.Version}}/tmp"
-AppArmorProfile={{.AaProfile}}
-{{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
-{{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
-{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
-
-[Install]
-WantedBy=multi-user.target
-`
-	var templateOut bytes.Buffer
-	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
-	wrapperData := struct {
-		// embed service struct
-		Service
-		// but we need more
-		Name             string
-		Version          string
-		AppPath          string
-		AaProfile        string
-		FullPathStart    string
-		FullPathStop     string
-		FullPathPostStop string
-		AppTriple        string
-	}{
-		service, m.Name, m.Version, baseDir, aaProfile,
-		filepath.Join(baseDir, service.Start),
-		filepath.Join(baseDir, service.Stop),
-		filepath.Join(baseDir, service.PostStop),
-		fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version),
-	}
-	if err := t.Execute(&templateOut, wrapperData); err != nil {
-		// this can never happen, except we forget a variable
-		logger.LogAndPanic(err)
-	}
-
-	return templateOut.String()
+	return systemd.New(globalRootDir, nil).GenServiceFile(
+		&systemd.ServiceDescription{
+			m.Name, service.Name, m.Version, service.Description,
+			baseDir, service.Start, service.Stop, service.PostStop,
+			time.Duration(service.StopTimeout), aaProfile,
+		})
 }
 
 func generateServiceFileName(m *packageYaml, service Service) string {
@@ -501,16 +461,19 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 		//
 		// *but* always run enable (which just sets a symlink)
 		serviceName := filepath.Base(generateServiceFileName(m, service))
+		sysd := systemd.New(globalRootDir, inter)
 		if !inhibitHooks {
-			sysd := systemd.New(globalRootDir, inter)
 			if err := sysd.DaemonReload(); err != nil {
 				return err
 			}
+		}
 
-			if err := sysd.Enable(serviceName); err != nil {
-				return err
-			}
+		// we always enable the service even in inhibit hooks
+		if err := sysd.Enable(serviceName); err != nil {
+			return err
+		}
 
+		if !inhibitHooks {
 			if err := sysd.Start(serviceName); err != nil {
 				return err
 			}
@@ -639,8 +602,12 @@ func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
 	return nil
 }
 
-type interacter interface {
+type agreer interface {
 	Agreed(intro, license string) bool
+}
+
+type interacter interface {
+	agreer
 	Notify(status string)
 }
 
@@ -689,22 +656,6 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		return "", err
 	}
 
-	if m.ExplicitLicenseAgreement {
-		if inter == nil {
-			return "", ErrLicenseNotAccepted
-		}
-		license, err := d.MetaMember("license.txt")
-		if err != nil || len(license) == 0 {
-			return "", ErrLicenseNotProvided
-		}
-		msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
-		if !inter.Agreed(msg, string(license)) {
-			return "", ErrLicenseNotAccepted
-		}
-	}
-
-	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
-
 	targetDir := snapAppsDir
 	// the "oem" parts are special
 	if manifest.Type == SnapTypeOem {
@@ -712,6 +663,14 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 	}
 
 	instDir := filepath.Join(targetDir, manifest.Name, manifest.Version)
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
+
+	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
+		return "", err
+	}
+
+	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
+
 	if err := helpers.EnsureDir(instDir, 0755); err != nil {
 		log.Printf("WARNING: Can not create %s", instDir)
 	}
@@ -761,7 +720,6 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 
 	inhibitHooks := (flags & InhibitHooks) != 0
 
-	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 	// deal with the data:
 	//
 	// if there was a previous version, stop it
@@ -819,8 +777,10 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 	}
 
 	// oh, one more thing: refresh the security bits
-	if err := NewSnapPartFromYaml(instDir, m).RefreshDependentsSecurity(inter); err != nil {
-		return "", err
+	if !inhibitHooks {
+		if err := NewSnapPartFromYaml(instDir, m).RefreshDependentsSecurity(inter); err != nil {
+			return "", err
+		}
 	}
 
 	return manifest.Name, nil
@@ -879,9 +839,8 @@ func copySnapData(snapName, oldVersion, newVersion string) (err error) {
 func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	if _, err := os.Stat(oldPath); err == nil {
 		if _, err := os.Stat(newPath); err != nil {
-			// there is no golang "CopyFile" and we want hardlinks
-			// by default to save space
-			cmd := exec.Command("cp", "-al", oldPath, newPath)
+			// there is no golang "CopyFile"
+			cmd := exec.Command("cp", "-a", oldPath, newPath)
 			if err := cmd.Run(); err != nil {
 				if exitCode, err := helpers.ExitCode(err); err != nil {
 					return &ErrDataCopyFailed{

@@ -186,7 +186,7 @@ func handleConfigHookApparmor(buildDir string, m *packageYaml) error {
 
 	hookName := "snappy-config"
 	s := &SecurityDefinitions{}
-	content, err := generateApparmorJSONContent(s)
+	content, err := s.generateApparmorJSONContent()
 	if err != nil {
 		return err
 	}
