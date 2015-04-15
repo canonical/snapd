@@ -52,6 +52,7 @@ type clickAppHook map[string]string
 type clickManifest struct {
 	Name          string                  `json:"name"`
 	Version       string                  `json:"version"`
+	Architecture  []string                `json:"architecture,omitempty"`
 	Type          SnapType                `json:"type,omitempty"`
 	Framework     string                  `json:"framework,omitempty"`
 	Description   string                  `json:"description,omitempty"`
