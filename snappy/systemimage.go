@@ -36,7 +36,8 @@ import (
 )
 
 const (
-	systemImagePartName = "ubuntu-core"
+	systemImagePartName      = "ubuntu-core"
+	systemImagePartNamespace = "ubuntu"
 
 	// location of the channel config on the filesystem.
 	//
@@ -100,6 +101,11 @@ func (s *SystemImagePart) Type() SnapType {
 // Name returns the name
 func (s *SystemImagePart) Name() string {
 	return systemImagePartName
+}
+
+// Namespace returns the name
+func (s *SystemImagePart) Namespace() string {
+	return systemImagePartNamespace
 }
 
 // Version returns the version

@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,11 +36,21 @@ import (
 	"strings"
 	"time"
 
+	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
 
 	"gopkg.in/yaml.v2"
+)
+
+const (
+	// the postfix we append to the release that is send to the store
+	// FIXME: find a better way to detect the postfix
+	releasePostfix = "-core"
+
+	// the namespace for sideloaded snaps
+	sideloadedNamesapce = "sideload"
 )
 
 // Port is used to declare the Port and Negotiable status of such port
@@ -70,7 +81,7 @@ type SecurityDefinitions struct {
 	// SecurityPolicy is a hand-crafted low-level policy
 	SecurityPolicy *SecurityOverrideDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
 
-	//
+	// SecurityCaps is are the apparmor/seccomp capabilities for an app
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
 }
 
@@ -101,11 +112,10 @@ type Binary struct {
 // SnapPart represents a generic snap type
 type SnapPart struct {
 	m           *packageYaml
-	description string
+	namespace   string
 	hash        string
 	isActive    bool
 	isInstalled bool
-	stype       SnapType
 
 	basedir string
 }
@@ -142,7 +152,8 @@ type packageYaml struct {
 	// mapping of click hooks
 	Integration map[string]clickAppHook
 
-	ExplicitLicenseAgreement bool `yaml:"explicit-license-agreement"`
+	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement,omitempty"`
+	LicenseVersion           string `yaml:"license-version,omitempty"`
 }
 
 type remoteSnap struct {
@@ -233,19 +244,7 @@ func (m *packageYaml) checkForNameClashes() error {
 }
 
 func (m *packageYaml) FrameworksForClick() string {
-	fmks := m.Frameworks
-	fmkCore := false
-	for _, a := range fmks {
-		if a == "ubuntu-core-15.04-dev1" {
-			fmkCore = true
-			break
-		}
-	}
-	if !fmkCore {
-		fmks = append(fmks, "ubuntu-core-15.04-dev1")
-	}
-
-	return strings.Join(fmks, ",")
+	return strings.Join(m.Frameworks, ",")
 }
 
 func (m *packageYaml) checkForFrameworks() error {
@@ -271,6 +270,44 @@ func (m *packageYaml) checkForFrameworks() error {
 	return nil
 }
 
+// checkLicenseAgreement returns nil if it's ok to proceed with installing the
+// package, as deduced from the license agreement (which might involve asking
+// the user), or an error that explains the reason why installation should not
+// proceed.
+func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, currentActiveDir string) error {
+	if !m.ExplicitLicenseAgreement {
+		return nil
+	}
+
+	if ag == nil {
+		return ErrLicenseNotAccepted
+	}
+
+	license, err := d.MetaMember("license.txt")
+	if err != nil || len(license) == 0 {
+		return ErrLicenseNotProvided
+	}
+
+	oldM, err := parsePackageYamlFile(filepath.Join(currentActiveDir, "meta", "package.yaml"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	// don't ask for the license if
+	// * the previous version also asked for license confirmation, and
+	// * the license version is the same
+	if err == nil && oldM.ExplicitLicenseAgreement && oldM.LicenseVersion == m.LicenseVersion {
+		return nil
+	}
+
+	msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
+	if !ag.Agreed(msg, string(license)) {
+		return ErrLicenseNotAccepted
+	}
+
+	return nil
+}
+
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
 func NewInstalledSnapPart(yamlPath string) *SnapPart {
 	m, err := parsePackageYamlFile(yamlPath)
@@ -286,6 +323,7 @@ func NewSnapPartFromYaml(yamlPath string, m *packageYaml) *SnapPart {
 	part := &SnapPart{
 		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
 		isInstalled: true,
+		namespace:   sideloadedNamesapce,
 		m:           m,
 	}
 
@@ -332,7 +370,13 @@ func (s *SnapPart) Version() string {
 
 // Description returns the description
 func (s *SnapPart) Description() string {
-	return s.description
+	// TODO: implement.
+	return "NOT IMPLEMENTED"
+}
+
+// Namespace returns the namespace
+func (s *SnapPart) Namespace() string {
+	return s.namespace
 }
 
 // Hash returns the hash
@@ -652,6 +696,12 @@ func (s *RemoteSnapPart) Description() string {
 	return s.pkg.Title
 }
 
+// Namespace is the origin
+func (s *RemoteSnapPart) Namespace() string {
+	// TODO: implement.
+	return "{NOT_IMPLEMENTED}"
+}
+
 // Hash returns the hash
 func (s *RemoteSnapPart) Hash() string {
 	return s.pkg.DownloadSha512
@@ -792,27 +842,49 @@ func NewRemoteSnapPart(data remoteSnap) *RemoteSnapPart {
 
 // SnapUbuntuStoreRepository represents the ubuntu snap store
 type SnapUbuntuStoreRepository struct {
-	searchURI  string
-	detailsURI string
+	searchURI  *url.URL
+	detailsURI *url.URL
 	bulkURI    string
 }
 
 var (
-	storeSearchURI  = "https://search.apps.ubuntu.com/api/v1/search?q=%s"
-	storeDetailsURI = "https://search.apps.ubuntu.com/api/v1/package/%s"
-	storeBulkURI    = "https://search.apps.ubuntu.com/api/v1/click-metadata"
+	storeSearchURI  *url.URL
+	storeDetailsURI *url.URL
+	storeBulkURI    *url.URL
 )
+
+func init() {
+	storeBaseURI, err := url.Parse("https://search.apps.ubuntu.com/api/v1/")
+	if err != nil {
+		panic(err)
+	}
+
+	storeSearchURI, err = storeBaseURI.Parse("search/")
+	if err != nil {
+		panic(err)
+	}
+
+	storeDetailsURI, err = storeBaseURI.Parse("package/")
+	if err != nil {
+		panic(err)
+	}
+
+	storeBulkURI, err = storeBaseURI.Parse("click-metadata/")
+	if err != nil {
+		panic(err)
+	}
+}
 
 // NewUbuntuStoreSnapRepository creates a new SnapUbuntuStoreRepository
 func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
-	if storeSearchURI == "" && storeDetailsURI == "" && storeBulkURI == "" {
+	if storeSearchURI == nil && storeDetailsURI == nil && storeBulkURI == nil {
 		return nil
 	}
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &SnapUbuntuStoreRepository{
 		searchURI:  storeSearchURI,
 		detailsURI: storeDetailsURI,
-		bulkURI:    storeBulkURI,
+		bulkURI:    storeBulkURI.String(),
 	}
 }
 
@@ -822,9 +894,9 @@ func setUbuntuStoreHeaders(req *http.Request) {
 
 	// frameworks
 	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
-	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
+	req.Header.Set("X-Ubuntu-Release", helpers.LsbRelease()+releasePostfix)
 
 	// check if the oem part sets a custom store-id
 	oems, _ := ActiveSnapsByType(SnapTypeOem)
@@ -849,8 +921,11 @@ func (s *SnapUbuntuStoreRepository) Description() string {
 
 // Details returns details for the given snap in this repository
 func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err error) {
-	url := fmt.Sprintf(s.detailsURI, snapName)
-	req, err := http.NewRequest("GET", url, nil)
+	url, err := s.detailsURI.Parse(snapName)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -888,8 +963,10 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 
 // Search searches the repository for the given searchTerm
 func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err error) {
-	url := fmt.Sprintf(s.searchURI, searchTerm)
-	req, err := http.NewRequest("GET", url, nil)
+	q := s.searchURI.Query()
+	q.Set("q", searchTerm)
+	s.searchURI.RawQuery = q.Encode()
+	req, err := http.NewRequest("GET", s.searchURI.String(), nil)
 	if err != nil {
 		return nil, err
 	}

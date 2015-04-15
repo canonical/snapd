@@ -21,10 +21,13 @@ for a snap package. The following keys are mandatory:
  * vendor: the vendor of the snap
 
 The following keys are optional:
+
  * icon: a svg icon for the snap that is displayed in the store
- * explicit-license-agreement: set to "Y" if the user needs to accept a
+ * explicit-license-agreement: set to `Y` if the user needs to accept a
    special meta/license.txt before the snap can be installed
- 
+ * license-version: a string that, when it changes and
+   `explicit-license-agreement` is `Y`, prompts the user to accept the
+   license again.
  * type: (optional) the type of the snap, can be:
    * app - the default if empty
    * oem - a special snap that OEMs can use to customize snappy for

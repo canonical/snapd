@@ -34,7 +34,7 @@ const (
 )
 
 // Remove a part by a partSpec string, this can be "name" or "name=version"
-func Remove(partSpec string, flags RemoveFlags) error {
+func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 	var parts BySnapVersion
 
 	installed, err := NewMetaRepository().Installed()
@@ -64,8 +64,7 @@ func Remove(partSpec string, flags RemoveFlags) error {
 	}
 
 	for _, part := range parts {
-		pbar := progress.NewTextProgress(part.Name())
-		if err := part.Uninstall(pbar); err != nil {
+		if err := part.Uninstall(meter); err != nil {
 			return logger.LogError(err)
 		}
 	}

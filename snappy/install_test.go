@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -108,13 +109,13 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	c.Assert(err, IsNil)
 	defer snapR.Close()
 
-	var url string
+	var dlURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/details/foo":
 			io.WriteString(w, `{
 "name": "foo", "version": "2",
-"anon_download_url": "`+url+`"
+"anon_download_url": "`+dlURL+`"
 }`)
 		case "/dl":
 			snapR.Seek(0, 0)
@@ -124,8 +125,10 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 		}
 	}))
 
-	url = mockServer.URL + "/dl"
-	storeDetailsURI = mockServer.URL + "/details/%s"
+	dlURL = mockServer.URL + "/dl"
+
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
 
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()

@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,6 +53,9 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	clickSystemHooksDir = filepath.Join(s.tempdir, "/usr/share/click/hooks")
 	os.MkdirAll(clickSystemHooksDir, 0755)
 
+	// create a fake systemd environment
+	os.MkdirAll(filepath.Join(snapServicesDir, "multi-user.target.wants"), 0755)
+
 	// we may not have debsig-verify installed (and we don't need it
 	// for the unittests)
 	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
@@ -65,9 +69,9 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	duCmd = makeFakeDuCommand(c)
 
 	// do not attempt to hit the real store servers in the tests
-	storeSearchURI = ""
-	storeDetailsURI = ""
-	storeBulkURI = ""
+	storeSearchURI, _ = url.Parse("")
+	storeDetailsURI, _ = url.Parse("")
+	storeBulkURI, _ = url.Parse("")
 
 	aaExec = filepath.Join(s.tempdir, "aa-exec")
 	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
@@ -182,7 +186,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 }
 
 /* acquired via:
-   curl  -H 'accept: application/hal+json' -H "X-Ubuntu-Frameworks: ubuntu-core-15.04-dev1" -H "X-Ubuntu-Architecture: amd64" https://search.apps.ubuntu.com/api/v1/search?q=hello
+   curl  -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" https://search.apps.ubuntu.com/api/v1/search?q=hello
 */
 const MockSearchJSON = `{
   "_links": {
@@ -241,7 +245,7 @@ const MockUpdatesJSON = `
 `
 
 /* acquired via
-   curl -H "accept: application/hal+json" -H "X-Ubuntu-Frameworks: ubuntu-core-15.04-dev1" https://search.apps.ubuntu.com/api/v1/package/com.ubuntu.snappy.xkcd-webserver
+   curl -H "accept: application/hal+json" -H "X-Ubuntu-Release: 15.04-core" https://search.apps.ubuntu.com/api/v1/package/com.ubuntu.snappy.xkcd-webserver
 */
 const MockDetailsJSON = `
 {
@@ -261,12 +265,10 @@ const MockDetailsJSON = `
   },
   "prices": null,
   "framework": [
-    "ubuntu-core-15.04-dev1"
   ],
   "translations": null,
   "price": 0.0,
   "click_framework": [
-    "ubuntu-core-15.04-dev1"
   ],
   "description": "Snappy\nThis is meant as a fun example for a snappy package.\r\n",
   "download_sha512": "3a9152b8bff494c036f40e2ca03d1dfaa4ddcfe651eae1c9419980596f48fa95b2f2a91589305af7d55dc08e9489b8392585bbe2286118550b288368e5d9a620",
@@ -325,7 +327,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	storeSearchURI = mockServer.URL + "/%s"
+	var err error
+	storeSearchURI, err = url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -356,7 +360,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	storeBulkURI = mockServer.URL + "/updates/"
+	var err error
+	storeBulkURI, err = url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -374,7 +380,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 
-	storeDetailsURI = "https://some-uri"
+	var err error
+	storeDetailsURI, err = url.Parse("https://some-uri")
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -387,6 +395,14 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 	results, err := snap.Updates()
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
+}
+
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
+	req, err := http.NewRequest("GET", "http://example.com", nil)
+	c.Assert(err, IsNil)
+
+	setUbuntuStoreHeaders(req)
+	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, helpers.LsbRelease()+releasePostfix)
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
@@ -402,7 +418,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	storeDetailsURI = mockServer.URL + "/details/%s"
+	var err error
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -427,7 +445,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	storeDetailsURI = mockServer.URL + "/details/%s"
+	var err error
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -549,6 +569,7 @@ services:
 	c.Assert(snap, NotNil)
 
 	c.Assert(snap.Name(), Equals, "hello-app")
+	c.Assert(snap.Namespace(), Equals, sideloadedNamesapce)
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
 
@@ -645,7 +666,8 @@ type: oem
 	c.Assert(err, IsNil)
 	makeSnapActive(packageYaml)
 
-	storeDetailsURI = mockServer.URL + "/%s"
+	storeDetailsURI, err = url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
 	repo := NewUbuntuStoreSnapRepository()
 	c.Assert(repo, NotNil)
 
@@ -730,7 +752,7 @@ framework: one, two
 	c.Assert(err, IsNil)
 	c.Assert(m.Frameworks, HasLen, 2)
 	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
-	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
+	c.Check(m.FrameworksForClick(), Matches, "one,two")
 }
 
 func (s *SnapTestSuite) TestPackageYamlFrameworksParsing(c *C) {
@@ -742,7 +764,7 @@ frameworks:
 	c.Assert(err, IsNil)
 	c.Assert(m.Frameworks, HasLen, 2)
 	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
-	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
+	c.Check(m.FrameworksForClick(), Matches, "one,two")
 }
 
 func (s *SnapTestSuite) TestPackageYamlFrameworkAndFrameworksFails(c *C) {
