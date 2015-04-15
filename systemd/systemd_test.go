@@ -142,3 +142,40 @@ func (s *SystemdTestSuite) TestEnable(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(target, Equals, "/etc/systemd/system/foo")
 }
+
+const expectedService = `[Unit]
+Description=descr
+After=ubuntu-snappy.run-hooks.service
+X-Snappy=yes
+
+[Service]
+ExecStart=/apps/app/1.0/bin/start
+WorkingDirectory=/apps/app/1.0/
+Environment="SNAPP_APP_PATH=/apps/app/1.0/" "SNAPP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAPP_APP_USER_DATA_PATH=%h/apps/app/1.0/" "SNAP_APP_PATH=/apps/app/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAP_APP_USER_DATA_PATH=%h/apps/app/1.0/" "SNAP_APP=app_service_1.0" "TMPDIR=/tmp/snaps/app/1.0/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/app/1.0/tmp"
+AppArmorProfile=aa-profile
+ExecStop=/apps/app/1.0/bin/stop
+ExecStopPost=/apps/app/1.0/bin/stop --post
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
+`
+
+func (s *SystemdTestSuite) TestGenServiceFile(c *C) {
+
+	desc := &ServiceDescription{
+		AppName:     "app",
+		ServiceName: "service",
+		Version:     "1.0",
+		Description: "descr",
+		AppPath:     "/apps/app/1.0/",
+		Start:       "bin/start",
+		Stop:        "bin/stop",
+		PostStop:    "bin/stop --post",
+		StopTimeout: "10",
+		AaProfile:   "aa-profile",
+	}
+
+	generated := New("", nil).GenServiceFile(desc)
+	c.Assert(generated, Equals, expectedService)
+}

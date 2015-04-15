@@ -40,7 +40,6 @@ import (
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/systemd"
 
@@ -405,51 +404,12 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 }
 
 func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) string {
-
-	serviceTemplate := `[Unit]
-Description={{.Description}}
-After=ubuntu-snappy.run-hooks.service
-X-Snappy=yes
-
-[Service]
-ExecStart={{.FullPathStart}}
-WorkingDirectory={{.AppPath}}
-Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}" "TMPDIR=/tmp/snaps/{{.Name}}/{{.Version}}/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/{{.Name}}/{{.Version}}/tmp"
-AppArmorProfile={{.AaProfile}}
-{{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
-{{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
-{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout}}{{end}}
-
-[Install]
-WantedBy=multi-user.target
-`
-	var templateOut bytes.Buffer
-	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
-	wrapperData := struct {
-		// embed service struct
-		Service
-		// but we need more
-		Name             string
-		Version          string
-		AppPath          string
-		AaProfile        string
-		FullPathStart    string
-		FullPathStop     string
-		FullPathPostStop string
-		AppTriple        string
-	}{
-		service, m.Name, m.Version, baseDir, aaProfile,
-		filepath.Join(baseDir, service.Start),
-		filepath.Join(baseDir, service.Stop),
-		filepath.Join(baseDir, service.PostStop),
-		fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version),
-	}
-	if err := t.Execute(&templateOut, wrapperData); err != nil {
-		// this can never happen, except we forget a variable
-		logger.LogAndPanic(err)
-	}
-
-	return templateOut.String()
+	return systemd.New(globalRootDir, nil).GenServiceFile(
+		&systemd.ServiceDescription{
+			m.Name, service.Name, m.Version, service.Description,
+			baseDir, service.Start, service.Stop, service.PostStop,
+			service.StopTimeout, aaProfile,
+		})
 }
 
 func generateServiceFileName(m *packageYaml, service Service) string {
