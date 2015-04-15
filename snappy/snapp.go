@@ -50,7 +50,7 @@ const (
 	releasePostfix = "-core"
 
 	// the namespace for sideloaded snaps
-	sideloadedNamesapce = "sideload"
+	sideloadedNamespace = "sideload"
 )
 
 // Port is used to declare the Port and Negotiable status of such port
@@ -323,7 +323,7 @@ func NewSnapPartFromYaml(yamlPath string, m *packageYaml) *SnapPart {
 	part := &SnapPart{
 		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
 		isInstalled: true,
-		namespace:   sideloadedNamesapce,
+		namespace:   sideloadedNamespace,
 		m:           m,
 	}
 
