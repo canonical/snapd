@@ -806,7 +806,7 @@ func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (strin
 	}
 	defer os.Remove(downloadedSnap)
 
-	return installClick(downloadedSnap, flags, pbar)
+	return installClick(downloadedSnap, flags, pbar, s.Namespace())
 }
 
 // SetActive sets the snap active
