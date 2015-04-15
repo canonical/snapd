@@ -348,3 +348,45 @@ func (s *SITestSuite) TestFrameworks(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fmks, HasLen, 0)
 }
+
+func (s *SITestSuite) TestCannotUpdateIfSideLoaded(c *C) {
+	parts, err := s.systemImage.Updates()
+
+	sp := parts[0].(*SystemImagePart)
+	mockPartition := MockPartition{}
+	sp.partition = &mockPartition
+
+	sideLoaded := filepath.Join(systemImageRoot, "/var/lib/snappy", "sideloaded")
+
+	err = os.MkdirAll(filepath.Dir(sideLoaded), 0775)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(sideLoaded, []byte(""), 0640)
+	c.Assert(err, IsNil)
+
+	pb := &MockProgressMeter{}
+	// do the install
+	_, err = sp.Install(pb, 0)
+	c.Assert(err, Equals, ErrSideLoaded)
+}
+
+func (s *SITestSuite) TestSideLoadedSystem(c *C) {
+
+	c.Assert(sideLoadedSystem(), Equals, false)
+
+	sideLoaded := filepath.Join(systemImageRoot, sideLoadedMarkerFile)
+
+	err := os.MkdirAll(filepath.Dir(sideLoaded), 0775)
+	c.Assert(err, IsNil)
+
+	c.Assert(sideLoadedSystem(), Equals, false)
+
+	err = ioutil.WriteFile(sideLoaded, []byte(""), 0640)
+	c.Assert(err, IsNil)
+
+	c.Assert(sideLoadedSystem(), Equals, true)
+
+	os.Remove(sideLoaded)
+
+	c.Assert(sideLoadedSystem(), Equals, false)
+}
