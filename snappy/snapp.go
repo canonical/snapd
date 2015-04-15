@@ -42,6 +42,10 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// the postfix we append to the release that is send to the store
+// FIXME: find a better way to detect the postfix
+const releasePostfix = "-core"
+
 // Port is used to declare the Port and Negotiable status of such port
 // that is bound to a Service.
 type Port struct {
@@ -825,6 +829,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
+	req.Header.Set("X-Ubuntu-Release", helpers.LsbRelease()+releasePostfix)
 
 	// check if the oem part sets a custom store-id
 	oems, _ := ActiveSnapsByType(SnapTypeOem)

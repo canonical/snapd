@@ -389,6 +389,14 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 	c.Assert(results, HasLen, 0)
 }
 
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
+	req, err := http.NewRequest("GET", "http://example.com", nil)
+	c.Assert(err, IsNil)
+
+	setUbuntuStoreHeaders(req)
+	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, helpers.LsbRelease()+releasePostfix)
+}
+
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// no store ID by default
