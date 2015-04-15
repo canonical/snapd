@@ -419,7 +419,9 @@ func generateServiceFileName(m *packageYaml, service Service) string {
 // takes a directory and removes the global root, this is needed
 // when the SetRoot option is used and we need to generate
 // content for the "Services" and "Binaries" section
-func stripGlobalRootDir(dir string) string {
+var stripGlobalRootDir = stripGlobalRootDirImpl
+
+func stripGlobalRootDirImpl(dir string) string {
 	if globalRootDir == "/" {
 		return dir
 	}

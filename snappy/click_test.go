@@ -111,6 +111,9 @@ Pattern: /var/lib/systemd/click/${id}`)
 }
 
 func (s *SnapTestSuite) TestHandleClickHooks(c *C) {
+	// we can not strip the global rootdir for the hook tests
+	stripGlobalRootDir = func(s string) string { return s }
+
 	// two hooks to ensure iterating works correct
 	testSymlinkDir := path.Join(s.tempdir, "/var/lib/systemd/click/")
 	os.MkdirAll(testSymlinkDir, 0755)
@@ -469,6 +472,9 @@ vendor: Foo Bar <foo@example.com>
 }
 
 func (s *SnapTestSuite) TestClickCopyRemovesHooksFirst(c *C) {
+	// we can not strip the global rootdir for the hook tests
+	stripGlobalRootDir = func(s string) string { return s }
+
 	// this hook will create a hook.trace file with the *.hook
 	// files generated, this is then later used to verify that
 	// the hook files got generated/removed in the right order
@@ -510,6 +516,9 @@ now: ./bar_app_2.0.tracehook
 }
 
 func (s *SnapTestSuite) TestClickCopyDataHookFails(c *C) {
+	// we can not strip the global rootdir for the hook tests
+	stripGlobalRootDir = func(s string) string { return s }
+
 	// this is a special hook that fails on a 2.0 upgrade, this way
 	// we can ensure that upgrades can work
 	hookContent := fmt.Sprintf(`Hook-Name: hooky
@@ -767,6 +776,9 @@ func (s *SnapTestSuite) TestFindBinaryInPath(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallRunHooks(c *C) {
+	// we can not strip the global rootdir for the hook tests
+	stripGlobalRootDir = func(s string) string { return s }
+
 	hookSymlinkDir := filepath.Join(s.tempdir, "/var/lib/click/hooks/systemd")
 	c.Assert(os.MkdirAll(hookSymlinkDir, 0755), IsNil)
 
@@ -796,6 +808,9 @@ integration:
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallInhibitHooks(c *C) {
+	// we can not strip the global rootdir for the hook tests
+	stripGlobalRootDir = func(s string) string { return s }
+
 	hookSymlinkDir := filepath.Join(s.tempdir, "/var/lib/click/hooks/systemd")
 	c.Assert(os.MkdirAll(hookSymlinkDir, 0755), IsNil)
 
@@ -954,4 +969,32 @@ frameworks:
 	snapFile := makeTestSnapPackage(c, packageYaml)
 	_, err := installClick(snapFile, 0, nil)
 	c.Assert(err, ErrorMatches, `.*missing framework.*`)
+}
+
+func (s *SnapTestSuite) TestInstallClickHooksCallsStripRootDir(c *C) {
+	content := `Hook-Name: systemd
+Pattern: /var/lib/systemd/click/${id}
+`
+	makeClickHook(c, content)
+	os.MkdirAll(path.Join(s.tempdir, "/var/lib/systemd/click/"), 0755)
+
+	manifest := clickManifest{
+		Name:    "foo",
+		Version: "1.0",
+		Hooks: map[string]clickAppHook{
+			"app": clickAppHook{
+				"systemd": "path-to-systemd-file",
+			},
+		},
+	}
+
+	stripGlobalRootDirWasCalled := false
+	stripGlobalRootDir = func(s string) string {
+		stripGlobalRootDirWasCalled = true
+		return s
+	}
+
+	err := installClickHooks(c.MkDir(), manifest, false)
+	c.Assert(err, IsNil)
+	c.Assert(stripGlobalRootDirWasCalled, Equals, true)
 }

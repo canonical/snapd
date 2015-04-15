@@ -86,6 +86,7 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 	ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 	duCmd = "du"
+	stripGlobalRootDir = stripGlobalRootDirImpl
 }
 
 func (s *SnapTestSuite) makeInstalledMockSnap() (yamlFile string, err error) {
