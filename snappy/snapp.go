@@ -237,19 +237,7 @@ func (m *packageYaml) checkForNameClashes() error {
 }
 
 func (m *packageYaml) FrameworksForClick() string {
-	fmks := m.Frameworks
-	fmkCore := false
-	for _, a := range fmks {
-		if a == "ubuntu-core-15.04-dev1" {
-			fmkCore = true
-			break
-		}
-	}
-	if !fmkCore {
-		fmks = append(fmks, "ubuntu-core-15.04-dev1")
-	}
-
-	return strings.Join(fmks, ",")
+	return strings.Join(m.Frameworks, ",")
 }
 
 func (m *packageYaml) checkForFrameworks() error {
@@ -826,7 +814,6 @@ func setUbuntuStoreHeaders(req *http.Request) {
 
 	// frameworks
 	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
-	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 	req.Header.Set("X-Ubuntu-Release", helpers.LsbRelease()+releasePostfix)

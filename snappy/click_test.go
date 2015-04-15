@@ -38,7 +38,6 @@ import (
 func (s *SnapTestSuite) TestReadManifest(c *C) {
 	manifestData := []byte(`{
    "description": "This is a simple hello world example.",
-    "framework": "ubuntu-core-15.04-dev1",
     "hooks": {
         "echo": {
             "apparmor": "meta/echo.apparmor",
