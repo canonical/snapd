@@ -68,7 +68,7 @@ type SecurityDefinitions struct {
 	// SecurityPolicy is a hand-crafted low-level policy
 	SecurityPolicy *SecurityOverrideDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
 
-	//
+	// SecurityCaps is are the apparmor/seccomp capabilities for an app
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
 }
 
