@@ -186,7 +186,7 @@ func handleConfigHookApparmor(buildDir string, m *packageYaml) error {
 
 	hookName := "snappy-config"
 	s := &SecurityDefinitions{}
-	content, err := generateApparmorJSONContent(s)
+	content, err := s.generateApparmorJSONContent()
 	if err != nil {
 		return err
 	}
@@ -507,7 +507,12 @@ func Build(sourceDir, targetDir string) (string, error) {
 	}
 
 	// build it
-	d := clickdeb.ClickDeb{Path: snapName}
+	d, err := clickdeb.Create(snapName)
+	if err != nil {
+		return "", err
+	}
+	defer d.Close()
+
 	err = d.Build(buildDir, func(dataTar string) error {
 		// write hashes of the files plus the generated data tar
 		return writeHashes(buildDir, dataTar)

@@ -172,10 +172,25 @@ func (s *SystemdTestSuite) TestGenServiceFile(c *C) {
 		Start:       "bin/start",
 		Stop:        "bin/stop",
 		PostStop:    "bin/stop --post",
-		StopTimeout: "10",
+		StopTimeout: time.Duration(10 * time.Second),
 		AaProfile:   "aa-profile",
 	}
 
 	generated := New("", nil).GenServiceFile(desc)
 	c.Assert(generated, Equals, expectedService)
+}
+
+func (s *SystemdTestSuite) TestRestart(c *C) {
+	s.outs = [][]byte{
+		nil, // for the "stop" itself
+		[]byte("ActiveState=inactive\n"),
+		nil, // for the "start"
+	}
+	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
+	err := New("", s.rep).Restart("foo", time.Millisecond)
+	c.Assert(err, IsNil)
+	c.Check(s.argses, HasLen, 3)
+	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[2], DeepEquals, []string{"start", "foo"})
 }

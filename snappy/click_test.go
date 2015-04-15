@@ -38,7 +38,6 @@ import (
 func (s *SnapTestSuite) TestReadManifest(c *C) {
 	manifestData := []byte(`{
    "description": "This is a simple hello world example.",
-    "framework": "ubuntu-core-15.04-dev1",
     "hooks": {
         "echo": {
             "apparmor": "meta/echo.apparmor",
@@ -835,7 +834,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
-		StopTimeout: "30",
+		StopTimeout: DefaultTimeout,
 		Description: "A fun webserver",
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
@@ -882,7 +881,9 @@ binaries:
 	c.Assert(writeDebianControl(tmpdir, m), IsNil)
 	c.Assert(writeClickManifest(tmpdir, m), IsNil)
 	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
-	d := &clickdeb.ClickDeb{Path: snapName}
+	d, err := clickdeb.Create(snapName)
+	c.Assert(err, IsNil)
+	defer d.Close()
 	c.Assert(d.Build(tmpdir, func(dataTar string) error {
 		return writeHashes(tmpdir, dataTar)
 	}), IsNil)

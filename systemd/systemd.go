@@ -62,6 +62,7 @@ type Systemd interface {
 	Disable(service string) error
 	Start(service string) error
 	Stop(service string, timeout time.Duration) error
+	Restart(service string, timeout time.Duration) error
 	GenServiceFile(desc *ServiceDescription) string
 }
 
@@ -75,7 +76,7 @@ type ServiceDescription struct {
 	Start       string
 	Stop        string
 	PostStop    string
-	StopTimeout string
+	StopTimeout time.Duration
 	AaProfile   string
 }
 
@@ -175,7 +176,7 @@ Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPat
 AppArmorProfile={{.AaProfile}}
 {{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
-{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout}}{{end}}
+{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
 
 [Install]
 WantedBy={{.ServiceSystemdTarget}}
@@ -205,6 +206,14 @@ WantedBy={{.ServiceSystemdTarget}}
 	}
 
 	return templateOut.String()
+}
+
+// Restart the service, waiting for it to stop before starting it again.
+func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
+	if err := s.Stop(serviceName, timeout); err != nil {
+		return err
+	}
+	return s.Start(serviceName)
 }
 
 // Error is returned if the systemd action failed

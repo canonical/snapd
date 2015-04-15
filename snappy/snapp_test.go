@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,9 +69,9 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	duCmd = makeFakeDuCommand(c)
 
 	// do not attempt to hit the real store servers in the tests
-	storeSearchURI = ""
-	storeDetailsURI = ""
-	storeBulkURI = ""
+	storeSearchURI, _ = url.Parse("")
+	storeDetailsURI, _ = url.Parse("")
+	storeBulkURI, _ = url.Parse("")
 
 	aaExec = filepath.Join(s.tempdir, "aa-exec")
 	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
@@ -185,7 +186,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 }
 
 /* acquired via:
-   curl  -H 'accept: application/hal+json' -H "X-Ubuntu-Frameworks: ubuntu-core-15.04-dev1" -H "X-Ubuntu-Architecture: amd64" https://search.apps.ubuntu.com/api/v1/search?q=hello
+   curl  -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" https://search.apps.ubuntu.com/api/v1/search?q=hello
 */
 const MockSearchJSON = `{
   "_links": {
@@ -244,7 +245,7 @@ const MockUpdatesJSON = `
 `
 
 /* acquired via
-   curl -H "accept: application/hal+json" -H "X-Ubuntu-Frameworks: ubuntu-core-15.04-dev1" https://search.apps.ubuntu.com/api/v1/package/com.ubuntu.snappy.xkcd-webserver
+   curl -H "accept: application/hal+json" -H "X-Ubuntu-Release: 15.04-core" https://search.apps.ubuntu.com/api/v1/package/com.ubuntu.snappy.xkcd-webserver
 */
 const MockDetailsJSON = `
 {
@@ -264,12 +265,10 @@ const MockDetailsJSON = `
   },
   "prices": null,
   "framework": [
-    "ubuntu-core-15.04-dev1"
   ],
   "translations": null,
   "price": 0.0,
   "click_framework": [
-    "ubuntu-core-15.04-dev1"
   ],
   "description": "Snappy\nThis is meant as a fun example for a snappy package.\r\n",
   "download_sha512": "3a9152b8bff494c036f40e2ca03d1dfaa4ddcfe651eae1c9419980596f48fa95b2f2a91589305af7d55dc08e9489b8392585bbe2286118550b288368e5d9a620",
@@ -328,7 +327,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	storeSearchURI = mockServer.URL + "/%s"
+	var err error
+	storeSearchURI, err = url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -359,7 +360,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	storeBulkURI = mockServer.URL + "/updates/"
+	var err error
+	storeBulkURI, err = url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -377,7 +380,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 
-	storeDetailsURI = "https://some-uri"
+	var err error
+	storeDetailsURI, err = url.Parse("https://some-uri")
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -390,6 +395,14 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 	results, err := snap.Updates()
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
+}
+
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
+	req, err := http.NewRequest("GET", "http://example.com", nil)
+	c.Assert(err, IsNil)
+
+	setUbuntuStoreHeaders(req)
+	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, helpers.LsbRelease()+releasePostfix)
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
@@ -405,7 +418,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	storeDetailsURI = mockServer.URL + "/details/%s"
+	var err error
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -430,7 +445,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	storeDetailsURI = mockServer.URL + "/details/%s"
+	var err error
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
@@ -552,6 +569,7 @@ services:
 	c.Assert(snap, NotNil)
 
 	c.Assert(snap.Name(), Equals, "hello-app")
+	c.Assert(snap.Namespace(), Equals, sideloadedNamesapce)
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
 
@@ -648,7 +666,8 @@ type: oem
 	c.Assert(err, IsNil)
 	makeSnapActive(packageYaml)
 
-	storeDetailsURI = mockServer.URL + "/%s"
+	storeDetailsURI, err = url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
 	repo := NewUbuntuStoreSnapRepository()
 	c.Assert(repo, NotNil)
 
@@ -733,7 +752,7 @@ framework: one, two
 	c.Assert(err, IsNil)
 	c.Assert(m.Frameworks, HasLen, 2)
 	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
-	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
+	c.Check(m.FrameworksForClick(), Matches, "one,two")
 }
 
 func (s *SnapTestSuite) TestPackageYamlFrameworksParsing(c *C) {
@@ -745,7 +764,7 @@ frameworks:
 	c.Assert(err, IsNil)
 	c.Assert(m.Frameworks, HasLen, 2)
 	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
-	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
+	c.Check(m.FrameworksForClick(), Matches, "one,two")
 }
 
 func (s *SnapTestSuite) TestPackageYamlFrameworkAndFrameworksFails(c *C) {
@@ -800,7 +819,100 @@ type: framework`))
 	part := &SnapPart{m: yaml}
 	deps, err := part.Dependents()
 	c.Assert(err, IsNil)
-	c.Check(deps, DeepEquals, []string{"foo"})
+	c.Check(deps, HasLen, 1)
+	c.Check(deps[0].Name(), Equals, "foo")
+
+	names, err := part.DependentNames()
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"foo"})
+}
+
+func (s *SnapTestSuite) TestUpdateAppArmorJSONTimestamp(c *C) {
+	oldDir := snapAppArmorDir
+	defer func() {
+		snapAppArmorDir = oldDir
+	}()
+	snapAppArmorDir = c.MkDir()
+	fn := filepath.Join(snapAppArmorDir, "foo_stuff.json")
+	c.Assert(os.Symlink("nothing", fn), IsNil)
+	fi, err := os.Lstat(fn)
+	c.Assert(err, IsNil)
+	ft := fi.ModTime()
+	time.Sleep(25 * time.Millisecond)
+
+	yaml, err := parsePackageYamlData([]byte(`name: foo`))
+	c.Assert(err, IsNil)
+	part := &SnapPart{m: yaml}
+
+	c.Assert(part.UpdateAppArmorJSONTimestamp(), IsNil)
+
+	fi, err = os.Lstat(fn)
+	c.Assert(err, IsNil)
+	c.Check(ft.Before(fi.ModTime()), Equals, true)
+}
+
+func (s *SnapTestSuite) TestUpdateAppArmorJSONTimestampFails(c *C) {
+	oldDir := snapAppArmorDir
+	defer func() {
+		timestampUpdater = helpers.UpdateTimestamp
+		snapAppArmorDir = oldDir
+	}()
+	snapAppArmorDir = c.MkDir()
+	timestampUpdater = func(string) error { return ErrNotImplemented }
+	fn := filepath.Join(snapAppArmorDir, "foo_stuff.json")
+	c.Assert(os.Symlink(fn, fn), IsNil)
+
+	yaml, err := parsePackageYamlData([]byte(`name: foo`))
+	c.Assert(err, IsNil)
+	part := &SnapPart{m: yaml}
+
+	c.Assert(part.UpdateAppArmorJSONTimestamp(), NotNil)
+}
+
+func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
+	oldCmd := aaClickHookCmd
+	oldDir := snapAppArmorDir
+	defer func() {
+		aaClickHookCmd = oldCmd
+		snapAppArmorDir = oldDir
+		timestampUpdater = helpers.UpdateTimestamp
+	}()
+	aaClickHookCmd = "/bin/true"
+	snapAppArmorDir = c.MkDir()
+	fn := filepath.Join(snapAppArmorDir, "foo_stuff.json")
+	c.Assert(os.Symlink("nothing", fn), IsNil)
+	fi, err := os.Lstat(fn)
+	c.Assert(err, IsNil)
+	ft := fi.ModTime()
+	time.Sleep(25 * time.Millisecond)
+
+	_, err = makeInstalledMockSnap(s.tempdir, `name: foo
+version: 1.0
+frameworks:
+ - fmk
+`)
+	c.Assert(err, IsNil)
+
+	yaml, err := parsePackageYamlData([]byte(`name: fmk
+version: 1.0
+type: framework`))
+	c.Assert(err, IsNil)
+	inter := new(MockProgressMeter)
+	part := &SnapPart{m: yaml}
+
+	c.Assert(part.RefreshDependentsSecurity(inter), IsNil)
+
+	fi, err = os.Lstat(fn)
+	c.Assert(err, IsNil)
+	c.Check(ft.Before(fi.ModTime()), Equals, true)
+
+	// a few error cases now
+	aaClickHookCmd = "/bin/false"
+	c.Assert(part.RefreshDependentsSecurity(inter), NotNil)
+
+	aaClickHookCmd = "/bin/true"
+	timestampUpdater = func(string) error { return ErrNotImplemented }
+	c.Assert(part.RefreshDependentsSecurity(inter), NotNil)
 }
 
 func (s *SnapTestSuite) TestRemoveChecksFrameworks(c *C) {
