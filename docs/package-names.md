@@ -45,6 +45,11 @@ We will deliver this feature in 2 phases:
     vim    A popular text editor
     12 forks of "vim" not shown. Use --show-all to see all available forks.
 
+    $ snappy search vim --show-all
+    vim            A popular text editor
+    vim.stevesh    Vim + python plugins
+    vim.matilda    Vim with a pink batman themes 
+
     $ snappy search clock
     clock.asac     Even a broken clock is right twice a day
     clock.stevesh  Proper implementation of a clock
