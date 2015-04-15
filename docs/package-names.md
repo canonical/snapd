@@ -46,22 +46,22 @@ We will deliver this feature in 2 phases:
     12 forks of "vim" not shown. Use --show-all to see all available forks.
 
     $ snappy search clock
-    clock/asac     Even a broken clock is right twice a day
-    clock/stevesh  Proper implementation of a clock
-    clock/matilda  A waltzing clock
+    clock.asac     Even a broken clock is right twice a day
+    clock.stevesh  Proper implementation of a clock
+    clock.matilda  A waltzing clock
 
 
 #### Installing packages
     $ snappy install vim
-    Installing vim/snappy
+    Installing vim.snappy
     4.03 MB / 4.03 MB [==============================] 100.00 % 124.66 KB/s
     Done
 
-    $ snappy install vim/giuseppe
-    Installing vim/giuseppe
+    $ snappy install vim.giuseppe
+    Installing vim.giuseppe
     6.33 MB / 6.33 MB [==============================] 100.00 % 114.01 KB/s
     Done
-    Switch to vim/giuseppe from vim/snappy? (Y/n)
+    Switch to vim.giuseppe from vim.snappy? (Y/n)
     $ Y
     Name             Date        Version     Developer
     vim           2015-01-15  1.1         vimfoundation
