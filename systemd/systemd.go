@@ -18,12 +18,17 @@
 package systemd
 
 import (
+	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
+	"text/template"
 	"time"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/logger"
 )
 
 var (
@@ -57,7 +62,31 @@ type Systemd interface {
 	Disable(service string) error
 	Start(service string) error
 	Stop(service string, timeout time.Duration) error
+	Restart(service string, timeout time.Duration) error
+	GenServiceFile(desc *ServiceDescription) string
 }
+
+// ServiceDescription describes a snappy systemd service
+type ServiceDescription struct {
+	AppName     string
+	ServiceName string
+	Version     string
+	Description string
+	AppPath     string
+	Start       string
+	Stop        string
+	PostStop    string
+	StopTimeout time.Duration
+	AaProfile   string
+}
+
+const (
+	// the default target for systemd units that we generate
+	servicesSystemdTarget = "multi-user.target"
+
+	// the location to put system services
+	snapServicesDir = "/etc/systemd/system"
+)
 
 type reporter interface {
 	Notify(string)
@@ -81,8 +110,15 @@ func (*systemd) DaemonReload() error {
 
 // Enable the given service
 func (s *systemd) Enable(serviceName string) error {
-	_, err := SystemctlCmd("--root", s.rootDir, "enable", serviceName)
-	return err
+	enableSymlink := filepath.Join(s.rootDir, snapServicesDir, servicesSystemdTarget+".wants", serviceName)
+
+	serviceFilename := filepath.Join(s.rootDir, snapServicesDir, serviceName)
+	// already enabled
+	if _, err := os.Lstat(enableSymlink); err == nil {
+		return nil
+	}
+
+	return os.Symlink(serviceFilename[len(s.rootDir):], enableSymlink)
 }
 
 // Disable the given service
@@ -125,6 +161,59 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 	}
 
 	return &Timeout{action: "stop", service: serviceName}
+}
+
+func (s *systemd) GenServiceFile(desc *ServiceDescription) string {
+	serviceTemplate := `[Unit]
+Description={{.Description}}
+After=ubuntu-snappy.run-hooks.service
+X-Snappy=yes
+
+[Service]
+ExecStart={{.FullPathStart}}
+WorkingDirectory={{.AppPath}}
+Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}" "TMPDIR=/tmp/snaps/{{.AppName}}/{{.Version}}/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/{{.AppName}}/{{.Version}}/tmp"
+AppArmorProfile={{.AaProfile}}
+{{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
+{{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
+{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
+
+[Install]
+WantedBy={{.ServiceSystemdTarget}}
+`
+	var templateOut bytes.Buffer
+	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
+	wrapperData := struct {
+		// the service description
+		ServiceDescription
+		// and some composed values
+		FullPathStart        string
+		FullPathStop         string
+		FullPathPostStop     string
+		AppTriple            string
+		ServiceSystemdTarget string
+	}{
+		*desc,
+		filepath.Join(desc.AppPath, desc.Start),
+		filepath.Join(desc.AppPath, desc.Stop),
+		filepath.Join(desc.AppPath, desc.PostStop),
+		fmt.Sprintf("%s_%s_%s", desc.AppName, desc.ServiceName, desc.Version),
+		servicesSystemdTarget,
+	}
+	if err := t.Execute(&templateOut, wrapperData); err != nil {
+		// this can never happen, except we forget a variable
+		logger.LogAndPanic(err)
+	}
+
+	return templateOut.String()
+}
+
+// Restart the service, waiting for it to stop before starting it again.
+func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
+	if err := s.Stop(serviceName, timeout); err != nil {
+		return err
+	}
+	return s.Start(serviceName)
 }
 
 // Error is returned if the systemd action failed

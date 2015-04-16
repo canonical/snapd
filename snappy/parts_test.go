@@ -17,11 +17,9 @@
 
 package snappy
 
-import (
-	. "launchpad.net/gocheck"
-)
+import . "launchpad.net/gocheck"
 
-func (s *SnapTestSuite) TestInstalledSnapByType(c *C) {
+func (s *SnapTestSuite) TestActiveSnapByType(c *C) {
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app1
 version: 1.10
 vendor: Michael Vogt <mvo@ubuntu.com>
@@ -37,12 +35,12 @@ icon: meta/hello.svg`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	parts, err := InstalledSnapsByType(SnapTypeApp)
+	parts, err := ActiveSnapsByType(SnapTypeApp)
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "app1")
 
-	parts, err = InstalledSnapsByType(SnapTypeFramework)
+	parts, err = ActiveSnapsByType(SnapTypeFramework)
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "framework1")
@@ -59,6 +57,7 @@ func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "hello-app")
+	c.Assert(parts[0].Namespace(), Equals, testNamespace)
 }
 
 func (s *SnapTestSuite) FindSnapsByNameNotAvailable(c *C) {

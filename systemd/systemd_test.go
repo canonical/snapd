@@ -18,6 +18,8 @@
 package systemd
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -126,13 +128,69 @@ func (s *SystemdTestSuite) TestDisable(c *C) {
 }
 
 func (s *SystemdTestSuite) TestEnable(c *C) {
-	err := New("xyzzy", s.rep).Enable("foo")
+	sysd := New("xyzzy", s.rep)
+	sysd.(*systemd).rootDir = c.MkDir()
+	err := os.MkdirAll(filepath.Join(sysd.(*systemd).rootDir, "/etc/systemd/system/multi-user.target.wants"), 0755)
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
+
+	err = sysd.Enable("foo")
+	c.Assert(err, IsNil)
+
+	// check symlink
+	enableLink := filepath.Join(sysd.(*systemd).rootDir, "/etc/systemd/system/multi-user.target.wants/foo")
+	target, err := os.Readlink(enableLink)
+	c.Assert(err, IsNil)
+	c.Assert(target, Equals, "/etc/systemd/system/foo")
 }
 
-func (s *SystemdTestSuite) TestErrorRun(c *C) {
-	SystemctlCmd = s.errorRun
-	err := New("xyzzy", s.rep).Enable("foo")
-	c.Assert(err.Error(), Equals, "[--root xyzzy enable foo] failed with exit status 1: error on error")
+const expectedService = `[Unit]
+Description=descr
+After=ubuntu-snappy.run-hooks.service
+X-Snappy=yes
+
+[Service]
+ExecStart=/apps/app/1.0/bin/start
+WorkingDirectory=/apps/app/1.0/
+Environment="SNAPP_APP_PATH=/apps/app/1.0/" "SNAPP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAPP_APP_USER_DATA_PATH=%h/apps/app/1.0/" "SNAP_APP_PATH=/apps/app/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAP_APP_USER_DATA_PATH=%h/apps/app/1.0/" "SNAP_APP=app_service_1.0" "TMPDIR=/tmp/snaps/app/1.0/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/app/1.0/tmp"
+AppArmorProfile=aa-profile
+ExecStop=/apps/app/1.0/bin/stop
+ExecStopPost=/apps/app/1.0/bin/stop --post
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
+`
+
+func (s *SystemdTestSuite) TestGenServiceFile(c *C) {
+
+	desc := &ServiceDescription{
+		AppName:     "app",
+		ServiceName: "service",
+		Version:     "1.0",
+		Description: "descr",
+		AppPath:     "/apps/app/1.0/",
+		Start:       "bin/start",
+		Stop:        "bin/stop",
+		PostStop:    "bin/stop --post",
+		StopTimeout: time.Duration(10 * time.Second),
+		AaProfile:   "aa-profile",
+	}
+
+	generated := New("", nil).GenServiceFile(desc)
+	c.Assert(generated, Equals, expectedService)
+}
+
+func (s *SystemdTestSuite) TestRestart(c *C) {
+	s.outs = [][]byte{
+		nil, // for the "stop" itself
+		[]byte("ActiveState=inactive\n"),
+		nil, // for the "start"
+	}
+	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
+	err := New("", s.rep).Restart("foo", time.Millisecond)
+	c.Assert(err, IsNil)
+	c.Check(s.argses, HasLen, 3)
+	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
+	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[2], DeepEquals, []string{"start", "foo"})
 }

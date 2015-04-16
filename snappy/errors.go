@@ -62,6 +62,9 @@ var (
 	// ErrNotInstalled is returned when the snap is not installed
 	ErrNotInstalled = errors.New("the given snap is not installed")
 
+	// ErrAlreadyInstalled is returned when the snap is already installed
+	ErrAlreadyInstalled = errors.New("the given snap is already installed")
+
 	// ErrPrivOpInProgress is returned when a privileged operation
 	// cannot be performed since an existing privileged operation is
 	// still running.
@@ -112,6 +115,14 @@ var (
 	// ErrNoOemConfiguration may be returned when there is a SnapTypeOem installed
 	// but does not provide a configuration.
 	ErrNoOemConfiguration = errors.New("no configuration entry found in the oem snap")
+
+	// ErrInstalledNonSnapPart is returned if a part that is purportedly
+	// installed turns out to not be a SnapPart.
+	ErrInstalledNonSnapPart = errors.New("installed dependent snap is not a SnapPart")
+
+	// ErrSideLoaded is returned on system update if the system was
+	// created with a custom enablement part.
+	ErrSideLoaded = errors.New("cannot update system that uses custom enablement")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem

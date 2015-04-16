@@ -20,6 +20,7 @@ package snappy
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"time"
 
 	"launchpad.net/snappy/progress"
@@ -56,6 +57,7 @@ type Part interface {
 	Name() string
 	Version() string
 	Description() string
+	Namespace() string
 
 	Hash() string
 	IsActive() bool
@@ -110,6 +112,36 @@ type Repository interface {
 // to query in a single place
 type MetaRepository struct {
 	all []Repository
+}
+
+// NewMetaStoreRepository returns a MetaRepository of stores
+func NewMetaStoreRepository() *MetaRepository {
+	m := new(MetaRepository)
+	m.all = []Repository{}
+
+	if repo := NewUbuntuStoreSnapRepository(); repo != nil {
+		m.all = append(m.all, repo)
+	}
+
+	return m
+}
+
+// NewMetaLocalRepository returns a MetaRepository of stores
+func NewMetaLocalRepository() *MetaRepository {
+	m := new(MetaRepository)
+	m.all = []Repository{}
+
+	if repo := NewSystemImageRepository(); repo != nil {
+		m.all = append(m.all, repo)
+	}
+	if repo := NewLocalSnapRepository(snapAppsDir); repo != nil {
+		m.all = append(m.all, repo)
+	}
+	if repo := NewLocalSnapRepository(snapOemDir); repo != nil {
+		m.all = append(m.all, repo)
+	}
+
+	return m
 }
 
 // NewMetaRepository returns a new MetaRepository
@@ -181,8 +213,9 @@ func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 		// ignore network errors here, we will also collect
 		// local results
 		_, netError := err.(net.Error)
+		_, urlError := err.(*url.Error)
 		switch {
-		case err == ErrPackageNotFound || netError:
+		case err == ErrPackageNotFound || netError || urlError:
 			continue
 		case err != nil:
 			return parts, err
@@ -193,8 +226,8 @@ func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	return parts, err
 }
 
-// InstalledSnapsByType returns all installed snaps with the given type
-func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
+// ActiveSnapsByType returns all installed snaps with the given type
+func ActiveSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	if err != nil {
@@ -215,11 +248,11 @@ func InstalledSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 	return res, nil
 }
 
-// InstalledSnapNamesByType returns all installed snap names with the given type
-var InstalledSnapNamesByType = installedSnapNamesByTypeImpl
+// ActiveSnapNamesByType returns all installed snap names with the given type
+var ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 
-func installedSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
-	installed, err := InstalledSnapsByType(snapTs...)
+func activeSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
+	installed, err := ActiveSnapsByType(snapTs...)
 	for _, part := range installed {
 		res = append(res, part.Name())
 	}

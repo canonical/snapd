@@ -35,13 +35,13 @@ var aaExec = "aa-exec"
 // This string can be empty.
 //
 // It returns the newConfig or an error
-func snapConfig(snapDir, rawConfig string) (newConfig string, err error) {
+func snapConfig(snapDir, namespace, rawConfig string) (newConfig string, err error) {
 	configScript := filepath.Join(snapDir, "meta", "hooks", "config")
 	if _, err := os.Stat(configScript); err != nil {
 		return "", ErrConfigNotFound
 	}
 
-	part := NewInstalledSnapPart(filepath.Join(snapDir, "meta", "package.yaml"))
+	part := NewInstalledSnapPart(filepath.Join(snapDir, "meta", "package.yaml"), namespace)
 	if part == nil {
 		return "", ErrPackageNotFound
 	}

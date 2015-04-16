@@ -77,7 +77,7 @@ func (s *SnapTestSuite) TestConfigSimple(c *C) {
 	snapDir, err := s.makeInstalledMockSnapWithConfig(c, mockConfig)
 	c.Assert(err, IsNil)
 
-	newConfig, err := snapConfig(snapDir, configYaml)
+	newConfig, err := snapConfig(snapDir, "sergiusens", configYaml)
 	c.Assert(err, IsNil)
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "config.out"))
 	c.Assert(err, IsNil)
@@ -89,7 +89,7 @@ func (s *SnapTestSuite) TestConfigError(c *C) {
 	snapDir, err := s.makeInstalledMockSnapWithConfig(c, configErrorScript)
 	c.Assert(err, IsNil)
 
-	newConfig, err := snapConfig(snapDir, configYaml)
+	newConfig, err := snapConfig(snapDir, "sergiusens", configYaml)
 	c.Assert(err, NotNil)
 	c.Assert(newConfig, Equals, "")
 	c.Assert(strings.HasSuffix(err.Error(), "failed with: 'error: some error'"), Equals, true)
