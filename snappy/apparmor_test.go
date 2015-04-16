@@ -50,8 +50,8 @@ func (a *ApparmorTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
   "policy_groups": [
     "networking"
   ],
-  "policy_vendor": "ubuntu-snappy",
-  "policy_version": 1.3
+  "policy_vendor": "ubuntu-core",
+  "policy_version": 15.04
 }`)
 }
 
@@ -70,8 +70,8 @@ func (a *ApparmorTestSuite) TestSnappyHandleApparmorCaps(c *C) {
     "cap1",
     "cap2"
   ],
-  "policy_vendor": "ubuntu-snappy",
-  "policy_version": 1.3
+  "policy_vendor": "ubuntu-core",
+  "policy_version": 15.04
 }`)
 }
 
@@ -86,8 +86,9 @@ func (a *ApparmorTestSuite) TestSnappyHandleApparmorTemplate(c *C) {
 	// verify file content
 	a.verifyApparmorFile(c, `{
   "template": "docker-client",
-  "policy_vendor": "ubuntu-snappy",
-  "policy_version": 1.3
+  "policy_groups": [],
+  "policy_vendor": "ubuntu-core",
+  "policy_version": 15.04
 }`)
 }
 

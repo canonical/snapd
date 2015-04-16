@@ -10,23 +10,30 @@ import (
 
 type apparmorJSONTemplate struct {
 	Template      string   `json:"template"`
-	PolicyGroups  []string `json:"policy_groups,omitempty"`
+	PolicyGroups  []string `json:"policy_groups"`
 	PolicyVendor  string   `json:"policy_vendor"`
 	PolicyVersion float64  `json:"policy_version"`
 }
 
-func generateApparmorJSONContent(s *SecurityDefinitions) ([]byte, error) {
+func (s *SecurityDefinitions) generateApparmorJSONContent() ([]byte, error) {
 	t := apparmorJSONTemplate{
-		Template:      s.SecurityTemplate,
-		PolicyGroups:  s.SecurityCaps,
-		PolicyVendor:  "ubuntu-snappy",
-		PolicyVersion: 1.3,
+		Template:     s.SecurityTemplate,
+		PolicyGroups: s.SecurityCaps,
+		// TODO: this won't work with Ubuntu Personal, etc
+		PolicyVendor: "ubuntu-core",
+		// TODO: this should perhaps be autodetected
+		PolicyVersion: 15.04,
 	}
 
 	// FIXME: this is snappy specific, on other systems like the
 	//        phone we may want different defaults.
-	if t.Template == "" && len(t.PolicyGroups) == 0 {
+	if t.Template == "" && t.PolicyGroups == nil {
 		t.PolicyGroups = []string{"networking"}
+	}
+
+	// never write a null value out into the json
+	if t.PolicyGroups == nil {
+		t.PolicyGroups = []string{}
 	}
 
 	if t.Template == "" {
@@ -70,7 +77,7 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 
 	// generate apparmor template
 	apparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-	securityJSONContent, err := generateApparmorJSONContent(s)
+	securityJSONContent, err := s.generateApparmorJSONContent()
 	if err != nil {
 		return err
 	}

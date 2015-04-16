@@ -111,6 +111,9 @@ Pattern: /var/lib/systemd/click/${id}`)
 }
 
 func (s *SnapTestSuite) TestHandleClickHooks(c *C) {
+	// we can not strip the global rootdir for the hook tests
+	stripGlobalRootDir = func(s string) string { return s }
+
 	// two hooks to ensure iterating works correct
 	testSymlinkDir := path.Join(s.tempdir, "/var/lib/systemd/click/")
 	os.MkdirAll(testSymlinkDir, 0755)
@@ -167,11 +170,11 @@ Pattern: /var/lib/apparmor/click/${id}
 
 func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	snapFile := makeTestSnapPackage(c, "")
-	name, err := installClick(snapFile, 0, nil)
+	name, err := installClick(snapFile, 0, nil, testNamespace)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	baseDir := filepath.Join(snapAppsDir, "foo", "1.0")
+	baseDir := filepath.Join(snapAppsDir, fooComposedName, "1.0")
 	contentFile := filepath.Join(baseDir, "bin", "foo")
 	content, err := ioutil.ReadFile(contentFile)
 	c.Assert(err, IsNil)
@@ -186,7 +189,7 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure we have the hashes
-	snap := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"))
+	snap := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"), testNamespace)
 	c.Assert(snap.Hash(), Not(Equals), "")
 }
 
@@ -196,10 +199,10 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
 	}
 
 	snapFile := makeTestSnapPackage(c, "")
-	_, err := installClick(snapFile, 0, nil)
+	_, err := installClick(snapFile, 0, nil, testNamespace)
 	c.Assert(err, NotNil)
 
-	contentFile := path.Join(s.tempdir, "apps", "foo", "1.0", "bin", "foo")
+	contentFile := path.Join(s.tempdir, "apps", fooComposedName, "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, NotNil)
 }
@@ -214,12 +217,12 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyPassesUnauth(c *C) {
 
 	expectedUnauth = true
 	snapFile := makeTestSnapPackage(c, "")
-	name, err := installClick(snapFile, AllowUnauthenticated, nil)
+	name, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
 	expectedUnauth = false
-	_, err = installClick(snapFile, 0, nil)
+	_, err = installClick(snapFile, 0, nil, testNamespace)
 	c.Assert(err, IsNil)
 }
 
@@ -240,7 +243,7 @@ func (a *agreerator) Notify(string) {}
 // install fails
 func (s *SnapTestSuite) TestLocalSnapInstallMissingAccepterFails(c *C) {
 	pkg := makeTestSnapPackage(c, "explicit-license-agreement: Y")
-	_, err := installClick(pkg, 0, nil)
+	_, err := installClick(pkg, 0, nil, testNamespace)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
 }
 
@@ -248,7 +251,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallMissingAccepterFails(c *C) {
 // Agreed returns false, install fails
 func (s *SnapTestSuite) TestLocalSnapInstallNegAccepterFails(c *C) {
 	pkg := makeTestSnapPackage(c, "explicit-license-agreement: Y")
-	_, err := installClick(pkg, 0, &agreerator{y: false})
+	_, err := installClick(pkg, 0, &agreerator{y: false}, testNamespace)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
 }
 
@@ -259,7 +262,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {
 	defer func() { licenseChecker = checkLicenseExists }()
 
 	pkg := makeTestSnapPackageFull(c, "explicit-license-agreement: Y", false)
-	_, err := installClick(pkg, 0, &agreerator{y: true})
+	_, err := installClick(pkg, 0, &agreerator{y: true}, testNamespace)
 	c.Check(err, Equals, ErrLicenseNotProvided)
 }
 
@@ -267,7 +270,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {
 // Agreed returns true, install succeeds
 func (s *SnapTestSuite) TestLocalSnapInstallPosAccepterWorks(c *C) {
 	pkg := makeTestSnapPackage(c, "explicit-license-agreement: Y")
-	_, err := installClick(pkg, 0, &agreerator{y: true})
+	_, err := installClick(pkg, 0, &agreerator{y: true}, testNamespace)
 	c.Check(err, Equals, nil)
 }
 
@@ -275,9 +278,61 @@ func (s *SnapTestSuite) TestLocalSnapInstallPosAccepterWorks(c *C) {
 func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 	pkg := makeTestSnapPackage(c, "name: foobar\nexplicit-license-agreement: Y")
 	ag := &agreerator{y: true}
-	_, err := installClick(pkg, 0, ag)
+	_, err := installClick(pkg, 0, ag, testNamespace)
 	c.Assert(err, Equals, nil)
 	c.Check(ag.intro, Matches, ".*foobar.*requires.*license.*")
+	c.Check(ag.license, Equals, "WTFPL")
+}
+
+// If a previous version is installed with the same license version, the agreer
+// isn't called
+func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
+	ag := &agreerator{y: true}
+	yaml := "name: foox\nexplicit-license-agreement: Y\nlicense-version: 2\n"
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
+	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
+	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+
+	pkg := makeTestSnapPackage(c, yaml+"version: 2")
+	_, err = installClick(pkg, 0, ag, testNamespace)
+	c.Assert(err, Equals, nil)
+	c.Check(ag.intro, Equals, "")
+	c.Check(ag.license, Equals, "")
+}
+
+// If a previous version is installed with the same license version, but without
+// explicit license agreement set, the agreer *is* called
+func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
+	ag := &agreerator{y: true}
+	yaml := "name: foox\nlicense-version: 2\n"
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
+	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
+	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+
+	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y")
+	_, err = installClick(pkg, 0, ag, testNamespace)
+	c.Assert(err, Equals, nil)
+	c.Check(ag.license, Equals, "WTFPL")
+}
+
+// If a previous version is installed with a different license version, the
+// agreer *is* called
+func (s *SnapTestSuite) TestDifferentLicenseVersion(c *C) {
+	ag := &agreerator{y: true}
+	yaml := "name: foox\nexplicit-license-agreement: Y\n"
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"license-version: 2\nversion: 1")
+	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
+	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+
+	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
+	_, err = installClick(pkg, 0, ag, testNamespace)
+	c.Assert(err, Equals, nil)
 	c.Check(ag.license, Equals, "WTFPL")
 }
 
@@ -289,10 +344,10 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	}
 
 	targetDir := path.Join(s.tempdir, "apps")
-	_, err := installClick(makeTestSnapPackage(c, ""), 0, nil)
+	_, err := installClick(makeTestSnapPackage(c, ""), 0, nil, testNamespace)
 	c.Assert(err, IsNil)
 
-	instDir := path.Join(targetDir, "foo", "1.0")
+	instDir := path.Join(targetDir, fooComposedName, "1.0")
 	_, err = os.Stat(instDir)
 	c.Assert(err, IsNil)
 
@@ -312,13 +367,13 @@ version: 1.0
 type: oem
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
-	_, err := installClick(snapFile, 0, nil)
+	_, err := installClick(snapFile, 0, nil, testNamespace)
 	c.Assert(err, IsNil)
 
-	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
+	contentFile := path.Join(s.tempdir, "oem", fooComposedName, "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(path.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
+	_, err = os.Stat(path.Join(s.tempdir, "oem", fooComposedName, "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
 }
 
@@ -328,11 +383,11 @@ icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
 
 	// ensure v2 is active
@@ -370,7 +425,7 @@ vendor: Foo Bar <foo@example.com>
 	canaryData := []byte("ni ni ni")
 
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, "foo", "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
@@ -379,7 +434,7 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
 	newCanaryDataFile := filepath.Join(snapDataDir, "foo", "2.0", "canary.txt")
 	content, err := ioutil.ReadFile(newCanaryDataFile)
@@ -403,20 +458,23 @@ icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, "foo", "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(filepath.Join(snapDataDir, "foo", "2.0", "canary.txt"))
 	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestClickCopyRemovesHooksFirst(c *C) {
+	// we can not strip the global rootdir for the hook tests
+	stripGlobalRootDir = func(s string) string { return s }
+
 	// this hook will create a hook.trace file with the *.hook
 	// files generated, this is then later used to verify that
 	// the hook files got generated/removed in the right order
@@ -435,14 +493,14 @@ integration:
 `
 	// install 1.0 and then upgrade to 2.0
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, "")
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, "bar", "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, "")
 	c.Assert(err, IsNil)
 	_, err = os.Stat(filepath.Join(snapDataDir, "bar", "2.0", "canary.txt"))
 	c.Assert(err, IsNil)
@@ -451,13 +509,16 @@ integration:
 	// it go de-activated and finally 2.0 got activated
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "hook.trace"))
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, `now: ./bar_app_1.0.tracehook
-now: 
-now: ./bar_app_2.0.tracehook
-`)
+	// Forcefully in one line to avoid issues with hidden spaces,
+	// it is visually obvious in this form.
+	hookRun := fmt.Sprintf("now: ./bar_app_1.0.tracehook\nnow: \nnow: ./bar_app_2.0.tracehook\n")
+	c.Assert(string(content), Equals, hookRun)
 }
 
 func (s *SnapTestSuite) TestClickCopyDataHookFails(c *C) {
+	// we can not strip the global rootdir for the hook tests
+	stripGlobalRootDir = func(s string) string { return s }
+
 	// this is a special hook that fails on a 2.0 upgrade, this way
 	// we can ensure that upgrades can work
 	hookContent := fmt.Sprintf(`Hook-Name: hooky
@@ -476,24 +537,24 @@ integration:
 
 	// install 1.0 and then upgrade to 2.0
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, "bar", "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, NotNil)
 
 	// installing 2.0 will fail in the hooks,
 	//   so ensure we fall back to v1.0
-	content, err := ioutil.ReadFile(filepath.Join(snapAppsDir, "bar", "current", "meta", "package.yaml"))
+	content, err := ioutil.ReadFile(filepath.Join(snapAppsDir, "bar."+testNamespace, "current", "meta", "package.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), "version: 1.0"), Equals, true)
 
 	// no leftovers from the failed install
-	_, err = os.Stat(filepath.Join(snapAppsDir, "bar", "2.0"))
+	_, err = os.Stat(filepath.Join(snapAppsDir, fooComposedName, "2.0"))
 	c.Assert(err, NotNil)
 }
 
@@ -538,18 +599,30 @@ aa-exec -p pastebinit.mvo_pastebinit_1.4.0.0.1 -- /apps/pastebinit.mvo/1.4.0.0.1
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
-	binary := Binary{Name: "bin/pastebinit"}
+	binary := Binary{Name: "pastebinit", Exec: "bin/pastebinit"}
 	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
 	m := packageYaml{Name: "pastebinit.mvo",
 		Version: "1.4.0.0.1"}
 
-	generatedWrapper := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedWrapper)
 }
 
+func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
+	binary := Binary{Name: "bin/pastebinit\nSomething nasty"}
+	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
+	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
+	m := packageYaml{Name: "pastebinit.mvo",
+		Version: "1.4.0.0.1"}
+
+	_, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	c.Assert(err, NotNil)
+}
+
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
-	binary := Binary{Name: "bin/pastebinit"}
+	binary := Binary{Name: "pastebinit", Exec: "bin/pastebinit"}
 	pkgPath := "/apps/pastebinit.mvo/1.0/"
 	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/apps/pastebinit.mvo/1.0/bin/pastebinit")
 }
@@ -564,19 +637,19 @@ func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {
-	packageYaml := `name: foo.mvo
+	packageYaml := `name: foo
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 binaries:
- - name: bin/foo
+ - name: bin/bar
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, "mvo")
 	c.Assert(err, IsNil)
 
 	// ensure that the binary wrapper file go generated with the right
 	// name
-	binaryWrapper := filepath.Join(snapBinariesDir, "foo.foo.mvo")
+	binaryWrapper := filepath.Join(snapBinariesDir, "foo.bar")
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, true)
 
 	// and that it gets removed on remove
@@ -588,36 +661,36 @@ binaries:
 }
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {
-	packageYaml := `name: foo.mvo
+	packageYaml := `name: foo
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 binaries:
- - name: bin/foo
+ - name: bin/bar
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, "mvo")
 	c.Assert(err, IsNil)
 
 	// ensure that the binary wrapper file go generated with the right
 	// path
-	oldSnapBin := filepath.Join(snapAppsDir[len(globalRootDir):], "foo.mvo", "1.0", "bin", "foo")
-	binaryWrapper := filepath.Join(snapBinariesDir, "foo.foo.mvo")
+	oldSnapBin := filepath.Join(snapAppsDir[len(globalRootDir):], "foo.mvo", "1.0", "bin", "bar")
+	binaryWrapper := filepath.Join(snapBinariesDir, "foo.bar")
 	content, err := ioutil.ReadFile(binaryWrapper)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), oldSnapBin), Equals, true)
 
 	// and that it gets updated on upgrade
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, "mvo")
 	c.Assert(err, IsNil)
-	newSnapBin := filepath.Join(snapAppsDir[len(globalRootDir):], "foo.mvo", "2.0", "bin", "foo")
+	newSnapBin := filepath.Join(snapAppsDir[len(globalRootDir):], "foo.mvo", "2.0", "bin", "bar")
 	content, err = ioutil.ReadFile(binaryWrapper)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), newSnapBin), Equals, true)
 }
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstall(c *C) {
-	packageYaml := `name: foo.mvo
+	packageYaml := `name: foo
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 services:
@@ -625,10 +698,10 @@ services:
    start: bin/hello
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, "mvo")
 	c.Assert(err, IsNil)
 
-	servicesFile := filepath.Join(snapServicesDir, "foo.mvo_service_1.0.service")
+	servicesFile := filepath.Join(snapServicesDir, "foo_service_1.0.service")
 	c.Assert(helpers.FileExists(servicesFile), Equals, true)
 	st, err := os.Stat(servicesFile)
 	c.Assert(err, IsNil)
@@ -650,7 +723,7 @@ func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
-	packageYaml := `name: foo.mvo
+	packageYaml := `name: foo
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 services:
@@ -658,44 +731,11 @@ services:
    start: bin/hello
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, 0, nil)
+	_, err := installClick(snapFile, InhibitHooks, nil, testNamespace)
 	c.Assert(err, IsNil)
 
-	c.Assert(allSystemctl, HasLen, 3)
-	c.Assert(allSystemctl[1], DeepEquals, []string{"--root", globalRootDir, "enable", "foo.mvo_service_1.0.service"})
-}
+	c.Assert(allSystemctl, HasLen, 0)
 
-const expectedService = `[Unit]
-Description=The docker app deployment mechanism
-After=ubuntu-snappy.run-hooks.service
-X-Snappy=yes
-
-[Service]
-ExecStart=/apps/docker/1.3.3.001/bin/docker.wrap
-WorkingDirectory=/apps/docker/1.3.3.001/
-Environment="SNAPP_APP_PATH=/apps/docker/1.3.3.001/" "SNAPP_APP_DATA_PATH=/var/lib/apps/docker/1.3.3.001/" "SNAPP_APP_USER_DATA_PATH=%h/apps/docker/1.3.3.001/" "SNAP_APP_PATH=/apps/docker/1.3.3.001/" "SNAP_APP_DATA_PATH=/var/lib/apps/docker/1.3.3.001/" "SNAP_APP_USER_DATA_PATH=%h/apps/docker/1.3.3.001/" "SNAP_APP=docker_docker_1.3.3.001" "TMPDIR=/tmp/snaps/docker/1.3.3.001/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/docker/1.3.3.001/tmp"
-AppArmorProfile=docker_docker_1.3.3.001
-
-
-
-
-[Install]
-WantedBy=multi-user.target
-`
-
-func (s *SnapTestSuite) TestSnappyGenerateSnapServicesFile(c *C) {
-	service := Service{Name: "docker",
-		Start:       "bin/docker.wrap",
-		Description: "The docker app deployment mechanism",
-	}
-	pkgPath := "/apps/docker/1.3.3.001/"
-	aaProfile := "docker_docker_1.3.3.001"
-	m := packageYaml{Name: "docker",
-		Version: "1.3.3.001",
-	}
-
-	generated := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
-	c.Assert(generated, Equals, expectedService)
 }
 
 func (s *SnapTestSuite) TestFindBinaryInPath(c *C) {
@@ -715,6 +755,9 @@ func (s *SnapTestSuite) TestFindBinaryInPath(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallRunHooks(c *C) {
+	// we can not strip the global rootdir for the hook tests
+	stripGlobalRootDir = func(s string) string { return s }
+
 	hookSymlinkDir := filepath.Join(s.tempdir, "/var/lib/click/hooks/systemd")
 	c.Assert(os.MkdirAll(hookSymlinkDir, 0755), IsNil)
 
@@ -734,7 +777,7 @@ integration:
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 
 	// install it
-	_, err := installClick(snapFile, 0, nil)
+	_, err := installClick(snapFile, 0, nil, testNamespace)
 	c.Assert(err, IsNil)
 
 	// verify we have the symlink
@@ -744,6 +787,9 @@ integration:
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallInhibitHooks(c *C) {
+	// we can not strip the global rootdir for the hook tests
+	stripGlobalRootDir = func(s string) string { return s }
+
 	hookSymlinkDir := filepath.Join(s.tempdir, "/var/lib/click/hooks/systemd")
 	c.Assert(os.MkdirAll(hookSymlinkDir, 0755), IsNil)
 
@@ -763,7 +809,7 @@ integration:
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 
 	// install it
-	_, err := installClick(snapFile, InhibitHooks, nil)
+	_, err := installClick(snapFile, InhibitHooks, nil, testNamespace)
 	c.Assert(err, IsNil)
 
 	// verify we have the symlink
@@ -786,7 +832,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
 	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), "\nExecStart=/apps/hello-app/1.10/bin/hello\n"), Equals, true)
+	c.Assert(strings.Contains(string(content), "\nExecStart=/apps/"+helloAppComposedName+"/1.10/bin/hello\n"), Equals, true)
 }
 
 func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
@@ -801,12 +847,12 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	err = addPackageBinaries(baseDir)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/apps/bin/hello.hello-app"))
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/apps/bin/hello-app.hello"))
 	c.Assert(err, IsNil)
 
 	needle := `
-cd /apps/hello-app/1.10
-aa-exec -p hello-app_hello_1.10 -- /apps/hello-app/1.10/bin/hello "$@"
+cd /apps/hello-app.testspacethename/1.10
+aa-exec -p hello-app_hello_1.10 -- /apps/hello-app.testspacethename/1.10/bin/hello "$@"
 `
 	c.Assert(strings.Contains(string(content), needle), Equals, true)
 }
@@ -842,8 +888,79 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
 	m := packageYaml{Name: "xckd-webserver.canonical",
 		Version: "0.3.4"}
 
-	generatedWrapper := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedServiceWrapper)
+}
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
+	service := Service{Name: "xkcd-webserver",
+		Start:       "bin/foo start",
+		Stop:        "bin/foo stop",
+		PostStop:    "bin/foo post-stop",
+		StopTimeout: DefaultTimeout,
+		Description: "A fun webserver\nExec=foo",
+	}
+	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
+	m := packageYaml{Name: "xckd-webserver.canonical",
+		Version: "0.3.4"}
+
+	_, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	c.Assert(err, NotNil)
+}
+
+func (s *SnapTestSuite) TestServiceWhitelistSimple(c *C) {
+	c.Assert(verifyServiceYaml(Service{Name: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(Service{Description: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(Service{Start: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(Service{Stop: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(Service{PostStop: "foo"}), IsNil)
+}
+
+func (s *SnapTestSuite) TestServiceWhitelistIllegal(c *C) {
+	c.Assert(verifyServiceYaml(Service{Name: "x\n"}), NotNil)
+	c.Assert(verifyServiceYaml(Service{Description: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(Service{Start: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(Service{Stop: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(Service{PostStop: "foo\n"}), NotNil)
+}
+
+func (s *SnapTestSuite) TestServiceWhitelistError(c *C) {
+	err := verifyServiceYaml(Service{Name: "x\n"})
+	c.Assert(err.Error(), Equals, `services description field 'Name' contains illegal 'x
+' (legal: '^[A-Za-z0-9/. _#:-]*$')`)
+}
+
+func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
+	c.Assert(verifyBinariesYaml(Binary{Name: "foo"}), IsNil)
+	c.Assert(verifyBinariesYaml(Binary{Exec: "foo"}), IsNil)
+	c.Assert(verifyBinariesYaml(Binary{
+		SecurityDefinitions: SecurityDefinitions{
+			SecurityTemplate: "foo"},
+	}), IsNil)
+	c.Assert(verifyBinariesYaml(Binary{
+		SecurityDefinitions: SecurityDefinitions{
+			SecurityPolicy: &SecurityOverrideDefinition{
+				Apparmor: "foo"},
+		},
+	}), IsNil)
+}
+
+func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
+	c.Assert(verifyBinariesYaml(Binary{Name: "test!me"}), NotNil)
+	c.Assert(verifyBinariesYaml(Binary{Name: "x\n"}), NotNil)
+	c.Assert(verifyBinariesYaml(Binary{Exec: "x\n"}), NotNil)
+	c.Assert(verifyBinariesYaml(Binary{
+		SecurityDefinitions: SecurityDefinitions{
+			SecurityTemplate: "x\n"},
+	}), NotNil)
+	c.Assert(verifyBinariesYaml(Binary{
+		SecurityDefinitions: SecurityDefinitions{
+			SecurityPolicy: &SecurityOverrideDefinition{
+				Apparmor: "x\n"},
+		},
+	}), NotNil)
 }
 
 func (s *SnapTestSuite) TestSnappyRunHooks(c *C) {
@@ -888,7 +1005,7 @@ binaries:
 		return writeHashes(tmpdir, dataTar)
 	}), IsNil)
 
-	_, err = installClick(snapName, 0, nil)
+	_, err = installClick(snapName, 0, nil, testNamespace)
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
 }
 
@@ -900,6 +1017,34 @@ frameworks:
   - missing
 `
 	snapFile := makeTestSnapPackage(c, packageYaml)
-	_, err := installClick(snapFile, 0, nil)
+	_, err := installClick(snapFile, 0, nil, testNamespace)
 	c.Assert(err, ErrorMatches, `.*missing framework.*`)
+}
+
+func (s *SnapTestSuite) TestInstallClickHooksCallsStripRootDir(c *C) {
+	content := `Hook-Name: systemd
+Pattern: /var/lib/systemd/click/${id}
+`
+	makeClickHook(c, content)
+	os.MkdirAll(path.Join(s.tempdir, "/var/lib/systemd/click/"), 0755)
+
+	manifest := clickManifest{
+		Name:    "foo",
+		Version: "1.0",
+		Hooks: map[string]clickAppHook{
+			"app": clickAppHook{
+				"systemd": "path-to-systemd-file",
+			},
+		},
+	}
+
+	stripGlobalRootDirWasCalled := false
+	stripGlobalRootDir = func(s string) string {
+		stripGlobalRootDirWasCalled = true
+		return s
+	}
+
+	err := installClickHooks(c.MkDir(), manifest, false)
+	c.Assert(err, IsNil)
+	c.Assert(stripGlobalRootDirWasCalled, Equals, true)
 }

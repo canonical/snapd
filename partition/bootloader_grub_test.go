@@ -108,7 +108,7 @@ func (s *PartitionTestSuite) TestToggleRootFS(c *C) {
 }
 
 func mockGrubEditenvList(cmd ...string) (string, error) {
-	mockGrubEditenvOutput := fmt.Sprintf("%s=default", bootloaderBootmodeVar)
+	mockGrubEditenvOutput := fmt.Sprintf("%s=regular", bootloaderBootmodeVar)
 	return mockGrubEditenvOutput, nil
 }
 
@@ -121,7 +121,7 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 
 	v, err := g.GetBootVar(bootloaderBootmodeVar)
 	c.Assert(err, IsNil)
-	c.Assert(v, Equals, "default")
+	c.Assert(v, Equals, "regular")
 }
 
 func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
@@ -150,7 +150,7 @@ func (s *PartitionTestSuite) TestGrubMarkCurrentBootSuccessful(c *C) {
 
 	c.Assert(allCommands[1], DeepEquals, expectedGrubSet)
 
-	expectedGrubSet2 := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_mode=default"}
+	expectedGrubSet2 := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_mode=regular"}
 
 	c.Assert(allCommands[2], DeepEquals, expectedGrubSet2)
 }

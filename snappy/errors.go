@@ -119,6 +119,10 @@ var (
 	// ErrInstalledNonSnapPart is returned if a part that is purportedly
 	// installed turns out to not be a SnapPart.
 	ErrInstalledNonSnapPart = errors.New("installed dependent snap is not a SnapPart")
+
+	// ErrSideLoaded is returned on system update if the system was
+	// created with a custom enablement part.
+	ErrSideLoaded = errors.New("cannot update system that uses custom enablement")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem
@@ -171,6 +175,18 @@ type ErrUpgradeVerificationFailed struct {
 
 func (e *ErrUpgradeVerificationFailed) Error() string {
 	return fmt.Sprintf("upgrade verification failed: %s", e.msg)
+}
+
+// ErrStructIllegalContent is returned if a struct contains illegal content
+// as matched via "verifyWhitelistForStruct"
+type ErrStructIllegalContent struct {
+	field     string
+	content   string
+	whitelist string
+}
+
+func (e *ErrStructIllegalContent) Error() string {
+	return fmt.Sprintf("services description field '%s' contains illegal '%s' (legal: '%s')", e.field, e.content, e.whitelist)
 }
 
 // ErrGarbageCollectImpossible is alerting about some of the assumptions of the
