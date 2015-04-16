@@ -53,17 +53,19 @@ const (
 	sideloadedNamespace = "sideload"
 )
 
-// Fork is a structure that holds an Alias to the preferred part and
+// SharedName is a structure that holds an Alias to the preferred package and
 // the list of all the alternatives.
-type Fork struct {
+type SharedName struct {
 	Alias Part
 	Parts []Part
 }
 
-// Forks is a list of all packages and it's forks
-type Forks map[string]*Fork
+// SharedNames is a list of all packages and it's SharedName structure.
+type SharedNames map[string]*SharedName
 
-func (f *Fork) IsAlias(namespace string) bool {
+// IsAlias determines if namespace is the one that is an alias for the
+// shared name.
+func (f *SharedName) IsAlias(namespace string) bool {
 	if alias := f.Alias; alias != nil {
 		return alias.Namespace() == namespace
 	}
@@ -1056,7 +1058,7 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 }
 
 // Search searches the repository for the given searchTerm
-func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (Forks, error) {
+func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, error) {
 	q := s.searchURI.Query()
 	q.Set("q", searchTerm)
 	s.searchURI.RawQuery = q.Encode()
@@ -1082,22 +1084,22 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (Forks, error) {
 		return nil, err
 	}
 
-	forks := make(Forks, len(searchData.Payload.Packages))
+	sharedNames := make(SharedNames, len(searchData.Payload.Packages))
 	for _, pkg := range searchData.Payload.Packages {
 		snap := NewRemoteSnapPart(pkg)
 		pkgName := snap.Name()
 
-		if _, ok := forks[snap.Name()]; !ok {
-			forks[pkgName] = new(Fork)
+		if _, ok := sharedNames[snap.Name()]; !ok {
+			sharedNames[pkgName] = new(SharedName)
 		}
 
-		forks[pkgName].Parts = append(forks[pkgName].Parts, snap)
+		sharedNames[pkgName].Parts = append(sharedNames[pkgName].Parts, snap)
 		if pkg.Alias != "" {
-			forks[pkgName].Alias = snap
+			sharedNames[pkgName].Alias = snap
 		}
 	}
 
-	return forks, nil
+	return sharedNames, nil
 }
 
 // Updates returns the available updates

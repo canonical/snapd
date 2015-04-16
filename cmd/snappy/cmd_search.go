@@ -43,7 +43,7 @@ func (x *cmdSearch) Execute(args []string) (err error) {
 	return search(args, x.ShowAll)
 }
 
-func search(args []string, allForks bool) error {
+func search(args []string, allVariants bool) error {
 	results, err := snappy.Search(args)
 	if err != nil {
 		return err
@@ -54,18 +54,18 @@ func search(args []string, allForks bool) error {
 
 	forkHelp := false
 	fmt.Fprintln(w, "Name\tVersion\tSummary\t")
-	for _, fork := range results {
-		if part := fork.Alias; !allForks && part != nil {
-			if len(fork.Parts) > 1 {
-				n := len(fork.Parts) - 1
+	for _, sharedName := range results {
+		if part := sharedName.Alias; !allVariants && part != nil {
+			if len(sharedName.Parts) > 1 {
+				n := len(sharedName.Parts) - 1
 				fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s (forks not shown: %d)\t", part.Name(), part.Version(), part.Description(), n))
 				forkHelp = true
 			} else {
 				fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
 			}
 		} else {
-			for _, part := range fork.Parts {
-				if fork.IsAlias(part.Namespace()) {
+			for _, part := range sharedName.Parts {
+				if sharedName.IsAlias(part.Namespace()) {
 					fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
 				} else {
 					fmt.Fprintln(w, fmt.Sprintf("%s.%s\t%s\t%s\t", part.Name(), part.Namespace(), part.Version(), part.Description()))

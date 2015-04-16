@@ -20,7 +20,7 @@ package snappy
 import "strings"
 
 // Search searches all repositories with the given keywords in the args slice
-func Search(args []string) (Forks, error) {
+func Search(args []string) (SharedNames, error) {
 	m := NewUbuntuStoreSnapRepository()
 
 	return m.Search(strings.Join(args, ","))

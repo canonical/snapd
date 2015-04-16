@@ -1103,16 +1103,16 @@ func (s *SnapTestSuite) TestNamespaceFromPath(c *C) {
 
 func (s *SnapTestSuite) TestStructFields(c *C) {
 	type t struct {
-		foo int `json:"hello"`
-		bar int `json:"potato,stuff"`
+		Foo int `json:"hello"`
+		Bar int `json:"potato,stuff"`
 	}
 	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello", "potato"})
 }
 
 func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	type t struct {
-		foo int `json:"hello"`
-		bar int
+		Foo int `json:"hello"`
+		Bar int
 	}
 	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello"})
 }
