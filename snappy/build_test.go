@@ -92,7 +92,10 @@ integration:
 	const expectedJSON = `{
  "name": "hello",
  "version": "1.0.1",
- "framework": "ubuntu-core-15.04-dev1",
+ "architecture": [
+  "i386",
+  "amd64"
+ ],
  "description": "some description",
  "installed-size": "17",
  "maintainer": "Foo \u003cfoo@example.com\u003e",
@@ -119,6 +122,8 @@ func (s *SnapTestSuite) TestBuildAutoGenerateIntegrationHooksBinaries(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 2.0.1
 vendor: Foo <foo@example.com>
+architectures:
+ - i386
 binaries:
  - name: bin/hello-world
 `)
@@ -130,13 +135,15 @@ binaries:
 	// check that there is result
 	_, err = os.Stat(resultSnap)
 	c.Assert(err, IsNil)
-	c.Assert(resultSnap, Equals, "hello_2.0.1_all.snap")
+	c.Assert(resultSnap, Equals, "hello_2.0.1_i386.snap")
 
 	// check that the json looks valid
 	const expectedJSON = `{
  "name": "hello",
  "version": "2.0.1",
- "framework": "ubuntu-core-15.04-dev1",
+ "architecture": [
+  "i386"
+ ],
  "description": "some description",
  "installed-size": "17",
  "maintainer": "Foo \u003cfoo@example.com\u003e",
@@ -148,7 +155,7 @@ binaries:
   }
  }
 }`
-	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_2.0.1_all.snap", "manifest").Output()
+	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_2.0.1_i386.snap", "manifest").Output()
 	c.Assert(err, IsNil)
 	c.Assert(string(readJSON), Equals, expectedJSON)
 }
@@ -175,7 +182,9 @@ services:
 	const expectedJSON = `{
  "name": "hello",
  "version": "3.0.1",
- "framework": "ubuntu-core-15.04-dev1",
+ "architecture": [
+  "all"
+ ],
  "description": "some description",
  "installed-size": "17",
  "maintainer": "Foo \u003cfoo@example.com\u003e",
@@ -200,7 +209,8 @@ services:
 	c.Assert(err, IsNil)
 	c.Assert(string(snappySystemdContent), Equals, `{
  "description": "some description",
- "start": "bin/hello-world"
+ "start": "bin/hello-world",
+ "stop-timeout": "30s"
 }`)
 }
 
@@ -227,7 +237,6 @@ vendor: Foo <foo@example.com>
 	const expectedJSON = `{
  "name": "hello",
  "version": "4.0.1",
- "framework": "ubuntu-core-15.04-dev1",
  "description": "fixme-description",
  "installed-size": "17",
  "maintainer": "Foo \u003cfoo@example.com\u003e",
@@ -351,7 +360,10 @@ integration:
 	const expectedJSON = `{
  "name": "hello",
  "version": "1.0.1",
- "framework": "ubuntu-core-15.04-dev1",
+ "architecture": [
+  "i386",
+  "amd64"
+ ],
  "description": "some description",
  "installed-size": "17",
  "maintainer": "Foo \u003cfoo@example.com\u003e",
