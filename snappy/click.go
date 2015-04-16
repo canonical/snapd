@@ -314,8 +314,14 @@ func removeClick(clickDir string, inter interacter) (err error) {
 		}
 	}
 
-	if manifest.Type == SnapTypeFramework {
-		if err := policy.Remove(manifest.Name, clickDir); err != nil {
+	yamlFile := filepath.Join(clickDir, "meta", "package.yaml")
+	yaml, err := parsePackageYamlFile(yamlFile)
+	if err != nil {
+		return err
+	}
+
+	if yaml.Type == SnapTypeFramework {
+		if err := policy.Remove(yaml.Name, clickDir); err != nil {
 			return err
 		}
 	}
