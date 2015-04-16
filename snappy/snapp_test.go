@@ -780,7 +780,7 @@ framework: one, two
 	c.Assert(err, IsNil)
 	c.Assert(m.Frameworks, HasLen, 2)
 	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
-	c.Check(m.FrameworksForClick(), Matches, "one,two")
+	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
 }
 
 func (s *SnapTestSuite) TestPackageYamlFrameworksParsing(c *C) {
@@ -792,7 +792,7 @@ frameworks:
 	c.Assert(err, IsNil)
 	c.Assert(m.Frameworks, HasLen, 2)
 	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
-	c.Check(m.FrameworksForClick(), Matches, "one,two")
+	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
 }
 
 func (s *SnapTestSuite) TestPackageYamlFrameworkAndFrameworksFails(c *C) {
