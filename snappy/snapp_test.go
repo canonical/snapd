@@ -1008,3 +1008,30 @@ func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	}
 	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello"})
 }
+
+var hardwareYaml = []byte(`name: foo
+version: 1.0
+oem:
+ hardware:
+  assign:
+   - name: device-hive-iot-hal
+     device-by-kernel:
+     - name: ttyUSB
+     device-by-subsystem:
+     - name: tty
+       with-subsystems: usb-serial
+       with-driver: pl2303
+       with-attrs-idVendor: 0xf00f00
+       with-attrs-idProduct: 0xb00
+`)
+
+func (s *SnapTestSuite) TestParseHardwareYaml(c *C) {
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+	c.Assert(m.OEM.Hardware.Assign[0].Name, Equals, "device-hive-iot-hal")
+	c.Assert(m.OEM.Hardware.Assign[0].DeviceByKernel[0].Name, Equals, "ttyUSB")
+	c.Assert(m.OEM.Hardware.Assign[0].DeviceBySubsystem[0].Name, Equals, "tty")
+	c.Assert(m.OEM.Hardware.Assign[0].DeviceBySubsystem[0].WithDriver, Equals, "pl2303")
+	c.Assert(m.OEM.Hardware.Assign[0].DeviceBySubsystem[0].WithAttrsIDVendor, Equals, "0xf00f00")
+	c.Assert(m.OEM.Hardware.Assign[0].DeviceBySubsystem[0].WithAttrsIDProduct, Equals, "0xb00")
+}

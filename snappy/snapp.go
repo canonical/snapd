@@ -145,6 +145,22 @@ type packageYaml struct {
 		Store struct {
 			ID string `yaml:"id,omitempty"`
 		} `yaml:"store,omitempty"`
+
+		Hardware struct {
+			Assign []struct {
+				Name           string
+				DeviceByKernel []struct {
+					Name string
+				} `yaml:"device-by-kernel,omitempty"`
+				DeviceBySubsystem []struct {
+					Name               string
+					WithSubsystems     string `yaml:"with-subsystems,omitempty"`
+					WithDriver         string `yaml:"with-driver,omitempty"`
+					WithAttrsIDVendor  string `yaml:"with-attrs-idVendor,omitempty"`
+					WithAttrsIDProduct string `yaml:"with-attrs-idProduct,omitempty"`
+				} `yaml:"device-by-subsystem,omitempty"`
+			} `yaml:"assign,omitempty"`
+		} `yaml:"hardware,omitempty"`
 	} `yaml:"oem,omitempty"`
 	Config SystemConfig `yaml:"config,omitempty"`
 
