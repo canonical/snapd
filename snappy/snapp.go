@@ -679,7 +679,7 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 			continue
 		}
 
-		namespace, err := namespaceFromPath(realpath)
+		namespace, err := namespaceFromYamlPath(realpath)
 		if err != nil {
 			return nil, err
 		}
@@ -693,7 +693,7 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 	return parts, nil
 }
 
-func namespaceFromPath(path string) (string, error) {
+func namespaceFromYamlPath(path string) (string, error) {
 	namespace := filepath.Ext(filepath.Dir(filepath.Join(path, "..", "..")))
 
 	if len(namespace) < 1 {
