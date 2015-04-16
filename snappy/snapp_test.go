@@ -980,3 +980,11 @@ func (s *SnapTestSuite) TestStructFields(c *C) {
 	}
 	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello", "potato"})
 }
+
+func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
+	type t struct {
+		foo int `json:"hello"`
+		bar int
+	}
+	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello"})
+}

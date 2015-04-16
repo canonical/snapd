@@ -899,14 +899,16 @@ var (
 func getStructFields(s interface{}) []string {
 	st := reflect.TypeOf(s)
 	num := st.NumField()
-	fields := make([]string, num)
+	fields := make([]string, 0, num)
 	for i := 0; i < num; i++ {
 		tag := st.Field(i).Tag.Get("json")
 		idx := strings.IndexRune(tag, ',')
 		if idx > -1 {
 			tag = tag[:idx]
 		}
-		fields[i] = tag
+		if tag != "" {
+			fields = append(fields, tag)
+		}
 	}
 
 	return fields
