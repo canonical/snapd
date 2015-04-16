@@ -762,15 +762,15 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		targetDir = snapOemDir
 	}
 
-	dirName := fmt.Sprintf("%s.%s", manifest.Name, namespace)
-	instDir := filepath.Join(targetDir, dirName, manifest.Version)
+	fullName := fmt.Sprintf("%s.%s", manifest.Name, namespace)
+	instDir := filepath.Join(targetDir, fullName, manifest.Version)
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 
 	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
 		return "", err
 	}
 
-	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
+	dataDir := filepath.Join(snapDataDir, fullName, manifest.Version)
 
 	if err := helpers.EnsureDir(instDir, 0755); err != nil {
 		log.Printf("WARNING: Can not create %s", instDir)
@@ -847,14 +847,14 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 			return "", err
 		}
 
-		err = copySnapData(manifest.Name, oldManifest.Version, manifest.Version)
+		err = copySnapData(fullName, oldManifest.Version, manifest.Version)
 	} else {
 		err = helpers.EnsureDir(dataDir, 0755)
 	}
 
 	defer func() {
 		if err != nil {
-			if cerr := removeSnapData(manifest.Name, manifest.Version); cerr != nil {
+			if cerr := removeSnapData(fullName, manifest.Version); cerr != nil {
 				log.Printf("when clenaning up data for %s %s: %v", manifest.Name, manifest.Version, cerr)
 			}
 		}
@@ -888,8 +888,8 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 }
 
 // removeSnapData removes the data for the given version of the given snap
-func removeSnapData(snapName, version string) error {
-	dirs, err := snapDataDirs(snapName, version)
+func removeSnapData(fullName, version string) error {
+	dirs, err := snapDataDirs(fullName, version)
 	if err != nil {
 		return err
 	}
@@ -904,23 +904,23 @@ func removeSnapData(snapName, version string) error {
 }
 
 // snapDataDirs returns the list of data directories for the given snap version
-func snapDataDirs(snapName, version string) ([]string, error) {
+func snapDataDirs(fullName, version string) ([]string, error) {
 	// collect the directories, homes first
-	dirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, version))
+	dirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, fullName, version))
 	if err != nil {
 		return nil, err
 	}
 	// then system data
-	systemPath := filepath.Join(snapDataDir, snapName, version)
+	systemPath := filepath.Join(snapDataDir, fullName, version)
 	dirs = append(dirs, systemPath)
 
 	return dirs, nil
 }
 
-// Copy all data for "snapName" from "oldVersion" to "newVersion"
+// Copy all data for "fullName" from "oldVersion" to "newVersion"
 // (but never overwrite)
-func copySnapData(snapName, oldVersion, newVersion string) (err error) {
-	oldDataDirs, err := snapDataDirs(snapName, oldVersion)
+func copySnapData(fullName, oldVersion, newVersion string) (err error) {
+	oldDataDirs, err := snapDataDirs(fullName, oldVersion)
 	if err != nil {
 		return err
 	}
