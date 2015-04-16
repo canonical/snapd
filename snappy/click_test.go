@@ -629,7 +629,7 @@ func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 binaries:
- - name: bin/foo
+ - name: bin/bar
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	_, err := installClick(snapFile, AllowUnauthenticated, nil, "mvo")
@@ -637,7 +637,7 @@ binaries:
 
 	// ensure that the binary wrapper file go generated with the right
 	// name
-	binaryWrapper := filepath.Join(snapBinariesDir, "foo.foo")
+	binaryWrapper := filepath.Join(snapBinariesDir, "foo.bar")
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, true)
 
 	// and that it gets removed on remove
@@ -653,7 +653,7 @@ func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 binaries:
- - name: bin/foo
+ - name: bin/bar
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	_, err := installClick(snapFile, AllowUnauthenticated, nil, "mvo")
@@ -661,8 +661,8 @@ binaries:
 
 	// ensure that the binary wrapper file go generated with the right
 	// path
-	oldSnapBin := filepath.Join(snapAppsDir[len(globalRootDir):], "foo.mvo", "1.0", "bin", "foo")
-	binaryWrapper := filepath.Join(snapBinariesDir, "foo.foo")
+	oldSnapBin := filepath.Join(snapAppsDir[len(globalRootDir):], "foo.mvo", "1.0", "bin", "bar")
+	binaryWrapper := filepath.Join(snapBinariesDir, "foo.bar")
 	content, err := ioutil.ReadFile(binaryWrapper)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), oldSnapBin), Equals, true)
@@ -671,7 +671,7 @@ binaries:
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
 	_, err = installClick(snapFile, AllowUnauthenticated, nil, "mvo")
 	c.Assert(err, IsNil)
-	newSnapBin := filepath.Join(snapAppsDir[len(globalRootDir):], "foo.mvo", "2.0", "bin", "foo")
+	newSnapBin := filepath.Join(snapAppsDir[len(globalRootDir):], "foo.mvo", "2.0", "bin", "bar")
 	content, err = ioutil.ReadFile(binaryWrapper)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), newSnapBin), Equals, true)
@@ -711,7 +711,7 @@ func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
-	packageYaml := `name: foo.mvo
+	packageYaml := `name: foo
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 services:
@@ -868,7 +868,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	err = addPackageBinaries(baseDir)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/apps/bin/hello.hello-app"))
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/apps/bin/hello-app.hello"))
 	c.Assert(err, IsNil)
 
 	needle := `
