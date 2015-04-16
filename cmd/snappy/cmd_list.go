@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -85,24 +84,13 @@ func formatDate(t time.Time) string {
 	return fmt.Sprintf("%v-%02d-%02d", t.Year(), int(t.Month()), t.Day())
 }
 
-// takes a "pkg.developer" and returns (name, developer)
-func pkgAndDeveloper(fullname string) (name, developer string) {
-	l := strings.SplitN(fullname, ".", 2)
-	if len(l) == 1 {
-		return fullname, ""
-	}
-
-	return l[0], l[1]
-}
-
 func showInstalledList(installed []snappy.Part, o io.Writer) {
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
 
 	fmt.Fprintln(w, "Name\tDate\tVersion\tDeveloper\t")
 	for _, part := range installed {
 		if part.IsActive() {
-			pkg, developer := pkgAndDeveloper(part.Name())
-			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t%s\t", pkg, formatDate(part.Date()), part.Version(), developer))
+			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t%s\t", part.Name(), formatDate(part.Date()), part.Version(), part.Namespace()))
 		}
 	}
 	w.Flush()
@@ -119,11 +107,13 @@ func showVerboseList(installed []snappy.Part, o io.Writer) {
 		if part.IsActive() {
 			active = "*"
 		}
+
+		needsReboot := ""
 		if part.NeedsReboot() {
 			active = "!"
 		}
-		pkg, developer := pkgAndDeveloper(part.Name())
-		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%s\t%s\t%s\t", pkg, active, formatDate(part.Date()), part.Version(), developer))
+
+		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%s\t%s\t%s%s\t", part.Name(), needsReboot, formatDate(part.Date()), part.Version(), part.Namespace(), active))
 	}
 	w.Flush()
 
