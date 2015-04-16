@@ -89,6 +89,11 @@ func streamsEqual(fa, fb io.Reader) bool {
 // have the prefix in the first one have been updated in the second one.
 //
 // Subdirectories are ignored.
+//
+// This function is to compare the policies and templates in a click
+// to be installed, against the already installed policies and
+// templates, to then determine what changed. The installed files will
+// have the package name prepended.
 func DirUpdated(dirA, pfxA, dirB string) map[string]bool {
 	filesA, _ := filepath.Glob(filepath.Join(dirA, pfxA+"*"))
 
