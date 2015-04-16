@@ -742,7 +742,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		return "", err
 	}
 
-	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
+	dataDir := filepath.Join(snapDataDir, dirName, manifest.Version)
 
 	if err := helpers.EnsureDir(instDir, 0755); err != nil {
 		log.Printf("WARNING: Can not create %s", instDir)
@@ -819,14 +819,14 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 			return "", err
 		}
 
-		err = copySnapData(manifest.Name, oldManifest.Version, manifest.Version)
+		err = copySnapData(dirName, oldManifest.Version, manifest.Version)
 	} else {
 		err = helpers.EnsureDir(dataDir, 0755)
 	}
 
 	defer func() {
 		if err != nil {
-			if cerr := removeSnapData(manifest.Name, manifest.Version); cerr != nil {
+			if cerr := removeSnapData(dirName, manifest.Version); cerr != nil {
 				log.Printf("when clenaning up data for %s %s: %v", manifest.Name, manifest.Version, cerr)
 			}
 		}
@@ -861,6 +861,9 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 
 // removeSnapData removes the data for the given version of the given snap
 func removeSnapData(snapName, version string) error {
+	if !strings.ContainsRune(snapName, '.') {
+		panic("no . in snapName")
+	}
 	dirs, err := snapDataDirs(snapName, version)
 	if err != nil {
 		return err
@@ -877,6 +880,9 @@ func removeSnapData(snapName, version string) error {
 
 // snapDataDirs returns the list of data directories for the given snap version
 func snapDataDirs(snapName, version string) ([]string, error) {
+	if !strings.ContainsRune(snapName, '.') {
+		panic("no . in snapName")
+	}
 	// collect the directories, homes first
 	dirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, version))
 	if err != nil {
@@ -892,6 +898,9 @@ func snapDataDirs(snapName, version string) ([]string, error) {
 // Copy all data for "snapName" from "oldVersion" to "newVersion"
 // (but never overwrite)
 func copySnapData(snapName, oldVersion, newVersion string) (err error) {
+	if !strings.ContainsRune(snapName, '.') {
+		panic("no . in snapName")
+	}
 	oldDataDirs, err := snapDataDirs(snapName, oldVersion)
 	if err != nil {
 		return err
