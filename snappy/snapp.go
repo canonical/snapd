@@ -132,7 +132,7 @@ type packageYaml struct {
 	// the spec allows a string or a list here *ick* so we need
 	// to convert that into something sensible via reflect
 	DeprecatedArchitecture interface{} `yaml:"architecture"`
-	Architectures          []string
+	Architectures          []string    `yaml:"architectures"`
 
 	DeprecatedFramework string   `yaml:"framework,omitempty"`
 	Frameworks          []string `yaml:"frameworks,omitempty"`
@@ -198,16 +198,18 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 
 	// parse the architecture: field that is either a string or a list
 	// or empty (yes, you read that correctly)
-	v := reflect.ValueOf(m.DeprecatedArchitecture)
-	switch v.Kind() {
-	case reflect.Invalid:
-		m.Architectures = []string{"all"}
-	case reflect.String:
-		m.Architectures = []string{v.String()}
-	case reflect.Slice:
-		v2 := m.DeprecatedArchitecture.([]interface{})
-		for _, arch := range v2 {
-			m.Architectures = append(m.Architectures, arch.(string))
+	if m.Architectures == nil {
+		v := reflect.ValueOf(m.DeprecatedArchitecture)
+		switch v.Kind() {
+		case reflect.Invalid:
+			m.Architectures = []string{"all"}
+		case reflect.String:
+			m.Architectures = []string{v.String()}
+		case reflect.Slice:
+			v2 := m.DeprecatedArchitecture.([]interface{})
+			for _, arch := range v2 {
+				m.Architectures = append(m.Architectures, arch.(string))
+			}
 		}
 	}
 
