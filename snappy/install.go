@@ -92,11 +92,18 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (string, e
 		return "", err
 	}
 
-	found, _ := mStore.Details(name)
+	found, err := mStore.Details(name)
+	if err != nil {
+		return "", err
+	}
+
 	for _, part := range found {
 		cur := FindSnapByNameAndVersion(part.Name(), part.Version(), installed)
 		if cur != nil {
 			return "", ErrAlreadyInstalled
+		}
+		if ForkActive(part.Name()) {
+			return "", ErrForkAlreadyInstalled
 		}
 		return part.Install(meter, flags)
 	}

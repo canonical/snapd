@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"path/filepath"
 	"time"
 
 	"launchpad.net/snappy/progress"
@@ -316,4 +317,17 @@ func makeSnapActiveByNameAndVersion(pkg, ver string) error {
 	}
 
 	return part.SetActive(nil)
+}
+
+// ForkActive checks whether a fork of the given name is active in the system
+func ForkActive(name string) bool {
+	for _, d := range []string{snapAppsDir, snapOemDir} {
+		ck := filepath.Join(d, name+".*", "current")
+		g, _ := filepath.Glob(ck)
+		if len(g) > 0 {
+			return true
+		}
+	}
+
+	return false
 }

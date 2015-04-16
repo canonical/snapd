@@ -141,3 +141,40 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	_, err = Install("foo", 0, &progress.NullProgress{})
 	c.Assert(err, Equals, ErrAlreadyInstalled)
 }
+
+func (s *SnapTestSuite) TestInstallAppForkFails(c *C) {
+	// install one:
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	c.Assert(err, IsNil)
+	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
+
+	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-app.manifest"), []byte(`{"name": "hello-app"}`), 0644), IsNil)
+	ag := &agreerator{y: true}
+	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+	current := ActiveSnapByName("hello-app")
+	c.Assert(current, NotNil)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/details/hello-app.potato":
+			io.WriteString(w, `{
+"origin": "potato",
+"package_name": "hello-app",
+"version": "2",
+"anon_download_url": "blah"
+}`)
+		default:
+			panic("unexpected url path: " + r.URL.Path)
+		}
+	}))
+
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	_, err = Install("hello-app.potato", 0, &progress.NullProgress{})
+	c.Assert(err, Equals, ErrForkAlreadyInstalled)
+}

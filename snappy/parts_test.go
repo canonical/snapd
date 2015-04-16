@@ -17,7 +17,13 @@
 
 package snappy
 
-import . "launchpad.net/gocheck"
+import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
+	. "launchpad.net/gocheck"
+)
 
 func (s *SnapTestSuite) TestActiveSnapByType(c *C) {
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app1
@@ -79,4 +85,21 @@ func (s *SnapTestSuite) FindSnapsByNameFound(c *C) {
 	parts := FindSnapsByName("hello-app", installed)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "hello-app")
+}
+
+func (s *SnapTestSuite) TestForkInstalled(c *C) {
+	c.Check(ForkActive("hello-app"), Equals, false)
+
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	c.Assert(err, IsNil)
+	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
+
+	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-app.manifest"), []byte(`{"name": "hello-app"}`), 0644), IsNil)
+	ag := &agreerator{y: true}
+	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+
+	c.Check(ForkActive("hello-app"), Equals, true)
+	c.Assert(unsetActiveClick(pkgdir, true, ag), IsNil)
+	c.Check(ForkActive("hello-app"), Equals, false)
 }
