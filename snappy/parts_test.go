@@ -60,7 +60,8 @@ func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {
 	c.Assert(parts[0].Namespace(), Equals, testNamespace)
 }
 
-func (s *SnapTestSuite) FindSnapsByNameNotAvailable(c *C) {
+func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
+	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository(snapAppsDir)
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
@@ -69,7 +70,7 @@ func (s *SnapTestSuite) FindSnapsByNameNotAvailable(c *C) {
 	c.Assert(parts, HasLen, 0)
 }
 
-func (s *SnapTestSuite) FindSnapsByNameFound(c *C) {
+func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository(snapAppsDir)
 	installed, err := repo.Installed()
