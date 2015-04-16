@@ -609,7 +609,7 @@ type interacter interface {
 	Notify(status string)
 }
 
-func installClick(snapFile string, flags InstallFlags, inter interacter) (name string, err error) {
+func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
 
@@ -660,7 +660,8 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		targetDir = snapOemDir
 	}
 
-	instDir := filepath.Join(targetDir, manifest.Name, manifest.Version)
+	dirName := fmt.Sprintf("%s.%s", manifest.Name, namespace)
+	instDir := filepath.Join(targetDir, dirName, manifest.Version)
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 
 	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
@@ -776,7 +777,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 
 	// oh, one more thing: refresh the security bits
 	if !inhibitHooks {
-		if err := NewSnapPartFromYaml(instDir, m).RefreshDependentsSecurity(inter); err != nil {
+		if err := NewSnapPartFromYaml(instDir, namespace, m).RefreshDependentsSecurity(inter); err != nil {
 			return "", err
 		}
 	}

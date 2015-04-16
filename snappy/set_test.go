@@ -72,9 +72,9 @@ func (s *SnapTestSuite) TestSetProperty(c *C) {
 func (s *SnapTestSuite) TestSetActive(c *C) {
 	makeTwoTestSnaps(c, SnapTypeApp)
 
-	path, err := filepath.EvalSymlinks(filepath.Join(snapAppsDir, "foo", "current"))
+	path, err := filepath.EvalSymlinks(filepath.Join(snapAppsDir, fooComposedName, "current"))
 	c.Assert(err, IsNil)
-	c.Assert(strings.HasSuffix(path, "/foo/2.0"), Equals, true)
+	c.Assert(strings.HasSuffix(path, "/"+fooComposedName+"/2.0"), Equals, true)
 
 	// setActive has some ugly print
 	devnull, err := os.Open(os.DevNull)
@@ -87,6 +87,6 @@ func (s *SnapTestSuite) TestSetActive(c *C) {
 
 	err = makeSnapActiveByNameAndVersion("foo", "1.0")
 	c.Assert(err, IsNil)
-	path, err = filepath.EvalSymlinks(filepath.Join(snapAppsDir, "foo", "current"))
-	c.Assert(strings.HasSuffix(path, "/foo/1.0"), Equals, true)
+	path, err = filepath.EvalSymlinks(filepath.Join(snapAppsDir, fooComposedName, "current"))
+	c.Assert(strings.HasSuffix(path, "/"+fooComposedName+"/1.0"), Equals, true)
 }
