@@ -618,6 +618,29 @@ type interacter interface {
 	Notify(status string)
 }
 
+// this rewrites the json manifest to include the namespace in the on-disk
+// manifest.json to be compatible with click again
+func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace string) error {
+	var cm clickManifest
+	if err := json.Unmarshal(manifestData, &cm); err != nil {
+		return err
+	}
+
+	// add the namespace to the name
+	shortName := cm.Name
+	cm.Name = fmt.Sprintf("%s.%s", shortName, namespace)
+
+	outStr, err := json.MarshalIndent(cm, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(path.Join(clickMetaDir, shortName+".manifest"), []byte(outStr), 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
@@ -717,7 +740,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
 		return "", err
 	}
-	if err := ioutil.WriteFile(path.Join(clickMetaDir, manifest.Name+".manifest"), manifestData, 0644); err != nil {
+	if err := writeCompatManifestJSON(clickMetaDir, manifestData, namespace); err != nil {
 		return "", err
 	}
 

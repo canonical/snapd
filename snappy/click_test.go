@@ -493,14 +493,14 @@ integration:
 `
 	// install 1.0 and then upgrade to 2.0
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil, "")
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, "bar", "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, "")
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(filepath.Join(snapDataDir, "bar", "2.0", "canary.txt"))
 	c.Assert(err, IsNil)
@@ -511,7 +511,7 @@ integration:
 	c.Assert(err, IsNil)
 	// Forcefully in one line to avoid issues with hidden spaces,
 	// it is visually obvious in this form.
-	hookRun := fmt.Sprintf("now: ./bar_app_1.0.tracehook\nnow: \nnow: ./bar_app_2.0.tracehook\n")
+	hookRun := fmt.Sprintf("now: ./bar.%s_app_1.0.tracehook\nnow: \nnow: ./bar.%s_app_2.0.tracehook\n", testNamespace, testNamespace)
 	c.Assert(string(content), Equals, hookRun)
 }
 
@@ -523,8 +523,8 @@ func (s *SnapTestSuite) TestClickCopyDataHookFails(c *C) {
 	// we can ensure that upgrades can work
 	hookContent := fmt.Sprintf(`Hook-Name: hooky
 User: root
-Exec: if test -e %s/bar_app_2.0.hooky; then echo "this log message is harmless and can be ignored"; false; fi
-Pattern: /${id}.hooky`, s.tempdir)
+Exec: if test -e %s/bar.%s_app_2.0.hooky; then echo "this log message is harmless and can be ignored"; false; fi
+Pattern: /${id}.hooky`, s.tempdir, testNamespace)
 	makeClickHook(c, hookContent)
 
 	packageYaml := `name: bar
@@ -802,7 +802,7 @@ integration:
 	c.Assert(err, IsNil)
 
 	// verify we have the symlink
-	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, "foo_app_1.0")), Equals, true)
+	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, fmt.Sprintf("foo.%s_app_1.0", testNamespace))), Equals, true)
 	// and the hook exec was called
 	c.Assert(helpers.FileExists(filepath.Join(s.tempdir, "i-ran")), Equals, true)
 }
@@ -834,7 +834,7 @@ integration:
 	c.Assert(err, IsNil)
 
 	// verify we have the symlink
-	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, "foo_app_1.0")), Equals, true)
+	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, fmt.Sprintf("foo.%s_app_1.0", testNamespace))), Equals, true)
 	// but the hook exec was not called
 	c.Assert(helpers.FileExists(filepath.Join(s.tempdir, "i-ran")), Equals, false)
 }
