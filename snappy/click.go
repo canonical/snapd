@@ -52,6 +52,7 @@ type clickAppHook map[string]string
 type clickManifest struct {
 	Name          string                  `json:"name"`
 	Version       string                  `json:"version"`
+	Architecture  []string                `json:"architecture,omitempty"`
 	Type          SnapType                `json:"type,omitempty"`
 	Framework     string                  `json:"framework,omitempty"`
 	Description   string                  `json:"description,omitempty"`
@@ -258,7 +259,7 @@ func installClickHooks(targetDir string, manifest clickManifest, inhibitHooks bo
 	return iterHooks(manifest, inhibitHooks, func(src, dst string, systemHook clickHook) error {
 		// setup the new link target here, iterHooks will take
 		// care of running the hook
-		realSrc := path.Join(targetDir, src)
+		realSrc := stripGlobalRootDir(path.Join(targetDir, src))
 		if err := os.Symlink(realSrc, dst); err != nil {
 			return err
 		}
@@ -338,11 +339,7 @@ func generateBinaryName(m *packageYaml, binary Binary) string {
 }
 
 func binPathForBinary(pkgPath string, binary Binary) string {
-	if binary.Exec != "" {
-		return filepath.Join(pkgPath, binary.Exec)
-	}
-
-	return filepath.Join(pkgPath, binary.Name)
+	return filepath.Join(pkgPath, binary.Exec)
 }
 
 func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) string {
@@ -419,7 +416,9 @@ func generateServiceFileName(m *packageYaml, service Service) string {
 // takes a directory and removes the global root, this is needed
 // when the SetRoot option is used and we need to generate
 // content for the "Services" and "Binaries" section
-func stripGlobalRootDir(dir string) string {
+var stripGlobalRootDir = stripGlobalRootDirImpl
+
+func stripGlobalRootDirImpl(dir string) string {
 	if globalRootDir == "/" {
 		return dir
 	}
@@ -523,7 +522,7 @@ func addPackageBinaries(baseDir string) error {
 	}
 
 	for _, binary := range m.Binaries {
-		aaProfile := getAaProfile(m, filepath.Base(binary.Name))
+		aaProfile := getAaProfile(m, binary.Name)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -611,7 +610,7 @@ type interacter interface {
 	Notify(status string)
 }
 
-func installClick(snapFile string, flags InstallFlags, inter interacter) (name string, err error) {
+func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
 
@@ -662,7 +661,8 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		targetDir = snapOemDir
 	}
 
-	instDir := filepath.Join(targetDir, manifest.Name, manifest.Version)
+	dirName := fmt.Sprintf("%s.%s", manifest.Name, namespace)
+	instDir := filepath.Join(targetDir, dirName, manifest.Version)
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 
 	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
@@ -778,7 +778,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 
 	// oh, one more thing: refresh the security bits
 	if !inhibitHooks {
-		if err := NewSnapPartFromYaml(instDir, m).RefreshDependentsSecurity(inter); err != nil {
+		if err := NewSnapPartFromYaml(instDir, namespace, m).RefreshDependentsSecurity(inter); err != nil {
 			return "", err
 		}
 	}
@@ -839,9 +839,8 @@ func copySnapData(snapName, oldVersion, newVersion string) (err error) {
 func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	if _, err := os.Stat(oldPath); err == nil {
 		if _, err := os.Stat(newPath); err != nil {
-			// there is no golang "CopyFile" and we want hardlinks
-			// by default to save space
-			cmd := exec.Command("cp", "-al", oldPath, newPath)
+			// there is no golang "CopyFile"
+			cmd := exec.Command("cp", "-a", oldPath, newPath)
 			if err := cmd.Run(); err != nil {
 				if exitCode, err := helpers.ExitCode(err); err != nil {
 					return &ErrDataCopyFailed{

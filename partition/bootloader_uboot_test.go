@@ -50,8 +50,8 @@ snappy_cmdline=init=/lib/systemd/systemd ro panic=-1 fixrtc
 snappy_ab=a
 # stamp file indicating a new version is being tried; removed by s-i after boot
 snappy_stamp=snappy-stamp.txt
-# either "default" (normal boot) or "try" when trying a new version
-snappy_mode=default
+# either "regular" (normal boot) or "try" when trying a new version
+snappy_mode=regular
 # if we're trying a new version, check if stamp file is already there to revert
 # to other version
 snappy_boot=if test "${snappy_mode}" = "try"; then if test -e mmc ${bootpart} ${snappy_stamp}; then if test "${snappy_ab}" = "a"; then setenv snappy_ab "b"; else setenv snappy_ab "a"; fi; else fatwrite mmc ${mmcdev}:${mmcpart} 0x0 ${snappy_stamp} 0; fi; fi; run loadfiles; setenv mmcroot /dev/disk/by-label/system-${snappy_ab} ${snappy_cmdline}; run mmcargs; bootz ${loadaddr} ${initrd_addr}:${initrd_size} ${fdtaddr}
@@ -137,7 +137,7 @@ func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
 
 	v, err := u.GetBootVar(bootloaderBootmodeVar)
 	c.Assert(err, IsNil)
-	c.Assert(v, Equals, "default")
+	c.Assert(v, Equals, "regular")
 
 	v, err = u.GetBootVar(bootloaderRootfsVar)
 	c.Assert(err, IsNil)
@@ -265,8 +265,8 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	c.Assert(u, NotNil)
 
 	// enter "try" mode so that we check to ensure that snappy
-	// correctly modifies the snappy_mode variable from "try" to "default" to
-	// denote a good boot.
+	// correctly modifies the snappy_mode variable from "try" to
+	// "regular" to denote a good boot.
 	err = u.ToggleRootFS()
 	c.Assert(err, IsNil)
 
@@ -274,7 +274,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	bytes, err := ioutil.ReadFile(bootloaderUbootEnvFile)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, true)
-	c.Assert(strings.Contains(string(bytes), "snappy_mode=default"), Equals, false)
+	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, false)
 
 	err = u.MarkCurrentBootSuccessful()
 	c.Assert(err, IsNil)
@@ -285,5 +285,5 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	bytes, err = ioutil.ReadFile(bootloaderUbootEnvFile)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, false)
-	c.Assert(strings.Contains(string(bytes), "snappy_mode=default"), Equals, true)
+	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
 }

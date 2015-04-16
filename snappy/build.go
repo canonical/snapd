@@ -127,7 +127,7 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 			m.Integration[hookName] = make(map[string]string)
 		}
 		// legacy click hook
-		m.Integration[hookName]["bin-path"] = v.Name
+		m.Integration[hookName]["bin-path"] = v.Exec
 
 		// handle the apparmor stuff
 		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
@@ -337,6 +337,7 @@ func writeClickManifest(buildDir string, m *packageYaml) error {
 	cm := clickManifest{
 		Name:          m.Name,
 		Version:       m.Version,
+		Architecture:  m.Architectures,
 		Framework:     m.FrameworksForClick(),
 		Type:          m.Type,
 		Icon:          m.Icon,

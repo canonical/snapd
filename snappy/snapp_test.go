@@ -86,6 +86,7 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 	ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 	duCmd = "du"
+	stripGlobalRootDir = stripGlobalRootDirImpl
 }
 
 func (s *SnapTestSuite) makeInstalledMockSnap() (yamlFile string, err error) {
@@ -101,7 +102,7 @@ func makeSnapActive(packageYamlPath string) (err error) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapInvalidPath(c *C) {
-	snap := NewInstalledSnapPart("invalid-path")
+	snap := NewInstalledSnapPart("invalid-path", "")
 	c.Assert(snap, IsNil)
 }
 
@@ -109,7 +110,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 
-	snap := NewInstalledSnapPart(snapYaml)
+	snap := NewInstalledSnapPart(snapYaml, testNamespace)
 	c.Assert(snap, NotNil)
 	c.Assert(snap.Name(), Equals, "hello-app")
 	c.Assert(snap.Version(), Equals, "1.10")
@@ -124,7 +125,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snap.Date(), Equals, st.ModTime())
 
-	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", "hello-app", "1.10"))
+	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", helloAppComposedName, "1.10"))
 	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
@@ -136,7 +137,7 @@ func (s *SnapTestSuite) TestLocalSnapHash(c *C) {
 	err = ioutil.WriteFile(hashesFile, []byte("archive-sha512: F00F00"), 0644)
 	c.Assert(err, IsNil)
 
-	snap := NewInstalledSnapPart(snapYaml)
+	snap := NewInstalledSnapPart(snapYaml, testNamespace)
 	c.Assert(snap.Hash(), Equals, "F00F00")
 }
 
@@ -145,7 +146,7 @@ func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYaml)
 
-	snap := NewInstalledSnapPart(snapYaml)
+	snap := NewInstalledSnapPart(snapYaml, testNamespace)
 	c.Assert(snap.IsActive(), Equals, true)
 }
 
@@ -158,7 +159,7 @@ frameworks:
 `)
 	c.Assert(err, IsNil)
 
-	snap := NewInstalledSnapPart(snapYaml)
+	snap := NewInstalledSnapPart(snapYaml, testNamespace)
 	fmk, err := snap.Frameworks()
 	c.Assert(err, IsNil)
 	c.Check(fmk, DeepEquals, []string{"one", "two"})
@@ -460,7 +461,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
-	snap := NewInstalledSnapPart(yamlFile)
+	snap := NewInstalledSnapPart(yamlFile, "sergiusens")
 	c.Assert(snap, NotNil)
 
 	os.Setenv("SNAP_NAME", "override-me")
@@ -565,11 +566,11 @@ services:
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, packageHello)
 	c.Assert(err, IsNil)
 
-	snap := NewInstalledSnapPart(yamlFile)
+	snap := NewInstalledSnapPart(yamlFile, testNamespace)
 	c.Assert(snap, NotNil)
 
 	c.Assert(snap.Name(), Equals, "hello-app")
-	c.Assert(snap.Namespace(), Equals, sideloadedNamesapce)
+	c.Assert(snap.Namespace(), Equals, testNamespace)
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
 
@@ -597,7 +598,7 @@ services:
 	c.Assert(err, IsNil)
 	c.Assert(snap.Date(), Equals, st.ModTime())
 
-	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", "hello-app", "1.10"))
+	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", helloAppComposedName, "1.10"))
 	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
@@ -842,7 +843,7 @@ func (s *SnapTestSuite) TestUpdateAppArmorJSONTimestamp(c *C) {
 
 	yaml, err := parsePackageYamlData([]byte(`name: foo`))
 	c.Assert(err, IsNil)
-	part := &SnapPart{m: yaml}
+	part := &SnapPart{m: yaml, namespace: "sergiusens"}
 
 	c.Assert(part.UpdateAppArmorJSONTimestamp(), IsNil)
 
@@ -864,7 +865,7 @@ func (s *SnapTestSuite) TestUpdateAppArmorJSONTimestampFails(c *C) {
 
 	yaml, err := parsePackageYamlData([]byte(`name: foo`))
 	c.Assert(err, IsNil)
-	part := &SnapPart{m: yaml}
+	part := &SnapPart{m: yaml, namespace: "sergiusens"}
 
 	c.Assert(part.UpdateAppArmorJSONTimestamp(), NotNil)
 }
@@ -898,7 +899,7 @@ version: 1.0
 type: framework`))
 	c.Assert(err, IsNil)
 	inter := new(MockProgressMeter)
-	part := &SnapPart{m: yaml}
+	part := &SnapPart{m: yaml, namespace: "sergiusens"}
 
 	c.Assert(part.RefreshDependentsSecurity(inter), IsNil)
 
@@ -929,7 +930,21 @@ frameworks:
 `)
 	c.Assert(err, IsNil)
 
-	part := &SnapPart{m: yaml}
+	part := &SnapPart{m: yaml, namespace: testNamespace}
 	err = part.Uninstall(new(MockProgressMeter))
 	c.Check(err, ErrorMatches, `framework still in use by: foo`)
+}
+
+func (s *SnapTestSuite) TestNamespaceFromPath(c *C) {
+	n, err := namespaceFromPath("/oem/foo.bar/1.0/meta/package.yaml")
+	c.Check(err, IsNil)
+	c.Check(n, Equals, "bar")
+
+	n, err = namespaceFromPath("/oem/foo_bar/1.0/meta/package.yaml")
+	c.Check(err, NotNil)
+	c.Check(n, Equals, "")
+
+	n, err = namespaceFromPath("/oo_bar/1.0/mpackage.yaml")
+	c.Check(err, NotNil)
+	c.Check(n, Equals, "")
 }
