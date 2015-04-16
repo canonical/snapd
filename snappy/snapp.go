@@ -272,7 +272,19 @@ func (m *packageYaml) checkForNameClashes() error {
 }
 
 func (m *packageYaml) FrameworksForClick() string {
-	return strings.Join(m.Frameworks, ",")
+	fmks := m.Frameworks
+	fmkCore := false
+	for _, a := range fmks {
+		if a == "ubuntu-core-15.04-dev1" {
+			fmkCore = true
+			break
+		}
+	}
+	if !fmkCore {
+		fmks = append(fmks, "ubuntu-core-15.04-dev1")
+	}
+
+	return strings.Join(fmks, ",")
 }
 
 func (m *packageYaml) checkForFrameworks() error {
