@@ -1065,7 +1065,7 @@ func (s *SnapTestSuite) TestWriteHardwareUdevEtc(c *C) {
 	snapUdevRulesDir = c.MkDir()
 	writeOemHardwareUdevRules(m)
 
-	c.Assert(helpers.FileExists(filepath.Join(snapUdevRulesDir, "snappy_oem-foo_device-hive-iot-hal.rules")), Equals, true)
+	c.Assert(helpers.FileExists(filepath.Join(snapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")), Equals, true)
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
@@ -1073,7 +1073,7 @@ func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
 	c.Assert(err, IsNil)
 
 	snapUdevRulesDir = c.MkDir()
-	udevRulesFile := filepath.Join(snapUdevRulesDir, "snappy_oem-foo_device-hive-iot-hal.rules")
+	udevRulesFile := filepath.Join(snapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")
 	c.Assert(ioutil.WriteFile(udevRulesFile, nil, 0644), Equals, nil)
 	cleanupOemHardwareUdevRules(m)
 

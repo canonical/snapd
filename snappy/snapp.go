@@ -196,7 +196,7 @@ type searchResults struct {
 }
 
 func cleanupOemHardwareUdevRules(m *packageYaml) error {
-	oldFiles, err := filepath.Glob(filepath.Join(snapUdevRulesDir, fmt.Sprintf("snappy_%s_*.rules", m.Name)))
+	oldFiles, err := filepath.Glob(filepath.Join(snapUdevRulesDir, fmt.Sprintf("80-snappy_%s_*.rules", m.Name)))
 	if err != nil {
 		return err
 	}
@@ -219,7 +219,7 @@ func writeOemHardwareUdevRules(m *packageYaml) error {
 		if err != nil {
 			return err
 		}
-		outfile := filepath.Join(snapUdevRulesDir, fmt.Sprintf("snappy_%s_%s.rules", m.Name, h.AppID))
+		outfile := filepath.Join(snapUdevRulesDir, fmt.Sprintf("80-snappy_%s_%s.rules", m.Name, h.AppID))
 		if err := ioutil.WriteFile(outfile, []byte(rulesContent), 0644); err != nil {
 			return err
 		}
