@@ -386,7 +386,7 @@ fi
 sed "s/^/$submenu_indentation/" << EOF
     # set defaults
     if [ -z "\$snappy_mode" ]; then
-        set snappy_mode=default
+        set snappy_mode=regular
         save_env snappy_mode
     fi
     if [ -z "\$snappy_ab" ]; then

@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 if [ "$1" = configure ]; then
     adduser --system \
         --disabled-password \
@@ -8,3 +10,5 @@ if [ "$1" = configure ]; then
         --group \
         clickpkg
 fi
+
+#DEBHELPER#

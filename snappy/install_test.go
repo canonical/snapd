@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -88,7 +89,7 @@ vendor: Foo Bar <foo@example.com>
 func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 	s.installThree(c, AllowUnauthenticated|DoInstallGC)
 
-	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo", "*"))
+	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo.sideload", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(globs, HasLen, 2+1) // +1 for "current"
 }
@@ -97,7 +98,7 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 	s.installThree(c, AllowUnauthenticated)
 
-	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo", "*"))
+	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo.sideload", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(globs, HasLen, 3+1) // +1 for "current"
 }
@@ -108,13 +109,14 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	c.Assert(err, IsNil)
 	defer snapR.Close()
 
-	var url string
+	var dlURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/details/foo":
 			io.WriteString(w, `{
-"name": "foo", "version": "2",
-"anon_download_url": "`+url+`"
+"package_name": "foo",
+"version": "2",
+"anon_download_url": "`+dlURL+`"
 }`)
 		case "/dl":
 			snapR.Seek(0, 0)
@@ -124,8 +126,10 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 		}
 	}))
 
-	url = mockServer.URL + "/dl"
-	storeDetailsURI = mockServer.URL + "/details/%s"
+	dlURL = mockServer.URL + "/dl"
+
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
 
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()

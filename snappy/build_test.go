@@ -92,6 +92,10 @@ integration:
 	const expectedJSON = `{
  "name": "hello",
  "version": "1.0.1",
+ "architecture": [
+  "i386",
+  "amd64"
+ ],
  "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
@@ -119,6 +123,8 @@ func (s *SnapTestSuite) TestBuildAutoGenerateIntegrationHooksBinaries(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 2.0.1
 vendor: Foo <foo@example.com>
+architectures:
+ - i386
 binaries:
  - name: bin/hello-world
 `)
@@ -130,12 +136,15 @@ binaries:
 	// check that there is result
 	_, err = os.Stat(resultSnap)
 	c.Assert(err, IsNil)
-	c.Assert(resultSnap, Equals, "hello_2.0.1_all.snap")
+	c.Assert(resultSnap, Equals, "hello_2.0.1_i386.snap")
 
 	// check that the json looks valid
 	const expectedJSON = `{
  "name": "hello",
  "version": "2.0.1",
+ "architecture": [
+  "i386"
+ ],
  "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
@@ -148,7 +157,7 @@ binaries:
   }
  }
 }`
-	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_2.0.1_all.snap", "manifest").Output()
+	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_2.0.1_i386.snap", "manifest").Output()
 	c.Assert(err, IsNil)
 	c.Assert(string(readJSON), Equals, expectedJSON)
 }
@@ -175,6 +184,9 @@ services:
 	const expectedJSON = `{
  "name": "hello",
  "version": "3.0.1",
+ "architecture": [
+  "all"
+ ],
  "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
@@ -352,6 +364,10 @@ integration:
 	const expectedJSON = `{
  "name": "hello",
  "version": "1.0.1",
+ "architecture": [
+  "i386",
+  "amd64"
+ ],
  "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",

@@ -35,13 +35,14 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/systemd"
 
@@ -53,6 +54,7 @@ type clickAppHook map[string]string
 type clickManifest struct {
 	Name          string                  `json:"name"`
 	Version       string                  `json:"version"`
+	Architecture  []string                `json:"architecture,omitempty"`
 	Type          SnapType                `json:"type,omitempty"`
 	Framework     string                  `json:"framework,omitempty"`
 	Description   string                  `json:"description,omitempty"`
@@ -85,6 +87,10 @@ var ignoreHooks = map[string]bool{
 	"bin-path":       true,
 	"snappy-systemd": true,
 }
+
+// servicesBinariesStringsWhitelist is the whitelist of legal chars
+// in the "binaries" and "services" section of the package.yaml
+const servicesBinariesStringsWhitelist = `^[A-Za-z0-9/. _#:-]*$`
 
 // Execute the hook.Exec command
 func execHook(execCmd string) (err error) {
@@ -259,7 +265,7 @@ func installClickHooks(targetDir string, manifest clickManifest, inhibitHooks bo
 	return iterHooks(manifest, inhibitHooks, func(src, dst string, systemHook clickHook) error {
 		// setup the new link target here, iterHooks will take
 		// care of running the hook
-		realSrc := path.Join(targetDir, src)
+		realSrc := stripGlobalRootDir(path.Join(targetDir, src))
 		if err := os.Symlink(realSrc, dst); err != nil {
 			return err
 		}
@@ -332,21 +338,21 @@ func generateBinaryName(m *packageYaml, binary Binary) string {
 	if m.Type == SnapTypeFramework {
 		binName = filepath.Base(binary.Name)
 	} else {
-		binName = fmt.Sprintf("%s.%s", filepath.Base(binary.Name), m.Name)
+		binName = fmt.Sprintf("%s.%s", m.Name, filepath.Base(binary.Name))
 	}
 
 	return filepath.Join(snapBinariesDir, binName)
 }
 
 func binPathForBinary(pkgPath string, binary Binary) string {
-	if binary.Exec != "" {
-		return filepath.Join(pkgPath, binary.Exec)
-	}
-
-	return filepath.Join(pkgPath, binary.Name)
+	return filepath.Join(pkgPath, binary.Exec)
 }
 
-func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) string {
+func verifyBinariesYaml(binary Binary) error {
+	return verifyStructStringsAgainstWhitelist(binary, servicesBinariesStringsWhitelist)
+}
+
+func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) (string, error) {
 	wrapperTemplate := `#!/bin/sh
 # !!!never remove this line!!!
 ##TARGET={{.Target}}
@@ -386,6 +392,11 @@ export SNAP_OLD_PWD="$(pwd)"
 cd {{.Path}}
 aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 `
+
+	if err := verifyBinariesYaml(binary); err != nil {
+		return "", err
+	}
+
 	actualBinPath := binPathForBinary(pkgPath, binary)
 
 	var templateOut bytes.Buffer
@@ -401,55 +412,67 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	}
 	t.Execute(&templateOut, wrapperData)
 
-	return templateOut.String()
+	return templateOut.String(), nil
 }
 
-func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) string {
-
-	serviceTemplate := `[Unit]
-Description={{.Description}}
-After=ubuntu-snappy.run-hooks.service
-X-Snappy=yes
-
-[Service]
-ExecStart={{.FullPathStart}}
-WorkingDirectory={{.AppPath}}
-Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}" "TMPDIR=/tmp/snaps/{{.Name}}/{{.Version}}/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/{{.Name}}/{{.Version}}/tmp"
-AppArmorProfile={{.AaProfile}}
-{{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
-{{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
-{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
-
-[Install]
-WantedBy=multi-user.target
-`
-	var templateOut bytes.Buffer
-	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
-	wrapperData := struct {
-		// embed service struct
-		Service
-		// but we need more
-		Name             string
-		Version          string
-		AppPath          string
-		AaProfile        string
-		FullPathStart    string
-		FullPathStop     string
-		FullPathPostStop string
-		AppTriple        string
-	}{
-		service, m.Name, m.Version, baseDir, aaProfile,
-		filepath.Join(baseDir, service.Start),
-		filepath.Join(baseDir, service.Stop),
-		filepath.Join(baseDir, service.PostStop),
-		fmt.Sprintf("%s_%s_%s", m.Name, service.Name, m.Version),
-	}
-	if err := t.Execute(&templateOut, wrapperData); err != nil {
-		// this can never happen, except we forget a variable
-		logger.LogAndPanic(err)
+// verifyStructStringsAgainstWhitelist takes a struct and ensures that
+// the given whitelist regexp matches all string fields of the struct
+func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error {
+	r, err := regexp.Compile(whitelist)
+	if err != nil {
+		return err
 	}
 
-	return templateOut.String()
+	// check all members of the services struct against our whitelist
+	t := reflect.TypeOf(s)
+	v := reflect.ValueOf(s)
+	for i := 0; i < t.NumField(); i++ {
+
+		// PkgPath means its a unexported field and we can ignore it
+		if t.Field(i).PkgPath != "" {
+			continue
+		}
+		if v.Field(i).Kind() == reflect.Ptr {
+			vi := v.Field(i).Elem()
+			if vi.Kind() == reflect.Struct {
+				return verifyStructStringsAgainstWhitelist(vi.Interface(), whitelist)
+			}
+		}
+		if v.Field(i).Kind() == reflect.Struct {
+			vi := v.Field(i).Interface()
+			return verifyStructStringsAgainstWhitelist(vi, whitelist)
+		}
+		if v.Field(i).Kind() == reflect.String {
+			key := t.Field(i).Name
+			value := v.Field(i).String()
+			if !r.MatchString(value) {
+				return &ErrStructIllegalContent{
+					field:     key,
+					content:   value,
+					whitelist: whitelist,
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func verifyServiceYaml(service Service) error {
+	return verifyStructStringsAgainstWhitelist(service, servicesBinariesStringsWhitelist)
+}
+
+func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) (string, error) {
+	if err := verifyServiceYaml(service); err != nil {
+		return "", err
+	}
+
+	return systemd.New(globalRootDir, nil).GenServiceFile(
+		&systemd.ServiceDescription{
+			m.Name, service.Name, m.Version, service.Description,
+			baseDir, service.Start, service.Stop, service.PostStop,
+			time.Duration(service.StopTimeout), aaProfile,
+		}), nil
 }
 
 func generateServiceFileName(m *packageYaml, service Service) string {
@@ -459,7 +482,9 @@ func generateServiceFileName(m *packageYaml, service Service) string {
 // takes a directory and removes the global root, this is needed
 // when the SetRoot option is used and we need to generate
 // content for the "Services" and "Binaries" section
-func stripGlobalRootDir(dir string) string {
+var stripGlobalRootDir = stripGlobalRootDirImpl
+
+func stripGlobalRootDirImpl(dir string) string {
 	if globalRootDir == "/" {
 		return dir
 	}
@@ -483,13 +508,20 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 	}
 
 	for _, service := range m.Services {
-		aaProfile := getAaProfile(m, service.Name)
+		namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "/meta/package.yaml"))
+		if err != nil {
+			return err
+		}
+		aaProfile := getAaProfile(m, service.Name, namespace)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
-		content := generateSnapServicesFile(service, realBaseDir, aaProfile, m)
+		content, err := generateSnapServicesFile(service, realBaseDir, aaProfile, m)
+		if err != nil {
+			return err
+		}
 		serviceFilename := generateServiceFileName(m, service)
 		helpers.EnsureDir(filepath.Dir(serviceFilename), 0755)
 		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0644); err != nil {
@@ -501,16 +533,19 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 		//
 		// *but* always run enable (which just sets a symlink)
 		serviceName := filepath.Base(generateServiceFileName(m, service))
+		sysd := systemd.New(globalRootDir, inter)
 		if !inhibitHooks {
-			sysd := systemd.New(globalRootDir, inter)
 			if err := sysd.DaemonReload(); err != nil {
 				return err
 			}
+		}
 
-			if err := sysd.Enable(serviceName); err != nil {
-				return err
-			}
+		// we always enable the service even in inhibit hooks
+		if err := sysd.Enable(serviceName); err != nil {
+			return err
+		}
 
+		if !inhibitHooks {
 			if err := sysd.Start(serviceName); err != nil {
 				return err
 			}
@@ -560,13 +595,21 @@ func addPackageBinaries(baseDir string) error {
 	}
 
 	for _, binary := range m.Binaries {
-		aaProfile := getAaProfile(m, filepath.Base(binary.Name))
+		namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "/meta/package.yaml"))
+		if err != nil {
+			return err
+		}
+		aaProfile := getAaProfile(m, binary.Name, namespace)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
-		content := generateSnapBinaryWrapper(binary, realBaseDir, aaProfile, m)
+		content, err := generateSnapBinaryWrapper(binary, realBaseDir, aaProfile, m)
+		if err != nil {
+			return err
+		}
+
 		if err := ioutil.WriteFile(generateBinaryName(m, binary), []byte(content), 0755); err != nil {
 			return err
 		}
@@ -625,12 +668,12 @@ func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
 		return ErrUnpackHelperNotFound
 	}
 
-	cmd := exec.Command(privHelper, "internal-unpack", d.Path, instDir, globalRootDir)
+	cmd := exec.Command(privHelper, "internal-unpack", d.Name(), instDir, globalRootDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return &ErrUnpackFailed{
-			snapFile: d.Path,
+			snapFile: d.Name(),
 			instDir:  instDir,
 			origErr:  err,
 		}
@@ -639,12 +682,39 @@ func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
 	return nil
 }
 
-type interacter interface {
+type agreer interface {
 	Agreed(intro, license string) bool
+}
+
+type interacter interface {
+	agreer
 	Notify(status string)
 }
 
-func installClick(snapFile string, flags InstallFlags, inter interacter) (name string, err error) {
+// this rewrites the json manifest to include the namespace in the on-disk
+// manifest.json to be compatible with click again
+func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace string) error {
+	var cm clickManifest
+	if err := json.Unmarshal(manifestData, &cm); err != nil {
+		return err
+	}
+
+	// add the namespace to the name
+	shortName := cm.Name
+	cm.Name = fmt.Sprintf("%s.%s", shortName, namespace)
+
+	outStr, err := json.MarshalIndent(cm, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(path.Join(clickMetaDir, shortName+".manifest"), []byte(outStr), 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
 	// FIXME: drop privs to "snap:snap" here
 	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
 
@@ -656,7 +726,11 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		//return SnapAuditError
 	}
 
-	d := &clickdeb.ClickDeb{Path: snapFile}
+	d, err := clickdeb.Open(snapFile)
+	if err != nil {
+		return "", err
+	}
+	defer d.Close()
 	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
@@ -685,29 +759,22 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 		return "", err
 	}
 
-	if m.ExplicitLicenseAgreement {
-		if inter == nil {
-			return "", ErrLicenseNotAccepted
-		}
-		license, err := d.MetaMember("license.txt")
-		if err != nil || len(license) == 0 {
-			return "", ErrLicenseNotProvided
-		}
-		msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
-		if !inter.Agreed(msg, string(license)) {
-			return "", ErrLicenseNotAccepted
-		}
-	}
-
-	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
-
 	targetDir := snapAppsDir
 	// the "oem" parts are special
 	if manifest.Type == SnapTypeOem {
 		targetDir = snapOemDir
 	}
 
-	instDir := filepath.Join(targetDir, manifest.Name, manifest.Version)
+	dirName := fmt.Sprintf("%s.%s", manifest.Name, namespace)
+	instDir := filepath.Join(targetDir, dirName, manifest.Version)
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
+
+	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
+		return "", err
+	}
+
+	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
+
 	if err := helpers.EnsureDir(instDir, 0755); err != nil {
 		log.Printf("WARNING: Can not create %s", instDir)
 	}
@@ -746,7 +813,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
 		return "", err
 	}
-	if err := ioutil.WriteFile(path.Join(clickMetaDir, manifest.Name+".manifest"), manifestData, 0644); err != nil {
+	if err := writeCompatManifestJSON(clickMetaDir, manifestData, namespace); err != nil {
 		return "", err
 	}
 
@@ -757,7 +824,6 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 
 	inhibitHooks := (flags & InhibitHooks) != 0
 
-	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 	// deal with the data:
 	//
 	// if there was a previous version, stop it
@@ -815,8 +881,10 @@ func installClick(snapFile string, flags InstallFlags, inter interacter) (name s
 	}
 
 	// oh, one more thing: refresh the security bits
-	if err := NewSnapPartFromYaml(instDir, m).RefreshDependentsSecurity(inter); err != nil {
-		return "", err
+	if !inhibitHooks {
+		if err := NewSnapPartFromYaml(instDir, namespace, m).RefreshDependentsSecurity(inter); err != nil {
+			return "", err
+		}
 	}
 
 	return manifest.Name, nil
@@ -875,9 +943,8 @@ func copySnapData(snapName, oldVersion, newVersion string) (err error) {
 func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	if _, err := os.Stat(oldPath); err == nil {
 		if _, err := os.Stat(newPath); err != nil {
-			// there is no golang "CopyFile" and we want hardlinks
-			// by default to save space
-			cmd := exec.Command("cp", "-al", oldPath, newPath)
+			// there is no golang "CopyFile"
+			cmd := exec.Command("cp", "-a", oldPath, newPath)
 			if err := cmd.Run(); err != nil {
 				if exitCode, err := helpers.ExitCode(err); err != nil {
 					return &ErrDataCopyFailed{
