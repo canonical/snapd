@@ -245,18 +245,18 @@ curl -s --data-binary '{"name":["8nzc1x4iim2xj1g2ul64.chipaca"]}'  -H 'content-t
 */
 const MockUpdatesJSON = `[
     {
-        "status": "Published", 
-        "name": "8nzc1x4iim2xj1g2ul64.chipaca", 
-        "package_name": "8nzc1x4iim2xj1g2ul64", 
-        "origin": "chipaca", 
-        "changelog": "", 
-        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png", 
-        "title": "Returns for store credit only.", 
-        "binary_filesize": 65375, 
-        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap", 
-        "allow_unauthenticated": true, 
-        "version": "42", 
-        "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap", 
+        "status": "Published",
+        "name": "8nzc1x4iim2xj1g2ul64.chipaca",
+        "package_name": "8nzc1x4iim2xj1g2ul64",
+        "origin": "chipaca",
+        "changelog": "",
+        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
+        "title": "Returns for store credit only.",
+        "binary_filesize": 65375,
+        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
+        "allow_unauthenticated": true,
+        "version": "42",
+        "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
         "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42"
     }
 ]`
@@ -338,6 +338,76 @@ const MockDetailsJSON = `{
     "whitelist_country_codes": []
 }
 `
+
+/* acquired via
+curl -s -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,alias" | python -m json.tool
+*/
+const MockAliasSearchJSON = `{
+    "_embedded": {
+        "clickindex:package": [
+            {
+                "_links": {
+                    "self": {
+                        "href": "https://search.apps.ubuntu.com/api/v1/package/hello-world.canonical"
+                    }
+                },
+                "alias": "hello-world",
+                "anon_download_url": "https://public.apps.ubuntu.com/anon/download/canonical/hello-world.canonical/hello-world.canonical_1.0.8_all.snap",
+                "binary_filesize": 32409,
+                "content": "application",
+                "download_sha512": "70381281e979f2914851296ae70ea2f5d964724e8cebb3bdd98d2d51e07ebb19ab56c1009c3c78c91246076ba726b7abbccd97aaec40c9fdd7ac3f1025c3cf52",
+                "download_url": "https://public.apps.ubuntu.com/download/canonical/hello-world.canonical/hello-world.canonical_1.0.8_all.snap",
+                "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+                "last_updated": "2015-04-16T16:13:58.104820Z",
+                "origin": "canonical",
+                "package_name": "hello-world",
+                "prices": {},
+                "publisher": "Canonical",
+                "ratings_average": 0.0,
+                "support_url": "mailto:snappy-devel@lists.ubuntu.com",
+                "title": "hello-world",
+                "version": "1.0.8"
+            },
+            {
+                "_links": {
+                    "self": {
+                        "href": "https://search.apps.ubuntu.com/api/v1/package/hello-world.jdstrand"
+                    }
+                },
+                "alias": null,
+                "anon_download_url": "https://public.apps.ubuntu.com/anon/download/jdstrand/hello-world.jdstrand/hello-world.jdstrand_1.4_all.snap",
+                "binary_filesize": 32487,
+                "content": "application",
+                "download_sha512": "1cf102ace19a5b3605038cebcfddd2778a946a7f3fb7f66a9b7d0824f01c1ee805b2d9fa5cc644270547d790e848e9eb00a23998e8c4bc517db5ef8d943448cc",
+                "download_url": "https://public.apps.ubuntu.com/download/jdstrand/hello-world.jdstrand/hello-world.jdstrand_1.4_all.snap",
+                "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg.png",
+                "last_updated": "2015-04-16T15:32:09.118993Z",
+                "origin": "jdstrand",
+                "package_name": "hello-world",
+                "prices": {},
+                "publisher": "Jamie Strandboge",
+                "ratings_average": 0.0,
+                "support_url": "mailto:jamie@strandboge.com",
+                "title": "hello-world",
+                "version": "1.4"
+            }
+        ]
+    },
+    "_links": {
+        "curies": [
+            {
+                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
+                "name": "clickindex",
+                "templated": true
+            }
+        ],
+        "self": {
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=hello-world&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,alias"
+        }
+    }
+}
+`
+
 const MockNoDetailsJSON = `{"errors": ["No such package"], "result": "error"}`
 
 type MockUbuntuStoreServer struct {
@@ -359,17 +429,55 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
-	results, err := snap.Search("xkcd")
+	results, err := snap.Search(funkyAppName)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Check(results[0].Name(), Equals, funkyAppName)
-	c.Check(results[0].Namespace(), Equals, funkyAppOrigin)
-	c.Check(results[0].Version(), Equals, "42")
-	c.Check(results[0].Description(), Equals, "Returns for store credit only.")
+	c.Assert(results[funkyAppName], NotNil)
 
-	c.Check(results[0].Channel(), Equals, "edge")
+	parts := results[funkyAppName].Parts
+	c.Assert(parts, HasLen, 1)
+	c.Check(parts[0].Name(), Equals, funkyAppName)
+	c.Check(parts[0].Namespace(), Equals, funkyAppOrigin)
+	c.Check(parts[0].Version(), Equals, "42")
+	c.Check(parts[0].Description(), Equals, "Returns for store credit only.")
+
+	c.Check(parts[0].Channel(), Equals, "edge")
 }
 
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryAliasSearch(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, MockAliasSearchJSON)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	storeSearchURI, err = url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	snap := NewUbuntuStoreSnapRepository()
+	c.Assert(snap, NotNil)
+
+	results, err := snap.Search("hello-world")
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results["hello-world"], NotNil)
+
+	parts := results["hello-world"].Parts
+	c.Assert(parts, HasLen, 2)
+	c.Check(parts[0].Name(), Equals, "hello-world")
+	c.Check(parts[1].Name(), Equals, "hello-world")
+	c.Check(parts[0].Namespace(), Equals, "canonical")
+	c.Check(parts[1].Namespace(), Equals, "jdstrand")
+	c.Check(parts[0].Version(), Equals, "1.0.8")
+	c.Check(parts[1].Version(), Equals, "1.4")
+	c.Check(parts[0].Description(), Equals, "hello-world")
+	c.Check(parts[1].Description(), Equals, "hello-world")
+
+	alias := results["hello-world"].Alias
+	c.Assert(alias, DeepEquals, parts[0])
+
+	c.Check(parts[0].Channel(), Equals, "edge")
+}
 func mockActiveSnapNamesByType(mockSnaps []string) {
 	ActiveSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
 		return mockSnaps, nil
@@ -995,16 +1103,16 @@ func (s *SnapTestSuite) TestNamespaceFromPath(c *C) {
 
 func (s *SnapTestSuite) TestStructFields(c *C) {
 	type t struct {
-		foo int `json:"hello"`
-		bar int `json:"potato,stuff"`
+		Foo int `json:"hello"`
+		Bar int `json:"potato,stuff"`
 	}
 	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello", "potato"})
 }
 
 func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	type t struct {
-		foo int `json:"hello"`
-		bar int
+		Foo int `json:"hello"`
+		Bar int
 	}
 	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello"})
 }
