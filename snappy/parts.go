@@ -101,7 +101,6 @@ type Repository interface {
 	Description() string
 
 	// action
-	Search(terms string) ([]Part, error)
 	Details(snappName string) ([]Part, error)
 
 	Updates() ([]Part, error)
@@ -188,19 +187,6 @@ func (m *MetaRepository) Updates() (parts []Part, err error) {
 			return parts, err
 		}
 		parts = append(parts, updates...)
-	}
-
-	return parts, err
-}
-
-// Search searches all repositories for the given search term
-func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
-	for _, r := range m.all {
-		results, err := r.Search(terms)
-		if err != nil {
-			return parts, err
-		}
-		parts = append(parts, results...)
 	}
 
 	return parts, err

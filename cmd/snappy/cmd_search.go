@@ -26,6 +26,7 @@ import (
 )
 
 type cmdSearch struct {
+	ShowAll bool `long:"show-all" description:"Show all available forks of a package"`
 }
 
 func init() {
@@ -39,10 +40,10 @@ func init() {
 }
 
 func (x *cmdSearch) Execute(args []string) (err error) {
-	return search(args)
+	return search(args, x.ShowAll)
 }
 
-func search(args []string) error {
+func search(args []string, allForks bool) error {
 	results, err := snappy.Search(args)
 	if err != nil {
 		return err
@@ -51,9 +52,30 @@ func search(args []string) error {
 	w := tabwriter.NewWriter(os.Stdout, 5, 3, 1, ' ', 0)
 	defer w.Flush()
 
+	forkHelp := false
 	fmt.Fprintln(w, "Name\tVersion\tSummary\t")
-	for _, part := range results {
-		fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
+	for _, fork := range results {
+		if part := fork.Alias; !allForks && part != nil {
+			if len(fork.Parts) > 1 {
+				n := len(fork.Parts) - 1
+				fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s (forks not shown: %d)\t", part.Name(), part.Version(), part.Description(), n))
+				forkHelp = true
+			} else {
+				fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
+			}
+		} else {
+			for _, part := range fork.Parts {
+				if fork.IsAlias(part.Namespace()) {
+					fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
+				} else {
+					fmt.Fprintln(w, fmt.Sprintf("%s.%s\t%s\t%s\t", part.Name(), part.Namespace(), part.Version(), part.Description()))
+				}
+			}
+		}
+	}
+
+	if forkHelp {
+		fmt.Fprintln(w, "Use --show-all to see all available forks.")
 	}
 
 	return nil
