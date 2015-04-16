@@ -933,3 +933,17 @@ frameworks:
 	err = part.Uninstall(new(MockProgressMeter))
 	c.Check(err, ErrorMatches, `framework still in use by: foo`)
 }
+
+func (s *SnapTestSuite) TestNamespaceFromPath(c *C) {
+	n, err := namespaceFromPath("/oem/foo.bar/1.0/meta/package.yaml")
+	c.Check(err, IsNil)
+	c.Check(n, Equals, "bar")
+
+	n, err = namespaceFromPath("/oem/foo_bar/1.0/meta/package.yaml")
+	c.Check(err, NotNil)
+	c.Check(n, Equals, "")
+
+	n, err = namespaceFromPath("/oo_bar/1.0/mpackage.yaml")
+	c.Check(err, NotNil)
+	c.Check(n, Equals, "")
+}

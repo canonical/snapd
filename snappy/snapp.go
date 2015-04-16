@@ -665,11 +665,10 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 			continue
 		}
 
-		namespace := filepath.Ext(filepath.Dir(filepath.Join(realpath, "..", "..")))
-		if len(namespace) < 1 {
-			return nil, errors.New("invalid package on system")
+		namespace, err := namespaceFromPath(realpath)
+		if err != nil {
+			return nil, err
 		}
-		namespace = namespace[1:]
 
 		snap := NewInstalledSnapPart(yamlfile, namespace)
 		if snap != nil {
@@ -678,6 +677,16 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 	}
 
 	return parts, nil
+}
+
+func namespaceFromPath(path string) (string, error) {
+	namespace := filepath.Ext(filepath.Dir(filepath.Join(path, "..", "..")))
+
+	if len(namespace) < 1 {
+		return "", errors.New("invalid package on system")
+	}
+
+	return namespace[1:], nil
 }
 
 // RemoteSnapPart represents a snap available on the server
