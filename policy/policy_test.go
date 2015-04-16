@@ -56,11 +56,11 @@ func (s *policySuite) SetUpTest(c *C) {
 			}
 		}
 	}
-	s.secbase = secbase
+	s.secbase = SecBase
 }
 
 func (s *policySuite) TearDownTest(c *C) {
-	secbase = s.secbase
+	SecBase = s.secbase
 }
 
 func (s *policySuite) TestIterOpInstallRemove(c *C) {
@@ -138,25 +138,47 @@ func (s *policySuite) TestIterOpRemoveBadDirmode(c *C) {
 }
 
 func (s *policySuite) TestFrameworkRoundtrip(c *C) {
-	secbase = s.dest
+	SecBase = s.dest
 	c.Check(Install("foo", s.orig), IsNil)
 	// check the files were copied, with the packagename prepended properly
-	g, err := filepath.Glob(filepath.Join(secbase, "*", "*", "foo_*"))
+	g, err := filepath.Glob(filepath.Join(SecBase, "*", "*", "foo_*"))
 	c.Check(err, IsNil)
 	c.Check(g, HasLen, 4*3)
 	c.Check(Remove("foo", s.orig), IsNil)
-	g, err = filepath.Glob(filepath.Join(secbase, "*", "*", "*"))
+	g, err = filepath.Glob(filepath.Join(SecBase, "*", "*", "*"))
 	c.Check(err, IsNil)
 	c.Check(g, HasLen, 0)
 }
 
 func (s *policySuite) TestFrameworkError(c *C) {
 	// check we get errors from the iterOp, is all
-	secbase = s.dest
+	SecBase = s.dest
 	c.Check(frameworkOp(42, "foo", s.orig), ErrorMatches, ".*unknown operation.*")
 }
 
 func (s *policySuite) TestOpString(c *C) {
 	c.Check(fmt.Sprintf("%s", install), Equals, "Install")
 	c.Check(fmt.Sprintf("%s", remove), Equals, "Remove")
+}
+
+func (s *policySuite) TestDelta(c *C) {
+	SecBase = s.dest
+
+	base := filepath.Join(SecBase, "apparmor", "policygroups")
+	c.Assert(os.MkdirAll(base, 0755), IsNil)
+	for k := 0; k < 3; k++ {
+		name := filepath.Join(base, fmt.Sprintf("foo_policygroups%d", k))
+		content := fmt.Sprintf("apparmor::policygroups%d 2", k)
+		c.Assert(ioutil.WriteFile(name, []byte(content), 0644), IsNil)
+	}
+
+	ps, ts := AppArmorDelta("foo", s.orig)
+	// policies are all different
+	c.Check(ps, DeepEquals, map[string]bool{
+		"policygroups0": true,
+		"policygroups1": true,
+		"policygroups2": true,
+	})
+	// templates are all gone => no updates
+	c.Check(ts, HasLen, 0)
 }
