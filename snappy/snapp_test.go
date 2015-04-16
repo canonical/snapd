@@ -980,15 +980,15 @@ services:
 }
 
 func (s *SnapTestSuite) TestNamespaceFromPath(c *C) {
-	n, err := namespaceFromPath("/oem/foo.bar/1.0/meta/package.yaml")
+	n, err := namespaceFromYamlPath("/oem/foo.bar/1.0/meta/package.yaml")
 	c.Check(err, IsNil)
 	c.Check(n, Equals, "bar")
 
-	n, err = namespaceFromPath("/oem/foo_bar/1.0/meta/package.yaml")
+	n, err = namespaceFromYamlPath("/oem/foo_bar/1.0/meta/package.yaml")
 	c.Check(err, NotNil)
 	c.Check(n, Equals, "")
 
-	n, err = namespaceFromPath("/oo_bar/1.0/mpackage.yaml")
+	n, err = namespaceFromYamlPath("/oo_bar/1.0/mpackage.yaml")
 	c.Check(err, NotNil)
 	c.Check(n, Equals, "")
 }

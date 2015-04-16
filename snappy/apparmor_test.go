@@ -124,5 +124,5 @@ func (a *ApparmorTestSuite) TestSnappyGetAaProfile(c *C) {
 		Version: "1.0",
 	}
 	b := Binary{Name: "bin/app"}
-	c.Assert(getAaProfile(&m, b.Name), Equals, "foo_bin-app_1.0")
+	c.Assert(getAaProfile(&m, b.Name, "mvo"), Equals, "foo.mvo_bin-app_1.0")
 }
