@@ -1014,27 +1014,39 @@ version: 1.0
 oem:
  hardware:
   assign:
-   - app-id: device-hive-iot-hal_binary_1.0
-     device-by-kernel:
-     - name: ttyUSB
-     device-by-subsystem:
-     - name: tty
+   - app-id: device-hive-iot-hal
+     rules:
+     - kernel: ttyUSB0
+     - subsystem: tty
        with-subsystems: usb-serial
        with-driver: pl2303
-       with-attrs-idVendor: 0xf00f00
-       with-attrs-idProduct: 0xb00
+       with-attrs: 
+       - idVendor=0xf00f00
+       - idProduct=0xb00
+       with-props: 
+       - BAUD=9600
+       - META1=foo*
+       - META2=foo?
+       - META3=foo[a-z]
+       - META4=a|b
 `)
 
 func (s *SnapTestSuite) TestParseHardwareYaml(c *C) {
 	m, err := parsePackageYamlData(hardwareYaml)
 	c.Assert(err, IsNil)
-	c.Assert(m.OEM.Hardware.Assign[0].AppID, Equals, "device-hive-iot-hal_binary_1.0")
-	c.Assert(m.OEM.Hardware.Assign[0].DeviceByKernel[0].Name, Equals, "ttyUSB")
-	c.Assert(m.OEM.Hardware.Assign[0].DeviceBySubsystem[0].Name, Equals, "tty")
-	c.Assert(m.OEM.Hardware.Assign[0].DeviceBySubsystem[0].WithDriver, Equals, "pl2303")
-	c.Assert(m.OEM.Hardware.Assign[0].DeviceBySubsystem[0].WithAttrsIDVendor, Equals, "0xf00f00")
-	c.Assert(m.OEM.Hardware.Assign[0].DeviceBySubsystem[0].WithAttrsIDProduct, Equals, "0xb00")
+	c.Assert(m.OEM.Hardware.Assign[0].AppID, Equals, "device-hive-iot-hal")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[0].Kernel, Equals, "ttyUSB0")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].Subsystem, Equals, "tty")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].WithDriver, Equals, "pl2303")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].WithAttrs[0], Equals, "idVendor=0xf00f00")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].WithAttrs[1], Equals, "idProduct=0xb00")
 }
+
+var expectedUdevRule = `KERNEL=="ttyUSB0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="device-hive-iot-hal"
+
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb-serial", DRIVER=="pl2303", ATTRS{idVendor}=="0xf00f00", ATTRS{idProduct}=="0xb00", ENV{BAUD}=="9600", ENV{META1}=="foo*", ENV{META2}=="foo?", ENV{META3}=="foo[a-z]", ENV{META4}=="a|b", TAG:="snappy-assign", ENV{SNAPPY_APP}:="device-hive-iot-hal"
+
+`
 
 func (s *SnapTestSuite) TestGenerateHardwareYamlData(c *C) {
 	m, err := parsePackageYamlData(hardwareYaml)
@@ -1042,5 +1054,7 @@ func (s *SnapTestSuite) TestGenerateHardwareYamlData(c *C) {
 
 	output, err := m.OEM.Hardware.Assign[0].generateUdevRuleContent()
 	c.Assert(err, IsNil)
-	c.Assert(output, Equals, `KERNEL=="ttyUSB", NAME=="tty", SUBSYSTEMS=="usb-serial", DRIVER=="pl2303", ATTRS{idVendor}=="0xf00f00", ATTRS{idProduct}=="0xb00",  TAG+="snappy_assign_1_device-hive-iot-hal_binary_1.0"`)
+
+	c.Assert(output, Equals, expectedUdevRule)
+	// FIXME: snappy-%appid.rules
 }

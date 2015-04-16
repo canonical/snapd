@@ -160,17 +160,15 @@ type packageYaml struct {
 }
 
 type HardwareAssign struct {
-	AppID          string `yaml:"app-id"`
-	DeviceByKernel []struct {
-		Name string
-	} `yaml:"device-by-kernel,omitempty"`
-	DeviceBySubsystem []struct {
-		Name               string
-		WithSubsystems     string `yaml:"with-subsystems,omitempty"`
-		WithDriver         string `yaml:"with-driver,omitempty"`
-		WithAttrsIDVendor  string `yaml:"with-attrs-idVendor,omitempty"`
-		WithAttrsIDProduct string `yaml:"with-attrs-idProduct,omitempty"`
-	} `yaml:"device-by-subsystem,omitempty"`
+	AppID string `yaml:"app-id,omitempty"`
+	Rules []struct {
+		Kernel         string   `yaml:"kernel,omitempty"`
+		Subsystem      string   `yaml:"subsystem,omitempty"`
+		WithSubsystems string   `yaml:"with-subsystems,omitempty"`
+		WithDriver     string   `yaml:"with-driver,omitempty"`
+		WithAttrs      []string `yaml:"with-attrs,omitempty"`
+		WithProps      []string `yaml:"with-props,omitempty"`
+	} `yaml:"rules",omitempty`
 }
 
 type remoteSnap struct {
@@ -197,29 +195,32 @@ type searchResults struct {
 	} `json:"_embedded"`
 }
 
-func (h *HardwareAssign) generateUdevRuleContent() (string, error) {
+func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
 	s := ""
-	for _, k := range h.DeviceByKernel {
-		s += fmt.Sprintf(`KERNEL=="%v", `, k.Name)
+	for _, r := range hw.Rules {
+		if r.Kernel != "" {
+			s += fmt.Sprintf(`KERNEL=="%v", `, r.Kernel)
+		}
+		if r.Subsystem != "" {
+			s += fmt.Sprintf(`SUBSYSTEM=="%v", `, r.Subsystem)
+		}
+		if r.WithSubsystems != "" {
+			s += fmt.Sprintf(`SUBSYSTEMS=="%v", `, r.WithSubsystems)
+		}
+		if r.WithDriver != "" {
+			s += fmt.Sprintf(`DRIVER=="%v", `, r.WithDriver)
+		}
+		for _, a := range r.WithAttrs {
+			l := strings.Split(a, "=")
+			s += fmt.Sprintf(`ATTRS{%v}=="%v", `, l[0], l[1])
+		}
+		for _, a := range r.WithProps {
+			l := strings.SplitN(a, "=", 2)
+			s += fmt.Sprintf(`ENV{%v}=="%v", `, l[0], l[1])
+		}
+		s += fmt.Sprintf(`TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"`, hw.AppID)
+		s += "\n\n"
 	}
-	for _, d := range h.DeviceBySubsystem {
-		if d.Name != "" {
-			s += fmt.Sprintf(`NAME=="%v", `, d.Name)
-		}
-		if d.WithSubsystems != "" {
-			s += fmt.Sprintf(`SUBSYSTEMS=="%v", `, d.WithSubsystems)
-		}
-		if d.WithDriver != "" {
-			s += fmt.Sprintf(`DRIVER=="%v", `, d.WithDriver)
-		}
-		if d.WithAttrsIDVendor != "" {
-			s += fmt.Sprintf(`ATTRS{idVendor}=="%v", `, d.WithAttrsIDVendor)
-		}
-		if d.WithAttrsIDProduct != "" {
-			s += fmt.Sprintf(`ATTRS{idProduct}=="%v", `, d.WithAttrsIDProduct)
-		}
-	}
-	s += fmt.Sprintf(` TAG+="snappy_assign_1_%s"`, h.AppID)
 
 	return s, nil
 }
