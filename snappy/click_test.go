@@ -182,7 +182,7 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	c.Assert(string(content), Equals, "#!/bin/sh\necho \"hello\"")
 
 	// ensure we have the manifest too
-	_, err = os.Stat(filepath.Join(baseDir, ".click", "info", "foo.manifest"))
+	_, err = os.Stat(filepath.Join(baseDir, ".click", "info", fooComposedName+".manifest"))
 	c.Assert(err, IsNil)
 
 	// ensure we have the data dir
@@ -293,7 +293,7 @@ func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testNamespace+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
@@ -311,7 +311,7 @@ func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testNamespace+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y")
@@ -328,7 +328,7 @@ func (s *SnapTestSuite) TestDifferentLicenseVersion(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"license-version: 2\nversion: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testNamespace+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
@@ -374,7 +374,7 @@ vendor: Foo Bar <foo@example.com>`)
 	contentFile := path.Join(s.tempdir, "oem", fooComposedName, "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(path.Join(s.tempdir, "oem", fooComposedName, "1.0", ".click", "info", "foo.manifest"))
+	_, err = os.Stat(path.Join(s.tempdir, "oem", fooComposedName, "1.0", ".click", "info", fooComposedName+".manifest"))
 	c.Assert(err, IsNil)
 }
 

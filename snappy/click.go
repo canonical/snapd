@@ -700,14 +700,13 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace
 	}
 
 	// add the namespace to the name
-	shortName := cm.Name
-	cm.Name = fmt.Sprintf("%s.%s", shortName, namespace)
+	cm.Name = fmt.Sprintf("%s.%s", cm.Name, namespace)
 
 	outStr, err := json.MarshalIndent(cm, "", "  ")
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path.Join(clickMetaDir, shortName+".manifest"), []byte(outStr), 0644); err != nil {
+	if err := ioutil.WriteFile(path.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644); err != nil {
 		return err
 	}
 
