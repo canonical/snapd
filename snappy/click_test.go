@@ -605,8 +605,20 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	m := packageYaml{Name: "pastebinit.mvo",
 		Version: "1.4.0.0.1"}
 
-	generatedWrapper := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedWrapper)
+}
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
+	binary := Binary{Name: "bin/pastebinit\nSomething nasty"}
+	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
+	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
+	m := packageYaml{Name: "pastebinit.mvo",
+		Version: "1.4.0.0.1"}
+
+	_, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
@@ -724,39 +736,6 @@ services:
 
 	c.Assert(allSystemctl, HasLen, 0)
 
-}
-
-const expectedService = `[Unit]
-Description=The docker app deployment mechanism
-After=ubuntu-snappy.run-hooks.service
-X-Snappy=yes
-
-[Service]
-ExecStart=/apps/docker/1.3.3.001/bin/docker.wrap
-WorkingDirectory=/apps/docker/1.3.3.001/
-Environment="SNAPP_APP_PATH=/apps/docker/1.3.3.001/" "SNAPP_APP_DATA_PATH=/var/lib/apps/docker/1.3.3.001/" "SNAPP_APP_USER_DATA_PATH=%h/apps/docker/1.3.3.001/" "SNAP_APP_PATH=/apps/docker/1.3.3.001/" "SNAP_APP_DATA_PATH=/var/lib/apps/docker/1.3.3.001/" "SNAP_APP_USER_DATA_PATH=%h/apps/docker/1.3.3.001/" "SNAP_APP=docker_docker_1.3.3.001" "TMPDIR=/tmp/snaps/docker/1.3.3.001/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/docker/1.3.3.001/tmp"
-AppArmorProfile=docker_docker_1.3.3.001
-
-
-
-
-[Install]
-WantedBy=multi-user.target
-`
-
-func (s *SnapTestSuite) TestSnappyGenerateSnapServicesFile(c *C) {
-	service := Service{Name: "docker",
-		Start:       "bin/docker.wrap",
-		Description: "The docker app deployment mechanism",
-	}
-	pkgPath := "/apps/docker/1.3.3.001/"
-	aaProfile := "docker_docker_1.3.3.001"
-	m := packageYaml{Name: "docker",
-		Version: "1.3.3.001",
-	}
-
-	generated := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
-	c.Assert(generated, Equals, expectedService)
 }
 
 func (s *SnapTestSuite) TestFindBinaryInPath(c *C) {
@@ -909,8 +888,79 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
 	m := packageYaml{Name: "xckd-webserver.canonical",
 		Version: "0.3.4"}
 
-	generatedWrapper := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedServiceWrapper)
+}
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
+	service := Service{Name: "xkcd-webserver",
+		Start:       "bin/foo start",
+		Stop:        "bin/foo stop",
+		PostStop:    "bin/foo post-stop",
+		StopTimeout: DefaultTimeout,
+		Description: "A fun webserver\nExec=foo",
+	}
+	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
+	m := packageYaml{Name: "xckd-webserver.canonical",
+		Version: "0.3.4"}
+
+	_, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	c.Assert(err, NotNil)
+}
+
+func (s *SnapTestSuite) TestServiceWhitelistSimple(c *C) {
+	c.Assert(verifyServiceYaml(Service{Name: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(Service{Description: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(Service{Start: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(Service{Stop: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(Service{PostStop: "foo"}), IsNil)
+}
+
+func (s *SnapTestSuite) TestServiceWhitelistIllegal(c *C) {
+	c.Assert(verifyServiceYaml(Service{Name: "x\n"}), NotNil)
+	c.Assert(verifyServiceYaml(Service{Description: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(Service{Start: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(Service{Stop: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(Service{PostStop: "foo\n"}), NotNil)
+}
+
+func (s *SnapTestSuite) TestServiceWhitelistError(c *C) {
+	err := verifyServiceYaml(Service{Name: "x\n"})
+	c.Assert(err.Error(), Equals, `services description field 'Name' contains illegal 'x
+' (legal: '^[A-Za-z0-9/. _#:-]*$')`)
+}
+
+func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
+	c.Assert(verifyBinariesYaml(Binary{Name: "foo"}), IsNil)
+	c.Assert(verifyBinariesYaml(Binary{Exec: "foo"}), IsNil)
+	c.Assert(verifyBinariesYaml(Binary{
+		SecurityDefinitions: SecurityDefinitions{
+			SecurityTemplate: "foo"},
+	}), IsNil)
+	c.Assert(verifyBinariesYaml(Binary{
+		SecurityDefinitions: SecurityDefinitions{
+			SecurityPolicy: &SecurityOverrideDefinition{
+				Apparmor: "foo"},
+		},
+	}), IsNil)
+}
+
+func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
+	c.Assert(verifyBinariesYaml(Binary{Name: "test!me"}), NotNil)
+	c.Assert(verifyBinariesYaml(Binary{Name: "x\n"}), NotNil)
+	c.Assert(verifyBinariesYaml(Binary{Exec: "x\n"}), NotNil)
+	c.Assert(verifyBinariesYaml(Binary{
+		SecurityDefinitions: SecurityDefinitions{
+			SecurityTemplate: "x\n"},
+	}), NotNil)
+	c.Assert(verifyBinariesYaml(Binary{
+		SecurityDefinitions: SecurityDefinitions{
+			SecurityPolicy: &SecurityOverrideDefinition{
+				Apparmor: "x\n"},
+		},
+	}), NotNil)
 }
 
 func (s *SnapTestSuite) TestSnappyRunHooks(c *C) {

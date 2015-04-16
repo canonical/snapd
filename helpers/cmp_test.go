@@ -80,3 +80,65 @@ func (ts *HTestSuite) TestCmpStreams(c *C) {
 		c.Assert(streamsEqual(strings.NewReader(x.a), strings.NewReader(x.b)), Equals, x.r)
 	}
 }
+
+func (ts *HTestSuite) TestDirUpdatedEmptyOK(c *C) {
+	d1 := c.MkDir()
+	d2 := c.MkDir()
+
+	c.Check(DirUpdated(d1, "", d2), HasLen, 0)
+}
+
+func (ts *HTestSuite) TestDirUpdatedExtraFileIgnored(c *C) {
+	d1 := c.MkDir()
+	d2 := c.MkDir()
+
+	c.Assert(ioutil.WriteFile(filepath.Join(d2, "foo"), []byte("x"), 0644), IsNil)
+	c.Check(DirUpdated(d1, "", d2), HasLen, 0)
+
+	// (on either side)
+	c.Check(DirUpdated(d2, "", d1), HasLen, 0)
+}
+
+func (ts *HTestSuite) TestDirUpdatedFilesEqual(c *C) {
+	d1 := c.MkDir()
+	d2 := c.MkDir()
+
+	c.Assert(ioutil.WriteFile(filepath.Join(d1, "foo"), []byte("x"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d2, "foo"), []byte("x"), 0644), IsNil)
+	c.Check(DirUpdated(d1, "", d2), HasLen, 0)
+}
+
+func (ts *HTestSuite) TestDirUpdatedDirIgnored(c *C) {
+	d1 := c.MkDir()
+	d2 := c.MkDir()
+
+	c.Assert(ioutil.WriteFile(filepath.Join(d1, "foo"), []byte("x"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d2, "foo"), []byte("x"), 0644), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d1, "dir"), 0755), IsNil)
+	c.Check(DirUpdated(d1, "", d2), HasLen, 0)
+}
+
+func (ts *HTestSuite) TestDirUpdatedAllDifferentReturned(c *C) {
+	d1 := c.MkDir()
+	d2 := c.MkDir()
+
+	c.Assert(ioutil.WriteFile(filepath.Join(d1, "foo"), []byte("y"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d2, "foo"), []byte("x"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d1, "bar"), []byte("x"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d2, "bar"), []byte("y"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d2, "baz"), []byte("x"), 0644), IsNil)
+
+	c.Check(DirUpdated(d1, "", d2), DeepEquals, map[string]bool{"bar": true, "foo": true})
+}
+
+func (ts *HTestSuite) TestDirUpdatedOnlyWithPrefix(c *C) {
+	d1 := c.MkDir()
+	d2 := c.MkDir()
+
+	c.Assert(ioutil.WriteFile(filepath.Join(d1, "bar"), []byte("x"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d2, "bar"), []byte("y"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d1, "quux_foo"), []byte("y"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d2, "foo"), []byte("z"), 0644), IsNil)
+
+	c.Check(DirUpdated(d1, "quux_", d2), DeepEquals, map[string]bool{"foo": true})
+}

@@ -35,6 +35,8 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -85,6 +87,10 @@ var ignoreHooks = map[string]bool{
 	"bin-path":       true,
 	"snappy-systemd": true,
 }
+
+// servicesBinariesStringsWhitelist is the whitelist of legal chars
+// in the "binaries" and "services" section of the package.yaml
+const servicesBinariesStringsWhitelist = `^[A-Za-z0-9/. _#:-]*$`
 
 // Execute the hook.Exec command
 func execHook(execCmd string) (err error) {
@@ -342,7 +348,11 @@ func binPathForBinary(pkgPath string, binary Binary) string {
 	return filepath.Join(pkgPath, binary.Exec)
 }
 
-func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) string {
+func verifyBinariesYaml(binary Binary) error {
+	return verifyStructStringsAgainstWhitelist(binary, servicesBinariesStringsWhitelist)
+}
+
+func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) (string, error) {
 	wrapperTemplate := `#!/bin/sh
 # !!!never remove this line!!!
 ##TARGET={{.Target}}
@@ -382,6 +392,11 @@ export SNAP_OLD_PWD="$(pwd)"
 cd {{.Path}}
 aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 `
+
+	if err := verifyBinariesYaml(binary); err != nil {
+		return "", err
+	}
+
 	actualBinPath := binPathForBinary(pkgPath, binary)
 
 	var templateOut bytes.Buffer
@@ -397,16 +412,67 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	}
 	t.Execute(&templateOut, wrapperData)
 
-	return templateOut.String()
+	return templateOut.String(), nil
 }
 
-func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) string {
+// verifyStructStringsAgainstWhitelist takes a struct and ensures that
+// the given whitelist regexp matches all string fields of the struct
+func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error {
+	r, err := regexp.Compile(whitelist)
+	if err != nil {
+		return err
+	}
+
+	// check all members of the services struct against our whitelist
+	t := reflect.TypeOf(s)
+	v := reflect.ValueOf(s)
+	for i := 0; i < t.NumField(); i++ {
+
+		// PkgPath means its a unexported field and we can ignore it
+		if t.Field(i).PkgPath != "" {
+			continue
+		}
+		if v.Field(i).Kind() == reflect.Ptr {
+			vi := v.Field(i).Elem()
+			if vi.Kind() == reflect.Struct {
+				return verifyStructStringsAgainstWhitelist(vi.Interface(), whitelist)
+			}
+		}
+		if v.Field(i).Kind() == reflect.Struct {
+			vi := v.Field(i).Interface()
+			return verifyStructStringsAgainstWhitelist(vi, whitelist)
+		}
+		if v.Field(i).Kind() == reflect.String {
+			key := t.Field(i).Name
+			value := v.Field(i).String()
+			if !r.MatchString(value) {
+				return &ErrStructIllegalContent{
+					field:     key,
+					content:   value,
+					whitelist: whitelist,
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func verifyServiceYaml(service Service) error {
+	return verifyStructStringsAgainstWhitelist(service, servicesBinariesStringsWhitelist)
+}
+
+func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) (string, error) {
+	if err := verifyServiceYaml(service); err != nil {
+		return "", err
+	}
+
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
 			m.Name, service.Name, m.Version, service.Description,
 			baseDir, service.Start, service.Stop, service.PostStop,
 			time.Duration(service.StopTimeout), aaProfile,
-		})
+		}), nil
 }
 
 func generateServiceFileName(m *packageYaml, service Service) string {
@@ -452,7 +518,10 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
-		content := generateSnapServicesFile(service, realBaseDir, aaProfile, m)
+		content, err := generateSnapServicesFile(service, realBaseDir, aaProfile, m)
+		if err != nil {
+			return err
+		}
 		serviceFilename := generateServiceFileName(m, service)
 		helpers.EnsureDir(filepath.Dir(serviceFilename), 0755)
 		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0644); err != nil {
@@ -536,7 +605,11 @@ func addPackageBinaries(baseDir string) error {
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
-		content := generateSnapBinaryWrapper(binary, realBaseDir, aaProfile, m)
+		content, err := generateSnapBinaryWrapper(binary, realBaseDir, aaProfile, m)
+		if err != nil {
+			return err
+		}
+
 		if err := ioutil.WriteFile(generateBinaryName(m, binary), []byte(content), 0755); err != nil {
 			return err
 		}

@@ -114,7 +114,8 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 		switch r.URL.Path {
 		case "/details/foo":
 			io.WriteString(w, `{
-"name": "foo", "version": "2",
+"package_name": "foo",
+"version": "2",
 "anon_download_url": "`+dlURL+`"
 }`)
 		case "/dl":

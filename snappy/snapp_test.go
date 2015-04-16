@@ -36,12 +36,15 @@ import (
 )
 
 type SnapTestSuite struct {
-	tempdir string
+	tempdir   string
+	clickhook string
 }
 
 var _ = Suite(&SnapTestSuite{})
 
 func (s *SnapTestSuite) SetUpTest(c *C) {
+	s.clickhook = aaClickHookCmd
+	aaClickHookCmd = "/bin/true"
 	s.tempdir = c.MkDir()
 	newPartition = func() (p partition.Interface) {
 		return new(MockPartition)
@@ -83,6 +86,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 
 func (s *SnapTestSuite) TearDownTest(c *C) {
 	// ensure all functions are back to their original state
+	aaClickHookCmd = s.clickhook
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 	ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 	duCmd = "du"
@@ -186,133 +190,154 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 	c.Assert(installed[0].Version(), Equals, "1.10")
 }
 
+const (
+	funkyAppName   = "8nzc1x4iim2xj1g2ul64"
+	funkyAppOrigin = "chipaca"
+)
+
 /* acquired via:
-   curl  -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" https://search.apps.ubuntu.com/api/v1/search?q=hello
+curl -s -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url" | python -m json.tool
 */
 const MockSearchJSON = `{
-  "_links": {
-    "self": {
-      "href": "https:\/\/search.apps.ubuntu.com\/api\/v1\/search?q=xkcd"
+    "_embedded": {
+        "clickindex:package": [
+            {
+                "_links": {
+                    "self": {
+                        "href": "https://search.apps.ubuntu.com/api/v1/package/8nzc1x4iim2xj1g2ul64.chipaca"
+                    }
+                },
+                "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
+                "binary_filesize": 65375,
+                "content": "application",
+                "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42",
+                "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
+                "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
+                "last_updated": "2015-04-15T18:30:16Z",
+                "origin": "chipaca",
+                "package_name": "8nzc1x4iim2xj1g2ul64",
+                "prices": {},
+                "publisher": "John Lenton",
+                "ratings_average": 0.0,
+                "support_url": "http://lmgtfy.com",
+                "title": "Returns for store credit only.",
+                "version": "42"
+            }
+        ]
     },
-    "curies": [
-      {
-        "templated": true,
-        "name": "clickindex",
-        "href": "https:\/\/search.apps.ubuntu.com\/docs\/relations.html{#rel}"
-      }
-    ]
-  },
-  "_embedded": {
-    "clickindex:package": [
-      {
-        "prices": null,
-        "_links": {
-          "self": {
-            "href": "https:\/\/search.apps.ubuntu.com\/api\/v1\/package\/com.ubuntu.snappy.xkcd-webserver"
-          }
-        },
-        "version": "0.1",
-        "ratings_average": 0.0,
-        "content": "application",
-        "price": 0.0,
-        "icon_url": "https:\/\/myapps.developer.ubuntu.com\/site_media\/appmedia\/2014\/12\/xkcd.svg.png",
-        "title": "Show random XKCD comic",
-        "name": "xkcd-webserver.mvo",
-        "publisher": "Canonical"
-      }
-    ]
-  }
-}`
-
-/* acquired via:
-curl --data-binary '{"name":["docker","foo","com.ubuntu.snappy.hello-world","httpd-minimal-golang-example","owncloud","xkcd-webserver"]}'  -H 'content-type: application/json' https://myapps.developer.ubuntu.com/dev/api/click-metadata/
-*/
-const MockUpdatesJSON = `
-[
-    {
-        "status": "Published",
-        "name": "hello-world",
-        "changelog": "",
-        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/01/hello.svg.png",
-        "title": "Hello world example",
-        "binary_filesize": 31166,
-        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/com.ubuntu.snappy/hello-world/hello-world_1.0.5_all.snap",
-        "allow_unauthenticated": true,
-        "version": "1.0.5",
-        "download_url": "https://public.apps.ubuntu.com/download/com.ubuntu.snappy/hello-world/hello-world_1.0.5_all.snap",
-        "download_sha512": "3e8b192e18907d8195c2e380edd048870eda4f6dbcba8f65e4625d6efac3c37d11d607147568ade6f002b6baa30762c6da02e7ee462de7c56301ddbdc10d87f6"
+    "_links": {
+        "curies": [
+            {
+                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
+                "name": "clickindex",
+                "templated": true
+            }
+        ],
+        "self": {
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url"
+        }
     }
-]
+}
 `
 
-/* acquired via
-   curl -H "accept: application/hal+json" -H "X-Ubuntu-Release: 15.04-core" https://search.apps.ubuntu.com/api/v1/package/com.ubuntu.snappy.xkcd-webserver
+/* acquired via:
+curl -s --data-binary '{"name":["8nzc1x4iim2xj1g2ul64.chipaca"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/click-metadata/
 */
-const MockDetailsJSON = `
-{
-  "architecture": [
-    "all"
-  ],
-  "allow_unauthenticated": true,
-  "click_version": "0.1",
-  "changelog": "",
-  "date_published": "2014-12-05T13:12:31.785911Z",
-  "license": "Apache License",
-  "name": "xkcd-webserver",
-  "publisher": "Canonical",
-  "blacklist_country_codes": [],
-  "icon_urls": {
-    "256": "https:\/\/myapps.developer.ubuntu.com\/site_media\/appmedia\/2014\/12\/xkcd.svg.png"
-  },
-  "prices": null,
-  "framework": [
-  ],
-  "translations": null,
-  "price": 0.0,
-  "click_framework": [
-  ],
-  "description": "Snappy\nThis is meant as a fun example for a snappy package.\r\n",
-  "download_sha512": "3a9152b8bff494c036f40e2ca03d1dfaa4ddcfe651eae1c9419980596f48fa95b2f2a91589305af7d55dc08e9489b8392585bbe2286118550b288368e5d9a620",
-  "website": "",
-  "screenshot_urls": [],
-  "department": [
-    "entertainment"
-  ],
-  "company_name": "Canonical",
-  "_links": {
-    "self": {
-      "href": "https:\/\/search.apps.ubuntu.com\/api\/v1\/package\/com.ubuntu.snappy.xkcd-webserver"
+const MockUpdatesJSON = `[
+    {
+        "status": "Published", 
+        "name": "8nzc1x4iim2xj1g2ul64.chipaca", 
+        "package_name": "8nzc1x4iim2xj1g2ul64", 
+        "origin": "chipaca", 
+        "changelog": "", 
+        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png", 
+        "title": "Returns for store credit only.", 
+        "binary_filesize": 65375, 
+        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap", 
+        "allow_unauthenticated": true, 
+        "version": "42", 
+        "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap", 
+        "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42"
+    }
+]`
+
+/* acquired via
+   curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 15.04-core" https://search.apps.ubuntu.com/api/v1/package/8nzc1x4iim2xj1g2ul64.chipaca | python -m json.tool
+*/
+const MockDetailsJSON = `{
+    "_links": {
+        "curies": [
+            {
+                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
+                "name": "clickindex",
+                "templated": true
+            }
+        ],
+        "self": {
+            "href": "https://search.apps.ubuntu.com/api/v1/package/8nzc1x4iim2xj1g2ul64.chipaca"
+        }
     },
-    "curies": [
-      {
-        "templated": true,
-        "name": "clickindex",
-        "href": "https:\/\/search.apps.ubuntu.com\/docs\/v1\/relations.html{#rel}"
-      }
-    ]
-  },
-  "version": "0.3.1",
-  "developer_name": "Snappy App Dev",
-  "content": "application",
-  "anon_download_url": "https:\/\/public.apps.ubuntu.com\/anon\/download\/com.ubuntu.snappy\/xkcd-webserver\/com.ubuntu.snappy.xkcd-webserver_0.3.1_all.click",
-  "binary_filesize": 21236,
-  "icon_url": "https:\/\/myapps.developer.ubuntu.com\/site_media\/appmedia\/2014\/12\/xkcd.svg.png",
-  "support_url": "mailto:michael.vogt@ubuntu.com",
-  "title": "Show random XKCD compic via a build-in webserver",
-  "ratings_average": 0.0,
-  "id": 1287,
-  "screenshot_url": null,
-  "terms_of_service": "",
-  "download_url": "https:\/\/public.apps.ubuntu.com\/download\/com.ubuntu.snappy\/xkcd-webserver\/com.ubuntu.snappy.xkcd-webserver_0.3.1_all.click",
-  "video_urls": [],
-  "keywords": [
-    "snappy"
-  ],
-  "video_embedded_html_urls": [],
-  "last_updated": "2014-12-05T12:33:05.928364Z",
-  "status": "Published",
-  "whitelist_country_codes": []
-}`
+    "alias": null,
+    "allow_unauthenticated": true,
+    "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
+    "architecture": [
+        "all"
+    ],
+    "binary_filesize": 65375,
+    "blacklist_country_codes": [
+        "AX"
+    ],
+    "changelog": "",
+    "click_framework": [],
+    "click_version": "0.1",
+    "company_name": "",
+    "content": "application",
+    "date_published": "2015-04-15T18:34:40.060874Z",
+    "department": [
+        "food-drink"
+    ],
+    "description": "Returns for store credit only.\nThis is a simple hello world example.",
+    "developer_name": "John Lenton",
+    "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42",
+    "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
+    "framework": [],
+    "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
+    "icon_urls": {
+        "256": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png"
+    },
+    "id": 2333,
+    "keywords": [],
+    "last_updated": "2015-04-15T18:30:16Z",
+    "license": "Proprietary",
+    "name": "8nzc1x4iim2xj1g2ul64.chipaca",
+    "origin": "chipaca",
+    "package_name": "8nzc1x4iim2xj1g2ul64",
+    "price": 0.0,
+    "prices": {},
+    "publisher": "John Lenton",
+    "ratings_average": 0.0,
+    "release": [
+        "15.04-core"
+    ],
+    "screenshot_url": null,
+    "screenshot_urls": [],
+    "status": "Published",
+    "stores": {
+        "ubuntu": {
+            "status": "Published"
+        }
+    },
+    "support_url": "http://lmgtfy.com",
+    "terms_of_service": "",
+    "title": "Returns for store credit only.",
+    "translations": {},
+    "version": "42",
+    "video_embedded_html_urls": [],
+    "video_urls": [],
+    "website": "",
+    "whitelist_country_codes": []
+}
+`
 const MockNoDetailsJSON = `{"errors": ["No such package"], "result": "error"}`
 
 type MockUbuntuStoreServer struct {
@@ -337,11 +362,12 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	results, err := snap.Search("xkcd")
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "xkcd-webserver.mvo")
-	c.Assert(results[0].Version(), Equals, "0.1")
-	c.Assert(results[0].Description(), Equals, "Show random XKCD comic")
+	c.Check(results[0].Name(), Equals, funkyAppName)
+	c.Check(results[0].Namespace(), Equals, funkyAppOrigin)
+	c.Check(results[0].Version(), Equals, "42")
+	c.Check(results[0].Description(), Equals, "Returns for store credit only.")
 
-	c.Assert(results[0].Channel(), Equals, "edge")
+	c.Check(results[0].Channel(), Equals, "edge")
 }
 
 func mockActiveSnapNamesByType(mockSnaps []string) {
@@ -354,7 +380,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"name":["hello-world"]}`)
+		c.Assert(string(jsonReq), Equals, `{"name":["`+funkyAppName+`"]}`)
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
@@ -369,14 +395,14 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 
 	// override the real ActiveSnapNamesByType to return our
 	// mock data
-	mockActiveSnapNamesByType([]string{"hello-world"})
+	mockActiveSnapNamesByType([]string{funkyAppName})
 
 	// the actual test
 	results, err := snap.Updates()
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "hello-world")
-	c.Assert(results[0].Version(), Equals, "1.0.5")
+	c.Assert(results[0].Name(), Equals, funkyAppName)
+	c.Assert(results[0].Version(), Equals, "42")
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
@@ -410,9 +436,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// no store ID by default
 		storeID := r.Header.Get("X-Ubuntu-Store")
-		c.Assert(storeID, Equals, "")
+		c.Check(storeID, Equals, "")
 
-		c.Assert(strings.HasSuffix(r.URL.String(), "xkcd-webserver"), Equals, true)
+		c.Check(filepath.Base(r.URL.String()), Equals, funkyAppName+"."+funkyAppOrigin)
 		io.WriteString(w, MockDetailsJSON)
 	}))
 
@@ -426,14 +452,15 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(snap, NotNil)
 
 	// the actual test
-	results, err := snap.Details("xkcd-webserver")
+	results, err := snap.Details(funkyAppName + "." + funkyAppOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, "xkcd-webserver")
-	c.Assert(results[0].Version(), Equals, "0.3.1")
-	c.Assert(results[0].Hash(), Equals, "3a9152b8bff494c036f40e2ca03d1dfaa4ddcfe651eae1c9419980596f48fa95b2f2a91589305af7d55dc08e9489b8392585bbe2286118550b288368e5d9a620")
-	c.Assert(results[0].Date(), Equals, time.Date(2014, time.December, 05, 12, 33, 05, 928364000, time.UTC))
-	c.Assert(results[0].DownloadSize(), Equals, int64(21236))
+	c.Check(results[0].Name(), Equals, funkyAppName)
+	c.Check(results[0].Namespace(), Equals, funkyAppOrigin)
+	c.Check(results[0].Version(), Equals, "42")
+	c.Check(results[0].Hash(), Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
+	c.Check(results[0].Date().String(), Equals, "2015-04-15 18:30:16 +0000 UTC")
+	c.Check(results[0].DownloadSize(), Equals, int64(65375))
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
@@ -871,14 +898,11 @@ func (s *SnapTestSuite) TestUpdateAppArmorJSONTimestampFails(c *C) {
 }
 
 func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
-	oldCmd := aaClickHookCmd
 	oldDir := snapAppArmorDir
 	defer func() {
-		aaClickHookCmd = oldCmd
 		snapAppArmorDir = oldDir
 		timestampUpdater = helpers.UpdateTimestamp
 	}()
-	aaClickHookCmd = "/bin/true"
 	snapAppArmorDir = c.MkDir()
 	fn := filepath.Join(snapAppArmorDir, "foo_stuff.json")
 	c.Assert(os.Symlink("nothing", fn), IsNil)
@@ -935,8 +959,28 @@ frameworks:
 	c.Check(err, ErrorMatches, `framework still in use by: foo`)
 }
 
-func (s *SnapTestSuite) TestNamespaceFromYamlPath(c *C) {
-	n, err := namespaceFromYamlPath("/oem/foo.bar/1.0/meta/package.yaml")
+func (s *SnapTestSuite) TestDetectIllegalYamlBinaries(c *C) {
+	_, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+binaries:
+ - name: tes!me
+   exec: something
+`))
+	c.Assert(err, NotNil)
+}
+
+func (s *SnapTestSuite) TestDetectIllegalYamlService(c *C) {
+	_, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+services:
+ - name: tes!me
+   start: something
+`))
+	c.Assert(err, NotNil)
+}
+
+func (s *SnapTestSuite) TestNamespaceFromPath(c *C) {
+	n, err := namespaceFromPath("/oem/foo.bar/1.0/meta/package.yaml")
 	c.Check(err, IsNil)
 	c.Check(n, Equals, "bar")
 
@@ -947,4 +991,20 @@ func (s *SnapTestSuite) TestNamespaceFromYamlPath(c *C) {
 	n, err = namespaceFromYamlPath("/oo_bar/1.0/mpackage.yaml")
 	c.Check(err, NotNil)
 	c.Check(n, Equals, "")
+}
+
+func (s *SnapTestSuite) TestStructFields(c *C) {
+	type t struct {
+		foo int `json:"hello"`
+		bar int `json:"potato,stuff"`
+	}
+	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello", "potato"})
+}
+
+func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
+	type t struct {
+		foo int `json:"hello"`
+		bar int
+	}
+	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello"})
 }
