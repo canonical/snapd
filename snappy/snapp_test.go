@@ -959,6 +959,26 @@ frameworks:
 	c.Check(err, ErrorMatches, `framework still in use by: foo`)
 }
 
+func (s *SnapTestSuite) TestDetectIllegalYamlBinaries(c *C) {
+	_, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+binaries:
+ - name: tes!me
+   exec: something
+`))
+	c.Assert(err, NotNil)
+}
+
+func (s *SnapTestSuite) TestDetectIllegalYamlService(c *C) {
+	_, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+services:
+ - name: tes!me
+   start: something
+`))
+	c.Assert(err, NotNil)
+}
+
 func (s *SnapTestSuite) TestNamespaceFromPath(c *C) {
 	n, err := namespaceFromPath("/oem/foo.bar/1.0/meta/package.yaml")
 	c.Check(err, IsNil)

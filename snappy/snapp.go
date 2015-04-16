@@ -225,6 +225,18 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		m.DeprecatedFramework = ""
 	}
 
+	// do all checks here
+	for _, binary := range m.Binaries {
+		if err := verifyBinariesYaml(binary); err != nil {
+			return nil, err
+		}
+	}
+	for _, service := range m.Services {
+		if err := verifyServiceYaml(service); err != nil {
+			return nil, err
+		}
+	}
+
 	// For backward compatiblity we allow that there is no "exec:" line
 	// in the binary definition and that its derived from the name.
 	//
