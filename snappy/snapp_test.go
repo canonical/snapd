@@ -245,18 +245,18 @@ curl -s --data-binary '{"name":["8nzc1x4iim2xj1g2ul64.chipaca"]}'  -H 'content-t
 */
 const MockUpdatesJSON = `[
     {
-        "status": "Published", 
-        "name": "8nzc1x4iim2xj1g2ul64.chipaca", 
-        "package_name": "8nzc1x4iim2xj1g2ul64", 
-        "origin": "chipaca", 
-        "changelog": "", 
-        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png", 
-        "title": "Returns for store credit only.", 
-        "binary_filesize": 65375, 
-        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap", 
-        "allow_unauthenticated": true, 
-        "version": "42", 
-        "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap", 
+        "status": "Published",
+        "name": "8nzc1x4iim2xj1g2ul64.chipaca",
+        "package_name": "8nzc1x4iim2xj1g2ul64",
+        "origin": "chipaca",
+        "changelog": "",
+        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
+        "title": "Returns for store credit only.",
+        "binary_filesize": 65375,
+        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
+        "allow_unauthenticated": true,
+        "version": "42",
+        "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
         "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42"
     }
 ]`
@@ -703,7 +703,7 @@ type: oem
 	repo.Details("xkcd")
 }
 
-var securityBinaryPackageYaml = []byte(`name: test-snap.jdstrand
+var securityBinaryPackageYaml = []byte(`name: test-snap
 version: 1.2.8
 vendor: Jamie Strandboge <jamie@canonical.com>
 icon: meta/hello.svg
@@ -745,7 +745,7 @@ func (s *SnapTestSuite) TestPackageYamlSecurityBinaryParsing(c *C) {
 	c.Assert(m.Binaries[2].SecurityPolicy.Apparmor, Equals, "meta/testme-policy.profile")
 }
 
-var securityServicePackageYaml = []byte(`name: test-snap.jdstrand
+var securityServicePackageYaml = []byte(`name: test-snap
 version: 1.2.8
 vendor: Jamie Strandboge <jamie@canonical.com>
 icon: meta/hello.svg
@@ -1007,4 +1007,12 @@ func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 		bar int
 	}
 	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello"})
+}
+
+func (s *SnapTestSuite) TestIllegalPackageNameWithNamespace(c *C) {
+	_, err := parsePackageYamlData([]byte(`name: foo.something
+version: 1.0
+`))
+
+	c.Assert(err, Equals, ErrPackageNameNotSupported)
 }
