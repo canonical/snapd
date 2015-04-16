@@ -61,7 +61,7 @@ func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "")	
+	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository(snapAppsDir)
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
