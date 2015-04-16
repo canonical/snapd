@@ -102,6 +102,7 @@ func DirUpdated(dirA, pfxA, dirB string) map[string]bool {
 		if IsDirectory(fileA) {
 			continue
 		}
+
 		name := filepath.Base(fileA)[len(pfxA):]
 		fileB := filepath.Join(dirB, name)
 		if FileExists(fileB) && !FilesAreEqual(fileA, fileB) {
