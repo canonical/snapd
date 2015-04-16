@@ -344,7 +344,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	_, err := installClick(makeTestSnapPackage(c, ""), 0, nil, testNamespace)
 	c.Assert(err, IsNil)
 
-	instDir := path.Join(targetDir, "foo"+"."+testNamespace, "1.0")
+	instDir := path.Join(targetDir, fooComposedName, "1.0")
 	_, err = os.Stat(instDir)
 	c.Assert(err, IsNil)
 
