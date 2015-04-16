@@ -90,11 +90,13 @@ func (sd *SecurityDefinitions) NeedsAppArmorUpdate(policies, templates map[strin
 	if templates[sd.SecurityTemplate] {
 		return true
 	}
+
 	for _, cap := range sd.SecurityCaps {
 		if policies[cap] {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -601,6 +603,8 @@ func (s *SnapPart) RefreshDependentsSecurity(inter interacter) error {
 		if err := sysd.Restart(r.name, r.timeout); err != nil {
 			// we don't want to stop restarting the dependents
 			// because one of them fails
+			// TODO: abort the installation (restart things all over
+			// again) if things go wrong.
 			inter.Notify(fmt.Sprintf(" when restarting %s: %v", r.name, err))
 		}
 	}
