@@ -811,7 +811,7 @@ type: oem
 	repo.Details("xkcd")
 }
 
-var securityBinaryPackageYaml = []byte(`name: test-snap.jdstrand
+var securityBinaryPackageYaml = []byte(`name: test-snap
 version: 1.2.8
 vendor: Jamie Strandboge <jamie@canonical.com>
 icon: meta/hello.svg
@@ -853,7 +853,7 @@ func (s *SnapTestSuite) TestPackageYamlSecurityBinaryParsing(c *C) {
 	c.Assert(m.Binaries[2].SecurityPolicy.Apparmor, Equals, "meta/testme-policy.profile")
 }
 
-var securityServicePackageYaml = []byte(`name: test-snap.jdstrand
+var securityServicePackageYaml = []byte(`name: test-snap
 version: 1.2.8
 vendor: Jamie Strandboge <jamie@canonical.com>
 icon: meta/hello.svg
@@ -1115,4 +1115,12 @@ func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 		Bar int
 	}
 	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello"})
+}
+
+func (s *SnapTestSuite) TestIllegalPackageNameWithNamespace(c *C) {
+	_, err := parsePackageYamlData([]byte(`name: foo.something
+version: 1.0
+`))
+
+	c.Assert(err, Equals, ErrPackageNameNotSupported)
 }

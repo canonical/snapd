@@ -236,6 +236,12 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		}
 	}
 
+	// this is to prevent installation of legacy packages such as those that
+	// contain the namespace/origin in the package name.
+	if strings.ContainsRune(m.Name, '.') {
+		return nil, ErrPackageNameNotSupported
+	}
+
 	if m.DeprecatedFramework != "" {
 		log.Printf(`Use of deprecated "framework" key in yaml`)
 		if len(m.Frameworks) != 0 {

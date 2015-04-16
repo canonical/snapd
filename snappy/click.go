@@ -715,9 +715,6 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace
 }
 
 func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
-	// FIXME: drop privs to "snap:snap" here
-	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
-
 	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
 	err = auditClick(snapFile, allowUnauthenticated)
 	if err != nil {
