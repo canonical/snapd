@@ -33,8 +33,6 @@ import (
 	"syscall"
 	"time"
 
-	"launchpad.net/snappy/native"
-
 	"github.com/mvo5/goconfigparser"
 )
 
@@ -273,7 +271,7 @@ func ShouldDropPrivs() bool {
 func AttachedToTerminal() bool {
 	fd := int(os.Stdin.Fd())
 
-	return native.Isatty(fd)
+	return isatty(fd)
 }
 
 // the file that contains the lsb-release stuff
