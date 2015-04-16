@@ -23,6 +23,8 @@ import (
 	"path/filepath"
 
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/snappy/progress"
 )
 
 func (s *SnapTestSuite) TestActiveSnapByType(c *C) {
@@ -96,7 +98,8 @@ func (s *SnapTestSuite) TestForkInstalled(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-app.manifest"), []byte(`{"name": "hello-app"}`), 0644), IsNil)
-	ag := &agreerator{y: true}
+	ag := &progress.NullProgress{}
+
 	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
 
 	c.Check(ForkActive("hello-app"), Equals, true)

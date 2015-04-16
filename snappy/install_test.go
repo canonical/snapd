@@ -150,7 +150,7 @@ func (s *SnapTestSuite) TestInstallAppForkFails(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-app.manifest"), []byte(`{"name": "hello-app"}`), 0644), IsNil)
-	ag := &agreerator{y: true}
+	ag := &progress.NullProgress{}
 	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
 	current := ActiveSnapByName("hello-app")
 	c.Assert(current, NotNil)
@@ -175,6 +175,6 @@ func (s *SnapTestSuite) TestInstallAppForkFails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	_, err = Install("hello-app.potato", 0, &progress.NullProgress{})
+	_, err = Install("hello-app.potato", 0, ag)
 	c.Assert(err, Equals, ErrForkAlreadyInstalled)
 }
