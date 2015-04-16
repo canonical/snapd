@@ -17,10 +17,10 @@ type apparmorJSONTemplate struct {
 
 func (s *SecurityDefinitions) generateApparmorJSONContent() ([]byte, error) {
 	t := apparmorJSONTemplate{
-		Template:      s.SecurityTemplate,
-		PolicyGroups:  s.SecurityCaps,
+		Template:     s.SecurityTemplate,
+		PolicyGroups: s.SecurityCaps,
 		// TODO: this won't work with Ubuntu Personal, etc
-		PolicyVendor:  "ubuntu-core",
+		PolicyVendor: "ubuntu-core",
 		// TODO: this should perhaps be autodetected
 		PolicyVersion: 15.04,
 	}
