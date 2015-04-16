@@ -145,21 +145,8 @@ type packageYaml struct {
 		Store struct {
 			ID string `yaml:"id,omitempty"`
 		} `yaml:"store,omitempty"`
-
 		Hardware struct {
-			Assign []struct {
-				Name           string
-				DeviceByKernel []struct {
-					Name string
-				} `yaml:"device-by-kernel,omitempty"`
-				DeviceBySubsystem []struct {
-					Name               string
-					WithSubsystems     string `yaml:"with-subsystems,omitempty"`
-					WithDriver         string `yaml:"with-driver,omitempty"`
-					WithAttrsIDVendor  string `yaml:"with-attrs-idVendor,omitempty"`
-					WithAttrsIDProduct string `yaml:"with-attrs-idProduct,omitempty"`
-				} `yaml:"device-by-subsystem,omitempty"`
-			} `yaml:"assign,omitempty"`
+			Assign []HardwareAssign `yaml:"assign,omitempty"`
 		} `yaml:"hardware,omitempty"`
 	} `yaml:"oem,omitempty"`
 	Config SystemConfig `yaml:"config,omitempty"`
@@ -170,6 +157,20 @@ type packageYaml struct {
 
 	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement,omitempty"`
 	LicenseVersion           string `yaml:"license-version,omitempty"`
+}
+
+type HardwareAssign struct {
+	AppID          string `yaml:"app-id"`
+	DeviceByKernel []struct {
+		Name string
+	} `yaml:"device-by-kernel,omitempty"`
+	DeviceBySubsystem []struct {
+		Name               string
+		WithSubsystems     string `yaml:"with-subsystems,omitempty"`
+		WithDriver         string `yaml:"with-driver,omitempty"`
+		WithAttrsIDVendor  string `yaml:"with-attrs-idVendor,omitempty"`
+		WithAttrsIDProduct string `yaml:"with-attrs-idProduct,omitempty"`
+	} `yaml:"device-by-subsystem,omitempty"`
 }
 
 type remoteSnap struct {
@@ -194,6 +195,33 @@ type searchResults struct {
 	Payload struct {
 		Packages []remoteSnap `json:"clickindex:package"`
 	} `json:"_embedded"`
+}
+
+func (h *HardwareAssign) generateUdevRuleContent() (string, error) {
+	s := ""
+	for _, k := range h.DeviceByKernel {
+		s += fmt.Sprintf(`KERNEL=="%v", `, k.Name)
+	}
+	for _, d := range h.DeviceBySubsystem {
+		if d.Name != "" {
+			s += fmt.Sprintf(`NAME=="%v", `, d.Name)
+		}
+		if d.WithSubsystems != "" {
+			s += fmt.Sprintf(`SUBSYSTEMS=="%v", `, d.WithSubsystems)
+		}
+		if d.WithDriver != "" {
+			s += fmt.Sprintf(`DRIVER=="%v", `, d.WithDriver)
+		}
+		if d.WithAttrsIDVendor != "" {
+			s += fmt.Sprintf(`ATTRS{idVendor}=="%v", `, d.WithAttrsIDVendor)
+		}
+		if d.WithAttrsIDProduct != "" {
+			s += fmt.Sprintf(`ATTRS{idProduct}=="%v", `, d.WithAttrsIDProduct)
+		}
+	}
+	s += fmt.Sprintf(` TAG+="snappy_assign_1_%s"`, h.AppID)
+
+	return s, nil
 }
 
 func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
