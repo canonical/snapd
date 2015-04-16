@@ -732,6 +732,9 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	// the "oem" parts are special
 	if manifest.Type == SnapTypeOem {
 		targetDir = snapOemDir
+		if err := writeOemHardwareUdevRules(m); err != nil {
+			return "", err
+		}
 	}
 
 	dirName := fmt.Sprintf("%s.%s", manifest.Name, namespace)

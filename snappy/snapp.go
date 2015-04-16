@@ -195,6 +195,39 @@ type searchResults struct {
 	} `json:"_embedded"`
 }
 
+func cleanupOemHardwareUdevRules(m *packageYaml) error {
+	oldFiles, err := filepath.Glob(filepath.Join(snapUdevRulesDir, fmt.Sprintf("snappy_%s_*.rules", m.Name)))
+	if err != nil {
+		return err
+	}
+
+	for _, f := range oldFiles {
+		os.Remove(f)
+	}
+
+	return nil
+}
+
+func writeOemHardwareUdevRules(m *packageYaml) error {
+	// cleanup
+	if err := cleanupOemHardwareUdevRules(m); err != nil {
+		return err
+	}
+	// write new files
+	for _, h := range m.OEM.Hardware.Assign {
+		rulesContent, err := h.generateUdevRuleContent()
+		if err != nil {
+			return err
+		}
+		outfile := filepath.Join(snapUdevRulesDir, fmt.Sprintf("snappy_%s_%s.rules", m.Name, h.AppID))
+		if err := ioutil.WriteFile(outfile, []byte(rulesContent), 0644); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
 	s := ""
 	for _, r := range hw.Rules {

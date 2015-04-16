@@ -1009,7 +1009,7 @@ func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	c.Assert(getStructFields(t{}), DeepEquals, []string{"hello"})
 }
 
-var hardwareYaml = []byte(`name: foo
+var hardwareYaml = []byte(`name: oem-foo
 version: 1.0
 oem:
  hardware:
@@ -1056,5 +1056,26 @@ func (s *SnapTestSuite) TestGenerateHardwareYamlData(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(output, Equals, expectedUdevRule)
-	// FIXME: snappy-%appid.rules
+}
+
+func (s *SnapTestSuite) TestWriteHardwareUdevEtc(c *C) {
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+
+	snapUdevRulesDir = c.MkDir()
+	writeOemHardwareUdevRules(m)
+
+	c.Assert(helpers.FileExists(filepath.Join(snapUdevRulesDir, "snappy_oem-foo_device-hive-iot-hal.rules")), Equals, true)
+}
+
+func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+
+	snapUdevRulesDir = c.MkDir()
+	udevRulesFile := filepath.Join(snapUdevRulesDir, "snappy_oem-foo_device-hive-iot-hal.rules")
+	c.Assert(ioutil.WriteFile(udevRulesFile, nil, 0644), Equals, nil)
+	cleanupOemHardwareUdevRules(m)
+
+	c.Assert(helpers.FileExists(udevRulesFile), Equals, false)
 }
