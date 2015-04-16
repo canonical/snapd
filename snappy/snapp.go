@@ -157,19 +157,21 @@ type packageYaml struct {
 }
 
 type remoteSnap struct {
-	Publisher       string  `json:"publisher,omitempty"`
-	Name            string  `json:"name"`
-	Title           string  `json:"title"`
-	IconURL         string  `json:"icon_url"`
-	Price           float64 `json:"price,omitempty"`
-	Content         string  `json:"content,omitempty"`
-	RatingsAverage  float64 `json:"ratings_average,omitempty"`
-	Version         string  `json:"version"`
-	AnonDownloadURL string  `json:"anon_download_url, omitempty"`
-	DownloadURL     string  `json:"download_url, omitempty"`
-	DownloadSha512  string  `json:"download_sha512, omitempty"`
-	LastUpdated     string  `json:"last_updated, omitempty"`
-	DownloadSize    int64   `json:"binary_filesize, omitempty"`
+	Publisher       string             `json:"publisher,omitempty"`
+	Name            string             `json:"package_name"`
+	Namespace       string             `json:"origin"`
+	Title           string             `json:"title"`
+	IconURL         string             `json:"icon_url"`
+	Prices          map[string]float64 `json:"prices,omitempty"`
+	Type            string             `json:"content,omitempty"`
+	RatingsAverage  float64            `json:"ratings_average,omitempty"`
+	Version         string             `json:"version"`
+	AnonDownloadURL string             `json:"anon_download_url, omitempty"`
+	DownloadURL     string             `json:"download_url, omitempty"`
+	DownloadSha512  string             `json:"download_sha512, omitempty"`
+	LastUpdated     string             `json:"last_updated, omitempty"`
+	DownloadSize    int64              `json:"binary_filesize, omitempty"`
+	SupportURL      string             `json:"support_url"`
 }
 
 type searchResults struct {
@@ -731,8 +733,7 @@ func (s *RemoteSnapPart) Description() string {
 
 // Namespace is the origin
 func (s *RemoteSnapPart) Namespace() string {
-	// TODO: implement.
-	return "{NOT_IMPLEMENTED}"
+	return s.pkg.Namespace
 }
 
 // Hash returns the hash
@@ -773,9 +774,18 @@ func (s *RemoteSnapPart) DownloadSize() int64 {
 
 // Date returns the last update time
 func (s *RemoteSnapPart) Date() time.Time {
-	p, err := time.Parse("2006-01-02T15:04:05.000000Z", s.pkg.LastUpdated)
-	if err != nil {
-		return time.Time{}
+	var p time.Time
+	var err error
+
+	for _, fmt := range []string{
+		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05.000Z",
+		"2006-01-02T15:04:05.000000Z",
+	} {
+		p, err = time.Parse(fmt, s.pkg.LastUpdated)
+		if err == nil {
+			break
+		}
 	}
 
 	return p
@@ -886,6 +896,24 @@ var (
 	storeBulkURI    *url.URL
 )
 
+func getStructFields(s interface{}) []string {
+	st := reflect.TypeOf(s)
+	num := st.NumField()
+	fields := make([]string, 0, num)
+	for i := 0; i < num; i++ {
+		tag := st.Field(i).Tag.Get("json")
+		idx := strings.IndexRune(tag, ',')
+		if idx > -1 {
+			tag = tag[:idx]
+		}
+		if tag != "" {
+			fields = append(fields, tag)
+		}
+	}
+
+	return fields
+}
+
 func init() {
 	storeBaseURI, err := url.Parse("https://search.apps.ubuntu.com/api/v1/")
 	if err != nil {
@@ -897,7 +925,12 @@ func init() {
 		panic(err)
 	}
 
+	v := url.Values{}
+	v.Set("fields", strings.Join(getStructFields(remoteSnap{}), ","))
+	storeSearchURI.RawQuery = v.Encode()
+
 	storeDetailsURI, err = storeBaseURI.Parse("package/")
+
 	if err != nil {
 		panic(err)
 	}
@@ -906,6 +939,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	storeBulkURI.RawQuery = v.Encode()
 }
 
 // NewUbuntuStoreSnapRepository creates a new SnapUbuntuStoreRepository
@@ -958,6 +992,7 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 	if err != nil {
 		return nil, err
 	}
+
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return nil, err
