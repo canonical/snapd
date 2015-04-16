@@ -779,7 +779,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 
 	// oh, one more thing: refresh the security bits
 	if !inhibitHooks {
-		if err := NewSnapPartFromYaml(instDir, m).RefreshDependentsSecurity(inter); err != nil {
+		if err := NewSnapPartFromYaml(instDir, namespace, m).RefreshDependentsSecurity(inter); err != nil {
 			return "", err
 		}
 	}

@@ -89,7 +89,7 @@ vendor: Foo Bar <foo@example.com>
 func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 	s.installThree(c, AllowUnauthenticated|DoInstallGC)
 
-	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo", "*"))
+	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo.sideload", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(globs, HasLen, 2+1) // +1 for "current"
 }
@@ -98,7 +98,7 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 	s.installThree(c, AllowUnauthenticated)
 
-	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo", "*"))
+	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo.sideload", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(globs, HasLen, 3+1) // +1 for "current"
 }

@@ -309,21 +309,21 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, cur
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
-func NewInstalledSnapPart(yamlPath string) *SnapPart {
+func NewInstalledSnapPart(yamlPath, namespace string) *SnapPart {
 	m, err := parsePackageYamlFile(yamlPath)
 	if err != nil {
 		return nil
 	}
 
-	return NewSnapPartFromYaml(yamlPath, m)
+	return NewSnapPartFromYaml(yamlPath, namespace, m)
 }
 
 // NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
-func NewSnapPartFromYaml(yamlPath string, m *packageYaml) *SnapPart {
+func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) *SnapPart {
 	part := &SnapPart{
 		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
 		isInstalled: true,
-		namespace:   sideloadedNamespace,
+		namespace:   namespace,
 		m:           m,
 	}
 
@@ -474,7 +474,7 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 
 // Config is used to to configure the snap
 func (s *SnapPart) Config(configuration []byte) (new string, err error) {
-	return snapConfig(s.basedir, string(configuration))
+	return snapConfig(s.basedir, s.namespace, string(configuration))
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
@@ -624,6 +624,10 @@ func (s *SnapLocalRepository) Search(terms string) (versions []Part, err error) 
 
 // Details returns details for the given snap
 func (s *SnapLocalRepository) Details(name string) (versions []Part, err error) {
+	if !strings.ContainsRune(name, '.') {
+		name += ".*"
+	}
+
 	globExpr := filepath.Join(s.path, name, "*", "meta", "package.yaml")
 	parts, err := s.partsForGlobExpr(globExpr)
 
@@ -661,7 +665,13 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 			continue
 		}
 
-		snap := NewInstalledSnapPart(yamlfile)
+		namespace := filepath.Ext(filepath.Dir(filepath.Join(realpath, "..", "..")))
+		if len(namespace) < 1 {
+			return nil, errors.New("invalid package on system")
+		}
+		namespace = namespace[1:]
+
+		snap := NewInstalledSnapPart(yamlfile, namespace)
 		if snap != nil {
 			parts = append(parts, snap)
 		}
