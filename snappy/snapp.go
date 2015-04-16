@@ -54,6 +54,26 @@ const (
 	sideloadedNamespace = "sideload"
 )
 
+// SharedName is a structure that holds an Alias to the preferred package and
+// the list of all the alternatives.
+type SharedName struct {
+	Alias Part
+	Parts []Part
+}
+
+// SharedNames is a list of all packages and it's SharedName structure.
+type SharedNames map[string]*SharedName
+
+// IsAlias determines if namespace is the one that is an alias for the
+// shared name.
+func (f *SharedName) IsAlias(namespace string) bool {
+	if alias := f.Alias; alias != nil {
+		return alias.Namespace() == namespace
+	}
+
+	return false
+}
+
 // Port is used to declare the Port and Negotiable status of such port
 // that is bound to a Service.
 type Port struct {
@@ -183,21 +203,22 @@ type packageYaml struct {
 }
 
 type remoteSnap struct {
-	Publisher       string             `json:"publisher,omitempty"`
+	Alias           string             `json:"alias,omitempty"`
+	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
+	DownloadSha512  string             `json:"download_sha512,omitempty"`
+	DownloadSize    int64              `json:"binary_filesize,omitempty"`
+	DownloadURL     string             `json:"download_url,omitempty"`
+	IconURL         string             `json:"icon_url"`
+	LastUpdated     string             `json:"last_updated,omitempty"`
 	Name            string             `json:"package_name"`
 	Namespace       string             `json:"origin"`
-	Title           string             `json:"title"`
-	IconURL         string             `json:"icon_url"`
 	Prices          map[string]float64 `json:"prices,omitempty"`
-	Type            string             `json:"content,omitempty"`
+	Publisher       string             `json:"publisher,omitempty"`
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
-	Version         string             `json:"version"`
-	AnonDownloadURL string             `json:"anon_download_url, omitempty"`
-	DownloadURL     string             `json:"download_url, omitempty"`
-	DownloadSha512  string             `json:"download_sha512, omitempty"`
-	LastUpdated     string             `json:"last_updated, omitempty"`
-	DownloadSize    int64              `json:"binary_filesize, omitempty"`
 	SupportURL      string             `json:"support_url"`
+	Title           string             `json:"title"`
+	Type            string             `json:"content,omitempty"`
+	Version         string             `json:"version"`
 }
 
 type searchResults struct {
@@ -239,6 +260,12 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 				m.Architectures = append(m.Architectures, arch.(string))
 			}
 		}
+	}
+
+	// this is to prevent installation of legacy packages such as those that
+	// contain the namespace/origin in the package name.
+	if strings.ContainsRune(m.Name, '.') {
+		return nil, ErrPackageNameNotSupported
 	}
 
 	if m.DeprecatedFramework != "" {
@@ -715,11 +742,6 @@ func (s *SnapLocalRepository) Description() string {
 	return fmt.Sprintf("Snap local repository for %s", s.path)
 }
 
-// Search searches the local repository
-func (s *SnapLocalRepository) Search(terms string) (versions []Part, err error) {
-	return versions, err
-}
-
 // Details returns details for the given snap
 func (s *SnapLocalRepository) Details(name string) (versions []Part, err error) {
 	if !strings.ContainsRune(name, '.') {
@@ -1112,7 +1134,7 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 }
 
 // Search searches the repository for the given searchTerm
-func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err error) {
+func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, error) {
 	q := s.searchURI.Query()
 	q.Set("q", searchTerm)
 	s.searchURI.RawQuery = q.Encode()
@@ -1138,12 +1160,22 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err
 		return nil, err
 	}
 
+	sharedNames := make(SharedNames, len(searchData.Payload.Packages))
 	for _, pkg := range searchData.Payload.Packages {
 		snap := NewRemoteSnapPart(pkg)
-		parts = append(parts, snap)
+		pkgName := snap.Name()
+
+		if _, ok := sharedNames[snap.Name()]; !ok {
+			sharedNames[pkgName] = new(SharedName)
+		}
+
+		sharedNames[pkgName].Parts = append(sharedNames[pkgName].Parts, snap)
+		if pkg.Alias != "" {
+			sharedNames[pkgName].Alias = snap
+		}
 	}
 
-	return parts, nil
+	return sharedNames, nil
 }
 
 // Updates returns the available updates
