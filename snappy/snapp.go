@@ -50,7 +50,7 @@ const (
 	releasePostfix = "-core"
 
 	// the namespace for sideloaded snaps
-	sideloadedNamesapce = "sideload"
+	sideloadedNamespace = "sideload"
 )
 
 // Port is used to declare the Port and Negotiable status of such port
@@ -132,7 +132,7 @@ type packageYaml struct {
 	// the spec allows a string or a list here *ick* so we need
 	// to convert that into something sensible via reflect
 	DeprecatedArchitecture interface{} `yaml:"architecture"`
-	Architectures          []string
+	Architectures          []string    `yaml:"architectures"`
 
 	DeprecatedFramework string   `yaml:"framework,omitempty"`
 	Frameworks          []string `yaml:"frameworks,omitempty"`
@@ -184,6 +184,7 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return parsePackageYamlData(yamlData)
 }
 
@@ -197,16 +198,18 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 
 	// parse the architecture: field that is either a string or a list
 	// or empty (yes, you read that correctly)
-	v := reflect.ValueOf(m.DeprecatedArchitecture)
-	switch v.Kind() {
-	case reflect.Invalid:
-		m.Architectures = []string{"all"}
-	case reflect.String:
-		m.Architectures = []string{v.String()}
-	case reflect.Slice:
-		v2 := m.DeprecatedArchitecture.([]interface{})
-		for _, arch := range v2 {
-			m.Architectures = append(m.Architectures, arch.(string))
+	if m.Architectures == nil {
+		v := reflect.ValueOf(m.DeprecatedArchitecture)
+		switch v.Kind() {
+		case reflect.Invalid:
+			m.Architectures = []string{"all"}
+		case reflect.String:
+			m.Architectures = []string{v.String()}
+		case reflect.Slice:
+			v2 := m.DeprecatedArchitecture.([]interface{})
+			for _, arch := range v2 {
+				m.Architectures = append(m.Architectures, arch.(string))
+			}
 		}
 	}
 
@@ -218,6 +221,17 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 
 		m.Frameworks = commasplitter(m.DeprecatedFramework, -1)
 		m.DeprecatedFramework = ""
+	}
+
+	// For backward compatiblity we allow that there is no "exec:" line
+	// in the binary definition and that its derived from the name.
+	//
+	// Generate the right exec line here
+	for i := range m.Binaries {
+		if m.Binaries[i].Exec == "" {
+			m.Binaries[i].Exec = m.Binaries[i].Name
+			m.Binaries[i].Name = filepath.Base(m.Binaries[i].Exec)
+		}
 	}
 
 	for i := range m.Services {
@@ -232,7 +246,7 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 func (m *packageYaml) checkForNameClashes() error {
 	d := make(map[string]struct{})
 	for _, bin := range m.Binaries {
-		d[filepath.Base(bin.Name)] = struct{}{}
+		d[bin.Name] = struct{}{}
 	}
 	for _, svc := range m.Services {
 		if _, ok := d[svc.Name]; ok {
@@ -309,21 +323,21 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, cur
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
-func NewInstalledSnapPart(yamlPath string) *SnapPart {
+func NewInstalledSnapPart(yamlPath, namespace string) *SnapPart {
 	m, err := parsePackageYamlFile(yamlPath)
 	if err != nil {
 		return nil
 	}
 
-	return NewSnapPartFromYaml(yamlPath, m)
+	return NewSnapPartFromYaml(yamlPath, namespace, m)
 }
 
 // NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
-func NewSnapPartFromYaml(yamlPath string, m *packageYaml) *SnapPart {
+func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) *SnapPart {
 	part := &SnapPart{
 		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
 		isInstalled: true,
-		namespace:   sideloadedNamesapce,
+		namespace:   namespace,
 		m:           m,
 	}
 
@@ -474,7 +488,7 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 
 // Config is used to to configure the snap
 func (s *SnapPart) Config(configuration []byte) (new string, err error) {
-	return snapConfig(s.basedir, string(configuration))
+	return snapConfig(s.basedir, s.namespace, string(configuration))
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
@@ -624,6 +638,10 @@ func (s *SnapLocalRepository) Search(terms string) (versions []Part, err error) 
 
 // Details returns details for the given snap
 func (s *SnapLocalRepository) Details(name string) (versions []Part, err error) {
+	if !strings.ContainsRune(name, '.') {
+		name += ".*"
+	}
+
 	globExpr := filepath.Join(s.path, name, "*", "meta", "package.yaml")
 	parts, err := s.partsForGlobExpr(globExpr)
 
@@ -661,13 +679,28 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 			continue
 		}
 
-		snap := NewInstalledSnapPart(yamlfile)
+		namespace, err := namespaceFromPath(realpath)
+		if err != nil {
+			return nil, err
+		}
+
+		snap := NewInstalledSnapPart(yamlfile, namespace)
 		if snap != nil {
 			parts = append(parts, snap)
 		}
 	}
 
 	return parts, nil
+}
+
+func namespaceFromPath(path string) (string, error) {
+	namespace := filepath.Ext(filepath.Dir(filepath.Join(path, "..", "..")))
+
+	if len(namespace) < 1 {
+		return "", errors.New("invalid package on system")
+	}
+
+	return namespace[1:], nil
 }
 
 // RemoteSnapPart represents a snap available on the server
@@ -806,7 +839,7 @@ func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (strin
 	}
 	defer os.Remove(downloadedSnap)
 
-	return installClick(downloadedSnap, flags, pbar)
+	return installClick(downloadedSnap, flags, pbar, s.Namespace())
 }
 
 // SetActive sets the snap active
