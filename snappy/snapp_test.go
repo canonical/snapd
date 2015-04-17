@@ -106,15 +106,16 @@ func makeSnapActive(packageYamlPath string) (err error) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapInvalidPath(c *C) {
-	snap := NewInstalledSnapPart("invalid-path", "")
-	c.Assert(snap, IsNil)
+	_, err := NewInstalledSnapPart("invalid-path", "")
+	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 
-	snap := NewInstalledSnapPart(snapYaml, testNamespace)
+	snap, err := NewInstalledSnapPart(snapYaml, testNamespace)
+	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
 	c.Assert(snap.Name(), Equals, "hello-app")
 	c.Assert(snap.Version(), Equals, "1.10")
@@ -141,7 +142,8 @@ func (s *SnapTestSuite) TestLocalSnapHash(c *C) {
 	err = ioutil.WriteFile(hashesFile, []byte("archive-sha512: F00F00"), 0644)
 	c.Assert(err, IsNil)
 
-	snap := NewInstalledSnapPart(snapYaml, testNamespace)
+	snap, err := NewInstalledSnapPart(snapYaml, testNamespace)
+	c.Assert(err, IsNil)
 	c.Assert(snap.Hash(), Equals, "F00F00")
 }
 
@@ -150,7 +152,8 @@ func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
 	c.Assert(err, IsNil)
 	makeSnapActive(snapYaml)
 
-	snap := NewInstalledSnapPart(snapYaml, testNamespace)
+	snap, err := NewInstalledSnapPart(snapYaml, testNamespace)
+	c.Assert(err, IsNil)
 	c.Assert(snap.IsActive(), Equals, true)
 }
 
@@ -163,7 +166,8 @@ frameworks:
 `)
 	c.Assert(err, IsNil)
 
-	snap := NewInstalledSnapPart(snapYaml, testNamespace)
+	snap, err := NewInstalledSnapPart(snapYaml, testNamespace)
+	c.Assert(err, IsNil)
 	fmk, err := snap.Frameworks()
 	c.Assert(err, IsNil)
 	c.Check(fmk, DeepEquals, []string{"one", "two"})
@@ -596,7 +600,8 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
-	snap := NewInstalledSnapPart(yamlFile, "sergiusens")
+	snap, err := NewInstalledSnapPart(yamlFile, "sergiusens")
+	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
 
 	os.Setenv("SNAP_NAME", "override-me")
@@ -701,7 +706,8 @@ services:
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, packageHello)
 	c.Assert(err, IsNil)
 
-	snap := NewInstalledSnapPart(yamlFile, testNamespace)
+	snap, err := NewInstalledSnapPart(yamlFile, testNamespace)
+	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
 
 	c.Assert(snap.Name(), Equals, "hello-app")

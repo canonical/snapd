@@ -402,17 +402,26 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, cur
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
-func NewInstalledSnapPart(yamlPath, namespace string) *SnapPart {
+func NewInstalledSnapPart(yamlPath, namespace string) (*SnapPart, error) {
 	m, err := parsePackageYamlFile(yamlPath)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
-	return NewSnapPartFromYaml(yamlPath, namespace, m)
+	part, err := NewSnapPartFromYaml(yamlPath, namespace, m)
+	if err != nil {
+		return nil, err
+	}
+
+	return part, nil
 }
 
 // NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
-func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) *SnapPart {
+func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) (*SnapPart, error) {
+	if _, err := os.Stat(yamlPath); err != nil {
+		return nil, err
+	}
+
 	part := &SnapPart{
 		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
 		isInstalled: true,
@@ -422,7 +431,11 @@ func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) *SnapPart {
 
 	// check if the part is active
 	allVersionsDir := filepath.Dir(part.basedir)
-	p, _ := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
+	p, err := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
 	if p == part.basedir {
 		part.isActive = true
 	}
@@ -430,15 +443,18 @@ func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) *SnapPart {
 	// read hash, its ok if its not there, some older versions of
 	// snappy did not write this file
 	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes.yaml"))
-	if err == nil {
-		var h hashesYaml
-		err = yaml.Unmarshal(hashesData, &h)
-		if err == nil {
-			part.hash = h.ArchiveSha512
-		}
+	if err != nil {
+		return nil, err
 	}
 
-	return part
+	var h hashesYaml
+	err = yaml.Unmarshal(hashesData, &h)
+	if err != nil {
+		return nil, err
+	}
+	part.hash = h.ArchiveSha512
+
+	return part, nil
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
@@ -790,10 +806,11 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 			return nil, err
 		}
 
-		snap := NewInstalledSnapPart(yamlfile, namespace)
-		if snap != nil {
-			parts = append(parts, snap)
+		snap, err := NewInstalledSnapPart(yamlfile, namespace)
+		if err != nil {
+			return nil, err
 		}
+		parts = append(parts, snap)
 	}
 
 	return parts, nil
