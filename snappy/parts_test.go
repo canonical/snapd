@@ -17,7 +17,15 @@
 
 package snappy
 
-import . "launchpad.net/gocheck"
+import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
+	. "launchpad.net/gocheck"
+
+	"launchpad.net/snappy/progress"
+)
 
 func (s *SnapTestSuite) TestActiveSnapByType(c *C) {
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app1
@@ -80,4 +88,22 @@ func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 	parts := FindSnapsByName("hello-app", installed)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "hello-app")
+}
+
+func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
+	c.Check(PackageNameActive("hello-app"), Equals, false)
+
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	c.Assert(err, IsNil)
+	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
+
+	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-app.manifest"), []byte(`{"name": "hello-app"}`), 0644), IsNil)
+	ag := &progress.NullProgress{}
+
+	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+
+	c.Check(PackageNameActive("hello-app"), Equals, true)
+	c.Assert(unsetActiveClick(pkgdir, true, ag), IsNil)
+	c.Check(PackageNameActive("hello-app"), Equals, false)
 }
