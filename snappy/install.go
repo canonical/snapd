@@ -102,8 +102,8 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (string, e
 		if cur != nil {
 			return "", ErrAlreadyInstalled
 		}
-		if ForkActive(part.Name()) {
-			return "", ErrForkAlreadyInstalled
+		if PackageNameActive(part.Name()) {
+			return "", ErrPackageNameAlreadyInstalled
 		}
 		return part.Install(meter, flags)
 	}

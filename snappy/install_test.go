@@ -142,7 +142,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	c.Assert(err, Equals, ErrAlreadyInstalled)
 }
 
-func (s *SnapTestSuite) TestInstallAppForkFails(c *C) {
+func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	// install one:
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
@@ -176,5 +176,5 @@ func (s *SnapTestSuite) TestInstallAppForkFails(c *C) {
 	defer mockServer.Close()
 
 	_, err = Install("hello-app.potato", 0, ag)
-	c.Assert(err, Equals, ErrForkAlreadyInstalled)
+	c.Assert(err, Equals, ErrPackageNameAlreadyInstalled)
 }

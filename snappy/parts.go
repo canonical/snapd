@@ -318,7 +318,7 @@ func makeSnapActiveByNameAndVersion(pkg, ver string) error {
 	return part.SetActive(nil)
 }
 
-// ForkActive checks whether a fork of the given name is active in the system
-func ForkActive(name string) bool {
+// PackageNameActive checks whether a fork of the given name is active in the system
+func PackageNameActive(name string) bool {
 	return ActiveSnapByName(name) != nil
 }

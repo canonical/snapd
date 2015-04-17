@@ -89,8 +89,8 @@ func (s *SnapTestSuite) FindSnapsByNameFound(c *C) {
 	c.Assert(parts[0].Name(), Equals, "hello-app")
 }
 
-func (s *SnapTestSuite) TestForkInstalled(c *C) {
-	c.Check(ForkActive("hello-app"), Equals, false)
+func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
+	c.Check(PackageNameActive("hello-app"), Equals, false)
 
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
@@ -102,7 +102,7 @@ func (s *SnapTestSuite) TestForkInstalled(c *C) {
 
 	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
 
-	c.Check(ForkActive("hello-app"), Equals, true)
+	c.Check(PackageNameActive("hello-app"), Equals, true)
 	c.Assert(unsetActiveClick(pkgdir, true, ag), IsNil)
-	c.Check(ForkActive("hello-app"), Equals, false)
+	c.Check(PackageNameActive("hello-app"), Equals, false)
 }
