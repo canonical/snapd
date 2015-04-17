@@ -1,7 +1,7 @@
 
 CFLAGS= -O2 -Wall -Werror $(shell dpkg-buildflags --get CFLAGS)
 LD_FLAGS = $(shell dpkg-buildflags --get LDFLAGS)
-LIBS = -lapparmor -lseccomp 
+LIBS = -lapparmor -lseccomp -ludev
 
 BIN = ubuntu-core-launcher
 SRCS = $(wildcard *.c)

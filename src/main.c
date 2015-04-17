@@ -10,12 +10,86 @@
 #include <errno.h>
 #include <sched.h>
 #include <string.h>
+#include <linux/kdev_t.h>
+ 
+#include "libudev.h"
 
 #include "overlay.h"
 #include "utils.h"
 #include "seccomp.h"
 
 int unshare(int flags);
+
+void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appname) {
+      struct udev_device *d = udev_device_new_from_syspath(u, path);
+      if (d == NULL)
+         return;
+      dev_t devnum = udev_device_get_devnum (d);
+      udev_device_unref(d);
+
+      int status = 0;
+      pid_t pid = fork();
+      if (pid == 0) {
+         char buf[64];
+         int major = MAJOR(devnum);
+         int minor = MINOR(devnum);
+         if(snprintf(buf, sizeof(buf), "%i:%i", major, minor) < 0)
+            die("snprintf failed (5)");
+         if(execl("/lib/udev/snappy-app-dev", "add", appname, path, buf, NULL) != 0)
+            die("execlp failed");
+      }
+      if(waitpid(pid, &status, 0) < 0)
+         die("waitpid failed");
+      if(WIFEXITED(status) != true)
+         die("child exited with %i", WEXITSTATUS(status));
+}
+
+void setup_udev_stuff(const char *appname) {
+   struct udev *u = udev_new();
+   if (u == NULL)
+      die("udev_new failed");
+
+   const char* static_devices[] = {
+      "/class/mem/null",
+      "/class/mem/full",
+      "/class/mem/zero",
+      "/class/mem/random",
+      "/class/mem/urandom",
+      "/class/tty/tty",
+      "/class/tty/console",
+      "/class/tty/ptmx",
+      NULL,
+   };
+   int i;
+   for(i=0; static_devices[i] != NULL; i++) {
+      run_snappy_app_dev_add(u, static_devices[i], appname);
+   }
+   
+   struct udev_enumerate *devices = udev_enumerate_new(u);
+   if (devices == NULL)
+      die("udev_enumerate_new failed");
+
+   if (udev_enumerate_add_match_tag (devices, "snappy-assign") != 0)
+      die("udev_enumerate_add_match_tag");
+   
+   if(udev_enumerate_add_match_property (devices, "SNAPPY_APP", appname) != 0)
+      die("udev_enumerate_add_match_property");
+
+   if(udev_enumerate_scan_devices(devices) != 0)
+      die("udev_enumerate_scan failed");
+
+   struct udev_list_entry *l = udev_enumerate_get_list_entry (devices);
+   while (l != NULL) {
+      const char *path = udev_list_entry_get_value (l);
+      if (path == NULL)
+         die("udev_list_entry_get_value failed for %s", l);
+      run_snappy_app_dev_add(u, path, appname);
+      l = udev_list_entry_get_next(l);
+   }
+
+   udev_enumerate_unref(devices);
+   udev_unref(u);
+}
 
 void setup_devices_cgroup(const char *appname) {
    // create devices cgroup controller
@@ -59,8 +133,19 @@ int main(int argc, char **argv)
     const char *aa_profile = argv[3];
     const char *binary = argv[4];
 
+    // this needs to happen as root
     setup_devices_cgroup(appname);
+    setup_udev_stuff(appname);
 
+    // the rest does not so drop privs back to user
+    if (setegid(getgid()) != 0)
+       die("setegid failed");
+    if (seteuid(getuid()) != 0)
+       die("seteuid failed");
+
+    if(getuid() == 0 || geteuid() == 0 || getgid() == 0 || getegid() == 0)
+       die("dropping privs did not work");
+    
     int i = 0;
     int rc = 0;
     
