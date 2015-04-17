@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"fmt"
 	. "launchpad.net/gocheck"
 )
 
@@ -143,15 +144,15 @@ func (s *SystemdTestSuite) TestEnable(c *C) {
 	c.Assert(target, Equals, "/etc/systemd/system/foo")
 }
 
-const expectedService = `[Unit]
+const expectedServiceFmt = `[Unit]
 Description=descr
-After=ubuntu-snappy.run-hooks.service
+%s
 X-Snappy=yes
 
 [Service]
 ExecStart=/apps/app/1.0/bin/start
 WorkingDirectory=/apps/app/1.0/
-Environment="SNAPP_APP_PATH=/apps/app/1.0/" "SNAPP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAPP_APP_USER_DATA_PATH=%h/apps/app/1.0/" "SNAP_APP_PATH=/apps/app/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAP_APP_USER_DATA_PATH=%h/apps/app/1.0/" "SNAP_APP=app_service_1.0" "TMPDIR=/tmp/snaps/app/1.0/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/app/1.0/tmp"
+Environment="SNAPP_APP_PATH=/apps/app/1.0/" "SNAPP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/app/1.0/" "SNAP_APP_PATH=/apps/app/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAP_APP_USER_DATA_PATH=%%h/apps/app/1.0/" "SNAP_APP=app_service_1.0" "TMPDIR=/tmp/snaps/app/1.0/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/app/1.0/tmp"
 AppArmorProfile=aa-profile
 ExecStop=/apps/app/1.0/bin/stop
 ExecStopPost=/apps/app/1.0/bin/stop --post
@@ -161,7 +162,12 @@ TimeoutStopSec=10
 WantedBy=multi-user.target
 `
 
-func (s *SystemdTestSuite) TestGenServiceFile(c *C) {
+var (
+	expectedAppService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target")
+	expectedFmkService = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.run-hooks.service")
+)
+
+func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 
 	desc := &ServiceDescription{
 		AppName:     "app",
@@ -176,8 +182,26 @@ func (s *SystemdTestSuite) TestGenServiceFile(c *C) {
 		AaProfile:   "aa-profile",
 	}
 
-	generated := New("", nil).GenServiceFile(desc)
-	c.Assert(generated, Equals, expectedService)
+	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedAppService)
+}
+
+func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
+
+	desc := &ServiceDescription{
+		AppName:     "app",
+		ServiceName: "service",
+		Version:     "1.0",
+		Description: "descr",
+		AppPath:     "/apps/app/1.0/",
+		Start:       "bin/start",
+		Stop:        "bin/stop",
+		PostStop:    "bin/stop --post",
+		StopTimeout: time.Duration(10 * time.Second),
+		AaProfile:   "aa-profile",
+		IsFramework: true,
+	}
+
+	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedFmkService)
 }
 
 func (s *SystemdTestSuite) TestRestart(c *C) {
