@@ -662,7 +662,7 @@ func (s *SnapPart) UpdateAppArmorJSONTimestamp() error {
 	// TODO: receive a list of policies that have changed, and only touch
 	// things if we use one of those policies
 
-	fns, err := filepath.Glob(filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_*.json", s.Name())))
+	fns, err := filepath.Glob(filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.%s_*.json", s.Name(), s.Namespace())))
 	if err != nil {
 		return err
 	}
@@ -699,8 +699,8 @@ func (s *SnapPart) NeedsAppArmorUpdate(policies, templates map[string]bool) bool
 }
 
 // RefreshDependentsSecurity refreshes the security policies of dependent snaps
-func (s *SnapPart) RefreshDependentsSecurity(inter interacter) error {
-	upPol, upTpl := policy.AppArmorDelta(s.Name(), s.basedir)
+func (s *SnapPart) RefreshDependentsSecurity(oldBaseDir string, inter interacter) error {
+	upPol, upTpl := policy.AppArmorDelta(oldBaseDir, s.basedir, s.Name()+"_")
 
 	deps, err := s.Dependents()
 	if err != nil {

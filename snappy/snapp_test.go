@@ -975,7 +975,7 @@ func (s *SnapTestSuite) TestUpdateAppArmorJSONTimestamp(c *C) {
 		snapAppArmorDir = oldDir
 	}()
 	snapAppArmorDir = c.MkDir()
-	fn := filepath.Join(snapAppArmorDir, "foo_stuff.json")
+	fn := filepath.Join(snapAppArmorDir, "foo."+testNamespace+"_stuff.json")
 	c.Assert(os.Symlink("nothing", fn), IsNil)
 	fi, err := os.Lstat(fn)
 	c.Assert(err, IsNil)
@@ -984,7 +984,7 @@ func (s *SnapTestSuite) TestUpdateAppArmorJSONTimestamp(c *C) {
 
 	yaml, err := parsePackageYamlData([]byte(`name: foo`))
 	c.Assert(err, IsNil)
-	part := &SnapPart{m: yaml, namespace: "sergiusens"}
+	part := &SnapPart{m: yaml, namespace: testNamespace}
 
 	c.Assert(part.UpdateAppArmorJSONTimestamp(), IsNil)
 
@@ -1001,12 +1001,12 @@ func (s *SnapTestSuite) TestUpdateAppArmorJSONTimestampFails(c *C) {
 	}()
 	snapAppArmorDir = c.MkDir()
 	timestampUpdater = func(string) error { return ErrNotImplemented }
-	fn := filepath.Join(snapAppArmorDir, "foo_stuff.json")
+	fn := filepath.Join(snapAppArmorDir, "foo."+testNamespace+"_stuff.json")
 	c.Assert(os.Symlink(fn, fn), IsNil)
 
 	yaml, err := parsePackageYamlData([]byte(`name: foo`))
 	c.Assert(err, IsNil)
-	part := &SnapPart{m: yaml, namespace: "sergiusens"}
+	part := &SnapPart{m: yaml, namespace: testNamespace}
 
 	c.Assert(part.UpdateAppArmorJSONTimestamp(), NotNil)
 }
@@ -1017,45 +1017,46 @@ func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
 		snapAppArmorDir = oldDir
 		timestampUpdater = helpers.UpdateTimestamp
 	}()
+	touched := []string{}
 	snapAppArmorDir = c.MkDir()
-	fn := filepath.Join(snapAppArmorDir, "foo_stuff.json")
-	c.Assert(os.Symlink("nothing", fn), IsNil)
-	fi, err := os.Lstat(fn)
-	c.Assert(err, IsNil)
-	ft := fi.ModTime()
-	time.Sleep(25 * time.Millisecond)
+	fn := filepath.Join(snapAppArmorDir, "foo."+testNamespace+"_stuff.json")
+	c.Assert(os.Symlink(fn, fn), IsNil)
+	timestampUpdater = func(s string) error {
+		touched = append(touched, s)
+		return nil
+	}
 
-	_, err = makeInstalledMockSnap(s.tempdir, `name: foo
+	_, err := makeInstalledMockSnap(s.tempdir, `name: foo
 version: 1.0
 frameworks:
  - fmk
 binaries:
  - name: hello
    security-override:
-    apparmor: foo
+    apparmor: fmk_foo
 `)
 	c.Assert(err, IsNil)
 
-	yaml, err := parsePackageYamlData([]byte(`name: fmk
-version: 1.0
-type: framework`))
+	d1 := c.MkDir()
+	d2 := c.MkDir()
+	dp := filepath.Join("meta", "framework-policy", "apparmor", "policygroups")
+
+	yaml := "name: fmk\ntype: framework\nversion: 1\n"
+	_, err = makeInstalledMockSnap(d1, yaml)
 	c.Assert(err, IsNil)
-	inter := new(MockProgressMeter)
-	part := &SnapPart{m: yaml, namespace: "sergiusens"}
+	c.Assert(os.MkdirAll(filepath.Join(d1, dp), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d1, dp, "foo"), []byte(""), 0644), IsNil)
 
-	c.Assert(part.RefreshDependentsSecurity(inter), IsNil)
-
-	fi, err = os.Lstat(fn)
+	_, err = makeInstalledMockSnap(d2, "name: fmk\ntype: framework\nversion: 2\n")
 	c.Assert(err, IsNil)
-	c.Check(ft.Before(fi.ModTime()), Equals, true)
+	c.Assert(os.MkdirAll(filepath.Join(d2, dp), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d2, dp, "foo"), []byte("x"), 0644), IsNil)
 
-	// a few error cases now
-	aaClickHookCmd = "/bin/false"
-	c.Assert(part.RefreshDependentsSecurity(inter), NotNil)
-
-	aaClickHookCmd = "/bin/true"
-	timestampUpdater = func(string) error { return ErrNotImplemented }
-	c.Assert(part.RefreshDependentsSecurity(inter), NotNil)
+	pb := &MockProgressMeter{}
+	m, err := parsePackageYamlData([]byte(yaml))
+	part := &SnapPart{m: m, namespace: testNamespace, basedir: d1}
+	c.Assert(part.RefreshDependentsSecurity(d2, pb), IsNil)
+	c.Check(touched, DeepEquals, []string{fn})
 }
 
 func (s *SnapTestSuite) TestRemoveChecksFrameworks(c *C) {

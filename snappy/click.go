@@ -314,17 +314,6 @@ func removeClick(clickDir string, inter interacter) (err error) {
 		}
 	}
 
-	yamlFile := filepath.Join(clickDir, "meta", "package.yaml")
-	yaml, err := parsePackageYamlFile(yamlFile)
-	if err != nil {
-		return err
-	}
-
-	if yaml.Type == SnapTypeFramework {
-		if err := policy.Remove(yaml.Name, clickDir); err != nil {
-			return err
-		}
-	}
 	return os.RemoveAll(clickDir)
 }
 
@@ -796,19 +785,6 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		return "", err
 	}
 
-	if manifest.Type == SnapTypeFramework {
-		if err := policy.Install(manifest.Name, instDir); err != nil {
-			return "", err
-		}
-		defer func() {
-			if err != nil {
-				if cerr := policy.Remove(manifest.Name, instDir); cerr != nil {
-					log.Printf("Warning: failed to remove policies for %s: %v", manifest.Name, err)
-				}
-			}
-		}()
-	}
-
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
 	// all hooks this can go away
 	clickMetaDir := path.Join(instDir, ".click", "info")
@@ -889,7 +865,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 			return "", err
 		}
 
-		if err := part.RefreshDependentsSecurity(inter); err != nil {
+		if err := part.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
 			return "", err
 		}
 	}
@@ -991,6 +967,18 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 	if err != nil {
 		return err
 	}
+
+	if manifest.Type == SnapTypeFramework {
+		m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
+		if err != nil {
+			return err
+		}
+
+		if err := policy.Remove(m.Name, clickDir); err != nil {
+			return err
+		}
+	}
+
 	if err := removeClickHooks(manifest, inhibitHooks); err != nil {
 		return err
 	}
@@ -1021,6 +1009,17 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 	newActiveManifest, err := readClickManifestFromClickDir(baseDir)
 	if err != nil {
 		return err
+	}
+
+	if newActiveManifest.Type == SnapTypeFramework {
+		m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
+		if err != nil {
+			return err
+		}
+
+		if err := policy.Install(m.Name, baseDir); err != nil {
+			return err
+		}
 	}
 
 	if err := installClickHooks(baseDir, newActiveManifest, inhibitHooks); err != nil {
