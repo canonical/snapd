@@ -65,6 +65,10 @@ var (
 	// ErrAlreadyInstalled is returned when the snap is already installed
 	ErrAlreadyInstalled = errors.New("the given snap is already installed")
 
+	// ErrPackageNameAlreadyInstalled is returned when you try to install
+	// a fork of something you already have installed
+	ErrPackageNameAlreadyInstalled = errors.New("a package by that name is already installed")
+
 	// ErrPrivOpInProgress is returned when a privileged operation
 	// cannot be performed since an existing privileged operation is
 	// still running.
@@ -123,6 +127,10 @@ var (
 	// ErrSideLoaded is returned on system update if the system was
 	// created with a custom enablement part.
 	ErrSideLoaded = errors.New("cannot update system that uses custom enablement")
+
+	// ErrPackageNameNotSupported is returned when installing legacy package such as those
+	// that have namespaces in their package names.
+	ErrPackageNameNotSupported = errors.New("package name with namespace not supported")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem

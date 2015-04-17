@@ -31,6 +31,7 @@ import (
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
 )
@@ -38,6 +39,7 @@ import (
 func (s *SnapTestSuite) TestReadManifest(c *C) {
 	manifestData := []byte(`{
    "description": "This is a simple hello world example.",
+    "framework": "ubuntu-core-15.04-dev1",
     "hooks": {
         "echo": {
             "apparmor": "meta/echo.apparmor",
@@ -181,11 +183,11 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	c.Assert(string(content), Equals, "#!/bin/sh\necho \"hello\"")
 
 	// ensure we have the manifest too
-	_, err = os.Stat(filepath.Join(baseDir, ".click", "info", "foo.manifest"))
+	_, err = os.Stat(filepath.Join(baseDir, ".click", "info", fooComposedName+".manifest"))
 	c.Assert(err, IsNil)
 
 	// ensure we have the data dir
-	_, err = os.Stat(path.Join(s.tempdir, "var", "lib", "apps", "foo", "1.0"))
+	_, err = os.Stat(path.Join(s.tempdir, "var", "lib", "apps", "foo."+testNamespace, "1.0"))
 	c.Assert(err, IsNil)
 
 	// ensure we have the hashes
@@ -292,7 +294,7 @@ func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testNamespace+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
@@ -310,7 +312,7 @@ func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testNamespace+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y")
@@ -327,7 +329,7 @@ func (s *SnapTestSuite) TestDifferentLicenseVersion(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"license-version: 2\nversion: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox.manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testNamespace+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
@@ -361,6 +363,99 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	c.Assert(allSystemctl, HasLen, 0)
 }
 
+func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
+	secbase := policy.SecBase
+	defer func() { policy.SecBase = secbase }()
+	policy.SecBase = c.MkDir()
+
+	allSystemctl := []string{}
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		allSystemctl = append(allSystemctl, cmd[0])
+		return nil, nil
+	}
+
+	tmpdir := c.MkDir()
+	appg := filepath.Join(tmpdir, "meta", "framework-policy", "apparmor", "policygroups")
+	c.Assert(os.MkdirAll(appg, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(appg, "one"), []byte("hello"), 0644), IsNil)
+
+	yaml := []byte(`name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+type: framework
+`)
+
+	yamlFile := path.Join(tmpdir, "meta", "package.yaml")
+	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
+	readmeMd := path.Join(tmpdir, "meta", "readme.md")
+	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
+	m, err := parsePackageYamlData(yaml)
+	c.Assert(err, IsNil)
+	c.Assert(writeDebianControl(tmpdir, m), IsNil)
+	c.Assert(writeClickManifest(tmpdir, m), IsNil)
+	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
+	d, err := clickdeb.Create(snapName)
+	c.Assert(err, IsNil)
+	defer d.Close()
+	c.Assert(d.Build(tmpdir, func(dataTar string) error {
+		return writeHashes(tmpdir, dataTar)
+	}), IsNil)
+
+	_, err = installClick(snapName, 0, nil, testNamespace)
+	c.Assert(err, IsNil)
+	appdir := filepath.Join(s.tempdir, "apps", "hello.testspacethename", "1.0.1")
+	c.Assert(removeClick(appdir, nil), IsNil)
+}
+
+func (s *SnapTestSuite) TestSnapRemovePackagePolicyWeirdClickManifest(c *C) {
+	secbase := policy.SecBase
+	defer func() { policy.SecBase = secbase }()
+	policy.SecBase = c.MkDir()
+
+	allSystemctl := []string{}
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		allSystemctl = append(allSystemctl, cmd[0])
+		return nil, nil
+	}
+
+	tmpdir := c.MkDir()
+	appg := filepath.Join(tmpdir, "meta", "framework-policy", "apparmor", "policygroups")
+	c.Assert(os.MkdirAll(appg, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(appg, "one"), []byte("hello"), 0644), IsNil)
+
+	yaml := []byte(`name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+type: framework
+`)
+
+	yamlFile := path.Join(tmpdir, "meta", "package.yaml")
+	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
+	readmeMd := path.Join(tmpdir, "meta", "readme.md")
+	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
+	m, err := parsePackageYamlData(yaml)
+	c.Assert(err, IsNil)
+	c.Assert(writeDebianControl(tmpdir, m), IsNil)
+	c.Assert(writeClickManifest(tmpdir, m), IsNil)
+	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
+	d, err := clickdeb.Create(snapName)
+	c.Assert(err, IsNil)
+	defer d.Close()
+	c.Assert(d.Build(tmpdir, func(dataTar string) error {
+		return writeHashes(tmpdir, dataTar)
+	}), IsNil)
+
+	_, err = installClick(snapName, 0, nil, testNamespace)
+	c.Assert(err, IsNil)
+	appdir := filepath.Join(s.tempdir, "apps", "hello.testspacethename", "1.0.1")
+	// c.Assert(removeClick(appdir, nil), IsNil)
+
+	manifestFile := path.Join(appdir, ".click", "info", "hello.testspacethename.manifest")
+	c.Assert(ioutil.WriteFile(manifestFile, []byte(`{"name": "xyzzy","type":"framework"}`), 0644), IsNil)
+
+	c.Assert(removeClick(appdir, nil), IsNil)
+}
+
 func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
 	snapFile := makeTestSnapPackage(c, `name: foo
 version: 1.0
@@ -373,7 +468,7 @@ vendor: Foo Bar <foo@example.com>`)
 	contentFile := path.Join(s.tempdir, "oem", fooComposedName, "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(path.Join(s.tempdir, "oem", fooComposedName, "1.0", ".click", "info", "foo.manifest"))
+	_, err = os.Stat(path.Join(s.tempdir, "oem", fooComposedName, "1.0", ".click", "info", fooComposedName+".manifest"))
 	c.Assert(err, IsNil)
 }
 
@@ -414,7 +509,8 @@ vendor: Foo Bar <foo@example.com>
 func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	snapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "apps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "apps")
-	homeData := filepath.Join(homeDir, "foo", "1.0")
+	appDir := "foo." + testNamespace
+	homeData := filepath.Join(homeDir, appDir, "1.0")
 	err := helpers.EnsureDir(homeData, 0755)
 	c.Assert(err, IsNil)
 
@@ -427,7 +523,7 @@ vendor: Foo Bar <foo@example.com>
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
-	canaryDataFile := filepath.Join(snapDataDir, "foo", "1.0", "canary.txt")
+	canaryDataFile := filepath.Join(snapDataDir, appDir, "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), canaryData, 0644)
@@ -436,12 +532,12 @@ vendor: Foo Bar <foo@example.com>
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
 	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
-	newCanaryDataFile := filepath.Join(snapDataDir, "foo", "2.0", "canary.txt")
+	newCanaryDataFile := filepath.Join(snapDataDir, appDir, "2.0", "canary.txt")
 	content, err := ioutil.ReadFile(newCanaryDataFile)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
 
-	newHomeDataCanaryFile := filepath.Join(homeDir, "foo", "2.0", "canary.home")
+	newHomeDataCanaryFile := filepath.Join(homeDir, appDir, "2.0", "canary.home")
 	content, err = ioutil.ReadFile(newHomeDataCanaryFile)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
@@ -457,17 +553,18 @@ func (s *SnapTestSuite) TestClickCopyDataNoUserHomes(c *C) {
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
+	appDir := "foo." + testNamespace
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	_, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
-	canaryDataFile := filepath.Join(snapDataDir, "foo", "1.0", "canary.txt")
+	canaryDataFile := filepath.Join(snapDataDir, appDir, "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
 	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(filepath.Join(snapDataDir, "foo", "2.0", "canary.txt"))
+	_, err = os.Stat(filepath.Join(snapDataDir, appDir, "2.0", "canary.txt"))
 	c.Assert(err, IsNil)
 }
 
@@ -491,18 +588,19 @@ integration:
  app:
   tracehook: meta/package.yaml
 `
+	appDir := "bar." + testNamespace
 	// install 1.0 and then upgrade to 2.0
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil, "")
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
-	canaryDataFile := filepath.Join(snapDataDir, "bar", "1.0", "canary.txt")
+	canaryDataFile := filepath.Join(snapDataDir, appDir, "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, "")
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(filepath.Join(snapDataDir, "bar", "2.0", "canary.txt"))
+	_, err = os.Stat(filepath.Join(snapDataDir, appDir, "2.0", "canary.txt"))
 	c.Assert(err, IsNil)
 
 	// read the hook trace file, this shows that 1.0 was active, then
@@ -511,7 +609,7 @@ integration:
 	c.Assert(err, IsNil)
 	// Forcefully in one line to avoid issues with hidden spaces,
 	// it is visually obvious in this form.
-	hookRun := fmt.Sprintf("now: ./bar_app_1.0.tracehook\nnow: \nnow: ./bar_app_2.0.tracehook\n")
+	hookRun := fmt.Sprintf("now: ./bar.%s_app_1.0.tracehook\nnow: \nnow: ./bar.%s_app_2.0.tracehook\n", testNamespace, testNamespace)
 	c.Assert(string(content), Equals, hookRun)
 }
 
@@ -523,8 +621,8 @@ func (s *SnapTestSuite) TestClickCopyDataHookFails(c *C) {
 	// we can ensure that upgrades can work
 	hookContent := fmt.Sprintf(`Hook-Name: hooky
 User: root
-Exec: if test -e %s/bar_app_2.0.hooky; then echo "this log message is harmless and can be ignored"; false; fi
-Pattern: /${id}.hooky`, s.tempdir)
+Exec: if test -e %s/bar.%s_app_2.0.hooky; then echo "this log message is harmless and can be ignored"; false; fi
+Pattern: /${id}.hooky`, s.tempdir, testNamespace)
 	makeClickHook(c, hookContent)
 
 	packageYaml := `name: bar
@@ -535,11 +633,12 @@ integration:
   hooky: meta/package.yaml
 `
 
+	appDir := "bar." + testNamespace
 	// install 1.0 and then upgrade to 2.0
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	_, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
-	canaryDataFile := filepath.Join(snapDataDir, "bar", "1.0", "canary.txt")
+	canaryDataFile := filepath.Join(snapDataDir, appDir, "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
@@ -549,7 +648,7 @@ integration:
 
 	// installing 2.0 will fail in the hooks,
 	//   so ensure we fall back to v1.0
-	content, err := ioutil.ReadFile(filepath.Join(snapAppsDir, "bar."+testNamespace, "current", "meta", "package.yaml"))
+	content, err := ioutil.ReadFile(filepath.Join(snapAppsDir, appDir, "current", "meta", "package.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), "version: 1.0"), Equals, true)
 
@@ -781,7 +880,7 @@ integration:
 	c.Assert(err, IsNil)
 
 	// verify we have the symlink
-	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, "foo_app_1.0")), Equals, true)
+	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, fmt.Sprintf("foo.%s_app_1.0", testNamespace))), Equals, true)
 	// and the hook exec was called
 	c.Assert(helpers.FileExists(filepath.Join(s.tempdir, "i-ran")), Equals, true)
 }
@@ -813,7 +912,7 @@ integration:
 	c.Assert(err, IsNil)
 
 	// verify we have the symlink
-	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, "foo_app_1.0")), Equals, true)
+	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, fmt.Sprintf("foo.%s_app_1.0", testNamespace))), Equals, true)
 	// but the hook exec was not called
 	c.Assert(helpers.FileExists(filepath.Join(s.tempdir, "i-ran")), Equals, false)
 }
@@ -852,7 +951,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 
 	needle := `
 cd /apps/hello-app.testspacethename/1.10
-aa-exec -p hello-app_hello_1.10 -- /apps/hello-app.testspacethename/1.10/bin/hello "$@"
+aa-exec -p hello-app.testspacethename_hello_1.10 -- /apps/hello-app.testspacethename/1.10/bin/hello "$@"
 `
 	c.Assert(strings.Contains(string(content), needle), Equals, true)
 }

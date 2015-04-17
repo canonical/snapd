@@ -314,8 +314,14 @@ func removeClick(clickDir string, inter interacter) (err error) {
 		}
 	}
 
-	if manifest.Type == SnapTypeFramework {
-		if err := policy.Remove(manifest.Name, clickDir); err != nil {
+	yamlFile := filepath.Join(clickDir, "meta", "package.yaml")
+	yaml, err := parsePackageYamlFile(yamlFile)
+	if err != nil {
+		return err
+	}
+
+	if yaml.Type == SnapTypeFramework {
+		if err := policy.Remove(yaml.Name, clickDir); err != nil {
 			return err
 		}
 	}
@@ -508,7 +514,11 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 	}
 
 	for _, service := range m.Services {
-		aaProfile := getAaProfile(m, service.Name)
+		namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "/meta/package.yaml"))
+		if err != nil {
+			return err
+		}
+		aaProfile := getAaProfile(m, service.Name, namespace)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -591,7 +601,11 @@ func addPackageBinaries(baseDir string) error {
 	}
 
 	for _, binary := range m.Binaries {
-		aaProfile := getAaProfile(m, binary.Name)
+		namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "/meta/package.yaml"))
+		if err != nil {
+			return err
+		}
+		aaProfile := getAaProfile(m, binary.Name, namespace)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -683,10 +697,29 @@ type interacter interface {
 	Notify(status string)
 }
 
-func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
-	// FIXME: drop privs to "snap:snap" here
-	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
+// this rewrites the json manifest to include the namespace in the on-disk
+// manifest.json to be compatible with click again
+func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace string) error {
+	var cm clickManifest
+	if err := json.Unmarshal(manifestData, &cm); err != nil {
+		return err
+	}
 
+	// add the namespace to the name
+	cm.Name = fmt.Sprintf("%s.%s", cm.Name, namespace)
+
+	outStr, err := json.MarshalIndent(cm, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(path.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
 	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
 	err = auditClick(snapFile, allowUnauthenticated)
 	if err != nil {
@@ -737,15 +770,15 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		}
 	}
 
-	dirName := fmt.Sprintf("%s.%s", manifest.Name, namespace)
-	instDir := filepath.Join(targetDir, dirName, manifest.Version)
+	fullName := fmt.Sprintf("%s.%s", manifest.Name, namespace)
+	instDir := filepath.Join(targetDir, fullName, manifest.Version)
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 
 	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
 		return "", err
 	}
 
-	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
+	dataDir := filepath.Join(snapDataDir, fullName, manifest.Version)
 
 	if err := helpers.EnsureDir(instDir, 0755); err != nil {
 		log.Printf("WARNING: Can not create %s", instDir)
@@ -785,7 +818,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
 		return "", err
 	}
-	if err := ioutil.WriteFile(path.Join(clickMetaDir, manifest.Name+".manifest"), manifestData, 0644); err != nil {
+	if err := writeCompatManifestJSON(clickMetaDir, manifestData, namespace); err != nil {
 		return "", err
 	}
 
@@ -822,14 +855,14 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 			return "", err
 		}
 
-		err = copySnapData(manifest.Name, oldManifest.Version, manifest.Version)
+		err = copySnapData(fullName, oldManifest.Version, manifest.Version)
 	} else {
 		err = helpers.EnsureDir(dataDir, 0755)
 	}
 
 	defer func() {
 		if err != nil {
-			if cerr := removeSnapData(manifest.Name, manifest.Version); cerr != nil {
+			if cerr := removeSnapData(fullName, manifest.Version); cerr != nil {
 				log.Printf("when clenaning up data for %s %s: %v", manifest.Name, manifest.Version, cerr)
 			}
 		}
@@ -863,8 +896,8 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 }
 
 // removeSnapData removes the data for the given version of the given snap
-func removeSnapData(snapName, version string) error {
-	dirs, err := snapDataDirs(snapName, version)
+func removeSnapData(fullName, version string) error {
+	dirs, err := snapDataDirs(fullName, version)
 	if err != nil {
 		return err
 	}
@@ -879,23 +912,23 @@ func removeSnapData(snapName, version string) error {
 }
 
 // snapDataDirs returns the list of data directories for the given snap version
-func snapDataDirs(snapName, version string) ([]string, error) {
+func snapDataDirs(fullName, version string) ([]string, error) {
 	// collect the directories, homes first
-	dirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, version))
+	dirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, fullName, version))
 	if err != nil {
 		return nil, err
 	}
 	// then system data
-	systemPath := filepath.Join(snapDataDir, snapName, version)
+	systemPath := filepath.Join(snapDataDir, fullName, version)
 	dirs = append(dirs, systemPath)
 
 	return dirs, nil
 }
 
-// Copy all data for "snapName" from "oldVersion" to "newVersion"
+// Copy all data for "fullName" from "oldVersion" to "newVersion"
 // (but never overwrite)
-func copySnapData(snapName, oldVersion, newVersion string) (err error) {
-	oldDataDirs, err := snapDataDirs(snapName, oldVersion)
+func copySnapData(fullName, oldVersion, newVersion string) (err error) {
+	oldDataDirs, err := snapDataDirs(fullName, oldVersion)
 	if err != nil {
 		return err
 	}
