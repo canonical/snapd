@@ -191,7 +191,8 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure we have the hashes
-	snap := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"), testNamespace)
+	snap, err := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"), testNamespace)
+	c.Assert(err, IsNil)
 	c.Assert(snap.Hash(), Not(Equals), "")
 }
 
@@ -363,11 +364,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	c.Assert(allSystemctl, HasLen, 0)
 }
 
-func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
-	secbase := policy.SecBase
-	defer func() { policy.SecBase = secbase }()
-	policy.SecBase = c.MkDir()
-
+func (s *SnapTestSuite) buildFramework(c *C) string {
 	allSystemctl := []string{}
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		allSystemctl = append(allSystemctl, cmd[0])
@@ -403,6 +400,31 @@ type: framework
 
 	_, err = installClick(snapName, 0, nil, testNamespace)
 	c.Assert(err, IsNil)
+
+	return snapName
+}
+
+func (s *SnapTestSuite) TestSnapInstallPackagePolicyDelta(c *C) {
+	secbase := policy.SecBase
+	defer func() { policy.SecBase = secbase }()
+	policy.SecBase = c.MkDir()
+
+	snapName := s.buildFramework(c)
+	// rename the policy
+	//poldir := filepath.Join(tmpdir, "meta", "framework-policy", "apparmor", "policygroups")
+
+	_, err := installClick(snapName, 0, nil, testNamespace)
+	c.Assert(err, IsNil)
+	// appdir := filepath.Join(s.tempdir, "apps", "hello.testspacethename", "1.0.1")
+	// c.Assert(removeClick(appdir, nil), IsNil)
+}
+
+func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
+	secbase := policy.SecBase
+	defer func() { policy.SecBase = secbase }()
+	policy.SecBase = c.MkDir()
+
+	s.buildFramework(c)
 	appdir := filepath.Join(s.tempdir, "apps", "hello.testspacethename", "1.0.1")
 	c.Assert(removeClick(appdir, nil), IsNil)
 }
@@ -412,41 +434,7 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicyWeirdClickManifest(c *C) {
 	defer func() { policy.SecBase = secbase }()
 	policy.SecBase = c.MkDir()
 
-	allSystemctl := []string{}
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
-		allSystemctl = append(allSystemctl, cmd[0])
-		return nil, nil
-	}
-
-	tmpdir := c.MkDir()
-	appg := filepath.Join(tmpdir, "meta", "framework-policy", "apparmor", "policygroups")
-	c.Assert(os.MkdirAll(appg, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(appg, "one"), []byte("hello"), 0644), IsNil)
-
-	yaml := []byte(`name: hello
-version: 1.0.1
-vendor: Foo <foo@example.com>
-type: framework
-`)
-
-	yamlFile := path.Join(tmpdir, "meta", "package.yaml")
-	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
-	readmeMd := path.Join(tmpdir, "meta", "readme.md")
-	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
-	m, err := parsePackageYamlData(yaml)
-	c.Assert(err, IsNil)
-	c.Assert(writeDebianControl(tmpdir, m), IsNil)
-	c.Assert(writeClickManifest(tmpdir, m), IsNil)
-	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
-	d, err := clickdeb.Create(snapName)
-	c.Assert(err, IsNil)
-	defer d.Close()
-	c.Assert(d.Build(tmpdir, func(dataTar string) error {
-		return writeHashes(tmpdir, dataTar)
-	}), IsNil)
-
-	_, err = installClick(snapName, 0, nil, testNamespace)
-	c.Assert(err, IsNil)
+	s.buildFramework(c)
 	appdir := filepath.Join(s.tempdir, "apps", "hello.testspacethename", "1.0.1")
 	// c.Assert(removeClick(appdir, nil), IsNil)
 

@@ -162,23 +162,21 @@ func (s *policySuite) TestOpString(c *C) {
 }
 
 func (s *policySuite) TestDelta(c *C) {
-	SecBase = s.dest
-
-	base := filepath.Join(SecBase, "apparmor", "policygroups")
+	base := filepath.Join(s.dest, "meta", "framework-policy", "apparmor", "policygroups")
 	c.Assert(os.MkdirAll(base, 0755), IsNil)
 	for k := 0; k < 3; k++ {
-		name := filepath.Join(base, fmt.Sprintf("foo_policygroups%d", k))
+		name := filepath.Join(base, fmt.Sprintf("policygroups%d", k))
 		content := fmt.Sprintf("apparmor::policygroups%d 2", k)
 		c.Assert(ioutil.WriteFile(name, []byte(content), 0644), IsNil)
 	}
 
-	ps, ts := AppArmorDelta("foo", s.orig)
-	// policies are all different
+	ps, ts := AppArmorDelta(s.orig, s.dest, "x-")
+	// policies are the same files, all different
 	c.Check(ps, DeepEquals, map[string]bool{
-		"policygroups0": true,
-		"policygroups1": true,
-		"policygroups2": true,
+		"x-policygroups0": true,
+		"x-policygroups1": true,
+		"x-policygroups2": true,
 	})
-	// templates are all gone => no updates
+	// templates are all different files => no updates
 	c.Check(ts, HasLen, 0)
 }
