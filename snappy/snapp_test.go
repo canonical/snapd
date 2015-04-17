@@ -536,15 +536,15 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	c.Assert(err, IsNil)
 
-	helpersLsbReleaseOrig := helpers.LsbRelease
+	LsbReleaseOrig := LsbRelease
 	defer func() {
-		helpersLsbRelease = helpersLsbReleaseOrig
+		LsbRelease = LsbReleaseOrig
 	}()
 
-	helpersLsbRelease = func(string) string { return "15.04-core" }
+	LsbRelease = "15.04-core"
 	setUbuntuStoreHeaders(req)
 
-	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, helpersLsbRelease("")+releasePostfix)
+	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, LsbRelease)
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
