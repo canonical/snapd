@@ -270,9 +270,11 @@ func ShouldDropPrivs() bool {
 var lsbReleaseFile = "/etc/lsb-release"
 
 // LsbRelease return the current release
-func LsbRelease() string {
+func LsbRelease(rootDir string) string {
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
+
+	lsbReleaseFile := filepath.Join(rootDir, lsbReleaseFile)
 	if err := cfg.ReadFile(lsbReleaseFile); err != nil {
 		return ""
 	}
