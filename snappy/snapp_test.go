@@ -976,7 +976,7 @@ func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
 	}()
 	touched := []string{}
 	snapAppArmorDir = c.MkDir()
-	fn := filepath.Join(snapAppArmorDir, "foo."+testNamespace+"_hello.json")
+	fn := filepath.Join(snapAppArmorDir, "foo."+testNamespace+"_hello_1.0.json")
 	c.Assert(os.Symlink(fn, fn), IsNil)
 	timestampUpdater = func(s string) error {
 		touched = append(touched, s)
@@ -1086,7 +1086,7 @@ func (s *SnapTestSuite) TestRequestAppArmorUpdateService(c *C) {
 	c.Assert(svcs, HasLen, 1)
 	c.Check(filepath.Base(svcs[0].name), Equals, "part_svc_42.service")
 	c.Assert(updated, HasLen, 1)
-	c.Check(filepath.Base(updated[0]), Equals, "part."+testNamespace+"_svc.json")
+	c.Check(filepath.Base(updated[0]), Equals, "part."+testNamespace+"_svc_42.json")
 }
 
 func (s *SnapTestSuite) TestRequestAppArmorUpdateBinary(c *C) {
@@ -1103,7 +1103,7 @@ func (s *SnapTestSuite) TestRequestAppArmorUpdateBinary(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(svcs, HasLen, 0)
 	c.Assert(updated, HasLen, 1)
-	c.Check(filepath.Base(updated[0]), Equals, "part."+testNamespace+"_echo.json")
+	c.Check(filepath.Base(updated[0]), Equals, "part."+testNamespace+"_echo_42.json")
 }
 
 func (s *SnapTestSuite) TestRequestAppArmorUpdateNothing(c *C) {

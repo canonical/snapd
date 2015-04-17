@@ -664,8 +664,8 @@ type RestartJob struct {
 	timeout time.Duration
 }
 
-func updateAppArmorJSONTimestamp(pkg, namespace, thing string) error {
-	fn := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.%s_%s.json", pkg, namespace, thing))
+func updateAppArmorJSONTimestamp(pkg, namespace, thing, version string) error {
+	fn := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.%s_%s_%s.json", pkg, namespace, thing, version))
 	return timestampUpdater(fn)
 }
 
@@ -677,7 +677,7 @@ func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) ([
 	var rs []RestartJob
 	for _, svc := range s.Services() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
-			if err := updateAppArmorJSONTimestamp(s.Name(), s.Namespace(), svc.Name); err != nil {
+			if err := updateAppArmorJSONTimestamp(s.Name(), s.Namespace(), svc.Name, s.Version()); err != nil {
 				return nil, err
 			}
 			svcName := generateServiceFileName(s.m, svc)
@@ -686,7 +686,7 @@ func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) ([
 	}
 	for _, bin := range s.Binaries() {
 		if bin.NeedsAppArmorUpdate(policies, templates) {
-			if err := updateAppArmorJSONTimestamp(s.Name(), s.Namespace(), bin.Name); err != nil {
+			if err := updateAppArmorJSONTimestamp(s.Name(), s.Namespace(), bin.Name, s.Version()); err != nil {
 				return nil, err
 			}
 		}
