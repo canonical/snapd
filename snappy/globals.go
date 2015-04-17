@@ -23,6 +23,12 @@ import (
 	"launchpad.net/snappy/helpers"
 )
 
+const (
+	// the postfix we append to the release that is sent to the store
+	// FIXME: find a better way to detect the postfix
+	releasePostfix = "-core"
+)
+
 var LsbRelease string
 
 func init() {
@@ -34,9 +40,9 @@ func init() {
 
 	SetRootDir(root)
 
-	LsbRelease = helpers.LsbRelease(globalRootDir)
+	SetRelease(helpers.LsbRelease(globalRootDir))
 }
 
 func SetRelease(release string) {
-	LsbRelease = release
+	LsbRelease = release + releasePostfix
 }

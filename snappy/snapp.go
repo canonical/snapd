@@ -45,10 +45,6 @@ import (
 )
 
 const (
-	// the postfix we append to the release that is send to the store
-	// FIXME: find a better way to detect the postfix
-	releasePostfix = "-core"
-
 	// the namespace for sideloaded snaps
 	sideloadedNamespace = "sideload"
 )
