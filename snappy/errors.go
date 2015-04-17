@@ -65,9 +65,9 @@ var (
 	// ErrAlreadyInstalled is returned when the snap is already installed
 	ErrAlreadyInstalled = errors.New("the given snap is already installed")
 
-	// ErrForkAlreadyInstalled is returned when you try to install
+	// ErrPackageNameAlreadyInstalled is returned when you try to install
 	// a fork of something you already have installed
-	ErrForkAlreadyInstalled = errors.New("a package by that name is already installed")
+	ErrPackageNameAlreadyInstalled = errors.New("a package by that name is already installed")
 
 	// ErrPrivOpInProgress is returned when a privileged operation
 	// cannot be performed since an existing privileged operation is
