@@ -18,12 +18,12 @@
 package systemd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"fmt"
 	. "launchpad.net/gocheck"
 )
 
