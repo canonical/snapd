@@ -126,3 +126,13 @@ func (a *ApparmorTestSuite) TestSnappyGetAaProfile(c *C) {
 	b := Binary{Name: "bin/app"}
 	c.Assert(getAaProfile(&m, b.Name, "mvo"), Equals, "foo.mvo_bin-app_1.0")
 }
+
+func (a *ApparmorTestSuite) TestSnappyGetAaProfileFramework(c *C) {
+	m := packageYaml{
+		Name:    "foo",
+		Version: "1.0",
+		Type:    SnapTypeFramework,
+	}
+	b := Binary{Name: "bin/app"}
+	c.Assert(getAaProfile(&m, b.Name, "mvo"), Equals, "foo_bin-app_1.0")
+}
