@@ -1,6 +1,8 @@
 #include<stdio.h>
 #include<stdlib.h>
-#include <stdarg.h>
+#include<stdarg.h>
+#include<string.h>
+#include<stdio.h>
 
 #include "utils.h"
 
@@ -25,3 +27,11 @@ bool error(const char *msg, ...)
    return false;
 }
 
+void write_string_to_file(const char *filepath, const char *buf) {
+   FILE *f = fopen(filepath, "w");
+   if (f == NULL)
+      die("fopen %s failed\n", filepath);
+   if (fwrite(buf, strlen(buf), 1, f) < 0)
+      die("fwrite failed");
+   fclose(f);
+}
