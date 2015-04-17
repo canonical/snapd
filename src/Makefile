@@ -18,6 +18,9 @@ clean:
 	rm -f *.o ${BIN}
 
 install:
+	# install the launcher
 	install -m755 $(BIN) ${DESTDIR}/usr/bin
+	# install the udev helper
+	install -m4755 snappy-app-dev ${DESTDIR}/lib/udev/
 
 .PHONY: test
