@@ -163,8 +163,8 @@ WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target")
-	expectedFmkService = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.run-hooks.service")
+	expectedAppService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target")
+	expectedFmkService = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target")
 )
 
 func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {

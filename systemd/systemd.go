@@ -168,7 +168,9 @@ func (s *systemd) GenServiceFile(desc *ServiceDescription) string {
 	serviceTemplate := `[Unit]
 Description={{.Description}}
 {{if .IsFramework}}Before=ubuntu-snappy.frameworks.target
-Requires=ubuntu-snappy.run-hooks.service{{else}}After=ubuntu-snappy.frameworks.target{{end}}
+After=ubuntu-snappy.frameworks-pre.target
+Requires=ubuntu-snappy.frameworks-pre.target{{else}}After=ubuntu-snappy.frameworks.target
+Requires=ubuntu-snappy.frameworks.target{{end}}
 X-Snappy=yes
 
 [Service]
