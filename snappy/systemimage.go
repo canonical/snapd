@@ -51,16 +51,6 @@ const (
 	// The full path to this file needs to be passed to
 	// systemImageCli when querying a different rootfs.
 	systemImageClientConfig = "/etc/system-image/client.ini"
-
-	// Full path to file, which if present, marks the system as
-	// having been "sideloaded", in other words having been created
-	// like this:
-	//
-	// "ubuntu-device-flash --device-part=unofficial-assets.tar.xz ..."
-	//
-	// Sideloaded systems cannot be safely upgraded since there are
-	// no device-part updates on the system-image server.
-	sideLoadedMarkerFile = "/boot/.sideloaded"
 )
 
 var (
@@ -165,13 +155,6 @@ func (s *SystemImagePart) SetActive(pb progress.Meter) (err error) {
 	}
 
 	return s.partition.ToggleNextBoot()
-}
-
-// sideLoadedSystem determines if the system was installed using a
-// custom enablement part.
-func sideLoadedSystem() bool {
-	path := filepath.Join(systemImageRoot, sideLoadedMarkerFile)
-	return helpers.FileExists(path)
 }
 
 // Install installs the snap
