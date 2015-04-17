@@ -26,7 +26,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
@@ -969,48 +968,6 @@ type: framework`))
 	c.Check(names, DeepEquals, []string{"foo"})
 }
 
-func (s *SnapTestSuite) TestUpdateAppArmorJSONTimestamp(c *C) {
-	oldDir := snapAppArmorDir
-	defer func() {
-		snapAppArmorDir = oldDir
-	}()
-	snapAppArmorDir = c.MkDir()
-	fn := filepath.Join(snapAppArmorDir, "foo."+testNamespace+"_stuff.json")
-	c.Assert(os.Symlink("nothing", fn), IsNil)
-	fi, err := os.Lstat(fn)
-	c.Assert(err, IsNil)
-	ft := fi.ModTime()
-	time.Sleep(25 * time.Millisecond)
-
-	yaml, err := parsePackageYamlData([]byte(`name: foo`))
-	c.Assert(err, IsNil)
-	part := &SnapPart{m: yaml, namespace: testNamespace}
-
-	c.Assert(part.UpdateAppArmorJSONTimestamp(), IsNil)
-
-	fi, err = os.Lstat(fn)
-	c.Assert(err, IsNil)
-	c.Check(ft.Before(fi.ModTime()), Equals, true)
-}
-
-func (s *SnapTestSuite) TestUpdateAppArmorJSONTimestampFails(c *C) {
-	oldDir := snapAppArmorDir
-	defer func() {
-		timestampUpdater = helpers.UpdateTimestamp
-		snapAppArmorDir = oldDir
-	}()
-	snapAppArmorDir = c.MkDir()
-	timestampUpdater = func(string) error { return ErrNotImplemented }
-	fn := filepath.Join(snapAppArmorDir, "foo."+testNamespace+"_stuff.json")
-	c.Assert(os.Symlink(fn, fn), IsNil)
-
-	yaml, err := parsePackageYamlData([]byte(`name: foo`))
-	c.Assert(err, IsNil)
-	part := &SnapPart{m: yaml, namespace: testNamespace}
-
-	c.Assert(part.UpdateAppArmorJSONTimestamp(), NotNil)
-}
-
 func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
 	oldDir := snapAppArmorDir
 	defer func() {
@@ -1019,7 +976,7 @@ func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
 	}()
 	touched := []string{}
 	snapAppArmorDir = c.MkDir()
-	fn := filepath.Join(snapAppArmorDir, "foo."+testNamespace+"_stuff.json")
+	fn := filepath.Join(snapAppArmorDir, "foo."+testNamespace+"_hello.json")
 	c.Assert(os.Symlink(fn, fn), IsNil)
 	timestampUpdater = func(s string) error {
 		touched = append(touched, s)
@@ -1078,61 +1035,91 @@ frameworks:
 	c.Check(err, ErrorMatches, `framework still in use by: foo`)
 }
 
-func (s *SnapTestSuite) TestSecDefNeedsAppArmorUpdateSecurityPolicy(c *C) {
+func (s *SnapTestSuite) TestNeedsAppArmorUpdateSecurityPolicy(c *C) {
 	// if a security policy is defined, never flag for update
 	sd := &SecurityDefinitions{SecurityPolicy: &SecurityOverrideDefinition{}}
 	c.Check(sd.NeedsAppArmorUpdate(nil, nil), Equals, false)
 }
 
-func (s *SnapTestSuite) TestSecDefNeedsAppArmorUpdateSecurityOverride(c *C) {
+func (s *SnapTestSuite) TestNeedsAppArmorUpdateSecurityOverride(c *C) {
 	// if a security override is defined, always flag for update
 	sd := &SecurityDefinitions{SecurityOverride: &SecurityOverrideDefinition{}}
 	c.Check(sd.NeedsAppArmorUpdate(nil, nil), Equals, true)
 }
 
-func (s *SnapTestSuite) TestSecDefNeedsAppArmorUpdateTemplatePresent(c *C) {
+func (s *SnapTestSuite) TestNeedsAppArmorUpdateTemplatePresent(c *C) {
 	// if the template is in the map, it needs updating
 	sd := &SecurityDefinitions{SecurityTemplate: "foo_bar"}
 	c.Check(sd.NeedsAppArmorUpdate(nil, map[string]bool{"foo_bar": true}), Equals, true)
 }
 
-func (s *SnapTestSuite) TestSecDefNeedsAppArmorUpdateTemplateAbsent(c *C) {
+func (s *SnapTestSuite) TestNeedsAppArmorUpdateTemplateAbsent(c *C) {
 	// if the template is not in the map, it does not
 	sd := &SecurityDefinitions{SecurityTemplate: "foo_bar"}
 	c.Check(sd.NeedsAppArmorUpdate(nil, nil), Equals, false)
 }
 
-func (s *SnapTestSuite) TestSecDefNeedsAppArmorUpdatePolicyPresent(c *C) {
+func (s *SnapTestSuite) TestNeedsAppArmorUpdatePolicyPresent(c *C) {
 	// if the cap is in the map, it needs updating
 	sd := &SecurityDefinitions{SecurityCaps: []string{"foo_bar"}}
 	c.Check(sd.NeedsAppArmorUpdate(map[string]bool{"foo_bar": true}, nil), Equals, true)
 }
 
-func (s *SnapTestSuite) TestSecDefNeedsAppArmorUpdatePolicyAbsent(c *C) {
+func (s *SnapTestSuite) TestNeedsAppArmorUpdatePolicyAbsent(c *C) {
 	// if the cap is not in the map, it does not
 	sd := &SecurityDefinitions{SecurityCaps: []string{"foo_quux"}}
 	c.Check(sd.NeedsAppArmorUpdate(map[string]bool{"foo_bar": true}, nil), Equals, false)
 }
 
-func (s *SnapTestSuite) TestSnapPartNeedsAppArmorUpdateService(c *C) {
-	// if one of the services needs updating, the part needs updating
-	svc := Service{SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Services: []Service{svc}}}
-	c.Check(part.NeedsAppArmorUpdate(nil, map[string]bool{"foo": true}), Equals, true)
+func (s *SnapTestSuite) TestRequestAppArmorUpdateService(c *C) {
+	var updated []string
+	timestampUpdater = func(s string) error {
+		updated = append(updated, s)
+		return nil
+	}
+	defer func() { timestampUpdater = helpers.UpdateTimestamp }()
+	// if one of the services needs updating, it's updated and returned
+	svc := Service{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	part := &SnapPart{m: &packageYaml{Name: "part", Services: []Service{svc}, Version: "42"}, namespace: testNamespace}
+	svcs, err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
+	c.Assert(err, IsNil)
+	c.Assert(svcs, HasLen, 1)
+	c.Check(filepath.Base(svcs[0].name), Equals, "part_svc_42.service")
+	c.Assert(updated, HasLen, 1)
+	c.Check(filepath.Base(updated[0]), Equals, "part."+testNamespace+"_svc.json")
 }
 
-func (s *SnapTestSuite) TestSnapPartNeedsAppArmorUpdateBinary(c *C) {
+func (s *SnapTestSuite) TestRequestAppArmorUpdateBinary(c *C) {
+	var updated []string
+	timestampUpdater = func(s string) error {
+		updated = append(updated, s)
+		return nil
+	}
+	defer func() { timestampUpdater = helpers.UpdateTimestamp }()
 	// if one of the binaries needs updating, the part needs updating
-	bin := Binary{SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Binaries: []Binary{bin}}}
-	c.Check(part.NeedsAppArmorUpdate(nil, map[string]bool{"foo": true}), Equals, true)
+	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	part := &SnapPart{m: &packageYaml{Name: "part", Binaries: []Binary{bin}, Version: "42"}, namespace: testNamespace}
+	svcs, err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
+	c.Assert(err, IsNil)
+	c.Check(svcs, HasLen, 0)
+	c.Assert(updated, HasLen, 1)
+	c.Check(filepath.Base(updated[0]), Equals, "part."+testNamespace+"_echo.json")
 }
 
-func (s *SnapTestSuite) TestSnapPartNeedsAppArmorUpdateNothing(c *C) {
-	svc := Service{SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	bin := Binary{SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Services: []Service{svc}, Binaries: []Binary{bin}}}
-	c.Check(part.NeedsAppArmorUpdate(nil, nil), Equals, false)
+func (s *SnapTestSuite) TestRequestAppArmorUpdateNothing(c *C) {
+	var updated []string
+	timestampUpdater = func(s string) error {
+		updated = append(updated, s)
+		return nil
+	}
+	defer func() { timestampUpdater = helpers.UpdateTimestamp }()
+	svc := Service{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	part := &SnapPart{m: &packageYaml{Services: []Service{svc}, Binaries: []Binary{bin}, Version: "42"}, namespace: testNamespace}
+	svcs, err := part.RequestAppArmorUpdate(nil, nil)
+	c.Check(err, IsNil)
+	c.Check(svcs, HasLen, 0)
+	c.Check(updated, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestDetectIllegalYamlBinaries(c *C) {

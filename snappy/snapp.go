@@ -657,45 +657,42 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 
 var timestampUpdater = helpers.UpdateTimestamp
 
-// UpdateAppArmorJSONTimestamp updates the timestamp on the snap's apparmor json symlink
-func (s *SnapPart) UpdateAppArmorJSONTimestamp() error {
-	// TODO: receive a list of policies that have changed, and only touch
-	// things if we use one of those policies
-
-	fns, err := filepath.Glob(filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.%s_*.json", s.Name(), s.Namespace())))
-	if err != nil {
-		return err
-	}
-
-	for _, fn := range fns {
-		if err := timestampUpdater(fn); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-type restartJob struct {
+// RestartJob is a convenient way of encapsulating the information needed to
+// restart a service.
+type RestartJob struct {
 	name    string
 	timeout time.Duration
 }
 
-// NeedsAppArmorUpdate checks whether changes to the given policies
-// and templates impacts the snap
-func (s *SnapPart) NeedsAppArmorUpdate(policies, templates map[string]bool) bool {
+func updateAppArmorJSONTimestamp(pkg, namespace, thing string) error {
+	fn := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.%s_%s.json", pkg, namespace, thing))
+	return timestampUpdater(fn)
+}
+
+// RequestAppArmorUpdate checks whether changes to the given policies and
+// templates impacts the snap, updates the timestamp of the relevant json
+// symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits),
+// and returns the list of jobs that need restarting as a consequence.
+func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) ([]RestartJob, error) {
+	var rs []RestartJob
 	for _, svc := range s.Services() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
-			return true
+			if err := updateAppArmorJSONTimestamp(s.Name(), s.Namespace(), svc.Name); err != nil {
+				return nil, err
+			}
+			svcName := generateServiceFileName(s.m, svc)
+			rs = append(rs, RestartJob{svcName, time.Duration(svc.StopTimeout)})
 		}
 	}
 	for _, bin := range s.Binaries() {
 		if bin.NeedsAppArmorUpdate(policies, templates) {
-			return true
+			if err := updateAppArmorJSONTimestamp(s.Name(), s.Namespace(), bin.Name); err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	return false
+	return rs, nil
 }
 
 // RefreshDependentsSecurity refreshes the security policies of dependent snaps
@@ -707,18 +704,14 @@ func (s *SnapPart) RefreshDependentsSecurity(oldBaseDir string, inter interacter
 		return err
 	}
 
-	var restart []restartJob
+	var restart []RestartJob
 
 	for _, dep := range deps {
-		if dep.NeedsAppArmorUpdate(upPol, upTpl) {
-			if err := dep.UpdateAppArmorJSONTimestamp(); err != nil {
-				return err
-			}
-			for _, svc := range dep.Services() {
-				svcName := generateServiceFileName(dep.m, svc)
-				restart = append(restart, restartJob{svcName, time.Duration(svc.StopTimeout)})
-			}
+		rs, err := dep.RequestAppArmorUpdate(upPol, upTpl)
+		if err != nil {
+			return err
 		}
+		restart = append(restart, rs...)
 	}
 
 	if err := exec.Command(aaClickHookCmd).Run(); err != nil {
