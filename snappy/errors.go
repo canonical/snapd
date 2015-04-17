@@ -133,6 +133,17 @@ var (
 	ErrPackageNameNotSupported = errors.New("package name with namespace not supported")
 )
 
+// ErrInstallFailed is an error type for installation errors for snaps
+type ErrInstallFailed struct {
+	snap    string
+	origErr error
+}
+
+// ErrInstallFailed is an error type for installation errors for snaps
+func (e *ErrInstallFailed) Error() string {
+	return fmt.Sprintf("%s failed to install: %s", e.snap, e.origErr)
+}
+
 // ErrUnpackFailed is the error type for a snap unpack problem
 type ErrUnpackFailed struct {
 	snapFile string
