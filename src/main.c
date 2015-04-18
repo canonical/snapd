@@ -26,7 +26,7 @@ void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appnam
    debug("run_snappy_app_dev_add: %s %s", path, appname);
       struct udev_device *d = udev_device_new_from_syspath(u, path);
       if (d == NULL)
-         return;
+         die("can not find %s", path);
       dev_t devnum = udev_device_get_devnum (d);
       udev_device_unref(d);
 
@@ -38,7 +38,7 @@ void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appnam
          unsigned minor = MINOR(devnum);
          if(snprintf(buf, sizeof(buf), "%u:%u", major, minor) < 0)
             die("snprintf failed (5)");
-         if(execl("/lib/udev/snappy-app-dev", "add", appname, path, buf, NULL) != 0)
+         if(execl("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev", "add", appname, path, buf, NULL) != 0)
             die("execlp failed");
       }
       if(waitpid(pid, &status, 0) < 0)
@@ -57,14 +57,14 @@ void setup_udev_snappy_assign(const char *appname) {
       die("udev_new failed");
 
    const char* static_devices[] = {
-      "/class/mem/null",
-      "/class/mem/full",
-      "/class/mem/zero",
-      "/class/mem/random",
-      "/class/mem/urandom",
-      "/class/tty/tty",
-      "/class/tty/console",
-      "/class/tty/ptmx",
+      "/sys/class/mem/null",
+      "/sys/class/mem/full",
+      "/sys/class/mem/zero",
+      "/sys/class/mem/random",
+      "/sys/class/mem/urandom",
+      "/sys/class/tty/tty",
+      "/sys/class/tty/console",
+      "/sys/class/tty/ptmx",
       NULL,
    };
    int i;
