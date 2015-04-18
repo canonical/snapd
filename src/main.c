@@ -42,8 +42,10 @@ void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appnam
       }
       if(waitpid(pid, &status, 0) < 0)
          die("waitpid failed");
-      if(WIFEXITED(status) != true)
-         die("child exited with %i", WEXITSTATUS(status));
+      if(WIFEXITED(status) && WEXITSTATUS(status) != 0)
+         die("child exited with status %i", WEXITSTATUS(status));
+      else if(WIFSIGNALED(status))
+         die("child died with signal %i", WTERMSIG(status));
 }
 
 void setup_udev_snappy_assign(const char *appname) {
