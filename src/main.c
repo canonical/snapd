@@ -87,9 +87,9 @@ void setup_udev_snappy_assign(const char *appname) {
 
    struct udev_list_entry *l = udev_enumerate_get_list_entry (devices);
    while (l != NULL) {
-      const char *path = udev_list_entry_get_value (l);
+      const char *path = udev_list_entry_get_name (l);
       if (path == NULL)
-         die("udev_list_entry_get_value failed for %s", l);
+         die("udev_list_entry_get_name failed");
       run_snappy_app_dev_add(u, path, appname);
       l = udev_list_entry_get_next(l);
    }
