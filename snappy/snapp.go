@@ -826,7 +826,7 @@ func namespaceFromYamlPath(path string) (string, error) {
 	namespace := filepath.Ext(filepath.Dir(filepath.Join(path, "..", "..")))
 
 	if len(namespace) < 1 {
-		return "", errors.New("invalid package on system")
+		return "", ErrInvalidPart
 	}
 
 	return namespace[1:], nil

@@ -97,6 +97,7 @@ func (s *SnapTestSuite) makeInstalledMockSnap(yamls ...string) (yamlFile string,
 	if len(yamls) > 0 {
 		yaml = yamls[0]
 	}
+
 	return makeInstalledMockSnap(s.tempdir, yaml)
 }
 

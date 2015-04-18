@@ -127,6 +127,9 @@ var (
 	// ErrPackageNameNotSupported is returned when installing legacy package such as those
 	// that have namespaces in their package names.
 	ErrPackageNameNotSupported = errors.New("package name with namespace not supported")
+
+	// ErrInvalidPart is returned when something on the filesystem does not make sense
+	ErrInvalidPart = errors.New("invalid package on system")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem

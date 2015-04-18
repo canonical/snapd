@@ -503,14 +503,10 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 	}
 
 	for _, service := range m.Services {
-		namespace := ""
-		if m.Type != SnapTypeFramework {
-			namespace, err = namespaceFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
-			if err != nil {
-				return err
-			}
+		aaProfile, err := getAaProfile(m, service.Name, baseDir)
+		if err != nil {
+			return err
 		}
-		aaProfile := getAaProfile(m, service.Name, namespace)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -593,14 +589,10 @@ func addPackageBinaries(baseDir string) error {
 	}
 
 	for _, binary := range m.Binaries {
-		namespace := ""
-		if m.Type != SnapTypeFramework {
-			namespace, err = namespaceFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
-			if err != nil {
-				return err
-			}
+		aaProfile, err := getAaProfile(m, binary.Name, baseDir)
+		if err != nil {
+			return err
 		}
-		aaProfile := getAaProfile(m, binary.Name, namespace)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
