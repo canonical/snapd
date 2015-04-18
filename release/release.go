@@ -44,9 +44,9 @@ func setLegacy() {
 	rel = Release{Flavor: "core", Series: "15.04"}
 }
 
-// Get returns the release information
-func Get() string {
-	return rel.release()
+// String returns the release information in a string
+func String() string {
+	return rel.String()
 }
 
 // Override sets up the release using a Release
@@ -90,7 +90,8 @@ func Setup(rootDir string) error {
 	return nil
 }
 
-// release returns a valid release string to set the store headers
-func (r Release) release() string {
+// String returns the release information in a string which is valid to
+// set for the store http headers.
+func (r Release) String() string {
 	return fmt.Sprintf("%s-%s", r.Series, r.Flavor)
 }

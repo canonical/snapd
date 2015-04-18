@@ -56,7 +56,7 @@ func (s *ReleaseTestSuite) TestSetup(c *C) {
 	c.Assert(s.writeChannelInformation("ubuntu-core/15.04/edge"), IsNil)
 
 	c.Assert(Setup(s.root), IsNil)
-	c.Check(Get(), Equals, "15.04-core")
+	c.Check(String(), Equals, "15.04-core")
 	c.Check(rel.Flavor, Equals, "core")
 	c.Check(rel.Series, Equals, "15.04")
 	c.Check(rel.Channel, Equals, "edge")
@@ -64,7 +64,7 @@ func (s *ReleaseTestSuite) TestSetup(c *C) {
 
 func (s *ReleaseTestSuite) TestOverride(c *C) {
 	Override(Release{Flavor: "personal", Series: "10.06", Channel: "beta"})
-	c.Check(Get(), Equals, "10.06-personal")
+	c.Check(String(), Equals, "10.06-personal")
 	c.Check(rel.Flavor, Equals, "personal")
 	c.Check(rel.Series, Equals, "10.06")
 	c.Check(rel.Channel, Equals, "beta")
@@ -74,7 +74,7 @@ func (s *ReleaseTestSuite) TestSetupLegacyChannels(c *C) {
 	c.Assert(s.writeChannelInformation("ubuntu-core/devel"), IsNil)
 
 	c.Assert(Setup(s.root), IsNil)
-	c.Check(Get(), Equals, "15.04-core")
+	c.Check(String(), Equals, "15.04-core")
 	c.Check(rel.Flavor, Equals, "core")
 	c.Check(rel.Series, Equals, "15.04")
 	c.Check(rel.Channel, Equals, "")
