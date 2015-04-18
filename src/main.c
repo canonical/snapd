@@ -50,7 +50,7 @@ void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appnam
 
 void setup_udev_snappy_assign(const char *appname) {
    debug("setup_udev_snappy_assign");
-   
+
    struct udev *u = udev_new();
    if (u == NULL)
       die("udev_new failed");
@@ -70,14 +70,14 @@ void setup_udev_snappy_assign(const char *appname) {
    for(i=0; static_devices[i] != NULL; i++) {
       run_snappy_app_dev_add(u, static_devices[i], appname);
    }
-   
+
    struct udev_enumerate *devices = udev_enumerate_new(u);
    if (devices == NULL)
       die("udev_enumerate_new failed");
 
    if (udev_enumerate_add_match_tag (devices, "snappy-assign") != 0)
       die("udev_enumerate_add_match_tag");
-   
+
    if(udev_enumerate_add_match_property (devices, "SNAPPY_APP", appname) != 0)
       die("udev_enumerate_add_match_property");
 
@@ -124,7 +124,7 @@ void setup_devices_cgroup(const char *appname) {
    if(snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir, "devices.deny") < 0)
       die("snprintf failed (4)");
    write_string_to_file(cgroup_file, "a");
-  
+
 }
 
 
@@ -148,7 +148,7 @@ int main(int argc, char **argv)
        // this needs to happen as root
        setup_devices_cgroup(appname);
        setup_udev_snappy_assign(appname);
-       
+
        // the rest does not so drop privs back to user
        if (setgid(getgid()) != 0)
           die("setgid failed");
@@ -158,10 +158,10 @@ int main(int argc, char **argv)
        if(getuid() == 0 || geteuid() == 0 || getgid() == 0 || getegid() == 0)
           die("dropping privs did not work");
     }
-    
+
     int i = 0;
     int rc = 0;
-    
+
    //https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#ubuntu-snapp-launch
 
     // setup env
@@ -189,7 +189,7 @@ int main(int argc, char **argv)
     for(i=1; i < argc-NR_ARGS; i++)
        new_argv[i] = argv[i+NR_ARGS];
     new_argv[i] = NULL;
-    
+
     return execv(binary, new_argv);
 }
 
