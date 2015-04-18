@@ -7,7 +7,7 @@ Standards-Version: 3.9.5
 
 Package: ubuntu-core-launcher
 Architecture: any
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Description: Launcher for ubuntu-core (snappy) apps
  This package contains the launcher for launching ubuntu-core applications
  on a ubuntu "snappy" system.
