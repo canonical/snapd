@@ -45,7 +45,7 @@ void write_string_to_file(const char *filepath, const char *buf) {
    FILE *f = fopen(filepath, "w");
    if (f == NULL)
       die("fopen %s failed\n", filepath);
-   if (fwrite(buf, strlen(buf), 1, f) < 0)
+   if (fwrite(buf, strlen(buf), 1, f) != 1)
       die("fwrite failed");
    fclose(f);
 }

@@ -26,6 +26,6 @@ install:
 	# install the udev helper
 	install -m755 snappy-app-dev ${DESTDIR}/lib/udev/
 	# install the udev rule
-	install -m644 80-snappy-assign  ${DESTDIR}/lib/udev/rules.d/
+	install -m644 80-snappy-assign.rules  ${DESTDIR}/lib/udev/rules.d/
 
 .PHONY: test

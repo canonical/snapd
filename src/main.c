@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <linux/sched.h>
 #include <sys/mount.h>
 #include <sys/apparmor.h>
@@ -33,22 +34,24 @@ void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appnam
       pid_t pid = fork();
       if (pid == 0) {
          char buf[64];
-         int major = MAJOR(devnum);
-         int minor = MINOR(devnum);
-         if(snprintf(buf, sizeof(buf), "%i:%i", major, minor) < 0)
+         unsigned major = MAJOR(devnum);
+         unsigned minor = MINOR(devnum);
+         if(snprintf(buf, sizeof(buf), "%u:%u", major, minor) < 0)
             die("snprintf failed (5)");
          if(execl("/lib/udev/snappy-app-dev", "add", appname, path, buf, NULL) != 0)
             die("execlp failed");
       }
       if(waitpid(pid, &status, 0) < 0)
          die("waitpid failed");
-      if(WIFEXITED(status) != true)
-         die("child exited with %i", WEXITSTATUS(status));
+      if(WIFEXITED(status) && WEXITSTATUS(status) != 0)
+         die("child exited with status %i", WEXITSTATUS(status));
+      else if(WIFSIGNALED(status))
+         die("child died with signal %i", WTERMSIG(status));
 }
 
 void setup_udev_snappy_assign(const char *appname) {
    debug("setup_udev_snappy_assign");
-   
+
    struct udev *u = udev_new();
    if (u == NULL)
       die("udev_new failed");
@@ -68,14 +71,14 @@ void setup_udev_snappy_assign(const char *appname) {
    for(i=0; static_devices[i] != NULL; i++) {
       run_snappy_app_dev_add(u, static_devices[i], appname);
    }
-   
+
    struct udev_enumerate *devices = udev_enumerate_new(u);
    if (devices == NULL)
       die("udev_enumerate_new failed");
 
    if (udev_enumerate_add_match_tag (devices, "snappy-assign") != 0)
       die("udev_enumerate_add_match_tag");
-   
+
    if(udev_enumerate_add_match_property (devices, "SNAPPY_APP", appname) != 0)
       die("udev_enumerate_add_match_property");
 
@@ -99,7 +102,7 @@ void setup_devices_cgroup(const char *appname) {
    debug("setup_devices_cgroup");
 
    // create devices cgroup controller
-   char cgroup_dir[128];
+   char cgroup_dir[PATH_MAX];
    if(snprintf(cgroup_dir, sizeof(cgroup_dir), "/sys/fs/cgroup/devices/snappy.%s/", appname) < 0)
       die("snprintf failed");
 
@@ -109,7 +112,7 @@ void setup_devices_cgroup(const char *appname) {
          die("mkdir failed");
 
    // move ourselves into it
-   char cgroup_file[128];
+   char cgroup_file[PATH_MAX];
    if(snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir, "tasks") < 0)
       die("snprintf failed (2)");
 
@@ -122,7 +125,7 @@ void setup_devices_cgroup(const char *appname) {
    if(snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir, "devices.deny") < 0)
       die("snprintf failed (4)");
    write_string_to_file(cgroup_file, "a");
-  
+
 }
 
 
@@ -131,7 +134,7 @@ int main(int argc, char **argv)
 {
    const int NR_ARGS = 4;
    if(argc < NR_ARGS+1)
-       die("Usage: %s <rootdir> <appname> <binary> <apparmor>", argv[0]);
+       die("Usage: %s <rootdir> <appname> <apparmor> <binary>", argv[0]);
 
    const char *rootdir = argv[1];
    const char *appname = argv[2];
@@ -146,20 +149,20 @@ int main(int argc, char **argv)
        // this needs to happen as root
        setup_devices_cgroup(appname);
        setup_udev_snappy_assign(appname);
-       
+
        // the rest does not so drop privs back to user
-       if (setegid(getgid()) != 0)
-          die("setegid failed");
-       if (seteuid(getuid()) != 0)
+       if (setgid(getgid()) != 0)
+          die("setgid failed");
+       if (setuid(getuid()) != 0)
           die("seteuid failed");
 
        if(getuid() == 0 || geteuid() == 0 || getgid() == 0 || getegid() == 0)
           die("dropping privs did not work");
     }
-    
+
     int i = 0;
     int rc = 0;
-    
+
    //https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#ubuntu-snapp-launch
 
     // setup env
@@ -187,7 +190,7 @@ int main(int argc, char **argv)
     for(i=1; i < argc-NR_ARGS; i++)
        new_argv[i] = argv[i+NR_ARGS];
     new_argv[i] = NULL;
-    
+
     return execv(binary, new_argv);
 }
 
