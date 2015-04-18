@@ -503,11 +503,10 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 	}
 
 	for _, service := range m.Services {
-		namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "/meta/package.yaml"))
+		aaProfile, err := getAaProfile(m, service.Name, baseDir)
 		if err != nil {
 			return err
 		}
-		aaProfile := getAaProfile(m, service.Name, namespace)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -590,11 +589,10 @@ func addPackageBinaries(baseDir string) error {
 	}
 
 	for _, binary := range m.Binaries {
-		namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "/meta/package.yaml"))
+		aaProfile, err := getAaProfile(m, binary.Name, baseDir)
 		if err != nil {
 			return err
 		}
-		aaProfile := getAaProfile(m, binary.Name, namespace)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -694,8 +692,10 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace
 		return err
 	}
 
-	// add the namespace to the name
-	cm.Name = fmt.Sprintf("%s.%s", cm.Name, namespace)
+	if cm.Type != SnapTypeFramework {
+		// add the namespace to the name
+		cm.Name = fmt.Sprintf("%s.%s", cm.Name, namespace)
+	}
 
 	outStr, err := json.MarshalIndent(cm, "", "  ")
 	if err != nil {
@@ -756,7 +756,10 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		targetDir = snapOemDir
 	}
 
-	fullName := fmt.Sprintf("%s.%s", manifest.Name, namespace)
+	fullName := manifest.Name
+	if manifest.Type != SnapTypeFramework {
+		fullName += "." + namespace
+	}
 	instDir := filepath.Join(targetDir, fullName, manifest.Version)
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 

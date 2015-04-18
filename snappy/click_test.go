@@ -425,7 +425,7 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 	policy.SecBase = c.MkDir()
 
 	s.buildFramework(c)
-	appdir := filepath.Join(s.tempdir, "apps", "hello.testspacethename", "1.0.1")
+	appdir := filepath.Join(s.tempdir, "apps", "hello", "1.0.1")
 	c.Assert(removeClick(appdir, nil), IsNil)
 }
 
@@ -435,10 +435,10 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicyWeirdClickManifest(c *C) {
 	policy.SecBase = c.MkDir()
 
 	s.buildFramework(c)
-	appdir := filepath.Join(s.tempdir, "apps", "hello.testspacethename", "1.0.1")
+	appdir := filepath.Join(s.tempdir, "apps", "hello", "1.0.1")
 	// c.Assert(removeClick(appdir, nil), IsNil)
 
-	manifestFile := path.Join(appdir, ".click", "info", "hello.testspacethename.manifest")
+	manifestFile := path.Join(appdir, ".click", "info", "hello.manifest")
 	c.Assert(ioutil.WriteFile(manifestFile, []byte(`{"name": "xyzzy","type":"framework"}`), 0644), IsNil)
 
 	c.Assert(removeClick(appdir, nil), IsNil)

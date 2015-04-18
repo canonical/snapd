@@ -95,8 +95,13 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	stripGlobalRootDir = stripGlobalRootDirImpl
 }
 
-func (s *SnapTestSuite) makeInstalledMockSnap() (yamlFile string, err error) {
-	return makeInstalledMockSnap(s.tempdir, "")
+func (s *SnapTestSuite) makeInstalledMockSnap(yamls ...string) (yamlFile string, err error) {
+	yaml := ""
+	if len(yamls) > 0 {
+		yaml = yamls[0]
+	}
+
+	return makeInstalledMockSnap(s.tempdir, yaml)
 }
 
 func makeSnapActive(packageYamlPath string) (err error) {
