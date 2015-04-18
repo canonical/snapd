@@ -40,6 +40,7 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
+	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/systemd"
 
 	"gopkg.in/yaml.v2"
@@ -1073,7 +1074,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
-	req.Header.Set("X-Ubuntu-Release", release.release())
+	req.Header.Set("X-Ubuntu-Release", release.Get())
 
 	// check if the oem part sets a custom store-id
 	oems, _ := ActiveSnapsByType(SnapTypeOem)

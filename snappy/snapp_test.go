@@ -29,6 +29,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/systemd"
 
 	. "launchpad.net/gocheck"
@@ -51,6 +52,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 
 	SetRootDir(s.tempdir)
 	os.MkdirAll(snapServicesDir, 0755)
+
+	release.Set(release.Release{Flavor: "core", Series: "15.04"})
 
 	clickSystemHooksDir = filepath.Join(s.tempdir, "/usr/share/click/hooks")
 	os.MkdirAll(clickSystemHooksDir, 0755)
@@ -539,19 +542,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	c.Assert(err, IsNil)
 
-	origRelease := release
-	defer func() {
-		release = origRelease
-	}()
-
-	release = ReleaseInfo{
-		flavor: "core",
-		series: "15.04",
-	}
-
 	setUbuntuStoreHeaders(req)
 
-	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, release.release())
+	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, release.Get())
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {

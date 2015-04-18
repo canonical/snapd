@@ -17,7 +17,11 @@
 
 package snappy
 
-import "os"
+import (
+	"os"
+
+	"launchpad.net/snappy/release"
+)
 
 func init() {
 	// init the global directories at startup
@@ -28,13 +32,11 @@ func init() {
 
 	SetRootDir(root)
 
-	if rInfo, err := releaseInformation(globalRootDir); err == nil {
-		SetRelease(*rInfo)
+	if rInfo, err := release.Setup(globalRootDir); err == nil {
+		release.Set(*rInfo)
 	} else {
 		// this is for legacy reasons until everyone migrates to the
 		// new system image server channels
-		SetRelease(ReleaseInfo{flavor: "core", series: "15.04"})
+		release.SetLegacy()
 	}
 }
-
-var release ReleaseInfo

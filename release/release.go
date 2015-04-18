@@ -15,7 +15,7 @@
  *
  */
 
-package snappy
+package release
 
 import (
 	"errors"
@@ -26,24 +26,35 @@ import (
 	"github.com/mvo5/goconfigparser"
 )
 
-// ReleaseInfo contains a structure with the release information
-type ReleaseInfo struct {
-	flavor  string
-	series  string
-	channel string
+// Release contains a structure with the release information
+type Release struct {
+	Flavor  string
+	Series  string
+	Channel string
 }
+
+var rel Release
 
 const (
 	channelsIni = "/etc/system-image/channels.ini"
 )
 
-// SetRelease is used to override the release information determined by the
+// Set is used to override the release information determined by the
 // the system
-func SetRelease(r ReleaseInfo) {
-	release = r
+func Set(r Release) {
+	rel = r
 }
 
-func releaseInformation(rootDir string) (*ReleaseInfo, error) {
+// SetLegacy is a helper to set the default initial release of 15.04-core
+func SetLegacy() {
+	rel = Release{Flavor: "core", Series: "15.04"}
+}
+
+func Get() string {
+	return rel.release()
+}
+
+func Setup(rootDir string) (*Release, error) {
 	channelsIniPath := filepath.Join(rootDir, channelsIni)
 
 	cfg := goconfigparser.New()
@@ -67,14 +78,14 @@ func releaseInformation(rootDir string) (*ReleaseInfo, error) {
 		return nil, errors.New("release does not correspond to an ubuntu channel")
 	}
 
-	return &ReleaseInfo{
-		flavor:  strings.Trim(channelParts[0], "ubuntu-"),
-		series:  channelParts[1],
-		channel: channelParts[2],
+	return &Release{
+		Flavor:  strings.Trim(channelParts[0], "ubuntu-"),
+		Series:  channelParts[1],
+		Channel: channelParts[2],
 	}, nil
 }
 
 // release returns a valid release string to set the store headers
-func (r ReleaseInfo) release() string {
-	return fmt.Sprintf("%s-%s", r.series, r.flavor)
+func (r Release) release() string {
+	return fmt.Sprintf("%s-%s", r.Series, r.Flavor)
 }
