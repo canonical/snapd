@@ -40,16 +40,13 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
+	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/systemd"
 
 	"gopkg.in/yaml.v2"
 )
 
 const (
-	// the postfix we append to the release that is send to the store
-	// FIXME: find a better way to detect the postfix
-	releasePostfix = "-core"
-
 	// the namespace for sideloaded snaps
 	sideloadedNamespace = "sideload"
 )
@@ -1077,7 +1074,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
-	req.Header.Set("X-Ubuntu-Release", helpers.LsbRelease()+releasePostfix)
+	req.Header.Set("X-Ubuntu-Release", release.String())
 
 	// check if the oem part sets a custom store-id
 	oems, _ := ActiveSnapsByType(SnapTypeOem)

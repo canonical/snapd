@@ -17,10 +17,7 @@
 
 package snappy
 
-import (
-	"os"
-	"path/filepath"
-)
+import "path/filepath"
 
 // the various file paths
 var (
@@ -56,14 +53,4 @@ func SetRootDir(rootdir string) {
 	clickSystemHooksDir = filepath.Join(rootdir, "/usr/share/click/hooks")
 
 	cloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
-}
-
-func init() {
-	// init the global directories at startup
-	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
-	if root == "" {
-		root = "/"
-	}
-
-	SetRootDir(root)
 }
