@@ -32,11 +32,7 @@ func init() {
 
 	SetRootDir(root)
 
-	if rInfo, err := release.Setup(globalRootDir); err == nil {
-		release.Set(*rInfo)
-	} else {
-		// this is for legacy reasons until everyone migrates to the
-		// new system image server channels
-		release.SetLegacy()
-	}
+	// we don't need to care for the error here to take into account when
+	// initialized on a non snappy system
+	release.Setup(globalRootDir)
 }

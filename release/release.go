@@ -36,53 +36,58 @@ type Release struct {
 var rel Release
 
 const (
-	channelsIni = "/etc/system-image/channels.ini"
+	channelsIni = "/etc/system-image/channel.ini"
 )
 
-// Set is used to override the release information determined by the
-// the system
-func Set(r Release) {
-	rel = r
-}
-
-// SetLegacy is a helper to set the default initial release of 15.04-core
-func SetLegacy() {
+// setLegacy is a helper to set the default initial release of 15.04-core
+func setLegacy() {
 	rel = Release{Flavor: "core", Series: "15.04"}
 }
 
+// Get returns the release information
 func Get() string {
 	return rel.release()
 }
 
-func Setup(rootDir string) (*Release, error) {
+// Override sets up the release using a Release
+func Override(r Release) {
+	rel = r
+}
+
+// Setup is used to initialiaze the release information for the system
+func Setup(rootDir string) error {
 	channelsIniPath := filepath.Join(rootDir, channelsIni)
 
 	cfg := goconfigparser.New()
 
 	if err := cfg.ReadFile(channelsIniPath); err != nil {
-		return nil, err
+		return err
 	}
 
-	channel, err := cfg.Get("", "channel")
+	channel, err := cfg.Get("service", "channel")
 	if err != nil {
-		return nil, err
+		return err
+	}
+
+	// I'm not so sure about this check
+	if !strings.HasPrefix(channel, "ubuntu-") {
+		return errors.New("release does not correspond to an ubuntu channel")
 	}
 
 	channelParts := strings.Split(channel, "/")
-
 	if len(channelParts) != 3 {
-		errors.New("using deprecated channels")
+		// deprecated channel usage
+		setLegacy()
+		return nil
 	}
 
-	if !strings.HasPrefix(channelParts[0], "ubuntu-") {
-		return nil, errors.New("release does not correspond to an ubuntu channel")
-	}
-
-	return &Release{
+	rel = Release{
 		Flavor:  strings.Trim(channelParts[0], "ubuntu-"),
 		Series:  channelParts[1],
 		Channel: channelParts[2],
-	}, nil
+	}
+
+	return nil
 }
 
 // release returns a valid release string to set the store headers

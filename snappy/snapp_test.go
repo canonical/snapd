@@ -53,7 +53,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	SetRootDir(s.tempdir)
 	os.MkdirAll(snapServicesDir, 0755)
 
-	release.Set(release.Release{Flavor: "core", Series: "15.04"})
+	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
 	clickSystemHooksDir = filepath.Join(s.tempdir, "/usr/share/click/hooks")
 	os.MkdirAll(clickSystemHooksDir, 0755)
