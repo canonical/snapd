@@ -150,9 +150,9 @@ int main(int argc, char **argv)
        setup_udev_snappy_assign(appname);
        
        // the rest does not so drop privs back to user
-       if (setegid(getgid()) != 0)
-          die("setegid failed");
-       if (seteuid(getuid()) != 0)
+       if (setgid(getgid()) != 0)
+          die("setgid failed");
+       if (setuid(getuid()) != 0)
           die("seteuid failed");
 
        if(getuid() == 0 || geteuid() == 0 || getgid() == 0 || getegid() == 0)
