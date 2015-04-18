@@ -140,6 +140,7 @@ type Service struct {
 	Stop        string  `yaml:"stop,omitempty" json:"stop,omitempty"`
 	PostStop    string  `yaml:"poststop,omitempty" json:"poststop,omitempty"`
 	StopTimeout Timeout `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
+	BusName     string  `yaml:"bus-name,omitempty" json:"bus-name,omitempty"`
 
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`

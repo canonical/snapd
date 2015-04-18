@@ -466,12 +466,16 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 		&systemd.ServiceDescription{
 			m.Name, service.Name, m.Version, service.Description,
 			baseDir, service.Start, service.Stop, service.PostStop,
-			time.Duration(service.StopTimeout), aaProfile,
+			time.Duration(service.StopTimeout), aaProfile, service.BusName,
 		}), nil
 }
 
 func generateServiceFileName(m *packageYaml, service Service) string {
 	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
+}
+
+func generateBusPolicyFileName(m *packageYaml, service Service, namespace string) string {
+	return filepath.Join(snapBusPolicyDir, fmt.Sprintf("%s.%s_%s_%s.conf", m.Name, namespace, service.Name, m.Version))
 }
 
 // takes a directory and removes the global root, this is needed
@@ -523,6 +527,20 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 			return err
 		}
 
+		// If necessary, generate the DBus policy file so the service
+		// is allowed to start
+		if service.BusName != "" {
+			content, err := genBusPolicyFile(service.BusName)
+			if err != nil {
+				return err
+			}
+			policyFilename := generateBusPolicyFileName(m, service, namespace)
+			helpers.EnsureDir(filepath.Dir(policyFilename), 0755)
+			if err := ioutil.WriteFile(policyFilename, []byte(content), 0644); err != nil {
+				return err
+			}
+		}
+
 		// daemon-reload and start only if we are not in the
 		// inhibitHooks mode
 		//
@@ -555,6 +573,12 @@ func removePackageServices(baseDir string, inter interacter) error {
 	if err != nil {
 		return err
 	}
+
+	namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "/meta/package.yaml"))
+	if err != nil {
+		return err
+	}
+
 	sysd := systemd.New(globalRootDir, inter)
 	for _, service := range m.Services {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
@@ -567,6 +591,9 @@ func removePackageServices(baseDir string, inter interacter) error {
 		// FIXME: wait for the service to be really stopped
 
 		os.Remove(generateServiceFileName(m, service))
+
+		// Also remove DBus system policy file
+		os.Remove(generateBusPolicyFileName(m, service, namespace))
 	}
 
 	// only reload if we actually had services
@@ -771,13 +798,15 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	}
 
 	// if anything goes wrong here we cleanup
-	defer func() {
-		if err != nil {
-			if err := os.RemoveAll(instDir); err != nil {
-				log.Printf("Warning: failed to remove %s: %s", instDir, err)
+	/*
+		defer func() {
+			if err != nil {
+				if err := os.RemoveAll(instDir); err != nil {
+					log.Printf("Warning: failed to remove %s: %s", instDir, err)
+				}
 			}
-		}
-	}()
+		}()
+	*/
 
 	// we need to call the external helper so that we can reliable drop
 	// privs

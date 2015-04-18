@@ -156,6 +156,8 @@ AppArmorProfile=aa-profile
 ExecStop=/apps/app/1.0/bin/stop
 ExecStopPost=/apps/app/1.0/bin/stop --post
 TimeoutStopSec=10
+BusName=foo.bar.baz
+Type=dbus
 
 [Install]
 WantedBy=multi-user.target
@@ -174,6 +176,7 @@ func (s *SystemdTestSuite) TestGenServiceFile(c *C) {
 		PostStop:    "bin/stop --post",
 		StopTimeout: time.Duration(10 * time.Second),
 		AaProfile:   "aa-profile",
+		BusName:     "foo.bar.baz",
 	}
 
 	generated := New("", nil).GenServiceFile(desc)

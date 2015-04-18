@@ -32,8 +32,9 @@ var (
 	snapDataHomeGlob string
 	snapAppArmorDir  string
 
-	snapBinariesDir string
-	snapServicesDir string
+	snapBinariesDir  string
+	snapServicesDir  string
+	snapBusPolicyDir string
 
 	clickSystemHooksDir string
 	cloudMetaDataFile   string
@@ -52,6 +53,7 @@ func SetRootDir(rootdir string) {
 
 	snapBinariesDir = filepath.Join(snapAppsDir, "bin")
 	snapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
+	snapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 
 	clickSystemHooksDir = filepath.Join(rootdir, "/usr/share/click/hooks")
 

@@ -957,6 +957,8 @@ AppArmorProfile=xkcd-webserver.canonical_xkcd-webserver_0.3.4
 ExecStop=/apps/xkcd-webserver.canonical/0.3.4/bin/foo stop
 ExecStopPost=/apps/xkcd-webserver.canonical/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
+BusName=foo.bar.baz
+Type=dbus
 
 [Install]
 WantedBy=multi-user.target
@@ -969,6 +971,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
 		PostStop:    "bin/foo post-stop",
 		StopTimeout: DefaultTimeout,
 		Description: "A fun webserver",
+		BusName:     "foo.bar.baz",
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
