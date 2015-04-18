@@ -57,14 +57,14 @@ void setup_udev_snappy_assign(const char *appname) {
       die("udev_new failed");
 
    const char* static_devices[] = {
-      "/class/mem/null",
-      "/class/mem/full",
-      "/class/mem/zero",
-      "/class/mem/random",
-      "/class/mem/urandom",
-      "/class/tty/tty",
-      "/class/tty/console",
-      "/class/tty/ptmx",
+      "/sys/class/mem/null",
+      "/sys/class/mem/full",
+      "/sys/class/mem/zero",
+      "/sys/class/mem/random",
+      "/sys/class/mem/urandom",
+      "/sys/class/tty/tty",
+      "/sys/class/tty/console",
+      "/sys/class/tty/ptmx",
       NULL,
    };
    int i;
