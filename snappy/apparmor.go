@@ -94,8 +94,9 @@ func getAaProfile(m *packageYaml, appName, baseDir string) (string, error) {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
 	if m.Type == SnapTypeFramework {
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
-	} else {
-		namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
-		return fmt.Sprintf("%s.%s_%s_%s", m.Name, namespace, cleanedName, m.Version), err
 	}
+
+	namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+
+	return fmt.Sprintf("%s.%s_%s_%s", m.Name, namespace, cleanedName, m.Version), err
 }
