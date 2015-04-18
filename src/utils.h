@@ -5,6 +5,7 @@
 
 void die(const char *fmt, ...);
 bool error(const char *fmt, ...);
+void debug(const char *fmt, ...);
 void write_string_to_file(const char *filepath, const char *buf);
    
 #endif

@@ -22,6 +22,7 @@
 int unshare(int flags);
 
 void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appname) {
+   debug("run_snappy_app_dev_add: %s %s", path, appname);
       struct udev_device *d = udev_device_new_from_syspath(u, path);
       if (d == NULL)
          return;
@@ -45,7 +46,9 @@ void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appnam
          die("child exited with %i", WEXITSTATUS(status));
 }
 
-void setup_udev_stuff(const char *appname) {
+void setup_udev_snappy_assign(const char *appname) {
+   debug("setup_udev_snappy_assign");
+   
    struct udev *u = udev_new();
    if (u == NULL)
       die("udev_new failed");
@@ -93,6 +96,8 @@ void setup_udev_stuff(const char *appname) {
 }
 
 void setup_devices_cgroup(const char *appname) {
+   debug("setup_devices_cgroup");
+
    // create devices cgroup controller
    char cgroup_dir[128];
    if(snprintf(cgroup_dir, sizeof(cgroup_dir), "/sys/fs/cgroup/devices/snappy.%s/", appname) < 0)
@@ -117,7 +122,7 @@ void setup_devices_cgroup(const char *appname) {
    if(snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir, "devices.deny") < 0)
       die("snprintf failed (4)");
    write_string_to_file(cgroup_file, "a");
-   
+  
 }
 
 
@@ -140,7 +145,7 @@ int main(int argc, char **argv)
    if(geteuid() == 0) {
        // this needs to happen as root
        setup_devices_cgroup(appname);
-       setup_udev_stuff(appname);
+       setup_udev_snappy_assign(appname);
        
        // the rest does not so drop privs back to user
        if (setegid(getgid()) != 0)
