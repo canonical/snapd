@@ -1,0 +1,3 @@
+
+# static generic rule
+TAG=="snappy-assign", RUN+="/lib/udev/snappy-app-dev $env{ACTION} $env{SNAPPY_APP} $devpath $major:$minor"

@@ -20,10 +20,12 @@ clean:
 install:
 	# create dirs
 	install -d -m755  ${DESTDIR}/usr/bin
-	install -d -m755  ${DESTDIR}/lib/udev/
-# install the launcher
-	install -m755 $(BIN) ${DESTDIR}/usr/bin
+	install -d -m755  ${DESTDIR}/lib/udev/rules.d
+	# install the launcher, must be suid root
+	install -m4755 $(BIN) ${DESTDIR}/usr/bin
 	# install the udev helper
-	install -m4755 snappy-app-dev ${DESTDIR}/lib/udev/
+	install -m755 snappy-app-dev ${DESTDIR}/lib/udev/
+	# install the udev rule
+	install -m644 80-snappy-assign  ${DESTDIR}/lib/udev/rules.d/
 
 .PHONY: test
