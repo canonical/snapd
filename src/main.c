@@ -33,9 +33,9 @@ void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appnam
       pid_t pid = fork();
       if (pid == 0) {
          char buf[64];
-         int major = MAJOR(devnum);
-         int minor = MINOR(devnum);
-         if(snprintf(buf, sizeof(buf), "%i:%i", major, minor) < 0)
+         unsigned major = MAJOR(devnum);
+         unsigned minor = MINOR(devnum);
+         if(snprintf(buf, sizeof(buf), "%u:%u", major, minor) < 0)
             die("snprintf failed (5)");
          if(execl("/lib/udev/snappy-app-dev", "add", appname, path, buf, NULL) != 0)
             die("execlp failed");
