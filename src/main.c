@@ -11,7 +11,8 @@
 #include <sched.h>
 #include <string.h>
 #include <linux/kdev_t.h>
- 
+#include <stdlib.h>
+
 #include "libudev.h"
 
 #include "overlay.h"
@@ -119,32 +120,37 @@ void setup_devices_cgroup(const char *appname) {
    
 }
 
+
+
 int main(int argc, char **argv)
 {
    const int NR_ARGS = 4;
    if(argc < NR_ARGS+1)
        die("Usage: %s <rootdir> <appname> <binary> <apparmor>", argv[0]);
 
-    if(geteuid() != 0)
+   const char *rootdir = argv[1];
+   const char *appname = argv[2];
+   const char *aa_profile = argv[3];
+   const char *binary = argv[4];
+
+   if(geteuid() != 0 && getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
        die("need to run as root or suid");
+   }
 
-    const char *rootdir = argv[1];
-    const char *appname = argv[2];
-    const char *aa_profile = argv[3];
-    const char *binary = argv[4];
+   if(geteuid() == 0) {
+       // this needs to happen as root
+       setup_devices_cgroup(appname);
+       setup_udev_stuff(appname);
+       
+       // the rest does not so drop privs back to user
+       if (setegid(getgid()) != 0)
+          die("setegid failed");
+       if (seteuid(getuid()) != 0)
+          die("seteuid failed");
 
-    // this needs to happen as root
-    setup_devices_cgroup(appname);
-    setup_udev_stuff(appname);
-
-    // the rest does not so drop privs back to user
-    if (setegid(getgid()) != 0)
-       die("setegid failed");
-    if (seteuid(getuid()) != 0)
-       die("seteuid failed");
-
-    if(getuid() == 0 || geteuid() == 0 || getgid() == 0 || getegid() == 0)
-       die("dropping privs did not work");
+       if(getuid() == 0 || geteuid() == 0 || getgid() == 0 || getegid() == 0)
+          die("dropping privs did not work");
+    }
     
     int i = 0;
     int rc = 0;
