@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <linux/sched.h>
 #include <sys/mount.h>
 #include <sys/apparmor.h>
@@ -101,7 +102,7 @@ void setup_devices_cgroup(const char *appname) {
    debug("setup_devices_cgroup");
 
    // create devices cgroup controller
-   char cgroup_dir[128];
+   char cgroup_dir[PATH_MAX];
    if(snprintf(cgroup_dir, sizeof(cgroup_dir), "/sys/fs/cgroup/devices/snappy.%s/", appname) < 0)
       die("snprintf failed");
 
@@ -111,7 +112,7 @@ void setup_devices_cgroup(const char *appname) {
          die("mkdir failed");
 
    // move ourselves into it
-   char cgroup_file[128];
+   char cgroup_file[PATH_MAX];
    if(snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir, "tasks") < 0)
       die("snprintf failed (2)");
 
