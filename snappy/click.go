@@ -795,15 +795,13 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	}
 
 	// if anything goes wrong here we cleanup
-	/*
-		defer func() {
-			if err != nil {
-				if err := os.RemoveAll(instDir); err != nil {
-					log.Printf("Warning: failed to remove %s: %s", instDir, err)
-				}
+	defer func() {
+		if err != nil {
+			if err := os.RemoveAll(instDir); err != nil {
+				log.Printf("Warning: failed to remove %s: %s", instDir, err)
 			}
-		}()
-	*/
+		}
+	}()
 
 	// we need to call the external helper so that we can reliable drop
 	// privs
