@@ -20,11 +20,11 @@ type apparmorJSONTemplate struct {
 }
 
 type securitySeccompOverride struct {
-	Template      string   `yaml:"template"`
-	PolicyGroups  []string `yaml:"policy_groups,omitempty"`
-	Syscalls      []string `yaml:"policy_groups,omitempty"`
-	PolicyVendor  string   `yaml:"policy_vendor"`
-	PolicyVersion float64  `yaml:"policy_version"`
+	Template      string   `yaml:"security-template,omitempty"`
+	PolicyGroups  []string `yaml:"caps,omitempty"`
+	Syscalls      []string `yaml:"syscalls,omitempty"`
+	PolicyVendor  string   `yaml:"policy-vendor"`
+	PolicyVersion float64  `yaml:"policy-version"`
 }
 
 const defaultTemplate = "default"
@@ -144,8 +144,17 @@ func generateSeccompPolicy(m *packageYaml, baseDir string, appName string, sd Se
 	syscalls := make([]string, 0)
 
 	if sd.SecurityOverride != nil {
-		fmt.Printf("TODO: SecurityOverride\n")
-		// TODO: read in yaml and override everything
+		fn := filepath.Join(baseDir, sd.SecurityOverride.Seccomp)
+	        var s securitySeccompOverride
+		err := readSeccompOverride(fn, baseDir, &s)
+		if err != nil {
+			fmt.Printf("WARNING: failed to read %s\n", fn)
+		}
+		template = s.Template
+		policy_vendor = s.PolicyVendor
+		policy_version = s.PolicyVersion
+		caps = s.PolicyGroups
+		syscalls = s.Syscalls
 	} else {
 		if sd.SecurityTemplate != "" {
 			template = sd.SecurityTemplate
@@ -158,7 +167,7 @@ func generateSeccompPolicy(m *packageYaml, baseDir string, appName string, sd Se
 	// Build up the command line
 	cmd := "sc-filtergen"
 	args := make([]string, 0)
-	args = append(args, fmt.Sprintf("--include-policy-dir=%s", snapSeccompDir))
+	args = append(args, fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(snapSeccompDir)))
 	args = append(args, fmt.Sprintf("--policy-vendor=%s", policy_vendor))
 	args = append(args, fmt.Sprintf("--policy-version=%.2f", policy_version))
 	args = append(args, fmt.Sprintf("--template=%s", template))
@@ -189,17 +198,17 @@ func getProfileNames(m *packageYaml) []string {
 	return profiles
 }
 
-func readSeccompOverride(yamlPath string) (*securitySeccompOverride, error) {
-	yamlData, err1 := ioutil.ReadFile(yamlPath)
-	if err1 != nil {
-		return nil, err1
+func readSeccompOverride(yamlPath, baseDir string, s *securitySeccompOverride) error {
+	yamlData, err := ioutil.ReadFile(yamlPath)
+	if err != nil {
+		return err
 	}
 
-	var m securitySeccompOverride
-	err2 := yaml.Unmarshal(yamlData, &m)
-	if err2 != nil {
+	err = yaml.Unmarshal(yamlData, &s)
+	if err != nil {
 		fmt.Printf("ERROR: Can not parse '%s'", yamlData)
-		return nil, err2
+		return err
 	}
-	return &m, nil
+	// TODO: set defaults as necessary
+	return nil
 }
