@@ -37,10 +37,10 @@ func (s *DataDirSuite) TestSystemDataDirs(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(snapDataDir, "foo.bar", "v1"), 0755), IsNil)
 	dds := DataDirs("foo")
 	c.Check(dds, DeepEquals, []SnapDataDir{{
-		base:      snapDataDir,
-		name:      "foo",
-		namespace: "bar",
-		version:   "v1",
+		Base:      snapDataDir,
+		Name:      "foo",
+		Namespace: "bar",
+		Version:   "v1",
 	}})
 	c.Check(DataDirs("f"), HasLen, 0)
 	c.Check(DataDirs("foobar"), HasLen, 0)
@@ -53,10 +53,10 @@ func (s *DataDirSuite) TestDataDirsFramework(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(snapDataDir, "foo", "v1"), 0755), IsNil)
 	dds := DataDirs("foo")
 	c.Check(dds, DeepEquals, []SnapDataDir{{
-		base:      snapDataDir,
-		name:      "foo",
-		namespace: "",
-		version:   "v1",
+		Base:      snapDataDir,
+		Name:      "foo",
+		Namespace: "",
+		Version:   "v1",
 	}})
 	c.Check(DataDirs("foo=v1"), HasLen, 1)
 }
@@ -66,9 +66,14 @@ func (s *DataDirSuite) TestHomeDataDirs(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(home, "foo.bar", "v1"), 0755), IsNil)
 	dds := DataDirs("foo")
 	c.Check(dds, DeepEquals, []SnapDataDir{{
-		base:      snapDataHomeGlob,
-		name:      "foo",
-		namespace: "bar",
-		version:   "v1",
+		Base:      snapDataHomeGlob,
+		Name:      "foo",
+		Namespace: "bar",
+		Version:   "v1",
 	}})
+}
+
+func (s *DataDirSuite) TestDataDirDirname(c *C) {
+	c.Check(SnapDataDir{Name: "foo", Namespace: "bar"}.Dirname(), Equals, "foo.bar")
+	c.Check(SnapDataDir{Name: "foo"}.Dirname(), Equals, "foo")
 }

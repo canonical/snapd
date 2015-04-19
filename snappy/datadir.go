@@ -24,10 +24,18 @@ import (
 
 // A SnapDataDir represents a single data directory for a version of a package
 type SnapDataDir struct {
-	base      string
-	name      string
-	namespace string
-	version   string
+	Base      string
+	Name      string
+	Namespace string
+	Version   string
+}
+
+// Dirname returns the filesystem directory name for this SnapDataDir
+func (dd SnapDataDir) Dirname() string {
+	if dd.Namespace != "" {
+		return dd.Name + "." + dd.Namespace
+	}
+	return dd.Name
 }
 
 func data1(spec, basedir string) []SnapDataDir {
@@ -71,10 +79,10 @@ func data1(spec, basedir string) []SnapDataDir {
 		}
 
 		snaps = append(snaps, SnapDataDir{
-			base:      basedir,
-			name:      name,
-			namespace: namespace,
-			version:   version,
+			Base:      basedir,
+			Name:      name,
+			Namespace: namespace,
+			Version:   version,
 		})
 	}
 
