@@ -32,28 +32,30 @@ type SnapDataDir struct {
 
 func data1(spec, basedir string) []SnapDataDir {
 	var snaps []SnapDataDir
-	var specns, specver string
 	var filterns bool
 
-	dirs, _ := filepath.Glob(filepath.Join(basedir, "*", "*"))
+	verglob := "*"
+	specns := "*"
 
 	idx := strings.IndexRune(spec, '=')
 	if idx > -1 {
-		specver = spec[idx+1:]
+		verglob = spec[idx+1:]
 		spec = spec[:idx]
 	}
+
+	nameglob := spec + "*"
 	idx = strings.IndexRune(spec, '.')
 	if idx > -1 {
 		filterns = true
 		specns = spec[idx+1:]
 		spec = spec[:idx]
+		nameglob = spec + "." + specns
 	}
+
+	dirs, _ := filepath.Glob(filepath.Join(basedir, nameglob, verglob))
 
 	for _, dir := range dirs {
 		version := filepath.Base(dir)
-		if specver != "" && version != specver {
-			continue
-		}
 		name := filepath.Base(filepath.Dir(dir))
 		namespace := ""
 		idx := strings.IndexRune(name, '.')
