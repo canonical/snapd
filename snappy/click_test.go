@@ -922,6 +922,43 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	c.Assert(strings.Contains(string(content), "\nExecStart=/apps/"+helloAppComposedName+"/1.10/bin/hello\n"), Equals, true)
 }
 
+func (s *SnapTestSuite) TestAddPackageServicesBusPolicyFramework(c *C) {
+	yaml := `name: foo
+version: 1
+type: framework
+services:
+  - name: bar
+    bus-name: foo.bar.baz
+`
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
+	c.Assert(err, IsNil)
+	baseDir := filepath.Dir(filepath.Dir(yamlFile))
+	err = addPackageServices(baseDir, false, nil)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), "<allow own=\"foo.bar.baz\"/>\n"), Equals, true)
+}
+
+func (s *SnapTestSuite) TestAddPackageServicesBusPolicyNoFramework(c *C) {
+	yaml := `name: foo
+version: 1
+type: app
+services:
+  - name: bar
+    bus-name: foo.bar.baz
+`
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
+	c.Assert(err, IsNil)
+	baseDir := filepath.Dir(filepath.Dir(yamlFile))
+	err = addPackageServices(baseDir, false, nil)
+	c.Assert(err, IsNil)
+
+	_, err = ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
+	c.Assert(err, NotNil)
+}
+
 func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	// ensure that even with a global rootdir the paths in the generated
 	// .services file are setup correctly (i.e. that the global root
