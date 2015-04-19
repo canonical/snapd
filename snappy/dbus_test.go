@@ -37,6 +37,40 @@ const expectedBusPolicy = `<?xml version="1.0"?> <!--*-nxml-*-->
 
 func (s *DBusTestSuite) TestGenBusPolicyFile(c *C) {
 	generated, err := genBusPolicyFile(s.busName)
-	c.Assert(err, Equals, nil)
+	c.Assert(err, IsNil)
 	c.Assert(generated, Equals, expectedBusPolicy)
+}
+
+func (s *DBusTestSuite) TestGenBusPolicyFileGood(c *C) {
+	goodnames := []string{
+		"foo.bar",
+		"foo.bar.baz",
+		"foo-bar.baz",
+		"foo_bar.baz",
+		"foo-bar0.ba1z.q2ux.3norf",
+	}
+
+	for _, b := range goodnames {
+		err := verifyBusName(b)
+		c.Assert(err, IsNil)
+	}
+}
+func (s *DBusTestSuite) TestGenBusPolicyFileBad(c *C) {
+	badnames := []string{
+		"",
+		"foo",
+		".foo",
+		"foo.",
+		"foo.bar.",
+		".foo.bar",
+		"_foo.bar",
+		"-foo.bar",
+		":1:234",
+		"foo.bar.b@d",
+	}
+
+	for _, b := range badnames {
+		err := verifyBusName(b)
+		c.Assert(err, NotNil)
+	}
 }

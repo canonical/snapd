@@ -19,14 +19,26 @@ package snappy
 
 import (
 	"bytes"
-	//"fmt"
-	//"regexp"
+	"regexp"
 	"text/template"
 
 	"launchpad.net/snappy/logger"
 )
 
 func verifyBusName(busName string) error {
+	// http://dbus.freedesktop.org/doc/dbus-specification.html
+	rs := "^[A-Za-z0-9][A-Za-z0-9_-]*(\\.[A-Za-z0-9][A-Za-z0-9_-]*)+$"
+	r, err := regexp.Compile(rs)
+	if err != nil {
+		return err
+	}
+
+	if !r.MatchString(busName) {
+		return &ErrStructIllegalContent{
+			content:   busName,
+			whitelist: rs,
+		}
+	}
 	return nil
 }
 
