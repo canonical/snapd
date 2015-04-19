@@ -29,6 +29,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/systemd"
 
 	. "launchpad.net/gocheck"
@@ -51,6 +52,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 
 	SetRootDir(s.tempdir)
 	os.MkdirAll(snapServicesDir, 0755)
+
+	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
 	clickSystemHooksDir = filepath.Join(s.tempdir, "/usr/share/click/hooks")
 	os.MkdirAll(clickSystemHooksDir, 0755)
@@ -92,8 +95,13 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	stripGlobalRootDir = stripGlobalRootDirImpl
 }
 
-func (s *SnapTestSuite) makeInstalledMockSnap() (yamlFile string, err error) {
-	return makeInstalledMockSnap(s.tempdir, "")
+func (s *SnapTestSuite) makeInstalledMockSnap(yamls ...string) (yamlFile string, err error) {
+	yaml := ""
+	if len(yamls) > 0 {
+		yaml = yamls[0]
+	}
+
+	return makeInstalledMockSnap(s.tempdir, yaml)
 }
 
 func makeSnapActive(packageYamlPath string) (err error) {
@@ -540,7 +548,8 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	c.Assert(err, IsNil)
 
 	setUbuntuStoreHeaders(req)
-	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, helpers.LsbRelease()+releasePostfix)
+
+	c.Assert(req.Header.Get("X-Ubuntu-Release"), Equals, release.String())
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {

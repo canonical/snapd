@@ -40,16 +40,13 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
+	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/systemd"
 
 	"gopkg.in/yaml.v2"
 )
 
 const (
-	// the postfix we append to the release that is send to the store
-	// FIXME: find a better way to detect the postfix
-	releasePostfix = "-core"
-
 	// the namespace for sideloaded snaps
 	sideloadedNamespace = "sideload"
 )
@@ -665,8 +662,8 @@ type RestartJob struct {
 	timeout time.Duration
 }
 
-func updateAppArmorJSONTimestamp(pkg, namespace, thing, version string) error {
-	fn := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.%s_%s_%s.json", pkg, namespace, thing, version))
+func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
+	fn := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_%s_%s.json", fullName, thing, version))
 	return timestampUpdater(fn)
 }
 
@@ -676,9 +673,13 @@ func updateAppArmorJSONTimestamp(pkg, namespace, thing, version string) error {
 // and returns the list of jobs that need restarting as a consequence.
 func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) ([]RestartJob, error) {
 	var rs []RestartJob
+	fullName := s.Name()
+	if s.Type() != SnapTypeFramework {
+		fullName += "." + s.Namespace()
+	}
 	for _, svc := range s.Services() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
-			if err := updateAppArmorJSONTimestamp(s.Name(), s.Namespace(), svc.Name, s.Version()); err != nil {
+			if err := updateAppArmorJSONTimestamp(fullName, svc.Name, s.Version()); err != nil {
 				return nil, err
 			}
 			svcName := generateServiceFileName(s.m, svc)
@@ -687,7 +688,7 @@ func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) ([
 	}
 	for _, bin := range s.Binaries() {
 		if bin.NeedsAppArmorUpdate(policies, templates) {
-			if err := updateAppArmorJSONTimestamp(s.Name(), s.Namespace(), bin.Name, s.Version()); err != nil {
+			if err := updateAppArmorJSONTimestamp(fullName, bin.Name, s.Version()); err != nil {
 				return nil, err
 			}
 		}
@@ -795,16 +796,25 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 			continue
 		}
 
-		namespace, err := namespaceFromYamlPath(realpath)
+		m, err := parsePackageYamlFile(realpath)
 		if err != nil {
 			return nil, err
 		}
 
-		snap, err := NewInstalledSnapPart(yamlfile, namespace)
+		namespace := ""
+		if m.Type != SnapTypeFramework {
+			namespace, err = namespaceFromYamlPath(realpath)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		snap, err := NewSnapPartFromYaml(realpath, namespace, m)
 		if err != nil {
 			return nil, err
 		}
 		parts = append(parts, snap)
+
 	}
 
 	return parts, nil
@@ -814,7 +824,7 @@ func namespaceFromYamlPath(path string) (string, error) {
 	namespace := filepath.Ext(filepath.Dir(filepath.Join(path, "..", "..")))
 
 	if len(namespace) < 1 {
-		return "", errors.New("invalid package on system")
+		return "", ErrInvalidPart
 	}
 
 	return namespace[1:], nil
@@ -1078,7 +1088,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
-	req.Header.Set("X-Ubuntu-Release", helpers.LsbRelease()+releasePostfix)
+	req.Header.Set("X-Ubuntu-Release", release.String())
 
 	// check if the oem part sets a custom store-id
 	oems, _ := ActiveSnapsByType(SnapTypeOem)

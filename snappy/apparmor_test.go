@@ -124,5 +124,29 @@ func (a *ApparmorTestSuite) TestSnappyGetAaProfile(c *C) {
 		Version: "1.0",
 	}
 	b := Binary{Name: "bin/app"}
-	c.Assert(getAaProfile(&m, b.Name, "mvo"), Equals, "foo.mvo_bin-app_1.0")
+	ap, err := getAaProfile(&m, b.Name, "/apps/foo.mvo/1.0/")
+	c.Assert(err, IsNil)
+	c.Check(ap, Equals, "foo.mvo_bin-app_1.0")
+}
+
+func (a *ApparmorTestSuite) TestSnappyGetAaProfileInvalid(c *C) {
+	m := packageYaml{
+		Name:    "foo",
+		Version: "1.0",
+	}
+	b := Binary{Name: "bin/app"}
+	_, err := getAaProfile(&m, b.Name, "/apps/foo/1.0/")
+	c.Assert(err, Equals, ErrInvalidPart)
+}
+
+func (a *ApparmorTestSuite) TestSnappyGetAaProfileFramework(c *C) {
+	m := packageYaml{
+		Name:    "foo",
+		Version: "1.0",
+		Type:    SnapTypeFramework,
+	}
+	b := Binary{Name: "bin/app"}
+	ap, err := getAaProfile(&m, b.Name, "/apps/foo.mvo/1.0/")
+	c.Assert(err, IsNil)
+	c.Check(ap, Equals, "foo_bin-app_1.0")
 }
