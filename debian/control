@@ -3,8 +3,8 @@ Section: utils
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: debhelper (>= 9), libseccomp-dev, libapparmor-dev, libudev-dev
-Standards-Version: 3.9.5
-XS-Vcs: lp:~snappy-dev/ubuntu-core-launcher/trunk
+Standards-Version: 3.9.6
+Vcs: lp:~snappy-dev/ubuntu-core-launcher/trunk
 
 Package: ubuntu-core-launcher
 Architecture: any
