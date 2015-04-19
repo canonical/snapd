@@ -24,9 +24,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"launchpad.net/snappy/helpers"
 )
 
 var (
+	// SecBase is the directory to which the security policies and templates
+	// are copied
 	SecBase = "/var/lib/snappy"
 )
 
@@ -146,4 +150,18 @@ func Install(pkgName string, instPath string) error {
 // installed in the given path.
 func Remove(pkgName string, instPath string) error {
 	return frameworkOp(remove, pkgName, instPath)
+}
+
+func aaUp(old, new, dir, pfx string) map[string]bool {
+	return helpers.DirUpdated(filepath.Join(old, dir), filepath.Join(new, dir), pfx)
+}
+
+// AppArmorDelta returns which policies and templates are updated in the package
+// at newPath, as compared to those installed in the system. The given prefix is
+// applied to the keys of the returns maps.
+func AppArmorDelta(oldPath, newPath, prefix string) (policies map[string]bool, templates map[string]bool) {
+	newaa := filepath.Join(newPath, "meta", "framework-policy", "apparmor")
+	oldaa := filepath.Join(oldPath, "meta", "framework-policy", "apparmor")
+
+	return aaUp(oldaa, newaa, "policygroups", prefix), aaUp(oldaa, newaa, "templates", prefix)
 }

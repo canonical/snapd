@@ -86,19 +86,21 @@ func (s *ClickDebTestSuite) TestSnapDebBuild(c *C) {
 	builddir := makeTestDebDir(c)
 
 	debDir := c.MkDir()
-	d := ClickDeb{Path: filepath.Join(debDir, "foo_1.0_all.deb")}
-	err := d.Build(builddir, nil)
+	path := filepath.Join(debDir, "foo_1.0_all.deb")
+	d, err := Create(path)
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(d.Path), Equals, true)
+	err = d.Build(builddir, nil)
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(path), Equals, true)
 
 	// control
-	cmd := exec.Command("dpkg-deb", "-I", d.Path)
+	cmd := exec.Command("dpkg-deb", "-I", path)
 	output, err := cmd.CombinedOutput()
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(output), "Package: foo\n"), Equals, true)
 
 	// data
-	cmd = exec.Command("dpkg-deb", "-c", d.Path)
+	cmd = exec.Command("dpkg-deb", "-c", path)
 	output, err = cmd.CombinedOutput()
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(output), "./usr/bin/foo"), Equals, true)
@@ -108,7 +110,8 @@ func (s *ClickDebTestSuite) TestSnapDebBuild(c *C) {
 func (s *ClickDebTestSuite) TestSnapDebControlMember(c *C) {
 	debName := makeTestDeb(c, "gzip")
 
-	d := ClickDeb{Path: debName}
+	d, err := Open(debName)
+	c.Assert(err, IsNil)
 	content, err := d.ControlMember("control")
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, string(testDebControl))
@@ -116,7 +119,8 @@ func (s *ClickDebTestSuite) TestSnapDebControlMember(c *C) {
 
 func (s *ClickDebTestSuite) TestSnapDebMetaMember(c *C) {
 	debName := makeTestDeb(c, "gzip")
-	d := ClickDeb{Path: debName}
+	d, err := Open(debName)
+	c.Assert(err, IsNil)
 	yaml, err := d.MetaMember("package.yaml")
 	c.Assert(err, IsNil)
 	c.Assert(string(yaml), Equals, "name: foo")
@@ -127,8 +131,9 @@ func (s *ClickDebTestSuite) TestSnapDebUnpack(c *C) {
 
 	for _, comp := range []string{"gzip", "bzip2", "xz"} {
 		debName := makeTestDeb(c, comp)
-		d := ClickDeb{Path: debName}
-		err := d.Unpack(targetDir)
+		d, err := Open(debName)
+		c.Assert(err, IsNil)
+		err = d.Unpack(targetDir)
 		c.Assert(err, IsNil)
 		expectedFile := filepath.Join(targetDir, "usr", "bin", "foo")
 		c.Assert(helpers.FileExists(expectedFile), Equals, true)

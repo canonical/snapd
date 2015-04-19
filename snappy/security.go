@@ -9,12 +9,12 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v2"
-	"launchpad.net/snappy/policy"
+	//"launchpad.net/snappy/policy"
 )
 
 type apparmorJSONTemplate struct {
 	Template      string   `json:"template"`
-	PolicyGroups  []string `json:"policy_groups,omitempty"`
+	PolicyGroups  []string `json:"policy_groups"`
 	PolicyVendor  string   `json:"policy_vendor"`
 	PolicyVersion float64  `json:"policy_version"`
 }
@@ -36,18 +36,25 @@ var defaultPolicyGroups = []string{"networking"}
 const defaultPolicyVendor = "ubuntu-core"
 const defaultPolicyVersion = 15.04
 
-func generateApparmorJSONContent(s *SecurityDefinitions) ([]byte, error) {
+func (s *SecurityDefinitions) generateApparmorJSONContent() ([]byte, error) {
 	t := apparmorJSONTemplate{
-		Template:      s.SecurityTemplate,
-		PolicyGroups:  s.SecurityCaps,
-		PolicyVendor:  "ubuntu-snappy",
-		PolicyVersion: 1.3,
+		Template:     s.SecurityTemplate,
+		PolicyGroups: s.SecurityCaps,
+		// TODO: this won't work with Ubuntu Personal, etc
+		PolicyVendor: "ubuntu-core",
+		// TODO: this should perhaps be autodetected
+		PolicyVersion: 15.04,
 	}
 
 	// FIXME: this is snappy specific, on other systems like the
 	//        phone we may want different defaults.
-	if t.Template == "" && len(t.PolicyGroups) == 0 {
-		t.PolicyGroups = defaultPolicyGroups
+	if t.Template == "" && t.PolicyGroups == nil {
+		t.PolicyGroups = []string{"networking"}
+	}
+
+	// never write a null value out into the json
+	if t.PolicyGroups == nil {
+		t.PolicyGroups = []string{}
 	}
 
 	if t.Template == "" {
@@ -91,7 +98,7 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 
 	// generate apparmor template
 	apparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-	securityJSONContent, err := generateApparmorJSONContent(s)
+	securityJSONContent, err := s.generateApparmorJSONContent()
 	if err != nil {
 		return err
 	}
@@ -104,9 +111,15 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 	return nil
 }
 
-func getSecurityProfile(m *packageYaml, appName string) string {
+func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error) {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
-	return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version)
+	if m.Type == SnapTypeFramework {
+		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
+	}
+
+	namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+
+	return fmt.Sprintf("%s.%s_%s_%s", m.Name, namespace, cleanedName, m.Version), err
 }
 
 // seccomp specific
@@ -145,7 +158,7 @@ func generateSeccompPolicy(m *packageYaml, baseDir string, appName string, sd Se
 	// Build up the command line
 	cmd := "sc-filtergen"
 	args := make([]string, 0)
-	args = append(args, fmt.Sprintf("--include-policy-dir=%s", filepath.Join(policy.SecBase, "seccomp")))
+	args = append(args, fmt.Sprintf("--include-policy-dir=%s", snapSeccompDir))
 	args = append(args, fmt.Sprintf("--policy-vendor=%s", policy_vendor))
 	args = append(args, fmt.Sprintf("--policy-version=%.2f", policy_version))
 	args = append(args, fmt.Sprintf("--template=%s", template))
@@ -162,10 +175,6 @@ func generateSeccompPolicy(m *packageYaml, baseDir string, appName string, sd Se
 	}
 
 	return content, err
-}
-
-func getSeccompProfilesDir() string {
-	return filepath.Join(policy.SecBase, "seccomp/profiles")
 }
 
 func getProfileNames(m *packageYaml) []string {

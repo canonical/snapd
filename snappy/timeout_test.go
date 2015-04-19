@@ -17,11 +17,31 @@
 
 package snappy
 
-import "strings"
+import (
+	"encoding/json"
+	"time"
 
-// Search searches all repositories with the given keywords in the args slice
-func Search(args []string) (SharedNames, error) {
-	m := NewUbuntuStoreSnapRepository()
+	. "launchpad.net/gocheck"
+)
 
-	return m.Search(strings.Join(args, ","))
+func (s *SnapTestSuite) TestTimeoutMarshal(c *C) {
+	bs, err := Timeout(DefaultTimeout).MarshalJSON()
+	c.Assert(err, IsNil)
+	c.Check(string(bs), Equals, `"30s"`)
+}
+
+type testT struct {
+	T Timeout
+}
+
+func (s *SnapTestSuite) TestTimeoutMarshalIndirect(c *C) {
+	bs, err := json.Marshal(testT{DefaultTimeout})
+	c.Assert(err, IsNil)
+	c.Check(string(bs), Equals, `{"T":"30s"}`)
+}
+
+func (s *SnapTestSuite) TestTimeoutUnmarshal(c *C) {
+	var t testT
+	c.Assert(json.Unmarshal([]byte(`{"T": "17ms"}`), &t), IsNil)
+	c.Check(t, DeepEquals, testT{T: Timeout(17 * time.Millisecond)})
 }

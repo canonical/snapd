@@ -105,7 +105,35 @@ func clickVerifyContentFn(path string) (string, error) {
 // ClickDeb provides support for the "click" containers (a special kind of
 // deb package)
 type ClickDeb struct {
-	Path string
+	file *os.File
+}
+
+// Open calls os.Open and uses that file for the backing file.
+func Open(path string) (*ClickDeb, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	return &ClickDeb{f}, nil
+}
+
+// Create calls os.Create and uses that file for the backing file.
+func Create(path string) (*ClickDeb, error) {
+	f, err := os.Create(path)
+	if err != nil {
+		return nil, err
+	}
+	return &ClickDeb{f}, nil
+}
+
+// Name returns the Name of the backing file
+func (d *ClickDeb) Name() string {
+	return d.file.Name()
+}
+
+// Close closes the backing file
+func (d *ClickDeb) Close() error {
+	return d.file.Close()
 }
 
 // ControlMember returns the content of the given control member file
@@ -125,13 +153,12 @@ func (d *ClickDeb) MetaMember(metaMember string) (content []byte, err error) {
 //
 // Confused? look at ControlMember and MetaMember, which this generalises.
 func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error) {
-	file, err := os.Open(d.Path)
-	if err != nil {
+
+	if _, err := d.file.Seek(0, 0); err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
-	arReader := ar.NewReader(file)
+	arReader := ar.NewReader(d.file)
 	dataReader, err := skipToArMember(arReader, arMember)
 	if err != nil {
 		return nil, err
@@ -161,13 +188,11 @@ func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error
 func (d *ClickDeb) Unpack(targetDir string) error {
 	var err error
 
-	file, err := os.Open(d.Path)
-	if err != nil {
+	if _, err := d.file.Seek(0, 0); err != nil {
 		return err
 	}
-	defer file.Close()
 
-	arReader := ar.NewReader(file)
+	arReader := ar.NewReader(d.file)
 	dataReader, err := skipToArMember(arReader, "data.tar")
 	if err != nil {
 		return err
@@ -327,13 +352,6 @@ func tarCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 func (d *ClickDeb) Build(sourceDir string, dataTarFinishedCallback func(dataName string) error) error {
 	var err error
 
-	// create file
-	file, err := os.Create(d.Path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
 	// tmp
 	tempdir, err := ioutil.TempDir("", "data")
 	if err != nil {
@@ -365,7 +383,7 @@ func (d *ClickDeb) Build(sourceDir string, dataTarFinishedCallback func(dataName
 	}
 
 	// create ar
-	arWriter := ar.NewWriter(file)
+	arWriter := ar.NewWriter(d.file)
 	arWriter.WriteGlobalHeader()
 
 	// debian magic

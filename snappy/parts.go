@@ -20,6 +20,7 @@ package snappy
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"time"
 
 	"launchpad.net/snappy/progress"
@@ -56,6 +57,7 @@ type Part interface {
 	Name() string
 	Version() string
 	Description() string
+	Namespace() string
 
 	Hash() string
 	IsActive() bool
@@ -99,7 +101,6 @@ type Repository interface {
 	Description() string
 
 	// action
-	Search(terms string) ([]Part, error)
 	Details(snappName string) ([]Part, error)
 
 	Updates() ([]Part, error)
@@ -110,6 +111,36 @@ type Repository interface {
 // to query in a single place
 type MetaRepository struct {
 	all []Repository
+}
+
+// NewMetaStoreRepository returns a MetaRepository of stores
+func NewMetaStoreRepository() *MetaRepository {
+	m := new(MetaRepository)
+	m.all = []Repository{}
+
+	if repo := NewUbuntuStoreSnapRepository(); repo != nil {
+		m.all = append(m.all, repo)
+	}
+
+	return m
+}
+
+// NewMetaLocalRepository returns a MetaRepository of stores
+func NewMetaLocalRepository() *MetaRepository {
+	m := new(MetaRepository)
+	m.all = []Repository{}
+
+	if repo := NewSystemImageRepository(); repo != nil {
+		m.all = append(m.all, repo)
+	}
+	if repo := NewLocalSnapRepository(snapAppsDir); repo != nil {
+		m.all = append(m.all, repo)
+	}
+	if repo := NewLocalSnapRepository(snapOemDir); repo != nil {
+		m.all = append(m.all, repo)
+	}
+
+	return m
 }
 
 // NewMetaRepository returns a new MetaRepository
@@ -161,19 +192,6 @@ func (m *MetaRepository) Updates() (parts []Part, err error) {
 	return parts, err
 }
 
-// Search searches all repositories for the given search term
-func (m *MetaRepository) Search(terms string) (parts []Part, err error) {
-	for _, r := range m.all {
-		results, err := r.Search(terms)
-		if err != nil {
-			return parts, err
-		}
-		parts = append(parts, results...)
-	}
-
-	return parts, err
-}
-
 // Details returns details for the given snap name
 func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 	for _, r := range m.all {
@@ -181,8 +199,9 @@ func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 		// ignore network errors here, we will also collect
 		// local results
 		_, netError := err.(net.Error)
+		_, urlError := err.(*url.Error)
 		switch {
-		case err == ErrPackageNotFound || netError:
+		case err == ErrPackageNotFound || netError || urlError:
 			continue
 		case err != nil:
 			return parts, err
@@ -283,4 +302,9 @@ func makeSnapActiveByNameAndVersion(pkg, ver string) error {
 	}
 
 	return part.SetActive(nil)
+}
+
+// PackageNameActive checks whether a fork of the given name is active in the system
+func PackageNameActive(name string) bool {
+	return ActiveSnapByName(name) != nil
 }

@@ -17,10 +17,7 @@
 
 package snappy
 
-import (
-	"os"
-	"path/filepath"
-)
+import "path/filepath"
 
 // the various file paths
 var (
@@ -31,9 +28,11 @@ var (
 	snapDataDir      string
 	snapDataHomeGlob string
 	snapAppArmorDir  string
+	snapSeccompDir   string
 
-	snapBinariesDir string
-	snapServicesDir string
+	snapBinariesDir  string
+	snapServicesDir  string
+	snapBusPolicyDir string
 
 	clickSystemHooksDir string
 	cloudMetaDataFile   string
@@ -49,21 +48,13 @@ func SetRootDir(rootdir string) {
 	snapDataDir = filepath.Join(rootdir, "/var/lib/apps")
 	snapDataHomeGlob = filepath.Join(rootdir, "/home/*/apps/")
 	snapAppArmorDir = filepath.Join(rootdir, "/var/lib/apparmor/clicks")
+	snapSeccompDir = filepath.Join(rootdir, "/var/lib/seccomp/profiles")
 
 	snapBinariesDir = filepath.Join(snapAppsDir, "bin")
 	snapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
+	snapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 
 	clickSystemHooksDir = filepath.Join(rootdir, "/usr/share/click/hooks")
 
 	cloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
-}
-
-func init() {
-	// init the global directories at startup
-	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
-	if root == "" {
-		root = "/"
-	}
-
-	SetRootDir(root)
 }

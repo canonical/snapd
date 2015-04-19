@@ -65,6 +65,10 @@ var (
 	// ErrAlreadyInstalled is returned when the snap is already installed
 	ErrAlreadyInstalled = errors.New("the given snap is already installed")
 
+	// ErrPackageNameAlreadyInstalled is returned when you try to install
+	// a fork of something you already have installed
+	ErrPackageNameAlreadyInstalled = errors.New("a package by that name is already installed")
+
 	// ErrPrivOpInProgress is returned when a privileged operation
 	// cannot be performed since an existing privileged operation is
 	// still running.
@@ -115,7 +119,33 @@ var (
 	// ErrNoOemConfiguration may be returned when there is a SnapTypeOem installed
 	// but does not provide a configuration.
 	ErrNoOemConfiguration = errors.New("no configuration entry found in the oem snap")
+
+	// ErrInstalledNonSnapPart is returned if a part that is purportedly
+	// installed turns out to not be a SnapPart.
+	ErrInstalledNonSnapPart = errors.New("installed dependent snap is not a SnapPart")
+
+	// ErrSideLoaded is returned on system update if the system was
+	// created with a custom enablement part.
+	ErrSideLoaded = errors.New("cannot update system that uses custom enablement")
+
+	// ErrPackageNameNotSupported is returned when installing legacy package such as those
+	// that have namespaces in their package names.
+	ErrPackageNameNotSupported = errors.New("package name with namespace not supported")
+
+	// ErrInvalidPart is returned when something on the filesystem does not make sense
+	ErrInvalidPart = errors.New("invalid package on system")
 )
+
+// ErrInstallFailed is an error type for installation errors for snaps
+type ErrInstallFailed struct {
+	snap    string
+	origErr error
+}
+
+// ErrInstallFailed is an error type for installation errors for snaps
+func (e *ErrInstallFailed) Error() string {
+	return fmt.Sprintf("%s failed to install: %s", e.snap, e.origErr)
+}
 
 // ErrUnpackFailed is the error type for a snap unpack problem
 type ErrUnpackFailed struct {
@@ -167,6 +197,18 @@ type ErrUpgradeVerificationFailed struct {
 
 func (e *ErrUpgradeVerificationFailed) Error() string {
 	return fmt.Sprintf("upgrade verification failed: %s", e.msg)
+}
+
+// ErrStructIllegalContent is returned if a struct contains illegal content
+// as matched via "verifyWhitelistForStruct"
+type ErrStructIllegalContent struct {
+	field     string
+	content   string
+	whitelist string
+}
+
+func (e *ErrStructIllegalContent) Error() string {
+	return fmt.Sprintf("services description field '%s' contains illegal '%s' (legal: '%s')", e.field, e.content, e.whitelist)
 }
 
 // ErrGarbageCollectImpossible is alerting about some of the assumptions of the

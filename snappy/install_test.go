@@ -22,11 +22,13 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 
 	. "launchpad.net/gocheck"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/progress"
 )
 
 func makeCloudInitMetaData(c *C, content string) string {
@@ -54,7 +56,7 @@ public-keys:
 
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	snapFile := makeTestSnapPackage(c, "")
-	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC)
+	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 }
@@ -71,15 +73,15 @@ icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err = Install(snapFile, flags)
+	_, err = Install(snapFile, flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = Install(snapFile, flags)
+	_, err = Install(snapFile, flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 3.0")
-	_, err = Install(snapFile, flags)
+	_, err = Install(snapFile, flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 }
 
@@ -87,7 +89,7 @@ vendor: Foo Bar <foo@example.com>
 func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 	s.installThree(c, AllowUnauthenticated|DoInstallGC)
 
-	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo", "*"))
+	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo.sideload", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(globs, HasLen, 2+1) // +1 for "current"
 }
@@ -96,7 +98,7 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 	s.installThree(c, AllowUnauthenticated)
 
-	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo", "*"))
+	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo.sideload", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(globs, HasLen, 3+1) // +1 for "current"
 }
@@ -107,13 +109,14 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	c.Assert(err, IsNil)
 	defer snapR.Close()
 
-	var url string
+	var dlURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/details/foo":
 			io.WriteString(w, `{
-"name": "foo", "version": "2",
-"anon_download_url": "`+url+`"
+"package_name": "foo",
+"version": "2",
+"anon_download_url": "`+dlURL+`"
 }`)
 		case "/dl":
 			snapR.Seek(0, 0)
@@ -123,21 +126,55 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 		}
 	}))
 
-	url = mockServer.URL + "/dl"
-	storeDetailsURI = mockServer.URL + "/details/%s"
+	dlURL = mockServer.URL + "/dl"
+
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
 
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	// ugh, progress bars from tests
-	stdout := os.Stdout
-	defer func() { os.Stdout = stdout }()
-	os.Stdout = nil
-
-	name, err := Install("foo", 0)
+	name, err := Install("foo", 0, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	_, err = Install("foo", 0)
-	c.Assert(err, Equals, ErrAlreadyInstalled)
+	_, err = Install("foo", 0, &progress.NullProgress{})
+	c.Assert(err, ErrorMatches, ".*"+ErrAlreadyInstalled.Error())
+}
+
+func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
+	// install one:
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
+	c.Assert(err, IsNil)
+	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
+
+	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-app.manifest"), []byte(`{"name": "hello-app"}`), 0644), IsNil)
+	ag := &progress.NullProgress{}
+	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+	current := ActiveSnapByName("hello-app")
+	c.Assert(current, NotNil)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/details/hello-app.potato":
+			io.WriteString(w, `{
+"origin": "potato",
+"package_name": "hello-app",
+"version": "2",
+"anon_download_url": "blah"
+}`)
+		default:
+			panic("unexpected url path: " + r.URL.Path)
+		}
+	}))
+
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	_, err = Install("hello-app.potato", 0, ag)
+	c.Assert(err, ErrorMatches, ".*"+ErrPackageNameAlreadyInstalled.Error())
 }

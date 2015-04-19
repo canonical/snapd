@@ -15,20 +15,24 @@
  *
  */
 
-package main
+package snappy
 
 import (
-	. "launchpad.net/gocheck"
+	"os"
+
+	"launchpad.net/snappy/release"
 )
 
-func (s *CmdTestSuite) TestSplitPkgAndDeveloperSimple(c *C) {
-	name, developer := pkgAndDeveloper("paste.mvo")
-	c.Assert(name, Equals, "paste")
-	c.Assert(developer, Equals, "mvo")
-}
+func init() {
+	// init the global directories at startup
+	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
+	if root == "" {
+		root = "/"
+	}
 
-func (s *CmdTestSuite) TestSplitPkgAndDeveloperNoDeveloper(c *C) {
-	name, developer := pkgAndDeveloper("paste")
-	c.Assert(name, Equals, "paste")
-	c.Assert(developer, Equals, "")
+	SetRootDir(root)
+
+	// we don't need to care for the error here to take into account when
+	// initialized on a non snappy system
+	release.Setup(globalRootDir)
 }

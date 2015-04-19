@@ -64,8 +64,8 @@ func inDeveloperMode() bool {
 
 // Install the givens snap names provided via args. This can be local
 // files or snaps that are queried from the store
-func Install(name string, flags InstallFlags) (string, error) {
-	name, err := doInstall(name, flags)
+func Install(name string, flags InstallFlags, meter progress.Meter) (string, error) {
+	name, err := doInstall(name, flags, meter)
 	if err != nil {
 		return "", logger.LogError(err)
 	}
@@ -73,7 +73,13 @@ func Install(name string, flags InstallFlags) (string, error) {
 	return name, logger.LogError(GarbageCollect(name, flags))
 }
 
-func doInstall(name string, flags InstallFlags) (string, error) {
+func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName string, err error) {
+	defer func() {
+		if err != nil {
+			err = &ErrInstallFailed{snap: name, origErr: err}
+		}
+	}()
+
 	// consume local parts
 	if fi, err := os.Stat(name); err == nil && fi.Mode().IsRegular() {
 		// we allow unauthenticated package when in developer
@@ -82,27 +88,30 @@ func doInstall(name string, flags InstallFlags) (string, error) {
 			flags |= AllowUnauthenticated
 		}
 
-		pbar := progress.NewTextProgress(name)
-		return installClick(name, flags, pbar)
+		return installClick(name, flags, meter, sideloadedNamespace)
 	}
 
 	// check repos next
-	m := NewMetaRepository()
-	found, _ := m.Details(name)
+	mStore := NewMetaStoreRepository()
+	installed, err := NewMetaLocalRepository().Installed()
+	if err != nil {
+		return "", err
+	}
+
+	found, err := mStore.Details(name)
+	if err != nil {
+		return "", err
+	}
+
 	for _, part := range found {
-		// act only on parts that are downloadable
-		if !part.IsInstalled() {
-			installed, err := m.Installed()
-			if err != nil {
-				return "", err
-			}
-			cur := FindSnapByNameAndVersion(part.Name(), part.Version(), installed)
-			if cur != nil {
-				return "", ErrAlreadyInstalled
-			}
-			pbar := progress.NewTextProgress(part.Name())
-			return part.Install(pbar, flags)
+		cur := FindSnapByNameAndVersion(part.Name(), part.Version(), installed)
+		if cur != nil {
+			return "", ErrAlreadyInstalled
 		}
+		if PackageNameActive(part.Name()) {
+			return "", ErrPackageNameAlreadyInstalled
+		}
+		return part.Install(meter, flags)
 	}
 
 	return "", ErrPackageNotFound
