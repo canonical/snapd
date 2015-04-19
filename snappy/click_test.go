@@ -31,6 +31,7 @@ import (
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
 )
@@ -190,7 +191,8 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure we have the hashes
-	snap := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"), testNamespace)
+	snap, err := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"), testNamespace)
+	c.Assert(err, IsNil)
 	c.Assert(snap.Hash(), Not(Equals), "")
 }
 
@@ -360,6 +362,86 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 
 	// we don't run unneeded systemctl reloads
 	c.Assert(allSystemctl, HasLen, 0)
+}
+
+func (s *SnapTestSuite) buildFramework(c *C) string {
+	allSystemctl := []string{}
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		allSystemctl = append(allSystemctl, cmd[0])
+		return nil, nil
+	}
+
+	tmpdir := c.MkDir()
+	appg := filepath.Join(tmpdir, "meta", "framework-policy", "apparmor", "policygroups")
+	c.Assert(os.MkdirAll(appg, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(appg, "one"), []byte("hello"), 0644), IsNil)
+
+	yaml := []byte(`name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+type: framework
+`)
+
+	yamlFile := path.Join(tmpdir, "meta", "package.yaml")
+	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
+	readmeMd := path.Join(tmpdir, "meta", "readme.md")
+	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
+	m, err := parsePackageYamlData(yaml)
+	c.Assert(err, IsNil)
+	c.Assert(writeDebianControl(tmpdir, m), IsNil)
+	c.Assert(writeClickManifest(tmpdir, m), IsNil)
+	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
+	d, err := clickdeb.Create(snapName)
+	c.Assert(err, IsNil)
+	defer d.Close()
+	c.Assert(d.Build(tmpdir, func(dataTar string) error {
+		return writeHashes(tmpdir, dataTar)
+	}), IsNil)
+
+	_, err = installClick(snapName, 0, nil, testNamespace)
+	c.Assert(err, IsNil)
+
+	return snapName
+}
+
+func (s *SnapTestSuite) TestSnapInstallPackagePolicyDelta(c *C) {
+	secbase := policy.SecBase
+	defer func() { policy.SecBase = secbase }()
+	policy.SecBase = c.MkDir()
+
+	snapName := s.buildFramework(c)
+	// rename the policy
+	//poldir := filepath.Join(tmpdir, "meta", "framework-policy", "apparmor", "policygroups")
+
+	_, err := installClick(snapName, 0, nil, testNamespace)
+	c.Assert(err, IsNil)
+	// appdir := filepath.Join(s.tempdir, "apps", "hello.testspacethename", "1.0.1")
+	// c.Assert(removeClick(appdir, nil), IsNil)
+}
+
+func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
+	secbase := policy.SecBase
+	defer func() { policy.SecBase = secbase }()
+	policy.SecBase = c.MkDir()
+
+	s.buildFramework(c)
+	appdir := filepath.Join(s.tempdir, "apps", "hello", "1.0.1")
+	c.Assert(removeClick(appdir, nil), IsNil)
+}
+
+func (s *SnapTestSuite) TestSnapRemovePackagePolicyWeirdClickManifest(c *C) {
+	secbase := policy.SecBase
+	defer func() { policy.SecBase = secbase }()
+	policy.SecBase = c.MkDir()
+
+	s.buildFramework(c)
+	appdir := filepath.Join(s.tempdir, "apps", "hello", "1.0.1")
+	// c.Assert(removeClick(appdir, nil), IsNil)
+
+	manifestFile := path.Join(appdir, ".click", "info", "hello.manifest")
+	c.Assert(ioutil.WriteFile(manifestFile, []byte(`{"name": "xyzzy","type":"framework"}`), 0644), IsNil)
+
+	c.Assert(removeClick(appdir, nil), IsNil)
 }
 
 func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
@@ -840,6 +922,43 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	c.Assert(strings.Contains(string(content), "\nExecStart=/apps/"+helloAppComposedName+"/1.10/bin/hello\n"), Equals, true)
 }
 
+func (s *SnapTestSuite) TestAddPackageServicesBusPolicyFramework(c *C) {
+	yaml := `name: foo
+version: 1
+type: framework
+services:
+  - name: bar
+    bus-name: foo.bar.baz
+`
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
+	c.Assert(err, IsNil)
+	baseDir := filepath.Dir(filepath.Dir(yamlFile))
+	err = addPackageServices(baseDir, false, nil)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), "<allow own=\"foo.bar.baz\"/>\n"), Equals, true)
+}
+
+func (s *SnapTestSuite) TestAddPackageServicesBusPolicyNoFramework(c *C) {
+	yaml := `name: foo
+version: 1
+type: app
+services:
+  - name: bar
+    bus-name: foo.bar.baz
+`
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
+	c.Assert(err, IsNil)
+	baseDir := filepath.Dir(filepath.Dir(yamlFile))
+	err = addPackageServices(baseDir, false, nil)
+	c.Assert(err, IsNil)
+
+	_, err = ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
+	c.Assert(err, NotNil)
+}
+
 func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	// ensure that even with a global rootdir the paths in the generated
 	// .services file are setup correctly (i.e. that the global root
@@ -876,12 +995,13 @@ AppArmorProfile=xkcd-webserver.canonical_xkcd-webserver_0.3.4
 ExecStop=/apps/xkcd-webserver.canonical/0.3.4/bin/foo stop
 ExecStopPost=/apps/xkcd-webserver.canonical/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
+%s
 
 [Install]
 WantedBy=multi-user.target
 `
-	expectedServiceAppWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target")
-	expectedServiceFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target")
+	expectedServiceAppWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", "\n")
+	expectedServiceFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "BusName=foo.bar.baz\nType=dbus")
 )
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
@@ -911,6 +1031,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
 		PostStop:    "bin/foo post-stop",
 		StopTimeout: DefaultTimeout,
 		Description: "A fun webserver",
+		BusName:     "foo.bar.baz",
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"

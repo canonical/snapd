@@ -79,6 +79,7 @@ type ServiceDescription struct {
 	StopTimeout time.Duration
 	AaProfile   string
 	IsFramework bool
+	BusName     string
 }
 
 const (
@@ -181,6 +182,8 @@ AppArmorProfile={{.AaProfile}}
 {{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
+{{if .BusName}}BusName={{.BusName}}{{end}}
+{{if .BusName}}Type=dbus{{end}}
 
 [Install]
 WantedBy={{.ServiceSystemdTarget}}

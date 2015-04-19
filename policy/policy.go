@@ -152,17 +152,16 @@ func Remove(pkgName string, instPath string) error {
 	return frameworkOp(remove, pkgName, instPath)
 }
 
-func aaUp(old, suf, new, dir string) map[string]bool {
-	return helpers.DirUpdated(filepath.Join(old, dir), suf, filepath.Join(new, dir))
+func aaUp(old, new, dir, pfx string) map[string]bool {
+	return helpers.DirUpdated(filepath.Join(old, dir), filepath.Join(new, dir), pfx)
 }
 
-// AppArmorDelta returns which policies and templates are updated in the
-// package at newPath, as compared to those installed in the system.
-func AppArmorDelta(pkgName string, newPath string) (policies map[string]bool, templates map[string]bool) {
+// AppArmorDelta returns which policies and templates are updated in the package
+// at newPath, as compared to those installed in the system. The given prefix is
+// applied to the keys of the returns maps.
+func AppArmorDelta(oldPath, newPath, prefix string) (policies map[string]bool, templates map[string]bool) {
 	newaa := filepath.Join(newPath, "meta", "framework-policy", "apparmor")
-	oldaa := filepath.Join(SecBase, "apparmor")
+	oldaa := filepath.Join(oldPath, "meta", "framework-policy", "apparmor")
 
-	suf := pkgName + "_"
-
-	return aaUp(oldaa, suf, newaa, "policygroups"), aaUp(oldaa, suf, newaa, "templates")
+	return aaUp(oldaa, newaa, "policygroups", prefix), aaUp(oldaa, newaa, "templates", prefix)
 }

@@ -72,6 +72,11 @@ services:
 		return "", err
 	}
 
+	hashFile := filepath.Join(metaDir, "hashes.yaml")
+	if err := ioutil.WriteFile(hashFile, []byte("{}"), 0644); err != nil {
+		return "", err
+	}
+
 	return yamlFile, nil
 }
 

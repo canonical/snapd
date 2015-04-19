@@ -314,11 +314,6 @@ func removeClick(clickDir string, inter interacter) (err error) {
 		}
 	}
 
-	if manifest.Type == SnapTypeFramework {
-		if err := policy.Remove(manifest.Name, clickDir); err != nil {
-			return err
-		}
-	}
 	return os.RemoveAll(clickDir)
 }
 
@@ -480,11 +475,16 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 			StopTimeout: time.Duration(service.StopTimeout),
 			AaProfile:   aaProfile,
 			IsFramework: m.Type == SnapTypeFramework,
+			BusName:     service.BusName,
 		}), nil
 }
 
 func generateServiceFileName(m *packageYaml, service Service) string {
 	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
+}
+
+func generateBusPolicyFileName(m *packageYaml, service Service) string {
+	return filepath.Join(snapBusPolicyDir, fmt.Sprintf("%s_%s_%s.conf", m.Name, service.Name, m.Version))
 }
 
 // takes a directory and removes the global root, this is needed
@@ -516,11 +516,10 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 	}
 
 	for _, service := range m.Services {
-		namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "/meta/package.yaml"))
+		aaProfile, err := getAaProfile(m, service.Name, baseDir)
 		if err != nil {
 			return err
 		}
-		aaProfile := getAaProfile(m, service.Name, namespace)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -534,6 +533,20 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 		helpers.EnsureDir(filepath.Dir(serviceFilename), 0755)
 		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0644); err != nil {
 			return err
+		}
+
+		// If necessary, generate the DBus policy file so the framework
+		// service is allowed to start
+		if m.Type == SnapTypeFramework && service.BusName != "" {
+			content, err := genBusPolicyFile(service.BusName)
+			if err != nil {
+				return err
+			}
+			policyFilename := generateBusPolicyFileName(m, service)
+			helpers.EnsureDir(filepath.Dir(policyFilename), 0755)
+			if err := ioutil.WriteFile(policyFilename, []byte(content), 0644); err != nil {
+				return err
+			}
 		}
 
 		// daemon-reload and start only if we are not in the
@@ -580,6 +593,9 @@ func removePackageServices(baseDir string, inter interacter) error {
 		// FIXME: wait for the service to be really stopped
 
 		os.Remove(generateServiceFileName(m, service))
+
+		// Also remove DBus system policy file
+		os.Remove(generateBusPolicyFileName(m, service))
 	}
 
 	// only reload if we actually had services
@@ -603,11 +619,10 @@ func addPackageBinaries(baseDir string) error {
 	}
 
 	for _, binary := range m.Binaries {
-		namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "/meta/package.yaml"))
+		aaProfile, err := getAaProfile(m, binary.Name, baseDir)
 		if err != nil {
 			return err
 		}
-		aaProfile := getAaProfile(m, binary.Name, namespace)
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -707,8 +722,10 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace
 		return err
 	}
 
-	// add the namespace to the name
-	cm.Name = fmt.Sprintf("%s.%s", cm.Name, namespace)
+	if cm.Type != SnapTypeFramework {
+		// add the namespace to the name
+		cm.Name = fmt.Sprintf("%s.%s", cm.Name, namespace)
+	}
 
 	outStr, err := json.MarshalIndent(cm, "", "  ")
 	if err != nil {
@@ -769,7 +786,10 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		targetDir = snapOemDir
 	}
 
-	fullName := fmt.Sprintf("%s.%s", manifest.Name, namespace)
+	fullName := manifest.Name
+	if manifest.Type != SnapTypeFramework {
+		fullName += "." + namespace
+	}
 	instDir := filepath.Join(targetDir, fullName, manifest.Version)
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 
@@ -796,19 +816,6 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	// privs
 	if err := unpackWithDropPrivs(d, instDir); err != nil {
 		return "", err
-	}
-
-	if manifest.Type == SnapTypeFramework {
-		if err := policy.Install(manifest.Name, instDir); err != nil {
-			return "", err
-		}
-		defer func() {
-			if err != nil {
-				if cerr := policy.Remove(manifest.Name, instDir); cerr != nil {
-					log.Printf("Warning: failed to remove policies for %s: %v", manifest.Name, err)
-				}
-			}
-		}()
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
@@ -886,7 +893,12 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 
 	// oh, one more thing: refresh the security bits
 	if !inhibitHooks {
-		if err := NewSnapPartFromYaml(instDir, namespace, m).RefreshDependentsSecurity(inter); err != nil {
+		part, err := NewSnapPartFromYaml(filepath.Join(instDir, "meta", "package.yaml"), namespace, m)
+		if err != nil {
+			return "", err
+		}
+
+		if err := part.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
 			return "", err
 		}
 	}
@@ -988,6 +1000,18 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 	if err != nil {
 		return err
 	}
+
+	if manifest.Type == SnapTypeFramework {
+		m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
+		if err != nil {
+			return err
+		}
+
+		if err := policy.Remove(m.Name, clickDir); err != nil {
+			return err
+		}
+	}
+
 	if err := removeClickHooks(manifest, inhibitHooks); err != nil {
 		return err
 	}
@@ -1018,6 +1042,17 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 	newActiveManifest, err := readClickManifestFromClickDir(baseDir)
 	if err != nil {
 		return err
+	}
+
+	if newActiveManifest.Type == SnapTypeFramework {
+		m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
+		if err != nil {
+			return err
+		}
+
+		if err := policy.Install(m.Name, baseDir); err != nil {
+			return err
+		}
 	}
 
 	if err := installClickHooks(baseDir, newActiveManifest, inhibitHooks); err != nil {
