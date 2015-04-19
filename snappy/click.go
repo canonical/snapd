@@ -464,9 +464,18 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
-			m.Name, service.Name, m.Version, service.Description,
-			baseDir, service.Start, service.Stop, service.PostStop,
-			time.Duration(service.StopTimeout), aaProfile, service.BusName,
+			AppName:     m.Name,
+			ServiceName: service.Name,
+			Version:     m.Version,
+			Description: service.Description,
+			AppPath:     baseDir,
+			Start:       service.Start,
+			Stop:        service.Stop,
+			PostStop:    service.PostStop,
+			StopTimeout: time.Duration(service.StopTimeout),
+			AaProfile:   aaProfile,
+			IsFramework: m.Type == SnapTypeFramework,
+			BusName:     service.BusName,
 		}), nil
 }
 

@@ -1,3 +1,4 @@
 debian/*.service /lib/systemd/system/
+debian/*.target /lib/systemd/system/
 etc
 debian/*.timer /lib/systemd/system/

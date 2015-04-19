@@ -981,28 +981,51 @@ aa-exec -p hello-app.testspacethename_hello_1.10 -- /apps/hello-app.testspacethe
 	c.Assert(strings.Contains(string(content), needle), Equals, true)
 }
 
-var expectedServiceWrapper = `[Unit]
+var (
+	expectedServiceWrapperFmt = `[Unit]
 Description=A fun webserver
-After=ubuntu-snappy.run-hooks.service
+%s
 X-Snappy=yes
 
 [Service]
 ExecStart=/apps/xkcd-webserver.canonical/0.3.4/bin/foo start
 WorkingDirectory=/apps/xkcd-webserver.canonical/0.3.4/
-Environment="SNAPP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_USER_DATA_PATH=%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP=xckd-webserver.canonical_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xckd-webserver.canonical/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xckd-webserver.canonical/0.3.4/tmp"
+Environment="SNAPP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP=xckd-webserver.canonical_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xckd-webserver.canonical/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xckd-webserver.canonical/0.3.4/tmp"
 AppArmorProfile=xkcd-webserver.canonical_xkcd-webserver_0.3.4
 ExecStop=/apps/xkcd-webserver.canonical/0.3.4/bin/foo stop
 ExecStopPost=/apps/xkcd-webserver.canonical/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
-BusName=foo.bar.baz
-Type=dbus
+%s
 
 [Install]
 WantedBy=multi-user.target
 `
+	expectedServiceAppWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", "\n")
+	expectedServiceFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "BusName=foo.bar.baz\nType=dbus")
+)
 
-func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
-	service := Service{Name: "xkcd-webserver",
+func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
+	service := Service{
+		Name:        "xkcd-webserver",
+		Start:       "bin/foo start",
+		Stop:        "bin/foo stop",
+		PostStop:    "bin/foo post-stop",
+		StopTimeout: DefaultTimeout,
+		Description: "A fun webserver",
+	}
+	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
+	m := packageYaml{Name: "xckd-webserver.canonical",
+		Version: "0.3.4"}
+
+	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	c.Assert(err, IsNil)
+	c.Assert(generatedWrapper, Equals, expectedServiceAppWrapper)
+}
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
+	service := Service{
+		Name:        "xkcd-webserver",
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
@@ -1012,12 +1035,15 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapper(c *C) {
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
-	m := packageYaml{Name: "xckd-webserver.canonical",
-		Version: "0.3.4"}
+	m := packageYaml{
+		Name:    "xckd-webserver.canonical",
+		Version: "0.3.4",
+		Type:    SnapTypeFramework,
+	}
 
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
-	c.Assert(generatedWrapper, Equals, expectedServiceWrapper)
+	c.Assert(generatedWrapper, Equals, expectedServiceFmkWrapper)
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
