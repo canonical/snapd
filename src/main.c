@@ -141,6 +141,8 @@ int main(int argc, char **argv)
    const char *aa_profile = argv[3];
    const char *binary = argv[4];
 
+   // this code always needs to run as root for the cgroup/udev setup,
+   // however for the tests we allow it to run as non-root
    if(geteuid() != 0 && getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
        die("need to run as root or suid");
    }
@@ -151,12 +153,17 @@ int main(int argc, char **argv)
        setup_udev_snappy_assign(appname);
 
        // the rest does not so drop privs back to user
+       int real_uid = getuid();
+       int real_gid = getgid();
+
        if (setgid(getgid()) != 0)
           die("setgid failed");
        if (setuid(getuid()) != 0)
           die("seteuid failed");
 
-       if(getuid() == 0 || geteuid() == 0 || getgid() == 0 || getegid() == 0)
+       if(real_gid != 0 && (getuid() == 0 || geteuid() == 0))
+          die("dropping privs did not work");
+       if(real_uid != 0 && (getgid() == 0 || getegid() == 0))
           die("dropping privs did not work");
     }
 
