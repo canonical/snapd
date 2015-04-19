@@ -57,13 +57,13 @@ type Ports struct {
 // security defaults
 type SecurityOverrideDefinition struct {
 	Apparmor string `yaml:"apparmor" json:"apparmor"`
-	Seccomp string `yaml:"seccomp" json:"seccomp"`
+	Seccomp  string `yaml:"seccomp" json:"seccomp"`
 }
 
 // SecurityPolicyDefinition is used to provide hand-crafted policy
 type SecurityPolicyDefinition struct {
 	Apparmor string `yaml:"apparmor" json:"apparmor"`
-	Seccomp string `yaml:"seccomp" json:"seccomp"`
+	Seccomp  string `yaml:"seccomp" json:"seccomp"`
 }
 
 // SecurityDefinitions contains the common apparmor/seccomp definitions

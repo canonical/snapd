@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"gopkg.in/yaml.v2"
 	"launchpad.net/snappy/policy"
 )
 
@@ -18,11 +19,22 @@ type apparmorJSONTemplate struct {
 	PolicyVersion float64  `json:"policy_version"`
 }
 
-var defaultTemplate = "default"
+type securitySeccompOverride struct {
+	Template      string   `yaml:"template"`
+	PolicyGroups  []string `yaml:"policy_groups,omitempty"`
+	Syscalls      []string `yaml:"policy_groups,omitempty"`
+	PolicyVendor  string   `yaml:"policy_vendor"`
+	PolicyVersion float64  `yaml:"policy_version"`
+}
+
+const defaultTemplate = "default"
+
+// How do I make this const?
 var defaultPolicyGroups = []string{"networking"}
+
 // TODO: autodetect, this won't work for personal
-var defaultPolicyVendor = "ubuntu-core"
-var defaultPolicyVersion = 15.04
+const defaultPolicyVendor = "ubuntu-core"
+const defaultPolicyVersion = 15.04
 
 func generateApparmorJSONContent(s *SecurityDefinitions) ([]byte, error) {
 	t := apparmorJSONTemplate{
@@ -114,7 +126,7 @@ func generateSeccompPolicy(m *packageYaml, baseDir string, appName string, sd Se
 	template := defaultTemplate
 	caps := make([]string, 0)
 	for _, p := range defaultPolicyGroups {
-	    caps = append(caps, p)
+		caps = append(caps, p)
 	}
 	syscalls := make([]string, 0)
 
@@ -166,4 +178,19 @@ func getProfileNames(m *packageYaml) []string {
 	}
 
 	return profiles
+}
+
+func readSeccompOverride(yamlPath string) (*securitySeccompOverride, error) {
+	yamlData, err1 := ioutil.ReadFile(yamlPath)
+	if err1 != nil {
+		return nil, err1
+	}
+
+	var m securitySeccompOverride
+	err2 := yaml.Unmarshal(yamlData, &m)
+	if err2 != nil {
+		fmt.Printf("ERROR: Can not parse '%s'", yamlData)
+		return nil, err2
+	}
+	return &m, nil
 }
