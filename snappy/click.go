@@ -527,9 +527,9 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 			return err
 		}
 
-		// If necessary, generate the DBus policy file so the service
-		// is allowed to start
-		if service.BusName != "" {
+		// If necessary, generate the DBus policy file so the framework
+		// service is allowed to start
+	        if m.Type == SnapTypeFramework && service.BusName != "" {
 			content, err := genBusPolicyFile(service.BusName)
 			if err != nil {
 				return err
