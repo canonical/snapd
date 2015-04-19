@@ -23,6 +23,7 @@ void trim_right(char *s) {
 
 int seccomp_load_filters(const char *filter_profile)
 {
+   debug("seccomp_load_filters %s", filter_profile);
    int rc = 0;
    int syscall_nr = -1;
    scmp_filter_ctx ctx = NULL;

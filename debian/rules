@@ -2,3 +2,7 @@
 
 %:
 	dh $@ 
+
+override_dh_fixperms:
+	dh_fixperms -Xusr/bin/ubuntu-core-launcher
+
