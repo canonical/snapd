@@ -474,8 +474,8 @@ func generateServiceFileName(m *packageYaml, service Service) string {
 	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
 }
 
-func generateBusPolicyFileName(m *packageYaml, service Service, namespace string) string {
-	return filepath.Join(snapBusPolicyDir, fmt.Sprintf("%s.%s_%s_%s.conf", m.Name, namespace, service.Name, m.Version))
+func generateBusPolicyFileName(m *packageYaml, service Service) string {
+	return filepath.Join(snapBusPolicyDir, fmt.Sprintf("%s_%s_%s.conf", m.Name, service.Name, m.Version))
 }
 
 // takes a directory and removes the global root, this is needed
@@ -534,7 +534,7 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 			if err != nil {
 				return err
 			}
-			policyFilename := generateBusPolicyFileName(m, service, namespace)
+			policyFilename := generateBusPolicyFileName(m, service)
 			helpers.EnsureDir(filepath.Dir(policyFilename), 0755)
 			if err := ioutil.WriteFile(policyFilename, []byte(content), 0644); err != nil {
 				return err
@@ -573,12 +573,6 @@ func removePackageServices(baseDir string, inter interacter) error {
 	if err != nil {
 		return err
 	}
-
-	namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "/meta/package.yaml"))
-	if err != nil {
-		return err
-	}
-
 	sysd := systemd.New(globalRootDir, inter)
 	for _, service := range m.Services {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
@@ -593,7 +587,7 @@ func removePackageServices(baseDir string, inter interacter) error {
 		os.Remove(generateServiceFileName(m, service))
 
 		// Also remove DBus system policy file
-		os.Remove(generateBusPolicyFileName(m, service, namespace))
+		os.Remove(generateBusPolicyFileName(m, service))
 	}
 
 	// only reload if we actually had services
