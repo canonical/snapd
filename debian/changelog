@@ -1,4 +1,4 @@
-ubuntu-core-launcher (0.2) UNRELEASEDvivid; urgency=low
+ubuntu-core-launcher (0.2) vivid; urgency=low
 
   * merged lp:~mvo/ubuntu-core-launcher/device-cgroup to add
     support for the device cgroup 
