@@ -887,6 +887,7 @@ func removeSnapData(fullName, version string) error {
 		if err := os.RemoveAll(dir); err != nil && !os.IsNotExist(err) {
 			return err
 		}
+		os.Remove(filepath.Dir(dir))
 	}
 
 	return nil
