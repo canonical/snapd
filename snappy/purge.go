@@ -35,14 +35,6 @@ const (
 	DoPurgeActive PurgeFlags = 1 << iota
 )
 
-// XXX: move to a method of part
-func fullname(part Part) string {
-	if part.Type() == SnapTypeFramework {
-		return part.Name()
-	}
-	return part.Name() + "." + part.Namespace()
-}
-
 var remove = removeSnapData
 
 // Purge a part by a partSpec string, name[.namespace][=version]
