@@ -28,6 +28,7 @@ var (
 	snapDataDir      string
 	snapDataHomeGlob string
 	snapAppArmorDir  string
+	snapUdevRulesDir string
 
 	snapBinariesDir  string
 	snapServicesDir  string
@@ -55,4 +56,6 @@ func SetRootDir(rootdir string) {
 	clickSystemHooksDir = filepath.Join(rootdir, "/usr/share/click/hooks")
 
 	cloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
+
+	snapUdevRulesDir = filepath.Join(rootdir, "/etc/udev/rules.d")
 }
