@@ -756,36 +756,43 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		//return SnapAuditError
 	}
 
-	d, err := clickdeb.Open(snapFile)
+	var d *clickdeb.ClickDeb
+	d, err = clickdeb.Open(snapFile)
 	if err != nil {
 		return "", err
 	}
 	defer d.Close()
-	manifestData, err := d.ControlMember("manifest")
+
+	var manifestData []byte
+	manifestData, err = d.ControlMember("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
 		return "", err
 	}
-	manifest, err := readClickManifest([]byte(manifestData))
+
+	var manifest clickManifest
+	manifest, err = readClickManifest([]byte(manifestData))
 	if err != nil {
 		return "", err
 	}
 
-	yamlData, err := d.MetaMember("package.yaml")
+	var yamlData []byte
+	yamlData, err = d.MetaMember("package.yaml")
 	if err != nil {
 		return "", err
 	}
 
-	m, err := parsePackageYamlData(yamlData)
+	var m *packageYaml
+	m, err = parsePackageYamlData(yamlData)
 	if err != nil {
 		return "", err
 	}
 
-	if err := m.checkForNameClashes(); err != nil {
+	if err = m.checkForNameClashes(); err != nil {
 		return "", err
 	}
 
-	if err := m.checkForFrameworks(); err != nil {
+	if err = m.checkForFrameworks(); err != nil {
 		return "", err
 	}
 
@@ -793,7 +800,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	// the "oem" parts are special
 	if manifest.Type == SnapTypeOem {
 		targetDir = snapOemDir
-		if err := installOemHardwareUdevRules(m); err != nil {
+		if err = installOemHardwareUdevRules(m); err != nil {
 			return "", err
 		}
 	}
@@ -805,43 +812,43 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	instDir := filepath.Join(targetDir, fullName, manifest.Version)
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 
-	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
+	if err = m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
 		return "", err
 	}
 
 	dataDir := filepath.Join(snapDataDir, fullName, manifest.Version)
 
-	if err := helpers.EnsureDir(instDir, 0755); err != nil {
+	if err = helpers.EnsureDir(instDir, 0755); err != nil {
 		log.Printf("WARNING: Can not create %s", instDir)
 	}
 
 	// if anything goes wrong here we cleanup
 	defer func() {
 		if err != nil {
-			if err := os.RemoveAll(instDir); err != nil {
-				log.Printf("Warning: failed to remove %s: %s", instDir, err)
+			if e := os.RemoveAll(instDir); err != nil {
+				log.Printf("Warning: failed to remove %s: %s", instDir, e)
 			}
 		}
 	}()
 
 	// we need to call the external helper so that we can reliable drop
 	// privs
-	if err := unpackWithDropPrivs(d, instDir); err != nil {
+	if err = unpackWithDropPrivs(d, instDir); err != nil {
 		return "", err
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
 	// all hooks this can go away
 	clickMetaDir := path.Join(instDir, ".click", "info")
-	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
+	if err = os.MkdirAll(clickMetaDir, 0755); err != nil {
 		return "", err
 	}
-	if err := writeCompatManifestJSON(clickMetaDir, manifestData, namespace); err != nil {
+	if err = writeCompatManifestJSON(clickMetaDir, manifestData, namespace); err != nil {
 		return "", err
 	}
 
 	// write the hashes now
-	if err := writeHashesFile(d, instDir); err != nil {
+	if err = writeHashesFile(d, instDir); err != nil {
 		return "", err
 	}
 
@@ -855,7 +862,8 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	//
 	// otherwise just create a empty data dir
 	if currentActiveDir != "" {
-		oldManifest, err := readClickManifestFromClickDir(currentActiveDir)
+		var oldManifest clickManifest
+		oldManifest, err = readClickManifestFromClickDir(currentActiveDir)
 		if err != nil {
 			return "", err
 		}
@@ -905,13 +913,66 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 
 	// oh, one more thing: refresh the security bits
 	if !inhibitHooks {
-		part, err := NewSnapPartFromYaml(filepath.Join(instDir, "meta", "package.yaml"), namespace, m)
+		var part *SnapPart
+		part, err = NewSnapPartFromYaml(filepath.Join(instDir, "meta", "package.yaml"), namespace, m)
 		if err != nil {
 			return "", err
 		}
 
-		if err := part.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
+		var deps []*SnapPart
+		deps, err = part.Dependents()
+		if err != nil {
 			return "", err
+		}
+
+		sysd := systemd.New(globalRootDir, inter)
+		stopped := make(map[string]time.Duration)
+		defer func() {
+			fmt.Println("** in defer. err is:", err)
+			if err != nil {
+				for serviceName := range stopped {
+					if e := sysd.Start(serviceName); e != nil {
+						inter.Notify(fmt.Sprintf("unable to restart %s with the old %s: %s", serviceName, part.Name(), e))
+					}
+				}
+			}
+		}()
+
+		for _, dep := range deps {
+			if !dep.IsActive() {
+				continue
+			}
+			for _, svc := range dep.Services() {
+				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
+				timeout := time.Duration(svc.StopTimeout)
+				if err = sysd.Stop(serviceName, timeout); err != nil {
+					inter.Notify(fmt.Sprintf("unable to stop %s; aborting install: %s", serviceName, err))
+					return "", err
+				}
+				stopped[serviceName] = timeout
+			}
+		}
+
+		if err = part.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
+			return "", err
+		}
+
+		started := make(map[string]time.Duration)
+		defer func() {
+			if err != nil {
+				for serviceName, timeout := range started {
+					if e := sysd.Stop(serviceName, timeout); e != nil {
+						inter.Notify(fmt.Sprintf("unable to stop %s with the old %s: %s", serviceName, part.Name(), e))
+					}
+				}
+			}
+		}()
+		for serviceName, timeout := range stopped {
+			if err = sysd.Start(serviceName); err != nil {
+				inter.Notify(fmt.Sprintf("unable to restart %s; aborting install: %s", serviceName, err))
+				return "", err
+			}
+			started[serviceName] = timeout
 		}
 	}
 

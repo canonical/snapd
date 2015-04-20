@@ -41,7 +41,6 @@ import (
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
-	"launchpad.net/snappy/systemd"
 
 	"gopkg.in/yaml.v2"
 )
@@ -764,24 +763,16 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 
 var timestampUpdater = helpers.UpdateTimestamp
 
-// RestartJob is a convenient way of encapsulating the information needed to
-// restart a service.
-type RestartJob struct {
-	name    string
-	timeout time.Duration
-}
-
 func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
 	fn := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_%s_%s.json", fullName, thing, version))
 	return timestampUpdater(fn)
 }
 
 // RequestAppArmorUpdate checks whether changes to the given policies and
-// templates impacts the snap, updates the timestamp of the relevant json
-// symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits),
-// and returns the list of jobs that need restarting as a consequence.
-func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) ([]RestartJob, error) {
-	var rs []RestartJob
+// templates impacts the snap, and updates the timestamp of the relevant json
+// symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits).
+func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
+
 	fullName := s.Name()
 	if s.Type() != SnapTypeFramework {
 		fullName += "." + s.Namespace()
@@ -789,25 +780,23 @@ func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) ([
 	for _, svc := range s.Services() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
 			if err := updateAppArmorJSONTimestamp(fullName, svc.Name, s.Version()); err != nil {
-				return nil, err
+				return err
 			}
-			svcName := generateServiceFileName(s.m, svc)
-			rs = append(rs, RestartJob{svcName, time.Duration(svc.StopTimeout)})
 		}
 	}
 	for _, bin := range s.Binaries() {
 		if bin.NeedsAppArmorUpdate(policies, templates) {
 			if err := updateAppArmorJSONTimestamp(fullName, bin.Name, s.Version()); err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
 
-	return rs, nil
+	return nil
 }
 
 // RefreshDependentsSecurity refreshes the security policies of dependent snaps
-func (s *SnapPart) RefreshDependentsSecurity(oldBaseDir string, inter interacter) error {
+func (s *SnapPart) RefreshDependentsSecurity(oldBaseDir string, inter interacter) (err error) {
 	upPol, upTpl := policy.AppArmorDelta(oldBaseDir, s.basedir, s.Name()+"_")
 
 	deps, err := s.Dependents()
@@ -815,29 +804,15 @@ func (s *SnapPart) RefreshDependentsSecurity(oldBaseDir string, inter interacter
 		return err
 	}
 
-	var restart []RestartJob
-
 	for _, dep := range deps {
-		rs, err := dep.RequestAppArmorUpdate(upPol, upTpl)
+		err := dep.RequestAppArmorUpdate(upPol, upTpl)
 		if err != nil {
 			return err
 		}
-		restart = append(restart, rs...)
 	}
 
 	if err := exec.Command(aaClickHookCmd).Run(); err != nil {
 		return err
-	}
-
-	sysd := systemd.New(globalRootDir, inter)
-	for _, r := range restart {
-		if err := sysd.Restart(r.name, r.timeout); err != nil {
-			// we don't want to stop restarting the dependents
-			// because one of them fails
-			// TODO: abort the installation (restart things all over
-			// again) if things go wrong.
-			inter.Notify(fmt.Sprintf(" when restarting %s: %v", r.name, err))
-		}
 	}
 
 	return nil

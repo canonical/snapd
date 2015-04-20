@@ -803,6 +803,90 @@ services:
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
 }
 
+func (s *SnapTestSuite) setupSnappyDependentServices(c *C) (string, *MockProgressMeter) {
+	inter := &MockProgressMeter{}
+	fmkYaml := "name: fmk\ntype: framework\nversion: "
+	fmkFile := makeTestSnapPackage(c, fmkYaml+"1")
+	_, err := installClick(fmkFile, AllowUnauthenticated, inter, "")
+	c.Assert(err, IsNil)
+
+	packageYaml := `name: foo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+frameworks:
+ - fmk
+services:
+ - name: svc1
+   start: bin/hello
+ - name: svc2
+   start: bin/bye
+version: `
+	snapFile := makeTestSnapPackage(c, packageYaml+"1.0")
+	_, err = installClick(snapFile, AllowUnauthenticated, inter, testNamespace)
+	c.Assert(err, IsNil)
+
+	c.Assert(helpers.FileExists(filepath.Join(snapServicesDir, "foo_svc1_1.0.service")), Equals, true)
+	c.Assert(helpers.FileExists(filepath.Join(snapServicesDir, "foo_svc2_1.0.service")), Equals, true)
+
+	return fmkYaml, inter
+}
+
+func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstall(c *C) {
+	fmkYaml, inter := s.setupSnappyDependentServices(c)
+
+	var cmdlog []string
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		cmdlog = append(cmdlog, cmd[0])
+		return []byte("ActiveState=inactive\n"), nil
+	}
+
+	upFile := makeTestSnapPackage(c, fmkYaml+"2")
+	_, err := installClick(upFile, AllowUnauthenticated, inter, "")
+	c.Assert(err, IsNil)
+	c.Check(cmdlog, DeepEquals, []string{"stop", "show", "stop", "show", "start", "start"})
+}
+
+func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStop(c *C) {
+	fmkYaml, inter := s.setupSnappyDependentServices(c)
+
+	anError := errors.New("failure")
+	var cmdlog []string
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		cmdlog = append(cmdlog, cmd[0])
+		if len(cmdlog) == 3 && cmd[0] == "stop" {
+			return nil, anError
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	}
+
+	upFile := makeTestSnapPackage(c, fmkYaml+"2")
+	_, err := installClick(upFile, AllowUnauthenticated, inter, "")
+	c.Check(err, Equals, anError)
+	c.Check(cmdlog, DeepEquals, []string{"stop", "show", "stop", "start"})
+}
+
+func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStart(c *C) {
+	fmkYaml, inter := s.setupSnappyDependentServices(c)
+
+	anError := errors.New("failure")
+	var cmdlog []string
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		cmdlog = append(cmdlog, cmd[0])
+		if len(cmdlog) == 6 && cmd[0] == "start" {
+			return nil, anError
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	}
+
+	upFile := makeTestSnapPackage(c, fmkYaml+"2")
+	_, err := installClick(upFile, AllowUnauthenticated, inter, "")
+	c.Assert(err, Equals, anError)
+	c.Check(cmdlog, DeepEquals, []string{
+		"stop", "show", "stop", "show", "start", "start", // <- this one fails
+		"stop", "show", "start", "start",
+	})
+}
+
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
 	allSystemctl := [][]string{}
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
