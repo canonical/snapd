@@ -651,7 +651,8 @@ const expectedWrapper = `#!/bin/sh
 
 set -e
 
-TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
+#FIXME: namespace
+TMPDIR="/tmp/snaps/pastebinit/1.4.0.0.1/tmp"
 if [ ! -d "$TMPDIR" ]; then
     mkdir -p -m1777 "$TMPDIR"
 fi
@@ -682,14 +683,14 @@ export HOME="$SNAP_APP_USER_DATA_PATH"
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd /apps/pastebinit.mvo/1.4.0.0.1/
-aa-exec -p pastebinit.mvo_pastebinit_1.4.0.0.1 -- /apps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
+ubuntu-core-launcher /apps/pastebinit.mvo/1.4.0.0.1/ pastebinit_pastebinit pastebinit.mvo_pastebinit_1.4.0.0.1 /apps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	binary := Binary{Name: "pastebinit", Exec: "bin/pastebinit"}
 	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
-	m := packageYaml{Name: "pastebinit.mvo",
+	m := packageYaml{Name: "pastebinit",
 		Version: "1.4.0.0.1"}
 
 	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
@@ -701,7 +702,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 	binary := Binary{Name: "bin/pastebinit\nSomething nasty"}
 	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
-	m := packageYaml{Name: "pastebinit.mvo",
+	m := packageYaml{Name: "pastebinit",
 		Version: "1.4.0.0.1"}
 
 	_, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
@@ -919,7 +920,10 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
 	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), "\nExecStart=/apps/"+helloAppComposedName+"/1.10/bin/hello\n"), Equals, true)
+
+	baseDirWithoutRootPrefix := "/apps/" + helloAppComposedName + "/1.10"
+	expectedExecStart := fmt.Sprintf("\nExecStart=/usr/bin/ubuntu-core-launcher %s hello-app_svc1 %s_svc1_1.10 %s/bin/hello\n", baseDirWithoutRootPrefix, helloAppComposedName, baseDirWithoutRootPrefix)
+	c.Assert(strings.Contains(string(content), expectedExecStart), Equals, true)
 }
 
 func (s *SnapTestSuite) TestAddPackageServicesBusPolicyFramework(c *C) {
@@ -976,7 +980,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 
 	needle := `
 cd /apps/hello-app.testspacethename/1.10
-aa-exec -p hello-app.testspacethename_hello_1.10 -- /apps/hello-app.testspacethename/1.10/bin/hello "$@"
+ubuntu-core-launcher /apps/hello-app.testspacethename/1.10 hello-app_hello hello-app.testspacethename_hello_1.10 /apps/hello-app.testspacethename/1.10/bin/hello "$@"
 `
 	c.Assert(strings.Contains(string(content), needle), Equals, true)
 }
@@ -988,10 +992,9 @@ Description=A fun webserver
 X-Snappy=yes
 
 [Service]
-ExecStart=/apps/xkcd-webserver.canonical/0.3.4/bin/foo start
+ExecStart=/usr/bin/ubuntu-core-launcher /apps/xkcd-webserver.canonical/0.3.4/ xkcd-webserver_xkcd-webserver xkcd-webserver.canonical_xkcd-webserver_0.3.4 /apps/xkcd-webserver.canonical/0.3.4/bin/foo start
 WorkingDirectory=/apps/xkcd-webserver.canonical/0.3.4/
-Environment="SNAPP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP=xckd-webserver.canonical_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xckd-webserver.canonical/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xckd-webserver.canonical/0.3.4/tmp"
-AppArmorProfile=xkcd-webserver.canonical_xkcd-webserver_0.3.4
+Environment="SNAPP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xkcd-webserver/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver/0.3.4/tmp"
 ExecStop=/apps/xkcd-webserver.canonical/0.3.4/bin/foo stop
 ExecStopPost=/apps/xkcd-webserver.canonical/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
@@ -1015,7 +1018,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
-	m := packageYaml{Name: "xckd-webserver.canonical",
+	m := packageYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
 
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
@@ -1036,7 +1039,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
 	m := packageYaml{
-		Name:    "xckd-webserver.canonical",
+		Name:    "xkcd-webserver",
 		Version: "0.3.4",
 		Type:    SnapTypeFramework,
 	}
@@ -1056,7 +1059,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
-	m := packageYaml{Name: "xckd-webserver.canonical",
+	m := packageYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
 
 	_, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)

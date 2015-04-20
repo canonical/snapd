@@ -354,6 +354,7 @@ func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *pack
 
 set -e
 
+#FIXME: namespace
 TMPDIR="/tmp/snaps/{{.Name}}/{{.Version}}/tmp"
 if [ ! -d "$TMPDIR" ]; then
     mkdir -p -m1777 "$TMPDIR"
@@ -385,7 +386,7 @@ export HOME="$SNAP_APP_USER_DATA_PATH"
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd {{.Path}}
-aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
+ubuntu-core-launcher {{.Path}} {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
 	if err := verifyBinariesYaml(binary); err != nil {
@@ -397,13 +398,20 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
 	wrapperData := struct {
-		Name      string
-		Version   string
-		Target    string
-		Path      string
-		AaProfile string
+		Name        string
+		Version     string
+		Target      string
+		Path        string
+		AaProfile   string
+		UdevAppName string
 	}{
-		m.Name, m.Version, actualBinPath, pkgPath, aaProfile,
+		m.Name,
+		m.Version,
+		actualBinPath,
+		pkgPath,
+		aaProfile,
+		// FIXME: use namespace here?!?
+		fmt.Sprintf("%s_%s", m.Name, binary.Name),
 	}
 	t.Execute(&templateOut, wrapperData)
 

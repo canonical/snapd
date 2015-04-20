@@ -80,6 +80,7 @@ type ServiceDescription struct {
 	AaProfile   string
 	IsFramework bool
 	BusName     string
+	UdevAppName string
 }
 
 const (
@@ -175,10 +176,9 @@ Requires=ubuntu-snappy.frameworks.target{{end}}
 X-Snappy=yes
 
 [Service]
-ExecStart={{.FullPathStart}}
+ExecStart=/usr/bin/ubuntu-core-launcher {{.AppPath}} {{.UdevAppName}} {{.AaProfile}} {{.FullPathStart}}
 WorkingDirectory={{.AppPath}}
 Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}" "TMPDIR=/tmp/snaps/{{.AppName}}/{{.Version}}/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/{{.AppName}}/{{.Version}}/tmp"
-AppArmorProfile={{.AaProfile}}
 {{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
@@ -199,6 +199,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		FullPathPostStop     string
 		AppTriple            string
 		ServiceSystemdTarget string
+		UdevAppName          string
 	}{
 		*desc,
 		filepath.Join(desc.AppPath, desc.Start),
@@ -206,6 +207,8 @@ WantedBy={{.ServiceSystemdTarget}}
 		filepath.Join(desc.AppPath, desc.PostStop),
 		fmt.Sprintf("%s_%s_%s", desc.AppName, desc.ServiceName, desc.Version),
 		servicesSystemdTarget,
+		// FIXME: use namespace here?!?
+		fmt.Sprintf("%s_%s", desc.AppName, desc.ServiceName),
 	}
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
 		// this can never happen, except we forget a variable
