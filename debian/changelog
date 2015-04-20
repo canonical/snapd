@@ -1,3 +1,11 @@
+ubuntu-core-launcher (0.2) UNRELEASED; urgency=low
+
+  * add support for the snappy hwassign feature from the oem snap
+  * continue in the launcher even if seccomp rules can not be
+    applied, to allow testing the new snappy hwassign feature
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 20 Apr 2015 10:24:59 +0200
+
 ubuntu-core-launcher (0.1~ppa6) vivid; urgency=medium
 
   * fallback to seccomp_rule_add() if seccomp_rule_add_exact() fails
