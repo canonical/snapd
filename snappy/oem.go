@@ -33,15 +33,19 @@ import (
 // OEM represents the structure inside the package.yaml for the oem component
 // of an oem package type.
 type OEM struct {
-	Store struct {
-		ID string `yaml:"id,omitempty"`
-	} `yaml:"store,omitempty"`
+	Store    Store `yaml:"store,omitempty"`
 	Hardware struct {
 		Assign []HardwareAssign `yaml:"assign,omitempty"`
 	} `yaml:"hardware,omitempty"`
-	Software struct {
-		BuiltIn []string `yaml:"built-in,omitempty"`
-	} `yaml:"software,omitempty"`
+	Software Software `yaml:"software,omitempty"`
+}
+
+type Store struct {
+	ID string `yaml:"id,omitempty"`
+}
+
+type Software struct {
+	BuiltIn []string `yaml:"built-in,omitempty"`
 }
 
 // HardwareAssign describes the hardware a app can use
@@ -89,7 +93,9 @@ func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
 
 // getOem is a convenience function to not go into the details for the business
 // logic for an oem package in every other function
-func getOem() (*packageYaml, error) {
+var getOem = getOemImpl
+
+var getOemImpl = func() (*packageYaml, error) {
 	oems, _ := ActiveSnapsByType(SnapTypeOem)
 	if len(oems) == 1 {
 		return oems[0].(*SnapPart).m, nil
