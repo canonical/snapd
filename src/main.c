@@ -132,14 +132,13 @@ void setup_devices_cgroup(const char *appname) {
 
 int main(int argc, char **argv)
 {
-   const int NR_ARGS = 4;
+   const int NR_ARGS = 3;
    if(argc < NR_ARGS+1)
-       die("Usage: %s <rootdir> <appname> <apparmor> <binary>", argv[0]);
+       die("Usage: %s <appname> <apparmor> <binary>", argv[0]);
 
-   const char *rootdir = argv[1];
-   const char *appname = argv[2];
-   const char *aa_profile = argv[3];
-   const char *binary = argv[4];
+   const char *appname = argv[1];
+   const char *aa_profile = argv[2];
+   const char *binary = argv[3];
 
    // this code always needs to run as root for the cgroup/udev setup,
    // however for the tests we allow it to run as non-root
@@ -171,9 +170,6 @@ int main(int argc, char **argv)
     int rc = 0;
 
    //https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#ubuntu-snapp-launch
-
-    // setup env
-    setenv("SNAP_APP_DIR", rootdir, 1);
 
     if (getenv("SNAPPY_LAUNCHER_SKIP_APPARMOR") != NULL) {
        // set apparmor rules
