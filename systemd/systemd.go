@@ -199,7 +199,6 @@ WantedBy={{.ServiceSystemdTarget}}
 		FullPathPostStop     string
 		AppTriple            string
 		ServiceSystemdTarget string
-		UdevAppName          string
 	}{
 		*desc,
 		filepath.Join(desc.AppPath, desc.Start),
@@ -207,8 +206,6 @@ WantedBy={{.ServiceSystemdTarget}}
 		filepath.Join(desc.AppPath, desc.PostStop),
 		fmt.Sprintf("%s_%s_%s", desc.AppName, desc.ServiceName, desc.Version),
 		servicesSystemdTarget,
-		// FIXME: use namespace here?!?
-		fmt.Sprintf("%s_%s", desc.AppName, desc.ServiceName),
 	}
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
 		// this can never happen, except we forget a variable

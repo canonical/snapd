@@ -150,7 +150,7 @@ Description=descr
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher app_service aa-profile /apps/app/1.0/bin/start
+ExecStart=/usr/bin/ubuntu-core-launcher app%s aa-profile /apps/app/1.0/bin/start
 WorkingDirectory=/apps/app/1.0/
 Environment="SNAPP_APP_PATH=/apps/app/1.0/" "SNAPP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/app/1.0/" "SNAP_APP_PATH=/apps/app/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAP_APP_USER_DATA_PATH=%%h/apps/app/1.0/" "SNAP_APP=app_service_1.0" "TMPDIR=/tmp/snaps/app/1.0/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/app/1.0/tmp"
 ExecStop=/apps/app/1.0/bin/stop
@@ -163,9 +163,9 @@ WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", "\n")
-	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "\n")
-	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", "BusName=foo.bar.baz\nType=dbus")
+	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "\n")
+	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "\n")
+	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "BusName=foo.bar.baz\nType=dbus")
 )
 
 func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
@@ -181,6 +181,7 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 		PostStop:    "bin/stop --post",
 		StopTimeout: time.Duration(10 * time.Second),
 		AaProfile:   "aa-profile",
+		UdevAppName: "app.mvo",
 	}
 
 	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedAppService)
@@ -200,6 +201,7 @@ func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
 		StopTimeout: time.Duration(10 * time.Second),
 		AaProfile:   "aa-profile",
 		IsFramework: true,
+		UdevAppName: "app",
 	}
 
 	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedFmkService)
@@ -219,6 +221,7 @@ func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
 		StopTimeout: time.Duration(10 * time.Second),
 		AaProfile:   "aa-profile",
 		BusName:     "foo.bar.baz",
+		UdevAppName: "app.mvo",
 	}
 
 	generated := New("", nil).GenServiceFile(desc)

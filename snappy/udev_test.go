@@ -43,7 +43,7 @@ vendor: Foo Bar <foo@example.com>
 `))
 	c.Assert(err, IsNil)
 
-	udevName, err := getUdevPartName(packageYaml, "/apps/foo.mvo/1.0/")
+	udevName, err := getUdevPartName(packageYaml, "/apps/foo/1.0/")
 	c.Assert(err, IsNil)
 	c.Assert(udevName, Equals, "foo")
 }
