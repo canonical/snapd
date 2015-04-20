@@ -18,7 +18,6 @@
 package snappy
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -30,50 +29,57 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// Full path to file created by ubuntu-device-flash, 
-// created at system installation time, that contains metadata
-// on the installation.
 var (
-	// XXX: Public for ubuntu-device-flash
+	// InstallYamlFile is the full path to file created by
+	// ubuntu-device-flash, created at system installation time,
+	// that contains metadata on the installation.
+	//
+	// XXX: Public for ubuntu-device-flash(1)
 	InstallYamlFile = "/boot/install.yaml"
 
-	ErrNoInstallYaml = errors.New(fmt.Sprintf("no %s", InstallYamlFile))
+	// ErrNoInstallYaml is emitted when InstallYamlFile does not exist.
+	ErrNoInstallYaml = fmt.Errorf("no %s", InstallYamlFile)
 )
 
+// InstallMeta encapsulates the metadata for a system install.
 type InstallMeta struct {
-	Timestamp time.Time
-	InitialVersion string `yaml:"initial-version"`
+	Timestamp         time.Time
+	InitialVersion    string `yaml:"initial-version"`
 	SystemImageServer string `yaml:"system-image-server"`
 }
 
+// InstallTool encapsulates metadata on the tool used to create the
+// system image.
 type InstallTool struct {
-	Name string
-	Path string
+	Name    string
+	Path    string
 	Version string
 }
 
+// InstallOptions summarises the options used when creating the system image.
 type InstallOptions struct {
-	Size int64 `yaml:"size"`
-	SizeUnit string `yaml:"size-unit"`
-	Output string
-	Channel string
-	DevicePart string `yaml:"device-part,omitempty"`
-	Oem string `yaml:,omitempty"`
+	Size          int64  `yaml:"size"`
+	SizeUnit      string `yaml:"size-unit"`
+	Output        string
+	Channel       string
+	DevicePart    string `yaml:"device-part,omitempty"`
+	Oem           string
 	DeveloperMode bool `yaml:"developer-mode,omitempty"`
 }
 
-// Represents 'InstallYamlFile'
+// InstallYaml represents 'InstallYamlFile'
+//
 // XXX: Public for ubuntu-device-flash
 type InstallYaml struct {
-	InstallMeta `yaml:"meta"`
-	InstallTool `yaml:"tool"`
+	InstallMeta    `yaml:"meta"`
+	InstallTool    `yaml:"tool"`
 	InstallOptions `yaml:"options"`
 }
 
 func parseInstallYaml(path string) (*InstallYaml, error) {
-	data , err := ioutil.ReadFile(path)
+	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, ErrNoInstallYaml
 	}
 
 	return parseInstallYamlData(data)
@@ -83,9 +89,6 @@ func parseInstallYamlData(yamlData []byte) (*InstallYaml, error) {
 	var i InstallYaml
 	err := yaml.Unmarshal(yamlData, &i)
 	if err != nil {
-		// FIXME: should use loggo!
-		// FIXME: refactor all "can not parse" messages into
-		// messages.go?
 		log.Printf("Cannot parse %q", yamlData)
 		return nil, err
 	}
