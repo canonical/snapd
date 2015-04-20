@@ -1,3 +1,10 @@
+ubuntu-core-launcher (0.2.2) vivid; urgency=low
+
+  * continue even if no seccomp profile can be loaded to allow testing
+    the new hwassign cgroup feature
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 20 Apr 2015 10:37:00 +0200
+
 ubuntu-core-launcher (0.2.1) vivid; urgency=low
 
   * lintian fixes
@@ -8,8 +15,9 @@ ubuntu-core-launcher (0.2) vivid; urgency=low
 
   * merged lp:~mvo/ubuntu-core-launcher/device-cgroup to add
     support for the device cgroup 
+    applied, to allow testing the new snappy hwassign feature
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Sun, 19 Apr 2015 09:01:06 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 20 Apr 2015 10:24:59 +0200
 
 ubuntu-core-launcher (0.1~ppa6) vivid; urgency=medium
 
