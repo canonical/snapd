@@ -669,7 +669,7 @@ func (m *packageYaml) addSecurityPolicy(baseDir string) error {
 		}
 
 		fn := filepath.Join(snapSeccompDir, profileName)
-		if err := ioutil.WriteFile(fn, []byte(content), 0644); err != nil {
+		if err := ioutil.WriteFile(fn, content, 0644); err != nil {
 			return err
 		}
 	}
@@ -684,7 +684,7 @@ func (m *packageYaml) addSecurityPolicy(baseDir string) error {
 			return err
 		}
 		fn := filepath.Join(snapSeccompDir, profileName)
-		if err := ioutil.WriteFile(fn, []byte(content), 0644); err != nil {
+		if err := ioutil.WriteFile(fn, content, 0644); err != nil {
 			return err
 		}
 	}
