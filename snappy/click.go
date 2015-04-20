@@ -354,6 +354,7 @@ func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *pack
 
 set -e
 
+#FIXME: namespace
 TMPDIR="/tmp/snaps/{{.Name}}/{{.Version}}/tmp"
 if [ ! -d "$TMPDIR" ]; then
     mkdir -p -m1777 "$TMPDIR"
@@ -385,7 +386,7 @@ export HOME="$SNAP_APP_USER_DATA_PATH"
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd {{.Path}}
-aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
+ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
 	if err := verifyBinariesYaml(binary); err != nil {
@@ -393,17 +394,27 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	}
 
 	actualBinPath := binPathForBinary(pkgPath, binary)
+	udevPartName, err := getUdevPartName(m, pkgPath)
+	if err != nil {
+		return "", err
+	}
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
 	wrapperData := struct {
-		Name      string
-		Version   string
-		Target    string
-		Path      string
-		AaProfile string
+		Name        string
+		Version     string
+		Target      string
+		Path        string
+		AaProfile   string
+		UdevAppName string
 	}{
-		m.Name, m.Version, actualBinPath, pkgPath, aaProfile,
+		m.Name,
+		m.Version,
+		actualBinPath,
+		pkgPath,
+		aaProfile,
+		udevPartName,
 	}
 	t.Execute(&templateOut, wrapperData)
 
@@ -462,6 +473,11 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 		return "", err
 	}
 
+	udevPartName, err := getUdevPartName(m, baseDir)
+	if err != nil {
+		return "", err
+	}
+
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
 			AppName:     m.Name,
@@ -476,6 +492,7 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 			AaProfile:   aaProfile,
 			IsFramework: m.Type == SnapTypeFramework,
 			BusName:     service.BusName,
+			UdevAppName: udevPartName,
 		}), nil
 }
 
