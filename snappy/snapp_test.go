@@ -1194,3 +1194,19 @@ func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
 
 	c.Assert(helpers.FileExists(udevRulesFile), Equals, false)
 }
+
+func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
+	udevCalledWithArgs := []string{}
+	runUdevAdm = func(args ...string) error {
+		udevCalledWithArgs = args
+		return nil
+	}
+	defer func() { runUdevAdm = runUdevAdmImpl }()
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+
+	snapUdevRulesDir = c.MkDir()
+	err = activateOemHardwareUdevRules(m)
+	c.Assert(err, IsNil)
+	c.Assert(udevCalledWithArgs, DeepEquals, []string{"udevadm", "trigger", "--tag-match=snappy-assign", "--property-match=SNAPPY_APP=device-hive-iot-hal"})
+}

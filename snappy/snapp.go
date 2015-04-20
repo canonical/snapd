@@ -250,6 +250,39 @@ func writeOemHardwareUdevRules(m *packageYaml) error {
 	return nil
 }
 
+// var to make testing easier
+var runUdevAdm = runUdevAdmImpl
+
+func runUdevAdmImpl(args ...string) error {
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func activateOemHardwareUdevRules(m *packageYaml) error {
+	for _, h := range m.OEM.Hardware.Assign {
+		args := []string{"udevadm", "trigger", "--tag-match=snappy-assign", fmt.Sprintf("--property-match=SNAPPY_APP=%s", h.AppID)}
+		if err := runUdevAdm(args...); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func installOemHardwareUdevRules(m *packageYaml) error {
+	if err := writeOemHardwareUdevRules(m); err != nil {
+		return err
+	}
+
+	if err := activateOemHardwareUdevRules(m); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
 	s := ""
 	for _, r := range hw.Rules {
