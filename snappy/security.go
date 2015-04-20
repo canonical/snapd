@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v2"
-	//"launchpad.net/snappy/policy"
 )
 
 type apparmorJSONTemplate struct {
@@ -29,7 +28,6 @@ type securitySeccompOverride struct {
 
 const defaultTemplate = "default"
 
-// How do I make this const?
 var defaultPolicyGroups = []string{"networking"}
 
 // TODO: autodetect, this won't work for personal
@@ -38,18 +36,16 @@ const defaultPolicyVersion = 15.04
 
 func (s *SecurityDefinitions) generateApparmorJSONContent() ([]byte, error) {
 	t := apparmorJSONTemplate{
-		Template:     s.SecurityTemplate,
-		PolicyGroups: s.SecurityCaps,
-		// TODO: this won't work with Ubuntu Personal, etc
-		PolicyVendor: "ubuntu-core",
-		// TODO: this should perhaps be autodetected
-		PolicyVersion: 15.04,
+		Template:      s.SecurityTemplate,
+		PolicyGroups:  s.SecurityCaps,
+		PolicyVendor:  defaultPolicyVendor,
+		PolicyVersion: defaultPolicyVersion,
 	}
 
 	// FIXME: this is snappy specific, on other systems like the
 	//        phone we may want different defaults.
 	if t.Template == "" && t.PolicyGroups == nil {
-		t.PolicyGroups = []string{"networking"}
+		t.PolicyGroups = defaultPolicyGroups
 	}
 
 	// never write a null value out into the json
@@ -123,7 +119,7 @@ func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error)
 }
 
 // seccomp specific
-func generateSeccompPolicy(m *packageYaml, baseDir string, appName string, sd SecurityDefinitions) ([]byte, error) {
+func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]byte, error) {
 	if sd.SecurityPolicy != nil && sd.SecurityPolicy.Seccomp != "" {
 		fn := filepath.Join(baseDir, sd.SecurityPolicy.Seccomp)
 		content, err := ioutil.ReadFile(fn)
@@ -145,14 +141,22 @@ func generateSeccompPolicy(m *packageYaml, baseDir string, appName string, sd Se
 
 	if sd.SecurityOverride != nil {
 		fn := filepath.Join(baseDir, sd.SecurityOverride.Seccomp)
-	        var s securitySeccompOverride
-		err := readSeccompOverride(fn, baseDir, &s)
+		var s securitySeccompOverride
+		err := readSeccompOverride(fn, &s)
 		if err != nil {
 			fmt.Printf("WARNING: failed to read %s\n", fn)
+			return nil, err
 		}
-		template = s.Template
-		policy_vendor = s.PolicyVendor
-		policy_version = s.PolicyVersion
+
+		if s.Template != "" {
+			template = s.Template
+		}
+		if s.PolicyVendor != "" {
+			policy_vendor = s.PolicyVendor
+		}
+		if s.PolicyVersion != 0 {
+			policy_version = s.PolicyVersion
+		}
 		caps = s.PolicyGroups
 		syscalls = s.Syscalls
 	} else {
@@ -186,19 +190,7 @@ func generateSeccompPolicy(m *packageYaml, baseDir string, appName string, sd Se
 	return content, err
 }
 
-func getProfileNames(m *packageYaml) []string {
-	profiles := make([]string, 0)
-	for _, svc := range m.Services {
-		profiles = append(profiles, svc.Name)
-	}
-	for _, bin := range m.Binaries {
-		profiles = append(profiles, bin.Name)
-	}
-
-	return profiles
-}
-
-func readSeccompOverride(yamlPath, baseDir string, s *securitySeccompOverride) error {
+func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 	yamlData, err := ioutil.ReadFile(yamlPath)
 	if err != nil {
 		return err
@@ -209,6 +201,5 @@ func readSeccompOverride(yamlPath, baseDir string, s *securitySeccompOverride) e
 		fmt.Printf("ERROR: Can not parse '%s'", yamlData)
 		return err
 	}
-	// TODO: set defaults as necessary
 	return nil
 }
