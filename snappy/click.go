@@ -652,13 +652,12 @@ func addSecurityPolicy(baseDir string) error {
 		return err
 	}
 
-	// TODO: combine into one loop
 	for _, svc := range m.Services {
 		profileName, err := getSecurityProfile(m, filepath.Base(svc.Name), baseDir)
 		if err != nil {
 			return err
 		}
-		content, err := generateSeccompPolicy(m, baseDir, svc.Name, svc.SecurityDefinitions)
+		content, err := generateSeccompPolicy(baseDir, svc.Name, svc.SecurityDefinitions)
 		if err != nil {
 			return err
 		}
@@ -673,7 +672,7 @@ func addSecurityPolicy(baseDir string) error {
 		if err != nil {
 			return err
 		}
-		content, err := generateSeccompPolicy(m, baseDir, bin.Name, bin.SecurityDefinitions)
+		content, err := generateSeccompPolicy(baseDir, bin.Name, bin.SecurityDefinitions)
 		if err != nil {
 			return err
 		}
@@ -687,14 +686,13 @@ func addSecurityPolicy(baseDir string) error {
 }
 
 func removeSecurityPolicy(baseDir string) error {
-	// TODO: move apparmor policy removal
+	// TODO: move apparmor policy removal here
 	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta",
 		"package.yaml"))
 	if err != nil {
 		return err
 	}
 
-	// FIXME: combine into one loop
 	for _, service := range m.Services {
 		profileName, err := getSecurityProfile(m, filepath.Base(service.Name), baseDir)
 		if err != nil {
