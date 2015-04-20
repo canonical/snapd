@@ -683,7 +683,7 @@ export HOME="$SNAP_APP_USER_DATA_PATH"
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd /apps/pastebinit.mvo/1.4.0.0.1/
-ubuntu-core-launcher /apps/pastebinit.mvo/1.4.0.0.1/ pastebinit_pastebinit pastebinit.mvo_pastebinit_1.4.0.0.1 /apps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
+ubuntu-core-launcher /apps/pastebinit.mvo/1.4.0.0.1/ pastebinit.mvo pastebinit.mvo_pastebinit_1.4.0.0.1 /apps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
@@ -978,10 +978,10 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/apps/bin/hello-app.hello"))
 	c.Assert(err, IsNil)
 
-	needle := `
+	needle := fmt.Sprintf(`
 cd /apps/hello-app.testspacethename/1.10
-ubuntu-core-launcher /apps/hello-app.testspacethename/1.10 hello-app_hello hello-app.testspacethename_hello_1.10 /apps/hello-app.testspacethename/1.10/bin/hello "$@"
-`
+ubuntu-core-launcher /apps/hello-app.testspacethename/1.10 hello-app.%s hello-app.testspacethename_hello_1.10 /apps/hello-app.testspacethename/1.10/bin/hello "$@"
+`, testNamespace)
 	c.Assert(strings.Contains(string(content), needle), Equals, true)
 }
 

@@ -394,6 +394,10 @@ ubuntu-core-launcher {{.Path}} {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	}
 
 	actualBinPath := binPathForBinary(pkgPath, binary)
+	udevPartName, err := getUdevPartName(m, pkgPath)
+	if err != nil {
+		return "", err
+	}
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
@@ -410,8 +414,7 @@ ubuntu-core-launcher {{.Path}} {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		actualBinPath,
 		pkgPath,
 		aaProfile,
-		// FIXME: use namespace here?!?
-		fmt.Sprintf("%s_%s", m.Name, binary.Name),
+		udevPartName,
 	}
 	t.Execute(&templateOut, wrapperData)
 
@@ -470,6 +473,11 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 		return "", err
 	}
 
+	udevPartName, err := getUdevPartName(m, baseDir)
+	if err != nil {
+		return "", err
+	}
+
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
 			AppName:     m.Name,
@@ -484,6 +492,7 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 			AaProfile:   aaProfile,
 			IsFramework: m.Type == SnapTypeFramework,
 			BusName:     service.BusName,
+			UdevAppName: udevPartName,
 		}), nil
 }
 
