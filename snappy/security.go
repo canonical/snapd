@@ -137,10 +137,10 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 	}
 
 	// defaults
-	policy_vendor := defaultPolicyVendor
-	policy_version := defaultPolicyVersion
+	policyVendor := defaultPolicyVendor
+	policyVersion := defaultPolicyVersion
 	template := defaultTemplate
-	caps := make([]string, 0)
+	caps := []string{}
 	for _, p := range defaultPolicyGroups {
 		caps = append(caps, p)
 	}
@@ -149,7 +149,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 	if sd.SecurityOverride != nil {
 		fn := filepath.Join(baseDir, sd.SecurityOverride.Seccomp)
 		var s securitySeccompOverride
-		err := readSeccompOverride(fn, baseDir, &s)
+		err := readSeccompOverride(fn, &s)
 		if err != nil {
 			fmt.Printf("WARNING: failed to read %s\n", fn)
 			return nil, err
@@ -159,10 +159,10 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 			template = s.Template
 		}
 		if s.PolicyVendor != "" {
-			policy_vendor = s.PolicyVendor
+			policyVendor = s.PolicyVendor
 		}
 		if s.PolicyVersion != 0 {
-			policy_version = s.PolicyVersion
+			policyVersion = s.PolicyVersion
 		}
 		caps = s.PolicyGroups
 		syscalls = s.Syscalls
@@ -178,8 +178,8 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 	// Build up the command line
 	args := []string{"sc-filtergen"}
 	args = append(args, fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(snapSeccompDir)))
-	args = append(args, fmt.Sprintf("--policy-vendor=%s", policy_vendor))
-	args = append(args, fmt.Sprintf("--policy-version=%.2f", policy_version))
+	args = append(args, fmt.Sprintf("--policy-vendor=%s", policyVendor))
+	args = append(args, fmt.Sprintf("--policy-version=%.2f", policyVersion))
 	args = append(args, fmt.Sprintf("--template=%s", template))
 	if len(caps) > 0 {
 		args = append(args, fmt.Sprintf("--policy-groups=%s", strings.Join(caps, ",")))
@@ -196,19 +196,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 	return content, err
 }
 
-func getProfileNames(m *packageYaml) []string {
-	profiles := []string{}
-	for _, svc := range m.Services {
-		profiles = append(profiles, svc.Name)
-	}
-	for _, bin := range m.Binaries {
-		profiles = append(profiles, bin.Name)
-	}
-
-	return profiles
-}
-
-func readSeccompOverride(yamlPath, baseDir string, s *securitySeccompOverride) error {
+func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 	yamlData, err := ioutil.ReadFile(yamlPath)
 	if err != nil {
 		return err
@@ -219,5 +207,14 @@ func readSeccompOverride(yamlPath, baseDir string, s *securitySeccompOverride) e
 		fmt.Printf("ERROR: Can not parse '%s'", yamlData)
 		return err
 	}
+	// These must always be specified together
+	if s.PolicyVersion == 0 && s.PolicyVendor != "" {
+		s.PolicyVendor = ""
+		fmt.Printf("WARNING: policy-version not set with policy-vendor. Skipping 'policy-vendor'\n")
+	} else if s.PolicyVersion != 0 && s.PolicyVendor == "" {
+		s.PolicyVersion = 0
+		fmt.Printf("WARNING: policy-vendor not set with policy-version. Skipping 'policy-version'\n")
+	}
+
 	return nil
 }
