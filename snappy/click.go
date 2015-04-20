@@ -88,6 +88,9 @@ var ignoreHooks = map[string]bool{
 	"snappy-systemd": true,
 }
 
+// wait this time between TERM and KILL
+var killWait = 5 * time.Second
+
 // servicesBinariesStringsWhitelist is the whitelist of legal chars
 // in the "binaries" and "services" section of the package.yaml
 const servicesBinariesStringsWhitelist = `^[A-Za-z0-9/. _#:-]*$`
@@ -601,13 +604,19 @@ func removePackageServices(baseDir string, inter interacter) error {
 	sysd := systemd.New(globalRootDir, inter)
 	for _, service := range m.Services {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		if err := sysd.Stop(serviceName, time.Duration(service.StopTimeout)); err != nil {
-			return err
-		}
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
 		}
-		// FIXME: wait for the service to be really stopped
+		if err := sysd.Stop(serviceName, time.Duration(service.StopTimeout)); err != nil {
+			if !systemd.IsTimeout(err) {
+				return err
+			}
+			inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
+			// ignore errors for kill; nothing we'd do differently at this point
+			sysd.Kill(serviceName, "TERM")
+			time.Sleep(killWait)
+			sysd.Kill(serviceName, "KILL")
+		}
 
 		os.Remove(generateServiceFileName(m, service))
 
