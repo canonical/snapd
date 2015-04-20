@@ -118,6 +118,13 @@ func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error)
 	return fmt.Sprintf("%s.%s_%s_%s", m.Name, namespace, cleanedName, m.Version), err
 }
 
+var runScFilterGen = runScFilterGenImpl
+
+func runScFilterGenImpl(argv ...string) ([]byte, error) {
+	cmd := exec.Command(argv[0], argv[1:]...)
+	return cmd.Output()
+}
+
 // seccomp specific
 func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]byte, error) {
 	if sd.SecurityPolicy != nil && sd.SecurityPolicy.Seccomp != "" {
@@ -137,12 +144,12 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 	for _, p := range defaultPolicyGroups {
 		caps = append(caps, p)
 	}
-	syscalls := make([]string, 0)
+	syscalls := []string{}
 
 	if sd.SecurityOverride != nil {
 		fn := filepath.Join(baseDir, sd.SecurityOverride.Seccomp)
 		var s securitySeccompOverride
-		err := readSeccompOverride(fn, &s)
+		err := readSeccompOverride(fn, baseDir, &s)
 		if err != nil {
 			fmt.Printf("WARNING: failed to read %s\n", fn)
 			return nil, err
@@ -169,8 +176,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 	}
 
 	// Build up the command line
-	cmd := "sc-filtergen"
-	args := make([]string, 0)
+	args := []string{"sc-filtergen"}
 	args = append(args, fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(snapSeccompDir)))
 	args = append(args, fmt.Sprintf("--policy-vendor=%s", policy_vendor))
 	args = append(args, fmt.Sprintf("--policy-version=%.2f", policy_version))
@@ -182,7 +188,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		args = append(args, fmt.Sprintf("--syscalls=%s", strings.Join(syscalls, ",")))
 	}
 
-	content, err := exec.Command(cmd, args...).Output()
+	content, err := runScFilterGen(args...)
 	if err != nil {
 		fmt.Printf("WARNING: %v failed\n", args)
 	}
@@ -190,7 +196,19 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 	return content, err
 }
 
-func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
+func getProfileNames(m *packageYaml) []string {
+	profiles := []string{}
+	for _, svc := range m.Services {
+		profiles = append(profiles, svc.Name)
+	}
+	for _, bin := range m.Binaries {
+		profiles = append(profiles, bin.Name)
+	}
+
+	return profiles
+}
+
+func readSeccompOverride(yamlPath, baseDir string, s *securitySeccompOverride) error {
 	yamlData, err := ioutil.ReadFile(yamlPath)
 	if err != nil {
 		return err
