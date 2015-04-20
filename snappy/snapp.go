@@ -88,6 +88,13 @@ type Ports struct {
 // security defaults
 type SecurityOverrideDefinition struct {
 	Apparmor string `yaml:"apparmor" json:"apparmor"`
+	Seccomp  string `yaml:"seccomp" json:"seccomp"`
+}
+
+// SecurityPolicyDefinition is used to provide hand-crafted policy
+type SecurityPolicyDefinition struct {
+	Apparmor string `yaml:"apparmor" json:"apparmor"`
+	Seccomp  string `yaml:"seccomp" json:"seccomp"`
 }
 
 // SecurityDefinitions contains the common apparmor/seccomp definitions
@@ -97,7 +104,7 @@ type SecurityDefinitions struct {
 	// SecurityOverride is a override for the high level security json
 	SecurityOverride *SecurityOverrideDefinition `yaml:"security-override,omitempty" json:"security-override,omitempty"`
 	// SecurityPolicy is a hand-crafted low-level policy
-	SecurityPolicy *SecurityOverrideDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
+	SecurityPolicy *SecurityPolicyDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
 
 	// SecurityCaps is are the apparmor/seccomp capabilities for an app
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`

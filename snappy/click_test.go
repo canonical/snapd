@@ -1097,7 +1097,7 @@ func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
 	}), IsNil)
 	c.Assert(verifyBinariesYaml(Binary{
 		SecurityDefinitions: SecurityDefinitions{
-			SecurityPolicy: &SecurityOverrideDefinition{
+			SecurityPolicy: &SecurityPolicyDefinition{
 				Apparmor: "foo"},
 		},
 	}), IsNil)
@@ -1113,7 +1113,7 @@ func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
 	}), NotNil)
 	c.Assert(verifyBinariesYaml(Binary{
 		SecurityDefinitions: SecurityDefinitions{
-			SecurityPolicy: &SecurityOverrideDefinition{
+			SecurityPolicy: &SecurityPolicyDefinition{
 				Apparmor: "x\n"},
 		},
 	}), NotNil)
@@ -1203,6 +1203,59 @@ Pattern: /var/lib/systemd/click/${id}
 	err := installClickHooks(c.MkDir(), manifest, false)
 	c.Assert(err, IsNil)
 	c.Assert(stripGlobalRootDirWasCalled, Equals, true)
+}
+
+func (s *SnapTestSuite) TestPackageYamlAddSecurityPolicy(c *C) {
+	m, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+binaries:
+ - name: foo
+services:
+ - name: bar
+   start: baz
+`))
+	c.Assert(err, IsNil)
+
+	snapSeccompDir = c.MkDir()
+	err = m.addSecurityPolicy("/apps/foo.mvo/1.0/")
+	c.Assert(err, IsNil)
+
+	binSeccompContent, err := ioutil.ReadFile(filepath.Join(snapSeccompDir, "foo.mvo_foo_1.0"))
+	c.Assert(string(binSeccompContent), Equals, scFilterGenFakeResult)
+
+	serviceSeccompContent, err := ioutil.ReadFile(filepath.Join(snapSeccompDir, "foo.mvo_bar_1.0"))
+	c.Assert(string(serviceSeccompContent), Equals, scFilterGenFakeResult)
+
+}
+
+func (s *SnapTestSuite) TestPackageYamlRemoveSecurityPolicy(c *C) {
+	m, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+binaries:
+ - name: foo
+services:
+ - name: bar
+   start: baz
+`))
+	c.Assert(err, IsNil)
+
+	snapSeccompDir = c.MkDir()
+	binSeccomp := filepath.Join(snapSeccompDir, "foo.mvo_foo_1.0")
+	serviceSeccomp := filepath.Join(snapSeccompDir, "foo.mvo_bar_1.0")
+	c.Assert(helpers.FileExists(binSeccomp), Equals, false)
+	c.Assert(helpers.FileExists(serviceSeccomp), Equals, false)
+
+	// add it now
+	err = m.addSecurityPolicy("/apps/foo.mvo/1.0/")
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(binSeccomp), Equals, true)
+	c.Assert(helpers.FileExists(serviceSeccomp), Equals, true)
+
+	// ensure that it removes the files on remove
+	err = m.removeSecurityPolicy("/apps/foo.mvo/1.0/")
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(binSeccomp), Equals, false)
+	c.Assert(helpers.FileExists(serviceSeccomp), Equals, false)
 }
 
 func (s *SnapTestSuite) TestRemovePackageServiceKills(c *C) {

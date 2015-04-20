@@ -42,6 +42,9 @@ func (s *purgeSuite) SetUpTest(c *C) {
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
+
+	snapSeccompDir = c.MkDir()
+	runScFilterGen = mockRunScFilterGen
 }
 
 func (s *purgeSuite) TestPurgeNonExistingRaisesError(c *C) {

@@ -52,6 +52,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 
 	SetRootDir(s.tempdir)
 	os.MkdirAll(snapServicesDir, 0755)
+	os.MkdirAll(snapSeccompDir, 0755)
 
 	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
@@ -87,6 +88,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
 	c.Assert(err, IsNil)
 
+	runScFilterGen = mockRunScFilterGen
+
 	// ensure we do not look at the system
 	systemImageRoot = s.tempdir
 }
@@ -98,6 +101,7 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 	duCmd = "du"
 	stripGlobalRootDir = stripGlobalRootDirImpl
+	runScFilterGen = runScFilterGenImpl
 	runUdevAdm = runUdevAdmImpl
 }
 
@@ -1052,7 +1056,7 @@ frameworks:
 
 func (s *SnapTestSuite) TestNeedsAppArmorUpdateSecurityPolicy(c *C) {
 	// if a security policy is defined, never flag for update
-	sd := &SecurityDefinitions{SecurityPolicy: &SecurityOverrideDefinition{}}
+	sd := &SecurityDefinitions{SecurityPolicy: &SecurityPolicyDefinition{}}
 	c.Check(sd.NeedsAppArmorUpdate(nil, nil), Equals, false)
 }
 

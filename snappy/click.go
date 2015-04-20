@@ -536,7 +536,7 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 	}
 
 	for _, service := range m.Services {
-		aaProfile, err := getAaProfile(m, service.Name, baseDir)
+		aaProfile, err := getSecurityProfile(m, service.Name, baseDir)
 		if err != nil {
 			return err
 		}
@@ -645,7 +645,7 @@ func addPackageBinaries(baseDir string) error {
 	}
 
 	for _, binary := range m.Binaries {
-		aaProfile, err := getAaProfile(m, binary.Name, baseDir)
+		aaProfile, err := getSecurityProfile(m, binary.Name, baseDir)
 		if err != nil {
 			return err
 		}
@@ -674,6 +674,74 @@ func removePackageBinaries(baseDir string) error {
 	}
 	for _, binary := range m.Binaries {
 		os.Remove(generateBinaryName(m, binary))
+	}
+
+	return nil
+}
+
+func addOneSecurityPolicy(m *packageYaml, name string, sd SecurityDefinitions, baseDir string) error {
+	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
+	if err != nil {
+		return err
+	}
+	content, err := generateSeccompPolicy(baseDir, name, sd)
+	if err != nil {
+		return err
+	}
+
+	fn := filepath.Join(snapSeccompDir, profileName)
+	if err := ioutil.WriteFile(fn, content, 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *packageYaml) addSecurityPolicy(baseDir string) error {
+	// TODO: move apparmor policy generation here too, its currently
+	//       done via the click hooks but we really want to generate
+	//       it all here
+
+	for _, svc := range m.Services {
+		if err := addOneSecurityPolicy(m, svc.Name, svc.SecurityDefinitions, baseDir); err != nil {
+			return err
+		}
+	}
+
+	for _, bin := range m.Binaries {
+		if err := addOneSecurityPolicy(m, bin.Name, bin.SecurityDefinitions, baseDir); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func removeOneSecurityPolicy(m *packageYaml, name, baseDir string) error {
+	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
+	if err != nil {
+		return err
+	}
+	fn := filepath.Join(snapSeccompDir, profileName)
+	if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
+}
+
+func (m *packageYaml) removeSecurityPolicy(baseDir string) error {
+	// TODO: move apparmor policy removal here
+	for _, service := range m.Services {
+		if err := removeOneSecurityPolicy(m, service.Name, baseDir); err != nil {
+			return err
+		}
+	}
+
+	for _, binary := range m.Binaries {
+		if err := removeOneSecurityPolicy(m, binary.Name, baseDir); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -1017,12 +1085,20 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 		return ErrSnapNotActive
 	}
 
-	// remove generated services, binaries, clickHooks
+	// remove generated services, binaries, clickHooks, security policy
 	if err := removePackageBinaries(clickDir); err != nil {
 		return err
 	}
 
 	if err := removePackageServices(clickDir, inter); err != nil {
+		return err
+	}
+
+	m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
+	if err != nil {
+		return err
+	}
+	if err := m.removeSecurityPolicy(clickDir); err != nil {
 		return err
 	}
 
@@ -1032,10 +1108,6 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 	}
 
 	if manifest.Type == SnapTypeFramework {
-		m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
-		if err != nil {
-			return err
-		}
 
 		if err := policy.Remove(m.Name, clickDir); err != nil {
 			return err
@@ -1074,12 +1146,14 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	if newActiveManifest.Type == SnapTypeFramework {
-		m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
-		if err != nil {
-			return err
-		}
+	// yes, its confusing, we have two manifests, this is the important
+	// one, the YAML one
+	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
+	if err != nil {
+		return err
+	}
 
+	if newActiveManifest.Type == SnapTypeFramework {
 		if err := policy.Install(m.Name, baseDir); err != nil {
 			return err
 		}
@@ -1088,6 +1162,11 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 	if err := installClickHooks(baseDir, newActiveManifest, inhibitHooks); err != nil {
 		// cleanup the failed hooks
 		removeClickHooks(newActiveManifest, inhibitHooks)
+		return err
+	}
+
+	// generate the security policy from the package.yaml
+	if err := m.addSecurityPolicy(baseDir); err != nil {
 		return err
 	}
 
