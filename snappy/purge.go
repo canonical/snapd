@@ -20,10 +20,8 @@ package snappy
 import (
 	"fmt"
 	"path/filepath"
-	"time"
 
 	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/systemd"
 )
 
 // PurgeFlags can be used to pass additional flags to the snap removal request
@@ -64,18 +62,13 @@ func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 		}
 	}
 
-	sysd := systemd.New(globalRootDir, meter)
-	var start []string
-	for _, pkg := range active {
-		for _, svc := range pkg.Services() {
-			fn := filepath.Base(generateServiceFileName(pkg.m, svc))
-			if err := sysd.Stop(fn, time.Duration(svc.StopTimeout)); err != nil {
-				meter.Notify(fmt.Sprintf("service %s failed to stop: %s", fn, err))
-			} else {
-				start = append(start, fn)
-			}
+	for i, pkg := range active {
+		err := unsetActiveClick(pkg.basedir, false, meter)
+		if err != nil {
+			meter.Notify(fmt.Sprintf("Unable to deactivate %s: %s", pkg.Name(), err))
+			meter.Notify("Purge continues.")
+			active[i] = nil // don't reactivate
 		}
-
 	}
 
 	for _, datadir := range datadirs {
@@ -85,9 +78,12 @@ func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 		}
 	}
 
-	for _, fn := range start {
-		if err := sysd.Start(fn); err != nil {
-			meter.Notify(fmt.Sprintf("service %s failed to start: %s", fn, err))
+	for _, pkg := range active {
+		if pkg == nil {
+			continue
+		}
+		if err := setActiveClick(pkg.basedir, false, meter); err != nil {
+			meter.Notify(fmt.Sprintf("Unable to activate %s: %s", pkg.Name(), err))
 		}
 	}
 
