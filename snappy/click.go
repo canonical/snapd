@@ -89,7 +89,7 @@ var ignoreHooks = map[string]bool{
 }
 
 // wait this time between TERM and KILL
-var killWait = 2 * time.Second
+var killWait = 5 * time.Second
 
 // servicesBinariesStringsWhitelist is the whitelist of legal chars
 // in the "binaries" and "services" section of the package.yaml
