@@ -700,7 +700,9 @@ func (m *packageYaml) removeSecurityPolicy(baseDir string) error {
 			return err
 		}
 		fn := filepath.Join(snapSeccompDir, profileName)
-		os.Remove(fn)
+		if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
 
 	for _, binary := range m.Binaries {
@@ -709,7 +711,9 @@ func (m *packageYaml) removeSecurityPolicy(baseDir string) error {
 			return err
 		}
 		fn := filepath.Join(snapSeccompDir, profileName)
-		os.Remove(fn)
+		if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
+			os.Remove(fn)
+		}
 	}
 
 	return nil

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -131,7 +132,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		fn := filepath.Join(baseDir, sd.SecurityPolicy.Seccomp)
 		content, err := ioutil.ReadFile(fn)
 		if err != nil {
-			fmt.Printf("WARNING: failed to read %s\n", fn)
+			log.Printf("WARNING: failed to read %s\n", fn)
 		}
 		return content, err
 	}
@@ -151,7 +152,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		var s securitySeccompOverride
 		err := readSeccompOverride(fn, &s)
 		if err != nil {
-			fmt.Printf("WARNING: failed to read %s\n", fn)
+			log.Printf("WARNING: failed to read %s\n", fn)
 			return nil, err
 		}
 
@@ -176,11 +177,13 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 	}
 
 	// Build up the command line
-	args := []string{"sc-filtergen"}
-	args = append(args, fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(snapSeccompDir)))
-	args = append(args, fmt.Sprintf("--policy-vendor=%s", policyVendor))
-	args = append(args, fmt.Sprintf("--policy-version=%.2f", policyVersion))
-	args = append(args, fmt.Sprintf("--template=%s", template))
+	args := []string{
+		"sc-filtergen",
+		fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(snapSeccompDir)),
+		fmt.Sprintf("--policy-vendor=%s", policyVendor),
+		fmt.Sprintf("--policy-version=%.2f", policyVersion),
+		fmt.Sprintf("--template=%s", template),
+	}
 	if len(caps) > 0 {
 		args = append(args, fmt.Sprintf("--policy-groups=%s", strings.Join(caps, ",")))
 	}
@@ -190,7 +193,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 
 	content, err := runScFilterGen(args...)
 	if err != nil {
-		fmt.Printf("WARNING: %v failed\n", args)
+		log.Printf("WARNING: %v failed\n", args)
 	}
 
 	return content, err
@@ -204,16 +207,16 @@ func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 
 	err = yaml.Unmarshal(yamlData, &s)
 	if err != nil {
-		fmt.Printf("ERROR: Can not parse '%s'", yamlData)
+		log.Printf("ERROR: Can not parse '%s'", yamlData)
 		return err
 	}
 	// These must always be specified together
 	if s.PolicyVersion == 0 && s.PolicyVendor != "" {
 		s.PolicyVendor = ""
-		fmt.Printf("WARNING: policy-version not set with policy-vendor. Skipping 'policy-vendor'\n")
+		log.Printf("WARNING: policy-version not set with policy-vendor. Skipping 'policy-vendor'\n")
 	} else if s.PolicyVersion != 0 && s.PolicyVendor == "" {
 		s.PolicyVersion = 0
-		fmt.Printf("WARNING: policy-vendor not set with policy-version. Skipping 'policy-version'\n")
+		log.Printf("WARNING: policy-vendor not set with policy-version. Skipping 'policy-version'\n")
 	}
 
 	return nil
