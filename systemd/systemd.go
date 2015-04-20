@@ -62,6 +62,7 @@ type Systemd interface {
 	Disable(service string) error
 	Start(service string) error
 	Stop(service string, timeout time.Duration) error
+	Kill(service, signal string) error
 	Restart(service string, timeout time.Duration) error
 	GenServiceFile(desc *ServiceDescription) string
 }
@@ -213,6 +214,12 @@ WantedBy={{.ServiceSystemdTarget}}
 	}
 
 	return templateOut.String()
+}
+
+// Kill all processes of the unit with the given signal
+func (s *systemd) Kill(serviceName, signal string) error {
+	_, err := SystemctlCmd("kill", serviceName, "-s", signal)
+	return err
 }
 
 // Restart the service, waiting for it to stop before starting it again.
