@@ -245,3 +245,8 @@ func (s *SystemdTestSuite) TestKill(c *C) {
 	c.Assert(New("", s.rep).Kill("foo", "HUP"), IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP"}})
 }
+
+func (s *SystemdTestSuite) TestIsTimeout(c *C) {
+	c.Check(IsTimeout(os.ErrInvalid), Equals, false)
+	c.Check(IsTimeout(&Timeout{}), Equals, true)
+}

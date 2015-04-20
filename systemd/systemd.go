@@ -251,3 +251,9 @@ type Timeout struct {
 func (e *Timeout) Error() string {
 	return fmt.Sprintf("%v failed to %v: timeout", e.service, e.action)
 }
+
+// IsTimeout checks whether the given error is a Timeout
+func IsTimeout(err error) bool {
+	_, isTimeout := err.(*Timeout)
+	return isTimeout
+}

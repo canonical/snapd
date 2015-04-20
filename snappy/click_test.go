@@ -1201,3 +1201,30 @@ Pattern: /var/lib/systemd/click/${id}
 	c.Assert(err, IsNil)
 	c.Assert(stripGlobalRootDirWasCalled, Equals, true)
 }
+
+func (s *SnapTestSuite) TestRemovePackageServiceKills(c *C) {
+	// make Stop not work
+	var sysdLog [][]string
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=active\n"), nil
+	}
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, `name: wat
+version: 42
+vendor: WAT <wat@example.com>
+icon: meta/wat.ico
+services:
+ - name: wat
+   stop-timeout: 25
+`)
+	c.Assert(err, IsNil)
+	inter := &MockProgressMeter{}
+	c.Check(removePackageServices(filepath.Dir(filepath.Dir(yamlFile)), inter), IsNil)
+	c.Assert(len(inter.notified) > 0, Equals, true)
+	c.Check(inter.notified[len(inter.notified)-1], Equals, "wat_wat_42.service refused to stop, killing.")
+	c.Assert(len(sysdLog) >= 3, Equals, true)
+	sd1 := sysdLog[len(sysdLog)-3]
+	sd2 := sysdLog[len(sysdLog)-2]
+	c.Check(sd1, DeepEquals, []string{"kill", "wat_wat_42.service", "-s", "TERM"})
+	c.Check(sd2, DeepEquals, []string{"kill", "wat_wat_42.service", "-s", "KILL"})
+}
