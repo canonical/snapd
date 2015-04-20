@@ -71,6 +71,11 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	// fake "du"
 	duCmd = makeFakeDuCommand(c)
 
+	// fake udevadm
+	runUdevAdm = func(args ...string) error {
+		return nil
+	}
+
 	// do not attempt to hit the real store servers in the tests
 	storeSearchURI, _ = url.Parse("")
 	storeDetailsURI, _ = url.Parse("")
@@ -91,6 +96,7 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 	duCmd = "du"
 	stripGlobalRootDir = stripGlobalRootDirImpl
+	runUdevAdm = runUdevAdmImpl
 }
 
 func (s *SnapTestSuite) makeInstalledMockSnap() (yamlFile string, err error) {
@@ -1196,9 +1202,11 @@ func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
-	udevCalledWithArgs := []string{}
+	type aCmd []string
+	var cmds = []aCmd{}
+
 	runUdevAdm = func(args ...string) error {
-		udevCalledWithArgs = args
+		cmds = append(cmds, args)
 		return nil
 	}
 	defer func() { runUdevAdm = runUdevAdmImpl }()
@@ -1208,5 +1216,7 @@ func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
 	snapUdevRulesDir = c.MkDir()
 	err = activateOemHardwareUdevRules(m)
 	c.Assert(err, IsNil)
-	c.Assert(udevCalledWithArgs, DeepEquals, []string{"udevadm", "trigger", "--tag-match=snappy-assign", "--property-match=SNAPPY_APP=device-hive-iot-hal"})
+	c.Assert(cmds[0], DeepEquals, aCmd{"udevadm", "control", "--reload-rules"})
+	c.Assert(cmds[1], DeepEquals, aCmd{"udevadm", "trigger"})
+	c.Assert(cmds, HasLen, 2)
 }

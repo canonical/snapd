@@ -261,14 +261,11 @@ func runUdevAdmImpl(args ...string) error {
 }
 
 func activateOemHardwareUdevRules(m *packageYaml) error {
-	for _, h := range m.OEM.Hardware.Assign {
-		args := []string{"udevadm", "trigger", "--tag-match=snappy-assign", fmt.Sprintf("--property-match=SNAPPY_APP=%s", h.PartID)}
-		if err := runUdevAdm(args...); err != nil {
-			return err
-		}
+	if err := runUdevAdm("udevadm", "control", "--reload-rules"); err != nil {
+		return err
 	}
 
-	return nil
+	return runUdevAdm("udevadm", "trigger")
 }
 
 func installOemHardwareUdevRules(m *packageYaml) error {
