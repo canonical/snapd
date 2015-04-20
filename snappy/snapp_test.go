@@ -74,6 +74,11 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	// fake "du"
 	duCmd = makeFakeDuCommand(c)
 
+	// fake udevadm
+	runUdevAdm = func(args ...string) error {
+		return nil
+	}
+
 	// do not attempt to hit the real store servers in the tests
 	storeSearchURI, _ = url.Parse("")
 	storeDetailsURI, _ = url.Parse("")
@@ -99,6 +104,7 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	duCmd = "du"
 	stripGlobalRootDir = stripGlobalRootDirImpl
 	runScFilterGen = runScFilterGenImpl
+	runUdevAdm = runUdevAdmImpl
 }
 
 func (s *SnapTestSuite) makeInstalledMockSnap(yamls ...string) (yamlFile string, err error) {
@@ -1189,8 +1195,98 @@ func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 
 func (s *SnapTestSuite) TestIllegalPackageNameWithNamespace(c *C) {
 	_, err := parsePackageYamlData([]byte(`name: foo.something
-version: 1.0
 `))
 
 	c.Assert(err, Equals, ErrPackageNameNotSupported)
+}
+
+var hardwareYaml = []byte(`name: oem-foo
+version: 1.0
+oem:
+ hardware:
+  assign:
+   - part-id: device-hive-iot-hal
+     rules:
+     - kernel: ttyUSB0
+     - subsystem: tty
+       with-subsystems: usb-serial
+       with-driver: pl2303
+       with-attrs: 
+       - idVendor=0xf00f00
+       - idProduct=0xb00
+       with-props: 
+       - BAUD=9600
+       - META1=foo*
+       - META2=foo?
+       - META3=foo[a-z]
+       - META4=a|b
+`)
+
+func (s *SnapTestSuite) TestParseHardwareYaml(c *C) {
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+	c.Assert(m.OEM.Hardware.Assign[0].PartID, Equals, "device-hive-iot-hal")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[0].Kernel, Equals, "ttyUSB0")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].Subsystem, Equals, "tty")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].WithDriver, Equals, "pl2303")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].WithAttrs[0], Equals, "idVendor=0xf00f00")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].WithAttrs[1], Equals, "idProduct=0xb00")
+}
+
+var expectedUdevRule = `KERNEL=="ttyUSB0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="device-hive-iot-hal"
+
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb-serial", DRIVER=="pl2303", ATTRS{idVendor}=="0xf00f00", ATTRS{idProduct}=="0xb00", ENV{BAUD}=="9600", ENV{META1}=="foo*", ENV{META2}=="foo?", ENV{META3}=="foo[a-z]", ENV{META4}=="a|b", TAG:="snappy-assign", ENV{SNAPPY_APP}:="device-hive-iot-hal"
+
+`
+
+func (s *SnapTestSuite) TestGenerateHardwareYamlData(c *C) {
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+
+	output, err := m.OEM.Hardware.Assign[0].generateUdevRuleContent()
+	c.Assert(err, IsNil)
+
+	c.Assert(output, Equals, expectedUdevRule)
+}
+
+func (s *SnapTestSuite) TestWriteHardwareUdevEtc(c *C) {
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+
+	snapUdevRulesDir = c.MkDir()
+	writeOemHardwareUdevRules(m)
+
+	c.Assert(helpers.FileExists(filepath.Join(snapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")), Equals, true)
+}
+
+func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+
+	snapUdevRulesDir = c.MkDir()
+	udevRulesFile := filepath.Join(snapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")
+	c.Assert(ioutil.WriteFile(udevRulesFile, nil, 0644), Equals, nil)
+	cleanupOemHardwareUdevRules(m)
+
+	c.Assert(helpers.FileExists(udevRulesFile), Equals, false)
+}
+
+func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
+	type aCmd []string
+	var cmds = []aCmd{}
+
+	runUdevAdm = func(args ...string) error {
+		cmds = append(cmds, args)
+		return nil
+	}
+	defer func() { runUdevAdm = runUdevAdmImpl }()
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+
+	snapUdevRulesDir = c.MkDir()
+	err = activateOemHardwareUdevRules(m)
+	c.Assert(err, IsNil)
+	c.Assert(cmds[0], DeepEquals, aCmd{"udevadm", "control", "--reload-rules"})
+	c.Assert(cmds[1], DeepEquals, aCmd{"udevadm", "trigger"})
+	c.Assert(cmds, HasLen, 2)
 }
