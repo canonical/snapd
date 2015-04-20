@@ -129,10 +129,10 @@ func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 	c.Check(helpers.FileExists(ddir), Equals, false)
 	c.Assert(inter.notified, HasLen, 1)
 	c.Check(inter.notified[0], Matches, `Waiting for .* to stop.`)
-	c.Assert(called, HasLen, 3)
+	c.Assert(len(called) >= 3, Equals, true)
 	c.Check(called[0][0], Equals, "stop")
 	c.Check(called[1][0], Equals, "show")
-	c.Check(called[2][0], Equals, "start")
+	c.Check(called[len(called)-1][0], Equals, "start")
 }
 
 func (s *purgeSuite) TestPurgeMultiOK(c *C) {
