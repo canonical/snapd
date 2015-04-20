@@ -88,6 +88,9 @@ var ignoreHooks = map[string]bool{
 	"snappy-systemd": true,
 }
 
+// wait this time between TERM and KILL
+var killWait = 5 * time.Second
+
 // servicesBinariesStringsWhitelist is the whitelist of legal chars
 // in the "binaries" and "services" section of the package.yaml
 const servicesBinariesStringsWhitelist = `^[A-Za-z0-9/. _#:-]*$`
@@ -354,6 +357,7 @@ func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *pack
 
 set -e
 
+#FIXME: namespace
 TMPDIR="/tmp/snaps/{{.Name}}/{{.Version}}/tmp"
 if [ ! -d "$TMPDIR" ]; then
     mkdir -p -m1777 "$TMPDIR"
@@ -385,7 +389,7 @@ export HOME="$SNAP_APP_USER_DATA_PATH"
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd {{.Path}}
-aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
+ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
 	if err := verifyBinariesYaml(binary); err != nil {
@@ -393,17 +397,27 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	}
 
 	actualBinPath := binPathForBinary(pkgPath, binary)
+	udevPartName, err := getUdevPartName(m, pkgPath)
+	if err != nil {
+		return "", err
+	}
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
 	wrapperData := struct {
-		Name      string
-		Version   string
-		Target    string
-		Path      string
-		AaProfile string
+		Name        string
+		Version     string
+		Target      string
+		Path        string
+		AaProfile   string
+		UdevAppName string
 	}{
-		m.Name, m.Version, actualBinPath, pkgPath, aaProfile,
+		m.Name,
+		m.Version,
+		actualBinPath,
+		pkgPath,
+		aaProfile,
+		udevPartName,
 	}
 	t.Execute(&templateOut, wrapperData)
 
@@ -462,6 +476,11 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 		return "", err
 	}
 
+	udevPartName, err := getUdevPartName(m, baseDir)
+	if err != nil {
+		return "", err
+	}
+
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
 			AppName:     m.Name,
@@ -476,6 +495,7 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 			AaProfile:   aaProfile,
 			IsFramework: m.Type == SnapTypeFramework,
 			BusName:     service.BusName,
+			UdevAppName: udevPartName,
 		}), nil
 }
 
@@ -584,13 +604,19 @@ func removePackageServices(baseDir string, inter interacter) error {
 	sysd := systemd.New(globalRootDir, inter)
 	for _, service := range m.Services {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		if err := sysd.Stop(serviceName, time.Duration(service.StopTimeout)); err != nil {
-			return err
-		}
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
 		}
-		// FIXME: wait for the service to be really stopped
+		if err := sysd.Stop(serviceName, time.Duration(service.StopTimeout)); err != nil {
+			if !systemd.IsTimeout(err) {
+				return err
+			}
+			inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
+			// ignore errors for kill; nothing we'd do differently at this point
+			sysd.Kill(serviceName, "TERM")
+			time.Sleep(killWait)
+			sysd.Kill(serviceName, "KILL")
+		}
 
 		os.Remove(generateServiceFileName(m, service))
 

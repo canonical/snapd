@@ -132,10 +132,11 @@ func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 	c.Check(helpers.FileExists(ddir), Equals, false)
 	c.Assert(inter.notified, HasLen, 1)
 	c.Check(inter.notified[0], Matches, `Waiting for .* to stop.`)
-	c.Assert(len(called) >= 3, Equals, true)
-	c.Check(called[0][0], Equals, "stop")
-	c.Check(called[1][0], Equals, "show")
-	c.Check(called[len(called)-1][0], Equals, "start")
+	rv := make(map[string]int)
+	for i, c := range called {
+		rv[c[0]] = i + 1
+	}
+	c.Check(rv["stop"] > 0 && rv["start"] > rv["stop"], Equals, true)
 }
 
 func (s *purgeSuite) TestPurgeMultiOK(c *C) {
