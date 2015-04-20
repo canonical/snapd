@@ -653,40 +653,52 @@ func removePackageBinaries(baseDir string) error {
 	return nil
 }
 
+func addOneSecurityPolicy(m *packageYaml, name string, sd SecurityDefinitions, baseDir string) error {
+	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
+	if err != nil {
+		return err
+	}
+	content, err := generateSeccompPolicy(baseDir, name, sd)
+	if err != nil {
+		return err
+	}
+
+	fn := filepath.Join(snapSeccompDir, profileName)
+	if err := ioutil.WriteFile(fn, content, 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (m *packageYaml) addSecurityPolicy(baseDir string) error {
 	// TODO: move apparmor policy generation here too, its currently
 	//       done via the click hooks but we really want to generate
 	//       it all here
 
 	for _, svc := range m.Services {
-		profileName, err := getSecurityProfile(m, filepath.Base(svc.Name), baseDir)
-		if err != nil {
-			return err
-		}
-		content, err := generateSeccompPolicy(baseDir, svc.Name, svc.SecurityDefinitions)
-		if err != nil {
-			return err
-		}
-
-		fn := filepath.Join(snapSeccompDir, profileName)
-		if err := ioutil.WriteFile(fn, content, 0644); err != nil {
+		if err := addOneSecurityPolicy(m, svc.Name, svc.SecurityDefinitions, baseDir); err != nil {
 			return err
 		}
 	}
 
 	for _, bin := range m.Binaries {
-		profileName, err := getSecurityProfile(m, filepath.Base(bin.Name), baseDir)
-		if err != nil {
+		if err := addOneSecurityPolicy(m, bin.Name, bin.SecurityDefinitions, baseDir); err != nil {
 			return err
 		}
-		content, err := generateSeccompPolicy(baseDir, bin.Name, bin.SecurityDefinitions)
-		if err != nil {
-			return err
-		}
-		fn := filepath.Join(snapSeccompDir, profileName)
-		if err := ioutil.WriteFile(fn, content, 0644); err != nil {
-			return err
-		}
+	}
+
+	return nil
+}
+
+func removeOneSecurityPolicy(m *packageYaml, name, baseDir string) error {
+	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
+	if err != nil {
+		return err
+	}
+	fn := filepath.Join(snapSeccompDir, profileName)
+	if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
+		return err
 	}
 
 	return nil
@@ -695,24 +707,14 @@ func (m *packageYaml) addSecurityPolicy(baseDir string) error {
 func (m *packageYaml) removeSecurityPolicy(baseDir string) error {
 	// TODO: move apparmor policy removal here
 	for _, service := range m.Services {
-		profileName, err := getSecurityProfile(m, filepath.Base(service.Name), baseDir)
-		if err != nil {
-			return err
-		}
-		fn := filepath.Join(snapSeccompDir, profileName)
-		if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
+		if err := removeOneSecurityPolicy(m, service.Name, baseDir); err != nil {
 			return err
 		}
 	}
 
 	for _, binary := range m.Binaries {
-		profileName, err := getSecurityProfile(m, filepath.Base(binary.Name), baseDir)
-		if err != nil {
+		if err := removeOneSecurityPolicy(m, binary.Name, baseDir); err != nil {
 			return err
-		}
-		fn := filepath.Join(snapSeccompDir, profileName)
-		if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
-			os.Remove(fn)
 		}
 	}
 
