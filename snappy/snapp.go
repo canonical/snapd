@@ -196,6 +196,9 @@ type packageYaml struct {
 		Store struct {
 			ID string `yaml:"id,omitempty"`
 		} `yaml:"store,omitempty"`
+		Hardware struct {
+			Assign []HardwareAssign `yaml:"assign,omitempty"`
+		} `yaml:"hardware,omitempty"`
 	} `yaml:"oem,omitempty"`
 	Config SystemConfig `yaml:"config,omitempty"`
 
@@ -205,6 +208,19 @@ type packageYaml struct {
 
 	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement,omitempty"`
 	LicenseVersion           string `yaml:"license-version,omitempty"`
+}
+
+// HardwareAssign describes the hardware a app can use
+type HardwareAssign struct {
+	PartID string `yaml:"part-id,omitempty"`
+	Rules  []struct {
+		Kernel         string   `yaml:"kernel,omitempty"`
+		Subsystem      string   `yaml:"subsystem,omitempty"`
+		WithSubsystems string   `yaml:"with-subsystems,omitempty"`
+		WithDriver     string   `yaml:"with-driver,omitempty"`
+		WithAttrs      []string `yaml:"with-attrs,omitempty"`
+		WithProps      []string `yaml:"with-props,omitempty"`
+	} `yaml:"rules,omitempty"`
 }
 
 type remoteSnap struct {
@@ -230,6 +246,99 @@ type searchResults struct {
 	Payload struct {
 		Packages []remoteSnap `json:"clickindex:package"`
 	} `json:"_embedded"`
+}
+
+func cleanupOemHardwareUdevRules(m *packageYaml) error {
+	oldFiles, err := filepath.Glob(filepath.Join(snapUdevRulesDir, fmt.Sprintf("80-snappy_%s_*.rules", m.Name)))
+	if err != nil {
+		return err
+	}
+
+	for _, f := range oldFiles {
+		os.Remove(f)
+	}
+
+	return nil
+}
+
+func writeOemHardwareUdevRules(m *packageYaml) error {
+	// cleanup
+	if err := cleanupOemHardwareUdevRules(m); err != nil {
+		return err
+	}
+	// write new files
+	for _, h := range m.OEM.Hardware.Assign {
+		rulesContent, err := h.generateUdevRuleContent()
+		if err != nil {
+			return err
+		}
+		outfile := filepath.Join(snapUdevRulesDir, fmt.Sprintf("80-snappy_%s_%s.rules", m.Name, h.PartID))
+		if err := ioutil.WriteFile(outfile, []byte(rulesContent), 0644); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// var to make testing easier
+var runUdevAdm = runUdevAdmImpl
+
+func runUdevAdmImpl(args ...string) error {
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func activateOemHardwareUdevRules(m *packageYaml) error {
+	if err := runUdevAdm("udevadm", "control", "--reload-rules"); err != nil {
+		return err
+	}
+
+	return runUdevAdm("udevadm", "trigger")
+}
+
+func installOemHardwareUdevRules(m *packageYaml) error {
+	if err := writeOemHardwareUdevRules(m); err != nil {
+		return err
+	}
+
+	if err := activateOemHardwareUdevRules(m); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
+	s := ""
+	for _, r := range hw.Rules {
+		if r.Kernel != "" {
+			s += fmt.Sprintf(`KERNEL=="%v", `, r.Kernel)
+		}
+		if r.Subsystem != "" {
+			s += fmt.Sprintf(`SUBSYSTEM=="%v", `, r.Subsystem)
+		}
+		if r.WithSubsystems != "" {
+			s += fmt.Sprintf(`SUBSYSTEMS=="%v", `, r.WithSubsystems)
+		}
+		if r.WithDriver != "" {
+			s += fmt.Sprintf(`DRIVER=="%v", `, r.WithDriver)
+		}
+		for _, a := range r.WithAttrs {
+			l := strings.Split(a, "=")
+			s += fmt.Sprintf(`ATTRS{%v}=="%v", `, l[0], l[1])
+		}
+		for _, a := range r.WithProps {
+			l := strings.SplitN(a, "=", 2)
+			s += fmt.Sprintf(`ENV{%v}=="%v", `, l[0], l[1])
+		}
+		s += fmt.Sprintf(`TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"`, hw.PartID)
+		s += "\n\n"
+	}
+
+	return s, nil
 }
 
 func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {

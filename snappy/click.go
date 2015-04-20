@@ -854,6 +854,9 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	// the "oem" parts are special
 	if manifest.Type == SnapTypeOem {
 		targetDir = snapOemDir
+		if err := installOemHardwareUdevRules(m); err != nil {
+			return "", err
+		}
 	}
 
 	fullName := manifest.Name
@@ -987,6 +990,7 @@ func removeSnapData(fullName, version string) error {
 		if err := os.RemoveAll(dir); err != nil && !os.IsNotExist(err) {
 			return err
 		}
+		os.Remove(filepath.Dir(dir))
 	}
 
 	return nil
