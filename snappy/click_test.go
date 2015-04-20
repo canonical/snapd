@@ -922,7 +922,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	c.Assert(err, IsNil)
 
 	baseDirWithoutRootPrefix := "/apps/" + helloAppComposedName + "/1.10"
-	expectedExecStart := fmt.Sprintf("\nExecStart=/usr/bin/ubuntu-core-launcher hello-app_svc1 %s_svc1_1.10 %s/bin/hello\n", helloAppComposedName, baseDirWithoutRootPrefix)
+	expectedExecStart := fmt.Sprintf("\nExecStart=/usr/bin/ubuntu-core-launcher hello-app.%s %s_svc1_1.10 %s/bin/hello\n", testNamespace, helloAppComposedName, baseDirWithoutRootPrefix)
 	c.Assert(strings.Contains(string(content), expectedExecStart), Equals, true)
 }
 
@@ -992,7 +992,7 @@ Description=A fun webserver
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver_xkcd-webserver xkcd-webserver.canonical_xkcd-webserver_0.3.4 /apps/xkcd-webserver.canonical/0.3.4/bin/foo start
+ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver%s xkcd-webserver.canonical_xkcd-webserver_0.3.4 /apps/xkcd-webserver.canonical/0.3.4/bin/foo start
 WorkingDirectory=/apps/xkcd-webserver.canonical/0.3.4/
 Environment="SNAPP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xkcd-webserver/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver/0.3.4/tmp"
 ExecStop=/apps/xkcd-webserver.canonical/0.3.4/bin/foo stop
@@ -1003,8 +1003,8 @@ TimeoutStopSec=30
 [Install]
 WantedBy=multi-user.target
 `
-	expectedServiceAppWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", "\n")
-	expectedServiceFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "BusName=foo.bar.baz\nType=dbus")
+	expectedServiceAppWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "\n")
+	expectedServiceFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "BusName=foo.bar.baz\nType=dbus")
 )
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
