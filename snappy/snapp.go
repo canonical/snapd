@@ -38,17 +38,15 @@ import (
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
+	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/systemd"
 
 	"gopkg.in/yaml.v2"
 )
 
 const (
-	// the postfix we append to the release that is send to the store
-	// FIXME: find a better way to detect the postfix
-	releasePostfix = "-core"
-
 	// the namespace for sideloaded snaps
 	sideloadedNamespace = "sideload"
 )
@@ -105,6 +103,31 @@ type SecurityDefinitions struct {
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
 }
 
+// NeedsAppArmorUpdate checks whether the security definitions are impacted by
+// changes to policies or templates.
+func (sd *SecurityDefinitions) NeedsAppArmorUpdate(policies, templates map[string]bool) bool {
+	if sd.SecurityPolicy != nil {
+		return false
+	}
+
+	if sd.SecurityOverride != nil {
+		// XXX: actually inspect the override to figure out in more detail
+		return true
+	}
+
+	if templates[sd.SecurityTemplate] {
+		return true
+	}
+
+	for _, cap := range sd.SecurityCaps {
+		if policies[cap] {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Service represents a service inside a SnapPart
 type Service struct {
 	Name        string `yaml:"name" json:"name,omitempty"`
@@ -114,6 +137,7 @@ type Service struct {
 	Stop        string  `yaml:"stop,omitempty" json:"stop,omitempty"`
 	PostStop    string  `yaml:"poststop,omitempty" json:"poststop,omitempty"`
 	StopTimeout Timeout `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
+	BusName     string  `yaml:"bus-name,omitempty" json:"bus-name,omitempty"`
 
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
@@ -376,17 +400,26 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, cur
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
-func NewInstalledSnapPart(yamlPath, namespace string) *SnapPart {
+func NewInstalledSnapPart(yamlPath, namespace string) (*SnapPart, error) {
 	m, err := parsePackageYamlFile(yamlPath)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
-	return NewSnapPartFromYaml(yamlPath, namespace, m)
+	part, err := NewSnapPartFromYaml(yamlPath, namespace, m)
+	if err != nil {
+		return nil, err
+	}
+
+	return part, nil
 }
 
 // NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
-func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) *SnapPart {
+func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) (*SnapPart, error) {
+	if _, err := os.Stat(yamlPath); err != nil {
+		return nil, err
+	}
+
 	part := &SnapPart{
 		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
 		isInstalled: true,
@@ -396,7 +429,11 @@ func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) *SnapPart {
 
 	// check if the part is active
 	allVersionsDir := filepath.Dir(part.basedir)
-	p, _ := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
+	p, err := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
 	if p == part.basedir {
 		part.isActive = true
 	}
@@ -404,15 +441,18 @@ func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) *SnapPart {
 	// read hash, its ok if its not there, some older versions of
 	// snappy did not write this file
 	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes.yaml"))
-	if err == nil {
-		var h hashesYaml
-		err = yaml.Unmarshal(hashesData, &h)
-		if err == nil {
-			part.hash = h.ArchiveSha512
-		}
+	if err != nil {
+		return nil, err
 	}
 
-	return part
+	var h hashesYaml
+	err = yaml.Unmarshal(hashesData, &h)
+	if err != nil {
+		return nil, err
+	}
+	part.hash = h.ArchiveSha512
+
+	return part, nil
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
@@ -502,6 +542,11 @@ func (s *SnapPart) Date() time.Time {
 // Services return a list of Service the package declares
 func (s *SnapPart) Services() []Service {
 	return s.m.Services
+}
+
+// Binaries return a list of Service the package declares
+func (s *SnapPart) Binaries() []Binary {
+	return s.m.Binaries
 }
 
 // OemConfig return a list of packages to configure
@@ -610,47 +655,65 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 
 var timestampUpdater = helpers.UpdateTimestamp
 
-// UpdateAppArmorJSONTimestamp updates the timestamp on the snap's apparmor json symlink
-func (s *SnapPart) UpdateAppArmorJSONTimestamp() error {
-	// TODO: receive a list of policies that have changed, and only touch
-	// things if we use one of those policies
-
-	fns, err := filepath.Glob(filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_*.json", s.Name())))
-	if err != nil {
-		return err
-	}
-
-	for _, fn := range fns {
-		if err := timestampUpdater(fn); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-type restartJob struct {
+// RestartJob is a convenient way of encapsulating the information needed to
+// restart a service.
+type RestartJob struct {
 	name    string
 	timeout time.Duration
 }
 
+func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
+	fn := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_%s_%s.json", fullName, thing, version))
+	return timestampUpdater(fn)
+}
+
+// RequestAppArmorUpdate checks whether changes to the given policies and
+// templates impacts the snap, updates the timestamp of the relevant json
+// symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits),
+// and returns the list of jobs that need restarting as a consequence.
+func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) ([]RestartJob, error) {
+	var rs []RestartJob
+	fullName := s.Name()
+	if s.Type() != SnapTypeFramework {
+		fullName += "." + s.Namespace()
+	}
+	for _, svc := range s.Services() {
+		if svc.NeedsAppArmorUpdate(policies, templates) {
+			if err := updateAppArmorJSONTimestamp(fullName, svc.Name, s.Version()); err != nil {
+				return nil, err
+			}
+			svcName := generateServiceFileName(s.m, svc)
+			rs = append(rs, RestartJob{svcName, time.Duration(svc.StopTimeout)})
+		}
+	}
+	for _, bin := range s.Binaries() {
+		if bin.NeedsAppArmorUpdate(policies, templates) {
+			if err := updateAppArmorJSONTimestamp(fullName, bin.Name, s.Version()); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return rs, nil
+}
+
 // RefreshDependentsSecurity refreshes the security policies of dependent snaps
-func (s *SnapPart) RefreshDependentsSecurity(inter interacter) error {
+func (s *SnapPart) RefreshDependentsSecurity(oldBaseDir string, inter interacter) error {
+	upPol, upTpl := policy.AppArmorDelta(oldBaseDir, s.basedir, s.Name()+"_")
+
 	deps, err := s.Dependents()
 	if err != nil {
 		return err
 	}
 
-	var restart []restartJob
+	var restart []RestartJob
 
 	for _, dep := range deps {
-		if err := dep.UpdateAppArmorJSONTimestamp(); err != nil {
+		rs, err := dep.RequestAppArmorUpdate(upPol, upTpl)
+		if err != nil {
 			return err
 		}
-		for _, svc := range dep.Services() {
-			svcName := generateServiceFileName(dep.m, svc)
-			restart = append(restart, restartJob{svcName, time.Duration(svc.StopTimeout)})
-		}
+		restart = append(restart, rs...)
 	}
 
 	if err := exec.Command(aaClickHookCmd).Run(); err != nil {
@@ -659,7 +722,13 @@ func (s *SnapPart) RefreshDependentsSecurity(inter interacter) error {
 
 	sysd := systemd.New(globalRootDir, inter)
 	for _, r := range restart {
-		sysd.Restart(r.name, r.timeout)
+		if err := sysd.Restart(r.name, r.timeout); err != nil {
+			// we don't want to stop restarting the dependents
+			// because one of them fails
+			// TODO: abort the installation (restart things all over
+			// again) if things go wrong.
+			inter.Notify(fmt.Sprintf(" when restarting %s: %v", r.name, err))
+		}
 	}
 
 	return nil
@@ -727,15 +796,25 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 			continue
 		}
 
-		namespace, err := namespaceFromYamlPath(realpath)
+		m, err := parsePackageYamlFile(realpath)
 		if err != nil {
 			return nil, err
 		}
 
-		snap := NewInstalledSnapPart(yamlfile, namespace)
-		if snap != nil {
-			parts = append(parts, snap)
+		namespace := ""
+		if m.Type != SnapTypeFramework {
+			namespace, err = namespaceFromYamlPath(realpath)
+			if err != nil {
+				return nil, err
+			}
 		}
+
+		snap, err := NewSnapPartFromYaml(realpath, namespace, m)
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, snap)
+
 	}
 
 	return parts, nil
@@ -745,7 +824,7 @@ func namespaceFromYamlPath(path string) (string, error) {
 	namespace := filepath.Ext(filepath.Dir(filepath.Join(path, "..", "..")))
 
 	if len(namespace) < 1 {
-		return "", errors.New("invalid package on system")
+		return "", ErrInvalidPart
 	}
 
 	return namespace[1:], nil
@@ -1009,7 +1088,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
-	req.Header.Set("X-Ubuntu-Release", helpers.LsbRelease()+releasePostfix)
+	req.Header.Set("X-Ubuntu-Release", release.String())
 
 	// check if the oem part sets a custom store-id
 	oems, _ := ActiveSnapsByType(SnapTypeOem)

@@ -73,7 +73,13 @@ func Install(name string, flags InstallFlags, meter progress.Meter) (string, err
 	return name, logger.LogError(GarbageCollect(name, flags))
 }
 
-func doInstall(name string, flags InstallFlags, meter progress.Meter) (string, error) {
+func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName string, err error) {
+	defer func() {
+		if err != nil {
+			err = &ErrInstallFailed{snap: name, origErr: err}
+		}
+	}()
+
 	// consume local parts
 	if fi, err := os.Stat(name); err == nil && fi.Mode().IsRegular() {
 		// we allow unauthenticated package when in developer

@@ -139,7 +139,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	c.Check(name, Equals, "foo")
 
 	_, err = Install("foo", 0, &progress.NullProgress{})
-	c.Assert(err, Equals, ErrAlreadyInstalled)
+	c.Assert(err, ErrorMatches, ".*"+ErrAlreadyInstalled.Error())
 }
 
 func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
@@ -176,5 +176,5 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	defer mockServer.Close()
 
 	_, err = Install("hello-app.potato", 0, ag)
-	c.Assert(err, Equals, ErrPackageNameAlreadyInstalled)
+	c.Assert(err, ErrorMatches, ".*"+ErrPackageNameAlreadyInstalled.Error())
 }

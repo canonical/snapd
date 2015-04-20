@@ -263,13 +263,3 @@ func (ts *HTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(home, Equals, oldHome)
 }
-
-func (ts *HTestSuite) TestLsbRelease(c *C) {
-	lsbReleaseFile = filepath.Join(c.MkDir(), "lsb-release")
-	err := ioutil.WriteFile(lsbReleaseFile, []byte(`DISTRIB_ID=Ubuntu
-DISTRIB_RELEASE=12.04
-DISTRIB_CODENAME=vivid`), 0644)
-	c.Assert(err, IsNil)
-
-	c.Assert(LsbRelease(), Equals, "12.04")
-}

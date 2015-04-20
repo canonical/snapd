@@ -85,17 +85,17 @@ func streamsEqual(fa, fb io.Reader) bool {
 	}
 }
 
-// DirUpdated compares two directories, and returns which files that
-// have the prefix in the first one have been updated in the second one.
+// DirUpdated compares two directories, and returns which files present in both
+// have been updated, with the given prefix prepended.
 //
 // Subdirectories are ignored.
 //
-// This function is to compare the policies and templates in a click
-// to be installed, against the already installed policies and
-// templates, to then determine what changed. The installed files will
-// have the package name prepended.
-func DirUpdated(dirA, pfxA, dirB string) map[string]bool {
-	filesA, _ := filepath.Glob(filepath.Join(dirA, pfxA+"*"))
+// This function is to compare the policies and templates in a (framework) click
+// to be installed, against the policies and templates of one already installed,
+// to then determine what changed. The prefix is because policies and templates
+// are specified with the framework name.
+func DirUpdated(dirA, dirB, pfx string) map[string]bool {
+	filesA, _ := filepath.Glob(filepath.Join(dirA, "*"))
 
 	updated := make(map[string]bool)
 	for _, fileA := range filesA {
@@ -103,10 +103,10 @@ func DirUpdated(dirA, pfxA, dirB string) map[string]bool {
 			continue
 		}
 
-		name := filepath.Base(fileA)[len(pfxA):]
+		name := filepath.Base(fileA)
 		fileB := filepath.Join(dirB, name)
 		if FileExists(fileB) && !FilesAreEqual(fileA, fileB) {
-			updated[name] = true
+			updated[pfx+name] = true
 		}
 	}
 
