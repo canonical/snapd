@@ -694,7 +694,6 @@ func (m *packageYaml) addSecurityPolicy(baseDir string) error {
 
 func (m *packageYaml) removeSecurityPolicy(baseDir string) error {
 	// TODO: move apparmor policy removal here
-
 	for _, service := range m.Services {
 		profileName, err := getSecurityProfile(m, filepath.Base(service.Name), baseDir)
 		if err != nil {

@@ -1214,7 +1214,8 @@ services:
 	c.Assert(err, IsNil)
 
 	snapSeccompDir = c.MkDir()
-	m.addSecurityPolicy("/apps/foo.mvo/1.0")
+	err = m.addSecurityPolicy("/apps/foo.mvo/1.0/")
+	c.Assert(err, IsNil)
 
 	binSeccompContent, err := ioutil.ReadFile(filepath.Join(snapSeccompDir, "foo.mvo_foo_1.0"))
 	c.Assert(string(binSeccompContent), Equals, scFilterGenFakeResult)
@@ -1236,16 +1237,20 @@ services:
 	c.Assert(err, IsNil)
 
 	snapSeccompDir = c.MkDir()
-	m.addSecurityPolicy("/apps/foo.mvo/1.0")
-
 	binSeccomp := filepath.Join(snapSeccompDir, "foo.mvo_foo_1.0")
-	c.Assert(helpers.FileExists(binSeccomp), Equals, true)
-
 	serviceSeccomp := filepath.Join(snapSeccompDir, "foo.mvo_bar_1.0")
+	c.Assert(helpers.FileExists(binSeccomp), Equals, false)
+	c.Assert(helpers.FileExists(serviceSeccomp), Equals, false)
+
+	// add it now
+	err = m.addSecurityPolicy("/apps/foo.mvo/1.0/")
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(binSeccomp), Equals, true)
 	c.Assert(helpers.FileExists(serviceSeccomp), Equals, true)
 
 	// ensure that it removes the files on remove
-	m.removeSecurityPolicy("/apps/foo.mvo/1.0")
+	err = m.removeSecurityPolicy("/apps/foo.mvo/1.0/")
+	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(binSeccomp), Equals, false)
 	c.Assert(helpers.FileExists(serviceSeccomp), Equals, false)
 }
