@@ -207,5 +207,14 @@ func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 		fmt.Printf("ERROR: Can not parse '%s'", yamlData)
 		return err
 	}
+	// These must always be specified together
+	if s.PolicyVersion == 0 && s.PolicyVendor != "" {
+		s.PolicyVendor = ""
+		fmt.Printf("WARNING: policy-version not set with policy-vendor. Skipping 'policy-vendor'\n")
+	} else if s.PolicyVersion != 0 && s.PolicyVendor == "" {
+		s.PolicyVersion = 0
+		fmt.Printf("WARNING: policy-vendor not set with policy-version. Skipping 'policy-version'\n")
+	}
+
 	return nil
 }
