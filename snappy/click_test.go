@@ -1201,3 +1201,51 @@ Pattern: /var/lib/systemd/click/${id}
 	c.Assert(err, IsNil)
 	c.Assert(stripGlobalRootDirWasCalled, Equals, true)
 }
+
+func (s *SnapTestSuite) TestPackageYamlAddSecurityPolicy(c *C) {
+	m, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+binaries:
+ - name: foo
+services:
+ - name: bar
+   start: baz
+`))
+	c.Assert(err, IsNil)
+
+	snapSeccompDir = c.MkDir()
+	m.addSecurityPolicy("/apps/foo.mvo/1.0")
+
+	binSeccompContent, err := ioutil.ReadFile(filepath.Join(snapSeccompDir, "foo.mvo_foo_1.0"))
+	c.Assert(string(binSeccompContent), Equals, scFilterGenFakeResult)
+
+	serviceSeccompContent, err := ioutil.ReadFile(filepath.Join(snapSeccompDir, "foo.mvo_bar_1.0"))
+	c.Assert(string(serviceSeccompContent), Equals, scFilterGenFakeResult)
+
+}
+
+func (s *SnapTestSuite) TestPackageYamlRemoveSecurityPolicy(c *C) {
+	m, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+binaries:
+ - name: foo
+services:
+ - name: bar
+   start: baz
+`))
+	c.Assert(err, IsNil)
+
+	snapSeccompDir = c.MkDir()
+	m.addSecurityPolicy("/apps/foo.mvo/1.0")
+
+	binSeccomp := filepath.Join(snapSeccompDir, "foo.mvo_foo_1.0")
+	c.Assert(helpers.FileExists(binSeccomp), Equals, true)
+
+	serviceSeccomp := filepath.Join(snapSeccompDir, "foo.mvo_bar_1.0")
+	c.Assert(helpers.FileExists(serviceSeccomp), Equals, true)
+
+	// ensure that it removes the files on remove
+	m.removeSecurityPolicy("/apps/foo.mvo/1.0")
+	c.Assert(helpers.FileExists(binSeccomp), Equals, false)
+	c.Assert(helpers.FileExists(serviceSeccomp), Equals, false)
+}

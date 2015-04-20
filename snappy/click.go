@@ -653,13 +653,10 @@ func removePackageBinaries(baseDir string) error {
 	return nil
 }
 
-func addSecurityPolicy(baseDir string) error {
-	// TODO: move apparmor policy generation here
-	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta",
-		"package.yaml"))
-	if err != nil {
-		return err
-	}
+func (m *packageYaml) addSecurityPolicy(baseDir string) error {
+	// TODO: move apparmor policy generation here too, its currently
+	//       done via the click hooks but we really want to generate
+	//       it all here
 
 	for _, svc := range m.Services {
 		profileName, err := getSecurityProfile(m, filepath.Base(svc.Name), baseDir)
@@ -670,6 +667,7 @@ func addSecurityPolicy(baseDir string) error {
 		if err != nil {
 			return err
 		}
+
 		fn := filepath.Join(snapSeccompDir, profileName)
 		if err := ioutil.WriteFile(fn, []byte(content), 0644); err != nil {
 			return err
@@ -694,13 +692,8 @@ func addSecurityPolicy(baseDir string) error {
 	return nil
 }
 
-func removeSecurityPolicy(baseDir string) error {
+func (m *packageYaml) removeSecurityPolicy(baseDir string) error {
 	// TODO: move apparmor policy removal here
-	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta",
-		"package.yaml"))
-	if err != nil {
-		return err
-	}
 
 	for _, service := range m.Services {
 		profileName, err := getSecurityProfile(m, filepath.Base(service.Name), baseDir)
@@ -1070,7 +1063,11 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 		return err
 	}
 
-	if err := removeSecurityPolicy(clickDir); err != nil {
+	m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
+	if err != nil {
+		return err
+	}
+	if err := m.removeSecurityPolicy(clickDir); err != nil {
 		return err
 	}
 
@@ -1080,10 +1077,6 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 	}
 
 	if manifest.Type == SnapTypeFramework {
-		m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
-		if err != nil {
-			return err
-		}
 
 		if err := policy.Remove(m.Name, clickDir); err != nil {
 			return err
@@ -1122,12 +1115,14 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	if newActiveManifest.Type == SnapTypeFramework {
-		m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
-		if err != nil {
-			return err
-		}
+	// yes, its confusing, we have two manifests, this is the important
+	// one, the YAML one
+	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
+	if err != nil {
+		return err
+	}
 
+	if newActiveManifest.Type == SnapTypeFramework {
 		if err := policy.Install(m.Name, baseDir); err != nil {
 			return err
 		}
@@ -1138,8 +1133,9 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 		removeClickHooks(newActiveManifest, inhibitHooks)
 		return err
 	}
+
 	// generate the security policy from the package.yaml
-	if err := addSecurityPolicy(baseDir); err != nil {
+	if err := m.addSecurityPolicy(baseDir); err != nil {
 		return err
 	}
 

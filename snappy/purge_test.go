@@ -44,9 +44,7 @@ func (s *purgeSuite) SetUpTest(c *C) {
 	}
 
 	snapSeccompDir = c.MkDir()
-	runScFilterGen = func(argv ...string) ([]byte, error) {
-		return []byte("seccompFilter"), nil
-	}
+	runScFilterGen = mockRunScFilterGen
 }
 
 func (s *purgeSuite) TestPurgeNonExistingRaisesError(c *C) {

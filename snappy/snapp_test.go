@@ -88,9 +88,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
 	c.Assert(err, IsNil)
 
-	runScFilterGen = func(argv ...string) ([]byte, error) {
-		return []byte("seccompFilter"), nil
-	}
+	runScFilterGen = mockRunScFilterGen
 
 	// ensure we do not look at the system
 	systemImageRoot = s.tempdir
