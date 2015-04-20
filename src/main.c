@@ -16,7 +16,6 @@
 
 #include "libudev.h"
 
-#include "overlay.h"
 #include "utils.h"
 #include "seccomp.h"
 
