@@ -683,7 +683,7 @@ export HOME="$SNAP_APP_USER_DATA_PATH"
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd /apps/pastebinit.mvo/1.4.0.0.1/
-ubuntu-core-launcher /apps/pastebinit.mvo/1.4.0.0.1/ pastebinit.mvo pastebinit.mvo_pastebinit_1.4.0.0.1 /apps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
+ubuntu-core-launcher pastebinit.mvo pastebinit.mvo_pastebinit_1.4.0.0.1 /apps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
@@ -922,7 +922,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	c.Assert(err, IsNil)
 
 	baseDirWithoutRootPrefix := "/apps/" + helloAppComposedName + "/1.10"
-	expectedExecStart := fmt.Sprintf("\nExecStart=/usr/bin/ubuntu-core-launcher %s hello-app_svc1 %s_svc1_1.10 %s/bin/hello\n", baseDirWithoutRootPrefix, helloAppComposedName, baseDirWithoutRootPrefix)
+	expectedExecStart := fmt.Sprintf("\nExecStart=/usr/bin/ubuntu-core-launcher hello-app_svc1 %s_svc1_1.10 %s/bin/hello\n", helloAppComposedName, baseDirWithoutRootPrefix)
 	c.Assert(strings.Contains(string(content), expectedExecStart), Equals, true)
 }
 
@@ -980,7 +980,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 
 	needle := fmt.Sprintf(`
 cd /apps/hello-app.testspacethename/1.10
-ubuntu-core-launcher /apps/hello-app.testspacethename/1.10 hello-app.%s hello-app.testspacethename_hello_1.10 /apps/hello-app.testspacethename/1.10/bin/hello "$@"
+ubuntu-core-launcher hello-app.%s hello-app.testspacethename_hello_1.10 /apps/hello-app.testspacethename/1.10/bin/hello "$@"
 `, testNamespace)
 	c.Assert(strings.Contains(string(content), needle), Equals, true)
 }
@@ -992,7 +992,7 @@ Description=A fun webserver
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher /apps/xkcd-webserver.canonical/0.3.4/ xkcd-webserver_xkcd-webserver xkcd-webserver.canonical_xkcd-webserver_0.3.4 /apps/xkcd-webserver.canonical/0.3.4/bin/foo start
+ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver_xkcd-webserver xkcd-webserver.canonical_xkcd-webserver_0.3.4 /apps/xkcd-webserver.canonical/0.3.4/bin/foo start
 WorkingDirectory=/apps/xkcd-webserver.canonical/0.3.4/
 Environment="SNAPP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xkcd-webserver/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver/0.3.4/tmp"
 ExecStop=/apps/xkcd-webserver.canonical/0.3.4/bin/foo stop

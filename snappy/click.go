@@ -386,7 +386,7 @@ export HOME="$SNAP_APP_USER_DATA_PATH"
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd {{.Path}}
-ubuntu-core-launcher {{.Path}} {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
+ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
 	if err := verifyBinariesYaml(binary); err != nil {
