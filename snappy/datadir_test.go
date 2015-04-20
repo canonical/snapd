@@ -73,6 +73,46 @@ func (s *DataDirSuite) TestHomeDataDirs(c *C) {
 	}})
 }
 
+func (s *DataDirSuite) TestEverywhichwhereDataDirs(c *C) {
+	home := strings.Replace(snapDataHomeGlob, "*", "user1", -1)
+	c.Assert(os.MkdirAll(filepath.Join(home, "foo.bar", "v0"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(home, "foo.bar", "v1"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(snapDataDir, "foo.xyzzy", "v1"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(snapDataDir, "foo", "v3"), 0755), IsNil)
+	dds := DataDirs("foo")
+	c.Assert(dds, HasLen, 4)
+	hi := 0
+	si := 2
+	if dds[0].Base == snapDataDir {
+		si = 0
+		hi = 2
+	}
+	c.Check(dds[hi], DeepEquals, SnapDataDir{
+		Base:      snapDataHomeGlob,
+		Name:      "foo",
+		Namespace: "bar",
+		Version:   "v0",
+	})
+	c.Check(dds[hi+1], DeepEquals, SnapDataDir{
+		Base:      snapDataHomeGlob,
+		Name:      "foo",
+		Namespace: "bar",
+		Version:   "v1",
+	})
+	c.Check(dds[si], DeepEquals, SnapDataDir{
+		Base:      snapDataDir,
+		Name:      "foo",
+		Namespace: "",
+		Version:   "v3",
+	})
+	c.Check(dds[si+1], DeepEquals, SnapDataDir{
+		Base:      snapDataDir,
+		Name:      "foo",
+		Namespace: "xyzzy",
+		Version:   "v1",
+	})
+}
+
 func (s *DataDirSuite) TestDataDirDirname(c *C) {
 	c.Check(SnapDataDir{Name: "foo", Namespace: "bar"}.Dirname(), Equals, "foo.bar")
 	c.Check(SnapDataDir{Name: "foo"}.Dirname(), Equals, "foo")

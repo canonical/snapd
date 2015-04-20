@@ -62,6 +62,14 @@ func data1(spec, basedir string) []SnapDataDir {
 
 	dirs, _ := filepath.Glob(filepath.Join(basedir, nameglob, verglob))
 
+	// “but, Chipaca”, I hear you say, “why are you doing all this all over
+	// again, when you could just use .Installed() on an appropriate repo,
+	// and getNamespaceFromYaml and all the other lovely tools we already
+	// have written?”
+	// To which I can only say: DataDirs finds all the data dirs on the
+	// system, not just those of packages that are installed. If you've
+	// removed a package its package.yaml is gone, its data is still there,
+	// and you want us to be able to clean that up.
 	for _, dir := range dirs {
 		version := filepath.Base(dir)
 		name := filepath.Base(filepath.Dir(dir))
