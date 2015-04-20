@@ -78,6 +78,8 @@ type ServiceDescription struct {
 	PostStop    string
 	StopTimeout time.Duration
 	AaProfile   string
+	IsFramework bool
+	BusName     string
 }
 
 const (
@@ -166,7 +168,10 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 func (s *systemd) GenServiceFile(desc *ServiceDescription) string {
 	serviceTemplate := `[Unit]
 Description={{.Description}}
-After=ubuntu-snappy.run-hooks.service
+{{if .IsFramework}}Before=ubuntu-snappy.frameworks.target
+After=ubuntu-snappy.frameworks-pre.target
+Requires=ubuntu-snappy.frameworks-pre.target{{else}}After=ubuntu-snappy.frameworks.target
+Requires=ubuntu-snappy.frameworks.target{{end}}
 X-Snappy=yes
 
 [Service]
@@ -177,6 +182,8 @@ AppArmorProfile={{.AaProfile}}
 {{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
+{{if .BusName}}BusName={{.BusName}}{{end}}
+{{if .BusName}}Type=dbus{{end}}
 
 [Install]
 WantedBy={{.ServiceSystemdTarget}}

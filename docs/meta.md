@@ -67,7 +67,9 @@ The following keys are optional:
        * tagname: a free form name, some names have meaning like "ui"
          * port: (optional) see above
          * negotionalble: (optional) see above
- 
+   * bus-name: (optional) message bus connection name for the service.
+     May only be specified for snaps of 'type: framework' (see above).
+
  * binaries: the binaries (executables) that the snap provies
    * name: (required) the name of the binary, the user will be able to
            call it as $name.$pkgname (only [a-zA-Z0-9+.-])
