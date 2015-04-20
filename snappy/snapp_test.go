@@ -1129,7 +1129,7 @@ version: 1.0
 oem:
  hardware:
   assign:
-   - app-id: device-hive-iot-hal
+   - part-id: device-hive-iot-hal
      rules:
      - kernel: ttyUSB0
      - subsystem: tty
@@ -1149,7 +1149,7 @@ oem:
 func (s *SnapTestSuite) TestParseHardwareYaml(c *C) {
 	m, err := parsePackageYamlData(hardwareYaml)
 	c.Assert(err, IsNil)
-	c.Assert(m.OEM.Hardware.Assign[0].AppID, Equals, "device-hive-iot-hal")
+	c.Assert(m.OEM.Hardware.Assign[0].PartID, Equals, "device-hive-iot-hal")
 	c.Assert(m.OEM.Hardware.Assign[0].Rules[0].Kernel, Equals, "ttyUSB0")
 	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].Subsystem, Equals, "tty")
 	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].WithDriver, Equals, "pl2303")

@@ -181,8 +181,8 @@ type packageYaml struct {
 
 // HardwareAssign describes the hardware a app can use
 type HardwareAssign struct {
-	AppID string `yaml:"app-id,omitempty"`
-	Rules []struct {
+	PartID string `yaml:"part-id,omitempty"`
+	Rules  []struct {
 		Kernel         string   `yaml:"kernel,omitempty"`
 		Subsystem      string   `yaml:"subsystem,omitempty"`
 		WithSubsystems string   `yaml:"with-subsystems,omitempty"`
@@ -241,7 +241,7 @@ func writeOemHardwareUdevRules(m *packageYaml) error {
 		if err != nil {
 			return err
 		}
-		outfile := filepath.Join(snapUdevRulesDir, fmt.Sprintf("80-snappy_%s_%s.rules", m.Name, h.AppID))
+		outfile := filepath.Join(snapUdevRulesDir, fmt.Sprintf("80-snappy_%s_%s.rules", m.Name, h.PartID))
 		if err := ioutil.WriteFile(outfile, []byte(rulesContent), 0644); err != nil {
 			return err
 		}
@@ -262,7 +262,7 @@ func runUdevAdmImpl(args ...string) error {
 
 func activateOemHardwareUdevRules(m *packageYaml) error {
 	for _, h := range m.OEM.Hardware.Assign {
-		args := []string{"udevadm", "trigger", "--tag-match=snappy-assign", fmt.Sprintf("--property-match=SNAPPY_APP=%s", h.AppID)}
+		args := []string{"udevadm", "trigger", "--tag-match=snappy-assign", fmt.Sprintf("--property-match=SNAPPY_APP=%s", h.PartID)}
 		if err := runUdevAdm(args...); err != nil {
 			return err
 		}
@@ -306,7 +306,7 @@ func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
 			l := strings.SplitN(a, "=", 2)
 			s += fmt.Sprintf(`ENV{%v}=="%v", `, l[0], l[1])
 		}
-		s += fmt.Sprintf(`TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"`, hw.AppID)
+		s += fmt.Sprintf(`TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"`, hw.PartID)
 		s += "\n\n"
 	}
 
