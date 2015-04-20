@@ -166,6 +166,8 @@ type SnapPart struct {
 
 var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
 
+// TODO split into payloads per package type composing the common
+// elements for all snaps.
 type packageYaml struct {
 	Name    string
 	Version string
@@ -185,11 +187,7 @@ type packageYaml struct {
 	Binaries []Binary  `yaml:"binaries,omitempty"`
 
 	// oem snap only
-	OEM struct {
-		Store struct {
-			ID string `yaml:"id,omitempty"`
-		} `yaml:"store,omitempty"`
-	} `yaml:"oem,omitempty"`
+	OEM    OEM          `yaml:"oem,omitempty"`
 	Config SystemConfig `yaml:"config,omitempty"`
 
 	// this is a bit ugly, but right now integration is a one:one
@@ -570,6 +568,10 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 	// building block for OEMs. Prunning non active ones
 	// is acceptible.
 	if s.m.Type == SnapTypeOem && s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 
@@ -1090,13 +1092,8 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
 
-	// check if the oem part sets a custom store-id
-	oems, _ := ActiveSnapsByType(SnapTypeOem)
-	if len(oems) == 1 {
-		storeID := oems[0].(*SnapPart).m.OEM.Store.ID
-		if storeID != "" {
-			req.Header.Set("X-Ubuntu-Store", storeID)
-		}
+	if storeID := StoreID(); storeID != "" {
+		req.Header.Set("X-Ubuntu-Store", storeID)
 	}
 
 	// sso
