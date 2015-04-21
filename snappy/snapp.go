@@ -786,7 +786,7 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 		}
 
 		namespace := ""
-		if m.Type != SnapTypeFramework {
+		if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
 			namespace, err = namespaceFromYamlPath(realpath)
 			if err != nil {
 				return nil, err

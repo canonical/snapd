@@ -816,7 +816,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace
 		return err
 	}
 
-	if cm.Type != SnapTypeFramework {
+	if cm.Type != SnapTypeFramework && cm.Type != SnapTypeOem {
 		// add the namespace to the name
 		cm.Name = fmt.Sprintf("%s.%s", cm.Name, namespace)
 	}
@@ -885,6 +885,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		if allowOEM := (flags & AllowOEM) != 0; !allowOEM {
 			if currentOEM, err := getOem(); err == nil {
 				if currentOEM.Name != manifest.Name {
+					fmt.Println(currentOEM.Name, manifest.Name)
 					return "", ErrOEMPackageInstall
 				}
 			} else {
@@ -899,7 +900,8 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	}
 
 	fullName := manifest.Name
-	if manifest.Type != SnapTypeFramework {
+	// namespacing only applies to apps.
+	if manifest.Type != SnapTypeFramework && manifest.Type != SnapTypeOem {
 		fullName += "." + namespace
 	}
 	instDir := filepath.Join(targetDir, fullName, manifest.Version)

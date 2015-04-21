@@ -453,10 +453,10 @@ vendor: Foo Bar <foo@example.com>`)
 	_, err := installClick(snapFile, AllowOEM, nil, testNamespace)
 	c.Assert(err, IsNil)
 
-	contentFile := path.Join(s.tempdir, "oem", fooComposedName, "1.0", "bin", "foo")
+	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(path.Join(s.tempdir, "oem", fooComposedName, "1.0", ".click", "info", fooComposedName+".manifest"))
+	_, err = os.Stat(path.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
 }
 
@@ -469,13 +469,13 @@ vendor: Foo Bar <foo@example.com>`)
 	_, err := installClick(snapFile, AllowOEM, nil, testNamespace)
 	c.Assert(err, IsNil)
 
-	contentFile := path.Join(s.tempdir, "oem", fooComposedName, "1.0", "bin", "foo")
+	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(path.Join(s.tempdir, "oem", fooComposedName, "1.0", ".click", "info", fooComposedName+".manifest"))
+	_, err = os.Stat(path.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
 
-	// a package update
+	// an package update
 	snapFile = makeTestSnapPackage(c, `name: foo
 version: 2.0
 type: oem
