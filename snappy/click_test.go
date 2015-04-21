@@ -170,7 +170,7 @@ Pattern: /var/lib/apparmor/click/${id}
 	c.Assert(err, NotNil)
 }
 
-func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
+func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	snapFile := makeTestSnapPackage(c, "")
 	name, err := installClick(snapFile, 0, nil, testNamespace)
 	c.Assert(err, IsNil)
@@ -194,6 +194,19 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	snap, err := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"), testNamespace)
 	c.Assert(err, IsNil)
 	c.Assert(snap.Hash(), Not(Equals), "")
+
+	return snapFile
+}
+
+func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
+	s.testLocalSnapInstall(c)
+}
+
+func (s *SnapTestSuite) TestLocalSnapInstallFailsAlreadyInstalled(c *C) {
+	snapFile := s.testLocalSnapInstall(c)
+
+	_, err := installClick(snapFile, 0, nil, "namespaceother")
+	c.Assert(err, Equals, ErrPackageNameAlreadyInstalled)
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
@@ -450,14 +463,57 @@ version: 1.0
 type: oem
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
-	_, err := installClick(snapFile, 0, nil, testNamespace)
+	_, err := installClick(snapFile, AllowOEM, nil, testNamespace)
 	c.Assert(err, IsNil)
 
-	contentFile := path.Join(s.tempdir, "oem", fooComposedName, "1.0", "bin", "foo")
+	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(path.Join(s.tempdir, "oem", fooComposedName, "1.0", ".click", "info", fooComposedName+".manifest"))
+	_, err = os.Stat(path.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
+}
+
+func (s *SnapTestSuite) TestLocalOemSnapInstallVariants(c *C) {
+	snapFile := makeTestSnapPackage(c, `name: foo
+version: 1.0
+type: oem
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>`)
+	_, err := installClick(snapFile, AllowOEM, nil, testNamespace)
+	c.Assert(err, IsNil)
+
+	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
+	_, err = os.Stat(contentFile)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(path.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
+	c.Assert(err, IsNil)
+
+	// an package update
+	snapFile = makeTestSnapPackage(c, `name: foo
+version: 2.0
+type: oem
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>`)
+	_, err = installClick(snapFile, 0, nil, testNamespace)
+	c.Check(err, IsNil)
+
+	// different namespace, this shows we have no namespace support at this
+	// level, but sideloading also works.
+	_, err = installClick(snapFile, 0, nil, sideloadedNamespace)
+	c.Check(err, IsNil)
+
+	// a package name fork, IOW, a different OEM package.
+	snapFile = makeTestSnapPackage(c, `name: foo-fork
+version: 2.0
+type: oem
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>`)
+	_, err = installClick(snapFile, 0, nil, testNamespace)
+	c.Check(err, Equals, ErrOEMPackageInstall)
+
+	// this will cause chaos, but let's test if it works
+	_, err = installClick(snapFile, AllowOEM, nil, testNamespace)
+	c.Check(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestClickSetActive(c *C) {
@@ -682,14 +738,14 @@ export HOME="$SNAP_APP_USER_DATA_PATH"
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd /apps/pastebinit.mvo/1.4.0.0.1/
-aa-exec -p pastebinit.mvo_pastebinit_1.4.0.0.1 -- /apps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
+ubuntu-core-launcher pastebinit.mvo pastebinit.mvo_pastebinit_1.4.0.0.1 /apps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	binary := Binary{Name: "pastebinit", Exec: "bin/pastebinit"}
 	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
-	m := packageYaml{Name: "pastebinit.mvo",
+	m := packageYaml{Name: "pastebinit",
 		Version: "1.4.0.0.1"}
 
 	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
@@ -701,7 +757,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 	binary := Binary{Name: "bin/pastebinit\nSomething nasty"}
 	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
-	m := packageYaml{Name: "pastebinit.mvo",
+	m := packageYaml{Name: "pastebinit",
 		Version: "1.4.0.0.1"}
 
 	_, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
@@ -801,6 +857,119 @@ services:
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(servicesFile), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
+}
+
+func (s *SnapTestSuite) setupSnappyDependentServices(c *C) (string, *MockProgressMeter) {
+	inter := &MockProgressMeter{}
+	fmkYaml := "name: fmk\ntype: framework\nversion: "
+	fmkFile := makeTestSnapPackage(c, fmkYaml+"1")
+	_, err := installClick(fmkFile, AllowUnauthenticated, inter, "")
+	c.Assert(err, IsNil)
+
+	packageYaml := `name: foo
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+frameworks:
+ - fmk
+services:
+ - name: svc1
+   start: bin/hello
+ - name: svc2
+   start: bin/bye
+version: `
+	snapFile := makeTestSnapPackage(c, packageYaml+"1.0")
+	_, err = installClick(snapFile, AllowUnauthenticated, inter, testNamespace)
+	c.Assert(err, IsNil)
+
+	c.Assert(helpers.FileExists(filepath.Join(snapServicesDir, "foo_svc1_1.0.service")), Equals, true)
+	c.Assert(helpers.FileExists(filepath.Join(snapServicesDir, "foo_svc2_1.0.service")), Equals, true)
+
+	return fmkYaml, inter
+}
+
+func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstall(c *C) {
+	fmkYaml, inter := s.setupSnappyDependentServices(c)
+
+	var cmdlog []string
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		cmdlog = append(cmdlog, cmd[0])
+		return []byte("ActiveState=inactive\n"), nil
+	}
+
+	upFile := makeTestSnapPackage(c, fmkYaml+"2")
+	_, err := installClick(upFile, AllowUnauthenticated, inter, "")
+	c.Assert(err, IsNil)
+	c.Check(cmdlog, DeepEquals, []string{"stop", "show", "stop", "show", "start", "start"})
+
+	// check it got set active
+	content, err := ioutil.ReadFile(filepath.Join(snapAppsDir, "fmk", "current", "meta", "package.yaml"))
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), "version: 2"), Equals, true)
+
+	// just in case (cf. the following tests)
+	_, err = os.Stat(filepath.Join(snapAppsDir, "fmk", "2"))
+	c.Assert(err, IsNil)
+
+}
+
+func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStop(c *C) {
+	fmkYaml, inter := s.setupSnappyDependentServices(c)
+
+	anError := errors.New("failure")
+	var cmdlog []string
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		cmdlog = append(cmdlog, cmd[0])
+		if len(cmdlog) == 3 && cmd[0] == "stop" {
+			return nil, anError
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	}
+
+	upFile := makeTestSnapPackage(c, fmkYaml+"2")
+	_, err := installClick(upFile, AllowUnauthenticated, inter, "")
+	c.Check(err, Equals, anError)
+	c.Check(cmdlog, DeepEquals, []string{"stop", "show", "stop", "start"})
+
+	// check it got rolled back
+	content, err := ioutil.ReadFile(filepath.Join(snapAppsDir, "fmk", "current", "meta", "package.yaml"))
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), "version: 1"), Equals, true)
+
+	// no leftovers from the failed install
+	_, err = os.Stat(filepath.Join(snapAppsDir, "fmk", "2"))
+	c.Assert(err, NotNil)
+}
+
+func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStart(c *C) {
+	fmkYaml, inter := s.setupSnappyDependentServices(c)
+
+	anError := errors.New("failure")
+	var cmdlog []string
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		cmdlog = append(cmdlog, cmd[0])
+		if len(cmdlog) == 6 && cmd[0] == "start" {
+			return nil, anError
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	}
+
+	upFile := makeTestSnapPackage(c, fmkYaml+"2")
+	_, err := installClick(upFile, AllowUnauthenticated, inter, "")
+	c.Assert(err, Equals, anError)
+	c.Check(cmdlog, DeepEquals, []string{
+		"stop", "show", "stop", "show", "start", "start", // <- this one fails
+		"stop", "show", "start", "start",
+	})
+
+	// check it got rolled back
+	content, err := ioutil.ReadFile(filepath.Join(snapAppsDir, "fmk", "current", "meta", "package.yaml"))
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), "version: 1"), Equals, true)
+
+	// no leftovers from the failed install
+	_, err = os.Stat(filepath.Join(snapAppsDir, "fmk", "2"))
+	c.Assert(err, NotNil)
+
 }
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
@@ -919,7 +1088,10 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
 	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), "\nExecStart=/apps/"+helloAppComposedName+"/1.10/bin/hello\n"), Equals, true)
+
+	baseDirWithoutRootPrefix := "/apps/" + helloAppComposedName + "/1.10"
+	expectedExecStart := fmt.Sprintf("\nExecStart=/usr/bin/ubuntu-core-launcher hello-app.%s %s_svc1_1.10 %s/bin/hello\n", testNamespace, helloAppComposedName, baseDirWithoutRootPrefix)
+	c.Assert(strings.Contains(string(content), expectedExecStart), Equals, true)
 }
 
 func (s *SnapTestSuite) TestAddPackageServicesBusPolicyFramework(c *C) {
@@ -974,10 +1146,10 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/apps/bin/hello-app.hello"))
 	c.Assert(err, IsNil)
 
-	needle := `
+	needle := fmt.Sprintf(`
 cd /apps/hello-app.testspacethename/1.10
-aa-exec -p hello-app.testspacethename_hello_1.10 -- /apps/hello-app.testspacethename/1.10/bin/hello "$@"
-`
+ubuntu-core-launcher hello-app.%s hello-app.testspacethename_hello_1.10 /apps/hello-app.testspacethename/1.10/bin/hello "$@"
+`, testNamespace)
 	c.Assert(strings.Contains(string(content), needle), Equals, true)
 }
 
@@ -988,20 +1160,19 @@ Description=A fun webserver
 X-Snappy=yes
 
 [Service]
-ExecStart=/apps/xkcd-webserver.canonical/0.3.4/bin/foo start
-WorkingDirectory=/apps/xkcd-webserver.canonical/0.3.4/
-Environment="SNAPP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP=xckd-webserver.canonical_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xckd-webserver.canonical/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xckd-webserver.canonical/0.3.4/tmp"
-AppArmorProfile=xkcd-webserver.canonical_xkcd-webserver_0.3.4
-ExecStop=/apps/xkcd-webserver.canonical/0.3.4/bin/foo stop
-ExecStopPost=/apps/xkcd-webserver.canonical/0.3.4/bin/foo post-stop
+ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver%s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo start
+WorkingDirectory=/apps/xkcd-webserver%[2]s/0.3.4/
+Environment="SNAPP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp"
+ExecStop=/apps/xkcd-webserver%[2]s/0.3.4/bin/foo stop
+ExecStopPost=/apps/xkcd-webserver%[2]s/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
 %s
 
 [Install]
 WantedBy=multi-user.target
 `
-	expectedServiceAppWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", "\n")
-	expectedServiceFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "BusName=foo.bar.baz\nType=dbus")
+	expectedServiceAppWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "\n")
+	expectedServiceFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "BusName=foo.bar.baz\nType=dbus")
 )
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
@@ -1015,7 +1186,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
-	m := packageYaml{Name: "xckd-webserver.canonical",
+	m := packageYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
 
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
@@ -1033,10 +1204,10 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
 		Description: "A fun webserver",
 		BusName:     "foo.bar.baz",
 	}
-	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
-	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
+	pkgPath := "/apps/xkcd-webserver/0.3.4/"
+	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
 	m := packageYaml{
-		Name:    "xckd-webserver.canonical",
+		Name:    "xkcd-webserver",
 		Version: "0.3.4",
 		Type:    SnapTypeFramework,
 	}
@@ -1056,7 +1227,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
-	m := packageYaml{Name: "xckd-webserver.canonical",
+	m := packageYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
 
 	_, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
@@ -1094,7 +1265,7 @@ func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
 	}), IsNil)
 	c.Assert(verifyBinariesYaml(Binary{
 		SecurityDefinitions: SecurityDefinitions{
-			SecurityPolicy: &SecurityOverrideDefinition{
+			SecurityPolicy: &SecurityPolicyDefinition{
 				Apparmor: "foo"},
 		},
 	}), IsNil)
@@ -1110,7 +1281,7 @@ func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
 	}), NotNil)
 	c.Assert(verifyBinariesYaml(Binary{
 		SecurityDefinitions: SecurityDefinitions{
-			SecurityPolicy: &SecurityOverrideDefinition{
+			SecurityPolicy: &SecurityPolicyDefinition{
 				Apparmor: "x\n"},
 		},
 	}), NotNil)
@@ -1200,4 +1371,84 @@ Pattern: /var/lib/systemd/click/${id}
 	err := installClickHooks(c.MkDir(), manifest, false)
 	c.Assert(err, IsNil)
 	c.Assert(stripGlobalRootDirWasCalled, Equals, true)
+}
+
+func (s *SnapTestSuite) TestPackageYamlAddSecurityPolicy(c *C) {
+	m, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+binaries:
+ - name: foo
+services:
+ - name: bar
+   start: baz
+`))
+	c.Assert(err, IsNil)
+
+	snapSeccompDir = c.MkDir()
+	err = m.addSecurityPolicy("/apps/foo.mvo/1.0/")
+	c.Assert(err, IsNil)
+
+	binSeccompContent, err := ioutil.ReadFile(filepath.Join(snapSeccompDir, "foo.mvo_foo_1.0"))
+	c.Assert(string(binSeccompContent), Equals, scFilterGenFakeResult)
+
+	serviceSeccompContent, err := ioutil.ReadFile(filepath.Join(snapSeccompDir, "foo.mvo_bar_1.0"))
+	c.Assert(string(serviceSeccompContent), Equals, scFilterGenFakeResult)
+
+}
+
+func (s *SnapTestSuite) TestPackageYamlRemoveSecurityPolicy(c *C) {
+	m, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+binaries:
+ - name: foo
+services:
+ - name: bar
+   start: baz
+`))
+	c.Assert(err, IsNil)
+
+	snapSeccompDir = c.MkDir()
+	binSeccomp := filepath.Join(snapSeccompDir, "foo.mvo_foo_1.0")
+	serviceSeccomp := filepath.Join(snapSeccompDir, "foo.mvo_bar_1.0")
+	c.Assert(helpers.FileExists(binSeccomp), Equals, false)
+	c.Assert(helpers.FileExists(serviceSeccomp), Equals, false)
+
+	// add it now
+	err = m.addSecurityPolicy("/apps/foo.mvo/1.0/")
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(binSeccomp), Equals, true)
+	c.Assert(helpers.FileExists(serviceSeccomp), Equals, true)
+
+	// ensure that it removes the files on remove
+	err = m.removeSecurityPolicy("/apps/foo.mvo/1.0/")
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(binSeccomp), Equals, false)
+	c.Assert(helpers.FileExists(serviceSeccomp), Equals, false)
+}
+
+func (s *SnapTestSuite) TestRemovePackageServiceKills(c *C) {
+	// make Stop not work
+	var sysdLog [][]string
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=active\n"), nil
+	}
+	yamlFile, err := makeInstalledMockSnap(s.tempdir, `name: wat
+version: 42
+vendor: WAT <wat@example.com>
+icon: meta/wat.ico
+services:
+ - name: wat
+   stop-timeout: 25
+`)
+	c.Assert(err, IsNil)
+	inter := &MockProgressMeter{}
+	c.Check(removePackageServices(filepath.Dir(filepath.Dir(yamlFile)), inter), IsNil)
+	c.Assert(len(inter.notified) > 0, Equals, true)
+	c.Check(inter.notified[len(inter.notified)-1], Equals, "wat_wat_42.service refused to stop, killing.")
+	c.Assert(len(sysdLog) >= 3, Equals, true)
+	sd1 := sysdLog[len(sysdLog)-3]
+	sd2 := sysdLog[len(sysdLog)-2]
+	c.Check(sd1, DeepEquals, []string{"kill", "wat_wat_42.service", "-s", "TERM"})
+	c.Check(sd2, DeepEquals, []string{"kill", "wat_wat_42.service", "-s", "KILL"})
 }

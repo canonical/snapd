@@ -41,7 +41,6 @@ import (
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
-	"launchpad.net/snappy/systemd"
 
 	"gopkg.in/yaml.v2"
 )
@@ -88,6 +87,13 @@ type Ports struct {
 // security defaults
 type SecurityOverrideDefinition struct {
 	Apparmor string `yaml:"apparmor" json:"apparmor"`
+	Seccomp  string `yaml:"seccomp" json:"seccomp"`
+}
+
+// SecurityPolicyDefinition is used to provide hand-crafted policy
+type SecurityPolicyDefinition struct {
+	Apparmor string `yaml:"apparmor" json:"apparmor"`
+	Seccomp  string `yaml:"seccomp" json:"seccomp"`
 }
 
 // SecurityDefinitions contains the common apparmor/seccomp definitions
@@ -97,7 +103,7 @@ type SecurityDefinitions struct {
 	// SecurityOverride is a override for the high level security json
 	SecurityOverride *SecurityOverrideDefinition `yaml:"security-override,omitempty" json:"security-override,omitempty"`
 	// SecurityPolicy is a hand-crafted low-level policy
-	SecurityPolicy *SecurityOverrideDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
+	SecurityPolicy *SecurityPolicyDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
 
 	// SecurityCaps is are the apparmor/seccomp capabilities for an app
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
@@ -166,6 +172,8 @@ type SnapPart struct {
 
 var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
 
+// TODO split into payloads per package type composing the common
+// elements for all snaps.
 type packageYaml struct {
 	Name    string
 	Version string
@@ -185,11 +193,7 @@ type packageYaml struct {
 	Binaries []Binary  `yaml:"binaries,omitempty"`
 
 	// oem snap only
-	OEM struct {
-		Store struct {
-			ID string `yaml:"id,omitempty"`
-		} `yaml:"store,omitempty"`
-	} `yaml:"oem,omitempty"`
+	OEM    OEM          `yaml:"oem,omitempty"`
 	Config SystemConfig `yaml:"config,omitempty"`
 
 	// this is a bit ugly, but right now integration is a one:one
@@ -322,8 +326,22 @@ func (m *packageYaml) checkForNameClashes() error {
 	return nil
 }
 
-func (m *packageYaml) FrameworksForClick() string {
-	fmks := m.Frameworks
+func (m *packageYaml) checkForPackageInstalled(namespace string) error {
+	part := ActiveSnapByName(m.Name)
+	if part == nil {
+		return nil
+	}
+
+	if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
+		if part.Namespace() != namespace {
+			return ErrPackageNameAlreadyInstalled
+		}
+	}
+
+	return nil
+}
+
+func addCoreFmk(fmks []string) []string {
 	fmkCore := false
 	for _, a := range fmks {
 		if a == "ubuntu-core-15.04-dev1" {
@@ -331,9 +349,16 @@ func (m *packageYaml) FrameworksForClick() string {
 			break
 		}
 	}
+
 	if !fmkCore {
 		fmks = append(fmks, "ubuntu-core-15.04-dev1")
 	}
+
+	return fmks
+}
+
+func (m *packageYaml) FrameworksForClick() string {
+	fmks := addCoreFmk(m.Frameworks)
 
 	return strings.Join(fmks, ",")
 }
@@ -573,6 +598,10 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return ErrPackageNotRemovable
 	}
 
+	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
 	deps, err := s.DependentNames()
 	if err != nil {
 		return err
@@ -655,24 +684,16 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 
 var timestampUpdater = helpers.UpdateTimestamp
 
-// RestartJob is a convenient way of encapsulating the information needed to
-// restart a service.
-type RestartJob struct {
-	name    string
-	timeout time.Duration
-}
-
 func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
 	fn := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_%s_%s.json", fullName, thing, version))
 	return timestampUpdater(fn)
 }
 
 // RequestAppArmorUpdate checks whether changes to the given policies and
-// templates impacts the snap, updates the timestamp of the relevant json
-// symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits),
-// and returns the list of jobs that need restarting as a consequence.
-func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) ([]RestartJob, error) {
-	var rs []RestartJob
+// templates impacts the snap, and updates the timestamp of the relevant json
+// symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits).
+func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
+
 	fullName := s.Name()
 	if s.Type() != SnapTypeFramework {
 		fullName += "." + s.Namespace()
@@ -680,25 +701,23 @@ func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) ([
 	for _, svc := range s.Services() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
 			if err := updateAppArmorJSONTimestamp(fullName, svc.Name, s.Version()); err != nil {
-				return nil, err
+				return err
 			}
-			svcName := generateServiceFileName(s.m, svc)
-			rs = append(rs, RestartJob{svcName, time.Duration(svc.StopTimeout)})
 		}
 	}
 	for _, bin := range s.Binaries() {
 		if bin.NeedsAppArmorUpdate(policies, templates) {
 			if err := updateAppArmorJSONTimestamp(fullName, bin.Name, s.Version()); err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
 
-	return rs, nil
+	return nil
 }
 
 // RefreshDependentsSecurity refreshes the security policies of dependent snaps
-func (s *SnapPart) RefreshDependentsSecurity(oldBaseDir string, inter interacter) error {
+func (s *SnapPart) RefreshDependentsSecurity(oldBaseDir string, inter interacter) (err error) {
 	upPol, upTpl := policy.AppArmorDelta(oldBaseDir, s.basedir, s.Name()+"_")
 
 	deps, err := s.Dependents()
@@ -706,29 +725,15 @@ func (s *SnapPart) RefreshDependentsSecurity(oldBaseDir string, inter interacter
 		return err
 	}
 
-	var restart []RestartJob
-
 	for _, dep := range deps {
-		rs, err := dep.RequestAppArmorUpdate(upPol, upTpl)
+		err := dep.RequestAppArmorUpdate(upPol, upTpl)
 		if err != nil {
 			return err
 		}
-		restart = append(restart, rs...)
 	}
 
 	if err := exec.Command(aaClickHookCmd).Run(); err != nil {
 		return err
-	}
-
-	sysd := systemd.New(globalRootDir, inter)
-	for _, r := range restart {
-		if err := sysd.Restart(r.name, r.timeout); err != nil {
-			// we don't want to stop restarting the dependents
-			// because one of them fails
-			// TODO: abort the installation (restart things all over
-			// again) if things go wrong.
-			inter.Notify(fmt.Sprintf(" when restarting %s: %v", r.name, err))
-		}
 	}
 
 	return nil
@@ -802,7 +807,7 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 		}
 
 		namespace := ""
-		if m.Type != SnapTypeFramework {
+		if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
 			namespace, err = namespaceFromYamlPath(realpath)
 			if err != nil {
 				return nil, err
@@ -1086,17 +1091,12 @@ func setUbuntuStoreHeaders(req *http.Request) {
 
 	// frameworks
 	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
-	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
+	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(addCoreFmk(frameworks), ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
 
-	// check if the oem part sets a custom store-id
-	oems, _ := ActiveSnapsByType(SnapTypeOem)
-	if len(oems) == 1 {
-		storeID := oems[0].(*SnapPart).m.OEM.Store.ID
-		if storeID != "" {
-			req.Header.Set("X-Ubuntu-Store", storeID)
-		}
+	if storeID := StoreID(); storeID != "" {
+		req.Header.Set("X-Ubuntu-Store", storeID)
 	}
 
 	// sso
@@ -1201,9 +1201,9 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 
 // Updates returns the available updates
 func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
-	// the store only supports apps and framworks currently, so no
+	// the store only supports apps, oem and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
-	installed, err := ActiveSnapNamesByType(SnapTypeApp, SnapTypeFramework)
+	installed, err := ActiveSnapNamesByType(SnapTypeApp, SnapTypeFramework, SnapTypeOem)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}

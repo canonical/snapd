@@ -65,9 +65,16 @@ var (
 	// ErrAlreadyInstalled is returned when the snap is already installed
 	ErrAlreadyInstalled = errors.New("the given snap is already installed")
 
+	// ErrStillActive is returned when the snap is still installed
+	ErrStillActive = errors.New("the given snap is still installed")
+
 	// ErrPackageNameAlreadyInstalled is returned when you try to install
 	// a fork of something you already have installed
 	ErrPackageNameAlreadyInstalled = errors.New("a package by that name is already installed")
+
+	// ErrOEMPackageInstall is returned when you try to install
+	// an oem package type on a running system.
+	ErrOEMPackageInstall = errors.New("oem package installation not allowed")
 
 	// ErrPrivOpInProgress is returned when a privileged operation
 	// cannot be performed since an existing privileged operation is

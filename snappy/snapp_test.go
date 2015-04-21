@@ -29,6 +29,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/systemd"
 
@@ -38,6 +39,7 @@ import (
 type SnapTestSuite struct {
 	tempdir   string
 	clickhook string
+	secbase   string
 }
 
 var _ = Suite(&SnapTestSuite{})
@@ -45,13 +47,16 @@ var _ = Suite(&SnapTestSuite{})
 func (s *SnapTestSuite) SetUpTest(c *C) {
 	s.clickhook = aaClickHookCmd
 	aaClickHookCmd = "/bin/true"
+	s.secbase = policy.SecBase
 	s.tempdir = c.MkDir()
 	newPartition = func() (p partition.Interface) {
 		return new(MockPartition)
 	}
 
 	SetRootDir(s.tempdir)
+	policy.SecBase = filepath.Join(s.tempdir, "security")
 	os.MkdirAll(snapServicesDir, 0755)
+	os.MkdirAll(snapSeccompDir, 0755)
 
 	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
@@ -73,6 +78,11 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	// fake "du"
 	duCmd = makeFakeDuCommand(c)
 
+	// fake udevadm
+	runUdevAdm = func(args ...string) error {
+		return nil
+	}
+
 	// do not attempt to hit the real store servers in the tests
 	storeSearchURI, _ = url.Parse("")
 	storeDetailsURI, _ = url.Parse("")
@@ -82,6 +92,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
 	c.Assert(err, IsNil)
 
+	runScFilterGen = mockRunScFilterGen
+
 	// ensure we do not look at the system
 	systemImageRoot = s.tempdir
 }
@@ -89,10 +101,13 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 func (s *SnapTestSuite) TearDownTest(c *C) {
 	// ensure all functions are back to their original state
 	aaClickHookCmd = s.clickhook
+	policy.SecBase = s.secbase
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 	ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 	duCmd = "du"
 	stripGlobalRootDir = stripGlobalRootDirImpl
+	runScFilterGen = runScFilterGenImpl
+	runUdevAdm = runUdevAdmImpl
 }
 
 func (s *SnapTestSuite) makeInstalledMockSnap(yamls ...string) (yamlFile string, err error) {
@@ -825,6 +840,37 @@ type: oem
 	repo.Details("xkcd")
 }
 
+func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {
+	// install custom oem snap with store-id
+	oemYaml, err := makeInstalledMockSnap(s.tempdir, `name: oem-test
+version: 1.0
+vendor: mvo
+oem:
+  store:
+    id: my-store
+  software:
+    built-in:
+      - hello-app
+type: oem
+`)
+	c.Assert(err, IsNil)
+	makeSnapActive(oemYaml)
+
+	packageYaml, err := makeInstalledMockSnap(s.tempdir, "")
+	c.Assert(err, IsNil)
+	makeSnapActive(packageYaml)
+
+	p := &MockProgressMeter{}
+
+	snap := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
+	c.Assert(snap, NotNil)
+	installed, err := snap.Installed()
+	c.Assert(err, IsNil)
+	parts := FindSnapsByName("hello-app", installed)
+	c.Assert(parts, HasLen, 1)
+	c.Check(parts[0].Uninstall(p), Equals, ErrPackageNotRemovable)
+}
+
 var securityBinaryPackageYaml = []byte(`name: test-snap
 version: 1.2.8
 vendor: Jamie Strandboge <jamie@canonical.com>
@@ -925,6 +971,42 @@ frameworks:
 framework: three, four
 `))
 	c.Assert(err, Equals, ErrInvalidFrameworkSpecInYaml)
+}
+
+func (s *SnapTestSuite) TestDetectsAlreadyInstalled(c *C) {
+	data := "name: afoo\nversion: 1"
+	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
+	c.Assert(err, IsNil)
+	c.Assert(makeSnapActive(yamlPath), IsNil)
+
+	yaml, err := parsePackageYamlData([]byte(data))
+	c.Assert(err, IsNil)
+	c.Check(yaml.checkForPackageInstalled("otherns"), Equals, ErrPackageNameAlreadyInstalled)
+}
+
+func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameNamespace(c *C) {
+	// XXX: should this be allowed? right now it is (=> you can re-sideload the same version of your apps)
+	//      (remote snaps are stopped before clickInstall gets to run)
+
+	data := "name: afoo\nversion: 1"
+	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
+	c.Assert(err, IsNil)
+	c.Assert(makeSnapActive(yamlPath), IsNil)
+
+	yaml, err := parsePackageYamlData([]byte(data))
+	c.Assert(err, IsNil)
+	c.Check(yaml.checkForPackageInstalled(testNamespace), IsNil)
+}
+
+func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworks(c *C) {
+	data := "name: afoo\nversion: 1\ntype: framework"
+	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
+	c.Assert(err, IsNil)
+	c.Assert(makeSnapActive(yamlPath), IsNil)
+
+	yaml, err := parsePackageYamlData([]byte(data))
+	c.Assert(err, IsNil)
+	c.Check(yaml.checkForPackageInstalled("otherns"), IsNil)
 }
 
 func (s *SnapTestSuite) TestDetectsNameClash(c *C) {
@@ -1046,7 +1128,7 @@ frameworks:
 
 func (s *SnapTestSuite) TestNeedsAppArmorUpdateSecurityPolicy(c *C) {
 	// if a security policy is defined, never flag for update
-	sd := &SecurityDefinitions{SecurityPolicy: &SecurityOverrideDefinition{}}
+	sd := &SecurityDefinitions{SecurityPolicy: &SecurityPolicyDefinition{}}
 	c.Check(sd.NeedsAppArmorUpdate(nil, nil), Equals, false)
 }
 
@@ -1090,10 +1172,8 @@ func (s *SnapTestSuite) TestRequestAppArmorUpdateService(c *C) {
 	// if one of the services needs updating, it's updated and returned
 	svc := Service{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	part := &SnapPart{m: &packageYaml{Name: "part", Services: []Service{svc}, Version: "42"}, namespace: testNamespace}
-	svcs, err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
+	err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
 	c.Assert(err, IsNil)
-	c.Assert(svcs, HasLen, 1)
-	c.Check(filepath.Base(svcs[0].name), Equals, "part_svc_42.service")
 	c.Assert(updated, HasLen, 1)
 	c.Check(filepath.Base(updated[0]), Equals, "part."+testNamespace+"_svc_42.json")
 }
@@ -1108,9 +1188,8 @@ func (s *SnapTestSuite) TestRequestAppArmorUpdateBinary(c *C) {
 	// if one of the binaries needs updating, the part needs updating
 	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	part := &SnapPart{m: &packageYaml{Name: "part", Binaries: []Binary{bin}, Version: "42"}, namespace: testNamespace}
-	svcs, err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
+	err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
 	c.Assert(err, IsNil)
-	c.Check(svcs, HasLen, 0)
 	c.Assert(updated, HasLen, 1)
 	c.Check(filepath.Base(updated[0]), Equals, "part."+testNamespace+"_echo_42.json")
 }
@@ -1125,9 +1204,8 @@ func (s *SnapTestSuite) TestRequestAppArmorUpdateNothing(c *C) {
 	svc := Service{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	part := &SnapPart{m: &packageYaml{Services: []Service{svc}, Binaries: []Binary{bin}, Version: "42"}, namespace: testNamespace}
-	svcs, err := part.RequestAppArmorUpdate(nil, nil)
+	err := part.RequestAppArmorUpdate(nil, nil)
 	c.Check(err, IsNil)
-	c.Check(svcs, HasLen, 0)
 	c.Check(updated, HasLen, 0)
 }
 
@@ -1183,8 +1261,98 @@ func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 
 func (s *SnapTestSuite) TestIllegalPackageNameWithNamespace(c *C) {
 	_, err := parsePackageYamlData([]byte(`name: foo.something
-version: 1.0
 `))
 
 	c.Assert(err, Equals, ErrPackageNameNotSupported)
+}
+
+var hardwareYaml = []byte(`name: oem-foo
+version: 1.0
+oem:
+ hardware:
+  assign:
+   - part-id: device-hive-iot-hal
+     rules:
+     - kernel: ttyUSB0
+     - subsystem: tty
+       with-subsystems: usb-serial
+       with-driver: pl2303
+       with-attrs:
+       - idVendor=0xf00f00
+       - idProduct=0xb00
+       with-props:
+       - BAUD=9600
+       - META1=foo*
+       - META2=foo?
+       - META3=foo[a-z]
+       - META4=a|b
+`)
+
+func (s *SnapTestSuite) TestParseHardwareYaml(c *C) {
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+	c.Assert(m.OEM.Hardware.Assign[0].PartID, Equals, "device-hive-iot-hal")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[0].Kernel, Equals, "ttyUSB0")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].Subsystem, Equals, "tty")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].WithDriver, Equals, "pl2303")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].WithAttrs[0], Equals, "idVendor=0xf00f00")
+	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].WithAttrs[1], Equals, "idProduct=0xb00")
+}
+
+var expectedUdevRule = `KERNEL=="ttyUSB0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="device-hive-iot-hal"
+
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb-serial", DRIVER=="pl2303", ATTRS{idVendor}=="0xf00f00", ATTRS{idProduct}=="0xb00", ENV{BAUD}=="9600", ENV{META1}=="foo*", ENV{META2}=="foo?", ENV{META3}=="foo[a-z]", ENV{META4}=="a|b", TAG:="snappy-assign", ENV{SNAPPY_APP}:="device-hive-iot-hal"
+
+`
+
+func (s *SnapTestSuite) TestGenerateHardwareYamlData(c *C) {
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+
+	output, err := m.OEM.Hardware.Assign[0].generateUdevRuleContent()
+	c.Assert(err, IsNil)
+
+	c.Assert(output, Equals, expectedUdevRule)
+}
+
+func (s *SnapTestSuite) TestWriteHardwareUdevEtc(c *C) {
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+
+	snapUdevRulesDir = c.MkDir()
+	writeOemHardwareUdevRules(m)
+
+	c.Assert(helpers.FileExists(filepath.Join(snapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")), Equals, true)
+}
+
+func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+
+	snapUdevRulesDir = c.MkDir()
+	udevRulesFile := filepath.Join(snapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")
+	c.Assert(ioutil.WriteFile(udevRulesFile, nil, 0644), Equals, nil)
+	cleanupOemHardwareUdevRules(m)
+
+	c.Assert(helpers.FileExists(udevRulesFile), Equals, false)
+}
+
+func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
+	type aCmd []string
+	var cmds = []aCmd{}
+
+	runUdevAdm = func(args ...string) error {
+		cmds = append(cmds, args)
+		return nil
+	}
+	defer func() { runUdevAdm = runUdevAdmImpl }()
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+
+	snapUdevRulesDir = c.MkDir()
+	err = activateOemHardwareUdevRules(m)
+	c.Assert(err, IsNil)
+	c.Assert(cmds[0], DeepEquals, aCmd{"udevadm", "control", "--reload-rules"})
+	c.Assert(cmds[1], DeepEquals, aCmd{"udevadm", "trigger"})
+	c.Assert(cmds, HasLen, 2)
 }

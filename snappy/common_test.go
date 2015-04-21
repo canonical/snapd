@@ -153,12 +153,12 @@ vendor: Foo Bar <foo@example.com>
 	}
 
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	n, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	n, err := installClick(snapFile, AllowUnauthenticated|AllowOEM, nil, testNamespace)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	n, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	n, err = installClick(snapFile, AllowUnauthenticated|AllowOEM, nil, testNamespace)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
 
@@ -203,4 +203,14 @@ func (m *MockProgressMeter) Agreed(string, string) bool {
 }
 func (m *MockProgressMeter) Notify(msg string) {
 	m.notified = append(m.notified, msg)
+}
+
+// seccomp filter mocks
+const scFilterGenFakeResult = `
+syscall1
+syscall2
+`
+
+func mockRunScFilterGen(argv ...string) ([]byte, error) {
+	return []byte(scFilterGenFakeResult), nil
 }
