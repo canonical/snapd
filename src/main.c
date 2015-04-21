@@ -194,11 +194,8 @@ int main(int argc, char **argv)
 
     // set seccomp
     rc = seccomp_load_filters(aa_profile);
-    if (rc != 0) {
-       fprintf(stderr, "seccomp_load_filters failed with %i\n", rc);
-       // FIXME: allow this for now
-       //return 1;
-    }
+    if (rc != 0)
+       die("seccomp_load_filters failed with %i\n", rc);
 
     // realloc args and exec the binary
     char **new_argv = malloc((argc-NR_ARGS+1)*sizeof(char*));
