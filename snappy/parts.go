@@ -54,7 +54,7 @@ type Configuration interface {
 // Dirname of a Part is the Name, in most cases qualified with the
 // Namespace
 func Dirname(p Part) string {
-	if p.Type() == SnapTypeFramework {
+	if t := p.Type(); t == SnapTypeFramework || t == SnapTypeOem {
 		return p.Name()
 	}
 	return p.Name() + "." + p.Namespace()

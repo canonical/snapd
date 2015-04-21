@@ -332,7 +332,7 @@ func (m *packageYaml) checkForPackageInstalled(namespace string) error {
 		return nil
 	}
 
-	if m.Type != SnapTypeFramework {
+	if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
 		if part.Namespace() != namespace {
 			return ErrPackageNameAlreadyInstalled
 		}
@@ -805,7 +805,7 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 		}
 
 		namespace := ""
-		if m.Type != SnapTypeFramework {
+		if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
 			namespace, err = namespaceFromYamlPath(realpath)
 			if err != nil {
 				return nil, err
@@ -1199,9 +1199,9 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 
 // Updates returns the available updates
 func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
-	// the store only supports apps and framworks currently, so no
+	// the store only supports apps, oem and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
-	installed, err := ActiveSnapNamesByType(SnapTypeApp, SnapTypeFramework)
+	installed, err := ActiveSnapNamesByType(SnapTypeApp, SnapTypeFramework, SnapTypeOem)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}

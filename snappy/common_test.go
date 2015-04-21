@@ -153,12 +153,12 @@ vendor: Foo Bar <foo@example.com>
 	}
 
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	n, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	n, err := installClick(snapFile, AllowUnauthenticated|AllowOEM, nil, testNamespace)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	n, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	n, err = installClick(snapFile, AllowUnauthenticated|AllowOEM, nil, testNamespace)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
 
