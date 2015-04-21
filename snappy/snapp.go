@@ -694,10 +694,7 @@ func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
 // symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits).
 func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
 
-	fullName := s.Name()
-	if s.Type() != SnapTypeFramework {
-		fullName += "." + s.Namespace()
-	}
+	fullName := Dirname(s)
 	for _, svc := range s.Services() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
 			if err := updateAppArmorJSONTimestamp(fullName, svc.Name, s.Version()); err != nil {

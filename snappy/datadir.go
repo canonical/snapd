@@ -45,6 +45,7 @@ func data1(spec, basedir string) []SnapDataDir {
 	verglob := "*"
 	specns := "*"
 
+	// Note that "=" is not legal in a snap name or a snap version
 	idx := strings.IndexRune(spec, '=')
 	if idx > -1 {
 		verglob = spec[idx+1:]
