@@ -45,10 +45,7 @@ func snapConfig(snapDir, namespace, rawConfig string) (newConfig string, err err
 		return "", ErrPackageNotFound
 	}
 
-	name := part.Name()
-	if part.Type() != SnapTypeFramework {
-		name += "." + namespace
-	}
+	name := Dirname(part)
 	appArmorProfile := fmt.Sprintf("%s_%s_%s", name, "snappy-config", part.Version())
 
 	return runConfigScript(configScript, appArmorProfile, rawConfig, makeSnapHookEnv(part))
