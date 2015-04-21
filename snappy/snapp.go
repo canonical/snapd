@@ -87,6 +87,13 @@ type Ports struct {
 // security defaults
 type SecurityOverrideDefinition struct {
 	Apparmor string `yaml:"apparmor" json:"apparmor"`
+	Seccomp  string `yaml:"seccomp" json:"seccomp"`
+}
+
+// SecurityPolicyDefinition is used to provide hand-crafted policy
+type SecurityPolicyDefinition struct {
+	Apparmor string `yaml:"apparmor" json:"apparmor"`
+	Seccomp  string `yaml:"seccomp" json:"seccomp"`
 }
 
 // SecurityDefinitions contains the common apparmor/seccomp definitions
@@ -96,7 +103,7 @@ type SecurityDefinitions struct {
 	// SecurityOverride is a override for the high level security json
 	SecurityOverride *SecurityOverrideDefinition `yaml:"security-override,omitempty" json:"security-override,omitempty"`
 	// SecurityPolicy is a hand-crafted low-level policy
-	SecurityPolicy *SecurityOverrideDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
+	SecurityPolicy *SecurityPolicyDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
 
 	// SecurityCaps is are the apparmor/seccomp capabilities for an app
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
@@ -165,6 +172,8 @@ type SnapPart struct {
 
 var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
 
+// TODO split into payloads per package type composing the common
+// elements for all snaps.
 type packageYaml struct {
 	Name    string
 	Version string
@@ -184,14 +193,7 @@ type packageYaml struct {
 	Binaries []Binary  `yaml:"binaries,omitempty"`
 
 	// oem snap only
-	OEM struct {
-		Store struct {
-			ID string `yaml:"id,omitempty"`
-		} `yaml:"store,omitempty"`
-		Hardware struct {
-			Assign []HardwareAssign `yaml:"assign,omitempty"`
-		} `yaml:"hardware,omitempty"`
-	} `yaml:"oem,omitempty"`
+	OEM    OEM          `yaml:"oem,omitempty"`
 	Config SystemConfig `yaml:"config,omitempty"`
 
 	// this is a bit ugly, but right now integration is a one:one
@@ -200,19 +202,6 @@ type packageYaml struct {
 
 	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement,omitempty"`
 	LicenseVersion           string `yaml:"license-version,omitempty"`
-}
-
-// HardwareAssign describes the hardware a app can use
-type HardwareAssign struct {
-	PartID string `yaml:"part-id,omitempty"`
-	Rules  []struct {
-		Kernel         string   `yaml:"kernel,omitempty"`
-		Subsystem      string   `yaml:"subsystem,omitempty"`
-		WithSubsystems string   `yaml:"with-subsystems,omitempty"`
-		WithDriver     string   `yaml:"with-driver,omitempty"`
-		WithAttrs      []string `yaml:"with-attrs,omitempty"`
-		WithProps      []string `yaml:"with-props,omitempty"`
-	} `yaml:"rules,omitempty"`
 }
 
 type remoteSnap struct {
@@ -238,99 +227,6 @@ type searchResults struct {
 	Payload struct {
 		Packages []remoteSnap `json:"clickindex:package"`
 	} `json:"_embedded"`
-}
-
-func cleanupOemHardwareUdevRules(m *packageYaml) error {
-	oldFiles, err := filepath.Glob(filepath.Join(snapUdevRulesDir, fmt.Sprintf("80-snappy_%s_*.rules", m.Name)))
-	if err != nil {
-		return err
-	}
-
-	for _, f := range oldFiles {
-		os.Remove(f)
-	}
-
-	return nil
-}
-
-func writeOemHardwareUdevRules(m *packageYaml) error {
-	// cleanup
-	if err := cleanupOemHardwareUdevRules(m); err != nil {
-		return err
-	}
-	// write new files
-	for _, h := range m.OEM.Hardware.Assign {
-		rulesContent, err := h.generateUdevRuleContent()
-		if err != nil {
-			return err
-		}
-		outfile := filepath.Join(snapUdevRulesDir, fmt.Sprintf("80-snappy_%s_%s.rules", m.Name, h.PartID))
-		if err := ioutil.WriteFile(outfile, []byte(rulesContent), 0644); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// var to make testing easier
-var runUdevAdm = runUdevAdmImpl
-
-func runUdevAdmImpl(args ...string) error {
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func activateOemHardwareUdevRules(m *packageYaml) error {
-	if err := runUdevAdm("udevadm", "control", "--reload-rules"); err != nil {
-		return err
-	}
-
-	return runUdevAdm("udevadm", "trigger")
-}
-
-func installOemHardwareUdevRules(m *packageYaml) error {
-	if err := writeOemHardwareUdevRules(m); err != nil {
-		return err
-	}
-
-	if err := activateOemHardwareUdevRules(m); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
-	s := ""
-	for _, r := range hw.Rules {
-		if r.Kernel != "" {
-			s += fmt.Sprintf(`KERNEL=="%v", `, r.Kernel)
-		}
-		if r.Subsystem != "" {
-			s += fmt.Sprintf(`SUBSYSTEM=="%v", `, r.Subsystem)
-		}
-		if r.WithSubsystems != "" {
-			s += fmt.Sprintf(`SUBSYSTEMS=="%v", `, r.WithSubsystems)
-		}
-		if r.WithDriver != "" {
-			s += fmt.Sprintf(`DRIVER=="%v", `, r.WithDriver)
-		}
-		for _, a := range r.WithAttrs {
-			l := strings.Split(a, "=")
-			s += fmt.Sprintf(`ATTRS{%v}=="%v", `, l[0], l[1])
-		}
-		for _, a := range r.WithProps {
-			l := strings.SplitN(a, "=", 2)
-			s += fmt.Sprintf(`ENV{%v}=="%v", `, l[0], l[1])
-		}
-		s += fmt.Sprintf(`TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"`, hw.PartID)
-		s += "\n\n"
-	}
-
-	return s, nil
 }
 
 func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
@@ -678,6 +574,10 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 	// building block for OEMs. Prunning non active ones
 	// is acceptible.
 	if s.m.Type == SnapTypeOem && s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 
@@ -1174,13 +1074,8 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
 
-	// check if the oem part sets a custom store-id
-	oems, _ := ActiveSnapsByType(SnapTypeOem)
-	if len(oems) == 1 {
-		storeID := oems[0].(*SnapPart).m.OEM.Store.ID
-		if storeID != "" {
-			req.Header.Set("X-Ubuntu-Store", storeID)
-		}
+	if storeID := StoreID(); storeID != "" {
+		req.Header.Set("X-Ubuntu-Store", storeID)
 	}
 
 	// sso

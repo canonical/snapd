@@ -56,6 +56,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	SetRootDir(s.tempdir)
 	policy.SecBase = filepath.Join(s.tempdir, "security")
 	os.MkdirAll(snapServicesDir, 0755)
+	os.MkdirAll(snapSeccompDir, 0755)
 
 	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
@@ -91,6 +92,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
 	c.Assert(err, IsNil)
 
+	runScFilterGen = mockRunScFilterGen
+
 	// ensure we do not look at the system
 	systemImageRoot = s.tempdir
 }
@@ -103,6 +106,7 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 	duCmd = "du"
 	stripGlobalRootDir = stripGlobalRootDirImpl
+	runScFilterGen = runScFilterGenImpl
 	runUdevAdm = runUdevAdmImpl
 }
 
@@ -836,6 +840,37 @@ type: oem
 	repo.Details("xkcd")
 }
 
+func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {
+	// install custom oem snap with store-id
+	oemYaml, err := makeInstalledMockSnap(s.tempdir, `name: oem-test
+version: 1.0
+vendor: mvo
+oem:
+  store:
+    id: my-store
+  software:
+    built-in:
+      - hello-app
+type: oem
+`)
+	c.Assert(err, IsNil)
+	makeSnapActive(oemYaml)
+
+	packageYaml, err := makeInstalledMockSnap(s.tempdir, "")
+	c.Assert(err, IsNil)
+	makeSnapActive(packageYaml)
+
+	p := &MockProgressMeter{}
+
+	snap := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
+	c.Assert(snap, NotNil)
+	installed, err := snap.Installed()
+	c.Assert(err, IsNil)
+	parts := FindSnapsByName("hello-app", installed)
+	c.Assert(parts, HasLen, 1)
+	c.Check(parts[0].Uninstall(p), Equals, ErrPackageNotRemovable)
+}
+
 var securityBinaryPackageYaml = []byte(`name: test-snap
 version: 1.2.8
 vendor: Jamie Strandboge <jamie@canonical.com>
@@ -1057,7 +1092,7 @@ frameworks:
 
 func (s *SnapTestSuite) TestNeedsAppArmorUpdateSecurityPolicy(c *C) {
 	// if a security policy is defined, never flag for update
-	sd := &SecurityDefinitions{SecurityPolicy: &SecurityOverrideDefinition{}}
+	sd := &SecurityDefinitions{SecurityPolicy: &SecurityPolicyDefinition{}}
 	c.Check(sd.NeedsAppArmorUpdate(nil, nil), Equals, false)
 }
 
@@ -1206,10 +1241,10 @@ oem:
      - subsystem: tty
        with-subsystems: usb-serial
        with-driver: pl2303
-       with-attrs: 
+       with-attrs:
        - idVendor=0xf00f00
        - idProduct=0xb00
-       with-props: 
+       with-props:
        - BAUD=9600
        - META1=foo*
        - META2=foo?
