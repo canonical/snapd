@@ -8,4 +8,7 @@ bool error(const char *fmt, ...);
 void debug(const char *fmt, ...);
 void write_string_to_file(const char *filepath, const char *buf);
 
+// snprintf version that dies on any error condition
+void must_snprintf(char *str, size_t size, const char *format, ...);
+
 #endif

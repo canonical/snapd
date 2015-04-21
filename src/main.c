@@ -37,8 +37,7 @@ void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appnam
          char buf[64];
          unsigned major = MAJOR(devnum);
          unsigned minor = MINOR(devnum);
-         if(snprintf(buf, sizeof(buf), "%u:%u", major, minor) < 0)
-            die("snprintf failed (5)");
+         must_snprintf(buf, sizeof(buf), "%u:%u", major, minor);
          if(execl("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev", "add", appname, path, buf, NULL) != 0)
             die("execlp failed");
       }
@@ -104,8 +103,7 @@ void setup_devices_cgroup(const char *appname) {
 
    // create devices cgroup controller
    char cgroup_dir[PATH_MAX];
-   if(snprintf(cgroup_dir, sizeof(cgroup_dir), "/sys/fs/cgroup/devices/snappy.%s/", appname) < 0)
-      die("snprintf failed");
+   must_snprintf(cgroup_dir, sizeof(cgroup_dir), "/sys/fs/cgroup/devices/snappy.%s/", appname);
 
    struct stat statbuf;
    if (stat(cgroup_dir, &statbuf) != 0)
@@ -114,17 +112,14 @@ void setup_devices_cgroup(const char *appname) {
 
    // move ourselves into it
    char cgroup_file[PATH_MAX];
-   if(snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir, "tasks") < 0)
-      die("snprintf failed (2)");
+   must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir, "tasks");
 
    char buf[128];
-   if (snprintf(buf, sizeof(buf), "%i", getpid()) < 0)
-      die("snprintf failed (3)");
+   must_snprintf(buf, sizeof(buf), "%i", getpid());
    write_string_to_file(cgroup_file, buf);
 
    // deny by default
-   if(snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir, "devices.deny") < 0)
-      die("snprintf failed (4)");
+   must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir, "devices.deny");
    write_string_to_file(cgroup_file, "a");
 
 }
