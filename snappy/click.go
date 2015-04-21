@@ -357,8 +357,7 @@ func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *pack
 
 set -e
 
-#FIXME: namespace
-TMPDIR="/tmp/snaps/{{.Name}}/{{.Version}}/tmp"
+TMPDIR="/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp"
 if [ ! -d "$TMPDIR" ]; then
     mkdir -p -m1777 "$TMPDIR"
 fi
@@ -412,12 +411,12 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		AaProfile   string
 		UdevAppName string
 	}{
-		m.Name,
-		m.Version,
-		actualBinPath,
-		pkgPath,
-		aaProfile,
-		udevPartName,
+		Name:        m.Name,
+		Version:     m.Version,
+		Target:      actualBinPath,
+		Path:        pkgPath,
+		AaProfile:   aaProfile,
+		UdevAppName: udevPartName,
 	}
 	t.Execute(&templateOut, wrapperData)
 
