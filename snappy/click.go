@@ -815,7 +815,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace
 		return err
 	}
 
-	if cm.Type != SnapTypeFramework {
+	if cm.Type != SnapTypeFramework && cm.Type != SnapTypeOem {
 		// add the namespace to the name
 		cm.Name = fmt.Sprintf("%s.%s", cm.Name, namespace)
 	}
@@ -882,13 +882,29 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	// the "oem" parts are special
 	if manifest.Type == SnapTypeOem {
 		targetDir = snapOemDir
+
+		// TODO do the following at a higher level once the store publishes snap types
+		// this is horrible
+		if allowOEM := (flags & AllowOEM) != 0; !allowOEM {
+			if currentOEM, err := getOem(); err == nil {
+				if currentOEM.Name != manifest.Name {
+					fmt.Println(currentOEM.Name, manifest.Name)
+					return "", ErrOEMPackageInstall
+				}
+			} else {
+				// there should always be an oem package now
+				return "", ErrOEMPackageInstall
+			}
+		}
+
 		if err := installOemHardwareUdevRules(m); err != nil {
 			return "", err
 		}
 	}
 
 	fullName := manifest.Name
-	if manifest.Type != SnapTypeFramework {
+	// namespacing only applies to apps.
+	if manifest.Type != SnapTypeFramework && manifest.Type != SnapTypeOem {
 		fullName += "." + namespace
 	}
 	instDir := filepath.Join(targetDir, fullName, manifest.Version)
