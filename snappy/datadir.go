@@ -53,7 +53,7 @@ func data1(spec, basedir string) []SnapDataDir {
 	}
 
 	nameglob := spec + "*"
-	idx = strings.IndexRune(spec, '.')
+	idx = strings.LastIndexAny(spec, ".")
 	if idx > -1 {
 		filterns = true
 		specns = spec[idx+1:]
@@ -75,7 +75,7 @@ func data1(spec, basedir string) []SnapDataDir {
 		version := filepath.Base(dir)
 		name := filepath.Base(filepath.Dir(dir))
 		namespace := ""
-		idx := strings.IndexRune(name, '.')
+		idx := strings.LastIndexAny(name, ".")
 		if idx > -1 {
 			namespace = name[idx+1:]
 			name = name[:idx]

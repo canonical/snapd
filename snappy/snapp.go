@@ -757,6 +757,7 @@ func (s *SnapLocalRepository) Description() string {
 
 // Details returns details for the given snap
 func (s *SnapLocalRepository) Details(name string) (versions []Part, err error) {
+	// XXX: this is broken wrt namespaceless packages (e.g. frameworks)
 	if !strings.ContainsRune(name, '.') {
 		name += ".*"
 	}

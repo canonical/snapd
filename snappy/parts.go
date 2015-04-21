@@ -291,7 +291,7 @@ func FindSnapsByName(needle string, haystack []Part) (res []Part) {
 }
 
 func splitNamespace(name string) (string, string) {
-	idx := strings.IndexRune(name, '.')
+	idx := strings.LastIndexAny(name, ".")
 	if idx > -1 {
 		return name[:idx], name[idx+1:]
 	}
