@@ -21,8 +21,6 @@
 #include "utils.h"
 #include "seccomp.h"
 
-int unshare(int flags);
-
 void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appname) {
    debug("run_snappy_app_dev_add: %s %s", path, appname);
       struct udev_device *d = udev_device_new_from_syspath(u, path);
