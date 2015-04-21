@@ -34,7 +34,7 @@ const (
 	DoRemoveGC RemoveFlags = 1 << iota
 )
 
-// Remove a part by a partSpec string, this can be "name" or "name=version"
+// Remove a part by a partSpec string, name[.namespace][=version]
 func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 	var parts BySnapVersion
 
@@ -47,9 +47,7 @@ func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 	if len(l) == 2 {
 		name := l[0]
 		version := l[1]
-		if part := FindSnapByNameAndVersion(name, version, installed); part != nil {
-			parts = append(parts, part)
-		}
+		parts = FindSnapsByNameAndVersion(name, version, installed)
 	} else {
 		if (flags & DoRemoveGC) == 0 {
 			if part := ActiveSnapByName(partSpec); part != nil {

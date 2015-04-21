@@ -463,14 +463,57 @@ version: 1.0
 type: oem
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
-	_, err := installClick(snapFile, 0, nil, testNamespace)
+	_, err := installClick(snapFile, AllowOEM, nil, testNamespace)
 	c.Assert(err, IsNil)
 
-	contentFile := path.Join(s.tempdir, "oem", fooComposedName, "1.0", "bin", "foo")
+	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(path.Join(s.tempdir, "oem", fooComposedName, "1.0", ".click", "info", fooComposedName+".manifest"))
+	_, err = os.Stat(path.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
+}
+
+func (s *SnapTestSuite) TestLocalOemSnapInstallVariants(c *C) {
+	snapFile := makeTestSnapPackage(c, `name: foo
+version: 1.0
+type: oem
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>`)
+	_, err := installClick(snapFile, AllowOEM, nil, testNamespace)
+	c.Assert(err, IsNil)
+
+	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
+	_, err = os.Stat(contentFile)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(path.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
+	c.Assert(err, IsNil)
+
+	// an package update
+	snapFile = makeTestSnapPackage(c, `name: foo
+version: 2.0
+type: oem
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>`)
+	_, err = installClick(snapFile, 0, nil, testNamespace)
+	c.Check(err, IsNil)
+
+	// different namespace, this shows we have no namespace support at this
+	// level, but sideloading also works.
+	_, err = installClick(snapFile, 0, nil, sideloadedNamespace)
+	c.Check(err, IsNil)
+
+	// a package name fork, IOW, a different OEM package.
+	snapFile = makeTestSnapPackage(c, `name: foo-fork
+version: 2.0
+type: oem
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>`)
+	_, err = installClick(snapFile, 0, nil, testNamespace)
+	c.Check(err, Equals, ErrOEMPackageInstall)
+
+	// this will cause chaos, but let's test if it works
+	_, err = installClick(snapFile, AllowOEM, nil, testNamespace)
+	c.Check(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestClickSetActive(c *C) {

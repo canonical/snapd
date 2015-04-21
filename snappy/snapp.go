@@ -332,7 +332,7 @@ func (m *packageYaml) checkForPackageInstalled(namespace string) error {
 		return nil
 	}
 
-	if m.Type != SnapTypeFramework {
+	if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
 		if part.Namespace() != namespace {
 			return ErrPackageNameAlreadyInstalled
 		}
@@ -694,10 +694,7 @@ func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
 // symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits).
 func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
 
-	fullName := s.Name()
-	if s.Type() != SnapTypeFramework {
-		fullName += "." + s.Namespace()
-	}
+	fullName := Dirname(s)
 	for _, svc := range s.Services() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
 			if err := updateAppArmorJSONTimestamp(fullName, svc.Name, s.Version()); err != nil {
@@ -760,6 +757,7 @@ func (s *SnapLocalRepository) Description() string {
 
 // Details returns details for the given snap
 func (s *SnapLocalRepository) Details(name string) (versions []Part, err error) {
+	// XXX: this is broken wrt namespaceless packages (e.g. frameworks)
 	if !strings.ContainsRune(name, '.') {
 		name += ".*"
 	}
@@ -807,7 +805,7 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 		}
 
 		namespace := ""
-		if m.Type != SnapTypeFramework {
+		if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
 			namespace, err = namespaceFromYamlPath(realpath)
 			if err != nil {
 				return nil, err
@@ -1201,9 +1199,9 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 
 // Updates returns the available updates
 func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
-	// the store only supports apps and framworks currently, so no
+	// the store only supports apps, oem and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
-	installed, err := ActiveSnapNamesByType(SnapTypeApp, SnapTypeFramework)
+	installed, err := ActiveSnapNamesByType(SnapTypeApp, SnapTypeFramework, SnapTypeOem)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}

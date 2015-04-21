@@ -90,6 +90,29 @@ func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 	c.Assert(parts[0].Name(), Equals, "hello-app")
 }
 
+func (s *SnapTestSuite) TestFindSnapsByNameWithNamespace(c *C) {
+	_, err := makeInstalledMockSnap(s.tempdir, "")
+	repo := NewLocalSnapRepository(snapAppsDir)
+	installed, err := repo.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(installed, HasLen, 1)
+
+	parts := FindSnapsByName("hello-app."+testNamespace, installed)
+	c.Assert(parts, HasLen, 1)
+	c.Assert(parts[0].Name(), Equals, "hello-app")
+}
+
+func (s *SnapTestSuite) TestFindSnapsByNameWithNamespaceNotThere(c *C) {
+	_, err := makeInstalledMockSnap(s.tempdir, "")
+	repo := NewLocalSnapRepository(snapAppsDir)
+	installed, err := repo.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(installed, HasLen, 1)
+
+	parts := FindSnapsByName("hello-app.otherns", installed)
+	c.Assert(parts, HasLen, 0)
+}
+
 func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	c.Check(PackageNameActive("hello-app"), Equals, false)
 
@@ -106,4 +129,46 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	c.Check(PackageNameActive("hello-app"), Equals, true)
 	c.Assert(unsetActiveClick(pkgdir, true, ag), IsNil)
 	c.Check(PackageNameActive("hello-app"), Equals, false)
+}
+
+func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
+	_, err := makeInstalledMockSnap(s.tempdir, "")
+	repo := NewLocalSnapRepository(snapAppsDir)
+	installed, err := repo.Installed()
+	c.Assert(err, IsNil)
+
+	parts := FindSnapsByNameAndVersion("hello-app."+testNamespace, "1.10", installed)
+	c.Check(parts, HasLen, 1)
+	parts = FindSnapsByNameAndVersion("bad-app."+testNamespace, "1.10", installed)
+	c.Check(parts, HasLen, 0)
+	parts = FindSnapsByNameAndVersion("hello-app.badNamespace", "1.10", installed)
+	c.Check(parts, HasLen, 0)
+	parts = FindSnapsByNameAndVersion("hello-app."+testNamespace, "2.20", installed)
+	c.Check(parts, HasLen, 0)
+
+	parts = FindSnapsByNameAndVersion("hello-app", "1.10", installed)
+	c.Check(parts, HasLen, 1)
+	parts = FindSnapsByNameAndVersion("bad-app", "1.10", installed)
+	c.Check(parts, HasLen, 0)
+	parts = FindSnapsByNameAndVersion("hello-app", "2.20", installed)
+	c.Check(parts, HasLen, 0)
+}
+
+func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
+	_, err := makeInstalledMockSnap(s.tempdir, "name: fmk\ntype: framework\nversion: 1")
+	repo := NewLocalSnapRepository(snapAppsDir)
+	installed, err := repo.Installed()
+	c.Assert(err, IsNil)
+
+	parts := FindSnapsByNameAndVersion("fmk."+testNamespace, "1", installed)
+	c.Check(parts, HasLen, 0)
+	parts = FindSnapsByNameAndVersion("fmk.badNamespace", "1", installed)
+	c.Check(parts, HasLen, 0)
+
+	parts = FindSnapsByNameAndVersion("fmk", "1", installed)
+	c.Check(parts, HasLen, 1)
+	parts = FindSnapsByNameAndVersion("not-fmk", "1", installed)
+	c.Check(parts, HasLen, 0)
+	parts = FindSnapsByNameAndVersion("fmk", "2", installed)
+	c.Check(parts, HasLen, 0)
 }

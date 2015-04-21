@@ -39,6 +39,8 @@ const (
 	InhibitHooks
 	// DoInstallGC will ensure that garbage collection is done
 	DoInstallGC
+	// AllowOEM allows the installation of OEM packages, this does not affect updates.
+	AllowOEM
 )
 
 // check if the image is in developer mode
@@ -105,13 +107,16 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 	}
 
 	for _, part := range found {
-		cur := FindSnapByNameAndVersion(part.Name(), part.Version(), installed)
-		if cur != nil {
+		cur := FindSnapsByNameAndVersion(Dirname(part), part.Version(), installed)
+		if len(cur) != 0 {
 			return "", ErrAlreadyInstalled
 		}
 		if PackageNameActive(part.Name()) {
 			return "", ErrPackageNameAlreadyInstalled
 		}
+
+		// TODO block oem snaps here once the store supports package types
+
 		return part.Install(meter, flags)
 	}
 
