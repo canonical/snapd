@@ -326,8 +326,7 @@ func (m *packageYaml) checkForNameClashes() error {
 	return nil
 }
 
-func (m *packageYaml) FrameworksForClick() string {
-	fmks := m.Frameworks
+func addCoreFmk(fmks []string) []string {
 	fmkCore := false
 	for _, a := range fmks {
 		if a == "ubuntu-core-15.04-dev1" {
@@ -335,9 +334,16 @@ func (m *packageYaml) FrameworksForClick() string {
 			break
 		}
 	}
+
 	if !fmkCore {
 		fmks = append(fmks, "ubuntu-core-15.04-dev1")
 	}
+
+	return fmks
+}
+
+func (m *packageYaml) FrameworksForClick() string {
+	fmks := addCoreFmk(m.Frameworks)
 
 	return strings.Join(fmks, ",")
 }
@@ -1070,7 +1076,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 
 	// frameworks
 	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
-	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
+	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(addCoreFmk(frameworks), ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
 
