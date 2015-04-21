@@ -105,9 +105,7 @@ void setup_devices_cgroup(const char *appname) {
    char cgroup_dir[PATH_MAX];
    must_snprintf(cgroup_dir, sizeof(cgroup_dir), "/sys/fs/cgroup/devices/snappy.%s/", appname);
 
-   struct stat statbuf;
-   if (stat(cgroup_dir, &statbuf) != 0)
-      if (mkdir(cgroup_dir, 0755) < 0)
+   if (mkdir(cgroup_dir, 0755) < 0 && errno != EEXIST)
          die("mkdir failed");
 
    // move ourselves into it
