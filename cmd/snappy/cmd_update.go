@@ -95,7 +95,7 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 			}
 		}
 
-		if rebootTriggers != nil {
+		if len(rebootTriggers) != 0 {
 			fmt.Println("Rebooting to satisfy updates for", strings.Join(rebootTriggers, ", "))
 			cmd := exec.Command(shutdownCmd, shutdownTimeout, "-r", shutdownMsg)
 			if out, err := cmd.CombinedOutput(); err != nil {
