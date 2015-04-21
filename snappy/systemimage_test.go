@@ -170,6 +170,8 @@ func (p *MockPartition) RunWithOther(option partition.MountOption, f func(otherR
 	return f("/other")
 }
 
+// Ensure that Install() and Uninstall() can cope being passed a
+// NullProgress (rather than just a MockProgressMeter)
 func (s *SITestSuite) TestSystemImagePartInstallRemoveNilProgress(c *C) {
 	// add a update
 	mockSystemImageIndexJSON = fmt.Sprintf(mockSystemImageIndexJSONTemplate, "2")
