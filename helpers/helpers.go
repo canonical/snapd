@@ -32,6 +32,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"launchpad.net/snappy/progress"
 )
 
 var goarch = runtime.GOARCH
@@ -272,3 +274,15 @@ func AttachedToTerminal() bool {
 	return isatty(fd)
 }
 
+// MakeProgressBar creates an appropriate progress (which may be a
+// NullProgress bar if there is no associated terminal).
+func MakeProgressBar(name string) progress.Meter {
+	var pbar progress.Meter
+	if AttachedToTerminal() {
+		pbar = progress.NewTextProgress(name)
+	} else {
+		pbar = &progress.NullProgress{}
+	}
+
+	return pbar
+}

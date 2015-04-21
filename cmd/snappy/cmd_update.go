@@ -23,7 +23,6 @@ import (
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/priv"
-	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -58,16 +57,8 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 	}
 
 	for _, part := range updates {
-		var pbar progress.Meter
-
-		if helpers.AttachedToTerminal() {
-			pbar = progress.NewTextProgress(part.Name())
-		} else {
-			pbar = &progress.NullProgress{}
-		}
-
 		fmt.Printf("Installing %s (%s)\n", part.Name(), part.Version())
-		if _, err := part.Install(pbar, flags); err != nil {
+		if _, err := part.Install(helpers.MakeProgressBar(part.Name()), flags); err != nil {
 			return err
 		}
 		if err := snappy.GarbageCollect(part.Name(), flags); err != nil {

@@ -22,7 +22,6 @@ import (
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/priv"
-	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -53,13 +52,7 @@ func (x *cmdRemove) Execute(args []string) (err error) {
 	for _, part := range args {
 		fmt.Printf("Removing %s\n", part)
 
-		var pbar progress.Meter
-		if helpers.AttachedToTerminal() {
-			pbar = progress.NewTextProgress(part)
-		} else {
-			pbar = &progress.NullProgress{}
-		}
-		if err := snappy.Remove(part, flags, pbar); err != nil {
+		if err := snappy.Remove(part, flags, helpers.MakeProgressBar(part)); err != nil {
 			return err
 		}
 	}
