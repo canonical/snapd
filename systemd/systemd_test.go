@@ -18,6 +18,7 @@
 package systemd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -143,25 +144,50 @@ func (s *SystemdTestSuite) TestEnable(c *C) {
 	c.Assert(target, Equals, "/etc/systemd/system/foo")
 }
 
-const expectedService = `[Unit]
+const expectedServiceFmt = `[Unit]
 Description=descr
-After=ubuntu-snappy.run-hooks.service
+%s
 X-Snappy=yes
 
 [Service]
-ExecStart=/apps/app/1.0/bin/start
-WorkingDirectory=/apps/app/1.0/
-Environment="SNAPP_APP_PATH=/apps/app/1.0/" "SNAPP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAPP_APP_USER_DATA_PATH=%h/apps/app/1.0/" "SNAP_APP_PATH=/apps/app/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app/1.0/" "SNAP_APP_USER_DATA_PATH=%h/apps/app/1.0/" "SNAP_APP=app_service_1.0" "TMPDIR=/tmp/snaps/app/1.0/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/app/1.0/tmp"
-AppArmorProfile=aa-profile
-ExecStop=/apps/app/1.0/bin/stop
-ExecStopPost=/apps/app/1.0/bin/stop --post
+ExecStart=/usr/bin/ubuntu-core-launcher app%s aa-profile /apps/app%[2]s/1.0/bin/start
+WorkingDirectory=/apps/app%[2]s/1.0/
+Environment="SNAPP_APP_PATH=/apps/app%[2]s/1.0/" "SNAPP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/app%[2]s/1.0/" "SNAP_APP_PATH=/apps/app%[2]s/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAP_APP_USER_DATA_PATH=%%h/apps/app%[2]s/1.0/" "SNAP_APP=app_service_1.0" "TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp"
+ExecStop=/apps/app%[2]s/1.0/bin/stop
+ExecStopPost=/apps/app%[2]s/1.0/bin/stop --post
 TimeoutStopSec=10
+%s
 
 [Install]
 WantedBy=multi-user.target
 `
 
-func (s *SystemdTestSuite) TestGenServiceFile(c *C) {
+var (
+	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "\n")
+	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "\n")
+	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "BusName=foo.bar.baz\nType=dbus")
+)
+
+func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
+
+	desc := &ServiceDescription{
+		AppName:     "app",
+		ServiceName: "service",
+		Version:     "1.0",
+		Description: "descr",
+		AppPath:     "/apps/app.mvo/1.0/",
+		Start:       "bin/start",
+		Stop:        "bin/stop",
+		PostStop:    "bin/stop --post",
+		StopTimeout: time.Duration(10 * time.Second),
+		AaProfile:   "aa-profile",
+		UdevAppName: "app.mvo",
+	}
+
+	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedAppService)
+}
+
+func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
 
 	desc := &ServiceDescription{
 		AppName:     "app",
@@ -174,10 +200,32 @@ func (s *SystemdTestSuite) TestGenServiceFile(c *C) {
 		PostStop:    "bin/stop --post",
 		StopTimeout: time.Duration(10 * time.Second),
 		AaProfile:   "aa-profile",
+		IsFramework: true,
+		UdevAppName: "app",
+	}
+
+	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedFmkService)
+}
+
+func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
+
+	desc := &ServiceDescription{
+		AppName:     "app",
+		ServiceName: "service",
+		Version:     "1.0",
+		Description: "descr",
+		AppPath:     "/apps/app.mvo/1.0/",
+		Start:       "bin/start",
+		Stop:        "bin/stop",
+		PostStop:    "bin/stop --post",
+		StopTimeout: time.Duration(10 * time.Second),
+		AaProfile:   "aa-profile",
+		BusName:     "foo.bar.baz",
+		UdevAppName: "app.mvo",
 	}
 
 	generated := New("", nil).GenServiceFile(desc)
-	c.Assert(generated, Equals, expectedService)
+	c.Assert(generated, Equals, expectedDbusService)
 }
 
 func (s *SystemdTestSuite) TestRestart(c *C) {
@@ -193,4 +241,14 @@ func (s *SystemdTestSuite) TestRestart(c *C) {
 	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
 	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
 	c.Check(s.argses[2], DeepEquals, []string{"start", "foo"})
+}
+
+func (s *SystemdTestSuite) TestKill(c *C) {
+	c.Assert(New("", s.rep).Kill("foo", "HUP"), IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP"}})
+}
+
+func (s *SystemdTestSuite) TestIsTimeout(c *C) {
+	c.Check(IsTimeout(os.ErrInvalid), Equals, false)
+	c.Check(IsTimeout(&Timeout{}), Equals, true)
 }

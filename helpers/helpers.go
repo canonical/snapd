@@ -32,8 +32,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/mvo5/goconfigparser"
 )
 
 var goarch = runtime.GOARCH
@@ -274,21 +272,3 @@ func AttachedToTerminal() bool {
 	return isatty(fd)
 }
 
-// the file that contains the lsb-release stuff
-var lsbReleaseFile = "/etc/lsb-release"
-
-// LsbRelease return the current release
-func LsbRelease() string {
-	cfg := goconfigparser.New()
-	cfg.AllowNoSectionHeader = true
-	if err := cfg.ReadFile(lsbReleaseFile); err != nil {
-		return ""
-	}
-
-	release, err := cfg.Get("", "DISTRIB_RELEASE")
-	if err != nil {
-		return ""
-	}
-
-	return release
-}

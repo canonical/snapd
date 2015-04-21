@@ -96,6 +96,7 @@ integration:
   "i386",
   "amd64"
  ],
+ "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
  "maintainer": "Foo \u003cfoo@example.com\u003e",
@@ -144,6 +145,7 @@ binaries:
  "architecture": [
   "i386"
  ],
+ "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
  "maintainer": "Foo \u003cfoo@example.com\u003e",
@@ -185,6 +187,7 @@ services:
  "architecture": [
   "all"
  ],
+ "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
  "maintainer": "Foo \u003cfoo@example.com\u003e",
@@ -237,6 +240,7 @@ vendor: Foo <foo@example.com>
 	const expectedJSON = `{
  "name": "hello",
  "version": "4.0.1",
+ "framework": "ubuntu-core-15.04-dev1",
  "description": "fixme-description",
  "installed-size": "17",
  "maintainer": "Foo \u003cfoo@example.com\u003e",
@@ -364,6 +368,7 @@ integration:
   "i386",
   "amd64"
  ],
+ "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
  "maintainer": "Foo \u003cfoo@example.com\u003e",

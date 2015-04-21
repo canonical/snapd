@@ -62,6 +62,7 @@ type Systemd interface {
 	Disable(service string) error
 	Start(service string) error
 	Stop(service string, timeout time.Duration) error
+	Kill(service, signal string) error
 	Restart(service string, timeout time.Duration) error
 	GenServiceFile(desc *ServiceDescription) string
 }
@@ -78,6 +79,9 @@ type ServiceDescription struct {
 	PostStop    string
 	StopTimeout time.Duration
 	AaProfile   string
+	IsFramework bool
+	BusName     string
+	UdevAppName string
 }
 
 const (
@@ -166,17 +170,21 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 func (s *systemd) GenServiceFile(desc *ServiceDescription) string {
 	serviceTemplate := `[Unit]
 Description={{.Description}}
-After=ubuntu-snappy.run-hooks.service
+{{if .IsFramework}}Before=ubuntu-snappy.frameworks.target
+After=ubuntu-snappy.frameworks-pre.target
+Requires=ubuntu-snappy.frameworks-pre.target{{else}}After=ubuntu-snappy.frameworks.target
+Requires=ubuntu-snappy.frameworks.target{{end}}
 X-Snappy=yes
 
 [Service]
-ExecStart={{.FullPathStart}}
+ExecStart=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStart}}
 WorkingDirectory={{.AppPath}}
-Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}" "TMPDIR=/tmp/snaps/{{.AppName}}/{{.Version}}/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/{{.AppName}}/{{.Version}}/tmp"
-AppArmorProfile={{.AaProfile}}
+Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}" "TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp"
 {{if .Stop}}ExecStop={{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost={{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
+{{if .BusName}}BusName={{.BusName}}{{end}}
+{{if .BusName}}Type=dbus{{end}}
 
 [Install]
 WantedBy={{.ServiceSystemdTarget}}
@@ -208,6 +216,12 @@ WantedBy={{.ServiceSystemdTarget}}
 	return templateOut.String()
 }
 
+// Kill all processes of the unit with the given signal
+func (s *systemd) Kill(serviceName, signal string) error {
+	_, err := SystemctlCmd("kill", serviceName, "-s", signal)
+	return err
+}
+
 // Restart the service, waiting for it to stop before starting it again.
 func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
 	if err := s.Stop(serviceName, timeout); err != nil {
@@ -236,4 +250,10 @@ type Timeout struct {
 
 func (e *Timeout) Error() string {
 	return fmt.Sprintf("%v failed to %v: timeout", e.service, e.action)
+}
+
+// IsTimeout checks whether the given error is a Timeout
+func IsTimeout(err error) bool {
+	_, isTimeout := err.(*Timeout)
+	return isTimeout
 }

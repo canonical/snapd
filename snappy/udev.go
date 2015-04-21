@@ -15,20 +15,20 @@
  *
  */
 
-package main
+package snappy
 
 import (
-	. "launchpad.net/gocheck"
+	"fmt"
+	"path/filepath"
 )
 
-func (s *CmdTestSuite) TestSplitPkgAndDeveloperSimple(c *C) {
-	name, developer := pkgAndDeveloper("paste.mvo")
-	c.Assert(name, Equals, "paste")
-	c.Assert(developer, Equals, "mvo")
-}
+func getUdevPartName(m *packageYaml, baseDir string) (string, error) {
+	if m.Type == SnapTypeFramework {
+		return m.Name, nil
+	}
 
-func (s *CmdTestSuite) TestSplitPkgAndDeveloperNoDeveloper(c *C) {
-	name, developer := pkgAndDeveloper("paste")
-	c.Assert(name, Equals, "paste")
-	c.Assert(developer, Equals, "")
+	namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+
+	return fmt.Sprintf("%s.%s", m.Name, namespace), err
+
 }

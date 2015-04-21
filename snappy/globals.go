@@ -17,11 +17,22 @@
 
 package snappy
 
-import "strings"
+import (
+	"os"
 
-// Search searches all repositories with the given keywords in the args slice
-func Search(args []string) (SharedNames, error) {
-	m := NewUbuntuStoreSnapRepository()
+	"launchpad.net/snappy/release"
+)
 
-	return m.Search(strings.Join(args, ","))
+func init() {
+	// init the global directories at startup
+	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
+	if root == "" {
+		root = "/"
+	}
+
+	SetRootDir(root)
+
+	// we don't need to care for the error here to take into account when
+	// initialized on a non snappy system
+	release.Setup(globalRootDir)
 }

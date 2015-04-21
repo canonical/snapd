@@ -77,9 +77,7 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 		pbar = &progress.NullProgress{}
 	}
 	realPkgName, err := snappy.Install(pkgName, flags, pbar)
-	if err == snappy.ErrPackageNotFound {
-		return fmt.Errorf("No package '%s' for %s", pkgName, ubuntuCoreChannel())
-	} else if err != nil {
+	if err != nil {
 		return err
 	}
 

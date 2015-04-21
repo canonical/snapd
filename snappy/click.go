@@ -88,6 +88,9 @@ var ignoreHooks = map[string]bool{
 	"snappy-systemd": true,
 }
 
+// wait this time between TERM and KILL
+var killWait = 5 * time.Second
+
 // servicesBinariesStringsWhitelist is the whitelist of legal chars
 // in the "binaries" and "services" section of the package.yaml
 const servicesBinariesStringsWhitelist = `^[A-Za-z0-9/. _#:-]*$`
@@ -314,11 +317,6 @@ func removeClick(clickDir string, inter interacter) (err error) {
 		}
 	}
 
-	if manifest.Type == SnapTypeFramework {
-		if err := policy.Remove(manifest.Name, clickDir); err != nil {
-			return err
-		}
-	}
 	return os.RemoveAll(clickDir)
 }
 
@@ -359,7 +357,7 @@ func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *pack
 
 set -e
 
-TMPDIR="/tmp/snaps/{{.Name}}/{{.Version}}/tmp"
+TMPDIR="/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp"
 if [ ! -d "$TMPDIR" ]; then
     mkdir -p -m1777 "$TMPDIR"
 fi
@@ -390,7 +388,7 @@ export HOME="$SNAP_APP_USER_DATA_PATH"
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
 cd {{.Path}}
-aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
+ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
 	if err := verifyBinariesYaml(binary); err != nil {
@@ -398,17 +396,27 @@ aa-exec -p {{.AaProfile}} -- {{.Target}} "$@"
 	}
 
 	actualBinPath := binPathForBinary(pkgPath, binary)
+	udevPartName, err := getUdevPartName(m, pkgPath)
+	if err != nil {
+		return "", err
+	}
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
 	wrapperData := struct {
-		Name      string
-		Version   string
-		Target    string
-		Path      string
-		AaProfile string
+		Name        string
+		Version     string
+		Target      string
+		Path        string
+		AaProfile   string
+		UdevAppName string
 	}{
-		m.Name, m.Version, actualBinPath, pkgPath, aaProfile,
+		Name:        m.Name,
+		Version:     m.Version,
+		Target:      actualBinPath,
+		Path:        pkgPath,
+		AaProfile:   aaProfile,
+		UdevAppName: udevPartName,
 	}
 	t.Execute(&templateOut, wrapperData)
 
@@ -467,16 +475,35 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 		return "", err
 	}
 
+	udevPartName, err := getUdevPartName(m, baseDir)
+	if err != nil {
+		return "", err
+	}
+
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
-			m.Name, service.Name, m.Version, service.Description,
-			baseDir, service.Start, service.Stop, service.PostStop,
-			time.Duration(service.StopTimeout), aaProfile,
+			AppName:     m.Name,
+			ServiceName: service.Name,
+			Version:     m.Version,
+			Description: service.Description,
+			AppPath:     baseDir,
+			Start:       service.Start,
+			Stop:        service.Stop,
+			PostStop:    service.PostStop,
+			StopTimeout: time.Duration(service.StopTimeout),
+			AaProfile:   aaProfile,
+			IsFramework: m.Type == SnapTypeFramework,
+			BusName:     service.BusName,
+			UdevAppName: udevPartName,
 		}), nil
 }
 
 func generateServiceFileName(m *packageYaml, service Service) string {
 	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
+}
+
+func generateBusPolicyFileName(m *packageYaml, service Service) string {
+	return filepath.Join(snapBusPolicyDir, fmt.Sprintf("%s_%s_%s.conf", m.Name, service.Name, m.Version))
 }
 
 // takes a directory and removes the global root, this is needed
@@ -508,7 +535,10 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 	}
 
 	for _, service := range m.Services {
-		aaProfile := getAaProfile(m, service.Name)
+		aaProfile, err := getSecurityProfile(m, service.Name, baseDir)
+		if err != nil {
+			return err
+		}
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -522,6 +552,20 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 		helpers.EnsureDir(filepath.Dir(serviceFilename), 0755)
 		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0644); err != nil {
 			return err
+		}
+
+		// If necessary, generate the DBus policy file so the framework
+		// service is allowed to start
+		if m.Type == SnapTypeFramework && service.BusName != "" {
+			content, err := genBusPolicyFile(service.BusName)
+			if err != nil {
+				return err
+			}
+			policyFilename := generateBusPolicyFileName(m, service)
+			helpers.EnsureDir(filepath.Dir(policyFilename), 0755)
+			if err := ioutil.WriteFile(policyFilename, []byte(content), 0644); err != nil {
+				return err
+			}
 		}
 
 		// daemon-reload and start only if we are not in the
@@ -559,15 +603,24 @@ func removePackageServices(baseDir string, inter interacter) error {
 	sysd := systemd.New(globalRootDir, inter)
 	for _, service := range m.Services {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		if err := sysd.Stop(serviceName, time.Duration(service.StopTimeout)); err != nil {
-			return err
-		}
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
 		}
-		// FIXME: wait for the service to be really stopped
+		if err := sysd.Stop(serviceName, time.Duration(service.StopTimeout)); err != nil {
+			if !systemd.IsTimeout(err) {
+				return err
+			}
+			inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
+			// ignore errors for kill; nothing we'd do differently at this point
+			sysd.Kill(serviceName, "TERM")
+			time.Sleep(killWait)
+			sysd.Kill(serviceName, "KILL")
+		}
 
 		os.Remove(generateServiceFileName(m, service))
+
+		// Also remove DBus system policy file
+		os.Remove(generateBusPolicyFileName(m, service))
 	}
 
 	// only reload if we actually had services
@@ -591,7 +644,10 @@ func addPackageBinaries(baseDir string) error {
 	}
 
 	for _, binary := range m.Binaries {
-		aaProfile := getAaProfile(m, binary.Name)
+		aaProfile, err := getSecurityProfile(m, binary.Name, baseDir)
+		if err != nil {
+			return err
+		}
 		// this will remove the global base dir when generating the
 		// service file, this ensures that /apps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
@@ -617,6 +673,74 @@ func removePackageBinaries(baseDir string) error {
 	}
 	for _, binary := range m.Binaries {
 		os.Remove(generateBinaryName(m, binary))
+	}
+
+	return nil
+}
+
+func addOneSecurityPolicy(m *packageYaml, name string, sd SecurityDefinitions, baseDir string) error {
+	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
+	if err != nil {
+		return err
+	}
+	content, err := generateSeccompPolicy(baseDir, name, sd)
+	if err != nil {
+		return err
+	}
+
+	fn := filepath.Join(snapSeccompDir, profileName)
+	if err := ioutil.WriteFile(fn, content, 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *packageYaml) addSecurityPolicy(baseDir string) error {
+	// TODO: move apparmor policy generation here too, its currently
+	//       done via the click hooks but we really want to generate
+	//       it all here
+
+	for _, svc := range m.Services {
+		if err := addOneSecurityPolicy(m, svc.Name, svc.SecurityDefinitions, baseDir); err != nil {
+			return err
+		}
+	}
+
+	for _, bin := range m.Binaries {
+		if err := addOneSecurityPolicy(m, bin.Name, bin.SecurityDefinitions, baseDir); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func removeOneSecurityPolicy(m *packageYaml, name, baseDir string) error {
+	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
+	if err != nil {
+		return err
+	}
+	fn := filepath.Join(snapSeccompDir, profileName)
+	if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
+}
+
+func (m *packageYaml) removeSecurityPolicy(baseDir string) error {
+	// TODO: move apparmor policy removal here
+	for _, service := range m.Services {
+		if err := removeOneSecurityPolicy(m, service.Name, baseDir); err != nil {
+			return err
+		}
+	}
+
+	for _, binary := range m.Binaries {
+		if err := removeOneSecurityPolicy(m, binary.Name, baseDir); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -683,13 +807,33 @@ type interacter interface {
 	Notify(status string)
 }
 
-func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
-	// FIXME: drop privs to "snap:snap" here
-	// like in http://bazaar.launchpad.net/~phablet-team/goget-ubuntu-touch/trunk/view/head:/sysutils/utils.go#L64
+// this rewrites the json manifest to include the namespace in the on-disk
+// manifest.json to be compatible with click again
+func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace string) error {
+	var cm clickManifest
+	if err := json.Unmarshal(manifestData, &cm); err != nil {
+		return err
+	}
 
-	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
-	err = auditClick(snapFile, allowUnauthenticated)
+	if cm.Type != SnapTypeFramework {
+		// add the namespace to the name
+		cm.Name = fmt.Sprintf("%s.%s", cm.Name, namespace)
+	}
+
+	outStr, err := json.MarshalIndent(cm, "", "  ")
 	if err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(path.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
+	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
+	if err := auditClick(snapFile, allowUnauthenticated); err != nil {
 		return "", err
 		// ?
 		//return SnapAuditError
@@ -700,11 +844,13 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		return "", err
 	}
 	defer d.Close()
+
 	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
 		return "", err
 	}
+
 	manifest, err := readClickManifest([]byte(manifestData))
 	if err != nil {
 		return "", err
@@ -720,6 +866,10 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		return "", err
 	}
 
+	if err := m.checkForPackageInstalled(namespace); err != nil {
+		return "", err
+	}
+
 	if err := m.checkForNameClashes(); err != nil {
 		return "", err
 	}
@@ -732,17 +882,23 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	// the "oem" parts are special
 	if manifest.Type == SnapTypeOem {
 		targetDir = snapOemDir
+		if err := installOemHardwareUdevRules(m); err != nil {
+			return "", err
+		}
 	}
 
-	dirName := fmt.Sprintf("%s.%s", manifest.Name, namespace)
-	instDir := filepath.Join(targetDir, dirName, manifest.Version)
+	fullName := manifest.Name
+	if manifest.Type != SnapTypeFramework {
+		fullName += "." + namespace
+	}
+	instDir := filepath.Join(targetDir, fullName, manifest.Version)
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 
 	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
 		return "", err
 	}
 
-	dataDir := filepath.Join(snapDataDir, manifest.Name, manifest.Version)
+	dataDir := filepath.Join(snapDataDir, fullName, manifest.Version)
 
 	if err := helpers.EnsureDir(instDir, 0755); err != nil {
 		log.Printf("WARNING: Can not create %s", instDir)
@@ -751,8 +907,8 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	// if anything goes wrong here we cleanup
 	defer func() {
 		if err != nil {
-			if err := os.RemoveAll(instDir); err != nil {
-				log.Printf("Warning: failed to remove %s: %s", instDir, err)
+			if e := os.RemoveAll(instDir); err != nil {
+				log.Printf("Warning: failed to remove %s: %s", instDir, e)
 			}
 		}
 	}()
@@ -763,26 +919,13 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		return "", err
 	}
 
-	if manifest.Type == SnapTypeFramework {
-		if err := policy.Install(manifest.Name, instDir); err != nil {
-			return "", err
-		}
-		defer func() {
-			if err != nil {
-				if cerr := policy.Remove(manifest.Name, instDir); cerr != nil {
-					log.Printf("Warning: failed to remove policies for %s: %v", manifest.Name, err)
-				}
-			}
-		}()
-	}
-
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
 	// all hooks this can go away
 	clickMetaDir := path.Join(instDir, ".click", "info")
 	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
 		return "", err
 	}
-	if err := ioutil.WriteFile(path.Join(clickMetaDir, manifest.Name+".manifest"), manifestData, 0644); err != nil {
+	if err := writeCompatManifestJSON(clickMetaDir, manifestData, namespace); err != nil {
 		return "", err
 	}
 
@@ -819,14 +962,14 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 			return "", err
 		}
 
-		err = copySnapData(manifest.Name, oldManifest.Version, manifest.Version)
+		err = copySnapData(fullName, oldManifest.Version, manifest.Version)
 	} else {
 		err = helpers.EnsureDir(dataDir, 0755)
 	}
 
 	defer func() {
 		if err != nil {
-			if cerr := removeSnapData(manifest.Name, manifest.Version); cerr != nil {
+			if cerr := removeSnapData(fullName, manifest.Version); cerr != nil {
 				log.Printf("when clenaning up data for %s %s: %v", manifest.Name, manifest.Version, cerr)
 			}
 		}
@@ -851,8 +994,63 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 
 	// oh, one more thing: refresh the security bits
 	if !inhibitHooks {
-		if err := NewSnapPartFromYaml(instDir, namespace, m).RefreshDependentsSecurity(inter); err != nil {
+		part, err := NewSnapPartFromYaml(filepath.Join(instDir, "meta", "package.yaml"), namespace, m)
+		if err != nil {
 			return "", err
+		}
+
+		deps, err := part.Dependents()
+		if err != nil {
+			return "", err
+		}
+
+		sysd := systemd.New(globalRootDir, inter)
+		stopped := make(map[string]time.Duration)
+		defer func() {
+			if err != nil {
+				for serviceName := range stopped {
+					if e := sysd.Start(serviceName); e != nil {
+						inter.Notify(fmt.Sprintf("unable to restart %s with the old %s: %s", serviceName, part.Name(), e))
+					}
+				}
+			}
+		}()
+
+		for _, dep := range deps {
+			if !dep.IsActive() {
+				continue
+			}
+			for _, svc := range dep.Services() {
+				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
+				timeout := time.Duration(svc.StopTimeout)
+				if err = sysd.Stop(serviceName, timeout); err != nil {
+					inter.Notify(fmt.Sprintf("unable to stop %s; aborting install: %s", serviceName, err))
+					return "", err
+				}
+				stopped[serviceName] = timeout
+			}
+		}
+
+		if err := part.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
+			return "", err
+		}
+
+		started := make(map[string]time.Duration)
+		defer func() {
+			if err != nil {
+				for serviceName, timeout := range started {
+					if e := sysd.Stop(serviceName, timeout); e != nil {
+						inter.Notify(fmt.Sprintf("unable to stop %s with the old %s: %s", serviceName, part.Name(), e))
+					}
+				}
+			}
+		}()
+		for serviceName, timeout := range stopped {
+			if err = sysd.Start(serviceName); err != nil {
+				inter.Notify(fmt.Sprintf("unable to restart %s; aborting install: %s", serviceName, err))
+				return "", err
+			}
+			started[serviceName] = timeout
 		}
 	}
 
@@ -860,8 +1058,8 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 }
 
 // removeSnapData removes the data for the given version of the given snap
-func removeSnapData(snapName, version string) error {
-	dirs, err := snapDataDirs(snapName, version)
+func removeSnapData(fullName, version string) error {
+	dirs, err := snapDataDirs(fullName, version)
 	if err != nil {
 		return err
 	}
@@ -870,29 +1068,30 @@ func removeSnapData(snapName, version string) error {
 		if err := os.RemoveAll(dir); err != nil && !os.IsNotExist(err) {
 			return err
 		}
+		os.Remove(filepath.Dir(dir))
 	}
 
 	return nil
 }
 
 // snapDataDirs returns the list of data directories for the given snap version
-func snapDataDirs(snapName, version string) ([]string, error) {
+func snapDataDirs(fullName, version string) ([]string, error) {
 	// collect the directories, homes first
-	dirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, snapName, version))
+	dirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, fullName, version))
 	if err != nil {
 		return nil, err
 	}
 	// then system data
-	systemPath := filepath.Join(snapDataDir, snapName, version)
+	systemPath := filepath.Join(snapDataDir, fullName, version)
 	dirs = append(dirs, systemPath)
 
 	return dirs, nil
 }
 
-// Copy all data for "snapName" from "oldVersion" to "newVersion"
+// Copy all data for "fullName" from "oldVersion" to "newVersion"
 // (but never overwrite)
-func copySnapData(snapName, oldVersion, newVersion string) (err error) {
-	oldDataDirs, err := snapDataDirs(snapName, oldVersion)
+func copySnapData(fullName, oldVersion, newVersion string) (err error) {
+	oldDataDirs, err := snapDataDirs(fullName, oldVersion)
 	if err != nil {
 		return err
 	}
@@ -940,7 +1139,7 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 		return ErrSnapNotActive
 	}
 
-	// remove generated services, binaries, clickHooks
+	// remove generated services, binaries, clickHooks, security policy
 	if err := removePackageBinaries(clickDir); err != nil {
 		return err
 	}
@@ -949,10 +1148,26 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 		return err
 	}
 
+	m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
+	if err != nil {
+		return err
+	}
+	if err := m.removeSecurityPolicy(clickDir); err != nil {
+		return err
+	}
+
 	manifest, err := readClickManifestFromClickDir(clickDir)
 	if err != nil {
 		return err
 	}
+
+	if manifest.Type == SnapTypeFramework {
+
+		if err := policy.Remove(m.Name, clickDir); err != nil {
+			return err
+		}
+	}
+
 	if err := removeClickHooks(manifest, inhibitHooks); err != nil {
 		return err
 	}
@@ -985,9 +1200,27 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
+	// yes, its confusing, we have two manifests, this is the important
+	// one, the YAML one
+	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
+	if err != nil {
+		return err
+	}
+
+	if newActiveManifest.Type == SnapTypeFramework {
+		if err := policy.Install(m.Name, baseDir); err != nil {
+			return err
+		}
+	}
+
 	if err := installClickHooks(baseDir, newActiveManifest, inhibitHooks); err != nil {
 		// cleanup the failed hooks
 		removeClickHooks(newActiveManifest, inhibitHooks)
+		return err
+	}
+
+	// generate the security policy from the package.yaml
+	if err := m.addSecurityPolicy(baseDir); err != nil {
 		return err
 	}
 

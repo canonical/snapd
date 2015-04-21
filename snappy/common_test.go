@@ -72,6 +72,11 @@ services:
 		return "", err
 	}
 
+	hashFile := filepath.Join(metaDir, "hashes.yaml")
+	if err := ioutil.WriteFile(hashFile, []byte("{}"), 0644); err != nil {
+		return "", err
+	}
+
 	return yamlFile, nil
 }
 
@@ -198,4 +203,14 @@ func (m *MockProgressMeter) Agreed(string, string) bool {
 }
 func (m *MockProgressMeter) Notify(msg string) {
 	m.notified = append(m.notified, msg)
+}
+
+// seccomp filter mocks
+const scFilterGenFakeResult = `
+syscall1
+syscall2
+`
+
+func mockRunScFilterGen(argv ...string) ([]byte, error) {
+	return []byte(scFilterGenFakeResult), nil
 }

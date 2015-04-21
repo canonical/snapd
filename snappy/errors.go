@@ -65,6 +65,13 @@ var (
 	// ErrAlreadyInstalled is returned when the snap is already installed
 	ErrAlreadyInstalled = errors.New("the given snap is already installed")
 
+	// ErrStillActive is returned when the snap is still installed
+	ErrStillActive = errors.New("the given snap is still installed")
+
+	// ErrPackageNameAlreadyInstalled is returned when you try to install
+	// a fork of something you already have installed
+	ErrPackageNameAlreadyInstalled = errors.New("a package by that name is already installed")
+
 	// ErrPrivOpInProgress is returned when a privileged operation
 	// cannot be performed since an existing privileged operation is
 	// still running.
@@ -123,7 +130,25 @@ var (
 	// ErrSideLoaded is returned on system update if the system was
 	// created with a custom enablement part.
 	ErrSideLoaded = errors.New("cannot update system that uses custom enablement")
+
+	// ErrPackageNameNotSupported is returned when installing legacy package such as those
+	// that have namespaces in their package names.
+	ErrPackageNameNotSupported = errors.New("package name with namespace not supported")
+
+	// ErrInvalidPart is returned when something on the filesystem does not make sense
+	ErrInvalidPart = errors.New("invalid package on system")
 )
+
+// ErrInstallFailed is an error type for installation errors for snaps
+type ErrInstallFailed struct {
+	snap    string
+	origErr error
+}
+
+// ErrInstallFailed is an error type for installation errors for snaps
+func (e *ErrInstallFailed) Error() string {
+	return fmt.Sprintf("%s failed to install: %s", e.snap, e.origErr)
+}
 
 // ErrUnpackFailed is the error type for a snap unpack problem
 type ErrUnpackFailed struct {
