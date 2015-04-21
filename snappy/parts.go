@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strings"
 	"time"
 
 	"launchpad.net/snappy/progress"
@@ -48,6 +49,15 @@ type Services interface {
 // Configuration allows requesting an oem snappy package type's config
 type Configuration interface {
 	OemConfig() SystemConfig
+}
+
+// Dirname of a Part is the Name, in most cases qualified with the
+// Namespace
+func Dirname(p Part) string {
+	if t := p.Type(); t == SnapTypeFramework || t == SnapTypeOem {
+		return p.Name()
+	}
+	return p.Name() + "." + p.Namespace()
 }
 
 // Part representation of a snappy part
@@ -268,23 +278,41 @@ func ActiveSnapByName(needle string) Part {
 // FindSnapsByName returns all snaps with the given name in the "haystack"
 // slice of parts (useful for filtering)
 func FindSnapsByName(needle string, haystack []Part) (res []Part) {
+	name, namespace := splitNamespace(needle)
+	ignorens := namespace == ""
+
 	for _, part := range haystack {
-		if part.Name() == needle {
+		if part.Name() == name && (ignorens || part.Namespace() == namespace) {
 			res = append(res, part)
 		}
 	}
+
 	return res
 }
 
-// FindSnapByNameAndVersion returns the part with the name/version in the
+func splitNamespace(name string) (string, string) {
+	idx := strings.LastIndexAny(name, ".")
+	if idx > -1 {
+		return name[:idx], name[idx+1:]
+	}
+
+	return name, ""
+}
+
+// FindSnapsByNameAndVersion returns the parts with the name/version in the
 // given slice of parts
-func FindSnapByNameAndVersion(needle, version string, haystack []Part) Part {
+func FindSnapsByNameAndVersion(needle, version string, haystack []Part) []Part {
+	name, namespace := splitNamespace(needle)
+	ignorens := namespace == ""
+	var found []Part
+
 	for _, part := range haystack {
-		if part.Name() == needle && part.Version() == version {
-			return part
+		if part.Name() == name && part.Version() == version && (ignorens || part.Namespace() == namespace) {
+			found = append(found, part)
 		}
 	}
-	return nil
+
+	return found
 }
 
 // MakeSnapActiveByNameAndVersion makes the given snap version the active
@@ -296,12 +324,15 @@ func makeSnapActiveByNameAndVersion(pkg, ver string) error {
 		return err
 	}
 
-	part := FindSnapByNameAndVersion(pkg, ver, installed)
-	if part == nil {
+	parts := FindSnapsByNameAndVersion(pkg, ver, installed)
+	switch len(parts) {
+	case 0:
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
+	case 1:
+		return parts[0].SetActive(nil)
+	default:
+		return fmt.Errorf("More than one %s with version %s", pkg, ver)
 	}
-
-	return part.SetActive(nil)
 }
 
 // PackageNameActive checks whether a fork of the given name is active in the system
