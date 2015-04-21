@@ -1,4 +1,4 @@
-ubuntu-core-launcher (0.2.3) UNRELEASED; urgency=low
+ubuntu-core-launcher (0.2.3) vivid; urgency=low
 
   * remove rootdir as first argument as its redundant currently
     (the service/binary-wrapper will CD there and setup the
