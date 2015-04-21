@@ -268,7 +268,7 @@ func ShouldDropPrivs() bool {
 
 // AttachedToTerminal returns true if the calling process is attached to
 // a terminal device.
-func AttachedToTerminal() bool {
+var AttachedToTerminal = func() bool {
 	fd := int(os.Stdin.Fd())
 
 	return isatty(fd)

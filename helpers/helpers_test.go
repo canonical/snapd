@@ -27,14 +27,22 @@ import (
 	"strings"
 	"testing"
 
+	"launchpad.net/snappy/progress"
+
 	. "launchpad.net/gocheck"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
-type HTestSuite struct{}
+type HTestSuite struct {
+	attachedToTerminalReturn bool
+}
 
 var _ = Suite(&HTestSuite{})
+
+func (ts *HTestSuite) MockAttachedToTerminal() bool {
+	return ts.attachedToTerminalReturn
+}
 
 func (ts *HTestSuite) TestUnpack(c *C) {
 
@@ -262,4 +270,20 @@ func (ts *HTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
 	home, err := CurrentHomeDir()
 	c.Assert(err, IsNil)
 	c.Assert(home, Equals, oldHome)
+}
+
+func (ts *HTestSuite) TestMakeProgressBar(c *C) {
+	var pbar progress.Meter
+
+	AttachedToTerminal = ts.MockAttachedToTerminal
+
+	ts.attachedToTerminalReturn = true
+
+	pbar = MakeProgressBar("foo")
+	c.Assert(pbar, FitsTypeOf, progress.NewTextProgress("foo"))
+
+	ts.attachedToTerminalReturn = false
+
+	pbar = MakeProgressBar("bar")
+	c.Assert(pbar, FitsTypeOf, &progress.NullProgress{})
 }
