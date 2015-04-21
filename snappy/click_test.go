@@ -170,7 +170,7 @@ Pattern: /var/lib/apparmor/click/${id}
 	c.Assert(err, NotNil)
 }
 
-func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
+func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	snapFile := makeTestSnapPackage(c, "")
 	name, err := installClick(snapFile, 0, nil, testNamespace)
 	c.Assert(err, IsNil)
@@ -194,6 +194,19 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	snap, err := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"), testNamespace)
 	c.Assert(err, IsNil)
 	c.Assert(snap.Hash(), Not(Equals), "")
+
+	return snapFile
+}
+
+func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
+	s.testLocalSnapInstall(c)
+}
+
+func (s *SnapTestSuite) TestLocalSnapInstallFailsAlreadyInstalled(c *C) {
+	snapFile := s.testLocalSnapInstall(c)
+
+	_, err := installClick(snapFile, 0, nil, "namespaceother")
+	c.Assert(err, Equals, ErrPackageNameAlreadyInstalled)
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
@@ -694,8 +707,7 @@ const expectedWrapper = `#!/bin/sh
 
 set -e
 
-#FIXME: namespace
-TMPDIR="/tmp/snaps/pastebinit/1.4.0.0.1/tmp"
+TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
 if [ ! -d "$TMPDIR" ]; then
     mkdir -p -m1777 "$TMPDIR"
 fi
@@ -1148,11 +1160,11 @@ Description=A fun webserver
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver%s xkcd-webserver.canonical_xkcd-webserver_0.3.4 /apps/xkcd-webserver.canonical/0.3.4/bin/foo start
-WorkingDirectory=/apps/xkcd-webserver.canonical/0.3.4/
-Environment="SNAPP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver.canonical/0.3.4/" "SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xkcd-webserver/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver/0.3.4/tmp"
-ExecStop=/apps/xkcd-webserver.canonical/0.3.4/bin/foo stop
-ExecStopPost=/apps/xkcd-webserver.canonical/0.3.4/bin/foo post-stop
+ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver%s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo start
+WorkingDirectory=/apps/xkcd-webserver%[2]s/0.3.4/
+Environment="SNAPP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp"
+ExecStop=/apps/xkcd-webserver%[2]s/0.3.4/bin/foo stop
+ExecStopPost=/apps/xkcd-webserver%[2]s/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
 %s
 
@@ -1192,8 +1204,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
 		Description: "A fun webserver",
 		BusName:     "foo.bar.baz",
 	}
-	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
-	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
+	pkgPath := "/apps/xkcd-webserver/0.3.4/"
+	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
 	m := packageYaml{
 		Name:    "xkcd-webserver",
 		Version: "0.3.4",

@@ -973,6 +973,42 @@ framework: three, four
 	c.Assert(err, Equals, ErrInvalidFrameworkSpecInYaml)
 }
 
+func (s *SnapTestSuite) TestDetectsAlreadyInstalled(c *C) {
+	data := "name: afoo\nversion: 1"
+	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
+	c.Assert(err, IsNil)
+	c.Assert(makeSnapActive(yamlPath), IsNil)
+
+	yaml, err := parsePackageYamlData([]byte(data))
+	c.Assert(err, IsNil)
+	c.Check(yaml.checkForPackageInstalled("otherns"), Equals, ErrPackageNameAlreadyInstalled)
+}
+
+func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameNamespace(c *C) {
+	// XXX: should this be allowed? right now it is (=> you can re-sideload the same version of your apps)
+	//      (remote snaps are stopped before clickInstall gets to run)
+
+	data := "name: afoo\nversion: 1"
+	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
+	c.Assert(err, IsNil)
+	c.Assert(makeSnapActive(yamlPath), IsNil)
+
+	yaml, err := parsePackageYamlData([]byte(data))
+	c.Assert(err, IsNil)
+	c.Check(yaml.checkForPackageInstalled(testNamespace), IsNil)
+}
+
+func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworks(c *C) {
+	data := "name: afoo\nversion: 1\ntype: framework"
+	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
+	c.Assert(err, IsNil)
+	c.Assert(makeSnapActive(yamlPath), IsNil)
+
+	yaml, err := parsePackageYamlData([]byte(data))
+	c.Assert(err, IsNil)
+	c.Check(yaml.checkForPackageInstalled("otherns"), IsNil)
+}
+
 func (s *SnapTestSuite) TestDetectsNameClash(c *C) {
 	data := []byte(`name: afoo
 version: 1.0
