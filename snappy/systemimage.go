@@ -31,6 +31,7 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/progress"
+	"launchpad.net/snappy/provisioning"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -159,7 +160,7 @@ func (s *SystemImagePart) SetActive(pb progress.Meter) (err error) {
 
 // Install installs the snap
 func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
-	if sideLoadedSystem() {
+	if provisioning.SideLoadedSystem() {
 		return "", ErrSideLoaded
 	}
 

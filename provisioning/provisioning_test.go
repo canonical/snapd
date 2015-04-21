@@ -15,7 +15,7 @@
  *
  */
 
-package snappy
+package provisioning
 
 import (
 	"io/ioutil"
@@ -87,44 +87,44 @@ func (ts *ProvisioningTestSuite) TearDownTest(c *C) {
 }
 
 func (ts *ProvisioningTestSuite) TestSideLoadedSystemNoInstallYaml(c *C) {
-	c.Assert(sideLoadedSystem(), Equals, false)
+	c.Assert(SideLoadedSystem(), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestSideLoadedSystem(c *C) {
-	c.Assert(sideLoadedSystem(), Equals, false)
+	c.Assert(SideLoadedSystem(), Equals, false)
 
 	err := ioutil.WriteFile(InstallYamlFile, []byte(yamlData), 0750)
 	c.Assert(err, IsNil)
 
-	c.Assert(sideLoadedSystem(), Equals, true)
+	c.Assert(SideLoadedSystem(), Equals, true)
 
 	os.Remove(InstallYamlFile)
-	c.Assert(sideLoadedSystem(), Equals, false)
+	c.Assert(SideLoadedSystem(), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestSideLoadedSystemNoDevicePart(c *C) {
 
-	c.Assert(sideLoadedSystem(), Equals, false)
+	c.Assert(SideLoadedSystem(), Equals, false)
 
 	err := ioutil.WriteFile(InstallYamlFile, []byte(yamlDataNoDevicePart), 0750)
 	c.Assert(err, IsNil)
 
-	c.Assert(sideLoadedSystem(), Equals, false)
+	c.Assert(SideLoadedSystem(), Equals, false)
 
 	os.Remove(InstallYamlFile)
-	c.Assert(sideLoadedSystem(), Equals, false)
+	c.Assert(SideLoadedSystem(), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestSideLoadedSystemGarbageInstallYaml(c *C) {
-	c.Assert(sideLoadedSystem(), Equals, false)
+	c.Assert(SideLoadedSystem(), Equals, false)
 
 	err := ioutil.WriteFile(InstallYamlFile, []byte(garbageData), 0750)
 	c.Assert(err, IsNil)
 
-	c.Assert(sideLoadedSystem(), Equals, false)
+	c.Assert(SideLoadedSystem(), Equals, false)
 
 	os.Remove(InstallYamlFile)
-	c.Assert(sideLoadedSystem(), Equals, false)
+	c.Assert(SideLoadedSystem(), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestParseInstallYaml(c *C) {

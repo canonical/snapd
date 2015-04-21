@@ -15,7 +15,7 @@
  *
  */
 
-package snappy
+package provisioning
 
 import (
 	"fmt"
@@ -96,9 +96,9 @@ func parseInstallYamlData(yamlData []byte) (*InstallYaml, error) {
 	return &i, nil
 }
 
-// sideLoadedSystem determines if the system was installed using a
+// SideLoadedSystem determines if the system was installed using a
 // custom enablement part.
-func sideLoadedSystem() bool {
+func SideLoadedSystem() bool {
 	file := InstallYamlFile
 
 	if !helpers.FileExists(file) {
