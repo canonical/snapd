@@ -14,6 +14,7 @@
 #include <linux/kdev_t.h>
 #include <stdlib.h>
 #include <regex.h>
+#include <grp.h>
 
 #include "libudev.h"
 
@@ -166,12 +167,14 @@ int main(int argc, char **argv)
        setup_udev_snappy_assign(appname);
 
        // the rest does not so drop privs back to user
-       int real_uid = getuid();
-       int real_gid = getgid();
+       unsigned real_uid = getuid();
+       unsigned real_gid = getgid();
 
-       if (setgid(getgid()) != 0)
+       if (setgroups(1, &real_gid) != 0)
           die("setgid failed");
-       if (setuid(getuid()) != 0)
+       if (setgid(real_gid) != 0)
+          die("setgid failed");
+       if (setuid(real_uid) != 0)
           die("seteuid failed");
 
        if(real_gid != 0 && (getuid() == 0 || geteuid() == 0))
