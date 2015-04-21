@@ -110,7 +110,8 @@ func SideLoadedSystem() bool {
 	InstallYaml, err := parseInstallYaml(file)
 	if err != nil {
 		logger.LogError(err)
-		return false
+		// file isn't parseable, so let's assume system is sideloaded 
+		return true
 	}
 
 	if InstallYaml.InstallOptions.DevicePart != "" {

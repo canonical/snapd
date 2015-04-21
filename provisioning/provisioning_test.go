@@ -21,9 +21,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "launchpad.net/gocheck"
 )
+
+// Hook up gocheck into the "go test" runner
+func Test(t *testing.T) { TestingT(t) }
 
 type ProvisioningTestSuite struct {
 	tempdir         string
@@ -82,10 +86,6 @@ func (ts *ProvisioningTestSuite) SetUpTest(c *C) {
 	os.Remove(InstallYamlFile)
 }
 
-func (ts *ProvisioningTestSuite) TearDownTest(c *C) {
-	os.Remove(InstallYamlFile)
-}
-
 func (ts *ProvisioningTestSuite) TestSideLoadedSystemNoInstallYaml(c *C) {
 	c.Assert(SideLoadedSystem(), Equals, false)
 }
@@ -121,7 +121,8 @@ func (ts *ProvisioningTestSuite) TestSideLoadedSystemGarbageInstallYaml(c *C) {
 	err := ioutil.WriteFile(InstallYamlFile, []byte(garbageData), 0750)
 	c.Assert(err, IsNil)
 
-	c.Assert(SideLoadedSystem(), Equals, false)
+	// we assume sideloaded if the file isn't parseable
+	c.Assert(SideLoadedSystem(), Equals, true)
 
 	os.Remove(InstallYamlFile)
 	c.Assert(SideLoadedSystem(), Equals, false)
@@ -130,35 +131,35 @@ func (ts *ProvisioningTestSuite) TestSideLoadedSystemGarbageInstallYaml(c *C) {
 func (ts *ProvisioningTestSuite) TestParseInstallYaml(c *C) {
 
 	_, err := parseInstallYaml(InstallYamlFile)
-	c.Assert(err, Equals, ErrNoInstallYaml)
+	c.Check(err, Equals, ErrNoInstallYaml)
 
 	err = ioutil.WriteFile(InstallYamlFile, []byte(yamlData), 0750)
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 	_, err = parseInstallYaml(InstallYamlFile)
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 
 	err = ioutil.WriteFile(InstallYamlFile, []byte(yamlDataNoDevicePart), 0750)
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 	_, err = parseInstallYaml(InstallYamlFile)
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 
 	err = ioutil.WriteFile(InstallYamlFile, []byte(garbageData), 0750)
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 	_, err = parseInstallYaml(InstallYamlFile)
-	c.Assert(err, Not(Equals), nil)
+	c.Check(err, Not(Equals), nil)
 }
 
 func (ts *ProvisioningTestSuite) TestParseInstallYamlData(c *C) {
 
 	_, err := parseInstallYamlData([]byte(""))
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 
 	_, err = parseInstallYamlData([]byte(yamlData))
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 
 	_, err = parseInstallYamlData([]byte(yamlDataNoDevicePart))
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 
 	_, err = parseInstallYamlData([]byte(garbageData))
-	c.Assert(err, Not(Equals), nil)
+	c.Check(err, Not(Equals), nil)
 }
