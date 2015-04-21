@@ -176,11 +176,9 @@ int main(int argc, char **argv)
           die("dropping privs did not work");
     }
 
-    int i = 0;
-    int rc = 0;
-
    //https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#ubuntu-snapp-launch
 
+   int rc = 0;
     // set apparmor rules
     rc = aa_change_onexec(aa_profile);
     if (rc != 0) {
@@ -193,13 +191,9 @@ int main(int argc, char **argv)
     if (rc != 0)
        die("seccomp_load_filters failed with %i\n", rc);
 
-    // realloc args and exec the binary
-    char **new_argv = malloc((argc-NR_ARGS+1)*sizeof(char*));
-    new_argv[0] = (char*)binary;
-    for(i=1; i < argc-NR_ARGS; i++)
-       new_argv[i] = argv[i+NR_ARGS];
-    new_argv[i] = NULL;
-
-    return execv(binary, new_argv);
+    // and exec the new binary
+    execv(binary, (char *const*)&argv[NR_ARGS+1]);
+    perror("execv failed");
+    return 1;
 }
 
