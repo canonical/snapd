@@ -928,7 +928,6 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		sysd := systemd.New(globalRootDir, inter)
 		stopped := make(map[string]time.Duration)
 		defer func() {
-			fmt.Println("** in defer. err is:", err)
 			if err != nil {
 				for serviceName := range stopped {
 					if e := sysd.Start(serviceName); e != nil {
