@@ -1,3 +1,9 @@
+ubuntu-core-launcher (0.2.8) UNRELEASED; urgency=medium
+
+  * add apparmor profile for ubuntu-core-launcher
+
+ -- Jamie Strandboge <jamie@ubuntu.com>  Tue, 21 Apr 2015 14:08:14 -0500
+
 ubuntu-core-launcher (0.2.7) vivid; urgency=low
 
   * add path validation

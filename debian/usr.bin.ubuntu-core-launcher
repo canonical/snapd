@@ -1,0 +1,48 @@
+# Author: Jamie Strandboge <jamie@canonical.com>
+#include <tunables/global>
+
+/usr/bin/ubuntu-core-launcher {
+    # We run privileged, so be fanatical about what we include and don't use
+    # any abstractions
+    /etc/ld.so.cache r,
+    /lib/@{multiarch}/libapparmor.so* mr,
+    /lib/@{multiarch}/libc-*.so* mr,
+    /lib/@{multiarch}/libpthread-*.so* mr,
+    /lib/@{multiarch}/libudev.so* mr,
+    /usr/lib/@{multiarch}/libseccomp.so* mr,
+
+    # cgroups
+    capability sys_admin,
+    capability dac_override,
+    /sys/fs/cgroup/devices/snappy.*/ w,
+    /sys/fs/cgroup/devices/snappy.*/tasks w,
+    /sys/fs/cgroup/devices/snappy.*/devices.{allow,deny} w,
+
+    # querying udev
+    /etc/udev/udev.conf r,
+    /sys/devices/**/uevent r,
+    /lib/udev/snappy-app-dev ixr, # drop
+
+    # priv dropping
+    capability setuid,
+    capability setgid,
+
+    # changing profile
+    @{PROC}/[0-9]*/attr/exec w,
+    change_profile -> [^u/]**,
+    change_profile -> [^u/][^n]**,
+    change_profile -> [^u/][^n][^c]**,
+    change_profile -> [^u/][^n][^c][^o]**,
+    change_profile -> [^u/][^n][^c][^o][^n]**,
+    change_profile -> [^u/][^n][^c][^o][^n][^f]**,
+    change_profile -> [^u/][^n][^c][^o][^n][^f][^i]**,
+    change_profile -> [^u/][^n][^c][^o][^n][^f][^i][^n]**,
+    change_profile -> [^u/][^n][^c][^o][^n][^f][^i][^n][^e]**,
+    change_profile -> [^u/][^n][^c][^o][^n][^f][^i][^n][^e][^d]**,
+    # LP: #1446794 - when this bug is fixed, change the above to:
+    # deny change_profile -> {unconfined,/**},
+    # change_profile -> **,
+
+    # reading seccomp filters
+    /var/lib/snappy/seccomp/profiles/* r,
+}
