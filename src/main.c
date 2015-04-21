@@ -161,8 +161,6 @@ int main(int argc, char **argv)
        unsigned real_uid = getuid();
        unsigned real_gid = getgid();
 
-       if (setgroups(1, &real_gid) != 0)
-          die("setgid failed");
        if (setgid(real_gid) != 0)
           die("setgid failed");
        if (setuid(real_uid) != 0)
