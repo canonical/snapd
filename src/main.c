@@ -185,13 +185,11 @@ int main(int argc, char **argv)
 
    //https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#ubuntu-snapp-launch
 
-    if (getenv("SNAPPY_LAUNCHER_SKIP_APPARMOR") != NULL) {
-       // set apparmor rules
-       rc = aa_change_onexec(aa_profile);
-       if (rc != 0) {
-          fprintf(stderr, "aa_change_onexec failed with %i\n", rc);
-          return 1;
-       }
+    // set apparmor rules
+    rc = aa_change_onexec(aa_profile);
+    if (rc != 0) {
+       if (getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
+          die("aa_change_onexec failed with %i\n", rc);
     }
 
     // set seccomp
