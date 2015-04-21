@@ -834,50 +834,44 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace
 
 func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
 	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
-	err = auditClick(snapFile, allowUnauthenticated)
-	if err != nil {
+	if err := auditClick(snapFile, allowUnauthenticated); err != nil {
 		return "", err
 		// ?
 		//return SnapAuditError
 	}
 
-	var d *clickdeb.ClickDeb
-	d, err = clickdeb.Open(snapFile)
+	d, err := clickdeb.Open(snapFile)
 	if err != nil {
 		return "", err
 	}
 	defer d.Close()
 
-	var manifestData []byte
-	manifestData, err = d.ControlMember("manifest")
+	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
 		return "", err
 	}
 
-	var manifest clickManifest
-	manifest, err = readClickManifest([]byte(manifestData))
+	manifest, err := readClickManifest([]byte(manifestData))
 	if err != nil {
 		return "", err
 	}
 
-	var yamlData []byte
-	yamlData, err = d.MetaMember("package.yaml")
+	yamlData, err := d.MetaMember("package.yaml")
 	if err != nil {
 		return "", err
 	}
 
-	var m *packageYaml
-	m, err = parsePackageYamlData(yamlData)
+	m, err := parsePackageYamlData(yamlData)
 	if err != nil {
 		return "", err
 	}
 
-	if err = m.checkForNameClashes(); err != nil {
+	if err := m.checkForNameClashes(); err != nil {
 		return "", err
 	}
 
-	if err = m.checkForFrameworks(); err != nil {
+	if err := m.checkForFrameworks(); err != nil {
 		return "", err
 	}
 
@@ -885,7 +879,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	// the "oem" parts are special
 	if manifest.Type == SnapTypeOem {
 		targetDir = snapOemDir
-		if err = installOemHardwareUdevRules(m); err != nil {
+		if err := installOemHardwareUdevRules(m); err != nil {
 			return "", err
 		}
 	}
@@ -897,13 +891,13 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	instDir := filepath.Join(targetDir, fullName, manifest.Version)
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 
-	if err = m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
+	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
 		return "", err
 	}
 
 	dataDir := filepath.Join(snapDataDir, fullName, manifest.Version)
 
-	if err = helpers.EnsureDir(instDir, 0755); err != nil {
+	if err := helpers.EnsureDir(instDir, 0755); err != nil {
 		log.Printf("WARNING: Can not create %s", instDir)
 	}
 
@@ -918,22 +912,22 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 
 	// we need to call the external helper so that we can reliable drop
 	// privs
-	if err = unpackWithDropPrivs(d, instDir); err != nil {
+	if err := unpackWithDropPrivs(d, instDir); err != nil {
 		return "", err
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
 	// all hooks this can go away
 	clickMetaDir := path.Join(instDir, ".click", "info")
-	if err = os.MkdirAll(clickMetaDir, 0755); err != nil {
+	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
 		return "", err
 	}
-	if err = writeCompatManifestJSON(clickMetaDir, manifestData, namespace); err != nil {
+	if err := writeCompatManifestJSON(clickMetaDir, manifestData, namespace); err != nil {
 		return "", err
 	}
 
 	// write the hashes now
-	if err = writeHashesFile(d, instDir); err != nil {
+	if err := writeHashesFile(d, instDir); err != nil {
 		return "", err
 	}
 
@@ -947,8 +941,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	//
 	// otherwise just create a empty data dir
 	if currentActiveDir != "" {
-		var oldManifest clickManifest
-		oldManifest, err = readClickManifestFromClickDir(currentActiveDir)
+		oldManifest, err := readClickManifestFromClickDir(currentActiveDir)
 		if err != nil {
 			return "", err
 		}
@@ -998,14 +991,12 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 
 	// oh, one more thing: refresh the security bits
 	if !inhibitHooks {
-		var part *SnapPart
-		part, err = NewSnapPartFromYaml(filepath.Join(instDir, "meta", "package.yaml"), namespace, m)
+		part, err := NewSnapPartFromYaml(filepath.Join(instDir, "meta", "package.yaml"), namespace, m)
 		if err != nil {
 			return "", err
 		}
 
-		var deps []*SnapPart
-		deps, err = part.Dependents()
+		deps, err := part.Dependents()
 		if err != nil {
 			return "", err
 		}
@@ -1037,7 +1028,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 			}
 		}
 
-		if err = part.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
+		if err := part.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
 			return "", err
 		}
 
