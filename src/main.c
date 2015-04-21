@@ -166,10 +166,12 @@ int main(int argc, char **argv)
        setup_devices_cgroup(appname);
        setup_udev_snappy_assign(appname);
 
-       // the rest does not so drop privs back to user
+       // the rest does not so drop privs back to calling user
        unsigned real_uid = getuid();
        unsigned real_gid = getgid();
 
+       // Note that we do not call setgroups() here because its ok
+       // that the user keeps the groups he already belongs to
        if (setgid(real_gid) != 0)
           die("setgid failed");
        if (setuid(real_uid) != 0)
