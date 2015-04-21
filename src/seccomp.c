@@ -78,12 +78,6 @@ int seccomp_load_filters(const char *filter_profile)
       }
    }
 
-   // Make sure we can't elevate later
-   if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
-      perror("prctl(NO_NEW_PRIVS)");
-      goto out;
-   }
-
    // load it into the kernel
    rc = seccomp_load(ctx);
    if (rc != 0) {
