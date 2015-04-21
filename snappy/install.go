@@ -23,7 +23,6 @@ import (
 	"sort"
 	"strings"
 
-	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 )
@@ -166,7 +165,7 @@ func GarbageCollect(name string, flags InstallFlags) error {
 	}
 
 	for _, part := range parts[:active-1] {
-		if err := part.Uninstall(helpers.MakeProgressBar(part.Name())); err != nil {
+		if err := part.Uninstall(progress.MakeProgressBar(part.Name())); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}

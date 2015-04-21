@@ -20,8 +20,8 @@ package main
 import (
 	"fmt"
 
-	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/priv"
+	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -56,7 +56,7 @@ func (x *cmdPurge) Execute(args []string) (err error) {
 	for _, part := range args {
 		fmt.Printf("Purging %s\n", part)
 
-		if err := snappy.Purge(part, flags, helpers.MakeProgressBar(part)); err != nil {
+		if err := snappy.Purge(part, flags, progress.MakeProgressBar(part)); err != nil {
 			return err
 		}
 	}

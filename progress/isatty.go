@@ -15,7 +15,7 @@
  *
  */
 
-package helpers
+package progress
 
 /*
 #include <unistd.h>

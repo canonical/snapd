@@ -32,8 +32,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"launchpad.net/snappy/progress"
 )
 
 var goarch = runtime.GOARCH
@@ -264,25 +262,4 @@ func ShouldDropPrivs() bool {
 
 	return syscall.Getuid() == 0 || syscall.Getgid() == 0
 
-}
-
-// AttachedToTerminal returns true if the calling process is attached to
-// a terminal device.
-var AttachedToTerminal = func() bool {
-	fd := int(os.Stdin.Fd())
-
-	return isatty(fd)
-}
-
-// MakeProgressBar creates an appropriate progress (which may be a
-// NullProgress bar if there is no associated terminal).
-func MakeProgressBar(name string) progress.Meter {
-	var pbar progress.Meter
-	if AttachedToTerminal() {
-		pbar = progress.NewTextProgress(name)
-	} else {
-		pbar = &progress.NullProgress{}
-	}
-
-	return pbar
 }

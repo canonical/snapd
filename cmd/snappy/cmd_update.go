@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"os"
 
-	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/priv"
+	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -58,7 +58,7 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 
 	for _, part := range updates {
 		fmt.Printf("Installing %s (%s)\n", part.Name(), part.Version())
-		if _, err := part.Install(helpers.MakeProgressBar(part.Name()), flags); err != nil {
+		if _, err := part.Install(progress.MakeProgressBar(part.Name()), flags); err != nil {
 			return err
 		}
 		if err := snappy.GarbageCollect(part.Name(), flags); err != nil {

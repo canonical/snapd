@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"os"
 
-	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/priv"
+	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -69,7 +69,7 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 
 	fmt.Printf("Installing %s\n", pkgName)
 
-	realPkgName, err := snappy.Install(pkgName, flags, helpers.MakeProgressBar(pkgName))
+	realPkgName, err := snappy.Install(pkgName, flags, progress.MakeProgressBar(pkgName))
 	if err != nil {
 		return err
 	}
