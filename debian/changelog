@@ -1,8 +1,14 @@
-ubuntu-core-launcher (0.2.8) UNRELEASED; urgency=medium
+ubuntu-core-launcher (0.2.9) UNRELEASED; urgency=medium
 
   * add apparmor profile for ubuntu-core-launcher
 
- -- Jamie Strandboge <jamie@ubuntu.com>  Tue, 21 Apr 2015 14:08:14 -0500
+ -- Jamie Strandboge <jamie@ubuntu.com>  Tue, 21 Apr 2015 14:21:15 -0500
+
+ubuntu-core-launcher (0.2.8) vivid; urgency=low
+
+  * initial upload to the archive
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 21 Apr 2015 21:02:28 +0200
 
 ubuntu-core-launcher (0.2.7) vivid; urgency=low
 
