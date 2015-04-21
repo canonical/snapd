@@ -20,6 +20,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
@@ -27,7 +29,8 @@ import (
 )
 
 type cmdUpdate struct {
-	DisableGC bool `long:"no-gc" description:"Do not clean up old versions of the package."`
+	DisableGC  bool `long:"no-gc" description:"Do not clean up old versions of the package."`
+	AutoReboot bool `long:"automatic-reboot" description:"Reboot if necessary to be on the latest running system."`
 }
 
 func init() {
@@ -70,6 +73,27 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 
 	if len(updates) > 0 {
 		showVerboseList(updates, os.Stdout)
+	}
+
+	if x.AutoReboot {
+		installed, err := snappy.ListInstalled()
+		if err != nil {
+			return err
+		}
+
+		var rebootTriggers []string
+		for _, part := range installed {
+			if part.NeedsReboot() {
+				rebootTriggers = append(rebootTriggers, part.Name())
+			}
+		}
+
+		if rebootTriggers != nil {
+			fmt.Println("Rebooting to satisfy updates for", strings.Join(rebootTriggers, ", "))
+			if out, err := exec.Command("/sbin/reboot").CombinedOutput(); err != nil {
+				return fmt.Errorf("failed to auto reboot: %s", out)
+			}
+		}
 	}
 
 	return nil
