@@ -832,8 +832,6 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace
 	return nil
 }
 
-var helpersIsImageBuilder = helpers.IsImageBuilder
-
 func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
 	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
 	if err := auditClick(snapFile, allowUnauthenticated); err != nil {
@@ -881,16 +879,17 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	// the "oem" parts are special
 	if manifest.Type == SnapTypeOem {
 		targetDir = snapOemDir
+
 		// TODO do the following at a higher level once the store publishes snap types
 		// this is horrible
-		if !helpersIsImageBuilder() {
-			if currentOem, err := getOem(); err == nil {
-				if currentOem.Name != manifest.Name {
-					return "", ErrOemPackageInstall
+		if allowOEM := (flags & AllowOEM) != 0; !allowOEM {
+			if currentOEM, err := getOem(); err == nil {
+				if currentOEM.Name != manifest.Name {
+					return "", ErrOEMPackageInstall
 				}
 			} else {
 				// there should always be an oem package now
-				return "", ErrOemPackageInstall
+				return "", ErrOEMPackageInstall
 			}
 		}
 

@@ -72,9 +72,9 @@ var (
 	// a fork of something you already have installed
 	ErrPackageNameAlreadyInstalled = errors.New("a package by that name is already installed")
 
-	// ErrOemPackageInstall is returned when you try to install
+	// ErrOEMPackageInstall is returned when you try to install
 	// an oem package type on a running system.
-	ErrOemPackageInstall = errors.New("oem package installation not allowed")
+	ErrOEMPackageInstall = errors.New("oem package installation not allowed")
 
 	// ErrPrivOpInProgress is returned when a privileged operation
 	// cannot be performed since an existing privileged operation is

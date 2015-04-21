@@ -263,10 +263,3 @@ func ShouldDropPrivs() bool {
 	return syscall.Getuid() == 0 || syscall.Getgid() == 0
 
 }
-
-// IsImageBuilder returns the base name of the command executing the process.
-func IsImageBuilder() bool {
-	const udf = "ubuntu-device-flash"
-
-	return filepath.Base(os.Args[0]) == udf
-}

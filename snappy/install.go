@@ -38,6 +38,8 @@ const (
 	InhibitHooks
 	// DoInstallGC will ensure that garbage collection is done
 	DoInstallGC
+	// AllowOEM allows the installation of OEM packages, this does not affect updates.
+	AllowOEM
 )
 
 // check if the image is in developer mode
