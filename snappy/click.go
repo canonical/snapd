@@ -834,8 +834,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace
 
 func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
 	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
-	err = auditClick(snapFile, allowUnauthenticated)
-	if err != nil {
+	if err := auditClick(snapFile, allowUnauthenticated); err != nil {
 		return "", err
 		// ?
 		//return SnapAuditError
@@ -846,11 +845,13 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		return "", err
 	}
 	defer d.Close()
+
 	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
 		log.Printf("Snap inspect failed: %s", snapFile)
 		return "", err
 	}
+
 	manifest, err := readClickManifest([]byte(manifestData))
 	if err != nil {
 		return "", err
@@ -903,8 +904,8 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	// if anything goes wrong here we cleanup
 	defer func() {
 		if err != nil {
-			if err := os.RemoveAll(instDir); err != nil {
-				log.Printf("Warning: failed to remove %s: %s", instDir, err)
+			if e := os.RemoveAll(instDir); err != nil {
+				log.Printf("Warning: failed to remove %s: %s", instDir, e)
 			}
 		}
 	}()
@@ -995,8 +996,58 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 			return "", err
 		}
 
+		deps, err := part.Dependents()
+		if err != nil {
+			return "", err
+		}
+
+		sysd := systemd.New(globalRootDir, inter)
+		stopped := make(map[string]time.Duration)
+		defer func() {
+			if err != nil {
+				for serviceName := range stopped {
+					if e := sysd.Start(serviceName); e != nil {
+						inter.Notify(fmt.Sprintf("unable to restart %s with the old %s: %s", serviceName, part.Name(), e))
+					}
+				}
+			}
+		}()
+
+		for _, dep := range deps {
+			if !dep.IsActive() {
+				continue
+			}
+			for _, svc := range dep.Services() {
+				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
+				timeout := time.Duration(svc.StopTimeout)
+				if err = sysd.Stop(serviceName, timeout); err != nil {
+					inter.Notify(fmt.Sprintf("unable to stop %s; aborting install: %s", serviceName, err))
+					return "", err
+				}
+				stopped[serviceName] = timeout
+			}
+		}
+
 		if err := part.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
 			return "", err
+		}
+
+		started := make(map[string]time.Duration)
+		defer func() {
+			if err != nil {
+				for serviceName, timeout := range started {
+					if e := sysd.Stop(serviceName, timeout); e != nil {
+						inter.Notify(fmt.Sprintf("unable to stop %s with the old %s: %s", serviceName, part.Name(), e))
+					}
+				}
+			}
+		}()
+		for serviceName, timeout := range stopped {
+			if err = sysd.Start(serviceName); err != nil {
+				inter.Notify(fmt.Sprintf("unable to restart %s; aborting install: %s", serviceName, err))
+				return "", err
+			}
+			started[serviceName] = timeout
 		}
 	}
 

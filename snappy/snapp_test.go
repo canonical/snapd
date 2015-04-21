@@ -29,6 +29,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/systemd"
 
@@ -38,6 +39,7 @@ import (
 type SnapTestSuite struct {
 	tempdir   string
 	clickhook string
+	secbase   string
 }
 
 var _ = Suite(&SnapTestSuite{})
@@ -45,12 +47,14 @@ var _ = Suite(&SnapTestSuite{})
 func (s *SnapTestSuite) SetUpTest(c *C) {
 	s.clickhook = aaClickHookCmd
 	aaClickHookCmd = "/bin/true"
+	s.secbase = policy.SecBase
 	s.tempdir = c.MkDir()
 	newPartition = func() (p partition.Interface) {
 		return new(MockPartition)
 	}
 
 	SetRootDir(s.tempdir)
+	policy.SecBase = filepath.Join(s.tempdir, "security")
 	os.MkdirAll(snapServicesDir, 0755)
 	os.MkdirAll(snapSeccompDir, 0755)
 
@@ -97,6 +101,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 func (s *SnapTestSuite) TearDownTest(c *C) {
 	// ensure all functions are back to their original state
 	aaClickHookCmd = s.clickhook
+	policy.SecBase = s.secbase
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 	ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 	duCmd = "du"
@@ -1131,10 +1136,8 @@ func (s *SnapTestSuite) TestRequestAppArmorUpdateService(c *C) {
 	// if one of the services needs updating, it's updated and returned
 	svc := Service{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	part := &SnapPart{m: &packageYaml{Name: "part", Services: []Service{svc}, Version: "42"}, namespace: testNamespace}
-	svcs, err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
+	err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
 	c.Assert(err, IsNil)
-	c.Assert(svcs, HasLen, 1)
-	c.Check(filepath.Base(svcs[0].name), Equals, "part_svc_42.service")
 	c.Assert(updated, HasLen, 1)
 	c.Check(filepath.Base(updated[0]), Equals, "part."+testNamespace+"_svc_42.json")
 }
@@ -1149,9 +1152,8 @@ func (s *SnapTestSuite) TestRequestAppArmorUpdateBinary(c *C) {
 	// if one of the binaries needs updating, the part needs updating
 	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	part := &SnapPart{m: &packageYaml{Name: "part", Binaries: []Binary{bin}, Version: "42"}, namespace: testNamespace}
-	svcs, err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
+	err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
 	c.Assert(err, IsNil)
-	c.Check(svcs, HasLen, 0)
 	c.Assert(updated, HasLen, 1)
 	c.Check(filepath.Base(updated[0]), Equals, "part."+testNamespace+"_echo_42.json")
 }
@@ -1166,9 +1168,8 @@ func (s *SnapTestSuite) TestRequestAppArmorUpdateNothing(c *C) {
 	svc := Service{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	part := &SnapPart{m: &packageYaml{Services: []Service{svc}, Binaries: []Binary{bin}, Version: "42"}, namespace: testNamespace}
-	svcs, err := part.RequestAppArmorUpdate(nil, nil)
+	err := part.RequestAppArmorUpdate(nil, nil)
 	c.Check(err, IsNil)
-	c.Check(svcs, HasLen, 0)
 	c.Check(updated, HasLen, 0)
 }
 
