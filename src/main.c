@@ -145,6 +145,15 @@ int main(int argc, char **argv)
 
    if(!verify_appname(appname))
       die("appname %s not allowed", appname);
+
+   // verify binary path
+   char apps_prefix[128];
+   char oem_prefix[128];
+   must_snprintf(apps_prefix, sizeof(apps_prefix), "/apps/%s/", appname);
+   must_snprintf(oem_prefix, sizeof(oem_prefix), "/oem/%s/", appname);
+   if (strstr(binary, apps_prefix) != binary && strstr(binary, oem_prefix) != binary)
+      die("binary must be inside /apps/%s/ or /oem/%s/", appname, appname);
+      
    
    // this code always needs to run as root for the cgroup/udev setup,
    // however for the tests we allow it to run as non-root
