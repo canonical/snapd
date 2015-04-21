@@ -332,7 +332,7 @@ func (m *packageYaml) checkForPackageInstalled(namespace string) error {
 		return nil
 	}
 
-	if m.Type != SnapTypeFramework {
+	if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
 		if part.Namespace() != namespace {
 			return ErrPackageNameAlreadyInstalled
 		}
