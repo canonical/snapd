@@ -62,8 +62,9 @@ int seccomp_load_filters(const char *filter_profile)
       if (strncmp(buf, "@unrestricted", sizeof(buf)) == 0)
          goto out;
 
-      syscall_nr = seccomp_syscall_resolve_name(buf);
       // syscall not available on this arch/kernel
+      // as this is a syscall whitelist its ok and the error can be ignored
+      syscall_nr = seccomp_syscall_resolve_name(buf);
       if (syscall_nr == __NR_SCMP_ERROR)
          continue;
 
