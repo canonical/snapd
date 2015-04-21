@@ -845,6 +845,16 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstall(c *C) {
 	_, err := installClick(upFile, AllowUnauthenticated, inter, "")
 	c.Assert(err, IsNil)
 	c.Check(cmdlog, DeepEquals, []string{"stop", "show", "stop", "show", "start", "start"})
+
+	// check it got set active
+	content, err := ioutil.ReadFile(filepath.Join(snapAppsDir, "fmk", "current", "meta", "package.yaml"))
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), "version: 2"), Equals, true)
+
+	// just in case (cf. the following tests)
+	_, err = os.Stat(filepath.Join(snapAppsDir, "fmk", "2"))
+	c.Assert(err, IsNil)
+
 }
 
 func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStop(c *C) {
@@ -864,6 +874,15 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStop(
 	_, err := installClick(upFile, AllowUnauthenticated, inter, "")
 	c.Check(err, Equals, anError)
 	c.Check(cmdlog, DeepEquals, []string{"stop", "show", "stop", "start"})
+
+	// check it got rolled back
+	content, err := ioutil.ReadFile(filepath.Join(snapAppsDir, "fmk", "current", "meta", "package.yaml"))
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), "version: 1"), Equals, true)
+
+	// no leftovers from the failed install
+	_, err = os.Stat(filepath.Join(snapAppsDir, "fmk", "2"))
+	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStart(c *C) {
@@ -886,6 +905,16 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStart
 		"stop", "show", "stop", "show", "start", "start", // <- this one fails
 		"stop", "show", "start", "start",
 	})
+
+	// check it got rolled back
+	content, err := ioutil.ReadFile(filepath.Join(snapAppsDir, "fmk", "current", "meta", "package.yaml"))
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(content), "version: 1"), Equals, true)
+
+	// no leftovers from the failed install
+	_, err = os.Stat(filepath.Join(snapAppsDir, "fmk", "2"))
+	c.Assert(err, NotNil)
+
 }
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
