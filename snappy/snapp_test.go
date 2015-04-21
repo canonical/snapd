@@ -835,6 +835,37 @@ type: oem
 	repo.Details("xkcd")
 }
 
+func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {
+	// install custom oem snap with store-id
+	oemYaml, err := makeInstalledMockSnap(s.tempdir, `name: oem-test
+version: 1.0
+vendor: mvo
+oem:
+  store:
+    id: my-store
+  software:
+    built-in:
+      - hello-app
+type: oem
+`)
+	c.Assert(err, IsNil)
+	makeSnapActive(oemYaml)
+
+	packageYaml, err := makeInstalledMockSnap(s.tempdir, "")
+	c.Assert(err, IsNil)
+	makeSnapActive(packageYaml)
+
+	p := &MockProgressMeter{}
+
+	snap := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
+	c.Assert(snap, NotNil)
+	installed, err := snap.Installed()
+	c.Assert(err, IsNil)
+	parts := FindSnapsByName("hello-app", installed)
+	c.Assert(parts, HasLen, 1)
+	c.Check(parts[0].Uninstall(p), Equals, ErrPackageNotRemovable)
+}
+
 var securityBinaryPackageYaml = []byte(`name: test-snap
 version: 1.2.8
 vendor: Jamie Strandboge <jamie@canonical.com>
@@ -1209,10 +1240,10 @@ oem:
      - subsystem: tty
        with-subsystems: usb-serial
        with-driver: pl2303
-       with-attrs: 
+       with-attrs:
        - idVendor=0xf00f00
        - idProduct=0xb00
-       with-props: 
+       with-props:
        - BAUD=9600
        - META1=foo*
        - META2=foo?
