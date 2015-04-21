@@ -1,4 +1,4 @@
-ubuntu-core-launcher (0.2.9) UNRELEASED; urgency=medium
+ubuntu-core-launcher (0.2.9) vivid; urgency=medium
 
   * add apparmor profile for ubuntu-core-launcher
 
