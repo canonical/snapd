@@ -111,6 +111,9 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 		if PackageNameActive(part.Name()) {
 			return "", ErrPackageNameAlreadyInstalled
 		}
+
+		// TODO block oem snaps here once the store supports package types
+
 		return part.Install(meter, flags)
 	}
 

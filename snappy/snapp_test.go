@@ -75,6 +75,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
+	helpersIsImageBuilder = func() bool { return true }
+
 	// fake "du"
 	duCmd = makeFakeDuCommand(c)
 
@@ -104,6 +106,7 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	policy.SecBase = s.secbase
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 	ActiveSnapNamesByType = activeSnapNamesByTypeImpl
+	helpersIsImageBuilder = helpers.IsImageBuilder
 	duCmd = "du"
 	stripGlobalRootDir = stripGlobalRootDirImpl
 	runScFilterGen = runScFilterGenImpl
