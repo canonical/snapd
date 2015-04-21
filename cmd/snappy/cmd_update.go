@@ -41,6 +41,13 @@ func init() {
 		&cmdUpdateData)
 }
 
+const (
+	shutdownCmd     = "/sbin/shutdown"
+	shutdownTimeout = "+10"
+	shutdownMsg     = "snappy autopilot triggered a reboot to boot into an up to date system" +
+		"-- temprorarily disable the reboot by running 'shutdown -c'"
+)
+
 func (x *cmdUpdate) Execute(args []string) (err error) {
 	privMutex := priv.New()
 	if err := privMutex.TryLock(); err != nil {
@@ -90,7 +97,8 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 
 		if rebootTriggers != nil {
 			fmt.Println("Rebooting to satisfy updates for", strings.Join(rebootTriggers, ", "))
-			if out, err := exec.Command("/sbin/reboot").CombinedOutput(); err != nil {
+			cmd := exec.Command(shutdownCmd, shutdownTimeout, "-r", shutdownMsg)
+			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("failed to auto reboot: %s", out)
 			}
 		}
