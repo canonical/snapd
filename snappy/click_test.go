@@ -170,7 +170,7 @@ Pattern: /var/lib/apparmor/click/${id}
 	c.Assert(err, NotNil)
 }
 
-func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
+func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	snapFile := makeTestSnapPackage(c, "")
 	name, err := installClick(snapFile, 0, nil, testNamespace)
 	c.Assert(err, IsNil)
@@ -194,6 +194,19 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 	snap, err := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"), testNamespace)
 	c.Assert(err, IsNil)
 	c.Assert(snap.Hash(), Not(Equals), "")
+
+	return snapFile
+}
+
+func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
+	s.testLocalSnapInstall(c)
+}
+
+func (s *SnapTestSuite) TestLocalSnapInstallFailsAlreadyInstalled(c *C) {
+	snapFile := s.testLocalSnapInstall(c)
+
+	_, err := installClick(snapFile, 0, nil, "namespaceother")
+	c.Assert(err, Equals, ErrPackageNameAlreadyInstalled)
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {

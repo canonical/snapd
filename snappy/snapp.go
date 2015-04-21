@@ -326,6 +326,21 @@ func (m *packageYaml) checkForNameClashes() error {
 	return nil
 }
 
+func (m *packageYaml) checkForPackageInstalled(namespace string) error {
+	part := ActiveSnapByName(m.Name)
+	if part == nil {
+		return nil
+	}
+
+	if m.Type != SnapTypeFramework {
+		if part.Namespace() != namespace {
+			return ErrPackageNameAlreadyInstalled
+		}
+	}
+
+	return nil
+}
+
 func addCoreFmk(fmks []string) []string {
 	fmkCore := false
 	for _, a := range fmks {

@@ -866,6 +866,10 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		return "", err
 	}
 
+	if err := m.checkForPackageInstalled(namespace); err != nil {
+		return "", err
+	}
+
 	if err := m.checkForNameClashes(); err != nil {
 		return "", err
 	}
