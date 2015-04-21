@@ -13,6 +13,7 @@
 #include <string.h>
 #include <linux/kdev_t.h>
 #include <stdlib.h>
+#include <regex.h>
 
 #include "libudev.h"
 
@@ -127,7 +128,18 @@ void setup_devices_cgroup(const char *appname) {
 
 }
 
+bool verify_appname(const char *appname) {
+   // these chars are allowed in a appname
+   const char* whitelist_re = "^[a-z0-9][a-z0-9+._-]+$";
+   regex_t re;
+   if (regcomp(&re, whitelist_re, REG_EXTENDED|REG_NOSUB) != 0)
+      die("can not compile regex %s", whitelist_re);
 
+   int status = regexec(&re, appname, 0, NULL, 0);
+   regfree(&re);
+
+   return (status == 0);
+}
 
 int main(int argc, char **argv)
 {
@@ -139,6 +151,9 @@ int main(int argc, char **argv)
    const char *aa_profile = argv[2];
    const char *binary = argv[3];
 
+   if(!verify_appname(appname))
+      die("appname %s not allowed", appname);
+   
    // this code always needs to run as root for the cgroup/udev setup,
    // however for the tests we allow it to run as non-root
    if(geteuid() != 0 && getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
