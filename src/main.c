@@ -190,7 +190,8 @@ int main(int argc, char **argv)
        die("seccomp_load_filters failed with %i\n", rc);
 
     // and exec the new binary
-    execv(binary, (char *const*)&argv[NR_ARGS+1]);
+    argv[NR_ARGS] = (char*)binary,
+    execv(binary, (char *const*)&argv[NR_ARGS]);
     perror("execv failed");
     return 1;
 }
