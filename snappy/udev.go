@@ -23,7 +23,7 @@ import (
 )
 
 func getUdevPartName(m *packageYaml, baseDir string) (string, error) {
-	if m.Type == SnapTypeFramework {
+	if m.Type == SnapTypeFramework || m.Type == SnapTypeOem {
 		return m.Name, nil
 	}
 
