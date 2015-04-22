@@ -24,6 +24,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/mvo5/goconfigparser"
@@ -1090,8 +1091,12 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	c.Assert(err, IsNil)
 
 	baseDirWithoutRootPrefix := "/apps/" + helloAppComposedName + "/1.10"
-	expectedExecStart := fmt.Sprintf("\nExecStart=/usr/bin/ubuntu-core-launcher hello-app.%s %s_svc1_1.10 %s/bin/hello\n", testNamespace, helloAppComposedName, baseDirWithoutRootPrefix)
-	c.Assert(strings.Contains(string(content), expectedExecStart), Equals, true)
+	verbs := []string{"Start", "Stop", "StopPost"}
+	bins := []string{"hello", "goodbye", "missya"}
+	for i := range verbs {
+		expected := fmt.Sprintf("Exec%s=/usr/bin/ubuntu-core-launcher hello-app.%s %s_svc1_1.10 %s/bin/%s", verbs[i], testNamespace, helloAppComposedName, baseDirWithoutRootPrefix, bins[i])
+		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // gocheck adds ^ and $ around the regexp provided
+	}
 }
 
 func (s *SnapTestSuite) TestAddPackageServicesBusPolicyFramework(c *C) {
@@ -1163,8 +1168,8 @@ X-Snappy=yes
 ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver%s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo start
 WorkingDirectory=/apps/xkcd-webserver%[2]s/0.3.4/
 Environment="SNAPP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp"
-ExecStop=/apps/xkcd-webserver%[2]s/0.3.4/bin/foo stop
-ExecStopPost=/apps/xkcd-webserver%[2]s/0.3.4/bin/foo post-stop
+ExecStop=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo stop
+ExecStopPost=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
 %s
 

@@ -150,11 +150,11 @@ Description=descr
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher app%s aa-profile /apps/app%[2]s/1.0/bin/start
+ExecStart=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/start
 WorkingDirectory=/apps/app%[2]s/1.0/
 Environment="SNAPP_APP_PATH=/apps/app%[2]s/1.0/" "SNAPP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/app%[2]s/1.0/" "SNAP_APP_PATH=/apps/app%[2]s/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAP_APP_USER_DATA_PATH=%%h/apps/app%[2]s/1.0/" "SNAP_APP=app_service_1.0" "TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp"
-ExecStop=/apps/app%[2]s/1.0/bin/stop
-ExecStopPost=/apps/app%[2]s/1.0/bin/stop --post
+ExecStop=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/stop
+ExecStopPost=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/stop --post
 TimeoutStopSec=10
 %s
 
