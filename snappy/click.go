@@ -358,7 +358,6 @@ func verifyBinariesYaml(binary Binary) error {
 }
 
 func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) (string, error) {
-	namespace, _ := namespaceFromYamlPath(filepath.Join(pkgPath, "meta", "package.yaml"))
 	wrapperTemplate := `#!/bin/sh
 # !!!never remove this line!!!
 ##TARGET={{.Target}}
@@ -403,6 +402,11 @@ export SNAP_OLD_PWD="$(pwd)"
 cd {{.Path}}
 ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
+
+	namespace, err := namespaceFromYamlPath(filepath.Join(pkgPath, "meta", "package.yaml"))
+	if err != nil {
+		return "", err
+	}
 
 	if err := verifyBinariesYaml(binary); err != nil {
 		return "", err
