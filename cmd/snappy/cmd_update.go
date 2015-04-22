@@ -20,6 +20,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
@@ -27,7 +29,8 @@ import (
 )
 
 type cmdUpdate struct {
-	DisableGC bool `long:"no-gc" description:"Do not clean up old versions of the package."`
+	DisableGC  bool `long:"no-gc" description:"Do not clean up old versions of the package."`
+	AutoReboot bool `long:"automatic-reboot" description:"Reboot if necessary to be on the latest running system."`
 }
 
 func init() {
@@ -37,6 +40,13 @@ func init() {
 		"Ensures system is running with latest parts",
 		&cmdUpdateData)
 }
+
+const (
+	shutdownCmd     = "/sbin/shutdown"
+	shutdownTimeout = "+10"
+	shutdownMsg     = "snappy autopilot triggered a reboot to boot into an up to date system" +
+		"-- temprorarily disable the reboot by running 'sudo shutdown -c'"
+)
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
 	privMutex := priv.New()
@@ -68,6 +78,28 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 
 	if len(updates) > 0 {
 		showVerboseList(updates, os.Stdout)
+	}
+
+	if x.AutoReboot {
+		installed, err := snappy.ListInstalled()
+		if err != nil {
+			return err
+		}
+
+		var rebootTriggers []string
+		for _, part := range installed {
+			if part.NeedsReboot() {
+				rebootTriggers = append(rebootTriggers, part.Name())
+			}
+		}
+
+		if len(rebootTriggers) != 0 {
+			fmt.Println("Rebooting to satisfy updates for", strings.Join(rebootTriggers, ", "))
+			cmd := exec.Command(shutdownCmd, shutdownTimeout, "-r", shutdownMsg)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("failed to auto reboot: %s", out)
+			}
+		}
 	}
 
 	return nil

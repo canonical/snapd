@@ -28,6 +28,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"launchpad.net/snappy/helpers"
 )
 
 // OEM represents the structure inside the package.yaml for the oem component
@@ -147,6 +149,8 @@ func cleanupOemHardwareUdevRules(m *packageYaml) error {
 }
 
 func writeOemHardwareUdevRules(m *packageYaml) error {
+	helpers.EnsureDir(snapUdevRulesDir, 0755)
+
 	// cleanup
 	if err := cleanupOemHardwareUdevRules(m); err != nil {
 		return err
