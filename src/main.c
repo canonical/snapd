@@ -156,7 +156,7 @@ bool snappy_udev_setup_required(const char *appname) {
    const char *needle = "{\n \"write_path\": [\n   \"/dev/**\"\n ]\n}";
    char content[strlen(needle)];
 
-   int fd = open(override_file, O_NOFOLLOW);
+   int fd = open(override_file, O_CLOEXEC | O_NOFOLLOW | O_RDONLY);
    if (fd < 0)
       return false;
    int n = read(fd, content, sizeof(content));
