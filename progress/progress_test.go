@@ -130,6 +130,10 @@ func (ts *ProgressTestSuite) TestMakeProgressBar(c *C) {
 
 	ts.originalAttachedToTerminal = attachedToTerminal
 	attachedToTerminal = ts.MockAttachedToTerminal
+	defer func() {
+		// reset
+		attachedToTerminal = ts.originalAttachedToTerminal
+	}()
 
 	ts.attachedToTerminalReturn = true
 
@@ -141,6 +145,4 @@ func (ts *ProgressTestSuite) TestMakeProgressBar(c *C) {
 	pbar = MakeProgressBar("bar")
 	c.Assert(pbar, FitsTypeOf, &NullProgress{})
 
-	// reset
-	attachedToTerminal = ts.originalAttachedToTerminal
 }
