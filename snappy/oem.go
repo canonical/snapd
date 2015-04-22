@@ -206,9 +206,10 @@ const apparmorAdditionalContent = `{
 
 func writeApparmorAdditionalFile(m *packageYaml) error {
 	helpers.EnsureDir(snapAppArmorDir, 0755)
-	
+
 	for _, h := range m.OEM.Hardware.Assign {
 		jsonAdditionalPath := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
+		println(jsonAdditionalPath)
 		if err := ioutil.WriteFile(jsonAdditionalPath, []byte(apparmorAdditionalContent), 0644); err != nil {
 			return err
 		}
