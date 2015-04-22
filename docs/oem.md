@@ -152,7 +152,7 @@ The package header section is common to all packages
 The general rules for config:
 
 - only applied on first boot.
-- if the config is immutable, updates on in `oem` package will be reflected.
+- if the config is immutable, updates to the `oem` package will be reflected.
 
 Rules about packages in the config:
 
