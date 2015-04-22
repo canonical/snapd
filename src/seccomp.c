@@ -13,12 +13,11 @@
 char *filter_profile_dir = "/var/lib/snappy/seccomp/profiles/";
 
 // strip whitespace from the end of the given string (inplace)
-void trim_right(char *s) {
-   int end = strlen(s)-1;
-   while(end >= 0 && isspace(s[end])) {
-      s[end] = 0;
-      end--;
+size_t trim_right(char *s, size_t slen) {
+   while(slen > 0 && isspace(s[slen - 1])) {
+      s[--slen] = 0;
    }
+   return slen;
 }
 
 int seccomp_load_filters(const char *filter_profile)
@@ -28,6 +27,7 @@ int seccomp_load_filters(const char *filter_profile)
    int syscall_nr = -1;
    scmp_filter_ctx ctx = NULL;
    FILE *f = NULL;
+   size_t lineno = 0;
 
    ctx = seccomp_init(SCMP_ACT_KILL);
    if (ctx == NULL)
@@ -46,16 +46,31 @@ int seccomp_load_filters(const char *filter_profile)
       fprintf(stderr, "Can not open %s (%s)\n", profile_path, strerror(errno));
       return -1;
    }
-   char buf[80];
+   // 80 characters + '\n' + '\0'
+   char buf[82];
    while (fgets(buf, sizeof(buf), f) != NULL)
    {
+      size_t len;
+
+      lineno++;
+
       // comment, ignore
       if(buf[0] == '#')
          continue;
 
+      // ensure the entire line was read
+      len = strlen(buf);
+      if (len == 0)
+         continue;
+      else if (buf[len - 1] != '\n' && len > (sizeof(buf) - 2)) {
+         fprintf(stderr, "seccomp filter line %zu was too long (%zu characters max)\n", lineno, sizeof(buf) - 2);
+         rc = -1;
+         goto out;
+      }
+
       // kill final newline
-      trim_right(buf);
-      if (strlen(buf) == 0)
+      len = trim_right(buf, len);
+      if (len == 0)
          continue;
 
       // check for special "@unrestricted" command
