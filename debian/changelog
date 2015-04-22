@@ -1,3 +1,11 @@
+ubuntu-core-launcher (0.2.15) vivid; urgency=low
+
+  * src/main.c:
+    - update json.additional needle to match update in
+      lp:~mvo/snappy/additional-json-additional-addition/+merge/257163
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 22 Apr 2015 21:28:08 +0200
+
 ubuntu-core-launcher (0.2.14) vivid; urgency=low
 
   * merged  lp:~tyhicks/ubuntu-core-launcher/close-fd

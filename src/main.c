@@ -153,7 +153,16 @@ bool snappy_udev_setup_required(const char *appname) {
    //
    // the "needle" string is what gives this access so we search for that
    // here
-   const char *needle = "{\n \"write_path\": [\n   \"/dev/**\"\n ]\n}";
+   const char *needle =
+      "{"                          "\n"
+      " \"write_path\": ["         "\n"
+      "   \"/dev/**\""             "\n"
+      " ],"                        "\n"
+      " \"read_path\": ["          "\n"
+      "   \"/run/dev/data/*\""     "\n"
+      " ]\n"
+      "}";
+   debug("looking for: '%s'", needle);
    char content[strlen(needle)];
 
    int fd = open(override_file, O_CLOEXEC | O_NOFOLLOW | O_RDONLY);
@@ -165,8 +174,10 @@ bool snappy_udev_setup_required(const char *appname) {
       return false;
 
    // memcpy so that we don't have to deal with \0 in the input
-   if (memcmp(content, needle, strlen(needle)) == 0)
+   if (memcmp(content, needle, strlen(needle)) == 0) {
+      debug("found needle, need to apply udev setup");
       return true;
+   }
    
    return false;
 }
