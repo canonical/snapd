@@ -317,7 +317,14 @@ func removeClick(clickDir string, inter interacter) (err error) {
 		}
 	}
 
-	return os.RemoveAll(clickDir)
+	err = os.RemoveAll(clickDir)
+	if err != nil {
+		return err
+	}
+
+	os.Remove(filepath.Dir(clickDir))
+
+	return nil
 }
 
 func writeHashesFile(d *clickdeb.ClickDeb, instDir string) error {

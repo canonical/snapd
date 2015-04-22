@@ -610,7 +610,11 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return ErrFrameworkInUse(deps)
 	}
 
-	return removeClick(s.basedir, pb)
+	if err := removeClick(s.basedir, pb); err != nil {
+		return err
+	}
+
+	return RemoveAllHWAccess(Dirname(s))
 }
 
 // Config is used to to configure the snap

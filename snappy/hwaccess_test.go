@@ -265,3 +265,18 @@ KERNEL=="ttyS0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="foo-app"
 
 	verifyUdevAdmActivateRules(c, runUdevAdmCalls)
 }
+
+func (s *SnapTestSuite) TestRemoveAllHWAccess(c *C) {
+	makeInstalledMockSnap(s.tempdir, "")
+
+	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
+	c.Assert(err, IsNil)
+
+	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
+	c.Check(*regenerateAppArmorRulesWasCalled, Equals, false)
+	c.Check(RemoveAllHWAccess("hello-app"), IsNil)
+
+	c.Check(helpers.FileExists(filepath.Join(snapUdevRulesDir, "70-snappy_hwassign_foo-app.rules")), Equals, false)
+	c.Check(helpers.FileExists(filepath.Join(snapAppArmorDir, "hello-app.json.additional")), Equals, false)
+	c.Check(*regenerateAppArmorRulesWasCalled, Equals, true)
+}
