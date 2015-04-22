@@ -358,6 +358,7 @@ func verifyBinariesYaml(binary Binary) error {
 }
 
 func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) (string, error) {
+	namespace, _ := namespaceFromYamlPath(filepath.Join(pkgPath, "meta", "package.yaml"))
 	wrapperTemplate := `#!/bin/sh
 # !!!never remove this line!!!
 ##TARGET={{.Target}}
@@ -377,6 +378,11 @@ export SNAPP_APP_DATA_PATH="/var/lib/{{.Path}}"
 export SNAPP_APP_USER_DATA_PATH="$HOME/{{.Path}}"
 export SNAPP_APP_TMPDIR="$TMPDIR"
 export SNAPP_OLD_PWD="$(pwd)"
+
+# app info
+export SNAP_NAME="{{.Name}}"
+export SNAP_ORIGIN="{{.Namespace}}"
+export SNAP_FULLNAME="{{.UdevAppName}}"
 
 # app paths
 export SNAP_APP_PATH="{{.Path}}"
@@ -417,6 +423,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		Path        string
 		AaProfile   string
 		UdevAppName string
+		Namespace   string
 	}{
 		Name:        m.Name,
 		Version:     m.Version,
@@ -424,6 +431,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		Path:        pkgPath,
 		AaProfile:   aaProfile,
 		UdevAppName: udevPartName,
+		Namespace:   namespace,
 	}
 	t.Execute(&templateOut, wrapperData)
 
