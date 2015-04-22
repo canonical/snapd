@@ -98,6 +98,16 @@ func udevRulesPathForPart(partid string) string {
 }
 
 func writeUdevRuleForDeviceCgroup(snapname, device string) error {
+	helpers.EnsureDir(snapUdevRulesDir, 0755)
+
+	// the device cgroup/launcher etc support only the apps level,
+	// not a binary/service or version, so if we get a full
+	// appname_binary-or-service_version string we need to split that
+	if strings.Contains(snapname, "_") {
+		l := strings.Split(snapname, "_")
+		snapname = l[0]
+	}
+
 	acl := fmt.Sprintf(`
 KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"
 `, filepath.Base(device), snapname)
@@ -199,9 +209,14 @@ func RemoveHWAccess(snapname, device string) error {
 		return err
 	}
 
-	err = os.Remove(udevRulesPathForPart(snapname))
-	if err != nil && !os.IsNotExist(err) {
-		return err
+	udevRulesFile := udevRulesPathForPart(snapname)
+	if helpers.FileExists(udevRulesFile) {
+		if err := os.Remove(udevRulesFile); err != nil {
+			return err
+		}
+		if err := activateOemHardwareUdevRules(); err != nil {
+			return err
+		}
 	}
 
 	// re-generate apparmor fules
