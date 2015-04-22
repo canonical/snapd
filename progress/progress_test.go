@@ -31,6 +31,8 @@ func Test(t *testing.T) { TestingT(t) }
 
 type ProgressTestSuite struct {
 	attachedToTerminalReturn bool
+
+	originalAttachedToTerminal func() bool
 }
 
 var _ = Suite(&ProgressTestSuite{})
@@ -126,6 +128,7 @@ func (ts *ProgressTestSuite) TestNotify(c *C) {
 func (ts *ProgressTestSuite) TestMakeProgressBar(c *C) {
 	var pbar Meter
 
+	ts.originalAttachedToTerminal = attachedToTerminal
 	attachedToTerminal = ts.MockAttachedToTerminal
 
 	ts.attachedToTerminalReturn = true
@@ -137,4 +140,7 @@ func (ts *ProgressTestSuite) TestMakeProgressBar(c *C) {
 
 	pbar = MakeProgressBar("bar")
 	c.Assert(pbar, FitsTypeOf, &NullProgress{})
+
+	// reset
+	attachedToTerminal = ts.originalAttachedToTerminal
 }
