@@ -48,6 +48,8 @@ binaries:
 services:
  - name: svc1
    start: bin/hello
+   stop: bin/goodbye
+   poststop: bin/missya
 `
 	if packageYamlContent == "" {
 		packageYamlContent = packageHello
