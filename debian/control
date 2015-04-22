@@ -46,6 +46,7 @@ Architecture: any
 Depends: ${misc:Depends}, ${shlibs:Depends}, adduser
 Replaces: ubuntu-core-snappy (<< 0.2~ppa90)
 Breaks: ubuntu-core-snappy (<< 0.2~ppa90)
+Conflicts: snappy
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
  Manage an Ubuntu system with snappy.
