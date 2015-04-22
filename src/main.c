@@ -47,6 +47,37 @@ void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appnam
          die("child died with signal %i", WTERMSIG(status));
 }
 
+struct udev_list_entry* snappy_udev_devices_for_appname(struct udev_enumerate *devices, const char *appname) {
+   
+   if (udev_enumerate_add_match_tag (devices, "snappy-assign") != 0)
+      die("udev_enumerate_add_match_tag");
+
+   if(udev_enumerate_add_match_property (devices, "SNAPPY_APP", appname) != 0)
+      die("udev_enumerate_add_match_property");
+
+   if(udev_enumerate_scan_devices(devices) != 0)
+      die("udev_enumerate_scan failed");
+
+   return udev_enumerate_get_list_entry (devices);
+}
+
+bool snappy_udev_setup_required(const char *appname) {
+      struct udev *u = udev_new();
+   if (u == NULL)
+      die("udev_new failed");
+
+   struct udev_enumerate *devices = udev_enumerate_new(u);
+   if (devices == NULL)
+      die("udev_enumerate_new failed");
+   struct udev_list_entry *l = snappy_udev_devices_for_appname(devices, appname);
+   bool needs_setup = (l != NULL);
+
+   udev_enumerate_unref(devices);
+   udev_unref(u);
+
+   return needs_setup;
+}
+
 void setup_udev_snappy_assign(const char *appname) {
    debug("setup_udev_snappy_assign");
 
@@ -73,18 +104,8 @@ void setup_udev_snappy_assign(const char *appname) {
    struct udev_enumerate *devices = udev_enumerate_new(u);
    if (devices == NULL)
       die("udev_enumerate_new failed");
-
-   if (udev_enumerate_add_match_tag (devices, "snappy-assign") != 0)
-      die("udev_enumerate_add_match_tag");
-
-   if(udev_enumerate_add_match_property (devices, "SNAPPY_APP", appname) != 0)
-      die("udev_enumerate_add_match_property");
-
-   if(udev_enumerate_scan_devices(devices) != 0)
-      die("udev_enumerate_scan failed");
-
-   struct udev_list_entry *l = udev_enumerate_get_list_entry (devices);
-   while (l != NULL) {
+   struct udev_list_entry *l = snappy_udev_devices_for_appname(devices, appname);
+   if (l != NULL) {
       const char *path = udev_list_entry_get_name (l);
       if (path == NULL)
          die("udev_list_entry_get_name failed");
@@ -162,9 +183,11 @@ int main(int argc, char **argv)
    }
 
    if(geteuid() == 0) {
-       // this needs to happen as root
-       setup_devices_cgroup(appname);
-       setup_udev_snappy_assign(appname);
+      if(snappy_udev_setup_required(appname)) {
+         // this needs to happen as root
+         setup_devices_cgroup(appname);
+         setup_udev_snappy_assign(appname);
+      }
 
        // the rest does not so drop privs back to calling user
        unsigned real_uid = getuid();
