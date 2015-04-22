@@ -62,7 +62,7 @@ func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 	}
 
 	for _, part := range parts {
-		if err := part.Uninstall(progress.MakeProgressBar(part.Name())); err != nil {
+		if err := part.Uninstall(meter); err != nil {
 			return logger.LogError(err)
 		}
 	}
