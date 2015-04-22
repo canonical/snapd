@@ -1,3 +1,10 @@
+ubuntu-core-launcher (0.2.12) vivid; urgency=low
+
+  * only setup device cgroup if we actually need it, i.e. if we
+    actually have a device that we can use
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 22 Apr 2015 14:58:58 +0200
+
 ubuntu-core-launcher (0.2.11) vivid; urgency=low
 
   * merge lp:~tyhicks/ubuntu-core-launcher/fixes
