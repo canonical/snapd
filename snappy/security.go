@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v2"
+	"launchpad.net/snappy/helpers"
 )
 
 type apparmorJSONTemplate struct {
@@ -136,6 +137,8 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		}
 		return content, err
 	}
+
+	helpers.EnsureDir(snapSeccompDir, 0755)
 
 	// defaults
 	policyVendor := defaultPolicyVendor
