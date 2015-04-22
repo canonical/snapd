@@ -1350,7 +1350,7 @@ func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
 	c.Assert(err, IsNil)
 
 	snapUdevRulesDir = c.MkDir()
-	err = activateOemHardwareUdevRules(m)
+	err = activateOemHardwareUdevRules()
 	c.Assert(err, IsNil)
 	c.Assert(cmds[0], DeepEquals, aCmd{"udevadm", "control", "--reload-rules"})
 	c.Assert(cmds[1], DeepEquals, aCmd{"udevadm", "trigger"})
