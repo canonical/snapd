@@ -27,8 +27,6 @@ import (
 	"strings"
 	"testing"
 
-	"launchpad.net/snappy/progress"
-
 	. "launchpad.net/gocheck"
 )
 
