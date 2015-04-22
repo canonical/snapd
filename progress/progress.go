@@ -176,3 +176,24 @@ func (t *TextProgress) Agreed(intro, license string) bool {
 func (*TextProgress) Notify(msg string) {
 	fmt.Println(msg)
 }
+
+// MakeProgressBar creates an appropriate progress (which may be a
+// NullProgress bar if there is no associated terminal).
+func MakeProgressBar(name string) Meter {
+	var pbar Meter
+	if attachedToTerminal() {
+		pbar = NewTextProgress(name)
+	} else {
+		pbar = &NullProgress{}
+	}
+
+	return pbar
+}
+
+// attachedToTerminal returns true if the calling process is attached to
+// a terminal device.
+var attachedToTerminal = func() bool {
+	fd := int(os.Stdin.Fd())
+
+	return isatty(fd)
+}

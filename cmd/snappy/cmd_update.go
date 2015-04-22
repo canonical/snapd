@@ -67,10 +67,8 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 	}
 
 	for _, part := range updates {
-		pbar := progress.NewTextProgress(part.Name())
-
 		fmt.Printf("Installing %s (%s)\n", part.Name(), part.Version())
-		if _, err := part.Install(pbar, flags); err != nil {
+		if _, err := part.Install(progress.MakeProgressBar(part.Name()), flags); err != nil {
 			return err
 		}
 		if err := snappy.GarbageCollect(part.Name(), flags); err != nil {

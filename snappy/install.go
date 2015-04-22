@@ -165,8 +165,7 @@ func GarbageCollect(name string, flags InstallFlags) error {
 	}
 
 	for _, part := range parts[:active-1] {
-		pbar := progress.NewTextProgress(part.Name())
-		if err := part.Uninstall(pbar); err != nil {
+		if err := part.Uninstall(progress.MakeProgressBar(part.Name())); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}
