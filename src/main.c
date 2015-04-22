@@ -15,11 +15,25 @@
 #include <stdlib.h>
 #include <regex.h>
 #include <grp.h>
+#include <fcntl.h>
 
 #include "libudev.h"
 
 #include "utils.h"
 #include "seccomp.h"
+
+bool verify_appname(const char *appname) {
+   // these chars are allowed in a appname
+   const char* whitelist_re = "^[a-z0-9][a-z0-9+._-]+$";
+   regex_t re;
+   if (regcomp(&re, whitelist_re, REG_EXTENDED|REG_NOSUB) != 0)
+      die("can not compile regex %s", whitelist_re);
+
+   int status = regexec(&re, appname, 0, NULL, 0);
+   regfree(&re);
+
+   return (status == 0);
+}
 
 void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appname) {
    debug("run_snappy_app_dev_add: %s %s", path, appname);
@@ -45,37 +59,6 @@ void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appnam
          die("child exited with status %i", WEXITSTATUS(status));
       else if(WIFSIGNALED(status))
          die("child died with signal %i", WTERMSIG(status));
-}
-
-struct udev_list_entry* snappy_udev_devices_for_appname(struct udev_enumerate *devices, const char *appname) {
-   
-   if (udev_enumerate_add_match_tag (devices, "snappy-assign") != 0)
-      die("udev_enumerate_add_match_tag");
-
-   if(udev_enumerate_add_match_property (devices, "SNAPPY_APP", appname) != 0)
-      die("udev_enumerate_add_match_property");
-
-   if(udev_enumerate_scan_devices(devices) != 0)
-      die("udev_enumerate_scan failed");
-
-   return udev_enumerate_get_list_entry (devices);
-}
-
-bool snappy_udev_setup_required(const char *appname) {
-   struct udev *u = udev_new();
-   if (u == NULL)
-      die("udev_new failed");
-
-   struct udev_enumerate *devices = udev_enumerate_new(u);
-   if (devices == NULL)
-      die("udev_enumerate_new failed");
-   struct udev_list_entry *l = snappy_udev_devices_for_appname(devices, appname);
-   bool needs_setup = (l != NULL);
-
-   udev_enumerate_unref(devices);
-   udev_unref(u);
-
-   return needs_setup;
 }
 
 void setup_udev_snappy_assign(const char *appname) {
@@ -104,8 +87,18 @@ void setup_udev_snappy_assign(const char *appname) {
    struct udev_enumerate *devices = udev_enumerate_new(u);
    if (devices == NULL)
       die("udev_enumerate_new failed");
-   struct udev_list_entry *l = snappy_udev_devices_for_appname(devices, appname);
-   if (l != NULL) {
+
+   if (udev_enumerate_add_match_tag (devices, "snappy-assign") != 0)
+      die("udev_enumerate_add_match_tag");
+
+   if(udev_enumerate_add_match_property (devices, "SNAPPY_APP", appname) != 0)
+      die("udev_enumerate_add_match_property");
+
+   if(udev_enumerate_scan_devices(devices) != 0)
+      die("udev_enumerate_scan failed");
+
+   struct udev_list_entry *l = udev_enumerate_get_list_entry (devices);
+   while (l != NULL) {
       const char *path = udev_list_entry_get_name (l);
       if (path == NULL)
          die("udev_list_entry_get_name failed");
@@ -120,6 +113,10 @@ void setup_udev_snappy_assign(const char *appname) {
 void setup_devices_cgroup(const char *appname) {
    debug("setup_devices_cgroup");
 
+   // extra paranoia
+   if(!verify_appname(appname))
+      die("appname %s not allowed", appname);
+   
    // create devices cgroup controller
    char cgroup_dir[PATH_MAX];
    must_snprintf(cgroup_dir, sizeof(cgroup_dir), "/sys/fs/cgroup/devices/snappy.%s/", appname);
@@ -141,17 +138,37 @@ void setup_devices_cgroup(const char *appname) {
 
 }
 
-bool verify_appname(const char *appname) {
-   // these chars are allowed in a appname
-   const char* whitelist_re = "^[a-z0-9][a-z0-9+._-]+$";
-   regex_t re;
-   if (regcomp(&re, whitelist_re, REG_EXTENDED|REG_NOSUB) != 0)
-      die("can not compile regex %s", whitelist_re);
+bool snappy_udev_setup_required(const char *appname) {
+   debug("snappy_udev_setup_required");
 
-   int status = regexec(&re, appname, 0, NULL, 0);
-   regfree(&re);
+   // extra paranoia
+   if(!verify_appname(appname))
+      die("appname %s not allowed", appname);
+   
+   char override_file[PATH_MAX];
+   must_snprintf(override_file, sizeof(override_file), "/var/lib/apparmor/clicks/%s.json.additional", appname);
 
-   return (status == 0);
+   // if a snap package gets unrestricted apparmor access we need to setup
+   // a device cgroup.
+   //
+   // the "needle" string is what gives this access so we search for that
+   // here
+   const char *needle = "{\n \"write_path\": [\n   \"/dev/**\"\n ]\n}";
+   char content[strlen(needle)];
+
+   int fd = open(override_file, O_NOFOLLOW);
+   if (fd < 0)
+      return false;
+   int n = read(fd, content, sizeof(content));
+   if (n <= 0)
+      return false;
+   close(fd);
+
+   // memcpy so that we don't have to deal with \0 in the input
+   if (memcmp(content, needle, strlen(needle)) == 0)
+      return true;
+   
+   return false;
 }
 
 int main(int argc, char **argv)
@@ -175,7 +192,6 @@ int main(int argc, char **argv)
    if (strstr(binary, apps_prefix) != binary && strstr(binary, oem_prefix) != binary)
       die("binary must be inside /apps/%s/ or /oem/%s/", appname, appname);
       
-   
    // this code always needs to run as root for the cgroup/udev setup,
    // however for the tests we allow it to run as non-root
    if(geteuid() != 0 && getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
@@ -183,12 +199,12 @@ int main(int argc, char **argv)
    }
 
    if(geteuid() == 0) {
-      if(snappy_udev_setup_required(appname)) {
-         // this needs to happen as root
-         setup_devices_cgroup(appname);
-         setup_udev_snappy_assign(appname);
-      }
-
+       // this needs to happen as root
+       if(snappy_udev_setup_required(appname)) {
+          setup_devices_cgroup(appname);
+          setup_udev_snappy_assign(appname);
+       }
+      
        // the rest does not so drop privs back to calling user
        unsigned real_uid = getuid();
        unsigned real_gid = getgid();

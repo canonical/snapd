@@ -46,4 +46,7 @@
 
     # reading seccomp filters
     /var/lib/snappy/seccomp/profiles/* r,
+
+    # read apparmor to figure out if we need cgroups
+    /var/lib/apparmor/clicks/* r,
 }
