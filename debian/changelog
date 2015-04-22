@@ -1,4 +1,4 @@
-ubuntu-core-launcher (0.2.10) UNRELEASED; urgency=low
+ubuntu-core-launcher (0.2.10) vivid; urgency=low
 
   * add "/run/udev/** rw," to the ubuntu-core-launcher aa-profile
     to fix the hwassign
