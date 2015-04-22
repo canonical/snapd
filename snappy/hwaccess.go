@@ -20,6 +20,7 @@ package snappy
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -91,6 +92,33 @@ func regenerateAppArmorRulesImpl() error {
 	return nil
 }
 
+func udevRulesPathForPart(partid string) string {
+	// use 70- here so that its read before the OEM rules
+	return filepath.Join(snapUdevRulesDir, fmt.Sprintf("70-snappy_hwassign_%s.rules", partid))
+}
+
+func writeUdevRuleForDeviceCgroup(snapname, device string) error {
+	helpers.EnsureDir(snapUdevRulesDir, 0755)
+
+	// the device cgroup/launcher etc support only the apps level,
+	// not a binary/service or version, so if we get a full
+	// appname_binary-or-service_version string we need to split that
+	if strings.Contains(snapname, "_") {
+		l := strings.Split(snapname, "_")
+		snapname = l[0]
+	}
+
+	acl := fmt.Sprintf(`
+KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"
+`, filepath.Base(device), snapname)
+
+	if err := ioutil.WriteFile(udevRulesPathForPart(snapname), []byte(acl), 0644); err != nil {
+		return err
+	}
+
+	return activateOemHardwareUdevRules()
+}
+
 var regenerateAppArmorRules = regenerateAppArmorRulesImpl
 
 // AddHWAccess allows the given snap package to access the given hardware
@@ -128,6 +156,11 @@ func AddHWAccess(snapname, device string) error {
 	// and write the data out
 	err = writeHWAccessJSONFile(snapname, appArmorAdditional)
 	if err != nil {
+		return err
+	}
+
+	// add udev rule for device cgroup
+	if err := writeUdevRuleForDeviceCgroup(snapname, device); err != nil {
 		return err
 	}
 
@@ -174,6 +207,16 @@ func RemoveHWAccess(snapname, device string) error {
 	err = writeHWAccessJSONFile(snapname, appArmorAdditional)
 	if err != nil {
 		return err
+	}
+
+	udevRulesFile := udevRulesPathForPart(snapname)
+	if helpers.FileExists(udevRulesFile) {
+		if err := os.Remove(udevRulesFile); err != nil {
+			return err
+		}
+		if err := activateOemHardwareUdevRules(); err != nil {
+			return err
+		}
 	}
 
 	// re-generate apparmor fules

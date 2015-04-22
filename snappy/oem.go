@@ -190,7 +190,7 @@ func runUdevAdmImpl(args ...string) error {
 	return cmd.Run()
 }
 
-func activateOemHardwareUdevRules(m *packageYaml) error {
+func activateOemHardwareUdevRules() error {
 	if err := runUdevAdm("udevadm", "control", "--reload-rules"); err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func installOemHardwareUdevRules(m *packageYaml) error {
 		return err
 	}
 
-	if err := activateOemHardwareUdevRules(m); err != nil {
+	if err := activateOemHardwareUdevRules(); err != nil {
 		return err
 	}
 
