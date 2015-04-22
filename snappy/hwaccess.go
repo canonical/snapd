@@ -29,10 +29,13 @@ import (
 	"launchpad.net/snappy/helpers"
 )
 
+const udevDataGlob = "/run/udev/data/*"
+
 var aaClickHookCmd = "aa-clickhook"
 
 type appArmorAdditionalJSON struct {
-	WritePath []string `json:"write_path"`
+	WritePath []string `json:"write_path,omitempty"`
+	ReadPath  []string `json:"read_path,omitempty"`
 }
 
 // return the json filename to add to the security json
@@ -63,6 +66,11 @@ func readHWAccessJSONFile(snapname string) (appArmorAdditionalJSON, error) {
 }
 
 func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditionalJSON) error {
+	if len(appArmorAdditional.WritePath) == 0 {
+		appArmorAdditional.ReadPath = nil
+	} else {
+		appArmorAdditional.ReadPath = []string{udevDataGlob}
+	}
 	out, err := json.MarshalIndent(appArmorAdditional, "", "  ")
 	if err != nil {
 		return err

@@ -46,6 +46,9 @@ func (s *SnapTestSuite) TestAddHWAccessSimple(c *C) {
 	c.Assert(string(content), Equals, `{
   "write_path": [
     "/dev/ttyUSB0"
+  ],
+  "read_path": [
+    "/run/udev/data/*"
   ]
 }
 `)
@@ -77,6 +80,9 @@ func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
   "write_path": [
     "/dev/ttyUSB0",
     "/sys/devices/gpio1"
+  ],
+  "read_path": [
+    "/run/udev/data/*"
   ]
 }
 `)
@@ -157,10 +163,15 @@ func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
 
 	writePaths, err = ListHWAccess("hello-app")
 	c.Assert(err, IsNil)
-	c.Assert(writePaths, DeepEquals, []string{})
+	c.Assert(writePaths, HasLen, 0)
 
 	// check that the udev rules file got removed on unassign
 	c.Assert(helpers.FileExists(filepath.Join(snapUdevRulesDir, udevRulesFilename)), Equals, false)
+
+	// check the json.additional got cleaned out
+	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "{}\n")
 }
 
 func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
@@ -174,6 +185,20 @@ func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
 	writePaths, _ := ListHWAccess("hello-app")
 	c.Assert(writePaths, DeepEquals, []string{"/dev/bar", "/dev/bar*"})
 
+	// check the file only lists udevReadGlob once
+	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `{
+  "write_path": [
+    "/dev/bar",
+    "/dev/bar*"
+  ],
+  "read_path": [
+    "/run/udev/data/*"
+  ]
+}
+`)
+
 	// remove
 	err = RemoveHWAccess("hello-app", "/dev/bar")
 	c.Assert(err, IsNil)
@@ -181,6 +206,19 @@ func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
 	// ensure the right thing was removed
 	writePaths, _ = ListHWAccess("hello-app")
 	c.Assert(writePaths, DeepEquals, []string{"/dev/bar*"})
+
+	// check udevReadGlob is still there
+	content, err = ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `{
+  "write_path": [
+    "/dev/bar*"
+  ],
+  "read_path": [
+    "/run/udev/data/*"
+  ]
+}
+`)
 }
 
 func makeRunUdevAdmMock(a *[][]string) func(args ...string) error {
