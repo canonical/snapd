@@ -227,6 +227,20 @@ func RemoveHWAccess(snapname, device string) error {
 		}
 	}
 
-	// re-generate apparmor fules
+	// re-generate apparmor rules
+	return regenerateAppArmorRules()
+}
+
+// RemoveAllHWAccess removes all hw access from the given snap.
+func RemoveAllHWAccess(snapname string) error {
+	for _, fn := range []string{
+		udevRulesPathForPart(snapname),
+		getHWAccessJSONFile(snapname),
+	} {
+		if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
 	return regenerateAppArmorRules()
 }
