@@ -1,3 +1,10 @@
+ubuntu-core-launcher (0.2.14) vivid; urgency=low
+
+  * merged  lp:~tyhicks/ubuntu-core-launcher/close-fd
+    that fixes a FD leak, many thanks Tyler!
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 22 Apr 2015 18:40:13 +0200
+
 ubuntu-core-launcher (0.2.13) vivid; urgency=low
 
   * only setup the device cgroup if the snap has unrestricted access
