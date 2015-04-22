@@ -22,6 +22,7 @@
     /etc/udev/udev.conf r,
     /sys/devices/**/uevent r,
     /lib/udev/snappy-app-dev ixr, # drop
+    /run/udev/** rw,
 
     # priv dropping
     capability setuid,

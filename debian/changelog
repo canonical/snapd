@@ -1,3 +1,10 @@
+ubuntu-core-launcher (0.2.10) UNRELEASED; urgency=low
+
+  * add "/run/udev/** rw," to the ubuntu-core-launcher aa-profile
+    to fix the hwassign
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 22 Apr 2015 09:01:54 +0200
+
 ubuntu-core-launcher (0.2.9) vivid; urgency=medium
 
   * add apparmor profile for ubuntu-core-launcher
