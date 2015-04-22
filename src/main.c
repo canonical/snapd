@@ -161,7 +161,7 @@ bool snappy_udev_setup_required(const char *appname) {
       return false;
    int n = read(fd, content, sizeof(content));
    close(fd);
-   if (n <= 0)
+   if (n < sizeof(content))
       return false;
 
    // memcpy so that we don't have to deal with \0 in the input
