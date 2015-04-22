@@ -201,6 +201,9 @@ func activateOemHardwareUdevRules() error {
 const apparmorAdditionalContent = `{
  "write_path": [
    "/dev/**"
+ ],
+ "read_path": [
+   "/run/dev/data/*"
  ]
 }`
 
