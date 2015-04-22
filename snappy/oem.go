@@ -204,8 +204,17 @@ const apparmorAdditionalContent = `{
  ]
 }`
 
+// writeApparmorAdditionalFile generate a $partID.json.additional file.
+//
+// This file grants additional access on top of the existing apparmor json
+// rules. This is required for the OEM hardware assign code because by
+// default apparmor will not allow access to /dev. We grant access here
+// and the ubuntu-core-launcher is then used to generate a confinement
+// based on the devices cgroup.
 func writeApparmorAdditionalFile(m *packageYaml) error {
-	helpers.EnsureDir(snapAppArmorDir, 0755)
+	if err := helpers.EnsureDir(snapAppArmorDir, 0755); err != nil {
+		return err
+	}
 
 	for _, h := range m.OEM.Hardware.Assign {
 		jsonAdditionalPath := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
