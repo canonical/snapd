@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -145,6 +146,15 @@ func cleanupOemHardwareUdevRules(m *packageYaml) error {
 		os.Remove(f)
 	}
 
+	// cleanup the additional files
+	for _, h := range m.OEM.Hardware.Assign {
+		jsonAdditionalPath := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
+		err = os.Remove(jsonAdditionalPath)
+		if err != nil && !os.IsNotExist(err) {
+			log.Printf("Failed to remove %v: %v", jsonAdditionalPath, err)
+		}
+	}
+
 	return nil
 }
 
@@ -188,8 +198,31 @@ func activateOemHardwareUdevRules(m *packageYaml) error {
 	return runUdevAdm("udevadm", "trigger")
 }
 
+const apparmorAdditionalContent = `{
+ "write_path": [
+   "/dev/**"
+ ]
+}`
+
+func writeApparmorAdditionalFile(m *packageYaml) error {
+	helpers.EnsureDir(snapAppArmorDir, 0755)
+	
+	for _, h := range m.OEM.Hardware.Assign {
+		jsonAdditionalPath := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
+		if err := ioutil.WriteFile(jsonAdditionalPath, []byte(apparmorAdditionalContent), 0644); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func installOemHardwareUdevRules(m *packageYaml) error {
 	if err := writeOemHardwareUdevRules(m); err != nil {
+		return err
+	}
+
+	if err := writeApparmorAdditionalFile(m); err != nil {
 		return err
 	}
 
