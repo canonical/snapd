@@ -1263,6 +1263,8 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
 	snapEnv := map[string]string{
 		"SNAP_NAME":          part.Name(),
+		"SNAP_ORIGIN":        part.Namespace(),
+		"SNAP_FULLNAME":      Dirname(part),
 		"SNAP_VERSION":       part.Version(),
 		"SNAP_APP_PATH":      part.basedir,
 		"SNAP_APP_DATA_PATH": snapDataDir,

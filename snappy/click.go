@@ -378,6 +378,11 @@ export SNAPP_APP_USER_DATA_PATH="$HOME/{{.Path}}"
 export SNAPP_APP_TMPDIR="$TMPDIR"
 export SNAPP_OLD_PWD="$(pwd)"
 
+# app info
+export SNAP_NAME="{{.Name}}"
+export SNAP_ORIGIN="{{.Namespace}}"
+export SNAP_FULLNAME="{{.UdevAppName}}"
+
 # app paths
 export SNAP_APP_PATH="{{.Path}}"
 export SNAP_APP_DATA_PATH="/var/lib/{{.Path}}"
@@ -398,6 +403,11 @@ cd {{.Path}}
 ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
+	namespace, err := namespaceFromYamlPath(filepath.Join(pkgPath, "meta", "package.yaml"))
+	if err != nil {
+		return "", err
+	}
+
 	if err := verifyBinariesYaml(binary); err != nil {
 		return "", err
 	}
@@ -417,6 +427,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		Path        string
 		AaProfile   string
 		UdevAppName string
+		Namespace   string
 	}{
 		Name:        m.Name,
 		Version:     m.Version,
@@ -424,6 +435,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		Path:        pkgPath,
 		AaProfile:   aaProfile,
 		UdevAppName: udevPartName,
+		Namespace:   namespace,
 	}
 	t.Execute(&templateOut, wrapperData)
 
