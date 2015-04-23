@@ -759,6 +759,24 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	c.Assert(generatedWrapper, Equals, expectedWrapper)
 }
 
+func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
+	binary := Binary{Name: "echo", Exec: "bin/echo"}
+	pkgPath := "/apps/fmk/1.4.0.0.1/"
+	aaProfile := "fmk_echo_1.4.0.0.1"
+	m := packageYaml{Name: "fmk",
+		Version: "1.4.0.0.1",
+		Type:    "framework"}
+
+	expected := strings.Replace(expectedWrapper, "pastebinit.mvo", "fmk", -1)
+	expected = strings.Replace(expected, `NAME="pastebinit"`, `NAME="fmk"`, 1)
+	expected = strings.Replace(expected, "mvo", "", -1)
+	expected = strings.Replace(expected, "pastebinit", "echo", -1)
+
+	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
+	c.Assert(err, IsNil)
+	c.Assert(generatedWrapper, Equals, expected)
+}
+
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 	binary := Binary{Name: "bin/pastebinit\nSomething nasty"}
 	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
