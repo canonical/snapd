@@ -175,7 +175,7 @@ bool snappy_udev_setup_required(const char *appname) {
       "   \"/dev/**\""             "\n"
       " ],"                        "\n"
       " \"read_path\": ["          "\n"
-      "   \"/run/dev/data/*\""     "\n"
+      "   \"/run/udev/data/*\""     "\n"
       " ]\n"
       "}";
    debug("looking for: '%s'", needle);
