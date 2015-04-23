@@ -80,6 +80,10 @@ type bootLoader interface {
 
 	// Return the additional required chroot bind mounts for this bootloader
 	AdditionalBindMounts() []string
+
+	// BootDir returns the (writable) bootloader-specific boot
+	// directory.
+	BootDir() string
 }
 
 type bootloaderType struct {

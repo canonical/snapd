@@ -451,6 +451,10 @@ func (b *mockBootloader) AdditionalBindMounts() []string {
 	return nil
 }
 
+func (b *mockBootloader) BootDir() string {
+	return ""
+}
+
 func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 	runCommand = mockRunCommand
 	b := &mockBootloader{}

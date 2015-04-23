@@ -124,6 +124,10 @@ type Interface interface {
 
 	// run the function f with the otherRoot mounted
 	RunWithOther(rw MountOption, f func(otherRoot string) (err error)) (err error)
+
+	// Returns the full path to the (mounted and writable)
+	// bootloader-specific boot directory.
+	GetBootloaderDir() string
 }
 
 // mountEntry represents a mount this package has created.
@@ -820,4 +824,13 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 	}
 
 	return bootloader.HandleAssets()
+}
+
+func (p *Partition) GetBootloaderDir() string {
+	bootloader, err := getBootloader(p)
+	if err != nil {
+		return ""
+	}
+
+	return bootloader.BootDir()
 }

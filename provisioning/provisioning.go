@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"path/filepath"
 	"time"
 
 	"launchpad.net/snappy/helpers"
@@ -30,12 +31,12 @@ import (
 )
 
 var (
-	// InstallYamlFile is the full path to file created by
-	// ubuntu-device-flash, created at system installation time,
+	// InstallYamlFile is the name of the file created by
+	// ubuntu-device-flash(1), created at system installation time,
 	// that contains metadata on the installation.
 	//
 	// XXX: Public for ubuntu-device-flash(1)
-	InstallYamlFile = "/boot/install.yaml"
+	InstallYamlFile = "install.yaml"
 
 	// ErrNoInstallYaml is emitted when InstallYamlFile does not exist.
 	ErrNoInstallYaml = fmt.Errorf("no %s", InstallYamlFile)
@@ -96,10 +97,10 @@ func parseInstallYamlData(yamlData []byte) (*InstallYaml, error) {
 	return &i, nil
 }
 
-// SideLoadedSystem determines if the system was installed using a
+// IsSideLoaded determines if the system was installed using a
 // custom enablement part.
-func SideLoadedSystem() bool {
-	file := InstallYamlFile
+func IsSideLoaded(bootloaderDir string) bool {
+	file := filepath.Join(bootloaderDir, InstallYamlFile)
 
 	if !helpers.FileExists(file) {
 		// the system may have been sideloaded, but we have no

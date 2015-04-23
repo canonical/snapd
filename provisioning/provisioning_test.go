@@ -87,45 +87,45 @@ func (ts *ProvisioningTestSuite) SetUpTest(c *C) {
 }
 
 func (ts *ProvisioningTestSuite) TestSideLoadedSystemNoInstallYaml(c *C) {
-	c.Assert(SideLoadedSystem(), Equals, false)
+	c.Assert(IsSideLoaded(""), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestSideLoadedSystem(c *C) {
-	c.Assert(SideLoadedSystem(), Equals, false)
+	c.Assert(IsSideLoaded(""), Equals, false)
 
 	err := ioutil.WriteFile(InstallYamlFile, []byte(yamlData), 0750)
 	c.Assert(err, IsNil)
 
-	c.Assert(SideLoadedSystem(), Equals, true)
+	c.Assert(IsSideLoaded(""), Equals, true)
 
 	os.Remove(InstallYamlFile)
-	c.Assert(SideLoadedSystem(), Equals, false)
+	c.Assert(IsSideLoaded(""), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestSideLoadedSystemNoDevicePart(c *C) {
 
-	c.Assert(SideLoadedSystem(), Equals, false)
+	c.Assert(IsSideLoaded(""), Equals, false)
 
 	err := ioutil.WriteFile(InstallYamlFile, []byte(yamlDataNoDevicePart), 0750)
 	c.Assert(err, IsNil)
 
-	c.Assert(SideLoadedSystem(), Equals, false)
+	c.Assert(IsSideLoaded(""), Equals, false)
 
 	os.Remove(InstallYamlFile)
-	c.Assert(SideLoadedSystem(), Equals, false)
+	c.Assert(IsSideLoaded(""), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestSideLoadedSystemGarbageInstallYaml(c *C) {
-	c.Assert(SideLoadedSystem(), Equals, false)
+	c.Assert(IsSideLoaded(""), Equals, false)
 
 	err := ioutil.WriteFile(InstallYamlFile, []byte(garbageData), 0750)
 	c.Assert(err, IsNil)
 
 	// we assume sideloaded if the file isn't parseable
-	c.Assert(SideLoadedSystem(), Equals, true)
+	c.Assert(IsSideLoaded(""), Equals, true)
 
 	os.Remove(InstallYamlFile)
-	c.Assert(SideLoadedSystem(), Equals, false)
+	c.Assert(IsSideLoaded(""), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestParseInstallYaml(c *C) {

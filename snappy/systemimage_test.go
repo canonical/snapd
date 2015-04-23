@@ -168,6 +168,10 @@ func (p *MockPartition) RunWithOther(option partition.MountOption, f func(otherR
 	return f("/other")
 }
 
+func (p *MockPartition) GetBootloaderDir() string {
+	return ""
+}
+
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	// add a update
 	mockSystemImageIndexJSON = fmt.Sprintf(mockSystemImageIndexJSONTemplate, "2")
