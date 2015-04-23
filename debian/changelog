@@ -1,8 +1,10 @@
 ubuntu-core-launcher (1.0.1) vivid; urgency=low
 
   * fix typo in udev rule
+  * add COPYING/copyright headers
+  * fix incorrect Vcs-Bzr link
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 23 Apr 2015 14:03:36 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 23 Apr 2015 16:08:26 +0200
 
 ubuntu-core-launcher (1.0) vivid; urgency=low
 
