@@ -1,3 +1,9 @@
+ubuntu-snappy (1.0-0ubuntu1) vivid; urgency=low
+
+  * 15.04 archive upload
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 23 Apr 2015 11:08:22 +0200
+
 ubuntu-snappy (0.1.2-0ubuntu1) vivid; urgency=medium
 
   * initial ubuntu archive upload
