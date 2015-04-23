@@ -203,7 +203,7 @@ const apparmorAdditionalContent = `{
    "/dev/**"
  ],
  "read_path": [
-   "/run/dev/data/*"
+   "/run/udev/data/*"
  ]
 }`
 
