@@ -23,24 +23,30 @@ Vcs-Bzr: lp:snappy
 
 Package: golang-snappy-dev
 Architecture: all
+Depends: ${misc:Depends}
 Description: snappy development go packages.
  Use these to use the snappy API.
 
 Package: ubuntu-snappy
 Architecture: all
-Depends: apparmor-easyprof-ubuntu-snappy,
-         debsig-verify,
-         system-image-cli (>= 2.5-0ubuntu1+ppa15),
+Depends: debsig-verify,
+         system-image-snappy-cli,
          ubuntu-snappy-cli (= ${binary:Version}),
+         ubuntu-core-upgrader,
+         ubuntu-core-launcher (>= 0.2.3),
+         ubuntu-core-security-seccomp,
+         ubuntu-core-security-apparmor,
+         ubuntu-core-security-utils,
          ${misc:Depends}
 Description: System components for Ubuntu Core Snappy.
  Components and services that take care of an Ubuntu system with snappy.
 
 Package: ubuntu-snappy-cli
 Architecture: any
-Depends: fakeroot, ${misc:Depends}, ${shlibs:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}, adduser
 Replaces: ubuntu-core-snappy (<< 0.2~ppa90)
 Breaks: ubuntu-core-snappy (<< 0.2~ppa90)
+Conflicts: snappy
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
  Manage an Ubuntu system with snappy.

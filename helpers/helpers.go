@@ -21,6 +21,7 @@ import (
 	"archive/tar"
 	"crypto/sha512"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -32,8 +33,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"gopkg.in/yaml.v2"
 )
 
 var goarch = runtime.GOARCH
@@ -92,6 +91,11 @@ func TarIterate(r io.Reader, fn TarIterFunc) error {
 	return nil
 }
 
+// IsSymlink checks whether the given os.FileMode corresponds to a symlink
+func IsSymlink(mode os.FileMode) bool {
+	return (mode & os.ModeSymlink) == os.ModeSymlink
+}
+
 // UnpackTarTransformFunc can be used to change the names during unpack
 // or to return a error for files that are not acceptable
 type UnpackTarTransformFunc func(path string) (newPath string, err error)
@@ -109,17 +113,23 @@ func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
 		}
 
 		path := filepath.Join(targetDir, name)
-		info := hdr.FileInfo()
-		if info.IsDir() {
-			err := os.MkdirAll(path, info.Mode())
+		mode := hdr.FileInfo().Mode()
+		if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
+			return err
+		}
+
+		switch {
+		case mode.IsDir():
+			err := os.Mkdir(path, mode)
 			if err != nil {
 				return nil
 			}
-		} else {
-			if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
+		case IsSymlink(mode):
+			if err := os.Symlink(hdr.Linkname, path); err != nil {
 				return err
 			}
-			out, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, info.Mode())
+		case mode.IsRegular():
+			out, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, mode)
 			if err != nil {
 				return err
 			}
@@ -128,19 +138,23 @@ func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
 			if err != nil {
 				return err
 			}
+		default:
+			return &ErrUnsupportedFileType{path, mode}
 		}
 
 		return nil
 	})
 }
 
-func getMapFromYaml(data []byte) (map[string]interface{}, error) {
-	m := make(map[string]interface{})
-	err := yaml.Unmarshal(data, &m)
-	if err != nil {
-		return m, err
-	}
-	return m, nil
+// ErrUnsupportedFileType is returned when trying to extract a file
+// that is not a regular file, a directory, or a symlink.
+type ErrUnsupportedFileType struct {
+	Name string
+	Mode os.FileMode
+}
+
+func (e ErrUnsupportedFileType) Error() string {
+	return fmt.Sprintf("%s: unsupported filetype %s", e.Name, e.Mode)
 }
 
 // UbuntuArchitecture returns the debian equivalent architecture for the
@@ -205,7 +219,7 @@ func MakeMapFromEnvList(env []string) map[string]string {
 // it may return false on e.g. permission issues.
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
-	return (err == nil)
+	return err == nil
 }
 
 // IsDirectory return true if the given path can be stat()ed by us and

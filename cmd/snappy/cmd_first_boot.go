@@ -18,17 +18,28 @@
 package main
 
 import (
-	. "launchpad.net/gocheck"
+	"fmt"
+
+	"launchpad.net/snappy/snappy"
 )
 
-func (s *CmdTestSuite) TestSplitPkgAndDeveloperSimple(c *C) {
-	name, developer := pkgAndDeveloper("paste.mvo")
-	c.Assert(name, Equals, "paste")
-	c.Assert(developer, Equals, "mvo")
+func init() {
+	var cmdInternalFirstBootOemConfig cmdInternalFirstBootOemConfig
+	if _, err := parser.AddCommand("firstboot", "internal", "internal", &cmdInternalFirstBootOemConfig); err != nil {
+		// panic here as something must be terribly wrong if there is an
+		// error here
+		panic(err)
+	}
 }
 
-func (s *CmdTestSuite) TestSplitPkgAndDeveloperNoDeveloper(c *C) {
-	name, developer := pkgAndDeveloper("paste")
-	c.Assert(name, Equals, "paste")
-	c.Assert(developer, Equals, "")
+type cmdInternalFirstBootOemConfig struct{}
+
+func (x *cmdInternalFirstBootOemConfig) Execute(args []string) error {
+	err := snappy.OemConfig()
+	if err == snappy.ErrNotFirstBoot {
+		fmt.Println("First boot has already run")
+		return nil
+	}
+
+	return err
 }

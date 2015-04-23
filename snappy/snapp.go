@@ -26,16 +26,49 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
+	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/policy"
+	"launchpad.net/snappy/progress"
+	"launchpad.net/snappy/release"
 
 	"gopkg.in/yaml.v2"
 )
+
+const (
+	// the namespace for sideloaded snaps
+	sideloadedNamespace = "sideload"
+)
+
+// SharedName is a structure that holds an Alias to the preferred package and
+// the list of all the alternatives.
+type SharedName struct {
+	Alias Part
+	Parts []Part
+}
+
+// SharedNames is a list of all packages and it's SharedName structure.
+type SharedNames map[string]*SharedName
+
+// IsAlias determines if namespace is the one that is an alias for the
+// shared name.
+func (f *SharedName) IsAlias(namespace string) bool {
+	if alias := f.Alias; alias != nil {
+		return alias.Namespace() == namespace
+	}
+
+	return false
+}
 
 // Port is used to declare the Port and Negotiable status of such port
 // that is bound to a Service.
@@ -54,6 +87,13 @@ type Ports struct {
 // security defaults
 type SecurityOverrideDefinition struct {
 	Apparmor string `yaml:"apparmor" json:"apparmor"`
+	Seccomp  string `yaml:"seccomp" json:"seccomp"`
+}
+
+// SecurityPolicyDefinition is used to provide hand-crafted policy
+type SecurityPolicyDefinition struct {
+	Apparmor string `yaml:"apparmor" json:"apparmor"`
+	Seccomp  string `yaml:"seccomp" json:"seccomp"`
 }
 
 // SecurityDefinitions contains the common apparmor/seccomp definitions
@@ -63,10 +103,35 @@ type SecurityDefinitions struct {
 	// SecurityOverride is a override for the high level security json
 	SecurityOverride *SecurityOverrideDefinition `yaml:"security-override,omitempty" json:"security-override,omitempty"`
 	// SecurityPolicy is a hand-crafted low-level policy
-	SecurityPolicy *SecurityOverrideDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
+	SecurityPolicy *SecurityPolicyDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
 
-	//
+	// SecurityCaps is are the apparmor/seccomp capabilities for an app
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
+}
+
+// NeedsAppArmorUpdate checks whether the security definitions are impacted by
+// changes to policies or templates.
+func (sd *SecurityDefinitions) NeedsAppArmorUpdate(policies, templates map[string]bool) bool {
+	if sd.SecurityPolicy != nil {
+		return false
+	}
+
+	if sd.SecurityOverride != nil {
+		// XXX: actually inspect the override to figure out in more detail
+		return true
+	}
+
+	if templates[sd.SecurityTemplate] {
+		return true
+	}
+
+	for _, cap := range sd.SecurityCaps {
+		if policies[cap] {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Service represents a service inside a SnapPart
@@ -74,10 +139,11 @@ type Service struct {
 	Name        string `yaml:"name" json:"name,omitempty"`
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 
-	Start       string `yaml:"start,omitempty" json:"start,omitempty"`
-	Stop        string `yaml:"stop,omitempty" json:"stop,omitempty"`
-	PostStop    string `yaml:"poststop,omitempty" json:"poststop,omitempty"`
-	StopTimeout string `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
+	Start       string  `yaml:"start,omitempty" json:"start,omitempty"`
+	Stop        string  `yaml:"stop,omitempty" json:"stop,omitempty"`
+	PostStop    string  `yaml:"poststop,omitempty" json:"poststop,omitempty"`
+	StopTimeout Timeout `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
+	BusName     string  `yaml:"bus-name,omitempty" json:"bus-name,omitempty"`
 
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
@@ -96,15 +162,18 @@ type Binary struct {
 // SnapPart represents a generic snap type
 type SnapPart struct {
 	m           *packageYaml
-	description string
+	namespace   string
 	hash        string
 	isActive    bool
 	isInstalled bool
-	stype       SnapType
 
 	basedir string
 }
 
+var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
+
+// TODO split into payloads per package type composing the common
+// elements for all snaps.
 type packageYaml struct {
 	Name    string
 	Version string
@@ -115,39 +184,43 @@ type packageYaml struct {
 	// the spec allows a string or a list here *ick* so we need
 	// to convert that into something sensible via reflect
 	DeprecatedArchitecture interface{} `yaml:"architecture"`
-	Architectures          []string
+	Architectures          []string    `yaml:"architectures"`
 
-	Framework string
+	DeprecatedFramework string   `yaml:"framework,omitempty"`
+	Frameworks          []string `yaml:"frameworks,omitempty"`
 
 	Services []Service `yaml:"services,omitempty"`
 	Binaries []Binary  `yaml:"binaries,omitempty"`
 
 	// oem snap only
-	Store struct {
-		ID string `yaml:"id,omitempty"`
-	} `yaml:"store,omitempty"`
+	OEM    OEM          `yaml:"oem,omitempty"`
+	Config SystemConfig `yaml:"config,omitempty"`
 
 	// this is a bit ugly, but right now integration is a one:one
 	// mapping of click hooks
 	Integration map[string]clickAppHook
 
-	ExplicitLicenseAgreement bool `yaml:"explicit-license-agreement"`
+	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement,omitempty"`
+	LicenseVersion           string `yaml:"license-version,omitempty"`
 }
 
 type remoteSnap struct {
-	Publisher       string  `json:"publisher,omitempty"`
-	Name            string  `json:"name"`
-	Title           string  `json:"title"`
-	IconURL         string  `json:"icon_url"`
-	Price           float64 `json:"price,omitempty"`
-	Content         string  `json:"content,omitempty"`
-	RatingsAverage  float64 `json:"ratings_average,omitempty"`
-	Version         string  `json:"version"`
-	AnonDownloadURL string  `json:"anon_download_url, omitempty"`
-	DownloadURL     string  `json:"download_url, omitempty"`
-	DownloadSha512  string  `json:"download_sha512, omitempty"`
-	LastUpdated     string  `json:"last_updated, omitempty"`
-	DownloadSize    int64   `json:"binary_filesize, omitempty"`
+	Alias           string             `json:"alias,omitempty"`
+	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
+	DownloadSha512  string             `json:"download_sha512,omitempty"`
+	DownloadSize    int64              `json:"binary_filesize,omitempty"`
+	DownloadURL     string             `json:"download_url,omitempty"`
+	IconURL         string             `json:"icon_url"`
+	LastUpdated     string             `json:"last_updated,omitempty"`
+	Name            string             `json:"package_name"`
+	Namespace       string             `json:"origin"`
+	Prices          map[string]float64 `json:"prices,omitempty"`
+	Publisher       string             `json:"publisher,omitempty"`
+	RatingsAverage  float64            `json:"ratings_average,omitempty"`
+	SupportURL      string             `json:"support_url"`
+	Title           string             `json:"title"`
+	Type            string             `json:"content,omitempty"`
+	Version         string             `json:"version"`
 }
 
 type searchResults struct {
@@ -162,6 +235,7 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return parsePackageYamlData(yamlData)
 }
 
@@ -175,39 +249,216 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 
 	// parse the architecture: field that is either a string or a list
 	// or empty (yes, you read that correctly)
-	v := reflect.ValueOf(m.DeprecatedArchitecture)
-	switch v.Kind() {
-	case reflect.Invalid:
-		m.Architectures = []string{"all"}
-	case reflect.String:
-		m.Architectures = []string{v.String()}
-	case reflect.Slice:
-		v2 := m.DeprecatedArchitecture.([]interface{})
-		for _, arch := range v2 {
-			m.Architectures = append(m.Architectures, arch.(string))
+	if m.Architectures == nil {
+		v := reflect.ValueOf(m.DeprecatedArchitecture)
+		switch v.Kind() {
+		case reflect.Invalid:
+			m.Architectures = []string{"all"}
+		case reflect.String:
+			m.Architectures = []string{v.String()}
+		case reflect.Slice:
+			v2 := m.DeprecatedArchitecture.([]interface{})
+			for _, arch := range v2 {
+				m.Architectures = append(m.Architectures, arch.(string))
+			}
+		}
+	}
+
+	// this is to prevent installation of legacy packages such as those that
+	// contain the namespace/origin in the package name.
+	if strings.ContainsRune(m.Name, '.') {
+		return nil, ErrPackageNameNotSupported
+	}
+
+	if m.DeprecatedFramework != "" {
+		log.Printf(`Use of deprecated "framework" key in yaml`)
+		if len(m.Frameworks) != 0 {
+			return nil, ErrInvalidFrameworkSpecInYaml
+		}
+
+		m.Frameworks = commasplitter(m.DeprecatedFramework, -1)
+		m.DeprecatedFramework = ""
+	}
+
+	// do all checks here
+	for _, binary := range m.Binaries {
+		if err := verifyBinariesYaml(binary); err != nil {
+			return nil, err
+		}
+	}
+	for _, service := range m.Services {
+		if err := verifyServiceYaml(service); err != nil {
+			return nil, err
+		}
+	}
+
+	// For backward compatiblity we allow that there is no "exec:" line
+	// in the binary definition and that its derived from the name.
+	//
+	// Generate the right exec line here
+	for i := range m.Binaries {
+		if m.Binaries[i].Exec == "" {
+			m.Binaries[i].Exec = m.Binaries[i].Name
+			m.Binaries[i].Name = filepath.Base(m.Binaries[i].Exec)
+		}
+	}
+
+	for i := range m.Services {
+		if m.Services[i].StopTimeout == 0 {
+			m.Services[i].StopTimeout = DefaultTimeout
 		}
 	}
 
 	return &m, nil
 }
 
-// NewInstalledSnapPart returns a new SnapPart from the given yamlPath
-func NewInstalledSnapPart(yamlPath string) *SnapPart {
-	part := SnapPart{}
+func (m *packageYaml) checkForNameClashes() error {
+	d := make(map[string]struct{})
+	for _, bin := range m.Binaries {
+		d[bin.Name] = struct{}{}
+	}
+	for _, svc := range m.Services {
+		if _, ok := d[svc.Name]; ok {
+			return ErrNameClash(svc.Name)
+		}
+	}
 
-	m, err := parsePackageYamlFile(yamlPath)
-	if err != nil {
+	return nil
+}
+
+func (m *packageYaml) checkForPackageInstalled(namespace string) error {
+	part := ActiveSnapByName(m.Name)
+	if part == nil {
 		return nil
 	}
 
-	part.basedir = filepath.Dir(filepath.Dir(yamlPath))
-	// data from the yaml
-	part.isInstalled = true
-	part.m = m
+	if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
+		if part.Namespace() != namespace {
+			return ErrPackageNameAlreadyInstalled
+		}
+	}
+
+	return nil
+}
+
+func addCoreFmk(fmks []string) []string {
+	fmkCore := false
+	for _, a := range fmks {
+		if a == "ubuntu-core-15.04-dev1" {
+			fmkCore = true
+			break
+		}
+	}
+
+	if !fmkCore {
+		fmks = append(fmks, "ubuntu-core-15.04-dev1")
+	}
+
+	return fmks
+}
+
+func (m *packageYaml) FrameworksForClick() string {
+	fmks := addCoreFmk(m.Frameworks)
+
+	return strings.Join(fmks, ",")
+}
+
+func (m *packageYaml) checkForFrameworks() error {
+	installed, err := ActiveSnapNamesByType(SnapTypeFramework)
+	if err != nil {
+		return err
+	}
+	sort.Strings(installed)
+
+	missing := make([]string, 0, len(m.Frameworks))
+
+	for _, f := range m.Frameworks {
+		i := sort.SearchStrings(installed, f)
+		if i >= len(installed) || installed[i] != f {
+			missing = append(missing, f)
+		}
+	}
+
+	if len(missing) > 0 {
+		return ErrMissingFrameworks(missing)
+	}
+
+	return nil
+}
+
+// checkLicenseAgreement returns nil if it's ok to proceed with installing the
+// package, as deduced from the license agreement (which might involve asking
+// the user), or an error that explains the reason why installation should not
+// proceed.
+func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, currentActiveDir string) error {
+	if !m.ExplicitLicenseAgreement {
+		return nil
+	}
+
+	if ag == nil {
+		return ErrLicenseNotAccepted
+	}
+
+	license, err := d.MetaMember("license.txt")
+	if err != nil || len(license) == 0 {
+		return ErrLicenseNotProvided
+	}
+
+	oldM, err := parsePackageYamlFile(filepath.Join(currentActiveDir, "meta", "package.yaml"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	// don't ask for the license if
+	// * the previous version also asked for license confirmation, and
+	// * the license version is the same
+	if err == nil && oldM.ExplicitLicenseAgreement && oldM.LicenseVersion == m.LicenseVersion {
+		return nil
+	}
+
+	msg := fmt.Sprintf("%s requires that you accept the following license before continuing", m.Name)
+	if !ag.Agreed(msg, string(license)) {
+		return ErrLicenseNotAccepted
+	}
+
+	return nil
+}
+
+// NewInstalledSnapPart returns a new SnapPart from the given yamlPath
+func NewInstalledSnapPart(yamlPath, namespace string) (*SnapPart, error) {
+	m, err := parsePackageYamlFile(yamlPath)
+	if err != nil {
+		return nil, err
+	}
+
+	part, err := NewSnapPartFromYaml(yamlPath, namespace, m)
+	if err != nil {
+		return nil, err
+	}
+
+	return part, nil
+}
+
+// NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
+func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) (*SnapPart, error) {
+	if _, err := os.Stat(yamlPath); err != nil {
+		return nil, err
+	}
+
+	part := &SnapPart{
+		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
+		isInstalled: true,
+		namespace:   namespace,
+		m:           m,
+	}
 
 	// check if the part is active
 	allVersionsDir := filepath.Dir(part.basedir)
-	p, _ := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
+	p, err := filepath.EvalSymlinks(filepath.Join(allVersionsDir, "current"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
 	if p == part.basedir {
 		part.isActive = true
 	}
@@ -215,15 +466,18 @@ func NewInstalledSnapPart(yamlPath string) *SnapPart {
 	// read hash, its ok if its not there, some older versions of
 	// snappy did not write this file
 	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes.yaml"))
-	if err == nil {
-		var h hashesYaml
-		err = yaml.Unmarshal(hashesData, &h)
-		if err == nil {
-			part.hash = h.ArchiveSha512
-		}
+	if err != nil {
+		return nil, err
 	}
 
-	return &part
+	var h hashesYaml
+	err = yaml.Unmarshal(hashesData, &h)
+	if err != nil {
+		return nil, err
+	}
+	part.hash = h.ArchiveSha512
+
+	return part, nil
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
@@ -248,7 +502,13 @@ func (s *SnapPart) Version() string {
 
 // Description returns the description
 func (s *SnapPart) Description() string {
-	return s.description
+	// TODO: implement.
+	return "NOT IMPLEMENTED"
+}
+
+// Namespace returns the namespace
+func (s *SnapPart) Namespace() string {
+	return s.namespace
 }
 
 // Hash returns the hash
@@ -309,18 +569,28 @@ func (s *SnapPart) Services() []Service {
 	return s.m.Services
 }
 
+// Binaries return a list of Service the package declares
+func (s *SnapPart) Binaries() []Binary {
+	return s.m.Binaries
+}
+
+// OemConfig return a list of packages to configure
+func (s *SnapPart) OemConfig() SystemConfig {
+	return s.m.Config
+}
+
 // Install installs the snap
-func (s *SnapPart) Install(pb ProgressMeter, flags InstallFlags) (name string, err error) {
+func (s *SnapPart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
 	return "", errors.New("Install of a local part is not possible")
 }
 
 // SetActive sets the snap active
-func (s *SnapPart) SetActive() (err error) {
-	return setActiveClick(s.basedir, false)
+func (s *SnapPart) SetActive(pb progress.Meter) (err error) {
+	return setActiveClick(s.basedir, false, pb)
 }
 
 // Uninstall remove the snap from the system
-func (s *SnapPart) Uninstall() (err error) {
+func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 	// OEM snaps should not be removed as they are a key
 	// building block for OEMs. Prunning non active ones
 	// is acceptible.
@@ -328,17 +598,146 @@ func (s *SnapPart) Uninstall() (err error) {
 		return ErrPackageNotRemovable
 	}
 
-	return removeClick(s.basedir)
+	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	deps, err := s.DependentNames()
+	if err != nil {
+		return err
+	}
+	if len(deps) != 0 {
+		return ErrFrameworkInUse(deps)
+	}
+
+	if err := removeClick(s.basedir, pb); err != nil {
+		return err
+	}
+
+	return RemoveAllHWAccess(Dirname(s))
 }
 
 // Config is used to to configure the snap
 func (s *SnapPart) Config(configuration []byte) (new string, err error) {
-	return snapConfig(s.basedir, string(configuration))
+	return snapConfig(s.basedir, s.namespace, string(configuration))
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *SnapPart) NeedsReboot() bool {
 	return false
+}
+
+// Frameworks returns the list of frameworks needed by the snap
+func (s *SnapPart) Frameworks() ([]string, error) {
+	return s.m.Frameworks, nil
+}
+
+// DependentNames returns a list of the names of apps installed that
+// depend on this one
+//
+// /!\ not part of the Part interface.
+func (s *SnapPart) DependentNames() ([]string, error) {
+	deps, err := s.Dependents()
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, len(deps))
+	for i, dep := range deps {
+		names[i] = dep.Name()
+	}
+
+	return names, nil
+}
+
+// Dependents gives the list of apps installed that depend on this one
+//
+// /!\ not part of the Part interface.
+func (s *SnapPart) Dependents() ([]*SnapPart, error) {
+	if s.Type() != SnapTypeFramework {
+		// only frameworks are depended on
+		return nil, nil
+	}
+
+	var needed []*SnapPart
+
+	installed, err := NewMetaRepository().Installed()
+	if err != nil {
+		return nil, err
+	}
+
+	name := s.Name()
+	for _, part := range installed {
+		fmks, err := part.Frameworks()
+		if err != nil {
+			return nil, err
+		}
+		for _, fmk := range fmks {
+			if fmk == name {
+				part, ok := part.(*SnapPart)
+				if !ok {
+					return nil, ErrInstalledNonSnapPart
+				}
+				needed = append(needed, part)
+			}
+		}
+	}
+
+	return needed, nil
+}
+
+var timestampUpdater = helpers.UpdateTimestamp
+
+func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
+	fn := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_%s_%s.json", fullName, thing, version))
+	return timestampUpdater(fn)
+}
+
+// RequestAppArmorUpdate checks whether changes to the given policies and
+// templates impacts the snap, and updates the timestamp of the relevant json
+// symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits).
+func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
+
+	fullName := Dirname(s)
+	for _, svc := range s.Services() {
+		if svc.NeedsAppArmorUpdate(policies, templates) {
+			if err := updateAppArmorJSONTimestamp(fullName, svc.Name, s.Version()); err != nil {
+				return err
+			}
+		}
+	}
+	for _, bin := range s.Binaries() {
+		if bin.NeedsAppArmorUpdate(policies, templates) {
+			if err := updateAppArmorJSONTimestamp(fullName, bin.Name, s.Version()); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// RefreshDependentsSecurity refreshes the security policies of dependent snaps
+func (s *SnapPart) RefreshDependentsSecurity(oldBaseDir string, inter interacter) (err error) {
+	upPol, upTpl := policy.AppArmorDelta(oldBaseDir, s.basedir, s.Name()+"_")
+
+	deps, err := s.Dependents()
+	if err != nil {
+		return err
+	}
+
+	for _, dep := range deps {
+		err := dep.RequestAppArmorUpdate(upPol, upTpl)
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := exec.Command(aaClickHookCmd).Run(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // SnapLocalRepository is the type for a local snap repository
@@ -360,13 +759,13 @@ func (s *SnapLocalRepository) Description() string {
 	return fmt.Sprintf("Snap local repository for %s", s.path)
 }
 
-// Search searches the local repository
-func (s *SnapLocalRepository) Search(terms string) (versions []Part, err error) {
-	return versions, err
-}
-
 // Details returns details for the given snap
 func (s *SnapLocalRepository) Details(name string) (versions []Part, err error) {
+	// XXX: this is broken wrt namespaceless packages (e.g. frameworks)
+	if !strings.ContainsRune(name, '.') {
+		name += ".*"
+	}
+
 	globExpr := filepath.Join(s.path, name, "*", "meta", "package.yaml")
 	parts, err := s.partsForGlobExpr(globExpr)
 
@@ -404,13 +803,38 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 			continue
 		}
 
-		snap := NewInstalledSnapPart(yamlfile)
-		if snap != nil {
-			parts = append(parts, snap)
+		m, err := parsePackageYamlFile(realpath)
+		if err != nil {
+			return nil, err
 		}
+
+		namespace := ""
+		if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
+			namespace, err = namespaceFromYamlPath(realpath)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		snap, err := NewSnapPartFromYaml(realpath, namespace, m)
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, snap)
+
 	}
 
 	return parts, nil
+}
+
+func namespaceFromYamlPath(path string) (string, error) {
+	namespace := filepath.Ext(filepath.Dir(filepath.Join(path, "..", "..")))
+
+	if len(namespace) < 1 {
+		return "", ErrInvalidPart
+	}
+
+	return namespace[1:], nil
 }
 
 // RemoteSnapPart represents a snap available on the server
@@ -437,6 +861,11 @@ func (s *RemoteSnapPart) Version() string {
 // Description returns the description
 func (s *RemoteSnapPart) Description() string {
 	return s.pkg.Title
+}
+
+// Namespace is the origin
+func (s *RemoteSnapPart) Namespace() string {
+	return s.pkg.Namespace
 }
 
 // Hash returns the hash
@@ -477,16 +906,25 @@ func (s *RemoteSnapPart) DownloadSize() int64 {
 
 // Date returns the last update time
 func (s *RemoteSnapPart) Date() time.Time {
-	p, err := time.Parse("2006-01-02T15:04:05.000000Z", s.pkg.LastUpdated)
-	if err != nil {
-		return time.Time{}
+	var p time.Time
+	var err error
+
+	for _, fmt := range []string{
+		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05.000Z",
+		"2006-01-02T15:04:05.000000Z",
+	} {
+		p, err = time.Parse(fmt, s.pkg.LastUpdated)
+		if err == nil {
+			break
+		}
 	}
 
 	return p
 }
 
 // Download downloads the snap and returns the filename
-func (s *RemoteSnapPart) Download(pbar ProgressMeter) (string, error) {
+func (s *RemoteSnapPart) Download(pbar progress.Meter) (string, error) {
 
 	w, err := ioutil.TempFile("", s.pkg.Name)
 	if err != nil {
@@ -536,23 +974,23 @@ func (s *RemoteSnapPart) Download(pbar ProgressMeter) (string, error) {
 }
 
 // Install installs the snap
-func (s *RemoteSnapPart) Install(pbar ProgressMeter, flags InstallFlags) (string, error) {
+func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (string, error) {
 	downloadedSnap, err := s.Download(pbar)
 	if err != nil {
 		return "", err
 	}
 	defer os.Remove(downloadedSnap)
 
-	return installClick(downloadedSnap, flags, nil)
+	return installClick(downloadedSnap, flags, pbar, s.Namespace())
 }
 
 // SetActive sets the snap active
-func (s *RemoteSnapPart) SetActive() (err error) {
+func (s *RemoteSnapPart) SetActive(progress.Meter) error {
 	return ErrNotInstalled
 }
 
 // Uninstall remove the snap from the system
-func (s *RemoteSnapPart) Uninstall() (err error) {
+func (s *RemoteSnapPart) Uninstall(progress.Meter) error {
 	return ErrNotInstalled
 }
 
@@ -566,6 +1004,11 @@ func (s *RemoteSnapPart) NeedsReboot() bool {
 	return false
 }
 
+// Frameworks returns the list of frameworks needed by the snap
+func (s *RemoteSnapPart) Frameworks() ([]string, error) {
+	return nil, ErrNotImplemented
+}
+
 // NewRemoteSnapPart returns a new RemoteSnapPart from the given
 // remoteSnap data
 func NewRemoteSnapPart(data remoteSnap) *RemoteSnapPart {
@@ -574,27 +1017,73 @@ func NewRemoteSnapPart(data remoteSnap) *RemoteSnapPart {
 
 // SnapUbuntuStoreRepository represents the ubuntu snap store
 type SnapUbuntuStoreRepository struct {
-	searchURI  string
-	detailsURI string
+	searchURI  *url.URL
+	detailsURI *url.URL
 	bulkURI    string
 }
 
 var (
-	storeSearchURI  = "https://search.apps.ubuntu.com/api/v1/search?q=%s"
-	storeDetailsURI = "https://search.apps.ubuntu.com/api/v1/package/%s"
-	storeBulkURI    = "https://search.apps.ubuntu.com/api/v1/click-metadata"
+	storeSearchURI  *url.URL
+	storeDetailsURI *url.URL
+	storeBulkURI    *url.URL
 )
+
+func getStructFields(s interface{}) []string {
+	st := reflect.TypeOf(s)
+	num := st.NumField()
+	fields := make([]string, 0, num)
+	for i := 0; i < num; i++ {
+		tag := st.Field(i).Tag.Get("json")
+		idx := strings.IndexRune(tag, ',')
+		if idx > -1 {
+			tag = tag[:idx]
+		}
+		if tag != "" {
+			fields = append(fields, tag)
+		}
+	}
+
+	return fields
+}
+
+func init() {
+	storeBaseURI, err := url.Parse("https://search.apps.ubuntu.com/api/v1/")
+	if err != nil {
+		panic(err)
+	}
+
+	storeSearchURI, err = storeBaseURI.Parse("search")
+	if err != nil {
+		panic(err)
+	}
+
+	v := url.Values{}
+	v.Set("fields", strings.Join(getStructFields(remoteSnap{}), ","))
+	storeSearchURI.RawQuery = v.Encode()
+
+	storeDetailsURI, err = storeBaseURI.Parse("package/")
+
+	if err != nil {
+		panic(err)
+	}
+
+	storeBulkURI, err = storeBaseURI.Parse("click-metadata")
+	if err != nil {
+		panic(err)
+	}
+	storeBulkURI.RawQuery = v.Encode()
+}
 
 // NewUbuntuStoreSnapRepository creates a new SnapUbuntuStoreRepository
 func NewUbuntuStoreSnapRepository() *SnapUbuntuStoreRepository {
-	if storeSearchURI == "" && storeDetailsURI == "" && storeBulkURI == "" {
+	if storeSearchURI == nil && storeDetailsURI == nil && storeBulkURI == nil {
 		return nil
 	}
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &SnapUbuntuStoreRepository{
 		searchURI:  storeSearchURI,
 		detailsURI: storeDetailsURI,
-		bulkURI:    storeBulkURI,
+		bulkURI:    storeBulkURI.String(),
 	}
 }
 
@@ -603,18 +1092,13 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
 
 	// frameworks
-	frameworks, _ := InstalledSnapNamesByType(SnapTypeFramework)
-	frameworks = append(frameworks, "ubuntu-core-15.04-dev1")
-	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(frameworks, ","))
+	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
+	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(addCoreFmk(frameworks), ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
+	req.Header.Set("X-Ubuntu-Release", release.String())
 
-	// check if the oem part sets a custom store-id
-	oems, _ := InstalledSnapsByType(SnapTypeOem)
-	if len(oems) == 1 {
-		storeID := oems[0].(*SnapPart).m.Store.ID
-		if storeID != "" {
-			req.Header.Set("X-Ubuntu-Store", storeID)
-		}
+	if storeID := StoreID(); storeID != "" {
+		req.Header.Set("X-Ubuntu-Store", storeID)
 	}
 
 	// sso
@@ -631,8 +1115,12 @@ func (s *SnapUbuntuStoreRepository) Description() string {
 
 // Details returns details for the given snap in this repository
 func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err error) {
-	url := fmt.Sprintf(s.detailsURI, snapName)
-	req, err := http.NewRequest("GET", url, nil)
+	url, err := s.detailsURI.Parse(snapName)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -669,9 +1157,11 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 }
 
 // Search searches the repository for the given searchTerm
-func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err error) {
-	url := fmt.Sprintf(s.searchURI, searchTerm)
-	req, err := http.NewRequest("GET", url, nil)
+func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, error) {
+	q := s.searchURI.Query()
+	q.Set("q", searchTerm)
+	s.searchURI.RawQuery = q.Encode()
+	req, err := http.NewRequest("GET", s.searchURI.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -693,19 +1183,29 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (parts []Part, err
 		return nil, err
 	}
 
+	sharedNames := make(SharedNames, len(searchData.Payload.Packages))
 	for _, pkg := range searchData.Payload.Packages {
 		snap := NewRemoteSnapPart(pkg)
-		parts = append(parts, snap)
+		pkgName := snap.Name()
+
+		if _, ok := sharedNames[snap.Name()]; !ok {
+			sharedNames[pkgName] = new(SharedName)
+		}
+
+		sharedNames[pkgName].Parts = append(sharedNames[pkgName].Parts, snap)
+		if pkg.Alias != "" {
+			sharedNames[pkgName].Alias = snap
+		}
 	}
 
-	return parts, nil
+	return sharedNames, nil
 }
 
 // Updates returns the available updates
 func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
-	// the store only supports apps and framworks currently, so no
+	// the store only supports apps, oem and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
-	installed, err := InstalledSnapNamesByType(SnapTypeApp, SnapTypeFramework)
+	installed, err := ActiveSnapNamesByType(SnapTypeApp, SnapTypeFramework, SnapTypeOem)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}
@@ -763,6 +1263,8 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
 	snapEnv := map[string]string{
 		"SNAP_NAME":          part.Name(),
+		"SNAP_ORIGIN":        part.Namespace(),
+		"SNAP_FULLNAME":      Dirname(part),
 		"SNAP_VERSION":       part.Version(),
 		"SNAP_APP_PATH":      part.basedir,
 		"SNAP_APP_DATA_PATH": snapDataDir,

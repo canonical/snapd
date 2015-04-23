@@ -26,11 +26,11 @@ import (
 var (
 	// ErrNeedRoot is return when an attempt to run a privileged operation
 	// is made by an unprivileged process.
-	ErrNeedRoot = errors.New("need root")
+	ErrNeedRoot = errors.New("administrator privileges required")
 
 	// ErrAlreadyLocked is returned when an attempts is made to lock an
 	// already-locked FileLock.
-	ErrAlreadyLocked = errors.New("already locked")
+	ErrAlreadyLocked = errors.New("another snappy is running, try again later")
 
 	// ErrNotLocked is returned when an attempts is made to unlock an
 	// unlocked FileLock.

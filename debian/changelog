@@ -1,8 +1,21 @@
+ubuntu-snappy (1.0.1-0ubuntu1) vivid; urgency=low
+
+  * fix symlink unpacking
+  * fix typo in apparmor rules generation
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 23 Apr 2015 16:09:56 +0200
+
+ubuntu-snappy (1.0-0ubuntu1) vivid; urgency=low
+
+  * 15.04 archive upload
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 23 Apr 2015 11:08:22 +0200
+
 ubuntu-snappy (0.1.2-0ubuntu1) vivid; urgency=medium
 
-  * new snapshot
+  * initial ubuntu archive upload
 
- -- Sergio Schvezov <sergio.schvezov@canonical.com>  Thu, 19 Feb 2015 22:16:08 -0300
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 13 Apr 2015 22:48:13 -0500
 
 ubuntu-snappy (0.1.1-0ubuntu1) vivid; urgency=low
 

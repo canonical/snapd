@@ -19,14 +19,11 @@ package helpers
 
 import (
 	"compress/gzip"
-	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
-	"strings"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -47,14 +44,15 @@ func (ts *HTestSuite) TestUnpack(c *C) {
 	// ok, slightly silly
 	path := "/etc/fstab"
 
-	// create test dir and also test file
+	// create test dir, symlink, and also test file
 	someDir := c.MkDir()
+	c.Assert(os.Symlink(path, filepath.Join(someDir, "fstab")), IsNil)
+
 	cmd := exec.Command("tar", "cvzf", tmpfile, path, someDir)
 	output, err := cmd.CombinedOutput()
 	c.Assert(err, IsNil)
-	if !strings.Contains(string(output), "/etc/fstab") {
-		c.Error("Can not find expected output from tar")
-	}
+	c.Check(string(output), Matches, `(?ms).*^/etc/fstab`,
+		Commentf("Can not find expected output from tar"))
 
 	// unpack
 	unpackdir := filepath.Join(tmpdir, "t")
@@ -79,20 +77,11 @@ func (ts *HTestSuite) TestUnpack(c *C) {
 	st2, err := os.Stat(someDir)
 	c.Assert(err, IsNil)
 	c.Assert(st1.Mode(), Equals, st2.Mode())
-}
 
-func (ts *HTestSuite) TestGetMapFromValidYaml(c *C) {
-	m, err := getMapFromYaml([]byte("name: value"))
-	c.Assert(err, IsNil)
-	me := map[string]interface{}{"name": "value"}
-	if !reflect.DeepEqual(m, me) {
-		c.Error(fmt.Sprintf("Unexpected map %v != %v", m, me))
-	}
-}
-
-func (ts *HTestSuite) TestGetMapFromInvalidYaml(c *C) {
-	_, err := getMapFromYaml([]byte("%lala%"))
-	c.Assert(err, NotNil)
+	// and the symlink is there too
+	fn, err := os.Readlink(filepath.Join(unpackedSomeDir, "fstab"))
+	c.Check(err, IsNil)
+	c.Check(fn, Equals, "/etc/fstab")
 }
 
 func (ts *HTestSuite) TestUbuntuArchitecture(c *C) {

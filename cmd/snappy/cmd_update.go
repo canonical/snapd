@@ -20,12 +20,17 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 
 	"launchpad.net/snappy/priv"
+	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
 type cmdUpdate struct {
+	DisableGC  bool `long:"no-gc" description:"Do not clean up old versions of the package."`
+	AutoReboot bool `long:"automatic-reboot" description:"Reboot if necessary to be on the latest running system."`
 }
 
 func init() {
@@ -36,6 +41,13 @@ func init() {
 		&cmdUpdateData)
 }
 
+const (
+	shutdownCmd     = "/sbin/shutdown"
+	shutdownTimeout = "+10"
+	shutdownMsg     = "snappy autopilot triggered a reboot to boot into an up to date system" +
+		"-- temprorarily disable the reboot by running 'sudo shutdown -c'"
+)
+
 func (x *cmdUpdate) Execute(args []string) (err error) {
 	privMutex := priv.New()
 	if err := privMutex.TryLock(); err != nil {
@@ -43,27 +55,51 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 	}
 	defer privMutex.Unlock()
 
-	return update()
-}
+	// FIXME: handle (more?) args
+	flags := snappy.DoInstallGC
+	if x.DisableGC {
+		flags = 0
+	}
 
-func update() error {
-	// FIXME: handle args
 	updates, err := snappy.ListUpdates()
 	if err != nil {
 		return err
 	}
 
 	for _, part := range updates {
-		pbar := snappy.NewTextProgress(part.Name())
-
 		fmt.Printf("Installing %s (%s)\n", part.Name(), part.Version())
-		if _, err := part.Install(pbar, 0); err != nil {
+		if _, err := part.Install(progress.MakeProgressBar(part.Name()), flags); err != nil {
+			return err
+		}
+		if err := snappy.GarbageCollect(part.Name(), flags); err != nil {
 			return err
 		}
 	}
 
 	if len(updates) > 0 {
 		showVerboseList(updates, os.Stdout)
+	}
+
+	if x.AutoReboot {
+		installed, err := snappy.ListInstalled()
+		if err != nil {
+			return err
+		}
+
+		var rebootTriggers []string
+		for _, part := range installed {
+			if part.NeedsReboot() {
+				rebootTriggers = append(rebootTriggers, part.Name())
+			}
+		}
+
+		if len(rebootTriggers) != 0 {
+			fmt.Println("Rebooting to satisfy updates for", strings.Join(rebootTriggers, ", "))
+			cmd := exec.Command(shutdownCmd, shutdownTimeout, "-r", shutdownMsg)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("failed to auto reboot: %s", out)
+			}
+		}
 	}
 
 	return nil

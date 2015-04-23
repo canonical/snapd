@@ -30,6 +30,12 @@ import (
 	. "launchpad.net/gocheck"
 )
 
+const (
+	testNamespace        = "testspacethename"
+	fooComposedName      = "foo.testspacethename"
+	helloAppComposedName = "hello-app.testspacethename"
+)
+
 // makeInstalledMockSnap creates a installed mock snap without any
 // content other than the meta data
 func makeInstalledMockSnap(tempdir, packageYamlContent string) (yamlFile string, err error) {
@@ -42,6 +48,8 @@ binaries:
 services:
  - name: svc1
    start: bin/hello
+   stop: bin/goodbye
+   poststop: bin/missya
 `
 	if packageYamlContent == "" {
 		packageYamlContent = packageHello
@@ -52,7 +60,8 @@ services:
 		return "", err
 	}
 
-	metaDir := filepath.Join(tempdir, "apps", m.Name, m.Version, "meta")
+	dirName := fmt.Sprintf("%s.%s", m.Name, testNamespace)
+	metaDir := filepath.Join(tempdir, "apps", dirName, m.Version, "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
 	}
@@ -62,6 +71,11 @@ services:
 	}
 
 	if err := addDefaultApparmorJSON(tempdir, "hello-app_hello_1.10.json"); err != nil {
+		return "", err
+	}
+
+	hashFile := filepath.Join(metaDir, "hashes.yaml")
+	if err := ioutil.WriteFile(hashFile, []byte("{}"), 0644); err != nil {
 		return "", err
 	}
 
@@ -75,8 +89,8 @@ func addDefaultApparmorJSON(tempdir, apparmorJSONPath string) error {
 	}
 
 	const securityJSON = `{
-  "policy_vendor": "ubuntu-snappy"
-  "policy_version": 1.3
+  "policy_vendor": "ubuntu-core"
+  "policy_version": 15.04
 }`
 
 	apparmorFile := filepath.Join(appArmorDir, apparmorJSONPath)
@@ -141,12 +155,14 @@ vendor: Foo Bar <foo@example.com>
 	}
 
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil)
+	n, err := installClick(snapFile, AllowUnauthenticated|AllowOEM, nil, testNamespace)
 	c.Assert(err, IsNil)
+	c.Assert(n, Equals, "foo")
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil)
+	n, err = installClick(snapFile, AllowUnauthenticated|AllowOEM, nil, testNamespace)
 	c.Assert(err, IsNil)
+	c.Assert(n, Equals, "foo")
 
 	m := NewMetaRepository()
 	installed, err := m.Installed()
@@ -161,6 +177,7 @@ type MockProgressMeter struct {
 	spin     bool
 	spinMsg  string
 	written  int
+	notified []string
 }
 
 func (m *MockProgressMeter) Start(total float64) {
@@ -185,4 +202,17 @@ func (m *MockProgressMeter) Finished() {
 }
 func (m *MockProgressMeter) Agreed(string, string) bool {
 	return false
+}
+func (m *MockProgressMeter) Notify(msg string) {
+	m.notified = append(m.notified, msg)
+}
+
+// seccomp filter mocks
+const scFilterGenFakeResult = `
+syscall1
+syscall2
+`
+
+func mockRunScFilterGen(argv ...string) ([]byte, error) {
+	return []byte(scFilterGenFakeResult), nil
 }

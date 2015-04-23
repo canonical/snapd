@@ -21,6 +21,8 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
+	"launchpad.net/snappy/helpers"
+
 	. "launchpad.net/gocheck"
 )
 
@@ -44,6 +46,9 @@ func (s *SnapTestSuite) TestAddHWAccessSimple(c *C) {
 	c.Assert(string(content), Equals, `{
   "write_path": [
     "/dev/ttyUSB0"
+  ],
+  "read_path": [
+    "/run/udev/data/*"
   ]
 }
 `)
@@ -75,6 +80,9 @@ func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
   "write_path": [
     "/dev/ttyUSB0",
     "/sys/devices/gpio1"
+  ],
+  "read_path": [
+    "/run/udev/data/*"
   ]
 }
 `)
@@ -140,6 +148,10 @@ func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
 	makeInstalledMockSnap(s.tempdir, "")
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 
+	// check that the udev rules file got created
+	udevRulesFilename := "70-snappy_hwassign_hello-app.rules"
+	c.Assert(helpers.FileExists(filepath.Join(snapUdevRulesDir, udevRulesFilename)), Equals, true)
+
 	writePaths, err := ListHWAccess("hello-app")
 	c.Assert(err, IsNil)
 	c.Assert(writePaths, DeepEquals, []string{"/dev/ttyUSB0"})
@@ -151,7 +163,15 @@ func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
 
 	writePaths, err = ListHWAccess("hello-app")
 	c.Assert(err, IsNil)
-	c.Assert(writePaths, DeepEquals, []string{})
+	c.Assert(writePaths, HasLen, 0)
+
+	// check that the udev rules file got removed on unassign
+	c.Assert(helpers.FileExists(filepath.Join(snapUdevRulesDir, udevRulesFilename)), Equals, false)
+
+	// check the json.additional got cleaned out
+	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "{}\n")
 }
 
 func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
@@ -165,6 +185,20 @@ func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
 	writePaths, _ := ListHWAccess("hello-app")
 	c.Assert(writePaths, DeepEquals, []string{"/dev/bar", "/dev/bar*"})
 
+	// check the file only lists udevReadGlob once
+	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `{
+  "write_path": [
+    "/dev/bar",
+    "/dev/bar*"
+  ],
+  "read_path": [
+    "/run/udev/data/*"
+  ]
+}
+`)
+
 	// remove
 	err = RemoveHWAccess("hello-app", "/dev/bar")
 	c.Assert(err, IsNil)
@@ -172,9 +206,38 @@ func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
 	// ensure the right thing was removed
 	writePaths, _ = ListHWAccess("hello-app")
 	c.Assert(writePaths, DeepEquals, []string{"/dev/bar*"})
+
+	// check udevReadGlob is still there
+	content, err = ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `{
+  "write_path": [
+    "/dev/bar*"
+  ],
+  "read_path": [
+    "/run/udev/data/*"
+  ]
+}
+`)
+}
+
+func makeRunUdevAdmMock(a *[][]string) func(args ...string) error {
+	return func(args ...string) error {
+		*a = append(*a, args)
+		return nil
+	}
+}
+
+func verifyUdevAdmActivateRules(c *C, runUdevAdmCalls [][]string) {
+	c.Assert(runUdevAdmCalls, HasLen, 2)
+	c.Assert(runUdevAdmCalls[0], DeepEquals, []string{"udevadm", "control", "--reload-rules"})
+	c.Assert(runUdevAdmCalls[1], DeepEquals, []string{"udevadm", "trigger"})
 }
 
 func (s *SnapTestSuite) TestRemoveHWAccessFail(c *C) {
+	var runUdevAdmCalls [][]string
+	runUdevAdm = makeRunUdevAdmMock(&runUdevAdmCalls)
+
 	makeInstalledMockSnap(s.tempdir, "")
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
@@ -183,4 +246,37 @@ func (s *SnapTestSuite) TestRemoveHWAccessFail(c *C) {
 	err = RemoveHWAccess("hello-app", "/dev/something")
 	c.Assert(err, Equals, ErrHWAccessRemoveNotFound)
 	c.Assert(*regenerateAppArmorRulesWasCalled, Equals, false)
+	verifyUdevAdmActivateRules(c, runUdevAdmCalls)
+}
+
+func (s *SnapTestSuite) TestWriteUdevRulesForDeviceCgroup(c *C) {
+	var runUdevAdmCalls [][]string
+	runUdevAdm = makeRunUdevAdmMock(&runUdevAdmCalls)
+
+	snapapp := "foo-app_meep_1.0"
+	err := writeUdevRuleForDeviceCgroup(snapapp, "/dev/ttyS0")
+	c.Assert(err, IsNil)
+
+	got, err := ioutil.ReadFile(filepath.Join(snapUdevRulesDir, "70-snappy_hwassign_foo-app.rules"))
+	c.Assert(err, IsNil)
+	c.Assert(string(got), Equals, `
+KERNEL=="ttyS0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="foo-app"
+`)
+
+	verifyUdevAdmActivateRules(c, runUdevAdmCalls)
+}
+
+func (s *SnapTestSuite) TestRemoveAllHWAccess(c *C) {
+	makeInstalledMockSnap(s.tempdir, "")
+
+	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
+	c.Assert(err, IsNil)
+
+	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
+	c.Check(*regenerateAppArmorRulesWasCalled, Equals, false)
+	c.Check(RemoveAllHWAccess("hello-app"), IsNil)
+
+	c.Check(helpers.FileExists(filepath.Join(snapUdevRulesDir, "70-snappy_hwassign_foo-app.rules")), Equals, false)
+	c.Check(helpers.FileExists(filepath.Join(snapAppArmorDir, "hello-app.json.additional")), Equals, false)
+	c.Check(*regenerateAppArmorRulesWasCalled, Equals, true)
 }

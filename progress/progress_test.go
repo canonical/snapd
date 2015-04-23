@@ -15,19 +15,31 @@
  *
  */
 
-package snappy
+package progress
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
+	"testing"
 
-	"fmt"
 	. "launchpad.net/gocheck"
 )
 
-type ProgressTestSuite struct{}
+// Hook up gocheck into the "go test" runner
+func Test(t *testing.T) { TestingT(t) }
+
+type ProgressTestSuite struct {
+	attachedToTerminalReturn bool
+
+	originalAttachedToTerminal func() bool
+}
 
 var _ = Suite(&ProgressTestSuite{})
+
+func (ts *ProgressTestSuite) MockAttachedToTerminal() bool {
+	return ts.attachedToTerminalReturn
+}
 
 func (ts *ProgressTestSuite) TestSpin(c *C) {
 	f, err := ioutil.TempFile("", "progress-")
@@ -90,4 +102,47 @@ func (ts *ProgressTestSuite) testAgreed(answer string, value bool, c *C) {
 func (ts *ProgressTestSuite) TestAgreed(c *C) {
 	ts.testAgreed("Y", true, c)
 	ts.testAgreed("N", false, c)
+}
+
+func (ts *ProgressTestSuite) TestNotify(c *C) {
+	fout, err := ioutil.TempFile("", "notify-out-")
+	c.Assert(err, IsNil)
+	oldStdout := os.Stdout
+	os.Stdout = fout
+	defer func() {
+		os.Stdout = oldStdout
+		os.Remove(fout.Name())
+		fout.Close()
+	}()
+
+	t := NewTextProgress("no-pkg")
+	t.Notify("blah blah")
+
+	_, err = fout.Seek(0, 0)
+	c.Assert(err, IsNil)
+	out, err := ioutil.ReadAll(fout)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "blah blah\n")
+}
+
+func (ts *ProgressTestSuite) TestMakeProgressBar(c *C) {
+	var pbar Meter
+
+	ts.originalAttachedToTerminal = attachedToTerminal
+	attachedToTerminal = ts.MockAttachedToTerminal
+	defer func() {
+		// reset
+		attachedToTerminal = ts.originalAttachedToTerminal
+	}()
+
+	ts.attachedToTerminalReturn = true
+
+	pbar = MakeProgressBar("foo")
+	c.Assert(pbar, FitsTypeOf, NewTextProgress("foo"))
+
+	ts.attachedToTerminalReturn = false
+
+	pbar = MakeProgressBar("bar")
+	c.Assert(pbar, FitsTypeOf, &NullProgress{})
+
 }

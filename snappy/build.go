@@ -127,7 +127,7 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 			m.Integration[hookName] = make(map[string]string)
 		}
 		// legacy click hook
-		m.Integration[hookName]["bin-path"] = v.Name
+		m.Integration[hookName]["bin-path"] = v.Exec
 
 		// handle the apparmor stuff
 		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
@@ -186,7 +186,7 @@ func handleConfigHookApparmor(buildDir string, m *packageYaml) error {
 
 	hookName := "snappy-config"
 	s := &SecurityDefinitions{}
-	content, err := generateApparmorJSONContent(s)
+	content, err := s.generateApparmorJSONContent()
 	if err != nil {
 		return err
 	}
@@ -337,7 +337,8 @@ func writeClickManifest(buildDir string, m *packageYaml) error {
 	cm := clickManifest{
 		Name:          m.Name,
 		Version:       m.Version,
-		Framework:     m.Framework,
+		Architecture:  m.Architectures,
+		Framework:     m.FrameworksForClick(),
 		Type:          m.Type,
 		Icon:          m.Icon,
 		InstalledSize: installedSize,
@@ -445,10 +446,13 @@ func Build(sourceDir, targetDir string) (string, error) {
 	}
 
 	if m.ExplicitLicenseAgreement {
-		err = licenseChecker(sourceDir)
-		if err != nil {
+		if err := licenseChecker(sourceDir); err != nil {
 			return "", err
 		}
+	}
+
+	if err := m.checkForNameClashes(); err != nil {
+		return "", err
 	}
 
 	// create build dir
@@ -460,17 +464,6 @@ func Build(sourceDir, targetDir string) (string, error) {
 
 	if err := copyToBuildDir(sourceDir, buildDir); err != nil {
 		return "", err
-	}
-
-	// FIXME: the store needs this right now
-	if !strings.Contains(m.Framework, "ubuntu-core-15.04-dev1") {
-		l := strings.Split(m.Framework, ",")
-		if l[0] == "" {
-			m.Framework = "ubuntu-core-15.04-dev1"
-		} else {
-			l = append(l, "ubuntu-core-15.04-dev1")
-			m.Framework = strings.Join(l, ", ")
-		}
 	}
 
 	// defaults, mangling
@@ -515,7 +508,12 @@ func Build(sourceDir, targetDir string) (string, error) {
 	}
 
 	// build it
-	d := clickdeb.ClickDeb{Path: snapName}
+	d, err := clickdeb.Create(snapName)
+	if err != nil {
+		return "", err
+	}
+	defer d.Close()
+
 	err = d.Build(buildDir, func(dataTar string) error {
 		// write hashes of the files plus the generated data tar
 		return writeHashes(buildDir, dataTar)

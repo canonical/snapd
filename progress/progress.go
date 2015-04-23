@@ -15,7 +15,7 @@
  *
  */
 
-package snappy
+package progress
 
 import (
 	"bufio"
@@ -26,8 +26,8 @@ import (
 	"github.com/cheggaaa/pb"
 )
 
-// ProgressMeter is an interface to show progress to the user
-type ProgressMeter interface {
+// Meter is an interface to show progress to the user
+type Meter interface {
 	// Start progress with max "total" steps
 	Start(total float64)
 
@@ -48,9 +48,12 @@ type ProgressMeter interface {
 
 	// ask the user whether they agree to the given license's text
 	Agreed(intro, licenseFile string) bool
+
+	// notify the user of miscelaneous events
+	Notify(string)
 }
 
-// NullProgress is a ProgressMeter that does nothing
+// NullProgress is a Meter that does nothing
 type NullProgress struct {
 }
 
@@ -72,8 +75,11 @@ func (t *NullProgress) Finished() {
 
 // Write does nothing
 func (t *NullProgress) Write(p []byte) (n int, err error) {
-	return n, nil
+	return len(p), nil
 }
+
+// Notify does nothing
+func (t *NullProgress) Notify(string) {}
 
 // Spin does nothing
 func (t *NullProgress) Spin(msg string) {
@@ -86,7 +92,7 @@ func (t *NullProgress) Agreed(intro, licenseFile string) bool {
 
 // TextProgress show progress on the terminal
 type TextProgress struct {
-	ProgressMeter
+	Meter
 	pbar     *pb.ProgressBar
 	pkg      string
 	spinStep int
@@ -164,4 +170,30 @@ func (t *TextProgress) Agreed(intro, license string) bool {
 	}
 
 	return unicode.ToLower(r) == 'y'
+}
+
+// Notify the user of miscelaneous events
+func (*TextProgress) Notify(msg string) {
+	fmt.Println(msg)
+}
+
+// MakeProgressBar creates an appropriate progress (which may be a
+// NullProgress bar if there is no associated terminal).
+func MakeProgressBar(name string) Meter {
+	var pbar Meter
+	if attachedToTerminal() {
+		pbar = NewTextProgress(name)
+	} else {
+		pbar = &NullProgress{}
+	}
+
+	return pbar
+}
+
+// attachedToTerminal returns true if the calling process is attached to
+// a terminal device.
+var attachedToTerminal = func() bool {
+	fd := int(os.Stdin.Fd())
+
+	return isatty(fd)
 }
