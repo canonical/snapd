@@ -252,10 +252,6 @@ func addDataToAr(arWriter *ar.Writer, filename string, data []byte) error {
 	return nil
 }
 
-func isSymlink(mode os.FileMode) bool {
-	return (mode & os.ModeSymlink) == os.ModeSymlink
-}
-
 // tarExcludeFunc is a helper for tarCreate that is called for each file
 // that is about to be added. If it returns "false" the file is skipped
 type tarExcludeFunc func(path string) bool
@@ -293,7 +289,7 @@ func tarCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 		}
 
 		// check if we support this type
-		if !st.Mode().IsRegular() && !isSymlink(st.Mode()) && !st.Mode().IsDir() {
+		if !st.Mode().IsRegular() && !helpers.IsSymlink(st.Mode()) && !st.Mode().IsDir() {
 			return nil
 		}
 
