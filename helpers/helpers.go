@@ -21,6 +21,7 @@ import (
 	"archive/tar"
 	"crypto/sha512"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -138,11 +139,22 @@ func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
 				return err
 			}
 		default:
-			panic("wat")
+			return &ErrUnsupportedFileType{path, mode}
 		}
 
 		return nil
 	})
+}
+
+// ErrUnsupportedFileType is returned when trying to extract a file
+// that is not a regular file, a directory, or a symlink.
+type ErrUnsupportedFileType struct {
+	Name string
+	Mode os.FileMode
+}
+
+func (e ErrUnsupportedFileType) Error() string {
+	return fmt.Sprintf("%s: unsupported filetype %s", e.Name, e.Mode)
 }
 
 // UbuntuArchitecture returns the debian equivalent architecture for the
