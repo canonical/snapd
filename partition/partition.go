@@ -826,6 +826,8 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 	return bootloader.HandleAssets()
 }
 
+// GetBootloaderDir returns the full path to the (mounted and writable)
+// bootloader-specific boot directory.
 func (p *Partition) GetBootloaderDir() string {
 	bootloader, err := getBootloader(p)
 	if err != nil {
