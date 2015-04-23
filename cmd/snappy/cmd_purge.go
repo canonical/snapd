@@ -56,8 +56,7 @@ func (x *cmdPurge) Execute(args []string) (err error) {
 	for _, part := range args {
 		fmt.Printf("Purging %s\n", part)
 
-		pbar := progress.NewTextProgress(part)
-		if err := snappy.Purge(part, flags, pbar); err != nil {
+		if err := snappy.Purge(part, flags, progress.MakeProgressBar(part)); err != nil {
 			return err
 		}
 	}

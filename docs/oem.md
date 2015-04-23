@@ -3,16 +3,16 @@
 The `oem` snappy package is a snappy package `type` that is used to setup and
 personalize the system according to an OEM.
 
-It covers a broad range, such as the software stack with it’s configuration and
+It covers a broad range, such as the software stack with its configuration and
 hardware enablement.
 
-There can only be *one* snappy package of `type` `oem` and it can only be
+There can only be *one* snappy package of `type: oem` and it can only be
 installed during image provision.
 
 ## Nomenclature
 
 Some parts of this text refer to pure snappy packages, and `device` or
-`ubuntu-core` packages, the intent is that in the future, `device` and
+`ubuntu-core` packages. The intent is that in the future, `device` and
 `ubuntu-core` would migrate to being pure snappy packages in the future. This
 has been generalized in some text with the concept of `parts`, in this writing
 everything is a *package*.
@@ -41,7 +41,7 @@ The `oem` package shall initially support providing a `config.yaml` describing
 each package that is to be configured.
 
 On first boot of the system, this `config.yaml` file will be processed and the
-described configuration will be applied. Note: factory resetting the system
+described configuration will be applied. *Note:* factory resetting the system
 will create a first boot scenario and therefore `config.yaml` will be
 processed.
 
@@ -87,8 +87,8 @@ Examples of assets that may be provided via the `oem` snap are `MLO`, `u-boot`,
 system to boot.
 
 While these assets are typically used during provisioning, they may also be
-used against a running system. Caution: updating these assets on a running
-system may lead to a broken system unless redundancy or fallback machanisms
+used against a running system. *Caution:* updating these assets on a running
+system may lead to a broken system unless redundancy or fallback mechanisms
 aren't provided by the OEM.
 
 #### Partition layout
@@ -101,54 +101,58 @@ The only supported layout today is AB.
 
 ## Structure and layout
 
-The `package.yaml` is structured as
+The `package.yaml` is structured as:
 
-```yaml
-name: package-string # mandatory
-vendor: vendor-string # mandatory
-icon: icon-path # mandatory
-version: version-string # mandatory
-type: oem # mandatory
 
-config: # optional
-    snappy-package-string:
-        property-string: property-value
+	name: package-string # mandatory
+	vendor: vendor-string # mandatory
+	icon: icon-path # mandatory
+	version: version-string # mandatory
+	type: oem # mandatory
 
-immutable-config: # optional
-    - filter-string
+	config: # optional
+		snappy-package-string:
+		    property-string: property-value
 
-oem:
-    store: # optional
-        id: id-string # optional
+	immutable-config: # optional
+		- filter-string
 
-    branding: # optional
-        name:  branding-name-string # optional
-        logo: logo-path # optional
+	oem:
+		store: # optional
+		    id: id-string # optional
 
-    software: # optional
-        built-in:
-            - # package list
-        preinstalled:
-            - # package list
-    hardware: # mandatory
-        platform: platform-string # mandatory
-        architecture: architecture-string # mandatory (armhf, amd64, i386, arm64, ...)
-        partition-layout: partition-layout-string # mandatory (system-AB)
-        booloader: bootloader-string # mandatory (u-boot or grub)
-        boot-assets: # optional
-            files: #optional
-                - path: file-path
-            raw-files: #optional
-                - path: file-path
-                  offset: offset-uint64
-```
+		branding: # optional
+		    name:  branding-name-string # optional
+		    logo: logo-path # optional
+
+		software: # optional
+		    built-in:
+		        - # package list
+		    preinstalled:
+		        - # package list
+		hardware: # mandatory
+		    platform: platform-string # mandatory
+		    architecture: architecture-string 
+                          # mandatory (armhf, amd64, i386, 
+                          #            arm64, ...)
+		    partition-layout: partition-layout-string
+                              # mandatory (system-AB)
+		    booloader: bootloader-string 
+                          # mandatory (u-boot or grub)
+		    boot-assets: # optional
+		        files: #optional
+		            - path: file-path
+		        raw-files: #optional
+		            - path: file-path
+		              offset: offset-uint64
+
 
 The package header section is common to all packages
 
 The general rules for config:
 
 - only applied on first boot.
-- if the config is immmutable, updates on in `oem` package will be reflected.
+- if the config is immutable, updates to the `oem` package will be reflected.
 
 Rules about packages in the config:
 

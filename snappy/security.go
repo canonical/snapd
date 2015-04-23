@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v2"
+	"launchpad.net/snappy/helpers"
 )
 
 type apparmorJSONTemplate struct {
@@ -110,7 +111,7 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 
 func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error) {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
-	if m.Type == SnapTypeFramework {
+	if m.Type == SnapTypeFramework || m.Type == SnapTypeOem {
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
 	}
 
@@ -136,6 +137,8 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		}
 		return content, err
 	}
+
+	helpers.EnsureDir(snapSeccompDir, 0755)
 
 	// defaults
 	policyVendor := defaultPolicyVendor

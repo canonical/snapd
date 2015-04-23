@@ -1,6 +1,6 @@
 # Frameworks
 ## Definition
-Frameworks are a direct extension of the Ubuntu Core. As such Frameworks have
+Frameworks are a direct extension of the Ubuntu Core. As such frameworks have
 the following attributes:
 
 * Frameworks exist primarily to provide mediation of shared resources (eg,
@@ -35,7 +35,7 @@ Importantly, frameworks are not generally:
 * used as a method to bypass app isolation
 * able to be forked (a user may of course always sideload a modified framework)
 
-Note: snappy frameworks are somewhat different from the Ubuntu for Phones
+*Note:* snappy frameworks are somewhat different from the Ubuntu for Phones
 [click frameworks](https://wiki.ubuntu.com/Click/Frameworks) and are more
 flexible. Most importantly, click frameworks for Ubuntu for Phones map to a
 particular release and are contracts between the platform (OS) and apps. Snappy
@@ -233,8 +233,9 @@ this work:
 * if we implement this, how should we declare `bar-srv` access to `bar-srv` is
   restricted in this manner?
 * should we allow users the ability to to use the `binaries` with the appended
-  package name? Eg:
-    $ baz.foo --version
-    1.1.235
+  package name? Eg::
+
+    	$ baz.foo --version
+    	1.1.235
 * ...
 

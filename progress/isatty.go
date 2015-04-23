@@ -15,20 +15,15 @@
  *
  */
 
-package snappy
+package progress
 
-import (
-	"fmt"
-	"path/filepath"
-)
+/*
+#include <unistd.h>
+*/
+import "C"
 
-func getUdevPartName(m *packageYaml, baseDir string) (string, error) {
-	if m.Type == SnapTypeFramework || m.Type == SnapTypeOem {
-		return m.Name, nil
-	}
-
-	namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
-
-	return fmt.Sprintf("%s.%s", m.Name, namespace), err
-
+// isatty is a wrapper around isatty(3).
+// Returns true if the specified fd is associated with a tty.
+func isatty(fd int) bool {
+	return C.isatty(C.int(fd)) == 1
 }

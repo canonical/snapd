@@ -24,10 +24,13 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"launchpad.net/snappy/helpers"
 )
 
 // OEM represents the structure inside the package.yaml for the oem component
@@ -143,10 +146,21 @@ func cleanupOemHardwareUdevRules(m *packageYaml) error {
 		os.Remove(f)
 	}
 
+	// cleanup the additional files
+	for _, h := range m.OEM.Hardware.Assign {
+		jsonAdditionalPath := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
+		err = os.Remove(jsonAdditionalPath)
+		if err != nil && !os.IsNotExist(err) {
+			log.Printf("Failed to remove %v: %v", jsonAdditionalPath, err)
+		}
+	}
+
 	return nil
 }
 
 func writeOemHardwareUdevRules(m *packageYaml) error {
+	helpers.EnsureDir(snapUdevRulesDir, 0755)
+
 	// cleanup
 	if err := cleanupOemHardwareUdevRules(m); err != nil {
 		return err
@@ -176,7 +190,7 @@ func runUdevAdmImpl(args ...string) error {
 	return cmd.Run()
 }
 
-func activateOemHardwareUdevRules(m *packageYaml) error {
+func activateOemHardwareUdevRules() error {
 	if err := runUdevAdm("udevadm", "control", "--reload-rules"); err != nil {
 		return err
 	}
@@ -184,12 +198,47 @@ func activateOemHardwareUdevRules(m *packageYaml) error {
 	return runUdevAdm("udevadm", "trigger")
 }
 
+const apparmorAdditionalContent = `{
+ "write_path": [
+   "/dev/**"
+ ],
+ "read_path": [
+   "/run/udev/data/*"
+ ]
+}`
+
+// writeApparmorAdditionalFile generate a $partID.json.additional file.
+//
+// This file grants additional access on top of the existing apparmor json
+// rules. This is required for the OEM hardware assign code because by
+// default apparmor will not allow access to /dev. We grant access here
+// and the ubuntu-core-launcher is then used to generate a confinement
+// based on the devices cgroup.
+func writeApparmorAdditionalFile(m *packageYaml) error {
+	if err := helpers.EnsureDir(snapAppArmorDir, 0755); err != nil {
+		return err
+	}
+
+	for _, h := range m.OEM.Hardware.Assign {
+		jsonAdditionalPath := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
+		if err := ioutil.WriteFile(jsonAdditionalPath, []byte(apparmorAdditionalContent), 0644); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func installOemHardwareUdevRules(m *packageYaml) error {
 	if err := writeOemHardwareUdevRules(m); err != nil {
 		return err
 	}
 
-	if err := activateOemHardwareUdevRules(m); err != nil {
+	if err := writeApparmorAdditionalFile(m); err != nil {
+		return err
+	}
+
+	if err := activateOemHardwareUdevRules(); err != nil {
 		return err
 	}
 

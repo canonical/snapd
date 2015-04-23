@@ -21,6 +21,11 @@
 package snappy
 
 import (
+	"io/ioutil"
+	"path/filepath"
+
+	"launchpad.net/snappy/helpers"
+
 	. "launchpad.net/gocheck"
 )
 
@@ -56,4 +61,31 @@ func (s *OemSuite) TestIsBuildIn(c *C) {
 
 func (s *OemSuite) TestStoreID(c *C) {
 	c.Assert(StoreID(), Equals, "ninjablocks")
+}
+
+func (s *OemSuite) TestWriteApparmorAdditionalFile(c *C) {
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+
+	err = writeApparmorAdditionalFile(m)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "device-hive-iot-hal.json.additional"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, apparmorAdditionalContent)
+}
+
+func (s *OemSuite) TestCleanupOemHardwareRules(c *C) {
+	m, err := parsePackageYamlData(hardwareYaml)
+	c.Assert(err, IsNil)
+
+	err = writeApparmorAdditionalFile(m)
+	c.Assert(err, IsNil)
+
+	additionalFile := filepath.Join(snapAppArmorDir, "device-hive-iot-hal.json.additional")
+	c.Assert(helpers.FileExists(additionalFile), Equals, true)
+
+	err = cleanupOemHardwareUdevRules(m)
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(additionalFile), Equals, false)
 }

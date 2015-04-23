@@ -29,9 +29,17 @@ import (
 // Hook up gocheck into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type ProgressTestSuite struct{}
+type ProgressTestSuite struct {
+	attachedToTerminalReturn bool
+
+	originalAttachedToTerminal func() bool
+}
 
 var _ = Suite(&ProgressTestSuite{})
+
+func (ts *ProgressTestSuite) MockAttachedToTerminal() bool {
+	return ts.attachedToTerminalReturn
+}
 
 func (ts *ProgressTestSuite) TestSpin(c *C) {
 	f, err := ioutil.TempFile("", "progress-")
@@ -115,4 +123,26 @@ func (ts *ProgressTestSuite) TestNotify(c *C) {
 	out, err := ioutil.ReadAll(fout)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "blah blah\n")
+}
+
+func (ts *ProgressTestSuite) TestMakeProgressBar(c *C) {
+	var pbar Meter
+
+	ts.originalAttachedToTerminal = attachedToTerminal
+	attachedToTerminal = ts.MockAttachedToTerminal
+	defer func() {
+		// reset
+		attachedToTerminal = ts.originalAttachedToTerminal
+	}()
+
+	ts.attachedToTerminalReturn = true
+
+	pbar = MakeProgressBar("foo")
+	c.Assert(pbar, FitsTypeOf, NewTextProgress("foo"))
+
+	ts.attachedToTerminalReturn = false
+
+	pbar = MakeProgressBar("bar")
+	c.Assert(pbar, FitsTypeOf, &NullProgress{})
+
 }

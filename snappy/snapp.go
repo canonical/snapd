@@ -610,7 +610,11 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return ErrFrameworkInUse(deps)
 	}
 
-	return removeClick(s.basedir, pb)
+	if err := removeClick(s.basedir, pb); err != nil {
+		return err
+	}
+
+	return RemoveAllHWAccess(Dirname(s))
 }
 
 // Config is used to to configure the snap
@@ -1259,6 +1263,8 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
 	snapEnv := map[string]string{
 		"SNAP_NAME":          part.Name(),
+		"SNAP_ORIGIN":        part.Namespace(),
+		"SNAP_FULLNAME":      Dirname(part),
 		"SNAP_VERSION":       part.Version(),
 		"SNAP_APP_PATH":      part.basedir,
 		"SNAP_APP_DATA_PATH": snapDataDir,
