@@ -13,9 +13,12 @@ additional security groups to extend the policy provided by the template. If
 unspecified, default confinement allows the snap to run as a network client.
 
 Applications are tracked by the system by using the concept of an
-ApplicationId. The `APP_ID is` the composition of the package name, the
+ApplicationId. The `APP_ID is` the composition of the package name, the app's
+origin namespace from the store (if applicable-- only snaps of `type: app` (the
+default) have an origin namespace as part of their `APP_ID`), the
 service/binary name and package version. The `APP_ID` takes the form of
-`<pkgname>_<appname>_<version>`. For example, if this is in `package.yaml`:
+`<pkgname>.<namespace>_<appname>_<version>`. For example, if this is in
+`package.yaml`:
 
     name: foo
     version: 0.1
@@ -24,7 +27,8 @@ service/binary name and package version. The `APP_ID` takes the form of
       - name: bar
         start: bin/bar
 
-Then the `APP_ID` for the `bar` service is `foo_bar_0.1`. The `APP_ID` is used
+and the app was uploaded to the `myorigin` namespace in the store, then the
+`APP_ID` for the `bar` service is `foo.myorigin_bar_0.1`. The `APP_ID` is used
 throughout the system including in the enforcement of security policy by the
 app launcher. The launcher will:
 
@@ -34,6 +38,7 @@ app launcher. The launcher will:
   `SNAP_APP_TMPDIR`). See the
    [snappy FHS](https://developer.ubuntu.com/en/snappy/guides/filesystem-layout/) for details.
 * chdir to `SNAP_APP_PATH` (the install directory)
+* setup a device cgroup and add any devices which are assigned to this app
 * setup the seccomp filter
 * exec the app under AppArmor profile under a default nice value
 
@@ -48,7 +53,7 @@ policy groups, which are expressed in the yaml as `caps`.
 
 ### Seccomp
 Upon snap package install, `package.yaml` is examined and seccomp filters are
-generated for each service and binary. As mentioned, seccomp filters are
+generated for each service and binary. Like with AppArmor, seccomp filters are
 template based and may be extended through filter groups, which are expressed
 in the yaml as `caps`.
 
@@ -60,9 +65,9 @@ options are available to modify the confinement:
 * `caps`: (optional) list of (easy to understand, human readable) additional
   security policies to add. The system will translate these to generate
   AppArmor and seccomp policy. Note: these are separate from `capabilities(7)`.
-  When `caps` and `security-template` are not specified, `caps` defaults to
-  client networking. Not compatible with `security-override` or
-  `security-policy`.
+  Specify `caps: []` to indicate no additional `caps`.  When `caps` and
+  `security-template` are not specified, `caps` defaults to client networking.
+  Not compatible with `security-override` or `security-policy`.
  * AppArmor access is deny by default and apps are restricted to their
    app-specific directories, libraries, etc (enforcing ro, rw, etc).
    Additional access beyond what is allowed by the declared `security-template`
@@ -76,11 +81,11 @@ options are available to modify the confinement:
   compatible with `security-override` or `security-policy`.
 * `security-override`: (optional) high level overrides to use when
   `security-template` and `caps` are not sufficient - see
-  [Advanced usage](https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement)
+  [advanced usage](https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement)
   for details. Not compatible with `caps`, `security-template` or
   `security-policy`
- * `apparmor: path/to/security override`
- * `seccomp: path/to/filter override`
+ * `apparmor: path/to/security.override`
+ * `seccomp: path/to/filter.override`
 * `security-policy`: (optional) hand-crafted low-level raw security policy to
   use instead of using default template-based security policy. Not compatible
   with `caps`, `security-template` or `security-override`.
@@ -109,24 +114,25 @@ Eg, consider the following:
           seccomp: meta/corge.seccomp
     binaries:
       - name: cli-exe
-        caps: none
+        caps: []
 
-With the above:
+If this package is uploaded to the store in the `myorigin` namespace, then:
 
-* `APP_ID` for `bar` is `foo_bar_1.0`. It uses the `default` template and
-  `network-client` (default) cap
-* `APP_ID` for `baz` is `foo_baz_1.0`. It uses the `default` template and the
-  `network-client` and `norf-framework_client` caps
-* `APP_ID` for `qux` is `foo_qux_1.0`. It uses the `nondefault` template and
-  `network-client` (default) cap
-* `APP_ID` for `quux` is `foo_quux_1.0`. It does not use a `security-template`
-  or `caps` but instead ships its own AppArmor policy in `meta/quux.profile`
+* `APP_ID` for `bar` is `foo.myorigin_bar_1.0`. It uses the `default` template
+  and `network-client` (default) cap
+* `APP_ID` for `baz` is `foo.myorigin_baz_1.0`. It uses the `default` template
+  and the `network-client` and `norf-framework_client` caps
+* `APP_ID` for `qux` is `foo.myorigin_qux_1.0`. It uses the `nondefault`
+  template and `network-client` (default) cap
+* `APP_ID` for `quux` is `foo.myorigin_quux_1.0`. It does not use a
+  `security-template` or `caps` but instead ships its own AppArmor policy in
+  `meta/quux.profile`
   and seccomp filters in `meta/quux.filter`
-* `APP_ID` for `corge` is `foo_corge_1.0`. It does not use a
+* `APP_ID` for `corge` is `foo.myorigin_corge_1.0`. It does not use a
   `security-template` or `caps` but instead ships the override files
   `meta/corge.apparmor` and `meta/corge.seccomp`.
-* `APP_ID` for `cli-exe` is `foo_cli-exe_1.0`. It uses the `default` template
-  and no `caps`
+* `APP_ID` for `cli-exe` is `foo.myorigin_cli-exe_1.0`. It uses the `default`
+  template and no `caps`
 
 As mentioned, security policies and store policies work together to provide
 flexibility, speed and safety. Use of some of the above will trigger a manual
@@ -155,7 +161,7 @@ running `snappy-security list` on the target system.
 The following is planned:
 
 * launcher:
- * setup cgroups (tag network traffic, block devices, memory)
+ * setup additional cgroups (tag network traffic, memory)
  * setup iptables using cgroup tags (for internal app access)
  * drop privileges to uid of service
 * `sockets`: (optional) `AF_UNIX` abstract socket definition for coordinated
@@ -165,9 +171,10 @@ The following is planned:
   socket says that app is ok).
  * `names`: (optional) list of abstract socket names (`<name>_<binaryname>` is
    prepended)
- * `allowed-clients`: `<name>` or `<name>_<binaryname>` (ie, omit
-   version and `binaryname` to allow all from snap `<name>` or omit version
-   to allow only `binaryname` from snap `<name>`)
+ * `allowed-clients`: `<name>.<namespace>` or `<name>.<namespace>_<binaryname>`
+   (ie, omit version and `binaryname` to allow all from snap
+   `<name>.<namespace>` or omit version to allow only `binaryname` from snap
+   `<name>`)
 
  Eg:
 

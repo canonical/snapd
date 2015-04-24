@@ -403,10 +403,8 @@ cd {{.Path}}
 ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
-	namespace, err := namespaceFromYamlPath(filepath.Join(pkgPath, "meta", "package.yaml"))
-	if err != nil {
-		return "", err
-	}
+	// it's fine for this to error out; we might be in a framework or sth
+	namespace, _ := namespaceFromYamlPath(filepath.Join(pkgPath, "meta", "package.yaml"))
 
 	if err := verifyBinariesYaml(binary); err != nil {
 		return "", err
