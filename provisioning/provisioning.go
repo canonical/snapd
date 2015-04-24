@@ -118,7 +118,7 @@ func IsSideLoaded(bootloaderDir string) bool {
 	if InstallYaml.InstallOptions.DevicePart != "" {
 		// system was created with something like:
 		//
-		//  "ubuntu-device-flash --device-part=unofficial-assets.tar.xz ..."
+		//  "ubuntu-device-flash [...] --device-part=unofficial-assets.tar.xz ..."
 		//
 		return true
 	}

@@ -45,7 +45,7 @@ meta:
 tool:
   name: ubuntu-device-flash
   path: /usr/bin/ubuntu-device-flash
-  version: 0.20snappy3-0ubuntu1
+  version: ""
 
 options:
   size: 3
@@ -65,7 +65,7 @@ meta:
 tool:
   name: ubuntu-device-flash
   path: /usr/bin/ubuntu-device-flash
-  version: 0.20snappy3-0ubuntu1
+  version: ""
 
 options:
   size: 3
