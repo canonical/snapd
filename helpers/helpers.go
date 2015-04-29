@@ -247,15 +247,45 @@ func MakeRandomString(length int) string {
 
 // AtomicWriteFile updates the filename atomically and works otherwise
 // exactly like io/ioutil.WriteFile()
-func AtomicWriteFile(filename string, data []byte, perm os.FileMode) error {
+func AtomicWriteFile(filename string, data []byte, perm os.FileMode) (err error) {
 	tmp := filename + ".new"
 
-	if err := ioutil.WriteFile(tmp, data, perm); err != nil {
-		os.Remove(tmp)
+	// XXX: if go switches to use aio_fsync, we need to open the dir for writing
+	dir, err := os.Open(filepath.Dir(filename))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+
+	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		e := fd.Close()
+		if err == nil {
+			err = e
+		}
+		if err != nil {
+			os.Remove(tmp)
+		}
+	}()
+
+	// according to the docs, Write returns a non-nil error when n !=
+	// len(b), so don't worry about short writes.
+	if _, err := fd.Write(data); err != nil {
 		return err
 	}
 
-	return os.Rename(tmp, filename)
+	if err := fd.Sync(); err != nil {
+		return err
+	}
+
+	if err := os.Rename(tmp, filename); err != nil {
+		return err
+	}
+
+	return dir.Sync()
 }
 
 // CurrentHomeDir returns the homedir of the current user. It looks at
