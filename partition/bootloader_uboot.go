@@ -202,6 +202,9 @@ func (u *uboot) MarkCurrentBootSuccessful() (err error) {
 		configFileChange{Name: bootloaderBootmodeVar,
 			Value: bootloaderBootmodeSuccess,
 		},
+		configFileChange{Name: bootloaderRootfsVar,
+			Value: string(u.currentRootfs),
+		},
 	}
 
 	if err := modifyNameValueFile(bootloaderUbootEnvFile, changes); err != nil {
