@@ -150,7 +150,12 @@ func (s *PartitionTestSuite) TestGrubMarkCurrentBootSuccessful(c *C) {
 
 	c.Assert(allCommands[1], DeepEquals, expectedGrubSet)
 
-	expectedGrubSet2 := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_mode=regular"}
+	expectedGrubSet2 := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_ab=a"}
 
 	c.Assert(allCommands[2], DeepEquals, expectedGrubSet2)
+
+	expectedGrubSet3 := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_mode=regular"}
+
+	c.Assert(allCommands[3], DeepEquals, expectedGrubSet3)
+
 }
