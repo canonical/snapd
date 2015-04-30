@@ -317,7 +317,7 @@ func FindSnapsByNameAndVersion(needle, version string, haystack []Part) []Part {
 
 // MakeSnapActiveByNameAndVersion makes the given snap version the active
 // version
-func makeSnapActiveByNameAndVersion(pkg, ver string) error {
+func makeSnapActiveByNameAndVersion(pkg, ver string, inter progress.Meter) error {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	if err != nil {
@@ -329,7 +329,7 @@ func makeSnapActiveByNameAndVersion(pkg, ver string) error {
 	case 0:
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
 	case 1:
-		return parts[0].SetActive(nil)
+		return parts[0].SetActive(inter)
 	default:
 		return fmt.Errorf("More than one %s with version %s", pkg, ver)
 	}
