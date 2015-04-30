@@ -23,47 +23,50 @@ import (
 	"strings"
 
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/snappy/progress"
 )
 
 func (s *SnapTestSuite) TestParseSetPropertyCmdlineEmpty(c *C) {
-	err := SetProperty("ubuntu-core", []string{}...)
+	err := SetProperty("ubuntu-core", &MockProgressMeter{}, []string{}...)
 	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) TestSetProperty(c *C) {
 	var ratingPkg, ratingVal string
-	mockSetRating := func(k, v string) error {
+	mockSetRating := func(k, v string, p progress.Meter) error {
 		ratingPkg = k
 		ratingVal = v
 		return nil
 	}
-	setFuncs = map[string]func(k, v string) error{
+	setFuncs = map[string]func(k, v string, p progress.Meter) error{
 		"rating": mockSetRating,
-		"null":   func(k, v string) error { return nil },
+		"null":   func(k, v string, pb progress.Meter) error { return nil },
 	}
+	meter := &MockProgressMeter{}
 
 	// the "null" property in this test does nothing, its just
 	// there to ensure that setFunc works with multiple entries
-	err := SetProperty("hello-world", "null=1.61")
+	err := SetProperty("hello-world", meter, "null=1.61")
 	c.Assert(err, IsNil)
 
 	// simple-case for set
-	err = SetProperty("hello-world", "rating=4")
+	err = SetProperty("hello-world", meter, "rating=4")
 	c.Assert(err, IsNil)
 	c.Assert(ratingPkg, Equals, "hello-world")
 	c.Assert(ratingVal, Equals, "4")
 
 	// ensure unknown property raises a error
-	err = SetProperty("ubuntu-core", "no-such-property=foo")
+	err = SetProperty("ubuntu-core", meter, "no-such-property=foo")
 	c.Assert(err, NotNil)
 
 	// ensure incorrect format raises a error
-	err = SetProperty("hello-world", "rating")
+	err = SetProperty("hello-world", meter, "rating")
 	c.Assert(err, NotNil)
 
 	// ensure additional "=" in SetProperty are ok (even though this is
 	// not a valid rating of course)
-	err = SetProperty("hello-world", "rating=1=2")
+	err = SetProperty("hello-world", meter, "rating=1=2")
 	c.Assert(err, IsNil)
 	c.Assert(ratingPkg, Equals, "hello-world")
 	c.Assert(ratingVal, Equals, "1=2")
@@ -75,6 +78,7 @@ func (s *SnapTestSuite) TestSetActive(c *C) {
 	path, err := filepath.EvalSymlinks(filepath.Join(snapAppsDir, fooComposedName, "current"))
 	c.Assert(err, IsNil)
 	c.Assert(strings.HasSuffix(path, "/"+fooComposedName+"/2.0"), Equals, true)
+	meter := &MockProgressMeter{}
 
 	// setActive has some ugly print
 	devnull, err := os.Open(os.DevNull)
@@ -85,7 +89,7 @@ func (s *SnapTestSuite) TestSetActive(c *C) {
 		os.Stdout = oldStdout
 	}()
 
-	err = makeSnapActiveByNameAndVersion("foo", "1.0")
+	err = makeSnapActiveByNameAndVersion("foo", "1.0", meter)
 	c.Assert(err, IsNil)
 	path, err = filepath.EvalSymlinks(filepath.Join(snapAppsDir, fooComposedName, "current"))
 	c.Assert(strings.HasSuffix(path, "/"+fooComposedName+"/1.0"), Equals, true)
