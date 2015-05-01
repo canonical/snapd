@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	partition "launchpad.net/snappy/partition"
+	"launchpad.net/snappy/provisioning"
 
 	. "launchpad.net/gocheck"
 )
@@ -168,8 +169,11 @@ func (p *MockPartition) RunWithOther(option partition.MountOption, f func(otherR
 	return f("/other")
 }
 
+// used by GetBootLoaderDir(), used to test sideload logic.
+var tempBootDir string
+
 func (p *MockPartition) GetBootloaderDir() string {
-	return ""
+	return tempBootDir
 }
 
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
@@ -360,4 +364,54 @@ func (s *SITestSuite) TestNamespace(c *C) {
 	c.Assert(parts, HasLen, 2)
 	c.Assert(parts[0].Namespace(), Equals, systemImagePartNamespace)
 	c.Assert(parts[1].Namespace(), Equals, systemImagePartNamespace)
+}
+
+func (s *SITestSuite) TestCannotUpdateIfSideLoaded(c *C) {
+	var err error
+	var yamlData = `
+meta:
+  timestamp: 2015-04-20T14:15:39.013515821+01:00
+  initial-revision: r345
+  system-image-server: http://system-image.ubuntu.com
+
+tool:
+  name: ubuntu-device-flash
+  path: /usr/bin/ubuntu-device-flash
+  version: ""
+
+options:
+  size: 3
+  size-unit: GB
+  output: /tmp/bbb.img
+  channel: ubuntu-core/devel-proposed
+  device-part: /some/path/file.tgz
+  developer-mode: true
+`
+	tempBootDir, err = ioutil.TempDir("", "")
+	c.Assert(err, IsNil)
+
+	parts, err := s.systemImage.Updates()
+
+	sp := parts[0].(*SystemImagePart)
+	mockPartition := MockPartition{}
+	sp.partition = &mockPartition
+
+	bootDir := sp.partition.GetBootloaderDir()
+
+	sideLoaded := filepath.Join(bootDir, provisioning.InstallYamlFile)
+
+	err = os.MkdirAll(filepath.Dir(sideLoaded), 0775)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(sideLoaded, []byte(yamlData), 0640)
+	c.Assert(err, IsNil)
+
+	pb := &MockProgressMeter{}
+
+	// Ensure the install fails if the system is sideloaded
+	_, err = sp.Install(pb, 0)
+	c.Assert(err, Equals, ErrSideLoaded)
+
+	os.Remove(tempBootDir)
+	tempBootDir = ""
 }
