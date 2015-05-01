@@ -44,7 +44,12 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 		}
 	}()
 
-	fout, err := os.Create(dst)
+	fi, err := fin.Stat()
+	if err != nil {
+		return fmt.Errorf("unable to stat %s: %v", src, err)
+	}
+
+	fout, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fi.Mode())
 	if err != nil {
 		return fmt.Errorf("unable to create %s: %v", dst, err)
 	}
@@ -54,7 +59,7 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 		}
 	}()
 
-	if err := doCopyFile(fin, fout); err != nil {
+	if err := doCopyFile(fin, fout, fi); err != nil {
 		fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
 	}
 
