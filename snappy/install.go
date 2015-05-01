@@ -72,7 +72,7 @@ func Install(name string, flags InstallFlags, meter progress.Meter) (string, err
 		return "", logger.LogError(err)
 	}
 
-	return name, logger.LogError(GarbageCollect(name, flags))
+	return name, logger.LogError(GarbageCollect(name, flags, meter))
 }
 
 func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName string, err error) {
@@ -125,7 +125,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 // GarbageCollect removes all versions two older than the current active
 // version, as long as NeedsReboot() is false on all the versions found, and
 // DoInstallGC is set.
-func GarbageCollect(name string, flags InstallFlags) error {
+func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 	var parts BySnapVersion
 
 	if (flags & DoInstallGC) == 0 {
@@ -165,7 +165,7 @@ func GarbageCollect(name string, flags InstallFlags) error {
 	}
 
 	for _, part := range parts[:active-1] {
-		if err := part.Uninstall(progress.MakeProgressBar(part.Name())); err != nil {
+		if err := part.Uninstall(pb); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}

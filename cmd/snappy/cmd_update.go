@@ -71,7 +71,7 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 		if _, err := part.Install(progress.MakeProgressBar(part.Name()), flags); err != nil {
 			return err
 		}
-		if err := snappy.GarbageCollect(part.Name(), flags); err != nil {
+		if err := snappy.GarbageCollect(part.Name(), flags, progress.MakeProgressBar(part.Name())); err != nil {
 			return err
 		}
 	}
