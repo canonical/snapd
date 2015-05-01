@@ -22,15 +22,16 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/progress"
 )
 
 // map from
-var setFuncs = map[string]func(k, v string) error{
+var setFuncs = map[string]func(k, v string, pb progress.Meter) error{
 	"active": makeSnapActiveByNameAndVersion,
 }
 
 // SetProperty sets a property for the given pkgname from the args list
-func SetProperty(pkgname string, args ...string) (err error) {
+func SetProperty(pkgname string, inter progress.Meter, args ...string) (err error) {
 	if len(args) < 1 {
 		return fmt.Errorf("Need at least one argument for set")
 	}
@@ -45,7 +46,7 @@ func SetProperty(pkgname string, args ...string) (err error) {
 		if !ok {
 			return fmt.Errorf("Unknown property %s", prop)
 		}
-		err := f(pkgname, s[1])
+		err := f(pkgname, s[1], inter)
 		if err != nil {
 			return logger.LogError(err)
 		}

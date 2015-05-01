@@ -275,6 +275,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, true)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, false)
+	c.Assert(strings.Contains(string(bytes), "snappy_ab=b"), Equals, true)
 
 	err = u.MarkCurrentBootSuccessful()
 	c.Assert(err, IsNil)
@@ -286,4 +287,5 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, false)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
+	c.Assert(strings.Contains(string(bytes), "snappy_ab=a"), Equals, true)
 }

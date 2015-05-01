@@ -175,7 +175,12 @@ func writeLines(lines []string, path string) (err error) {
 		return err
 	}
 
-	defer file.Close()
+	defer func() {
+		e := file.Close()
+		if err == nil {
+			err = e
+		}
+	}()
 
 	writer := bufio.NewWriter(file)
 
@@ -184,13 +189,21 @@ func writeLines(lines []string, path string) (err error) {
 			return err
 		}
 	}
-	return writer.Flush()
+
+	if err := writer.Flush(); err != nil {
+		return err
+	}
+
+	return file.Sync()
 }
 
 func (u *uboot) MarkCurrentBootSuccessful() (err error) {
 	changes := []configFileChange{
 		configFileChange{Name: bootloaderBootmodeVar,
 			Value: bootloaderBootmodeSuccess,
+		},
+		configFileChange{Name: bootloaderRootfsVar,
+			Value: string(u.currentRootfs),
 		},
 	}
 
@@ -310,6 +323,13 @@ func (u *uboot) HandleAssets() (err error) {
 func atomicFileUpdate(file string, lines []string) (err error) {
 	tmpFile := fmt.Sprintf("%s.NEW", file)
 
+	// XXX: if go switches to use aio_fsync, we need to open the dir for writing
+	dir, err := os.Open(filepath.Dir(file))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+
 	if err := writeLines(lines, tmpFile); err != nil {
 		return err
 	}
@@ -319,7 +339,7 @@ func atomicFileUpdate(file string, lines []string) (err error) {
 		return err
 	}
 
-	return nil
+	return dir.Sync()
 }
 
 // Rewrite the specified file, applying the specified set of changes.

@@ -139,6 +139,11 @@ func (g *grub) MarkCurrentBootSuccessful() (err error) {
 	if err := g.unsetBootVar(bootloaderGrubTrialBootVar); err != nil {
 		return err
 	}
+
+	if err := g.setBootVar(bootloaderRootfsVar, g.currentRootfs); err != nil {
+		return err
+	}
+
 	return g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
 }
 

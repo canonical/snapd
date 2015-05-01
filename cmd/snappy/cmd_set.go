@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -54,7 +55,7 @@ func set(args []string) (err error) {
 		return err
 	}
 
-	return snappy.SetProperty(pkgname, args...)
+	return snappy.SetProperty(pkgname, progress.MakeProgressBar(pkgname), args...)
 }
 
 func parseSetPropertyCmdline(args ...string) (pkgname string, out []string, err error) {

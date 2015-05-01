@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"launchpad.net/snappy/priv"
+	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -57,7 +58,7 @@ func (x *cmdRollback) Execute(args []string) (err error) {
 		return errNeedPackageName
 	}
 
-	nowVersion, err := snappy.Rollback(pkg, version)
+	nowVersion, err := snappy.Rollback(pkg, version, progress.MakeProgressBar(pkg))
 	if err != nil {
 		return err
 	}

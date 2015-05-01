@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 	. "launchpad.net/gocheck"
+	"strings"
 )
 
 const (
@@ -144,23 +145,28 @@ vendor: Foo Bar <foo@example.com>
 // makeTwoTestSnaps creates two real snaps of SnapType of name
 // "foo", with version "1.0" and "2.0", "2.0" being marked as the
 // active snap.
-func makeTwoTestSnaps(c *C, snapType SnapType) {
+func makeTwoTestSnaps(c *C, snapType SnapType, extra ...string) {
+	inter := &MockProgressMeter{}
+
 	packageYaml := `name: foo
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
+	if len(extra) > 0 {
+		packageYaml += strings.Join(extra, "\n") + "\n"
+	}
 
 	if snapType != SnapTypeApp {
 		packageYaml += fmt.Sprintf("type: %s\n", snapType)
 	}
 
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	n, err := installClick(snapFile, AllowUnauthenticated|AllowOEM, nil, testNamespace)
+	n, err := installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testNamespace)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	n, err = installClick(snapFile, AllowUnauthenticated|AllowOEM, nil, testNamespace)
+	n, err = installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testNamespace)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
 

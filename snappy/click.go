@@ -634,10 +634,14 @@ func removePackageServices(baseDir string, inter interacter) error {
 			sysd.Kill(serviceName, "KILL")
 		}
 
-		os.Remove(generateServiceFileName(m, service))
+		if err := os.Remove(generateServiceFileName(m, service)); err != nil && !os.IsNotExist(err) {
+			log.Printf("Warning: failed to remove service file for %s: %v", serviceName, err)
+		}
 
 		// Also remove DBus system policy file
-		os.Remove(generateBusPolicyFileName(m, service))
+		if err := os.Remove(generateBusPolicyFileName(m, service)); err != nil && !os.IsNotExist(err) {
+			log.Printf("Warning: failed to remove bus policy file for service %s: %v", serviceName, err)
+		}
 	}
 
 	// only reload if we actually had services
@@ -940,7 +944,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	// if anything goes wrong here we cleanup
 	defer func() {
 		if err != nil {
-			if e := os.RemoveAll(instDir); err != nil {
+			if e := os.RemoveAll(instDir); e != nil && !os.IsNotExist(e) {
 				log.Printf("Warning: failed to remove %s: %s", instDir, e)
 			}
 		}
@@ -1267,10 +1271,8 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 	}
 
 	// FIXME: we want to get rid of the current symlink
-	if _, err := os.Stat(currentActiveSymlink); err == nil {
-		if err := os.Remove(currentActiveSymlink); err != nil {
-			log.Printf("Warning: failed to remove %s: %s", currentActiveSymlink, err)
-		}
+	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
+		log.Printf("Warning: failed to remove %s: %s", currentActiveSymlink, err)
 	}
 
 	// symlink is relative to parent dir

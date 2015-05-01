@@ -20,13 +20,15 @@ package snappy
 import (
 	"fmt"
 	"sort"
+
+	"launchpad.net/snappy/progress"
 )
 
 // Rollback will roll the given pkg back to the given ver. If the version
 // is empty the previous installed version will be used.
 //
 // The version needs to be installed on disk
-func Rollback(pkg, ver string) (version string, err error) {
+func Rollback(pkg, ver string, inter progress.Meter) (version string, err error) {
 
 	// no version specified, find the previous one
 	if ver == "" {
@@ -44,7 +46,7 @@ func Rollback(pkg, ver string) (version string, err error) {
 		ver = snaps[len(snaps)-2].Version()
 	}
 
-	if err := makeSnapActiveByNameAndVersion(pkg, ver); err != nil {
+	if err := makeSnapActiveByNameAndVersion(pkg, ver, inter); err != nil {
 		return "", err
 	}
 

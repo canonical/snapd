@@ -26,7 +26,7 @@ func (s *SnapTestSuite) TestRollbackWithVersion(c *C) {
 	c.Assert(ActiveSnapByName("foo").Version(), Equals, "2.0")
 
 	// rollback with version
-	version, err := Rollback("foo", "1.0")
+	version, err := Rollback("foo", "1.0", &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(version, Equals, "1.0")
 
@@ -38,9 +38,22 @@ func (s *SnapTestSuite) TestRollbackFindVersion(c *C) {
 	c.Assert(ActiveSnapByName("foo").Version(), Equals, "2.0")
 
 	// rollback without version
-	version, err := Rollback("foo", "")
+	version, err := Rollback("foo", "", &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(version, Equals, "1.0")
 
 	c.Assert(ActiveSnapByName("foo").Version(), Equals, "1.0")
+}
+
+func (s *SnapTestSuite) TestRollbackService(c *C) {
+	makeTwoTestSnaps(c, SnapTypeApp, `services:
+ - name: svc1
+`)
+	pkg := ActiveSnapByName("foo")
+	c.Assert(pkg, NotNil)
+	c.Check(pkg.Version(), Equals, "2.0")
+
+	version, err := Rollback("foo", "", &MockProgressMeter{})
+	c.Assert(err, IsNil)
+	c.Check(version, Equals, "1.0")
 }
