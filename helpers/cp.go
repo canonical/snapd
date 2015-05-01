@@ -22,13 +22,17 @@ import (
 	"os"
 )
 
+// CopyFlag is used to tweak the behaviour of CopyFile
 type CopyFlag uint8
 
 const (
+	// CopyFlagDefault is the default behaviour
 	CopyFlagDefault CopyFlag = 0
-	CopyFlagSync    CopyFlag = 1 << iota
+	// CopyFlagSync does a sync after copying the files
+	CopyFlagSync CopyFlag = 1 << iota
 )
 
+// CopyFile copies src to dst
 func CopyFile(src, dst string, flags CopyFlag) (err error) {
 	fin, err := os.Open(src)
 	if err != nil {
