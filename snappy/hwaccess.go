@@ -87,11 +87,11 @@ func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditiona
 }
 
 func regenerateAppArmorRulesImpl() error {
-	if err := exec.Command(aaClickHookCmd, "-f").Run(); err != nil {
-		if exitCode, err := helpers.ExitCode(err); err != nil {
-			return &ErrHookFailed{
-				cmd:      aaClickHookCmd,
+	if output, err := exec.Command(aaClickHookCmd, "-f").CombinedOutput(); err != nil {
+		if exitCode, err := helpers.ExitCode(err); err == nil {
+			return &ErrApparmorGenerate{
 				exitCode: exitCode,
+				output:   output,
 			}
 		}
 		return err

@@ -733,7 +733,14 @@ func (s *SnapPart) RefreshDependentsSecurity(oldBaseDir string, inter interacter
 		}
 	}
 
-	if err := exec.Command(aaClickHookCmd).Run(); err != nil {
+	cmd := exec.Command(aaClickHookCmd)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		if exitCode, err := helpers.ExitCode(err); err == nil {
+			return &ErrApparmorGenerate{
+				exitCode: exitCode,
+				output:   output,
+			}
+		}
 		return err
 	}
 

@@ -246,3 +246,13 @@ type ErrFrameworkInUse []string
 func (e ErrFrameworkInUse) Error() string {
 	return fmt.Sprintf("framework still in use by: %s", strings.Join(e, ", "))
 }
+
+// ErrApparmorGenerate is reported if the apparmor profile generation fails
+type ErrApparmorGenerate struct {
+	exitCode int
+	output   []byte
+}
+
+func (e ErrApparmorGenerate) Error() string {
+	return fmt.Sprintf("apparmor generate fails with %v: '%v'", e.exitCode, string(e.output))
+}
