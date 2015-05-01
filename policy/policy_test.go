@@ -118,7 +118,7 @@ func (s *policySuite) TestIterOpInstallBadFilemode(c *C) {
 	fn := filepath.Join(s.appg, "policygroups0")
 	c.Assert(os.Chmod(fn, 0), IsNil)
 	err := iterOp(install, filepath.Join(s.appg, "*"), s.dest, "foo_")
-	c.Check(err, ErrorMatches, ".*unable to read.*")
+	c.Check(err, ErrorMatches, ".*unable to open.*")
 }
 
 func (s *policySuite) TestIterOpInstallBadTarget(c *C) {

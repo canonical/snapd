@@ -21,7 +21,6 @@ package policy
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -90,33 +89,9 @@ func iterOp(op policyOp, glob string, targetDir string, prefix string) (err erro
 			}
 		case install:
 			// do the copy
-			fin, err := os.Open(file)
-			if err != nil {
-				return fmt.Errorf("unable to read %v: %v", file, err)
+			if err := helpers.CopyFile(file, targetFile, helpers.CopyFlagSync); err != nil {
+				return err
 			}
-			defer func() {
-				if cerr := fin.Close(); cerr != nil && err == nil {
-					err = fmt.Errorf("when closing %v: %v", file, cerr)
-				}
-			}()
-
-			fout, err := os.Create(targetFile)
-			if err != nil {
-				return fmt.Errorf("unable to create %v: %v", targetFile, err)
-			}
-			defer func() {
-				if cerr := fout.Close(); cerr != nil && err == nil {
-					err = fmt.Errorf("when closing %v: %v", targetFile, cerr)
-				}
-			}()
-
-			if _, err = io.Copy(fout, fin); err != nil {
-				return fmt.Errorf("unable to copy %v to %v: %v", file, targetFile, err)
-			}
-			if err = fout.Sync(); err != nil {
-				return fmt.Errorf("when syncing %v: %v", targetFile, err)
-			}
-
 		default:
 			return fmt.Errorf("unknown operation %s", op)
 		}
