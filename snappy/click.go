@@ -100,7 +100,7 @@ func execHook(execCmd string) (err error) {
 	// the spec says this is passed to the shell
 	cmd := exec.Command("sh", "-c", execCmd)
 	if err = cmd.Run(); err != nil {
-		if exitCode, err := helpers.ExitCode(err); err != nil {
+		if exitCode, err := helpers.ExitCode(err); err == nil {
 			return &ErrHookFailed{cmd: execCmd,
 				exitCode: exitCode}
 		}
@@ -1151,7 +1151,7 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 			// there is no golang "CopyFile"
 			cmd := exec.Command("cp", "-a", oldPath, newPath)
 			if err := cmd.Run(); err != nil {
-				if exitCode, err := helpers.ExitCode(err); err != nil {
+				if exitCode, err := helpers.ExitCode(err); err == nil {
 					return &ErrDataCopyFailed{
 						oldPath:  oldPath,
 						newPath:  newPath,

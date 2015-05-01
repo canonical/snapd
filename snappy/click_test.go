@@ -1480,3 +1480,22 @@ services:
 	c.Check(sd1, DeepEquals, []string{"kill", "wat_wat_42.service", "-s", "TERM"})
 	c.Check(sd2, DeepEquals, []string{"kill", "wat_wat_42.service", "-s", "KILL"})
 }
+
+func (s *SnapTestSuite) TestExecHookCorrectErrType(c *C) {
+	err := execHook("false")
+	c.Assert(err, DeepEquals, &ErrHookFailed{
+		cmd:      "false",
+		exitCode: 1,
+	})
+}
+
+func (s *SnapTestSuite) TestCopySnapDataDirectoryError(c *C) {
+	oldPath := c.MkDir()
+	newPath := "/nonono-i-can-not-write-here"
+	err := copySnapDataDirectory(oldPath, newPath)
+	c.Assert(err, DeepEquals, &ErrDataCopyFailed{
+		oldPath:  oldPath,
+		newPath:  newPath,
+		exitCode: 1,
+	})
+}
