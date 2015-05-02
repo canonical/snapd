@@ -172,6 +172,26 @@ type SnapPart struct {
 
 var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
 
+// deprecarch handles the vagaries of the now-deprecated
+// "architecture" field of the package.yaml
+type deprecarch []string
+
+func (v *deprecarch) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var l []string
+
+	if err := unmarshal(&l); err != nil {
+		var s string
+		if err := unmarshal(&s); err != nil {
+			return err
+
+		}
+		l = append([]string(nil), s)
+	}
+	*v = deprecarch(l)
+
+	return nil
+}
+
 // TODO split into payloads per package type composing the common
 // elements for all snaps.
 type packageYaml struct {
@@ -183,8 +203,8 @@ type packageYaml struct {
 
 	// the spec allows a string or a list here *ick* so we need
 	// to convert that into something sensible via reflect
-	DeprecatedArchitecture interface{} `yaml:"architecture"`
-	Architectures          []string    `yaml:"architectures"`
+	DeprecatedArchitecture deprecarch `yaml:"architecture"`
+	Architectures          []string   `yaml:"architectures"`
 
 	DeprecatedFramework string   `yaml:"framework,omitempty"`
 	Frameworks          []string `yaml:"frameworks,omitempty"`
@@ -247,20 +267,11 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		return nil, err
 	}
 
-	// parse the architecture: field that is either a string or a list
-	// or empty (yes, you read that correctly)
 	if m.Architectures == nil {
-		v := reflect.ValueOf(m.DeprecatedArchitecture)
-		switch v.Kind() {
-		case reflect.Invalid:
+		if m.DeprecatedArchitecture == nil {
 			m.Architectures = []string{"all"}
-		case reflect.String:
-			m.Architectures = []string{v.String()}
-		case reflect.Slice:
-			v2 := m.DeprecatedArchitecture.([]interface{})
-			for _, arch := range v2 {
-				m.Architectures = append(m.Architectures, arch.(string))
-			}
+		} else {
+			m.Architectures = m.DeprecatedArchitecture
 		}
 	}
 
