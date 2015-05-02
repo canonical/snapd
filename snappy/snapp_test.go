@@ -801,6 +801,30 @@ vendor: Michael Vogt <mvo@ubuntu.com>
 	c.Assert(m.Architectures, DeepEquals, []string{"all"})
 }
 
+func (s *SnapTestSuite) TestPackageYamlBadArchitectureParsing(c *C) {
+	data := []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+architecture:
+  armhf:
+    no
+`)
+	_, err := parsePackageYamlData(data)
+	c.Assert(err, NotNil)
+}
+
+func (s *SnapTestSuite) TestPackageYamlWorseArchitectureParsing(c *C) {
+	data := []byte(`name: fatbinary
+version: 1.0
+vendor: Michael Vogt <mvo@ubuntu.com>
+architecture:
+  - armhf:
+      sometimes
+`)
+	_, err := parsePackageYamlData(data)
+	c.Assert(err, NotNil)
+}
+
 func (s *SnapTestSuite) TestPackageYamlLicenseParsing(c *C) {
 	y := filepath.Join(s.tempdir, "package.yaml")
 	ioutil.WriteFile(y, []byte(`explicit-license-agreement: Y`), 0644)
