@@ -19,7 +19,7 @@ package helpers
 
 import (
 	"io/ioutil"
-	"path/filepath"
+	"os"
 
 	. "launchpad.net/gocheck"
 )
@@ -28,13 +28,17 @@ func (s *cpSuite) TestCpMulti(c *C) {
 	maxcp = 2
 	defer func() { maxcp = maxint }()
 
-	d := c.MkDir()
-	f1 := filepath.Join(d, "f1")
-	f2 := filepath.Join(d, "f2")
-	data := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
-	c.Assert(ioutil.WriteFile(f1, data, 0644), IsNil)
-	c.Check(CopyFile(f1, f2, CopyFlagDefault), IsNil)
-	bs, err := ioutil.ReadFile(f2)
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), IsNil)
+	bs, err := ioutil.ReadFile(s.f2)
 	c.Check(err, IsNil)
-	c.Check(bs, DeepEquals, data)
+	c.Check(bs, DeepEquals, s.data)
+}
+
+func (s *cpSuite) TestDoCpErr(c *C) {
+	f1, err := os.Open(s.f1)
+	c.Assert(err, IsNil)
+	st, err := f1.Stat()
+	c.Assert(err, IsNil)
+	// force an error by asking it to write to a readonly stream
+	c.Check(doCopyFile(f1, os.Stdin, st), NotNil)
 }

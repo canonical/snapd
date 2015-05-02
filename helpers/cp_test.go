@@ -18,24 +18,152 @@
 package helpers
 
 import (
+	"errors"
 	"io/ioutil"
+	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	. "launchpad.net/gocheck"
 )
 
-type cpSuite struct{}
+type cpSuite struct {
+	dir  string
+	f1   string
+	f2   string
+	data []byte
+	log  []string
+	errs []error
+	idx  int
+}
 
 var _ = Suite(&cpSuite{})
 
-func (s *cpSuite) TestCp(c *C) {
-	d := c.MkDir()
-	f1 := filepath.Join(d, "f1")
-	f2 := filepath.Join(d, "f2")
-	data := []byte{1, 2, 3}
-	c.Assert(ioutil.WriteFile(f1, data, 0644), IsNil)
-	c.Check(CopyFile(f1, f2, CopyFlagDefault), IsNil)
-	bs, err := ioutil.ReadFile(f2)
-	c.Check(err, IsNil)
-	c.Check(bs, DeepEquals, data)
+func (s *cpSuite) mockCopyFile(fin, fout fileish, fi os.FileInfo) error {
+	return s.µ("copyfile")
 }
+
+func (s *cpSuite) mockOpenFile(name string, flag int, perm os.FileMode) (fileish, error) {
+	return &mockfile{s}, s.µ("open")
+}
+
+func (s *cpSuite) µ(msg string) (err error) {
+	s.log = append(s.log, msg)
+	if len(s.errs) > 0 {
+		err = s.errs[0]
+		if len(s.errs) > 1 {
+			s.errs = s.errs[1:]
+		}
+	}
+
+	return
+}
+
+func (s *cpSuite) SetUpTest(c *C) {
+	s.errs = nil
+	s.log = nil
+	s.dir = c.MkDir()
+	s.f1 = filepath.Join(s.dir, "f1")
+	s.f2 = filepath.Join(s.dir, "f2")
+	s.data = []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	c.Assert(ioutil.WriteFile(s.f1, s.data, 0644), IsNil)
+}
+
+func (s *cpSuite) mock() {
+	copyfile = s.mockCopyFile
+	openfile = s.mockOpenFile
+}
+
+func (s *cpSuite) TearDownTest(c *C) {
+	copyfile = doCopyFile
+	openfile = doOpenFile
+}
+
+func (s *cpSuite) TestCp(c *C) {
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), IsNil)
+	bs, err := ioutil.ReadFile(s.f2)
+	c.Check(err, IsNil)
+	c.Check(bs, DeepEquals, s.data)
+}
+
+func (s *cpSuite) TestCpSync(c *C) {
+	s.mock()
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), IsNil)
+	c.Check(strings.Join(s.log, ":"), Not(Matches), `.*:sync(:.*)?`)
+
+	s.log = nil
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), IsNil)
+	c.Check(strings.Join(s.log, ":"), Matches, `(.*:)?sync(:.*)?`)
+}
+
+func (s *cpSuite) TestCpCantOpen(c *C) {
+	s.mock()
+	s.errs = []error{errors.New("xyzzy"), nil}
+
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `unable to open \S+/f1: xyzzy`)
+}
+
+func (s *cpSuite) TestCpCantStat(c *C) {
+	s.mock()
+	s.errs = []error{nil, errors.New("xyzzy"), nil}
+
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `unable to stat \S+/f1: xyzzy`)
+}
+
+func (s *cpSuite) TestCpCantCreate(c *C) {
+	s.mock()
+	s.errs = []error{nil, nil, errors.New("xyzzy"), nil}
+
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `unable to create \S+/f2: xyzzy`)
+}
+
+func (s *cpSuite) TestCpCantCopy(c *C) {
+	s.mock()
+	s.errs = []error{nil, nil, nil, errors.New("xyzzy"), nil}
+
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `unable to copy \S+/f1 to \S+/f2: xyzzy`)
+}
+
+func (s *cpSuite) TestCpCantSync(c *C) {
+	s.mock()
+	s.errs = []error{nil, nil, nil, nil, errors.New("xyzzy"), nil}
+
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `unable to sync \S+/f2: xyzzy`)
+}
+
+func (s *cpSuite) TestCpCantStop2(c *C) {
+	s.mock()
+	s.errs = []error{nil, nil, nil, nil, nil, errors.New("xyzzy"), nil}
+
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `when closing \S+/f2: xyzzy`)
+}
+
+func (s *cpSuite) TestCpCantStop1(c *C) {
+	s.mock()
+	s.errs = []error{nil, nil, nil, nil, nil, nil, errors.New("xyzzy"), nil}
+
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagSync), ErrorMatches, `when closing \S+/f1: xyzzy`)
+}
+
+type mockfile struct {
+	s *cpSuite
+}
+
+var mockst = mockstat{}
+
+func (f *mockfile) Close() error               { return f.s.µ("close") }
+func (f *mockfile) Sync() error                { return f.s.µ("sync") }
+func (f *mockfile) Fd() uintptr                { f.s.µ("fd"); return 42 }
+func (f *mockfile) Read([]byte) (int, error)   { return 0, f.s.µ("read") }
+func (f *mockfile) Write([]byte) (int, error)  { return 0, f.s.µ("write") }
+func (f *mockfile) Stat() (os.FileInfo, error) { return mockst, f.s.µ("stat") }
+
+type mockstat struct{}
+
+func (mockstat) Name() string       { return "mockstat" }
+func (mockstat) Size() int64        { return 42 }
+func (mockstat) Mode() os.FileMode  { return 0644 }
+func (mockstat) ModTime() time.Time { return time.Now() }
+func (mockstat) IsDir() bool        { return false }
+func (mockstat) Sys() interface{}   { return nil }

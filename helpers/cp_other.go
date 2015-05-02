@@ -24,7 +24,7 @@ import (
 	"os"
 )
 
-func doCopyFile(fin, fout *os.File, fi os.FileInfo) error {
+func doCopyFile(fin, fout fileish, fi os.FileInfo) error {
 	_, err := io.Copy(fout, fin)
 	return err
 }

@@ -32,9 +32,27 @@ const (
 	CopyFlagSync CopyFlag = 1 << iota
 )
 
+var (
+	openfile = doOpenFile
+	copyfile = doCopyFile
+)
+
+type fileish interface {
+	Close() error
+	Sync() error
+	Fd() uintptr
+	Stat() (os.FileInfo, error)
+	Read([]byte) (int, error)
+	Write([]byte) (int, error)
+}
+
+func doOpenFile(name string, flag int, perm os.FileMode) (fileish, error) {
+	return os.OpenFile(name, flag, perm)
+}
+
 // CopyFile copies src to dst
 func CopyFile(src, dst string, flags CopyFlag) (err error) {
-	fin, err := os.Open(src)
+	fin, err := openfile(src, os.O_RDONLY, 0)
 	if err != nil {
 		return fmt.Errorf("unable to open %s: %v", src, err)
 	}
@@ -49,7 +67,7 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 		return fmt.Errorf("unable to stat %s: %v", src, err)
 	}
 
-	fout, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fi.Mode())
+	fout, err := openfile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fi.Mode()) //
 	if err != nil {
 		return fmt.Errorf("unable to create %s: %v", dst, err)
 	}
@@ -59,13 +77,13 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 		}
 	}()
 
-	if err := doCopyFile(fin, fout, fi); err != nil {
-		fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
+	if err := copyfile(fin, fout, fi); err != nil {
+		return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
 	}
 
 	if flags&CopyFlagSync != 0 {
 		if err = fout.Sync(); err != nil {
-			return fmt.Errorf("when syncing %s: %v", dst, err)
+			return fmt.Errorf("unable to sync %s: %v", dst, err)
 		}
 	}
 
