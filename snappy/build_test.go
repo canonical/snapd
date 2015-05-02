@@ -403,3 +403,9 @@ binaries:
 	_, err := Build(sourceDir, "")
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
 }
+
+func (s *SnapTestSuite) TestDebArchitecture(c *C) {
+	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo"}}), Equals, "foo")
+	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo", "bar"}}), Equals, "multi")
+	c.Check(debArchitecture(&packageYaml{Architectures: nil}), Equals, "unknown")
+}

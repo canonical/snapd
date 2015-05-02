@@ -83,10 +83,14 @@ var shouldExclude = regexp.MustCompile(strings.Join([]string{
 
 // small helper that return the architecture or "multi" if its multiple arches
 func debArchitecture(m *packageYaml) string {
-	if len(m.Architectures) > 1 {
+	switch len(m.Architectures) {
+	case 0:
+		return "unknown"
+	case 1:
+		return m.Architectures[0]
+	default:
 		return "multi"
 	}
-	return m.Architectures[0]
 }
 
 func parseReadme(readme string) (title, description string, err error) {
