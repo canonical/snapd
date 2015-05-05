@@ -34,7 +34,7 @@ type cmdConfig struct {
 	} `positional-args:"yes"`
 }
 
-const shortConfigHelp = `Set configuration for a installed package.`
+const shortConfigHelp = `Set configuration for an installed package.`
 
 const longConfigHelp = `Configures a package. The configuration is a
 YAML file, provided in the specified file which can be “-” for
