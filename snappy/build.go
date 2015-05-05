@@ -393,8 +393,7 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 			return nil
 		}
 		// sigh. ok, copy it is.
-		helpers.CopyFile(path, dest, helpers.CopyFlagDefault)
-		return err
+		return helpers.CopyFile(path, dest, helpers.CopyFlagDefault)
 	})
 }
 
