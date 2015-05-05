@@ -21,7 +21,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -394,26 +393,7 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 			return nil
 		}
 		// sigh. ok, copy it is.
-		in, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer in.Close()
-
-		out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode())
-		if err != nil {
-			return err
-		}
-		defer func() {
-			// XXX: write a test for this. I dare you. I double-dare you.
-			xerr := out.Close()
-			if err == nil {
-				err = xerr
-			}
-		}()
-		_, err = io.Copy(out, in)
-		// no need to sync, as it's a tempdir
-		return err
+		return helpers.CopyFile(path, dest, helpers.CopyFlagDefault)
 	})
 }
 
