@@ -68,6 +68,7 @@ type Part interface {
 	Version() string
 	Description() string
 	Namespace() string
+	Vendor() string
 
 	Hash() string
 	IsActive() bool
