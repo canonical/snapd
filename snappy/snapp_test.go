@@ -139,9 +139,10 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	snap, err := NewInstalledSnapPart(snapYaml, testNamespace)
 	c.Assert(err, IsNil)
 	c.Assert(snap, NotNil)
-	c.Assert(snap.Name(), Equals, "hello-app")
-	c.Assert(snap.Version(), Equals, "1.10")
-	c.Assert(snap.IsActive(), Equals, false)
+	c.Check(snap.Name(), Equals, "hello-app")
+	c.Check(snap.Version(), Equals, "1.10")
+	c.Check(snap.IsActive(), Equals, false)
+	c.Check(snap.Description(), Equals, "Hello")
 
 	services := snap.Services()
 	c.Assert(services, HasLen, 1)

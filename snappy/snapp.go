@@ -166,6 +166,7 @@ type SnapPart struct {
 	hash        string
 	isActive    bool
 	isInstalled bool
+	description string
 
 	basedir string
 }
@@ -474,6 +475,11 @@ func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) (*SnapPart,
 		part.isActive = true
 	}
 
+	// get the click *title* from readme.md and use that as the *description*.
+	if description, _, err := parseReadme(filepath.Join(part.basedir, "meta", "readme.md")); err == nil {
+		part.description = description
+	}
+
 	// read hash, its ok if its not there, some older versions of
 	// snappy did not write this file
 	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes.yaml"))
@@ -513,8 +519,7 @@ func (s *SnapPart) Version() string {
 
 // Description returns the description
 func (s *SnapPart) Description() string {
-	// TODO: implement.
-	return "NOT IMPLEMENTED"
+	return s.description
 }
 
 // Namespace returns the namespace

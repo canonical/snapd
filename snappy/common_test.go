@@ -71,6 +71,11 @@ services:
 		return "", err
 	}
 
+	readmeMd := path.Join(metaDir, "readme.md")
+	if err := ioutil.WriteFile(readmeMd, []byte("Hello\nApp"), 0644); err != nil {
+		return "", err
+	}
+
 	if err := addDefaultApparmorJSON(tempdir, "hello-app_hello_1.10.json"); err != nil {
 		return "", err
 	}
