@@ -522,6 +522,11 @@ func (s *SnapPart) Namespace() string {
 	return s.namespace
 }
 
+// Vendor returns the author. Or viceversa.
+func (s *SnapPart) Vendor() string {
+	return s.m.Vendor
+}
+
 // Hash returns the hash
 func (s *SnapPart) Hash() string {
 	return s.hash
@@ -877,6 +882,11 @@ func (s *RemoteSnapPart) Description() string {
 // Namespace is the origin
 func (s *RemoteSnapPart) Namespace() string {
 	return s.pkg.Namespace
+}
+
+// Vendor is the publisher. Author. Whatever.
+func (s *RemoteSnapPart) Vendor() string {
+	return s.pkg.Publisher
 }
 
 // Hash returns the hash
