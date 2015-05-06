@@ -29,7 +29,7 @@ import (
 // Meter is an interface to show progress to the user
 type Meter interface {
 	// Start progress with max "total" steps
-	Start(total float64)
+	Start(pkg string, total float64)
 
 	// set progress to the "current" step
 	Set(current float64)
@@ -58,7 +58,7 @@ type NullProgress struct {
 }
 
 // Start does nothing
-func (t *NullProgress) Start(total float64) {
+func (t *NullProgress) Start(pkg string, total float64) {
 }
 
 // Set does nothing
@@ -94,18 +94,17 @@ func (t *NullProgress) Agreed(intro, licenseFile string) bool {
 type TextProgress struct {
 	Meter
 	pbar     *pb.ProgressBar
-	pkg      string
 	spinStep int
 }
 
 // NewTextProgress returns a new TextProgress type
-func NewTextProgress(pkg string) *TextProgress {
-	return &TextProgress{pkg: pkg}
+func NewTextProgress() *TextProgress {
+	return &TextProgress{}
 }
 
 // Start starts showing progress
-func (t *TextProgress) Start(total float64) {
-	fmt.Println("Starting download of", t.pkg)
+func (t *TextProgress) Start(pkg string, total float64) {
+	fmt.Println("Starting download of", pkg)
 
 	// TODO go to New64 once we update the pb package.
 	t.pbar = pb.New(0)
@@ -179,10 +178,10 @@ func (*TextProgress) Notify(msg string) {
 
 // MakeProgressBar creates an appropriate progress (which may be a
 // NullProgress bar if there is no associated terminal).
-func MakeProgressBar(name string) Meter {
+func MakeProgressBar() Meter {
 	var pbar Meter
 	if attachedToTerminal() {
-		pbar = NewTextProgress(name)
+		pbar = NewTextProgress()
 	} else {
 		pbar = &NullProgress{}
 	}

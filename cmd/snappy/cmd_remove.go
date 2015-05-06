@@ -52,7 +52,7 @@ func (x *cmdRemove) Execute(args []string) (err error) {
 	for _, part := range args {
 		fmt.Printf("Removing %s\n", part)
 
-		if err := snappy.Remove(part, flags, progress.MakeProgressBar(part)); err != nil {
+		if err := snappy.Remove(part, flags, progress.MakeProgressBar()); err != nil {
 			return err
 		}
 	}
