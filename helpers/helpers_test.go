@@ -288,3 +288,35 @@ func (ts *HTestSuite) TestMajorMinorNoDevice(c *C) {
 	_, _, err = MajorMinor(stat)
 	c.Assert(err, NotNil)
 }
+
+func (ts *HTestSuite) TestMakedev(c *C) {
+	// $ python -c 'import os;print(os.makedev(1,11))'
+	// 267
+	c.Assert(Makedev(1, 11), Equals, 267)
+}
+
+func (ts *HTestSuite) TestUnpacksMknod(c *C) {
+
+	// mknod mock
+	mknodWasCalled := false
+	mknod = func(path string, mode uint32, dev int) error {
+		mknodWasCalled = true
+		return nil
+	}
+
+	// setup tmpdir
+	tmpdir := c.MkDir()
+	tmpfile := filepath.Join(tmpdir, "device.tar")
+
+	cmd := exec.Command("tar", "cf", tmpfile, "/dev/kmsg")
+	err := cmd.Run()
+	c.Assert(err, IsNil)
+
+	f, err := os.Open(tmpfile)
+	c.Assert(err, IsNil)
+
+	err = UnpackTar(f, c.MkDir(), nil)
+	c.Assert(err, IsNil)
+	c.Assert(mknodWasCalled, Equals, true)
+
+}
