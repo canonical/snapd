@@ -268,3 +268,23 @@ func (ts *HTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(home, Equals, oldHome)
 }
+
+func (ts *HTestSuite) TestMajorMinorSimple(c *C) {
+	stat, err := os.Stat("/dev/kmsg")
+	if err != nil {
+		c.Skip("Can not stat /dev/kmsg")
+	}
+
+	major, minor, err := MajorMinor(stat)
+	c.Assert(err, IsNil)
+	c.Assert(major, Equals, int64(1))
+	c.Assert(minor, Equals, int64(11))
+}
+
+func (ts *HTestSuite) TestMajorMinorNoDevice(c *C) {
+	stat, err := os.Stat(c.MkDir())
+	c.Assert(err, IsNil)
+
+	_, _, err = MajorMinor(stat)
+	c.Assert(err, NotNil)
+}

@@ -317,3 +317,21 @@ func ShouldDropPrivs() bool {
 	return syscall.Getuid() == 0 || syscall.Getgid() == 0
 
 }
+
+// MajorMinor returns the major/minor number of the given os.FileInfo
+func MajorMinor(info os.FileInfo) (int64, int64, error) {
+	if (info.Mode()&os.ModeDevice) == 0 && (info.Mode()&os.ModeCharDevice) == 0 {
+		return -1, -1, fmt.Errorf("No device %s", info.Name())
+	}
+
+	unixStat, ok := info.Sys().(*syscall.Stat_t)
+	if ok {
+		// see  /usr/include/linux/kdev_t.h
+		major := int64(unixStat.Rdev >> 8)
+		minor := int64(unixStat.Rdev & 0xff)
+
+		return major, minor, nil
+	}
+
+	return -1, -1, fmt.Errorf("failed to get syscall.stat_t for %v", info.Name())
+}

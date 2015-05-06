@@ -27,7 +27,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 	"text/template"
 
 	"launchpad.net/snappy/clickdeb"
@@ -233,14 +232,9 @@ func hashForFile(buildDir, path string, info os.FileInfo) (h *fileHash, err erro
 
 	// major/minor handling
 	device := ""
-	if (info.Mode()&os.ModeDevice) != 0 || (info.Mode()&os.ModeCharDevice) != 0 {
-		unixStat, ok := info.Sys().(*syscall.Stat_t)
-		if ok {
-			// see  /usr/include/linux/kdev_t.h
-			major := int64(unixStat.Rdev >> 8)
-			minor := int64(unixStat.Rdev & 0xff)
-			device = fmt.Sprintf("%v,%v", major, minor)
-		}
+	major, minor, err := helpers.MajorMinor(info)
+	if err == nil {
+		device = fmt.Sprintf("%v,%v", major, minor)
 	}
 
 	if buildDir != "" {
