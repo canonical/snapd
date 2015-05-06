@@ -101,6 +101,7 @@ func (v *yamlFileMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type fileHash struct {
 	Name   string        `yaml:"name"`
 	Size   *int64        `yaml:"size,omitempty"`
+	Device string        `yaml:"device,omitempty"`
 	Sha512 string        `yaml:"sha512,omitempty"`
 	Mode   *yamlFileMode `yaml:"mode"`
 	// FIXME: not used yet, our tar implementation does not

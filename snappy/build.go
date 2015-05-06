@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"text/template"
 
 	"launchpad.net/snappy/clickdeb"
@@ -216,6 +217,47 @@ func dirSize(buildDir string) (string, error) {
 	return strings.Fields(string(output))[0], nil
 }
 
+func hashForFile(buildDir, path string, info os.FileInfo) (h *fileHash, err error) {
+	sha512sum := ""
+	// pointer so that omitempty works (we don't want size for
+	// directories or symlinks)
+	var size *int64
+	if info.Mode().IsRegular() {
+		sha512sum, err = helpers.Sha512sum(path)
+		if err != nil {
+			return nil, err
+		}
+		fsize := info.Size()
+		size = &fsize
+	}
+
+	// major/minor handling
+	device := ""
+	if (info.Mode()&os.ModeDevice) != 0 || (info.Mode()&os.ModeCharDevice) != 0 {
+		unixStat, ok := info.Sys().(*syscall.Stat_t)
+		if ok {
+			// see  /usr/include/linux/kdev_t.h
+			major := int64(unixStat.Rdev >> 8)
+			minor := int64(unixStat.Rdev & 0xff)
+			device = fmt.Sprintf("%v,%v", major, minor)
+		}
+	}
+
+	if buildDir != "" {
+		path = path[len(buildDir)+1:]
+	}
+
+	return &fileHash{
+		Name:   path,
+		Size:   size,
+		Sha512: sha512sum,
+		Device: device,
+		// FIXME: not portable, this output is different on
+		//        windows, macos
+		Mode: newYamlFileMode(info.Mode()),
+	}, nil
+}
+
 func writeHashes(buildDir, dataTar string) error {
 
 	debianDir := filepath.Join(buildDir, "DEBIAN")
@@ -236,27 +278,11 @@ func writeHashes(buildDir, dataTar string) error {
 			return nil
 		}
 
-		sha512sum := ""
-		// pointer so that omitempty works (we don't want size for
-		// directories or symlinks)
-		var size *int64
-		if info.Mode().IsRegular() {
-			sha512sum, err = helpers.Sha512sum(path)
-			if err != nil {
-				return err
-			}
-			fsize := info.Size()
-			size = &fsize
+		hash, err := hashForFile(buildDir, path, info)
+		if err != nil {
+			return err
 		}
-
-		hashes.Files = append(hashes.Files, fileHash{
-			Name:   path[len(buildDir)+1:],
-			Size:   size,
-			Sha512: sha512sum,
-			// FIXME: not portable, this output is different on
-			//        windows, macos
-			Mode: newYamlFileMode(info.Mode()),
-		})
+		hashes.Files = append(hashes.Files, *hash)
 
 		return nil
 	})

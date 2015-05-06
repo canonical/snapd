@@ -24,6 +24,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"launchpad.net/snappy/helpers"
+
 	. "launchpad.net/gocheck"
 )
 
@@ -408,4 +410,19 @@ func (s *SnapTestSuite) TestDebArchitecture(c *C) {
 	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo"}}), Equals, "foo")
 	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo", "bar"}}), Equals, "multi")
 	c.Check(debArchitecture(&packageYaml{Architectures: nil}), Equals, "unknown")
+}
+
+func (s *SnapTestSuite) TestHashForFileForDevice(c *C) {
+	// skip test
+	if !helpers.FileExists("/dev/kmsg") {
+		c.Skip("no /dev/kmsg")
+	}
+
+	stat, err := os.Stat("/dev/kmsg")
+	c.Assert(err, IsNil)
+	h, err := hashForFile("", "/dev/kmsg", stat)
+	c.Assert(err, IsNil)
+	c.Assert(h.Name, Equals, "/dev/kmsg")
+	c.Assert(h.Device, Equals, "1,11")
+	c.Assert(h.Sha512, Equals, "")
 }
