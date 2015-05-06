@@ -282,7 +282,7 @@ func writeHashes(buildDir, dataTar string) error {
 		if err != nil {
 			return err
 		}
-		hashes.Files = append(hashes.Files, *hash)
+		hashes.Files = append(hashes.Files, hash)
 
 		return nil
 	})

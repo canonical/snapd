@@ -115,5 +115,5 @@ type hashesYaml struct {
 	ArchiveSha512 string `yaml:"archive-sha512"`
 
 	// the hashes for the files in the archive
-	Files []fileHash
+	Files []*fileHash
 }
