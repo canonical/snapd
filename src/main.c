@@ -198,6 +198,30 @@ bool snappy_udev_setup_required(const char *appname) {
    return false;
 }
 
+void setup_private_mount() {
+    char *tmpdir = getenv("SNAP_APP_TMPDIR");
+    struct stat buf = {0};
+    if (!tmpdir) {
+        die("SNAP_APP_TMPDIR unset");
+    }
+
+    if (stat(tmpdir, &buf) < 0) {
+        die("SNAP_APP_TMPDIR does not exist");
+    }
+
+    if (unshare(CLONE_NEWNS) < 0) {
+        die("unable to set up mount namespace");
+    }
+
+    if (mount("none", "/tmp", NULL, MS_PRIVATE, NULL) != 0) {
+        die("unable to make /tmp/ private");
+    }
+
+    if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
+        die("unable to bind private /tmp");
+    }
+}
+
 int main(int argc, char **argv)
 {
    const int NR_ARGS = 3;
@@ -263,6 +287,9 @@ int main(int argc, char **argv)
     rc = seccomp_load_filters(aa_profile);
     if (rc != 0)
        die("seccomp_load_filters failed with %i\n", rc);
+
+    // set up private mounts
+    setup_private_mount();
 
     // and exec the new binary
     argv[NR_ARGS] = (char*)binary,
