@@ -250,6 +250,9 @@ int main(int argc, char **argv)
    }
 
    if(geteuid() == 0) {
+       // set up private mounts
+       setup_private_mount();
+
        // this needs to happen as root
        if(snappy_udev_setup_required(appname)) {
           setup_devices_cgroup(appname);
@@ -287,9 +290,6 @@ int main(int argc, char **argv)
     rc = seccomp_load_filters(aa_profile);
     if (rc != 0)
        die("seccomp_load_filters failed with %i\n", rc);
-
-    // set up private mounts
-    setup_private_mount();
 
     // and exec the new binary
     argv[NR_ARGS] = (char*)binary,

@@ -18,6 +18,7 @@
 #include<stdlib.h>
 #include<stdarg.h>
 #include<string.h>
+#include <errno.h>
 
 #include "utils.h"
 
@@ -28,7 +29,11 @@ void die(const char *msg, ...)
    vfprintf(stderr, msg, va);
    va_end(va);
 
-   fprintf(stderr, "\n");
+   if (errno != 0) {
+     perror(". errmsg");
+   } else {
+     fprintf(stderr, "\n");
+   }
    exit(1);
 }
 
