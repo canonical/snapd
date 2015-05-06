@@ -69,7 +69,7 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 
 	fmt.Printf("Installing %s\n", pkgName)
 
-	realPkgName, err := snappy.Install(pkgName, flags, progress.MakeProgressBar(pkgName))
+	realPkgName, err := snappy.Install(pkgName, flags, progress.MakeProgressBar())
 	if err != nil {
 		return err
 	}

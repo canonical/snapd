@@ -991,7 +991,7 @@ func (s *RemoteSnapPart) Download(pbar progress.Meter) (string, error) {
 	}
 
 	if pbar != nil {
-		pbar.Start(float64(resp.ContentLength))
+		pbar.Start(s.pkg.Name, float64(resp.ContentLength))
 		mw := io.MultiWriter(w, pbar)
 		_, err = io.Copy(mw, resp.Body)
 		pbar.Finished()
