@@ -19,8 +19,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 
 	"launchpad.net/snappy/snappy"
 )
@@ -53,16 +51,20 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 		return err
 	}
 
-	_, err = exec.LookPath(clickReview)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not review package (%s not available)\n", clickReview)
-	}
+	/*
+		Disabling review tools run until the output reflects reality more closely
 
-	cmd := exec.Command(clickReview, snapPackage)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	// we ignore the error for now
-	_ = cmd.Run()
+		_, err = exec.LookPath(clickReview)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not review package (%s not available)\n", clickReview)
+		}
+
+		cmd := exec.Command(clickReview, snapPackage)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		// we ignore the error for now
+		_ = cmd.Run()
+	*/
 
 	fmt.Printf("Generated '%s' snap\n", snapPackage)
 	return nil
