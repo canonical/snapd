@@ -67,7 +67,7 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 		return fmt.Errorf("unable to stat %s: %v", src, err)
 	}
 
-	fout, err := openfile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fi.Mode()) //
+	fout, err := openfile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fi.Mode())
 	if err != nil {
 		return fmt.Errorf("unable to create %s: %v", dst, err)
 	}
