@@ -240,7 +240,7 @@ type remoteSnap struct {
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
 	SupportURL      string             `json:"support_url"`
 	Title           string             `json:"title"`
-	Type            string             `json:"content,omitempty"`
+	Type            SnapType           `json:"content,omitempty"`
 	Version         string             `json:"version"`
 }
 
@@ -872,8 +872,7 @@ type RemoteSnapPart struct {
 
 // Type returns the type of the SnapPart (app, oem, ...)
 func (s *RemoteSnapPart) Type() SnapType {
-	// FIXME: the store does not publish this info
-	return SnapTypeApp
+	return s.pkg.Type
 }
 
 // Name returns the name
