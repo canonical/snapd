@@ -158,19 +158,8 @@ func NewMetaLocalRepository() *MetaRepository {
 func NewMetaRepository() *MetaRepository {
 	// FIXME: make this a configuration file
 
-	m := new(MetaRepository)
-	m.all = []Repository{}
-	// its ok if repos fail if e.g. no dbus is available
-	if repo := NewSystemImageRepository(); repo != nil {
-		m.all = append(m.all, repo)
-	}
+	m := NewMetaLocalRepository()
 	if repo := NewUbuntuStoreSnapRepository(); repo != nil {
-		m.all = append(m.all, repo)
-	}
-	if repo := NewLocalSnapRepository(snapAppsDir); repo != nil {
-		m.all = append(m.all, repo)
-	}
-	if repo := NewLocalSnapRepository(snapOemDir); repo != nil {
 		m.all = append(m.all, repo)
 	}
 
