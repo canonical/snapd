@@ -95,9 +95,16 @@ func IsSymlink(mode os.FileMode) bool {
 	return (mode & os.ModeSymlink) == os.ModeSymlink
 }
 
+// IsDevice checks if the given os.FileMode coresponds to a device (char/block)
+func IsDevice(mode os.FileMode) bool {
+	return (mode & (os.ModeDevice | os.ModeCharDevice)) != 0
+}
+
 // UnpackTarTransformFunc can be used to change the names during unpack
 // or to return a error for files that are not acceptable
 type UnpackTarTransformFunc func(path string) (newPath string, err error)
+
+var mknod = syscall.Mknod
 
 // UnpackTar unpacks the given tar file into the target directory
 func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
@@ -125,6 +132,18 @@ func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
 			}
 		case IsSymlink(mode):
 			if err := os.Symlink(hdr.Linkname, path); err != nil {
+				return err
+			}
+		case IsDevice(mode):
+			switch {
+			case (mode & os.ModeCharDevice) != 0:
+				mode |= syscall.S_IFCHR
+			case (mode & os.ModeDevice) != 0:
+				mode |= syscall.S_IFBLK
+			}
+			devNum := Makedev(uint32(hdr.Devmajor), uint32(hdr.Devminor))
+			err = mknod(path, uint32(mode), int(devNum))
+			if err != nil {
 				return err
 			}
 		case mode.IsRegular():
@@ -316,4 +335,28 @@ func ShouldDropPrivs() bool {
 
 	return syscall.Getuid() == 0 || syscall.Getgid() == 0
 
+}
+
+// MajorMinor returns the major/minor number of the given os.FileInfo
+func MajorMinor(info os.FileInfo) (uint32, uint32, error) {
+	if !IsDevice(info.Mode()) {
+		return 0, 0, fmt.Errorf("No device %s", info.Name())
+	}
+
+	unixStat, ok := info.Sys().(*syscall.Stat_t)
+	if ok {
+		// see glibc: sysdeps/unix/sysv/linux/makedev.c
+		dev := uint32(unixStat.Rdev)
+		major := ((dev >> 8) & 0xfff) | ((dev >> 32) & ^uint32(0xfff))
+		minor := (dev & 0xff) | ((dev >> 12) & ^uint32(0xff))
+
+		return major, minor, nil
+	}
+
+	return 0, 0, fmt.Errorf("failed to get syscall.stat_t for %v", info.Name())
+}
+
+// Makedev implements makedev(3)
+func Makedev(major, minor uint32) uint32 {
+	return uint32((minor & 0xff) | ((major & 0xfff) << 8))
 }

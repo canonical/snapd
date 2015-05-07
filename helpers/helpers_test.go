@@ -268,3 +268,55 @@ func (ts *HTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(home, Equals, oldHome)
 }
+
+func (ts *HTestSuite) TestMajorMinorSimple(c *C) {
+	stat, err := os.Stat("/dev/kmsg")
+	if err != nil {
+		c.Skip("Can not stat /dev/kmsg")
+	}
+
+	major, minor, err := MajorMinor(stat)
+	c.Assert(err, IsNil)
+	c.Assert(major, Equals, uint32(1))
+	c.Assert(minor, Equals, uint32(11))
+}
+
+func (ts *HTestSuite) TestMajorMinorNoDevice(c *C) {
+	stat, err := os.Stat(c.MkDir())
+	c.Assert(err, IsNil)
+
+	_, _, err = MajorMinor(stat)
+	c.Assert(err, NotNil)
+}
+
+func (ts *HTestSuite) TestMakedev(c *C) {
+	// $ python -c 'import os;print(os.makedev(1,11))'
+	// 267
+	c.Assert(Makedev(1, 11), Equals, uint32(267))
+}
+
+func (ts *HTestSuite) TestUnpacksMknod(c *C) {
+
+	// mknod mock
+	mknodWasCalled := false
+	mknod = func(path string, mode uint32, dev int) error {
+		mknodWasCalled = true
+		return nil
+	}
+
+	// setup tmpdir
+	tmpdir := c.MkDir()
+	tmpfile := filepath.Join(tmpdir, "device.tar")
+
+	cmd := exec.Command("tar", "cf", tmpfile, "/dev/kmsg")
+	err := cmd.Run()
+	c.Assert(err, IsNil)
+
+	f, err := os.Open(tmpfile)
+	c.Assert(err, IsNil)
+
+	err = UnpackTar(f, c.MkDir(), nil)
+	c.Assert(err, IsNil)
+	c.Assert(mknodWasCalled, Equals, true)
+
+}
