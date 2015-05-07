@@ -425,9 +425,15 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 						output:   output,
 					}
 				}
-				return err
 			}
 			return nil
+		}
+		if (info.Mode() & os.ModeSymlink) != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(target, dest)
 		}
 
 		// fail if its unsupported
