@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	. "launchpad.net/gocheck"
@@ -167,3 +168,22 @@ func (mockstat) Mode() os.FileMode  { return 0644 }
 func (mockstat) ModTime() time.Time { return time.Now() }
 func (mockstat) IsDir() bool        { return false }
 func (mockstat) Sys() interface{}   { return nil }
+
+func (s *cpSuite) TestCopySpecialFileSimple(c *C) {
+	src := filepath.Join(c.MkDir(), "fifo")
+	err := syscall.Mkfifo(src, 0644)
+	c.Assert(err, IsNil)
+	dst := filepath.Join(c.MkDir(), "copied-fifo")
+
+	err = CopySpecialFile(src, dst)
+	c.Assert(err, IsNil)
+
+	st, err := os.Stat(dst)
+	c.Assert(err, IsNil)
+	c.Assert((st.Mode() & os.ModeNamedPipe), Equals, os.ModeNamedPipe)
+}
+
+func (s *cpSuite) TestCopySpecialFileErrors(c *C) {
+	err := CopySpecialFile("no-such-file", "no-such-target")
+	c.Assert(err, ErrorMatches, ".*No such file or directory.*")
+}
