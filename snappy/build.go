@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"text/template"
 
 	"launchpad.net/snappy/clickdeb"
