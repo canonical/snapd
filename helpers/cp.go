@@ -94,8 +94,6 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 // CopySpecialFile is used to copy all the things that are not files
 // (like device nodes, named pipes etc)
 func CopySpecialFile(path, dest string) error {
-	// XXX: move into helpers.CopyFile and make that
-	//      helpers.CopyThing ?
 	cmd := exec.Command("cp", "-av", path, dest)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		if exitCode, err := ExitCode(err); err == nil {
@@ -104,7 +102,10 @@ func CopySpecialFile(path, dest string) error {
 				output:   output,
 			}
 		}
-		return err
+		return &ErrCopySpecialFile{
+			err:    err,
+			output: output,
+		}
 	}
 
 	return nil
@@ -114,8 +115,12 @@ func CopySpecialFile(path, dest string) error {
 type ErrCopySpecialFile struct {
 	exitCode int
 	output   []byte
+	err      error
 }
 
 func (e ErrCopySpecialFile) Error() string {
-	return fmt.Sprintf("failed to copy device node: %q (%v)", e.output, e.exitCode)
+	if e.err == nil {
+		return fmt.Sprintf("failed to copy device node: %q (%v)", e.output, e.exitCode)
+	}
+	return fmt.Sprintf("failed to copy device node: %q (%v)", e.output, e.err)
 }
