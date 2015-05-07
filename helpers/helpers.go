@@ -141,8 +141,8 @@ func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
 			case (mode & os.ModeDevice) != 0:
 				mode |= syscall.S_IFBLK
 			}
-			devNum := Makedev(hdr.Devmajor, hdr.Devminor)
-			err = mknod(path, uint32(mode), devNum)
+			devNum := Makedev(uint32(hdr.Devmajor), uint32(hdr.Devminor))
+			err = mknod(path, uint32(mode), int(devNum))
 			if err != nil {
 				return err
 			}
@@ -338,24 +338,25 @@ func ShouldDropPrivs() bool {
 }
 
 // MajorMinor returns the major/minor number of the given os.FileInfo
-func MajorMinor(info os.FileInfo) (int64, int64, error) {
-	if (info.Mode()&os.ModeDevice) == 0 && (info.Mode()&os.ModeCharDevice) == 0 {
-		return -1, -1, fmt.Errorf("No device %s", info.Name())
+func MajorMinor(info os.FileInfo) (uint32, uint32, error) {
+	if !IsDevice(info.Mode()) {
+		return 0, 0, fmt.Errorf("No device %s", info.Name())
 	}
 
 	unixStat, ok := info.Sys().(*syscall.Stat_t)
 	if ok {
-		// see  /usr/include/linux/kdev_t.h
-		major := int64(unixStat.Rdev >> 8)
-		minor := int64(unixStat.Rdev & 0xff)
+		// see glibc: sysdeps/unix/sysv/linux/makedev.c
+		dev := uint32(unixStat.Rdev)
+		major := ((dev >> 8) & 0xfff) | ((dev >> 32) & ^uint32(0xfff))
+		minor := (dev & 0xff) | ((dev >> 12) & ^uint32(0xff))
 
 		return major, minor, nil
 	}
 
-	return -1, -1, fmt.Errorf("failed to get syscall.stat_t for %v", info.Name())
+	return 0, 0, fmt.Errorf("failed to get syscall.stat_t for %v", info.Name())
 }
 
 // Makedev implements makedev(3)
-func Makedev(major, minor int64) int {
-	return int((minor & 0xff) | ((major & 0xfff) << 8))
+func Makedev(major, minor uint32) uint32 {
+	return uint32((minor & 0xff) | ((major & 0xfff) << 8))
 }

@@ -277,8 +277,8 @@ func (ts *HTestSuite) TestMajorMinorSimple(c *C) {
 
 	major, minor, err := MajorMinor(stat)
 	c.Assert(err, IsNil)
-	c.Assert(major, Equals, int64(1))
-	c.Assert(minor, Equals, int64(11))
+	c.Assert(major, Equals, uint32(1))
+	c.Assert(minor, Equals, uint32(11))
 }
 
 func (ts *HTestSuite) TestMajorMinorNoDevice(c *C) {
@@ -292,7 +292,7 @@ func (ts *HTestSuite) TestMajorMinorNoDevice(c *C) {
 func (ts *HTestSuite) TestMakedev(c *C) {
 	// $ python -c 'import os;print(os.makedev(1,11))'
 	// 267
-	c.Assert(Makedev(1, 11), Equals, 267)
+	c.Assert(Makedev(1, 11), Equals, uint32(267))
 }
 
 func (ts *HTestSuite) TestUnpacksMknod(c *C) {
