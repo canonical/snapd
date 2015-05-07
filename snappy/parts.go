@@ -18,6 +18,7 @@
 package snappy
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
@@ -29,6 +30,29 @@ import (
 
 // SnapType represents the kind of snap (app, core, frameworks, oem)
 type SnapType string
+
+// MarshalJSON returns *m as the JSON encoding of m.
+func (m SnapType) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string(m))
+}
+
+// UnmarshalJSON sets *m to a copy of data.
+func (m *SnapType) UnmarshalJSON(data []byte) error {
+	var str string
+	if err := json.Unmarshal(data, &str); err != nil {
+		return err
+	}
+
+	// this is a workaround as the store sends "application" but snappy uses
+	// "app" for SnapTypeApp
+	if str == "application" {
+		*m = SnapTypeApp
+	} else {
+		*m = SnapType(str)
+	}
+
+	return nil
+}
 
 // SystemConfig is a config map holding configs for multiple packages
 type SystemConfig map[string]interface{}
@@ -158,19 +182,8 @@ func NewMetaLocalRepository() *MetaRepository {
 func NewMetaRepository() *MetaRepository {
 	// FIXME: make this a configuration file
 
-	m := new(MetaRepository)
-	m.all = []Repository{}
-	// its ok if repos fail if e.g. no dbus is available
-	if repo := NewSystemImageRepository(); repo != nil {
-		m.all = append(m.all, repo)
-	}
+	m := NewMetaLocalRepository()
 	if repo := NewUbuntuStoreSnapRepository(); repo != nil {
-		m.all = append(m.all, repo)
-	}
-	if repo := NewLocalSnapRepository(snapAppsDir); repo != nil {
-		m.all = append(m.all, repo)
-	}
-	if repo := NewLocalSnapRepository(snapOemDir); repo != nil {
 		m.all = append(m.all, repo)
 	}
 

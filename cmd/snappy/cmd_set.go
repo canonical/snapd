@@ -55,7 +55,7 @@ func set(args []string) (err error) {
 		return err
 	}
 
-	return snappy.SetProperty(pkgname, progress.MakeProgressBar(pkgname), args...)
+	return snappy.SetProperty(pkgname, progress.MakeProgressBar(), args...)
 }
 
 func parseSetPropertyCmdline(args ...string) (pkgname string, out []string, err error) {

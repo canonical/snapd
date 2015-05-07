@@ -68,6 +68,21 @@ printf "hello world"
 	err = ioutil.WriteFile(filepath.Join(binDir, "hello-world"), []byte(helloBinContent), 0755)
 	c.Assert(err, IsNil)
 
+	// unusual permissions for dir
+	tmpDir := filepath.Join(tempdir, "tmp")
+	err = os.Mkdir(tmpDir, 0755)
+	c.Assert(err, IsNil)
+	// avoid umask
+	err = os.Chmod(tmpDir, 01777)
+	c.Assert(err, IsNil)
+
+	// and file
+	someFile := filepath.Join(tempdir, "file-with-perm")
+	err = ioutil.WriteFile(someFile, []byte(""), 0666)
+	c.Assert(err, IsNil)
+	err = os.Chmod(someFile, 0666)
+	c.Assert(err, IsNil)
+
 	return tempdir
 }
 
@@ -425,4 +440,25 @@ func (s *SnapTestSuite) TestHashForFileForDevice(c *C) {
 	c.Assert(h.Name, Equals, "/dev/kmsg")
 	c.Assert(h.Device, Equals, "1,11")
 	c.Assert(h.Sha512, Equals, "")
+}
+
+func (s *SnapTestSuite) TestBuildAllPermissions(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+`)
+
+	resultSnap, err := Build(sourceDir, "")
+	c.Assert(err, IsNil)
+	defer os.Remove(resultSnap)
+
+	// check that the content looks sane
+	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_all.snap").CombinedOutput()
+	c.Assert(err, IsNil)
+
+	println(string(readFiles))
+
+	// check that we really have the right perms
+	c.Assert(strings.Contains(string(readFiles), `drwxrwxrwx`), Equals, true)
+	c.Assert(strings.Contains(string(readFiles), `-rw-rw-rw-`), Equals, true)
 }

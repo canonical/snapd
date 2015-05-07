@@ -191,7 +191,7 @@ type MockProgressMeter struct {
 	notified []string
 }
 
-func (m *MockProgressMeter) Start(total float64) {
+func (m *MockProgressMeter) Start(pkg string, total float64) {
 	m.total = total
 }
 func (m *MockProgressMeter) Set(current float64) {

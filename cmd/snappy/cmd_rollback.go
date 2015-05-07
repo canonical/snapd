@@ -58,7 +58,7 @@ func (x *cmdRollback) Execute(args []string) (err error) {
 		return errNeedPackageName
 	}
 
-	nowVersion, err := snappy.Rollback(pkg, version, progress.MakeProgressBar(pkg))
+	nowVersion, err := snappy.Rollback(pkg, version, progress.MakeProgressBar())
 	if err != nil {
 		return err
 	}
