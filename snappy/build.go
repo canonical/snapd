@@ -388,6 +388,14 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 			return os.Mkdir(dest, info.Mode())
 		}
 
+		if (info.Mode() & os.ModeSymlink) != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(target, dest)
+		}
+
 		// it's a file. Maybe we can link it?
 		if os.Link(path, dest) == nil {
 			// whee

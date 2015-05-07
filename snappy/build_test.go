@@ -59,11 +59,15 @@ some description`
 printf "hello world"
 `
 
-	// a example binary
+	// an example binary
 	binDir := filepath.Join(tempdir, "bin")
 	err = os.Mkdir(binDir, 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(binDir, "hello-world"), []byte(helloBinContent), 0755)
+	c.Assert(err, IsNil)
+
+	// an example symlink
+	err = os.Symlink("bin/hello-world", filepath.Join(tempdir, "symlink"))
 	c.Assert(err, IsNil)
 
 	return tempdir
@@ -114,7 +118,7 @@ integration:
 	// check that the content looks sane
 	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_multi.snap").Output()
 	c.Assert(err, IsNil)
-	for _, needle := range []string{"./meta/package.yaml", "./meta/readme.md", "./bin/hello-world"} {
+	for _, needle := range []string{"./meta/package.yaml", "./meta/readme.md", "./bin/hello-world", "./symlink -> bin/hello-world"} {
 		c.Assert(strings.Contains(string(readFiles), needle), Equals, true)
 	}
 }
