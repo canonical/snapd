@@ -122,5 +122,6 @@ func (e ErrCopySpecialFile) Error() string {
 	if e.err == nil {
 		return fmt.Sprintf("failed to copy device node: %q (%v)", e.output, e.exitCode)
 	}
+
 	return fmt.Sprintf("failed to copy device node: %q (%v)", e.output, e.err)
 }
