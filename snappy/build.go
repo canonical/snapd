@@ -412,8 +412,20 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 		}
 
 		dest := filepath.Join(buildDir, path[len(sourceDir):])
+
+		// handle dirs
 		if info.IsDir() {
 			return os.Mkdir(dest, info.Mode())
+		}
+
+		// handle char/block devices
+		if helpers.IsDevice(info.Mode()) {
+			return helpers.CopySpecialFile(path, dest)
+		}
+
+		// fail if its unsupported
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("can not handle type of file %s", path)
 		}
 
 		// it's a file. Maybe we can link it?

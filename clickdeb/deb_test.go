@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -175,7 +176,6 @@ func (s *ClickDebTestSuite) TestTarCreate(c *C) {
 	// create tar
 	tempdir := c.MkDir()
 	tarfile := filepath.Join(tempdir, "data.tar.xz")
-	tarfile = "/tmp/lala.tar.xz"
 	err = tarCreate(tarfile, builddir, func(path string) bool {
 		return !strings.HasSuffix(path, "exclude-me")
 	})
@@ -212,4 +212,17 @@ func (s *ClickDebTestSuite) TestTarCreate(c *C) {
 	r, err = regexp.Compile(`(.*)\.\n`)
 	c.Assert(err, IsNil)
 	c.Assert(r.Match(output), Equals, false)
+}
+
+func (s *ClickDebTestSuite) TestTarCreateUnknownTypeFailsWithError(c *C) {
+
+	builddir := c.MkDir()
+	err := syscall.Mkfifo(filepath.Join(builddir, "fifo"), 0644)
+	c.Assert(err, IsNil)
+
+	tempdir := c.MkDir()
+	tarfile := filepath.Join(tempdir, "data.tar.xz")
+
+	err = tarCreate(tarfile, builddir, nil)
+	c.Assert(err, ErrorMatches, "unsupported file type for.*")
 }
