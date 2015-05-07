@@ -256,13 +256,3 @@ type ErrApparmorGenerate struct {
 func (e ErrApparmorGenerate) Error() string {
 	return fmt.Sprintf("apparmor generate fails with %v: '%v'", e.exitCode, string(e.output))
 }
-
-// ErrMknod is returned if mknod fails
-type ErrMknod struct {
-	exitCode int
-	output   []byte
-}
-
-func (e ErrMknod) Error() string {
-	return fmt.Sprintf("failed to copy device node: '%v' (%v)", string(e.output), e.exitCode)
-}

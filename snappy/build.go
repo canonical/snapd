@@ -415,19 +415,7 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 
 		// handle char/block devices
 		if helpers.IsDevice(info.Mode()) {
-			// XXX: move into helpers.CopyFile and make that
-			//      helpers.CopyThing ?
-			cmd := exec.Command("cp", "-av", path, dest)
-			if output, err := cmd.CombinedOutput(); err != nil {
-				if exitCode, err := helpers.ExitCode(err); err == nil {
-					return &ErrMknod{
-						exitCode: exitCode,
-						output:   output,
-					}
-				}
-				return err
-			}
-			return nil
+			return helpers.CopySpecialFile(path, dest)
 		}
 
 		// fail if its unsupported

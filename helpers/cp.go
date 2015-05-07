@@ -20,6 +20,7 @@ package helpers
 import (
 	"fmt"
 	"os"
+	"os/exec"
 )
 
 // CopyFlag is used to tweak the behaviour of CopyFile
@@ -88,4 +89,33 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 	}
 
 	return nil
+}
+
+// CopySpecialFile is used to copy all the things that are not files
+// (like device nodes, named pipes etc)
+func CopySpecialFile(path, dest string) error {
+	// XXX: move into helpers.CopyFile and make that
+	//      helpers.CopyThing ?
+	cmd := exec.Command("cp", "-av", path, dest)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		if exitCode, err := ExitCode(err); err == nil {
+			return &ErrCopySpecialFile{
+				exitCode: exitCode,
+				output:   output,
+			}
+		}
+		return err
+	}
+
+	return nil
+}
+
+// ErrCopySpecialFile is returned if a special file copy fails
+type ErrCopySpecialFile struct {
+	exitCode int
+	output   []byte
+}
+
+func (e ErrCopySpecialFile) Error() string {
+	return fmt.Sprintf("failed to copy device node: %q (%v)", e.output, e.exitCode)
 }
