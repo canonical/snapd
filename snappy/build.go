@@ -407,8 +407,32 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 		}
 
 		dest := filepath.Join(buildDir, path[len(sourceDir):])
+
+		// handle dirs
 		if info.IsDir() {
 			return os.Mkdir(dest, info.Mode())
+		}
+
+		// handle char/block devices
+		if helpers.IsDevice(info.Mode()) {
+			// XXX: move into helpers.CopyFile and make that
+			//      helpers.CopyThing ?
+			cmd := exec.Command("cp", "-av", path, dest)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				if exitCode, err := helpers.ExitCode(err); err == nil {
+					return &ErrMknod{
+						exitCode: exitCode,
+						output:   output,
+					}
+				}
+				return err
+			}
+			return nil
+		}
+
+		// fail if its unsupported
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("can not handle type of file %s", path)
 		}
 
 		// it's a file. Maybe we can link it?

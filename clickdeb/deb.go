@@ -289,8 +289,8 @@ func tarCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 		}
 
 		// check if we support this type
-		if !st.Mode().IsRegular() && !helpers.IsSymlink(st.Mode()) && !st.Mode().IsDir() {
-			return nil
+		if !st.Mode().IsRegular() && !helpers.IsSymlink(st.Mode()) && !st.Mode().IsDir() && !helpers.IsDevice(st.Mode()) {
+			return fmt.Errorf("unsupported file type for %s", path)
 		}
 
 		// check our exclude function
@@ -305,6 +305,17 @@ func tarCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 		hdr, err := tar.FileInfoHeader(info, target)
 		if err != nil {
 			return err
+		}
+
+		// tar.FileInfoHeader does include the fact that its a
+		// char/block device, but does not set major/minor :/
+		if helpers.IsDevice(st.Mode()) {
+			major, minor, err := helpers.MajorMinor(st)
+			if err != nil {
+				return err
+			}
+			hdr.Devmajor = int64(major)
+			hdr.Devminor = int64(minor)
 		}
 
 		// exclude "."

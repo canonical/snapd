@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"launchpad.net/snappy/helpers"
 
@@ -425,4 +426,16 @@ func (s *SnapTestSuite) TestHashForFileForDevice(c *C) {
 	c.Assert(h.Name, Equals, "/dev/kmsg")
 	c.Assert(h.Device, Equals, "1,11")
 	c.Assert(h.Sha512, Equals, "")
+}
+
+func (s *SnapTestSuite) TestBuildFailsForUnknownType(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+`)
+	err := syscall.Mkfifo(filepath.Join(sourceDir, "fifo"), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = Build(sourceDir, "")
+	c.Assert(err, ErrorMatches, "can not handle type of file .*")
 }
