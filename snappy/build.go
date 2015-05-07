@@ -400,6 +400,10 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 		return err
 	}
 
+	// no umask here so that we get the permissions correct
+	oldUmask := syscall.Umask(0)
+	defer syscall.Umask(oldUmask)
+
 	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, errin error) (err error) {
 		if errin != nil {
 			return errin
