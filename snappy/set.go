@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"strings"
 
-	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 )
 
@@ -48,7 +47,7 @@ func SetProperty(pkgname string, inter progress.Meter, args ...string) (err erro
 		}
 		err := f(pkgname, s[1], inter)
 		if err != nil {
-			return logger.LogError(err)
+			return err
 		}
 	}
 

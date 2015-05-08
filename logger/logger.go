@@ -187,15 +187,3 @@ func LogAndPanic(err error) {
 	logger.Criticalf(err.Error())
 	panic(err)
 }
-
-// LogError logs the specified error (if set), then returns it to be dealt with by
-// higher-level parts of the system.
-func LogError(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	logger := loggo.GetLogger(LoggerName)
-	logger.Errorf(err.Error())
-	return err
-}

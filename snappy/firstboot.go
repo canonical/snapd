@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 
 	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
 
 	"gopkg.in/yaml.v2"
 )
@@ -57,7 +56,7 @@ func OemConfig() error {
 
 	oemSnap, err := activeSnapsByType(SnapTypeOem)
 	if err != nil {
-		return logger.LogError(err)
+		return err
 	}
 
 	if len(oemSnap) < 1 {
@@ -72,18 +71,18 @@ func OemConfig() error {
 	for pkgName, conf := range snap.OemConfig() {
 		configData, err := wrapConfig(pkgName, conf)
 		if err != nil {
-			return logger.LogError(err)
+			return err
 		}
 
 		snap := activeSnapByName(pkgName)
 		if snap == nil {
 			// We want to error early as this is a disparity and oem snap
 			// packaging error.
-			return logger.LogError(errNoSnapToConfig)
+			return errNoSnapToConfig
 		}
 
 		if _, err := snap.Config(configData); err != nil {
-			return logger.LogError(err)
+			return err
 		}
 	}
 
