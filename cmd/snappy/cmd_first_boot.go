@@ -32,7 +32,7 @@ func init() {
 		"internal",
 		&cmdInternalFirstBootOemConfig{})
 	if err != nil {
-		logger.LogAndPanic(err)
+		logger.Panic("unable to first_boot: %v", err)
 	}
 }
 

@@ -41,7 +41,7 @@ func init() {
 		longPurgeHelp,
 		&cmdPurge{})
 	if err != nil {
-		logger.LogAndPanic(err)
+		logger.Panic("unable to purge: %v", err)
 	}
 }
 
