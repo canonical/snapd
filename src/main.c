@@ -209,7 +209,7 @@ void setup_private_mount() {
         die("SNAP_APP_TMPDIR does not exist");
     }
 
-    // unshare() and CLONE_NEWNS are require linux >= 2.6.16 and glibc >= 2.14
+    // unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >= 2.14
     // if using an older glibc, you'd need -D_BSD_SOURCE or -D_SVID_SORUCE.
     if (unshare(CLONE_NEWNS) < 0) {
         die("unable to set up mount namespace");
