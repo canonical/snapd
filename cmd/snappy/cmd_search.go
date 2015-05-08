@@ -22,6 +22,7 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -30,11 +31,13 @@ type cmdSearch struct {
 }
 
 func init() {
-	var cmdSearchData cmdSearch
-	cmd, _ := parser.AddCommand("search",
+	cmd, err := parser.AddCommand("search",
 		"Search for packages to install",
 		"Query the store for available packages",
-		&cmdSearchData)
+		&cmdSearch{})
+	if err != nil {
+		logger.LogAndPanic(err)
+	}
 
 	cmd.Aliases = append(cmd.Aliases, "se")
 }

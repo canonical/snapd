@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
@@ -36,11 +37,13 @@ const shortHWAssignHelp = `Assign a hardware device to a package`
 const longHWAssignHelp = `This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package.`
 
 func init() {
-	var cmdHWAssignData cmdHWAssign
-	_, _ = parser.AddCommand("hw-assign",
+	_, err := parser.AddCommand("hw-assign",
 		shortHWAssignHelp,
 		longHWAssignHelp,
-		&cmdHWAssignData)
+		&cmdHWAssign{})
+	if err != nil {
+		logger.LogAndPanic(err)
+	}
 }
 
 func (x *cmdHWAssign) Execute(args []string) (err error) {

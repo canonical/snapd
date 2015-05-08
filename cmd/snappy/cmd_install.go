@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -37,11 +38,13 @@ type cmdInstall struct {
 }
 
 func init() {
-	var cmdInstallData cmdInstall
-	_, _ = parser.AddCommand("install",
+	_, err := parser.AddCommand("install",
 		"Install a snap package",
 		"Install a snap package",
-		&cmdInstallData)
+		&cmdInstall{})
+	if err != nil {
+		logger.LogAndPanic(err)
+	}
 }
 
 func (x *cmdInstall) Execute(args []string) (err error) {

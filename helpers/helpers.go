@@ -346,9 +346,9 @@ func MajorMinor(info os.FileInfo) (uint32, uint32, error) {
 	unixStat, ok := info.Sys().(*syscall.Stat_t)
 	if ok {
 		// see glibc: sysdeps/unix/sysv/linux/makedev.c
-		dev := uint32(unixStat.Rdev)
-		major := ((dev >> 8) & 0xfff) | ((dev >> 32) & ^uint32(0xfff))
-		minor := (dev & 0xff) | ((dev >> 12) & ^uint32(0xff))
+		dev := unixStat.Rdev
+		major := uint32((dev>>8)&0xfff) | (uint32(dev>>32) & ^uint32(0xfff))
+		minor := uint32(dev&0xff) | (uint32(dev>>12) & ^uint32(0xff))
 
 		return major, minor, nil
 	}

@@ -27,11 +27,13 @@ type cmdBooted struct {
 }
 
 func init() {
-	var cmdBootedData cmdBooted
-	parser.AddCommand("booted",
-		"Flag that rootfs booted successfully",
-		"Not necessary to run this command manually",
-		&cmdBootedData)
+	_, err := parser.AddCommand("booted",
+		"internal",
+		"internal",
+		&cmdBooted{})
+	if err != nil {
+		logger.LogAndPanic(err)
+	}
 }
 
 func (x *cmdBooted) Execute(args []string) (err error) {

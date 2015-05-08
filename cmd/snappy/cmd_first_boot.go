@@ -20,19 +20,21 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
+type cmdInternalFirstBootOemConfig struct{}
+
 func init() {
-	var cmdInternalFirstBootOemConfig cmdInternalFirstBootOemConfig
-	if _, err := parser.AddCommand("firstboot", "internal", "internal", &cmdInternalFirstBootOemConfig); err != nil {
-		// panic here as something must be terribly wrong if there is an
-		// error here
-		panic(err)
+	_, err := parser.AddCommand("firstboot",
+		"internal",
+		"internal",
+		&cmdInternalFirstBootOemConfig{})
+	if err != nil {
+		logger.LogAndPanic(err)
 	}
 }
-
-type cmdInternalFirstBootOemConfig struct{}
 
 func (x *cmdInternalFirstBootOemConfig) Execute(args []string) error {
 	err := snappy.OemConfig()

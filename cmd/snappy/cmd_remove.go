@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -30,11 +31,13 @@ type cmdRemove struct {
 }
 
 func init() {
-	var cmdRemoveData cmdRemove
-	_, _ = parser.AddCommand("remove",
+	_, err := parser.AddCommand("remove",
 		"Remove a snapp part",
 		"Remove a snapp part",
-		&cmdRemoveData)
+		&cmdRemove{})
+	if err != nil {
+		logger.LogAndPanic(err)
+	}
 }
 
 func (x *cmdRemove) Execute(args []string) (err error) {
