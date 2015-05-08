@@ -215,10 +215,12 @@ void setup_private_mount() {
         die("unable to set up mount namespace");
     }
 
+    // MS_PRIVATE needs linux > 2.6.11
     if (mount("none", "/tmp", NULL, MS_PRIVATE, NULL) != 0) {
         die("unable to make /tmp/ private");
     }
 
+    // MS_BIND is there from linux 2.4
     if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
         die("unable to bind private /tmp");
     }
