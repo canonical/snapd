@@ -55,6 +55,8 @@ func main() {
 			// the CLI user.
 			err = snappy.ErrNeedRoot
 		}
+		// Debug, because the parser will print the error for us
+		logger.Debug("%v failed: %v", os.Args, err)
 		os.Exit(1)
 	}
 }
