@@ -27,7 +27,7 @@ import (
 )
 
 type Logger interface {
-	// Notify is for messages that the user should see
+	// Notice is for messages that the user should see
 	Notice(msg string)
 	// Debug is for messages that the user should be able to find if they're debugging something
 	Debug(msg string)

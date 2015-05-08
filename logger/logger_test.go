@@ -18,11 +18,11 @@
 package logger
 
 import (
+	"bytes"
+	"log"
 	"testing"
 
-	"bytes"
 	. "launchpad.net/gocheck"
-	"log"
 )
 
 // Hook up gocheck into the "go test" runner
