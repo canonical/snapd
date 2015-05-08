@@ -49,4 +49,8 @@
 
     # read apparmor to figure out if we need cgroups
     /var/lib/apparmor/clicks/* r,
+
+    # make /tmp/ private, and bind-mount a private /tmp
+    mount options=(rw private) -> /tmp/,
+    mount options=(rw bind) /tmp/snaps.[0-9]*/**/tmp/ -> /tmp/,
 }
