@@ -35,7 +35,7 @@ type cmdList struct {
 
 const shortListHelp = `List active components installed on a snappy system`
 
-const longListHelp = `Provides a list of all active components installed on a snappy system
+const longListHelp = `Provides a list of all active components installed on a snappy system.
 
 If requested, the command will find out if there are updates for any of the components and indicate that by appending a * to the date. This will be slower as it requires a round trip to the app store on the network.
 
@@ -44,11 +44,11 @@ The developer information refers to non-mainline versions of a package (much lik
 When a verbose listing is requested, information about the channel used is displayed; which is one of alpha, beta, rc or stable, and all fields are fully expanded too. In some cases, older (inactive) versions of snappy packages will be installed, these will be shown in the verbose output and the active version indicated with a * appended to the name of the component.`
 
 func init() {
-	var cmdListData cmdList
-	cmd, err := parser.AddCommand("list", shortListHelp, longListHelp, &cmdListData)
+	cmd, err := parser.AddCommand("list",
+		shortListHelp,
+		longListHelp,
+		&cmdList{})
 	if err != nil {
-		// panic here as something must be terribly wrong if there is an
-		// error here
 		logger.LogAndPanic(err)
 	}
 

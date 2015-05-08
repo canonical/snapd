@@ -29,6 +29,7 @@ import (
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/logger"
 )
 
 // #include <sys/prctl.h>
@@ -145,11 +146,12 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 }
 
 func init() {
-	var cmdInternalUnpackData cmdInternalUnpack
-	if _, err := parser.AddCommand("internal-unpack", "internal", "internal", &cmdInternalUnpackData); err != nil {
-		// panic here as something must be terribly wrong if there is an
-		// error here
-		panic(err)
+	_, err := parser.AddCommand("internal-unpack",
+		"internal",
+		"internal",
+		&cmdInternalUnpack{})
+	if err != nil {
+		logger.LogAndPanic(err)
 	}
 }
 

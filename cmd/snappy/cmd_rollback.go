@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -38,11 +39,13 @@ const longRollbackHelp = `Allows rollback of a snap to a previous installed vers
 `
 
 func init() {
-	var cmdRollbackData cmdRollback
-	_, _ = parser.AddCommand("rollback",
+	_, err := parser.AddCommand("rollback",
 		shortRollbackHelp,
 		longRollbackHelp,
-		&cmdRollbackData)
+		&cmdRollback{})
+	if err != nil {
+		logger.LogAndPanic(err)
+	}
 }
 
 func (x *cmdRollback) Execute(args []string) (err error) {

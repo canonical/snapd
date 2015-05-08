@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -32,11 +33,13 @@ type cmdBuild struct {
 const longBuildHelp = `Creates a snap package and if available, runs the review scripts.`
 
 func init() {
-	var cmdBuildData cmdBuild
-	cmd, _ := parser.AddCommand("build",
+	cmd, err := parser.AddCommand("build",
 		"Builds a snap package",
 		longBuildHelp,
-		&cmdBuildData)
+		&cmdBuild{})
+	if err != nil {
+		logger.LogAndPanic(err)
+	}
 
 	cmd.Aliases = append(cmd.Aliases, "bu")
 }

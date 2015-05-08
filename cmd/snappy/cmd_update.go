@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -34,11 +35,13 @@ type cmdUpdate struct {
 }
 
 func init() {
-	var cmdUpdateData cmdUpdate
-	_, _ = parser.AddCommand("update",
+	_, err := parser.AddCommand("update",
 		"Update all installed parts",
 		"Ensures system is running with latest parts",
-		&cmdUpdateData)
+		&cmdUpdate{})
+	if err != nil {
+		logger.LogAndPanic(err)
+	}
 }
 
 const (

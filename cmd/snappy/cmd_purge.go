@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -35,9 +36,12 @@ const (
 )
 
 func init() {
-	_, err := parser.AddCommand("purge", shortPurgeHelp, longPurgeHelp, &cmdPurge{})
+	_, err := parser.AddCommand("purge",
+		shortPurgeHelp,
+		longPurgeHelp,
+		&cmdPurge{})
 	if err != nil {
-		panic(err)
+		logger.LogAndPanic(err)
 	}
 }
 

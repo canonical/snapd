@@ -43,10 +43,11 @@ Providing a package name will display information about a specific installed pac
 The verbose version of the info command for a package will also tell you the available channels for that package, when it was installed for the first time, disk space utilization, and in the case of frameworks, which apps are able to use the framework.`
 
 func init() {
-	var cmdInfoData cmdInfo
-	if _, err := parser.AddCommand("info", shortInfoHelp, longInfoHelp, &cmdInfoData); err != nil {
-		// panic here as something must be terribly wrong if there is an
-		// error here
+	_, err := parser.AddCommand("info",
+		shortInfoHelp,
+		longInfoHelp,
+		&cmdInfo{})
+	if err != nil {
 		logger.LogAndPanic(err)
 	}
 }

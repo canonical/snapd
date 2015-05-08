@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
@@ -38,11 +39,13 @@ Example:
 `
 
 func init() {
-	var cmdSetData cmdSet
-	_, _ = parser.AddCommand("set",
+	_, err := parser.AddCommand("set",
 		"Set properties of system or package",
 		setHelp,
-		&cmdSetData)
+		&cmdSet{})
+	if err != nil {
+		logger.LogAndPanic(err)
+	}
 }
 
 func (x *cmdSet) Execute(args []string) (err error) {
