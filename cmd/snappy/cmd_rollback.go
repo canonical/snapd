@@ -44,7 +44,7 @@ func init() {
 		longRollbackHelp,
 		&cmdRollback{})
 	if err != nil {
-		logger.Panic("unable to rollback: %v", err)
+		logger.Panicf("unable to rollback: %v", err)
 	}
 }
 
