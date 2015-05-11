@@ -48,7 +48,7 @@ func init() {
 		longInfoHelp,
 		&cmdInfo{})
 	if err != nil {
-		logger.Panic("unable to info: %v", err)
+		logger.Panicf("unable to info: %v", err)
 	}
 }
 

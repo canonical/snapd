@@ -14,7 +14,7 @@ func init() {
 		"internal",
 		&cmdInternalRunHooks{})
 	if err != nil {
-		logger.Panic("unable to internal_run_hooks: %v", err)
+		logger.Panicf("unable to internal_run_hooks: %v", err)
 	}
 }
 
