@@ -32,19 +32,21 @@ service/binary name and package version. The `APP_ID` takes the form of
 and the app was uploaded to the `myorigin` namespace in the store, then the
 `APP_ID` for the `bar` service is `foo.myorigin_bar_0.1`. The `APP_ID` is used
 throughout the system including in the enforcement of security policy by the
-app launcher. The launcher will:
+app launcher.
 
-* setup various environment variables (eg, `SNAP_APP_ARCH`,
+Under the hood, the launcher:
+
+* sets up various environment variables (eg, `SNAP_APP_ARCH`,
   `SNAP_APP_DATA_PATH`, `SNAP_APP_PATH`, `SNAP_APP_TMPDIR`,
   `SNAP_APP_USER_DATA_PATH`, `SNAP_OLD_PWD`, `HOME` and `TMPDIR` (set to
   `SNAP_APP_TMPDIR`). See the
    [snappy FHS](https://developer.ubuntu.com/en/snappy/guides/filesystem-layout/) for details.
-* chdir to `SNAP_APP_PATH` (the install directory)
-* setup a device cgroup with default devices (eg, /dev/null, /dev/urandom, etc)
-  and any devices which are assigned to this app via OEM snaps or
+* changes directory to `SNAP_APP_PATH` (the install directory)
+* sets up a device cgroup with default devices (eg, /dev/null, /dev/urandom,
+  etc) and any devices which are assigned to this app via OEM snaps or
   `snappy hw-assign` (eg, `snappy hw-assign foo.myorigin /dev/bar`).
-* setup the seccomp filter
-* exec the app under AppArmor profile under a default nice value
+* sets up the seccomp filter
+* executes the app under an AppArmor profile under a default nice value
 
 The launcher is used when launching both services and when using CLI binaries.
 The security policy and launcher enforce application isolation as per the
