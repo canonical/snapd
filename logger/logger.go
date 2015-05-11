@@ -26,6 +26,7 @@ import (
 	"sync"
 )
 
+// A Logger is a fairly minimal logging tool.
 type Logger interface {
 	// Notice is for messages that the user should see
 	Notice(msg string)
@@ -34,8 +35,11 @@ type Logger interface {
 }
 
 const (
-	DefaultFlags   = log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile
-	SyslogFlags    = log.Lshortfile
+	// DefaultFlags are passed to the default console log.Logger
+	DefaultFlags = log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile
+	// SyslogFlags are passed to the default syslog log.Logger
+	SyslogFlags = log.Lshortfile
+	// SyslogPriority for the default syslog log.Logger
 	SyslogPriority = syslog.LOG_DEBUG | syslog.LOG_USER
 )
 
@@ -52,8 +56,8 @@ var (
 	lock   sync.Mutex
 )
 
-// Panic notifies the user and then panics
-func Panic(format string, v ...interface{}) {
+// Panicf notifies the user and then panics
+func Panicf(format string, v ...interface{}) {
 	msg := fmt.Sprintf(format, v...)
 
 	lock.Lock()
@@ -63,8 +67,8 @@ func Panic(format string, v ...interface{}) {
 	panic(msg)
 }
 
-// Notice notifies the user of something
-func Notice(format string, v ...interface{}) {
+// Noticef notifies the user of something
+func Noticef(format string, v ...interface{}) {
 	msg := fmt.Sprintf(format, v...)
 
 	lock.Lock()
@@ -73,8 +77,8 @@ func Notice(format string, v ...interface{}) {
 	logger.Notice(msg)
 }
 
-// Debug records something in the debug log
-func Debug(format string, v ...interface{}) {
+// Debugf records something in the debug log
+func Debugf(format string, v ...interface{}) {
 	msg := fmt.Sprintf(format, v...)
 
 	lock.Lock()
@@ -83,7 +87,7 @@ func Debug(format string, v ...interface{}) {
 	logger.Debug(msg)
 }
 
-// Set the global logger to the given one
+// SetLogger sets the global logger to the given one
 func SetLogger(l Logger) {
 	lock.Lock()
 	defer lock.Unlock()
@@ -122,6 +126,7 @@ func NewConsoleLog(w io.Writer, flag int) (*ConsoleLog, error) {
 	}, nil
 }
 
+// SimpleSetup creates the default (console) logger
 func SimpleSetup() error {
 	l, err := NewConsoleLog(os.Stderr, DefaultFlags)
 	if err != nil {

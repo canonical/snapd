@@ -216,7 +216,7 @@ WantedBy={{.ServiceSystemdTarget}}
 	}
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
 		// this can never happen, except we forget a variable
-		logger.Panic("unable to execute template: %v", err)
+		logger.Panicf("unable to execute template: %v", err)
 	}
 
 	return templateOut.String()

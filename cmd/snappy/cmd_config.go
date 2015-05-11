@@ -44,7 +44,7 @@ func init() {
 		longConfigHelp,
 		&cmdConfig{})
 	if err != nil {
-		logger.Panic("unable to config: %v", err)
+		logger.Panicf("unable to config: %v", err)
 	}
 }
 

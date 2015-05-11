@@ -36,7 +36,7 @@ func init() {
 		"Query the store for available packages",
 		&cmdSearch{})
 	if err != nil {
-		logger.Panic("unable to search: %v", err)
+		logger.Panicf("unable to search: %v", err)
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "se")

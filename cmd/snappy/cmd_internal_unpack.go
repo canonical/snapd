@@ -151,7 +151,7 @@ func init() {
 		"internal",
 		&cmdInternalUnpack{})
 	if err != nil {
-		logger.Panic("unable to internal_unpack: %v", err)
+		logger.Panicf("unable to internal_unpack: %v", err)
 	}
 }
 

@@ -42,7 +42,7 @@ func init() {
 		longHWUnassignHelp,
 		&cmdHWUnassign{})
 	if err != nil {
-		logger.Panic("unable to hwunassign: %v", err)
+		logger.Panicf("unable to hwunassign: %v", err)
 	}
 }
 

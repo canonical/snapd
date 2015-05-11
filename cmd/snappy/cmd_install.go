@@ -43,7 +43,7 @@ func init() {
 		"Install a snap package",
 		&cmdInstall{})
 	if err != nil {
-		logger.Panic("unable to install: %v", err)
+		logger.Panicf("unable to install: %v", err)
 	}
 }
 

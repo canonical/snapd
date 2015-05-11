@@ -61,7 +61,7 @@ func (s *LogSuite) TestNew(c *C) {
 	c.Check(l.log, NotNil)
 }
 
-func (s *LogSuite) TestDebug(c *C) {
+func (s *LogSuite) TestDebugf(c *C) {
 	var logbuf bytes.Buffer
 	var sysbuf bytes.Buffer
 	l, err := NewConsoleLog(&logbuf, DefaultFlags)
@@ -70,12 +70,12 @@ func (s *LogSuite) TestDebug(c *C) {
 	l.sys = log.New(&sysbuf, "", SyslogFlags)
 	SetLogger(l)
 
-	Debug("xyzzy")
+	Debugf("xyzzy")
 	c.Check(sysbuf.String(), Matches, `(?m).*logger_test\.go:\d+: DEBUG: xyzzy`)
 	c.Check(logbuf.String(), Equals, "")
 }
 
-func (s *LogSuite) TestNotice(c *C) {
+func (s *LogSuite) TestNoticef(c *C) {
 	var logbuf bytes.Buffer
 	var sysbuf bytes.Buffer
 	l, err := NewConsoleLog(&logbuf, DefaultFlags)
@@ -84,12 +84,12 @@ func (s *LogSuite) TestNotice(c *C) {
 	l.sys = log.New(&sysbuf, "", SyslogFlags)
 	SetLogger(l)
 
-	Notice("xyzzy")
+	Noticef("xyzzy")
 	c.Check(sysbuf.String(), Matches, `(?m).*logger_test\.go:\d+: xyzzy`)
 	c.Check(logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: xyzzy`)
 }
 
-func (s *LogSuite) TestPanic(c *C) {
+func (s *LogSuite) TestPanicf(c *C) {
 	var logbuf bytes.Buffer
 	var sysbuf bytes.Buffer
 	l, err := NewConsoleLog(&logbuf, DefaultFlags)
@@ -98,7 +98,7 @@ func (s *LogSuite) TestPanic(c *C) {
 	l.sys = log.New(&sysbuf, "", SyslogFlags)
 	SetLogger(l)
 
-	c.Check(func() { Panic("xyzzy") }, Panics, "xyzzy")
+	c.Check(func() { Panicf("xyzzy") }, Panics, "xyzzy")
 	c.Check(sysbuf.String(), Matches, `(?m).*logger_test\.go:\d+: PANIC xyzzy`)
 	c.Check(logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: PANIC xyzzy`)
 }
