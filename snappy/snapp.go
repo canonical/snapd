@@ -264,7 +264,7 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	var m packageYaml
 	err := yaml.Unmarshal(yamlData, &m)
 	if err != nil {
-		logger.Notice("Can not parse '%s'", yamlData)
+		logger.Noticef("Can not parse '%s'", yamlData)
 		return nil, err
 	}
 
@@ -283,7 +283,7 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	}
 
 	if m.DeprecatedFramework != "" {
-		logger.Notice(`Use of deprecated "framework" key in yaml`)
+		logger.Noticef(`Use of deprecated "framework" key in yaml`)
 		if len(m.Frameworks) != 0 {
 			return nil, ErrInvalidFrameworkSpecInYaml
 		}

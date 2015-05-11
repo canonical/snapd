@@ -134,7 +134,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		fn := filepath.Join(baseDir, sd.SecurityPolicy.Seccomp)
 		content, err := ioutil.ReadFile(fn)
 		if err != nil {
-			logger.Notice("WARNING: failed to read %q: %v", fn, err)
+			logger.Noticef("WARNING: failed to read %q: %v", fn, err)
 		}
 		return content, err
 	}
@@ -156,7 +156,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		var s securitySeccompOverride
 		err := readSeccompOverride(fn, &s)
 		if err != nil {
-			logger.Notice("WARNING: failed to read %q: %v", fn, err)
+			logger.Noticef("WARNING: failed to read %q: %v", fn, err)
 			return nil, err
 		}
 
@@ -197,7 +197,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 
 	content, err := runScFilterGen(args...)
 	if err != nil {
-		logger.Notice("WARNING: %v failed", args)
+		logger.Noticef("WARNING: %v failed", args)
 	}
 
 	return content, err
@@ -211,16 +211,16 @@ func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 
 	err = yaml.Unmarshal(yamlData, &s)
 	if err != nil {
-		logger.Notice("ERROR: Can not parse %q", string(yamlData))
+		logger.Noticef("ERROR: Can not parse %q", string(yamlData))
 		return err
 	}
 	// These must always be specified together
 	if s.PolicyVersion == 0 && s.PolicyVendor != "" {
 		s.PolicyVendor = ""
-		logger.Notice("WARNING: policy-version not set with policy-vendor. Skipping 'policy-vendor'")
+		logger.Noticef("WARNING: policy-version not set with policy-vendor. Skipping 'policy-vendor'")
 	} else if s.PolicyVersion != 0 && s.PolicyVendor == "" {
 		s.PolicyVersion = 0
-		logger.Notice("WARNING: policy-vendor not set with policy-version. Skipping 'policy-version'")
+		logger.Noticef("WARNING: policy-vendor not set with policy-version. Skipping 'policy-version'")
 	}
 
 	return nil

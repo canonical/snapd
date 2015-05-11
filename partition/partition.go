@@ -249,7 +249,7 @@ func signalHandler(sig os.Signal) {
 	err := undoMounts(false)
 	if err != nil {
 		// FIXME: use logger
-		logger.Notice("ERROR: failed to unmount: %v", err)
+		logger.Noticef("ERROR: failed to unmount: %v", err)
 	}
 }
 

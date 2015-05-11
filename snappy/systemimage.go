@@ -327,12 +327,12 @@ func makePartFromSystemImageConfigFile(p partition.Interface, channelIniPath str
 	defer f.Close()
 	err = cfg.Read(f)
 	if err != nil {
-		logger.Notice("Can not parse config %q: %v", channelIniPath, err)
+		logger.Noticef("Can not parse config %q: %v", channelIniPath, err)
 		return nil, err
 	}
 	st, err := os.Stat(channelIniPath)
 	if err != nil {
-		logger.Notice("Can not stat %q: %v", channelIniPath, err)
+		logger.Noticef("Can not stat %q: %v", channelIniPath, err)
 		return nil, err
 	}
 
@@ -401,7 +401,7 @@ func makeOtherPart(p partition.Interface) Part {
 		configFile := filepath.Join(systemImageRoot, otherRoot, systemImageChannelConfig)
 		part, err = makePartFromSystemImageConfigFile(p, configFile, false)
 		if err != nil {
-			logger.Notice("Can not make system-image part for %q: %v", configFile, err)
+			logger.Noticef("Can not make system-image part for %q: %v", configFile, err)
 		}
 		return err
 	})

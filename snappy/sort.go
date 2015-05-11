@@ -148,11 +148,11 @@ func compareSubversion(va, vb string) int {
 //   +1 if a is bigger than b
 func VersionCompare(va, vb string) (res int) {
 	if !VersionIsValid(va) {
-		logger.Notice("Invalid version %q, using '0' instead. Expect wrong results", va)
+		logger.Noticef("Invalid version %q, using '0' instead. Expect wrong results", va)
 		va = "0"
 	}
 	if !VersionIsValid(vb) {
-		logger.Notice("Invalid version %q, using '0' instead. Expect wrong results", vb)
+		logger.Noticef("Invalid version %q, using '0' instead. Expect wrong results", vb)
 		vb = "0"
 	}
 
