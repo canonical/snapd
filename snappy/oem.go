@@ -151,7 +151,7 @@ func cleanupOemHardwareUdevRules(m *packageYaml) error {
 		jsonAdditionalPath := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
 		err = os.Remove(jsonAdditionalPath)
 		if err != nil && !os.IsNotExist(err) {
-			logger.Notice("Failed to remove %q: %v", jsonAdditionalPath, err)
+			logger.Noticef("Failed to remove %q: %v", jsonAdditionalPath, err)
 		}
 	}
 

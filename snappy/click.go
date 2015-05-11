@@ -127,7 +127,7 @@ func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error
 		exitCode, err := helpers.ExitCode(err)
 		if err == nil {
 			if allowUnauthenticated && allowUnauthenticatedOkExitCode(exitCode) {
-				logger.Notice("Signature check failed, but installing anyway as requested")
+				logger.Noticef("Signature check failed, but installing anyway as requested")
 				return nil
 			}
 			return &ErrSignature{exitCode: exitCode}
@@ -195,7 +195,7 @@ func systemClickHooks() (hooks map[string]clickHook, err error) {
 	for _, f := range hookFiles {
 		hook, err := readClickHookFile(f)
 		if err != nil {
-			logger.Notice("Can't read hook file %q: %v", f, err)
+			logger.Noticef("Can't read hook file %q: %v", f, err)
 			continue
 		}
 		hooks[hook.name] = hook
@@ -235,7 +235,7 @@ func iterHooks(manifest clickManifest, inhibitHooks bool, f iterHooksFunc) error
 
 			systemHook, ok := systemHooks[hookName]
 			if !ok {
-				logger.Notice("WARNING: Skipping hook %q", hookName)
+				logger.Noticef("WARNING: Skipping hook %q", hookName)
 				continue
 			}
 
@@ -243,7 +243,7 @@ func iterHooks(manifest clickManifest, inhibitHooks bool, f iterHooksFunc) error
 
 			if _, err := os.Stat(dst); err == nil {
 				if err := os.Remove(dst); err != nil {
-					logger.Notice("Warning: failed to remove %q: %v", dst, err)
+					logger.Noticef("Warning: failed to remove %q: %v", dst, err)
 				}
 			}
 
@@ -635,12 +635,12 @@ func removePackageServices(baseDir string, inter interacter) error {
 		}
 
 		if err := os.Remove(generateServiceFileName(m, service)); err != nil && !os.IsNotExist(err) {
-			logger.Notice("Warning: failed to remove service file for %q: %v", serviceName, err)
+			logger.Noticef("Warning: failed to remove service file for %q: %v", serviceName, err)
 		}
 
 		// Also remove DBus system policy file
 		if err := os.Remove(generateBusPolicyFileName(m, service)); err != nil && !os.IsNotExist(err) {
-			logger.Notice("Warning: failed to remove bus policy file for service %q: %v", serviceName, err)
+			logger.Noticef("Warning: failed to remove bus policy file for service %q: %v", serviceName, err)
 		}
 	}
 
@@ -868,7 +868,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 
 	manifestData, err := d.ControlMember("manifest")
 	if err != nil {
-		logger.Notice("Snap inspect failed for %q: %v", snapFile, err)
+		logger.Noticef("Snap inspect failed for %q: %v", snapFile, err)
 		return "", err
 	}
 
@@ -938,14 +938,14 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	dataDir := filepath.Join(snapDataDir, fullName, manifest.Version)
 
 	if err := helpers.EnsureDir(instDir, 0755); err != nil {
-		logger.Notice("WARNING: Can not create %q: %v", instDir, err)
+		logger.Noticef("WARNING: Can not create %q: %v", instDir, err)
 	}
 
 	// if anything goes wrong here we cleanup
 	defer func() {
 		if err != nil {
 			if e := os.RemoveAll(instDir); e != nil && !os.IsNotExist(e) {
-				logger.Notice("Warning: failed to remove %q: %v", instDir, e)
+				logger.Noticef("Warning: failed to remove %q: %v", instDir, e)
 			}
 		}
 	}()
@@ -991,7 +991,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		defer func() {
 			if err != nil {
 				if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
-					logger.Notice("setting old version back to active failed: %v", cerr)
+					logger.Noticef("setting old version back to active failed: %v", cerr)
 				}
 			}
 		}()
@@ -1007,7 +1007,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	defer func() {
 		if err != nil {
 			if cerr := removeSnapData(fullName, manifest.Version); cerr != nil {
-				logger.Notice("when clenaning up data for %s %s: %v", manifest.Name, manifest.Version, cerr)
+				logger.Noticef("when clenaning up data for %s %s: %v", manifest.Name, manifest.Version, cerr)
 			}
 		}
 	}()
@@ -1021,7 +1021,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	defer func() {
 		if err != nil && currentActiveDir != "" {
 			if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
-				logger.Notice("when setting old %s version back to active: %v", manifest.Name, cerr)
+				logger.Noticef("when setting old %s version back to active: %v", manifest.Name, cerr)
 			}
 		}
 	}()
@@ -1211,7 +1211,7 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 
 	// and finally the current symlink
 	if err := os.Remove(currentSymlink); err != nil {
-		logger.Notice("Warning: failed to remove %q: %v", currentSymlink, err)
+		logger.Noticef("Warning: failed to remove %q: %v", currentSymlink, err)
 	}
 
 	return nil
@@ -1272,7 +1272,7 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 
 	// FIXME: we want to get rid of the current symlink
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Notice("Warning: failed to remove %q: %v", currentActiveSymlink, err)
+		logger.Noticef("Warning: failed to remove %q: %v", currentActiveSymlink, err)
 	}
 
 	// symlink is relative to parent dir
