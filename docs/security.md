@@ -8,8 +8,10 @@ This document describes how to configure the security policies for snap
 packages and builds upon the packaging declaration as defined in `meta.md`.
 
 ## How policy is applied
-Security policy is typically defined by declaring a security template and any
-additional security groups to extend the policy provided by the template. If
+Application authors should not have to know about or understand the lowlevel
+implementation details on how security policy is enforced. Instead, security
+policy is typically defined by declaring a security template to use and any
+additional security caps to extend the policy provided by the template. If
 unspecified, default confinement allows the snap to run as a network client.
 
 Applications are tracked by the system by using the concept of an
@@ -30,20 +32,31 @@ service/binary name and package version. The `APP_ID` takes the form of
 and the app was uploaded to the `myorigin` namespace in the store, then the
 `APP_ID` for the `bar` service is `foo.myorigin_bar_0.1`. The `APP_ID` is used
 throughout the system including in the enforcement of security policy by the
-app launcher. The launcher will:
+app launcher.
 
-* setup various environment variables (eg, `SNAP_APP_ARCH`,
+Under the hood, the launcher:
+
+* sets up various environment variables (eg, `SNAP_APP_ARCH`,
   `SNAP_APP_DATA_PATH`, `SNAP_APP_PATH`, `SNAP_APP_TMPDIR`,
   `SNAP_APP_USER_DATA_PATH`, `SNAP_OLD_PWD`, `HOME` and `TMPDIR` (set to
   `SNAP_APP_TMPDIR`). See the
    [snappy FHS](https://developer.ubuntu.com/en/snappy/guides/filesystem-layout/) for details.
-* chdir to `SNAP_APP_PATH` (the install directory)
-* setup a device cgroup and add any devices which are assigned to this app
-* setup the seccomp filter
-* exec the app under AppArmor profile under a default nice value
+* changes directory to `SNAP_APP_PATH` (the install directory)
+* sets up a device cgroup with default devices (eg, /dev/null, /dev/urandom,
+  etc) and any devices which are assigned to this app via OEM snaps or
+  `snappy hw-assign` (eg, `snappy hw-assign foo.myorigin /dev/bar`).
+* sets up the seccomp filter
+* executes the app under an AppArmor profile under a default nice value
 
-The launcher will be used when launching both services and when using CLI
-binaries. The launcher enforces application isolation as per the snappy FHS.
+The launcher is used when launching both services and CLI binaries. The
+security policy and launcher enforce application isolation as per the snappy
+FHS.
+
+This combination of restrictive AppArmor profiles (which mediate file access,
+application execution, Linux capabilities(7), mount, ptrace, IPC, signals,
+coarse-grained networking), clearly defined application-specific filesystem
+areas, whitelist syscall filtering via seccomp and device cgroups provides for
+strong application confinement and isolation (see below for future work).
 
 ### AppArmor
 Upon snap package install, `package.yaml` is examined and AppArmor profiles are
@@ -157,13 +170,40 @@ additional privilege).
 The available templates and policy groups of the target system can be seen by
 running `snappy-security list` on the target system.
 
+## Debugging
+To check to see if you have any denials:
+
+    $ sudo grep audit /var/log/syslog
+
+An AppArmor denial will look something like:
+
+    audit: type=1400 audit(1431384420.408:319): apparmor="DENIED" operation="mkdir" profile="foo_bar_0.1" name="/var/lib/foo" pid=637 comm="bar" requested_mask="c" denied_mask="c" fsuid=0 ouid=0
+
+If there are no AppArmor denials, AppArmor isn't blocking the app.
+
+A seccomp denial will look something like:
+
+    audit: type=1326 audit(1430766107.122:16): auid=1000 uid=1000 gid=1000 ses=15 pid=1491 comm="env" exe="/bin/bash" sig=31 arch=40000028 syscall=983045 compat=0 ip=0xb6fb0bd6 code=0x0
+
+The `syscall=983045` can be resolved with the `scmp_sys_resolver` command:
+
+    $ scmp_sys_resolver 983045
+    set_tls
+
+If there are no seccomp denials, seccomp isn't blocking the app.
+
+For more information, please see
+[debugging](https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#Debugging).
+
 ## Future
 The following is planned:
 
 * launcher:
+ * utilize syscall argument filtering
  * setup additional cgroups (tag network traffic, memory)
  * setup iptables using cgroup tags (for internal app access)
  * drop privileges to uid of service
+* fine-grained network mediation via AppArmor
 * `sockets`: (optional) `AF_UNIX` abstract socket definition for coordinated
   snap communications. Abstract sockets will be namespaced and yaml is such
   that (client) apps wanting to use the socket don't have to declare anything
