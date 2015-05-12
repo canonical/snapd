@@ -48,12 +48,12 @@ Under the hood, the launcher:
 * sets up the seccomp filter
 * executes the app under an AppArmor profile under a default nice value
 
-The launcher is used when launching both services and when using CLI binaries.
-The security policy and launcher enforce application isolation as per the
-snappy FHS.
+The launcher is used when launching both services and CLI binaries. The
+security policy and launcher enforce application isolation as per the snappy
+FHS.
 
 This combination of restrictive AppArmor profiles (which mediate file access,
-applicaiton execution, Linux capabilities(7), mount, ptrace, IPC, signals,
+application execution, Linux capabilities(7), mount, ptrace, IPC, signals,
 coarse-grained networking), clearly defined application-specific filesystem
 areas, whitelist syscall filtering via seccomp and device cgroups provides for
 strong application confinement and isolation (see below for future work).
@@ -177,9 +177,9 @@ To check to see if you have any denials:
 
 An AppArmor denial will look something like:
 
-    apparmor="DENIED" operation="mkdir" profile="foo_bar_0.1" name="/var/lib/foo" pid=637 comm="bar" requested_mask="c" denied_mask="c" fsuid=0 ouid=0
+    audit: type=1400 audit(1431384420.408:319): apparmor="DENIED" operation="mkdir" profile="foo_bar_0.1" name="/var/lib/foo" pid=637 comm="bar" requested_mask="c" denied_mask="c" fsuid=0 ouid=0
 
-If there are no AppArmor denials, AppArmor shouldn't be blocking the app.
+If there are no AppArmor denials, AppArmor isn't blocking the app.
 
 A seccomp denial will look something like:
 
@@ -190,10 +190,10 @@ The `syscall=983045` can be resolved with the `scmp_sys_resolver` command:
     $ scmp_sys_resolver 983045
     set_tls
 
-If there are no seccomp denials, it shouldn't be blocking the app.
+If there are no seccomp denials, seccomp isn't blocking the app.
 
 For more information, please see
-[debugging](https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement).
+[debugging](https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#Debugging).
 
 ## Future
 The following is planned:
