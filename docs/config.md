@@ -8,7 +8,7 @@ a configuration handler that can transform yaml into the app's native
 configuration format.
 
 We plan also to support a schema file for the yaml to make editing
-simpler, for example web based editing of config.  The format of the
+simpler, for example web based editing of config. The format of the
 configuration is as follows:
 
 	config:
