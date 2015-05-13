@@ -14,11 +14,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#include<stdio.h>
-#include<stdlib.h>
-#include<stdarg.h>
-#include<string.h>
 #include <errno.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "utils.h"
 
@@ -72,7 +74,7 @@ void write_string_to_file(const char *filepath, const char *buf) {
    fclose(f);
 }
 
-void must_snprintf(char *str, size_t size, const char *format, ...) {
+int must_snprintf(char *str, size_t size, const char *format, ...) {
    int n = -1;
 
    va_list va;
@@ -82,4 +84,17 @@ void must_snprintf(char *str, size_t size, const char *format, ...) {
 
    if(n < 0 || n >= size)
       die("failed to snprintf %s", str);
+
+   return n;
+}
+
+void ensuredir(const char *pathname, mode_t mode, uid_t uid, gid_t gid) {
+    int retval = mkdir(pathname, mode);
+    if (retval != 0 && errno != EEXIST) {
+        die("unable to mkdir %s", pathname);
+    }
+
+    if (chown(pathname, uid, gid) < 0) {
+        die("unable to chown %s to %d", pathname, uid);
+    }
 }
