@@ -40,7 +40,7 @@ The following keys are optional:
  * `frameworks`: a list of the frameworks the snap needs as dependencies
 
  * `services`: the servies (daemons) that the snap provides
- * `name`: (required) name of the service (only `[a-zA-Z0-9+.-]`)
+     * `name`: (required) name of the service (only `[a-zA-Z0-9+.-]`)
      * `description`: (required) description of the service
      * `start`: (required) the command to start the service
      * `stop`: (optional) the command to stop the service
