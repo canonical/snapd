@@ -95,7 +95,7 @@ func (x *xzPipeWriter) Close() error {
 // - no relative path allowed to prevent writing outside of the parent dir
 func clickVerifyContentFn(path string) (string, error) {
 	path = filepath.Clean(path)
-	if strings.Contains(path, "..") {
+	if path == ".." || strings.HasPrefix(path, "../") {
 		return "", ErrSnapInvalidContent
 	}
 
