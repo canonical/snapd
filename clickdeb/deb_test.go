@@ -153,8 +153,19 @@ func (s *ClickDebTestSuite) TestClickVerifyContentFnStillOk(c *C) {
 	c.Assert(newPath, Equals, "foo/baz")
 }
 
+func (s *ClickDebTestSuite) TestClickVerifyContentFnThreeDotsOk(c *C) {
+	newPath, err := clickVerifyContentFn(".../foo")
+	c.Assert(err, IsNil)
+	c.Assert(newPath, Equals, ".../foo")
+}
+
 func (s *ClickDebTestSuite) TestClickVerifyContentFnNotOk(c *C) {
 	_, err := clickVerifyContentFn("./foo/../../baz")
+	c.Assert(err, Equals, ErrSnapInvalidContent)
+}
+
+func (s *ClickDebTestSuite) TestClickVerifyContentFnJustTwoDotsNotOk(c *C) {
+	_, err := clickVerifyContentFn("..")
 	c.Assert(err, Equals, ErrSnapInvalidContent)
 }
 
