@@ -1,4 +1,6 @@
-/*
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/* 
  * Copyright (C) 2014-2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
