@@ -166,15 +166,6 @@ func (e *ErrUnpackFailed) Error() string {
 	return fmt.Sprintf("unpack %s to %s failed with %s", e.snapFile, e.instDir, e.origErr)
 }
 
-// ErrSignature is returned if a snap failed the signature verification
-type ErrSignature struct {
-	exitCode int
-}
-
-func (e *ErrSignature) Error() string {
-	return fmt.Sprintf("Signature verification failed with exit status %v", e.exitCode)
-}
-
 // ErrHookFailed is returned if a hook command fails
 type ErrHookFailed struct {
 	cmd      string

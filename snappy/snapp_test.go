@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/policy"
@@ -69,9 +70,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 
 	// we may not have debsig-verify installed (and we don't need it
 	// for the unittests)
-	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
-		return nil
-	}
+	clickdeb.VerifyCmd = "true"
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
