@@ -38,7 +38,7 @@ func init() {
 		longBuildHelp,
 		&cmdBuild{})
 	if err != nil {
-		logger.LogAndPanic(err)
+		logger.Panicf("unable to build: %v", err)
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "bu")

@@ -39,14 +39,6 @@ func runCommandImpl(args ...string) (err error) {
 		return errors.New("no command specified")
 	}
 
-	// FIXME: use logger
-	/*
-		if debug == true {
-
-			log.debug('running: {}'.format(args))
-		}
-	*/
-
 	if out, err := exec.Command(args[0], args[1:]...).CombinedOutput(); err != nil {
 		cmdline := strings.Join(args, " ")
 		return fmt.Errorf("Failed to run command '%s': %s (%s)",

@@ -19,183 +19,120 @@ package logger
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"log/syslog"
-	"runtime/debug"
-	"strings"
+	"os"
 	"sync"
-	"time"
-
-	"github.com/juju/loggo"
 )
 
-// Name used in the prefix for all logged messages
-const LoggerName = "snappy"
-
-// logWriterInterface allows the tests to replace the syslog
-// implementation.
-type logWriterInterface interface {
-	// syslog.Writer
-	Debug(m string) error
-	Info(m string) error
-	Warning(m string) error
-	Err(m string) error
-	Crit(m string) error
+// A Logger is a fairly minimal logging tool.
+type Logger interface {
+	// Notice is for messages that the user should see
+	Notice(msg string)
+	// Debug is for messages that the user should be able to find if they're debugging something
+	Debug(msg string)
 }
 
-// LogWriter object that handles writing log entries
-type LogWriter struct {
-	systemLog logWriterInterface
+const (
+	// DefaultFlags are passed to the default console log.Logger
+	DefaultFlags = log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile
+	// SyslogFlags are passed to the default syslog log.Logger
+	SyslogFlags = log.Lshortfile
+	// SyslogPriority for the default syslog log.Logger
+	SyslogPriority = syslog.LOG_DEBUG | syslog.LOG_USER
+)
+
+type nullLogger struct{}
+
+func (nullLogger) Notice(string) {}
+func (nullLogger) Debug(string)  {}
+
+// NullLogger is a logger that does nothing
+var NullLogger = nullLogger{}
+
+var (
+	logger Logger = NullLogger
+	lock   sync.Mutex
+)
+
+// Panicf notifies the user and then panics
+func Panicf(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+
+	lock.Lock()
+	defer lock.Unlock()
+
+	logger.Notice("PANIC " + msg)
+	panic(msg)
 }
 
-// Used to ensure that only a single connection to syslog is created
-var once sync.Once
+// Noticef notifies the user of something
+func Noticef(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
 
-// A single connection to the system logger
-var syslogConnection logWriterInterface
+	lock.Lock()
+	defer lock.Unlock()
 
-// Write sends the log details specified by the params to the logging
-// back-end (in this case syslog).
-func (l *LogWriter) Write(level loggo.Level, name string, filename string, line int, timestamp time.Time, message string) {
-	var f func(string) error
-
-	record := l.Format(level, name, filename, line, timestamp, message)
-
-	// map log level to syslog priority
-	switch level {
-	case loggo.DEBUG:
-		f = l.systemLog.Debug
-
-	case loggo.INFO:
-		f = l.systemLog.Info
-
-	case loggo.WARNING:
-		f = l.systemLog.Warning
-
-	case loggo.ERROR:
-		f = l.systemLog.Err
-
-	case loggo.CRITICAL:
-		f = l.systemLog.Crit
-	}
-
-	// write the log record.
-	//
-	// Note that with loggo, the actual logging functions never
-	// return errors, so although these syslog functions may fail,
-	// there's not much we can do about it.
-	f(record)
-
-	if level >= loggo.ERROR {
-		l.logStacktrace(level, name, filename, line, timestamp, f)
-	}
+	logger.Notice(msg)
 }
 
-func (l *LogWriter) logStacktrace(level loggo.Level, name string, filename string, line int, timestamp time.Time, f func(string) error) {
-	stack := debug.Stack()
+// Debugf records something in the debug log
+func Debugf(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
 
-	str := "Stack trace:"
-	record := l.Format(level, name, filename, line, timestamp, str)
-	f(record)
+	lock.Lock()
+	defer lock.Unlock()
 
-	for _, entry := range strings.Split(string(stack), "\n") {
-		if entry == "" {
-			continue
-		}
-
-		formatted := fmt.Sprintf("  %s", strings.Replace(entry, "\t", "  ", -1))
-		record := l.Format(level, name, filename, line, timestamp, formatted)
-		f(record)
-	}
+	logger.Debug(msg)
 }
 
-// Format handles how each log entry should appear.
-// Note that the timestamp field is not used as syslog adds that for us.
-func (l *LogWriter) Format(level loggo.Level, module, filename string, line int, timestamp time.Time, message string) string {
-	if level < loggo.ERROR {
-		// keep it relatively succinct for low priority messages
-		return fmt.Sprintf("%s:%s:%s", level, module, message)
-	}
+// SetLogger sets the global logger to the given one
+func SetLogger(l Logger) {
+	lock.Lock()
+	defer lock.Unlock()
 
-	return fmt.Sprintf("%s:%s:%s:%d:%s", level, module, filename, line, message)
+	logger = l
 }
 
-// A variable to make testing easier
-var getSyslog = func(priority syslog.Priority, tag string) (w logWriterInterface, err error) {
-	return syslog.New(syslog.LOG_NOTICE|syslog.LOG_LOCAL0, LoggerName)
+// ConsoleLog sends Notices to a log.Logger and Debugs to syslog
+type ConsoleLog struct {
+	log *log.Logger
+	sys *log.Logger
 }
 
-// newLogWriter creates a new LogWriter, ensuring that only a single
-// connection to the system logger is created.
-func newLogWriter() (l *LogWriter, err error) {
+// Debug sends the msg to syslog
+func (l *ConsoleLog) Debug(msg string) {
+	l.sys.Output(3, "DEBUG: "+msg)
+}
 
-	l = new(LogWriter)
+// Notice alerts the user about something, as well as putting it syslog
+func (l *ConsoleLog) Notice(msg string) {
+	l.sys.Output(3, msg)
+	l.log.Output(3, msg)
+}
 
-	once.Do(func() {
-
-		// Note that the log level here is just the default - Write()
-		// will alter it as needed.
-		syslogConnection, err = getSyslog(syslog.LOG_NOTICE|syslog.LOG_LOCAL0, LoggerName)
-	})
-
+// NewConsoleLog creates a ConsoleLog with a log.Logger using the given
+// io.Writer and flag, and a syslog.Writer.
+func NewConsoleLog(w io.Writer, flag int) (*ConsoleLog, error) {
+	sys, err := syslog.NewLogger(SyslogPriority, SyslogFlags)
 	if err != nil {
 		return nil, err
 	}
 
-	l.systemLog = syslogConnection
-
-	return l, nil
+	return &ConsoleLog{
+		log: log.New(w, "", flag),
+		sys: sys,
+	}, nil
 }
 
-// ActivateLogger handles creating, configuring and enabling a new syslog logger.
-func ActivateLogger() (err error) {
-	// Remove any existing loggers of the type we care about.
-	//
-	// No check on the success of these operations is performed since the
-	// loggo API does not allow the existing loggers to be iterated so we
-	// cannot know if there is already a syslog writer registered (for
-	// example if newLogWriter() gets called multiple times).
-	_, _, _ = loggo.RemoveWriter("default")
-	_, _, _ = loggo.RemoveWriter("syslog")
-
-	writer, err := newLogWriter()
+// SimpleSetup creates the default (console) logger
+func SimpleSetup() error {
+	l, err := NewConsoleLog(os.Stderr, DefaultFlags)
 	if err != nil {
 		return err
 	}
-
-	// activate our syslog logger
-	err = loggo.RegisterWriter("syslog", writer, loggo.TRACE)
-	if err != nil {
-		return err
-	}
-
-	logger := loggo.GetLogger(LoggerName)
-
-	// ensure that all log messages are output
-	logger.SetLogLevel(loggo.TRACE)
+	SetLogger(l)
 
 	return nil
-}
-
-// LogAndPanic logs the specified error, including a backtrace, then calls
-// panic().
-func LogAndPanic(err error) {
-	if err == nil {
-		return
-	}
-
-	logger := loggo.GetLogger(LoggerName)
-	logger.Criticalf(err.Error())
-	panic(err)
-}
-
-// LogError logs the specified error (if set), then returns it to be dealt with by
-// higher-level parts of the system.
-func LogError(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	logger := loggo.GetLogger(LoggerName)
-	logger.Errorf(err.Error())
-	return err
 }

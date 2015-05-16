@@ -42,7 +42,7 @@ var optionsData options
 var parser = flags.NewParser(&optionsData, flags.Default)
 
 func init() {
-	err := logger.ActivateLogger()
+	err := logger.SimpleSetup()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
 	}
@@ -54,6 +54,10 @@ func main() {
 			// make the generic root error more specific for
 			// the CLI user.
 			err = snappy.ErrNeedRoot
+		}
+		if _, ok := err.(*flags.Error); !ok {
+			// Debug, because the parser will print the error for us
+			logger.Debugf("%v failed: %v", os.Args, err)
 		}
 		os.Exit(1)
 	}
