@@ -264,8 +264,7 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	var m packageYaml
 	err := yaml.Unmarshal(yamlData, &m)
 	if err != nil {
-		logger.Noticef("Can not parse '%s'", yamlData)
-		return nil, err
+		return nil, &ErrInvalidYaml{file: "package.yaml", err: err, yaml: yamlData}
 	}
 
 	if m.Architectures == nil {
@@ -490,7 +489,7 @@ func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) (*SnapPart,
 	var h hashesYaml
 	err = yaml.Unmarshal(hashesData, &h)
 	if err != nil {
-		return nil, err
+		return nil, &ErrInvalidYaml{file: "hashes.yaml", err: err, yaml: hashesData}
 	}
 	part.hash = h.ArchiveSha512
 
