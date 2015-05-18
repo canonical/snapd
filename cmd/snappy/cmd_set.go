@@ -44,7 +44,7 @@ func init() {
 		setHelp,
 		&cmdSet{})
 	if err != nil {
-		logger.Panicf("unable to set: %v", err)
+		logger.Panicf("Unable to set: %v", err)
 	}
 }
 

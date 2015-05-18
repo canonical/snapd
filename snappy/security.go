@@ -134,7 +134,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		fn := filepath.Join(baseDir, sd.SecurityPolicy.Seccomp)
 		content, err := ioutil.ReadFile(fn)
 		if err != nil {
-			logger.Noticef("failed to read %q: %v", fn, err)
+			logger.Noticef("Failed to read %q: %v", fn, err)
 		}
 		return content, err
 	}
@@ -156,7 +156,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		var s securitySeccompOverride
 		err := readSeccompOverride(fn, &s)
 		if err != nil {
-			logger.Noticef("failed to read %q: %v", fn, err)
+			logger.Noticef("Failed to read %q: %v", fn, err)
 			return nil, err
 		}
 
@@ -214,12 +214,8 @@ func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 		return &ErrInvalidYaml{file: "package.yaml[seccomp override]", err: err, yaml: yamlData}
 	}
 	// These must always be specified together
-	if s.PolicyVersion == 0 && s.PolicyVendor != "" {
-		s.PolicyVendor = ""
-		logger.Noticef("policy-version not set with policy-vendor. Skipping 'policy-vendor'")
-	} else if s.PolicyVersion != 0 && s.PolicyVendor == "" {
-		s.PolicyVersion = 0
-		logger.Noticef("policy-vendor not set with policy-version. Skipping 'policy-version'")
+	if (s.PolicyVersion == 0 && s.PolicyVendor != "") || (s.PolicyVersion != 0 && s.PolicyVendor == "") {
+		return ErrInvalidSeccompPolicy
 	}
 
 	return nil
