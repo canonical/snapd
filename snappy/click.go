@@ -72,16 +72,6 @@ type clickHook struct {
 	pattern string
 }
 
-const (
-	// from debsig-verify-0.9/debsigs.h
-	dsSuccess           = 0
-	dsFailNosigs        = 10
-	dsFailUnknownOrigin = 11
-	dsFailNopolicies    = 12
-	dsFailBadsig        = 13
-	dsFailInternal      = 14
-)
-
 // ignore hooks of this type
 var ignoreHooks = map[string]bool{
 	"bin-path":       true,
@@ -110,40 +100,10 @@ func execHook(execCmd string) (err error) {
 	return nil
 }
 
-// This function checks if the given exitCode is "ok" when running with
-// --allow-unauthenticated. We allow package with no signature or with
-// a unknown policy or with no policies at all. We do not allow overriding
-// bad signatures
-func allowUnauthenticatedOkExitCode(exitCode int) bool {
-	return (exitCode == dsFailNosigs ||
-		exitCode == dsFailUnknownOrigin ||
-		exitCode == dsFailNopolicies)
-}
-
-// Tiny wrapper around the debsig-verify commandline
-func runDebsigVerifyImpl(clickFile string, allowUnauthenticated bool) (err error) {
-	cmd := exec.Command("debsig-verify", clickFile)
-	if err := cmd.Run(); err != nil {
-		exitCode, err := helpers.ExitCode(err)
-		if err == nil {
-			if allowUnauthenticated && allowUnauthenticatedOkExitCode(exitCode) {
-				logger.Noticef("Signature check failed, but installing anyway as requested")
-				return nil
-			}
-			return &ErrSignature{exitCode: exitCode}
-		}
-		// not a exit code error, something else, pass on
-		return err
-	}
-	return nil
-}
-
-var runDebsigVerify = runDebsigVerifyImpl
-
 func auditClick(snapFile string, allowUnauthenticated bool) (err error) {
 	// FIXME: check what more we need to do here, click is also doing
 	//        permission checks
-	return runDebsigVerify(snapFile, allowUnauthenticated)
+	return clickdeb.Verify(snapFile, allowUnauthenticated)
 }
 
 func readClickManifest(data []byte) (manifest clickManifest, err error) {

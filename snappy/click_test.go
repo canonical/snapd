@@ -211,9 +211,9 @@ func (s *SnapTestSuite) TestLocalSnapInstallFailsAlreadyInstalled(c *C) {
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
-	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
-		return errors.New("something went wrong")
-	}
+	old := clickdeb.VerifyCmd
+	clickdeb.VerifyCmd = "false"
+	defer func() { clickdeb.VerifyCmd = old }()
 
 	snapFile := makeTestSnapPackage(c, "")
 	_, err := installClick(snapFile, 0, nil, testNamespace)
@@ -226,21 +226,21 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
 
 // ensure that the right parameters are passed to runDebsigVerify()
 func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyPassesUnauth(c *C) {
-	var expectedUnauth bool
-	runDebsigVerify = func(snapFile string, allowUnauth bool) (err error) {
-		c.Assert(allowUnauth, Equals, expectedUnauth)
-		return nil
-	}
+	// make a fake debsig that fails with unauth
+	f := filepath.Join(c.MkDir(), "fakedebsig")
+	c.Assert(ioutil.WriteFile(f, []byte("#!/bin/sh\nexit 10\n"), 0755), IsNil)
 
-	expectedUnauth = true
+	old := clickdeb.VerifyCmd
+	clickdeb.VerifyCmd = f
+	defer func() { clickdeb.VerifyCmd = old }()
+
 	snapFile := makeTestSnapPackage(c, "")
 	name, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	expectedUnauth = false
 	_, err = installClick(snapFile, 0, nil, testNamespace)
-	c.Assert(err, IsNil)
+	c.Assert(err, NotNil)
 }
 
 type agreerator struct {
