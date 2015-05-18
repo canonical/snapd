@@ -65,15 +65,17 @@ frameworks from framework policies.
 ## Usage
 ### framework yaml
 
-For frameworks, meta/package.yaml should contain something like:
+For frameworks, meta/package.yaml might contain something like:
 
     name: foo
     version: 1.1.234
+    vendor: "Some Person <some.person@example.com>"
     type: framework
     services:
       - name: bar
         description: "desc for bar service"
         start: bin/bar
+        bus-name: com.example.foo
     binaries:
       - name: bin/baz
         description: "desc for baz binary"
@@ -82,6 +84,21 @@ Required fields for framework snaps:
 
 * `type: framework` - defines the type of snap this is
 
+#### DBus connection name
+For framework services that provide a DBus interface, use `bus-name` to specify
+the DBus connection name the service will bind to on the system bus (only
+`^[A-Za-z0-9][A-Za-z0-9_-]*(\.[A-Za-z0-9][A-Za-z0-9_-]*)+$` is allowed). To
+preserve coinstallability, the `bus-name` should typically use the form of one
+of the following: `<name>`, `<name>.<service name>`, `<reverse domain>.<name>`
+or `<reverse domain>.<name>.<service name>`. In the above yaml, any of the
+following can be used:
+
+* `bus-name: foo`
+* `bus-name: foo.bar`
+* `bus-name: com.example.foo`
+* `bus-name: com.example.foo.bar`
+
+#### Security policy
 Frameworks will typically need specialized security policy. See `security.md`
 for details.
 
