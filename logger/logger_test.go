@@ -277,27 +277,6 @@ func (ts *LoggerTestSuite) TestLogLevels(c *C) {
 	}
 }
 
-func (ts *LoggerTestSuite) TestLogError(c *C) {
-	level := "ERROR"
-	msg := "I am an error"
-
-	err := ActivateLogger()
-	c.Assert(err, IsNil)
-
-	result := LogError(nil)
-	c.Assert(result, IsNil)
-
-	err = errors.New(msg)
-	c.Assert(err, Not(IsNil))
-
-	// We expect to get back exactly what was passsed...
-	result = LogError(err)
-	c.Assert(result, DeepEquals, err)
-
-	// ... but also to have the error logged
-	ts.checkLogLevel(c, level, msg)
-}
-
 func (ts *LoggerTestSuite) TestLogAndPanic(c *C) {
 	level := "CRITICAL"
 	msg := "I am a fatal error"
