@@ -18,10 +18,11 @@
 package snappy
 
 import (
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"launchpad.net/snappy/logger"
 )
 
 const (
@@ -147,11 +148,11 @@ func compareSubversion(va, vb string) int {
 //   +1 if a is bigger than b
 func VersionCompare(va, vb string) (res int) {
 	if !VersionIsValid(va) {
-		log.Printf("Invalid version '%s', using '0' instead. Expect wrong results", va)
+		logger.Noticef("Invalid version %q, using '0' instead. Expect wrong results", va)
 		va = "0"
 	}
 	if !VersionIsValid(vb) {
-		log.Printf("Invalid version '%s', using '0' instead. Expect wrong results", vb)
+		logger.Noticef("Invalid version %q, using '0' instead. Expect wrong results", vb)
 		vb = "0"
 	}
 

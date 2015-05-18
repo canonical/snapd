@@ -21,18 +21,18 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/mvo5/goconfigparser"
+
 	"launchpad.net/snappy/coreconfig"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/progress"
-
-	"github.com/mvo5/goconfigparser"
 )
 
 const (
@@ -327,12 +327,12 @@ func makePartFromSystemImageConfigFile(p partition.Interface, channelIniPath str
 	defer f.Close()
 	err = cfg.Read(f)
 	if err != nil {
-		log.Printf("Can not parse config '%s': %s", channelIniPath, err)
+		logger.Noticef("Can not parse config %q: %v", channelIniPath, err)
 		return nil, err
 	}
 	st, err := os.Stat(channelIniPath)
 	if err != nil {
-		log.Printf("Can stat '%s': %s", channelIniPath, err)
+		logger.Noticef("Can not stat %q: %v", channelIniPath, err)
 		return nil, err
 	}
 
@@ -401,7 +401,7 @@ func makeOtherPart(p partition.Interface) Part {
 		configFile := filepath.Join(systemImageRoot, otherRoot, systemImageChannelConfig)
 		part, err = makePartFromSystemImageConfigFile(p, configFile, false)
 		if err != nil {
-			log.Printf("Can not make system-image part for %s: %s", configFile, err)
+			logger.Noticef("Can not make system-image part for %q: %v", configFile, err)
 		}
 		return err
 	})

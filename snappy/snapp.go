@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -36,13 +35,14 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
-
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -264,8 +264,7 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	var m packageYaml
 	err := yaml.Unmarshal(yamlData, &m)
 	if err != nil {
-		log.Printf("Can not parse '%s'", yamlData)
-		return nil, err
+		return nil, &ErrInvalidYaml{file: "package.yaml", err: err, yaml: yamlData}
 	}
 
 	if m.Architectures == nil {
@@ -283,7 +282,7 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	}
 
 	if m.DeprecatedFramework != "" {
-		log.Printf(`Use of deprecated "framework" key in yaml`)
+		logger.Noticef(`Use of deprecated "framework" key in yaml`)
 		if len(m.Frameworks) != 0 {
 			return nil, ErrInvalidFrameworkSpecInYaml
 		}
@@ -490,7 +489,7 @@ func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) (*SnapPart,
 	var h hashesYaml
 	err = yaml.Unmarshal(hashesData, &h)
 	if err != nil {
-		return nil, err
+		return nil, &ErrInvalidYaml{file: "hashes.yaml", err: err, yaml: hashesData}
 	}
 	part.hash = h.ArchiveSha512
 
