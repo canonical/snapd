@@ -36,7 +36,7 @@ func init() {
 		"Remove a snapp part",
 		&cmdRemove{})
 	if err != nil {
-		logger.LogAndPanic(err)
+		logger.Panicf("unable to remove: %v", err)
 	}
 }
 

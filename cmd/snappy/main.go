@@ -42,7 +42,7 @@ var optionsData options
 var parser = flags.NewParser(&optionsData, flags.Default)
 
 func init() {
-	err := logger.ActivateLogger()
+	err := logger.SimpleSetup()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
 	}

@@ -13,7 +13,6 @@ Build-Depends: bash-completion,
                golang-go.crypto-dev,
                golang-gocheck-dev,
                golang-goconfigparser-dev,
-               golang-juju-loggo-dev,
                golang-pb-dev,
                golang-yaml.v2-dev
 Standards-Version: 3.9.6
