@@ -49,7 +49,7 @@ func init() {
 		longListHelp,
 		&cmdList{})
 	if err != nil {
-		logger.Panicf("unable to list: %v", err)
+		logger.Panicf("Unable to list: %v", err)
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "li")

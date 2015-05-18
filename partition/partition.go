@@ -248,7 +248,7 @@ func undoMounts(bindMountsOnly bool) error {
 func signalHandler(sig os.Signal) {
 	err := undoMounts(false)
 	if err != nil {
-		logger.Noticef("failed to unmount: %v", err)
+		logger.Noticef("Failed to unmount: %v", err)
 	}
 }
 

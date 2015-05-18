@@ -42,7 +42,7 @@ func init() {
 		longHWInfoHelp,
 		&cmdHWInfo{})
 	if err != nil {
-		logger.Panicf("unable to hwinfo: %v", err)
+		logger.Panicf("Unable to hwinfo: %v", err)
 	}
 }
 
