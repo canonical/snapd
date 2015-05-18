@@ -84,10 +84,6 @@ var (
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
 
-	// ErrInvalidPackageYaml is returned if a package.yaml file can not
-	// be parsed
-	ErrInvalidPackageYaml = errors.New("can not parse package.yaml")
-
 	// ErrInvalidFrameworkSpecInYaml is returned if a package.yaml
 	// has both frameworks and framework entries.
 	ErrInvalidFrameworkSpecInYaml = errors.New(`yaml can't have both "frameworks" and (deprecated) "framework" keys`)
@@ -255,4 +251,16 @@ type ErrApparmorGenerate struct {
 
 func (e ErrApparmorGenerate) Error() string {
 	return fmt.Sprintf("apparmor generate fails with %v: '%v'", e.exitCode, string(e.output))
+}
+
+// ErrInvalidYaml is returned if a yaml file can not be parsed
+type ErrInvalidYaml struct {
+	file string
+	err  error
+	yaml []byte
+}
+
+func (e *ErrInvalidYaml) Error() string {
+	// %#v of string(yaml) so the yaml is presented as a human-readable string, but in a single greppable line
+	return fmt.Sprintf("can not parse %s: %v (from: %#v)", e.file, e.err, string(e.yaml))
 }
