@@ -35,6 +35,15 @@ const (
 	dsFailInternal      = 14
 )
 
+// error messages from debsig-verify(1), edited for brevity
+var dsErrMsg = map[int]string{
+	dsFailNosigs:        "No signatures, or no origin signature.",
+	dsFailUnknownOrigin: "No policies subdirectory for origin signature.",
+	dsFailNopolicies:    "No policies passed selection; no verification done.",
+	dsFailBadsig:        "Bad signature, or other verification criteria failed.",
+	dsFailInternal:      "Internal error. E.g. Package corrupt, gpg failed, etc.",
+}
+
 // ErrSignature is returned if a snap failed the signature verification
 type ErrSignature struct {
 	exitCode int
@@ -46,7 +55,12 @@ func (e *ErrSignature) Error() string {
 		return fmt.Sprintf("Signature verification failed: %v", e.err)
 	}
 
-	return fmt.Sprintf("Signature verification failed with exit status %v", e.exitCode)
+	dsc, ok := dsErrMsg[e.exitCode]
+	if !ok {
+		return fmt.Sprintf("Signature verification failed with exit status %v", e.exitCode)
+	}
+
+	return fmt.Sprintf("Signature verification failed: %s (exit code %d)", dsc, e.exitCode)
 }
 
 // This function checks if the given exitCode is "ok" when running with
