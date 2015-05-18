@@ -32,7 +32,7 @@ func init() {
 		"internal",
 		&cmdBooted{})
 	if err != nil {
-		logger.Panicf("unable to booted: %v", err)
+		logger.Panicf("Unable to booted: %v", err)
 	}
 }
 

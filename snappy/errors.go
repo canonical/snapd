@@ -137,6 +137,9 @@ var (
 
 	// ErrInvalidPart is returned when something on the filesystem does not make sense
 	ErrInvalidPart = errors.New("invalid package on system")
+
+	// ErrInvalidSeccompPolicy is returned when policy-version and policy-vender are not set together
+	ErrInvalidSeccompPolicy = errors.New("policy-version and policy-vendor must be specified together")
 )
 
 // ErrInstallFailed is an error type for installation errors for snaps
