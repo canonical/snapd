@@ -42,7 +42,7 @@ func init() {
 		"Ensures system is running with latest parts",
 		&cmdUpdate{})
 	if err != nil {
-		logger.LogAndPanic(err)
+		logger.Panicf("Unable to update: %v", err)
 	}
 }
 

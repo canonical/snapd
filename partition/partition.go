@@ -33,6 +33,8 @@ import (
 	"syscall"
 
 	"gopkg.in/yaml.v2"
+
+	"launchpad.net/snappy/logger"
 )
 
 var signalHandlerRegistered = false
@@ -248,8 +250,7 @@ func undoMounts(bindMountsOnly bool) error {
 func signalHandler(sig os.Signal) {
 	err := undoMounts(false)
 	if err != nil {
-		// FIXME: use logger
-		fmt.Fprintf(os.Stderr, "ERROR: failed to unmount: %s", err)
+		logger.Noticef("Failed to unmount: %v", err)
 	}
 }
 

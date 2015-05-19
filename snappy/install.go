@@ -25,7 +25,6 @@ import (
 	"sort"
 	"strings"
 
-	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 )
 
@@ -71,10 +70,10 @@ func inDeveloperMode() bool {
 func Install(name string, flags InstallFlags, meter progress.Meter) (string, error) {
 	name, err := doInstall(name, flags, meter)
 	if err != nil {
-		return "", logger.LogError(err)
+		return "", err
 	}
 
-	return name, logger.LogError(GarbageCollect(name, flags, meter))
+	return name, GarbageCollect(name, flags, meter)
 }
 
 func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName string, err error) {

@@ -22,7 +22,6 @@ package snappy
 import (
 	"strings"
 
-	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 )
 
@@ -65,7 +64,7 @@ func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 
 	for _, part := range parts {
 		if err := part.Uninstall(meter); err != nil {
-			return logger.LogError(err)
+			return err
 		}
 	}
 

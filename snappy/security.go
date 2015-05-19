@@ -23,13 +23,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v2"
+
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/logger"
 )
 
 type apparmorJSONTemplate struct {
@@ -152,7 +153,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		fn := filepath.Join(baseDir, sd.SecurityPolicy.Seccomp)
 		content, err := ioutil.ReadFile(fn)
 		if err != nil {
-			log.Printf("WARNING: failed to read %s\n", fn)
+			logger.Noticef("Failed to read %q: %v", fn, err)
 		}
 		return content, err
 	}
@@ -174,7 +175,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		var s securitySeccompOverride
 		err := readSeccompOverride(fn, &s)
 		if err != nil {
-			log.Printf("WARNING: failed to read %s\n", fn)
+			logger.Noticef("Failed to read %q: %v", fn, err)
 			return nil, err
 		}
 
@@ -215,7 +216,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 
 	content, err := runScFilterGen(args...)
 	if err != nil {
-		log.Printf("WARNING: %v failed\n", args)
+		logger.Noticef("%v failed", args)
 	}
 
 	return content, err
@@ -229,16 +230,11 @@ func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 
 	err = yaml.Unmarshal(yamlData, &s)
 	if err != nil {
-		log.Printf("ERROR: Can not parse '%s'", yamlData)
-		return err
+		return &ErrInvalidYaml{file: "package.yaml[seccomp override]", err: err, yaml: yamlData}
 	}
 	// These must always be specified together
-	if s.PolicyVersion == 0 && s.PolicyVendor != "" {
-		s.PolicyVendor = ""
-		log.Printf("WARNING: policy-version not set with policy-vendor. Skipping 'policy-vendor'\n")
-	} else if s.PolicyVersion != 0 && s.PolicyVendor == "" {
-		s.PolicyVersion = 0
-		log.Printf("WARNING: policy-vendor not set with policy-version. Skipping 'policy-version'\n")
+	if (s.PolicyVersion == 0 && s.PolicyVendor != "") || (s.PolicyVersion != 0 && s.PolicyVendor == "") {
+		return ErrInvalidSeccompPolicy
 	}
 
 	return nil

@@ -34,7 +34,7 @@ func init() {
 		"internal",
 		&cmdBooted{})
 	if err != nil {
-		logger.LogAndPanic(err)
+		logger.Panicf("Unable to booted: %v", err)
 	}
 }
 
@@ -47,8 +47,8 @@ func (x *cmdBooted) Execute(args []string) (err error) {
 
 	parts, err := snappy.ActiveSnapsByType(snappy.SnapTypeCore)
 	if err != nil {
-		return logger.LogError(err)
+		return err
 	}
 
-	return logger.LogError(parts[0].(*snappy.SystemImagePart).MarkBootSuccessful())
+	return parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
 }

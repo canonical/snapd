@@ -38,7 +38,7 @@ func init() {
 		longVersionsHelp,
 		&cmdVersions{})
 	if err != nil {
-		logger.LogAndPanic(err)
+		logger.Panicf("Unable to versions: %v", err)
 	}
 }
 

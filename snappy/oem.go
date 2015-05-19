@@ -26,13 +26,13 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/logger"
 )
 
 // OEM represents the structure inside the package.yaml for the oem component
@@ -153,7 +153,7 @@ func cleanupOemHardwareUdevRules(m *packageYaml) error {
 		jsonAdditionalPath := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
 		err = os.Remove(jsonAdditionalPath)
 		if err != nil && !os.IsNotExist(err) {
-			log.Printf("Failed to remove %v: %v", jsonAdditionalPath, err)
+			logger.Noticef("Failed to remove %q: %v", jsonAdditionalPath, err)
 		}
 	}
 

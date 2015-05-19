@@ -77,7 +77,7 @@ func genBusPolicyFile(busName string) (string, error) {
 	}
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
 		// this can never happen, except we forget a variable
-		logger.LogAndPanic(err)
+		logger.Panicf("Unable to execute template: %v", err)
 	}
 
 	return templateOut.String(), nil

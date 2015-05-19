@@ -86,10 +86,6 @@ var (
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
 
-	// ErrInvalidPackageYaml is returned if a package.yaml file can not
-	// be parsed
-	ErrInvalidPackageYaml = errors.New("can not parse package.yaml")
-
 	// ErrInvalidFrameworkSpecInYaml is returned if a package.yaml
 	// has both frameworks and framework entries.
 	ErrInvalidFrameworkSpecInYaml = errors.New(`yaml can't have both "frameworks" and (deprecated) "framework" keys`)
@@ -143,6 +139,9 @@ var (
 
 	// ErrInvalidPart is returned when something on the filesystem does not make sense
 	ErrInvalidPart = errors.New("invalid package on system")
+
+	// ErrInvalidSeccompPolicy is returned when policy-version and policy-vender are not set together
+	ErrInvalidSeccompPolicy = errors.New("policy-version and policy-vendor must be specified together")
 )
 
 // ErrInstallFailed is an error type for installation errors for snaps
@@ -166,15 +165,6 @@ type ErrUnpackFailed struct {
 // ErrUnpackFailed is returned if unpacking a snap fails
 func (e *ErrUnpackFailed) Error() string {
 	return fmt.Sprintf("unpack %s to %s failed with %s", e.snapFile, e.instDir, e.origErr)
-}
-
-// ErrSignature is returned if a snap failed the signature verification
-type ErrSignature struct {
-	exitCode int
-}
-
-func (e *ErrSignature) Error() string {
-	return fmt.Sprintf("Signature verification failed with exit status %v", e.exitCode)
 }
 
 // ErrHookFailed is returned if a hook command fails
@@ -257,4 +247,16 @@ type ErrApparmorGenerate struct {
 
 func (e ErrApparmorGenerate) Error() string {
 	return fmt.Sprintf("apparmor generate fails with %v: '%v'", e.exitCode, string(e.output))
+}
+
+// ErrInvalidYaml is returned if a yaml file can not be parsed
+type ErrInvalidYaml struct {
+	file string
+	err  error
+	yaml []byte
+}
+
+func (e *ErrInvalidYaml) Error() string {
+	// %#v of string(yaml) so the yaml is presented as a human-readable string, but in a single greppable line
+	return fmt.Sprintf("can not parse %s: %v (from: %#v)", e.file, e.err, string(e.yaml))
 }

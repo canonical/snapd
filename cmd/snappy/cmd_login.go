@@ -46,7 +46,7 @@ func init() {
 		longLoginHelp,
 		&cmdLogin{})
 	if err != nil {
-		logger.LogAndPanic(err)
+		logger.Panicf("Unable to login: %v", err)
 	}
 }
 

@@ -44,7 +44,7 @@ func init() {
 		longHWAssignHelp,
 		&cmdHWAssign{})
 	if err != nil {
-		logger.LogAndPanic(err)
+		logger.Panicf("Unable to hwassign: %v", err)
 	}
 }
 
