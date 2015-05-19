@@ -326,6 +326,13 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	return &m, nil
 }
 
+func (m *packageYaml) dirname(namespace string) string {
+	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeOem {
+		return m.Name
+	}
+	return m.Name + "." + namespace
+}
+
 func (m *packageYaml) checkForNameClashes() error {
 	d := make(map[string]struct{})
 	for _, bin := range m.Binaries {
@@ -857,14 +864,23 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 	return parts, nil
 }
 
-func namespaceFromYamlPath(path string) (string, error) {
-	namespace := filepath.Ext(filepath.Dir(filepath.Join(path, "..", "..")))
+func namespaceFromBasedir(basedir string) (s string) {
+	ext := filepath.Ext(filepath.Dir(filepath.Clean(basedir)))
+	if len(ext) < 2 {
+		return ""
+	}
 
-	if len(namespace) < 1 {
+	return ext[1:]
+}
+
+func namespaceFromYamlPath(path string) (string, error) {
+	namespace := namespaceFromBasedir(filepath.Join(path, "..", ".."))
+
+	if namespace == "" {
 		return "", ErrInvalidPart
 	}
 
-	return namespace[1:], nil
+	return namespace, nil
 }
 
 // RemoteSnapPart represents a snap available on the server
