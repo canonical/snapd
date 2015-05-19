@@ -328,7 +328,7 @@ func (s *SnapTestSuite) TestCopyActuallyCopies(c *C) {
 	target, err := ioutil.TempDir("/dev/shm", "copy")
 	// sbuild environments won't allow writing to /dev/shm, so its
 	// ok to skip there
-	if os.IsPermisson(err) {
+	if os.IsPermission(err) {
 		c.Skip("/dev/shm is not writable for us")
 	}
 	c.Assert(err, IsNil)

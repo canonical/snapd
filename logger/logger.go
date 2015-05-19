@@ -115,13 +115,15 @@ func (l *ConsoleLog) Notice(msg string) {
 // NewConsoleLog creates a ConsoleLog with a log.Logger using the given
 // io.Writer and flag, and a syslog.Writer.
 func NewConsoleLog(w io.Writer, flag int) (*ConsoleLog, error) {
+	clog := log.New(w, "", flag)
+
 	sys, err := syslog.NewLogger(SyslogPriority, SyslogFlags)
 	if err != nil {
-		return nil, err
+		clog.Output(3, "WARNING: can not create syslog logger")
 	}
 
 	return &ConsoleLog{
-		log: log.New(w, "", flag),
+		log: clog,
 		sys: sys,
 	}, nil
 }

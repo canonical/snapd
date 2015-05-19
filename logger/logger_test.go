@@ -20,6 +20,7 @@ package logger
 import (
 	"bytes"
 	"log"
+	"log/syslog"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -34,6 +35,12 @@ type LogSuite struct{}
 
 func (s *LogSuite) SetUpTest(c *C) {
 	c.Assert(logger, Equals, NullLogger)
+
+	// sbuild environments do not allow talking to /dev/log
+	_, err := syslog.NewLogger(SyslogPriority, SyslogFlags)
+	if err != nil {
+		c.Skip("/dev/log can not be accessed")
+	}
 }
 
 func (s *LogSuite) TearDownTest(c *C) {
