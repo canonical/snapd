@@ -2,6 +2,9 @@
 #
 # see http://daringfireball.net/projects/markdown/syntax
 # for the "canonical" reference
+#
+# We support django-markdown which uses python-markdown, see:
+# http://pythonhosted.org/Markdown/
 
 import sys
 
