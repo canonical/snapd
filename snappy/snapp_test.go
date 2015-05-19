@@ -690,6 +690,7 @@ services:
 
 	snap := RemoteSnapPart{}
 	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
+	snap.pkg.Namespace = testNamespace
 
 	p := &MockProgressMeter{}
 	name, err := snap.Install(p, 0)
@@ -1383,4 +1384,29 @@ func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
 	c.Assert(cmds[0], DeepEquals, aCmd{"udevadm", "control", "--reload-rules"})
 	c.Assert(cmds[1], DeepEquals, aCmd{"udevadm", "trigger"})
 	c.Assert(cmds, HasLen, 2)
+}
+
+func (s *SnapTestSuite) TestGetUdevPartName(c *C) {
+	packageYaml, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+`))
+	c.Assert(err, IsNil)
+
+	udevName := packageYaml.dirname("mvo")
+	c.Assert(udevName, Equals, "foo.mvo")
+}
+
+func (s *SnapTestSuite) TestGetUdevPartNameFramework(c *C) {
+	packageYaml, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+icon: foo.svg
+type: framework
+vendor: Foo Bar <foo@example.com>
+`))
+	c.Assert(err, IsNil)
+
+	udevName := packageYaml.dirname("")
+	c.Assert(udevName, Equals, "foo")
 }
