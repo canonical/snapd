@@ -21,10 +21,12 @@ package snappy
 
 import (
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/snappy/pkg"
 )
 
 func (s *SnapTestSuite) TestRollbackWithVersion(c *C) {
-	makeTwoTestSnaps(c, SnapTypeApp)
+	makeTwoTestSnaps(c, pkg.TypeApp)
 	c.Assert(ActiveSnapByName("foo").Version(), Equals, "2.0")
 
 	// rollback with version
@@ -36,7 +38,7 @@ func (s *SnapTestSuite) TestRollbackWithVersion(c *C) {
 }
 
 func (s *SnapTestSuite) TestRollbackFindVersion(c *C) {
-	makeTwoTestSnaps(c, SnapTypeApp)
+	makeTwoTestSnaps(c, pkg.TypeApp)
 	c.Assert(ActiveSnapByName("foo").Version(), Equals, "2.0")
 
 	// rollback without version
@@ -48,7 +50,7 @@ func (s *SnapTestSuite) TestRollbackFindVersion(c *C) {
 }
 
 func (s *SnapTestSuite) TestRollbackService(c *C) {
-	makeTwoTestSnaps(c, SnapTypeApp, `services:
+	makeTwoTestSnaps(c, pkg.TypeApp, `services:
  - name: svc1
 `)
 	pkg := ActiveSnapByName("foo")

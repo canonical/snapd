@@ -34,6 +34,7 @@ import (
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
@@ -1239,7 +1240,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
 	m := packageYaml{
 		Name:    "xkcd-webserver",
 		Version: "0.3.4",
-		Type:    SnapTypeFramework,
+		Type:    pkg.TypeFramework,
 	}
 
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)

@@ -25,13 +25,15 @@ import (
 	"path/filepath"
 
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/snappy/pkg"
 )
 
 type fakePart struct {
 	SnapPart
 	config    []byte
 	oemConfig SystemConfig
-	snapType  SnapType
+	snapType  pkg.Type
 }
 
 func (p *fakePart) Config(b []byte) (string, error) {
@@ -43,7 +45,7 @@ func (p *fakePart) OemConfig() SystemConfig {
 	return p.oemConfig
 }
 
-func (p *fakePart) Type() SnapType {
+func (p *fakePart) Type() pkg.Type {
 	return p.snapType
 }
 
@@ -71,8 +73,8 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 }
 
 func (s *FirstBootTestSuite) mockActiveSnapNamesByType() *fakePart {
-	fakeOem := fakePart{oemConfig: s.oemConfig, snapType: SnapTypeOem}
-	activeSnapsByType = func(snapsTs ...SnapType) ([]Part, error) {
+	fakeOem := fakePart{oemConfig: s.oemConfig, snapType: pkg.TypeOem}
+	activeSnapsByType = func(snapsTs ...pkg.Type) ([]Part, error) {
 		return []Part{&fakeOem}, nil
 	}
 
@@ -80,7 +82,7 @@ func (s *FirstBootTestSuite) mockActiveSnapNamesByType() *fakePart {
 }
 
 func (s *FirstBootTestSuite) mockActiveSnapByName() *fakePart {
-	fakeMyApp := fakePart{snapType: SnapTypeApp}
+	fakeMyApp := fakePart{snapType: pkg.TypeApp}
 	activeSnapByName = func(needle string) Part {
 		return &fakeMyApp
 	}
@@ -110,7 +112,7 @@ func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestNoErrorWhenNoOEM(c *C) {
-	activeSnapsByType = func(snapsTs ...SnapType) ([]Part, error) {
+	activeSnapsByType = func(snapsTs ...pkg.Type) ([]Part, error) {
 		return nil, nil
 	}
 

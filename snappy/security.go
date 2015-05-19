@@ -31,6 +31,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 )
 
 type apparmorJSONTemplate struct {
@@ -131,7 +132,7 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 
 func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error) {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
-	if m.Type == SnapTypeFramework || m.Type == SnapTypeOem {
+	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeOem {
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
 	}
 

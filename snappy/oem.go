@@ -33,6 +33,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 )
 
 // OEM represents the structure inside the package.yaml for the oem component
@@ -103,7 +104,7 @@ func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
 var getOem = getOemImpl
 
 var getOemImpl = func() (*packageYaml, error) {
-	oems, _ := ActiveSnapsByType(SnapTypeOem)
+	oems, _ := ActiveSnapsByType(pkg.TypeOem)
 	if len(oems) == 1 {
 		return oems[0].(*SnapPart).m, nil
 	}

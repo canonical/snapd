@@ -26,6 +26,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
 )
 
@@ -45,12 +46,12 @@ icon: meta/hello.svg`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	parts, err := ActiveSnapsByType(SnapTypeApp)
+	parts, err := ActiveSnapsByType(pkg.TypeApp)
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "app1")
 
-	parts, err = ActiveSnapsByType(SnapTypeFramework)
+	parts, err = ActiveSnapsByType(pkg.TypeFramework)
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "framework1")

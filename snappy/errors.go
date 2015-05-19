@@ -121,7 +121,7 @@ var (
 	// an interface is partial.
 	ErrNotImplemented = errors.New("not implemented")
 
-	// ErrNoOemConfiguration may be returned when there is a SnapTypeOem installed
+	// ErrNoOemConfiguration may be returned when there is a pkg.TypeOem installed
 	// but does not provide a configuration.
 	ErrNoOemConfiguration = errors.New("no configuration entry found in the oem snap")
 
