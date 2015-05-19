@@ -24,6 +24,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
 )
 
@@ -73,7 +74,7 @@ func (s *SnapTestSuite) TestSetProperty(c *C) {
 }
 
 func (s *SnapTestSuite) TestSetActive(c *C) {
-	makeTwoTestSnaps(c, SnapTypeApp)
+	makeTwoTestSnaps(c, pkg.TypeApp)
 
 	path, err := filepath.EvalSymlinks(filepath.Join(snapAppsDir, fooComposedName, "current"))
 	c.Assert(err, IsNil)

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -134,7 +135,7 @@ func showRebootMessage(installed []snappy.Part, o io.Writer) {
 		//        there are only two version instaleld and
 		//        there is only a single part that may requires
 		//        a reboot
-		if part.Type() != snappy.SnapTypeCore {
+		if part.Type() != pkg.TypeCore {
 			continue
 		}
 

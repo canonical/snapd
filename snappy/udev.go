@@ -20,10 +20,12 @@ package snappy
 import (
 	"fmt"
 	"path/filepath"
+
+	"launchpad.net/snappy/pkg"
 )
 
 func getUdevPartName(m *packageYaml, baseDir string) (string, error) {
-	if m.Type == SnapTypeFramework || m.Type == SnapTypeOem {
+	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeOem {
 		return m.Name, nil
 	}
 

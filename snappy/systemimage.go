@@ -32,6 +32,7 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
 )
 
@@ -94,9 +95,9 @@ type SystemImagePart struct {
 	partition partition.Interface
 }
 
-// Type returns SnapTypeCore for this snap
-func (s *SystemImagePart) Type() SnapType {
-	return SnapTypeCore
+// Type returns pkg.TypeCore for this snap
+func (s *SystemImagePart) Type() pkg.Type {
+	return pkg.TypeCore
 }
 
 // Name returns the name

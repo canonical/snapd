@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/snappy/pkg"
 )
 
 type SecurityTestSuite struct {
@@ -143,7 +145,7 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfileFramework(c *C) {
 	m := packageYaml{
 		Name:    "foo",
 		Version: "1.0",
-		Type:    SnapTypeFramework,
+		Type:    pkg.TypeFramework,
 	}
 	b := Binary{Name: "bin/app"}
 	ap, err := getSecurityProfile(&m, b.Name, "/apps/foo.mvo/1.0/")

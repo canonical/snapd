@@ -23,12 +23,13 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/pkg"
 
 	"gopkg.in/yaml.v2"
 	. "launchpad.net/gocheck"
-	"strings"
 )
 
 const (
@@ -147,10 +148,10 @@ vendor: Foo Bar <foo@example.com>
 	return path.Join(tmpdir, snapFile)
 }
 
-// makeTwoTestSnaps creates two real snaps of SnapType of name
+// makeTwoTestSnaps creates two real snaps of pkg.Type of name
 // "foo", with version "1.0" and "2.0", "2.0" being marked as the
 // active snap.
-func makeTwoTestSnaps(c *C, snapType SnapType, extra ...string) {
+func makeTwoTestSnaps(c *C, snapType pkg.Type, extra ...string) {
 	inter := &MockProgressMeter{}
 
 	packageYaml := `name: foo
@@ -161,7 +162,7 @@ vendor: Foo Bar <foo@example.com>
 		packageYaml += strings.Join(extra, "\n") + "\n"
 	}
 
-	if snapType != SnapTypeApp {
+	if snapType != pkg.TypeApp {
 		packageYaml += fmt.Sprintf("type: %s\n", snapType)
 	}
 

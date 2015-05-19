@@ -18,52 +18,18 @@
 package snappy
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
 	"strings"
 	"time"
 
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
 )
 
-// SnapType represents the kind of snap (app, core, frameworks, oem)
-type SnapType string
-
-// MarshalJSON returns *m as the JSON encoding of m.
-func (m SnapType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(string(m))
-}
-
-// UnmarshalJSON sets *m to a copy of data.
-func (m *SnapType) UnmarshalJSON(data []byte) error {
-	var str string
-	if err := json.Unmarshal(data, &str); err != nil {
-		return err
-	}
-
-	// this is a workaround as the store sends "application" but snappy uses
-	// "app" for SnapTypeApp
-	if str == "application" {
-		*m = SnapTypeApp
-	} else {
-		*m = SnapType(str)
-	}
-
-	return nil
-}
-
 // SystemConfig is a config map holding configs for multiple packages
 type SystemConfig map[string]interface{}
-
-// The various types of snap parts we support
-const (
-	SnapTypeApp       SnapType = "app"
-	SnapTypeCore      SnapType = "core"
-	SnapTypeFramework SnapType = "framework"
-	SnapTypeOem       SnapType = "oem"
-)
 
 // Services implements snappy packages that offer services
 type Services interface {
@@ -78,7 +44,7 @@ type Configuration interface {
 // Dirname of a Part is the Name, in most cases qualified with the
 // Namespace
 func Dirname(p Part) string {
-	if t := p.Type(); t == SnapTypeFramework || t == SnapTypeOem {
+	if t := p.Type(); t == pkg.TypeFramework || t == pkg.TypeOem {
 		return p.Name()
 	}
 	return p.Name() + "." + p.Namespace()
@@ -110,7 +76,7 @@ type Part interface {
 	Icon() string
 
 	// Returns app, framework, core
-	Type() SnapType
+	Type() pkg.Type
 
 	InstalledSize() int64
 	DownloadSize() int64
@@ -237,7 +203,7 @@ func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 }
 
 // ActiveSnapsByType returns all installed snaps with the given type
-func ActiveSnapsByType(snapTs ...SnapType) (res []Part, err error) {
+func ActiveSnapsByType(snapTs ...pkg.Type) (res []Part, err error) {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	if err != nil {
@@ -261,7 +227,7 @@ func ActiveSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 // ActiveSnapNamesByType returns all installed snap names with the given type
 var ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 
-func activeSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
+func activeSnapNamesByTypeImpl(snapTs ...pkg.Type) (res []string, err error) {
 	installed, err := ActiveSnapsByType(snapTs...)
 	for _, part := range installed {
 		res = append(res, part.Name())

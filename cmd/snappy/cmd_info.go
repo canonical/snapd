@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -80,7 +81,7 @@ func snapInfo(pkgname string, verbose bool) error {
 }
 
 func ubuntuCoreChannel() string {
-	parts, err := snappy.ActiveSnapsByType(snappy.SnapTypeCore)
+	parts, err := snappy.ActiveSnapsByType(pkg.TypeCore)
 	if len(parts) == 1 && err == nil {
 		return parts[0].Channel()
 	}
@@ -90,8 +91,8 @@ func ubuntuCoreChannel() string {
 
 func info() error {
 	release := ubuntuCoreChannel()
-	frameworks, _ := snappy.ActiveSnapNamesByType(snappy.SnapTypeFramework)
-	apps, _ := snappy.ActiveSnapNamesByType(snappy.SnapTypeApp)
+	frameworks, _ := snappy.ActiveSnapNamesByType(pkg.TypeFramework)
+	apps, _ := snappy.ActiveSnapNamesByType(pkg.TypeApp)
 
 	fmt.Printf("release: %s\n", release)
 	fmt.Printf("architecture: %s\n", snappy.Architecture())

@@ -40,6 +40,7 @@ import (
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
@@ -200,7 +201,7 @@ type packageYaml struct {
 	Version string
 	Vendor  string
 	Icon    string
-	Type    SnapType
+	Type    pkg.Type
 
 	// the spec allows a string or a list here *ick* so we need
 	// to convert that into something sensible via reflect
@@ -240,7 +241,7 @@ type remoteSnap struct {
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
 	SupportURL      string             `json:"support_url"`
 	Title           string             `json:"title"`
-	Type            SnapType           `json:"content,omitempty"`
+	Type            pkg.Type           `json:"content,omitempty"`
 	Version         string             `json:"version"`
 }
 
@@ -343,7 +344,7 @@ func (m *packageYaml) checkForPackageInstalled(namespace string) error {
 		return nil
 	}
 
-	if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
+	if m.Type != pkg.TypeFramework && m.Type != pkg.TypeOem {
 		if part.Namespace() != namespace {
 			return ErrPackageNameAlreadyInstalled
 		}
@@ -375,7 +376,7 @@ func (m *packageYaml) FrameworksForClick() string {
 }
 
 func (m *packageYaml) checkForFrameworks() error {
-	installed, err := ActiveSnapNamesByType(SnapTypeFramework)
+	installed, err := ActiveSnapNamesByType(pkg.TypeFramework)
 	if err != nil {
 		return err
 	}
@@ -497,7 +498,7 @@ func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) (*SnapPart,
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
-func (s *SnapPart) Type() SnapType {
+func (s *SnapPart) Type() pkg.Type {
 	if s.m.Type != "" {
 		return s.m.Type
 	}
@@ -614,7 +615,7 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 	// OEM snaps should not be removed as they are a key
 	// building block for OEMs. Prunning non active ones
 	// is acceptible.
-	if s.m.Type == SnapTypeOem && s.IsActive() {
+	if s.m.Type == pkg.TypeOem && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 
@@ -674,7 +675,7 @@ func (s *SnapPart) DependentNames() ([]string, error) {
 //
 // /!\ not part of the Part interface.
 func (s *SnapPart) Dependents() ([]*SnapPart, error) {
-	if s.Type() != SnapTypeFramework {
+	if s.Type() != pkg.TypeFramework {
 		// only frameworks are depended on
 		return nil, nil
 	}
@@ -836,7 +837,7 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 		}
 
 		namespace := ""
-		if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
+		if m.Type != pkg.TypeFramework && m.Type != pkg.TypeOem {
 			namespace, err = namespaceFromYamlPath(realpath)
 			if err != nil {
 				return nil, err
@@ -870,7 +871,7 @@ type RemoteSnapPart struct {
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
-func (s *RemoteSnapPart) Type() SnapType {
+func (s *RemoteSnapPart) Type() pkg.Type {
 	return s.pkg.Type
 }
 
@@ -1123,7 +1124,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
 
 	// frameworks
-	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
+	frameworks, _ := ActiveSnapNamesByType(pkg.TypeFramework)
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(addCoreFmk(frameworks), ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
@@ -1236,7 +1237,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// the store only supports apps, oem and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
-	installed, err := ActiveSnapNamesByType(SnapTypeApp, SnapTypeFramework, SnapTypeOem)
+	installed, err := ActiveSnapNamesByType(pkg.TypeApp, pkg.TypeFramework, pkg.TypeOem)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}

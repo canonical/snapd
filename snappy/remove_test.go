@@ -19,6 +19,8 @@ package snappy
 
 import (
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
 )
 
@@ -30,7 +32,7 @@ func (s *SnapTestSuite) TestRemoveNonExistingRaisesError(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnapRemoveByVersion(c *C) {
-	makeTwoTestSnaps(c, SnapTypeApp)
+	makeTwoTestSnaps(c, pkg.TypeApp)
 
 	err := Remove("foo=1.0", 0, &progress.NullProgress{})
 
@@ -41,7 +43,7 @@ func (s *SnapTestSuite) TestSnapRemoveByVersion(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnapRemoveActive(c *C) {
-	makeTwoTestSnaps(c, SnapTypeApp)
+	makeTwoTestSnaps(c, pkg.TypeApp)
 
 	err := Remove("foo", 0, &progress.NullProgress{})
 
@@ -52,7 +54,7 @@ func (s *SnapTestSuite) TestSnapRemoveActive(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnapRemoveActiveOemFails(c *C) {
-	makeTwoTestSnaps(c, SnapTypeOem)
+	makeTwoTestSnaps(c, pkg.TypeOem)
 
 	err := Remove("foo", 0, &progress.NullProgress{})
 	c.Assert(err, DeepEquals, ErrPackageNotRemovable)
@@ -67,13 +69,13 @@ func (s *SnapTestSuite) TestSnapRemoveActiveOemFails(c *C) {
 	installed, err := m.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed[0].Name(), Equals, "foo")
-	c.Assert(installed[0].Type(), Equals, SnapTypeOem)
+	c.Assert(installed[0].Type(), Equals, pkg.TypeOem)
 	c.Assert(installed[0].Version(), Equals, "2.0")
 	c.Assert(installed, HasLen, 1)
 }
 
 func (s *SnapTestSuite) TestSnapRemoveGC(c *C) {
-	makeTwoTestSnaps(c, SnapTypeApp)
+	makeTwoTestSnaps(c, pkg.TypeApp)
 	err := Remove("foo", DoRemoveGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	m := NewMetaRepository()

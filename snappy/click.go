@@ -43,6 +43,7 @@ import (
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/systemd"
 
@@ -55,7 +56,7 @@ type clickManifest struct {
 	Name          string                  `json:"name"`
 	Version       string                  `json:"version"`
 	Architecture  []string                `json:"architecture,omitempty"`
-	Type          SnapType                `json:"type,omitempty"`
+	Type          pkg.Type                `json:"type,omitempty"`
 	Framework     string                  `json:"framework,omitempty"`
 	Description   string                  `json:"description,omitempty"`
 	Icon          string                  `json:"icon,omitempty"`
@@ -300,7 +301,7 @@ func writeHashesFile(d *clickdeb.ClickDeb, instDir string) error {
 // generate the name
 func generateBinaryName(m *packageYaml, binary Binary) string {
 	var binName string
-	if m.Type == SnapTypeFramework {
+	if m.Type == pkg.TypeFramework {
 		binName = filepath.Base(binary.Name)
 	} else {
 		binName = fmt.Sprintf("%s.%s", m.Name, filepath.Base(binary.Name))
@@ -469,7 +470,7 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 			PostStop:    service.PostStop,
 			StopTimeout: time.Duration(service.StopTimeout),
 			AaProfile:   aaProfile,
-			IsFramework: m.Type == SnapTypeFramework,
+			IsFramework: m.Type == pkg.TypeFramework,
 			BusName:     service.BusName,
 			UdevAppName: udevPartName,
 		}), nil
@@ -533,7 +534,7 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 
 		// If necessary, generate the DBus policy file so the framework
 		// service is allowed to start
-		if m.Type == SnapTypeFramework && service.BusName != "" {
+		if m.Type == pkg.TypeFramework && service.BusName != "" {
 			content, err := genBusPolicyFile(service.BusName)
 			if err != nil {
 				return err
@@ -796,7 +797,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace
 		return err
 	}
 
-	if cm.Type != SnapTypeFramework && cm.Type != SnapTypeOem {
+	if cm.Type != pkg.TypeFramework && cm.Type != pkg.TypeOem {
 		// add the namespace to the name
 		cm.Name = fmt.Sprintf("%s.%s", cm.Name, namespace)
 	}
@@ -861,7 +862,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 
 	targetDir := snapAppsDir
 	// the "oem" parts are special
-	if manifest.Type == SnapTypeOem {
+	if manifest.Type == pkg.TypeOem {
 		targetDir = snapOemDir
 
 		// TODO do the following at a higher level once the store publishes snap types
@@ -885,7 +886,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 
 	fullName := manifest.Name
 	// namespacing only applies to apps.
-	if manifest.Type != SnapTypeFramework && manifest.Type != SnapTypeOem {
+	if manifest.Type != pkg.TypeFramework && manifest.Type != pkg.TypeOem {
 		fullName += "." + namespace
 	}
 	instDir := filepath.Join(targetDir, fullName, manifest.Version)
@@ -1158,7 +1159,7 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 		return err
 	}
 
-	if manifest.Type == SnapTypeFramework {
+	if manifest.Type == pkg.TypeFramework {
 
 		if err := policy.Remove(m.Name, clickDir); err != nil {
 			return err
@@ -1204,7 +1205,7 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	if newActiveManifest.Type == SnapTypeFramework {
+	if newActiveManifest.Type == pkg.TypeFramework {
 		if err := policy.Install(m.Name, baseDir); err != nil {
 			return err
 		}

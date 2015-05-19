@@ -18,7 +18,6 @@
 package snappy
 
 import (
-	"encoding/json"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -31,6 +30,7 @@ import (
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/systemd"
@@ -510,7 +510,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryAliasSearch(c *C) {
 	c.Check(parts[0].Channel(), Equals, "edge")
 }
 func mockActiveSnapNamesByType(mockSnaps []string) {
-	ActiveSnapNamesByType = func(snapTs ...SnapType) (res []string, err error) {
+	ActiveSnapNamesByType = func(snapTs ...pkg.Type) (res []string, err error) {
 		return mockSnaps, nil
 	}
 }
@@ -1383,34 +1383,4 @@ func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
 	c.Assert(cmds[0], DeepEquals, aCmd{"udevadm", "control", "--reload-rules"})
 	c.Assert(cmds[1], DeepEquals, aCmd{"udevadm", "trigger"})
 	c.Assert(cmds, HasLen, 2)
-}
-
-type SnapTypeSuite struct{}
-
-var _ = Suite(&SnapTypeSuite{})
-
-func (s *SnapTypeSuite) TestMarshalTypes(c *C) {
-	out, err := json.Marshal(SnapTypeApp)
-	c.Assert(err, IsNil)
-	c.Check(string(out), Equals, "\"app\"")
-
-	out, err = json.Marshal(SnapTypeOem)
-	c.Assert(err, IsNil)
-	c.Check(string(out), Equals, "\"oem\"")
-}
-
-func (s *SnapTypeSuite) TestUnmarshalTypes(c *C) {
-	var st SnapType
-
-	err := json.Unmarshal([]byte("\"application\""), &st)
-	c.Assert(err, IsNil)
-	c.Check(st, Equals, SnapTypeApp)
-
-	err = json.Unmarshal([]byte("\"app\""), &st)
-	c.Assert(err, IsNil)
-	c.Check(st, Equals, SnapTypeApp)
-
-	err = json.Unmarshal([]byte("\"oem\""), &st)
-	c.Assert(err, IsNil)
-	c.Check(st, Equals, SnapTypeOem)
 }
