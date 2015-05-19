@@ -323,9 +323,16 @@ func (s *SnapTestSuite) TestCopyCopies(c *C) {
 
 func (s *SnapTestSuite) TestCopyActuallyCopies(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
-	// hoping to get the non-linking behaviour
+
+	// hoping to get the non-linking behaviour via /dev/shm
 	target, err := ioutil.TempDir("/dev/shm", "copy")
+	// sbuild environments won't allow writing to /dev/shm, so its
+	// ok to skip there
+	if os.IsPermisson(err) {
+		c.Skip("/dev/shm is not writable for us")
+	}
 	c.Assert(err, IsNil)
+
 	defer os.Remove(target)
 	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
 	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
