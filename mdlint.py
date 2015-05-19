@@ -1,4 +1,7 @@
 #!/usr/bin/python
+#
+# see http://daringfireball.net/projects/markdown/syntax
+# for the "canonical" reference
 
 import sys
 
