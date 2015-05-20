@@ -53,19 +53,6 @@ bool verify_appname(const char *appname) {
    return (status == 0);
 }
 
-bool verify_version(const char *version) {
-    // these chars are allowed in a version
-    const char* whitelist_re = "^[a-zA-Z0-9][a-zA-Z0-9.+~-]*";
-    regex_t re;
-    if (regcomp(&re, whitelist_re, REG_EXTENDED|REG_NOSUB) != 0)
-        die("can not compile regex %s", whitelist_re);
-
-    int status = regexec(&re, version, 0, NULL, 0);
-    regfree(&re);
-
-    return (status == 0);
-}
-
 void run_snappy_app_dev_add(struct udev *u, const char *path, const char *appname) {
    debug("run_snappy_app_dev_add: %s %s", path, appname);
       struct udev_device *d = udev_device_new_from_syspath(u, path);
@@ -213,36 +200,19 @@ bool snappy_udev_setup_required(const char *appname) {
    return false;
 }
 
-__attribute__ ((malloc))
-char *ensure_tmpdir(const char *appname, const char *version) {
-    char *buf = malloc(sizeof(char) * MAX_BUF);
-    if (buf == NULL) {
-        die("unable to allocate buffer for tmpdir name");
-    }
+void setup_private_mount(const char* appname) {
     uid_t uid = getuid();
     gid_t gid = getgid();
-    int n = must_snprintf(buf, MAX_BUF, "/tmp/snaps.%d", uid);
-    ensuredir(buf, 01777, uid, gid);
+    char tmpdir[MAX_BUF] = {0};
 
-    n += must_snprintf(buf+n, MAX_BUF-n, "/%s", appname);
-    ensuredir(buf, 01777, uid, gid);
-
-    n += must_snprintf(buf+n, MAX_BUF-n, "/%s", version);
-    ensuredir(buf, 01777, uid, gid);
-
-    n += must_snprintf(buf+n, MAX_BUF-n, "/tmp");
-    ensuredir(buf, 01777, uid, gid);
-
-    buf = realloc(buf, sizeof(char) * n);
-    if (buf == NULL) {
-        die("unable to shrink tmpdir name buffer");
+    must_snprintf(tmpdir, MAX_BUF, "snap.%d_%s_XXXXXX", uid, appname);
+    if (mkdtemp(tmpdir) == NULL) {
+        die("unable to create tmpdir");
     }
 
-    return buf;
-}
-
-void setup_private_mount(const char* appname, const char* version) {
-    char *tmpdir = ensure_tmpdir(appname, version);
+    if (chown(tmpdir, uid, gid) < 0) {
+        die("unable to chown tmpdir");
+    }
 
     // unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >= 2.14
     // if using an older glibc, you'd need -D_BSD_SOURCE or -D_SVID_SORUCE.
@@ -259,25 +229,20 @@ void setup_private_mount(const char* appname, const char* version) {
     if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
         die("unable to bind private /tmp");
     }
-
-    free(tmpdir);
 }
 
 int main(int argc, char **argv)
 {
-   const int NR_ARGS = 4;
+   const int NR_ARGS = 3;
    if(argc < NR_ARGS+1)
-       die("Usage: %s <appname> <version> <apparmor> <binary>", argv[0]);
+       die("Usage: %s <appname> <apparmor> <binary>", argv[0]);
 
    const char *appname = argv[1];
-   const char *version = argv[2];
-   const char *aa_profile = argv[3];
-   const char *binary = argv[4];
+   const char *aa_profile = argv[2];
+   const char *binary = argv[3];
 
    if(!verify_appname(appname))
       die("appname %s not allowed", appname);
-   if(!verify_version(version))
-      die("version %s not allowed", version);
 
    // verify binary path
    char apps_prefix[128];
@@ -295,7 +260,7 @@ int main(int argc, char **argv)
 
    if(geteuid() == 0) {
        // set up private mounts
-       setup_private_mount(appname, version);
+       setup_private_mount(appname);
 
        // this needs to happen as root
        if(snappy_udev_setup_required(appname)) {

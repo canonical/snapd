@@ -35,7 +35,4 @@ void write_string_to_file(const char *filepath, const char *buf);
 __attribute__ ((format (printf, 3, 4)))
 int must_snprintf(char *str, size_t size, const char *format, ...);
 
-// mkdir & chown that dies on any error condition except EEXIST
-void ensuredir(const char *pathname, mode_t mode, uid_t uid, gid_t gid);
-
 #endif

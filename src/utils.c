@@ -87,14 +87,3 @@ int must_snprintf(char *str, size_t size, const char *format, ...) {
 
    return n;
 }
-
-void ensuredir(const char *pathname, mode_t mode, uid_t uid, gid_t gid) {
-    int retval = mkdir(pathname, mode);
-    if (retval != 0 && errno != EEXIST) {
-        die("unable to mkdir %s", pathname);
-    }
-
-    if (chown(pathname, uid, gid) < 0) {
-        die("unable to chown %s to %d", pathname, uid);
-    }
-}
