@@ -8,6 +8,9 @@ else
     goctest="go test"
 fi
 
+echo Checking docs
+./mdlint.py docs/*.md
+
 echo Checking formatting
 fmt=$(gofmt -l .)
 

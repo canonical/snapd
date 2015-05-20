@@ -135,4 +135,4 @@ There are long-term consequences for picking a package name. If you choose
 becomes the gaming engine, you will need to be pushed out to a different name.
 
 ## Open questions
- * Must finalize what the `APP_ID` is going to be (composed? no devname? etc)
+* Must finalize what the `APP_ID` is going to be (composed? no devname? etc)

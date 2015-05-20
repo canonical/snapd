@@ -81,14 +81,14 @@ options are available to modify the confinement:
   Specify `caps: []` to indicate no additional `caps`.  When `caps` and
   `security-template` are not specified, `caps` defaults to client networking.
   Not compatible with `security-override` or `security-policy`.
- * AppArmor access is deny by default and apps are restricted to their
-   app-specific directories, libraries, etc (enforcing ro, rw, etc).
-   Additional access beyond what is allowed by the declared `security-template`
-   is declared via this option
- * seccomp is deny by default. Enough safe syscalls are allowed so that apps
-   using the declared `security-template` should work. Additional access
-   beyond what is allowed by the `security-template` is declared via this
-   option
+    * AppArmor access is deny by default and apps are restricted to
+      their app-specific directories, libraries, etc (enforcing ro,
+      rw, etc).  Additional access beyond what is allowed by the
+      declared `security-template` is declared via this option
+    * seccomp is deny by default. Enough safe syscalls are allowed so
+      that apps using the declared `security-template` should
+      work. Additional access beyond what is allowed by the
+      `security-template` is declared via this option
 * `security-template`: (optional) alternate security template to use instead of
   `default`. When specified without `caps`, `caps` defaults to being empty. Not
   compatible with `security-override` or `security-policy`.
@@ -97,13 +97,13 @@ options are available to modify the confinement:
   [advanced usage](https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement)
   for details. Not compatible with `caps`, `security-template` or
   `security-policy`
- * `apparmor: path/to/security.override`
- * `seccomp: path/to/filter.override`
+    * `apparmor: path/to/security.override`
+    * `seccomp: path/to/filter.override`
 * `security-policy`: (optional) hand-crafted low-level raw security policy to
   use instead of using default template-based security policy. Not compatible
   with `caps`, `security-template` or `security-override`.
- * `apparmor: path/to/profile`
- * `seccomp: path/to/filter`
+    * `apparmor: path/to/profile`
+    * `seccomp: path/to/filter`
 
 Eg, consider the following:
 
@@ -199,22 +199,22 @@ For more information, please see
 The following is planned:
 
 * launcher:
- * utilize syscall argument filtering
- * setup additional cgroups (tag network traffic, memory)
- * setup iptables using cgroup tags (for internal app access)
- * drop privileges to uid of service
+    * utilize syscall argument filtering
+    * setup additional cgroups (tag network traffic, memory)
+    * setup iptables using cgroup tags (for internal app access)
+    * drop privileges to uid of service
 * fine-grained network mediation via AppArmor
 * `sockets`: (optional) `AF_UNIX` abstract socket definition for coordinated
   snap communications. Abstract sockets will be namespaced and yaml is such
   that (client) apps wanting to use the socket don't have to declare anything
   extra, but they don't have access unless the (server) binary declaring the
   socket says that app is ok).
- * `names`: (optional) list of abstract socket names (`<name>_<binaryname>` is
-   prepended)
- * `allowed-clients`: `<name>.<namespace>` or `<name>.<namespace>_<binaryname>`
-   (ie, omit version and `binaryname` to allow all from snap
-   `<name>.<namespace>` or omit version to allow only `binaryname` from snap
-   `<name>`)
+    * `names`: (optional) list of abstract socket names
+      (`<name>_<binaryname>` is prepended)
+    * `allowed-clients`: `<name>.<namespace>` or
+     `<name>.<namespace>_<binaryname>` (ie, omit version and
+     `binaryname` to allow all from snap `<name>.<namespace>` or omit
+     version to allow only `binaryname` from snap `<name>`)
 
  Eg:
 
