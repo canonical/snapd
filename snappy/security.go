@@ -136,9 +136,9 @@ func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error)
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
 	}
 
-	namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
 
-	return fmt.Sprintf("%s.%s_%s_%s", m.Name, namespace, cleanedName, m.Version), err
+	return fmt.Sprintf("%s.%s_%s_%s", m.Name, origin, cleanedName, m.Version), err
 }
 
 var runScFilterGen = runScFilterGenImpl

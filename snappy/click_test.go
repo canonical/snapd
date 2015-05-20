@@ -151,16 +151,16 @@ Pattern: /var/lib/apparmor/click/${id}
 			},
 		},
 	}
-	err := installClickHooks(instDir, m, testNamespace, false)
+	err := installClickHooks(instDir, m, testOrigin, false)
 	c.Assert(err, IsNil)
-	p := fmt.Sprintf("%s/%s.%s_%s_%s", testSymlinkDir, m.Name, testNamespace, "app", m.Version)
+	p := fmt.Sprintf("%s/%s.%s_%s_%s", testSymlinkDir, m.Name, testOrigin, "app", m.Version)
 	_, err = os.Stat(p)
 	c.Assert(err, IsNil)
 	symlinkTarget, err := filepath.EvalSymlinks(p)
 	c.Assert(err, IsNil)
 	c.Assert(symlinkTarget, Equals, path.Join(instDir, "path-to-systemd-file"))
 
-	p = fmt.Sprintf("%s/%s.%s_%s_%s", testSymlinkDir2, m.Name, testNamespace, "app", m.Version)
+	p = fmt.Sprintf("%s/%s.%s_%s_%s", testSymlinkDir2, m.Name, testOrigin, "app", m.Version)
 	_, err = os.Stat(p)
 	c.Assert(err, IsNil)
 	symlinkTarget, err = filepath.EvalSymlinks(p)
@@ -168,15 +168,15 @@ Pattern: /var/lib/apparmor/click/${id}
 	c.Assert(symlinkTarget, Equals, path.Join(instDir, "path-to-apparmor-file"))
 
 	// now ensure we can remove
-	err = removeClickHooks(m, testNamespace, false)
+	err = removeClickHooks(m, testOrigin, false)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(fmt.Sprintf("%s/%s.%s_%s_%s", testSymlinkDir, m.Name, testNamespace, "app", m.Version))
+	_, err = os.Stat(fmt.Sprintf("%s/%s.%s_%s_%s", testSymlinkDir, m.Name, testOrigin, "app", m.Version))
 	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	snapFile := makeTestSnapPackage(c, "")
-	name, err := installClick(snapFile, 0, nil, testNamespace)
+	name, err := installClick(snapFile, 0, nil, testOrigin)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
@@ -191,11 +191,11 @@ func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	c.Assert(err, IsNil)
 
 	// ensure we have the data dir
-	_, err = os.Stat(path.Join(s.tempdir, "var", "lib", "apps", "foo."+testNamespace, "1.0"))
+	_, err = os.Stat(path.Join(s.tempdir, "var", "lib", "apps", "foo."+testOrigin, "1.0"))
 	c.Assert(err, IsNil)
 
 	// ensure we have the hashes
-	snap, err := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"), testNamespace)
+	snap, err := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"), testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(snap.Hash(), Not(Equals), "")
 
@@ -209,7 +209,7 @@ func (s *SnapTestSuite) TestLocalSnapInstall(c *C) {
 func (s *SnapTestSuite) TestLocalSnapInstallFailsAlreadyInstalled(c *C) {
 	snapFile := s.testLocalSnapInstall(c)
 
-	_, err := installClick(snapFile, 0, nil, "namespaceother")
+	_, err := installClick(snapFile, 0, nil, "originother")
 	c.Assert(err, Equals, ErrPackageNameAlreadyInstalled)
 }
 
@@ -219,7 +219,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
 	defer func() { clickdeb.VerifyCmd = old }()
 
 	snapFile := makeTestSnapPackage(c, "")
-	_, err := installClick(snapFile, 0, nil, testNamespace)
+	_, err := installClick(snapFile, 0, nil, testOrigin)
 	c.Assert(err, NotNil)
 
 	contentFile := path.Join(s.tempdir, "apps", fooComposedName, "1.0", "bin", "foo")
@@ -238,11 +238,11 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyPassesUnauth(c *C) {
 	defer func() { clickdeb.VerifyCmd = old }()
 
 	snapFile := makeTestSnapPackage(c, "")
-	name, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	name, err := installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	_, err = installClick(snapFile, 0, nil, testNamespace)
+	_, err = installClick(snapFile, 0, nil, testOrigin)
 	c.Assert(err, NotNil)
 }
 
@@ -263,7 +263,7 @@ func (a *agreerator) Notify(string) {}
 // install fails
 func (s *SnapTestSuite) TestLocalSnapInstallMissingAccepterFails(c *C) {
 	pkg := makeTestSnapPackage(c, "explicit-license-agreement: Y")
-	_, err := installClick(pkg, 0, nil, testNamespace)
+	_, err := installClick(pkg, 0, nil, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
 }
 
@@ -271,7 +271,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallMissingAccepterFails(c *C) {
 // Agreed returns false, install fails
 func (s *SnapTestSuite) TestLocalSnapInstallNegAccepterFails(c *C) {
 	pkg := makeTestSnapPackage(c, "explicit-license-agreement: Y")
-	_, err := installClick(pkg, 0, &agreerator{y: false}, testNamespace)
+	_, err := installClick(pkg, 0, &agreerator{y: false}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
 }
 
@@ -282,7 +282,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {
 	defer func() { licenseChecker = checkLicenseExists }()
 
 	pkg := makeTestSnapPackageFull(c, "explicit-license-agreement: Y", false)
-	_, err := installClick(pkg, 0, &agreerator{y: true}, testNamespace)
+	_, err := installClick(pkg, 0, &agreerator{y: true}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotProvided)
 }
 
@@ -290,7 +290,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {
 // Agreed returns true, install succeeds
 func (s *SnapTestSuite) TestLocalSnapInstallPosAccepterWorks(c *C) {
 	pkg := makeTestSnapPackage(c, "explicit-license-agreement: Y")
-	_, err := installClick(pkg, 0, &agreerator{y: true}, testNamespace)
+	_, err := installClick(pkg, 0, &agreerator{y: true}, testOrigin)
 	c.Check(err, Equals, nil)
 }
 
@@ -298,7 +298,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallPosAccepterWorks(c *C) {
 func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 	pkg := makeTestSnapPackage(c, "name: foobar\nexplicit-license-agreement: Y")
 	ag := &agreerator{y: true}
-	_, err := installClick(pkg, 0, ag, testNamespace)
+	_, err := installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
 	c.Check(ag.intro, Matches, ".*foobar.*requires.*license.*")
 	c.Check(ag.license, Equals, "WTFPL")
@@ -312,11 +312,11 @@ func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testNamespace+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
-	_, err = installClick(pkg, 0, ag, testNamespace)
+	_, err = installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
 	c.Check(ag.intro, Equals, "")
 	c.Check(ag.license, Equals, "")
@@ -330,11 +330,11 @@ func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testNamespace+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y")
-	_, err = installClick(pkg, 0, ag, testNamespace)
+	_, err = installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
 	c.Check(ag.license, Equals, "WTFPL")
 }
@@ -347,11 +347,11 @@ func (s *SnapTestSuite) TestDifferentLicenseVersion(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"license-version: 2\nversion: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testNamespace+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
-	_, err = installClick(pkg, 0, ag, testNamespace)
+	_, err = installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
 	c.Check(ag.license, Equals, "WTFPL")
 }
@@ -364,7 +364,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	}
 
 	targetDir := path.Join(s.tempdir, "apps")
-	_, err := installClick(makeTestSnapPackage(c, ""), 0, nil, testNamespace)
+	_, err := installClick(makeTestSnapPackage(c, ""), 0, nil, testOrigin)
 	c.Assert(err, IsNil)
 
 	instDir := path.Join(targetDir, fooComposedName, "1.0")
@@ -415,7 +415,7 @@ type: framework
 		return writeHashes(tmpdir, dataTar)
 	}), IsNil)
 
-	_, err = installClick(snapName, 0, nil, testNamespace)
+	_, err = installClick(snapName, 0, nil, testOrigin)
 	c.Assert(err, IsNil)
 
 	return snapName
@@ -430,7 +430,7 @@ func (s *SnapTestSuite) TestSnapInstallPackagePolicyDelta(c *C) {
 	// rename the policy
 	//poldir := filepath.Join(tmpdir, "meta", "framework-policy", "apparmor", "policygroups")
 
-	_, err := installClick(snapName, 0, nil, testNamespace)
+	_, err := installClick(snapName, 0, nil, testOrigin)
 	c.Assert(err, IsNil)
 	// appdir := filepath.Join(s.tempdir, "apps", "hello.testspacethename", "1.0.1")
 	// c.Assert(removeClick(appdir, nil), IsNil)
@@ -467,7 +467,7 @@ version: 1.0
 type: oem
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
-	_, err := installClick(snapFile, AllowOEM, nil, testNamespace)
+	_, err := installClick(snapFile, AllowOEM, nil, testOrigin)
 	c.Assert(err, IsNil)
 
 	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
@@ -483,7 +483,7 @@ version: 1.0
 type: oem
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
-	_, err := installClick(snapFile, AllowOEM, nil, testNamespace)
+	_, err := installClick(snapFile, AllowOEM, nil, testOrigin)
 	c.Assert(err, IsNil)
 
 	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
@@ -498,12 +498,12 @@ version: 2.0
 type: oem
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
-	_, err = installClick(snapFile, 0, nil, testNamespace)
+	_, err = installClick(snapFile, 0, nil, testOrigin)
 	c.Check(err, IsNil)
 
-	// different namespace, this shows we have no namespace support at this
+	// different origin, this shows we have no origin support at this
 	// level, but sideloading also works.
-	_, err = installClick(snapFile, 0, nil, sideloadedNamespace)
+	_, err = installClick(snapFile, 0, nil, sideloadedOrigin)
 	c.Check(err, IsNil)
 
 	// a package name fork, IOW, a different OEM package.
@@ -512,11 +512,11 @@ version: 2.0
 type: oem
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
-	_, err = installClick(snapFile, 0, nil, testNamespace)
+	_, err = installClick(snapFile, 0, nil, testOrigin)
 	c.Check(err, Equals, ErrOEMPackageInstall)
 
 	// this will cause chaos, but let's test if it works
-	_, err = installClick(snapFile, AllowOEM, nil, testNamespace)
+	_, err = installClick(snapFile, AllowOEM, nil, testOrigin)
 	c.Check(err, IsNil)
 }
 
@@ -526,11 +526,11 @@ icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 
 	// ensure v2 is active
@@ -557,7 +557,7 @@ vendor: Foo Bar <foo@example.com>
 func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	snapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "apps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "apps")
-	appDir := "foo." + testNamespace
+	appDir := "foo." + testOrigin
 	homeData := filepath.Join(homeDir, appDir, "1.0")
 	err := helpers.EnsureDir(homeData, 0755)
 	c.Assert(err, IsNil)
@@ -569,7 +569,7 @@ vendor: Foo Bar <foo@example.com>
 	canaryData := []byte("ni ni ni")
 
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, appDir, "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
@@ -578,7 +578,7 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 	newCanaryDataFile := filepath.Join(snapDataDir, appDir, "2.0", "canary.txt")
 	content, err := ioutil.ReadFile(newCanaryDataFile)
@@ -601,16 +601,16 @@ func (s *SnapTestSuite) TestClickCopyDataNoUserHomes(c *C) {
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
 `
-	appDir := "foo." + testNamespace
+	appDir := "foo." + testOrigin
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, appDir, "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(filepath.Join(snapDataDir, appDir, "2.0", "canary.txt"))
 	c.Assert(err, IsNil)
@@ -636,17 +636,17 @@ integration:
  app:
   tracehook: meta/package.yaml
 `
-	appDir := "bar." + testNamespace
+	appDir := "bar." + testOrigin
 	// install 1.0 and then upgrade to 2.0
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, appDir, "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(filepath.Join(snapDataDir, appDir, "2.0", "canary.txt"))
 	c.Assert(err, IsNil)
@@ -657,7 +657,7 @@ integration:
 	c.Assert(err, IsNil)
 	// Forcefully in one line to avoid issues with hidden spaces,
 	// it is visually obvious in this form.
-	hookRun := fmt.Sprintf("now: ./bar.%s_app_1.0.tracehook\nnow: \nnow: ./bar.%s_app_2.0.tracehook\n", testNamespace, testNamespace)
+	hookRun := fmt.Sprintf("now: ./bar.%s_app_1.0.tracehook\nnow: \nnow: ./bar.%s_app_2.0.tracehook\n", testOrigin, testOrigin)
 	c.Assert(string(content), Equals, hookRun)
 }
 
@@ -670,7 +670,7 @@ func (s *SnapTestSuite) TestClickCopyDataHookFails(c *C) {
 	hookContent := fmt.Sprintf(`Hook-Name: hooky
 User: root
 Exec: if test -e %s/bar.%s_app_2.0.hooky; then echo "this log message is harmless and can be ignored"; false; fi
-Pattern: /${id}.hooky`, s.tempdir, testNamespace)
+Pattern: /${id}.hooky`, s.tempdir, testOrigin)
 	makeClickHook(c, hookContent)
 
 	packageYaml := `name: bar
@@ -681,17 +681,17 @@ integration:
   hooky: meta/package.yaml
 `
 
-	appDir := "bar." + testNamespace
+	appDir := "bar." + testOrigin
 	// install 1.0 and then upgrade to 2.0
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, IsNil)
 	canaryDataFile := filepath.Join(snapDataDir, appDir, "1.0", "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, testNamespace)
+	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
 	c.Assert(err, NotNil)
 
 	// installing 2.0 will fail in the hooks,
@@ -905,7 +905,7 @@ services:
    start: bin/bye
 version: `
 	snapFile := makeTestSnapPackage(c, packageYaml+"1.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, inter, testNamespace)
+	_, err = installClick(snapFile, AllowUnauthenticated, inter, testOrigin)
 	c.Assert(err, IsNil)
 
 	c.Assert(helpers.FileExists(filepath.Join(snapServicesDir, "foo_svc1_1.0.service")), Equals, true)
@@ -1014,7 +1014,7 @@ services:
    start: bin/hello
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, InhibitHooks, nil, testNamespace)
+	_, err := installClick(snapFile, InhibitHooks, nil, testOrigin)
 	c.Assert(err, IsNil)
 
 	c.Assert(allSystemctl, HasLen, 0)
@@ -1060,11 +1060,11 @@ integration:
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 
 	// install it
-	_, err := installClick(snapFile, 0, nil, testNamespace)
+	_, err := installClick(snapFile, 0, nil, testOrigin)
 	c.Assert(err, IsNil)
 
 	// verify we have the symlink
-	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, fmt.Sprintf("foo.%s_app_1.0", testNamespace))), Equals, true)
+	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, fmt.Sprintf("foo.%s_app_1.0", testOrigin))), Equals, true)
 	// and the hook exec was called
 	c.Assert(helpers.FileExists(filepath.Join(s.tempdir, "i-ran")), Equals, true)
 }
@@ -1092,11 +1092,11 @@ integration:
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 
 	// install it
-	_, err := installClick(snapFile, InhibitHooks, nil, testNamespace)
+	_, err := installClick(snapFile, InhibitHooks, nil, testOrigin)
 	c.Assert(err, IsNil)
 
 	// verify we have the symlink
-	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, fmt.Sprintf("foo.%s_app_1.0", testNamespace))), Equals, true)
+	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, fmt.Sprintf("foo.%s_app_1.0", testOrigin))), Equals, true)
 	// but the hook exec was not called
 	c.Assert(helpers.FileExists(filepath.Join(s.tempdir, "i-ran")), Equals, false)
 }
@@ -1120,7 +1120,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	verbs := []string{"Start", "Stop", "StopPost"}
 	bins := []string{"hello", "goodbye", "missya"}
 	for i := range verbs {
-		expected := fmt.Sprintf("Exec%s=/usr/bin/ubuntu-core-launcher hello-app.%s %s_svc1_1.10 %s/bin/%s", verbs[i], testNamespace, helloAppComposedName, baseDirWithoutRootPrefix, bins[i])
+		expected := fmt.Sprintf("Exec%s=/usr/bin/ubuntu-core-launcher hello-app.%s %s_svc1_1.10 %s/bin/%s", verbs[i], testOrigin, helloAppComposedName, baseDirWithoutRootPrefix, bins[i])
 		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // gocheck adds ^ and $ around the regexp provided
 	}
 }
@@ -1180,7 +1180,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	needle := fmt.Sprintf(`
 cd /apps/hello-app.testspacethename/1.10
 ubuntu-core-launcher hello-app.%s hello-app.testspacethename_hello_1.10 /apps/hello-app.testspacethename/1.10/bin/hello "$@"
-`, testNamespace)
+`, testOrigin)
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
 }
 
@@ -1360,7 +1360,7 @@ binaries:
 		return writeHashes(tmpdir, dataTar)
 	}), IsNil)
 
-	_, err = installClick(snapName, 0, nil, testNamespace)
+	_, err = installClick(snapName, 0, nil, testOrigin)
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
 }
 
@@ -1372,7 +1372,7 @@ frameworks:
   - missing
 `
 	snapFile := makeTestSnapPackage(c, packageYaml)
-	_, err := installClick(snapFile, 0, nil, testNamespace)
+	_, err := installClick(snapFile, 0, nil, testOrigin)
 	c.Assert(err, ErrorMatches, `.*missing framework.*`)
 }
 
@@ -1399,7 +1399,7 @@ Pattern: /var/lib/systemd/click/${id}
 		return s
 	}
 
-	err := installClickHooks(c.MkDir(), m, testNamespace, false)
+	err := installClickHooks(c.MkDir(), m, testOrigin, false)
 	c.Assert(err, IsNil)
 	c.Assert(stripGlobalRootDirWasCalled, Equals, true)
 }

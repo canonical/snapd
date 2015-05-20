@@ -39,9 +39,9 @@ import (
 )
 
 const (
-	systemImagePartName      = "ubuntu-core"
-	systemImagePartNamespace = "ubuntu"
-	systemImagePartVendor    = "Canonical Ltd."
+	systemImagePartName   = "ubuntu-core"
+	systemImagePartOrigin = "ubuntu"
+	systemImagePartVendor = "Canonical Ltd."
 
 	// location of the channel config on the filesystem.
 	//
@@ -107,9 +107,9 @@ func (s *SystemImagePart) Name() string {
 	return systemImagePartName
 }
 
-// Namespace returns the namespace ("ubuntu")
-func (s *SystemImagePart) Namespace() string {
-	return systemImagePartNamespace
+// Origin returns the origin ("ubuntu")
+func (s *SystemImagePart) Origin() string {
+	return systemImagePartOrigin
 }
 
 // Vendor returns the vendor ("Canonical Ltd.")

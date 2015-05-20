@@ -8,7 +8,8 @@ the following attributes:
 * Frameworks provide a significant benefit for many users
 * Frameworks are delivered via snaps
 * Frameworks can be installed on the same system without conflicts
-* Frameworks typically will use a toplevel namespace
+* Frameworks are unique, multiple origins for a framework are not supported for which
+  frameworks must be referred to without an `origin`.
 * Framework `binaries` may be used without appending the package name and
   these binary names are governed by the framework onboarding process (below)
 * Frameworks must not depend on other frameworks

@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	testNamespace        = "testspacethename"
+	testOrigin           = "testspacethename"
 	fooComposedName      = "foo.testspacethename"
 	helloAppComposedName = "hello-app.testspacethename"
 )
@@ -64,7 +64,7 @@ services:
 		return "", err
 	}
 
-	dirName := fmt.Sprintf("%s.%s", m.Name, testNamespace)
+	dirName := fmt.Sprintf("%s.%s", m.Name, testOrigin)
 	metaDir := filepath.Join(tempdir, "apps", dirName, m.Version, "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
@@ -169,12 +169,12 @@ vendor: Foo Bar <foo@example.com>
 	}
 
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	n, err := installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testNamespace)
+	n, err := installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	n, err = installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testNamespace)
+	n, err = installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
 

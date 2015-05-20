@@ -71,10 +71,10 @@ func search(args []string, allVariants bool) error {
 			}
 		} else {
 			for _, part := range sharedName.Parts {
-				if sharedName.IsAlias(part.Namespace()) || part.Type() == pkg.TypeFramework {
+				if sharedName.IsAlias(part.Origin()) || part.Type() == pkg.TypeFramework {
 					fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
 				} else {
-					fmt.Fprintln(w, fmt.Sprintf("%s.%s\t%s\t%s\t", part.Name(), part.Namespace(), part.Version(), part.Description()))
+					fmt.Fprintln(w, fmt.Sprintf("%s.%s\t%s\t%s\t", part.Name(), part.Origin(), part.Version(), part.Description()))
 				}
 			}
 		}
