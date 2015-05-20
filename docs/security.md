@@ -16,10 +16,10 @@ unspecified, default confinement allows the snap to run as a network client.
 
 Applications are tracked by the system by using the concept of an
 ApplicationId. The `APP_ID is` the composition of the package name, the app's
-origin namespace from the store (if applicable-- only snaps of `type: app` (the
-default) have an origin namespace as part of their `APP_ID`), the
+origin from the store if applicable -- only snaps of `type: app` (the
+default) use an origin to compose the `APP_ID`), the
 service/binary name and package version. The `APP_ID` takes the form of
-`<pkgname>.<namespace>_<appname>_<version>`. For example, if this is in
+`<pkgname>.<origin>_<appname>_<version>`. For example, if this is in
 `package.yaml`:
 
     name: foo
@@ -29,7 +29,7 @@ service/binary name and package version. The `APP_ID` takes the form of
       - name: bar
         start: bin/bar
 
-and the app was uploaded to the `myorigin` namespace in the store, then the
+and the app was uploaded to the `myorigin` origin in the store, then the
 `APP_ID` for the `bar` service is `foo.myorigin_bar_0.1`. The `APP_ID` is used
 throughout the system including in the enforcement of security policy by the
 app launcher.
@@ -129,7 +129,7 @@ Eg, consider the following:
       - name: cli-exe
         caps: []
 
-If this package is uploaded to the store in the `myorigin` namespace, then:
+If this package is uploaded to the store in the `myorigin` origin, then:
 
 * `APP_ID` for `bar` is `foo.myorigin_bar_1.0`. It uses the `default` template
   and `network-client` (default) cap
@@ -211,9 +211,9 @@ The following is planned:
   socket says that app is ok).
  * `names`: (optional) list of abstract socket names (`<name>_<binaryname>` is
    prepended)
- * `allowed-clients`: `<name>.<namespace>` or `<name>.<namespace>_<binaryname>`
+ * `allowed-clients`: `<name>.<origin>` or `<name>.<origin>_<binaryname>`
    (ie, omit version and `binaryname` to allow all from snap
-   `<name>.<namespace>` or omit version to allow only `binaryname` from snap
+   `<name>.<origin>` or omit version to allow only `binaryname` from snap
    `<name>`)
 
  Eg:

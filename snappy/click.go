@@ -181,7 +181,7 @@ type iterHooksFunc func(src, dst string, systemHook clickHook) error
 
 // iterHooks will run the callback "f" for the given manifest
 // so that the call back can arrange e.g. a new link
-func iterHooks(m *packageYaml, namespace string, inhibitHooks bool, f iterHooksFunc) error {
+func iterHooks(m *packageYaml, origin string, inhibitHooks bool, f iterHooksFunc) error {
 	systemHooks, err := systemClickHooks()
 	if err != nil {
 		return err
@@ -202,7 +202,7 @@ func iterHooks(m *packageYaml, namespace string, inhibitHooks bool, f iterHooksF
 				continue
 			}
 
-			dst := filepath.Join(globalRootDir, expandHookPattern(m.qualifiedName(namespace), app, m.Version, systemHook.pattern))
+			dst := filepath.Join(globalRootDir, expandHookPattern(m.qualifiedName(origin), app, m.Version, systemHook.pattern))
 
 			if _, err := os.Stat(dst); err == nil {
 				if err := os.Remove(dst); err != nil {
@@ -227,8 +227,8 @@ func iterHooks(m *packageYaml, namespace string, inhibitHooks bool, f iterHooksF
 	return nil
 }
 
-func installClickHooks(targetDir string, m *packageYaml, namespace string, inhibitHooks bool) error {
-	return iterHooks(m, namespace, inhibitHooks, func(src, dst string, systemHook clickHook) error {
+func installClickHooks(targetDir string, m *packageYaml, origin string, inhibitHooks bool) error {
+	return iterHooks(m, origin, inhibitHooks, func(src, dst string, systemHook clickHook) error {
 		// setup the new link target here, iterHooks will take
 		// care of running the hook
 		realSrc := stripGlobalRootDir(path.Join(targetDir, src))
@@ -240,8 +240,8 @@ func installClickHooks(targetDir string, m *packageYaml, namespace string, inhib
 	})
 }
 
-func removeClickHooks(m *packageYaml, namespace string, inhibitHooks bool) (err error) {
-	return iterHooks(m, namespace, inhibitHooks, func(src, dst string, systemHook clickHook) error {
+func removeClickHooks(m *packageYaml, origin string, inhibitHooks bool) (err error) {
+	return iterHooks(m, origin, inhibitHooks, func(src, dst string, systemHook clickHook) error {
 		// nothing we need to do here, the iterHookss will remove
 		// the hook symlink and call the hook itself
 		return nil
@@ -267,7 +267,7 @@ func removeClick(clickDir string, inter interacter) (err error) {
 		return err
 	}
 
-	if err := removeClickHooks(m, namespaceFromBasedir(clickDir), false); err != nil {
+	if err := removeClickHooks(m, originFromBasedir(clickDir), false); err != nil {
 		return err
 	}
 
@@ -343,7 +343,7 @@ export SNAPP_OLD_PWD="$(pwd)"
 
 # app info
 export SNAP_NAME="{{.Name}}"
-export SNAP_ORIGIN="{{.Namespace}}"
+export SNAP_ORIGIN="{{.Origin}}"
 export SNAP_FULLNAME="{{.UdevAppName}}"
 
 # app paths
@@ -367,14 +367,14 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
 	// it's fine for this to error out; we might be in a framework or sth
-	namespace := namespaceFromBasedir(pkgPath)
+	origin := originFromBasedir(pkgPath)
 
 	if err := verifyBinariesYaml(binary); err != nil {
 		return "", err
 	}
 
 	actualBinPath := binPathForBinary(pkgPath, binary)
-	udevPartName := m.qualifiedName(namespace)
+	udevPartName := m.qualifiedName(origin)
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
@@ -385,7 +385,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		Path        string
 		AaProfile   string
 		UdevAppName string
-		Namespace   string
+		Origin      string
 	}{
 		Name:        m.Name,
 		Version:     m.Version,
@@ -393,7 +393,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		Path:        pkgPath,
 		AaProfile:   aaProfile,
 		UdevAppName: udevPartName,
-		Namespace:   namespace,
+		Origin:      origin,
 	}
 	t.Execute(&templateOut, wrapperData)
 
@@ -452,7 +452,7 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 		return "", err
 	}
 
-	udevPartName := m.qualifiedName(namespaceFromBasedir(baseDir))
+	udevPartName := m.qualifiedName(originFromBasedir(baseDir))
 
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
@@ -785,17 +785,17 @@ type interacter interface {
 	Notify(status string)
 }
 
-// this rewrites the json manifest to include the namespace in the on-disk
+// this rewrites the json manifest to include the origin in the on-disk
 // manifest.json to be compatible with click again
-func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace string) error {
+func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin string) error {
 	var cm clickManifest
 	if err := json.Unmarshal(manifestData, &cm); err != nil {
 		return err
 	}
 
 	if cm.Type != pkg.TypeFramework && cm.Type != pkg.TypeOem {
-		// add the namespace to the name
-		cm.Name = fmt.Sprintf("%s.%s", cm.Name, namespace)
+		// add the origin to the name
+		cm.Name = fmt.Sprintf("%s.%s", cm.Name, origin)
 	}
 
 	outStr, err := json.MarshalIndent(cm, "", "  ")
@@ -809,7 +809,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace
 	return nil
 }
 
-func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
+func installClick(snapFile string, flags InstallFlags, inter interacter, origin string) (name string, err error) {
 	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
 	if err := auditClick(snapFile, allowUnauthenticated); err != nil {
 		return "", err
@@ -839,7 +839,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		return "", err
 	}
 
-	if err := m.checkForPackageInstalled(namespace); err != nil {
+	if err := m.checkForPackageInstalled(origin); err != nil {
 		return "", err
 	}
 
@@ -874,7 +874,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		}
 	}
 
-	fullName := m.qualifiedName(namespace)
+	fullName := m.qualifiedName(origin)
 	instDir := filepath.Join(targetDir, fullName, m.Version)
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 
@@ -909,7 +909,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
 		return "", err
 	}
-	if err := writeCompatManifestJSON(clickMetaDir, manifestData, namespace); err != nil {
+	if err := writeCompatManifestJSON(clickMetaDir, manifestData, origin); err != nil {
 		return "", err
 	}
 
@@ -978,7 +978,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 
 	// oh, one more thing: refresh the security bits
 	if !inhibitHooks {
-		part, err := NewSnapPartFromYaml(filepath.Join(instDir, "meta", "package.yaml"), namespace, m)
+		part, err := NewSnapPartFromYaml(filepath.Join(instDir, "meta", "package.yaml"), origin, m)
 		if err != nil {
 			return "", err
 		}
@@ -1153,7 +1153,7 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 		}
 	}
 
-	if err := removeClickHooks(m, namespaceFromBasedir(clickDir), inhibitHooks); err != nil {
+	if err := removeClickHooks(m, originFromBasedir(clickDir), inhibitHooks); err != nil {
 		return err
 	}
 
@@ -1192,7 +1192,7 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	namespace := namespaceFromBasedir(baseDir)
+	origin := originFromBasedir(baseDir)
 
 	if newActiveManifest.Type == pkg.TypeFramework {
 		if err := policy.Install(m.Name, baseDir); err != nil {
@@ -1200,9 +1200,9 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 		}
 	}
 
-	if err := installClickHooks(baseDir, m, namespace, inhibitHooks); err != nil {
+	if err := installClickHooks(baseDir, m, origin, inhibitHooks); err != nil {
 		// cleanup the failed hooks
-		removeClickHooks(m, namespace, inhibitHooks)
+		removeClickHooks(m, origin, inhibitHooks)
 		return err
 	}
 

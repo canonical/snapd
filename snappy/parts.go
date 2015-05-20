@@ -44,12 +44,12 @@ type Configuration interface {
 }
 
 // QualifiedName of a Part is the Name, in most cases qualified with the
-// Namespace
+// Origin
 func QualifiedName(p Part) string {
 	if t := p.Type(); t == pkg.TypeFramework || t == pkg.TypeOem {
 		return p.Name()
 	}
-	return p.Name() + "." + p.Namespace()
+	return p.Name() + "." + p.Origin()
 }
 
 // Part representation of a snappy part
@@ -59,7 +59,7 @@ type Part interface {
 	Name() string
 	Version() string
 	Description() string
-	Namespace() string
+	Origin() string
 	Vendor() string
 
 	Hash() string
@@ -260,11 +260,11 @@ func ActiveSnapByName(needle string) Part {
 // FindSnapsByName returns all snaps with the given name in the "haystack"
 // slice of parts (useful for filtering)
 func FindSnapsByName(needle string, haystack []Part) (res []Part) {
-	name, namespace := splitNamespace(needle)
-	ignorens := namespace == ""
+	name, origin := splitOrigin(needle)
+	ignorens := origin == ""
 
 	for _, part := range haystack {
-		if part.Name() == name && (ignorens || part.Namespace() == namespace) {
+		if part.Name() == name && (ignorens || part.Origin() == origin) {
 			res = append(res, part)
 		}
 	}
@@ -272,7 +272,7 @@ func FindSnapsByName(needle string, haystack []Part) (res []Part) {
 	return res
 }
 
-func splitNamespace(name string) (string, string) {
+func splitOrigin(name string) (string, string) {
 	idx := strings.LastIndexAny(name, ".")
 	if idx > -1 {
 		return name[:idx], name[idx+1:]
@@ -284,12 +284,12 @@ func splitNamespace(name string) (string, string) {
 // FindSnapsByNameAndVersion returns the parts with the name/version in the
 // given slice of parts
 func FindSnapsByNameAndVersion(needle, version string, haystack []Part) []Part {
-	name, namespace := splitNamespace(needle)
-	ignorens := namespace == ""
+	name, origin := splitOrigin(needle)
+	ignorens := origin == ""
 	var found []Part
 
 	for _, part := range haystack {
-		if part.Name() == name && part.Version() == version && (ignorens || part.Namespace() == namespace) {
+		if part.Name() == name && part.Version() == version && (ignorens || part.Origin() == origin) {
 			found = append(found, part)
 		}
 	}

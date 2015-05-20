@@ -120,11 +120,11 @@ realize their UX/app story, but we explicitly leave that problem out for now).
 
 ## Implementation details
 The packages will continue to be accessed in the store using their full
-namespaces (`/api/v1/vim.beuno`)
-On install, Snappy will ask you to choose which vim to use on runtime
-if you have more than one (defaults to what you are installing)
-There will have to be a (secure) way of persisting the user’s selection 
-of which vim is active
+namespaces, which would be composed from the `package name` and the `origin`
+(`/api/v1/vim.beuno`) On install, Snappy will ask you to choose which vim to
+use on runtime if you have more than one (defaults to what you are installing)
+There will have to be a (secure) way of persisting the user’s selection of
+which vim is active
 
 ## Ecosystem details
 Package names will now mean a specific piece of software. We will have to make 
