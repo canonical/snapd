@@ -19,8 +19,9 @@ package logger
 
 import (
 	"bytes"
+	"fmt"
+	"io/ioutil"
 	"log"
-	"log/syslog"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -36,15 +37,17 @@ type LogSuite struct{}
 func (s *LogSuite) SetUpTest(c *C) {
 	c.Assert(logger, Equals, NullLogger)
 
-	// sbuild environments do not allow talking to /dev/log
-	_, err := syslog.NewLogger(SyslogPriority, SyslogFlags)
-	if err != nil {
-		c.Skip("/dev/log can not be accessed")
+	// we do not want to pollute syslog in our tests (and sbuild
+	// will also not let us do that)
+	newSyslog = func() (*log.Logger, error) {
+		l := log.New(ioutil.Discard, "discarded-log-msg", 0)
+		return l, nil
 	}
 }
 
 func (s *LogSuite) TearDownTest(c *C) {
 	SetLogger(NullLogger)
+	newSyslog = newSyslogImpl
 }
 
 func (s *LogSuite) TestDefault(c *C) {
@@ -108,4 +111,27 @@ func (s *LogSuite) TestPanicf(c *C) {
 	c.Check(func() { Panicf("xyzzy") }, Panics, "xyzzy")
 	c.Check(sysbuf.String(), Matches, `(?m).*logger_test\.go:\d+: PANIC xyzzy`)
 	c.Check(logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: PANIC xyzzy`)
+}
+
+func (s *LogSuite) TestSyslogFails(c *C) {
+	var logbuf bytes.Buffer
+
+	// pretend syslog is not available (e.g. because of no /dev/log in
+	// a chroot or something)
+	newSyslog = func() (*log.Logger, error) {
+		return nil, fmt.Errorf("nih! nih!")
+	}
+
+	// ensure a warning is displayed
+	l, err := NewConsoleLog(&logbuf, DefaultFlags)
+	c.Assert(err, IsNil)
+	c.Check(logbuf.String(), Matches, `(?m).*:\d+: WARNING: can not create syslog logger`)
+
+	// ensure that even without a syslog the console log works and we
+	// do not crash
+	logbuf.Reset()
+	SetLogger(l)
+	Noticef("I do not want to crash")
+	c.Check(logbuf.String(), Matches, `(?m).*logger_test\.go:\d+: I do not want to crash`)
+
 }
