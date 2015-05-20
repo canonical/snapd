@@ -326,7 +326,7 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	return &m, nil
 }
 
-func (m *packageYaml) dirname(namespace string) string {
+func (m *packageYaml) qualifiedName(namespace string) string {
 	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeOem {
 		return m.Name
 	}
@@ -644,7 +644,7 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return err
 	}
 
-	return RemoveAllHWAccess(Dirname(s))
+	return RemoveAllHWAccess(QualifiedName(s))
 }
 
 // Config is used to to configure the snap
@@ -728,7 +728,7 @@ func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
 // symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits).
 func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
 
-	fullName := Dirname(s)
+	fullName := QualifiedName(s)
 	for _, svc := range s.Services() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
 			if err := updateAppArmorJSONTimestamp(fullName, svc.Name, s.Version()); err != nil {
@@ -1314,7 +1314,7 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	snapEnv := map[string]string{
 		"SNAP_NAME":          part.Name(),
 		"SNAP_ORIGIN":        part.Namespace(),
-		"SNAP_FULLNAME":      Dirname(part),
+		"SNAP_FULLNAME":      QualifiedName(part),
 		"SNAP_VERSION":       part.Version(),
 		"SNAP_APP_PATH":      part.basedir,
 		"SNAP_APP_DATA_PATH": snapDataDir,

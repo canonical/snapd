@@ -202,7 +202,7 @@ func iterHooks(m *packageYaml, namespace string, inhibitHooks bool, f iterHooksF
 				continue
 			}
 
-			dst := filepath.Join(globalRootDir, expandHookPattern(m.dirname(namespace), app, m.Version, systemHook.pattern))
+			dst := filepath.Join(globalRootDir, expandHookPattern(m.qualifiedName(namespace), app, m.Version, systemHook.pattern))
 
 			if _, err := os.Stat(dst); err == nil {
 				if err := os.Remove(dst); err != nil {
@@ -374,7 +374,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	}
 
 	actualBinPath := binPathForBinary(pkgPath, binary)
-	udevPartName := m.dirname(namespace)
+	udevPartName := m.qualifiedName(namespace)
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
@@ -452,7 +452,7 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 		return "", err
 	}
 
-	udevPartName := m.dirname(namespaceFromBasedir(baseDir))
+	udevPartName := m.qualifiedName(namespaceFromBasedir(baseDir))
 
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
@@ -874,7 +874,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, namespa
 		}
 	}
 
-	fullName := m.dirname(namespace)
+	fullName := m.qualifiedName(namespace)
 	instDir := filepath.Join(targetDir, fullName, m.Version)
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
 

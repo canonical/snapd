@@ -32,8 +32,8 @@ type SnapDataDir struct {
 	Version   string
 }
 
-// Dirname returns the filesystem directory name for this SnapDataDir
-func (dd SnapDataDir) Dirname() string {
+// QualifiedName returns the filesystem directory name for this SnapDataDir
+func (dd SnapDataDir) QualifiedName() string {
 	if dd.Namespace != "" {
 		return dd.Name + "." + dd.Namespace
 	}

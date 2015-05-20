@@ -115,7 +115,7 @@ func (s *DataDirSuite) TestEverywhichwhereDataDirs(c *C) {
 	})
 }
 
-func (s *DataDirSuite) TestDataDirDirname(c *C) {
-	c.Check(SnapDataDir{Name: "foo", Namespace: "bar"}.Dirname(), Equals, "foo.bar")
-	c.Check(SnapDataDir{Name: "foo"}.Dirname(), Equals, "foo")
+func (s *DataDirSuite) TestDataDirQualifiedName(c *C) {
+	c.Check(SnapDataDir{Name: "foo", Namespace: "bar"}.QualifiedName(), Equals, "foo.bar")
+	c.Check(SnapDataDir{Name: "foo"}.QualifiedName(), Equals, "foo")
 }

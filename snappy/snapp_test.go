@@ -1388,7 +1388,7 @@ func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
 	c.Assert(cmds, HasLen, 2)
 }
 
-func (s *SnapTestSuite) TestGetUdevPartName(c *C) {
+func (s *SnapTestSuite) TestQualifiedNameName(c *C) {
 	packageYaml, err := parsePackageYamlData([]byte(`name: foo
 version: 1.0
 icon: foo.svg
@@ -1396,11 +1396,11 @@ vendor: Foo Bar <foo@example.com>
 `))
 	c.Assert(err, IsNil)
 
-	udevName := packageYaml.dirname("mvo")
+	udevName := packageYaml.qualifiedName("mvo")
 	c.Assert(udevName, Equals, "foo.mvo")
 }
 
-func (s *SnapTestSuite) TestGetUdevPartNameFramework(c *C) {
+func (s *SnapTestSuite) TestQualifiedNameNameFramework(c *C) {
 	packageYaml, err := parsePackageYamlData([]byte(`name: foo
 version: 1.0
 icon: foo.svg
@@ -1409,6 +1409,6 @@ vendor: Foo Bar <foo@example.com>
 `))
 	c.Assert(err, IsNil)
 
-	udevName := packageYaml.dirname("")
+	udevName := packageYaml.qualifiedName("")
 	c.Assert(udevName, Equals, "foo")
 }
