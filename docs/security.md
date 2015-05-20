@@ -211,9 +211,9 @@ The following is planned:
   socket says that app is ok).
     * `names`: (optional) list of abstract socket names
       (`<name>_<binaryname>` is prepended)
-    * `allowed-clients`: `<name>.<namespace>` or
-     `<name>.<namespace>_<binaryname>` (ie, omit version and
-     `binaryname` to allow all from snap `<name>.<namespace>` or omit
+    * `allowed-clients`: `<name>.<origin>` or
+     `<name>.<origin>_<binaryname>` (ie, omit version and
+     `binaryname` to allow all from snap `<name>.<origin>` or omit
      version to allow only `binaryname` from snap `<name>`)
 
  Eg:
