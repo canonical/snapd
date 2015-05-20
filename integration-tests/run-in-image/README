@@ -1,0 +1,2 @@
+To run this locally, do:
+$ adt-run $(pwd)/ --- ssh -s snappy -- -i /path/to/snappy.img
