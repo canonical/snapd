@@ -205,13 +205,9 @@ void setup_private_mount(const char* appname) {
     gid_t gid = getgid();
     char tmpdir[MAX_BUF] = {0};
 
-    must_snprintf(tmpdir, MAX_BUF, "snap.%d_%s_XXXXXX", uid, appname);
+    must_snprintf(tmpdir, MAX_BUF, "/tmp/snap.%d_%s_XXXXXX", uid, appname);
     if (mkdtemp(tmpdir) == NULL) {
         die("unable to create tmpdir");
-    }
-
-    if (chown(tmpdir, uid, gid) < 0) {
-        die("unable to chown tmpdir");
     }
 
     // unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >= 2.14
@@ -228,6 +224,11 @@ void setup_private_mount(const char* appname) {
     // MS_BIND is there from linux 2.4
     if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
         die("unable to bind private /tmp");
+    }
+
+    // do the chown after the bind mount to avoid potential shenanigans
+    if (chown("/tmp/", uid, gid) < 0) {
+        die("unable to chown tmpdir");
     }
 }
 
