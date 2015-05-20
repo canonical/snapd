@@ -462,8 +462,6 @@ vendor: Foo <foo@example.com>
 	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_all.snap").CombinedOutput()
 	c.Assert(err, IsNil)
 
-	println(string(readFiles))
-
 	// check that we really have the right perms
 	c.Assert(strings.Contains(string(readFiles), `drwxrwxrwx`), Equals, true)
 	c.Assert(strings.Contains(string(readFiles), `-rw-rw-rw-`), Equals, true)

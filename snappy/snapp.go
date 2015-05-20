@@ -326,6 +326,13 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	return &m, nil
 }
 
+func (m *packageYaml) qualifiedName(namespace string) string {
+	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeOem {
+		return m.Name
+	}
+	return m.Name + "." + namespace
+}
+
 func (m *packageYaml) checkForNameClashes() error {
 	d := make(map[string]struct{})
 	for _, bin := range m.Binaries {
@@ -637,7 +644,7 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return err
 	}
 
-	return RemoveAllHWAccess(Dirname(s))
+	return RemoveAllHWAccess(QualifiedName(s))
 }
 
 // Config is used to to configure the snap
@@ -721,7 +728,7 @@ func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
 // symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits).
 func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
 
-	fullName := Dirname(s)
+	fullName := QualifiedName(s)
 	for _, svc := range s.Services() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
 			if err := updateAppArmorJSONTimestamp(fullName, svc.Name, s.Version()); err != nil {
@@ -857,14 +864,23 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 	return parts, nil
 }
 
-func namespaceFromYamlPath(path string) (string, error) {
-	namespace := filepath.Ext(filepath.Dir(filepath.Join(path, "..", "..")))
+func namespaceFromBasedir(basedir string) (s string) {
+	ext := filepath.Ext(filepath.Dir(filepath.Clean(basedir)))
+	if len(ext) < 2 {
+		return ""
+	}
 
-	if len(namespace) < 1 {
+	return ext[1:]
+}
+
+func namespaceFromYamlPath(path string) (string, error) {
+	namespace := namespaceFromBasedir(filepath.Join(path, "..", ".."))
+
+	if namespace == "" {
 		return "", ErrInvalidPart
 	}
 
-	return namespace[1:], nil
+	return namespace, nil
 }
 
 // RemoteSnapPart represents a snap available on the server
@@ -1298,7 +1314,7 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	snapEnv := map[string]string{
 		"SNAP_NAME":          part.Name(),
 		"SNAP_ORIGIN":        part.Namespace(),
-		"SNAP_FULLNAME":      Dirname(part),
+		"SNAP_FULLNAME":      QualifiedName(part),
 		"SNAP_VERSION":       part.Version(),
 		"SNAP_APP_PATH":      part.basedir,
 		"SNAP_APP_DATA_PATH": snapDataDir,

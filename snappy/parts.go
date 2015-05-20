@@ -43,9 +43,9 @@ type Configuration interface {
 	OemConfig() SystemConfig
 }
 
-// Dirname of a Part is the Name, in most cases qualified with the
+// QualifiedName of a Part is the Name, in most cases qualified with the
 // Namespace
-func Dirname(p Part) string {
+func QualifiedName(p Part) string {
 	if t := p.Type(); t == pkg.TypeFramework || t == pkg.TypeOem {
 		return p.Name()
 	}

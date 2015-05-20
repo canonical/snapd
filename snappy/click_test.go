@@ -141,26 +141,26 @@ Pattern: /var/lib/apparmor/click/${id}
 	os.MkdirAll(instDir, 0755)
 	ioutil.WriteFile(path.Join(instDir, "path-to-systemd-file"), []byte(""), 0644)
 	ioutil.WriteFile(path.Join(instDir, "path-to-apparmor-file"), []byte(""), 0644)
-	manifest := clickManifest{
+	m := &packageYaml{
 		Name:    "foo",
 		Version: "1.0",
-		Hooks: map[string]clickAppHook{
+		Integration: map[string]clickAppHook{
 			"app": clickAppHook{
 				"systemd":  "path-to-systemd-file",
 				"apparmor": "path-to-apparmor-file",
 			},
 		},
 	}
-	err := installClickHooks(instDir, manifest, false)
+	err := installClickHooks(instDir, m, testNamespace, false)
 	c.Assert(err, IsNil)
-	p := fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version)
+	p := fmt.Sprintf("%s/%s.%s_%s_%s", testSymlinkDir, m.Name, testNamespace, "app", m.Version)
 	_, err = os.Stat(p)
 	c.Assert(err, IsNil)
 	symlinkTarget, err := filepath.EvalSymlinks(p)
 	c.Assert(err, IsNil)
 	c.Assert(symlinkTarget, Equals, path.Join(instDir, "path-to-systemd-file"))
 
-	p = fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir2, manifest.Name, "app", manifest.Version)
+	p = fmt.Sprintf("%s/%s.%s_%s_%s", testSymlinkDir2, m.Name, testNamespace, "app", m.Version)
 	_, err = os.Stat(p)
 	c.Assert(err, IsNil)
 	symlinkTarget, err = filepath.EvalSymlinks(p)
@@ -168,9 +168,9 @@ Pattern: /var/lib/apparmor/click/${id}
 	c.Assert(symlinkTarget, Equals, path.Join(instDir, "path-to-apparmor-file"))
 
 	// now ensure we can remove
-	err = removeClickHooks(manifest, false)
+	err = removeClickHooks(m, testNamespace, false)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(fmt.Sprintf("%s/%s_%s_%s", testSymlinkDir, manifest.Name, "app", manifest.Version))
+	_, err = os.Stat(fmt.Sprintf("%s/%s.%s_%s_%s", testSymlinkDir, m.Name, testNamespace, "app", m.Version))
 	c.Assert(err, NotNil)
 }
 
@@ -1383,10 +1383,10 @@ Pattern: /var/lib/systemd/click/${id}
 	makeClickHook(c, content)
 	os.MkdirAll(path.Join(s.tempdir, "/var/lib/systemd/click/"), 0755)
 
-	manifest := clickManifest{
+	m := &packageYaml{
 		Name:    "foo",
 		Version: "1.0",
-		Hooks: map[string]clickAppHook{
+		Integration: map[string]clickAppHook{
 			"app": clickAppHook{
 				"systemd": "path-to-systemd-file",
 			},
@@ -1399,7 +1399,7 @@ Pattern: /var/lib/systemd/click/${id}
 		return s
 	}
 
-	err := installClickHooks(c.MkDir(), manifest, false)
+	err := installClickHooks(c.MkDir(), m, testNamespace, false)
 	c.Assert(err, IsNil)
 	c.Assert(stripGlobalRootDirWasCalled, Equals, true)
 }

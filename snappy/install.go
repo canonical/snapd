@@ -107,7 +107,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 	}
 
 	for _, part := range found {
-		cur := FindSnapsByNameAndVersion(Dirname(part), part.Version(), installed)
+		cur := FindSnapsByNameAndVersion(QualifiedName(part), part.Version(), installed)
 		if len(cur) != 0 {
 			return "", ErrAlreadyInstalled
 		}
