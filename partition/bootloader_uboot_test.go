@@ -255,9 +255,6 @@ bootloader u-boot
 func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	atomiCall := false
-	atomicFileUpdate = func(a string, b []string) error { atomiCall = true; return atomicFileUpdateImpl(a, b) }
-
 	// To simulate what uboot does for a "try" mode boot, create a
 	// stamp file. uboot will expect this file to be removed by
 	// "snappy booted" if the system boots successfully. If this
@@ -286,7 +283,6 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 
 	err = u.MarkCurrentBootSuccessful()
 	c.Assert(err, IsNil)
-	c.Assert(atomiCall, Equals, true)
 
 	c.Assert(helpers.FileExists(bootloaderUbootStampFile), Equals, false)
 	c.Assert(helpers.FileExists(bootloaderUbootEnvFile), Equals, true)
