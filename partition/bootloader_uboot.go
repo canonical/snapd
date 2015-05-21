@@ -53,6 +53,7 @@ var (
 	bootloaderUbootConfigFile = bootloaderUbootConfigFileReal
 	bootloaderUbootStampFile  = bootloaderUbootStampFileReal
 	bootloaderUbootEnvFile    = bootloaderUbootEnvFileReal
+	atomicFileUpdate          = atomicFileUpdateImpl
 )
 
 const bootloaderNameUboot bootloaderName = "u-boot"
@@ -66,6 +67,7 @@ type uboot struct {
 }
 
 // Stores a Name and a Value to be added as a name=value pair in a file.
+// TODO convert to map
 type configFileChange struct {
 	Name  string
 	Value string
@@ -322,7 +324,7 @@ func (u *uboot) HandleAssets() (err error) {
 
 // Write lines to file atomically. File does not have to preexist.
 // FIXME: put into utils package
-func atomicFileUpdate(file string, lines []string) (err error) {
+var atomicFileUpdateImpl = func(file string, lines []string) (err error) {
 	tmpFile := fmt.Sprintf("%s.NEW", file)
 
 	// XXX: if go switches to use aio_fsync, we need to open the dir for writing
@@ -351,6 +353,7 @@ func atomicFileUpdate(file string, lines []string) (err error) {
 // appended to the file.
 //
 // FIXME: put into utils package
+// FIXME: improve logic
 func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 	var updated []configFileChange
 
@@ -360,12 +363,18 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 	}
 
 	var new []string
+	// we won't write to a file if we don't need to.
+	updateNeeded := false
 
 	for _, line := range lines {
 		for _, change := range changes {
 			if strings.HasPrefix(line, fmt.Sprintf("%s=", change.Name)) {
-				line = fmt.Sprintf("%s=%s", change.Name, change.Value)
-				updated = append(updated, change)
+				value := strings.SplitN(line, "=", 2)[1]
+				if value != change.Value {
+					line = fmt.Sprintf("%s=%s", change.Name, change.Value)
+					updated = append(updated, change)
+					updateNeeded = true
+				}
 			}
 		}
 		new = append(new, line)
@@ -390,7 +399,11 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 		}
 	}
 
-	return atomicFileUpdate(file, lines)
+	if updateNeeded {
+		return atomicFileUpdate(file, lines)
+	}
+
+	return nil
 }
 
 func (u *uboot) AdditionalBindMounts() []string {

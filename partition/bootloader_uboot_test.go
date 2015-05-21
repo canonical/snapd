@@ -29,6 +29,8 @@ import (
 	"launchpad.net/snappy/helpers"
 )
 
+// TODO move to uboot specific test suite.
+
 const fakeUbootEnvData = `
 # This is a snappy variables and boot logic file and is entirely generated and
 # managed by Snappy. Modifications may break boot
@@ -253,6 +255,9 @@ bootloader u-boot
 func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	s.makeFakeUbootEnv(c)
 
+	atomiCall := false
+	atomicFileUpdate = func(a string, b []string) error { atomiCall = true; return atomicFileUpdateImpl(a, b) }
+
 	// To simulate what uboot does for a "try" mode boot, create a
 	// stamp file. uboot will expect this file to be removed by
 	// "snappy booted" if the system boots successfully. If this
@@ -281,6 +286,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 
 	err = u.MarkCurrentBootSuccessful()
 	c.Assert(err, IsNil)
+	c.Assert(atomiCall, Equals, true)
 
 	c.Assert(helpers.FileExists(bootloaderUbootStampFile), Equals, false)
 	c.Assert(helpers.FileExists(bootloaderUbootEnvFile), Equals, true)
@@ -290,4 +296,18 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, false)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
 	c.Assert(strings.Contains(string(bytes), "snappy_ab=a"), Equals, true)
+}
+
+func (s *PartitionTestSuite) TestNoWriteNotNeeded(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	atomiCall := false
+	atomicFileUpdate = func(a string, b []string) error { atomiCall = true; return atomicFileUpdateImpl(a, b) }
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	c.Check(u.MarkCurrentBootSuccessful(), IsNil)
+	c.Assert(atomiCall, Equals, false)
 }
