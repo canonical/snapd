@@ -370,9 +370,11 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 		for _, change := range changes {
 			if strings.HasPrefix(line, fmt.Sprintf("%s=", change.Name)) {
 				value := strings.SplitN(line, "=", 2)[1]
+				// updated is used later to see if you had the originally requested
+				// value.
+				updated = append(updated, change)
 				if value != change.Value {
 					line = fmt.Sprintf("%s=%s", change.Name, change.Value)
-					updated = append(updated, change)
 					updateNeeded = true
 				}
 			}
@@ -392,6 +394,8 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 		}
 
 		if !got {
+			updateNeeded = true
+
 			// name/value pair did not exist in original
 			// file, so append
 			lines = append(lines, fmt.Sprintf("%s=%s",
