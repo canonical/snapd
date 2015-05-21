@@ -324,7 +324,7 @@ func (u *uboot) HandleAssets() (err error) {
 
 // Write lines to file atomically. File does not have to preexist.
 // FIXME: put into utils package
-var atomicFileUpdateImpl = func(file string, lines []string) (err error) {
+func atomicFileUpdateImpl(file string, lines []string) (err error) {
 	tmpFile := fmt.Sprintf("%s.NEW", file)
 
 	// XXX: if go switches to use aio_fsync, we need to open the dir for writing
