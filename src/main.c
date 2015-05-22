@@ -232,6 +232,32 @@ void setup_private_mount(const char* appname) {
     }
 }
 
+// best-effort attempt at creating the old /tmp/snaps/* TMPDIR.
+void mkoldtmpdir() {
+    char *dir = getenv("TMPDIR");
+    if (!dir || !*dir) {
+        // TMPDIR not set, or empty
+        return;
+    }
+
+    if (strncmp(dir, "/tmp/snaps/", strlen("/tmp/snaps/")) != 0) {
+        // TMPDIR is not /tmp/snaps/*
+        return;
+    }
+
+    int n = 4;
+    char buf[MAX_BUF] = "/tmp";
+    char *d = strtok(dir+4, "/");
+    while (d) {
+        n += must_snprintf(buf+n, MAX_BUF-n, "/%s", d);
+        if (mkdir(buf, 01777) < 0) {
+            return;
+        }
+
+        d = strtok(NULL, "/");
+    }
+}
+
 int main(int argc, char **argv)
 {
    const int NR_ARGS = 3;
@@ -286,9 +312,11 @@ int main(int argc, char **argv)
           die("dropping privs did not work");
     }
 
-   //https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#ubuntu-snapp-launch
+    mkoldtmpdir();
 
-   int rc = 0;
+    //https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#ubuntu-snapp-launch
+
+    int rc = 0;
     // set apparmor rules
     rc = aa_change_onexec(aa_profile);
     if (rc != 0) {
