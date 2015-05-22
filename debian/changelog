@@ -3,6 +3,8 @@ ubuntu-core-launcher (1.0.2) UNRELEASED; urgency=low
   [ John Lenton ]
   * lp:~chipaca/ubuntu-core-launcher/unshare:
     - Set up a private mount namespace for /tmp.
+  * lp:~chipaca/ubuntu-core-launcher/mktmpdir:
+    - Make a best-effort attempt at creating the old TMPDIR.
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 22 May 2015 12:37:50 +0200
 
