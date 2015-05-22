@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -24,6 +26,7 @@ import (
 	"path/filepath"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/pkg"
 
 	"gopkg.in/yaml.v2"
 )
@@ -54,7 +57,7 @@ func OemConfig() error {
 	}
 	defer stampFirstBoot()
 
-	oemSnap, err := activeSnapsByType(SnapTypeOem)
+	oemSnap, err := activeSnapsByType(pkg.TypeOem)
 	if err != nil {
 		return err
 	}

@@ -14,7 +14,9 @@ Build-Depends: bash-completion,
                golang-gocheck-dev,
                golang-goconfigparser-dev,
                golang-pb-dev,
-               golang-yaml.v2-dev
+               golang-yaml.v2-dev,
+               python3,
+               python3-markdown
 Standards-Version: 3.9.6
 Homepage: https://launchpad.net/snappy
 Vcs-Browser: http://bazaar.launchpad.net/~snappy-dev/snappy/trunk/files

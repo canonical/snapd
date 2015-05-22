@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -24,6 +26,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
 )
 
@@ -43,12 +46,12 @@ icon: meta/hello.svg`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	parts, err := ActiveSnapsByType(SnapTypeApp)
+	parts, err := ActiveSnapsByType(pkg.TypeApp)
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "app1")
 
-	parts, err = ActiveSnapsByType(SnapTypeFramework)
+	parts, err = ActiveSnapsByType(pkg.TypeFramework)
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "framework1")
@@ -65,7 +68,7 @@ func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "hello-app")
-	c.Assert(parts[0].Namespace(), Equals, testNamespace)
+	c.Assert(parts[0].Origin(), Equals, testOrigin)
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
@@ -90,19 +93,19 @@ func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 	c.Assert(parts[0].Name(), Equals, "hello-app")
 }
 
-func (s *SnapTestSuite) TestFindSnapsByNameWithNamespace(c *C) {
+func (s *SnapTestSuite) TestFindSnapsByNameWithOrigin(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository(snapAppsDir)
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	parts := FindSnapsByName("hello-app."+testNamespace, installed)
+	parts := FindSnapsByName("hello-app."+testOrigin, installed)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "hello-app")
 }
 
-func (s *SnapTestSuite) TestFindSnapsByNameWithNamespaceNotThere(c *C) {
+func (s *SnapTestSuite) TestFindSnapsByNameWithOriginNotThere(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
 	repo := NewLocalSnapRepository(snapAppsDir)
 	installed, err := repo.Installed()
@@ -137,13 +140,13 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
-	parts := FindSnapsByNameAndVersion("hello-app."+testNamespace, "1.10", installed)
+	parts := FindSnapsByNameAndVersion("hello-app."+testOrigin, "1.10", installed)
 	c.Check(parts, HasLen, 1)
-	parts = FindSnapsByNameAndVersion("bad-app."+testNamespace, "1.10", installed)
+	parts = FindSnapsByNameAndVersion("bad-app."+testOrigin, "1.10", installed)
 	c.Check(parts, HasLen, 0)
-	parts = FindSnapsByNameAndVersion("hello-app.badNamespace", "1.10", installed)
+	parts = FindSnapsByNameAndVersion("hello-app.badOrigin", "1.10", installed)
 	c.Check(parts, HasLen, 0)
-	parts = FindSnapsByNameAndVersion("hello-app."+testNamespace, "2.20", installed)
+	parts = FindSnapsByNameAndVersion("hello-app."+testOrigin, "2.20", installed)
 	c.Check(parts, HasLen, 0)
 
 	parts = FindSnapsByNameAndVersion("hello-app", "1.10", installed)
@@ -160,9 +163,9 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
-	parts := FindSnapsByNameAndVersion("fmk."+testNamespace, "1", installed)
+	parts := FindSnapsByNameAndVersion("fmk."+testOrigin, "1", installed)
 	c.Check(parts, HasLen, 0)
-	parts = FindSnapsByNameAndVersion("fmk.badNamespace", "1", installed)
+	parts = FindSnapsByNameAndVersion("fmk.badOrigin", "1", installed)
 	c.Check(parts, HasLen, 0)
 
 	parts = FindSnapsByNameAndVersion("fmk", "1", installed)

@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -25,6 +27,7 @@ import (
 	"time"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -90,7 +93,7 @@ func showInstalledList(installed []snappy.Part, o io.Writer) {
 	fmt.Fprintln(w, "Name\tDate\tVersion\tDeveloper\t")
 	for _, part := range installed {
 		if part.IsActive() {
-			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t%s\t", part.Name(), formatDate(part.Date()), part.Version(), part.Namespace()))
+			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t%s\t", part.Name(), formatDate(part.Date()), part.Version(), part.Origin()))
 		}
 	}
 	w.Flush()
@@ -113,7 +116,7 @@ func showVerboseList(installed []snappy.Part, o io.Writer) {
 			active = "!"
 		}
 
-		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%s\t%s\t%s%s\t", part.Name(), needsReboot, formatDate(part.Date()), part.Version(), part.Namespace(), active))
+		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%s\t%s\t%s%s\t", part.Name(), needsReboot, formatDate(part.Date()), part.Version(), part.Origin(), active))
 	}
 	w.Flush()
 
@@ -134,7 +137,7 @@ func showRebootMessage(installed []snappy.Part, o io.Writer) {
 		//        there are only two version instaleld and
 		//        there is only a single part that may requires
 		//        a reboot
-		if part.Type() != snappy.SnapTypeCore {
+		if part.Type() != pkg.TypeCore {
 			continue
 		}
 

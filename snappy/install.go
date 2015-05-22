@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -89,7 +91,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 			flags |= AllowUnauthenticated
 		}
 
-		return installClick(name, flags, meter, sideloadedNamespace)
+		return installClick(name, flags, meter, sideloadedOrigin)
 	}
 
 	// check repos next
@@ -105,7 +107,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 	}
 
 	for _, part := range found {
-		cur := FindSnapsByNameAndVersion(Dirname(part), part.Version(), installed)
+		cur := FindSnapsByNameAndVersion(QualifiedName(part), part.Version(), installed)
 		if len(cur) != 0 {
 			return "", ErrAlreadyInstalled
 		}

@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -98,19 +100,19 @@ func (s *SnapTestSuite) TestConfigGeneratesRightAA(c *C) {
 type: framework
 version: 42`)
 	c.Assert(err, IsNil)
-	_, err = snapConfig(snapDir, testNamespace, configYaml)
+	_, err = snapConfig(snapDir, testOrigin, configYaml)
 	c.Assert(err, IsNil)
 
 	snapDir, err = s.makeInstalledMockSnapWithConfig(c, mockConfig, `name: potato
 type: potato
 version: 42`)
 	c.Assert(err, IsNil)
-	_, err = snapConfig(snapDir, testNamespace, configYaml)
+	_, err = snapConfig(snapDir, testOrigin, configYaml)
 	c.Assert(err, IsNil)
 
 	c.Check(aas, DeepEquals, []string{
 		"fmk_snappy-config_42",
-		"potato." + testNamespace + "_snappy-config_42",
+		"potato." + testOrigin + "_snappy-config_42",
 	})
 }
 

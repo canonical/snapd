@@ -16,10 +16,10 @@ unspecified, default confinement allows the snap to run as a network client.
 
 Applications are tracked by the system by using the concept of an
 ApplicationId. The `APP_ID is` the composition of the package name, the app's
-origin namespace from the store (if applicable-- only snaps of `type: app` (the
-default) have an origin namespace as part of their `APP_ID`), the
+origin from the store if applicable -- only snaps of `type: app` (the
+default) use an origin to compose the `APP_ID`), the
 service/binary name and package version. The `APP_ID` takes the form of
-`<pkgname>.<namespace>_<appname>_<version>`. For example, if this is in
+`<pkgname>.<origin>_<appname>_<version>`. For example, if this is in
 `package.yaml`:
 
     name: foo
@@ -29,7 +29,7 @@ service/binary name and package version. The `APP_ID` takes the form of
       - name: bar
         start: bin/bar
 
-and the app was uploaded to the `myorigin` namespace in the store, then the
+and the app was uploaded to the `myorigin` origin in the store, then the
 `APP_ID` for the `bar` service is `foo.myorigin_bar_0.1`. The `APP_ID` is used
 throughout the system including in the enforcement of security policy by the
 app launcher.
@@ -81,14 +81,14 @@ options are available to modify the confinement:
   Specify `caps: []` to indicate no additional `caps`.  When `caps` and
   `security-template` are not specified, `caps` defaults to client networking.
   Not compatible with `security-override` or `security-policy`.
- * AppArmor access is deny by default and apps are restricted to their
-   app-specific directories, libraries, etc (enforcing ro, rw, etc).
-   Additional access beyond what is allowed by the declared `security-template`
-   is declared via this option
- * seccomp is deny by default. Enough safe syscalls are allowed so that apps
-   using the declared `security-template` should work. Additional access
-   beyond what is allowed by the `security-template` is declared via this
-   option
+    * AppArmor access is deny by default and apps are restricted to
+      their app-specific directories, libraries, etc (enforcing ro,
+      rw, etc).  Additional access beyond what is allowed by the
+      declared `security-template` is declared via this option
+    * seccomp is deny by default. Enough safe syscalls are allowed so
+      that apps using the declared `security-template` should
+      work. Additional access beyond what is allowed by the
+      `security-template` is declared via this option
 * `security-template`: (optional) alternate security template to use instead of
   `default`. When specified without `caps`, `caps` defaults to being empty. Not
   compatible with `security-override` or `security-policy`.
@@ -97,13 +97,13 @@ options are available to modify the confinement:
   [advanced usage](https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement)
   for details. Not compatible with `caps`, `security-template` or
   `security-policy`
- * `apparmor: path/to/security.override`
- * `seccomp: path/to/filter.override`
+    * `apparmor: path/to/security.override`
+    * `seccomp: path/to/filter.override`
 * `security-policy`: (optional) hand-crafted low-level raw security policy to
   use instead of using default template-based security policy. Not compatible
   with `caps`, `security-template` or `security-override`.
- * `apparmor: path/to/profile`
- * `seccomp: path/to/filter`
+    * `apparmor: path/to/profile`
+    * `seccomp: path/to/filter`
 
 Eg, consider the following:
 
@@ -129,7 +129,7 @@ Eg, consider the following:
       - name: cli-exe
         caps: []
 
-If this package is uploaded to the store in the `myorigin` namespace, then:
+If this package is uploaded to the store in the `myorigin` origin, then:
 
 * `APP_ID` for `bar` is `foo.myorigin_bar_1.0`. It uses the `default` template
   and `network-client` (default) cap
@@ -199,22 +199,22 @@ For more information, please see
 The following is planned:
 
 * launcher:
- * utilize syscall argument filtering
- * setup additional cgroups (tag network traffic, memory)
- * setup iptables using cgroup tags (for internal app access)
- * drop privileges to uid of service
+    * utilize syscall argument filtering
+    * setup additional cgroups (tag network traffic, memory)
+    * setup iptables using cgroup tags (for internal app access)
+    * drop privileges to uid of service
 * fine-grained network mediation via AppArmor
 * `sockets`: (optional) `AF_UNIX` abstract socket definition for coordinated
   snap communications. Abstract sockets will be namespaced and yaml is such
   that (client) apps wanting to use the socket don't have to declare anything
   extra, but they don't have access unless the (server) binary declaring the
   socket says that app is ok).
- * `names`: (optional) list of abstract socket names (`<name>_<binaryname>` is
-   prepended)
- * `allowed-clients`: `<name>.<namespace>` or `<name>.<namespace>_<binaryname>`
-   (ie, omit version and `binaryname` to allow all from snap
-   `<name>.<namespace>` or omit version to allow only `binaryname` from snap
-   `<name>`)
+    * `names`: (optional) list of abstract socket names
+      (`<name>_<binaryname>` is prepended)
+    * `allowed-clients`: `<name>.<origin>` or
+     `<name>.<origin>_<binaryname>` (ie, omit version and
+     `binaryname` to allow all from snap `<name>.<origin>` or omit
+     version to allow only `binaryname` from snap `<name>`)
 
  Eg:
 

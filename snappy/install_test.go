@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -116,6 +118,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
+"origin": "test",
 "anon_download_url": "`+dlURL+`"
 }`)
 		case "/dl":

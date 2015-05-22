@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -68,7 +70,7 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (string, string) {
 	default:
 		panic("dunno what to do with args")
 	}
-	app := "hello-app." + testNamespace
+	app := "hello-app." + testOrigin
 	yaml := "name: hello-app\nversion: " + version + "\n" + extra
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
 	c.Assert(err, IsNil)

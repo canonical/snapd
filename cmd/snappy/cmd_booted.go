@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -19,6 +21,7 @@ package main
 
 import (
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
@@ -43,7 +46,7 @@ func (x *cmdBooted) Execute(args []string) (err error) {
 	}
 	defer privMutex.Unlock()
 
-	parts, err := snappy.ActiveSnapsByType(snappy.SnapTypeCore)
+	parts, err := snappy.ActiveSnapsByType(pkg.TypeCore)
 	if err != nil {
 		return err
 	}

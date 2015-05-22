@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -40,14 +42,15 @@ import (
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
 )
 
 const (
-	// the namespace for sideloaded snaps
-	sideloadedNamespace = "sideload"
+	// the origin for sideloaded snaps
+	sideloadedOrigin = "sideload"
 )
 
 // SharedName is a structure that holds an Alias to the preferred package and
@@ -60,11 +63,11 @@ type SharedName struct {
 // SharedNames is a list of all packages and it's SharedName structure.
 type SharedNames map[string]*SharedName
 
-// IsAlias determines if namespace is the one that is an alias for the
+// IsAlias determines if origin is the one that is an alias for the
 // shared name.
-func (f *SharedName) IsAlias(namespace string) bool {
+func (f *SharedName) IsAlias(origin string) bool {
 	if alias := f.Alias; alias != nil {
-		return alias.Namespace() == namespace
+		return alias.Origin() == origin
 	}
 
 	return false
@@ -162,7 +165,7 @@ type Binary struct {
 // SnapPart represents a generic snap type
 type SnapPart struct {
 	m           *packageYaml
-	namespace   string
+	origin      string
 	hash        string
 	isActive    bool
 	isInstalled bool
@@ -200,7 +203,7 @@ type packageYaml struct {
 	Version string
 	Vendor  string
 	Icon    string
-	Type    SnapType
+	Type    pkg.Type
 
 	// the spec allows a string or a list here *ick* so we need
 	// to convert that into something sensible via reflect
@@ -234,13 +237,13 @@ type remoteSnap struct {
 	IconURL         string             `json:"icon_url"`
 	LastUpdated     string             `json:"last_updated,omitempty"`
 	Name            string             `json:"package_name"`
-	Namespace       string             `json:"origin"`
+	Origin          string             `json:"origin"`
 	Prices          map[string]float64 `json:"prices,omitempty"`
 	Publisher       string             `json:"publisher,omitempty"`
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
 	SupportURL      string             `json:"support_url"`
 	Title           string             `json:"title"`
-	Type            SnapType           `json:"content,omitempty"`
+	Type            pkg.Type           `json:"content,omitempty"`
 	Version         string             `json:"version"`
 }
 
@@ -276,7 +279,7 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	}
 
 	// this is to prevent installation of legacy packages such as those that
-	// contain the namespace/origin in the package name.
+	// contain the origin/origin in the package name.
 	if strings.ContainsRune(m.Name, '.') {
 		return nil, ErrPackageNameNotSupported
 	}
@@ -323,6 +326,13 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	return &m, nil
 }
 
+func (m *packageYaml) qualifiedName(origin string) string {
+	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeOem {
+		return m.Name
+	}
+	return m.Name + "." + origin
+}
+
 func (m *packageYaml) checkForNameClashes() error {
 	d := make(map[string]struct{})
 	for _, bin := range m.Binaries {
@@ -337,14 +347,14 @@ func (m *packageYaml) checkForNameClashes() error {
 	return nil
 }
 
-func (m *packageYaml) checkForPackageInstalled(namespace string) error {
+func (m *packageYaml) checkForPackageInstalled(origin string) error {
 	part := ActiveSnapByName(m.Name)
 	if part == nil {
 		return nil
 	}
 
-	if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
-		if part.Namespace() != namespace {
+	if m.Type != pkg.TypeFramework && m.Type != pkg.TypeOem {
+		if part.Origin() != origin {
 			return ErrPackageNameAlreadyInstalled
 		}
 	}
@@ -375,7 +385,7 @@ func (m *packageYaml) FrameworksForClick() string {
 }
 
 func (m *packageYaml) checkForFrameworks() error {
-	installed, err := ActiveSnapNamesByType(SnapTypeFramework)
+	installed, err := ActiveSnapNamesByType(pkg.TypeFramework)
 	if err != nil {
 		return err
 	}
@@ -436,13 +446,13 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, cur
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
-func NewInstalledSnapPart(yamlPath, namespace string) (*SnapPart, error) {
+func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 	m, err := parsePackageYamlFile(yamlPath)
 	if err != nil {
 		return nil, err
 	}
 
-	part, err := NewSnapPartFromYaml(yamlPath, namespace, m)
+	part, err := NewSnapPartFromYaml(yamlPath, origin, m)
 	if err != nil {
 		return nil, err
 	}
@@ -451,7 +461,7 @@ func NewInstalledSnapPart(yamlPath, namespace string) (*SnapPart, error) {
 }
 
 // NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
-func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) (*SnapPart, error) {
+func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, error) {
 	if _, err := os.Stat(yamlPath); err != nil {
 		return nil, err
 	}
@@ -459,7 +469,7 @@ func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) (*SnapPart,
 	part := &SnapPart{
 		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
 		isInstalled: true,
-		namespace:   namespace,
+		origin:      origin,
 		m:           m,
 	}
 
@@ -497,7 +507,7 @@ func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) (*SnapPart,
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
-func (s *SnapPart) Type() SnapType {
+func (s *SnapPart) Type() pkg.Type {
 	if s.m.Type != "" {
 		return s.m.Type
 	}
@@ -521,9 +531,9 @@ func (s *SnapPart) Description() string {
 	return s.description
 }
 
-// Namespace returns the namespace
-func (s *SnapPart) Namespace() string {
-	return s.namespace
+// Origin returns the origin
+func (s *SnapPart) Origin() string {
+	return s.origin
 }
 
 // Vendor returns the author. Or viceversa.
@@ -614,7 +624,7 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 	// OEM snaps should not be removed as they are a key
 	// building block for OEMs. Prunning non active ones
 	// is acceptible.
-	if s.m.Type == SnapTypeOem && s.IsActive() {
+	if s.m.Type == pkg.TypeOem && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 
@@ -634,12 +644,12 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return err
 	}
 
-	return RemoveAllHWAccess(Dirname(s))
+	return RemoveAllHWAccess(QualifiedName(s))
 }
 
 // Config is used to to configure the snap
 func (s *SnapPart) Config(configuration []byte) (new string, err error) {
-	return snapConfig(s.basedir, s.namespace, string(configuration))
+	return snapConfig(s.basedir, s.origin, string(configuration))
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
@@ -674,7 +684,7 @@ func (s *SnapPart) DependentNames() ([]string, error) {
 //
 // /!\ not part of the Part interface.
 func (s *SnapPart) Dependents() ([]*SnapPart, error) {
-	if s.Type() != SnapTypeFramework {
+	if s.Type() != pkg.TypeFramework {
 		// only frameworks are depended on
 		return nil, nil
 	}
@@ -718,7 +728,7 @@ func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
 // symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits).
 func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
 
-	fullName := Dirname(s)
+	fullName := QualifiedName(s)
 	for _, svc := range s.Services() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
 			if err := updateAppArmorJSONTimestamp(fullName, svc.Name, s.Version()); err != nil {
@@ -788,7 +798,7 @@ func (s *SnapLocalRepository) Description() string {
 
 // Details returns details for the given snap
 func (s *SnapLocalRepository) Details(name string) (versions []Part, err error) {
-	// XXX: this is broken wrt namespaceless packages (e.g. frameworks)
+	// XXX: this is broken wrt origin packages (e.g. frameworks)
 	if !strings.ContainsRune(name, '.') {
 		name += ".*"
 	}
@@ -835,15 +845,15 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 			return nil, err
 		}
 
-		namespace := ""
-		if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
-			namespace, err = namespaceFromYamlPath(realpath)
+		origin := ""
+		if m.Type != pkg.TypeFramework && m.Type != pkg.TypeOem {
+			origin, err = originFromYamlPath(realpath)
 			if err != nil {
 				return nil, err
 			}
 		}
 
-		snap, err := NewSnapPartFromYaml(realpath, namespace, m)
+		snap, err := NewSnapPartFromYaml(realpath, origin, m)
 		if err != nil {
 			return nil, err
 		}
@@ -854,14 +864,23 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 	return parts, nil
 }
 
-func namespaceFromYamlPath(path string) (string, error) {
-	namespace := filepath.Ext(filepath.Dir(filepath.Join(path, "..", "..")))
+func originFromBasedir(basedir string) (s string) {
+	ext := filepath.Ext(filepath.Dir(filepath.Clean(basedir)))
+	if len(ext) < 2 {
+		return ""
+	}
 
-	if len(namespace) < 1 {
+	return ext[1:]
+}
+
+func originFromYamlPath(path string) (string, error) {
+	origin := originFromBasedir(filepath.Join(path, "..", ".."))
+
+	if origin == "" {
 		return "", ErrInvalidPart
 	}
 
-	return namespace[1:], nil
+	return origin, nil
 }
 
 // RemoteSnapPart represents a snap available on the server
@@ -870,7 +889,7 @@ type RemoteSnapPart struct {
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
-func (s *RemoteSnapPart) Type() SnapType {
+func (s *RemoteSnapPart) Type() pkg.Type {
 	return s.pkg.Type
 }
 
@@ -889,9 +908,9 @@ func (s *RemoteSnapPart) Description() string {
 	return s.pkg.Title
 }
 
-// Namespace is the origin
-func (s *RemoteSnapPart) Namespace() string {
-	return s.pkg.Namespace
+// Origin is the origin
+func (s *RemoteSnapPart) Origin() string {
+	return s.pkg.Origin
 }
 
 // Vendor is the publisher. Author. Whatever.
@@ -1012,7 +1031,7 @@ func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (strin
 	}
 	defer os.Remove(downloadedSnap)
 
-	return installClick(downloadedSnap, flags, pbar, s.Namespace())
+	return installClick(downloadedSnap, flags, pbar, s.Origin())
 }
 
 // SetActive sets the snap active
@@ -1123,7 +1142,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
 
 	// frameworks
-	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
+	frameworks, _ := ActiveSnapNamesByType(pkg.TypeFramework)
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(addCoreFmk(frameworks), ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
@@ -1236,7 +1255,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// the store only supports apps, oem and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
-	installed, err := ActiveSnapNamesByType(SnapTypeApp, SnapTypeFramework, SnapTypeOem)
+	installed, err := ActiveSnapNamesByType(pkg.TypeApp, pkg.TypeFramework, pkg.TypeOem)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}
@@ -1294,8 +1313,8 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
 	snapEnv := map[string]string{
 		"SNAP_NAME":          part.Name(),
-		"SNAP_ORIGIN":        part.Namespace(),
-		"SNAP_FULLNAME":      Dirname(part),
+		"SNAP_ORIGIN":        part.Origin(),
+		"SNAP_FULLNAME":      QualifiedName(part),
 		"SNAP_VERSION":       part.Version(),
 		"SNAP_APP_PATH":      part.basedir,
 		"SNAP_APP_DATA_PATH": snapDataDir,

@@ -17,34 +17,50 @@
  *
  */
 
-package main
+package pkg
 
 import (
+	"encoding/json"
 	"testing"
 
 	. "launchpad.net/gocheck"
 )
 
+type typeSuite struct{}
+
 // Hook up gocheck into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type CmdTestSuite struct {
+var _ = Suite(&typeSuite{})
+
+func (s *typeSuite) TestJSONerr(c *C) {
+	var t Type
+	err := json.Unmarshal([]byte("false"), &t)
+	c.Assert(err, NotNil)
 }
 
-var _ = Suite(&CmdTestSuite{})
-
-func (s *CmdTestSuite) TestParseSetPropertyCmdline(c *C) {
-
-	// simple case
-	pkgname, args, err := parseSetPropertyCmdline("hello-world", "channel=edge")
+func (s *typeSuite) TestMarshalTypes(c *C) {
+	out, err := json.Marshal(TypeApp)
 	c.Assert(err, IsNil)
-	c.Assert(pkgname, Equals, "hello-world")
-	c.Assert(args, DeepEquals, []string{"channel=edge"})
+	c.Check(string(out), Equals, "\"app\"")
 
-	// special case, see spec
-	// ensure that just "active=$ver" uses "ubuntu-core" as the pkg
-	pkgname, args, err = parseSetPropertyCmdline("channel=alpha")
+	out, err = json.Marshal(TypeOem)
 	c.Assert(err, IsNil)
-	c.Assert(pkgname, Equals, "ubuntu-core")
-	c.Assert(args, DeepEquals, []string{"channel=alpha"})
+	c.Check(string(out), Equals, "\"oem\"")
+}
+
+func (s *typeSuite) TestUnmarshalTypes(c *C) {
+	var st Type
+
+	err := json.Unmarshal([]byte("\"application\""), &st)
+	c.Assert(err, IsNil)
+	c.Check(st, Equals, TypeApp)
+
+	err = json.Unmarshal([]byte("\"app\""), &st)
+	c.Assert(err, IsNil)
+	c.Check(st, Equals, TypeApp)
+
+	err = json.Unmarshal([]byte("\"oem\""), &st)
+	c.Assert(err, IsNil)
+	c.Check(st, Equals, TypeOem)
 }

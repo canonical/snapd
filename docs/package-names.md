@@ -105,26 +105,26 @@ No automatic garbage collection of installed forks.
 You can only sideload one fork of an app, there is no switching on sideloads.
 
 ## Touch & other GUIs
-Snappy will provide the basic building blocks, each platform can decide how to 
-deal with it.
-The store will guarantee the uniqueness of a package name and origin 
-combination, Snappy will allow packages with the same name to be co-installed 
-but will not be co-runnable.
-How UIs will be mapped to the primitives described in this document is not yet 
-defined. As part of that effort new requirements and feature nuances for 
-snappy namespaces could arise that snappy will work with engineering teams to 
-realize the best solution.
-(for instance it might be that touch design might deem the need to allow 
-co-installation and co-runnability of namespaced snap variants needed to 
-realize their UX/app story, but we explicitly leave that problem out for now).
+Snappy will provide the basic building blocks, each platform can decide how to
+deal with it. The store will guarantee the uniqueness of a package name and
+origin combination, Snappy will allow packages with the same name to be
+co-installed but will not be co-runnable.
+
+How UIs will be mapped to the primitives described in this document is not yet
+defined. As part of that effort new requirements and feature nuances for snappy
+package origins could arise that snappy will work with engineering teams to
+realize the best solution. (for instance it might be that touch design might
+deem the need to allow co-installation and co-runnability of snappy packages of
+different origin to realize their UX/app story, but we explicitly leave that
+problem out for now).
 
 ## Implementation details
 The packages will continue to be accessed in the store using their full
-namespaces (`/api/v1/vim.beuno`)
-On install, Snappy will ask you to choose which vim to use on runtime
-if you have more than one (defaults to what you are installing)
-There will have to be a (secure) way of persisting the user’s selection 
-of which vim is active
+namespaces, which would be composed from the `package name` and the `origin`
+(`/api/v1/vim.beuno`) On install, Snappy will ask you to choose which vim to
+use on runtime if you have more than one (defaults to what you are installing)
+There will have to be a (secure) way of persisting the user’s selection of
+which vim is active
 
 ## Ecosystem details
 Package names will now mean a specific piece of software. We will have to make 
@@ -135,4 +135,4 @@ There are long-term consequences for picking a package name. If you choose
 becomes the gaming engine, you will need to be pushed out to a different name.
 
 ## Open questions
- * Must finalize what the `APP_ID` is going to be (composed? no devname? etc)
+* Must finalize what the `APP_ID` is going to be (composed? no devname? etc)
