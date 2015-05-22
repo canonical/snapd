@@ -19,12 +19,20 @@
 #ifndef CORE_LAUNCHER_UTILS_H
 #define CORE_LAUNCHER_UTILS_H
 
+__attribute__ ((noreturn))
+__attribute__ ((format (printf, 1, 2)))
 void die(const char *fmt, ...);
+
+__attribute__ ((format (printf, 1, 2)))
 bool error(const char *fmt, ...);
+
+__attribute__ ((format (printf, 1, 2)))
 void debug(const char *fmt, ...);
+
 void write_string_to_file(const char *filepath, const char *buf);
 
 // snprintf version that dies on any error condition
-void must_snprintf(char *str, size_t size, const char *format, ...);
+__attribute__ ((format (printf, 3, 4)))
+int must_snprintf(char *str, size_t size, const char *format, ...);
 
 #endif

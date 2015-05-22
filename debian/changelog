@@ -1,3 +1,11 @@
+ubuntu-core-launcher (1.0.2) UNRELEASED; urgency=low
+
+  [ John Lenton ]
+  * lp:~chipaca/ubuntu-core-launcher/unshare:
+    - Set up a private mount namespace for /tmp.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 22 May 2015 12:37:50 +0200
+
 ubuntu-core-launcher (1.0.1) vivid; urgency=low
 
   * fix typo in udev rule

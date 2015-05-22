@@ -1,5 +1,5 @@
 
-CFLAGS= -O2 -Wall -Werror $(shell dpkg-buildflags --get CFLAGS)
+CFLAGS= -D_GNU_SOURCE -O2 -Wall -Werror $(shell dpkg-buildflags --get CFLAGS)
 LD_FLAGS = $(shell dpkg-buildflags --get LDFLAGS)
 LIBS = -lapparmor -lseccomp -ludev
 

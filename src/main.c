@@ -38,6 +38,8 @@
 #include "utils.h"
 #include "seccomp.h"
 
+#define MAX_BUF 1000
+
 bool verify_appname(const char *appname) {
    // these chars are allowed in a appname
    const char* whitelist_re = "^[a-z0-9][a-z0-9+._-]+$";
@@ -198,6 +200,38 @@ bool snappy_udev_setup_required(const char *appname) {
    return false;
 }
 
+void setup_private_mount(const char* appname) {
+    uid_t uid = getuid();
+    gid_t gid = getgid();
+    char tmpdir[MAX_BUF] = {0};
+
+    must_snprintf(tmpdir, MAX_BUF, "/tmp/snap.%d_%s_XXXXXX", uid, appname);
+    if (mkdtemp(tmpdir) == NULL) {
+        die("unable to create tmpdir");
+    }
+
+    // unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >= 2.14
+    // if using an older glibc, you'd need -D_BSD_SOURCE or -D_SVID_SORUCE.
+    if (unshare(CLONE_NEWNS) < 0) {
+        die("unable to set up mount namespace");
+    }
+
+    // MS_PRIVATE needs linux > 2.6.11
+    if (mount("none", "/tmp", NULL, MS_PRIVATE, NULL) != 0) {
+        die("unable to make /tmp/ private");
+    }
+
+    // MS_BIND is there from linux 2.4
+    if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
+        die("unable to bind private /tmp");
+    }
+
+    // do the chown after the bind mount to avoid potential shenanigans
+    if (chown("/tmp/", uid, gid) < 0) {
+        die("unable to chown tmpdir");
+    }
+}
+
 int main(int argc, char **argv)
 {
    const int NR_ARGS = 3;
@@ -226,6 +260,9 @@ int main(int argc, char **argv)
    }
 
    if(geteuid() == 0) {
+       // set up private mounts
+       setup_private_mount(appname);
+
        // this needs to happen as root
        if(snappy_udev_setup_required(appname)) {
           setup_devices_cgroup(appname);
@@ -241,7 +278,7 @@ int main(int argc, char **argv)
        if (setgid(real_gid) != 0)
           die("setgid failed");
        if (setuid(real_uid) != 0)
-          die("seteuid failed");
+          die("setuid failed");
 
        if(real_gid != 0 && (getuid() == 0 || geteuid() == 0))
           die("dropping privs did not work");

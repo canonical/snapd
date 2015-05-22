@@ -14,11 +14,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#include<stdio.h>
-#include<stdlib.h>
-#include<stdarg.h>
-#include<string.h>
-#include<stdio.h>
+#include <errno.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "utils.h"
 
@@ -29,7 +29,11 @@ void die(const char *msg, ...)
    vfprintf(stderr, msg, va);
    va_end(va);
 
-   fprintf(stderr, "\n");
+   if (errno != 0) {
+     perror(". errmsg");
+   } else {
+     fprintf(stderr, "\n");
+   }
    exit(1);
 }
 
@@ -68,7 +72,7 @@ void write_string_to_file(const char *filepath, const char *buf) {
    fclose(f);
 }
 
-void must_snprintf(char *str, size_t size, const char *format, ...) {
+int must_snprintf(char *str, size_t size, const char *format, ...) {
    int n = -1;
 
    va_list va;
@@ -78,4 +82,6 @@ void must_snprintf(char *str, size_t size, const char *format, ...) {
 
    if(n < 0 || n >= size)
       die("failed to snprintf %s", str);
+
+   return n;
 }
