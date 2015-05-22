@@ -1,8 +1,20 @@
 test() {
     if after_reboot; then
-        # ensure the service comes up after a reboot
-        services=$(systemctl | grep "${framework}_.*.service")
-        [ -n "$services" ] || fail "$framework provided no services"
+        # ensure the service comes up after a reboot, give it time
+        # to start (i.e. avoid race between framework and ssh)
+        TIMEOUT=60
+        for i in $(seq $TIMEOUT); do
+            services=$(systemctl | grep "${framework}_.*.service")
+            if [ -n "$services" ]; then
+                echo "Service $framework ready"
+                break
+            fi
+            echo "Waiting for $framework to come up ($i)"
+            sleep 1
+        done
+        if [ $i = $TIMEOUT ]; then
+            fail "$framework provided no services"
+        fi
         return
     fi
 
