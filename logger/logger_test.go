@@ -116,7 +116,7 @@ func (s *LogSuite) TestSyslogFails(c *C) {
 	// pretend syslog is not available (e.g. because of no /dev/log in
 	// a chroot or something)
 	newSyslog = func() (*log.Logger, error) {
-		return nil, fmt.Errorf("nih! nih!")
+		return nil, fmt.Errorf("nih nih")
 	}
 
 	// ensure a warning is displayed
