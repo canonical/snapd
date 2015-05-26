@@ -64,7 +64,7 @@ services:
 		return "", err
 	}
 
-	dirName := fmt.Sprintf("%s.%s", m.Name, testOrigin)
+	dirName := m.qualifiedName(testOrigin)
 	metaDir := filepath.Join(tempdir, "apps", dirName, m.Version, "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err

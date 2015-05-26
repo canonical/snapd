@@ -290,16 +290,6 @@ func removeClick(clickDir string, inter interacter) (err error) {
 	return nil
 }
 
-func writeHashesFile(d *clickdeb.ClickDeb, instDir string) error {
-	hashesFile := filepath.Join(instDir, "meta", "hashes.yaml")
-	hashesData, err := d.ControlMember("hashes.yaml")
-	if err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(hashesFile, hashesData, 0644)
-}
-
 // generate the name
 func generateBinaryName(m *packageYaml, binary Binary) string {
 	var binName string
@@ -811,101 +801,58 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 
 func installClick(snapFile string, flags InstallFlags, inter interacter, origin string) (name string, err error) {
 	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
-	if err := auditClick(snapFile, allowUnauthenticated); err != nil {
-		return "", err
-		// ?
-		//return SnapAuditError
-	}
+	allowOEM := (flags & AllowOEM) != 0
+	inhibitHooks := (flags & InhibitHooks) != 0
 
-	d, err := clickdeb.Open(snapFile)
+	part, err := NewSnapPartFromSnap(snapFile, origin, allowUnauthenticated)
 	if err != nil {
 		return "", err
 	}
-	defer d.Close()
+	defer part.deb.Close()
 
-	manifestData, err := d.ControlMember("manifest")
+	if err := part.CanInstall(allowOEM, inter); err != nil {
+		return "", err
+	}
+
+	manifestData, err := part.deb.ControlMember("manifest")
 	if err != nil {
 		logger.Noticef("Snap inspect failed for %q: %v", snapFile, err)
 		return "", err
 	}
 
-	yamlData, err := d.MetaMember("package.yaml")
-	if err != nil {
-		return "", err
-	}
-
-	m, err := parsePackageYamlData(yamlData)
-	if err != nil {
-		return "", err
-	}
-
-	if err := m.checkForPackageInstalled(origin); err != nil {
-		return "", err
-	}
-
-	if err := m.checkForNameClashes(); err != nil {
-		return "", err
-	}
-
-	if err := m.checkForFrameworks(); err != nil {
-		return "", err
-	}
-
-	targetDir := snapAppsDir
 	// the "oem" parts are special
-	if m.Type == pkg.TypeOem {
-		targetDir = snapOemDir
-
-		// TODO do the following at a higher level once the store publishes snap types
-		// this is horrible
-		if allowOEM := (flags & AllowOEM) != 0; !allowOEM {
-			if currentOEM, err := getOem(); err == nil {
-				if currentOEM.Name != m.Name {
-					return "", ErrOEMPackageInstall
-				}
-			} else {
-				// there should always be an oem package now
-				return "", ErrOEMPackageInstall
-			}
-		}
-
-		if err := installOemHardwareUdevRules(m); err != nil {
+	if part.Type() == pkg.TypeOem {
+		if err := installOemHardwareUdevRules(part.m); err != nil {
 			return "", err
 		}
 	}
 
-	fullName := m.qualifiedName(origin)
-	instDir := filepath.Join(targetDir, fullName, m.Version)
-	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
+	fullName := QualifiedName(part)
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(part.basedir, "..", "current"))
+	dataDir := filepath.Join(snapDataDir, fullName, part.Version())
 
-	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
-		return "", err
-	}
-
-	dataDir := filepath.Join(snapDataDir, fullName, m.Version)
-
-	if err := helpers.EnsureDir(instDir, 0755); err != nil {
-		logger.Noticef("Can not create %q: %v", instDir, err)
+	if err := helpers.EnsureDir(part.basedir, 0755); err != nil {
+		logger.Noticef("Can not create %q: %v", part.basedir, err)
 	}
 
 	// if anything goes wrong here we cleanup
 	defer func() {
 		if err != nil {
-			if e := os.RemoveAll(instDir); e != nil && !os.IsNotExist(e) {
-				logger.Noticef("Failed to remove %q: %v", instDir, e)
+			if e := os.RemoveAll(part.basedir); e != nil && !os.IsNotExist(e) {
+				logger.Noticef("Failed to remove %q: %v", part.basedir, e)
 			}
 		}
 	}()
 
 	// we need to call the external helper so that we can reliable drop
 	// privs
-	if err := unpackWithDropPrivs(d, instDir); err != nil {
+	if err := unpackWithDropPrivs(part.deb, part.basedir); err != nil {
 		return "", err
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
 	// all hooks this can go away
-	clickMetaDir := path.Join(instDir, ".click", "info")
+	clickMetaDir := path.Join(part.basedir, ".click", "info")
 	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
 		return "", err
 	}
@@ -914,11 +861,9 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, origin 
 	}
 
 	// write the hashes now
-	if err := writeHashesFile(d, instDir); err != nil {
+	if err := part.deb.ExtractHashes(filepath.Join(part.basedir, "meta")); err != nil {
 		return "", err
 	}
-
-	inhibitHooks := (flags & InhibitHooks) != 0
 
 	// deal with the data:
 	//
@@ -946,15 +891,15 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, origin 
 			return "", err
 		}
 
-		err = copySnapData(fullName, oldM.Version, m.Version)
+		err = copySnapData(fullName, oldM.Version, part.Version())
 	} else {
 		err = helpers.EnsureDir(dataDir, 0755)
 	}
 
 	defer func() {
 		if err != nil {
-			if cerr := removeSnapData(fullName, m.Version); cerr != nil {
-				logger.Noticef("When cleaning up data for %s %s: %v", m.Name, m.Version, cerr)
+			if cerr := removeSnapData(fullName, part.Version()); cerr != nil {
+				logger.Noticef("When cleaning up data for %s %s: %v", part.Name(), part.Version(), cerr)
 			}
 		}
 	}()
@@ -964,11 +909,11 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, origin 
 	}
 
 	// and finally make active
-	err = setActiveClick(instDir, inhibitHooks, inter)
+	err = setActiveClick(part.basedir, inhibitHooks, inter)
 	defer func() {
 		if err != nil && currentActiveDir != "" {
 			if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
-				logger.Noticef("When setting old %s version back to active: %v", m.Name, cerr)
+				logger.Noticef("When setting old %s version back to active: %v", part.Name(), cerr)
 			}
 		}
 	}()
@@ -978,11 +923,6 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, origin 
 
 	// oh, one more thing: refresh the security bits
 	if !inhibitHooks {
-		part, err := NewSnapPartFromYaml(filepath.Join(instDir, "meta", "package.yaml"), origin, m)
-		if err != nil {
-			return "", err
-		}
-
 		deps, err := part.Dependents()
 		if err != nil {
 			return "", err
@@ -1038,7 +978,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, origin 
 		}
 	}
 
-	return m.Name, nil
+	return part.Name(), nil
 }
 
 // removeSnapData removes the data for the given version of the given snap

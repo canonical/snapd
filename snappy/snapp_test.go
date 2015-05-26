@@ -145,6 +145,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Check(snap.Version(), Equals, "1.10")
 	c.Check(snap.IsActive(), Equals, false)
 	c.Check(snap.Description(), Equals, "Hello")
+	c.Check(snap.IsInstalled(), Equals, true)
 
 	services := snap.Services()
 	c.Assert(services, HasLen, 1)

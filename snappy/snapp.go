@@ -22,7 +22,6 @@ package snappy
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -170,8 +169,8 @@ type SnapPart struct {
 	isActive    bool
 	isInstalled bool
 	description string
-
-	basedir string
+	deb         *clickdeb.ClickDeb
+	basedir     string
 }
 
 var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
@@ -456,8 +455,48 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 	if err != nil {
 		return nil, err
 	}
+	part.isInstalled = true
 
 	return part, nil
+}
+
+// NewSnapPartFromSnap loads a snap from the given (clickdeb) snap file.
+// Caller should call Close on the clickdeb.
+// TODO: expose that Close.
+func NewSnapPartFromSnap(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
+	if err := clickdeb.Verify(snapFile, unauthOk); err != nil {
+		return nil, err
+	}
+
+	d, err := clickdeb.Open(snapFile)
+	if err != nil {
+		return nil, err
+	}
+
+	yamlData, err := d.MetaMember("package.yaml")
+	if err != nil {
+		return nil, err
+	}
+
+	m, err := parsePackageYamlData(yamlData)
+	if err != nil {
+		return nil, err
+	}
+
+	targetDir := snapAppsDir
+	// the "oem" parts are special
+	if m.Type == pkg.TypeOem {
+		targetDir = snapOemDir
+	}
+	fullName := m.qualifiedName(origin)
+	instDir := filepath.Join(targetDir, fullName, m.Version)
+
+	return &SnapPart{
+		basedir: instDir,
+		origin:  origin,
+		m:       m,
+		deb:     d,
+	}, nil
 }
 
 // NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
@@ -467,10 +506,9 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 	}
 
 	part := &SnapPart{
-		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
-		isInstalled: true,
-		origin:      origin,
-		m:           m,
+		basedir: filepath.Dir(filepath.Dir(yamlPath)),
+		origin:  origin,
+		m:       m,
 	}
 
 	// check if the part is active
@@ -611,7 +649,11 @@ func (s *SnapPart) OemConfig() SystemConfig {
 
 // Install installs the snap
 func (s *SnapPart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
-	return "", errors.New("Install of a local part is not possible")
+	if s.IsInstalled() {
+		return "", ErrAlreadyInstalled
+	}
+
+	return "", nil
 }
 
 // SetActive sets the snap active
@@ -714,6 +756,40 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 	}
 
 	return needed, nil
+}
+
+func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
+	if err := s.m.checkForPackageInstalled(s.Origin()); err != nil {
+		return err
+	}
+
+	if err := s.m.checkForNameClashes(); err != nil {
+		return err
+	}
+
+	if err := s.m.checkForFrameworks(); err != nil {
+		return err
+	}
+
+	if s.Type() == pkg.TypeOem {
+		if !allowOEM {
+			if currentOEM, err := getOem(); err == nil {
+				if currentOEM.Name != s.Name() {
+					return ErrOEMPackageInstall
+				}
+			} else {
+				// there should always be an oem package now
+				return ErrOEMPackageInstall
+			}
+		}
+	}
+
+	curr, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current"))
+	if err := s.m.checkLicenseAgreement(inter, s.deb, curr); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 var timestampUpdater = helpers.UpdateTimestamp
@@ -829,6 +905,7 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 	if err != nil {
 		return nil, err
 	}
+
 	for _, yamlfile := range matches {
 
 		// skip "current" and similar symlinks
@@ -840,20 +917,8 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 			continue
 		}
 
-		m, err := parsePackageYamlFile(realpath)
-		if err != nil {
-			return nil, err
-		}
-
-		origin := ""
-		if m.Type != pkg.TypeFramework && m.Type != pkg.TypeOem {
-			origin, err = originFromYamlPath(realpath)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		snap, err := NewSnapPartFromYaml(realpath, origin, m)
+		origin, _ := originFromYamlPath(realpath)
+		snap, err := NewInstalledSnapPart(realpath, origin)
 		if err != nil {
 			return nil, err
 		}
@@ -873,6 +938,7 @@ func originFromBasedir(basedir string) (s string) {
 	return ext[1:]
 }
 
+// originFromYamlPath *must* return "" if it's returning error.
 func originFromYamlPath(path string) (string, error) {
 	origin := originFromBasedir(filepath.Join(path, "..", ".."))
 
