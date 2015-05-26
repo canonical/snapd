@@ -134,7 +134,7 @@ void setup_devices_cgroup(const char *appname) {
    // extra paranoia
    if(!verify_appname(appname))
       die("appname %s not allowed", appname);
-   
+
    // create devices cgroup controller
    char cgroup_dir[PATH_MAX];
    must_snprintf(cgroup_dir, sizeof(cgroup_dir), "/sys/fs/cgroup/devices/snappy.%s/", appname);
@@ -162,7 +162,7 @@ bool snappy_udev_setup_required(const char *appname) {
    // extra paranoia
    if(!verify_appname(appname))
       die("appname %s not allowed", appname);
-   
+
    char override_file[PATH_MAX];
    must_snprintf(override_file, sizeof(override_file), "/var/lib/apparmor/clicks/%s.json.additional", appname);
 
@@ -196,7 +196,7 @@ bool snappy_udev_setup_required(const char *appname) {
       debug("found needle, need to apply udev setup");
       return true;
    }
-   
+
    return false;
 }
 
@@ -273,12 +273,16 @@ int main(int argc, char **argv)
 
    // verify binary path
    char apps_prefix[128];
+   char frameworks_prefix[128];
    char oem_prefix[128];
    must_snprintf(apps_prefix, sizeof(apps_prefix), "/apps/%s/", appname);
+   must_snprintf(frameworks_prefix, sizeof(frameworks_prefix), "/frameworks/%s/", appname);
    must_snprintf(oem_prefix, sizeof(oem_prefix), "/oem/%s/", appname);
-   if (strstr(binary, apps_prefix) != binary && strstr(binary, oem_prefix) != binary)
+   if (strstr(binary, apps_prefix) != binary &&
+           strstr(binary, oem_prefix) != binary &&
+           strstr(binary, frameworks_prefix) != binary)
       die("binary must be inside /apps/%s/ or /oem/%s/", appname, appname);
-      
+
    // this code always needs to run as root for the cgroup/udev setup,
    // however for the tests we allow it to run as non-root
    if(geteuid() != 0 && getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
@@ -294,7 +298,7 @@ int main(int argc, char **argv)
           setup_devices_cgroup(appname);
           setup_udev_snappy_assign(appname);
        }
-      
+
        // the rest does not so drop privs back to calling user
        unsigned real_uid = getuid();
        unsigned real_gid = getgid();
