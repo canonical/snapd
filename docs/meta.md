@@ -1,7 +1,7 @@
 # Package metadata
 
 This document describes the meta data of a snappy package. All files
-are located under the `meta/` directory. 
+are located under the `meta/` directory.
 
 The following files are supported:
 
@@ -50,7 +50,7 @@ The following keys are optional:
    * `caps`: (optional) list of additional security policies to add.
              See `security.md` for details
    * `security-template`: (optional) alternate security template to use
-                          instead of `default`. See `security.md` for details 
+                          instead of `default`. See `security.md` for details
    * `security-override`: (optional) high level overrides to use when
                           `security-template` and `caps` are not
                           sufficient.  See security.md for details
@@ -68,7 +68,8 @@ The following keys are optional:
          * `port`: (optional) see above
          * `negotiable`: (optional) see above
    * `bus-name`: (optional) message bus connection name for the service.
-     May only be specified for snaps of 'type: framework' (see above).
+     May only be specified for snaps of 'type: framework' (see above). See
+     frameworks.md for details.
 
  * `binaries`: the binaries (executables) that the snap provides
    * `name`: (required) the name of the binary, the user will be able to
@@ -78,8 +79,8 @@ The following keys are optional:
    * `caps`: (optional) see entry in `services` (above)
    * `security-template`: (optional) see entry in `services` (above)
    * `security-override`: (optional) see entry in `services` (above)
-   * `security-policy`: (optional) see entry in `services` (above)   
- 
+   * `security-policy`: (optional) see entry in `services` (above)
+
 ## license.txt
 
 A license text that the user must accept before the snap can be
