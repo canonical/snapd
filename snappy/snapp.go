@@ -758,7 +758,12 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 	return needed, nil
 }
 
+// CanInstall checks whether the SnapPart passes a series of tests required for installation
 func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
+	if s.IsInstalled() {
+		return ErrAlreadyInstalled
+	}
+
 	if err := s.m.checkForPackageInstalled(s.Origin()); err != nil {
 		return err
 	}
