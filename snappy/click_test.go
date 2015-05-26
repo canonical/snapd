@@ -559,7 +559,7 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "apps")
 	appDir := "foo." + testOrigin
 	homeData := filepath.Join(homeDir, appDir, "1.0")
-	err := helpers.EnsureDir(homeData, 0755)
+	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
 
 	packageYaml := `name: foo

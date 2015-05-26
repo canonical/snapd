@@ -134,18 +134,6 @@ func (ts *HTestSuite) TestExitCode(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (ts *HTestSuite) TestEnsureDir(c *C) {
-	tempdir := c.MkDir()
-
-	target := filepath.Join(tempdir, "meep")
-	err := EnsureDir(target, 0755)
-	c.Assert(err, IsNil)
-	st, err := os.Stat(target)
-	c.Assert(err, IsNil)
-	c.Assert(st.IsDir(), Equals, true)
-	c.Assert(st.Mode(), Equals, os.ModeDir|0755)
-}
-
 func (ts *HTestSuite) TestMakeMapFromEnvList(c *C) {
 	envList := []string{
 		"PATH=/usr/bin:/bin",

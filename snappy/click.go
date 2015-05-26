@@ -513,7 +513,7 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 			return err
 		}
 		serviceFilename := generateServiceFileName(m, service)
-		helpers.EnsureDir(filepath.Dir(serviceFilename), 0755)
+		os.MkdirAll(filepath.Dir(serviceFilename), 0755)
 		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0644); err != nil {
 			return err
 		}
@@ -526,7 +526,7 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 				return err
 			}
 			policyFilename := generateBusPolicyFileName(m, service)
-			helpers.EnsureDir(filepath.Dir(policyFilename), 0755)
+			os.MkdirAll(filepath.Dir(policyFilename), 0755)
 			if err := ioutil.WriteFile(policyFilename, []byte(content), 0644); err != nil {
 				return err
 			}
@@ -831,7 +831,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, origin 
 	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(part.basedir, "..", "current"))
 	dataDir := filepath.Join(snapDataDir, fullName, part.Version())
 
-	if err := helpers.EnsureDir(part.basedir, 0755); err != nil {
+	if err := os.MkdirAll(part.basedir, 0755); err != nil {
 		logger.Noticef("Can not create %q: %v", part.basedir, err)
 	}
 
@@ -893,7 +893,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, origin 
 
 		err = copySnapData(fullName, oldM.Version, part.Version())
 	} else {
-		err = helpers.EnsureDir(dataDir, 0755)
+		err = os.MkdirAll(dataDir, 0755)
 	}
 
 	defer func() {
