@@ -281,7 +281,8 @@ int main(int argc, char **argv)
    if (strstr(binary, apps_prefix) != binary &&
            strstr(binary, oem_prefix) != binary &&
            strstr(binary, frameworks_prefix) != binary)
-      die("binary must be inside /apps/%s/ or /oem/%s/", appname, appname);
+      die("binary must be inside /apps/%s/, /frameworks/%s/ or /oem/%s/",
+              appname, appname, appname);
 
    // this code always needs to run as root for the cgroup/udev setup,
    // however for the tests we allow it to run as non-root
