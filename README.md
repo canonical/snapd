@@ -93,9 +93,9 @@ You can run individual test with:
 
 If a test hangs, you can enable verbose mode:
 
-   go test -gocheck.vv
+   go test -v -gocheck.vv
 
-(or a single -v).
+(or -gocheck.v for less verbose output).
 
 ### Dependencies handling
 
