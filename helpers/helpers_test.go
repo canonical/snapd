@@ -271,12 +271,17 @@ func (ts *HTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
 	c.Assert(home, Equals, oldHome)
 }
 
-func (ts *HTestSuite) TestMajorMinorSimple(c *C) {
-	stat, err := os.Stat("/dev/kmsg")
+func skipOnMissingDevKmsg(c *C) {
+	_, err := os.Stat("/dev/kmsg")
 	if err != nil {
 		c.Skip("Can not stat /dev/kmsg")
 	}
+}
 
+func (ts *HTestSuite) TestMajorMinorSimple(c *C) {
+	skipOnMissingDevKmsg(c)
+
+	stat, _ := os.Stat("/dev/kmsg")
 	major, minor, err := MajorMinor(stat)
 	c.Assert(err, IsNil)
 	c.Assert(major, Equals, uint32(1))
@@ -298,6 +303,7 @@ func (ts *HTestSuite) TestMakedev(c *C) {
 }
 
 func (ts *HTestSuite) TestUnpacksMknod(c *C) {
+	skipOnMissingDevKmsg(c)
 
 	// mknod mock
 	mknodWasCalled := false
