@@ -36,11 +36,24 @@ func (ts *HTestSuite) TestCmp(c *C) {
 	c.Assert(err, IsNil)
 	defer f.Close()
 
-	for i := 0; i < 1100; i++ {
-		c.Assert(FilesAreEqual(foo, foo), Equals, true)
-		_, err := f.WriteString("****************")
-		c.Assert(err, IsNil)
-		f.Sync()
+	// pick a smaller bufsize so that the test can complete quicker
+	defer func() {
+		bufsz = defaultBufsz
+	}()
+	bufsz = 128
+
+	// test FilesAreEqual for various sizes:
+	// - bufsz not exceeded
+	// - bufsz matches file size
+	// - bufsz exceeds file size
+	canary := "1234567890123456"
+	for _, n := range []int{1, bufsz / len(canary), (bufsz / len(canary)) + 1} {
+		for i := 0; i < n; i++ {
+			c.Assert(FilesAreEqual(foo, foo), Equals, true)
+			_, err := f.WriteString(canary)
+			c.Assert(err, IsNil)
+			f.Sync()
+		}
 	}
 }
 
