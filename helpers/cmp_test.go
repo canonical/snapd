@@ -47,7 +47,7 @@ func (ts *HTestSuite) TestCmp(c *C) {
 	// - bufsz matches file size
 	// - bufsz exceeds file size
 	canary := "1234567890123456"
-	for _, n := range []int{1, bufsz/len(canary), (bufsz/len(canary))+1} {
+	for _, n := range []int{1, bufsz / len(canary), (bufsz / len(canary)) + 1} {
 		for i := 0; i < n; i++ {
 			c.Assert(FilesAreEqual(foo, foo), Equals, true)
 			_, err := f.WriteString(canary)
