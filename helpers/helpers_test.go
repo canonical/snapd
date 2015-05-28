@@ -314,5 +314,20 @@ func (ts *HTestSuite) TestUnpacksMknod(c *C) {
 	err = UnpackTar(f, c.MkDir(), nil)
 	c.Assert(err, IsNil)
 	c.Assert(mknodWasCalled, Equals, true)
+}
 
+func (ts *HTestSuite) TestGetattr(c *C) {
+	T := struct{
+		S string
+		I int
+	}{
+		S: "foo",
+		I: 42,
+	}
+	// works on values
+	c.Assert(Getattr(T, "S").(string), Equals, "foo")
+	c.Assert(Getattr(T, "I").(int), Equals, 42)
+	// works for pointers too
+	c.Assert(Getattr(&T, "S").(string), Equals, "foo")
+	c.Assert(Getattr(&T, "I").(int), Equals, 42)
 }
