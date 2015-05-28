@@ -31,7 +31,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
 )
@@ -162,7 +161,7 @@ func cleanupOemHardwareUdevRules(m *packageYaml) error {
 }
 
 func writeOemHardwareUdevRules(m *packageYaml) error {
-	helpers.EnsureDir(snapUdevRulesDir, 0755)
+	os.MkdirAll(snapUdevRulesDir, 0755)
 
 	// cleanup
 	if err := cleanupOemHardwareUdevRules(m); err != nil {
@@ -218,7 +217,7 @@ const apparmorAdditionalContent = `{
 // and the ubuntu-core-launcher is then used to generate a confinement
 // based on the devices cgroup.
 func writeApparmorAdditionalFile(m *packageYaml) error {
-	if err := helpers.EnsureDir(snapAppArmorDir, 0755); err != nil {
+	if err := os.MkdirAll(snapAppArmorDir, 0755); err != nil {
 		return err
 	}
 

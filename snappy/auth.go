@@ -134,7 +134,7 @@ func storeTokenFilename() string {
 // later reading via ReadStoreToken()
 func WriteStoreToken(token StoreToken) error {
 	targetFile := storeTokenFilename()
-	if err := helpers.EnsureDir(filepath.Dir(targetFile), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(targetFile), 0750); err != nil {
 		return err
 	}
 	outStr, err := json.MarshalIndent(token, "", " ")

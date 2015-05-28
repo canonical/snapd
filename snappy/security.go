@@ -23,13 +23,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v2"
 
-	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
 )
@@ -159,7 +159,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		return content, err
 	}
 
-	helpers.EnsureDir(snapSeccompDir, 0755)
+	os.MkdirAll(snapSeccompDir, 0755)
 
 	// defaults
 	policyVendor := defaultPolicyVendor
