@@ -108,7 +108,7 @@ func udevRulesPathForPart(partid string) string {
 }
 
 func writeUdevRuleForDeviceCgroup(snapname, device string) error {
-	helpers.EnsureDir(snapUdevRulesDir, 0755)
+	os.MkdirAll(snapUdevRulesDir, 0755)
 
 	// the device cgroup/launcher etc support only the apps level,
 	// not a binary/service or version, so if we get a full
