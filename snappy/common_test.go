@@ -191,7 +191,12 @@ type MockProgressMeter struct {
 	spin     bool
 	spinMsg  string
 	written  int
+	// Notifier:
 	notified []string
+	// Agreer:
+	intro   string
+	license string
+	y       bool
 }
 
 func (m *MockProgressMeter) Start(pkg string, total float64) {
@@ -214,8 +219,10 @@ func (m *MockProgressMeter) Write(buf []byte) (n int, err error) {
 func (m *MockProgressMeter) Finished() {
 	m.finished = true
 }
-func (m *MockProgressMeter) Agreed(string, string) bool {
-	return false
+func (m *MockProgressMeter) Agreed(intro, license string) bool {
+	m.intro = intro
+	m.license = license
+	return m.y
 }
 func (m *MockProgressMeter) Notify(msg string) {
 	m.notified = append(m.notified, msg)

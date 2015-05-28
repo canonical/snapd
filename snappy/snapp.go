@@ -45,6 +45,7 @@ import (
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
+	"launchpad.net/snappy/systemd"
 )
 
 const (
@@ -648,12 +649,184 @@ func (s *SnapPart) OemConfig() SystemConfig {
 }
 
 // Install installs the snap
-func (s *SnapPart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
-	if s.IsInstalled() {
+func (part *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
+	allowOEM := (flags & AllowOEM) != 0
+	inhibitHooks := (flags & InhibitHooks) != 0
+
+	if part.IsInstalled() {
 		return "", ErrAlreadyInstalled
 	}
 
-	return "", nil
+	if err := part.CanInstall(allowOEM, inter); err != nil {
+		return "", err
+	}
+
+	manifestData, err := part.deb.ControlMember("manifest")
+	if err != nil {
+		logger.Noticef("Snap inspect failed for %q: %v", part.Name(), err)
+		return "", err
+	}
+
+	// the "oem" parts are special
+	if part.Type() == pkg.TypeOem {
+		if err := installOemHardwareUdevRules(part.m); err != nil {
+			return "", err
+		}
+	}
+
+	fullName := QualifiedName(part)
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(part.basedir, "..", "current"))
+	dataDir := filepath.Join(snapDataDir, fullName, part.Version())
+
+	if err := os.MkdirAll(part.basedir, 0755); err != nil {
+		logger.Noticef("Can not create %q: %v", part.basedir, err)
+		return "", err
+	}
+
+	// if anything goes wrong here we cleanup
+	defer func() {
+		if err != nil {
+			if e := os.RemoveAll(part.basedir); e != nil && !os.IsNotExist(e) {
+				logger.Noticef("Failed to remove %q: %v", part.basedir, e)
+			}
+		}
+	}()
+
+	// we need to call the external helper so that we can reliable drop
+	// privs
+	if err := part.deb.UnpackWithDropPrivs(part.basedir, globalRootDir); err != nil {
+		return "", err
+	}
+
+	// legacy, the hooks (e.g. apparmor) need this. Once we converted
+	// all hooks this can go away
+	clickMetaDir := filepath.Join(part.basedir, ".click", "info")
+	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
+		return "", err
+	}
+	if err := writeCompatManifestJSON(clickMetaDir, manifestData, part.origin); err != nil {
+		return "", err
+	}
+
+	// write the hashes now
+	if err := part.deb.ExtractHashes(filepath.Join(part.basedir, "meta")); err != nil {
+		return "", err
+	}
+
+	// deal with the data:
+	//
+	// if there was a previous version, stop it
+	// from being active so that it stops running and can no longer be
+	// started then copy the data
+	//
+	// otherwise just create a empty data dir
+	if currentActiveDir != "" {
+		oldM, err := parsePackageYamlFile(filepath.Join(currentActiveDir, "meta", "package.yaml"))
+		if err != nil {
+			return "", err
+		}
+
+		// we need to stop making it active
+		err = unsetActiveClick(currentActiveDir, inhibitHooks, inter)
+		defer func() {
+			if err != nil {
+				if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+					logger.Noticef("Setting old version back to active failed: %v", cerr)
+				}
+			}
+		}()
+		if err != nil {
+			return "", err
+		}
+
+		err = copySnapData(fullName, oldM.Version, part.Version())
+	} else {
+		err = os.MkdirAll(dataDir, 0755)
+	}
+
+	defer func() {
+		if err != nil {
+			if cerr := removeSnapData(fullName, part.Version()); cerr != nil {
+				logger.Noticef("When cleaning up data for %s %s: %v", part.Name(), part.Version(), cerr)
+			}
+		}
+	}()
+
+	if err != nil {
+		return "", err
+	}
+
+	// and finally make active
+	err = setActiveClick(part.basedir, inhibitHooks, inter)
+	defer func() {
+		if err != nil && currentActiveDir != "" {
+			if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+				logger.Noticef("When setting old %s version back to active: %v", part.Name(), cerr)
+			}
+		}
+	}()
+	if err != nil {
+		return "", err
+	}
+
+	// oh, one more thing: refresh the security bits
+	if !inhibitHooks {
+		deps, err := part.Dependents()
+		if err != nil {
+			return "", err
+		}
+
+		sysd := systemd.New(globalRootDir, inter)
+		stopped := make(map[string]time.Duration)
+		defer func() {
+			if err != nil {
+				for serviceName := range stopped {
+					if e := sysd.Start(serviceName); e != nil {
+						inter.Notify(fmt.Sprintf("unable to restart %s with the old %s: %s", serviceName, part.Name(), e))
+					}
+				}
+			}
+		}()
+
+		for _, dep := range deps {
+			if !dep.IsActive() {
+				continue
+			}
+			for _, svc := range dep.Services() {
+				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
+				timeout := time.Duration(svc.StopTimeout)
+				if err = sysd.Stop(serviceName, timeout); err != nil {
+					inter.Notify(fmt.Sprintf("unable to stop %s; aborting install: %s", serviceName, err))
+					return "", err
+				}
+				stopped[serviceName] = timeout
+			}
+		}
+
+		if err := part.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
+			return "", err
+		}
+
+		started := make(map[string]time.Duration)
+		defer func() {
+			if err != nil {
+				for serviceName, timeout := range started {
+					if e := sysd.Stop(serviceName, timeout); e != nil {
+						inter.Notify(fmt.Sprintf("unable to stop %s with the old %s: %s", serviceName, part.Name(), e))
+					}
+				}
+			}
+		}()
+		for serviceName, timeout := range stopped {
+			if err = sysd.Start(serviceName); err != nil {
+				inter.Notify(fmt.Sprintf("unable to restart %s; aborting install: %s", serviceName, err))
+				return "", err
+			}
+			started[serviceName] = timeout
+		}
+	}
+
+	return part.Name(), nil
 }
 
 // SetActive sets the snap active
