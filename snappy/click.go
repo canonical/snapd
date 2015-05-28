@@ -724,58 +724,6 @@ func (m *packageYaml) removeSecurityPolicy(baseDir string) error {
 	return nil
 }
 
-// takes a name and PATH (colon separated) and returns the full qualified path
-func findBinaryInPath(name, path string) string {
-	for _, entry := range strings.Split(path, ":") {
-		fname := filepath.Join(entry, name)
-		if st, err := os.Stat(fname); err == nil {
-			// check for any x bit
-			if st.Mode()&0111 != 0 {
-				return fname
-			}
-		}
-	}
-
-	return ""
-}
-
-// unpackWithDropPrivs is a helper that will unapck the ClickDeb content
-// into the target dir and drop privs when doing this.
-//
-// To do this reliably in go we need to exec a helper as we can not
-// just fork() and drop privs in the child (no support for stock fork in go)
-func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
-	// no need to drop privs, we are not root
-	if !helpers.ShouldDropPrivs() {
-		return d.Unpack(instDir)
-	}
-
-	// find priv helper executable
-	privHelper := ""
-	for _, path := range []string{"PATH", "GOPATH"} {
-		privHelper = findBinaryInPath("snappy", os.Getenv(path))
-		if privHelper != "" {
-			break
-		}
-	}
-	if privHelper == "" {
-		return ErrUnpackHelperNotFound
-	}
-
-	cmd := exec.Command(privHelper, "internal-unpack", d.Name(), instDir, globalRootDir)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return &ErrUnpackFailed{
-			snapFile: d.Name(),
-			instDir:  instDir,
-			origErr:  err,
-		}
-	}
-
-	return nil
-}
-
 type agreer interface {
 	Agreed(intro, license string) bool
 }
@@ -900,7 +848,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, origin 
 
 	// we need to call the external helper so that we can reliable drop
 	// privs
-	if err := unpackWithDropPrivs(d, instDir); err != nil {
+	if err := d.UnpackWithDropPrivs(instDir, globalRootDir); err != nil {
 		return "", err
 	}
 
