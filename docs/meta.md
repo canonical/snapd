@@ -16,7 +16,7 @@ the snap and the first paragraph as the description in the store.
 This file describes the snap package and is the most important file
 for a snap package. The following keys are mandatory:
 
- * `name`: the name of the snap (only `[a-z0-9][a-z0-9+.-]`)
+ * `name`: the name of the snap (only `[a-z0-9][a-z0-9+-]`)
  * `version`: the version of the snap (only `[a-zA-Z0-9.+~-]` are allowed)
  * `vendor`: the vendor of the snap
 
