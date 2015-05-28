@@ -268,10 +268,12 @@ func writeHashes(buildDir, dataTar string) error {
 	hashes.ArchiveSha512 = sha512
 
 	err = filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error {
-		if strings.HasPrefix(path[len(buildDir):], "/DEBIAN") {
-			return nil
+		// path will always start with buildDir...
+		if path[len(buildDir):] == "/DEBIAN" {
+			return filepath.SkipDir
 		}
-		if path == buildDir {
+		// ...so if path's length is == buildDir, it's buildDir
+		if len(path) == len(buildDir) {
 			return nil
 		}
 
