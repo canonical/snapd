@@ -158,7 +158,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "name: fmk\ntype: framework\nversion: 1")
+	_, err := makeInstalledMockSnap(s.tempdir, "name: fmk\ntype: framework\nversion: 1\nvendor: foo")
 	repo := NewLocalSnapRepository(snapAppsDir)
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)

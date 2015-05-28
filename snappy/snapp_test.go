@@ -185,6 +185,7 @@ func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
 func (s *SnapTestSuite) TestLocalSnapFrameworks(c *C) {
 	snapYaml, err := makeInstalledMockSnap(s.tempdir, `name: foo
 version: 1.0
+vendor: foo
 frameworks:
  - one
  - two
@@ -676,6 +677,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
 func (s *SnapTestSuite) TestRemoteSnapUpgradeService(c *C) {
 	snapPackage := makeTestSnapPackage(c, `name: foo
 version: 1.0
+vendor: foo
 services:
  - name: svc
 `)
@@ -837,7 +839,11 @@ architecture:
 
 func (s *SnapTestSuite) TestPackageYamlLicenseParsing(c *C) {
 	y := filepath.Join(s.tempdir, "package.yaml")
-	ioutil.WriteFile(y, []byte(`explicit-license-agreement: Y`), 0644)
+	ioutil.WriteFile(y, []byte(`
+name: foo
+version: 1.0
+vendor: foo
+explicit-license-agreement: Y`), 0644)
 	m, err := parsePackageYamlFile(y)
 	c.Assert(err, IsNil)
 	c.Assert(m.ExplicitLicenseAgreement, Equals, true)
@@ -977,6 +983,8 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 
 func (s *SnapTestSuite) TestPackageYamlFrameworkParsing(c *C) {
 	m, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+vendor: foo
 framework: one, two
 `))
 	c.Assert(err, IsNil)
@@ -987,6 +995,8 @@ framework: one, two
 
 func (s *SnapTestSuite) TestPackageYamlFrameworksParsing(c *C) {
 	m, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+vendor: foo
 frameworks:
  - one
  - two
@@ -999,6 +1009,8 @@ frameworks:
 
 func (s *SnapTestSuite) TestPackageYamlFrameworkAndFrameworksFails(c *C) {
 	_, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+vendor: foo
 frameworks:
  - one
  - two
@@ -1008,7 +1020,7 @@ framework: three, four
 }
 
 func (s *SnapTestSuite) TestDetectsAlreadyInstalled(c *C) {
-	data := "name: afoo\nversion: 1"
+	data := "name: afoo\nversion: 1\nvendor: foo"
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
@@ -1022,7 +1034,7 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameOrigin(c *C) {
 	// XXX: should this be allowed? right now it is (=> you can re-sideload the same version of your apps)
 	//      (remote snaps are stopped before clickInstall gets to run)
 
-	data := "name: afoo\nversion: 1"
+	data := "name: afoo\nversion: 1\nvendor: foo"
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
@@ -1033,7 +1045,7 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameOrigin(c *C) {
 }
 
 func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworks(c *C) {
-	data := "name: afoo\nversion: 1\ntype: framework"
+	data := "name: afoo\nversion: 1\nvendor: foo\ntype: framework"
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
@@ -1046,6 +1058,7 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworks(c *C) {
 func (s *SnapTestSuite) TestDetectsNameClash(c *C) {
 	data := []byte(`name: afoo
 version: 1.0
+vendor: foo
 services:
  - name: foo
 binaries:
@@ -1060,6 +1073,7 @@ binaries:
 func (s *SnapTestSuite) TestDetectsMissingFrameworks(c *C) {
 	data := []byte(`name: afoo
 version: 1.0
+vendor: foo
 frameworks:
  - missing
  - also-missing
@@ -1073,6 +1087,7 @@ frameworks:
 func (s *SnapTestSuite) TestDetectsFrameworksInUse(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, `name: foo
 version: 1.0
+vendor: foo
 frameworks:
  - fmk
 `)
@@ -1080,6 +1095,7 @@ frameworks:
 
 	yaml, err := parsePackageYamlData([]byte(`name: fmk
 version: 1.0
+vendor: foo
 type: framework`))
 	c.Assert(err, IsNil)
 	part := &SnapPart{m: yaml}
@@ -1110,6 +1126,7 @@ func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
 
 	_, err := makeInstalledMockSnap(s.tempdir, `name: foo
 version: 1.0
+vendor: foo
 frameworks:
  - fmk
 binaries:
@@ -1123,13 +1140,13 @@ binaries:
 	d2 := c.MkDir()
 	dp := filepath.Join("meta", "framework-policy", "apparmor", "policygroups")
 
-	yaml := "name: fmk\ntype: framework\nversion: 1\n"
+	yaml := "name: fmk\ntype: framework\nversion: 1\nvendor: foo"
 	_, err = makeInstalledMockSnap(d1, yaml)
 	c.Assert(err, IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(d1, dp), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d1, dp, "foo"), []byte(""), 0644), IsNil)
 
-	_, err = makeInstalledMockSnap(d2, "name: fmk\ntype: framework\nversion: 2\n")
+	_, err = makeInstalledMockSnap(d2, "name: fmk\ntype: framework\nversion: 2\nvendor: foo")
 	c.Assert(err, IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(d2, dp), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d2, dp, "foo"), []byte("x"), 0644), IsNil)
@@ -1144,12 +1161,14 @@ binaries:
 func (s *SnapTestSuite) TestRemoveChecksFrameworks(c *C) {
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, `name: fmk
 version: 1.0
+vendor: foo
 type: framework`)
 	c.Assert(err, IsNil)
 	yaml, err := parsePackageYamlFile(yamlFile)
 
 	_, err = makeInstalledMockSnap(s.tempdir, `name: foo
 version: 1.0
+vendor: foo
 frameworks:
  - fmk
 `)
@@ -1295,6 +1314,8 @@ func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 
 func (s *SnapTestSuite) TestIllegalPackageNameWithOrigin(c *C) {
 	_, err := parsePackageYamlData([]byte(`name: foo.something
+version: 1.0
+vendor: foo
 `))
 
 	c.Assert(err, Equals, ErrPackageNameNotSupported)
@@ -1302,6 +1323,7 @@ func (s *SnapTestSuite) TestIllegalPackageNameWithOrigin(c *C) {
 
 var hardwareYaml = []byte(`name: oem-foo
 version: 1.0
+vendor: someone
 oem:
  hardware:
   assign:
@@ -1411,4 +1433,28 @@ vendor: Foo Bar <foo@example.com>
 
 	udevName := packageYaml.qualifiedName("")
 	c.Assert(udevName, Equals, "foo")
+}
+
+func (s *SnapTestSuite) TestParsePackageYamlDataChecksName(c *C) {
+	_, err := parsePackageYamlData([]byte(`
+version: 1.0
+vendor: Foo Bar <foo@example.com>
+`))
+	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required field 'name'.*")
+}
+
+func (s *SnapTestSuite) TestParsePackageYamlDataChecksVersion(c *C) {
+	_, err := parsePackageYamlData([]byte(`
+name: foo
+vendor: Foo Bar <foo@example.com>
+`))
+	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required field 'version'.*")
+}
+
+func (s *SnapTestSuite) TestParsePackageYamlDataChecksVendor(c *C) {
+	_, err := parsePackageYamlData([]byte(`
+name: foo
+version: 1.0
+`))
+	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required field 'vendor'.*")
 }

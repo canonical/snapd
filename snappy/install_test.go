@@ -105,7 +105,7 @@ func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 }
 
 func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
-	snapPackage := makeTestSnapPackage(c, "name: foo\nversion: 2")
+	snapPackage := makeTestSnapPackage(c, "name: foo\nversion: 2\nvendor: foo")
 	snapR, err := os.Open(snapPackage)
 	c.Assert(err, IsNil)
 	defer snapR.Close()

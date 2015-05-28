@@ -270,6 +270,24 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		return nil, &ErrInvalidYaml{file: "package.yaml", err: err, yaml: yamlData}
 	}
 
+	// check mandatory fields
+	if m.Name == "" || m.Version == "" || m.Vendor == "" {
+		field := ""
+		switch {
+		case m.Name == "":
+			field = "name"
+		case m.Version == "":
+			field = "version"
+		case m.Vendor == "":
+			field = "vendor"
+		}
+		return nil, &ErrInvalidYaml{
+			file: "package.yaml",
+			yaml: yamlData,
+			err:  fmt.Errorf("missing required field '%s'", field),
+		}
+	}
+
 	if m.Architectures == nil {
 		if m.DeprecatedArchitecture == nil {
 			m.Architectures = []string{"all"}
