@@ -886,6 +886,7 @@ func installClick(snapFile string, flags InstallFlags, inter interacter, origin 
 
 	if err := os.MkdirAll(instDir, 0755); err != nil {
 		logger.Noticef("Can not create %q: %v", instDir, err)
+		return "", err
 	}
 
 	// if anything goes wrong here we cleanup
