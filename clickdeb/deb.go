@@ -44,6 +44,18 @@ var (
 	ErrSnapInvalidContent = errors.New("snap contains invalid content")
 )
 
+// ErrUnpackFailed is the error type for a snap unpack problem
+type ErrUnpackFailed struct {
+	snapFile string
+	instDir  string
+	origErr  error
+}
+
+// ErrUnpackFailed is returned if unpacking a snap fails
+func (e *ErrUnpackFailed) Error() string {
+	return fmt.Sprintf("unpack %s to %s failed with %s", e.snapFile, e.instDir, e.origErr)
+}
+
 // simple pipe based xz reader
 func xzPipeReader(r io.Reader) io.Reader {
 	pr, pw := io.Pipe()
@@ -452,4 +464,29 @@ func skipToArMember(arReader *ar.Reader, memberPrefix string) (io.Reader, error)
 	}
 
 	return dataReader, nil
+}
+
+// UnpackWithDropPrivs will unapck the ClickDeb content into the
+// target dir and drop privs when doing this.
+//
+// To do this reliably in go we need to exec a helper as we can not
+// just fork() and drop privs in the child (no support for stock fork in go)
+func (d *ClickDeb) UnpackWithDropPrivs(instDir, rootdir string) error {
+	// no need to drop privs, we are not root
+	if !helpers.ShouldDropPrivs() {
+		return d.Unpack(instDir)
+	}
+
+	cmd := exec.Command("snappy", "internal-unpack", d.Name(), instDir, rootdir)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return &ErrUnpackFailed{
+			snapFile: d.Name(),
+			instDir:  instDir,
+			origErr:  err,
+		}
+	}
+
+	return nil
 }
