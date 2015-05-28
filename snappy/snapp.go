@@ -649,67 +649,67 @@ func (s *SnapPart) OemConfig() SystemConfig {
 }
 
 // Install installs the snap
-func (part *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
+func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
 	allowOEM := (flags & AllowOEM) != 0
 	inhibitHooks := (flags & InhibitHooks) != 0
 
-	if part.IsInstalled() {
+	if s.IsInstalled() {
 		return "", ErrAlreadyInstalled
 	}
 
-	if err := part.CanInstall(allowOEM, inter); err != nil {
+	if err := s.CanInstall(allowOEM, inter); err != nil {
 		return "", err
 	}
 
-	manifestData, err := part.deb.ControlMember("manifest")
+	manifestData, err := s.deb.ControlMember("manifest")
 	if err != nil {
-		logger.Noticef("Snap inspect failed for %q: %v", part.Name(), err)
+		logger.Noticef("Snap inspect failed for %q: %v", s.Name(), err)
 		return "", err
 	}
 
 	// the "oem" parts are special
-	if part.Type() == pkg.TypeOem {
-		if err := installOemHardwareUdevRules(part.m); err != nil {
+	if s.Type() == pkg.TypeOem {
+		if err := installOemHardwareUdevRules(s.m); err != nil {
 			return "", err
 		}
 	}
 
-	fullName := QualifiedName(part)
-	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(part.basedir, "..", "current"))
-	dataDir := filepath.Join(snapDataDir, fullName, part.Version())
+	fullName := QualifiedName(s)
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current"))
+	dataDir := filepath.Join(snapDataDir, fullName, s.Version())
 
-	if err := os.MkdirAll(part.basedir, 0755); err != nil {
-		logger.Noticef("Can not create %q: %v", part.basedir, err)
+	if err := os.MkdirAll(s.basedir, 0755); err != nil {
+		logger.Noticef("Can not create %q: %v", s.basedir, err)
 		return "", err
 	}
 
 	// if anything goes wrong here we cleanup
 	defer func() {
 		if err != nil {
-			if e := os.RemoveAll(part.basedir); e != nil && !os.IsNotExist(e) {
-				logger.Noticef("Failed to remove %q: %v", part.basedir, e)
+			if e := os.RemoveAll(s.basedir); e != nil && !os.IsNotExist(e) {
+				logger.Noticef("Failed to remove %q: %v", s.basedir, e)
 			}
 		}
 	}()
 
 	// we need to call the external helper so that we can reliable drop
 	// privs
-	if err := part.deb.UnpackWithDropPrivs(part.basedir, globalRootDir); err != nil {
+	if err := s.deb.UnpackWithDropPrivs(s.basedir, globalRootDir); err != nil {
 		return "", err
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
 	// all hooks this can go away
-	clickMetaDir := filepath.Join(part.basedir, ".click", "info")
+	clickMetaDir := filepath.Join(s.basedir, ".click", "info")
 	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
 		return "", err
 	}
-	if err := writeCompatManifestJSON(clickMetaDir, manifestData, part.origin); err != nil {
+	if err := writeCompatManifestJSON(clickMetaDir, manifestData, s.origin); err != nil {
 		return "", err
 	}
 
 	// write the hashes now
-	if err := part.deb.ExtractHashes(filepath.Join(part.basedir, "meta")); err != nil {
+	if err := s.deb.ExtractHashes(filepath.Join(s.basedir, "meta")); err != nil {
 		return "", err
 	}
 
@@ -739,15 +739,15 @@ func (part *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name st
 			return "", err
 		}
 
-		err = copySnapData(fullName, oldM.Version, part.Version())
+		err = copySnapData(fullName, oldM.Version, s.Version())
 	} else {
 		err = os.MkdirAll(dataDir, 0755)
 	}
 
 	defer func() {
 		if err != nil {
-			if cerr := removeSnapData(fullName, part.Version()); cerr != nil {
-				logger.Noticef("When cleaning up data for %s %s: %v", part.Name(), part.Version(), cerr)
+			if cerr := removeSnapData(fullName, s.Version()); cerr != nil {
+				logger.Noticef("When cleaning up data for %s %s: %v", s.Name(), s.Version(), cerr)
 			}
 		}
 	}()
@@ -757,11 +757,11 @@ func (part *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name st
 	}
 
 	// and finally make active
-	err = setActiveClick(part.basedir, inhibitHooks, inter)
+	err = setActiveClick(s.basedir, inhibitHooks, inter)
 	defer func() {
 		if err != nil && currentActiveDir != "" {
 			if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
-				logger.Noticef("When setting old %s version back to active: %v", part.Name(), cerr)
+				logger.Noticef("When setting old %s version back to active: %v", s.Name(), cerr)
 			}
 		}
 	}()
@@ -771,7 +771,7 @@ func (part *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name st
 
 	// oh, one more thing: refresh the security bits
 	if !inhibitHooks {
-		deps, err := part.Dependents()
+		deps, err := s.Dependents()
 		if err != nil {
 			return "", err
 		}
@@ -782,7 +782,7 @@ func (part *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name st
 			if err != nil {
 				for serviceName := range stopped {
 					if e := sysd.Start(serviceName); e != nil {
-						inter.Notify(fmt.Sprintf("unable to restart %s with the old %s: %s", serviceName, part.Name(), e))
+						inter.Notify(fmt.Sprintf("unable to restart %s with the old %s: %s", serviceName, s.Name(), e))
 					}
 				}
 			}
@@ -803,7 +803,7 @@ func (part *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name st
 			}
 		}
 
-		if err := part.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
+		if err := s.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
 			return "", err
 		}
 
@@ -812,7 +812,7 @@ func (part *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name st
 			if err != nil {
 				for serviceName, timeout := range started {
 					if e := sysd.Stop(serviceName, timeout); e != nil {
-						inter.Notify(fmt.Sprintf("unable to stop %s with the old %s: %s", serviceName, part.Name(), e))
+						inter.Notify(fmt.Sprintf("unable to stop %s with the old %s: %s", serviceName, s.Name(), e))
 					}
 				}
 			}
@@ -826,7 +826,7 @@ func (part *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name st
 		}
 	}
 
-	return part.Name(), nil
+	return s.Name(), nil
 }
 
 // SetActive sets the snap active
