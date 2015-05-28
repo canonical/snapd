@@ -272,19 +272,20 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 
 	// check mandatory fields
 	if m.Name == "" || m.Version == "" || m.Vendor == "" {
-		field := ""
-		switch {
-		case m.Name == "":
-			field = "name"
-		case m.Version == "":
-			field = "version"
-		case m.Vendor == "":
-			field = "vendor"
+		fields := []string{}
+		if m.Name == "" {
+			fields = append(fields, "name")
+		}
+		if m.Version == "" {
+			fields = append(fields, "version")
+		}
+		if m.Vendor == "" {
+			fields = append(fields, "vendor")
 		}
 		return nil, &ErrInvalidYaml{
 			file: "package.yaml",
 			yaml: yamlData,
-			err:  fmt.Errorf("missing required field '%s'", field),
+			err:  fmt.Errorf("missing required fields '%s'", strings.Join(fields, ",")),
 		}
 	}
 
