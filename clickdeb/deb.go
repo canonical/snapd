@@ -198,7 +198,7 @@ func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error
 	return content, nil
 }
 
-// ExtractHashes gets "hashes.yaml" from the clickdeb and writes it to
+// ExtractHashes reads "hashes.yaml" from the clickdeb and writes it to
 // the given directory
 func (d *ClickDeb) ExtractHashes(dir string) error {
 	hashesFile := filepath.Join(dir, "hashes.yaml")

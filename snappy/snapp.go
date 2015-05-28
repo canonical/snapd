@@ -461,10 +461,10 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 	return part, nil
 }
 
-// NewSnapPartFromSnap loads a snap from the given (clickdeb) snap file.
+// NewSnapPartFromSnapFile loads a snap from the given (clickdeb) snap file.
 // Caller should call Close on the clickdeb.
 // TODO: expose that Close.
-func NewSnapPartFromSnap(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
+func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
 	if err := clickdeb.Verify(snapFile, unauthOk); err != nil {
 		return nil, err
 	}
