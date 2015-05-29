@@ -346,3 +346,27 @@ func (ts *HTestSuite) TestSyncDirs(c *C) {
 		compareDirs(c, filepath.Join(srcDir, "subdir"), filepath.Join(destDir, "subdir"))
 	}
 }
+
+func (ts *HTestSuite) TestSyncDirFails(c *C) {
+	srcDir := c.MkDir()
+	err := os.MkdirAll(srcDir, 0755)
+	c.Assert(err, IsNil)
+
+	destDir := c.MkDir()
+	err = os.MkdirAll(destDir, 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(destDir, "meep"), []byte(nil), 0644)
+	c.Assert(err, IsNil)
+
+	// ensure remove fails
+	err = os.Chmod(destDir, 0100)
+	c.Assert(err, IsNil)
+	// make tempdir cleanup work again
+	defer os.Chmod(destDir, 0755)
+
+	// do it
+	err = RSyncWithDelete(srcDir, destDir)
+	c.Check(err, NotNil)
+	c.Check(err, ErrorMatches, ".*permission denied.*")
+}
