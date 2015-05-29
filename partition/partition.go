@@ -811,6 +811,9 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return err
 	}
 
+	// XXX: first toggle roofs and then handle assets? that seems
+	//      wrong given that handleAssets may fails and we will
+	//      knowingly boot into a broken system
 	err = p.RunWithOther(RW, func(otherRoot string) (err error) {
 		return bootloader.ToggleRootFS()
 	})

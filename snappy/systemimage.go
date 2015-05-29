@@ -189,6 +189,7 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 
 	// Ensure there is always a kernel + initrd to boot with, even
 	// if the update does not provide new versions.
+	pb.Notify("Syncing boot files")
 	err = s.partition.SyncBootloaderFiles()
 	if err != nil {
 		return "", err
@@ -217,6 +218,11 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 		return "", err
 	}
 
+	// XXX: ToggleNextBoot() calls handleAssets() (but not SyncBootloader
+	//      files :/) - handleAssets() may copy kernel/initramfs to the
+	//      sync mounted /boot/uboot, so its very slow, tell the user
+	//      at least that something is going on
+	pb.Notify("Updating boot files")
 	if err = s.partition.ToggleNextBoot(); err != nil {
 		return "", err
 	}
