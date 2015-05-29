@@ -1,9 +1,18 @@
-To cross build on arm you need to install:
+To cross build for arm you need to install:
 
     sudo apt-get install golang-go-linux-arm
     sudo apt-get install gcc-arm-linux-gnueabihf
 
-And then run:
+And then set up your environment:
 
-    GOARM=7 CGO_ENABLED=1 GOARCH=arm go build
+    export GOARCH=arm GOARM=7 CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 
+With that, `go build` will produce binaries for armhf. E.g.,
+
+    go build -o snappy_armhf launchpad.net/snappy/cmd/snappy
+
+
+As usual, for one-off commands you can simply prepend the environment
+to the command, e.g.
+
+    GOARCH=arm GOARM=7 CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc go build -o snappy_armhf launchpad.net/snappy/cmd/snappy
