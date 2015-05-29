@@ -325,6 +325,7 @@ set -e
 
 # app info (deprecated)
 {{.OldAppVars}}
+export SNAPP_OLD_PWD="$(pwd)"
 
 # app info
 {{.NewAppVars}}

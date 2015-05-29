@@ -702,6 +702,7 @@ export SNAPP_APP_PATH="/apps/pastebinit.mvo/1.4.0.0.1/"
 export SNAPP_APP_DATA_PATH="/var/lib/apps/pastebinit.mvo/1.4.0.0.1/"
 export SNAPP_APP_TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
 export SNAPP_APP_USER_DATA_PATH="$HOME/apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAPP_OLD_PWD="$(pwd)"
 
 # app info
 export TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
