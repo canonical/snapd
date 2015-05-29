@@ -306,9 +306,7 @@ func compareDirs(c *C, srcDir, destDir string) {
 	c.Assert(string(c1), Equals, string(c2))
 }
 
-func (ts *HTestSuite) TestSyncDirs(c *C) {
-	srcDir := c.MkDir()
-	destDir := c.MkDir()
+func realTestSyncDirs(c *C, srcDir, destDir string) {
 
 	// add a subdir
 	subdir := filepath.Join(srcDir, "subdir")
@@ -326,4 +324,24 @@ func (ts *HTestSuite) TestSyncDirs(c *C) {
 	// ensure meta-data is identical
 	compareDirs(c, srcDir, destDir)
 	compareDirs(c, filepath.Join(srcDir, "subdir"), filepath.Join(destDir, "subdir"))
+}
+
+func (ts *HTestSuite) TestSyncDirs(c *C) {
+
+	for _, l := range [][2]string{
+		[2]string{"short", "loooooooooooon"},
+		[2]string{"loooooooooooong", "short"},
+		[2]string{"eq", "eq"},
+	} {
+
+		// ensure we have src, dest dirs with different length
+		srcDir := filepath.Join(c.MkDir(), l[0])
+		err := os.MkdirAll(srcDir, 0755)
+		c.Assert(err, IsNil)
+		destDir := filepath.Join(c.MkDir(), l[1])
+		err = os.MkdirAll(destDir, 0755)
+		c.Assert(err, IsNil)
+
+		realTestSyncDirs(c, srcDir, destDir)
+	}
 }

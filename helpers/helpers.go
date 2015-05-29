@@ -341,9 +341,11 @@ func RSyncWithDelete(srcDirName, destDirName string) error {
 
 	// first remove everything thats not in srcdir
 	err := filepath.Walk(destDirName, func(path string, info os.FileInfo, err error) error {
-		if !FileExists(filepath.Join(srcDirName, path[len(srcDirName):])) {
-			if err := os.RemoveAll(filepath.Join(path)); err != nil {
-				return err
+		// relative to the root "destDirName"
+		relPath := path[len(destDirName):]
+		if !FileExists(filepath.Join(srcDirName, relPath)) {
+			if err := os.RemoveAll(path); err != nil {
+				return filepath.SkipDir
 			}
 		}
 		return nil
@@ -354,11 +356,13 @@ func RSyncWithDelete(srcDirName, destDirName string) error {
 
 	// then copy or update the data from srcdir to destdir
 	err = filepath.Walk(srcDirName, func(path string, info os.FileInfo, err error) error {
+		// relative to the root "srcDirName"
+		relPath := path[len(srcDirName):]
 		if info.IsDir() {
-			return os.MkdirAll(filepath.Join(destDirName, path[len(destDirName):]), info.Mode())
+			return os.MkdirAll(filepath.Join(destDirName, relPath), info.Mode())
 		}
 		src := path
-		dst := filepath.Join(destDirName, path[len(destDirName):])
+		dst := filepath.Join(destDirName, relPath)
 		if !FilesAreEqual(src, dst) {
 			// XXX: on snappy-trunk we can use CopyFile here
 			output, err := exec.Command("cp", "-va", src, dst).CombinedOutput()
