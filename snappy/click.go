@@ -319,6 +319,12 @@ func verifyBinariesYaml(binary Binary) error {
 	return verifyStructStringsAgainstWhitelist(binary, servicesBinariesStringsWhitelist)
 }
 
+// Doesn't need to handle complications like internal quotes, just needs to
+// wrap right side of an env variable declaration with quotes for the shell.
+func quoteEnvVar(envVar string) string {
+	return "export " + strings.Replace(envVar, "=", "=\"", 1) + "\""
+}
+
 func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) (string, error) {
 	wrapperTemplate := `#!/bin/sh
 # !!!never remove this line!!!
@@ -326,33 +332,15 @@ func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *pack
 
 set -e
 
-TMPDIR="/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp"
-if [ ! -d "$TMPDIR" ]; then
-    mkdir -p -m1777 "$TMPDIR"
-fi
-export TMPDIR
-export TEMPDIR="$TMPDIR"
-
-# app paths (deprecated)
-export SNAPP_APP_PATH="{{.Path}}"
-export SNAPP_APP_DATA_PATH="/var/lib/{{.Path}}"
-export SNAPP_APP_USER_DATA_PATH="$HOME/{{.Path}}"
-export SNAPP_APP_TMPDIR="$TMPDIR"
-export SNAPP_OLD_PWD="$(pwd)"
+# app info (deprecated)
+{{.OldAppVars}}
 
 # app info
-export SNAP_NAME="{{.Name}}"
-export SNAP_ORIGIN="{{.Namespace}}"
-export SNAP_FULLNAME="{{.UdevAppName}}"
+{{.NewAppVars}}
 
-# app paths
-export SNAP_APP_PATH="{{.Path}}"
-export SNAP_APP_DATA_PATH="/var/lib/{{.Path}}"
-export SNAP_APP_USER_DATA_PATH="$HOME/{{.Path}}"
-export SNAP_APP_TMPDIR="$TMPDIR"
-
-# FIXME: this will need to become snappy arch or something
-export SNAPPY_APP_ARCH="$(dpkg --print-architecture)"
+if [ ! -d "$SNAP_APP_TMPDIR" ]; then
+    mkdir -p -m1777 "$SNAP_APP_TMPDIR"
+fi
 
 if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
    mkdir -p "$SNAP_APP_USER_DATA_PATH"
@@ -361,7 +349,7 @@ export HOME="$SNAP_APP_USER_DATA_PATH"
 
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
-cd {{.Path}}
+cd {{.AppPath}}
 ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
@@ -381,22 +369,45 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
 	wrapperData := struct {
-		Name        string
+		AppName     string
+		AppArch     string
+		AppPath     string
 		Version     string
-		Target      string
-		Path        string
-		AaProfile   string
 		UdevAppName string
 		Namespace   string
+		Home        string
+		Target      string
+		AaProfile   string
+		OldAppVars  string
+		NewAppVars  string
 	}{
-		Name:        m.Name,
+		AppName:     m.Name,
+		AppArch:     "$(dpkg --print-architecture)",
+		AppPath:     pkgPath,
 		Version:     m.Version,
-		Target:      actualBinPath,
-		Path:        pkgPath,
-		AaProfile:   aaProfile,
 		UdevAppName: udevPartName,
 		Namespace:   namespace,
+		Home:        "$HOME",
+		Target:      actualBinPath,
+		AaProfile:   aaProfile,
 	}
+
+	oldVars := []string{}
+	for _, envVar := range append(
+		helpers.GetDeprecatedBasicSnapEnvVars(wrapperData),
+		helpers.GetDeprecatedUserSnapEnvVars(wrapperData)...) {
+		oldVars = append(oldVars, quoteEnvVar(envVar))
+	}
+	wrapperData.OldAppVars = strings.Join(oldVars, "\n")
+
+	newVars := []string{}
+	for _, envVar := range append(
+		helpers.GetBasicSnapEnvVars(wrapperData),
+		helpers.GetUserSnapEnvVars(wrapperData)...) {
+		newVars = append(newVars, quoteEnvVar(envVar))
+	}
+	wrapperData.NewAppVars = strings.Join(newVars, "\n")
+
 	t.Execute(&templateOut, wrapperData)
 
 	return templateOut.String(), nil

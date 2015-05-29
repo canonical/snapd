@@ -21,6 +21,7 @@ package helpers
 
 import (
 	"archive/tar"
+	"bytes"
 	"crypto/sha512"
 	"encoding/hex"
 	"fmt"
@@ -33,7 +34,10 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"text/template"
 	"time"
+
+	"launchpad.net/snappy/logger"
 )
 
 var goarch = runtime.GOARCH
@@ -361,4 +365,58 @@ func MajorMinor(info os.FileInfo) (uint32, uint32, error) {
 // Makedev implements makedev(3)
 func Makedev(major, minor uint32) uint32 {
 	return uint32((minor & 0xff) | ((major & 0xfff) << 8))
+}
+
+func fillSnapEnvVars(desc interface{}, vars []string) []string {
+	for i, v := range vars {
+		var templateOut bytes.Buffer
+		t := template.Must(template.New("wrapper").Parse(v))
+		if err := t.Execute(&templateOut, desc); err != nil {
+			// this can never happen, except we forget a variable
+			logger.Panicf("Unable to execute template: %v", err)
+		}
+		vars[i] = templateOut.String()
+	}
+	return vars
+}
+
+// GetBasicSnapEnvVars returns the app-level environment variables for a snap
+func GetBasicSnapEnvVars(desc interface{}) []string {
+	return fillSnapEnvVars(desc, []string{
+		"TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp",
+		"TEMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp",
+		"SNAP_APP_PATH={{.AppPath}}",
+		"SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}",
+		"SNAP_APP_TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp",
+		"SNAP_NAME={{.AppName}}",
+		"SNAP_VERSION={{.Version}}",
+		"SNAP_ORIGIN={{.Namespace}}",
+		"SNAP_FULLNAME={{.UdevAppName}}",
+		"SNAPPY_APP_ARCH={{.AppArch}}", // FIXME: this should probably be SNAP_ARCH?
+	})
+}
+
+// GetUserSnapEnvVars returns the user-level environment variables for a snap
+func GetUserSnapEnvVars(desc interface{}) []string {
+	return fillSnapEnvVars(desc, []string{
+		"SNAP_APP_USER_DATA_PATH={{.Home}}{{.AppPath}}",
+	})
+}
+
+// GetDeprecatedBasicSnapEnvVars returns the app-level deprecated environment
+// variables for a snap
+func GetDeprecatedBasicSnapEnvVars(desc interface{}) []string {
+	return fillSnapEnvVars(desc, []string{
+		"SNAPP_APP_PATH={{.AppPath}}",
+		"SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}",
+		"SNAPP_APP_TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp",
+	})
+}
+
+// GetDeprecatedUserSnapEnvVars returns the user-level deprecated environment
+// variables for a snap
+func GetDeprecatedUserSnapEnvVars(desc interface{}) []string {
+	return fillSnapEnvVars(desc, []string{
+		"SNAPP_APP_USER_DATA_PATH={{.Home}}{{.AppPath}}",
+	})
 }

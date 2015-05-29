@@ -710,33 +710,28 @@ const expectedWrapper = `#!/bin/sh
 
 set -e
 
-TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
-if [ ! -d "$TMPDIR" ]; then
-    mkdir -p -m1777 "$TMPDIR"
-fi
-export TMPDIR
-export TEMPDIR="$TMPDIR"
-
-# app paths (deprecated)
+# app info (deprecated)
 export SNAPP_APP_PATH="/apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAPP_APP_DATA_PATH="/var/lib//apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAPP_APP_USER_DATA_PATH="$HOME//apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAPP_APP_TMPDIR="$TMPDIR"
-export SNAPP_OLD_PWD="$(pwd)"
+export SNAPP_APP_DATA_PATH="/var/lib/apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAPP_APP_TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
+export SNAPP_APP_USER_DATA_PATH="$HOME/apps/pastebinit.mvo/1.4.0.0.1/"
 
 # app info
+export TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
+export TEMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
+export SNAP_APP_PATH="/apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAP_APP_DATA_PATH="/var/lib/apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAP_APP_TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
 export SNAP_NAME="pastebinit"
+export SNAP_VERSION="1.4.0.0.1"
 export SNAP_ORIGIN="mvo"
 export SNAP_FULLNAME="pastebinit.mvo"
-
-# app paths
-export SNAP_APP_PATH="/apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAP_APP_DATA_PATH="/var/lib//apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAP_APP_USER_DATA_PATH="$HOME//apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAP_APP_TMPDIR="$TMPDIR"
-
-# FIXME: this will need to become snappy arch or something
 export SNAPPY_APP_ARCH="$(dpkg --print-architecture)"
+export SNAP_APP_USER_DATA_PATH="$HOME/apps/pastebinit.mvo/1.4.0.0.1/"
+
+if [ ! -d "$SNAP_APP_TMPDIR" ]; then
+    mkdir -p -m1777 "$SNAP_APP_TMPDIR"
+fi
 
 if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
    mkdir -p "$SNAP_APP_USER_DATA_PATH"
@@ -1192,7 +1187,7 @@ X-Snappy=yes
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver%s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo start
 WorkingDirectory=/apps/xkcd-webserver%[2]s/0.3.4/
-Environment="SNAPP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_NAME=xkcd-webserver" "SNAP_ORIGIN=%[3]s" "SNAP_FULLNAME=xkcd-webserver%[2]s"
+Environment="SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "TEMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_ORIGIN=%[3]s" "SNAP_FULLNAME=xkcd-webserver%[2]s" "SNAPPY_APP_ARCH=XXX" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/"
 ExecStop=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
