@@ -730,7 +730,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	// otherwise just create a empty data dir
 	if oldPart != nil {
 		// we need to stop making it active
-		err = unsetActiveClick(oldPart.basedir, inhibitHooks, inter)
+		err = oldPart.deactivate(inhibitHooks, inter)
 		defer func() {
 			if err != nil {
 				if cerr := oldPart.activate(inhibitHooks, inter); cerr != nil {
@@ -848,7 +848,15 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) (err error) {
 
 	// there is already an active part
 	if currentActiveDir != "" {
-		unsetActiveClick(currentActiveDir, inhibitHooks, inter)
+		// TODO: support switching origins
+		oldYaml := filepath.Join(currentActiveDir, "meta", "package.yaml")
+		oldPart, err := NewInstalledSnapPart(oldYaml, s.origin)
+		if err != nil {
+			return err
+		}
+		if err := oldPart.deactivate(inhibitHooks, inter); err != nil {
+			return err
+		}
 	}
 
 	if s.Type() == pkg.TypeFramework {
@@ -884,6 +892,52 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) (err error) {
 
 	// symlink is relative to parent dir
 	return os.Symlink(filepath.Base(s.basedir), currentActiveSymlink)
+}
+
+func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
+	currentSymlink := filepath.Join(s.basedir, "..", "current")
+
+	// sanity check
+	currentActiveDir, err := filepath.EvalSymlinks(currentSymlink)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ErrSnapNotActive
+		}
+		return err
+	}
+	if s.basedir != currentActiveDir {
+		return ErrSnapNotActive
+	}
+
+	// remove generated services, binaries, clickHooks, security policy
+	if err := removePackageBinaries(s.basedir); err != nil {
+		return err
+	}
+
+	if err := removePackageServices(s.basedir, inter); err != nil {
+		return err
+	}
+
+	if err := s.m.removeSecurityPolicy(s.basedir); err != nil {
+		return err
+	}
+
+	if s.Type() == pkg.TypeFramework {
+		if err := policy.Remove(s.Name(), s.basedir); err != nil {
+			return err
+		}
+	}
+
+	if err := removeClickHooks(s.m, s.origin, inhibitHooks); err != nil {
+		return err
+	}
+
+	// and finally the current symlink
+	if err := os.Remove(currentSymlink); err != nil {
+		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
+	}
+
+	return nil
 }
 
 // Uninstall remove the snap from the system
@@ -922,13 +976,8 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 		return err
 	}
 
-	// maybe remove current symlink
-	currentSymlink := filepath.Join(filepath.Dir(s.basedir), "current")
-	p, _ := filepath.EvalSymlinks(currentSymlink)
-	if s.basedir == p {
-		if err := unsetActiveClick(p, false, inter); err != nil {
-			return err
-		}
+	if err := s.deactivate(false, inter); err != nil && err != ErrSnapNotActive {
+		return err
 	}
 
 	err = os.RemoveAll(s.basedir)
