@@ -382,7 +382,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		NewAppVars  string
 	}{
 		AppName:     m.Name,
-		AppArch:     "$(dpkg --print-architecture)",
+		AppArch:     helpers.UbuntuArchitecture(),
 		AppPath:     pkgPath,
 		Version:     m.Version,
 		UdevAppName: udevPartName,

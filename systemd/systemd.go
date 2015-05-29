@@ -219,7 +219,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		fmt.Sprintf("%s_%s_%s", desc.AppName, desc.ServiceName, desc.Version),
 		servicesSystemdTarget,
 		namespace,
-		"XXX",
+		helpers.UbuntuArchitecture(),
 		"%h",
 		"",
 	}

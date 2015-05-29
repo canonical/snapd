@@ -1302,7 +1302,7 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 		Namespace   string
 	}{
 		part.Name(),
-		"XXX",
+		helpers.UbuntuArchitecture(),
 		part.basedir,
 		part.Version(),
 		Dirname(part),
