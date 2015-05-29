@@ -855,11 +855,38 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return ErrFrameworkInUse(deps)
 	}
 
-	if err := removeClick(s.basedir, pb); err != nil {
+	if err := s.remove(pb); err != nil {
 		return err
 	}
 
 	return RemoveAllHWAccess(QualifiedName(s))
+}
+
+func (s *SnapPart) remove(inter interacter) (err error) {
+	// TODO[JRL]: check the logic here. I'm not sure “remove
+	// everything if active, and the click hooks if not” makes
+	// sense. E.g. are we removing fmk bins on fmk upgrade? Etc.
+	if err := removeClickHooks(s.m, s.origin, false); err != nil {
+		return err
+	}
+
+	// maybe remove current symlink
+	currentSymlink := filepath.Join(filepath.Dir(s.basedir), "current")
+	p, _ := filepath.EvalSymlinks(currentSymlink)
+	if s.basedir == p {
+		if err := unsetActiveClick(p, false, inter); err != nil {
+			return err
+		}
+	}
+
+	err = os.RemoveAll(s.basedir)
+	if err != nil {
+		return err
+	}
+
+	os.Remove(filepath.Dir(s.basedir))
+
+	return nil
 }
 
 // Config is used to to configure the snap

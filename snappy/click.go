@@ -261,35 +261,6 @@ func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err
 	return manifest, err
 }
 
-func removeClick(clickDir string, inter interacter) (err error) {
-	m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
-	if err != nil {
-		return err
-	}
-
-	if err := removeClickHooks(m, originFromBasedir(clickDir), false); err != nil {
-		return err
-	}
-
-	// maybe remove current symlink
-	currentSymlink := filepath.Join(filepath.Dir(clickDir), "current")
-	p, _ := filepath.EvalSymlinks(currentSymlink)
-	if clickDir == p {
-		if err := unsetActiveClick(p, false, inter); err != nil {
-			return err
-		}
-	}
-
-	err = os.RemoveAll(clickDir)
-	if err != nil {
-		return err
-	}
-
-	os.Remove(filepath.Dir(clickDir))
-
-	return nil
-}
-
 // generate the name
 func generateBinaryName(m *packageYaml, binary Binary) string {
 	var binName string
