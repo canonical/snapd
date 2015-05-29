@@ -146,7 +146,6 @@ func (t *TextProgress) Spin(msg string) {
 	// is not writing on our term again
 	if t.pbar != nil {
 		t.pbar.Finish()
-		t.pbar = nil
 	}
 
 	states := `|/-\`
