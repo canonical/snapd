@@ -22,7 +22,6 @@ package snappy
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -42,14 +41,16 @@ import (
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
+	"launchpad.net/snappy/systemd"
 )
 
 const (
-	// the namespace for sideloaded snaps
-	sideloadedNamespace = "sideload"
+	// the origin for sideloaded snaps
+	sideloadedOrigin = "sideload"
 )
 
 // SharedName is a structure that holds an Alias to the preferred package and
@@ -62,11 +63,11 @@ type SharedName struct {
 // SharedNames is a list of all packages and it's SharedName structure.
 type SharedNames map[string]*SharedName
 
-// IsAlias determines if namespace is the one that is an alias for the
+// IsAlias determines if origin is the one that is an alias for the
 // shared name.
-func (f *SharedName) IsAlias(namespace string) bool {
+func (f *SharedName) IsAlias(origin string) bool {
 	if alias := f.Alias; alias != nil {
-		return alias.Namespace() == namespace
+		return alias.Origin() == origin
 	}
 
 	return false
@@ -164,13 +165,13 @@ type Binary struct {
 // SnapPart represents a generic snap type
 type SnapPart struct {
 	m           *packageYaml
-	namespace   string
+	origin      string
 	hash        string
 	isActive    bool
 	isInstalled bool
 	description string
-
-	basedir string
+	deb         *clickdeb.ClickDeb
+	basedir     string
 }
 
 var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
@@ -202,7 +203,7 @@ type packageYaml struct {
 	Version string
 	Vendor  string
 	Icon    string
-	Type    SnapType
+	Type    pkg.Type
 
 	// the spec allows a string or a list here *ick* so we need
 	// to convert that into something sensible via reflect
@@ -236,13 +237,13 @@ type remoteSnap struct {
 	IconURL         string             `json:"icon_url"`
 	LastUpdated     string             `json:"last_updated,omitempty"`
 	Name            string             `json:"package_name"`
-	Namespace       string             `json:"origin"`
+	Origin          string             `json:"origin"`
 	Prices          map[string]float64 `json:"prices,omitempty"`
 	Publisher       string             `json:"publisher,omitempty"`
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
 	SupportURL      string             `json:"support_url"`
 	Title           string             `json:"title"`
-	Type            SnapType           `json:"content,omitempty"`
+	Type            pkg.Type           `json:"content,omitempty"`
 	Version         string             `json:"version"`
 }
 
@@ -278,7 +279,7 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	}
 
 	// this is to prevent installation of legacy packages such as those that
-	// contain the namespace/origin in the package name.
+	// contain the origin/origin in the package name.
 	if strings.ContainsRune(m.Name, '.') {
 		return nil, ErrPackageNameNotSupported
 	}
@@ -325,6 +326,13 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	return &m, nil
 }
 
+func (m *packageYaml) qualifiedName(origin string) string {
+	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeOem {
+		return m.Name
+	}
+	return m.Name + "." + origin
+}
+
 func (m *packageYaml) checkForNameClashes() error {
 	d := make(map[string]struct{})
 	for _, bin := range m.Binaries {
@@ -339,14 +347,14 @@ func (m *packageYaml) checkForNameClashes() error {
 	return nil
 }
 
-func (m *packageYaml) checkForPackageInstalled(namespace string) error {
+func (m *packageYaml) checkForPackageInstalled(origin string) error {
 	part := ActiveSnapByName(m.Name)
 	if part == nil {
 		return nil
 	}
 
-	if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
-		if part.Namespace() != namespace {
+	if m.Type != pkg.TypeFramework && m.Type != pkg.TypeOem {
+		if part.Origin() != origin {
 			return ErrPackageNameAlreadyInstalled
 		}
 	}
@@ -377,7 +385,7 @@ func (m *packageYaml) FrameworksForClick() string {
 }
 
 func (m *packageYaml) checkForFrameworks() error {
-	installed, err := ActiveSnapNamesByType(SnapTypeFramework)
+	installed, err := ActiveSnapNamesByType(pkg.TypeFramework)
 	if err != nil {
 		return err
 	}
@@ -438,31 +446,70 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, cur
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
-func NewInstalledSnapPart(yamlPath, namespace string) (*SnapPart, error) {
+func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 	m, err := parsePackageYamlFile(yamlPath)
 	if err != nil {
 		return nil, err
 	}
 
-	part, err := NewSnapPartFromYaml(yamlPath, namespace, m)
+	part, err := NewSnapPartFromYaml(yamlPath, origin, m)
 	if err != nil {
 		return nil, err
 	}
+	part.isInstalled = true
 
 	return part, nil
 }
 
+// NewSnapPartFromSnapFile loads a snap from the given (clickdeb) snap file.
+// Caller should call Close on the clickdeb.
+// TODO: expose that Close.
+func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
+	if err := clickdeb.Verify(snapFile, unauthOk); err != nil {
+		return nil, err
+	}
+
+	d, err := clickdeb.Open(snapFile)
+	if err != nil {
+		return nil, err
+	}
+
+	yamlData, err := d.MetaMember("package.yaml")
+	if err != nil {
+		return nil, err
+	}
+
+	m, err := parsePackageYamlData(yamlData)
+	if err != nil {
+		return nil, err
+	}
+
+	targetDir := snapAppsDir
+	// the "oem" parts are special
+	if m.Type == pkg.TypeOem {
+		targetDir = snapOemDir
+	}
+	fullName := m.qualifiedName(origin)
+	instDir := filepath.Join(targetDir, fullName, m.Version)
+
+	return &SnapPart{
+		basedir: instDir,
+		origin:  origin,
+		m:       m,
+		deb:     d,
+	}, nil
+}
+
 // NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
-func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) (*SnapPart, error) {
+func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, error) {
 	if _, err := os.Stat(yamlPath); err != nil {
 		return nil, err
 	}
 
 	part := &SnapPart{
-		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
-		isInstalled: true,
-		namespace:   namespace,
-		m:           m,
+		basedir: filepath.Dir(filepath.Dir(yamlPath)),
+		origin:  origin,
+		m:       m,
 	}
 
 	// check if the part is active
@@ -499,7 +546,7 @@ func NewSnapPartFromYaml(yamlPath, namespace string, m *packageYaml) (*SnapPart,
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
-func (s *SnapPart) Type() SnapType {
+func (s *SnapPart) Type() pkg.Type {
 	if s.m.Type != "" {
 		return s.m.Type
 	}
@@ -523,9 +570,9 @@ func (s *SnapPart) Description() string {
 	return s.description
 }
 
-// Namespace returns the namespace
-func (s *SnapPart) Namespace() string {
-	return s.namespace
+// Origin returns the origin
+func (s *SnapPart) Origin() string {
+	return s.origin
 }
 
 // Vendor returns the author. Or viceversa.
@@ -602,8 +649,184 @@ func (s *SnapPart) OemConfig() SystemConfig {
 }
 
 // Install installs the snap
-func (s *SnapPart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
-	return "", errors.New("Install of a local part is not possible")
+func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
+	allowOEM := (flags & AllowOEM) != 0
+	inhibitHooks := (flags & InhibitHooks) != 0
+
+	if s.IsInstalled() {
+		return "", ErrAlreadyInstalled
+	}
+
+	if err := s.CanInstall(allowOEM, inter); err != nil {
+		return "", err
+	}
+
+	manifestData, err := s.deb.ControlMember("manifest")
+	if err != nil {
+		logger.Noticef("Snap inspect failed for %q: %v", s.Name(), err)
+		return "", err
+	}
+
+	// the "oem" parts are special
+	if s.Type() == pkg.TypeOem {
+		if err := installOemHardwareUdevRules(s.m); err != nil {
+			return "", err
+		}
+	}
+
+	fullName := QualifiedName(s)
+	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current"))
+	dataDir := filepath.Join(snapDataDir, fullName, s.Version())
+
+	if err := os.MkdirAll(s.basedir, 0755); err != nil {
+		logger.Noticef("Can not create %q: %v", s.basedir, err)
+		return "", err
+	}
+
+	// if anything goes wrong here we cleanup
+	defer func() {
+		if err != nil {
+			if e := os.RemoveAll(s.basedir); e != nil && !os.IsNotExist(e) {
+				logger.Noticef("Failed to remove %q: %v", s.basedir, e)
+			}
+		}
+	}()
+
+	// we need to call the external helper so that we can reliable drop
+	// privs
+	if err := s.deb.UnpackWithDropPrivs(s.basedir, globalRootDir); err != nil {
+		return "", err
+	}
+
+	// legacy, the hooks (e.g. apparmor) need this. Once we converted
+	// all hooks this can go away
+	clickMetaDir := filepath.Join(s.basedir, ".click", "info")
+	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
+		return "", err
+	}
+	if err := writeCompatManifestJSON(clickMetaDir, manifestData, s.origin); err != nil {
+		return "", err
+	}
+
+	// write the hashes now
+	if err := s.deb.ExtractHashes(filepath.Join(s.basedir, "meta")); err != nil {
+		return "", err
+	}
+
+	// deal with the data:
+	//
+	// if there was a previous version, stop it
+	// from being active so that it stops running and can no longer be
+	// started then copy the data
+	//
+	// otherwise just create a empty data dir
+	if currentActiveDir != "" {
+		oldM, err := parsePackageYamlFile(filepath.Join(currentActiveDir, "meta", "package.yaml"))
+		if err != nil {
+			return "", err
+		}
+
+		// we need to stop making it active
+		err = unsetActiveClick(currentActiveDir, inhibitHooks, inter)
+		defer func() {
+			if err != nil {
+				if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+					logger.Noticef("Setting old version back to active failed: %v", cerr)
+				}
+			}
+		}()
+		if err != nil {
+			return "", err
+		}
+
+		err = copySnapData(fullName, oldM.Version, s.Version())
+	} else {
+		err = os.MkdirAll(dataDir, 0755)
+	}
+
+	defer func() {
+		if err != nil {
+			if cerr := removeSnapData(fullName, s.Version()); cerr != nil {
+				logger.Noticef("When cleaning up data for %s %s: %v", s.Name(), s.Version(), cerr)
+			}
+		}
+	}()
+
+	if err != nil {
+		return "", err
+	}
+
+	// and finally make active
+	err = setActiveClick(s.basedir, inhibitHooks, inter)
+	defer func() {
+		if err != nil && currentActiveDir != "" {
+			if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+				logger.Noticef("When setting old %s version back to active: %v", s.Name(), cerr)
+			}
+		}
+	}()
+	if err != nil {
+		return "", err
+	}
+
+	// oh, one more thing: refresh the security bits
+	if !inhibitHooks {
+		deps, err := s.Dependents()
+		if err != nil {
+			return "", err
+		}
+
+		sysd := systemd.New(globalRootDir, inter)
+		stopped := make(map[string]time.Duration)
+		defer func() {
+			if err != nil {
+				for serviceName := range stopped {
+					if e := sysd.Start(serviceName); e != nil {
+						inter.Notify(fmt.Sprintf("unable to restart %s with the old %s: %s", serviceName, s.Name(), e))
+					}
+				}
+			}
+		}()
+
+		for _, dep := range deps {
+			if !dep.IsActive() {
+				continue
+			}
+			for _, svc := range dep.Services() {
+				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
+				timeout := time.Duration(svc.StopTimeout)
+				if err = sysd.Stop(serviceName, timeout); err != nil {
+					inter.Notify(fmt.Sprintf("unable to stop %s; aborting install: %s", serviceName, err))
+					return "", err
+				}
+				stopped[serviceName] = timeout
+			}
+		}
+
+		if err := s.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
+			return "", err
+		}
+
+		started := make(map[string]time.Duration)
+		defer func() {
+			if err != nil {
+				for serviceName, timeout := range started {
+					if e := sysd.Stop(serviceName, timeout); e != nil {
+						inter.Notify(fmt.Sprintf("unable to stop %s with the old %s: %s", serviceName, s.Name(), e))
+					}
+				}
+			}
+		}()
+		for serviceName, timeout := range stopped {
+			if err = sysd.Start(serviceName); err != nil {
+				inter.Notify(fmt.Sprintf("unable to restart %s; aborting install: %s", serviceName, err))
+				return "", err
+			}
+			started[serviceName] = timeout
+		}
+	}
+
+	return s.Name(), nil
 }
 
 // SetActive sets the snap active
@@ -616,7 +839,7 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 	// OEM snaps should not be removed as they are a key
 	// building block for OEMs. Prunning non active ones
 	// is acceptible.
-	if s.m.Type == SnapTypeOem && s.IsActive() {
+	if s.m.Type == pkg.TypeOem && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 
@@ -636,12 +859,12 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return err
 	}
 
-	return RemoveAllHWAccess(Dirname(s))
+	return RemoveAllHWAccess(QualifiedName(s))
 }
 
 // Config is used to to configure the snap
 func (s *SnapPart) Config(configuration []byte) (new string, err error) {
-	return snapConfig(s.basedir, s.namespace, string(configuration))
+	return snapConfig(s.basedir, s.origin, string(configuration))
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
@@ -676,7 +899,7 @@ func (s *SnapPart) DependentNames() ([]string, error) {
 //
 // /!\ not part of the Part interface.
 func (s *SnapPart) Dependents() ([]*SnapPart, error) {
-	if s.Type() != SnapTypeFramework {
+	if s.Type() != pkg.TypeFramework {
 		// only frameworks are depended on
 		return nil, nil
 	}
@@ -708,6 +931,45 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 	return needed, nil
 }
 
+// CanInstall checks whether the SnapPart passes a series of tests required for installation
+func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
+	if s.IsInstalled() {
+		return ErrAlreadyInstalled
+	}
+
+	if err := s.m.checkForPackageInstalled(s.Origin()); err != nil {
+		return err
+	}
+
+	if err := s.m.checkForNameClashes(); err != nil {
+		return err
+	}
+
+	if err := s.m.checkForFrameworks(); err != nil {
+		return err
+	}
+
+	if s.Type() == pkg.TypeOem {
+		if !allowOEM {
+			if currentOEM, err := getOem(); err == nil {
+				if currentOEM.Name != s.Name() {
+					return ErrOEMPackageInstall
+				}
+			} else {
+				// there should always be an oem package now
+				return ErrOEMPackageInstall
+			}
+		}
+	}
+
+	curr, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current"))
+	if err := s.m.checkLicenseAgreement(inter, s.deb, curr); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 var timestampUpdater = helpers.UpdateTimestamp
 
 func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
@@ -720,7 +982,7 @@ func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
 // symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits).
 func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
 
-	fullName := Dirname(s)
+	fullName := QualifiedName(s)
 	for _, svc := range s.Services() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
 			if err := updateAppArmorJSONTimestamp(fullName, svc.Name, s.Version()); err != nil {
@@ -790,7 +1052,7 @@ func (s *SnapLocalRepository) Description() string {
 
 // Details returns details for the given snap
 func (s *SnapLocalRepository) Details(name string) (versions []Part, err error) {
-	// XXX: this is broken wrt namespaceless packages (e.g. frameworks)
+	// XXX: this is broken wrt origin packages (e.g. frameworks)
 	if !strings.ContainsRune(name, '.') {
 		name += ".*"
 	}
@@ -821,6 +1083,7 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 	if err != nil {
 		return nil, err
 	}
+
 	for _, yamlfile := range matches {
 
 		// skip "current" and similar symlinks
@@ -832,20 +1095,8 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 			continue
 		}
 
-		m, err := parsePackageYamlFile(realpath)
-		if err != nil {
-			return nil, err
-		}
-
-		namespace := ""
-		if m.Type != SnapTypeFramework && m.Type != SnapTypeOem {
-			namespace, err = namespaceFromYamlPath(realpath)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		snap, err := NewSnapPartFromYaml(realpath, namespace, m)
+		origin, _ := originFromYamlPath(realpath)
+		snap, err := NewInstalledSnapPart(realpath, origin)
 		if err != nil {
 			return nil, err
 		}
@@ -856,14 +1107,24 @@ func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, e
 	return parts, nil
 }
 
-func namespaceFromYamlPath(path string) (string, error) {
-	namespace := filepath.Ext(filepath.Dir(filepath.Join(path, "..", "..")))
+func originFromBasedir(basedir string) (s string) {
+	ext := filepath.Ext(filepath.Dir(filepath.Clean(basedir)))
+	if len(ext) < 2 {
+		return ""
+	}
 
-	if len(namespace) < 1 {
+	return ext[1:]
+}
+
+// originFromYamlPath *must* return "" if it's returning error.
+func originFromYamlPath(path string) (string, error) {
+	origin := originFromBasedir(filepath.Join(path, "..", ".."))
+
+	if origin == "" {
 		return "", ErrInvalidPart
 	}
 
-	return namespace[1:], nil
+	return origin, nil
 }
 
 // RemoteSnapPart represents a snap available on the server
@@ -872,7 +1133,7 @@ type RemoteSnapPart struct {
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
-func (s *RemoteSnapPart) Type() SnapType {
+func (s *RemoteSnapPart) Type() pkg.Type {
 	return s.pkg.Type
 }
 
@@ -891,9 +1152,9 @@ func (s *RemoteSnapPart) Description() string {
 	return s.pkg.Title
 }
 
-// Namespace is the origin
-func (s *RemoteSnapPart) Namespace() string {
-	return s.pkg.Namespace
+// Origin is the origin
+func (s *RemoteSnapPart) Origin() string {
+	return s.pkg.Origin
 }
 
 // Vendor is the publisher. Author. Whatever.
@@ -1014,7 +1275,7 @@ func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (strin
 	}
 	defer os.Remove(downloadedSnap)
 
-	return installClick(downloadedSnap, flags, pbar, s.Namespace())
+	return installClick(downloadedSnap, flags, pbar, s.Origin())
 }
 
 // SetActive sets the snap active
@@ -1125,7 +1386,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
 
 	// frameworks
-	frameworks, _ := ActiveSnapNamesByType(SnapTypeFramework)
+	frameworks, _ := ActiveSnapNamesByType(pkg.TypeFramework)
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(addCoreFmk(frameworks), ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
@@ -1238,7 +1499,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// the store only supports apps, oem and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
-	installed, err := ActiveSnapNamesByType(SnapTypeApp, SnapTypeFramework, SnapTypeOem)
+	installed, err := ActiveSnapNamesByType(pkg.TypeApp, pkg.TypeFramework, pkg.TypeOem)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}
@@ -1299,14 +1560,14 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 		AppPath     string
 		Version     string
 		UdevAppName string
-		Namespace   string
+		Origin      string
 	}{
 		part.Name(),
 		helpers.UbuntuArchitecture(),
 		part.basedir,
 		part.Version(),
-		Dirname(part),
-		part.Namespace(),
+		QualifiedName(part),
+		part.Origin(),
 	}
 	snapEnv := helpers.MakeMapFromEnvList(helpers.GetBasicSnapEnvVars(desc))
 

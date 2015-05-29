@@ -34,13 +34,14 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
 )
 
 const (
-	systemImagePartName      = "ubuntu-core"
-	systemImagePartNamespace = "ubuntu"
-	systemImagePartVendor    = "Canonical Ltd."
+	systemImagePartName   = "ubuntu-core"
+	systemImagePartOrigin = "ubuntu"
+	systemImagePartVendor = "Canonical Ltd."
 
 	// location of the channel config on the filesystem.
 	//
@@ -96,9 +97,9 @@ type SystemImagePart struct {
 	partition partition.Interface
 }
 
-// Type returns SnapTypeCore for this snap
-func (s *SystemImagePart) Type() SnapType {
-	return SnapTypeCore
+// Type returns pkg.TypeCore for this snap
+func (s *SystemImagePart) Type() pkg.Type {
+	return pkg.TypeCore
 }
 
 // Name returns the name
@@ -106,9 +107,9 @@ func (s *SystemImagePart) Name() string {
 	return systemImagePartName
 }
 
-// Namespace returns the namespace ("ubuntu")
-func (s *SystemImagePart) Namespace() string {
-	return systemImagePartNamespace
+// Origin returns the origin ("ubuntu")
+func (s *SystemImagePart) Origin() string {
+	return systemImagePartOrigin
 }
 
 // Vendor returns the vendor ("Canonical Ltd.")

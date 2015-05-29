@@ -23,14 +23,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v2"
 
-	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 )
 
 type apparmorJSONTemplate struct {
@@ -131,13 +132,13 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 
 func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error) {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
-	if m.Type == SnapTypeFramework || m.Type == SnapTypeOem {
+	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeOem {
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
 	}
 
-	namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
 
-	return fmt.Sprintf("%s.%s_%s_%s", m.Name, namespace, cleanedName, m.Version), err
+	return fmt.Sprintf("%s.%s_%s_%s", m.Name, origin, cleanedName, m.Version), err
 }
 
 var runScFilterGen = runScFilterGenImpl
@@ -158,7 +159,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		return content, err
 	}
 
-	helpers.EnsureDir(snapSeccompDir, 0755)
+	os.MkdirAll(snapSeccompDir, 0755)
 
 	// defaults
 	policyVendor := defaultPolicyVendor

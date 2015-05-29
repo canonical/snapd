@@ -197,17 +197,6 @@ func UbuntuArchitecture() string {
 	}
 }
 
-// EnsureDir ensures that the given directory exists and if
-// not creates it with the given permissions.
-func EnsureDir(dir string, perm os.FileMode) (err error) {
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, perm); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Sha512sum returns the sha512 of the given file as a hexdigest
 func Sha512sum(infile string) (hexdigest string, err error) {
 	r, err := os.Open(infile)
@@ -390,7 +379,7 @@ func GetBasicSnapEnvVars(desc interface{}) []string {
 		"SNAP_APP_TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp",
 		"SNAP_NAME={{.AppName}}",
 		"SNAP_VERSION={{.Version}}",
-		"SNAP_ORIGIN={{.Namespace}}",
+		"SNAP_ORIGIN={{.Origin}}",
 		"SNAP_FULLNAME={{.UdevAppName}}",
 		"SNAPPY_APP_ARCH={{.AppArch}}", // FIXME: this should probably be SNAP_ARCH?
 	})

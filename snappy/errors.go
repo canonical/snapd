@@ -98,10 +98,6 @@ var (
 	// a not (yet) supported platform
 	ErrBuildPlatformNotSupported = errors.New("building on a not (yet) supported platform")
 
-	// ErrUnpackHelperNotFound is returned if the unpack helper
-	// can not be found
-	ErrUnpackHelperNotFound = errors.New("unpack helper not found, do you have snappy installed in your PATH or GOPATH?")
-
 	// ErrLicenseNotAccepted is returned when the user does not accept the
 	// license
 	ErrLicenseNotAccepted = errors.New("license not accepted")
@@ -121,7 +117,7 @@ var (
 	// an interface is partial.
 	ErrNotImplemented = errors.New("not implemented")
 
-	// ErrNoOemConfiguration may be returned when there is a SnapTypeOem installed
+	// ErrNoOemConfiguration may be returned when there is a pkg.TypeOem installed
 	// but does not provide a configuration.
 	ErrNoOemConfiguration = errors.New("no configuration entry found in the oem snap")
 
@@ -134,8 +130,8 @@ var (
 	ErrSideLoaded = errors.New("cannot update system that uses custom enablement")
 
 	// ErrPackageNameNotSupported is returned when installing legacy package such as those
-	// that have namespaces in their package names.
-	ErrPackageNameNotSupported = errors.New("package name with namespace not supported")
+	// that have the origin specified in their package names.
+	ErrPackageNameNotSupported = errors.New("package name with origin not supported")
 
 	// ErrInvalidPart is returned when something on the filesystem does not make sense
 	ErrInvalidPart = errors.New("invalid package on system")
@@ -153,18 +149,6 @@ type ErrInstallFailed struct {
 // ErrInstallFailed is an error type for installation errors for snaps
 func (e *ErrInstallFailed) Error() string {
 	return fmt.Sprintf("%s failed to install: %s", e.snap, e.origErr)
-}
-
-// ErrUnpackFailed is the error type for a snap unpack problem
-type ErrUnpackFailed struct {
-	snapFile string
-	instDir  string
-	origErr  error
-}
-
-// ErrUnpackFailed is returned if unpacking a snap fails
-func (e *ErrUnpackFailed) Error() string {
-	return fmt.Sprintf("unpack %s to %s failed with %s", e.snapFile, e.instDir, e.origErr)
 }
 
 // ErrHookFailed is returned if a hook command fails

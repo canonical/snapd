@@ -134,18 +134,6 @@ func (ts *HTestSuite) TestExitCode(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (ts *HTestSuite) TestEnsureDir(c *C) {
-	tempdir := c.MkDir()
-
-	target := filepath.Join(tempdir, "meep")
-	err := EnsureDir(target, 0755)
-	c.Assert(err, IsNil)
-	st, err := os.Stat(target)
-	c.Assert(err, IsNil)
-	c.Assert(st.IsDir(), Equals, true)
-	c.Assert(st.Mode(), Equals, os.ModeDir|0755)
-}
-
 func (ts *HTestSuite) TestMakeMapFromEnvList(c *C) {
 	envList := []string{
 		"PATH=/usr/bin:/bin",
@@ -271,12 +259,17 @@ func (ts *HTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
 	c.Assert(home, Equals, oldHome)
 }
 
-func (ts *HTestSuite) TestMajorMinorSimple(c *C) {
-	stat, err := os.Stat("/dev/kmsg")
+func skipOnMissingDevKmsg(c *C) {
+	_, err := os.Stat("/dev/kmsg")
 	if err != nil {
 		c.Skip("Can not stat /dev/kmsg")
 	}
+}
 
+func (ts *HTestSuite) TestMajorMinorSimple(c *C) {
+	skipOnMissingDevKmsg(c)
+
+	stat, _ := os.Stat("/dev/kmsg")
 	major, minor, err := MajorMinor(stat)
 	c.Assert(err, IsNil)
 	c.Assert(major, Equals, uint32(1))
@@ -298,6 +291,7 @@ func (ts *HTestSuite) TestMakedev(c *C) {
 }
 
 func (ts *HTestSuite) TestUnpacksMknod(c *C) {
+	skipOnMissingDevKmsg(c)
 
 	// mknod mock
 	mknodWasCalled := false

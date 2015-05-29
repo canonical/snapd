@@ -22,6 +22,7 @@ package logger
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"log/syslog"
 	"os"
@@ -114,16 +115,26 @@ func (l *ConsoleLog) Notice(msg string) {
 	l.log.Output(3, msg)
 }
 
+// variable to allow mocking the syslog.NewLogger call in the tests
+var newSyslog = newSyslogImpl
+
+func newSyslogImpl() (*log.Logger, error) {
+	return syslog.NewLogger(SyslogPriority, SyslogFlags)
+}
+
 // NewConsoleLog creates a ConsoleLog with a log.Logger using the given
 // io.Writer and flag, and a syslog.Writer.
 func NewConsoleLog(w io.Writer, flag int) (*ConsoleLog, error) {
-	sys, err := syslog.NewLogger(SyslogPriority, SyslogFlags)
+	clog := log.New(w, "", flag)
+
+	sys, err := newSyslog()
 	if err != nil {
-		return nil, err
+		clog.Output(3, "WARNING: can not create syslog logger")
+		sys = log.New(ioutil.Discard, "", flag)
 	}
 
 	return &ConsoleLog{
-		log: log.New(w, "", flag),
+		log: clog,
 		sys: sys,
 	}, nil
 }

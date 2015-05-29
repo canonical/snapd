@@ -34,7 +34,6 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -45,7 +44,9 @@ import (
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/policy"
+	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
 
 	"github.com/mvo5/goconfigparser"
@@ -57,7 +58,7 @@ type clickManifest struct {
 	Name          string                  `json:"name"`
 	Version       string                  `json:"version"`
 	Architecture  []string                `json:"architecture,omitempty"`
-	Type          SnapType                `json:"type,omitempty"`
+	Type          pkg.Type                `json:"type,omitempty"`
 	Framework     string                  `json:"framework,omitempty"`
 	Description   string                  `json:"description,omitempty"`
 	Icon          string                  `json:"icon,omitempty"`
@@ -150,7 +151,7 @@ func readClickHookFile(hookFile string) (hook clickHook, err error) {
 func systemClickHooks() (hooks map[string]clickHook, err error) {
 	hooks = make(map[string]clickHook)
 
-	hookFiles, err := filepath.Glob(path.Join(clickSystemHooksDir, "*.hook"))
+	hookFiles, err := filepath.Glob(filepath.Join(clickSystemHooksDir, "*.hook"))
 	if err != nil {
 		return nil, err
 	}
@@ -180,13 +181,13 @@ type iterHooksFunc func(src, dst string, systemHook clickHook) error
 
 // iterHooks will run the callback "f" for the given manifest
 // so that the call back can arrange e.g. a new link
-func iterHooks(manifest clickManifest, inhibitHooks bool, f iterHooksFunc) error {
+func iterHooks(m *packageYaml, origin string, inhibitHooks bool, f iterHooksFunc) error {
 	systemHooks, err := systemClickHooks()
 	if err != nil {
 		return err
 	}
 
-	for app, hook := range manifest.Hooks {
+	for app, hook := range m.Integration {
 		for hookName, hookSourceFile := range hook {
 			// ignore hooks that only exist for compatibility
 			// with the old snappy-python (like bin-path,
@@ -201,7 +202,7 @@ func iterHooks(manifest clickManifest, inhibitHooks bool, f iterHooksFunc) error
 				continue
 			}
 
-			dst := filepath.Join(globalRootDir, expandHookPattern(manifest.Name, app, manifest.Version, systemHook.pattern))
+			dst := filepath.Join(globalRootDir, expandHookPattern(m.qualifiedName(origin), app, m.Version, systemHook.pattern))
 
 			if _, err := os.Stat(dst); err == nil {
 				if err := os.Remove(dst); err != nil {
@@ -226,11 +227,11 @@ func iterHooks(manifest clickManifest, inhibitHooks bool, f iterHooksFunc) error
 	return nil
 }
 
-func installClickHooks(targetDir string, manifest clickManifest, inhibitHooks bool) error {
-	return iterHooks(manifest, inhibitHooks, func(src, dst string, systemHook clickHook) error {
+func installClickHooks(targetDir string, m *packageYaml, origin string, inhibitHooks bool) error {
+	return iterHooks(m, origin, inhibitHooks, func(src, dst string, systemHook clickHook) error {
 		// setup the new link target here, iterHooks will take
 		// care of running the hook
-		realSrc := stripGlobalRootDir(path.Join(targetDir, src))
+		realSrc := stripGlobalRootDir(filepath.Join(targetDir, src))
 		if err := os.Symlink(realSrc, dst); err != nil {
 			return err
 		}
@@ -239,8 +240,8 @@ func installClickHooks(targetDir string, manifest clickManifest, inhibitHooks bo
 	})
 }
 
-func removeClickHooks(manifest clickManifest, inhibitHooks bool) (err error) {
-	return iterHooks(manifest, inhibitHooks, func(src, dst string, systemHook clickHook) error {
+func removeClickHooks(m *packageYaml, origin string, inhibitHooks bool) (err error) {
+	return iterHooks(m, origin, inhibitHooks, func(src, dst string, systemHook clickHook) error {
 		// nothing we need to do here, the iterHookss will remove
 		// the hook symlink and call the hook itself
 		return nil
@@ -248,7 +249,7 @@ func removeClickHooks(manifest clickManifest, inhibitHooks bool) (err error) {
 }
 
 func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err error) {
-	manifestFiles, err := filepath.Glob(path.Join(clickDir, ".click", "info", "*.manifest"))
+	manifestFiles, err := filepath.Glob(filepath.Join(clickDir, ".click", "info", "*.manifest"))
 	if err != nil {
 		return manifest, err
 	}
@@ -261,17 +262,17 @@ func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err
 }
 
 func removeClick(clickDir string, inter interacter) (err error) {
-	manifest, err := readClickManifestFromClickDir(clickDir)
+	m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
 	if err != nil {
 		return err
 	}
 
-	if err := removeClickHooks(manifest, false); err != nil {
+	if err := removeClickHooks(m, originFromBasedir(clickDir), false); err != nil {
 		return err
 	}
 
 	// maybe remove current symlink
-	currentSymlink := path.Join(path.Dir(clickDir), "current")
+	currentSymlink := filepath.Join(filepath.Dir(clickDir), "current")
 	p, _ := filepath.EvalSymlinks(currentSymlink)
 	if clickDir == p {
 		if err := unsetActiveClick(p, false, inter); err != nil {
@@ -289,20 +290,10 @@ func removeClick(clickDir string, inter interacter) (err error) {
 	return nil
 }
 
-func writeHashesFile(d *clickdeb.ClickDeb, instDir string) error {
-	hashesFile := filepath.Join(instDir, "meta", "hashes.yaml")
-	hashesData, err := d.ControlMember("hashes.yaml")
-	if err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(hashesFile, hashesData, 0644)
-}
-
 // generate the name
 func generateBinaryName(m *packageYaml, binary Binary) string {
 	var binName string
-	if m.Type == SnapTypeFramework {
+	if m.Type == pkg.TypeFramework {
 		binName = filepath.Base(binary.Name)
 	} else {
 		binName = fmt.Sprintf("%s.%s", m.Name, filepath.Base(binary.Name))
@@ -354,17 +345,14 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
 	// it's fine for this to error out; we might be in a framework or sth
-	namespace, _ := namespaceFromYamlPath(filepath.Join(pkgPath, "meta", "package.yaml"))
+	origin := originFromBasedir(pkgPath)
 
 	if err := verifyBinariesYaml(binary); err != nil {
 		return "", err
 	}
 
 	actualBinPath := binPathForBinary(pkgPath, binary)
-	udevPartName, err := getUdevPartName(m, pkgPath)
-	if err != nil {
-		return "", err
-	}
+	udevPartName := m.qualifiedName(origin)
 
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
@@ -374,7 +362,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		AppPath     string
 		Version     string
 		UdevAppName string
-		Namespace   string
+		Origin      string
 		Home        string
 		Target      string
 		AaProfile   string
@@ -386,7 +374,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		AppPath:     pkgPath,
 		Version:     m.Version,
 		UdevAppName: udevPartName,
-		Namespace:   namespace,
+		Origin:      origin,
 		Home:        "$HOME",
 		Target:      actualBinPath,
 		AaProfile:   aaProfile,
@@ -465,10 +453,7 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 		return "", err
 	}
 
-	udevPartName, err := getUdevPartName(m, baseDir)
-	if err != nil {
-		return "", err
-	}
+	udevPartName := m.qualifiedName(originFromBasedir(baseDir))
 
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
@@ -482,7 +467,7 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 			PostStop:    service.PostStop,
 			StopTimeout: time.Duration(service.StopTimeout),
 			AaProfile:   aaProfile,
-			IsFramework: m.Type == SnapTypeFramework,
+			IsFramework: m.Type == pkg.TypeFramework,
 			BusName:     service.BusName,
 			UdevAppName: udevPartName,
 		}), nil
@@ -539,20 +524,20 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 			return err
 		}
 		serviceFilename := generateServiceFileName(m, service)
-		helpers.EnsureDir(filepath.Dir(serviceFilename), 0755)
+		os.MkdirAll(filepath.Dir(serviceFilename), 0755)
 		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0644); err != nil {
 			return err
 		}
 
 		// If necessary, generate the DBus policy file so the framework
 		// service is allowed to start
-		if m.Type == SnapTypeFramework && service.BusName != "" {
+		if m.Type == pkg.TypeFramework && service.BusName != "" {
 			content, err := genBusPolicyFile(service.BusName)
 			if err != nil {
 				return err
 			}
 			policyFilename := generateBusPolicyFileName(m, service)
-			helpers.EnsureDir(filepath.Dir(policyFilename), 0755)
+			os.MkdirAll(filepath.Dir(policyFilename), 0755)
 			if err := ioutil.WriteFile(policyFilename, []byte(content), 0644); err != nil {
 				return err
 			}
@@ -740,58 +725,6 @@ func (m *packageYaml) removeSecurityPolicy(baseDir string) error {
 	return nil
 }
 
-// takes a name and PATH (colon separated) and returns the full qualified path
-func findBinaryInPath(name, path string) string {
-	for _, entry := range strings.Split(path, ":") {
-		fname := filepath.Join(entry, name)
-		if st, err := os.Stat(fname); err == nil {
-			// check for any x bit
-			if st.Mode()&0111 != 0 {
-				return fname
-			}
-		}
-	}
-
-	return ""
-}
-
-// unpackWithDropPrivs is a helper that will unapck the ClickDeb content
-// into the target dir and drop privs when doing this.
-//
-// To do this reliably in go we need to exec a helper as we can not
-// just fork() and drop privs in the child (no support for stock fork in go)
-func unpackWithDropPrivs(d *clickdeb.ClickDeb, instDir string) error {
-	// no need to drop privs, we are not root
-	if !helpers.ShouldDropPrivs() {
-		return d.Unpack(instDir)
-	}
-
-	// find priv helper executable
-	privHelper := ""
-	for _, path := range []string{"PATH", "GOPATH"} {
-		privHelper = findBinaryInPath("snappy", os.Getenv(path))
-		if privHelper != "" {
-			break
-		}
-	}
-	if privHelper == "" {
-		return ErrUnpackHelperNotFound
-	}
-
-	cmd := exec.Command(privHelper, "internal-unpack", d.Name(), instDir, globalRootDir)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return &ErrUnpackFailed{
-			snapFile: d.Name(),
-			instDir:  instDir,
-			origErr:  err,
-		}
-	}
-
-	return nil
-}
-
 type agreer interface {
 	Agreed(intro, license string) bool
 }
@@ -801,270 +734,39 @@ type interacter interface {
 	Notify(status string)
 }
 
-// this rewrites the json manifest to include the namespace in the on-disk
+// this rewrites the json manifest to include the origin in the on-disk
 // manifest.json to be compatible with click again
-func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, namespace string) error {
+func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin string) error {
 	var cm clickManifest
 	if err := json.Unmarshal(manifestData, &cm); err != nil {
 		return err
 	}
 
-	if cm.Type != SnapTypeFramework && cm.Type != SnapTypeOem {
-		// add the namespace to the name
-		cm.Name = fmt.Sprintf("%s.%s", cm.Name, namespace)
+	if cm.Type != pkg.TypeFramework && cm.Type != pkg.TypeOem {
+		// add the origin to the name
+		cm.Name = fmt.Sprintf("%s.%s", cm.Name, origin)
 	}
 
 	outStr, err := json.MarshalIndent(cm, "", "  ")
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func installClick(snapFile string, flags InstallFlags, inter interacter, namespace string) (name string, err error) {
+func installClick(snapFile string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
 	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
-	if err := auditClick(snapFile, allowUnauthenticated); err != nil {
-		return "", err
-		// ?
-		//return SnapAuditError
-	}
-
-	d, err := clickdeb.Open(snapFile)
+	part, err := NewSnapPartFromSnapFile(snapFile, origin, allowUnauthenticated)
 	if err != nil {
 		return "", err
 	}
-	defer d.Close()
+	defer part.deb.Close()
 
-	manifestData, err := d.ControlMember("manifest")
-	if err != nil {
-		logger.Noticef("Snap inspect failed for %q: %v", snapFile, err)
-		return "", err
-	}
-
-	manifest, err := readClickManifest([]byte(manifestData))
-	if err != nil {
-		return "", err
-	}
-
-	yamlData, err := d.MetaMember("package.yaml")
-	if err != nil {
-		return "", err
-	}
-
-	m, err := parsePackageYamlData(yamlData)
-	if err != nil {
-		return "", err
-	}
-
-	if err := m.checkForPackageInstalled(namespace); err != nil {
-		return "", err
-	}
-
-	if err := m.checkForNameClashes(); err != nil {
-		return "", err
-	}
-
-	if err := m.checkForFrameworks(); err != nil {
-		return "", err
-	}
-
-	targetDir := snapAppsDir
-	// the "oem" parts are special
-	if manifest.Type == SnapTypeOem {
-		targetDir = snapOemDir
-
-		// TODO do the following at a higher level once the store publishes snap types
-		// this is horrible
-		if allowOEM := (flags & AllowOEM) != 0; !allowOEM {
-			if currentOEM, err := getOem(); err == nil {
-				if currentOEM.Name != manifest.Name {
-					fmt.Println(currentOEM.Name, manifest.Name)
-					return "", ErrOEMPackageInstall
-				}
-			} else {
-				// there should always be an oem package now
-				return "", ErrOEMPackageInstall
-			}
-		}
-
-		if err := installOemHardwareUdevRules(m); err != nil {
-			return "", err
-		}
-	}
-
-	fullName := manifest.Name
-	// namespacing only applies to apps.
-	if manifest.Type != SnapTypeFramework && manifest.Type != SnapTypeOem {
-		fullName += "." + namespace
-	}
-	instDir := filepath.Join(targetDir, fullName, manifest.Version)
-	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(instDir, "..", "current"))
-
-	if err := m.checkLicenseAgreement(inter, d, currentActiveDir); err != nil {
-		return "", err
-	}
-
-	dataDir := filepath.Join(snapDataDir, fullName, manifest.Version)
-
-	if err := helpers.EnsureDir(instDir, 0755); err != nil {
-		logger.Noticef("Can not create %q: %v", instDir, err)
-	}
-
-	// if anything goes wrong here we cleanup
-	defer func() {
-		if err != nil {
-			if e := os.RemoveAll(instDir); e != nil && !os.IsNotExist(e) {
-				logger.Noticef("Failed to remove %q: %v", instDir, e)
-			}
-		}
-	}()
-
-	// we need to call the external helper so that we can reliable drop
-	// privs
-	if err := unpackWithDropPrivs(d, instDir); err != nil {
-		return "", err
-	}
-
-	// legacy, the hooks (e.g. apparmor) need this. Once we converted
-	// all hooks this can go away
-	clickMetaDir := path.Join(instDir, ".click", "info")
-	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
-		return "", err
-	}
-	if err := writeCompatManifestJSON(clickMetaDir, manifestData, namespace); err != nil {
-		return "", err
-	}
-
-	// write the hashes now
-	if err := writeHashesFile(d, instDir); err != nil {
-		return "", err
-	}
-
-	inhibitHooks := (flags & InhibitHooks) != 0
-
-	// deal with the data:
-	//
-	// if there was a previous version, stop it
-	// from being active so that it stops running and can no longer be
-	// started then copy the data
-	//
-	// otherwise just create a empty data dir
-	if currentActiveDir != "" {
-		oldManifest, err := readClickManifestFromClickDir(currentActiveDir)
-		if err != nil {
-			return "", err
-		}
-
-		// we need to stop making it active
-		err = unsetActiveClick(currentActiveDir, inhibitHooks, inter)
-		defer func() {
-			if err != nil {
-				if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
-					logger.Noticef("Setting old version back to active failed: %v", cerr)
-				}
-			}
-		}()
-		if err != nil {
-			return "", err
-		}
-
-		err = copySnapData(fullName, oldManifest.Version, manifest.Version)
-	} else {
-		err = helpers.EnsureDir(dataDir, 0755)
-	}
-
-	defer func() {
-		if err != nil {
-			if cerr := removeSnapData(fullName, manifest.Version); cerr != nil {
-				logger.Noticef("When cleaning up data for %s %s: %v", manifest.Name, manifest.Version, cerr)
-			}
-		}
-	}()
-
-	if err != nil {
-		return "", err
-	}
-
-	// and finally make active
-	err = setActiveClick(instDir, inhibitHooks, inter)
-	defer func() {
-		if err != nil && currentActiveDir != "" {
-			if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
-				logger.Noticef("When setting old %s version back to active: %v", manifest.Name, cerr)
-			}
-		}
-	}()
-	if err != nil {
-		return "", err
-	}
-
-	// oh, one more thing: refresh the security bits
-	if !inhibitHooks {
-		part, err := NewSnapPartFromYaml(filepath.Join(instDir, "meta", "package.yaml"), namespace, m)
-		if err != nil {
-			return "", err
-		}
-
-		deps, err := part.Dependents()
-		if err != nil {
-			return "", err
-		}
-
-		sysd := systemd.New(globalRootDir, inter)
-		stopped := make(map[string]time.Duration)
-		defer func() {
-			if err != nil {
-				for serviceName := range stopped {
-					if e := sysd.Start(serviceName); e != nil {
-						inter.Notify(fmt.Sprintf("unable to restart %s with the old %s: %s", serviceName, part.Name(), e))
-					}
-				}
-			}
-		}()
-
-		for _, dep := range deps {
-			if !dep.IsActive() {
-				continue
-			}
-			for _, svc := range dep.Services() {
-				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
-				timeout := time.Duration(svc.StopTimeout)
-				if err = sysd.Stop(serviceName, timeout); err != nil {
-					inter.Notify(fmt.Sprintf("unable to stop %s; aborting install: %s", serviceName, err))
-					return "", err
-				}
-				stopped[serviceName] = timeout
-			}
-		}
-
-		if err := part.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
-			return "", err
-		}
-
-		started := make(map[string]time.Duration)
-		defer func() {
-			if err != nil {
-				for serviceName, timeout := range started {
-					if e := sysd.Stop(serviceName, timeout); e != nil {
-						inter.Notify(fmt.Sprintf("unable to stop %s with the old %s: %s", serviceName, part.Name(), e))
-					}
-				}
-			}
-		}()
-		for serviceName, timeout := range stopped {
-			if err = sysd.Start(serviceName); err != nil {
-				inter.Notify(fmt.Sprintf("unable to restart %s; aborting install: %s", serviceName, err))
-				return "", err
-			}
-			started[serviceName] = timeout
-		}
-	}
-
-	return manifest.Name, nil
+	return part.Install(inter, flags)
 }
 
 // removeSnapData removes the data for the given version of the given snap
@@ -1162,6 +864,7 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 	if err != nil {
 		return err
 	}
+
 	if err := m.removeSecurityPolicy(clickDir); err != nil {
 		return err
 	}
@@ -1171,14 +874,14 @@ func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) erro
 		return err
 	}
 
-	if manifest.Type == SnapTypeFramework {
+	if manifest.Type == pkg.TypeFramework {
 
 		if err := policy.Remove(m.Name, clickDir); err != nil {
 			return err
 		}
 	}
 
-	if err := removeClickHooks(manifest, inhibitHooks); err != nil {
+	if err := removeClickHooks(m, originFromBasedir(clickDir), inhibitHooks); err != nil {
 		return err
 	}
 
@@ -1217,15 +920,17 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	if newActiveManifest.Type == SnapTypeFramework {
+	origin := originFromBasedir(baseDir)
+
+	if newActiveManifest.Type == pkg.TypeFramework {
 		if err := policy.Install(m.Name, baseDir); err != nil {
 			return err
 		}
 	}
 
-	if err := installClickHooks(baseDir, newActiveManifest, inhibitHooks); err != nil {
+	if err := installClickHooks(baseDir, m, origin, inhibitHooks); err != nil {
 		// cleanup the failed hooks
-		removeClickHooks(newActiveManifest, inhibitHooks)
+		removeClickHooks(m, origin, inhibitHooks)
 		return err
 	}
 

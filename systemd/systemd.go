@@ -194,9 +194,9 @@ WantedBy={{.ServiceSystemdTarget}}
 `
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
-	namespace := ""
+	origin := ""
 	if len(desc.UdevAppName) > len(desc.AppName) {
-		namespace = desc.UdevAppName[len(desc.AppName)+1:]
+		origin = desc.UdevAppName[len(desc.AppName)+1:]
 	}
 	wrapperData := struct {
 		// the service description
@@ -207,7 +207,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		FullPathPostStop     string
 		AppTriple            string
 		ServiceSystemdTarget string
-		Namespace            string
+		Origin               string
 		AppArch              string
 		Home                 string
 		EnvVars              string
@@ -218,7 +218,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		filepath.Join(desc.AppPath, desc.PostStop),
 		fmt.Sprintf("%s_%s_%s", desc.AppName, desc.ServiceName, desc.Version),
 		servicesSystemdTarget,
-		namespace,
+		origin,
 		helpers.UbuntuArchitecture(),
 		"%h",
 		"",
