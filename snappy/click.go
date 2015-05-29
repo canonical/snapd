@@ -34,7 +34,6 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -152,7 +151,7 @@ func readClickHookFile(hookFile string) (hook clickHook, err error) {
 func systemClickHooks() (hooks map[string]clickHook, err error) {
 	hooks = make(map[string]clickHook)
 
-	hookFiles, err := filepath.Glob(path.Join(clickSystemHooksDir, "*.hook"))
+	hookFiles, err := filepath.Glob(filepath.Join(clickSystemHooksDir, "*.hook"))
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +231,7 @@ func installClickHooks(targetDir string, m *packageYaml, origin string, inhibitH
 	return iterHooks(m, origin, inhibitHooks, func(src, dst string, systemHook clickHook) error {
 		// setup the new link target here, iterHooks will take
 		// care of running the hook
-		realSrc := stripGlobalRootDir(path.Join(targetDir, src))
+		realSrc := stripGlobalRootDir(filepath.Join(targetDir, src))
 		if err := os.Symlink(realSrc, dst); err != nil {
 			return err
 		}
@@ -250,7 +249,7 @@ func removeClickHooks(m *packageYaml, origin string, inhibitHooks bool) (err err
 }
 
 func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err error) {
-	manifestFiles, err := filepath.Glob(path.Join(clickDir, ".click", "info", "*.manifest"))
+	manifestFiles, err := filepath.Glob(filepath.Join(clickDir, ".click", "info", "*.manifest"))
 	if err != nil {
 		return manifest, err
 	}
@@ -273,7 +272,7 @@ func removeClick(clickDir string, inter interacter) (err error) {
 	}
 
 	// maybe remove current symlink
-	currentSymlink := path.Join(path.Dir(clickDir), "current")
+	currentSymlink := filepath.Join(filepath.Dir(clickDir), "current")
 	p, _ := filepath.EvalSymlinks(currentSymlink)
 	if clickDir == p {
 		if err := unsetActiveClick(p, false, inter); err != nil {
@@ -741,7 +740,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644); err != nil {
 		return err
 	}
 

@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -74,7 +73,7 @@ services:
 		return "", err
 	}
 
-	readmeMd := path.Join(metaDir, "readme.md")
+	readmeMd := filepath.Join(metaDir, "readme.md")
 	if err := ioutil.WriteFile(readmeMd, []byte("Hello\nApp"), 0644); err != nil {
 		return "", err
 	}
@@ -115,14 +114,14 @@ func makeTestSnapPackage(c *C, packageYamlContent string) (snapFile string) {
 func makeTestSnapPackageFull(c *C, packageYamlContent string, makeLicense bool) (snapFile string) {
 	tmpdir := c.MkDir()
 	// content
-	os.MkdirAll(path.Join(tmpdir, "bin"), 0755)
+	os.MkdirAll(filepath.Join(tmpdir, "bin"), 0755)
 	content := `#!/bin/sh
 echo "hello"`
-	exampleBinary := path.Join(tmpdir, "bin", "foo")
+	exampleBinary := filepath.Join(tmpdir, "bin", "foo")
 	ioutil.WriteFile(exampleBinary, []byte(content), 0755)
 	// meta
-	os.MkdirAll(path.Join(tmpdir, "meta"), 0755)
-	packageYaml := path.Join(tmpdir, "meta", "package.yaml")
+	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
+	packageYaml := filepath.Join(tmpdir, "meta", "package.yaml")
 	if packageYamlContent == "" {
 		packageYamlContent = `
 name: foo
@@ -132,11 +131,11 @@ vendor: Foo Bar <foo@example.com>
 `
 	}
 	ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
-	readmeMd := path.Join(tmpdir, "meta", "readme.md")
+	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
 	content = "Random\nExample"
 	ioutil.WriteFile(readmeMd, []byte(content), 0644)
 	if makeLicense {
-		license := path.Join(tmpdir, "meta", "license.txt")
+		license := filepath.Join(tmpdir, "meta", "license.txt")
 		content = "WTFPL"
 		ioutil.WriteFile(license, []byte(content), 0644)
 	}
@@ -147,7 +146,7 @@ vendor: Foo Bar <foo@example.com>
 		c.Assert(err, IsNil)
 	})
 	c.Assert(err, IsNil)
-	return path.Join(tmpdir, snapFile)
+	return filepath.Join(tmpdir, snapFile)
 }
 
 // makeTwoTestSnaps creates two real snaps of pkg.Type of name

@@ -23,7 +23,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -84,8 +83,8 @@ func newUboot(partition *Partition) bootLoader {
 		return nil
 	}
 	u := uboot{bootloaderType: b}
-	u.currentBootPath = path.Join(bootloaderUbootDir, u.currentRootfs)
-	u.otherBootPath = path.Join(bootloaderUbootDir, u.otherRootfs)
+	u.currentBootPath = filepath.Join(bootloaderUbootDir, u.currentRootfs)
+	u.otherBootPath = filepath.Join(bootloaderUbootDir, u.otherRootfs)
 
 	return &u
 }
@@ -267,7 +266,7 @@ func (u *uboot) HandleAssets() (err error) {
 		}
 
 		// expand path
-		path := path.Join(u.partition.cacheDir(), file)
+		path := filepath.Join(u.partition.cacheDir(), file)
 
 		if !helpers.FileExists(path) {
 			return fmt.Errorf("can not find file %s", path)
@@ -290,12 +289,12 @@ func (u *uboot) HandleAssets() (err error) {
 		// ensure we cleanup the source dir
 		defer os.RemoveAll(dtbSrcDir)
 
-		dtbDestDir := path.Join(destDir, "dtbs")
+		dtbDestDir := filepath.Join(destDir, "dtbs")
 		if err := os.MkdirAll(dtbDestDir, dirMode); err != nil {
 			return err
 		}
 
-		files, err := filepath.Glob(path.Join(dtbSrcDir, "*"))
+		files, err := filepath.Glob(filepath.Join(dtbSrcDir, "*"))
 		if err != nil {
 			return err
 		}
