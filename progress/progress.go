@@ -142,14 +142,11 @@ func (t *TextProgress) Write(p []byte) (n int, err error) {
 // Spin advances a spinner, i.e. can be used to show progress for operations
 // that have a unknown duration
 func (t *TextProgress) Spin(msg string) {
-	// this is a bit ugly, but we need to make sure that the progress
-	// is not writing on our term again
-	if t.pbar != nil {
-		t.pbar.Finish()
-	}
-
 	states := `|/-\`
-	fmt.Printf("\r%s[%c]", msg, states[t.spinStep])
+
+	// clear until end of line
+	clearUntilEOL := "\033[K"
+	fmt.Printf("\r%s[%c]%s", msg, states[t.spinStep], clearUntilEOL)
 	t.spinStep++
 	if t.spinStep >= len(states) {
 		t.spinStep = 0
