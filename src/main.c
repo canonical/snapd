@@ -278,7 +278,8 @@ int main(int argc, char **argv)
    must_snprintf(apps_prefix, sizeof(apps_prefix), "/apps/%s/", appname);
    must_snprintf(frameworks_prefix, sizeof(frameworks_prefix), "/frameworks/%s/", appname);
    must_snprintf(oem_prefix, sizeof(oem_prefix), "/oem/%s/", appname);
-   if (strstr(binary, apps_prefix) != binary &&
+   if (getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL &&
+           strstr(binary, apps_prefix) != binary &&
            strstr(binary, oem_prefix) != binary &&
            strstr(binary, frameworks_prefix) != binary)
       die("binary must be inside /apps/%s/, /frameworks/%s/ or /oem/%s/",
