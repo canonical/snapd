@@ -1138,7 +1138,7 @@ binaries:
 	pb := &MockProgressMeter{}
 	m, err := parsePackageYamlData([]byte(yaml))
 	part := &SnapPart{m: m, origin: testOrigin, basedir: d1}
-	c.Assert(part.RefreshDependentsSecurity(d2, pb), IsNil)
+	c.Assert(part.RefreshDependentsSecurity(&SnapPart{basedir: d2}, pb), IsNil)
 	c.Check(touched, DeepEquals, []string{fn})
 }
 

@@ -57,7 +57,7 @@ func (s *purgeSuite) TestPurgeNonExistingRaisesError(c *C) {
 	c.Check(inter.notified, HasLen, 0)
 }
 
-func (s *purgeSuite) mkpkg(c *C, args ...string) (string, string) {
+func (s *purgeSuite) mkpkg(c *C, args ...string) (string, *SnapPart) {
 	version := "1.10"
 	extra := ""
 	switch len(args) {
@@ -84,13 +84,16 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (string, string) {
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	return pkgdir, ddir
+	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	c.Assert(err, IsNil)
+
+	return ddir, part
 }
 
 func (s *purgeSuite) TestPurgeActiveRaisesError(c *C) {
 	inter := &MockProgressMeter{}
-	pkgdir, _ := s.mkpkg(c)
-	c.Assert(setActiveClick(pkgdir, true, inter), IsNil)
+	_, part := s.mkpkg(c)
+	c.Assert(part.activate(true, inter), IsNil)
 
 	err := Purge("hello-app", 0, inter)
 	c.Check(err, Equals, ErrStillActive)
@@ -99,7 +102,7 @@ func (s *purgeSuite) TestPurgeActiveRaisesError(c *C) {
 
 func (s *purgeSuite) TestPurgeInactiveOK(c *C) {
 	inter := &MockProgressMeter{}
-	_, ddir := s.mkpkg(c)
+	ddir, _ := s.mkpkg(c)
 
 	err := Purge("hello-app", 0, inter)
 	c.Check(err, IsNil)
@@ -109,8 +112,8 @@ func (s *purgeSuite) TestPurgeInactiveOK(c *C) {
 
 func (s *purgeSuite) TestPurgeActiveExplicitOK(c *C) {
 	inter := &MockProgressMeter{}
-	pkgdir, ddir := s.mkpkg(c)
-	c.Assert(setActiveClick(pkgdir, true, inter), IsNil)
+	ddir, part := s.mkpkg(c)
+	c.Assert(part.activate(true, inter), IsNil)
 
 	err := Purge("hello-app", DoPurgeActive, inter)
 	c.Check(err, IsNil)
@@ -120,8 +123,8 @@ func (s *purgeSuite) TestPurgeActiveExplicitOK(c *C) {
 
 func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 	inter := &MockProgressMeter{}
-	pkgdir, ddir := s.mkpkg(c, "v1", "services:\n - name: svc")
-	c.Assert(setActiveClick(pkgdir, true, inter), IsNil)
+	ddir, part := s.mkpkg(c, "v1", "services:\n - name: svc")
+	c.Assert(part.activate(true, inter), IsNil)
 
 	called := [][]string{}
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
@@ -143,8 +146,8 @@ func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 
 func (s *purgeSuite) TestPurgeMultiOK(c *C) {
 	inter := &MockProgressMeter{}
-	_, ddir0 := s.mkpkg(c, "v0")
-	_, ddir1 := s.mkpkg(c, "v1")
+	ddir0, _ := s.mkpkg(c, "v0")
+	ddir1, _ := s.mkpkg(c, "v1")
 
 	err := Purge("hello-app", 0, inter)
 	c.Check(err, IsNil)
@@ -155,9 +158,9 @@ func (s *purgeSuite) TestPurgeMultiOK(c *C) {
 
 func (s *purgeSuite) TestPurgeMultiContinuesOnFail(c *C) {
 	inter := &MockProgressMeter{}
-	_, ddir0 := s.mkpkg(c, "v0")
-	_, ddir1 := s.mkpkg(c, "v1")
-	_, ddir2 := s.mkpkg(c, "v2")
+	ddir0, _ := s.mkpkg(c, "v0")
+	ddir1, _ := s.mkpkg(c, "v1")
+	ddir2, _ := s.mkpkg(c, "v2")
 
 	count := 0
 	anError := errors.New("fail")
@@ -182,12 +185,9 @@ func (s *purgeSuite) TestPurgeMultiContinuesOnFail(c *C) {
 
 func (s *purgeSuite) TestPurgeRemovedWorks(c *C) {
 	inter := &MockProgressMeter{}
-	pkgdir, ddir := s.mkpkg(c)
+	ddir, part := s.mkpkg(c)
 
-	yamlPath := filepath.Join(pkgdir, "meta", "package.yaml")
-	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
-	c.Assert(err, IsNil)
-	err = part.remove(inter)
+	err := part.remove(inter)
 	c.Assert(err, IsNil)
 	c.Check(helpers.FileExists(ddir), Equals, true)
 
