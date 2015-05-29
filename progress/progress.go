@@ -128,8 +128,9 @@ func (t *TextProgress) SetTotal(total float64) {
 // Finished stops displaying the progress
 func (t *TextProgress) Finished() {
 	if t.pbar != nil {
-		t.pbar.FinishPrint("Done")
+		t.pbar.Finish()
 	}
+	fmt.Println("Done")
 }
 
 // Write is there so that progress can implment a Writer and can be
@@ -141,6 +142,13 @@ func (t *TextProgress) Write(p []byte) (n int, err error) {
 // Spin advances a spinner, i.e. can be used to show progress for operations
 // that have a unknown duration
 func (t *TextProgress) Spin(msg string) {
+	// this is a bit ugly, but we need to make sure that the progress
+	// is not writing on our term again
+	if t.pbar != nil {
+		t.pbar.Finish()
+		t.pbar = nil
+	}
+
 	states := `|/-\`
 	fmt.Printf("\r%s[%c]", msg, states[t.spinStep])
 	t.spinStep++
