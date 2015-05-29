@@ -8,5 +8,5 @@ all:
 	make -C src $@
 #	make -C tests $@
 
-check test: all
+check: all
 	make -C tests test
