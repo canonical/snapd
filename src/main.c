@@ -271,14 +271,6 @@ int main(int argc, char **argv)
    if(!verify_appname(appname))
       die("appname %s not allowed", appname);
 
-   // verify binary path
-   char apps_prefix[128];
-   char frameworks_prefix[128];
-   char oem_prefix[128];
-   must_snprintf(apps_prefix, sizeof(apps_prefix), "/apps/%s/", appname);
-   must_snprintf(frameworks_prefix, sizeof(frameworks_prefix), "/frameworks/%s/", appname);
-   must_snprintf(oem_prefix, sizeof(oem_prefix), "/oem/%s/", appname);
-
    // this code always needs to run as root for the cgroup/udev setup,
    // however for the tests we allow it to run as non-root
    if(geteuid() != 0 && getenv("UBUNTU_CORE_LAUNCHER_NO_ROOT") == NULL) {
@@ -286,6 +278,13 @@ int main(int argc, char **argv)
    }
 
    if(geteuid() == 0) {
+       // verify binary path
+       char apps_prefix[128];
+       char frameworks_prefix[128];
+       char oem_prefix[128];
+       must_snprintf(apps_prefix, sizeof(apps_prefix), "/apps/%s/", appname);
+       must_snprintf(frameworks_prefix, sizeof(frameworks_prefix), "/frameworks/%s/", appname);
+       must_snprintf(oem_prefix, sizeof(oem_prefix), "/oem/%s/", appname);
        if (strstr(binary, apps_prefix) != binary &&
                strstr(binary, oem_prefix) != binary &&
                strstr(binary, frameworks_prefix) != binary)
