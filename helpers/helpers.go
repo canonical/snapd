@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -316,4 +317,58 @@ func ShouldDropPrivs() bool {
 
 	return syscall.Getuid() == 0 || syscall.Getgid() == 0
 
+}
+
+func makeDirMap(dirName string) (map[string]struct{}, error) {
+	dir, err := ioutil.ReadDir(dirName)
+	if err != nil {
+		return nil, err
+	}
+
+	dirMap := make(map[string]struct{})
+	for _, dent := range dir {
+		if dent.IsDir() {
+			return nil, fmt.Errorf("subdirs are not supported")
+		}
+		dirMap[dent.Name()] = struct{}{}
+	}
+
+	return dirMap, nil
+}
+
+// RSyncWithDelete syncs srcDir to destDir
+func RSyncWithDelete(srcDirName, destDirName string) error {
+
+	// first remove everything thats not in srcdir
+	err := filepath.Walk(destDirName, func(path string, info os.FileInfo, err error) error {
+		if !FileExists(filepath.Join(srcDirName, path[len(srcDirName):])) {
+			if err := os.RemoveAll(filepath.Join(path)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// then copy or update the data from srcdir to destdir
+	err = filepath.Walk(srcDirName, func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			return os.MkdirAll(filepath.Join(destDirName, path[len(destDirName):]), info.Mode())
+		}
+		src := path
+		dst := filepath.Join(destDirName, path[len(destDirName):])
+		if !FilesAreEqual(src, dst) {
+			// XXX: on snappy-trunk we can use CopyFile here
+			output, err := exec.Command("cp", "-va", src, dst).CombinedOutput()
+			println(string(output))
+			if err != nil {
+				fmt.Errorf("Failed to copy %s to %s (%s)", src, dst, output)
+			}
+		}
+		return nil
+	})
+
+	return err
 }

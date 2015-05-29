@@ -19,6 +19,7 @@ package helpers
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -267,4 +268,62 @@ func (ts *HTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
 	home, err := CurrentHomeDir()
 	c.Assert(err, IsNil)
 	c.Assert(home, Equals, oldHome)
+}
+
+func makeTestFiles(c *C, srcDir, destDir string) {
+	// a new file
+	err := ioutil.WriteFile(filepath.Join(srcDir, "new"), []byte(nil), 0644)
+	c.Assert(err, IsNil)
+
+	// a existing file that needs update
+	err = ioutil.WriteFile(filepath.Join(destDir, "existing-update"), []byte("old-content"), 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(srcDir, "existing-update"), []byte("some-new-content"), 0644)
+	c.Assert(err, IsNil)
+
+	// existing file that needs no update
+	err = ioutil.WriteFile(filepath.Join(srcDir, "existing-unchanged"), []byte(nil), 0644)
+	c.Assert(err, IsNil)
+	err = exec.Command("cp", "-a", filepath.Join(srcDir, "existing-unchanged"), filepath.Join(destDir, "existing-unchanged")).Run()
+	c.Assert(err, IsNil)
+
+	// a file that needs removal
+	err = ioutil.WriteFile(filepath.Join(destDir, "to-be-deleted"), []byte(nil), 0644)
+	c.Assert(err, IsNil)
+}
+
+func compareDirs(c *C, srcDir, destDir string) {
+	d1, err := exec.Command("ls", "-al", srcDir).CombinedOutput()
+	c.Assert(err, IsNil)
+	d2, err := exec.Command("ls", "-al", destDir).CombinedOutput()
+	c.Assert(err, IsNil)
+	c.Assert(string(d1), Equals, string(d2))
+	// ensure content got updated
+	c1, err := exec.Command("sh", "-c", fmt.Sprintf("find %s -type f |xargs cat", srcDir)).CombinedOutput()
+	c.Assert(err, IsNil)
+	c2, err := exec.Command("sh", "-c", fmt.Sprintf("find %s -type f |xargs cat", destDir)).CombinedOutput()
+	c.Assert(err, IsNil)
+	c.Assert(string(c1), Equals, string(c2))
+}
+
+func (ts *HTestSuite) TestSyncDirs(c *C) {
+	srcDir := c.MkDir()
+	destDir := c.MkDir()
+
+	// add a subdir
+	subdir := filepath.Join(srcDir, "subdir")
+	err := os.Mkdir(subdir, 0755)
+	c.Assert(err, IsNil)
+	makeTestFiles(c, subdir, destDir)
+
+	// and a toplevel
+	makeTestFiles(c, srcDir, destDir)
+
+	// do it
+	err = RSyncWithDelete(srcDir, destDir)
+	c.Assert(err, IsNil)
+
+	// ensure meta-data is identical
+	compareDirs(c, srcDir, destDir)
+	compareDirs(c, filepath.Join(srcDir, "subdir"), filepath.Join(destDir, "subdir"))
 }

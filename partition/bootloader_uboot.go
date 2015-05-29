@@ -218,10 +218,7 @@ func (u *uboot) SyncBootFiles() (err error) {
 	srcDir := u.currentBootPath
 	destDir := u.otherBootPath
 
-	// always start from scratch: all files here are owned by us.
-	os.RemoveAll(destDir)
-
-	return runCommand("/bin/cp", "-a", srcDir, destDir)
+	return helpers.RSyncWithDelete(srcDir, destDir)
 }
 
 func (u *uboot) HandleAssets() (err error) {
