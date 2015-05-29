@@ -341,6 +341,10 @@ func RSyncWithDelete(srcDirName, destDirName string) error {
 
 	// first remove everything thats not in srcdir
 	err := filepath.Walk(destDirName, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
 		// relative to the root "destDirName"
 		relPath := path[len(destDirName):]
 		if !FileExists(filepath.Join(srcDirName, relPath)) {
@@ -356,6 +360,10 @@ func RSyncWithDelete(srcDirName, destDirName string) error {
 
 	// then copy or update the data from srcdir to destdir
 	err = filepath.Walk(srcDirName, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
 		// relative to the root "srcDirName"
 		relPath := path[len(srcDirName):]
 		if info.IsDir() {
