@@ -306,32 +306,12 @@ func compareDirs(c *C, srcDir, destDir string) {
 	c.Assert(string(c1), Equals, string(c2))
 }
 
-func realTestSyncDirs(c *C, srcDir, destDir string) {
-
-	// add a subdir
-	subdir := filepath.Join(srcDir, "subdir")
-	err := os.Mkdir(subdir, 0755)
-	c.Assert(err, IsNil)
-	makeTestFiles(c, subdir, destDir)
-
-	// and a toplevel
-	makeTestFiles(c, srcDir, destDir)
-
-	// do it
-	err = RSyncWithDelete(srcDir, destDir)
-	c.Assert(err, IsNil)
-
-	// ensure meta-data is identical
-	compareDirs(c, srcDir, destDir)
-	compareDirs(c, filepath.Join(srcDir, "subdir"), filepath.Join(destDir, "subdir"))
-}
-
 func (ts *HTestSuite) TestSyncDirs(c *C) {
 
 	for _, l := range [][2]string{
-		[2]string{"short", "loooooooooooon"},
-		[2]string{"loooooooooooong", "short"},
-		[2]string{"eq", "eq"},
+		[2]string{"src-short", "dst-loooooooooooong"},
+		[2]string{"src-loooooooooooong", "dst-short"},
+		[2]string{"src-eq", "dst-eq"},
 	} {
 
 		// ensure we have src, dest dirs with different length
@@ -342,6 +322,27 @@ func (ts *HTestSuite) TestSyncDirs(c *C) {
 		err = os.MkdirAll(destDir, 0755)
 		c.Assert(err, IsNil)
 
-		realTestSyncDirs(c, srcDir, destDir)
+		// add a src subdir
+		subdir := filepath.Join(srcDir, "subdir")
+		err = os.Mkdir(subdir, 0755)
+		c.Assert(err, IsNil)
+		makeTestFiles(c, subdir, destDir)
+
+		// add a dst subdir that needs to get deleted
+		subdir2 := filepath.Join(destDir, "to-be-deleted-subdir")
+		err = os.Mkdir(subdir2, 0755)
+		subdir3 := filepath.Join(subdir2, "to-be-deleted-sub-subdir")
+		err = os.Mkdir(subdir3, 0755)
+
+		// and a toplevel
+		makeTestFiles(c, srcDir, destDir)
+
+		// do it
+		err = RSyncWithDelete(srcDir, destDir)
+		c.Assert(err, IsNil)
+
+		// ensure meta-data is identical
+		compareDirs(c, srcDir, destDir)
+		compareDirs(c, filepath.Join(srcDir, "subdir"), filepath.Join(destDir, "subdir"))
 	}
 }

@@ -349,6 +349,9 @@ func RSyncWithDelete(srcDirName, destDirName string) error {
 		relPath := path[len(destDirName):]
 		if !FileExists(filepath.Join(srcDirName, relPath)) {
 			if err := os.RemoveAll(path); err != nil {
+				return err
+			}
+			if info.IsDir() {
 				return filepath.SkipDir
 			}
 		}
