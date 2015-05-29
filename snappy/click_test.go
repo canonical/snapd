@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -82,7 +81,7 @@ func makeClickHook(c *C, hookContent string) {
 	if _, err := os.Stat(clickSystemHooksDir); err != nil {
 		os.MkdirAll(clickSystemHooksDir, 0755)
 	}
-	ioutil.WriteFile(path.Join(clickSystemHooksDir, hookName+".hook"), []byte(hookContent), 0644)
+	ioutil.WriteFile(filepath.Join(clickSystemHooksDir, hookName+".hook"), []byte(hookContent), 0644)
 }
 
 func (s *SnapTestSuite) TestReadClickHookFile(c *C) {
@@ -90,7 +89,7 @@ func (s *SnapTestSuite) TestReadClickHookFile(c *C) {
 User: root
 Exec: /usr/lib/click-systemd/systemd-clickhook
 Pattern: /var/lib/systemd/click/${id}`)
-	hook, err := readClickHookFile(path.Join(clickSystemHooksDir, "systemd.hook"))
+	hook, err := readClickHookFile(filepath.Join(clickSystemHooksDir, "systemd.hook"))
 	c.Assert(err, IsNil)
 	c.Assert(hook.name, Equals, "systemd")
 	c.Assert(hook.user, Equals, "root")
@@ -100,7 +99,7 @@ Pattern: /var/lib/systemd/click/${id}`)
 	// click allows non-existing "Hook-Name" and uses the filename then
 	makeClickHook(c, `Hook-Name: apparmor
 Pattern: /var/lib/apparmor/click/${id}`)
-	hook, err = readClickHookFile(path.Join(clickSystemHooksDir, "apparmor.hook"))
+	hook, err = readClickHookFile(filepath.Join(clickSystemHooksDir, "apparmor.hook"))
 	c.Assert(err, IsNil)
 	c.Assert(hook.name, Equals, "apparmor")
 }
@@ -121,7 +120,7 @@ func (s *SnapTestSuite) TestHandleClickHooks(c *C) {
 	stripGlobalRootDir = func(s string) string { return s }
 
 	// two hooks to ensure iterating works correct
-	testSymlinkDir := path.Join(s.tempdir, "/var/lib/systemd/click/")
+	testSymlinkDir := filepath.Join(s.tempdir, "/var/lib/systemd/click/")
 	os.MkdirAll(testSymlinkDir, 0755)
 
 	content := `Hook-Name: systemd
@@ -129,18 +128,18 @@ Pattern: /var/lib/systemd/click/${id}
 `
 	makeClickHook(c, content)
 
-	os.MkdirAll(path.Join(s.tempdir, "/var/lib/apparmor/click/"), 0755)
-	testSymlinkDir2 := path.Join(s.tempdir, "/var/lib/apparmor/click/")
+	os.MkdirAll(filepath.Join(s.tempdir, "/var/lib/apparmor/click/"), 0755)
+	testSymlinkDir2 := filepath.Join(s.tempdir, "/var/lib/apparmor/click/")
 	os.MkdirAll(testSymlinkDir2, 0755)
 	content = `Hook-Name: apparmor
 Pattern: /var/lib/apparmor/click/${id}
 `
 	makeClickHook(c, content)
 
-	instDir := path.Join(s.tempdir, "apps", "foo", "1.0")
+	instDir := filepath.Join(s.tempdir, "apps", "foo", "1.0")
 	os.MkdirAll(instDir, 0755)
-	ioutil.WriteFile(path.Join(instDir, "path-to-systemd-file"), []byte(""), 0644)
-	ioutil.WriteFile(path.Join(instDir, "path-to-apparmor-file"), []byte(""), 0644)
+	ioutil.WriteFile(filepath.Join(instDir, "path-to-systemd-file"), []byte(""), 0644)
+	ioutil.WriteFile(filepath.Join(instDir, "path-to-apparmor-file"), []byte(""), 0644)
 	m := &packageYaml{
 		Name:    "foo",
 		Version: "1.0",
@@ -158,14 +157,14 @@ Pattern: /var/lib/apparmor/click/${id}
 	c.Assert(err, IsNil)
 	symlinkTarget, err := filepath.EvalSymlinks(p)
 	c.Assert(err, IsNil)
-	c.Assert(symlinkTarget, Equals, path.Join(instDir, "path-to-systemd-file"))
+	c.Assert(symlinkTarget, Equals, filepath.Join(instDir, "path-to-systemd-file"))
 
 	p = fmt.Sprintf("%s/%s.%s_%s_%s", testSymlinkDir2, m.Name, testOrigin, "app", m.Version)
 	_, err = os.Stat(p)
 	c.Assert(err, IsNil)
 	symlinkTarget, err = filepath.EvalSymlinks(p)
 	c.Assert(err, IsNil)
-	c.Assert(symlinkTarget, Equals, path.Join(instDir, "path-to-apparmor-file"))
+	c.Assert(symlinkTarget, Equals, filepath.Join(instDir, "path-to-apparmor-file"))
 
 	// now ensure we can remove
 	err = removeClickHooks(m, testOrigin, false)
@@ -191,7 +190,7 @@ func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	c.Assert(err, IsNil)
 
 	// ensure we have the data dir
-	_, err = os.Stat(path.Join(s.tempdir, "var", "lib", "apps", "foo."+testOrigin, "1.0"))
+	_, err = os.Stat(filepath.Join(s.tempdir, "var", "lib", "apps", "foo."+testOrigin, "1.0"))
 	c.Assert(err, IsNil)
 
 	// ensure we have the hashes
@@ -222,7 +221,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
 	_, err := installClick(snapFile, 0, nil, testOrigin)
 	c.Assert(err, NotNil)
 
-	contentFile := path.Join(s.tempdir, "apps", fooComposedName, "1.0", "bin", "foo")
+	contentFile := filepath.Join(s.tempdir, "apps", fooComposedName, "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, NotNil)
 }
@@ -350,11 +349,11 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 		return nil, nil
 	}
 
-	targetDir := path.Join(s.tempdir, "apps")
+	targetDir := filepath.Join(s.tempdir, "apps")
 	_, err := installClick(makeTestSnapPackage(c, ""), 0, nil, testOrigin)
 	c.Assert(err, IsNil)
 
-	instDir := path.Join(targetDir, fooComposedName, "1.0")
+	instDir := filepath.Join(targetDir, fooComposedName, "1.0")
 	_, err = os.Stat(instDir)
 	c.Assert(err, IsNil)
 
@@ -386,9 +385,9 @@ vendor: Foo <foo@example.com>
 type: framework
 `)
 
-	yamlFile := path.Join(tmpdir, "meta", "package.yaml")
+	yamlFile := filepath.Join(tmpdir, "meta", "package.yaml")
 	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
-	readmeMd := path.Join(tmpdir, "meta", "readme.md")
+	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
 	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
 	m, err := parsePackageYamlData(yaml)
 	c.Assert(err, IsNil)
@@ -442,7 +441,7 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicyWeirdClickManifest(c *C) {
 	appdir := filepath.Join(s.tempdir, "apps", "hello", "1.0.1")
 	// c.Assert(removeClick(appdir, nil), IsNil)
 
-	manifestFile := path.Join(appdir, ".click", "info", "hello.manifest")
+	manifestFile := filepath.Join(appdir, ".click", "info", "hello.manifest")
 	c.Assert(ioutil.WriteFile(manifestFile, []byte(`{"name": "xyzzy","type":"framework"}`), 0644), IsNil)
 
 	c.Assert(removeClick(appdir, nil), IsNil)
@@ -457,10 +456,10 @@ vendor: Foo Bar <foo@example.com>`)
 	_, err := installClick(snapFile, AllowOEM, nil, testOrigin)
 	c.Assert(err, IsNil)
 
-	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
+	contentFile := filepath.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(path.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
+	_, err = os.Stat(filepath.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
 }
 
@@ -473,10 +472,10 @@ vendor: Foo Bar <foo@example.com>`)
 	_, err := installClick(snapFile, AllowOEM, nil, testOrigin)
 	c.Assert(err, IsNil)
 
-	contentFile := path.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
+	contentFile := filepath.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(path.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
+	_, err = os.Stat(filepath.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
 
 	// an package update
@@ -1306,7 +1305,7 @@ Pattern: /var/lib/systemd/click/${id}`, hookWasRunStamp))
 func (s *SnapTestSuite) TestInstallChecksForClashes(c *C) {
 	// creating the thing by hand (as build refuses to)...
 	tmpdir := c.MkDir()
-	os.MkdirAll(path.Join(tmpdir, "meta"), 0755)
+	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
 	yaml := []byte(`name: hello
 version: 1.0.1
 vendor: Foo <foo@example.com>
@@ -1315,9 +1314,9 @@ services:
 binaries:
  - name: foo
 `)
-	yamlFile := path.Join(tmpdir, "meta", "package.yaml")
+	yamlFile := filepath.Join(tmpdir, "meta", "package.yaml")
 	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
-	readmeMd := path.Join(tmpdir, "meta", "readme.md")
+	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
 	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
 	m, err := parsePackageYamlData(yaml)
 	c.Assert(err, IsNil)
@@ -1352,7 +1351,7 @@ func (s *SnapTestSuite) TestInstallClickHooksCallsStripRootDir(c *C) {
 Pattern: /var/lib/systemd/click/${id}
 `
 	makeClickHook(c, content)
-	os.MkdirAll(path.Join(s.tempdir, "/var/lib/systemd/click/"), 0755)
+	os.MkdirAll(filepath.Join(s.tempdir, "/var/lib/systemd/click/"), 0755)
 
 	m := &packageYaml{
 		Name:    "foo",
