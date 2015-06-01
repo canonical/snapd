@@ -1,4 +1,4 @@
-ubuntu-core-launcher (1.0.2) UNRELEASED; urgency=low
+ubuntu-core-launcher (1.0.2) wily; urgency=low
 
   [ John Lenton ]
   * lp:~chipaca/ubuntu-core-launcher/unshare:
@@ -9,7 +9,7 @@ ubuntu-core-launcher (1.0.2) UNRELEASED; urgency=low
   [ Sergio Schvezov ]
   * Allow executing from /frameworks.
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 22 May 2015 12:37:50 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 01 Jun 2015 08:17:40 +0200
 
 ubuntu-core-launcher (1.0.1) vivid; urgency=low
 
