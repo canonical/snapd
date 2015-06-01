@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -120,6 +121,10 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 		if err := os.Chown(targetDir, uid, gid); err != nil {
 			return err
 		}
+
+		// Setuid and Setgid only apply to the current Linux thread, so make
+		// sure we don't get moved.
+		runtime.LockOSThread()
 
 		// run prctl(PR_SET_NO_NEW_PRIVS)
 		rc := C.prctl_no_new_privs()
