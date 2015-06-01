@@ -1,14 +1,31 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package helpers
 
 import (
-	"fmt"
+	"compress/gzip"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
-	"strings"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -29,18 +46,25 @@ func (ts *HTestSuite) TestUnpack(c *C) {
 	// ok, slightly silly
 	path := "/etc/fstab"
 
-	// create test dir and also test file
+	// create test dir, symlink, and also test file
 	someDir := c.MkDir()
+	c.Assert(os.Symlink(path, filepath.Join(someDir, "fstab")), IsNil)
+
 	cmd := exec.Command("tar", "cvzf", tmpfile, path, someDir)
 	output, err := cmd.CombinedOutput()
 	c.Assert(err, IsNil)
-	if !strings.Contains(string(output), "/etc/fstab") {
-		c.Error("Can not find expected output from tar")
-	}
+	c.Check(string(output), Matches, `(?ms).*^/etc/fstab`,
+		Commentf("Can not find expected output from tar"))
 
 	// unpack
 	unpackdir := filepath.Join(tmpdir, "t")
-	err = unpackTar(tmpfile, unpackdir)
+	f, err := os.Open(tmpfile)
+	c.Assert(err, IsNil)
+
+	f2, err := gzip.NewReader(f)
+	c.Assert(err, IsNil)
+
+	err = UnpackTar(f2, unpackdir, nil)
 	c.Assert(err, IsNil)
 
 	// we have the expected file
@@ -55,31 +79,22 @@ func (ts *HTestSuite) TestUnpack(c *C) {
 	st2, err := os.Stat(someDir)
 	c.Assert(err, IsNil)
 	c.Assert(st1.Mode(), Equals, st2.Mode())
+
+	// and the symlink is there too
+	fn, err := os.Readlink(filepath.Join(unpackedSomeDir, "fstab"))
+	c.Check(err, IsNil)
+	c.Check(fn, Equals, "/etc/fstab")
 }
 
-func (ts *HTestSuite) TestGetMapFromValidYaml(c *C) {
-	m, err := getMapFromYaml([]byte("name: value"))
-	c.Assert(err, IsNil)
-	me := map[string]interface{}{"name": "value"}
-	if !reflect.DeepEqual(m, me) {
-		c.Error(fmt.Sprintf("Unexpected map %v != %v", m, me))
-	}
-}
-
-func (ts *HTestSuite) TestGetMapFromInvalidYaml(c *C) {
-	_, err := getMapFromYaml([]byte("%lala%"))
-	c.Assert(err, NotNil)
-}
-
-func (ts *HTestSuite) TestArchitectue(c *C) {
+func (ts *HTestSuite) TestUbuntuArchitecture(c *C) {
 	goarch = "arm"
-	c.Check(Architecture(), Equals, "armhf")
+	c.Check(UbuntuArchitecture(), Equals, "armhf")
 
 	goarch = "amd64"
-	c.Check(Architecture(), Equals, "amd64")
+	c.Check(UbuntuArchitecture(), Equals, "amd64")
 
 	goarch = "386"
-	c.Check(Architecture(), Equals, "i386")
+	c.Check(UbuntuArchitecture(), Equals, "i386")
 }
 
 func (ts *HTestSuite) TestChdir(c *C) {
@@ -117,18 +132,6 @@ func (ts *HTestSuite) TestExitCode(c *C) {
 	c.Assert(err, NotNil)
 	_, err = ExitCode(err)
 	c.Assert(err, NotNil)
-}
-
-func (ts *HTestSuite) TestEnsureDir(c *C) {
-	tempdir := c.MkDir()
-
-	target := filepath.Join(tempdir, "meep")
-	err := EnsureDir(target, 0755)
-	c.Assert(err, IsNil)
-	st, err := os.Stat(target)
-	c.Assert(err, IsNil)
-	c.Assert(st.IsDir(), Equals, true)
-	c.Assert(st.Mode(), Equals, os.ModeDir|0755)
 }
 
 func (ts *HTestSuite) TestMakeMapFromEnvList(c *C) {
@@ -254,4 +257,62 @@ func (ts *HTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
 	home, err := CurrentHomeDir()
 	c.Assert(err, IsNil)
 	c.Assert(home, Equals, oldHome)
+}
+
+func skipOnMissingDevKmsg(c *C) {
+	_, err := os.Stat("/dev/kmsg")
+	if err != nil {
+		c.Skip("Can not stat /dev/kmsg")
+	}
+}
+
+func (ts *HTestSuite) TestMajorMinorSimple(c *C) {
+	skipOnMissingDevKmsg(c)
+
+	stat, _ := os.Stat("/dev/kmsg")
+	major, minor, err := MajorMinor(stat)
+	c.Assert(err, IsNil)
+	c.Assert(major, Equals, uint32(1))
+	c.Assert(minor, Equals, uint32(11))
+}
+
+func (ts *HTestSuite) TestMajorMinorNoDevice(c *C) {
+	stat, err := os.Stat(c.MkDir())
+	c.Assert(err, IsNil)
+
+	_, _, err = MajorMinor(stat)
+	c.Assert(err, NotNil)
+}
+
+func (ts *HTestSuite) TestMakedev(c *C) {
+	// $ python -c 'import os;print(os.makedev(1,11))'
+	// 267
+	c.Assert(Makedev(1, 11), Equals, uint32(267))
+}
+
+func (ts *HTestSuite) TestUnpacksMknod(c *C) {
+	skipOnMissingDevKmsg(c)
+
+	// mknod mock
+	mknodWasCalled := false
+	mknod = func(path string, mode uint32, dev int) error {
+		mknodWasCalled = true
+		return nil
+	}
+
+	// setup tmpdir
+	tmpdir := c.MkDir()
+	tmpfile := filepath.Join(tmpdir, "device.tar")
+
+	cmd := exec.Command("tar", "cf", tmpfile, "/dev/kmsg")
+	err := cmd.Run()
+	c.Assert(err, IsNil)
+
+	f, err := os.Open(tmpfile)
+	c.Assert(err, IsNil)
+
+	err = UnpackTar(f, c.MkDir(), nil)
+	c.Assert(err, IsNil)
+	c.Assert(mknodWasCalled, Equals, true)
+
 }

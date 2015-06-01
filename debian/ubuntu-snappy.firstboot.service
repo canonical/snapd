@@ -1,0 +1,11 @@
+[Unit]
+Description=Run snappy firstboot setup
+Before=cloud-init.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/snappy firstboot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,26 +1,21 @@
-//--------------------------------------------------------------------
-// Copyright (c) 2014-2015 Canonical Ltd.
-//--------------------------------------------------------------------
-// TODO:
-//
-// - logging
-// - SNAPPY_DEBUG
-// - locking (sync.Mutex)
-//--------------------------------------------------------------------
+// -*- Mode: Go; indent-tabs-mode: t -*-
 
-//--------------------------------------------------------------------
-// This program is free software: you can redistribute it and/or modify it
-// under the terms of the GNU General Public License version 3, as published
-// by the Free Software Foundation.
-//
-// This program is distributed in the hope that it will be useful, but
-// WITHOUT ANY WARRANTY; without even the implied warranties of
-// MERCHANTABILITY, SATISFACTORY QUALITY, or FITNESS FOR A PARTICULAR
-// PURPOSE.  See the GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License along
-// with this program.  If not, see <http://www.gnu.org/licenses/>.
-//--------------------------------------------------------------------
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
 
 // Package partition manipulate snappy disk partitions
 package partition
@@ -31,15 +26,16 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
-	"path"
+	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"syscall"
 
 	"gopkg.in/yaml.v2"
-)
 
-var debug = false
+	"launchpad.net/snappy/logger"
+)
 
 var signalHandlerRegistered = false
 
@@ -109,17 +105,6 @@ const assetsDir = "assets"
 // to the disk (such as uBoot, MLO)
 const flashAssetsDir = "flashtool-assets"
 
-//--------------------------------------------------------------------
-// FIXME: Globals
-
-// list of current mounts that this module has created
-var mounts []string
-
-// list of current bindmounts this module has created
-var bindMounts []string
-
-//--------------------------------------------------------------------
-
 // MountOption represents how the partition should be mounted, currently
 // RO (read-only) and RW (read-write) are supported
 type MountOption int
@@ -144,6 +129,24 @@ type Interface interface {
 	// run the function f with the otherRoot mounted
 	RunWithOther(rw MountOption, f func(otherRoot string) (err error)) (err error)
 }
+
+// mountEntry represents a mount this package has created.
+type mountEntry struct {
+	source string
+	target string
+
+	options string
+
+	// true if target refers to a bind mount. We could derive this
+	// from options, but this field saves the effort.
+	bindMount bool
+}
+
+// mountEntryArray represents an array of mountEntry objects.
+type mountEntryArray []mountEntry
+
+// current mounts that this package has created.
+var mounts mountEntryArray
 
 // Partition is the type to interact with the partition
 type Partition struct {
@@ -180,34 +183,74 @@ type hardwareSpecType struct {
 	Bootloader      bootloaderName `yaml:"bootloader"`
 }
 
-func init() {
-	if os.Getenv("SNAPPY_DEBUG") != "" {
-		debug = true
+// Len is part of the sort interface, required to allow sort to work
+// with an array of Mount objects.
+func (mounts mountEntryArray) Len() int {
+	return len(mounts)
+}
+
+// Less is part of the sort interface, required to allow sort to work
+// with an array of Mount objects.
+func (mounts mountEntryArray) Less(i, j int) bool {
+	return mounts[i].target < mounts[j].target
+}
+
+// Swap is part of the sort interface, required to allow sort to work
+// with an array of Mount objects.
+func (mounts mountEntryArray) Swap(i, j int) {
+	mounts[i], mounts[j] = mounts[j], mounts[i]
+}
+
+// removeMountByTarget removes the Mount specified by the target from
+// the global mounts array.
+func removeMountByTarget(mnts mountEntryArray, target string) (results mountEntryArray) {
+
+	for _, m := range mnts {
+		if m.target != target {
+			results = append(results, m)
+		}
 	}
 
+	return results
+}
+
+func init() {
 	if !signalHandlerRegistered {
 		setupSignalHandler()
 		signalHandlerRegistered = true
 	}
 }
 
-func undoMounts(mounts []string) (err error) {
+// undoMounts unmounts all mounts this package has mounted optionally
+// only unmounting bind mounts and leaving all remaining mounts.
+func undoMounts(bindMountsOnly bool) error {
+
+	mountsCopy := make(mountEntryArray, len(mounts), cap(mounts))
+	copy(mountsCopy, mounts)
+
+	// reverse sort to ensure unmounts are handled in the correct
+	// order.
+	sort.Sort(sort.Reverse(mountsCopy))
+
 	// Iterate backwards since we want a reverse-sorted list of
 	// mounts to ensure we can unmount in order.
-	for i := range mounts {
-		if err := unmountAndRemoveFromGlobalMountList(mounts[len(mounts)-i-1]); err != nil {
+	for _, mount := range mountsCopy {
+		if bindMountsOnly && !mount.bindMount {
+			continue
+		}
+
+		if err := unmountAndRemoveFromGlobalMountList(mount.target); err != nil {
 			return err
 		}
 	}
 
-	return err
+	return nil
 }
 
 func signalHandler(sig os.Signal) {
-	err := undoMounts(mounts)
+	err := undoMounts(false)
 	if err != nil {
-		// FIXME: use logger
-		fmt.Fprintf(os.Stderr, "ERROR: failed to unmount: %s", err)
+		logger.Noticef("Failed to unmount: %v", err)
 	}
 }
 
@@ -258,45 +301,31 @@ func mount(source, target, options string) (err error) {
 	return runCommand(args...)
 }
 
-// Mount the given directory and add it to the "mounts" slice
-func mountAndAddToGlobalMountList(source, target, options string) (err error) {
-	err = mount(source, target, options)
+// Mount the given directory and add it to the global mounts slice
+func mountAndAddToGlobalMountList(m mountEntry) (err error) {
+
+	err = mount(m.source, m.target, m.options)
 	if err == nil {
-		mounts = append(mounts, target)
+		mounts = append(mounts, m)
 	}
 
 	return err
 }
 
-// Remove the given string from the string slice
-func stringSliceRemove(slice []string, needle string) (res []string) {
-	// FIXME: so this is golang slice remove?!?! really?
-	if pos := stringInSlice(slice, needle); pos >= 0 {
-		slice = append(slice[:pos], slice[pos+1:]...)
-	}
-	return slice
-}
-
-// FIXME: would it make sense to rename to something like
-//         "UmountAndRemoveFromMountList" to indicate it has side-effects?
 // Unmount the given directory and remove it from the global "mounts" slice
 func unmountAndRemoveFromGlobalMountList(target string) (err error) {
 	err = runCommand("/bin/umount", target)
-	if err == nil {
-		mounts = stringSliceRemove(mounts, target)
+	if err != nil {
+		return err
+
 	}
 
-	return err
-}
+	results := removeMountByTarget(mounts, target)
 
-func bindmountAndAddToGlobalMountList(source, target string) (err error) {
-	err = mountAndAddToGlobalMountList(source, target, "bind")
+	// Update global
+	mounts = results
 
-	if err == nil {
-		bindMounts = append(bindMounts, target)
-	}
-
-	return err
+	return nil
 }
 
 // Run fsck(8) on specified device.
@@ -410,9 +439,12 @@ func loadPartitionDetails() (partitions []blockDevice, err error) {
 	return partitions, nil
 }
 
-func (p *Partition) makeMountPoint() (err error) {
+var makeDirectory = func(path string, mode os.FileMode) error {
+	return os.MkdirAll(path, mode)
+}
 
-	return os.MkdirAll(p.MountTarget(), dirMode)
+func (p *Partition) makeMountPoint() (err error) {
+	return makeDirectory(p.MountTarget(), dirMode)
 }
 
 // New creates a new partition type
@@ -420,7 +452,7 @@ func New() *Partition {
 	p := new(Partition)
 
 	p.getPartitionDetails()
-	p.hardwareSpecFile = path.Join(p.cacheDir(), hardwareSpecFile)
+	p.hardwareSpecFile = filepath.Join(p.cacheDir(), hardwareSpecFile)
 
 	return p
 }
@@ -534,17 +566,17 @@ func (p *Partition) hardwareSpec() (hardwareSpecType, error) {
 
 // Return full path to the main assets directory
 func (p *Partition) assetsDir() string {
-	return path.Join(p.cacheDir(), assetsDir)
+	return filepath.Join(p.cacheDir(), assetsDir)
 }
 
 // Return the full path to the hardware-specific flash assets directory.
 func (p *Partition) flashAssetsDir() string {
-	return path.Join(p.cacheDir(), flashAssetsDir)
+	return filepath.Join(p.cacheDir(), flashAssetsDir)
 }
 
 // MountTarget gets the full path to the mount target directory
 func (p *Partition) MountTarget() string {
-	return path.Join(p.cacheDir(), mountTarget)
+	return filepath.Join(p.cacheDir(), mountTarget)
 }
 
 func (p *Partition) getPartitionDetails() (err error) {
@@ -644,17 +676,29 @@ func (p *Partition) mountOtherRootfs(readOnly bool) (err error) {
 
 	other = p.otherRootPartition()
 
+	m := mountEntry{source: other.device, target: p.MountTarget()}
+
 	if readOnly {
-		err = mountAndAddToGlobalMountList(other.device, p.MountTarget(), "ro")
+		m.options = "ro"
+		err = mountAndAddToGlobalMountList(m)
 	} else {
-		err = fsck(other.device)
+		err = fsck(m.source)
 		if err != nil {
 			return err
 		}
-		err = mountAndAddToGlobalMountList(other.device, p.MountTarget(), "")
+		err = mountAndAddToGlobalMountList(m)
 	}
 
 	return err
+}
+
+// Create a read-only bindmount of the currently-mounted rootfs at the
+// specified mountpoint location (which must already exist).
+func (p *Partition) bindmountThisRootfsRO(target string) (err error) {
+	return mountAndAddToGlobalMountList(mountEntry{source: "/",
+		target:    target,
+		options:   "bind,ro",
+		bindMount: true})
 }
 
 // Ensure the other partition is mounted read-only.
@@ -691,7 +735,9 @@ func (p *Partition) remountOther(option MountOption) (err error) {
 			return err
 		}
 
-		return mount(other.device, p.MountTarget(), "")
+		return mountAndAddToGlobalMountList(mountEntry{
+			source: other.device,
+			target: p.MountTarget()})
 	}
 	// r/w -> r/o: no fsck required.
 	return mount(other.device, p.MountTarget(), "remount,ro")
@@ -723,20 +769,38 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	}
 
 	for _, fs := range requiredChrootMounts {
-		target := path.Join(p.MountTarget(), fs)
+		target := filepath.Join(p.MountTarget(), fs)
 
-		err := bindmountAndAddToGlobalMountList(fs, target)
+		err := mountAndAddToGlobalMountList(mountEntry{source: fs,
+			target:    target,
+			options:   "bind",
+			bindMount: true})
 		if err != nil {
 			return err
 		}
 	}
 
-	return nil
+	// Grub also requires access to both rootfs's when run from
+	// within a chroot (to allow it to create menu entries for
+	// both), so bindmount the real rootfs.
+	targetInChroot := filepath.Join(p.MountTarget(), p.MountTarget())
+
+	// FIXME: we should really remove this after the unmount
+
+	if err = makeDirectory(targetInChroot, dirMode); err != nil {
+		return err
+	}
+
+	return p.bindmountThisRootfsRO(targetInChroot)
 }
 
 // Undo the effects of BindmountRequiredFilesystems()
 func (p *Partition) unmountRequiredFilesystems() (err error) {
-	return undoMounts(bindMounts)
+	if err = undoMounts(true); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *Partition) toggleBootloaderRootfs() (err error) {

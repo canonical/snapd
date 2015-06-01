@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
@@ -94,7 +113,9 @@ func (s *SITestSuite) TestTestInstalled(c *C) {
 	c.Assert(err, IsNil)
 	// we have one active and one inactive
 	c.Assert(parts, HasLen, 2)
-	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
+	c.Assert(parts[0].Name(), Equals, systemImagePartName)
+	c.Assert(parts[0].Origin(), Equals, systemImagePartOrigin)
+	c.Assert(parts[0].Vendor(), Equals, systemImagePartVendor)
 	c.Assert(parts[0].Version(), Equals, "1")
 	c.Assert(parts[0].Hash(), Equals, "e09c13f68fccef3b2fe0f5c8ff5c61acf2173b170b1f2a3646487147690b0970ef6f2c555d7bcb072035f29ee4ea66a6df7f6bb320d358d3a7d78a0c37a8a549")
 	c.Assert(parts[0].IsActive(), Equals, true)
@@ -161,7 +182,7 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 
 	pb := &MockProgressMeter{}
 	// do the install
-	err = sp.Install(pb)
+	_, err = sp.Install(pb, 0)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 	c.Assert(pb.total, Equals, 100.0)
@@ -189,7 +210,7 @@ printf '{"type": "error", "msg": "some error msg"}\n'
 
 	pb := &MockProgressMeter{}
 	// do the install
-	err = sp.Install(pb)
+	_, err = sp.Install(pb, 0)
 	c.Assert(strings.HasSuffix(err.Error(), "some error msg"), Equals, true)
 }
 
@@ -210,7 +231,7 @@ exit 1
 	sp.partition = &mockPartition
 
 	// do the install and pretend something goes wrong
-	err = sp.Install(nil)
+	_, err = sp.Install(nil, 0)
 
 	//
 	c.Assert(err.Error(), Equals, fmt.Sprintf("%s failed with return code 1: random\nerror string", systemImageCli))
@@ -225,7 +246,7 @@ func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.Install(nil)
+	_, err = sp.Install(nil, 0)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 }
@@ -238,7 +259,7 @@ func (s *SITestSuite) TestSystemImagePartSetActiveAlreadyActive(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.SetActive()
+	err = sp.SetActive(nil)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, false)
 }
@@ -251,7 +272,7 @@ func (s *SITestSuite) TestSystemImagePartSetActiveMakeActive(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.SetActive()
+	err = sp.SetActive(nil)
 	c.Assert(err, IsNil)
 	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
 }
@@ -281,7 +302,37 @@ func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedFailure(c *C) {
 	part := parts[0].(*SystemImagePart)
 	err = part.verifyUpgradeWasApplied()
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, `found latest installed version "1" (expected "2")`)
+	_, isErrUpgradeVerificationFailed := err.(*ErrUpgradeVerificationFailed)
+	c.Assert(isErrUpgradeVerificationFailed, Equals, true)
+	c.Assert(err.Error(), Equals, `upgrade verification failed: found "1" but expected "2"`)
+}
+
+func (s *SITestSuite) TestOtherIsEmpty(c *C) {
+	otherRoot := "/other"
+	otherRootFull := filepath.Join(systemImageRoot, otherRoot)
+
+	siConfig := filepath.Join(otherRootFull, "etc/system-image/channel.ini")
+
+	// the tests create si-config files for "current" and "other"
+	c.Assert(otherIsEmpty(otherRoot), Equals, false)
+
+	// make the siConfig zero bytes (as is done by the upgrader when
+	// first populating "other" to denote that the update is in
+	// progress.
+	err := ioutil.WriteFile(siConfig, []byte(""), 0640)
+	c.Assert(err, IsNil)
+	c.Assert(otherIsEmpty(otherRoot), Equals, true)
+
+	err = ioutil.WriteFile(siConfig, []byte("\n"), 0640)
+	c.Assert(err, IsNil)
+	c.Assert(otherIsEmpty(otherRoot), Equals, false)
+
+	err = ioutil.WriteFile(siConfig, []byte("foo"), 0640)
+	c.Assert(err, IsNil)
+	c.Assert(otherIsEmpty(otherRoot), Equals, false)
+
+	os.Remove(siConfig)
+	c.Assert(otherIsEmpty(otherRoot), Equals, true)
 }
 
 func (s *SITestSuite) TestCannotUninstall(c *C) {
@@ -290,5 +341,64 @@ func (s *SITestSuite) TestCannotUninstall(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 2)
 
-	c.Assert(parts[0].Uninstall(), Equals, ErrPackageNotRemovable)
+	c.Assert(parts[0].Uninstall(nil), Equals, ErrPackageNotRemovable)
+}
+
+func (s *SITestSuite) TestFrameworks(c *C) {
+	parts, err := s.systemImage.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(parts, HasLen, 2)
+	fmks, err := parts[0].Frameworks()
+	c.Assert(err, IsNil)
+	c.Check(fmks, HasLen, 0)
+}
+
+func (s *SITestSuite) TestOrigin(c *C) {
+	parts, err := s.systemImage.Installed()
+	c.Assert(err, IsNil)
+	c.Assert(parts, HasLen, 2)
+	c.Assert(parts[0].Origin(), Equals, systemImagePartOrigin)
+	c.Assert(parts[1].Origin(), Equals, systemImagePartOrigin)
+}
+
+func (s *SITestSuite) TestCannotUpdateIfSideLoaded(c *C) {
+	parts, err := s.systemImage.Updates()
+
+	sp := parts[0].(*SystemImagePart)
+	mockPartition := MockPartition{}
+	sp.partition = &mockPartition
+
+	sideLoaded := filepath.Join(systemImageRoot, "/boot/.sideloaded")
+
+	err = os.MkdirAll(filepath.Dir(sideLoaded), 0775)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(sideLoaded, []byte(""), 0640)
+	c.Assert(err, IsNil)
+
+	pb := &MockProgressMeter{}
+	// do the install
+	_, err = sp.Install(pb, 0)
+	c.Assert(err, Equals, ErrSideLoaded)
+}
+
+func (s *SITestSuite) TestSideLoadedSystem(c *C) {
+
+	c.Assert(sideLoadedSystem(), Equals, false)
+
+	sideLoaded := filepath.Join(systemImageRoot, sideLoadedMarkerFile)
+
+	err := os.MkdirAll(filepath.Dir(sideLoaded), 0775)
+	c.Assert(err, IsNil)
+
+	c.Assert(sideLoadedSystem(), Equals, false)
+
+	err = ioutil.WriteFile(sideLoaded, []byte(""), 0640)
+	c.Assert(err, IsNil)
+
+	c.Assert(sideLoadedSystem(), Equals, true)
+
+	os.Remove(sideLoaded)
+
+	c.Assert(sideLoadedSystem(), Equals, false)
 }

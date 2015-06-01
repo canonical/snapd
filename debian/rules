@@ -9,14 +9,46 @@ export DH_GOPKG := launchpad.net/snappy
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd
 
 override_dh_systemd_enable:
-	# disabled for now because there is a "boot-ok" service in the python
-	# snappy implementation as well
-	#dh_systemd_enable ubuntu-core-snappy.boot-ok.service
+	# enable boot-ok
+	dh_systemd_enable \
+		-pubuntu-snappy \
+		ubuntu-snappy.boot-ok.service
+	# enable the compat hooks for click
+	dh_systemd_enable \
+		-pubuntu-snappy \
+		ubuntu-snappy.run-hooks.service
+	# enable the first boot service
+	dh_systemd_enable \
+		-pubuntu-snappy \
+		ubuntu-snappy.firstboot.service
+# we want the autopilot timer enabled by default
+	dh_systemd_enable \
+		-pubuntu-snappy \
+		snappy-autopilot.timer
+	# but the autopilot service disabled
+	dh_systemd_enable \
+		--no-enable \
+		-pubuntu-snappy \
+		snappy-autopilot.service
 
-	# we want autopilot disabled by default for now
-	# it is explicitly listed here so it's not enabled
-	# by mistake.
-	# dh_systemd_enable snappy-autopilot.timer
+override_dh_systemd_start:
+	# start boot-ok
+	dh_systemd_start \
+		-pubuntu-snappy \
+		ubuntu-snappy.boot-ok.service
+	# start run-hooks
+	dh_systemd_start \
+		-pubuntu-snappy \
+		ubuntu-snappy.run-hooks.service
+# we want to start the autopilot timer
+	dh_systemd_start \
+		-pubuntu-snappy \
+		snappy-autopilot.timer
+	# but not start the service
+	dh_systemd_start \
+		--no-start \
+		-pubuntu-snappy \
+		snappy-autopilot.service
 
 override_dh_auto_install:
 	dh_auto_install -O--buildsystem=golang

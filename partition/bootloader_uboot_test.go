@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package partition
 
 import (
@@ -9,6 +28,8 @@ import (
 	. "launchpad.net/gocheck"
 	"launchpad.net/snappy/helpers"
 )
+
+// TODO move to uboot specific test suite.
 
 const fakeUbootEnvData = `
 # This is a snappy variables and boot logic file and is entirely generated and
@@ -34,7 +55,7 @@ snappy_ab=a
 # stamp file indicating a new version is being tried; removed by s-i after boot
 snappy_stamp=snappy-stamp.txt
 # either "regular" (normal boot) or "try" when trying a new version
-snappy_mode=default
+snappy_mode=regular
 # if we're trying a new version, check if stamp file is already there to revert
 # to other version
 snappy_boot=if test "${snappy_mode}" = "try"; then if test -e mmc ${bootpart} ${snappy_stamp}; then if test "${snappy_ab}" = "a"; then setenv snappy_ab "b"; else setenv snappy_ab "a"; fi; else fatwrite mmc ${mmcdev}:${mmcpart} 0x0 ${snappy_stamp} 0; fi; fi; run loadfiles; setenv mmcroot /dev/disk/by-label/system-${snappy_ab} ${snappy_cmdline}; run mmcargs; bootz ${loadaddr} ${initrd_addr}:${initrd_size} ${fdtaddr}
@@ -120,7 +141,7 @@ func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
 
 	v, err := u.GetBootVar(bootloaderBootmodeVar)
 	c.Assert(err, IsNil)
-	c.Assert(v, Equals, "default")
+	c.Assert(v, Equals, "regular")
 
 	v, err = u.GetBootVar(bootloaderRootfsVar)
 	c.Assert(err, IsNil)
@@ -229,4 +250,83 @@ bootloader u-boot
 	defaultCacheDir = c.MkDir()
 
 	c.Assert(bootloader.HandleAssets(), NotNil)
+}
+
+func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	// To simulate what uboot does for a "try" mode boot, create a
+	// stamp file. uboot will expect this file to be removed by
+	// "snappy booted" if the system boots successfully. If this
+	// file exists when uboot starts, it will know that the previous
+	// boot failed, and will therefore toggle to the other rootfs.
+	err := ioutil.WriteFile(bootloaderUbootStampFile, []byte(""), 0640)
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(bootloaderUbootStampFile), Equals, true)
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	// enter "try" mode so that we check to ensure that snappy
+	// correctly modifies the snappy_mode variable from "try" to
+	// "regular" to denote a good boot.
+	err = u.ToggleRootFS()
+	c.Assert(err, IsNil)
+
+	c.Assert(helpers.FileExists(bootloaderUbootEnvFile), Equals, true)
+	bytes, err := ioutil.ReadFile(bootloaderUbootEnvFile)
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, true)
+	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, false)
+	c.Assert(strings.Contains(string(bytes), "snappy_ab=b"), Equals, true)
+
+	err = u.MarkCurrentBootSuccessful()
+	c.Assert(err, IsNil)
+
+	c.Assert(helpers.FileExists(bootloaderUbootStampFile), Equals, false)
+	c.Assert(helpers.FileExists(bootloaderUbootEnvFile), Equals, true)
+
+	bytes, err = ioutil.ReadFile(bootloaderUbootEnvFile)
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, false)
+	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
+	c.Assert(strings.Contains(string(bytes), "snappy_ab=a"), Equals, true)
+}
+
+func (s *PartitionTestSuite) TestNoWriteNotNeeded(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	atomiCall := false
+	atomicFileUpdate = func(a string, b []string) error { atomiCall = true; return atomicFileUpdateImpl(a, b) }
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	c.Check(u.MarkCurrentBootSuccessful(), IsNil)
+	c.Assert(atomiCall, Equals, false)
+}
+
+func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	// this file needs specific data
+	c.Assert(ioutil.WriteFile(bootloaderUbootEnvFile, []byte(""), 0644), IsNil)
+
+	atomiCall := false
+	atomicFileUpdate = func(a string, b []string) error { atomiCall = true; return atomicFileUpdateImpl(a, b) }
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	c.Check(u.MarkCurrentBootSuccessful(), IsNil)
+	c.Assert(atomiCall, Equals, true)
+
+	bytes, err := ioutil.ReadFile(bootloaderUbootEnvFile)
+	c.Assert(err, IsNil)
+	c.Check(strings.Contains(string(bytes), "snappy_mode=try"), Equals, false)
+	c.Check(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
+	c.Check(strings.Contains(string(bytes), "snappy_ab=a"), Equals, true)
 }

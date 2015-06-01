@@ -1,10 +1,30 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"launchpad.net/snappy/logger"
 )
 
 const (
@@ -130,11 +150,11 @@ func compareSubversion(va, vb string) int {
 //   +1 if a is bigger than b
 func VersionCompare(va, vb string) (res int) {
 	if !VersionIsValid(va) {
-		log.Printf("Invalid version '%s', using '0' instead. Expect wrong results", va)
+		logger.Noticef("Invalid version %q, using '0' instead. Expect wrong results", va)
 		va = "0"
 	}
 	if !VersionIsValid(vb) {
-		log.Printf("Invalid version '%s', using '0' instead. Expect wrong results", vb)
+		logger.Noticef("Invalid version %q, using '0' instead. Expect wrong results", vb)
 		vb = "0"
 	}
 
@@ -169,5 +189,18 @@ func (bv ByVersion) Swap(a, b int) {
 	bv[a], bv[b] = bv[b], bv[a]
 }
 func (bv ByVersion) Len() int {
+	return len(bv)
+}
+
+// BySnapVersion provides a sort interface
+type BySnapVersion []Part
+
+func (bv BySnapVersion) Less(a, b int) bool {
+	return (VersionCompare(bv[a].Version(), bv[b].Version()) < 0)
+}
+func (bv BySnapVersion) Swap(a, b int) {
+	bv[a], bv[b] = bv[b], bv[a]
+}
+func (bv BySnapVersion) Len() int {
 	return len(bv)
 }

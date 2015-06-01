@@ -1,6 +1,21 @@
-//--------------------------------------------------------------------
-// Copyright (c) 2014-2015 Canonical Ltd.
-//--------------------------------------------------------------------
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
 
 package partition
 
@@ -17,20 +32,20 @@ const (
 	bootloaderGrubConfigFileReal = "/boot/grub/grub.cfg"
 	bootloaderGrubEnvFileReal    = "/boot/grub/grubenv"
 
-	bootloaderGrubEnvCmdReal     = "/usr/bin/grub-editenv"
-	bootloaderGrubInstallCmdReal = "/usr/sbin/grub-install"
-	bootloaderGrubUpdateCmdReal  = "/usr/sbin/update-grub"
+	bootloaderGrubEnvCmdReal       = "/usr/bin/grub-editenv"
+	bootloaderGrubUpdateCmdReal    = "/usr/sbin/update-grub"
+	bootloaderGrubTrialBootVarReal = "snappy_trial_boot"
 )
 
 // var to make it testable
 var (
-	bootloaderGrubDir        = bootloaderGrubDirReal
-	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
-	bootloaderGrubEnvFile    = bootloaderGrubEnvFileReal
+	bootloaderGrubDir          = bootloaderGrubDirReal
+	bootloaderGrubConfigFile   = bootloaderGrubConfigFileReal
+	bootloaderGrubTrialBootVar = bootloaderGrubTrialBootVarReal
+	bootloaderGrubEnvFile      = bootloaderGrubEnvFileReal
 
-	bootloaderGrubEnvCmd     = bootloaderGrubEnvCmdReal
-	bootloaderGrubInstallCmd = bootloaderGrubInstallCmdReal
-	bootloaderGrubUpdateCmd  = bootloaderGrubUpdateCmdReal
+	bootloaderGrubEnvCmd    = bootloaderGrubEnvCmdReal
+	bootloaderGrubUpdateCmd = bootloaderGrubUpdateCmdReal
 )
 
 type grub struct {
@@ -41,7 +56,7 @@ const bootloaderNameGrub bootloaderName = "grub"
 
 // newGrub create a new Grub bootloader object
 func newGrub(partition *Partition) bootLoader {
-	if !helpers.FileExists(bootloaderGrubConfigFile) || !helpers.FileExists(bootloaderGrubInstallCmd) {
+	if !helpers.FileExists(bootloaderGrubConfigFile) || !helpers.FileExists(bootloaderGrubUpdateCmd) {
 		return nil
 	}
 	b := newBootLoader(partition)
@@ -61,17 +76,8 @@ func (g *grub) Name() bootloaderName {
 //
 // Approach:
 //
-// Re-install grub each time the rootfs is toggled by running
-// grub-install chrooted into the other rootfs. Also update the grub
-// configuration.
+// Update the grub configuration.
 func (g *grub) ToggleRootFS() (err error) {
-
-	other := g.partition.otherRootPartition()
-
-	// install grub
-	if err := runInChroot(g.partition.MountTarget(), bootloaderGrubInstallCmd, other.parentName); err != nil {
-		return err
-	}
 
 	// create the grub config
 	if err := runInChroot(g.partition.MountTarget(), bootloaderGrubUpdateCmd); err != nil {
@@ -113,6 +119,10 @@ func (g *grub) setBootVar(name, value string) (err error) {
 	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", arg)
 }
 
+func (g *grub) unsetBootVar(name string) (err error) {
+	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "unset", name)
+}
+
 func (g *grub) GetNextBootRootFSName() (label string, err error) {
 	return g.GetBootVar(bootloaderRootfsVar)
 }
@@ -126,6 +136,16 @@ func (g *grub) GetOtherRootFSName() string {
 }
 
 func (g *grub) MarkCurrentBootSuccessful() (err error) {
+	// Clear the variable set by grub on boot to denote a good
+	// boot.
+	if err := g.unsetBootVar(bootloaderGrubTrialBootVar); err != nil {
+		return err
+	}
+
+	if err := g.setBootVar(bootloaderRootfsVar, g.currentRootfs); err != nil {
+		return err
+	}
+
 	return g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
 }
 

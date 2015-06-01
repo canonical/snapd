@@ -1,23 +1,37 @@
-//--------------------------------------------------------------------
-// Copyright (c) 2014-2015 Canonical Ltd.
-//--------------------------------------------------------------------
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
 
 package partition
 
 const (
 	// bootloader variable used to denote which rootfs to boot from
-	// FIXME: preferred new name
-	// BOOTLOADER_UBOOT_ROOTFS_VAR = "snappy_rootfs_label"
 	bootloaderRootfsVar = "snappy_ab"
 
 	// bootloader variable used to determine if boot was successful.
-	// Set to 'try' initially, and then changed to 'regular' by the
-	// system when the boot reaches the required sequence point.
+	// Set to value of either bootloaderBootmodeTry (when attempting
+	// to boot a new rootfs) or bootloaderBootmodeSuccess (to denote
+	// that the boot of the new rootfs was successful).
 	bootloaderBootmodeVar = "snappy_mode"
 
 	// Initial and final values
 	bootloaderBootmodeTry     = "try"
-	bootloaderBootmodeSuccess = "default"
+	bootloaderBootmodeSuccess = "regular"
 
 	// textual description in hardware.yaml for AB systems
 	bootloaderSystemAB = "system-AB"

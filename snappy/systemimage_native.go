@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
@@ -16,6 +35,7 @@ import (
 	"github.com/mvo5/goconfigparser"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/progress"
 )
 
 var systemImageServer = "https://system-image.ubuntu.com/"
@@ -99,15 +119,15 @@ type genericJSON struct {
 	Total   float64 `json:"total, omitempty"`
 }
 
-func parseSIProgress(pb ProgressMeter, stdout io.Reader) error {
+func parseSIProgress(pb progress.Meter, stdout io.Reader) error {
 	if pb == nil {
-		pb = &NullProgress{}
+		pb = &progress.NullProgress{}
 	}
 
 	scanner := bufio.NewScanner(stdout)
 	// s-i is funny, total changes during the runs
 	total := 0.0
-	pb.Start(100)
+	pb.Start("ubuntu-core", 100)
 
 	for scanner.Scan() {
 		if os.Getenv("SNAPPY_DEBUG") != "" {
@@ -146,7 +166,7 @@ func parseSIProgress(pb ProgressMeter, stdout io.Reader) error {
 	return nil
 }
 
-func systemImageDownloadUpdate(configFile string, pb ProgressMeter) (err error) {
+func systemImageDownloadUpdate(configFile string, pb progress.Meter) (err error) {
 	cmd := exec.Command(systemImageCli, "--progress", "json", "-C", configFile)
 
 	// collect progress over stdout pipe if we want progress

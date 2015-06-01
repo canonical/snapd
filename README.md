@@ -44,16 +44,17 @@ the `-d` flag. More details on the `go get` flags are available using
     go help get
 
 At this point you will have the git local repository of the `snappy` source at
-`$GOPATH/launchpad.net/snappy/snappy-go`. The source for any
+`$GOPATH/launchpad.net/snappy/snappy`. The source for any
 dependent packages will also be available inside `$GOPATH`.
 
 ### Building
 
 To build, once the sources are available and `GOPATH` is set, you can just run
 
-    go build launchpad.net/snappy/cmd/snappy-go
+    go build -o /tmp/snappy launchpad.net/snappy/cmd/snappy
 
-to get the `snappy` binary in your current working directory or
+to get the `snappy` binary in /tmp (or without -o to get it in the current
+working directory). Alternatively:
 
     go install launchpad.net/snappy/...
 
@@ -86,6 +87,15 @@ To run the various tests that we have to ensure a high quality source just run:
 This will check if the source format is consistent, that it build, all tests
 work as expected and that "go vet" and "golint" have nothing to complain.
 
+You can run individual test with:
+
+    go test -gocheck.f $testname
+
+If a test hangs, you can enable verbose mode:
+
+   go test -v -gocheck.vv
+
+(or -gocheck.v for less verbose output).
 
 ### Dependencies handling
 

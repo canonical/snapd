@@ -1,34 +1,70 @@
-//--------------------------------------------------------------------
-// Copyright (c) 2014-2015 Canonical Ltd.
-//--------------------------------------------------------------------
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
 
 package snappy
 
 import (
 	"crypto/sha512"
 	"encoding/hex"
-	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"launchpad.net/snappy/coreconfig"
-	partition "launchpad.net/snappy/partition"
-
 	"github.com/mvo5/goconfigparser"
+
+	"launchpad.net/snappy/coreconfig"
+	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/pkg"
+	"launchpad.net/snappy/progress"
 )
 
 const (
-	systemImagePartName = "ubuntu-core"
+	systemImagePartName   = "ubuntu-core"
+	systemImagePartOrigin = "ubuntu"
+	systemImagePartVendor = "Canonical Ltd."
 
-	// location of the channel config on the filesystem
+	// location of the channel config on the filesystem.
+	//
+	// This file specifies the s-i version installed on the rootfs
+	// and hence s-i updates this file on every update applied to
+	// the rootfs (by unpacking file "version-$version.tar.xz").
 	systemImageChannelConfig = "/etc/system-image/channel.ini"
 
-	// the location for the ReloadConfig
+	// location of the client config.
+	//
+	// The full path to this file needs to be passed to
+	// systemImageCli when querying a different rootfs.
 	systemImageClientConfig = "/etc/system-image/config.d"
+
+	// Full path to file, which if present, marks the system as
+	// having been "sideloaded", in other words having been created
+	// like this:
+	//
+	// "ubuntu-device-flash --device-part=unofficial-assets.tar.xz ..."
+	//
+	// Sideloaded systems cannot be safely upgraded since there are
+	// no device-part updates on the system-image server.
+	sideLoadedMarkerFile = "/boot/.sideloaded"
 )
 
 var (
@@ -61,14 +97,24 @@ type SystemImagePart struct {
 	partition partition.Interface
 }
 
-// Type returns SnapTypeCore for this snap
-func (s *SystemImagePart) Type() SnapType {
-	return SnapTypeCore
+// Type returns pkg.TypeCore for this snap
+func (s *SystemImagePart) Type() pkg.Type {
+	return pkg.TypeCore
 }
 
 // Name returns the name
 func (s *SystemImagePart) Name() string {
 	return systemImagePartName
+}
+
+// Origin returns the origin ("ubuntu")
+func (s *SystemImagePart) Origin() string {
+	return systemImagePartOrigin
+}
+
+// Vendor returns the vendor ("Canonical Ltd.")
+func (s *SystemImagePart) Vendor() string {
+	return systemImagePartVendor
 }
 
 // Version returns the version
@@ -116,7 +162,7 @@ func (s *SystemImagePart) Date() time.Time {
 }
 
 // SetActive sets the snap active
-func (s *SystemImagePart) SetActive() (err error) {
+func (s *SystemImagePart) SetActive(pb progress.Meter) (err error) {
 	isNextBootOther := s.partition.IsNextBootOther()
 	// active and no switch scheduled -> nothing to do
 	if s.IsActive() && !isNextBootOther {
@@ -130,8 +176,19 @@ func (s *SystemImagePart) SetActive() (err error) {
 	return s.partition.ToggleNextBoot()
 }
 
+// sideLoadedSystem determines if the system was installed using a
+// custom enablement part.
+func sideLoadedSystem() bool {
+	path := filepath.Join(systemImageRoot, sideLoadedMarkerFile)
+	return helpers.FileExists(path)
+}
+
 // Install installs the snap
-func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
+func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
+	if sideLoadedSystem() {
+		return "", ErrSideLoaded
+	}
+
 	if pb != nil {
 		// ensure the progress finishes when we are done
 		defer func() {
@@ -143,30 +200,36 @@ func (s *SystemImagePart) Install(pb ProgressMeter) (err error) {
 	// if the update does not provide new versions.
 	err = s.partition.SyncBootloaderFiles()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// find out what config file to use, the other partition may be
 	// empty so we need to fallback to the current one if it is
 	config := systemImageClientConfig
 	err = s.partition.RunWithOther(partition.RO, func(otherRoot string) (err error) {
-		otherConfig := filepath.Join(systemImageRoot, otherRoot, systemImageClientConfig)
-		if _, err := os.Stat(otherConfig); err == nil {
-			config = otherConfig
+		// XXX: Note that systemImageDownloadUpdate() requires
+		// the s-i _client_ config file whereas otherIsEmpty()
+		// checks the s-i _channel_ config file.
+		otherConfigFile := filepath.Join(systemImageRoot, otherRoot, systemImageClientConfig)
+		if !otherIsEmpty(otherRoot) && helpers.FileExists(otherConfigFile) {
+			config = otherConfigFile
 		}
 
 		return systemImageDownloadUpdate(config, pb)
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Check that the final system state is as expected.
 	if err = s.verifyUpgradeWasApplied(); err != nil {
-		return err
+		return "", err
 	}
 
-	return s.partition.ToggleNextBoot()
+	if err = s.partition.ToggleNextBoot(); err != nil {
+		return "", err
+	}
+	return systemImagePartName, nil
 }
 
 // Ensure the expected version update was applied to the expected partition.
@@ -186,19 +249,22 @@ func (s *SystemImagePart) verifyUpgradeWasApplied() error {
 	}
 
 	if latestPart == nil {
-		return errors.New("could not find latest installed partition")
+		return &ErrUpgradeVerificationFailed{
+			msg: "could not find latest installed partition",
+		}
 	}
 
 	if s.version != latestPart.Version() {
-		return fmt.Errorf("found latest installed version %q (expected %q)",
-			latestPart.Version(), s.version)
+		return &ErrUpgradeVerificationFailed{
+			msg: fmt.Sprintf("found %q but expected %q", latestPart.Version(), s.version),
+		}
 	}
 
 	return nil
 }
 
 // Uninstall can not be used for "core" snaps
-func (s *SystemImagePart) Uninstall() (err error) {
+func (s *SystemImagePart) Uninstall(progress.Meter) error {
 	return ErrPackageNotRemovable
 }
 
@@ -239,6 +305,12 @@ func (s *SystemImagePart) Icon() string {
 	return ""
 }
 
+// Frameworks returns the list of frameworks needed by the snap
+func (s *SystemImagePart) Frameworks() ([]string, error) {
+	// system image parts can't depend on frameworks.
+	return nil, nil
+}
+
 // SystemImageRepository is the type used for the system-image-server
 type SystemImageRepository struct {
 	partition partition.Interface
@@ -258,12 +330,12 @@ func makePartFromSystemImageConfigFile(p partition.Interface, channelIniPath str
 	defer f.Close()
 	err = cfg.Read(f)
 	if err != nil {
-		log.Printf("Can not parse config '%s': %s", channelIniPath, err)
+		logger.Noticef("Can not parse config %q: %v", channelIniPath, err)
 		return nil, err
 	}
 	st, err := os.Stat(channelIniPath)
 	if err != nil {
-		log.Printf("Can stat '%s': %s", channelIniPath, err)
+		logger.Noticef("Can not stat %q: %v", channelIniPath, err)
 		return nil, err
 	}
 
@@ -290,22 +362,49 @@ func makeCurrentPart(p partition.Interface) Part {
 	return part
 }
 
+// otherIsEmpty returns true if the rootfs path specified should be
+// considered empty.
+//
+// Note that the rootfs _may_ not actually be strictly empty, but it
+// must be considered empty if it is incomplete.
+//
+// This function encapsulates the heuristics to determine if the rootfs
+// is complete.
+func otherIsEmpty(root string) bool {
+	configFile := filepath.Join(systemImageRoot, root, systemImageChannelConfig)
+
+	st, err := os.Stat(configFile)
+
+	if err == nil && st.Size() > 0 {
+		// the channel config file exists and has a "reasonable"
+		// size. The upgrade therefore completed successfully,
+		// so consider the rootfs complete.
+		return false
+	}
+
+	// The upgrader pre-creates the s-i channel config file as a
+	// zero-sized file when "other" is first provisioned.
+	//
+	// So if this file either does not exist, or has a size of zero
+	// (indicating the upgrader failed to complete the s-i unpack on
+	// a previous boot [which would have made configFile >0 bytes]),
+	// the other partition is considered empty.
+
+	return true
+}
+
 // Returns the part associated with the other rootfs (if any)
 func makeOtherPart(p partition.Interface) Part {
 	var part Part
 	err := p.RunWithOther(partition.RO, func(otherRoot string) (err error) {
-		configFile := filepath.Join(systemImageRoot, otherRoot, systemImageChannelConfig)
-		_, err = os.Stat(configFile)
-		if err != nil && os.IsNotExist(err) {
-			// config file doesn't exist, meaning the other
-			// partition is empty. However, this is not an
-			// error condition (atleast for amd64 images
-			// which only have 1 partition pre-installed).
+		if otherIsEmpty(otherRoot) {
 			return nil
 		}
+
+		configFile := filepath.Join(systemImageRoot, otherRoot, systemImageChannelConfig)
 		part, err = makePartFromSystemImageConfigFile(p, configFile, false)
 		if err != nil {
-			log.Printf("Can not make system-image part for %s: %s", configFile, err)
+			logger.Noticef("Can not make system-image part for %q: %v", configFile, err)
 		}
 		return err
 	})

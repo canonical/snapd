@@ -1,0 +1,10 @@
+[Unit]
+Description=Run snappy compatibility hooks
+After=ubuntu-snappy.firstboot.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/snappy internal-run-hooks
+
+[Install]
+WantedBy=multi-user.target

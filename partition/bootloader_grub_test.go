@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package partition
 
 import (
@@ -21,7 +40,6 @@ func (s *PartitionTestSuite) makeFakeGrubEnv(c *C) {
 	// these files just needs to exist
 	mockGrubFile(c, bootloaderGrubConfigFile, 0644)
 	mockGrubFile(c, bootloaderGrubEnvFile, 0644)
-	mockGrubFile(c, bootloaderGrubInstallCmd, 0755)
 	mockGrubFile(c, bootloaderGrubUpdateCmd, 0755)
 
 	// do not run commands for real
@@ -77,24 +95,22 @@ func (s *PartitionTestSuite) TestToggleRootFS(c *C) {
 	mp := singleCommand{"/bin/mountpoint", "/writable/cache/system"}
 	c.Assert(allCommands[0], DeepEquals, mp)
 
-	expectedGrubInstall := singleCommand{"/usr/sbin/chroot", "/writable/cache/system", bootloaderGrubInstallCmd, "/dev/sda"}
-	c.Assert(allCommands[1], DeepEquals, expectedGrubInstall)
-
 	expectedGrubUpdate := singleCommand{"/usr/sbin/chroot", "/writable/cache/system", bootloaderGrubUpdateCmd}
-	c.Assert(allCommands[2], DeepEquals, expectedGrubUpdate)
+	c.Assert(allCommands[1], DeepEquals, expectedGrubUpdate)
 
 	expectedGrubSet := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_mode=try"}
-	c.Assert(allCommands[3], DeepEquals, expectedGrubSet)
+	c.Assert(allCommands[2], DeepEquals, expectedGrubSet)
 
 	// the https://developer.ubuntu.com/en/snappy/porting guide says
 	// we always use the short names
 	expectedGrubSet = singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_ab=b"}
-	c.Assert(allCommands[4], DeepEquals, expectedGrubSet)
+	c.Assert(allCommands[3], DeepEquals, expectedGrubSet)
 
+	c.Assert(len(allCommands), Equals, 4)
 }
 
 func mockGrubEditenvList(cmd ...string) (string, error) {
-	mockGrubEditenvOutput := fmt.Sprintf("%s=default", bootloaderBootmodeVar)
+	mockGrubEditenvOutput := fmt.Sprintf("%s=regular", bootloaderBootmodeVar)
 	return mockGrubEditenvOutput, nil
 }
 
@@ -107,7 +123,7 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 
 	v, err := g.GetBootVar(bootloaderBootmodeVar)
 	c.Assert(err, IsNil)
-	c.Assert(v, Equals, "default")
+	c.Assert(v, Equals, "regular")
 }
 
 func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
@@ -116,4 +132,32 @@ func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
 	bootloader, err := getBootloader(p)
 	c.Assert(err, IsNil)
 	c.Assert(bootloader.Name(), Equals, bootloaderNameGrub)
+}
+
+func (s *PartitionTestSuite) TestGrubMarkCurrentBootSuccessful(c *C) {
+	s.makeFakeGrubEnv(c)
+	allCommands = []singleCommand{}
+
+	partition := New()
+	g := newGrub(partition)
+	c.Assert(g, NotNil)
+	err := g.MarkCurrentBootSuccessful()
+	c.Assert(err, IsNil)
+
+	// this is always called
+	mp := singleCommand{"/bin/mountpoint", "/writable/cache/system"}
+	c.Assert(allCommands[0], DeepEquals, mp)
+
+	expectedGrubSet := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "unset", "snappy_trial_boot"}
+
+	c.Assert(allCommands[1], DeepEquals, expectedGrubSet)
+
+	expectedGrubSet2 := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_ab=a"}
+
+	c.Assert(allCommands[2], DeepEquals, expectedGrubSet2)
+
+	expectedGrubSet3 := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_mode=regular"}
+
+	c.Assert(allCommands[3], DeepEquals, expectedGrubSet3)
+
 }

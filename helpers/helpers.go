@@ -1,12 +1,30 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package helpers
 
 import (
 	"archive/tar"
-	"compress/gzip"
 	"crypto/sha512"
 	"encoding/hex"
+	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -16,8 +34,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"gopkg.in/yaml.v2"
 )
 
 var goarch = runtime.GOARCH
@@ -51,24 +67,13 @@ func ExitCode(runErr error) (e int, err error) {
 	return e, runErr
 }
 
-func unpackTar(archive string, target string) error {
+// TarIterFunc is called for each file inside a tar archive
+type TarIterFunc func(r *tar.Reader, hdr *tar.Header) error
 
-	var f io.Reader
-	var err error
-
-	f, err = os.Open(archive)
-	if err != nil {
-		return err
-	}
-
-	if strings.HasSuffix(archive, ".gz") {
-		f, err = gzip.NewReader(f)
-		if err != nil {
-			return err
-		}
-	}
-
-	tr := tar.NewReader(f)
+// TarIterate will take a io.Reader and call the fn callback on each tar
+// archive member
+func TarIterate(r io.Reader, fn TarIterFunc) error {
+	tr := tar.NewReader(r)
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
@@ -78,16 +83,73 @@ func unpackTar(archive string, target string) error {
 		if err != nil {
 			return err
 		}
-		path := filepath.Join(target, hdr.Name)
-		info := hdr.FileInfo()
-		if info.IsDir() {
-			err := os.MkdirAll(path, info.Mode())
+
+		if err := fn(tr, hdr); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// IsSymlink checks whether the given os.FileMode corresponds to a symlink
+func IsSymlink(mode os.FileMode) bool {
+	return (mode & os.ModeSymlink) == os.ModeSymlink
+}
+
+// IsDevice checks if the given os.FileMode coresponds to a device (char/block)
+func IsDevice(mode os.FileMode) bool {
+	return (mode & (os.ModeDevice | os.ModeCharDevice)) != 0
+}
+
+// UnpackTarTransformFunc can be used to change the names during unpack
+// or to return a error for files that are not acceptable
+type UnpackTarTransformFunc func(path string) (newPath string, err error)
+
+var mknod = syscall.Mknod
+
+// UnpackTar unpacks the given tar file into the target directory
+func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
+	return TarIterate(r, func(tr *tar.Reader, hdr *tar.Header) (err error) {
+		// run tar transform func
+		name := hdr.Name
+		if fn != nil {
+			name, err = fn(hdr.Name)
+			if err != nil {
+				return err
+			}
+		}
+
+		path := filepath.Join(targetDir, name)
+		mode := hdr.FileInfo().Mode()
+		if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
+			return err
+		}
+
+		switch {
+		case mode.IsDir():
+			err := os.Mkdir(path, mode)
 			if err != nil {
 				return nil
 			}
-		} else {
-			err := os.MkdirAll(filepath.Dir(path), 0777)
-			out, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, info.Mode())
+		case IsSymlink(mode):
+			if err := os.Symlink(hdr.Linkname, path); err != nil {
+				return err
+			}
+		case IsDevice(mode):
+			switch {
+			case (mode & os.ModeCharDevice) != 0:
+				mode |= syscall.S_IFCHR
+			case (mode & os.ModeDevice) != 0:
+				mode |= syscall.S_IFBLK
+			}
+			devNum := Makedev(uint32(hdr.Devmajor), uint32(hdr.Devminor))
+			err = mknod(path, uint32(mode), int(devNum))
+			if err != nil {
+				return err
+			}
+		case mode.IsRegular():
+			out, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, mode)
 			if err != nil {
 				return err
 			}
@@ -96,27 +158,31 @@ func unpackTar(archive string, target string) error {
 			if err != nil {
 				return err
 			}
+		default:
+			return &ErrUnsupportedFileType{path, mode}
 		}
-	}
 
-	return nil
+		return nil
+	})
 }
 
-func getMapFromYaml(data []byte) (map[string]interface{}, error) {
-	m := make(map[string]interface{})
-	err := yaml.Unmarshal(data, &m)
-	if err != nil {
-		return m, err
-	}
-	return m, nil
+// ErrUnsupportedFileType is returned when trying to extract a file
+// that is not a regular file, a directory, or a symlink.
+type ErrUnsupportedFileType struct {
+	Name string
+	Mode os.FileMode
 }
 
-// Architecture returns the debian equivalent architecture for the
+func (e ErrUnsupportedFileType) Error() string {
+	return fmt.Sprintf("%s: unsupported filetype %s", e.Name, e.Mode)
+}
+
+// UbuntuArchitecture returns the debian equivalent architecture for the
 // currently running architecture.
 //
 // If the architecture does not map any debian architecture, the
 // GOARCH is returned.
-func Architecture() string {
+func UbuntuArchitecture() string {
 	switch goarch {
 	case "386":
 		return "i386"
@@ -125,17 +191,6 @@ func Architecture() string {
 	default:
 		return goarch
 	}
-}
-
-// EnsureDir ensures that the given directory exists and if
-// not create it with the given permissions
-func EnsureDir(dir string, perm os.FileMode) (err error) {
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, perm); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // Sha512sum returns the sha512 of the given file as a hexdigest
@@ -173,7 +228,7 @@ func MakeMapFromEnvList(env []string) map[string]string {
 // it may return false on e.g. permission issues.
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
-	return (err == nil)
+	return err == nil
 }
 
 // IsDirectory return true if the given path can be stat()ed by us and
@@ -201,15 +256,45 @@ func MakeRandomString(length int) string {
 
 // AtomicWriteFile updates the filename atomically and works otherwise
 // exactly like io/ioutil.WriteFile()
-func AtomicWriteFile(filename string, data []byte, perm os.FileMode) error {
+func AtomicWriteFile(filename string, data []byte, perm os.FileMode) (err error) {
 	tmp := filename + ".new"
 
-	if err := ioutil.WriteFile(tmp, data, perm); err != nil {
-		os.Remove(tmp)
+	// XXX: if go switches to use aio_fsync, we need to open the dir for writing
+	dir, err := os.Open(filepath.Dir(filename))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+
+	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		e := fd.Close()
+		if err == nil {
+			err = e
+		}
+		if err != nil {
+			os.Remove(tmp)
+		}
+	}()
+
+	// according to the docs, Write returns a non-nil error when n !=
+	// len(b), so don't worry about short writes.
+	if _, err := fd.Write(data); err != nil {
 		return err
 	}
 
-	return os.Rename(tmp, filename)
+	if err := fd.Sync(); err != nil {
+		return err
+	}
+
+	if err := os.Rename(tmp, filename); err != nil {
+		return err
+	}
+
+	return dir.Sync()
 }
 
 // CurrentHomeDir returns the homedir of the current user. It looks at
@@ -226,4 +311,43 @@ func CurrentHomeDir() (string, error) {
 	}
 
 	return user.HomeDir, nil
+}
+
+// ShouldDropPrivs returns true if the application runs with sufficient
+// privileges so that it should drop them
+func ShouldDropPrivs() bool {
+	if groups, err := syscall.Getgroups(); err == nil {
+		for _, gid := range groups {
+			if gid == 0 {
+				return true
+			}
+		}
+	}
+
+	return syscall.Getuid() == 0 || syscall.Getgid() == 0
+
+}
+
+// MajorMinor returns the major/minor number of the given os.FileInfo
+func MajorMinor(info os.FileInfo) (uint32, uint32, error) {
+	if !IsDevice(info.Mode()) {
+		return 0, 0, fmt.Errorf("No device %s", info.Name())
+	}
+
+	unixStat, ok := info.Sys().(*syscall.Stat_t)
+	if ok {
+		// see glibc: sysdeps/unix/sysv/linux/makedev.c
+		dev := unixStat.Rdev
+		major := uint32((dev>>8)&0xfff) | (uint32(dev>>32) & ^uint32(0xfff))
+		minor := uint32(dev&0xff) | (uint32(dev>>12) & ^uint32(0xff))
+
+		return major, minor, nil
+	}
+
+	return 0, 0, fmt.Errorf("failed to get syscall.stat_t for %v", info.Name())
+}
+
+// Makedev implements makedev(3)
+func Makedev(major, minor uint32) uint32 {
+	return uint32((minor & 0xff) | ((major & 0xfff) << 8))
 }

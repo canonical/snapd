@@ -12,9 +12,17 @@ OUTPUTDIR=${1:-$(pwd)}
         $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-snappy.html)
 (cd partition &&
         $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-partition.html)
+(cd logger &&
+        $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-logger.html)
 (cd helpers &&
         $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-helpers.html)
 (cd coreconfig &&
         $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-coreconfig.html)
+(cd clickdeb &&
+        $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-clickdeb.html)
+(cd priv &&
+	$GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-priv.html)
+(cd release &&
+	$GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-release.html)
 
 echo "Coverage html reports are available in $OUTPUTDIR"

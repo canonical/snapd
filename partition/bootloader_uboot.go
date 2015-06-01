@@ -1,6 +1,21 @@
-//--------------------------------------------------------------------
-// Copyright (c) 2014-2015 Canonical Ltd.
-//--------------------------------------------------------------------
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
 
 package partition
 
@@ -8,7 +23,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -38,6 +52,7 @@ var (
 	bootloaderUbootConfigFile = bootloaderUbootConfigFileReal
 	bootloaderUbootStampFile  = bootloaderUbootStampFileReal
 	bootloaderUbootEnvFile    = bootloaderUbootEnvFileReal
+	atomicFileUpdate          = atomicFileUpdateImpl
 )
 
 const bootloaderNameUboot bootloaderName = "u-boot"
@@ -51,6 +66,7 @@ type uboot struct {
 }
 
 // Stores a Name and a Value to be added as a name=value pair in a file.
+// TODO convert to map
 type configFileChange struct {
 	Name  string
 	Value string
@@ -67,8 +83,8 @@ func newUboot(partition *Partition) bootLoader {
 		return nil
 	}
 	u := uboot{bootloaderType: b}
-	u.currentBootPath = path.Join(bootloaderUbootDir, u.currentRootfs)
-	u.otherBootPath = path.Join(bootloaderUbootDir, u.otherRootfs)
+	u.currentBootPath = filepath.Join(bootloaderUbootDir, u.currentRootfs)
+	u.otherBootPath = filepath.Join(bootloaderUbootDir, u.otherRootfs)
 
 	return &u
 }
@@ -162,7 +178,12 @@ func writeLines(lines []string, path string) (err error) {
 		return err
 	}
 
-	defer file.Close()
+	defer func() {
+		e := file.Close()
+		if err == nil {
+			err = e
+		}
+	}()
 
 	writer := bufio.NewWriter(file)
 
@@ -171,13 +192,21 @@ func writeLines(lines []string, path string) (err error) {
 			return err
 		}
 	}
-	return writer.Flush()
+
+	if err := writer.Flush(); err != nil {
+		return err
+	}
+
+	return file.Sync()
 }
 
 func (u *uboot) MarkCurrentBootSuccessful() (err error) {
 	changes := []configFileChange{
 		configFileChange{Name: bootloaderBootmodeVar,
 			Value: bootloaderBootmodeSuccess,
+		},
+		configFileChange{Name: bootloaderRootfsVar,
+			Value: string(u.currentRootfs),
 		},
 	}
 
@@ -237,7 +266,7 @@ func (u *uboot) HandleAssets() (err error) {
 		}
 
 		// expand path
-		path := path.Join(u.partition.cacheDir(), file)
+		path := filepath.Join(u.partition.cacheDir(), file)
 
 		if !helpers.FileExists(path) {
 			return fmt.Errorf("can not find file %s", path)
@@ -260,12 +289,12 @@ func (u *uboot) HandleAssets() (err error) {
 		// ensure we cleanup the source dir
 		defer os.RemoveAll(dtbSrcDir)
 
-		dtbDestDir := path.Join(destDir, "dtbs")
+		dtbDestDir := filepath.Join(destDir, "dtbs")
 		if err := os.MkdirAll(dtbDestDir, dirMode); err != nil {
 			return err
 		}
 
-		files, err := filepath.Glob(path.Join(dtbSrcDir, "*"))
+		files, err := filepath.Glob(filepath.Join(dtbSrcDir, "*"))
 		if err != nil {
 			return err
 		}
@@ -294,8 +323,15 @@ func (u *uboot) HandleAssets() (err error) {
 
 // Write lines to file atomically. File does not have to preexist.
 // FIXME: put into utils package
-func atomicFileUpdate(file string, lines []string) (err error) {
+func atomicFileUpdateImpl(file string, lines []string) (err error) {
 	tmpFile := fmt.Sprintf("%s.NEW", file)
+
+	// XXX: if go switches to use aio_fsync, we need to open the dir for writing
+	dir, err := os.Open(filepath.Dir(file))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
 
 	if err := writeLines(lines, tmpFile); err != nil {
 		return err
@@ -306,7 +342,7 @@ func atomicFileUpdate(file string, lines []string) (err error) {
 		return err
 	}
 
-	return nil
+	return dir.Sync()
 }
 
 // Rewrite the specified file, applying the specified set of changes.
@@ -316,6 +352,7 @@ func atomicFileUpdate(file string, lines []string) (err error) {
 // appended to the file.
 //
 // FIXME: put into utils package
+// FIXME: improve logic
 func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 	var updated []configFileChange
 
@@ -325,12 +362,20 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 	}
 
 	var new []string
+	// we won't write to a file if we don't need to.
+	updateNeeded := false
 
 	for _, line := range lines {
 		for _, change := range changes {
 			if strings.HasPrefix(line, fmt.Sprintf("%s=", change.Name)) {
-				line = fmt.Sprintf("%s=%s", change.Name, change.Value)
+				value := strings.SplitN(line, "=", 2)[1]
+				// updated is used later to see if you had the originally requested
+				// value.
 				updated = append(updated, change)
+				if value != change.Value {
+					line = fmt.Sprintf("%s=%s", change.Name, change.Value)
+					updateNeeded = true
+				}
 			}
 		}
 		new = append(new, line)
@@ -348,6 +393,8 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 		}
 
 		if !got {
+			updateNeeded = true
+
 			// name/value pair did not exist in original
 			// file, so append
 			lines = append(lines, fmt.Sprintf("%s=%s",
@@ -355,7 +402,11 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 		}
 	}
 
-	return atomicFileUpdate(file, lines)
+	if updateNeeded {
+		return atomicFileUpdate(file, lines)
+	}
+
+	return nil
 }
 
 func (u *uboot) AdditionalBindMounts() []string {
