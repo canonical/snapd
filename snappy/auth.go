@@ -162,6 +162,30 @@ func ReadStoreToken() (*StoreToken, error) {
 	return &readStoreToken, nil
 }
 
+func oAuthNeedsEscape(c byte) bool {
+	return !(('A' <= c && c <= 'Z') ||
+		('a' <= c && c <= 'z') ||
+		('0' <= c && c <= '9') ||
+		(c == '-') ||
+		(c == '.') ||
+		(c == '_') ||
+		(c == '~'))
+}
+
+// XXX: inefficient algorithm, we sign small data only (not the payload
+//      itself with PLAINTEXT)
+func oAuthQuote(s string) string {
+	o := ""
+	for _, c := range []byte(s) {
+		if oAuthNeedsEscape(c) {
+			o += strings.ToUpper(fmt.Sprintf("%%%02x", c))
+		} else {
+			o += fmt.Sprintf("%c", c)
+		}
+	}
+	return o
+}
+
 // FIXME: replace with a real oauth1 library - or wait until oauth2 becomes
 // available
 //
@@ -172,6 +196,6 @@ func makeOauthPlaintextSignature(token *StoreToken) string {
 	nonce := helpers.MakeRandomString(60)
 	timestamp := time.Now().Unix()
 
-	s := fmt.Sprintf(`OAuth oauth_nonce="%s", oauth_timestamp="%v", oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="%s", oauth_token="%s", oauth_signature="%s%%26%s"`, nonce, timestamp, token.ConsumerKey, token.TokenKey, token.ConsumerSecret, token.TokenSecret)
+	s := fmt.Sprintf(`OAuth oauth_nonce="%s", oauth_timestamp="%v", oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="%s", oauth_token="%s", oauth_signature="%s&%s"`, nonce, timestamp, oAuthQuote(token.ConsumerKey), oAuthQuote(token.TokenKey), oAuthQuote(token.ConsumerSecret), oAuthQuote(token.TokenSecret))
 	return s
 }

@@ -142,11 +142,25 @@ func (s *SnapTestSuite) TestReadStoreToken(c *C) {
 
 func (s *SnapTestSuite) TestMakeOauthPlaintextSignature(c *C) {
 	mockStoreToken := StoreToken{
-		ConsumerKey:    "consumer-key",
-		ConsumerSecret: "consumer-secret",
-		TokenKey:       "token-key",
-		TokenSecret:    "token-secret",
+		ConsumerKey:    "consumer-key+",
+		ConsumerSecret: "consumer-secret+",
+		TokenKey:       "token-key+",
+		TokenSecret:    "token-secret+",
 	}
 	sig := makeOauthPlaintextSignature(&mockStoreToken)
-	c.Assert(sig, Matches, `OAuth oauth_nonce="[a-zA-Z]+", oauth_timestamp="[0-9]+", oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="consumer-key", oauth_token="token-key", oauth_signature="consumer-secret%26token-secret"`)
+	c.Assert(sig, Matches, `OAuth oauth_nonce="[a-zA-Z]+", oauth_timestamp="[0-9]+", oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="consumer-key%2B", oauth_token="token-key%2B", oauth_signature="consumer-secret%2B&token-secret%2B"`)
+}
+
+func (s *SnapTestSuite) TestOAuthQuote(c *C) {
+	// see http://wiki.oauth.net/w/page/12238556/TestCases
+	c.Check(oAuthQuote("abcABC123"), Equals, "abcABC123")
+	c.Check(oAuthQuote("-._~"), Equals, "-._~")
+	c.Check(oAuthQuote("%"), Equals, "%25")
+	c.Check(oAuthQuote("+"), Equals, "%2B")
+	c.Check(oAuthQuote("&=*"), Equals, "%26%3D%2A")
+	c.Check(oAuthQuote("\u000A"), Equals, "%0A")
+	c.Check(oAuthQuote("\u0020"), Equals, "%20")
+	c.Check(oAuthQuote("\u007F"), Equals, "%7F")
+	c.Check(oAuthQuote("\u0080"), Equals, "%C2%80")
+	c.Check(oAuthQuote("\u3001"), Equals, "%E3%80%81")
 }
