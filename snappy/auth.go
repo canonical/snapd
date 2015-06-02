@@ -166,7 +166,7 @@ func ReadStoreToken() (*StoreToken, error) {
 // available
 //
 // minimal oauth v1 signature
-func makeOauthPlaintextSignature(req *http.Request, token *StoreToken) string {
+func makeOauthPlaintextSignature(token *StoreToken) string {
 	// hrm, rfc5849 says that nonce, timestamp are not used for PLAINTEXT
 	// but our sso server is unhappy without, so
 	nonce := helpers.MakeRandomString(60)

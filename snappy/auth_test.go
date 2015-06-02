@@ -139,3 +139,14 @@ func (s *SnapTestSuite) TestReadStoreToken(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(readToken.TokenName, Equals, "meep")
 }
+
+func (s *SnapTestSuite) TestMakeOauthPlaintextSignature(c *C) {
+	mockStoreToken := StoreToken{
+		ConsumerKey:    "consumer-key",
+		ConsumerSecret: "consumer-secret",
+		TokenKey:       "token-key",
+		TokenSecret:    "token-secret",
+	}
+	sig := makeOauthPlaintextSignature(&mockStoreToken)
+	c.Assert(sig, Matches, `OAuth oauth_nonce="[a-zA-Z]+", oauth_timestamp="[0-9]+", oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="consumer-key", oauth_token="token-key", oauth_signature="consumer-secret%26token-secret"`)
+}

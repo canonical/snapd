@@ -1398,7 +1398,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	// sso
 	ssoToken, err := ReadStoreToken()
 	if err == nil {
-		req.Header.Set("Authorization", makeOauthPlaintextSignature(req, ssoToken))
+		req.Header.Set("Authorization", makeOauthPlaintextSignature(ssoToken))
 	}
 }
 
