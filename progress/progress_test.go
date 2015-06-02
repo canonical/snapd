@@ -25,7 +25,7 @@ import (
 	"os"
 	"testing"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 // Hook up gocheck into the "go test" runner

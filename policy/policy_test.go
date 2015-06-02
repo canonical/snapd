@@ -26,7 +26,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 	"sort"
 )
 

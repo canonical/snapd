@@ -29,7 +29,7 @@ import (
 	"strings"
 
 	"github.com/mvo5/goconfigparser"
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"

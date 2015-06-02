@@ -37,7 +37,7 @@ import (
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/systemd"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 type SnapTestSuite struct {

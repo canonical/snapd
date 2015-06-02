@@ -23,7 +23,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 type typeSuite struct{}
