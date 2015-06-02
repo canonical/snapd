@@ -89,8 +89,10 @@ func (s *SecurityDefinitions) generateApparmorJSONContent() ([]byte, error) {
 }
 
 func handleApparmor(buildDir string, m *packageYaml, hookName string, s *SecurityDefinitions) error {
+	hasSecPol := s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != ""
+	hasSecOvr := s.SecurityOverride != nil && s.SecurityOverride.Apparmor != ""
 
-	if !s.doBuild {
+	if hasSecPol || hasSecOvr {
 		return nil
 	}
 

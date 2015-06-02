@@ -217,8 +217,7 @@ services:
  "title": "some title",
  "hooks": {
   "foo": {
-   "apparmor": "meta/foo.apparmor",
-   "snappy-systemd": "meta/foo.snappy-systemd"
+   "apparmor": "meta/foo.apparmor"
   }
  }
 }`
@@ -226,18 +225,6 @@ services:
 	c.Assert(err, IsNil)
 	c.Assert(string(readJSON), Equals, expectedJSON)
 
-	// check the generated meta file
-	unpackDir := c.MkDir()
-	err = exec.Command("dpkg-deb", "-x", "hello_3.0.1_all.snap", unpackDir).Run()
-	c.Assert(err, IsNil)
-
-	snappySystemdContent, err := ioutil.ReadFile(filepath.Join(unpackDir, "meta/foo.snappy-systemd"))
-	c.Assert(err, IsNil)
-	c.Assert(string(snappySystemdContent), Equals, `{
- "description": "service \"foo\" for package \"hello\"",
- "start": "bin/hello-world",
- "stop-timeout": "30s"
-}`)
 }
 
 func (s *SnapTestSuite) TestBuildAutoGenerateConfigAppArmor(c *C) {

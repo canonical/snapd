@@ -141,18 +141,6 @@ func handleServices(buildDir string, m *packageYaml) error {
 	for _, v := range m.Services {
 		hookName := filepath.Base(v.Name)
 
-		// omit the name from the json to make the
-		// click-reviewers-tool happy
-		v.Name = ""
-		snappySystemdContent, err := json.MarshalIndent(v, "", " ")
-		if err != nil {
-			return err
-		}
-		snappySystemdContentFile := m.Integration[hookName]["snappy-systemd"]
-		if err := ioutil.WriteFile(filepath.Join(buildDir, snappySystemdContentFile), []byte(snappySystemdContent), 0644); err != nil {
-			return err
-		}
-
 		// handle the apparmor stuff
 		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
 			return err

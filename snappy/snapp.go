@@ -110,11 +110,6 @@ type SecurityDefinitions struct {
 
 	// SecurityCaps is are the apparmor/seccomp capabilities for an app
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
-
-	// doBuild asks the build step to create the given apparmor
-	// profile. When we stop supporting user-supplied apparmor in
-	// Integration, this can be gotten rid of.
-	doBuild bool
 }
 
 // NeedsAppArmorUpdate checks whether the security definitions are impacted by
@@ -451,14 +446,6 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, cur
 }
 
 func (m *packageYaml) mangleSecDef(hookName string, s *SecurityDefinitions) {
-	// legacy use of "Integration" - the user should
-	// use the new format, nothing needs to be done
-	_, hasApparmor := m.Integration[hookName]["apparmor"]
-	_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-	if hasApparmor || hasApparmorProfile {
-		return
-	}
-
 	// see if we have a custom security policy
 	if s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != "" {
 		m.Integration[hookName]["apparmor-profile"] = s.SecurityPolicy.Apparmor
@@ -473,9 +460,6 @@ func (m *packageYaml) mangleSecDef(hookName string, s *SecurityDefinitions) {
 
 	// apparmor template
 	m.Integration[hookName]["apparmor"] = filepath.Join("meta", hookName+".apparmor")
-
-	// if we're in the build step, we need to create this apparmor profile
-	s.doBuild = true
 
 	return
 }
@@ -508,8 +492,6 @@ func (m *packageYaml) mangle() {
 		if v.Description == "" {
 			m.Services[i].Description = fmt.Sprintf("service %q for package %q", hookName, m.Name)
 		}
-
-		m.Integration[hookName]["snappy-systemd"] = filepath.Join("meta", hookName+".snappy-systemd")
 
 		// handle the apparmor stuff
 		m.mangleSecDef(hookName, &v.SecurityDefinitions)

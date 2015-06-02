@@ -60,7 +60,7 @@ func (a *SecurityTestSuite) verifyApparmorFile(c *C, expected string) {
 
 // no special security settings generate the default
 func (a *SecurityTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
-	sec := &SecurityDefinitions{doBuild: true}
+	sec := &SecurityDefinitions{}
 
 	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
 	a.m.mangle()
@@ -82,7 +82,6 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
 func (a *SecurityTestSuite) TestSnappyHandleApparmorCaps(c *C) {
 	sec := &SecurityDefinitions{
 		SecurityCaps: []string{"cap1", "cap2"},
-		doBuild:      true,
 	}
 
 	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
@@ -106,7 +105,6 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorCaps(c *C) {
 func (a *SecurityTestSuite) TestSnappyHandleApparmorTemplate(c *C) {
 	sec := &SecurityDefinitions{
 		SecurityTemplate: "docker-client",
-		doBuild:          true,
 	}
 
 	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
