@@ -110,6 +110,11 @@ type SecurityDefinitions struct {
 
 	// SecurityCaps is are the apparmor/seccomp capabilities for an app
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
+
+	// doBuild asks the build step to create the given apparmor
+	// profile. When we stop supporting user-supplied apparmor in
+	// Integration, this can be gotten rid of.
+	doBuild bool
 }
 
 // NeedsAppArmorUpdate checks whether the security definitions are impacted by
@@ -443,6 +448,72 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, cur
 	}
 
 	return nil
+}
+
+func (m *packageYaml) mangleSecDef(hookName string, s *SecurityDefinitions) {
+	// legacy use of "Integration" - the user should
+	// use the new format, nothing needs to be done
+	_, hasApparmor := m.Integration[hookName]["apparmor"]
+	_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
+	if hasApparmor || hasApparmorProfile {
+		return
+	}
+
+	// see if we have a custom security policy
+	if s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != "" {
+		m.Integration[hookName]["apparmor-profile"] = s.SecurityPolicy.Apparmor
+		return
+	}
+
+	// see if we have a security override
+	if s.SecurityOverride != nil && s.SecurityOverride.Apparmor != "" {
+		m.Integration[hookName]["apparmor"] = s.SecurityOverride.Apparmor
+		return
+	}
+
+	// apparmor template
+	m.Integration[hookName]["apparmor"] = filepath.Join("meta", hookName+".apparmor")
+
+	// if we're in the build step, we need to create this apparmor profile
+	s.doBuild = true
+
+	return
+}
+
+func (m *packageYaml) mangle() {
+	if m.Integration == nil {
+		m.Integration = make(map[string]clickAppHook)
+	}
+
+	for _, v := range m.Binaries {
+		hookName := filepath.Base(v.Name)
+
+		if _, ok := m.Integration[hookName]; !ok {
+			m.Integration[hookName] = clickAppHook{}
+		}
+		// legacy click hook
+		m.Integration[hookName]["bin-path"] = v.Exec
+
+		m.mangleSecDef(hookName, &v.SecurityDefinitions)
+	}
+
+	for i, v := range m.Services {
+		hookName := filepath.Base(v.Name)
+
+		if _, ok := m.Integration[hookName]; !ok {
+			m.Integration[hookName] = clickAppHook{}
+		}
+
+		// generate snappyd systemd unit json
+		if v.Description == "" {
+			m.Services[i].Description = fmt.Sprintf("service %q for package %q", hookName, m.Name)
+		}
+
+		m.Integration[hookName]["snappy-systemd"] = filepath.Join("meta", hookName+".snappy-systemd")
+
+		// handle the apparmor stuff
+		m.mangleSecDef(hookName, &v.SecurityDefinitions)
+	}
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath

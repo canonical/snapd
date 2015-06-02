@@ -234,7 +234,7 @@ services:
 	snappySystemdContent, err := ioutil.ReadFile(filepath.Join(unpackDir, "meta/foo.snappy-systemd"))
 	c.Assert(err, IsNil)
 	c.Assert(string(snappySystemdContent), Equals, `{
- "description": "some description",
+ "description": "service \"foo\" for package \"hello\"",
  "start": "bin/hello-world",
  "stop-timeout": "30s"
 }`)

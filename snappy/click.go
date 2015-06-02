@@ -267,6 +267,7 @@ func removeClick(clickDir string, inter interacter) (err error) {
 		return err
 	}
 
+	m.mangle()
 	if err := removeClickHooks(m, originFromBasedir(clickDir), false); err != nil {
 		return err
 	}
@@ -917,6 +918,7 @@ func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
 		}
 	}
 
+	m.mangle()
 	if err := installClickHooks(baseDir, m, origin, inhibitHooks); err != nil {
 		// cleanup the failed hooks
 		removeClickHooks(m, origin, inhibitHooks)

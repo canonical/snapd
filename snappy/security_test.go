@@ -60,7 +60,10 @@ func (a *SecurityTestSuite) verifyApparmorFile(c *C, expected string) {
 
 // no special security settings generate the default
 func (a *SecurityTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
-	sec := &SecurityDefinitions{}
+	sec := &SecurityDefinitions{doBuild: true}
+
+	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
+	a.m.mangle()
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
@@ -79,7 +82,11 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
 func (a *SecurityTestSuite) TestSnappyHandleApparmorCaps(c *C) {
 	sec := &SecurityDefinitions{
 		SecurityCaps: []string{"cap1", "cap2"},
+		doBuild:      true,
 	}
+
+	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
+	a.m.mangle()
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
@@ -99,7 +106,11 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorCaps(c *C) {
 func (a *SecurityTestSuite) TestSnappyHandleApparmorTemplate(c *C) {
 	sec := &SecurityDefinitions{
 		SecurityTemplate: "docker-client",
+		doBuild:          true,
 	}
+
+	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
+	a.m.mangle()
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
@@ -120,6 +131,9 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorOverride(c *C) {
 		},
 	}
 
+	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
+	a.m.mangle()
+
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
 
@@ -132,6 +146,9 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorPolicy(c *C) {
 			Apparmor: "meta/custom-policy.apparmor",
 		},
 	}
+
+	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
+	a.m.mangle()
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)

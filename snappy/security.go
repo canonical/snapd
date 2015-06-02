@@ -90,33 +90,12 @@ func (s *SecurityDefinitions) generateApparmorJSONContent() ([]byte, error) {
 
 func handleApparmor(buildDir string, m *packageYaml, hookName string, s *SecurityDefinitions) error {
 
-	// ensure we have a hook
-	if _, ok := m.Integration[hookName]; !ok {
-		m.Integration[hookName] = clickAppHook{}
-	}
-
-	// legacy use of "Integration" - the user should
-	// use the new format, nothing needs to be done
-	_, hasApparmor := m.Integration[hookName]["apparmor"]
-	_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-	if hasApparmor || hasApparmorProfile {
-		return nil
-	}
-
-	// see if we have a custom security policy
-	if s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != "" {
-		m.Integration[hookName]["apparmor-profile"] = s.SecurityPolicy.Apparmor
-		return nil
-	}
-
-	// see if we have a security override
-	if s.SecurityOverride != nil && s.SecurityOverride.Apparmor != "" {
-		m.Integration[hookName]["apparmor"] = s.SecurityOverride.Apparmor
+	if !s.doBuild {
 		return nil
 	}
 
 	// generate apparmor template
-	apparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
+	apparmorJSONFile := m.Integration[hookName]["apparmor"]
 	securityJSONContent, err := s.generateApparmorJSONContent()
 	if err != nil {
 		return err
@@ -124,8 +103,6 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 	if err := ioutil.WriteFile(filepath.Join(buildDir, apparmorJSONFile), securityJSONContent, 0644); err != nil {
 		return err
 	}
-
-	m.Integration[hookName]["apparmor"] = apparmorJSONFile
 
 	return nil
 }

@@ -128,13 +128,6 @@ func parseReadme(readme string) (title, description string, err error) {
 func handleBinaries(buildDir string, m *packageYaml) error {
 	for _, v := range m.Binaries {
 		hookName := filepath.Base(v.Name)
-
-		if _, ok := m.Integration[hookName]; !ok {
-			m.Integration[hookName] = make(map[string]string)
-		}
-		// legacy click hook
-		m.Integration[hookName]["bin-path"] = v.Exec
-
 		// handle the apparmor stuff
 		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
 			return err
@@ -145,22 +138,8 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 }
 
 func handleServices(buildDir string, m *packageYaml) error {
-	_, description, err := parseReadme(filepath.Join(buildDir, "meta", "readme.md"))
-	if err != nil {
-		return err
-	}
-
 	for _, v := range m.Services {
 		hookName := filepath.Base(v.Name)
-
-		if _, ok := m.Integration[hookName]; !ok {
-			m.Integration[hookName] = make(map[string]string)
-		}
-
-		// generate snappyd systemd unit json
-		if v.Description == "" {
-			v.Description = description
-		}
 
 		// omit the name from the json to make the
 		// click-reviewers-tool happy
@@ -169,11 +148,10 @@ func handleServices(buildDir string, m *packageYaml) error {
 		if err != nil {
 			return err
 		}
-		snappySystemdContentFile := filepath.Join("meta", hookName+".snappy-systemd")
+		snappySystemdContentFile := m.Integration[hookName]["snappy-systemd"]
 		if err := ioutil.WriteFile(filepath.Join(buildDir, snappySystemdContentFile), []byte(snappySystemdContent), 0644); err != nil {
 			return err
 		}
-		m.Integration[hookName]["snappy-systemd"] = snappySystemdContentFile
 
 		// handle the apparmor stuff
 		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
@@ -500,9 +478,7 @@ func Build(sourceDir, targetDir string) (string, error) {
 	}
 
 	// defaults, mangling
-	if m.Integration == nil {
-		m.Integration = make(map[string]clickAppHook)
-	}
+	m.mangle()
 
 	// generate compat hooks for binaries
 	if err := handleBinaries(buildDir, m); err != nil {
