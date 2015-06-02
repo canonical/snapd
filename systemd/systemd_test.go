@@ -37,7 +37,7 @@ func (tr *testreporter) Notify(msg string) {
 	tr.msgs = append(tr.msgs, msg)
 }
 
-// Hook up gocheck into the "go test" runner
+// Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 // systemd's testsuite

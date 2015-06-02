@@ -34,7 +34,7 @@ import (
 	"launchpad.net/snappy/helpers"
 )
 
-// Hook up gocheck into the "go test" runner.
+// Hook up check.v1 into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
 
 type ClickDebTestSuite struct {
