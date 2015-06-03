@@ -23,7 +23,7 @@ import (
 	"encoding/json"
 	"time"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 func (s *SnapTestSuite) TestTimeoutMarshal(c *C) {

@@ -23,7 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 func (s *cpSuite) TestCpMulti(c *C) {
