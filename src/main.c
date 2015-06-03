@@ -245,7 +245,13 @@ void mkoldtmpdir() {
         return;
     }
 
+    // strtok trashes its argument, so to avoid changing the TMPDIR variable,
+    // we make a copy.
     dir = strdup(dir);
+    if (!dir) {
+        return;
+    }
+
     int n = 4;
     char buf[MAX_BUF] = "/tmp";
     char *d = strtok(dir+4, "/");
