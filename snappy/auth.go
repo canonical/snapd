@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/oauth"
 )
 
 var (
@@ -44,10 +45,7 @@ type StoreToken struct {
 	DateCreated string `json:"date_created"`
 	Href        string `json:"href"`
 
-	TokenKey       string `json:"token_key"`
-	TokenSecret    string `json:"token_secret"`
-	ConsumerSecret string `json:"consumer_secret"`
-	ConsumerKey    string `json:"consumer_key"`
+	oauth.Token
 }
 
 type ssoMsg struct {
