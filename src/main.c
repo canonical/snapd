@@ -249,7 +249,7 @@ void mkoldtmpdir() {
     // we make a copy.
     dir = strdup(dir);
     if (!dir) {
-        return;
+        die("out of memory");
     }
 
     int n = 4;
