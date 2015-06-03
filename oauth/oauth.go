@@ -20,6 +20,7 @@
 package oauth
 
 import (
+	"bytes"
 	"fmt"
 	"time"
 
@@ -48,15 +49,19 @@ func needsEscape(c byte) bool {
 // XXX: inefficient algorithm, we sign small data only (not the payload
 //      itself with PLAINTEXT)
 func quote(s string) string {
-	o := ""
+	buf := bytes.NewBuffer(nil)
+	// set to worst case max size, to avoid reallocs
+	buf.Grow(len(s) * 3)
+
 	for _, c := range []byte(s) {
 		if needsEscape(c) {
-			o += fmt.Sprintf("%%%02X", c)
+			fmt.Fprintf(buf, "%%%02X", c)
 		} else {
-			o += fmt.Sprintf("%c", c)
+			fmt.Fprintf(buf, "%c", c)
 		}
 	}
-	return o
+
+	return buf.String()
 }
 
 // FIXME: replace with a real oauth1 library - or wait until oauth2 becomes
