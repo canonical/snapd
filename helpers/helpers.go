@@ -390,7 +390,9 @@ func RSyncWithDelete(srcDirName, destDirName string) error {
 		src := path
 		dst := filepath.Join(destDirName, relPath)
 		if !FilesAreEqual(src, dst) {
-			// XXX: on snappy-trunk we can use CopyFile here
+			// XXX: we should (eventually) use CopyFile here,
+			//      but we need to teach it about preserving
+			//      of atime/mtime and permissions
 			output, err := exec.Command("cp", "-va", src, dst).CombinedOutput()
 			if err != nil {
 				fmt.Errorf("Failed to copy %s to %s (%s)", src, dst, output)
