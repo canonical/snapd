@@ -323,6 +323,8 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		}
 	}
 
+	m.integrate()
+
 	return &m, nil
 }
 
@@ -445,7 +447,7 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, cur
 	return nil
 }
 
-func (m *packageYaml) mangleSecDef(hookName string, s *SecurityDefinitions) {
+func (m *packageYaml) integrateSecDef(hookName string, s *SecurityDefinitions) {
 	// see if we have a custom security policy
 	if s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != "" {
 		m.Integration[hookName]["apparmor-profile"] = s.SecurityPolicy.Apparmor
@@ -464,8 +466,13 @@ func (m *packageYaml) mangleSecDef(hookName string, s *SecurityDefinitions) {
 	return
 }
 
-func (m *packageYaml) mangle() {
-	if m.Integration == nil {
+// integrate sets up the Integration property of packageYaml from its other attributes
+func (m *packageYaml) integrate() {
+	if m.Integration != nil {
+		// TODO: append "Overriding user-provided values." to the end of the blurb.
+		logger.Noticef(`The "integration" key is deprecated, and all uses of "integration" should be rewritten; see https://developer.ubuntu.com/en/snappy/guides/package-metadata/ (the "binaries" and "services" sections are probably especially relevant)."`)
+	} else {
+		// TODO: do this always, not just when Integration is not set
 		m.Integration = make(map[string]clickAppHook)
 	}
 
@@ -478,7 +485,7 @@ func (m *packageYaml) mangle() {
 		// legacy click hook
 		m.Integration[hookName]["bin-path"] = v.Exec
 
-		m.mangleSecDef(hookName, &v.SecurityDefinitions)
+		m.integrateSecDef(hookName, &v.SecurityDefinitions)
 	}
 
 	for i, v := range m.Services {
@@ -490,11 +497,11 @@ func (m *packageYaml) mangle() {
 
 		// generate snappyd systemd unit json
 		if v.Description == "" {
-			m.Services[i].Description = fmt.Sprintf("service %q for package %q", hookName, m.Name)
+			m.Services[i].Description = fmt.Sprintf("service %s for package %s", hookName, m.Name)
 		}
 
 		// handle the apparmor stuff
-		m.mangleSecDef(hookName, &v.SecurityDefinitions)
+		m.integrateSecDef(hookName, &v.SecurityDefinitions)
 	}
 }
 

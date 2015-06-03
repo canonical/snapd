@@ -465,9 +465,6 @@ func Build(sourceDir, targetDir string) (string, error) {
 		return "", err
 	}
 
-	// defaults, mangling
-	m.mangle()
-
 	// generate compat hooks for binaries
 	if err := handleBinaries(buildDir, m); err != nil {
 		return "", err

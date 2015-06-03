@@ -224,7 +224,6 @@ services:
 	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_3.0.1_all.snap", "manifest").Output()
 	c.Assert(err, IsNil)
 	c.Assert(string(readJSON), Equals, expectedJSON)
-
 }
 
 func (s *SnapTestSuite) TestBuildAutoGenerateConfigAppArmor(c *C) {

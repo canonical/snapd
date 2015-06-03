@@ -63,7 +63,7 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
 	sec := &SecurityDefinitions{}
 
 	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
-	a.m.mangle()
+	a.m.integrate()
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
@@ -85,7 +85,7 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorCaps(c *C) {
 	}
 
 	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
-	a.m.mangle()
+	a.m.integrate()
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
@@ -108,7 +108,7 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorTemplate(c *C) {
 	}
 
 	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
-	a.m.mangle()
+	a.m.integrate()
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
@@ -130,7 +130,7 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorOverride(c *C) {
 	}
 
 	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
-	a.m.mangle()
+	a.m.integrate()
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
@@ -146,7 +146,7 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorPolicy(c *C) {
 	}
 
 	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
-	a.m.mangle()
+	a.m.integrate()
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
