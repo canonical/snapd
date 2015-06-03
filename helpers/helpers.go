@@ -369,7 +369,10 @@ func fillSnapEnvVars(desc interface{}, vars []string) []string {
 	return vars
 }
 
-// GetBasicSnapEnvVars returns the app-level environment variables for a snap
+// GetBasicSnapEnvVars returns the app-level environment variables for a snap.
+// Despite this being a bit snap-specific, this is in helpers.go because it's
+// used by so many other modules, we run into circular dependencies if it's
+// somewhere more reasonable like the snappy module.
 func GetBasicSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		"TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp",
@@ -381,11 +384,14 @@ func GetBasicSnapEnvVars(desc interface{}) []string {
 		"SNAP_VERSION={{.Version}}",
 		"SNAP_ORIGIN={{.Origin}}",
 		"SNAP_FULLNAME={{.UdevAppName}}",
-		"SNAPPY_APP_ARCH={{.AppArch}}", // FIXME: this should probably be SNAP_ARCH?
+		"SNAP_ARCH={{.AppArch}}",
 	})
 }
 
-// GetUserSnapEnvVars returns the user-level environment variables for a snap
+// GetUserSnapEnvVars returns the user-level environment variables for a snap.
+// Despite this being a bit snap-specific, this is in helpers.go because it's
+// used by so many other modules, we run into circular dependencies if it's
+// somewhere more reasonable like the snappy module.
 func GetUserSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		"SNAP_APP_USER_DATA_PATH={{.Home}}{{.AppPath}}",
@@ -393,17 +399,24 @@ func GetUserSnapEnvVars(desc interface{}) []string {
 }
 
 // GetDeprecatedBasicSnapEnvVars returns the app-level deprecated environment
-// variables for a snap
+// variables for a snap.
+// Despite this being a bit snap-specific, this is in helpers.go because it's
+// used by so many other modules, we run into circular dependencies if it's
+// somewhere more reasonable like the snappy module.
 func GetDeprecatedBasicSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		"SNAPP_APP_PATH={{.AppPath}}",
 		"SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}",
 		"SNAPP_APP_TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp",
+		"SNAPPY_APP_ARCH={{.AppArch}}",
 	})
 }
 
 // GetDeprecatedUserSnapEnvVars returns the user-level deprecated environment
-// variables for a snap
+// variables for a snap.
+// Despite this being a bit snap-specific, this is in helpers.go because it's
+// used by so many other modules, we run into circular dependencies if it's
+// somewhere more reasonable like the snappy module.
 func GetDeprecatedUserSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		"SNAPP_APP_USER_DATA_PATH={{.Home}}{{.AppPath}}",

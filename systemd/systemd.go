@@ -227,7 +227,7 @@ WantedBy={{.ServiceSystemdTarget}}
 	allVars = append(allVars, helpers.GetUserSnapEnvVars(wrapperData)...)
 	allVars = append(allVars, helpers.GetDeprecatedBasicSnapEnvVars(wrapperData)...)
 	allVars = append(allVars, helpers.GetDeprecatedUserSnapEnvVars(wrapperData)...)
-	wrapperData.EnvVars = "\"" + strings.Join(allVars, "\" \"") + "\""
+	wrapperData.EnvVars = "\"" + strings.Join(allVars, "\" \"") + "\"" // allVars won't be empty
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
 		// this can never happen, except we forget a variable
