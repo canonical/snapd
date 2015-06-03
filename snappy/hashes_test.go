@@ -26,7 +26,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 var fileHashYaml = `name: foo

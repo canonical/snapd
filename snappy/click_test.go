@@ -29,7 +29,7 @@ import (
 	"strings"
 
 	"github.com/mvo5/goconfigparser"
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
@@ -1091,7 +1091,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	bins := []string{"hello", "goodbye", "missya"}
 	for i := range verbs {
 		expected := fmt.Sprintf("Exec%s=/usr/bin/ubuntu-core-launcher hello-app.%s %s_svc1_1.10 %s/bin/%s", verbs[i], testOrigin, helloAppComposedName, baseDirWithoutRootPrefix, bins[i])
-		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // gocheck adds ^ and $ around the regexp provided
+		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
 	}
 }
 

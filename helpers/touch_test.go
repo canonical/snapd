@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"time"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 func (ts *HTestSuite) TestUpdateTimestamp(c *C) {
