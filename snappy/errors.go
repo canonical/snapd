@@ -166,11 +166,12 @@ func (e *ErrInstallFailed) Error() string {
 // ErrHookFailed is returned if a hook command fails
 type ErrHookFailed struct {
 	cmd      string
+	output   string
 	exitCode int
 }
 
 func (e *ErrHookFailed) Error() string {
-	return fmt.Sprintf("hook command %v failed with exit status %d", e.cmd, e.exitCode)
+	return fmt.Sprintf("hook command %v failed with exit status %d (output: %q)", e.cmd, e.exitCode, e.output)
 }
 
 // ErrDataCopyFailed is returned if copying the snap data fialed

@@ -92,9 +92,10 @@ const servicesBinariesStringsWhitelist = `^[A-Za-z0-9/. _#:-]*$`
 func execHook(execCmd string) (err error) {
 	// the spec says this is passed to the shell
 	cmd := exec.Command("sh", "-c", execCmd)
-	if err = cmd.Run(); err != nil {
+	if output, err := cmd.CombinedOutput(); err != nil {
 		if exitCode, err := helpers.ExitCode(err); err == nil {
 			return &ErrHookFailed{cmd: execCmd,
+				output:   string(output),
 				exitCode: exitCode}
 		}
 		return err
