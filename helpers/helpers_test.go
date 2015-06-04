@@ -317,7 +317,7 @@ func (ts *HTestSuite) TestUnpacksMknod(c *C) {
 }
 
 func (ts *HTestSuite) TestGetattr(c *C) {
-	T := struct{
+	T := struct {
 		S string
 		I int
 	}{

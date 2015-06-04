@@ -276,7 +276,7 @@ func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error
 		return &ErrInvalidYaml{
 			file: file,
 			yaml: yamlData,
-			err:  fmt.Errorf("missing required fields '%s'", strings.Join(missing, ",")),
+			err:  fmt.Errorf("missing required fields '%s'", strings.Join(missing, ", ")),
 		}
 	}
 
