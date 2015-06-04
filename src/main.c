@@ -245,17 +245,26 @@ void mkoldtmpdir() {
         return;
     }
 
+    // strtok trashes its argument, so to avoid changing the TMPDIR variable,
+    // we make a copy.
+    dir = strdup(dir);
+    if (!dir) {
+        die("out of memory");
+    }
+
     int n = 4;
     char buf[MAX_BUF] = "/tmp";
     char *d = strtok(dir+4, "/");
     while (d) {
         n += must_snprintf(buf+n, MAX_BUF-n, "/%s", d);
-        if (mkdir(buf, 01777) < 0) {
-            return;
+        if (mkdir(buf, 01777) < 0 && errno != EEXIST) {
+            break;
         }
 
         d = strtok(NULL, "/");
     }
+
+    free(dir);
 }
 
 int main(int argc, char **argv)
