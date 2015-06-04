@@ -46,12 +46,15 @@ func needsEscape(c byte) bool {
 		(c == '~'))
 }
 
+// quote will quote all bytes in the input string that oauth requries to
+// be quoted
 func quote(s string) string {
 	buf := bytes.NewBuffer(nil)
 	// set to worst case max size, to avoid reallocs
-	buf.Grow(len(s) * 3)
+	sin := []byte(s)
+	buf.Grow(len(sin) * 3)
 
-	for _, c := range []byte(s) {
+	for _, c := range sin {
 		if needsEscape(c) {
 			fmt.Fprintf(buf, "%%%02X", c)
 		} else {

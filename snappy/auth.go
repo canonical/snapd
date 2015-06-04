@@ -26,7 +26,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/oauth"
