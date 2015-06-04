@@ -46,8 +46,6 @@ func needsEscape(c byte) bool {
 		(c == '~'))
 }
 
-// XXX: inefficient algorithm, we sign small data only (not the payload
-//      itself with PLAINTEXT)
 func quote(s string) string {
 	buf := bytes.NewBuffer(nil)
 	// set to worst case max size, to avoid reallocs
