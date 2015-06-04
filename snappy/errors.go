@@ -149,7 +149,7 @@ type ErrArchitectureNotSupported struct {
 }
 
 func (e *ErrArchitectureNotSupported) Error() string {
-	return fmt.Sprintf("package's supported architectures (%s) is incompatible with this system (%s)", strings.Join(e.architectures, ","), helpers.UbuntuArchitecture())
+	return fmt.Sprintf("package's supported architectures (%s) is incompatible with this system (%s)", strings.Join(e.architectures, ", "), helpers.UbuntuArchitecture())
 }
 
 // ErrInstallFailed is an error type for installation errors for snaps
