@@ -183,7 +183,7 @@ type ErrHookFailed struct {
 }
 
 func (e *ErrHookFailed) Error() string {
-	return fmt.Sprintf("hook command %v failed with exit status %d (output: '%s')", e.cmd, e.exitCode, e.output)
+	return fmt.Sprintf("hook command %v failed with exit status %d (output: %q)", e.cmd, e.exitCode, e.output)
 }
 
 // ErrDataCopyFailed is returned if copying the snap data fialed
