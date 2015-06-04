@@ -64,11 +64,11 @@ func (x *cmdRollback) Execute(args []string) (err error) {
 		return errNeedPackageName
 	}
 
-	fmt.Printf("Setting %s to version %s\n", pkg, nowVersion)
 	nowVersion, err := snappy.Rollback(pkg, version, progress.MakeProgressBar())
 	if err != nil {
 		return err
 	}
+	fmt.Printf("Setting %s to version %s\n", pkg, nowVersion)
 
 	m := snappy.NewMetaRepository()
 	installed, err := m.Installed()
