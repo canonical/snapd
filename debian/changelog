@@ -1,3 +1,14 @@
+ubuntu-core-launcher (1.0.3) wily; urgency=low
+
+  [ Michael Terry ]
+  * lp:~mterry/ubuntu-core-launcher/tmpdir:
+    - Fix propagation of TMPDIR from the launcher to the command
+      being run LP: #1457183
+  * lp:~mterry/ubuntu-core-launcher/fix-tests:
+    - re-enable tests
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 04 Jun 2015 23:36:04 +0200
+
 ubuntu-core-launcher (1.0.2) wily; urgency=low
 
   [ John Lenton ]
