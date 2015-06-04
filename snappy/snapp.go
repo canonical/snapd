@@ -941,6 +941,11 @@ func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
 		return err
 	}
 
+	// verify we have a valid architecture
+	if !helpers.IsSupportedArchitecture(s.m.Architectures) {
+		return &ErrArchitectureNotSupported{s.m.Architectures}
+	}
+
 	if err := s.m.checkForNameClashes(); err != nil {
 		return err
 	}

@@ -197,6 +197,20 @@ func UbuntuArchitecture() string {
 	}
 }
 
+// IsSupportedArchitecture returns true if the system architecture is in the
+// list of architectures.
+func IsSupportedArchitecture(architectures []string) bool {
+	systemArch := UbuntuArchitecture()
+
+	for _, arch := range architectures {
+		if arch == "all" || arch == systemArch {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Sha512sum returns the sha512 of the given file as a hexdigest
 func Sha512sum(infile string) (hexdigest string, err error) {
 	r, err := os.Open(infile)

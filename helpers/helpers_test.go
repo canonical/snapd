@@ -97,6 +97,18 @@ func (ts *HTestSuite) TestUbuntuArchitecture(c *C) {
 	c.Check(UbuntuArchitecture(), Equals, "i386")
 }
 
+func (ts *HTestSuite) TestSupportedArchitectures(c *C) {
+	goarch = "arm"
+	c.Check(IsSupportedArchitecture([]string{"all"}), Equals, true)
+	c.Check(IsSupportedArchitecture([]string{"amd64", "armhf", "powerpc"}), Equals, true)
+	c.Check(IsSupportedArchitecture([]string{"armhf"}), Equals, true)
+	c.Check(IsSupportedArchitecture([]string{"amd64", "powerpc"}), Equals, false)
+
+	goarch = "amd64"
+	c.Check(IsSupportedArchitecture([]string{"amd64", "armhf", "powerpc"}), Equals, true)
+	c.Check(IsSupportedArchitecture([]string{"powerpc"}), Equals, false)
+}
+
 func (ts *HTestSuite) TestChdir(c *C) {
 	tmpdir := c.MkDir()
 
