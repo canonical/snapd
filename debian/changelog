@@ -1,3 +1,9 @@
+ubuntu-core-launcher (1.0.4) UNRELEASED; urgency=medium
+
+  * Allow writing to all forms of TMPDIR (LP: #1460517)
+
+ -- Sergio Schvezov <sergio.schvezov@canonical.com>  Fri, 05 Jun 2015 13:45:35 -0300
+
 ubuntu-core-launcher (1.0.3) wily; urgency=low
 
   [ Michael Terry ]

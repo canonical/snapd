@@ -53,7 +53,7 @@
     # set up snap-specific private /tmp dir
     capability chown,
     /tmp/ w,
-    /tmp/snap.*/ w,
+    /tmp/snap{s,.*}/ w,
     mount options=(rw private) -> /tmp/,
     mount options=(rw bind) /tmp/snap.*/ -> /tmp/,
 }
