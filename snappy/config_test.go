@@ -25,7 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 const configPassthroughScript = `#!/bin/sh

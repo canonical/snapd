@@ -198,6 +198,18 @@ func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error
 	return content, nil
 }
 
+// ExtractHashes reads "hashes.yaml" from the clickdeb and writes it to
+// the given directory
+func (d *ClickDeb) ExtractHashes(dir string) error {
+	hashesFile := filepath.Join(dir, "hashes.yaml")
+	hashesData, err := d.ControlMember("hashes.yaml")
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(hashesFile, hashesData, 0644)
+}
+
 // Unpack unpacks the data.tar.{gz,bz2,xz} into the given target directory
 // with click specific verification, i.e. no files will be extracted outside
 // of the targetdir (no ".." inside the data.tar is allowed)

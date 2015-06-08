@@ -102,7 +102,7 @@ func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
 // logic for an oem package in every other function
 var getOem = getOemImpl
 
-var getOemImpl = func() (*packageYaml, error) {
+func getOemImpl() (*packageYaml, error) {
 	oems, _ := ActiveSnapsByType(pkg.TypeOem)
 	if len(oems) == 1 {
 		return oems[0].(*SnapPart).m, nil
