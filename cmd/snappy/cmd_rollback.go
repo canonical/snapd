@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
@@ -68,6 +69,15 @@ func (x *cmdRollback) Execute(args []string) (err error) {
 		return err
 	}
 	fmt.Printf("Setting %s to version %s\n", pkg, nowVersion)
+
+	m := snappy.NewMetaRepository()
+	installed, err := m.Installed()
+	if err != nil {
+		return err
+	}
+
+	parts := snappy.FindSnapsByNameAndVersion(pkg, nowVersion, installed)
+	showVerboseList(parts, os.Stdout)
 
 	return nil
 }

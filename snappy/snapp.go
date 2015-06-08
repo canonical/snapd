@@ -1020,6 +1020,11 @@ func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
 		return err
 	}
 
+	// verify we have a valid architecture
+	if !helpers.IsSupportedArchitecture(s.m.Architectures) {
+		return &ErrArchitectureNotSupported{s.m.Architectures}
+	}
+
 	if err := s.m.checkForNameClashes(); err != nil {
 		return err
 	}
@@ -1637,15 +1642,22 @@ func (s *SnapUbuntuStoreRepository) Installed() (parts []Part, err error) {
 // are required when calling a meta/hook/ script and that will override
 // any already existing SNAP_* variables in os.Environment()
 func makeSnapHookEnv(part *SnapPart) (env []string) {
-	snapDataDir := filepath.Join(snapDataDir, part.Name(), part.Version())
-	snapEnv := map[string]string{
-		"SNAP_NAME":          part.Name(),
-		"SNAP_ORIGIN":        part.Origin(),
-		"SNAP_FULLNAME":      QualifiedName(part),
-		"SNAP_VERSION":       part.Version(),
-		"SNAP_APP_PATH":      part.basedir,
-		"SNAP_APP_DATA_PATH": snapDataDir,
+	desc := struct {
+		AppName     string
+		AppArch     string
+		AppPath     string
+		Version     string
+		UdevAppName string
+		Origin      string
+	}{
+		part.Name(),
+		helpers.UbuntuArchitecture(),
+		part.basedir,
+		part.Version(),
+		QualifiedName(part),
+		part.Origin(),
 	}
+	snapEnv := helpers.MakeMapFromEnvList(helpers.GetBasicSnapEnvVars(desc))
 
 	// merge regular env and new snapEnv
 	envMap := helpers.MakeMapFromEnvList(os.Environ())
