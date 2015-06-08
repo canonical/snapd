@@ -218,8 +218,12 @@ void setup_private_mount(const char* appname) {
     // now we create a 1777 /tmp inside our private dir
     mode_t old_mask = umask(0);
     char *d = strdup(tmpdir);
+    if (!d) {
+        die("Out of memory");
+    }
     must_snprintf(tmpdir, sizeof(tmpdir), "%s/tmp", d);
     free(d);
+
     if (mkdir(tmpdir, 01777) != 0) {
        die("unable to create /tmp inside private dir");
     }
