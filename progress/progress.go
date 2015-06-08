@@ -129,8 +129,9 @@ func (t *TextProgress) SetTotal(total float64) {
 // Finished stops displaying the progress
 func (t *TextProgress) Finished() {
 	if t.pbar != nil {
-		t.pbar.FinishPrint("Done")
+		t.pbar.Finish()
 	}
+	fmt.Println("Done")
 }
 
 // Write is there so that progress can implment a Writer and can be
@@ -143,7 +144,10 @@ func (t *TextProgress) Write(p []byte) (n int, err error) {
 // that have a unknown duration
 func (t *TextProgress) Spin(msg string) {
 	states := `|/-\`
-	fmt.Printf("\r%s[%c]", msg, states[t.spinStep])
+
+	// clear until end of line
+	clearUntilEOL := "\033[K"
+	fmt.Printf("\r%s[%c]%s", msg, states[t.spinStep], clearUntilEOL)
 	t.spinStep++
 	if t.spinStep >= len(states) {
 		t.spinStep = 0
