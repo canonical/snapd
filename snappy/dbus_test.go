@@ -20,7 +20,7 @@
 package snappy
 
 import (
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 // systemd's testsuite

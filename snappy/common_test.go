@@ -29,8 +29,8 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/pkg"
 
+	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
-	. "launchpad.net/gocheck"
 )
 
 const (
