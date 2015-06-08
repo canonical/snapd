@@ -92,7 +92,13 @@ func readUid(user, passwdFile string) (uid int, err error) {
 	return -1, errors.New("failed to find user uid/gid")
 }
 
-// copied from go 1.3 (almost) verbatim
+// copied from go 1.3 (almost) verbatim. The go authors removed this
+// implementation from 1.4 because it doesn't apply to all threads,
+// which confuses people. Note the use of LockOSThread below. Note
+// also they didn't remove Setgroups *yet*, but probably will do so at
+// some point. Further note that it's also possible that they change
+// things around more; read issue 1435 (currently at
+// https://github.com/golang/go/issues/1435) for more details.
 func setgid(gid int) (err error) {
 	_, _, e1 := syscall.RawSyscall(syscall.SYS_SETGID, uintptr(gid), 0, 0)
 	if e1 != 0 {
