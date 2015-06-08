@@ -57,7 +57,7 @@ func (s *purgeSuite) TestPurgeNonExistingRaisesError(c *C) {
 	c.Check(inter.notified, HasLen, 0)
 }
 
-func (s *purgeSuite) mkpkg(c *C, args ...string) (string, *SnapPart) {
+func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDir string, part *SnapPart) {
 	version := "1.10"
 	extra := ""
 	switch len(args) {
@@ -78,16 +78,16 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (string, *SnapPart) {
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", app+".manifest"), []byte(`{"name": "`+app+`"}`), 0644), IsNil)
 
-	ddir := filepath.Join(snapDataDir, app, version)
-	c.Assert(os.MkdirAll(ddir, 0755), IsNil)
-	canaryDataFile := filepath.Join(ddir, "canary.txt")
+	dataDir = filepath.Join(snapDataDir, app, version)
+	c.Assert(os.MkdirAll(dataDir, 0755), IsNil)
+	canaryDataFile := filepath.Join(dataDir, "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	part, err = NewInstalledSnapPart(yamlFile, testOrigin)
 	c.Assert(err, IsNil)
 
-	return ddir, part
+	return dataDir, part
 }
 
 func (s *purgeSuite) TestPurgeActiveRaisesError(c *C) {

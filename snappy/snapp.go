@@ -679,7 +679,6 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 
 	var oldPart *SnapPart
 	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current")); currentActiveDir != "" {
-		// TODO: support upgrading to different origins
 		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "package.yaml"), s.origin)
 		if err != nil {
 			return "", err
@@ -837,7 +836,7 @@ func (s *SnapPart) SetActive(pb progress.Meter) (err error) {
 	return s.activate(false, pb)
 }
 
-func (s *SnapPart) activate(inhibitHooks bool, inter interacter) (err error) {
+func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
 	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
 
@@ -877,7 +876,6 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) (err error) {
 		return err
 	}
 
-	// FIXME: we want to get rid of the current symlink
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
 	}
