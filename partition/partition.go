@@ -760,14 +760,6 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 		requiredChrootMounts = append(requiredChrootMounts, boot.mountpoint)
 	}
 
-	// add additional bootloader mounts, this is required for grub
-	bootloader, err := getBootloader(p)
-	if err == nil && bootloader != nil {
-		for _, mount := range bootloader.AdditionalBindMounts() {
-			requiredChrootMounts = append(requiredChrootMounts, mount)
-		}
-	}
-
 	for _, fs := range requiredChrootMounts {
 		target := filepath.Join(p.MountTarget(), fs)
 
@@ -814,13 +806,10 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return err
 	}
 
-	err = p.RunWithOther(RW, func(otherRoot string) (err error) {
-		return bootloader.ToggleRootFS()
-	})
-
-	if err != nil {
+	// ensure we have updated kernels etc
+	if err := bootloader.HandleAssets(); err != nil {
 		return err
 	}
 
-	return bootloader.HandleAssets()
+	return bootloader.ToggleRootFS()
 }
