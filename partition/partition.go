@@ -806,13 +806,10 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return err
 	}
 
-	err = p.RunWithOther(RW, func(otherRoot string) (err error) {
-		return bootloader.ToggleRootFS()
-	})
-
-	if err != nil {
+	// ensure we have updated kernels etc
+	if err := bootloader.HandleAssets(); err != nil {
 		return err
 	}
 
-	return bootloader.HandleAssets()
+	return bootloader.ToggleRootFS()
 }
