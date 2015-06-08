@@ -23,7 +23,6 @@ machine=`uname -m`
 
 SNAPPY_OS="Ubuntu Core Snappy"
 SNAPPY_TYPE=simple
-SNAPPY_ARGS="${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT}"
 
 #---------------------------------------------------------------------
 
@@ -154,6 +153,14 @@ get_kernels()
          done` ;;
     esac
     echo "$list"
+}
+
+# Composes and returns a kernel cmd line
+get_cmdline() {
+    channels_ini = "/etc/system-image/channels.ini"
+    [ -n "$(grep 'device: azure_amd64' "$channels_ini")" ] && azure_cmdline="rootdelay=300"
+
+    echo "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT} $azure_cmdline"
 }
 
 # Returns the path to the initrd for the kernel specified by $1.
@@ -290,6 +297,7 @@ handle_menu_entry()
     local rel_dirname=
     local version=
     local initrd=
+    local cmdline=
 
     # boot by label
     device="LABEL=$label"
@@ -313,6 +321,8 @@ handle_menu_entry()
 
     initrd=$(get_initrd "$version" "$dirname")
 
+    cmdline=$(get_cmdline)
+
     # convert the path to the mounted "other" rootfs back to a
     # a standard one by removing the mountpoint prefix.
     if [ "$mountpoint" != "/" ]; then
@@ -322,7 +332,7 @@ handle_menu_entry()
 
     # Create menu entries for the 2 snappy rootfs's.
     linux_entry_ext "$name" "$SNAPPY_OS" "$version" \
-        "$SNAPPY_TYPE" "$SNAPPY_ARGS" "$device" \
+        "$SNAPPY_TYPE" "$cmdline" "$device" \
         "$linux" "$initrd"
 }
 
