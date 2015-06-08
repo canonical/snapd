@@ -157,8 +157,8 @@ get_kernels()
 
 # Composes and returns a kernel cmd line
 get_cmdline() {
-    channels_ini = "/etc/system-image/channels.ini"
-    grep -q 'device: azure_amd64' "$channels_ini" && azure_cmdline="rootdelay=300"
+    channel_ini="/etc/system-image/channel.ini"
+    grep -q 'device: azure_amd64' "$channel_ini" && azure_cmdline="rootdelay=300"
 
     echo "${GRUB_CMDLINE_LINUX} ${GRUB_CMDLINE_LINUX_DEFAULT} $azure_cmdline"
 }
