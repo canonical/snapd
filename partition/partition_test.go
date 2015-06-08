@@ -56,7 +56,6 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 	bootloaderGrubDir = filepath.Join(s.tempdir, "boot", "grub")
 	bootloaderGrubConfigFile = filepath.Join(bootloaderGrubDir, "grub.cfg")
 	bootloaderGrubEnvFile = filepath.Join(bootloaderGrubDir, "grubenv")
-	bootloaderGrubUpdateCmd = filepath.Join(s.tempdir, "update-grub")
 
 	// and uboot
 	bootloaderUbootDir = filepath.Join(s.tempdir, "boot", "uboot")
@@ -78,7 +77,6 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	// grub vars
 	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
 	bootloaderGrubEnvFile = bootloaderGrubEnvFileReal
-	bootloaderGrubUpdateCmd = bootloaderGrubUpdateCmdReal
 
 	// uboot vars
 	bootloaderUbootDir = bootloaderUbootDirReal

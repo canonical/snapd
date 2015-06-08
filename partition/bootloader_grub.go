@@ -33,7 +33,6 @@ const (
 	bootloaderGrubEnvFileReal    = "/boot/grub/grubenv"
 
 	bootloaderGrubEnvCmdReal       = "/usr/bin/grub-editenv"
-	bootloaderGrubUpdateCmdReal    = "/usr/sbin/update-grub"
 	bootloaderGrubTrialBootVarReal = "snappy_trial_boot"
 )
 
@@ -44,8 +43,7 @@ var (
 	bootloaderGrubTrialBootVar = bootloaderGrubTrialBootVarReal
 	bootloaderGrubEnvFile      = bootloaderGrubEnvFileReal
 
-	bootloaderGrubEnvCmd    = bootloaderGrubEnvCmdReal
-	bootloaderGrubUpdateCmd = bootloaderGrubUpdateCmdReal
+	bootloaderGrubEnvCmd = bootloaderGrubEnvCmdReal
 )
 
 type grub struct {
@@ -56,7 +54,7 @@ const bootloaderNameGrub bootloaderName = "grub"
 
 // newGrub create a new Grub bootloader object
 func newGrub(partition *Partition) bootLoader {
-	if !helpers.FileExists(bootloaderGrubConfigFile) || !helpers.FileExists(bootloaderGrubUpdateCmd) {
+	if !helpers.FileExists(bootloaderGrubConfigFile) {
 		return nil
 	}
 	b := newBootLoader(partition)
@@ -78,11 +76,6 @@ func (g *grub) Name() bootloaderName {
 //
 // Update the grub configuration.
 func (g *grub) ToggleRootFS() (err error) {
-
-	// create the grub config
-	if err := runInChroot(g.partition.MountTarget(), bootloaderGrubUpdateCmd); err != nil {
-		return err
-	}
 
 	if err := g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry); err != nil {
 		return err
