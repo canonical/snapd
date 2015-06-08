@@ -322,10 +322,6 @@ func (s *PartitionTestSuite) TestUnmountRequiredFilesystems(c *C) {
 		mountEntry{source: "/boot/efi", target: p.MountTarget() + "/boot/efi",
 			options: "bind", bindMount: true},
 
-		// this comes from the grub bootloader via AdditionalBindMounts
-		mountEntry{source: "/boot/grub", target: p.MountTarget() + "/boot/grub",
-			options: "bind", bindMount: true},
-
 		// Required to allow grub inside the chroot to access
 		// the "current" rootfs outside the chroot (used
 		// to generate the grub menuitems).
@@ -447,10 +443,6 @@ func (b *mockBootloader) MarkCurrentBootSuccessful() error {
 	b.MarkCurrentBootSuccessfulCalled = true
 	return nil
 }
-func (b *mockBootloader) AdditionalBindMounts() []string {
-	return nil
-}
-
 func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 	runCommand = mockRunCommand
 	b := &mockBootloader{}

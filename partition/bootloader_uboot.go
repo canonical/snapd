@@ -408,8 +408,3 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 
 	return nil
 }
-
-func (u *uboot) AdditionalBindMounts() []string {
-	// nothing additional to system-boot required on uboot
-	return []string{}
-}
