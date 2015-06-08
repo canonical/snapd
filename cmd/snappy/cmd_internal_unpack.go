@@ -92,6 +92,22 @@ func readUid(user, passwdFile string) (uid int, err error) {
 	return -1, errors.New("failed to find user uid/gid")
 }
 
+// copied from go 1.3 (almost) verbatim
+func setgid(gid int) (err error) {
+	_, _, e1 := syscall.RawSyscall(syscall.SYS_SETGID, uintptr(gid), 0, 0)
+	if e1 != 0 {
+		err = e1
+	}
+	return
+}
+func setuid(uid int) (err error) {
+	_, _, e1 := syscall.RawSyscall(syscall.SYS_SETUID, uintptr(uid), 0, 0)
+	if e1 != 0 {
+		err = e1
+	}
+	return
+}
+
 func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 
 	d, err := clickdeb.Open(snapFile)
@@ -133,14 +149,14 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 		}
 
 		if err := syscall.Setgroups([]int{gid}); err != nil {
-			return err
+			return fmt.Errorf("Setgroups([]{%d}) call failed: %v", gid, err)
 		}
 
-		if err := syscall.Setgid(gid); err != nil {
-			return err
+		if err := setgid(gid); err != nil {
+			return fmt.Errorf("Setgid(%d) call failed: %v", gid, err)
 		}
-		if err := syscall.Setuid(uid); err != nil {
-			return err
+		if err := setuid(uid); err != nil {
+			return fmt.Errorf("Setuid(%d) call failed: %v", uid, err)
 		}
 
 		// extra paranoia
