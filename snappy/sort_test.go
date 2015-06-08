@@ -22,7 +22,7 @@ package snappy
 import (
 	"sort"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 type SortTestSuite struct {

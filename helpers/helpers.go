@@ -21,6 +21,7 @@ package helpers
 
 import (
 	"archive/tar"
+	"bytes"
 	"crypto/sha512"
 	"encoding/hex"
 	"fmt"
@@ -33,7 +34,10 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"text/template"
 	"time"
+
+	"launchpad.net/snappy/logger"
 )
 
 var goarch = runtime.GOARCH
@@ -193,6 +197,20 @@ func UbuntuArchitecture() string {
 	}
 }
 
+// IsSupportedArchitecture returns true if the system architecture is in the
+// list of architectures.
+func IsSupportedArchitecture(architectures []string) bool {
+	systemArch := UbuntuArchitecture()
+
+	for _, arch := range architectures {
+		if arch == "all" || arch == systemArch {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Sha512sum returns the sha512 of the given file as a hexdigest
 func Sha512sum(infile string) (hexdigest string, err error) {
 	r, err := os.Open(infile)
@@ -350,6 +368,73 @@ func MajorMinor(info os.FileInfo) (uint32, uint32, error) {
 // Makedev implements makedev(3)
 func Makedev(major, minor uint32) uint32 {
 	return uint32((minor & 0xff) | ((major & 0xfff) << 8))
+}
+
+func fillSnapEnvVars(desc interface{}, vars []string) []string {
+	for i, v := range vars {
+		var templateOut bytes.Buffer
+		t := template.Must(template.New("wrapper").Parse(v))
+		if err := t.Execute(&templateOut, desc); err != nil {
+			// this can never happen, except we forget a variable
+			logger.Panicf("Unable to execute template: %v", err)
+		}
+		vars[i] = templateOut.String()
+	}
+	return vars
+}
+
+// GetBasicSnapEnvVars returns the app-level environment variables for a snap.
+// Despite this being a bit snap-specific, this is in helpers.go because it's
+// used by so many other modules, we run into circular dependencies if it's
+// somewhere more reasonable like the snappy module.
+func GetBasicSnapEnvVars(desc interface{}) []string {
+	return fillSnapEnvVars(desc, []string{
+		"TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp",
+		"TEMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp",
+		"SNAP_APP_PATH={{.AppPath}}",
+		"SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}",
+		"SNAP_APP_TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp",
+		"SNAP_NAME={{.AppName}}",
+		"SNAP_VERSION={{.Version}}",
+		"SNAP_ORIGIN={{.Origin}}",
+		"SNAP_FULLNAME={{.UdevAppName}}",
+		"SNAP_ARCH={{.AppArch}}",
+	})
+}
+
+// GetUserSnapEnvVars returns the user-level environment variables for a snap.
+// Despite this being a bit snap-specific, this is in helpers.go because it's
+// used by so many other modules, we run into circular dependencies if it's
+// somewhere more reasonable like the snappy module.
+func GetUserSnapEnvVars(desc interface{}) []string {
+	return fillSnapEnvVars(desc, []string{
+		"SNAP_APP_USER_DATA_PATH={{.Home}}{{.AppPath}}",
+	})
+}
+
+// GetDeprecatedBasicSnapEnvVars returns the app-level deprecated environment
+// variables for a snap.
+// Despite this being a bit snap-specific, this is in helpers.go because it's
+// used by so many other modules, we run into circular dependencies if it's
+// somewhere more reasonable like the snappy module.
+func GetDeprecatedBasicSnapEnvVars(desc interface{}) []string {
+	return fillSnapEnvVars(desc, []string{
+		"SNAPP_APP_PATH={{.AppPath}}",
+		"SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}",
+		"SNAPP_APP_TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp",
+		"SNAPPY_APP_ARCH={{.AppArch}}",
+	})
+}
+
+// GetDeprecatedUserSnapEnvVars returns the user-level deprecated environment
+// variables for a snap.
+// Despite this being a bit snap-specific, this is in helpers.go because it's
+// used by so many other modules, we run into circular dependencies if it's
+// somewhere more reasonable like the snappy module.
+func GetDeprecatedUserSnapEnvVars(desc interface{}) []string {
+	return fillSnapEnvVars(desc, []string{
+		"SNAPP_APP_USER_DATA_PATH={{.Home}}{{.AppPath}}",
+	})
 }
 
 // RSyncWithDelete syncs srcDir to destDir

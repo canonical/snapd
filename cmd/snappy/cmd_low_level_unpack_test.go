@@ -23,7 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 func makeTempFile(c *C, content string) *os.File {

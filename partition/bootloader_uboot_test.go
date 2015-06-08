@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 	"launchpad.net/snappy/helpers"
 )
 
