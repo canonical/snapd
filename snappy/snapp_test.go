@@ -1416,9 +1416,9 @@ vendor: Foo Bar <foo@example.com>
 
 func (s *SnapTestSuite) TestIntegrateBoring(c *C) {
 	m := &packageYaml{}
-	m.integrate()
+	m.legacyIntegration()
 
-	// no binaries, no service, no integrate
+	// no binaries, no service, no legacyIntegration
 	c.Check(m.Integration, HasLen, 0)
 }
 
@@ -1445,7 +1445,7 @@ func (s *SnapTestSuite) TestIntegrateBinary(c *C) {
 			},
 		},
 	}
-	m.integrate()
+	m.legacyIntegration()
 
 	c.Check(m.Integration, DeepEquals, map[string]clickAppHook{
 		"testme": {
@@ -1472,7 +1472,7 @@ func (s *SnapTestSuite) TestIntegrateService(c *C) {
 		},
 	}
 
-	m.integrate()
+	m.legacyIntegration()
 
 	// no binaries, no service, no integrate
 	c.Check(m.Integration, DeepEquals, map[string]clickAppHook{
