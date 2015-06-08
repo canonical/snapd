@@ -29,7 +29,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 func makeFakeDuCommand(c *C) string {

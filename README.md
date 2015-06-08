@@ -89,14 +89,15 @@ work as expected and that "go vet" and "golint" have nothing to complain.
 
 You can run individual test with:
 
-    go test -gocheck.f $testname
+    go test -check.f $testname
 
 If a test hangs, you can enable verbose mode:
 
-   go test -v -gocheck.vv
+   go test -v -check.vv
 
-(or -gocheck.v for less verbose output).
+(or -check.v for less verbose output).
 
+There is more to read about the testing framework on the [website](https://labix.org/gocheck)
 ### Dependencies handling
 
 To generate dependencies.tsv you need `godeps`, so

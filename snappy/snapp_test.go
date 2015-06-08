@@ -20,6 +20,7 @@
 package snappy
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -37,7 +38,7 @@ import (
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/systemd"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 type SnapTestSuite struct {
@@ -706,6 +707,25 @@ services:
 	c.Check(name, Equals, "foo")
 	c.Check(p.notified, HasLen, 1)
 	c.Check(p.notified[0], Matches, "Waiting for .* stop.")
+}
+
+func (s *SnapTestSuite) TestErrorOnUnsupportedArchitecture(c *C) {
+	const packageHello = `name: hello-app
+version: 1.10
+vendor: Somebody
+icon: meta/hello.svg
+architectures:
+    - yadayada
+    - blahblah
+`
+
+	snapPkg := makeTestSnapPackage(c, packageHello)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "original", true)
+	c.Assert(err, IsNil)
+
+	_, err = part.Install(&MockProgressMeter{}, 0)
+	errorMsg := fmt.Sprintf("package's supported architectures (yadayada, blahblah) is incompatible with this system (%s)", helpers.UbuntuArchitecture())
+	c.Assert(err.Error(), Equals, errorMsg)
 }
 
 func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
