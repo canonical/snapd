@@ -870,7 +870,8 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 		return err
 	}
 
-	// maybe remove current symlink
+	// remove "current" symlink if it points to this SnapPart
+	// (i.e. if this was the active version).
 	currentSymlink := filepath.Join(filepath.Dir(s.basedir), "current")
 	p, _ := filepath.EvalSymlinks(currentSymlink)
 	if s.basedir == p {
