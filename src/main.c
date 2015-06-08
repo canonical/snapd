@@ -205,11 +205,26 @@ void setup_private_mount(const char* appname) {
     gid_t gid = getgid();
     char tmpdir[MAX_BUF] = {0};
 
-    must_snprintf(tmpdir, MAX_BUF, "/tmp/snap.%d_%s_XXXXXX", uid, appname);
+    // Create a 0700 base directory, this is the base dir that is
+    // protected from other users.
+    // 
+    // Under that basedir, we put a 1777 /tmp dir that is then bind
+    // mounted for the applications to use
+    must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid, appname);
     if (mkdtemp(tmpdir) == NULL) {
         die("unable to create tmpdir");
     }
 
+    // now we create a 1777 /tmp inside our private dir
+    mode_t old_mask = umask(0);
+    char *d = strdup(tmpdir);
+    must_snprintf(tmpdir, sizeof(tmpdir), "%s/tmp", d);
+    free(d);
+    if (mkdir(tmpdir, 01777) != 0) {
+       die("unable to create /tmp inside private dir");
+    }
+    umask(old_mask);
+    
     // unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >= 2.14
     // if using an older glibc, you'd need -D_BSD_SOURCE or -D_SVID_SORUCE.
     if (unshare(CLONE_NEWNS) < 0) {
@@ -230,41 +245,18 @@ void setup_private_mount(const char* appname) {
     if (chown("/tmp/", uid, gid) < 0) {
         die("unable to chown tmpdir");
     }
-}
 
-// best-effort attempt at creating the old /tmp/snaps/* TMPDIR.
-void mkoldtmpdir() {
-    char *dir = getenv("TMPDIR");
-    if (!dir || !*dir) {
-        // TMPDIR not set, or empty
-        return;
+    // ensure we set the various TMPDIRs to our newly created tmpdir
+    const char *tmpd[] = {"TMPDIR", "TEMPDIR", "SNAP_APP_TMPDIR",
+                          // deprecated
+                          "SNAPP_APP_TMPDIR",
+                          NULL};
+    int i;
+    for (i=0; tmpd[i] != NULL; i++) {
+       if (setenv(tmpd[i], "/tmp", 1) != 0) {
+          die("unable to set '%s'", tmpd[i]);
+       }
     }
-
-    if (strncmp(dir, "/tmp/snaps/", strlen("/tmp/snaps/")) != 0) {
-        // TMPDIR is not /tmp/snaps/*
-        return;
-    }
-
-    // strtok trashes its argument, so to avoid changing the TMPDIR variable,
-    // we make a copy.
-    dir = strdup(dir);
-    if (!dir) {
-        die("out of memory");
-    }
-
-    int n = 4;
-    char buf[MAX_BUF] = "/tmp";
-    char *d = strtok(dir+4, "/");
-    while (d) {
-        n += must_snprintf(buf+n, MAX_BUF-n, "/%s", d);
-        if (mkdir(buf, 01777) < 0 && errno != EEXIST) {
-            break;
-        }
-
-        d = strtok(NULL, "/");
-    }
-
-    free(dir);
 }
 
 int main(int argc, char **argv)
@@ -325,8 +317,6 @@ int main(int argc, char **argv)
        if(real_uid != 0 && (getgid() == 0 || getegid() == 0))
           die("dropping privs did not work");
     }
-
-    mkoldtmpdir();
 
     //https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement#ubuntu-snapp-launch
 

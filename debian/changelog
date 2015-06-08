@@ -1,3 +1,10 @@
+ubuntu-core-launcher (1.0.5) UNRELEASED; urgency=low
+
+  * simplify TMPDIR handling by providing a private /tmp for each snap and
+    set TMPDIR, TEMPDIR, SNAP_APP_TMPDIR, SNAPP_APP_TMPDIR to it
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 08 Jun 2015 10:41:07 +0200
+
 ubuntu-core-launcher (1.0.4) wily; urgency=medium
 
   * Allow writing to all forms of TMPDIR (LP: #1460517)
