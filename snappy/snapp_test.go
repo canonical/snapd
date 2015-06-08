@@ -1462,5 +1462,5 @@ version: 1.0
 func (s *SnapTestSuite) TestParsePackageYamlDataChecksMultiple(c *C) {
 	_, err := parsePackageYamlData([]byte(`
 `))
-	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required fields 'name,version,vendor'.*")
+	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required fields 'name, version, vendor'.*")
 }
