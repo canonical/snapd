@@ -446,3 +446,55 @@ func GetDeprecatedUserSnapEnvVars(desc interface{}) []string {
 		"SNAPP_APP_USER_DATA_PATH={{.Home}}{{.AppPath}}",
 	})
 }
+
+// RSyncWithDelete syncs srcDir to destDir
+func RSyncWithDelete(srcDirName, destDirName string) error {
+	// first remove everything thats not in srcdir
+	err := filepath.Walk(destDirName, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// relative to the root "destDirName"
+		relPath := path[len(destDirName):]
+		if !FileExists(filepath.Join(srcDirName, relPath)) {
+			if err := os.RemoveAll(path); err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// then copy or update the data from srcdir to destdir
+	err = filepath.Walk(srcDirName, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// relative to the root "srcDirName"
+		relPath := path[len(srcDirName):]
+		if info.IsDir() {
+			return os.MkdirAll(filepath.Join(destDirName, relPath), info.Mode())
+		}
+		src := path
+		dst := filepath.Join(destDirName, relPath)
+		if !FilesAreEqual(src, dst) {
+			// XXX: we should (eventually) use CopyFile here,
+			//      but we need to teach it about preserving
+			//      of atime/mtime and permissions
+			output, err := exec.Command("cp", "-va", src, dst).CombinedOutput()
+			if err != nil {
+				fmt.Errorf("Failed to copy %s to %s (%s)", src, dst, output)
+			}
+		}
+		return nil
+	})
+
+	return err
+}

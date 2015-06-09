@@ -323,7 +323,9 @@ vendor: foo
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(part.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
@@ -345,7 +347,9 @@ vendor: foo
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(part.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y\nvendor: foo")
 	_, err = installClick(pkg, 0, ag, testOrigin)
@@ -365,7 +369,9 @@ explicit-license-agreement: Y
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(part.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
@@ -388,7 +394,10 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	_, err = os.Stat(instDir)
 	c.Assert(err, IsNil)
 
-	err = removeClick(instDir, nil)
+	yamlPath := filepath.Join(instDir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(nil)
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
@@ -460,7 +469,11 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 
 	s.buildFramework(c)
 	appdir := filepath.Join(s.tempdir, "apps", "hello", "1.0.1")
-	c.Assert(removeClick(appdir, nil), IsNil)
+	yamlPath := filepath.Join(appdir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(nil)
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestSnapRemovePackagePolicyWeirdClickManifest(c *C) {
@@ -475,7 +488,11 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicyWeirdClickManifest(c *C) {
 	manifestFile := filepath.Join(appdir, ".click", "info", "hello.manifest")
 	c.Assert(ioutil.WriteFile(manifestFile, []byte(`{"name": "xyzzy","type":"framework"}`), 0644), IsNil)
 
-	c.Assert(removeClick(appdir, nil), IsNil)
+	yamlPath := filepath.Join(appdir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(nil)
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
@@ -561,7 +578,7 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(parts[1].IsActive(), Equals, true)
 
 	// set v1 active
-	err = setActiveClick(parts[0].(*SnapPart).basedir, false, nil)
+	err = parts[0].(*SnapPart).activate(false, nil)
 	parts, err = repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(parts[0].Version(), Equals, "1.0")
@@ -841,7 +858,10 @@ binaries:
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
-	err = removeClick(snapDir, nil)
+	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(nil)
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
@@ -897,7 +917,10 @@ services:
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
-	err = removeClick(snapDir, new(progress.NullProgress))
+	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(&progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(servicesFile), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
@@ -1199,6 +1222,7 @@ X-Snappy=yes
 
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver%s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo start
+Restart=on-failure
 WorkingDirectory=/apps/xkcd-webserver%[2]s/0.3.4/
 Environment="SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "TEMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_ORIGIN=%[3]s" "SNAP_FULLNAME=xkcd-webserver%[2]s" "SNAP_ARCH=%[5]s" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAPPY_APP_ARCH=%[5]s" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/"
 ExecStop=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo stop

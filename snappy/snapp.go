@@ -41,6 +41,7 @@ import (
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/oauth"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
@@ -347,6 +348,8 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		}
 	}
 
+	m.legacyIntegration()
+
 	return &m, nil
 }
 
@@ -467,6 +470,59 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, cur
 	}
 
 	return nil
+}
+
+func (m *packageYaml) legacyIntegrateSecDef(hookName string, s *SecurityDefinitions) {
+	// see if we have a custom security policy
+	if s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != "" {
+		m.Integration[hookName]["apparmor-profile"] = s.SecurityPolicy.Apparmor
+		return
+	}
+
+	// see if we have a security override
+	if s.SecurityOverride != nil && s.SecurityOverride.Apparmor != "" {
+		m.Integration[hookName]["apparmor"] = s.SecurityOverride.Apparmor
+		return
+	}
+
+	// apparmor template
+	m.Integration[hookName]["apparmor"] = filepath.Join("meta", hookName+".apparmor")
+
+	return
+}
+
+// legacyIntegration sets up the Integration property of packageYaml from its other attributes
+func (m *packageYaml) legacyIntegration() {
+	if m.Integration != nil {
+		// TODO: append "Overriding user-provided values." to the end of the blurb.
+		logger.Noticef(`The "integration" key is deprecated, and all uses of "integration" should be rewritten; see https://developer.ubuntu.com/en/snappy/guides/package-metadata/ (the "binaries" and "services" sections are probably especially relevant)."`)
+	} else {
+		// TODO: do this always, not just when Integration is not set
+		m.Integration = make(map[string]clickAppHook)
+	}
+
+	for _, v := range m.Binaries {
+		hookName := filepath.Base(v.Name)
+
+		if _, ok := m.Integration[hookName]; !ok {
+			m.Integration[hookName] = clickAppHook{}
+		}
+		// legacy click hook
+		m.Integration[hookName]["bin-path"] = v.Exec
+
+		m.legacyIntegrateSecDef(hookName, &v.SecurityDefinitions)
+	}
+
+	for _, v := range m.Services {
+		hookName := filepath.Base(v.Name)
+
+		if _, ok := m.Integration[hookName]; !ok {
+			m.Integration[hookName] = clickAppHook{}
+		}
+
+		// handle the apparmor stuff
+		m.legacyIntegrateSecDef(hookName, &v.SecurityDefinitions)
+	}
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
@@ -699,8 +755,15 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	fullName := QualifiedName(s)
-	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current"))
 	dataDir := filepath.Join(snapDataDir, fullName, s.Version())
+
+	var oldPart *SnapPart
+	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current")); currentActiveDir != "" {
+		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "package.yaml"), s.origin)
+		if err != nil {
+			return "", err
+		}
+	}
 
 	if err := os.MkdirAll(s.basedir, 0755); err != nil {
 		logger.Noticef("Can not create %q: %v", s.basedir, err)
@@ -744,17 +807,12 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	// started then copy the data
 	//
 	// otherwise just create a empty data dir
-	if currentActiveDir != "" {
-		oldM, err := parsePackageYamlFile(filepath.Join(currentActiveDir, "meta", "package.yaml"))
-		if err != nil {
-			return "", err
-		}
-
+	if oldPart != nil {
 		// we need to stop making it active
-		err = unsetActiveClick(currentActiveDir, inhibitHooks, inter)
+		err = oldPart.deactivate(inhibitHooks, inter)
 		defer func() {
 			if err != nil {
-				if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+				if cerr := oldPart.activate(inhibitHooks, inter); cerr != nil {
 					logger.Noticef("Setting old version back to active failed: %v", cerr)
 				}
 			}
@@ -763,7 +821,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 			return "", err
 		}
 
-		err = copySnapData(fullName, oldM.Version, s.Version())
+		err = copySnapData(fullName, oldPart.Version(), s.Version())
 	} else {
 		err = os.MkdirAll(dataDir, 0755)
 	}
@@ -781,10 +839,10 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	// and finally make active
-	err = setActiveClick(s.basedir, inhibitHooks, inter)
+	err = s.activate(inhibitHooks, inter)
 	defer func() {
-		if err != nil && currentActiveDir != "" {
-			if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+		if err != nil && oldPart != nil {
+			if cerr := oldPart.activate(inhibitHooks, inter); cerr != nil {
 				logger.Noticef("When setting old %s version back to active: %v", s.Name(), cerr)
 			}
 		}
@@ -827,7 +885,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 			}
 		}
 
-		if err := s.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
+		if err := s.RefreshDependentsSecurity(oldPart, inter); err != nil {
 			return "", err
 		}
 
@@ -855,7 +913,109 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 
 // SetActive sets the snap active
 func (s *SnapPart) SetActive(pb progress.Meter) (err error) {
-	return setActiveClick(s.basedir, false, pb)
+	return s.activate(false, pb)
+}
+
+func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
+	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
+	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
+
+	// already active, nothing to do
+	if s.basedir == currentActiveDir {
+		return nil
+	}
+
+	// there is already an active part
+	if currentActiveDir != "" {
+		// TODO: support switching origins
+		oldYaml := filepath.Join(currentActiveDir, "meta", "package.yaml")
+		oldPart, err := NewInstalledSnapPart(oldYaml, s.origin)
+		if err != nil {
+			return err
+		}
+		if err := oldPart.deactivate(inhibitHooks, inter); err != nil {
+			return err
+		}
+	}
+
+	if s.Type() == pkg.TypeFramework {
+		if err := policy.Install(s.Name(), s.basedir); err != nil {
+			return err
+		}
+	}
+
+	if err := installClickHooks(s.basedir, s.m, s.origin, inhibitHooks); err != nil {
+		// cleanup the failed hooks
+		removeClickHooks(s.m, s.origin, inhibitHooks)
+		return err
+	}
+
+	// generate the security policy from the package.yaml
+	if err := s.m.addSecurityPolicy(s.basedir); err != nil {
+		return err
+	}
+
+	// add the "binaries:" from the package.yaml
+	if err := addPackageBinaries(s.basedir); err != nil {
+		return err
+	}
+	// add the "services:" from the package.yaml
+	if err := addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
+		return err
+	}
+
+	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
+	}
+
+	// symlink is relative to parent dir
+	return os.Symlink(filepath.Base(s.basedir), currentActiveSymlink)
+}
+
+func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
+	currentSymlink := filepath.Join(s.basedir, "..", "current")
+
+	// sanity check
+	currentActiveDir, err := filepath.EvalSymlinks(currentSymlink)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ErrSnapNotActive
+		}
+		return err
+	}
+	if s.basedir != currentActiveDir {
+		return ErrSnapNotActive
+	}
+
+	// remove generated services, binaries, clickHooks, security policy
+	if err := removePackageBinaries(s.basedir); err != nil {
+		return err
+	}
+
+	if err := removePackageServices(s.basedir, inter); err != nil {
+		return err
+	}
+
+	if err := s.m.removeSecurityPolicy(s.basedir); err != nil {
+		return err
+	}
+
+	if s.Type() == pkg.TypeFramework {
+		if err := policy.Remove(s.Name(), s.basedir); err != nil {
+			return err
+		}
+	}
+
+	if err := removeClickHooks(s.m, s.origin, inhibitHooks); err != nil {
+		return err
+	}
+
+	// and finally the current symlink
+	if err := os.Remove(currentSymlink); err != nil {
+		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
+	}
+
+	return nil
 }
 
 // Uninstall remove the snap from the system
@@ -879,11 +1039,33 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return ErrFrameworkInUse(deps)
 	}
 
-	if err := removeClick(s.basedir, pb); err != nil {
+	if err := s.remove(pb); err != nil {
 		return err
 	}
 
 	return RemoveAllHWAccess(QualifiedName(s))
+}
+
+func (s *SnapPart) remove(inter interacter) (err error) {
+	// TODO[JRL]: check the logic here. I'm not sure “remove
+	// everything if active, and the click hooks if not” makes
+	// sense. E.g. are we removing fmk bins on fmk upgrade? Etc.
+	if err := removeClickHooks(s.m, s.origin, false); err != nil {
+		return err
+	}
+
+	if err := s.deactivate(false, inter); err != nil && err != ErrSnapNotActive {
+		return err
+	}
+
+	err = os.RemoveAll(s.basedir)
+	if err != nil {
+		return err
+	}
+
+	os.Remove(filepath.Dir(s.basedir))
+
+	return nil
 }
 
 // Config is used to to configure the snap
@@ -1031,7 +1213,11 @@ func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) er
 }
 
 // RefreshDependentsSecurity refreshes the security policies of dependent snaps
-func (s *SnapPart) RefreshDependentsSecurity(oldBaseDir string, inter interacter) (err error) {
+func (s *SnapPart) RefreshDependentsSecurity(oldPart *SnapPart, inter interacter) (err error) {
+	oldBaseDir := ""
+	if oldPart != nil {
+		oldBaseDir = oldPart.basedir
+	}
 	upPol, upTpl := policy.AppArmorDelta(oldBaseDir, s.basedir, s.Name()+"_")
 
 	deps, err := s.Dependents()
@@ -1427,7 +1613,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	// sso
 	ssoToken, err := ReadStoreToken()
 	if err == nil {
-		req.Header.Set("Authorization", makeOauthPlaintextSignature(req, ssoToken))
+		req.Header.Set("Authorization", oauth.MakePlaintextSignature(&ssoToken.Token))
 	}
 }
 

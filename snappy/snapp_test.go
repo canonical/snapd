@@ -1175,7 +1175,7 @@ binaries:
 	pb := &MockProgressMeter{}
 	m, err := parsePackageYamlData([]byte(yaml))
 	part := &SnapPart{m: m, origin: testOrigin, basedir: d1}
-	c.Assert(part.RefreshDependentsSecurity(d2, pb), IsNil)
+	c.Assert(part.RefreshDependentsSecurity(&SnapPart{basedir: d2}, pb), IsNil)
 	c.Check(touched, DeepEquals, []string{fn})
 }
 
@@ -1484,4 +1484,71 @@ func (s *SnapTestSuite) TestParsePackageYamlDataChecksMultiple(c *C) {
 	_, err := parsePackageYamlData([]byte(`
 `))
 	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required fields 'name, version, vendor'.*")
+}
+
+func (s *SnapTestSuite) TestIntegrateBoring(c *C) {
+	m := &packageYaml{}
+	m.legacyIntegration()
+
+	// no binaries, no service, no legacyIntegration
+	c.Check(m.Integration, HasLen, 0)
+}
+
+func (s *SnapTestSuite) TestIntegrateBinary(c *C) {
+	m := &packageYaml{
+		Binaries: []Binary{
+			{
+				Name: "testme",
+				Exec: "bin/testme",
+			},
+			{
+				Name: "testme-override",
+				Exec: "bin/testme-override",
+				SecurityDefinitions: SecurityDefinitions{
+					SecurityOverride: &SecurityOverrideDefinition{Apparmor: "meta/testme-override.apparmor"},
+				},
+			},
+			{
+				Name: "testme-policy",
+				Exec: "bin/testme-policy",
+				SecurityDefinitions: SecurityDefinitions{
+					SecurityPolicy: &SecurityPolicyDefinition{Apparmor: "meta/testme-policy.profile"},
+				},
+			},
+		},
+	}
+	m.legacyIntegration()
+
+	c.Check(m.Integration, DeepEquals, map[string]clickAppHook{
+		"testme": {
+			"apparmor": "meta/testme.apparmor",
+			"bin-path": "bin/testme",
+		},
+		"testme-override": {
+			"apparmor": "meta/testme-override.apparmor",
+			"bin-path": "bin/testme-override",
+		},
+		"testme-policy": {
+			"apparmor-profile": "meta/testme-policy.profile",
+			"bin-path":         "bin/testme-policy",
+		},
+	})
+}
+
+func (s *SnapTestSuite) TestIntegrateService(c *C) {
+	m := &packageYaml{
+		Services: []Service{
+			{
+				Name: "svc",
+			},
+		},
+	}
+
+	m.legacyIntegration()
+
+	// no binaries, no service, no integrate
+	c.Check(m.Integration, DeepEquals, map[string]clickAppHook{
+		"svc": clickAppHook{
+			"apparmor": "meta/svc.apparmor",
+		}})
 }

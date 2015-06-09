@@ -45,7 +45,6 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
 
@@ -262,35 +261,6 @@ func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err
 	return manifest, err
 }
 
-func removeClick(clickDir string, inter interacter) (err error) {
-	m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
-	if err != nil {
-		return err
-	}
-
-	if err := removeClickHooks(m, originFromBasedir(clickDir), false); err != nil {
-		return err
-	}
-
-	// maybe remove current symlink
-	currentSymlink := filepath.Join(filepath.Dir(clickDir), "current")
-	p, _ := filepath.EvalSymlinks(currentSymlink)
-	if clickDir == p {
-		if err := unsetActiveClick(p, false, inter); err != nil {
-			return err
-		}
-	}
-
-	err = os.RemoveAll(clickDir)
-	if err != nil {
-		return err
-	}
-
-	os.Remove(filepath.Dir(clickDir))
-
-	return nil
-}
-
 // generate the name
 func generateBinaryName(m *packageYaml, binary Binary) string {
 	var binName string
@@ -457,12 +427,17 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 
 	udevPartName := m.qualifiedName(originFromBasedir(baseDir))
 
+	desc := service.Description
+	if desc == "" {
+		desc = fmt.Sprintf("service %s for package %s", service.Name, m.Name)
+	}
+
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
 			AppName:     m.Name,
 			ServiceName: service.Name,
 			Version:     m.Version,
-			Description: service.Description,
+			Description: desc,
 			AppPath:     baseDir,
 			Start:       service.Start,
 			Stop:        service.Stop,
@@ -839,124 +814,6 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 		}
 	}
 	return nil
-}
-
-func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) error {
-	currentSymlink := filepath.Join(clickDir, "..", "current")
-
-	// sanity check
-	currentActiveDir, err := filepath.EvalSymlinks(currentSymlink)
-	if err != nil {
-		return err
-	}
-	if clickDir != currentActiveDir {
-		return ErrSnapNotActive
-	}
-
-	// remove generated services, binaries, clickHooks, security policy
-	if err := removePackageBinaries(clickDir); err != nil {
-		return err
-	}
-
-	if err := removePackageServices(clickDir, inter); err != nil {
-		return err
-	}
-
-	m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
-	if err != nil {
-		return err
-	}
-
-	if err := m.removeSecurityPolicy(clickDir); err != nil {
-		return err
-	}
-
-	manifest, err := readClickManifestFromClickDir(clickDir)
-	if err != nil {
-		return err
-	}
-
-	if manifest.Type == pkg.TypeFramework {
-
-		if err := policy.Remove(m.Name, clickDir); err != nil {
-			return err
-		}
-	}
-
-	if err := removeClickHooks(m, originFromBasedir(clickDir), inhibitHooks); err != nil {
-		return err
-	}
-
-	// and finally the current symlink
-	if err := os.Remove(currentSymlink); err != nil {
-		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
-	}
-
-	return nil
-}
-
-func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
-	currentActiveSymlink := filepath.Join(baseDir, "..", "current")
-	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
-
-	// already active, nothing to do
-	if baseDir == currentActiveDir {
-		return nil
-	}
-
-	// there is already an active part
-	if currentActiveDir != "" {
-		unsetActiveClick(currentActiveDir, inhibitHooks, inter)
-	}
-
-	// make new part active
-	newActiveManifest, err := readClickManifestFromClickDir(baseDir)
-	if err != nil {
-		return err
-	}
-
-	// yes, its confusing, we have two manifests, this is the important
-	// one, the YAML one
-	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
-	if err != nil {
-		return err
-	}
-
-	origin := originFromBasedir(baseDir)
-
-	if newActiveManifest.Type == pkg.TypeFramework {
-		if err := policy.Install(m.Name, baseDir); err != nil {
-			return err
-		}
-	}
-
-	if err := installClickHooks(baseDir, m, origin, inhibitHooks); err != nil {
-		// cleanup the failed hooks
-		removeClickHooks(m, origin, inhibitHooks)
-		return err
-	}
-
-	// generate the security policy from the package.yaml
-	if err := m.addSecurityPolicy(baseDir); err != nil {
-		return err
-	}
-
-	// add the "binaries:" from the package.yaml
-	if err := addPackageBinaries(baseDir); err != nil {
-		return err
-	}
-	// add the "services:" from the package.yaml
-	if err := addPackageServices(baseDir, inhibitHooks, inter); err != nil {
-		return err
-	}
-
-	// FIXME: we want to get rid of the current symlink
-	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
-	}
-
-	// symlink is relative to parent dir
-	return os.Symlink(filepath.Base(baseDir), currentActiveSymlink)
 }
 
 // RunHooks will run all click system hooks
