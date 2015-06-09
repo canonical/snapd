@@ -45,7 +45,6 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
 
@@ -814,60 +813,6 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 			}
 		}
 	}
-	return nil
-}
-
-func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) error {
-	currentSymlink := filepath.Join(clickDir, "..", "current")
-
-	// sanity check
-	currentActiveDir, err := filepath.EvalSymlinks(currentSymlink)
-	if err != nil {
-		return err
-	}
-	if clickDir != currentActiveDir {
-		return ErrSnapNotActive
-	}
-
-	// remove generated services, binaries, clickHooks, security policy
-	if err := removePackageBinaries(clickDir); err != nil {
-		return err
-	}
-
-	if err := removePackageServices(clickDir, inter); err != nil {
-		return err
-	}
-
-	m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
-	if err != nil {
-		return err
-	}
-
-	if err := m.removeSecurityPolicy(clickDir); err != nil {
-		return err
-	}
-
-	manifest, err := readClickManifestFromClickDir(clickDir)
-	if err != nil {
-		return err
-	}
-
-	if manifest.Type == pkg.TypeFramework {
-
-		if err := policy.Remove(m.Name, clickDir); err != nil {
-			return err
-		}
-	}
-
-	if err := removeClickHooks(m, originFromBasedir(clickDir), inhibitHooks); err != nil {
-		return err
-	}
-
-	// and finally the current symlink
-	if err := os.Remove(currentSymlink); err != nil {
-		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
-	}
-
 	return nil
 }
 

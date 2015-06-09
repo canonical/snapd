@@ -133,7 +133,7 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	c.Assert(part.activate(true, ag), IsNil)
 
 	c.Check(PackageNameActive("hello-app"), Equals, true)
-	c.Assert(unsetActiveClick(pkgdir, true, ag), IsNil)
+	c.Assert(part.deactivate(true, ag), IsNil)
 	c.Check(PackageNameActive("hello-app"), Equals, false)
 }
 

@@ -65,7 +65,7 @@ func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 	}
 
 	for i, pkg := range active {
-		err := unsetActiveClick(pkg.basedir, false, meter)
+		err := pkg.deactivate(false, meter)
 		if err != nil {
 			meter.Notify(fmt.Sprintf("Unable to deactivate %s: %s", pkg.Name(), err))
 			meter.Notify("Purge continues.")
