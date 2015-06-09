@@ -197,10 +197,10 @@ func (b *bootloaderType) SyncBootFiles() (err error) {
 //   is updated to revision-N in /etc/system-image/channel.ini
 //   so the system only downloads from revision-N onwards even though the
 //   complete update was not applied (i.e. kernel missing)
-func (u *bootloaderType) HandleAssets() (err error) {
+func (b *bootloaderType) HandleAssets() (err error) {
 	// check if we have anything, if there is no hardware yaml, there is nothing
 	// to process.
-	hardware, err := u.partition.hardwareSpec()
+	hardware, err := b.partition.hardwareSpec()
 	if err == ErrNoHardwareYaml {
 		return nil
 	} else if err != nil {
@@ -209,27 +209,27 @@ func (u *bootloaderType) HandleAssets() (err error) {
 	// ensure to remove the file if there are no errors
 	defer func() {
 		if err == nil {
-			os.Remove(u.partition.hardwareSpecFile)
+			os.Remove(b.partition.hardwareSpecFile)
 		}
 	}()
 
 	/*
 		// validate bootloader
-		if hardware.Bootloader != u.Name() {
+		if hardware.Bootloader != b.Name() {
 			return fmt.Errorf(
 				"bootloader is of type %s but hardware spec requires %s",
-				u.Name(),
+				b.Name(),
 				hardware.Bootloader)
 		}
 	*/
 
 	// validate partition layout
-	if u.partition.dualRootPartitions() && hardware.PartitionLayout != bootloaderSystemAB {
+	if b.partition.dualRootPartitions() && hardware.PartitionLayout != bootloaderSystemAB {
 		return fmt.Errorf("hardware spec requires dual root partitions")
 	}
 
 	// ensure we have the destdir
-	destDir := u.otherBootPath
+	destDir := b.otherBootPath
 	if err := os.MkdirAll(destDir, dirMode); err != nil {
 		return err
 	}
@@ -242,7 +242,7 @@ func (u *bootloaderType) HandleAssets() (err error) {
 		}
 
 		// expand path
-		path := filepath.Join(u.partition.cacheDir(), file)
+		path := filepath.Join(b.partition.cacheDir(), file)
 
 		if !helpers.FileExists(path) {
 			return fmt.Errorf("can not find file %s", path)
@@ -264,7 +264,7 @@ func (u *bootloaderType) HandleAssets() (err error) {
 	//       fully speced
 
 	// install .dtb files
-	dtbSrcDir := filepath.Join(u.partition.cacheDir(), hardware.DtbDir)
+	dtbSrcDir := filepath.Join(b.partition.cacheDir(), hardware.DtbDir)
 	// ensure there is a DtbDir specified
 	if hardware.DtbDir != "" && helpers.FileExists(dtbSrcDir) {
 		// ensure we cleanup the source dir
@@ -291,7 +291,7 @@ func (u *bootloaderType) HandleAssets() (err error) {
 		}
 	}
 
-	flashAssetsDir := u.partition.flashAssetsDir()
+	flashAssetsDir := b.partition.flashAssetsDir()
 
 	if helpers.FileExists(flashAssetsDir) {
 		// FIXME: we don't currently do anything with the
