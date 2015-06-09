@@ -131,7 +131,7 @@ type Interface interface {
 
 	// Returns the full path to the (mounted and writable)
 	// bootloader-specific boot directory.
-	GetBootloaderDir() string
+	BootloaderDir() string
 }
 
 // mountEntry represents a mount this package has created.
@@ -507,7 +507,7 @@ func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (e
 // SyncBootloaderFiles syncs the bootloader files
 // FIXME: can we unexport this?
 func (p *Partition) SyncBootloaderFiles() (err error) {
-	bootloader, err := getBootloader(p)
+	bootloader, err := bootloader(p)
 	if err != nil {
 		return err
 	}
@@ -524,7 +524,7 @@ func (p *Partition) ToggleNextBoot() (err error) {
 
 // MarkBootSuccessful marks the boot as successful
 func (p *Partition) MarkBootSuccessful() (err error) {
-	bootloader, err := getBootloader(p)
+	bootloader, err := bootloader(p)
 	if err != nil {
 		return err
 	}
@@ -535,7 +535,7 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 // IsNextBootOther return true if the next boot will use the other rootfs
 // partition.
 func (p *Partition) IsNextBootOther() bool {
-	bootloader, err := getBootloader(p)
+	bootloader, err := bootloader(p)
 	if err != nil {
 		return false
 	}
@@ -765,7 +765,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	}
 
 	// add additional bootloader mounts, this is required for grub
-	bootloader, err := getBootloader(p)
+	bootloader, err := bootloader(p)
 	if err == nil && bootloader != nil {
 		for _, mount := range bootloader.AdditionalBindMounts() {
 			requiredChrootMounts = append(requiredChrootMounts, mount)
@@ -813,7 +813,7 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return errors.New("System is not dual root")
 	}
 
-	bootloader, err := getBootloader(p)
+	bootloader, err := bootloader(p)
 	if err != nil {
 		return err
 	}
@@ -832,10 +832,10 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 	return bootloader.HandleAssets()
 }
 
-// GetBootloaderDir returns the full path to the (mounted and writable)
+// BootloaderDir returns the full path to the (mounted and writable)
 // bootloader-specific boot directory.
-func (p *Partition) GetBootloaderDir() string {
-	bootloader, err := getBootloader(p)
+func (p *Partition) BootloaderDir() string {
+	bootloader, err := bootloader(p)
 	if err != nil {
 		return ""
 	}

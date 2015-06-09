@@ -110,7 +110,7 @@ func IsSideLoaded(bootloaderDir string) bool {
 
 	InstallYaml, err := parseInstallYaml(file)
 	if err != nil {
-		logger.LogError(err)
+		logger.Noticef("Kernel sideload cannot be read, assuming sideload: %s", err)
 		// file isn't parseable, so let's assume system is sideloaded
 		return true
 	}

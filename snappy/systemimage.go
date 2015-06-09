@@ -167,7 +167,7 @@ func (s *SystemImagePart) SetActive(pb progress.Meter) (err error) {
 
 // Install installs the snap
 func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
-	if provisioning.IsSideLoaded(s.partition.GetBootloaderDir()) {
+	if provisioning.IsSideLoaded(s.partition.BootloaderDir()) {
 		return "", ErrSideLoaded
 	}
 

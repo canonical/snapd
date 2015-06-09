@@ -175,7 +175,7 @@ func (p *MockPartition) RunWithOther(option partition.MountOption, f func(otherR
 // used by GetBootLoaderDir(), used to test sideload logic.
 var tempBootDir string
 
-func (p *MockPartition) GetBootloaderDir() string {
+func (p *MockPartition) BootloaderDir() string {
 	return tempBootDir
 }
 
@@ -399,7 +399,7 @@ options:
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	bootDir := sp.partition.GetBootloaderDir()
+	bootDir := sp.partition.BootloaderDir()
 
 	sideLoaded := filepath.Join(bootDir, provisioning.InstallYamlFile)
 

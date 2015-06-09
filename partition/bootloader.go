@@ -98,9 +98,9 @@ type bootloaderType struct {
 }
 
 // Factory method that returns a new bootloader for the given partition
-var getBootloader = getBootloaderImpl
+var bootloader = bootloaderImpl
 
-func getBootloaderImpl(p *Partition) (bootloader bootLoader, err error) {
+func bootloaderImpl(p *Partition) (bootLoader, error) {
 	// try uboot
 	if uboot := newUboot(p); uboot != nil {
 		return uboot, nil
