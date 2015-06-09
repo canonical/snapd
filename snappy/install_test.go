@@ -182,3 +182,58 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	_, err = Install("hello-app.potato", 0, ag)
 	c.Assert(err, ErrorMatches, ".*"+ErrPackageNameAlreadyInstalled.Error())
 }
+
+func (s *SnapTestSuite) TestUpdate(c *C) {
+	snapPackagev1 := makeTestSnapPackage(c, "name: foo\nversion: 1")
+	name, err := Install(snapPackagev1, AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
+	c.Assert(err, IsNil)
+	c.Assert(name, Equals, "foo")
+
+	snapPackagev2 := makeTestSnapPackage(c, "name: foo\nversion: 2")
+
+	snapR, err := os.Open(snapPackagev2)
+	c.Assert(err, IsNil)
+	defer snapR.Close()
+
+	var dlURL string
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/details/foo":
+			io.WriteString(w, `{
+"package_name": "foo",
+"version": "2",
+"origin": "sideload",
+"anon_download_url": "`+dlURL+`"
+}`)
+		case "/dl":
+			snapR.Seek(0, 0)
+			io.Copy(w, snapR)
+		default:
+			panic("unexpected url path: " + r.URL.Path)
+		}
+	}))
+
+	listUpdates = func() ([]Part, error) {
+		return []Part{
+			NewRemoteSnapPart(remoteSnap{
+				Name:            "foo",
+				Version:         "2",
+				Origin:          "sideload",
+				AnonDownloadURL: dlURL,
+			}),
+		}, nil
+	}
+	dlURL = mockServer.URL + "/dl"
+
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	updates, err := Update(0, &progress.NullProgress{})
+	c.Assert(err, IsNil)
+	c.Assert(updates, HasLen, 1)
+	c.Check(updates[0].Name(), Equals, "foo")
+	c.Check(updates[0].Version(), Equals, "2")
+}
