@@ -357,7 +357,10 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	_, err = os.Stat(instDir)
 	c.Assert(err, IsNil)
 
-	err = removeClick(instDir, nil)
+	yamlPath := filepath.Join(instDir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(nil)
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
@@ -429,7 +432,11 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 
 	s.buildFramework(c)
 	appdir := filepath.Join(s.tempdir, "apps", "hello", "1.0.1")
-	c.Assert(removeClick(appdir, nil), IsNil)
+	yamlPath := filepath.Join(appdir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(nil)
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestSnapRemovePackagePolicyWeirdClickManifest(c *C) {
@@ -444,7 +451,11 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicyWeirdClickManifest(c *C) {
 	manifestFile := filepath.Join(appdir, ".click", "info", "hello.manifest")
 	c.Assert(ioutil.WriteFile(manifestFile, []byte(`{"name": "xyzzy","type":"framework"}`), 0644), IsNil)
 
-	c.Assert(removeClick(appdir, nil), IsNil)
+	yamlPath := filepath.Join(appdir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(nil)
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
@@ -810,7 +821,10 @@ binaries:
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
-	err = removeClick(snapDir, nil)
+	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(nil)
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
@@ -866,7 +880,10 @@ services:
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
-	err = removeClick(snapDir, new(progress.NullProgress))
+	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(&progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(servicesFile), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)

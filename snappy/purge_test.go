@@ -183,10 +183,15 @@ func (s *purgeSuite) TestPurgeMultiContinuesOnFail(c *C) {
 func (s *purgeSuite) TestPurgeRemovedWorks(c *C) {
 	inter := &MockProgressMeter{}
 	pkgdir, ddir := s.mkpkg(c)
-	c.Assert(removeClick(pkgdir, inter), IsNil)
+
+	yamlPath := filepath.Join(pkgdir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(inter)
+	c.Assert(err, IsNil)
 	c.Check(helpers.FileExists(ddir), Equals, true)
 
-	err := Purge("hello-app", 0, inter)
+	err = Purge("hello-app", 0, inter)
 	c.Check(err, IsNil)
 	c.Check(helpers.FileExists(ddir), Equals, false)
 }
