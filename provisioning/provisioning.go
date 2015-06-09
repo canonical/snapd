@@ -20,7 +20,6 @@ package provisioning
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"path/filepath"
 	"time"
 
@@ -90,7 +89,7 @@ func parseInstallYamlData(yamlData []byte) (*InstallYaml, error) {
 	var i InstallYaml
 	err := yaml.Unmarshal(yamlData, &i)
 	if err != nil {
-		log.Printf("Cannot parse %q", yamlData)
+		logger.Noticef("Cannot parse install.yaml %q", yamlData)
 		return nil, err
 	}
 
