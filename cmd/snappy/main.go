@@ -20,20 +20,13 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
-
-	"launchpad.net/snappy/priv"
-	"launchpad.net/snappy/snappy"
 
 	"launchpad.net/snappy/logger"
 
 	"github.com/jessevdk/go-flags"
 )
-
-// fixed errors the command can return
-var ErrRequiresRoot = errors.New("command requires sudo (root)")
 
 type options struct {
 	// No global options yet
@@ -52,11 +45,6 @@ func init() {
 
 func main() {
 	if _, err := parser.Parse(); err != nil {
-		if err == priv.ErrNeedRoot {
-			// make the generic root error more specific for
-			// the CLI user.
-			err = snappy.ErrNeedRoot
-		}
 		if _, ok := err.(*flags.Error); !ok {
 			// Debug, because the parser will print the error for us
 			logger.Debugf("%v failed: %v", os.Args, err)

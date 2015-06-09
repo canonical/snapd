@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
@@ -51,6 +52,12 @@ func init() {
 }
 
 func (x *cmdSet) Execute(args []string) (err error) {
+	privMutex := priv.New()
+	if err := privMutex.TryLock(); err != nil {
+		return err
+	}
+	defer privMutex.Unlock()
+
 	return set(args)
 }
 

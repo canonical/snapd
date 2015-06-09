@@ -28,7 +28,7 @@ import (
 var (
 	// ErrNeedRoot is return when an attempt to run a privileged operation
 	// is made by an unprivileged process.
-	ErrNeedRoot = errors.New("administrator privileges required")
+	ErrNeedRoot = errors.New("this command requires root access. Please re-run using 'sudo'")
 
 	// ErrAlreadyLocked is returned when an attempts is made to lock an
 	// already-locked FileLock.
