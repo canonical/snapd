@@ -19,6 +19,12 @@
 
 package partition
 
+import (
+	"path/filepath"
+
+	"launchpad.net/snappy/helpers"
+)
+
 const (
 	// bootloader variable used to denote which rootfs to boot from
 	bootloaderRootfsVar = "snappy_ab"
@@ -81,15 +87,6 @@ type bootLoader interface {
 	MarkCurrentBootSuccessful() error
 }
 
-type bootloaderType struct {
-	partition *Partition
-
-	// each rootfs partition has a corresponding u-boot directory named
-	// from the last character of the partition name ('a' or 'b').
-	currentRootfs string
-	otherRootfs   string
-}
-
 // Factory method that returns a new bootloader for the given partition
 var getBootloader = getBootloaderImpl
 
@@ -108,24 +105,52 @@ func getBootloaderImpl(p *Partition) (bootloader bootLoader, err error) {
 	return nil, ErrBootloader
 }
 
-func newBootLoader(partition *Partition) *bootloaderType {
-	b := new(bootloaderType)
+type bootloaderType struct {
+	partition *Partition
 
-	b.partition = partition
+	// each rootfs partition has a corresponding u-boot directory named
+	// from the last character of the partition name ('a' or 'b').
+	currentRootfs string
+	otherRootfs   string
 
-	currentLabel := partition.rootPartition().name
+	// full path to rootfs-specific assets on boot partition
+	currentBootPath string
+	otherBootPath   string
 
+	// FIXME: this should /boot if possible
+	// the dir that the bootloader lives in (e.g. /boot/uboot)
+	bootloaderDir string
+}
+
+func newBootLoader(partition *Partition, bootloaderDir string) *bootloaderType {
 	// FIXME: is this the right thing to do? i.e. what should we do
 	//        on a single partition system?
 	if partition.otherRootPartition() == nil {
 		return nil
 	}
+
+	// full label of the system {system-a,system-b}
+	currentLabel := partition.rootPartition().name
 	otherLabel := partition.otherRootPartition().name
 
-	b.currentRootfs = string(currentLabel[len(currentLabel)-1])
-	b.otherRootfs = string(otherLabel[len(otherLabel)-1])
+	// single letter description of the rootfs {a,b}
+	currentRootfs := string(currentLabel[len(currentLabel)-1])
+	otherRootfs := string(otherLabel[len(otherLabel)-1])
 
-	return b
+	return &bootloaderType{
+		partition: partition,
+
+		currentRootfs: currentRootfs,
+		otherRootfs:   otherRootfs,
+
+		// the paths that the kernel/initramfs are loaded, e.g.
+		// /boot/uboot/a
+		currentBootPath: filepath.Join(bootloaderDir, currentRootfs),
+		otherBootPath:   filepath.Join(bootloaderUbootDir, otherRootfs),
+
+		// the base bootloader dir, e.g. /boot/uboot or /boot/grub
+		bootloaderDir: bootloaderDir,
+	}
 }
 
 // Return true if the next boot will use the other rootfs
@@ -150,4 +175,11 @@ func isNextBootOther(bootloader bootLoader) bool {
 	}
 
 	return false
+}
+
+func (b *bootloaderType) SyncBootFiles() (err error) {
+	srcDir := b.currentBootPath
+	destDir := b.otherBootPath
+
+	return helpers.RSyncWithDelete(srcDir, destDir)
 }

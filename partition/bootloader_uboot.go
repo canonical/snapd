@@ -58,11 +58,7 @@ var (
 const bootloaderNameUboot bootloaderName = "u-boot"
 
 type uboot struct {
-	*bootloaderType
-
-	// full path to rootfs-specific assets on boot partition
-	currentBootPath string
-	otherBootPath   string
+	bootloaderType
 }
 
 // Stores a Name and a Value to be added as a name=value pair in a file.
@@ -78,13 +74,11 @@ func newUboot(partition *Partition) bootLoader {
 		return nil
 	}
 
-	b := newBootLoader(partition)
+	b := newBootLoader(partition, bootloaderUbootDir)
 	if b == nil {
 		return nil
 	}
-	u := uboot{bootloaderType: b}
-	u.currentBootPath = filepath.Join(bootloaderUbootDir, u.currentRootfs)
-	u.otherBootPath = filepath.Join(bootloaderUbootDir, u.otherRootfs)
+	u := uboot{bootloaderType: *b}
 
 	return &u
 }
@@ -215,13 +209,6 @@ func (u *uboot) MarkCurrentBootSuccessful() (err error) {
 	}
 
 	return os.RemoveAll(bootloaderUbootStampFile)
-}
-
-func (u *uboot) SyncBootFiles() (err error) {
-	srcDir := u.currentBootPath
-	destDir := u.otherBootPath
-
-	return helpers.RSyncWithDelete(srcDir, destDir)
 }
 
 func (u *uboot) HandleAssets() (err error) {
