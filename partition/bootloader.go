@@ -179,6 +179,12 @@ func isNextBootOther(bootloader bootLoader) bool {
 	return false
 }
 
+// FIXME:
+// - transition from old grub to /boot/grub/{a,b}, i.e. create dirs if missing
+// - populate kernel if missing
+// - rewrite grub.cfg for new static one
+//   (plus support adding grub flags e.g. for azure)
+// - ensure rollback still works
 func (b *bootloaderType) SyncBootFiles() (err error) {
 	srcDir := b.currentBootPath
 	destDir := b.otherBootPath
@@ -186,6 +192,11 @@ func (b *bootloaderType) SyncBootFiles() (err error) {
 	return helpers.RSyncWithDelete(srcDir, destDir)
 }
 
+// FIXME:
+// - if this fails it will never be re-tried because the "other" patition
+//   is updated to revision-N in /etc/system-image/channel.ini
+//   so the system only downloads from revision-N onwards even though the
+//   complete update was not applied (i.e. kernel missing)
 func (u *bootloaderType) HandleAssets() (err error) {
 	// check if we have anything, if there is no hardware yaml, there is nothing
 	// to process.
@@ -195,8 +206,12 @@ func (u *bootloaderType) HandleAssets() (err error) {
 	} else if err != nil {
 		return err
 	}
-	// ensure to remove the file once we are done
-	defer os.Remove(u.partition.hardwareSpecFile)
+	// ensure to remove the file if there are no errors
+	defer func() {
+		if err == nil {
+			os.Remove(u.partition.hardwareSpecFile)
+		}
+	}()
 
 	/*
 		// validate bootloader
@@ -234,7 +249,11 @@ func (u *bootloaderType) HandleAssets() (err error) {
 		}
 
 		// ensure we remove the dir later
-		defer os.RemoveAll(filepath.Dir(path))
+		defer func() {
+			if err == nil {
+				os.RemoveAll(filepath.Dir(path))
+			}
+		}()
 
 		if err := runCommand("/bin/cp", path, destDir); err != nil {
 			return err
@@ -246,9 +265,14 @@ func (u *bootloaderType) HandleAssets() (err error) {
 
 	// install .dtb files
 	dtbSrcDir := filepath.Join(u.partition.cacheDir(), hardware.DtbDir)
-	if helpers.FileExists(dtbSrcDir) {
+	// ensure there is a DtbDir specified
+	if hardware.DtbDir != "" && helpers.FileExists(dtbSrcDir) {
 		// ensure we cleanup the source dir
-		defer os.RemoveAll(dtbSrcDir)
+		defer func() {
+			if err == nil {
+				os.RemoveAll(dtbSrcDir)
+			}
+		}()
 
 		dtbDestDir := filepath.Join(destDir, "dtbs")
 		if err := os.MkdirAll(dtbDestDir, dirMode); err != nil {
