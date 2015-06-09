@@ -1,4 +1,4 @@
-ubuntu-core-launcher (1.0.5) UNRELEASED; urgency=low
+ubuntu-core-launcher (1.0.5) wily; urgency=low
 
   * simplify TMPDIR handling by providing a private /tmp for each snap and
     set TMPDIR, TEMPDIR, SNAP_APP_TMPDIR, SNAPP_APP_TMPDIR to it
