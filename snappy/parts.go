@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -24,22 +26,12 @@ import (
 	"strings"
 	"time"
 
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
 )
 
-// SnapType represents the kind of snap (app, core, frameworks, oem)
-type SnapType string
-
 // SystemConfig is a config map holding configs for multiple packages
 type SystemConfig map[string]interface{}
-
-// The various types of snap parts we support
-const (
-	SnapTypeApp       SnapType = "app"
-	SnapTypeCore      SnapType = "core"
-	SnapTypeFramework SnapType = "framework"
-	SnapTypeOem       SnapType = "oem"
-)
 
 // Services implements snappy packages that offer services
 type Services interface {
@@ -51,13 +43,13 @@ type Configuration interface {
 	OemConfig() SystemConfig
 }
 
-// Dirname of a Part is the Name, in most cases qualified with the
-// Namespace
-func Dirname(p Part) string {
-	if t := p.Type(); t == SnapTypeFramework || t == SnapTypeOem {
+// QualifiedName of a Part is the Name, in most cases qualified with the
+// Origin
+func QualifiedName(p Part) string {
+	if t := p.Type(); t == pkg.TypeFramework || t == pkg.TypeOem {
 		return p.Name()
 	}
-	return p.Name() + "." + p.Namespace()
+	return p.Name() + "." + p.Origin()
 }
 
 // Part representation of a snappy part
@@ -67,7 +59,8 @@ type Part interface {
 	Name() string
 	Version() string
 	Description() string
-	Namespace() string
+	Origin() string
+	Vendor() string
 
 	Hash() string
 	IsActive() bool
@@ -85,7 +78,7 @@ type Part interface {
 	Icon() string
 
 	// Returns app, framework, core
-	Type() SnapType
+	Type() pkg.Type
 
 	InstalledSize() int64
 	DownloadSize() int64
@@ -157,19 +150,8 @@ func NewMetaLocalRepository() *MetaRepository {
 func NewMetaRepository() *MetaRepository {
 	// FIXME: make this a configuration file
 
-	m := new(MetaRepository)
-	m.all = []Repository{}
-	// its ok if repos fail if e.g. no dbus is available
-	if repo := NewSystemImageRepository(); repo != nil {
-		m.all = append(m.all, repo)
-	}
+	m := NewMetaLocalRepository()
 	if repo := NewUbuntuStoreSnapRepository(); repo != nil {
-		m.all = append(m.all, repo)
-	}
-	if repo := NewLocalSnapRepository(snapAppsDir); repo != nil {
-		m.all = append(m.all, repo)
-	}
-	if repo := NewLocalSnapRepository(snapOemDir); repo != nil {
 		m.all = append(m.all, repo)
 	}
 
@@ -223,7 +205,7 @@ func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 }
 
 // ActiveSnapsByType returns all installed snaps with the given type
-func ActiveSnapsByType(snapTs ...SnapType) (res []Part, err error) {
+func ActiveSnapsByType(snapTs ...pkg.Type) (res []Part, err error) {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	if err != nil {
@@ -247,7 +229,7 @@ func ActiveSnapsByType(snapTs ...SnapType) (res []Part, err error) {
 // ActiveSnapNamesByType returns all installed snap names with the given type
 var ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 
-func activeSnapNamesByTypeImpl(snapTs ...SnapType) (res []string, err error) {
+func activeSnapNamesByTypeImpl(snapTs ...pkg.Type) (res []string, err error) {
 	installed, err := ActiveSnapsByType(snapTs...)
 	for _, part := range installed {
 		res = append(res, part.Name())
@@ -278,11 +260,11 @@ func ActiveSnapByName(needle string) Part {
 // FindSnapsByName returns all snaps with the given name in the "haystack"
 // slice of parts (useful for filtering)
 func FindSnapsByName(needle string, haystack []Part) (res []Part) {
-	name, namespace := splitNamespace(needle)
-	ignorens := namespace == ""
+	name, origin := splitOrigin(needle)
+	ignorens := origin == ""
 
 	for _, part := range haystack {
-		if part.Name() == name && (ignorens || part.Namespace() == namespace) {
+		if part.Name() == name && (ignorens || part.Origin() == origin) {
 			res = append(res, part)
 		}
 	}
@@ -290,7 +272,7 @@ func FindSnapsByName(needle string, haystack []Part) (res []Part) {
 	return res
 }
 
-func splitNamespace(name string) (string, string) {
+func splitOrigin(name string) (string, string) {
 	idx := strings.LastIndexAny(name, ".")
 	if idx > -1 {
 		return name[:idx], name[idx+1:]
@@ -302,12 +284,12 @@ func splitNamespace(name string) (string, string) {
 // FindSnapsByNameAndVersion returns the parts with the name/version in the
 // given slice of parts
 func FindSnapsByNameAndVersion(needle, version string, haystack []Part) []Part {
-	name, namespace := splitNamespace(needle)
-	ignorens := namespace == ""
+	name, origin := splitOrigin(needle)
+	ignorens := origin == ""
 	var found []Part
 
 	for _, part := range haystack {
-		if part.Name() == name && part.Version() == version && (ignorens || part.Namespace() == namespace) {
+		if part.Name() == name && part.Version() == version && (ignorens || part.Origin() == origin) {
 			found = append(found, part)
 		}
 	}

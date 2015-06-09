@@ -1,3 +1,6 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !linux
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -15,20 +18,14 @@
  *
  */
 
-package snappy
+package helpers
 
 import (
-	"fmt"
-	"path/filepath"
+	"io"
+	"os"
 )
 
-func getUdevPartName(m *packageYaml, baseDir string) (string, error) {
-	if m.Type == SnapTypeFramework || m.Type == SnapTypeOem {
-		return m.Name, nil
-	}
-
-	namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
-
-	return fmt.Sprintf("%s.%s", m.Name, namespace), err
-
+func doCopyFile(fin, fout fileish, fi os.FileInfo) error {
+	_, err := io.Copy(fout, fin)
+	return err
 }

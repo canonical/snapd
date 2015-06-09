@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -21,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
@@ -36,11 +39,13 @@ const shortHWInfoHelp = `List assigned hardware device for a package`
 const longHWInfoHelp = `This command list what hardware an installed package can access`
 
 func init() {
-	var cmdHWInfoData cmdHWInfo
-	_, _ = parser.AddCommand("hw-info",
+	_, err := parser.AddCommand("hw-info",
 		shortHWInfoHelp,
 		longHWInfoHelp,
-		&cmdHWInfoData)
+		&cmdHWInfo{})
+	if err != nil {
+		logger.Panicf("Unable to hwinfo: %v", err)
+	}
 }
 
 func outputHWAccessForPkgname(pkgname string, writePaths []string) {

@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -22,6 +24,8 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -30,11 +34,13 @@ type cmdSearch struct {
 }
 
 func init() {
-	var cmdSearchData cmdSearch
-	cmd, _ := parser.AddCommand("search",
+	cmd, err := parser.AddCommand("search",
 		"Search for packages to install",
 		"Query the store for available packages",
-		&cmdSearchData)
+		&cmdSearch{})
+	if err != nil {
+		logger.Panicf("Unable to search: %v", err)
+	}
 
 	cmd.Aliases = append(cmd.Aliases, "se")
 }
@@ -65,10 +71,10 @@ func search(args []string, allVariants bool) error {
 			}
 		} else {
 			for _, part := range sharedName.Parts {
-				if sharedName.IsAlias(part.Namespace()) || part.Type() == snappy.SnapTypeFramework {
+				if sharedName.IsAlias(part.Origin()) || part.Type() == pkg.TypeFramework {
 					fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
 				} else {
-					fmt.Fprintln(w, fmt.Sprintf("%s.%s\t%s\t%s\t", part.Name(), part.Namespace(), part.Version(), part.Description()))
+					fmt.Fprintln(w, fmt.Sprintf("%s.%s\t%s\t%s\t", part.Name(), part.Origin(), part.Version(), part.Description()))
 				}
 			}
 		}

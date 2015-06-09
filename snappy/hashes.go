@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -38,6 +40,10 @@ func (v *yamlFileMode) MarshalYAML() (interface{}, error) {
 		buf[0] = 'd'
 	case (v.mode & os.ModeSymlink) != 0:
 		buf[0] = 'l'
+	case (v.mode & os.ModeDevice) != 0:
+		buf[0] = 'b'
+	case (v.mode & os.ModeCharDevice) != 0:
+		buf[0] = 'c'
 	case (v.mode & os.ModeType) == 0:
 		buf[0] = 'f'
 	default:
@@ -67,11 +73,15 @@ func (v *yamlFileMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	switch modeAsStr[0] {
 	case 'd':
 		m |= os.ModeDir
+	case 'l':
+		m |= os.ModeSymlink
+	case 'c':
+		m |= os.ModeCharDevice
+	case 'b':
+		m |= os.ModeDevice
 	case 'f':
 		// default
 		m |= 0
-	case 'l':
-		m |= os.ModeSymlink
 	default:
 		return fmt.Errorf("Unknown file mode %s", modeAsStr)
 	}
@@ -93,6 +103,7 @@ func (v *yamlFileMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type fileHash struct {
 	Name   string        `yaml:"name"`
 	Size   *int64        `yaml:"size,omitempty"`
+	Device string        `yaml:"device,omitempty"`
 	Sha512 string        `yaml:"sha512,omitempty"`
 	Mode   *yamlFileMode `yaml:"mode"`
 	// FIXME: not used yet, our tar implementation does not
@@ -106,5 +117,5 @@ type hashesYaml struct {
 	ArchiveSha512 string `yaml:"archive-sha512"`
 
 	// the hashes for the files in the archive
-	Files []fileHash
+	Files []*fileHash
 }

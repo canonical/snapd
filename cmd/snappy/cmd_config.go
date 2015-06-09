@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -34,20 +36,17 @@ type cmdConfig struct {
 	} `positional-args:"yes"`
 }
 
-const shortConfigHelp = `Set configuraion for a installed package.`
+const shortConfigHelp = `Set configuration for an installed package.`
 
-const longConfigHelp = `Configures a package. The configuration is a
-YAML file, provided in the specified file which can be “-” for
-stdin. Output of the command is the current configuration, so running
-this command with no input file provides a snapshot of the app’s
-current config.  `
+const longConfigHelp = `Configures a package. The configuration is a YAML file, provided in the specified file which can be "-" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config.  `
 
 func init() {
-	var cmdConfigData cmdConfig
-	if _, err := parser.AddCommand("config", shortConfigHelp, longConfigHelp, &cmdConfigData); err != nil {
-		// panic here as something must be terribly wrong if there is an
-		// error here
-		logger.LogAndPanic(err)
+	_, err := parser.AddCommand("config",
+		shortConfigHelp,
+		longConfigHelp,
+		&cmdConfig{})
+	if err != nil {
+		logger.Panicf("Unable to config: %v", err)
 	}
 }
 

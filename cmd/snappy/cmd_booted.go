@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -19,6 +21,7 @@ package main
 
 import (
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
@@ -27,11 +30,13 @@ type cmdBooted struct {
 }
 
 func init() {
-	var cmdBootedData cmdBooted
-	parser.AddCommand("booted",
-		"Flag that rootfs booted successfully",
-		"Not necessary to run this command manually",
-		&cmdBootedData)
+	_, err := parser.AddCommand("booted",
+		"internal",
+		"internal",
+		&cmdBooted{})
+	if err != nil {
+		logger.Panicf("Unable to booted: %v", err)
+	}
 }
 
 func (x *cmdBooted) Execute(args []string) (err error) {
@@ -41,10 +46,10 @@ func (x *cmdBooted) Execute(args []string) (err error) {
 	}
 	defer privMutex.Unlock()
 
-	parts, err := snappy.ActiveSnapsByType(snappy.SnapTypeCore)
+	parts, err := snappy.ActiveSnapsByType(pkg.TypeCore)
 	if err != nil {
-		return logger.LogError(err)
+		return err
 	}
 
-	return logger.LogError(parts[0].(*snappy.SystemImagePart).MarkBootSuccessful())
+	return parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
 }

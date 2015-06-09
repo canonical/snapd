@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -24,7 +26,7 @@ import (
 	"path/filepath"
 
 	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 
 	"gopkg.in/yaml.v2"
 )
@@ -55,9 +57,9 @@ func OemConfig() error {
 	}
 	defer stampFirstBoot()
 
-	oemSnap, err := activeSnapsByType(SnapTypeOem)
+	oemSnap, err := activeSnapsByType(pkg.TypeOem)
 	if err != nil {
-		return logger.LogError(err)
+		return err
 	}
 
 	if len(oemSnap) < 1 {
@@ -72,18 +74,18 @@ func OemConfig() error {
 	for pkgName, conf := range snap.OemConfig() {
 		configData, err := wrapConfig(pkgName, conf)
 		if err != nil {
-			return logger.LogError(err)
+			return err
 		}
 
 		snap := activeSnapByName(pkgName)
 		if snap == nil {
 			// We want to error early as this is a disparity and oem snap
 			// packaging error.
-			return logger.LogError(errNoSnapToConfig)
+			return errNoSnapToConfig
 		}
 
 		if _, err := snap.Config(configData); err != nil {
-			return logger.LogError(err)
+			return err
 		}
 	}
 

@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -19,7 +21,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -38,11 +42,13 @@ const longRollbackHelp = `Allows rollback of a snap to a previous installed vers
 `
 
 func init() {
-	var cmdRollbackData cmdRollback
-	_, _ = parser.AddCommand("rollback",
+	_, err := parser.AddCommand("rollback",
 		shortRollbackHelp,
 		longRollbackHelp,
-		&cmdRollbackData)
+		&cmdRollback{})
+	if err != nil {
+		logger.Panicf("Unable to rollback: %v", err)
+	}
 }
 
 func (x *cmdRollback) Execute(args []string) (err error) {
@@ -58,11 +64,20 @@ func (x *cmdRollback) Execute(args []string) (err error) {
 		return errNeedPackageName
 	}
 
-	nowVersion, err := snappy.Rollback(pkg, version, progress.MakeProgressBar(pkg))
+	nowVersion, err := snappy.Rollback(pkg, version, progress.MakeProgressBar())
 	if err != nil {
 		return err
 	}
 	fmt.Printf("Setting %s to version %s\n", pkg, nowVersion)
+
+	m := snappy.NewMetaRepository()
+	installed, err := m.Installed()
+	if err != nil {
+		return err
+	}
+
+	parts := snappy.FindSnapsByNameAndVersion(pkg, nowVersion, installed)
+	showVerboseList(parts, os.Stdout)
 
 	return nil
 }

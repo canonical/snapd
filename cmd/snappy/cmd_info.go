@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -22,6 +24,7 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -43,11 +46,12 @@ Providing a package name will display information about a specific installed pac
 The verbose version of the info command for a package will also tell you the available channels for that package, when it was installed for the first time, disk space utilization, and in the case of frameworks, which apps are able to use the framework.`
 
 func init() {
-	var cmdInfoData cmdInfo
-	if _, err := parser.AddCommand("info", shortInfoHelp, longInfoHelp, &cmdInfoData); err != nil {
-		// panic here as something must be terribly wrong if there is an
-		// error here
-		logger.LogAndPanic(err)
+	_, err := parser.AddCommand("info",
+		shortInfoHelp,
+		longInfoHelp,
+		&cmdInfo{})
+	if err != nil {
+		logger.Panicf("Unable to info: %v", err)
 	}
 }
 
@@ -79,7 +83,7 @@ func snapInfo(pkgname string, verbose bool) error {
 }
 
 func ubuntuCoreChannel() string {
-	parts, err := snappy.ActiveSnapsByType(snappy.SnapTypeCore)
+	parts, err := snappy.ActiveSnapsByType(pkg.TypeCore)
 	if len(parts) == 1 && err == nil {
 		return parts[0].Channel()
 	}
@@ -89,8 +93,8 @@ func ubuntuCoreChannel() string {
 
 func info() error {
 	release := ubuntuCoreChannel()
-	frameworks, _ := snappy.ActiveSnapNamesByType(snappy.SnapTypeFramework)
-	apps, _ := snappy.ActiveSnapNamesByType(snappy.SnapTypeApp)
+	frameworks, _ := snappy.ActiveSnapNamesByType(pkg.TypeFramework)
+	apps, _ := snappy.ActiveSnapNamesByType(pkg.TypeApp)
 
 	fmt.Printf("release: %s\n", release)
 	fmt.Printf("architecture: %s\n", snappy.Architecture())

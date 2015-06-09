@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -24,7 +26,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 var fileHashYaml = `name: foo
@@ -47,11 +49,59 @@ func (s *SnapTestSuite) TestHashesYamlUnmarshal(c *C) {
 	c.Assert(h, DeepEquals, fileHashStruct)
 }
 
+func (s *SnapTestSuite) TestHashesYamlUnmarshalChar(c *C) {
+	var h fileHash
+	err := yaml.Unmarshal([]byte(`name: device
+mode: crw-r--r--`), &h)
+	c.Assert(err, IsNil)
+
+	c.Assert(h, DeepEquals, fileHash{
+		Name: "device",
+		Mode: newYamlFileMode(0644 | os.ModeCharDevice),
+	})
+}
+
+func (s *SnapTestSuite) TestHashesYamlUnmarshalBlock(c *C) {
+	var h fileHash
+	err := yaml.Unmarshal([]byte(`name: device
+mode: brw-r--r--`), &h)
+	c.Assert(err, IsNil)
+
+	c.Assert(h, DeepEquals, fileHash{
+		Name: "device",
+		Mode: newYamlFileMode(0644 | os.ModeDevice),
+	})
+}
+
 func (s *SnapTestSuite) TestHashesYamlMarshal(c *C) {
 	y, err := yaml.Marshal(&fileHashStruct)
 	c.Assert(err, IsNil)
 
 	c.Assert(string(y), Equals, fileHashYaml)
+}
+
+func (s *SnapTestSuite) TestHashesYamlMarshalBlockDevice(c *C) {
+	y, err := yaml.Marshal(fileHash{
+		Name: "device",
+		Mode: newYamlFileMode(0644 | os.ModeDevice),
+	})
+	c.Assert(err, IsNil)
+
+	c.Assert(string(y), Equals, `name: device
+mode: brw-r--r--
+`)
+}
+
+func (s *SnapTestSuite) TestHashesYamlMarshalCharDevice(c *C) {
+	y, err := yaml.Marshal(fileHash{
+		Name: "device",
+		Mode: newYamlFileMode(0644 | os.ModeCharDevice),
+	})
+	c.Assert(err, IsNil)
+
+	c.Assert(string(y), Equals, `name: device
+mode: crw-r--r--
+`)
 }
 
 func (s *SnapTestSuite) TestBuildCreateDebianHashesSimple(c *C) {

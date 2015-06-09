@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -23,8 +25,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
-	. "launchpad.net/gocheck"
+	"launchpad.net/snappy/helpers"
+
+	. "gopkg.in/check.v1"
 )
 
 func makeFakeDuCommand(c *C) string {
@@ -59,11 +64,29 @@ some description`
 printf "hello world"
 `
 
-	// a example binary
+	// an example binary
 	binDir := filepath.Join(tempdir, "bin")
 	err = os.Mkdir(binDir, 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(binDir, "hello-world"), []byte(helloBinContent), 0755)
+	c.Assert(err, IsNil)
+
+	// unusual permissions for dir
+	tmpDir := filepath.Join(tempdir, "tmp")
+	err = os.Mkdir(tmpDir, 0755)
+	c.Assert(err, IsNil)
+	// avoid umask
+	err = os.Chmod(tmpDir, 01777)
+	c.Assert(err, IsNil)
+
+	// and file
+	someFile := filepath.Join(tempdir, "file-with-perm")
+	err = ioutil.WriteFile(someFile, []byte(""), 0666)
+	c.Assert(err, IsNil)
+	err = os.Chmod(someFile, 0666)
+
+	// an example symlink
+	err = os.Symlink("bin/hello-world", filepath.Join(tempdir, "symlink"))
 	c.Assert(err, IsNil)
 
 	return tempdir
@@ -114,7 +137,7 @@ integration:
 	// check that the content looks sane
 	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_multi.snap").Output()
 	c.Assert(err, IsNil)
-	for _, needle := range []string{"./meta/package.yaml", "./meta/readme.md", "./bin/hello-world"} {
+	for _, needle := range []string{"./meta/package.yaml", "./meta/readme.md", "./bin/hello-world", "./symlink -> bin/hello-world"} {
 		c.Assert(strings.Contains(string(readFiles), needle), Equals, true)
 	}
 }
@@ -194,27 +217,13 @@ services:
  "title": "some title",
  "hooks": {
   "foo": {
-   "apparmor": "meta/foo.apparmor",
-   "snappy-systemd": "meta/foo.snappy-systemd"
+   "apparmor": "meta/foo.apparmor"
   }
  }
 }`
 	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_3.0.1_all.snap", "manifest").Output()
 	c.Assert(err, IsNil)
 	c.Assert(string(readJSON), Equals, expectedJSON)
-
-	// check the generated meta file
-	unpackDir := c.MkDir()
-	err = exec.Command("dpkg-deb", "-x", "hello_3.0.1_all.snap", unpackDir).Run()
-	c.Assert(err, IsNil)
-
-	snappySystemdContent, err := ioutil.ReadFile(filepath.Join(unpackDir, "meta/foo.snappy-systemd"))
-	c.Assert(err, IsNil)
-	c.Assert(string(snappySystemdContent), Equals, `{
- "description": "some description",
- "start": "bin/hello-world",
- "stop-timeout": "30s"
-}`)
 }
 
 func (s *SnapTestSuite) TestBuildAutoGenerateConfigAppArmor(c *C) {
@@ -302,9 +311,16 @@ func (s *SnapTestSuite) TestCopyCopies(c *C) {
 
 func (s *SnapTestSuite) TestCopyActuallyCopies(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
-	// hoping to get the non-linking behaviour
+
+	// hoping to get the non-linking behaviour via /dev/shm
 	target, err := ioutil.TempDir("/dev/shm", "copy")
+	// sbuild environments won't allow writing to /dev/shm, so its
+	// ok to skip there
+	if os.IsPermission(err) {
+		c.Skip("/dev/shm is not writable for us")
+	}
 	c.Assert(err, IsNil)
+
 	defer os.Remove(target)
 	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
 	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
@@ -402,4 +418,56 @@ binaries:
 `)
 	_, err := Build(sourceDir, "")
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
+}
+
+func (s *SnapTestSuite) TestDebArchitecture(c *C) {
+	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo"}}), Equals, "foo")
+	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo", "bar"}}), Equals, "multi")
+	c.Check(debArchitecture(&packageYaml{Architectures: nil}), Equals, "unknown")
+}
+
+func (s *SnapTestSuite) TestHashForFileForDevice(c *C) {
+	// skip test
+	if !helpers.FileExists("/dev/kmsg") {
+		c.Skip("no /dev/kmsg")
+	}
+
+	stat, err := os.Stat("/dev/kmsg")
+	c.Assert(err, IsNil)
+	h, err := hashForFile("", "/dev/kmsg", stat)
+	c.Assert(err, IsNil)
+	c.Assert(h.Name, Equals, "/dev/kmsg")
+	c.Assert(h.Device, Equals, "1,11")
+	c.Assert(h.Sha512, Equals, "")
+}
+
+func (s *SnapTestSuite) TestBuildAllPermissions(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+`)
+
+	resultSnap, err := Build(sourceDir, "")
+	c.Assert(err, IsNil)
+	defer os.Remove(resultSnap)
+
+	// check that the content looks sane
+	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_all.snap").CombinedOutput()
+	c.Assert(err, IsNil)
+
+	// check that we really have the right perms
+	c.Assert(strings.Contains(string(readFiles), `drwxrwxrwx`), Equals, true)
+	c.Assert(strings.Contains(string(readFiles), `-rw-rw-rw-`), Equals, true)
+}
+
+func (s *SnapTestSuite) TestBuildFailsForUnknownType(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+`)
+	err := syscall.Mkfifo(filepath.Join(sourceDir, "fifo"), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = Build(sourceDir, "")
+	c.Assert(err, ErrorMatches, "can not handle type of file .*")
 }

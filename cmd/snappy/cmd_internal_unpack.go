@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -23,12 +25,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/logger"
 )
 
 // #include <sys/prctl.h>
@@ -88,6 +92,28 @@ func readUid(user, passwdFile string) (uid int, err error) {
 	return -1, errors.New("failed to find user uid/gid")
 }
 
+// copied from go 1.3 (almost) verbatim. The go authors removed this
+// implementation from 1.4 because it doesn't apply to all threads,
+// which confuses people. Note the use of LockOSThread below. Note
+// also they didn't remove Setgroups *yet*, but probably will do so at
+// some point. Further note that it's also possible that they change
+// things around more; read issue 1435 (currently at
+// https://github.com/golang/go/issues/1435) for more details.
+func setgid(gid int) (err error) {
+	_, _, e1 := syscall.RawSyscall(syscall.SYS_SETGID, uintptr(gid), 0, 0)
+	if e1 != 0 {
+		err = e1
+	}
+	return
+}
+func setuid(uid int) (err error) {
+	_, _, e1 := syscall.RawSyscall(syscall.SYS_SETUID, uintptr(uid), 0, 0)
+	if e1 != 0 {
+		err = e1
+	}
+	return
+}
+
 func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 
 	d, err := clickdeb.Open(snapFile)
@@ -118,6 +144,10 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 			return err
 		}
 
+		// Setuid and Setgid only apply to the current Linux thread, so make
+		// sure we don't get moved.
+		runtime.LockOSThread()
+
 		// run prctl(PR_SET_NO_NEW_PRIVS)
 		rc := C.prctl_no_new_privs()
 		if rc < 0 {
@@ -125,14 +155,14 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 		}
 
 		if err := syscall.Setgroups([]int{gid}); err != nil {
-			return err
+			return fmt.Errorf("Setgroups([]{%d}) call failed: %v", gid, err)
 		}
 
-		if err := syscall.Setgid(gid); err != nil {
-			return err
+		if err := setgid(gid); err != nil {
+			return fmt.Errorf("Setgid(%d) call failed: %v", gid, err)
 		}
-		if err := syscall.Setuid(uid); err != nil {
-			return err
+		if err := setuid(uid); err != nil {
+			return fmt.Errorf("Setuid(%d) call failed: %v", uid, err)
 		}
 
 		// extra paranoia
@@ -145,11 +175,12 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 }
 
 func init() {
-	var cmdInternalUnpackData cmdInternalUnpack
-	if _, err := parser.AddCommand("internal-unpack", "internal", "internal", &cmdInternalUnpackData); err != nil {
-		// panic here as something must be terribly wrong if there is an
-		// error here
-		panic(err)
+	_, err := parser.AddCommand("internal-unpack",
+		"internal",
+		"internal",
+		&cmdInternalUnpack{})
+	if err != nil {
+		logger.Panicf("Unable to internal_unpack: %v", err)
 	}
 }
 

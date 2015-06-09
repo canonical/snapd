@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -20,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
@@ -36,11 +39,13 @@ const shortHWUnassignHelp = `Unassign a hardware device to a package`
 const longHWUnassignHelp = `This command removes access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package.`
 
 func init() {
-	var cmdHWUnassignData cmdHWUnassign
-	_, _ = parser.AddCommand("hw-unassign",
+	_, err := parser.AddCommand("hw-unassign",
 		shortHWUnassignHelp,
 		longHWUnassignHelp,
-		&cmdHWUnassignData)
+		&cmdHWUnassign{})
+	if err != nil {
+		logger.Panicf("Unable to hwunassign: %v", err)
+	}
 }
 
 func (x *cmdHWUnassign) Execute(args []string) (err error) {

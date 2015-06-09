@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -25,7 +27,7 @@ import (
 	"path/filepath"
 	"time"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 /* acquired via:

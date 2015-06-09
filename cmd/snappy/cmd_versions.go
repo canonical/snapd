@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -19,6 +21,8 @@ package main
 
 import (
 	"fmt"
+
+	"launchpad.net/snappy/logger"
 )
 
 type cmdVersions struct {
@@ -29,11 +33,13 @@ const shortVersionsHelp = `(deprecated) please use "list"`
 const longVersionsHelp = `This command is no longer available, please use the "list" command`
 
 func init() {
-	var cmdVersionsData cmdVersions
-	_, _ = parser.AddCommand("versions",
+	_, err := parser.AddCommand("versions",
 		shortVersionsHelp,
 		longVersionsHelp,
-		&cmdVersionsData)
+		&cmdVersions{})
+	if err != nil {
+		logger.Panicf("Unable to versions: %v", err)
+	}
 }
 
 func (x *cmdVersions) Execute(args []string) error {

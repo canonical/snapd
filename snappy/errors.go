@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -21,6 +23,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"launchpad.net/snappy/helpers"
 )
 
 var (
@@ -84,10 +88,6 @@ var (
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
 
-	// ErrInvalidPackageYaml is returned if a package.yaml file can not
-	// be parsed
-	ErrInvalidPackageYaml = errors.New("can not parse package.yaml")
-
 	// ErrInvalidFrameworkSpecInYaml is returned if a package.yaml
 	// has both frameworks and framework entries.
 	ErrInvalidFrameworkSpecInYaml = errors.New(`yaml can't have both "frameworks" and (deprecated) "framework" keys`)
@@ -99,10 +99,6 @@ var (
 	// ErrBuildPlatformNotSupported is returned if you build on
 	// a not (yet) supported platform
 	ErrBuildPlatformNotSupported = errors.New("building on a not (yet) supported platform")
-
-	// ErrUnpackHelperNotFound is returned if the unpack helper
-	// can not be found
-	ErrUnpackHelperNotFound = errors.New("unpack helper not found, do you have snappy installed in your PATH or GOPATH?")
 
 	// ErrLicenseNotAccepted is returned when the user does not accept the
 	// license
@@ -123,7 +119,7 @@ var (
 	// an interface is partial.
 	ErrNotImplemented = errors.New("not implemented")
 
-	// ErrNoOemConfiguration may be returned when there is a SnapTypeOem installed
+	// ErrNoOemConfiguration may be returned when there is a pkg.TypeOem installed
 	// but does not provide a configuration.
 	ErrNoOemConfiguration = errors.New("no configuration entry found in the oem snap")
 
@@ -136,12 +132,25 @@ var (
 	ErrSideLoaded = errors.New("cannot update system that uses custom enablement")
 
 	// ErrPackageNameNotSupported is returned when installing legacy package such as those
-	// that have namespaces in their package names.
-	ErrPackageNameNotSupported = errors.New("package name with namespace not supported")
+	// that have the origin specified in their package names.
+	ErrPackageNameNotSupported = errors.New("package name with origin not supported")
 
 	// ErrInvalidPart is returned when something on the filesystem does not make sense
 	ErrInvalidPart = errors.New("invalid package on system")
+
+	// ErrInvalidSeccompPolicy is returned when policy-version and policy-vender are not set together
+	ErrInvalidSeccompPolicy = errors.New("policy-version and policy-vendor must be specified together")
 )
+
+// ErrArchitectureNotSupported is returned when trying to install a snappy package that
+// is not supported on the system
+type ErrArchitectureNotSupported struct {
+	architectures []string
+}
+
+func (e *ErrArchitectureNotSupported) Error() string {
+	return fmt.Sprintf("package's supported architectures (%s) is incompatible with this system (%s)", strings.Join(e.architectures, ", "), helpers.UbuntuArchitecture())
+}
 
 // ErrInstallFailed is an error type for installation errors for snaps
 type ErrInstallFailed struct {
@@ -154,35 +163,15 @@ func (e *ErrInstallFailed) Error() string {
 	return fmt.Sprintf("%s failed to install: %s", e.snap, e.origErr)
 }
 
-// ErrUnpackFailed is the error type for a snap unpack problem
-type ErrUnpackFailed struct {
-	snapFile string
-	instDir  string
-	origErr  error
-}
-
-// ErrUnpackFailed is returned if unpacking a snap fails
-func (e *ErrUnpackFailed) Error() string {
-	return fmt.Sprintf("unpack %s to %s failed with %s", e.snapFile, e.instDir, e.origErr)
-}
-
-// ErrSignature is returned if a snap failed the signature verification
-type ErrSignature struct {
-	exitCode int
-}
-
-func (e *ErrSignature) Error() string {
-	return fmt.Sprintf("Signature verification failed with exit status %v", e.exitCode)
-}
-
 // ErrHookFailed is returned if a hook command fails
 type ErrHookFailed struct {
 	cmd      string
+	output   string
 	exitCode int
 }
 
 func (e *ErrHookFailed) Error() string {
-	return fmt.Sprintf("hook command %v failed with exit status %d", e.cmd, e.exitCode)
+	return fmt.Sprintf("hook command %v failed with exit status %d (output: %q)", e.cmd, e.exitCode, e.output)
 }
 
 // ErrDataCopyFailed is returned if copying the snap data fialed
@@ -245,4 +234,26 @@ type ErrFrameworkInUse []string
 
 func (e ErrFrameworkInUse) Error() string {
 	return fmt.Sprintf("framework still in use by: %s", strings.Join(e, ", "))
+}
+
+// ErrApparmorGenerate is reported if the apparmor profile generation fails
+type ErrApparmorGenerate struct {
+	exitCode int
+	output   []byte
+}
+
+func (e ErrApparmorGenerate) Error() string {
+	return fmt.Sprintf("apparmor generate fails with %v: '%v'", e.exitCode, string(e.output))
+}
+
+// ErrInvalidYaml is returned if a yaml file can not be parsed
+type ErrInvalidYaml struct {
+	file string
+	err  error
+	yaml []byte
+}
+
+func (e *ErrInvalidYaml) Error() string {
+	// %#v of string(yaml) so the yaml is presented as a human-readable string, but in a single greppable line
+	return fmt.Sprintf("can not parse %s: %v (from: %#v)", e.file, e.err, string(e.yaml))
 }

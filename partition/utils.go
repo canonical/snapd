@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -38,14 +40,6 @@ func runCommandImpl(args ...string) (err error) {
 	if len(args) == 0 {
 		return errors.New("no command specified")
 	}
-
-	// FIXME: use logger
-	/*
-		if debug == true {
-
-			log.debug('running: {}'.format(args))
-		}
-	*/
 
 	if out, err := exec.Command(args[0], args[1:]...).CombinedOutput(); err != nil {
 		cmdline := strings.Join(args, " ")

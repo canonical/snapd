@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -26,8 +28,7 @@ import (
 	"os"
 	"path/filepath"
 
-	. "launchpad.net/gocheck"
-	"launchpad.net/snappy/helpers"
+	. "gopkg.in/check.v1"
 	"launchpad.net/snappy/progress"
 )
 
@@ -65,7 +66,7 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 	snapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "apps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "apps")
 	homeData := filepath.Join(homeDir, "foo", "1.0")
-	err := helpers.EnsureDir(homeData, 0755)
+	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
 
 	packageYaml := `name: foo
@@ -116,6 +117,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
+"origin": "test",
 "anon_download_url": "`+dlURL+`"
 }`)
 		case "/dl":
@@ -151,7 +153,9 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-app.manifest"), []byte(`{"name": "hello-app"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
-	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+	part, err := NewInstalledSnapPart(yamlFile, "potato")
+	c.Assert(err, IsNil)
+	c.Assert(part.activate(true, ag), IsNil)
 	current := ActiveSnapByName("hello-app")
 	c.Assert(current, NotNil)
 

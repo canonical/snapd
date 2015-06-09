@@ -1,16 +1,37 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package snappy
 
 import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v2"
-	"launchpad.net/snappy/helpers"
+
+	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 )
 
 type apparmorJSONTemplate struct {
@@ -68,34 +89,15 @@ func (s *SecurityDefinitions) generateApparmorJSONContent() ([]byte, error) {
 }
 
 func handleApparmor(buildDir string, m *packageYaml, hookName string, s *SecurityDefinitions) error {
+	hasSecPol := s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != ""
+	hasSecOvr := s.SecurityOverride != nil && s.SecurityOverride.Apparmor != ""
 
-	// ensure we have a hook
-	if _, ok := m.Integration[hookName]; !ok {
-		m.Integration[hookName] = clickAppHook{}
-	}
-
-	// legacy use of "Integration" - the user should
-	// use the new format, nothing needs to be done
-	_, hasApparmor := m.Integration[hookName]["apparmor"]
-	_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-	if hasApparmor || hasApparmorProfile {
-		return nil
-	}
-
-	// see if we have a custom security policy
-	if s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != "" {
-		m.Integration[hookName]["apparmor-profile"] = s.SecurityPolicy.Apparmor
-		return nil
-	}
-
-	// see if we have a security override
-	if s.SecurityOverride != nil && s.SecurityOverride.Apparmor != "" {
-		m.Integration[hookName]["apparmor"] = s.SecurityOverride.Apparmor
+	if hasSecPol || hasSecOvr {
 		return nil
 	}
 
 	// generate apparmor template
-	apparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
+	apparmorJSONFile := m.Integration[hookName]["apparmor"]
 	securityJSONContent, err := s.generateApparmorJSONContent()
 	if err != nil {
 		return err
@@ -104,20 +106,18 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 		return err
 	}
 
-	m.Integration[hookName]["apparmor"] = apparmorJSONFile
-
 	return nil
 }
 
 func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error) {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
-	if m.Type == SnapTypeFramework || m.Type == SnapTypeOem {
+	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeOem {
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
 	}
 
-	namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
 
-	return fmt.Sprintf("%s.%s_%s_%s", m.Name, namespace, cleanedName, m.Version), err
+	return fmt.Sprintf("%s.%s_%s_%s", m.Name, origin, cleanedName, m.Version), err
 }
 
 var runScFilterGen = runScFilterGenImpl
@@ -133,12 +133,12 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		fn := filepath.Join(baseDir, sd.SecurityPolicy.Seccomp)
 		content, err := ioutil.ReadFile(fn)
 		if err != nil {
-			log.Printf("WARNING: failed to read %s\n", fn)
+			logger.Noticef("Failed to read %q: %v", fn, err)
 		}
 		return content, err
 	}
 
-	helpers.EnsureDir(snapSeccompDir, 0755)
+	os.MkdirAll(snapSeccompDir, 0755)
 
 	// defaults
 	policyVendor := defaultPolicyVendor
@@ -155,7 +155,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		var s securitySeccompOverride
 		err := readSeccompOverride(fn, &s)
 		if err != nil {
-			log.Printf("WARNING: failed to read %s\n", fn)
+			logger.Noticef("Failed to read %q: %v", fn, err)
 			return nil, err
 		}
 
@@ -196,7 +196,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 
 	content, err := runScFilterGen(args...)
 	if err != nil {
-		log.Printf("WARNING: %v failed\n", args)
+		logger.Noticef("%v failed", args)
 	}
 
 	return content, err
@@ -210,16 +210,11 @@ func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 
 	err = yaml.Unmarshal(yamlData, &s)
 	if err != nil {
-		log.Printf("ERROR: Can not parse '%s'", yamlData)
-		return err
+		return &ErrInvalidYaml{file: "package.yaml[seccomp override]", err: err, yaml: yamlData}
 	}
 	// These must always be specified together
-	if s.PolicyVersion == 0 && s.PolicyVendor != "" {
-		s.PolicyVendor = ""
-		log.Printf("WARNING: policy-version not set with policy-vendor. Skipping 'policy-vendor'\n")
-	} else if s.PolicyVersion != 0 && s.PolicyVendor == "" {
-		s.PolicyVersion = 0
-		log.Printf("WARNING: policy-vendor not set with policy-version. Skipping 'policy-version'\n")
+	if (s.PolicyVersion == 0 && s.PolicyVendor != "") || (s.PolicyVersion != 0 && s.PolicyVendor == "") {
+		return ErrInvalidSeccompPolicy
 	}
 
 	return nil

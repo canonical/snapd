@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -25,6 +27,7 @@ import (
 	"time"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -35,7 +38,7 @@ type cmdList struct {
 
 const shortListHelp = `List active components installed on a snappy system`
 
-const longListHelp = `Provides a list of all active components installed on a snappy system
+const longListHelp = `Provides a list of all active components installed on a snappy system.
 
 If requested, the command will find out if there are updates for any of the components and indicate that by appending a * to the date. This will be slower as it requires a round trip to the app store on the network.
 
@@ -44,12 +47,12 @@ The developer information refers to non-mainline versions of a package (much lik
 When a verbose listing is requested, information about the channel used is displayed; which is one of alpha, beta, rc or stable, and all fields are fully expanded too. In some cases, older (inactive) versions of snappy packages will be installed, these will be shown in the verbose output and the active version indicated with a * appended to the name of the component.`
 
 func init() {
-	var cmdListData cmdList
-	cmd, err := parser.AddCommand("list", shortListHelp, longListHelp, &cmdListData)
+	cmd, err := parser.AddCommand("list",
+		shortListHelp,
+		longListHelp,
+		&cmdList{})
 	if err != nil {
-		// panic here as something must be terribly wrong if there is an
-		// error here
-		logger.LogAndPanic(err)
+		logger.Panicf("Unable to list: %v", err)
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "li")
@@ -90,7 +93,7 @@ func showInstalledList(installed []snappy.Part, o io.Writer) {
 	fmt.Fprintln(w, "Name\tDate\tVersion\tDeveloper\t")
 	for _, part := range installed {
 		if part.IsActive() {
-			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t%s\t", part.Name(), formatDate(part.Date()), part.Version(), part.Namespace()))
+			fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t%s\t", part.Name(), formatDate(part.Date()), part.Version(), part.Origin()))
 		}
 	}
 	w.Flush()
@@ -113,7 +116,7 @@ func showVerboseList(installed []snappy.Part, o io.Writer) {
 			active = "!"
 		}
 
-		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%s\t%s\t%s%s\t", part.Name(), needsReboot, formatDate(part.Date()), part.Version(), part.Namespace(), active))
+		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%s\t%s\t%s%s\t", part.Name(), needsReboot, formatDate(part.Date()), part.Version(), part.Origin(), active))
 	}
 	w.Flush()
 
@@ -134,7 +137,7 @@ func showRebootMessage(installed []snappy.Part, o io.Writer) {
 		//        there are only two version instaleld and
 		//        there is only a single part that may requires
 		//        a reboot
-		if part.Type() != snappy.SnapTypeCore {
+		if part.Type() != pkg.TypeCore {
 			continue
 		}
 

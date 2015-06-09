@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -23,10 +25,10 @@ import (
 	"os"
 	"testing"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
-// Hook up gocheck into the "go test" runner
+// Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 type ProgressTestSuite struct {
@@ -48,7 +50,7 @@ func (ts *ProgressTestSuite) TestSpin(c *C) {
 	oldStdout := os.Stdout
 	os.Stdout = f
 
-	t := NewTextProgress("no-pkg")
+	t := NewTextProgress()
 	for i := 0; i < 6; i++ {
 		t.Spin("m")
 	}
@@ -58,7 +60,7 @@ func (ts *ProgressTestSuite) TestSpin(c *C) {
 	f.Seek(0, 0)
 	progress, err := ioutil.ReadAll(f)
 	c.Assert(err, IsNil)
-	c.Assert(string(progress), Equals, "\rm[|]\rm[/]\rm[-]\rm[\\]\rm[|]\rm[/]")
+	c.Assert(string(progress), Equals, "\rm[|]\x1b[K\rm[/]\x1b[K\rm[-]\x1b[K\rm[\\]\x1b[K\rm[|]\x1b[K\rm[/]\x1b[K")
 }
 
 func (ts *ProgressTestSuite) testAgreed(answer string, value bool, c *C) {
@@ -89,7 +91,7 @@ func (ts *ProgressTestSuite) testAgreed(answer string, value bool, c *C) {
 
 	license := "Void where empty."
 
-	t := NewTextProgress("no-pkg")
+	t := NewTextProgress()
 	c.Check(t.Agreed("blah blah", license), Equals, value)
 
 	_, err = fout.Seek(0, 0)
@@ -115,7 +117,7 @@ func (ts *ProgressTestSuite) TestNotify(c *C) {
 		fout.Close()
 	}()
 
-	t := NewTextProgress("no-pkg")
+	t := NewTextProgress()
 	t.Notify("blah blah")
 
 	_, err = fout.Seek(0, 0)
@@ -137,12 +139,12 @@ func (ts *ProgressTestSuite) TestMakeProgressBar(c *C) {
 
 	ts.attachedToTerminalReturn = true
 
-	pbar = MakeProgressBar("foo")
-	c.Assert(pbar, FitsTypeOf, NewTextProgress("foo"))
+	pbar = MakeProgressBar()
+	c.Assert(pbar, FitsTypeOf, NewTextProgress())
 
 	ts.attachedToTerminalReturn = false
 
-	pbar = MakeProgressBar("bar")
+	pbar = MakeProgressBar()
 	c.Assert(pbar, FitsTypeOf, &NullProgress{})
 
 }

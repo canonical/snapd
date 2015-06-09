@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -21,7 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 func makeTempFile(c *C, content string) *os.File {

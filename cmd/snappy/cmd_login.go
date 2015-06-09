@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -24,6 +26,7 @@ import (
 
 	"code.google.com/p/go.crypto/ssh/terminal"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -38,11 +41,13 @@ const shortLoginHelp = `Log into the store`
 const longLoginHelp = `This command logs the given username into the store`
 
 func init() {
-	var cmdLoginData cmdLogin
-	_, _ = parser.AddCommand("login",
+	_, err := parser.AddCommand("login",
 		shortLoginHelp,
 		longLoginHelp,
-		&cmdLoginData)
+		&cmdLogin{})
+	if err != nil {
+		logger.Panicf("Unable to login: %v", err)
+	}
 }
 
 func requestStoreTokenWith2faRetry(username, password, tokenName string) (*snappy.StoreToken, error) {

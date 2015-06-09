@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -24,11 +26,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 	"sort"
 )
 
-// Hook up gocheck into the "go test" runner.
+// Hook up check.v1 into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
 
 type policySuite struct {
@@ -118,7 +120,7 @@ func (s *policySuite) TestIterOpInstallBadFilemode(c *C) {
 	fn := filepath.Join(s.appg, "policygroups0")
 	c.Assert(os.Chmod(fn, 0), IsNil)
 	err := iterOp(install, filepath.Join(s.appg, "*"), s.dest, "foo_")
-	c.Check(err, ErrorMatches, ".*unable to read.*")
+	c.Check(err, ErrorMatches, ".*unable to open.*")
 }
 
 func (s *policySuite) TestIterOpInstallBadTarget(c *C) {

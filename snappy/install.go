@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -23,7 +25,6 @@ import (
 	"sort"
 	"strings"
 
-	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 )
 
@@ -69,10 +70,10 @@ func inDeveloperMode() bool {
 func Install(name string, flags InstallFlags, meter progress.Meter) (string, error) {
 	name, err := doInstall(name, flags, meter)
 	if err != nil {
-		return "", logger.LogError(err)
+		return "", err
 	}
 
-	return name, logger.LogError(GarbageCollect(name, flags))
+	return name, GarbageCollect(name, flags, meter)
 }
 
 func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName string, err error) {
@@ -90,7 +91,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 			flags |= AllowUnauthenticated
 		}
 
-		return installClick(name, flags, meter, sideloadedNamespace)
+		return installClick(name, flags, meter, sideloadedOrigin)
 	}
 
 	// check repos next
@@ -106,7 +107,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 	}
 
 	for _, part := range found {
-		cur := FindSnapsByNameAndVersion(Dirname(part), part.Version(), installed)
+		cur := FindSnapsByNameAndVersion(QualifiedName(part), part.Version(), installed)
 		if len(cur) != 0 {
 			return "", ErrAlreadyInstalled
 		}
@@ -125,7 +126,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 // GarbageCollect removes all versions two older than the current active
 // version, as long as NeedsReboot() is false on all the versions found, and
 // DoInstallGC is set.
-func GarbageCollect(name string, flags InstallFlags) error {
+func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 	var parts BySnapVersion
 
 	if (flags & DoInstallGC) == 0 {
@@ -165,7 +166,7 @@ func GarbageCollect(name string, flags InstallFlags) error {
 	}
 
 	for _, part := range parts[:active-1] {
-		if err := part.Uninstall(progress.MakeProgressBar(part.Name())); err != nil {
+		if err := part.Uninstall(pb); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}

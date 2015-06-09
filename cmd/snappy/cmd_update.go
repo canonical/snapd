@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -23,6 +25,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -34,11 +37,13 @@ type cmdUpdate struct {
 }
 
 func init() {
-	var cmdUpdateData cmdUpdate
-	_, _ = parser.AddCommand("update",
+	_, err := parser.AddCommand("update",
 		"Update all installed parts",
 		"Ensures system is running with latest parts",
-		&cmdUpdateData)
+		&cmdUpdate{})
+	if err != nil {
+		logger.Panicf("Unable to update: %v", err)
+	}
 }
 
 const (
@@ -68,10 +73,10 @@ func (x *cmdUpdate) Execute(args []string) (err error) {
 
 	for _, part := range updates {
 		fmt.Printf("Installing %s (%s)\n", part.Name(), part.Version())
-		if _, err := part.Install(progress.MakeProgressBar(part.Name()), flags); err != nil {
+		if _, err := part.Install(progress.MakeProgressBar(), flags); err != nil {
 			return err
 		}
-		if err := snappy.GarbageCollect(part.Name(), flags); err != nil {
+		if err := snappy.GarbageCollect(part.Name(), flags, progress.MakeProgressBar()); err != nil {
 			return err
 		}
 	}

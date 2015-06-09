@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -21,13 +23,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"text/template"
 
 	"launchpad.net/snappy/clickdeb"
@@ -84,10 +86,14 @@ var shouldExclude = regexp.MustCompile(strings.Join([]string{
 
 // small helper that return the architecture or "multi" if its multiple arches
 func debArchitecture(m *packageYaml) string {
-	if len(m.Architectures) > 1 {
+	switch len(m.Architectures) {
+	case 0:
+		return "unknown"
+	case 1:
+		return m.Architectures[0]
+	default:
 		return "multi"
 	}
-	return m.Architectures[0]
 }
 
 func parseReadme(readme string) (title, description string, err error) {
@@ -122,13 +128,6 @@ func parseReadme(readme string) (title, description string, err error) {
 func handleBinaries(buildDir string, m *packageYaml) error {
 	for _, v := range m.Binaries {
 		hookName := filepath.Base(v.Name)
-
-		if _, ok := m.Integration[hookName]; !ok {
-			m.Integration[hookName] = make(map[string]string)
-		}
-		// legacy click hook
-		m.Integration[hookName]["bin-path"] = v.Exec
-
 		// handle the apparmor stuff
 		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
 			return err
@@ -139,35 +138,8 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 }
 
 func handleServices(buildDir string, m *packageYaml) error {
-	_, description, err := parseReadme(filepath.Join(buildDir, "meta", "readme.md"))
-	if err != nil {
-		return err
-	}
-
 	for _, v := range m.Services {
 		hookName := filepath.Base(v.Name)
-
-		if _, ok := m.Integration[hookName]; !ok {
-			m.Integration[hookName] = make(map[string]string)
-		}
-
-		// generate snappyd systemd unit json
-		if v.Description == "" {
-			v.Description = description
-		}
-
-		// omit the name from the json to make the
-		// click-reviewers-tool happy
-		v.Name = ""
-		snappySystemdContent, err := json.MarshalIndent(v, "", " ")
-		if err != nil {
-			return err
-		}
-		snappySystemdContentFile := filepath.Join("meta", hookName+".snappy-systemd")
-		if err := ioutil.WriteFile(filepath.Join(buildDir, snappySystemdContentFile), []byte(snappySystemdContent), 0644); err != nil {
-			return err
-		}
-		m.Integration[hookName]["snappy-systemd"] = snappySystemdContentFile
 
 		// handle the apparmor stuff
 		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
@@ -213,6 +185,42 @@ func dirSize(buildDir string) (string, error) {
 	return strings.Fields(string(output))[0], nil
 }
 
+func hashForFile(buildDir, path string, info os.FileInfo) (h *fileHash, err error) {
+	sha512sum := ""
+	// pointer so that omitempty works (we don't want size for
+	// directories or symlinks)
+	var size *int64
+	if info.Mode().IsRegular() {
+		sha512sum, err = helpers.Sha512sum(path)
+		if err != nil {
+			return nil, err
+		}
+		fsize := info.Size()
+		size = &fsize
+	}
+
+	// major/minor handling
+	device := ""
+	major, minor, err := helpers.MajorMinor(info)
+	if err == nil {
+		device = fmt.Sprintf("%v,%v", major, minor)
+	}
+
+	if buildDir != "" {
+		path = path[len(buildDir)+1:]
+	}
+
+	return &fileHash{
+		Name:   path,
+		Size:   size,
+		Sha512: sha512sum,
+		Device: device,
+		// FIXME: not portable, this output is different on
+		//        windows, macos
+		Mode: newYamlFileMode(info.Mode()),
+	}, nil
+}
+
 func writeHashes(buildDir, dataTar string) error {
 
 	debianDir := filepath.Join(buildDir, "DEBIAN")
@@ -226,34 +234,20 @@ func writeHashes(buildDir, dataTar string) error {
 	hashes.ArchiveSha512 = sha512
 
 	err = filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error {
-		if strings.HasPrefix(path[len(buildDir):], "/DEBIAN") {
-			return nil
+		// path will always start with buildDir...
+		if path[len(buildDir):] == "/DEBIAN" {
+			return filepath.SkipDir
 		}
-		if path == buildDir {
+		// ...so if path's length is == buildDir, it's buildDir
+		if len(path) == len(buildDir) {
 			return nil
 		}
 
-		sha512sum := ""
-		// pointer so that omitempty works (we don't want size for
-		// directories or symlinks)
-		var size *int64
-		if info.Mode().IsRegular() {
-			sha512sum, err = helpers.Sha512sum(path)
-			if err != nil {
-				return err
-			}
-			fsize := info.Size()
-			size = &fsize
+		hash, err := hashForFile(buildDir, path, info)
+		if err != nil {
+			return err
 		}
-
-		hashes.Files = append(hashes.Files, fileHash{
-			Name:   path[len(buildDir)+1:],
-			Size:   size,
-			Sha512: sha512sum,
-			// FIXME: not portable, this output is different on
-			//        windows, macos
-			Mode: newYamlFileMode(info.Mode()),
-		})
+		hashes.Files = append(hashes.Files, hash)
 
 		return nil
 	})
@@ -371,6 +365,10 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 		return err
 	}
 
+	// no umask here so that we get the permissions correct
+	oldUmask := syscall.Umask(0)
+	defer syscall.Umask(oldUmask)
+
 	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, errin error) (err error) {
 		if errin != nil {
 			return errin
@@ -384,8 +382,28 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 		}
 
 		dest := filepath.Join(buildDir, path[len(sourceDir):])
+
+		// handle dirs
 		if info.IsDir() {
 			return os.Mkdir(dest, info.Mode())
+		}
+
+		// handle char/block devices
+		if helpers.IsDevice(info.Mode()) {
+			return helpers.CopySpecialFile(path, dest)
+		}
+
+		if (info.Mode() & os.ModeSymlink) != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(target, dest)
+		}
+
+		// fail if its unsupported
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("can not handle type of file %s", path)
 		}
 
 		// it's a file. Maybe we can link it?
@@ -394,26 +412,7 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 			return nil
 		}
 		// sigh. ok, copy it is.
-		in, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer in.Close()
-
-		out, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode())
-		if err != nil {
-			return err
-		}
-		defer func() {
-			// XXX: write a test for this. I dare you. I double-dare you.
-			xerr := out.Close()
-			if err == nil {
-				err = xerr
-			}
-		}()
-		_, err = io.Copy(out, in)
-		// no need to sync, as it's a tempdir
-		return err
+		return helpers.CopyFile(path, dest, helpers.CopyFlagDefault)
 	})
 }
 
@@ -464,11 +463,6 @@ func Build(sourceDir, targetDir string) (string, error) {
 
 	if err := copyToBuildDir(sourceDir, buildDir); err != nil {
 		return "", err
-	}
-
-	// defaults, mangling
-	if m.Integration == nil {
-		m.Integration = make(map[string]clickAppHook)
 	}
 
 	// generate compat hooks for binaries

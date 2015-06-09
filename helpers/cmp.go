@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -24,7 +26,9 @@ import (
 	"path/filepath"
 )
 
-const bufsz = 16 * 1024
+const defaultBufsz = 16 * 1024
+
+var bufsz = defaultBufsz
 
 // FilesAreEqual compares the two files' contents and returns whether
 // they are the same.

@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -15,35 +17,30 @@
  *
  */
 
-package snappy
+package helpers
 
 import (
-	. "launchpad.net/gocheck"
+	"io/ioutil"
+	"os"
+
+	. "gopkg.in/check.v1"
 )
 
-func (s *SnapTestSuite) TestGetUdevPartName(c *C) {
-	packageYaml, err := parsePackageYamlData([]byte(`name: foo
-version: 1.0
-icon: foo.svg
-vendor: Foo Bar <foo@example.com>
-`))
-	c.Assert(err, IsNil)
+func (s *cpSuite) TestCpMulti(c *C) {
+	maxcp = 2
+	defer func() { maxcp = maxint }()
 
-	udevName, err := getUdevPartName(packageYaml, "/apps/foo.mvo/1.0/")
-	c.Assert(err, IsNil)
-	c.Assert(udevName, Equals, "foo.mvo")
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), IsNil)
+	bs, err := ioutil.ReadFile(s.f2)
+	c.Check(err, IsNil)
+	c.Check(bs, DeepEquals, s.data)
 }
 
-func (s *SnapTestSuite) TestGetUdevPartNameFramework(c *C) {
-	packageYaml, err := parsePackageYamlData([]byte(`name: foo
-version: 1.0
-icon: foo.svg
-type: framework
-vendor: Foo Bar <foo@example.com>
-`))
+func (s *cpSuite) TestDoCpErr(c *C) {
+	f1, err := os.Open(s.f1)
 	c.Assert(err, IsNil)
-
-	udevName, err := getUdevPartName(packageYaml, "/apps/foo/1.0/")
+	st, err := f1.Stat()
 	c.Assert(err, IsNil)
-	c.Assert(udevName, Equals, "foo")
+	// force an error by asking it to write to a readonly stream
+	c.Check(doCopyFile(f1, os.Stdin, st), NotNil)
 }

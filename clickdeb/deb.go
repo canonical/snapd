@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -41,6 +43,18 @@ var (
 	// invalid content
 	ErrSnapInvalidContent = errors.New("snap contains invalid content")
 )
+
+// ErrUnpackFailed is the error type for a snap unpack problem
+type ErrUnpackFailed struct {
+	snapFile string
+	instDir  string
+	origErr  error
+}
+
+// ErrUnpackFailed is returned if unpacking a snap fails
+func (e *ErrUnpackFailed) Error() string {
+	return fmt.Sprintf("unpack %s to %s failed with %s", e.snapFile, e.instDir, e.origErr)
+}
 
 // simple pipe based xz reader
 func xzPipeReader(r io.Reader) io.Reader {
@@ -95,7 +109,9 @@ func (x *xzPipeWriter) Close() error {
 // - no relative path allowed to prevent writing outside of the parent dir
 func clickVerifyContentFn(path string) (string, error) {
 	path = filepath.Clean(path)
-	if strings.Contains(path, "..") {
+	// Clean() will remove any internal ".." elements, except if it's a relative
+	// path and the ".." element is the first one.  So let's check for that:
+	if path == ".." || strings.HasPrefix(path, "../") {
 		return "", ErrSnapInvalidContent
 	}
 
@@ -180,6 +196,18 @@ func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error
 	}
 
 	return content, nil
+}
+
+// ExtractHashes reads "hashes.yaml" from the clickdeb and writes it to
+// the given directory
+func (d *ClickDeb) ExtractHashes(dir string) error {
+	hashesFile := filepath.Join(dir, "hashes.yaml")
+	hashesData, err := d.ControlMember("hashes.yaml")
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(hashesFile, hashesData, 0644)
 }
 
 // Unpack unpacks the data.tar.{gz,bz2,xz} into the given target directory
@@ -289,8 +317,8 @@ func tarCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 		}
 
 		// check if we support this type
-		if !st.Mode().IsRegular() && !helpers.IsSymlink(st.Mode()) && !st.Mode().IsDir() {
-			return nil
+		if !st.Mode().IsRegular() && !helpers.IsSymlink(st.Mode()) && !st.Mode().IsDir() && !helpers.IsDevice(st.Mode()) {
+			return fmt.Errorf("unsupported file type for %s", path)
 		}
 
 		// check our exclude function
@@ -305,6 +333,17 @@ func tarCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 		hdr, err := tar.FileInfoHeader(info, target)
 		if err != nil {
 			return err
+		}
+
+		// tar.FileInfoHeader does include the fact that its a
+		// char/block device, but does not set major/minor :/
+		if helpers.IsDevice(st.Mode()) {
+			major, minor, err := helpers.MajorMinor(st)
+			if err != nil {
+				return err
+			}
+			hdr.Devmajor = int64(major)
+			hdr.Devminor = int64(minor)
 		}
 
 		// exclude "."
@@ -437,4 +476,29 @@ func skipToArMember(arReader *ar.Reader, memberPrefix string) (io.Reader, error)
 	}
 
 	return dataReader, nil
+}
+
+// UnpackWithDropPrivs will unapck the ClickDeb content into the
+// target dir and drop privs when doing this.
+//
+// To do this reliably in go we need to exec a helper as we can not
+// just fork() and drop privs in the child (no support for stock fork in go)
+func (d *ClickDeb) UnpackWithDropPrivs(instDir, rootdir string) error {
+	// no need to drop privs, we are not root
+	if !helpers.ShouldDropPrivs() {
+		return d.Unpack(instDir)
+	}
+
+	cmd := exec.Command("snappy", "internal-unpack", d.Name(), instDir, rootdir)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return &ErrUnpackFailed{
+			snapFile: d.Name(),
+			instDir:  instDir,
+			origErr:  err,
+		}
+	}
+
+	return nil
 }

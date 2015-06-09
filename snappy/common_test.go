@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -21,18 +23,18 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
+	"strings"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/pkg"
 
+	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
-	. "launchpad.net/gocheck"
-	"strings"
 )
 
 const (
-	testNamespace        = "testspacethename"
+	testOrigin           = "testspacethename"
 	fooComposedName      = "foo.testspacethename"
 	helloAppComposedName = "hello-app.testspacethename"
 )
@@ -61,13 +63,18 @@ services:
 		return "", err
 	}
 
-	dirName := fmt.Sprintf("%s.%s", m.Name, testNamespace)
+	dirName := m.qualifiedName(testOrigin)
 	metaDir := filepath.Join(tempdir, "apps", dirName, m.Version, "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
 	}
 	yamlFile = filepath.Join(metaDir, "package.yaml")
 	if err := ioutil.WriteFile(yamlFile, []byte(packageYamlContent), 0644); err != nil {
+		return "", err
+	}
+
+	readmeMd := filepath.Join(metaDir, "readme.md")
+	if err := ioutil.WriteFile(readmeMd, []byte("Hello\nApp"), 0644); err != nil {
 		return "", err
 	}
 
@@ -107,14 +114,14 @@ func makeTestSnapPackage(c *C, packageYamlContent string) (snapFile string) {
 func makeTestSnapPackageFull(c *C, packageYamlContent string, makeLicense bool) (snapFile string) {
 	tmpdir := c.MkDir()
 	// content
-	os.MkdirAll(path.Join(tmpdir, "bin"), 0755)
+	os.MkdirAll(filepath.Join(tmpdir, "bin"), 0755)
 	content := `#!/bin/sh
 echo "hello"`
-	exampleBinary := path.Join(tmpdir, "bin", "foo")
+	exampleBinary := filepath.Join(tmpdir, "bin", "foo")
 	ioutil.WriteFile(exampleBinary, []byte(content), 0755)
 	// meta
-	os.MkdirAll(path.Join(tmpdir, "meta"), 0755)
-	packageYaml := path.Join(tmpdir, "meta", "package.yaml")
+	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
+	packageYaml := filepath.Join(tmpdir, "meta", "package.yaml")
 	if packageYamlContent == "" {
 		packageYamlContent = `
 name: foo
@@ -124,11 +131,11 @@ vendor: Foo Bar <foo@example.com>
 `
 	}
 	ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
-	readmeMd := path.Join(tmpdir, "meta", "readme.md")
+	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
 	content = "Random\nExample"
 	ioutil.WriteFile(readmeMd, []byte(content), 0644)
 	if makeLicense {
-		license := path.Join(tmpdir, "meta", "license.txt")
+		license := filepath.Join(tmpdir, "meta", "license.txt")
 		content = "WTFPL"
 		ioutil.WriteFile(license, []byte(content), 0644)
 	}
@@ -139,13 +146,13 @@ vendor: Foo Bar <foo@example.com>
 		c.Assert(err, IsNil)
 	})
 	c.Assert(err, IsNil)
-	return path.Join(tmpdir, snapFile)
+	return filepath.Join(tmpdir, snapFile)
 }
 
-// makeTwoTestSnaps creates two real snaps of SnapType of name
+// makeTwoTestSnaps creates two real snaps of pkg.Type of name
 // "foo", with version "1.0" and "2.0", "2.0" being marked as the
 // active snap.
-func makeTwoTestSnaps(c *C, snapType SnapType, extra ...string) {
+func makeTwoTestSnaps(c *C, snapType pkg.Type, extra ...string) {
 	inter := &MockProgressMeter{}
 
 	packageYaml := `name: foo
@@ -156,17 +163,17 @@ vendor: Foo Bar <foo@example.com>
 		packageYaml += strings.Join(extra, "\n") + "\n"
 	}
 
-	if snapType != SnapTypeApp {
+	if snapType != pkg.TypeApp {
 		packageYaml += fmt.Sprintf("type: %s\n", snapType)
 	}
 
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	n, err := installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testNamespace)
+	n, err := installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	n, err = installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testNamespace)
+	n, err = installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
 
@@ -183,10 +190,15 @@ type MockProgressMeter struct {
 	spin     bool
 	spinMsg  string
 	written  int
+	// Notifier:
 	notified []string
+	// Agreer:
+	intro   string
+	license string
+	y       bool
 }
 
-func (m *MockProgressMeter) Start(total float64) {
+func (m *MockProgressMeter) Start(pkg string, total float64) {
 	m.total = total
 }
 func (m *MockProgressMeter) Set(current float64) {
@@ -206,8 +218,10 @@ func (m *MockProgressMeter) Write(buf []byte) (n int, err error) {
 func (m *MockProgressMeter) Finished() {
 	m.finished = true
 }
-func (m *MockProgressMeter) Agreed(string, string) bool {
-	return false
+func (m *MockProgressMeter) Agreed(intro, license string) bool {
+	m.intro = intro
+	m.license = license
+	return m.y
 }
 func (m *MockProgressMeter) Notify(msg string) {
 	m.notified = append(m.notified, msg)

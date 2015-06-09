@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -20,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -35,9 +38,12 @@ const (
 )
 
 func init() {
-	_, err := parser.AddCommand("purge", shortPurgeHelp, longPurgeHelp, &cmdPurge{})
+	_, err := parser.AddCommand("purge",
+		shortPurgeHelp,
+		longPurgeHelp,
+		&cmdPurge{})
 	if err != nil {
-		panic(err)
+		logger.Panicf("Unable to purge: %v", err)
 	}
 }
 
@@ -56,7 +62,7 @@ func (x *cmdPurge) Execute(args []string) (err error) {
 	for _, part := range args {
 		fmt.Printf("Purging %s\n", part)
 
-		if err := snappy.Purge(part, flags, progress.MakeProgressBar(part)); err != nil {
+		if err := snappy.Purge(part, flags, progress.MakeProgressBar()); err != nil {
 			return err
 		}
 	}

@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -23,7 +25,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 func mockRegenerateAppArmorRules() *bool {
@@ -116,7 +118,7 @@ func (s *SnapTestSuite) TestAddHWAccessHookFails(c *C) {
 	makeInstalledMockSnap(s.tempdir, "")
 
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
-	c.Assert(err.Error(), Equals, "exit status 1")
+	c.Assert(err.Error(), Equals, "apparmor generate fails with 1: ''")
 }
 
 func (s *SnapTestSuite) TestListHWAccessNoAdditionalAccess(c *C) {
@@ -279,4 +281,20 @@ func (s *SnapTestSuite) TestRemoveAllHWAccess(c *C) {
 	c.Check(helpers.FileExists(filepath.Join(snapUdevRulesDir, "70-snappy_hwassign_foo-app.rules")), Equals, false)
 	c.Check(helpers.FileExists(filepath.Join(snapAppArmorDir, "hello-app.json.additional")), Equals, false)
 	c.Check(*regenerateAppArmorRulesWasCalled, Equals, true)
+}
+
+func (s *SnapTestSuite) TestRegenerateAppaArmorRulesErr(c *C) {
+	script := `#!/bin/sh
+echo meep
+exit 1`
+	mockFailHookFile := filepath.Join(c.MkDir(), "failing-aa-hook")
+	err := ioutil.WriteFile(mockFailHookFile, []byte(script), 0755)
+	c.Assert(err, IsNil)
+	aaClickHookCmd = mockFailHookFile
+
+	err = regenerateAppArmorRulesImpl()
+	c.Assert(err, DeepEquals, &ErrApparmorGenerate{
+		exitCode: 1,
+		output:   []byte("meep\n"),
+	})
 }

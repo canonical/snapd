@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -87,11 +89,11 @@ func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditiona
 }
 
 func regenerateAppArmorRulesImpl() error {
-	if err := exec.Command(aaClickHookCmd, "-f").Run(); err != nil {
-		if exitCode, err := helpers.ExitCode(err); err != nil {
-			return &ErrHookFailed{
-				cmd:      aaClickHookCmd,
+	if output, err := exec.Command(aaClickHookCmd, "-f").CombinedOutput(); err != nil {
+		if exitCode, err := helpers.ExitCode(err); err == nil {
+			return &ErrApparmorGenerate{
 				exitCode: exitCode,
+				output:   output,
 			}
 		}
 		return err
@@ -106,7 +108,7 @@ func udevRulesPathForPart(partid string) string {
 }
 
 func writeUdevRuleForDeviceCgroup(snapname, device string) error {
-	helpers.EnsureDir(snapUdevRulesDir, 0755)
+	os.MkdirAll(snapUdevRulesDir, 0755)
 
 	// the device cgroup/launcher etc support only the apps level,
 	// not a binary/service or version, so if we get a full

@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -19,9 +21,8 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -34,11 +35,13 @@ type cmdBuild struct {
 const longBuildHelp = `Creates a snap package and if available, runs the review scripts.`
 
 func init() {
-	var cmdBuildData cmdBuild
-	cmd, _ := parser.AddCommand("build",
+	cmd, err := parser.AddCommand("build",
 		"Builds a snap package",
 		longBuildHelp,
-		&cmdBuildData)
+		&cmdBuild{})
+	if err != nil {
+		logger.Panicf("Unable to build: %v", err)
+	}
 
 	cmd.Aliases = append(cmd.Aliases, "bu")
 }
@@ -53,16 +56,20 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 		return err
 	}
 
-	_, err = exec.LookPath(clickReview)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not review package (%s not available)\n", clickReview)
-	}
+	/*
+		Disabling review tools run until the output reflects reality more closely
 
-	cmd := exec.Command(clickReview, snapPackage)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	// we ignore the error for now
-	_ = cmd.Run()
+		_, err = exec.LookPath(clickReview)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not review package (%s not available)\n", clickReview)
+		}
+
+		cmd := exec.Command(clickReview, snapPackage)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		// we ignore the error for now
+		_ = cmd.Run()
+	*/
 
 	fmt.Printf("Generated '%s' snap\n", snapPackage)
 	return nil

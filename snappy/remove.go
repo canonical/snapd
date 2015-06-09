@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -20,7 +22,6 @@ package snappy
 import (
 	"strings"
 
-	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 )
 
@@ -33,7 +34,7 @@ const (
 	DoRemoveGC RemoveFlags = 1 << iota
 )
 
-// Remove a part by a partSpec string, name[.namespace][=version]
+// Remove a part by a partSpec string, name[.origin][=version]
 func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 	var parts BySnapVersion
 
@@ -63,7 +64,7 @@ func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 
 	for _, part := range parts {
 		if err := part.Uninstall(meter); err != nil {
-			return logger.LogError(err)
+			return err
 		}
 	}
 

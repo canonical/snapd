@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -125,7 +127,7 @@ func parseSIProgress(pb progress.Meter, stdout io.Reader) error {
 	scanner := bufio.NewScanner(stdout)
 	// s-i is funny, total changes during the runs
 	total := 0.0
-	pb.Start(100)
+	pb.Start("ubuntu-core", 100)
 
 	for scanner.Scan() {
 		if os.Getenv("SNAPPY_DEBUG") != "" {
@@ -156,6 +158,8 @@ func parseSIProgress(pb progress.Meter, stdout io.Reader) error {
 			pb.Set(genericData.Now)
 		}
 	}
+	// ugly: avoid Spin() artifacts
+	pb.Notify("\nApply done")
 
 	if err := scanner.Err(); err != nil {
 		return err

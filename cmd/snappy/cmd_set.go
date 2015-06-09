@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -21,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
@@ -38,11 +41,13 @@ Example:
 `
 
 func init() {
-	var cmdSetData cmdSet
-	_, _ = parser.AddCommand("set",
+	_, err := parser.AddCommand("set",
 		"Set properties of system or package",
 		setHelp,
-		&cmdSetData)
+		&cmdSet{})
+	if err != nil {
+		logger.Panicf("Unable to set: %v", err)
+	}
 }
 
 func (x *cmdSet) Execute(args []string) (err error) {
@@ -55,7 +60,7 @@ func set(args []string) (err error) {
 		return err
 	}
 
-	return snappy.SetProperty(pkgname, progress.MakeProgressBar(pkgname), args...)
+	return snappy.SetProperty(pkgname, progress.MakeProgressBar(), args...)
 }
 
 func parseSetPropertyCmdline(args ...string) (pkgname string, out []string, err error) {

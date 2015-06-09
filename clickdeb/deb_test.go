@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -25,13 +27,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 	"launchpad.net/snappy/helpers"
 )
 
-// Hook up gocheck into the "go test" runner.
+// Hook up check.v1 into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
 
 type ClickDebTestSuite struct {
@@ -152,8 +155,19 @@ func (s *ClickDebTestSuite) TestClickVerifyContentFnStillOk(c *C) {
 	c.Assert(newPath, Equals, "foo/baz")
 }
 
+func (s *ClickDebTestSuite) TestClickVerifyContentFnThreeDotsOk(c *C) {
+	newPath, err := clickVerifyContentFn(".../foo")
+	c.Assert(err, IsNil)
+	c.Assert(newPath, Equals, ".../foo")
+}
+
 func (s *ClickDebTestSuite) TestClickVerifyContentFnNotOk(c *C) {
 	_, err := clickVerifyContentFn("./foo/../../baz")
+	c.Assert(err, Equals, ErrSnapInvalidContent)
+}
+
+func (s *ClickDebTestSuite) TestClickVerifyContentFnJustTwoDotsNotOk(c *C) {
+	_, err := clickVerifyContentFn("..")
 	c.Assert(err, Equals, ErrSnapInvalidContent)
 }
 
@@ -175,7 +189,6 @@ func (s *ClickDebTestSuite) TestTarCreate(c *C) {
 	// create tar
 	tempdir := c.MkDir()
 	tarfile := filepath.Join(tempdir, "data.tar.xz")
-	tarfile = "/tmp/lala.tar.xz"
 	err = tarCreate(tarfile, builddir, func(path string) bool {
 		return !strings.HasSuffix(path, "exclude-me")
 	})
@@ -212,4 +225,17 @@ func (s *ClickDebTestSuite) TestTarCreate(c *C) {
 	r, err = regexp.Compile(`(.*)\.\n`)
 	c.Assert(err, IsNil)
 	c.Assert(r.Match(output), Equals, false)
+}
+
+func (s *ClickDebTestSuite) TestTarCreateUnknownTypeFailsWithError(c *C) {
+
+	builddir := c.MkDir()
+	err := syscall.Mkfifo(filepath.Join(builddir, "fifo"), 0644)
+	c.Assert(err, IsNil)
+
+	tempdir := c.MkDir()
+	tarfile := filepath.Join(tempdir, "data.tar.xz")
+
+	err = tarCreate(tarfile, builddir, nil)
+	c.Assert(err, ErrorMatches, "unsupported file type for.*")
 }

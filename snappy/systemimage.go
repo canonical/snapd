@@ -21,24 +21,26 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/mvo5/goconfigparser"
+
 	"launchpad.net/snappy/coreconfig"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/partition"
+	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/provisioning"
-
-	"github.com/mvo5/goconfigparser"
 )
 
 const (
-	systemImagePartName      = "ubuntu-core"
-	systemImagePartNamespace = "ubuntu"
+	systemImagePartName   = "ubuntu-core"
+	systemImagePartOrigin = "ubuntu"
+	systemImagePartVendor = "Canonical Ltd."
 
 	// location of the channel config on the filesystem.
 	//
@@ -84,9 +86,9 @@ type SystemImagePart struct {
 	partition partition.Interface
 }
 
-// Type returns SnapTypeCore for this snap
-func (s *SystemImagePart) Type() SnapType {
-	return SnapTypeCore
+// Type returns pkg.TypeCore for this snap
+func (s *SystemImagePart) Type() pkg.Type {
+	return pkg.TypeCore
 }
 
 // Name returns the name
@@ -94,9 +96,14 @@ func (s *SystemImagePart) Name() string {
 	return systemImagePartName
 }
 
-// Namespace returns the name
-func (s *SystemImagePart) Namespace() string {
-	return systemImagePartNamespace
+// Origin returns the origin ("ubuntu")
+func (s *SystemImagePart) Origin() string {
+	return systemImagePartOrigin
+}
+
+// Vendor returns the vendor ("Canonical Ltd.")
+func (s *SystemImagePart) Vendor() string {
+	return systemImagePartVendor
 }
 
 // Version returns the version
@@ -173,6 +180,9 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 
 	// Ensure there is always a kernel + initrd to boot with, even
 	// if the update does not provide new versions.
+	if pb != nil {
+		pb.Notify("Syncing boot files")
+	}
 	err = s.partition.SyncBootloaderFiles()
 	if err != nil {
 		return "", err
@@ -201,6 +211,13 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 		return "", err
 	}
 
+	// XXX: ToggleNextBoot() calls handleAssets() (but not SyncBootloader
+	//      files :/) - handleAssets() may copy kernel/initramfs to the
+	//      sync mounted /boot/uboot, so its very slow, tell the user
+	//      at least that something is going on
+	if pb != nil {
+		pb.Notify("Updating boot files")
+	}
 	if err = s.partition.ToggleNextBoot(); err != nil {
 		return "", err
 	}
@@ -305,12 +322,12 @@ func makePartFromSystemImageConfigFile(p partition.Interface, channelIniPath str
 	defer f.Close()
 	err = cfg.Read(f)
 	if err != nil {
-		log.Printf("Can not parse config '%s': %s", channelIniPath, err)
+		logger.Noticef("Can not parse config %q: %v", channelIniPath, err)
 		return nil, err
 	}
 	st, err := os.Stat(channelIniPath)
 	if err != nil {
-		log.Printf("Can stat '%s': %s", channelIniPath, err)
+		logger.Noticef("Can not stat %q: %v", channelIniPath, err)
 		return nil, err
 	}
 
@@ -379,7 +396,7 @@ func makeOtherPart(p partition.Interface) Part {
 		configFile := filepath.Join(systemImageRoot, otherRoot, systemImageChannelConfig)
 		part, err = makePartFromSystemImageConfigFile(p, configFile, false)
 		if err != nil {
-			log.Printf("Can not make system-image part for %s: %s", configFile, err)
+			logger.Noticef("Can not make system-image part for %q: %v", configFile, err)
 		}
 		return err
 	})

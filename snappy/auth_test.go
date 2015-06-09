@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -26,8 +28,9 @@ import (
 	"path/filepath"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/oauth"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 const mockStoreInvalidLoginCode = 401
@@ -129,11 +132,17 @@ func (s *SnapTestSuite) TestWriteStoreToken(c *C) {
 
 func (s *SnapTestSuite) TestReadStoreToken(c *C) {
 	os.Setenv("HOME", s.tempdir)
-	mockStoreToken := StoreToken{TokenName: "meep"}
+	mockStoreToken := StoreToken{
+		TokenName: "meep",
+		Token: oauth.Token{
+			TokenKey:    "token-key",
+			TokenSecret: "token-secret",
+		},
+	}
 	err := WriteStoreToken(mockStoreToken)
 	c.Assert(err, IsNil)
 
 	readToken, err := ReadStoreToken()
 	c.Assert(err, IsNil)
-	c.Assert(readToken.TokenName, Equals, "meep")
+	c.Assert(readToken, DeepEquals, &mockStoreToken)
 }

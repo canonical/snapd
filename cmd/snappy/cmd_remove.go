@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
  *
@@ -20,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -30,11 +33,13 @@ type cmdRemove struct {
 }
 
 func init() {
-	var cmdRemoveData cmdRemove
-	_, _ = parser.AddCommand("remove",
+	_, err := parser.AddCommand("remove",
 		"Remove a snapp part",
 		"Remove a snapp part",
-		&cmdRemoveData)
+		&cmdRemove{})
+	if err != nil {
+		logger.Panicf("Unable to remove: %v", err)
+	}
 }
 
 func (x *cmdRemove) Execute(args []string) (err error) {
@@ -52,7 +57,7 @@ func (x *cmdRemove) Execute(args []string) (err error) {
 	for _, part := range args {
 		fmt.Printf("Removing %s\n", part)
 
-		if err := snappy.Remove(part, flags, progress.MakeProgressBar(part)); err != nil {
+		if err := snappy.Remove(part, flags, progress.MakeProgressBar()); err != nil {
 			return err
 		}
 	}
