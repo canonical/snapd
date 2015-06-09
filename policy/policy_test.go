@@ -26,11 +26,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 	"sort"
 )
 
-// Hook up gocheck into the "go test" runner.
+// Hook up check.v1 into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
 
 type policySuite struct {

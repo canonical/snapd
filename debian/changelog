@@ -1,3 +1,9 @@
+ubuntu-snappy (1.1-0ubuntu1) wily; urgency=low
+
+  * New wily upload with fix for go 1.4 syscall.Setgid() breakage
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 09 Jun 2015 10:02:04 +0200
+
 ubuntu-snappy (1.0.1-0ubuntu1) vivid; urgency=low
 
   * fix symlink unpacking

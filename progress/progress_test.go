@@ -25,10 +25,10 @@ import (
 	"os"
 	"testing"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
-// Hook up gocheck into the "go test" runner
+// Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 type ProgressTestSuite struct {
@@ -60,7 +60,7 @@ func (ts *ProgressTestSuite) TestSpin(c *C) {
 	f.Seek(0, 0)
 	progress, err := ioutil.ReadAll(f)
 	c.Assert(err, IsNil)
-	c.Assert(string(progress), Equals, "\rm[|]\rm[/]\rm[-]\rm[\\]\rm[|]\rm[/]")
+	c.Assert(string(progress), Equals, "\rm[|]\x1b[K\rm[/]\x1b[K\rm[-]\x1b[K\rm[\\]\x1b[K\rm[|]\x1b[K\rm[/]\x1b[K")
 }
 
 func (ts *ProgressTestSuite) testAgreed(answer string, value bool, c *C) {

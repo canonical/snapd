@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"text/template"
 	"time"
 
@@ -180,8 +181,9 @@ X-Snappy=yes
 
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStart}}
+Restart=on-failure
 WorkingDirectory={{.AppPath}}
-Environment="SNAPP_APP_PATH={{.AppPath}}" "SNAPP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAPP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP_PATH={{.AppPath}}" "SNAP_APP_DATA_PATH=/var/lib{{.AppPath}}" "SNAP_APP_USER_DATA_PATH=%h{{.AppPath}}" "SNAP_APP={{.AppTriple}}" "TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp" "SNAP_NAME={{.AppName}}" "SNAP_ORIGIN={{.Origin}}" "SNAP_FULLNAME={{.UdevAppName}}"
+Environment="SNAP_APP={{.AppTriple}}" {{.EnvVars}}
 {{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
@@ -207,6 +209,9 @@ WantedBy={{.ServiceSystemdTarget}}
 		AppTriple            string
 		ServiceSystemdTarget string
 		Origin               string
+		AppArch              string
+		Home                 string
+		EnvVars              string
 	}{
 		*desc,
 		filepath.Join(desc.AppPath, desc.Start),
@@ -215,7 +220,16 @@ WantedBy={{.ServiceSystemdTarget}}
 		fmt.Sprintf("%s_%s_%s", desc.AppName, desc.ServiceName, desc.Version),
 		servicesSystemdTarget,
 		origin,
+		helpers.UbuntuArchitecture(),
+		"%h",
+		"",
 	}
+	allVars := helpers.GetBasicSnapEnvVars(wrapperData)
+	allVars = append(allVars, helpers.GetUserSnapEnvVars(wrapperData)...)
+	allVars = append(allVars, helpers.GetDeprecatedBasicSnapEnvVars(wrapperData)...)
+	allVars = append(allVars, helpers.GetDeprecatedUserSnapEnvVars(wrapperData)...)
+	wrapperData.EnvVars = "\"" + strings.Join(allVars, "\" \"") + "\"" // allVars won't be empty
+
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
 		// this can never happen, except we forget a variable
 		logger.Panicf("Unable to execute template: %v", err)

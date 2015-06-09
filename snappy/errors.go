@@ -23,6 +23,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"launchpad.net/snappy/helpers"
 )
 
 var (
@@ -140,6 +142,16 @@ var (
 	ErrInvalidSeccompPolicy = errors.New("policy-version and policy-vendor must be specified together")
 )
 
+// ErrArchitectureNotSupported is returned when trying to install a snappy package that
+// is not supported on the system
+type ErrArchitectureNotSupported struct {
+	architectures []string
+}
+
+func (e *ErrArchitectureNotSupported) Error() string {
+	return fmt.Sprintf("package's supported architectures (%s) is incompatible with this system (%s)", strings.Join(e.architectures, ", "), helpers.UbuntuArchitecture())
+}
+
 // ErrInstallFailed is an error type for installation errors for snaps
 type ErrInstallFailed struct {
 	snap    string
@@ -154,11 +166,12 @@ func (e *ErrInstallFailed) Error() string {
 // ErrHookFailed is returned if a hook command fails
 type ErrHookFailed struct {
 	cmd      string
+	output   string
 	exitCode int
 }
 
 func (e *ErrHookFailed) Error() string {
-	return fmt.Sprintf("hook command %v failed with exit status %d", e.cmd, e.exitCode)
+	return fmt.Sprintf("hook command %v failed with exit status %d (output: %q)", e.cmd, e.exitCode, e.output)
 }
 
 // ErrDataCopyFailed is returned if copying the snap data fialed

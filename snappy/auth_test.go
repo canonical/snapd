@@ -30,7 +30,7 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/oauth"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 const mockStoreInvalidLoginCode = 401
