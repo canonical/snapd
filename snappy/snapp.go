@@ -41,6 +41,7 @@ import (
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/oauth"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
@@ -1403,7 +1404,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	// sso
 	ssoToken, err := ReadStoreToken()
 	if err == nil {
-		req.Header.Set("Authorization", makeOauthPlaintextSignature(req, ssoToken))
+		req.Header.Set("Authorization", oauth.MakePlaintextSignature(&ssoToken.Token))
 	}
 }
 
