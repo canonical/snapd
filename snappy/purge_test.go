@@ -71,7 +71,7 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDir string, part *SnapPart
 		panic("dunno what to do with args")
 	}
 	app := "hello-app." + testOrigin
-	yaml := "name: hello-app\nversion: " + version + "\n" + extra
+	yaml := "version: 1.0\nvendor: foo\nname: hello-app\nversion: " + version + "\n" + extra
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
 	c.Assert(err, IsNil)
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))

@@ -264,11 +264,53 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 	return parsePackageYamlData(yamlData)
 }
 
+func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error {
+	// check mandatory fields
+	missing := []string{}
+	for _, name := range []string{"Name", "Version", "Vendor"} {
+		s := helpers.Getattr(m, name).(string)
+		if s == "" {
+			missing = append(missing, strings.ToLower(name))
+		}
+	}
+	if len(missing) > 0 {
+		return &ErrInvalidYaml{
+			file: file,
+			yaml: yamlData,
+			err:  fmt.Errorf("missing required fields '%s'", strings.Join(missing, ", ")),
+		}
+	}
+
+	// this is to prevent installation of legacy packages such as those that
+	// contain the origin/origin in the package name.
+	if strings.ContainsRune(m.Name, '.') {
+		return ErrPackageNameNotSupported
+	}
+
+	// do all checks here
+	for _, binary := range m.Binaries {
+		if err := verifyBinariesYaml(binary); err != nil {
+			return err
+		}
+	}
+	for _, service := range m.Services {
+		if err := verifyServiceYaml(service); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	var m packageYaml
 	err := yaml.Unmarshal(yamlData, &m)
 	if err != nil {
 		return nil, &ErrInvalidYaml{file: "package.yaml", err: err, yaml: yamlData}
+	}
+
+	if err := validatePackageYamlData("package.yaml", yamlData, &m); err != nil {
+		return nil, err
 	}
 
 	if m.Architectures == nil {
@@ -279,12 +321,6 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		}
 	}
 
-	// this is to prevent installation of legacy packages such as those that
-	// contain the origin/origin in the package name.
-	if strings.ContainsRune(m.Name, '.') {
-		return nil, ErrPackageNameNotSupported
-	}
-
 	if m.DeprecatedFramework != "" {
 		logger.Noticef(`Use of deprecated "framework" key in yaml`)
 		if len(m.Frameworks) != 0 {
@@ -293,18 +329,6 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 
 		m.Frameworks = commasplitter(m.DeprecatedFramework, -1)
 		m.DeprecatedFramework = ""
-	}
-
-	// do all checks here
-	for _, binary := range m.Binaries {
-		if err := verifyBinariesYaml(binary); err != nil {
-			return nil, err
-		}
-	}
-	for _, service := range m.Services {
-		if err := verifyServiceYaml(service); err != nil {
-			return nil, err
-		}
 	}
 
 	// For backward compatiblity we allow that there is no "exec:" line
