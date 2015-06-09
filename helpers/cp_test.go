@@ -28,7 +28,7 @@ import (
 	"syscall"
 	"time"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 type cpSuite struct {
@@ -187,5 +187,5 @@ func (s *cpSuite) TestCopySpecialFileSimple(c *C) {
 
 func (s *cpSuite) TestCopySpecialFileErrors(c *C) {
 	err := CopySpecialFile("no-such-file", "no-such-target")
-	c.Assert(err, ErrorMatches, ".*No such file or directory.*")
+	c.Assert(err, ErrorMatches, "failed to copy device node:.*cp:.*stat.*no-such-file.*")
 }

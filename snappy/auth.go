@@ -26,9 +26,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/oauth"
 )
 
 var (
@@ -44,10 +44,7 @@ type StoreToken struct {
 	DateCreated string `json:"date_created"`
 	Href        string `json:"href"`
 
-	TokenKey       string `json:"token_key"`
-	TokenSecret    string `json:"token_secret"`
-	ConsumerSecret string `json:"consumer_secret"`
-	ConsumerKey    string `json:"consumer_key"`
+	oauth.Token
 }
 
 type ssoMsg struct {
@@ -134,7 +131,7 @@ func storeTokenFilename() string {
 // later reading via ReadStoreToken()
 func WriteStoreToken(token StoreToken) error {
 	targetFile := storeTokenFilename()
-	if err := helpers.EnsureDir(filepath.Dir(targetFile), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(targetFile), 0750); err != nil {
 		return err
 	}
 	outStr, err := json.MarshalIndent(token, "", " ")
@@ -160,18 +157,4 @@ func ReadStoreToken() (*StoreToken, error) {
 	}
 
 	return &readStoreToken, nil
-}
-
-// FIXME: replace with a real oauth1 library - or wait until oauth2 becomes
-// available
-//
-// minimal oauth v1 signature
-func makeOauthPlaintextSignature(req *http.Request, token *StoreToken) string {
-	// hrm, rfc5849 says that nonce, timestamp are not used for PLAINTEXT
-	// but our sso server is unhappy without, so
-	nonce := helpers.MakeRandomString(60)
-	timestamp := time.Now().Unix()
-
-	s := fmt.Sprintf(`OAuth oauth_nonce="%s", oauth_timestamp="%v", oauth_version="1.0", oauth_signature_method="PLAINTEXT", oauth_consumer_key="%s", oauth_token="%s", oauth_signature="%s%%26%s"`, nonce, timestamp, token.ConsumerKey, token.TokenKey, token.ConsumerSecret, token.TokenSecret)
-	return s
 }

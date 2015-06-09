@@ -36,18 +36,18 @@ var aaExec = "aa-exec"
 // This string can be empty.
 //
 // It returns the newConfig or an error
-func snapConfig(snapDir, namespace, rawConfig string) (newConfig string, err error) {
+func snapConfig(snapDir, origin, rawConfig string) (newConfig string, err error) {
 	configScript := filepath.Join(snapDir, "meta", "hooks", "config")
 	if _, err := os.Stat(configScript); err != nil {
 		return "", ErrConfigNotFound
 	}
 
-	part, err := NewInstalledSnapPart(filepath.Join(snapDir, "meta", "package.yaml"), namespace)
+	part, err := NewInstalledSnapPart(filepath.Join(snapDir, "meta", "package.yaml"), origin)
 	if err != nil {
 		return "", ErrPackageNotFound
 	}
 
-	name := Dirname(part)
+	name := QualifiedName(part)
 	appArmorProfile := fmt.Sprintf("%s_%s_%s", name, "snappy-config", part.Version())
 
 	return runConfigScript(configScript, appArmorProfile, rawConfig, makeSnapHookEnv(part))

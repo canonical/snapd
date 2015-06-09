@@ -25,7 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/systemd"
@@ -70,7 +70,7 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (string, string) {
 	default:
 		panic("dunno what to do with args")
 	}
-	app := "hello-app." + testNamespace
+	app := "hello-app." + testOrigin
 	yaml := "name: hello-app\nversion: " + version + "\n" + extra
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
 	c.Assert(err, IsNil)

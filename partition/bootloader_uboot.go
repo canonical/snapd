@@ -23,7 +23,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -53,6 +52,7 @@ var (
 	bootloaderUbootConfigFile = bootloaderUbootConfigFileReal
 	bootloaderUbootStampFile  = bootloaderUbootStampFileReal
 	bootloaderUbootEnvFile    = bootloaderUbootEnvFileReal
+	atomicFileUpdate          = atomicFileUpdateImpl
 )
 
 const bootloaderNameUboot bootloaderName = "u-boot"
@@ -66,6 +66,7 @@ type uboot struct {
 }
 
 // Stores a Name and a Value to be added as a name=value pair in a file.
+// TODO convert to map
 type configFileChange struct {
 	Name  string
 	Value string
@@ -82,8 +83,8 @@ func newUboot(partition *Partition) bootLoader {
 		return nil
 	}
 	u := uboot{bootloaderType: b}
-	u.currentBootPath = path.Join(bootloaderUbootDir, u.currentRootfs)
-	u.otherBootPath = path.Join(bootloaderUbootDir, u.otherRootfs)
+	u.currentBootPath = filepath.Join(bootloaderUbootDir, u.currentRootfs)
+	u.otherBootPath = filepath.Join(bootloaderUbootDir, u.otherRootfs)
 
 	return &u
 }
@@ -220,10 +221,7 @@ func (u *uboot) SyncBootFiles() (err error) {
 	srcDir := u.currentBootPath
 	destDir := u.otherBootPath
 
-	// always start from scratch: all files here are owned by us.
-	os.RemoveAll(destDir)
-
-	return runCommand("/bin/cp", "-a", srcDir, destDir)
+	return helpers.RSyncWithDelete(srcDir, destDir)
 }
 
 func (u *uboot) HandleAssets() (err error) {
@@ -265,7 +263,7 @@ func (u *uboot) HandleAssets() (err error) {
 		}
 
 		// expand path
-		path := path.Join(u.partition.cacheDir(), file)
+		path := filepath.Join(u.partition.cacheDir(), file)
 
 		if !helpers.FileExists(path) {
 			return fmt.Errorf("can not find file %s", path)
@@ -288,12 +286,12 @@ func (u *uboot) HandleAssets() (err error) {
 		// ensure we cleanup the source dir
 		defer os.RemoveAll(dtbSrcDir)
 
-		dtbDestDir := path.Join(destDir, "dtbs")
+		dtbDestDir := filepath.Join(destDir, "dtbs")
 		if err := os.MkdirAll(dtbDestDir, dirMode); err != nil {
 			return err
 		}
 
-		files, err := filepath.Glob(path.Join(dtbSrcDir, "*"))
+		files, err := filepath.Glob(filepath.Join(dtbSrcDir, "*"))
 		if err != nil {
 			return err
 		}
@@ -322,7 +320,7 @@ func (u *uboot) HandleAssets() (err error) {
 
 // Write lines to file atomically. File does not have to preexist.
 // FIXME: put into utils package
-func atomicFileUpdate(file string, lines []string) (err error) {
+func atomicFileUpdateImpl(file string, lines []string) (err error) {
 	tmpFile := fmt.Sprintf("%s.NEW", file)
 
 	// XXX: if go switches to use aio_fsync, we need to open the dir for writing
@@ -351,6 +349,7 @@ func atomicFileUpdate(file string, lines []string) (err error) {
 // appended to the file.
 //
 // FIXME: put into utils package
+// FIXME: improve logic
 func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 	var updated []configFileChange
 
@@ -360,12 +359,20 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 	}
 
 	var new []string
+	// we won't write to a file if we don't need to.
+	updateNeeded := false
 
 	for _, line := range lines {
 		for _, change := range changes {
 			if strings.HasPrefix(line, fmt.Sprintf("%s=", change.Name)) {
-				line = fmt.Sprintf("%s=%s", change.Name, change.Value)
+				value := strings.SplitN(line, "=", 2)[1]
+				// updated is used later to see if you had the originally requested
+				// value.
 				updated = append(updated, change)
+				if value != change.Value {
+					line = fmt.Sprintf("%s=%s", change.Name, change.Value)
+					updateNeeded = true
+				}
 			}
 		}
 		new = append(new, line)
@@ -383,6 +390,8 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 		}
 
 		if !got {
+			updateNeeded = true
+
 			// name/value pair did not exist in original
 			// file, so append
 			lines = append(lines, fmt.Sprintf("%s=%s",
@@ -390,7 +399,11 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 		}
 	}
 
-	return atomicFileUpdate(file, lines)
+	if updateNeeded {
+		return atomicFileUpdate(file, lines)
+	}
+
+	return nil
 }
 
 func (u *uboot) AdditionalBindMounts() []string {

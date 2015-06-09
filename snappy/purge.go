@@ -37,7 +37,7 @@ const (
 
 var remove = removeSnapData
 
-// Purge a part by a partSpec string, name[.namespace][=version]
+// Purge a part by a partSpec string, name[.origin][=version]
 func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 	var e error
 	datadirs := DataDirs(partSpec)
@@ -50,8 +50,8 @@ func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 	var active []*SnapPart
 
 	for _, datadir := range datadirs {
-		yamlPath := filepath.Join(snapAppsDir, datadir.Dirname(), datadir.Version, "meta", "package.yaml")
-		part, err := NewInstalledSnapPart(yamlPath, datadir.Namespace)
+		yamlPath := filepath.Join(snapAppsDir, datadir.QualifiedName(), datadir.Version, "meta", "package.yaml")
+		part, err := NewInstalledSnapPart(yamlPath, datadir.Origin)
 		if err != nil {
 			// no such part installed
 			continue
@@ -74,9 +74,9 @@ func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 	}
 
 	for _, datadir := range datadirs {
-		if err := remove(datadir.Dirname(), datadir.Version); err != nil {
+		if err := remove(datadir.QualifiedName(), datadir.Version); err != nil {
 			e = err
-			meter.Notify(fmt.Sprintf("unable to purge %s version %s: %s", datadir.Dirname(), datadir.Version, err.Error()))
+			meter.Notify(fmt.Sprintf("unable to purge %s version %s: %s", datadir.QualifiedName(), datadir.Version, err.Error()))
 		}
 	}
 

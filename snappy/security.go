@@ -23,13 +23,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v2"
 
-	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
 )
@@ -89,34 +89,15 @@ func (s *SecurityDefinitions) generateApparmorJSONContent() ([]byte, error) {
 }
 
 func handleApparmor(buildDir string, m *packageYaml, hookName string, s *SecurityDefinitions) error {
+	hasSecPol := s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != ""
+	hasSecOvr := s.SecurityOverride != nil && s.SecurityOverride.Apparmor != ""
 
-	// ensure we have a hook
-	if _, ok := m.Integration[hookName]; !ok {
-		m.Integration[hookName] = clickAppHook{}
-	}
-
-	// legacy use of "Integration" - the user should
-	// use the new format, nothing needs to be done
-	_, hasApparmor := m.Integration[hookName]["apparmor"]
-	_, hasApparmorProfile := m.Integration[hookName]["apparmor-profile"]
-	if hasApparmor || hasApparmorProfile {
-		return nil
-	}
-
-	// see if we have a custom security policy
-	if s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != "" {
-		m.Integration[hookName]["apparmor-profile"] = s.SecurityPolicy.Apparmor
-		return nil
-	}
-
-	// see if we have a security override
-	if s.SecurityOverride != nil && s.SecurityOverride.Apparmor != "" {
-		m.Integration[hookName]["apparmor"] = s.SecurityOverride.Apparmor
+	if hasSecPol || hasSecOvr {
 		return nil
 	}
 
 	// generate apparmor template
-	apparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
+	apparmorJSONFile := m.Integration[hookName]["apparmor"]
 	securityJSONContent, err := s.generateApparmorJSONContent()
 	if err != nil {
 		return err
@@ -124,8 +105,6 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 	if err := ioutil.WriteFile(filepath.Join(buildDir, apparmorJSONFile), securityJSONContent, 0644); err != nil {
 		return err
 	}
-
-	m.Integration[hookName]["apparmor"] = apparmorJSONFile
 
 	return nil
 }
@@ -136,9 +115,9 @@ func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error)
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
 	}
 
-	namespace, err := namespaceFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
 
-	return fmt.Sprintf("%s.%s_%s_%s", m.Name, namespace, cleanedName, m.Version), err
+	return fmt.Sprintf("%s.%s_%s_%s", m.Name, origin, cleanedName, m.Version), err
 }
 
 var runScFilterGen = runScFilterGenImpl
@@ -159,7 +138,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		return content, err
 	}
 
-	helpers.EnsureDir(snapSeccompDir, 0755)
+	os.MkdirAll(snapSeccompDir, 0755)
 
 	// defaults
 	policyVendor := defaultPolicyVendor

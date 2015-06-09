@@ -24,5 +24,7 @@ OUTPUTDIR=${1:-$(pwd)}
 	$GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-priv.html)
 (cd release &&
 	$GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-release.html)
+(cd oauth &&
+	$GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-release.html)
 
 echo "Coverage html reports are available in $OUTPUTDIR"

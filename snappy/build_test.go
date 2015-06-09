@@ -29,7 +29,7 @@ import (
 
 	"launchpad.net/snappy/helpers"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 func makeFakeDuCommand(c *C) string {
@@ -217,27 +217,13 @@ services:
  "title": "some title",
  "hooks": {
   "foo": {
-   "apparmor": "meta/foo.apparmor",
-   "snappy-systemd": "meta/foo.snappy-systemd"
+   "apparmor": "meta/foo.apparmor"
   }
  }
 }`
 	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_3.0.1_all.snap", "manifest").Output()
 	c.Assert(err, IsNil)
 	c.Assert(string(readJSON), Equals, expectedJSON)
-
-	// check the generated meta file
-	unpackDir := c.MkDir()
-	err = exec.Command("dpkg-deb", "-x", "hello_3.0.1_all.snap", unpackDir).Run()
-	c.Assert(err, IsNil)
-
-	snappySystemdContent, err := ioutil.ReadFile(filepath.Join(unpackDir, "meta/foo.snappy-systemd"))
-	c.Assert(err, IsNil)
-	c.Assert(string(snappySystemdContent), Equals, `{
- "description": "some description",
- "start": "bin/hello-world",
- "stop-timeout": "30s"
-}`)
 }
 
 func (s *SnapTestSuite) TestBuildAutoGenerateConfigAppArmor(c *C) {
@@ -325,9 +311,16 @@ func (s *SnapTestSuite) TestCopyCopies(c *C) {
 
 func (s *SnapTestSuite) TestCopyActuallyCopies(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
-	// hoping to get the non-linking behaviour
+
+	// hoping to get the non-linking behaviour via /dev/shm
 	target, err := ioutil.TempDir("/dev/shm", "copy")
+	// sbuild environments won't allow writing to /dev/shm, so its
+	// ok to skip there
+	if os.IsPermission(err) {
+		c.Skip("/dev/shm is not writable for us")
+	}
 	c.Assert(err, IsNil)
+
 	defer os.Remove(target)
 	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
 	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
@@ -461,8 +454,6 @@ vendor: Foo <foo@example.com>
 	// check that the content looks sane
 	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_all.snap").CombinedOutput()
 	c.Assert(err, IsNil)
-
-	println(string(readFiles))
 
 	// check that we really have the right perms
 	c.Assert(strings.Contains(string(readFiles), `drwxrwxrwx`), Equals, true)

@@ -128,13 +128,6 @@ func parseReadme(readme string) (title, description string, err error) {
 func handleBinaries(buildDir string, m *packageYaml) error {
 	for _, v := range m.Binaries {
 		hookName := filepath.Base(v.Name)
-
-		if _, ok := m.Integration[hookName]; !ok {
-			m.Integration[hookName] = make(map[string]string)
-		}
-		// legacy click hook
-		m.Integration[hookName]["bin-path"] = v.Exec
-
 		// handle the apparmor stuff
 		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
 			return err
@@ -145,35 +138,8 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 }
 
 func handleServices(buildDir string, m *packageYaml) error {
-	_, description, err := parseReadme(filepath.Join(buildDir, "meta", "readme.md"))
-	if err != nil {
-		return err
-	}
-
 	for _, v := range m.Services {
 		hookName := filepath.Base(v.Name)
-
-		if _, ok := m.Integration[hookName]; !ok {
-			m.Integration[hookName] = make(map[string]string)
-		}
-
-		// generate snappyd systemd unit json
-		if v.Description == "" {
-			v.Description = description
-		}
-
-		// omit the name from the json to make the
-		// click-reviewers-tool happy
-		v.Name = ""
-		snappySystemdContent, err := json.MarshalIndent(v, "", " ")
-		if err != nil {
-			return err
-		}
-		snappySystemdContentFile := filepath.Join("meta", hookName+".snappy-systemd")
-		if err := ioutil.WriteFile(filepath.Join(buildDir, snappySystemdContentFile), []byte(snappySystemdContent), 0644); err != nil {
-			return err
-		}
-		m.Integration[hookName]["snappy-systemd"] = snappySystemdContentFile
 
 		// handle the apparmor stuff
 		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
@@ -268,10 +234,12 @@ func writeHashes(buildDir, dataTar string) error {
 	hashes.ArchiveSha512 = sha512
 
 	err = filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error {
-		if strings.HasPrefix(path[len(buildDir):], "/DEBIAN") {
-			return nil
+		// path will always start with buildDir...
+		if path[len(buildDir):] == "/DEBIAN" {
+			return filepath.SkipDir
 		}
-		if path == buildDir {
+		// ...so if path's length is == buildDir, it's buildDir
+		if len(path) == len(buildDir) {
 			return nil
 		}
 
@@ -495,11 +463,6 @@ func Build(sourceDir, targetDir string) (string, error) {
 
 	if err := copyToBuildDir(sourceDir, buildDir); err != nil {
 		return "", err
-	}
-
-	// defaults, mangling
-	if m.Integration == nil {
-		m.Integration = make(map[string]clickAppHook)
 	}
 
 	// generate compat hooks for binaries

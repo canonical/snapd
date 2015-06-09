@@ -26,7 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
-	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -452,7 +452,7 @@ func New() *Partition {
 	p := new(Partition)
 
 	p.getPartitionDetails()
-	p.hardwareSpecFile = path.Join(p.cacheDir(), hardwareSpecFile)
+	p.hardwareSpecFile = filepath.Join(p.cacheDir(), hardwareSpecFile)
 
 	return p
 }
@@ -566,17 +566,17 @@ func (p *Partition) hardwareSpec() (hardwareSpecType, error) {
 
 // Return full path to the main assets directory
 func (p *Partition) assetsDir() string {
-	return path.Join(p.cacheDir(), assetsDir)
+	return filepath.Join(p.cacheDir(), assetsDir)
 }
 
 // Return the full path to the hardware-specific flash assets directory.
 func (p *Partition) flashAssetsDir() string {
-	return path.Join(p.cacheDir(), flashAssetsDir)
+	return filepath.Join(p.cacheDir(), flashAssetsDir)
 }
 
 // MountTarget gets the full path to the mount target directory
 func (p *Partition) MountTarget() string {
-	return path.Join(p.cacheDir(), mountTarget)
+	return filepath.Join(p.cacheDir(), mountTarget)
 }
 
 func (p *Partition) getPartitionDetails() (err error) {
@@ -769,7 +769,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	}
 
 	for _, fs := range requiredChrootMounts {
-		target := path.Join(p.MountTarget(), fs)
+		target := filepath.Join(p.MountTarget(), fs)
 
 		err := mountAndAddToGlobalMountList(mountEntry{source: fs,
 			target:    target,
@@ -783,7 +783,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	// Grub also requires access to both rootfs's when run from
 	// within a chroot (to allow it to create menu entries for
 	// both), so bindmount the real rootfs.
-	targetInChroot := path.Join(p.MountTarget(), p.MountTarget())
+	targetInChroot := filepath.Join(p.MountTarget(), p.MountTarget())
 
 	// FIXME: we should really remove this after the unmount
 
@@ -814,6 +814,9 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return err
 	}
 
+	// XXX: first toggle roofs and then handle assets? that seems
+	//      wrong given that handleAssets may fails and we will
+	//      knowingly boot into a broken system
 	err = p.RunWithOther(RW, func(otherRoot string) (err error) {
 		return bootloader.ToggleRootFS()
 	})

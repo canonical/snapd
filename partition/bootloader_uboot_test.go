@@ -25,9 +25,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 	"launchpad.net/snappy/helpers"
 )
+
+// TODO move to uboot specific test suite.
 
 const fakeUbootEnvData = `
 # This is a snappy variables and boot logic file and is entirely generated and
@@ -290,4 +292,41 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, false)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
 	c.Assert(strings.Contains(string(bytes), "snappy_ab=a"), Equals, true)
+}
+
+func (s *PartitionTestSuite) TestNoWriteNotNeeded(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	atomiCall := false
+	atomicFileUpdate = func(a string, b []string) error { atomiCall = true; return atomicFileUpdateImpl(a, b) }
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	c.Check(u.MarkCurrentBootSuccessful(), IsNil)
+	c.Assert(atomiCall, Equals, false)
+}
+
+func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	// this file needs specific data
+	c.Assert(ioutil.WriteFile(bootloaderUbootEnvFile, []byte(""), 0644), IsNil)
+
+	atomiCall := false
+	atomicFileUpdate = func(a string, b []string) error { atomiCall = true; return atomicFileUpdateImpl(a, b) }
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	c.Check(u.MarkCurrentBootSuccessful(), IsNil)
+	c.Assert(atomiCall, Equals, true)
+
+	bytes, err := ioutil.ReadFile(bootloaderUbootEnvFile)
+	c.Assert(err, IsNil)
+	c.Check(strings.Contains(string(bytes), "snappy_mode=try"), Equals, false)
+	c.Check(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
+	c.Check(strings.Contains(string(bytes), "snappy_ab=a"), Equals, true)
 }

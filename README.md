@@ -87,7 +87,17 @@ To run the various tests that we have to ensure a high quality source just run:
 This will check if the source format is consistent, that it build, all tests
 work as expected and that "go vet" and "golint" have nothing to complain.
 
+You can run individual test with:
 
+    go test -check.f $testname
+
+If a test hangs, you can enable verbose mode:
+
+   go test -v -check.vv
+
+(or -check.v for less verbose output).
+
+There is more to read about the testing framework on the [website](https://labix.org/gocheck)
 ### Dependencies handling
 
 To generate dependencies.tsv you need `godeps`, so
