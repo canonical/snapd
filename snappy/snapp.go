@@ -731,8 +731,15 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	fullName := QualifiedName(s)
-	currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current"))
 	dataDir := filepath.Join(snapDataDir, fullName, s.Version())
+
+	var oldPart *SnapPart
+	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current")); currentActiveDir != "" {
+		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "package.yaml"), s.origin)
+		if err != nil {
+			return "", err
+		}
+	}
 
 	if err := os.MkdirAll(s.basedir, 0755); err != nil {
 		logger.Noticef("Can not create %q: %v", s.basedir, err)
@@ -776,17 +783,12 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	// started then copy the data
 	//
 	// otherwise just create a empty data dir
-	if currentActiveDir != "" {
-		oldM, err := parsePackageYamlFile(filepath.Join(currentActiveDir, "meta", "package.yaml"))
-		if err != nil {
-			return "", err
-		}
-
+	if oldPart != nil {
 		// we need to stop making it active
-		err = unsetActiveClick(currentActiveDir, inhibitHooks, inter)
+		err = unsetActiveClick(oldPart.basedir, inhibitHooks, inter)
 		defer func() {
 			if err != nil {
-				if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+				if cerr := oldPart.activate(inhibitHooks, inter); cerr != nil {
 					logger.Noticef("Setting old version back to active failed: %v", cerr)
 				}
 			}
@@ -795,7 +797,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 			return "", err
 		}
 
-		err = copySnapData(fullName, oldM.Version, s.Version())
+		err = copySnapData(fullName, oldPart.Version(), s.Version())
 	} else {
 		err = os.MkdirAll(dataDir, 0755)
 	}
@@ -813,10 +815,10 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	// and finally make active
-	err = setActiveClick(s.basedir, inhibitHooks, inter)
+	err = s.activate(inhibitHooks, inter)
 	defer func() {
-		if err != nil && currentActiveDir != "" {
-			if cerr := setActiveClick(currentActiveDir, inhibitHooks, inter); cerr != nil {
+		if err != nil && oldPart != nil {
+			if cerr := oldPart.activate(inhibitHooks, inter); cerr != nil {
 				logger.Noticef("When setting old %s version back to active: %v", s.Name(), cerr)
 			}
 		}
@@ -859,7 +861,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 			}
 		}
 
-		if err := s.RefreshDependentsSecurity(currentActiveDir, inter); err != nil {
+		if err := s.RefreshDependentsSecurity(oldPart, inter); err != nil {
 			return "", err
 		}
 
@@ -887,7 +889,55 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 
 // SetActive sets the snap active
 func (s *SnapPart) SetActive(pb progress.Meter) (err error) {
-	return setActiveClick(s.basedir, false, pb)
+	return s.activate(false, pb)
+}
+
+func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
+	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
+	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
+
+	// already active, nothing to do
+	if s.basedir == currentActiveDir {
+		return nil
+	}
+
+	// there is already an active part
+	if currentActiveDir != "" {
+		unsetActiveClick(currentActiveDir, inhibitHooks, inter)
+	}
+
+	if s.Type() == pkg.TypeFramework {
+		if err := policy.Install(s.Name(), s.basedir); err != nil {
+			return err
+		}
+	}
+
+	if err := installClickHooks(s.basedir, s.m, s.origin, inhibitHooks); err != nil {
+		// cleanup the failed hooks
+		removeClickHooks(s.m, s.origin, inhibitHooks)
+		return err
+	}
+
+	// generate the security policy from the package.yaml
+	if err := s.m.addSecurityPolicy(s.basedir); err != nil {
+		return err
+	}
+
+	// add the "binaries:" from the package.yaml
+	if err := addPackageBinaries(s.basedir); err != nil {
+		return err
+	}
+	// add the "services:" from the package.yaml
+	if err := addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
+		return err
+	}
+
+	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
+	}
+
+	// symlink is relative to parent dir
+	return os.Symlink(filepath.Base(s.basedir), currentActiveSymlink)
 }
 
 // Uninstall remove the snap from the system
@@ -1091,7 +1141,11 @@ func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) er
 }
 
 // RefreshDependentsSecurity refreshes the security policies of dependent snaps
-func (s *SnapPart) RefreshDependentsSecurity(oldBaseDir string, inter interacter) (err error) {
+func (s *SnapPart) RefreshDependentsSecurity(oldPart *SnapPart, inter interacter) (err error) {
+	oldBaseDir := ""
+	if oldPart != nil {
+		oldBaseDir = oldPart.basedir
+	}
 	upPol, upTpl := policy.AppArmorDelta(oldBaseDir, s.basedir, s.Name()+"_")
 
 	deps, err := s.Dependents()

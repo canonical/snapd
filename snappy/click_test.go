@@ -299,7 +299,9 @@ func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(part.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
@@ -317,7 +319,9 @@ func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(part.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y")
 	_, err = installClick(pkg, 0, ag, testOrigin)
@@ -334,7 +338,9 @@ func (s *SnapTestSuite) TestDifferentLicenseVersion(c *C) {
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(part.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
@@ -541,7 +547,7 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(parts[1].IsActive(), Equals, true)
 
 	// set v1 active
-	err = setActiveClick(parts[0].(*SnapPart).basedir, false, nil)
+	err = parts[0].(*SnapPart).activate(false, nil)
 	parts, err = repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(parts[0].Version(), Equals, "1.0")
