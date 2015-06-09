@@ -6,7 +6,8 @@ HERE="$(dirname $0)"
 
 # build the updated deb packages for the image
 rm -f "$HERE/debs/*"
-bzr-buildpackage --result-dir="$HERE/debs" "$HERE/.."
+# the "-us -uc " flags tell it not to sign it
+bzr-buildpackage --result-dir="$HERE/debs" "$HERE/.." -- -us -uc
 
 # build a base image
 IMAGE="$HERE/image/snappy.img"
