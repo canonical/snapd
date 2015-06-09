@@ -457,12 +457,17 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 
 	udevPartName := m.qualifiedName(originFromBasedir(baseDir))
 
+	desc := service.Description
+	if desc == "" {
+		desc = fmt.Sprintf("service %s for package %s", service.Name, m.Name)
+	}
+
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
 			AppName:     m.Name,
 			ServiceName: service.Name,
 			Version:     m.Version,
-			Description: service.Description,
+			Description: desc,
 			AppPath:     baseDir,
 			Start:       service.Start,
 			Stop:        service.Stop,

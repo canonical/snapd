@@ -1433,3 +1433,70 @@ vendor: Foo Bar <foo@example.com>
 	udevName := packageYaml.qualifiedName("")
 	c.Assert(udevName, Equals, "foo")
 }
+
+func (s *SnapTestSuite) TestIntegrateBoring(c *C) {
+	m := &packageYaml{}
+	m.legacyIntegration()
+
+	// no binaries, no service, no legacyIntegration
+	c.Check(m.Integration, HasLen, 0)
+}
+
+func (s *SnapTestSuite) TestIntegrateBinary(c *C) {
+	m := &packageYaml{
+		Binaries: []Binary{
+			{
+				Name: "testme",
+				Exec: "bin/testme",
+			},
+			{
+				Name: "testme-override",
+				Exec: "bin/testme-override",
+				SecurityDefinitions: SecurityDefinitions{
+					SecurityOverride: &SecurityOverrideDefinition{Apparmor: "meta/testme-override.apparmor"},
+				},
+			},
+			{
+				Name: "testme-policy",
+				Exec: "bin/testme-policy",
+				SecurityDefinitions: SecurityDefinitions{
+					SecurityPolicy: &SecurityPolicyDefinition{Apparmor: "meta/testme-policy.profile"},
+				},
+			},
+		},
+	}
+	m.legacyIntegration()
+
+	c.Check(m.Integration, DeepEquals, map[string]clickAppHook{
+		"testme": {
+			"apparmor": "meta/testme.apparmor",
+			"bin-path": "bin/testme",
+		},
+		"testme-override": {
+			"apparmor": "meta/testme-override.apparmor",
+			"bin-path": "bin/testme-override",
+		},
+		"testme-policy": {
+			"apparmor-profile": "meta/testme-policy.profile",
+			"bin-path":         "bin/testme-policy",
+		},
+	})
+}
+
+func (s *SnapTestSuite) TestIntegrateService(c *C) {
+	m := &packageYaml{
+		Services: []Service{
+			{
+				Name: "svc",
+			},
+		},
+	}
+
+	m.legacyIntegration()
+
+	// no binaries, no service, no integrate
+	c.Check(m.Integration, DeepEquals, map[string]clickAppHook{
+		"svc": clickAppHook{
+			"apparmor": "meta/svc.apparmor",
+		}})
+}

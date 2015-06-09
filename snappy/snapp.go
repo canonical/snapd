@@ -324,6 +324,8 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		}
 	}
 
+	m.legacyIntegration()
+
 	return &m, nil
 }
 
@@ -444,6 +446,59 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, cur
 	}
 
 	return nil
+}
+
+func (m *packageYaml) legacyIntegrateSecDef(hookName string, s *SecurityDefinitions) {
+	// see if we have a custom security policy
+	if s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != "" {
+		m.Integration[hookName]["apparmor-profile"] = s.SecurityPolicy.Apparmor
+		return
+	}
+
+	// see if we have a security override
+	if s.SecurityOverride != nil && s.SecurityOverride.Apparmor != "" {
+		m.Integration[hookName]["apparmor"] = s.SecurityOverride.Apparmor
+		return
+	}
+
+	// apparmor template
+	m.Integration[hookName]["apparmor"] = filepath.Join("meta", hookName+".apparmor")
+
+	return
+}
+
+// legacyIntegration sets up the Integration property of packageYaml from its other attributes
+func (m *packageYaml) legacyIntegration() {
+	if m.Integration != nil {
+		// TODO: append "Overriding user-provided values." to the end of the blurb.
+		logger.Noticef(`The "integration" key is deprecated, and all uses of "integration" should be rewritten; see https://developer.ubuntu.com/en/snappy/guides/package-metadata/ (the "binaries" and "services" sections are probably especially relevant)."`)
+	} else {
+		// TODO: do this always, not just when Integration is not set
+		m.Integration = make(map[string]clickAppHook)
+	}
+
+	for _, v := range m.Binaries {
+		hookName := filepath.Base(v.Name)
+
+		if _, ok := m.Integration[hookName]; !ok {
+			m.Integration[hookName] = clickAppHook{}
+		}
+		// legacy click hook
+		m.Integration[hookName]["bin-path"] = v.Exec
+
+		m.legacyIntegrateSecDef(hookName, &v.SecurityDefinitions)
+	}
+
+	for _, v := range m.Services {
+		hookName := filepath.Base(v.Name)
+
+		if _, ok := m.Integration[hookName]; !ok {
+			m.Integration[hookName] = clickAppHook{}
+		}
+
+		// handle the apparmor stuff
+		m.legacyIntegrateSecDef(hookName, &v.SecurityDefinitions)
+	}
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
