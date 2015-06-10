@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 )
 
@@ -78,7 +79,10 @@ func Update(flags InstallFlags, meter progress.Meter) ([]Part, error) {
 	for _, part := range updates {
 		meter.Notify(fmt.Sprintf("Updating %s (%s)", part.Name(), part.Version()))
 
-		if _, err := part.Install(meter, flags); err != nil {
+		if _, err := part.Install(meter, flags); err == ErrSideLoaded {
+			logger.Noticef("Skipping sideloaded package: %s", part.Name())
+			continue
+		} else if err != nil {
 			return nil, err
 		}
 		if err := GarbageCollect(part.Name(), flags, meter); err != nil {
