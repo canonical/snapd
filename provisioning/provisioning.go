@@ -29,14 +29,16 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var (
+const (
 	// InstallYamlFile is the name of the file created by
 	// ubuntu-device-flash(1), created at system installation time,
 	// that contains metadata on the installation.
 	//
 	// XXX: Public for ubuntu-device-flash(1)
 	InstallYamlFile = "install.yaml"
+)
 
+var (
 	// ErrNoInstallYaml is emitted when InstallYamlFile does not exist.
 	ErrNoInstallYaml = fmt.Errorf("no %s", InstallYamlFile)
 )
