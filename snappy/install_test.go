@@ -20,6 +20,7 @@
 package snappy
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -29,6 +30,7 @@ import (
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
+	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/progress"
 )
 
@@ -195,6 +197,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	c.Assert(err, IsNil)
 	defer snapR.Close()
 
+	// details
 	var dlURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -212,17 +215,6 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 			panic("unexpected url path: " + r.URL.Path)
 		}
 	}))
-
-	listUpdates = func() ([]Part, error) {
-		return []Part{
-			NewRemoteSnapPart(remoteSnap{
-				Name:            "foo",
-				Version:         "2",
-				Origin:          "sideload",
-				AnonDownloadURL: dlURL,
-			}),
-		}, nil
-	}
 	dlURL = mockServer.URL + "/dl"
 
 	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
@@ -231,6 +223,47 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	// bulk
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `[{
+	"package_name": "foo",
+	"version": "2",
+	"origin": "sideload",
+	"anon_download_url": "`+dlURL+`"
+}]`)
+	}))
+
+	storeBulkURI, err = url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	// system image
+	newPartition = func() (p partition.Interface) {
+		return new(MockPartition)
+	}
+	defer func() { newPartition = newPartitionImpl }()
+
+	tempdir := c.MkDir()
+	systemImageRoot = tempdir
+
+	makeFakeSystemImageChannelConfig(c, filepath.Join(tempdir, systemImageChannelConfig), "1")
+	// setup fake /other partition
+	makeFakeSystemImageChannelConfig(c, filepath.Join(tempdir, "other", systemImageChannelConfig), "2")
+
+	siServer := runMockSystemImageWebServer()
+	defer siServer.Close()
+
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, fmt.Sprintf(mockSystemImageIndexJSONTemplate, "1"))
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	systemImageServer = mockServer.URL
+
+	// the test
 	updates, err := Update(0, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Assert(updates, HasLen, 1)
