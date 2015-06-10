@@ -186,12 +186,12 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 }
 
 func (s *SnapTestSuite) TestUpdate(c *C) {
-	snapPackagev1 := makeTestSnapPackage(c, "name: foo\nversion: 1")
+	snapPackagev1 := makeTestSnapPackage(c, "name: foo\nversion: 1\nvendor: foo")
 	name, err := Install(snapPackagev1, AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Assert(name, Equals, "foo")
 
-	snapPackagev2 := makeTestSnapPackage(c, "name: foo\nversion: 2")
+	snapPackagev2 := makeTestSnapPackage(c, "name: foo\nversion: 2\nvendor: foo")
 
 	snapR, err := os.Open(snapPackagev2)
 	c.Assert(err, IsNil)
