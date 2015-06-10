@@ -248,7 +248,11 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyPassesUnauth(c *C) {
 // if the snap asks for accepting a license, and an agreer isn't provided,
 // install fails
 func (s *SnapTestSuite) TestLocalSnapInstallMissingAccepterFails(c *C) {
-	pkg := makeTestSnapPackage(c, "explicit-license-agreement: Y")
+	pkg := makeTestSnapPackage(c, `
+name: foo
+version: 1.0
+vendor: foo
+explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, nil, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
 }
@@ -256,7 +260,11 @@ func (s *SnapTestSuite) TestLocalSnapInstallMissingAccepterFails(c *C) {
 // if the snap asks for accepting a license, and an agreer is provided, and
 // Agreed returns false, install fails
 func (s *SnapTestSuite) TestLocalSnapInstallNegAccepterFails(c *C) {
-	pkg := makeTestSnapPackage(c, "explicit-license-agreement: Y")
+	pkg := makeTestSnapPackage(c, `
+name: foo
+version: 1.0
+vendor: foo
+explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: false}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
 }
@@ -267,7 +275,11 @@ func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {
 	licenseChecker = func(string) error { return nil }
 	defer func() { licenseChecker = checkLicenseExists }()
 
-	pkg := makeTestSnapPackageFull(c, "explicit-license-agreement: Y", false)
+	pkg := makeTestSnapPackageFull(c, `
+name: foo
+version: 1.0
+vendor: foo
+explicit-license-agreement: Y`, false)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotProvided)
 }
@@ -275,14 +287,22 @@ func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {
 // if the snap asks for accepting a license, and an agreer is provided, and
 // Agreed returns true, install succeeds
 func (s *SnapTestSuite) TestLocalSnapInstallPosAccepterWorks(c *C) {
-	pkg := makeTestSnapPackage(c, "explicit-license-agreement: Y")
+	pkg := makeTestSnapPackage(c, `
+name: foo
+version: 1.0
+vendor: foo
+explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
 	c.Check(err, Equals, nil)
 }
 
 // Agreed is given reasonable values for intro and license
 func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
-	pkg := makeTestSnapPackage(c, "name: foobar\nexplicit-license-agreement: Y")
+	pkg := makeTestSnapPackage(c, `
+name: foobar
+version: 1.0
+vendor: foo
+explicit-license-agreement: Y`)
 	ag := &MockProgressMeter{y: true}
 	_, err := installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
@@ -294,7 +314,11 @@ func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 // isn't called
 func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
 	ag := &MockProgressMeter{y: true}
-	yaml := "name: foox\nexplicit-license-agreement: Y\nlicense-version: 2\n"
+	yaml := `name: foox
+explicit-license-agreement: Y
+license-version: 2
+vendor: foo
+`
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
@@ -314,7 +338,11 @@ func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
 // explicit license agreement set, the agreer *is* called
 func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
 	ag := &MockProgressMeter{y: true}
-	yaml := "name: foox\nlicense-version: 2\n"
+	yaml := `name: foox
+license-version: 2
+version: 1.0
+vendor: foo
+`
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
@@ -323,7 +351,7 @@ func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(part.activate(true, ag), IsNil)
 
-	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y")
+	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y\nvendor: foo")
 	_, err = installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
 	c.Check(ag.license, Equals, "WTFPL")
@@ -333,7 +361,10 @@ func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
 // agreer *is* called
 func (s *SnapTestSuite) TestDifferentLicenseVersion(c *C) {
 	ag := &MockProgressMeter{y: true}
-	yaml := "name: foox\nexplicit-license-agreement: Y\n"
+	yaml := `name: foox
+vendor: foo
+explicit-license-agreement: Y
+`
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"license-version: 2\nversion: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
@@ -897,7 +928,11 @@ services:
 
 func (s *SnapTestSuite) setupSnappyDependentServices(c *C) (string, *MockProgressMeter) {
 	inter := &MockProgressMeter{}
-	fmkYaml := "name: fmk\ntype: framework\nversion: "
+	fmkYaml := `name: fmk
+version: 1.0
+vendor: foo
+type: framework
+version: `
 	fmkFile := makeTestSnapPackage(c, fmkYaml+"1")
 	_, err := installClick(fmkFile, AllowUnauthenticated, inter, "")
 	c.Assert(err, IsNil)
@@ -1122,6 +1157,7 @@ func (s *SnapTestSuite) TestAddPackageServicesBusPolicyFramework(c *C) {
 	yaml := `name: foo
 version: 1
 type: framework
+vendor: foo
 services:
   - name: bar
     bus-name: foo.bar.baz
@@ -1140,6 +1176,7 @@ services:
 func (s *SnapTestSuite) TestAddPackageServicesBusPolicyNoFramework(c *C) {
 	yaml := `name: foo
 version: 1
+vendor: foo
 type: app
 services:
   - name: bar
@@ -1401,6 +1438,7 @@ Pattern: /var/lib/systemd/click/${id}
 func (s *SnapTestSuite) TestPackageYamlAddSecurityPolicy(c *C) {
 	m, err := parsePackageYamlData([]byte(`name: foo
 version: 1.0
+vendor: foo
 binaries:
  - name: foo
 services:
@@ -1424,6 +1462,7 @@ services:
 func (s *SnapTestSuite) TestPackageYamlRemoveSecurityPolicy(c *C) {
 	m, err := parsePackageYamlData([]byte(`name: foo
 version: 1.0
+vendor: foo
 binaries:
  - name: foo
 services:
