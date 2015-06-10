@@ -166,3 +166,7 @@ func (g *grub) AdditionalBindMounts() []string {
 	// well known location for its configuration
 	return []string{"/boot/grub"}
 }
+
+func (g *grub) BootDir() string {
+	return bootloaderGrubDir
+}

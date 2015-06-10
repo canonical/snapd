@@ -151,7 +151,7 @@ func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
 func (s *PartitionTestSuite) TestGetBootloaderWithUboot(c *C) {
 	s.makeFakeUbootEnv(c)
 	p := New()
-	bootloader, err := getBootloader(p)
+	bootloader, err := bootloader(p)
 	c.Assert(err, IsNil)
 	c.Assert(bootloader.Name(), Equals, bootloaderNameUboot)
 }
@@ -168,7 +168,7 @@ func makeMockAssetsDir(c *C) {
 func (s *PartitionTestSuite) TestHandleAssets(c *C) {
 	s.makeFakeUbootEnv(c)
 	p := New()
-	bootloader, err := getBootloader(p)
+	bootloader, err := bootloader(p)
 	c.Assert(err, IsNil)
 
 	// mock the hardwareYaml and the cacheDir
@@ -199,7 +199,7 @@ func (s *PartitionTestSuite) TestHandleAssets(c *C) {
 func (s *PartitionTestSuite) TestHandleAssetsVerifyBootloader(c *C) {
 	s.makeFakeUbootEnv(c)
 	p := New()
-	bootloader, err := getBootloader(p)
+	bootloader, err := bootloader(p)
 	c.Assert(err, IsNil)
 
 	// mock the hardwareYaml and the cacheDir
@@ -213,7 +213,7 @@ func (s *PartitionTestSuite) TestHandleAssetsVerifyBootloader(c *C) {
 func (s *PartitionTestSuite) TestHandleAssetsFailVerifyPartitionLayout(c *C) {
 	s.makeFakeUbootEnv(c)
 	p := New()
-	bootloader, err := getBootloader(p)
+	bootloader, err := bootloader(p)
 	c.Assert(err, IsNil)
 
 	// mock the hardwareYaml and the cacheDir
@@ -230,7 +230,7 @@ partition-layout: inplace
 func (s *PartitionTestSuite) TestHandleAssetsNoHardwareYaml(c *C) {
 	s.makeFakeUbootEnv(c)
 	p := New()
-	bootloader, err := getBootloader(p)
+	bootloader, err := bootloader(p)
 	c.Assert(err, IsNil)
 
 	defaultCacheDir = c.MkDir()
@@ -241,7 +241,7 @@ func (s *PartitionTestSuite) TestHandleAssetsNoHardwareYaml(c *C) {
 func (s *PartitionTestSuite) TestHandleAssetsBadHardwareYaml(c *C) {
 	s.makeFakeUbootEnv(c)
 	p := New()
-	bootloader, err := getBootloader(p)
+	bootloader, err := bootloader(p)
 	c.Assert(err, IsNil)
 
 	p.hardwareSpecFile = makeHardwareYaml(c, `
