@@ -1,0 +1,2 @@
+Tests: snappy
+Restrictions: allow-stderr 
