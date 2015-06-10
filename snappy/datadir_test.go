@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 type DataDirSuite struct{}

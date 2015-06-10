@@ -55,4 +55,10 @@ if [ -n "$lint" ]; then
     exit 1
 fi
 
+# integration tests
+if which adt-run >/dev/null 2>&1; then
+    echo "Running integration tests"
+    ./integration-tests/selftest
+fi
+
 echo "All good, what could possibly go wrong"

@@ -1,0 +1,4 @@
+test() {
+       T="$framework[[:space:]]+[0-9.]+[[:space:]]+.*"
+       test_regexp "$T" $SNAPPY search "$framework" 
+}

@@ -29,7 +29,7 @@ import (
 	"strings"
 
 	"github.com/mvo5/goconfigparser"
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
@@ -248,7 +248,11 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyPassesUnauth(c *C) {
 // if the snap asks for accepting a license, and an agreer isn't provided,
 // install fails
 func (s *SnapTestSuite) TestLocalSnapInstallMissingAccepterFails(c *C) {
-	pkg := makeTestSnapPackage(c, "explicit-license-agreement: Y")
+	pkg := makeTestSnapPackage(c, `
+name: foo
+version: 1.0
+vendor: foo
+explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, nil, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
 }
@@ -256,7 +260,11 @@ func (s *SnapTestSuite) TestLocalSnapInstallMissingAccepterFails(c *C) {
 // if the snap asks for accepting a license, and an agreer is provided, and
 // Agreed returns false, install fails
 func (s *SnapTestSuite) TestLocalSnapInstallNegAccepterFails(c *C) {
-	pkg := makeTestSnapPackage(c, "explicit-license-agreement: Y")
+	pkg := makeTestSnapPackage(c, `
+name: foo
+version: 1.0
+vendor: foo
+explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: false}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
 }
@@ -267,7 +275,11 @@ func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {
 	licenseChecker = func(string) error { return nil }
 	defer func() { licenseChecker = checkLicenseExists }()
 
-	pkg := makeTestSnapPackageFull(c, "explicit-license-agreement: Y", false)
+	pkg := makeTestSnapPackageFull(c, `
+name: foo
+version: 1.0
+vendor: foo
+explicit-license-agreement: Y`, false)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotProvided)
 }
@@ -275,14 +287,22 @@ func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {
 // if the snap asks for accepting a license, and an agreer is provided, and
 // Agreed returns true, install succeeds
 func (s *SnapTestSuite) TestLocalSnapInstallPosAccepterWorks(c *C) {
-	pkg := makeTestSnapPackage(c, "explicit-license-agreement: Y")
+	pkg := makeTestSnapPackage(c, `
+name: foo
+version: 1.0
+vendor: foo
+explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
 	c.Check(err, Equals, nil)
 }
 
 // Agreed is given reasonable values for intro and license
 func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
-	pkg := makeTestSnapPackage(c, "name: foobar\nexplicit-license-agreement: Y")
+	pkg := makeTestSnapPackage(c, `
+name: foobar
+version: 1.0
+vendor: foo
+explicit-license-agreement: Y`)
 	ag := &MockProgressMeter{y: true}
 	_, err := installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
@@ -294,12 +314,18 @@ func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 // isn't called
 func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
 	ag := &MockProgressMeter{y: true}
-	yaml := "name: foox\nexplicit-license-agreement: Y\nlicense-version: 2\n"
+	yaml := `name: foox
+explicit-license-agreement: Y
+license-version: 2
+vendor: foo
+`
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(part.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
@@ -312,14 +338,20 @@ func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
 // explicit license agreement set, the agreer *is* called
 func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
 	ag := &MockProgressMeter{y: true}
-	yaml := "name: foox\nlicense-version: 2\n"
+	yaml := `name: foox
+license-version: 2
+version: 1.0
+vendor: foo
+`
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(part.activate(true, ag), IsNil)
 
-	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y")
+	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y\nvendor: foo")
 	_, err = installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
 	c.Check(ag.license, Equals, "WTFPL")
@@ -329,12 +361,17 @@ func (s *SnapTestSuite) TestSameLicenseVersionButNotRequired(c *C) {
 // agreer *is* called
 func (s *SnapTestSuite) TestDifferentLicenseVersion(c *C) {
 	ag := &MockProgressMeter{y: true}
-	yaml := "name: foox\nexplicit-license-agreement: Y\n"
+	yaml := `name: foox
+vendor: foo
+explicit-license-agreement: Y
+`
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"license-version: 2\nversion: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
-	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(part.activate(true, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
@@ -357,7 +394,10 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	_, err = os.Stat(instDir)
 	c.Assert(err, IsNil)
 
-	err = removeClick(instDir, nil)
+	yamlPath := filepath.Join(instDir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(nil)
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
@@ -429,7 +469,11 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 
 	s.buildFramework(c)
 	appdir := filepath.Join(s.tempdir, "apps", "hello", "1.0.1")
-	c.Assert(removeClick(appdir, nil), IsNil)
+	yamlPath := filepath.Join(appdir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(nil)
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestSnapRemovePackagePolicyWeirdClickManifest(c *C) {
@@ -444,7 +488,11 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicyWeirdClickManifest(c *C) {
 	manifestFile := filepath.Join(appdir, ".click", "info", "hello.manifest")
 	c.Assert(ioutil.WriteFile(manifestFile, []byte(`{"name": "xyzzy","type":"framework"}`), 0644), IsNil)
 
-	c.Assert(removeClick(appdir, nil), IsNil)
+	yamlPath := filepath.Join(appdir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(nil)
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
@@ -530,7 +578,7 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(parts[1].IsActive(), Equals, true)
 
 	// set v1 active
-	err = setActiveClick(parts[0].(*SnapPart).basedir, false, nil)
+	err = parts[0].(*SnapPart).activate(false, nil)
 	parts, err = repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(parts[0].Version(), Equals, "1.0")
@@ -697,33 +745,30 @@ const expectedWrapper = `#!/bin/sh
 
 set -e
 
-TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
-if [ ! -d "$TMPDIR" ]; then
-    mkdir -p -m1777 "$TMPDIR"
-fi
-export TMPDIR
-export TEMPDIR="$TMPDIR"
-
-# app paths (deprecated)
+# app info (deprecated)
 export SNAPP_APP_PATH="/apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAPP_APP_DATA_PATH="/var/lib//apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAPP_APP_USER_DATA_PATH="$HOME//apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAPP_APP_TMPDIR="$TMPDIR"
+export SNAPP_APP_DATA_PATH="/var/lib/apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAPP_APP_TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
+export SNAPPY_APP_ARCH="%[1]s"
+export SNAPP_APP_USER_DATA_PATH="$HOME/apps/pastebinit.mvo/1.4.0.0.1/"
 export SNAPP_OLD_PWD="$(pwd)"
 
 # app info
+export TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
+export TEMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
+export SNAP_APP_PATH="/apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAP_APP_DATA_PATH="/var/lib/apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAP_APP_TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
 export SNAP_NAME="pastebinit"
+export SNAP_VERSION="1.4.0.0.1"
 export SNAP_ORIGIN="mvo"
 export SNAP_FULLNAME="pastebinit.mvo"
+export SNAP_ARCH="%[1]s"
+export SNAP_APP_USER_DATA_PATH="$HOME/apps/pastebinit.mvo/1.4.0.0.1/"
 
-# app paths
-export SNAP_APP_PATH="/apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAP_APP_DATA_PATH="/var/lib//apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAP_APP_USER_DATA_PATH="$HOME//apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAP_APP_TMPDIR="$TMPDIR"
-
-# FIXME: this will need to become snappy arch or something
-export SNAPPY_APP_ARCH="$(dpkg --print-architecture)"
+if [ ! -d "$SNAP_APP_TMPDIR" ]; then
+    mkdir -p -m1777 "$SNAP_APP_TMPDIR"
+fi
 
 if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
    mkdir -p "$SNAP_APP_USER_DATA_PATH"
@@ -743,9 +788,11 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	m := packageYaml{Name: "pastebinit",
 		Version: "1.4.0.0.1"}
 
+	expected := fmt.Sprintf(expectedWrapper, helpers.UbuntuArchitecture())
+
 	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
-	c.Assert(generatedWrapper, Equals, expectedWrapper)
+	c.Assert(generatedWrapper, Equals, expected)
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
@@ -760,6 +807,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 	expected = strings.Replace(expected, `NAME="pastebinit"`, `NAME="fmk"`, 1)
 	expected = strings.Replace(expected, "mvo", "", -1)
 	expected = strings.Replace(expected, "pastebinit", "echo", -1)
+	expected = fmt.Sprintf(expected, helpers.UbuntuArchitecture())
 
 	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
@@ -810,7 +858,10 @@ binaries:
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
-	err = removeClick(snapDir, nil)
+	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(nil)
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
@@ -866,7 +917,10 @@ services:
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(snapAppsDir, "foo.mvo", "1.0")
-	err = removeClick(snapDir, new(progress.NullProgress))
+	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(&progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(servicesFile), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
@@ -874,7 +928,11 @@ services:
 
 func (s *SnapTestSuite) setupSnappyDependentServices(c *C) (string, *MockProgressMeter) {
 	inter := &MockProgressMeter{}
-	fmkYaml := "name: fmk\ntype: framework\nversion: "
+	fmkYaml := `name: fmk
+version: 1.0
+vendor: foo
+type: framework
+version: `
 	fmkFile := makeTestSnapPackage(c, fmkYaml+"1")
 	_, err := installClick(fmkFile, AllowUnauthenticated, inter, "")
 	c.Assert(err, IsNil)
@@ -1091,7 +1149,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	bins := []string{"hello", "goodbye", "missya"}
 	for i := range verbs {
 		expected := fmt.Sprintf("Exec%s=/usr/bin/ubuntu-core-launcher hello-app.%s %s_svc1_1.10 %s/bin/%s", verbs[i], testOrigin, helloAppComposedName, baseDirWithoutRootPrefix, bins[i])
-		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // gocheck adds ^ and $ around the regexp provided
+		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
 	}
 }
 
@@ -1099,6 +1157,7 @@ func (s *SnapTestSuite) TestAddPackageServicesBusPolicyFramework(c *C) {
 	yaml := `name: foo
 version: 1
 type: framework
+vendor: foo
 services:
   - name: bar
     bus-name: foo.bar.baz
@@ -1117,6 +1176,7 @@ services:
 func (s *SnapTestSuite) TestAddPackageServicesBusPolicyNoFramework(c *C) {
 	yaml := `name: foo
 version: 1
+vendor: foo
 type: app
 services:
   - name: bar
@@ -1162,8 +1222,9 @@ X-Snappy=yes
 
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver%s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo start
+Restart=on-failure
 WorkingDirectory=/apps/xkcd-webserver%[2]s/0.3.4/
-Environment="SNAPP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_NAME=xkcd-webserver" "SNAP_ORIGIN=%[3]s" "SNAP_FULLNAME=xkcd-webserver%[2]s"
+Environment="SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "TEMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_ORIGIN=%[3]s" "SNAP_FULLNAME=xkcd-webserver%[2]s" "SNAP_ARCH=%[5]s" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAPPY_APP_ARCH=%[5]s" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/"
 ExecStop=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
@@ -1172,8 +1233,8 @@ TimeoutStopSec=30
 [Install]
 WantedBy=multi-user.target
 `
-	expectedServiceAppWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "\n")
-	expectedServiceFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "BusName=foo.bar.baz\nType=dbus")
+	expectedServiceAppWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "\n", helpers.UbuntuArchitecture())
+	expectedServiceFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "BusName=foo.bar.baz\nType=dbus", helpers.UbuntuArchitecture())
 )
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
@@ -1377,6 +1438,7 @@ Pattern: /var/lib/systemd/click/${id}
 func (s *SnapTestSuite) TestPackageYamlAddSecurityPolicy(c *C) {
 	m, err := parsePackageYamlData([]byte(`name: foo
 version: 1.0
+vendor: foo
 binaries:
  - name: foo
 services:
@@ -1400,6 +1462,7 @@ services:
 func (s *SnapTestSuite) TestPackageYamlRemoveSecurityPolicy(c *C) {
 	m, err := parsePackageYamlData([]byte(`name: foo
 version: 1.0
+vendor: foo
 binaries:
  - name: foo
 services:

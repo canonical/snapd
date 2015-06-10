@@ -28,7 +28,7 @@ import (
 	"os"
 	"path/filepath"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 	"launchpad.net/snappy/progress"
 )
 
@@ -105,7 +105,7 @@ func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 }
 
 func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
-	snapPackage := makeTestSnapPackage(c, "name: foo\nversion: 2")
+	snapPackage := makeTestSnapPackage(c, "name: foo\nversion: 2\nvendor: foo")
 	snapR, err := os.Open(snapPackage)
 	c.Assert(err, IsNil)
 	defer snapR.Close()
@@ -153,7 +153,9 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "hello-app.manifest"), []byte(`{"name": "hello-app"}`), 0644), IsNil)
 	ag := &progress.NullProgress{}
-	c.Assert(setActiveClick(pkgdir, true, ag), IsNil)
+	part, err := NewInstalledSnapPart(yamlFile, "potato")
+	c.Assert(err, IsNil)
+	c.Assert(part.activate(true, ag), IsNil)
 	current := ActiveSnapByName("hello-app")
 	c.Assert(current, NotNil)
 

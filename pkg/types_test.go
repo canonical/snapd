@@ -23,12 +23,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 type typeSuite struct{}
 
-// Hook up gocheck into the "go test" runner
+// Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&typeSuite{})
