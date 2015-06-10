@@ -67,9 +67,10 @@ func inDeveloperMode() bool {
 	return false
 }
 
+// this is used for testing.
 var listUpdates = ListUpdates
 
-// Update the installed snappy packages, it returns the updates Parts
+// Update the installed snappy packages, it returns the updated Parts
 // if updates where available and an error and nil if any of the updates
 // fail to apply.
 func Update(flags InstallFlags, meter progress.Meter) ([]Part, error) {
