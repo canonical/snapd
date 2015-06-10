@@ -68,7 +68,9 @@ var (
 var systemImageRoot = "/"
 
 // will replace newPartition() to return a mockPartition
-var newPartition = func() (p partition.Interface) {
+var newPartition = newPartitionImpl
+
+func newPartitionImpl() (p partition.Interface) {
 	return partition.New()
 }
 
