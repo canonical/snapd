@@ -20,12 +20,11 @@
 package snappy
 
 import (
-	"io/ioutil"
 	"os"
 	"sort"
-	"strings"
 
 	"launchpad.net/snappy/progress"
+	"launchpad.net/snappy/provisioning"
 )
 
 // InstallFlags can be used to pass additional flags to the install of a
@@ -42,28 +41,6 @@ const (
 	// AllowOEM allows the installation of OEM packages, this does not affect updates.
 	AllowOEM
 )
-
-// check if the image is in developer mode
-// FIXME: this is a bit crude right now, but it seems like there is not more
-//        meta-data to check right now
-// TODO: add feature to ubuntu-device-flash to write better info file when
-//       the image is in developer mode
-func inDeveloperMode() bool {
-	f, err := os.Open(cloudMetaDataFile)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-	data, err := ioutil.ReadAll(f)
-	if err != nil {
-		return false
-	}
-	needle := "public-keys:\n"
-	if strings.Contains(string(data), needle) {
-		return true
-	}
-	return false
-}
 
 // Install the givens snap names provided via args. This can be local
 // files or snaps that are queried from the store
@@ -87,7 +64,8 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 	if fi, err := os.Stat(name); err == nil && fi.Mode().IsRegular() {
 		// we allow unauthenticated package when in developer
 		// mode
-		if inDeveloperMode() {
+		p := newPartition()
+		if provisioning.InDeveloperMode(p.BootloaderDir()) {
 			flags |= AllowUnauthenticated
 		}
 

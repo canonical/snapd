@@ -167,3 +167,21 @@ func (ts *ProvisioningTestSuite) TestParseInstallYamlData(c *C) {
 func (ts *ProvisioningTestSuite) TestInDeveloperModeEmpty(c *C) {
 	c.Assert(InDeveloperMode(""), Equals, false)
 }
+
+func (ts *ProvisioningTestSuite) TestInDeveloperModeWithDevModeOn(c *C) {
+	err := ioutil.WriteFile(ts.mockYamlFile, []byte(`
+options:
+ developer-mode: true
+`), 0644)
+	c.Assert(err, IsNil)
+	c.Assert(InDeveloperMode(ts.mockBootDir), Equals, true)
+}
+
+func (ts *ProvisioningTestSuite) TestInDeveloperModeWithDevModeOff(c *C) {
+	err := ioutil.WriteFile(ts.mockYamlFile, []byte(`
+options:
+ developer-mode: false
+`), 0644)
+	c.Assert(err, IsNil)
+	c.Assert(InDeveloperMode(ts.mockBootDir), Equals, false)
+}

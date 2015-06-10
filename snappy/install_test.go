@@ -40,21 +40,6 @@ func makeCloudInitMetaData(c *C, content string) string {
 	return w.Name()
 }
 
-func (s *SnapTestSuite) TestNotInDeveloperMode(c *C) {
-	cloudMetaDataFile = makeCloudInitMetaData(c, `instance-id: nocloud-static`)
-	defer os.Remove(cloudMetaDataFile)
-	c.Assert(inDeveloperMode(), Equals, false)
-}
-
-func (s *SnapTestSuite) TestInDeveloperMode(c *C) {
-	cloudMetaDataFile = makeCloudInitMetaData(c, `instance-id: nocloud-static
-public-keys:
-  - ssh-rsa AAAAB3NzAndSoOn
-`)
-	defer os.Remove(cloudMetaDataFile)
-	c.Assert(inDeveloperMode(), Equals, true)
-}
-
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	snapFile := makeTestSnapPackage(c, "")
 	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})

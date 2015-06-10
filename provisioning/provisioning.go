@@ -126,3 +126,21 @@ func IsSideLoaded(bootloaderDir string) bool {
 
 	return false
 }
+
+// InDeveloperMode returns true if the image was build with --developer-mode
+func InDeveloperMode(bootloaderDir string) bool {
+	file := filepath.Join(bootloaderDir, InstallYamlFile)
+
+	if !helpers.FileExists(file) {
+		// no idea
+		return false
+	}
+
+	InstallYaml, err := parseInstallYaml(file)
+	if err != nil {
+		// no idea
+		return false
+	}
+
+	return InstallYaml.InstallOptions.DeveloperMode
+}
