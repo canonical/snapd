@@ -1,0 +1,15 @@
+test() {
+       # FIXME: add $SNAPPY search webserver
+       
+       sudo $SNAPPY install xkcd-webserver.canonical
+
+       # FIXME: sucks, needed because "systemctl start" does not
+       #        wait until the service is really started
+       sleep 1
+
+       T="HTTP/1.0 200 OK"
+       TEMPF=$(tempfile)
+       printf "GET / HTTP/1.0\n\n"|nc localhost 80 > $TEMPF
+       test_regexp "$T" cat $TEMPF
+       rm -f $TEMPF
+}

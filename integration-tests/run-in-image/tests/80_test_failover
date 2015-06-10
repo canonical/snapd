@@ -1,0 +1,48 @@
+# Test that we rollback on failed upgrades
+# (needs autopkgtest with a supporting runner).
+
+test() {
+    can_reboot || { echo "SKIP: cannot reboot testbed"; return; }
+
+    # debug
+    version_info
+    boot_info
+
+    if after_reboot; then
+        # reboot: ensure we booted back into original
+        orig_current=$(cat "${ADT_ARTIFACTS}/current")
+        if [ "$orig_current" != "$current" ]; then
+            fail "did not failover to good version (\"$orig_current\" != \"$current\")"
+        fi
+
+        # FIXME: grep log(other partition) for the crash to ensure it
+        #        really worked
+        # FIXME2: reboot again as regression test for #1449904
+
+        # we booted, cleanup the panic for the next tests to work
+        sudo mount -o remount,rw /writable/cache/system
+        sudo rm /writable/cache/system/etc/rc.local
+        return
+    fi
+
+    # fake new available version by doing a current--
+    switch_channel "s/build_number: $current/build_number: $((current-1))/" /etc/system-image/channel.ini
+
+    # we should have something now :)
+    version_info
+
+    [ $avail -gt $current ] || fail "$avail is not newer than $current"
+
+    # save version for post-upgrade test
+    save_version_info $avail $current
+
+    echo "upgrading..."
+    sudo snappy update
+
+    # break the upgrade by inserting a broken rc.local file onto the other
+    # partition
+    sudo mount -o remount,rw /writable/cache/system/
+    printf "#!/bin/sh\nprintf c > /proc/sysrq-trigger" | sudo tee /writable/cache/system/etc/rc.local
+    
+    reboot
+}
