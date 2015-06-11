@@ -740,9 +740,6 @@ integration:
 }
 
 const expectedWrapper = `#!/bin/sh
-# !!!never remove this line!!!
-##TARGET=/apps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit
-
 set -e
 
 # app info (deprecated)
