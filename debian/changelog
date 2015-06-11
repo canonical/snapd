@@ -1,3 +1,9 @@
+ubuntu-core-launcher (1.0.6) wily; urgency=low
+
+  * add librt.so to apparmor profile
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 11 Jun 2015 15:30:14 +0200
+
 ubuntu-core-launcher (1.0.5) wily; urgency=low
 
   * simplify TMPDIR handling by providing a private /tmp for each snap and
