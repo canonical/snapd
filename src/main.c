@@ -329,13 +329,13 @@ int main(int argc, char **argv)
     rc = aa_change_onexec(aa_profile);
     if (rc != 0) {
        if (getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
-          die("aa_change_onexec failed with %i\n", rc);
+          die("aa_change_onexec failed with %i", rc);
     }
 
     // set seccomp
     rc = seccomp_load_filters(aa_profile);
     if (rc != 0)
-       die("seccomp_load_filters failed with %i\n", rc);
+       die("seccomp_load_filters failed with %i", rc);
 
     // and exec the new binary
     argv[NR_ARGS] = (char*)binary,

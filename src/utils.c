@@ -64,7 +64,7 @@ void write_string_to_file(const char *filepath, const char *buf) {
    debug("write_string_to_file %s %s", filepath, buf);
    FILE *f = fopen(filepath, "w");
    if (f == NULL)
-      die("fopen %s failed\n", filepath);
+      die("fopen %s failed", filepath);
    if (fwrite(buf, strlen(buf), 1, f) != 1)
       die("fwrite failed");
    if (fflush(f) != 0)
