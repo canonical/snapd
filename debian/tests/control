@@ -1,2 +1,2 @@
-Tests: snappy
+Tests: tests.test
 Restrictions: allow-stderr 

@@ -88,9 +88,8 @@ def compile_tests(src_dir):
     return subprocess.check_output([
         'go',
         'test',
-        "./debian/tests/",
-        '-c'
-    ])
+        '-c',
+    ], cwd="{base}/debian/tests/".format(base=src_dir))
 
 
 def main():
