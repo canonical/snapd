@@ -123,46 +123,6 @@ NAME="sr0" LABEL="" PKNAME="" MOUNTPOINT=""
 	return strings.Split(dualData, "\n"), err
 }
 
-func (s *PartitionTestSuite) TestMountEntryArray(c *C) {
-	mea := mountEntryArray{}
-
-	c.Assert(mea.Len(), Equals, 0)
-
-	me := mountEntry{source: "/dev",
-		target:    "/dev",
-		options:   "bind",
-		bindMount: true}
-
-	mea = append(mea, me)
-	c.Assert(mea.Len(), Equals, 1)
-
-	me = mountEntry{source: "/foo",
-		target:    "/foo",
-		options:   "",
-		bindMount: false}
-
-	mea = append(mea, me)
-	c.Assert(mea.Len(), Equals, 2)
-
-	c.Assert(mea.Less(0, 1), Equals, true)
-	c.Assert(mea.Less(1, 0), Equals, false)
-
-	mea.Swap(0, 1)
-	c.Assert(mea.Less(0, 1), Equals, false)
-	c.Assert(mea.Less(1, 0), Equals, true)
-
-	results := removeMountByTarget(mea, "invalid")
-
-	// No change expected
-	c.Assert(results, DeepEquals, mea)
-
-	results = removeMountByTarget(mea, "/dev")
-
-	c.Assert(len(results), Equals, 1)
-	c.Assert(results[0], Equals, mountEntry{source: "/foo",
-		target: "/foo", options: "", bindMount: false})
-}
-
 func (s *PartitionTestSuite) TestSnappyDualRoot(c *C) {
 	p := New()
 	c.Assert(p.dualRootPartitions(), Equals, true)
