@@ -92,6 +92,10 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 	if fi, err := os.Stat(name); err == nil && fi.Mode().IsRegular() {
 		// we allow unauthenticated package when in developer
 		// mode
+		//
+		// FIXME: this is terrible, we really need a single
+		//        bootloader dir like /boot or /boot/loader
+		//        instead of having to query the partition code
 		p := newPartition()
 		if provisioning.InDeveloperMode(p.BootloaderDir()) {
 			flags |= AllowUnauthenticated
