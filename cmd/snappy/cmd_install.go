@@ -35,7 +35,7 @@ type cmdInstall struct {
 	DisableGC            bool `long:"no-gc" description:"Do not clean up old versions of the package."`
 	Positional           struct {
 		PackageName string `positional-arg-name:"package name" description:"The Package to install (name or path)"`
-		ConfigFile  string `positional-arg-name:"config file" description:"The configuration for the given file"`
+		ConfigFile  string `positional-arg-name:"config file" description:"The configuration for the given install"`
 	} `positional-args:"yes"`
 }
 
