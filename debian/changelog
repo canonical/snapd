@@ -1,6 +1,11 @@
 ubuntu-core-launcher (1.0.6) wily; urgency=low
 
+  [ Michael Vogt ]
   * add librt.so to apparmor profile
+
+  [ John Lenton ]
+  * lp:~chipaca/ubuntu-core-launcher/drop-spurious-newlines:
+    - fix spurious newlines
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 11 Jun 2015 15:30:14 +0200
 
