@@ -24,6 +24,8 @@ import (
 	"os"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/priv"
+	"launchpad.net/snappy/snappy"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -34,7 +36,7 @@ type options struct {
 
 var optionsData options
 
-var parser = flags.NewParser(&optionsData, flags.Default)
+var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
 
 func init() {
 	err := logger.SimpleSetup()
@@ -45,8 +47,13 @@ func init() {
 
 func main() {
 	if _, err := parser.Parse(); err != nil {
+		if err == priv.ErrNeedRoot {
+			// make the generic root error more specific for
+			// the CLI user.
+			err = snappy.ErrNeedRoot
+		}
+		fmt.Fprintln(os.Stderr, err)
 		if _, ok := err.(*flags.Error); !ok {
-			// Debug, because the parser will print the error for us
 			logger.Debugf("%v failed: %v", os.Args, err)
 		}
 		os.Exit(1)
