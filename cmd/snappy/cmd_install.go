@@ -34,7 +34,7 @@ type cmdInstall struct {
 	AllowUnauthenticated bool `long:"allow-unauthenticated" description:"Install snaps even if the signature can not be verified."`
 	DisableGC            bool `long:"no-gc" description:"Do not clean up old versions of the package."`
 	Positional           struct {
-		PackageName string `positional-arg-name:"package name" description:"Set configuration for a specific installed package"`
+		PackageName string `positional-arg-name:"package name" description:"The Package to install (name or path)"`
 		ConfigFile  string `positional-arg-name:"config file" description:"The configuration for the given file"`
 	} `positional-args:"yes"`
 }
