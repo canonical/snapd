@@ -10,7 +10,7 @@
     /lib/@{multiarch}/libpthread-*.so* mr,
     /lib/@{multiarch}/libudev.so* mr,
     /usr/lib/@{multiarch}/libseccomp.so* mr,
-    /lib/@{multiarch}/librt.so* mr,        
+    /lib/@{multiarch}/librt-*.so* mr,        
 
     # cgroups
     capability sys_admin,
