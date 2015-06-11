@@ -399,12 +399,8 @@ func loadPartitionDetails() (partitions []blockDevice, err error) {
 	return partitions, nil
 }
 
-var makeDirectory = func(path string, mode os.FileMode) error {
-	return os.MkdirAll(path, mode)
-}
-
 func (p *Partition) makeMountPoint() (err error) {
-	return makeDirectory(mountTarget, dirMode)
+	return os.MkdirAll(mountTarget, dirMode)
 }
 
 // New creates a new partition type
@@ -703,7 +699,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 
 	// FIXME: we should really remove this after the unmount
 
-	if err = makeDirectory(targetInChroot, dirMode); err != nil {
+	if err = os.MkdirAll(targetInChroot, dirMode); err != nil {
 		return err
 	}
 

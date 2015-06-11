@@ -34,5 +34,8 @@ var (
 
 	// Directory to mount writable root filesystem below the cache
 	// diretory.
-	mountTarget = filepath.Join(cacheDir, "system")
+	mountTargetReal = filepath.Join(cacheDir, "system")
+
+	// useful to override in tests
+	mountTarget = mountTargetReal
 )

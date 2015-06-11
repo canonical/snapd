@@ -44,13 +44,12 @@ func mockRunCommand(args ...string) (err error) {
 	return err
 }
 
-func mockMakeDirectory(path string, mode os.FileMode) error {
-	return nil
-}
-
 func (s *PartitionTestSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 	runLsblk = mockRunLsblkDualSnappy
+
+	// custom mount target
+	mountTarget = c.MkDir()
 
 	// setup fake paths for grub
 	bootloaderGrubDir = filepath.Join(s.tempdir, "boot", "grub")
@@ -64,9 +63,6 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 	bootloaderUbootEnvFile = filepath.Join(bootloaderUbootDir, "uEnv.txt")
 	bootloaderUbootStampFile = filepath.Join(bootloaderUbootDir, "snappy-stamp.txt")
 
-	// reset
-	hardwareSpecFile = hardwareSpecFileReal
-
 	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
 
@@ -77,6 +73,8 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	runCommand = runCommandImpl
 	bootloader = bootloaderImpl
 	cacheDir = cacheDirReal
+	hardwareSpecFile = hardwareSpecFileReal
+	mountTarget = mountTargetReal
 
 	// grub vars
 	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
@@ -214,7 +212,6 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRWFuncErr(c *C) {
 	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 
 	runCommand = mockRunCommand
-	makeDirectory = mockMakeDirectory
 
 	p := New()
 	err := p.RunWithOther(RW, func(otherRoot string) (err error) {
@@ -228,8 +225,12 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRWFuncErr(c *C) {
 	// ensure cleanup happend
 
 	// FIXME: mounts are global
-	expected := mountEntry{source: "/dev/sda4",
-		target: "/writable/cache/system", options: "", bindMount: false}
+	expected := mountEntry{
+		source:    "/dev/sda4",
+		target:    mountTarget,
+		options:   "",
+		bindMount: false,
+	}
 
 	// At program exit, "other" should still be mounted
 	c.Assert(mounts, DeepEquals, mountEntryArray{expected})
@@ -284,8 +285,12 @@ func (s *PartitionTestSuite) TestMountUnmountTracking(c *C) {
 	c.Assert(p, NotNil)
 
 	p.mountOtherRootfs(false)
-	expected := mountEntry{source: "/dev/sda4",
-		target: "/writable/cache/system", options: "", bindMount: false}
+	expected := mountEntry{
+		source:    "/dev/sda4",
+		target:    mountTarget,
+		options:   "",
+		bindMount: false,
+	}
 
 	c.Assert(mounts, DeepEquals, mountEntryArray{expected})
 
@@ -340,7 +345,7 @@ func (s *PartitionTestSuite) TestUndoMounts(c *C) {
 	p.bindmountRequiredFilesystems()
 	c.Assert(mounts, DeepEquals, mountEntryArray{
 
-		mountEntry{source: "/dev/sda4", target: "/writable/cache/system",
+		mountEntry{source: "/dev/sda4", target: mountTarget,
 			options: "", bindMount: false},
 
 		mountEntry{source: "/dev", target: mountTarget + "/dev",
@@ -364,8 +369,12 @@ func (s *PartitionTestSuite) TestUndoMounts(c *C) {
 	undoMounts(true)
 
 	c.Assert(mounts, DeepEquals, mountEntryArray{
-		mountEntry{source: "/dev/sda4", target: "/writable/cache/system",
-			options: "", bindMount: false},
+		mountEntry{
+			source:    "/dev/sda4",
+			target:    mountTarget,
+			options:   "",
+			bindMount: false,
+		},
 	})
 
 	// should unmount everything

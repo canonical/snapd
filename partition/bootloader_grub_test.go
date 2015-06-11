@@ -92,10 +92,10 @@ func (s *PartitionTestSuite) TestToggleRootFS(c *C) {
 	c.Assert(err, IsNil)
 
 	// this is always called
-	mp := singleCommand{"/bin/mountpoint", "/writable/cache/system"}
+	mp := singleCommand{"/bin/mountpoint", mountTarget}
 	c.Assert(allCommands[0], DeepEquals, mp)
 
-	expectedGrubUpdate := singleCommand{"/usr/sbin/chroot", "/writable/cache/system", bootloaderGrubUpdateCmd}
+	expectedGrubUpdate := singleCommand{"/usr/sbin/chroot", mountTarget, bootloaderGrubUpdateCmd}
 	c.Assert(allCommands[1], DeepEquals, expectedGrubUpdate)
 
 	expectedGrubSet := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_mode=try"}
@@ -145,7 +145,7 @@ func (s *PartitionTestSuite) TestGrubMarkCurrentBootSuccessful(c *C) {
 	c.Assert(err, IsNil)
 
 	// this is always called
-	mp := singleCommand{"/bin/mountpoint", "/writable/cache/system"}
+	mp := singleCommand{"/bin/mountpoint", mountTarget}
 	c.Assert(allCommands[0], DeepEquals, mp)
 
 	expectedGrubSet := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "unset", "snappy_trial_boot"}
