@@ -248,8 +248,9 @@ func (u *uboot) HandleAssets() (err error) {
 			hardware.Bootloader)
 	}
 
-	// validate partition layout
-	if u.partition.dualRootPartitions() && hardware.PartitionLayout != bootloaderSystemAB {
+	// validate partition layout, we ONLY support bootloaderSystemAB
+	// currently
+	if hardware.PartitionLayout != bootloaderSystemAB {
 		return fmt.Errorf("hardware spec requires dual root partitions")
 	}
 
