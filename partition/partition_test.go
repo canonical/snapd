@@ -207,7 +207,7 @@ func (s *PartitionTestSuite) TestRunWithOtherDualParitionRO(c *C) {
 		return nil
 	})
 	c.Assert(err, IsNil)
-	c.Assert(reportedRoot, Equals, (&Partition{}).MountTarget())
+	c.Assert(reportedRoot, Equals, mountTarget)
 }
 
 func (s *PartitionTestSuite) TestRunWithOtherDualParitionRWFuncErr(c *C) {
@@ -302,26 +302,26 @@ func (s *PartitionTestSuite) TestUnmountRequiredFilesystems(c *C) {
 
 	p.bindmountRequiredFilesystems()
 	c.Assert(mounts, DeepEquals, mountEntryArray{
-		mountEntry{source: "/dev", target: p.MountTarget() + "/dev",
+		mountEntry{source: "/dev", target: mountTarget + "/dev",
 			options: "bind", bindMount: true},
 
-		mountEntry{source: "/proc", target: p.MountTarget() + "/proc",
+		mountEntry{source: "/proc", target: mountTarget + "/proc",
 			options: "bind", bindMount: true},
 
-		mountEntry{source: "/sys", target: p.MountTarget() + "/sys",
+		mountEntry{source: "/sys", target: mountTarget + "/sys",
 			options: "bind", bindMount: true},
-		mountEntry{source: "/boot/efi", target: p.MountTarget() + "/boot/efi",
+		mountEntry{source: "/boot/efi", target: mountTarget + "/boot/efi",
 			options: "bind", bindMount: true},
 
 		// this comes from the grub bootloader via AdditionalBindMounts
-		mountEntry{source: "/boot/grub", target: p.MountTarget() + "/boot/grub",
+		mountEntry{source: "/boot/grub", target: mountTarget + "/boot/grub",
 			options: "bind", bindMount: true},
 
 		// Required to allow grub inside the chroot to access
 		// the "current" rootfs outside the chroot (used
 		// to generate the grub menuitems).
 		mountEntry{source: "/",
-			target:  p.MountTarget() + p.MountTarget(),
+			target:  mountTarget + mountTarget,
 			options: "bind,ro", bindMount: true},
 	})
 	p.unmountRequiredFilesystems()
@@ -343,20 +343,20 @@ func (s *PartitionTestSuite) TestUndoMounts(c *C) {
 		mountEntry{source: "/dev/sda4", target: "/writable/cache/system",
 			options: "", bindMount: false},
 
-		mountEntry{source: "/dev", target: p.MountTarget() + "/dev",
+		mountEntry{source: "/dev", target: mountTarget + "/dev",
 			options: "bind", bindMount: true},
 
-		mountEntry{source: "/proc", target: p.MountTarget() + "/proc",
+		mountEntry{source: "/proc", target: mountTarget + "/proc",
 			options: "bind", bindMount: true},
 
-		mountEntry{source: "/sys", target: p.MountTarget() + "/sys",
+		mountEntry{source: "/sys", target: mountTarget + "/sys",
 			options: "bind", bindMount: true},
 
-		mountEntry{source: "/boot/efi", target: p.MountTarget() + "/boot/efi",
+		mountEntry{source: "/boot/efi", target: mountTarget + "/boot/efi",
 			options: "bind", bindMount: true},
 
 		mountEntry{source: "/",
-			target:  p.MountTarget() + p.MountTarget(),
+			target:  mountTarget + mountTarget,
 			options: "bind,ro", bindMount: true},
 	})
 

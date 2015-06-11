@@ -80,7 +80,7 @@ func (g *grub) Name() bootloaderName {
 func (g *grub) ToggleRootFS() (err error) {
 
 	// create the grub config
-	if err := runInChroot(g.partition.MountTarget(), bootloaderGrubUpdateCmd); err != nil {
+	if err := runInChroot(mountTarget, bootloaderGrubUpdateCmd); err != nil {
 		return err
 	}
 

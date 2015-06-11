@@ -17,13 +17,22 @@
  *
  */
 
-// Package partition manipulate snappy disk partitions
 package partition
+
+import (
+	"path/filepath"
+)
 
 // The full path to the cache directory, which is used as a
 // scratch pad, for downloading new images to and bind mounting the
 // rootfs.
 const cacheDirReal = "/writable/cache"
 
-// useful for overwriting in the tests
-var cacheDir = cacheDirReal
+var (
+	// useful for overwriting in the tests
+	cacheDir = cacheDirReal
+
+	// Directory to mount writable root filesystem below the cache
+	// diretory.
+	mountTarget = filepath.Join(cacheDir, "system")
+)

@@ -56,10 +56,6 @@ const (
 )
 
 var (
-	// Directory to mount writable root filesystem below the cache
-	// diretory.
-	mountTarget = "system"
-
 	// ErrBootloader is returned if the bootloader can not be determined
 	ErrBootloader = errors.New("Unable to determine bootloader")
 
@@ -408,7 +404,7 @@ var makeDirectory = func(path string, mode os.FileMode) error {
 }
 
 func (p *Partition) makeMountPoint() (err error) {
-	return makeDirectory(p.MountTarget(), dirMode)
+	return makeDirectory(mountTarget, dirMode)
 }
 
 // New creates a new partition type
@@ -459,7 +455,7 @@ func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (e
 		}()
 	}
 
-	err = f(p.MountTarget())
+	err = f(mountTarget)
 	return err
 }
 
@@ -499,11 +495,6 @@ func (p *Partition) IsNextBootOther() bool {
 		return false
 	}
 	return isNextBootOther(bootloader)
-}
-
-// MountTarget gets the full path to the mount target directory
-func (p *Partition) MountTarget() string {
-	return filepath.Join(cacheDir, mountTarget)
 }
 
 func (p *Partition) getPartitionDetails() (err error) {
@@ -603,7 +594,7 @@ func (p *Partition) mountOtherRootfs(readOnly bool) (err error) {
 
 	other = p.otherRootPartition()
 
-	m := mountEntry{source: other.device, target: p.MountTarget()}
+	m := mountEntry{source: other.device, target: mountTarget}
 
 	if readOnly {
 		m.options = "ro"
@@ -630,9 +621,7 @@ func (p *Partition) bindmountThisRootfsRO(target string) (err error) {
 
 // Ensure the other partition is mounted read-only.
 func (p *Partition) ensureOtherMountedRO() (err error) {
-	mountpoint := p.MountTarget()
-
-	if err = runCommand("/bin/mountpoint", mountpoint); err == nil {
+	if err = runCommand("/bin/mountpoint", mountTarget); err == nil {
 		// already mounted
 		return err
 	}
@@ -664,14 +653,14 @@ func (p *Partition) remountOther(option MountOption) (err error) {
 
 		return mountAndAddToGlobalMountList(mountEntry{
 			source: other.device,
-			target: p.MountTarget()})
+			target: mountTarget})
 	}
 	// r/w -> r/o: no fsck required.
-	return mount(other.device, p.MountTarget(), "remount,ro")
+	return mount(other.device, mountTarget, "remount,ro")
 }
 
 func (p *Partition) unmountOtherRootfs() (err error) {
-	return unmountAndRemoveFromGlobalMountList(p.MountTarget())
+	return unmountAndRemoveFromGlobalMountList(mountTarget)
 }
 
 // The bootloader requires a few filesystems to be mounted when
@@ -696,7 +685,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	}
 
 	for _, fs := range requiredChrootMounts {
-		target := filepath.Join(p.MountTarget(), fs)
+		target := filepath.Join(mountTarget, fs)
 
 		err := mountAndAddToGlobalMountList(mountEntry{source: fs,
 			target:    target,
@@ -710,7 +699,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	// Grub also requires access to both rootfs's when run from
 	// within a chroot (to allow it to create menu entries for
 	// both), so bindmount the real rootfs.
-	targetInChroot := filepath.Join(p.MountTarget(), p.MountTarget())
+	targetInChroot := filepath.Join(mountTarget, mountTarget)
 
 	// FIXME: we should really remove this after the unmount
 
