@@ -5,12 +5,14 @@
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
     /etc/ld.so.cache r,
+    # libc, you are funny
+    /lib/@{multiarch}/libc{,-[0-9]*}.so* mr,
+    /lib/@{multiarch}/libpthread{,-[0-9]*}.so* mr,
+    /lib/@{multiarch}/librt{,-[0-9]*}.so* mr,
+    # normal libs in order
     /lib/@{multiarch}/libapparmor.so* mr,
-    /lib/@{multiarch}/libc-*.so* mr,
-    /lib/@{multiarch}/libpthread-*.so* mr,
     /lib/@{multiarch}/libudev.so* mr,
     /usr/lib/@{multiarch}/libseccomp.so* mr,
-    /lib/@{multiarch}/librt-*.so* mr,        
 
     # cgroups
     capability sys_admin,
