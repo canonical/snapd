@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 
 	"launchpad.net/snappy/logger"
@@ -65,10 +66,6 @@ var (
 	// ErrNoDualPartition is returned if you try to use a dual
 	// partition feature on a single partition
 	ErrNoDualPartition = errors.New("No dual partition")
-
-	// FIXME: signal handling in go is not reliable, we should remove
-	//        this code
-	signalHandlerRegistered = false
 )
 
 // Interface provides the interface to interact with a partition
@@ -113,11 +110,10 @@ type blockDevice struct {
 	mountpoint string
 }
 
+var once sync.Once
+
 func init() {
-	if !signalHandlerRegistered {
-		setupSignalHandler()
-		signalHandlerRegistered = true
-	}
+	once.Do(setupSignalHandler)
 }
 
 func signalHandler(sig os.Signal) {

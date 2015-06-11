@@ -67,7 +67,6 @@ var (
 	flashAssetsDir = filepath.Join(cacheDir, "flashtool-assets")
 )
 
-// Package partition manipulate snappy disk partitions
 func readHardwareSpec() (*hardwareSpecType, error) {
 	var h hardwareSpecType
 

@@ -110,6 +110,7 @@ func undoMounts(bindMountsOnly bool) error {
 	return nil
 }
 
+// FIXME: use syscall.Mount() here
 func mount(source, target, options string) (err error) {
 	var args []string
 
