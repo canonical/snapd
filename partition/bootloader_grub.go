@@ -127,14 +127,6 @@ func (g *grub) GetNextBootRootFSName() (label string, err error) {
 	return g.GetBootVar(bootloaderRootfsVar)
 }
 
-func (g *grub) GetRootFSName() string {
-	return g.currentRootfs
-}
-
-func (g *grub) GetOtherRootFSName() string {
-	return g.otherRootfs
-}
-
 func (g *grub) MarkCurrentBootSuccessful() (err error) {
 	// Clear the variable set by grub on boot to denote a good
 	// boot.

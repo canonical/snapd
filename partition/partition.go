@@ -339,7 +339,28 @@ func (p *Partition) IsNextBootOther() bool {
 	if err != nil {
 		return false
 	}
-	return isNextBootOther(bootloader)
+
+	value, err := bootloader.GetBootVar(bootloaderBootmodeVar)
+	if err != nil {
+		return false
+	}
+
+	if value != bootloaderBootmodeTry {
+		return false
+	}
+
+	fsname, err := bootloader.GetNextBootRootFSName()
+	if err != nil {
+		return false
+	}
+
+	otherLabel := p.otherRootPartition().name
+	otherRootfs := string(otherLabel[len(otherLabel)-1])
+	if fsname == otherRootfs {
+		return true
+	}
+
+	return false
 }
 
 func (p *Partition) getPartitionDetails() (err error) {

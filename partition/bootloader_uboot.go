@@ -142,14 +142,6 @@ func (u *uboot) GetNextBootRootFSName() (label string, err error) {
 	return value, nil
 }
 
-func (u *uboot) GetRootFSName() string {
-	return u.currentRootfs
-}
-
-func (u *uboot) GetOtherRootFSName() string {
-	return u.otherRootfs
-}
-
 // FIXME: put into utils package
 func readLines(path string) (lines []string, err error) {
 

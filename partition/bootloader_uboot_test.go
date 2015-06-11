@@ -111,7 +111,7 @@ func (s *PartitionTestSuite) TestUbootGetBootVar(c *C) {
 	c.Assert(nextBoot, Equals, "a")
 
 	// ensure that nextBootIsOther works too
-	c.Assert(isNextBootOther(u), Equals, false)
+	c.Assert(partition.IsNextBootOther(), Equals, false)
 }
 
 func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
@@ -129,7 +129,7 @@ func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
 	c.Assert(nextBoot, Equals, "b")
 
 	// ensure that nextBootIsOther works too
-	c.Assert(isNextBootOther(u), Equals, true)
+	c.Assert(partition.IsNextBootOther(), Equals, true)
 }
 
 func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {

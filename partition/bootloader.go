@@ -60,14 +60,6 @@ type bootLoader interface {
 	GetBootVar(name string) (string, error)
 
 	// Return the 1-character name corresponding to the
-	// rootfs currently being used.
-	GetRootFSName() string
-
-	// Return the 1-character name corresponding to the
-	// other rootfs.
-	GetOtherRootFSName() string
-
-	// Return the 1-character name corresponding to the
 	// rootfs that will be used on _next_ boot.
 	//
 	// XXX: Note the distinction between this method and
@@ -129,28 +121,4 @@ func newBootLoader(partition *Partition) *bootloaderType {
 	b.otherRootfs = string(otherLabel[len(otherLabel)-1])
 
 	return b
-}
-
-// Return true if the next boot will use the other rootfs
-// partition.
-func isNextBootOther(bootloader bootLoader) bool {
-	value, err := bootloader.GetBootVar(bootloaderBootmodeVar)
-	if err != nil {
-		return false
-	}
-
-	if value != bootloaderBootmodeTry {
-		return false
-	}
-
-	fsname, err := bootloader.GetNextBootRootFSName()
-	if err != nil {
-		return false
-	}
-
-	if fsname == bootloader.GetOtherRootFSName() {
-		return true
-	}
-
-	return false
 }
