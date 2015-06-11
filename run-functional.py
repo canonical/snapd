@@ -40,16 +40,16 @@ def create_image(image, release='15.04', channel='edge'):
 
     """
     print("Creating image...")
-    return subprocess.check_output([
-        'sudo',
-        'ubuntu-device-flash',
-        '--verbose',
-        'core',
-        release,
-        '-o', image,
-        '--channel', channel,
-        '--developer-mode',
-    ])
+    return subprocess.check_output(
+        'sudo ubuntu-device-flash'
+        ' --verbose core {release}'
+        ' -o {image}'
+        ' --channel {channel}'
+        ' --developer-mode'.format(
+            release=release,
+            image=image,
+            channel=channel
+        ), shell=True)
 
 
 def build_debs(src_dir, debs_dir):
@@ -63,14 +63,21 @@ def build_debs(src_dir, debs_dir):
 
 
 def adt_run(src_dir, image_target, debs_dir, output_dir):
+    debs_testbed_path = '/tmp/snappy-debs'
     return subprocess.check_output([
         'adt-run',
         '-B',
         '--setup-commands',
-        'mount -o remount,rw /'] +
-        get_debs(debs_dir) + [
+        'touch /run/autopkgtest_no_reboot.stamp',
+        '--setup-commands',
+        'mount -o remount,rw /',
+        '--setup-commands',
+        "dpkg -i {debs_dir}/*deb".format(debs_dir=debs_testbed_path),
         '--unbuilt-tree', src_dir,
         '--output-dir', output_dir,
+        "--copy={orig_debs_dir}:{target_debs_dir}".format(
+            orig_debs_dir=debs_dir,
+            target_debs_dir=debs_testbed_path),
         '---',
         'ssh',
         '-s',
@@ -79,16 +86,13 @@ def adt_run(src_dir, image_target, debs_dir, output_dir):
     ])
 
 
-def get_debs(debs_dir):
-    return glob.glob("{base_dir}/*.deb".format(base_dir=debs_dir))
-
-
 def compile_tests(src_dir):
     print("Compiling tests...")
     return subprocess.check_output([
         'go',
         'test',
         '-c',
+        '-o snappy'
     ], cwd="{base}/debian/tests/".format(base=src_dir))
 
 
@@ -103,7 +107,9 @@ def main():
     compile_tests(HERE)
 
     output_dir = prepare_output_dir()
-    return adt_run(HERE, image_target, debs_dir, output_dir)
+    adt_run(HERE, image_target, debs_dir, output_dir)
+
+    return 0
 
 if __name__ == '__main__':
     sys.exit(main())
