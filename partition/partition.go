@@ -23,7 +23,6 @@ package partition
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -32,43 +31,35 @@ import (
 	"strings"
 	"syscall"
 
-	"gopkg.in/yaml.v2"
-
 	"launchpad.net/snappy/logger"
 )
 
-var signalHandlerRegistered = false
+const (
+	// Name of writable user data partition label as created by
+	// ubuntu-device-flash(1).
+	writablePartitionLabel = "writable"
 
-// Name of writable user data partition label as created by
-// ubuntu-device-flash(1).
-const writablePartitionLabel = "writable"
+	// Name of primary root filesystem partition label as created by
+	// ubuntu-device-flash(1).
+	rootfsAlabel = "system-a"
 
-// Name of primary root filesystem partition label as created by
-// ubuntu-device-flash(1).
-const rootfsAlabel = "system-a"
+	// Name of primary root filesystem partition label as created by
+	// ubuntu-device-flash(1). Note that this partition will
+	// only be present if this is an A/B upgrade system.
+	rootfsBlabel = "system-b"
 
-// Name of primary root filesystem partition label as created by
-// ubuntu-device-flash(1). Note that this partition will
-// only be present if this is an A/B upgrade system.
-const rootfsBlabel = "system-b"
+	// name of boot partition label as created by ubuntu-device-flash(1).
+	bootPartitionLabel = "system-boot"
 
-// name of boot partition label as created by ubuntu-device-flash(1).
-const bootPartitionLabel = "system-boot"
-
-// its useful to override this in tests
-const realDefaultCacheDir = "/writable/cache"
-
-// FIXME: Should query system-image-cli (see bug LP:#1380574).
-var defaultCacheDir = realDefaultCacheDir
-
-// Directory to mount writable root filesystem below the cache
-// diretory.
-const mountTarget = "system"
-
-// File creation mode used when any directories are created
-const dirMode = 0750
+	// File creation mode used when any directories are created
+	dirMode = 0750
+)
 
 var (
+	// Directory to mount writable root filesystem below the cache
+	// diretory.
+	mountTarget = "system"
+
 	// ErrBootloader is returned if the bootloader can not be determined
 	ErrBootloader = errors.New("Unable to determine bootloader")
 
@@ -80,30 +71,10 @@ var (
 	// partition feature on a single partition
 	ErrNoDualPartition = errors.New("No dual partition")
 
-	// ErrNoHardwareYaml is returned when no hardware yaml is found in
-	// the update, this means that there is nothing to process with regards
-	// to device parts.
-	ErrNoHardwareYaml = errors.New("no hardware.yaml")
+	// FIXME: signal handling in go is not reliable, we should remove
+	//        this code
+	signalHandlerRegistered = false
 )
-
-// Declarative specification of the type of system which specifies such
-// details as:
-//
-// - the location of initrd+kernel within the system-image archive.
-// - the location of hardware-specific .dtb files within the
-//   system-image archive.
-// - the type of bootloader that should be used for this system.
-// - expected system partition layout (single or dual rootfs's).
-const hardwareSpecFile = "hardware.yaml"
-
-// Directory that _may_ get automatically created on unpack that
-// contains updated hardware-specific boot assets (such as initrd, kernel)
-const assetsDir = "assets"
-
-// Directory that _may_ get automatically created on unpack that
-// contains updated hardware-specific assets that require flashing
-// to the disk (such as uBoot, MLO)
-const flashAssetsDir = "flashtool-assets"
 
 // MountOption represents how the partition should be mounted, currently
 // RO (read-only) and RW (read-write) are supported
@@ -159,8 +130,6 @@ type Partition struct {
 
 	// just root partitions
 	roots []string
-
-	hardwareSpecFile string
 }
 
 type blockDevice struct {
@@ -176,15 +145,6 @@ type blockDevice struct {
 
 	// mountpoint (or nil if not mounted)
 	mountpoint string
-}
-
-// Representation of HARDWARE_SPEC_FILE
-type hardwareSpecType struct {
-	Kernel          string         `yaml:"kernel"`
-	Initrd          string         `yaml:"initrd"`
-	DtbDir          string         `yaml:"dtbs"`
-	PartitionLayout string         `yaml:"partition-layout"`
-	Bootloader      bootloaderName `yaml:"bootloader"`
 }
 
 // Len is part of the sort interface, required to allow sort to work
@@ -456,7 +416,6 @@ func New() *Partition {
 	p := new(Partition)
 
 	p.getPartitionDetails()
-	p.hardwareSpecFile = filepath.Join(p.cacheDir(), hardwareSpecFile)
 
 	return p
 }
@@ -542,45 +501,9 @@ func (p *Partition) IsNextBootOther() bool {
 	return isNextBootOther(bootloader)
 }
 
-// Returns the full path to the cache directory, which is used as a
-// scratch pad, for downloading new images to and bind mounting the
-// rootfs.
-func (p *Partition) cacheDir() string {
-	return defaultCacheDir
-}
-
-func (p *Partition) hardwareSpec() (hardwareSpecType, error) {
-	h := hardwareSpecType{}
-
-	data, err := ioutil.ReadFile(p.hardwareSpecFile)
-	// if hardware.yaml does not exist it just means that there was no
-	// device part in the update.
-	if os.IsNotExist(err) {
-		return h, ErrNoHardwareYaml
-	} else if err != nil {
-		return h, err
-	}
-
-	if err := yaml.Unmarshal([]byte(data), &h); err != nil {
-		return h, err
-	}
-
-	return h, nil
-}
-
-// Return full path to the main assets directory
-func (p *Partition) assetsDir() string {
-	return filepath.Join(p.cacheDir(), assetsDir)
-}
-
-// Return the full path to the hardware-specific flash assets directory.
-func (p *Partition) flashAssetsDir() string {
-	return filepath.Join(p.cacheDir(), flashAssetsDir)
-}
-
 // MountTarget gets the full path to the mount target directory
 func (p *Partition) MountTarget() string {
-	return filepath.Join(p.cacheDir(), mountTarget)
+	return filepath.Join(cacheDir, mountTarget)
 }
 
 func (p *Partition) getPartitionDetails() (err error) {

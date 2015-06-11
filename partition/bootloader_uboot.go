@@ -227,14 +227,18 @@ func (u *uboot) SyncBootFiles() (err error) {
 func (u *uboot) HandleAssets() (err error) {
 	// check if we have anything, if there is no hardware yaml, there is nothing
 	// to process.
-	hardware, err := u.partition.hardwareSpec()
+	hardware, err := readHardwareSpec()
 	if err == ErrNoHardwareYaml {
 		return nil
 	} else if err != nil {
 		return err
 	}
-	// ensure to remove the file once we are done
-	defer os.Remove(u.partition.hardwareSpecFile)
+	// ensure to remove the file once we are done (and all was good)
+	defer func() {
+		if err == nil {
+			os.Remove(hardwareSpecFile)
+		}
+	}()
 
 	// validate bootloader
 	if hardware.Bootloader != u.Name() {
@@ -263,7 +267,7 @@ func (u *uboot) HandleAssets() (err error) {
 		}
 
 		// expand path
-		path := filepath.Join(u.partition.cacheDir(), file)
+		path := filepath.Join(cacheDir, file)
 
 		if !helpers.FileExists(path) {
 			return fmt.Errorf("can not find file %s", path)
@@ -281,7 +285,7 @@ func (u *uboot) HandleAssets() (err error) {
 	//       fully speced
 
 	// install .dtb files
-	dtbSrcDir := filepath.Join(u.partition.cacheDir(), hardware.DtbDir)
+	dtbSrcDir := filepath.Join(cacheDir, hardware.DtbDir)
 	if helpers.FileExists(dtbSrcDir) {
 		// ensure we cleanup the source dir
 		defer os.RemoveAll(dtbSrcDir)
@@ -302,8 +306,6 @@ func (u *uboot) HandleAssets() (err error) {
 			}
 		}
 	}
-
-	flashAssetsDir := u.partition.flashAssetsDir()
 
 	if helpers.FileExists(flashAssetsDir) {
 		// FIXME: we don't currently do anything with the

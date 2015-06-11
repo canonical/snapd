@@ -64,6 +64,9 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 	bootloaderUbootEnvFile = filepath.Join(bootloaderUbootDir, "uEnv.txt")
 	bootloaderUbootStampFile = filepath.Join(bootloaderUbootDir, "snappy-stamp.txt")
 
+	// reset
+	hardwareSpecFile = hardwareSpecFileReal
+
 	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
 
@@ -72,8 +75,8 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 
 	// always restore what we might have mocked away
 	runCommand = runCommandImpl
-	defaultCacheDir = realDefaultCacheDir
 	bootloader = bootloaderImpl
+	cacheDir = cacheDirReal
 
 	// grub vars
 	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
@@ -107,20 +110,6 @@ bootloader: u-boot
 	c.Assert(err, IsNil)
 
 	return tmp.Name()
-}
-
-func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
-	p := New()
-	c.Assert(p, NotNil)
-
-	p.hardwareSpecFile = makeHardwareYaml(c, "")
-	hw, err := p.hardwareSpec()
-	c.Assert(err, IsNil)
-	c.Assert(hw.Kernel, Equals, "assets/vmlinuz")
-	c.Assert(hw.Initrd, Equals, "assets/initrd.img")
-	c.Assert(hw.DtbDir, Equals, "assets/dtbs")
-	c.Assert(hw.PartitionLayout, Equals, bootloaderSystemAB)
-	c.Assert(hw.Bootloader, Equals, bootloaderNameUboot)
 }
 
 func mockRunLsblkDualSnappy() (output []string, err error) {
