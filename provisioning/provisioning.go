@@ -38,10 +38,14 @@ const (
 	InstallYamlFile = "install.yaml"
 )
 
-var (
-	// ErrNoInstallYaml is emitted when InstallYamlFile does not exist.
-	ErrNoInstallYaml = fmt.Errorf("no %s", InstallYamlFile)
-)
+// ErrNoInstallYaml is emitted when InstallYamlFile does not exist.
+type ErrNoInstallYaml struct {
+	origErr error
+}
+
+func (e *ErrNoInstallYaml) Error() string {
+	return fmt.Sprintf("failed to read provisioning data: %s", e.origErr)
+}
 
 // InstallMeta encapsulates the metadata for a system install.
 type InstallMeta struct {
@@ -81,7 +85,7 @@ type InstallYaml struct {
 func parseInstallYaml(path string) (*InstallYaml, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, ErrNoInstallYaml
+		return nil, &ErrNoInstallYaml{origErr: err}
 	}
 
 	return parseInstallYamlData(data)

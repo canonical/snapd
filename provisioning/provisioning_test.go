@@ -82,10 +82,6 @@ func (ts *ProvisioningTestSuite) SetUpTest(c *C) {
 	ts.mockYamlFile = filepath.Join(ts.mockBootDir, "install.yaml")
 }
 
-func (ts *ProvisioningTestSuite) TearDownTest(c *C) {
-	os.Remove(ts.mockYamlFile)
-}
-
 func (ts *ProvisioningTestSuite) TestSideLoadedSystemNoInstallYaml(c *C) {
 	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
 }
@@ -131,7 +127,7 @@ func (ts *ProvisioningTestSuite) TestSideLoadedSystemGarbageInstallYaml(c *C) {
 func (ts *ProvisioningTestSuite) TestParseInstallYaml(c *C) {
 
 	_, err := parseInstallYaml(ts.mockYamlFile)
-	c.Check(err, Equals, ErrNoInstallYaml)
+	c.Check(err, ErrorMatches, `failed to read provisioning data: open /tmp/.*/install.yaml: no such file or directory`)
 
 	err = ioutil.WriteFile(ts.mockYamlFile, []byte(yamlData), 0750)
 	c.Check(err, IsNil)
