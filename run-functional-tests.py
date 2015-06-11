@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-import glob
 import os
 import shutil
 import subprocess
@@ -73,6 +72,8 @@ def adt_run(src_dir, image_target, debs_dir, output_dir):
         'mount -o remount,rw /',
         '--setup-commands',
         "dpkg -i {debs_dir}/*deb".format(debs_dir=debs_testbed_path),
+        '--setup-commands',
+        'sync; sleep 2; mount -o remount,ro /',
         '--unbuilt-tree', src_dir,
         '--output-dir', output_dir,
         "--copy={orig_debs_dir}:{target_debs_dir}".format(
