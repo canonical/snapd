@@ -160,25 +160,6 @@ func allPartitionLabels() []string {
 	return labels
 }
 
-// Run fsck(8) on specified device.
-func fsck(device string) (err error) {
-	return runCommand(
-		"/sbin/fsck",
-		"-M", // Paranoia - don't fsck if already mounted
-		"-av", device)
-}
-
-// Returns the position of the string in the given slice or -1 if its not found
-func stringInSlice(slice []string, value string) int {
-	for i, s := range slice {
-		if s == value {
-			return i
-		}
-	}
-
-	return -1
-}
-
 var runLsblk = func() (out []string, err error) {
 	output, err := runCommandWithStdout(
 		"/bin/lsblk",
