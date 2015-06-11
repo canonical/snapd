@@ -97,3 +97,14 @@ func bootloaderImpl(p *Partition) (bootLoader, error) {
 	// no, weeeee
 	return nil, ErrBootloader
 }
+
+// BootloaderDir returns the full path to the (mounted and writable)
+// bootloader-specific boot directory.
+func BootloaderDir() string {
+	b, err := bootloader(nil)
+	if err != nil {
+		return ""
+	}
+
+	return b.BootDir()
+}

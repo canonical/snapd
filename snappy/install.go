@@ -25,6 +25,7 @@ import (
 	"sort"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/provisioning"
 )
@@ -96,8 +97,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 		// FIXME: this is terrible, we really need a single
 		//        bootloader dir like /boot or /boot/loader
 		//        instead of having to query the partition code
-		p := newPartition()
-		if provisioning.InDeveloperMode(p.BootloaderDir()) {
+		if provisioning.InDeveloperMode(partition.BootloaderDir()) {
 			flags |= AllowUnauthenticated
 		}
 
