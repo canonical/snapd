@@ -20,9 +20,11 @@
 package snappy
 
 import (
+	"fmt"
 	"os"
 	"sort"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/provisioning"
 )
@@ -41,6 +43,32 @@ const (
 	// AllowOEM allows the installation of OEM packages, this does not affect updates.
 	AllowOEM
 )
+
+// Update the installed snappy packages, it returns the updated Parts
+// if updates where available and an error and nil if any of the updates
+// fail to apply.
+func Update(flags InstallFlags, meter progress.Meter) ([]Part, error) {
+	updates, err := ListUpdates()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, part := range updates {
+		meter.Notify(fmt.Sprintf("Updating %s (%s)", part.Name(), part.Version()))
+
+		if _, err := part.Install(meter, flags); err == ErrSideLoaded {
+			logger.Noticef("Skipping sideloaded package: %s", part.Name())
+			continue
+		} else if err != nil {
+			return nil, err
+		}
+		if err := GarbageCollect(part.Name(), flags, meter); err != nil {
+			return nil, err
+		}
+	}
+
+	return updates, nil
+}
 
 // Install the givens snap names provided via args. This can be local
 // files or snaps that are queried from the store

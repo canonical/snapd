@@ -1,3 +1,21 @@
+ubuntu-snappy (1.1.1-0ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Set all app services to restart on failure
+    - Fixes the missing oauth quoting and makes the code a bit nicer
+    - Added integrate() to set Integration to default values needed for
+      integration
+    - Moved setActivateClick to be a method of SnapPart
+    - Make unsetActiveClick a method of SnapPart
+    - Check the package.yaml for the required fields
+    - Integrate lp:snappy/selftest branch into snappy itself
+    - API to record information about the image and to check if the kernel was
+      sideloaded.
+    - Factor out update from cmd
+    - Continue updating when a sideload error is returned
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Wed, 10 Jun 2015 15:54:12 -0300
+
 ubuntu-snappy (1.1-0ubuntu1) wily; urgency=low
 
   * New wily upload with fix for go 1.4 syscall.Setgid() breakage

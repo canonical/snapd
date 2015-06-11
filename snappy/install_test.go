@@ -20,6 +20,7 @@
 package snappy
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -29,6 +30,7 @@ import (
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
+	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/progress"
 )
 
@@ -166,4 +168,90 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 
 	_, err = Install("hello-app.potato", 0, ag)
 	c.Assert(err, ErrorMatches, ".*"+ErrPackageNameAlreadyInstalled.Error())
+}
+
+func (s *SnapTestSuite) TestUpdate(c *C) {
+	snapPackagev1 := makeTestSnapPackage(c, "name: foo\nversion: 1\nvendor: foo")
+	name, err := Install(snapPackagev1, AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
+	c.Assert(err, IsNil)
+	c.Assert(name, Equals, "foo")
+
+	snapPackagev2 := makeTestSnapPackage(c, "name: foo\nversion: 2\nvendor: foo")
+
+	snapR, err := os.Open(snapPackagev2)
+	c.Assert(err, IsNil)
+	defer snapR.Close()
+
+	// details
+	var dlURL string
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/details/foo":
+			io.WriteString(w, `{
+"package_name": "foo",
+"version": "2",
+"origin": "sideload",
+"anon_download_url": "`+dlURL+`"
+}`)
+		case "/dl":
+			snapR.Seek(0, 0)
+			io.Copy(w, snapR)
+		default:
+			panic("unexpected url path: " + r.URL.Path)
+		}
+	}))
+	dlURL = mockServer.URL + "/dl"
+
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	// bulk
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `[{
+	"package_name": "foo",
+	"version": "2",
+	"origin": "sideload",
+	"anon_download_url": "`+dlURL+`"
+}]`)
+	}))
+
+	storeBulkURI, err = url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	// system image
+	newPartition = func() (p partition.Interface) {
+		return new(MockPartition)
+	}
+	defer func() { newPartition = newPartitionImpl }()
+
+	tempdir := c.MkDir()
+	systemImageRoot = tempdir
+
+	makeFakeSystemImageChannelConfig(c, filepath.Join(tempdir, systemImageChannelConfig), "1")
+	// setup fake /other partition
+	makeFakeSystemImageChannelConfig(c, filepath.Join(tempdir, "other", systemImageChannelConfig), "2")
+
+	siServer := runMockSystemImageWebServer()
+	defer siServer.Close()
+
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, fmt.Sprintf(mockSystemImageIndexJSONTemplate, "1"))
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	systemImageServer = mockServer.URL
+
+	// the test
+	updates, err := Update(0, &progress.NullProgress{})
+	c.Assert(err, IsNil)
+	c.Assert(updates, HasLen, 1)
+	c.Check(updates[0].Name(), Equals, "foo")
+	c.Check(updates[0].Version(), Equals, "2")
 }
