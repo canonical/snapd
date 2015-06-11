@@ -135,7 +135,6 @@ func mountAndAddToGlobalMountList(m mountEntry) (err error) {
 	return err
 }
 
-
 // Unmount the given directory and remove it from the global "mounts" slice
 func unmountAndRemoveFromGlobalMountList(target string) (err error) {
 	err = runCommand("/bin/umount", target)

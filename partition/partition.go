@@ -113,15 +113,12 @@ type blockDevice struct {
 	mountpoint string
 }
 
-
-
 func init() {
 	if !signalHandlerRegistered {
 		setupSignalHandler()
 		signalHandlerRegistered = true
 	}
 }
-
 
 func signalHandler(sig os.Signal) {
 	err := undoMounts(false)
@@ -162,7 +159,6 @@ func allPartitionLabels() []string {
 
 	return labels
 }
-
 
 // Run fsck(8) on specified device.
 func fsck(device string) (err error) {

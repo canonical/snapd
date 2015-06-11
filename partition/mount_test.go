@@ -62,4 +62,3 @@ func (s *PartitionTestSuite) TestMountEntryArray(c *C) {
 	c.Assert(results[0], Equals, mountEntry{source: "/foo",
 		target: "/foo", options: "", bindMount: false})
 }
-
