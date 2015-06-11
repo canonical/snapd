@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import os
 import shutil
@@ -8,13 +8,14 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = '/tmp/snappy-test'
-IMAGE_FILENAME = 'snappy.img'
+IMAGE_DIR = "{base}/image".format(base=BASE_DIR)
+DEBS_DIR = "{base}/debs".format(base=BASE_DIR)
+DEBS_TESTBED_PATH = '/tmp/snappy-debs'
+OUTPUT_DIR = "{base}/output".format(base=BASE_DIR)
+IMAGE_TARGET = "{dir}/snappy.img".format(dir=IMAGE_DIR)
 
 
-def prepare_target_dir(target):
-    target_dir = "{base_dir}/{target}".format(
-        base_dir=BASE_DIR,
-        target=target)
+def prepare_target_dir(target_dir):
     if os.path.exists(target_dir):
         shutil.rmtree(target_dir)
     os.makedirs(target_dir)
@@ -22,23 +23,12 @@ def prepare_target_dir(target):
     return target_dir
 
 
-def prepare_image_dir():
-    return prepare_target_dir('image')
-
-
-def prepare_debs_dir():
-    return prepare_target_dir('debs')
-
-
-def prepare_output_dir():
-    return prepare_target_dir('output')
-
-
 def create_image(image, release='15.04', channel='edge'):
     """Creates the image to be used in the test
 
     """
     print("Creating image...")
+    prepare_target_dir(os.path.dirname(image))
     return subprocess.check_output(
         'sudo ubuntu-device-flash'
         ' --verbose core {release}'
@@ -53,6 +43,7 @@ def create_image(image, release='15.04', channel='edge'):
 
 def build_debs(src_dir, debs_dir):
     print("Building debs...")
+    prepare_target_dir(debs_dir)
     return subprocess.check_output([
         'bzr-buildpackage',
         '--result-dir={}'.format(debs_dir),
@@ -61,8 +52,8 @@ def build_debs(src_dir, debs_dir):
     ])
 
 
-def adt_run(src_dir, image_target, debs_dir, output_dir):
-    debs_testbed_path = '/tmp/snappy-debs'
+def adt_run(src_dir, image_target, debs_dir, output_dir, debs_testbed_path):
+    prepare_target_dir(output_dir)
     return subprocess.check_output([
         'adt-run',
         '-B',
@@ -98,17 +89,17 @@ def compile_tests(src_dir):
 
 
 def main():
-    debs_dir = prepare_debs_dir()
-    build_debs(HERE, debs_dir)
+    build_debs(HERE, DEBS_DIR)
 
-    image_dir = prepare_image_dir()
-    image_target = "{dir}/{file}".format(dir=image_dir, file=IMAGE_FILENAME)
-    create_image(image_target)
+    create_image(IMAGE_TARGET)
 
     compile_tests(HERE)
 
-    output_dir = prepare_output_dir()
-    adt_run(HERE, image_target, debs_dir, output_dir)
+    adt_run(HERE,
+            IMAGE_TARGET,
+            DEBS_DIR,
+            OUTPUT_DIR,
+            DEBS_TESTBED_PATH)
 
     return 0
 
