@@ -275,10 +275,6 @@ func loadPartitionDetails() (partitions []blockDevice, err error) {
 	return partitions, nil
 }
 
-func (p *Partition) makeMountPoint() (err error) {
-	return os.MkdirAll(mountTarget, dirMode)
-}
-
 // New creates a new partition type
 func New() *Partition {
 	p := new(Partition)
@@ -462,7 +458,9 @@ func (p *Partition) otherRootPartition() (result *blockDevice) {
 func (p *Partition) mountOtherRootfs(readOnly bool) (err error) {
 	var other *blockDevice
 
-	p.makeMountPoint()
+	if err := os.MkdirAll(mountTarget, dirMode); err != nil {
+		return err
+	}
 
 	other = p.otherRootPartition()
 
