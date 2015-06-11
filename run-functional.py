@@ -48,7 +48,6 @@ def create_image(image, release='15.04', channel='edge'):
         release,
         '-o', image,
         '--channel', channel,
-        '--enable-ssh',
         '--developer-mode',
     ])
 
@@ -66,6 +65,7 @@ def build_debs(src_dir, debs_dir):
 def adt_run(src_dir, image_target, debs_dir, output_dir):
     return subprocess.check_output([
         'adt-run',
+        '-B',
         '--setup-commands',
         'mount -o remount,rw /'] +
         get_debs(debs_dir) + [
@@ -86,7 +86,6 @@ def get_debs(debs_dir):
 def compile_tests(src_dir):
     print("Compiling tests...")
     return subprocess.check_output([
-        '/usr/bin/env',
         'go',
         'test',
         "./debian/tests/",
