@@ -7,7 +7,7 @@ ubuntu-core-launcher (1.0.6) wily; urgency=low
   * lp:~chipaca/ubuntu-core-launcher/drop-spurious-newlines:
     - fix spurious newlines
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 11 Jun 2015 15:30:14 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 11 Jun 2015 16:46:20 +0200
 
 ubuntu-core-launcher (1.0.5) wily; urgency=low
 
