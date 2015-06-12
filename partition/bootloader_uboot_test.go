@@ -229,11 +229,11 @@ partition-layout: inplace
 
 func (s *PartitionTestSuite) TestHandleAssetsNoHardwareYaml(c *C) {
 	s.makeFakeUbootEnv(c)
+	defaultCacheDir = c.MkDir()
+
 	p := New()
 	bootloader, err := bootloader(p)
 	c.Assert(err, IsNil)
-
-	defaultCacheDir = c.MkDir()
 
 	c.Assert(bootloader.HandleAssets(), IsNil)
 }
