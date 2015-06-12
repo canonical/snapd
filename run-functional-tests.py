@@ -23,12 +23,12 @@ def prepare_target_dir(target_dir):
     return target_dir
 
 
-def create_image(image, release='15.04', channel='edge'):
+def create_image(release='15.04', channel='edge'):
     """Creates the image to be used in the test
 
     """
     print("Creating image...")
-    prepare_target_dir(os.path.dirname(image))
+    prepare_target_dir(IMAGE_DIR)
     return subprocess.check_output(
         'sudo ubuntu-device-flash'
         ' --verbose core {release}'
@@ -36,24 +36,24 @@ def create_image(image, release='15.04', channel='edge'):
         ' --channel {channel}'
         ' --developer-mode'.format(
             release=release,
-            image=image,
+            image=IMAGE_TARGET,
             channel=channel
         ), shell=True)
 
 
-def build_debs(src_dir, debs_dir):
+def build_debs():
     print("Building debs...")
-    prepare_target_dir(debs_dir)
+    prepare_target_dir(DEBS_DIR)
     return subprocess.check_output([
         'bzr-buildpackage',
-        '--result-dir={}'.format(debs_dir),
-        src_dir,
+        '--result-dir={}'.format(DEBS_DIR),
+        HERE,
         '--', '-uc', '-us',
     ])
 
 
-def adt_run(src_dir, image_target, debs_dir, output_dir, debs_testbed_path):
-    prepare_target_dir(output_dir)
+def adt_run():
+    prepare_target_dir(OUTPUT_DIR)
     return subprocess.check_output([
         'adt-run',
         '-B',
@@ -62,44 +62,40 @@ def adt_run(src_dir, image_target, debs_dir, output_dir, debs_testbed_path):
         '--setup-commands',
         'mount -o remount,rw /',
         '--setup-commands',
-        "dpkg -i {debs_dir}/*deb".format(debs_dir=debs_testbed_path),
+        "dpkg -i {debs_dir}/*deb".format(debs_dir=DEBS_TESTBED_PATH),
         '--setup-commands',
         'sync; sleep 2; mount -o remount,ro /',
-        '--unbuilt-tree', src_dir,
-        '--output-dir', output_dir,
+        '--unbuilt-tree', HERE,
+        '--output-dir', OUTPUT_DIR,
         "--copy={orig_debs_dir}:{target_debs_dir}".format(
-            orig_debs_dir=debs_dir,
-            target_debs_dir=debs_testbed_path),
+            orig_debs_dir=DEBS_DIR,
+            target_debs_dir=DEBS_TESTBED_PATH),
         '---',
         'ssh',
         '-s',
         '/usr/share/autopkgtest/ssh-setup/snappy',
-        '--', '-i', image_target,
+        '--', '-i', IMAGE_TARGET,
     ])
 
 
-def compile_tests(src_dir):
+def compile_tests():
     print("Compiling tests...")
     return subprocess.check_output([
         'go',
         'test',
         '-c',
         '-o snappy'
-    ], cwd="{base}/debian/tests/".format(base=src_dir))
+    ], cwd="{base}/debian/tests/".format(base=HERE))
 
 
 def main():
-    build_debs(HERE, DEBS_DIR)
+    build_debs()
 
-    create_image(IMAGE_TARGET)
+    create_image()
 
-    compile_tests(HERE)
+    compile_tests()
 
-    adt_run(HERE,
-            IMAGE_TARGET,
-            DEBS_DIR,
-            OUTPUT_DIR,
-            DEBS_TESTBED_PATH)
+    adt_run()
 
     return 0
 
