@@ -204,7 +204,6 @@ func (s *PartitionTestSuite) TestHandleAssetsVerifyBootloader(c *C) {
 
 	// mock the hardwareYaml and the cacheDir
 	p.hardwareSpecFile = makeHardwareYaml(c, "bootloader: grub")
-	defaultCacheDir = c.MkDir()
 
 	err = bootloader.HandleAssets()
 	c.Assert(err, NotNil)
@@ -221,7 +220,6 @@ func (s *PartitionTestSuite) TestHandleAssetsFailVerifyPartitionLayout(c *C) {
 bootloader: u-boot
 partition-layout: inplace
 `)
-	defaultCacheDir = c.MkDir()
 
 	err = bootloader.HandleAssets()
 	c.Assert(err, NotNil)
@@ -247,7 +245,6 @@ func (s *PartitionTestSuite) TestHandleAssetsBadHardwareYaml(c *C) {
 	p.hardwareSpecFile = makeHardwareYaml(c, `
 bootloader u-boot
 `)
-	defaultCacheDir = c.MkDir()
 
 	c.Assert(bootloader.HandleAssets(), NotNil)
 }
