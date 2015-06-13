@@ -56,6 +56,7 @@ def adt_run():
     prepare_target_dir(OUTPUT_DIR)
     return subprocess.check_output([
         'adt-run',
+        '--override-control', 'debian/integration-tests/control',
         '-B',
         '--setup-commands',
         'touch /run/autopkgtest_no_reboot.stamp',
@@ -65,7 +66,7 @@ def adt_run():
         "dpkg -i {debs_dir}/*deb".format(debs_dir=DEBS_TESTBED_PATH),
         '--setup-commands',
         'sync; sleep 2; mount -o remount,ro /',
-        '--unbuilt-tree', HERE,
+        '--built-tree', HERE,
         '--output-dir', OUTPUT_DIR,
         "--copy={orig_debs_dir}:{target_debs_dir}".format(
             orig_debs_dir=DEBS_DIR,
@@ -77,23 +78,10 @@ def adt_run():
         '--', '-i', IMAGE_TARGET,
     ])
 
-
-def compile_tests():
-    print("Compiling tests...")
-    return subprocess.check_output([
-        'go',
-        'test',
-        '-c',
-        '-o snappy'
-    ], cwd="{base}/debian/tests/".format(base=HERE))
-
-
 def main():
     build_debs()
 
     create_image()
-
-    compile_tests()
 
     adt_run()
 

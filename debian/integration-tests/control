@@ -1,0 +1,5 @@
+Test-Command: snappy.test
+Depends: ubuntu-snappy-tests
+
+#Test-Command: ./snappy-selftest --yes-really
+#Depends:

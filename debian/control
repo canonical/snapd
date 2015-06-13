@@ -56,3 +56,4 @@ Package: ubuntu-snappy-tests
 Architecture: any
 Depends: ubuntu-snappy-cli (= ${binary:Version}),
          ${misc:Depends}
+Description: snappy selftests
