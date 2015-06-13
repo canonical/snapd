@@ -101,6 +101,7 @@ func parseReadme(readme string) (title, description string, err error) {
 	if err != nil {
 		return "", "", err
 	}
+	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
