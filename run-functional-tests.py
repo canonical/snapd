@@ -45,7 +45,7 @@ def build_debs():
     print("Building debs...")
     prepare_target_dir(DEBS_DIR)
     return subprocess.check_output([
-        'bzr-buildpackage',
+        'bzr', 'bd',
         '--result-dir={}'.format(DEBS_DIR),
         HERE,
         '--', '-uc', '-us',
