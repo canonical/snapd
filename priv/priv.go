@@ -115,7 +115,7 @@ func (m *Mutex) Unlock() error {
 	return nil
 }
 
-// WithPrivMutex runs the function f with the priv.Mutex hold
+// WithMutex runs the function f with the priv.Mutex hold
 func WithMutex(f func() error) error {
 	privMutex := New()
 	if err := privMutex.TryLock(); err != nil {
