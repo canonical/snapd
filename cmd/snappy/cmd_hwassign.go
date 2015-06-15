@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -49,7 +48,7 @@ func init() {
 }
 
 func (x *cmdHWAssign) Execute(args []string) error {
-	return priv.WithMutex(x.doHWAssign)
+	return WithMutex(x.doHWAssign)
 }
 
 func (x *cmdHWAssign) doHWAssign() error {

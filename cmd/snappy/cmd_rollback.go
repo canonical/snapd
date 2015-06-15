@@ -24,7 +24,6 @@ import (
 	"os"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
@@ -52,7 +51,7 @@ func init() {
 }
 
 func (x *cmdRollback) Execute(args []string) (err error) {
-	return priv.WithMutex(x.doRollback)
+	return WithMutex(x.doRollback)
 }
 
 func (x *cmdRollback) doRollback() error {

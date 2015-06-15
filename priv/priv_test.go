@@ -32,6 +32,7 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type PrivTestSuite struct {
+	tempdir string
 }
 
 var _ = Suite(&PrivTestSuite{})
@@ -43,20 +44,16 @@ func mockIsRoot() bool {
 func (ts *PrivTestSuite) SetUpTest(c *C) {
 	isRoot = mockIsRoot
 
-	dir := c.MkDir()
-	lockfileName = func() string {
-		return filepath.Join(dir, "lock")
-	}
+	ts.tempdir = c.MkDir()
 }
 
 func (ts *PrivTestSuite) TestPrivMutex(c *C) {
-	lockfile := lockfileName()
+	lockfile := filepath.Join(ts.tempdir, "lock")
 
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
 
-	privMutex := New()
+	privMutex := New(lockfile)
 	c.Assert(privMutex, Not(IsNil))
-	c.Assert(privMutex.lock, IsNil)
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
 
 	err := privMutex.Unlock()
@@ -81,7 +78,7 @@ func (ts *PrivTestSuite) TestPrivMutex(c *C) {
 }
 
 func (ts *PrivTestSuite) TestPrivMutexIsNotRoot(c *C) {
-	lockfile := lockfileName()
+	lockfile := filepath.Join(ts.tempdir, "lock")
 
 	isRoot = func() bool {
 		return false
@@ -89,7 +86,7 @@ func (ts *PrivTestSuite) TestPrivMutexIsNotRoot(c *C) {
 
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
 
-	privMutex := New()
+	privMutex := New(lockfile)
 	c.Assert(privMutex, Not(IsNil))
 
 	c.Assert(privMutex.Lock(), DeepEquals, ErrNeedRoot)
@@ -99,10 +96,13 @@ func (ts *PrivTestSuite) TestPrivMutexIsNotRoot(c *C) {
 
 func (ts *PrivTestSuite) TestWithPrivMutexSimple(c *C) {
 	called := false
-	err := WithMutex(func() error {
+	lockfile := filepath.Join(ts.tempdir, "lock")
+
+	err := WithMutex(lockfile, func() error {
 		called = true
 		return nil
 	})
+
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, true)
 }
@@ -111,16 +111,20 @@ func (ts *PrivTestSuite) TestWithPrivMutexErrOnLockHeld(c *C) {
 	var err, err1, err2 error
 	var callCount int
 
+	delay := time.Millisecond * 100
 	slowFunc := func() error {
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(delay)
 		callCount++
 		return nil
 	}
 
+	lockfile := filepath.Join(ts.tempdir, "lock")
 	go func() {
-		err1 = WithMutex(slowFunc)
+		err1 = WithMutex(lockfile, slowFunc)
 	}()
-	err2 = WithMutex(slowFunc)
+	err2 = WithMutex(lockfile, slowFunc)
+	// give the go routine time to catch up
+	time.Sleep(delay + 1)
 
 	// find which err is set (depends on the order in which go
 	// runs the goroutine)

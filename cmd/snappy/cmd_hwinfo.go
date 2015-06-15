@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -73,7 +72,7 @@ func outputHWAccessForAll() error {
 }
 
 func (x *cmdHWInfo) Execute(args []string) error {
-	return priv.WithMutex(x.doHWInfo)
+	return WithMutex(x.doHWInfo)
 }
 
 func (x *cmdHWInfo) doHWInfo() error {

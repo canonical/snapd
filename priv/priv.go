@@ -39,12 +39,6 @@ type Mutex struct {
 	lock *FileLock
 }
 
-// Returns name of lockfile created to serialise privileged operations.
-// XXX: Currently, only a single lock is allowed!!
-var lockfileName = func() string {
-	return "/run/snappy.lock"
-}
-
 // Determine if caller is running as the superuser
 func isRootReal() bool {
 	return syscall.Getuid() == 0
@@ -54,8 +48,10 @@ func isRootReal() bool {
 var isRoot = isRootReal
 
 // New should be called when starting a privileged operation.
-func New() *Mutex {
-	return &Mutex{}
+func New(fileName string) *Mutex {
+	return &Mutex{
+		lock: NewFileLock(fileName),
+	}
 }
 
 // commonChecks encapsulates the checks that need to be run before any
@@ -64,6 +60,7 @@ func (m *Mutex) commonChecks() error {
 	if !isRoot() {
 		return ErrNeedRoot
 	}
+
 	return nil
 }
 
@@ -74,7 +71,6 @@ func (m *Mutex) Lock() error {
 		return err
 	}
 
-	m.lock = NewFileLock(lockfileName())
 	return m.lock.Lock(true)
 }
 
@@ -85,11 +81,6 @@ func (m *Mutex) TryLock() error {
 		return err
 	}
 
-	if m.lock != nil {
-		return ErrAlreadyLocked
-	}
-
-	m.lock = NewFileLock(lockfileName())
 	return m.lock.Lock(false)
 }
 
@@ -115,9 +106,9 @@ func (m *Mutex) Unlock() error {
 	return nil
 }
 
-// WithPrivMutex runs the function f with the priv.Mutex hold
-func WithMutex(f func() error) error {
-	privMutex := New()
+// WithMutex runs the function f with the priv.Mutex hold
+func WithMutex(fileName string, f func() error) error {
+	privMutex := New(fileName)
 	if err := privMutex.TryLock(); err != nil {
 		return err
 	}

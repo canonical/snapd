@@ -19,34 +19,10 @@
 
 package main
 
-import (
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/snappy"
-)
+import "launchpad.net/snappy/priv"
 
-type cmdBooted struct {
-}
+const snappyLockFile = "/run/snappy.lock"
 
-func init() {
-	_, err := parser.AddCommand("booted",
-		"internal",
-		"internal",
-		&cmdBooted{})
-	if err != nil {
-		logger.Panicf("Unable to booted: %v", err)
-	}
-}
-
-func (x *cmdBooted) Execute(args []string) error {
-	return WithMutex(x.doBooted)
-}
-
-func (x *cmdBooted) doBooted() error {
-	parts, err := snappy.ActiveSnapsByType(pkg.TypeCore)
-	if err != nil {
-		return err
-	}
-
-	return parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
+func WithMutex(f func() error) error {
+	return priv.WithMutex(snappyLockFile, f)
 }

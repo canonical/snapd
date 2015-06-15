@@ -25,7 +25,6 @@ import (
 	"os"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
@@ -50,7 +49,7 @@ func init() {
 }
 
 func (x *cmdInstall) Execute(args []string) error {
-	return priv.WithMutex(x.doInstall)
+	return WithMutex(x.doInstall)
 }
 
 func (x *cmdInstall) doInstall() error {

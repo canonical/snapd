@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
@@ -43,7 +42,7 @@ func init() {
 }
 
 func (x *cmdRemove) Execute(args []string) (err error) {
-	return priv.WithMutex(func() error {
+	return WithMutex(func() error {
 		return x.doRemove(args)
 	})
 }
