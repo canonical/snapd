@@ -24,11 +24,11 @@ var (
 
 func execCommand(cmds ...string) {
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
-	_, err := cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	fmt.Println(string(output))
 }
 
 func buildDebs(rootPath string) {
