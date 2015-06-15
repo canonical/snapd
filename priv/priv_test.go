@@ -24,6 +24,7 @@ import (
 
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 )
@@ -48,7 +49,7 @@ func (ts *PrivTestSuite) SetUpTest(c *C) {
 	}
 }
 
-func (ts *PrivTestSuite) TestMutex(c *C) {
+func (ts *PrivTestSuite) TestPrivMutex(c *C) {
 	lockfile := lockfileName()
 
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
@@ -79,7 +80,7 @@ func (ts *PrivTestSuite) TestMutex(c *C) {
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
 }
 
-func (ts *PrivTestSuite) TestPriv(c *C) {
+func (ts *PrivTestSuite) TestPrivMutexIsNotRoot(c *C) {
 	lockfile := lockfileName()
 
 	isRoot = func() bool {
@@ -94,4 +95,45 @@ func (ts *PrivTestSuite) TestPriv(c *C) {
 	c.Assert(privMutex.Lock(), DeepEquals, ErrNeedRoot)
 	c.Assert(privMutex.TryLock(), DeepEquals, ErrNeedRoot)
 	c.Assert(privMutex.Unlock(), DeepEquals, ErrNeedRoot)
+}
+
+func (ts *PrivTestSuite) TestWithPrivMutexSimple(c *C) {
+	called := false
+	err := WithMutex(func() error {
+		called = true
+		return nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, true)
+}
+
+func (ts *PrivTestSuite) TestWithPrivMutexErrOnLockHeld(c *C) {
+	var err, err1, err2 error
+	var callCount int
+
+	slowFunc := func() error {
+		time.Sleep(time.Millisecond * 100)
+		callCount++
+		return nil
+	}
+
+	go func() {
+		err1 = WithMutex(slowFunc)
+	}()
+	err2 = WithMutex(slowFunc)
+
+	// find which err is set (depends on the order in which go
+	// runs the goroutine)
+	if err1 != nil {
+		err = err1
+	} else {
+		err = err2
+	}
+
+	// only one functions errored
+	c.Assert(err1 != nil && err2 != nil, Equals, false)
+	// the other returned a proper error
+	c.Assert(err, Equals, ErrAlreadyLocked)
+	// and we did not call it too often
+	c.Assert(callCount, Equals, 1)
 }

@@ -43,12 +43,12 @@ func init() {
 }
 
 func (x *cmdRemove) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+	return priv.WithMutex(func() error {
+		return x.doRemove(args)
+	})
+}
 
+func (x *cmdRemove) doRemove(args []string) error {
 	flags := snappy.DoRemoveGC
 	if x.DisableGC {
 		flags = 0

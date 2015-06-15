@@ -46,9 +46,12 @@ var lockfileName = func() string {
 }
 
 // Determine if caller is running as the superuser
-var isRoot = func() bool {
+func isRootReal() bool {
 	return syscall.Getuid() == 0
 }
+
+// useful for the tests
+var isRoot = isRootReal
 
 // New should be called when starting a privileged operation.
 func New() *Mutex {
@@ -110,4 +113,15 @@ func (m *Mutex) Unlock() error {
 	m.lock = nil
 
 	return nil
+}
+
+// WithPrivMutex runs the function f with the priv.Mutex hold
+func WithMutex(f func() error) error {
+	privMutex := New()
+	if err := privMutex.TryLock(); err != nil {
+		return err
+	}
+	defer privMutex.Unlock()
+
+	return f()
 }

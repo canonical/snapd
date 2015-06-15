@@ -72,13 +72,11 @@ func outputHWAccessForAll() error {
 	return nil
 }
 
-func (x *cmdHWInfo) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+func (x *cmdHWInfo) Execute(args []string) error {
+	return priv.WithMutex(x.doHWInfo)
+}
 
+func (x *cmdHWInfo) doHWInfo() error {
 	// use specific package
 	pkgname := x.Positional.PackageName
 	if pkgname != "" {

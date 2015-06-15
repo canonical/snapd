@@ -49,7 +49,11 @@ func init() {
 	}
 }
 
-func (x *cmdInstall) Execute(args []string) (err error) {
+func (x *cmdInstall) Execute(args []string) error {
+	return priv.WithMutex(x.doInstall)
+}
+
+func (x *cmdInstall) doInstall() error {
 	pkgName := x.Positional.PackageName
 	configFile := x.Positional.ConfigFile
 
@@ -57,12 +61,6 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 	if pkgName == "" {
 		return errors.New("package name is required")
 	}
-
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
 
 	flags := snappy.DoInstallGC
 	if x.DisableGC {
