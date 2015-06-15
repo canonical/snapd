@@ -48,38 +48,6 @@ func (ts *PrivTestSuite) SetUpTest(c *C) {
 	}
 }
 
-func (ts *PrivTestSuite) TestFileLock(c *C) {
-	lockfile := lockfileName()
-
-	c.Assert(helpers.FileExists(lockfile), Equals, false)
-
-	lock := NewFileLock(lockfile)
-	c.Assert(lock, Not(IsNil))
-	c.Assert(lock.Filename, Equals, lockfile)
-	c.Assert(lock.realFile, IsNil)
-
-	err := lock.Unlock()
-	c.Assert(err, Equals, ErrNotLocked)
-
-	// can only test non-blocking in a single process.
-	err = lock.Lock(false)
-	c.Assert(err, IsNil)
-
-	c.Assert(helpers.FileExists(lockfile), Equals, true)
-	c.Assert(lock.Filename, Equals, lockfile)
-	c.Assert(lock.realFile, Not(IsNil))
-
-	err = lock.Lock(false)
-	c.Assert(err, Equals, ErrAlreadyLocked)
-
-	err = lock.Unlock()
-	c.Assert(err, IsNil)
-
-	c.Assert(helpers.FileExists(lockfile), Equals, false)
-	c.Assert(lock.Filename, Equals, "")
-	c.Assert(lock.realFile, IsNil)
-}
-
 func (ts *PrivTestSuite) TestMutex(c *C) {
 	lockfile := lockfileName()
 

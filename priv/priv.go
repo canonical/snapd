@@ -21,7 +21,6 @@ package priv
 
 import (
 	"errors"
-	"os"
 	"syscall"
 )
 
@@ -33,22 +32,11 @@ var (
 	// ErrAlreadyLocked is returned when an attempts is made to lock an
 	// already-locked FileLock.
 	ErrAlreadyLocked = errors.New("another snappy is running, try again later")
-
-	// ErrNotLocked is returned when an attempts is made to unlock an
-	// unlocked FileLock.
-	ErrNotLocked = errors.New("not locked")
 )
 
 // Mutex is the snappy mutual exclusion primitive.
 type Mutex struct {
 	lock *FileLock
-}
-
-// FileLock is a Lock file object used to serialise access for
-// privileged operations.
-type FileLock struct {
-	Filename string
-	realFile *os.File
 }
 
 // Returns name of lockfile created to serialise privileged operations.
@@ -122,59 +110,4 @@ func (m *Mutex) Unlock() error {
 	m.lock = nil
 
 	return nil
-}
-
-// NewFileLock creates a new lock object (but does not lock it).
-func NewFileLock(path string) *FileLock {
-	return &FileLock{Filename: path}
-}
-
-// Lock the FileLock object.
-// Returns ErrAlreadyLocked if an existing lock is in place.
-func (l *FileLock) Lock(blocking bool) error {
-
-	var err error
-
-	// XXX: don't try to create exclusively - we care if the file failed to
-	// be created, but we don't care if it already existed as the lock _on_ the
-	// file is the most important thing.
-	flags := (os.O_CREATE | os.O_WRONLY)
-
-	f, err := os.OpenFile(l.Filename, flags, 0600)
-	if err != nil {
-		return err
-	}
-	l.realFile = f
-
-	// Note: we don't want to block if the lock is already held.
-	how := syscall.LOCK_EX
-	if !blocking {
-		how |= syscall.LOCK_NB
-	}
-
-	if err = syscall.Flock(int(l.realFile.Fd()), how); err != nil {
-		return ErrAlreadyLocked
-	}
-
-	return nil
-}
-
-// Unlock the FileLock object.
-// Returns ErrNotLocked if no existing lock is in place.
-func (l *FileLock) Unlock() error {
-	if err := syscall.Flock(int(l.realFile.Fd()), syscall.LOCK_UN); err != nil {
-		return ErrNotLocked
-	}
-
-	if err := l.realFile.Close(); err != nil {
-		return err
-	}
-
-	filename := l.Filename
-
-	// Invalidate
-	l.realFile = nil
-	l.Filename = ""
-
-	return os.Remove(filename)
 }
