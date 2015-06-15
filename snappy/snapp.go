@@ -939,7 +939,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	}
 
 	if s.Type() == pkg.TypeFramework {
-		if err := policy.Install(s.Name(), s.basedir); err != nil {
+		if err := policy.Install(s.Name(), s.basedir, globalRootDir); err != nil {
 			return err
 		}
 	}
@@ -1001,7 +1001,7 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	if s.Type() == pkg.TypeFramework {
-		if err := policy.Remove(s.Name(), s.basedir); err != nil {
+		if err := policy.Remove(s.Name(), s.basedir, globalRootDir); err != nil {
 			return err
 		}
 	}
