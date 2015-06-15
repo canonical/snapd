@@ -47,7 +47,7 @@ func init() {
 }
 
 func (x *cmdPurge) Execute(args []string) error {
-	return WithMutex(func() error {
+	return withMutex(func() error {
 		return x.doPurge(args)
 	})
 }

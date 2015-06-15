@@ -53,7 +53,7 @@ const (
 )
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
-	return WithMutex(x.doUpdate)
+	return withMutex(x.doUpdate)
 }
 
 func (x *cmdUpdate) doUpdate() error {

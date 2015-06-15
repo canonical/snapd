@@ -51,7 +51,7 @@ func init() {
 }
 
 func (x *cmdRollback) Execute(args []string) (err error) {
-	return WithMutex(x.doRollback)
+	return withMutex(x.doRollback)
 }
 
 func (x *cmdRollback) doRollback() error {

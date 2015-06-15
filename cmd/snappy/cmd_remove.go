@@ -42,7 +42,7 @@ func init() {
 }
 
 func (x *cmdRemove) Execute(args []string) (err error) {
-	return WithMutex(func() error {
+	return withMutex(func() error {
 		return x.doRemove(args)
 	})
 }

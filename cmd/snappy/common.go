@@ -23,6 +23,7 @@ import "launchpad.net/snappy/priv"
 
 const snappyLockFile = "/run/snappy.lock"
 
-func WithMutex(f func() error) error {
+// withMutex runs the given function with a filelock mutex
+func withMutex(f func() error) error {
 	return priv.WithMutex(snappyLockFile, f)
 }

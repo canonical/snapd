@@ -72,7 +72,7 @@ func outputHWAccessForAll() error {
 }
 
 func (x *cmdHWInfo) Execute(args []string) error {
-	return WithMutex(x.doHWInfo)
+	return withMutex(x.doHWInfo)
 }
 
 func (x *cmdHWInfo) doHWInfo() error {
