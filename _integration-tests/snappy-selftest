@@ -2,11 +2,11 @@
 
 set -e
 
-. tests/framework
+MYDIR=$(dirname $0)
+
+. $MYDIR/tests/framework
 
 SNAPPY=snappy
-
-MYDIR=$(dirname $0)
 
 if [ "$1" != "--yes-really" ]; then
     echo "The selftest may be destructive, please run with:"
@@ -15,9 +15,9 @@ if [ "$1" != "--yes-really" ]; then
     exit 1
 fi
 
-. tests/settings
+. $MYDIR/tests/settings
 
-. tests/common.sh
+. $MYDIR/tests/common.sh
 
 # prepare the environment
 if [ -z "$ADT_REBOOT_MARK" ]; then

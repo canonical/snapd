@@ -2,5 +2,5 @@ Test-Command: snappy.test
 Restrictions: allow-stderr
 Depends: ubuntu-snappy-tests
 
-#Test-Command: ./snappy-selftest --yes-really
-#Depends:
+Test-Command: ./_integration-tests/snappy-selftest --yes-really
+Depends:
