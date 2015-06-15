@@ -1,4 +1,5 @@
 Test-Command: snappy.test
+Restrictions: allow-stderr
 Depends: ubuntu-snappy-tests
 
 #Test-Command: ./snappy-selftest --yes-really
