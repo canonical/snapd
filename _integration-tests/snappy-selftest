@@ -21,6 +21,7 @@ fi
 
 # prepare the environment
 if [ -z "$ADT_REBOOT_MARK" ]; then
+    sudo systemctl stop snappy-autopilot.timer
     sudo snappy remove "$framework" 2>&1 || true
     sudo snappy remove hello-world 2>&1 || true
     sudo snappy remove xkcd-webserver 2>&1 || true
