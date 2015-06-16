@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -22,18 +21,7 @@ var (
 	imageDir    = filepath.Join(baseDir, "image")
 	outputDir   = filepath.Join(baseDir, "output")
 	imageTarget = filepath.Join(imageDir, "snappy.img")
-
-	arch      = flag.String("arch", defaultArch, "Target architecture (amd64, armhf)")
-	testbedIP = flag.String("ip", "", "IP of the testbed to run the tests in")
-
-	commonSSHOptions = []string{
-		"ssh", "-s", "/usr/share/autopkgtest/ssh-setup/snappy"}
-	kvmSSHOptions = append(commonSSHOptions, []string{"--", "-i", imageTarget}...)
 )
-
-func init() {
-	flag.Parse()
-}
 
 func execCommand(cmds ...string) {
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
@@ -44,39 +32,32 @@ func execCommand(cmds ...string) {
 	}
 }
 
-func buildDebs(rootPath string, arch string) {
+func buildDebs(rootPath string) {
 	fmt.Println("Building debs...")
 	prepareTargetDir(debsDir)
-	if arch == defaultArch {
-		execCommand(
-			"bzr", "bd",
-			fmt.Sprintf("--result-dir=%s", debsDir),
-			rootPath,
-			"--", "-uc", "-us")
-	} else {
-		execCommand(
-			"sbuild", "--build=amd64",
-			fmt.Sprintf("--host=%s", arch),
-			"-d", "wily")
-	}
+	execCommand(
+		"bzr", "bd",
+		fmt.Sprintf("--result-dir=%s", debsDir),
+		rootPath,
+		"--", "-uc", "-us")
 }
 
-func createImage(release, channel string, arch string) {
+func createImage(release, channel string) {
 	fmt.Println("Creating image...")
 	prepareTargetDir(imageDir)
 	execCommand(
 		"sudo", "ubuntu-device-flash", "--verbose",
 		"core", release,
 		"-o", imageTarget,
-		fmt.Sprintf("--oem=%s", arch),
 		"--channel", channel,
 		"--developer-mode")
 }
 
-func adtRun(rootPath string, sshOptions []string) {
+func adtRun(rootPath string) {
 	fmt.Println("Calling adt-run...")
 	prepareTargetDir(outputDir)
-	cmd := []string{"adt-run",
+	execCommand(
+		"adt-run",
 		"-B",
 		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
 		"--setup-commands", "mount -o remount,rw /",
@@ -88,15 +69,9 @@ func adtRun(rootPath string, sshOptions []string) {
 		"--built-tree", rootPath,
 		"--output-dir", outputDir,
 		fmt.Sprintf("--copy=%s:%s", debsDir, debsTestBedPath),
-		"---"}
-	execCommand(append(cmd, sshOptions...)...)
-}
-
-func boardSSHOptions(testbedIP *string) []string {
-	options := []string{
-		"-H", *testbedIP,
-	}
-	return append(commonSSHOptions, options...)
+		"---",
+		"ssh", "-s", "/usr/share/autopkgtest/ssh-setup/snappy",
+		"--", "-i", imageTarget)
 }
 
 func prepareTargetDir(targetDir string) {
@@ -122,12 +97,8 @@ func getArchForImage() string {
 func main() {
 	rootPath := getRootPath()
 
-	buildDebs(rootPath, *arch)
+	buildDebs(rootPath)
 
-	if *arch == defaultArch {
-		createImage(defaultRelease, defaultChannel, getArchForImage())
-		adtRun(rootPath, kvmSSHOptions)
-	} else {
-		adtRun(rootPath, boardSSHOptions(testbedIP))
-	}
+	createImage(defaultRelease, defaultChannel)
+	adtRun(rootPath)
 }
