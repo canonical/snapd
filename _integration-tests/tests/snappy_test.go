@@ -42,7 +42,7 @@ func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 		".*\n" +
 		"hello-world   .* .*  canonical \n" +
 		".*\n"
-	c.Assert(string(installOutput), Matches, expected)
+	c.Check(string(installOutput), Matches, expected)
 }
 
 func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
@@ -50,7 +50,7 @@ func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
 
 	echoOutput := s.execCommand(c, "hello-world.echo")
 
-	c.Assert(string(echoOutput), Equals, "Hello World!\n")
+	c.Check(string(echoOutput), Equals, "Hello World!\n")
 }
 
 func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
@@ -59,5 +59,5 @@ func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
 	infoOutput := s.execCommand(c, "sudo", "snappy", "info")
 
 	expected := "(?m)^apps: hello-world\n"
-	c.Assert(string(infoOutput), Matches, expected)
+	c.Check(string(infoOutput), Matches, expected)
 }
