@@ -14,7 +14,7 @@ var _ = Suite(&InstallSuite{})
 
 type InstallSuite struct{}
 
-func (s *InstallSuite) installSnap(c *C, packageName) [] byte {
+func (s *InstallSuite) installSnap(c *C, packageName string) []byte {
 	return s.execCommand(c, "sudo", "snappy", "install", packageName)
 }
 
