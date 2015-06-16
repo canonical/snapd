@@ -34,7 +34,7 @@ func (s *InstallSuite) TearDownTest(c *C) {
 }
 
 func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
-	installOutput := s.installSnap("hello-world")
+	installOutput := s.installSnap(c, "hello-world")
 
 	expected := "" +
 		"Installing hello-world\n" +
@@ -46,7 +46,7 @@ func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 }
 
 func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
-	s.installSnap("hello-world")
+	s.installSnap(c, "hello-world")
 
 	echoOutput := s.execCommand(c, "hello-world.echo")
 
@@ -54,7 +54,7 @@ func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
 }
 
 func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
-	s.installSnap("hello-world")
+	s.installSnap(c, "hello-world")
 
 	infoOutput := s.execCommand(c, "sudo", "snappy", "info")
 
