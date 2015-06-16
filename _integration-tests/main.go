@@ -26,7 +26,9 @@ func execCommand(cmds ...string) {
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func buildDebs(rootPath string) {
