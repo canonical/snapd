@@ -54,12 +54,10 @@ const (
 )
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+	return priv.WithMutex(x.doUpdate)
+}
 
+func (x *cmdUpdate) doUpdate() error {
 	// FIXME: handle (more?) args
 	flags := snappy.DoInstallGC
 	if x.DisableGC {

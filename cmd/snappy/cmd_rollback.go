@@ -52,12 +52,10 @@ func init() {
 }
 
 func (x *cmdRollback) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+	return priv.WithMutex(x.doRollback)
+}
 
+func (x *cmdRollback) doRollback() error {
 	pkg := x.Positional.PackageName
 	version := x.Positional.Version
 	if pkg == "" {
