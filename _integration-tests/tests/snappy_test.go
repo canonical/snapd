@@ -26,11 +26,20 @@ func (s *InstallSuite) SetUpSuite(c *C) {
 }
 
 func (s *InstallSuite) TearDownTest(c *C) {
-	s.execCommand(c, "sudo", "snappy", "hello-world")
+	s.execCommand(c, "sudo", "snappy", "remove", "hello-world")
 }
 
 func (s *InstallSuite) TestInstallSnapp(c *C) {
-	s.execCommand(c, "sudo", "snappy", "install", "hello-world")
+	installOutput := s.execCommand(c, "sudo", "snappy", "install", "hello-world")
+
+	expected := ""
+	"Installing hello-world\n" +
+		"Name          Date       Version Developer \n" +
+		".*\n" +
+		"hello-world   .* .*  canonical \n" +
+		".*\n"
+	// Check the output of the install command.
+	c.Check(string(installOutput), Matches, expected)
 
 	echoOutput := s.execCommand(c, "hello-world.echo")
 
