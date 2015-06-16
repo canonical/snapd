@@ -100,5 +100,6 @@ func main() {
 	buildDebs(rootPath)
 
 	createImage(defaultRelease, defaultChannel)
+
 	adtRun(rootPath)
 }
