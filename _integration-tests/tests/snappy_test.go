@@ -29,7 +29,7 @@ func (s *InstallSuite) TearDownTest(c *C) {
 	s.execCommand(c, "sudo", "snappy", "remove", "hello-world")
 }
 
-func (s *InstallSuite) TestInstallSnapp(c *C) {
+func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 	installOutput := s.execCommand(c, "sudo", "snappy", "install", "hello-world")
 
 	expected := ""
@@ -39,7 +39,10 @@ func (s *InstallSuite) TestInstallSnapp(c *C) {
 		"hello-world   .* .*  canonical \n" +
 		".*\n"
 	// Check the output of the install command.
-	c.Check(string(installOutput), Matches, expected)
+	c.Assert(string(installOutput), Matches, expected)
+
+func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
+	s.execCommand(c, "sudo", "snappy", "install", "hello-world")
 
 	echoOutput := s.execCommand(c, "hello-world.echo")
 
