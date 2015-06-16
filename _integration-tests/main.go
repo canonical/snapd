@@ -47,15 +47,18 @@ func execCommand(cmds ...string) {
 func buildDebs(rootPath string, arch string) {
 	fmt.Println("Building debs...")
 	prepareTargetDir(debsDir)
-	cmds := []string{
-		"bzr", "bd",
-		fmt.Sprintf("--result-dir=%s", debsDir),
-		rootPath,
-		"--", "-uc", "-us"}
-	if arch != defaultArch {
-		cmds = append([]string{"click", "chroot", "-a", arch, "-f", "ubuntu-sdk-15.04", "run"}, cmds...)
+	if arch == defaultArch {
+		execCommand(
+			"bzr", "bd",
+			fmt.Sprintf("--result-dir=%s", debsDir),
+			rootPath,
+			"--", "-uc", "-us")
+	} else {
+		execCommand(
+			"sbuild", "--build=amd64",
+			fmt.Sprintf("--host=%s", arch),
+			"-d", "wily")
 	}
-	execCommand(cmds...)
 }
 
 func createImage(release, channel string, arch string) {
