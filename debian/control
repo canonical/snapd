@@ -57,3 +57,4 @@ Architecture: any
 Depends: ubuntu-snappy-cli (= ${binary:Version}),
          ${misc:Depends}
 Description: snappy selftests
+ Installs snappy selftests binary
