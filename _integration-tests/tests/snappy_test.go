@@ -32,14 +32,15 @@ func (s *InstallSuite) TearDownTest(c *C) {
 func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 	installOutput := s.execCommand(c, "sudo", "snappy", "install", "hello-world")
 
-	expected := ""
-	"Installing hello-world\n" +
+	expected := "" +
+		"Installing hello-world\n" +
 		"Name          Date       Version Developer \n" +
 		".*\n" +
 		"hello-world   .* .*  canonical \n" +
 		".*\n"
 	// Check the output of the install command.
 	c.Assert(string(installOutput), Matches, expected)
+}
 
 func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
 	s.execCommand(c, "sudo", "snappy", "install", "hello-world")
