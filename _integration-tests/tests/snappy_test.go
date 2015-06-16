@@ -58,6 +58,6 @@ func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
 
 	infoOutput := s.execCommand(c, "sudo", "snappy", "info")
 
-	expected := "^apps: hello-world\n"
+	expected := "(?m)^apps: hello-world\n"
 	c.Assert(string(infoOutput), Matches, expected)
 }
