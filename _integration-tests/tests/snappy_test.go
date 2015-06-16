@@ -16,7 +16,7 @@ type InstallSuite struct{}
 
 func (s *InstallSuite) TearDownTest(c *C) {
 	uninstallCommand := exec.Command("sudo", "snappy", "hello-world")
-	_, uninstallErr := installCommand.CombinedOutput()
+	_, uninstallErr := uninstallCommand.CombinedOutput()
 	c.Assert(uninstallErr, IsNil)
 }
 
