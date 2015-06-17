@@ -24,12 +24,12 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
 type cmdSet struct {
+	args []string
 }
 
 const setHelp = `Set properties of system or package
@@ -52,17 +52,12 @@ func init() {
 }
 
 func (x *cmdSet) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
-
-	return set(args)
+	x.args = args
+	return withMutex(x.doSet)
 }
 
-func set(args []string) (err error) {
-	pkgname, args, err := parseSetPropertyCmdline(args...)
+func (x *cmdSet) doSet() (err error) {
+	pkgname, args, err := parseSetPropertyCmdline(x.args...)
 	if err != nil {
 		return err
 	}

@@ -410,3 +410,7 @@ func (u *uboot) AdditionalBindMounts() []string {
 	// nothing additional to system-boot required on uboot
 	return []string{}
 }
+
+func (u *uboot) BootDir() string {
+	return bootloaderUbootDir
+}
