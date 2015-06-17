@@ -2,7 +2,9 @@ package tests
 
 import . "gopkg.in/check.v1"
 
-type FailoverSuite struct{}
+type FailoverSuite struct {
+	CommonSuite
+}
 
 var _ = Suite(&FailoverSuite{})
 
