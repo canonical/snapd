@@ -17,7 +17,7 @@
  *
  */
 
-package snappy
+package i18n
 
 //go:generate ../update-pot
 

@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-06-16 09:09+0200\n"
+        "POT-Creation-Date: 2015-06-17 14:01+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,4 +18,7 @@ msgstr  "Project-Id-Version: snappy\n"
 
 #. TRANSLATORS: the first %q is the file that can not be read and %v is the error message
 msgid   "Can't read hook file %q: %v"
+msgstr  ""
+
+msgid   "Install a snap package"
 msgstr  ""

@@ -43,6 +43,7 @@ import (
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
@@ -159,7 +160,7 @@ func systemClickHooks() (hooks map[string]clickHook, err error) {
 		hook, err := readClickHookFile(f)
 		if err != nil {
 			//TRANSLATORS: the first %q is the file that can not be read and %v is the error message
-			logger.Noticef(G("Can't read hook file %q: %v"), f, err)
+			logger.Noticef(i18n.G("Can't read hook file %q: %v"), f, err)
 			continue
 		}
 		hooks[hook.name] = hook

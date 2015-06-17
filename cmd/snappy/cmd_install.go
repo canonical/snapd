@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
@@ -41,8 +42,8 @@ type cmdInstall struct {
 
 func init() {
 	_, err := parser.AddCommand("install",
-		"Install a snap package",
-		"Install a snap package",
+		i18n.G("Install a snap package"),
+		i18n.G("Install a snap package"),
 		&cmdInstall{})
 	if err != nil {
 		logger.Panicf("Unable to install: %v", err)
