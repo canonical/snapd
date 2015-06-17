@@ -26,11 +26,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	. "launchpad.net/gocheck"
 	"sort"
+
+	. "gopkg.in/check.v1"
 )
 
-// Hook up gocheck into the "go test" runner.
+// Hook up check.v1 into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
 
 type policySuite struct {
@@ -140,13 +141,14 @@ func (s *policySuite) TestIterOpRemoveBadDirmode(c *C) {
 }
 
 func (s *policySuite) TestFrameworkRoundtrip(c *C) {
+	rootDir := c.MkDir()
 	SecBase = s.dest
-	c.Check(Install("foo", s.orig), IsNil)
+	c.Check(Install("foo", s.orig, rootDir), IsNil)
 	// check the files were copied, with the packagename prepended properly
-	g, err := filepath.Glob(filepath.Join(SecBase, "*", "*", "foo_*"))
+	g, err := filepath.Glob(filepath.Join(rootDir, SecBase, "*", "*", "foo_*"))
 	c.Check(err, IsNil)
 	c.Check(g, HasLen, 4*3)
-	c.Check(Remove("foo", s.orig), IsNil)
+	c.Check(Remove("foo", s.orig, rootDir), IsNil)
 	g, err = filepath.Glob(filepath.Join(SecBase, "*", "*", "*"))
 	c.Check(err, IsNil)
 	c.Check(g, HasLen, 0)
@@ -155,7 +157,7 @@ func (s *policySuite) TestFrameworkRoundtrip(c *C) {
 func (s *policySuite) TestFrameworkError(c *C) {
 	// check we get errors from the iterOp, is all
 	SecBase = s.dest
-	c.Check(frameworkOp(42, "foo", s.orig), ErrorMatches, ".*unknown operation.*")
+	c.Check(frameworkOp(42, "foo", s.orig, ""), ErrorMatches, ".*unknown operation.*")
 }
 
 func (s *policySuite) TestOpString(c *C) {

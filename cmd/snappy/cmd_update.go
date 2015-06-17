@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
@@ -54,31 +53,19 @@ const (
 )
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+	return withMutex(x.doUpdate)
+}
 
+func (x *cmdUpdate) doUpdate() error {
 	// FIXME: handle (more?) args
 	flags := snappy.DoInstallGC
 	if x.DisableGC {
 		flags = 0
 	}
 
-	updates, err := snappy.ListUpdates()
+	updates, err := snappy.Update(flags, progress.MakeProgressBar())
 	if err != nil {
 		return err
-	}
-
-	for _, part := range updates {
-		fmt.Printf("Installing %s (%s)\n", part.Name(), part.Version())
-		if _, err := part.Install(progress.MakeProgressBar(), flags); err != nil {
-			return err
-		}
-		if err := snappy.GarbageCollect(part.Name(), flags, progress.MakeProgressBar()); err != nil {
-			return err
-		}
 	}
 
 	if len(updates) > 0 {

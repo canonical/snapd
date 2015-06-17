@@ -29,11 +29,12 @@ import (
 	"testing"
 
 	partition "launchpad.net/snappy/partition"
+	"launchpad.net/snappy/provisioning"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
-// Hook up gocheck into the "go test" runner
+// Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 type SITestSuite struct {
@@ -169,6 +170,13 @@ func (p *MockPartition) IsNextBootOther() bool {
 
 func (p *MockPartition) RunWithOther(option partition.MountOption, f func(otherRoot string) (err error)) (err error) {
 	return f("/other")
+}
+
+// used by GetBootLoaderDir(), used to test sideload logic.
+var tempBootDir string
+
+func (p *MockPartition) BootloaderDir() string {
+	return tempBootDir
 }
 
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
@@ -362,43 +370,51 @@ func (s *SITestSuite) TestOrigin(c *C) {
 }
 
 func (s *SITestSuite) TestCannotUpdateIfSideLoaded(c *C) {
+	var err error
+	var yamlData = `
+meta:
+  timestamp: 2015-04-20T14:15:39.013515821+01:00
+  initial-revision: r345
+  system-image-server: http://system-image.ubuntu.com
+
+tool:
+  name: ubuntu-device-flash
+  path: /usr/bin/ubuntu-device-flash
+  version: ""
+
+options:
+  size: 3
+  size-unit: GB
+  output: /tmp/bbb.img
+  channel: ubuntu-core/devel-proposed
+  device-part: /some/path/file.tgz
+  developer-mode: true
+`
+	tempBootDir, err = ioutil.TempDir("", "")
+	c.Assert(err, IsNil)
+
 	parts, err := s.systemImage.Updates()
 
 	sp := parts[0].(*SystemImagePart)
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	sideLoaded := filepath.Join(systemImageRoot, "/boot/.sideloaded")
+	bootDir := sp.partition.BootloaderDir()
+
+	sideLoaded := filepath.Join(bootDir, provisioning.InstallYamlFile)
 
 	err = os.MkdirAll(filepath.Dir(sideLoaded), 0775)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(sideLoaded, []byte(""), 0640)
+	err = ioutil.WriteFile(sideLoaded, []byte(yamlData), 0640)
 	c.Assert(err, IsNil)
 
 	pb := &MockProgressMeter{}
-	// do the install
+
+	// Ensure the install fails if the system is sideloaded
 	_, err = sp.Install(pb, 0)
 	c.Assert(err, Equals, ErrSideLoaded)
-}
 
-func (s *SITestSuite) TestSideLoadedSystem(c *C) {
-
-	c.Assert(sideLoadedSystem(), Equals, false)
-
-	sideLoaded := filepath.Join(systemImageRoot, sideLoadedMarkerFile)
-
-	err := os.MkdirAll(filepath.Dir(sideLoaded), 0775)
-	c.Assert(err, IsNil)
-
-	c.Assert(sideLoadedSystem(), Equals, false)
-
-	err = ioutil.WriteFile(sideLoaded, []byte(""), 0640)
-	c.Assert(err, IsNil)
-
-	c.Assert(sideLoadedSystem(), Equals, true)
-
-	os.Remove(sideLoaded)
-
-	c.Assert(sideLoadedSystem(), Equals, false)
+	os.Remove(tempBootDir)
+	tempBootDir = ""
 }

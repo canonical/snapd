@@ -36,6 +36,7 @@ import (
 	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
+	"launchpad.net/snappy/provisioning"
 )
 
 const (
@@ -77,7 +78,9 @@ var (
 var systemImageRoot = "/"
 
 // will replace newPartition() to return a mockPartition
-var newPartition = func() (p partition.Interface) {
+var newPartition = newPartitionImpl
+
+func newPartitionImpl() (p partition.Interface) {
 	return partition.New()
 }
 
@@ -176,16 +179,9 @@ func (s *SystemImagePart) SetActive(pb progress.Meter) (err error) {
 	return s.partition.ToggleNextBoot()
 }
 
-// sideLoadedSystem determines if the system was installed using a
-// custom enablement part.
-func sideLoadedSystem() bool {
-	path := filepath.Join(systemImageRoot, sideLoadedMarkerFile)
-	return helpers.FileExists(path)
-}
-
 // Install installs the snap
 func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
-	if sideLoadedSystem() {
+	if provisioning.IsSideLoaded(s.partition.BootloaderDir()) {
 		return "", ErrSideLoaded
 	}
 
@@ -198,6 +194,9 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 
 	// Ensure there is always a kernel + initrd to boot with, even
 	// if the update does not provide new versions.
+	if pb != nil {
+		pb.Notify("Syncing boot files")
+	}
 	err = s.partition.SyncBootloaderFiles()
 	if err != nil {
 		return "", err
@@ -226,6 +225,13 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 		return "", err
 	}
 
+	// XXX: ToggleNextBoot() calls handleAssets() (but not SyncBootloader
+	//      files :/) - handleAssets() may copy kernel/initramfs to the
+	//      sync mounted /boot/uboot, so its very slow, tell the user
+	//      at least that something is going on
+	if pb != nil {
+		pb.Notify("Updating boot files")
+	}
 	if err = s.partition.ToggleNextBoot(); err != nil {
 		return "", err
 	}

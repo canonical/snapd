@@ -24,13 +24,15 @@ import (
 
 	"path/filepath"
 	"testing"
+	"time"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
 type PrivTestSuite struct {
+	tempdir string
 }
 
 var _ = Suite(&PrivTestSuite{})
@@ -42,52 +44,16 @@ func mockIsRoot() bool {
 func (ts *PrivTestSuite) SetUpTest(c *C) {
 	isRoot = mockIsRoot
 
-	dir := c.MkDir()
-	lockfileName = func() string {
-		return filepath.Join(dir, "lock")
-	}
+	ts.tempdir = c.MkDir()
 }
 
-func (ts *PrivTestSuite) TestFileLock(c *C) {
-	lockfile := lockfileName()
+func (ts *PrivTestSuite) TestPrivMutex(c *C) {
+	lockfile := filepath.Join(ts.tempdir, "lock")
 
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
 
-	lock := NewFileLock(lockfile)
-	c.Assert(lock, Not(IsNil))
-	c.Assert(lock.Filename, Equals, lockfile)
-	c.Assert(lock.realFile, IsNil)
-
-	err := lock.Unlock()
-	c.Assert(err, Equals, ErrNotLocked)
-
-	// can only test non-blocking in a single process.
-	err = lock.Lock(false)
-	c.Assert(err, IsNil)
-
-	c.Assert(helpers.FileExists(lockfile), Equals, true)
-	c.Assert(lock.Filename, Equals, lockfile)
-	c.Assert(lock.realFile, Not(IsNil))
-
-	err = lock.Lock(false)
-	c.Assert(err, Equals, ErrAlreadyLocked)
-
-	err = lock.Unlock()
-	c.Assert(err, IsNil)
-
-	c.Assert(helpers.FileExists(lockfile), Equals, false)
-	c.Assert(lock.Filename, Equals, "")
-	c.Assert(lock.realFile, IsNil)
-}
-
-func (ts *PrivTestSuite) TestMutex(c *C) {
-	lockfile := lockfileName()
-
-	c.Assert(helpers.FileExists(lockfile), Equals, false)
-
-	privMutex := New()
+	privMutex := New(lockfile)
 	c.Assert(privMutex, Not(IsNil))
-	c.Assert(privMutex.lock, IsNil)
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
 
 	err := privMutex.Unlock()
@@ -111,8 +77,8 @@ func (ts *PrivTestSuite) TestMutex(c *C) {
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
 }
 
-func (ts *PrivTestSuite) TestPriv(c *C) {
-	lockfile := lockfileName()
+func (ts *PrivTestSuite) TestPrivMutexIsNotRoot(c *C) {
+	lockfile := filepath.Join(ts.tempdir, "lock")
 
 	isRoot = func() bool {
 		return false
@@ -120,10 +86,58 @@ func (ts *PrivTestSuite) TestPriv(c *C) {
 
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
 
-	privMutex := New()
+	privMutex := New(lockfile)
 	c.Assert(privMutex, Not(IsNil))
 
 	c.Assert(privMutex.Lock(), DeepEquals, ErrNeedRoot)
 	c.Assert(privMutex.TryLock(), DeepEquals, ErrNeedRoot)
 	c.Assert(privMutex.Unlock(), DeepEquals, ErrNeedRoot)
+}
+
+func (ts *PrivTestSuite) TestWithPrivMutexSimple(c *C) {
+	called := false
+	lockfile := filepath.Join(ts.tempdir, "lock")
+
+	err := WithMutex(lockfile, func() error {
+		called = true
+		return nil
+	})
+
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, true)
+}
+
+func (ts *PrivTestSuite) TestWithPrivMutexErrOnLockHeld(c *C) {
+	var err, err1, err2 error
+	var callCount int
+
+	delay := time.Millisecond * 100
+	slowFunc := func() error {
+		time.Sleep(delay)
+		callCount++
+		return nil
+	}
+
+	lockfile := filepath.Join(ts.tempdir, "lock")
+	go func() {
+		err1 = WithMutex(lockfile, slowFunc)
+	}()
+	err2 = WithMutex(lockfile, slowFunc)
+	// give the go routine time to catch up
+	time.Sleep(delay + 1)
+
+	// find which err is set (depends on the order in which go
+	// runs the goroutine)
+	if err1 != nil {
+		err = err1
+	} else {
+		err = err2
+	}
+
+	// only one functions errored
+	c.Assert(err1 != nil && err2 != nil, Equals, false)
+	// the other returned a proper error
+	c.Assert(err, Equals, ErrAlreadyLocked)
+	// and we did not call it too often
+	c.Assert(callCount, Equals, 1)
 }

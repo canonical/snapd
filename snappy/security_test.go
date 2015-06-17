@@ -24,7 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 
 	"launchpad.net/snappy/pkg"
 )
@@ -62,6 +62,9 @@ func (a *SecurityTestSuite) verifyApparmorFile(c *C, expected string) {
 func (a *SecurityTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
 	sec := &SecurityDefinitions{}
 
+	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
+	a.m.legacyIntegration()
+
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
 
@@ -80,6 +83,9 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorCaps(c *C) {
 	sec := &SecurityDefinitions{
 		SecurityCaps: []string{"cap1", "cap2"},
 	}
+
+	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
+	a.m.legacyIntegration()
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
@@ -101,6 +107,9 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorTemplate(c *C) {
 		SecurityTemplate: "docker-client",
 	}
 
+	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
+	a.m.legacyIntegration()
+
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
 
@@ -120,6 +129,9 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorOverride(c *C) {
 		},
 	}
 
+	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
+	a.m.legacyIntegration()
+
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
 
@@ -132,6 +144,9 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorPolicy(c *C) {
 			Apparmor: "meta/custom-policy.apparmor",
 		},
 	}
+
+	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
+	a.m.legacyIntegration()
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)

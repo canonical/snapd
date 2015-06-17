@@ -25,7 +25,6 @@ import (
 	"os"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
@@ -34,8 +33,8 @@ type cmdInstall struct {
 	AllowUnauthenticated bool `long:"allow-unauthenticated" description:"Install snaps even if the signature can not be verified."`
 	DisableGC            bool `long:"no-gc" description:"Do not clean up old versions of the package."`
 	Positional           struct {
-		PackageName string `positional-arg-name:"package name" description:"Set configuration for a specific installed package"`
-		ConfigFile  string `positional-arg-name:"config file" description:"The configuration for the given file"`
+		PackageName string `positional-arg-name:"package name" description:"The Package to install (name or path)"`
+		ConfigFile  string `positional-arg-name:"config file" description:"The configuration for the given install"`
 	} `positional-args:"yes"`
 }
 
@@ -49,7 +48,11 @@ func init() {
 	}
 }
 
-func (x *cmdInstall) Execute(args []string) (err error) {
+func (x *cmdInstall) Execute(args []string) error {
+	return withMutex(x.doInstall)
+}
+
+func (x *cmdInstall) doInstall() error {
 	pkgName := x.Positional.PackageName
 	configFile := x.Positional.ConfigFile
 
@@ -57,12 +60,6 @@ func (x *cmdInstall) Execute(args []string) (err error) {
 	if pkgName == "" {
 		return errors.New("package name is required")
 	}
-
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
 
 	flags := snappy.DoInstallGC
 	if x.DisableGC {

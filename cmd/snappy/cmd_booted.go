@@ -22,7 +22,6 @@ package main
 import (
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -39,13 +38,11 @@ func init() {
 	}
 }
 
-func (x *cmdBooted) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+func (x *cmdBooted) Execute(args []string) error {
+	return withMutex(x.doBooted)
+}
 
+func (x *cmdBooted) doBooted() error {
 	parts, err := snappy.ActiveSnapsByType(pkg.TypeCore)
 	if err != nil {
 		return err

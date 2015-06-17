@@ -1,0 +1,4 @@
+test() {
+    T="$framework[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]]+[0-9]+\.[0-9]+"
+    test_regexp "$T" $SNAPPY list
+}

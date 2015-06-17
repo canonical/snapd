@@ -27,10 +27,10 @@ import (
 	"strings"
 	"testing"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
-// Hook up gocheck into the "go test" runner
+// Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
 // partition specific testsuite
@@ -73,7 +73,7 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	// always restore what we might have mocked away
 	runCommand = runCommandImpl
 	defaultCacheDir = realDefaultCacheDir
-	getBootloader = getBootloaderImpl
+	bootloader = bootloaderImpl
 
 	// grub vars
 	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
@@ -453,10 +453,14 @@ func (b *mockBootloader) AdditionalBindMounts() []string {
 	return nil
 }
 
+func (b *mockBootloader) BootDir() string {
+	return ""
+}
+
 func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 	runCommand = mockRunCommand
 	b := &mockBootloader{}
-	getBootloader = func(p *Partition) (bootLoader, error) {
+	bootloader = func(p *Partition) (bootLoader, error) {
 		return b, nil
 	}
 
@@ -475,7 +479,7 @@ func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
 	runCommand = mockRunCommand
 	b := &mockBootloader{}
-	getBootloader = func(p *Partition) (bootLoader, error) {
+	bootloader = func(p *Partition) (bootLoader, error) {
 		return b, nil
 	}
 
@@ -490,7 +494,7 @@ func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
 func (s *PartitionTestSuite) TestSyncBootFiles(c *C) {
 	runCommand = mockRunCommand
 	b := &mockBootloader{}
-	getBootloader = func(p *Partition) (bootLoader, error) {
+	bootloader = func(p *Partition) (bootLoader, error) {
 		return b, nil
 	}
 

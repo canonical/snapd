@@ -45,7 +45,6 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
 
@@ -92,9 +91,10 @@ const servicesBinariesStringsWhitelist = `^[A-Za-z0-9/. _#:-]*$`
 func execHook(execCmd string) (err error) {
 	// the spec says this is passed to the shell
 	cmd := exec.Command("sh", "-c", execCmd)
-	if err = cmd.Run(); err != nil {
+	if output, err := cmd.CombinedOutput(); err != nil {
 		if exitCode, err := helpers.ExitCode(err); err == nil {
 			return &ErrHookFailed{cmd: execCmd,
+				output:   string(output),
 				exitCode: exitCode}
 		}
 		return err
@@ -261,35 +261,6 @@ func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err
 	return manifest, err
 }
 
-func removeClick(clickDir string, inter interacter) (err error) {
-	m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
-	if err != nil {
-		return err
-	}
-
-	if err := removeClickHooks(m, originFromBasedir(clickDir), false); err != nil {
-		return err
-	}
-
-	// maybe remove current symlink
-	currentSymlink := filepath.Join(filepath.Dir(clickDir), "current")
-	p, _ := filepath.EvalSymlinks(currentSymlink)
-	if clickDir == p {
-		if err := unsetActiveClick(p, false, inter); err != nil {
-			return err
-		}
-	}
-
-	err = os.RemoveAll(clickDir)
-	if err != nil {
-		return err
-	}
-
-	os.Remove(filepath.Dir(clickDir))
-
-	return nil
-}
-
 // generate the name
 func generateBinaryName(m *packageYaml, binary Binary) string {
 	var binName string
@@ -310,40 +281,26 @@ func verifyBinariesYaml(binary Binary) error {
 	return verifyStructStringsAgainstWhitelist(binary, servicesBinariesStringsWhitelist)
 }
 
+// Doesn't need to handle complications like internal quotes, just needs to
+// wrap right side of an env variable declaration with quotes for the shell.
+func quoteEnvVar(envVar string) string {
+	return "export " + strings.Replace(envVar, "=", "=\"", 1) + "\""
+}
+
 func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) (string, error) {
 	wrapperTemplate := `#!/bin/sh
-# !!!never remove this line!!!
-##TARGET={{.Target}}
-
 set -e
 
-TMPDIR="/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp"
-if [ ! -d "$TMPDIR" ]; then
-    mkdir -p -m1777 "$TMPDIR"
-fi
-export TMPDIR
-export TEMPDIR="$TMPDIR"
-
-# app paths (deprecated)
-export SNAPP_APP_PATH="{{.Path}}"
-export SNAPP_APP_DATA_PATH="/var/lib/{{.Path}}"
-export SNAPP_APP_USER_DATA_PATH="$HOME/{{.Path}}"
-export SNAPP_APP_TMPDIR="$TMPDIR"
+# app info (deprecated)
+{{.OldAppVars}}
 export SNAPP_OLD_PWD="$(pwd)"
 
 # app info
-export SNAP_NAME="{{.Name}}"
-export SNAP_ORIGIN="{{.Origin}}"
-export SNAP_FULLNAME="{{.UdevAppName}}"
+{{.NewAppVars}}
 
-# app paths
-export SNAP_APP_PATH="{{.Path}}"
-export SNAP_APP_DATA_PATH="/var/lib/{{.Path}}"
-export SNAP_APP_USER_DATA_PATH="$HOME/{{.Path}}"
-export SNAP_APP_TMPDIR="$TMPDIR"
-
-# FIXME: this will need to become snappy arch or something
-export SNAPPY_APP_ARCH="$(dpkg --print-architecture)"
+if [ ! -d "$SNAP_APP_TMPDIR" ]; then
+    mkdir -p -m1777 "$SNAP_APP_TMPDIR"
+fi
 
 if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
    mkdir -p "$SNAP_APP_USER_DATA_PATH"
@@ -352,7 +309,7 @@ export HOME="$SNAP_APP_USER_DATA_PATH"
 
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
-cd {{.Path}}
+cd {{.AppPath}}
 ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 `
 
@@ -369,22 +326,45 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
 	wrapperData := struct {
-		Name        string
+		AppName     string
+		AppArch     string
+		AppPath     string
 		Version     string
-		Target      string
-		Path        string
-		AaProfile   string
 		UdevAppName string
 		Origin      string
+		Home        string
+		Target      string
+		AaProfile   string
+		OldAppVars  string
+		NewAppVars  string
 	}{
-		Name:        m.Name,
+		AppName:     m.Name,
+		AppArch:     helpers.UbuntuArchitecture(),
+		AppPath:     pkgPath,
 		Version:     m.Version,
-		Target:      actualBinPath,
-		Path:        pkgPath,
-		AaProfile:   aaProfile,
 		UdevAppName: udevPartName,
 		Origin:      origin,
+		Home:        "$HOME",
+		Target:      actualBinPath,
+		AaProfile:   aaProfile,
 	}
+
+	oldVars := []string{}
+	for _, envVar := range append(
+		helpers.GetDeprecatedBasicSnapEnvVars(wrapperData),
+		helpers.GetDeprecatedUserSnapEnvVars(wrapperData)...) {
+		oldVars = append(oldVars, quoteEnvVar(envVar))
+	}
+	wrapperData.OldAppVars = strings.Join(oldVars, "\n")
+
+	newVars := []string{}
+	for _, envVar := range append(
+		helpers.GetBasicSnapEnvVars(wrapperData),
+		helpers.GetUserSnapEnvVars(wrapperData)...) {
+		newVars = append(newVars, quoteEnvVar(envVar))
+	}
+	wrapperData.NewAppVars = strings.Join(newVars, "\n")
+
 	t.Execute(&templateOut, wrapperData)
 
 	return templateOut.String(), nil
@@ -444,12 +424,17 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 
 	udevPartName := m.qualifiedName(originFromBasedir(baseDir))
 
+	desc := service.Description
+	if desc == "" {
+		desc = fmt.Sprintf("service %s for package %s", service.Name, m.Name)
+	}
+
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
 			AppName:     m.Name,
 			ServiceName: service.Name,
 			Version:     m.Version,
-			Description: service.Description,
+			Description: desc,
 			AppPath:     baseDir,
 			Start:       service.Start,
 			Stop:        service.Stop,
@@ -826,124 +811,6 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 		}
 	}
 	return nil
-}
-
-func unsetActiveClick(clickDir string, inhibitHooks bool, inter interacter) error {
-	currentSymlink := filepath.Join(clickDir, "..", "current")
-
-	// sanity check
-	currentActiveDir, err := filepath.EvalSymlinks(currentSymlink)
-	if err != nil {
-		return err
-	}
-	if clickDir != currentActiveDir {
-		return ErrSnapNotActive
-	}
-
-	// remove generated services, binaries, clickHooks, security policy
-	if err := removePackageBinaries(clickDir); err != nil {
-		return err
-	}
-
-	if err := removePackageServices(clickDir, inter); err != nil {
-		return err
-	}
-
-	m, err := parsePackageYamlFile(filepath.Join(clickDir, "meta", "package.yaml"))
-	if err != nil {
-		return err
-	}
-
-	if err := m.removeSecurityPolicy(clickDir); err != nil {
-		return err
-	}
-
-	manifest, err := readClickManifestFromClickDir(clickDir)
-	if err != nil {
-		return err
-	}
-
-	if manifest.Type == pkg.TypeFramework {
-
-		if err := policy.Remove(m.Name, clickDir); err != nil {
-			return err
-		}
-	}
-
-	if err := removeClickHooks(m, originFromBasedir(clickDir), inhibitHooks); err != nil {
-		return err
-	}
-
-	// and finally the current symlink
-	if err := os.Remove(currentSymlink); err != nil {
-		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
-	}
-
-	return nil
-}
-
-func setActiveClick(baseDir string, inhibitHooks bool, inter interacter) error {
-	currentActiveSymlink := filepath.Join(baseDir, "..", "current")
-	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
-
-	// already active, nothing to do
-	if baseDir == currentActiveDir {
-		return nil
-	}
-
-	// there is already an active part
-	if currentActiveDir != "" {
-		unsetActiveClick(currentActiveDir, inhibitHooks, inter)
-	}
-
-	// make new part active
-	newActiveManifest, err := readClickManifestFromClickDir(baseDir)
-	if err != nil {
-		return err
-	}
-
-	// yes, its confusing, we have two manifests, this is the important
-	// one, the YAML one
-	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
-	if err != nil {
-		return err
-	}
-
-	origin := originFromBasedir(baseDir)
-
-	if newActiveManifest.Type == pkg.TypeFramework {
-		if err := policy.Install(m.Name, baseDir); err != nil {
-			return err
-		}
-	}
-
-	if err := installClickHooks(baseDir, m, origin, inhibitHooks); err != nil {
-		// cleanup the failed hooks
-		removeClickHooks(m, origin, inhibitHooks)
-		return err
-	}
-
-	// generate the security policy from the package.yaml
-	if err := m.addSecurityPolicy(baseDir); err != nil {
-		return err
-	}
-
-	// add the "binaries:" from the package.yaml
-	if err := addPackageBinaries(baseDir); err != nil {
-		return err
-	}
-	// add the "services:" from the package.yaml
-	if err := addPackageServices(baseDir, inhibitHooks, inter); err != nil {
-		return err
-	}
-
-	// FIXME: we want to get rid of the current symlink
-	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
-	}
-
-	// symlink is relative to parent dir
-	return os.Symlink(filepath.Base(baseDir), currentActiveSymlink)
 }
 
 // RunHooks will run all click system hooks

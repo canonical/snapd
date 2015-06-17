@@ -24,7 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	. "launchpad.net/gocheck"
+	. "gopkg.in/check.v1"
 )
 
 func mockGrubFile(c *C, newPath string, mode os.FileMode) {
@@ -129,7 +129,7 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 	p := New()
-	bootloader, err := getBootloader(p)
+	bootloader, err := bootloader(p)
 	c.Assert(err, IsNil)
 	c.Assert(bootloader.Name(), Equals, bootloaderNameGrub)
 }

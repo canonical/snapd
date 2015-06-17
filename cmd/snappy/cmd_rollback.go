@@ -21,9 +21,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
@@ -51,12 +51,10 @@ func init() {
 }
 
 func (x *cmdRollback) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+	return withMutex(x.doRollback)
+}
 
+func (x *cmdRollback) doRollback() error {
 	pkg := x.Positional.PackageName
 	version := x.Positional.Version
 	if pkg == "" {
@@ -68,6 +66,15 @@ func (x *cmdRollback) Execute(args []string) (err error) {
 		return err
 	}
 	fmt.Printf("Setting %s to version %s\n", pkg, nowVersion)
+
+	m := snappy.NewMetaRepository()
+	installed, err := m.Installed()
+	if err != nil {
+		return err
+	}
+
+	parts := snappy.FindSnapsByNameAndVersion(pkg, nowVersion, installed)
+	showVerboseList(parts, os.Stdout)
 
 	return nil
 }
