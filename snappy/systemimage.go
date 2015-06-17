@@ -49,13 +49,13 @@ const (
 	// This file specifies the s-i version installed on the rootfs
 	// and hence s-i updates this file on every update applied to
 	// the rootfs (by unpacking file "version-$version.tar.xz").
-	systemImageChannelConfig = "/etc/system-image/channel.ini"
+	systemImageChannelConfig = "/etc/system-image/config.d/01_channel.ini"
 
 	// location of the client config.
 	//
 	// The full path to this file needs to be passed to
 	// systemImageCli when querying a different rootfs.
-	systemImageClientConfig = "/etc/system-image/config.d/01_channel.ini"
+	systemImageClientConfig = "/etc/system-image/config.d/00_default.ini"
 )
 
 var (
