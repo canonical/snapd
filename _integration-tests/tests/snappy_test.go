@@ -7,11 +7,12 @@ import (
 	. "gopkg.in/check.v1"
 )
 
+// Hook up gocheck into the "go test" runner
+func Test(t *testing.T) { TestingT(t) }
+
 var _ = Suite(&InstallSuite{})
 
 type InstallSuite struct{}
-
-func Test(t *testing.T) { TestingT(t) }
 
 func (s *InstallSuite) installSnap(c *C, packageName string) []byte {
 	return s.execCommand(c, "sudo", "snappy", "install", packageName)
