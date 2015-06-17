@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
@@ -54,7 +53,7 @@ const (
 )
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
-	return priv.WithMutex(x.doUpdate)
+	return withMutex(x.doUpdate)
 }
 
 func (x *cmdUpdate) doUpdate() error {

@@ -44,8 +44,6 @@ func NewFileLock(path string) *FileLock {
 // Lock the FileLock object.
 // Returns ErrAlreadyLocked if an existing lock is in place.
 func (l *FileLock) Lock(blocking bool) error {
-	var err error
-
 	// XXX: don't try to create exclusively - we care if the file failed to
 	// be created, but we don't care if it already existed as the lock
 	// _on_ the file is the most important thing.
