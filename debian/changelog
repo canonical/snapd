@@ -1,3 +1,10 @@
+ubuntu-core-launcher (1.0.7) wily; urgency=medium
+
+  * debian/usr.bin.ubuntu-core-launcher:
+    - libseccomp.so moved to /lib (LP: #1466311)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 18 Jun 2015 17:23:43 +0200
+
 ubuntu-core-launcher (1.0.6) wily; urgency=low
 
   [ Michael Vogt ]
