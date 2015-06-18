@@ -12,7 +12,7 @@ type CommonSuite struct{}
 // Hook up gocheck into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-func (s *CommonSuite) execCommand(c *C, cmds ...string) []byte {
+func execCommand(c *C, cmds ...string) []byte {
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	output, err := cmd.CombinedOutput()
 	c.Assert(err, IsNil, Commentf("Error: %v", output))
@@ -20,5 +20,5 @@ func (s *CommonSuite) execCommand(c *C, cmds ...string) []byte {
 }
 
 func (s *CommonSuite) SetUpSuite(c *C) {
-	s.execCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
+	execCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 }

@@ -8,16 +8,16 @@ type InstallSuite struct {
 	CommonSuite
 }
 
-func (s *InstallSuite) installSnap(c *C, packageName string) []byte {
-	return s.execCommand(c, "sudo", "snappy", "install", packageName)
+func installSnap(c *C, packageName string) []byte {
+	return execCommand(c, "sudo", "snappy", "install", packageName)
 }
 
 func (s *InstallSuite) TearDownTest(c *C) {
-	s.execCommand(c, "sudo", "snappy", "remove", "hello-world")
+	execCommand(c, "sudo", "snappy", "remove", "hello-world")
 }
 
 func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
-	installOutput := s.installSnap(c, "hello-world")
+	installOutput := installSnap(c, "hello-world")
 
 	expected := "" +
 		"Installing hello-world\n" +
@@ -29,17 +29,17 @@ func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 }
 
 func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
-	s.installSnap(c, "hello-world")
+	installSnap(c, "hello-world")
 
-	echoOutput := s.execCommand(c, "hello-world.echo")
+	echoOutput := execCommand(c, "hello-world.echo")
 
 	c.Assert(string(echoOutput), Equals, "Hello World!\n")
 }
 
 func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
-	s.installSnap(c, "hello-world")
+	installSnap(c, "hello-world")
 
-	infoOutput := s.execCommand(c, "sudo", "snappy", "info")
+	infoOutput := execCommand(c, "sudo", "snappy", "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
 	c.Assert(string(infoOutput), Matches, expected)
