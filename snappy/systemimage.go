@@ -194,17 +194,17 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 
 	// find out what config file to use, the other partition may be
 	// empty so we need to fallback to the current one if it is
-	config := systemImageClientConfig
+	configFile := systemImageClientConfig
 	err = s.partition.RunWithOther(partition.RO, func(otherRoot string) (err error) {
 		// XXX: Note that systemImageDownloadUpdate() requires
 		// the s-i _client_ config file whereas otherIsEmpty()
 		// checks the s-i _channel_ config file.
 		otherConfigFile := filepath.Join(systemImageRoot, otherRoot, systemImageClientConfig)
 		if !otherIsEmpty(otherRoot) && helpers.FileExists(otherConfigFile) {
-			config = otherConfigFile
+			configFile = otherConfigFile
 		}
 
-		return systemImageDownloadUpdate(config, pb)
+		return systemImageDownloadUpdate(filepath.Dir(configFile), pb)
 	})
 	if err != nil {
 		return "", err
