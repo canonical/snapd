@@ -99,7 +99,7 @@ func getCurrentVersion(c *C) int {
 	c.Assert(match, NotNil, Commentf("Version not found in %s", output))
 
 	// match is like "ubuntu-core   2015-06-18 93        ubuntu"
-	items := strings.Split(match[0], " ")
+	items := strings.Fields(match[0])
 	version, err := strconv.Atoi(items[2])
 	c.Assert(err, IsNil, Commentf("Error converting version to int %v", version))
 	return version
@@ -129,11 +129,10 @@ func switchChannelVersion(c *C, oldVersion, newVersion int) {
 	for _, target := range targets {
 		makeWritable(c, target)
 		execCommand(c,
-			fmt.Sprintf(
-				"sed -i 's/build_number: %d/build_number: %d/' %s",
-				oldVersion,
-				newVersion,
-				filepath.Join(target, channelCfgFile)))
+			"sed", "-i",
+			"\"s/build_number:", strconv.Itoa(oldVersion),
+			fmt.Sprintf("/build_number: %d\"", newVersion),
+			filepath.Join(target, channelCfgFile))
 		makeReadonly(c, target)
 	}
 }
