@@ -47,7 +47,7 @@ var (
 )
 
 type grub struct {
-	*bootloaderType
+	bootloaderType
 }
 
 const bootloaderNameGrub bootloaderName = "grub"
@@ -57,11 +57,11 @@ func newGrub(partition *Partition) bootLoader {
 	if !helpers.FileExists(bootloaderGrubConfigFile) {
 		return nil
 	}
-	b := newBootLoader(partition)
+	b := newBootLoader(partition, bootloaderGrubDirReal)
 	if b == nil {
 		return nil
 	}
-	g := &grub{bootloaderType: b}
+	g := &grub{bootloaderType: *b}
 
 	return g
 }
@@ -140,16 +140,4 @@ func (g *grub) MarkCurrentBootSuccessful() (err error) {
 	}
 
 	return g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
-}
-
-func (g *grub) SyncBootFiles() (err error) {
-	// NOP
-	return nil
-}
-
-func (g *grub) HandleAssets() (err error) {
-
-	// NOP - since grub is used on generic hardware, it doesn't
-	// need to make use of hardware-specific assets
-	return nil
 }

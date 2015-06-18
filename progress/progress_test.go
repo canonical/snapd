@@ -60,7 +60,7 @@ func (ts *ProgressTestSuite) TestSpin(c *C) {
 	f.Seek(0, 0)
 	progress, err := ioutil.ReadAll(f)
 	c.Assert(err, IsNil)
-	c.Assert(string(progress), Equals, "\rm[|]\rm[/]\rm[-]\rm[\\]\rm[|]\rm[/]")
+	c.Assert(string(progress), Equals, "\rm[|]\x1b[K\rm[/]\x1b[K\rm[-]\x1b[K\rm[\\]\x1b[K\rm[|]\x1b[K\rm[/]\x1b[K")
 }
 
 func (ts *ProgressTestSuite) testAgreed(answer string, value bool, c *C) {

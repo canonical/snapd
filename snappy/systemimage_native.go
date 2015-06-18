@@ -158,6 +158,8 @@ func parseSIProgress(pb progress.Meter, stdout io.Reader) error {
 			pb.Set(genericData.Now)
 		}
 	}
+	// ugly: avoid Spin() artifacts
+	pb.Notify("\nApply done")
 
 	if err := scanner.Err(); err != nil {
 		return err

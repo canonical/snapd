@@ -58,11 +58,7 @@ var (
 const bootloaderNameUboot bootloaderName = "u-boot"
 
 type uboot struct {
-	*bootloaderType
-
-	// full path to rootfs-specific assets on boot partition
-	currentBootPath string
-	otherBootPath   string
+	bootloaderType
 }
 
 // Stores a Name and a Value to be added as a name=value pair in a file.
@@ -78,13 +74,11 @@ func newUboot(partition *Partition) bootLoader {
 		return nil
 	}
 
-	b := newBootLoader(partition)
+	b := newBootLoader(partition, bootloaderUbootDir)
 	if b == nil {
 		return nil
 	}
-	u := uboot{bootloaderType: b}
-	u.currentBootPath = filepath.Join(bootloaderUbootDir, u.currentRootfs)
-	u.otherBootPath = filepath.Join(bootloaderUbootDir, u.otherRootfs)
+	u := uboot{bootloaderType: *b}
 
 	return &u
 }
@@ -215,110 +209,6 @@ func (u *uboot) MarkCurrentBootSuccessful() (err error) {
 	}
 
 	return os.RemoveAll(bootloaderUbootStampFile)
-}
-
-func (u *uboot) SyncBootFiles() (err error) {
-	srcDir := u.currentBootPath
-	destDir := u.otherBootPath
-
-	// always start from scratch: all files here are owned by us.
-	os.RemoveAll(destDir)
-
-	return runCommand("/bin/cp", "-a", srcDir, destDir)
-}
-
-func (u *uboot) HandleAssets() (err error) {
-	// check if we have anything, if there is no hardware yaml, there is nothing
-	// to process.
-	hardware, err := u.partition.hardwareSpec()
-	if err == ErrNoHardwareYaml {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	// ensure to remove the file once we are done
-	defer os.Remove(u.partition.hardwareSpecFile)
-
-	// validate bootloader
-	if hardware.Bootloader != u.Name() {
-		return fmt.Errorf(
-			"bootloader is of type %s but hardware spec requires %s",
-			u.Name(),
-			hardware.Bootloader)
-	}
-
-	// validate partition layout
-	if u.partition.dualRootPartitions() && hardware.PartitionLayout != bootloaderSystemAB {
-		return fmt.Errorf("hardware spec requires dual root partitions")
-	}
-
-	// ensure we have the destdir
-	destDir := u.otherBootPath
-	if err := os.MkdirAll(destDir, dirMode); err != nil {
-		return err
-	}
-
-	// install kernel+initrd
-	for _, file := range []string{hardware.Kernel, hardware.Initrd} {
-
-		if file == "" {
-			continue
-		}
-
-		// expand path
-		path := filepath.Join(u.partition.cacheDir(), file)
-
-		if !helpers.FileExists(path) {
-			return fmt.Errorf("can not find file %s", path)
-		}
-
-		// ensure we remove the dir later
-		defer os.RemoveAll(filepath.Dir(path))
-
-		if err := runCommand("/bin/cp", path, destDir); err != nil {
-			return err
-		}
-	}
-
-	// TODO: look at the OEM package for dtb changes too once that is
-	//       fully speced
-
-	// install .dtb files
-	dtbSrcDir := filepath.Join(u.partition.cacheDir(), hardware.DtbDir)
-	if helpers.FileExists(dtbSrcDir) {
-		// ensure we cleanup the source dir
-		defer os.RemoveAll(dtbSrcDir)
-
-		dtbDestDir := filepath.Join(destDir, "dtbs")
-		if err := os.MkdirAll(dtbDestDir, dirMode); err != nil {
-			return err
-		}
-
-		files, err := filepath.Glob(filepath.Join(dtbSrcDir, "*"))
-		if err != nil {
-			return err
-		}
-
-		for _, file := range files {
-			if err := runCommand("/bin/cp", file, dtbDestDir); err != nil {
-				return err
-			}
-		}
-	}
-
-	flashAssetsDir := u.partition.flashAssetsDir()
-
-	if helpers.FileExists(flashAssetsDir) {
-		// FIXME: we don't currently do anything with the
-		// MLO + uImage files since they are not specified in
-		// the hardware spec. So for now, just remove them.
-
-		if err := os.RemoveAll(flashAssetsDir); err != nil {
-			return err
-		}
-	}
-
-	return err
 }
 
 // Write lines to file atomically. File does not have to preexist.
