@@ -127,13 +127,17 @@ func getVersionFile() string {
 func switchChannelVersion(c *C, oldVersion, newVersion int) {
 	targets := []string{"/", baseOtherPath}
 	for _, target := range targets {
-		makeWritable(c, target)
-		execCommand(c,
-			"sed", "-i",
-			"\"s/build_number:", strconv.Itoa(oldVersion),
-			fmt.Sprintf("/build_number: %d\"", newVersion),
-			filepath.Join(target, channelCfgFile))
-		makeReadonly(c, target)
+		file := filepath.Join(target, channelCfgFile)
+		if _, err := os.Stat(file); err == nil {
+			makeWritable(c, target)
+			execCommand(c,
+				"sudo", "sed", "-i",
+				fmt.Sprintf(
+					"s/build_number: %d/build_number: %d/g",
+					oldVersion, newVersion),
+				file)
+			makeReadonly(c, target)
+		}
 	}
 }
 
