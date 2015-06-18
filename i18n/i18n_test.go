@@ -23,8 +23,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"launchpad.net/snappy/helpers"
-	
 	"github.com/gosexy/gettext"
 	. "gopkg.in/check.v1"
 )
@@ -38,21 +36,23 @@ type i18nTestSuite struct {
 var _ = Suite(&i18nTestSuite{})
 
 func (s *i18nTestSuite) TestTranslates(c *C) {
+	// this dir contains a special hand-crafted en_DK/snappy-test.mo
+	// file
 	localeDir, err := filepath.Abs("../share/locale")
 	c.Assert(err, IsNil)
-	if !helpers.FileExists(localeDir) {
-		c.Skip("no locale dir, please run 'go generate'")
-	}
-	
-	gettext.BindTextdomain("snappy", localeDir)
+
+	// this may fail on systems with no locale support (potentially
+	// minimal build environments)
+	gettext.BindTextdomain("snappy-test", localeDir)
 	locale := gettext.SetLocale(gettext.LC_ALL, "en_DK.UTF-8")
 	defer gettext.SetLocale(gettext.LC_ALL, "")
 	if locale != "en_DK.UTF-8" {
 		c.Skip("can not init locale")
 	}
 
-	//TRANSLATORS: ignore please, this is just used to test the i18n
-	//             system
-
-	c.Assert(G("!!!"), Equals, "???")
+	// we use a custom test mo file
+	TEXTDOMAIN = "snappy-test"
+	// no G() to avoid adding the test string to snappy-pot
+	var G_test = G
+	c.Assert(G_test("!!!"), Equals, "???")
 }

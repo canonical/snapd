@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-06-18 09:26+0200\n"
+        "POT-Creation-Date: 2015-06-18 09:39+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -15,11 +15,6 @@ msgstr  "Project-Id-Version: snappy\n"
         "MIME-Version: 1.0\n"
         "Content-Type: text/plain; charset=CHARSET\n"
         "Content-Transfer-Encoding: 8bit\n"
-
-#. TRANSLATORS: ignore please, this is just used to test the i18n
-#. system
-msgid   "!!!"
-msgstr  ""
 
 #. TRANSLATORS: the first %q is the file that can not be read and %v is the error message
 msgid   "Can't read hook file %q: %v"

@@ -28,15 +28,15 @@ import (
 // Note that we have to use dgettext() here because we are a library
 // and we can not use getext.Textdomain() as this would override the
 // applications default
-const TEXTDOMAIN = "snappy"
+var TEXTDOMAIN = "snappy"
 
 // G is the shorthand for Gettext
-var G = func(msgid string) string {
+func G(msgid string) string {
 	return gettext.DGettext(TEXTDOMAIN, msgid)
 }
 
 // NG is the shorthand for NGettext
-var NG = func(msgid string, msgid_plural string, n uint64) string {
+func NG(msgid string, msgid_plural string, n uint64) string {
 	return gettext.DNGettext(TEXTDOMAIN, msgid, msgid_plural, n)
 }
 
