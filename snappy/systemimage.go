@@ -204,7 +204,9 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 			configFile = otherConfigFile
 		}
 
-		return systemImageDownloadUpdate(filepath.Dir(configFile), pb)
+		// NOTE: we need to pass the config dir here
+		configDir := filepath.Dir(configFile)
+		return systemImageDownloadUpdate(configDir, pb)
 	})
 	if err != nil {
 		return "", err
