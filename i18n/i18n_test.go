@@ -38,7 +38,7 @@ var _ = Suite(&i18nTestSuite{})
 func (s *i18nTestSuite) TestTranslates(c *C) {
 	// this dir contains a special hand-crafted en_DK/snappy-test.mo
 	// file
-	localeDir, err := filepath.Abs("../share/locale")
+	localeDir, err := filepath.Abs("./mock-locale")
 	c.Assert(err, IsNil)
 
 	// this may fail on systems with no locale support (potentially
