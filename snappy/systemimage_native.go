@@ -68,9 +68,9 @@ type channelJSON struct {
 	Images []channelImage     `json:"images"`
 }
 
-func systemImageClientCheckForUpdates(config string) (us updateStatus, err error) {
+func systemImageClientCheckForUpdates(configFile string) (us updateStatus, err error) {
 	cfg := goconfigparser.New()
-	if err := cfg.ReadFile(config); err != nil {
+	if err := cfg.ReadFile(configFile); err != nil {
 		return us, err
 	}
 	channel, _ := cfg.Get("service", "channel")
