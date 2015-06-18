@@ -38,7 +38,7 @@ type cmdConfig struct {
 
 const shortConfigHelp = `Set configuration for an installed package.`
 
-const longConfigHelp = "Configures a package. The configuration is a YAML file, provided in the specified file which can be \"-\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config.  "
+const longConfigHelp = "Configures a package. The configuration is a YAML file, provided in the specified file which can be \"-\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config."
 
 func init() {
 	_, err := parser.AddCommand("config",
