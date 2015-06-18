@@ -101,7 +101,7 @@ func getCurrentVersion(c *C) int {
 	// match is like "ubuntu-core   2015-06-18 93        ubuntu"
 	items := strings.Split(match[0], " ")
 	version, err := strconv.Atoi(items[2])
-	c.Assert(err, IsNil, "Error converting version to int %v", version)
+	c.Assert(err, IsNil, Commentf("Error converting version to int %v", version))
 	return version
 }
 

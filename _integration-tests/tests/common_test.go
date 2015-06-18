@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
 	"testing"
 
@@ -21,4 +23,17 @@ func execCommand(c *C, cmds ...string) []byte {
 
 func (s *CommonSuite) SetUpSuite(c *C) {
 	execCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
+}
+
+func (s *CommonSuite) SetupTest(c *C) {
+	afterReboot := os.Getenv("ADT_REBOOT_MARK")
+	if afterReboot == "" {
+		fmt.Printf("****** Running %s", c.TestName())
+	} else {
+		if afterReboot == c.TestName() {
+			fmt.Printf("****** Resuming %s after reboot", c.TestName())
+		} else {
+			c.Skip("")
+		}
+	}
 }
