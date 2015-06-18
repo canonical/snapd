@@ -1,4 +1,4 @@
-ubuntu-snappy (1.2-0ubuntu1) UNRELEASED; urgency=medium
+ubuntu-snappy (1.2-0ubuntu1) wily; urgency=medium
 
   * New upstream release, including the following changes:
     - Consider the root directory when installing and removing policies
