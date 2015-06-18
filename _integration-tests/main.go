@@ -28,7 +28,7 @@ func execCommand(cmds ...string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error while running %s: %s\n", cmd.Args, err)
 	}
 }
 
@@ -38,8 +38,8 @@ func buildDebs(rootPath string) {
 	execCommand(
 		"bzr", "bd",
 		fmt.Sprintf("--result-dir=%s", debsDir),
-		rootPath,
-		"--", "-uc", "-us")
+		"--split",
+		rootPath)
 }
 
 func createImage(release, channel string) {
@@ -97,7 +97,11 @@ func getArchForImage() string {
 func main() {
 	rootPath := getRootPath()
 
-	buildDebs(rootPath)
+	if len(os.Args) == 2 {
+		debsDir = os.Args[1]
+	} else {
+		buildDebs(rootPath)
+	}
 
 	createImage(defaultRelease, defaultChannel)
 
