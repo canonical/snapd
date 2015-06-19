@@ -1,4 +1,4 @@
-package snappy
+package tests
 
 import (
 	"os/exec"

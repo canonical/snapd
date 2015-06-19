@@ -18,11 +18,12 @@ const (
 )
 
 var (
-	debsDir     = filepath.Join(baseDir, "debs")
-	imageDir    = filepath.Join(baseDir, "image")
-	outputDir   = filepath.Join(baseDir, "output")
-	imageTarget = filepath.Join(imageDir, "snappy.img")
+	defaultDebsDir = filepath.Join(baseDir, "debs")
+	imageDir       = filepath.Join(baseDir, "image")
+	outputDir      = filepath.Join(baseDir, "output")
+	imageTarget    = filepath.Join(imageDir, "snappy.img")
 
+	debsDir   = flag.String("debs-dir", defaultDebsDir, "Directory with the snappy debian packages.")
 	arch      = flag.String("arch", defaultArch, "Target architecture (amd64, armhf)")
 	testbedIP = flag.String("ip", "", "IP of the testbed to run the tests in")
 
@@ -40,17 +41,18 @@ func execCommand(cmds ...string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error while running %s: %s\n", cmd.Args, err)
 	}
 }
 
 func buildDebs(rootPath string, arch string) {
 	fmt.Println("Building debs...")
-	prepareTargetDir(debsDir)
+	prepareTargetDir(*debsDir)
 	if arch == defaultArch {
 		execCommand(
 			"bzr", "bd",
 			fmt.Sprintf("--result-dir=%s", debsDir),
+			"--split",
 			rootPath,
 			"--", "-uc", "-us")
 	} else {
@@ -87,12 +89,12 @@ func adtRun(rootPath string, sshOptions []string) {
 		"--override-control", "debian/integration-tests/control",
 		"--built-tree", rootPath,
 		"--output-dir", outputDir,
-		fmt.Sprintf("--copy=%s:%s", debsDir, debsTestBedPath),
+		fmt.Sprintf("--copy=%s:%s", *debsDir, debsTestBedPath),
 		"---"}
 	execCommand(append(cmd, sshOptions...)...)
 }
 
-func boardSSHOptions(testbedIP *string) []string {
+func remoteTestbedSSHOptions(testbedIP *string) []string {
 	options := []string{
 		"-H", *testbedIP,
 	}
@@ -122,12 +124,17 @@ func getArchForImage() string {
 func main() {
 	rootPath := getRootPath()
 
-	buildDebs(rootPath, *arch)
-
+	if *debsDir != defaultDebsDir {
+		buildDebs(rootPath, *arch)
+	}
 	if *arch == defaultArch {
 		createImage(defaultRelease, defaultChannel, getArchForImage())
 		adtRun(rootPath, kvmSSHOptions)
 	} else {
-		adtRun(rootPath, boardSSHOptions(testbedIP))
+		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP))
 	}
+
+	createImage(defaultRelease, defaultChannel)
+
+	adtRun(rootPath)
 }
