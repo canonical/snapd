@@ -39,7 +39,8 @@ func buildDebs(rootPath string) {
 		"bzr", "bd",
 		fmt.Sprintf("--result-dir=%s", debsDir),
 		"--split",
-		rootPath)
+		rootPath,
+		"--", "-uc", "-us")
 }
 
 func createImage(release, channel string) {
