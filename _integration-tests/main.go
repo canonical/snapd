@@ -30,7 +30,7 @@ import (
 const (
 	baseDir         = "/tmp/snappy-test"
 	debsTestBedPath = "/tmp/snappy-debs"
-	defaultRelease  = "15.04"
+	defaultRelease  = "rolling"
 	defaultChannel  = "edge"
 	defaultArch     = "amd64"
 )
