@@ -58,6 +58,7 @@ func (s *CommonSuite) SetUpSuite(c *C) {
 
 func (s *CommonSuite) SetUpTest(c *C) {
 	afterReboot := os.Getenv("ADT_REBOOT_MARK")
+
 	if afterReboot == "" {
 		c.Logf("****** Running %s", c.TestName())
 	} else {
