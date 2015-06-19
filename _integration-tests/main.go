@@ -18,21 +18,22 @@ const (
 )
 
 var (
-	debsDir     = filepath.Join(baseDir, "debs")
-	imageDir    = filepath.Join(baseDir, "image")
-	outputDir   = filepath.Join(baseDir, "output")
-	imageTarget = filepath.Join(imageDir, "snappy.img")
-
-	arch      = flag.String("arch", defaultArch, "Target architecture (amd64, armhf)")
-	testbedIP = flag.String("ip", "", "IP of the testbed to run the tests in")
-
+	defaultDebsDir   = filepath.Join(baseDir, "debs")
+	imageDir         = filepath.Join(baseDir, "image")
+	outputDir        = filepath.Join(baseDir, "output")
+	imageTarget      = filepath.Join(imageDir, "snappy.img")
 	commonSSHOptions = []string{
 		"ssh", "-s", "/usr/share/autopkgtest/ssh-setup/snappy"}
 	kvmSSHOptions = append(commonSSHOptions, []string{"--", "-i", imageTarget}...)
+	debsDir       string
+	arch          string
+	testbedIP     string
 )
 
 func init() {
-	flag.Parse()
+	flag.StringVar(&debsDir, "debs-dir", defaultDebsDir, "Directory with the snappy debian packages.")
+	flag.StringVar(&arch, "arch", defaultArch, "Target architecture (amd64, armhf)")
+	flag.StringVar(&testbedIP, "ip", "", "IP of the testbed to run the tests in")
 }
 
 func execCommand(cmds ...string) {
@@ -40,28 +41,32 @@ func execCommand(cmds ...string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error while running %s: %s\n", cmd.Args, err)
 	}
 }
 
-func buildDebs(rootPath string, arch string) {
+func buildDebs(rootPath, arch string) {
 	fmt.Println("Building debs...")
 	prepareTargetDir(debsDir)
-	if arch == defaultArch {
-		execCommand(
-			"bzr", "bd",
-			fmt.Sprintf("--result-dir=%s", debsDir),
-			rootPath,
-			"--", "-uc", "-us")
-	} else {
-		execCommand(
-			"sbuild", "--build=amd64",
-			fmt.Sprintf("--host=%s", arch),
-			"-d", "wily")
+	buildCommand := []string{"bzr", "bd",
+		fmt.Sprintf("--result-dir=%s", debsDir),
+		"--split",
+		rootPath,
 	}
+	if arch != defaultArch {
+		builderOption := []string{
+			fmt.Sprintf(
+				"--builder=sbuild --build amd64 --host %s --dist wily", arch)}
+		buildCommand = append(buildCommand, builderOption...)
+	} else {
+		dontSignDebs := []string{"--", "-uc", "-us"}
+		buildCommand = append(buildCommand, dontSignDebs...)
+	}
+	fmt.Println(buildCommand)
+	execCommand(buildCommand...)
 }
 
-func createImage(release, channel string, arch string) {
+func createImage(release, channel, arch string) {
 	fmt.Println("Creating image...")
 	prepareTargetDir(imageDir)
 	execCommand(
@@ -92,9 +97,9 @@ func adtRun(rootPath string, sshOptions []string) {
 	execCommand(append(cmd, sshOptions...)...)
 }
 
-func boardSSHOptions(testbedIP *string) []string {
+func remoteTestbedSSHOptions(testbedIP string) []string {
 	options := []string{
-		"-H", *testbedIP,
+		"-H", testbedIP,
 	}
 	return append(commonSSHOptions, options...)
 }
@@ -120,14 +125,17 @@ func getArchForImage() string {
 }
 
 func main() {
+	flag.Parse()
+
 	rootPath := getRootPath()
 
-	buildDebs(rootPath, *arch)
-
-	if *arch == defaultArch {
+	if debsDir == defaultDebsDir {
+		buildDebs(rootPath, arch)
+	}
+	if arch == defaultArch {
 		createImage(defaultRelease, defaultChannel, getArchForImage())
 		adtRun(rootPath, kvmSSHOptions)
 	} else {
-		adtRun(rootPath, boardSSHOptions(testbedIP))
+		//adtRun(rootPath, remoteTestbedSSHOptions(testbedIP))
 	}
 }
