@@ -54,7 +54,10 @@ func buildDebs(rootPath, arch string) {
 		rootPath,
 	}
 	if arch != defaultArch {
-		buildCommand = append(buildCommand, "--", "--host", arch)
+		builderOption := []string{
+			fmt.Sprintf(
+				"--builder=sbuild --build amd64 --host %s --dist wily", arch)}
+		buildCommand = append(buildCommand, builderOption...)
 	} else {
 		dontSignDebs := []string{"--", "-uc", "-us"}
 		buildCommand = append(buildCommand, dontSignDebs...)
