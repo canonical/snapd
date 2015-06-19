@@ -45,7 +45,7 @@ func execCommand(cmds ...string) {
 	}
 }
 
-func buildDebs(rootPath string, arch string) {
+func buildDebs(rootPath, arch string) {
 	fmt.Println("Building debs...")
 	prepareTargetDir(debsDir)
 	buildCommand := []string{"bzr", "bd",
@@ -54,13 +54,12 @@ func buildDebs(rootPath string, arch string) {
 		rootPath,
 	}
 	if arch != defaultArch {
-		crosscompileBuilder :=
-			fmt.Sprintf("--builder=sbuild --build=amd64 --host=%s -d wily", arch)
-		buildCommand = append(buildCommand, crosscompileBuilder)
+		buildCommand = append(buildCommand, "--", "--host", arch)
 	} else {
 		dontSignDebs := []string{"--", "-uc", "-us"}
 		buildCommand = append(buildCommand, dontSignDebs...)
 	}
+	fmt.Println(buildCommand)
 	execCommand(buildCommand...)
 }
 
@@ -134,6 +133,6 @@ func main() {
 		createImage(defaultRelease, defaultChannel, getArchForImage())
 		adtRun(rootPath, kvmSSHOptions)
 	} else {
-		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP))
+		//adtRun(rootPath, remoteTestbedSSHOptions(testbedIP))
 	}
 }
