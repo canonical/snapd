@@ -31,6 +31,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"syscall"
@@ -368,6 +369,15 @@ func MajorMinor(info os.FileInfo) (uint32, uint32, error) {
 // Makedev implements makedev(3)
 func Makedev(major, minor uint32) uint32 {
 	return uint32((minor & 0xff) | ((major & 0xfff) << 8))
+}
+
+// Getattr get the attribute of the given name
+func Getattr(i interface{}, name string) interface{} {
+	v := reflect.ValueOf(i)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	return v.FieldByName(name).Interface()
 }
 
 func fillSnapEnvVars(desc interface{}, vars []string) []string {

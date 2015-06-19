@@ -141,3 +141,7 @@ func (g *grub) MarkCurrentBootSuccessful() (err error) {
 
 	return g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
 }
+
+func (g *grub) BootDir() string {
+	return bootloaderGrubDir
+}

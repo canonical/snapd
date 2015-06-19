@@ -298,3 +298,7 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 
 	return nil
 }
+
+func (u *uboot) BootDir() string {
+	return bootloaderUbootDir
+}

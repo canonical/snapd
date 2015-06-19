@@ -72,7 +72,7 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	// always restore what we might have mocked away
 	runCommand = runCommandImpl
 	defaultCacheDir = realDefaultCacheDir
-	getBootloader = getBootloaderImpl
+	bootloader = bootloaderImpl
 
 	// grub vars
 	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
@@ -443,10 +443,14 @@ func (b *mockBootloader) MarkCurrentBootSuccessful() error {
 	b.MarkCurrentBootSuccessfulCalled = true
 	return nil
 }
+func (b *mockBootloader) BootDir() string {
+	return ""
+}
+
 func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 	runCommand = mockRunCommand
 	b := &mockBootloader{}
-	getBootloader = func(p *Partition) (bootLoader, error) {
+	bootloader = func(p *Partition) (bootLoader, error) {
 		return b, nil
 	}
 
@@ -465,7 +469,7 @@ func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
 	runCommand = mockRunCommand
 	b := &mockBootloader{}
-	getBootloader = func(p *Partition) (bootLoader, error) {
+	bootloader = func(p *Partition) (bootLoader, error) {
 		return b, nil
 	}
 
@@ -480,7 +484,7 @@ func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
 func (s *PartitionTestSuite) TestSyncBootFiles(c *C) {
 	runCommand = mockRunCommand
 	b := &mockBootloader{}
-	getBootloader = func(p *Partition) (bootLoader, error) {
+	bootloader = func(p *Partition) (bootLoader, error) {
 		return b, nil
 	}
 
