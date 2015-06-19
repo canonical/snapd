@@ -26,8 +26,8 @@ var (
 	kvmSSHOptions    = append(
 		commonSSHOptions,
 		[]string{
-			"-s", "/usr/share/autopkgtest/ssh-setup/snappy", "--", "-i",
-			imageTarget}...)
+			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
+			"--", "-i", imageTarget}...)
 	useFlashedImage bool
 	debsDir         string
 	arch            string
