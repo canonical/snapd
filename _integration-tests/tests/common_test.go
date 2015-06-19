@@ -1,6 +1,26 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package tests
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"testing"
@@ -20,6 +40,18 @@ func execCommand(c *C, cmds ...string) []byte {
 	return output
 }
 
+func execCommandToFile(c *C, filename string, cmds ...string) {
+	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
+	outfile, err := os.Create(filename)
+	c.Assert(err, IsNil, Commentf("Error creating output file %s", filename))
+
+	defer outfile.Close()
+	cmd.Stdout = outfile
+
+	err = cmd.Run()
+	c.Assert(err, IsNil, Commentf("Error executing command '%v': %v", cmds, err))
+}
+
 func (s *CommonSuite) SetUpSuite(c *C) {
 	execCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 }
@@ -32,7 +64,8 @@ func (s *CommonSuite) SetUpTest(c *C) {
 		if afterReboot == c.TestName() {
 			c.Logf("****** Resuming %s after reboot", c.TestName())
 		} else {
-			c.Skip("")
+			c.Skip(fmt.Sprintf("****** Skipped %s after reboot caused by %s",
+				c.TestName(), afterReboot))
 		}
 	}
 }

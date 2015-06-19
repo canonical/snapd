@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package tests
 
 import (
@@ -25,52 +44,73 @@ const (
 	channelCfgFile            = "/etc/system-image/channel.ini"
 )
 
-type failover interface {
+// The types that implement this interface can be used in the test logic
+type failer interface {
+	// Method for setting the failure conditions
 	set(c *C)
+	// Method for unsetting the failure conditions
 	unset(c *C)
 }
 
 type ZeroSizeKernel struct{}
+type SysrqCrashRCLocal struct{}
 
-func (zsk ZeroSizeKernel) set(c *C) {
-	makeWritable(c, baseOtherPath)
-
+func (ZeroSizeKernel) set(c *C) {
 	completePattern := filepath.Join(
 		baseOtherPath,
 		fmt.Sprintf(origKernelfilenamePattern, ""))
 	oldKernelFilename := getSingleFilename(c, completePattern)
 	newKernelFilename := fmt.Sprintf(
-		"%s/%s%s", baseOtherPath, destKernelFilenamePrefix, oldKernelFilename)
+		"%s/%s%s", baseOtherPath, destKernelFilenamePrefix, filepath.Base(oldKernelFilename))
 
-	err := os.Rename(oldKernelFilename, newKernelFilename)
-	c.Assert(err, IsNil,
-		Commentf("Error renaming file %s to %s", oldKernelFilename, newKernelFilename))
+	renameFileOtherPart(c, oldKernelFilename, newKernelFilename)
 }
 
-func (zsk ZeroSizeKernel) unset(c *C) {
-	makeWritable(c, baseOtherPath)
-
+func (ZeroSizeKernel) unset(c *C) {
 	completePattern := filepath.Join(
 		baseOtherPath,
 		fmt.Sprintf(origKernelfilenamePattern, destKernelFilenamePrefix))
 	oldKernelFilename := getSingleFilename(c, completePattern)
 	newKernelFilename := strings.Replace(oldKernelFilename, destKernelFilenamePrefix, "", 1)
 
-	err := os.Rename(oldKernelFilename, newKernelFilename)
-	c.Assert(err, IsNil,
-		Commentf("Error renaming file %s to %s", oldKernelFilename, newKernelFilename))
+	renameFileOtherPart(c, oldKernelFilename, newKernelFilename)
 }
 
+func (SysrqCrashRCLocal) set(c *C) {
+	makeWritable(c, baseOtherPath)
+	targetFile := fmt.Sprintf("%s/etc/rc.local", baseOtherPath)
+	execCommand(c, "sudo", "chmod", "a+xw", targetFile)
+	execCommandToFile(c, targetFile,
+		"sudo", "echo", "#bin/sh\nprintf c > /proc/sysrq-trigger")
+}
+
+func (SysrqCrashRCLocal) unset(c *C) {
+	makeWritable(c, baseOtherPath)
+	execCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", baseOtherPath))
+}
+
+func renameFileOtherPart(c *C, oldFilename, newFilename string) {
+	makeWritable(c, baseOtherPath)
+	execCommand(c, "sudo", "mv", oldFilename, newFilename)
+}
+
+/*
 func (s *FailoverSuite) TestZeroSizeKernel(c *C) {
 	commonFailoverTest(c, ZeroSizeKernel{})
 }
+*/
 
-func commonFailoverTest(c *C, f failover) {
+func (s *FailoverSuite) TestSysrqCrashRCLocal(c *C) {
+	commonFailoverTest(c, SysrqCrashRCLocal{})
+}
+
+func commonFailoverTest(c *C, f failer) {
 	currentVersion := getCurrentVersion(c)
 
 	if afterReboot(c) {
 		f.unset(c)
 		c.Assert(getSavedVersion(c), Equals, currentVersion)
+		removeRebootMark(c)
 	} else {
 		switchChannelVersion(c, currentVersion, currentVersion-1)
 		setSavedVersion(c, currentVersion)
@@ -84,6 +124,11 @@ func commonFailoverTest(c *C, f failover) {
 func reboot(c *C) {
 	// This will write the name of the current test as a reboot mark
 	execCommand(c, "sudo", "/tmp/autopkgtest-reboot", c.TestName())
+}
+
+func removeRebootMark(c *C) {
+	err := os.Unsetenv("ADT_REBOOT_MARK")
+	c.Assert(err, IsNil, Commentf("Error unsetting ADT_REBOOT_MARK"))
 }
 
 func afterReboot(c *C) bool {
@@ -115,8 +160,10 @@ func getSavedVersion(c *C) int {
 	versionFile := getVersionFile()
 	contents, err := ioutil.ReadFile(versionFile)
 	c.Assert(err, IsNil, Commentf("Error reading version file %s", versionFile))
+
 	version, err := strconv.Atoi(string(contents))
 	c.Assert(err, IsNil, Commentf("Error converting version %v", contents))
+
 	return version
 }
 
@@ -142,6 +189,7 @@ func switchChannelVersion(c *C, oldVersion, newVersion int) {
 }
 
 func callUpdate(c *C) {
+	c.Log("Calling snappy update...")
 	execCommand(c, "sudo", "snappy", "update")
 }
 
