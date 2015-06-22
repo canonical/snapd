@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
@@ -47,13 +46,13 @@ func init() {
 	}
 }
 
-func (x *cmdPurge) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+func (x *cmdPurge) Execute(args []string) error {
+	return withMutex(func() error {
+		return x.doPurge(args)
+	})
+}
 
+func (x *cmdPurge) doPurge(args []string) error {
 	var flags snappy.PurgeFlags
 	if x.Installed {
 		flags = snappy.DoPurgeActive

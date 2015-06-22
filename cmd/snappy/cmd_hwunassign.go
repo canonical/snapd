@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -48,13 +47,11 @@ func init() {
 	}
 }
 
-func (x *cmdHWUnassign) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+func (x *cmdHWUnassign) Execute(args []string) error {
+	return withMutex(x.doHWUnassign)
+}
 
+func (x *cmdHWUnassign) doHWUnassign() error {
 	if err := snappy.RemoveHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
 		return err
 	}
