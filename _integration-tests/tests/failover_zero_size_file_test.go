@@ -96,7 +96,6 @@ func renameFile(c *C, basePath, oldFilename, newFilename string) {
 }
 
 func getSingleFilename(c *C, pattern string) string {
-	c.Logf("PAttern: %s", pattern)
 	matches, err := filepath.Glob(pattern)
 
 	c.Assert(err, IsNil, Commentf("Error: %v", err))
