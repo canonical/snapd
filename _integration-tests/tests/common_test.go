@@ -54,6 +54,7 @@ func execCommandToFile(c *C, filename string, cmds ...string) {
 
 func (s *CommonSuite) SetUpSuite(c *C) {
 	execCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
+	execCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 }
 
 func (s *CommonSuite) SetUpTest(c *C) {

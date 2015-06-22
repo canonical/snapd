@@ -38,38 +38,8 @@ type FailoverSuite struct {
 var _ = Suite(&FailoverSuite{})
 
 const (
-	baseOtherPath             = "/writable/cache/system"
-	origKernelfilenamePattern = "boot/%svmlinuz*"
-	destKernelFilenamePrefix  = "snappy-selftest-"
-	channelCfgFile            = "/etc/system-image/channel.ini"
-	deadlockService           = `[Unit]
-Before=sysinit.target
-DefaultDependencies=no
-
-[Service]
-Type=oneshot
-ExecStartPre=-/bin/sh -c "echo 'DEBUG: $(date): deadlocked system' >/dev/console"
-ExecStartPre=-/bin/sh -c "echo 'DEBUG: $(date): deadlocked system' >/dev/ttyS0"
-ExecStart=/bin/systemctl start deadlock.service
-RemainAfterExit=yes
-
-[Install]
-RequiredBy=sysinit.target
-`
-	rebootService = `[Unit]
-DefaultDependencies=no
-Description=Hack to force reboot if booting did not finish after 90s
-
-[Service]
-Type=oneshot
-ExecStartPre=/bin/sleep 90
-ExecStart=-/bin/sh -c 'if ! systemctl is-active default.target; then wall "EMERGENCY REBOOT"; reboot -f; fi'
-
-[Install]
-RequiredBy=sysinit.target
-`
-	baseSystemdPath          = "/lib/systemd/system"
-	systemdTargetRequiresDir = "sysinit.target.requires"
+	baseOtherPath  = "/writable/cache/system"
+	channelCfgFile = "/etc/system-image/channel.ini"
 )
 
 // The types that implement this interface can be used in the test logic
@@ -80,118 +50,9 @@ type failer interface {
 	unset(c *C)
 }
 
-type zeroSizeKernel struct{}
-type sysrqCrashRCLocal struct{}
-type systemdDependencyLoop struct{}
-
-func (zeroSizeKernel) set(c *C) {
-	completePattern := filepath.Join(
-		baseOtherPath,
-		fmt.Sprintf(origKernelfilenamePattern, ""))
-	oldKernelFilename := getSingleFilename(c, completePattern)
-	newKernelFilename := fmt.Sprintf(
-		"%s/%s%s", baseOtherPath, destKernelFilenamePrefix, filepath.Base(oldKernelFilename))
-
-	renameFile(c, baseOtherPath, oldKernelFilename, newKernelFilename)
-	execCommand(c, "sudo", "touch", oldKernelFilename)
-}
-
-func (zeroSizeKernel) unset(c *C) {
-	completePattern := filepath.Join(
-		baseOtherPath,
-		fmt.Sprintf(origKernelfilenamePattern, destKernelFilenamePrefix))
-	oldKernelFilename := getSingleFilename(c, completePattern)
-	newKernelFilename := strings.Replace(oldKernelFilename, destKernelFilenamePrefix, "", 1)
-
-	renameFile(c, baseOtherPath, oldKernelFilename, newKernelFilename)
-}
-
-func (sysrqCrashRCLocal) set(c *C) {
-	makeWritable(c, baseOtherPath)
-	targetFile := fmt.Sprintf("%s/etc/rc.local", baseOtherPath)
-	execCommand(c, "sudo", "chmod", "a+xw", targetFile)
-	execCommandToFile(c, targetFile,
-		"sudo", "echo", "#bin/sh\nprintf c > /proc/sysrq-trigger")
-	makeReadonly(c, baseOtherPath)
-}
-
-func (sysrqCrashRCLocal) unset(c *C) {
-	makeWritable(c, baseOtherPath)
-	execCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", baseOtherPath))
-	makeReadonly(c, baseOtherPath)
-}
-
-func renameFile(c *C, basePath, oldFilename, newFilename string) {
-	makeWritable(c, basePath)
-	execCommand(c, "sudo", "mv", oldFilename, newFilename)
-	makeReadonly(c, basePath)
-}
-
-func (systemdDependencyLoop) set(c *C) {
-	installService(c, "deadlock", deadlockService, baseOtherPath)
-	installService(c, "emerg-reboot", rebootService, baseOtherPath)
-}
-
-func (systemdDependencyLoop) unset(c *C) {
-	unInstallService(c, "deadlock", baseOtherPath)
-	unInstallService(c, "emerg-reboot", baseOtherPath)
-}
-
-func installService(c *C, serviceName, serviceCfg, basePath string) {
-	makeWritable(c, basePath)
-
-	// Create service file
-	serviceFile := fmt.Sprintf("%s%s/%s.service", basePath, baseSystemdPath, serviceName)
-	execCommand(c, "sudo", "chmod", "a+w", fmt.Sprintf("%s%s", basePath, baseSystemdPath))
-	execCommandToFile(c, serviceFile, "sudo", "echo", serviceCfg)
-
-	// Create requires directory
-	requiresDirPart := fmt.Sprintf("%s/%s", baseSystemdPath, systemdTargetRequiresDir)
-	requiresDir := fmt.Sprintf("%s%s", basePath, requiresDirPart)
-	execCommand(c, "sudo", "mkdir", "-p", requiresDir)
-
-	// Symlink from the requires dir to the service file (with chroot for being
-	// usable in the other partition)
-	execCommand(c, "sudo", "chroot", basePath, "ln", "-s",
-		fmt.Sprintf("%s/%s.service", baseSystemdPath, serviceName),
-		fmt.Sprintf("%s/%s.service", requiresDirPart, serviceName),
-	)
-
-	makeReadonly(c, basePath)
-}
-
-func unInstallService(c *C, serviceName, basePath string) {
-	makeWritable(c, basePath)
-
-	// Disable the service
-	execCommand(c, "sudo", "chroot", basePath,
-		"systemctl", "disable", fmt.Sprintf("%s.service", serviceName))
-
-	// Remove the service file
-	execCommand(c, "sudo", "rm",
-		fmt.Sprintf("%s%s/%s.service", basePath, baseSystemdPath, serviceName))
-
-	// Remove the requires symlink
-	execCommand(c, "sudo", "rm",
-		fmt.Sprintf("%s%s/%s/%s.service", basePath, baseSystemdPath, systemdTargetRequiresDir, serviceName))
-
-	makeReadonly(c, basePath)
-}
-
-/*
-func (s *FailoverSuite) TestZeroSizeKernel(c *C) {
-	commonFailoverTest(c, zeroSizeKernel{})
-}
-
-func (s *FailoverSuite) TestSysrqCrashRCLocal(c *C) {
-	commonFailoverTest(c, sysrqCrashRCLocal{})
-}
-*/
-
-func (s *FailoverSuite) TestSystemdDependencyLoop(c *C) {
-	commonFailoverTest(c, systemdDependencyLoop{})
-}
-
+// This is the logic common to all the failover tests. Each of them has define a
+// type implementing the failer interface and call this function with an instance
+// of it
 func commonFailoverTest(c *C, f failer) {
 	currentVersion := getCurrentVersion(c)
 
@@ -287,13 +148,4 @@ func makeWritable(c *C, path string) {
 
 func makeReadonly(c *C, path string) {
 	execCommand(c, "sudo", "mount", "-o", "remount,ro", path)
-}
-
-func getSingleFilename(c *C, pattern string) string {
-	matches, err := filepath.Glob(pattern)
-
-	c.Assert(err, IsNil, Commentf("Error: %v", err))
-	c.Check(len(matches), Equals, 1)
-
-	return matches[0]
 }
