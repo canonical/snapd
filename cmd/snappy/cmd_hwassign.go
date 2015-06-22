@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -48,13 +47,11 @@ func init() {
 	}
 }
 
-func (x *cmdHWAssign) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+func (x *cmdHWAssign) Execute(args []string) error {
+	return withMutex(x.doHWAssign)
+}
 
+func (x *cmdHWAssign) doHWAssign() error {
 	if err := snappy.AddHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
 		if err == snappy.ErrHWAccessAlreadyAdded {
 			fmt.Printf("'%s' previously allowed access to '%s'. Skipping\n", x.Positional.PackageName, x.Positional.DevicePath)
