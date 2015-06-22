@@ -289,9 +289,6 @@ func quoteEnvVar(envVar string) string {
 
 func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) (string, error) {
 	wrapperTemplate := `#!/bin/sh
-# !!!never remove this line!!!
-##TARGET={{.Target}}
-
 set -e
 
 # app info (deprecated)

@@ -60,7 +60,7 @@ func (op policyOp) String() string {
 // Directories are created as needed. Errors out with any of the things that
 // could go wrong with this, including a file found by glob not being a
 // regular file.
-func iterOp(op policyOp, glob string, targetDir string, prefix string) (err error) {
+func iterOp(op policyOp, glob, targetDir, prefix string) (err error) {
 	if err = os.MkdirAll(targetDir, 0755); err != nil {
 		return fmt.Errorf("unable to make %v directory: %v", targetDir, err)
 	}
@@ -104,11 +104,11 @@ func iterOp(op policyOp, glob string, targetDir string, prefix string) (err erro
 
 // frameworkOp perform the given operation (either Install or Remove) on the
 // given package that's installed in the given path.
-func frameworkOp(op policyOp, pkgName string, instPath string) error {
+func frameworkOp(op policyOp, pkgName, instPath, rootDir string) error {
 	pol := filepath.Join(instPath, "meta", "framework-policy")
 	for _, i := range []string{"apparmor", "seccomp"} {
 		for _, j := range []string{"policygroups", "templates"} {
-			if err := iterOp(op, filepath.Join(pol, i, j, "*"), filepath.Join(SecBase, i, j), pkgName+"_"); err != nil {
+			if err := iterOp(op, filepath.Join(pol, i, j, "*"), filepath.Join(rootDir, SecBase, i, j), pkgName+"_"); err != nil {
 				return err
 			}
 		}
@@ -119,14 +119,14 @@ func frameworkOp(op policyOp, pkgName string, instPath string) error {
 
 // Install sets up the framework's policy from the given snap that's
 // installed in the given path.
-func Install(pkgName string, instPath string) error {
-	return frameworkOp(install, pkgName, instPath)
+func Install(pkgName, instPath, rootDir string) error {
+	return frameworkOp(install, pkgName, instPath, rootDir)
 }
 
 // Remove cleans up the framework's policy from the given snap that's
 // installed in the given path.
-func Remove(pkgName string, instPath string) error {
-	return frameworkOp(remove, pkgName, instPath)
+func Remove(pkgName, instPath, rootDir string) error {
+	return frameworkOp(remove, pkgName, instPath, rootDir)
 }
 
 func aaUp(old, new, dir, pfx string) map[string]bool {
