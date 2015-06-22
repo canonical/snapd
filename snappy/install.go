@@ -21,13 +21,12 @@ package snappy
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"sort"
-	"strings"
 
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
+	"launchpad.net/snappy/provisioning"
 )
 
 // InstallFlags can be used to pass additional flags to the install of a
@@ -44,28 +43,6 @@ const (
 	// AllowOEM allows the installation of OEM packages, this does not affect updates.
 	AllowOEM
 )
-
-// check if the image is in developer mode
-// FIXME: this is a bit crude right now, but it seems like there is not more
-//        meta-data to check right now
-// TODO: add feature to ubuntu-device-flash to write better info file when
-//       the image is in developer mode
-func inDeveloperMode() bool {
-	f, err := os.Open(cloudMetaDataFile)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-	data, err := ioutil.ReadAll(f)
-	if err != nil {
-		return false
-	}
-	needle := "public-keys:\n"
-	if strings.Contains(string(data), needle) {
-		return true
-	}
-	return false
-}
 
 // Update the installed snappy packages, it returns the updated Parts
 // if updates where available and an error and nil if any of the updates
@@ -115,7 +92,12 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 	if fi, err := os.Stat(name); err == nil && fi.Mode().IsRegular() {
 		// we allow unauthenticated package when in developer
 		// mode
-		if inDeveloperMode() {
+		//
+		// FIXME: this is terrible, we really need a single
+		//        bootloader dir like /boot or /boot/loader
+		//        instead of having to query the partition code
+		p := newPartition()
+		if provisioning.InDeveloperMode(p.BootloaderDir()) {
 			flags |= AllowUnauthenticated
 		}
 
