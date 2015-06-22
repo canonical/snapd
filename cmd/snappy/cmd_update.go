@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
@@ -54,12 +53,10 @@ const (
 )
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+	return withMutex(x.doUpdate)
+}
 
+func (x *cmdUpdate) doUpdate() error {
 	// FIXME: handle (more?) args
 	flags := snappy.DoInstallGC
 	if x.DisableGC {
