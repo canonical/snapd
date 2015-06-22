@@ -28,51 +28,64 @@ import (
 )
 
 const (
-	origFilenamePattern = "boot/%s%s*"
-	kernelFilename      = "vmlinuz"
-	initrdFilename      = "initrd"
-	destFilenamePrefix  = "snappy-selftest-"
+	origBootFilenamePattern    = "boot/%s%s*"
+	origSystemdFilenamePattern = "lib/systemd/%s%s"
+	kernelFilename             = "vmlinuz"
+	initrdFilename             = "initrd"
+	systemdFilename            = "systemd"
+	destFilenamePrefix         = "snappy-selftest-"
 )
 
 type zeroSizeKernel struct{}
 type zeroSizeInitrd struct{}
+type zeroSizeSystemd struct{}
 
 func (zeroSizeKernel) set(c *C) {
-	commonSet(c, kernelFilename)
+	commonSet(c, origBootFilenamePattern, kernelFilename)
 }
 
 func (zeroSizeKernel) unset(c *C) {
-	commonUnset(c, kernelFilename)
+	commonUnset(c, origBootFilenamePattern, kernelFilename)
 }
 
 func (zeroSizeInitrd) set(c *C) {
-	commonSet(c, initrdFilename)
+	commonSet(c, origBootFilenamePattern, initrdFilename)
 }
 
 func (zeroSizeInitrd) unset(c *C) {
-	commonUnset(c, initrdFilename)
+	commonUnset(c, origBootFilenamePattern, initrdFilename)
 }
 
-func commonSet(c *C, filename string) {
-	filenamePattern := fmt.Sprintf(origFilenamePattern, "", filename)
+func (zeroSizeSystemd) set(c *C) {
+	commonSet(c, origSystemdFilenamePattern, systemdFilename)
+}
+
+func (zeroSizeSystemd) unset(c *C) {
+	commonUnset(c, origSystemdFilenamePattern, systemdFilename)
+}
+
+func commonSet(c *C, origPattern, filename string) {
+	filenamePattern := fmt.Sprintf(origPattern, "", filename)
 	completePattern := filepath.Join(
 		baseOtherPath,
 		filenamePattern)
-	oldKernelFilename := getSingleFilename(c, completePattern)
-	newKernelFilename := fmt.Sprintf(
-		"%s/boot/%s%s", baseOtherPath, destFilenamePrefix, filepath.Base(oldKernelFilename))
+	oldFilename := getSingleFilename(c, completePattern)
+	filenameSuffix := fmt.Sprintf(
+		strings.Replace(origPattern, "*", "", 1), destFilenamePrefix, filepath.Base(oldFilename))
+	newFilename := fmt.Sprintf(
+		"%s/%s", baseOtherPath, filenameSuffix)
 
-	renameFile(c, baseOtherPath, oldKernelFilename, newKernelFilename)
+	renameFile(c, baseOtherPath, oldFilename, newFilename)
 }
 
-func commonUnset(c *C, filename string) {
+func commonUnset(c *C, origPattern, filename string) {
 	completePattern := filepath.Join(
 		baseOtherPath,
-		fmt.Sprintf(origFilenamePattern, destFilenamePrefix, filename))
-	oldKernelFilename := getSingleFilename(c, completePattern)
-	newKernelFilename := strings.Replace(oldKernelFilename, destFilenamePrefix, "", 1)
+		fmt.Sprintf(origPattern, destFilenamePrefix, filename))
+	oldFilename := getSingleFilename(c, completePattern)
+	newFilename := strings.Replace(oldFilename, destFilenamePrefix, "", 1)
 
-	renameFile(c, baseOtherPath, oldKernelFilename, newKernelFilename)
+	renameFile(c, baseOtherPath, oldFilename, newFilename)
 }
 
 func renameFile(c *C, basePath, oldFilename, newFilename string) {
@@ -100,4 +113,8 @@ func (s *FailoverSuite) TestZeroSizeKernel(c *C) {
 
 func (s *FailoverSuite) TestZeroSizeInitrd(c *C) {
 	commonFailoverTest(c, zeroSizeInitrd{})
+}
+
+func (s *FailoverSuite) TestZeroSizeSystemd(c *C) {
+	commonFailoverTest(c, zeroSizeSystemd{})
 }
