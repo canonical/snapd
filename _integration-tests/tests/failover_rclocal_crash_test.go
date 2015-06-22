@@ -25,9 +25,9 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-type sysrqCrashRCLocal struct{}
+type rcLocalCrash struct{}
 
-func (sysrqCrashRCLocal) set(c *C) {
+func (rcLocalCrash) set(c *C) {
 	makeWritable(c, baseOtherPath)
 	targetFile := fmt.Sprintf("%s/etc/rc.local", baseOtherPath)
 	execCommand(c, "sudo", "chmod", "a+xw", targetFile)
@@ -36,12 +36,12 @@ func (sysrqCrashRCLocal) set(c *C) {
 	makeReadonly(c, baseOtherPath)
 }
 
-func (sysrqCrashRCLocal) unset(c *C) {
+func (rcLocalCrash) unset(c *C) {
 	makeWritable(c, baseOtherPath)
 	execCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", baseOtherPath))
 	makeReadonly(c, baseOtherPath)
 }
 
-func (s *FailoverSuite) TestSysrqCrashRCLocal(c *C) {
-	commonFailoverTest(c, sysrqCrashRCLocal{})
+func (s *FailoverSuite) TestRCLocalCrash(c *C) {
+	commonFailoverTest(c, rcLocalCrash{})
 }
