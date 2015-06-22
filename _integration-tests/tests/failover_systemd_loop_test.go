@@ -42,11 +42,11 @@ RequiredBy=sysinit.target
 `
 	rebootService = `[Unit]
 DefaultDependencies=no
-Description=Hack to force reboot if booting did not finish after 60s
+Description=Hack to force reboot if booting did not finish after 20s
 
 [Service]
 Type=oneshot
-ExecStartPre=/bin/sleep 60
+ExecStartPre=/bin/sleep 20
 ExecStart=-/bin/sh -c 'if ! systemctl is-active default.target; then wall "EMERGENCY REBOOT"; reboot -f; fi'
 
 [Install]

@@ -28,30 +28,49 @@ import (
 )
 
 const (
-	origKernelfilenamePattern = "boot/%svmlinuz*"
-	destKernelFilenamePrefix  = "snappy-selftest-"
+	origFilenamePattern = "boot/%s%s*"
+	kernelFilename      = "vmlinuz"
+	initrdFilename      = "initrd"
+	destFilenamePrefix  = "snappy-selftest-"
 )
 
 type zeroSizeKernel struct{}
+type zeroSizeInitrd struct{}
 
 func (zeroSizeKernel) set(c *C) {
-	completePattern := filepath.Join(
-		baseOtherPath,
-		fmt.Sprintf(origKernelfilenamePattern, ""))
-	oldKernelFilename := getSingleFilename(c, completePattern)
-	newKernelFilename := fmt.Sprintf(
-		"%s/%s%s", baseOtherPath, destKernelFilenamePrefix, filepath.Base(oldKernelFilename))
-
-	renameFile(c, baseOtherPath, oldKernelFilename, newKernelFilename)
-	execCommand(c, "sudo", "touch", oldKernelFilename)
+	commonSet(c, kernelFilename)
 }
 
 func (zeroSizeKernel) unset(c *C) {
+	commonUnset(c, kernelFilename)
+}
+
+func (zeroSizeInitrd) set(c *C) {
+	commonSet(c, initrdFilename)
+}
+
+func (zeroSizeInitrd) unset(c *C) {
+	commonUnset(c, initrdFilename)
+}
+
+func commonSet(c *C, filename string) {
+	filenamePattern := fmt.Sprintf(origFilenamePattern, "", filename)
 	completePattern := filepath.Join(
 		baseOtherPath,
-		fmt.Sprintf(origKernelfilenamePattern, destKernelFilenamePrefix))
+		filenamePattern)
 	oldKernelFilename := getSingleFilename(c, completePattern)
-	newKernelFilename := strings.Replace(oldKernelFilename, destKernelFilenamePrefix, "", 1)
+	newKernelFilename := fmt.Sprintf(
+		"%s/boot/%s%s", baseOtherPath, destFilenamePrefix, filepath.Base(oldKernelFilename))
+
+	renameFile(c, baseOtherPath, oldKernelFilename, newKernelFilename)
+}
+
+func commonUnset(c *C, filename string) {
+	completePattern := filepath.Join(
+		baseOtherPath,
+		fmt.Sprintf(origFilenamePattern, destFilenamePrefix, filename))
+	oldKernelFilename := getSingleFilename(c, completePattern)
+	newKernelFilename := strings.Replace(oldKernelFilename, destFilenamePrefix, "", 1)
 
 	renameFile(c, baseOtherPath, oldKernelFilename, newKernelFilename)
 }
@@ -59,14 +78,16 @@ func (zeroSizeKernel) unset(c *C) {
 func renameFile(c *C, basePath, oldFilename, newFilename string) {
 	makeWritable(c, basePath)
 	execCommand(c, "sudo", "mv", oldFilename, newFilename)
+	execCommand(c, "sudo", "touch", oldFilename)
 	makeReadonly(c, basePath)
 }
 
 func getSingleFilename(c *C, pattern string) string {
+	c.Logf("PAttern: %s", pattern)
 	matches, err := filepath.Glob(pattern)
 
 	c.Assert(err, IsNil, Commentf("Error: %v", err))
-	c.Check(len(matches), Equals, 1)
+	c.Assert(len(matches), Equals, 1)
 
 	return matches[0]
 }
@@ -76,3 +97,7 @@ func (s *FailoverSuite) TestZeroSizeKernel(c *C) {
 	commonFailoverTest(c, zeroSizeKernel{})
 }
 */
+
+func (s *FailoverSuite) TestZeroSizeInitrd(c *C) {
+	commonFailoverTest(c, zeroSizeInitrd{})
+}
