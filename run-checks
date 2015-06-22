@@ -58,7 +58,7 @@ fi
 # integration tests
 if which adt-run >/dev/null 2>&1; then
     echo "Running integration tests"
-    ./integration-tests/selftest
+    go run _integration-tests/main.go
 fi
 
 echo "All good, what could possibly go wrong"

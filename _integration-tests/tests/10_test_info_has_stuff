@@ -1,5 +1,4 @@
 test() {
     test_regexp "^release: ubuntu-core/.*/(edge|stable)" $SNAPPY info
     test_regexp "^frameworks: $framework" $SNAPPY info
-    test_regexp "^apps:.*\<hello-world\>" $SNAPPY info
 }
