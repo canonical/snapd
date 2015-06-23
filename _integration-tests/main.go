@@ -36,10 +36,10 @@ const (
 	defaultChannel   = "edge"
 	defaultArch      = "amd64"
 	latestRevision   = ""
-	latestTestName   = "test command1"
-	failoverTestName = "test command2"
-	updateTestName   = "test command3"
-	shellTestName    = "test command4"
+	latestTestName   = "command1"
+	failoverTestName = "command2"
+	updateTestName   = "command3"
+	shellTestName    = "command4"
 )
 
 var (
@@ -119,9 +119,15 @@ func adtRun(rootPath string, testbedOptions []string, testnames ...string) {
 	prepareTargetDir(outputDir)
 	cmd := []string{
 		"adt-run", "-B",
-		"--override-control", "debian/integration-tests/control",
+		"--override-control", "debian/integration-tests/control"}
+
+	for i := range testnames {
+		cmd = append(cmd, "--testname", testnames[i])
+	}
+
+	cmd = append(cmd, []string{
 		"--built-tree", rootPath,
-		"--output-dir", outputDir}
+		"--output-dir", outputDir}...)
 
 	if !useFlashedImage {
 		debsSetup := []string{
@@ -133,10 +139,6 @@ func adtRun(rootPath string, testbedOptions []string, testnames ...string) {
 			"sync; sleep 2; mount -o remount,ro /",
 			fmt.Sprintf("--copy=%s:%s", debsDir, debsTestBedPath)}
 		cmd = append(cmd, debsSetup...)
-	}
-
-	for i := range testnames {
-		cmd = append(cmd, "--testname", testnames[i])
 	}
 
 	execCommand(append(cmd, testbedOptions...)...)
@@ -179,8 +181,8 @@ func main() {
 		buildDebs(rootPath, arch)
 	}
 	if testbedIP == "" {
-		createImage(defaultRelease, defaultChannel, getArchForImage(), latestRevision)
-		adtRun(rootPath, kvmSSHOptions, latestTestName, failoverTestName, shellTestName)
+		//createImage(defaultRelease, defaultChannel, getArchForImage(), latestRevision)
+		//adtRun(rootPath, kvmSSHOptions, latestTestName, failoverTestName, shellTestName)
 
 		createImage(defaultRelease, defaultChannel, getArchForImage(), "-1")
 		adtRun(rootPath, kvmSSHOptions, updateTestName)
