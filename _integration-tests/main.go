@@ -181,8 +181,8 @@ func main() {
 		buildDebs(rootPath, arch)
 	}
 	if testbedIP == "" {
-		//createImage(defaultRelease, defaultChannel, getArchForImage(), latestRevision)
-		//adtRun(rootPath, kvmSSHOptions, latestTestName, failoverTestName, shellTestName)
+		createImage(defaultRelease, defaultChannel, getArchForImage(), latestRevision)
+		adtRun(rootPath, kvmSSHOptions, latestTestName, failoverTestName, shellTestName)
 
 		createImage(defaultRelease, defaultChannel, getArchForImage(), "-1")
 		adtRun(rootPath, kvmSSHOptions, updateTestName)
