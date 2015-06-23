@@ -83,12 +83,16 @@ func RebootWithMark(c *C, mark string) {
 }
 
 func BeforeReboot(c *C) bool {
-	return os.Getenv("ADT_REBOOT_MARK") == ""
+	return checkRebootMark(c, "")
 }
 
 func AfterReboot(c *C) bool {
 	// $ADT_REBOOT_MARK contains the reboot mark, if we have rebooted it'll be the test name
-	return os.Getenv("ADT_REBOOT_MARK") == c.TestName()
+	return checkRebootMark(c, c.TestName())
+}
+
+func checkRebootMark(c *C, mark string) bool {
+	return os.Getenv("ADT_REBOOT_MARK") == mark
 }
 
 func RemoveRebootMark(c *C) {

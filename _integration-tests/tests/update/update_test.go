@@ -45,8 +45,11 @@ func (s *UpdateSuite) SetUpTest(c *C) {
 }
 
 func (s *UpdateSuite) TearDownTest(c *C) {
-	if GetCurrentVersion(c) != GetSavedVersion(c) {
-		rollback(c, "ubuntu-core", GetSavedVersion(c))
+	if AfterReboot(c) {
+		RemoveRebootMark(c)
+		if GetCurrentVersion(c) != GetSavedVersion(c) {
+			rollback(c, "ubuntu-core", GetSavedVersion(c))
+		}
 	}
 }
 
@@ -55,7 +58,6 @@ func (s *UpdateSuite) TestUpdateMustInstallNewerVersion(c *C) {
 		CallUpdate(c)
 		Reboot(c)
 	} else if AfterReboot(c) {
-		RemoveRebootMark(c)
 		c.Assert(GetCurrentVersion(c) > GetSavedVersion(c), Equals, true)
 	}
 }
