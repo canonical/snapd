@@ -92,7 +92,7 @@ func AfterReboot(c *C) bool {
 }
 
 func RemoveRebootMark(c *C) {
-	ExecCommand(c, "unset", "ADT_REBOOT_MARK")
+	os.Setenv("ADT_REBOOT_MARK", "")
 }
 
 func SetSavedVersion(c *C, version int) {
