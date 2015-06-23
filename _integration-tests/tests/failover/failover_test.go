@@ -21,10 +21,8 @@ package failover
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
 
 	. "../common"
@@ -61,52 +59,17 @@ func commonFailoverTest(c *C, f failer) {
 	currentVersion := GetCurrentVersion(c)
 
 	if AfterReboot(c) {
-		removeRebootMark(c)
+		RemoveRebootMark(c)
 		f.unset(c)
-		c.Assert(getSavedVersion(c), Equals, currentVersion)
+		c.Assert(GetSavedVersion(c), Equals, currentVersion)
 	} else {
 		switchChannelVersion(c, currentVersion, currentVersion-1)
-		setSavedVersion(c, currentVersion-1)
+		SetSavedVersion(c, currentVersion-1)
 
-		callUpdate(c)
+		CallUpdate(c)
 		f.set(c)
 		Reboot(c)
 	}
-}
-
-func reboot(c *C) {
-	// This will write the name of the current test as a reboot mark
-	ExecCommand(c, "sudo", "/tmp/autopkgtest-reboot", c.TestName())
-}
-
-func removeRebootMark(c *C) {
-	ExecCommand(c, "unset", "ADT_REBOOT_MARK")
-}
-
-func afterReboot(c *C) bool {
-	// $ADT_REBOOT_MARK contains the reboot mark, if we have rebooted it'll be the test name
-	return os.Getenv("ADT_REBOOT_MARK") == c.TestName()
-}
-
-func setSavedVersion(c *C, version int) {
-	versionFile := getVersionFile()
-	err := ioutil.WriteFile(versionFile, []byte(strconv.Itoa(version)), 0777)
-	c.Assert(err, IsNil, Commentf("Error writing version file %s with %s", versionFile, version))
-}
-
-func getSavedVersion(c *C) int {
-	versionFile := getVersionFile()
-	contents, err := ioutil.ReadFile(versionFile)
-	c.Assert(err, IsNil, Commentf("Error reading version file %s", versionFile))
-
-	version, err := strconv.Atoi(string(contents))
-	c.Assert(err, IsNil, Commentf("Error converting version %v", contents))
-
-	return version
-}
-
-func getVersionFile() string {
-	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "version")
 }
 
 func switchChannelVersion(c *C, oldVersion, newVersion int) {
@@ -124,11 +87,6 @@ func switchChannelVersion(c *C, oldVersion, newVersion int) {
 			makeReadonly(c, target)
 		}
 	}
-}
-
-func callUpdate(c *C) {
-	c.Log("Calling snappy update...")
-	ExecCommand(c, "sudo", "snappy", "update")
 }
 
 func makeWritable(c *C, path string) {

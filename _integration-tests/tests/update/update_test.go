@@ -33,29 +33,29 @@ var _ = Suite(&UpdateSuite{})
 
 type UpdateSuite struct {
 	CommonSuite
-	originalVersion int
 }
 
 func rollback(c *C, packageName string, version int) {
 	ExecCommand(c, "sudo", "snappy", "rollback", packageName, string(version))
-	Reboot(c)
+	RebootWithMark(c, c.TestName()+"rollback")
 }
 
 func (s *UpdateSuite) SetUpTest(c *C) {
-	s.originalVersion = GetCurrentVersion(c)
+	SetSavedVersion(GetCurrentVersion(c))
 }
 
 func (s *UpdateSuite) TearDownTest(c *C) {
-	if GetCurrentVersion(c) != s.originalVersion {
-		rollback(c, "ubuntu-core", s.originalVersion)
+	if GetCurrentVersion(c) != GetSavedVersion() {
+		rollback(c, "ubuntu-core", GetSavedVersion())
 	}
 }
 
 func (s *UpdateSuite) TestUpdateMustInstallNewerVersion(c *C) {
-	if !AfterReboot(c) {
+	if BeforeReboot(c) {
 		CallUpdate(c)
 		Reboot(c)
-	} else {
-		c.Assert(GetCurrentVersion(c) < s.originalVersion, Equals, true)
+	} else if AfterReboot(c) {
+		RemoveRebootMark(c)
+		c.Assert(GetCurrentVersion(c) > GetSavedVersion(), Equals, true)
 	}
 }

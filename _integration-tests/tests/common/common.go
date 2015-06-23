@@ -21,8 +21,10 @@ package common
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -74,13 +76,45 @@ func CallUpdate(c *C) {
 }
 
 func Reboot(c *C) {
-	// This will write the name of the current test as a reboot mark
-	ExecCommand(c, "sudo", "/tmp/autopkgtest-reboot", c.TestName())
+	RebootWithMark(c, c.TestName())
+}
+
+func RebootWithMark(c *C, mark string) {
+	ExecCommand(c, "sudo", "/tmp/autopkgtest-reboot", mark)
+}
+
+func BeforeReboot(c *C) bool {
+	return os.Getenv("ADT_REBOOT_MARK") == ""
 }
 
 func AfterReboot(c *C) bool {
 	// $ADT_REBOOT_MARK contains the reboot mark, if we have rebooted it'll be the test name
 	return os.Getenv("ADT_REBOOT_MARK") == c.TestName()
+}
+
+func RemoveRebootMark(c *C) {
+	ExecCommand(c, "unset", "ADT_REBOOT_MARK")
+}
+
+func SetSavedVersion(c *C, version int) {
+	versionFile := getVersionFile()
+	err := ioutil.WriteFile(versionFile, []byte(strconv.Itoa(version)), 0777)
+	c.Assert(err, IsNil, Commentf("Error writing version file %s with %s", versionFile, version))
+}
+
+func GetSavedVersion(c *C) int {
+	versionFile := getVersionFile()
+	contents, err := ioutil.ReadFile(versionFile)
+	c.Assert(err, IsNil, Commentf("Error reading version file %s", versionFile))
+
+	version, err := strconv.Atoi(string(contents))
+	c.Assert(err, IsNil, Commentf("Error converting version %v", contents))
+
+	return version
+}
+
+func getVersionFile() string {
+	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "version")
 }
 
 func (s *CommonSuite) SetUpSuite(c *C) {
