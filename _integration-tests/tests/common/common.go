@@ -130,6 +130,7 @@ func (s *CommonSuite) SetUpTest(c *C) {
 
 	if afterReboot == "" {
 		c.Logf("****** Running %s", c.TestName())
+		SetSavedVersion(c, GetCurrentVersion(c))
 	} else {
 		if afterReboot == c.TestName() {
 			c.Logf("****** Resuming %s after reboot", c.TestName())

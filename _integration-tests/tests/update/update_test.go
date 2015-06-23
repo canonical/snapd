@@ -40,10 +40,6 @@ func rollback(c *C, packageName string, version int) {
 	RebootWithMark(c, c.TestName()+"rollback")
 }
 
-func (s *UpdateSuite) SetUpTest(c *C) {
-	SetSavedVersion(c, GetCurrentVersion(c))
-}
-
 func (s *UpdateSuite) TearDownTest(c *C) {
 	if AfterReboot(c) {
 		RemoveRebootMark(c)
