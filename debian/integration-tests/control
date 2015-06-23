@@ -1,4 +1,8 @@
-Test-Command: snappy.test -gocheck.vv -test.outputdir=$ADT_ARTIFACTS
+Test-Command: snappy-latest.test -gocheck.vv -test.outputdir=$ADT_ARTIFACTS
+Restrictions: allow-stderr
+Depends: ubuntu-snappy-tests
+
+Test-Command: snappy-update.test -gocheck.vv -test.outputdir=$ADT_ARTIFACTS
 Restrictions: allow-stderr
 Depends: ubuntu-snappy-tests
 

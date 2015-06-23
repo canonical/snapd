@@ -71,19 +71,24 @@ func buildDebs(rootPath, arch string) {
 	execCommand(buildCommand...)
 }
 
-func createImage(release, channel, arch string) {
+func createImage(release, channel, arch, revision string) {
 	fmt.Println("Creating image...")
 	prepareTargetDir(imageDir)
-	execCommand(
-		"sudo", "ubuntu-device-flash", "--verbose",
+	udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
+	if revision != nil {
+		udfCommand = append(udfCommand, "--revision", revision)
+	}
+	coreOptions := []string{
 		"core", release,
-		"-o", imageTarget,
-		fmt.Sprintf("--oem=%s", arch),
+		"--output", imageTarget,
+		"--oem", arch,
 		"--channel", channel,
-		"--developer-mode")
+		"--developer-mode",
+	}
+	execCommand(append(udfCommand, coreOptions...))
 }
 
-func adtRun(rootPath string, testbedOptions []string) {
+func adtRun(rootPath string, testbedOptions []string, testname string) {
 	fmt.Println("Calling adt-run...")
 	prepareTargetDir(outputDir)
 	cmd := []string{
@@ -144,7 +149,7 @@ func main() {
 		buildDebs(rootPath, arch)
 	}
 	if testbedIP == "" {
-		createImage(defaultRelease, defaultChannel, getArchForImage())
+		createImage(defaultRelease, defaultChannel, getArchForImage(), nil)
 		adtRun(rootPath, kvmSSHOptions)
 	} else {
 		execCommand("ssh-copy-id", "ubuntu@"+testbedIP)
