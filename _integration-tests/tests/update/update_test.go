@@ -29,9 +29,9 @@ import (
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
 
-var _ = Suite(&UpdateSuite{})
+var _ = Suite(&updateSuite{})
 
-type UpdateSuite struct {
+type updateSuite struct {
 	CommonSuite
 }
 
@@ -40,7 +40,7 @@ func rollback(c *C, packageName string, version int) {
 	RebootWithMark(c, c.TestName()+"rollback")
 }
 
-func (s *UpdateSuite) TearDownTest(c *C) {
+func (s *updateSuite) TearDownTest(c *C) {
 	if AfterReboot(c) {
 		RemoveRebootMark(c)
 		if GetCurrentVersion(c) != GetSavedVersion(c) {
@@ -49,7 +49,7 @@ func (s *UpdateSuite) TearDownTest(c *C) {
 	}
 }
 
-func (s *UpdateSuite) TestUpdateMustInstallNewerVersion(c *C) {
+func (s *updateSuite) TestUpdateMustInstallNewerVersion(c *C) {
 	if BeforeReboot(c) {
 		CallUpdate(c)
 		Reboot(c)

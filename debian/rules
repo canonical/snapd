@@ -53,12 +53,10 @@ override_dh_systemd_start:
 
 override_dh_auto_build:
 	dh_auto_build
-	GOPATH=$$PWD/$(DH_BUILDDIR) go test -c ./_integration-tests/tests/failover
-	mv failover.test $$PWD/$(DH_BUILDDIR)/bin/snappy-failover.test
-	GOPATH=$$PWD/$(DH_BUILDDIR) go test -c ./_integration-tests/tests/latest
-	mv latest.test $$PWD/$(DH_BUILDDIR)/bin/snappy-latest.test
-	GOPATH=$$PWD/$(DH_BUILDDIR) go test -c ./_integration-tests/tests/update
-	mv update.test $$PWD/$(DH_BUILDDIR)/bin/snappy-update.test
+	for testType in failover latest update; do \
+		GOPATH=$$PWD/$(DH_BUILDDIR) go test -c ./_integration-tests/tests/$$testType; \
+		mv $$testType.test $$PWD/$(DH_BUILDDIR)/bin/snappy-$$testType.test; \
+	done
 
 override_dh_auto_install:
 	dh_auto_install -O--buildsystem=golang

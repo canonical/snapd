@@ -30,9 +30,9 @@ import (
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
 
-var _ = Suite(&InstallSuite{})
+var _ = Suite(&installSuite{})
 
-type InstallSuite struct {
+type installSuite struct {
 	CommonSuite
 }
 
@@ -40,11 +40,11 @@ func installSnap(c *C, packageName string) []byte {
 	return ExecCommand(c, "sudo", "snappy", "install", packageName)
 }
 
-func (s *InstallSuite) TearDownTest(c *C) {
+func (s *installSuite) TearDownTest(c *C) {
 	ExecCommand(c, "sudo", "snappy", "remove", "hello-world")
 }
 
-func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
+func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 	installOutput := installSnap(c, "hello-world")
 
 	expected := "" +
@@ -56,7 +56,7 @@ func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 	c.Assert(string(installOutput), Matches, expected)
 }
 
-func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
+func (s *installSuite) TestCallBinaryFromInstalledSnap(c *C) {
 	installSnap(c, "hello-world")
 
 	echoOutput := ExecCommand(c, "hello-world.echo")
@@ -64,7 +64,7 @@ func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
 	c.Assert(string(echoOutput), Equals, "Hello World!\n")
 }
 
-func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
+func (s *installSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
 	installSnap(c, "hello-world")
 
 	infoOutput := ExecCommand(c, "sudo", "snappy", "info")

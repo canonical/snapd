@@ -108,15 +108,15 @@ func getSingleFilename(c *C, pattern string) string {
 }
 
 /*
-func (s *FailoverSuite) TestZeroSizeKernel(c *C) {
+func (s *failoverSuite) TestZeroSizeKernel(c *C) {
 	commonFailoverTest(c, zeroSizeKernel{})
 }
 */
 
-func (s *FailoverSuite) TestZeroSizeInitrd(c *C) {
+func (s *failoverSuite) TestZeroSizeInitrd(c *C) {
 	commonFailoverTest(c, zeroSizeInitrd{})
 }
 
-func (s *FailoverSuite) TestZeroSizeSystemd(c *C) {
+func (s *failoverSuite) TestZeroSizeSystemd(c *C) {
 	commonFailoverTest(c, zeroSizeSystemd{})
 }

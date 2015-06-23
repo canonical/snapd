@@ -45,6 +45,6 @@ func (rcLocalCrash) unset(c *C) {
 	makeReadonly(c, baseOtherPath)
 }
 
-func (s *FailoverSuite) TestRCLocalCrash(c *C) {
+func (s *failoverSuite) TestRCLocalCrash(c *C) {
 	commonFailoverTest(c, rcLocalCrash{})
 }
