@@ -33,11 +33,11 @@ import (
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
 
-type FailoverSuite struct {
+type failoverSuite struct {
 	CommonSuite
 }
 
-var _ = Suite(&FailoverSuite{})
+var _ = Suite(&failoverSuite{})
 
 const (
 	baseOtherPath  = "/writable/cache/system"

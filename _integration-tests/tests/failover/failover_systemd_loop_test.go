@@ -112,6 +112,6 @@ func unInstallService(c *C, serviceName, basePath string) {
 	makeReadonly(c, basePath)
 }
 
-func (s *FailoverSuite) TestSystemdDependencyLoop(c *C) {
+func (s *failoverSuite) TestSystemdDependencyLoop(c *C) {
 	commonFailoverTest(c, systemdDependencyLoop{})
 }
