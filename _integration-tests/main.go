@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package main
 
 import (
@@ -7,14 +26,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 const (
-	baseDir         = "/tmp/snappy-test"
-	debsTestBedPath = "/tmp/snappy-debs"
-	defaultRelease  = "15.04"
-	defaultChannel  = "edge"
-	defaultArch     = "amd64"
+	baseDir          = "/tmp/snappy-test"
+	debsTestBedPath  = "/tmp/snappy-debs"
+	defaultRelease   = "rolling"
+	defaultChannel   = "edge"
+	defaultArch      = "amd64"
+	latestRevision   = ""
+	latestTestName   = "test command1"
+	failoverTestName = "test command2"
+	updateTestName   = "test command3"
+	shellTestName    = "test command4"
 )
 
 var (
@@ -42,6 +67,8 @@ func init() {
 }
 
 func execCommand(cmds ...string) {
+	fmt.Print("Running command: ")
+	fmt.Println(strings.Join(cmds, " "))
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -67,7 +94,6 @@ func buildDebs(rootPath, arch string) {
 		dontSignDebs := []string{"--", "-uc", "-us"}
 		buildCommand = append(buildCommand, dontSignDebs...)
 	}
-	fmt.Println(buildCommand)
 	execCommand(buildCommand...)
 }
 
@@ -75,7 +101,7 @@ func createImage(release, channel, arch, revision string) {
 	fmt.Println("Creating image...")
 	prepareTargetDir(imageDir)
 	udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
-	if revision != nil {
+	if revision != "" {
 		udfCommand = append(udfCommand, "--revision", revision)
 	}
 	coreOptions := []string{
@@ -85,10 +111,10 @@ func createImage(release, channel, arch, revision string) {
 		"--channel", channel,
 		"--developer-mode",
 	}
-	execCommand(append(udfCommand, coreOptions...))
+	execCommand(append(udfCommand, coreOptions...)...)
 }
 
-func adtRun(rootPath string, testbedOptions []string, testname string) {
+func adtRun(rootPath string, testbedOptions []string, testnames ...string) {
 	fmt.Println("Calling adt-run...")
 	prepareTargetDir(outputDir)
 	cmd := []string{
@@ -107,6 +133,10 @@ func adtRun(rootPath string, testbedOptions []string, testname string) {
 			"sync; sleep 2; mount -o remount,ro /",
 			fmt.Sprintf("--copy=%s:%s", debsDir, debsTestBedPath)}
 		cmd = append(cmd, debsSetup...)
+	}
+
+	for i := range testnames {
+		cmd = append(cmd, "--testname", testnames[i])
 	}
 
 	execCommand(append(cmd, testbedOptions...)...)
@@ -149,10 +179,14 @@ func main() {
 		buildDebs(rootPath, arch)
 	}
 	if testbedIP == "" {
-		createImage(defaultRelease, defaultChannel, getArchForImage(), nil)
-		adtRun(rootPath, kvmSSHOptions)
+		createImage(defaultRelease, defaultChannel, getArchForImage(), latestRevision)
+		adtRun(rootPath, kvmSSHOptions, latestTestName, failoverTestName, shellTestName)
+
+		createImage(defaultRelease, defaultChannel, getArchForImage(), "-1")
+		adtRun(rootPath, kvmSSHOptions, updateTestName)
 	} else {
 		execCommand("ssh-copy-id", "ubuntu@"+testbedIP)
-		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP))
+		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP), shellTestName)
 	}
+
 }
