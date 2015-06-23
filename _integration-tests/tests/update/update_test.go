@@ -41,12 +41,12 @@ func rollback(c *C, packageName string, version int) {
 }
 
 func (s *UpdateSuite) SetUpTest(c *C) {
-	SetSavedVersion(GetCurrentVersion(c))
+	SetSavedVersion(c, GetCurrentVersion(c))
 }
 
 func (s *UpdateSuite) TearDownTest(c *C) {
-	if GetCurrentVersion(c) != GetSavedVersion() {
-		rollback(c, "ubuntu-core", GetSavedVersion())
+	if GetCurrentVersion(c) != GetSavedVersion(c) {
+		rollback(c, "ubuntu-core", GetSavedVersion(c))
 	}
 }
 
@@ -56,6 +56,6 @@ func (s *UpdateSuite) TestUpdateMustInstallNewerVersion(c *C) {
 		Reboot(c)
 	} else if AfterReboot(c) {
 		RemoveRebootMark(c)
-		c.Assert(GetCurrentVersion(c) > GetSavedVersion(), Equals, true)
+		c.Assert(GetCurrentVersion(c) > GetSavedVersion(c), Equals, true)
 	}
 }

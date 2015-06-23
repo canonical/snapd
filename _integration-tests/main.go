@@ -67,7 +67,6 @@ func init() {
 }
 
 func execCommand(cmds ...string) {
-	fmt.Print("Running command: ")
 	fmt.Println(strings.Join(cmds, " "))
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	cmd.Stdout = os.Stdout

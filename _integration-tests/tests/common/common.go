@@ -35,7 +35,6 @@ import (
 type CommonSuite struct{}
 
 func ExecCommand(c *C, cmds ...string) []byte {
-	fmt.Print("Running command: ")
 	fmt.Println(strings.Join(cmds, " "))
 
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
