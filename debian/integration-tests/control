@@ -1,0 +1,6 @@
+Test-Command: snappy.test -gocheck.vv -test.outputdir=$ADT_ARTIFACTS
+Restrictions: allow-stderr
+Depends: ubuntu-snappy-tests
+
+Test-Command: ./_integration-tests/snappy-selftest --yes-really
+Depends:

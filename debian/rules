@@ -4,6 +4,7 @@
 #export DH_VERBOSE=1
 export DH_OPTIONS
 export DH_GOPKG := launchpad.net/snappy
+DH_BUILDDIR = obj-$(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
 
 %:
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd
@@ -49,6 +50,11 @@ override_dh_systemd_start:
 		--no-start \
 		-pubuntu-snappy \
 		snappy-autopilot.service
+
+override_dh_auto_build:
+	dh_auto_build
+	GOPATH=$$PWD/$(DH_BUILDDIR) go test -c ./_integration-tests/tests
+	mv tests.test $$PWD/$(DH_BUILDDIR)/bin/snappy.test
 
 override_dh_auto_install:
 	dh_auto_install -O--buildsystem=golang
