@@ -30,8 +30,8 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type ProvisioningTestSuite struct {
-	tempdir         string
-	installYamlFile string
+	mockBootDir  string
+	mockYamlFile string
 }
 
 var _ = Suite(&ProvisioningTestSuite{})
@@ -78,74 +78,70 @@ options:
 var garbageData = `Fooled you!?`
 
 func (ts *ProvisioningTestSuite) SetUpTest(c *C) {
-	ts.tempdir = c.MkDir()
-
-	ts.installYamlFile = filepath.Join(ts.tempdir, "install.yaml")
-
-	InstallYamlFile = ts.installYamlFile
-	os.Remove(InstallYamlFile)
+	ts.mockBootDir = c.MkDir()
+	ts.mockYamlFile = filepath.Join(ts.mockBootDir, "install.yaml")
 }
 
 func (ts *ProvisioningTestSuite) TestSideLoadedSystemNoInstallYaml(c *C) {
-	c.Assert(IsSideLoaded(""), Equals, false)
+	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestSideLoadedSystem(c *C) {
-	c.Assert(IsSideLoaded(""), Equals, false)
+	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
 
-	err := ioutil.WriteFile(InstallYamlFile, []byte(yamlData), 0750)
+	err := ioutil.WriteFile(ts.mockYamlFile, []byte(yamlData), 0750)
 	c.Assert(err, IsNil)
 
-	c.Assert(IsSideLoaded(""), Equals, true)
+	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, true)
 
-	os.Remove(InstallYamlFile)
-	c.Assert(IsSideLoaded(""), Equals, false)
+	os.Remove(ts.mockYamlFile)
+	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestSideLoadedSystemNoDevicePart(c *C) {
 
-	c.Assert(IsSideLoaded(""), Equals, false)
+	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
 
-	err := ioutil.WriteFile(InstallYamlFile, []byte(yamlDataNoDevicePart), 0750)
+	err := ioutil.WriteFile(ts.mockYamlFile, []byte(yamlDataNoDevicePart), 0750)
 	c.Assert(err, IsNil)
 
-	c.Assert(IsSideLoaded(""), Equals, false)
+	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
 
-	os.Remove(InstallYamlFile)
-	c.Assert(IsSideLoaded(""), Equals, false)
+	os.Remove(ts.mockYamlFile)
+	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestSideLoadedSystemGarbageInstallYaml(c *C) {
-	c.Assert(IsSideLoaded(""), Equals, false)
+	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
 
-	err := ioutil.WriteFile(InstallYamlFile, []byte(garbageData), 0750)
+	err := ioutil.WriteFile(ts.mockYamlFile, []byte(garbageData), 0750)
 	c.Assert(err, IsNil)
 
 	// we assume sideloaded if the file isn't parseable
-	c.Assert(IsSideLoaded(""), Equals, true)
+	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, true)
 
-	os.Remove(InstallYamlFile)
-	c.Assert(IsSideLoaded(""), Equals, false)
+	os.Remove(ts.mockYamlFile)
+	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestParseInstallYaml(c *C) {
 
-	_, err := parseInstallYaml(InstallYamlFile)
-	c.Check(err, Equals, ErrNoInstallYaml)
+	_, err := parseInstallYaml(ts.mockYamlFile)
+	c.Check(err, ErrorMatches, `failed to read provisioning data: open .*/install.yaml: no such file or directory`)
 
-	err = ioutil.WriteFile(InstallYamlFile, []byte(yamlData), 0750)
+	err = ioutil.WriteFile(ts.mockYamlFile, []byte(yamlData), 0750)
 	c.Check(err, IsNil)
-	_, err = parseInstallYaml(InstallYamlFile)
-	c.Check(err, IsNil)
-
-	err = ioutil.WriteFile(InstallYamlFile, []byte(yamlDataNoDevicePart), 0750)
-	c.Check(err, IsNil)
-	_, err = parseInstallYaml(InstallYamlFile)
+	_, err = parseInstallYaml(ts.mockYamlFile)
 	c.Check(err, IsNil)
 
-	err = ioutil.WriteFile(InstallYamlFile, []byte(garbageData), 0750)
+	err = ioutil.WriteFile(ts.mockYamlFile, []byte(yamlDataNoDevicePart), 0750)
 	c.Check(err, IsNil)
-	_, err = parseInstallYaml(InstallYamlFile)
+	_, err = parseInstallYaml(ts.mockYamlFile)
+	c.Check(err, IsNil)
+
+	err = ioutil.WriteFile(ts.mockYamlFile, []byte(garbageData), 0750)
+	c.Check(err, IsNil)
+	_, err = parseInstallYaml(ts.mockYamlFile)
 	c.Check(err, Not(Equals), nil)
 }
 
@@ -162,4 +158,26 @@ func (ts *ProvisioningTestSuite) TestParseInstallYamlData(c *C) {
 
 	_, err = parseInstallYamlData([]byte(garbageData))
 	c.Check(err, Not(Equals), nil)
+}
+
+func (ts *ProvisioningTestSuite) TestInDeveloperModeEmpty(c *C) {
+	c.Assert(InDeveloperMode(""), Equals, false)
+}
+
+func (ts *ProvisioningTestSuite) TestInDeveloperModeWithDevModeOn(c *C) {
+	err := ioutil.WriteFile(ts.mockYamlFile, []byte(`
+options:
+ developer-mode: true
+`), 0644)
+	c.Assert(err, IsNil)
+	c.Assert(InDeveloperMode(ts.mockBootDir), Equals, true)
+}
+
+func (ts *ProvisioningTestSuite) TestInDeveloperModeWithDevModeOff(c *C) {
+	err := ioutil.WriteFile(ts.mockYamlFile, []byte(`
+options:
+ developer-mode: false
+`), 0644)
+	c.Assert(err, IsNil)
+	c.Assert(InDeveloperMode(ts.mockBootDir), Equals, false)
 }

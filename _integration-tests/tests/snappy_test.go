@@ -33,15 +33,16 @@ var _ = Suite(&InstallSuite{})
 
 type InstallSuite struct{}
 
-func (s *InstallSuite) installSnap(c *C, packageName string) []byte {
+func (s *InstallSuite) installSnap(c *C, packageName string) string {
 	return s.execCommand(c, "sudo", "snappy", "install", packageName)
 }
 
-func (s *InstallSuite) execCommand(c *C, cmds ...string) []byte {
+func (s *InstallSuite) execCommand(c *C, cmds ...string) string {
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	output, err := cmd.CombinedOutput()
-	c.Assert(err, IsNil, Commentf("Error: %v", output))
-	return output
+	stringOutput := string(output)
+	c.Assert(err, IsNil, Commentf("Error: %v", stringOutput))
+	return stringOutput
 }
 
 func (s *InstallSuite) SetUpSuite(c *C) {
@@ -61,7 +62,7 @@ func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 		".*\n" +
 		"hello-world   .* .*  canonical \n" +
 		".*\n"
-	c.Assert(string(installOutput), Matches, expected)
+	c.Assert(installOutput, Matches, expected)
 }
 
 func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
@@ -69,7 +70,7 @@ func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
 
 	echoOutput := s.execCommand(c, "hello-world.echo")
 
-	c.Assert(string(echoOutput), Equals, "Hello World!\n")
+	c.Assert(echoOutput, Equals, "Hello World!\n")
 }
 
 func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
@@ -78,5 +79,5 @@ func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
 	infoOutput := s.execCommand(c, "sudo", "snappy", "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
-	c.Assert(string(infoOutput), Matches, expected)
+	c.Assert(infoOutput, Matches, expected)
 }
