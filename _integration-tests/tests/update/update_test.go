@@ -20,6 +20,7 @@
 package update
 
 import (
+	"strconv"
 	"testing"
 
 	. "../common"
@@ -36,8 +37,9 @@ type updateSuite struct {
 }
 
 func rollback(c *C, packageName string, version int) {
-	ExecCommand(c, "sudo", "snappy", "rollback", packageName, string(version))
-	RebootWithMark(c, c.TestName()+"rollback")
+	c.Log("Calling snappy rollback...")
+	ExecCommand(c, "sudo", "snappy", "rollback", packageName, strconv.Itoa(version))
+	RebootWithMark(c, c.TestName()+"-rollback")
 }
 
 func (s *updateSuite) TearDownTest(c *C) {

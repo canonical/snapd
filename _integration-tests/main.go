@@ -181,7 +181,10 @@ func main() {
 	}
 	if testbedIP == "" {
 		createImage(defaultRelease, defaultChannel, getArchForImage(), latestRevision)
-		adtRun(rootPath, kvmSSHOptions, latestTestName, failoverTestName, shellTestName)
+		latestTests := []string{latestTestName, failoverTestName, shellTestName}
+		for i := range latestTests {
+			adtRun(rootPath, kvmSSHOptions, latestTests[i])
+		}
 
 		createImage(defaultRelease, defaultChannel, getArchForImage(), "-1")
 		adtRun(rootPath, kvmSSHOptions, updateTestName)
