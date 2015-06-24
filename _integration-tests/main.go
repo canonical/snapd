@@ -28,17 +28,20 @@ var (
 		[]string{
 			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
 			"--", "-i", imageTarget}...)
-	useFlashedImage bool
-	debsDir         string
-	arch            string
-	testbedIP       string
 )
 
-func init() {
-	flag.BoolVar(&useFlashedImage, "installed-image", false, "Wether we should install the snappy version from the branch or use the one installed on the image")
-	flag.StringVar(&debsDir, "debs-dir", defaultDebsDir, "Directory with the snappy debian packages.")
-	flag.StringVar(&arch, "arch", defaultArch, "Target architecture (amd64, armhf)")
-	flag.StringVar(&testbedIP, "ip", "", "IP of the testbed to run the tests in")
+func setupAndRunTests(useFlashedImage bool, debsDir, arch, testbedIP string) {
+	if !useFlashedImage && debsDir == defaultDebsDir {
+		buildDebs(rootPath, arch)
+	}
+	rootPath := getRootPath()
+	if testbedIP == "" {
+		createImage(defaultRelease, defaultChannel, getArchForImage())
+		adtRun(rootPath, kvmSSHOptions)
+	} else {
+		execCommand("ssh-copy-id", "ubuntu@"+testbedIP)
+		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP))
+	}
 }
 
 func execCommand(cmds ...string) {
@@ -136,18 +139,18 @@ func getArchForImage() string {
 }
 
 func main() {
+	var (
+		useFlashedImage = flag.Bool("installed-image", false,
+			"Wether we should install the snappy version from the branch or use the one installed on the image")
+		debsDir = flag.String("debs-dir", defaultDebsDir,
+			"Directory with the snappy debian packages.")
+		arch = flag.String("arch", defaultArch,
+			"Target architecture (amd64, armhf)")
+		testbedIP = flag.String("ip", "",
+			"IP of the testbed to run the tests in")
+	)
+
 	flag.Parse()
 
-	rootPath := getRootPath()
-
-	if !useFlashedImage && debsDir == defaultDebsDir {
-		buildDebs(rootPath, arch)
-	}
-	if testbedIP == "" {
-		createImage(defaultRelease, defaultChannel, getArchForImage())
-		adtRun(rootPath, kvmSSHOptions)
-	} else {
-		execCommand("ssh-copy-id", "ubuntu@"+testbedIP)
-		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP))
-	}
+	setupAndRunTests(*useFlashedImage, *debsDir, *arch, *testbedIP)
 }
