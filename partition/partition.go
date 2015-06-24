@@ -23,50 +23,37 @@ package partition
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
+	"sync"
 	"syscall"
-
-	"gopkg.in/yaml.v2"
 
 	"launchpad.net/snappy/logger"
 )
 
-var signalHandlerRegistered = false
+const (
+	// Name of writable user data partition label as created by
+	// ubuntu-device-flash(1).
+	writablePartitionLabel = "writable"
 
-// Name of writable user data partition label as created by
-// ubuntu-device-flash(1).
-const writablePartitionLabel = "writable"
+	// Name of primary root filesystem partition label as created by
+	// ubuntu-device-flash(1).
+	rootfsAlabel = "system-a"
 
-// Name of primary root filesystem partition label as created by
-// ubuntu-device-flash(1).
-const rootfsAlabel = "system-a"
+	// Name of primary root filesystem partition label as created by
+	// ubuntu-device-flash(1). Note that this partition will
+	// only be present if this is an A/B upgrade system.
+	rootfsBlabel = "system-b"
 
-// Name of primary root filesystem partition label as created by
-// ubuntu-device-flash(1). Note that this partition will
-// only be present if this is an A/B upgrade system.
-const rootfsBlabel = "system-b"
+	// name of boot partition label as created by ubuntu-device-flash(1).
+	bootPartitionLabel = "system-boot"
 
-// name of boot partition label as created by ubuntu-device-flash(1).
-const bootPartitionLabel = "system-boot"
-
-// its useful to override this in tests
-const realDefaultCacheDir = "/writable/cache"
-
-// FIXME: Should query system-image-cli (see bug LP:#1380574).
-var defaultCacheDir = realDefaultCacheDir
-
-// Directory to mount writable root filesystem below the cache
-// diretory.
-const mountTarget = "system"
-
-// File creation mode used when any directories are created
-const dirMode = 0750
+	// File creation mode used when any directories are created
+	dirMode = 0750
+)
 
 var (
 	// ErrBootloader is returned if the bootloader can not be determined
@@ -79,41 +66,6 @@ var (
 	// ErrNoDualPartition is returned if you try to use a dual
 	// partition feature on a single partition
 	ErrNoDualPartition = errors.New("No dual partition")
-
-	// ErrNoHardwareYaml is returned when no hardware yaml is found in
-	// the update, this means that there is nothing to process with regards
-	// to device parts.
-	ErrNoHardwareYaml = errors.New("no hardware.yaml")
-)
-
-// Declarative specification of the type of system which specifies such
-// details as:
-//
-// - the location of initrd+kernel within the system-image archive.
-// - the location of hardware-specific .dtb files within the
-//   system-image archive.
-// - the type of bootloader that should be used for this system.
-// - expected system partition layout (single or dual rootfs's).
-const hardwareSpecFile = "hardware.yaml"
-
-// Directory that _may_ get automatically created on unpack that
-// contains updated hardware-specific boot assets (such as initrd, kernel)
-const assetsDir = "assets"
-
-// Directory that _may_ get automatically created on unpack that
-// contains updated hardware-specific assets that require flashing
-// to the disk (such as uBoot, MLO)
-const flashAssetsDir = "flashtool-assets"
-
-// MountOption represents how the partition should be mounted, currently
-// RO (read-only) and RW (read-write) are supported
-type MountOption int
-
-const (
-	// RO mounts the partition read-only
-	RO MountOption = iota
-	// RW mounts the partition read-only
-	RW
 )
 
 // Interface provides the interface to interact with a partition
@@ -134,24 +86,6 @@ type Interface interface {
 	BootloaderDir() string
 }
 
-// mountEntry represents a mount this package has created.
-type mountEntry struct {
-	source string
-	target string
-
-	options string
-
-	// true if target refers to a bind mount. We could derive this
-	// from options, but this field saves the effort.
-	bindMount bool
-}
-
-// mountEntryArray represents an array of mountEntry objects.
-type mountEntryArray []mountEntry
-
-// current mounts that this package has created.
-var mounts mountEntryArray
-
 // Partition is the type to interact with the partition
 type Partition struct {
 	// all partitions
@@ -159,8 +93,6 @@ type Partition struct {
 
 	// just root partitions
 	roots []string
-
-	hardwareSpecFile string
 }
 
 type blockDevice struct {
@@ -178,77 +110,10 @@ type blockDevice struct {
 	mountpoint string
 }
 
-// Representation of HARDWARE_SPEC_FILE
-type hardwareSpecType struct {
-	Kernel          string         `yaml:"kernel"`
-	Initrd          string         `yaml:"initrd"`
-	DtbDir          string         `yaml:"dtbs"`
-	PartitionLayout string         `yaml:"partition-layout"`
-	Bootloader      bootloaderName `yaml:"bootloader"`
-}
-
-// Len is part of the sort interface, required to allow sort to work
-// with an array of Mount objects.
-func (mounts mountEntryArray) Len() int {
-	return len(mounts)
-}
-
-// Less is part of the sort interface, required to allow sort to work
-// with an array of Mount objects.
-func (mounts mountEntryArray) Less(i, j int) bool {
-	return mounts[i].target < mounts[j].target
-}
-
-// Swap is part of the sort interface, required to allow sort to work
-// with an array of Mount objects.
-func (mounts mountEntryArray) Swap(i, j int) {
-	mounts[i], mounts[j] = mounts[j], mounts[i]
-}
-
-// removeMountByTarget removes the Mount specified by the target from
-// the global mounts array.
-func removeMountByTarget(mnts mountEntryArray, target string) (results mountEntryArray) {
-
-	for _, m := range mnts {
-		if m.target != target {
-			results = append(results, m)
-		}
-	}
-
-	return results
-}
+var once sync.Once
 
 func init() {
-	if !signalHandlerRegistered {
-		setupSignalHandler()
-		signalHandlerRegistered = true
-	}
-}
-
-// undoMounts unmounts all mounts this package has mounted optionally
-// only unmounting bind mounts and leaving all remaining mounts.
-func undoMounts(bindMountsOnly bool) error {
-
-	mountsCopy := make(mountEntryArray, len(mounts), cap(mounts))
-	copy(mountsCopy, mounts)
-
-	// reverse sort to ensure unmounts are handled in the correct
-	// order.
-	sort.Sort(sort.Reverse(mountsCopy))
-
-	// Iterate backwards since we want a reverse-sorted list of
-	// mounts to ensure we can unmount in order.
-	for _, mount := range mountsCopy {
-		if bindMountsOnly && !mount.bindMount {
-			continue
-		}
-
-		if err := unmountAndRemoveFromGlobalMountList(mount.target); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	once.Do(setupSignalHandler)
 }
 
 func signalHandler(sig os.Signal) {
@@ -289,66 +154,6 @@ func allPartitionLabels() []string {
 	labels = append(labels, writablePartitionLabel)
 
 	return labels
-}
-
-func mount(source, target, options string) (err error) {
-	var args []string
-
-	args = append(args, "/bin/mount")
-	if options != "" {
-		args = append(args, fmt.Sprintf("-o%s", options))
-	}
-
-	args = append(args, source)
-	args = append(args, target)
-
-	return runCommand(args...)
-}
-
-// Mount the given directory and add it to the global mounts slice
-func mountAndAddToGlobalMountList(m mountEntry) (err error) {
-
-	err = mount(m.source, m.target, m.options)
-	if err == nil {
-		mounts = append(mounts, m)
-	}
-
-	return err
-}
-
-// Unmount the given directory and remove it from the global "mounts" slice
-func unmountAndRemoveFromGlobalMountList(target string) (err error) {
-	err = runCommand("/bin/umount", target)
-	if err != nil {
-		return err
-
-	}
-
-	results := removeMountByTarget(mounts, target)
-
-	// Update global
-	mounts = results
-
-	return nil
-}
-
-// Run fsck(8) on specified device.
-func fsck(device string) (err error) {
-	return runCommand(
-		"/sbin/fsck",
-		"-M", // Paranoia - don't fsck if already mounted
-		"-av", device)
-}
-
-// Returns the position of the string in the given slice or -1 if its not found
-func stringInSlice(slice []string, value string) int {
-	for i, s := range slice {
-		if s == value {
-			return i
-		}
-	}
-
-	return -1
 }
 
 var runLsblk = func() (out []string, err error) {
@@ -443,20 +248,11 @@ func loadPartitionDetails() (partitions []blockDevice, err error) {
 	return partitions, nil
 }
 
-var makeDirectory = func(path string, mode os.FileMode) error {
-	return os.MkdirAll(path, mode)
-}
-
-func (p *Partition) makeMountPoint() (err error) {
-	return makeDirectory(p.MountTarget(), dirMode)
-}
-
 // New creates a new partition type
 func New() *Partition {
 	p := new(Partition)
 
 	p.getPartitionDetails()
-	p.hardwareSpecFile = filepath.Join(p.cacheDir(), hardwareSpecFile)
 
 	return p
 }
@@ -500,7 +296,7 @@ func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (e
 		}()
 	}
 
-	err = f(p.MountTarget())
+	err = f(mountTarget)
 	return err
 }
 
@@ -540,47 +336,6 @@ func (p *Partition) IsNextBootOther() bool {
 		return false
 	}
 	return isNextBootOther(bootloader)
-}
-
-// Returns the full path to the cache directory, which is used as a
-// scratch pad, for downloading new images to and bind mounting the
-// rootfs.
-func (p *Partition) cacheDir() string {
-	return defaultCacheDir
-}
-
-func (p *Partition) hardwareSpec() (hardwareSpecType, error) {
-	h := hardwareSpecType{}
-
-	data, err := ioutil.ReadFile(p.hardwareSpecFile)
-	// if hardware.yaml does not exist it just means that there was no
-	// device part in the update.
-	if os.IsNotExist(err) {
-		return h, ErrNoHardwareYaml
-	} else if err != nil {
-		return h, err
-	}
-
-	if err := yaml.Unmarshal([]byte(data), &h); err != nil {
-		return h, err
-	}
-
-	return h, nil
-}
-
-// Return full path to the main assets directory
-func (p *Partition) assetsDir() string {
-	return filepath.Join(p.cacheDir(), assetsDir)
-}
-
-// Return the full path to the hardware-specific flash assets directory.
-func (p *Partition) flashAssetsDir() string {
-	return filepath.Join(p.cacheDir(), flashAssetsDir)
-}
-
-// MountTarget gets the full path to the mount target directory
-func (p *Partition) MountTarget() string {
-	return filepath.Join(p.cacheDir(), mountTarget)
 }
 
 func (p *Partition) getPartitionDetails() (err error) {
@@ -676,11 +431,13 @@ func (p *Partition) otherRootPartition() (result *blockDevice) {
 func (p *Partition) mountOtherRootfs(readOnly bool) (err error) {
 	var other *blockDevice
 
-	p.makeMountPoint()
+	if err := os.MkdirAll(mountTarget, dirMode); err != nil {
+		return err
+	}
 
 	other = p.otherRootPartition()
 
-	m := mountEntry{source: other.device, target: p.MountTarget()}
+	m := mountEntry{source: other.device, target: mountTarget}
 
 	if readOnly {
 		m.options = "ro"
@@ -707,9 +464,7 @@ func (p *Partition) bindmountThisRootfsRO(target string) (err error) {
 
 // Ensure the other partition is mounted read-only.
 func (p *Partition) ensureOtherMountedRO() (err error) {
-	mountpoint := p.MountTarget()
-
-	if err = runCommand("/bin/mountpoint", mountpoint); err == nil {
+	if err = runCommand("/bin/mountpoint", mountTarget); err == nil {
 		// already mounted
 		return err
 	}
@@ -741,14 +496,14 @@ func (p *Partition) remountOther(option MountOption) (err error) {
 
 		return mountAndAddToGlobalMountList(mountEntry{
 			source: other.device,
-			target: p.MountTarget()})
+			target: mountTarget})
 	}
 	// r/w -> r/o: no fsck required.
-	return mount(other.device, p.MountTarget(), "remount,ro")
+	return mount(other.device, mountTarget, "remount,ro")
 }
 
 func (p *Partition) unmountOtherRootfs() (err error) {
-	return unmountAndRemoveFromGlobalMountList(p.MountTarget())
+	return unmountAndRemoveFromGlobalMountList(mountTarget)
 }
 
 // The bootloader requires a few filesystems to be mounted when
@@ -773,7 +528,7 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	}
 
 	for _, fs := range requiredChrootMounts {
-		target := filepath.Join(p.MountTarget(), fs)
+		target := filepath.Join(mountTarget, fs)
 
 		err := mountAndAddToGlobalMountList(mountEntry{source: fs,
 			target:    target,
@@ -787,11 +542,11 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 	// Grub also requires access to both rootfs's when run from
 	// within a chroot (to allow it to create menu entries for
 	// both), so bindmount the real rootfs.
-	targetInChroot := filepath.Join(p.MountTarget(), p.MountTarget())
+	targetInChroot := filepath.Join(mountTarget, mountTarget)
 
 	// FIXME: we should really remove this after the unmount
 
-	if err = makeDirectory(targetInChroot, dirMode); err != nil {
+	if err = os.MkdirAll(targetInChroot, dirMode); err != nil {
 		return err
 	}
 
