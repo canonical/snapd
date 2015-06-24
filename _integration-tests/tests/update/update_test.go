@@ -36,18 +36,12 @@ type updateSuite struct {
 	CommonSuite
 }
 
-func rollback(c *C, packageName string, version int) {
-	c.Log("Calling snappy rollback...")
-	ExecCommand(c, "sudo", "snappy", "rollback", packageName, strconv.Itoa(version))
-	RebootWithMark(c, c.TestName()+"-rollback")
-}
-
-func (s *updateSuite) TearDownTest(c *C) {
-	if AfterReboot(c) {
-		RemoveRebootMark(c)
-		if GetCurrentVersion(c) != GetSavedVersion(c) {
-			rollback(c, "ubuntu-core", GetSavedVersion(c))
-		}
+func rollback(c *C) {
+	savedVersion := GetSavedVersion(c)
+	if GetCurrentVersion(c) != savedVersion {
+		c.Log("Calling snappy rollback...")
+		ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core", strconv.Itoa(savedVersion))
+		RebootWithMark(c, c.TestName()+"-rollback")
 	}
 }
 
@@ -56,6 +50,7 @@ func (s *updateSuite) TestUpdateMustInstallNewerVersion(c *C) {
 		CallUpdate(c)
 		Reboot(c)
 	} else if AfterReboot(c) {
+		defer rollback(c)
 		c.Assert(GetCurrentVersion(c) > GetSavedVersion(c), Equals, true)
 	}
 }

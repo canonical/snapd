@@ -79,7 +79,9 @@ func Reboot(c *C) {
 }
 
 func RebootWithMark(c *C, mark string) {
-	ExecCommand(c, "sudo", "/tmp/autopkgtest-reboot", mark)
+	c.Log("Preparing reboot with mark " + mark)
+	err := ioutil.WriteFile("/tmp/needs-reboot", []byte(mark), 0777)
+	c.Assert(err, IsNil, Commentf("Error writing needs-reboot file: %v", err))
 }
 
 func BeforeReboot(c *C) bool {

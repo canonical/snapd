@@ -1,12 +1,12 @@
-Test-Command: snappy-latest.test -check.vv -test.outputdir=$ADT_ARTIFACTS
+Test-Command: debian/integration-tests/snappy-test snappy-latest.test
 Restrictions: allow-stderr
 Depends: ubuntu-snappy-tests
 
-Test-Command: snappy-failover.test --check.vv -test.outputdir=$ADT_ARTIFACTS
+Test-Command: debian/integration-tests/snappy-test snappy-failover.test
 Restrictions: allow-stderr
 Depends: ubuntu-snappy-tests
 
-Test-Command: snappy-update.test --check.vv -test.outputdir=$ADT_ARTIFACTS
+Test-Command: debian/integration-tests/snappy-test snappy-update.test
 Restrictions: allow-stderr
 Depends: ubuntu-snappy-tests
 
