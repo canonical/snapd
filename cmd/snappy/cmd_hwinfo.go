@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 )
 
@@ -72,13 +71,11 @@ func outputHWAccessForAll() error {
 	return nil
 }
 
-func (x *cmdHWInfo) Execute(args []string) (err error) {
-	privMutex := priv.New()
-	if err := privMutex.TryLock(); err != nil {
-		return err
-	}
-	defer privMutex.Unlock()
+func (x *cmdHWInfo) Execute(args []string) error {
+	return withMutex(x.doHWInfo)
+}
 
+func (x *cmdHWInfo) doHWInfo() error {
 	// use specific package
 	pkgname := x.Positional.PackageName
 	if pkgname != "" {

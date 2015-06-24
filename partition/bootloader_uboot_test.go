@@ -221,19 +221,16 @@ func (s *PartitionTestSuite) TestHandleAssetsFailVerifyPartitionLayout(c *C) {
 bootloader: u-boot
 partition-layout: inplace
 `)
-	cacheDir = c.MkDir()
-
 	err = bootloader.HandleAssets()
 	c.Assert(err, NotNil)
 }
 
 func (s *PartitionTestSuite) TestHandleAssetsNoHardwareYaml(c *C) {
 	s.makeFakeUbootEnv(c)
+
 	p := New()
 	bootloader, err := bootloader(p)
 	c.Assert(err, IsNil)
-
-	cacheDir = c.MkDir()
 
 	c.Assert(bootloader.HandleAssets(), IsNil)
 }
@@ -247,7 +244,6 @@ func (s *PartitionTestSuite) TestHandleAssetsBadHardwareYaml(c *C) {
 	hardwareSpecFile = makeHardwareYaml(c, `
 bootloader u-boot
 `)
-	cacheDir = c.MkDir()
 
 	c.Assert(bootloader.HandleAssets(), NotNil)
 }

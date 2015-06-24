@@ -127,7 +127,7 @@ func (ts *ProvisioningTestSuite) TestSideLoadedSystemGarbageInstallYaml(c *C) {
 func (ts *ProvisioningTestSuite) TestParseInstallYaml(c *C) {
 
 	_, err := parseInstallYaml(ts.mockYamlFile)
-	c.Check(err, ErrorMatches, `failed to read provisioning data: open /tmp/.*/install.yaml: no such file or directory`)
+	c.Check(err, ErrorMatches, `failed to read provisioning data: open .*/install.yaml: no such file or directory`)
 
 	err = ioutil.WriteFile(ts.mockYamlFile, []byte(yamlData), 0750)
 	c.Check(err, IsNil)

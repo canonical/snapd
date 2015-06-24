@@ -1,3 +1,23 @@
+ubuntu-snappy (1.2-0ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Consider the root directory when installing and removing policies
+    - In the uboot TestHandleAssetsNoHardwareYaml, patch the cache dir
+      before creating the partition type
+    - In the PartitionTestSuite, remove the unnecesary patches for
+      defaultCacheDir
+    - Fix the help output of "snappy install -h"
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Wed, 17 Jun 2015 11:42:47 -0300
+
+ubuntu-snappy (1.1.2-0ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Remove compatibility for click-bin-path in generated exec-wrappers
+    - Release the readme.md after parsing it
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Thu, 11 Jun 2015 23:42:49 -0300
+
 ubuntu-snappy (1.1.1-0ubuntu1) wily; urgency=medium
 
   * New upstream release, including the following changes:
