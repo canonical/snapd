@@ -15,6 +15,7 @@ const (
 	defaultRelease  = "15.04"
 	defaultChannel  = "edge"
 	defaultArch     = "amd64"
+	defaultSSHPort  = 22
 )
 
 var (
@@ -30,7 +31,7 @@ var (
 			"--", "-i", imageTarget}...)
 )
 
-func setupAndRunTests(useFlashedImage bool, debsDir, arch, testbedIP string) {
+func setupAndRunTests(useFlashedImage bool, debsDir, arch, testbedIP, testbedPort string) {
 	if !useFlashedImage && debsDir == defaultDebsDir {
 		buildDebs(rootPath, arch)
 	}
@@ -39,7 +40,7 @@ func setupAndRunTests(useFlashedImage bool, debsDir, arch, testbedIP string) {
 		createImage(defaultRelease, defaultChannel, getArchForImage())
 		adtRun(rootPath, kvmSSHOptions)
 	} else {
-		execCommand("ssh-copy-id", "ubuntu@"+testbedIP)
+		execCommand("ssh-copy-id", "-p", testbedPort, "ubuntu@"+testbedIP)
 		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP))
 	}
 }
@@ -110,9 +111,10 @@ func adtRun(rootPath string, testbedOptions []string) {
 	execCommand(append(cmd, testbedOptions...)...)
 }
 
-func remoteTestbedSSHOptions(testbedIP string) []string {
+func remoteTestbedSSHOptions(testbedIP, testbedPort string) []string {
 	options := []string{
 		"-H", testbedIP,
+		"-p", testbedPort,
 		"-l", "ubuntu",
 		"-i", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa")}
 	return append(commonSSHOptions, options...)
@@ -148,9 +150,11 @@ func main() {
 			"Target architecture (amd64, armhf)")
 		testbedIP = flag.String("ip", "",
 			"IP of the testbed to run the tests in")
+		testbedPort = flag.String("port", defaultSSHPort,
+			"SSH port of the testbed")
 	)
 
 	flag.Parse()
 
-	setupAndRunTests(*useFlashedImage, *debsDir, *arch, *testbedIP)
+	setupAndRunTests(*useFlashedImage, *debsDir, *arch, *testbedIP, *testbedPort)
 }
