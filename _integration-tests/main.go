@@ -61,15 +61,15 @@ func execCommand(cmds ...string) {
 func buildDebs(rootPath, destDir, arch string) {
 	fmt.Println("Building debs...")
 	prepareTargetDir(destDir)
-	buildCommand := []string{"bzr", "bd",
+	buildCommand := []string{"bzr", "bd", "-v",
 		fmt.Sprintf("--result-dir=%s", destDir),
 		"--split",
 		rootPath,
 	}
 	if arch != defaultArch {
 		builderOption := []string{
-			fmt.Sprintf(
-				"--builder=sbuild --build amd64 --host %s --dist wily", arch)}
+			"--builder=sbuild", "--",
+			fmt.Sprintf("--host=%s", arch), "-v"}
 		buildCommand = append(buildCommand, builderOption...)
 	} else {
 		dontSignDebs := []string{"--", "-uc", "-us"}
