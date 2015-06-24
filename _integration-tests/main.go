@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 )
 
 const (
@@ -31,17 +32,20 @@ var (
 			"--", "-i", imageTarget}...)
 )
 
-func setupAndRunTests(useFlashedImage bool, debsDir, arch, testbedIP, testbedPort string) {
-	if !useFlashedImage && debsDir == defaultDebsDir {
-		buildDebs(rootPath, arch)
-	}
+func setupAndRunTests(useFlashedImage bool, debsDir, arch, testbedIP string, testbedPort int) {
 	rootPath := getRootPath()
+	if useFlashedImage {
+		// using the flashed image, so no debs must be installed.
+		debsDir = ""
+	} else if debsDir == defaultDebsDir {
+		buildDebs(rootPath, debsDir, arch)
+	}
 	if testbedIP == "" {
 		createImage(defaultRelease, defaultChannel, getArchForImage())
-		adtRun(rootPath, kvmSSHOptions)
+		adtRun(rootPath, debsDir, kvmSSHOptions)
 	} else {
-		execCommand("ssh-copy-id", "-p", testbedPort, "ubuntu@"+testbedIP)
-		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP))
+		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort), "ubuntu@"+testbedIP)
+		adtRun(rootPath, debsDir, remoteTestbedSSHOptions(testbedIP, testbedPort))
 	}
 }
 
@@ -54,11 +58,11 @@ func execCommand(cmds ...string) {
 	}
 }
 
-func buildDebs(rootPath, arch string) {
+func buildDebs(rootPath, destDir, arch string) {
 	fmt.Println("Building debs...")
-	prepareTargetDir(debsDir)
+	prepareTargetDir(destDir)
 	buildCommand := []string{"bzr", "bd",
-		fmt.Sprintf("--result-dir=%s", debsDir),
+		fmt.Sprintf("--result-dir=%s", destDir),
 		"--split",
 		rootPath,
 	}
@@ -87,7 +91,7 @@ func createImage(release, channel, arch string) {
 		"--developer-mode")
 }
 
-func adtRun(rootPath string, testbedOptions []string) {
+func adtRun(rootPath, debsDir string, testbedOptions []string) {
 	fmt.Println("Calling adt-run...")
 	prepareTargetDir(outputDir)
 	cmd := []string{
@@ -96,7 +100,7 @@ func adtRun(rootPath string, testbedOptions []string) {
 		"--built-tree", rootPath,
 		"--output-dir", outputDir}
 
-	if !useFlashedImage {
+	if debsDir != "" {
 		debsSetup := []string{
 			"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
 			"--setup-commands", "mount -o remount,rw /",
@@ -111,10 +115,10 @@ func adtRun(rootPath string, testbedOptions []string) {
 	execCommand(append(cmd, testbedOptions...)...)
 }
 
-func remoteTestbedSSHOptions(testbedIP, testbedPort string) []string {
+func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
 	options := []string{
 		"-H", testbedIP,
-		"-p", testbedPort,
+		"-p", strconv.Itoa(testbedPort),
 		"-l", "ubuntu",
 		"-i", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa")}
 	return append(commonSSHOptions, options...)
@@ -145,12 +149,12 @@ func main() {
 		useFlashedImage = flag.Bool("installed-image", false,
 			"Wether we should install the snappy version from the branch or use the one installed on the image")
 		debsDir = flag.String("debs-dir", defaultDebsDir,
-			"Directory with the snappy debian packages.")
+			"Directory with th1e snappy debian packages.")
 		arch = flag.String("arch", defaultArch,
 			"Target architecture (amd64, armhf)")
 		testbedIP = flag.String("ip", "",
 			"IP of the testbed to run the tests in")
-		testbedPort = flag.String("port", defaultSSHPort,
+		testbedPort = flag.Int("port", defaultSSHPort,
 			"SSH port of the testbed")
 	)
 
