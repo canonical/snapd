@@ -80,10 +80,6 @@ type Interface interface {
 
 	// run the function f with the otherRoot mounted
 	RunWithOther(rw MountOption, f func(otherRoot string) (err error)) (err error)
-
-	// Returns the full path to the (mounted and writable)
-	// bootloader-specific boot directory.
-	BootloaderDir() string
 }
 
 // Partition is the type to interact with the partition
@@ -612,15 +608,4 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 	}
 
 	return bootloader.HandleAssets()
-}
-
-// BootloaderDir returns the full path to the (mounted and writable)
-// bootloader-specific boot directory.
-func (p *Partition) BootloaderDir() string {
-	bootloader, err := bootloader(p)
-	if err != nil {
-		return ""
-	}
-
-	return bootloader.BootDir()
 }
