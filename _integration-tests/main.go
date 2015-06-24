@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 )
 
 const (
@@ -34,6 +35,7 @@ const (
 	defaultRelease  = "rolling"
 	defaultChannel  = "edge"
 	defaultArch     = "amd64"
+	defaultSSHPort  = 22
 )
 
 var (
@@ -47,17 +49,23 @@ var (
 		[]string{
 			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
 			"--", "-i", imageTarget}...)
-	useFlashedImage bool
-	arch            string
-	testbedIP       string
-	debsDir         string
 )
 
-func init() {
-	flag.BoolVar(&useFlashedImage, "installed-image", false, "Wether we should install the snappy version from the branch or use the one installed on the image")
-	flag.StringVar(&debsDir, "debs-dir", defaultDebsDir, "Directory with the snappy debian packages.")
-	flag.StringVar(&arch, "arch", defaultArch, "Target architecture (amd64, armhf)")
-	flag.StringVar(&testbedIP, "ip", "", "IP of the testbed to run the tests in")
+func setupAndRunTests(useFlashedImage bool, debsDir, arch, testbedIP string, testbedPort int) {
+	rootPath := getRootPath()
+	if useFlashedImage {
+		// using the flashed image, so no debs must be installed.
+		debsDir = ""
+	} else if debsDir == defaultDebsDir {
+		buildDebs(rootPath, debsDir, arch)
+	}
+	if testbedIP == "" {
+		createImage(defaultRelease, defaultChannel, getArchForImage())
+		adtRun(rootPath, debsDir, kvmSSHOptions)
+	} else {
+		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort), "ubuntu@"+testbedIP)
+		adtRun(rootPath, debsDir, remoteTestbedSSHOptions(testbedIP, testbedPort))
+	}
 }
 
 func execCommand(cmds ...string) {
@@ -69,16 +77,18 @@ func execCommand(cmds ...string) {
 	}
 }
 
-func buildDebs(rootPath, arch string) {
-	buildCommand := []string{"bzr", "bd",
-		fmt.Sprintf("--result-dir=%s", debsDir),
+func buildDebs(rootPath, destDir, arch string) {
+	fmt.Println("Building debs...")
+	prepareTargetDir(destDir)
+	buildCommand := []string{"bzr", "bd", "-v",
+		fmt.Sprintf("--result-dir=%s", destDir),
 		"--split",
 		rootPath,
 	}
 	if arch != defaultArch {
 		builderOption := []string{
-			fmt.Sprintf(
-				"--builder='sbuild --build amd64 --host %s --dist wily'", arch)}
+			"--builder=sbuild", "--",
+			fmt.Sprintf("--host=%s", arch), "--dist=vivid", "-v"}
 		buildCommand = append(buildCommand, builderOption...)
 	} else {
 		dontSignDebs := []string{"--", "-uc", "-us"}
@@ -100,7 +110,7 @@ func createImage(release, channel, arch string) {
 		"--developer-mode")
 }
 
-func adtRun(rootPath string, testbedOptions []string) {
+func adtRun(rootPath, debsDir string, testbedOptions []string) {
 	fmt.Println("Calling adt-run...")
 	prepareTargetDir(outputDir)
 	cmd := []string{
@@ -109,7 +119,7 @@ func adtRun(rootPath string, testbedOptions []string) {
 		"--built-tree", rootPath,
 		"--output-dir", outputDir}
 
-	if !useFlashedImage {
+	if debsDir != "" {
 		debsSetup := []string{
 			"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
 			"--setup-commands", "mount -o remount,rw /",
@@ -124,9 +134,10 @@ func adtRun(rootPath string, testbedOptions []string) {
 	execCommand(append(cmd, testbedOptions...)...)
 }
 
-func remoteTestbedSSHOptions(testbedIP string) []string {
+func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
 	options := []string{
 		"-H", testbedIP,
+		"-p", strconv.Itoa(testbedPort),
 		"-l", "ubuntu",
 		"-i", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa")}
 	return append(commonSSHOptions, options...)
@@ -153,18 +164,20 @@ func getArchForImage() string {
 }
 
 func main() {
+	var (
+		useFlashedImage = flag.Bool("installed-image", false,
+			"Wether we should install the snappy version from the branch or use the one installed on the image")
+		debsDir = flag.String("debs-dir", defaultDebsDir,
+			"Directory with th1e snappy debian packages.")
+		arch = flag.String("arch", defaultArch,
+			"Target architecture (amd64, armhf)")
+		testbedIP = flag.String("ip", "",
+			"IP of the testbed to run the tests in")
+		testbedPort = flag.Int("port", defaultSSHPort,
+			"SSH port of the testbed")
+	)
+
 	flag.Parse()
 
-	rootPath := getRootPath()
-
-	if !useFlashedImage && debsDir == defaultDebsDir {
-		buildDebs(rootPath, arch)
-	}
-	if testbedIP == "" {
-		createImage(defaultRelease, defaultChannel, getArchForImage())
-		adtRun(rootPath, kvmSSHOptions)
-	} else {
-		execCommand("ssh-copy-id", "ubuntu@"+testbedIP)
-		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP))
-	}
+	setupAndRunTests(*useFlashedImage, *debsDir, *arch, *testbedIP, *testbedPort)
 }
