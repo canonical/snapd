@@ -89,15 +89,6 @@ func (s *PartitionTestSuite) TestNewUboot(c *C) {
 	c.Assert(u.Name(), Equals, bootloaderNameUboot)
 }
 
-func (s *PartitionTestSuite) TestNewUbootSinglePartition(c *C) {
-	runLsblk = mockRunLsblkSingleRootSnappy
-	s.makeFakeUbootEnv(c)
-
-	partition := New()
-	u := newUboot(partition)
-	c.Assert(u, IsNil)
-}
-
 func (s *PartitionTestSuite) TestUbootGetBootVar(c *C) {
 	s.makeFakeUbootEnv(c)
 
@@ -111,7 +102,7 @@ func (s *PartitionTestSuite) TestUbootGetBootVar(c *C) {
 	c.Assert(nextBoot, Equals, "a")
 
 	// ensure that nextBootIsOther works too
-	c.Assert(isNextBootOther(u), Equals, false)
+	c.Assert(partition.IsNextBootOther(), Equals, false)
 }
 
 func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
@@ -121,7 +112,7 @@ func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
 	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
-	err := u.ToggleRootFS()
+	err := u.ToggleRootFS("b")
 	c.Assert(err, IsNil)
 
 	nextBoot, err := u.GetBootVar(bootloaderRootfsVar)
@@ -129,7 +120,7 @@ func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
 	c.Assert(nextBoot, Equals, "b")
 
 	// ensure that nextBootIsOther works too
-	c.Assert(isNextBootOther(u), Equals, true)
+	c.Assert(partition.IsNextBootOther(), Equals, true)
 }
 
 func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
@@ -267,7 +258,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	// enter "try" mode so that we check to ensure that snappy
 	// correctly modifies the snappy_mode variable from "try" to
 	// "regular" to denote a good boot.
-	err = u.ToggleRootFS()
+	err = u.ToggleRootFS("b")
 	c.Assert(err, IsNil)
 
 	c.Assert(helpers.FileExists(bootloaderUbootEnvFile), Equals, true)
@@ -277,7 +268,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, false)
 	c.Assert(strings.Contains(string(bytes), "snappy_ab=b"), Equals, true)
 
-	err = u.MarkCurrentBootSuccessful()
+	err = u.MarkCurrentBootSuccessful("b")
 	c.Assert(err, IsNil)
 
 	c.Assert(helpers.FileExists(bootloaderUbootStampFile), Equals, false)
@@ -287,7 +278,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, false)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
-	c.Assert(strings.Contains(string(bytes), "snappy_ab=a"), Equals, true)
+	c.Assert(strings.Contains(string(bytes), "snappy_ab=b"), Equals, true)
 }
 
 func (s *PartitionTestSuite) TestNoWriteNotNeeded(c *C) {
@@ -300,7 +291,7 @@ func (s *PartitionTestSuite) TestNoWriteNotNeeded(c *C) {
 	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
-	c.Check(u.MarkCurrentBootSuccessful(), IsNil)
+	c.Check(u.MarkCurrentBootSuccessful("a"), IsNil)
 	c.Assert(atomiCall, Equals, false)
 }
 
@@ -317,7 +308,7 @@ func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
 	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
-	c.Check(u.MarkCurrentBootSuccessful(), IsNil)
+	c.Check(u.MarkCurrentBootSuccessful("a"), IsNil)
 	c.Assert(atomiCall, Equals, true)
 
 	bytes, err := ioutil.ReadFile(bootloaderUbootEnvFile)

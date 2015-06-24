@@ -45,7 +45,7 @@ type bootLoader interface {
 
 	// Switch bootloader configuration so that the "other" root
 	// filesystem partition will be used on next boot.
-	ToggleRootFS() error
+	ToggleRootFS(otherRootfs string) error
 
 	// Hook function called before system-image starts downloading
 	// and applying archives that allows files to be copied between
@@ -60,14 +60,6 @@ type bootLoader interface {
 	GetBootVar(name string) (string, error)
 
 	// Return the 1-character name corresponding to the
-	// rootfs currently being used.
-	GetRootFSName() string
-
-	// Return the 1-character name corresponding to the
-	// other rootfs.
-	GetOtherRootFSName() string
-
-	// Return the 1-character name corresponding to the
 	// rootfs that will be used on _next_ boot.
 	//
 	// XXX: Note the distinction between this method and
@@ -78,7 +70,7 @@ type bootLoader interface {
 
 	// Update the bootloader configuration to mark the
 	// currently-booted rootfs as having booted successfully.
-	MarkCurrentBootSuccessful() error
+	MarkCurrentBootSuccessful(currentRootfs string) error
 
 	// Return the additional required chroot bind mounts for this bootloader
 	AdditionalBindMounts() []string
@@ -86,15 +78,6 @@ type bootLoader interface {
 	// BootDir returns the (writable) bootloader-specific boot
 	// directory.
 	BootDir() string
-}
-
-type bootloaderType struct {
-	partition *Partition
-
-	// each rootfs partition has a corresponding u-boot directory named
-	// from the last character of the partition name ('a' or 'b').
-	currentRootfs string
-	otherRootfs   string
 }
 
 // Factory method that returns a new bootloader for the given partition
@@ -113,48 +96,4 @@ func bootloaderImpl(p *Partition) (bootLoader, error) {
 
 	// no, weeeee
 	return nil, ErrBootloader
-}
-
-func newBootLoader(partition *Partition) *bootloaderType {
-	b := new(bootloaderType)
-
-	b.partition = partition
-
-	currentLabel := partition.rootPartition().name
-
-	// FIXME: is this the right thing to do? i.e. what should we do
-	//        on a single partition system?
-	if partition.otherRootPartition() == nil {
-		return nil
-	}
-	otherLabel := partition.otherRootPartition().name
-
-	b.currentRootfs = string(currentLabel[len(currentLabel)-1])
-	b.otherRootfs = string(otherLabel[len(otherLabel)-1])
-
-	return b
-}
-
-// Return true if the next boot will use the other rootfs
-// partition.
-func isNextBootOther(bootloader bootLoader) bool {
-	value, err := bootloader.GetBootVar(bootloaderBootmodeVar)
-	if err != nil {
-		return false
-	}
-
-	if value != bootloaderBootmodeTry {
-		return false
-	}
-
-	fsname, err := bootloader.GetNextBootRootFSName()
-	if err != nil {
-		return false
-	}
-
-	if fsname == bootloader.GetOtherRootFSName() {
-		return true
-	}
-
-	return false
 }

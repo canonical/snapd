@@ -379,7 +379,7 @@ type mockBootloader struct {
 func (b *mockBootloader) Name() bootloaderName {
 	return "mocky"
 }
-func (b *mockBootloader) ToggleRootFS() error {
+func (b *mockBootloader) ToggleRootFS(otherRootfs string) error {
 	b.ToggleRootFSCalled = true
 	return nil
 }
@@ -394,16 +394,10 @@ func (b *mockBootloader) HandleAssets() error {
 func (b *mockBootloader) GetBootVar(name string) (string, error) {
 	return "", nil
 }
-func (b *mockBootloader) GetRootFSName() string {
-	return ""
-}
-func (b *mockBootloader) GetOtherRootFSName() string {
-	return ""
-}
 func (b *mockBootloader) GetNextBootRootFSName() (string, error) {
 	return "", nil
 }
-func (b *mockBootloader) MarkCurrentBootSuccessful() error {
+func (b *mockBootloader) MarkCurrentBootSuccessful(currentRootfs string) error {
 	b.MarkCurrentBootSuccessfulCalled = true
 	return nil
 }

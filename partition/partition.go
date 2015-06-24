@@ -99,6 +99,9 @@ type blockDevice struct {
 	// label for partition
 	name string
 
+	// the last char of the partition label
+	shortName string
+
 	// full path to device on which partition exists
 	// (for example "/dev/sda3")
 	device string
@@ -235,8 +238,10 @@ func loadPartitionDetails() (partitions []blockDevice, err error) {
 				continue
 			}
 		*/
+		shortName := string(name[len(name)-1])
 		bd := blockDevice{
 			name:       fields["LABEL"],
+			shortName:  shortName,
 			device:     device,
 			mountpoint: fields["MOUNTPOINT"],
 			parentName: disk,
@@ -325,7 +330,8 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 		return err
 	}
 
-	return bootloader.MarkCurrentBootSuccessful()
+	currentRootfs := p.rootPartition().shortName
+	return bootloader.MarkCurrentBootSuccessful(currentRootfs)
 }
 
 // IsNextBootOther return true if the next boot will use the other rootfs
@@ -335,7 +341,27 @@ func (p *Partition) IsNextBootOther() bool {
 	if err != nil {
 		return false
 	}
-	return isNextBootOther(bootloader)
+
+	value, err := bootloader.GetBootVar(bootloaderBootmodeVar)
+	if err != nil {
+		return false
+	}
+
+	if value != bootloaderBootmodeTry {
+		return false
+	}
+
+	fsname, err := bootloader.GetNextBootRootFSName()
+	if err != nil {
+		return false
+	}
+
+	otherRootfs := p.otherRootPartition().shortName
+	if fsname == otherRootfs {
+		return true
+	}
+
+	return false
 }
 
 func (p *Partition) getPartitionDetails() (err error) {
@@ -577,7 +603,8 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 	//      wrong given that handleAssets may fails and we will
 	//      knowingly boot into a broken system
 	err = p.RunWithOther(RW, func(otherRoot string) (err error) {
-		return bootloader.ToggleRootFS()
+		otherRootfs := p.otherRootPartition().shortName
+		return bootloader.ToggleRootFS(otherRootfs)
 	})
 
 	if err != nil {

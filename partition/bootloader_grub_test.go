@@ -63,15 +63,6 @@ func (s *PartitionTestSuite) TestNewGrub(c *C) {
 	c.Assert(g.Name(), Equals, bootloaderNameGrub)
 }
 
-func (s *PartitionTestSuite) TestNewGrubSinglePartition(c *C) {
-	runLsblk = mockRunLsblkSingleRootSnappy
-	s.makeFakeGrubEnv(c)
-
-	partition := New()
-	g := newGrub(partition)
-	c.Assert(g, IsNil)
-}
-
 type singleCommand []string
 
 var allCommands = []singleCommand{}
@@ -88,7 +79,7 @@ func (s *PartitionTestSuite) TestToggleRootFS(c *C) {
 	partition := New()
 	g := newGrub(partition)
 	c.Assert(g, NotNil)
-	err := g.ToggleRootFS()
+	err := g.ToggleRootFS("b")
 	c.Assert(err, IsNil)
 
 	// this is always called
@@ -141,7 +132,7 @@ func (s *PartitionTestSuite) TestGrubMarkCurrentBootSuccessful(c *C) {
 	partition := New()
 	g := newGrub(partition)
 	c.Assert(g, NotNil)
-	err := g.MarkCurrentBootSuccessful()
+	err := g.MarkCurrentBootSuccessful("a")
 	c.Assert(err, IsNil)
 
 	// this is always called
