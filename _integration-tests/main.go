@@ -69,7 +69,7 @@ func buildDebs(rootPath, destDir, arch string) {
 	if arch != defaultArch {
 		builderOption := []string{
 			"--builder=sbuild", "--",
-			fmt.Sprintf("--host=%s", arch), "-v"}
+			fmt.Sprintf("--host=%s", arch), "--dist=vivid", "-v"}
 		buildCommand = append(buildCommand, builderOption...)
 	} else {
 		dontSignDebs := []string{"--", "-uc", "-us"}
