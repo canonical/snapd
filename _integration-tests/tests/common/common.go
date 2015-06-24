@@ -32,6 +32,10 @@ import (
 	. "gopkg.in/check.v1"
 )
 
+const (
+	needsRebootFile = "/tmp/needs-reboot"
+)
+
 type CommonSuite struct{}
 
 func ExecCommand(c *C, cmds ...string) []byte {
@@ -80,8 +84,13 @@ func Reboot(c *C) {
 
 func RebootWithMark(c *C, mark string) {
 	c.Log("Preparing reboot with mark " + mark)
-	err := ioutil.WriteFile("/tmp/needs-reboot", []byte(mark), 0777)
+	err := ioutil.WriteFile(needsRebootFile, []byte(mark), 0777)
 	c.Assert(err, IsNil, Commentf("Error writing needs-reboot file: %v", err))
+}
+
+func needsReboot(c *C) bool {
+	_, err := os.Stat(needsRebootFile)
+	return err == nil
 }
 
 func BeforeReboot(c *C) bool {
@@ -128,17 +137,24 @@ func (s *CommonSuite) SetUpSuite(c *C) {
 }
 
 func (s *CommonSuite) SetUpTest(c *C) {
-	afterReboot := os.Getenv("ADT_REBOOT_MARK")
-
-	if afterReboot == "" {
-		c.Logf("****** Running %s", c.TestName())
-		SetSavedVersion(c, GetCurrentVersion(c))
+	if needsReboot(c) {
+		contents, err := ioutil.ReadFile(needsRebootFile)
+		c.Assert(err, IsNil, Commentf("Error reading needs-reboot file %v", err))
+		c.Skip(fmt.Sprintf("****** Skipped %s during reboot caused by %s",
+			c.TestName(), contents))
 	} else {
-		if afterReboot == c.TestName() {
-			c.Logf("****** Resuming %s after reboot", c.TestName())
+		afterReboot := os.Getenv("ADT_REBOOT_MARK")
+
+		if afterReboot == "" {
+			c.Logf("****** Running %s", c.TestName())
+			SetSavedVersion(c, GetCurrentVersion(c))
 		} else {
-			c.Skip(fmt.Sprintf("****** Skipped %s after reboot caused by %s",
-				c.TestName(), afterReboot))
+			if afterReboot == c.TestName() {
+				c.Logf("****** Resuming %s after reboot", c.TestName())
+			} else {
+				c.Skip(fmt.Sprintf("****** Skipped %s after reboot caused by %s",
+					c.TestName(), afterReboot))
+			}
 		}
 	}
 }
