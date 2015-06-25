@@ -76,7 +76,7 @@ func reboot(c *C) {
 }
 
 func removeRebootMark(c *C) {
-	err := os.Unsetenv("ADT_REBOOT_MARK")
+	err := os.Setenv("ADT_REBOOT_MARK", "")
 	c.Assert(err, IsNil, Commentf("Error unsetting ADT_REBOOT_MARK"))
 }
 
