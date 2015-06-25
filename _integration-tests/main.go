@@ -40,7 +40,7 @@ var (
 	imageDir    = filepath.Join(baseDir, "image")
 	outputDir   = filepath.Join(baseDir, "output")
 	imageTarget = filepath.Join(imageDir, "snappy.img")
-	defaultArch = runtime.GOARCH
+	defaultArch = ubuntuArchitecture()
 )
 
 func execCommand(cmds ...string) {
@@ -127,4 +127,16 @@ func main() {
 	createImage(defaultRelease, defaultChannel)
 
 	adtRun(rootPath)
+}
+
+func ubuntuArchitecture() string {
+	goarch := runtime.GOARCH
+	switch goarch {
+	case "386":
+		return "i386"
+	case "arm":
+		return "armhf"
+	default:
+		return goarch
+	}
 }
