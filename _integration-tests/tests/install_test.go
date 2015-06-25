@@ -58,7 +58,7 @@ func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
 func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
 	installSnap(c, "hello-world")
 
-	infoOutput := s.execCommand(c, "snappy", "info")
+	infoOutput := execCommand(c, "snappy", "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
 
