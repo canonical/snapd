@@ -35,6 +35,7 @@ const (
 	defaultRelease  = "rolling"
 	defaultChannel  = "edge"
 	defaultArch     = "amd64"
+	defaultDist     = "wily"
 	defaultSSHPort  = 22
 )
 
@@ -84,16 +85,15 @@ func buildDebs(rootPath, destDir, arch string) {
 		fmt.Sprintf("--result-dir=%s", destDir),
 		"--split",
 		rootPath,
+		"--",
 	}
 	if arch != defaultArch {
-		builderOption := []string{
-			"--builder=sbuild", "--",
-			fmt.Sprintf("--host=%s", arch), "--dist=vivid", "-v"}
-		buildCommand = append(buildCommand, builderOption...)
-	} else {
-		dontSignDebs := []string{"--", "-uc", "-us"}
-		buildCommand = append(buildCommand, dontSignDebs...)
+		archFlag := fmt.Sprintf("-a%s", arch)
+		buildCommand = append(buildCommand, archFlag)
 	}
+	dontSignDebs := []string{"-uc", "-us"}
+	buildCommand = append(buildCommand, dontSignDebs...)
+
 	fmt.Println(buildCommand)
 	execCommand(buildCommand...)
 }
