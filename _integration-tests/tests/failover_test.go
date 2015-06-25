@@ -89,7 +89,7 @@ func getCurrentVersion(c *C) int {
 	output := execCommand(c, "snappy", "list")
 	pattern := "(?mU)^ubuntu-core (.*)$"
 	re := regexp.MustCompile(pattern)
-	match := re.FindStringSubmatch(string(output))
+	match := re.FindStringSubmatch(output)
 	c.Assert(match, NotNil, Commentf("Version not found in %s", output))
 
 	// match is like "ubuntu-core   2015-06-18 93        ubuntu"
