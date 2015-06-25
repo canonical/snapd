@@ -37,10 +37,12 @@ const (
 
 var (
 	debsDir     = filepath.Join(baseDir, "debs")
+	testsDir    = filepath.Join(baseDir, "tests")
 	imageDir    = filepath.Join(baseDir, "image")
 	outputDir   = filepath.Join(baseDir, "output")
 	imageTarget = filepath.Join(imageDir, "snappy.img")
 	defaultArch = ubuntuArchitecture()
+	testFile    = filepath.Join(testsDir, "snappy.tests")
 )
 
 func execCommand(cmds ...string) {
@@ -50,6 +52,14 @@ func execCommand(cmds ...string) {
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("Error while running %s: %s\n", cmd.Args, err)
 	}
+}
+
+func buildTests() {
+	fmt.Println("Building tests")
+	prepareTargetDir(testsDir)
+	execCommand(
+		"go", "test", "-c", "./_integration-tests/tests",
+		"-o", testFile)
 }
 
 func buildDebs(rootPath string) {
@@ -81,15 +91,10 @@ func adtRun(rootPath string) {
 		"adt-run",
 		"-B",
 		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
-		"--setup-commands", "mount -o remount,rw /",
-		"--setup-commands",
-		fmt.Sprintf("dpkg -i %s/*deb", debsTestBedPath),
-		"--setup-commands",
-		"sync; sleep 2; mount -o remount,ro /",
 		"--override-control", "debian/integration-tests/control",
 		"--built-tree", rootPath,
 		"--output-dir", outputDir,
-		fmt.Sprintf("--copy=%s:%s", debsDir, debsTestBedPath),
+		fmt.Sprintf("--copy=%s:%s", testsDir, testsDir),
 		"---",
 		"ssh", "-s", "/usr/share/autopkgtest/ssh-setup/snappy",
 		"--", "-i", imageTarget)
@@ -118,11 +123,7 @@ func getArchForImage() string {
 func main() {
 	rootPath := getRootPath()
 
-	if len(os.Args) == 2 {
-		debsDir = os.Args[1]
-	} else {
-		buildDebs(rootPath)
-	}
+	buildTests()
 
 	createImage(defaultRelease, defaultChannel)
 
