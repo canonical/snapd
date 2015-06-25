@@ -29,7 +29,7 @@ type InstallSuite struct {
 
 func installSnap(c *C, packageName string) []byte {
 	return execCommand(c, "sudo", "snappy", "install", packageName)
-}
+
 
 func (s *InstallSuite) TearDownTest(c *C) {
 	execCommand(c, "sudo", "snappy", "remove", "hello-world")
@@ -44,7 +44,7 @@ func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 		".*\n" +
 		"hello-world   .* .*  canonical \n" +
 		".*\n"
-	c.Assert(string(installOutput), Matches, expected)
+	c.Assert(installOutput, Matches, expected)
 }
 
 func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
@@ -52,14 +52,15 @@ func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
 
 	echoOutput := execCommand(c, "hello-world.echo")
 
-	c.Assert(string(echoOutput), Equals, "Hello World!\n")
+	c.Assert(echoOutput, Equals, "Hello World!\n")
 }
 
 func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
 	installSnap(c, "hello-world")
 
-	infoOutput := execCommand(c, "sudo", "snappy", "info")
+	infoOutput := s.execCommand(c, "snappy", "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
-	c.Assert(string(infoOutput), Matches, expected)
+
+	c.Assert(infoOutput, Matches, expected)
 }
