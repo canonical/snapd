@@ -70,7 +70,7 @@ func passwdFile(rootDir, file string) string {
 	return filepath.Join("/etc/", file)
 }
 
-func readUid(user, passwdFile string) (uid int, err error) {
+func readUID(user, passwdFile string) (uid int, err error) {
 	f, err := os.Open(passwdFile)
 	if err != nil {
 		return -1, err
@@ -125,13 +125,13 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 	if helpers.ShouldDropPrivs() {
 
 		passFile := passwdFile(rootDir, "passwd")
-		uid, err := readUid(dropPrivsUser, passFile)
+		uid, err := readUID(dropPrivsUser, passFile)
 		if err != nil {
 			return err
 		}
 
 		groupFile := passwdFile(rootDir, "group")
-		gid, err := readUid(dropPrivsUser, groupFile)
+		gid, err := readUID(dropPrivsUser, groupFile)
 		if err != nil {
 			return err
 		}
