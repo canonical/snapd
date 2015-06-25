@@ -38,7 +38,7 @@ func (s *InstallSuite) installSnap(c *C, packageName string) string {
 }
 
 func (s *InstallSuite) execCommand(c *C, cmds ...string) string {
-	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
+	cmd := exec.Command(cmds[0], cmds[1:]...)
 	output, err := cmd.CombinedOutput()
 	stringOutput := string(output)
 	c.Assert(err, IsNil, Commentf("Error: %v", stringOutput))

@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 )
 
 const (
@@ -32,7 +33,6 @@ const (
 	debsTestBedPath = "/tmp/snappy-debs"
 	defaultRelease  = "rolling"
 	defaultChannel  = "edge"
-	defaultArch     = "amd64"
 )
 
 var (
@@ -40,10 +40,11 @@ var (
 	imageDir    = filepath.Join(baseDir, "image")
 	outputDir   = filepath.Join(baseDir, "output")
 	imageTarget = filepath.Join(imageDir, "snappy.img")
+	defaultArch = runtime.GOARCH
 )
 
 func execCommand(cmds ...string) {
-	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
+	cmd := exec.Command(cmds[0], cmds[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
