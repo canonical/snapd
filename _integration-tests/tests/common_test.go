@@ -36,8 +36,9 @@ func Test(t *testing.T) { TestingT(t) }
 func execCommand(c *C, cmds ...string) []byte {
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	output, err := cmd.CombinedOutput()
-	c.Assert(err, IsNil, Commentf("Error: %v", string(output)))
-	return output
+	stringOutput := string(output)
+	c.Assert(err, IsNil, Commentf("Error: %v", stringOutput))
+	return stringOuput
 }
 
 func execCommandToFile(c *C, filename string, cmds ...string) {
