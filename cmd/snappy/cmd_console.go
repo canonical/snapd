@@ -71,27 +71,26 @@ func (x *cmdConsole) doConsole() error {
 	fmt.Println("Welcome to the snappy console")
 	fmt.Println("Type 'help' for help")
 	for {
-		if line, err := repl.Prompt("> "); err != nil {
+		line, err := repl.Prompt("> ")
+		if err != nil {
 			return err
-		} else {
-			// FIXME: generalize
-			if strings.HasPrefix(line, "help") {
-				// FIXME: support "help subcommand" by
-				//        just finding subcommand in parser
-				//        and setting it to "Active"
-				parser.Active = nil
-				parser.WriteHelp(os.Stdout)
-				continue
-			}
-
-			// do it
-			_, err := parser.ParseArgs(strings.Fields(line))
-			if err != nil {
-				fmt.Println(err)
-			}
-			repl.AppendHistory(line)
 		}
-	}
 
-	return nil
+		// FIXME: generalize
+		if strings.HasPrefix(line, "help") {
+			// FIXME: support "help subcommand" by
+			//        just finding subcommand in parser
+			//        and setting it to "Active"
+			parser.Active = nil
+			parser.WriteHelp(os.Stdout)
+			continue
+		}
+
+		// do it
+		_, err = parser.ParseArgs(strings.Fields(line))
+		if err != nil {
+			fmt.Println(err)
+		}
+		repl.AppendHistory(line)
+	}
 }
