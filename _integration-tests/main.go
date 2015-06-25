@@ -57,9 +57,8 @@ func execCommand(cmds ...string) {
 func buildTests() {
 	fmt.Println("Building tests")
 	prepareTargetDir(testsDir)
-	execCommand(
-		"go", "test", "-c", "./_integration-tests/tests",
-		"-o", testFile)
+	execCommand("go", "test", "-c", "./_integration-tests/tests")
+	execCommand("mv", "tests.test", testFile)
 }
 
 func createImage(release, channel string) {
