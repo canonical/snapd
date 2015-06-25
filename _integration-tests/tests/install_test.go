@@ -29,7 +29,7 @@ type InstallSuite struct {
 
 func installSnap(c *C, packageName string) []byte {
 	return execCommand(c, "sudo", "snappy", "install", packageName)
-
+}
 
 func (s *InstallSuite) TearDownTest(c *C) {
 	execCommand(c, "sudo", "snappy", "remove", "hello-world")

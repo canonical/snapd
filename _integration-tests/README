@@ -1,6 +1,5 @@
 # Automatic testing for snappy
 
-
 ## qemu based x86 testing
 
 Run locally with:
@@ -20,4 +19,3 @@ Having golang installed, you can execute the full suite (including both go and
 shell tests) with:
 
 $ go run _integration-test/main.go
-
