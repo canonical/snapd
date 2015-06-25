@@ -38,7 +38,7 @@ func execCommand(c *C, cmds ...string) []byte {
 	output, err := cmd.CombinedOutput()
 	stringOutput := string(output)
 	c.Assert(err, IsNil, Commentf("Error: %v", stringOutput))
-	return stringOuput
+	return stringOutput
 }
 
 func execCommandToFile(c *C, filename string, cmds ...string) {
