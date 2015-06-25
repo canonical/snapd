@@ -62,17 +62,6 @@ func buildTests() {
 		"-o", testFile)
 }
 
-func buildDebs(rootPath string) {
-	fmt.Println("Building debs...")
-	prepareTargetDir(debsDir)
-	execCommand(
-		"bzr", "bd",
-		fmt.Sprintf("--result-dir=%s", debsDir),
-		"--split",
-		rootPath,
-		"--", "-uc", "-us")
-}
-
 func createImage(release, channel string) {
 	fmt.Println("Creating image...")
 	prepareTargetDir(imageDir)
