@@ -25,7 +25,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 )
 
 const (
@@ -41,7 +40,6 @@ var (
 	imageDir    = filepath.Join(baseDir, "image")
 	outputDir   = filepath.Join(baseDir, "output")
 	imageTarget = filepath.Join(imageDir, "snappy.img")
-	defaultArch = ubuntuArchitecture()
 	testFile    = filepath.Join(testsDir, "snappy.tests")
 )
 
@@ -104,10 +102,6 @@ func getRootPath() string {
 	return dir
 }
 
-func getArchForImage() string {
-	return fmt.Sprintf("generic-%s", defaultArch)
-}
-
 func main() {
 	rootPath := getRootPath()
 
@@ -116,16 +110,4 @@ func main() {
 	createImage(defaultRelease, defaultChannel)
 
 	adtRun(rootPath)
-}
-
-func ubuntuArchitecture() string {
-	goarch := runtime.GOARCH
-	switch goarch {
-	case "386":
-		return "i386"
-	case "arm":
-		return "armhf"
-	default:
-		return goarch
-	}
 }
