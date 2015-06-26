@@ -83,20 +83,19 @@ func execCommand(cmds ...string) {
 
 func buildSnappyCLI(arch string) {
 	fmt.Println("Building snappy CLI...")
-	setGOARCH(arch)
-	execCommand("go", "build", "-o", snappyFromBranchCmd, "./cmd/snappy")
-}
-
-func setGOARCH(arch string) {
 	if arch != "" {
 		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
 		os.Setenv("GOARCH", arch)
 	}
+	execCommand("go", "build", "-o", snappyFromBranchCmd, "./cmd/snappy")
 }
 
 func buildTests(arch string) {
 	fmt.Println("Building tests...")
-	setGOARCH(arch)
+	if arch != "" {
+		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
+		os.Setenv("GOARCH", arch)
+	}
 	execCommand("go", "test", "-c", "./_integration-tests/tests")
 	os.Rename("tests.test", snappyTestsCmd)
 }
