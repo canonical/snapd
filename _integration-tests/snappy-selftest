@@ -4,7 +4,7 @@ set -e
 
 MYDIR=$(dirname $0)
 
-. $MYDIR/tests/framework
+. "$MYDIR"/tests/framework
 
 SNAPPY=snappy
 
@@ -15,9 +15,9 @@ if [ "$1" != "--yes-really" ]; then
     exit 1
 fi
 
-. $MYDIR/tests/settings
+. "$MYDIR"/tests/settings
 
-. $MYDIR/tests/common.sh
+. "$MYDIR"/tests/common.sh
 
 # prepare the environment
 if [ -z "$ADT_REBOOT_MARK" ]; then
@@ -27,7 +27,7 @@ if [ -z "$ADT_REBOOT_MARK" ]; then
     sudo snappy remove xkcd-webserver 2>&1 || true
 fi
 
-for test in $MYDIR/tests/*_test_*[!~#]; do
+for test in "$MYDIR"/tests/*_test_*[!~#]; do
     CURRENT_TEST=$(basename $test)
 
     # after a reboot, skip ahead to the test that triggered it

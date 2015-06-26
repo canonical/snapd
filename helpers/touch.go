@@ -38,6 +38,8 @@ import (
 	"unsafe"
 )
 
+// ErrNotAbsPath is returned when an absolute path is needed but the received
+// path is not.
 var ErrNotAbsPath = errors.New("not an absolute path")
 
 // UpdateTimestamp updates the timestamp of the file at pathname. It does not

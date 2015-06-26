@@ -151,6 +151,11 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 	syscalls := []string{}
 
 	if sd.SecurityOverride != nil {
+		if sd.SecurityOverride.Seccomp == "" {
+			logger.Noticef("No seccomp policy found")
+			return nil, ErrNoSeccompPolicy
+		}
+
 		fn := filepath.Join(baseDir, sd.SecurityOverride.Seccomp)
 		var s securitySeccompOverride
 		err := readSeccompOverride(fn, &s)

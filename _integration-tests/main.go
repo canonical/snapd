@@ -32,18 +32,18 @@ const (
 	debsTestBedPath = "/tmp/snappy-debs"
 	defaultRelease  = "rolling"
 	defaultChannel  = "edge"
-	defaultArch     = "amd64"
 )
 
 var (
 	debsDir     = filepath.Join(baseDir, "debs")
+	testsDir    = filepath.Join(baseDir, "tests")
 	imageDir    = filepath.Join(baseDir, "image")
 	outputDir   = filepath.Join(baseDir, "output")
 	imageTarget = filepath.Join(imageDir, "snappy.img")
 )
 
 func execCommand(cmds ...string) {
-	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
+	cmd := exec.Command(cmds[0], cmds[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -51,15 +51,11 @@ func execCommand(cmds ...string) {
 	}
 }
 
-func buildDebs(rootPath string) {
-	fmt.Println("Building debs...")
-	prepareTargetDir(debsDir)
-	execCommand(
-		"bzr", "bd",
-		fmt.Sprintf("--result-dir=%s", debsDir),
-		"--split",
-		rootPath,
-		"--", "-uc", "-us")
+func buildTests() {
+	fmt.Println("Building tests")
+	prepareTargetDir(testsDir)
+	execCommand("go", "test", "-c", "./_integration-tests/tests")
+	os.Rename("tests.test", "snappy.tests")
 }
 
 func createImage(release, channel string) {
@@ -80,15 +76,9 @@ func adtRun(rootPath string) {
 		"adt-run",
 		"-B",
 		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
-		"--setup-commands", "mount -o remount,rw /",
-		"--setup-commands",
-		fmt.Sprintf("dpkg -i %s/*deb", debsTestBedPath),
-		"--setup-commands",
-		"sync; sleep 2; mount -o remount,ro /",
 		"--override-control", "debian/integration-tests/control",
 		"--built-tree", rootPath,
 		"--output-dir", outputDir,
-		fmt.Sprintf("--copy=%s:%s", debsDir, debsTestBedPath),
 		"---",
 		"ssh", "-s", "/usr/share/autopkgtest/ssh-setup/snappy",
 		"--", "-i", imageTarget)
@@ -110,18 +100,10 @@ func getRootPath() string {
 	return dir
 }
 
-func getArchForImage() string {
-	return fmt.Sprintf("generic-%s", defaultArch)
-}
-
 func main() {
 	rootPath := getRootPath()
 
-	if len(os.Args) == 2 {
-		debsDir = os.Args[1]
-	} else {
-		buildDebs(rootPath)
-	}
+	buildTests()
 
 	createImage(defaultRelease, defaultChannel)
 

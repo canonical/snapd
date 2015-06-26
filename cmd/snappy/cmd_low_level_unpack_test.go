@@ -42,7 +42,7 @@ daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
 clickpkg:x:101:104::/nonexistent:/bin/false
 `)
 
-	uid, err := readUid("clickpkg", f.Name())
+	uid, err := readUID("clickpkg", f.Name())
 	c.Assert(err, IsNil)
 	c.Assert(uid, Equals, 101)
 }
@@ -53,7 +53,7 @@ daemon:x:1:
 clickpkg:x:104:
 `)
 
-	gid, err := readUid("clickpkg", f.Name())
+	gid, err := readUID("clickpkg", f.Name())
 	c.Assert(err, IsNil)
 	c.Assert(gid, Equals, 104)
 }
@@ -66,7 +66,7 @@ clickpkg:x:102:105::/nonexistent:/bin/false
 `)
 	defer os.Remove(f.Name())
 
-	uid, err := readUid("clickpkg", f.Name())
+	uid, err := readUID("clickpkg", f.Name())
 	c.Assert(err, IsNil)
 	c.Assert(uid, Equals, 102)
 }
@@ -77,7 +77,7 @@ daemon:
 clickpkg:x:
 `)
 
-	_, err := readUid("clickpkg", f.Name())
+	_, err := readUID("clickpkg", f.Name())
 	c.Assert(err, NotNil)
 }
 
@@ -86,6 +86,6 @@ func (s *CmdTestSuite) TestUidReaderInvalidPasswd2(c *C) {
 daemon:
 `)
 
-	_, err := readUid("clickpkg", f.Name())
+	_, err := readUID("clickpkg", f.Name())
 	c.Assert(err, NotNil)
 }
