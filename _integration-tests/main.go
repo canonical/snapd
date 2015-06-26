@@ -35,6 +35,7 @@ const (
 	defaultChannel = "edge"
 	defaultArch    = "amd64"
 	defaultSSHPort = 22
+	defaultGoArm   = "7"
 )
 
 var (
@@ -78,6 +79,10 @@ func buildTests(arch string) {
 	if arch != "" {
 		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
 		os.Setenv("GOARCH", arch)
+		if arch == "arm" {
+			defer os.Setenv("GOARM", os.Getenv("GOARM"))
+			os.Setenv("GOARM", defaultGoArm)
+		}
 	}
 	execCommand("go", "test", "-c", "./_integration-tests/tests")
 	os.Rename("tests.test", "snappy.tests")
