@@ -28,22 +28,22 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-var SnappyCmd = "snappy"
+var snappyCmd = "snappy"
 
 type CommonSuite struct{}
 
 func init() {
 	if _, err := os.Stat("snappy-from-branch"); err == nil {
-		SnappyCmd = "./snappy-from-branch"
+		snappyCmd = "./snappy-from-branch"
 	}
 }
 
 func execSnappyCommand(c *C, cmds ...string) string {
-	return execCommand(c, append([]string{SnappyCmd}, cmds...)...)
+	return execCommand(c, append([]string{snappyCmd}, cmds...)...)
 }
 
 func execSudoSnappyCommand(c *C, cmds ...string) string {
-	return execCommand(c, append([]string{"sudo", SnappyCmd}, cmds...)...)
+	return execCommand(c, append([]string{"sudo", snappyCmd}, cmds...)...)
 }
 
 func execCommand(c *C, cmds ...string) string {

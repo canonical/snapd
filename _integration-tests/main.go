@@ -37,11 +37,11 @@ const (
 	defaultSSHPort      = 22
 	snappyFromBranchCmd = "snappy-from-branch"
 	snappyTestsCmd      = "snappy.tests"
+	defaultGoArm        = "7"
 )
 
 var (
 	imageDir         = filepath.Join(baseDir, "image")
-	outputDir        = filepath.Join(baseDir, "output")
 	imageTarget      = filepath.Join(imageDir, "snappy.img")
 	commonSSHOptions = []string{"---", "ssh"}
 	kvmSSHOptions    = append(
@@ -81,22 +81,27 @@ func execCommand(cmds ...string) {
 	}
 }
 
-func buildSnappyCLI(arch string) {
-	fmt.Println("Building snappy CLI...")
+func goCall(arch string, cmds ...string) {
 	if arch != "" {
 		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
 		os.Setenv("GOARCH", arch)
+		if arch == "arm" {
+			defer os.Setenv("GOARM", os.Getenv("GOARM"))
+			os.Setenv("GOARM", defaultGoArm)
+		}
 	}
-	execCommand("go", "build", "-o", snappyFromBranchCmd, "./cmd/snappy")
+	goCmd := append([]string{"go"}, cmds...)
+	execCommand(goCmd...)
+}
+
+func buildSnappyCLI(arch string) {
+	fmt.Println("Building snappy CLI...")
+	goCall(arch, "build", "-o", snappyFromBranchCmd, "./cmd/snappy")
 }
 
 func buildTests(arch string) {
 	fmt.Println("Building tests...")
-	if arch != "" {
-		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
-		os.Setenv("GOARCH", arch)
-	}
-	execCommand("go", "test", "-c", "./_integration-tests/tests")
+	goCall(arch, "test", "-c", "./_integration-tests/tests")
 	os.Rename("tests.test", snappyTestsCmd)
 }
 
@@ -113,6 +118,7 @@ func createImage(release, channel string) {
 
 func adtRun(rootPath string, testbedOptions []string) {
 	fmt.Println("Calling adt-run...")
+	outputDir := filepath.Join(baseDir, "output")
 	prepareTargetDir(outputDir)
 
 	cmd := []string{
