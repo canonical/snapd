@@ -33,7 +33,6 @@ const (
 	baseDir        = "/tmp/snappy-test"
 	defaultRelease = "rolling"
 	defaultChannel = "edge"
-	defaultArch    = "amd64"
 	defaultSSHPort = 22
 	defaultGoArm   = "7"
 )
