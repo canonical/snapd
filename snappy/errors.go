@@ -140,6 +140,8 @@ var (
 
 	// ErrInvalidSeccompPolicy is returned when policy-version and policy-vender are not set together
 	ErrInvalidSeccompPolicy = errors.New("policy-version and policy-vendor must be specified together")
+	// ErrNoSeccompPolicy is returned when an expected seccomp policy is not provided.
+	ErrNoSeccompPolicy = errors.New("no seccomp policy provided")
 )
 
 // ErrArchitectureNotSupported is returned when trying to install a snappy package that

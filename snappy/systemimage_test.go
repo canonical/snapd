@@ -28,7 +28,7 @@ import (
 	"strings"
 	"testing"
 
-	partition "launchpad.net/snappy/partition"
+	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/provisioning"
 
 	. "gopkg.in/check.v1"
@@ -72,6 +72,7 @@ func (s *SITestSuite) SetUpTest(c *C) {
 func (s *SITestSuite) TearDownTest(c *C) {
 	s.mockSystemImageWebServer.Close()
 	systemImageRoot = "/"
+	bootloaderDir = bootloaderDirImpl
 }
 
 func makeMockSystemImageCli(c *C, tempdir string) string {
@@ -390,18 +391,16 @@ options:
   device-part: /some/path/file.tgz
   developer-mode: true
 `
-	tempBootDir, err = ioutil.TempDir("", "")
-	c.Assert(err, IsNil)
-
+	tempBootDir := c.MkDir()
 	parts, err := s.systemImage.Updates()
 
 	sp := parts[0].(*SystemImagePart)
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	bootDir := sp.partition.BootloaderDir()
+	bootloaderDir = func() string { return tempBootDir }
 
-	sideLoaded := filepath.Join(bootDir, provisioning.InstallYamlFile)
+	sideLoaded := filepath.Join(tempBootDir, provisioning.InstallYamlFile)
 
 	err = os.MkdirAll(filepath.Dir(sideLoaded), 0775)
 	c.Assert(err, IsNil)
@@ -414,7 +413,4 @@ options:
 	// Ensure the install fails if the system is sideloaded
 	_, err = sp.Install(pb, 0)
 	c.Assert(err, Equals, ErrSideLoaded)
-
-	os.Remove(tempBootDir)
-	tempBootDir = ""
 }
