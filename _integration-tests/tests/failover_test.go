@@ -86,7 +86,7 @@ func afterReboot(c *C) bool {
 }
 
 func getCurrentVersion(c *C) int {
-	output := execCommand(c, "snappy", "list")
+	output := execSnappyCommand(c, "list")
 	pattern := "(?mU)^ubuntu-core (.*)$"
 	re := regexp.MustCompile(pattern)
 	match := re.FindStringSubmatch(output)
@@ -139,7 +139,7 @@ func switchChannelVersion(c *C, oldVersion, newVersion int) {
 
 func callUpdate(c *C) {
 	c.Log("Calling snappy update...")
-	execCommand(c, "sudo", "snappy", "update")
+	execSudoSnappyCommand(c, "update")
 }
 
 func makeWritable(c *C, path string) {

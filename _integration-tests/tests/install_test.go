@@ -19,7 +19,14 @@
 
 package tests
 
-import . "gopkg.in/check.v1"
+import (
+	"testing"
+
+	. "gopkg.in/check.v1"
+)
+
+// Hook up gocheck into the "go test" runner
+func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&InstallSuite{})
 
@@ -28,11 +35,11 @@ type InstallSuite struct {
 }
 
 func installSnap(c *C, packageName string) string {
-	return execCommand(c, "sudo", "snappy", "install", packageName)
+	return execSudoSnappyCommand(c, "install", packageName)
 }
 
 func (s *InstallSuite) TearDownTest(c *C) {
-	execCommand(c, "sudo", "snappy", "remove", "hello-world")
+	execSudoSnappyCommand(c, "remove", "hello-world")
 }
 
 func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
@@ -58,7 +65,7 @@ func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
 func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
 	installSnap(c, "hello-world")
 
-	infoOutput := execCommand(c, "snappy", "info")
+	infoOutput := execSnappyCommand(c, "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
 

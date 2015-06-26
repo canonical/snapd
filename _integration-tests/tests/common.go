@@ -23,18 +23,32 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"testing"
+	"strings"
 
 	. "gopkg.in/check.v1"
 )
 
+var SnappyCmd = "snappy"
+
 type CommonSuite struct{}
 
-// Hook up gocheck into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
+func init() {
+	if _, err := os.Stat("snappy-from-branch"); err == nil {
+		SnappyCmd = "./snappy-from-branch"
+	}
+}
+
+func execSnappyCommand(c *C, cmds ...string) string {
+	return execCommand(c, append([]string{SnappyCmd}, cmds...)...)
+}
+
+func execSudoSnappyCommand(c *C, cmds ...string) string {
+	return execCommand(c, append([]string{"sudo", SnappyCmd}, cmds...)...)
+}
 
 func execCommand(c *C, cmds ...string) string {
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
+	fmt.Println(strings.Join(cmds, " "))
 	output, err := cmd.CombinedOutput()
 	stringOutput := string(output)
 	c.Assert(err, IsNil, Commentf("Error: %v", stringOutput))

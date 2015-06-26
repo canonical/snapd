@@ -30,15 +30,16 @@ import (
 )
 
 const (
-	baseDir        = "/tmp/snappy-test"
-	defaultRelease = "rolling"
-	defaultChannel = "edge"
-	defaultArch    = "amd64"
-	defaultSSHPort = 22
+	baseDir             = "/tmp/snappy-test"
+	defaultRelease      = "rolling"
+	defaultChannel      = "edge"
+	defaultArch         = "amd64"
+	defaultSSHPort      = 22
+	snappyFromBranchCmd = "snappy-from-branch"
+	snappyTestsCmd      = "snappy.tests"
 )
 
 var (
-	testsDir         = filepath.Join(baseDir, "tests")
 	imageDir         = filepath.Join(baseDir, "image")
 	outputDir        = filepath.Join(baseDir, "output")
 	imageTarget      = filepath.Join(imageDir, "snappy.img")
@@ -50,7 +51,15 @@ var (
 			"--", "-i", imageTarget}...)
 )
 
-func setupAndRunTests(arch, testbedIP string, testbedPort int) {
+func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedPort int) {
+	os.Remove(snappyFromBranchCmd)
+	os.Remove(snappyTestsCmd)
+
+	if useSnappyFromBranch {
+		// FIXME We need to build an image that has the snappy from the branch
+		// installed. --elopio - 2015-06-25.
+		buildSnappyCLI(arch)
+	}
 	buildTests(arch)
 
 	rootPath := getRootPath()
@@ -72,15 +81,24 @@ func execCommand(cmds ...string) {
 	}
 }
 
-func buildTests(arch string) {
-	fmt.Println("Building tests")
-	prepareTargetDir(testsDir)
+func buildSnappyCLI(arch string) {
+	fmt.Println("Building snappy CLI...")
+	setGOARCH(arch)
+	execCommand("go", "build", "-o", snappyFromBranchCmd, "./cmd/snappy")
+}
+
+func setGOARCH(arch string) {
 	if arch != "" {
 		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
 		os.Setenv("GOARCH", arch)
 	}
+}
+
+func buildTests(arch string) {
+	fmt.Println("Building tests...")
+	setGOARCH(arch)
 	execCommand("go", "test", "-c", "./_integration-tests/tests")
-	os.Rename("tests.test", "snappy.tests")
+	os.Rename("tests.test", snappyTestsCmd)
 }
 
 func createImage(release, channel string) {
@@ -137,6 +155,8 @@ func getRootPath() string {
 
 func main() {
 	var (
+		useSnappyFromBranch = flag.Bool("snappy-from-branch", false,
+			"If this flag is used, snappy will be compiled from this branch, copied to the testbed and used for the tests. Otherwise, the snappy installed with the image will be used.")
 		arch = flag.String("arch", "",
 			"Architecture of the test bed. Defaults to use the same architecture as the host.")
 		testbedIP = flag.String("ip", "",
@@ -147,5 +167,5 @@ func main() {
 
 	flag.Parse()
 
-	setupAndRunTests(*arch, *testbedIP, *testbedPort)
+	setupAndRunTests(*useSnappyFromBranch, *arch, *testbedIP, *testbedPort)
 }
