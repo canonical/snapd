@@ -40,7 +40,6 @@ var (
 	imageDir    = filepath.Join(baseDir, "image")
 	outputDir   = filepath.Join(baseDir, "output")
 	imageTarget = filepath.Join(imageDir, "snappy.img")
-	testFile    = filepath.Join(testsDir, "snappy.tests")
 )
 
 func execCommand(cmds ...string) {
@@ -56,7 +55,7 @@ func buildTests() {
 	fmt.Println("Building tests")
 	prepareTargetDir(testsDir)
 	execCommand("go", "test", "-c", "./_integration-tests/tests")
-	execCommand("mv", "tests.test", testFile)
+	os.Rename("tests.test", "snappy.tests")
 }
 
 func createImage(release, channel string) {
@@ -80,7 +79,6 @@ func adtRun(rootPath string) {
 		"--override-control", "debian/integration-tests/control",
 		"--built-tree", rootPath,
 		"--output-dir", outputDir,
-		fmt.Sprintf("--copy=%s:%s", testsDir, testsDir),
 		"---",
 		"ssh", "-s", "/usr/share/autopkgtest/ssh-setup/snappy",
 		"--", "-i", imageTarget)

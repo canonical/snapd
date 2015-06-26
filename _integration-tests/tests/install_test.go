@@ -19,42 +19,24 @@
 
 package tests
 
-import (
-	"os/exec"
-	"testing"
-
-	. "gopkg.in/check.v1"
-)
-
-// Hook up gocheck into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
+import . "gopkg.in/check.v1"
 
 var _ = Suite(&InstallSuite{})
 
-type InstallSuite struct{}
-
-func (s *InstallSuite) installSnap(c *C, packageName string) string {
-	return s.execCommand(c, "sudo", "snappy", "install", packageName)
+type InstallSuite struct {
+	CommonSuite
 }
 
-func (s *InstallSuite) execCommand(c *C, cmds ...string) string {
-	cmd := exec.Command(cmds[0], cmds[1:]...)
-	output, err := cmd.CombinedOutput()
-	stringOutput := string(output)
-	c.Assert(err, IsNil, Commentf("Error: %v", stringOutput))
-	return stringOutput
-}
-
-func (s *InstallSuite) SetUpSuite(c *C) {
-	s.execCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
+func installSnap(c *C, packageName string) string {
+	return execCommand(c, "sudo", "snappy", "install", packageName)
 }
 
 func (s *InstallSuite) TearDownTest(c *C) {
-	s.execCommand(c, "sudo", "snappy", "remove", "hello-world")
+	execCommand(c, "sudo", "snappy", "remove", "hello-world")
 }
 
 func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
-	installOutput := s.installSnap(c, "hello-world")
+	installOutput := installSnap(c, "hello-world")
 
 	expected := "" +
 		"Installing hello-world\n" +
@@ -66,18 +48,19 @@ func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 }
 
 func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
-	s.installSnap(c, "hello-world")
+	installSnap(c, "hello-world")
 
-	echoOutput := s.execCommand(c, "hello-world.echo")
+	echoOutput := execCommand(c, "hello-world.echo")
 
 	c.Assert(echoOutput, Equals, "Hello World!\n")
 }
 
 func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
-	s.installSnap(c, "hello-world")
+	installSnap(c, "hello-world")
 
-	infoOutput := s.execCommand(c, "snappy", "info")
+	infoOutput := execCommand(c, "snappy", "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
+
 	c.Assert(infoOutput, Matches, expected)
 }
