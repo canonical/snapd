@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"text/template"
 )
 
 const (
@@ -36,6 +37,14 @@ const (
 	defaultArch    = "amd64"
 	defaultSSHPort = 22
 	defaultGoArm   = "7"
+	controlFile    = "debian/integration-tests/control"
+	adtrunTemplate = `Test-Command: ./snappy.tests -gocheck.vv -test.outputdir=$ADT_ARTIFACTS {{ if .Filter }}-gocheck.f {{ .Filter }}{{ end }}
+Restrictions: allow-stderr
+Depends: ubuntu-snappy-tests
+
+Test-Command: ./_integration-tests/snappy-selftest --yes-really
+Depends:
+`
 )
 
 var (
@@ -51,16 +60,16 @@ var (
 			"--", "-i", imageTarget}...)
 )
 
-func setupAndRunTests(arch, testbedIP string, testbedPort int) {
+func setupAndRunTests(arch, testbedIP, testFilter string, testbedPort int) {
 	buildTests(arch)
 
 	rootPath := getRootPath()
 	if testbedIP == "" {
 		createImage(defaultRelease, defaultChannel)
-		adtRun(rootPath, kvmSSHOptions)
+		adtRun(rootPath, testFilter, kvmSSHOptions)
 	} else {
 		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort), "ubuntu@"+testbedIP)
-		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP, testbedPort))
+		adtRun(rootPath, testFilter, remoteTestbedSSHOptions(testbedIP, testbedPort))
 	}
 }
 
@@ -99,19 +108,43 @@ func createImage(release, channel string) {
 		"--developer-mode")
 }
 
-func adtRun(rootPath string, testbedOptions []string) {
+func adtRun(rootPath, testFilter string, testbedOptions []string) {
 	fmt.Println("Calling adt-run...")
 	prepareTargetDir(outputDir)
+
+	createControlFile(testFilter)
 
 	cmd := []string{
 		"adt-run",
 		"-B",
 		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
-		"--override-control", "debian/integration-tests/control",
+		"--override-control", controlFile,
 		"--built-tree", rootPath,
 		"--output-dir", outputDir,
 	}
 	execCommand(append(cmd, testbedOptions...)...)
+}
+
+func createControlFile(testFilter string) {
+	type controlData struct {
+		Filter string
+	}
+
+	tpl, err := template.New("controlFile").Parse(adtrunTemplate)
+	if err != nil {
+		log.Fatal("Error creating template for cotrol file")
+	}
+
+	outputFile, err := os.Create(controlFile)
+	if err != nil {
+		log.Fatalf("Error creating control file %s", controlFile)
+	}
+	defer outputFile.Close()
+
+	err = tpl.Execute(outputFile, controlData{Filter: testFilter})
+	if err != nil {
+		log.Fatalf("execution: %s", err)
+	}
 }
 
 func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
@@ -148,9 +181,11 @@ func main() {
 			"IP of the testbed. If no IP is passed, a virtual machine will be created for the test.")
 		testbedPort = flag.Int("port", defaultSSHPort,
 			"SSH port of the testbed. Defaults to use port 22.")
+		testFilter = flag.String("filter", "",
+			"Suites or tests to run, for instance MyTestSuite, MyTestSuite.FirstCustomTest or MyTestSuite.*CustomTest")
 	)
 
 	flag.Parse()
 
-	setupAndRunTests(*arch, *testbedIP, *testbedPort)
+	setupAndRunTests(*arch, *testbedIP, *testFilter, *testbedPort)
 }
