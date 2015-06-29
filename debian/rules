@@ -50,13 +50,6 @@ override_dh_systemd_start:
 		-pubuntu-snappy \
 		snappy-autopilot.service
 
-override_dh_auto_build:
-	dh_auto_build
-	for testType in failover latest update; do \
-		GOPATH=$$PWD/$(DH_BUILDDIR) go test -c ./_integration-tests/tests/$$testType; \
-		mv $$testType.test $$PWD/$(DH_BUILDDIR)/bin/snappy-$$testType.test; \
-	done
-
 override_dh_auto_install:
 	dh_auto_install -O--buildsystem=golang
 	# Making the packages private
