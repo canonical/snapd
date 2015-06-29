@@ -673,6 +673,10 @@ func (s *SnapPart) Channel() string {
 
 // Icon returns the path to the icon
 func (s *SnapPart) Icon() string {
+	if helpers.FileExists(iconPath(s)) {
+		return iconPath(s)
+	}
+
 	return filepath.Join(s.basedir, s.m.Icon)
 }
 
