@@ -63,7 +63,7 @@ func (s *installSuite) TestCallBinaryFromInstalledSnap(c *C) {
 
 	echoOutput := ExecCommand(c, "hello-world.echo")
 
-	c.Assert(string(echoOutput), Equals, "Hello World!\n")
+	c.Assert(echoOutput, Equals, "Hello World!\n")
 }
 
 func (s *installSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
