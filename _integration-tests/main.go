@@ -61,14 +61,13 @@ var (
 )
 
 func setupAndRunTests(arch, testbedIP, testFilter string, testbedPort int) {
-	var sshOptions []string
+	sshOptions := kvmSSHOptions
 
 	buildTests(arch)
 
 	rootPath := getRootPath()
 	if testbedIP == "" {
 		createImage(defaultRelease, defaultChannel)
-		sshOptions = kvmSSHOptions
 	} else {
 		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort), "ubuntu@"+testbedIP)
 		sshOptions = remoteTestbedSSHOptions(testbedIP, testbedPort)
