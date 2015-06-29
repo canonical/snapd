@@ -1488,6 +1488,33 @@ func (s *RemoteSnapPart) Download(pbar progress.Meter) (string, error) {
 	return w.Name(), w.Sync()
 }
 
+func (s *RemoteSnapPart) downloadIcon(pbar progress.Meter) error {
+	if err := os.MkdirAll(snapIconsDir, 0755); err != nil {
+		return err
+	}
+
+	iconPath := iconPath(s)
+	if helpers.FileExists(iconPath) {
+		return nil
+	}
+
+	req, err := http.NewRequest("GET", s.Icon(), nil)
+	if err != nil {
+		return err
+	}
+
+	w, err := os.OpenFile(iconPath, os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+
+	if err := download("icon for package", w, req, pbar); err != nil {
+		return err
+	}
+
+	return w.Sync()
+}
+
 // Install installs the snap
 func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (string, error) {
 	downloadedSnap, err := s.Download(pbar)
@@ -1495,6 +1522,10 @@ func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (strin
 		return "", err
 	}
 	defer os.Remove(downloadedSnap)
+
+	if err := s.downloadIcon(pbar); err != nil {
+		return "", err
+	}
 
 	return installClick(downloadedSnap, flags, pbar, s.Origin())
 }

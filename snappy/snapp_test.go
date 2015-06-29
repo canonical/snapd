@@ -657,15 +657,27 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
 	snapR, err := os.Open(snapPackage)
 	c.Assert(err, IsNil)
 
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.Copy(w, snapR)
-	}))
+	iconContent := "this is an icon"
 
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/snap":
+			io.Copy(w, snapR)
+		case "/icon":
+			fmt.Fprintf(w, iconContent)
+		default:
+			panic("unexpected url path: " + r.URL.Path)
+		}
+	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
 	snap := RemoteSnapPart{}
 	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
+	snap.pkg.IconURL = mockServer.URL + "/icon"
+	snap.pkg.Name = "foo"
+	snap.pkg.Origin = "bar"
+	snap.pkg.Version = "1.0"
 
 	p := &MockProgressMeter{}
 	name, err := snap.Install(p, 0)
@@ -673,7 +685,11 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
 	c.Check(name, Equals, "foo")
 	st, err := os.Stat(snapPackage)
 	c.Assert(err, IsNil)
-	c.Assert(p.written, Equals, int(st.Size()))
+	c.Assert(p.written, Equals, int(st.Size())+len(iconContent))
+
+	iconPath := filepath.Join(snapIconsDir, "foo.bar_1.0.png")
+	_, err = os.Stat(iconPath)
+	c.Assert(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestRemoteSnapUpgradeService(c *C) {
@@ -686,17 +702,28 @@ services:
 	snapR, err := os.Open(snapPackage)
 	c.Assert(err, IsNil)
 
+	iconContent := "icon"
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.Copy(w, snapR)
-		snapR.Seek(0, 0)
+		switch r.URL.Path {
+		case "/snap":
+			io.Copy(w, snapR)
+			snapR.Seek(0, 0)
+		case "/icon":
+			fmt.Fprintf(w, iconContent)
+		default:
+			panic("unexpected url path: " + r.URL.Path)
+		}
 	}))
-
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
 	snap := RemoteSnapPart{}
 	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
 	snap.pkg.Origin = testOrigin
+	snap.pkg.IconURL = mockServer.URL + "/icon"
+	snap.pkg.Name = "foo"
+	snap.pkg.Origin = "bar"
+	snap.pkg.Version = "1.0"
 
 	p := &MockProgressMeter{}
 	name, err := snap.Install(p, 0)
