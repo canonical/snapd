@@ -20,6 +20,7 @@
 package latest
 
 import (
+	"os/exec"
 	"testing"
 
 	. "../common"
