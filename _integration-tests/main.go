@@ -112,7 +112,7 @@ func createImage(release, channel, revision string) {
 	fmt.Println("Creating image...")
 	prepareTargetDir(imageDir)
 	udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
-	if revision != "" {
+	if revision != latestRevision {
 		udfCommand = append(udfCommand, "--revision", revision)
 	}
 	coreOptions := []string{
