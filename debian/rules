@@ -4,7 +4,6 @@
 #export DH_VERBOSE=1
 export DH_OPTIONS
 export DH_GOPKG := launchpad.net/snappy
-DH_BUILDDIR = obj-$(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
 
 %:
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd
