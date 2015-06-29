@@ -44,7 +44,6 @@ func ExecCommand(c *C, cmds ...string) []byte {
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	output, err := cmd.CombinedOutput()
 	stringOutput := string(output)
-
 	c.Assert(err, IsNil, Commentf("Error: %v", stringOutput))
 	return stringOutput
 }
