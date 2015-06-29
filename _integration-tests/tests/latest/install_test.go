@@ -82,7 +82,7 @@ func (s *installSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
 		"/apps/hello-world.canonical/.*/bin/evil: " +
 		"cannot create /var/tmp/myevil.txt: Permission denied\n"
 
-	c.Assert(echoOutput, Matches, expected)
+	c.Assert(string(echoOutput), Matches, expected)
 }
 
 func (s *installSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
