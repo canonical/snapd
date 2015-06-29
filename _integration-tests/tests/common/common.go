@@ -28,7 +28,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"testing"
 
 	. "gopkg.in/check.v1"
 )
