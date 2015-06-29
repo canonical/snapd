@@ -21,12 +21,8 @@ package failover
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
-	"strings"
 	"testing"
 
 	. "../common"
