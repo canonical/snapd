@@ -72,5 +72,5 @@ func (s *installSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
 	infoOutput := ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
-	c.Assert(installOutput, Matches, expected)
+	c.Assert(infoOutput, Matches, expected)
 }
