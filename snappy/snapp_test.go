@@ -652,7 +652,7 @@ func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
 }
 
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	snapPackage := makeTestSnapPackage(c, "")
 	snapR, err := os.Open(snapPackage)
 	c.Assert(err, IsNil)
