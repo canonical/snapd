@@ -67,7 +67,7 @@ func (s *installSuite) TestCallBinaryFromInstalledSnap(c *C) {
 }
 
 func (s *installSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
-	s.installSnap(c, "hello-world")
+	installSnap(c, "hello-world")
 
 	cmd := exec.Command("hello-world.evil")
 	echoOutput, err := cmd.CombinedOutput()
