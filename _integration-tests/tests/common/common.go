@@ -38,7 +38,7 @@ const (
 
 type CommonSuite struct{}
 
-func ExecCommand(c *C, cmds ...string) []byte {
+func ExecCommand(c *C, cmds ...string) string {
 	fmt.Println(strings.Join(cmds, " "))
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	output, err := cmd.CombinedOutput()
