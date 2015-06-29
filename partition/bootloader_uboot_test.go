@@ -218,6 +218,7 @@ partition-layout: inplace
 
 func (s *PartitionTestSuite) TestHandleAssetsNoHardwareYaml(c *C) {
 	s.makeFakeUbootEnv(c)
+	hardwareSpecFile = filepath.Join(c.MkDir(), "non-existent.yaml")
 
 	p := New()
 	bootloader, err := bootloader(p)
