@@ -693,6 +693,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 
 	iconPath := filepath.Join(snapIconsDir, "foo.bar_1.0.png")
 	c.Check(installed[0].Icon(), Equals, iconPath)
+
+	_, err = os.Stat(filepath.Join(snapMetaDir, "foo_bar_1.0.manifest"))
+	c.Check(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestRemoteSnapUpgradeService(c *C) {

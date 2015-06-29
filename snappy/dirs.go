@@ -33,6 +33,7 @@ var (
 	snapSeccompDir   string
 	snapUdevRulesDir string
 	snapIconsDir     string
+	snapMetaDir      string
 
 	snapBinariesDir  string
 	snapServicesDir  string
@@ -56,6 +57,7 @@ func SetRootDir(rootdir string) {
 	snapAppArmorDir = filepath.Join(rootdir, "/var/lib/apparmor/clicks")
 	snapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "profiles")
 	snapIconsDir = filepath.Join(rootdir, snappyDir, "icons")
+	snapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 
 	snapBinariesDir = filepath.Join(snapAppsDir, "bin")
 	snapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")

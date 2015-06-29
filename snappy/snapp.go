@@ -1527,6 +1527,20 @@ func (s *RemoteSnapPart) downloadIcon(pbar progress.Meter) error {
 	return w.Sync()
 }
 
+func (s *RemoteSnapPart) saveStoreManifest() error {
+	content, err := yaml.Marshal(s.pkg)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(snapMetaDir, 0755); err != nil {
+		return err
+	}
+
+	// don't worry about previous contents
+	return ioutil.WriteFile(manifestPath(s), content, 0644)
+}
+
 // Install installs the snap
 func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (string, error) {
 	downloadedSnap, err := s.Download(pbar)
@@ -1536,6 +1550,10 @@ func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (strin
 	defer os.Remove(downloadedSnap)
 
 	if err := s.downloadIcon(pbar); err != nil {
+		return "", err
+	}
+
+	if err := s.saveStoreManifest(); err != nil {
 		return "", err
 	}
 
