@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"testing"
 
 	. "gopkg.in/check.v1"
 )
@@ -40,11 +41,12 @@ type CommonSuite struct{}
 
 func ExecCommand(c *C, cmds ...string) []byte {
 	fmt.Println(strings.Join(cmds, " "))
-
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	output, err := cmd.CombinedOutput()
-	c.Assert(err, IsNil, Commentf("Error: %v", string(output)))
-	return output
+	stringOutput := string(output)
+
+	c.Assert(err, IsNil, Commentf("Error: %v", stringOutput))
+	return stringOutput
 }
 
 func ExecCommandToFile(c *C, filename string, cmds ...string) {
@@ -143,6 +145,7 @@ func (s *CommonSuite) SetUpTest(c *C) {
 		c.Skip(fmt.Sprintf("****** Skipped %s during reboot caused by %s",
 			c.TestName(), contents))
 	} else {
+
 		afterReboot := os.Getenv("ADT_REBOOT_MARK")
 
 		if afterReboot == "" {

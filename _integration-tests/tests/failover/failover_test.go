@@ -21,8 +21,12 @@ package failover
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"testing"
 
 	. "../common"
@@ -33,11 +37,11 @@ import (
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
 
+var _ = Suite(&failoverSuite{})
+
 type failoverSuite struct {
 	CommonSuite
 }
-
-var _ = Suite(&failoverSuite{})
 
 const (
 	baseOtherPath  = "/writable/cache/system"
@@ -65,7 +69,6 @@ func commonFailoverTest(c *C, f failer) {
 	} else {
 		switchChannelVersion(c, currentVersion, currentVersion-1)
 		SetSavedVersion(c, currentVersion-1)
-
 		CallUpdate(c)
 		f.set(c)
 		Reboot(c)

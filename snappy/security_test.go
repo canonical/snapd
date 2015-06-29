@@ -58,6 +58,13 @@ func (a *SecurityTestSuite) verifyApparmorFile(c *C, expected string) {
 	c.Assert(string(content), Equals, expected)
 }
 
+func (a *SecurityTestSuite) TestSnappyNoSeccompOverrideEntry(c *C) {
+	sd := SecurityDefinitions{SecurityOverride: &SecurityOverrideDefinition{}}
+
+	_, err := generateSeccompPolicy(c.MkDir(), "appName", sd)
+	c.Assert(err, Equals, ErrNoSeccompPolicy)
+}
+
 // no special security settings generate the default
 func (a *SecurityTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
 	sec := &SecurityDefinitions{}

@@ -45,6 +45,7 @@ func (s *installSuite) TearDownTest(c *C) {
 }
 
 func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
+
 	installOutput := installSnap(c, "hello-world")
 
 	expected := "" +
@@ -53,7 +54,8 @@ func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 		".*\n" +
 		"hello-world   .* .*  canonical \n" +
 		".*\n"
-	c.Assert(string(installOutput), Matches, expected)
+
+	c.Assert(installOutput, Matches, expected)
 }
 
 func (s *installSuite) TestCallBinaryFromInstalledSnap(c *C) {
@@ -67,8 +69,8 @@ func (s *installSuite) TestCallBinaryFromInstalledSnap(c *C) {
 func (s *installSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
 	installSnap(c, "hello-world")
 
-	infoOutput := ExecCommand(c, "sudo", "snappy", "info")
+	infoOutput := ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
-	c.Assert(string(infoOutput), Matches, expected)
+	c.Assert(installOutput, Matches, expected)
 }

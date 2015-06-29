@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	//	"testing"
 
 	. "../common"
 
@@ -31,6 +30,7 @@ import (
 )
 
 const (
+	// TODO: take into account arch for the boot path pattern
 	origBootFilenamePattern    = "boot/%s%s*"
 	origSystemdFilenamePattern = "lib/systemd/%s%s"
 	kernelFilename             = "vmlinuz"

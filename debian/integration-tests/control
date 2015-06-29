@@ -1,12 +1,12 @@
-Test-Command: debian/integration-tests/snappy-test snappy-latest.test
+Test-Command: debian/integration-tests/snappy-test latest.test
 Restrictions: allow-stderr
 Depends: ubuntu-snappy-tests
 
-Test-Command: debian/integration-tests/snappy-test snappy-failover.test
+Test-Command: debian/integration-tests/snappy-test failover.test
 Restrictions: allow-stderr
 Depends: ubuntu-snappy-tests
 
-Test-Command: debian/integration-tests/snappy-test snappy-update.test
+Test-Command: debian/integration-tests/snappy-test update.test
 Restrictions: allow-stderr
 Depends: ubuntu-snappy-tests
 
