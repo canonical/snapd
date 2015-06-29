@@ -20,27 +20,48 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 )
 
 const (
-	baseDir         = "/tmp/snappy-test"
-	debsTestBedPath = "/tmp/snappy-debs"
-	defaultRelease  = "rolling"
-	defaultChannel  = "edge"
+	baseDir        = "/tmp/snappy-test"
+	defaultRelease = "rolling"
+	defaultChannel = "edge"
+	defaultSSHPort = 22
+	defaultGoArm   = "7"
 )
 
 var (
-	debsDir     = filepath.Join(baseDir, "debs")
-	testsDir    = filepath.Join(baseDir, "tests")
-	imageDir    = filepath.Join(baseDir, "image")
-	outputDir   = filepath.Join(baseDir, "output")
-	imageTarget = filepath.Join(imageDir, "snappy.img")
+	testsDir         = filepath.Join(baseDir, "tests")
+	imageDir         = filepath.Join(baseDir, "image")
+	outputDir        = filepath.Join(baseDir, "output")
+	imageTarget      = filepath.Join(imageDir, "snappy.img")
+	commonSSHOptions = []string{"---", "ssh"}
+	kvmSSHOptions    = append(
+		commonSSHOptions,
+		[]string{
+			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
+			"--", "-i", imageTarget}...)
 )
+
+func setupAndRunTests(arch, testbedIP string, testbedPort int) {
+	buildTests(arch)
+
+	rootPath := getRootPath()
+	if testbedIP == "" {
+		createImage(defaultRelease, defaultChannel)
+		adtRun(rootPath, kvmSSHOptions)
+	} else {
+		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort), "ubuntu@"+testbedIP)
+		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP, testbedPort))
+	}
+}
 
 func execCommand(cmds ...string) {
 	cmd := exec.Command(cmds[0], cmds[1:]...)
@@ -51,9 +72,17 @@ func execCommand(cmds ...string) {
 	}
 }
 
-func buildTests() {
+func buildTests(arch string) {
 	fmt.Println("Building tests")
 	prepareTargetDir(testsDir)
+	if arch != "" {
+		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
+		os.Setenv("GOARCH", arch)
+		if arch == "arm" {
+			defer os.Setenv("GOARM", os.Getenv("GOARM"))
+			os.Setenv("GOARM", defaultGoArm)
+		}
+	}
 	execCommand("go", "test", "-c", "./_integration-tests/tests")
 	os.Rename("tests.test", "snappy.tests")
 }
@@ -69,19 +98,29 @@ func createImage(release, channel string) {
 		"--developer-mode")
 }
 
-func adtRun(rootPath string) {
+func adtRun(rootPath string, testbedOptions []string) {
 	fmt.Println("Calling adt-run...")
 	prepareTargetDir(outputDir)
-	execCommand(
+
+	cmd := []string{
 		"adt-run",
 		"-B",
 		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
 		"--override-control", "debian/integration-tests/control",
 		"--built-tree", rootPath,
 		"--output-dir", outputDir,
-		"---",
-		"ssh", "-s", "/usr/share/autopkgtest/ssh-setup/snappy",
-		"--", "-i", imageTarget)
+	}
+	execCommand(append(cmd, testbedOptions...)...)
+}
+
+func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
+	options := []string{
+		"-H", testbedIP,
+		"-p", strconv.Itoa(testbedPort),
+		"-l", "ubuntu",
+		"-i", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa"),
+		"--reboot"}
+	return append(commonSSHOptions, options...)
 }
 
 func prepareTargetDir(targetDir string) {
@@ -101,11 +140,16 @@ func getRootPath() string {
 }
 
 func main() {
-	rootPath := getRootPath()
+	var (
+		arch = flag.String("arch", "",
+			"Architecture of the test bed. Defaults to use the same architecture as the host.")
+		testbedIP = flag.String("ip", "",
+			"IP of the testbed. If no IP is passed, a virtual machine will be created for the test.")
+		testbedPort = flag.Int("port", defaultSSHPort,
+			"SSH port of the testbed. Defaults to use port 22.")
+	)
 
-	buildTests()
+	flag.Parse()
 
-	createImage(defaultRelease, defaultChannel)
-
-	adtRun(rootPath)
+	setupAndRunTests(*arch, *testbedIP, *testbedPort)
 }
