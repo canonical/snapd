@@ -36,7 +36,7 @@ type installSuite struct {
 	CommonSuite
 }
 
-func installSnap(c *C, packageName string) []byte {
+func installSnap(c *C, packageName string) string {
 	return ExecCommand(c, "sudo", "snappy", "install", packageName)
 }
 
