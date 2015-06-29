@@ -21,7 +21,6 @@ package failover
 
 import (
 	"fmt"
-	//	"testing"
 
 	. "../common"
 
