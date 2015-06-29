@@ -55,6 +55,15 @@ if [ -n "$lint" ]; then
     exit 1
 fi
 
+# pot file
+TMPF="$(mktemp)"
+./update-pot "$TMPF"
+trap "rm -f $TMPF" 0
+if ! diff --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
+    echo "You need to run ./update-pot"
+    exit 1
+fi
+
 # integration tests
 if which adt-run >/dev/null 2>&1; then
     echo "Running integration tests"
