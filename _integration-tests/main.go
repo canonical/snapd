@@ -56,9 +56,6 @@ var (
 )
 
 func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedPort int) {
-	os.Remove(snappyFromBranchCmd)
-	os.Remove(snappyTestsCmd)
-
 	if useSnappyFromBranch {
 		// FIXME We need to build an image that has the snappy from the branch
 		// installed. --elopio - 2015-06-25.
