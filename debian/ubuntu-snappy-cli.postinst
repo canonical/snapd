@@ -8,7 +8,7 @@ if [ "$1" = configure ]; then
         --home /nonexistent \
         --no-create-home \
         --group \
-        clickpkg
+        snappypkg
 fi
 
 #DEBHELPER#

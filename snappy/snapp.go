@@ -166,6 +166,7 @@ type Binary struct {
 // SnapPart represents a generic snap type
 type SnapPart struct {
 	m           *packageYaml
+	remoteM     *remoteSnap
 	origin      string
 	hash        string
 	isActive    bool
@@ -233,6 +234,7 @@ type remoteSnap struct {
 	Alias           string             `json:"alias,omitempty"`
 	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
 	DownloadSha512  string             `json:"download_sha512,omitempty"`
+	Description     string             `json:"description,omitempty"`
 	DownloadSize    int64              `json:"binary_filesize,omitempty"`
 	DownloadURL     string             `json:"download_url,omitempty"`
 	IconURL         string             `json:"icon_url"`
@@ -622,6 +624,20 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 	}
 	part.hash = h.ArchiveSha512
 
+	remoteManifestPath := manifestPath(part)
+	if helpers.FileExists(remoteManifestPath) {
+		content, err := ioutil.ReadFile(remoteManifestPath)
+		if err != nil {
+			return nil, err
+		}
+
+		var r remoteSnap
+		if err := yaml.Unmarshal(content, &r); err != nil {
+			return nil, &ErrInvalidYaml{file: remoteManifestPath, err: err, yaml: content}
+		}
+		part.remoteM = &r
+	}
+
 	return part, nil
 }
 
@@ -647,11 +663,19 @@ func (s *SnapPart) Version() string {
 
 // Description returns the description
 func (s *SnapPart) Description() string {
+	if r := s.remoteM; r != nil {
+		return r.Description
+	}
+
 	return s.description
 }
 
 // Origin returns the origin
 func (s *SnapPart) Origin() string {
+	if r := s.remoteM; r != nil {
+		return r.Origin
+	}
+
 	return s.origin
 }
 
@@ -673,6 +697,10 @@ func (s *SnapPart) Channel() string {
 
 // Icon returns the path to the icon
 func (s *SnapPart) Icon() string {
+	if helpers.FileExists(iconPath(s)) {
+		return iconPath(s)
+	}
+
 	return filepath.Join(s.basedir, s.m.Icon)
 }
 
@@ -700,6 +728,10 @@ func (s *SnapPart) InstalledSize() int64 {
 
 // DownloadSize returns the dowload size
 func (s *SnapPart) DownloadSize() int64 {
+	if r := s.remoteM; r != nil {
+		return r.DownloadSize
+	}
+
 	return -1
 }
 
@@ -1063,7 +1095,15 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 		return err
 	}
 
+	// best effort(?)
 	os.Remove(filepath.Dir(s.basedir))
+
+	// don't fail if icon can't be removed
+	if helpers.FileExists(iconPath(s)) {
+		if err := os.Remove(iconPath(s)); err != nil {
+			logger.Noticef("Failed to remove store icon %s: %s", iconPath(s), err)
+		}
+	}
 
 	return nil
 }
@@ -1432,9 +1472,34 @@ func (s *RemoteSnapPart) Date() time.Time {
 	return p
 }
 
+// download writes an http.Request showing a progress.Meter
+func download(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return &ErrDownload{code: resp.StatusCode, url: req.URL}
+	}
+
+	if pbar != nil {
+		pbar.Start(name, float64(resp.ContentLength))
+		mw := io.MultiWriter(w, pbar)
+		_, err = io.Copy(mw, resp.Body)
+		pbar.Finished()
+	} else {
+		_, err = io.Copy(w, resp.Body)
+	}
+
+	return err
+}
+
 // Download downloads the snap and returns the filename
 func (s *RemoteSnapPart) Download(pbar progress.Meter) (string, error) {
-
 	w, err := ioutil.TempFile("", s.pkg.Name)
 	if err != nil {
 		return "", err
@@ -1456,30 +1521,52 @@ func (s *RemoteSnapPart) Download(pbar progress.Meter) (string, error) {
 	}
 	setUbuntuStoreHeaders(req)
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("Unexpected status code %v", resp.StatusCode)
-	}
-
-	if pbar != nil {
-		pbar.Start(s.pkg.Name, float64(resp.ContentLength))
-		mw := io.MultiWriter(w, pbar)
-		_, err = io.Copy(mw, resp.Body)
-		pbar.Finished()
-	} else {
-		_, err = io.Copy(w, resp.Body)
-	}
-
-	if err != nil {
+	if err := download(s.Name(), w, req, pbar); err != nil {
 		return "", err
 	}
 
 	return w.Name(), w.Sync()
+}
+
+func (s *RemoteSnapPart) downloadIcon(pbar progress.Meter) error {
+	if err := os.MkdirAll(snapIconsDir, 0755); err != nil {
+		return err
+	}
+
+	iconPath := iconPath(s)
+	if helpers.FileExists(iconPath) {
+		return nil
+	}
+
+	req, err := http.NewRequest("GET", s.Icon(), nil)
+	if err != nil {
+		return err
+	}
+
+	w, err := os.OpenFile(iconPath, os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+
+	if err := download("icon for package", w, req, pbar); err != nil {
+		return err
+	}
+
+	return w.Sync()
+}
+
+func (s *RemoteSnapPart) saveStoreManifest() error {
+	content, err := yaml.Marshal(s.pkg)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(snapMetaDir, 0755); err != nil {
+		return err
+	}
+
+	// don't worry about previous contents
+	return ioutil.WriteFile(manifestPath(s), content, 0644)
 }
 
 // Install installs the snap
@@ -1489,6 +1576,14 @@ func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (strin
 		return "", err
 	}
 	defer os.Remove(downloadedSnap)
+
+	if err := s.downloadIcon(pbar); err != nil {
+		return "", err
+	}
+
+	if err := s.saveStoreManifest(); err != nil {
+		return "", err
+	}
 
 	return installClick(downloadedSnap, flags, pbar, s.Origin())
 }
