@@ -331,5 +331,5 @@ func iconPath(s Part) string {
 
 // manifestPath returns the would be path for the store manifest meta data
 func manifestPath(s Part) string {
-	return filepath.Join(snapMetaDir, fmt.Sprintf("%s_%s_%s.manifest", s.Name(), s.Origin(), s.Version()))
+	return filepath.Join(snapMetaDir, fmt.Sprintf("%s_%s.manifest", QualifiedName(s), s.Version()))
 }
