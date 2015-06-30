@@ -20,6 +20,7 @@
 package i18n
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -35,7 +36,7 @@ type i18nTestSuite struct {
 
 var _ = Suite(&i18nTestSuite{})
 
-func (s *i18nTestSuite) TestTranslates(c *C) {
+func (s *i18nTestSuite) SetUpTest(c *C) {
 	// this dir contains a special hand-crafted en_DK/snappy-test.mo
 	// file
 	localeDir, err := filepath.Abs("./mock-locale")
@@ -45,14 +46,27 @@ func (s *i18nTestSuite) TestTranslates(c *C) {
 	// minimal build environments)
 	gettext.BindTextdomain("snappy-test", localeDir)
 	locale := gettext.SetLocale(gettext.LC_ALL, "en_DK.UTF-8")
-	defer gettext.SetLocale(gettext.LC_ALL, "")
 	if locale != "en_DK.UTF-8" {
 		c.Skip("can not init locale")
 	}
+	os.Setenv("LANGUAGE", "en_DK")
 
 	// we use a custom test mo file
 	TEXTDOMAIN = "snappy-test"
+}
+
+func (s *i18nTestSuite) TearDownTest(c *C) {
+	gettext.SetLocale(gettext.LC_ALL, "")
+}
+
+func (s *i18nTestSuite) TestTranslatedSingular(c *C) {
 	// no G() to avoid adding the test string to snappy-pot
 	var G_test = G
-	c.Assert(G_test("!!!"), Equals, "???")
+	c.Assert(G_test("singular"), Equals, "translated singular")
+}
+
+func (s *i18nTestSuite) TestTranslatesPlural(c *C) {
+	// no NG() to avoid adding the test string to snappy-pot
+	var NG_test = NG
+	c.Assert(NG_test("plural_1", "plural_2", 1), Equals, "translated plural_1")
 }
