@@ -22,7 +22,6 @@ TEST=$1
 NEEDS_REBOOT=/tmp/needs-reboot
 
 export PATH=$(pwd)/_integration-tests/bin:$PATH
-echo $PATH
 
 ${TEST} -check.vv -test.outputdir=$ADT_ARTIFACTS-$ADT_REBOOT_MARK
 
