@@ -17,10 +17,12 @@
  *
  */
 
-package tests
+package failover
 
 import (
 	"fmt"
+
+	. "../common"
 
 	. "gopkg.in/check.v1"
 )
@@ -30,18 +32,18 @@ type rcLocalCrash struct{}
 func (rcLocalCrash) set(c *C) {
 	makeWritable(c, baseOtherPath)
 	targetFile := fmt.Sprintf("%s/etc/rc.local", baseOtherPath)
-	execCommand(c, "sudo", "chmod", "a+xw", targetFile)
-	execCommandToFile(c, targetFile,
+	ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
+	ExecCommandToFile(c, targetFile,
 		"sudo", "echo", "#!bin/sh\nprintf c > /proc/sysrq-trigger")
 	makeReadonly(c, baseOtherPath)
 }
 
 func (rcLocalCrash) unset(c *C) {
 	makeWritable(c, baseOtherPath)
-	execCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", baseOtherPath))
+	ExecCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", baseOtherPath))
 	makeReadonly(c, baseOtherPath)
 }
 
-func (s *FailoverSuite) TestRCLocalCrash(c *C) {
+func (s *failoverSuite) TestRCLocalCrash(c *C) {
 	commonFailoverTest(c, rcLocalCrash{})
 }

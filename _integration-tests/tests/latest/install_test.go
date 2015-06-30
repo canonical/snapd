@@ -17,29 +17,35 @@
  *
  */
 
-package tests
+package latest
 
 import (
 	"os/exec"
+	"testing"
+
+	. "../common"
 
 	. "gopkg.in/check.v1"
 )
 
-var _ = Suite(&InstallSuite{})
+// Hook up gocheck into the "go test" runner.
+func Test(t *testing.T) { TestingT(t) }
 
-type InstallSuite struct {
+var _ = Suite(&installSuite{})
+
+type installSuite struct {
 	CommonSuite
 }
 
 func installSnap(c *C, packageName string) string {
-	return execCommand(c, "sudo", "snappy", "install", packageName)
+	return ExecCommand(c, "sudo", "snappy", "install", packageName)
 }
 
-func (s *InstallSuite) TearDownTest(c *C) {
-	execCommand(c, "sudo", "snappy", "remove", "hello-world")
+func (s *installSuite) TearDownTest(c *C) {
+	ExecCommand(c, "sudo", "snappy", "remove", "hello-world")
 }
 
-func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
+func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 	installOutput := installSnap(c, "hello-world")
 
 	expected := "" +
@@ -48,18 +54,19 @@ func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 		".*\n" +
 		"hello-world   .* .*  canonical \n" +
 		".*\n"
+
 	c.Assert(installOutput, Matches, expected)
 }
 
-func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
+func (s *installSuite) TestCallBinaryFromInstalledSnap(c *C) {
 	installSnap(c, "hello-world")
 
-	echoOutput := execCommand(c, "hello-world.echo")
+	echoOutput := ExecCommand(c, "hello-world.echo")
 
 	c.Assert(echoOutput, Equals, "Hello World!\n")
 }
 
-func (s *InstallSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
+func (s *installSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
 	installSnap(c, "hello-world")
 
 	cmd := exec.Command("hello-world.evil")
@@ -77,12 +84,11 @@ func (s *InstallSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
 	c.Assert(string(echoOutput), Matches, expected)
 }
 
-func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
+func (s *installSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
 	installSnap(c, "hello-world")
 
-	infoOutput := execCommand(c, "snappy", "info")
+	infoOutput := ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
-
 	c.Assert(infoOutput, Matches, expected)
 }

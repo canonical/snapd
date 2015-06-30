@@ -17,10 +17,12 @@
  *
  */
 
-package tests
+package failover
 
 import (
 	"fmt"
+
+	. "../common"
 
 	. "gopkg.in/check.v1"
 )
@@ -73,17 +75,17 @@ func installService(c *C, serviceName, serviceCfg, basePath string) {
 
 	// Create service file
 	serviceFile := fmt.Sprintf("%s%s/%s.service", basePath, baseSystemdPath, serviceName)
-	execCommand(c, "sudo", "chmod", "a+w", fmt.Sprintf("%s%s", basePath, baseSystemdPath))
-	execCommandToFile(c, serviceFile, "sudo", "echo", serviceCfg)
+	ExecCommand(c, "sudo", "chmod", "a+w", fmt.Sprintf("%s%s", basePath, baseSystemdPath))
+	ExecCommandToFile(c, serviceFile, "sudo", "echo", serviceCfg)
 
 	// Create requires directory
 	requiresDirPart := fmt.Sprintf("%s/%s", baseSystemdPath, systemdTargetRequiresDir)
 	requiresDir := fmt.Sprintf("%s%s", basePath, requiresDirPart)
-	execCommand(c, "sudo", "mkdir", "-p", requiresDir)
+	ExecCommand(c, "sudo", "mkdir", "-p", requiresDir)
 
 	// Symlink from the requires dir to the service file (with chroot for being
 	// usable in the other partition)
-	execCommand(c, "sudo", "chroot", basePath, "ln", "-s",
+	ExecCommand(c, "sudo", "chroot", basePath, "ln", "-s",
 		fmt.Sprintf("%s/%s.service", baseSystemdPath, serviceName),
 		fmt.Sprintf("%s/%s.service", requiresDirPart, serviceName),
 	)
@@ -95,20 +97,20 @@ func unInstallService(c *C, serviceName, basePath string) {
 	makeWritable(c, basePath)
 
 	// Disable the service
-	execCommand(c, "sudo", "chroot", basePath,
+	ExecCommand(c, "sudo", "chroot", basePath,
 		"systemctl", "disable", fmt.Sprintf("%s.service", serviceName))
 
 	// Remove the service file
-	execCommand(c, "sudo", "rm",
+	ExecCommand(c, "sudo", "rm",
 		fmt.Sprintf("%s%s/%s.service", basePath, baseSystemdPath, serviceName))
 
 	// Remove the requires symlink
-	execCommand(c, "sudo", "rm",
+	ExecCommand(c, "sudo", "rm",
 		fmt.Sprintf("%s%s/%s/%s.service", basePath, baseSystemdPath, systemdTargetRequiresDir, serviceName))
 
 	makeReadonly(c, basePath)
 }
 
-func (s *FailoverSuite) TestSystemdDependencyLoop(c *C) {
+func (s *failoverSuite) TestSystemdDependencyLoop(c *C) {
 	commonFailoverTest(c, systemdDependencyLoop{})
 }
