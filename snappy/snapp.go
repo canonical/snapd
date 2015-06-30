@@ -1455,7 +1455,7 @@ func download(name string, w io.Writer, req *http.Request, pbar progress.Meter) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("Unexpected status code %v", resp.StatusCode)
+		return &ErrDownload{code: resp.StatusCode, url: req.URL}
 	}
 
 	if pbar != nil {
