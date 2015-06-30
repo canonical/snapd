@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/snappy"
@@ -35,15 +36,16 @@ type cmdInfo struct {
 	} `positional-args:"yes"`
 }
 
-const shortInfoHelp = `Display a summary of key attributes of the snappy system.`
+var shortInfoHelp = i18n.G("Display a summary of key attributes of the snappy system.")
 
-const longInfoHelp = `A concise summary of key attributes of the snappy system, such as the release and channel.
+// FIXME: gettext does not understand ``
+var longInfoHelp = i18n.G(`A concise summary of key attributes of the snappy system, such as the release and channel.
 
 The verbose output includes the specific version information for the factory image, the running image and the image that will be run on reboot, together with a list of the available channels for this image.
 
 Providing a package name will display information about a specific installed package.
 
-The verbose version of the info command for a package will also tell you the available channels for that package, when it was installed for the first time, disk space utilization, and in the case of frameworks, which apps are able to use the framework.`
+The verbose version of the info command for a package will also tell you the available channels for that package, when it was installed for the first time, disk space utilization, and in the case of frameworks, which apps are able to use the framework.`)
 
 func init() {
 	_, err := parser.AddCommand("info",
@@ -69,13 +71,13 @@ func snapInfo(pkgname string, verbose bool) error {
 		return fmt.Errorf("No snap '%s' found", pkgname)
 	}
 
-	fmt.Printf("channel: %s\n", snap.Channel())
-	fmt.Printf("version: %s\n", snap.Version())
-	fmt.Printf("updated: %s\n", snap.Date())
+	fmt.Printf(i18n.G("channel: %s\n"), snap.Channel())
+	fmt.Printf(i18n.G("version: %s\n"), snap.Version())
+	fmt.Printf(i18n.G("updated: %s\n"), snap.Date())
 	if verbose {
-		fmt.Printf("installed: %s\n", "n/a")
-		fmt.Printf("binary-size: %v\n", snap.InstalledSize())
-		fmt.Printf("data-size: %s\n", "n/a")
+		fmt.Printf(i18n.G("installed: %s\n"), "n/a")
+		fmt.Printf(i18n.G("binary-size: %v\n"), snap.InstalledSize())
+		fmt.Printf(i18n.G("data-size: %s\n"), "n/a")
 		// FIXME: implement backup list per spec
 	}
 
@@ -96,10 +98,10 @@ func info() error {
 	frameworks, _ := snappy.ActiveSnapNamesByType(pkg.TypeFramework)
 	apps, _ := snappy.ActiveSnapNamesByType(pkg.TypeApp)
 
-	fmt.Printf("release: %s\n", release)
-	fmt.Printf("architecture: %s\n", snappy.Architecture())
-	fmt.Printf("frameworks: %s\n", strings.Join(frameworks, ", "))
-	fmt.Printf("apps: %s\n", strings.Join(apps, ", "))
+	fmt.Printf(i18n.G("release: %s\n"), release)
+	fmt.Printf(i18n.G("architecture: %s\n"), snappy.Architecture())
+	fmt.Printf(i18n.G("frameworks: %s\n"), strings.Join(frameworks, ", "))
+	fmt.Printf(i18n.G("apps: %s\n"), strings.Join(apps, ", "))
 
 	return nil
 }

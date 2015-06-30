@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
@@ -36,9 +37,9 @@ type cmdConfig struct {
 	} `positional-args:"yes"`
 }
 
-const shortConfigHelp = `Set configuration for an installed package.`
+var shortConfigHelp = i18n.G("Set configuration for an installed package.")
 
-const longConfigHelp = "Configures a package. The configuration is a YAML file, provided in the specified file which can be \"-\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config."
+var longConfigHelp = i18n.G("Configures a package. The configuration is a YAML file, provided in the specified file which can be \"-\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config.")
 
 func init() {
 	_, err := parser.AddCommand("config",
@@ -57,12 +58,12 @@ func (x *cmdConfig) Execute(args []string) (err error) {
 	// FIXME transform this into something that returns the config for
 	// the full system
 	if pkgName == "" {
-		return errors.New("package name is required")
+		return errors.New(i18n.G("package name is required"))
 	}
 
 	newConfig, err := configurePackage(pkgName, configFile)
 	if err == snappy.ErrPackageNotFound {
-		return fmt.Errorf("No snap: '%s' found", pkgName)
+		return fmt.Errorf(i18n.G("No snap: '%s' found"), pkgName)
 	} else if err != nil {
 		return err
 	}

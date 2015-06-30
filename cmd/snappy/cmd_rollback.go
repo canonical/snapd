@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -35,10 +36,9 @@ type cmdRollback struct {
 	} `positional-args:"yes"`
 }
 
-const shortRollbackHelp = "Rollback to a previous version of a package"
+var shortRollbackHelp = i18n.G("Rollback to a previous version of a package")
 
-const longRollbackHelp = `Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.
-`
+var longRollbackHelp = i18n.G("Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.\n")
 
 func init() {
 	_, err := parser.AddCommand("rollback",
@@ -65,7 +65,7 @@ func (x *cmdRollback) doRollback() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Setting %s to version %s\n", pkg, nowVersion)
+	fmt.Printf(i18n.G("Setting %s to version %s\n"), pkg, nowVersion)
 
 	m := snappy.NewMetaRepository()
 	installed, err := m.Installed()

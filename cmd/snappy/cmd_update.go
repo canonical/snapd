@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -37,8 +38,8 @@ type cmdUpdate struct {
 
 func init() {
 	_, err := parser.AddCommand("update",
-		"Update all installed parts",
-		"Ensures system is running with latest parts",
+		i18n.G("Update all installed parts"),
+		i18n.G("Ensures system is running with latest parts"),
 		&cmdUpdate{})
 	if err != nil {
 		logger.Panicf("Unable to update: %v", err)
@@ -48,9 +49,9 @@ func init() {
 const (
 	shutdownCmd     = "/sbin/shutdown"
 	shutdownTimeout = "+10"
-	shutdownMsg     = "snappy autopilot triggered a reboot to boot into an up to date system" +
-		"-- temprorarily disable the reboot by running 'sudo shutdown -c'"
 )
+
+var shutdownMsg = i18n.G("snappy autopilot triggered a reboot to boot into an up to date system -- temprorarily disable the reboot by running 'sudo shutdown -c'")
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
 	return withMutex(x.doUpdate)
@@ -86,7 +87,7 @@ func (x *cmdUpdate) doUpdate() error {
 		}
 
 		if len(rebootTriggers) != 0 {
-			fmt.Println("Rebooting to satisfy updates for", strings.Join(rebootTriggers, ", "))
+			fmt.Printf(i18n.G("Rebooting to satisfy updates for %s\n"), strings.Join(rebootTriggers, ", "))
 			cmd := exec.Command(shutdownCmd, shutdownTimeout, "-r", shutdownMsg)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("failed to auto reboot: %s", out)

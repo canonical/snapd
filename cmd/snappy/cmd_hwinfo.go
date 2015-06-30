@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
@@ -33,9 +34,9 @@ type cmdHWInfo struct {
 	} `positional-args:"yes"`
 }
 
-const shortHWInfoHelp = `List assigned hardware device for a package`
+var shortHWInfoHelp = i18n.G("List assigned hardware device for a package")
 
-const longHWInfoHelp = `This command list what hardware an installed package can access`
+var longHWInfoHelp = i18n.G("This command list what hardware an installed package can access")
 
 func init() {
 	_, err := parser.AddCommand("hw-info",
@@ -49,9 +50,9 @@ func init() {
 
 func outputHWAccessForPkgname(pkgname string, writePaths []string) {
 	if len(writePaths) == 0 {
-		fmt.Printf("'%s:' is not allowed to access additional hardware\n", pkgname)
+		fmt.Printf(i18n.G("'%s:' is not allowed to access additional hardware\n"), pkgname)
 	} else {
-		fmt.Printf("%s: %s\n", pkgname, strings.Join(writePaths, ", "))
+		fmt.Printf(i18n.G("%s: %s\n"), pkgname, strings.Join(writePaths, ", "))
 	}
 }
 

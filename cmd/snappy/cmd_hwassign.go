@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
@@ -33,9 +34,9 @@ type cmdHWAssign struct {
 	} `required:"true" positional-args:"yes"`
 }
 
-const shortHWAssignHelp = `Assign a hardware device to a package`
+var shortHWAssignHelp = i18n.G("Assign a hardware device to a package")
 
-const longHWAssignHelp = `This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package.`
+var longHWAssignHelp = i18n.G("This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package.")
 
 func init() {
 	_, err := parser.AddCommand("hw-assign",
@@ -54,13 +55,13 @@ func (x *cmdHWAssign) Execute(args []string) error {
 func (x *cmdHWAssign) doHWAssign() error {
 	if err := snappy.AddHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
 		if err == snappy.ErrHWAccessAlreadyAdded {
-			fmt.Printf("'%s' previously allowed access to '%s'. Skipping\n", x.Positional.PackageName, x.Positional.DevicePath)
+			fmt.Printf(i18n.G("'%s' previously allowed access to '%s'. Skipping\n"), x.Positional.PackageName, x.Positional.DevicePath)
 			return nil
 		}
 
 		return err
 	}
 
-	fmt.Printf("'%s' is now allowed to access '%s'\n", x.Positional.PackageName, x.Positional.DevicePath)
+	fmt.Printf(i18n.G("'%s' is now allowed to access '%s'\n"), x.Positional.PackageName, x.Positional.DevicePath)
 	return nil
 }

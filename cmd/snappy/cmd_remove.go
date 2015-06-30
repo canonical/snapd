@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -33,8 +34,8 @@ type cmdRemove struct {
 
 func init() {
 	_, err := parser.AddCommand("remove",
-		"Remove a snapp part",
-		"Remove a snapp part",
+		i18n.G("Remove a snapp part"),
+		i18n.G("Remove a snapp part"),
 		&cmdRemove{})
 	if err != nil {
 		logger.Panicf("Unable to remove: %v", err)
@@ -54,7 +55,7 @@ func (x *cmdRemove) doRemove(args []string) error {
 	}
 
 	for _, part := range args {
-		fmt.Printf("Removing %s\n", part)
+		fmt.Printf(i18n.G("Removing %s\n"), part)
 
 		if err := snappy.Remove(part, flags, progress.MakeProgressBar()); err != nil {
 			return err
