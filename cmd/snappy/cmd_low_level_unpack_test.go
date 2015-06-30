@@ -39,10 +39,10 @@ func makeTempFile(c *C, content string) *os.File {
 func (s *CmdTestSuite) TestUidReaderPasswd(c *C) {
 	f := makeTempFile(c, `root:x:0:0:root:/root:/bin/bash
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
-clickpkg:x:101:104::/nonexistent:/bin/false
+snappypkg:x:101:104::/nonexistent:/bin/false
 `)
 
-	uid, err := readUID("clickpkg", f.Name())
+	uid, err := readUID("snappypkg", f.Name())
 	c.Assert(err, IsNil)
 	c.Assert(uid, Equals, 101)
 }
@@ -50,10 +50,10 @@ clickpkg:x:101:104::/nonexistent:/bin/false
 func (s *CmdTestSuite) TestUidReaderGroups(c *C) {
 	f := makeTempFile(c, `root:x:0:
 daemon:x:1:
-clickpkg:x:104:
+snappypkg:x:104:
 `)
 
-	gid, err := readUID("clickpkg", f.Name())
+	gid, err := readUID("snappypkg", f.Name())
 	c.Assert(err, IsNil)
 	c.Assert(gid, Equals, 104)
 }
@@ -61,12 +61,12 @@ clickpkg:x:104:
 func (s *CmdTestSuite) TestUidReaderSamePrefix(c *C) {
 	f := makeTempFile(c, `root:x:0:0:root:/root:/bin/bash
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
-clickpkg2:x:101:104::/nonexistent:/bin/false
-clickpkg:x:102:105::/nonexistent:/bin/false
+snappypkg2:x:101:104::/nonexistent:/bin/false
+snappypkg:x:102:105::/nonexistent:/bin/false
 `)
 	defer os.Remove(f.Name())
 
-	uid, err := readUID("clickpkg", f.Name())
+	uid, err := readUID("snappypkg", f.Name())
 	c.Assert(err, IsNil)
 	c.Assert(uid, Equals, 102)
 }
@@ -74,10 +74,10 @@ clickpkg:x:102:105::/nonexistent:/bin/false
 func (s *CmdTestSuite) TestUidReaderInvalidPasswd(c *C) {
 	f := makeTempFile(c, `root:
 daemon:
-clickpkg:x:
+snappypkg:x:
 `)
 
-	_, err := readUID("clickpkg", f.Name())
+	_, err := readUID("snappypkg", f.Name())
 	c.Assert(err, NotNil)
 }
 
@@ -86,6 +86,6 @@ func (s *CmdTestSuite) TestUidReaderInvalidPasswd2(c *C) {
 daemon:
 `)
 
-	_, err := readUID("clickpkg", f.Name())
+	_, err := readUID("snappypkg", f.Name())
 	c.Assert(err, NotNil)
 }
