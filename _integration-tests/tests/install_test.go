@@ -19,7 +19,11 @@
 
 package tests
 
-import . "gopkg.in/check.v1"
+import (
+	"os/exec"
+
+	. "gopkg.in/check.v1"
+)
 
 var _ = Suite(&InstallSuite{})
 
@@ -58,7 +62,9 @@ func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
 func (s *InstallSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
 	installSnap(c, "hello-world")
 
-	echoOutput := execCommand(c, "hello-world.evil")
+	cmd := exec.Command("hello-world.evil")
+	echoOutput, err := cmd.CombinedOutput()
+	c.Assert(err, NotNil, Commentf("hello-world.evil did not fail"))
 
 	expected := "" +
 		"Hello Evil World!\n" +
@@ -68,7 +74,7 @@ func (s *InstallSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
 		"/apps/hello-world.canonical/.*/bin/evil: " +
 		"cannot create /var/tmp/myevil.txt: Permission denied\n"
 
-	c.Assert(echoOutput, Matches, expected)
+	c.Assert(string(echoOutput), Matches, expected)
 }
 
 func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
