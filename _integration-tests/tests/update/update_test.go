@@ -33,7 +33,7 @@ func Test(t *testing.T) { TestingT(t) }
 var _ = Suite(&updateSuite{})
 
 type updateSuite struct {
-	CommonSuite
+	SnappySuite
 }
 
 func rollback(c *C) {
@@ -46,7 +46,7 @@ func rollback(c *C) {
 }
 
 func (s *updateSuite) TestUpdateMustInstallNewerVersion(c *C) {
-	if BeforeReboot(c) {
+	if BeforeReboot() {
 		CallUpdate(c)
 		Reboot(c)
 	} else if AfterReboot(c) {

@@ -34,7 +34,7 @@ func Test(t *testing.T) { TestingT(t) }
 var _ = Suite(&installSuite{})
 
 type installSuite struct {
-	CommonSuite
+	SnappySuite
 }
 
 func installSnap(c *C, packageName string) string {

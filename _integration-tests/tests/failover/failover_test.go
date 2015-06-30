@@ -36,7 +36,7 @@ func Test(t *testing.T) { TestingT(t) }
 var _ = Suite(&failoverSuite{})
 
 type failoverSuite struct {
-	CommonSuite
+	SnappySuite
 }
 
 const (
