@@ -61,12 +61,12 @@ func (s *i18nTestSuite) TearDownTest(c *C) {
 
 func (s *i18nTestSuite) TestTranslatedSingular(c *C) {
 	// no G() to avoid adding the test string to snappy-pot
-	var G_test = G
-	c.Assert(G_test("singular"), Equals, "translated singular")
+	var Gtest = G
+	c.Assert(Gtest("singular"), Equals, "translated singular")
 }
 
 func (s *i18nTestSuite) TestTranslatesPlural(c *C) {
 	// no NG() to avoid adding the test string to snappy-pot
-	var NG_test = NG
-	c.Assert(NG_test("plural_1", "plural_2", 1), Equals, "translated plural_1")
+	var NGtest = NG
+	c.Assert(NGtest("plural_1", "plural_2", 1), Equals, "translated plural_1")
 }
