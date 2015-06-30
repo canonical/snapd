@@ -1067,7 +1067,15 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 		return err
 	}
 
+	// best effort(?)
 	os.Remove(filepath.Dir(s.basedir))
+
+	// don't fail if icon can't be removed
+	if helpers.FileExists(iconPath(s)) {
+		if err := os.Remove(iconPath(s)); err != nil {
+			logger.Noticef("Failed to remove store icon %s: %s", iconPath(s), err)
+		}
+	}
 
 	return nil
 }
