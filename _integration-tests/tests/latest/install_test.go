@@ -46,7 +46,6 @@ func (s *installSuite) TearDownTest(c *C) {
 }
 
 func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
-
 	installOutput := installSnap(c, "hello-world")
 
 	expected := "" +
