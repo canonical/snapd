@@ -20,20 +20,15 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
+	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 	"launchpad.net/snappy/snappy"
 
-	"launchpad.net/snappy/logger"
-
 	"github.com/jessevdk/go-flags"
 )
-
-// fixed errors the command can return
-var ErrRequiresRoot = errors.New("command requires sudo (root)")
 
 type options struct {
 	// No global options yet
@@ -41,7 +36,7 @@ type options struct {
 
 var optionsData options
 
-var parser = flags.NewParser(&optionsData, flags.Default)
+var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
 
 func init() {
 	err := logger.SimpleSetup()
@@ -57,8 +52,8 @@ func main() {
 			// the CLI user.
 			err = snappy.ErrNeedRoot
 		}
+		fmt.Fprintln(os.Stderr, err)
 		if _, ok := err.(*flags.Error); !ok {
-			// Debug, because the parser will print the error for us
 			logger.Debugf("%v failed: %v", os.Args, err)
 		}
 		os.Exit(1)
