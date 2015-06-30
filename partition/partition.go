@@ -190,7 +190,7 @@ func loadPartitionDetails() (partitions []blockDevice, err error) {
 			name := tmp[0]
 
 			// remove quotes
-			value := strings.Trim(tmp[1], `"`)
+			value := strings.Trim(tmp[1], "\"")
 
 			// store
 			fields[name] = value
