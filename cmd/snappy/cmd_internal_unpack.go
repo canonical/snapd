@@ -51,7 +51,7 @@ import "C"
 
 // for compat with the old snappy, once that is gone we can drop to a
 // different user
-const dropPrivsUser = "clickpkg"
+const dropPrivsUser = "snappypkg"
 
 type cmdInternalUnpack struct {
 	Positional struct {
