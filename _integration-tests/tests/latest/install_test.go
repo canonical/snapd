@@ -38,11 +38,11 @@ type installSuite struct {
 }
 
 func installSnap(c *C, packageName string) string {
-	return execSudoSnappyCommand(c, "install", packageName)
+	return ExecCommand(c, "sudo", "snappy", "install", packageName)
 }
 
 func (s *installSuite) TearDownTest(c *C) {
-	execSudoSnappyCommand(c, "remove", "hello-world")
+	ExecCommand(c, "sudo", "snappy", "remove", "hello-world")
 }
 
 func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
@@ -87,7 +87,7 @@ func (s *installSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
 func (s *installSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
 	installSnap(c, "hello-world")
 
-	infoOutput := execSnappyCommand(c, "info")
+	infoOutput := ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
 	c.Assert(infoOutput, Matches, expected)
