@@ -35,8 +35,8 @@ const (
 	defaultRelease   = "rolling"
 	defaultChannel   = "edge"
 	defaultArch      = "amd64"
-	defaultSSHPort   = 22
 	latestRevision   = ""
+	defaultSSHPort   = 22
 	defaultGoArm     = "7"
 	latestTestName   = "command1"
 	failoverTestName = "command2"
