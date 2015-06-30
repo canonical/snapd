@@ -56,11 +56,9 @@ func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
 }
 
 func (s *InstallSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
-	s.installSnap(c, "hello-world")
+	installSnap(c, "hello-world")
 
-	cmd := exec.Command("hello-world.evil")
-	echoOutput, err := cmd.CombinedOutput()
-	c.Assert(err, NotNil, Commentf("hello-world.evil did not fail"))
+	echoOutput := execCommand(c, "hello-world.evil")
 
 	expected := "" +
 		"Hello Evil World!\n" +
@@ -70,7 +68,7 @@ func (s *InstallSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
 		"/apps/hello-world.canonical/.*/bin/evil: " +
 		"cannot create /var/tmp/myevil.txt: Permission denied\n"
 
-	c.Assert(string(echoOutput), Matches, expected)
+	c.Assert(echoOutput, Matches, expected)
 }
 
 func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
