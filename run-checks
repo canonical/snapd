@@ -64,6 +64,9 @@ if ! diff --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; the
     exit 1
 fi
 
+# always build
+go build _integration-tests/main.go
+
 # integration tests
 if which adt-run >/dev/null 2>&1; then
     echo "Running integration tests"
