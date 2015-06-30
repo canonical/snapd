@@ -29,20 +29,20 @@ import (
 	"strconv"
 	"strings"
 
-	. "gopkg.in/check.v1"
+	check "gopkg.in/check.v1"
 )
 
 const (
 	needsRebootFile = "/tmp/needs-reboot"
 )
 
-// Suite is a structure used as a base test suite for all the snappy
+// SnappySuite is a structure used as a base test suite for all the snappy
 // integration tests.
 type SnappySuite struct{}
 
 // SetUpSuite disables the snappy autopilot. It will run before all the
 // integration suites.
-func (s *SnappySuite) SetUpSuite(c *C) {
+func (s *SnappySuite) SetUpSuite(c *check.C) {
 	ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 	ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 }
@@ -52,10 +52,10 @@ func (s *SnappySuite) SetUpSuite(c *C) {
 // ubuntu-core version. If a reboot was requested by a previous test, it
 // will skip all the following tests. If the suite is being called after the
 // test bed was rebooted, it will resume the test that requested the reboot.
-func (s *SnappySuite) SetUpTest(c *C) {
+func (s *SnappySuite) SetUpTest(c *check.C) {
 	if needsReboot() {
 		contents, err := ioutil.ReadFile(needsRebootFile)
-		c.Assert(err, IsNil, Commentf("Error reading needs-reboot file %v", err))
+		c.Assert(err, check.IsNil, check.Commentf("Error reading needs-reboot file %v", err))
 		c.Skip(fmt.Sprintf("****** Skipped %s during reboot caused by %s",
 			c.TestName(), contents))
 	} else {
@@ -78,61 +78,61 @@ func (s *SnappySuite) SetUpTest(c *C) {
 
 // ExecCommand executes a shell command and returns a string with the output
 // of the command. In case of error, it will fail the test.
-func ExecCommand(c *C, cmds ...string) string {
+func ExecCommand(c *check.C, cmds ...string) string {
 	fmt.Println(strings.Join(cmds, " "))
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	output, err := cmd.CombinedOutput()
 	stringOutput := string(output)
-	c.Assert(err, IsNil, Commentf("Error: %v", stringOutput))
+	c.Assert(err, check.IsNil, check.Commentf("Error: %v", stringOutput))
 	return stringOutput
 }
 
 // ExecCommandToFile executes a shell command and saves the output of the
 // command to a file. In case of error, it will fail the test.
-func ExecCommandToFile(c *C, filename string, cmds ...string) {
+func ExecCommandToFile(c *check.C, filename string, cmds ...string) {
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	outfile, err := os.Create(filename)
-	c.Assert(err, IsNil, Commentf("Error creating output file %s", filename))
+	c.Assert(err, check.IsNil, check.Commentf("Error creating output file %s", filename))
 
 	defer outfile.Close()
 	cmd.Stdout = outfile
 
 	err = cmd.Run()
-	c.Assert(err, IsNil, Commentf("Error executing command '%v': %v", cmds, err))
+	c.Assert(err, check.IsNil, check.Commentf("Error executing command '%v': %v", cmds, err))
 }
 
 // GetCurrentVersion returns the version number of the installed and active
 // ubuntu-core.
-func GetCurrentVersion(c *C) int {
+func GetCurrentVersion(c *check.C) int {
 	output := ExecCommand(c, "snappy", "list")
 	pattern := "(?mU)^ubuntu-core (.*)$"
 	re := regexp.MustCompile(pattern)
 	match := re.FindStringSubmatch(string(output))
-	c.Assert(match, NotNil, Commentf("Version not found in %s", output))
+	c.Assert(match, check.NotNil, check.Commentf("Version not found in %s", output))
 
 	// match is like "ubuntu-core   2015-06-18 93        ubuntu"
 	items := strings.Fields(match[0])
 	version, err := strconv.Atoi(items[2])
-	c.Assert(err, IsNil, Commentf("Error converting version to int %v", version))
+	c.Assert(err, check.IsNil, check.Commentf("Error converting version to int %v", version))
 	return version
 }
 
 // CallUpdate executes an snappy update.
-func CallUpdate(c *C) {
+func CallUpdate(c *check.C) {
 	c.Log("Calling snappy update...")
 	ExecCommand(c, "sudo", "snappy", "update")
 }
 
 // Reboot requests a reboot using the test name as the mark.
-func Reboot(c *C) {
+func Reboot(c *check.C) {
 	RebootWithMark(c, c.TestName())
 }
 
 // RebootWithMark requests a reboot using a specified mark.
-func RebootWithMark(c *C, mark string) {
+func RebootWithMark(c *check.C, mark string) {
 	c.Log("Preparing reboot with mark " + mark)
 	err := ioutil.WriteFile(needsRebootFile, []byte(mark), 0777)
-	c.Assert(err, IsNil, Commentf("Error writing needs-reboot file: %v", err))
+	c.Assert(err, check.IsNil, check.Commentf("Error writing needs-reboot file: %v", err))
 }
 
 func needsReboot() bool {
@@ -148,7 +148,7 @@ func BeforeReboot() bool {
 
 // AfterReboot returns True if the test is running after the test bed has been
 // rebooted.
-func AfterReboot(c *C) bool {
+func AfterReboot(c *check.C) bool {
 	// $ADT_REBOOT_MARK contains the reboot mark, if we have rebooted it'll be the test name
 	return checkRebootMark(c.TestName())
 }
@@ -159,26 +159,26 @@ func checkRebootMark(mark string) bool {
 
 // RemoveRebootMark removes the reboot mark to signal that the reboot has been
 // handled.
-func RemoveRebootMark(c *C) {
+func RemoveRebootMark(c *check.C) {
 	os.Setenv("ADT_REBOOT_MARK", "")
 }
 
 // SetSavedVersion saves a version number into a file so it can be used on
 // tests after reboots.
-func SetSavedVersion(c *C, version int) {
+func SetSavedVersion(c *check.C, version int) {
 	versionFile := getVersionFile()
 	err := ioutil.WriteFile(versionFile, []byte(strconv.Itoa(version)), 0777)
-	c.Assert(err, IsNil, Commentf("Error writing version file %s with %s", versionFile, version))
+	c.Assert(err, check.IsNil, check.Commentf("Error writing version file %s with %s", versionFile, version))
 }
 
 // GetSavedVersion returns the saved version number.
-func GetSavedVersion(c *C) int {
+func GetSavedVersion(c *check.C) int {
 	versionFile := getVersionFile()
 	contents, err := ioutil.ReadFile(versionFile)
-	c.Assert(err, IsNil, Commentf("Error reading version file %s", versionFile))
+	c.Assert(err, check.IsNil, check.Commentf("Error reading version file %s", versionFile))
 
 	version, err := strconv.Atoi(string(contents))
-	c.Assert(err, IsNil, Commentf("Error converting version %v", contents))
+	c.Assert(err, check.IsNil, check.Commentf("Error converting version %v", contents))
 
 	return version
 }

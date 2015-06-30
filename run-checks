@@ -45,10 +45,11 @@ $goctest -v -cover ./...
 # go vet
 echo Running vet
 go vet ./...
+go vet ./_integration-tests/tests/...
 
 # golint
 echo Running lint
-lint=$(golint ./...)
+lint=$(golint ./... && golint ./_integration-tests/tests/...)
 if [ -n "$lint" ]; then
     echo "Lint complains:"
     echo $lint
