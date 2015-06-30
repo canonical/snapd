@@ -89,15 +89,6 @@ func (s *PartitionTestSuite) TestNewUboot(c *C) {
 	c.Assert(u.Name(), Equals, bootloaderNameUboot)
 }
 
-func (s *PartitionTestSuite) TestNewUbootSinglePartition(c *C) {
-	runLsblk = mockRunLsblkSingleRootSnappy
-	s.makeFakeUbootEnv(c)
-
-	partition := New()
-	u := newUboot(partition)
-	c.Assert(u, IsNil)
-}
-
 func (s *PartitionTestSuite) TestUbootGetBootVar(c *C) {
 	s.makeFakeUbootEnv(c)
 
@@ -111,7 +102,7 @@ func (s *PartitionTestSuite) TestUbootGetBootVar(c *C) {
 	c.Assert(nextBoot, Equals, "a")
 
 	// ensure that nextBootIsOther works too
-	c.Assert(isNextBootOther(u), Equals, false)
+	c.Assert(partition.IsNextBootOther(), Equals, false)
 }
 
 func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
@@ -121,7 +112,7 @@ func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
 	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
-	err := u.ToggleRootFS()
+	err := u.ToggleRootFS("b")
 	c.Assert(err, IsNil)
 
 	nextBoot, err := u.GetBootVar(bootloaderRootfsVar)
@@ -129,7 +120,7 @@ func (s *PartitionTestSuite) TestUbootToggleRootFS(c *C) {
 	c.Assert(nextBoot, Equals, "b")
 
 	// ensure that nextBootIsOther works too
-	c.Assert(isNextBootOther(u), Equals, true)
+	c.Assert(partition.IsNextBootOther(), Equals, true)
 }
 
 func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
@@ -158,7 +149,7 @@ func (s *PartitionTestSuite) TestGetBootloaderWithUboot(c *C) {
 
 func makeMockAssetsDir(c *C) {
 	for _, f := range []string{"assets/vmlinuz", "assets/initrd.img", "assets/dtbs/foo.dtb", "assets/dtbs/bar.dtb"} {
-		p := filepath.Join(defaultCacheDir, f)
+		p := filepath.Join(cacheDir, f)
 		os.MkdirAll(filepath.Dir(p), 0755)
 		err := ioutil.WriteFile(p, []byte(f), 0644)
 		c.Assert(err, IsNil)
@@ -172,8 +163,8 @@ func (s *PartitionTestSuite) TestHandleAssets(c *C) {
 	c.Assert(err, IsNil)
 
 	// mock the hardwareYaml and the cacheDir
-	p.hardwareSpecFile = makeHardwareYaml(c, "")
-	defaultCacheDir = c.MkDir()
+	hardwareSpecFile = makeHardwareYaml(c, "")
+	cacheDir = c.MkDir()
 
 	// create mock assets/
 	makeMockAssetsDir(c)
@@ -192,8 +183,8 @@ func (s *PartitionTestSuite) TestHandleAssets(c *C) {
 	}
 
 	// ensure nothing left behind
-	c.Assert(helpers.FileExists(filepath.Join(defaultCacheDir, "assets")), Equals, false)
-	c.Assert(helpers.FileExists(p.hardwareSpecFile), Equals, false)
+	c.Assert(helpers.FileExists(filepath.Join(cacheDir, "assets")), Equals, false)
+	c.Assert(helpers.FileExists(hardwareSpecFile), Equals, false)
 }
 
 func (s *PartitionTestSuite) TestHandleAssetsVerifyBootloader(c *C) {
@@ -203,7 +194,8 @@ func (s *PartitionTestSuite) TestHandleAssetsVerifyBootloader(c *C) {
 	c.Assert(err, IsNil)
 
 	// mock the hardwareYaml and the cacheDir
-	p.hardwareSpecFile = makeHardwareYaml(c, "bootloader: grub")
+	hardwareSpecFile = makeHardwareYaml(c, "bootloader: grub")
+	cacheDir = c.MkDir()
 
 	err = bootloader.HandleAssets()
 	c.Assert(err, NotNil)
@@ -216,18 +208,17 @@ func (s *PartitionTestSuite) TestHandleAssetsFailVerifyPartitionLayout(c *C) {
 	c.Assert(err, IsNil)
 
 	// mock the hardwareYaml and the cacheDir
-	p.hardwareSpecFile = makeHardwareYaml(c, `
+	hardwareSpecFile = makeHardwareYaml(c, `
 bootloader: u-boot
 partition-layout: inplace
 `)
-
 	err = bootloader.HandleAssets()
 	c.Assert(err, NotNil)
 }
 
 func (s *PartitionTestSuite) TestHandleAssetsNoHardwareYaml(c *C) {
 	s.makeFakeUbootEnv(c)
-	defaultCacheDir = c.MkDir()
+	hardwareSpecFile = filepath.Join(c.MkDir(), "non-existent.yaml")
 
 	p := New()
 	bootloader, err := bootloader(p)
@@ -242,7 +233,7 @@ func (s *PartitionTestSuite) TestHandleAssetsBadHardwareYaml(c *C) {
 	bootloader, err := bootloader(p)
 	c.Assert(err, IsNil)
 
-	p.hardwareSpecFile = makeHardwareYaml(c, `
+	hardwareSpecFile = makeHardwareYaml(c, `
 bootloader u-boot
 `)
 
@@ -268,7 +259,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	// enter "try" mode so that we check to ensure that snappy
 	// correctly modifies the snappy_mode variable from "try" to
 	// "regular" to denote a good boot.
-	err = u.ToggleRootFS()
+	err = u.ToggleRootFS("b")
 	c.Assert(err, IsNil)
 
 	c.Assert(helpers.FileExists(bootloaderUbootEnvFile), Equals, true)
@@ -278,7 +269,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, false)
 	c.Assert(strings.Contains(string(bytes), "snappy_ab=b"), Equals, true)
 
-	err = u.MarkCurrentBootSuccessful()
+	err = u.MarkCurrentBootSuccessful("b")
 	c.Assert(err, IsNil)
 
 	c.Assert(helpers.FileExists(bootloaderUbootStampFile), Equals, false)
@@ -288,7 +279,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, false)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
-	c.Assert(strings.Contains(string(bytes), "snappy_ab=a"), Equals, true)
+	c.Assert(strings.Contains(string(bytes), "snappy_ab=b"), Equals, true)
 }
 
 func (s *PartitionTestSuite) TestNoWriteNotNeeded(c *C) {
@@ -301,7 +292,7 @@ func (s *PartitionTestSuite) TestNoWriteNotNeeded(c *C) {
 	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
-	c.Check(u.MarkCurrentBootSuccessful(), IsNil)
+	c.Check(u.MarkCurrentBootSuccessful("a"), IsNil)
 	c.Assert(atomiCall, Equals, false)
 }
 
@@ -318,7 +309,7 @@ func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
 	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
-	c.Check(u.MarkCurrentBootSuccessful(), IsNil)
+	c.Check(u.MarkCurrentBootSuccessful("a"), IsNil)
 	c.Assert(atomiCall, Equals, true)
 
 	bytes, err := ioutil.ReadFile(bootloaderUbootEnvFile)

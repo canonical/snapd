@@ -17,36 +17,25 @@
  *
  */
 
-package main
+package partition
 
 import (
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/snappy"
+	"path/filepath"
 )
 
-type cmdBooted struct {
-}
+// The full path to the cache directory, which is used as a
+// scratch pad, for downloading new images to and bind mounting the
+// rootfs.
+const cacheDirReal = "/writable/cache"
 
-func init() {
-	_, err := parser.AddCommand("booted",
-		"internal",
-		"internal",
-		&cmdBooted{})
-	if err != nil {
-		logger.Panicf("Unable to booted: %v", err)
-	}
-}
+var (
+	// useful for overwriting in the tests
+	cacheDir = cacheDirReal
 
-func (x *cmdBooted) Execute(args []string) error {
-	return withMutex(x.doBooted)
-}
+	// Directory to mount writable root filesystem below the cache
+	// diretory.
+	mountTargetReal = filepath.Join(cacheDir, "system")
 
-func (x *cmdBooted) doBooted() error {
-	parts, err := snappy.ActiveSnapsByType(pkg.TypeCore)
-	if err != nil {
-		return err
-	}
-
-	return parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
-}
+	// useful to override in tests
+	mountTarget = mountTargetReal
+)

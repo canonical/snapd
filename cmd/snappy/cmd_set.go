@@ -29,6 +29,7 @@ import (
 )
 
 type cmdSet struct {
+	args []string
 }
 
 const setHelp = `Set properties of system or package
@@ -51,11 +52,12 @@ func init() {
 }
 
 func (x *cmdSet) Execute(args []string) (err error) {
-	return set(args)
+	x.args = args
+	return withMutex(x.doSet)
 }
 
-func set(args []string) (err error) {
-	pkgname, args, err := parseSetPropertyCmdline(args...)
+func (x *cmdSet) doSet() (err error) {
+	pkgname, args, err := parseSetPropertyCmdline(x.args...)
 	if err != nil {
 		return err
 	}

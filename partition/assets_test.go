@@ -17,36 +17,20 @@
  *
  */
 
-package main
+package partition
 
 import (
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/snappy"
+	. "gopkg.in/check.v1"
 )
 
-type cmdBooted struct {
-}
+func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
 
-func init() {
-	_, err := parser.AddCommand("booted",
-		"internal",
-		"internal",
-		&cmdBooted{})
-	if err != nil {
-		logger.Panicf("Unable to booted: %v", err)
-	}
-}
-
-func (x *cmdBooted) Execute(args []string) error {
-	return withMutex(x.doBooted)
-}
-
-func (x *cmdBooted) doBooted() error {
-	parts, err := snappy.ActiveSnapsByType(pkg.TypeCore)
-	if err != nil {
-		return err
-	}
-
-	return parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
+	hardwareSpecFile = makeHardwareYaml(c, "")
+	hw, err := readHardwareSpec()
+	c.Assert(err, IsNil)
+	c.Assert(hw.Kernel, Equals, "assets/vmlinuz")
+	c.Assert(hw.Initrd, Equals, "assets/initrd.img")
+	c.Assert(hw.DtbDir, Equals, "assets/dtbs")
+	c.Assert(hw.PartitionLayout, Equals, bootloaderSystemAB)
+	c.Assert(hw.Bootloader, Equals, bootloaderNameUboot)
 }
