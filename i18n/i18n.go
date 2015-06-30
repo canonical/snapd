@@ -36,8 +36,8 @@ func G(msgid string) string {
 }
 
 // NG is the shorthand for NGettext
-func NG(msgid string, msgid_plural string, n uint64) string {
-	return gettext.DNGettext(TEXTDOMAIN, msgid, msgid_plural, n)
+func NG(msgid string, msgidPlural string, n uint64) string {
+	return gettext.DNGettext(TEXTDOMAIN, msgid, msgidPlural, n)
 }
 
 func init() {
