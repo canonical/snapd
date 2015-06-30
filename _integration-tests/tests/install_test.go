@@ -19,7 +19,11 @@
 
 package tests
 
-import . "gopkg.in/check.v1"
+import (
+	"os/exec"
+
+	. "gopkg.in/check.v1"
+)
 
 var _ = Suite(&InstallSuite{})
 
@@ -56,7 +60,7 @@ func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
 }
 
 func (s *InstallSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
-	s.installSnap(c, "hello-world")
+	installSnap(c, "hello-world")
 
 	cmd := exec.Command("hello-world.evil")
 	echoOutput, err := cmd.CombinedOutput()
