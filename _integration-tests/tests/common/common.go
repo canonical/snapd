@@ -41,7 +41,6 @@ type CommonSuite struct{}
 func ExecCommand(c *C, cmds ...string) string {
 	fmt.Println(strings.Join(cmds, " "))
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
-	fmt.Println(strings.Join(cmds, " "))
 	output, err := cmd.CombinedOutput()
 	stringOutput := string(output)
 	c.Assert(err, IsNil, Commentf("Error: %v", stringOutput))
