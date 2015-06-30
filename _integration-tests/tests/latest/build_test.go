@@ -20,15 +20,15 @@
 package latest
 
 import (
-	"testing"
-
 	. "../common"
 
 	. "gopkg.in/check.v1"
 )
 
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) { TestingT(t) }
+const (
+	baseSnapPath  = "_integration-tests/tests/latest/fixtures/snaps"
+	basicSnapName = "basic-snap"
+)
 
 var _ = Suite(&buildSuite{})
 
@@ -36,5 +36,25 @@ type buildSuite struct {
 	CommonSuite
 }
 
-func (s *buildSuite) TestBuildBasicSnap(c *C) {
+func buildSnap(c *C, snapPath string) {
+	ExecCommand(c, "snappy", "build", snapPath)
+}
+
+func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
+	// build basic snap
+
+	// check build output
+
+	// install built snap
+
+	// check install output
+
+	// teardown, remove snap
+	removeSnap(c, basicSnapName)
+}
+
+func (s *buildSuite) TestBuildWrongSnapOnSnappy(c *C) {
+	// build wrong snap
+
+	// check build output with error
 }

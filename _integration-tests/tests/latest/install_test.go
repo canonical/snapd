@@ -21,15 +21,11 @@ package latest
 
 import (
 	"os/exec"
-	"testing"
 
 	. "../common"
 
 	. "gopkg.in/check.v1"
 )
-
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&installSuite{})
 
@@ -37,12 +33,8 @@ type installSuite struct {
 	CommonSuite
 }
 
-func installSnap(c *C, packageName string) string {
-	return ExecCommand(c, "sudo", "snappy", "install", packageName)
-}
-
 func (s *installSuite) TearDownTest(c *C) {
-	ExecCommand(c, "sudo", "snappy", "remove", "hello-world")
+	removeSnap(c, "hello-world")
 }
 
 func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
