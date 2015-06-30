@@ -32,9 +32,10 @@ import (
 
 const (
 	baseDir          = "/tmp/snappy-test"
+	testsBinDir      = "_integration-tests/bin/"
 	defaultRelease   = "rolling"
 	defaultChannel   = "edge"
-	defaultArch      = "amd64"
+	defaultArch      = ""
 	latestRevision   = ""
 	defaultSSHPort   = 22
 	defaultGoArm     = "7"
@@ -56,6 +57,8 @@ var (
 )
 
 func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedPort int) {
+	prepareTargetDir(testsBinDir)
+
 	if useSnappyFromBranch {
 		// FIXME We need to build an image that has the snappy from the branch
 		// installed. --elopio - 2015-06-25.
@@ -94,7 +97,9 @@ func execCommand(cmds ...string) {
 
 func buildSnappyCLI(arch string) {
 	fmt.Println("Building snappy CLI...")
-	goCall(arch, "build", "-o", snappyFromBranchCmd, "./cmd/snappy")
+	// On the root of the project we have a directory called snappy, so we
+	// output the binary for the tests in the tests directory.
+	goCall(arch, "build", "-o", testsBinDir+"snappy", "./cmd/snappy")
 }
 
 func buildTests(arch string) {
@@ -102,13 +107,16 @@ func buildTests(arch string) {
 	tests := []string{"latest", "failover", "update"}
 	for i := range tests {
 		testName := tests[i]
-		goCall("go", "test", "-c",
+		goCall(arch, "test", "-c",
 			"./_integration-tests/tests/"+testName)
+		// XXX Go test 1.3 does not have the output flag, so we move the
+		// binaries after they are generated.
+		os.Rename(testName+".test", testsBinDir+testName+".test")
 	}
 }
 
 func goCall(arch string, cmds ...string) {
-	if arch != "" {
+	if arch != defaultArch {
 		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
 		os.Setenv("GOARCH", arch)
 		if arch == "arm" {
@@ -186,7 +194,7 @@ func main() {
 	var (
 		useSnappyFromBranch = flag.Bool("snappy-from-branch", false,
 			"If this flag is used, snappy will be compiled from this branch, copied to the testbed and used for the tests. Otherwise, the snappy installed with the image will be used.")
-		arch = flag.String("arch", "",
+		arch = flag.String("arch", defaultArch,
 			"Architecture of the test bed. Defaults to use the same architecture as the host.")
 		testbedIP = flag.String("ip", "",
 			"IP of the testbed. If no IP is passed, a virtual machine will be created for the test.")

@@ -38,12 +38,6 @@ const (
 
 type CommonSuite struct{}
 
-func init() {
-	if _, err := os.Stat("snappy-from-branch"); err == nil {
-		snappyCmd = "./snappy-from-branch"
-	}
-}
-
 func ExecCommand(c *C, cmds ...string) string {
 	fmt.Println(strings.Join(cmds, " "))
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)

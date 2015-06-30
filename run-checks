@@ -67,7 +67,7 @@ fi
 # integration tests
 if which adt-run >/dev/null 2>&1; then
     echo "Running integration tests"
-    go run _integration-tests/main.go
+    go run _integration-tests/main.go --snappy-from-branch
 fi
 
 echo "All good, what could possibly go wrong"
