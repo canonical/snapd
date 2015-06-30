@@ -1432,9 +1432,34 @@ func (s *RemoteSnapPart) Date() time.Time {
 	return p
 }
 
+// download writes an http.Request showing a progress.Meter
+func download(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return &ErrDownload{code: resp.StatusCode, url: req.URL}
+	}
+
+	if pbar != nil {
+		pbar.Start(name, float64(resp.ContentLength))
+		mw := io.MultiWriter(w, pbar)
+		_, err = io.Copy(mw, resp.Body)
+		pbar.Finished()
+	} else {
+		_, err = io.Copy(w, resp.Body)
+	}
+
+	return err
+}
+
 // Download downloads the snap and returns the filename
 func (s *RemoteSnapPart) Download(pbar progress.Meter) (string, error) {
-
 	w, err := ioutil.TempFile("", s.pkg.Name)
 	if err != nil {
 		return "", err
@@ -1456,26 +1481,7 @@ func (s *RemoteSnapPart) Download(pbar progress.Meter) (string, error) {
 	}
 	setUbuntuStoreHeaders(req)
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("Unexpected status code %v", resp.StatusCode)
-	}
-
-	if pbar != nil {
-		pbar.Start(s.pkg.Name, float64(resp.ContentLength))
-		mw := io.MultiWriter(w, pbar)
-		_, err = io.Copy(mw, resp.Body)
-		pbar.Finished()
-	} else {
-		_, err = io.Copy(w, resp.Body)
-	}
-
-	if err != nil {
+	if err := download(s.Name(), w, req, pbar); err != nil {
 		return "", err
 	}
 

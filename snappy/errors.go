@@ -22,6 +22,7 @@ package snappy
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"launchpad.net/snappy/helpers"
@@ -143,6 +144,16 @@ var (
 	// ErrNoSeccompPolicy is returned when an expected seccomp policy is not provided.
 	ErrNoSeccompPolicy = errors.New("no seccomp policy provided")
 )
+
+// ErrDownload represents a download error
+type ErrDownload struct {
+	code int
+	url  *url.URL
+}
+
+func (e *ErrDownload) Error() string {
+	return fmt.Sprintf("received an unexpected http response code (%v) when trying to download %s", e.code, e.url)
+}
 
 // ErrArchitectureNotSupported is returned when trying to install a snappy package that
 // is not supported on the system
