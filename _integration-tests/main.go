@@ -27,16 +27,26 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 const (
-	baseDir             = "/tmp/snappy-test"
-	defaultRelease      = "rolling"
-	defaultChannel      = "edge"
-	defaultArch         = "amd64"
-	defaultSSHPort      = 22
-	snappyFromBranchCmd = "snappy-from-branch"
-	snappyTestsCmd      = "snappy.tests"
+	baseDir          = "/tmp/snappy-test"
+	defaultRelease   = "rolling"
+	defaultChannel   = "edge"
+	defaultArch      = "amd64"
+	defaultSSHPort   = 22
+	baseDir          = "/tmp/snappy-test"
+	defaultRelease   = "rolling"
+	defaultChannel   = "edge"
+	defaultArch      = "amd64"
+	latestRevision   = ""
+	defaultSSHPort   = 22
+	defaultGoArm     = "7"
+	latestTestName   = "command1"
+	failoverTestName = "command2"
+	updateTestName   = "command3"
+	shellTestName    = "command4"
 )
 
 var (
@@ -64,15 +74,25 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedP
 
 	rootPath := getRootPath()
 	if testbedIP == "" {
-		createImage(defaultRelease, defaultChannel)
-		adtRun(rootPath, kvmSSHOptions)
+		createImage(defaultRelease, defaultChannel, latestRevision)
+		latestTests := []string{
+			latestTestName, failoverTestName, shellTestName}
+		for i := range latestTests {
+			adtRun(rootPath, kvmSSHOptions, latestTests[i])
+		}
+
+		createImage(defaultRelease, defaultChannel, "-1")
+		adtRun(rootPath, kvmSSHOptions, updateTestName)
 	} else {
-		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort), "ubuntu@"+testbedIP)
-		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP, testbedPort))
+		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
+			"ubuntu@"+testbedIP)
+		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP, testbedPort),
+			shellTestName)
 	}
 }
 
 func execCommand(cmds ...string) {
+	fmt.Println(strings.Join(cmds, " "))
 	cmd := exec.Command(cmds[0], cmds[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -87,6 +107,10 @@ func buildSnappyCLI(arch string) {
 		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
 		os.Setenv("GOARCH", arch)
 	}
+	if arch == "arm" {
+		defer os.Setenv("GOARM", os.Getenv("GOARM"))
+		os.Setenv("GOARM", defaultGoArm)
+	}
 	execCommand("go", "build", "-o", snappyFromBranchCmd, "./cmd/snappy")
 }
 
@@ -96,33 +120,50 @@ func buildTests(arch string) {
 		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
 		os.Setenv("GOARCH", arch)
 	}
-	execCommand("go", "test", "-c", "./_integration-tests/tests")
-	os.Rename("tests.test", snappyTestsCmd)
+	if arch == "arm" {
+		defer os.Setenv("GOARM", os.Getenv("GOARM"))
+		os.Setenv("GOARM", defaultGoArm)
+	}
+	tests := []string{"latest", "failover", "update"}
+	for i := range tests {
+		testName := tests[i]
+		execCommand("go", "test", "-c",
+			"./_integration-tests/tests/"+testName)
+	}
 }
 
-func createImage(release, channel string) {
+func createImage(release, channel, revision string) {
 	fmt.Println("Creating image...")
 	prepareTargetDir(imageDir)
-	execCommand(
-		"sudo", "ubuntu-device-flash", "--verbose",
+	udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
+	if revision != latestRevision {
+		udfCommand = append(udfCommand, "--revision", revision)
+	}
+	coreOptions := []string{
 		"core", release,
-		"-o", imageTarget,
+		"--output", imageTarget,
 		"--channel", channel,
-		"--developer-mode")
+		"--developer-mode",
+	}
+	execCommand(append(udfCommand, coreOptions...)...)
 }
 
-func adtRun(rootPath string, testbedOptions []string) {
+func adtRun(rootPath string, testbedOptions []string, testname string) {
 	fmt.Println("Calling adt-run...")
 	prepareTargetDir(outputDir)
 
 	cmd := []string{
-		"adt-run",
-		"-B",
+		"adt-run", "-B",
+		"--override-control", "debian/integration-tests/control"}
+
+	cmd = append(cmd, "--testname", testname)
+
+	cmd = append(cmd, []string{
 		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
 		"--override-control", "debian/integration-tests/control",
 		"--built-tree", rootPath,
-		"--output-dir", outputDir,
-	}
+		"--output-dir", outputDir}...)
+
 	execCommand(append(cmd, testbedOptions...)...)
 }
 

@@ -90,7 +90,7 @@ var (
 
 	// ErrInvalidFrameworkSpecInYaml is returned if a package.yaml
 	// has both frameworks and framework entries.
-	ErrInvalidFrameworkSpecInYaml = errors.New(`yaml can't have both "frameworks" and (deprecated) "framework" keys`)
+	ErrInvalidFrameworkSpecInYaml = errors.New("yaml can't have both \"frameworks\" and (deprecated) \"framework\" keys")
 
 	// ErrSnapNotActive is returned if you try to unset a snap from
 	// active to inactive

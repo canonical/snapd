@@ -17,10 +17,13 @@
  *
  */
 
-package tests
+package latest
 
 import (
+	"os/exec"
 	"testing"
+
+	. "../common"
 
 	. "gopkg.in/check.v1"
 )
@@ -28,9 +31,9 @@ import (
 // Hook up gocheck into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-var _ = Suite(&InstallSuite{})
+var _ = Suite(&installSuite{})
 
-type InstallSuite struct {
+type installSuite struct {
 	CommonSuite
 }
 
@@ -38,11 +41,11 @@ func installSnap(c *C, packageName string) string {
 	return execSudoSnappyCommand(c, "install", packageName)
 }
 
-func (s *InstallSuite) TearDownTest(c *C) {
+func (s *installSuite) TearDownTest(c *C) {
 	execSudoSnappyCommand(c, "remove", "hello-world")
 }
 
-func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
+func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 	installOutput := installSnap(c, "hello-world")
 
 	expected := "" +
@@ -51,23 +54,41 @@ func (s *InstallSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 		".*\n" +
 		"hello-world   .* .*  canonical \n" +
 		".*\n"
+
 	c.Assert(installOutput, Matches, expected)
 }
 
-func (s *InstallSuite) TestCallBinaryFromInstalledSnap(c *C) {
+func (s *installSuite) TestCallBinaryFromInstalledSnap(c *C) {
 	installSnap(c, "hello-world")
 
-	echoOutput := execCommand(c, "hello-world.echo")
+	echoOutput := ExecCommand(c, "hello-world.echo")
 
 	c.Assert(echoOutput, Equals, "Hello World!\n")
 }
 
-func (s *InstallSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
+func (s *installSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
+	installSnap(c, "hello-world")
+
+	cmd := exec.Command("hello-world.evil")
+	echoOutput, err := cmd.CombinedOutput()
+	c.Assert(err, NotNil, Commentf("hello-world.evil did not fail"))
+
+	expected := "" +
+		"Hello Evil World!\n" +
+		"This example demonstrates the app confinement\n" +
+		"You should see a permission denied error next\n" +
+		"/apps/hello-world.canonical/.*/bin/evil: \\d+: " +
+		"/apps/hello-world.canonical/.*/bin/evil: " +
+		"cannot create /var/tmp/myevil.txt: Permission denied\n"
+
+	c.Assert(string(echoOutput), Matches, expected)
+}
+
+func (s *installSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
 	installSnap(c, "hello-world")
 
 	infoOutput := execSnappyCommand(c, "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
-
 	c.Assert(infoOutput, Matches, expected)
 }

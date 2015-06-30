@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"os"
 
-	"code.google.com/p/go.crypto/ssh/terminal"
+	"golang.org/x/crypto/ssh/terminal"
 
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"

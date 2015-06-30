@@ -17,12 +17,14 @@
  *
  */
 
-package tests
+package failover
 
 import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	. "../common"
 
 	. "gopkg.in/check.v1"
 )
@@ -91,8 +93,8 @@ func commonUnset(c *C, origPattern, filename string) {
 
 func renameFile(c *C, basePath, oldFilename, newFilename string) {
 	makeWritable(c, basePath)
-	execCommand(c, "sudo", "mv", oldFilename, newFilename)
-	execCommand(c, "sudo", "touch", oldFilename)
+	ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
+	ExecCommand(c, "sudo", "touch", oldFilename)
 	makeReadonly(c, basePath)
 }
 
@@ -106,15 +108,15 @@ func getSingleFilename(c *C, pattern string) string {
 }
 
 /*
-func (s *FailoverSuite) TestZeroSizeKernel(c *C) {
+func (s *failoverSuite) TestZeroSizeKernel(c *C) {
 	commonFailoverTest(c, zeroSizeKernel{})
 }
 */
 
-func (s *FailoverSuite) TestZeroSizeInitrd(c *C) {
+func (s *failoverSuite) TestZeroSizeInitrd(c *C) {
 	commonFailoverTest(c, zeroSizeInitrd{})
 }
 
-func (s *FailoverSuite) TestZeroSizeSystemd(c *C) {
+func (s *failoverSuite) TestZeroSizeSystemd(c *C) {
 	commonFailoverTest(c, zeroSizeSystemd{})
 }
