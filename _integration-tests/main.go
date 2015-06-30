@@ -36,12 +36,7 @@ const (
 	defaultChannel   = "edge"
 	defaultArch      = "amd64"
 	defaultSSHPort   = 22
-	baseDir          = "/tmp/snappy-test"
-	defaultRelease   = "rolling"
-	defaultChannel   = "edge"
-	defaultArch      = "amd64"
 	latestRevision   = ""
-	defaultSSHPort   = 22
 	defaultGoArm     = "7"
 	latestTestName   = "command1"
 	failoverTestName = "command2"
@@ -51,7 +46,6 @@ const (
 
 var (
 	imageDir         = filepath.Join(baseDir, "image")
-	outputDir        = filepath.Join(baseDir, "output")
 	imageTarget      = filepath.Join(imageDir, "snappy.img")
 	commonSSHOptions = []string{"---", "ssh"}
 	kvmSSHOptions    = append(
@@ -103,33 +97,30 @@ func execCommand(cmds ...string) {
 
 func buildSnappyCLI(arch string) {
 	fmt.Println("Building snappy CLI...")
-	if arch != "" {
-		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
-		os.Setenv("GOARCH", arch)
-	}
-	if arch == "arm" {
-		defer os.Setenv("GOARM", os.Getenv("GOARM"))
-		os.Setenv("GOARM", defaultGoArm)
-	}
-	execCommand("go", "build", "-o", snappyFromBranchCmd, "./cmd/snappy")
+	goCall(arch, "build", "-o", snappyFromBranchCmd, "./cmd/snappy")
 }
 
 func buildTests(arch string) {
 	fmt.Println("Building tests...")
-	if arch != "" {
-		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
-		os.Setenv("GOARCH", arch)
-	}
-	if arch == "arm" {
-		defer os.Setenv("GOARM", os.Getenv("GOARM"))
-		os.Setenv("GOARM", defaultGoArm)
-	}
 	tests := []string{"latest", "failover", "update"}
 	for i := range tests {
 		testName := tests[i]
-		execCommand("go", "test", "-c",
+		goCall("go", "test", "-c",
 			"./_integration-tests/tests/"+testName)
 	}
+}
+
+func goCall(arch string, cmds ...string) {
+	if arch != "" {
+		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
+		os.Setenv("GOARCH", arch)
+		if arch == "arm" {
+			defer os.Setenv("GOARM", os.Getenv("GOARM"))
+			os.Setenv("GOARM", defaultGoArm)
+		}
+	}
+	goCmd := append([]string{"go"}, cmds...)
+	execCommand(goCmd...)
 }
 
 func createImage(release, channel, revision string) {
@@ -150,6 +141,7 @@ func createImage(release, channel, revision string) {
 
 func adtRun(rootPath string, testbedOptions []string, testname string) {
 	fmt.Println("Calling adt-run...")
+	outputDir := filepath.Join(baseDir, "output")
 	prepareTargetDir(outputDir)
 
 	cmd := []string{
