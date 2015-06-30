@@ -166,6 +166,7 @@ type Binary struct {
 // SnapPart represents a generic snap type
 type SnapPart struct {
 	m           *packageYaml
+	remoteM     *remoteSnap
 	origin      string
 	hash        string
 	isActive    bool
@@ -233,6 +234,7 @@ type remoteSnap struct {
 	Alias           string             `json:"alias,omitempty"`
 	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
 	DownloadSha512  string             `json:"download_sha512,omitempty"`
+	Description     string             `json:"description,omitempty"`
 	DownloadSize    int64              `json:"binary_filesize,omitempty"`
 	DownloadURL     string             `json:"download_url,omitempty"`
 	IconURL         string             `json:"icon_url"`
@@ -622,6 +624,20 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 	}
 	part.hash = h.ArchiveSha512
 
+	remoteManifestPath := manifestPath(part)
+	if helpers.FileExists(remoteManifestPath) {
+		content, err := ioutil.ReadFile(remoteManifestPath)
+		if err != nil {
+			return nil, err
+		}
+
+		var r remoteSnap
+		if err := yaml.Unmarshal(content, &r); err != nil {
+			return nil, &ErrInvalidYaml{file: remoteManifestPath, err: err, yaml: content}
+		}
+		part.remoteM = &r
+	}
+
 	return part, nil
 }
 
@@ -647,11 +663,19 @@ func (s *SnapPart) Version() string {
 
 // Description returns the description
 func (s *SnapPart) Description() string {
+	if r := s.remoteM; r != nil {
+		return r.Description
+	}
+
 	return s.description
 }
 
 // Origin returns the origin
 func (s *SnapPart) Origin() string {
+	if r := s.remoteM; r != nil {
+		return r.Origin
+	}
+
 	return s.origin
 }
 
@@ -704,6 +728,10 @@ func (s *SnapPart) InstalledSize() int64 {
 
 // DownloadSize returns the dowload size
 func (s *SnapPart) DownloadSize() int64 {
+	if r := s.remoteM; r != nil {
+		return r.DownloadSize
+	}
+
 	return -1
 }
 

@@ -677,6 +677,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	snap.pkg.IconURL = mockServer.URL + "/icon"
 	snap.pkg.Name = "foo"
 	snap.pkg.Origin = "bar"
+	snap.pkg.Description = "this is a description"
 	snap.pkg.Version = "1.0"
 
 	p := &MockProgressMeter{}
@@ -693,6 +694,8 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 
 	iconPath := filepath.Join(snapIconsDir, "foo.bar_1.0.png")
 	c.Check(installed[0].Icon(), Equals, iconPath)
+	c.Check(installed[0].Origin(), Equals, "bar")
+	c.Check(installed[0].Description(), Equals, "this is a description")
 
 	_, err = os.Stat(filepath.Join(snapMetaDir, "foo.bar_1.0.manifest"))
 	c.Check(err, IsNil)
@@ -1107,6 +1110,31 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworks(c *C) {
 	yaml, err := parsePackageYamlData([]byte(data))
 	c.Assert(err, IsNil)
 	c.Check(yaml.checkForPackageInstalled("otherns"), IsNil)
+}
+
+func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
+	data := "name: afoo\nversion: 1\nvendor: foo\ntype: framework"
+	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
+	c.Assert(err, IsNil)
+	c.Assert(makeSnapActive(yamlPath), IsNil)
+
+	err = os.MkdirAll(snapMetaDir, 0755)
+	c.Assert(err, IsNil)
+
+	data = "name: afoo\nalias: afoo\ndescription: something nice\ndownloadsize: 10\norigin: someplace"
+	err = ioutil.WriteFile(filepath.Join(snapMetaDir, "afoo_1.manifest"), []byte(data), 0644)
+	c.Assert(err, IsNil)
+
+	snaps, err := ListInstalled()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 1)
+
+	c.Check(snaps[0].Name(), Equals, "afoo")
+	c.Check(snaps[0].Version(), Equals, "1")
+	c.Check(snaps[0].Type(), Equals, pkg.TypeFramework)
+	c.Check(snaps[0].Origin(), Equals, "someplace")
+	c.Check(snaps[0].Description(), Equals, "something nice")
+	c.Check(snaps[0].DownloadSize(), Equals, int64(10))
 }
 
 func (s *SnapTestSuite) TestDetectsNameClash(c *C) {
