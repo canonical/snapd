@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"text/template"
 )
 
@@ -34,6 +35,7 @@ const (
 	baseDir        = "/tmp/snappy-test"
 	defaultRelease = "rolling"
 	defaultChannel = "edge"
+	latestRevision = ""
 	defaultSSHPort = 22
 	defaultGoArm   = "7"
 	controlFile    = "debian/integration-tests/control"
@@ -44,6 +46,10 @@ Depends: ubuntu-snappy-tests
 Test-Command: ./_integration-tests/snappy-selftest --yes-really
 Depends:
 `
+	latestTestName   = "command1"
+	failoverTestName = "command2"
+	updateTestName   = "command3"
+	shellTestName    = "command4"
 )
 
 var (
@@ -60,21 +66,28 @@ var (
 )
 
 func setupAndRunTests(arch, testbedIP, testFilter string, testbedPort int) {
-	sshOptions := kvmSSHOptions
-
 	buildTests(arch)
 
 	rootPath := getRootPath()
 	if testbedIP == "" {
-		createImage(defaultRelease, defaultChannel)
+		createImage(defaultRelease, defaultChannel, latestRevision)
+		latestTests := []string{
+			latestTestName, failoverTestName, shellTestName}
+		for i := range latestTests {
+			adtRun(rootPath, testFilter, latestTests[i], kvmSSHOptions)
+		}
+
+		createImage(defaultRelease, defaultChannel, "-1")
+		adtRun(rootPath, testFilter, updateTestName, kvmSSHOptions)
 	} else {
-		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort), "ubuntu@"+testbedIP)
-		sshOptions = remoteTestbedSSHOptions(testbedIP, testbedPort)
+		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
+			"ubuntu@"+testbedIP)
+		adtRun(rootPath, testFilter, shellTestName, remoteTestbedSSHOptions(testbedIP, testbedPort))
 	}
-	adtRun(rootPath, testFilter, sshOptions)
 }
 
 func execCommand(cmds ...string) {
+	fmt.Println(strings.Join(cmds, " "))
 	cmd := exec.Command(cmds[0], cmds[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -94,35 +107,48 @@ func buildTests(arch string) {
 			os.Setenv("GOARM", defaultGoArm)
 		}
 	}
-	execCommand("go", "test", "-c", "./_integration-tests/tests")
-	os.Rename("tests.test", "snappy.tests")
+	tests := []string{"latest", "failover", "update"}
+	for i := range tests {
+		testName := tests[i]
+		execCommand("go", "test", "-c",
+			"./_integration-tests/tests/"+testName)
+	}
 }
 
-func createImage(release, channel string) {
+func createImage(release, channel, revision string) {
 	fmt.Println("Creating image...")
 	prepareTargetDir(imageDir)
-	execCommand(
-		"sudo", "ubuntu-device-flash", "--verbose",
+	udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
+	if revision != latestRevision {
+		udfCommand = append(udfCommand, "--revision", revision)
+	}
+	coreOptions := []string{
 		"core", release,
-		"-o", imageTarget,
+		"--output", imageTarget,
 		"--channel", channel,
-		"--developer-mode")
+		"--developer-mode",
+	}
+	execCommand(append(udfCommand, coreOptions...)...)
 }
 
-func adtRun(rootPath, testFilter string, testbedOptions []string) {
+func adtRun(rootPath, testFilter, testname string, testbedOptions []string) {
 	fmt.Println("Calling adt-run...")
 	prepareTargetDir(outputDir)
 
 	createControlFile(testFilter)
 
 	cmd := []string{
-		"adt-run",
-		"-B",
+		"adt-run", "-B",
+		"--override-control", "debian/integration-tests/control"}
+
+	cmd = append(cmd, "--testname", testname)
+
+	cmd = append(cmd, []string{
 		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
 		"--override-control", controlFile,
 		"--built-tree", rootPath,
-		"--output-dir", outputDir,
-	}
+		"--output-dir", outputDir}...)
+
 	execCommand(append(cmd, testbedOptions...)...)
 }
 

@@ -1,0 +1,25 @@
+#!/bin/sh
+# -*- Mode: sh; indent-tabs-mode: t -*-
+
+set -e
+
+HERE="$(dirname $0)"
+
+OUTPUT="$HERE/po/snappy.pot"
+if [ -n "$1" ]; then
+	OUTPUT="$1"
+fi
+
+xgettext -d snappy -o "$OUTPUT" --c++ --from-code=UTF-8 \
+	--indent --add-comments --no-location --sort-output \
+	--package-name=snappy \
+	--msgid-bugs-address=snappy-devel@lists.ubuntu.com \
+	--keyword=NG:1,2 --keyword=G \
+	$HERE/*/*.go $HERE/cmd/*/*.go
+
+# language packs
+for p in ${HERE}/po/*.po; do
+	lang=$(basename $p .po)
+	mkdir -p $HERE/share/locale/$lang/LC_MESSAGES
+	msgfmt -v -o $HERE/share/locale/$lang/LC_MESSAGES/snappy.mo $p 
+done

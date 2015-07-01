@@ -320,7 +320,7 @@ func (s *SITestSuite) TestOtherIsEmpty(c *C) {
 	otherRoot := "/other"
 	otherRootFull := filepath.Join(systemImageRoot, otherRoot)
 
-	siConfig := filepath.Join(otherRootFull, "etc/system-image/channel.ini")
+	siConfig := filepath.Join(otherRootFull, systemImageChannelConfig)
 
 	// the tests create si-config files for "current" and "other"
 	c.Assert(otherIsEmpty(otherRoot), Equals, false)
