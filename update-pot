@@ -18,8 +18,8 @@ xgettext -d snappy -o "$OUTPUT" --c++ --from-code=UTF-8 \
 	$HERE/*/*.go $HERE/cmd/*/*.go
 
 # language packs
-for p in po/*.po; do
+for p in ${HERE}/po/*.po; do
 	lang=$(basename $p .po)
 	mkdir -p $HERE/share/locale/$lang/LC_MESSAGES
-	msgfmt -v -o $HERE/share/locale/$lang/LC_MESSAGES/snappy.mo $p 2>/dev/null
+	msgfmt -v -o $HERE/share/locale/$lang/LC_MESSAGES/snappy.mo $p 
 done

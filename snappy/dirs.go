@@ -33,6 +33,8 @@ var (
 	snapSeccompDir   string
 	snapUdevRulesDir string
 	localeDir        string
+	snapIconsDir     string
+	snapMetaDir      string
 
 	snapBinariesDir  string
 	snapServicesDir  string
@@ -41,6 +43,8 @@ var (
 	clickSystemHooksDir string
 	cloudMetaDataFile   string
 )
+
+var snappyDir = filepath.Join("var", "lib", "snappy")
 
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
@@ -52,7 +56,9 @@ func SetRootDir(rootdir string) {
 	snapDataDir = filepath.Join(rootdir, "/var/lib/apps")
 	snapDataHomeGlob = filepath.Join(rootdir, "/home/*/apps/")
 	snapAppArmorDir = filepath.Join(rootdir, "/var/lib/apparmor/clicks")
-	snapSeccompDir = filepath.Join(rootdir, "/var/lib/snappy/seccomp/profiles")
+	snapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "profiles")
+	snapIconsDir = filepath.Join(rootdir, snappyDir, "icons")
+	snapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 
 	snapBinariesDir = filepath.Join(snapAppsDir, "bin")
 	snapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")

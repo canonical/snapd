@@ -30,7 +30,7 @@ import (
 var _ = Suite(&installSuite{})
 
 type installSuite struct {
-	CommonSuite
+	SnappySuite
 }
 
 func (s *installSuite) TearDownTest(c *C) {
