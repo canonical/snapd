@@ -35,7 +35,6 @@ const (
 	testsBinDir      = "_integration-tests/bin/"
 	defaultRelease   = "rolling"
 	defaultChannel   = "edge"
-	defaultArch      = ""
 	latestRevision   = ""
 	defaultSSHPort   = 22
 	defaultGoArm     = "7"
@@ -116,7 +115,7 @@ func buildTests(arch string) {
 }
 
 func goCall(arch string, cmds ...string) {
-	if arch != defaultArch {
+	if arch != "" {
 		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
 		os.Setenv("GOARCH", arch)
 		if arch == "arm" {
@@ -194,12 +193,12 @@ func main() {
 	var (
 		useSnappyFromBranch = flag.Bool("snappy-from-branch", false,
 			"If this flag is used, snappy will be compiled from this branch, copied to the testbed and used for the tests. Otherwise, the snappy installed with the image will be used.")
-		arch = flag.String("arch", defaultArch,
+		arch = flag.String("arch", "",
 			"Architecture of the test bed. Defaults to use the same architecture as the host.")
 		testbedIP = flag.String("ip", "",
 			"IP of the testbed. If no IP is passed, a virtual machine will be created for the test.")
 		testbedPort = flag.Int("port", defaultSSHPort,
-			"SSH port of the testbed. Defaults to use port 22.")
+			"SSH port of the testbed. Defaults to use port "+strconv.Itoa(defaultSSHPort))
 	)
 
 	flag.Parse()
