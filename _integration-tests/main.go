@@ -32,6 +32,7 @@ import (
 
 const (
 	baseDir          = "/tmp/snappy-test"
+	testsBinDir      = "_integration-tests/bin/"
 	defaultRelease   = "rolling"
 	defaultChannel   = "edge"
 	latestRevision   = ""
@@ -44,9 +45,7 @@ const (
 )
 
 var (
-	testsDir         = filepath.Join(baseDir, "tests")
 	imageDir         = filepath.Join(baseDir, "image")
-	outputDir        = filepath.Join(baseDir, "output")
 	imageTarget      = filepath.Join(imageDir, "snappy.img")
 	commonSSHOptions = []string{"---", "ssh"}
 	kvmSSHOptions    = append(
@@ -56,7 +55,14 @@ var (
 			"--", "-i", imageTarget}...)
 )
 
-func setupAndRunTests(arch, testbedIP string, testbedPort int) {
+func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedPort int) {
+	prepareTargetDir(testsBinDir)
+
+	if useSnappyFromBranch {
+		// FIXME We need to build an image that has the snappy from the branch
+		// installed. --elopio - 2015-06-25.
+		buildSnappyCLI(arch)
+	}
 	buildTests(arch)
 
 	rootPath := getRootPath()
@@ -88,9 +94,27 @@ func execCommand(cmds ...string) {
 	}
 }
 
+func buildSnappyCLI(arch string) {
+	fmt.Println("Building snappy CLI...")
+	// On the root of the project we have a directory called snappy, so we
+	// output the binary for the tests in the tests directory.
+	goCall(arch, "build", "-o", testsBinDir+"snappy", "./cmd/snappy")
+}
+
 func buildTests(arch string) {
-	fmt.Println("Building tests")
-	prepareTargetDir(testsDir)
+	fmt.Println("Building tests...")
+	tests := []string{"latest", "failover", "update"}
+	for i := range tests {
+		testName := tests[i]
+		goCall(arch, "test", "-c",
+			"./_integration-tests/tests/"+testName)
+		// XXX Go test 1.3 does not have the output flag, so we move the
+		// binaries after they are generated.
+		os.Rename(testName+".test", testsBinDir+testName+".test")
+	}
+}
+
+func goCall(arch string, cmds ...string) {
 	if arch != "" {
 		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
 		os.Setenv("GOARCH", arch)
@@ -99,12 +123,8 @@ func buildTests(arch string) {
 			os.Setenv("GOARM", defaultGoArm)
 		}
 	}
-	tests := []string{"latest", "failover", "update"}
-	for i := range tests {
-		testName := tests[i]
-		execCommand("go", "test", "-c",
-			"./_integration-tests/tests/"+testName)
-	}
+	goCmd := append([]string{"go"}, cmds...)
+	execCommand(goCmd...)
 }
 
 func createImage(release, channel, revision string) {
@@ -125,6 +145,7 @@ func createImage(release, channel, revision string) {
 
 func adtRun(rootPath string, testbedOptions []string, testname string) {
 	fmt.Println("Calling adt-run...")
+	outputDir := filepath.Join(baseDir, "output")
 	prepareTargetDir(outputDir)
 
 	cmd := []string{
@@ -170,15 +191,17 @@ func getRootPath() string {
 
 func main() {
 	var (
+		useSnappyFromBranch = flag.Bool("snappy-from-branch", false,
+			"If this flag is used, snappy will be compiled from this branch, copied to the testbed and used for the tests. Otherwise, the snappy installed with the image will be used.")
 		arch = flag.String("arch", "",
 			"Architecture of the test bed. Defaults to use the same architecture as the host.")
 		testbedIP = flag.String("ip", "",
 			"IP of the testbed. If no IP is passed, a virtual machine will be created for the test.")
 		testbedPort = flag.Int("port", defaultSSHPort,
-			"SSH port of the testbed. Defaults to use port 22.")
+			"SSH port of the testbed. Defaults to use port "+strconv.Itoa(defaultSSHPort))
 	)
 
 	flag.Parse()
 
-	setupAndRunTests(*arch, *testbedIP, *testbedPort)
+	setupAndRunTests(*useSnappyFromBranch, *arch, *testbedIP, *testbedPort)
 }
