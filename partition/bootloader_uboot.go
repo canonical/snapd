@@ -97,7 +97,7 @@ func (u *uboot) Name() bootloaderName {
 // - Copy the "other" rootfs's kernel+initrd to the boot partition,
 //   renaming them in the process to ensure the next boot uses the
 //   correct versions.
-func (u *uboot) ToggleRootFS() (err error) {
+func (u *uboot) ToggleRootFS(otherRootfs string) (err error) {
 
 	// If the file exists, update it. Otherwise create it.
 	//
@@ -106,7 +106,7 @@ func (u *uboot) ToggleRootFS() (err error) {
 	// recreate to allow the system to boot!
 	changes := []configFileChange{
 		configFileChange{Name: bootloaderRootfsVar,
-			Value: string(u.otherRootfs),
+			Value: string(otherRootfs),
 		},
 		configFileChange{Name: bootloaderBootmodeVar,
 			Value: bootloaderBootmodeTry,
@@ -134,14 +134,6 @@ func (u *uboot) GetNextBootRootFSName() (label string, err error) {
 	}
 
 	return value, nil
-}
-
-func (u *uboot) GetRootFSName() string {
-	return u.currentRootfs
-}
-
-func (u *uboot) GetOtherRootFSName() string {
-	return u.otherRootfs
 }
 
 // FIXME: put into utils package
@@ -194,13 +186,13 @@ func writeLines(lines []string, path string) (err error) {
 	return file.Sync()
 }
 
-func (u *uboot) MarkCurrentBootSuccessful() (err error) {
+func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
 	changes := []configFileChange{
 		configFileChange{Name: bootloaderBootmodeVar,
 			Value: bootloaderBootmodeSuccess,
 		},
 		configFileChange{Name: bootloaderRootfsVar,
-			Value: string(u.currentRootfs),
+			Value: string(currentRootfs),
 		},
 	}
 

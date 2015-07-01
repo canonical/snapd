@@ -45,20 +45,30 @@ $goctest -v -cover ./...
 # go vet
 echo Running vet
 go vet ./...
+go vet ./_integration-tests/tests/...
 
 # golint
 echo Running lint
-lint=$(golint ./...)
+lint=$(golint ./... && golint ./_integration-tests/tests/...)
 if [ -n "$lint" ]; then
     echo "Lint complains:"
     echo $lint
     exit 1
 fi
 
+# pot file
+TMPF="$(mktemp)"
+./update-pot "$TMPF"
+trap "rm -f $TMPF" 0
+if ! diff --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
+    echo "You need to run ./update-pot"
+    exit 1
+fi
+
 # integration tests
 if which adt-run >/dev/null 2>&1; then
     echo "Running integration tests"
-    ./integration-tests/selftest
+    go run _integration-tests/main.go
 fi
 
 echo "All good, what could possibly go wrong"

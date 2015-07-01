@@ -50,6 +50,11 @@ override_dh_systemd_start:
 		-pubuntu-snappy \
 		snappy-autopilot.service
 
+override_dh_auto_build:
+	# this will update the i18n stuff
+	go generate ./snappy
+	dh_auto_build
+
 override_dh_auto_install:
 	dh_auto_install -O--buildsystem=golang
 	# Making the packages private

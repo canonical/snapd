@@ -49,13 +49,13 @@ const (
 	// This file specifies the s-i version installed on the rootfs
 	// and hence s-i updates this file on every update applied to
 	// the rootfs (by unpacking file "version-$version.tar.xz").
-	systemImageChannelConfig = "/etc/system-image/channel.ini"
+	systemImageChannelConfig = "/etc/system-image/config.d/01_channel.ini"
 
 	// location of the client config.
 	//
 	// The full path to this file needs to be passed to
 	// systemImageCli when querying a different rootfs.
-	systemImageClientConfig = "/etc/system-image/client.ini"
+	systemImageClientConfig = "/etc/system-image/config.d/00_default.ini"
 )
 
 var (
@@ -169,9 +169,16 @@ func (s *SystemImagePart) SetActive(pb progress.Meter) (err error) {
 	return s.partition.ToggleNextBoot()
 }
 
+// override in tests
+var bootloaderDir = bootloaderDirImpl
+
+func bootloaderDirImpl() string {
+	return partition.BootloaderDir()
+}
+
 // Install installs the snap
 func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
-	if provisioning.IsSideLoaded(s.partition.BootloaderDir()) {
+	if provisioning.IsSideLoaded(bootloaderDir()) {
 		return "", ErrSideLoaded
 	}
 
@@ -204,7 +211,9 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 			configFile = otherConfigFile
 		}
 
-		return systemImageDownloadUpdate(configFile, pb)
+		// NOTE: we need to pass the config dir here
+		configDir := filepath.Dir(configFile)
+		return systemImageDownloadUpdate(configDir, pb)
 	})
 	if err != nil {
 		return "", err

@@ -1311,8 +1311,7 @@ func (s *SnapTestSuite) TestServiceWhitelistIllegal(c *C) {
 
 func (s *SnapTestSuite) TestServiceWhitelistError(c *C) {
 	err := verifyServiceYaml(Service{Name: "x\n"})
-	c.Assert(err.Error(), Equals, `services description field 'Name' contains illegal 'x
-' (legal: '^[A-Za-z0-9/. _#:-]*$')`)
+	c.Assert(err.Error(), Equals, "services description field 'Name' contains illegal 'x\n' (legal: '^[A-Za-z0-9/. _#:-]*$')")
 }
 
 func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
