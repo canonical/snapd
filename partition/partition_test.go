@@ -377,7 +377,7 @@ func (b *mockBootloader) ToggleRootFS(otherRootfs string) error {
 	b.ToggleRootFSCalled = true
 	return nil
 }
-func (b *mockBootloader) SyncBootFiles() error {
+func (b *mockBootloader) SyncBootFiles(bootAssets map[string]string) error {
 	b.SyncBootFilesCalled = true
 	return nil
 }
@@ -443,7 +443,7 @@ func (s *PartitionTestSuite) TestSyncBootFiles(c *C) {
 	p := New()
 	c.Assert(c, NotNil)
 
-	err := p.SyncBootloaderFiles()
+	err := p.SyncBootloaderFiles(nil)
 	c.Assert(err, IsNil)
 	c.Assert(b.SyncBootFilesCalled, Equals, true)
 }

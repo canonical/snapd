@@ -161,7 +161,7 @@ func (p *MockPartition) MarkBootSuccessful() error {
 	p.markBootSuccessfulCalled = true
 	return nil
 }
-func (p *MockPartition) SyncBootloaderFiles() error {
+func (p *MockPartition) SyncBootloaderFiles(map[string]string) error {
 	p.syncBootloaderFilesCalled = true
 	return nil
 }

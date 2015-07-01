@@ -58,7 +58,13 @@ func newGrub(partition *Partition) bootLoader {
 		return nil
 	}
 
-	return &grub{}
+	b := newBootLoader(partition, bootloaderGrubDir)
+	if b == nil {
+		return nil
+	}
+	g := grub{bootloaderType: *b}
+
+	return &g
 }
 
 func (g *grub) Name() bootloaderName {

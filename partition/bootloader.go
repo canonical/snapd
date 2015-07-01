@@ -58,7 +58,7 @@ type bootLoader interface {
 	// Hook function called before system-image starts downloading
 	// and applying archives that allows files to be copied between
 	// partitions.
-	SyncBootFiles() error
+	SyncBootFiles(bootAssets map[string]string) error
 
 	// Install any hardware-specific files that system-image
 	// downloaded.
@@ -152,15 +152,24 @@ func newBootLoader(partition *Partition, bootloaderDir string) *bootloaderType {
 }
 
 // FIXME:
-// - transition from old grub to /boot/grub/{a,b}, i.e. create dirs if missing
 // - populate kernel if missing
-// - rewrite grub.cfg for new static one
-//   (plus support adding grub flags e.g. for azure)
-// - ensure rollback still works
-func (b *bootloaderType) SyncBootFiles() (err error) {
+func (b *bootloaderType) SyncBootFiles(bootAssets map[string]string) (err error) {
+	for src, dst := range bootAssets {
+		if err := helpers.CopyIfDifferent(src, filepath.Join(b.bootloaderDir, dst)); err != nil {
+			return err
+		}
+	}
+
 	srcDir := b.currentBootPath
 	destDir := b.otherBootPath
 
+	// ensure they exist
+	for _, dir := range []string{srcDir, destDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+
+	}
 	return helpers.RSyncWithDelete(srcDir, destDir)
 }
 
@@ -279,10 +288,11 @@ func (b *bootloaderType) HandleAssets() (err error) {
 // BootloaderDir returns the full path to the (mounted and writable)
 // bootloader-specific boot directory.
 func BootloaderDir() string {
-	b, err := bootloader(nil)
-	if err != nil {
-		return ""
+	if helpers.FileExists(bootloaderUbootDir) {
+		return bootloaderUbootDir
+	} else if helpers.FileExists(bootloaderGrubDir) {
+		return bootloaderGrubDir
 	}
 
-	return b.BootDir()
+	return ""
 }

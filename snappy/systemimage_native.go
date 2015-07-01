@@ -169,7 +169,7 @@ func parseSIProgress(pb progress.Meter, stdout io.Reader) error {
 }
 
 func systemImageDownloadUpdate(configDir string, pb progress.Meter) (err error) {
-	cmd := exec.Command(systemImageCli, "--progress", "json", "-C", configDir)
+	cmd := exec.Command(systemImageCli, "--machine-readable", "-C", configDir)
 
 	// collect progress over stdout pipe if we want progress
 	var stdout io.Reader
