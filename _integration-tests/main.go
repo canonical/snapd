@@ -32,20 +32,14 @@ import (
 )
 
 const (
-	baseDir        = "/tmp/snappy-test"
-	defaultRelease = "rolling"
-	defaultChannel = "edge"
-	latestRevision = ""
-	defaultSSHPort = 22
-	defaultGoArm   = "7"
-	controlFile    = "debian/integration-tests/control"
-	adtrunTemplate = `Test-Command: ./snappy.tests -gocheck.vv -test.outputdir=$ADT_ARTIFACTS {{ if .Filter }}-gocheck.f {{ .Filter }}{{ end }}
-Restrictions: allow-stderr
-Depends: ubuntu-snappy-tests
-
-Test-Command: ./_integration-tests/snappy-selftest --yes-really
-Depends:
-`
+	baseDir          = "/tmp/snappy-test"
+	defaultRelease   = "rolling"
+	defaultChannel   = "edge"
+	latestRevision   = ""
+	defaultSSHPort   = 22
+	defaultGoArm     = "7"
+	controlFile      = "debian/integration-tests/control"
+	controlTpl       = "_integration-tests/data/tpl/control"
 	latestTestName   = "command1"
 	failoverTestName = "command2"
 	updateTestName   = "command3"
@@ -157,9 +151,9 @@ func createControlFile(testFilter string) {
 		Filter string
 	}
 
-	tpl, err := template.New("controlFile").Parse(adtrunTemplate)
+	tpl, err := template.ParseFiles(controlTpl)
 	if err != nil {
-		log.Fatal("Error creating template for cotrol file")
+		log.Fatalf("Error reading adt-run control template %s", controlTpl)
 	}
 
 	outputFile, err := os.Create(controlFile)

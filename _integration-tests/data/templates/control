@@ -1,0 +1,6 @@
+Test-Command: ./snappy.tests -gocheck.vv -test.outputdir=$ADT_ARTIFACTS {{ if .Filter }}-gocheck.f {{ .Filter }}{{ end }}
+Restrictions: allow-stderr
+Depends: ubuntu-snappy-tests
+
+Test-Command: ./_integration-tests/snappy-selftest --yes-really
+Depends:
