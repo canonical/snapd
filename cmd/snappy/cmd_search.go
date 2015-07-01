@@ -65,6 +65,7 @@ func search(args []string, allVariants bool) error {
 		if part := sharedName.Alias; !allVariants && part != nil {
 			if len(sharedName.Parts) > 1 {
 				n := len(sharedName.Parts) - 1
+				// TRANSLATORS: the %s stand for "name", "version", "description"
 				fmt.Fprintln(w, fmt.Sprintf(i18n.G("%s\t%s\t%s (forks not shown: %d)\t"), part.Name(), part.Version(), part.Description(), n))
 				forkHelp = true
 			} else {

@@ -69,7 +69,7 @@ func (x *cmdInstall) doInstall() error {
 	if x.AllowUnauthenticated {
 		flags |= snappy.AllowUnauthenticated
 	}
-
+	// TRANSLATORS: the %s is a pkgname
 	fmt.Printf(i18n.G("Installing %s\n"), pkgName)
 
 	realPkgName, err := snappy.Install(pkgName, flags, progress.MakeProgressBar())

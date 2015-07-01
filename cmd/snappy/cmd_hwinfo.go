@@ -50,8 +50,10 @@ func init() {
 
 func outputHWAccessForPkgname(pkgname string, writePaths []string) {
 	if len(writePaths) == 0 {
+		// TRANSLATORS: the %s is a pkgname
 		fmt.Printf(i18n.G("'%s:' is not allowed to access additional hardware\n"), pkgname)
 	} else {
+		// TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
 		fmt.Printf(i18n.G("%s: %s\n"), pkgname, strings.Join(writePaths, ", "))
 	}
 }

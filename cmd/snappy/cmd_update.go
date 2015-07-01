@@ -87,6 +87,8 @@ func (x *cmdUpdate) doUpdate() error {
 		}
 
 		if len(rebootTriggers) != 0 {
+			// TRANSLATORS: the %s shows a comma separated list
+			//              of package names
 			fmt.Printf(i18n.G("Rebooting to satisfy updates for %s\n"), strings.Join(rebootTriggers, ", "))
 			cmd := exec.Command(shutdownCmd, shutdownTimeout, "-r", shutdownMsg)
 			if out, err := cmd.CombinedOutput(); err != nil {

@@ -60,6 +60,7 @@ func (x *cmdPurge) doPurge(args []string) error {
 	}
 
 	for _, part := range args {
+		// TRANSLATORS: the %s is a pkgname
 		fmt.Printf(i18n.G("Purging %s\n"), part)
 
 		if err := snappy.Purge(part, flags, progress.MakeProgressBar()); err != nil {

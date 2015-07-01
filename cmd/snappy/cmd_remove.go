@@ -55,6 +55,7 @@ func (x *cmdRemove) doRemove(args []string) error {
 	}
 
 	for _, part := range args {
+		// TRANSLATORS: the %s is a pkgname
 		fmt.Printf(i18n.G("Removing %s\n"), part)
 
 		if err := snappy.Remove(part, flags, progress.MakeProgressBar()); err != nil {

@@ -156,8 +156,10 @@ func showRebootMessage(installed []snappy.Part, o io.Writer) {
 
 	if needsReboot {
 		if snappy.VersionCompare(otherVersion, currentVersion) > 0 {
+			// the %s is a pkgname
 			fmt.Fprintln(o, fmt.Sprintf(i18n.G("Reboot to use the new %s."), otherName))
 		} else {
+			// the first %s is a pkgname the second a version
 			fmt.Fprintln(o, fmt.Sprintf(i18n.G("Reboot to use %s version %s."), otherName, otherVersion))
 		}
 	}

@@ -55,6 +55,7 @@ func (x *cmdHWAssign) Execute(args []string) error {
 func (x *cmdHWAssign) doHWAssign() error {
 	if err := snappy.AddHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
 		if err == snappy.ErrHWAccessAlreadyAdded {
+			// the first %s is a pkgname, the second %s is a path
 			fmt.Printf(i18n.G("'%s' previously allowed access to '%s'. Skipping\n"), x.Positional.PackageName, x.Positional.DevicePath)
 			return nil
 		}
@@ -62,6 +63,7 @@ func (x *cmdHWAssign) doHWAssign() error {
 		return err
 	}
 
+	// the first %s is a pkgname, the second %s is a path
 	fmt.Printf(i18n.G("'%s' is now allowed to access '%s'\n"), x.Positional.PackageName, x.Positional.DevicePath)
 	return nil
 }

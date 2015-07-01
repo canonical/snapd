@@ -71,12 +71,18 @@ func snapInfo(pkgname string, verbose bool) error {
 		return fmt.Errorf("No snap '%s' found", pkgname)
 	}
 
+	// TRANSLATORS: the %s is a channel name
 	fmt.Printf(i18n.G("channel: %s\n"), snap.Channel())
+	// TRANSLATORS: the %s is a version string
 	fmt.Printf(i18n.G("version: %s\n"), snap.Version())
+	// TRANSLATORS: the %s is a date
 	fmt.Printf(i18n.G("updated: %s\n"), snap.Date())
 	if verbose {
+		// TRANSLATORS: the %s is a date
 		fmt.Printf(i18n.G("installed: %s\n"), "n/a")
+		// TRANSLATORS: the %s is a size
 		fmt.Printf(i18n.G("binary-size: %v\n"), snap.InstalledSize())
+		// TRANSLATORS: the %s is a size
 		fmt.Printf(i18n.G("data-size: %s\n"), "n/a")
 		// FIXME: implement backup list per spec
 	}
@@ -98,9 +104,14 @@ func info() error {
 	frameworks, _ := snappy.ActiveSnapNamesByType(pkg.TypeFramework)
 	apps, _ := snappy.ActiveSnapNamesByType(pkg.TypeApp)
 
+	// TRANSLATORS: the %s release string
 	fmt.Printf(i18n.G("release: %s\n"), release)
+	// TRANSLATORS: the %s an architecture string
 	fmt.Printf(i18n.G("architecture: %s\n"), snappy.Architecture())
+	// TRANSLATORS: the %s is a comma separated list of framework names
 	fmt.Printf(i18n.G("frameworks: %s\n"), strings.Join(frameworks, ", "))
+	//TRANSLATORS: the %s represents a list of installed appnames
+	//             (e.g. "apps: foo, bar, baz")
 	fmt.Printf(i18n.G("apps: %s\n"), strings.Join(apps, ", "))
 
 	return nil

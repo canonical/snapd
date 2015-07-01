@@ -63,6 +63,7 @@ func (x *cmdConfig) Execute(args []string) (err error) {
 
 	newConfig, err := configurePackage(pkgName, configFile)
 	if err == snappy.ErrPackageNotFound {
+		// TRANSLATORS: the %s is a pkgname
 		return fmt.Errorf(i18n.G("No snap: '%s' found"), pkgName)
 	} else if err != nil {
 		return err

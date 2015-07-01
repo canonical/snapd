@@ -72,6 +72,7 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 		_ = cmd.Run()
 	*/
 
+	// TRANSLATORS: the %s is a pkgname
 	fmt.Printf(i18n.G("Generated '%s' snap\n"), snapPackage)
 	return nil
 }

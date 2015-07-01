@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-06-30 14:48+0200\n"
+        "POT-Creation-Date: 2015-07-01 16:56+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,26 +16,32 @@ msgstr  "Project-Id-Version: snappy\n"
         "Content-Type: text/plain; charset=CHARSET\n"
         "Content-Transfer-Encoding: 8bit\n"
 
+#. TRANSLATORS: the %s stand for "name", "version", "description"
 #, c-format
 msgid   "%s\t%s\t%s (forks not shown: %d)\t"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
 #, c-format
 msgid   "%s: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "'%s' is no longer allowed to access '%s'\n"
 msgstr  ""
 
+#. the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid   "'%s' is now allowed to access '%s'\n"
 msgstr  ""
 
+#. the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid   "'%s' previously allowed access to '%s'. Skipping\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "'%s:' is not allowed to access additional hardware\n"
 msgstr  ""
@@ -94,6 +100,7 @@ msgstr  ""
 #. // we ignore the error for now
 #. _ = cmd.Run()
 #.
+#. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Generated '%s' snap\n"
 msgstr  ""
@@ -101,6 +108,7 @@ msgstr  ""
 msgid   "Install a snap package"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Installing %s\n"
 msgstr  ""
@@ -126,6 +134,7 @@ msgstr  ""
 msgid   "Name\tVersion\tSummary\t"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "No snap: '%s' found"
 msgstr  ""
@@ -133,6 +142,7 @@ msgstr  ""
 msgid   "Password: "
 msgstr  ""
 
+#. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Purging %s\n"
 msgstr  ""
@@ -140,14 +150,18 @@ msgstr  ""
 msgid   "Query the store for available packages"
 msgstr  ""
 
+#. the first %s is a pkgname the second a version
 #, c-format
 msgid   "Reboot to use %s version %s."
 msgstr  ""
 
+#. the %s is a pkgname
 #, c-format
 msgid   "Reboot to use the new %s."
 msgstr  ""
 
+#. TRANSLATORS: the %s shows a comma separated list
+#. of package names
 #, c-format
 msgid   "Rebooting to satisfy updates for %s\n"
 msgstr  ""
@@ -158,6 +172,7 @@ msgstr  ""
 msgid   "Remove all the data from the listed packages"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Removing %s\n"
 msgstr  ""
@@ -174,6 +189,7 @@ msgstr  ""
 msgid   "Set properties of system or package"
 msgstr  ""
 
+#. the first %s is a pkgname, the second %s is the new version
 #, c-format
 msgid   "Setting %s to version %s\n"
 msgstr  ""
@@ -204,29 +220,37 @@ msgstr  ""
 msgid   "Use --show-all to see all available forks."
 msgstr  ""
 
+#. TRANSLATORS: the %s represents a list of installed appnames
+#. (e.g. "apps: foo, bar, baz")
 #, c-format
 msgid   "apps: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s an architecture string
 #, c-format
 msgid   "architecture: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a size
 msgid   "binary-size: %v\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a channel name
 #, c-format
 msgid   "channel: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a size
 #, c-format
 msgid   "data-size: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a comma separated list of framework names
 #, c-format
 msgid   "frameworks: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a date
 #, c-format
 msgid   "installed: %s\n"
 msgstr  ""
@@ -234,6 +258,7 @@ msgstr  ""
 msgid   "package name is required"
 msgstr  ""
 
+#. TRANSLATORS: the %s release string
 #, c-format
 msgid   "release: %s\n"
 msgstr  ""
@@ -243,10 +268,12 @@ msgid   "snappy autopilot triggered a reboot to boot into an up to date "
         "c'"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a date
 #, c-format
 msgid   "updated: %s\n"
 msgstr  ""
 
+#. TRANSLATORS: the %s is a version string
 #, c-format
 msgid   "version: %s\n"
 msgstr  ""
