@@ -23,6 +23,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+
+	"launchpad.net/snappy/helpers"
 
 	. "gopkg.in/check.v1"
 )
@@ -147,4 +150,33 @@ func (s *PartitionTestSuite) TestGrubMarkCurrentBootSuccessful(c *C) {
 
 	c.Assert(allCommands[3], DeepEquals, expectedGrubSet3)
 
+}
+
+func (s *PartitionTestSuite) TestSyncBootFilesWithAssets(c *C) {
+	err := os.MkdirAll(bootloaderGrubDir, 0755)
+	c.Assert(err, IsNil)
+
+	runCommand = mockRunCommand
+	b := grub{
+		bootloaderType{
+			currentBootPath: c.MkDir(),
+			otherBootPath:   c.MkDir(),
+			bootloaderDir:   c.MkDir(),
+		},
+	}
+
+	bootfile := filepath.Join(c.MkDir(), "bootfile")
+	err = ioutil.WriteFile(bootfile, []byte(bootfile), 0644)
+	c.Assert(err, IsNil)
+
+	bootassets := map[string]string{
+		bootfile: filepath.Base(bootfile),
+	}
+
+	err = b.SyncBootFiles(bootassets)
+	c.Assert(err, IsNil)
+
+	dst := filepath.Join(b.bootloaderDir, bootassets[bootfile])
+	c.Check(helpers.FileExists(dst), Equals, true)
+	c.Check(helpers.FilesAreEqual(bootfile, dst), Equals, true)
 }
