@@ -68,7 +68,7 @@ func main() {
 							//println(posCall.Line, posComment.Line, c.Text)
 							if posCall.Line == posComment.Line+1 {
 								posCall = posComment
-								com = fmt.Sprintf("# %s\n%s", c.Text, com)
+								com = fmt.Sprintf("#. %s\n%s", c.Text, com)
 							}
 						}
 					}
