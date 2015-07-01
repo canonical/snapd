@@ -53,7 +53,7 @@ type bootLoader interface {
 
 	// Switch bootloader configuration so that the "other" root
 	// filesystem partition will be used on next boot.
-	ToggleRootFS() error
+	ToggleRootFS(otherRootfs string) error
 
 	// Hook function called before system-image starts downloading
 	// and applying archives that allows files to be copied between
@@ -68,14 +68,6 @@ type bootLoader interface {
 	GetBootVar(name string) (string, error)
 
 	// Return the 1-character name corresponding to the
-	// rootfs currently being used.
-	GetRootFSName() string
-
-	// Return the 1-character name corresponding to the
-	// other rootfs.
-	GetOtherRootFSName() string
-
-	// Return the 1-character name corresponding to the
 	// rootfs that will be used on _next_ boot.
 	//
 	// XXX: Note the distinction between this method and
@@ -86,7 +78,7 @@ type bootLoader interface {
 
 	// Update the bootloader configuration to mark the
 	// currently-booted rootfs as having booted successfully.
-	MarkCurrentBootSuccessful() error
+	MarkCurrentBootSuccessful(currentRootfs string) error
 
 	// BootDir returns the (writable) bootloader-specific boot
 	// directory.
@@ -159,30 +151,6 @@ func newBootLoader(partition *Partition, bootloaderDir string) *bootloaderType {
 	}
 }
 
-// Return true if the next boot will use the other rootfs
-// partition.
-func isNextBootOther(bootloader bootLoader) bool {
-	value, err := bootloader.GetBootVar(bootloaderBootmodeVar)
-	if err != nil {
-		return false
-	}
-
-	if value != bootloaderBootmodeTry {
-		return false
-	}
-
-	fsname, err := bootloader.GetNextBootRootFSName()
-	if err != nil {
-		return false
-	}
-
-	if fsname == bootloader.GetOtherRootFSName() {
-		return true
-	}
-
-	return false
-}
-
 // FIXME:
 // - transition from old grub to /boot/grub/{a,b}, i.e. create dirs if missing
 // - populate kernel if missing
@@ -204,7 +172,7 @@ func (b *bootloaderType) SyncBootFiles() (err error) {
 func (b *bootloaderType) HandleAssets() (err error) {
 	// check if we have anything, if there is no hardware yaml, there is nothing
 	// to process.
-	hardware, err := b.partition.hardwareSpec()
+	hardware, err := readHardwareSpec()
 	if err == ErrNoHardwareYaml {
 		return nil
 	} else if err != nil {
@@ -213,7 +181,7 @@ func (b *bootloaderType) HandleAssets() (err error) {
 	// ensure to remove the file if there are no errors
 	defer func() {
 		if err == nil {
-			os.Remove(b.partition.hardwareSpecFile)
+			os.Remove(hardwareSpecFile)
 		}
 	}()
 
@@ -246,7 +214,7 @@ func (b *bootloaderType) HandleAssets() (err error) {
 		}
 
 		// expand path
-		path := filepath.Join(b.partition.cacheDir(), file)
+		path := filepath.Join(cacheDir, file)
 
 		if !helpers.FileExists(path) {
 			return fmt.Errorf("can not find file %s", path)
@@ -268,7 +236,7 @@ func (b *bootloaderType) HandleAssets() (err error) {
 	//       fully speced
 
 	// install .dtb files
-	dtbSrcDir := filepath.Join(b.partition.cacheDir(), hardware.DtbDir)
+	dtbSrcDir := filepath.Join(cacheDir, hardware.DtbDir)
 	// ensure there is a DtbDir specified
 	if hardware.DtbDir != "" && helpers.FileExists(dtbSrcDir) {
 		// ensure we cleanup the source dir
@@ -295,8 +263,6 @@ func (b *bootloaderType) HandleAssets() (err error) {
 		}
 	}
 
-	flashAssetsDir := b.partition.flashAssetsDir()
-
 	if helpers.FileExists(flashAssetsDir) {
 		// FIXME: we don't currently do anything with the
 		// MLO + uImage files since they are not specified in
@@ -308,4 +274,15 @@ func (b *bootloaderType) HandleAssets() (err error) {
 	}
 
 	return err
+}
+
+// BootloaderDir returns the full path to the (mounted and writable)
+// bootloader-specific boot directory.
+func BootloaderDir() string {
+	b, err := bootloader(nil)
+	if err != nil {
+		return ""
+	}
+
+	return b.BootDir()
 }

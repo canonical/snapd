@@ -42,21 +42,6 @@ func makeCloudInitMetaData(c *C, content string) string {
 	return w.Name()
 }
 
-func (s *SnapTestSuite) TestNotInDeveloperMode(c *C) {
-	cloudMetaDataFile = makeCloudInitMetaData(c, `instance-id: nocloud-static`)
-	defer os.Remove(cloudMetaDataFile)
-	c.Assert(inDeveloperMode(), Equals, false)
-}
-
-func (s *SnapTestSuite) TestInDeveloperMode(c *C) {
-	cloudMetaDataFile = makeCloudInitMetaData(c, `instance-id: nocloud-static
-public-keys:
-  - ssh-rsa AAAAB3NzAndSoOn
-`)
-	defer os.Remove(cloudMetaDataFile)
-	c.Assert(inDeveloperMode(), Equals, true)
-}
-
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	snapFile := makeTestSnapPackage(c, "")
 	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
@@ -112,7 +97,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	c.Assert(err, IsNil)
 	defer snapR.Close()
 
-	var dlURL string
+	var dlURL, iconURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/details/foo":
@@ -120,23 +105,26 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 "package_name": "foo",
 "version": "2",
 "origin": "test",
-"anon_download_url": "`+dlURL+`"
+"anon_download_url": "`+dlURL+`",
+"icon_url": "`+iconURL+`"
 }`)
 		case "/dl":
 			snapR.Seek(0, 0)
 			io.Copy(w, snapR)
+		case "/icon":
+			fmt.Fprintf(w, "")
 		default:
 			panic("unexpected url path: " + r.URL.Path)
 		}
 	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
 
 	dlURL = mockServer.URL + "/dl"
+	iconURL = mockServer.URL + "/icon"
 
 	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
 
 	name, err := Install("foo", 0, &progress.NullProgress{})
 	c.Assert(err, IsNil)
@@ -198,7 +186,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	defer snapR.Close()
 
 	// details
-	var dlURL string
+	var dlURL, iconURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/details/foo":
@@ -206,22 +194,26 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 "package_name": "foo",
 "version": "2",
 "origin": "sideload",
-"anon_download_url": "`+dlURL+`"
+"anon_download_url": "`+dlURL+`",
+"icon_url": "`+iconURL+`"
 }`)
 		case "/dl":
 			snapR.Seek(0, 0)
 			io.Copy(w, snapR)
+		case "/icon":
+			fmt.Fprintf(w, "")
 		default:
 			panic("unexpected url path: " + r.URL.Path)
 		}
 	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
 	dlURL = mockServer.URL + "/dl"
+	iconURL = mockServer.URL + "/icon"
 
 	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
 
 	// bulk
 	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -229,7 +221,8 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	"package_name": "foo",
 	"version": "2",
 	"origin": "sideload",
-	"anon_download_url": "`+dlURL+`"
+	"anon_download_url": "`+dlURL+`",
+	"icon_url": "`+iconURL+`"
 }]`)
 	}))
 

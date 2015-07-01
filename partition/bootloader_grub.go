@@ -57,13 +57,8 @@ func newGrub(partition *Partition) bootLoader {
 	if !helpers.FileExists(bootloaderGrubConfigFile) {
 		return nil
 	}
-	b := newBootLoader(partition, bootloaderGrubDirReal)
-	if b == nil {
-		return nil
-	}
-	g := &grub{bootloaderType: *b}
 
-	return g
+	return &grub{}
 }
 
 func (g *grub) Name() bootloaderName {
@@ -75,7 +70,7 @@ func (g *grub) Name() bootloaderName {
 // Approach:
 //
 // Update the grub configuration.
-func (g *grub) ToggleRootFS() (err error) {
+func (g *grub) ToggleRootFS(otherRootfs string) (err error) {
 
 	if err := g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry); err != nil {
 		return err
@@ -84,7 +79,7 @@ func (g *grub) ToggleRootFS() (err error) {
 	// Record the partition that will be used for next boot. This
 	// isn't necessary for correct operation under grub, but allows
 	// us to query the next boot device easily.
-	return g.setBootVar(bootloaderRootfsVar, g.otherRootfs)
+	return g.setBootVar(bootloaderRootfsVar, otherRootfs)
 }
 
 func (g *grub) GetBootVar(name string) (value string, err error) {
@@ -120,22 +115,14 @@ func (g *grub) GetNextBootRootFSName() (label string, err error) {
 	return g.GetBootVar(bootloaderRootfsVar)
 }
 
-func (g *grub) GetRootFSName() string {
-	return g.currentRootfs
-}
-
-func (g *grub) GetOtherRootFSName() string {
-	return g.otherRootfs
-}
-
-func (g *grub) MarkCurrentBootSuccessful() (err error) {
+func (g *grub) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
 	// Clear the variable set by grub on boot to denote a good
 	// boot.
 	if err := g.unsetBootVar(bootloaderGrubTrialBootVar); err != nil {
 		return err
 	}
 
-	if err := g.setBootVar(bootloaderRootfsVar, g.currentRootfs); err != nil {
+	if err := g.setBootVar(bootloaderRootfsVar, currentRootfs); err != nil {
 		return err
 	}
 
