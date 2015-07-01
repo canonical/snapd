@@ -48,12 +48,12 @@ func (s *installSuite) TearDownTest(c *C) {
 func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 	installOutput := installSnap(c, "hello-world")
 
-	expected := "" +
+	expected := "(?ms)" +
 		"Installing hello-world\n" +
 		"Name          Date       Version Developer \n" +
-		".*\n" +
-		"hello-world   .* .*  canonical \n" +
-		".*\n"
+		".*" +
+		"^hello-world   .* .*  canonical \n" +
+		".*"
 
 	c.Assert(installOutput, Matches, expected)
 }

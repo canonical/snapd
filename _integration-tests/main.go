@@ -81,7 +81,7 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedP
 		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 			"ubuntu@"+testbedIP)
 		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP, testbedPort),
-			shellTestName)
+			latestTestName)
 	}
 }
 
