@@ -90,6 +90,15 @@ func (s *cpSuite) TestCp(c *C) {
 	c.Check(bs, DeepEquals, s.data)
 }
 
+func (s *cpSuite) TestCpOverwrite(c *C) {
+	_, err := os.Create(s.f2)
+	c.Assert(err, IsNil)
+	c.Check(CopyFile(s.f1, s.f2, CopyFlagOverwrite), IsNil)
+	bs, err := ioutil.ReadFile(s.f2)
+	c.Check(err, IsNil)
+	c.Check(bs, DeepEquals, s.data)
+}
+
 func (s *cpSuite) TestCpSync(c *C) {
 	s.mock()
 	c.Check(CopyFile(s.f1, s.f2, CopyFlagDefault), IsNil)
