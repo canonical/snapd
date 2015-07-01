@@ -22,18 +22,8 @@ package latest
 import (
 	"testing"
 
-	. "../common"
-
 	. "gopkg.in/check.v1"
 )
 
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
-
-func installSnap(c *C, packageName string) string {
-	return ExecCommand(c, "sudo", "snappy", "install", packageName)
-}
-
-func removeSnap(c *C, packageName string) string {
-	return ExecCommand(c, "sudo", "snappy", "remove", packageName)
-}

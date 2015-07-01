@@ -20,14 +20,17 @@
 package latest
 
 import (
+	"fmt"
+
 	. "../common"
 
 	. "gopkg.in/check.v1"
 )
 
 const (
-	baseSnapPath  = "_integration-tests/tests/latest/fixtures/snaps"
-	basicSnapName = "basic-snap"
+	baseSnapPath  = "_integration-tests/data/snaps"
+	basicSnapName = "basic"
+	wrongSnapName = "wrong"
 )
 
 var _ = Suite(&buildSuite{})
@@ -36,21 +39,25 @@ type buildSuite struct {
 	CommonSuite
 }
 
-func buildSnap(c *C, snapPath string) {
-	ExecCommand(c, "snappy", "build", snapPath)
+func buildSnap(c *C, snapPath string) string {
+	return ExecCommand(c, "snappy", "build", snapPath)
 }
 
 func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
-	// build basic snap
-
-	// check build output
+	// build basic snap and check output
+	buildOutput := buildSnap(c, fmt.Sprintf("%s/%s", baseSnapPath, basicSnapName))
+	expected := ""
+	c.Assert(buildOutput, Equals, expected)
 
 	// install built snap
+	installOutput := InstallSnap(c, basicSnapName+".snap")
 
 	// check install output
+	expected = ""
+	c.Assert(installOutput, Equals, expected)
 
 	// teardown, remove snap
-	removeSnap(c, basicSnapName)
+	RemoveSnap(c, basicSnapName)
 }
 
 func (s *buildSuite) TestBuildWrongSnapOnSnappy(c *C) {

@@ -159,3 +159,11 @@ func (s *CommonSuite) SetUpTest(c *C) {
 		}
 	}
 }
+
+func InstallSnap(c *C, packageName string) string {
+	return ExecCommand(c, "sudo", "snappy", "install", packageName)
+}
+
+func RemoveSnap(c *C, packageName string) string {
+	return ExecCommand(c, "sudo", "snappy", "remove", packageName)
+}

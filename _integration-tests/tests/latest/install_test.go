@@ -34,11 +34,11 @@ type installSuite struct {
 }
 
 func (s *installSuite) TearDownTest(c *C) {
-	removeSnap(c, "hello-world")
+	RemoveSnap(c, "hello-world")
 }
 
 func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
-	installOutput := installSnap(c, "hello-world")
+	installOutput := InstallSnap(c, "hello-world")
 
 	expected := "" +
 		"Installing hello-world\n" +
@@ -51,7 +51,7 @@ func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 }
 
 func (s *installSuite) TestCallBinaryFromInstalledSnap(c *C) {
-	installSnap(c, "hello-world")
+	InstallSnap(c, "hello-world")
 
 	echoOutput := ExecCommand(c, "hello-world.echo")
 
@@ -59,7 +59,7 @@ func (s *installSuite) TestCallBinaryFromInstalledSnap(c *C) {
 }
 
 func (s *installSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
-	installSnap(c, "hello-world")
+	InstallSnap(c, "hello-world")
 
 	cmd := exec.Command("hello-world.evil")
 	echoOutput, err := cmd.CombinedOutput()
@@ -77,7 +77,7 @@ func (s *installSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
 }
 
 func (s *installSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
-	installSnap(c, "hello-world")
+	InstallSnap(c, "hello-world")
 
 	infoOutput := ExecCommand(c, "snappy", "info")
 
