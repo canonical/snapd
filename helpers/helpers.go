@@ -501,7 +501,6 @@ func RSyncWithDelete(srcDirName, destDirName string) error {
 
 // CopyIfDifferent copies src to dst only if dst is different that src
 func CopyIfDifferent(src, dst string) error {
-	fmt.Println("Copying", src, "to", dst)
 	if !FilesAreEqual(src, dst) {
 		output, err := exec.Command("cp", src, dst).CombinedOutput()
 		if err != nil {
