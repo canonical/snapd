@@ -26,7 +26,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -35,9 +34,8 @@ const (
 	testsBinDir      = "_integration-tests/bin/"
 	defaultRelease   = "rolling"
 	defaultChannel   = "edge"
-	defaultArch      = ""
 	latestRevision   = ""
-	defaultSSHPort   = 22
+	defaultSSHPort   = "22"
 	defaultGoArm     = "7"
 	latestTestName   = "command1"
 	failoverTestName = "command2"
@@ -56,7 +54,7 @@ var (
 			"--", "-i", imageTarget}...)
 )
 
-func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedPort int) {
+func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedPort string) {
 	prepareTargetDir(testsBinDir)
 
 	if useSnappyFromBranch {
@@ -78,7 +76,7 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedP
 		createImage(defaultRelease, defaultChannel, "-1")
 		adtRun(rootPath, kvmSSHOptions, updateTestName)
 	} else {
-		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
+		execCommand("ssh-copy-id", "-p", testbedPort,
 			"ubuntu@"+testbedIP)
 		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP, testbedPort),
 			shellTestName)
@@ -116,7 +114,7 @@ func buildTests(arch string) {
 }
 
 func goCall(arch string, cmds ...string) {
-	if arch != defaultArch {
+	if arch != "" {
 		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
 		os.Setenv("GOARCH", arch)
 		if arch == "arm" {
@@ -164,10 +162,10 @@ func adtRun(rootPath string, testbedOptions []string, testname string) {
 	execCommand(append(cmd, testbedOptions...)...)
 }
 
-func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
+func remoteTestbedSSHOptions(testbedIP string, testbedPort string) []string {
 	options := []string{
 		"-H", testbedIP,
-		"-p", strconv.Itoa(testbedPort),
+		"-p", testbedPort,
 		"-l", "ubuntu",
 		"-i", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa"),
 		"--reboot"}
@@ -194,12 +192,12 @@ func main() {
 	var (
 		useSnappyFromBranch = flag.Bool("snappy-from-branch", false,
 			"If this flag is used, snappy will be compiled from this branch, copied to the testbed and used for the tests. Otherwise, the snappy installed with the image will be used.")
-		arch = flag.String("arch", defaultArch,
+		arch = flag.String("arch", "",
 			"Architecture of the test bed. Defaults to use the same architecture as the host.")
 		testbedIP = flag.String("ip", "",
 			"IP of the testbed. If no IP is passed, a virtual machine will be created for the test.")
-		testbedPort = flag.Int("port", defaultSSHPort,
-			"SSH port of the testbed. Defaults to use port 22.")
+		testbedPort = flag.String("port", defaultSSHPort,
+			"SSH port of the testbed. Defaults to use port "+defaultSSHPort)
 	)
 
 	flag.Parse()
