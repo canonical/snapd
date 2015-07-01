@@ -32,7 +32,8 @@ You can use this flag to test in a remote machine too.
 
 You can execute the integration suite in a remote snappy machine with:
 
-    go run _integration-test/main.go --ip {testbed-ip} --port {testbed-port}
+    go run _integration-test/main.go --ip {testbed-ip} --port {testbed-port} \
+    --arch {testbed-arch}
 
 The test runner will use `ssh-copy-id` to send your identity file to the
 testbed, so it will ask for the password of the ubuntu user in the test bed.
@@ -58,4 +59,4 @@ same network as the test runner host, and find the {beaglebone-ip}.
 
 Run the tests with:
 
-    go run _integration-tests/main.go --ip {beaglebone-ip}
+    go run _integration-tests/main.go --ip {beaglebone-ip} --arch arm
