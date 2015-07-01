@@ -57,6 +57,7 @@ var (
 		[]string{
 			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
 			"--", "-i", imageTarget}...)
+	testPackages = []string{"latest", "failover", "update"}
 )
 
 func setupAndRunTests(arch, testbedIP, testFilter string, testbedPort int) {
@@ -101,9 +102,7 @@ func buildTests(arch string) {
 			os.Setenv("GOARM", defaultGoArm)
 		}
 	}
-	tests := []string{"latest", "failover", "update"}
-	for i := range tests {
-		testName := tests[i]
+	for _, testName := range testPackages {
 		execCommand("go", "test", "-c",
 			"./_integration-tests/tests/"+testName)
 	}
