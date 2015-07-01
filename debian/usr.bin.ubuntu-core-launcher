@@ -9,6 +9,7 @@
     /lib/@{multiarch}/libc{,-[0-9]*}.so* mr,
     /lib/@{multiarch}/libpthread{,-[0-9]*}.so* mr,
     /lib/@{multiarch}/librt{,-[0-9]*}.so* mr,
+    /lib/@{multiarch}/libgcc_s.so* mr,
     # normal libs in order
     /lib/@{multiarch}/libapparmor.so* mr,
     /lib/@{multiarch}/libudev.so* mr,
