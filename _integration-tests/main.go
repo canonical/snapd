@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -35,7 +36,7 @@ const (
 	defaultRelease   = "rolling"
 	defaultChannel   = "edge"
 	latestRevision   = ""
-	defaultSSHPort   = "22"
+	defaultSSHPort   = 22
 	defaultGoArm     = "7"
 	latestTestName   = "command1"
 	failoverTestName = "command2"
@@ -54,7 +55,7 @@ var (
 			"--", "-i", imageTarget}...)
 )
 
-func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedPort string) {
+func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedPort int) {
 	prepareTargetDir(testsBinDir)
 
 	if useSnappyFromBranch {
@@ -76,7 +77,7 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedP
 		createImage(defaultRelease, defaultChannel, "-1")
 		adtRun(rootPath, kvmSSHOptions, updateTestName)
 	} else {
-		execCommand("ssh-copy-id", "-p", testbedPort,
+		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 			"ubuntu@"+testbedIP)
 		adtRun(rootPath, remoteTestbedSSHOptions(testbedIP, testbedPort),
 			shellTestName)
@@ -162,10 +163,10 @@ func adtRun(rootPath string, testbedOptions []string, testname string) {
 	execCommand(append(cmd, testbedOptions...)...)
 }
 
-func remoteTestbedSSHOptions(testbedIP string, testbedPort string) []string {
+func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
 	options := []string{
 		"-H", testbedIP,
-		"-p", testbedPort,
+		"-p", strconv.Itoa(testbedPort),
 		"-l", "ubuntu",
 		"-i", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa"),
 		"--reboot"}
@@ -196,8 +197,8 @@ func main() {
 			"Architecture of the test bed. Defaults to use the same architecture as the host.")
 		testbedIP = flag.String("ip", "",
 			"IP of the testbed. If no IP is passed, a virtual machine will be created for the test.")
-		testbedPort = flag.String("port", defaultSSHPort,
-			"SSH port of the testbed. Defaults to use port "+defaultSSHPort)
+		testbedPort = flag.Int("port", defaultSSHPort,
+			"SSH port of the testbed. Defaults to use port "+strconv.Itoa(defaultSSHPort))
 	)
 
 	flag.Parse()
