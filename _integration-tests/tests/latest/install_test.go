@@ -50,9 +50,9 @@ func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 
 	expected := "(?ms)" +
 		"Installing hello-world\n" +
-		"Name          Date       Version Developer \n" +
+		"Name +Date +Version +Developer \n" +
 		".*" +
-		"^hello-world   .* .*  canonical \n" +
+		"^hello-world +.* +.* +canonical \n" +
 		".*"
 
 	c.Assert(installOutput, Matches, expected)
