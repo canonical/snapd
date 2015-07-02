@@ -59,7 +59,7 @@ func (x *cmdInstall) doInstall() error {
 
 	// FIXME patch goflags to allow for specific n required positional arguments
 	if pkgName == "" {
-		return errors.New("package name is required")
+		return errors.New(i18n.G("package name is required"))
 	}
 
 	flags := snappy.DoInstallGC
@@ -69,8 +69,8 @@ func (x *cmdInstall) doInstall() error {
 	if x.AllowUnauthenticated {
 		flags |= snappy.AllowUnauthenticated
 	}
-
-	fmt.Printf("Installing %s\n", pkgName)
+	// TRANSLATORS: the %s is a pkgname
+	fmt.Printf(i18n.G("Installing %s\n"), pkgName)
 
 	realPkgName, err := snappy.Install(pkgName, flags, progress.MakeProgressBar())
 	if err != nil {

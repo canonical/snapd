@@ -36,7 +36,7 @@ const (
 var _ = Suite(&buildSuite{})
 
 type buildSuite struct {
-	CommonSuite
+	SnappySuite
 }
 
 func buildSnap(c *C, snapPath string) string {
@@ -61,7 +61,8 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
 }
 
 func (s *buildSuite) TestBuildWrongSnapOnSnappy(c *C) {
-	// build wrong snap
-
-	// check build output with error
+	// build wrong snap and check output
+	buildOutput := buildSnap(c, fmt.Sprintf("%s/%s", baseSnapPath, wrongSnapName))
+	expected := ""
+	c.Assert(buildOutput, Equals, expected)
 }
