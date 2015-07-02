@@ -1,0 +1,10 @@
+{{ $filter := .Filter }}
+{{ range $element := .Tests }}
+Test-Command: debian/integration-tests/snappy-test {{ $element }}.test {{ if $filter }}-gocheck.f {{ $filter }}{{ end }}
+Restrictions: allow-stderr
+{{ end }}
+
+{{ if not $filter }}
+Test-Command: ./_integration-tests/snappy-selftest --yes-really
+Depends:
+{{ end }}

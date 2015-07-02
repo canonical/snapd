@@ -70,10 +70,16 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter stri
 	buildTests(arch)
 
 	rootPath := getRootPath()
+
+	createControlFile(testFilter)
+
 	if testbedIP == "" {
 		createImage(defaultRelease, defaultChannel, latestRevision)
 		latestTests := []string{
-			latestTestName, failoverTestName, shellTestName}
+			latestTestName, failoverTestName}
+		if testFilter == "" {
+			latestTests = append(latestTests, shellTestName)
+		}
 		for _, latestTestName := range latestTests {
 			adtRun(rootPath, testFilter, latestTestName, kvmSSHOptions)
 		}
@@ -150,8 +156,6 @@ func adtRun(rootPath, testFilter, testname string, testbedOptions []string) {
 	outputDir := filepath.Join(baseDir, "output")
 	prepareTargetDir(outputDir)
 
-	createControlFile(testFilter)
-
 	cmd := []string{
 		"adt-run", "-B",
 		"--override-control", "debian/integration-tests/control"}
@@ -170,6 +174,7 @@ func adtRun(rootPath, testFilter, testname string, testbedOptions []string) {
 func createControlFile(testFilter string) {
 	type controlData struct {
 		Filter string
+		Tests  []string
 	}
 
 	tpl, err := template.ParseFiles(controlTpl)
@@ -183,7 +188,7 @@ func createControlFile(testFilter string) {
 	}
 	defer outputFile.Close()
 
-	err = tpl.Execute(outputFile, controlData{Filter: testFilter})
+	err = tpl.Execute(outputFile, controlData{Filter: testFilter, Tests: testPackages})
 	if err != nil {
 		log.Fatalf("execution: %s", err)
 	}
