@@ -26,6 +26,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/snappy"
@@ -36,15 +37,15 @@ type cmdList struct {
 	Verbose bool `short:"v" long:"verbose" description:"Show channel information and expand all fields"`
 }
 
-const shortListHelp = `List active components installed on a snappy system`
+var shortListHelp = i18n.G("List active components installed on a snappy system")
 
-const longListHelp = `Provides a list of all active components installed on a snappy system.
+var longListHelp = i18n.G(`Provides a list of all active components installed on a snappy system.
 
 If requested, the command will find out if there are updates for any of the components and indicate that by appending a * to the date. This will be slower as it requires a round trip to the app store on the network.
 
 The developer information refers to non-mainline versions of a package (much like PPAs in deb-based Ubuntu). If the package is the primary version of that package in Ubuntu then the developer info is not shown. This allows one to identify packages which have custom, non-standard versions installed. As a special case, the “sideload” developer refers to packages installed manually on the system.
 
-When a verbose listing is requested, information about the channel used is displayed; which is one of alpha, beta, rc or stable, and all fields are fully expanded too. In some cases, older (inactive) versions of snappy packages will be installed, these will be shown in the verbose output and the active version indicated with a * appended to the name of the component.`
+When a verbose listing is requested, information about the channel used is displayed; which is one of alpha, beta, rc or stable, and all fields are fully expanded too. In some cases, older (inactive) versions of snappy packages will be installed, these will be shown in the verbose output and the active version indicated with a * appended to the name of the component.`)
 
 func init() {
 	cmd, err := parser.AddCommand("list",
@@ -104,7 +105,7 @@ func showInstalledList(installed []snappy.Part, o io.Writer) {
 func showVerboseList(installed []snappy.Part, o io.Writer) {
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
 
-	fmt.Fprintln(w, "Name\tDate\tVersion\tDeveloper\t")
+	fmt.Fprintln(w, i18n.G("Name\tDate\tVersion\tDeveloper\t"))
 	for _, part := range installed {
 		active := ""
 		if part.IsActive() {
@@ -155,9 +156,11 @@ func showRebootMessage(installed []snappy.Part, o io.Writer) {
 
 	if needsReboot {
 		if snappy.VersionCompare(otherVersion, currentVersion) > 0 {
-			fmt.Fprintln(o, fmt.Sprintf("Reboot to use the new %s.", otherName))
+			// the %s is a pkgname
+			fmt.Fprintln(o, fmt.Sprintf(i18n.G("Reboot to use the new %s."), otherName))
 		} else {
-			fmt.Fprintln(o, fmt.Sprintf("Reboot to use %s version %s.", otherName, otherVersion))
+			// the first %s is a pkgname the second a version
+			fmt.Fprintln(o, fmt.Sprintf(i18n.G("Reboot to use %s version %s."), otherName, otherVersion))
 		}
 	}
 }
@@ -167,7 +170,7 @@ func showUpdatesList(installed []snappy.Part, updates []snappy.Part, o io.Writer
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
 	defer w.Flush()
 
-	fmt.Fprintln(w, "Name\tDate\tVersion\t")
+	fmt.Fprintln(w, i18n.G("Name\tDate\tVersion\t"))
 	for _, part := range installed {
 		if !part.IsActive() {
 			continue

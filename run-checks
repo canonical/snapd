@@ -60,7 +60,7 @@ fi
 TMPF="$(mktemp)"
 ./update-pot "$TMPF"
 trap "rm -f $TMPF" 0
-if ! diff --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
+if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
     echo "You need to run ./update-pot"
     exit 1
 fi
@@ -71,7 +71,7 @@ go build _integration-tests/main.go
 # integration tests
 if which adt-run >/dev/null 2>&1; then
     echo "Running integration tests"
-    go run _integration-tests/main.go
+    go run _integration-tests/main.go --snappy-from-branch
 fi
 
 echo "All good, what could possibly go wrong"
