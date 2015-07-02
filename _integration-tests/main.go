@@ -32,19 +32,15 @@ import (
 )
 
 const (
-	baseDir          = "/tmp/snappy-test"
-	testsBinDir      = "_integration-tests/bin/"
-	defaultRelease   = "rolling"
-	defaultChannel   = "edge"
-	latestRevision   = ""
-	defaultSSHPort   = 22
-	defaultGoArm     = "7"
-	controlFile      = "debian/integration-tests/control"
-	controlTpl       = "_integration-tests/data/tpl/control"
-	latestTestName   = "command1"
-	failoverTestName = "command2"
-	updateTestName   = "command3"
-	shellTestName    = "command4"
+	baseDir        = "/tmp/snappy-test"
+	testsBinDir    = "_integration-tests/bin/"
+	defaultRelease = "rolling"
+	defaultChannel = "edge"
+	latestRevision = ""
+	defaultSSHPort = 22
+	defaultGoArm   = "7"
+	controlFile    = "debian/integration-tests/control"
+	controlTpl     = "_integration-tests/data/tpl/control"
 )
 
 var (
@@ -56,7 +52,9 @@ var (
 		[]string{
 			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
 			"--", "-i", imageTarget}...)
-	testPackages = []string{"latest", "failover", "update"}
+	testPackagesLatest   = []string{"latest", "failover"}
+	testPackagesPrevious = []string{"update"}
+	testPackages         = append(testPackagesLatest, testPackagesPrevious...)
 )
 
 func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter string, testbedPort int) {
@@ -71,25 +69,20 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter stri
 
 	rootPath := getRootPath()
 
-	createControlFile(testFilter)
-
 	if testbedIP == "" {
-		createImage(defaultRelease, defaultChannel, latestRevision)
-		latestTests := []string{
-			latestTestName, failoverTestName}
+		var includeShell bool
 		if testFilter == "" {
-			latestTests = append(latestTests, shellTestName)
+			includeShell = true
 		}
-		for _, latestTestName := range latestTests {
-			adtRun(rootPath, testFilter, latestTestName, kvmSSHOptions)
-		}
+		createImage(defaultRelease, defaultChannel, latestRevision)
+		adtRun(rootPath, testFilter, testPackagesLatest, kvmSSHOptions, includeShell)
 
 		createImage(defaultRelease, defaultChannel, "-1")
-		adtRun(rootPath, testFilter, updateTestName, kvmSSHOptions)
+		adtRun(rootPath, testFilter, testPackagesPrevious, kvmSSHOptions, false)
 	} else {
 		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 			"ubuntu@"+testbedIP)
-		adtRun(rootPath, testFilter, shellTestName, remoteTestbedSSHOptions(testbedIP, testbedPort))
+		adtRun(rootPath, "", []string{}, remoteTestbedSSHOptions(testbedIP, testbedPort), true)
 	}
 }
 
@@ -151,16 +144,17 @@ func createImage(release, channel, revision string) {
 	execCommand(append(udfCommand, coreOptions...)...)
 }
 
-func adtRun(rootPath, testFilter, testname string, testbedOptions []string) {
+func adtRun(rootPath, testFilter string, testList, testbedOptions []string, includeShell bool) {
+	createControlFile(testFilter, testList, includeShell)
+
 	fmt.Println("Calling adt-run...")
-	outputDir := filepath.Join(baseDir, "output")
+	outputSubdir := getOutputSubdir(testList, includeShell)
+	outputDir := filepath.Join(baseDir, "output", outputSubdir)
 	prepareTargetDir(outputDir)
 
 	cmd := []string{
 		"adt-run", "-B",
 		"--override-control", "debian/integration-tests/control"}
-
-	cmd = append(cmd, "--testname", testname)
 
 	cmd = append(cmd, []string{
 		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
@@ -171,10 +165,11 @@ func adtRun(rootPath, testFilter, testname string, testbedOptions []string) {
 	execCommand(append(cmd, testbedOptions...)...)
 }
 
-func createControlFile(testFilter string) {
+func createControlFile(testFilter string, testList []string, includeShellTest bool) {
 	type controlData struct {
-		Filter string
-		Tests  []string
+		Filter       string
+		Tests        []string
+		IncludeShell bool
 	}
 
 	tpl, err := template.ParseFiles(controlTpl)
@@ -188,10 +183,18 @@ func createControlFile(testFilter string) {
 	}
 	defer outputFile.Close()
 
-	err = tpl.Execute(outputFile, controlData{Filter: testFilter, Tests: testPackages})
+	err = tpl.Execute(outputFile, controlData{Filter: testFilter, Tests: testList, IncludeShell: includeShellTest})
 	if err != nil {
 		log.Fatalf("execution: %s", err)
 	}
+}
+
+func getOutputSubdir(testList []string, includeShell bool) string {
+	output := strings.Join(testList, "-")
+	if includeShell {
+		output = output + "-shell"
+	}
+	return output
 }
 
 func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {

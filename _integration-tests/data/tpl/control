@@ -4,7 +4,7 @@ Test-Command: debian/integration-tests/snappy-test {{ $element }}.test {{ if $fi
 Restrictions: allow-stderr
 {{ end }}
 
-{{ if not $filter }}
+{{ if .IncludeShell }}
 Test-Command: ./_integration-tests/snappy-selftest --yes-really
 Depends:
 {{ end }}
