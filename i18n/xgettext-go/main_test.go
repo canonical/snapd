@@ -20,6 +20,11 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
+	"go/token"
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -48,4 +53,32 @@ func (s *xgettextTestSuite) TestFormatComment(c *C) {
 	for _, test := range tests {
 		c.Assert(formatComment(test.in), Equals, test.out)
 	}
+}
+
+func (s *xgettextTestSuite) TestprocessSingleGoSource(c *C) {
+	src := `package main
+
+func main() {
+    // TRANSLATORS: foo comment
+    //              with multiple lines
+    i18n.G("foo")
+}
+`
+	fname := filepath.Join(c.MkDir(), "foo.go")
+	err := ioutil.WriteFile(fname, []byte(src), 0644)
+	c.Assert(err, IsNil)
+
+	fset := token.NewFileSet()
+
+	out := bytes.NewBuffer([]byte(""))
+	processSingleGoSource(fset, fname, out)
+
+	expected := fmt.Sprintf(`#: %s:6
+#. TRANSLATORS: foo comment
+#. with multiple lines
+msgid "foo"
+msgstr ""
+
+`, fname)
+	c.Assert(out.String(), Equals, expected)
 }

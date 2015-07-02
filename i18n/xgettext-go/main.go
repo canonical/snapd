@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -67,7 +68,7 @@ func findCommentsForTranslation(fset *token.FileSet, f *ast.File, posCall token.
 	return formatComment(com)
 }
 
-func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bool {
+func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node, out io.Writer) bool {
 	switch x := n.(type) {
 	case *ast.CallExpr:
 		if sel, ok := x.Fun.(*ast.SelectorExpr); ok {
@@ -77,17 +78,18 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 				i18nStr = i18nStr[1 : len(i18nStr)-1]
 				posCall := fset.Position(n.Pos())
 
-				fmt.Printf("#: %s:%d\n", posCall.Filename, posCall.Line)
-				fmt.Printf("%s", findCommentsForTranslation(fset, f, posCall))
-				fmt.Printf("msgid \"%v\"\n", strings.Replace(i18nStr, "\n", "\\n", -1))
-				fmt.Printf("msgstr \"\"\n\n")
+				fmt.Fprintf(out, "#: %s:%d\n", posCall.Filename, posCall.Line)
+				fmt.Fprintf(out, "%s", findCommentsForTranslation(fset, f, posCall))
+				fmt.Fprintf(out, "msgid \"%v\"\n", strings.Replace(i18nStr, "\n", "\\n", -1))
+				fmt.Fprintf(out, "msgstr \"\"\n\n")
 			}
 		}
 	}
+
 	return true
 }
 
-func processSingleGoSource(fset *token.FileSet, fname string) {
+func processSingleGoSource(fset *token.FileSet, fname string, out io.Writer) {
 	fnameContent, err := ioutil.ReadFile(fname)
 	if err != nil {
 		panic(err)
@@ -100,7 +102,7 @@ func processSingleGoSource(fset *token.FileSet, fname string) {
 	}
 
 	ast.Inspect(f, func(n ast.Node) bool {
-		return inspectNodeForTranslations(fset, f, n)
+		return inspectNodeForTranslations(fset, f, n, out)
 	})
 
 }
@@ -110,6 +112,6 @@ func main() {
 
 	fset := token.NewFileSet() // positions are relative to fset
 	for _, fname := range os.Args[1:] {
-		processSingleGoSource(fset, fname)
+		processSingleGoSource(fset, fname, os.Stdout)
 	}
 }
