@@ -60,7 +60,7 @@ fi
 TMPF="$(mktemp)"
 ./update-pot "$TMPF"
 trap "rm -f $TMPF" 0
-if ! diff --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
+if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
     echo "You need to run ./update-pot"
     exit 1
 fi
