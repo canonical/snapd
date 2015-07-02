@@ -154,13 +154,11 @@ func adtRun(rootPath, testFilter string, testList, testbedOptions []string, incl
 
 	cmd := []string{
 		"adt-run", "-B",
-		"--override-control", "debian/integration-tests/control"}
-
-	cmd = append(cmd, []string{
+		"--override-control", "debian/integration-tests/control",
 		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
 		"--override-control", controlFile,
 		"--built-tree", rootPath,
-		"--output-dir", outputDir}...)
+		"--output-dir", outputDir}
 
 	execCommand(append(cmd, testbedOptions...)...)
 }
