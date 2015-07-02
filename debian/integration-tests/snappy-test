@@ -21,9 +21,7 @@ set -e
 TEST=$1
 NEEDS_REBOOT=/tmp/needs-reboot
 
-export PATH=$(pwd)/_integration-tests/bin:$PATH
-
-${TEST} -check.vv -test.outputdir=$ADT_ARTIFACTS-$ADT_REBOOT_MARK
+./${TEST} -check.vv -test.outputdir=$ADT_ARTIFACTS-$ADT_REBOOT_MARK
 
 if [ -e ${NEEDS_REBOOT} ]; then
     mark=`cat ${NEEDS_REBOOT}`
