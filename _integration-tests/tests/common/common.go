@@ -33,7 +33,11 @@ import (
 )
 
 const (
+	// BaseOtherPath FIXME needs a better name because I don't know what to
+	// comment.
+	BaseOtherPath   = "/writable/cache/system"
 	needsRebootFile = "/tmp/needs-reboot"
+	channelCfgFile  = "/etc/system-image/channel.ini"
 )
 
 // SnappySuite is a structure used as a base test suite for all the snappy
@@ -117,10 +121,52 @@ func GetCurrentVersion(c *check.C) int {
 	return version
 }
 
-// CallUpdate executes an snappy update.
+// CallUpdate executes an snappy update. If there is no update available, the
+// channel version will be modified to fake an update.
 func CallUpdate(c *check.C) {
 	c.Log("Calling snappy update...")
-	ExecCommand(c, "sudo", "snappy", "update")
+	output := ExecCommand(c, "sudo", "snappy", "update")
+	// XXX Instead of trying the update, we should have a command to tell us
+	// if there is an available update. --elopio - 2015-07-01
+	if output == "" {
+		c.Log("There is no update available.")
+		fakeAvailableUpdate(c)
+		ExecCommand(c, "sudo", "snappy", "update")
+	}
+}
+
+func fakeAvailableUpdate(c *check.C) {
+	c.Log("Faking an available update...")
+	currentVersion := GetCurrentVersion(c)
+	switchChannelVersion(c, currentVersion, currentVersion-1)
+	SetSavedVersion(c, currentVersion-1)
+}
+
+func switchChannelVersion(c *check.C, oldVersion, newVersion int) {
+	targets := []string{"/", BaseOtherPath}
+	for _, target := range targets {
+		file := filepath.Join(target, channelCfgFile)
+		if _, err := os.Stat(file); err == nil {
+			MakeWritable(c, target)
+			defer MakeReadonly(c, target)
+			ExecCommand(c,
+				"sudo", "sed", "-i",
+				fmt.Sprintf(
+					"s/build_number: %d/build_number: %d/g",
+					oldVersion, newVersion),
+				file)
+		}
+	}
+}
+
+// MakeWritable remounts a path with read and write permissions.
+func MakeWritable(c *check.C, path string) {
+	ExecCommand(c, "sudo", "mount", "-o", "remount,rw", path)
+}
+
+// MakeReadonly remounts a path with only read permissions.
+func MakeReadonly(c *check.C, path string) {
+	ExecCommand(c, "sudo", "mount", "-o", "remount,ro", path)
 }
 
 // Reboot requests a reboot using the test name as the mark.

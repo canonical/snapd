@@ -35,7 +35,6 @@ const (
 	testsBinDir      = "_integration-tests/bin/"
 	defaultRelease   = "rolling"
 	defaultChannel   = "edge"
-	latestRevision   = ""
 	defaultSSHPort   = 22
 	defaultGoArm     = "7"
 	latestTestName   = "command1"
@@ -44,16 +43,7 @@ const (
 	shellTestName    = "command4"
 )
 
-var (
-	imageDir         = filepath.Join(baseDir, "image")
-	imageTarget      = filepath.Join(imageDir, "snappy.img")
-	commonSSHOptions = []string{"---", "ssh"}
-	kvmSSHOptions    = append(
-		commonSSHOptions,
-		[]string{
-			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
-			"--", "-i", imageTarget}...)
-)
+var commonSSHOptions = []string{"---", "ssh"}
 
 func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedPort int) {
 	prepareTargetDir(testsBinDir)
@@ -67,15 +57,22 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP string, testbedP
 
 	rootPath := getRootPath()
 	if testbedIP == "" {
-		createImage(defaultRelease, defaultChannel, latestRevision)
-		latestTests := []string{
-			latestTestName, failoverTestName, shellTestName}
-		for i := range latestTests {
-			adtRun(rootPath, kvmSSHOptions, latestTests[i])
-		}
+		tests := []string{
+			latestTestName, failoverTestName, updateTestName, shellTestName}
 
-		createImage(defaultRelease, defaultChannel, "-1")
-		adtRun(rootPath, kvmSSHOptions, updateTestName)
+		image := createImage(defaultRelease, defaultChannel, "")
+		adtRun(rootPath, kvmSSHOptions(image), tests...)
+
+		// It does not make sense to run tests on previous versions using the
+		// snappy version from the branch. These other tests are only for nightly
+		// executions.
+		if !useSnappyFromBranch {
+			image = createImage(defaultRelease, defaultChannel, "-1")
+			adtRun(rootPath, kvmSSHOptions(image), tests...)
+
+			image = createImage("15.04", "stable", "")
+			adtRun(rootPath, kvmSSHOptions(image), tests...)
+		}
 	} else {
 		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 			"ubuntu@"+testbedIP)
@@ -127,27 +124,43 @@ func goCall(arch string, cmds ...string) {
 	execCommand(goCmd...)
 }
 
-func createImage(release, channel, revision string) {
+func createImage(release, channel, revision string) string {
 	fmt.Println("Creating image...")
+	imageDir := filepath.Join(baseDir, "image")
 	prepareTargetDir(imageDir)
+	revisionTag := revision
+	if revisionTag == "" {
+		revisionTag = "latest"
+	}
+	imageName := strings.Join(
+		[]string{"snappy", release, channel, revisionTag}, "-") + ".img"
+	imagePath := filepath.Join(imageDir, imageName)
 	udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
-	if revision != latestRevision {
+	if revision != "" {
 		udfCommand = append(udfCommand, "--revision", revision)
 	}
 	coreOptions := []string{
 		"core", release,
-		"--output", imageTarget,
+		"--output", imagePath,
 		"--channel", channel,
 		"--developer-mode",
 	}
 	execCommand(append(udfCommand, coreOptions...)...)
+	return imagePath
 }
 
-func adtRun(rootPath string, testbedOptions []string, testname string) {
-	fmt.Println("Calling adt-run...")
+func adtRun(rootPath string, testbedOptions []string, testNames ...string) {
 	outputDir := filepath.Join(baseDir, "output")
 	prepareTargetDir(outputDir)
 
+	for i := range testNames {
+		cmd := adtRunCmd(rootPath, outputDir, testbedOptions, testNames[i])
+		fmt.Println("Calling adt-run...")
+		execCommand(cmd...)
+	}
+}
+
+func adtRunCmd(rootPath, outputDir string, testbedOptions []string, testname string) []string {
 	cmd := []string{
 		"adt-run", "-B",
 		"--override-control", "debian/integration-tests/control"}
@@ -159,8 +172,15 @@ func adtRun(rootPath string, testbedOptions []string, testname string) {
 		"--override-control", "debian/integration-tests/control",
 		"--built-tree", rootPath,
 		"--output-dir", outputDir}...)
+	return append(cmd, testbedOptions...)
+}
 
-	execCommand(append(cmd, testbedOptions...)...)
+func kvmSSHOptions(imagePath string) []string {
+	return append(
+		commonSSHOptions,
+		[]string{
+			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
+			"--", "-i", imagePath}...)
 }
 
 func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {

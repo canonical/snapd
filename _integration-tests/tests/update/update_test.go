@@ -45,7 +45,10 @@ func rollback(c *C) {
 	}
 }
 
-func (s *updateSuite) TestUpdateMustInstallNewerVersion(c *C) {
+// Test that the update to the same release and channel must install a newer
+// version. If there is no update available, the channel version will be
+// modified to fake an update.
+func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *C) {
 	if BeforeReboot() {
 		CallUpdate(c)
 		Reboot(c)
