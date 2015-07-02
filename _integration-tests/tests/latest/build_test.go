@@ -21,6 +21,8 @@ package latest
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 
 	. "../common"
 
@@ -28,9 +30,10 @@ import (
 )
 
 const (
-	baseSnapPath  = "_integration-tests/data/snaps"
-	basicSnapName = "basic"
-	wrongSnapName = "wrong"
+	baseSnapPath        = "_integration-tests/data/snaps"
+	basicSnapName       = "basic"
+	wrongYamlSnapName   = "wrong-yaml"
+	wrongReadmeSnapName = "wrong-readme"
 )
 
 var _ = Suite(&buildSuite{})
@@ -46,23 +49,40 @@ func buildSnap(c *C, snapPath string) string {
 func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
 	// build basic snap and check output
 	buildOutput := buildSnap(c, fmt.Sprintf("%s/%s", baseSnapPath, basicSnapName))
-	expected := ""
-	c.Assert(buildOutput, Equals, expected)
+	snapName := "basic_1.0_all.snap"
+	expected := fmt.Sprintf("Generated '%s' snap\n", snapName)
+	c.Check(buildOutput, Equals, expected)
 
-	// install built snap
-	installOutput := InstallSnap(c, basicSnapName+".snap")
+	// install built snap and check output
+	installOutput := InstallSnap(c, snapName)
+	expected = "" +
+		"Installing " + snapName + "\n" +
+		".*Signature check failed, but installing anyway as requested\n" +
+		"Name          Date       Version Developer \n" +
+		".*\n" +
+		"basic   .* .*  sideload  \n" +
+		".*\n"
 
-	// check install output
-	expected = ""
-	c.Assert(installOutput, Equals, expected)
+	c.Check(installOutput, Matches, expected)
 
-	// teardown, remove snap
+	// teardown, remove snap and snap file
 	RemoveSnap(c, basicSnapName)
+	c.Assert(os.Remove(snapName), IsNil, Commentf("Error removing %s", snapName))
 }
 
-func (s *buildSuite) TestBuildWrongSnapOnSnappy(c *C) {
+func (s *buildSuite) TestBuildWrongYamlSnapOnSnappy(c *C) {
+	commonWrongTest(c, wrongYamlSnapName, "can not parse package.yaml:.*\n")
+}
+
+func (s *buildSuite) TestBuildWrongReadmeSnapOnSnappy(c *C) {
+	commonWrongTest(c, wrongReadmeSnapName, ".*readme.md: no such file or directory\n")
+}
+
+func commonWrongTest(c *C, testName, expected string) {
 	// build wrong snap and check output
-	buildOutput := buildSnap(c, fmt.Sprintf("%s/%s", baseSnapPath, wrongSnapName))
-	expected := ""
-	c.Assert(buildOutput, Equals, expected)
+	cmd := exec.Command("snappy", "build", fmt.Sprintf("%s/%s", baseSnapPath, testName))
+	echoOutput, err := cmd.CombinedOutput()
+	c.Assert(err, NotNil, Commentf("%s should not be built", testName))
+
+	c.Assert(string(echoOutput), Matches, expected)
 }
