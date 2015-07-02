@@ -72,7 +72,7 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 		return fmt.Errorf("unable to stat %s: %v", src, err)
 	}
 
-	outflags := os.O_WRONLY | os.O_CREATE
+	outflags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
 	if flags&CopyFlagOverwrite == 0 {
 		outflags |= os.O_EXCL
 	}
