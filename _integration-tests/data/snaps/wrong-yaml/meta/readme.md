@@ -1,3 +1,3 @@
-Basic snap
+Wrong metadata snap
 
-A basic buildable snap
+A snap with an invalid meta/package.yaml
