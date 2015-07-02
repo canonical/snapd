@@ -1,3 +1,11 @@
+ubuntu-core-launcher (1.0.8) wily; urgency=medium
+
+  [ John Lenton ]
+  * add libgcc_s to the apparmor profile, for 32 bit platforms.
+    LP: #1470210.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 02 Jul 2015 09:42:26 +0200
+
 ubuntu-core-launcher (1.0.7) wily; urgency=medium
 
   * debian/usr.bin.ubuntu-core-launcher:
