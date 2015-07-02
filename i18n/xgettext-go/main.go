@@ -33,21 +33,38 @@ msgstr  "Project-Id-Version: snappy\n"
 
 `
 
+func formatComment(com string) string {
+	out := ""
+	for _, rawline := range strings.Split(com, "\n") {
+		line := rawline
+		line = strings.TrimPrefix(line, "//")
+		line = strings.TrimPrefix(line, "/*")
+		line = strings.TrimSuffix(line, "*/")
+		line = strings.TrimSpace(line)
+		if line != "" {
+			out += fmt.Sprintf("#. %s\n", line)
+		}
+	}
+
+	return out
+}
+
 func findCommentsForTranslation(fset *token.FileSet, f *ast.File, posCall token.Position) string {
 	com := ""
 	for _, cg := range f.Comments {
 		// search for all comments in the previous line
 		for i := len(cg.List) - 1; i >= 0; i-- {
 			c := cg.List[i]
-			posComment := fset.Position(c.Slash)
+
+			posComment := fset.Position(c.End())
 			//println(posCall.Line, posComment.Line, c.Text)
 			if posCall.Line == posComment.Line+1 {
 				posCall = posComment
-				com = fmt.Sprintf("#. %s\n%s", c.Text, com)
+				com = fmt.Sprintf("%s\n%s", c.Text, com)
 			}
 		}
 	}
-	return com
+	return formatComment(com)
 }
 
 func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bool {
