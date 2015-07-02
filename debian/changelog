@@ -1,3 +1,15 @@
+ubuntu-snappy (1.4ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Allow to run the integration tests using snappy from branch
+    - Add CopyFileOverwrite flag and behaviour to helpers.CopyFile
+    - add a bunch of missing i18n.G() now that we have gettext
+    - Generate only the translators comments that start with
+      TRANSLATORS
+    - Try both clickpkg and snappypkg when dropping privs
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Thu, 02 Jul 2015 16:21:53 -0300
+
 ubuntu-snappy (1.3ubuntu1) wily; urgency=medium
 
   * New upstream release, including the following changes:
