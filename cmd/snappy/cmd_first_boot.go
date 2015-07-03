@@ -40,7 +40,7 @@ func init() {
 }
 
 func (x *cmdInternalFirstBootOemConfig) Execute(args []string) error {
-	err := snappy.OemConfig()
+	err := snappy.FirstBoot()
 	if err == snappy.ErrNotFirstBoot {
 		fmt.Println(i18n.G("First boot has already run"))
 		return nil
