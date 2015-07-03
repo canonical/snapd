@@ -49,7 +49,7 @@ func buildSnap(c *C, snapPath string) string {
 func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
 	// build basic snap and check output
 	buildOutput := buildSnap(c, fmt.Sprintf("%s/%s", baseSnapPath, basicSnapName))
-	snapName := "basic_1.0_all.snap"
+	snapName := basicSnapName + "_1.0_all.snap"
 	expected := fmt.Sprintf("Generated '%s' snap\n", snapName)
 	c.Check(buildOutput, Equals, expected)
 
@@ -61,7 +61,7 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
 		".*Signature check failed, but installing anyway as requested\n" +
 		"Name          Date       Version Developer \n" +
 		".*\n" +
-		"basic   .* .*  sideload  \n" +
+		basicSnapName + "   .* .*  sideload  \n" +
 		".*\n"
 
 	c.Check(installOutput, Matches, expected)
