@@ -30,10 +30,10 @@ import (
 )
 
 const (
-	baseSnapPath        = "_integration-tests/data/snaps"
-	basicSnapName       = "basic"
-	wrongYamlSnapName   = "wrong-yaml"
-	wrongReadmeSnapName = "wrong-readme"
+	baseSnapPath          = "_integration-tests/data/snaps"
+	basicSnapName         = "basic"
+	wrongYamlSnapName     = "wrong-yaml"
+	missingReadmeSnapName = "missing-readme"
 )
 
 var _ = Suite(&buildSuite{})
@@ -55,6 +55,7 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
 
 	// install built snap and check output
 	installOutput := InstallSnap(c, snapName)
+	defer RemoveSnap(c, basicSnapName)
 	expected = "" +
 		"Installing " + snapName + "\n" +
 		".*Signature check failed, but installing anyway as requested\n" +
@@ -65,8 +66,7 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
 
 	c.Check(installOutput, Matches, expected)
 
-	// teardown, remove snap and snap file
-	RemoveSnap(c, basicSnapName)
+	// teardown, remove snap file
 	c.Assert(os.Remove(snapName), IsNil, Commentf("Error removing %s", snapName))
 }
 
@@ -75,7 +75,7 @@ func (s *buildSuite) TestBuildWrongYamlSnapOnSnappy(c *C) {
 }
 
 func (s *buildSuite) TestBuildWrongReadmeSnapOnSnappy(c *C) {
-	commonWrongTest(c, wrongReadmeSnapName, ".*readme.md: no such file or directory\n")
+	commonWrongTest(c, missingReadmeSnapName, ".*readme.md: no such file or directory\n")
 }
 
 func commonWrongTest(c *C, testName, expected string) {

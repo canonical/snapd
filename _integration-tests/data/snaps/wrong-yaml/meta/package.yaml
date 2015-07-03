@@ -1,4 +1,5 @@
-name basic
+# This is an invalid yaml, there's a missing colon after the 'name' field
+name wrong-yaml
 version: 1.0
 vendor: Snappy Developers <snappy-devel@lists.ubuntu.com>
 icon: meta/snappy64.png
