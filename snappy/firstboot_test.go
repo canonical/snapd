@@ -21,12 +21,12 @@ package snappy
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
-	"io/ioutil"
 	"launchpad.net/snappy/pkg"
 )
 
