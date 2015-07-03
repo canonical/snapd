@@ -74,7 +74,7 @@ func (s *buildSuite) TestBuildWrongYamlSnapOnSnappy(c *C) {
 	commonWrongTest(c, wrongYamlSnapName, "can not parse package.yaml:.*\n")
 }
 
-func (s *buildSuite) TestBuildWrongReadmeSnapOnSnappy(c *C) {
+func (s *buildSuite) TestBuildMissingReadmeSnapOnSnappy(c *C) {
 	commonWrongTest(c, missingReadmeSnapName, ".*readme.md: no such file or directory\n")
 }
 
