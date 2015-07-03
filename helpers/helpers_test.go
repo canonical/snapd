@@ -445,3 +445,41 @@ func (ts *HTestSuite) TestSyncDirFails(c *C) {
 	c.Check(err, NotNil)
 	c.Check(err, ErrorMatches, ".*permission denied.*")
 }
+
+func (ts *HTestSuite) TestCopyIfDifferent(c *C) {
+	srcDir := c.MkDir()
+	dstDir := c.MkDir()
+
+	// new file
+	src := filepath.Join(srcDir, "bop")
+	dst := filepath.Join(dstDir, "bob")
+	err := ioutil.WriteFile(src, []byte(nil), 0644)
+	c.Assert(err, IsNil)
+
+	err = CopyIfDifferent(src, dst)
+	c.Assert(err, IsNil)
+	c.Check(FilesAreEqual(dst, src), Equals, true)
+
+	// updated file
+	src = filepath.Join(srcDir, "bip")
+	dst = filepath.Join(dstDir, "bib")
+	err = ioutil.WriteFile(src, []byte("123"), 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dst, []byte(nil), 0644)
+	c.Assert(err, IsNil)
+
+	err = CopyIfDifferent(src, dst)
+	c.Assert(err, IsNil)
+	c.Check(FilesAreEqual(dst, src), Equals, true)
+}
+
+func (ts *HTestSuite) TestCopyIfDifferentErrorsOnNoSrc(c *C) {
+	srcDir := c.MkDir()
+	dstDir := c.MkDir()
+
+	src := filepath.Join(srcDir, "mop")
+	dst := filepath.Join(dstDir, "mop")
+
+	err := CopyIfDifferent(src, dst)
+	c.Assert(err, NotNil)
+}

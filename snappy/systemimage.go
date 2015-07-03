@@ -194,7 +194,7 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 	if pb != nil {
 		pb.Notify("Syncing boot files")
 	}
-	err = s.partition.SyncBootloaderFiles()
+	err = s.partition.SyncBootloaderFiles(bootAssetFilePaths())
 	if err != nil {
 		return "", err
 	}
