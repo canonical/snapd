@@ -75,7 +75,7 @@ type Interface interface {
 	MarkBootSuccessful() error
 	// FIXME: could we make SyncBootloaderFiles part of ToogleBootloader
 	//        to expose even less implementation details?
-	SyncBootloaderFiles() error
+	SyncBootloaderFiles(bootAssets map[string]string) error
 	IsNextBootOther() bool
 
 	// run the function f with the otherRoot mounted
@@ -303,12 +303,13 @@ func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (e
 
 // SyncBootloaderFiles syncs the bootloader files
 // FIXME: can we unexport this?
-func (p *Partition) SyncBootloaderFiles() (err error) {
+func (p *Partition) SyncBootloaderFiles(bootAssets map[string]string) (err error) {
 	bootloader, err := bootloader(p)
 	if err != nil {
 		return err
 	}
-	return bootloader.SyncBootFiles()
+
+	return bootloader.SyncBootFiles(bootAssets)
 }
 
 // ToggleNextBoot toggles the roofs that should be used on the next boot
@@ -541,14 +542,6 @@ func (p *Partition) bindmountRequiredFilesystems() (err error) {
 		requiredChrootMounts = append(requiredChrootMounts, boot.mountpoint)
 	}
 
-	// add additional bootloader mounts, this is required for grub
-	bootloader, err := bootloader(p)
-	if err == nil && bootloader != nil {
-		for _, mount := range bootloader.AdditionalBindMounts() {
-			requiredChrootMounts = append(requiredChrootMounts, mount)
-		}
-	}
-
 	for _, fs := range requiredChrootMounts {
 		target := filepath.Join(mountTarget, fs)
 
@@ -595,17 +588,22 @@ func (p *Partition) toggleBootloaderRootfs() (err error) {
 		return err
 	}
 
-	// XXX: first toggle roofs and then handle assets? that seems
-	//      wrong given that handleAssets may fails and we will
-	//      knowingly boot into a broken system
-	err = p.RunWithOther(RW, func(otherRoot string) (err error) {
-		otherRootfs := p.otherRootPartition().shortName
-		return bootloader.ToggleRootFS(otherRootfs)
-	})
-
-	if err != nil {
+	// ensure we have updated kernels etc
+	if err := bootloader.HandleAssets(); err != nil {
 		return err
 	}
 
-	return bootloader.HandleAssets()
+	otherRootfs := p.otherRootPartition().shortName
+	return bootloader.ToggleRootFS(otherRootfs)
+}
+
+// BootloaderDir returns the full path to the (mounted and writable)
+// bootloader-specific boot directory.
+func (p *Partition) BootloaderDir() string {
+	bootloader, err := bootloader(p)
+	if err != nil {
+		return ""
+	}
+
+	return bootloader.BootDir()
 }
