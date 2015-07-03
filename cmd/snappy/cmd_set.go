@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -32,18 +33,18 @@ type cmdSet struct {
 	args []string
 }
 
-const setHelp = `Set properties of system or package
+var setHelp = i18n.G(`Set properties of system or package
 
 Supported properties are:
   active=VERSION
 
 Example:
   set hello-world active=1.0
-`
+`)
 
 func init() {
 	_, err := parser.AddCommand("set",
-		"Set properties of system or package",
+		i18n.G("Set properties of system or package"),
 		setHelp,
 		&cmdSet{})
 	if err != nil {

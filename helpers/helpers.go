@@ -498,3 +498,14 @@ func RSyncWithDelete(srcDirName, destDirName string) error {
 
 	return err
 }
+
+// CopyIfDifferent copies src to dst only if dst is different that src
+func CopyIfDifferent(src, dst string) error {
+	if !FilesAreEqual(src, dst) {
+		if err := CopyFile(src, dst, CopyFlagSync|CopyFlagOverwrite); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

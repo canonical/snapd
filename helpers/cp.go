@@ -33,6 +33,8 @@ const (
 	CopyFlagDefault CopyFlag = 0
 	// CopyFlagSync does a sync after copying the files
 	CopyFlagSync CopyFlag = 1 << iota
+	// CopyFlagOverwrite overwrites the target if it exists
+	CopyFlagOverwrite
 )
 
 var (
@@ -70,7 +72,12 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 		return fmt.Errorf("unable to stat %s: %v", src, err)
 	}
 
-	fout, err := openfile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fi.Mode())
+	outflags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	if flags&CopyFlagOverwrite == 0 {
+		outflags |= os.O_EXCL
+	}
+
+	fout, err := openfile(dst, outflags, fi.Mode())
 	if err != nil {
 		return fmt.Errorf("unable to create %s: %v", dst, err)
 	}
