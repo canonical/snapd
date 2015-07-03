@@ -21,6 +21,7 @@ package snappy
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -51,12 +52,7 @@ var activeSnapsByType = ActiveSnapsByType
 // OemConfig checks for an oem snap and if found applies the configuration
 // set there to the system flagging that it run so it is effectively only
 // run once
-func OemConfig() error {
-	if firstBootHasRun() {
-		return ErrNotFirstBoot
-	}
-	defer stampFirstBoot()
-
+func oemConfig() error {
 	oemSnap, err := activeSnapsByType(pkg.TypeOem)
 	if err != nil {
 		return err
@@ -92,6 +88,16 @@ func OemConfig() error {
 	return nil
 }
 
+func FirstBoot() error {
+	if firstBootHasRun() {
+		return ErrNotFirstBoot
+	}
+	defer stampFirstBoot()
+	defer enableFirstEther()
+
+	return oemConfig()
+}
+
 const firstbootDir = "/var/lib/snappy/firstboot"
 
 var stampFile = filepath.Join(firstbootDir, "stamp")
@@ -107,6 +113,31 @@ func stampFirstBoot() error {
 	}
 
 	return ioutil.WriteFile(stampFile, []byte{}, 0644)
+}
+
+var globs = []string{"/sys/class/net/eth*", "/sys/class/net/en*"}
+var ethfile = "/etc/network/interfaces.d/eth0"
+
+func enableFirstEther() error {
+	var eths []string
+	for _, glob := range globs {
+		eths, _ = filepath.Glob(glob)
+		if len(eths) != 0 {
+			break
+		}
+	}
+	if len(eths) == 0 {
+		return nil
+	}
+
+	f, err := os.Create(ethfile)
+	if err != nil {
+		return err
+	}
+
+	_, err = fmt.Fprintf(f, "allow-hotplug %[1]s\niface %[1]s inet dhcp\n", filepath.Base(eths[0]))
+
+	return err
 }
 
 func firstBootHasRun() bool {
