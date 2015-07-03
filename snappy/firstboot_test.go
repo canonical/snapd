@@ -53,7 +53,7 @@ func (p *fakePart) Type() pkg.Type {
 type FirstBootTestSuite struct {
 	oemConfig map[string]interface{}
 	globs     []string
-	ethfile   string
+	ethdir    string
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -71,15 +71,15 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 
 	s.globs = globs
 	globs = nil
-	s.ethfile = ethfile
-	ethfile = "/dev/null"
+	s.ethdir = ethdir
+	ethdir = c.MkDir()
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	activeSnapByName = ActiveSnapByName
 	activeSnapsByType = ActiveSnapsByType
 	globs = s.globs
-	ethfile = s.ethfile
+	ethdir = s.ethdir
 }
 
 func (s *FirstBootTestSuite) mockActiveSnapNamesByType() *fakePart {
@@ -132,11 +132,9 @@ func (s *FirstBootTestSuite) TestNoErrorWhenNoOEM(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestEnableFirstEther(c *C) {
-	ethfile = filepath.Join(c.MkDir(), "eh")
 	c.Check(enableFirstEther(), IsNil)
-	_, err := os.Stat(ethfile)
-	c.Assert(err, NotNil)
-	c.Check(os.IsNotExist(err), Equals, true)
+	fs, _ := filepath.Glob(filepath.Join(ethdir, "*"))
+	c.Assert(fs, HasLen, 0)
 }
 
 func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEth(c *C) {
@@ -144,21 +142,22 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEth(c *C) {
 	_, err := os.Create(filepath.Join(dir, "eth42"))
 	c.Assert(err, IsNil)
 
-	ethfile = filepath.Join(c.MkDir(), "eh")
 	globs = []string{filepath.Join(dir, "eth*")}
 	c.Check(enableFirstEther(), IsNil)
-	bs, err := ioutil.ReadFile(ethfile)
+	fs, _ := filepath.Glob(filepath.Join(ethdir, "*"))
+	c.Assert(fs, HasLen, 1)
+	bs, err := ioutil.ReadFile(fs[0])
 	c.Assert(err, IsNil)
 	c.Check(string(bs), Equals, "allow-hotplug eth42\niface eth42 inet dhcp\n")
 
 }
 
-func (s *FirstBootTestSuite) TestEnableFirstEtherBadEthfile(c *C) {
+func (s *FirstBootTestSuite) TestEnableFirstEtherBadEthDir(c *C) {
 	dir := c.MkDir()
 	_, err := os.Create(filepath.Join(dir, "eth42"))
 	c.Assert(err, IsNil)
 
-	ethfile = "/no/such/thing"
+	ethdir = "/no/such/thing"
 	globs = []string{filepath.Join(dir, "eth*")}
 	err = enableFirstEther()
 	c.Check(err, NotNil)
