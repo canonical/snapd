@@ -48,10 +48,12 @@ func buildSnap(c *C, snapPath string) string {
 
 func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
 	// build basic snap and check output
-	buildOutput := buildSnap(c, fmt.Sprintf("%s/%s", baseSnapPath, basicSnapName))
+	snapPath := baseSnapPath + "/" + basicSnapName
+	buildOutput := buildSnap(c, snapPath)
 	snapName := basicSnapName + "_1.0_all.snap"
 	expected := fmt.Sprintf("Generated '%s' snap\n", snapName)
 	c.Check(buildOutput, Equals, expected)
+	defer os.Remove(snapPath + "/" + snapName)
 
 	// install built snap and check output
 	installOutput := InstallSnap(c, snapName)
