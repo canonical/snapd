@@ -24,12 +24,12 @@ import (
 
 	. "../common"
 
-	. "gopkg.in/check.v1"
+	check "gopkg.in/check.v1"
 )
 
 type rcLocalCrash struct{}
 
-func (rcLocalCrash) set(c *C) {
+func (rcLocalCrash) set(c *check.C) {
 	MakeWritable(c, BaseOtherPath)
 	defer MakeReadonly(c, BaseOtherPath)
 	targetFile := fmt.Sprintf("%s/etc/rc.local", BaseOtherPath)
@@ -38,12 +38,12 @@ func (rcLocalCrash) set(c *C) {
 		"sudo", "echo", "#!bin/sh\nprintf c > /proc/sysrq-trigger")
 }
 
-func (rcLocalCrash) unset(c *C) {
+func (rcLocalCrash) unset(c *check.C) {
 	MakeWritable(c, BaseOtherPath)
 	defer MakeReadonly(c, BaseOtherPath)
 	ExecCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", BaseOtherPath))
 }
 
-func (s *failoverSuite) TestRCLocalCrash(c *C) {
+func (s *failoverSuite) TestRCLocalCrash(c *check.C) {
 	commonFailoverTest(c, rcLocalCrash{})
 }

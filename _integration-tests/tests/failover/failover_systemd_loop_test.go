@@ -24,7 +24,7 @@ import (
 
 	. "../common"
 
-	. "gopkg.in/check.v1"
+	check "gopkg.in/check.v1"
 )
 
 const (
@@ -60,17 +60,17 @@ RequiredBy=sysinit.target
 
 type systemdDependencyLoop struct{}
 
-func (systemdDependencyLoop) set(c *C) {
+func (systemdDependencyLoop) set(c *check.C) {
 	installService(c, "deadlock", deadlockService, BaseOtherPath)
 	installService(c, "emerg-reboot", rebootService, BaseOtherPath)
 }
 
-func (systemdDependencyLoop) unset(c *C) {
+func (systemdDependencyLoop) unset(c *check.C) {
 	unInstallService(c, "deadlock", BaseOtherPath)
 	unInstallService(c, "emerg-reboot", BaseOtherPath)
 }
 
-func installService(c *C, serviceName, serviceCfg, basePath string) {
+func installService(c *check.C, serviceName, serviceCfg, basePath string) {
 	MakeWritable(c, basePath)
 	defer MakeReadonly(c, basePath)
 
@@ -92,7 +92,7 @@ func installService(c *C, serviceName, serviceCfg, basePath string) {
 	)
 }
 
-func unInstallService(c *C, serviceName, basePath string) {
+func unInstallService(c *check.C, serviceName, basePath string) {
 	MakeWritable(c, basePath)
 	defer MakeReadonly(c, basePath)
 
@@ -109,6 +109,6 @@ func unInstallService(c *C, serviceName, basePath string) {
 		fmt.Sprintf("%s%s/%s/%s.service", basePath, baseSystemdPath, systemdTargetRequiresDir, serviceName))
 }
 
-func (s *failoverSuite) TestSystemdDependencyLoop(c *C) {
+func (s *failoverSuite) TestSystemdDependencyLoop(c *check.C) {
 	commonFailoverTest(c, systemdDependencyLoop{})
 }

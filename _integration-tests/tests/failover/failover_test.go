@@ -22,15 +22,15 @@ package failover
 import (
 	"testing"
 
-	. "../common"
+	check "gopkg.in/check.v1"
 
-	. "gopkg.in/check.v1"
+	. "../common"
 )
 
 // Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) { TestingT(t) }
+func Test(t *testing.T) { check.TestingT(t) }
 
-var _ = Suite(&failoverSuite{})
+var _ = check.Suite(&failoverSuite{})
 
 type failoverSuite struct {
 	SnappySuite
@@ -39,20 +39,26 @@ type failoverSuite struct {
 // The types that implement this interface can be used in the test logic
 type failer interface {
 	// Sets the failure conditions
-	set(c *C)
+	set(c *check.C)
 	// Unsets the failure conditions
-	unset(c *C)
+	unset(c *check.C)
 }
 
 // This is the logic common to all the failover tests. Each of them has define a
 // type implementing the failer interface and call this function with an instance
 // of it
-func commonFailoverTest(c *C, f failer) {
+
+func commonFailoverTest(c *check.C, f failer) {
+	currentVersion := GetCurrentVersion(c)
+
 	if AfterReboot(c) {
 		RemoveRebootMark(c)
+		defer switchChannelVersion(c, currentVersion, currentVersion+1)
 		f.unset(c)
-		c.Assert(GetSavedVersion(c), Equals, GetCurrentVersion(c))
+		c.Assert(GetSavedVersion(c), check.Equals, currentVersion)
 	} else {
+		switchChannelVersion(c, currentVersion, currentVersion-1)
+		SetSavedVersion(c, currentVersion-1)
 		CallUpdate(c)
 		f.set(c)
 		Reboot(c)

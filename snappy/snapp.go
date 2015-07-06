@@ -1509,6 +1509,7 @@ func (s *RemoteSnapPart) Download(pbar progress.Meter) (string, error) {
 			os.Remove(w.Name())
 		}
 	}()
+	defer w.Close()
 
 	// try anonymous download first and fallback to authenticated
 	url := s.pkg.AnonDownloadURL
@@ -1547,6 +1548,7 @@ func (s *RemoteSnapPart) downloadIcon(pbar progress.Meter) error {
 	if err != nil {
 		return err
 	}
+	defer w.Close()
 
 	if err := download("icon for package", w, req, pbar); err != nil {
 		return err
