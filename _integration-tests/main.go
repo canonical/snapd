@@ -43,10 +43,10 @@ const (
 )
 
 var (
-	commonSSHOptions     = []string{"---", "ssh"}
-	testPackagesLatest   = []string{"latest", "failover"}
-	testPackagesPrevious = []string{"update"}
-	testPackages         = append(testPackagesLatest, testPackagesPrevious...)
+	commonSSHOptions   = []string{"---", "ssh"}
+	testPackagesLatest = []string{"latest", "failover"}
+	testPackageUpdate  = []string{"update"}
+	testPackages       = append(testPackagesLatest, testPackageUpdate...)
 )
 
 func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter string, testbedPort int) {
@@ -66,23 +66,31 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter stri
 		if testFilter == "" {
 			includeShell = true
 		}
+
 		// Run the tests on the latest rolling edge image.
 		image := createImage(defaultRelease, defaultChannel, "")
 		adtRun(rootPath, testFilter, testPackages,
 			kvmSSHOptions(image), includeShell)
+
 		// Update from revision -1 and then run the tests in the updated image.
 		image = createImage(defaultRelease, defaultChannel, "-1")
-		// Update.
 		adtRun(
-			rootPath, "updateSuite.TestUpdateToSameReleaseAndChannel", testPackages,
-			kvmSSHOptions(image), includeShell)
-		// Run tests.
+			rootPath, "updateSuite.TestUpdateToSameReleaseAndChannel",
+			testPackageUpdate, kvmSSHOptions(image), includeShell)
 		adtRun(rootPath, testFilter, testPackages,
 			kvmSSHOptions(image), includeShell)
+
 	} else {
 		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 			"ubuntu@"+testbedIP)
-		adtRun(rootPath, "", []string{}, remoteTestbedSSHOptions(testbedIP, testbedPort), true)
+		remoteTestbedSSHOptions := remoteTestbedSSHOptions(testbedIP, testbedPort)
+
+		// Make sure that the testbed is up-to-date.
+		adtRun(
+			rootPath, "updateSuite.TestUpdateToSameReleaseAndChannel",
+			testPackageUpdate, remoteTestbedSSHOptions, false)
+		// Run the shell tests. TODO: Also run the other tests.
+		adtRun(rootPath, "", []string{}, remoteTestbedSSHOptions, true)
 	}
 }
 

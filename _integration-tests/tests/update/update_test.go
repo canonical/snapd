@@ -37,7 +37,8 @@ type updateSuite struct {
 
 // Test that the update to the same release and channel must install a newer
 // version. If there is no update available, the channel version will be
-// modified to fake an update.
+// modified to fake an update. If there is a version available, the image will
+// be up-to-date after running this test.
 func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *C) {
 	if BeforeReboot() {
 		CallUpdate(c)
