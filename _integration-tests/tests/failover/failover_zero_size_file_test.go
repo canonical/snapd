@@ -97,13 +97,15 @@ func renameFile(c *check.C, basePath, oldFilename, newFilename string) {
 	ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
 	ExecCommand(c, "sudo", "touch", oldFilename)
 
-	mode := getFileMode(newFilename)
+	mode := getFileMode(c, newFilename)
 	ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), oldFilename)
 	makeReadonly(c, basePath)
 }
 
-func getFileMode(filePath string) os.FileMode {
-	info, _ := os.Stat(filePath)
+func getFileMode(c *check.C, filePath string) os.FileMode {
+	info, err := os.Stat(filePath)
+	c.Check(err, check.IsNil, check.Commentf("Error getting Stat of %s", filePath))
+
 	return info.Mode()
 }
 
