@@ -8,13 +8,13 @@ msgstr ""
 "Project-Id-Version: snappy\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
 "POT-Creation-Date: 2015-07-02 11:15-0600\n"
-"PO-Revision-Date: 2015-07-03 03:04+0000\n"
+"PO-Revision-Date: 2015-07-04 22:49+0000\n"
 "Last-Translator: Marcos Lans <Unknown>\n"
 "Language-Team: Galician <gl@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2015-07-03 06:00+0000\n"
+"X-Launchpad-Export-Date: 2015-07-05 05:57+0000\n"
 "X-Generator: Launchpad (build 17597)\n"
 
 #. TRANSLATORS: the %s stand for "name", "version", "description"
@@ -48,10 +48,10 @@ msgid "'%s:' is not allowed to access additional hardware\n"
 msgstr ""
 
 msgid "(deprecated) please use \"list\""
-msgstr ""
+msgstr "(obsoleto) use «list»"
 
 msgid "2fa code: "
-msgstr ""
+msgstr "Código 2fa: "
 
 msgid ""
 "Allows rollback of a snap to a previous installed version. Without any "
@@ -60,7 +60,7 @@ msgid ""
 msgstr ""
 
 msgid "Assign a hardware device to a package"
-msgstr ""
+msgstr "Asignar un dispositivo de hardware a un paquete"
 
 msgid "Builds a snap package"
 msgstr ""
@@ -78,15 +78,16 @@ msgstr ""
 
 msgid "Creates a snap package and if available, runs the review scripts."
 msgstr ""
+"Crea un paquete snap e, se están dispoñíbeis, executa os scripts de revisión."
 
 msgid "Display a summary of key attributes of the snappy system."
-msgstr ""
+msgstr "Mostra un resumo dos atributos principais do sistema snappy."
 
 msgid "Ensures system is running with latest parts"
-msgstr ""
+msgstr "Asegúrase de que o sistema está en execución coa últimas partes."
 
 msgid "First boot has already run"
-msgstr ""
+msgstr "Xa se executou o primeiro arranque"
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
@@ -94,33 +95,33 @@ msgid "Generated '%s' snap\n"
 msgstr ""
 
 msgid "Install a snap package"
-msgstr ""
+msgstr "Instalar un paquete snap"
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid "Installing %s\n"
-msgstr ""
+msgstr "Instalando %s\n"
 
 msgid "List active components installed on a snappy system"
-msgstr ""
+msgstr "Lista os compoñentes activos instalados nun sistema snappy"
 
 msgid "List assigned hardware device for a package"
-msgstr ""
+msgstr "Lista o dispositivo de hardware asignado a un paquete"
 
 msgid "Log into the store"
-msgstr ""
+msgstr "Iniciar sesión na tenda"
 
 msgid "Login successful"
-msgstr ""
+msgstr "Inicio de sesión correcto"
 
 msgid "Name\tDate\tVersion\t"
-msgstr ""
+msgstr "Nome\tData\tVersión\t"
 
 msgid "Name\tDate\tVersion\tDeveloper\t"
-msgstr ""
+msgstr "Nome\tData\tVersión\tDesenvolvedor\t"
 
 msgid "Name\tVersion\tSummary\t"
-msgstr ""
+msgstr "Nome\tVersión\tResumo\t"
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
@@ -128,7 +129,7 @@ msgid "No snap: '%s' found"
 msgstr ""
 
 msgid "Password: "
-msgstr ""
+msgstr "Contrasinal: "
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
@@ -141,21 +142,21 @@ msgstr "Consulta na tenda os paquetes dispoñíbeis"
 #. TRANSLATORS: the first %s is a pkgname the second a version
 #, c-format
 msgid "Reboot to use %s version %s."
-msgstr ""
+msgstr "Reiniciar para usar %s na versión %s."
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid "Reboot to use the new %s."
-msgstr ""
+msgstr "Reiniciar para usar o novo %s."
 
 #. TRANSLATORS: the %s shows a comma separated list
 #. of package names
 #, c-format
 msgid "Rebooting to satisfy updates for %s\n"
-msgstr ""
+msgstr "Reiniciando para rematar as actualizacións de %s\n"
 
 msgid "Remove a snapp part"
-msgstr ""
+msgstr "Retirar unha parte snapp"
 
 msgid "Remove all the data from the listed packages"
 msgstr "Eliminar todos os datos dos paquetes da lista"
@@ -186,15 +187,17 @@ msgid ""
 "This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) "
 "for an installed package."
 msgstr ""
+"Esta orde engade o acceso a un dispositivo de hardware específico para un "
+"paquete instalado (p.e. /dev/ttyUSB0)."
 
 msgid "This command is no longer available, please use the \"list\" command"
 msgstr "Esta orde xa non está dispoñíbel, use a orde «list»"
 
 msgid "This command list what hardware an installed package can access"
-msgstr ""
+msgstr "Esta orde lista o hardware ao que pode acceder un paquete instalado"
 
 msgid "This command logs the given username into the store"
-msgstr ""
+msgstr "Esta orde rexistra o nome de usuario dado na tenda"
 
 msgid ""
 "This command removes access of a specific hardware device (e.g. "
@@ -202,10 +205,10 @@ msgid ""
 msgstr ""
 
 msgid "Unassign a hardware device to a package"
-msgstr ""
+msgstr "Desligar un dispositivo de hardware dun paquete"
 
 msgid "Update all installed parts"
-msgstr ""
+msgstr "Actualizar todas as partes instaladas"
 
 msgid "Use --show-all to see all available forks."
 msgstr ""
@@ -233,7 +236,7 @@ msgstr "canle: %s\n"
 #. TRANSLATORS: the %s is a size
 #, c-format
 msgid "data-size: %s\n"
-msgstr ""
+msgstr "data-tamaño: %s\n"
 
 #. TRANSLATORS: the %s is a comma separated list of framework names
 #, c-format
@@ -251,7 +254,7 @@ msgstr "precísase o nome do paquete"
 #. TRANSLATORS: the %s release string
 #, c-format
 msgid "release: %s\n"
-msgstr ""
+msgstr "publicación: %s\n"
 
 msgid ""
 "snappy autopilot triggered a reboot to boot into an up to date system -- "
