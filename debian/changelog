@@ -1,3 +1,17 @@
+ubuntu-snappy (1.5ubuntu1) UNRELEASED; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Use O_TRUNC when copying files
+    - Added path redefinition to include test's binaries location
+    - Don't run update-grub, instead use grub.cfg from the oem
+      package
+    - Do network configuration from first boot
+    - zero size systemd of new partition made executable to
+      prevent unrecoverable boot failure
+    - Close downloaded files
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Mon, 06 Jul 2015 15:14:37 -0300
+
 ubuntu-snappy (1.4ubuntu1) wily; urgency=medium
 
   * New upstream release, including the following changes:
