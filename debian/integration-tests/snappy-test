@@ -23,7 +23,10 @@ NEEDS_REBOOT=/tmp/needs-reboot
 
 export PATH=$(pwd)/_integration-tests/bin:$PATH
 
-${TEST} -check.vv -test.outputdir=$ADT_ARTIFACTS-$ADT_REBOOT_MARK
+# shift to remove the test binary name (first argument) and be able to pass the rest
+# of them to it
+shift
+${TEST} -check.vv -test.outputdir=$ADT_ARTIFACTS-$ADT_REBOOT_MARK "$@"
 
 if [ -e ${NEEDS_REBOOT} ]; then
     mark=`cat ${NEEDS_REBOOT}`
