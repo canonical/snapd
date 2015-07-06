@@ -25,15 +25,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	. "../common"
+	check "gopkg.in/check.v1"
 
-	. "gopkg.in/check.v1"
+	. "../common"
 )
 
 // Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) { TestingT(t) }
+func Test(t *testing.T) { check.TestingT(t) }
 
-var _ = Suite(&failoverSuite{})
+var _ = check.Suite(&failoverSuite{})
 
 type failoverSuite struct {
 	SnappySuite
@@ -47,21 +47,22 @@ const (
 // The types that implement this interface can be used in the test logic
 type failer interface {
 	// Sets the failure conditions
-	set(c *C)
+	set(c *check.C)
 	// Unsets the failure conditions
-	unset(c *C)
+	unset(c *check.C)
 }
 
 // This is the logic common to all the failover tests. Each of them has define a
 // type implementing the failer interface and call this function with an instance
 // of it
-func commonFailoverTest(c *C, f failer) {
+func commonFailoverTest(c *check.C, f failer) {
 	currentVersion := GetCurrentVersion(c)
 
 	if AfterReboot(c) {
 		RemoveRebootMark(c)
+		defer switchChannelVersion(c, currentVersion, currentVersion+1)
 		f.unset(c)
-		c.Assert(GetSavedVersion(c), Equals, currentVersion)
+		c.Assert(GetSavedVersion(c), check.Equals, currentVersion)
 	} else {
 		switchChannelVersion(c, currentVersion, currentVersion-1)
 		SetSavedVersion(c, currentVersion-1)
@@ -71,7 +72,7 @@ func commonFailoverTest(c *C, f failer) {
 	}
 }
 
-func switchChannelVersion(c *C, oldVersion, newVersion int) {
+func switchChannelVersion(c *check.C, oldVersion, newVersion int) {
 	targets := []string{"/", baseOtherPath}
 	for _, target := range targets {
 		file := filepath.Join(target, channelCfgFile)
@@ -88,10 +89,10 @@ func switchChannelVersion(c *C, oldVersion, newVersion int) {
 	}
 }
 
-func makeWritable(c *C, path string) {
+func makeWritable(c *check.C, path string) {
 	ExecCommand(c, "sudo", "mount", "-o", "remount,rw", path)
 }
 
-func makeReadonly(c *C, path string) {
+func makeReadonly(c *check.C, path string) {
 	ExecCommand(c, "sudo", "mount", "-o", "remount,ro", path)
 }

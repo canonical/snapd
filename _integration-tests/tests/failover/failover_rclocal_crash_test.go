@@ -24,12 +24,12 @@ import (
 
 	. "../common"
 
-	. "gopkg.in/check.v1"
+	check "gopkg.in/check.v1"
 )
 
 type rcLocalCrash struct{}
 
-func (rcLocalCrash) set(c *C) {
+func (rcLocalCrash) set(c *check.C) {
 	makeWritable(c, baseOtherPath)
 	targetFile := fmt.Sprintf("%s/etc/rc.local", baseOtherPath)
 	ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
@@ -38,12 +38,12 @@ func (rcLocalCrash) set(c *C) {
 	makeReadonly(c, baseOtherPath)
 }
 
-func (rcLocalCrash) unset(c *C) {
+func (rcLocalCrash) unset(c *check.C) {
 	makeWritable(c, baseOtherPath)
 	ExecCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", baseOtherPath))
 	makeReadonly(c, baseOtherPath)
 }
 
-func (s *failoverSuite) TestRCLocalCrash(c *C) {
+func (s *failoverSuite) TestRCLocalCrash(c *check.C) {
 	commonFailoverTest(c, rcLocalCrash{})
 }
