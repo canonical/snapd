@@ -1,4 +1,4 @@
-ubuntu-snappy (1.5ubuntu1) UNRELEASED; urgency=medium
+ubuntu-snappy (1.5ubuntu1) wily; urgency=medium
 
   * New upstream release, including the following changes:
     - Use O_TRUNC when copying files
