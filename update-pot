@@ -11,7 +11,7 @@ if [ -n "$1" ]; then
 fi
 
 xgettext -d snappy -o "$OUTPUT" --c++ --from-code=UTF-8 \
-	--indent --add-comments --no-location --sort-output \
+	--indent --add-comments=TRANSLATORS: --no-location --sort-output \
 	--package-name=snappy \
 	--msgid-bugs-address=snappy-devel@lists.ubuntu.com \
 	--keyword=NG:1,2 --keyword=G \

@@ -40,7 +40,8 @@ import (
 type OEM struct {
 	Store    Store `yaml:"store,omitempty"`
 	Hardware struct {
-		Assign []HardwareAssign `yaml:"assign,omitempty"`
+		Assign     []HardwareAssign `yaml:"assign,omitempty"`
+		BootAssets *BootAssets      `yaml:"boot-assets,omitempty"`
 	} `yaml:"hardware,omitempty"`
 	Software Software `yaml:"software,omitempty"`
 }
@@ -53,6 +54,28 @@ type Store struct {
 // Software describes the installed software provided by an OEM snap
 type Software struct {
 	BuiltIn []string `yaml:"built-in,omitempty"`
+}
+
+// BootAssets represent all the artifacts required for booting a system
+// that are particular to the board.
+type BootAssets struct {
+	Files    []BootAssetFiles    `yaml:"files,omitempty"`
+	RawFiles []BootAssetRawFiles `yaml:"raw-files,omitempty"`
+}
+
+// BootAssetRawFiles represent all the artifacts required for booting a system
+// that are particular to the board and require copying to specific sectors of
+// the disk
+type BootAssetRawFiles struct {
+	Path   string `yaml:"path"`
+	Offset string `yaml:"offset"`
+}
+
+// BootAssetFiles represent all the files required for booting a system
+// that are particular to the board
+type BootAssetFiles struct {
+	Path   string `yaml:"path"`
+	Target string `yaml:"target,omitempty"`
 }
 
 // HardwareAssign describes the hardware a app can use
@@ -109,6 +132,28 @@ func getOemImpl() (*packageYaml, error) {
 	}
 
 	return nil, errors.New("no oem snap")
+}
+
+func bootAssetFilePaths() map[string]string {
+	oem, err := getOem()
+	if err != nil {
+		return nil
+	}
+
+	fileList := make(map[string]string)
+	oemPath := filepath.Join(snapOemDir, oem.Name, oem.Version)
+
+	for _, asset := range oem.OEM.Hardware.BootAssets.Files {
+		orig := filepath.Join(oemPath, asset.Path)
+
+		if asset.Target == "" {
+			fileList[orig] = filepath.Base(orig)
+		} else {
+			fileList[orig] = asset.Target
+		}
+	}
+
+	return fileList
 }
 
 // StoreID returns the store id setup by the oem package or an empty string

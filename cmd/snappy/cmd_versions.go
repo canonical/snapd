@@ -22,15 +22,16 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 )
 
 type cmdVersions struct {
 }
 
-const shortVersionsHelp = `(deprecated) please use "list"`
+var shortVersionsHelp = i18n.G("(deprecated) please use \"list\"")
 
-const longVersionsHelp = `This command is no longer available, please use the "list" command`
+var longVersionsHelp = i18n.G("This command is no longer available, please use the \"list\" command")
 
 func init() {
 	_, err := parser.AddCommand("versions",
@@ -43,12 +44,12 @@ func init() {
 }
 
 func (x *cmdVersions) Execute(args []string) error {
-	fmt.Println(`The "versions" command is no longer available.
+	fmt.Println(i18n.G(`The "versions" command is no longer available.
 
 Please use the "list" command instead to see what is installed.
 The "list -u" (or "list --updates") will show you the available updates
 and "list -v" (or "list --verbose") will show all installed versions.
-`)
+`))
 
 	return nil
 }

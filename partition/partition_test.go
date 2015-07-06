@@ -55,7 +55,6 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 	bootloaderGrubDir = filepath.Join(s.tempdir, "boot", "grub")
 	bootloaderGrubConfigFile = filepath.Join(bootloaderGrubDir, "grub.cfg")
 	bootloaderGrubEnvFile = filepath.Join(bootloaderGrubDir, "grubenv")
-	bootloaderGrubUpdateCmd = filepath.Join(s.tempdir, "update-grub")
 
 	// and uboot
 	bootloaderUbootDir = filepath.Join(s.tempdir, "boot", "uboot")
@@ -79,7 +78,6 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	// grub vars
 	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
 	bootloaderGrubEnvFile = bootloaderGrubEnvFileReal
-	bootloaderGrubUpdateCmd = bootloaderGrubUpdateCmdReal
 
 	// uboot vars
 	bootloaderUbootDir = bootloaderUbootDirReal
@@ -278,10 +276,6 @@ func (s *PartitionTestSuite) TestUnmountRequiredFilesystems(c *C) {
 		mountEntry{source: "/boot/efi", target: mountTarget + "/boot/efi",
 			options: "bind", bindMount: true},
 
-		// this comes from the grub bootloader via AdditionalBindMounts
-		mountEntry{source: "/boot/grub", target: mountTarget + "/boot/grub",
-			options: "bind", bindMount: true},
-
 		// Required to allow grub inside the chroot to access
 		// the "current" rootfs outside the chroot (used
 		// to generate the grub menuitems).
@@ -383,7 +377,7 @@ func (b *mockBootloader) ToggleRootFS(otherRootfs string) error {
 	b.ToggleRootFSCalled = true
 	return nil
 }
-func (b *mockBootloader) SyncBootFiles() error {
+func (b *mockBootloader) SyncBootFiles(bootAssets map[string]string) error {
 	b.SyncBootFilesCalled = true
 	return nil
 }
@@ -401,10 +395,6 @@ func (b *mockBootloader) MarkCurrentBootSuccessful(currentRootfs string) error {
 	b.MarkCurrentBootSuccessfulCalled = true
 	return nil
 }
-func (b *mockBootloader) AdditionalBindMounts() []string {
-	return nil
-}
-
 func (b *mockBootloader) BootDir() string {
 	return ""
 }
@@ -453,7 +443,7 @@ func (s *PartitionTestSuite) TestSyncBootFiles(c *C) {
 	p := New()
 	c.Assert(c, NotNil)
 
-	err := p.SyncBootloaderFiles()
+	err := p.SyncBootloaderFiles(nil)
 	c.Assert(err, IsNil)
 	c.Assert(b.SyncBootFilesCalled, Equals, true)
 }
