@@ -62,7 +62,6 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 		c.Skip(fmt.Sprintf("****** Skipped %s during reboot caused by %s",
 			c.TestName(), contents))
 	} else {
-
 		if checkRebootMark("") {
 			c.Logf("****** Running %s", c.TestName())
 			SetSavedVersion(c, GetCurrentVersion(c))
@@ -80,16 +79,19 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 // TearDownTest cleans up the channel.ini files in case they were changed by
 // the test.
 func (s *SnappySuite) TearDownTest(c *check.C) {
-	m := make(map[string]string)
-	m[channelCfgBackupFile()] = "/"
-	m[channelCfgOtherBackupFile()] = BaseOtherPath
-	for backup, target := range m {
-		if _, err := os.Stat(backup); err == nil {
-			MakeWritable(c, target)
-			defer MakeReadonly(c, target)
-			original := filepath.Join(target, channelCfgFile)
-			c.Log(fmt.Sprintf("Restoring %s...", original))
-			os.Rename(backup, original)
+	if !needsReboot() && checkRebootMark("") {
+		// Only restore the channel config files if the reboot has been handled.
+		m := make(map[string]string)
+		m[channelCfgBackupFile()] = "/"
+		m[channelCfgOtherBackupFile()] = BaseOtherPath
+		for backup, target := range m {
+			if _, err := os.Stat(backup); err == nil {
+				MakeWritable(c, target)
+				defer MakeReadonly(c, target)
+				original := filepath.Join(target, channelCfgFile)
+				c.Log(fmt.Sprintf("Restoring %s...", original))
+				os.Rename(backup, original)
+			}
 		}
 	}
 }
