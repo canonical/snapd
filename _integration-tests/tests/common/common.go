@@ -63,20 +63,43 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 			c.TestName(), contents))
 	} else {
 
-		afterReboot := os.Getenv("ADT_REBOOT_MARK")
-
-		if afterReboot == "" {
+		if checkRebootMark("") {
 			c.Logf("****** Running %s", c.TestName())
 			SetSavedVersion(c, GetCurrentVersion(c))
 		} else {
-			if afterReboot == c.TestName() {
+			if AfterReboot(c) {
 				c.Logf("****** Resuming %s after reboot", c.TestName())
 			} else {
 				c.Skip(fmt.Sprintf("****** Skipped %s after reboot caused by %s",
-					c.TestName(), afterReboot))
+					c.TestName(), os.Getenv("ADT_REBOOT_MARK")))
 			}
 		}
 	}
+}
+
+// TearDownTest cleans up the channel.ini files in case they were changed by
+// the test.
+func (s *SnappySuite) TearDownTest(c *check.C) {
+	m := make(map[string]string)
+	m[channelCfgBackupFile()] = "/"
+	m[channelCfgOtherBackupFile()] = BaseOtherPath
+	for backup, target := range m {
+		if _, err := os.Stat(backup); err == nil {
+			MakeWritable(c, target)
+			defer MakeReadonly(c, target)
+			original := filepath.Join(target, channelCfgFile)
+			c.Log(fmt.Sprintf("Restoring %s...", original))
+			os.Rename(backup, original)
+		}
+	}
+}
+
+func channelCfgBackupFile() string {
+	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "channel.ini")
+}
+
+func channelCfgOtherBackupFile() string {
+	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "channel.ini.other")
 }
 
 // ExecCommand executes a shell command and returns a string with the output
@@ -142,12 +165,16 @@ func fakeAvailableUpdate(c *check.C) {
 }
 
 func switchChannelVersion(c *check.C, oldVersion, newVersion int) {
-	targets := []string{"/", BaseOtherPath}
-	for _, target := range targets {
+	m := make(map[string]string)
+	m["/"] = channelCfgBackupFile()
+	m[BaseOtherPath] = channelCfgOtherBackupFile()
+	for target, backup := range m {
 		file := filepath.Join(target, channelCfgFile)
 		if _, err := os.Stat(file); err == nil {
 			MakeWritable(c, target)
 			defer MakeReadonly(c, target)
+			// Back up the file. It will be restored during the test tear down.
+			ExecCommand(c, "cp", file, backup)
 			ExecCommand(c,
 				"sudo", "sed", "-i",
 				fmt.Sprintf(

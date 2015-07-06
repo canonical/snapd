@@ -53,11 +53,9 @@ func commonFailoverTest(c *check.C, f failer) {
 
 	if AfterReboot(c) {
 		RemoveRebootMark(c)
-		defer switchChannelVersion(c, currentVersion, currentVersion+1)
 		f.unset(c)
 		c.Assert(GetSavedVersion(c), check.Equals, currentVersion)
 	} else {
-		switchChannelVersion(c, currentVersion, currentVersion-1)
 		SetSavedVersion(c, currentVersion-1)
 		CallUpdate(c)
 		f.set(c)
