@@ -33,8 +33,7 @@ import (
 )
 
 const (
-	// BaseOtherPath FIXME needs a better name because I don't know what to
-	// comment.
+	// BaseOtherPath is the path to the B system partition.
 	BaseOtherPath   = "/writable/cache/system"
 	needsRebootFile = "/tmp/needs-reboot"
 	channelCfgFile  = "/etc/system-image/channel.ini"

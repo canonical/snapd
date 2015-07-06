@@ -66,17 +66,19 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter stri
 		if testFilter == "" {
 			includeShell = true
 		}
+		// Run the tests on the latest rolling edge image.
 		image := createImage(defaultRelease, defaultChannel, "")
-		adtRun(rootPath, testFilter, testPackages, kvmSSHOptions(image), includeShell)
-		// It does not make sense to run tests on previous versions using the
-		// snappy version from the branch. These other tests are only for nightly
-		// executions.
-		if !useSnappyFromBranch {
-			image = createImage(defaultRelease, defaultChannel, "-1")
-			adtRun(rootPath, testFilter, testPackages, kvmSSHOptions(image), includeShell)
-			image = createImage("15.04", "stable", "")
-			adtRun(rootPath, testFilter, testPackages, kvmSSHOptions(image), includeShell)
-		}
+		adtRun(rootPath, testFilter, testPackages,
+			kvmSSHOptions(image), includeShell)
+		// Update from revision -1 and then run the tests in the updated image.
+		image = createImage(defaultRelease, defaultChannel, "-1")
+		// Update.
+		adtRun(
+			rootPath, "updateSuite.TestUpdateToSameReleaseAndChannel", testPackages,
+			kvmSSHOptions(image), includeShell)
+		// Run tests.
+		adtRun(rootPath, testFilter, testPackages,
+			kvmSSHOptions(image), includeShell)
 	} else {
 		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 			"ubuntu@"+testbedIP)
