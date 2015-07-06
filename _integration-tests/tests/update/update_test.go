@@ -20,7 +20,6 @@
 package update
 
 import (
-	"strconv"
 	"testing"
 
 	. "../common"
@@ -36,15 +35,6 @@ type updateSuite struct {
 	SnappySuite
 }
 
-func rollback(c *C) {
-	savedVersion := GetSavedVersion(c)
-	if GetCurrentVersion(c) != savedVersion {
-		c.Log("Calling snappy rollback...")
-		ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core", strconv.Itoa(savedVersion))
-		RebootWithMark(c, c.TestName()+"-rollback")
-	}
-}
-
 // Test that the update to the same release and channel must install a newer
 // version. If there is no update available, the channel version will be
 // modified to fake an update.
@@ -53,7 +43,6 @@ func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *C) {
 		CallUpdate(c)
 		Reboot(c)
 	} else if AfterReboot(c) {
-		defer rollback(c)
 		c.Assert(GetCurrentVersion(c) > GetSavedVersion(c), Equals, true)
 	}
 }
