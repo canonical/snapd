@@ -21,6 +21,7 @@ package failover
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -95,7 +96,17 @@ func renameFile(c *C, basePath, oldFilename, newFilename string) {
 	makeWritable(c, basePath)
 	ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
 	ExecCommand(c, "sudo", "touch", oldFilename)
+
+	mode := getFileMode(c, newFilename)
+	ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), oldFilename)
 	makeReadonly(c, basePath)
+}
+
+func getFileMode(c *C, filePath string) os.FileMode {
+	info, err := os.Stat(filePath)
+	c.Check(err, IsNil, Commentf("Error getting Stat of %s", filePath))
+
+	return info.Mode()
 }
 
 func getSingleFilename(c *C, pattern string) string {
