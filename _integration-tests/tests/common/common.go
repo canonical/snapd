@@ -186,3 +186,13 @@ func GetSavedVersion(c *check.C) int {
 func getVersionFile() string {
 	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "version")
 }
+
+// InstallSnap executes the required command to install the specified snap
+func InstallSnap(c *check.C, packageName string) string {
+	return ExecCommand(c, "sudo", "snappy", "install", packageName)
+}
+
+// RemoveSnap executes the required command to remove the specified snap
+func RemoveSnap(c *check.C, packageName string) string {
+	return ExecCommand(c, "sudo", "snappy", "remove", packageName)
+}

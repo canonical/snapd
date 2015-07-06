@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,34 +17,13 @@
  *
  */
 
-package main
+package latest
 
 import (
-	"fmt"
+	"testing"
 
-	"launchpad.net/snappy/i18n"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/snappy"
+	. "gopkg.in/check.v1"
 )
 
-type cmdInternalFirstBootOemConfig struct{}
-
-func init() {
-	_, err := parser.AddCommand("firstboot",
-		"internal",
-		"internal",
-		&cmdInternalFirstBootOemConfig{})
-	if err != nil {
-		logger.Panicf("Unable to first_boot: %v", err)
-	}
-}
-
-func (x *cmdInternalFirstBootOemConfig) Execute(args []string) error {
-	err := snappy.FirstBoot()
-	if err == snappy.ErrNotFirstBoot {
-		fmt.Println(i18n.G("First boot has already run"))
-		return nil
-	}
-
-	return err
-}
+// Hook up gocheck into the "go test" runner.
+func Test(t *testing.T) { TestingT(t) }

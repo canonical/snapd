@@ -44,7 +44,7 @@ type zeroSizeInitrd struct{}
 type zeroSizeSystemd struct{}
 
 func (zeroSizeKernel) set(c *check.C) {
-	commonSet(c, origBootFilenamePattern, kernelFilename)
+	commonSet(c, origBootFilenamePattern, kernelFilename, false)
 }
 
 func (zeroSizeKernel) unset(c *check.C) {
@@ -52,7 +52,7 @@ func (zeroSizeKernel) unset(c *check.C) {
 }
 
 func (zeroSizeInitrd) set(c *check.C) {
-	commonSet(c, origBootFilenamePattern, initrdFilename)
+	commonSet(c, origBootFilenamePattern, initrdFilename, false)
 }
 
 func (zeroSizeInitrd) unset(c *check.C) {
@@ -60,14 +60,14 @@ func (zeroSizeInitrd) unset(c *check.C) {
 }
 
 func (zeroSizeSystemd) set(c *check.C) {
-	commonSet(c, origSystemdFilenamePattern, systemdFilename)
+	commonSet(c, origSystemdFilenamePattern, systemdFilename, true)
 }
 
 func (zeroSizeSystemd) unset(c *check.C) {
 	commonUnset(c, origSystemdFilenamePattern, systemdFilename)
 }
 
-func commonSet(c *check.C, origPattern, filename string) {
+func commonSet(c *check.C, origPattern, filename string, isExecutable bool) {
 	filenamePattern := fmt.Sprintf(origPattern, "", filename)
 	completePattern := filepath.Join(
 		baseOtherPath,
@@ -78,7 +78,7 @@ func commonSet(c *check.C, origPattern, filename string) {
 	newFilename := fmt.Sprintf(
 		"%s/%s", baseOtherPath, filenameSuffix)
 
-	renameFile(c, baseOtherPath, oldFilename, newFilename)
+	renameFile(c, baseOtherPath, oldFilename, newFilename, isExecutable)
 }
 
 func commonUnset(c *check.C, origPattern, filename string) {
@@ -88,13 +88,16 @@ func commonUnset(c *check.C, origPattern, filename string) {
 	oldFilename := getSingleFilename(c, completePattern)
 	newFilename := strings.Replace(oldFilename, destFilenamePrefix, "", 1)
 
-	renameFile(c, baseOtherPath, oldFilename, newFilename)
+	renameFile(c, baseOtherPath, oldFilename, newFilename, false)
 }
 
-func renameFile(c *check.C, basePath, oldFilename, newFilename string) {
+func renameFile(c *check.C, basePath, oldFilename, newFilename string, isExecutable bool) {
 	makeWritable(c, basePath)
 	ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
 	ExecCommand(c, "sudo", "touch", oldFilename)
+	if isExecutable {
+		ExecCommand(c, "sudo", "chmod", "a+x", oldFilename)
+	}
 	makeReadonly(c, basePath)
 }
 
