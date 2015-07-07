@@ -24,7 +24,7 @@ import (
 
 	. "../common"
 
-	. "gopkg.in/check.v1"
+	check "gopkg.in/check.v1"
 )
 
 const (
@@ -60,18 +60,19 @@ RequiredBy=sysinit.target
 
 type systemdDependencyLoop struct{}
 
-func (systemdDependencyLoop) set(c *C) {
-	installService(c, "deadlock", deadlockService, baseOtherPath)
-	installService(c, "emerg-reboot", rebootService, baseOtherPath)
+func (systemdDependencyLoop) set(c *check.C) {
+	installService(c, "deadlock", deadlockService, BaseOtherPath)
+	installService(c, "emerg-reboot", rebootService, BaseOtherPath)
 }
 
-func (systemdDependencyLoop) unset(c *C) {
-	unInstallService(c, "deadlock", baseOtherPath)
-	unInstallService(c, "emerg-reboot", baseOtherPath)
+func (systemdDependencyLoop) unset(c *check.C) {
+	unInstallService(c, "deadlock", BaseOtherPath)
+	unInstallService(c, "emerg-reboot", BaseOtherPath)
 }
 
-func installService(c *C, serviceName, serviceCfg, basePath string) {
-	makeWritable(c, basePath)
+func installService(c *check.C, serviceName, serviceCfg, basePath string) {
+	MakeWritable(c, basePath)
+	defer MakeReadonly(c, basePath)
 
 	// Create service file
 	serviceFile := fmt.Sprintf("%s%s/%s.service", basePath, baseSystemdPath, serviceName)
@@ -89,12 +90,11 @@ func installService(c *C, serviceName, serviceCfg, basePath string) {
 		fmt.Sprintf("%s/%s.service", baseSystemdPath, serviceName),
 		fmt.Sprintf("%s/%s.service", requiresDirPart, serviceName),
 	)
-
-	makeReadonly(c, basePath)
 }
 
-func unInstallService(c *C, serviceName, basePath string) {
-	makeWritable(c, basePath)
+func unInstallService(c *check.C, serviceName, basePath string) {
+	MakeWritable(c, basePath)
+	defer MakeReadonly(c, basePath)
 
 	// Disable the service
 	ExecCommand(c, "sudo", "chroot", basePath,
@@ -107,10 +107,8 @@ func unInstallService(c *C, serviceName, basePath string) {
 	// Remove the requires symlink
 	ExecCommand(c, "sudo", "rm",
 		fmt.Sprintf("%s%s/%s/%s.service", basePath, baseSystemdPath, systemdTargetRequiresDir, serviceName))
-
-	makeReadonly(c, basePath)
 }
 
-func (s *failoverSuite) TestSystemdDependencyLoop(c *C) {
+func (s *failoverSuite) TestSystemdDependencyLoop(c *check.C) {
 	commonFailoverTest(c, systemdDependencyLoop{})
 }

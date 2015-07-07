@@ -20,7 +20,9 @@
 package i18n
 
 import (
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -39,8 +41,8 @@ var _ = Suite(&i18nTestSuite{})
 func (s *i18nTestSuite) SetUpTest(c *C) {
 	// this dir contains a special hand-crafted en_DK/snappy-test.mo
 	// file
-	localeDir, err := filepath.Abs("./mock-locale")
-	c.Assert(err, IsNil)
+	localeDir := c.MkDir()
+	makeMockTranslations(c, localeDir)
 
 	// this may fail on systems with no locale support (potentially
 	// minimal build environments)
@@ -53,6 +55,43 @@ func (s *i18nTestSuite) SetUpTest(c *C) {
 
 	// we use a custom test mo file
 	TEXTDOMAIN = "snappy-test"
+}
+
+var mockLocalePo = []byte(`
+msgid ""
+msgstr ""
+"Project-Id-Version: snappy\n"
+"Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
+"POT-Creation-Date: 2015-06-16 09:08+0200\n"
+"Language: en_DK\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "plural_1"
+msgid_plural "plural_2"
+msgstr[0] "translated plural_1"
+msgstr[1] "translated plural_2"
+
+msgid "singular"
+msgstr "translated singular"
+`)
+
+func makeMockTranslations(c *C, localeDir string) {
+	fullLocaleDir := filepath.Join(localeDir, "en_DK", "LC_MESSAGES")
+	err := os.MkdirAll(fullLocaleDir, 0755)
+	c.Assert(err, IsNil)
+
+	po := filepath.Join(fullLocaleDir, "snappy-test.po")
+	mo := filepath.Join(fullLocaleDir, "snappy-test.mo")
+	err = ioutil.WriteFile(po, mockLocalePo, 0644)
+	c.Assert(err, IsNil)
+
+	cmd := exec.Command("msgfmt", po, "--output-file", mo)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	c.Assert(err, IsNil)
 }
 
 func (s *i18nTestSuite) TearDownTest(c *C) {

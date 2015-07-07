@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
@@ -39,9 +40,9 @@ func init() {
 }
 
 func (x *cmdInternalFirstBootOemConfig) Execute(args []string) error {
-	err := snappy.OemConfig()
+	err := snappy.FirstBoot()
 	if err == snappy.ErrNotFirstBoot {
-		fmt.Println("First boot has already run")
+		fmt.Println(i18n.G("First boot has already run"))
 		return nil
 	}
 

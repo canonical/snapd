@@ -21,6 +21,7 @@ package snappy
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -51,6 +52,8 @@ func (p *fakePart) Type() pkg.Type {
 
 type FirstBootTestSuite struct {
 	oemConfig map[string]interface{}
+	globs     []string
+	ethdir    string
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -65,11 +68,18 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	s.oemConfig["myapp"] = configMyApp
 
 	s.mockActiveSnapNamesByType()
+
+	s.globs = globs
+	globs = nil
+	s.ethdir = ethdir
+	ethdir = c.MkDir()
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	activeSnapByName = ActiveSnapByName
 	activeSnapsByType = ActiveSnapsByType
+	globs = s.globs
+	ethdir = s.ethdir
 }
 
 func (s *FirstBootTestSuite) mockActiveSnapNamesByType() *fakePart {
@@ -93,7 +103,7 @@ func (s *FirstBootTestSuite) mockActiveSnapByName() *fakePart {
 func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
 	fakeMyApp := s.mockActiveSnapByName()
 
-	c.Assert(OemConfig(), IsNil)
+	c.Assert(FirstBoot(), IsNil)
 	myAppConfig := fmt.Sprintf("config:\n  myapp:\n    hostname: myhostname\n")
 	c.Assert(string(fakeMyApp.config), Equals, myAppConfig)
 
@@ -104,11 +114,11 @@ func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
 func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
 	s.mockActiveSnapByName()
 
-	c.Assert(OemConfig(), IsNil)
+	c.Assert(FirstBoot(), IsNil)
 	_, err := os.Stat(stampFile)
 	c.Assert(err, IsNil)
 
-	c.Assert(OemConfig(), Equals, ErrNotFirstBoot)
+	c.Assert(FirstBoot(), Equals, ErrNotFirstBoot)
 }
 
 func (s *FirstBootTestSuite) TestNoErrorWhenNoOEM(c *C) {
@@ -116,7 +126,40 @@ func (s *FirstBootTestSuite) TestNoErrorWhenNoOEM(c *C) {
 		return nil, nil
 	}
 
-	c.Assert(OemConfig(), IsNil)
+	c.Assert(FirstBoot(), IsNil)
 	_, err := os.Stat(stampFile)
 	c.Assert(err, IsNil)
+}
+
+func (s *FirstBootTestSuite) TestEnableFirstEther(c *C) {
+	c.Check(enableFirstEther(), IsNil)
+	fs, _ := filepath.Glob(filepath.Join(ethdir, "*"))
+	c.Assert(fs, HasLen, 0)
+}
+
+func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEth(c *C) {
+	dir := c.MkDir()
+	_, err := os.Create(filepath.Join(dir, "eth42"))
+	c.Assert(err, IsNil)
+
+	globs = []string{filepath.Join(dir, "eth*")}
+	c.Check(enableFirstEther(), IsNil)
+	fs, _ := filepath.Glob(filepath.Join(ethdir, "*"))
+	c.Assert(fs, HasLen, 1)
+	bs, err := ioutil.ReadFile(fs[0])
+	c.Assert(err, IsNil)
+	c.Check(string(bs), Equals, "allow-hotplug eth42\niface eth42 inet dhcp\n")
+
+}
+
+func (s *FirstBootTestSuite) TestEnableFirstEtherBadEthDir(c *C) {
+	dir := c.MkDir()
+	_, err := os.Create(filepath.Join(dir, "eth42"))
+	c.Assert(err, IsNil)
+
+	ethdir = "/no/such/thing"
+	globs = []string{filepath.Join(dir, "eth*")}
+	err = enableFirstEther()
+	c.Check(err, NotNil)
+	c.Check(os.IsNotExist(err), Equals, true)
 }
