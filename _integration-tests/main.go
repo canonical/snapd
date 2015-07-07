@@ -72,7 +72,7 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter stri
 		adtRun(rootPath, testFilter, testPackages,
 			kvmSSHOptions(image), includeShell)
 
-		// Update from revision -1 and then run the tests in the updated image.
+		// Update from revision -1.
 		image = createImage(defaultRelease, defaultChannel, "-1")
 		adtRun(
 			rootPath, "updateSuite.TestUpdateToSameReleaseAndChannel",
