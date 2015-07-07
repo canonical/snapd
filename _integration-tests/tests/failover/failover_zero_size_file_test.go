@@ -71,35 +71,35 @@ func (zeroSizeSystemd) unset(c *check.C) {
 func commonSet(c *check.C, origPattern, filename string) {
 	filenamePattern := fmt.Sprintf(origPattern, "", filename)
 	completePattern := filepath.Join(
-		baseOtherPath,
+		BaseOtherPath,
 		filenamePattern)
 	oldFilename := getSingleFilename(c, completePattern)
 	filenameSuffix := fmt.Sprintf(
 		strings.Replace(origPattern, "*", "", 1), destFilenamePrefix, filepath.Base(oldFilename))
 	newFilename := fmt.Sprintf(
-		"%s/%s", baseOtherPath, filenameSuffix)
+		"%s/%s", BaseOtherPath, filenameSuffix)
 
-	renameFile(c, baseOtherPath, oldFilename, newFilename)
+	renameFile(c, BaseOtherPath, oldFilename, newFilename)
 }
 
 func commonUnset(c *check.C, origPattern, filename string) {
 	completePattern := filepath.Join(
-		baseOtherPath,
+		BaseOtherPath,
 		fmt.Sprintf(origPattern, destFilenamePrefix, filename))
 	oldFilename := getSingleFilename(c, completePattern)
 	newFilename := strings.Replace(oldFilename, destFilenamePrefix, "", 1)
 
-	renameFile(c, baseOtherPath, oldFilename, newFilename)
+	renameFile(c, BaseOtherPath, oldFilename, newFilename)
 }
 
 func renameFile(c *check.C, basePath, oldFilename, newFilename string) {
-	makeWritable(c, basePath)
+	MakeWritable(c, basePath)
+	defer MakeReadonly(c, basePath)
 	ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
 	ExecCommand(c, "sudo", "touch", oldFilename)
 
 	mode := getFileMode(c, newFilename)
 	ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), oldFilename)
-	makeReadonly(c, basePath)
 }
 
 func getFileMode(c *check.C, filePath string) os.FileMode {
