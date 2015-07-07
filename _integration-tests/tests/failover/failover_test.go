@@ -47,7 +47,6 @@ type failer interface {
 // This is the logic common to all the failover tests. Each of them has define a
 // type implementing the failer interface and call this function with an instance
 // of it
-
 func commonFailoverTest(c *check.C, f failer) {
 	currentVersion := GetCurrentVersion(c)
 
