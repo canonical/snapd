@@ -89,8 +89,8 @@ func (s *SnappySuite) TearDownTest(c *check.C) {
 				MakeWritable(c, target)
 				defer MakeReadonly(c, target)
 				original := filepath.Join(target, channelCfgFile)
-				c.Log(fmt.Sprintf("Restoring %s...", original))
-				os.Rename(backup, original)
+				c.Logf("Restoring %s...", original)
+				ExecCommand(c, "sudo", "mv", backup, original)
 			}
 		}
 	}
@@ -111,6 +111,7 @@ func ExecCommand(c *check.C, cmds ...string) string {
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	output, err := cmd.CombinedOutput()
 	stringOutput := string(output)
+	fmt.Print(stringOutput)
 	c.Assert(err, check.IsNil, check.Commentf("Error: %v", stringOutput))
 	return stringOutput
 }

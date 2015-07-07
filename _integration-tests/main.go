@@ -76,19 +76,12 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter stri
 		image = createImage(defaultRelease, defaultChannel, "-1")
 		adtRun(
 			rootPath, "updateSuite.TestUpdateToSameReleaseAndChannel",
-			testPackageUpdate, kvmSSHOptions(image), includeShell)
-		adtRun(rootPath, testFilter, testPackages,
-			kvmSSHOptions(image), includeShell)
-
+			testPackageUpdate, kvmSSHOptions(image), false)
 	} else {
 		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 			"ubuntu@"+testbedIP)
 		remoteTestbedSSHOptions := remoteTestbedSSHOptions(testbedIP, testbedPort)
 
-		// Make sure that the testbed is up-to-date.
-		adtRun(
-			rootPath, "updateSuite.TestUpdateToSameReleaseAndChannel",
-			testPackageUpdate, remoteTestbedSSHOptions, false)
 		// Run the shell tests. TODO: Also run the other tests.
 		adtRun(rootPath, "", []string{}, remoteTestbedSSHOptions, true)
 	}
