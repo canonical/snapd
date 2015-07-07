@@ -38,7 +38,9 @@ const (
 
 // SnappySuite is a structure used as a base test suite for all the snappy
 // integration tests.
-type SnappySuite struct{}
+type SnappySuite struct {
+	cleanupHandlers []func()
+}
 
 // SetUpSuite disables the snappy autopilot. It will run before all the
 // integration suites.
@@ -74,6 +76,19 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 			}
 		}
 	}
+	s.cleanupHandlers = nil
+}
+
+// TearDownTest runs the cleanup handlers
+func (s *SnappySuite) TearDownTest(c *check.C) {
+	for _, f := range s.cleanupHandlers {
+		f()
+	}
+}
+
+// AddCleanup adds a new cleanup function to the test
+func (s *SnappySuite) AddCleanup(f func()) {
+	s.cleanupHandlers = append(s.cleanupHandlers, f)
 }
 
 // ExecCommand executes a shell command and returns a string with the output
