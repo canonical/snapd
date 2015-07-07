@@ -80,10 +80,8 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter stri
 	} else {
 		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 			"ubuntu@"+testbedIP)
-		remoteTestbedSSHOptions := remoteTestbedSSHOptions(testbedIP, testbedPort)
-
 		// Run the shell tests. TODO: Also run the other tests.
-		adtRun(rootPath, "", []string{}, remoteTestbedSSHOptions, true)
+		adtRun(rootPath, "", []string{}, remoteTestbedSSHOptions(testbedIP, testbedPort), true)
 	}
 }
 
