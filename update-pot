@@ -14,7 +14,7 @@ fi
 go install launchpad.net/snappy/i18n/xgettext-go
 
 $GOPATH/bin/xgettext-go \
-$HERE/*/*.go $HERE/cmd/*/*.go
+$HERE/*/*.go $HERE/cmd/*/*.go > $OUTPUT
 
 #xgettext \
 # -d snappy -o "$OUTPUT" --c++ --from-code=UTF-8 \
