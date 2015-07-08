@@ -136,25 +136,6 @@ func (u *uboot) GetNextBootRootFSName() (label string, err error) {
 	return value, nil
 }
 
-// FIXME: put into utils package
-func readLines(path string) (lines []string, err error) {
-
-	file, err := os.Open(path)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-
-	return lines, scanner.Err()
-}
-
 func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
 	changes := []configFileChange{
 		configFileChange{Name: bootloaderBootmodeVar,
@@ -180,19 +161,22 @@ func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
 //
 // FIXME: put into utils package
 // FIXME: improve logic
-func modifyNameValueFile(file string, changes []configFileChange) (err error) {
+func modifyNameValueFile(path string, changes []configFileChange) (err error) {
 	var updated []configFileChange
 
-	lines, err := readLines(file)
-	if err != nil {
-		return err
-	}
-
-	buf := bytes.NewBuffer(nil)
 	// we won't write to a file if we don't need to.
 	updateNeeded := false
 
-	for _, line := range lines {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	buf := bytes.NewBuffer(nil)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
 		for _, change := range changes {
 			if strings.HasPrefix(line, fmt.Sprintf("%s=", change.Name)) {
 				value := strings.SplitN(line, "=", 2)[1]
@@ -227,7 +211,7 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 	}
 
 	if updateNeeded {
-		return atomicWriteFile(file, buf.Bytes(), 0644)
+		return atomicWriteFile(path, buf.Bytes(), 0644)
 	}
 
 	return nil
