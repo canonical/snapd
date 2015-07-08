@@ -35,6 +35,8 @@ type installSuite struct {
 
 func (s *installSuite) TearDownTest(c *C) {
 	RemoveSnap(c, "hello-world")
+	// run cleanup last
+	s.SnappySuite.TearDownTest(c)
 }
 
 func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
