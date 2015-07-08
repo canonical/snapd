@@ -21,6 +21,7 @@ package partition
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -51,7 +52,7 @@ var (
 	bootloaderUbootConfigFile = bootloaderUbootConfigFileReal
 	bootloaderUbootStampFile  = bootloaderUbootStampFileReal
 	bootloaderUbootEnvFile    = bootloaderUbootEnvFileReal
-	atomicFileUpdate          = atomicFileUpdateImpl
+	atomicWriteFile           = helpers.AtomicWriteFile
 )
 
 const bootloaderNameUboot bootloaderName = "u-boot"
@@ -171,12 +172,6 @@ func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
 	return os.RemoveAll(bootloaderUbootStampFile)
 }
 
-// Write lines to file atomically. File does not have to preexist.
-func atomicFileUpdateImpl(file string, lines []string) (err error) {
-	data := strings.Join(lines, "\n")
-	return helpers.AtomicWriteFile(file, []byte(data), 0644)
-}
-
 // Rewrite the specified file, applying the specified set of changes.
 // Lines not in the changes slice are left alone.
 // If the original file does not contain any of the name entries (from
@@ -193,7 +188,7 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 		return err
 	}
 
-	var new []string
+	buf := bytes.NewBuffer(nil)
 	// we won't write to a file if we don't need to.
 	updateNeeded := false
 
@@ -210,10 +205,8 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 				}
 			}
 		}
-		new = append(new, line)
+		fmt.Fprintln(buf, line)
 	}
-
-	lines = new
 
 	for _, change := range changes {
 		got := false
@@ -229,13 +222,12 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 
 			// name/value pair did not exist in original
 			// file, so append
-			lines = append(lines, fmt.Sprintf("%s=%s",
-				change.Name, change.Value))
+			fmt.Fprintf(buf, "%s=%s\n", change.Name, change.Value)
 		}
 	}
 
 	if updateNeeded {
-		return atomicFileUpdate(file, lines)
+		return atomicWriteFile(file, buf.Bytes(), 0644)
 	}
 
 	return nil
