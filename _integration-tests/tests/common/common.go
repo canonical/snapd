@@ -76,6 +76,7 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 			}
 		}
 	}
+	// clear slice
 	s.cleanupHandlers = nil
 }
 
@@ -84,6 +85,8 @@ func (s *SnappySuite) TearDownTest(c *check.C) {
 	for _, f := range s.cleanupHandlers {
 		f()
 	}
+	// clear slice
+	s.cleanupHandlers = nil
 }
 
 // AddCleanup adds a new cleanup function to the test
