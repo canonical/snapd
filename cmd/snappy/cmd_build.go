@@ -30,7 +30,7 @@ import (
 const clickReview = "click-review"
 
 type cmdBuild struct {
-	Output string `long:"output" short:"o" description:"Specify an alternate output directory for the resulting package"`
+	Output string `long:"output" short:"o"`
 }
 
 var longBuildHelp = i18n.G("Creates a snap package and if available, runs the review scripts.")
@@ -45,6 +45,7 @@ func init() {
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "bu")
+	addOptionDescriptionOrPanic(cmd, "output", i18n.G("Specify an alternate output directory for the resulting package"))
 }
 
 func (x *cmdBuild) Execute(args []string) (err error) {

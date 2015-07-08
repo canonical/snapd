@@ -31,22 +31,26 @@ import (
 )
 
 type cmdInstall struct {
-	AllowUnauthenticated bool `long:"allow-unauthenticated" description:"Install snaps even if the signature can not be verified."`
-	DisableGC            bool `long:"no-gc" description:"Do not clean up old versions of the package."`
+	AllowUnauthenticated bool `long:"allow-unauthenticated"`
+	DisableGC            bool `long:"no-gc"`
 	Positional           struct {
-		PackageName string `positional-arg-name:"package name" description:"The Package to install (name or path)"`
-		ConfigFile  string `positional-arg-name:"config file" description:"The configuration for the given install"`
+		PackageName string `positional-arg-name:"package name"`
+		ConfigFile  string `positional-arg-name:"config file"`
 	} `positional-args:"yes"`
 }
 
 func init() {
-	_, err := parser.AddCommand("install",
+	arg, err := parser.AddCommand("install",
 		i18n.G("Install a snap package"),
 		i18n.G("Install a snap package"),
 		&cmdInstall{})
 	if err != nil {
 		logger.Panicf("Unable to install: %v", err)
 	}
+	addOptionDescriptionOrPanic(arg, "allow-unauthenticated", i18n.G("Install snaps even if the signature can not be verified."))
+	addOptionDescriptionOrPanic(arg, "no-gc", i18n.G("Do not clean up old versions of the package."))
+	addOptionDescriptionOrPanic(arg, "package name", i18n.G("The Package to install (name or path)"))
+	addOptionDescriptionOrPanic(arg, "config file", i18n.G("The configuration for the given install"))
 }
 
 func (x *cmdInstall) Execute(args []string) error {

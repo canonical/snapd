@@ -30,9 +30,9 @@ import (
 )
 
 type cmdInfo struct {
-	Verbose    bool `short:"v" long:"verbose" description:"Provides more detailed information"`
+	Verbose    bool `short:"v" long:"verbose"`
 	Positional struct {
-		PackageName string `positional-arg-name:"package name" description:"Provide information about a specific installed package"`
+		PackageName string `positional-arg-name:"package name"`
 	} `positional-args:"yes"`
 }
 
@@ -48,13 +48,15 @@ Providing a package name will display information about a specific installed pac
 The verbose version of the info command for a package will also tell you the available channels for that package, when it was installed for the first time, disk space utilization, and in the case of frameworks, which apps are able to use the framework.`)
 
 func init() {
-	_, err := parser.AddCommand("info",
+	arg, err := parser.AddCommand("info",
 		shortInfoHelp,
 		longInfoHelp,
 		&cmdInfo{})
 	if err != nil {
 		logger.Panicf("Unable to info: %v", err)
 	}
+	addOptionDescriptionOrPanic(arg, "verbose", i18n.G("Provides more detailed information"))
+	addOptionDescriptionOrPanic(arg, "package name", i18n.G("Provide information about a specific installed package"))
 }
 
 func (x *cmdInfo) Execute(args []string) (err error) {

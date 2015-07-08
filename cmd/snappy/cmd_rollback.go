@@ -31,8 +31,8 @@ import (
 
 type cmdRollback struct {
 	Positional struct {
-		PackageName string `positional-arg-name:"package name" description:"The package to rollback "`
-		Version     string `positional-arg-name:"version" description:"The version to rollback to"`
+		PackageName string `positional-arg-name:"package name"`
+		Version     string `positional-arg-name:"version"`
 	} `positional-args:"yes"`
 }
 
@@ -41,13 +41,15 @@ var shortRollbackHelp = i18n.G("Rollback to a previous version of a package")
 var longRollbackHelp = i18n.G("Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.\n")
 
 func init() {
-	_, err := parser.AddCommand("rollback",
+	arg, err := parser.AddCommand("rollback",
 		shortRollbackHelp,
 		longRollbackHelp,
 		&cmdRollback{})
 	if err != nil {
 		logger.Panicf("Unable to rollback: %v", err)
 	}
+	addOptionDescriptionOrPanic(arg, "package name", i18n.G("The package to rollback "))
+	addOptionDescriptionOrPanic(arg, "version", i18n.G("The version to rollback to"))
 }
 
 func (x *cmdRollback) Execute(args []string) (err error) {

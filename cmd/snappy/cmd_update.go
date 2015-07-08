@@ -32,18 +32,20 @@ import (
 )
 
 type cmdUpdate struct {
-	DisableGC  bool `long:"no-gc" description:"Do not clean up old versions of the package."`
-	AutoReboot bool `long:"automatic-reboot" description:"Reboot if necessary to be on the latest running system."`
+	DisableGC  bool `long:"no-gc"`
+	AutoReboot bool `long:"automatic-reboot"`
 }
 
 func init() {
-	_, err := parser.AddCommand("update",
+	arg, err := parser.AddCommand("update",
 		i18n.G("Update all installed parts"),
 		i18n.G("Ensures system is running with latest parts"),
 		&cmdUpdate{})
 	if err != nil {
 		logger.Panicf("Unable to update: %v", err)
 	}
+	addOptionDescriptionOrPanic(arg, "no-gc", i18n.G("Do not clean up old versions of the package."))
+	addOptionDescriptionOrPanic(arg, "no-gc", i18n.G("Reboot if necessary to be on the latest running system."))
 }
 
 const (

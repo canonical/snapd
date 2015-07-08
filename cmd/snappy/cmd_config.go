@@ -32,8 +32,8 @@ import (
 
 type cmdConfig struct {
 	Positional struct {
-		PackageName string `positional-arg-name:"package name" description:"Set configuration for a specific installed package"`
-		ConfigFile  string `positional-arg-name:"config file" description:"The configuration for the given file"`
+		PackageName string `positional-arg-name:"package name"`
+		ConfigFile  string `positional-arg-name:"config file"`
 	} `positional-args:"yes"`
 }
 
@@ -42,13 +42,15 @@ var shortConfigHelp = i18n.G("Set configuration for an installed package.")
 var longConfigHelp = i18n.G("Configures a package. The configuration is a YAML file, provided in the specified file which can be \"-\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config.")
 
 func init() {
-	_, err := parser.AddCommand("config",
+	arg, err := parser.AddCommand("config",
 		shortConfigHelp,
 		longConfigHelp,
 		&cmdConfig{})
 	if err != nil {
 		logger.Panicf("Unable to config: %v", err)
 	}
+	addOptionDescriptionOrPanic(arg, "package name", i18n.G("Set configuration for a specific installed package"))
+	addOptionDescriptionOrPanic(arg, "config file", i18n.G("The configuration for the given file"))
 }
 
 func (x *cmdConfig) Execute(args []string) (err error) {

@@ -31,7 +31,7 @@ import (
 )
 
 type cmdSearch struct {
-	ShowAll bool `long:"show-all" description:"Show all available forks of a package"`
+	ShowAll bool `long:"show-all"`
 }
 
 func init() {
@@ -44,6 +44,7 @@ func init() {
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "se")
+	addOptionDescriptionOrPanic(cmd, "show-all", i18n.G("Show all available forks of a package"))
 }
 
 func (x *cmdSearch) Execute(args []string) (err error) {

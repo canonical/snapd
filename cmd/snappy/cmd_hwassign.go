@@ -29,8 +29,8 @@ import (
 
 type cmdHWAssign struct {
 	Positional struct {
-		PackageName string `positional-arg-name:"package name" description:"Assign hardware to a specific installed package"`
-		DevicePath  string `positional-arg-name:"device path" description:"The hardware device path (e.g. /dev/ttyUSB0)"`
+		PackageName string `positional-arg-name:"package name"`
+		DevicePath  string `positional-arg-name:"device path"`
 	} `required:"true" positional-args:"yes"`
 }
 
@@ -39,13 +39,15 @@ var shortHWAssignHelp = i18n.G("Assign a hardware device to a package")
 var longHWAssignHelp = i18n.G("This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package.")
 
 func init() {
-	_, err := parser.AddCommand("hw-assign",
+	arg, err := parser.AddCommand("hw-assign",
 		shortHWAssignHelp,
 		longHWAssignHelp,
 		&cmdHWAssign{})
 	if err != nil {
 		logger.Panicf("Unable to hwassign: %v", err)
 	}
+	addOptionDescriptionOrPanic(arg, "package name", i18n.G("Assign hardware to a specific installed package"))
+	addOptionDescriptionOrPanic(arg, "device path", i18n.G("The hardware device path (e.g. /dev/ttyUSB0)"))
 }
 
 func (x *cmdHWAssign) Execute(args []string) error {

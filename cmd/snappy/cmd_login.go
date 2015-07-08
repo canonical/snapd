@@ -33,7 +33,7 @@ import (
 
 type cmdLogin struct {
 	Positional struct {
-		UserName string `positional-arg-name:"userid" description:"Username for the login"`
+		UserName string `positional-arg-name:"userid"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -42,13 +42,14 @@ var shortLoginHelp = i18n.G("Log into the store")
 var longLoginHelp = i18n.G("This command logs the given username into the store")
 
 func init() {
-	_, err := parser.AddCommand("login",
+	arg, err := parser.AddCommand("login",
 		shortLoginHelp,
 		longLoginHelp,
 		&cmdLogin{})
 	if err != nil {
 		logger.Panicf("Unable to login: %v", err)
 	}
+	addOptionDescriptionOrPanic(arg, "userid", i18n.G("Username for the login"))
 }
 
 func requestStoreTokenWith2faRetry(username, password, tokenName string) (*snappy.StoreToken, error) {

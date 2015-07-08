@@ -19,11 +19,37 @@
 
 package main
 
-import "launchpad.net/snappy/priv"
+import (
+	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/priv"
+
+	"github.com/jessevdk/go-flags"
+)
 
 const snappyLockFile = "/run/snappy.lock"
 
 // withMutex runs the given function with a filelock mutex
 func withMutex(f func() error) error {
 	return priv.WithMutex(snappyLockFile, f)
+}
+
+// addOptionDescriptionOrPanic will try to find the given longName in the
+// options and arguments of the given Command and add a description
+//
+// if the longName is not found it will panic
+func addOptionDescriptionOrPanic(arg *flags.Command, longName, description string) {
+	for _, opt := range arg.Options() {
+		if opt.LongName == longName {
+			opt.Description = description
+			return
+		}
+	}
+	for _, opt := range arg.Args() {
+		if opt.Name == longName {
+			opt.Description = description
+			return
+		}
+	}
+
+	logger.Panicf("can not set option description for %#v", longName)
 }

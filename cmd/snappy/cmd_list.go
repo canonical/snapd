@@ -33,8 +33,8 @@ import (
 )
 
 type cmdList struct {
-	Updates bool `short:"u" long:"updates" description:"Show available updates (requires network)"`
-	Verbose bool `short:"v" long:"verbose" description:"Show channel information and expand all fields"`
+	Updates bool `short:"u" long:"updates"`
+	Verbose bool `short:"v" long:"verbose"`
 }
 
 var shortListHelp = i18n.G("List active components installed on a snappy system")
@@ -57,6 +57,8 @@ func init() {
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "li")
+	addOptionDescriptionOrPanic(cmd, "updates", i18n.G("Show available updates (requires network)"))
+	addOptionDescriptionOrPanic(cmd, "verbose", i18n.G("Show channel information and expand all fields"))
 }
 
 func (x *cmdList) Execute(args []string) (err error) {
