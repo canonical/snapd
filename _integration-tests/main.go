@@ -38,7 +38,7 @@ const (
 	defaultChannel = "edge"
 	defaultSSHPort = 22
 	defaultGoArm   = "7"
-	controlFile    = "debian/integration-tests/control"
+	controlFile    = "_integration-tests/data/output/control"
 	controlTpl     = "_integration-tests/data/tpl/control"
 )
 
