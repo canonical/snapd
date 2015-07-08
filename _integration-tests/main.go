@@ -81,7 +81,7 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter stri
 		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 			"ubuntu@"+testbedIP)
 		// TODO: Also run the failover and shell tests.
-		adtRun(rootPath, testFilter, append(testPackageUpdate, "latest"),
+		adtRun(rootPath, testFilter, []string{"latest"},
 			remoteTestbedSSHOptions(testbedIP, testbedPort), false)
 	}
 }
