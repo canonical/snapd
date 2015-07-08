@@ -28,6 +28,13 @@ tests:
 
 You can use this flag to test in a remote machine too.
 
+## Filtering the tests to run
+
+With the --filter flag you can select the tests to run. For instance you can
+pass MyTestSuite, MyTestSuite.FirstCustomTest or MyTestSuite.*CustomTest:
+
+    go run _integration-tests/main.go --filter MyTestSuite.FirstCustomTest
+
 ## Testing a remote machine
 
 You can execute the integration suite in a remote snappy machine with:
@@ -49,9 +56,9 @@ First flash the latest rolling edge version into the sd card
 (replacing /dev/sdX with the path to your card):
 
     sudo ubuntu-device-flash core rolling --channel edge --oem beagleblack \
-    --enable-ssh -o ubuntu-rolling-edge-armhf-bbb.img
+    --developer-mode -o ubuntu-rolling-edge-armhf-bbb.img
 
-    sudo if=ubuntu-rolling-edge-armhf-bbb.img of=/dev/sdX bs=32M
+    sudo dd if=ubuntu-rolling-edge-armhf-bbb.img of=/dev/sdX bs=32M
     sync
 
 Then boot the board with the sd card, make sure that it is connected to the
