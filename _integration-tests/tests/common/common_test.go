@@ -34,12 +34,33 @@ type MetaTestSuite struct {
 
 var _ = Suite(&MetaTestSuite{})
 
-func (m *MetaTestSuite) TestCleanup(c *C) {
+// test trivial cleanup
+func (m *MetaTestSuite) TestCleanupSimple(c *C) {
 	canary := "not-called"
 	s := SnappySuite{}
 
 	s.AddCleanup(func() {
 		canary = "was-called"
+	})
+	s.TearDownTest(c)
+
+	c.Assert(canary, Equals, "was-called")
+}
+
+// a mock method that takes a parameter
+func mockCleanupMethodWithParameters(s *string) {
+	*s = "was-called"
+}
+
+// test that whle AddCleanup() does not take any parameters itself,
+// functions that need parameters can be passed by creating an
+// anonymous function as a wrapper
+func (m *MetaTestSuite) TestCleanupWithParameters(c *C) {
+	canary := "not-called"
+	s := SnappySuite{}
+
+	s.AddCleanup(func() {
+		mockCleanupMethodWithParameters(&canary)
 	})
 	s.TearDownTest(c)
 
