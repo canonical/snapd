@@ -1,6 +1,6 @@
 {{ $filter := .Filter }}
 {{ range $element := .Tests }}
-Test-Command: debian/integration-tests/snappy-test {{ $element }}.test {{ if $filter }}-gocheck.f {{ $filter }}{{ end }}
+Test-Command: ./_integration-tests/reboot-wrapper {{ $element }}.test {{ if $filter }}-gocheck.f {{ $filter }}{{ end }}
 Restrictions: allow-stderr
 {{ end }}
 
