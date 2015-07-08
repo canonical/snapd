@@ -23,7 +23,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"launchpad.net/snappy/helpers"
@@ -155,37 +154,6 @@ func readLines(path string) (lines []string, err error) {
 	return lines, scanner.Err()
 }
 
-// FIXME: put into utils package
-func writeLines(lines []string, path string) (err error) {
-
-	file, err := os.Create(path)
-
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		e := file.Close()
-		if err == nil {
-			err = e
-		}
-	}()
-
-	writer := bufio.NewWriter(file)
-
-	for _, line := range lines {
-		if _, err := fmt.Fprintln(writer, line); err != nil {
-			return err
-		}
-	}
-
-	if err := writer.Flush(); err != nil {
-		return err
-	}
-
-	return file.Sync()
-}
-
 func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
 	changes := []configFileChange{
 		configFileChange{Name: bootloaderBootmodeVar,
@@ -204,27 +172,9 @@ func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
 }
 
 // Write lines to file atomically. File does not have to preexist.
-// FIXME: put into utils package
 func atomicFileUpdateImpl(file string, lines []string) (err error) {
-	tmpFile := fmt.Sprintf("%s.NEW", file)
-
-	// XXX: if go switches to use aio_fsync, we need to open the dir for writing
-	dir, err := os.Open(filepath.Dir(file))
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-
-	if err := writeLines(lines, tmpFile); err != nil {
-		return err
-	}
-
-	// atomic update
-	if err := os.Rename(tmpFile, file); err != nil {
-		return err
-	}
-
-	return dir.Sync()
+	data := strings.Join(lines, "\n")
+	return helpers.AtomicWriteFile(file, []byte(data), 0644)
 }
 
 // Rewrite the specified file, applying the specified set of changes.
