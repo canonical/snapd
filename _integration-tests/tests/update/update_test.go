@@ -44,6 +44,7 @@ func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *C) {
 		CallUpdate(c)
 		Reboot(c)
 	} else if AfterReboot(c) {
+		RemoveRebootMark(c)
 		c.Assert(GetCurrentVersion(c) > GetSavedVersion(c), Equals, true)
 	}
 }
