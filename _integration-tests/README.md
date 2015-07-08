@@ -56,7 +56,7 @@ First flash the latest rolling edge version into the sd card
 (replacing /dev/sdX with the path to your card):
 
     sudo ubuntu-device-flash core rolling --channel edge --oem beagleblack \
-    --developer-mode -o ubuntu-rolling-edge-armhf-bbb.img
+    --developer-mode --enable-ssh -o ubuntu-rolling-edge-armhf-bbb.img
 
     sudo dd if=ubuntu-rolling-edge-armhf-bbb.img of=/dev/sdX bs=32M
     sync
