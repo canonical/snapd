@@ -20,9 +20,6 @@
 package failover
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 
 	check "gopkg.in/check.v1"
@@ -38,11 +35,6 @@ var _ = check.Suite(&failoverSuite{})
 type failoverSuite struct {
 	SnappySuite
 }
-
-const (
-	baseOtherPath  = "/writable/cache/system"
-	channelCfgFile = "/etc/system-image/channel.ini"
-)
 
 // The types that implement this interface can be used in the test logic
 type failer interface {
@@ -60,39 +52,12 @@ func commonFailoverTest(c *check.C, f failer) {
 
 	if AfterReboot(c) {
 		RemoveRebootMark(c)
-		defer switchChannelVersion(c, currentVersion, currentVersion+1)
 		f.unset(c)
 		c.Assert(GetSavedVersion(c), check.Equals, currentVersion)
 	} else {
-		switchChannelVersion(c, currentVersion, currentVersion-1)
 		SetSavedVersion(c, currentVersion-1)
 		CallUpdate(c)
 		f.set(c)
 		Reboot(c)
 	}
-}
-
-func switchChannelVersion(c *check.C, oldVersion, newVersion int) {
-	targets := []string{"/", baseOtherPath}
-	for _, target := range targets {
-		file := filepath.Join(target, channelCfgFile)
-		if _, err := os.Stat(file); err == nil {
-			makeWritable(c, target)
-			ExecCommand(c,
-				"sudo", "sed", "-i",
-				fmt.Sprintf(
-					"s/build_number: %d/build_number: %d/g",
-					oldVersion, newVersion),
-				file)
-			makeReadonly(c, target)
-		}
-	}
-}
-
-func makeWritable(c *check.C, path string) {
-	ExecCommand(c, "sudo", "mount", "-o", "remount,rw", path)
-}
-
-func makeReadonly(c *check.C, path string) {
-	ExecCommand(c, "sudo", "mount", "-o", "remount,ro", path)
 }

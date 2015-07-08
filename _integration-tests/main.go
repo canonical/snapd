@@ -36,7 +36,6 @@ const (
 	testsBinDir    = "_integration-tests/bin/"
 	defaultRelease = "rolling"
 	defaultChannel = "edge"
-	latestRevision = ""
 	defaultSSHPort = 22
 	defaultGoArm   = "7"
 	controlFile    = "debian/integration-tests/control"
@@ -44,17 +43,10 @@ const (
 )
 
 var (
-	imageDir         = filepath.Join(baseDir, "image")
-	imageTarget      = filepath.Join(imageDir, "snappy.img")
-	commonSSHOptions = []string{"---", "ssh"}
-	kvmSSHOptions    = append(
-		commonSSHOptions,
-		[]string{
-			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
-			"--", "-i", imageTarget}...)
-	testPackagesLatest   = []string{"latest", "failover"}
-	testPackagesPrevious = []string{"update"}
-	testPackages         = append(testPackagesLatest, testPackagesPrevious...)
+	commonSSHOptions   = []string{"---", "ssh"}
+	testPackagesLatest = []string{"latest", "failover"}
+	testPackageUpdate  = []string{"update"}
+	testPackages       = append(testPackagesLatest, testPackageUpdate...)
 )
 
 func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter string, testbedPort int) {
@@ -74,14 +66,21 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter stri
 		if testFilter == "" {
 			includeShell = true
 		}
-		createImage(defaultRelease, defaultChannel, latestRevision)
-		adtRun(rootPath, testFilter, testPackagesLatest, kvmSSHOptions, includeShell)
 
-		createImage(defaultRelease, defaultChannel, "-1")
-		adtRun(rootPath, testFilter, testPackagesPrevious, kvmSSHOptions, false)
+		// Run the tests on the latest rolling edge image.
+		image := createImage(defaultRelease, defaultChannel, "")
+		adtRun(rootPath, testFilter, testPackages,
+			kvmSSHOptions(image), includeShell)
+
+		// Update from revision -1.
+		image = createImage(defaultRelease, defaultChannel, "-1")
+		adtRun(
+			rootPath, "updateSuite.TestUpdateToSameReleaseAndChannel",
+			testPackageUpdate, kvmSSHOptions(image), false)
 	} else {
 		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 			"ubuntu@"+testbedIP)
+		// Run the shell tests. TODO: Also run the other tests.
 		adtRun(rootPath, "", []string{}, remoteTestbedSSHOptions(testbedIP, testbedPort), true)
 	}
 }
@@ -128,20 +127,29 @@ func goCall(arch string, cmds ...string) {
 	execCommand(goCmd...)
 }
 
-func createImage(release, channel, revision string) {
+func createImage(release, channel, revision string) string {
 	fmt.Println("Creating image...")
+	imageDir := filepath.Join(baseDir, "image")
 	prepareTargetDir(imageDir)
+	revisionTag := revision
+	if revisionTag == "" {
+		revisionTag = "latest"
+	}
+	imageName := strings.Join(
+		[]string{"snappy", release, channel, revisionTag}, "-") + ".img"
+	imagePath := filepath.Join(imageDir, imageName)
 	udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
-	if revision != latestRevision {
+	if revision != "" {
 		udfCommand = append(udfCommand, "--revision", revision)
 	}
 	coreOptions := []string{
 		"core", release,
-		"--output", imageTarget,
+		"--output", imagePath,
 		"--channel", channel,
 		"--developer-mode",
 	}
 	execCommand(append(udfCommand, coreOptions...)...)
+	return imagePath
 }
 
 func adtRun(rootPath, testFilter string, testList, testbedOptions []string, includeShell bool) {
@@ -160,6 +168,14 @@ func adtRun(rootPath, testFilter string, testList, testbedOptions []string, incl
 		"--output-dir", outputDir}
 
 	execCommand(append(cmd, testbedOptions...)...)
+}
+
+func kvmSSHOptions(imagePath string) []string {
+	return append(
+		commonSSHOptions,
+		[]string{
+			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
+			"--", "-i", imagePath}...)
 }
 
 func createControlFile(testFilter string, testList []string, includeShellTest bool) {
