@@ -41,7 +41,9 @@ const (
 
 // SnappySuite is a structure used as a base test suite for all the snappy
 // integration tests.
-type SnappySuite struct{}
+type SnappySuite struct {
+	cleanupHandlers []func()
+}
 
 // SetUpSuite disables the snappy autopilot. It will run before all the
 // integration suites.
@@ -74,10 +76,13 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 			}
 		}
 	}
+	// clear slice
+	s.cleanupHandlers = nil
 }
 
 // TearDownTest cleans up the channel.ini files in case they were changed by
 // the test.
+// It also runs the cleanup handlers
 func (s *SnappySuite) TearDownTest(c *check.C) {
 	if !needsReboot() && checkRebootMark("") {
 		// Only restore the channel config files if the reboot has been handled.
@@ -94,6 +99,17 @@ func (s *SnappySuite) TearDownTest(c *check.C) {
 			}
 		}
 	}
+
+	// run cleanup handlers and clear the slice
+	for _, f := range s.cleanupHandlers {
+		f()
+	}
+	s.cleanupHandlers = nil
+}
+
+// AddCleanup adds a new cleanup function to the test
+func (s *SnappySuite) AddCleanup(f func()) {
+	s.cleanupHandlers = append(s.cleanupHandlers, f)
 }
 
 func channelCfgBackupFile() string {
