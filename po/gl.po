@@ -8,14 +8,14 @@ msgstr ""
 "Project-Id-Version: snappy\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
 "POT-Creation-Date: 2015-07-02 11:15-0600\n"
-"PO-Revision-Date: 2015-07-04 22:49+0000\n"
+"PO-Revision-Date: 2015-07-07 13:42+0000\n"
 "Last-Translator: Marcos Lans <Unknown>\n"
 "Language-Team: Galician <gl@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2015-07-05 05:57+0000\n"
-"X-Generator: Launchpad (build 17597)\n"
+"X-Launchpad-Export-Date: 2015-07-08 05:51+0000\n"
+"X-Generator: Launchpad (build 17608)\n"
 
 #. TRANSLATORS: the %s stand for "name", "version", "description"
 #, c-format
@@ -30,12 +30,12 @@ msgstr "%s: %s\n"
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid "'%s' is no longer allowed to access '%s'\n"
-msgstr ""
+msgstr "«%s» xa non ten permiso de acceso a «%s»\n"
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid "'%s' is now allowed to access '%s'\n"
-msgstr ""
+msgstr "«%s» ten permiso de acceso a «%s»\n"
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
@@ -45,7 +45,7 @@ msgstr ""
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid "'%s:' is not allowed to access additional hardware\n"
-msgstr ""
+msgstr "«%s:» non ten permiso de acceso a hardware adicional\n"
 
 msgid "(deprecated) please use \"list\""
 msgstr "(obsoleto) use «list»"
@@ -92,7 +92,7 @@ msgstr "Xa se executou o primeiro arranque"
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid "Generated '%s' snap\n"
-msgstr ""
+msgstr "Xerado o paquete snap de «%s»\n"
 
 msgid "Install a snap package"
 msgstr "Instalar un paquete snap"
@@ -203,6 +203,8 @@ msgid ""
 "This command removes access of a specific hardware device (e.g. "
 "/dev/ttyUSB0) for an installed package."
 msgstr ""
+"Esta orde elimina o acceso a un dispositivo específico de hardware (p.e "
+"/dev/ttyUSB0) dun paquete instalado."
 
 msgid "Unassign a hardware device to a package"
 msgstr "Desligar un dispositivo de hardware dun paquete"
@@ -211,7 +213,7 @@ msgid "Update all installed parts"
 msgstr "Actualizar todas as partes instaladas"
 
 msgid "Use --show-all to see all available forks."
-msgstr ""
+msgstr "Usar --show-all para ver os «forks» dispoñíbeis."
 
 #. TRANSLATORS: the %s represents a list of installed appnames
 #. (e.g. "apps: foo, bar, baz")
