@@ -55,7 +55,7 @@ func (s *xgettextTestSuite) TestFormatComment(c *C) {
 	}
 }
 
-func (s *xgettextTestSuite) TestprocessSingleGoSource(c *C) {
+func (s *xgettextTestSuite) TestIntegration(c *C) {
 	src := `package main
 
 func main() {
@@ -71,9 +71,28 @@ func main() {
 	fset := token.NewFileSet()
 
 	out := bytes.NewBuffer([]byte(""))
-	processSingleGoSource(fset, fname, out)
+	processSingleGoSource(fset, fname)
+	writePotFile(out)
 
-	expected := fmt.Sprintf(`#: %s:6
+	expected := fmt.Sprintf(`# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid   ""
+msgstr  "Project-Id-Version: snappy\n"
+        "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
+        "POT-Creation-Date: 2015-06-30 14:48+0200\n"
+        "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+        "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+        "Language-Team: LANGUAGE <LL@li.org>\n"
+        "Language: \n"
+        "MIME-Version: 1.0\n"
+        "Content-Type: text/plain; charset=CHARSET\n"
+        "Content-Transfer-Encoding: 8bit\n"
+
+#: %s:6
 #. TRANSLATORS: foo comment
 #. with multiple lines
 msgid "foo"
