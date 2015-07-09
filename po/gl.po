@@ -8,19 +8,19 @@ msgstr ""
 "Project-Id-Version: snappy\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
 "POT-Creation-Date: 2015-07-02 11:15-0600\n"
-"PO-Revision-Date: 2015-07-07 13:42+0000\n"
+"PO-Revision-Date: 2015-07-08 15:33+0000\n"
 "Last-Translator: Marcos Lans <Unknown>\n"
 "Language-Team: Galician <gl@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2015-07-08 05:51+0000\n"
+"X-Launchpad-Export-Date: 2015-07-09 06:04+0000\n"
 "X-Generator: Launchpad (build 17608)\n"
 
 #. TRANSLATORS: the %s stand for "name", "version", "description"
 #, c-format
 msgid "%s\t%s\t%s (forks not shown: %d)\t"
-msgstr ""
+msgstr "%s\t%s\t%s (bifurcacións non mostradas: %d)\t"
 
 #. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
 #, c-format
@@ -40,7 +40,7 @@ msgstr "«%s» ten permiso de acceso a «%s»\n"
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid "'%s' previously allowed access to '%s'. Skipping\n"
-msgstr ""
+msgstr "«%s» permitiu o acceso previamente a «%s ». Saltando\n"
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
@@ -58,6 +58,9 @@ msgid ""
 "arguments, the previous installed version is selected. It is also possible "
 "to specify the version to rollback to as a additional argument.\n"
 msgstr ""
+"Permite a reversión dun snap a unha versión instalada anteriormente. Se non "
+"se usan argumentos seleccionarase a versión instalada previamente. Tamén se "
+"pode especificar a versión á que reverter como un argumento adicional.\n"
 
 msgid "Assign a hardware device to a package"
 msgstr "Asignar un dispositivo de hardware a un paquete"
@@ -75,6 +78,11 @@ msgid ""
 "current configuration, so running this command with no input file provides a "
 "snapshot of the app's current config."
 msgstr ""
+"Configura un paquete.  A configuración é un ficheiro YAML, proporcionado no "
+"ficheiro específico que pode ser «-» para stdin. A saída da orde é a "
+"configuración actual, de xeito que se se executa esta orde sen indicar un "
+"ficheiro de entrada proporcionará unha imaxe da configuración actual do "
+"aplicativo."
 
 msgid "Creates a snap package and if available, runs the review scripts."
 msgstr ""
@@ -126,7 +134,7 @@ msgstr "Nome\tVersión\tResumo\t"
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid "No snap: '%s' found"
-msgstr ""
+msgstr "Ningún snap: atopouse «%s»"
 
 msgid "Password: "
 msgstr "Contrasinal: "
@@ -213,7 +221,7 @@ msgid "Update all installed parts"
 msgstr "Actualizar todas as partes instaladas"
 
 msgid "Use --show-all to see all available forks."
-msgstr "Usar --show-all para ver os «forks» dispoñíbeis."
+msgstr "Usar --show-all para ver as bifurcacións dispoñíbeis."
 
 #. TRANSLATORS: the %s represents a list of installed appnames
 #. (e.g. "apps: foo, bar, baz")
@@ -228,7 +236,7 @@ msgstr "arquitectura: %s\n"
 
 #. TRANSLATORS: the %s is a size
 msgid "binary-size: %v\n"
-msgstr ""
+msgstr "tamaño do binario: %v\n"
 
 #. TRANSLATORS: the %s is a channel name
 #, c-format
@@ -243,7 +251,7 @@ msgstr "data-tamaño: %s\n"
 #. TRANSLATORS: the %s is a comma separated list of framework names
 #, c-format
 msgid "frameworks: %s\n"
-msgstr ""
+msgstr "contornos de traballo: %s\n"
 
 #. TRANSLATORS: the %s is a date
 #, c-format
@@ -262,6 +270,8 @@ msgid ""
 "snappy autopilot triggered a reboot to boot into an up to date system -- "
 "temprorarily disable the reboot by running 'sudo shutdown -c'"
 msgstr ""
+"snappy autopilot activou un reinicio para comezar nun sistema actualizado -- "
+"desactive temporalmente o reinicio executando «sudo shutdown -c»"
 
 #. TRANSLATORS: the %s is a date
 #, c-format
