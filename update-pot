@@ -14,7 +14,15 @@ fi
 go install launchpad.net/snappy/i18n/xgettext-go
 
 $GOPATH/bin/xgettext-go \
-$HERE/*/*.go $HERE/cmd/*/*.go > $OUTPUT
+    -o "$OUTPUT" \
+    --add-comments-tag=TRANSLATORS: \
+    --no-location \
+    --sort-output \
+    --package-name=snappy\
+    --msgid-bugs-address=snappy-devel@lists.ubuntu.com \
+    --keyword=i18n.G \
+    --plural-keyword=i18n.DG \
+    $HERE/*/*.go $HERE/cmd/*/*.go
 
 #xgettext -d snappy -o "$OUTPUT" --c++ --from-code=UTF-8 \
 #	--indent --add-comments=TRANSLATORS: --no-location --sort-output \

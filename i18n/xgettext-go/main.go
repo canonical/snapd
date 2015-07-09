@@ -11,17 +11,9 @@ import (
 	"sort"
 	"strings"
 	"time"
-)
 
-// FIXME: this must be setable via go-flags
-var gettextSelector = "i18n"
-var gettextFuncName = "G"
-var sortMsgIds = true
-var showLocation = false
-var projectName = "snappy"
-var projectMsgIdBugs = "snappy-devel@lists.ubuntu.com"
-var commentsTag = "TRANSLATORS:"
-var output = ""
+	"github.com/jessevdk/go-flags"
+)
 
 type msgId struct {
 	msgid   string
@@ -66,7 +58,7 @@ func findCommentsForTranslation(fset *token.FileSet, f *ast.File, posCall token.
 
 	// only return if we have a matching prefix
 	formatedComment := formatComment(com)
-	needle := fmt.Sprintf("#. %s", commentsTag)
+	needle := fmt.Sprintf("#. %s", opts.AddCommentsTag)
 	if !strings.HasPrefix(formatedComment, needle) {
 		formatedComment = ""
 	}
@@ -75,6 +67,11 @@ func findCommentsForTranslation(fset *token.FileSet, f *ast.File, posCall token.
 }
 
 func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bool {
+	// FIXME: this assume we always have a "gettext.Gettext" style keyword
+	l := strings.Split(opts.Keyword, ".")
+	gettextSelector := l[0]
+	gettextFuncName := l[1]
+
 	switch x := n.(type) {
 	case *ast.CallExpr:
 		if sel, ok := x.Fun.(*ast.SelectorExpr); ok {
@@ -84,11 +81,15 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 				i18nStr = i18nStr[1 : len(i18nStr)-1]
 				posCall := fset.Position(n.Pos())
 				msgidStr := strings.Replace(i18nStr, "\n", "\\n", -1)
+				comment := ""
+				if opts.AddComments || opts.AddCommentsTag != "" {
+					comment = findCommentsForTranslation(fset, f, posCall)
+				}
 				msgIds[msgidStr] = msgId{
 					msgid:   msgidStr,
 					fname:   posCall.Filename,
 					line:    posCall.Line,
-					comment: findCommentsForTranslation(fset, f, posCall),
+					comment: comment,
 				}
 			}
 		}
@@ -139,7 +140,7 @@ msgstr  "Project-Id-Version: %s\n"
         "Content-Type: text/plain; charset=CHARSET\n"
         "Content-Transfer-Encoding: 8bit\n"
 
-`, projectName, projectMsgIdBugs, formatTime())
+`, opts.PackageName, opts.MsgIdBugsAddress, formatTime())
 	fmt.Fprintf(out, "%s", header)
 
 	// yes, this is the way to do it in go
@@ -147,35 +148,61 @@ msgstr  "Project-Id-Version: %s\n"
 	for k := range msgIds {
 		sortedKeys = append(sortedKeys, k)
 	}
-	if sortMsgIds {
+	if opts.SortOutput {
 		sort.Strings(sortedKeys)
 	}
 
 	// output sorted
 	for _, k := range sortedKeys {
 		msgid := msgIds[k]
-		if showLocation {
+		if !opts.NoLocation {
 			fmt.Fprintf(out, "#: %s:%d\n", msgid.fname, msgid.line)
 		}
 		fmt.Fprintf(out, "%s", msgid.comment)
-		fmt.Fprintf(out, "msgid \"%v\"\n", msgid.msgid)
-		fmt.Fprintf(out, "msgstr \"\"\n\n")
+		fmt.Fprintf(out, "msgid   \"%v\"\n", msgid.msgid)
+		fmt.Fprintf(out, "msgstr  \"\"\n\n")
 	}
 
 }
 
+// FIXME: this must be setable via go-flags
+var opts struct {
+	Output string `short:"o" long:"output" description:"output to specified file"`
+
+	AddComments bool `short:"c" long:"add-comments" description:"place all comment blocks preceding keyword lines in output file"`
+
+	AddCommentsTag string `long:"add-comments-tag" description:"place comment blocks starting with TAG and prceding keyword lines in output file"`
+
+	SortOutput bool `short:"s" long:"sort-output" description:"generate sorted output"`
+
+	NoLocation bool `long:"no-location" description:"do not write '#: filename:line' lines"`
+
+	MsgIdBugsAddress string `long:"msgid-bugs-address" default:"EMAIL" description:"set report address for msgid bugs"`
+
+	PackageName string `long:"package-name" description:"set package name in output"`
+
+	Keyword string `short:"k" long:"keyword" default:"gettext.Gettext" description:"look for WORD as the keyword for singular strings"`
+}
+
 func main() {
-	fset := token.NewFileSet() // positions are relative to fset
-	for _, fname := range os.Args[1:] {
+	// parse args
+	args, err := flags.ParseArgs(&opts, os.Args)
+	if err != nil {
+		fmt.Errorf("ParseArgs failed %s", err)
+	}
+
+	// go over the input files
+	fset := token.NewFileSet()
+	for _, fname := range args[1:] {
 		processSingleGoSource(fset, fname)
 	}
 
 	out := os.Stdout
-	if output != "" {
+	if opts.Output != "" {
 		var err error
-		out, err = os.Create(output)
+		out, err = os.Create(opts.Output)
 		if err != nil {
-			fmt.Errorf("failed to create %s", output, err)
+			fmt.Errorf("failed to create %s", opts.Output, err)
 		}
 	}
 	writePotFile(out)

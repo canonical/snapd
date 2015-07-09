@@ -72,8 +72,12 @@ func main() {
 	c.Assert(err, IsNil)
 
 	// we want this for this test
-	showLocation = true
-	commentsTag = "TRANSLATORS:"
+	opts.NoLocation = false
+	opts.AddCommentsTag = "TRANSLATORS:"
+	opts.Keyword = "i18n.G"
+	opts.SortOutput = true
+	opts.PackageName = "snappy"
+	opts.MsgIdBugsAddress = "snappy-devel@lists.ubuntu.com"
 
 	// mock time
 	formatTime = func() string {
@@ -105,14 +109,14 @@ msgstr  "Project-Id-Version: snappy\n"
         "Content-Transfer-Encoding: 8bit\n"
 
 #: %[1]s:9
-msgid "abc"
-msgstr ""
+msgid   "abc"
+msgstr  ""
 
 #: %[1]s:6
 #. TRANSLATORS: foo comment
 #. with multiple lines
-msgid "foo"
-msgstr ""
+msgid   "foo"
+msgstr  ""
 
 `, fname)
 	c.Assert(out.String(), Equals, expected)
