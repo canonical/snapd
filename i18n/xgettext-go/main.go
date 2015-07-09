@@ -16,10 +16,11 @@ import (
 )
 
 type msgId struct {
-	msgid   string
-	comment string
-	fname   string
-	line    int
+	msgid       string
+	msgidPlural string
+	comment     string
+	fname       string
+	line        int
 }
 
 var msgIds = make(map[string]msgId)
@@ -72,24 +73,42 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 	gettextSelector := l[0]
 	gettextFuncName := l[1]
 
+	l = strings.Split(opts.KeywordPlural, ".")
+	gettextSelectorPlural := l[0]
+	gettextFuncNamePlural := l[1]
+
 	switch x := n.(type) {
 	case *ast.CallExpr:
 		if sel, ok := x.Fun.(*ast.SelectorExpr); ok {
-			if sel.Sel.Name == gettextFuncName && sel.X.(*ast.Ident).Name == gettextSelector {
-				i18nStr := x.Args[0].(*ast.BasicLit).Value
-				// strip " (or `)
-				i18nStr = i18nStr[1 : len(i18nStr)-1]
-				posCall := fset.Position(n.Pos())
-				msgidStr := strings.Replace(i18nStr, "\n", "\\n", -1)
-				comment := ""
-				if opts.AddComments || opts.AddCommentsTag != "" {
-					comment = findCommentsForTranslation(fset, f, posCall)
+			i18nStr := ""
+			i18nStrPlural := ""
+			if sel.X.(*ast.Ident).Name == gettextSelectorPlural && sel.Sel.Name == gettextFuncNamePlural {
+				i18nStr = x.Args[0].(*ast.BasicLit).Value
+				i18nStrPlural = x.Args[1].(*ast.BasicLit).Value
+			}
+
+			if sel.X.(*ast.Ident).Name == gettextSelector && sel.Sel.Name == gettextFuncName {
+				i18nStr = x.Args[0].(*ast.BasicLit).Value
+			}
+
+			formatI18nStr := func(s string) string {
+				if s == "" {
+					return ""
 				}
+				// strip " (or `)
+				s = s[1 : len(s)-1]
+				return strings.Replace(s, "\n", "\\n", -1)
+			}
+
+			if i18nStr != "" {
+				msgidStr := formatI18nStr(i18nStr)
+				posCall := fset.Position(n.Pos())
 				msgIds[msgidStr] = msgId{
-					msgid:   msgidStr,
-					fname:   posCall.Filename,
-					line:    posCall.Line,
-					comment: comment,
+					msgid:       msgidStr,
+					msgidPlural: formatI18nStr(i18nStrPlural),
+					fname:       posCall.Filename,
+					line:        posCall.Line,
+					comment:     findCommentsForTranslation(fset, f, posCall),
 				}
 			}
 		}
@@ -158,9 +177,18 @@ msgstr  "Project-Id-Version: %s\n"
 		if !opts.NoLocation {
 			fmt.Fprintf(out, "#: %s:%d\n", msgid.fname, msgid.line)
 		}
-		fmt.Fprintf(out, "%s", msgid.comment)
+		if opts.AddComments || opts.AddCommentsTag != "" {
+			fmt.Fprintf(out, "%s", msgid.comment)
+		}
 		fmt.Fprintf(out, "msgid   \"%v\"\n", msgid.msgid)
-		fmt.Fprintf(out, "msgstr  \"\"\n\n")
+		if msgid.msgidPlural != "" {
+			fmt.Fprintf(out, "msgid_plural   \"%v\"\n", msgid.msgidPlural)
+			fmt.Fprintf(out, "msgstr[0]  \"\"\n")
+			fmt.Fprintf(out, "msgstr[1]  \"\"\n")
+		} else {
+			fmt.Fprintf(out, "msgstr  \"\"\n")
+		}
+		fmt.Fprintf(out, "\n")
 	}
 
 }
@@ -181,7 +209,8 @@ var opts struct {
 
 	PackageName string `long:"package-name" description:"set package name in output"`
 
-	Keyword string `short:"k" long:"keyword" default:"gettext.Gettext" description:"look for WORD as the keyword for singular strings"`
+	Keyword       string `short:"k" long:"keyword" default:"gettext.Gettext" description:"look for WORD as the keyword for singular strings"`
+	KeywordPlural string `long:"keyword-plural" default:"gettext.NGettext" description:"look for WORD as the keyword for plural strings"`
 }
 
 func main() {

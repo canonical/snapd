@@ -65,6 +65,9 @@ func main() {
 
     // this comment has no translators tag
     i18n.G("abc")
+
+    // TRANSLATORS: plural
+    i18n.NG("singular", "plural", 99)
 }
 `
 	fname := filepath.Join(c.MkDir(), "foo.go")
@@ -75,6 +78,7 @@ func main() {
 	opts.NoLocation = false
 	opts.AddCommentsTag = "TRANSLATORS:"
 	opts.Keyword = "i18n.G"
+	opts.KeywordPlural = "i18n.NG"
 	opts.SortOutput = true
 	opts.PackageName = "snappy"
 	opts.MsgIdBugsAddress = "snappy-devel@lists.ubuntu.com"
@@ -117,6 +121,13 @@ msgstr  ""
 #. with multiple lines
 msgid   "foo"
 msgstr  ""
+
+#: %[1]s:12
+#. TRANSLATORS: plural
+msgid   "singular"
+msgid_plural   "plural"
+msgstr[0]  ""
+msgstr[1]  ""
 
 `, fname)
 	c.Assert(out.String(), Equals, expected)
