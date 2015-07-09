@@ -21,6 +21,7 @@ var showLocation = false
 var projectName = "snappy"
 var projectMsgIdBugs = "snappy-devel@lists.ubuntu.com"
 var commentsTag = "TRANSLATORS:"
+var output = ""
 
 type msgId struct {
 	msgid   string
@@ -169,5 +170,13 @@ func main() {
 		processSingleGoSource(fset, fname)
 	}
 
-	writePotFile(os.Stdout)
+	out := os.Stdout
+	if output != "" {
+		var err error
+		out, err = os.Create(output)
+		if err != nil {
+			fmt.Errorf("failed to create %s", output, err)
+		}
+	}
+	writePotFile(out)
 }
