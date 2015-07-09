@@ -121,6 +121,28 @@ msgstr  "Project-Id-Version: snappy\n"
 func (s *xgettextTestSuite) TestWriteOutputSimple(c *C) {
 	msgIDs = map[string]msgID{
 		"foo": msgID{
+			msgid:   "foo",
+			fname:   "fname",
+			line:    2,
+			comment: "#. foo\n",
+		},
+	}
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+
+	expected := fmt.Sprintf(`%s
+#: fname:2
+#. foo
+msgid   "foo"
+msgstr  ""
+
+`, header)
+	c.Assert(out.String(), Equals, expected)
+}
+
+func (s *xgettextTestSuite) TestWriteOutputNoComment(c *C) {
+	msgIDs = map[string]msgID{
+		"foo": msgID{
 			msgid: "foo",
 			fname: "fname",
 			line:  2,
@@ -136,6 +158,109 @@ msgstr  ""
 
 `, header)
 	c.Assert(out.String(), Equals, expected)
+}
+
+func (s *xgettextTestSuite) TestWriteOutputNoLocation(c *C) {
+	msgIDs = map[string]msgID{
+		"foo": msgID{
+			msgid: "foo",
+			fname: "fname",
+			line:  2,
+		},
+	}
+
+	opts.NoLocation = true
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+
+	expected := fmt.Sprintf(`%s
+msgid   "foo"
+msgstr  ""
+
+`, header)
+	c.Assert(out.String(), Equals, expected)
+}
+
+func (s *xgettextTestSuite) TestWriteOutputFormatHint(c *C) {
+	msgIDs = map[string]msgID{
+		"foo": msgID{
+			msgid:      "foo",
+			fname:      "fname",
+			line:       2,
+			formatHint: "c-format",
+		},
+	}
+
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+
+	expected := fmt.Sprintf(`%s
+#: fname:2
+#, c-format
+msgid   "foo"
+msgstr  ""
+
+`, header)
+	c.Assert(out.String(), Equals, expected)
+}
+
+func (s *xgettextTestSuite) TestWriteOutputPlural(c *C) {
+	msgIDs = map[string]msgID{
+		"foo": msgID{
+			msgid:       "foo",
+			msgidPlural: "plural",
+			fname:       "fname",
+			line:        2,
+		},
+	}
+
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+
+	expected := fmt.Sprintf(`%s
+#: fname:2
+msgid   "foo"
+msgid_plural   "plural"
+msgstr[0]  ""
+msgstr[1]  ""
+
+`, header)
+	c.Assert(out.String(), Equals, expected)
+}
+
+func (s *xgettextTestSuite) TestWriteOutputSorted(c *C) {
+	msgIDs = map[string]msgID{
+		"aaa": msgID{
+			msgid: "aaa",
+			fname: "fname",
+			line:  2,
+		},
+		"zzz": msgID{
+			msgid: "zzz",
+			fname: "fname",
+			line:  2,
+		},
+	}
+
+	opts.SortOutput = true
+	// we need to run this a bunch of times as the ordering might
+	// be right by pure chance
+	for i := 0; i < 10; i++ {
+		out := bytes.NewBuffer([]byte(""))
+		writePotFile(out)
+
+		expected := fmt.Sprintf(`%s
+#: fname:2
+msgid   "aaa"
+msgstr  ""
+
+#: fname:2
+msgid   "zzz"
+msgstr  ""
+
+`, header)
+		c.Assert(out.String(), Equals, expected)
+	}
 }
 
 func (s *xgettextTestSuite) TestIntegration(c *C) {
