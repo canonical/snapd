@@ -21,15 +21,11 @@ package latest
 
 import (
 	"os/exec"
-	"testing"
 
 	. "../common"
 
 	. "gopkg.in/check.v1"
 )
-
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&installSuite{})
 
@@ -37,29 +33,27 @@ type installSuite struct {
 	SnappySuite
 }
 
-func installSnap(c *C, packageName string) string {
-	return ExecCommand(c, "sudo", "snappy", "install", packageName)
-}
-
 func (s *installSuite) TearDownTest(c *C) {
-	ExecCommand(c, "sudo", "snappy", "remove", "hello-world")
+	RemoveSnap(c, "hello-world")
+	// run cleanup last
+	s.SnappySuite.TearDownTest(c)
 }
 
 func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
-	installOutput := installSnap(c, "hello-world")
+	installOutput := InstallSnap(c, "hello-world")
 
-	expected := "" +
+	expected := "(?ms)" +
 		"Installing hello-world\n" +
-		"Name          Date       Version Developer \n" +
-		".*\n" +
-		"hello-world   .* .*  canonical \n" +
-		".*\n"
+		"Name +Date +Version +Developer \n" +
+		".*" +
+		"^hello-world +.* +.* +canonical \n" +
+		".*"
 
 	c.Assert(installOutput, Matches, expected)
 }
 
 func (s *installSuite) TestCallBinaryFromInstalledSnap(c *C) {
-	installSnap(c, "hello-world")
+	InstallSnap(c, "hello-world")
 
 	echoOutput := ExecCommand(c, "hello-world.echo")
 
@@ -67,7 +61,7 @@ func (s *installSuite) TestCallBinaryFromInstalledSnap(c *C) {
 }
 
 func (s *installSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
-	installSnap(c, "hello-world")
+	InstallSnap(c, "hello-world")
 
 	cmd := exec.Command("hello-world.evil")
 	echoOutput, err := cmd.CombinedOutput()
@@ -85,7 +79,7 @@ func (s *installSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
 }
 
 func (s *installSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
-	installSnap(c, "hello-world")
+	InstallSnap(c, "hello-world")
 
 	infoOutput := ExecCommand(c, "snappy", "info")
 

@@ -1,4 +1,4 @@
-# Spanish translation for snappy
+# Galician translation for snappy
 # Copyright (c) 2015 Rosetta Contributors and Canonical Ltd 2015
 # This file is distributed under the same license as the snappy package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, 2015.
@@ -8,19 +8,19 @@ msgstr ""
 "Project-Id-Version: snappy\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
 "POT-Creation-Date: 2015-07-02 11:15-0600\n"
-"PO-Revision-Date: 2015-07-04 04:43+0000\n"
-"Last-Translator: Leo Arias <leo.arias@canonical.com>\n"
-"Language-Team: Spanish <es@li.org>\n"
+"PO-Revision-Date: 2015-07-08 15:33+0000\n"
+"Last-Translator: Marcos Lans <Unknown>\n"
+"Language-Team: Galician <gl@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2015-07-05 05:57+0000\n"
-"X-Generator: Launchpad (build 17597)\n"
+"X-Launchpad-Export-Date: 2015-07-09 06:04+0000\n"
+"X-Generator: Launchpad (build 17608)\n"
 
 #. TRANSLATORS: the %s stand for "name", "version", "description"
 #, c-format
 msgid "%s\t%s\t%s (forks not shown: %d)\t"
-msgstr "%s\t%s\t%s (bifurcaciones no mostradas: %d)\t"
+msgstr "%s\t%s\t%s (bifurcacións non mostradas: %d)\t"
 
 #. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
 #, c-format
@@ -30,22 +30,22 @@ msgstr "%s: %s\n"
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid "'%s' is no longer allowed to access '%s'\n"
-msgstr "«%s» ya no está autorizado para acceder a «%s»\n"
+msgstr "«%s» xa non ten permiso de acceso a «%s»\n"
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid "'%s' is now allowed to access '%s'\n"
-msgstr "«%s» ahora tiene autorización para acceder a «%s»\n"
+msgstr "«%s» ten permiso de acceso a «%s»\n"
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid "'%s' previously allowed access to '%s'. Skipping\n"
-msgstr "«%s» ya estaba autorizado para acceder a «%s». Omitido\n"
+msgstr "«%s» permitiu o acceso previamente a «%s ». Saltando\n"
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid "'%s:' is not allowed to access additional hardware\n"
-msgstr "«%s»: no está autorizado para acceder a hardware adicional\n"
+msgstr "«%s:» non ten permiso de acceso a hardware adicional\n"
 
 msgid "(deprecated) please use \"list\""
 msgstr "(obsoleto) use «list»"
@@ -58,19 +58,19 @@ msgid ""
 "arguments, the previous installed version is selected. It is also possible "
 "to specify the version to rollback to as a additional argument.\n"
 msgstr ""
-"Permite volver a una versión de snap instalada anteriormente. Sin "
-"argumentos, se selecciona la versión anterior. Es posible especificar la "
-"versión a la que volver como un argumento adicional.\n"
+"Permite a reversión dun snap a unha versión instalada anteriormente. Se non "
+"se usan argumentos seleccionarase a versión instalada previamente. Tamén se "
+"pode especificar a versión á que reverter como un argumento adicional.\n"
 
 msgid "Assign a hardware device to a package"
 msgstr "Asignar un dispositivo de hardware a un paquete"
 
 msgid "Builds a snap package"
-msgstr "Construye un paquete snap"
+msgstr ""
 
 #. TRANSLATORS: the first %q is the file that can not be read and %v is the error message
 msgid "Can't read hook file %q: %v"
-msgstr "No se puede leer el archivo de «hook» %q: %v"
+msgstr ""
 
 msgid ""
 "Configures a package. The configuration is a YAML file, provided in the "
@@ -78,30 +78,29 @@ msgid ""
 "current configuration, so running this command with no input file provides a "
 "snapshot of the app's current config."
 msgstr ""
-"Configura un paquete. La configuración es un archivo YAML, suministrado en "
-"el archivo especificado que puede ser «-» para stdin. La salida de la orden "
-"es la configuración actual, de forma que ejecutar esta orden sin el archivo "
-"brinda una copia de la configuración actual de la aplicación."
+"Configura un paquete.  A configuración é un ficheiro YAML, proporcionado no "
+"ficheiro específico que pode ser «-» para stdin. A saída da orde é a "
+"configuración actual, de xeito que se se executa esta orde sen indicar un "
+"ficheiro de entrada proporcionará unha imaxe da configuración actual do "
+"aplicativo."
 
 msgid "Creates a snap package and if available, runs the review scripts."
 msgstr ""
-"Crea un paquete snap y, si están disponibles, ejecuta los «scripts» de "
-"revisión."
+"Crea un paquete snap e, se están dispoñíbeis, executa os scripts de revisión."
 
 msgid "Display a summary of key attributes of the snappy system."
-msgstr "Muestra un resumen de los atributos clave de el sistema snappy."
+msgstr "Mostra un resumo dos atributos principais do sistema snappy."
 
 msgid "Ensures system is running with latest parts"
-msgstr ""
-"Se asegura que el sistema está ejecutando con las partes más recientes"
+msgstr "Asegúrase de que o sistema está en execución coa últimas partes."
 
 msgid "First boot has already run"
-msgstr "El primer arranque ya se ejecutó"
+msgstr "Xa se executou o primeiro arranque"
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid "Generated '%s' snap\n"
-msgstr "Snap «%s» generado\n"
+msgstr "Xerado o paquete snap de «%s»\n"
 
 msgid "Install a snap package"
 msgstr "Instalar un paquete snap"
@@ -112,33 +111,33 @@ msgid "Installing %s\n"
 msgstr "Instalando %s\n"
 
 msgid "List active components installed on a snappy system"
-msgstr "Listar los componentes activos instalados en un sistema snappy"
+msgstr "Lista os compoñentes activos instalados nun sistema snappy"
 
 msgid "List assigned hardware device for a package"
-msgstr "Listar dispositivos de hardware asignados para un paquete"
+msgstr "Lista o dispositivo de hardware asignado a un paquete"
 
 msgid "Log into the store"
-msgstr "Iniciar sesión en la tienda"
+msgstr "Iniciar sesión na tenda"
 
 msgid "Login successful"
 msgstr "Inicio de sesión correcto"
 
 msgid "Name\tDate\tVersion\t"
-msgstr "Nombre\tFecha\tVersión\t"
+msgstr "Nome\tData\tVersión\t"
 
 msgid "Name\tDate\tVersion\tDeveloper\t"
-msgstr "Nombre\tFecha\tVersión\tDesarrollador\t"
+msgstr "Nome\tData\tVersión\tDesenvolvedor\t"
 
 msgid "Name\tVersion\tSummary\t"
-msgstr "Nombre\tVersión\tResumen\t"
+msgstr "Nome\tVersión\tResumo\t"
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid "No snap: '%s' found"
-msgstr "Nigún snap: «%s» encontrado"
+msgstr "Ningún snap: atopouse «%s»"
 
 msgid "Password: "
-msgstr "Contraseña: "
+msgstr "Contrasinal: "
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
@@ -146,29 +145,29 @@ msgid "Purging %s\n"
 msgstr "Purgando %s\n"
 
 msgid "Query the store for available packages"
-msgstr "Consultar la tienda por paquetes disponibles"
+msgstr "Consulta na tenda os paquetes dispoñíbeis"
 
 #. TRANSLATORS: the first %s is a pkgname the second a version
 #, c-format
 msgid "Reboot to use %s version %s."
-msgstr "Reinicie para usar %s versión %s."
+msgstr "Reiniciar para usar %s na versión %s."
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid "Reboot to use the new %s."
-msgstr "Reinicie para usar el nuevo %s."
+msgstr "Reiniciar para usar o novo %s."
 
 #. TRANSLATORS: the %s shows a comma separated list
 #. of package names
 #, c-format
 msgid "Rebooting to satisfy updates for %s\n"
-msgstr "Reiniciando para satisfacer las actualizaciones para %s\n"
+msgstr "Reiniciando para rematar as actualizacións de %s\n"
 
 msgid "Remove a snapp part"
-msgstr "Eliminar una parte de snap"
+msgstr "Retirar unha parte snapp"
 
 msgid "Remove all the data from the listed packages"
-msgstr "Eliminar todos los datos de los paquetes listados"
+msgstr "Eliminar todos os datos dos paquetes da lista"
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
@@ -176,60 +175,59 @@ msgid "Removing %s\n"
 msgstr "Eliminando %s\n"
 
 msgid "Rollback to a previous version of a package"
-msgstr "Volver a una versión anterior de un paquete"
+msgstr "Reverter a unha versión anterior dun paquete"
 
 msgid "Search for packages to install"
 msgstr "Buscar paquetes para instalar"
 
 msgid "Set configuration for an installed package."
-msgstr "Establecer la configuración de un paquete instalado"
+msgstr "Estabelecer a configuración dun paquete instalado."
 
 msgid "Set properties of system or package"
-msgstr "Establecer las propiedades de un sistema o paquete"
+msgstr "Estabelecer as propiedades do sistema ou paquete"
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
 #, c-format
 msgid "Setting %s to version %s\n"
-msgstr "Estableciendo %s a la versión %s\n"
+msgstr "Axustando %s á versión %s\n"
 
 msgid ""
 "This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) "
 "for an installed package."
 msgstr ""
-"Esta orden agrega el acceso a un dispositivo hardware específico (p.ej. "
-"/dev/ttyUSB0) para un paquete instalado."
+"Esta orde engade o acceso a un dispositivo de hardware específico para un "
+"paquete instalado (p.e. /dev/ttyUSB0)."
 
 msgid "This command is no longer available, please use the \"list\" command"
-msgstr "Esta orden ya no está disponible. Utilice «list» en su lugar"
+msgstr "Esta orde xa non está dispoñíbel, use a orde «list»"
 
 msgid "This command list what hardware an installed package can access"
-msgstr ""
-"Esta orden lista el hardware al que tiene acceso un paquete instalado"
+msgstr "Esta orde lista o hardware ao que pode acceder un paquete instalado"
 
 msgid "This command logs the given username into the store"
-msgstr "Esta orden inicia una sesión del usuario especificado en la tienda"
+msgstr "Esta orde rexistra o nome de usuario dado na tenda"
 
 msgid ""
 "This command removes access of a specific hardware device (e.g. "
 "/dev/ttyUSB0) for an installed package."
 msgstr ""
-"Esta orden elimina el acceso a un dispositivo de hardware específico (p.ej. "
-"/dev/ttyUSB0) para un paquete instalado."
+"Esta orde elimina o acceso a un dispositivo específico de hardware (p.e "
+"/dev/ttyUSB0) dun paquete instalado."
 
 msgid "Unassign a hardware device to a package"
-msgstr "Desasignar un dispositivo de hardware a un paquete"
+msgstr "Desligar un dispositivo de hardware dun paquete"
 
 msgid "Update all installed parts"
-msgstr "Actualizar todas las partes intaladas"
+msgstr "Actualizar todas as partes instaladas"
 
 msgid "Use --show-all to see all available forks."
-msgstr "Use --show-all para ver todas las bifurcaciones disponibles."
+msgstr "Usar --show-all para ver as bifurcacións dispoñíbeis."
 
 #. TRANSLATORS: the %s represents a list of installed appnames
 #. (e.g. "apps: foo, bar, baz")
 #, c-format
 msgid "apps: %s\n"
-msgstr "aplicaciones: %s\n"
+msgstr "aplicativos: %s\n"
 
 #. TRANSLATORS: the %s an architecture string
 #, c-format
@@ -238,22 +236,22 @@ msgstr "arquitectura: %s\n"
 
 #. TRANSLATORS: the %s is a size
 msgid "binary-size: %v\n"
-msgstr "tamaño del binario: %v\n"
+msgstr "tamaño do binario: %v\n"
 
 #. TRANSLATORS: the %s is a channel name
 #, c-format
 msgid "channel: %s\n"
-msgstr "canal: %s\n"
+msgstr "canle: %s\n"
 
 #. TRANSLATORS: the %s is a size
 #, c-format
 msgid "data-size: %s\n"
-msgstr "tamaño de los datos: %s\n"
+msgstr "data-tamaño: %s\n"
 
 #. TRANSLATORS: the %s is a comma separated list of framework names
 #, c-format
 msgid "frameworks: %s\n"
-msgstr "entornos de trabajo: %s\n"
+msgstr "contornos de traballo: %s\n"
 
 #. TRANSLATORS: the %s is a date
 #, c-format
@@ -261,7 +259,7 @@ msgid "installed: %s\n"
 msgstr "instalado: %s\n"
 
 msgid "package name is required"
-msgstr "se requiere el nombre del paquete"
+msgstr "precísase o nome do paquete"
 
 #. TRANSLATORS: the %s release string
 #, c-format
@@ -272,8 +270,8 @@ msgid ""
 "snappy autopilot triggered a reboot to boot into an up to date system -- "
 "temprorarily disable the reboot by running 'sudo shutdown -c'"
 msgstr ""
-"snappy autopilot provocó un reinicio para arrancar en un sistema actualizado "
-"-- desactive temporalmente el reinicio ejecutando «sudo shutdown -c»"
+"snappy autopilot activou un reinicio para comezar nun sistema actualizado -- "
+"desactive temporalmente o reinicio executando «sudo shutdown -c»"
 
 #. TRANSLATORS: the %s is a date
 #, c-format
@@ -286,4 +284,4 @@ msgid "version: %s\n"
 msgstr "versión: %s\n"
 
 msgid "versions"
-msgstr "versiones"
+msgstr "versións"

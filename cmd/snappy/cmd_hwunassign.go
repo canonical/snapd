@@ -57,7 +57,7 @@ func (x *cmdHWUnassign) doHWUnassign() error {
 		return err
 	}
 
-	// TRANSLATORS: the %s is a pkgname
+	// TRANSLATORS: the first %s is a pkgname, the second %s is a path
 	fmt.Printf(i18n.G("'%s' is no longer allowed to access '%s'\n"), x.Positional.PackageName, x.Positional.DevicePath)
 	return nil
 }

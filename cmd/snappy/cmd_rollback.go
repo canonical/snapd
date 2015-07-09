@@ -65,7 +65,7 @@ func (x *cmdRollback) doRollback() error {
 	if err != nil {
 		return err
 	}
-	// the first %s is a pkgname, the second %s is the new version
+	// TRANSLATORS: the first %s is a pkgname, the second %s is the new version
 	fmt.Printf(i18n.G("Setting %s to version %s\n"), pkg, nowVersion)
 
 	m := snappy.NewMetaRepository()

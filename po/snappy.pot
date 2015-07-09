@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-07-02 14:24+0200\n"
+        "POT-Creation-Date: 2015-07-02 11:15-0600\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -26,17 +26,17 @@ msgstr  ""
 msgid   "%s: %s\n"
 msgstr  ""
 
-#. TRANSLATORS: the %s is a pkgname
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid   "'%s' is no longer allowed to access '%s'\n"
 msgstr  ""
 
-#. the first %s is a pkgname, the second %s is a path
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid   "'%s' is now allowed to access '%s'\n"
 msgstr  ""
 
-#. the first %s is a pkgname, the second %s is a path
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
 msgid   "'%s' previously allowed access to '%s'. Skipping\n"
 msgstr  ""
@@ -86,20 +86,6 @@ msgstr  ""
 msgid   "First boot has already run"
 msgstr  ""
 
-#.
-#. Disabling review tools run until the output reflects reality more closely
-#.
-#. _, err = exec.LookPath(clickReview)
-#. if err != nil {
-#. fmt.Fprintf(os.Stderr, "Warning: could not review package (%s not available)\n", clickReview)
-#. }
-#.
-#. cmd := exec.Command(clickReview, snapPackage)
-#. cmd.Stdout = os.Stdout
-#. cmd.Stderr = os.Stderr
-#. // we ignore the error for now
-#. _ = cmd.Run()
-#.
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Generated '%s' snap\n"
@@ -150,12 +136,12 @@ msgstr  ""
 msgid   "Query the store for available packages"
 msgstr  ""
 
-#. the first %s is a pkgname the second a version
+#. TRANSLATORS: the first %s is a pkgname the second a version
 #, c-format
 msgid   "Reboot to use %s version %s."
 msgstr  ""
 
-#. the %s is a pkgname
+#. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Reboot to use the new %s."
 msgstr  ""
@@ -189,7 +175,7 @@ msgstr  ""
 msgid   "Set properties of system or package"
 msgstr  ""
 
-#. the first %s is a pkgname, the second %s is the new version
+#. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
 #, c-format
 msgid   "Setting %s to version %s\n"
 msgstr  ""

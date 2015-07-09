@@ -1,3 +1,39 @@
+ubuntu-snappy (1.5ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Use O_TRUNC when copying files
+    - Added path redefinition to include test's binaries location
+    - Don't run update-grub, instead use grub.cfg from the oem
+      package
+    - Do network configuration from first boot
+    - zero size systemd of new partition made executable to
+      prevent unrecoverable boot failure
+    - Close downloaded files
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Mon, 06 Jul 2015 15:14:37 -0300
+
+ubuntu-snappy (1.4ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Allow to run the integration tests using snappy from branch
+    - Add CopyFileOverwrite flag and behaviour to helpers.CopyFile
+    - add a bunch of missing i18n.G() now that we have gettext
+    - Generate only the translators comments that start with
+      TRANSLATORS
+    - Try both clickpkg and snappypkg when dropping privs
+
+ -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Thu, 02 Jul 2015 16:21:53 -0300
+
+ubuntu-snappy (1.3ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - gettext support
+    - use snappypkg user for the installed snaps
+    - switch to system-image-3.x as the system-image backend
+    - more reliable developer mode detection
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 01 Jul 2015 10:37:05 +0200
+
 ubuntu-snappy (1.2-0ubuntu1) wily; urgency=medium
 
   * New upstream release, including the following changes:

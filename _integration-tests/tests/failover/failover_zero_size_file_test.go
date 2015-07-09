@@ -21,12 +21,13 @@ package failover
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
 	. "../common"
 
-	. "gopkg.in/check.v1"
+	check "gopkg.in/check.v1"
 )
 
 const (
@@ -43,80 +44,90 @@ type zeroSizeKernel struct{}
 type zeroSizeInitrd struct{}
 type zeroSizeSystemd struct{}
 
-func (zeroSizeKernel) set(c *C) {
+func (zeroSizeKernel) set(c *check.C) {
 	commonSet(c, origBootFilenamePattern, kernelFilename)
 }
 
-func (zeroSizeKernel) unset(c *C) {
+func (zeroSizeKernel) unset(c *check.C) {
 	commonUnset(c, origBootFilenamePattern, kernelFilename)
 }
 
-func (zeroSizeInitrd) set(c *C) {
+func (zeroSizeInitrd) set(c *check.C) {
 	commonSet(c, origBootFilenamePattern, initrdFilename)
 }
 
-func (zeroSizeInitrd) unset(c *C) {
+func (zeroSizeInitrd) unset(c *check.C) {
 	commonUnset(c, origBootFilenamePattern, initrdFilename)
 }
 
-func (zeroSizeSystemd) set(c *C) {
+func (zeroSizeSystemd) set(c *check.C) {
 	commonSet(c, origSystemdFilenamePattern, systemdFilename)
 }
 
-func (zeroSizeSystemd) unset(c *C) {
+func (zeroSizeSystemd) unset(c *check.C) {
 	commonUnset(c, origSystemdFilenamePattern, systemdFilename)
 }
 
-func commonSet(c *C, origPattern, filename string) {
+func commonSet(c *check.C, origPattern, filename string) {
 	filenamePattern := fmt.Sprintf(origPattern, "", filename)
 	completePattern := filepath.Join(
-		baseOtherPath,
+		BaseOtherPath,
 		filenamePattern)
 	oldFilename := getSingleFilename(c, completePattern)
 	filenameSuffix := fmt.Sprintf(
 		strings.Replace(origPattern, "*", "", 1), destFilenamePrefix, filepath.Base(oldFilename))
 	newFilename := fmt.Sprintf(
-		"%s/%s", baseOtherPath, filenameSuffix)
+		"%s/%s", BaseOtherPath, filenameSuffix)
 
-	renameFile(c, baseOtherPath, oldFilename, newFilename)
+	renameFile(c, BaseOtherPath, oldFilename, newFilename)
 }
 
-func commonUnset(c *C, origPattern, filename string) {
+func commonUnset(c *check.C, origPattern, filename string) {
 	completePattern := filepath.Join(
-		baseOtherPath,
+		BaseOtherPath,
 		fmt.Sprintf(origPattern, destFilenamePrefix, filename))
 	oldFilename := getSingleFilename(c, completePattern)
 	newFilename := strings.Replace(oldFilename, destFilenamePrefix, "", 1)
 
-	renameFile(c, baseOtherPath, oldFilename, newFilename)
+	renameFile(c, BaseOtherPath, oldFilename, newFilename)
 }
 
-func renameFile(c *C, basePath, oldFilename, newFilename string) {
-	makeWritable(c, basePath)
+func renameFile(c *check.C, basePath, oldFilename, newFilename string) {
+	MakeWritable(c, basePath)
+	defer MakeReadonly(c, basePath)
 	ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
 	ExecCommand(c, "sudo", "touch", oldFilename)
-	makeReadonly(c, basePath)
+
+	mode := getFileMode(c, newFilename)
+	ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), oldFilename)
 }
 
-func getSingleFilename(c *C, pattern string) string {
+func getFileMode(c *check.C, filePath string) os.FileMode {
+	info, err := os.Stat(filePath)
+	c.Check(err, check.IsNil, check.Commentf("Error getting Stat of %s", filePath))
+
+	return info.Mode()
+}
+
+func getSingleFilename(c *check.C, pattern string) string {
 	matches, err := filepath.Glob(pattern)
 
-	c.Assert(err, IsNil, Commentf("Error: %v", err))
-	c.Assert(len(matches), Equals, 1)
+	c.Assert(err, check.IsNil, check.Commentf("Error: %v", err))
+	c.Assert(len(matches), check.Equals, 1)
 
 	return matches[0]
 }
 
 /*
-func (s *failoverSuite) TestZeroSizeKernel(c *C) {
+func (s *failoverSuite) TestZeroSizeKernel(c *check.C) {
 	commonFailoverTest(c, zeroSizeKernel{})
 }
 */
 
-func (s *failoverSuite) TestZeroSizeInitrd(c *C) {
+func (s *failoverSuite) TestZeroSizeInitrd(c *check.C) {
 	commonFailoverTest(c, zeroSizeInitrd{})
 }
 
-func (s *failoverSuite) TestZeroSizeSystemd(c *C) {
+func (s *failoverSuite) TestZeroSizeSystemd(c *check.C) {
 	commonFailoverTest(c, zeroSizeSystemd{})
 }

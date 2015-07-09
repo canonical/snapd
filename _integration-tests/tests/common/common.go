@@ -33,12 +33,17 @@ import (
 )
 
 const (
+	// BaseOtherPath is the path to the B system partition.
+	BaseOtherPath   = "/writable/cache/system"
 	needsRebootFile = "/tmp/needs-reboot"
+	channelCfgFile  = "/etc/system-image/channel.ini"
 )
 
 // SnappySuite is a structure used as a base test suite for all the snappy
 // integration tests.
-type SnappySuite struct{}
+type SnappySuite struct {
+	cleanupHandlers []func()
+}
 
 // SetUpSuite disables the snappy autopilot. It will run before all the
 // integration suites.
@@ -59,21 +64,60 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 		c.Skip(fmt.Sprintf("****** Skipped %s during reboot caused by %s",
 			c.TestName(), contents))
 	} else {
-
-		afterReboot := os.Getenv("ADT_REBOOT_MARK")
-
-		if afterReboot == "" {
+		if checkRebootMark("") {
 			c.Logf("****** Running %s", c.TestName())
 			SetSavedVersion(c, GetCurrentVersion(c))
 		} else {
-			if afterReboot == c.TestName() {
+			if AfterReboot(c) {
 				c.Logf("****** Resuming %s after reboot", c.TestName())
 			} else {
 				c.Skip(fmt.Sprintf("****** Skipped %s after reboot caused by %s",
-					c.TestName(), afterReboot))
+					c.TestName(), os.Getenv("ADT_REBOOT_MARK")))
 			}
 		}
 	}
+	// clear slice
+	s.cleanupHandlers = nil
+}
+
+// TearDownTest cleans up the channel.ini files in case they were changed by
+// the test.
+// It also runs the cleanup handlers
+func (s *SnappySuite) TearDownTest(c *check.C) {
+	if !needsReboot() && checkRebootMark("") {
+		// Only restore the channel config files if the reboot has been handled.
+		m := make(map[string]string)
+		m[channelCfgBackupFile()] = "/"
+		m[channelCfgOtherBackupFile()] = BaseOtherPath
+		for backup, target := range m {
+			if _, err := os.Stat(backup); err == nil {
+				MakeWritable(c, target)
+				defer MakeReadonly(c, target)
+				original := filepath.Join(target, channelCfgFile)
+				c.Logf("Restoring %s...", original)
+				ExecCommand(c, "sudo", "mv", backup, original)
+			}
+		}
+	}
+
+	// run cleanup handlers and clear the slice
+	for _, f := range s.cleanupHandlers {
+		f()
+	}
+	s.cleanupHandlers = nil
+}
+
+// AddCleanup adds a new cleanup function to the test
+func (s *SnappySuite) AddCleanup(f func()) {
+	s.cleanupHandlers = append(s.cleanupHandlers, f)
+}
+
+func channelCfgBackupFile() string {
+	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "channel.ini")
+}
+
+func channelCfgOtherBackupFile() string {
+	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "channel.ini.other")
 }
 
 // ExecCommand executes a shell command and returns a string with the output
@@ -83,6 +127,7 @@ func ExecCommand(c *check.C, cmds ...string) string {
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	output, err := cmd.CombinedOutput()
 	stringOutput := string(output)
+	fmt.Print(stringOutput)
 	c.Assert(err, check.IsNil, check.Commentf("Error: %v", stringOutput))
 	return stringOutput
 }
@@ -117,10 +162,56 @@ func GetCurrentVersion(c *check.C) int {
 	return version
 }
 
-// CallUpdate executes an snappy update.
+// CallUpdate executes an snappy update. If there is no update available, the
+// channel version will be modified to fake an update.
 func CallUpdate(c *check.C) {
 	c.Log("Calling snappy update...")
-	ExecCommand(c, "sudo", "snappy", "update")
+	output := ExecCommand(c, "sudo", "snappy", "update")
+	// XXX Instead of trying the update, we should have a command to tell us
+	// if there is an available update. --elopio - 2015-07-01
+	if output == "" {
+		c.Log("There is no update available.")
+		fakeAvailableUpdate(c)
+		ExecCommand(c, "sudo", "snappy", "update")
+	}
+}
+
+func fakeAvailableUpdate(c *check.C) {
+	c.Log("Faking an available update...")
+	currentVersion := GetCurrentVersion(c)
+	switchChannelVersion(c, currentVersion, currentVersion-1)
+	SetSavedVersion(c, currentVersion-1)
+}
+
+func switchChannelVersion(c *check.C, oldVersion, newVersion int) {
+	m := make(map[string]string)
+	m["/"] = channelCfgBackupFile()
+	m[BaseOtherPath] = channelCfgOtherBackupFile()
+	for target, backup := range m {
+		file := filepath.Join(target, channelCfgFile)
+		if _, err := os.Stat(file); err == nil {
+			MakeWritable(c, target)
+			defer MakeReadonly(c, target)
+			// Back up the file. It will be restored during the test tear down.
+			ExecCommand(c, "cp", file, backup)
+			ExecCommand(c,
+				"sudo", "sed", "-i",
+				fmt.Sprintf(
+					"s/build_number: %d/build_number: %d/g",
+					oldVersion, newVersion),
+				file)
+		}
+	}
+}
+
+// MakeWritable remounts a path with read and write permissions.
+func MakeWritable(c *check.C, path string) {
+	ExecCommand(c, "sudo", "mount", "-o", "remount,rw", path)
+}
+
+// MakeReadonly remounts a path with only read permissions.
+func MakeReadonly(c *check.C, path string) {
+	ExecCommand(c, "sudo", "mount", "-o", "remount,ro", path)
 }
 
 // Reboot requests a reboot using the test name as the mark.
@@ -185,4 +276,14 @@ func GetSavedVersion(c *check.C) int {
 
 func getVersionFile() string {
 	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "version")
+}
+
+// InstallSnap executes the required command to install the specified snap
+func InstallSnap(c *check.C, packageName string) string {
+	return ExecCommand(c, "sudo", "snappy", "install", packageName)
+}
+
+// RemoveSnap executes the required command to remove the specified snap
+func RemoveSnap(c *check.C, packageName string) string {
+	return ExecCommand(c, "sudo", "snappy", "remove", packageName)
 }

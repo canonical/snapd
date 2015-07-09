@@ -49,9 +49,11 @@ import (
 // }
 import "C"
 
-// for compat with the old snappy, once that is gone we can drop to a
-// different user
-const dropPrivsUser = "snappypkg"
+// we keep supporting clickpkg for compat with older images
+var dropPrivsUsers = []string{
+	"snappypkg",
+	"clickpkg",
+}
 
 type cmdInternalUnpack struct {
 	Positional struct {
@@ -123,8 +125,18 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 	defer d.Close()
 
 	if helpers.ShouldDropPrivs() {
+		var dropPrivsUser string
 
+		// first find out what user to use
 		passFile := passwdFile(rootDir, "passwd")
+		for _, dropPrivsUser = range dropPrivsUsers {
+			_, err := readUID(dropPrivsUser, passFile)
+			if err == nil {
+				break
+			}
+		}
+
+		// then get uid/gid
 		uid, err := readUID(dropPrivsUser, passFile)
 		if err != nil {
 			return err
