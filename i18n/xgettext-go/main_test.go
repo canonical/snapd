@@ -22,7 +22,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"go/token"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
@@ -38,8 +37,32 @@ type xgettextTestSuite struct {
 
 var _ = Suite(&xgettextTestSuite{})
 
-func (s *xgettextTestSuite) TestFormatComment(c *C) {
+// test helper
+func makeGoSourceFile(c *C, content []byte) string {
+	fname := filepath.Join(c.MkDir(), "foo.go")
+	err := ioutil.WriteFile(fname, []byte(content), 0644)
+	c.Assert(err, IsNil)
 
+	return fname
+}
+
+func (s *xgettextTestSuite) SetUpTest(c *C) {
+	// our test defaults
+	opts.NoLocation = false
+	opts.AddCommentsTag = "TRANSLATORS:"
+	opts.Keyword = "i18n.G"
+	opts.KeywordPlural = "i18n.NG"
+	opts.SortOutput = true
+	opts.PackageName = "snappy"
+	opts.MsgIdBugsAddress = "snappy-devel@lists.ubuntu.com"
+
+	// mock time
+	formatTime = func() string {
+		return "2015-06-30 14:48+0200"
+	}
+}
+
+func (s *xgettextTestSuite) TestFormatComment(c *C) {
 	var tests = []struct {
 		in  string
 		out string
@@ -55,8 +78,29 @@ func (s *xgettextTestSuite) TestFormatComment(c *C) {
 	}
 }
 
+func (s *xgettextTestSuite) TestProcessFilesSimple(c *C) {
+	fname := makeGoSourceFile(c, []byte(`package main
+
+func main() {
+    // TRANSLATORS: foo comment
+    i18n.G("foo")
+}
+`))
+	err := processFiles([]string{fname})
+	c.Assert(err, IsNil)
+
+	c.Assert(msgIDs, DeepEquals, map[string]msgID{
+		"foo": msgID{
+			msgid:   "foo",
+			comment: "#. TRANSLATORS: foo comment\n",
+			fname:   fname,
+			line:    5,
+		},
+	})
+}
+
 func (s *xgettextTestSuite) TestIntegration(c *C) {
-	src := `package main
+	fname := makeGoSourceFile(c, []byte(`package main
 
 func main() {
     // TRANSLATORS: foo comment
@@ -71,27 +115,9 @@ func main() {
 
     i18n.G("zz %s")
 }
-`
-	fname := filepath.Join(c.MkDir(), "foo.go")
-	err := ioutil.WriteFile(fname, []byte(src), 0644)
+`))
+	err := processFiles([]string{fname})
 	c.Assert(err, IsNil)
-
-	// we want this for this test
-	opts.NoLocation = false
-	opts.AddCommentsTag = "TRANSLATORS:"
-	opts.Keyword = "i18n.G"
-	opts.KeywordPlural = "i18n.NG"
-	opts.SortOutput = true
-	opts.PackageName = "snappy"
-	opts.MsgIdBugsAddress = "snappy-devel@lists.ubuntu.com"
-
-	// mock time
-	formatTime = func() string {
-		return "2015-06-30 14:48+0200"
-	}
-
-	fset := token.NewFileSet()
-	processSingleGoSource(fset, fname)
 
 	out := bytes.NewBuffer([]byte(""))
 	writePotFile(out)

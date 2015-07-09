@@ -25,7 +25,7 @@ type msgID struct {
 	formatHint  string
 }
 
-var msgIDs = make(map[string]msgID)
+var msgIDs map[string]msgID
 
 func formatComment(com string) string {
 	out := ""
@@ -127,7 +127,21 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 	return true
 }
 
-func processSingleGoSource(fset *token.FileSet, fname string) {
+func processFiles(args []string) error {
+	// go over the input files
+	msgIDs = make(map[string]msgID)
+
+	fset := token.NewFileSet()
+	for _, fname := range args {
+		if err := processSingleGoSource(fset, fname); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func processSingleGoSource(fset *token.FileSet, fname string) error {
 	fnameContent, err := ioutil.ReadFile(fname)
 	if err != nil {
 		panic(err)
@@ -143,6 +157,7 @@ func processSingleGoSource(fset *token.FileSet, fname string) {
 		return inspectNodeForTranslations(fset, f, n)
 	})
 
+	return nil
 }
 
 var formatTime = func() string {
@@ -233,10 +248,8 @@ func main() {
 		log.Fatalf("ParseArgs failed %s", err)
 	}
 
-	// go over the input files
-	fset := token.NewFileSet()
-	for _, fname := range args[1:] {
-		processSingleGoSource(fset, fname)
+	if err := processFiles(args[1:]); err != nil {
+		log.Fatalf("processFiles failed with: %s", err)
 	}
 
 	out := os.Stdout
