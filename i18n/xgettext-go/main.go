@@ -21,6 +21,7 @@ type msgId struct {
 	comment     string
 	fname       string
 	line        int
+	formatHint  string
 }
 
 var msgIds = make(map[string]msgId)
@@ -100,11 +101,19 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 				return strings.Replace(s, "\n", "\\n", -1)
 			}
 
+			// FIXME: too simplistic(?), no %% is considered
+			formatHint := ""
+			if strings.Contains(i18nStr, "%") || strings.Contains(i18nStrPlural, "%") {
+				// well, not quite correct but close enough
+				formatHint = "c-format"
+			}
+
 			if i18nStr != "" {
 				msgidStr := formatI18nStr(i18nStr)
 				posCall := fset.Position(n.Pos())
 				msgIds[msgidStr] = msgId{
 					msgid:       msgidStr,
+					formatHint:  formatHint,
 					msgidPlural: formatI18nStr(i18nStrPlural),
 					fname:       posCall.Filename,
 					line:        posCall.Line,
@@ -171,7 +180,7 @@ msgstr  "Project-Id-Version: %s\n"
 		sort.Strings(sortedKeys)
 	}
 
-	// output sorted
+	// FIXME: use template here?
 	for _, k := range sortedKeys {
 		msgid := msgIds[k]
 		if !opts.NoLocation {
@@ -179,6 +188,9 @@ msgstr  "Project-Id-Version: %s\n"
 		}
 		if opts.AddComments || opts.AddCommentsTag != "" {
 			fmt.Fprintf(out, "%s", msgid.comment)
+		}
+		if msgid.formatHint != "" {
+			fmt.Fprintf(out, "#, %s\n", msgid.formatHint)
 		}
 		fmt.Fprintf(out, "msgid   \"%v\"\n", msgid.msgid)
 		if msgid.msgidPlural != "" {

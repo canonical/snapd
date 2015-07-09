@@ -68,6 +68,8 @@ func main() {
 
     // TRANSLATORS: plural
     i18n.NG("singular", "plural", 99)
+
+    i18n.G("zz %s")
 }
 `
 	fname := filepath.Join(c.MkDir(), "foo.go")
@@ -128,6 +130,11 @@ msgid   "singular"
 msgid_plural   "plural"
 msgstr[0]  ""
 msgstr[1]  ""
+
+#: %[1]s:14
+#, c-format
+msgid   "zz %%s"
+msgstr  ""
 
 `, fname)
 	c.Assert(out.String(), Equals, expected)
