@@ -38,12 +38,13 @@ const (
 	defaultChannel = "edge"
 	defaultSSHPort = 22
 	defaultGoArm   = "7"
-	controlFile    = "_integration-tests/data/output/control"
+	tplOutputDir   = "_integration-tests/data/output/"
 	controlTpl     = "_integration-tests/data/tpl/control"
 )
 
 var (
 	commonSSHOptions   = []string{"---", "ssh"}
+	controlFile        = filepath.Join(tplOutputDir, "control")
 	testPackagesLatest = []string{"latest", "failover"}
 	testPackageUpdate  = []string{"update"}
 	testPackages       = append(testPackagesLatest, testPackageUpdate...)
@@ -191,6 +192,7 @@ func createControlFile(testFilter string, testList []string, includeShellTest bo
 		log.Fatalf("Error reading adt-run control template %s", controlTpl)
 	}
 
+	prepareTargetDir(tplOutputDir)
 	outputFile, err := os.Create(controlFile)
 	if err != nil {
 		log.Fatalf("Error creating control file %s", controlFile)
