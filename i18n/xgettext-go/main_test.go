@@ -99,6 +99,45 @@ func main() {
 	})
 }
 
+const header = `# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid   ""
+msgstr  "Project-Id-Version: snappy\n"
+        "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
+        "POT-Creation-Date: 2015-06-30 14:48+0200\n"
+        "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+        "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+        "Language-Team: LANGUAGE <LL@li.org>\n"
+        "Language: \n"
+        "MIME-Version: 1.0\n"
+        "Content-Type: text/plain; charset=CHARSET\n"
+        "Content-Transfer-Encoding: 8bit\n"
+`
+
+func (s *xgettextTestSuite) TestWriteOutputSimple(c *C) {
+	msgIDs = map[string]msgID{
+		"foo": msgID{
+			msgid: "foo",
+			fname: "fname",
+			line:  2,
+		},
+	}
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+
+	expected := fmt.Sprintf(`%s
+#: fname:2
+msgid   "foo"
+msgstr  ""
+
+`, header)
+	c.Assert(out.String(), Equals, expected)
+}
+
 func (s *xgettextTestSuite) TestIntegration(c *C) {
 	fname := makeGoSourceFile(c, []byte(`package main
 
@@ -122,46 +161,29 @@ func main() {
 	out := bytes.NewBuffer([]byte(""))
 	writePotFile(out)
 
-	expected := fmt.Sprintf(`# SOME DESCRIPTIVE TITLE.
-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the PACKAGE package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
-#
-#, fuzzy
-msgid   ""
-msgstr  "Project-Id-Version: snappy\n"
-        "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-06-30 14:48+0200\n"
-        "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-        "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-        "Language-Team: LANGUAGE <LL@li.org>\n"
-        "Language: \n"
-        "MIME-Version: 1.0\n"
-        "Content-Type: text/plain; charset=CHARSET\n"
-        "Content-Transfer-Encoding: 8bit\n"
-
-#: %[1]s:9
+	expected := fmt.Sprintf(`%s
+#: %[2]s:9
 msgid   "abc"
 msgstr  ""
 
-#: %[1]s:6
+#: %[2]s:6
 #. TRANSLATORS: foo comment
 #. with multiple lines
 msgid   "foo"
 msgstr  ""
 
-#: %[1]s:12
+#: %[2]s:12
 #. TRANSLATORS: plural
 msgid   "singular"
 msgid_plural   "plural"
 msgstr[0]  ""
 msgstr[1]  ""
 
-#: %[1]s:14
+#: %[2]s:14
 #, c-format
 msgid   "zz %%s"
 msgstr  ""
 
-`, fname)
+`, header, fname)
 	c.Assert(out.String(), Equals, expected)
 }
