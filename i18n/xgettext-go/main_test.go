@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -280,12 +281,22 @@ func main() {
     i18n.G("zz %s")
 }
 `))
-	err := processFiles([]string{fname})
+
+	// a real integration test :)
+	outName := filepath.Join(c.MkDir(), "snappy.pot")
+	os.Args = []string{"test-binary",
+		"--output", outName,
+		"--keyword", "i18n.G",
+		"--keyword-plural", "i18n.NG",
+		"--msgid-bugs-address", "snappy-devel@lists.ubuntu.com",
+		"--package-name", "snappy",
+		fname,
+	}
+	main()
+
+	// verify its what we expect
+	got, err := ioutil.ReadFile(outName)
 	c.Assert(err, IsNil)
-
-	out := bytes.NewBuffer([]byte(""))
-	writePotFile(out)
-
 	expected := fmt.Sprintf(`%s
 #: %[2]s:9
 msgid   "abc"
@@ -310,5 +321,5 @@ msgid   "zz %%s"
 msgstr  ""
 
 `, header, fname)
-	c.Assert(out.String(), Equals, expected)
+	c.Assert(string(got), Equals, expected)
 }
