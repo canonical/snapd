@@ -44,7 +44,7 @@ func init() {
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "se")
-	addOptionDescriptionOrPanic(cmd, "show-all", i18n.G("Show all available forks of a package"))
+	addOptionDescription(cmd, "show-all", i18n.G("Show all available forks of a package"))
 }
 
 func (x *cmdSearch) Execute(args []string) (err error) {

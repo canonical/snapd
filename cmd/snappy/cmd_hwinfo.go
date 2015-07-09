@@ -46,7 +46,7 @@ func init() {
 	if err != nil {
 		logger.Panicf("Unable to hwinfo: %v", err)
 	}
-	addOptionDescriptionOrPanic(arg, "package name", i18n.G("List assigned hardware for a specific installed package"))
+	addOptionDescription(arg, "package name", i18n.G("List assigned hardware for a specific installed package"))
 }
 
 func outputHWAccessForPkgname(pkgname string, writePaths []string) {

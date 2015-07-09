@@ -47,10 +47,10 @@ func init() {
 	if err != nil {
 		logger.Panicf("Unable to install: %v", err)
 	}
-	addOptionDescriptionOrPanic(arg, "allow-unauthenticated", i18n.G("Install snaps even if the signature can not be verified."))
-	addOptionDescriptionOrPanic(arg, "no-gc", i18n.G("Do not clean up old versions of the package."))
-	addOptionDescriptionOrPanic(arg, "package name", i18n.G("The Package to install (name or path)"))
-	addOptionDescriptionOrPanic(arg, "config file", i18n.G("The configuration for the given install"))
+	addOptionDescription(arg, "allow-unauthenticated", i18n.G("Install snaps even if the signature can not be verified."))
+	addOptionDescription(arg, "no-gc", i18n.G("Do not clean up old versions of the package."))
+	addOptionDescription(arg, "package name", i18n.G("The Package to install (name or path)"))
+	addOptionDescription(arg, "config file", i18n.G("The configuration for the given install"))
 }
 
 func (x *cmdInstall) Execute(args []string) error {

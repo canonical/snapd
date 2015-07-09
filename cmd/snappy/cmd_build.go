@@ -45,7 +45,7 @@ func init() {
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "bu")
-	addOptionDescriptionOrPanic(cmd, "output", i18n.G("Specify an alternate output directory for the resulting package"))
+	addOptionDescription(cmd, "output", i18n.G("Specify an alternate output directory for the resulting package"))
 }
 
 func (x *cmdBuild) Execute(args []string) (err error) {

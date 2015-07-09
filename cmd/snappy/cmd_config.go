@@ -49,8 +49,8 @@ func init() {
 	if err != nil {
 		logger.Panicf("Unable to config: %v", err)
 	}
-	addOptionDescriptionOrPanic(arg, "package name", i18n.G("Set configuration for a specific installed package"))
-	addOptionDescriptionOrPanic(arg, "config file", i18n.G("The configuration for the given file"))
+	addOptionDescription(arg, "package name", i18n.G("Set configuration for a specific installed package"))
+	addOptionDescription(arg, "config file", i18n.G("The configuration for the given file"))
 }
 
 func (x *cmdConfig) Execute(args []string) (err error) {

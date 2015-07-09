@@ -57,8 +57,8 @@ func init() {
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "li")
-	addOptionDescriptionOrPanic(cmd, "updates", i18n.G("Show available updates (requires network)"))
-	addOptionDescriptionOrPanic(cmd, "verbose", i18n.G("Show channel information and expand all fields"))
+	addOptionDescription(cmd, "updates", i18n.G("Show available updates (requires network)"))
+	addOptionDescription(cmd, "verbose", i18n.G("Show channel information and expand all fields"))
 }
 
 func (x *cmdList) Execute(args []string) (err error) {

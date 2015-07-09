@@ -49,7 +49,7 @@ func init() {
 	if err != nil {
 		logger.Panicf("Unable to login: %v", err)
 	}
-	addOptionDescriptionOrPanic(arg, "userid", i18n.G("Username for the login"))
+	addOptionDescription(arg, "userid", i18n.G("Username for the login"))
 }
 
 func requestStoreTokenWith2faRetry(username, password, tokenName string) (*snappy.StoreToken, error) {

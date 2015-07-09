@@ -46,8 +46,8 @@ func init() {
 	if err != nil {
 		logger.Panicf("Unable to hwunassign: %v", err)
 	}
-	addOptionDescriptionOrPanic(arg, "package name", i18n.G("Remove hardware from a specific installed package"))
-	addOptionDescriptionOrPanic(arg, "device path", i18n.G("The hardware device path (e.g. /dev/ttyUSB0)"))
+	addOptionDescription(arg, "package name", i18n.G("Remove hardware from a specific installed package"))
+	addOptionDescription(arg, "device path", i18n.G("The hardware device path (e.g. /dev/ttyUSB0)"))
 }
 
 func (x *cmdHWUnassign) Execute(args []string) error {

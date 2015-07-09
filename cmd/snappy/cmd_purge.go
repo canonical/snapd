@@ -45,7 +45,7 @@ func init() {
 	if err != nil {
 		logger.Panicf("Unable to purge: %v", err)
 	}
-	addOptionDescriptionOrPanic(arg, "installed", i18n.G("Purge an installed package."))
+	addOptionDescription(arg, "installed", i18n.G("Purge an installed package."))
 }
 
 func (x *cmdPurge) Execute(args []string) error {

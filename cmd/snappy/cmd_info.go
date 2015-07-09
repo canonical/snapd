@@ -55,8 +55,8 @@ func init() {
 	if err != nil {
 		logger.Panicf("Unable to info: %v", err)
 	}
-	addOptionDescriptionOrPanic(arg, "verbose", i18n.G("Provides more detailed information"))
-	addOptionDescriptionOrPanic(arg, "package name", i18n.G("Provide information about a specific installed package"))
+	addOptionDescription(arg, "verbose", i18n.G("Provides more detailed information"))
+	addOptionDescription(arg, "package name", i18n.G("Provide information about a specific installed package"))
 }
 
 func (x *cmdInfo) Execute(args []string) (err error) {

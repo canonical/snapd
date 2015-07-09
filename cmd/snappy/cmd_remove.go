@@ -40,7 +40,7 @@ func init() {
 	if err != nil {
 		logger.Panicf("Unable to remove: %v", err)
 	}
-	addOptionDescriptionOrPanic(arg, "no-gc", i18n.G("Do not clean up old versions of the package."))
+	addOptionDescription(arg, "no-gc", i18n.G("Do not clean up old versions of the package."))
 }
 
 func (x *cmdRemove) Execute(args []string) (err error) {

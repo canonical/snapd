@@ -45,7 +45,7 @@ func (s *CmdTestSuite) TestAddOptionDescriptionOrPanicForOption(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(arg.Options()[0].LongName, Equals, "verbose")
 	c.Assert(arg.Options()[0].Description, Equals, "")
-	addOptionDescriptionOrPanic(arg, "verbose", "verbose description")
+	addOptionDescription(arg, "verbose", "verbose description")
 	c.Assert(arg.Options()[0].Description, Equals, "verbose description")
 }
 
@@ -61,7 +61,7 @@ func (s *CmdTestSuite) TestAddOptionDescriptionOrPanicForPositional(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(arg.Args()[0].Name, Equals, "package name")
 	c.Assert(arg.Args()[0].Description, Equals, "")
-	addOptionDescriptionOrPanic(arg, "package name", "pkgname description")
+	addOptionDescription(arg, "package name", "pkgname description")
 	c.Assert(arg.Args()[0].Description, Equals, "pkgname description")
 }
 
@@ -70,7 +70,7 @@ func (s *CmdTestSuite) TestAddOptionDescriptionOrPanicWillPanic(c *C) {
 	arg, err := parser.AddCommand("mock", "shortHelp", "longHelp", &struct{}{})
 	c.Assert(err, IsNil)
 	f := func() {
-		addOptionDescriptionOrPanic(arg, "package name", "pkgname description")
+		addOptionDescription(arg, "package name", "pkgname description")
 	}
 	c.Assert(f, PanicMatches, "can not set option description for \"package name\"")
 }

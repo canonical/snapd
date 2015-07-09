@@ -48,8 +48,8 @@ func init() {
 	if err != nil {
 		logger.Panicf("Unable to rollback: %v", err)
 	}
-	addOptionDescriptionOrPanic(arg, "package name", i18n.G("The package to rollback "))
-	addOptionDescriptionOrPanic(arg, "version", i18n.G("The version to rollback to"))
+	addOptionDescription(arg, "package name", i18n.G("The package to rollback "))
+	addOptionDescription(arg, "version", i18n.G("The version to rollback to"))
 }
 
 func (x *cmdRollback) Execute(args []string) (err error) {
