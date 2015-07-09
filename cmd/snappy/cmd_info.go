@@ -110,9 +110,8 @@ func info() error {
 	fmt.Printf(i18n.G("architecture: %s\n"), snappy.Architecture())
 	// TRANSLATORS: the %s is a comma separated list of framework names
 	fmt.Printf(i18n.G("frameworks: %s\n"), strings.Join(frameworks, ", "))
-	/*TRANSLATORS: the %s represents a list of installed appnames
-	               (e.g. "apps: foo, bar, baz")
-        */
+	//TRANSLATORS: the %s represents a list of installed appnames
+	//             (e.g. "apps: foo, bar, baz")
 	fmt.Printf(i18n.G("apps: %s\n"), strings.Join(apps, ", "))
 
 	return nil
