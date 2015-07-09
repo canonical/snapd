@@ -71,10 +71,18 @@ func main() {
 	err := ioutil.WriteFile(fname, []byte(src), 0644)
 	c.Assert(err, IsNil)
 
+	// we want this for this test
+	showLocation = true
+
+	// mock time
+	formatTime = func() string {
+		return "2015-06-30 14:48+0200"
+	}
+
 	fset := token.NewFileSet()
+	processSingleGoSource(fset, fname)
 
 	out := bytes.NewBuffer([]byte(""))
-	processSingleGoSource(fset, fname)
 	writePotFile(out)
 
 	expected := fmt.Sprintf(`# SOME DESCRIPTIVE TITLE.

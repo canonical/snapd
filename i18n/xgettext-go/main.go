@@ -10,12 +10,16 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 )
 
 // FIXME: this must be setable via go-flags
 var gettextSelector = "i18n"
 var gettextFuncName = "G"
 var sortMsgIds = true
+var showLocation = false
+var projectName = "snappy"
+var projectMsgIdBugs = "snappy-devel@lists.ubuntu.com"
 
 type msgId struct {
 	msgid   string
@@ -101,18 +105,22 @@ func processSingleGoSource(fset *token.FileSet, fname string) {
 
 }
 
+var formatTime = func() string {
+	return time.Now().Format("2006-01-02 15:04-0700")
+}
+
 func writePotFile(out io.Writer) {
 
-	header := `# SOME DESCRIPTIVE TITLE.
+	header := fmt.Sprintf(`# SOME DESCRIPTIVE TITLE.
 # Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
 #, fuzzy
 msgid   ""
-msgstr  "Project-Id-Version: snappy\n"
-        "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-06-30 14:48+0200\n"
+msgstr  "Project-Id-Version: %s\n"
+        "Report-Msgid-Bugs-To: %s\n"
+        "POT-Creation-Date: %s\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -121,7 +129,7 @@ msgstr  "Project-Id-Version: snappy\n"
         "Content-Type: text/plain; charset=CHARSET\n"
         "Content-Transfer-Encoding: 8bit\n"
 
-`
+`, projectName, projectMsgIdBugs, formatTime())
 	fmt.Fprintf(out, "%s", header)
 
 	// yes, this is the way to do it in go
@@ -136,7 +144,9 @@ msgstr  "Project-Id-Version: snappy\n"
 	// output sorted
 	for _, k := range sortedKeys {
 		msgid := msgIds[k]
-		fmt.Fprintf(out, "#: %s:%d\n", msgid.fname, msgid.line)
+		if showLocation {
+			fmt.Fprintf(out, "#: %s:%d\n", msgid.fname, msgid.line)
+		}
 		fmt.Fprintf(out, "%s", msgid.comment)
 		fmt.Fprintf(out, "msgid \"%v\"\n", msgid.msgid)
 		fmt.Fprintf(out, "msgstr \"\"\n\n")
