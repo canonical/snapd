@@ -63,7 +63,7 @@ func main() {
     //              with multiple lines
     i18n.G("foo")
 
-    // TRANSLATORS: abc comment
+    // this comment has no translators tag
     i18n.G("abc")
 }
 `
@@ -73,6 +73,7 @@ func main() {
 
 	// we want this for this test
 	showLocation = true
+	commentsTag = "TRANSLATORS:"
 
 	// mock time
 	formatTime = func() string {
@@ -104,7 +105,6 @@ msgstr  "Project-Id-Version: snappy\n"
         "Content-Transfer-Encoding: 8bit\n"
 
 #: %[1]s:9
-#. TRANSLATORS: abc comment
 msgid "abc"
 msgstr ""
 

@@ -20,6 +20,7 @@ var sortMsgIds = true
 var showLocation = false
 var projectName = "snappy"
 var projectMsgIdBugs = "snappy-devel@lists.ubuntu.com"
+var commentsTag = "TRANSLATORS:"
 
 type msgId struct {
 	msgid   string
@@ -61,7 +62,15 @@ func findCommentsForTranslation(fset *token.FileSet, f *ast.File, posCall token.
 			}
 		}
 	}
-	return formatComment(com)
+
+	// only return if we have a matching prefix
+	formatedComment := formatComment(com)
+	needle := fmt.Sprintf("#. %s", commentsTag)
+	if !strings.HasPrefix(formatedComment, needle) {
+		formatedComment = ""
+	}
+
+	return formatedComment
 }
 
 func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bool {
