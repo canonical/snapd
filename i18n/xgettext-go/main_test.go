@@ -62,6 +62,9 @@ func main() {
     // TRANSLATORS: foo comment
     //              with multiple lines
     i18n.G("foo")
+
+    // TRANSLATORS: abc comment
+    i18n.G("abc")
 }
 `
 	fname := filepath.Join(c.MkDir(), "foo.go")
@@ -92,7 +95,12 @@ msgstr  "Project-Id-Version: snappy\n"
         "Content-Type: text/plain; charset=CHARSET\n"
         "Content-Transfer-Encoding: 8bit\n"
 
-#: %s:6
+#: %[1]s:9
+#. TRANSLATORS: abc comment
+msgid "abc"
+msgstr ""
+
+#: %[1]s:6
 #. TRANSLATORS: foo comment
 #. with multiple lines
 msgid "foo"

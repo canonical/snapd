@@ -8,11 +8,14 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"sort"
 	"strings"
 )
 
+// FIXME: this must be setable via go-flags
 var gettextSelector = "i18n"
 var gettextFuncName = "G"
+var sortMsgIds = true
 
 type msgId struct {
 	msgid   string
@@ -121,10 +124,21 @@ msgstr  "Project-Id-Version: snappy\n"
 `
 	fmt.Fprintf(out, "%s", header)
 
-	for _, v := range msgIds {
-		fmt.Fprintf(out, "#: %s:%d\n", v.fname, v.line)
-		fmt.Fprintf(out, "%s", v.comment)
-		fmt.Fprintf(out, "msgid \"%v\"\n", v.msgid)
+	// yes, this is the way to do it in go
+	sortedKeys := []string{}
+	for k := range msgIds {
+		sortedKeys = append(sortedKeys, k)
+	}
+	if sortMsgIds {
+		sort.Strings(sortedKeys)
+	}
+
+	// output sorted
+	for _, k := range sortedKeys {
+		msgid := msgIds[k]
+		fmt.Fprintf(out, "#: %s:%d\n", msgid.fname, msgid.line)
+		fmt.Fprintf(out, "%s", msgid.comment)
+		fmt.Fprintf(out, "msgid \"%v\"\n", msgid.msgid)
 		fmt.Fprintf(out, "msgstr \"\"\n\n")
 	}
 
