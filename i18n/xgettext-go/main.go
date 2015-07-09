@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"sort"
 	"strings"
@@ -15,7 +16,7 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-type msgId struct {
+type msgID struct {
 	msgid       string
 	msgidPlural string
 	comment     string
@@ -24,7 +25,7 @@ type msgId struct {
 	formatHint  string
 }
 
-var msgIds = make(map[string]msgId)
+var msgIDs = make(map[string]msgID)
 
 func formatComment(com string) string {
 	out := ""
@@ -83,12 +84,12 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 		if sel, ok := x.Fun.(*ast.SelectorExpr); ok {
 			i18nStr := ""
 			i18nStrPlural := ""
-			if sel.X.(*ast.Ident).Name == gettextSelectorPlural && sel.Sel.Name == gettextFuncNamePlural {
+			if sel.Sel.Name == gettextFuncNamePlural && sel.X.(*ast.Ident).Name == gettextSelectorPlural {
 				i18nStr = x.Args[0].(*ast.BasicLit).Value
 				i18nStrPlural = x.Args[1].(*ast.BasicLit).Value
 			}
 
-			if sel.X.(*ast.Ident).Name == gettextSelector && sel.Sel.Name == gettextFuncName {
+			if sel.Sel.Name == gettextFuncName && sel.X.(*ast.Ident).Name == gettextSelector {
 				i18nStr = x.Args[0].(*ast.BasicLit).Value
 			}
 
@@ -111,7 +112,7 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 			if i18nStr != "" {
 				msgidStr := formatI18nStr(i18nStr)
 				posCall := fset.Position(n.Pos())
-				msgIds[msgidStr] = msgId{
+				msgIDs[msgidStr] = msgID{
 					msgid:       msgidStr,
 					formatHint:  formatHint,
 					msgidPlural: formatI18nStr(i18nStrPlural),
@@ -173,7 +174,7 @@ msgstr  "Project-Id-Version: %s\n"
 
 	// yes, this is the way to do it in go
 	sortedKeys := []string{}
-	for k := range msgIds {
+	for k := range msgIDs {
 		sortedKeys = append(sortedKeys, k)
 	}
 	if opts.SortOutput {
@@ -182,7 +183,7 @@ msgstr  "Project-Id-Version: %s\n"
 
 	// FIXME: use template here?
 	for _, k := range sortedKeys {
-		msgid := msgIds[k]
+		msgid := msgIDs[k]
 		if !opts.NoLocation {
 			fmt.Fprintf(out, "#: %s:%d\n", msgid.fname, msgid.line)
 		}
@@ -229,7 +230,7 @@ func main() {
 	// parse args
 	args, err := flags.ParseArgs(&opts, os.Args)
 	if err != nil {
-		fmt.Errorf("ParseArgs failed %s", err)
+		log.Fatalf("ParseArgs failed %s", err)
 	}
 
 	// go over the input files
@@ -243,7 +244,7 @@ func main() {
 		var err error
 		out, err = os.Create(opts.Output)
 		if err != nil {
-			fmt.Errorf("failed to create %s", opts.Output, err)
+			log.Fatalf("failed to create %s: %s", opts.Output, err)
 		}
 	}
 	writePotFile(out)
