@@ -1,9 +1,3 @@
-ubuntu-snappy (1.5ubuntu2) UNRELEASED; urgency=medium
-
-  * add "auto ..." line to /etc/network/interfaces.d/ file
-
- -- Oliver Grawert <ogra@ubuntu.com>  Mon, 13 Jul 2015 16:18:34 +0200
-
 ubuntu-snappy (1.5ubuntu1) wily; urgency=medium
 
   * New upstream release, including the following changes:
