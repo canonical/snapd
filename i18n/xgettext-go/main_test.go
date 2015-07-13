@@ -93,7 +93,6 @@ func main() {
 	c.Assert(msgIDs, DeepEquals, map[string][]msgID{
 		"foo": []msgID{
 			{
-				msgid:   "foo",
 				comment: "#. TRANSLATORS: foo comment\n",
 				fname:   fname,
 				line:    5,
@@ -119,13 +118,11 @@ func main() {
 	c.Assert(msgIDs, DeepEquals, map[string][]msgID{
 		"foo": []msgID{
 			{
-				msgid:   "foo",
 				comment: "#. TRANSLATORS: foo comment\n",
 				fname:   fname,
 				line:    5,
 			},
 			{
-				msgid:   "foo",
 				comment: "#. TRANSLATORS: bar comment\n",
 				fname:   fname,
 				line:    8,
@@ -157,7 +154,6 @@ func (s *xgettextTestSuite) TestWriteOutputSimple(c *C) {
 	msgIDs = map[string][]msgID{
 		"foo": []msgID{
 			{
-				msgid:   "foo",
 				fname:   "fname",
 				line:    2,
 				comment: "#. foo\n",
@@ -181,13 +177,11 @@ func (s *xgettextTestSuite) TestWriteOutputMultiple(c *C) {
 	msgIDs = map[string][]msgID{
 		"foo": []msgID{
 			{
-				msgid:   "foo",
 				fname:   "fname",
 				line:    2,
 				comment: "#. comment1\n",
 			},
 			{
-				msgid:   "foo",
 				fname:   "fname",
 				line:    4,
 				comment: "#. comment2\n",
@@ -212,7 +206,6 @@ func (s *xgettextTestSuite) TestWriteOutputNoComment(c *C) {
 	msgIDs = map[string][]msgID{
 		"foo": []msgID{
 			{
-				msgid: "foo",
 				fname: "fname",
 				line:  2,
 			},
@@ -234,7 +227,6 @@ func (s *xgettextTestSuite) TestWriteOutputNoLocation(c *C) {
 	msgIDs = map[string][]msgID{
 		"foo": []msgID{
 			{
-				msgid: "foo",
 				fname: "fname",
 				line:  2,
 			},
@@ -257,7 +249,6 @@ func (s *xgettextTestSuite) TestWriteOutputFormatHint(c *C) {
 	msgIDs = map[string][]msgID{
 		"foo": []msgID{
 			{
-				msgid:      "foo",
 				fname:      "fname",
 				line:       2,
 				formatHint: "c-format",
@@ -282,7 +273,6 @@ func (s *xgettextTestSuite) TestWriteOutputPlural(c *C) {
 	msgIDs = map[string][]msgID{
 		"foo": []msgID{
 			{
-				msgid:       "foo",
 				msgidPlural: "plural",
 				fname:       "fname",
 				line:        2,
@@ -308,14 +298,12 @@ func (s *xgettextTestSuite) TestWriteOutputSorted(c *C) {
 	msgIDs = map[string][]msgID{
 		"aaa": []msgID{
 			{
-				msgid: "aaa",
 				fname: "fname",
 				line:  2,
 			},
 		},
 		"zzz": []msgID{
 			{
-				msgid: "zzz",
 				fname: "fname",
 				line:  2,
 			},

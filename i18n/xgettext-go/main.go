@@ -17,7 +17,6 @@ import (
 )
 
 type msgID struct {
-	msgid       string
 	msgidPlural string
 	comment     string
 	fname       string
@@ -113,7 +112,6 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 				msgidStr := formatI18nStr(i18nStr)
 				posCall := fset.Position(n.Pos())
 				msgIDs[msgidStr] = append(msgIDs[msgidStr], msgID{
-					msgid:       msgidStr,
 					formatHint:  formatHint,
 					msgidPlural: formatI18nStr(i18nStrPlural),
 					fname:       posCall.Filename,
@@ -215,7 +213,7 @@ msgstr  "Project-Id-Version: %s\n"
 		if msgid.formatHint != "" {
 			fmt.Fprintf(out, "#, %s\n", msgid.formatHint)
 		}
-		fmt.Fprintf(out, "msgid   \"%v\"\n", msgid.msgid)
+		fmt.Fprintf(out, "msgid   \"%v\"\n", k)
 		if msgid.msgidPlural != "" {
 			fmt.Fprintf(out, "msgid_plural   \"%v\"\n", msgid.msgidPlural)
 			fmt.Fprintf(out, "msgstr[0]  \"\"\n")
