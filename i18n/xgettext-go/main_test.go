@@ -90,12 +90,46 @@ func main() {
 	err := processFiles([]string{fname})
 	c.Assert(err, IsNil)
 
-	c.Assert(msgIDs, DeepEquals, map[string]msgID{
-		"foo": msgID{
-			msgid:   "foo",
-			comment: "#. TRANSLATORS: foo comment\n",
-			fname:   fname,
-			line:    5,
+	c.Assert(msgIDs, DeepEquals, map[string][]msgID{
+		"foo": []msgID{
+			{
+				msgid:   "foo",
+				comment: "#. TRANSLATORS: foo comment\n",
+				fname:   fname,
+				line:    5,
+			},
+		},
+	})
+}
+
+func (s *xgettextTestSuite) TestProcessFilesMultiple(c *C) {
+	fname := makeGoSourceFile(c, []byte(`package main
+
+func main() {
+    // TRANSLATORS: foo comment
+    i18n.G("foo")
+
+    // TRANSLATORS: bar comment
+    i18n.G("foo")
+}
+`))
+	err := processFiles([]string{fname})
+	c.Assert(err, IsNil)
+
+	c.Assert(msgIDs, DeepEquals, map[string][]msgID{
+		"foo": []msgID{
+			{
+				msgid:   "foo",
+				comment: "#. TRANSLATORS: foo comment\n",
+				fname:   fname,
+				line:    5,
+			},
+			{
+				msgid:   "foo",
+				comment: "#. TRANSLATORS: bar comment\n",
+				fname:   fname,
+				line:    8,
+			},
 		},
 	})
 }
@@ -120,20 +154,53 @@ msgstr  "Project-Id-Version: snappy\n"
 `
 
 func (s *xgettextTestSuite) TestWriteOutputSimple(c *C) {
-	msgIDs = map[string]msgID{
-		"foo": msgID{
-			msgid:   "foo",
-			fname:   "fname",
-			line:    2,
-			comment: "#. foo\n",
+	msgIDs = map[string][]msgID{
+		"foo": []msgID{
+			{
+				msgid:   "foo",
+				fname:   "fname",
+				line:    2,
+				comment: "#. foo\n",
+			},
 		},
 	}
 	out := bytes.NewBuffer([]byte(""))
 	writePotFile(out)
 
 	expected := fmt.Sprintf(`%s
-#: fname:2
 #. foo
+#: fname:2
+msgid   "foo"
+msgstr  ""
+
+`, header)
+	c.Assert(out.String(), Equals, expected)
+}
+
+func (s *xgettextTestSuite) TestWriteOutputMultiple(c *C) {
+	msgIDs = map[string][]msgID{
+		"foo": []msgID{
+			{
+				msgid:   "foo",
+				fname:   "fname",
+				line:    2,
+				comment: "#. comment1\n",
+			},
+			{
+				msgid:   "foo",
+				fname:   "fname",
+				line:    4,
+				comment: "#. comment2\n",
+			},
+		},
+	}
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+
+	expected := fmt.Sprintf(`%s
+#. comment1
+#. comment2
+#: fname:2 fname:4
 msgid   "foo"
 msgstr  ""
 
@@ -142,11 +209,13 @@ msgstr  ""
 }
 
 func (s *xgettextTestSuite) TestWriteOutputNoComment(c *C) {
-	msgIDs = map[string]msgID{
-		"foo": msgID{
-			msgid: "foo",
-			fname: "fname",
-			line:  2,
+	msgIDs = map[string][]msgID{
+		"foo": []msgID{
+			{
+				msgid: "foo",
+				fname: "fname",
+				line:  2,
+			},
 		},
 	}
 	out := bytes.NewBuffer([]byte(""))
@@ -162,11 +231,13 @@ msgstr  ""
 }
 
 func (s *xgettextTestSuite) TestWriteOutputNoLocation(c *C) {
-	msgIDs = map[string]msgID{
-		"foo": msgID{
-			msgid: "foo",
-			fname: "fname",
-			line:  2,
+	msgIDs = map[string][]msgID{
+		"foo": []msgID{
+			{
+				msgid: "foo",
+				fname: "fname",
+				line:  2,
+			},
 		},
 	}
 
@@ -183,12 +254,14 @@ msgstr  ""
 }
 
 func (s *xgettextTestSuite) TestWriteOutputFormatHint(c *C) {
-	msgIDs = map[string]msgID{
-		"foo": msgID{
-			msgid:      "foo",
-			fname:      "fname",
-			line:       2,
-			formatHint: "c-format",
+	msgIDs = map[string][]msgID{
+		"foo": []msgID{
+			{
+				msgid:      "foo",
+				fname:      "fname",
+				line:       2,
+				formatHint: "c-format",
+			},
 		},
 	}
 
@@ -206,12 +279,14 @@ msgstr  ""
 }
 
 func (s *xgettextTestSuite) TestWriteOutputPlural(c *C) {
-	msgIDs = map[string]msgID{
-		"foo": msgID{
-			msgid:       "foo",
-			msgidPlural: "plural",
-			fname:       "fname",
-			line:        2,
+	msgIDs = map[string][]msgID{
+		"foo": []msgID{
+			{
+				msgid:       "foo",
+				msgidPlural: "plural",
+				fname:       "fname",
+				line:        2,
+			},
 		},
 	}
 
@@ -230,16 +305,20 @@ msgstr[1]  ""
 }
 
 func (s *xgettextTestSuite) TestWriteOutputSorted(c *C) {
-	msgIDs = map[string]msgID{
-		"aaa": msgID{
-			msgid: "aaa",
-			fname: "fname",
-			line:  2,
+	msgIDs = map[string][]msgID{
+		"aaa": []msgID{
+			{
+				msgid: "aaa",
+				fname: "fname",
+				line:  2,
+			},
 		},
-		"zzz": msgID{
-			msgid: "zzz",
-			fname: "fname",
-			line:  2,
+		"zzz": []msgID{
+			{
+				msgid: "zzz",
+				fname: "fname",
+				line:  2,
+			},
 		},
 	}
 
@@ -302,14 +381,14 @@ func main() {
 msgid   "abc"
 msgstr  ""
 
-#: %[2]s:6
 #. TRANSLATORS: foo comment
 #. with multiple lines
+#: %[2]s:6
 msgid   "foo"
 msgstr  ""
 
-#: %[2]s:12
 #. TRANSLATORS: plural
+#: %[2]s:12
 msgid   "singular"
 msgid_plural   "plural"
 msgstr[0]  ""

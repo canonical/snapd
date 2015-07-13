@@ -25,7 +25,7 @@ type msgID struct {
 	formatHint  string
 }
 
-var msgIDs map[string]msgID
+var msgIDs map[string][]msgID
 
 func formatComment(com string) string {
 	out := ""
@@ -112,14 +112,14 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 			if i18nStr != "" {
 				msgidStr := formatI18nStr(i18nStr)
 				posCall := fset.Position(n.Pos())
-				msgIDs[msgidStr] = msgID{
+				msgIDs[msgidStr] = append(msgIDs[msgidStr], msgID{
 					msgid:       msgidStr,
 					formatHint:  formatHint,
 					msgidPlural: formatI18nStr(i18nStrPlural),
 					fname:       posCall.Filename,
 					line:        posCall.Line,
 					comment:     findCommentsForTranslation(fset, f, posCall),
-				}
+				})
 			}
 		}
 	}
@@ -129,7 +129,7 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 
 func processFiles(args []string) error {
 	// go over the input files
-	msgIDs = make(map[string]msgID)
+	msgIDs = make(map[string][]msgID)
 
 	fset := token.NewFileSet()
 	for _, fname := range args {
@@ -198,13 +198,20 @@ msgstr  "Project-Id-Version: %s\n"
 
 	// FIXME: use template here?
 	for _, k := range sortedKeys {
-		msgid := msgIDs[k]
+		msgidList := msgIDs[k]
+		for _, msgid := range msgidList {
+			if opts.AddComments || opts.AddCommentsTag != "" {
+				fmt.Fprintf(out, "%s", msgid.comment)
+			}
+		}
 		if !opts.NoLocation {
-			fmt.Fprintf(out, "#: %s:%d\n", msgid.fname, msgid.line)
+			fmt.Fprintf(out, "#:")
+			for _, msgid := range msgidList {
+				fmt.Fprintf(out, " %s:%d", msgid.fname, msgid.line)
+			}
+			fmt.Fprintf(out, "\n")
 		}
-		if opts.AddComments || opts.AddCommentsTag != "" {
-			fmt.Fprintf(out, "%s", msgid.comment)
-		}
+		msgid := msgidList[0]
 		if msgid.formatHint != "" {
 			fmt.Fprintf(out, "#, %s\n", msgid.formatHint)
 		}
