@@ -45,6 +45,6 @@ func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *C) {
 		Reboot(c)
 	} else if AfterReboot(c) {
 		RemoveRebootMark(c)
-		c.Assert(GetCurrentVersion(c) > GetSavedVersion(c), Equals, true)
+		c.Assert(GetCurrentUbuntuCoreVersion(c) > GetSavedVersion(c), Equals, true)
 	}
 }

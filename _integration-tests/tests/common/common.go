@@ -66,7 +66,7 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 	} else {
 		if CheckRebootMark("") {
 			c.Logf("****** Running %s", c.TestName())
-			SetSavedVersion(c, GetCurrentVersion(c))
+			SetSavedVersion(c, GetCurrentUbuntuCoreVersion(c))
 		} else {
 			if AfterReboot(c) {
 				c.Logf("****** Resuming %s after reboot", c.TestName())
@@ -146,18 +146,24 @@ func ExecCommandToFile(c *check.C, filename string, cmds ...string) {
 	c.Assert(err, check.IsNil, check.Commentf("Error executing command '%v': %v", cmds, err))
 }
 
-// GetCurrentVersion returns the version number of the installed and active
-// ubuntu-core.
-func GetCurrentVersion(c *check.C) int {
+// GetCurrentVersion returns the version of the installed and active package.
+func GetCurrentVersion(c *check.C, packageName string) string {
 	output := ExecCommand(c, "snappy", "list")
-	pattern := "(?mU)^ubuntu-core (.*)$"
+	pattern := "(?mU)^" + packageName + " +(.*)$"
 	re := regexp.MustCompile(pattern)
 	match := re.FindStringSubmatch(string(output))
 	c.Assert(match, check.NotNil, check.Commentf("Version not found in %s", output))
 
 	// match is like "ubuntu-core   2015-06-18 93        ubuntu"
 	items := strings.Fields(match[0])
-	version, err := strconv.Atoi(items[2])
+	return items[2]
+}
+
+// GetCurrentUbuntuCoreVersion returns the version number of the installed and
+// active ubuntu-core.
+func GetCurrentUbuntuCoreVersion(c *check.C) int {
+	versionString := GetCurrentVersion(c, "ubuntu-core")
+	version, err := strconv.Atoi(versionString)
 	c.Assert(err, check.IsNil, check.Commentf("Error converting version to int %v", version))
 	return version
 }
@@ -178,7 +184,7 @@ func CallUpdate(c *check.C) {
 
 func fakeAvailableUpdate(c *check.C) {
 	c.Log("Faking an available update...")
-	currentVersion := GetCurrentVersion(c)
+	currentVersion := GetCurrentUbuntuCoreVersion(c)
 	switchChannelVersion(c, currentVersion, currentVersion-1)
 	SetSavedVersion(c, currentVersion-1)
 }

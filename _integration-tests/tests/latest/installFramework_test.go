@@ -20,6 +20,7 @@
 package latest
 
 import (
+	"fmt"
 	"regexp"
 	"time"
 
@@ -43,8 +44,10 @@ func (s *installFrameworkSuite) TearDownTest(c *check.C) {
 }
 
 func isDockerServiceRunning(c *check.C) bool {
+	dockerVersion := GetCurrentVersion(c, "docker")
 	statusOutput := ExecCommand(
-		c, "systemctl", "status", "docker_docker-daemon_*.service")
+		c, "systemctl", "status",
+		fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion))
 
 	expected := "(?ms)" +
 		".* docker_docker-daemon_.*\\.service .*\n" +
