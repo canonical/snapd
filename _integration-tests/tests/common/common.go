@@ -58,13 +58,13 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 // will skip all the following tests. If the suite is being called after the
 // test bed was rebooted, it will resume the test that requested the reboot.
 func (s *SnappySuite) SetUpTest(c *check.C) {
-	if needsReboot() {
+	if NeedsReboot() {
 		contents, err := ioutil.ReadFile(needsRebootFile)
 		c.Assert(err, check.IsNil, check.Commentf("Error reading needs-reboot file %v", err))
 		c.Skip(fmt.Sprintf("****** Skipped %s during reboot caused by %s",
 			c.TestName(), contents))
 	} else {
-		if checkRebootMark("") {
+		if CheckRebootMark("") {
 			c.Logf("****** Running %s", c.TestName())
 			SetSavedVersion(c, GetCurrentVersion(c))
 		} else {
@@ -84,7 +84,7 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 // the test.
 // It also runs the cleanup handlers
 func (s *SnappySuite) TearDownTest(c *check.C) {
-	if !needsReboot() && checkRebootMark("") {
+	if !NeedsReboot() && CheckRebootMark("") {
 		// Only restore the channel config files if the reboot has been handled.
 		m := make(map[string]string)
 		m[channelCfgBackupFile()] = "/"
@@ -226,7 +226,8 @@ func RebootWithMark(c *check.C, mark string) {
 	c.Assert(err, check.IsNil, check.Commentf("Error writing needs-reboot file: %v", err))
 }
 
-func needsReboot() bool {
+// NeedsReboot returns True if a reboot has been requested by a test.
+func NeedsReboot() bool {
 	_, err := os.Stat(needsRebootFile)
 	return err == nil
 }
@@ -234,17 +235,19 @@ func needsReboot() bool {
 // BeforeReboot returns True if the test is running before the test bed has
 // been rebooted, or after the test that requested the reboot handled it.
 func BeforeReboot() bool {
-	return checkRebootMark("")
+	return CheckRebootMark("")
 }
 
 // AfterReboot returns True if the test is running after the test bed has been
 // rebooted.
 func AfterReboot(c *check.C) bool {
 	// $ADT_REBOOT_MARK contains the reboot mark, if we have rebooted it'll be the test name
-	return checkRebootMark(c.TestName())
+	return CheckRebootMark(c.TestName())
 }
 
-func checkRebootMark(mark string) bool {
+// CheckRebootMark returns True if the reboot mark matches the string passed as
+// argument.
+func CheckRebootMark(mark string) bool {
 	return os.Getenv("ADT_REBOOT_MARK") == mark
 }
 
