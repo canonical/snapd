@@ -22,7 +22,6 @@ package latest
 import (
 	"net/http"
 	"os/exec"
-	"time"
 
 	. "../common"
 
@@ -100,10 +99,6 @@ func (s *installAppSuite) TestAppNetworkingServiceMustBeStarted(c *check.C) {
 	s.AddCleanup(func() {
 		RemoveSnap(c, "xkcd-webserver.canonical")
 	})
-
-	// FIXME: sucks, needed because "systemctl start" does not wait until the
-	// service is really started.
-	time.Sleep(1 * time.Second)
 
 	resp, err := http.Get("http://localhost")
 	c.Assert(err, check.IsNil)
