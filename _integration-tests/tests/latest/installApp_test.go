@@ -20,7 +20,9 @@
 package latest
 
 import (
+	"net/http"
 	"os/exec"
+	"time"
 
 	. "../common"
 
@@ -33,14 +35,11 @@ type installAppSuite struct {
 	SnappySuite
 }
 
-func (s *installAppSuite) TearDownTest(c *check.C) {
-	RemoveSnap(c, "hello-world")
-	// run cleanup last
-	s.SnappySuite.TearDownTest(c)
-}
-
 func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) {
 	installOutput := InstallSnap(c, "hello-world")
+	s.AddCleanup(func() {
+		RemoveSnap(c, "hello-world")
+	})
 
 	expected := "(?ms)" +
 		"Installing hello-world\n" +
@@ -54,6 +53,9 @@ func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) 
 
 func (s *installAppSuite) TestCallBinaryFromInstalledSnap(c *check.C) {
 	InstallSnap(c, "hello-world")
+	s.AddCleanup(func() {
+		RemoveSnap(c, "hello-world")
+	})
 
 	echoOutput := ExecCommand(c, "hello-world.echo")
 
@@ -62,6 +64,9 @@ func (s *installAppSuite) TestCallBinaryFromInstalledSnap(c *check.C) {
 
 func (s *installAppSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *check.C) {
 	InstallSnap(c, "hello-world")
+	s.AddCleanup(func() {
+		RemoveSnap(c, "hello-world")
+	})
 
 	cmd := exec.Command("hello-world.evil")
 	echoOutput, err := cmd.CombinedOutput()
@@ -80,9 +85,28 @@ func (s *installAppSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *ch
 
 func (s *installAppSuite) TestInfoMustPrintInstalledPackageInformation(c *check.C) {
 	InstallSnap(c, "hello-world")
+	s.AddCleanup(func() {
+		RemoveSnap(c, "hello-world")
+	})
 
 	infoOutput := ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
 	c.Assert(infoOutput, check.Matches, expected)
+}
+
+func (s *installAppSuite) TestAppNetworkingServiceMustBeRunning(c *check.C) {
+	InstallSnap(c, "xkcd-webserver.canonical")
+	s.AddCleanup(func() {
+		RemoveSnap(c, "xkcd-webserver.canonical")
+	})
+
+	// FIXME: sucks, needed because "systemctl start" does not wait until the
+	// service is really started.
+	time.Sleep(1 * time.Second)
+
+	resp, err := http.Get("http://localhost")
+	c.Assert(err, check.IsNil)
+	c.Check(resp.Status, check.Equals, "200 OK")
+	c.Assert(resp.Proto, check.Equals, "HTTP/1.0")
 }
