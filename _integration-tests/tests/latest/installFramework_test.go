@@ -22,7 +22,6 @@ package latest
 import (
 	"fmt"
 	"regexp"
-	"time"
 
 	. "../common"
 
@@ -84,15 +83,6 @@ func (s *installFrameworkSuite) TestFrameworkServiceMustBeStartedAfterReboot(c *
 		Reboot(c)
 	} else if AfterReboot(c) {
 		RemoveRebootMark(c)
-		// Give it time to start (i.e. avoid race between framework and ssh)
-		timeout := 60
-		i := 0
-		for ; i < timeout; i++ {
-			if isDockerServiceRunning(c) {
-				break
-			}
-			time.Sleep(1 * time.Second)
-		}
-		c.Assert(i < timeout, check.Equals, true)
+		c.Assert(isDockerServiceRunning(c), check.Equals, true)
 	}
 }
