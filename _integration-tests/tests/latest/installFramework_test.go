@@ -53,7 +53,7 @@ func isDockerServiceRunning(c *check.C) bool {
 		".*"
 
 	matched, err := regexp.MatchString(expected, statusOutput)
-	c.Assert(err, check.IsNil, "Error matching the regexp: %v", err)
+	c.Assert(err, check.IsNil)
 	return matched
 }
 
@@ -62,7 +62,6 @@ func (s *installFrameworkSuite) TestInstallFrameworkMustPrintPackageInformation(
 
 	expected := "(?ms)" +
 		"Installing docker\n" +
-		"Starting download of docker\n" +
 		"Name +Date +Version +Developer \n" +
 		".*" +
 		"^docker +.* +.* +canonical \n" +
