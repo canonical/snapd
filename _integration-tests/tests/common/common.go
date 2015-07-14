@@ -171,9 +171,15 @@ func CallUpdate(c *check.C) {
 	// if there is an available update. --elopio - 2015-07-01
 	if output == "" {
 		c.Log("There is no update available.")
-		fakeAvailableUpdate(c)
-		ExecCommand(c, "sudo", "snappy", "update")
+		CallFakeUpdate(c)
 	}
+}
+
+// CallFakeUpdate calls snappy update after faking the current version
+func CallFakeUpdate(c *check.C) {
+	c.Log("Preparing fake and calling update.")
+	fakeAvailableUpdate(c)
+	ExecCommand(c, "sudo", "snappy", "update")
 }
 
 func fakeAvailableUpdate(c *check.C) {
