@@ -95,7 +95,7 @@ func (s *installAppSuite) TestInfoMustPrintInstalledPackageInformation(c *check.
 	c.Assert(infoOutput, check.Matches, expected)
 }
 
-func (s *installAppSuite) TestAppNetworkingServiceMustBeRunning(c *check.C) {
+func (s *installAppSuite) TestAppNetworkingServiceMustBeStarted(c *check.C) {
 	InstallSnap(c, "xkcd-webserver.canonical")
 	s.AddCleanup(func() {
 		RemoveSnap(c, "xkcd-webserver.canonical")
