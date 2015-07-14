@@ -47,9 +47,9 @@ func isDockerServiceRunning(c *check.C) bool {
 		c, "systemctl", "status", "docker_docker-daemon_*.service")
 
 	expected := "(?ms)" +
-		".* docker_docker-daemon_.*.service .*\n" +
+		".* docker_docker-daemon_.*\\.service .*\n" +
 		".*Loaded: loaded .*\n" +
-		".*Active: active (running) .*\n" +
+		".*Active: active \\(running\\) .*\n" +
 		".*"
 
 	matched, err := regexp.MatchString(expected, statusOutput)
@@ -72,7 +72,7 @@ func (s *installFrameworkSuite) TestInstallFrameworkMustPrintPackageInformation(
 
 func (s *installFrameworkSuite) TestInstalledFrameworkServiceMustBeStarted(c *check.C) {
 	InstallSnap(c, "docker")
-	c.Assert(isDockerServiceRunning(c), check.Equals, true, "Docker service is not running")
+	c.Assert(isDockerServiceRunning(c), check.Equals, true)
 }
 
 func (s *installFrameworkSuite) TestFrameworkServiceMustBeStartedAfterReboot(c *check.C) {
