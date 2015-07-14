@@ -20,8 +20,8 @@
 package latest
 
 import (
+	"fmt"
 	"regexp"
-	"time"
 
 	. "../common"
 
@@ -43,17 +43,19 @@ func (s *installFrameworkSuite) TearDownTest(c *check.C) {
 }
 
 func isDockerServiceRunning(c *check.C) bool {
+	dockerVersion := GetCurrentVersion(c, "docker")
 	statusOutput := ExecCommand(
-		c, "systemctl", "status", "docker_docker-daemon_*.service")
+		c, "systemctl", "status",
+		fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion))
 
 	expected := "(?ms)" +
-		".* docker_docker-daemon_.*.service .*\n" +
+		".* docker_docker-daemon_.*\\.service .*\n" +
 		".*Loaded: loaded .*\n" +
-		".*Active: active (running) .*\n" +
+		".*Active: active \\(running\\) .*\n" +
 		".*"
 
 	matched, err := regexp.MatchString(expected, statusOutput)
-	c.Assert(err, check.IsNil, "Error matching the regexp: %v", err)
+	c.Assert(err, check.IsNil)
 	return matched
 }
 
@@ -62,7 +64,6 @@ func (s *installFrameworkSuite) TestInstallFrameworkMustPrintPackageInformation(
 
 	expected := "(?ms)" +
 		"Installing docker\n" +
-		"Starting download of docker\n" +
 		"Name +Date +Version +Developer \n" +
 		".*" +
 		"^docker +.* +.* +canonical \n" +
@@ -73,7 +74,7 @@ func (s *installFrameworkSuite) TestInstallFrameworkMustPrintPackageInformation(
 
 func (s *installFrameworkSuite) TestInstalledFrameworkServiceMustBeStarted(c *check.C) {
 	InstallSnap(c, "docker")
-	c.Assert(isDockerServiceRunning(c), check.Equals, true, "Docker service is not running")
+	c.Assert(isDockerServiceRunning(c), check.Equals, true)
 }
 
 func (s *installFrameworkSuite) TestFrameworkServiceMustBeStartedAfterReboot(c *check.C) {
@@ -82,15 +83,6 @@ func (s *installFrameworkSuite) TestFrameworkServiceMustBeStartedAfterReboot(c *
 		Reboot(c)
 	} else if AfterReboot(c) {
 		RemoveRebootMark(c)
-		// Give it time to start (i.e. avoid race between framework and ssh)
-		timeout := 60
-		i := 0
-		for ; i < timeout; i++ {
-			if isDockerServiceRunning(c) {
-				break
-			}
-			time.Sleep(1 * time.Second)
-		}
-		c.Assert(i < timeout, check.Equals, true)
+		c.Assert(isDockerServiceRunning(c), check.Equals, true)
 	}
 }
