@@ -41,7 +41,7 @@ type updateSuite struct {
 // be up-to-date after running this test.
 func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *C) {
 	if BeforeReboot() {
-		CallUpdate(c)
+		CallFakeUpdate(c)
 		Reboot(c)
 	} else if AfterReboot(c) {
 		RemoveRebootMark(c)
