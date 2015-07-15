@@ -54,7 +54,7 @@ func (img Image) UdfCreate() (string, error) {
 		udfCommand = append(udfCommand, "--revision", img.revision)
 	}
 
-	imagePath := img.getImagePath(imageDir)
+	imagePath := img.imagePath(imageDir)
 
 	coreOptions := []string{
 		"core", img.release,
@@ -68,7 +68,7 @@ func (img Image) UdfCreate() (string, error) {
 	return imagePath, err
 }
 
-func (img Image) getImagePath(imageDir string) string {
+func (img Image) imagePath(imageDir string) string {
 	revisionTag := img.revision
 	if revisionTag == "" {
 		revisionTag = "latest"
