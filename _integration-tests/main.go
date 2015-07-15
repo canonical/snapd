@@ -53,7 +53,6 @@ var (
 )
 
 func buildAssets(useSnappyFromBranch bool, arch string) {
-
 	utils.PrepareTargetDir(testsBinDir)
 
 	if useSnappyFromBranch {
@@ -65,7 +64,6 @@ func buildAssets(useSnappyFromBranch bool, arch string) {
 }
 
 func setupAndRunLocalTests(rootPath, testFilter string, img image.Image) {
-
 	var includeShell bool
 	if testFilter == "" {
 		includeShell = true
@@ -87,12 +85,10 @@ func setupAndRunLocalTests(rootPath, testFilter string, img image.Image) {
 }
 
 func setupAndRunRemoteTests(rootPath, testFilter, testbedIP string, testbedPort int) {
-
 	utils.ExecCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 		"ubuntu@"+testbedIP)
-	// TODO: Also run the other tests.
-	adtRun(rootPath, testFilter, []string{"latest"},
-		remoteTestbedSSHOptions(testbedIP, testbedPort), false)
+	adtRun(rootPath, testFilter, testPackages,
+		remoteTestbedSSHOptions(testbedIP, testbedPort), true)
 }
 
 func buildSnappyCLI(arch string) {
