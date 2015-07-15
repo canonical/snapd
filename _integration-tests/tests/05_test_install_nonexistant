@@ -1,5 +1,0 @@
-test() {
-        pkg=fizzler
-        T="^${pkg} failed to install: snappy package not found"
-        test_regexp "$T" sudo $SNAPPY install $pkg 
-}
