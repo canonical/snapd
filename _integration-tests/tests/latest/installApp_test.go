@@ -109,3 +109,13 @@ func (s *installAppSuite) TestAppNetworkingServiceMustBeStarted(c *check.C) {
 	c.Check(resp.Status, check.Equals, "200 OK")
 	c.Assert(resp.Proto, check.Equals, "HTTP/1.0")
 }
+
+func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
+	cmd := exec.Command("sudo", "snappy", "install", "unexisting.canonical")
+	output, err := cmd.CombinedOutput()
+
+	c.Assert(err, check.NotNil)
+	c.Assert(string(output), check.Equals,
+		"Installing unexisting.canonical\n"+
+			"unexisting.canonical failed to install: snappy package not found\n")
+}
