@@ -72,17 +72,15 @@ func (s *infoSuite) TestInfoMustPrintInstalledApps(c *check.C) {
 }
 
 func (s *infoSuite) TestInfoMustPrintInstalledFrameworks(c *check.C) {
-	// TODO: replace with hello-dbus-fwk. -- elopio - 2015-07-14
-	// https://bugs.launchpad.net/snappy/+bug/1474658
-	InstallSnap(c, "docker")
+	InstallSnap(c, "hello-dbus-fwk.canonical")
 	s.AddCleanup(func() {
-		RemoveSnap(c, "docker")
+		RemoveSnap(c, "hello-dbus-fwk.canonical")
 	})
 	infoOutput := ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms)" +
 		".*" +
-		"^frameworks: .*docker.*\n" +
+		"^frameworks: .*hello-dbus-fwk.*\n" +
 		".*"
 	c.Assert(infoOutput, check.Matches, expected)
 }
