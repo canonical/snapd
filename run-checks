@@ -65,10 +65,16 @@ if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; 
     exit 1
 fi
 
-# always build
-go build _integration-tests/main.go
 
 # integration tests
+echo Building the integration tests
+go build _integration-tests/main.go
+
+# the rabbit hole
+echo Running the tests for the integration helpers
+$goctest -v -cover ./_integration-tests/tests/common/...
+
+# integration suite in kvm
 if which adt-run >/dev/null 2>&1; then
     echo "Running integration tests"
     go run _integration-tests/main.go --snappy-from-branch

@@ -56,7 +56,7 @@ func commonFailoverTest(c *check.C, f failer) {
 		c.Assert(GetSavedVersion(c), check.Equals, currentVersion)
 	} else {
 		SetSavedVersion(c, currentVersion-1)
-		CallUpdate(c)
+		CallFakeUpdate(c)
 		f.set(c)
 		Reboot(c)
 	}

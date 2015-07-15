@@ -26,11 +26,13 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"text/template"
+
+	image "./image"
+	utils "./utils"
 )
 
 const (
@@ -53,8 +55,8 @@ var (
 	testPackages       = append(testPackagesLatest, testPackageUpdate...)
 )
 
-func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter string, testbedPort int) {
-	prepareTargetDir(testsBinDir)
+func buildAssets(useSnappyFromBranch bool, arch string) {
+	utils.PrepareTargetDir(testsBinDir)
 
 	if useSnappyFromBranch {
 		// FIXME We need to build an image that has the snappy from the branch
@@ -62,45 +64,48 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter stri
 		buildSnappyCLI(arch)
 	}
 	buildTests(arch)
+}
 
-	prepareTargetDir(dataOutputDir)
-	writeTestConfig(defaultRelease, defaultChannel)
+func writeTestConfig(release, channel string) {
+	fmt.Println("Writing test config...")
+	testConfig := map[string]string{
+		"release": release,
+		"channel": channel,
+	}
+	fmt.Println(testConfig)
+	encoded, err := json.Marshal(testConfig)
+	if err != nil {
+		log.Fatalf("Error encoding the test config: %v", testConfig)
+	}
+	ioutil.WriteFile(configFileName, encoded, 0644)
+}
 
-	rootPath := getRootPath()
+func setupAndRunLocalTests(rootPath, testFilter string, img image.Image) {
+	var includeShell bool
+	if testFilter == "" {
+		includeShell = true
+	}
 
-	if testbedIP == "" {
-		var includeShell bool
-		if testFilter == "" {
-			includeShell = true
-		}
-
-		// Run the tests on the latest rolling edge image.
-		image := createImage(defaultRelease, defaultChannel, "")
+	// Run the tests on the latest rolling edge image.
+	if imageName, err := img.UdfCreate(); err == nil {
 		adtRun(rootPath, testFilter, testPackages,
-			kvmSSHOptions(image), includeShell)
+			kvmSSHOptions(imageName), includeShell)
+	}
 
-		// Update from revision -1.
-		image = createImage(defaultRelease, defaultChannel, "-1")
+	// Update from revision -1.
+	img.SetRevision("-1")
+	if imageName, err := img.UdfCreate(); err == nil {
 		adtRun(
 			rootPath, "updateSuite.TestUpdateToSameReleaseAndChannel",
-			testPackageUpdate, kvmSSHOptions(image), false)
-	} else {
-		execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
-			"ubuntu@"+testbedIP)
-		// TODO: Also run the other tests.
-		adtRun(rootPath, testFilter, []string{"latest"},
-			remoteTestbedSSHOptions(testbedIP, testbedPort), false)
+			testPackageUpdate, kvmSSHOptions(imageName), false)
 	}
 }
 
-func execCommand(cmds ...string) {
-	fmt.Println(strings.Join(cmds, " "))
-	cmd := exec.Command(cmds[0], cmds[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		log.Fatalf("Error while running %s: %s\n", cmd.Args, err)
-	}
+func setupAndRunRemoteTests(rootPath, testFilter, testbedIP string, testbedPort int) {
+	utils.ExecCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
+		"ubuntu@"+testbedIP)
+	adtRun(rootPath, testFilter, testPackages,
+		remoteTestbedSSHOptions(testbedIP, testbedPort), true)
 }
 
 func buildSnappyCLI(arch string) {
@@ -132,46 +137,7 @@ func goCall(arch string, cmds ...string) {
 		}
 	}
 	goCmd := append([]string{"go"}, cmds...)
-	execCommand(goCmd...)
-}
-
-func writeTestConfig(release, channel string) {
-	fmt.Println("Writing test config...")
-	testConfig := map[string]string{
-		"release": release,
-		"channel": channel,
-	}
-	fmt.Println(testConfig)
-	encoded, err := json.Marshal(testConfig)
-	if err != nil {
-		log.Fatalf("Error encoding the test config: %v", testConfig)
-	}
-	ioutil.WriteFile(configFileName, encoded, 0644)
-}
-
-func createImage(release, channel, revision string) string {
-	fmt.Println("Creating image...")
-	imageDir := filepath.Join(baseDir, "image")
-	prepareTargetDir(imageDir)
-	revisionTag := revision
-	if revisionTag == "" {
-		revisionTag = "latest"
-	}
-	imageName := strings.Join(
-		[]string{"snappy", release, channel, revisionTag}, "-") + ".img"
-	imagePath := filepath.Join(imageDir, imageName)
-	udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
-	if revision != "" {
-		udfCommand = append(udfCommand, "--revision", revision)
-	}
-	coreOptions := []string{
-		"core", release,
-		"--output", imagePath,
-		"--channel", channel,
-		"--developer-mode",
-	}
-	execCommand(append(udfCommand, coreOptions...)...)
-	return imagePath
+	utils.ExecCommand(goCmd...)
 }
 
 func adtRun(rootPath, testFilter string, testList, testbedOptions []string, includeShell bool) {
@@ -180,7 +146,7 @@ func adtRun(rootPath, testFilter string, testList, testbedOptions []string, incl
 	fmt.Println("Calling adt-run...")
 	outputSubdir := getOutputSubdir(testList, includeShell)
 	outputDir := filepath.Join(baseDir, "output", outputSubdir)
-	prepareTargetDir(outputDir)
+	utils.PrepareTargetDir(outputDir)
 
 	cmd := []string{
 		"adt-run", "-B",
@@ -189,7 +155,7 @@ func adtRun(rootPath, testFilter string, testList, testbedOptions []string, incl
 		"--built-tree", rootPath,
 		"--output-dir", outputDir}
 
-	execCommand(append(cmd, testbedOptions...)...)
+	utils.ExecCommand(append(cmd, testbedOptions...)...)
 }
 
 func kvmSSHOptions(imagePath string) []string {
@@ -242,14 +208,6 @@ func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
 	return append(commonSSHOptions, options...)
 }
 
-func prepareTargetDir(targetDir string) {
-	if _, err := os.Stat(targetDir); err == nil {
-		// dir exists, remove it
-		os.RemoveAll(targetDir)
-	}
-	os.MkdirAll(targetDir, 0777)
-}
-
 func getRootPath() string {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -270,9 +228,33 @@ func main() {
 			"SSH port of the testbed. Defaults to use port "+strconv.Itoa(defaultSSHPort))
 		testFilter = flag.String("filter", "",
 			"Suites or tests to run, for instance MyTestSuite, MyTestSuite.FirstCustomTest or MyTestSuite.*CustomTest")
+		imgRelease = flag.String("release", defaultRelease,
+			"Release of the image to be built, defaults to "+defaultRelease)
+		imgChannel = flag.String("channel", defaultChannel,
+			"Channel of the image to be built, defaults to "+defaultChannel)
+		imgRevision = flag.String("revision", "",
+			"Revision of the image to be built (can be relative to the latest available revision in the given release and channel as in -1), defaults to the empty string")
 	)
 
 	flag.Parse()
 
-	setupAndRunTests(*useSnappyFromBranch, *arch, *testbedIP, *testFilter, *testbedPort)
+	buildAssets(*useSnappyFromBranch, *arch)
+
+	// TODO: generate the files out of the source tree. --elopio - 2015-07-15
+	utils.PrepareTargetDir(dataOutputDir)
+	defer os.RemoveAll(dataOutputDir)
+
+	// TODO: pass the config as arguments to the test binaries.
+	// --elopio - 2015-07-15
+	writeTestConfig(*imgRelease, *imgChannel)
+
+	rootPath := getRootPath()
+
+	if *testbedIP == "" {
+		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, baseDir)
+		setupAndRunLocalTests(rootPath, *testFilter, *img)
+
+	} else {
+		setupAndRunRemoteTests(rootPath, *testFilter, *testbedIP, *testbedPort)
+	}
 }

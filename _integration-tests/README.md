@@ -13,10 +13,20 @@
 
 You can execute the full integration suite in a local virtual machine with:
 
-    go run _integration-test/main.go
+    go run _integration-tests/main.go
 
 The test runner will create the snappy images with `ubuntu-device-flash`, so it
 will ask for your password to run this command with `sudo`.
+
+You can also especify more options to customize the image being created, including
+the release, the channel and the revision to use. This parameters will be passed
+to `ubuntu-device-flash`:
+
+    go run _integration-tests/main.go -release 15.04 -channel stable -revision 3
+
+The default values are suited to testing the most recent version, `rolling` for
+release, `edge` for channel and an empty revision, which picks the latest
+available.
 
 ## Testing snappy from a branch
 
@@ -39,7 +49,7 @@ pass MyTestSuite, MyTestSuite.FirstCustomTest or MyTestSuite.*CustomTest:
 
 You can execute the integration suite in a remote snappy machine with:
 
-    go run _integration-test/main.go --ip {testbed-ip} --port {testbed-port} \
+    go run _integration-tests/main.go --ip {testbed-ip} --port {testbed-port} \
     --arch {testbed-arch}
 
 The test runner will use `ssh-copy-id` to send your identity file to the
