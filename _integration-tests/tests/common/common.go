@@ -58,15 +58,15 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 // will skip all the following tests. If the suite is being called after the
 // test bed was rebooted, it will resume the test that requested the reboot.
 func (s *SnappySuite) SetUpTest(c *check.C) {
-	if needsReboot() {
+	if NeedsReboot() {
 		contents, err := ioutil.ReadFile(needsRebootFile)
 		c.Assert(err, check.IsNil, check.Commentf("Error reading needs-reboot file %v", err))
 		c.Skip(fmt.Sprintf("****** Skipped %s during reboot caused by %s",
 			c.TestName(), contents))
 	} else {
-		if checkRebootMark("") {
+		if CheckRebootMark("") {
 			c.Logf("****** Running %s", c.TestName())
-			SetSavedVersion(c, GetCurrentVersion(c))
+			SetSavedVersion(c, GetCurrentUbuntuCoreVersion(c))
 		} else {
 			if AfterReboot(c) {
 				c.Logf("****** Resuming %s after reboot", c.TestName())
@@ -84,7 +84,7 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 // the test.
 // It also runs the cleanup handlers
 func (s *SnappySuite) TearDownTest(c *check.C) {
-	if !needsReboot() && checkRebootMark("") {
+	if !NeedsReboot() && CheckRebootMark("") {
 		// Only restore the channel config files if the reboot has been handled.
 		m := make(map[string]string)
 		m[channelCfgBackupFile()] = "/"
@@ -146,18 +146,24 @@ func ExecCommandToFile(c *check.C, filename string, cmds ...string) {
 	c.Assert(err, check.IsNil, check.Commentf("Error executing command '%v': %v", cmds, err))
 }
 
-// GetCurrentVersion returns the version number of the installed and active
-// ubuntu-core.
-func GetCurrentVersion(c *check.C) int {
+// GetCurrentVersion returns the version of the installed and active package.
+func GetCurrentVersion(c *check.C, packageName string) string {
 	output := ExecCommand(c, "snappy", "list")
-	pattern := "(?mU)^ubuntu-core (.*)$"
+	pattern := "(?mU)^" + packageName + " +(.*)$"
 	re := regexp.MustCompile(pattern)
 	match := re.FindStringSubmatch(string(output))
 	c.Assert(match, check.NotNil, check.Commentf("Version not found in %s", output))
 
 	// match is like "ubuntu-core   2015-06-18 93        ubuntu"
 	items := strings.Fields(match[0])
-	version, err := strconv.Atoi(items[2])
+	return items[2]
+}
+
+// GetCurrentUbuntuCoreVersion returns the version number of the installed and
+// active ubuntu-core.
+func GetCurrentUbuntuCoreVersion(c *check.C) int {
+	versionString := GetCurrentVersion(c, "ubuntu-core")
+	version, err := strconv.Atoi(versionString)
 	c.Assert(err, check.IsNil, check.Commentf("Error converting version to int %v", version))
 	return version
 }
@@ -184,7 +190,7 @@ func CallFakeUpdate(c *check.C) {
 
 func fakeAvailableUpdate(c *check.C) {
 	c.Log("Faking an available update...")
-	currentVersion := GetCurrentVersion(c)
+	currentVersion := GetCurrentUbuntuCoreVersion(c)
 	switchChannelVersion(c, currentVersion, currentVersion-1)
 	SetSavedVersion(c, currentVersion-1)
 }
@@ -232,7 +238,8 @@ func RebootWithMark(c *check.C, mark string) {
 	c.Assert(err, check.IsNil, check.Commentf("Error writing needs-reboot file: %v", err))
 }
 
-func needsReboot() bool {
+// NeedsReboot returns True if a reboot has been requested by a test.
+func NeedsReboot() bool {
 	_, err := os.Stat(needsRebootFile)
 	return err == nil
 }
@@ -240,17 +247,19 @@ func needsReboot() bool {
 // BeforeReboot returns True if the test is running before the test bed has
 // been rebooted, or after the test that requested the reboot handled it.
 func BeforeReboot() bool {
-	return checkRebootMark("")
+	return CheckRebootMark("")
 }
 
 // AfterReboot returns True if the test is running after the test bed has been
 // rebooted.
 func AfterReboot(c *check.C) bool {
 	// $ADT_REBOOT_MARK contains the reboot mark, if we have rebooted it'll be the test name
-	return checkRebootMark(c.TestName())
+	return CheckRebootMark(c.TestName())
 }
 
-func checkRebootMark(mark string) bool {
+// CheckRebootMark returns True if the reboot mark matches the string passed as
+// argument.
+func CheckRebootMark(mark string) bool {
 	return os.Getenv("ADT_REBOOT_MARK") == mark
 }
 

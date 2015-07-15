@@ -24,22 +24,22 @@ import (
 
 	. "../common"
 
-	. "gopkg.in/check.v1"
+	check "gopkg.in/check.v1"
 )
 
-var _ = Suite(&installSuite{})
+var _ = check.Suite(&installAppSuite{})
 
-type installSuite struct {
+type installAppSuite struct {
 	SnappySuite
 }
 
-func (s *installSuite) TearDownTest(c *C) {
+func (s *installAppSuite) TearDownTest(c *check.C) {
 	RemoveSnap(c, "hello-world")
 	// run cleanup last
 	s.SnappySuite.TearDownTest(c)
 }
 
-func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
+func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) {
 	installOutput := InstallSnap(c, "hello-world")
 
 	expected := "(?ms)" +
@@ -49,23 +49,23 @@ func (s *installSuite) TestInstallSnapMustPrintPackageInformation(c *C) {
 		"^hello-world +.* +.* +canonical \n" +
 		".*"
 
-	c.Assert(installOutput, Matches, expected)
+	c.Assert(installOutput, check.Matches, expected)
 }
 
-func (s *installSuite) TestCallBinaryFromInstalledSnap(c *C) {
+func (s *installAppSuite) TestCallBinaryFromInstalledSnap(c *check.C) {
 	InstallSnap(c, "hello-world")
 
 	echoOutput := ExecCommand(c, "hello-world.echo")
 
-	c.Assert(echoOutput, Equals, "Hello World!\n")
+	c.Assert(echoOutput, check.Equals, "Hello World!\n")
 }
 
-func (s *installSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
+func (s *installAppSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *check.C) {
 	InstallSnap(c, "hello-world")
 
 	cmd := exec.Command("hello-world.evil")
 	echoOutput, err := cmd.CombinedOutput()
-	c.Assert(err, NotNil, Commentf("hello-world.evil did not fail"))
+	c.Assert(err, check.NotNil, check.Commentf("hello-world.evil did not fail"))
 
 	expected := "" +
 		"Hello Evil World!\n" +
@@ -75,14 +75,14 @@ func (s *installSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *C) {
 		"/apps/hello-world.canonical/.*/bin/evil: " +
 		"cannot create /var/tmp/myevil.txt: Permission denied\n"
 
-	c.Assert(string(echoOutput), Matches, expected)
+	c.Assert(string(echoOutput), check.Matches, expected)
 }
 
-func (s *installSuite) TestInfoMustPrintInstalledPackageInformation(c *C) {
+func (s *installAppSuite) TestInfoMustPrintInstalledPackageInformation(c *check.C) {
 	InstallSnap(c, "hello-world")
 
 	infoOutput := ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
-	c.Assert(infoOutput, Matches, expected)
+	c.Assert(infoOutput, check.Matches, expected)
 }
