@@ -191,12 +191,14 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 
 	// Ensure there is always a kernel + initrd to boot with, even
 	// if the update does not provide new versions.
-	if pb != nil {
-		pb.Notify("Syncing boot files")
-	}
-	err = s.partition.SyncBootloaderFiles(bootAssetFilePaths())
-	if err != nil {
-		return "", err
+	if s.needsBootAssetSync() {
+		if pb != nil {
+			pb.Notify("Syncing boot files")
+		}
+		err = s.partition.SyncBootloaderFiles(bootAssetFilePaths())
+		if err != nil {
+			return "", err
+		}
 	}
 
 	// find out what config file to use, the other partition may be
@@ -478,4 +480,31 @@ func (s *SystemImageRepository) Installed() (parts []Part, err error) {
 	}
 
 	return parts, err
+}
+
+// needsSync determines if syncing boot assets is required
+func (s *SystemImagePart) needsBootAssetSync() bool {
+	// current partition
+	curr := makeCurrentPart(s.partition)
+	if curr == nil {
+		// this should never ever happen
+		panic("current part does not exist")
+	}
+
+	// other partition
+	other := makeOtherPart(s.partition)
+	if other == nil {
+		return true
+	}
+
+	if curr.Channel() != other.Channel() {
+		return false
+	}
+
+	// if the other version is already a higher version number
+	// than the current one it means all the kernel updates
+	// has happend already and we do not need to sync the
+	// bootloader files, see:
+	// https://bugs.launchpad.net/snappy/+bug/1474125
+	return VersionCompare(curr.Version(), other.Version()) > 0
 }
