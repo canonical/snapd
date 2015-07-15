@@ -218,6 +218,10 @@ func main() {
 			"Channel of the image to be built, defaults to "+defaultChannel)
 		imgRevision = flag.String("revision", "",
 			"Revision of the image to be built (can be relative to the latest available revision in the given release and channel as in -1), defaults to the empty string")
+		targetRelease = flag.String("target-release", "",
+			"If specified, the image will be updated to this release before running the tests.")
+		targetChannel = flag.String("target-channel", "",
+			"If specified, the image will be update to this channel before running the tests.")
 	)
 
 	flag.Parse()
