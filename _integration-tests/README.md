@@ -24,7 +24,7 @@ to `ubuntu-device-flash`:
 
     go run _integration-tests/main.go -release 15.04 -channel stable -revision 3
 
-The default values are suited to testing the more recent version, `rolling` for
+The default values are suited to testing the most recent version, `rolling` for
 release, `edge` for channel and an empty revision, which picks the latest
 available.
 
