@@ -20,8 +20,10 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -40,6 +42,7 @@ const (
 	defaultGoArm   = "7"
 	tplOutputDir   = "_integration-tests/data/output/"
 	controlTpl     = "_integration-tests/data/tpl/control"
+	configFileName = "testconfig.json"
 )
 
 var (
@@ -59,6 +62,8 @@ func setupAndRunTests(useSnappyFromBranch bool, arch, testbedIP, testFilter stri
 		buildSnappyCLI(arch)
 	}
 	buildTests(arch)
+
+	writeTestConfig(defaultRelease, defaultChannel)
 
 	rootPath := getRootPath()
 
@@ -127,6 +132,20 @@ func goCall(arch string, cmds ...string) {
 	}
 	goCmd := append([]string{"go"}, cmds...)
 	execCommand(goCmd...)
+}
+
+func writeTestConfig(release, channel string) {
+	fmt.Println("Writing test config...")
+	testConfig := map[string]string{
+		"release": release,
+		"channel": channel,
+	}
+	fmt.Println(testConfig)
+	encoded, err := json.Marshal(testConfig)
+	if err != nil {
+		log.Fatalf("Error encoding the test config: %v", testConfig)
+	}
+	ioutil.WriteFile(configFileName, encoded, 0644)
 }
 
 func createImage(release, channel, revision string) string {
