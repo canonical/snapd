@@ -40,6 +40,8 @@ const (
 	channelCfgFile  = "/etc/system-image/channel.ini"
 )
 
+// Config is a map of strings that contains the configurations values passed
+// from the host to the testbed.
 var Config map[string]string
 
 // SnappySuite is a structure used as a base test suite for all the snappy
