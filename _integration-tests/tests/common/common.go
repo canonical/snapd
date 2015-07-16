@@ -152,24 +152,24 @@ func switchSsytemImageConf(c *check.C, release, channel, version string) {
 }
 
 func replaceSystemImageValues(c *check.C, file, release, channel, version string) {
-	c.Log("Switching the system image conf...")
+	c.Log("Switching the system image conf to...")
 	regex := []string{}
 	if release != "" {
 		regex = append(regex,
 			fmt.Sprintf(
-				`s#^channel: ubuntu-core/.*/(.*)$#channel: ubuntu-core/%s/\1#`,
+				`s#channel: ubuntu-core/.*/\(.*\)#channel: ubuntu-core/%s/\1#`,
 				release))
 	}
 	if channel != "" {
 		regex = append(regex,
 			fmt.Sprintf(
-				`s#^channel: ubuntu-core/(.*)/.*$#channel: ubuntu-core/\1/%s#`,
+				`s#channel: ubuntu-core/\(.*\)/.*#channel: ubuntu-core/\1/%s#`,
 				channel))
 	}
 	if version != "" {
 		regex = append(regex,
 			fmt.Sprintf(
-				`s/^build_number: .*$/build_number: %s/`,
+				`s/build_number: .*/build_number: %s/`,
 				version))
 	}
 	for i := range regex {

@@ -38,9 +38,8 @@ type infoSuite struct {
 func (s *infoSuite) TestInfoMustPrintReleaseAndChannel(c *check.C) {
 	infoOutput := ExecCommand(c, "snappy", "info")
 
-	config := readConfig(c)
 	expected := "(?ms)" +
-		fmt.Sprintf("^release: ubuntu-core/%s/%s\n", config["release"], config["channel"]) +
+		fmt.Sprintf("^release: ubuntu-core/%s/%s\n", Config["release"], Config["channel"]) +
 		".*"
 
 	c.Assert(infoOutput, check.Matches, expected)
