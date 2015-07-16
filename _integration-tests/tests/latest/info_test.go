@@ -20,9 +20,7 @@
 package latest
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 
 	. "../common"
 

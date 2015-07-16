@@ -20,6 +20,7 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -57,13 +58,13 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 		targetRelease, _ := Config["targetRelease"]
 		targetChannel, _ := Config["targetChannel"]
 		if targetRelease != "" || targetChannel != "" {
-			switchSystemImageConf(c, targetRelease, targetChannel, 0)
+			switchSystemImageConf(c, targetRelease, targetChannel, "0")
 			if CallUpdate(c) {
 				RebootWithMark(c, c.TestName()+"-setupsuite-update")
 			}
 		}
 	} else if CheckRebootMark(c.TestName() + "-setupsuite-update") {
-		RemoveRebootMark()
+		RemoveRebootMark(c)
 	}
 }
 
@@ -127,7 +128,7 @@ func (s *SnappySuite) AddCleanup(f func()) {
 	s.cleanupHandlers = append(s.cleanupHandlers, f)
 }
 
-func (s *SnappySuite) readConfig(c *check.C) map[string]string {
+func readConfig(c *check.C) map[string]string {
 	b, err := ioutil.ReadFile("_integration-tests/data/output/testconfig.json")
 	c.Assert(
 		err, check.IsNil, check.Commentf("Failed to read test config: %v", err))
@@ -139,7 +140,7 @@ func (s *SnappySuite) readConfig(c *check.C) map[string]string {
 	return decoded
 }
 
-func switchSsytemImageConf(c *check.C, release, channel, version string) {
+func switchSystemImageConf(c *check.C, release, channel, version string) {
 	targets := []string{"/", BaseOtherPath}
 	for _, target := range targets {
 		file := filepath.Join(target, channelCfgFile)
@@ -256,7 +257,7 @@ func CallFakeUpdate(c *check.C) {
 func fakeAvailableUpdate(c *check.C) {
 	c.Log("Faking an available update...")
 	currentVersion := GetCurrentUbuntuCoreVersion(c)
-	switchChanelVersionWithBackup(c, currentVersion, currentVersion-1)
+	switchChannelVersionWithBackup(c, currentVersion-1)
 	SetSavedVersion(c, currentVersion-1)
 }
 
@@ -271,7 +272,7 @@ func switchChannelVersionWithBackup(c *check.C, newVersion int) {
 			defer MakeReadonly(c, target)
 			// Back up the file. It will be restored during the test tear down.
 			ExecCommand(c, "cp", file, backup)
-			replaceSystemImageValues(c, file, "", "", newVersion)
+			replaceSystemImageValues(c, file, "", "", strconv.Itoa(newVersion))
 		}
 	}
 }
