@@ -32,16 +32,14 @@ const (
 	bootloaderGrubConfigFileReal = "/boot/grub/grub.cfg"
 	bootloaderGrubEnvFileReal    = "/boot/grub/grubenv"
 
-	bootloaderGrubEnvCmdReal       = "/usr/bin/grub-editenv"
-	bootloaderGrubTrialBootVarReal = "snappy_trial_boot"
+	bootloaderGrubEnvCmdReal = "/usr/bin/grub-editenv"
 )
 
 // var to make it testable
 var (
-	bootloaderGrubDir          = bootloaderGrubDirReal
-	bootloaderGrubConfigFile   = bootloaderGrubConfigFileReal
-	bootloaderGrubTrialBootVar = bootloaderGrubTrialBootVarReal
-	bootloaderGrubEnvFile      = bootloaderGrubEnvFileReal
+	bootloaderGrubDir        = bootloaderGrubDirReal
+	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
+	bootloaderGrubEnvFile    = bootloaderGrubEnvFileReal
 
 	bootloaderGrubEnvCmd = bootloaderGrubEnvCmdReal
 )
@@ -124,7 +122,7 @@ func (g *grub) GetNextBootRootFSName() (label string, err error) {
 func (g *grub) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
 	// Clear the variable set by grub on boot to denote a good
 	// boot.
-	if err := g.unsetBootVar(bootloaderGrubTrialBootVar); err != nil {
+	if err := g.unsetBootVar(bootloaderTrialBootVar); err != nil {
 		return err
 	}
 

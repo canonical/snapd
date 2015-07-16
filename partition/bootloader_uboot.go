@@ -41,9 +41,11 @@ const (
 	// this partition is "good".
 	bootloaderUbootStampFileReal = "/boot/uboot/snappy-stamp.txt"
 
-	// the main uEnv.txt u-boot config file sources this snappy
-	// boot-specific config file.
+	// DEPRECATED:
 	bootloaderUbootEnvFileReal = "/boot/uboot/snappy-system.txt"
+
+	// the real uboot env
+	bootloaderUbootFwEnvFileReal = "/boot/uboot/uboot.env"
 )
 
 // var to make it testable
@@ -52,6 +54,7 @@ var (
 	bootloaderUbootConfigFile = bootloaderUbootConfigFileReal
 	bootloaderUbootStampFile  = bootloaderUbootStampFileReal
 	bootloaderUbootEnvFile    = bootloaderUbootEnvFileReal
+	bootloaderUbootFwEnvFile  = bootloaderUbootFwEnvFileReal
 	atomicFileUpdate          = atomicFileUpdateImpl
 )
 
@@ -186,7 +189,7 @@ func writeLines(lines []string, path string) (err error) {
 	return file.Sync()
 }
 
-func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
+func (u *uboot) markCurrentBootSuccessfulLegacy(currentRootfs string) error {
 	changes := []configFileChange{
 		configFileChange{Name: bootloaderBootmodeVar,
 			Value: bootloaderBootmodeSuccess,
@@ -201,6 +204,40 @@ func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
 	}
 
 	return os.RemoveAll(bootloaderUbootStampFile)
+}
+
+func (u *uboot) unsetBootVar(name string) error {
+	return runCommand("fw_setenv", name)
+}
+
+func (u *uboot) setBootVar(name, value string) error {
+	return runCommand("fw_setenv", name, value)
+}
+
+// FIXME: this is super similar to grub now, refactor to extract the
+//        common code
+func (u *uboot) markCurrentBootSuccessfulFwEnv(currentRootfs string) error {
+	// Clear the variable set by grub on boot to denote a good
+	// boot.
+	if err := u.unsetBootVar(bootloaderTrialBootVar); err != nil {
+		return err
+	}
+
+	if err := u.setBootVar(bootloaderRootfsVar, currentRootfs); err != nil {
+		return err
+	}
+
+	return u.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
+}
+
+func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) error {
+	// modern system
+	if helpers.FileExists(bootloaderUbootFwEnvFile) {
+		return u.markCurrentBootSuccessfulFwEnv(currentRootfs)
+	}
+
+	// legacy
+	return u.markCurrentBootSuccessfulLegacy(currentRootfs)
 }
 
 // Write lines to file atomically. File does not have to preexist.

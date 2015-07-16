@@ -318,3 +318,23 @@ func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
 	c.Check(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
 	c.Check(strings.Contains(string(bytes), "snappy_ab=a"), Equals, true)
 }
+
+func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	err := ioutil.WriteFile(bootloaderUbootFwEnvFile, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	allCommands = nil
+	runCommand = mockRunCommandWithCapture
+	err = u.MarkCurrentBootSuccessful("b")
+	c.Assert(err, IsNil)
+	c.Assert(allCommands, HasLen, 3)
+	c.Assert(allCommands[0], DeepEquals, singleCommand{"fw_setenv", bootloaderTrialBootVar})
+	c.Assert(allCommands[1], DeepEquals, singleCommand{"fw_setenv", bootloaderRootfsVar, "b"})
+	c.Assert(allCommands[2], DeepEquals, singleCommand{"fw_setenv", bootloaderBootmodeVar, bootloaderBootmodeSuccess})
+}

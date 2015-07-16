@@ -60,6 +60,7 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 	bootloaderUbootDir = filepath.Join(s.tempdir, "boot", "uboot")
 	bootloaderUbootConfigFile = filepath.Join(bootloaderUbootDir, "uEnv.txt")
 	bootloaderUbootEnvFile = filepath.Join(bootloaderUbootDir, "uEnv.txt")
+	bootloaderUbootFwEnvFile = filepath.Join(bootloaderUbootDir, "uboot.env")
 	bootloaderUbootStampFile = filepath.Join(bootloaderUbootDir, "snappy-stamp.txt")
 
 	c.Assert(mounts, DeepEquals, mountEntryArray(nil))

@@ -37,6 +37,8 @@ const (
 	// that the boot of the new rootfs was successful).
 	bootloaderBootmodeVar = "snappy_mode"
 
+	bootloaderTrialBootVar = "snappy_trial_boot"
+
 	// Initial and final values
 	bootloaderBootmodeTry     = "try"
 	bootloaderBootmodeSuccess = "regular"
