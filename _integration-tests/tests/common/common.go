@@ -153,7 +153,7 @@ func switchSystemImageConf(c *check.C, release, channel, version string) {
 }
 
 func replaceSystemImageValues(c *check.C, file, release, channel, version string) {
-	c.Log("Switching the system image conf to...")
+	c.Log("Switching the system image conf...")
 	regex := []string{}
 	if release != "" {
 		regex = append(regex,
@@ -237,8 +237,8 @@ func GetCurrentUbuntuCoreVersion(c *check.C) int {
 	return version
 }
 
-// CallUpdate executes an snappy update. If there is no update available, the
-// channel version will be modified to fake an update.
+// CallUpdate executes an snappy update. It returns true if an update was
+// installed and it is waiting for a reboot to be activated.
 func CallUpdate(c *check.C) bool {
 	c.Log("Calling snappy update...")
 	output := ExecCommand(c, "sudo", "snappy", "update")
