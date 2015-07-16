@@ -58,7 +58,7 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 		targetRelease, _ := Config["targetRelease"]
 		targetChannel, _ := Config["targetChannel"]
 		if targetRelease != "" || targetChannel != "" {
-			switchSystemImageConf(c, targetRelease, targetChannel, "0")
+			switchSystemImageConf(c, targetRelease, targetChannel, "")
 			if CallUpdate(c) {
 				RebootWithMark(c, c.TestName()+"-setupsuite-update")
 			}
