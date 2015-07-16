@@ -61,11 +61,14 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 		targetChannel, _ := Config["targetChannel"]
 		if targetRelease != "" || targetChannel != "" {
 			switchSystemImageConf(c, targetRelease, targetChannel, "0")
-			if CallUpdate(c) {
-				RebootWithMark(c, c.TestName()+"-setupsuite-update")
+			// Always use the installed snappy because we are updating from an old
+			// image, so we should not use the snappy from the branch.
+			output := ExecCommand(c, "sudo", "/usr/bin/snappy", "update")
+			if output != "" {
+				RebootWithMark(c, "setupsuite-update")
 			}
 		}
-	} else if CheckRebootMark(c.TestName() + "-setupsuite-update") {
+	} else if CheckRebootMark("setupsuite-update") {
 		RemoveRebootMark(c)
 	}
 }
@@ -237,16 +240,6 @@ func GetCurrentUbuntuCoreVersion(c *check.C) int {
 	version, err := strconv.Atoi(versionString)
 	c.Assert(err, check.IsNil, check.Commentf("Error converting version to int %v", version))
 	return version
-}
-
-// CallUpdate executes an snappy update. It returns true if an update was
-// installed and it is waiting for a reboot to be activated.
-func CallUpdate(c *check.C) bool {
-	c.Log("Calling snappy update...")
-	output := ExecCommand(c, "sudo", "snappy", "update")
-	// XXX Instead of trying the update, we should have a command to tell us
-	// if there is an available update. --elopio - 2015-07-01
-	return output != ""
 }
 
 // CallFakeUpdate calls snappy update after faking the current version
