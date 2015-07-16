@@ -20,8 +20,10 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -40,13 +42,14 @@ const (
 	defaultChannel = "edge"
 	defaultSSHPort = 22
 	defaultGoArm   = "7"
-	tplOutputDir   = "_integration-tests/data/output/"
+	dataOutputDir  = "_integration-tests/data/output/"
 	controlTpl     = "_integration-tests/data/tpl/control"
 )
 
 var (
 	commonSSHOptions   = []string{"---", "ssh"}
-	controlFile        = filepath.Join(tplOutputDir, "control")
+	configFileName     = filepath.Join(dataOutputDir, "testconfig.json")
+	controlFile        = filepath.Join(dataOutputDir, "control")
 	testPackagesLatest = []string{"latest", "failover"}
 	testPackageUpdate  = []string{"update"}
 	testPackages       = append(testPackagesLatest, testPackageUpdate...)
@@ -61,6 +64,20 @@ func buildAssets(useSnappyFromBranch bool, arch string) {
 		buildSnappyCLI(arch)
 	}
 	buildTests(arch)
+}
+
+func writeTestConfig(release, channel string) {
+	fmt.Println("Writing test config...")
+	testConfig := map[string]string{
+		"release": release,
+		"channel": channel,
+	}
+	fmt.Println(testConfig)
+	encoded, err := json.Marshal(testConfig)
+	if err != nil {
+		log.Fatalf("Error encoding the test config: %v", testConfig)
+	}
+	ioutil.WriteFile(configFileName, encoded, 0644)
 }
 
 func setupAndRunLocalTests(rootPath, testFilter string, img image.Image) {
@@ -161,7 +178,6 @@ func createControlFile(testFilter string, testList []string, includeShellTest bo
 		log.Fatalf("Error reading adt-run control template %s", controlTpl)
 	}
 
-	utils.PrepareTargetDir(tplOutputDir)
 	outputFile, err := os.Create(controlFile)
 	if err != nil {
 		log.Fatalf("Error creating control file %s", controlFile)
@@ -223,6 +239,14 @@ func main() {
 	flag.Parse()
 
 	buildAssets(*useSnappyFromBranch, *arch)
+
+	// TODO: generate the files out of the source tree. --elopio - 2015-07-15
+	utils.PrepareTargetDir(dataOutputDir)
+	defer os.RemoveAll(dataOutputDir)
+
+	// TODO: pass the config as arguments to the test binaries.
+	// --elopio - 2015-07-15
+	writeTestConfig(*imgRelease, *imgChannel)
 
 	rootPath := getRootPath()
 
