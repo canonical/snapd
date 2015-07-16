@@ -53,7 +53,7 @@ type SnappySuite struct {
 func (s *SnappySuite) SetUpSuite(c *check.C) {
 	ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 	ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
-	if CheckRebootMark("") {
+	if CheckRebootMark("") && !NeedsReboot() {
 		Config = readConfig(c)
 		targetRelease, _ := Config["targetRelease"]
 		targetChannel, _ := Config["targetChannel"]
