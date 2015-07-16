@@ -206,6 +206,8 @@ func (u *uboot) markCurrentBootSuccessfulLegacy(currentRootfs string) error {
 	return os.RemoveAll(bootloaderUbootStampFile)
 }
 
+// fw_setenv gets the location of the configuration to use from the
+// file /etc/fw_env.config
 func (u *uboot) unsetBootVar(name string) error {
 	return runCommand("fw_setenv", name)
 }
