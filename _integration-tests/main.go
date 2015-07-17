@@ -64,7 +64,7 @@ func buildAssets(useSnappyFromBranch bool, arch string) {
 	buildTests(arch)
 }
 
-func writeTestConfig(release, channel, targetRelease, targetChannel string) {
+func writeTestConfig(release, channel, targetRelease, targetChannel string, rollback bool) {
 	fmt.Println("Writing test config...")
 	testConfig := map[string]string{
 		"release": release,
@@ -76,6 +76,7 @@ func writeTestConfig(release, channel, targetRelease, targetChannel string) {
 	if targetChannel != "" {
 		testConfig["targetChannel"] = targetChannel
 	}
+	testConfig["rollback"] = strconv.FormatBool(rollback)
 	fmt.Println(testConfig)
 	encoded, err := json.Marshal(testConfig)
 	if err != nil {
@@ -234,6 +235,8 @@ func main() {
 			"If specified, the image will be updated to this release before running the tests.")
 		targetChannel = flag.String("target-channel", "",
 			"If specified, the image will be updated to this channel before running the tests.")
+		rollback = flag.Bool("rollback", false,
+			"If this flag is used, the image will be updated and then rolled back before running the tests.")
 	)
 
 	flag.Parse()
@@ -246,7 +249,8 @@ func main() {
 
 	// TODO: pass the config as arguments to the test binaries.
 	// --elopio - 2015-07-15
-	writeTestConfig(*imgRelease, *imgChannel, *targetRelease, *targetChannel)
+	writeTestConfig(
+		*imgRelease, *imgChannel, *targetRelease, *targetChannel, *rollback)
 
 	rootPath := getRootPath()
 

@@ -70,6 +70,15 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 		}
 	} else if CheckRebootMark("setupsuite-update") {
 		RemoveRebootMark(c)
+		rollback, err := strconv.ParseBool(Config["rollbakck"])
+		c.Assert(err, check.IsNil,
+			check.Commentf("Error parsing the rollback config value: %v", err))
+		if rollback {
+			ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core")
+			RebootWithMark(c, "setupsuite-rollback")
+		}
+	} else if CheckRebootMark("setupsuite-rollback") {
+		RemoveRebootMark(c)
 	}
 }
 
