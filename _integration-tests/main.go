@@ -81,15 +81,10 @@ func writeTestConfig(release, channel string) {
 }
 
 func setupAndRunLocalTests(rootPath, testFilter string, img image.Image) {
-	var includeShell bool
-	if testFilter == "" {
-		includeShell = true
-	}
-
 	// Run the tests on the latest rolling edge image.
 	if imageName, err := img.UdfCreate(); err == nil {
 		adtRun(rootPath, testFilter, testPackages,
-			kvmSSHOptions(imageName), includeShell)
+			kvmSSHOptions(imageName))
 	}
 
 	// Update from revision -1.
@@ -97,7 +92,7 @@ func setupAndRunLocalTests(rootPath, testFilter string, img image.Image) {
 	if imageName, err := img.UdfCreate(); err == nil {
 		adtRun(
 			rootPath, "updateSuite.TestUpdateToSameReleaseAndChannel",
-			testPackageUpdate, kvmSSHOptions(imageName), false)
+			testPackageUpdate, kvmSSHOptions(imageName))
 	}
 }
 
@@ -105,7 +100,7 @@ func setupAndRunRemoteTests(rootPath, testFilter, testbedIP string, testbedPort 
 	utils.ExecCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 		"ubuntu@"+testbedIP)
 	adtRun(rootPath, testFilter, testPackages,
-		remoteTestbedSSHOptions(testbedIP, testbedPort), true)
+		remoteTestbedSSHOptions(testbedIP, testbedPort))
 }
 
 func buildSnappyCLI(arch string) {
@@ -140,11 +135,11 @@ func goCall(arch string, cmds ...string) {
 	utils.ExecCommand(goCmd...)
 }
 
-func adtRun(rootPath, testFilter string, testList, testbedOptions []string, includeShell bool) {
-	createControlFile(testFilter, testList, includeShell)
+func adtRun(rootPath, testFilter string, testList, testbedOptions []string) {
+	createControlFile(testFilter, testList)
 
 	fmt.Println("Calling adt-run...")
-	outputSubdir := getOutputSubdir(testList, includeShell)
+	outputSubdir := strings.Join(testList, "-")
 	outputDir := filepath.Join(baseDir, "output", outputSubdir)
 	utils.PrepareTargetDir(outputDir)
 
@@ -166,11 +161,10 @@ func kvmSSHOptions(imagePath string) []string {
 			"--", "-i", imagePath}...)
 }
 
-func createControlFile(testFilter string, testList []string, includeShellTest bool) {
+func createControlFile(testFilter string, testList []string) {
 	type controlData struct {
-		Filter       string
-		Tests        []string
-		IncludeShell bool
+		Filter string
+		Tests  []string
 	}
 
 	tpl, err := template.ParseFiles(controlTpl)
@@ -184,18 +178,10 @@ func createControlFile(testFilter string, testList []string, includeShellTest bo
 	}
 	defer outputFile.Close()
 
-	err = tpl.Execute(outputFile, controlData{Filter: testFilter, Tests: testList, IncludeShell: includeShellTest})
+	err = tpl.Execute(outputFile, controlData{Filter: testFilter, Tests: testList})
 	if err != nil {
 		log.Fatalf("execution: %s", err)
 	}
-}
-
-func getOutputSubdir(testList []string, includeShell bool) string {
-	output := strings.Join(testList, "-")
-	if includeShell {
-		output = output + "-shell"
-	}
-	return output
 }
 
 func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
