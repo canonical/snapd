@@ -65,7 +65,7 @@ func (is *isWritable) Check(params []interface{}, names []string) (result bool, 
 	} else {
 		error = fmt.Sprintf("First param of checker %v is of type %T and it should be a string", params[0], params[0])
 	}
-	return
+	return result, error
 }
 
 func (s *writablePathsSuite) TestWritablePathsAreWritable(c *check.C) {
