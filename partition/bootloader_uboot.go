@@ -29,6 +29,7 @@ import (
 	"launchpad.net/snappy/helpers"
 
 	"github.com/mvo5/goconfigparser"
+	ubootPkg "github.com/mvo5/uboot-go/uboot"
 )
 
 const (
@@ -206,14 +207,19 @@ func (u *uboot) markCurrentBootSuccessfulLegacy(currentRootfs string) error {
 	return os.RemoveAll(bootloaderUbootStampFile)
 }
 
-// fw_setenv gets the location of the configuration to use from the
-// file /etc/fw_env.config
 func (u *uboot) unsetBootVar(name string) error {
-	return runCommand("fw_setenv", name)
+	return u.setBootVar(name, "")
 }
 
 func (u *uboot) setBootVar(name, value string) error {
-	return runCommand("fw_setenv", name, value)
+	env, err := ubootPkg.OpenEnv(bootloaderUbootFwEnvFile)
+	if err != nil {
+		return err
+	}
+	if err := env.Set(name, value); err != nil {
+		return err
+	}
+	return env.Save()
 }
 
 // FIXME: this is super similar to grub now, refactor to extract the

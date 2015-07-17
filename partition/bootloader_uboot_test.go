@@ -27,6 +27,8 @@ import (
 
 	. "gopkg.in/check.v1"
 	"launchpad.net/snappy/helpers"
+
+	ubootPkg "github.com/mvo5/uboot-go/uboot"
 )
 
 // TODO move to uboot specific test suite.
@@ -322,19 +324,22 @@ func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
 func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	err := ioutil.WriteFile(bootloaderUbootFwEnvFile, []byte(""), 0644)
+	env, err := ubootPkg.CreateEnv(bootloaderUbootFwEnvFile, 4096)
+	c.Assert(err, IsNil)
+	env.Set("snappy_ab", "b")
+	env.Set("snappy_mode", "try")
+	env.Set("snappy_trial_boot", "1")
+	c.Assert(err, IsNil)
+	err = env.Save()
 	c.Assert(err, IsNil)
 
 	partition := New()
 	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
-	allCommands = nil
-	runCommand = mockRunCommandWithCapture
 	err = u.MarkCurrentBootSuccessful("b")
 	c.Assert(err, IsNil)
-	c.Assert(allCommands, HasLen, 3)
-	c.Assert(allCommands[0], DeepEquals, singleCommand{"fw_setenv", bootloaderTrialBootVar})
-	c.Assert(allCommands[1], DeepEquals, singleCommand{"fw_setenv", bootloaderRootfsVar, "b"})
-	c.Assert(allCommands[2], DeepEquals, singleCommand{"fw_setenv", bootloaderBootmodeVar, bootloaderBootmodeSuccess})
+	env, err = ubootPkg.OpenEnv(bootloaderUbootFwEnvFile)
+	c.Assert(err, IsNil)
+	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\n")
 }
