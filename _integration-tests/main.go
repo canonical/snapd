@@ -47,12 +47,10 @@ const (
 )
 
 var (
-	commonSSHOptions   = []string{"---", "ssh"}
-	configFileName     = filepath.Join(dataOutputDir, "testconfig.json")
-	controlFile        = filepath.Join(dataOutputDir, "control")
-	testPackagesLatest = []string{"latest", "failover"}
-	testPackageUpdate  = []string{"update"}
-	testPackages       = append(testPackagesLatest, testPackageUpdate...)
+	commonSSHOptions = []string{"---", "ssh"}
+	configFileName   = filepath.Join(dataOutputDir, "testconfig.json")
+	controlFile      = filepath.Join(dataOutputDir, "control")
+	testPackages     = []string{"latest", "failover"}
 )
 
 func buildAssets(useSnappyFromBranch bool, arch string) {
@@ -96,14 +94,6 @@ func setupAndRunLocalTests(rootPath, testFilter string, img image.Image) {
 	if imageName, err := img.UdfCreate(); err == nil {
 		adtRun(rootPath, testFilter, testPackages,
 			kvmSSHOptions(imageName), includeShell)
-	}
-
-	// Update from revision -1.
-	img.SetRevision("-1")
-	if imageName, err := img.UdfCreate(); err == nil {
-		adtRun(
-			rootPath, "updateSuite.TestUpdateToSameReleaseAndChannel",
-			testPackageUpdate, kvmSSHOptions(imageName), false)
 	}
 }
 
