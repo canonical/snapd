@@ -219,8 +219,7 @@ func (u *uboot) setBootVar(name, value string) error {
 // FIXME: this is super similar to grub now, refactor to extract the
 //        common code
 func (u *uboot) markCurrentBootSuccessfulFwEnv(currentRootfs string) error {
-	// Clear the variable set by grub on boot to denote a good
-	// boot.
+	// Clear the variable set on boot to denote a good boot.
 	if err := u.unsetBootVar(bootloaderTrialBootVar); err != nil {
 		return err
 	}
