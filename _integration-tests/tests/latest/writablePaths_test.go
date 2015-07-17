@@ -55,10 +55,13 @@ func (is *isWritable) Check(params []interface{}, names []string) (result bool, 
 		filename := filepath.Join(path, "tmpfile")
 
 		cmd := exec.Command("sudo", "touch", filename)
-		defer os.Remove(filename)
+		rmCmd := exec.Command("sudo", "rm", filename)
+		defer rmCmd.Run()
 
 		if _, err := cmd.CombinedOutput(); err == nil {
 			result = true
+		} else {
+			error = fmt.Sprintf("Error creating file %s", filename)
 		}
 	} else {
 		error = fmt.Sprintf("First param of checker %v is of type %T and it should be a string", params[0], params[0])
