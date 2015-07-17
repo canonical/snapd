@@ -209,11 +209,39 @@ func (u *uboot) markCurrentBootSuccessfulLegacy(currentRootfs string) error {
 // fw_setenv gets the location of the configuration to use from the
 // file /etc/fw_env.config
 func (u *uboot) unsetBootVar(name string) error {
-	return runCommand("fw_setenv", name)
+	if u.hasBootVar(name) {
+		return runCommand("fw_setenv", name)
+	}
+
+	return nil
 }
 
 func (u *uboot) setBootVar(name, value string) error {
-	return runCommand("fw_setenv", name, value)
+	// we ignore the error here, the interface of fw_printenv
+	// is very simplistic, the github.com/mvo5/uboot-go code
+	// will fix that
+	curVal, _ := u.getBootVar(name)
+	if curVal != value {
+		return runCommand("fw_setenv", name, value)
+	}
+
+	return nil
+}
+
+func (u *uboot) hasBootVar(name string) bool {
+	// FIXME: too simplistic, this will be replaces with
+	//        github.com/mvo5/uboot-go/
+	err := runCommand("fw_printenv", name)
+	return err == nil
+}
+
+func (u *uboot) getBootVar(name string) (string, error) {
+	output, err := runCommandWithStdout("fw_printenv", "-n", name)
+	if err != nil {
+		return "", err
+	}
+
+	return output, nil
 }
 
 // FIXME: this is super similar to grub now, refactor to extract the
