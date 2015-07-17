@@ -50,8 +50,7 @@ func (is *isWritable) Info() *check.CheckerInfo {
 }
 
 func (is *isWritable) Check(params []interface{}, names []string) (result bool, error string) {
-	if str, ok := params[0].(string); ok {
-		path := str
+	if path, ok := params[0].(string); ok {
 		filename := filepath.Join(path, "tmpfile")
 
 		cmd := exec.Command("sudo", "touch", filename)
