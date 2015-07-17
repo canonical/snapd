@@ -82,6 +82,8 @@ if which adt-run >/dev/null 2>&1; then
     go run _integration-tests/main.go --snappy-from-branch --revision=-1 --target-release=rolling --target-channel=edge
     echo "Update from 15.04 edge to rolling edge and run the integration tests"
     go run _integration-tests/main.go --snappy-from-branch --release=15.04 --channel=edge --target-release=rolling --target-channel=edge
+    echo "Rollback from 15.04 alpha to 15.04 alpha -1 and run the integration tsts"
+    go run _integration-tests/main.go --snappy-from-branch --release=14.04 --channel=alpha --revision=-1 --target-release=15.04 --target-channel=alpha --rollback
 fi
 
 echo "All good, what could possibly go wrong"
