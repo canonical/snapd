@@ -17,28 +17,13 @@
  *
  */
 
-package latest
+package cmd
 
 import (
-	. "../common"
+	"testing"
 
 	. "gopkg.in/check.v1"
 )
 
-var _ = Suite(&searchSuite{})
-
-type searchSuite struct {
-	SnappySuite
-}
-
-func (s *searchSuite) TestSearchFrameworkMustPrintMatch(c *C) {
-	searchOutput := ExecCommand(c, "snappy", "search", "hello-dbus-fwk")
-
-	expected := "(?ms)" +
-		"Name +Version +Summary *\n" +
-		".*" +
-		"^hello-dbus-fwk +.* +hello-dbus-fwk *\n" +
-		".*"
-
-	c.Assert(searchOutput, Matches, expected)
-}
+// Hook up gocheck into the "go test" runner.
+func Test(t *testing.T) { TestingT(t) }

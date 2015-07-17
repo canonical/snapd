@@ -50,7 +50,7 @@ var (
 	commonSSHOptions = []string{"---", "ssh"}
 	configFileName   = filepath.Join(dataOutputDir, "testconfig.json")
 	controlFile      = filepath.Join(dataOutputDir, "control")
-	testPackages     = []string{"latest", "failover"}
+	testPackages     = []string{"cmd", "failover"}
 )
 
 func buildAssets(useSnappyFromBranch bool, arch string) {

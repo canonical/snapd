@@ -17,7 +17,7 @@
  *
  */
 
-package latest
+package cmd
 
 import (
 	. "../common"
@@ -25,24 +25,20 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-var _ = Suite(&listSuite{})
+var _ = Suite(&searchSuite{})
 
-type listSuite struct {
+type searchSuite struct {
 	SnappySuite
 }
 
-func (s *listSuite) TestListMustPrintAppVersion(c *C) {
-	InstallSnap(c, "hello-world")
-	s.AddCleanup(func() {
-		RemoveSnap(c, "hello-world")
-	})
+func (s *searchSuite) TestSearchFrameworkMustPrintMatch(c *C) {
+	searchOutput := ExecCommand(c, "snappy", "search", "hello-dbus-fwk")
 
-	listOutput := ExecCommand(c, "snappy", "list")
 	expected := "(?ms)" +
-		"Name +Date +Version +Developer *\n" +
+		"Name +Version +Summary *\n" +
 		".*" +
-		"^hello-world +.* (\\d+)(\\.\\d+)* +.* +.* *\n" +
+		"^hello-dbus-fwk +.* +hello-dbus-fwk *\n" +
 		".*"
 
-	c.Assert(listOutput, Matches, expected)
+	c.Assert(searchOutput, Matches, expected)
 }

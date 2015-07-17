@@ -17,30 +17,32 @@
  *
  */
 
-package latest
+package cmd
 
 import (
 	. "../common"
-	check "gopkg.in/check.v1"
+
+	. "gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&updateSuite{})
+var _ = Suite(&listSuite{})
 
-type updateSuite struct {
+type listSuite struct {
 	SnappySuite
 }
 
-// Test that the update to the same release and channel must install a newer
-// version. If there is no update available, the channel version will be
-// modified to fake an update. If there is a version available, the image will
-// be up-to-date after running this test.
-func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
-	if BeforeReboot() {
-		CallFakeUpdate(c)
-		Reboot(c)
-	} else if AfterReboot(c) {
-		RemoveRebootMark(c)
-		c.Assert(GetCurrentUbuntuCoreVersion(c) > GetSavedVersion(c),
-			check.Equals, true)
-	}
+func (s *listSuite) TestListMustPrintAppVersion(c *C) {
+	InstallSnap(c, "hello-world")
+	s.AddCleanup(func() {
+		RemoveSnap(c, "hello-world")
+	})
+
+	listOutput := ExecCommand(c, "snappy", "list")
+	expected := "(?ms)" +
+		"Name +Date +Version +Developer *\n" +
+		".*" +
+		"^hello-world +.* (\\d+)(\\.\\d+)* +.* +.* *\n" +
+		".*"
+
+	c.Assert(listOutput, Matches, expected)
 }
