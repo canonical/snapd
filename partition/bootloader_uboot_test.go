@@ -29,7 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 	"launchpad.net/snappy/helpers"
 
-	ubootPkg "github.com/mvo5/uboot-go/uboot"
+	"github.com/mvo5/uboot-go/uenv"
 )
 
 // TODO move to uboot specific test suite.
@@ -325,7 +325,7 @@ func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
 func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	env, err := ubootPkg.CreateEnv(bootloaderUbootFwEnvFile, 4096)
+	env, err := uenv.Create(bootloaderUbootFwEnvFile, 4096)
 	c.Assert(err, IsNil)
 	env.Set("snappy_ab", "b")
 	env.Set("snappy_mode", "try")
@@ -340,7 +340,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
 	err = u.MarkCurrentBootSuccessful("b")
 	c.Assert(err, IsNil)
 
-	env, err = ubootPkg.OpenEnv(bootloaderUbootFwEnvFile)
+	env, err = uenv.Open(bootloaderUbootFwEnvFile)
 	c.Assert(err, IsNil)
 	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\n")
 }
@@ -348,7 +348,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
 func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	env, err := ubootPkg.CreateEnv(bootloaderUbootFwEnvFile, 4096)
+	env, err := uenv.Create(bootloaderUbootFwEnvFile, 4096)
 	c.Assert(err, IsNil)
 	env.Set("snappy_ab", "b")
 	env.Set("snappy_mode", "regular")
@@ -366,7 +366,7 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	err = u.(*uboot).setBootVar(bootloaderRootfsVar, "b")
 	c.Assert(err, IsNil)
 
-	env, err = ubootPkg.OpenEnv(bootloaderUbootFwEnvFile)
+	env, err = uenv.Open(bootloaderUbootFwEnvFile)
 	c.Assert(err, IsNil)
 	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\n")
 

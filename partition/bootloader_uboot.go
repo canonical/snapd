@@ -29,7 +29,7 @@ import (
 	"launchpad.net/snappy/helpers"
 
 	"github.com/mvo5/goconfigparser"
-	ubootPkg "github.com/mvo5/uboot-go/uboot"
+	"github.com/mvo5/uboot-go/uenv"
 )
 
 const (
@@ -222,7 +222,7 @@ func (u *uboot) unsetBootVar(name string) error {
 }
 
 func (u *uboot) setBootVar(name, value string) error {
-	env, err := ubootPkg.OpenEnv(bootloaderUbootFwEnvFile)
+	env, err := uenv.Open(bootloaderUbootFwEnvFile)
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func (u *uboot) hasBootVar(name string) (bool, error) {
 }
 
 func (u *uboot) getBootVar(name string) (string, error) {
-	env, err := ubootPkg.OpenEnv(bootloaderUbootFwEnvFile)
+	env, err := uenv.Open(bootloaderUbootFwEnvFile)
 	if err != nil {
 		return "", err
 	}
