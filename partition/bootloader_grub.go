@@ -120,8 +120,7 @@ func (g *grub) GetNextBootRootFSName() (label string, err error) {
 }
 
 func (g *grub) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
-	// Clear the variable set by grub on boot to denote a good
-	// boot.
+	// Clear the variable set on boot to denote a good boot.
 	if err := g.unsetBootVar(bootloaderTrialBootVar); err != nil {
 		return err
 	}

@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"launchpad.net/snappy/helpers"
@@ -329,7 +330,6 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
 	env.Set("snappy_ab", "b")
 	env.Set("snappy_mode", "try")
 	env.Set("snappy_trial_boot", "1")
-	c.Assert(err, IsNil)
 	err = env.Save()
 	c.Assert(err, IsNil)
 
@@ -339,7 +339,38 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
 
 	err = u.MarkCurrentBootSuccessful("b")
 	c.Assert(err, IsNil)
+
 	env, err = ubootPkg.OpenEnv(bootloaderUbootFwEnvFile)
 	c.Assert(err, IsNil)
 	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\n")
+}
+
+func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	env, err := ubootPkg.CreateEnv(bootloaderUbootFwEnvFile, 4096)
+	c.Assert(err, IsNil)
+	env.Set("snappy_ab", "b")
+	env.Set("snappy_mode", "regular")
+	err = env.Save()
+	c.Assert(err, IsNil)
+
+	st, err := os.Stat(bootloaderUbootFwEnvFile)
+	c.Assert(err, IsNil)
+	time.Sleep(100 * time.Millisecond)
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	err = u.(*uboot).setBootVar(bootloaderRootfsVar, "b")
+	c.Assert(err, IsNil)
+
+	env, err = ubootPkg.OpenEnv(bootloaderUbootFwEnvFile)
+	c.Assert(err, IsNil)
+	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\n")
+
+	st2, err := os.Stat(bootloaderUbootFwEnvFile)
+	c.Assert(err, IsNil)
+	c.Assert(st.ModTime(), Equals, st2.ModTime())
 }

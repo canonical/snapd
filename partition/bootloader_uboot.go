@@ -208,7 +208,11 @@ func (u *uboot) markCurrentBootSuccessfulLegacy(currentRootfs string) error {
 }
 
 func (u *uboot) unsetBootVar(name string) error {
-	return u.setBootVar(name, "")
+	if u.hasBootVar(name) {
+		return u.setBootVar(name, "")
+	}
+
+	return nil
 }
 
 func (u *uboot) setBootVar(name, value string) error {
@@ -216,17 +220,34 @@ func (u *uboot) setBootVar(name, value string) error {
 	if err != nil {
 		return err
 	}
+	if env.Get(name) == value {
+		return nil
+	}
+
 	if err := env.Set(name, value); err != nil {
 		return err
 	}
 	return env.Save()
 }
 
+func (u *uboot) hasBootVar(name string) bool {
+	v, _ := u.getBootVar(name)
+	return v != ""
+}
+
+func (u *uboot) getBootVar(name string) (string, error) {
+	env, err := ubootPkg.OpenEnv(bootloaderUbootFwEnvFile)
+	if err != nil {
+		return "", err
+	}
+
+	return env.Get(name), nil
+}
+
 // FIXME: this is super similar to grub now, refactor to extract the
 //        common code
 func (u *uboot) markCurrentBootSuccessfulFwEnv(currentRootfs string) error {
-	// Clear the variable set by grub on boot to denote a good
-	// boot.
+	// Clear the variable set on boot to denote a good boot.
 	if err := u.unsetBootVar(bootloaderTrialBootVar); err != nil {
 		return err
 	}
