@@ -232,10 +232,7 @@ func (u *uboot) setBootVar(name, value string) error {
 		return nil
 	}
 
-	if err := env.Set(name, value); err != nil {
-		return err
-	}
-
+	env.Set(name, value)
 	return env.Save()
 }
 
