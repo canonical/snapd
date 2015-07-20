@@ -208,11 +208,17 @@ func (u *uboot) markCurrentBootSuccessfulLegacy(currentRootfs string) error {
 }
 
 func (u *uboot) unsetBootVar(name string) error {
-	if u.hasBootVar(name) {
-		return u.setBootVar(name, "")
+	hasBootVar, err := u.hasBootVar(name)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	// already unset, nothing to do
+	if !hasBootVar {
+		return nil
+	}
+
+	return u.setBootVar(name, "")
 }
 
 func (u *uboot) setBootVar(name, value string) error {
@@ -220,6 +226,8 @@ func (u *uboot) setBootVar(name, value string) error {
 	if err != nil {
 		return err
 	}
+
+	// already set, nothing to do
 	if env.Get(name) == value {
 		return nil
 	}
@@ -227,12 +235,13 @@ func (u *uboot) setBootVar(name, value string) error {
 	if err := env.Set(name, value); err != nil {
 		return err
 	}
+
 	return env.Save()
 }
 
-func (u *uboot) hasBootVar(name string) bool {
-	v, _ := u.getBootVar(name)
-	return v != ""
+func (u *uboot) hasBootVar(name string) (bool, error) {
+	v, err := u.getBootVar(name)
+	return v != "", err
 }
 
 func (u *uboot) getBootVar(name string) (string, error) {
