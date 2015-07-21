@@ -17,7 +17,7 @@
  *
  */
 
-package latest
+package cmd
 
 import (
 	"fmt"

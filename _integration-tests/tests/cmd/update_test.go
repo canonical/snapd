@@ -17,13 +17,30 @@
  *
  */
 
-package latest
+package cmd
 
 import (
-	"testing"
-
-	. "gopkg.in/check.v1"
+	. "../common"
+	check "gopkg.in/check.v1"
 )
 
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) { TestingT(t) }
+var _ = check.Suite(&updateSuite{})
+
+type updateSuite struct {
+	SnappySuite
+}
+
+// Test that the update to the same release and channel must install a newer
+// version. If there is no update available, the channel version will be
+// modified to fake an update. If there is a version available, the image will
+// be up-to-date after running this test.
+func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
+	if BeforeReboot() {
+		CallFakeUpdate(c)
+		Reboot(c)
+	} else if AfterReboot(c) {
+		RemoveRebootMark(c)
+		c.Assert(GetCurrentUbuntuCoreVersion(c) > GetSavedVersion(c),
+			check.Equals, true)
+	}
+}

@@ -47,12 +47,10 @@ const (
 )
 
 var (
-	commonSSHOptions   = []string{"---", "ssh"}
-	configFileName     = filepath.Join(dataOutputDir, "testconfig.json")
-	controlFile        = filepath.Join(dataOutputDir, "control")
-	testPackagesLatest = []string{"latest", "failover"}
-	testPackageUpdate  = []string{"update"}
-	testPackages       = append(testPackagesLatest, testPackageUpdate...)
+	commonSSHOptions = []string{"---", "ssh"}
+	configFileName   = filepath.Join(dataOutputDir, "testconfig.json")
+	controlFile      = filepath.Join(dataOutputDir, "control")
+	testPackages     = []string{"cmd", "failover"}
 )
 
 func buildAssets(useSnappyFromBranch bool, arch string) {
@@ -66,11 +64,17 @@ func buildAssets(useSnappyFromBranch bool, arch string) {
 	buildTests(arch)
 }
 
-func writeTestConfig(release, channel string) {
+func writeTestConfig(release, channel, targetRelease, targetChannel string) {
 	fmt.Println("Writing test config...")
 	testConfig := map[string]string{
 		"release": release,
 		"channel": channel,
+	}
+	if targetRelease != "" {
+		testConfig["targetRelease"] = targetRelease
+	}
+	if targetChannel != "" {
+		testConfig["targetChannel"] = targetChannel
 	}
 	fmt.Println(testConfig)
 	encoded, err := json.Marshal(testConfig)
@@ -85,14 +89,6 @@ func setupAndRunLocalTests(rootPath, testFilter string, img image.Image) {
 	if imageName, err := img.UdfCreate(); err == nil {
 		adtRun(rootPath, testFilter, testPackages,
 			kvmSSHOptions(imageName))
-	}
-
-	// Update from revision -1.
-	img.SetRevision("-1")
-	if imageName, err := img.UdfCreate(); err == nil {
-		adtRun(
-			rootPath, "updateSuite.TestUpdateToSameReleaseAndChannel",
-			testPackageUpdate, kvmSSHOptions(imageName))
 	}
 }
 
@@ -220,6 +216,10 @@ func main() {
 			"Channel of the image to be built, defaults to "+defaultChannel)
 		imgRevision = flag.String("revision", "",
 			"Revision of the image to be built (can be relative to the latest available revision in the given release and channel as in -1), defaults to the empty string")
+		targetRelease = flag.String("target-release", "",
+			"If specified, the image will be updated to this release before running the tests.")
+		targetChannel = flag.String("target-channel", "",
+			"If specified, the image will be updated to this channel before running the tests.")
 	)
 
 	flag.Parse()
@@ -232,7 +232,7 @@ func main() {
 
 	// TODO: pass the config as arguments to the test binaries.
 	// --elopio - 2015-07-15
-	writeTestConfig(*imgRelease, *imgChannel)
+	writeTestConfig(*imgRelease, *imgChannel, *targetRelease, *targetChannel)
 
 	rootPath := getRootPath()
 

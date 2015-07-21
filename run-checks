@@ -76,7 +76,7 @@ $goctest -v -cover ./_integration-tests/tests/common/...
 
 # integration suite in kvm
 if which adt-run >/dev/null 2>&1; then
-    echo "Running integration tests"
+    echo "Running integration tests on rolling edge"
     go run _integration-tests/main.go --snappy-from-branch
 fi
 

@@ -17,12 +17,10 @@
  *
  */
 
-package latest
+package cmd
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 
 	. "../common"
 
@@ -35,24 +33,11 @@ type infoSuite struct {
 	SnappySuite
 }
 
-func readConfig(c *check.C) map[string]string {
-	b, err := ioutil.ReadFile("_integration-tests/data/output/testconfig.json")
-	c.Assert(
-		err, check.IsNil, check.Commentf("Failed to read test config: %v", err))
-
-	var decoded map[string]string
-	err = json.Unmarshal(b, &decoded)
-	c.Assert(
-		err, check.IsNil, check.Commentf("Failed to decode test config: %v", err))
-	return decoded
-}
-
 func (s *infoSuite) TestInfoMustPrintReleaseAndChannel(c *check.C) {
 	infoOutput := ExecCommand(c, "snappy", "info")
 
-	config := readConfig(c)
 	expected := "(?ms)" +
-		fmt.Sprintf("^release: ubuntu-core/%s/%s\n", config["release"], config["channel"]) +
+		fmt.Sprintf("^release: ubuntu-core/%s/%s\n", Config["release"], Config["channel"]) +
 		".*"
 
 	c.Assert(infoOutput, check.Matches, expected)

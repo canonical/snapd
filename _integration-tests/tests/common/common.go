@@ -20,6 +20,7 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -39,6 +40,10 @@ const (
 	channelCfgFile  = "/etc/system-image/channel.ini"
 )
 
+// Config is a map of strings that contains the configurations values passed
+// from the host to the testbed.
+var Config map[string]string
+
 // SnappySuite is a structure used as a base test suite for all the snappy
 // integration tests.
 type SnappySuite struct {
@@ -50,6 +55,22 @@ type SnappySuite struct {
 func (s *SnappySuite) SetUpSuite(c *check.C) {
 	ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 	ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
+	if !isInRebootProcess() {
+		Config = readConfig(c)
+		targetRelease, _ := Config["targetRelease"]
+		targetChannel, _ := Config["targetChannel"]
+		if targetRelease != "" || targetChannel != "" {
+			switchSystemImageConf(c, targetRelease, targetChannel, "0")
+			// Always use the installed snappy because we are updating from an old
+			// image, so we should not use the snappy from the branch.
+			output := ExecCommand(c, "sudo", "/usr/bin/snappy", "update")
+			if output != "" {
+				RebootWithMark(c, "setupsuite-update")
+			}
+		}
+	} else if CheckRebootMark("setupsuite-update") {
+		RemoveRebootMark(c)
+	}
 }
 
 // SetUpTest handles reboots and stores version information. It will run before
@@ -112,6 +133,47 @@ func (s *SnappySuite) AddCleanup(f func()) {
 	s.cleanupHandlers = append(s.cleanupHandlers, f)
 }
 
+func readConfig(c *check.C) map[string]string {
+	b, err := ioutil.ReadFile("_integration-tests/data/output/testconfig.json")
+	c.Assert(
+		err, check.IsNil, check.Commentf("Failed to read test config: %v", err))
+
+	var decoded map[string]string
+	err = json.Unmarshal(b, &decoded)
+	c.Assert(
+		err, check.IsNil, check.Commentf("Failed to decode test config: %v", err))
+	return decoded
+}
+
+func switchSystemImageConf(c *check.C, release, channel, version string) {
+	targets := []string{"/", BaseOtherPath}
+	for _, target := range targets {
+		file := filepath.Join(target, channelCfgFile)
+		if _, err := os.Stat(file); err == nil {
+			MakeWritable(c, target)
+			defer MakeReadonly(c, target)
+			replaceSystemImageValues(c, file, release, channel, version)
+		}
+	}
+}
+
+func replaceSystemImageValues(c *check.C, file, release, channel, version string) {
+	c.Log("Switching the system image conf...")
+	replaceRegex := map[string]string{
+		release: `s#channel: ubuntu-core/.*/\(.*\)#channel: ubuntu-core/%s/\1#`,
+		channel: `s#channel: ubuntu-core/\(.*\)/.*#channel: ubuntu-core/\1/%s#`,
+		version: `s/build_number: .*/build_number: %s/`,
+	}
+	for value, regex := range replaceRegex {
+		if value != "" {
+			ExecCommand(c,
+				"sudo", "sed", "-i", fmt.Sprintf(regex, value), file)
+		}
+	}
+	// Leave the new file in the test log.
+	ExecCommand(c, "cat", file)
+}
+
 func channelCfgBackupFile() string {
 	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "channel.ini")
 }
@@ -168,19 +230,6 @@ func GetCurrentUbuntuCoreVersion(c *check.C) int {
 	return version
 }
 
-// CallUpdate executes an snappy update. If there is no update available, the
-// channel version will be modified to fake an update.
-func CallUpdate(c *check.C) {
-	c.Log("Calling snappy update...")
-	output := ExecCommand(c, "sudo", "snappy", "update")
-	// XXX Instead of trying the update, we should have a command to tell us
-	// if there is an available update. --elopio - 2015-07-01
-	if output == "" {
-		c.Log("There is no update available.")
-		CallFakeUpdate(c)
-	}
-}
-
 // CallFakeUpdate calls snappy update after faking the current version
 func CallFakeUpdate(c *check.C) {
 	c.Log("Preparing fake and calling update.")
@@ -191,11 +240,11 @@ func CallFakeUpdate(c *check.C) {
 func fakeAvailableUpdate(c *check.C) {
 	c.Log("Faking an available update...")
 	currentVersion := GetCurrentUbuntuCoreVersion(c)
-	switchChannelVersion(c, currentVersion, currentVersion-1)
+	switchChannelVersionWithBackup(c, currentVersion-1)
 	SetSavedVersion(c, currentVersion-1)
 }
 
-func switchChannelVersion(c *check.C, oldVersion, newVersion int) {
+func switchChannelVersionWithBackup(c *check.C, newVersion int) {
 	m := make(map[string]string)
 	m["/"] = channelCfgBackupFile()
 	m[BaseOtherPath] = channelCfgOtherBackupFile()
@@ -206,12 +255,7 @@ func switchChannelVersion(c *check.C, oldVersion, newVersion int) {
 			defer MakeReadonly(c, target)
 			// Back up the file. It will be restored during the test tear down.
 			ExecCommand(c, "cp", file, backup)
-			ExecCommand(c,
-				"sudo", "sed", "-i",
-				fmt.Sprintf(
-					"s/build_number: %d/build_number: %d/g",
-					oldVersion, newVersion),
-				file)
+			replaceSystemImageValues(c, file, "", "", strconv.Itoa(newVersion))
 		}
 	}
 }
@@ -261,6 +305,10 @@ func AfterReboot(c *check.C) bool {
 // argument.
 func CheckRebootMark(mark string) bool {
 	return os.Getenv("ADT_REBOOT_MARK") == mark
+}
+
+func isInRebootProcess() bool {
+	return !CheckRebootMark("") || NeedsReboot()
 }
 
 // RemoveRebootMark removes the reboot mark to signal that the reboot has been
