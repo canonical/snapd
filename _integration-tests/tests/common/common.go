@@ -159,28 +159,16 @@ func switchSystemImageConf(c *check.C, release, channel, version string) {
 
 func replaceSystemImageValues(c *check.C, file, release, channel, version string) {
 	c.Log("Switching the system image conf...")
-	regex := []string{}
-	if release != "" {
-		regex = append(regex,
-			fmt.Sprintf(
-				`s#channel: ubuntu-core/.*/\(.*\)#channel: ubuntu-core/%s/\1#`,
-				release))
+	replaceRegex := map[string]string{
+		release: `s#channel: ubuntu-core/.*/\(.*\)#channel: ubuntu-core/%s/\1#`,
+		channel: `s#channel: ubuntu-core/\(.*\)/.*#channel: ubuntu-core/\1/%s#`,
+		version: `s/build_number: .*/build_number: %s/`,
 	}
-	if channel != "" {
-		regex = append(regex,
-			fmt.Sprintf(
-				`s#channel: ubuntu-core/\(.*\)/.*#channel: ubuntu-core/\1/%s#`,
-				channel))
-	}
-	if version != "" {
-		regex = append(regex,
-			fmt.Sprintf(
-				`s/build_number: .*/build_number: %s/`,
-				version))
-	}
-	for i := range regex {
-		ExecCommand(c,
-			"sudo", "sed", "-i", regex[i], file)
+	for value, regex := range replaceRegex {
+		if value != "" {
+			ExecCommand(c,
+				"sudo", "sed", "-i", fmt.Sprintf(regex, value), file)
+		}
 	}
 	// Leave the new file in the test log.
 	ExecCommand(c, "cat", file)
