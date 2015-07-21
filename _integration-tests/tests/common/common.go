@@ -55,7 +55,7 @@ type SnappySuite struct {
 func (s *SnappySuite) SetUpSuite(c *check.C) {
 	ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 	ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
-	if CheckRebootMark("") && !NeedsReboot() {
+	if !isInRebootProcess() {
 		Config = readConfig(c)
 		targetRelease, _ := Config["targetRelease"]
 		targetChannel, _ := Config["targetChannel"]
@@ -317,6 +317,10 @@ func AfterReboot(c *check.C) bool {
 // argument.
 func CheckRebootMark(mark string) bool {
 	return os.Getenv("ADT_REBOOT_MARK") == mark
+}
+
+func isInRebootProcess() bool {
+	return !CheckRebootMark("") || NeedsReboot()
 }
 
 // RemoveRebootMark removes the reboot mark to signal that the reboot has been
