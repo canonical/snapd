@@ -1,4 +1,0 @@
-test() {
-       T="Ubuntu Core does not use apt-get, see 'snappy --help'!"
-       test_equal "$T" apt-get update
-}

@@ -55,7 +55,7 @@ type SnappySuite struct {
 func (s *SnappySuite) SetUpSuite(c *check.C) {
 	ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 	ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
-	if CheckRebootMark("") && !NeedsReboot() {
+	if !isInRebootProcess() {
 		Config = readConfig(c)
 		targetRelease, _ := Config["targetRelease"]
 		targetChannel, _ := Config["targetChannel"]
@@ -168,28 +168,16 @@ func switchSystemImageConf(c *check.C, release, channel, version string) {
 
 func replaceSystemImageValues(c *check.C, file, release, channel, version string) {
 	c.Log("Switching the system image conf...")
-	regex := []string{}
-	if release != "" {
-		regex = append(regex,
-			fmt.Sprintf(
-				`s#channel: ubuntu-core/.*/\(.*\)#channel: ubuntu-core/%s/\1#`,
-				release))
+	replaceRegex := map[string]string{
+		release: `s#channel: ubuntu-core/.*/\(.*\)#channel: ubuntu-core/%s/\1#`,
+		channel: `s#channel: ubuntu-core/\(.*\)/.*#channel: ubuntu-core/\1/%s#`,
+		version: `s/build_number: .*/build_number: %s/`,
 	}
-	if channel != "" {
-		regex = append(regex,
-			fmt.Sprintf(
-				`s#channel: ubuntu-core/\(.*\)/.*#channel: ubuntu-core/\1/%s#`,
-				channel))
-	}
-	if version != "" {
-		regex = append(regex,
-			fmt.Sprintf(
-				`s/build_number: .*/build_number: %s/`,
-				version))
-	}
-	for i := range regex {
-		ExecCommand(c,
-			"sudo", "sed", "-i", regex[i], file)
+	for value, regex := range replaceRegex {
+		if value != "" {
+			ExecCommand(c,
+				"sudo", "sed", "-i", fmt.Sprintf(regex, value), file)
+		}
 	}
 	// Leave the new file in the test log.
 	ExecCommand(c, "cat", file)
@@ -319,13 +307,17 @@ func BeforeReboot() bool {
 // rebooted.
 func AfterReboot(c *check.C) bool {
 	// $ADT_REBOOT_MARK contains the reboot mark, if we have rebooted it'll be the test name
-	return CheckRebootMark(c.TestName())
+	return strings.HasPrefix(os.Getenv("ADT_REBOOT_MARK"), c.TestName())
 }
 
 // CheckRebootMark returns True if the reboot mark matches the string passed as
 // argument.
 func CheckRebootMark(mark string) bool {
 	return os.Getenv("ADT_REBOOT_MARK") == mark
+}
+
+func isInRebootProcess() bool {
+	return !CheckRebootMark("") || NeedsReboot()
 }
 
 // RemoveRebootMark removes the reboot mark to signal that the reboot has been
