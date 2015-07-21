@@ -1,7 +1,0 @@
-test() {
-    T="ubuntu-core.*201?"
-    test_regexp "$T" $SNAPPY list
-
-    T="Name.*Date.*Version.*Developer"
-    test_regexp "$T" $SNAPPY list
-}

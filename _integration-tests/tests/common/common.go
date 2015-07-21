@@ -298,7 +298,7 @@ func BeforeReboot() bool {
 // rebooted.
 func AfterReboot(c *check.C) bool {
 	// $ADT_REBOOT_MARK contains the reboot mark, if we have rebooted it'll be the test name
-	return CheckRebootMark(c.TestName())
+	return strings.HasPrefix(os.Getenv("ADT_REBOOT_MARK"), c.TestName())
 }
 
 // CheckRebootMark returns True if the reboot mark matches the string passed as

@@ -3,8 +3,3 @@
 Test-Command: ./_integration-tests/reboot-wrapper {{ $element }}.test {{ if $filter }}-gocheck.f {{ $filter }}{{ end }}
 Restrictions: allow-stderr
 {{ end }}
-
-{{ if .IncludeShell }}
-Test-Command: ./_integration-tests/snappy-selftest --yes-really
-Depends:
-{{ end }}
