@@ -17,14 +17,14 @@
  *
  */
 
-package cmd
+package tests
 
 import (
 	"fmt"
 	"os"
 	"os/exec"
 
-	. "../common"
+	. "launchpad.net/snappy/_integration-tests/common"
 
 	. "gopkg.in/check.v1"
 )

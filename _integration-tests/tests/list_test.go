@@ -17,13 +17,13 @@
  *
  */
 
-package cmd
+package tests
 
 import (
 	"fmt"
 	"os"
 
-	. "../common"
+	. "launchpad.net/snappy/_integration-tests/common"
 
 	"github.com/mvo5/goconfigparser"
 	check "gopkg.in/check.v1"

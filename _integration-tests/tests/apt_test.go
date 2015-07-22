@@ -17,13 +17,23 @@
  *
  */
 
-package cmd
+package tests
 
 import (
-	"testing"
+	. "launchpad.net/snappy/_integration-tests/common"
 
-	. "gopkg.in/check.v1"
+	check "gopkg.in/check.v1"
 )
 
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) { TestingT(t) }
+var _ = check.Suite(&aptSuite{})
+
+type aptSuite struct {
+	SnappySuite
+}
+
+func (s *aptSuite) TestAptGetMustPrintError(c *check.C) {
+	aptOutput := ExecCommand(c, "apt-get", "update")
+
+	expected := "Ubuntu Core does not use apt-get, see 'snappy --help'!\n"
+	c.Assert(aptOutput, check.Equals, expected)
+}

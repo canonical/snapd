@@ -17,18 +17,13 @@
  *
  */
 
-package failover
+package tests
 
 import (
-	"testing"
-
 	check "gopkg.in/check.v1"
 
-	. "../common"
+	. "launchpad.net/snappy/_integration-tests/common"
 )
-
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) { check.TestingT(t) }
 
 var _ = check.Suite(&failoverSuite{})
 

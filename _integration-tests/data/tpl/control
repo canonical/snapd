@@ -1,5 +1,4 @@
 {{ $filter := .Filter }}
-{{ range $element := .Tests }}
-Test-Command: ./_integration-tests/reboot-wrapper {{ $element }}.test {{ if $filter }}-gocheck.f {{ $filter }}{{ end }}
+{{ $test := .Test }}
+Test-Command: ./_integration-tests/reboot-wrapper {{ $test }} {{ if $filter }}-gocheck.f {{ $filter }}{{ end }}
 Restrictions: allow-stderr
-{{ end }}
