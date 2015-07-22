@@ -24,9 +24,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"launchpad.net/snappy/helpers"
+
+	"github.com/mvo5/uboot-go/uenv"
 )
 
 // TODO move to uboot specific test suite.
@@ -322,51 +325,52 @@ func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
 func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	err := ioutil.WriteFile(bootloaderUbootFwEnvFile, []byte(""), 0644)
+	env, err := uenv.Create(bootloaderUbootFwEnvFile, 4096)
+	c.Assert(err, IsNil)
+	env.Set("snappy_ab", "b")
+	env.Set("snappy_mode", "try")
+	env.Set("snappy_trial_boot", "1")
+	err = env.Save()
 	c.Assert(err, IsNil)
 
 	partition := New()
 	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
-	allCommands = nil
-	runCommand = mockRunCommandWithCapture
 	err = u.MarkCurrentBootSuccessful("b")
 	c.Assert(err, IsNil)
-	c.Assert(allCommands, HasLen, 4)
-	c.Assert(allCommands[0], DeepEquals, singleCommand{"fw_printenv", bootloaderTrialBootVar})
-	c.Assert(allCommands[1], DeepEquals, singleCommand{"fw_setenv", bootloaderTrialBootVar})
-	c.Assert(allCommands[2], DeepEquals, singleCommand{"fw_setenv", bootloaderRootfsVar, "b"})
-	c.Assert(allCommands[3], DeepEquals, singleCommand{"fw_setenv", bootloaderBootmodeVar, bootloaderBootmodeSuccess})
+
+	env, err = uenv.Open(bootloaderUbootFwEnvFile)
+	c.Assert(err, IsNil)
+	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\n")
 }
 
-func (s *PartitionTestSuite) TestUbootSetEnv(c *C) {
+func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	err := ioutil.WriteFile(bootloaderUbootFwEnvFile, []byte(""), 0644)
+	env, err := uenv.Create(bootloaderUbootFwEnvFile, 4096)
 	c.Assert(err, IsNil)
+	env.Set("snappy_ab", "b")
+	env.Set("snappy_mode", "regular")
+	err = env.Save()
+	c.Assert(err, IsNil)
+
+	st, err := os.Stat(bootloaderUbootFwEnvFile)
+	c.Assert(err, IsNil)
+	time.Sleep(100 * time.Millisecond)
 
 	partition := New()
 	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
-	// we simulate here that fw_printenv bootloaderreturns
-	runCommandWithStdout = func(args ...string) (string, error) {
-		if args[0] == "fw_printenv" && args[2] == bootloaderRootfsVar {
-			return "b", nil
-		}
-
-		return "something", nil
-	}
-
-	allCommands = nil
-	runCommand = mockRunCommandWithCapture
 	err = u.(*uboot).setBootVar(bootloaderRootfsVar, "b")
 	c.Assert(err, IsNil)
-	c.Assert(allCommands, HasLen, 0)
 
-	err = u.(*uboot).setBootVar(bootloaderRootfsVar, "a")
+	env, err = uenv.Open(bootloaderUbootFwEnvFile)
 	c.Assert(err, IsNil)
-	c.Assert(allCommands, HasLen, 1)
-	c.Assert(allCommands[0], DeepEquals, singleCommand{"fw_setenv", bootloaderRootfsVar, "a"})
+	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\n")
+
+	st2, err := os.Stat(bootloaderUbootFwEnvFile)
+	c.Assert(err, IsNil)
+	c.Assert(st.ModTime(), Equals, st2.ModTime())
 }
