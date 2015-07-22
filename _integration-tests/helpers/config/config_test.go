@@ -35,6 +35,13 @@ type ConfigSuite struct{}
 
 var _ = check.Suite(&ConfigSuite{})
 
+func testConfigFileName(c *check.C) string {
+	tmpDir, err := ioutil.TempDir("", "")
+	c.Assert(err, check.IsNil, check.Commentf(
+		"Error creating a temporary directory: %v", err))
+	return filepath.Join(tmpDir, "test.config")
+}
+
 func testConfigStruct(fileName string) *Config {
 	return NewConfig(
 		fileName,
@@ -54,32 +61,24 @@ func testConfigContents(fileName string) string {
 }
 
 func (s *ConfigSuite) TestWriteConfig(c *check.C) {
-	tmpDir, err := ioutil.TempDir("", "")
-	c.Assert(err, check.IsNil, check.Commentf(
-		"Error creating a temporary directory: %v", err))
-	configFileName := filepath.Join(tmpDir, "test.config")
+	configFileName := testConfigFileName(c)
 
 	cfg := testConfigStruct(configFileName)
 	cfg.Write()
 
-	expected := testConfigContents(configFileName)
 	writtenConfig, err := ioutil.ReadFile(configFileName)
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
-	c.Assert(string(writtenConfig), check.Equals, expected)
+	c.Assert(string(writtenConfig), check.Equals, testConfigContents(configFileName))
 }
 
 func (s *ConfigSuite) TestReadConfig(c *check.C) {
-	tmpDir, err := ioutil.TempDir("", "")
-	c.Assert(err, check.IsNil, check.Commentf(
-		"Error creating a temporary directory: %v", err))
-	configFileName := filepath.Join(tmpDir, "test.config")
+	configFileName := testConfigFileName(c)
 
 	configContents := testConfigContents(configFileName)
 	ioutil.WriteFile(configFileName, []byte(configContents), 0644)
 
-	expected := testConfigStruct(configFileName)
 	cfg, err := ReadConfig(configFileName)
 
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
-	c.Assert(cfg, check.DeepEquals, expected)
+	c.Assert(cfg, check.DeepEquals, testConfigStruct(configFileName))
 }
