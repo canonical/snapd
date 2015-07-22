@@ -20,7 +20,7 @@
 package tests
 
 import (
-	. "launchpad.net/snappy/_integration-tests/common"
+	. "launchpad.net/snappy/_integration-tests/helpers/common"
 
 	. "gopkg.in/check.v1"
 )

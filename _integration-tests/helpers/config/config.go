@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"strconv"
 )
 
 // Config contains the values to pass to the test bed from the host.
@@ -50,20 +49,8 @@ func NewConfig(fileName, release, channel, targetRelease, targetChannel string, 
 // Write writes the config to a file that will be copied to the test bed.
 func (cfg Config) Write() {
 	fmt.Println("Writing test config...")
-	testConfig := map[string]string{
-		"release": cfg.release,
-		"channel": cfg.channel,
-	}
-	if cfg.targetRelease != "" {
-		testConfig["targetRelease"] = cfg.targetRelease
-	}
-	if cfg.targetChannel != "" {
-		testConfig["targetChannel"] = cfg.targetChannel
-	}
-	testConfig["update"] = strconv.FormatBool(cfg.update)
-	testConfig["rollback"] = strconv.FormatBool(cfg.rollback)
-	fmt.Println(testConfig)
-	encoded, err := json.Marshal(testConfig)
+	fmt.Println(cfg)
+	encoded, err := json.Marshal(cfg)
 	if err != nil {
 		log.Fatalf("Error encoding the test config: %v", err)
 	}
@@ -71,4 +58,17 @@ func (cfg Config) Write() {
 	if err != nil {
 		log.Fatalf("Error writing the test config: %v", err)
 	}
+}
+
+// ReadConfig the config from a file
+func ReadConfig(fileName string) (*Config, error) {
+	b, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return nil, err
+	}
+	var decoded Config
+	if err = json.Unmarshal(b, &decoded); err != nil {
+		return nil, err
+	}
+	return &decoded, nil
 }

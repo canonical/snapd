@@ -1,5 +1,5 @@
 #!/bin/sh
-
+1;3803;0c
 set -ev
 
 if which goctest >/dev/null; then
@@ -46,10 +46,11 @@ $goctest -v -cover ./...
 echo Running vet
 go vet ./...
 go vet ./_integration-tests/tests/...
+go vet ./_integration-tests/helpers/...
 
 # golint
 echo Running lint
-lint=$(golint ./... && golint ./_integration-tests/tests/...)
+lint=$(golint ./... && golint ./_integration-tests/helpers/... && golint ./_integration-tests/tests/...)
 if [ -n "$lint" ]; then
     echo "Lint complains:"
     echo $lint
@@ -72,7 +73,7 @@ go build _integration-tests/main.go
 
 # the rabbit hole
 echo Running the tests for the integration helpers
-$goctest -v -cover ./_integration-tests/common/...
+$goctest -v -cover ./_integration-tests/helpers/...
 
 # integration suite in kvm
 if which adt-run >/dev/null 2>&1; then

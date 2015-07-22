@@ -28,9 +28,9 @@ import (
 	"strconv"
 	"text/template"
 
-	config "./config"
-	image "./image"
-	utils "./utils"
+	"launchpad.net/snappy/_integration-tests/helpers/config"
+	"launchpad.net/snappy/_integration-tests/helpers/image"
+	"launchpad.net/snappy/_integration-tests/helpers/utils"
 )
 
 const (
@@ -85,10 +85,10 @@ func buildSnappyCLI(arch string) {
 func buildTests(arch string) {
 	fmt.Println("Building tests...")
 
-	goCall(arch, "test", "-c", "./_integration-tests/tests")
+	goCall(arch, "test", "-c", "./_integration-tests/_tests")
 	// XXX Go test 1.3 does not have the output flag, so we move the
 	// binaries after they are generated.
-	os.Rename("tests.test", testsBinDir+integrationTestName)
+	os.Rename("_tests.test", testsBinDir+integrationTestName)
 }
 
 func goCall(arch string, cmds ...string) {
