@@ -57,10 +57,8 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 	ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 	if !isInRebootProcess() {
 		Config = readConfig(c)
-		targetRelease, _ := Config["targetRelease"]
-		targetChannel, _ := Config["targetChannel"]
-		if targetRelease != "" || targetChannel != "" {
-			switchSystemImageConf(c, targetRelease, targetChannel, "0")
+		if Config["update"] == "true" || Config["rollback"] == "true" {
+			switchSystemImageConf(c, Config["targetRelease"], Config["targetChannel"], "0")
 			// Always use the installed snappy because we are updating from an old
 			// image, so we should not use the snappy from the branch.
 			output := ExecCommand(c, "sudo", "/usr/bin/snappy", "update")
@@ -70,10 +68,7 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 		}
 	} else if CheckRebootMark("setupsuite-update") {
 		RemoveRebootMark(c)
-		rollback, err := strconv.ParseBool(Config["rollbakck"])
-		c.Assert(err, check.IsNil,
-			check.Commentf("Error parsing the rollback config value: %v", err))
-		if rollback {
+		if Config["rollback"] == "true" {
 			ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core")
 			RebootWithMark(c, "setupsuite-rollback")
 		}
