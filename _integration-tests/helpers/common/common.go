@@ -57,9 +57,11 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 	ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 	ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 	if !isInRebootProcess() {
-		Cfg = config.ReadConfig(c)
-		if Cfg.update || Cfg.rollback {
-			switchSystemImageConf(c, Cfg.targetRelease, Cfg.targetChannel, "0")
+		Cfg, err := config.ReadConfig(
+			"_integration-tests/data/output/testconfig.json")
+		c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
+		if Cfg.Update || Cfg.Rollback {
+			switchSystemImageConf(c, Cfg.TargetRelease, Cfg.TargetChannel, "0")
 			// Always use the installed snappy because we are updating from an old
 			// image, so we should not use the snappy from the branch.
 			output := ExecCommand(c, "sudo", "/usr/bin/snappy", "update")
@@ -69,7 +71,7 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 		}
 	} else if CheckRebootMark("setupsuite-update") {
 		RemoveRebootMark(c)
-		if Cfg.rollback {
+		if Cfg.Rollback {
 			ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core")
 			RebootWithMark(c, "setupsuite-rollback")
 		}

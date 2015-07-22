@@ -85,7 +85,7 @@ func buildSnappyCLI(arch string) {
 func buildTests(arch string) {
 	fmt.Println("Building tests...")
 
-	goCall(arch, "test", "-c", "./_integration-tests/_tests")
+	goCall(arch, "test", "-c", "./_integration-tests/tests")
 	// XXX Go test 1.3 does not have the output flag, so we move the
 	// binaries after they are generated.
 	os.Rename("_tests.test", testsBinDir+integrationTestName)

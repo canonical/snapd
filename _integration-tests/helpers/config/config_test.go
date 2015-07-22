@@ -47,12 +47,13 @@ func (s *ConfigSuite) TestWriteConfig(c *check.C) {
 	cfg.Write()
 
 	expected := `{` +
-		`"channel":"testchannel",` +
-		`"release":"testrelease",` +
-		`"rollback":"true",` +
-		`"targetChannel":"testtargetchannel",` +
-		`"targetRelease":"testtargetrelease",` +
-		`"update":"true"` +
+		`"FileName":"` + configFileName + `",` +
+		`"Release":"testrelease",` +
+		`"Channel":"testchannel",` +
+		`"TargetRelease":"testtargetrelease",` +
+		`"TargetChannel":"testtargetchannel",` +
+		`"Update":true,` +
+		`"Rollback":true` +
 		`}`
 	writtenConfig, err := ioutil.ReadFile(configFileName)
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
@@ -66,12 +67,13 @@ func (s *ConfigSuite) TestReadConfig(c *check.C) {
 	configFileName := filepath.Join(tmpDir, "test.config")
 
 	configContents := `{` +
-		`"channel":"testchannel",` +
-		`"release":"testrelease",` +
-		`"rollback":"true",` +
-		`"targetChannel":"testtargetchannel",` +
-		`"targetRelease":"testtargetrelease",` +
-		`"update":"true"` +
+		`"FileName":"` + configFileName + `",` +
+		`"Channel":"testchannel",` +
+		`"Release":"testrelease",` +
+		`"Rollback":true,` +
+		`"TargetChannel":"testtargetchannel",` +
+		`"TargetRelease":"testtargetrelease",` +
+		`"Update":true` +
 		`}`
 	ioutil.WriteFile(configFileName, []byte(configContents), 0644)
 
@@ -82,5 +84,5 @@ func (s *ConfigSuite) TestReadConfig(c *check.C) {
 	cfg, err := ReadConfig(configFileName)
 
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
-	c.Assert(cfg, check.Equals, expected)
+	c.Assert(cfg, check.DeepEquals, expected)
 }

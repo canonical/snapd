@@ -28,21 +28,21 @@ import (
 
 // Config contains the values to pass to the test bed from the host.
 type Config struct {
-	fileName      string
-	release       string
-	channel       string
-	targetRelease string
-	targetChannel string
-	update        bool
-	rollback      bool
+	FileName      string
+	Release       string
+	Channel       string
+	TargetRelease string
+	TargetChannel string
+	Update        bool
+	Rollback      bool
 }
 
 // NewConfig is the Config constructor
 func NewConfig(fileName, release, channel, targetRelease, targetChannel string, update, rollback bool) *Config {
 	return &Config{
-		fileName: fileName, release: release, channel: channel,
-		targetRelease: targetRelease, targetChannel: targetChannel,
-		update: update, rollback: rollback,
+		FileName: fileName, Release: release, Channel: channel,
+		TargetRelease: targetRelease, TargetChannel: targetChannel,
+		Update: update, Rollback: rollback,
 	}
 }
 
@@ -54,7 +54,7 @@ func (cfg Config) Write() {
 	if err != nil {
 		log.Fatalf("Error encoding the test config: %v", err)
 	}
-	err = ioutil.WriteFile(cfg.fileName, encoded, 0644)
+	err = ioutil.WriteFile(cfg.FileName, encoded, 0644)
 	if err != nil {
 		log.Fatalf("Error writing the test config: %v", err)
 	}
