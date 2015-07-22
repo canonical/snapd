@@ -20,6 +20,7 @@
 package config
 
 import (
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
@@ -34,6 +35,18 @@ type ConfigSuite struct{}
 
 var _ = check.Suite(&ConfigSuite{})
 
+func testConfigContents(fileName string) string {
+	return `{` +
+		fmt.Sprintf(`"FileName":"%s",`, fileName) +
+		`"Release":"testrelease",` +
+		`"Channel":"testchannel",` +
+		`"TargetRelease":"testtargetrelease",` +
+		`"TargetChannel":"testtargetchannel",` +
+		`"Update":true,` +
+		`"Rollback":true` +
+		`}`
+}
+
 func (s *ConfigSuite) TestWriteConfig(c *check.C) {
 	tmpDir, err := ioutil.TempDir("", "")
 	c.Assert(err, check.IsNil, check.Commentf(
@@ -46,15 +59,7 @@ func (s *ConfigSuite) TestWriteConfig(c *check.C) {
 		true, true)
 	cfg.Write()
 
-	expected := `{` +
-		`"FileName":"` + configFileName + `",` +
-		`"Release":"testrelease",` +
-		`"Channel":"testchannel",` +
-		`"TargetRelease":"testtargetrelease",` +
-		`"TargetChannel":"testtargetchannel",` +
-		`"Update":true,` +
-		`"Rollback":true` +
-		`}`
+	expected := testConfigContents(configFileName)
 	writtenConfig, err := ioutil.ReadFile(configFileName)
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 	c.Assert(string(writtenConfig), check.Equals, expected)
@@ -66,15 +71,7 @@ func (s *ConfigSuite) TestReadConfig(c *check.C) {
 		"Error creating a temporary directory: %v", err))
 	configFileName := filepath.Join(tmpDir, "test.config")
 
-	configContents := `{` +
-		`"FileName":"` + configFileName + `",` +
-		`"Channel":"testchannel",` +
-		`"Release":"testrelease",` +
-		`"Rollback":true,` +
-		`"TargetChannel":"testtargetchannel",` +
-		`"TargetRelease":"testtargetrelease",` +
-		`"Update":true` +
-		`}`
+	configContents := testConfigContents(configFileName)
 	ioutil.WriteFile(configFileName, []byte(configContents), 0644)
 
 	expected := NewConfig(
