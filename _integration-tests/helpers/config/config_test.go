@@ -35,6 +35,12 @@ type ConfigSuite struct{}
 
 var _ = check.Suite(&ConfigSuite{})
 
+func testConfigStruct(fileName string) *Config {
+	return NewConfig(
+		fileName,
+		"testrelease", "testchannel", "testtargetrelease", "testtargetchannel",
+		true, true)
+}
 func testConfigContents(fileName string) string {
 	return `{` +
 		fmt.Sprintf(`"FileName":"%s",`, fileName) +
@@ -53,10 +59,7 @@ func (s *ConfigSuite) TestWriteConfig(c *check.C) {
 		"Error creating a temporary directory: %v", err))
 	configFileName := filepath.Join(tmpDir, "test.config")
 
-	cfg := NewConfig(
-		configFileName,
-		"testrelease", "testchannel", "testtargetrelease", "testtargetchannel",
-		true, true)
+	cfg := testConfigStruct(configFileName)
 	cfg.Write()
 
 	expected := testConfigContents(configFileName)
@@ -74,10 +77,7 @@ func (s *ConfigSuite) TestReadConfig(c *check.C) {
 	configContents := testConfigContents(configFileName)
 	ioutil.WriteFile(configFileName, []byte(configContents), 0644)
 
-	expected := NewConfig(
-		configFileName,
-		"testrelease", "testchannel", "testtargetrelease", "testtargetchannel",
-		true, true)
+	expected := testConfigStruct(configFileName)
 	cfg, err := ReadConfig(configFileName)
 
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
