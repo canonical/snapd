@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	utils "../utils"
+	"launchpad.net/snappy/_integration-tests/helpers/utils"
 )
 
 // Image type encapsulates image actions
