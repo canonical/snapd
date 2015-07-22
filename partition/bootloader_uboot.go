@@ -41,9 +41,11 @@ const (
 	// this partition is "good".
 	bootloaderUbootStampFileReal = "/boot/uboot/snappy-stamp.txt"
 
-	// the main uEnv.txt u-boot config file sources this snappy
-	// boot-specific config file.
+	// DEPRECATED:
 	bootloaderUbootEnvFileReal = "/boot/uboot/snappy-system.txt"
+
+	// the real uboot env
+	bootloaderUbootFwEnvFileReal = "/boot/uboot/uboot.env"
 )
 
 // var to make it testable
@@ -52,6 +54,7 @@ var (
 	bootloaderUbootConfigFile = bootloaderUbootConfigFileReal
 	bootloaderUbootStampFile  = bootloaderUbootStampFileReal
 	bootloaderUbootEnvFile    = bootloaderUbootEnvFileReal
+	bootloaderUbootFwEnvFile  = bootloaderUbootFwEnvFileReal
 	atomicFileUpdate          = atomicFileUpdateImpl
 )
 
@@ -186,7 +189,7 @@ func writeLines(lines []string, path string) (err error) {
 	return file.Sync()
 }
 
-func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
+func (u *uboot) markCurrentBootSuccessfulLegacy(currentRootfs string) error {
 	changes := []configFileChange{
 		configFileChange{Name: bootloaderBootmodeVar,
 			Value: bootloaderBootmodeSuccess,
@@ -201,6 +204,69 @@ func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
 	}
 
 	return os.RemoveAll(bootloaderUbootStampFile)
+}
+
+// fw_setenv gets the location of the configuration to use from the
+// file /etc/fw_env.config
+func (u *uboot) unsetBootVar(name string) error {
+	if u.hasBootVar(name) {
+		return runCommand("fw_setenv", name)
+	}
+
+	return nil
+}
+
+func (u *uboot) setBootVar(name, value string) error {
+	// we ignore the error here, the interface of fw_printenv
+	// is very simplistic, the github.com/mvo5/uboot-go code
+	// will fix that
+	curVal, _ := u.getBootVar(name)
+	if curVal != value {
+		return runCommand("fw_setenv", name, value)
+	}
+
+	return nil
+}
+
+func (u *uboot) hasBootVar(name string) bool {
+	// FIXME: too simplistic, this will be replaces with
+	//        github.com/mvo5/uboot-go/
+	err := runCommand("fw_printenv", name)
+	return err == nil
+}
+
+func (u *uboot) getBootVar(name string) (string, error) {
+	output, err := runCommandWithStdout("fw_printenv", "-n", name)
+	if err != nil {
+		return "", err
+	}
+
+	return output, nil
+}
+
+// FIXME: this is super similar to grub now, refactor to extract the
+//        common code
+func (u *uboot) markCurrentBootSuccessfulFwEnv(currentRootfs string) error {
+	// Clear the variable set on boot to denote a good boot.
+	if err := u.unsetBootVar(bootloaderTrialBootVar); err != nil {
+		return err
+	}
+
+	if err := u.setBootVar(bootloaderRootfsVar, currentRootfs); err != nil {
+		return err
+	}
+
+	return u.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
+}
+
+func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) error {
+	// modern system
+	if helpers.FileExists(bootloaderUbootFwEnvFile) {
+		return u.markCurrentBootSuccessfulFwEnv(currentRootfs)
+	}
+
+	// legacy
+	return u.markCurrentBootSuccessfulLegacy(currentRootfs)
 }
 
 // Write lines to file atomically. File does not have to preexist.

@@ -318,3 +318,55 @@ func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
 	c.Check(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
 	c.Check(strings.Contains(string(bytes), "snappy_ab=a"), Equals, true)
 }
+
+func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	err := ioutil.WriteFile(bootloaderUbootFwEnvFile, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	allCommands = nil
+	runCommand = mockRunCommandWithCapture
+	err = u.MarkCurrentBootSuccessful("b")
+	c.Assert(err, IsNil)
+	c.Assert(allCommands, HasLen, 4)
+	c.Assert(allCommands[0], DeepEquals, singleCommand{"fw_printenv", bootloaderTrialBootVar})
+	c.Assert(allCommands[1], DeepEquals, singleCommand{"fw_setenv", bootloaderTrialBootVar})
+	c.Assert(allCommands[2], DeepEquals, singleCommand{"fw_setenv", bootloaderRootfsVar, "b"})
+	c.Assert(allCommands[3], DeepEquals, singleCommand{"fw_setenv", bootloaderBootmodeVar, bootloaderBootmodeSuccess})
+}
+
+func (s *PartitionTestSuite) TestUbootSetEnv(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	err := ioutil.WriteFile(bootloaderUbootFwEnvFile, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	// we simulate here that fw_printenv bootloaderreturns
+	runCommandWithStdout = func(args ...string) (string, error) {
+		if args[0] == "fw_printenv" && args[2] == bootloaderRootfsVar {
+			return "b", nil
+		}
+
+		return "something", nil
+	}
+
+	allCommands = nil
+	runCommand = mockRunCommandWithCapture
+	err = u.(*uboot).setBootVar(bootloaderRootfsVar, "b")
+	c.Assert(err, IsNil)
+	c.Assert(allCommands, HasLen, 0)
+
+	err = u.(*uboot).setBootVar(bootloaderRootfsVar, "a")
+	c.Assert(err, IsNil)
+	c.Assert(allCommands, HasLen, 1)
+	c.Assert(allCommands[0], DeepEquals, singleCommand{"fw_setenv", bootloaderRootfsVar, "a"})
+}
