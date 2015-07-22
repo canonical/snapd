@@ -27,7 +27,7 @@ import (
 	utils "../utils"
 )
 
-// Image type encapsulate image actions
+// Image type encapsulates image actions
 type Image struct {
 	release  string
 	channel  string

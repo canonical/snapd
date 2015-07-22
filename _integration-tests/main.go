@@ -20,10 +20,8 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -31,6 +29,7 @@ import (
 	"strings"
 	"text/template"
 
+	config "./config"
 	image "./image"
 	utils "./utils"
 )
@@ -62,26 +61,6 @@ func buildAssets(useSnappyFromBranch bool, arch string) {
 		buildSnappyCLI(arch)
 	}
 	buildTests(arch)
-}
-
-func writeTestConfig(release, channel, targetRelease, targetChannel string) {
-	fmt.Println("Writing test config...")
-	testConfig := map[string]string{
-		"release": release,
-		"channel": channel,
-	}
-	if targetRelease != "" {
-		testConfig["targetRelease"] = targetRelease
-	}
-	if targetChannel != "" {
-		testConfig["targetChannel"] = targetChannel
-	}
-	fmt.Println(testConfig)
-	encoded, err := json.Marshal(testConfig)
-	if err != nil {
-		log.Fatalf("Error encoding the test config: %v", testConfig)
-	}
-	ioutil.WriteFile(configFileName, encoded, 0644)
 }
 
 func setupAndRunLocalTests(rootPath, testFilter string, img image.Image) {
@@ -216,10 +195,14 @@ func main() {
 			"Channel of the image to be built, defaults to "+defaultChannel)
 		imgRevision = flag.String("revision", "",
 			"Revision of the image to be built (can be relative to the latest available revision in the given release and channel as in -1), defaults to the empty string")
+		update = flag.Bool("update", false,
+			"If this flag is used, the image will be updated before running the tests.")
 		targetRelease = flag.String("target-release", "",
-			"If specified, the image will be updated to this release before running the tests.")
+			"If the update flag is used, the image will be updated to this release before running the tests.")
 		targetChannel = flag.String("target-channel", "",
-			"If specified, the image will be updated to this channel before running the tests.")
+			"If the update flag is used, the image will be updated to this channel before running the tests.")
+		rollback = flag.Bool("rollback", false,
+			"If this flag is used, the image will be updated and then rolled back before running the tests.")
 	)
 
 	flag.Parse()
@@ -232,7 +215,10 @@ func main() {
 
 	// TODO: pass the config as arguments to the test binaries.
 	// --elopio - 2015-07-15
-	writeTestConfig(*imgRelease, *imgChannel, *targetRelease, *targetChannel)
+	cfg := config.NewConfig(
+		configFileName, *imgRelease, *imgChannel, *targetRelease, *targetChannel,
+		*update, *rollback)
+	cfg.Write()
 
 	rootPath := getRootPath()
 
