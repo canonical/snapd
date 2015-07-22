@@ -36,16 +36,6 @@ type ConfigSuite struct{}
 
 var _ = check.Suite(&ConfigSuite{})
 
-func patchStdoutToDevNull(c *check.C) {
-	devnull, err := os.Open(os.DevNull)
-	c.Assert(err, check.IsNil)
-	oldStdout := os.Stdout
-	os.Stdout = devnull
-	defer func() {
-		os.Stdout = oldStdout
-	}()
-}
-
 func testConfigFileName(c *check.C) string {
 	tmpDir, err := ioutil.TempDir("", "")
 	c.Assert(err, check.IsNil, check.Commentf(
@@ -73,7 +63,13 @@ func testConfigContents(fileName string) string {
 
 func (s *ConfigSuite) TestWriteConfig(c *check.C) {
 	// Do not print to stdout.
-	patchStdoutToDevNull(c)
+	devnull, err := os.Open(os.DevNull)
+	c.Assert(err, check.IsNil)
+	oldStdout := os.Stdout
+	os.Stdout = devnull
+	defer func() {
+		os.Stdout = oldStdout
+	}()
 	configFileName := testConfigFileName(c)
 
 	cfg := testConfigStruct(configFileName)
