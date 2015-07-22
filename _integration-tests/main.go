@@ -88,7 +88,7 @@ func buildTests(arch string) {
 	goCall(arch, "test", "-c", "./_integration-tests/tests")
 	// XXX Go test 1.3 does not have the output flag, so we move the
 	// binaries after they are generated.
-	os.Rename("_tests.test", testsBinDir+integrationTestName)
+	os.Rename("tests.test", testsBinDir+integrationTestName)
 }
 
 func goCall(arch string, cmds ...string) {
