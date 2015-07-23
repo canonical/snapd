@@ -101,8 +101,26 @@ func (u *uboot) Name() bootloaderName {
 // - Copy the "other" rootfs's kernel+initrd to the boot partition,
 //   renaming them in the process to ensure the next boot uses the
 //   correct versions.
-func (u *uboot) ToggleRootFS(otherRootfs string) (err error) {
 
+func (u *uboot) ToggleRootFS(otherRootfs string) (err error) {
+	// modern system
+	if helpers.FileExists(bootloaderUbootFwEnvFile) {
+		return u.toggleRootFSFwEnv(otherRootfs)
+	}
+
+	// legacy
+	return u.toggleRootFSLegacy(otherRootfs)
+}
+
+func (u *uboot) toggleRootFSFwEnv(otherRootfs string) (err error) {
+	if err := u.setBootVar(bootloaderRootfsVar, string(otherRootfs)); err != nil {
+		return err
+	}
+
+	return u.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry)
+}
+
+func (u *uboot) toggleRootFSLegacy(otherRootfs string) (err error) {
 	// If the file exists, update it. Otherwise create it.
 	//
 	// The file _should_ always exist, but since it's on a writable
@@ -120,7 +138,8 @@ func (u *uboot) ToggleRootFS(otherRootfs string) (err error) {
 	return modifyNameValueFile(bootloaderUbootEnvFile, changes)
 }
 
-func (u *uboot) GetBootVar(name string) (value string, err error) {
+func (u *uboot) getBootVarLegacy(name string) (value string, err error) {
+
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
 	if err := cfg.ReadFile(bootloaderUbootEnvFile); err != nil {
@@ -128,6 +147,14 @@ func (u *uboot) GetBootVar(name string) (value string, err error) {
 	}
 
 	return cfg.Get("", name)
+}
+
+func (u *uboot) GetBootVar(name string) (value string, err error) {
+	if helpers.FileExists(bootloaderUbootFwEnvFile) {
+		return u.getBootVar(name)
+	}
+
+	return u.getBootVarLegacy(name)
 }
 
 func (u *uboot) GetNextBootRootFSName() (label string, err error) {
