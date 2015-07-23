@@ -16,7 +16,7 @@ fmt=$(gofmt -l .)
 
 if [ -n "$fmt" ]; then
     echo "Formatting wrong in following files"
-    echo $fmt
+    echo "$fmt"
     exit 1
 fi
 
@@ -52,7 +52,7 @@ echo Running lint
 lint=$(golint ./... && golint ./_integration-tests/tests/...)
 if [ -n "$lint" ]; then
     echo "Lint complains:"
-    echo $lint
+    echo "$lint"
     exit 1
 fi
 

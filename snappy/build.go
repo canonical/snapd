@@ -139,7 +139,7 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 }
 
 func handleServices(buildDir string, m *packageYaml) error {
-	for _, v := range m.Services {
+	for _, v := range m.ServiceYamls {
 		hookName := filepath.Base(v.Name)
 
 		// handle the apparmor stuff

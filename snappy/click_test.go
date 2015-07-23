@@ -1235,7 +1235,7 @@ WantedBy=multi-user.target
 )
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
-	service := Service{
+	service := ServiceYaml{
 		Name:        "xkcd-webserver",
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
@@ -1254,7 +1254,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
-	service := Service{
+	service := ServiceYaml{
 		Name:        "xkcd-webserver",
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
@@ -1277,7 +1277,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
-	service := Service{Name: "xkcd-webserver",
+	service := ServiceYaml{Name: "xkcd-webserver",
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
@@ -1294,23 +1294,23 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 }
 
 func (s *SnapTestSuite) TestServiceWhitelistSimple(c *C) {
-	c.Assert(verifyServiceYaml(Service{Name: "foo"}), IsNil)
-	c.Assert(verifyServiceYaml(Service{Description: "foo"}), IsNil)
-	c.Assert(verifyServiceYaml(Service{Start: "foo"}), IsNil)
-	c.Assert(verifyServiceYaml(Service{Stop: "foo"}), IsNil)
-	c.Assert(verifyServiceYaml(Service{PostStop: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(ServiceYaml{Name: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(ServiceYaml{Description: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(ServiceYaml{Start: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(ServiceYaml{Stop: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(ServiceYaml{PostStop: "foo"}), IsNil)
 }
 
 func (s *SnapTestSuite) TestServiceWhitelistIllegal(c *C) {
-	c.Assert(verifyServiceYaml(Service{Name: "x\n"}), NotNil)
-	c.Assert(verifyServiceYaml(Service{Description: "foo\n"}), NotNil)
-	c.Assert(verifyServiceYaml(Service{Start: "foo\n"}), NotNil)
-	c.Assert(verifyServiceYaml(Service{Stop: "foo\n"}), NotNil)
-	c.Assert(verifyServiceYaml(Service{PostStop: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(ServiceYaml{Name: "x\n"}), NotNil)
+	c.Assert(verifyServiceYaml(ServiceYaml{Description: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(ServiceYaml{Start: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(ServiceYaml{Stop: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(ServiceYaml{PostStop: "foo\n"}), NotNil)
 }
 
 func (s *SnapTestSuite) TestServiceWhitelistError(c *C) {
-	err := verifyServiceYaml(Service{Name: "x\n"})
+	err := verifyServiceYaml(ServiceYaml{Name: "x\n"})
 	c.Assert(err.Error(), Equals, "services description field 'Name' contains illegal 'x\n' (legal: '^[A-Za-z0-9/. _#:-]*$')")
 }
 
