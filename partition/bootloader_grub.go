@@ -111,17 +111,13 @@ func (g *grub) setBootVar(name, value string) (err error) {
 	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", arg)
 }
 
-func (g *grub) unsetBootVar(name string) (err error) {
-	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "unset", name)
-}
-
 func (g *grub) GetNextBootRootFSName() (label string, err error) {
 	return g.GetBootVar(bootloaderRootfsVar)
 }
 
 func (g *grub) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
 	// Clear the variable set on boot to denote a good boot.
-	if err := g.unsetBootVar(bootloaderTrialBootVar); err != nil {
+	if err := g.setBootVar(bootloaderTrialBootVar, "0"); err != nil {
 		return err
 	}
 

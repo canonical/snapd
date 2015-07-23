@@ -207,20 +207,6 @@ func (u *uboot) markCurrentBootSuccessfulLegacy(currentRootfs string) error {
 	return os.RemoveAll(bootloaderUbootStampFile)
 }
 
-func (u *uboot) unsetBootVar(name string) error {
-	hasBootVar, err := u.hasBootVar(name)
-	if err != nil {
-		return err
-	}
-
-	// already unset, nothing to do
-	if !hasBootVar {
-		return nil
-	}
-
-	return u.setBootVar(name, "")
-}
-
 func (u *uboot) setBootVar(name, value string) error {
 	env, err := uenv.Open(bootloaderUbootFwEnvFile)
 	if err != nil {
@@ -254,7 +240,7 @@ func (u *uboot) getBootVar(name string) (string, error) {
 //        common code
 func (u *uboot) markCurrentBootSuccessfulFwEnv(currentRootfs string) error {
 	// Clear the variable set on boot to denote a good boot.
-	if err := u.unsetBootVar(bootloaderTrialBootVar); err != nil {
+	if err := u.setBootVar(bootloaderTrialBootVar, "0"); err != nil {
 		return err
 	}
 

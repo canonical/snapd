@@ -342,7 +342,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
 
 	env, err = uenv.Open(bootloaderUbootFwEnvFile)
 	c.Assert(err, IsNil)
-	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\n")
+	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\nsnappy_trial_boot=0\n")
 }
 
 func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {

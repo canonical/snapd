@@ -138,7 +138,7 @@ func (s *PartitionTestSuite) TestGrubMarkCurrentBootSuccessful(c *C) {
 	mp := singleCommand{"/bin/mountpoint", mountTarget}
 	c.Assert(allCommands[0], DeepEquals, mp)
 
-	expectedGrubSet := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "unset", "snappy_trial_boot"}
+	expectedGrubSet := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", "snappy_trial_boot=0"}
 
 	c.Assert(allCommands[1], DeepEquals, expectedGrubSet)
 
