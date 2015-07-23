@@ -17,28 +17,31 @@
  *
  */
 
-package cmd
+package tests
 
 import (
-	. "../common"
+	. "launchpad.net/snappy/_integration-tests/common"
 
-	. "gopkg.in/check.v1"
+	check "gopkg.in/check.v1"
 )
 
-var _ = Suite(&searchSuite{})
+var _ = check.Suite(&updateSuite{})
 
-type searchSuite struct {
+type updateSuite struct {
 	SnappySuite
 }
 
-func (s *searchSuite) TestSearchFrameworkMustPrintMatch(c *C) {
-	searchOutput := ExecCommand(c, "snappy", "search", "hello-dbus-fwk")
-
-	expected := "(?ms)" +
-		"Name +Version +Summary *\n" +
-		".*" +
-		"^hello-dbus-fwk +.* +hello-dbus-fwk *\n" +
-		".*"
-
-	c.Assert(searchOutput, Matches, expected)
+// Test that the update to the same release and channel must install a newer
+// version. If there is no update available, the channel version will be
+// modified to fake an update. If there is a version available, the image will
+// be up-to-date after running this test.
+func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
+	if BeforeReboot() {
+		CallFakeUpdate(c)
+		Reboot(c)
+	} else if AfterReboot(c) {
+		RemoveRebootMark(c)
+		c.Assert(GetCurrentUbuntuCoreVersion(c) > GetSavedVersion(c),
+			check.Equals, true)
+	}
 }

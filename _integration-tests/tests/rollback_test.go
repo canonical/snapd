@@ -17,12 +17,13 @@
  *
  */
 
-package cmd
+package tests
 
 import (
 	"strconv"
 
-	. "../common"
+	. "launchpad.net/snappy/_integration-tests/common"
+
 	check "gopkg.in/check.v1"
 )
 
