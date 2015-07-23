@@ -28,9 +28,9 @@ import (
 	"strconv"
 	"text/template"
 
-	config "./config"
-	image "./image"
-	utils "./utils"
+	"launchpad.net/snappy/_integration-tests/helpers/config"
+	"launchpad.net/snappy/_integration-tests/helpers/image"
+	"launchpad.net/snappy/_integration-tests/helpers/utils"
 )
 
 const (

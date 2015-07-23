@@ -22,7 +22,7 @@ package tests
 import (
 	"fmt"
 
-	. "launchpad.net/snappy/_integration-tests/common"
+	. "launchpad.net/snappy/_integration-tests/helpers/common"
 
 	check "gopkg.in/check.v1"
 )
@@ -37,7 +37,7 @@ func (s *infoSuite) TestInfoMustPrintReleaseAndChannel(c *check.C) {
 	infoOutput := ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms)" +
-		fmt.Sprintf("^release: ubuntu-core/%s/%s\n", Config["release"], Config["channel"]) +
+		fmt.Sprintf("^release: ubuntu-core/%s/%s\n", Cfg.Release, Cfg.Channel) +
 		".*"
 
 	c.Assert(infoOutput, check.Matches, expected)

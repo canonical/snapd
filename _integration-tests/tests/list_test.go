@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"os"
 
-	. "launchpad.net/snappy/_integration-tests/common"
+	. "launchpad.net/snappy/_integration-tests/helpers/common"
 
 	"github.com/mvo5/goconfigparser"
 	check "gopkg.in/check.v1"

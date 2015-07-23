@@ -24,51 +24,51 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"strconv"
 )
 
 // Config contains the values to pass to the test bed from the host.
 type Config struct {
-	fileName      string
-	release       string
-	channel       string
-	targetRelease string
-	targetChannel string
-	update        bool
-	rollback      bool
+	FileName      string
+	Release       string
+	Channel       string
+	TargetRelease string
+	TargetChannel string
+	Update        bool
+	Rollback      bool
 }
 
 // NewConfig is the Config constructor
 func NewConfig(fileName, release, channel, targetRelease, targetChannel string, update, rollback bool) *Config {
 	return &Config{
-		fileName: fileName, release: release, channel: channel,
-		targetRelease: targetRelease, targetChannel: targetChannel,
-		update: update, rollback: rollback,
+		FileName: fileName, Release: release, Channel: channel,
+		TargetRelease: targetRelease, TargetChannel: targetChannel,
+		Update: update, Rollback: rollback,
 	}
 }
 
 // Write writes the config to a file that will be copied to the test bed.
 func (cfg Config) Write() {
 	fmt.Println("Writing test config...")
-	testConfig := map[string]string{
-		"release": cfg.release,
-		"channel": cfg.channel,
-	}
-	if cfg.targetRelease != "" {
-		testConfig["targetRelease"] = cfg.targetRelease
-	}
-	if cfg.targetChannel != "" {
-		testConfig["targetChannel"] = cfg.targetChannel
-	}
-	testConfig["update"] = strconv.FormatBool(cfg.update)
-	testConfig["rollback"] = strconv.FormatBool(cfg.rollback)
-	fmt.Println(testConfig)
-	encoded, err := json.Marshal(testConfig)
+	fmt.Println(cfg)
+	encoded, err := json.Marshal(cfg)
 	if err != nil {
 		log.Fatalf("Error encoding the test config: %v", err)
 	}
-	err = ioutil.WriteFile(cfg.fileName, encoded, 0644)
+	err = ioutil.WriteFile(cfg.FileName, encoded, 0644)
 	if err != nil {
 		log.Fatalf("Error writing the test config: %v", err)
 	}
+}
+
+// ReadConfig the config from a file
+func ReadConfig(fileName string) (*Config, error) {
+	b, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return nil, err
+	}
+	var decoded Config
+	if err = json.Unmarshal(b, &decoded); err != nil {
+		return nil, err
+	}
+	return &decoded, nil
 }
