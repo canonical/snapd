@@ -52,11 +52,11 @@ func (cfg Config) Write() {
 	fmt.Println(cfg)
 	encoded, err := json.Marshal(cfg)
 	if err != nil {
-		log.Fatalf("Error encoding the test config: %v", err)
+		log.Panicf("Error encoding the test config: %v", err)
 	}
 	err = ioutil.WriteFile(cfg.FileName, encoded, 0644)
 	if err != nil {
-		log.Fatalf("Error writing the test config: %v", err)
+		log.Panicf("Error writing the test config: %v", err)
 	}
 }
 
