@@ -24,9 +24,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"launchpad.net/snappy/helpers"
+
+	"github.com/mvo5/uboot-go/uenv"
 )
 
 // TODO move to uboot specific test suite.
@@ -56,6 +59,8 @@ snappy_ab=a
 snappy_stamp=snappy-stamp.txt
 # either "regular" (normal boot) or "try" when trying a new version
 snappy_mode=regular
+# compat
+snappy_trial_boot=0
 # if we are trying a new version, check if stamp file is already there to revert
 # to other version
 snappy_boot=if test "${snappy_mode}" = "try"; then if test -e mmc ${bootpart} ${snappy_stamp}; then if test "${snappy_ab}" = "a"; then setenv snappy_ab "b"; else setenv snappy_ab "a"; fi; else fatwrite mmc ${mmcdev}:${mmcpart} 0x0 ${snappy_stamp} 0; fi; fi; run loadfiles; setenv mmcroot /dev/disk/by-label/system-${snappy_ab} ${snappy_cmdline}; run mmcargs; bootz ${loadaddr} ${initrd_addr}:${initrd_size} ${fdtaddr}
@@ -323,4 +328,57 @@ func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
 	c.Check(strings.Contains(string(bytes), "snappy_mode=try"), Equals, false)
 	c.Check(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
 	c.Check(strings.Contains(string(bytes), "snappy_ab=a"), Equals, true)
+}
+
+func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	env, err := uenv.Create(bootloaderUbootFwEnvFile, 4096)
+	c.Assert(err, IsNil)
+	env.Set("snappy_ab", "b")
+	env.Set("snappy_mode", "try")
+	env.Set("snappy_trial_boot", "1")
+	err = env.Save()
+	c.Assert(err, IsNil)
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	err = u.MarkCurrentBootSuccessful("b")
+	c.Assert(err, IsNil)
+
+	env, err = uenv.Open(bootloaderUbootFwEnvFile)
+	c.Assert(err, IsNil)
+	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\nsnappy_trial_boot=0\n")
+}
+
+func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	env, err := uenv.Create(bootloaderUbootFwEnvFile, 4096)
+	c.Assert(err, IsNil)
+	env.Set("snappy_ab", "b")
+	env.Set("snappy_mode", "regular")
+	err = env.Save()
+	c.Assert(err, IsNil)
+
+	st, err := os.Stat(bootloaderUbootFwEnvFile)
+	c.Assert(err, IsNil)
+	time.Sleep(100 * time.Millisecond)
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	err = setBootVar(bootloaderRootfsVar, "b")
+	c.Assert(err, IsNil)
+
+	env, err = uenv.Open(bootloaderUbootFwEnvFile)
+	c.Assert(err, IsNil)
+	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\n")
+
+	st2, err := os.Stat(bootloaderUbootFwEnvFile)
+	c.Assert(err, IsNil)
+	c.Assert(st.ModTime(), Equals, st2.ModTime())
 }

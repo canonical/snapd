@@ -17,14 +17,14 @@
  *
  */
 
-package latest
+package tests
 
 import (
 	"fmt"
 	"os"
 	"os/exec"
 
-	. "../common"
+	. "launchpad.net/snappy/_integration-tests/helpers/common"
 
 	. "gopkg.in/check.v1"
 )
@@ -61,9 +61,9 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
 	expected = "" +
 		"Installing " + snapName + "\n" +
 		".*Signature check failed, but installing anyway as requested\n" +
-		"Name          Date       Version Developer \n" +
+		"Name +Date +Version +Developer \n" +
 		".*\n" +
-		basicSnapName + "   .* .*  sideload  \n" +
+		basicSnapName + " +.* +.* +sideload  \n" +
 		".*\n"
 
 	c.Check(installOutput, Matches, expected)

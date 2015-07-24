@@ -30,7 +30,7 @@ import (
 
 type cmdHWInfo struct {
 	Positional struct {
-		PackageName string `positional-arg-name:"package name" description:"List assigned hardware for a specific installed package"`
+		PackageName string `positional-arg-name:"package name"`
 	} `positional-args:"yes"`
 }
 
@@ -39,13 +39,14 @@ var shortHWInfoHelp = i18n.G("List assigned hardware device for a package")
 var longHWInfoHelp = i18n.G("This command list what hardware an installed package can access")
 
 func init() {
-	_, err := parser.AddCommand("hw-info",
+	arg, err := parser.AddCommand("hw-info",
 		shortHWInfoHelp,
 		longHWInfoHelp,
 		&cmdHWInfo{})
 	if err != nil {
 		logger.Panicf("Unable to hwinfo: %v", err)
 	}
+	addOptionDescription(arg, "package name", i18n.G("List assigned hardware for a specific installed package"))
 }
 
 func outputHWAccessForPkgname(pkgname string, writePaths []string) {

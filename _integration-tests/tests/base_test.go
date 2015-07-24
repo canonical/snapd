@@ -17,7 +17,7 @@
  *
  */
 
-package latest
+package tests
 
 import (
 	"testing"

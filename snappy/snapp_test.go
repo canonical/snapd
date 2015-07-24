@@ -148,7 +148,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Check(snap.Description(), Equals, "Hello")
 	c.Check(snap.IsInstalled(), Equals, true)
 
-	services := snap.Services()
+	services := snap.ServiceYamls()
 	c.Assert(services, HasLen, 1)
 	c.Assert(services[0].Name, Equals, "svc1")
 
@@ -807,7 +807,7 @@ services:
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
 
-	services := snap.Services()
+	services := snap.ServiceYamls()
 	c.Assert(services, HasLen, 2)
 
 	c.Assert(services[0].Name, Equals, "svc1")
@@ -1029,13 +1029,13 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 	m, err := parsePackageYamlData(securityServicePackageYaml)
 	c.Assert(err, IsNil)
 
-	c.Assert(m.Services[0].Name, Equals, "testme-service")
-	c.Assert(m.Services[0].Start, Equals, "bin/testme-service.start")
-	c.Assert(m.Services[0].Stop, Equals, "bin/testme-service.stop")
-	c.Assert(m.Services[0].SecurityCaps, HasLen, 2)
-	c.Assert(m.Services[0].SecurityCaps[0], Equals, "networking")
-	c.Assert(m.Services[0].SecurityCaps[1], Equals, "foo_group")
-	c.Assert(m.Services[0].SecurityTemplate, Equals, "foo_template")
+	c.Assert(m.ServiceYamls[0].Name, Equals, "testme-service")
+	c.Assert(m.ServiceYamls[0].Start, Equals, "bin/testme-service.start")
+	c.Assert(m.ServiceYamls[0].Stop, Equals, "bin/testme-service.stop")
+	c.Assert(m.ServiceYamls[0].SecurityCaps, HasLen, 2)
+	c.Assert(m.ServiceYamls[0].SecurityCaps[0], Equals, "networking")
+	c.Assert(m.ServiceYamls[0].SecurityCaps[1], Equals, "foo_group")
+	c.Assert(m.ServiceYamls[0].SecurityTemplate, Equals, "foo_template")
 }
 
 func (s *SnapTestSuite) TestPackageYamlFrameworkParsing(c *C) {
@@ -1305,8 +1305,8 @@ func (s *SnapTestSuite) TestRequestAppArmorUpdateService(c *C) {
 	}
 	defer func() { timestampUpdater = helpers.UpdateTimestamp }()
 	// if one of the services needs updating, it's updated and returned
-	svc := Service{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Name: "part", Services: []Service{svc}, Version: "42"}, origin: testOrigin}
+	svc := ServiceYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	part := &SnapPart{m: &packageYaml{Name: "part", ServiceYamls: []ServiceYaml{svc}, Version: "42"}, origin: testOrigin}
 	err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
 	c.Assert(err, IsNil)
 	c.Assert(updated, HasLen, 1)
@@ -1336,9 +1336,9 @@ func (s *SnapTestSuite) TestRequestAppArmorUpdateNothing(c *C) {
 		return nil
 	}
 	defer func() { timestampUpdater = helpers.UpdateTimestamp }()
-	svc := Service{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	svc := ServiceYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Services: []Service{svc}, Binaries: []Binary{bin}, Version: "42"}, origin: testOrigin}
+	part := &SnapPart{m: &packageYaml{ServiceYamls: []ServiceYaml{svc}, Binaries: []Binary{bin}, Version: "42"}, origin: testOrigin}
 	err := part.RequestAppArmorUpdate(nil, nil)
 	c.Check(err, IsNil)
 	c.Check(updated, HasLen, 0)
@@ -1598,7 +1598,7 @@ func (s *SnapTestSuite) TestIntegrateBinary(c *C) {
 
 func (s *SnapTestSuite) TestIntegrateService(c *C) {
 	m := &packageYaml{
-		Services: []Service{
+		ServiceYamls: []ServiceYaml{
 			{
 				Name: "svc",
 			},

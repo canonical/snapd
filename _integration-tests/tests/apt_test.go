@@ -17,33 +17,23 @@
  *
  */
 
-package failover
+package tests
 
 import (
-	"fmt"
-
-	. "../common"
+	. "launchpad.net/snappy/_integration-tests/helpers/common"
 
 	check "gopkg.in/check.v1"
 )
 
-type rcLocalCrash struct{}
+var _ = check.Suite(&aptSuite{})
 
-func (rcLocalCrash) set(c *check.C) {
-	MakeWritable(c, BaseOtherPath)
-	defer MakeReadonly(c, BaseOtherPath)
-	targetFile := fmt.Sprintf("%s/etc/rc.local", BaseOtherPath)
-	ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
-	ExecCommandToFile(c, targetFile,
-		"sudo", "echo", "#!bin/sh\nprintf c > /proc/sysrq-trigger")
+type aptSuite struct {
+	SnappySuite
 }
 
-func (rcLocalCrash) unset(c *check.C) {
-	MakeWritable(c, BaseOtherPath)
-	defer MakeReadonly(c, BaseOtherPath)
-	ExecCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", BaseOtherPath))
-}
+func (s *aptSuite) TestAptGetMustPrintError(c *check.C) {
+	aptOutput := ExecCommand(c, "apt-get", "update")
 
-func (s *failoverSuite) TestRCLocalCrash(c *check.C) {
-	commonFailoverTest(c, rcLocalCrash{})
+	expected := "Ubuntu Core does not use apt-get, see 'snappy --help'!\n"
+	c.Assert(aptOutput, check.Equals, expected)
 }
