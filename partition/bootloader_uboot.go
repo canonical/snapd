@@ -29,6 +29,7 @@ import (
 	"launchpad.net/snappy/helpers"
 
 	"github.com/mvo5/goconfigparser"
+	"github.com/mvo5/uboot-go/uenv"
 )
 
 const (
@@ -41,9 +42,11 @@ const (
 	// this partition is "good".
 	bootloaderUbootStampFileReal = "/boot/uboot/snappy-stamp.txt"
 
-	// the main uEnv.txt u-boot config file sources this snappy
-	// boot-specific config file.
+	// DEPRECATED:
 	bootloaderUbootEnvFileReal = "/boot/uboot/snappy-system.txt"
+
+	// the real uboot env
+	bootloaderUbootFwEnvFileReal = "/boot/uboot/uboot.env"
 )
 
 // var to make it testable
@@ -52,6 +55,7 @@ var (
 	bootloaderUbootConfigFile = bootloaderUbootConfigFileReal
 	bootloaderUbootStampFile  = bootloaderUbootStampFileReal
 	bootloaderUbootEnvFile    = bootloaderUbootEnvFileReal
+	bootloaderUbootFwEnvFile  = bootloaderUbootFwEnvFileReal
 	atomicFileUpdate          = atomicFileUpdateImpl
 )
 
@@ -68,7 +72,10 @@ type configFileChange struct {
 	Value string
 }
 
-// newUboot create a new Grub bootloader object
+var setBootVar = func(name, value string) error { return nil }
+var getBootVar = func(name string) (string, error) { return "", nil }
+
+// newUboot create a new Uboot bootloader object
 func newUboot(partition *Partition) bootLoader {
 	if !helpers.FileExists(bootloaderUbootConfigFile) {
 		return nil
@@ -80,6 +87,14 @@ func newUboot(partition *Partition) bootLoader {
 	}
 	u := uboot{bootloaderType: *b}
 
+	if helpers.FileExists(bootloaderUbootFwEnvFile) {
+		setBootVar = setBootVarFwEnv
+		getBootVar = getBootVarFwEnv
+	} else {
+		setBootVar = setBootVarLegacy
+		getBootVar = getBootVarLegacy
+	}
+
 	return &u
 }
 
@@ -87,36 +102,15 @@ func (u *uboot) Name() bootloaderName {
 	return bootloaderNameUboot
 }
 
-// ToggleRootFS make the U-Boot bootloader switch rootfs's.
-//
-// Approach:
-//
-// - Assume the device's installed version of u-boot supports
-//   CONFIG_SUPPORT_RAW_INITRD (that allows u-boot to boot a
-//   standard initrd+kernel on the fat32 disk partition).
-// - Copy the "other" rootfs's kernel+initrd to the boot partition,
-//   renaming them in the process to ensure the next boot uses the
-//   correct versions.
 func (u *uboot) ToggleRootFS(otherRootfs string) (err error) {
-
-	// If the file exists, update it. Otherwise create it.
-	//
-	// The file _should_ always exist, but since it's on a writable
-	// partition, it's possible the admin removed it by mistake. So
-	// recreate to allow the system to boot!
-	changes := []configFileChange{
-		configFileChange{Name: bootloaderRootfsVar,
-			Value: string(otherRootfs),
-		},
-		configFileChange{Name: bootloaderBootmodeVar,
-			Value: bootloaderBootmodeTry,
-		},
+	if err := setBootVar(bootloaderRootfsVar, string(otherRootfs)); err != nil {
+		return err
 	}
 
-	return modifyNameValueFile(bootloaderUbootEnvFile, changes)
+	return setBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry)
 }
 
-func (u *uboot) GetBootVar(name string) (value string, err error) {
+func getBootVarLegacy(name string) (value string, err error) {
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
 	if err := cfg.ReadFile(bootloaderUbootEnvFile); err != nil {
@@ -124,6 +118,50 @@ func (u *uboot) GetBootVar(name string) (value string, err error) {
 	}
 
 	return cfg.Get("", name)
+}
+
+func setBootVarLegacy(name, value string) error {
+	curVal, err := getBootVarLegacy(name)
+	if err == nil && curVal == value {
+		return nil
+	}
+
+	changes := []configFileChange{
+		configFileChange{
+			Name:  name,
+			Value: value,
+		},
+	}
+
+	return modifyNameValueFile(bootloaderUbootEnvFile, changes)
+}
+
+func setBootVarFwEnv(name, value string) error {
+	env, err := uenv.Open(bootloaderUbootFwEnvFile)
+	if err != nil {
+		return err
+	}
+
+	// already set, nothing to do
+	if env.Get(name) == value {
+		return nil
+	}
+
+	env.Set(name, value)
+	return env.Save()
+}
+
+func getBootVarFwEnv(name string) (string, error) {
+	env, err := uenv.Open(bootloaderUbootFwEnvFile)
+	if err != nil {
+		return "", err
+	}
+
+	return env.Get(name), nil
+}
+
+func (u *uboot) GetBootVar(name string) (value string, err error) {
+	return getBootVar(name)
 }
 
 func (u *uboot) GetNextBootRootFSName() (label string, err error) {
@@ -136,71 +174,28 @@ func (u *uboot) GetNextBootRootFSName() (label string, err error) {
 	return value, nil
 }
 
-// FIXME: put into utils package
-func readLines(path string) (lines []string, err error) {
-
-	file, err := os.Open(path)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-
-	return lines, scanner.Err()
-}
-
-// FIXME: put into utils package
-func writeLines(lines []string, path string) (err error) {
-
-	file, err := os.Create(path)
-
-	if err != nil {
+// FIXME: this is super similar to grub now, refactor to extract the
+//        common code
+func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) error {
+	// Clear the variable set on boot to denote a good boot.
+	if err := setBootVar(bootloaderTrialBootVar, "0"); err != nil {
 		return err
 	}
 
-	defer func() {
-		e := file.Close()
-		if err == nil {
-			err = e
-		}
-	}()
-
-	writer := bufio.NewWriter(file)
-
-	for _, line := range lines {
-		if _, err := fmt.Fprintln(writer, line); err != nil {
-			return err
-		}
-	}
-
-	if err := writer.Flush(); err != nil {
+	if err := setBootVar(bootloaderRootfsVar, currentRootfs); err != nil {
 		return err
 	}
 
-	return file.Sync()
-}
-
-func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
-	changes := []configFileChange{
-		configFileChange{Name: bootloaderBootmodeVar,
-			Value: bootloaderBootmodeSuccess,
-		},
-		configFileChange{Name: bootloaderRootfsVar,
-			Value: string(currentRootfs),
-		},
-	}
-
-	if err := modifyNameValueFile(bootloaderUbootEnvFile, changes); err != nil {
+	if err := setBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess); err != nil {
 		return err
 	}
 
+	// legacy support, does not error if the file is not there
 	return os.RemoveAll(bootloaderUbootStampFile)
+}
+
+func (u *uboot) BootDir() string {
+	return bootloaderUbootDir
 }
 
 // Write lines to file atomically. File does not have to preexist.
@@ -291,6 +286,52 @@ func modifyNameValueFile(file string, changes []configFileChange) (err error) {
 	return nil
 }
 
-func (u *uboot) BootDir() string {
-	return bootloaderUbootDir
+// FIXME: put into utils package
+func readLines(path string) (lines []string, err error) {
+
+	file, err := os.Open(path)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	return lines, scanner.Err()
+}
+
+// FIXME: put into utils package
+func writeLines(lines []string, path string) (err error) {
+
+	file, err := os.Create(path)
+
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		e := file.Close()
+		if err == nil {
+			err = e
+		}
+	}()
+
+	writer := bufio.NewWriter(file)
+
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(writer, line); err != nil {
+			return err
+		}
+	}
+
+	if err := writer.Flush(); err != nil {
+		return err
+	}
+
+	return file.Sync()
 }

@@ -75,7 +75,7 @@ func (f *SharedName) IsAlias(origin string) bool {
 }
 
 // Port is used to declare the Port and Negotiable status of such port
-// that is bound to a Service.
+// that is bound to a ServiceYaml.
 type Port struct {
 	Port       string `yaml:"port,omitempty"`
 	Negotiable bool   `yaml:"negotiable,omitempty"`
@@ -138,8 +138,8 @@ func (sd *SecurityDefinitions) NeedsAppArmorUpdate(policies, templates map[strin
 	return false
 }
 
-// Service represents a service inside a SnapPart
-type Service struct {
+// ServiceYaml represents a service inside a SnapPart
+type ServiceYaml struct {
 	Name        string `yaml:"name" json:"name,omitempty"`
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 
@@ -215,8 +215,8 @@ type packageYaml struct {
 	DeprecatedFramework string   `yaml:"framework,omitempty"`
 	Frameworks          []string `yaml:"frameworks,omitempty"`
 
-	Services []Service `yaml:"services,omitempty"`
-	Binaries []Binary  `yaml:"binaries,omitempty"`
+	ServiceYamls []ServiceYaml `yaml:"services,omitempty"`
+	Binaries     []Binary      `yaml:"binaries,omitempty"`
 
 	// oem snap only
 	OEM    OEM          `yaml:"oem,omitempty"`
@@ -295,7 +295,7 @@ func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error
 			return err
 		}
 	}
-	for _, service := range m.Services {
+	for _, service := range m.ServiceYamls {
 		if err := verifyServiceYaml(service); err != nil {
 			return err
 		}
@@ -344,9 +344,9 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		}
 	}
 
-	for i := range m.Services {
-		if m.Services[i].StopTimeout == 0 {
-			m.Services[i].StopTimeout = DefaultTimeout
+	for i := range m.ServiceYamls {
+		if m.ServiceYamls[i].StopTimeout == 0 {
+			m.ServiceYamls[i].StopTimeout = DefaultTimeout
 		}
 	}
 
@@ -367,7 +367,7 @@ func (m *packageYaml) checkForNameClashes() error {
 	for _, bin := range m.Binaries {
 		d[bin.Name] = struct{}{}
 	}
-	for _, svc := range m.Services {
+	for _, svc := range m.ServiceYamls {
 		if _, ok := d[svc.Name]; ok {
 			return ErrNameClash(svc.Name)
 		}
@@ -515,7 +515,7 @@ func (m *packageYaml) legacyIntegration() {
 		m.legacyIntegrateSecDef(hookName, &v.SecurityDefinitions)
 	}
 
-	for _, v := range m.Services {
+	for _, v := range m.ServiceYamls {
 		hookName := filepath.Base(v.Name)
 
 		if _, ok := m.Integration[hookName]; !ok {
@@ -745,12 +745,12 @@ func (s *SnapPart) Date() time.Time {
 	return st.ModTime()
 }
 
-// Services return a list of Service the package declares
-func (s *SnapPart) Services() []Service {
-	return s.m.Services
+// ServiceYamls return a list of ServiceYamls the package declares
+func (s *SnapPart) ServiceYamls() []ServiceYaml {
+	return s.m.ServiceYamls
 }
 
-// Binaries return a list of Service the package declares
+// Binaries return a list of BinaryDescription the package declares
 func (s *SnapPart) Binaries() []Binary {
 	return s.m.Binaries
 }
@@ -906,7 +906,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 			if !dep.IsActive() {
 				continue
 			}
-			for _, svc := range dep.Services() {
+			for _, svc := range dep.ServiceYamls() {
 				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
 				timeout := time.Duration(svc.StopTimeout)
 				if err = sysd.Stop(serviceName, timeout); err != nil {
@@ -1234,7 +1234,7 @@ func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
 func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
 
 	fullName := QualifiedName(s)
-	for _, svc := range s.Services() {
+	for _, svc := range s.ServiceYamls() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
 			if err := updateAppArmorJSONTimestamp(fullName, svc.Name, s.Version()); err != nil {
 				return err

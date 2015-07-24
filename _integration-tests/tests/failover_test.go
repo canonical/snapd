@@ -17,18 +17,13 @@
  *
  */
 
-package failover
+package tests
 
 import (
-	"testing"
-
 	check "gopkg.in/check.v1"
 
-	. "../common"
+	. "launchpad.net/snappy/_integration-tests/helpers/common"
 )
-
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) { check.TestingT(t) }
 
 var _ = check.Suite(&failoverSuite{})
 
@@ -48,7 +43,7 @@ type failer interface {
 // type implementing the failer interface and call this function with an instance
 // of it
 func commonFailoverTest(c *check.C, f failer) {
-	currentVersion := GetCurrentVersion(c)
+	currentVersion := GetCurrentUbuntuCoreVersion(c)
 
 	if AfterReboot(c) {
 		RemoveRebootMark(c)
@@ -56,7 +51,7 @@ func commonFailoverTest(c *check.C, f failer) {
 		c.Assert(GetSavedVersion(c), check.Equals, currentVersion)
 	} else {
 		SetSavedVersion(c, currentVersion-1)
-		CallUpdate(c)
+		CallFakeUpdate(c)
 		f.set(c)
 		Reboot(c)
 	}

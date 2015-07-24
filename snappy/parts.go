@@ -34,9 +34,9 @@ import (
 // SystemConfig is a config map holding configs for multiple packages
 type SystemConfig map[string]interface{}
 
-// Services implements snappy packages that offer services
-type Services interface {
-	Services() []Service
+// ServiceYamls implements snappy packages that offer services
+type ServiceYamls interface {
+	ServiceYamls() []ServiceYaml
 }
 
 // Configuration allows requesting an oem snappy package type's config

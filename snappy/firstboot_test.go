@@ -148,7 +148,7 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEth(c *C) {
 	c.Assert(fs, HasLen, 1)
 	bs, err := ioutil.ReadFile(fs[0])
 	c.Assert(err, IsNil)
-	c.Check(string(bs), Equals, "allow-hotplug eth42\niface eth42 inet dhcp\n")
+	c.Check(string(bs), Equals, "auto eth42\n\nallow-hotplug eth42\niface eth42 inet dhcp\n")
 
 }
 

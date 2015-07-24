@@ -16,6 +16,7 @@ Build-Depends: bash-completion,
                golang-go.crypto-dev,
                golang-goconfigparser-dev,
                golang-pb-dev,
+               golang-uboot-go-dev,
                golang-yaml.v2-dev,
                python3,
                python3-markdown

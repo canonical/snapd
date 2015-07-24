@@ -133,7 +133,7 @@ func enableFirstEther() error {
 	}
 	eth := filepath.Base(eths[0])
 	ethfile := filepath.Join(ethdir, eth)
-	data := fmt.Sprintf("allow-hotplug %[1]s\niface %[1]s inet dhcp\n", eth)
+	data := fmt.Sprintf("auto %[1]s\n\nallow-hotplug %[1]s\niface %[1]s inet dhcp\n", eth)
 
 	return helpers.AtomicWriteFile(ethfile, []byte(data), 0644)
 }

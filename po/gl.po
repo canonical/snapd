@@ -8,14 +8,14 @@ msgstr ""
 "Project-Id-Version: snappy\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
 "POT-Creation-Date: 2015-07-02 11:15-0600\n"
-"PO-Revision-Date: 2015-07-08 15:33+0000\n"
+"PO-Revision-Date: 2015-07-10 08:41+0000\n"
 "Last-Translator: Marcos Lans <Unknown>\n"
 "Language-Team: Galician <gl@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2015-07-09 06:04+0000\n"
-"X-Generator: Launchpad (build 17608)\n"
+"X-Launchpad-Export-Date: 2015-07-21 05:38+0000\n"
+"X-Generator: Launchpad (build 17628)\n"
 
 #. TRANSLATORS: the %s stand for "name", "version", "description"
 #, c-format
@@ -66,11 +66,11 @@ msgid "Assign a hardware device to a package"
 msgstr "Asignar un dispositivo de hardware a un paquete"
 
 msgid "Builds a snap package"
-msgstr ""
+msgstr "Constrúe un paquete snap"
 
 #. TRANSLATORS: the first %q is the file that can not be read and %v is the error message
 msgid "Can't read hook file %q: %v"
-msgstr ""
+msgstr "Non é posíbel ler o ficheiro do «hook» %q: %v"
 
 msgid ""
 "Configures a package. The configuration is a YAML file, provided in the "
