@@ -22,10 +22,9 @@ package main
 import (
 	"fmt"
 	"os"
-	"syscall"
 	"text/tabwriter"
-	"unsafe"
 
+	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
