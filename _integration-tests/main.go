@@ -137,19 +137,19 @@ func createControlFile(testFilter string) {
 
 	tpl, err := template.ParseFiles(controlTpl)
 	if err != nil {
-		log.Fatalf("Error reading adt-run control template %s", controlTpl)
+		log.Panicf("Error reading adt-run control template %s", controlTpl)
 	}
 
 	outputFile, err := os.Create(controlFile)
 	if err != nil {
-		log.Fatalf("Error creating control file %s", controlFile)
+		log.Panicf("Error creating control file %s", controlFile)
 	}
 	defer outputFile.Close()
 
 	err = tpl.Execute(outputFile,
 		controlData{Test: integrationTestName, Filter: testFilter})
 	if err != nil {
-		log.Fatalf("execution: %s", err)
+		log.Panicf("execution: %s", err)
 	}
 }
 
@@ -166,7 +166,7 @@ func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
 func getRootPath() string {
 	dir, err := os.Getwd()
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	return dir
 }
