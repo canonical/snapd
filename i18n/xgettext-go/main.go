@@ -182,7 +182,7 @@ msgstr  "Project-Id-Version: %s\n"
         "Content-Type: text/plain; charset=CHARSET\n"
         "Content-Transfer-Encoding: 8bit\n"
 
-`, opts.PackageName, opts.MsgIdBugsAddress, formatTime())
+`, opts.PackageName, opts.MsgIDBugsAddress, formatTime())
 	fmt.Fprintf(out, "%s", header)
 
 	// yes, this is the way to do it in go
@@ -238,7 +238,7 @@ var opts struct {
 
 	NoLocation bool `long:"no-location" description:"do not write '#: filename:line' lines"`
 
-	MsgIdBugsAddress string `long:"msgid-bugs-address" default:"EMAIL" description:"set report address for msgid bugs"`
+	MsgIDBugsAddress string `long:"msgid-bugs-address" default:"EMAIL" description:"set report address for msgid bugs"`
 
 	PackageName string `long:"package-name" description:"set package name in output"`
 

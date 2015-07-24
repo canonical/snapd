@@ -256,7 +256,6 @@ msgstr  ""
 
 msgid   "This command adds access to a specific hardware device (e.g. /dev/"
         "ttyUSB0) for an installed package."
->>>>>>> MERGE-SOURCE
 msgstr  ""
 
 msgid   "This command is no longer available, please use the \"list\" command"

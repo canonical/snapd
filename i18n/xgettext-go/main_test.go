@@ -55,7 +55,7 @@ func (s *xgettextTestSuite) SetUpTest(c *C) {
 	opts.KeywordPlural = "i18n.NG"
 	opts.SortOutput = true
 	opts.PackageName = "snappy"
-	opts.MsgIdBugsAddress = "snappy-devel@lists.ubuntu.com"
+	opts.MsgIDBugsAddress = "snappy-devel@lists.ubuntu.com"
 
 	// mock time
 	formatTime = func() string {
