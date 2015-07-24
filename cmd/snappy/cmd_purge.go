@@ -29,7 +29,7 @@ import (
 )
 
 type cmdPurge struct {
-	Installed bool `long:"installed" description:"Purge an installed package."`
+	Installed bool `long:"installed"`
 }
 
 var (
@@ -38,13 +38,14 @@ var (
 )
 
 func init() {
-	_, err := parser.AddCommand("purge",
+	arg, err := parser.AddCommand("purge",
 		shortPurgeHelp,
 		longPurgeHelp,
 		&cmdPurge{})
 	if err != nil {
 		logger.Panicf("Unable to purge: %v", err)
 	}
+	addOptionDescription(arg, "installed", i18n.G("Purge an installed package."))
 }
 
 func (x *cmdPurge) Execute(args []string) error {

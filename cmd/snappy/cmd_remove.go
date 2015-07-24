@@ -29,17 +29,18 @@ import (
 )
 
 type cmdRemove struct {
-	DisableGC bool `long:"no-gc" description:"Do not clean up old versions of the package."`
+	DisableGC bool `long:"no-gc"`
 }
 
 func init() {
-	_, err := parser.AddCommand("remove",
+	arg, err := parser.AddCommand("remove",
 		i18n.G("Remove a snapp part"),
 		i18n.G("Remove a snapp part"),
 		&cmdRemove{})
 	if err != nil {
 		logger.Panicf("Unable to remove: %v", err)
 	}
+	addOptionDescription(arg, "no-gc", i18n.G("Do not clean up old versions of the package."))
 }
 
 func (x *cmdRemove) Execute(args []string) (err error) {

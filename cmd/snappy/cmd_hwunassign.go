@@ -29,8 +29,8 @@ import (
 
 type cmdHWUnassign struct {
 	Positional struct {
-		PackageName string `positional-arg-name:"package name" description:"Remove hardware from a specific installed package"`
-		DevicePath  string `positional-arg-name:"device path" description:"The hardware device path (e.g. /dev/ttyUSB0)"`
+		PackageName string `positional-arg-name:"package name"`
+		DevicePath  string `positional-arg-name:"device path"`
 	} `required:"true" positional-args:"yes"`
 }
 
@@ -39,13 +39,15 @@ var shortHWUnassignHelp = i18n.G("Unassign a hardware device to a package")
 var longHWUnassignHelp = i18n.G("This command removes access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package.")
 
 func init() {
-	_, err := parser.AddCommand("hw-unassign",
+	arg, err := parser.AddCommand("hw-unassign",
 		shortHWUnassignHelp,
 		longHWUnassignHelp,
 		&cmdHWUnassign{})
 	if err != nil {
 		logger.Panicf("Unable to hwunassign: %v", err)
 	}
+	addOptionDescription(arg, "package name", i18n.G("Remove hardware from a specific installed package"))
+	addOptionDescription(arg, "device path", i18n.G("The hardware device path (e.g. /dev/ttyUSB0)"))
 }
 
 func (x *cmdHWUnassign) Execute(args []string) error {
