@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-07-09 11:32+0200\n"
+        "POT-Creation-Date: 2015-07-24 14:07+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -138,17 +138,17 @@ msgstr  ""
 msgid   "Password: "
 msgstr  ""
 
-msgid   "Provides a list of all active components installed on a snappy system.\n\nIf requested, the command will find out if there are updates for any of the components and indicate that by appending a * to the date. This will be slower as it requires a round trip to the app store on the network.\n\nThe developer information refers to non-mainline versions of a package (much like PPAs in deb-based Ubuntu). If the package is the primary version of that package in Ubuntu then the developer info is not shown. This allows one to identify packages which have custom, non-standard versions installed. As a special case, the “sideload” developer refers to packages installed manually on the system.\n\nWhen a verbose listing is requested, information about the channel used is displayed; which is one of alpha, beta, rc or stable, and all fields are fully expanded too. In some cases, older (inactive) versions of snappy packages will be installed, these will be shown in the verbose output and the active version indicated with a * appended to the name of the component."
+msgid   "Provide information about a specific installed package"
 msgstr  ""
 
-msgid   "Provide information about a specific installed package"
+msgid   "Provides a list of all active components installed on a snappy system.\n\nIf requested, the command will find out if there are updates for any of the components and indicate that by appending a * to the date. This will be slower as it requires a round trip to the app store on the network.\n\nThe developer information refers to non-mainline versions of a package (much like PPAs in deb-based Ubuntu). If the package is the primary version of that package in Ubuntu then the developer info is not shown. This allows one to identify packages which have custom, non-standard versions installed. As a special case, the “sideload” developer refers to packages installed manually on the system.\n\nWhen a verbose listing is requested, information about the channel used is displayed; which is one of alpha, beta, rc or stable, and all fields are fully expanded too. In some cases, older (inactive) versions of snappy packages will be installed, these will be shown in the verbose output and the active version indicated with a * appended to the name of the component."
 msgstr  ""
 
 msgid   "Provides more detailed information"
 msgstr  ""
 
 msgid   "Purge an installed package."
-
+msgstr  ""
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
@@ -217,13 +217,6 @@ msgstr  ""
 msgid   "Setting %s to version %s\n"
 msgstr  ""
 
-
-msgid   "The "versions" command is no longer available.\n\nPlease use the "list" command instead to see what is installed.\nThe "list -u" (or "list --updates") will show you the available updates\nand "list -v" (or "list --verbose") will show all installed versions.\n"
-msgstr  ""
-
-msgid   "This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
-msgstr  ""
-
 msgid   "Show all available forks of a package"
 msgstr  ""
 
@@ -234,6 +227,9 @@ msgid   "Show channel information and expand all fields"
 msgstr  ""
 
 msgid   "Specify an alternate output directory for the resulting package"
+msgstr  ""
+
+msgid   "The "versions" command is no longer available.\n\nPlease use the "list" command instead to see what is installed.\nThe "list -u" (or "list --updates") will show you the available updates\nand "list -v" (or "list --verbose") will show all installed versions.\n"
 msgstr  ""
 
 msgid   "The Package to install (name or path)"
@@ -254,8 +250,7 @@ msgstr  ""
 msgid   "The version to rollback to"
 msgstr  ""
 
-msgid   "This command adds access to a specific hardware device (e.g. /dev/"
-        "ttyUSB0) for an installed package."
+msgid   "This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
 msgstr  ""
 
 msgid   "This command is no longer available, please use the \"list\" command"
