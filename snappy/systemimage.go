@@ -497,6 +497,14 @@ func (s *SystemImagePart) needsBootAssetSync() bool {
 		return true
 	}
 
+        // the idea here is that a channel change on the other
+        // partition always triggers a full image download so
+        // there is no need for syncing the assets (because the
+        // kernel is included in the full image already)
+        //
+        // FIXME: its not entirely clear if this is true, there
+        // is no mechanism to switch channels right now and all
+        // the tests always switch both partitions
 	if curr.Channel() != other.Channel() {
 		return false
 	}
