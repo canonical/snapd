@@ -55,8 +55,9 @@ var (
 	bootloaderUbootConfigFile = bootloaderUbootConfigFileReal
 	bootloaderUbootStampFile  = bootloaderUbootStampFileReal
 	bootloaderUbootEnvFile    = bootloaderUbootEnvFileReal
-	atomicWriteFile           = helpers.AtomicWriteFile
 	bootloaderUbootFwEnvFile  = bootloaderUbootFwEnvFileReal
+
+	atomicWriteFile = helpers.AtomicWriteFile
 )
 
 const bootloaderNameUboot bootloaderName = "u-boot"
@@ -206,7 +207,7 @@ func (u *uboot) BootDir() string {
 //
 // FIXME: put into utils package
 // FIXME: improve logic
-func modifyNameValueFile(path string, changes []configFileChange) (err error) {
+func modifyNameValueFile(path string, changes []configFileChange) error {
 	var updated []configFileChange
 
 	// we won't write to a file if we don't need to.
@@ -234,7 +235,9 @@ func modifyNameValueFile(path string, changes []configFileChange) (err error) {
 				}
 			}
 		}
-		fmt.Fprintln(buf, line)
+		if _, err := fmt.Fprintln(buf, line); err != nil {
+			return err
+		}
 	}
 
 	for _, change := range changes {
@@ -251,7 +254,9 @@ func modifyNameValueFile(path string, changes []configFileChange) (err error) {
 
 			// name/value pair did not exist in original
 			// file, so append
-			fmt.Fprintf(buf, "%s=%s\n", change.Name, change.Value)
+			if _, err := fmt.Fprintf(buf, "%s=%s\n", change.Name, change.Value); err != nil {
+				return err
+			}
 		}
 	}
 
