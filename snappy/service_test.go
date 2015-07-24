@@ -67,6 +67,15 @@ func (s *ServiceActorSuite) TestFindServicesNoPackages(c *C) {
 	c.Check(err, Equals, ErrPackageNotFound)
 }
 
+func (s *ServiceActorSuite) TestFindServicesNoPackagesNoPattern(c *C) {
+	// tricky way of hiding the installed package ;)
+	SetRootDir(c.MkDir())
+	actor, err := FindServices("", "", s.pb)
+	c.Check(err, IsNil)
+	c.Assert(actor, NotNil)
+	c.Check(actor.svcs, HasLen, 0)
+}
+
 func (s *ServiceActorSuite) TestFindServicesNoServices(c *C) {
 	_, err := FindServices("hello-app", "notfound", s.pb)
 	c.Check(err, Equals, ErrServiceNotFound)
@@ -75,6 +84,7 @@ func (s *ServiceActorSuite) TestFindServicesNoServices(c *C) {
 func (s *ServiceActorSuite) TestFindServicesFindsServices(c *C) {
 	actor, err := FindServices("", "", s.pb)
 	c.Assert(err, IsNil)
+	c.Assert(actor, NotNil)
 	c.Check(actor.svcs, HasLen, 1)
 
 	s.outs = [][]byte{
@@ -106,6 +116,7 @@ func (s *ServiceActorSuite) TestFindServicesFindsServices(c *C) {
 func (s *ServiceActorSuite) TestFindServicesReportsErrors(c *C) {
 	actor, err := FindServices("", "", s.pb)
 	c.Assert(err, IsNil)
+	c.Assert(actor, NotNil)
 	c.Check(actor.svcs, HasLen, 1)
 
 	anError := errors.New("error")

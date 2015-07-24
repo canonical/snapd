@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-07-02 11:15-0600\n"
+        "POT-Creation-Date: 2015-07-24 15:49+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -133,6 +133,12 @@ msgstr  ""
 msgid   "Purging %s\n"
 msgstr  ""
 
+msgid   "Query and modify snappy services"
+msgstr  ""
+
+msgid   "Query and modify snappy services of locally-installed packages"
+msgstr  ""
+
 msgid   "Query the store for available packages"
 msgstr  ""
 
@@ -178,6 +184,9 @@ msgstr  ""
 #. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
 #, c-format
 msgid   "Setting %s to version %s\n"
+msgstr  ""
+
+msgid   "Snap\tService\tState"
 msgstr  ""
 
 msgid   "This command adds access to a specific hardware device (e.g. /dev/"
@@ -252,6 +261,14 @@ msgstr  ""
 msgid   "snappy autopilot triggered a reboot to boot into an up to date "
         "system -- temprorarily disable the reboot by running 'sudo shutdown -"
         "c'"
+msgstr  ""
+
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+msgid   "unable to start %s's service %s: %v"
+msgstr  ""
+
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+msgid   "unable to stop %s's service %s: %v"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a date

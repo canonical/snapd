@@ -34,6 +34,8 @@ type svcT struct {
 	svc *ServiceYaml
 }
 
+// A ServiceActor collects the services found by FindServices and lets
+// you perform differnt actions (start, stop, etc) on them.
 type ServiceActor struct {
 	svcs []*svcT
 	pb   progress.Meter
@@ -42,6 +44,13 @@ type ServiceActor struct {
 
 // FindServices finds all matching services (empty string matches all)
 // and lets you perform different actions (start, stop, etc) on them.
+//
+// If a snap is specified and no matching snaps are found,
+// ErrPackageNotFound is returned. If a snap is specified and the
+// matching snaps has no matching services, ErrServiceNotFound is
+// returned.
+//
+// If no snap is specified, an empty result is not an error.
 func FindServices(snapName string, serviceName string, pb progress.Meter) (*ServiceActor, error) {
 	var svcs []*svcT
 
@@ -72,11 +81,13 @@ func FindServices(snapName string, serviceName string, pb progress.Meter) (*Serv
 			svcs = append(svcs, s)
 		}
 	}
-	if !foundSnap {
-		return nil, ErrPackageNotFound
-	}
-	if len(svcs) == 0 {
-		return nil, ErrServiceNotFound
+	if snapName != "" {
+		if !foundSnap {
+			return nil, ErrPackageNotFound
+		}
+		if len(svcs) == 0 {
+			return nil, ErrServiceNotFound
+		}
 	}
 
 	return &ServiceActor{
@@ -86,6 +97,7 @@ func FindServices(snapName string, serviceName string, pb progress.Meter) (*Serv
 	}, nil
 }
 
+// Status of all the found services.
 func (actor *ServiceActor) Status() ([]string, error) {
 	var stati []string
 	for _, svc := range actor.svcs {
@@ -101,10 +113,12 @@ func (actor *ServiceActor) Status() ([]string, error) {
 	return stati, nil
 }
 
+// Start all the found services.
 func (actor *ServiceActor) Start() error {
 	for _, svc := range actor.svcs {
 		svcname := filepath.Base(generateServiceFileName(svc.m, *svc.svc))
 		if err := actor.sysd.Start(svcname); err != nil {
+			// TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 			return fmt.Errorf(i18n.G("unable to start %s's service %s: %v"), svc.m.Name, svc.svc.Name, err)
 		}
 	}
@@ -112,10 +126,12 @@ func (actor *ServiceActor) Start() error {
 	return nil
 }
 
+// Stop all the found services.
 func (actor *ServiceActor) Stop() error {
 	for _, svc := range actor.svcs {
 		svcname := filepath.Base(generateServiceFileName(svc.m, *svc.svc))
 		if err := actor.sysd.Stop(svcname, time.Duration(svc.svc.StopTimeout)); err != nil {
+			// TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 			return fmt.Errorf(i18n.G("unable to stop %s's service %s: %v"), svc.m.Name, svc.svc.Name, err)
 		}
 	}
@@ -123,6 +139,7 @@ func (actor *ServiceActor) Stop() error {
 	return nil
 }
 
+// Restart all the found services.
 func (actor *ServiceActor) Restart() error {
 	err := actor.Stop()
 	if err != nil {

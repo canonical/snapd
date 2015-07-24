@@ -32,28 +32,6 @@ import (
 	"launchpad.net/snappy/snappy"
 )
 
-// Winsize is from tty_ioctl(4)
-type Winsize struct {
-	Row    uint16
-	Col    uint16
-	xpixel uint16 // unused
-	Ypixel uint16 // unused
-}
-
-// GetWinsize performs the TIOCGWINSZ ioctl on stdout
-func GetWinsize() (*Winsize, error) {
-	ws := &Winsize{}
-	retCode, _, errno := syscall.Syscall(syscall.SYS_IOCTL,
-		uintptr(syscall.Stdout),
-		uintptr(syscall.TIOCGWINSZ),
-		uintptr(unsafe.Pointer(ws)))
-
-	if int(retCode) == -1 {
-		return ws, errno
-	}
-	return ws, nil
-}
-
 type cmdService struct {
 	Status  svcStatus  `command:"status"`
 	Start   svcStart   `command:"start"`
@@ -74,7 +52,7 @@ type svcRestart struct{ svcBase }
 func init() {
 	_, err := parser.AddCommand("service",
 		i18n.G("Query and modify snappy services"),
-		i18n.G("Query and modify snappy services"),
+		i18n.G("Query and modify snappy services of locally-installed packages"),
 		&cmdService{})
 
 	if err != nil {
@@ -118,12 +96,18 @@ func (s *svcStatus) Execute(args []string) error {
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 1, '\t', 0)
 
-	ws, _ := GetWinsize()
+	ws, _ := helpers.GetTermWinsize()
 	rows := int(ws.Row) - 2
 
 	header := i18n.G("Snap\tService\tState")
 
 	for i, status := range stati {
+		// print a header every $rows rows if rows is bigger
+		// than 10; otherwise, just the once. 10 is arbitrary,
+		// but the thinking is that on the one hand you don't
+		// want to be using up too much space with headers on
+		// really small terminals and on the other rows might
+		// actually be negative if you're not on a tty.
 		if i%rows == 0 && (i == 0 || rows > 10) {
 			fmt.Fprintln(w, header)
 		}
