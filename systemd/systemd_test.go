@@ -111,6 +111,16 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 	c.Check(s.argses[1], DeepEquals, s.argses[3])
 }
 
+func (s *SystemdTestSuite) TestStatus(c *C) {
+	s.outs = [][]byte{
+		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\n"),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo")
+	c.Assert(err, IsNil)
+	c.Check(out, Equals, "LoadState; ActiveState (SubState)")
+}
+
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {
 	oldSteps := stopSteps
 	oldDelay := stopDelay

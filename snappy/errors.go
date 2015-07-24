@@ -32,6 +32,9 @@ var (
 	// ErrPackageNotFound is returned when a snap can not be found
 	ErrPackageNotFound = errors.New("snappy package not found")
 
+	// ErrServiceNotFound is returned when a service can not be found
+	ErrServiceNotFound = errors.New("snappy service not found")
+
 	// ErrNeedRoot is returned when a command needs root privs but
 	// the caller is not root
 	ErrNeedRoot = errors.New("this command requires root access. Please re-run using 'sudo'")

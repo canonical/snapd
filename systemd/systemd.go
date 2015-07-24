@@ -68,6 +68,7 @@ type Systemd interface {
 	Kill(service, signal string) error
 	Restart(service string, timeout time.Duration) error
 	GenServiceFile(desc *ServiceDescription) string
+	Status(service string) (string, error)
 }
 
 // ServiceDescription describes a snappy systemd service
@@ -138,6 +139,34 @@ func (s *systemd) Disable(serviceName string) error {
 func (*systemd) Start(serviceName string) error {
 	_, err := SystemctlCmd("start", serviceName)
 	return err
+}
+
+var statusregex = regexp.MustCompile(`(?m)^(?:(.*?)=(.*))?$`)
+
+func (s *systemd) Status(serviceName string) (string, error) {
+	bs, err := SystemctlCmd("show", "--property=Id,LoadState,ActiveState,SubState", serviceName)
+	if err != nil {
+		return "", err
+	}
+
+	load, active, sub := "", "", ""
+
+	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
+		if len(bs[0]) > 0 {
+			k := string(bs[1])
+			v := string(bs[2])
+			switch k {
+			case "LoadState":
+				load = v
+			case "ActiveState":
+				active = v
+			case "SubState":
+				sub = v
+			}
+		}
+	}
+
+	return fmt.Sprintf("%s; %s (%s)", load, active, sub), nil
 }
 
 // Stop the given service, and wait until it has stopped.
