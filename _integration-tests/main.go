@@ -26,30 +26,29 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"text/template"
 
-	config "./config"
-	image "./image"
-	utils "./utils"
+	"launchpad.net/snappy/_integration-tests/helpers/config"
+	"launchpad.net/snappy/_integration-tests/helpers/image"
+	"launchpad.net/snappy/_integration-tests/helpers/utils"
 )
 
 const (
-	baseDir        = "/tmp/snappy-test"
-	testsBinDir    = "_integration-tests/bin/"
-	defaultRelease = "rolling"
-	defaultChannel = "edge"
-	defaultSSHPort = 22
-	defaultGoArm   = "7"
-	dataOutputDir  = "_integration-tests/data/output/"
-	controlTpl     = "_integration-tests/data/tpl/control"
+	baseDir             = "/tmp/snappy-test"
+	testsBinDir         = "_integration-tests/bin/"
+	defaultRelease      = "rolling"
+	defaultChannel      = "edge"
+	defaultSSHPort      = 22
+	defaultGoArm        = "7"
+	dataOutputDir       = "_integration-tests/data/output/"
+	controlTpl          = "_integration-tests/data/tpl/control"
+	integrationTestName = "integration.test"
 )
 
 var (
 	commonSSHOptions = []string{"---", "ssh"}
 	configFileName   = filepath.Join(dataOutputDir, "testconfig.json")
 	controlFile      = filepath.Join(dataOutputDir, "control")
-	testPackages     = []string{"cmd", "failover"}
 )
 
 func buildAssets(useSnappyFromBranch bool, arch string) {
@@ -66,16 +65,14 @@ func buildAssets(useSnappyFromBranch bool, arch string) {
 func setupAndRunLocalTests(rootPath, testFilter string, img image.Image) {
 	// Run the tests on the latest rolling edge image.
 	if imageName, err := img.UdfCreate(); err == nil {
-		adtRun(rootPath, testFilter, testPackages,
-			kvmSSHOptions(imageName))
+		adtRun(rootPath, testFilter, kvmSSHOptions(imageName))
 	}
 }
 
 func setupAndRunRemoteTests(rootPath, testFilter, testbedIP string, testbedPort int) {
 	utils.ExecCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 		"ubuntu@"+testbedIP)
-	adtRun(rootPath, testFilter, testPackages,
-		remoteTestbedSSHOptions(testbedIP, testbedPort))
+	adtRun(rootPath, testFilter, remoteTestbedSSHOptions(testbedIP, testbedPort))
 }
 
 func buildSnappyCLI(arch string) {
@@ -88,13 +85,10 @@ func buildSnappyCLI(arch string) {
 func buildTests(arch string) {
 	fmt.Println("Building tests...")
 
-	for _, testName := range testPackages {
-		goCall(arch, "test", "-c",
-			"./_integration-tests/tests/"+testName)
-		// XXX Go test 1.3 does not have the output flag, so we move the
-		// binaries after they are generated.
-		os.Rename(testName+".test", testsBinDir+testName+".test")
-	}
+	goCall(arch, "test", "-c", "./_integration-tests/tests")
+	// XXX Go test 1.3 does not have the output flag, so we move the
+	// binaries after they are generated.
+	os.Rename("tests.test", testsBinDir+integrationTestName)
 }
 
 func goCall(arch string, cmds ...string) {
@@ -110,12 +104,11 @@ func goCall(arch string, cmds ...string) {
 	utils.ExecCommand(goCmd...)
 }
 
-func adtRun(rootPath, testFilter string, testList, testbedOptions []string) {
-	createControlFile(testFilter, testList)
+func adtRun(rootPath, testFilter string, testbedOptions []string) {
+	createControlFile(testFilter)
 
 	fmt.Println("Calling adt-run...")
-	outputSubdir := strings.Join(testList, "-")
-	outputDir := filepath.Join(baseDir, "output", outputSubdir)
+	outputDir := filepath.Join(baseDir, "output")
 	utils.PrepareTargetDir(outputDir)
 
 	cmd := []string{
@@ -136,26 +129,27 @@ func kvmSSHOptions(imagePath string) []string {
 			"--", "-i", imagePath}...)
 }
 
-func createControlFile(testFilter string, testList []string) {
+func createControlFile(testFilter string) {
 	type controlData struct {
 		Filter string
-		Tests  []string
+		Test   string
 	}
 
 	tpl, err := template.ParseFiles(controlTpl)
 	if err != nil {
-		log.Fatalf("Error reading adt-run control template %s", controlTpl)
+		log.Panicf("Error reading adt-run control template %s", controlTpl)
 	}
 
 	outputFile, err := os.Create(controlFile)
 	if err != nil {
-		log.Fatalf("Error creating control file %s", controlFile)
+		log.Panicf("Error creating control file %s", controlFile)
 	}
 	defer outputFile.Close()
 
-	err = tpl.Execute(outputFile, controlData{Filter: testFilter, Tests: testList})
+	err = tpl.Execute(outputFile,
+		controlData{Test: integrationTestName, Filter: testFilter})
 	if err != nil {
-		log.Fatalf("execution: %s", err)
+		log.Panicf("execution: %s", err)
 	}
 }
 
@@ -172,7 +166,7 @@ func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
 func getRootPath() string {
 	dir, err := os.Getwd()
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	return dir
 }

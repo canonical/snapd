@@ -20,7 +20,6 @@
 package common
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -31,6 +30,8 @@ import (
 	"strings"
 
 	check "gopkg.in/check.v1"
+
+	"launchpad.net/snappy/_integration-tests/helpers/config"
 )
 
 const (
@@ -40,9 +41,9 @@ const (
 	channelCfgFile  = "/etc/system-image/channel.ini"
 )
 
-// Config is a map of strings that contains the configurations values passed
-// from the host to the testbed.
-var Config map[string]string
+// Cfg is a struct that contains the configurations values passed from the
+// host to the testbed.
+var Cfg config.Config
 
 // SnappySuite is a structure used as a base test suite for all the snappy
 // integration tests.
@@ -56,9 +57,11 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 	ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 	ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 	if !isInRebootProcess() {
-		Config = readConfig(c)
-		if Config["update"] == "true" || Config["rollback"] == "true" {
-			switchSystemImageConf(c, Config["targetRelease"], Config["targetChannel"], "0")
+		Cfg, err := config.ReadConfig(
+			"_integration-tests/data/output/testconfig.json")
+		c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
+		if Cfg.Update || Cfg.Rollback {
+			switchSystemImageConf(c, Cfg.TargetRelease, Cfg.TargetChannel, "0")
 			// Always use the installed snappy because we are updating from an old
 			// image, so we should not use the snappy from the branch.
 			output := ExecCommand(c, "sudo", "/usr/bin/snappy", "update")
@@ -68,7 +71,7 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 		}
 	} else if CheckRebootMark("setupsuite-update") {
 		RemoveRebootMark(c)
-		if Config["rollback"] == "true" {
+		if Cfg.Rollback {
 			ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core")
 			RebootWithMark(c, "setupsuite-rollback")
 		}
@@ -135,18 +138,6 @@ func (s *SnappySuite) TearDownTest(c *check.C) {
 // AddCleanup adds a new cleanup function to the test
 func (s *SnappySuite) AddCleanup(f func()) {
 	s.cleanupHandlers = append(s.cleanupHandlers, f)
-}
-
-func readConfig(c *check.C) map[string]string {
-	b, err := ioutil.ReadFile("_integration-tests/data/output/testconfig.json")
-	c.Assert(
-		err, check.IsNil, check.Commentf("Failed to read test config: %v", err))
-
-	var decoded map[string]string
-	err = json.Unmarshal(b, &decoded)
-	c.Assert(
-		err, check.IsNil, check.Commentf("Failed to decode test config: %v", err))
-	return decoded
 }
 
 func switchSystemImageConf(c *check.C, release, channel, version string) {

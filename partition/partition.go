@@ -302,7 +302,20 @@ func (p *Partition) RunWithOther(option MountOption, f func(otherRoot string) (e
 }
 
 // SyncBootloaderFiles syncs the bootloader files
-// FIXME: can we unexport this?
+//
+//  We need this code solve the following scenario:
+//
+//  1. start with: /boot/a/k1, /boot/b/k1
+//  2. upgrade with new kernel k2: /boot/a/k1, /boot/b/k2
+//  3. reboot into b, running with /boot/b/k2
+//  4. new update without a changed kernel, system-a updated
+//
+//  6. reboot to system-a with /boot/a/k1 (WRONG!)
+//  But it should be system-a with /boot/a/k2 it was just not part of
+//  the s-i delta as we already got it. So as step (5) above we do the
+//  SyncBootloaderFiles that  copies /boot/b/k2 -> /boot/a/
+//  (and that is ok because we know /boot/b/k2 works)
+//
 func (p *Partition) SyncBootloaderFiles(bootAssets map[string]string) (err error) {
 	bootloader, err := bootloader(p)
 	if err != nil {

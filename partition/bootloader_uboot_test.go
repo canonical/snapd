@@ -59,6 +59,8 @@ snappy_ab=a
 snappy_stamp=snappy-stamp.txt
 # either "regular" (normal boot) or "try" when trying a new version
 snappy_mode=regular
+# compat
+snappy_trial_boot=0
 # if we are trying a new version, check if stamp file is already there to revert
 # to other version
 snappy_boot=if test "${snappy_mode}" = "try"; then if test -e mmc ${bootpart} ${snappy_stamp}; then if test "${snappy_ab}" = "a"; then setenv snappy_ab "b"; else setenv snappy_ab "a"; fi; else fatwrite mmc ${mmcdev}:${mmcpart} 0x0 ${snappy_stamp} 0; fi; fi; run loadfiles; setenv mmcroot /dev/disk/by-label/system-${snappy_ab} ${snappy_cmdline}; run mmcargs; bootz ${loadaddr} ${initrd_addr}:${initrd_size} ${fdtaddr}
@@ -289,7 +291,10 @@ func (s *PartitionTestSuite) TestNoWriteNotNeeded(c *C) {
 	s.makeFakeUbootEnv(c)
 
 	atomiCall := false
-	atomicFileUpdate = func(a string, b []string) error { atomiCall = true; return atomicFileUpdateImpl(a, b) }
+	atomicWriteFile = func(a string, b []byte, c os.FileMode) error {
+		atomiCall = true
+		return helpers.AtomicWriteFile(a, b, c)
+	}
 
 	partition := New()
 	u := newUboot(partition)
@@ -306,7 +311,10 @@ func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
 	c.Assert(ioutil.WriteFile(bootloaderUbootEnvFile, []byte(""), 0644), IsNil)
 
 	atomiCall := false
-	atomicFileUpdate = func(a string, b []string) error { atomiCall = true; return atomicFileUpdateImpl(a, b) }
+	atomicWriteFile = func(a string, b []byte, c os.FileMode) error {
+		atomiCall = true
+		return helpers.AtomicWriteFile(a, b, c)
+	}
 
 	partition := New()
 	u := newUboot(partition)
@@ -342,7 +350,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
 
 	env, err = uenv.Open(bootloaderUbootFwEnvFile)
 	c.Assert(err, IsNil)
-	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\n")
+	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\nsnappy_trial_boot=0\n")
 }
 
 func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
@@ -363,7 +371,7 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
-	err = u.(*uboot).setBootVar(bootloaderRootfsVar, "b")
+	err = setBootVar(bootloaderRootfsVar, "b")
 	c.Assert(err, IsNil)
 
 	env, err = uenv.Open(bootloaderUbootFwEnvFile)

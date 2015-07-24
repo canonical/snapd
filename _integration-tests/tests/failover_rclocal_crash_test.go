@@ -17,12 +17,12 @@
  *
  */
 
-package failover
+package tests
 
 import (
 	"fmt"
 
-	. "../common"
+	. "launchpad.net/snappy/_integration-tests/helpers/common"
 
 	check "gopkg.in/check.v1"
 )

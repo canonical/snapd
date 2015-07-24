@@ -17,14 +17,14 @@
  *
  */
 
-package cmd
+package tests
 
 import (
 	"net/http"
 	"os/exec"
 	"time"
 
-	. "../common"
+	. "launchpad.net/snappy/_integration-tests/helpers/common"
 
 	check "gopkg.in/check.v1"
 )

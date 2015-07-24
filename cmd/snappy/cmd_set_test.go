@@ -20,18 +20,8 @@
 package main
 
 import (
-	"testing"
-
 	. "gopkg.in/check.v1"
 )
-
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
-
-type CmdTestSuite struct {
-}
-
-var _ = Suite(&CmdTestSuite{})
 
 func (s *CmdTestSuite) TestParseSetPropertyCmdline(c *C) {
 

@@ -9,6 +9,12 @@
 
  *  Internet access in the test bed.
 
+## Setting up the project
+
+First you need to set up the GOPATH, get the snappy sources and the
+dependencies as explained in the `README.md` that is located at the root of the
+branch.
+
 ## Testing a virtual machine
 
 You can execute the full integration suite in a local virtual machine with:
