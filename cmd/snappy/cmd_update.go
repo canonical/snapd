@@ -45,7 +45,7 @@ func init() {
 		logger.Panicf("Unable to update: %v", err)
 	}
 	addOptionDescription(arg, "no-gc", i18n.G("Do not clean up old versions of the package."))
-	addOptionDescription(arg, "no-gc", i18n.G("Reboot if necessary to be on the latest running system."))
+	addOptionDescription(arg, "automatic-reboot", i18n.G("Reboot if necessary to be on the latest running system."))
 }
 
 const (
