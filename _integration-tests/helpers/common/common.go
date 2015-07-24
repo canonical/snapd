@@ -226,10 +226,10 @@ func GetCurrentUbuntuCoreVersion(c *check.C) int {
 }
 
 // CallFakeUpdate calls snappy update after faking the current version
-func CallFakeUpdate(c *check.C) {
+func CallFakeUpdate(c *check.C) string {
 	c.Log("Preparing fake and calling update.")
 	fakeAvailableUpdate(c)
-	ExecCommand(c, "sudo", "snappy", "update")
+	return ExecCommand(c, "sudo", "snappy", "update")
 }
 
 func fakeAvailableUpdate(c *check.C) {
