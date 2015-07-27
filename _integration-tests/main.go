@@ -103,8 +103,8 @@ func main() {
 
 	if *testbedIP == "" {
 		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, baseDir)
-		setupAndRunLocalTests(rootPath, *testFilter, *img)
+		setupAndRunLocalTests(rootPath, baseDir, *testFilter, *img)
 	} else {
-		setupAndRunRemoteTests(rootPath, *testFilter, *testbedIP, *testbedPort)
+		setupAndRunRemoteTests(rootPath, baseDir, *testFilter, *testbedIP, *testbedPort)
 	}
 }
