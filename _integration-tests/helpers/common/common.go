@@ -41,7 +41,7 @@ const (
 	channelCfgFile  = "/etc/system-image/channel.ini"
 )
 
-// Cfg is a struct that contains the configurations values passed from the
+// Cfg is a struct that contains the configuration values passed from the
 // host to the testbed.
 var Cfg *config.Config
 
