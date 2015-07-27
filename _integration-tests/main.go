@@ -159,7 +159,7 @@ func main() {
 
 	flag.Parse()
 
-	build.BuildAssets(*useSnappyFromBranch, *arch)
+	build.Assets(*useSnappyFromBranch, *arch)
 
 	// TODO: generate the files out of the source tree. --elopio - 2015-07-15
 	utils.PrepareTargetDir(dataOutputDir)

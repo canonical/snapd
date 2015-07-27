@@ -32,7 +32,9 @@ const (
 	testsBinDir         = "_integration-tests/bin/"
 )
 
-func buildAssets(useSnappyFromBranch bool, arch string) {
+// Assets builds the snappy and integration tests binaries for the target
+// architecture.
+func Assets(useSnappyFromBranch bool, arch string) {
 	utils.PrepareTargetDir(testsBinDir)
 
 	if useSnappyFromBranch {
