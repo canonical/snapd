@@ -45,7 +45,7 @@ var configFileName = filepath.Join(dataOutputDir, "testconfig.json")
 func setupAndRunLocalTests(rootPath, baseDir, testFilter string, img image.Image) {
 	// Run the tests on the latest rolling edge image.
 	if imageName, err := img.UdfCreate(); err == nil {
-		autopkgtest.AdtRun(rootPath, baseDir, testFilter, kvmSSHOptions(imageName))
+		autopkgtest.AdtRun(rootPath, baseDir, testFilter, autopkgtest.KvmSSHOptions(imageName))
 	}
 }
 
@@ -53,7 +53,7 @@ func setupAndRunRemoteTests(rootPath, baseDir, testFilter, testbedIP string, tes
 	utils.ExecCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 		"ubuntu@"+testbedIP)
 	autopkgtest.AdtRun(
-		rootPath, baseDir, testFilter, remoteTestbedSSHOptions(testbedIP, testbedPort))
+		rootPath, baseDir, testFilter, autopkgtest.RemoteTestbedSSHOptions(testbedIP, testbedPort))
 }
 
 func main() {
