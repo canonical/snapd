@@ -28,21 +28,19 @@ import (
 	"strconv"
 	"text/template"
 
+	"launchpad.net/snappy/_integration-tests/helpers/build"
 	"launchpad.net/snappy/_integration-tests/helpers/config"
 	"launchpad.net/snappy/_integration-tests/helpers/image"
 	"launchpad.net/snappy/_integration-tests/helpers/utils"
 )
 
 const (
-	baseDir             = "/tmp/snappy-test"
-	testsBinDir         = "_integration-tests/bin/"
-	defaultRelease      = "rolling"
-	defaultChannel      = "edge"
-	defaultSSHPort      = 22
-	defaultGoArm        = "7"
-	dataOutputDir       = "_integration-tests/data/output/"
-	controlTpl          = "_integration-tests/data/tpl/control"
-	integrationTestName = "integration.test"
+	baseDir        = "/tmp/snappy-test"
+	defaultRelease = "rolling"
+	defaultChannel = "edge"
+	defaultSSHPort = 22
+	dataOutputDir  = "_integration-tests/data/output/"
+	controlTpl     = "_integration-tests/data/tpl/control"
 )
 
 var (
@@ -50,17 +48,6 @@ var (
 	configFileName   = filepath.Join(dataOutputDir, "testconfig.json")
 	controlFile      = filepath.Join(dataOutputDir, "control")
 )
-
-func buildAssets(useSnappyFromBranch bool, arch string) {
-	utils.PrepareTargetDir(testsBinDir)
-
-	if useSnappyFromBranch {
-		// FIXME We need to build an image that has the snappy from the branch
-		// installed. --elopio - 2015-06-25.
-		buildSnappyCLI(arch)
-	}
-	buildTests(arch)
-}
 
 func setupAndRunLocalTests(rootPath, testFilter string, img image.Image) {
 	// Run the tests on the latest rolling edge image.
@@ -73,35 +60,6 @@ func setupAndRunRemoteTests(rootPath, testFilter, testbedIP string, testbedPort 
 	utils.ExecCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 		"ubuntu@"+testbedIP)
 	adtRun(rootPath, testFilter, remoteTestbedSSHOptions(testbedIP, testbedPort))
-}
-
-func buildSnappyCLI(arch string) {
-	fmt.Println("Building snappy CLI...")
-	// On the root of the project we have a directory called snappy, so we
-	// output the binary for the tests in the tests directory.
-	goCall(arch, "build", "-o", testsBinDir+"snappy", "./cmd/snappy")
-}
-
-func buildTests(arch string) {
-	fmt.Println("Building tests...")
-
-	goCall(arch, "test", "-c", "./_integration-tests/tests")
-	// XXX Go test 1.3 does not have the output flag, so we move the
-	// binaries after they are generated.
-	os.Rename("tests.test", testsBinDir+integrationTestName)
-}
-
-func goCall(arch string, cmds ...string) {
-	if arch != "" {
-		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
-		os.Setenv("GOARCH", arch)
-		if arch == "arm" {
-			defer os.Setenv("GOARM", os.Getenv("GOARM"))
-			os.Setenv("GOARM", defaultGoArm)
-		}
-	}
-	goCmd := append([]string{"go"}, cmds...)
-	utils.ExecCommand(goCmd...)
 }
 
 func adtRun(rootPath, testFilter string, testbedOptions []string) {
@@ -147,7 +105,7 @@ func createControlFile(testFilter string) {
 	defer outputFile.Close()
 
 	err = tpl.Execute(outputFile,
-		controlData{Test: integrationTestName, Filter: testFilter})
+		controlData{Test: build.IntegrationTestName, Filter: testFilter})
 	if err != nil {
 		log.Panicf("execution: %s", err)
 	}
@@ -201,7 +159,7 @@ func main() {
 
 	flag.Parse()
 
-	buildAssets(*useSnappyFromBranch, *arch)
+	build.BuildAssets(*useSnappyFromBranch, *arch)
 
 	// TODO: generate the files out of the source tree. --elopio - 2015-07-15
 	utils.PrepareTargetDir(dataOutputDir)

@@ -27,6 +27,8 @@ import (
 	"strings"
 )
 
+const defaultGoArm = "7"
+
 // PrepareTargetDir creates the given target directory, removing it previously if it didn't exist
 func PrepareTargetDir(targetDir string) {
 	if _, err := os.Stat(targetDir); err == nil {
@@ -49,4 +51,19 @@ func ExecCommand(cmds ...string) error {
 		log.Panicf("Error while running %s: %s\n", cmd.Args, err)
 	}
 	return err
+}
+
+// GoCall executes the given go command using the right GOARCH and GOARM
+// environment variables.
+func GoCall(arch string, cmds ...string) {
+	if arch != "" {
+		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
+		os.Setenv("GOARCH", arch)
+		if arch == "arm" {
+			defer os.Setenv("GOARM", os.Getenv("GOARM"))
+			os.Setenv("GOARM", defaultGoArm)
+		}
+	}
+	goCmd := append([]string{"go"}, cmds...)
+	ExecCommand(goCmd...)
 }
