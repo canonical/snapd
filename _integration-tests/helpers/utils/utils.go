@@ -38,6 +38,15 @@ func PrepareTargetDir(targetDir string) {
 	os.MkdirAll(targetDir, 0777)
 }
 
+// RootPath return the test current working directory.
+func RootPath() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Panic(err)
+	}
+	return dir
+}
+
 // ExecCommand executes the given command and pipes the results to os.Stdout and os.Stderr, returning the resulting error
 func ExecCommand(cmds ...string) error {
 	fmt.Println(strings.Join(cmds, " "))
