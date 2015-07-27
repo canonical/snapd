@@ -37,7 +37,11 @@ type updateSuite struct {
 // be up-to-date after running this test.
 func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 	if BeforeReboot() {
-		CallFakeUpdate(c)
+		updateOutput := CallFakeUpdate(c)
+		expected := "(?ms)" +
+			".*" +
+			"^Reboot to use .*ubuntu-core.\n"
+		c.Assert(updateOutput, check.Matches, expected)
 		Reboot(c)
 	} else if AfterReboot(c) {
 		RemoveRebootMark(c)
