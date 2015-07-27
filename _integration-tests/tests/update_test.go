@@ -40,7 +40,7 @@ func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 		updateOutput := CallFakeUpdate(c)
 		expected := "(?ms)" +
 			".*" +
-			"^Reboot to use .*ubuntu-core"
+			"^Reboot to use .*ubuntu-core.\n"
 		c.Assert(updateOutput, check.Matches, expected)
 		Reboot(c)
 	} else if AfterReboot(c) {
