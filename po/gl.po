@@ -8,13 +8,13 @@ msgstr ""
 "Project-Id-Version: snappy\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
 "POT-Creation-Date: 2015-07-08 10:00+0200\n"
-"PO-Revision-Date: 2015-07-10 08:41+0000\n"
+"PO-Revision-Date: 2015-07-27 22:10+0000\n"
 "Last-Translator: Marcos Lans <Unknown>\n"
 "Language-Team: Galician <gl@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2015-07-25 05:43+0000\n"
+"X-Launchpad-Export-Date: 2015-07-28 05:45+0000\n"
 "X-Generator: Launchpad (build 17628)\n"
 
 #. TRANSLATORS: the %s stand for "name", "version", "description"
@@ -66,7 +66,7 @@ msgid "Assign a hardware device to a package"
 msgstr "Asignar un dispositivo de hardware a un paquete"
 
 msgid "Assign hardware to a specific installed package"
-msgstr ""
+msgstr "Asignar hardware a un paquete instalado"
 
 msgid "Builds a snap package"
 msgstr "Constrúe un paquete snap"
@@ -95,7 +95,7 @@ msgid "Display a summary of key attributes of the snappy system."
 msgstr "Mostra un resumo dos atributos principais do sistema snappy."
 
 msgid "Do not clean up old versions of the package."
-msgstr ""
+msgstr "Non eliminar as versións antigas dos paquetes."
 
 msgid "Ensures system is running with latest parts"
 msgstr "Asegúrase de que o sistema está en execución coa últimas partes."
@@ -112,7 +112,7 @@ msgid "Install a snap package"
 msgstr "Instalar un paquete snap"
 
 msgid "Install snaps even if the signature can not be verified."
-msgstr ""
+msgstr "Instalar snaps incluso con sinaturas non comprobadas."
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
@@ -126,7 +126,7 @@ msgid "List assigned hardware device for a package"
 msgstr "Lista o dispositivo de hardware asignado a un paquete"
 
 msgid "List assigned hardware for a specific installed package"
-msgstr ""
+msgstr "Listar o hardware asignado a un paquete instalado"
 
 msgid "Log into the store"
 msgstr "Iniciar sesión na tenda"
@@ -152,13 +152,13 @@ msgid "Password: "
 msgstr "Contrasinal: "
 
 msgid "Provide information about a specific installed package"
-msgstr ""
+msgstr "Proporcionar información sobre un paquete instalado"
 
 msgid "Provides more detailed information"
-msgstr ""
+msgstr "Proporciona unha información máis detallada"
 
 msgid "Purge an installed package."
-msgstr ""
+msgstr "Purga un paquete instalado."
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
@@ -169,7 +169,7 @@ msgid "Query the store for available packages"
 msgstr "Consulta na tenda os paquetes dispoñíbeis"
 
 msgid "Reboot if necessary to be on the latest running system."
-msgstr ""
+msgstr "Reiniciar se é necesario estar no último sistema en execución."
 
 #. TRANSLATORS: the first %s is a pkgname the second a version
 #, c-format
@@ -194,7 +194,7 @@ msgid "Remove all the data from the listed packages"
 msgstr "Eliminar todos os datos dos paquetes da lista"
 
 msgid "Remove hardware from a specific installed package"
-msgstr ""
+msgstr "Eliminar hardware para un paquete instalado"
 
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
@@ -208,7 +208,7 @@ msgid "Search for packages to install"
 msgstr "Buscar paquetes para instalar"
 
 msgid "Set configuration for a specific installed package"
-msgstr ""
+msgstr "Configurar un paquete instalado"
 
 msgid "Set configuration for an installed package."
 msgstr "Estabelecer a configuración dun paquete instalado."
@@ -222,34 +222,34 @@ msgid "Setting %s to version %s\n"
 msgstr "Axustando %s á versión %s\n"
 
 msgid "Show all available forks of a package"
-msgstr ""
+msgstr "Mostrar todas as bifurcacións dispoñíbeis dun paquete"
 
 msgid "Show available updates (requires network)"
-msgstr ""
+msgstr "Mostrar as actualizacións dispoñíbeis (precisa conexión á rede)"
 
 msgid "Show channel information and expand all fields"
-msgstr ""
+msgstr "Mostrar a información da canle e ampliar todos os campos"
 
 msgid "Specify an alternate output directory for the resulting package"
-msgstr ""
+msgstr "Indicar un cartafol de saída alternativo para o paquete resultante"
 
 msgid "The Package to install (name or path)"
-msgstr ""
+msgstr "Paquete a instalar (nome ou ruta)"
 
 msgid "The configuration for the given file"
-msgstr ""
+msgstr "Configuración para o ficheiro dado"
 
 msgid "The configuration for the given install"
-msgstr ""
+msgstr "Configuración para a instalación dada"
 
 msgid "The hardware device path (e.g. /dev/ttyUSB0)"
-msgstr ""
+msgstr "Ruta do dispositivo de hardware (p.e. /dev/ttyUSB0)"
 
 msgid "The package to rollback "
-msgstr ""
+msgstr "Paquete que reverter "
 
 msgid "The version to rollback to"
-msgstr ""
+msgstr "Versión á que reverter"
 
 msgid ""
 "This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) "
@@ -284,7 +284,7 @@ msgid "Use --show-all to see all available forks."
 msgstr "Usar --show-all para ver as bifurcacións dispoñíbeis."
 
 msgid "Username for the login"
-msgstr ""
+msgstr "Nome de usuario para o acceso"
 
 #. TRANSLATORS: the %s represents a list of installed appnames
 #. (e.g. "apps: foo, bar, baz")
