@@ -52,18 +52,3 @@ func ExecCommand(cmds ...string) error {
 	}
 	return err
 }
-
-// GoCall executes the given go command using the right GOARCH and GOARM
-// environment variables.
-func GoCall(arch string, cmds ...string) {
-	if arch != "" {
-		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
-		os.Setenv("GOARCH", arch)
-		if arch == "arm" {
-			defer os.Setenv("GOARM", os.Getenv("GOARM"))
-			os.Setenv("GOARM", defaultGoArm)
-		}
-	}
-	goCmd := append([]string{"go"}, cmds...)
-	ExecCommand(goCmd...)
-}
