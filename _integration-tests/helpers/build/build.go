@@ -29,6 +29,7 @@ import (
 const (
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
+	defaultGoArm        = "7"
 	testsBinDir         = "_integration-tests/bin/"
 )
 
@@ -71,5 +72,5 @@ func goCall(arch string, cmds ...string) {
 		}
 	}
 	goCmd := append([]string{"go"}, cmds...)
-	ExecCommand(goCmd...)
+	utils.ExecCommand(goCmd...)
 }

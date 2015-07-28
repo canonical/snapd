@@ -27,8 +27,6 @@ import (
 	"strings"
 )
 
-const defaultGoArm = "7"
-
 // PrepareTargetDir creates the given target directory, removing it previously if it didn't exist
 func PrepareTargetDir(targetDir string) {
 	if _, err := os.Stat(targetDir); err == nil {
