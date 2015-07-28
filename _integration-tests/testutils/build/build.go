@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"os"
 
-	"launchpad.net/snappy/_integration-tests/helpers/utils"
+	"launchpad.net/snappy/_integration-tests/testutils"
 )
 
 const (
@@ -35,7 +35,7 @@ const (
 // Assets builds the snappy and integration tests binaries for the target
 // architecture.
 func Assets(useSnappyFromBranch bool, arch string) {
-	utils.PrepareTargetDir(testsBinDir)
+	testutils.PrepareTargetDir(testsBinDir)
 
 	if useSnappyFromBranch {
 		// FIXME We need to build an image that has the snappy from the branch
@@ -49,13 +49,13 @@ func buildSnappyCLI(arch string) {
 	fmt.Println("Building snappy CLI...")
 	// On the root of the project we have a directory called snappy, so we
 	// output the binary for the tests in the tests directory.
-	utils.GoCall(arch, "build", "-o", testsBinDir+"snappy", "./cmd/snappy")
+	testutils.GoCall(arch, "build", "-o", testsBinDir+"snappy", "./cmd/snappy")
 }
 
 func buildTests(arch string) {
 	fmt.Println("Building tests...")
 
-	utils.GoCall(arch, "test", "-c", "./_integration-tests/tests")
+	testutils.GoCall(arch, "test", "-c", "./_integration-tests/tests")
 	// XXX Go test 1.3 does not have the output flag, so we move the
 	// binaries after they are generated.
 	os.Rename("tests.test", testsBinDir+IntegrationTestName)

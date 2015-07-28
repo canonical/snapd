@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-
+1;3803;0c
 /*
  * Copyright (C) 2015 Canonical Ltd
  *
@@ -27,8 +27,8 @@ import (
 
 	"log"
 
-	"launchpad.net/snappy/_integration-tests/helpers/build"
-	"launchpad.net/snappy/_integration-tests/helpers/utils"
+	"launchpad.net/snappy/_integration-tests/testutils/build"
+	"launchpad.net/snappy/_integration-tests/testutils"
 )
 
 const (
@@ -44,7 +44,7 @@ func AdtRun(rootPath, baseDir, testFilter string, testbedOptions []string) {
 
 	fmt.Println("Calling adt-run...")
 	outputDir := filepath.Join(baseDir, "output")
-	utils.PrepareTargetDir(outputDir)
+	testutils.PrepareTargetDir(outputDir)
 
 	cmd := []string{
 		"adt-run", "-B",
@@ -53,7 +53,7 @@ func AdtRun(rootPath, baseDir, testFilter string, testbedOptions []string) {
 		"--built-tree", rootPath,
 		"--output-dir", outputDir}
 
-	utils.ExecCommand(append(cmd, testbedOptions...)...)
+	testutils.ExecCommand(append(cmd, testbedOptions...)...)
 }
 
 func createControlFile(testFilter string) {

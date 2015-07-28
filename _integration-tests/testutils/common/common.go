@@ -31,7 +31,7 @@ import (
 
 	check "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/_integration-tests/helpers/config"
+	"launchpad.net/snappy/_integration-tests/testutils/config"
 )
 
 const (
