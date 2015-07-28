@@ -28,9 +28,9 @@ import (
 
 	"log"
 
-	"launchpad.net/snappy/_integration-tests/helpers/build"
-	"launchpad.net/snappy/_integration-tests/helpers/image"
-	"launchpad.net/snappy/_integration-tests/helpers/utils"
+	"launchpad.net/snappy/_integration-tests/testutils"
+	"launchpad.net/snappy/_integration-tests/testutils/build"
+	"launchpad.net/snappy/_integration-tests/testutils/image"
 )
 
 const (
@@ -51,7 +51,7 @@ func AdtRunLocal(rootPath, baseDir, testFilter string, img image.Image) {
 
 // AdtRunRemote runs the autopkgtests using a remote machine as the testbed.
 func AdtRunRemote(rootPath, baseDir, testFilter, testbedIP string, testbedPort int) {
-	utils.ExecCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
+	testutils.ExecCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 		"ubuntu@"+testbedIP)
 	adtRun(
 		rootPath, baseDir, testFilter, remoteTestbedSSHOptions(testbedIP, testbedPort))
@@ -62,7 +62,7 @@ func adtRun(rootPath, baseDir, testFilter string, testbedOptions []string) {
 
 	fmt.Println("Calling adt-run...")
 	outputDir := filepath.Join(baseDir, "output")
-	utils.PrepareTargetDir(outputDir)
+	testutils.PrepareTargetDir(outputDir)
 
 	cmd := []string{
 		"adt-run", "-B",
@@ -71,7 +71,7 @@ func adtRun(rootPath, baseDir, testFilter string, testbedOptions []string) {
 		"--built-tree", rootPath,
 		"--output-dir", outputDir}
 
-	utils.ExecCommand(append(cmd, testbedOptions...)...)
+	testutils.ExecCommand(append(cmd, testbedOptions...)...)
 }
 
 func createControlFile(testFilter string) {
