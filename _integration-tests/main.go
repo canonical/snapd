@@ -21,6 +21,7 @@ package main
 
 import (
 	"flag"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -87,10 +88,16 @@ func main() {
 
 	rootPath := utils.RootPath()
 
+	apt := autopkgtest.NewAutopkgtest(rootPath, baseDir, *testFilter, build.IntegrationTestName)
 	if *testbedIP == "" {
 		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, baseDir)
-		autopkgtest.AdtRunLocal(rootPath, baseDir, *testFilter, *img)
+
+		if imagePath, err := img.UdfCreate(); err == nil {
+			apt.AdtRunLocal(imagePath)
+		} else {
+			log.Panic(err.Error())
+		}
 	} else {
-		autopkgtest.AdtRunRemote(rootPath, baseDir, *testFilter, *testbedIP, *testbedPort)
+		apt.AdtRunRemote(*testbedIP, *testbedPort)
 	}
 }
