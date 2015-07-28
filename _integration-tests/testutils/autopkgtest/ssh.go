@@ -27,9 +27,7 @@ import (
 
 var commonSSHOptions = []string{"---", "ssh"}
 
-// KvmSSHOptions returns a list with the adt-run ssh options to connect to the
-// KVM testbed.
-func KvmSSHOptions(imagePath string) []string {
+func kvmSSHOptions(imagePath string) []string {
 	return append(
 		commonSSHOptions,
 		[]string{
@@ -37,9 +35,7 @@ func KvmSSHOptions(imagePath string) []string {
 			"--", "-i", imagePath}...)
 }
 
-// RemoteTestbedSSHOptions returns a list with the adt-run ssh options to
-// connect to a generic testbed.
-func RemoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
+func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
 	options := []string{
 		"-H", testbedIP,
 		"-p", strconv.Itoa(testbedPort),

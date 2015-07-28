@@ -42,20 +42,6 @@ const (
 
 var configFileName = filepath.Join(dataOutputDir, "testconfig.json")
 
-func setupAndRunLocalTests(rootPath, baseDir, testFilter string, img image.Image) {
-	// Run the tests on the latest rolling edge image.
-	if imageName, err := img.UdfCreate(); err == nil {
-		autopkgtest.AdtRun(rootPath, baseDir, testFilter, autopkgtest.KvmSSHOptions(imageName))
-	}
-}
-
-func setupAndRunRemoteTests(rootPath, baseDir, testFilter, testbedIP string, testbedPort int) {
-	testutils.ExecCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
-		"ubuntu@"+testbedIP)
-	autopkgtest.AdtRun(
-		rootPath, baseDir, testFilter, autopkgtest.RemoteTestbedSSHOptions(testbedIP, testbedPort))
-}
-
 func main() {
 	var (
 		useSnappyFromBranch = flag.Bool("snappy-from-branch", false,
@@ -103,8 +89,8 @@ func main() {
 
 	if *testbedIP == "" {
 		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, baseDir)
-		setupAndRunLocalTests(rootPath, baseDir, *testFilter, *img)
+		autopkgtest.AdtRunLocal(rootPath, baseDir, *testFilter, *img)
 	} else {
-		setupAndRunRemoteTests(rootPath, baseDir, *testFilter, *testbedIP, *testbedPort)
+		autopkgtest.AdtRunRemote(rootPath, baseDir, *testFilter, *testbedIP, *testbedPort)
 	}
 }

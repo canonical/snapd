@@ -29,6 +29,7 @@ import (
 const (
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
+	defaultGoArm        = "7"
 	testsBinDir         = "_integration-tests/bin/"
 )
 
@@ -49,14 +50,27 @@ func buildSnappyCLI(arch string) {
 	fmt.Println("Building snappy CLI...")
 	// On the root of the project we have a directory called snappy, so we
 	// output the binary for the tests in the tests directory.
-	testutils.GoCall(arch, "build", "-o", testsBinDir+"snappy", "./cmd/snappy")
+	goCall(arch, "build", "-o", testsBinDir+"snappy", "./cmd/snappy")
 }
 
 func buildTests(arch string) {
 	fmt.Println("Building tests...")
 
-	testutils.GoCall(arch, "test", "-c", "./_integration-tests/tests")
+	goCall(arch, "test", "-c", "./_integration-tests/tests")
 	// XXX Go test 1.3 does not have the output flag, so we move the
 	// binaries after they are generated.
 	os.Rename("tests.test", testsBinDir+IntegrationTestName)
+}
+
+func goCall(arch string, cmds ...string) {
+	if arch != "" {
+		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
+		os.Setenv("GOARCH", arch)
+		if arch == "arm" {
+			defer os.Setenv("GOARM", os.Getenv("GOARM"))
+			os.Setenv("GOARM", defaultGoArm)
+		}
+	}
+	goCmd := append([]string{"go"}, cmds...)
+	testutils.ExecCommand(goCmd...)
 }
