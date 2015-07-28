@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-1;3803;0c
+
 /*
  * Copyright (C) 2015 Canonical Ltd
  *
@@ -27,8 +27,8 @@ import (
 
 	"log"
 
-	"launchpad.net/snappy/_integration-tests/testutils/build"
 	"launchpad.net/snappy/_integration-tests/testutils"
+	"launchpad.net/snappy/_integration-tests/testutils/build"
 )
 
 const (
