@@ -21,13 +21,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
-	"text/template"
 
+	"launchpad.net/snappy/_integration-tests/helpers/autopkgtest"
 	"launchpad.net/snappy/_integration-tests/helpers/build"
 	"launchpad.net/snappy/_integration-tests/helpers/config"
 	"launchpad.net/snappy/_integration-tests/helpers/image"
@@ -40,94 +38,9 @@ const (
 	defaultChannel = "edge"
 	defaultSSHPort = 22
 	dataOutputDir  = "_integration-tests/data/output/"
-	controlTpl     = "_integration-tests/data/tpl/control"
 )
 
-var (
-	commonSSHOptions = []string{"---", "ssh"}
-	configFileName   = filepath.Join(dataOutputDir, "testconfig.json")
-	controlFile      = filepath.Join(dataOutputDir, "control")
-)
-
-func setupAndRunLocalTests(rootPath, testFilter string, img image.Image) {
-	// Run the tests on the latest rolling edge image.
-	if imageName, err := img.UdfCreate(); err == nil {
-		adtRun(rootPath, testFilter, kvmSSHOptions(imageName))
-	}
-}
-
-func setupAndRunRemoteTests(rootPath, testFilter, testbedIP string, testbedPort int) {
-	utils.ExecCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
-		"ubuntu@"+testbedIP)
-	adtRun(rootPath, testFilter, remoteTestbedSSHOptions(testbedIP, testbedPort))
-}
-
-func adtRun(rootPath, testFilter string, testbedOptions []string) {
-	createControlFile(testFilter)
-
-	fmt.Println("Calling adt-run...")
-	outputDir := filepath.Join(baseDir, "output")
-	utils.PrepareTargetDir(outputDir)
-
-	cmd := []string{
-		"adt-run", "-B",
-		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
-		"--override-control", controlFile,
-		"--built-tree", rootPath,
-		"--output-dir", outputDir}
-
-	utils.ExecCommand(append(cmd, testbedOptions...)...)
-}
-
-func kvmSSHOptions(imagePath string) []string {
-	return append(
-		commonSSHOptions,
-		[]string{
-			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
-			"--", "-i", imagePath}...)
-}
-
-func createControlFile(testFilter string) {
-	type controlData struct {
-		Filter string
-		Test   string
-	}
-
-	tpl, err := template.ParseFiles(controlTpl)
-	if err != nil {
-		log.Panicf("Error reading adt-run control template %s", controlTpl)
-	}
-
-	outputFile, err := os.Create(controlFile)
-	if err != nil {
-		log.Panicf("Error creating control file %s", controlFile)
-	}
-	defer outputFile.Close()
-
-	err = tpl.Execute(outputFile,
-		controlData{Test: build.IntegrationTestName, Filter: testFilter})
-	if err != nil {
-		log.Panicf("execution: %s", err)
-	}
-}
-
-func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
-	options := []string{
-		"-H", testbedIP,
-		"-p", strconv.Itoa(testbedPort),
-		"-l", "ubuntu",
-		"-i", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa"),
-		"--reboot"}
-	return append(commonSSHOptions, options...)
-}
-
-func getRootPath() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Panic(err)
-	}
-	return dir
-}
+var configFileName = filepath.Join(dataOutputDir, "testconfig.json")
 
 func main() {
 	var (
@@ -172,13 +85,12 @@ func main() {
 		*update, *rollback)
 	cfg.Write()
 
-	rootPath := getRootPath()
+	rootPath := utils.RootPath()
 
 	if *testbedIP == "" {
 		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, baseDir)
-		setupAndRunLocalTests(rootPath, *testFilter, *img)
-
+		autopkgtest.AdtRunLocal(rootPath, baseDir, *testFilter, *img)
 	} else {
-		setupAndRunRemoteTests(rootPath, *testFilter, *testbedIP, *testbedPort)
+		autopkgtest.AdtRunRemote(rootPath, baseDir, *testFilter, *testbedIP, *testbedPort)
 	}
 }
