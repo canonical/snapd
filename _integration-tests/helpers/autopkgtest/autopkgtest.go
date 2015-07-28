@@ -23,11 +23,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"text/template"
 
 	"log"
 
 	"launchpad.net/snappy/_integration-tests/helpers/build"
+	"launchpad.net/snappy/_integration-tests/helpers/image"
 	"launchpad.net/snappy/_integration-tests/helpers/utils"
 )
 
@@ -38,8 +40,24 @@ const (
 
 var controlFile = filepath.Join(dataOutputDir, "control")
 
-// AdtRun runs the autopkgtests.
-func AdtRun(rootPath, baseDir, testFilter string, testbedOptions []string) {
+// AdtRunLocal starts a kvm running the image passed as argument and runs the
+// autopkgtests using it as the testbed.
+func AdtRunLocal(rootPath, baseDir, testFilter string, img image.Image) {
+	// Run the tests on the latest rolling edge image.
+	if imagePath, err := img.UdfCreate(); err == nil {
+		adtRun(rootPath, baseDir, testFilter, kvmSSHOptions(imagePath))
+	}
+}
+
+// AdtRunRemote runs the autopkgtests using a remote machine as the testbed.
+func AdtRunRemote(rootPath, baseDir, testFilter, testbedIP string, testbedPort int) {
+	utils.ExecCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
+		"ubuntu@"+testbedIP)
+	adtRun(
+		rootPath, baseDir, testFilter, remoteTestbedSSHOptions(testbedIP, testbedPort))
+}
+
+func adtRun(rootPath, baseDir, testFilter string, testbedOptions []string) {
 	createControlFile(testFilter)
 
 	fmt.Println("Calling adt-run...")
