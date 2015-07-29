@@ -6,4 +6,5 @@ After=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 TimeoutStartSec=0
-ExecStart=/usr/bin/wait4network 5s
+ExecStart=/bin/sh -ec 'while [ -z "$( /sbin/ip route show 0/0 )" ]; do sleep 5; done'
+

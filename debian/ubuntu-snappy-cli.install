@@ -1,5 +1,4 @@
 /usr/bin/snappy
-/usr/bin/wait4network
 data/completion/snappy /usr/share/bash-completion/completions/
 # i18n stuff
 ../../share /usr
