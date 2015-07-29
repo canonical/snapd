@@ -24,7 +24,7 @@ import (
 	"os"
 	"os/exec"
 
-	. "launchpad.net/snappy/_integration-tests/helpers/common"
+	. "launchpad.net/snappy/_integration-tests/testutils/common"
 
 	. "gopkg.in/check.v1"
 )
