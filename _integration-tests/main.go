@@ -21,155 +21,26 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
-	"text/template"
 
-	"launchpad.net/snappy/_integration-tests/helpers/config"
-	"launchpad.net/snappy/_integration-tests/helpers/image"
-	"launchpad.net/snappy/_integration-tests/helpers/utils"
+	"launchpad.net/snappy/_integration-tests/testutils"
+	"launchpad.net/snappy/_integration-tests/testutils/autopkgtest"
+	"launchpad.net/snappy/_integration-tests/testutils/build"
+	"launchpad.net/snappy/_integration-tests/testutils/config"
+	"launchpad.net/snappy/_integration-tests/testutils/image"
 )
 
 const (
-	baseDir             = "/tmp/snappy-test"
-	testsBinDir         = "_integration-tests/bin/"
-	defaultRelease      = "rolling"
-	defaultChannel      = "edge"
-	defaultSSHPort      = 22
-	defaultGoArm        = "7"
-	dataOutputDir       = "_integration-tests/data/output/"
-	controlTpl          = "_integration-tests/data/tpl/control"
-	integrationTestName = "integration.test"
+	baseDir        = "/tmp/snappy-test"
+	defaultRelease = "rolling"
+	defaultChannel = "edge"
+	defaultSSHPort = 22
+	dataOutputDir  = "_integration-tests/data/output/"
 )
 
-var (
-	commonSSHOptions = []string{"---", "ssh"}
-	configFileName   = filepath.Join(dataOutputDir, "testconfig.json")
-	controlFile      = filepath.Join(dataOutputDir, "control")
-)
-
-func buildAssets(useSnappyFromBranch bool, arch string) {
-	utils.PrepareTargetDir(testsBinDir)
-
-	if useSnappyFromBranch {
-		// FIXME We need to build an image that has the snappy from the branch
-		// installed. --elopio - 2015-06-25.
-		buildSnappyCLI(arch)
-	}
-	buildTests(arch)
-}
-
-func setupAndRunLocalTests(rootPath, testFilter string, img image.Image) {
-	// Run the tests on the latest rolling edge image.
-	if imageName, err := img.UdfCreate(); err == nil {
-		adtRun(rootPath, testFilter, kvmSSHOptions(imageName))
-	}
-}
-
-func setupAndRunRemoteTests(rootPath, testFilter, testbedIP string, testbedPort int) {
-	utils.ExecCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
-		"ubuntu@"+testbedIP)
-	adtRun(rootPath, testFilter, remoteTestbedSSHOptions(testbedIP, testbedPort))
-}
-
-func buildSnappyCLI(arch string) {
-	fmt.Println("Building snappy CLI...")
-	// On the root of the project we have a directory called snappy, so we
-	// output the binary for the tests in the tests directory.
-	goCall(arch, "build", "-o", testsBinDir+"snappy", "./cmd/snappy")
-}
-
-func buildTests(arch string) {
-	fmt.Println("Building tests...")
-
-	goCall(arch, "test", "-c", "./_integration-tests/tests")
-	// XXX Go test 1.3 does not have the output flag, so we move the
-	// binaries after they are generated.
-	os.Rename("tests.test", testsBinDir+integrationTestName)
-}
-
-func goCall(arch string, cmds ...string) {
-	if arch != "" {
-		defer os.Setenv("GOARCH", os.Getenv("GOARCH"))
-		os.Setenv("GOARCH", arch)
-		if arch == "arm" {
-			defer os.Setenv("GOARM", os.Getenv("GOARM"))
-			os.Setenv("GOARM", defaultGoArm)
-		}
-	}
-	goCmd := append([]string{"go"}, cmds...)
-	utils.ExecCommand(goCmd...)
-}
-
-func adtRun(rootPath, testFilter string, testbedOptions []string) {
-	createControlFile(testFilter)
-
-	fmt.Println("Calling adt-run...")
-	outputDir := filepath.Join(baseDir, "output")
-	utils.PrepareTargetDir(outputDir)
-
-	cmd := []string{
-		"adt-run", "-B",
-		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
-		"--override-control", controlFile,
-		"--built-tree", rootPath,
-		"--output-dir", outputDir}
-
-	utils.ExecCommand(append(cmd, testbedOptions...)...)
-}
-
-func kvmSSHOptions(imagePath string) []string {
-	return append(
-		commonSSHOptions,
-		[]string{
-			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
-			"--", "-i", imagePath}...)
-}
-
-func createControlFile(testFilter string) {
-	type controlData struct {
-		Filter string
-		Test   string
-	}
-
-	tpl, err := template.ParseFiles(controlTpl)
-	if err != nil {
-		log.Panicf("Error reading adt-run control template %s", controlTpl)
-	}
-
-	outputFile, err := os.Create(controlFile)
-	if err != nil {
-		log.Panicf("Error creating control file %s", controlFile)
-	}
-	defer outputFile.Close()
-
-	err = tpl.Execute(outputFile,
-		controlData{Test: integrationTestName, Filter: testFilter})
-	if err != nil {
-		log.Panicf("execution: %s", err)
-	}
-}
-
-func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
-	options := []string{
-		"-H", testbedIP,
-		"-p", strconv.Itoa(testbedPort),
-		"-l", "ubuntu",
-		"-i", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa"),
-		"--reboot"}
-	return append(commonSSHOptions, options...)
-}
-
-func getRootPath() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Panic(err)
-	}
-	return dir
-}
+var configFileName = filepath.Join(dataOutputDir, "testconfig.json")
 
 func main() {
 	var (
@@ -201,10 +72,10 @@ func main() {
 
 	flag.Parse()
 
-	buildAssets(*useSnappyFromBranch, *arch)
+	build.Assets(*useSnappyFromBranch, *arch)
 
 	// TODO: generate the files out of the source tree. --elopio - 2015-07-15
-	utils.PrepareTargetDir(dataOutputDir)
+	testutils.PrepareTargetDir(dataOutputDir)
 	defer os.RemoveAll(dataOutputDir)
 
 	// TODO: pass the config as arguments to the test binaries.
@@ -214,13 +85,12 @@ func main() {
 		*update, *rollback)
 	cfg.Write()
 
-	rootPath := getRootPath()
+	rootPath := testutils.RootPath()
 
 	if *testbedIP == "" {
 		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, baseDir)
-		setupAndRunLocalTests(rootPath, *testFilter, *img)
-
+		autopkgtest.AdtRunLocal(rootPath, baseDir, *testFilter, *img)
 	} else {
-		setupAndRunRemoteTests(rootPath, *testFilter, *testbedIP, *testbedPort)
+		autopkgtest.AdtRunRemote(rootPath, baseDir, *testFilter, *testbedIP, *testbedPort)
 	}
 }

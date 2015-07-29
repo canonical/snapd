@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"regexp"
 
-	. "launchpad.net/snappy/_integration-tests/helpers/common"
+	. "launchpad.net/snappy/_integration-tests/testutils/common"
 
 	check "gopkg.in/check.v1"
 )
