@@ -44,11 +44,6 @@ func (rcLocalCrash) unset(c *check.C) {
 	ExecCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", BaseOtherPath))
 }
 
-/*
-TODO: uncomment when bug https://bugs.launchpad.net/snappy/+bug/1476129 is fixed
-(fgimenez 20150728)
-
 func (s *failoverSuite) TestRCLocalCrash(c *check.C) {
 	commonFailoverTest(c, rcLocalCrash{})
 }
-*/
