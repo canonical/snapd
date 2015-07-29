@@ -82,7 +82,7 @@ func main() {
 	// --elopio - 2015-07-15
 	cfg := config.NewConfig(
 		configFileName, *imgRelease, *imgChannel, *targetRelease, *targetChannel,
-		*update, *rollback)
+		*testbedIP, *update, *rollback)
 	cfg.Write()
 
 	rootPath := testutils.RootPath()
