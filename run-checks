@@ -46,11 +46,11 @@ $goctest -v -cover ./...
 echo Running vet
 go vet ./...
 go vet ./_integration-tests/tests/...
-go vet ./_integration-tests/helpers/...
+go vet ./_integration-tests/testutils/...
 
 # golint
 echo Running lint
-lint=$(golint ./... && golint ./_integration-tests/helpers/... && golint ./_integration-tests/tests/...)
+lint=$(golint ./... && golint ./_integration-tests/testutils/... && golint ./_integration-tests/tests/...)
 if [ -n "$lint" ]; then
     echo "Lint complains:"
     echo "$lint"
@@ -72,8 +72,8 @@ echo Building the integration tests
 go build _integration-tests/main.go
 
 # the rabbit hole
-echo Running the tests for the integration helpers
-$goctest -v -cover ./_integration-tests/helpers/...
+echo Running the tests for the integration testutils
+$goctest -v -cover ./_integration-tests/testutils/...
 
 # integration suite in kvm
 if which adt-run >/dev/null 2>&1; then

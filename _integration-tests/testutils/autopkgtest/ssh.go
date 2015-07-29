@@ -17,23 +17,30 @@
  *
  */
 
-package tests
+package autopkgtest
 
 import (
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
-
-	check "gopkg.in/check.v1"
+	"os"
+	"path/filepath"
+	"strconv"
 )
 
-var _ = check.Suite(&aptSuite{})
+var commonSSHOptions = []string{"---", "ssh"}
 
-type aptSuite struct {
-	SnappySuite
+func kvmSSHOptions(imagePath string) []string {
+	return append(
+		commonSSHOptions,
+		[]string{
+			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
+			"--", "-i", imagePath}...)
 }
 
-func (s *aptSuite) TestAptGetMustPrintError(c *check.C) {
-	aptOutput := ExecCommand(c, "apt-get", "update")
-
-	expected := "Ubuntu Core does not use apt-get, see 'snappy --help'!\n"
-	c.Assert(aptOutput, check.Equals, expected)
+func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
+	options := []string{
+		"-H", testbedIP,
+		"-p", strconv.Itoa(testbedPort),
+		"-l", "ubuntu",
+		"-i", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa"),
+		"--reboot"}
+	return append(commonSSHOptions, options...)
 }

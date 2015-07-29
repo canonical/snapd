@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/_integration-tests/helpers/utils"
+	"launchpad.net/snappy/_integration-tests/testutils"
 )
 
 // Image type encapsulates image actions
@@ -46,7 +46,7 @@ func (img Image) UdfCreate() (string, error) {
 
 	imageDir := filepath.Join(img.baseDir, "image")
 
-	utils.PrepareTargetDir(imageDir)
+	testutils.PrepareTargetDir(imageDir)
 
 	udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
 
@@ -63,7 +63,7 @@ func (img Image) UdfCreate() (string, error) {
 		"--developer-mode",
 	}
 
-	err := utils.ExecCommand(append(udfCommand, coreOptions...)...)
+	err := testutils.ExecCommand(append(udfCommand, coreOptions...)...)
 
 	return imagePath, err
 }
