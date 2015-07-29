@@ -338,7 +338,7 @@ func getVersionFile() string {
 
 // InstallSnap executes the required command to install the specified snap
 func InstallSnap(c *check.C, packageName string) string {
-	return ExecCommand(c, "sudo", "snappy", "install", packageName)
+	return ExecCommand(c, "sudo", "snappy", "install", packageName, "--allow-unauthenticated")
 }
 
 // RemoveSnap executes the required command to remove the specified snap
