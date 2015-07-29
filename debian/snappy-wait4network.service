@@ -6,4 +6,4 @@ After=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 TimeoutStartSec=0
-ExecStart=/usr/bin/wait4network http://start.ubuntu.com/connectivity-check.html 4589f42e1546aa47ca181e5d949d310b 1s 5s
+ExecStart=/usr/bin/wait4network 5s

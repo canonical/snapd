@@ -20,58 +20,32 @@
 package main
 
 import (
-	"crypto/md5"
 	"fmt"
-	"io"
-	"net"
-	"net/http"
 	"os"
+	"os/exec"
 	"time"
 )
 
-var (
-	errUsage = fmt.Errorf("Usage: %s URL MD5 TIMEOUT INTERVAL; for example: http://start.ubuntu.com/connectivity-check.html 4589f42e1546aa47ca181e5d949d310b 1s 5s", os.Args[0])
-)
-
-func die(err error) {
-	fmt.Fprintln(os.Stderr, "error:", err)
-	os.Exit(1)
-}
-
 func main() {
-	if len(os.Args) != 5 {
-		die(errUsage)
+	if len(os.Args) != 2 {
+		fmt.Fprintln(os.Stderr, "Usage:", os.Args[0], "INTERVAL")
+		os.Exit(1)
 	}
 
-	targetURL := os.Args[1]
-	targetMD5 := os.Args[2]
-	targetTimeout, err := time.ParseDuration(os.Args[3])
+	interval, err := time.ParseDuration(os.Args[1])
 	if err != nil {
-		die(err)
-	}
-	interval, err := time.ParseDuration(os.Args[4])
-	if err != nil {
-		die(err)
-	}
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			Dial: func(network, addr string) (net.Conn, error) {
-				return net.DialTimeout(network, addr, targetTimeout)
-			},
-		},
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
 	}
 
 	ticker := time.NewTicker(interval)
 
 	for {
-		if resp, err := client.Get(targetURL); err == nil {
-			h := md5.New()
-			io.Copy(h, resp.Body)
-			if fmt.Sprintf("%x", h.Sum(nil)) == targetMD5 {
-				os.Exit(0)
-			}
+		bs, err := exec.Command("ip", "route", "list", "0/0").CombinedOutput()
+		if err == nil && len(bs) > 0 {
+			os.Exit(0)
 		}
+
 		<-ticker.C
 	}
 }
