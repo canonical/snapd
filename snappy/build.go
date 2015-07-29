@@ -96,18 +96,19 @@ func (k *keep) shouldExclude(basedir string, file string) bool {
 		if k.exclude == nil {
 			return false
 		}
+
 		return k.exclude(file)
 	}
 
 	k.basedir = basedir
 	k.exclude = nil
 
-	f, err := os.Open(filepath.Join(basedir, ".snapignore"))
+	snapignore, err := os.Open(filepath.Join(basedir, ".snapignore"))
 	if err != nil {
 		return false
 	}
 
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(snapignore)
 	var lines []string
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -126,6 +127,7 @@ func (k *keep) shouldExclude(basedir string, file string) bool {
 		return k.exclude(file)
 	}
 
+	// can't happen; can't even find a way to trigger it in testing.
 	panic(fmt.Sprintf("|-composition of valid regexps is invalid?!? Please report this bug: %#v", fullRegex))
 }
 
