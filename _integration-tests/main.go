@@ -26,11 +26,11 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"launchpad.net/snappy/_integration-tests/helpers/autopkgtest"
-	"launchpad.net/snappy/_integration-tests/helpers/build"
-	"launchpad.net/snappy/_integration-tests/helpers/config"
-	"launchpad.net/snappy/_integration-tests/helpers/image"
-	"launchpad.net/snappy/_integration-tests/helpers/utils"
+	"launchpad.net/snappy/_integration-tests/testutils"
+	"launchpad.net/snappy/_integration-tests/testutils/autopkgtest"
+	"launchpad.net/snappy/_integration-tests/testutils/build"
+	"launchpad.net/snappy/_integration-tests/testutils/config"
+	"launchpad.net/snappy/_integration-tests/testutils/image"
 )
 
 const (
@@ -76,7 +76,7 @@ func main() {
 	build.Assets(*useSnappyFromBranch, *arch)
 
 	// TODO: generate the files out of the source tree. --elopio - 2015-07-15
-	utils.PrepareTargetDir(dataOutputDir)
+	testutils.PrepareTargetDir(dataOutputDir)
 	defer os.RemoveAll(dataOutputDir)
 
 	// TODO: pass the config as arguments to the test binaries.
@@ -86,7 +86,7 @@ func main() {
 		*update, *rollback)
 	cfg.Write()
 
-	rootPath := utils.RootPath()
+	rootPath := testutils.RootPath()
 
 	test := autopkgtest.NewAutopkgtest(rootPath, baseDir, *testFilter, build.IntegrationTestName)
 	if *testbedIP == "" {

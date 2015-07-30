@@ -4,6 +4,7 @@
 #export DH_VERBOSE=1
 export DH_OPTIONS
 export DH_GOPKG := launchpad.net/snappy
+#export DEB_BUILD_OPTIONS=nocheck
 
 %:
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd
@@ -30,6 +31,10 @@ override_dh_systemd_enable:
 		--no-enable \
 		-pubuntu-snappy \
 		snappy-autopilot.service
+	# enable wait4network
+	dh_systemd_enable \
+		-pubuntu-snappy \
+		snappy-wait4network.service
 
 override_dh_systemd_start:
 	# start boot-ok
@@ -49,6 +54,10 @@ override_dh_systemd_start:
 		--no-start \
 		-pubuntu-snappy \
 		snappy-autopilot.service
+	# start wait4network
+	dh_systemd_start \
+		-pubuntu-snappy \
+		snappy-wait4network.service
 
 override_dh_auto_build:
 	# this will update the i18n stuff

@@ -31,7 +31,7 @@ import (
 
 	check "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/_integration-tests/helpers/config"
+	"launchpad.net/snappy/_integration-tests/testutils/config"
 )
 
 const (
@@ -41,9 +41,9 @@ const (
 	channelCfgFile  = "/etc/system-image/channel.ini"
 )
 
-// Cfg is a struct that contains the configurations values passed from the
+// Cfg is a struct that contains the configuration values passed from the
 // host to the testbed.
-var Cfg config.Config
+var Cfg *config.Config
 
 // SnappySuite is a structure used as a base test suite for all the snappy
 // integration tests.
@@ -57,7 +57,8 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 	ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 	ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 	if !isInRebootProcess() {
-		Cfg, err := config.ReadConfig(
+		var err error
+		Cfg, err = config.ReadConfig(
 			"_integration-tests/data/output/testconfig.json")
 		c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 		if Cfg.Update || Cfg.Rollback {

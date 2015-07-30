@@ -84,6 +84,7 @@ type ServiceDescription struct {
 	StopTimeout time.Duration
 	AaProfile   string
 	IsFramework bool
+	IsNetworked bool
 	BusName     string
 	UdevAppName string
 }
@@ -205,7 +206,9 @@ Description={{.Description}}
 {{if .IsFramework}}Before=ubuntu-snappy.frameworks.target
 After=ubuntu-snappy.frameworks-pre.target
 Requires=ubuntu-snappy.frameworks-pre.target{{else}}After=ubuntu-snappy.frameworks.target
-Requires=ubuntu-snappy.frameworks.target{{end}}
+Requires=ubuntu-snappy.frameworks.target{{end}}{{if .IsNetworked}}
+After=snappy-wait4network.service
+Requires=snappy-wait4network.service{{end}}
 X-Snappy=yes
 
 [Service]
