@@ -356,6 +356,28 @@ func (s *SnapTestSuite) TestCopyExcludesWholeDirs(c *C) {
 	c.Check(string(out), Matches, `(?m)Only in \S+: \.bzr`)
 }
 
+func (s *SnapTestSuite) TestExcludeDynamicFalseIfNoSnapignore(c *C) {
+	basedir := c.MkDir()
+	c.Check(shouldExcludeDynamic(basedir, "foo"), Equals, false)
+}
+
+func (s *SnapTestSuite) TestExcludeDynamicWorksIfSnapignore(c *C) {
+	basedir := c.MkDir()
+	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("foo\nb.r\n"), 0644), IsNil)
+	c.Check(shouldExcludeDynamic(basedir, "foo"), Equals, true)
+	c.Check(shouldExcludeDynamic(basedir, "bar"), Equals, true)
+	c.Check(shouldExcludeDynamic(basedir, "bzr"), Equals, true)
+	c.Check(shouldExcludeDynamic(basedir, "baz"), Equals, false)
+}
+
+func (s *SnapTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
+	basedir := c.MkDir()
+	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("*hello\n"), 0644), IsNil)
+	// note “*hello” is not a valid regexp, so will be taken literally (not globbed!)
+	c.Check(shouldExcludeDynamic(basedir, "ahello"), Equals, false)
+	c.Check(shouldExcludeDynamic(basedir, "*hello"), Equals, true)
+}
+
 func (s *SnapTestSuite) TestBuildSimpleOutputDir(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
