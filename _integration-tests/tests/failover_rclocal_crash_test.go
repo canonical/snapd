@@ -30,18 +30,18 @@ import (
 type rcLocalCrash struct{}
 
 func (rcLocalCrash) set(c *check.C) {
-	MakeWritable(c, BaseAltPartitionPath)
-	defer MakeReadonly(c, BaseAltPartitionPath)
-	targetFile := fmt.Sprintf("%s/etc/rc.local", BaseAltPartitionPath)
+	MakeWritable(c, BaseOtherPath)
+	defer MakeReadonly(c, BaseOtherPath)
+	targetFile := fmt.Sprintf("%s/etc/rc.local", BaseOtherPath)
 	ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
 	ExecCommandToFile(c, targetFile,
 		"sudo", "echo", "#!bin/sh\nprintf c > /proc/sysrq-trigger")
 }
 
 func (rcLocalCrash) unset(c *check.C) {
-	MakeWritable(c, BaseAltPartitionPath)
-	defer MakeReadonly(c, BaseAltPartitionPath)
-	ExecCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", BaseAltPartitionPath))
+	MakeWritable(c, BaseOtherPath)
+	defer MakeReadonly(c, BaseOtherPath)
+	ExecCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", BaseOtherPath))
 }
 
 /*

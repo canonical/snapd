@@ -50,16 +50,16 @@ type zeroSizeInitrd struct{}
 type zeroSizeSystemd struct{}
 
 func (zeroSizeKernel) set(c *check.C) {
-	commonSet(c, BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
+	commonSet(c, BaseOtherPath, origBootFilenamePattern, kernelFilename)
 }
 
 func (zeroSizeKernel) unset(c *check.C) {
-	commonUnset(c, BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
+	commonUnset(c, BaseOtherPath, origBootFilenamePattern, kernelFilename)
 }
 
 func (zeroSizeInitrd) set(c *check.C) {
 	if classicKernelFiles(c) {
-		commonSet(c, BaseAltPartitionPath, origBootFilenamePattern, initrdFilename)
+		commonSet(c, BaseOtherPath, origBootFilenamePattern, initrdFilename)
 	} else {
 		boot := bootSystem(c)
 		dir := bootDirectory(boot)
@@ -70,7 +70,7 @@ func (zeroSizeInitrd) set(c *check.C) {
 
 func (zeroSizeInitrd) unset(c *check.C) {
 	if classicKernelFiles(c) {
-		commonUnset(c, BaseAltPartitionPath, origBootFilenamePattern, initrdFilename)
+		commonUnset(c, BaseOtherPath, origBootFilenamePattern, initrdFilename)
 	} else {
 		boot := bootSystem(c)
 		dir := bootDirectory(boot)
@@ -80,11 +80,11 @@ func (zeroSizeInitrd) unset(c *check.C) {
 }
 
 func (zeroSizeSystemd) set(c *check.C) {
-	commonSet(c, BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
+	commonSet(c, BaseOtherPath, origSystemdFilenamePattern, systemdFilename)
 }
 
 func (zeroSizeSystemd) unset(c *check.C) {
-	commonUnset(c, BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
+	commonUnset(c, BaseOtherPath, origSystemdFilenamePattern, systemdFilename)
 }
 
 func commonSet(c *check.C, baseOtherPath, origPattern, filename string) {
@@ -112,13 +112,8 @@ func commonUnset(c *check.C, baseOtherPath, origPattern, filename string) {
 }
 
 func renameFile(c *check.C, basePath, oldFilename, newFilename string, keepOld bool) {
-	// Only need to make writable and revert for BaseAltPartitionPath,
-	// kernel files' boot directory is writable
-	if basePath == BaseAltPartitionPath {
-		MakeWritable(c, basePath)
-		defer MakeReadonly(c, basePath)
-	}
-
+	MakeWritable(c, basePath)
+	defer MakeReadonly(c, basePath)
 	ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
 
 	if keepOld {
