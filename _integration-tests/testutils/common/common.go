@@ -35,10 +35,10 @@ import (
 )
 
 const (
-	// BaseOtherPath is the path to the B system partition.
-	BaseOtherPath   = "/writable/cache/system"
-	needsRebootFile = "/tmp/needs-reboot"
-	channelCfgFile  = "/etc/system-image/channel.ini"
+	// BaseAltPartitionPath is the path to the B system partition.
+	BaseAltPartitionPath = "/writable/cache/system"
+	needsRebootFile      = "/tmp/needs-reboot"
+	channelCfgFile       = "/etc/system-image/channel.ini"
 )
 
 // Cfg is a struct that contains the configuration values passed from the
@@ -117,7 +117,7 @@ func (s *SnappySuite) TearDownTest(c *check.C) {
 		// Only restore the channel config files if the reboot has been handled.
 		m := make(map[string]string)
 		m[channelCfgBackupFile()] = "/"
-		m[channelCfgOtherBackupFile()] = BaseOtherPath
+		m[channelCfgOtherBackupFile()] = BaseAltPartitionPath
 		for backup, target := range m {
 			if _, err := os.Stat(backup); err == nil {
 				MakeWritable(c, target)
@@ -142,7 +142,7 @@ func (s *SnappySuite) AddCleanup(f func()) {
 }
 
 func switchSystemImageConf(c *check.C, release, channel, version string) {
-	targets := []string{"/", BaseOtherPath}
+	targets := []string{"/", BaseAltPartitionPath}
 	for _, target := range targets {
 		file := filepath.Join(target, channelCfgFile)
 		if _, err := os.Stat(file); err == nil {
@@ -243,7 +243,7 @@ func fakeAvailableUpdate(c *check.C) {
 func switchChannelVersionWithBackup(c *check.C, newVersion int) {
 	m := make(map[string]string)
 	m["/"] = channelCfgBackupFile()
-	m[BaseOtherPath] = channelCfgOtherBackupFile()
+	m[BaseAltPartitionPath] = channelCfgOtherBackupFile()
 	for target, backup := range m {
 		file := filepath.Join(target, channelCfgFile)
 		if _, err := os.Stat(file); err == nil {

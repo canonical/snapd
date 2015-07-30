@@ -61,13 +61,13 @@ RequiredBy=sysinit.target
 type systemdDependencyLoop struct{}
 
 func (systemdDependencyLoop) set(c *check.C) {
-	installService(c, "deadlock", deadlockService, BaseOtherPath)
-	installService(c, "emerg-reboot", rebootService, BaseOtherPath)
+	installService(c, "deadlock", deadlockService, BaseAltPartitionPath)
+	installService(c, "emerg-reboot", rebootService, BaseAltPartitionPath)
 }
 
 func (systemdDependencyLoop) unset(c *check.C) {
-	unInstallService(c, "deadlock", BaseOtherPath)
-	unInstallService(c, "emerg-reboot", BaseOtherPath)
+	unInstallService(c, "deadlock", BaseAltPartitionPath)
+	unInstallService(c, "emerg-reboot", BaseAltPartitionPath)
 }
 
 func installService(c *check.C, serviceName, serviceCfg, basePath string) {

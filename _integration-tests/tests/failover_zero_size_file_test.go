@@ -50,16 +50,16 @@ type zeroSizeInitrd struct{}
 type zeroSizeSystemd struct{}
 
 func (zeroSizeKernel) set(c *check.C) {
-	commonSet(c, BaseOtherPath, origBootFilenamePattern, kernelFilename)
+	commonSet(c, BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
 }
 
 func (zeroSizeKernel) unset(c *check.C) {
-	commonUnset(c, BaseOtherPath, origBootFilenamePattern, kernelFilename)
+	commonUnset(c, BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
 }
 
 func (zeroSizeInitrd) set(c *check.C) {
 	if classicKernelFiles(c) {
-		commonSet(c, BaseOtherPath, origBootFilenamePattern, initrdFilename)
+		commonSet(c, BaseAltPartitionPath, origBootFilenamePattern, initrdFilename)
 	} else {
 		boot := bootSystem(c)
 		dir := bootDirectory(boot)
@@ -70,7 +70,7 @@ func (zeroSizeInitrd) set(c *check.C) {
 
 func (zeroSizeInitrd) unset(c *check.C) {
 	if classicKernelFiles(c) {
-		commonUnset(c, BaseOtherPath, origBootFilenamePattern, initrdFilename)
+		commonUnset(c, BaseAltPartitionPath, origBootFilenamePattern, initrdFilename)
 	} else {
 		boot := bootSystem(c)
 		dir := bootDirectory(boot)
@@ -80,11 +80,11 @@ func (zeroSizeInitrd) unset(c *check.C) {
 }
 
 func (zeroSizeSystemd) set(c *check.C) {
-	commonSet(c, BaseOtherPath, origSystemdFilenamePattern, systemdFilename)
+	commonSet(c, BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
 }
 
 func (zeroSizeSystemd) unset(c *check.C) {
-	commonUnset(c, BaseOtherPath, origSystemdFilenamePattern, systemdFilename)
+	commonUnset(c, BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
 }
 
 func commonSet(c *check.C, baseOtherPath, origPattern, filename string) {
@@ -98,7 +98,7 @@ func commonSet(c *check.C, baseOtherPath, origPattern, filename string) {
 	newFilename := fmt.Sprintf(
 		"%s/%s", baseOtherPath, filenameSuffix)
 
-	renameFile(c, baseOtherPath, oldFilename, newFilename)
+	renameFile(c, baseOtherPath, oldFilename, newFilename, true)
 }
 
 func commonUnset(c *check.C, baseOtherPath, origPattern, filename string) {
@@ -108,17 +108,24 @@ func commonUnset(c *check.C, baseOtherPath, origPattern, filename string) {
 	oldFilename := getSingleFilename(c, completePattern)
 	newFilename := strings.Replace(oldFilename, destFilenamePrefix, "", 1)
 
-	renameFile(c, baseOtherPath, oldFilename, newFilename)
+	renameFile(c, baseOtherPath, oldFilename, newFilename, false)
 }
 
-func renameFile(c *check.C, basePath, oldFilename, newFilename string) {
-	MakeWritable(c, basePath)
-	defer MakeReadonly(c, basePath)
-	ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
-	ExecCommand(c, "sudo", "touch", oldFilename)
+func renameFile(c *check.C, basePath, oldFilename, newFilename string, keepOld bool) {
+	// Only need to make writable and revert for BaseAltPartitionPath,
+	// kernel files' boot directory is writable
+	if basePath == BaseAltPartitionPath {
+		MakeWritable(c, basePath)
+		defer MakeReadonly(c, basePath)
+	}
 
-	mode := getFileMode(c, newFilename)
-	ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), oldFilename)
+	ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
+
+	if keepOld {
+		ExecCommand(c, "sudo", "touch", oldFilename)
+		mode := getFileMode(c, newFilename)
+		ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), oldFilename)
+	}
 }
 
 func getFileMode(c *check.C, filePath string) os.FileMode {
