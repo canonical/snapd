@@ -444,6 +444,7 @@ func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile str
 			StopTimeout: time.Duration(service.StopTimeout),
 			AaProfile:   aaProfile,
 			IsFramework: m.Type == pkg.TypeFramework,
+			IsNetworked: service.Ports != nil && len(service.Ports.External) > 0,
 			BusName:     service.BusName,
 			UdevAppName: udevPartName,
 		}), nil
