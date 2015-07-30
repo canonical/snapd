@@ -88,16 +88,16 @@ func main() {
 
 	rootPath := utils.RootPath()
 
-	apt := autopkgtest.NewAutopkgtest(rootPath, baseDir, *testFilter, build.IntegrationTestName)
+	test := autopkgtest.NewAutopkgtest(rootPath, baseDir, *testFilter, build.IntegrationTestName)
 	if *testbedIP == "" {
 		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, baseDir)
 
 		if imagePath, err := img.UdfCreate(); err == nil {
-			apt.AdtRunLocal(imagePath)
+			test.AdtRunLocal(imagePath)
 		} else {
 			log.Panic(err.Error())
 		}
 	} else {
-		apt.AdtRunRemote(*testbedIP, *testbedPort)
+		test.AdtRunRemote(*testbedIP, *testbedPort)
 	}
 }

@@ -40,17 +40,17 @@ var controlFile = filepath.Join(dataOutputDir, "control")
 
 // Autopkgtest is the type that knows how to call adt-run
 type Autopkgtest struct {
-	rootPath            string // location of the source code on the host
-	baseDir             string // location of the test artifacts on the host
+	sourceCodePath      string // location of the source code on the host
+	testArtifactsPath   string // location of the test artifacts on the host
 	testFilter          string
 	integrationTestName string
 }
 
 // NewAutopkgtest is the Autopkgtest constructor
-func NewAutopkgtest(rootPath, baseDir, testFilter, integrationTestName string) *Autopkgtest {
+func NewAutopkgtest(sourceCodePath, testArtifactsPath, testFilter, integrationTestName string) *Autopkgtest {
 	return &Autopkgtest{
-		rootPath:            rootPath,
-		baseDir:             baseDir,
+		sourceCodePath:      sourceCodePath,
+		testArtifactsPath:   testArtifactsPath,
 		testFilter:          testFilter,
 		integrationTestName: integrationTestName}
 }
@@ -73,14 +73,14 @@ func (a *Autopkgtest) adtRun(testbedOptions []string) {
 	a.createControlFile()
 
 	fmt.Println("Calling adt-run...")
-	outputDir := filepath.Join(a.baseDir, "output")
+	outputDir := filepath.Join(a.testArtifactsPath, "output")
 	utils.PrepareTargetDir(outputDir)
 
 	cmd := []string{
 		"adt-run", "-B",
 		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
 		"--override-control", controlFile,
-		"--built-tree", a.rootPath,
+		"--built-tree", a.sourceCodePath,
 		"--output-dir", outputDir}
 
 	utils.ExecCommand(append(cmd, testbedOptions...)...)
