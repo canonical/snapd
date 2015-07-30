@@ -47,7 +47,7 @@ func testConfigStruct(fileName string) *Config {
 	return NewConfig(
 		fileName,
 		"testrelease", "testchannel", "testtargetrelease", "testtargetchannel",
-		"", true, true)
+		"1.1.1.1", true, true)
 }
 func testConfigContents(fileName string) string {
 	return `{` +
@@ -56,7 +56,7 @@ func testConfigContents(fileName string) string {
 		`"Channel":"testchannel",` +
 		`"TargetRelease":"testtargetrelease",` +
 		`"TargetChannel":"testtargetchannel",` +
-		`"TestbedIP":"",` +
+		`"TestbedIP":"1.1.1.1",` +
 		`"Update":true,` +
 		`"Rollback":true` +
 		`}`
@@ -91,38 +91,4 @@ func (s *ConfigSuite) TestReadConfig(c *check.C) {
 
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 	c.Assert(cfg, check.DeepEquals, testConfigStruct(configFileName))
-}
-
-func (s *ConfigSuite) TestRemoteTestbedConfig(c *check.C) {
-	// Do not print to stdout.
-	devnull, err := os.Open(os.DevNull)
-	c.Assert(err, check.IsNil)
-	oldStdout := os.Stdout
-	os.Stdout = devnull
-	defer func() {
-		os.Stdout = oldStdout
-	}()
-	configFileName := testConfigFileName(c)
-
-	testbedIP := "1.1.1.1"
-	cfg := NewConfig(
-		configFileName,
-		"testrelease", "testchannel", "testtargetrelease", "testtargetchannel",
-		testbedIP, true, true)
-	cfg.Write()
-
-	testConfigContents := `{` +
-		fmt.Sprintf(`"FileName":"%s",`, configFileName) +
-		`"Release":".*",` +
-		`"Channel":".*",` +
-		`"TargetRelease":"testtargetrelease",` +
-		`"TargetChannel":"testtargetchannel",` +
-		fmt.Sprintf(`"TestbedIP":"%s",`, testbedIP) +
-		`"Update":true,` +
-		`"Rollback":true` +
-		`}`
-
-	writtenConfig, err := ioutil.ReadFile(configFileName)
-	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
-	c.Assert(string(writtenConfig), check.Equals, testConfigContents)
 }
