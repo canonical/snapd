@@ -115,7 +115,6 @@ func renameFile(c *check.C, basePath, oldFilename, newFilename string) {
 	MakeWritable(c, basePath)
 	defer MakeReadonly(c, basePath)
 	ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
-
 	ExecCommand(c, "sudo", "touch", oldFilename)
 
 	mode := getFileMode(c, newFilename)
