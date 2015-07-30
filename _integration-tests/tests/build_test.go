@@ -73,7 +73,7 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
 }
 
 func (s *buildSuite) TestBuildWrongYamlSnapOnSnappy(c *C) {
-	commonWrongTest(c, wrongYamlSnapName, "(?ms).*Can not parse.*yaml: line 2: mapping values are not allowed in this context")
+	commonWrongTest(c, wrongYamlSnapName, "(?msi).*Can not parse.*yaml: line 2: mapping values are not allowed in this context.*")
 }
 
 func (s *buildSuite) TestBuildMissingReadmeSnapOnSnappy(c *C) {
