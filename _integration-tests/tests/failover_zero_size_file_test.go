@@ -98,7 +98,7 @@ func commonSet(c *check.C, baseOtherPath, origPattern, filename string) {
 	newFilename := fmt.Sprintf(
 		"%s/%s", baseOtherPath, filenameSuffix)
 
-	renameFile(c, baseOtherPath, oldFilename, newFilename)
+	renameFile(c, baseOtherPath, oldFilename, newFilename, true)
 }
 
 func commonUnset(c *check.C, baseOtherPath, origPattern, filename string) {
@@ -108,17 +108,19 @@ func commonUnset(c *check.C, baseOtherPath, origPattern, filename string) {
 	oldFilename := getSingleFilename(c, completePattern)
 	newFilename := strings.Replace(oldFilename, destFilenamePrefix, "", 1)
 
-	renameFile(c, baseOtherPath, oldFilename, newFilename)
+	renameFile(c, baseOtherPath, oldFilename, newFilename, false)
 }
 
-func renameFile(c *check.C, basePath, oldFilename, newFilename string) {
+func renameFile(c *check.C, basePath, oldFilename, newFilename string, keepOld bool) {
 	MakeWritable(c, basePath)
 	defer MakeReadonly(c, basePath)
 	ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
-	ExecCommand(c, "sudo", "touch", oldFilename)
 
-	mode := getFileMode(c, newFilename)
-	ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), oldFilename)
+	if keepOld {
+		ExecCommand(c, "sudo", "touch", oldFilename)
+		mode := getFileMode(c, newFilename)
+		ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), oldFilename)
+	}
 }
 
 func getFileMode(c *check.C, filePath string) os.FileMode {
