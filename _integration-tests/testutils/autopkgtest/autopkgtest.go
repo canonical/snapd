@@ -29,8 +29,6 @@ import (
 	"log"
 
 	"launchpad.net/snappy/_integration-tests/testutils"
-	"launchpad.net/snappy/_integration-tests/testutils/build"
-	"launchpad.net/snappy/_integration-tests/testutils/image"
 )
 
 const (
@@ -40,41 +38,55 @@ const (
 
 var controlFile = filepath.Join(dataOutputDir, "control")
 
+// Autopkgtest is the type that knows how to call adt-run
+type Autopkgtest struct {
+	sourceCodePath      string // location of the source code on the host
+	testArtifactsPath   string // location of the test artifacts on the host
+	testFilter          string
+	integrationTestName string
+}
+
+// NewAutopkgtest is the Autopkgtest constructor
+func NewAutopkgtest(sourceCodePath, testArtifactsPath, testFilter, integrationTestName string) *Autopkgtest {
+	return &Autopkgtest{
+		sourceCodePath:      sourceCodePath,
+		testArtifactsPath:   testArtifactsPath,
+		testFilter:          testFilter,
+		integrationTestName: integrationTestName}
+}
+
 // AdtRunLocal starts a kvm running the image passed as argument and runs the
 // autopkgtests using it as the testbed.
-func AdtRunLocal(rootPath, baseDir, testFilter string, img image.Image) {
+func (a *Autopkgtest) AdtRunLocal(imgPath string) {
 	// Run the tests on the latest rolling edge image.
-	if imagePath, err := img.UdfCreate(); err == nil {
-		adtRun(rootPath, baseDir, testFilter, kvmSSHOptions(imagePath))
-	}
+	a.adtRun(kvmSSHOptions(imgPath))
 }
 
 // AdtRunRemote runs the autopkgtests using a remote machine as the testbed.
-func AdtRunRemote(rootPath, baseDir, testFilter, testbedIP string, testbedPort int) {
+func (a *Autopkgtest) AdtRunRemote(testbedIP string, testbedPort int) {
 	testutils.ExecCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 		"ubuntu@"+testbedIP)
-	adtRun(
-		rootPath, baseDir, testFilter, remoteTestbedSSHOptions(testbedIP, testbedPort))
+	a.adtRun(remoteTestbedSSHOptions(testbedIP, testbedPort))
 }
 
-func adtRun(rootPath, baseDir, testFilter string, testbedOptions []string) {
-	createControlFile(testFilter)
+func (a *Autopkgtest) adtRun(testbedOptions []string) {
+	a.createControlFile()
 
 	fmt.Println("Calling adt-run...")
-	outputDir := filepath.Join(baseDir, "output")
+	outputDir := filepath.Join(a.testArtifactsPath, "output")
 	testutils.PrepareTargetDir(outputDir)
 
 	cmd := []string{
 		"adt-run", "-B",
 		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
 		"--override-control", controlFile,
-		"--built-tree", rootPath,
+		"--built-tree", a.sourceCodePath,
 		"--output-dir", outputDir}
 
 	testutils.ExecCommand(append(cmd, testbedOptions...)...)
 }
 
-func createControlFile(testFilter string) {
+func (a *Autopkgtest) createControlFile() {
 	type controlData struct {
 		Filter string
 		Test   string
@@ -92,7 +104,7 @@ func createControlFile(testFilter string) {
 	defer outputFile.Close()
 
 	err = tpl.Execute(outputFile,
-		controlData{Test: build.IntegrationTestName, Filter: testFilter})
+		controlData{Test: a.integrationTestName, Filter: a.testFilter})
 	if err != nil {
 		log.Panicf("execution: %s", err)
 	}
