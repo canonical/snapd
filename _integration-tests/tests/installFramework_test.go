@@ -44,9 +44,14 @@ func (s *installFrameworkSuite) TearDownTest(c *check.C) {
 
 func isDockerServiceRunning(c *check.C) bool {
 	dockerVersion := GetCurrentVersion(c, "docker")
+	dockerService := fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion)
+
+	err := WaitForActiveService(c, dockerService)
+	c.Assert(err, check.IsNil)
+
 	statusOutput := ExecCommand(
 		c, "systemctl", "status",
-		fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion))
+		dockerService)
 
 	expected := "(?ms)" +
 		".* docker_docker-daemon_.*\\.service .*\n" +

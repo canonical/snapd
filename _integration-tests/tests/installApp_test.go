@@ -20,6 +20,7 @@
 package tests
 
 import (
+	"fmt"
 	"net/http"
 	"os/exec"
 	"time"
@@ -96,13 +97,19 @@ func (s *installAppSuite) TestInfoMustPrintInstalledPackageInformation(c *check.
 }
 
 func (s *installAppSuite) TestAppNetworkingServiceMustBeStarted(c *check.C) {
-	InstallSnap(c, "xkcd-webserver.canonical")
+	baseAppName := "xkcd-webserver"
+	appName := baseAppName + ".canonical"
+	InstallSnap(c, appName)
 	s.AddCleanup(func() {
-		RemoveSnap(c, "xkcd-webserver.canonical")
+		RemoveSnap(c, appName)
 	})
 
-	// FIXME: sucks, needed because "systemctl start" does not wait until the
-	// port is listening. https://bugs.launchpad.net/snappy/+bug/1474463
+	appVersion := GetCurrentVersion(c, baseAppName)
+	appService := fmt.Sprintf("%s_%s_%s.service", baseAppName, baseAppName, appVersion)
+
+	err := WaitForActiveService(c, appService)
+	c.Assert(err, check.IsNil)
+
 	time.Sleep(1 * time.Second)
 	resp, err := http.Get("http://localhost")
 	c.Assert(err, check.IsNil)

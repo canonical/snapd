@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	check "gopkg.in/check.v1"
 
@@ -345,4 +346,34 @@ func InstallSnap(c *check.C, packageName string) string {
 // RemoveSnap executes the required command to remove the specified snap
 func RemoveSnap(c *check.C, packageName string) string {
 	return ExecCommand(c, "sudo", "snappy", "remove", packageName)
+}
+
+// WaitForActiveService keeps asking for the active state of the given service until
+// it is active or the maximun waiting time expires, in which case an error is returned
+func WaitForActiveService(c *check.C, serviceName string) error {
+	maxWait := time.Second * 10
+	checkInterval := time.Millisecond * 500
+
+	timer := time.NewTimer(maxWait)
+	timeChan := timer.C
+
+	ticker := time.NewTicker(checkInterval)
+	tickChan := ticker.C
+
+	for {
+		select {
+		case <-timeChan:
+			ticker.Stop()
+			journalctlOutput := ExecCommand(c, "sudo", "journalctl", "-u", serviceName)
+			return fmt.Errorf("Service %s not active after %s, journalctl output: %s",
+				serviceName, maxWait, journalctlOutput)
+		case <-tickChan:
+			statusOutput := ExecCommand(
+				c, "systemctl", "show", "-p", "ActiveState", serviceName)
+			if statusOutput == "ActiveState=active\n" {
+				timer.Stop()
+				return nil
+			}
+		}
+	}
 }
