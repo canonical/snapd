@@ -30,20 +30,25 @@ import (
 type rcLocalCrash struct{}
 
 func (rcLocalCrash) set(c *check.C) {
-	MakeWritable(c, BaseOtherPath)
-	defer MakeReadonly(c, BaseOtherPath)
-	targetFile := fmt.Sprintf("%s/etc/rc.local", BaseOtherPath)
+	MakeWritable(c, BaseAltPartitionPath)
+	defer MakeReadonly(c, BaseAltPartitionPath)
+	targetFile := fmt.Sprintf("%s/etc/rc.local", BaseAltPartitionPath)
 	ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
 	ExecCommandToFile(c, targetFile,
 		"sudo", "echo", "#!bin/sh\nprintf c > /proc/sysrq-trigger")
 }
 
 func (rcLocalCrash) unset(c *check.C) {
-	MakeWritable(c, BaseOtherPath)
-	defer MakeReadonly(c, BaseOtherPath)
-	ExecCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", BaseOtherPath))
+	MakeWritable(c, BaseAltPartitionPath)
+	defer MakeReadonly(c, BaseAltPartitionPath)
+	ExecCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", BaseAltPartitionPath))
 }
+
+/*
+TODO: uncomment when bug https://bugs.launchpad.net/snappy/+bug/1476129 is fixed
+(fgimenez 20150728)
 
 func (s *failoverSuite) TestRCLocalCrash(c *check.C) {
 	commonFailoverTest(c, rcLocalCrash{})
 }
+*/
