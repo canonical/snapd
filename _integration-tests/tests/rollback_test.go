@@ -40,7 +40,7 @@ func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
 	} else if CheckRebootMark(c.TestName()) {
 		RemoveRebootMark(c)
 		currentVersion := GetCurrentUbuntuCoreVersion(c)
-		c.Assert(currentVersion, check.Equals, GetSavedVersion(c)+1)
+		c.Assert(currentVersion > GetSavedVersion(c), check.Equals, true)
 		ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core",
 			strconv.Itoa(GetSavedVersion(c)))
 		SetSavedVersion(c, currentVersion)
@@ -48,6 +48,6 @@ func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
 	} else if CheckRebootMark(c.TestName() + "-rollback") {
 		RemoveRebootMark(c)
 		c.Assert(
-			GetCurrentUbuntuCoreVersion(c), check.Equals, GetSavedVersion(c)-1)
+			GetCurrentUbuntuCoreVersion(c) < GetSavedVersion(c), check.Equals, true)
 	}
 }
