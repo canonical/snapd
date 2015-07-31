@@ -364,7 +364,9 @@ func WaitForActiveService(c *check.C, serviceName string) error {
 		select {
 		case <-timeChan:
 			ticker.Stop()
-			return fmt.Errorf("Service %s not active after %s", serviceName, maxWait)
+			journalctlOutput := ExecCommand(c, "journalctl", "-u", serviceName)
+			return fmt.Errorf("Service %s not active after %s, journalctl output: %s",
+				serviceName, maxWait, journalctlOutput)
 		case <-tickChan:
 			statusOutput := ExecCommand(
 				c, "systemctl", "show", "-p", "ActiveState", serviceName)
