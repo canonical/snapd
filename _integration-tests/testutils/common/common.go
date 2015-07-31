@@ -351,7 +351,7 @@ func RemoveSnap(c *check.C, packageName string) string {
 // WaitForActiveService keeps asking for the active state of the given service until
 // it is active or the maximun waiting time expires, in which case an error is returned
 func WaitForActiveService(c *check.C, serviceName string) error {
-	maxWait := time.Second * 10
+	maxWait := time.Second * 30
 	checkInterval := time.Millisecond * 500
 
 	timer := time.NewTimer(maxWait)
