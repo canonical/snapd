@@ -146,7 +146,7 @@ func getSingleFilename(c *check.C, pattern string) string {
 }
 
 func classicKernelFiles(c *check.C) bool {
-	initrdClassicFilenamePattern := fmt.Sprintf("/boot/%s*", initrdFilename)
+	initrdClassicFilenamePattern := fmt.Sprintf("/boot/%s*-generic", initrdFilename)
 	matches, err := filepath.Glob(initrdClassicFilenamePattern)
 
 	c.Assert(err, check.IsNil, check.Commentf("Error: %v", err))
@@ -197,7 +197,11 @@ func currentPartition(c *check.C, bootSystem string) (partition string) {
 		if strings.HasPrefix(scanner.Text(), "snappy_ab") {
 			fields := strings.Split(scanner.Text(), "=")
 			if len(fields) > 1 {
-				partition = fields[1]
+				if bootSystem == "grub" {
+					partition = fields[1]
+				} else {
+					partition = otherPart(fields[1])
+				}
 			}
 			return
 		}
@@ -241,6 +245,11 @@ func (s *failoverSuite) TestZeroSizeKernel(c *check.C) {
 */
 
 func (s *failoverSuite) TestZeroSizeInitrd(c *check.C) {
+	// Skip if on uboot due to https://bugs.launchpad.net/snappy/+bug/1480248
+	// (fgimenez 20150731)
+	if bootSystem(c) == "uboot" {
+		c.Skip("Failover for empty initrd not working in uboot")
+	}
 	commonFailoverTest(c, zeroSizeInitrd{})
 }
 
