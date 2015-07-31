@@ -351,7 +351,7 @@ func RemoveSnap(c *check.C, packageName string) string {
 // WaitForActiveService keeps asking for the active state of the given service until
 // it is active or the maximun waiting time expires, in which case an error is returned
 func WaitForActiveService(c *check.C, serviceName string) error {
-	maxWait := time.Second * 30
+	maxWait := time.Second * 10
 	checkInterval := time.Millisecond * 500
 
 	timer := time.NewTimer(maxWait)
@@ -364,7 +364,7 @@ func WaitForActiveService(c *check.C, serviceName string) error {
 		select {
 		case <-timeChan:
 			ticker.Stop()
-			journalctlOutput := ExecCommand(c, "journalctl", "-u", serviceName)
+			journalctlOutput := ExecCommand(c, "sudo", "journalctl", "-u", serviceName)
 			return fmt.Errorf("Service %s not active after %s, journalctl output: %s",
 				serviceName, maxWait, journalctlOutput)
 		case <-tickChan:
