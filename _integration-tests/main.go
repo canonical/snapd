@@ -79,17 +79,19 @@ func main() {
 	testutils.PrepareTargetDir(dataOutputDir)
 	defer os.RemoveAll(dataOutputDir)
 
+	remoteTestbed := *testbedIP != ""
+
 	// TODO: pass the config as arguments to the test binaries.
 	// --elopio - 2015-07-15
 	cfg := config.NewConfig(
 		configFileName, *imgRelease, *imgChannel, *targetRelease, *targetChannel,
-		*testbedIP, *update, *rollback)
+		remoteTestbed, *update, *rollback)
 	cfg.Write()
 
 	rootPath := testutils.RootPath()
 
 	test := autopkgtest.NewAutopkgtest(rootPath, baseDir, *testFilter, build.IntegrationTestName)
-	if *testbedIP == "" {
+	if !remoteTestbed {
 		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, baseDir)
 
 		if imagePath, err := img.UdfCreate(); err == nil {

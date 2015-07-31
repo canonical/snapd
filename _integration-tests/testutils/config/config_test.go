@@ -47,7 +47,7 @@ func testConfigStruct(fileName string) *Config {
 	return NewConfig(
 		fileName,
 		"testrelease", "testchannel", "testtargetrelease", "testtargetchannel",
-		"1.1.1.1", true, true)
+		true, true, true)
 }
 func testConfigContents(fileName string) string {
 	return `{` +
@@ -56,7 +56,7 @@ func testConfigContents(fileName string) string {
 		`"Channel":"testchannel",` +
 		`"TargetRelease":"testtargetrelease",` +
 		`"TargetChannel":"testtargetchannel",` +
-		`"TestbedIP":"1.1.1.1",` +
+		`"RemoteTestbed":true,` +
 		`"Update":true,` +
 		`"Rollback":true` +
 		`}`
@@ -91,4 +91,31 @@ func (s *ConfigSuite) TestReadConfig(c *check.C) {
 
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 	c.Assert(cfg, check.DeepEquals, testConfigStruct(configFileName))
+}
+
+func (s *ConfigSuite) TestReadConfigLocalTestBed(c *check.C) {
+	configFileName := testConfigFileName(c)
+
+	configContents := `{` +
+		fmt.Sprintf(`"FileName":"%s",`, configFileName) +
+		`"Release":"testrelease",` +
+		`"Channel":"testchannel",` +
+		`"TargetRelease":"testtargetrelease",` +
+		`"TargetChannel":"testtargetchannel",` +
+		`"RemoteTestbed":false,` +
+		`"Update":true,` +
+		`"Rollback":true` +
+		`}`
+
+	ioutil.WriteFile(configFileName, []byte(configContents), 0644)
+
+	cfg, err := ReadConfig(configFileName)
+
+	testConfigStruct := NewConfig(
+		configFileName,
+		"testrelease", "testchannel", "testtargetrelease", "testtargetchannel",
+		false, true, true)
+
+	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
+	c.Assert(cfg, check.DeepEquals, testConfigStruct)
 }
