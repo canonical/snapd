@@ -34,6 +34,14 @@ type infoSuite struct {
 }
 
 func (s *infoSuite) TestInfoMustPrintReleaseAndChannel(c *check.C) {
+	// skip test when having a remote testbed (we can't know which the
+	// release and channels are)
+	if Cfg.RemoteTestbed {
+		c.Skip(fmt.Sprintf(
+			"Skipping %s while testing in remote testbed",
+			c.TestName()))
+	}
+
 	infoOutput := ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms)" +
