@@ -58,7 +58,7 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
 	// install built snap and check output
 	installOutput := InstallSnap(c, snapName)
 	defer RemoveSnap(c, basicSnapName)
-	expected = "" +
+	expected = "(?ms)" +
 		"Installing " + snapName + "\n" +
 		".*Signature check failed, but installing anyway as requested\n" +
 		"Name +Date +Version +Developer \n" +
@@ -73,7 +73,7 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
 }
 
 func (s *buildSuite) TestBuildWrongYamlSnapOnSnappy(c *C) {
-	commonWrongTest(c, wrongYamlSnapName, "can not parse package.yaml:.*\n")
+	commonWrongTest(c, wrongYamlSnapName, "(?msi).*Can not parse.*yaml: line 2: mapping values are not allowed in this context.*")
 }
 
 func (s *buildSuite) TestBuildMissingReadmeSnapOnSnappy(c *C) {
