@@ -36,19 +36,19 @@ var _ = check.Suite(&TemplateSuite{})
 
 func (s *TemplateSuite) TestExecute(c *check.C) {
 	templateContents := "bla bla {{ .Par1 }} blabla {{ .Par2 }} blaaa"
-	templateFile := "/tmp/snappy-tpl-test"
-	err := ioutil.WriteFile(templateFile, []byte(templateContents), 0644)
+	templateFile, _ := ioutil.TempFile("", "snappy-tpl-test")
+	err := ioutil.WriteFile(templateFile.Name(), []byte(templateContents), 0644)
 	c.Assert(err, check.IsNil, check.Commentf("Error writing test template file"))
-	defer os.Remove(templateFile)
+	defer os.Remove(templateFile.Name())
 
-	outputFile := "/tmp/snappy-tpl-test-output"
+	outputFile, _ := ioutil.TempFile("", "snappy-tpl-test-output")
 	data := struct{ Par1, Par2 string }{"mypar1", "mypar2"}
 
-	err = Execute(templateFile, outputFile, data)
-	defer os.Remove(outputFile)
+	err = Execute(templateFile.Name(), outputFile.Name(), data)
+	defer os.Remove(outputFile.Name())
 	c.Assert(err, check.IsNil, check.Commentf("Error while creating file from template"))
 
-	outputContents, err := ioutil.ReadFile(outputFile)
+	outputContents, err := ioutil.ReadFile(outputFile.Name())
 	c.Assert(err, check.IsNil,
 		check.Commentf("Error while reading output file from template execution"))
 	expectedContents := "bla bla mypar1 blabla mypar2 blaaa"
