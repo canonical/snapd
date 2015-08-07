@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"launchpad.net/snappy/_integration-tests/testutils"
 	"launchpad.net/snappy/_integration-tests/testutils/tpl"
@@ -31,7 +32,6 @@ import (
 const (
 	controlTpl    = "_integration-tests/data/tpl/control"
 	dataOutputDir = "_integration-tests/data/output/"
-	adtrunTpl     = "adt-run -B --setup-commands 'touch /run/autopkgtest_no_reboot.stamp' --override-control %s --built-tree %s --output-dir %s %s"
 )
 
 var (
@@ -80,10 +80,14 @@ func (a *Autopkgtest) adtRun(testbedOptions string) {
 	outputDir := filepath.Join(a.testArtifactsPath, "output")
 	prepareTargetDir(outputDir)
 
-	cmdStr := fmt.Sprintf(adtrunTpl,
-		controlFile, a.sourceCodePath, outputDir, testbedOptions)
+	cmd := []string{
+		"adt-run", "-B",
+		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
+		"--override-control", controlFile,
+		"--built-tree", a.sourceCodePath,
+		"--output-dir", outputDir}
 
-	execCommand(cmdStr)
+	execCommand(append(cmd, strings.Fields(testbedOptions)...)...)
 }
 
 func (a *Autopkgtest) createControlFile() error {

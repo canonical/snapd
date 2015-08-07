@@ -41,6 +41,7 @@ const (
 	imgPath             = "imgPath"
 	testbedIP           = "1.1.1.1"
 	testbedPort         = 90
+	adtrunTpl           = "adt-run -B --setup-commands touch /run/autopkgtest_no_reboot.stamp --override-control %s --built-tree %s --output-dir %s %s"
 )
 
 type AutopkgtestSuite struct {
