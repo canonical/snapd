@@ -30,13 +30,6 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { check.TestingT(t) }
 
-const (
-	sourceCodePath      = "sourceCodePath"
-	testArtifactsPath   = "testArtifactsPath"
-	testFilter          = "testFilter"
-	integrationTestName = "integrationTestName"
-)
-
 type TemplateSuite struct{}
 
 var _ = check.Suite(&TemplateSuite{})
@@ -56,6 +49,8 @@ func (s *TemplateSuite) TestExecute(c *check.C) {
 	c.Assert(err, check.IsNil, check.Commentf("Error while creating file from template"))
 
 	outputContents, err := ioutil.ReadFile(outputFile)
+	c.Assert(err, check.IsNil,
+		check.Commentf("Error while reading output file from template execution"))
 	expectedContents := "bla bla mypar1 blabla mypar2 blaaa"
 
 	c.Assert(string(outputContents), check.Equals, expectedContents,
