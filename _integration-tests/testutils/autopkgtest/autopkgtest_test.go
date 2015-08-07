@@ -39,6 +39,8 @@ const (
 	testFilter          = "testFilter"
 	integrationTestName = "integrationTestName"
 	imgPath             = "imgPath"
+	testbedIP           = "1.1.1.1"
+	testbedPort         = 90
 )
 
 type AutopkgtestSuite struct {
@@ -127,7 +129,52 @@ func (s *AutopkgtestSuite) TestAdtRunLocalCallsExecCommand(c *check.C) {
 	outputDir := outputDir(testArtifactsPath)
 	expectedExecCommadCall := adtrunLocalCmd(controlFile, sourceCodePath, outputDir, imgPath)
 
+	c.Assert(s.execCalls[expectedExecCommadCall],
+		check.Equals, 1,
+		check.Commentf("Expected call %s not executed 1 time", expectedExecCommadCall))
+}
+
+func (s *AutopkgtestSuite) TestAdtRunRemoteCallsTplExecute(c *check.C) {
+	s.subject.AdtRunRemote(testbedIP, testbedPort)
+
+	expectedTplExecuteCall := tplExecuteCmd(controlTpl,
+		controlFile, struct{ Filter, Test string }{integrationTestName, testFilter})
+
+	c.Assert(s.tplExecuteCalls[expectedTplExecuteCall],
+		check.Equals, 1,
+		check.Commentf("Expected call %s not executed 1 time", expectedTplExecuteCall))
+}
+
+func (s *AutopkgtestSuite) TestAdtRunRemoteCallsPrepareTargetDir(c *check.C) {
+	s.subject.AdtRunRemote(testbedIP, testbedPort)
+
+	expectedMkDirCall := outputDir(testArtifactsPath)
+
+	c.Assert(s.mkDirCalls[expectedMkDirCall],
+		check.Equals, 1,
+		check.Commentf("Expected call %s not executed 1 time", expectedMkDirCall))
+}
+
+func (s *AutopkgtestSuite) TestAdtRunRemoteCallsSSHCopyId(c *check.C) {
+	s.subject.AdtRunRemote(testbedIP, testbedPort)
+
+	expectedExecCommadCall := fmt.Sprintf("ssh-copy-id -p %s ubuntu@%s", strconv.Itoa(testbedPort), testbedIP)
+
+	outputDir := outputDir(testArtifactsPath)
+	adtrunRemoteCmd(controlFile, sourceCodePath, outputDir, testbedIP, testbedPort)
+
+	c.Assert(s.execCalls[expectedExecCommadCall],
+		check.Equals, 1,
+		check.Commentf("Expected call %s not executed 1 time", expectedExecCommadCall))
+}
+
+func (s *AutopkgtestSuite) TestAdtRunRemoteCallsExecCommand(c *check.C) {
+	s.subject.AdtRunRemote(testbedIP, testbedPort)
+
+	outputDir := outputDir(testArtifactsPath)
 	fmt.Print("eee", s.execCalls)
+	expectedExecCommadCall := adtrunRemoteCmd(controlFile, sourceCodePath, outputDir, testbedIP, testbedPort)
+
 	c.Assert(s.execCalls[expectedExecCommadCall],
 		check.Equals, 1,
 		check.Commentf("Expected call %s not executed 1 time", expectedExecCommadCall))

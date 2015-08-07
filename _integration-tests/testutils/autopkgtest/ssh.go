@@ -37,7 +37,7 @@ func remoteTestbedSSHOptions(testbedIP string, testbedPort int) string {
 	return fmt.Sprint(commonSSHOptions,
 		"-H ", testbedIP,
 		" -p ", strconv.Itoa(testbedPort),
-		" -l ubuntu ",
+		" -l ubuntu",
 		" -i ", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa"),
 		" --reboot")
 }
