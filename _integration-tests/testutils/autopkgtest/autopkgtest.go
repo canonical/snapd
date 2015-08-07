@@ -90,11 +90,9 @@ func (a *Autopkgtest) adtRun(testbedOptions []string) {
 }
 
 func (a *Autopkgtest) createControlFile() error {
-	type controlData struct {
-		Filter string
-		Test   string
-	}
-
 	return tplExecute(controlTpl, controlFile,
-		controlData{Test: a.integrationTestName, Filter: a.testFilter})
+		struct {
+			Filter, Test string
+		}{
+			a.integrationTestName, a.testFilter})
 }
