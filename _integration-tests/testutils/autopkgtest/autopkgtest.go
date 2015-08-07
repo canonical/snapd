@@ -31,6 +31,7 @@ import (
 const (
 	controlTpl    = "_integration-tests/data/tpl/control"
 	dataOutputDir = "_integration-tests/data/output/"
+	adtrunTpl     = "adt-run -B --setup-commands 'touch /run/autopkgtest_no_reboot.stamp' --override-control %s --built-tree %s --output-dir %s %s"
 )
 
 var (
@@ -72,21 +73,17 @@ func (a *Autopkgtest) AdtRunRemote(testbedIP string, testbedPort int) {
 	a.adtRun(remoteTestbedSSHOptions(testbedIP, testbedPort))
 }
 
-func (a *Autopkgtest) adtRun(testbedOptions []string) {
+func (a *Autopkgtest) adtRun(testbedOptions string) {
 	a.createControlFile()
 
 	fmt.Println("Calling adt-run...")
 	outputDir := filepath.Join(a.testArtifactsPath, "output")
 	prepareTargetDir(outputDir)
 
-	cmd := []string{
-		"adt-run", "-B",
-		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
-		"--override-control", controlFile,
-		"--built-tree", a.sourceCodePath,
-		"--output-dir", outputDir}
+	cmdStr := fmt.Sprintf(adtrunTpl,
+		controlFile, a.sourceCodePath, outputDir, testbedOptions)
 
-	execCommand(append(cmd, testbedOptions...)...)
+	execCommand(cmdStr)
 }
 
 func (a *Autopkgtest) createControlFile() error {

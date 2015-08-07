@@ -21,6 +21,9 @@ package autopkgtest
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -97,7 +100,7 @@ func (s *AutopkgtestSuite) fakeTplExecute(tplFile, outputFile string, data inter
 	return
 }
 
-func (s *AutopkgtestSuite) TestAdtRunCallsTplExecuteLocal(c *check.C) {
+func (s *AutopkgtestSuite) TestAdtRunLocalCallsTplExecute(c *check.C) {
 	s.subject.AdtRunLocal(imgPath)
 
 	expectedTplExecuteCall := tplExecuteCmd(controlTpl,
@@ -108,6 +111,49 @@ func (s *AutopkgtestSuite) TestAdtRunCallsTplExecuteLocal(c *check.C) {
 		check.Commentf("Expected call %s not executed 1 time", expectedTplExecuteCall))
 }
 
+func (s *AutopkgtestSuite) TestAdtRunLocalCallsPrepareTargetDir(c *check.C) {
+	s.subject.AdtRunLocal(imgPath)
+
+	expectedMkDirCall := outputDir(testArtifactsPath)
+
+	c.Assert(s.mkDirCalls[expectedMkDirCall],
+		check.Equals, 1,
+		check.Commentf("Expected call %s not executed 1 time", expectedMkDirCall))
+}
+
+func (s *AutopkgtestSuite) TestAdtRunLocalCallsExecCommand(c *check.C) {
+	s.subject.AdtRunLocal(imgPath)
+
+	outputDir := outputDir(testArtifactsPath)
+	expectedExecCommadCall := adtrunLocalCmd(controlFile, sourceCodePath, outputDir, imgPath)
+
+	fmt.Print("eee", s.execCalls)
+	c.Assert(s.execCalls[expectedExecCommadCall],
+		check.Equals, 1,
+		check.Commentf("Expected call %s not executed 1 time", expectedExecCommadCall))
+}
+
 func tplExecuteCmd(tplFile, outputFile string, data interface{}) string {
 	return fmt.Sprint(tplFile, outputFile, data)
+}
+
+func outputDir(basePath string) string {
+	return filepath.Join(basePath, "output")
+}
+
+func adtrunLocalCmd(controlFile, sourceCodePath, outputDir, imgPath string) string {
+	options := fmt.Sprintf("--- ssh -s /usr/share/autopkgtest/ssh-setup/snappy -- -i %s", imgPath)
+	return adtrunCommonCmd(controlFile, sourceCodePath, outputDir, options)
+}
+
+func adtrunRemoteCmd(controlFile, sourceCodePath, outputDir, testbedIP string, testbedPort int) string {
+	port := strconv.Itoa(testbedPort)
+	idFile := filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa")
+	options := fmt.Sprintf("--- ssh -H %s -p %s -l ubuntu -i %s --reboot", testbedIP, port, idFile)
+
+	return adtrunCommonCmd(controlFile, sourceCodePath, outputDir, options)
+}
+
+func adtrunCommonCmd(controlFile, sourceCodePath, outputDir, options string) string {
+	return fmt.Sprintf(adtrunTpl, controlFile, sourceCodePath, outputDir, options)
 }

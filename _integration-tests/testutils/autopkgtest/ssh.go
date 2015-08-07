@@ -20,27 +20,24 @@
 package autopkgtest
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 )
 
-var commonSSHOptions = []string{"---", "ssh"}
+const commonSSHOptions = "--- ssh "
 
-func kvmSSHOptions(imagePath string) []string {
-	return append(
-		commonSSHOptions,
-		[]string{
-			"-s", "/usr/share/autopkgtest/ssh-setup/snappy",
-			"--", "-i", imagePath}...)
+func kvmSSHOptions(imagePath string) string {
+	return fmt.Sprint(commonSSHOptions,
+		"-s /usr/share/autopkgtest/ssh-setup/snappy -- -i ", imagePath)
 }
 
-func remoteTestbedSSHOptions(testbedIP string, testbedPort int) []string {
-	options := []string{
-		"-H", testbedIP,
-		"-p", strconv.Itoa(testbedPort),
-		"-l", "ubuntu",
-		"-i", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa"),
-		"--reboot"}
-	return append(commonSSHOptions, options...)
+func remoteTestbedSSHOptions(testbedIP string, testbedPort int) string {
+	return fmt.Sprint(commonSSHOptions,
+		"-H ", testbedIP,
+		" -p ", strconv.Itoa(testbedPort),
+		" -l ubuntu ",
+		" -i ", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa"),
+		" --reboot")
 }
