@@ -64,10 +64,6 @@ type AutopkgtestSuite struct {
 var _ = check.Suite(&AutopkgtestSuite{})
 
 func (s *AutopkgtestSuite) SetUpSuite(c *check.C) {
-	s.execCalls = make(map[string]int)
-	s.mkDirCalls = make(map[string]int)
-	s.tplExecuteCalls = make(map[string]int)
-
 	s.backExecCommand = execCommand
 	s.backPrepareTargetDir = prepareTargetDir
 	s.backTplExecute = tplExecute
