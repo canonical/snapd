@@ -61,20 +61,22 @@ func NewAutopkgtest(sourceCodePath, testArtifactsPath, testFilter, integrationTe
 
 // AdtRunLocal starts a kvm running the image passed as argument and runs the
 // autopkgtests using it as the testbed.
-func (a *Autopkgtest) AdtRunLocal(imgPath string) {
+func (a *Autopkgtest) AdtRunLocal(imgPath string) error {
 	// Run the tests on the latest rolling edge image.
-	a.adtRun(kvmSSHOptions(imgPath))
+	return a.adtRun(kvmSSHOptions(imgPath))
 }
 
 // AdtRunRemote runs the autopkgtests using a remote machine as the testbed.
-func (a *Autopkgtest) AdtRunRemote(testbedIP string, testbedPort int) {
+func (a *Autopkgtest) AdtRunRemote(testbedIP string, testbedPort int) error {
 	execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
 		"ubuntu@"+testbedIP)
-	a.adtRun(remoteTestbedSSHOptions(testbedIP, testbedPort))
+	return a.adtRun(remoteTestbedSSHOptions(testbedIP, testbedPort))
 }
 
-func (a *Autopkgtest) adtRun(testbedOptions string) {
-	a.createControlFile()
+func (a *Autopkgtest) adtRun(testbedOptions string) (err error) {
+	if err = a.createControlFile(); err != nil {
+		return
+	}
 
 	fmt.Println("Calling adt-run...")
 	outputDir := filepath.Join(a.testArtifactsPath, "output")
@@ -88,6 +90,8 @@ func (a *Autopkgtest) adtRun(testbedOptions string) {
 		"--output-dir", outputDir}
 
 	execCommand(append(cmd, strings.Fields(testbedOptions)...)...)
+
+	return
 }
 
 func (a *Autopkgtest) createControlFile() error {

@@ -20,6 +20,7 @@
 package autopkgtest
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,6 +56,7 @@ type AutopkgtestSuite struct {
 
 	tplExecuteCalls map[string]int
 	backTplExecute  func(string, string, interface{}) error
+	tplError        bool
 
 	subject *Autopkgtest
 }
@@ -87,6 +89,7 @@ func (s *AutopkgtestSuite) SetUpTest(c *check.C) {
 	s.execCalls = make(map[string]int)
 	s.mkDirCalls = make(map[string]int)
 	s.tplExecuteCalls = make(map[string]int)
+	s.tplError = false
 }
 
 func (s *AutopkgtestSuite) fakeExecCommand(args ...string) (err error) {
@@ -100,6 +103,9 @@ func (s *AutopkgtestSuite) fakePrepareTargetDir(path string) {
 
 func (s *AutopkgtestSuite) fakeTplExecute(tplFile, outputFile string, data interface{}) (err error) {
 	s.tplExecuteCalls[tplExecuteCmd(tplFile, outputFile, data)]++
+	if s.tplError {
+		err = errors.New("Error while rendering control file template!")
+	}
 	return
 }
 
@@ -133,6 +139,13 @@ func (s *AutopkgtestSuite) TestAdtRunLocalCallsExecCommand(c *check.C) {
 	c.Assert(s.execCalls[expectedExecCommadCall],
 		check.Equals, 1,
 		check.Commentf("Expected call %s not executed 1 time", expectedExecCommadCall))
+}
+
+func (s *AutopkgtestSuite) TestAdtRunLocalReturnsTplError(c *check.C) {
+	s.tplError = true
+	err := s.subject.AdtRunLocal(imgPath)
+
+	c.Assert(err, check.NotNil, check.Commentf("Expected error from tpl not received!"))
 }
 
 func (s *AutopkgtestSuite) TestAdtRunRemoteCallsTplExecute(c *check.C) {
@@ -179,6 +192,13 @@ func (s *AutopkgtestSuite) TestAdtRunRemoteCallsExecCommand(c *check.C) {
 	c.Assert(s.execCalls[expectedExecCommadCall],
 		check.Equals, 1,
 		check.Commentf("Expected call %s not executed 1 time", expectedExecCommadCall))
+}
+
+func (s *AutopkgtestSuite) TestAdtRunRemoteReturnsTplError(c *check.C) {
+	s.tplError = true
+	err := s.subject.AdtRunRemote(testbedIP, testbedPort)
+
+	c.Assert(err, check.NotNil, check.Commentf("Expected error from tpl not received!"))
 }
 
 func tplExecuteCmd(tplFile, outputFile string, data interface{}) string {

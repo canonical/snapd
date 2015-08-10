@@ -95,11 +95,15 @@ func main() {
 		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, baseDir)
 
 		if imagePath, err := img.UdfCreate(); err == nil {
-			test.AdtRunLocal(imagePath)
+			if err = test.AdtRunLocal(imagePath); err != nil {
+				log.Panic(err.Error())
+			}
 		} else {
 			log.Panic(err.Error())
 		}
 	} else {
-		test.AdtRunRemote(*testbedIP, *testbedPort)
+		if err := test.AdtRunRemote(*testbedIP, *testbedPort); err != nil {
+			log.Panic(err.Error())
+		}
 	}
 }

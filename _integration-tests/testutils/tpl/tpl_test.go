@@ -57,3 +57,18 @@ func (s *TemplateSuite) TestExecute(c *check.C) {
 		check.Commentf(
 			"The parsed template contents do not match the expected contents"))
 }
+
+func (s *TemplateSuite) TestError(c *check.C) {
+	templateContents := "bla bla {{ .Par1 }} blabla {{ .Par2 }} blaaa"
+	templateFile, _ := ioutil.TempFile("", "snappy-tpl-test")
+	err := ioutil.WriteFile(templateFile.Name(), []byte(templateContents), 0644)
+	c.Assert(err, check.IsNil, check.Commentf("Error writing test template file"))
+	defer os.Remove(templateFile.Name())
+
+	outputFile, _ := ioutil.TempFile("", "snappy-tpl-test-output")
+	data := struct{ Par3, Par4 string }{"mypar1", "mypar2"}
+
+	err = Execute(templateFile.Name(), outputFile.Name(), data)
+	defer os.Remove(outputFile.Name())
+	c.Assert(err, check.NotNil, check.Commentf("Expected error while executing template not received"))
+}
