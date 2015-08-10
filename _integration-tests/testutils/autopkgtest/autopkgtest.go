@@ -99,5 +99,5 @@ func (a *Autopkgtest) createControlFile() error {
 		struct {
 			Filter, Test string
 		}{
-			a.integrationTestName, a.testFilter})
+			a.testFilter, a.integrationTestName})
 }

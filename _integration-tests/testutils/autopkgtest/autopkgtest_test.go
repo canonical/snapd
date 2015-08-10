@@ -109,7 +109,7 @@ func (s *AutopkgtestSuite) TestAdtRunLocalCallsTplExecute(c *check.C) {
 	s.subject.AdtRunLocal(imgPath)
 
 	expectedTplExecuteCall := tplExecuteCmd(controlTpl,
-		controlFile, struct{ Filter, Test string }{integrationTestName, testFilter})
+		controlFile, struct{ Filter, Test string }{testFilter, integrationTestName})
 
 	c.Assert(s.tplExecuteCalls[expectedTplExecuteCall],
 		check.Equals, 1,
@@ -148,7 +148,7 @@ func (s *AutopkgtestSuite) TestAdtRunRemoteCallsTplExecute(c *check.C) {
 	s.subject.AdtRunRemote(testbedIP, testbedPort)
 
 	expectedTplExecuteCall := tplExecuteCmd(controlTpl,
-		controlFile, struct{ Filter, Test string }{integrationTestName, testFilter})
+		controlFile, struct{ Filter, Test string }{testFilter, integrationTestName})
 
 	c.Assert(s.tplExecuteCalls[expectedTplExecuteCall],
 		check.Equals, 1,
@@ -182,7 +182,6 @@ func (s *AutopkgtestSuite) TestAdtRunRemoteCallsExecCommand(c *check.C) {
 	s.subject.AdtRunRemote(testbedIP, testbedPort)
 
 	outputDir := outputDir(testArtifactsPath)
-	fmt.Print("eee", s.execCalls)
 	expectedExecCommadCall := adtrunRemoteCmd(controlFile, sourceCodePath, outputDir, testbedIP, testbedPort)
 
 	c.Assert(s.execCalls[expectedExecCommadCall],
