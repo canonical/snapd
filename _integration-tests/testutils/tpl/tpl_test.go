@@ -58,7 +58,7 @@ func (s *TemplateSuite) TestExecute(c *check.C) {
 			"The parsed template contents do not match the expected contents"))
 }
 
-func (s *TemplateSuite) TestError(c *check.C) {
+func (s *TemplateSuite) TestErrorExecute(c *check.C) {
 	templateContents := "bla bla {{ .Par1 }} blabla {{ .Par2 }} blaaa"
 	templateFile, _ := ioutil.TempFile("", "snappy-tpl-test")
 	err := ioutil.WriteFile(templateFile.Name(), []byte(templateContents), 0644)
@@ -70,5 +70,34 @@ func (s *TemplateSuite) TestError(c *check.C) {
 
 	err = Execute(templateFile.Name(), outputFile.Name(), data)
 	defer os.Remove(outputFile.Name())
+	c.Assert(err, check.NotNil, check.Commentf("Expected error while executing template not received"))
+}
+
+func (s *TemplateSuite) TestErrorTemplateParse(c *check.C) {
+	wrongTemplateContents := "bla bla {{ .Par1 }} blabla {{ Par2 } blaaa"
+	templateFile, _ := ioutil.TempFile("", "snappy-tpl-test")
+	err := ioutil.WriteFile(templateFile.Name(), []byte(wrongTemplateContents), 0644)
+	c.Assert(err, check.IsNil, check.Commentf("Error writing test template file"))
+	defer os.Remove(templateFile.Name())
+
+	outputFile, _ := ioutil.TempFile("", "snappy-tpl-test-output")
+	data := struct{ Par1, Par2 string }{"mypar1", "mypar2"}
+
+	err = Execute(templateFile.Name(), outputFile.Name(), data)
+	defer os.Remove(outputFile.Name())
+	c.Assert(err, check.NotNil, check.Commentf("Expected error while executing template not received"))
+}
+
+func (s *TemplateSuite) TestErrorOutputFileCreate(c *check.C) {
+	templateContents := "bla bla {{ .Par1 }} blabla {{ .Par2 }} blaaa"
+	templateFile, _ := ioutil.TempFile("", "snappy-tpl-test")
+	err := ioutil.WriteFile(templateFile.Name(), []byte(templateContents), 0644)
+	c.Assert(err, check.IsNil, check.Commentf("Error writing test template file"))
+	defer os.Remove(templateFile.Name())
+
+	wrongOutputFile := "/unexistent/path/with/unexistent/file"
+	data := struct{ Par1, Par2 string }{"mypar1", "mypar2"}
+
+	err = Execute(templateFile.Name(), wrongOutputFile, data)
 	c.Assert(err, check.NotNil, check.Commentf("Expected error while executing template not received"))
 }
