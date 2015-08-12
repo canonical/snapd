@@ -20,10 +20,13 @@
 package tests
 
 import (
+	"os"
 	"testing"
 
-	. "gopkg.in/check.v1"
+	"launchpad.net/snappy/_integration-tests/testutils/runner"
 )
 
 // Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) { TestingT(t) }
+func Test(t *testing.T) {
+	runner.TestingT(t, os.Stdout)
+}
