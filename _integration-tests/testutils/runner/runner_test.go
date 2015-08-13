@@ -42,8 +42,9 @@ func (m *GenericTestSuite) TestFail(c *check.C) {
 }
 
 func TestRunnerPipesOutput(t *testing.T) {
+	back := getFlagValue("v")
 	flag.Set("check.v", "true")
-	defer flag.Set("check.v", "false")
+	defer flag.Set("check.v", back)
 
 	var output bytes.Buffer
 	// passing here a different *testing.T so that the results
@@ -90,4 +91,12 @@ func TestRunnerAcceptsFilterFlag(t *testing.T) {
 		t.Errorf("Unexpected value obtained in the output writer!! Unexpected: %s, Actual: %s",
 			unExpectedOutput, output.String())
 	}
+}
+
+func getFlagValue(name string) string {
+	currentFlag := flag.CommandLine.Lookup("check.v")
+	if currentFlag != nil {
+		return "true"
+	}
+	return "false"
 }
