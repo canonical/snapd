@@ -17,27 +17,26 @@
  *
  */
 
-package autopkgtest
+package tpl
 
 import (
-	"fmt"
 	"os"
-	"path/filepath"
-	"strconv"
+	"text/template"
 )
 
-const commonSSHOptions = "--- ssh "
+// Execute inserts the given data in the given template file, saving the results
+// in the given output file
+func Execute(tplFile, outputFile string, data interface{}) (err error) {
+	t, err := template.ParseFiles(tplFile)
+	if err != nil {
+		return
+	}
 
-func kvmSSHOptions(imagePath string) string {
-	return fmt.Sprint(commonSSHOptions,
-		"-s /usr/share/autopkgtest/ssh-setup/snappy -- -i ", imagePath)
-}
+	fileHandler, err := os.Create(outputFile)
+	if err != nil {
+		return
+	}
+	defer fileHandler.Close()
 
-func remoteTestbedSSHOptions(testbedIP string, testbedPort int) string {
-	return fmt.Sprint(commonSSHOptions,
-		"-H ", testbedIP,
-		" -p ", strconv.Itoa(testbedPort),
-		" -l ubuntu",
-		" -i ", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa"),
-		" --reboot")
+	return t.Execute(fileHandler, data)
 }
