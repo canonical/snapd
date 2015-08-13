@@ -56,6 +56,9 @@ func (m *GenericTestSuite) TestFail(c *check.C) {
 }
 
 func TestRunnerPipesOutput(t *testing.T) {
+	flag.Set("check.v", "true")
+	defer flag.Set("check.v", "false")
+
 	output := &String{}
 	// passing here a different *testing.T so that the results
 	// of the tests in the target suite do not pollute the results of
@@ -72,6 +75,7 @@ func TestRunnerPipesOutput(t *testing.T) {
 
 func TestRunnerAcceptsStreamFlag(t *testing.T) {
 	flag.Set("check.vv", "true")
+	defer flag.Set("check.vv", "false")
 
 	output := &String{}
 	TestingT(new(testing.T), output)
@@ -85,12 +89,11 @@ PASS: runner_test.go:.*: GenericTestSuite.TestSuccess.*`
 		t.Errorf("Expected value not obtained in the output writer!! Expected: %s, Actual: %s",
 			expectedOutput, output.value)
 	}
-
-	flag.Set("check.vv", "false")
 }
 
 func TestRunnerAcceptsFilterFlag(t *testing.T) {
 	flag.Set("check.f", "GenericTestSuite.TestSuccess")
+	defer flag.Set("check.f", "")
 
 	output := &String{}
 	TestingT(new(testing.T), output)
@@ -101,6 +104,4 @@ func TestRunnerAcceptsFilterFlag(t *testing.T) {
 		t.Errorf("Unexpected value obtained in the output writer!! Unexpected: %s, Actual: %s",
 			unExpectedOutput, output.value)
 	}
-
-	flag.Set("check.f", "")
 }
