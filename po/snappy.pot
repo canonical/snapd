@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-07-24 16:16+0100\n"
+        "POT-Creation-Date: 2015-08-14 13:36+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -323,6 +323,9 @@ msgid   "installed: %s\n"
 msgstr  ""
 
 msgid   "package name is required"
+msgstr  ""
+
+msgid   "produces manpage"
 msgstr  ""
 
 #. TRANSLATORS: the %s release string
