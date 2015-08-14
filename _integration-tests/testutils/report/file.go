@@ -25,7 +25,7 @@ import (
 	"sync"
 )
 
-const reporterFilePath = "../../../_integration-tests/data/results.basic"
+const reporterFilePath = "results.subunit"
 
 // FileReporter is a type implementing io.Writer that
 // writes the data passed to its Writer method
@@ -44,7 +44,7 @@ func (fr *FileReporter) Write(data []byte) (n int, err error) {
 }
 
 func (fr *FileReporter) getFileHandler(path string) (file *os.File, err error) {
-	absolutePath, _ := filepath.Abs(path)
+	absolutePath := getFilePath(path)
 	fr.once.Do(func() {
 		file, err = os.Create(absolutePath)
 	})
@@ -52,4 +52,8 @@ func (fr *FileReporter) getFileHandler(path string) (file *os.File, err error) {
 		file, err = os.OpenFile(absolutePath, os.O_APPEND|os.O_WRONLY, 0600)
 	}
 	return
+}
+
+func getFilePath(path string) string {
+	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), path)
 }

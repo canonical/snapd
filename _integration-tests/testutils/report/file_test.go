@@ -22,7 +22,6 @@ package report
 import (
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -40,7 +39,7 @@ type FileReportSuite struct {
 }
 
 func (s *FileReportSuite) SetUpSuite(c *check.C) {
-	s.path, _ = filepath.Abs(reporterFilePath)
+	s.path = getFilePath(reporterFilePath)
 }
 
 func (s *FileReportSuite) SetUpTest(c *check.C) {
@@ -48,7 +47,7 @@ func (s *FileReportSuite) SetUpTest(c *check.C) {
 }
 
 func (s *FileReportSuite) TearDownTest(c *check.C) {
-	os.Remove(reporterFilePath)
+	os.Remove(s.path)
 }
 
 func (s *FileReportSuite) TestFileReporterCreatesOutputFile(c *check.C) {
@@ -64,14 +63,28 @@ func (s *FileReportSuite) TestFileReporterCreatesOutputFile(c *check.C) {
 func (s *FileReportSuite) TestFileReporterWritesGivenData(c *check.C) {
 	s.subject.Write([]byte("Test"))
 
-	content, err := ioutil.ReadFile(reporterFilePath)
+	content, err := ioutil.ReadFile(s.path)
 
 	c.Assert(err, check.IsNil,
-		check.Commentf("Error reading file %s, %s", reporterFilePath, err))
+		check.Commentf("Error reading file %s, %s", s.path, err))
 
 	c.Assert(string(content), check.Equals, "Test",
 		check.Commentf("Expected content '%s' not found, actual '%s'",
 			"Test", string(content)))
+}
+
+func (s *FileReportSuite) TestFileReporterHonoursAdtEnv(c *check.C) {
+	back := os.Getenv("ADT_ARTIFACTS")
+	defer os.Setenv("ADT_ARTIFACTS", back)
+	os.Setenv("ADT_ARTIFACTS", "/tmp")
+
+	s.subject.Write([]byte("Test"))
+
+	path := getFilePath(reporterFilePath)
+	_, err := ioutil.ReadFile(path)
+
+	c.Assert(err, check.IsNil,
+		check.Commentf("Error reading file %s, %s", path, err))
 }
 
 func (s *FileReportSuite) TestFileReporterRemovesPreviousFile(c *check.C) {
