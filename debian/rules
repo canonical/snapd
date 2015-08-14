@@ -61,7 +61,7 @@ override_dh_systemd_start:
 
 override_dh_auto_build:
 	# this will update the i18n stuff
-	go generate ./i18n
+	$(shell GOPATH=$$builddir go generate ./i18n)
 	dh_auto_build
 
 override_dh_auto_install:

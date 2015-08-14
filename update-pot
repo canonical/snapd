@@ -10,9 +10,10 @@ if [ -n "$1" ]; then
 	OUTPUT="$1"
 fi
 
-go build ./i18n/xgettext-go
+# ensure we have our xgettext-go
+go install launchpad.net/snappy/i18n/xgettext-go
 
-./xgettext-go \
+$GOPATH/xgettext-go \
     -o "$OUTPUT" \
     --add-comments-tag=TRANSLATORS: \
     --no-location \
