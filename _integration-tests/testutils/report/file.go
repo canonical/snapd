@@ -38,7 +38,7 @@ func (fr *FileReporter) Write(data []byte) (n int, err error) {
 	file, err := fr.getFileHandler(reporterFilePath)
 	defer file.Close()
 
-	_, err = file.Write(data)
+	n, err = file.Write(data)
 
 	return
 }

@@ -103,3 +103,15 @@ func (s *FileReportSuite) TestFileReporterDoNotRecreateOutputFile(c *check.C) {
 		check.Commentf("Not found appended data in output file! content %s, not found %s",
 			string(content), "Start-End"))
 }
+
+func (s *FileReportSuite) TestFileReporterReturnsTheNumberOfBytesWritten(c *check.C) {
+	testData := "Test data"
+	actual, err := s.subject.Write([]byte(testData))
+	c.Assert(err, check.IsNil, check.Commentf("Error while writing to output %s", err))
+
+	expected := len([]byte(testData))
+
+	c.Assert(actual, check.Equals, expected,
+		check.Commentf("Expected length output %d not found, actual %d",
+			expected, actual))
+}
