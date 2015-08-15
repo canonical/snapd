@@ -22,7 +22,6 @@ package report
 import (
 	"os"
 	"path/filepath"
-	"sync"
 )
 
 const reporterFilePath = "results.subunit"
@@ -30,9 +29,7 @@ const reporterFilePath = "results.subunit"
 // FileReporter is a type implementing io.Writer that
 // writes the data passed to its Writer method
 // in a file
-type FileReporter struct {
-	once sync.Once
-}
+type FileReporter struct{}
 
 func (fr *FileReporter) Write(data []byte) (n int, err error) {
 	file, err := fr.getFileHandler(reporterFilePath)
@@ -45,9 +42,9 @@ func (fr *FileReporter) Write(data []byte) (n int, err error) {
 
 func (fr *FileReporter) getFileHandler(path string) (file *os.File, err error) {
 	absolutePath := getFilePath(path)
-	fr.once.Do(func() {
+	if _, err := os.Stat(absolutePath); err != nil {
 		file, err = os.Create(absolutePath)
-	})
+	}
 	if file == nil {
 		file, err = os.OpenFile(absolutePath, os.O_APPEND|os.O_WRONLY, 0600)
 	}

@@ -22,7 +22,6 @@ package report
 import (
 	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 
 	check "gopkg.in/check.v1"
@@ -87,20 +86,20 @@ func (s *FileReportSuite) TestFileReporterHonoursAdtEnv(c *check.C) {
 		check.Commentf("Error reading file %s, %s", path, err))
 }
 
-func (s *FileReportSuite) TestFileReporterRemovesPreviousFile(c *check.C) {
+func (s *FileReportSuite) TestFileReporterPreservesPreviousFile(c *check.C) {
 	previousData := "prevdata"
 	err := ioutil.WriteFile(s.path, []byte(previousData), 0644)
 	c.Assert(err, check.IsNil,
 		check.Commentf("Obtained error while writing file %s, %s", s.path, err))
 
-	s.subject.Write([]byte("Test"))
+	s.subject.Write([]byte("-postdata"))
 
 	content, err := ioutil.ReadFile(s.path)
 
 	c.Assert(err, check.IsNil,
 		check.Commentf("Obtained error while reading file %s, %s", s.path, err))
 
-	c.Assert(strings.Contains(string(content), previousData), check.Equals, false,
+	c.Assert(string(content), check.Equals, "prevdata-postdata",
 		check.Commentf("Found previous data in output file! %s", string(content)))
 }
 
