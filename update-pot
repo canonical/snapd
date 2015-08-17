@@ -13,7 +13,7 @@ fi
 # ensure we have our xgettext-go
 go install launchpad.net/snappy/i18n/xgettext-go
 
-$GOPATH/xgettext-go \
+$GOPATH/bin/xgettext-go \
     -o "$OUTPUT" \
     --add-comments-tag=TRANSLATORS: \
     --no-location \
