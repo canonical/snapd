@@ -22,7 +22,6 @@ package report
 import (
 	"fmt"
 	"io"
-	"os/exec"
 	"regexp"
 )
 
@@ -46,10 +45,12 @@ var (
 //
 // The input data is expected to be of the form of the textual
 // output of gocheck with verbose mode enabled, and the output
-// will be subunit protocol version 2. There are constants reflecting the
-// expected patterns for this texts. Additionally, it doesn't take  into
-// account the SKIPs done from a SetUpTest method, due to the nature of the
-// snappy test suite we are using those for resuming execution after a reboot
+// will be of the form defined by the subunit format before
+// the binary encoding. There are constants reflecting the
+// expected patterns for this texts.
+// Additionally, it doesn't take  into account the SKIPs done
+// from a SetUpTest method, due to the nature of the snappy test
+// suite we are using those for resuming execution after a reboot
 // and they shouldn't be reflected as skipped tests in the final
 // output. For the same reason we use a special marker for the
 // test's announce.
@@ -58,25 +59,23 @@ type ParserReporter struct {
 }
 
 func (fr *ParserReporter) Write(data []byte) (n int, err error) {
-	var output []byte
+	var outputStr string
 
 	if matches := announceRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
-		output, err = exec.Command(
-			"subunit-output", "--exists", matches[1]).Output()
+		outputStr = fmt.Sprintf("test: %s\n", matches[1])
+
 	} else if matches := successRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
-		output, err = exec.Command(
-			"subunit-output", "--success", matches[1]).Output()
+		outputStr = fmt.Sprintf("success: %s\n", matches[1])
+
 	} else if matches := failureRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
-		output, err = exec.Command("subunit-output", "--fail", matches[1]).Output()
+		outputStr = fmt.Sprintf("failure: %s\n", matches[1])
 
 	} else if matches := skipRegexp.FindStringSubmatch(string(data)); len(matches) == 3 {
-		output, err = exec.Command("subunit-output", "--skip", matches[1]).Output()
-		// matches[2]
+		outputStr = fmt.Sprintf("skip: %s [\n%s\n]\n", matches[1], matches[2])
 	}
 
-	if err == nil {
-		n = len(output)
-		fr.Next.Write(output)
-	}
+	outputByte := []byte(outputStr)
+	n = len(outputByte)
+	fr.Next.Write(outputByte)
 	return
 }
