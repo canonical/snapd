@@ -9,6 +9,10 @@
 
  *  Internet access in the test bed.
 
+ *  (Optional) subunit, to display nice test results in the terminal:
+
+        sudo apt-get install subunit
+
 ## Setting up the project
 
 First you need to set up the GOPATH, get the snappy sources and the
