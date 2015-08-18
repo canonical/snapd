@@ -59,13 +59,12 @@ override_dh_systemd_start:
 		-pubuntu-snappy \
 		snappy-wait4network.service
 
+# we need the builddir; is there a simpler way to get it?
 BUILDDIR:=${CURDIR}/obj-$(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
 override_dh_auto_build:
 	dh_auto_build
 	# this will update the i18n stuff using our build-in xgettext-go
-	# (for this it needs the builddir gopath, I wonder if there is
-	# simpler way to get the builddir?)
 	GOPATH=${BUILDDIR} go generate ./i18n
 
 override_dh_auto_install: snappy.8
