@@ -60,9 +60,11 @@ override_dh_systemd_start:
 		snappy-wait4network.service
 
 override_dh_auto_build:
-	# this will update the i18n stuff
-	$(shell GOPATH=$$builddir go generate ./i18n)
 	dh_auto_build
+	# this will update the i18n stuff using our build-in xgettext-go
+	# (for this it needs the builddir gopath, I wonder if there is
+	# simpler way to get the builddir?)
+	GOPATH=${CURDIR}/obj-$(shell dpkg-architecture -qDEB_HOST_MULTIARCH) go generate ./i18n
 
 override_dh_auto_install: snappy.8
 	dh_auto_install -O--buildsystem=golang
