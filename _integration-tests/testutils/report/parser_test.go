@@ -101,7 +101,7 @@ func (s *ParserReportSuite) TestParserReporterOutputsSkip(c *check.C) {
 	skipReason := "skip reason"
 	s.subject.Write([]byte(fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/launchpad.net/snappy/_integration-tests/tests/info_test.go:36: %s (%s)\n", s.testID, skipReason)))
 
-	expected := fmt.Sprintf("skip: %s [\n%s]\n", s.testID, skipReason)
+	expected := fmt.Sprintf("skip: %s [\n%s\n]\n", s.testID, skipReason)
 	actual := s.output.String()
 
 	c.Assert(actual, check.Equals, expected,
