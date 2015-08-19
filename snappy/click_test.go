@@ -1134,8 +1134,10 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
+	m, err := parsePackageYamlFile(yamlFile)
+	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = addPackageServices(baseDir, false, nil)
+	err = m.addPackageServices(baseDir, false, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
@@ -1161,8 +1163,10 @@ services:
 `
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
 	c.Assert(err, IsNil)
+	m, err := parsePackageYamlFile(yamlFile)
+	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = addPackageServices(baseDir, false, nil)
+	err = m.addPackageServices(baseDir, false, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
@@ -1181,8 +1185,10 @@ services:
 `
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
 	c.Assert(err, IsNil)
+	m, err := parsePackageYamlFile(yamlFile)
+	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = addPackageServices(baseDir, false, nil)
+	err = m.addPackageServices(baseDir, false, nil)
 	c.Assert(err, IsNil)
 
 	_, err = ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
@@ -1197,8 +1203,10 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
+	m, err := parsePackageYamlFile(yamlFile)
+	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = addPackageBinaries(baseDir)
+	err = m.addPackageBinaries(baseDir)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/apps/bin/hello-app.hello"))
@@ -1523,8 +1531,10 @@ services:
    stop-timeout: 25
 `)
 	c.Assert(err, IsNil)
+	m, err := parsePackageYamlFile(yamlFile)
+	c.Assert(err, IsNil)
 	inter := &MockProgressMeter{}
-	c.Check(removePackageServices(filepath.Dir(filepath.Dir(yamlFile)), inter), IsNil)
+	c.Check(m.removePackageServices(filepath.Dir(filepath.Dir(yamlFile)), inter), IsNil)
 	c.Assert(len(inter.notified) > 0, Equals, true)
 	c.Check(inter.notified[len(inter.notified)-1], Equals, "wat_wat_42.service refused to stop, killing.")
 	c.Assert(len(sysdLog) >= 3, Equals, true)

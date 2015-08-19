@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"launchpad.net/snappy/logger"
+	"strconv"
 )
 
 var goarch = runtime.GOARCH
@@ -271,6 +272,12 @@ func MakeRandomString(length int) string {
 	}
 
 	return out
+}
+
+// NewSideloadVersion returns a version number such that later calls
+// should return versions that compare larger.
+func NewSideloadVersion() string {
+	return strconv.FormatInt(time.Now().UTC().UnixNano(), 36)
 }
 
 // AtomicWriteFile updates the filename atomically and works otherwise

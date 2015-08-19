@@ -571,6 +571,11 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 	if m.Type == pkg.TypeOem {
 		targetDir = snapOemDir
 	}
+
+	if origin == sideloadedOrigin {
+		m.Version = helpers.NewSideloadVersion()
+	}
+
 	fullName := m.qualifiedName(origin)
 	instDir := filepath.Join(targetDir, fullName, m.Version)
 
@@ -592,6 +597,10 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 		basedir: filepath.Dir(filepath.Dir(yamlPath)),
 		origin:  origin,
 		m:       m,
+	}
+
+	if origin == sideloadedOrigin {
+		m.Version = filepath.Base(part.basedir)
 	}
 
 	// check if the part is active
@@ -658,6 +667,10 @@ func (s *SnapPart) Name() string {
 
 // Version returns the version
 func (s *SnapPart) Version() string {
+	if s.basedir != "" {
+		return filepath.Base(s.basedir)
+	}
+
 	return s.m.Version
 }
 
@@ -988,11 +1001,11 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	}
 
 	// add the "binaries:" from the package.yaml
-	if err := addPackageBinaries(s.basedir); err != nil {
+	if err := s.m.addPackageBinaries(s.basedir); err != nil {
 		return err
 	}
 	// add the "services:" from the package.yaml
-	if err := addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
+	if err := s.m.addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
 		return err
 	}
 
@@ -1020,11 +1033,11 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	// remove generated services, binaries, clickHooks, security policy
-	if err := removePackageBinaries(s.basedir); err != nil {
+	if err := s.m.removePackageBinaries(s.basedir); err != nil {
 		return err
 	}
 
-	if err := removePackageServices(s.basedir, inter); err != nil {
+	if err := s.m.removePackageServices(s.basedir, inter); err != nil {
 		return err
 	}
 
