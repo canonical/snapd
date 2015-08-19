@@ -1,3 +1,10 @@
+ubuntu-core-launcher (1.0.9) wily; urgency=medium
+
+  * debian/usr.bin.ubuntu-core-launcher: add rw for /dev/null, /dev/full and
+    /dev/zero
+
+ -- Jamie Strandboge <jamie@ubuntu.com>  Wed, 19 Aug 2015 08:16:53 -0500
+
 ubuntu-core-launcher (1.0.8) wily; urgency=medium
 
   [ John Lenton ]
