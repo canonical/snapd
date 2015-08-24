@@ -31,7 +31,8 @@ import (
 )
 
 type cmdConsole struct {
-	repl *liner.State
+	repl          *liner.State
+	extraCommands []consoleCommand
 }
 
 func init() {
@@ -48,8 +49,18 @@ func (x *cmdConsole) Execute(args []string) error {
 	return x.doConsole()
 }
 
+type consoleCommand struct {
+	name string
+	fn   func(line string) error
+}
+
 func (x *cmdConsole) InitConsole() error {
 	// FIXME: add history (ReadHistory/WriteHistory)
+
+	x.extraCommands = []consoleCommand{
+		{"help", x.doHelp},
+		{"shell", x.doShell},
+	}
 
 	x.repl = liner.NewLiner()
 	x.repl.SetCompleter(func(line string) (c []string) {
@@ -60,12 +71,10 @@ func (x *cmdConsole) InitConsole() error {
 				c = append(c, cmd.Name)
 			}
 		}
-		// FIXME: generalize the extra commands
-		if strings.HasPrefix("help", line) {
-			c = append(c, "help")
-		}
-		if strings.HasPrefix("shell", line) {
-			c = append(c, "shell")
+		for _, cmd := range x.extraCommands {
+			if strings.HasPrefix(cmd.name, line) {
+				c = append(c, cmd.name)
+			}
 		}
 
 		return c
@@ -84,7 +93,7 @@ func (x *cmdConsole) PrintWelcomeMessage() {
 	fmt.Println("Type 'shell' for entering a shell")
 }
 
-func (x *cmdConsole) doShell() error {
+func (x *cmdConsole) doShell(line string) error {
 	// restore terminal for the shell
 	x.CloseConsole()
 	defer x.InitConsole()
@@ -104,7 +113,7 @@ func (x *cmdConsole) doShell() error {
 	return nil
 }
 
-func (x *cmdConsole) doHelp() error {
+func (x *cmdConsole) doHelp(line string) error {
 	// FIXME: support "help subcommand" by
 	//        just finding subcommand in parser
 	//        and setting it to "Active"
@@ -119,25 +128,26 @@ func (x *cmdConsole) doConsole() error {
 	defer x.CloseConsole()
 	x.PrintWelcomeMessage()
 
+outer:
 	for {
 		line, err := x.repl.Prompt("> ")
 		if err != nil {
 			return err
 		}
+		x.repl.AppendHistory(line)
 
-		switch {
-		case strings.HasPrefix(line, "help"):
-			x.doHelp()
-		case strings.HasPrefix(line, "shell"):
-			x.doShell()
-		default:
-			// do it
-			_, err = parser.ParseArgs(strings.Fields(line))
-			if err != nil {
-				fmt.Println(err)
+		for _, cmd := range x.extraCommands {
+			if strings.HasPrefix(line, cmd.name) {
+				if err := cmd.fn(line); err != nil {
+					fmt.Println(err)
+				}
+				continue outer
 			}
 		}
 
-		x.repl.AppendHistory(line)
+		if _, err = parser.ParseArgs(strings.Fields(line)); err != nil {
+			fmt.Println(err)
+		}
+
 	}
 }
