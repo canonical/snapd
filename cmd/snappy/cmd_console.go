@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -29,6 +30,9 @@ import (
 
 	"launchpad.net/snappy/logger"
 )
+
+// for testing
+var stdout io.Writer = os.Stdout
 
 type cmdConsole struct {
 	repl          *liner.State
@@ -54,7 +58,24 @@ type consoleCommand struct {
 	fn   func(line string) error
 }
 
-func (x *cmdConsole) InitConsole() error {
+func (x *cmdConsole) snappyCompleter(line string) (c []string) {
+	// FIXME: add smartz and also complete arguments of
+	//        commands
+	for _, cmd := range parser.Commands() {
+		if strings.HasPrefix(cmd.Name, strings.ToLower(line)) {
+			c = append(c, cmd.Name)
+		}
+	}
+	for _, cmd := range x.extraCommands {
+		if strings.HasPrefix(cmd.name, line) {
+			c = append(c, cmd.name)
+		}
+	}
+
+	return c
+}
+
+func (x *cmdConsole) initConsole() error {
 	// FIXME: add history (ReadHistory/WriteHistory)
 
 	x.extraCommands = []consoleCommand{
@@ -63,22 +84,7 @@ func (x *cmdConsole) InitConsole() error {
 	}
 
 	x.repl = liner.NewLiner()
-	x.repl.SetCompleter(func(line string) (c []string) {
-		// FIXME: add smartz and also complete arguments of
-		//        commands
-		for _, cmd := range parser.Commands() {
-			if strings.HasPrefix(cmd.Name, strings.ToLower(line)) {
-				c = append(c, cmd.Name)
-			}
-		}
-		for _, cmd := range x.extraCommands {
-			if strings.HasPrefix(cmd.name, line) {
-				c = append(c, cmd.name)
-			}
-		}
-
-		return c
-	})
+	x.repl.SetCompleter(x.snappyCompleter)
 
 	return nil
 }
@@ -96,7 +102,7 @@ func (x *cmdConsole) PrintWelcomeMessage() {
 func (x *cmdConsole) doShell(line string) error {
 	// restore terminal for the shell
 	x.CloseConsole()
-	defer x.InitConsole()
+	defer x.initConsole()
 
 	sh := os.Getenv("SHELL")
 	if sh == "" {
@@ -124,13 +130,13 @@ func (x *cmdConsole) doHelp(line string) error {
 			break
 		}
 	}
-	parser.WriteHelp(os.Stdout)
+	parser.WriteHelp(stdout)
 
 	return nil
 }
 
 func (x *cmdConsole) doConsole() error {
-	x.InitConsole()
+	x.initConsole()
 	defer x.CloseConsole()
 	x.PrintWelcomeMessage()
 
