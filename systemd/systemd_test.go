@@ -113,12 +113,12 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 
 func (s *SystemdTestSuite) TestStatus(c *C) {
 	s.outs = [][]byte{
-		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\n"),
+		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\nUnitFileState=UnitFileState\n"),
 	}
 	s.errors = []error{nil}
 	out, err := New("", s.rep).Status("foo")
 	c.Assert(err, IsNil)
-	c.Check(out, Equals, "LoadState; ActiveState (SubState)")
+	c.Check(out, Equals, "UnitFileState; LoadState; ActiveState (SubState)")
 }
 
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {

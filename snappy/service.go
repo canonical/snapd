@@ -148,3 +148,33 @@ func (actor *ServiceActor) Restart() error {
 
 	return actor.Start()
 }
+
+// Enable all the found services.
+func (actor *ServiceActor) Enable() error {
+	for _, svc := range actor.svcs {
+		svcname := filepath.Base(generateServiceFileName(svc.m, *svc.svc))
+		if err := actor.sysd.Enable(svcname); err != nil {
+			// TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+			return fmt.Errorf(i18n.G("unable to enable %s's service %s: %v"), svc.m.Name, svc.svc.Name, err)
+		}
+	}
+
+	actor.sysd.DaemonReload()
+
+	return nil
+}
+
+// Disable all the found services.
+func (actor *ServiceActor) Disable() error {
+	for _, svc := range actor.svcs {
+		svcname := filepath.Base(generateServiceFileName(svc.m, *svc.svc))
+		if err := actor.sysd.Disable(svcname); err != nil {
+			// TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+			return fmt.Errorf(i18n.G("unable to disable %s's service %s: %v"), svc.m.Name, svc.svc.Name, err)
+		}
+	}
+
+	actor.sysd.DaemonReload()
+
+	return nil
+}
