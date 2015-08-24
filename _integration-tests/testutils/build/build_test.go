@@ -143,6 +143,8 @@ func (s *BuildSuite) TestAssetsRenamesBuiltBinary(c *check.C) {
 
 func (s *BuildSuite) TestAssetsSetsEnvironmentForGenericArch(c *check.C) {
 	arch := "myarch"
+	// needed for go1.5
+	os.Setenv("GOARCH", arch)
 	Assets(s.useSnappyFromBranch, arch)
 
 	setenvGOARCHFirstCall := s.osSetenvCalls["GOARCH "+arch]
