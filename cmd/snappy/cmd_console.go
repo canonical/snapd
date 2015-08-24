@@ -114,10 +114,16 @@ func (x *cmdConsole) doShell(line string) error {
 }
 
 func (x *cmdConsole) doHelp(line string) error {
-	// FIXME: support "help subcommand" by
-	//        just finding subcommand in parser
-	//        and setting it to "Active"
+	line = strings.TrimPrefix(line, "help")
+	line = strings.TrimSpace(line)
 	parser.Active = nil
+	// find subcmd
+	for _, cmd := range parser.Commands() {
+		if strings.HasPrefix(line, cmd.Name) {
+			parser.Active = cmd
+			break
+		}
+	}
 	parser.WriteHelp(os.Stdout)
 
 	return nil
