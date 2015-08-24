@@ -22,7 +22,6 @@ package autopkgtest
 import (
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"launchpad.net/snappy/_integration-tests/testutils"
@@ -68,8 +67,6 @@ func (a *Autopkgtest) AdtRunLocal(imgPath string) error {
 
 // AdtRunRemote runs the autopkgtests using a remote machine as the testbed.
 func (a *Autopkgtest) AdtRunRemote(testbedIP string, testbedPort int) error {
-	execCommand("ssh-copy-id", "-p", strconv.Itoa(testbedPort),
-		"ubuntu@"+testbedIP)
 	return a.adtRun(remoteTestbedSSHOptions(testbedIP, testbedPort))
 }
 
