@@ -490,7 +490,7 @@ func RSyncWithDelete(srcDirName, destDirName string) error {
 			//      of atime/mtime and permissions
 			output, err := exec.Command("cp", "-va", src, dst).CombinedOutput()
 			if err != nil {
-				fmt.Errorf("Failed to copy %s to %s (%s)", src, dst, output)
+				return fmt.Errorf("Failed to copy %s to %s (%s)", src, dst, output)
 			}
 		}
 		return nil
