@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/peterh/liner"
@@ -46,12 +47,10 @@ func (x *cmdConsole) Execute(args []string) error {
 	return x.doConsole()
 }
 
-func (x *cmdConsole) doConsole() error {
-	repl := liner.NewLiner()
-	defer repl.Close()
-
+func NewSnappyLiner() *liner.State {
 	// FIXME: add history (ReadHistory/WriteHistory)
 
+	repl := liner.NewLiner()
 	repl.SetCompleter(func(line string) (c []string) {
 		// FIXME: add smartz and also complete arguments of
 		//        commands
@@ -60,16 +59,26 @@ func (x *cmdConsole) doConsole() error {
 				c = append(c, cmd.Name)
 			}
 		}
-		// FIXME: meh
+		// FIXME: generalize the extra commands
 		if strings.HasPrefix("help", line) {
 			c = append(c, "help")
+		}
+		if strings.HasPrefix("shell", line) {
+			c = append(c, "shell")
 		}
 
 		return c
 	})
+	return repl
+}
+
+func (x *cmdConsole) doConsole() error {
+	repl := NewSnappyLiner()
+	defer repl.Close()
 
 	fmt.Println("Welcome to the snappy console")
 	fmt.Println("Type 'help' for help")
+	fmt.Println("Type 'shell' for entering a shell")
 	for {
 		line, err := repl.Prompt("> ")
 		if err != nil {
@@ -77,20 +86,36 @@ func (x *cmdConsole) doConsole() error {
 		}
 
 		// FIXME: generalize
-		if strings.HasPrefix(line, "help") {
+		switch {
+		case strings.HasPrefix(line, "help"):
 			// FIXME: support "help subcommand" by
 			//        just finding subcommand in parser
 			//        and setting it to "Active"
 			parser.Active = nil
 			parser.WriteHelp(os.Stdout)
-			continue
+			// FIXME: generalize
+		case strings.HasPrefix(line, "shell"):
+			repl.Close()
+			sh := os.Getenv("SHELL")
+			if sh == "" {
+				sh = "/bin/sh"
+			}
+			cmd := exec.Command(sh)
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				return err
+			}
+			repl = NewSnappyLiner()
+		default:
+			// do it
+			_, err = parser.ParseArgs(strings.Fields(line))
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 
-		// do it
-		_, err = parser.ParseArgs(strings.Fields(line))
-		if err != nil {
-			fmt.Println(err)
-		}
 		repl.AppendHistory(line)
 	}
 }
