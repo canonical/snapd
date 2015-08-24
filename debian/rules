@@ -60,7 +60,7 @@ override_dh_systemd_start:
 		snappy-wait4network.service
 
 # we need the builddir; is there a simpler way to get it?
-BUILDDIR:=${CURDIR}/obj-$(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+BUILDDIR:=${CURDIR}/obj-$(shell dpkg-architecture -qDEB_TARGET_GNU_TYPE)
 
 override_dh_auto_build:
 	dh_auto_build
