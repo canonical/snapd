@@ -31,6 +31,7 @@ import (
 )
 
 type cmdConsole struct {
+	repl *liner.State
 }
 
 func init() {
@@ -47,11 +48,11 @@ func (x *cmdConsole) Execute(args []string) error {
 	return x.doConsole()
 }
 
-func NewSnappyLiner() *liner.State {
+func (x *cmdConsole) InitConsole() error {
 	// FIXME: add history (ReadHistory/WriteHistory)
 
-	repl := liner.NewLiner()
-	repl.SetCompleter(func(line string) (c []string) {
+	x.repl = liner.NewLiner()
+	x.repl.SetCompleter(func(line string) (c []string) {
 		// FIXME: add smartz and also complete arguments of
 		//        commands
 		for _, cmd := range parser.Commands() {
@@ -69,45 +70,66 @@ func NewSnappyLiner() *liner.State {
 
 		return c
 	})
-	return repl
+
+	return nil
 }
 
-func (x *cmdConsole) doConsole() error {
-	repl := NewSnappyLiner()
-	defer repl.Close()
+func (x *cmdConsole) CloseConsole() {
+	x.repl.Close()
+}
 
+func (x *cmdConsole) PrintWelcomeMessage() {
 	fmt.Println("Welcome to the snappy console")
 	fmt.Println("Type 'help' for help")
 	fmt.Println("Type 'shell' for entering a shell")
+}
+
+func (x *cmdConsole) doShell() error {
+	// restore terminal for the shell
+	x.CloseConsole()
+	defer x.InitConsole()
+
+	sh := os.Getenv("SHELL")
+	if sh == "" {
+		sh = "/bin/sh"
+	}
+	cmd := exec.Command(sh)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (x *cmdConsole) doHelp() error {
+	// FIXME: support "help subcommand" by
+	//        just finding subcommand in parser
+	//        and setting it to "Active"
+	parser.Active = nil
+	parser.WriteHelp(os.Stdout)
+
+	return nil
+}
+
+func (x *cmdConsole) doConsole() error {
+	x.InitConsole()
+	defer x.CloseConsole()
+	x.PrintWelcomeMessage()
+
 	for {
-		line, err := repl.Prompt("> ")
+		line, err := x.repl.Prompt("> ")
 		if err != nil {
 			return err
 		}
 
-		// FIXME: generalize
 		switch {
 		case strings.HasPrefix(line, "help"):
-			// FIXME: support "help subcommand" by
-			//        just finding subcommand in parser
-			//        and setting it to "Active"
-			parser.Active = nil
-			parser.WriteHelp(os.Stdout)
-			// FIXME: generalize
+			x.doHelp()
 		case strings.HasPrefix(line, "shell"):
-			repl.Close()
-			sh := os.Getenv("SHELL")
-			if sh == "" {
-				sh = "/bin/sh"
-			}
-			cmd := exec.Command(sh)
-			cmd.Stdin = os.Stdin
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				return err
-			}
-			repl = NewSnappyLiner()
+			x.doShell()
 		default:
 			// do it
 			_, err = parser.ParseArgs(strings.Fields(line))
@@ -116,6 +138,6 @@ func (x *cmdConsole) doConsole() error {
 			}
 		}
 
-		repl.AppendHistory(line)
+		x.repl.AppendHistory(line)
 	}
 }
