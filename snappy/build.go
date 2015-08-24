@@ -51,7 +51,7 @@ exit 1
 //
 // Please resist the temptation of optimizing the regexp by grouping
 // things by hand. People will find it unreadable enough as it is.
-var shouldExclude = regexp.MustCompile(strings.Join([]string{
+var shouldExcludeDefault = regexp.MustCompile(strings.Join([]string{
 	`\.snap$`, // added
 	`\.click$`,
 	`^\..*\.sw.$`,
@@ -82,7 +82,60 @@ var shouldExclude = regexp.MustCompile(strings.Join([]string{
 	`^_MTN$`,
 	`^_darcs$`,
 	`^{arch}$`,
+	`^\.snapignore$`,
 }, "|")).MatchString
+
+// fake static function variables
+type keep struct {
+	basedir string
+	exclude func(string) bool
+}
+
+func (k *keep) shouldExclude(basedir string, file string) bool {
+	if basedir == k.basedir {
+		if k.exclude == nil {
+			return false
+		}
+
+		return k.exclude(file)
+	}
+
+	k.basedir = basedir
+	k.exclude = nil
+
+	snapignore, err := os.Open(filepath.Join(basedir, ".snapignore"))
+	if err != nil {
+		return false
+	}
+
+	scanner := bufio.NewScanner(snapignore)
+	var lines []string
+	for scanner.Scan() {
+		line := scanner.Text()
+		if _, err := regexp.Compile(line); err != nil {
+			// not a regexp
+			line = regexp.QuoteMeta(line)
+		}
+		lines = append(lines, line)
+	}
+
+	fullRegex := strings.Join(lines, "|")
+	exclude, err := regexp.Compile(fullRegex)
+	if err == nil {
+		k.exclude = exclude.MatchString
+
+		return k.exclude(file)
+	}
+
+	// can't happen; can't even find a way to trigger it in testing.
+	panic(fmt.Sprintf("|-composition of valid regexps is invalid?!? Please report this bug: %#v", fullRegex))
+}
+
+var shouldExcludeDynamic = new(keep).shouldExclude
+
+func shouldExclude(basedir string, file string) bool {
+	return shouldExcludeDefault(file) || shouldExcludeDynamic(basedir, file)
+}
 
 // small helper that return the architecture or "multi" if its multiple arches
 func debArchitecture(m *packageYaml) string {
@@ -139,7 +192,7 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 }
 
 func handleServices(buildDir string, m *packageYaml) error {
-	for _, v := range m.Services {
+	for _, v := range m.ServiceYamls {
 		hookName := filepath.Base(v.Name)
 
 		// handle the apparmor stuff
@@ -375,7 +428,7 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 			return errin
 		}
 
-		if shouldExclude(filepath.Base(path)) {
+		if shouldExclude(sourceDir, filepath.Base(path)) {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}

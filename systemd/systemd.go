@@ -68,6 +68,7 @@ type Systemd interface {
 	Kill(service, signal string) error
 	Restart(service string, timeout time.Duration) error
 	GenServiceFile(desc *ServiceDescription) string
+	Status(service string) (string, error)
 }
 
 // ServiceDescription describes a snappy systemd service
@@ -83,6 +84,7 @@ type ServiceDescription struct {
 	StopTimeout time.Duration
 	AaProfile   string
 	IsFramework bool
+	IsNetworked bool
 	BusName     string
 	UdevAppName string
 }
@@ -140,6 +142,34 @@ func (*systemd) Start(serviceName string) error {
 	return err
 }
 
+var statusregex = regexp.MustCompile(`(?m)^(?:(.*?)=(.*))?$`)
+
+func (s *systemd) Status(serviceName string) (string, error) {
+	bs, err := SystemctlCmd("show", "--property=Id,LoadState,ActiveState,SubState", serviceName)
+	if err != nil {
+		return "", err
+	}
+
+	load, active, sub := "", "", ""
+
+	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
+		if len(bs[0]) > 0 {
+			k := string(bs[1])
+			v := string(bs[2])
+			switch k {
+			case "LoadState":
+				load = v
+			case "ActiveState":
+				active = v
+			case "SubState":
+				sub = v
+			}
+		}
+	}
+
+	return fmt.Sprintf("%s; %s (%s)", load, active, sub), nil
+}
+
 // Stop the given service, and wait until it has stopped.
 func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 	if _, err := SystemctlCmd("stop", serviceName); err != nil {
@@ -176,7 +206,9 @@ Description={{.Description}}
 {{if .IsFramework}}Before=ubuntu-snappy.frameworks.target
 After=ubuntu-snappy.frameworks-pre.target
 Requires=ubuntu-snappy.frameworks-pre.target{{else}}After=ubuntu-snappy.frameworks.target
-Requires=ubuntu-snappy.frameworks.target{{end}}
+Requires=ubuntu-snappy.frameworks.target{{end}}{{if .IsNetworked}}
+After=snappy-wait4network.service
+Requires=snappy-wait4network.service{{end}}
 X-Snappy=yes
 
 [Service]

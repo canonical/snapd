@@ -26,14 +26,6 @@ import (
 	"strings"
 )
 
-// Run the commandline specified by the args array chrooted to the given dir
-var runInChroot = func(chrootDir string, args ...string) (err error) {
-	fullArgs := []string{"/usr/sbin/chroot", chrootDir}
-	fullArgs = append(fullArgs, args...)
-
-	return runCommand(fullArgs...)
-}
-
 // FIXME: would it make sense to differenciate between launch errors and
 //        exit code? (i.e. something like (returnCode, error) ?)
 func runCommandImpl(args ...string) (err error) {
@@ -69,3 +61,22 @@ func runCommandWithStdoutImpl(args ...string) (output string, err error) {
 
 // This is a var instead of a function to making mocking in the tests easier
 var runCommandWithStdout = runCommandWithStdoutImpl
+
+// Run fsck(8) on specified device.
+func fsck(device string) (err error) {
+	return runCommand(
+		"/sbin/fsck",
+		"-M", // Paranoia - don't fsck if already mounted
+		"-av", device)
+}
+
+// Returns the position of the string in the given slice or -1 if its not found
+func stringInSlice(slice []string, value string) int {
+	for i, s := range slice {
+		if s == value {
+			return i
+		}
+	}
+
+	return -1
+}

@@ -24,28 +24,33 @@ import (
 	"fmt"
 	"os"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
 type cmdInstall struct {
-	AllowUnauthenticated bool `long:"allow-unauthenticated" description:"Install snaps even if the signature can not be verified."`
-	DisableGC            bool `long:"no-gc" description:"Do not clean up old versions of the package."`
+	AllowUnauthenticated bool `long:"allow-unauthenticated"`
+	DisableGC            bool `long:"no-gc"`
 	Positional           struct {
-		PackageName string `positional-arg-name:"package name" description:"The Package to install (name or path)"`
-		ConfigFile  string `positional-arg-name:"config file" description:"The configuration for the given install"`
+		PackageName string `positional-arg-name:"package name"`
+		ConfigFile  string `positional-arg-name:"config file"`
 	} `positional-args:"yes"`
 }
 
 func init() {
-	_, err := parser.AddCommand("install",
-		"Install a snap package",
-		"Install a snap package",
+	arg, err := parser.AddCommand("install",
+		i18n.G("Install a snap package"),
+		i18n.G("Install a snap package"),
 		&cmdInstall{})
 	if err != nil {
 		logger.Panicf("Unable to install: %v", err)
 	}
+	addOptionDescription(arg, "allow-unauthenticated", i18n.G("Install snaps even if the signature can not be verified."))
+	addOptionDescription(arg, "no-gc", i18n.G("Do not clean up old versions of the package."))
+	addOptionDescription(arg, "package name", i18n.G("The Package to install (name or path)"))
+	addOptionDescription(arg, "config file", i18n.G("The configuration for the given install"))
 }
 
 func (x *cmdInstall) Execute(args []string) error {
@@ -58,7 +63,7 @@ func (x *cmdInstall) doInstall() error {
 
 	// FIXME patch goflags to allow for specific n required positional arguments
 	if pkgName == "" {
-		return errors.New("package name is required")
+		return errors.New(i18n.G("package name is required"))
 	}
 
 	flags := snappy.DoInstallGC
@@ -68,8 +73,8 @@ func (x *cmdInstall) doInstall() error {
 	if x.AllowUnauthenticated {
 		flags |= snappy.AllowUnauthenticated
 	}
-
-	fmt.Printf("Installing %s\n", pkgName)
+	// TRANSLATORS: the %s is a pkgname
+	fmt.Printf(i18n.G("Installing %s\n"), pkgName)
 
 	realPkgName, err := snappy.Install(pkgName, flags, progress.MakeProgressBar())
 	if err != nil {

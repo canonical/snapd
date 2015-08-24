@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
@@ -30,24 +31,25 @@ import (
 
 type cmdRollback struct {
 	Positional struct {
-		PackageName string `positional-arg-name:"package name" description:"The package to rollback "`
-		Version     string `positional-arg-name:"version" description:"The version to rollback to"`
+		PackageName string `positional-arg-name:"package name"`
+		Version     string `positional-arg-name:"version"`
 	} `positional-args:"yes"`
 }
 
-const shortRollbackHelp = "Rollback to a previous version of a package"
+var shortRollbackHelp = i18n.G("Rollback to a previous version of a package")
 
-const longRollbackHelp = `Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.
-`
+var longRollbackHelp = i18n.G("Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.\n")
 
 func init() {
-	_, err := parser.AddCommand("rollback",
+	arg, err := parser.AddCommand("rollback",
 		shortRollbackHelp,
 		longRollbackHelp,
 		&cmdRollback{})
 	if err != nil {
 		logger.Panicf("Unable to rollback: %v", err)
 	}
+	addOptionDescription(arg, "package name", i18n.G("The package to rollback "))
+	addOptionDescription(arg, "version", i18n.G("The version to rollback to"))
 }
 
 func (x *cmdRollback) Execute(args []string) (err error) {
@@ -65,7 +67,8 @@ func (x *cmdRollback) doRollback() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Setting %s to version %s\n", pkg, nowVersion)
+	// TRANSLATORS: the first %s is a pkgname, the second %s is the new version
+	fmt.Printf(i18n.G("Setting %s to version %s\n"), pkg, nowVersion)
 
 	m := snappy.NewMetaRepository()
 	installed, err := m.Installed()

@@ -22,29 +22,32 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
 type cmdHWUnassign struct {
 	Positional struct {
-		PackageName string `positional-arg-name:"package name" description:"Remove hardware from a specific installed package"`
-		DevicePath  string `positional-arg-name:"device path" description:"The hardware device path (e.g. /dev/ttyUSB0)"`
+		PackageName string `positional-arg-name:"package name"`
+		DevicePath  string `positional-arg-name:"device path"`
 	} `required:"true" positional-args:"yes"`
 }
 
-const shortHWUnassignHelp = `Unassign a hardware device to a package`
+var shortHWUnassignHelp = i18n.G("Unassign a hardware device to a package")
 
-const longHWUnassignHelp = `This command removes access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package.`
+var longHWUnassignHelp = i18n.G("This command removes access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package.")
 
 func init() {
-	_, err := parser.AddCommand("hw-unassign",
+	arg, err := parser.AddCommand("hw-unassign",
 		shortHWUnassignHelp,
 		longHWUnassignHelp,
 		&cmdHWUnassign{})
 	if err != nil {
 		logger.Panicf("Unable to hwunassign: %v", err)
 	}
+	addOptionDescription(arg, "package name", i18n.G("Remove hardware from a specific installed package"))
+	addOptionDescription(arg, "device path", i18n.G("The hardware device path (e.g. /dev/ttyUSB0)"))
 }
 
 func (x *cmdHWUnassign) Execute(args []string) error {
@@ -56,6 +59,7 @@ func (x *cmdHWUnassign) doHWUnassign() error {
 		return err
 	}
 
-	fmt.Printf("'%s' is no longer allowed to access '%s'\n", x.Positional.PackageName, x.Positional.DevicePath)
+	// TRANSLATORS: the first %s is a pkgname, the second %s is a path
+	fmt.Printf(i18n.G("'%s' is no longer allowed to access '%s'\n"), x.Positional.PackageName, x.Positional.DevicePath)
 	return nil
 }

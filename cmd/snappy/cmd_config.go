@@ -25,29 +25,32 @@ import (
 	"io/ioutil"
 	"os"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
 type cmdConfig struct {
 	Positional struct {
-		PackageName string `positional-arg-name:"package name" description:"Set configuration for a specific installed package"`
-		ConfigFile  string `positional-arg-name:"config file" description:"The configuration for the given file"`
+		PackageName string `positional-arg-name:"package name"`
+		ConfigFile  string `positional-arg-name:"config file"`
 	} `positional-args:"yes"`
 }
 
-const shortConfigHelp = `Set configuration for an installed package.`
+var shortConfigHelp = i18n.G("Set configuration for an installed package.")
 
-const longConfigHelp = `Configures a package. The configuration is a YAML file, provided in the specified file which can be "-" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config.  `
+var longConfigHelp = i18n.G("Configures a package. The configuration is a YAML file, provided in the specified file which can be \"-\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config.")
 
 func init() {
-	_, err := parser.AddCommand("config",
+	arg, err := parser.AddCommand("config",
 		shortConfigHelp,
 		longConfigHelp,
 		&cmdConfig{})
 	if err != nil {
 		logger.Panicf("Unable to config: %v", err)
 	}
+	addOptionDescription(arg, "package name", i18n.G("Set configuration for a specific installed package"))
+	addOptionDescription(arg, "config file", i18n.G("The configuration for the given file"))
 }
 
 func (x *cmdConfig) Execute(args []string) (err error) {
@@ -57,12 +60,13 @@ func (x *cmdConfig) Execute(args []string) (err error) {
 	// FIXME transform this into something that returns the config for
 	// the full system
 	if pkgName == "" {
-		return errors.New("package name is required")
+		return errors.New(i18n.G("package name is required"))
 	}
 
 	newConfig, err := configurePackage(pkgName, configFile)
 	if err == snappy.ErrPackageNotFound {
-		return fmt.Errorf("No snap: '%s' found", pkgName)
+		// TRANSLATORS: the %s is a pkgname
+		return fmt.Errorf(i18n.G("No snap: '%s' found"), pkgName)
 	} else if err != nil {
 		return err
 	}

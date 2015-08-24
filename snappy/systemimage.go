@@ -49,13 +49,13 @@ const (
 	// This file specifies the s-i version installed on the rootfs
 	// and hence s-i updates this file on every update applied to
 	// the rootfs (by unpacking file "version-$version.tar.xz").
-	systemImageChannelConfig = "/etc/system-image/channel.ini"
+	systemImageChannelConfig = "/etc/system-image/config.d/01_channel.ini"
 
 	// location of the client config.
 	//
 	// The full path to this file needs to be passed to
 	// systemImageCli when querying a different rootfs.
-	systemImageClientConfig = "/etc/system-image/client.ini"
+	systemImageClientConfig = "/etc/system-image/config.d/00_default.ini"
 )
 
 var (
@@ -169,9 +169,16 @@ func (s *SystemImagePart) SetActive(pb progress.Meter) (err error) {
 	return s.partition.ToggleNextBoot()
 }
 
+// override in tests
+var bootloaderDir = bootloaderDirImpl
+
+func bootloaderDirImpl() string {
+	return partition.BootloaderDir()
+}
+
 // Install installs the snap
 func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
-	if provisioning.IsSideLoaded(s.partition.BootloaderDir()) {
+	if provisioning.IsSideLoaded(bootloaderDir()) {
 		return "", ErrSideLoaded
 	}
 
@@ -184,12 +191,14 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 
 	// Ensure there is always a kernel + initrd to boot with, even
 	// if the update does not provide new versions.
-	if pb != nil {
-		pb.Notify("Syncing boot files")
-	}
-	err = s.partition.SyncBootloaderFiles()
-	if err != nil {
-		return "", err
+	if s.needsBootAssetSync() {
+		if pb != nil {
+			pb.Notify("Syncing boot files")
+		}
+		err = s.partition.SyncBootloaderFiles(bootAssetFilePaths())
+		if err != nil {
+			return "", err
+		}
 	}
 
 	// find out what config file to use, the other partition may be
@@ -204,7 +213,9 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 			configFile = otherConfigFile
 		}
 
-		return systemImageDownloadUpdate(configFile, pb)
+		// NOTE: we need to pass the config dir here
+		configDir := filepath.Dir(configFile)
+		return systemImageDownloadUpdate(configDir, pb)
 	})
 	if err != nil {
 		return "", err
@@ -469,4 +480,39 @@ func (s *SystemImageRepository) Installed() (parts []Part, err error) {
 	}
 
 	return parts, err
+}
+
+// needsSync determines if syncing boot assets is required
+func (s *SystemImagePart) needsBootAssetSync() bool {
+	// current partition
+	curr := makeCurrentPart(s.partition)
+	if curr == nil {
+		// this should never ever happen
+		panic("current part does not exist")
+	}
+
+	// other partition
+	other := makeOtherPart(s.partition)
+	if other == nil {
+		return true
+	}
+
+	// the idea here is that a channel change on the other
+	// partition always triggers a full image download so
+	// there is no need for syncing the assets (because the
+	// kernel is included in the full image already)
+	//
+	// FIXME: its not entirely clear if this is true, there
+	// is no mechanism to switch channels right now and all
+	// the tests always switch both partitions
+	if curr.Channel() != other.Channel() {
+		return false
+	}
+
+	// if the other version is already a higher version number
+	// than the current one it means all the kernel updates
+	// has happend already and we do not need to sync the
+	// bootloader files, see:
+	// https://bugs.launchpad.net/snappy/+bug/1474125
+	return VersionCompare(curr.Version(), other.Version()) > 0
 }

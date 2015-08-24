@@ -22,28 +22,30 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
 type cmdPurge struct {
-	Installed bool `long:"installed" description:"Purge an installed package."`
+	Installed bool `long:"installed"`
 }
 
-const (
-	shortPurgeHelp = `Remove all the data from the listed packages`
-	longPurgeHelp  = `Remove all the data from the listed packages. Normally this is used for packages that have been removed and attempting to purge data for an installed package will result in an error. The --installed option  overrides that and enables the administrator to purge all data for an installed package (effectively resetting the package completely).`
+var (
+	shortPurgeHelp = i18n.G("Remove all the data from the listed packages")
+	longPurgeHelp  = i18n.G(`Remove all the data from the listed packages. Normally this is used for packages that have been removed and attempting to purge data for an installed package will result in an error. The --installed option  overrides that and enables the administrator to purge all data for an installed package (effectively resetting the package completely).`)
 )
 
 func init() {
-	_, err := parser.AddCommand("purge",
+	arg, err := parser.AddCommand("purge",
 		shortPurgeHelp,
 		longPurgeHelp,
 		&cmdPurge{})
 	if err != nil {
 		logger.Panicf("Unable to purge: %v", err)
 	}
+	addOptionDescription(arg, "installed", i18n.G("Purge an installed package."))
 }
 
 func (x *cmdPurge) Execute(args []string) error {
@@ -59,7 +61,8 @@ func (x *cmdPurge) doPurge(args []string) error {
 	}
 
 	for _, part := range args {
-		fmt.Printf("Purging %s\n", part)
+		// TRANSLATORS: the %s is a pkgname
+		fmt.Printf(i18n.G("Purging %s\n"), part)
 
 		if err := snappy.Purge(part, flags, progress.MakeProgressBar()); err != nil {
 			return err

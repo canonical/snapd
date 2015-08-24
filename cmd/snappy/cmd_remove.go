@@ -22,23 +22,25 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
 type cmdRemove struct {
-	DisableGC bool `long:"no-gc" description:"Do not clean up old versions of the package."`
+	DisableGC bool `long:"no-gc"`
 }
 
 func init() {
-	_, err := parser.AddCommand("remove",
-		"Remove a snapp part",
-		"Remove a snapp part",
+	arg, err := parser.AddCommand("remove",
+		i18n.G("Remove a snapp part"),
+		i18n.G("Remove a snapp part"),
 		&cmdRemove{})
 	if err != nil {
 		logger.Panicf("Unable to remove: %v", err)
 	}
+	addOptionDescription(arg, "no-gc", i18n.G("Do not clean up old versions of the package."))
 }
 
 func (x *cmdRemove) Execute(args []string) (err error) {
@@ -54,7 +56,8 @@ func (x *cmdRemove) doRemove(args []string) error {
 	}
 
 	for _, part := range args {
-		fmt.Printf("Removing %s\n", part)
+		// TRANSLATORS: the %s is a pkgname
+		fmt.Printf(i18n.G("Removing %s\n"), part)
 
 		if err := snappy.Remove(part, flags, progress.MakeProgressBar()); err != nil {
 			return err

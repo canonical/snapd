@@ -148,7 +148,7 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Check(snap.Description(), Equals, "Hello")
 	c.Check(snap.IsInstalled(), Equals, true)
 
-	services := snap.Services()
+	services := snap.ServiceYamls()
 	c.Assert(services, HasLen, 1)
 	c.Assert(services[0].Name, Equals, "svc1")
 
@@ -652,20 +652,33 @@ func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
 }
 
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	snapPackage := makeTestSnapPackage(c, "")
 	snapR, err := os.Open(snapPackage)
 	c.Assert(err, IsNil)
 
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.Copy(w, snapR)
-	}))
+	iconContent := "this is an icon"
 
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/snap":
+			io.Copy(w, snapR)
+		case "/icon":
+			fmt.Fprintf(w, iconContent)
+		default:
+			panic("unexpected url path: " + r.URL.Path)
+		}
+	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
 	snap := RemoteSnapPart{}
 	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
+	snap.pkg.IconURL = mockServer.URL + "/icon"
+	snap.pkg.Name = "foo"
+	snap.pkg.Origin = "bar"
+	snap.pkg.Description = "this is a description"
+	snap.pkg.Version = "1.0"
 
 	p := &MockProgressMeter{}
 	name, err := snap.Install(p, 0)
@@ -673,7 +686,19 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoveSnap(c *C) {
 	c.Check(name, Equals, "foo")
 	st, err := os.Stat(snapPackage)
 	c.Assert(err, IsNil)
-	c.Assert(p.written, Equals, int(st.Size()))
+	c.Assert(p.written, Equals, int(st.Size())+len(iconContent))
+
+	installed, err := ListInstalled()
+	c.Assert(err, IsNil)
+	c.Assert(installed, HasLen, 1)
+
+	iconPath := filepath.Join(snapIconsDir, "foo.bar_1.0.png")
+	c.Check(installed[0].Icon(), Equals, iconPath)
+	c.Check(installed[0].Origin(), Equals, "bar")
+	c.Check(installed[0].Description(), Equals, "this is a description")
+
+	_, err = os.Stat(filepath.Join(snapMetaDir, "foo.bar_1.0.manifest"))
+	c.Check(err, IsNil)
 }
 
 func (s *SnapTestSuite) TestRemoteSnapUpgradeService(c *C) {
@@ -686,17 +711,28 @@ services:
 	snapR, err := os.Open(snapPackage)
 	c.Assert(err, IsNil)
 
+	iconContent := "icon"
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.Copy(w, snapR)
-		snapR.Seek(0, 0)
+		switch r.URL.Path {
+		case "/snap":
+			io.Copy(w, snapR)
+			snapR.Seek(0, 0)
+		case "/icon":
+			fmt.Fprintf(w, iconContent)
+		default:
+			panic("unexpected url path: " + r.URL.Path)
+		}
 	}))
-
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
 	snap := RemoteSnapPart{}
 	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
 	snap.pkg.Origin = testOrigin
+	snap.pkg.IconURL = mockServer.URL + "/icon"
+	snap.pkg.Name = "foo"
+	snap.pkg.Origin = "bar"
+	snap.pkg.Version = "1.0"
 
 	p := &MockProgressMeter{}
 	name, err := snap.Install(p, 0)
@@ -771,7 +807,7 @@ services:
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
 
-	services := snap.Services()
+	services := snap.ServiceYamls()
 	c.Assert(services, HasLen, 2)
 
 	c.Assert(services[0].Name, Equals, "svc1")
@@ -993,13 +1029,13 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 	m, err := parsePackageYamlData(securityServicePackageYaml)
 	c.Assert(err, IsNil)
 
-	c.Assert(m.Services[0].Name, Equals, "testme-service")
-	c.Assert(m.Services[0].Start, Equals, "bin/testme-service.start")
-	c.Assert(m.Services[0].Stop, Equals, "bin/testme-service.stop")
-	c.Assert(m.Services[0].SecurityCaps, HasLen, 2)
-	c.Assert(m.Services[0].SecurityCaps[0], Equals, "networking")
-	c.Assert(m.Services[0].SecurityCaps[1], Equals, "foo_group")
-	c.Assert(m.Services[0].SecurityTemplate, Equals, "foo_template")
+	c.Assert(m.ServiceYamls[0].Name, Equals, "testme-service")
+	c.Assert(m.ServiceYamls[0].Start, Equals, "bin/testme-service.start")
+	c.Assert(m.ServiceYamls[0].Stop, Equals, "bin/testme-service.stop")
+	c.Assert(m.ServiceYamls[0].SecurityCaps, HasLen, 2)
+	c.Assert(m.ServiceYamls[0].SecurityCaps[0], Equals, "networking")
+	c.Assert(m.ServiceYamls[0].SecurityCaps[1], Equals, "foo_group")
+	c.Assert(m.ServiceYamls[0].SecurityTemplate, Equals, "foo_template")
 }
 
 func (s *SnapTestSuite) TestPackageYamlFrameworkParsing(c *C) {
@@ -1074,6 +1110,31 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworks(c *C) {
 	yaml, err := parsePackageYamlData([]byte(data))
 	c.Assert(err, IsNil)
 	c.Check(yaml.checkForPackageInstalled("otherns"), IsNil)
+}
+
+func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
+	data := "name: afoo\nversion: 1\nvendor: foo\ntype: framework"
+	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
+	c.Assert(err, IsNil)
+	c.Assert(makeSnapActive(yamlPath), IsNil)
+
+	err = os.MkdirAll(snapMetaDir, 0755)
+	c.Assert(err, IsNil)
+
+	data = "name: afoo\nalias: afoo\ndescription: something nice\ndownloadsize: 10\norigin: someplace"
+	err = ioutil.WriteFile(filepath.Join(snapMetaDir, "afoo_1.manifest"), []byte(data), 0644)
+	c.Assert(err, IsNil)
+
+	snaps, err := ListInstalled()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 1)
+
+	c.Check(snaps[0].Name(), Equals, "afoo")
+	c.Check(snaps[0].Version(), Equals, "1")
+	c.Check(snaps[0].Type(), Equals, pkg.TypeFramework)
+	c.Check(snaps[0].Origin(), Equals, "someplace")
+	c.Check(snaps[0].Description(), Equals, "something nice")
+	c.Check(snaps[0].DownloadSize(), Equals, int64(10))
 }
 
 func (s *SnapTestSuite) TestDetectsNameClash(c *C) {
@@ -1244,8 +1305,8 @@ func (s *SnapTestSuite) TestRequestAppArmorUpdateService(c *C) {
 	}
 	defer func() { timestampUpdater = helpers.UpdateTimestamp }()
 	// if one of the services needs updating, it's updated and returned
-	svc := Service{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Name: "part", Services: []Service{svc}, Version: "42"}, origin: testOrigin}
+	svc := ServiceYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	part := &SnapPart{m: &packageYaml{Name: "part", ServiceYamls: []ServiceYaml{svc}, Version: "42"}, origin: testOrigin}
 	err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
 	c.Assert(err, IsNil)
 	c.Assert(updated, HasLen, 1)
@@ -1275,9 +1336,9 @@ func (s *SnapTestSuite) TestRequestAppArmorUpdateNothing(c *C) {
 		return nil
 	}
 	defer func() { timestampUpdater = helpers.UpdateTimestamp }()
-	svc := Service{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	svc := ServiceYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Services: []Service{svc}, Binaries: []Binary{bin}, Version: "42"}, origin: testOrigin}
+	part := &SnapPart{m: &packageYaml{ServiceYamls: []ServiceYaml{svc}, Binaries: []Binary{bin}, Version: "42"}, origin: testOrigin}
 	err := part.RequestAppArmorUpdate(nil, nil)
 	c.Check(err, IsNil)
 	c.Check(updated, HasLen, 0)
@@ -1537,7 +1598,7 @@ func (s *SnapTestSuite) TestIntegrateBinary(c *C) {
 
 func (s *SnapTestSuite) TestIntegrateService(c *C) {
 	m := &packageYaml{
-		Services: []Service{
+		ServiceYamls: []ServiceYaml{
 			{
 				Name: "svc",
 			},

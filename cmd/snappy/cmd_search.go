@@ -24,25 +24,27 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/snappy"
 )
 
 type cmdSearch struct {
-	ShowAll bool `long:"show-all" description:"Show all available forks of a package"`
+	ShowAll bool `long:"show-all"`
 }
 
 func init() {
 	cmd, err := parser.AddCommand("search",
-		"Search for packages to install",
-		"Query the store for available packages",
+		i18n.G("Search for packages to install"),
+		i18n.G("Query the store for available packages"),
 		&cmdSearch{})
 	if err != nil {
 		logger.Panicf("Unable to search: %v", err)
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "se")
+	addOptionDescription(cmd, "show-all", i18n.G("Show all available forks of a package"))
 }
 
 func (x *cmdSearch) Execute(args []string) (err error) {
@@ -59,12 +61,13 @@ func search(args []string, allVariants bool) error {
 	defer w.Flush()
 
 	forkHelp := false
-	fmt.Fprintln(w, "Name\tVersion\tSummary\t")
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tSummary\t"))
 	for _, sharedName := range results {
 		if part := sharedName.Alias; !allVariants && part != nil {
 			if len(sharedName.Parts) > 1 {
 				n := len(sharedName.Parts) - 1
-				fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s (forks not shown: %d)\t", part.Name(), part.Version(), part.Description(), n))
+				// TRANSLATORS: the %s stand for "name", "version", "description"
+				fmt.Fprintln(w, fmt.Sprintf(i18n.G("%s\t%s\t%s (forks not shown: %d)\t"), part.Name(), part.Version(), part.Description(), n))
 				forkHelp = true
 			} else {
 				fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
@@ -81,7 +84,7 @@ func search(args []string, allVariants bool) error {
 	}
 
 	if forkHelp {
-		fmt.Fprintln(w, "Use --show-all to see all available forks.")
+		fmt.Fprintln(w, i18n.G("Use --show-all to see all available forks."))
 	}
 
 	return nil

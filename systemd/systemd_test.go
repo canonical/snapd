@@ -111,6 +111,16 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 	c.Check(s.argses[1], DeepEquals, s.argses[3])
 }
 
+func (s *SystemdTestSuite) TestStatus(c *C) {
+	s.outs = [][]byte{
+		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\n"),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo")
+	c.Assert(err, IsNil)
+	c.Check(out, Equals, "LoadState; ActiveState (SubState)")
+}
+
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {
 	oldSteps := stopSteps
 	oldDelay := stopDelay
@@ -171,6 +181,10 @@ var (
 	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "\n", helpers.UbuntuArchitecture())
 	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "\n", helpers.UbuntuArchitecture())
 	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "BusName=foo.bar.baz\nType=dbus", helpers.UbuntuArchitecture())
+
+	// things that need network
+	expectedNetAppService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".mvo", "mvo", "\n", helpers.UbuntuArchitecture())
+	expectedNetFmkService = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", "", "", "\n", helpers.UbuntuArchitecture())
 )
 
 func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
@@ -192,6 +206,26 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedAppService)
 }
 
+func (s *SystemdTestSuite) TestGenNetAppServiceFile(c *C) {
+
+	desc := &ServiceDescription{
+		AppName:     "app",
+		ServiceName: "service",
+		Version:     "1.0",
+		Description: "descr",
+		AppPath:     "/apps/app.mvo/1.0/",
+		Start:       "bin/start",
+		Stop:        "bin/stop",
+		PostStop:    "bin/stop --post",
+		StopTimeout: time.Duration(10 * time.Second),
+		AaProfile:   "aa-profile",
+		IsNetworked: true,
+		UdevAppName: "app.mvo",
+	}
+
+	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedNetAppService)
+}
+
 func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
 
 	desc := &ServiceDescription{
@@ -210,6 +244,27 @@ func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
 	}
 
 	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedFmkService)
+}
+
+func (s *SystemdTestSuite) TestGenNetFmkServiceFile(c *C) {
+
+	desc := &ServiceDescription{
+		AppName:     "app",
+		ServiceName: "service",
+		Version:     "1.0",
+		Description: "descr",
+		AppPath:     "/apps/app/1.0/",
+		Start:       "bin/start",
+		Stop:        "bin/stop",
+		PostStop:    "bin/stop --post",
+		StopTimeout: time.Duration(10 * time.Second),
+		AaProfile:   "aa-profile",
+		IsNetworked: true,
+		IsFramework: true,
+		UdevAppName: "app",
+	}
+
+	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedNetFmkService)
 }
 
 func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {

@@ -20,6 +20,7 @@
 package snappy
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -30,8 +31,10 @@ import (
 )
 
 type SecurityTestSuite struct {
-	buildDir string
-	m        *packageYaml
+	buildDir              string
+	m                     *packageYaml
+	scFilterGenCall       []string
+	scFilterGenCallReturn []byte
 }
 
 var _ = Suite(&SecurityTestSuite{})
@@ -45,6 +48,13 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 		Version:     "1.0",
 		Integration: make(map[string]clickAppHook),
 	}
+
+	a.scFilterGenCall = nil
+	a.scFilterGenCallReturn = nil
+	runScFilterGen = func(argv ...string) ([]byte, error) {
+		a.scFilterGenCall = append(a.scFilterGenCall, argv...)
+		return a.scFilterGenCallReturn, nil
+	}
 }
 
 func (a *SecurityTestSuite) verifyApparmorFile(c *C, expected string) {
@@ -56,6 +66,13 @@ func (a *SecurityTestSuite) verifyApparmorFile(c *C, expected string) {
 	content, err := ioutil.ReadFile(filepath.Join(a.buildDir, apparmorJSONFile))
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, expected)
+}
+
+func (a *SecurityTestSuite) TestSnappyNoSeccompOverrideEntry(c *C) {
+	sd := SecurityDefinitions{SecurityOverride: &SecurityOverrideDefinition{}}
+
+	_, err := generateSeccompPolicy(c.MkDir(), "appName", sd)
+	c.Assert(err, Equals, ErrNoSeccompPolicy)
 }
 
 // no special security settings generate the default
@@ -185,4 +202,101 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfileFramework(c *C) {
 	ap, err := getSecurityProfile(&m, b.Name, "/apps/foo.mvo/1.0/")
 	c.Assert(err, IsNil)
 	c.Check(ap, Equals, "foo_bin-app_1.0")
+}
+
+func (a *SecurityTestSuite) TestSnappySeccompSecurityTemplate(c *C) {
+	// simple case, just a security-template
+	sd := SecurityDefinitions{
+		SecurityTemplate: "something",
+	}
+
+	_, err := generateSeccompPolicy(c.MkDir(), "appName", sd)
+	c.Assert(err, IsNil)
+
+	// sc-filtergen is called with mostly defaults
+	c.Assert(a.scFilterGenCall, DeepEquals, []string{
+		"sc-filtergen",
+		fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(snapSeccompDir)),
+		"--policy-vendor=ubuntu-core",
+		"--policy-version=15.04",
+		"--template=something",
+		"--policy-groups=networking",
+	})
+}
+
+func (a *SecurityTestSuite) TestSnappySeccompSecurityCaps(c *C) {
+	// slightly complexer case, custom caps
+	sd := SecurityDefinitions{
+		SecurityTemplate: "something",
+		SecurityCaps:     []string{"cap1", "cap2"},
+	}
+
+	_, err := generateSeccompPolicy(c.MkDir(), "appName", sd)
+	c.Assert(err, IsNil)
+
+	// sc-filtergen is called with mostly defaults
+	c.Assert(a.scFilterGenCall, DeepEquals, []string{
+		"sc-filtergen",
+		fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(snapSeccompDir)),
+		"--policy-vendor=ubuntu-core",
+		"--policy-version=15.04",
+		"--template=something",
+		"--policy-groups=cap1,cap2",
+	})
+}
+
+func (a *SecurityTestSuite) TestSnappySeccompSecurityOverride(c *C) {
+	// complex case, custom seccomp-override
+	baseDir := c.MkDir()
+	fn := filepath.Join(baseDir, "seccomp-override")
+	err := ioutil.WriteFile(fn, []byte(`
+security-template: security-template
+caps: [cap1, cap2]
+syscalls: [read, write]
+policy-vendor: policy-vendor
+policy-version: 18.10`), 0644)
+	c.Assert(err, IsNil)
+
+	sd := SecurityDefinitions{
+		SecurityOverride: &SecurityOverrideDefinition{
+			Seccomp: "seccomp-override",
+		},
+	}
+
+	_, err = generateSeccompPolicy(baseDir, "appName", sd)
+	c.Assert(err, IsNil)
+
+	// sc-filtergen is called with custom seccomp options
+	c.Assert(a.scFilterGenCall, DeepEquals, []string{
+		"sc-filtergen",
+		fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(snapSeccompDir)),
+		"--policy-vendor=policy-vendor",
+		"--policy-version=18.10",
+		"--template=security-template",
+		"--policy-groups=cap1,cap2",
+		"--syscalls=read,write",
+	})
+}
+
+func (a *SecurityTestSuite) TestSnappySeccompSecurityPolicy(c *C) {
+	// ships pre-generated seccomp policy, ensure that sc-filtergen
+	// is not called
+	baseDir := c.MkDir()
+	fn := filepath.Join(baseDir, "seccomp-policy")
+	err := ioutil.WriteFile(fn, []byte(`
+read
+write`), 0644)
+	c.Assert(err, IsNil)
+
+	sd := SecurityDefinitions{
+		SecurityPolicy: &SecurityPolicyDefinition{
+			Seccomp: "seccomp-policy",
+		},
+	}
+
+	_, err = generateSeccompPolicy(baseDir, "appName", sd)
+	c.Assert(err, IsNil)
+
+	// sc-filtergen is not called at all
+	c.Assert(a.scFilterGenCall, DeepEquals, []string(nil))
 }

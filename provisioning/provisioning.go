@@ -29,17 +29,23 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var (
+const (
 	// InstallYamlFile is the name of the file created by
 	// ubuntu-device-flash(1), created at system installation time,
 	// that contains metadata on the installation.
 	//
 	// XXX: Public for ubuntu-device-flash(1)
 	InstallYamlFile = "install.yaml"
-
-	// ErrNoInstallYaml is emitted when InstallYamlFile does not exist.
-	ErrNoInstallYaml = fmt.Errorf("no %s", InstallYamlFile)
 )
+
+// ErrNoInstallYaml is emitted when InstallYamlFile does not exist.
+type ErrNoInstallYaml struct {
+	origErr error
+}
+
+func (e *ErrNoInstallYaml) Error() string {
+	return fmt.Sprintf("failed to read provisioning data: %s", e.origErr)
+}
 
 // InstallMeta encapsulates the metadata for a system install.
 type InstallMeta struct {
@@ -79,7 +85,7 @@ type InstallYaml struct {
 func parseInstallYaml(path string) (*InstallYaml, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, ErrNoInstallYaml
+		return nil, &ErrNoInstallYaml{origErr: err}
 	}
 
 	return parseInstallYamlData(data)
@@ -123,4 +129,22 @@ func IsSideLoaded(bootloaderDir string) bool {
 	}
 
 	return false
+}
+
+// InDeveloperMode returns true if the image was build with --developer-mode
+func InDeveloperMode(bootloaderDir string) bool {
+	file := filepath.Join(bootloaderDir, InstallYamlFile)
+
+	if !helpers.FileExists(file) {
+		// no idea
+		return false
+	}
+
+	InstallYaml, err := parseInstallYaml(file)
+	if err != nil {
+		// no idea
+		return false
+	}
+
+	return InstallYaml.InstallOptions.DeveloperMode
 }

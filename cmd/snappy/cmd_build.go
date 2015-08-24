@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
@@ -29,14 +30,14 @@ import (
 const clickReview = "click-review"
 
 type cmdBuild struct {
-	Output string `long:"output" short:"o" description:"Specify an alternate output directory for the resulting package"`
+	Output string `long:"output" short:"o"`
 }
 
-const longBuildHelp = `Creates a snap package and if available, runs the review scripts.`
+var longBuildHelp = i18n.G("Creates a snap package and if available, runs the review scripts.")
 
 func init() {
 	cmd, err := parser.AddCommand("build",
-		"Builds a snap package",
+		i18n.G("Builds a snap package"),
 		longBuildHelp,
 		&cmdBuild{})
 	if err != nil {
@@ -44,6 +45,7 @@ func init() {
 	}
 
 	cmd.Aliases = append(cmd.Aliases, "bu")
+	addOptionDescription(cmd, "output", i18n.G("Specify an alternate output directory for the resulting package"))
 }
 
 func (x *cmdBuild) Execute(args []string) (err error) {
@@ -71,6 +73,7 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 		_ = cmd.Run()
 	*/
 
-	fmt.Printf("Generated '%s' snap\n", snapPackage)
+	// TRANSLATORS: the %s is a pkgname
+	fmt.Printf(i18n.G("Generated '%s' snap\n"), snapPackage)
 	return nil
 }

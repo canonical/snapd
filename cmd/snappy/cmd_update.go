@@ -25,32 +25,35 @@ import (
 	"os/exec"
 	"strings"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/snappy"
 )
 
 type cmdUpdate struct {
-	DisableGC  bool `long:"no-gc" description:"Do not clean up old versions of the package."`
-	AutoReboot bool `long:"automatic-reboot" description:"Reboot if necessary to be on the latest running system."`
+	DisableGC  bool `long:"no-gc"`
+	AutoReboot bool `long:"automatic-reboot"`
 }
 
 func init() {
-	_, err := parser.AddCommand("update",
-		"Update all installed parts",
-		"Ensures system is running with latest parts",
+	arg, err := parser.AddCommand("update",
+		i18n.G("Update all installed parts"),
+		i18n.G("Ensures system is running with latest parts"),
 		&cmdUpdate{})
 	if err != nil {
 		logger.Panicf("Unable to update: %v", err)
 	}
+	addOptionDescription(arg, "no-gc", i18n.G("Do not clean up old versions of the package."))
+	addOptionDescription(arg, "automatic-reboot", i18n.G("Reboot if necessary to be on the latest running system."))
 }
 
 const (
 	shutdownCmd     = "/sbin/shutdown"
 	shutdownTimeout = "+10"
-	shutdownMsg     = "snappy autopilot triggered a reboot to boot into an up to date system" +
-		"-- temprorarily disable the reboot by running 'sudo shutdown -c'"
 )
+
+var shutdownMsg = i18n.G("snappy autopilot triggered a reboot to boot into an up to date system -- temprorarily disable the reboot by running 'sudo shutdown -c'")
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
 	return withMutex(x.doUpdate)
@@ -86,7 +89,9 @@ func (x *cmdUpdate) doUpdate() error {
 		}
 
 		if len(rebootTriggers) != 0 {
-			fmt.Println("Rebooting to satisfy updates for", strings.Join(rebootTriggers, ", "))
+			// TRANSLATORS: the %s shows a comma separated list
+			//              of package names
+			fmt.Printf(i18n.G("Rebooting to satisfy updates for %s\n"), strings.Join(rebootTriggers, ", "))
 			cmd := exec.Command(shutdownCmd, shutdownTimeout, "-r", shutdownMsg)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("failed to auto reboot: %s", out)

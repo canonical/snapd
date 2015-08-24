@@ -32,40 +32,37 @@ const (
 	bootloaderGrubConfigFileReal = "/boot/grub/grub.cfg"
 	bootloaderGrubEnvFileReal    = "/boot/grub/grubenv"
 
-	bootloaderGrubEnvCmdReal       = "/usr/bin/grub-editenv"
-	bootloaderGrubUpdateCmdReal    = "/usr/sbin/update-grub"
-	bootloaderGrubTrialBootVarReal = "snappy_trial_boot"
+	bootloaderGrubEnvCmdReal = "/usr/bin/grub-editenv"
 )
 
 // var to make it testable
 var (
-	bootloaderGrubDir          = bootloaderGrubDirReal
-	bootloaderGrubConfigFile   = bootloaderGrubConfigFileReal
-	bootloaderGrubTrialBootVar = bootloaderGrubTrialBootVarReal
-	bootloaderGrubEnvFile      = bootloaderGrubEnvFileReal
+	bootloaderGrubDir        = bootloaderGrubDirReal
+	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
+	bootloaderGrubEnvFile    = bootloaderGrubEnvFileReal
 
-	bootloaderGrubEnvCmd    = bootloaderGrubEnvCmdReal
-	bootloaderGrubUpdateCmd = bootloaderGrubUpdateCmdReal
+	bootloaderGrubEnvCmd = bootloaderGrubEnvCmdReal
 )
 
 type grub struct {
-	*bootloaderType
+	bootloaderType
 }
 
 const bootloaderNameGrub bootloaderName = "grub"
 
 // newGrub create a new Grub bootloader object
 func newGrub(partition *Partition) bootLoader {
-	if !helpers.FileExists(bootloaderGrubConfigFile) || !helpers.FileExists(bootloaderGrubUpdateCmd) {
+	if !helpers.FileExists(bootloaderGrubConfigFile) {
 		return nil
 	}
-	b := newBootLoader(partition)
+
+	b := newBootLoader(partition, bootloaderGrubDir)
 	if b == nil {
 		return nil
 	}
-	g := &grub{bootloaderType: b}
+	g := grub{bootloaderType: *b}
 
-	return g
+	return &g
 }
 
 func (g *grub) Name() bootloaderName {
@@ -77,12 +74,7 @@ func (g *grub) Name() bootloaderName {
 // Approach:
 //
 // Update the grub configuration.
-func (g *grub) ToggleRootFS() (err error) {
-
-	// create the grub config
-	if err := runInChroot(g.partition.MountTarget(), bootloaderGrubUpdateCmd); err != nil {
-		return err
-	}
+func (g *grub) ToggleRootFS(otherRootfs string) (err error) {
 
 	if err := g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry); err != nil {
 		return err
@@ -91,7 +83,7 @@ func (g *grub) ToggleRootFS() (err error) {
 	// Record the partition that will be used for next boot. This
 	// isn't necessary for correct operation under grub, but allows
 	// us to query the next boot device easily.
-	return g.setBootVar(bootloaderRootfsVar, g.otherRootfs)
+	return g.setBootVar(bootloaderRootfsVar, otherRootfs)
 }
 
 func (g *grub) GetBootVar(name string) (value string, err error) {
@@ -119,52 +111,21 @@ func (g *grub) setBootVar(name, value string) (err error) {
 	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", arg)
 }
 
-func (g *grub) unsetBootVar(name string) (err error) {
-	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "unset", name)
-}
-
 func (g *grub) GetNextBootRootFSName() (label string, err error) {
 	return g.GetBootVar(bootloaderRootfsVar)
 }
 
-func (g *grub) GetRootFSName() string {
-	return g.currentRootfs
-}
-
-func (g *grub) GetOtherRootFSName() string {
-	return g.otherRootfs
-}
-
-func (g *grub) MarkCurrentBootSuccessful() (err error) {
-	// Clear the variable set by grub on boot to denote a good
-	// boot.
-	if err := g.unsetBootVar(bootloaderGrubTrialBootVar); err != nil {
+func (g *grub) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
+	// Clear the variable set on boot to denote a good boot.
+	if err := g.setBootVar(bootloaderTrialBootVar, "0"); err != nil {
 		return err
 	}
 
-	if err := g.setBootVar(bootloaderRootfsVar, g.currentRootfs); err != nil {
+	if err := g.setBootVar(bootloaderRootfsVar, currentRootfs); err != nil {
 		return err
 	}
 
 	return g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
-}
-
-func (g *grub) SyncBootFiles() (err error) {
-	// NOP
-	return nil
-}
-
-func (g *grub) HandleAssets() (err error) {
-
-	// NOP - since grub is used on generic hardware, it doesn't
-	// need to make use of hardware-specific assets
-	return nil
-}
-
-func (g *grub) AdditionalBindMounts() []string {
-	// grub needs this in addition to "system-boot" as its the
-	// well known location for its configuration
-	return []string{"/boot/grub"}
 }
 
 func (g *grub) BootDir() string {

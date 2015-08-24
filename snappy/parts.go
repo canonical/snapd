@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -33,9 +34,9 @@ import (
 // SystemConfig is a config map holding configs for multiple packages
 type SystemConfig map[string]interface{}
 
-// Services implements snappy packages that offer services
-type Services interface {
-	Services() []Service
+// ServiceYamls implements snappy packages that offer services
+type ServiceYamls interface {
+	ServiceYamls() []ServiceYaml
 }
 
 // Configuration allows requesting an oem snappy package type's config
@@ -320,4 +321,15 @@ func makeSnapActiveByNameAndVersion(pkg, ver string, inter progress.Meter) error
 // PackageNameActive checks whether a fork of the given name is active in the system
 func PackageNameActive(name string) bool {
 	return ActiveSnapByName(name) != nil
+}
+
+// iconPath returns the would be path for the local icon
+func iconPath(s Part) string {
+	// TODO: care about extension ever being different than png
+	return filepath.Join(snapIconsDir, fmt.Sprintf("%s_%s.png", QualifiedName(s), s.Version()))
+}
+
+// manifestPath returns the would be path for the store manifest meta data
+func manifestPath(s Part) string {
+	return filepath.Join(snapMetaDir, fmt.Sprintf("%s_%s.manifest", QualifiedName(s), s.Version()))
 }

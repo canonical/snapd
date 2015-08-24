@@ -23,35 +23,39 @@ import (
 	"fmt"
 	"strings"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
 type cmdHWInfo struct {
 	Positional struct {
-		PackageName string `positional-arg-name:"package name" description:"List assigned hardware for a specific installed package"`
+		PackageName string `positional-arg-name:"package name"`
 	} `positional-args:"yes"`
 }
 
-const shortHWInfoHelp = `List assigned hardware device for a package`
+var shortHWInfoHelp = i18n.G("List assigned hardware device for a package")
 
-const longHWInfoHelp = `This command list what hardware an installed package can access`
+var longHWInfoHelp = i18n.G("This command list what hardware an installed package can access")
 
 func init() {
-	_, err := parser.AddCommand("hw-info",
+	arg, err := parser.AddCommand("hw-info",
 		shortHWInfoHelp,
 		longHWInfoHelp,
 		&cmdHWInfo{})
 	if err != nil {
 		logger.Panicf("Unable to hwinfo: %v", err)
 	}
+	addOptionDescription(arg, "package name", i18n.G("List assigned hardware for a specific installed package"))
 }
 
 func outputHWAccessForPkgname(pkgname string, writePaths []string) {
 	if len(writePaths) == 0 {
-		fmt.Printf("'%s:' is not allowed to access additional hardware\n", pkgname)
+		// TRANSLATORS: the %s is a pkgname
+		fmt.Printf(i18n.G("'%s:' is not allowed to access additional hardware\n"), pkgname)
 	} else {
-		fmt.Printf("%s: %s\n", pkgname, strings.Join(writePaths, ", "))
+		// TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
+		fmt.Printf(i18n.G("%s: %s\n"), pkgname, strings.Join(writePaths, ", "))
 	}
 }
 

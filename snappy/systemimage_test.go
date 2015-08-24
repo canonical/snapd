@@ -28,7 +28,7 @@ import (
 	"strings"
 	"testing"
 
-	partition "launchpad.net/snappy/partition"
+	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/provisioning"
 
 	. "gopkg.in/check.v1"
@@ -57,7 +57,7 @@ func (s *SITestSuite) SetUpTest(c *C) {
 
 	makeFakeSystemImageChannelConfig(c, filepath.Join(tempdir, systemImageChannelConfig), "1")
 	// setup fake /other partition
-	makeFakeSystemImageChannelConfig(c, filepath.Join(tempdir, "other", systemImageChannelConfig), "2")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(tempdir, "other", systemImageChannelConfig), "0")
 
 	// run test webserver instead of talking to the real one
 	//
@@ -72,6 +72,7 @@ func (s *SITestSuite) SetUpTest(c *C) {
 func (s *SITestSuite) TearDownTest(c *C) {
 	s.mockSystemImageWebServer.Close()
 	systemImageRoot = "/"
+	bootloaderDir = bootloaderDirImpl
 }
 
 func makeMockSystemImageCli(c *C, tempdir string) string {
@@ -124,7 +125,7 @@ func (s *SITestSuite) TestTestInstalled(c *C) {
 
 	// second partition is not active and has a different version
 	c.Assert(parts[1].IsActive(), Equals, false)
-	c.Assert(parts[1].Version(), Equals, "2")
+	c.Assert(parts[1].Version(), Equals, "0")
 }
 
 func (s *SITestSuite) TestUpdateNoUpdate(c *C) {
@@ -160,7 +161,7 @@ func (p *MockPartition) MarkBootSuccessful() error {
 	p.markBootSuccessfulCalled = true
 	return nil
 }
-func (p *MockPartition) SyncBootloaderFiles() error {
+func (p *MockPartition) SyncBootloaderFiles(map[string]string) error {
 	p.syncBootloaderFilesCalled = true
 	return nil
 }
@@ -180,9 +181,15 @@ func (p *MockPartition) BootloaderDir() string {
 }
 
 func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
+	// FIXME: ideally we would change the version to "2" as a side-effect
+	// of calling sp.Install() we need to update it because the
+	// sp.Install() will verify that it got applied
+	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "2")
+
 	// add a update
 	mockSystemImageIndexJSON = fmt.Sprintf(mockSystemImageIndexJSONTemplate, "2")
 	parts, err := s.systemImage.Updates()
+	c.Assert(err, IsNil)
 
 	sp := parts[0].(*SystemImagePart)
 	mockPartition := MockPartition{}
@@ -246,6 +253,12 @@ exit 1
 }
 
 func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
+
+	// FIXME: ideally we would change the version to "2" as a side-effect
+	// of calling sp.Install() we need to update it because the
+	// sp.Install() will verify that it got applied
+	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "2")
+
 	// add a update
 	mockSystemImageIndexJSON = fmt.Sprintf(mockSystemImageIndexJSONTemplate, "2")
 	parts, err := s.systemImage.Updates()
@@ -319,7 +332,7 @@ func (s *SITestSuite) TestOtherIsEmpty(c *C) {
 	otherRoot := "/other"
 	otherRootFull := filepath.Join(systemImageRoot, otherRoot)
 
-	siConfig := filepath.Join(otherRootFull, "etc/system-image/channel.ini")
+	siConfig := filepath.Join(otherRootFull, systemImageChannelConfig)
 
 	// the tests create si-config files for "current" and "other"
 	c.Assert(otherIsEmpty(otherRoot), Equals, false)
@@ -390,18 +403,16 @@ options:
   device-part: /some/path/file.tgz
   developer-mode: true
 `
-	tempBootDir, err = ioutil.TempDir("", "")
-	c.Assert(err, IsNil)
-
+	tempBootDir := c.MkDir()
 	parts, err := s.systemImage.Updates()
 
 	sp := parts[0].(*SystemImagePart)
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	bootDir := sp.partition.BootloaderDir()
+	bootloaderDir = func() string { return tempBootDir }
 
-	sideLoaded := filepath.Join(bootDir, provisioning.InstallYamlFile)
+	sideLoaded := filepath.Join(tempBootDir, provisioning.InstallYamlFile)
 
 	err = os.MkdirAll(filepath.Dir(sideLoaded), 0775)
 	c.Assert(err, IsNil)
@@ -414,7 +425,62 @@ options:
 	// Ensure the install fails if the system is sideloaded
 	_, err = sp.Install(pb, 0)
 	c.Assert(err, Equals, ErrSideLoaded)
+}
 
-	os.Remove(tempBootDir)
-	tempBootDir = ""
+// These are regression tests for #1474125 - we do not want to sync the
+// bootfiles on a upgrade->rollback->upgrade
+//
+// Let:
+// - upgrade from ubuntu-core
+//    v1 (on a with kernel k1) -> v2 (ob b with kernel k2)
+//   now we have: /boot/a/k1 /boot/b/k2
+// - boot into "b" and rollback from v2(on b) -> v1 (on a)
+//   we still have: /boot/a/k1 /boot/b/k2
+// - upgrade from ubuntu-core v1 (on a) -> v2 (ob b)
+//   syncbootfiles is run and it will copy: /boot/a/k1 -> /boot/b/
+//   *but* v2 is already on the other partition so snappy does
+//   not actually download/install anything so we end up with
+//   the wrong kernel /boot/b/k1
+//
+// see bug https://bugs.launchpad.net/snappy/+bug/1474125
+func (s *SITestSuite) TestSystemImagePartInstallRollbackNoSyncbootfiles(c *C) {
+
+	// we are on 1 and "upgrade" to 2 which is already installed
+	// (e.g. because we rolled back earlier)
+	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, systemImageChannelConfig), "1")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "2")
+
+	// now we get the other part (v2)
+	parts, err := s.systemImage.Installed()
+	c.Assert(err, IsNil)
+	sp := parts[1].(*SystemImagePart)
+	mockPartition := MockPartition{}
+	sp.partition = &mockPartition
+
+	// and install it (but its already installed so system-image-cli
+	// will not download anything)
+	_, err = sp.Install(&MockProgressMeter{}, 0)
+	c.Assert(err, IsNil)
+
+	// ensure that we do not sync the bootfiles in this case (see above)
+	c.Assert(mockPartition.syncBootloaderFilesCalled, Equals, false)
+	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
+}
+
+func (s *SITestSuite) TestNeedsBootAssetSyncNeedsSync(c *C) {
+	parts, err := s.systemImage.Updates()
+	c.Assert(err, IsNil)
+	part := parts[0].(*SystemImagePart)
+
+	c.Assert(part.needsBootAssetSync(), Equals, true)
+}
+
+func (s *SITestSuite) TestNeedsBootAssetSyncNoNeed(c *C) {
+	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "2")
+
+	parts, err := s.systemImage.Installed()
+	c.Assert(err, IsNil)
+	part := parts[0].(*SystemImagePart)
+
+	c.Assert(part.needsBootAssetSync(), Equals, false)
 }

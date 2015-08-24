@@ -43,6 +43,7 @@ import (
 
 	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
@@ -158,7 +159,8 @@ func systemClickHooks() (hooks map[string]clickHook, err error) {
 	for _, f := range hookFiles {
 		hook, err := readClickHookFile(f)
 		if err != nil {
-			logger.Noticef("Can't read hook file %q: %v", f, err)
+			//TRANSLATORS: the first %q is the file that can not be read and %v is the error message
+			logger.Noticef(i18n.G("Can't read hook file %q: %v"), f, err)
 			continue
 		}
 		hooks[hook.name] = hook
@@ -413,11 +415,11 @@ func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error 
 	return nil
 }
 
-func verifyServiceYaml(service Service) error {
+func verifyServiceYaml(service ServiceYaml) error {
 	return verifyStructStringsAgainstWhitelist(service, servicesBinariesStringsWhitelist)
 }
 
-func generateSnapServicesFile(service Service, baseDir string, aaProfile string, m *packageYaml) (string, error) {
+func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
 	if err := verifyServiceYaml(service); err != nil {
 		return "", err
 	}
@@ -442,22 +444,23 @@ func generateSnapServicesFile(service Service, baseDir string, aaProfile string,
 			StopTimeout: time.Duration(service.StopTimeout),
 			AaProfile:   aaProfile,
 			IsFramework: m.Type == pkg.TypeFramework,
+			IsNetworked: service.Ports != nil && len(service.Ports.External) > 0,
 			BusName:     service.BusName,
 			UdevAppName: udevPartName,
 		}), nil
 }
 
-func generateServiceFileName(m *packageYaml, service Service) string {
+func generateServiceFileName(m *packageYaml, service ServiceYaml) string {
 	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
 }
 
-func generateBusPolicyFileName(m *packageYaml, service Service) string {
+func generateBusPolicyFileName(m *packageYaml, service ServiceYaml) string {
 	return filepath.Join(snapBusPolicyDir, fmt.Sprintf("%s_%s_%s.conf", m.Name, service.Name, m.Version))
 }
 
 // takes a directory and removes the global root, this is needed
 // when the SetRoot option is used and we need to generate
-// content for the "Services" and "Binaries" section
+// content for the "ServiceYamls" and "Binaries" section
 var stripGlobalRootDir = stripGlobalRootDirImpl
 
 func stripGlobalRootDirImpl(dir string) string {
@@ -483,7 +486,7 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 		return err
 	}
 
-	for _, service := range m.Services {
+	for _, service := range m.ServiceYamls {
 		aaProfile, err := getSecurityProfile(m, service.Name, baseDir)
 		if err != nil {
 			return err
@@ -550,7 +553,7 @@ func removePackageServices(baseDir string, inter interacter) error {
 		return err
 	}
 	sysd := systemd.New(globalRootDir, inter)
-	for _, service := range m.Services {
+	for _, service := range m.ServiceYamls {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
@@ -577,7 +580,7 @@ func removePackageServices(baseDir string, inter interacter) error {
 	}
 
 	// only reload if we actually had services
-	if len(m.Services) > 0 {
+	if len(m.ServiceYamls) > 0 {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
@@ -654,7 +657,7 @@ func (m *packageYaml) addSecurityPolicy(baseDir string) error {
 	//       done via the click hooks but we really want to generate
 	//       it all here
 
-	for _, svc := range m.Services {
+	for _, svc := range m.ServiceYamls {
 		if err := addOneSecurityPolicy(m, svc.Name, svc.SecurityDefinitions, baseDir); err != nil {
 			return err
 		}
@@ -684,7 +687,7 @@ func removeOneSecurityPolicy(m *packageYaml, name, baseDir string) error {
 
 func (m *packageYaml) removeSecurityPolicy(baseDir string) error {
 	// TODO: move apparmor policy removal here
-	for _, service := range m.Services {
+	for _, service := range m.ServiceYamls {
 		if err := removeOneSecurityPolicy(m, service.Name, baseDir); err != nil {
 			return err
 		}

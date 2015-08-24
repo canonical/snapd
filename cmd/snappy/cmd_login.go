@@ -24,30 +24,32 @@ import (
 	"fmt"
 	"os"
 
-	"code.google.com/p/go.crypto/ssh/terminal"
+	"golang.org/x/crypto/ssh/terminal"
 
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
 )
 
 type cmdLogin struct {
 	Positional struct {
-		UserName string `positional-arg-name:"userid" description:"Username for the login"`
+		UserName string `positional-arg-name:"userid"`
 	} `positional-args:"yes" required:"yes"`
 }
 
-const shortLoginHelp = `Log into the store`
+var shortLoginHelp = i18n.G("Log into the store")
 
-const longLoginHelp = `This command logs the given username into the store`
+var longLoginHelp = i18n.G("This command logs the given username into the store")
 
 func init() {
-	_, err := parser.AddCommand("login",
+	arg, err := parser.AddCommand("login",
 		shortLoginHelp,
 		longLoginHelp,
 		&cmdLogin{})
 	if err != nil {
 		logger.Panicf("Unable to login: %v", err)
 	}
+	addOptionDescription(arg, "userid", i18n.G("Username for the login"))
 }
 
 func requestStoreTokenWith2faRetry(username, password, tokenName string) (*snappy.StoreToken, error) {
@@ -56,7 +58,7 @@ func requestStoreTokenWith2faRetry(username, password, tokenName string) (*snapp
 
 	// check if we need 2fa
 	if err == snappy.ErrAuthenticationNeeds2fa {
-		fmt.Print("2fa code: ")
+		fmt.Print(i18n.G("2fa code: "))
 		reader := bufio.NewReader(os.Stdin)
 		// the browser shows it as well (and Sergio wants to see it ;)
 		otp, _, err := reader.ReadLine()
@@ -73,7 +75,7 @@ func (x *cmdLogin) Execute(args []string) error {
 	const tokenName = "snappy login token"
 
 	username := x.Positional.UserName
-	fmt.Print("Password: ")
+	fmt.Print(i18n.G("Password: "))
 	password, err := terminal.ReadPassword(0)
 	fmt.Print("\n")
 	if err != nil {
@@ -84,7 +86,7 @@ func (x *cmdLogin) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("Login successful")
+	fmt.Println(i18n.G("Login successful"))
 
 	return snappy.WriteStoreToken(*token)
 }

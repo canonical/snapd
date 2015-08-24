@@ -1,0 +1,352 @@
+# Spanish translation for snappy
+# Copyright (c) 2015 Rosetta Contributors and Canonical Ltd 2015
+# This file is distributed under the same license as the snappy package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2015.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: snappy\n"
+"Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
+"POT-Creation-Date: 2015-07-08 10:00+0200\n"
+"PO-Revision-Date: 2015-07-09 18:55+0000\n"
+"Last-Translator: Leo Arias <leo.arias@canonical.com>\n"
+"Language-Team: Spanish <es@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Launchpad-Export-Date: 2015-08-19 05:58+0000\n"
+"X-Generator: Launchpad (build 17690)\n"
+
+#. TRANSLATORS: the %s stand for "name", "version", "description"
+#, c-format
+msgid "%s\t%s\t%s (forks not shown: %d)\t"
+msgstr "%s\t%s\t%s (bifurcaciones no mostradas: %d)\t"
+
+#. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
+#, c-format
+msgid "%s: %s\n"
+msgstr "%s: %s\n"
+
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
+#, c-format
+msgid "'%s' is no longer allowed to access '%s'\n"
+msgstr "«%s» ya no está autorizado para acceder a «%s»\n"
+
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
+#, c-format
+msgid "'%s' is now allowed to access '%s'\n"
+msgstr "«%s» ahora tiene autorización para acceder a «%s»\n"
+
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
+#, c-format
+msgid "'%s' previously allowed access to '%s'. Skipping\n"
+msgstr "«%s» ya estaba autorizado para acceder a «%s». Omitido\n"
+
+#. TRANSLATORS: the %s is a pkgname
+#, c-format
+msgid "'%s:' is not allowed to access additional hardware\n"
+msgstr "«%s»: no está autorizado para acceder a hardware adicional\n"
+
+msgid "(deprecated) please use \"list\""
+msgstr "(obsoleto) use «list»"
+
+msgid "2fa code: "
+msgstr "Código 2fa: "
+
+msgid ""
+"Allows rollback of a snap to a previous installed version. Without any "
+"arguments, the previous installed version is selected. It is also possible "
+"to specify the version to rollback to as a additional argument.\n"
+msgstr ""
+"Permite volver a una versión de snap instalada anteriormente. Sin "
+"argumentos, se selecciona la versión anterior. Es posible especificar la "
+"versión a la que volver como un argumento adicional.\n"
+
+msgid "Assign a hardware device to a package"
+msgstr "Asignar un dispositivo de hardware a un paquete"
+
+msgid "Assign hardware to a specific installed package"
+msgstr ""
+
+msgid "Builds a snap package"
+msgstr "Construye un paquete snap"
+
+#. TRANSLATORS: the first %q is the file that can not be read and %v is the error message
+msgid "Can't read hook file %q: %v"
+msgstr "No se puede leer el archivo de «hook» %q: %v"
+
+msgid ""
+"Configures a package. The configuration is a YAML file, provided in the "
+"specified file which can be \"-\" for stdin. Output of the command is the "
+"current configuration, so running this command with no input file provides a "
+"snapshot of the app's current config."
+msgstr ""
+"Configura un paquete. La configuración es un archivo YAML, suministrado en "
+"el archivo especificado que puede ser «-» para stdin. La salida de la orden "
+"es la configuración actual, de forma que ejecutar esta orden sin el archivo "
+"brinda una copia de la configuración actual de la aplicación."
+
+msgid "Creates a snap package and if available, runs the review scripts."
+msgstr ""
+"Crea un paquete snap y, si están disponibles, ejecuta los «scripts» de "
+"revisión."
+
+msgid "Display a summary of key attributes of the snappy system."
+msgstr "Muestra un resumen de los atributos clave de el sistema snappy."
+
+msgid "Do not clean up old versions of the package."
+msgstr ""
+
+msgid "Ensures system is running with latest parts"
+msgstr ""
+"Se asegura que el sistema está ejecutando con las partes más recientes"
+
+msgid "First boot has already run"
+msgstr "El primer arranque ya se ejecutó"
+
+#. TRANSLATORS: the %s is a pkgname
+#, c-format
+msgid "Generated '%s' snap\n"
+msgstr "Snap «%s» generado\n"
+
+msgid "Install a snap package"
+msgstr "Instalar un paquete snap"
+
+msgid "Install snaps even if the signature can not be verified."
+msgstr ""
+
+#. TRANSLATORS: the %s is a pkgname
+#, c-format
+msgid "Installing %s\n"
+msgstr "Instalando %s\n"
+
+msgid "List active components installed on a snappy system"
+msgstr "Listar los componentes activos instalados en un sistema snappy"
+
+msgid "List assigned hardware device for a package"
+msgstr "Listar dispositivos de hardware asignados para un paquete"
+
+msgid "List assigned hardware for a specific installed package"
+msgstr ""
+
+msgid "Log into the store"
+msgstr "Iniciar sesión en la tienda"
+
+msgid "Login successful"
+msgstr "Inicio de sesión correcto"
+
+msgid "Name\tDate\tVersion\t"
+msgstr "Nombre\tFecha\tVersión\t"
+
+msgid "Name\tDate\tVersion\tDeveloper\t"
+msgstr "Nombre\tFecha\tVersión\tDesarrollador\t"
+
+msgid "Name\tVersion\tSummary\t"
+msgstr "Nombre\tVersión\tResumen\t"
+
+#. TRANSLATORS: the %s is a pkgname
+#, c-format
+msgid "No snap: '%s' found"
+msgstr "Nigún snap: «%s» encontrado"
+
+msgid "Password: "
+msgstr "Contraseña: "
+
+msgid "Provide information about a specific installed package"
+msgstr ""
+
+msgid "Provides more detailed information"
+msgstr ""
+
+msgid "Purge an installed package."
+msgstr ""
+
+#. TRANSLATORS: the %s is a pkgname
+#, c-format
+msgid "Purging %s\n"
+msgstr "Purgando %s\n"
+
+msgid "Query the store for available packages"
+msgstr "Consultar la tienda por paquetes disponibles"
+
+msgid "Reboot if necessary to be on the latest running system."
+msgstr ""
+
+#. TRANSLATORS: the first %s is a pkgname the second a version
+#, c-format
+msgid "Reboot to use %s version %s."
+msgstr "Reinicie para usar %s versión %s."
+
+#. TRANSLATORS: the %s is a pkgname
+#, c-format
+msgid "Reboot to use the new %s."
+msgstr "Reinicie para usar el nuevo %s."
+
+#. TRANSLATORS: the %s shows a comma separated list
+#. of package names
+#, c-format
+msgid "Rebooting to satisfy updates for %s\n"
+msgstr "Reiniciando para satisfacer las actualizaciones para %s\n"
+
+msgid "Remove a snapp part"
+msgstr "Eliminar una parte de snap"
+
+msgid "Remove all the data from the listed packages"
+msgstr "Eliminar todos los datos de los paquetes listados"
+
+msgid "Remove hardware from a specific installed package"
+msgstr ""
+
+#. TRANSLATORS: the %s is a pkgname
+#, c-format
+msgid "Removing %s\n"
+msgstr "Eliminando %s\n"
+
+msgid "Rollback to a previous version of a package"
+msgstr "Volver a una versión anterior de un paquete"
+
+msgid "Search for packages to install"
+msgstr "Buscar paquetes para instalar"
+
+msgid "Set configuration for a specific installed package"
+msgstr ""
+
+msgid "Set configuration for an installed package."
+msgstr "Establecer la configuración de un paquete instalado"
+
+msgid "Set properties of system or package"
+msgstr "Establecer las propiedades de un sistema o paquete"
+
+#. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
+#, c-format
+msgid "Setting %s to version %s\n"
+msgstr "Estableciendo %s a la versión %s\n"
+
+msgid "Show all available forks of a package"
+msgstr ""
+
+msgid "Show available updates (requires network)"
+msgstr ""
+
+msgid "Show channel information and expand all fields"
+msgstr ""
+
+msgid "Specify an alternate output directory for the resulting package"
+msgstr ""
+
+msgid "The Package to install (name or path)"
+msgstr ""
+
+msgid "The configuration for the given file"
+msgstr ""
+
+msgid "The configuration for the given install"
+msgstr ""
+
+msgid "The hardware device path (e.g. /dev/ttyUSB0)"
+msgstr ""
+
+msgid "The package to rollback "
+msgstr ""
+
+msgid "The version to rollback to"
+msgstr ""
+
+msgid ""
+"This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) "
+"for an installed package."
+msgstr ""
+"Esta orden agrega el acceso a un dispositivo hardware específico (p.ej. "
+"/dev/ttyUSB0) para un paquete instalado."
+
+msgid "This command is no longer available, please use the \"list\" command"
+msgstr "Esta orden ya no está disponible. Utilice «list» en su lugar"
+
+msgid "This command list what hardware an installed package can access"
+msgstr ""
+"Esta orden lista el hardware al que tiene acceso un paquete instalado"
+
+msgid "This command logs the given username into the store"
+msgstr "Esta orden inicia una sesión del usuario especificado en la tienda"
+
+msgid ""
+"This command removes access of a specific hardware device (e.g. "
+"/dev/ttyUSB0) for an installed package."
+msgstr ""
+"Esta orden elimina el acceso a un dispositivo de hardware específico (p.ej. "
+"/dev/ttyUSB0) para un paquete instalado."
+
+msgid "Unassign a hardware device to a package"
+msgstr "Desasignar un dispositivo de hardware a un paquete"
+
+msgid "Update all installed parts"
+msgstr "Actualizar todas las partes intaladas"
+
+msgid "Use --show-all to see all available forks."
+msgstr "Use --show-all para ver todas las bifurcaciones disponibles."
+
+msgid "Username for the login"
+msgstr ""
+
+#. TRANSLATORS: the %s represents a list of installed appnames
+#. (e.g. "apps: foo, bar, baz")
+#, c-format
+msgid "apps: %s\n"
+msgstr "aplicaciones: %s\n"
+
+#. TRANSLATORS: the %s an architecture string
+#, c-format
+msgid "architecture: %s\n"
+msgstr "arquitectura: %s\n"
+
+#. TRANSLATORS: the %s is a size
+msgid "binary-size: %v\n"
+msgstr "tamaño del binario: %v\n"
+
+#. TRANSLATORS: the %s is a channel name
+#, c-format
+msgid "channel: %s\n"
+msgstr "canal: %s\n"
+
+#. TRANSLATORS: the %s is a size
+#, c-format
+msgid "data-size: %s\n"
+msgstr "tamaño de los datos: %s\n"
+
+#. TRANSLATORS: the %s is a comma separated list of framework names
+#, c-format
+msgid "frameworks: %s\n"
+msgstr "frameworks: %s\n"
+
+#. TRANSLATORS: the %s is a date
+#, c-format
+msgid "installed: %s\n"
+msgstr "instalado: %s\n"
+
+msgid "package name is required"
+msgstr "se requiere el nombre del paquete"
+
+#. TRANSLATORS: the %s release string
+#, c-format
+msgid "release: %s\n"
+msgstr "publicación: %s\n"
+
+msgid ""
+"snappy autopilot triggered a reboot to boot into an up to date system -- "
+"temprorarily disable the reboot by running 'sudo shutdown -c'"
+msgstr ""
+"snappy autopilot provocó un reinicio para arrancar en un sistema actualizado "
+"-- desactive temporalmente el reinicio ejecutando «sudo shutdown -c»"
+
+#. TRANSLATORS: the %s is a date
+#, c-format
+msgid "updated: %s\n"
+msgstr "actualizado: %s\n"
+
+#. TRANSLATORS: the %s is a version string
+#, c-format
+msgid "version: %s\n"
+msgstr "versión: %s\n"
+
+msgid "versions"
+msgstr "versiones"
