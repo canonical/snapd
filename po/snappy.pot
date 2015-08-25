@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-08-18 13:59+0100\n"
+        "POT-Creation-Date: 2015-08-24 11:49+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -334,6 +334,16 @@ msgid   "release: %s\n"
 msgstr  ""
 
 msgid   "snappy autopilot triggered a reboot to boot into an up to date system -- temprorarily disable the reboot by running 'sudo shutdown -c'"
+msgstr  ""
+
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#, c-format
+msgid   "unable to disable %s's service %s: %v"
+msgstr  ""
+
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#, c-format
+msgid   "unable to enable %s's service %s: %v"
 msgstr  ""
 
 #. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error

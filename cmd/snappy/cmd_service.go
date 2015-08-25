@@ -36,6 +36,8 @@ type cmdService struct {
 	Start   svcStart   `command:"start"`
 	Stop    svcStop    `command:"stop"`
 	Restart svcRestart `command:"restart"`
+	Enable  svcEnable  `command:"enable"`
+	Disable svcDisable `command:"disable"`
 }
 type svcBase struct {
 	Args struct {
@@ -47,6 +49,8 @@ type svcStatus struct{ svcBase }
 type svcStart struct{ svcBase }
 type svcStop struct{ svcBase }
 type svcRestart struct{ svcBase }
+type svcEnable struct{ svcBase }
+type svcDisable struct{ svcBase }
 
 func init() {
 	_, err := parser.AddCommand("service",
@@ -65,6 +69,8 @@ const (
 	doStart
 	doStop
 	doRestart
+	doEnable
+	doDisable
 )
 
 func (s *svcBase) doExecute(cmd int) ([]string, error) {
@@ -82,6 +88,10 @@ func (s *svcBase) doExecute(cmd int) ([]string, error) {
 		return nil, actor.Stop()
 	case doRestart:
 		return nil, actor.Restart()
+	case doEnable:
+		return nil, actor.Enable()
+	case doDisable:
+		return nil, actor.Disable()
 	default:
 		panic("can't happen")
 	}
@@ -134,6 +144,20 @@ func (s *svcStop) Execute(args []string) error {
 func (s *svcRestart) Execute(args []string) error {
 	return withMutex(func() error {
 		_, err := s.doExecute(doRestart)
+		return err
+	})
+}
+
+func (s *svcEnable) Execute(args []string) error {
+	return withMutex(func() error {
+		_, err := s.doExecute(doEnable)
+		return err
+	})
+}
+
+func (s *svcDisable) Execute(args []string) error {
+	return withMutex(func() error {
+		_, err := s.doExecute(doDisable)
 		return err
 	})
 }

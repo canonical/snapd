@@ -145,12 +145,12 @@ func (*systemd) Start(serviceName string) error {
 var statusregex = regexp.MustCompile(`(?m)^(?:(.*?)=(.*))?$`)
 
 func (s *systemd) Status(serviceName string) (string, error) {
-	bs, err := SystemctlCmd("show", "--property=Id,LoadState,ActiveState,SubState", serviceName)
+	bs, err := SystemctlCmd("show", "--property=Id,LoadState,ActiveState,SubState,UnitFileState", serviceName)
 	if err != nil {
 		return "", err
 	}
 
-	load, active, sub := "", "", ""
+	load, active, sub, unit := "", "", "", ""
 
 	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
 		if len(bs[0]) > 0 {
@@ -163,11 +163,13 @@ func (s *systemd) Status(serviceName string) (string, error) {
 				active = v
 			case "SubState":
 				sub = v
+			case "UnitFileState":
+				unit = v
 			}
 		}
 	}
 
-	return fmt.Sprintf("%s; %s (%s)", load, active, sub), nil
+	return fmt.Sprintf("%s; %s; %s (%s)", unit, load, active, sub), nil
 }
 
 // Stop the given service, and wait until it has stopped.
