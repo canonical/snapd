@@ -471,21 +471,7 @@ func stripGlobalRootDirImpl(dir string) string {
 	return dir[len(globalRootDir):]
 }
 
-func checkPackageForNameClashes(baseDir string) error {
-	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
-	if err != nil {
-		return err
-	}
-
-	return m.checkForNameClashes()
-}
-
-func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) error {
-	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
-	if err != nil {
-		return err
-	}
-
+func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inter interacter) error {
 	for _, service := range m.ServiceYamls {
 		aaProfile, err := getSecurityProfile(m, service.Name, baseDir)
 		if err != nil {
@@ -547,11 +533,7 @@ func addPackageServices(baseDir string, inhibitHooks bool, inter interacter) err
 	return nil
 }
 
-func removePackageServices(baseDir string, inter interacter) error {
-	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
-	if err != nil {
-		return err
-	}
+func (m *packageYaml) removePackageServices(baseDir string, inter interacter) error {
 	sysd := systemd.New(globalRootDir, inter)
 	for _, service := range m.ServiceYamls {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
@@ -589,12 +571,7 @@ func removePackageServices(baseDir string, inter interacter) error {
 	return nil
 }
 
-func addPackageBinaries(baseDir string) error {
-	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
-	if err != nil {
-		return err
-	}
-
+func (m *packageYaml) addPackageBinaries(baseDir string) error {
 	if err := os.MkdirAll(snapBinariesDir, 0755); err != nil {
 		return err
 	}
@@ -622,11 +599,7 @@ func addPackageBinaries(baseDir string) error {
 	return nil
 }
 
-func removePackageBinaries(baseDir string) error {
-	m, err := parsePackageYamlFile(filepath.Join(baseDir, "meta", "package.yaml"))
-	if err != nil {
-		return err
-	}
+func (m *packageYaml) removePackageBinaries(baseDir string) error {
 	for _, binary := range m.Binaries {
 		os.Remove(generateBinaryName(m, binary))
 	}
@@ -634,7 +607,7 @@ func removePackageBinaries(baseDir string) error {
 	return nil
 }
 
-func addOneSecurityPolicy(m *packageYaml, name string, sd SecurityDefinitions, baseDir string) error {
+func (m *packageYaml) addOneSecurityPolicy(name string, sd SecurityDefinitions, baseDir string) error {
 	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
 	if err != nil {
 		return err
@@ -658,13 +631,13 @@ func (m *packageYaml) addSecurityPolicy(baseDir string) error {
 	//       it all here
 
 	for _, svc := range m.ServiceYamls {
-		if err := addOneSecurityPolicy(m, svc.Name, svc.SecurityDefinitions, baseDir); err != nil {
+		if err := m.addOneSecurityPolicy(svc.Name, svc.SecurityDefinitions, baseDir); err != nil {
 			return err
 		}
 	}
 
 	for _, bin := range m.Binaries {
-		if err := addOneSecurityPolicy(m, bin.Name, bin.SecurityDefinitions, baseDir); err != nil {
+		if err := m.addOneSecurityPolicy(bin.Name, bin.SecurityDefinitions, baseDir); err != nil {
 			return err
 		}
 	}
@@ -672,7 +645,7 @@ func (m *packageYaml) addSecurityPolicy(baseDir string) error {
 	return nil
 }
 
-func removeOneSecurityPolicy(m *packageYaml, name, baseDir string) error {
+func (m *packageYaml) removeOneSecurityPolicy(name, baseDir string) error {
 	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
 	if err != nil {
 		return err
@@ -688,13 +661,13 @@ func removeOneSecurityPolicy(m *packageYaml, name, baseDir string) error {
 func (m *packageYaml) removeSecurityPolicy(baseDir string) error {
 	// TODO: move apparmor policy removal here
 	for _, service := range m.ServiceYamls {
-		if err := removeOneSecurityPolicy(m, service.Name, baseDir); err != nil {
+		if err := m.removeOneSecurityPolicy(service.Name, baseDir); err != nil {
 			return err
 		}
 	}
 
 	for _, binary := range m.Binaries {
-		if err := removeOneSecurityPolicy(m, binary.Name, baseDir); err != nil {
+		if err := m.removeOneSecurityPolicy(binary.Name, baseDir); err != nil {
 			return err
 		}
 	}
@@ -722,6 +695,10 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 	if cm.Type != pkg.TypeFramework && cm.Type != pkg.TypeOem {
 		// add the origin to the name
 		cm.Name = fmt.Sprintf("%s.%s", cm.Name, origin)
+	}
+
+	if origin == sideloadedOrigin {
+		cm.Version = filepath.Base(filepath.Join(clickMetaDir, "..", ".."))
 	}
 
 	outStr, err := json.MarshalIndent(cm, "", "  ")
