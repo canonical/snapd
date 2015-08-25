@@ -300,10 +300,6 @@ export SNAPP_OLD_PWD="$(pwd)"
 # app info
 {{.NewAppVars}}
 
-if [ ! -d "$SNAP_APP_TMPDIR" ]; then
-    mkdir -p -m1777 "$SNAP_APP_TMPDIR"
-fi
-
 if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
    mkdir -p "$SNAP_APP_USER_DATA_PATH"
 fi
