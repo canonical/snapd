@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-08-26 09:18+0200\n"
+        "POT-Creation-Date: 2015-08-26 10:54+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -258,6 +258,10 @@ msgid   "The hardware device path (e.g. /dev/ttyUSB0)"
 msgstr  ""
 
 msgid   "The package to rollback "
+msgstr  ""
+
+#, c-format
+msgid   "The snappy autopilot is updating your system in the background. This may\ntake some minutes. Will try again in %d seconds...\nPress ctrl-c to cancel.\n"
 msgstr  ""
 
 msgid   "The version to rollback to"

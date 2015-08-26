@@ -21,6 +21,8 @@ package main
 
 import (
 	"fmt"
+	"os/exec"
+	"strings"
 	"time"
 
 	"launchpad.net/snappy/i18n"
@@ -32,17 +34,42 @@ import (
 
 const snappyLockFile = "/run/snappy.lock"
 
-// withMutex runs the given function with a filelock mutex
+func isAutoPilotRunning() bool {
+	unitName := "snappy-autopilot"
+	bs, err := exec.Command("systemctl", "show", "--property=SubState", unitName).CombinedOutput()
+	if err != nil {
+		return false
+	}
+
+	return strings.TrimSpace(string(bs)) == "SubState=running"
+}
+
+// withMutex runs the given function with a filelock mutex and provides
+// automatic re-try and helpful messages if the lock is already taken
 func withMutex(f func() error) error {
 	for {
 		err := priv.WithMutex(snappyLockFile, f)
-		// already locked, auto-retry
+		// if already locked, auto-retry
 		if err == priv.ErrAlreadyLocked {
-			wait := 5
-			fmt.Printf(i18n.G(
-`Another snappy is running in the background, will try again in %d seconds...
+			var msg string
+			if isAutoPilotRunning() {
+				// FIXME: we could even do a
+				//    journalctl -u snappy-autopilot
+				// here
+				msg = i18n.G(
+					`The snappy autopilot is updating your system in the background. This may
+take some minutes. Will try again in %d seconds...
 Press ctrl-c to cancel.
-`), wait)
+`)
+			} else {
+				msg = i18n.G(
+					`Another snappy is running in the background, will try again in %d seconds...
+Press ctrl-c to cancel.
+`)
+			}
+			// wait a wee bit
+			wait := 5
+			fmt.Printf(msg, wait)
 			time.Sleep(time.Duration(wait) * time.Second)
 			continue
 		}
