@@ -32,6 +32,8 @@ cat > $(pwd)/_integration-tests/bin/sudo <<EOF
 /usr/bin/sudo env PATH=$PATH "\$@"
 EOF
 
+chmod +x $(pwd)/_integration-tests/bin
+
 # shift to remove the test binary name (first argument) and be able to pass the rest
 # of them to it
 shift
