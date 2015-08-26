@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-08-24 11:49+0100\n"
+        "POT-Creation-Date: 2015-08-26 09:18+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -56,6 +56,10 @@ msgid   "A concise summary of key attributes of the snappy system, such as the r
 msgstr  ""
 
 msgid   "Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.\n"
+msgstr  ""
+
+#, c-format
+msgid   "Another snappy is running in the background, will try again in %d seconds...\nPress ctrl-c to cancel.\n"
 msgstr  ""
 
 msgid   "Assign a hardware device to a package"

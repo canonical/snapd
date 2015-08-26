@@ -20,6 +20,10 @@
 package main
 
 import (
+	"fmt"
+	"time"
+
+	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/priv"
 
@@ -30,7 +34,21 @@ const snappyLockFile = "/run/snappy.lock"
 
 // withMutex runs the given function with a filelock mutex
 func withMutex(f func() error) error {
-	return priv.WithMutex(snappyLockFile, f)
+	for {
+		err := priv.WithMutex(snappyLockFile, f)
+		// already locked, auto-retry
+		if err == priv.ErrAlreadyLocked {
+			wait := 5
+			fmt.Printf(i18n.G(
+`Another snappy is running in the background, will try again in %d seconds...
+Press ctrl-c to cancel.
+`), wait)
+			time.Sleep(time.Duration(wait) * time.Second)
+			continue
+		}
+
+		return err
+	}
 }
 
 // addOptionDescription will try to find the given longName in the
