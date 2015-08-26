@@ -47,7 +47,15 @@ func getHWAccessJSONFile(snapname string) string {
 
 // Return true if the device string is a valid device
 func validDevice(device string) bool {
-	return strings.HasPrefix(device, "/dev") || strings.HasPrefix(device, "/sys/devices")
+	validPrefixes := []string{"/dev", "/sys/devices", "/sys/class/gpio/export", "/sys/class/gpio/export"} 
+
+	for _, s := range validPrefixes {
+		if strings.HasPrefix(device, s) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func readHWAccessJSONFile(snapname string) (appArmorAdditionalJSON, error) {
