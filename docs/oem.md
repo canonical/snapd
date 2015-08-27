@@ -103,7 +103,7 @@ The only supported layout today is AB.
 
 Hardware can be assigned directly to a snap part in the oem snap.
 This is useful if you are building e.g. a fixed function device.
-The "assign" key is used and it takes alist of snap parts as parameter
+The "assign" key is used and it takes a list of snap parts as parameter
 that will then get access to the devices specified by the "rules"
 section. The matching is flexible and follows what the kernel/udev
 is doing.
