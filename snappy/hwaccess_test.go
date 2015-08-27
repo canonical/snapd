@@ -140,8 +140,11 @@ func (s *SnapTestSuite) TestListHWAccess(c *C) {
 	err = AddHWAccess("hello-app", "/sys/class/gpio/export")
 	c.Assert(err, IsNil)
 
+	err = AddHWAccess("hello-app", "/sys/class/gpio/unexport")
+	c.Assert(err, IsNil)
+
 	writePaths, err := ListHWAccess("hello-app")
-	c.Assert(writePaths, DeepEquals, []string{"/dev/ttyUSB0", "/sys/devices/gpio1", "/sys/class/gpio/export"})
+	c.Assert(writePaths, DeepEquals, []string{"/dev/ttyUSB0", "/sys/devices/gpio1", "/sys/class/gpio/export", "/sys/class/gpio/unexport"})
 }
 
 func (s *SnapTestSuite) TestRemoveHWAccessInvalidDevice(c *C) {
