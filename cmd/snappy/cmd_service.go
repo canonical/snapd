@@ -128,35 +128,35 @@ func (s *svcStatus) Execute(args []string) error {
 }
 
 func (s *svcStart) Execute(args []string) error {
-	return withMutex(func() error {
+	return withMutexAndRetry(func() error {
 		_, err := s.doExecute(doStart)
 		return err
 	})
 }
 
 func (s *svcStop) Execute(args []string) error {
-	return withMutex(func() error {
+	return withMutexAndRetry(func() error {
 		_, err := s.doExecute(doStop)
 		return err
 	})
 }
 
 func (s *svcRestart) Execute(args []string) error {
-	return withMutex(func() error {
+	return withMutexAndRetry(func() error {
 		_, err := s.doExecute(doRestart)
 		return err
 	})
 }
 
 func (s *svcEnable) Execute(args []string) error {
-	return withMutex(func() error {
+	return withMutexAndRetry(func() error {
 		_, err := s.doExecute(doEnable)
 		return err
 	})
 }
 
 func (s *svcDisable) Execute(args []string) error {
-	return withMutex(func() error {
+	return withMutexAndRetry(func() error {
 		_, err := s.doExecute(doDisable)
 		return err
 	})

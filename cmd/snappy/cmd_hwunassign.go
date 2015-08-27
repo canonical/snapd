@@ -51,7 +51,7 @@ func init() {
 }
 
 func (x *cmdHWUnassign) Execute(args []string) error {
-	return withMutex(x.doHWUnassign)
+	return withMutexAndRetry(x.doHWUnassign)
 }
 
 func (x *cmdHWUnassign) doHWUnassign() error {

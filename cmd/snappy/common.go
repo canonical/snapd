@@ -44,9 +44,9 @@ func isAutoPilotRunning() bool {
 	return strings.TrimSpace(string(bs)) == "SubState=running"
 }
 
-// withMutex runs the given function with a filelock mutex and provides
+// withMutexAndRetry runs the given function with a filelock mutex and provides
 // automatic re-try and helpful messages if the lock is already taken
-func withMutex(f func() error) error {
+func withMutexAndRetry(f func() error) error {
 	for {
 		err := priv.WithMutex(snappyLockFile, f)
 		// if already locked, auto-retry

@@ -54,7 +54,7 @@ func init() {
 
 func (x *cmdSet) Execute(args []string) (err error) {
 	x.args = args
-	return withMutex(x.doSet)
+	return withMutexAndRetry(x.doSet)
 }
 
 func (x *cmdSet) doSet() (err error) {
