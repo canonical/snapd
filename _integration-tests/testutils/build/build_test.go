@@ -164,7 +164,7 @@ var armEnvironmentTests = []struct {
 }{
 	{"GOARM " + defaultGoArm, "GOARM " + os.Getenv("GOARM")},
 	{"CGO_ENABLED 1", "CGO_ENABLED " + os.Getenv("CGO_ENABLED")},
-	{"CC arm-linux-gnuebihf-gcc", "CC " + os.Getenv("CC")},
+	{"CC arm-linux-gnueabihf-gcc", "CC " + os.Getenv("CC")},
 }
 
 func (s *BuildSuite) TestAssetsSetsEnvironmentForArm(c *check.C) {
