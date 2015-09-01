@@ -500,7 +500,7 @@ func RSyncWithDelete(srcDirName, destDirName string) error {
 			}
 
 			// this can panic. The alternative would be to use the "st, ok" pattern, and then if !ok... panic?
-			st := info.(*syscall.Stat_t)
+			st := info.Sys().(*syscall.Stat_t)
 			ts := []syscall.Timespec{st.Atim, st.Mtim}
 
 			return syscall.UtimesNano(dst, ts)
