@@ -486,18 +486,25 @@ func RSyncWithDelete(srcDirName, destDirName string) error {
 	}
 
 	// then copy or update the data from srcdir to destdir
-	err = filepath.Walk(srcDirName, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(srcDirName, func(src string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// relative to the root "srcDirName"
-		relPath := path[len(srcDirName):]
-		if info.IsDir() {
-			return os.MkdirAll(filepath.Join(destDirName, relPath), info.Mode())
-		}
-		src := path
+		relPath := src[len(srcDirName):]
 		dst := filepath.Join(destDirName, relPath)
+		if info.IsDir() {
+			if err := os.MkdirAll(dst, info.Mode()); err != nil {
+				return err
+			}
+
+			// this can panic. The alternative would be to use the "st, ok" pattern, and then if !ok... panic?
+			st := info.(*syscall.Stat_t)
+			ts := []syscall.Timespec{st.Atim, st.Mtim}
+
+			return syscall.UtimesNano(dst, ts)
+		}
 		if !FilesAreEqual(src, dst) {
 			// XXX: we should (eventually) use CopyFile here,
 			//      but we need to teach it about preserving
