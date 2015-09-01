@@ -173,14 +173,14 @@ var armEnvironmentTests = []struct {
 func (s *BuildSuite) TestAssetsSetsEnvironmentForArm(c *check.C) {
 	arch := "arm"
 	for _, t := range armEnvironmentTests {
-		s.environ[t.envVar] = os.Getenv(t.envVar)
+		s.environ[t.envVar] = "original" + t.envVar
 	}
 	Assets(s.useSnappyFromBranch, arch)
 
 	for _, t := range armEnvironmentTests {
 		firstCall := fmt.Sprintf("%s %s", t.envVar, t.value)
 		setenvFirstCall := s.osSetenvCalls[firstCall]
-		finalCall := fmt.Sprintf("%s %s", t.envVar, os.Getenv(t.envVar))
+		finalCall := fmt.Sprintf("%s %s", t.envVar, "original"+t.envVar)
 		setenvFinalCall := s.osSetenvCalls[finalCall]
 
 		c.Assert(setenvFirstCall, check.Equals, 1,
