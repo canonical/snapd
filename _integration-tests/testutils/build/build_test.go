@@ -51,6 +51,8 @@ type BuildSuite struct {
 
 	useSnappyFromBranch bool
 	arch                string
+
+	environ map[string]string
 }
 
 var _ = check.Suite(&BuildSuite{})
@@ -83,6 +85,7 @@ func (s *BuildSuite) SetUpTest(c *check.C) {
 	s.osRenameCalls = make(map[string]int)
 	s.osSetenvCalls = make(map[string]int)
 	s.osGetenvCalls = make(map[string]int)
+	s.environ = make(map[string]string)
 }
 
 func (s *BuildSuite) fakeExecCommand(args ...string) (err error) {
@@ -101,12 +104,13 @@ func (s *BuildSuite) fakeOsRename(orig, dest string) (err error) {
 
 func (s *BuildSuite) fakeOsSetenv(key, value string) (err error) {
 	s.osSetenvCalls[key+" "+value]++
+	s.environ[key] = value
 	return
 }
 
 func (s *BuildSuite) fakeOsGetenv(key string) (value string) {
 	s.osGetenvCalls[key]++
-	return
+	return s.environ[key]
 }
 
 func (s *BuildSuite) TestAssetsCallsPrepareDir(c *check.C) {
@@ -143,8 +147,7 @@ func (s *BuildSuite) TestAssetsRenamesBuiltBinary(c *check.C) {
 
 func (s *BuildSuite) TestAssetsSetsEnvironmentForGenericArch(c *check.C) {
 	arch := "myarch"
-	// needed for go1.5
-	os.Setenv("GOARCH", arch)
+	s.environ["GOARCH"] = os.Getenv("GOARCH")
 	Assets(s.useSnappyFromBranch, arch)
 
 	setenvGOARCHFirstCall := s.osSetenvCalls["GOARCH "+arch]
