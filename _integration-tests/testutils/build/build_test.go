@@ -177,16 +177,18 @@ func (s *BuildSuite) TestAssetsSetsEnvironmentForArm(c *check.C) {
 	}
 	Assets(s.useSnappyFromBranch, arch)
 
-	for _, env := range t {
-		setenvFirstCall := s.osSetenvCalls[fmt.Sprintf("%s %s", t.envVar, t.value)]
-		setenvFinalCall := s.osSetenvCalls[fmt.Sprintf("%s %s", t.envVar, os.Getenv(t.envVar))]
+	for _, t := range armEnvironmentTests {
+		firstCall := fmt.Sprintf("%s %s", t.envVar, t.value)
+		setenvFirstCall := s.osSetenvCalls[firstCall]
+		finalCall := fmt.Sprintf("%s %s", t.envVar, os.Getenv(t.envVar))
+		setenvFinalCall := s.osSetenvCalls[finalCall]
 
 		c.Assert(setenvFirstCall, check.Equals, 1,
 			check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
-				env.firstCall, setenvFirstCall))
+				firstCall, setenvFirstCall))
 		c.Assert(setenvFinalCall, check.Equals, 1,
 			check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
-				env.finalCall, setenvFinalCall))
+				finalCall, setenvFinalCall))
 	}
 }
 
