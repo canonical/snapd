@@ -162,21 +162,24 @@ func (s *BuildSuite) TestAssetsSetsEnvironmentForGenericArch(c *check.C) {
 }
 
 var armEnvironmentTests = []struct {
-	firstCall string
-	finalCall string
+	envVar string
+	value  string
 }{
-	{"GOARM " + defaultGoArm, "GOARM " + os.Getenv("GOARM")},
-	{"CGO_ENABLED 1", "CGO_ENABLED " + os.Getenv("CGO_ENABLED")},
-	{"CC arm-linux-gnueabihf-gcc", "CC " + os.Getenv("CC")},
+	{"GOARM", defaultGoArm},
+	{"CGO_ENABLED", "1"},
+	{"CC", "arm-linux-gnueabihf-gcc"},
 }
 
 func (s *BuildSuite) TestAssetsSetsEnvironmentForArm(c *check.C) {
 	arch := "arm"
+	for _, t := range armEnvironmentTests {
+		s.environ[t.envVar] = os.Getenv(t.envVar)
+	}
 	Assets(s.useSnappyFromBranch, arch)
 
-	for _, env := range armEnvironmentTests {
-		setenvFirstCall := s.osSetenvCalls[env.firstCall]
-		setenvFinalCall := s.osSetenvCalls[env.finalCall]
+	for _, env := range t {
+		setenvFirstCall := s.osSetenvCalls[fmt.Sprintf("%s %s", t.envVar, t.value)]
+		setenvFinalCall := s.osSetenvCalls[fmt.Sprintf("%s %s", t.envVar, os.Getenv(t.envVar))]
 
 		c.Assert(setenvFirstCall, check.Equals, 1,
 			check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
