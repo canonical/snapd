@@ -1,5 +1,5 @@
 #!/bin/sh
-1;3803;0c
+
 set -ev
 
 if which goctest >/dev/null; then

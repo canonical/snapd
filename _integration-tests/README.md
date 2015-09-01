@@ -62,9 +62,6 @@ You can execute the integration suite in a remote snappy machine with:
     go run _integration-tests/main.go --ip {testbed-ip} --port {testbed-port} \
     --arch {testbed-arch}
 
-The test runner will use `ssh-copy-id` to send your identity file to the
-testbed, so it will ask for the password of the ubuntu user in the test bed.
-
 When running in a remote machine, the test runner assumes the test bed is in
 the latest rolling edge version, and it will skip all the tests that
 require a different version. See the following section for instructions for

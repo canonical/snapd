@@ -152,12 +152,13 @@ The package header section is common to all packages
 The general rules for config:
 
 - only applied on first boot.
-- if the config is immutable, updates to the `oem` package will be reflected.
 
 Rules about packages in the config:
 
-- a package listed in this map is preinstalled on image roll out (`ubuntu-core`
-  is implicit)
+- a package listed in this map is automatically preinstalled from the store
+  on image roll out. `ubuntu-core` is always implicitly installed. The
+  `oem` snap is also installed and can not be (re)configured after the
+  install.
 
 The `oem` part of the `package.yaml` is not a configuration per se and treated
 separately.

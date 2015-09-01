@@ -261,9 +261,10 @@ func IsDirectory(path string) bool {
 	return fileInfo.IsDir()
 }
 
+const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy"
+
 // MakeRandomString returns a random string of length length
 func MakeRandomString(length int) string {
-	var letters = "abcdefghijklmnopqrstuvwxyABCDEFGHIJKLMNOPQRSTUVWXY"
 
 	out := ""
 	for i := 0; i < length; i++ {
@@ -271,6 +272,19 @@ func MakeRandomString(length int) string {
 	}
 
 	return out
+}
+
+// NewSideloadVersion returns a version number such that later calls
+// should return versions that compare larger.
+func NewSideloadVersion() string {
+	n := time.Now().UTC().UnixNano()
+	bs := make([]byte, 12)
+	for i := 11; i >= 0; i-- {
+		bs[i] = letters[n&31]
+		n = n >> 5
+	}
+
+	return string(bs)
 }
 
 // AtomicWriteFile updates the filename atomically and works otherwise
@@ -490,7 +504,7 @@ func RSyncWithDelete(srcDirName, destDirName string) error {
 			//      of atime/mtime and permissions
 			output, err := exec.Command("cp", "-va", src, dst).CombinedOutput()
 			if err != nil {
-				fmt.Errorf("Failed to copy %s to %s (%s)", src, dst, output)
+				return fmt.Errorf("Failed to copy %s to %s (%s)", src, dst, output)
 			}
 		}
 		return nil

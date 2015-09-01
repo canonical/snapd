@@ -10,7 +10,7 @@ if [ -n "$1" ]; then
 	OUTPUT="$1"
 fi
 
-# ensure we have it
+# ensure we have our xgettext-go
 go install launchpad.net/snappy/i18n/xgettext-go
 
 $GOPATH/bin/xgettext-go \
