@@ -74,7 +74,7 @@ func (zeroSizeInitrd) unset(c *check.C) {
 	} else {
 		boot := bootSystem(c)
 		dir := bootDirectory(boot)
-		bootFileNamePattern := newKernelFilenamePattern(c, boot, false)
+		bootFileNamePattern := newKernelFilenamePattern(c, boot, true)
 		commonUnset(c, dir, bootFileNamePattern, initrdFilename)
 	}
 }
