@@ -21,7 +21,9 @@ package systemd
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -58,6 +60,22 @@ func run(args ...string) ([]byte, error) {
 // systemctl. It's exported so it can be overridden by testing.
 var SystemctlCmd = run
 
+// jctl calls journalctl to get the JSON logs of the given service, wrapping the error if any.
+func jctl(svc string) ([]byte, error) {
+	cmd := []string{"journalctl", "-o", "json", "-u", svc}
+
+	bs, err := exec.Command(cmd[0], cmd[1:]...).CombinedOutput()
+	if err != nil {
+		exitCode, _ := helpers.ExitCode(err)
+		return nil, &Error{cmd: cmd, exitCode: exitCode, msg: bs}
+	}
+
+	return bs, nil
+}
+
+// JournalctlCmd is called from Logs to run journalctl; exported for testing.
+var JournalctlCmd = jctl
+
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	DaemonReload() error
@@ -69,6 +87,7 @@ type Systemd interface {
 	Restart(service string, timeout time.Duration) error
 	GenServiceFile(desc *ServiceDescription) string
 	Status(service string) (string, error)
+	Logs(service string) ([]map[string]interface{}, error)
 }
 
 // ServiceDescription describes a snappy systemd service
@@ -140,6 +159,33 @@ func (s *systemd) Disable(serviceName string) error {
 func (*systemd) Start(serviceName string) error {
 	_, err := SystemctlCmd("start", serviceName)
 	return err
+}
+
+// Logs for the given service
+func (*systemd) Logs(serviceName string) ([]map[string]interface{}, error) {
+	bs, err := JournalctlCmd(serviceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var logs []map[string]interface{}
+	dec := json.NewDecoder(bytes.NewReader(bs))
+	for {
+		var log map[string]interface{}
+
+		err = dec.Decode(&log)
+		if err != nil {
+			break
+		}
+
+		logs = append(logs, log)
+	}
+
+	if err != io.EOF {
+		return nil, err
+	}
+
+	return logs, nil
 }
 
 var statusregex = regexp.MustCompile(`(?m)^(?:(.*?)=(.*))?$`)

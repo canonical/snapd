@@ -48,7 +48,13 @@ type SystemdTestSuite struct {
 	argses [][]string
 	errors []error
 	outs   [][]byte
-	rep    *testreporter
+
+	j     int
+	jsvcs []string
+	jouts [][]byte
+	jerrs []error
+
+	rep *testreporter
 }
 
 var _ = Suite(&SystemdTestSuite{})
@@ -59,11 +65,19 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	s.argses = nil
 	s.errors = nil
 	s.outs = nil
+
+	JournalctlCmd = s.myJctl
+	s.j = 0
+	s.jsvcs = nil
+	s.jouts = nil
+	s.jerrs = nil
+
 	s.rep = new(testreporter)
 }
 
 func (s *SystemdTestSuite) TearDownTest(c *C) {
 	SystemctlCmd = run
+	JournalctlCmd = jctl
 }
 
 func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
@@ -75,6 +89,20 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
 		err = s.errors[s.i]
 	}
 	s.i++
+	return out, err
+}
+
+func (s *SystemdTestSuite) myJctl(svc string) (out []byte, err error) {
+	s.jsvcs = append(s.jsvcs, svc)
+
+	if s.j < len(s.jouts) {
+		out = s.jouts[s.j]
+	}
+	if s.j < len(s.jerrs) {
+		err = s.jerrs[s.j]
+	}
+	s.j++
+
 	return out, err
 }
 
@@ -311,4 +339,36 @@ func (s *SystemdTestSuite) TestKill(c *C) {
 func (s *SystemdTestSuite) TestIsTimeout(c *C) {
 	c.Check(IsTimeout(os.ErrInvalid), Equals, false)
 	c.Check(IsTimeout(&Timeout{}), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
+	s.jerrs = []error{&Timeout{}}
+
+	logs, err := New("", s.rep).Logs("foo")
+	c.Check(err, NotNil)
+	c.Check(logs, IsNil)
+	c.Check(s.jsvcs, DeepEquals, []string{"foo"})
+	c.Check(s.j, Equals, 1)
+}
+
+func (s *SystemdTestSuite) TestLogErrJSON(c *C) {
+	s.jouts = [][]byte{[]byte("this is not valid json.")}
+
+	logs, err := New("", s.rep).Logs("foo")
+	c.Check(err, NotNil)
+	c.Check(logs, IsNil)
+	c.Check(s.jsvcs, DeepEquals, []string{"foo"})
+	c.Check(s.j, Equals, 1)
+}
+
+func (s *SystemdTestSuite) TestLogs(c *C) {
+	s.jouts = [][]byte{[]byte(`{"a": 1}
+{"a": 2}
+`)}
+
+	logs, err := New("", s.rep).Logs("foo")
+	c.Check(err, IsNil)
+	c.Check(logs, DeepEquals, []map[string]interface{}{{"a": 1.}, {"a": 2.}})
+	c.Check(s.jsvcs, DeepEquals, []string{"foo"})
+	c.Check(s.j, Equals, 1)
 }
