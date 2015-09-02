@@ -82,6 +82,7 @@ if which adt-run >/dev/null 2>&1; then
     # print the results.
     if which subunit2pyunit >/dev/null 2>&1; then
         subunit-1to2 /tmp/snappy-test/output/artifacts/results.subunit | subunit2pyunit
+    fi
 fi
 
 echo "All good, what could possibly go wrong"
