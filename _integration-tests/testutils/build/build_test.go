@@ -147,18 +147,19 @@ func (s *BuildSuite) TestAssetsRenamesBuiltBinary(c *check.C) {
 
 func (s *BuildSuite) TestAssetsSetsEnvironmentForGenericArch(c *check.C) {
 	arch := "myarch"
-	s.environ["GOARCH"] = os.Getenv("GOARCH")
+	originalArch := "originalArch"
+	s.environ["GOARCH"] = originalArch
 	Assets(s.useSnappyFromBranch, arch)
 
 	setenvGOARCHFirstCall := s.osSetenvCalls["GOARCH "+arch]
-	setenvGOARCHFinalCall := s.osSetenvCalls["GOARCH "+os.Getenv("GOARCH")]
+	setenvGOARCHFinalCall := s.osSetenvCalls["GOARCH "+originalArch]
 
 	c.Assert(setenvGOARCHFirstCall, check.Equals, 1,
 		check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
 			"GOARCH "+arch, setenvGOARCHFirstCall))
 	c.Assert(setenvGOARCHFinalCall, check.Equals, 1,
 		check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
-			"GOARCH "+os.Getenv("GOARCH"), setenvGOARCHFinalCall))
+			"GOARCH "+originalArch, setenvGOARCHFinalCall))
 }
 
 func (s *BuildSuite) TestAssetsSetsEnvironmentForArm(c *check.C) {
