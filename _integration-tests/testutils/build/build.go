@@ -80,8 +80,15 @@ func goCall(arch string, cmd string) {
 		defer osSetenv("GOARCH", osGetenv("GOARCH"))
 		osSetenv("GOARCH", arch)
 		if arch == "arm" {
-			defer osSetenv("GOARM", osGetenv("GOARM"))
-			osSetenv("GOARM", defaultGoArm)
+			envs := map[string]string{
+				"GOARM":       defaultGoArm,
+				"CGO_ENABLED": "1",
+				"CC":          "arm-linux-gnueabihf-gcc",
+			}
+			for env, value := range envs {
+				defer osSetenv(env, osGetenv(env))
+				osSetenv(env, value)
+			}
 		}
 	}
 	execCommand(strings.Fields(cmd)...)

@@ -50,6 +50,8 @@ type BuildSuite struct {
 
 	useSnappyFromBranch bool
 	arch                string
+
+	environ map[string]string
 }
 
 var _ = check.Suite(&BuildSuite{})
@@ -82,6 +84,7 @@ func (s *BuildSuite) SetUpTest(c *check.C) {
 	s.osRenameCalls = make(map[string]int)
 	s.osSetenvCalls = make(map[string]int)
 	s.osGetenvCalls = make(map[string]int)
+	s.environ = make(map[string]string)
 }
 
 func (s *BuildSuite) fakeExecCommand(args ...string) (err error) {
@@ -100,12 +103,13 @@ func (s *BuildSuite) fakeOsRename(orig, dest string) (err error) {
 
 func (s *BuildSuite) fakeOsSetenv(key, value string) (err error) {
 	s.osSetenvCalls[key+" "+value]++
+	s.environ[key] = value
 	return
 }
 
 func (s *BuildSuite) fakeOsGetenv(key string) (value string) {
 	s.osGetenvCalls[key]++
-	return
+	return s.environ[key]
 }
 
 func (s *BuildSuite) TestAssetsCallsPrepareDir(c *check.C) {
@@ -142,34 +146,50 @@ func (s *BuildSuite) TestAssetsRenamesBuiltBinary(c *check.C) {
 
 func (s *BuildSuite) TestAssetsSetsEnvironmentForGenericArch(c *check.C) {
 	arch := "myarch"
-	// needed for go1.5
-	os.Setenv("GOARCH", arch)
+	originalArch := "originalArch"
+	s.environ["GOARCH"] = originalArch
 	Assets(s.useSnappyFromBranch, arch)
 
 	setenvGOARCHFirstCall := s.osSetenvCalls["GOARCH "+arch]
-	setenvGOARCHFinalCall := s.osSetenvCalls["GOARCH "+os.Getenv("GOARCH")]
+	setenvGOARCHFinalCall := s.osSetenvCalls["GOARCH "+originalArch]
 
 	c.Assert(setenvGOARCHFirstCall, check.Equals, 1,
 		check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
 			"GOARCH "+arch, setenvGOARCHFirstCall))
 	c.Assert(setenvGOARCHFinalCall, check.Equals, 1,
 		check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
-			"GOARCH "+os.Getenv("GOARCH"), setenvGOARCHFinalCall))
+			"GOARCH "+originalArch, setenvGOARCHFinalCall))
+}
+
+var armEnvironmentTests = []struct {
+	envVar string
+	value  string
+}{
+	{"GOARM", defaultGoArm},
+	{"CGO_ENABLED", "1"},
+	{"CC", "arm-linux-gnueabihf-gcc"},
 }
 
 func (s *BuildSuite) TestAssetsSetsEnvironmentForArm(c *check.C) {
 	arch := "arm"
+	for _, t := range armEnvironmentTests {
+		s.environ[t.envVar] = "original" + t.envVar
+	}
 	Assets(s.useSnappyFromBranch, arch)
 
-	setenvGOARMFirstCall := s.osSetenvCalls["GOARM "+defaultGoArm]
-	setenvGOARMFinalCall := s.osSetenvCalls["GOARM "+os.Getenv("GOARM")]
+	for _, t := range armEnvironmentTests {
+		firstCall := fmt.Sprintf("%s %s", t.envVar, t.value)
+		setenvFirstCall := s.osSetenvCalls[firstCall]
+		finalCall := fmt.Sprintf("%s %s", t.envVar, "original"+t.envVar)
+		setenvFinalCall := s.osSetenvCalls[finalCall]
 
-	c.Assert(setenvGOARMFirstCall, check.Equals, 1,
-		check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
-			"GOARM "+defaultGoArm, setenvGOARMFirstCall))
-	c.Assert(setenvGOARMFinalCall, check.Equals, 1,
-		check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
-			"GOARM "+os.Getenv("GOARCH"), setenvGOARMFinalCall))
+		c.Assert(setenvFirstCall, check.Equals, 1,
+			check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
+				firstCall, setenvFirstCall))
+		c.Assert(setenvFinalCall, check.Equals, 1,
+			check.Commentf("Expected 1 call to os.Setenv with %s, got %d",
+				finalCall, setenvFinalCall))
+	}
 }
 
 func (s *BuildSuite) TestAssetsDoesNotSetEnvironmentForEmptyArch(c *check.C) {

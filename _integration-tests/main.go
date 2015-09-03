@@ -34,11 +34,11 @@ import (
 )
 
 const (
-	baseDir        = "/tmp/snappy-test"
-	defaultRelease = "rolling"
-	defaultChannel = "edge"
-	defaultSSHPort = 22
-	dataOutputDir  = "_integration-tests/data/output/"
+	defaultOutputDir = "/tmp/snappy-test"
+	defaultRelease   = "rolling"
+	defaultChannel   = "edge"
+	defaultSSHPort   = 22
+	dataOutputDir    = "_integration-tests/data/output/"
 )
 
 var configFileName = filepath.Join(dataOutputDir, "testconfig.json")
@@ -69,6 +69,7 @@ func main() {
 			"If the update flag is used, the image will be updated to this channel before running the tests.")
 		rollback = flag.Bool("rollback", false,
 			"If this flag is used, the image will be updated and then rolled back before running the tests.")
+		outputDir = flag.String("output-dir", defaultOutputDir, "Directory where test artifacts will be stored.")
 	)
 
 	flag.Parse()
@@ -90,9 +91,9 @@ func main() {
 
 	rootPath := testutils.RootPath()
 
-	test := autopkgtest.NewAutopkgtest(rootPath, baseDir, *testFilter, build.IntegrationTestName)
+	test := autopkgtest.NewAutopkgtest(rootPath, *outputDir, *testFilter, build.IntegrationTestName)
 	if !remoteTestbed {
-		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, baseDir)
+		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, *outputDir)
 
 		if imagePath, err := img.UdfCreate(); err == nil {
 			if err = test.AdtRunLocal(imagePath); err != nil {
