@@ -38,15 +38,14 @@ var (
 	MaxWaitRetries = 100
 )
 
-// ForActiveService keeps asking for the active state of the given service until
-// it is active or the maximun waiting time expires, in which case an error is returned
+// ForActiveService uses ForCommand to check for an active service
 func ForActiveService(c *check.C, serviceName string) (err error) {
 	return ForCommand(c, "ActiveState=active\n", "systemctl", "show", "-p", "ActiveState", serviceName)
 }
 
 // forCommand keeps trying to execute the given command to get an output that
-// matches the given pattern until it is obtained or the maximun waiting time
-// expires, in which case an error is returned
+// matches the given pattern until it is obtained or the maximun number of
+// retries is executed
 func forCommand(c *check.C, outputPattern string, cmds ...string) (err error) {
 	output := execCommand(c, cmds...)
 

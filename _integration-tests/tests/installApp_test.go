@@ -20,10 +20,8 @@
 package tests
 
 import (
-	"fmt"
 	"net/http"
 	"os/exec"
-	"time"
 
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 	"launchpad.net/snappy/_integration-tests/testutils/wait"
@@ -105,13 +103,9 @@ func (s *installAppSuite) TestAppNetworkingServiceMustBeStarted(c *check.C) {
 		common.RemoveSnap(c, appName)
 	})
 
-	appVersion := common.GetCurrentVersion(c, baseAppName)
-	appService := fmt.Sprintf("%s_%s_%s.service", baseAppName, baseAppName, appVersion)
-
-	err := wait.ForActiveService(c, appService)
+	err := wait.ForCommand(c, `(?msU)^.*tcp.*0\.0\.0\.0:80.*`, "netstat", "-tapn")
 	c.Assert(err, check.IsNil)
 
-	time.Sleep(1 * time.Second)
 	resp, err := http.Get("http://localhost")
 	c.Assert(err, check.IsNil)
 	c.Check(resp.Status, check.Equals, "200 OK")
