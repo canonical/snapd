@@ -68,7 +68,6 @@ func (s *WaitTestSuite) fakeExecCommand(c *check.C, args ...string) (output stri
 	if time.Since(s.initTime) >= s.delay {
 		output = s.execReturnValue
 	}
-	fmt.Printf("elapsed time: %d, test: %s\n", time.Since(s.initTime), c.TestName())
 
 	return
 }
