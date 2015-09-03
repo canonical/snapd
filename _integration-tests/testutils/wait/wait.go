@@ -33,9 +33,8 @@ var (
 	// dependency aliasing
 	execCommand = common.ExecCommand
 	// ForCommand dep alias
-	ForCommand = forCommand
-	// MaxWaitRetries sets the number of retries on wait
-	MaxWaitRetries = 100
+	ForCommand     = forCommand
+	maxWaitRetries = 100
 )
 
 // ForActiveService uses ForCommand to check for an active service
@@ -70,7 +69,7 @@ func forCommand(c *check.C, outputPattern string, cmds ...string) (err error) {
 				return
 			}
 			retries++
-			if retries >= MaxWaitRetries {
+			if retries >= maxWaitRetries {
 				ticker.Stop()
 				return fmt.Errorf("Pattern not found in command output")
 			}

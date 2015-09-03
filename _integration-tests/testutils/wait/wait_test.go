@@ -100,9 +100,9 @@ func (s *WaitTestSuite) TestForCommandFailsOnUnmatchedOutput(c *check.C) {
 	outputPattern := "myOutput"
 	s.execReturnValue = "anotherOutput"
 
-	backMaxWaitRetries := MaxWaitRetries
-	defer func() { MaxWaitRetries = backMaxWaitRetries }()
-	MaxWaitRetries = 0
+	backMaxWaitRetries := maxWaitRetries
+	defer func() { maxWaitRetries = backMaxWaitRetries }()
+	maxWaitRetries = 0
 
 	err := ForCommand(c, outputPattern, cmd...)
 
@@ -125,18 +125,18 @@ func (s *WaitTestSuite) TestForCommandHonoursMaxWaitRetries(c *check.C) {
 	cmd := []string{"mycmd", "mypar"}
 	outputPattern := "myOutput"
 
-	backMaxWaitRetries := MaxWaitRetries
-	defer func() { MaxWaitRetries = backMaxWaitRetries }()
-	MaxWaitRetries = 3
+	backMaxWaitRetries := maxWaitRetries
+	defer func() { maxWaitRetries = backMaxWaitRetries }()
+	maxWaitRetries = 3
 
 	ForCommand(c, outputPattern, cmd...)
 
 	// the first call is not actually a retry
 	actualRetries := s.execCalls["mycmd mypar"] - 1
 
-	c.Assert(actualRetries, check.Equals, MaxWaitRetries,
+	c.Assert(actualRetries, check.Equals, maxWaitRetries,
 		check.Commentf("Actual number of retries %d does not match max retries %d",
-			actualRetries, MaxWaitRetries))
+			actualRetries, maxWaitRetries))
 }
 
 func (s *WaitTestSuite) TestForActiveServiceCallsForCommand(c *check.C) {
