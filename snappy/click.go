@@ -610,6 +610,10 @@ func (m *packageYaml) removePackageServices(baseDir string, inter interacter) er
 			logger.Noticef("Failed to remove service file for %q: %v", serviceName, err)
 		}
 
+		if err := os.Remove(generateSocketFileName(m, service)); err != nil && !os.IsNotExist(err) {
+			logger.Noticef("Failed to remove socket file for %q: %v", serviceName, err)
+		}
+
 		// Also remove DBus system policy file
 		if err := os.Remove(generateBusPolicyFileName(m, service)); err != nil && !os.IsNotExist(err) {
 			logger.Noticef("Failed to remove bus policy file for service %q: %v", serviceName, err)
