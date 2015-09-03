@@ -44,7 +44,10 @@ const (
 
 // Cfg is a struct that contains the configuration values passed from the
 // host to the testbed.
-var Cfg *config.Config
+var (
+	Cfg         *config.Config
+	ExecCommand = execCommand
+)
 
 // SnappySuite is a structure used as a base test suite for all the snappy
 // integration tests.
@@ -179,9 +182,9 @@ func channelCfgOtherBackupFile() string {
 	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "channel.ini.other")
 }
 
-// ExecCommand executes a shell command and returns a string with the output
+// execCommand executes a shell command and returns a string with the output
 // of the command. In case of error, it will fail the test.
-func ExecCommand(c *check.C, cmds ...string) string {
+func execCommand(c *check.C, cmds ...string) string {
 	fmt.Println(strings.Join(cmds, " "))
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	output, err := cmd.CombinedOutput()
@@ -376,4 +379,18 @@ func WaitForActiveService(c *check.C, serviceName string) error {
 			}
 		}
 	}
+}
+
+// WaitForCommand keeps trying to execute the given command to get an output that
+// matches the given pattern until it is obtained or the maximun waiting time
+// expires, in which case an error is returned
+func WaitForCommand(c *check.C, outputPattern string, cmds ...string) (err error) {
+	output := ExecCommand(c, cmds...)
+
+	re := regexp.MustCompile(outputPattern)
+	if match := re.FindString(output); match == "" {
+		err = fmt.Errorf("Pattern not found in command output")
+	}
+
+	return
 }
