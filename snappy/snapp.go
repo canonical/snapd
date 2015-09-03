@@ -149,6 +149,13 @@ type ServiceYaml struct {
 	StopTimeout Timeout `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
 	BusName     string  `yaml:"bus-name,omitempty" json:"bus-name,omitempty"`
 
+	// set to yes if we need to create a systemd socket for this service
+	Socket       bool   `yaml:"socket,omitempty" json:"socket,omitempty"`
+	ListenStream string `yaml:"ListenStream,omitempty" json:"ListenStream,omitempty"`
+	SocketMode   string `yaml:"SocketMode,omitempty" json:"SocketMode,omitempty"`
+	SocketUser   string `yaml:"SocketUser,omitempty" json:"SocketUser,omitempty"`
+	SocketGroup  string `yaml:"SocketGroup,omitempty" json:"SocketGroup,omitempty"`
+
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
 

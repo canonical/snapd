@@ -431,27 +431,56 @@ func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile str
 		desc = fmt.Sprintf("service %s for package %s", service.Name, m.Name)
 	}
 
+	socketFileName := ""
+	if service.Socket {
+		socketFileName = fmt.Sprintf("%s_%s_%s.socket", m.Name, service.Name, m.Version)
+	} else {
+		socketFileName = ""
+	}
+
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
-			AppName:     m.Name,
-			ServiceName: service.Name,
-			Version:     m.Version,
-			Description: desc,
-			AppPath:     baseDir,
-			Start:       service.Start,
-			Stop:        service.Stop,
-			PostStop:    service.PostStop,
-			StopTimeout: time.Duration(service.StopTimeout),
-			AaProfile:   aaProfile,
-			IsFramework: m.Type == pkg.TypeFramework,
-			IsNetworked: service.Ports != nil && len(service.Ports.External) > 0,
-			BusName:     service.BusName,
-			UdevAppName: udevPartName,
+			AppName:        m.Name,
+			ServiceName:    service.Name,
+			Version:        m.Version,
+			Description:    desc,
+			AppPath:        baseDir,
+			Start:          service.Start,
+			Stop:           service.Stop,
+			PostStop:       service.PostStop,
+			StopTimeout:    time.Duration(service.StopTimeout),
+			AaProfile:      aaProfile,
+			IsFramework:    m.Type == pkg.TypeFramework,
+			IsNetworked:    service.Ports != nil && len(service.Ports.External) > 0,
+			BusName:        service.BusName,
+			UdevAppName:    udevPartName,
+			Socket:         service.Socket,
+			SocketFileName: socketFileName,
+		}), nil
+}
+func generateSnapSocketFile(service ServiceYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
+	if err := verifyServiceYaml(service); err != nil {
+		return "", err
+	}
+
+	serviceFileName := fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version)
+
+	return systemd.New(globalRootDir, nil).GenSocketFile(
+		&systemd.ServiceDescription{
+			ServiceFileName: serviceFileName,
+			ListenStream:    service.ListenStream,
+			SocketMode:      service.SocketMode,
+			SocketUser:      service.SocketUser,
+			SocketGroup:     service.SocketGroup,
 		}), nil
 }
 
 func generateServiceFileName(m *packageYaml, service ServiceYaml) string {
 	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
+}
+
+func generateSocketFileName(m *packageYaml, service ServiceYaml) string {
+	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.socket", m.Name, service.Name, m.Version))
 }
 
 func generateBusPolicyFileName(m *packageYaml, service ServiceYaml) string {
@@ -482,6 +511,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
+		// Generate service file
 		content, err := generateSnapServicesFile(service, realBaseDir, aaProfile, m)
 		if err != nil {
 			return err
@@ -491,7 +521,18 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0644); err != nil {
 			return err
 		}
-
+		// Generate systemd socket file if needed
+		if service.Socket {
+			content, err := generateSnapSocketFile(service, realBaseDir, aaProfile, m)
+			if err != nil {
+				return err
+			}
+			socketFilename := generateSocketFileName(m, service)
+			os.MkdirAll(filepath.Dir(socketFilename), 0755)
+			if err := ioutil.WriteFile(socketFilename, []byte(content), 0644); err != nil {
+				return err
+			}
+		}
 		// If necessary, generate the DBus policy file so the framework
 		// service is allowed to start
 		if m.Type == pkg.TypeFramework && service.BusName != "" {
@@ -526,6 +567,20 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		if !inhibitHooks {
 			if err := sysd.Start(serviceName); err != nil {
 				return err
+			}
+		}
+
+		if service.Socket {
+			socketName := filepath.Base(generateSocketFileName(m, service))
+			// we always enable the socket even in inhibit hooks
+			if err := sysd.Enable(socketName); err != nil {
+				return err
+			}
+
+			if !inhibitHooks {
+				if err := sysd.Start(socketName); err != nil {
+					return err
+				}
 			}
 		}
 	}
