@@ -385,6 +385,10 @@ func (s *SystemdTestSuite) TestLogString(c *C) {
 		"__REALTIME_TIMESTAMP": "what",
 	}.String(), Equals, "-(timestamp not a decimal number: \"what\")- - -")
 	c.Check(Log{
+		"__REALTIME_TIMESTAMP": "0",
+		"MESSAGE":              "hi",
+	}.String(), Equals, "1970-01-01T00:00:00.000000Z - hi")
+	c.Check(Log{
 		"__REALTIME_TIMESTAMP": "42",
 		"MESSAGE":              "hi",
 		"SYSLOG_IDENTIFIER":    "me",
