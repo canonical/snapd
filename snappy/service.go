@@ -196,6 +196,7 @@ func (actor *ServiceActor) Logs() ([]systemd.Log, error) {
 	return logs, nil
 }
 
+// Loglines serializes the logs for all found services
 func (actor *ServiceActor) Loglines() ([]string, error) {
 	var lines []string
 

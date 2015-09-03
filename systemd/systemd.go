@@ -95,6 +95,7 @@ type Systemd interface {
 	Logs(services []string) ([]Log, error)
 }
 
+// A Log is a single entry in the systemd journal
 type Log map[string]interface{}
 
 // ServiceDescription describes a snappy systemd service
@@ -372,7 +373,7 @@ func IsTimeout(err error) bool {
 	return isTimeout
 }
 
-const RFC3339Micro = "2006-01-02T15:04:05.999999Z07:00"
+const rfc3339Micro = "2006-01-02T15:04:05.999999Z07:00"
 
 func (l Log) String() string {
 	t := "-(no timestamp!)-"
@@ -381,7 +382,7 @@ func (l Log) String() string {
 		sus, ok := ius.(string)
 		if ok {
 			if us, err := strconv.ParseInt(sus, 10, 64); err == nil {
-				t = time.Unix(us/1000000, 1000*(us%1000000)).Format(RFC3339Micro)
+				t = time.Unix(us/1000000, 1000*(us%1000000)).Format(rfc3339Micro)
 			} else {
 				t = fmt.Sprintf("-(timestamp not a decimal number: %#v)-", sus)
 			}
