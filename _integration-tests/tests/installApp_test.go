@@ -25,7 +25,8 @@ import (
 	"os/exec"
 	"time"
 
-	common "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
 	check "gopkg.in/check.v1"
 )
@@ -107,7 +108,7 @@ func (s *installAppSuite) TestAppNetworkingServiceMustBeStarted(c *check.C) {
 	appVersion := common.GetCurrentVersion(c, baseAppName)
 	appService := fmt.Sprintf("%s_%s_%s.service", baseAppName, baseAppName, appVersion)
 
-	err := common.WaitForActiveService(c, appService)
+	err := wait.ForActiveService(c, appService)
 	c.Assert(err, check.IsNil)
 
 	time.Sleep(1 * time.Second)

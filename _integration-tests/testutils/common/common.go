@@ -28,7 +28,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	check "gopkg.in/check.v1"
 
@@ -44,10 +43,7 @@ const (
 
 // Cfg is a struct that contains the configuration values passed from the
 // host to the testbed.
-var (
-	Cfg         *config.Config
-	ExecCommand = execCommand
-)
+var Cfg *config.Config
 
 // SnappySuite is a structure used as a base test suite for all the snappy
 // integration tests.
@@ -182,9 +178,9 @@ func channelCfgOtherBackupFile() string {
 	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "channel.ini.other")
 }
 
-// execCommand executes a shell command and returns a string with the output
+// ExecCommand executes a shell command and returns a string with the output
 // of the command. In case of error, it will fail the test.
-func execCommand(c *check.C, cmds ...string) string {
+func ExecCommand(c *check.C, cmds ...string) string {
 	fmt.Println(strings.Join(cmds, " "))
 	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
 	output, err := cmd.CombinedOutput()
@@ -349,48 +345,4 @@ func InstallSnap(c *check.C, packageName string) string {
 // RemoveSnap executes the required command to remove the specified snap
 func RemoveSnap(c *check.C, packageName string) string {
 	return ExecCommand(c, "sudo", "snappy", "remove", packageName)
-}
-
-// WaitForActiveService keeps asking for the active state of the given service until
-// it is active or the maximun waiting time expires, in which case an error is returned
-func WaitForActiveService(c *check.C, serviceName string) error {
-	maxWait := time.Second * 10
-	checkInterval := time.Millisecond * 500
-
-	timer := time.NewTimer(maxWait)
-	timeChan := timer.C
-
-	ticker := time.NewTicker(checkInterval)
-	tickChan := ticker.C
-
-	for {
-		select {
-		case <-timeChan:
-			ticker.Stop()
-			journalctlOutput := ExecCommand(c, "sudo", "journalctl", "-u", serviceName)
-			return fmt.Errorf("Service %s not active after %s, journalctl output: %s",
-				serviceName, maxWait, journalctlOutput)
-		case <-tickChan:
-			statusOutput := ExecCommand(
-				c, "systemctl", "show", "-p", "ActiveState", serviceName)
-			if statusOutput == "ActiveState=active\n" {
-				timer.Stop()
-				return nil
-			}
-		}
-	}
-}
-
-// WaitForCommand keeps trying to execute the given command to get an output that
-// matches the given pattern until it is obtained or the maximun waiting time
-// expires, in which case an error is returned
-func WaitForCommand(c *check.C, outputPattern string, cmds ...string) (err error) {
-	output := ExecCommand(c, cmds...)
-
-	re := regexp.MustCompile(outputPattern)
-	if match := re.FindString(output); match == "" {
-		err = fmt.Errorf("Pattern not found in command output")
-	}
-
-	return
 }

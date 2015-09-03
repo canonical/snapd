@@ -20,9 +20,7 @@
 package common
 
 import (
-	"strings"
 	"testing"
-	"time"
 
 	"gopkg.in/check.v1"
 )
@@ -67,69 +65,4 @@ func (m *MetaTestSuite) TestCleanupWithParameters(c *check.C) {
 	s.TearDownTest(c)
 
 	c.Assert(canary, check.Equals, "was-called")
-}
-
-type CommonTestSuite struct {
-	execCalls       map[string]int
-	execReturnValue string
-	backExecCommand func(*check.C, ...string) string
-
-	initTime time.Time
-	delay    time.Duration
-}
-
-var _ = check.Suite(&CommonTestSuite{})
-
-func (s *CommonTestSuite) SetUpSuite(c *check.C) {
-	s.backExecCommand = ExecCommand
-	ExecCommand = s.fakeExecCommand
-}
-
-func (s *CommonTestSuite) TearDownSuite(c *check.C) {
-	ExecCommand = s.backExecCommand
-}
-
-func (s *CommonTestSuite) SetUpTest(c *check.C) {
-	s.execCalls = make(map[string]int)
-	s.initTime = time.Now()
-	s.delay = 0
-}
-
-func (s *CommonTestSuite) fakeExecCommand(c *check.C, args ...string) (output string) {
-	s.execCalls[strings.Join(args, " ")]++
-	if time.Since(s.initTime) >= s.delay {
-		output = s.execReturnValue
-	}
-	return
-}
-
-func (s *CommonTestSuite) TestWaitForCommandExists(c *check.C) {
-	cmd := "mycommand"
-	outputPattern := "myOutput"
-	s.execReturnValue = "myOutput"
-
-	err := WaitForCommand(c, outputPattern, cmd)
-
-	c.Assert(err, check.IsNil, check.Commentf("Got error %s", err))
-}
-
-func (s *CommonTestSuite) TestWaitForCommandCallsGivenCommand(c *check.C) {
-	cmd := []string{"mycmd", "mypar"}
-
-	WaitForCommand(c, "", cmd...)
-
-	execCalls := s.execCalls["mycmd mypar"]
-
-	c.Assert(execCalls, check.Equals, 1,
-		check.Commentf("Expected 1 call to ExecCommand with 'mycmd mypar', got %d", execCalls))
-}
-
-func (s *CommonTestSuite) TestWaitForCommandFailsOnUnmatchedOutput(c *check.C) {
-	cmd := []string{"mycmd", "mypar"}
-	outputPattern := "myOutput"
-	s.execReturnValue = "anotherOutput"
-
-	err := WaitForCommand(c, outputPattern, cmd...)
-
-	c.Assert(err, check.NotNil, check.Commentf("Didn't get expected error"))
 }
