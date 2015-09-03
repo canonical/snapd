@@ -66,10 +66,12 @@ func forCommand(c *check.C, outputPattern string, cmds ...string) (err error) {
 		case <-tickChan:
 			output = execCommand(c, cmds...)
 			if match := re.FindString(output); match != "" {
+				ticker.Stop()
 				return
 			}
 			retries++
 			if retries >= MaxWaitRetries {
+				ticker.Stop()
 				return fmt.Errorf("Pattern not found in command output")
 			}
 		}
