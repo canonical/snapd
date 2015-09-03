@@ -50,7 +50,7 @@ type SystemdTestSuite struct {
 	outs   [][]byte
 
 	j     int
-	jsvcs []string
+	jsvcs [][]string
 	jouts [][]byte
 	jerrs []error
 
@@ -60,6 +60,9 @@ type SystemdTestSuite struct {
 var _ = Suite(&SystemdTestSuite{})
 
 func (s *SystemdTestSuite) SetUpTest(c *C) {
+	// force UTC timezone, for reproducible timestamps
+	os.Setenv("TZ", "")
+
 	SystemctlCmd = s.myRun
 	s.i = 0
 	s.argses = nil
@@ -92,8 +95,8 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
 	return out, err
 }
 
-func (s *SystemdTestSuite) myJctl(svc string) (out []byte, err error) {
-	s.jsvcs = append(s.jsvcs, svc)
+func (s *SystemdTestSuite) myJctl(svcs []string) (out []byte, err error) {
+	s.jsvcs = append(s.jsvcs, svcs)
 
 	if s.j < len(s.jouts) {
 		out = s.jouts[s.j]
@@ -344,20 +347,20 @@ func (s *SystemdTestSuite) TestIsTimeout(c *C) {
 func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
 	s.jerrs = []error{&Timeout{}}
 
-	logs, err := New("", s.rep).Logs("foo")
+	logs, err := New("", s.rep).Logs([]string{"foo"})
 	c.Check(err, NotNil)
 	c.Check(logs, IsNil)
-	c.Check(s.jsvcs, DeepEquals, []string{"foo"})
+	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
 	c.Check(s.j, Equals, 1)
 }
 
 func (s *SystemdTestSuite) TestLogErrJSON(c *C) {
 	s.jouts = [][]byte{[]byte("this is not valid json.")}
 
-	logs, err := New("", s.rep).Logs("foo")
+	logs, err := New("", s.rep).Logs([]string{"foo"})
 	c.Check(err, NotNil)
 	c.Check(logs, IsNil)
-	c.Check(s.jsvcs, DeepEquals, []string{"foo"})
+	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
 	c.Check(s.j, Equals, 1)
 }
 
@@ -366,9 +369,25 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 {"a": 2}
 `)}
 
-	logs, err := New("", s.rep).Logs("foo")
+	logs, err := New("", s.rep).Logs([]string{"foo"})
 	c.Check(err, IsNil)
-	c.Check(logs, DeepEquals, []map[string]interface{}{{"a": 1.}, {"a": 2.}})
-	c.Check(s.jsvcs, DeepEquals, []string{"foo"})
+	c.Check(logs, DeepEquals, []Log{{"a": 1.}, {"a": 2.}})
+	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
 	c.Check(s.j, Equals, 1)
+}
+
+func (s *SystemdTestSuite) TestLogString(c *C) {
+	c.Check(Log{}.String(), Equals, "-(no timestamp!)- - -")
+	c.Check(Log{
+		"__REALTIME_TIMESTAMP": 42,
+	}.String(), Equals, "-(timestamp not a string: 42)- - -")
+	c.Check(Log{
+		"__REALTIME_TIMESTAMP": "what",
+	}.String(), Equals, "-(timestamp not a decimal number: \"what\")- - -")
+	c.Check(Log{
+		"__REALTIME_TIMESTAMP": "42",
+		"MESSAGE":              "hi",
+		"SYSLOG_IDENTIFIER":    "me",
+	}.String(), Equals, "1970-01-01T00:00:00.000042Z me hi")
+
 }
