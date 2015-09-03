@@ -178,3 +178,36 @@ func (actor *ServiceActor) Disable() error {
 
 	return nil
 }
+
+// Logs for all found services.
+func (actor *ServiceActor) Logs() ([]systemd.Log, error) {
+	var svcnames []string
+
+	for _, svc := range actor.svcs {
+		svcname := filepath.Base(generateServiceFileName(svc.m, *svc.svc))
+		svcnames = append(svcnames, svcname)
+	}
+
+	logs, err := actor.sysd.Logs(svcnames)
+	if err != nil {
+		return nil, fmt.Errorf(i18n.G("unable to get logs: %v"), err)
+	}
+
+	return logs, nil
+}
+
+// Loglines serializes the logs for all found services
+func (actor *ServiceActor) Loglines() ([]string, error) {
+	var lines []string
+
+	logs, err := actor.Logs()
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range logs {
+		lines = append(lines, logs[i].String())
+	}
+
+	return lines, nil
+}

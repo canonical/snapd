@@ -21,11 +21,14 @@ package systemd
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -58,6 +61,26 @@ func run(args ...string) ([]byte, error) {
 // systemctl. It's exported so it can be overridden by testing.
 var SystemctlCmd = run
 
+// jctl calls journalctl to get the JSON logs of the given services, wrapping the error if any.
+func jctl(svcs []string) ([]byte, error) {
+	cmd := []string{"journalctl", "-o", "json"}
+
+	for i := range svcs {
+		cmd = append(cmd, "-u", svcs[i])
+	}
+
+	bs, err := exec.Command(cmd[0], cmd[1:]...).Output() // journalctl can be messy with its stderr
+	if err != nil {
+		exitCode, _ := helpers.ExitCode(err)
+		return nil, &Error{cmd: cmd, exitCode: exitCode, msg: bs}
+	}
+
+	return bs, nil
+}
+
+// JournalctlCmd is called from Logs to run journalctl; exported for testing.
+var JournalctlCmd = jctl
+
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	DaemonReload() error
@@ -69,7 +92,11 @@ type Systemd interface {
 	Restart(service string, timeout time.Duration) error
 	GenServiceFile(desc *ServiceDescription) string
 	Status(service string) (string, error)
+	Logs(services []string) ([]Log, error)
 }
+
+// A Log is a single entry in the systemd journal
+type Log map[string]interface{}
 
 // ServiceDescription describes a snappy systemd service
 type ServiceDescription struct {
@@ -140,6 +167,38 @@ func (s *systemd) Disable(serviceName string) error {
 func (*systemd) Start(serviceName string) error {
 	_, err := SystemctlCmd("start", serviceName)
 	return err
+}
+
+// Logs for the given service
+func (*systemd) Logs(serviceNames []string) ([]Log, error) {
+	bs, err := JournalctlCmd(serviceNames)
+	if err != nil {
+		return nil, err
+	}
+
+	const noEntries = "-- No entries --\n"
+	if len(bs) == len(noEntries) && string(bs) == noEntries {
+		return nil, nil
+	}
+
+	var logs []Log
+	dec := json.NewDecoder(bytes.NewReader(bs))
+	for {
+		var log Log
+
+		err = dec.Decode(&log)
+		if err != nil {
+			break
+		}
+
+		logs = append(logs, log)
+	}
+
+	if err != io.EOF {
+		return nil, err
+	}
+
+	return logs, nil
 }
 
 var statusregex = regexp.MustCompile(`(?m)^(?:(.*?)=(.*))?$`)
@@ -312,4 +371,34 @@ func (e *Timeout) Error() string {
 func IsTimeout(err error) bool {
 	_, isTimeout := err.(*Timeout)
 	return isTimeout
+}
+
+const myFmt = "2006-01-02T15:04:05.000000Z07:00"
+
+func (l Log) String() string {
+	t := "-(no timestamp!)-"
+	if ius, ok := l["__REALTIME_TIMESTAMP"]; ok {
+		// according to systemd.journal-fields(7) it's microseconds as a decimal string
+		sus, ok := ius.(string)
+		if ok {
+			if us, err := strconv.ParseInt(sus, 10, 64); err == nil {
+				t = time.Unix(us/1000000, 1000*(us%1000000)).Format(myFmt)
+			} else {
+				t = fmt.Sprintf("-(timestamp not a decimal number: %#v)-", sus)
+			}
+		} else {
+			t = fmt.Sprintf("-(timestamp not a string: %#v)-", ius)
+		}
+	}
+
+	sid, ok := l["SYSLOG_IDENTIFIER"].(string)
+	if !ok {
+		sid = "-"
+	}
+	msg, ok := l["MESSAGE"].(string)
+	if !ok {
+		msg = "-"
+	}
+
+	return fmt.Sprintf("%s %s %s", t, sid, msg)
 }

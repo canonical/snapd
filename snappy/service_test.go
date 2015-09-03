@@ -35,6 +35,10 @@ type ServiceActorSuite struct {
 	argses [][]string
 	outs   [][]byte
 	errors []error
+	j      int
+	jsvcs  [][]string
+	jouts  [][]byte
+	jerrs  []error
 	pb     progress.Meter
 }
 
@@ -52,17 +56,38 @@ func (s *ServiceActorSuite) myRun(args ...string) (out []byte, err error) {
 	s.i++
 	return out, err
 }
+func (s *ServiceActorSuite) myJctl(svcs []string) (out []byte, err error) {
+	s.jsvcs = append(s.jsvcs, svcs)
+
+	if s.j < len(s.jouts) {
+		out = s.jouts[s.j]
+	}
+	if s.j < len(s.jerrs) {
+		err = s.jerrs[s.j]
+	}
+	s.j++
+
+	return out, err
+}
 
 func (s *ServiceActorSuite) SetUpTest(c *C) {
+	// force UTC timezone, for reproducible timestamps
+	os.Setenv("TZ", "")
+
 	SetRootDir(c.MkDir())
 	// TODO: this mkdir hack is so enable doesn't fail; remove when enable is the same as the rest
 	c.Assert(os.MkdirAll(filepath.Join(globalRootDir, "/etc/systemd/system/multi-user.target.wants"), 0755), IsNil)
 	systemd.SystemctlCmd = s.myRun
+	systemd.JournalctlCmd = s.myJctl
 	makeInstalledMockSnap(globalRootDir, "")
 	s.i = 0
 	s.argses = nil
 	s.errors = nil
 	s.outs = nil
+	s.j = 0
+	s.jsvcs = nil
+	s.jouts = nil
+	s.jerrs = nil
 	s.pb = &MockProgressMeter{}
 }
 
@@ -115,6 +140,11 @@ func (s *ServiceActorSuite) TestFindServicesFindsServices(c *C) {
 		nil,                // status
 		&systemd.Timeout{}, // flag
 	}
+	s.jerrs = nil
+	s.jouts = [][]byte{
+		[]byte(`{"foo": "bar", "baz": 42}`),                    // for the Logs call
+		[]byte(`{"__REALTIME_TIMESTAMP":"42","MESSAGE":"hi"}`), // for the Loglines call
+	}
 
 	c.Check(actor.Stop(), IsNil)
 	c.Check(actor.Start(), IsNil)
@@ -125,6 +155,12 @@ func (s *ServiceActorSuite) TestFindServicesFindsServices(c *C) {
 	c.Check(err, IsNil)
 	c.Assert(status, HasLen, 1)
 	c.Check(status[0], Equals, "hello-app\tsvc1\tenabled; loaded; active (running)")
+	logs, err := actor.Logs()
+	c.Check(err, IsNil)
+	c.Check(logs, DeepEquals, []systemd.Log{{"foo": "bar", "baz": 42.}})
+	lines, err := actor.Loglines()
+	c.Check(err, IsNil)
+	c.Check(lines, DeepEquals, []string{"1970-01-01T00:00:00.000042Z - hi"})
 }
 
 func (s *ServiceActorSuite) TestFindServicesReportsErrors(c *C) {
@@ -135,12 +171,6 @@ func (s *ServiceActorSuite) TestFindServicesReportsErrors(c *C) {
 
 	anError := errors.New("error")
 
-	s.outs = [][]byte{
-		nil,
-		nil,
-		nil,
-		nil,
-	}
 	s.errors = []error{
 		anError, // stop
 		anError, // start
@@ -149,6 +179,7 @@ func (s *ServiceActorSuite) TestFindServicesReportsErrors(c *C) {
 		anError, // disable
 		anError, // status
 	}
+	s.jerrs = []error{anError, anError}
 
 	c.Check(actor.Stop(), NotNil)
 	c.Check(actor.Start(), NotNil)
@@ -156,5 +187,9 @@ func (s *ServiceActorSuite) TestFindServicesReportsErrors(c *C) {
 	// c.Check(actor.Enable(), NotNil) TODO: enable is different for now
 	c.Check(actor.Disable(), NotNil)
 	_, err = actor.Status()
+	c.Check(err, NotNil)
+	_, err = actor.Logs()
+	c.Check(err, NotNil)
+	_, err = actor.Loglines()
 	c.Check(err, NotNil)
 }
