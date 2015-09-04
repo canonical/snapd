@@ -42,6 +42,11 @@ func ForActiveService(c *check.C, serviceName string) (err error) {
 	return ForCommand(c, "ActiveState=active\n", "systemctl", "show", "-p", "ActiveState", serviceName)
 }
 
+// ForServerOnPort uses ForCommand to check for process listening on the given port
+func ForServerOnPort(c *check.C, port int) (err error) {
+	return ForCommand(c, fmt.Sprintf(`(?msU)^.*tcp.*0\.0\.0\.0:%d .*`, port), "netstat", "-tapn")
+}
+
 // forCommand keeps trying to execute the given command to get an output that
 // matches the given pattern until it is obtained or the maximun number of
 // retries is executed

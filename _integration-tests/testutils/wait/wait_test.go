@@ -154,3 +154,19 @@ func (s *WaitTestSuite) TestForActiveServiceCallsForCommand(c *check.C) {
 	expectedCalled := "ForCommand called with pattern 'ActiveState=active\n' and cmds 'systemctl show -p ActiveState myservice'"
 	c.Assert(called, check.Equals, expectedCalled, check.Commentf("Expected call to ForCommand didn't happen"))
 }
+
+func (s *WaitTestSuite) TestForServerOnPortCallsForCommand(c *check.C) {
+	backForCommand := ForCommand
+	defer func() { ForCommand = backForCommand }()
+	var called string
+	ForCommand = func(c *check.C, pattern string, cmds ...string) (err error) {
+		called = fmt.Sprintf("ForCommand called with pattern '%s' and cmds '%s'",
+			pattern, strings.Join(cmds, " "))
+		return
+	}
+
+	ForServerOnPort(c, 1234)
+
+	expectedCalled := `ForCommand called with pattern '(?msU)^.*tcp.*0\.0\.0\.0:1234 .*' and cmds 'netstat -tapn'`
+	c.Assert(called, check.Equals, expectedCalled, check.Commentf("Expected call to ForCommand didn't happen"))
+}

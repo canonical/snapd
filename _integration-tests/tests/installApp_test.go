@@ -103,7 +103,7 @@ func (s *installAppSuite) TestAppNetworkingServiceMustBeStarted(c *check.C) {
 		common.RemoveSnap(c, appName)
 	})
 
-	err := wait.ForCommand(c, `(?msU)^.*tcp.*0\.0\.0\.0:80.*`, "netstat", "-tapn")
+	err := wait.ForServerOnPort(c, 80)
 	c.Assert(err, check.IsNil)
 
 	resp, err := http.Get("http://localhost")
