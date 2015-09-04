@@ -24,15 +24,15 @@ import (
 	"strconv"
 	"strings"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&initRAMFSSuite{})
 
 type initRAMFSSuite struct {
-	SnappySuite
+	common.SnappySuite
 }
 
 func (s *initRAMFSSuite) TestFreeSpace(c *check.C) {
