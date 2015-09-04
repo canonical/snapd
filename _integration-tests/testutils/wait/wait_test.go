@@ -31,7 +31,7 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { check.TestingT(t) }
 
-type WaitTestSuite struct {
+type waitTestSuite struct {
 	execCalls       map[string]int
 	execReturnValue string
 	backExecCommand func(*check.C, ...string) string
@@ -40,18 +40,18 @@ type WaitTestSuite struct {
 	delay    time.Duration
 }
 
-var _ = check.Suite(&WaitTestSuite{})
+var _ = check.Suite(&waitTestSuite{})
 
-func (s *WaitTestSuite) SetUpSuite(c *check.C) {
+func (s *waitTestSuite) SetUpSuite(c *check.C) {
 	s.backExecCommand = execCommand
 	execCommand = s.fakeExecCommand
 }
 
-func (s *WaitTestSuite) TearDownSuite(c *check.C) {
+func (s *waitTestSuite) TearDownSuite(c *check.C) {
 	execCommand = s.backExecCommand
 }
 
-func (s *WaitTestSuite) SetUpTest(c *check.C) {
+func (s *waitTestSuite) SetUpTest(c *check.C) {
 	s.execCalls = make(map[string]int)
 	s.execReturnValue = ""
 	// save the starting time to be able to measure delays
@@ -60,7 +60,7 @@ func (s *WaitTestSuite) SetUpTest(c *check.C) {
 	s.delay = 0
 }
 
-func (s *WaitTestSuite) fakeExecCommand(c *check.C, args ...string) (output string) {
+func (s *waitTestSuite) fakeExecCommand(c *check.C, args ...string) (output string) {
 	s.execCalls[strings.Join(args, " ")]++
 
 	// after the given delay (0 by default) this method will return the value specified at
@@ -72,7 +72,7 @@ func (s *WaitTestSuite) fakeExecCommand(c *check.C, args ...string) (output stri
 	return
 }
 
-func (s *WaitTestSuite) TestForCommandExists(c *check.C) {
+func (s *waitTestSuite) TestForCommandExists(c *check.C) {
 	cmd := "mycommand"
 	outputPattern := "myOutput"
 	s.execReturnValue = "myOutput"
@@ -82,7 +82,7 @@ func (s *WaitTestSuite) TestForCommandExists(c *check.C) {
 	c.Assert(err, check.IsNil, check.Commentf("Got error %s", err))
 }
 
-func (s *WaitTestSuite) TestForCommandCallsGivenCommand(c *check.C) {
+func (s *waitTestSuite) TestForCommandCallsGivenCommand(c *check.C) {
 	cmd := []string{"mycmd", "mypar"}
 	outputPattern := "myOutput"
 	s.execReturnValue = "myOutput"
@@ -95,7 +95,7 @@ func (s *WaitTestSuite) TestForCommandCallsGivenCommand(c *check.C) {
 		check.Commentf("Expected 1 call to ExecCommand with 'mycmd mypar', got %d", execCalls))
 }
 
-func (s *WaitTestSuite) TestForCommandFailsOnUnmatchedOutput(c *check.C) {
+func (s *waitTestSuite) TestForCommandFailsOnUnmatchedOutput(c *check.C) {
 	cmd := []string{"mycmd", "mypar"}
 	outputPattern := "myOutput"
 	s.execReturnValue = "anotherOutput"
@@ -109,7 +109,7 @@ func (s *WaitTestSuite) TestForCommandFailsOnUnmatchedOutput(c *check.C) {
 	c.Assert(err, check.NotNil, check.Commentf("Didn't get expected error"))
 }
 
-func (s *WaitTestSuite) TestForCommandRetriesCalls(c *check.C) {
+func (s *waitTestSuite) TestForCommandRetriesCalls(c *check.C) {
 	cmd := []string{"mycmd", "mypar"}
 	outputPattern := "myOutput"
 	s.execReturnValue = "myOutput"
@@ -121,7 +121,7 @@ func (s *WaitTestSuite) TestForCommandRetriesCalls(c *check.C) {
 	c.Assert(err, check.IsNil, check.Commentf("Got error %s", err))
 }
 
-func (s *WaitTestSuite) TestForCommandHonoursMaxWaitRetries(c *check.C) {
+func (s *waitTestSuite) TestForCommandHonoursMaxWaitRetries(c *check.C) {
 	cmd := []string{"mycmd", "mypar"}
 	outputPattern := "myOutput"
 
@@ -139,7 +139,7 @@ func (s *WaitTestSuite) TestForCommandHonoursMaxWaitRetries(c *check.C) {
 			actualRetries, maxWaitRetries))
 }
 
-func (s *WaitTestSuite) TestForActiveServiceCallsForCommand(c *check.C) {
+func (s *waitTestSuite) TestForActiveServiceCallsForCommand(c *check.C) {
 	backForCommand := ForCommand
 	defer func() { ForCommand = backForCommand }()
 	var called string
@@ -155,7 +155,7 @@ func (s *WaitTestSuite) TestForActiveServiceCallsForCommand(c *check.C) {
 	c.Assert(called, check.Equals, expectedCalled, check.Commentf("Expected call to ForCommand didn't happen"))
 }
 
-func (s *WaitTestSuite) TestForServerOnPortCallsForCommand(c *check.C) {
+func (s *waitTestSuite) TestForServerOnPortCallsForCommand(c *check.C) {
 	backForCommand := ForCommand
 	defer func() { ForCommand = backForCommand }()
 	var called string
