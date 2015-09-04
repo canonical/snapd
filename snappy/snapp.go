@@ -151,10 +151,10 @@ type ServiceYaml struct {
 
 	// set to yes if we need to create a systemd socket for this service
 	Socket       bool   `yaml:"socket,omitempty" json:"socket,omitempty"`
-	ListenStream string `yaml:"ListenStream,omitempty" json:"ListenStream,omitempty"`
-	SocketMode   string `yaml:"SocketMode,omitempty" json:"SocketMode,omitempty"`
-	SocketUser   string `yaml:"SocketUser,omitempty" json:"SocketUser,omitempty"`
-	SocketGroup  string `yaml:"SocketGroup,omitempty" json:"SocketGroup,omitempty"`
+	ListenStream string `yaml:"listen-stream,omitempty" json:"listen-stream,omitempty"`
+	SocketMode   string `yaml:"socket-mode,omitempty" json:"socket-mode,omitempty"`
+	SocketUser   string `yaml:"socket-user,omitempty" json:"socket-user,omitempty"`
+	SocketGroup  string `yaml:"socket-group,omitempty" json:"socket-group,omitempty"`
 
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
