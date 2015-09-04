@@ -91,6 +91,7 @@ type Systemd interface {
 	Kill(service, signal string) error
 	Restart(service string, timeout time.Duration) error
 	GenServiceFile(desc *ServiceDescription) string
+	GenSocketFile(desc *ServiceDescription) string
 	Status(service string) (string, error)
 	Logs(services []string) ([]Log, error)
 }
@@ -100,25 +101,35 @@ type Log map[string]interface{}
 
 // ServiceDescription describes a snappy systemd service
 type ServiceDescription struct {
-	AppName     string
-	ServiceName string
-	Version     string
-	Description string
-	AppPath     string
-	Start       string
-	Stop        string
-	PostStop    string
-	StopTimeout time.Duration
-	AaProfile   string
-	IsFramework bool
-	IsNetworked bool
-	BusName     string
-	UdevAppName string
+	AppName         string
+	ServiceName     string
+	Version         string
+	Description     string
+	AppPath         string
+	Start           string
+	Stop            string
+	PostStop        string
+	StopTimeout     time.Duration
+	AaProfile       string
+	IsFramework     bool
+	IsNetworked     bool
+	BusName         string
+	UdevAppName     string
+	Socket          bool
+	SocketFileName  string
+	ListenStream    string
+	SocketMode      string
+	SocketUser      string
+	SocketGroup     string
+	ServiceFileName string
 }
 
 const (
 	// the default target for systemd units that we generate
 	servicesSystemdTarget = "multi-user.target"
+
+	// the default target for systemd units that we generate
+	socketsSystemdTarget = "sockets.target"
 
 	// the location to put system services
 	snapServicesDir = "/etc/systemd/system"
@@ -265,9 +276,9 @@ func (s *systemd) GenServiceFile(desc *ServiceDescription) string {
 	serviceTemplate := `[Unit]
 Description={{.Description}}
 {{if .IsFramework}}Before=ubuntu-snappy.frameworks.target
-After=ubuntu-snappy.frameworks-pre.target
-Requires=ubuntu-snappy.frameworks-pre.target{{else}}After=ubuntu-snappy.frameworks.target
-Requires=ubuntu-snappy.frameworks.target{{end}}{{if .IsNetworked}}
+After=ubuntu-snappy.frameworks-pre.target{{ if .Socket }} {{.SocketFileName}}{{end}}
+Requires=ubuntu-snappy.frameworks-pre.target{{ if .Socket }} {{.SocketFileName}}{{end}}{{else}}After=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}
+Requires=ubuntu-snappy.frameworks.target{{ if .Socket }} {{.SocketFileName}}{{end}}{{end}}{{if .IsNetworked}}
 After=snappy-wait4network.service
 Requires=snappy-wait4network.service{{end}}
 X-Snappy=yes
@@ -305,6 +316,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		AppArch              string
 		Home                 string
 		EnvVars              string
+		SocketFileName       string
 	}{
 		*desc,
 		filepath.Join(desc.AppPath, desc.Start),
@@ -316,12 +328,59 @@ WantedBy={{.ServiceSystemdTarget}}
 		helpers.UbuntuArchitecture(),
 		"%h",
 		"",
+		desc.SocketFileName,
 	}
 	allVars := helpers.GetBasicSnapEnvVars(wrapperData)
 	allVars = append(allVars, helpers.GetUserSnapEnvVars(wrapperData)...)
 	allVars = append(allVars, helpers.GetDeprecatedBasicSnapEnvVars(wrapperData)...)
 	allVars = append(allVars, helpers.GetDeprecatedUserSnapEnvVars(wrapperData)...)
 	wrapperData.EnvVars = "\"" + strings.Join(allVars, "\" \"") + "\"" // allVars won't be empty
+
+	if err := t.Execute(&templateOut, wrapperData); err != nil {
+		// this can never happen, except we forget a variable
+		logger.Panicf("Unable to execute template: %v", err)
+	}
+
+	return templateOut.String()
+}
+
+func (s *systemd) GenSocketFile(desc *ServiceDescription) string {
+	serviceTemplate := `[Unit]
+Description={{.Description}} Socket Unit File
+PartOf={{.ServiceFileName}}
+X-Snappy=yes
+
+[Socket]
+ListenStream={{.ListenStream}}
+{{if .SocketMode}}SocketMode={{.SocketMode}}{{end}}
+{{if .SocketUser}}SocketUSer={{.SocketUser}}{{end}}
+{{if .SocketGroup}}SocketGroup={{.SocketGroup}}{{end}}
+
+[Install]
+WantedBy={{.SocketSystemdTarget}}
+`
+	var templateOut bytes.Buffer
+	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
+
+	wrapperData := struct {
+		// the service description
+		ServiceDescription
+		// and some composed values
+		ServiceFileName,
+		ListenStream string
+		SocketMode          string
+		SocketUser          string
+		SocketGroup         string
+		SocketSystemdTarget string
+	}{
+		*desc,
+		desc.ServiceFileName,
+		desc.ListenStream,
+		desc.SocketMode,
+		desc.SocketUser,
+		desc.SocketGroup,
+		socketsSystemdTarget,
+	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
 		// this can never happen, except we forget a variable
