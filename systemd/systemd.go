@@ -113,6 +113,7 @@ type ServiceDescription struct {
 	IsFramework bool
 	IsNetworked bool
 	BusName     string
+	Forking     bool
 	UdevAppName string
 }
 
@@ -280,8 +281,9 @@ Environment="SNAP_APP={{.AppTriple}}" {{.EnvVars}}
 {{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
-{{if .BusName}}BusName={{.BusName}}{{end}}
-{{if .BusName}}Type=dbus{{end}}
+{{if .BusName}}BusName={{.BusName}}
+Type=dbus{{else}}{{if .Forking}}Type=forking{{end}}
+{{end}}
 
 [Install]
 WantedBy={{.ServiceSystemdTarget}}
