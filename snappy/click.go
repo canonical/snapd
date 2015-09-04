@@ -433,9 +433,7 @@ func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile str
 
 	socketFileName := ""
 	if service.Socket {
-		socketFileName = fmt.Sprintf("%s_%s_%s.socket", m.Name, service.Name, m.Version)
-	} else {
-		socketFileName = ""
+		socketFileName = filepath.Base(generateSocketFileName(m, service))
 	}
 
 	return systemd.New(globalRootDir, nil).GenServiceFile(
@@ -463,7 +461,7 @@ func generateSnapSocketFile(service ServiceYaml, baseDir string, aaProfile strin
 		return "", err
 	}
 
-	serviceFileName := fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version)
+	serviceFileName := filepath.Base(generateServiceFileName(m, service))
 
 	return systemd.New(globalRootDir, nil).GenSocketFile(
 		&systemd.ServiceDescription{
