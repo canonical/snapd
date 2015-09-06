@@ -49,7 +49,7 @@ func (s *updateSuite) assertBootDirContents(c *check.C) {
 	for _, f := range files {
 		fileNames = append(fileNames, f.Name())
 	}
-	c.Assert(fileNames, check.Equals, expectedFileNames,
+	c.Assert(fileNames, check.DeepEquals, expectedFileNames,
 		check.Commentf("Wrong files in the other partition boot dir"))
 }
 
