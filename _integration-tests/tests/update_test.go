@@ -20,7 +20,6 @@
 package tests
 
 import (
-	"fmt"
 	"io/ioutil"
 	"path"
 
@@ -36,6 +35,24 @@ type updateSuite struct {
 	SnappySuite
 }
 
+func (s *updateSuite) assertBootDirContents(c *check.C) {
+	system, err := partition.BootSystem()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
+	current, err := partition.CurrentPartition()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the current partition: %s", err))
+	files, err := ioutil.ReadDir(
+		path.Join(partition.BootDir(system), partition.OtherPartition(current)))
+	c.Assert(err, check.IsNil, check.Commentf("Error reading the other partition boot dir: %s", err))
+
+	expectedFileNames := []string{"hardware.yaml", "initrd.img", "vmlinuz"}
+	fileNames := []string{}
+	for _, f := range files {
+		fileNames = append(fileNames, f.Name())
+	}
+	c.Assert(fileNames, check.Equals, expectedFileNames,
+		check.Commentf("Wrong files in the other partition boot dir"))
+}
+
 // Test that the update to the same release and channel must install a newer
 // version. If there is no update available, the channel version will be
 // modified to fake an update. If there is a version available, the image will
@@ -47,12 +64,7 @@ func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 			".*" +
 			"^Reboot to use .*ubuntu-core.\n"
 		c.Assert(updateOutput, check.Matches, expected)
-		current, _ := partition.CurrentPartition()
-		system, _ := partition.BootSystem()
-		files, _ := ioutil.ReadDir(path.Join(partition.BootDir(system), partition.OtherPartition(current)))
-		for _, f := range files {
-			fmt.Println(f.Name())
-		}
+		s.assertBootDirContents(c)
 		Reboot(c)
 	} else if AfterReboot(c) {
 		RemoveRebootMark(c)
