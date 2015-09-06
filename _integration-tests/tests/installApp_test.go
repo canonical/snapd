@@ -20,12 +20,11 @@
 package tests
 
 import (
-	"fmt"
 	"net/http"
 	"os/exec"
-	"time"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
 	check "gopkg.in/check.v1"
 )
@@ -33,13 +32,13 @@ import (
 var _ = check.Suite(&installAppSuite{})
 
 type installAppSuite struct {
-	SnappySuite
+	common.SnappySuite
 }
 
 func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) {
-	installOutput := InstallSnap(c, "hello-world")
+	installOutput := common.InstallSnap(c, "hello-world")
 	s.AddCleanup(func() {
-		RemoveSnap(c, "hello-world")
+		common.RemoveSnap(c, "hello-world")
 	})
 
 	expected := "(?ms)" +
@@ -53,20 +52,20 @@ func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) 
 }
 
 func (s *installAppSuite) TestCallBinaryFromInstalledSnap(c *check.C) {
-	InstallSnap(c, "hello-world")
+	common.InstallSnap(c, "hello-world")
 	s.AddCleanup(func() {
-		RemoveSnap(c, "hello-world")
+		common.RemoveSnap(c, "hello-world")
 	})
 
-	echoOutput := ExecCommand(c, "hello-world.echo")
+	echoOutput := common.ExecCommand(c, "hello-world.echo")
 
 	c.Assert(echoOutput, check.Equals, "Hello World!\n")
 }
 
 func (s *installAppSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *check.C) {
-	InstallSnap(c, "hello-world")
+	common.InstallSnap(c, "hello-world")
 	s.AddCleanup(func() {
-		RemoveSnap(c, "hello-world")
+		common.RemoveSnap(c, "hello-world")
 	})
 
 	cmd := exec.Command("hello-world.evil")
@@ -85,12 +84,12 @@ func (s *installAppSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *ch
 }
 
 func (s *installAppSuite) TestInfoMustPrintInstalledPackageInformation(c *check.C) {
-	InstallSnap(c, "hello-world")
+	common.InstallSnap(c, "hello-world")
 	s.AddCleanup(func() {
-		RemoveSnap(c, "hello-world")
+		common.RemoveSnap(c, "hello-world")
 	})
 
-	infoOutput := ExecCommand(c, "snappy", "info")
+	infoOutput := common.ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms).*^apps: hello-world\n"
 	c.Assert(infoOutput, check.Matches, expected)
@@ -99,18 +98,14 @@ func (s *installAppSuite) TestInfoMustPrintInstalledPackageInformation(c *check.
 func (s *installAppSuite) TestAppNetworkingServiceMustBeStarted(c *check.C) {
 	baseAppName := "xkcd-webserver"
 	appName := baseAppName + ".canonical"
-	InstallSnap(c, appName)
+	common.InstallSnap(c, appName)
 	s.AddCleanup(func() {
-		RemoveSnap(c, appName)
+		common.RemoveSnap(c, appName)
 	})
 
-	appVersion := GetCurrentVersion(c, baseAppName)
-	appService := fmt.Sprintf("%s_%s_%s.service", baseAppName, baseAppName, appVersion)
-
-	err := WaitForActiveService(c, appService)
+	err := wait.ForServerOnPort(c, 80)
 	c.Assert(err, check.IsNil)
 
-	time.Sleep(1 * time.Second)
 	resp, err := http.Get("http://localhost")
 	c.Assert(err, check.IsNil)
 	c.Check(resp.Status, check.Equals, "200 OK")

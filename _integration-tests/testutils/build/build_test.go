@@ -34,7 +34,6 @@ func Test(t *testing.T) { check.TestingT(t) }
 type BuildSuite struct {
 	execCalls        map[string]int
 	execReturnValues []string
-	execReturnIndex  int
 	backExecCommand  func(...string) error
 
 	mkDirCalls           map[string]int
