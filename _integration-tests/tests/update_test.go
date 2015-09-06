@@ -20,9 +20,14 @@
 package tests
 
 import (
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"fmt"
+	"io/ioutil"
+	"path"
 
-	check "gopkg.in/check.v1"
+	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/partition"
+
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&updateSuite{})
@@ -42,6 +47,12 @@ func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 			".*" +
 			"^Reboot to use .*ubuntu-core.\n"
 		c.Assert(updateOutput, check.Matches, expected)
+		current, _ := partition.CurrentPartition()
+		system, _ := partition.BootSystem()
+		files, _ := ioutil.ReadDir(path.Join(partition.BootDir(system), partition.OtherPartition(current)))
+		for _, f := range files {
+			fmt.Println(f.Name())
+		}
 		Reboot(c)
 	} else if AfterReboot(c) {
 		RemoveRebootMark(c)
