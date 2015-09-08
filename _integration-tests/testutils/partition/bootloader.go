@@ -40,7 +40,7 @@ var (
 	// BootSystem proxies bootSystem
 	BootSystem = bootSystem
 
-	configFiles = map[string]string{"ubbot": ubootConfigFile, "grub": grubConfigFile}
+	configFiles = map[string]string{"uboot": ubootConfigFile, "grub": grubConfigFile}
 )
 
 // bootSystem returns the name of the boot system, grub or uboot.
