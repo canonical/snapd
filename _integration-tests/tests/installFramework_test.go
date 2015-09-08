@@ -23,7 +23,8 @@ import (
 	"fmt"
 	"regexp"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
 	check "gopkg.in/check.v1"
 )
@@ -31,25 +32,25 @@ import (
 var _ = check.Suite(&installFrameworkSuite{})
 
 type installFrameworkSuite struct {
-	SnappySuite
+	common.SnappySuite
 }
 
 func (s *installFrameworkSuite) TearDownTest(c *check.C) {
-	if !NeedsReboot() && CheckRebootMark("") {
-		RemoveSnap(c, "docker")
+	if !common.NeedsReboot() && common.CheckRebootMark("") {
+		common.RemoveSnap(c, "docker")
 	}
 	// run cleanup last
 	s.SnappySuite.TearDownTest(c)
 }
 
 func isDockerServiceRunning(c *check.C) bool {
-	dockerVersion := GetCurrentVersion(c, "docker")
+	dockerVersion := common.GetCurrentVersion(c, "docker")
 	dockerService := fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion)
 
-	err := WaitForActiveService(c, dockerService)
+	err := wait.ForActiveService(c, dockerService)
 	c.Assert(err, check.IsNil)
 
-	statusOutput := ExecCommand(
+	statusOutput := common.ExecCommand(
 		c, "systemctl", "status",
 		dockerService)
 
@@ -65,7 +66,7 @@ func isDockerServiceRunning(c *check.C) bool {
 }
 
 func (s *installFrameworkSuite) TestInstallFrameworkMustPrintPackageInformation(c *check.C) {
-	installOutput := InstallSnap(c, "docker")
+	installOutput := common.InstallSnap(c, "docker")
 
 	expected := "(?ms)" +
 		"Installing docker\n" +
@@ -78,16 +79,16 @@ func (s *installFrameworkSuite) TestInstallFrameworkMustPrintPackageInformation(
 }
 
 func (s *installFrameworkSuite) TestInstalledFrameworkServiceMustBeStarted(c *check.C) {
-	InstallSnap(c, "docker")
+	common.InstallSnap(c, "docker")
 	c.Assert(isDockerServiceRunning(c), check.Equals, true)
 }
 
 func (s *installFrameworkSuite) TestFrameworkServiceMustBeStartedAfterReboot(c *check.C) {
-	if BeforeReboot() {
-		InstallSnap(c, "docker")
-		Reboot(c)
-	} else if AfterReboot(c) {
-		RemoveRebootMark(c)
+	if common.BeforeReboot() {
+		common.InstallSnap(c, "docker")
+		common.Reboot(c)
+	} else if common.AfterReboot(c) {
+		common.RemoveRebootMark(c)
 		c.Assert(isDockerServiceRunning(c), check.Equals, true)
 	}
 }

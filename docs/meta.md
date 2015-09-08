@@ -70,6 +70,10 @@ The following keys are optional:
     * `bus-name`: (optional) message bus connection name for the service.
       May only be specified for snaps of 'type: framework' (see above). See
       frameworks.md for details.
+    * `socket`: (optional) Set to "true" is the service is socket activated
+    * `listen-stream`: (optional) The full path of the stream socket
+    * `socket-user`: (optional) The user that owns the stream socket
+    * `socket-group`: (optional) The group that own the stream socket
 
 * `binaries`: the binaries (executables) that the snap provides
     * `name`: (required) the name of the binary, the user will be able to
