@@ -34,9 +34,18 @@ const (
 	grubConfigFile  = grubDir + "/grubenv"
 )
 
-// BootSystem returns the name of the boot system, grub or uboot.
-func BootSystem() (string, error) {
-	matches, err := filepath.Glob(bootBase + "/grub")
+var (
+	// dependency aliasing
+	filepathGlob = filepath.Glob
+	// BootSystem proxies bootSystem
+	BootSystem = bootSystem
+
+	configFiles = map[string]string{"ubbot": ubootConfigFile, "grub": grubConfigFile}
+)
+
+// bootSystem returns the name of the boot system, grub or uboot.
+func bootSystem() (string, error) {
+	matches, err := filepathGlob(bootBase + "/grub")
 	if err != nil {
 		return "", err
 	}
@@ -56,10 +65,13 @@ func BootDir(bootSystem string) string {
 
 // CurrentPartition returns the current partition, a or b.
 func CurrentPartition() (partition string, err error) {
-	bootConfigFile, err := bootConf()
+	system, err := BootSystem()
 	if err != nil {
 		return
 	}
+
+	bootConfigFile := configFiles[system]
+
 	file, err := os.Open(bootConfigFile)
 	if err != nil {
 		return
@@ -70,17 +82,10 @@ func CurrentPartition() (partition string, err error) {
 	reader := bufio.NewReader(file)
 	scanner := bufio.NewScanner(reader)
 
-	scanner.Split(bufio.ScanLines)
-
 	for scanner.Scan() {
 		if strings.HasPrefix(scanner.Text(), "snappy_ab") {
 			fields := strings.Split(scanner.Text(), "=")
 			if len(fields) > 1 {
-				var system string
-				system, err = BootSystem()
-				if err != nil {
-					return
-				}
 				if system == "grub" {
 					partition = fields[1]
 				} else {
@@ -91,17 +96,6 @@ func CurrentPartition() (partition string, err error) {
 		}
 	}
 	return
-}
-
-func bootConf() (string, error) {
-	bootSystem, err := BootSystem()
-	if err != nil {
-		return "", err
-	}
-	if bootSystem == "grub" {
-		return grubConfigFile, nil
-	}
-	return ubootConfigFile, nil
 }
 
 // OtherPartition returns the backup partition, a or b.
