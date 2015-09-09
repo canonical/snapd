@@ -35,8 +35,7 @@ const (
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
 	defaultGoArm        = "7"
-
-	testsBinDir = "_integration-tests/bin/"
+	testsBinDir         = "_integration-tests/bin/"
 )
 
 var (
