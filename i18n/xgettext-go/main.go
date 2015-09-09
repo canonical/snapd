@@ -68,6 +68,31 @@ func findCommentsForTranslation(fset *token.FileSet, f *ast.File, posCall token.
 	return formatedComment
 }
 
+func constructValue(val interface{}) string {
+	switch val.(type) {
+	case *ast.BasicLit:
+		return val.(*ast.BasicLit).Value
+	// this happens for constructs like:
+	//  gettext.Gettext("foo" + "bar")
+	case *ast.BinaryExpr:
+		// we only support string concat
+		if val.(*ast.BinaryExpr).Op != token.ADD {
+			return ""
+		}
+		left := constructValue(val.(*ast.BinaryExpr).X)
+		// strip right " (or `)
+		left = left[0 : len(left)-1]
+		right := constructValue(val.(*ast.BinaryExpr).Y)
+		// strip left " (or `)
+		right = right[1:len(right)]
+		return left + right
+	default:
+		panic(fmt.Sprintf("unknown type: %v", val))
+	}
+
+	return ""
+}
+
 func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bool {
 	// FIXME: this assume we always have a "gettext.Gettext" style keyword
 	l := strings.Split(opts.Keyword, ".")
@@ -89,7 +114,7 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 			}
 
 			if sel.Sel.Name == gettextFuncName && sel.X.(*ast.Ident).Name == gettextSelector {
-				i18nStr = x.Args[0].(*ast.BasicLit).Value
+				i18nStr = constructValue(x.Args[0])
 			}
 
 			formatI18nStr := func(s string) string {

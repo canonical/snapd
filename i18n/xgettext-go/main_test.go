@@ -390,3 +390,25 @@ msgstr  ""
 `, header, fname)
 	c.Assert(string(got), Equals, expected)
 }
+
+func (s *xgettextTestSuite) TestProcessFilesConcat(c *C) {
+	fname := makeGoSourceFile(c, []byte(`package main
+
+func main() {
+    // TRANSLATORS: foo comment
+    i18n.G("foo\n" + "bar\n" + "baz")
+}
+`))
+	err := processFiles([]string{fname})
+	c.Assert(err, IsNil)
+
+	c.Assert(msgIDs, DeepEquals, map[string][]msgID{
+		"foo\\nbar\\nbaz": []msgID{
+			{
+				comment: "#. TRANSLATORS: foo comment\n",
+				fname:   fname,
+				line:    5,
+			},
+		},
+	})
+}
