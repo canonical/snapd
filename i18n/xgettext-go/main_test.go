@@ -464,14 +464,14 @@ func (s *xgettextTestSuite) TestWriteOutputTidy(c *C) {
 	msgIDs = map[string][]msgID{
 		"foo\\nbar\\nbaz": []msgID{
 			{
-				fname:   "fname",
-				line:    2,
+				fname: "fname",
+				line:  2,
 			},
 		},
 		"zzz\\n": []msgID{
 			{
-				fname:   "fname",
-				line:    4,
+				fname: "fname",
+				line:  4,
 			},
 		},
 	}
@@ -492,3 +492,25 @@ msgstr  ""
 	c.Assert(out.String(), Equals, expected)
 }
 
+func (s *xgettextTestSuite) TestProcessFilesWithDoubleQuote(c *C) {
+	fname := makeGoSourceFile(c, []byte(`package main
+
+func main() {
+    i18n.G("foo \"bar\"")
+}
+`))
+	err := processFiles([]string{fname})
+	c.Assert(err, IsNil)
+
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+
+	expected := fmt.Sprintf(`%s
+#: %[2]s:4
+msgid   "foo \"bar\""
+msgstr  ""
+
+`, header, fname)
+	c.Check(out.String(), Equals, expected)
+
+}
