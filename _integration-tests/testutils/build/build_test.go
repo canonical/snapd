@@ -115,11 +115,11 @@ func (s *BuildSuite) fakeOsGetenv(key string) (value string) {
 func (s *BuildSuite) TestAssetsCallsPrepareDir(c *check.C) {
 	Assets(s.useSnappyFromBranch, s.arch)
 
-	mkDirCall := s.mkDirCalls[TestsBinDir]
+	mkDirCall := s.mkDirCalls[testsBinDir]
 
 	c.Assert(mkDirCall, check.Equals, 1,
 		check.Commentf("Expected 1 call to mkDir with %s, got %d",
-			TestsBinDir, mkDirCall))
+			testsBinDir, mkDirCall))
 }
 
 func (s *BuildSuite) TestAssetsBuildsTests(c *check.C) {
@@ -136,7 +136,7 @@ func (s *BuildSuite) TestAssetsBuildsTests(c *check.C) {
 func (s *BuildSuite) TestAssetsRenamesBuiltBinary(c *check.C) {
 	Assets(s.useSnappyFromBranch, s.arch)
 
-	cmd := "tests.test " + TestsBinDir + IntegrationTestName
+	cmd := "tests.test " + testsBinDir + IntegrationTestName
 	renameCall := s.osRenameCalls[cmd]
 
 	c.Assert(renameCall, check.Equals, 1,

@@ -23,9 +23,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os/exec"
-	"path/filepath"
 
-	"launchpad.net/snappy/_integration-tests/testutils/build"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 
 	"gopkg.in/check.v1"
@@ -42,8 +40,7 @@ type snapdTestSuite struct {
 
 func (s *snapdTestSuite) SetUpSuite(c *check.C) {
 	cmd := exec.Command("/lib/systemd/systemd-activate",
-		"-l", "127.0.0.1:"+port,
-		filepath.Join(build.TestsBinDir, "snapd"))
+		"-l", "127.0.0.1:"+port, "snapd")
 
 	cmd.Start()
 }
