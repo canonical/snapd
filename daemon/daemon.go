@@ -83,7 +83,7 @@ func (d *Daemon) Init() error {
 	}
 
 	if len(listeners) != 1 {
-		return fmt.Errorf("daemon does not handler %d listeners right now, just one", len(listeners))
+		return fmt.Errorf("daemon does not handle %d listeners right now, just one", len(listeners))
 	}
 
 	d.listener = listeners[0]
@@ -98,11 +98,14 @@ func (d *Daemon) Init() error {
 
 	d.router.NotFoundHandler = http.HandlerFunc(NotFound.Handler)
 
+	return nil
+}
+
+// Start the Daemon
+func (d *Daemon) Start() {
 	d.tomb.Go(func() error {
 		return http.Serve(d.listener, d.router)
 	})
-
-	return nil
 }
 
 // Stop shuts down the Daemon

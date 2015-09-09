@@ -119,5 +119,6 @@ func (s *apiSuite) TestV1(c *check.C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Metadata, check.DeepEquals, expected)
 }

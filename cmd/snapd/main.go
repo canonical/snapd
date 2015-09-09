@@ -50,12 +50,15 @@ func run() error {
 		return err
 	}
 
+	d.Start()
+
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 	select {
 	case sig := <-ch:
 		logger.Noticef("Exiting on %s signal.\n", sig)
 	case <-d.Dying():
+		// something called Stop()
 	}
 
 	return d.Stop()
