@@ -412,3 +412,26 @@ func main() {
 		},
 	})
 }
+
+func (s *xgettextTestSuite) TestProcessFilesWithQuote(c *C) {
+	fname := makeGoSourceFile(c, []byte(fmt.Sprintf(`package main
+
+func main() {
+    i18n.G(%[1]s foo "bar"%[1]s)
+}
+`, "`")))
+	err := processFiles([]string{fname})
+	c.Assert(err, IsNil)
+
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+
+	expected := fmt.Sprintf(`%s
+#: %[2]s:4
+msgid   " foo \"bar\""
+msgstr  ""
+
+`, header, fname)
+	c.Check(out.String(), Equals, expected)
+
+}

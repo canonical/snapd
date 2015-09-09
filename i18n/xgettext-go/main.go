@@ -121,9 +121,12 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 				if s == "" {
 					return ""
 				}
-				// strip " (or `)
+				// strip leading and trailing " (or `)
 				s = s[1 : len(s)-1]
-				return strings.Replace(s, "\n", "\\n", -1)
+				// replace inner " with \"
+				s = strings.Replace(s, "\n", "\\n", -1)
+				// replace \n with \\n
+				return strings.Replace(s, "\"", "\\\"", -1)
 			}
 
 			// FIXME: too simplistic(?), no %% is considered
