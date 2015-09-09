@@ -115,11 +115,11 @@ func (s *BuildSuite) fakeOsGetenv(key string) (value string) {
 func (s *BuildSuite) TestAssetsCallsPrepareDir(c *check.C) {
 	Assets(s.useSnappyFromBranch, s.arch)
 
-	mkDirCall := s.mkDirCalls[testsBinDir]
+	mkDirCall := s.mkDirCalls[TestsBinDir]
 
 	c.Assert(mkDirCall, check.Equals, 1,
 		check.Commentf("Expected 1 call to mkDir with %s, got %d",
-			testsBinDir, mkDirCall))
+			TestsBinDir, mkDirCall))
 }
 
 func (s *BuildSuite) TestAssetsBuildsTests(c *check.C) {
@@ -136,7 +136,7 @@ func (s *BuildSuite) TestAssetsBuildsTests(c *check.C) {
 func (s *BuildSuite) TestAssetsRenamesBuiltBinary(c *check.C) {
 	Assets(s.useSnappyFromBranch, s.arch)
 
-	cmd := "tests.test " + testsBinDir + IntegrationTestName
+	cmd := "tests.test " + TestsBinDir + IntegrationTestName
 	renameCall := s.osRenameCalls[cmd]
 
 	c.Assert(renameCall, check.Equals, 1,
@@ -221,23 +221,44 @@ func (s *BuildSuite) TestAssetsDoesNotSetEnvironmentForNonArm(c *check.C) {
 			"GOARM "+os.Getenv("GOARCH"), setenvGOARMFinalCall))
 }
 
-func (s *BuildSuite) TestAssetsBuildsSnappyFromBranch(c *check.C) {
+func (s *BuildSuite) TestAssetsBuildsSnappyCliFromBranch(c *check.C) {
 	buildSnappyFromBranch := true
 	Assets(buildSnappyFromBranch, s.arch)
 
-	buildCall := s.execCalls[buildSnappyCmd]
+	buildCall := s.execCalls[buildSnappyCliCmd]
 
 	c.Assert(buildCall, check.Equals, 1,
 		check.Commentf("Expected 1 call to execCommand with %s, got %d",
-			buildSnappyCmd, buildCall))
+			buildSnappyCliCmd, buildCall))
 }
 
-func (s *BuildSuite) TestAssetsDoesNotBuildSnappyFromBranchIfNotInstructedTo(c *check.C) {
+func (s *BuildSuite) TestAssetsDoesNotBuildSnappyCliFromBranchIfNotInstructedTo(c *check.C) {
 	Assets(s.useSnappyFromBranch, s.arch)
 
-	buildCall := s.execCalls[buildSnappyCmd]
+	buildCall := s.execCalls[buildSnappyCliCmd]
 
 	c.Assert(buildCall, check.Equals, 0,
 		check.Commentf("Expected 0 call to execCommand with %s, got %d",
-			buildSnappyCmd, buildCall))
+			buildSnappyCliCmd, buildCall))
+}
+
+func (s *BuildSuite) TestAssetsBuildsSnapdFromBranch(c *check.C) {
+	buildSnappyFromBranch := true
+	Assets(buildSnappyFromBranch, s.arch)
+
+	buildCall := s.execCalls[buildSnapdCmd]
+
+	c.Assert(buildCall, check.Equals, 1,
+		check.Commentf("Expected 1 call to execCommand with %s, got %d",
+			buildSnapdCmd, buildCall))
+}
+
+func (s *BuildSuite) TestAssetsDoesNotBuildSnapdFromBranchIfNotInstructedTo(c *check.C) {
+	Assets(s.useSnappyFromBranch, s.arch)
+
+	buildCall := s.execCalls[buildSnapdCmd]
+
+	c.Assert(buildCall, check.Equals, 0,
+		check.Commentf("Expected 0 call to execCommand with %s, got %d",
+			buildSnapdCmd, buildCall))
 }

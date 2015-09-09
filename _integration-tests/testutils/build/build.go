@@ -28,13 +28,15 @@ import (
 )
 
 const (
-	buildTestCmd   = "go test -c ./_integration-tests/tests"
-	buildSnappyCmd = "go build -o " + testsBinDir + "snappy ./cmd/snappy"
+	buildTestCmd      = "go test -c ./_integration-tests/tests"
+	buildSnappyCliCmd = "go build -o " + TestsBinDir + "snappy ./cmd/snappy"
+	buildSnapdCmd     = "go build -o " + TestsBinDir + "snapd ./cmd/snapd"
 
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
 	defaultGoArm        = "7"
-	testsBinDir         = "_integration-tests/bin/"
+	// TestsBinDir is the directory where the compiled binaries live
+	TestsBinDir = "_integration-tests/bin/"
 )
 
 var (
@@ -49,12 +51,13 @@ var (
 // Assets builds the snappy and integration tests binaries for the target
 // architecture.
 func Assets(useSnappyFromBranch bool, arch string) {
-	prepareTargetDir(testsBinDir)
+	prepareTargetDir(TestsBinDir)
 
 	if useSnappyFromBranch {
 		// FIXME We need to build an image that has the snappy from the branch
 		// installed. --elopio - 2015-06-25.
 		buildSnappyCLI(arch)
+		buildSnapd(arch)
 	}
 	buildTests(arch)
 }
@@ -63,7 +66,14 @@ func buildSnappyCLI(arch string) {
 	fmt.Println("Building snappy CLI...")
 	// On the root of the project we have a directory called snappy, so we
 	// output the binary for the tests in the tests directory.
-	goCall(arch, buildSnappyCmd)
+	goCall(arch, buildSnappyCliCmd)
+}
+
+func buildSnapd(arch string) {
+	fmt.Println("Building snapd...")
+	// On the root of the project we have a directory called snappy, so we
+	// output the binary for the tests in the tests directory.
+	goCall(arch, buildSnapdCmd)
 }
 
 func buildTests(arch string) {
@@ -72,7 +82,7 @@ func buildTests(arch string) {
 	goCall(arch, buildTestCmd)
 	// XXX Go test 1.3 does not have the output flag, so we move the
 	// binaries after they are generated.
-	osRename("tests.test", testsBinDir+IntegrationTestName)
+	osRename("tests.test", TestsBinDir+IntegrationTestName)
 }
 
 func goCall(arch string, cmd string) {
