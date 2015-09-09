@@ -353,7 +353,7 @@ X-Snappy=yes
 [Socket]
 ListenStream={{.ListenStream}}
 {{if .SocketMode}}SocketMode={{.SocketMode}}{{end}}
-{{if .SocketUser}}SocketUSer={{.SocketUser}}{{end}}
+{{if .SocketUser}}SocketUser={{.SocketUser}}{{end}}
 {{if .SocketGroup}}SocketGroup={{.SocketGroup}}{{end}}
 
 [Install]

@@ -1586,7 +1586,7 @@ X-Snappy=yes
 [Socket]
 ListenStream=/var/run/docker.sock
 SocketMode=0660
-SocketUSer=root
+SocketUser=root
 SocketGroup=adm
 
 [Install]
