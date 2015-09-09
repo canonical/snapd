@@ -241,9 +241,13 @@ msgstr  "Project-Id-Version: %s\n"
 		if msgid.formatHint != "" {
 			fmt.Fprintf(out, "#, %s\n", msgid.formatHint)
 		}
-		fmt.Fprintf(out, "msgid   \"%v\"\n", k)
+		var formatOutput = func(in string) string {
+			out := strings.Replace(in, "\\n", "\\n\"\n        \"", -1)
+			return strings.TrimSuffix(out, "\"\n        \"")
+		}
+		fmt.Fprintf(out, "msgid   \"%v\"\n", formatOutput(k))
 		if msgid.msgidPlural != "" {
-			fmt.Fprintf(out, "msgid_plural   \"%v\"\n", msgid.msgidPlural)
+			fmt.Fprintf(out, "msgid_plural   \"%v\"\n", formatOutput(msgid.msgidPlural))
 			fmt.Fprintf(out, "msgstr[0]  \"\"\n")
 			fmt.Fprintf(out, "msgstr[1]  \"\"\n")
 		} else {

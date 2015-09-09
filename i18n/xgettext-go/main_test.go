@@ -435,3 +435,60 @@ msgstr  ""
 	c.Check(out.String(), Equals, expected)
 
 }
+
+func (s *xgettextTestSuite) TestWriteOutputMultilines(c *C) {
+	msgIDs = map[string][]msgID{
+		"foo\\nbar\\nbaz": []msgID{
+			{
+				fname:   "fname",
+				line:    2,
+				comment: "#. foo\n",
+			},
+		},
+	}
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+	expected := fmt.Sprintf(`%s
+#. foo
+#: fname:2
+msgid   "foo\n"
+        "bar\n"
+        "baz"
+msgstr  ""
+
+`, header)
+	c.Assert(out.String(), Equals, expected)
+}
+
+func (s *xgettextTestSuite) TestWriteOutputTidy(c *C) {
+	msgIDs = map[string][]msgID{
+		"foo\\nbar\\nbaz": []msgID{
+			{
+				fname:   "fname",
+				line:    2,
+			},
+		},
+		"zzz\\n": []msgID{
+			{
+				fname:   "fname",
+				line:    4,
+			},
+		},
+	}
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+	expected := fmt.Sprintf(`%s
+#: fname:2
+msgid   "foo\n"
+        "bar\n"
+        "baz"
+msgstr  ""
+
+#: fname:4
+msgid   "zzz\n"
+msgstr  ""
+
+`, header)
+	c.Assert(out.String(), Equals, expected)
+}
+
