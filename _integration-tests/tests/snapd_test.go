@@ -23,8 +23,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os/exec"
+	"strconv"
 
 	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
 )
@@ -40,9 +42,13 @@ type snapdTestSuite struct {
 
 func (s *snapdTestSuite) SetUpSuite(c *check.C) {
 	cmd := exec.Command("/lib/systemd/systemd-activate",
-		"-l", "127.0.0.1:"+port, "snapd")
+		"-l", "0.0.0.0:"+port, "snapd")
 
 	cmd.Start()
+
+	intPort, _ := strconv.Atoi(port)
+	err := wait.ForServerOnPort(c, intPort)
+	c.Assert(err, check.IsNil)
 }
 
 func (s *snapdTestSuite) TearDownSuite(c *check.C) {
