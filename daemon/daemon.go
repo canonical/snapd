@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/coreos/go-systemd/activation"
 	"github.com/gorilla/mux"
@@ -53,7 +54,7 @@ type Command struct {
 	d *Daemon
 }
 
-func (c *Command) handler(w http.ResponseWriter, r *http.Request) {
+func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var rspf ResponseFunc
 	rsp := BadMethod
 
@@ -71,12 +72,41 @@ func (c *Command) handler(w http.ResponseWriter, r *http.Request) {
 		rsp = rspf(c, r)
 	}
 
-	rsp.Handler(w, r)
+	rsp.ServeHTTP(w, r)
+}
+
+type wrappedWriter struct {
+	w http.ResponseWriter
+	s int
+}
+
+func (w *wrappedWriter) Header() http.Header {
+	return w.w.Header()
+}
+
+func (w *wrappedWriter) Write(bs []byte) (int, error) {
+	return w.w.Write(bs)
+}
+
+func (w *wrappedWriter) WriteHeader(s int) {
+	w.w.WriteHeader(s)
+	w.s = s
+}
+
+func logit(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ww := &wrappedWriter{w: w}
+		t0 := time.Now()
+		handler.ServeHTTP(ww, r)
+		t := time.Now().Sub(t0)
+		logger.Debugf("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
+	})
 }
 
 // Init sets up the Daemon's internal workings.
 // Don't call more than once.
 func (d *Daemon) Init() error {
+	t0 := time.Now()
 	listeners, err := activation.Listeners(false)
 	if err != nil {
 		return err
@@ -88,23 +118,29 @@ func (d *Daemon) Init() error {
 
 	d.listener = listeners[0]
 
+	d.addRoutes()
+
+	logger.Debugf("init done in %s", time.Now().Sub(t0))
+
+	return nil
+}
+
+func (d *Daemon) addRoutes() {
 	d.router = mux.NewRouter()
 
 	for _, c := range api {
 		c.d = d
 		logger.Debugf("adding %s", c.Path)
-		d.router.HandleFunc(c.Path, c.handler).Name(c.Path)
+		d.router.Handle(c.Path, c).Name(c.Path)
 	}
 
-	d.router.NotFoundHandler = http.HandlerFunc(NotFound.Handler)
-
-	return nil
+	d.router.NotFoundHandler = NotFound
 }
 
 // Start the Daemon
 func (d *Daemon) Start() {
 	d.tomb.Go(func() error {
-		return http.Serve(d.listener, d.router)
+		return http.Serve(d.listener, logit(d.router))
 	})
 }
 
