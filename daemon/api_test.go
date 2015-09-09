@@ -53,6 +53,10 @@ func (s *apiSuite) Details(string) ([]snappy.Part, error) {
 	return s.parts, s.err
 }
 
+func (s *apiSuite) All() ([]snappy.Part, error) {
+	return s.parts, s.err
+}
+
 func (s *apiSuite) muxVars(*http.Request) map[string]string {
 	return s.vars
 }

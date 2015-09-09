@@ -482,6 +482,11 @@ func (s *SystemImageRepository) Installed() (parts []Part, err error) {
 	return parts, err
 }
 
+// All installed parts. SystemImageParts are non-removable.
+func (s *SystemImageRepository) All() ([]Part, error) {
+	return s.Installed()
+}
+
 // needsSync determines if syncing boot assets is required
 func (s *SystemImagePart) needsBootAssetSync() bool {
 	// current partition

@@ -109,6 +109,8 @@ type Repository interface {
 
 	Updates() ([]Part, error)
 	Installed() ([]Part, error)
+
+	All() ([]Part, error)
 }
 
 // MetaRepository contains all available single repositories can can be used
@@ -170,6 +172,21 @@ func (m *MetaRepository) Installed() (parts []Part, err error) {
 	}
 
 	return parts, err
+}
+
+// All the parts
+func (m *MetaRepository) All() ([]Part, error) {
+	var parts []Part
+
+	for _, r := range m.all {
+		all, err := r.All()
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, all...)
+	}
+
+	return parts, nil
 }
 
 // Updates returns all updatable parts
