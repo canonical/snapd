@@ -67,7 +67,7 @@ func (s *initRAMFSSuite) TestFreeSpaceWithoutResize(c *check.C) {
 	} else if common.AfterReboot(c) {
 		common.RemoveRebootMark(c)		
 		freeSpace := getFreeSpacePercent(c)
-		c.Assert(freeSpace, check.Equals, writablePercent,
+		c.Assert(freeSpace, check.Equals, 5,
 			check.Commentf("The writable partition was resized"))
 	}	
 }
