@@ -28,7 +28,12 @@ import (
 )
 
 const (
-	buildTestCmd      = "go test -c ./_integration-tests/tests"
+	buildTestCmd = "go test -c ./_integration-tests/tests"
+	// The output of the build commands for testing goes to the testsBinDir path,
+	// which is under the _integration-tests directory. The
+	// _integration-tests/reboot-wrapper script (Test-Command's entry point of
+	// adt-run) takes care of including testsBinDir at the beginning of $PATH, so
+	// that these binaries (if they exist) take precedence over the system ones
 	buildSnappyCliCmd = "go build -o " + testsBinDir + "snappy ./cmd/snappy"
 	buildSnapdCmd     = "go build -o " + testsBinDir + "snapd ./cmd/snapd"
 
@@ -63,15 +68,11 @@ func Assets(useSnappyFromBranch bool, arch string) {
 
 func buildSnappyCLI(arch string) {
 	fmt.Println("Building snappy CLI...")
-	// On the root of the project we have a directory called snappy, so we
-	// output the binary for the tests in the tests directory.
 	goCall(arch, buildSnappyCliCmd)
 }
 
 func buildSnapd(arch string) {
 	fmt.Println("Building snapd...")
-	// On the root of the project we have a directory called snappy, so we
-	// output the binary for the tests in the tests directory.
 	goCall(arch, buildSnapdCmd)
 }
 
