@@ -68,3 +68,23 @@ func (s *snapdTestSuite) TestServiceIsUp(c *check.C) {
 	expected := `{"metadata":["/1.0"],"status":"OK","status_code":200,"type":"sync"}`
 	c.Assert(string(body), check.Equals, expected)
 }
+
+func (s *snapdTestSuite) TestResources(c *check.C) {
+	resources := []struct {
+		path        string
+		respPattern string
+	}{{"/", `(?U){"metadata":\[".*"\],"status":"OK","status_code":200,"type":"sync"}`},
+		{"/1.0", `(?U){"metadata":{"api_compat":"0","default_channel":".*","flavor":".*","release":".*"},"status":"OK","status_code":200,"type":"sync"}`},
+		{"/not-a-resource", `{"metadata":null,"status":"Not Found","status_code":404,"type":"error"}`}}
+
+	for _, resource := range resources {
+		resp, err := http.Get("http://127.0.0.1:" + port + resource.path)
+		c.Check(err, check.IsNil)
+		defer resp.Body.Close()
+
+		body, err := ioutil.ReadAll(resp.Body)
+		c.Check(err, check.IsNil)
+
+		c.Check(string(body), check.Matches, resource.respPattern)
+	}
+}
