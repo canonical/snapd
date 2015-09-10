@@ -12,7 +12,7 @@ unxz /tmp/initrd.xz
 mkdir $initrd_unpack_dir || true
 cd $initrd_unpack_dir
 cpio -id < /tmp/initrd
-cp $tree_dir/scripts/resize-writable-test scripts/local-premount/
+cp $tree_dir/_integration-tests/scripts/resize-writable-test scripts/local-premount/
 sed -i "s/writable_percent=.*/writable_percent=${writable_percent}/" scripts/local-premount/resize-writable-test
 sed -i '1i /scripts/local-premount/resize-writable-test "$@"\n[ -e /conf/param.conf ] && . /conf/param.conf' scripts/local-premount/ORDER
 find .|cpio -o -H newc|xz -c -7 --check=crc32 > initrd.img
