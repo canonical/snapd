@@ -61,9 +61,8 @@ func (s *initRAMFSSuite) TestFreeSpaceWithResize(c *check.C) {
 	if common.BeforeReboot() {
 		bootDir := getCurrentBootDir(c)
 		writablePercent := "85"
-		cmd := exec.Command("sh", "_integration-tests/scrpts/install-test-initramfs", bootDir, writablePercent)
-		err := cmd.Run()
-		c.Assert(err, check.IsNil, check.Commentf("Error installing the test initrafms: %s", err))
+		common.ExecCommand(
+			c, "sh", "-x", "_integration-tests/scrpts/install-test-initramfs", bootDir, writablePercent)
 		common.Reboot(c)
 	} else if common.AfterReboot(c) {		
 		freeSpace := getFreeSpacePercent(c)
