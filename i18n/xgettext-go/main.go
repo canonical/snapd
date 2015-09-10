@@ -121,14 +121,15 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 				if s == "" {
 					return ""
 				}
-				// strip leading and trailing " (or `)
+				// the "`" is special
 				if s[0] == '`' {
+					// replace inner " with \"
 					s = strings.Replace(s, "\"", "\\\"", -1)
+					// replace \n with \\n
+					s = strings.Replace(s, "\n", "\\n", -1)
 				}
+				// strip leading and trailing " (or `)
 				s = s[1 : len(s)-1]
-				// replace \n with \\n
-				s = strings.Replace(s, "\n", "\\n", -1)
-				// replace inner " with \"
 				return s
 			}
 
@@ -245,7 +246,10 @@ msgstr  "Project-Id-Version: %s\n"
 			fmt.Fprintf(out, "#, %s\n", msgid.formatHint)
 		}
 		var formatOutput = func(in string) string {
+			// split string with \n into multiple lines
+			// to make the output nicer
 			out := strings.Replace(in, "\\n", "\\n\"\n        \"", -1)
+			// cleanup too aggressive splitting (empty "" lines)
 			return strings.TrimSuffix(out, "\"\n        \"")
 		}
 		fmt.Fprintf(out, "msgid   \"%v\"\n", formatOutput(k))
