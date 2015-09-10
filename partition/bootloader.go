@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"launchpad.net/snappy/helpers"
 )
@@ -175,6 +176,12 @@ func (b *bootloaderType) SyncBootFiles(bootAssets map[string]string) (err error)
 	return helpers.RSyncWithDelete(srcDir, destDir)
 }
 
+// noramlizeAssetName transforms like "vmlinuz-4.1.0" -> "vmlinuz"
+func normalizeKernelInitrdName(name string) string {
+	name = filepath.Base(name)
+	return strings.SplitN(name, "-", 2)[0]
+}
+
 // FIXME:
 // - if this fails it will never be re-tried because the "other" patition
 //   is updated to revision-N in /etc/system-image/channel.ini
@@ -238,7 +245,8 @@ func (b *bootloaderType) HandleAssets() (err error) {
 			}
 		}()
 
-		if err := runCommand("/bin/cp", path, destDir); err != nil {
+		target := filepath.Join(destDir, normalizeKernelInitrdName(file))
+		if err := runCommand("/bin/cp", path, target); err != nil {
 			return err
 		}
 	}
