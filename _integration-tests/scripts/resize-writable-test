@@ -1,0 +1,118 @@
+#! /bin/sh -e
+# initramfs local-premount script to resize writable for testing
+
+PREREQ=""
+
+# Output pre-requisites
+prereqs()
+{
+        echo "$PREREQ"
+}
+
+case "$1" in
+    prereqs)
+        prereqs
+        exit 0
+        ;;
+esac
+
+TMPFILE="/run/initramfs/old-table-test.txt"
+LOGFILE="/run/initramfs/resize-writable-test.log"
+
+writable_percent=90
+
+wait-for-root "LABEL=writable" "${ROOTDELAY:-180}" >/dev/null || true
+
+writable_part="$(findfs LABEL=writable)"
+
+syspath="$(dirname $(realpath /sys/class/block/$(basename $writable_part)))"
+device="$(realpath /dev/block/$(cat $syspath/dev))"
+partition=$(cat $syspath/$(basename $writable_part)/partition)
+
+device_size="$(($(cat $syspath/size)/2))"
+
+get_end()
+{
+    NUM=$1
+    lastpart="$(grep -cE ^'[0-9]{1,}': $TMPFILE)"
+    if [ "$lastpart" = "$NUM" ]; then
+        endsize="$(parted -ms $DEV unit B print| grep ^/ | cut -d: -f2|sed 's/B$//')"
+    else
+        # we are not at the end ! get the start of the next partition
+        # (minus 1 byte) instead of using the absolute end of the disk
+        endsize=$(($(parted -ms $DEV unit B print|grep ^$(($num+1)):|\
+            cut -d: -f2|sed 's/B$//')-1))
+    fi
+    echo "endsize: ${endsize}" >/dev/kmsg || true
+    endsize_percent=$(($endsize*$writable_percent/100))
+    echo "endsize percent: ${endsize_percent}" >/dev/kmsg || true
+    echo "$endsize_percent"B
+}
+
+do_gpt()
+{
+    DEV=$1
+    # create new empty GPT
+    parted -s $DEV mklabel gpt
+    oIFS=$IFS
+    IFS=:
+    # re-create all partitions from backup table
+    grep -E ^'[0-9]{1,}': $TMPFILE|while read -r num start end size type name flags; do
+        if [ "$name" = "writable" ]; then
+            endsize=$(get_end $num)
+            parted -s $DEV mkpart \"$name\" \"$type\" $start $endsize
+        else
+            flags="$(echo $flags|sed -e 's/[,;]//g' -e 's/ /:/')"
+            parted -s $DEV mkpart \"$name\" \"$type\" $start $end
+            if [ -n "$flags" ]; then
+                for flag in ${flags}; do
+                    parted -s $DEV set $num $flag on
+                done
+            fi
+        fi
+    done
+    IFS=$oIFS
+    parted -ms $DEV unit B print >/run/initramfs/new-gpt-table.txt 2>/dev/null
+}
+
+do_mbr()
+{
+    DEV=$1
+    PART=$2
+    endsize=$(get_end $PART)
+    parted -s $DEV resizepart $PART $endsize
+}
+
+
+echo "initrd: resize ${writable_part} to ${writable_percent}% of the disk" >/dev/kmsg || true
+echo "initrd: see ${LOGFILE} for details" >/dev/kmsg || true
+
+# check the filesystem before attempting re-size
+e2fsck -fy $writable_part >>$LOGFILE 2>&1
+# shrink the filesystem to the minimum
+resize2fs -M $writable_part >>$LOGFILE 2>&1
+
+# back up the original partition table for later use or debugging
+parted -ms $device unit B print >$TMPFILE 2>/dev/null
+table="$(parted -ms $device print| grep ^/| cut -d: -f6)"
+case $table in
+    gpt)
+        # do_gpt needs the device name
+        do_gpt $device >>$LOGFILE 2>&1
+        ;;
+    mbr|msdos)
+        # do_mbr needs the device node and partition number
+        do_mbr $device $partition >>$LOGFILE 2>&1
+        resizeopts="-f"
+            ;;
+    *)
+        echo "unknown partition table type, not resizing" >>$LOGFILE
+        exit 0
+        ;;
+esac
+# make sure we re read the partition table in any case
+blockdev --rereadpt $device >>$LOGFILE 2>&1
+# check the filesystem before attempting re-size
+e2fsck -fy $writable_part >>$LOGFILE 2>&1
+# resize the filesystem to full size of the partition
+resize2fs $resizeopts $writable_part >>$LOGFILE 2>&1
