@@ -21,6 +21,7 @@ package tests
 
 import (
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 
@@ -64,7 +65,7 @@ func (s *initRAMFSSuite) TestFreeSpaceWithResize(c *check.C) {
 		err := cmd.Run()
 		c.Assert(err, check.IsNil, check.Commentf("Error installing the test initrafms: %s", err))
 		common.Reboot(c)
-	} else if AfterReboot(c) {		
+	} else if common.AfterReboot(c) {		
 		freeSpace := getFreeSpacePercent(c)
 		c.Assert(freeSpace < 10, check.Equals, true,
 			check.Commentf("The free space at the end of the disk is greater than 10%"))
