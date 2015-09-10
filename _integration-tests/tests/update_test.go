@@ -45,6 +45,10 @@ func (s *updateSuite) assertBootDirContents(c *check.C) {
 	c.Assert(err, check.IsNil, check.Commentf("Error reading the other partition boot dir: %s", err))
 
 	expectedFileNames := []string{"hardware.yaml", "initrd.img", "vmlinuz"}
+	if system == "uboot" {
+		expectedFileNames = append([]string{"dtbs"}, expectedFileNames...)
+	}
+	
 	fileNames := []string{}
 	for _, f := range files {
 		fileNames = append(fileNames, f.Name())
