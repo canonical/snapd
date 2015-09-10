@@ -58,7 +58,7 @@ func getCurrentBootDir(c *check.C) string {
 }
 
 func (s *initRAMFSSuite) TestFreeSpaceWithoutResize(c *check.C) {
-  writablePercent := "95"	
+	writablePercent := "95"	
 	if common.BeforeReboot() {
 		bootDir := getCurrentBootDir(c)
 		common.ExecCommand(
