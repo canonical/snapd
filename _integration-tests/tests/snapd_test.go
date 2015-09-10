@@ -38,14 +38,15 @@ var _ = check.Suite(&snapdTestSuite{})
 
 type snapdTestSuite struct {
 	common.SnappySuite
+	cmd *exec.Cmd
 }
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
-	cmd := exec.Command("/lib/systemd/systemd-activate",
+	s.cmd = exec.Command("/lib/systemd/systemd-activate",
 		"-l", "0.0.0.0:"+port, "snapd")
 
-	cmd.Start()
+	s.cmd.Start()
 
 	intPort, _ := strconv.Atoi(port)
 	err := wait.ForServerOnPort(c, intPort)
@@ -54,7 +55,11 @@ func (s *snapdTestSuite) SetUpTest(c *check.C) {
 
 func (s *snapdTestSuite) TearDownTest(c *check.C) {
 	s.SnappySuite.TearDownTest(c)
-	// TODO: kill the service
+
+	proc := s.cmd.Process
+	if proc != nil {
+		proc.Kill()
+	}
 }
 
 func (s *snapdTestSuite) TestServiceIsUp(c *check.C) {
