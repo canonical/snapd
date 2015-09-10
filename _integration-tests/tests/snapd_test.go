@@ -40,7 +40,8 @@ type snapdTestSuite struct {
 	common.SnappySuite
 }
 
-func (s *snapdTestSuite) SetUpSuite(c *check.C) {
+func (s *snapdTestSuite) SetUpTest(c *check.C) {
+	s.SnappySuite.SetUpTest(c)
 	cmd := exec.Command("/lib/systemd/systemd-activate",
 		"-l", "0.0.0.0:"+port, "snapd")
 
@@ -51,7 +52,8 @@ func (s *snapdTestSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *snapdTestSuite) TearDownSuite(c *check.C) {
+func (s *snapdTestSuite) TearDownTest(c *check.C) {
+	s.SnappySuite.TearDownTest(c)
 	// TODO: kill the service
 }
 
