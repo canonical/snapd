@@ -57,6 +57,20 @@ func getCurrentBootDir(c *check.C) string {
 	return path.Join(bootDir, current)
 }
 
+func (s *initRAMFSSuite) TestFreeSpaceWithoutResize(c *check.C) {
+  writablePercent := "95"	
+	if common.BeforeReboot() {
+		bootDir := getCurrentBootDir(c)
+		common.ExecCommand(
+			c, "sh", "-x", "_integration-tests/scripts/install-test-initramfs", bootDir, writablePercent)
+		common.Reboot(c)
+	} else if common.AfterReboot(c) {		
+		freeSpace := getFreeSpacePercent(c)
+		c.Assert(freeSpace, check.Equals, writablePercent,
+			check.Commentf("The writable partition was resized"))
+	}	
+}
+
 func (s *initRAMFSSuite) TestFreeSpaceWithResize(c *check.C) {
 	if common.BeforeReboot() {
 		bootDir := getCurrentBootDir(c)
@@ -67,6 +81,6 @@ func (s *initRAMFSSuite) TestFreeSpaceWithResize(c *check.C) {
 	} else if common.AfterReboot(c) {		
 		freeSpace := getFreeSpacePercent(c)
 		c.Assert(freeSpace < 10, check.Equals, true,
-			check.Commentf("The free space at the end of the disk is greater than 10%"))
+			check.Commentf("The writable partition was not resized"))
 	}
 }
