@@ -64,7 +64,8 @@ func (s *initRAMFSSuite) TestFreeSpaceWithoutResize(c *check.C) {
 		common.ExecCommand(
 			c, "sh", "-x", "_integration-tests/scripts/install-test-initramfs", bootDir, writablePercent)
 		common.Reboot(c)
-	} else if common.AfterReboot(c) {		
+	} else if common.AfterReboot(c) {
+		common.RemoveRebootMark(c)		
 		freeSpace := getFreeSpacePercent(c)
 		c.Assert(freeSpace, check.Equals, writablePercent,
 			check.Commentf("The writable partition was resized"))
@@ -78,7 +79,8 @@ func (s *initRAMFSSuite) TestFreeSpaceWithResize(c *check.C) {
 		common.ExecCommand(
 			c, "sh", "-x", "_integration-tests/scripts/install-test-initramfs", bootDir, writablePercent)
 		common.Reboot(c)
-	} else if common.AfterReboot(c) {		
+	} else if common.AfterReboot(c) {
+		common.RemoveRebootMark(c)
 		freeSpace := getFreeSpacePercent(c)
 		c.Assert(freeSpace < 10, check.Equals, true,
 			check.Commentf("The writable partition was not resized"))
