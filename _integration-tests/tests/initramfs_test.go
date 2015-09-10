@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/partition"	
 
 	"gopkg.in/check.v1"
 )
@@ -35,7 +36,7 @@ type initRAMFSSuite struct {
 	common.SnappySuite
 }
 
-func (s *initRAMFSSuite) TestFreeSpace(c *check.C) {
+func getFreeSpacePercent(c *check.C) float64 {
 	cmd := exec.Command("sh", "_integration-tests/scripts/get_unpartitioned_space")
 	free, err := cmd.Output()
 	c.Assert(err, check.IsNil, check.Commentf("Error running the script to get the free space: %s", err))
@@ -43,6 +44,30 @@ func (s *initRAMFSSuite) TestFreeSpace(c *check.C) {
 	freePercentFloat, err := strconv.ParseFloat(freePercent, 32)
 	c.Assert(err, check.IsNil,
 		check.Commentf("Error converting the free space percentage to float: %s", err))
-	c.Assert(freePercentFloat < 10, check.Equals, true,
-		check.Commentf("The free space at the end of the disk is greater than 10%"))
+	return freePercentFloat
 }
+
+func getCurrentBootDir(c *check.C) string {
+	system, err := partition.BootSystem()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
+	bootDir := partition.BootDir(system)
+	current, err := partition.CurrentPartition()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the current partition: %s", err))
+	return path.Join(bootDir, current)
+}
+
+func (s *initRAMFSSuite) TestFreeSpaceWithResize(c *check.C) {
+	if common.BeforeReboot() {
+		bootDir := getCurrentBootDir(c)
+		writablePercent := "85"
+		cmd := exec.Command("sh", "_integration-tests/scrpts/install-test-initramfs", bootDir, writablePercent)
+		err := cmd.Run()
+		c.Assert(err, check.IsNil, check.Commentf("Error installing the test initrafms: %s", err))
+		common.Reboot(c)
+	} else if AfterReboot(c) {		
+		freeSpace := getFreeSpacePercent(c)
+		c.Assert(freeSpace < 10, check.Equals, true,
+			check.Commentf("The free space at the end of the disk is greater than 10%"))
+	}
+}
+

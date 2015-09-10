@@ -19,7 +19,7 @@ esac
 TMPFILE="/run/initramfs/old-table-test.txt"
 LOGFILE="/run/initramfs/resize-writable-test.log"
 
-writable_percent=90
+writable_percent=100
 
 wait-for-root "LABEL=writable" "${ROOTDELAY:-180}" >/dev/null || true
 
