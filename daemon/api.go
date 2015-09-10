@@ -29,6 +29,7 @@ import (
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/snappy"
+	"strings"
 )
 
 var api = []*Command{
@@ -158,8 +159,13 @@ func parts2map(parts []snappy.Part, resource string) map[string]string {
 	}
 	// TODO: check for removed and transients (extend the Part interface for removed; check ops for transients)
 
+	icon := part.Icon()
+	if strings.HasPrefix(icon, iconPath) {
+		icon = iconPrefix + icon[len(iconPath):]
+	}
+
 	result := map[string]string{
-		"icon":           part.Icon(),
+		"icon":           icon,
 		"name":           part.Name(),
 		"origin":         part.Origin(),
 		"resource":       resource,
