@@ -70,4 +70,3 @@ func (s *initRAMFSSuite) TestFreeSpaceWithResize(c *check.C) {
 			check.Commentf("The free space at the end of the disk is greater than 10%"))
 	}
 }
-
