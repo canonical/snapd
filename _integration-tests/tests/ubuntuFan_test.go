@@ -44,34 +44,20 @@ type fanTestSuite struct {
 	subjectIP string
 }
 
-func (s *fanTestSuite) SetUpSuite(c *check.C) {
+func (s *fanTestSuite) SetUpTest(c *check.C) {
+	s.SnappySuite.SetUpTest(c)
 	var err error
 	s.subjectIP, err = getIPAddr(c)
 	c.Assert(err, check.IsNil)
 
-	common.InstallSnap(c, "docker")
-	dockerVersion := common.GetCurrentVersion(c, "docker")
-	dockerService := fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion)
-
-	err = wait.ForActiveService(c, dockerService)
-	c.Assert(err, check.IsNil)
-
-	common.ExecCommand(c, "docker", "pull", baseContainer)
-}
-
-func (s *fanTestSuite) TearDownSuite(c *check.C) {
-	common.RemoveSnap(c, "docker")
-}
-
-func (s *fanTestSuite) SetUpTest(c *check.C) {
 	s.fanCtl(c, "up")
 	s.bridgeIP = s.fanBridgeIP(c)
 }
 
 func (s *fanTestSuite) TearDownTest(c *check.C) {
-	s.fanCtl(c, "down")
-
 	s.SnappySuite.TearDownTest(c)
+
+	s.fanCtl(c, "down")
 }
 
 func (s *fanTestSuite) TestFanCommandExists(c *check.C) {
@@ -94,6 +80,8 @@ func (s *fanTestSuite) TestFanCommandCreatesFanBridge(c *check.C) {
 }
 
 func (s *fanTestSuite) TestDockerCreatesAContainerInsideTheFan(c *check.C) {
+	setUpDocker(c)
+	defer tearDownDocker(c)
 	s.configureDockerToUseBridge(c)
 	defer s.removeBridgeFromDockerConf(c)
 
@@ -107,6 +95,8 @@ func (s *fanTestSuite) TestDockerCreatesAContainerInsideTheFan(c *check.C) {
 }
 
 func (s *fanTestSuite) TestContainersInTheFanAreReachable(c *check.C) {
+	setUpDocker(c)
+	defer tearDownDocker(c)
 	s.configureDockerToUseBridge(c)
 	defer s.removeBridgeFromDockerConf(c)
 
@@ -195,4 +185,19 @@ func (s *fanTestSuite) fanName() string {
 
 func (s *fanTestSuite) dockerOptions() string {
 	return fmt.Sprintf("-d -b %s --mtu=1480 --iptables=false", s.fanName())
+}
+
+func setUpDocker(c *check.C) {
+	common.InstallSnap(c, "docker")
+	dockerVersion := common.GetCurrentVersion(c, "docker")
+	dockerService := fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion)
+
+	err := wait.ForActiveService(c, dockerService)
+	c.Assert(err, check.IsNil)
+
+	common.ExecCommand(c, "docker", "pull", baseContainer)
+}
+
+func tearDownDocker(c *check.C) {
+	common.RemoveSnap(c, "docker")
 }
