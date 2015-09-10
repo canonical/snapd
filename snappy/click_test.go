@@ -763,10 +763,6 @@ export SNAP_FULLNAME="pastebinit.mvo"
 export SNAP_ARCH="%[1]s"
 export SNAP_APP_USER_DATA_PATH="$HOME/apps/pastebinit.mvo/1.4.0.0.1/"
 
-if [ ! -d "$SNAP_APP_TMPDIR" ]; then
-    mkdir -p -m1777 "$SNAP_APP_TMPDIR"
-fi
-
 if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
    mkdir -p "$SNAP_APP_USER_DATA_PATH"
 fi
@@ -1590,7 +1586,7 @@ X-Snappy=yes
 [Socket]
 ListenStream=/var/run/docker.sock
 SocketMode=0660
-SocketUSer=root
+SocketUser=root
 SocketGroup=adm
 
 [Install]

@@ -99,6 +99,15 @@ package to provide a more generic `device` package.
 
 The only supported layout today is AB.
 
+#### Hardware assign
+
+Hardware can be assigned directly to a snap part in the oem snap.
+This is useful if you are building e.g. a fixed function device.
+The "assign" key is used and it takes a list of snap parts as parameter
+that will then get access to the devices specified by the "rules"
+section. The matching is flexible and follows what the kernel/udev
+is doing.
+
 ## Structure and layout
 
 The `package.yaml` is structured as:
@@ -130,7 +139,8 @@ The `package.yaml` is structured as:
 		        - # package list
 		    preinstalled:
 		        - # package list
-		hardware: # mandatory
+
+                hardware: # mandatory
 		    platform: platform-string # mandatory
 		    architecture: architecture-string 
                           # mandatory (armhf, amd64, i386, 
@@ -146,6 +156,19 @@ The `package.yaml` is structured as:
 		            - path: file-path
 		              offset: offset-uint64
 
+                assign: # optional
+                    - part-id: random-app
+                      rules:
+                          - kernel: kernelname*
+                            with-subsystems:
+                                - aSubsystem
+                            with-driver:
+                                - some-driver
+                            with-attrs:
+                                - idVendor=someVendorId
+                            with-props:
+                                - someUdevEnv=someValue
+                          - subsystem: block
 
 The package header section is common to all packages
 
