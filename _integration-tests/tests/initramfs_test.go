@@ -26,7 +26,7 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/partition"	
+	"launchpad.net/snappy/_integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
@@ -58,18 +58,18 @@ func getCurrentBootDir(c *check.C) string {
 }
 
 func (s *initRAMFSSuite) TestFreeSpaceWithoutResize(c *check.C) {
-	writablePercent := "95"	
+	writablePercent := "95"
 	if common.BeforeReboot() {
 		bootDir := getCurrentBootDir(c)
 		common.ExecCommand(
 			c, "sh", "-x", "_integration-tests/scripts/install-test-initramfs", bootDir, writablePercent)
 		common.Reboot(c)
 	} else if common.AfterReboot(c) {
-		common.RemoveRebootMark(c)		
+		common.RemoveRebootMark(c)
 		freeSpace := getFreeSpacePercent(c)
 		c.Assert(freeSpace, check.Equals, float64(5),
 			check.Commentf("The writable partition was resized"))
-	}	
+	}
 }
 
 func (s *initRAMFSSuite) TestFreeSpaceWithResize(c *check.C) {
