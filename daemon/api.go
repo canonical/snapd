@@ -35,7 +35,7 @@ var api = []*Command{
 	rootCmd,
 	v1Cmd,
 	packagesCmd,
-	packageInfoCmd,
+	packageCmd,
 }
 
 var (
@@ -54,7 +54,7 @@ var (
 		GET:  getPackagesInfo,
 	}
 
-	packageInfoCmd = &Command{
+	packageCmd = &Command{
 		Path: "/1.0/packages/{package}",
 		GET:  getPackageInfo,
 	}
@@ -185,7 +185,7 @@ func (ps byQN) Less(a, b int) bool {
 
 // plural!
 func getPackagesInfo(c *Command, r *http.Request) Response {
-	route := c.d.router.Get(c.Path)
+	route := c.d.router.Get(packageCmd.Path)
 	if route == nil {
 		logger.Noticef("router can't find route for packages")
 		return InternalError
