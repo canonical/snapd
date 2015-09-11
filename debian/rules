@@ -69,6 +69,8 @@ override_dh_auto_build:
 
 override_dh_auto_install: snappy.8
 	dh_auto_install -O--buildsystem=golang
+	# we do not need this in the package, its just needed during build
+	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
 	# Making the packages private
 	rm -rf ${CURDIR}/debian/ubuntu-snappy/usr/share/gocode
 
