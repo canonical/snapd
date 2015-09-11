@@ -372,8 +372,11 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 		"resource":   "/1.0/operations/" + id,
 		"status":     TaskRunning,
 		"may_cancel": false,
+		"created_at": FormatTime(t.CreatedAt()),
+		"updated_at": FormatTime(t.UpdatedAt()),
 		"metadata":   nil,
 	})
+	tf1 := t.UpdatedAt().Unix()
 
 	<-ch
 	time.Sleep(time.Millisecond)
@@ -386,7 +389,13 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 		"resource":   "/1.0/operations/" + id,
 		"status":     TaskSucceeded,
 		"may_cancel": false,
+		"created_at": FormatTime(t.CreatedAt()),
+		"updated_at": FormatTime(t.UpdatedAt()),
 		"metadata":   "hello",
 	})
 
+	tf2 := t.UpdatedAt().Unix()
+
+	// <= unless you want to time.Sleep for two seconds...
+	c.Check(tf1 <= tf2, check.Equals, true)
 }
