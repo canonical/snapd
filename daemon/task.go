@@ -61,6 +61,11 @@ func (t *Task) State() string {
 	}
 }
 
+// UUID of the task
+func (t *Task) UUID() string {
+	return t.id.String()
+}
+
 // Location of the task, based on the given route.
 //
 // If the route can't build a URL for this task, returns the empty

@@ -37,6 +37,7 @@ var api = []*Command{
 	v1Cmd,
 	packagesCmd,
 	packageCmd,
+	operationCmd,
 }
 
 var (
@@ -58,6 +59,11 @@ var (
 	packageCmd = &Command{
 		Path: "/1.0/packages/{package}",
 		GET:  getPackageInfo,
+	}
+
+	operationCmd = &Command{
+		Path: "/1.0/operations/{uuid}",
+		GET:  getOpInfo,
 	}
 )
 
@@ -263,5 +269,30 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 			"page":  1,
 			"count": len(results),
 		},
+	})
+}
+
+func getOpInfo(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(c.Path)
+	if route == nil {
+		logger.Noticef("router can't find route for operation")
+		return InternalError
+	}
+
+	id := muxVars(r)["uuid"]
+	if id == "" {
+		// can't happen, i think? mux won't let it
+		return BadRequest
+	}
+
+	task := c.d.GetTask(id)
+	if task == nil {
+		return NotFound
+	}
+
+	return SyncResponse(map[string]interface{}{
+		"resource": task.Location(route),
+		"status":   task.State(),
+		"metadata": task.Metadata(),
 	})
 }
