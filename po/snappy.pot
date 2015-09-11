@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-09-09 22:33+0200\n"
+        "POT-Creation-Date: 2015-09-11 18:22+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -46,7 +46,7 @@ msgstr  ""
 msgid   "'%s:' is not allowed to access additional hardware\n"
 msgstr  ""
 
-msgid   "(deprecated) please use \\"list\\""
+msgid   "(deprecated) please use \"list\""
 msgstr  ""
 
 msgid   "2fa code: "
@@ -78,7 +78,7 @@ msgstr  ""
 msgid   "Can't read hook file %q: %v"
 msgstr  ""
 
-msgid   "Configures a package. The configuration is a YAML file, provided in the specified file which can be \\"-\\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config."
+msgid   "Configures a package. The configuration is a YAML file, provided in the specified file which can be \"-\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config."
 msgstr  ""
 
 msgid   "Creates a snap package and if available, runs the review scripts."
@@ -284,7 +284,7 @@ msgstr  ""
 msgid   "This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
 msgstr  ""
 
-msgid   "This command is no longer available, please use the \\"list\\" command"
+msgid   "This command is no longer available, please use the \"list\" command"
 msgstr  ""
 
 msgid   "This command list what hardware an installed package can access"
