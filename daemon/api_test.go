@@ -93,7 +93,7 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 		installedSize: 42,
 		downloadSize:  2,
 	}}
-	rsp, ok := getPackageInfo(packageInfoCmd, nil).(*resp)
+	rsp, ok := getPackageInfo(packageCmd, nil).(*resp)
 	c.Assert(ok, check.Equals, true)
 
 	expected := &resp{
@@ -119,32 +119,32 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 
 func (s *apiSuite) TestPackageInfoBadReq(c *check.C) {
 	// no muxVars; can't really happen afaict
-	c.Check(getPackageInfo(packageInfoCmd, nil), check.Equals, BadRequest)
+	c.Check(getPackageInfo(packageCmd, nil), check.Equals, BadRequest)
 }
 
 func (s *apiSuite) TestPackageInfoNotFound(c *check.C) {
 	s.vars = map[string]string{"package": "foo"}
 	s.err = snappy.ErrPackageNotFound
 
-	c.Check(getPackageInfo(packageInfoCmd, nil), check.Equals, NotFound)
+	c.Check(getPackageInfo(packageCmd, nil), check.Equals, NotFound)
 }
 
 func (s *apiSuite) TestPackageInfoNoneFound(c *check.C) {
 	s.vars = map[string]string{"package": "foo"}
 
-	c.Check(getPackageInfo(packageInfoCmd, nil), check.Equals, NotFound)
+	c.Check(getPackageInfo(packageCmd, nil), check.Equals, NotFound)
 }
 
 func (s *apiSuite) TestPackageInfoWeirdDetails(c *check.C) {
 	s.vars = map[string]string{"package": "foo"}
 	s.err = errors.New("weird")
-	c.Check(getPackageInfo(packageInfoCmd, nil), check.Equals, InternalError)
+	c.Check(getPackageInfo(packageCmd, nil), check.Equals, InternalError)
 }
 
 func (s *apiSuite) TestPackageInfoMixedResults(c *check.C) {
 	s.vars = map[string]string{"package": "foo"}
 	s.parts = []snappy.Part{&tP{name: "foo"}, &tP{name: "bar"}}
-	c.Check(getPackageInfo(packageInfoCmd, nil), check.Equals, InternalError)
+	c.Check(getPackageInfo(packageCmd, nil), check.Equals, InternalError)
 }
 
 func (s *apiSuite) TestPackageInfoWeirdRoute(c *check.C) {
@@ -167,12 +167,12 @@ func (s *apiSuite) TestPackageInfoBadRoute(c *check.C) {
 	d.addRoutes()
 
 	// get the route and break it
-	route := d.router.Get(packageInfoCmd.Path)
+	route := d.router.Get(packageCmd.Path)
 	c.Assert(route.Name("foo").GetError(), check.NotNil)
 
 	s.vars = map[string]string{"package": "foo"}
 	s.parts = []snappy.Part{&tP{name: "foo"}}
-	c.Check(getPackageInfo(packageInfoCmd, nil), check.Equals, InternalError)
+	c.Check(getPackageInfo(packageCmd, nil), check.Equals, InternalError)
 }
 
 func (s *apiSuite) TestParts2Map(c *check.C) {
@@ -245,7 +245,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		return true
 	})
 
-	exceptions := []string{"api", "newRepo", "muxVars"}
+	exceptions := []string{"api", "newRepo", "newLocalRepo", "newRemoteRepo", "muxVars"}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
 }
@@ -303,4 +303,45 @@ func (s *apiSuite) TestV1(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Metadata, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	req, err := http.NewRequest("GET", "/1.0/packages", nil)
+	c.Assert(err, check.IsNil)
+
+	s.parts = []snappy.Part{
+		&tP{name: "foo", version: "v1", origin: "bar"},
+		&tP{name: "bar", version: "v2", origin: "baz"},
+		&tP{name: "baz", version: "v3", origin: "qux"},
+		&tP{name: "qux", version: "v4", origin: "mip"},
+	}
+	rsp, ok := getPackagesInfo(packagesCmd, req).(*resp)
+	c.Assert(ok, check.Equals, true)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Metadata, check.NotNil)
+
+	meta, ok := rsp.Metadata.(map[string]interface{})
+	c.Assert(ok, check.Equals, true)
+	c.Assert(meta, check.NotNil)
+	c.Check(meta["paging"], check.DeepEquals, map[string]interface{}{"pages": 1, "page": 1, "count": len(s.parts)})
+
+	packages, ok := meta["packages"].(map[string]map[string]string)
+	c.Assert(ok, check.Equals, true)
+	c.Check(packages, check.NotNil)
+	c.Check(packages, check.HasLen, len(s.parts))
+
+	for _, part := range s.parts {
+		part := part.(*tP)
+		qn := part.name + "." + part.origin
+		got := packages[qn]
+		c.Assert(got, check.NotNil, check.Commentf(qn))
+		c.Check(got["name"], check.Equals, part.name)
+		c.Check(got["version"], check.Equals, part.version)
+		c.Check(got["origin"], check.Equals, part.origin)
+	}
 }
