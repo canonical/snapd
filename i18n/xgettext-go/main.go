@@ -68,6 +68,31 @@ func findCommentsForTranslation(fset *token.FileSet, f *ast.File, posCall token.
 	return formatedComment
 }
 
+func constructValue(val interface{}) string {
+	switch val.(type) {
+	case *ast.BasicLit:
+		return val.(*ast.BasicLit).Value
+	// this happens for constructs like:
+	//  gettext.Gettext("foo" + "bar")
+	case *ast.BinaryExpr:
+		// we only support string concat
+		if val.(*ast.BinaryExpr).Op != token.ADD {
+			return ""
+		}
+		left := constructValue(val.(*ast.BinaryExpr).X)
+		// strip right " (or `)
+		left = left[0 : len(left)-1]
+		right := constructValue(val.(*ast.BinaryExpr).Y)
+		// strip left " (or `)
+		right = right[1:len(right)]
+		return left + right
+	default:
+		panic(fmt.Sprintf("unknown type: %v", val))
+	}
+
+	return ""
+}
+
 func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bool {
 	// FIXME: this assume we always have a "gettext.Gettext" style keyword
 	l := strings.Split(opts.Keyword, ".")
@@ -89,16 +114,23 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 			}
 
 			if sel.Sel.Name == gettextFuncName && sel.X.(*ast.Ident).Name == gettextSelector {
-				i18nStr = x.Args[0].(*ast.BasicLit).Value
+				i18nStr = constructValue(x.Args[0])
 			}
 
 			formatI18nStr := func(s string) string {
 				if s == "" {
 					return ""
 				}
-				// strip " (or `)
+				// the "`" is special
+				if s[0] == '`' {
+					// replace inner " with \"
+					s = strings.Replace(s, "\"", "\\\"", -1)
+					// replace \n with \\n
+					s = strings.Replace(s, "\n", "\\n", -1)
+				}
+				// strip leading and trailing " (or `)
 				s = s[1 : len(s)-1]
-				return strings.Replace(s, "\n", "\\n", -1)
+				return s
 			}
 
 			// FIXME: too simplistic(?), no %% is considered
@@ -213,9 +245,16 @@ msgstr  "Project-Id-Version: %s\n"
 		if msgid.formatHint != "" {
 			fmt.Fprintf(out, "#, %s\n", msgid.formatHint)
 		}
-		fmt.Fprintf(out, "msgid   \"%v\"\n", k)
+		var formatOutput = func(in string) string {
+			// split string with \n into multiple lines
+			// to make the output nicer
+			out := strings.Replace(in, "\\n", "\\n\"\n        \"", -1)
+			// cleanup too aggressive splitting (empty "" lines)
+			return strings.TrimSuffix(out, "\"\n        \"")
+		}
+		fmt.Fprintf(out, "msgid   \"%v\"\n", formatOutput(k))
 		if msgid.msgidPlural != "" {
-			fmt.Fprintf(out, "msgid_plural   \"%v\"\n", msgid.msgidPlural)
+			fmt.Fprintf(out, "msgid_plural   \"%v\"\n", formatOutput(msgid.msgidPlural))
 			fmt.Fprintf(out, "msgstr[0]  \"\"\n")
 			fmt.Fprintf(out, "msgstr[1]  \"\"\n")
 		} else {
