@@ -189,6 +189,18 @@ func (ps byQN) Less(a, b int) bool {
 	return snappy.QualifiedName(ps[a]) < snappy.QualifiedName(ps[b])
 }
 
+func addPart(results map[string]map[string]string, current []snappy.Part, oldName string, route *mux.Route) []snappy.Part {
+	url, err := route.URL("package", oldName)
+	if err != nil {
+		logger.Noticef("route can't build URL for package %s: %v", oldName, err)
+		return current
+	}
+
+	results[oldName] = parts2map(current, url.String())
+
+	return nil
+}
+
 // plural!
 func getPackagesInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(packageCmd.Path)
@@ -228,19 +240,20 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 	var oldName string
 	for i := range found {
 		name := snappy.QualifiedName(found[i])
-		if name != oldName && current != nil {
-			// add to results
-			url, err := route.URL("package", oldName)
-			if err != nil {
-				logger.Noticef("route can't build URL for package %s: %v", oldName, err)
+		if name != oldName && len(current) > 0 {
+			current = addPart(results, current, oldName, route)
+			if current != nil {
 				return InternalError
 			}
-
-			results[oldName] = parts2map(current, url.String())
-			current = nil
 		}
 		oldName = name
 		current = append(current, found[i])
+	}
+	if len(current) > 0 {
+		current = addPart(results, current, oldName, route)
+		if current != nil {
+			return InternalError
+		}
 	}
 
 	return SyncResponse(map[string]interface{}{
