@@ -291,8 +291,9 @@ func getOpInfo(c *Command, r *http.Request) Response {
 	}
 
 	return SyncResponse(map[string]interface{}{
-		"resource": task.Location(route),
-		"status":   task.State(),
-		"metadata": task.Metadata(),
+		"resource":   task.Location(route),
+		"status":     task.State(),
+		"may_cancel": false,
+		"metadata":   task.Metadata(),
 	})
 }

@@ -369,9 +369,10 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Metadata, check.DeepEquals, map[string]interface{}{
-		"resource": "/1.0/operations/" + id,
-		"status":   TaskRunning,
-		"metadata": nil,
+		"resource":   "/1.0/operations/" + id,
+		"status":     TaskRunning,
+		"may_cancel": false,
+		"metadata":   nil,
 	})
 
 	<-ch
@@ -382,9 +383,10 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Metadata, check.DeepEquals, map[string]interface{}{
-		"resource": "/1.0/operations/" + id,
-		"status":   TaskSucceeded,
-		"metadata": "hello",
+		"resource":   "/1.0/operations/" + id,
+		"status":     TaskSucceeded,
+		"may_cancel": false,
+		"metadata":   "hello",
 	})
 
 }
