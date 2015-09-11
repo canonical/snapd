@@ -376,7 +376,7 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 		"updated_at": FormatTime(t.UpdatedAt()),
 		"metadata":   nil,
 	})
-	tf1 := t.UpdatedAt().Unix()
+	tf1 := t.UpdatedAt().UTC().UnixNano()
 
 	<-ch
 	time.Sleep(time.Millisecond)
@@ -394,8 +394,7 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 		"metadata":   "hello",
 	})
 
-	tf2 := t.UpdatedAt().Unix()
+	tf2 := t.UpdatedAt().UTC().UnixNano()
 
-	// <= unless you want to time.Sleep for two seconds...
-	c.Check(tf1 <= tf2, check.Equals, true)
+	c.Check(tf1 < tf2, check.Equals, true)
 }
