@@ -20,8 +20,10 @@
 package daemon
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -246,7 +248,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		return true
 	})
 
-	exceptions := []string{"api", "newRepo", "newLocalRepo", "newRemoteRepo", "muxVars"}
+	exceptions := []string{"api", "newRepo", "newLocalRepo", "newRemoteRepo", "muxVars", "pkgActionDispatch"}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
 }
@@ -397,4 +399,113 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	tf2 := t.UpdatedAt().UTC().UnixNano()
 
 	c.Check(tf1 < tf2, check.Equals, true)
+}
+
+func (s *apiSuite) TestPostPacakgeBadRequest(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	s.vars = map[string]string{"uuid": "42"}
+	c.Check(getOpInfo(operationCmd, nil), check.Equals, NotFound)
+
+	buf := bytes.NewBufferString(`hello`)
+	req, err := http.NewRequest("POST", "/1.0/packages/hello-world", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postPackage(packageCmd, req).(*resp)
+
+	c.Check(rsp, check.DeepEquals, &resp{
+		Type:   ResponseTypeError,
+		Status: http.StatusBadRequest,
+	})
+
+}
+
+func (s *apiSuite) TestPostPacakgeBadAction(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	s.vars = map[string]string{"uuid": "42"}
+	c.Check(getOpInfo(operationCmd, nil), check.Equals, NotFound)
+
+	buf := bytes.NewBufferString(`{"action": "potato"}`)
+	req, err := http.NewRequest("POST", "/1.0/packages/hello-world", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postPackage(packageCmd, req).(*resp)
+
+	c.Check(rsp, check.DeepEquals, &resp{
+		Type:   ResponseTypeError,
+		Status: http.StatusBadRequest,
+	})
+
+}
+
+func (s *apiSuite) TestPostPacakge(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	s.vars = map[string]string{"uuid": "42"}
+	c.Check(getOpInfo(operationCmd, nil), check.Equals, NotFound)
+
+	ch := make(chan struct{})
+
+	pkgActionDispatch = func(*packageInstruction) func() interface{} {
+		return func() interface{} {
+			ch <- struct{}{}
+			return "hi"
+		}
+	}
+	defer func() {
+		pkgActionDispatch = pkgActionDispatchImpl
+	}()
+
+	buf := bytes.NewBufferString(`{"action": "install"}`)
+	req, err := http.NewRequest("POST", "/1.0/packages/hello-world", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postPackage(packageCmd, req).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+	m := rsp.Metadata.(map[string]interface{})
+	c.Assert(m["resource"], check.Matches, "/1.0/operations/.*")
+
+	uuid := m["resource"].(string)[16:]
+
+	task := d.GetTask(uuid)
+	c.Assert(task, check.NotNil)
+
+	c.Check(task.State(), check.Equals, TaskRunning)
+
+	<-ch
+	time.Sleep(time.Millisecond)
+
+	task = d.GetTask(uuid)
+	c.Assert(task, check.NotNil)
+	c.Check(task.State(), check.Equals, TaskSucceeded)
+	c.Check(task.Metadata(), check.Equals, "hi")
+}
+
+func (s *apiSuite) TestPostPacakgeDispatch(c *check.C) {
+	inst := &packageInstruction{}
+
+	type T struct {
+		s string
+		m func() interface{}
+	}
+
+	actions := []T{
+		{"install", inst.install},
+		{"update", inst.update},
+		{"remove", inst.remove},
+		{"purge", inst.purge},
+		{"rollback", inst.rollback},
+		{"xyzzy", nil},
+	}
+
+	for _, action := range actions {
+		inst.Action = action.s
+		// do you feel dirty yet?
+		c.Check(fmt.Sprintf("%p", action.m), check.Equals, fmt.Sprintf("%p", inst.dispatch()))
+	}
 }
