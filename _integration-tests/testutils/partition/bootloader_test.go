@@ -247,7 +247,7 @@ blabla`
 	mode, err := mode()
 
 	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
-	c.Assert(mode, check.Equals, "test_mode",	check.Commentf("Wrong mode"))
+	c.Assert(mode, check.Equals, "test_mode", check.Commentf("Wrong mode"))
 }
 
 func (s *bootloaderTestSuite) TestCurrentPartitionNotOnTryMode(c *check.C) {
@@ -271,7 +271,7 @@ blabla`
 	mode, err := CurrentPartition()
 
 	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
-	c.Assert(mode, check.Equals, "test_partition",	check.Commentf("Wrong partition"))
+	c.Assert(mode, check.Equals, "test_partition", check.Commentf("Wrong partition"))
 }
 
 func (s *bootloaderTestSuite) TestCurrentPartitionOnTryModeReturnsSamePartitionForUboot(c *check.C) {
@@ -295,7 +295,7 @@ blabla`
 	mode, err := CurrentPartition()
 
 	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
-	c.Assert(mode, check.Equals, "a",	check.Commentf("Wrong partition"))
+	c.Assert(mode, check.Equals, "a", check.Commentf("Wrong partition"))
 }
 
 func (s *bootloaderTestSuite) TestCurrentPartitionOnTryModeReturnsOtherPartitionForUboot(c *check.C) {
@@ -319,5 +319,5 @@ blabla`
 	mode, err := CurrentPartition()
 
 	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
-	c.Assert(mode, check.Equals, "b",	check.Commentf("Wrong partition"))
+	c.Assert(mode, check.Equals, "b", check.Commentf("Wrong partition"))
 }
