@@ -203,9 +203,6 @@ type: oem
 config:
     ubuntu-core:
         hostname: myhostname
-        services:
-            - name: ssh
-              enabled: true
         no-cloud: true
     config-example.canonical:
         msg: Yay!

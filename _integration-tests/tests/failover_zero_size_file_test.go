@@ -163,7 +163,7 @@ func classicKernelFiles(c *check.C) bool {
 // we want to change the files in the other partition
 func newKernelFilenamePattern(c *check.C, bootSystem string, afterUpdate bool) string {
 	var actualPartition string
-	part, err := partition.CurrentPartition()
+	part, err := partition.NextBootPartition()
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the current partition: %s", err))
 	if afterUpdate {
 		actualPartition = part
