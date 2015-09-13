@@ -68,7 +68,16 @@ func (s *apiSuite) SetUpSuite(c *check.C) {
 	newRepo = func() metarepo {
 		return s
 	}
+	newLocalRepo = newRepo
+	newRemoteRepo = newRepo
 	muxVars = s.muxVars
+}
+
+func (s *apiSuite) TearDownSuite(c *check.C) {
+	newLocalRepo = nil
+	newRemoteRepo = nil
+	newRepo = nil
+	muxVars = nil
 }
 
 func (s *apiSuite) SetUpTest(c *check.C) {
@@ -508,4 +517,54 @@ func (s *apiSuite) TestPostPacakgeDispatch(c *check.C) {
 		// do you feel dirty yet?
 		c.Check(fmt.Sprintf("%p", action.m), check.Equals, fmt.Sprintf("%p", inst.dispatch()))
 	}
+}
+
+func (s *apiSuite) TestPackageGetConfig(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+	c.Assert(err, check.IsNil)
+
+	configStr := "some: config"
+	s.vars = map[string]string{"package": "foo.bar"}
+	s.parts = []snappy.Part{
+		&tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: configStr},
+		&tP{name: "bar", version: "v2", origin: "baz", isActive: true},
+		&tP{name: "baz", version: "v3", origin: "qux", isActive: true},
+		&tP{name: "qux", version: "v4", origin: "mip", isActive: true},
+	}
+
+	rsp := packageConfig(packagesCmd, req).(*resp)
+
+	c.Check(rsp, check.DeepEquals, &resp{
+		Type:     ResponseTypeSync,
+		Status:   http.StatusOK,
+		Metadata: configStr,
+	})
+}
+func (s *apiSuite) TestPackagePutConfig(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	newConfigStr := "some other config"
+	req, err := http.NewRequest("PUT", "/1.0/packages/foo.bar/config", bytes.NewBufferString(newConfigStr))
+	c.Assert(err, check.IsNil)
+
+	configStr := "some: config"
+	s.vars = map[string]string{"package": "foo.bar"}
+	s.parts = []snappy.Part{
+		&tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: configStr},
+		&tP{name: "bar", version: "v2", origin: "baz", isActive: true},
+		&tP{name: "baz", version: "v3", origin: "qux", isActive: true},
+		&tP{name: "qux", version: "v4", origin: "mip", isActive: true},
+	}
+
+	rsp := packageConfig(packagesCmd, req).(*resp)
+
+	c.Check(rsp, check.DeepEquals, &resp{
+		Type:     ResponseTypeSync,
+		Status:   http.StatusOK,
+		Metadata: newConfigStr,
+	})
 }

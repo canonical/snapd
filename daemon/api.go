@@ -28,6 +28,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"io/ioutil"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
@@ -39,6 +40,7 @@ var api = []*Command{
 	v1Cmd,
 	packagesCmd,
 	packageCmd,
+	packageConfigCmd,
 	operationCmd,
 }
 
@@ -62,6 +64,12 @@ var (
 		Path: "/1.0/packages/{package}",
 		GET:  getPackageInfo,
 		POST: postPackage,
+	}
+
+	packageConfigCmd = &Command{
+		Path: "/1.0/packages/{package}/config",
+		GET:  packageConfig,
+		PUT:  packageConfig,
 	}
 
 	operationCmd = &Command{
@@ -273,6 +281,52 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 			"count": len(results),
 		},
 	})
+}
+
+func packageConfig(c *Command, r *http.Request) Response {
+	pkgName := muxVars(r)["package"]
+	if pkgName == "" {
+		return BadRequest
+	}
+
+	// TODO: below should be rolled into ActiveSnapByName
+	// (specifically: ActiveSnapByname should know about origins)
+	repo := newLocalRepo()
+	all, err := repo.All()
+	if err != nil {
+		logger.Noticef("unable to get package list: %v", err)
+		return InternalError
+	}
+
+	parts := all[:0]
+	for _, part := range snappy.FindSnapsByName(pkgName, all) {
+		if part.IsActive() {
+			parts = append(parts, part)
+		}
+	}
+
+	switch len(parts) {
+	default:
+		return BadRequest
+	case 0:
+		return NotFound
+	case 1:
+		// yay, or something
+	}
+
+	bs, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		logger.Noticef("reading config request body gave %v", err)
+		return BadRequest
+	}
+
+	config, err := parts[0].Config(bs)
+	if err != nil {
+		logger.Noticef("unable to retrieve config for %s: %v", pkgName, err)
+		return InternalError
+	}
+
+	return SyncResponse(config)
 }
 
 func getOpInfo(c *Command, r *http.Request) Response {
