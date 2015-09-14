@@ -537,7 +537,7 @@ vendor: Foo Bar <foo@example.com>`)
 
 	// different origin, this shows we have no origin support at this
 	// level, but sideloading also works.
-	_, err = installClick(snapFile, 0, nil, sideloadedOrigin)
+	_, err = installClick(snapFile, 0, nil, SideloadedOrigin)
 	c.Check(err, IsNil)
 
 	// a package name fork, IOW, a different OEM package.

@@ -51,7 +51,7 @@ import (
 
 const (
 	// the origin for sideloaded snaps
-	sideloadedOrigin = "sideload"
+	SideloadedOrigin = "sideload"
 )
 
 // SharedName is a structure that holds an Alias to the preferred package and
@@ -579,7 +579,7 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 		targetDir = snapOemDir
 	}
 
-	if origin == sideloadedOrigin {
+	if origin == SideloadedOrigin {
 		m.Version = helpers.NewSideloadVersion()
 	}
 
@@ -606,7 +606,7 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 		m:       m,
 	}
 
-	if origin == sideloadedOrigin {
+	if origin == SideloadedOrigin {
 		m.Version = filepath.Base(part.basedir)
 	}
 

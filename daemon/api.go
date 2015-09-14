@@ -21,6 +21,10 @@ package daemon
 
 import (
 	"encoding/json"
+	"io"
+	"io/ioutil"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"sort"
 	"strconv"
@@ -28,7 +32,6 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"io/ioutil"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
@@ -60,6 +63,7 @@ var (
 	packagesCmd = &Command{
 		Path: "/1.0/packages",
 		GET:  getPackagesInfo,
+		POST: sideloadPackage,
 	}
 
 	packageCmd = &Command{
@@ -619,4 +623,83 @@ func postPackage(c *Command, r *http.Request) Response {
 	}
 
 	return AsyncResponse(c.d.AddTask(f).Map(route))
+}
+
+const maxReadBuflen = 1024 * 1024
+
+func newSnapImpl(filename string, origin string, unsignedOk bool) (snappy.Part, error) {
+	return snappy.NewSnapPartFromSnapFile(filename, origin, unsignedOk)
+}
+
+var newSnap = newSnapImpl
+
+func sideloadPackage(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(operationCmd.Path)
+	if route == nil {
+		logger.Noticef("router can't find route for operation")
+		return InternalError
+	}
+	body := r.Body
+	unsignedOk := false
+	contentType := r.Header.Get("Content-Type")
+
+	if strings.HasPrefix(contentType, "multipart/") {
+		// spec says POSTs to sideload packages should be “a multipart file upload”
+
+		_, params, err := mime.ParseMediaType(contentType)
+		if err != nil {
+			return BadRequest
+		}
+
+		form, err := multipart.NewReader(r.Body, params["boundary"]).ReadForm(maxReadBuflen)
+		if err != nil {
+			return BadRequest
+		}
+
+		// if allow-unsigned is present in the form, unsigned is OK
+		_, unsignedOk = form.Value["allow-unsigned"]
+
+	out:
+		// form.File is a map of arrays of *FileHeader things
+		// we just allow one (for now at least)
+		for _, v := range form.File {
+			for i := range v {
+				body, err = v[i].Open()
+				if err != nil {
+					return BadRequest
+				}
+				break out
+			}
+		}
+	} else {
+		// Looks like user didn't understand that multipart thing.
+		// Maybe they just POSTed the snap at us (quite handy to do with e.g. curl).
+		// So we try that.
+
+		// If x-allow-unsigned is present, unsigned is OK
+		_, unsignedOk = r.Header["X-Allow-Unsigned"]
+	}
+
+	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
+	if err != nil {
+		return InternalError
+	}
+
+	if _, err := io.Copy(tmpf, body); err != nil {
+		return InternalError // maybe BadRequest?
+	}
+
+	return AsyncResponse(c.d.AddTask(func() interface{} {
+		part, err := newSnap(tmpf.Name(), snappy.SideloadedOrigin, unsignedOk)
+		if err != nil {
+			return err
+		}
+
+		name, err := part.Install(&progress.NullProgress{}, 0)
+		if err != nil {
+			return err
+		}
+
+		return name
+	}).Map(route))
 }
