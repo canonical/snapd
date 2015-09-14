@@ -50,7 +50,7 @@ var (
 	originalCmdSystemctl        = cmdSystemctl
 	originalHostnamePath        = hostnamePath
 	originalModprobePath        = modprobePath
-	originalNetworkRoot         = networkRoot
+	originalInterfacesRoot      = interfacesRoot
 	originalPppRoot             = pppRoot
 	originalWatchdogStartupPath = watchdogStartupPath
 	originalWatchdogConfigPath  = watchdogConfigPath
@@ -81,7 +81,7 @@ func (cts *ConfigTestSuite) SetUpTest(c *C) {
 		return nil
 	}
 
-	networkRoot = c.MkDir() + "/"
+	interfacesRoot = c.MkDir() + "/"
 	pppRoot = c.MkDir() + "/"
 	watchdogConfigPath = filepath.Join(c.MkDir(), "watchdog-config")
 	watchdogStartupPath = filepath.Join(c.MkDir(), "watchdog-startup")
@@ -104,7 +104,7 @@ func (cts *ConfigTestSuite) TearDownTest(c *C) {
 	cmdAutopilotEnabled = originalCmdAutopilotEnabled
 	cmdSystemctl = originalCmdSystemctl
 	modprobePath = originalModprobePath
-	networkRoot = originalNetworkRoot
+	interfacesRoot = originalInterfacesRoot
 	pppRoot = originalPppRoot
 	watchdogStartupPath = originalWatchdogStartupPath
 	watchdogConfigPath = originalWatchdogConfigPath
@@ -458,12 +458,12 @@ func (cts *ConfigTestSuite) TestModprobeYaml(c *C) {
 }
 
 func (cts *ConfigTestSuite) TestNetworkGet(c *C) {
-	path := filepath.Join(networkRoot, "eth0")
+	path := filepath.Join(interfacesRoot, "eth0")
 	content := "auto eth0"
 	err := ioutil.WriteFile(path, []byte(content), 0644)
 	c.Assert(err, IsNil)
 
-	nc, err := getNetwork()
+	nc, err := getInterfaces()
 	c.Assert(err, IsNil)
 	c.Assert(nc, DeepEquals, []passthroughConfig{
 		{Name: "eth0", Content: "auto eth0"},
@@ -474,8 +474,8 @@ func (cts *ConfigTestSuite) TestNetworkSet(c *C) {
 	nc := []passthroughConfig{
 		{Name: "eth0", Content: "auto eth0"},
 	}
-	path := filepath.Join(networkRoot, nc[0].Name)
-	err := setNetwork(nc)
+	path := filepath.Join(interfacesRoot, nc[0].Name)
+	err := setInterfaces(nc)
 	c.Assert(err, IsNil)
 	content, err := ioutil.ReadFile(path)
 	c.Assert(err, IsNil)
@@ -483,7 +483,7 @@ func (cts *ConfigTestSuite) TestNetworkSet(c *C) {
 }
 
 func (cts *ConfigTestSuite) TestNetworkSetEmptyRemoves(c *C) {
-	path := filepath.Join(networkRoot, "eth0")
+	path := filepath.Join(interfacesRoot, "eth0")
 	content := "auto eth0"
 	err := ioutil.WriteFile(path, []byte(content), 0644)
 	c.Assert(err, IsNil)
@@ -492,7 +492,7 @@ func (cts *ConfigTestSuite) TestNetworkSetEmptyRemoves(c *C) {
 	nc := []passthroughConfig{
 		{Name: "eth0", Content: ""},
 	}
-	err = setNetwork(nc)
+	err = setInterfaces(nc)
 	c.Assert(err, IsNil)
 	_, err = ioutil.ReadFile(path)
 	c.Assert(helpers.FileExists(path), Equals, false)
@@ -524,20 +524,19 @@ func (cts *ConfigTestSuite) TestPppSet(c *C) {
 }
 
 func (cts *ConfigTestSuite) TestNetworkSetViaYaml(c *C) {
-	modprobePath = filepath.Join(c.MkDir(), "test.conf")
-
 	input := `
 config:
   ubuntu-core:
     network:
-      - name: eth0
-        content: auto dhcp
+      interfaces:
+        - name: eth0
+          content: auto dhcp
 `
 	_, err := Set(input)
 	c.Assert(err, IsNil)
 
 	// ensure its really there
-	content, err := ioutil.ReadFile(filepath.Join(networkRoot, "eth0"))
+	content, err := ioutil.ReadFile(filepath.Join(interfacesRoot, "eth0"))
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "auto dhcp")
 }
@@ -548,9 +547,10 @@ func (cts *ConfigTestSuite) TestPPPSetViaYaml(c *C) {
 	input := `
 config:
   ubuntu-core:
-    ppp:
-      - name: chap-secret
-        content: password
+    network:
+      ppp:
+        - name: chap-secret
+          content: password
 `
 	_, err := Set(input)
 	c.Assert(err, IsNil)

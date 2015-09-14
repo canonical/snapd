@@ -45,7 +45,7 @@ const (
 
 var (
 	modprobePath        = "/etc/modprobe.d/ubuntu-core.conf"
-	networkRoot         = "/etc/network/interfaces.d/"
+	interfacesRoot      = "/etc/network/interfaces.d/"
 	pppRoot             = "/etc/ppp/"
 	watchdogConfigPath  = "/etc/watchdog.conf"
 	watchdogStartupPath = "/etc/default/watchdog"
@@ -56,13 +56,17 @@ var (
 var ErrInvalidUnitStatus = errors.New("invalid unit status")
 
 type systemConfig struct {
-	Autopilot *bool               `yaml:"autopilot,omitempty"`
-	Timezone  *string             `yaml:"timezone,omitempty"`
-	Hostname  *string             `yaml:"hostname,omitempty"`
-	Modprobe  *string             `yaml:"modprobe,omitempty"`
-	Network   []passthroughConfig `yaml:"network,omitempty"`
-	PPP       []passthroughConfig `yaml:"ppp,omitempty"`
-	Watchdog  *watchdogConfig     `yaml:"watchdog,omitempty"`
+	Autopilot *bool           `yaml:"autopilot,omitempty"`
+	Timezone  *string         `yaml:"timezone,omitempty"`
+	Hostname  *string         `yaml:"hostname,omitempty"`
+	Modprobe  *string         `yaml:"modprobe,omitempty"`
+	Network   *networkConfig  `yaml:"network,omitempty"`
+	Watchdog  *watchdogConfig `yaml:"watchdog,omitempty"`
+}
+
+type networkConfig struct {
+	Interfaces []passthroughConfig `yaml:"interfaces"`
+	PPP        []passthroughConfig `yaml:"ppp"`
 }
 
 type passthroughConfig struct {
@@ -102,7 +106,7 @@ func newSystemConfig() (*systemConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	network, err := getNetwork()
+	interfaces, err := getInterfaces()
 	if err != nil {
 		return nil, err
 	}
@@ -115,13 +119,20 @@ func newSystemConfig() (*systemConfig, error) {
 		return nil, err
 	}
 
+	var network *networkConfig
+	if len(interfaces) > 0 || len(ppp) > 0 {
+		network = &networkConfig{
+			Interfaces: interfaces,
+			PPP:        ppp,
+		}
+	}
+
 	config := &systemConfig{
 		Autopilot: &autopilot,
 		Timezone:  &tz,
 		Hostname:  &hostname,
 		Modprobe:  &modprobe,
 		Network:   network,
-		PPP:       ppp,
 		Watchdog:  watchdog,
 	}
 
@@ -218,20 +229,15 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 				return "", err
 			}
 		case "Network":
-			if passthroughEqual(oldConfig.Network, newConfig.Network) {
-				continue
+			if oldConfig.Network == nil || !passthroughEqual(oldConfig.Network.Interfaces, newConfig.Network.Interfaces) {
+				if err := setInterfaces(newConfig.Network.Interfaces); err != nil {
+					return "", err
+				}
 			}
-
-			if err := setNetwork(newConfig.Network); err != nil {
-				return "", err
-			}
-		case "PPP":
-			if passthroughEqual(oldConfig.PPP, newConfig.PPP) {
-				continue
-			}
-
-			if err := setPPP(newConfig.PPP); err != nil {
-				return "", err
+			if oldConfig.Network == nil || !passthroughEqual(oldConfig.Network.PPP, newConfig.Network.PPP) {
+				if err := setPPP(newConfig.Network.PPP); err != nil {
+					return "", err
+				}
 			}
 		case "Watchdog":
 			if oldConfig.Watchdog != nil && *oldConfig.Watchdog == *newConfig.Watchdog {
@@ -300,7 +306,6 @@ func setPassthrough(rootDir string, pc []passthroughConfig) error {
 			os.Remove(path)
 			continue
 		}
-
 		if err := ioutil.WriteFile(path, []byte(c.Content), 0644); err != nil {
 			return err
 		}
@@ -309,12 +314,12 @@ func setPassthrough(rootDir string, pc []passthroughConfig) error {
 	return nil
 }
 
-var getNetwork = func() (pc []passthroughConfig, err error) {
-	return getPassthrough(networkRoot)
+var getInterfaces = func() (pc []passthroughConfig, err error) {
+	return getPassthrough(interfacesRoot)
 }
 
-var setNetwork = func(pc []passthroughConfig) error {
-	return setPassthrough(networkRoot, pc)
+var setInterfaces = func(pc []passthroughConfig) error {
+	return setPassthrough(interfacesRoot, pc)
 }
 
 var getPPP = func() (pc []passthroughConfig, err error) {
