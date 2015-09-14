@@ -43,8 +43,16 @@ type apiSuite struct{}
 var _ = check.Suite(&apiSuite{})
 
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
-	// NOTE: there's probably a better/easier way of doing this
-	// (patches welcome)
+	// Very basic check to help stop us from not adding all the
+	// commands to the command list.
+	//
+	// It could get fancier, looking deeper into the AST to see
+	// exactly what's being defined, but it's probably not worth
+	// it; this gives us most of the benefits of that, with a
+	// fraction of the work.
+	//
+	// NOTE: there's probably a
+	// better/easier way of doing this (patches welcome)
 
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "api.go", nil, 0)

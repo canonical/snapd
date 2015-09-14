@@ -24,8 +24,8 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/coreos/go-systemd/activation"
 	"github.com/gorilla/mux"
-	"github.com/stgraber/lxd-go-systemd/activation"
 	"gopkg.in/tomb.v2"
 
 	"launchpad.net/snappy/logger"
