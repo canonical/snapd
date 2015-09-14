@@ -31,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -344,4 +345,56 @@ func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
 		c.Check(got["version"], check.Equals, part.version)
 		c.Check(got["origin"], check.Equals, part.origin)
 	}
+}
+
+func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	s.vars = map[string]string{"uuid": "42"}
+	c.Check(getOpInfo(operationCmd, nil), check.Equals, NotFound)
+
+	ch := make(chan struct{})
+
+	t := d.AddTask(func() interface{} {
+		ch <- struct{}{}
+		return "hello"
+	})
+
+	id := t.UUID()
+	s.vars = map[string]string{"uuid": id}
+
+	rsp := getOpInfo(operationCmd, nil).(*resp)
+
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Metadata, check.DeepEquals, map[string]interface{}{
+		"resource":   "/1.0/operations/" + id,
+		"status":     TaskRunning,
+		"may_cancel": false,
+		"created_at": FormatTime(t.CreatedAt()),
+		"updated_at": FormatTime(t.UpdatedAt()),
+		"metadata":   nil,
+	})
+	tf1 := t.UpdatedAt().UTC().UnixNano()
+
+	<-ch
+	time.Sleep(time.Millisecond)
+
+	rsp = getOpInfo(operationCmd, nil).(*resp)
+
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Metadata, check.DeepEquals, map[string]interface{}{
+		"resource":   "/1.0/operations/" + id,
+		"status":     TaskSucceeded,
+		"may_cancel": false,
+		"created_at": FormatTime(t.CreatedAt()),
+		"updated_at": FormatTime(t.UpdatedAt()),
+		"metadata":   "hello",
+	})
+
+	tf2 := t.UpdatedAt().UTC().UnixNano()
+
+	c.Check(tf1 < tf2, check.Equals, true)
 }

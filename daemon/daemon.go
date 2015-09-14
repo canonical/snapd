@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-systemd/activation"
@@ -34,9 +35,11 @@ import (
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
-	listener net.Listener
-	tomb     tomb.Tomb
-	router   *mux.Router
+	sync.RWMutex // for concurrent access to the tasks map
+	tasks        map[string]*Task
+	listener     net.Listener
+	tomb         tomb.Tomb
+	router       *mux.Router
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -164,7 +167,26 @@ func (d *Daemon) Dying() <-chan struct{} {
 	return d.tomb.Dying()
 }
 
+// AddTask runs the given function as a task
+func (d *Daemon) AddTask(f func() interface{}) *Task {
+	t := RunTask(f)
+	d.Lock()
+	defer d.Unlock()
+	d.tasks[t.UUID()] = t
+
+	return t
+}
+
+// GetTask retrieves a task from the tasks map, by uuid.
+func (d *Daemon) GetTask(uuid string) *Task {
+	d.RLock()
+	defer d.RUnlock()
+	return d.tasks[uuid]
+}
+
 // New Daemon
 func New() *Daemon {
-	return &Daemon{}
+	return &Daemon{
+		tasks: make(map[string]*Task),
+	}
 }

@@ -20,6 +20,9 @@
 package daemon
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 )
@@ -28,6 +31,8 @@ import (
 type Task struct {
 	id       UUID
 	tomb     tomb.Tomb
+	t0       time.Time
+	tf       time.Time
 	metadata interface{}
 }
 
@@ -37,6 +42,16 @@ const (
 	TaskSucceeded = "succeeded"
 	TaskFailed    = "failed"
 )
+
+// CreatedAt returns the timestamp at which the task was created
+func (t *Task) CreatedAt() time.Time {
+	return t.t0
+}
+
+// UpdatedAt returns the timestamp at which the task was updated
+func (t *Task) UpdatedAt() time.Time {
+	return t.tf
+}
 
 // Metadata is the outcome of this task. If the task is still running
 // this will be nil.
@@ -61,6 +76,11 @@ func (t *Task) State() string {
 	}
 }
 
+// UUID of the task
+func (t *Task) UUID() string {
+	return t.id.String()
+}
+
 // Location of the task, based on the given route.
 //
 // If the route can't build a URL for this task, returns the empty
@@ -74,12 +94,38 @@ func (t *Task) Location(route *mux.Route) string {
 	return url.String()
 }
 
+// FormatTime outputs the given time as microseconds since the epoch
+// UTC, formatted as a decimal string
+func FormatTime(t time.Time) string {
+	return strconv.FormatInt(t.UTC().UnixNano()/1000, 10)
+}
+
+// Map the task onto a map[string]interface{}, using the given route for the Location()
+func (t *Task) Map(route *mux.Route) map[string]interface{} {
+	return map[string]interface{}{
+		"resource":   t.Location(route),
+		"status":     t.State(),
+		"created_at": FormatTime(t.CreatedAt()),
+		"updated_at": FormatTime(t.UpdatedAt()),
+		"may_cancel": false,
+		"metadata":   t.Metadata(),
+	}
+}
+
 // RunTask creates a Task for the given function and runs it.
 func RunTask(f func() interface{}) *Task {
 	id := UUID4()
-	t := &Task{id: id}
+	t0 := time.Now()
+	t := &Task{
+		id: id,
+		t0: t0,
+		tf: t0,
+	}
 
 	t.tomb.Go(func() error {
+		defer func() {
+			t.tf = time.Now()
+		}()
 		out := f()
 		t.metadata = out
 
