@@ -606,9 +606,10 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 		m:       m,
 	}
 
-	if origin == SideloadedOrigin {
-		m.Version = filepath.Base(part.basedir)
-	}
+	// override the package's idea of its version
+	// because that could have been rewritten on sideload
+	// and origin is empty for frameworks, even sideloaded ones.
+	m.Version = filepath.Base(part.basedir)
 
 	// check if the part is active
 	allVersionsDir := filepath.Dir(part.basedir)
