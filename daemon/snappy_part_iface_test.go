@@ -75,6 +75,11 @@ func (p *tP) Install(progress.Meter, snappy.InstallFlags) (string, error) {
 	return p.installName, p.installErr
 }
 func (p *tP) Uninstall(pb progress.Meter) error { return p.uninstallErr }
-func (p *tP) Config([]byte) (string, error)     { return p.config, p.configErr }
 func (p *tP) SetActive(progress.Meter) error    { return p.setActiveErr }
 func (p *tP) Frameworks() ([]string, error)     { return p.frameworks, p.frameworksErr }
+func (p *tP) Config(bs []byte) (string, error) {
+	if len(bs) > 0 {
+		p.config = string(bs)
+	}
+	return p.config, p.configErr
+}
