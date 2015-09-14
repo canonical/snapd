@@ -22,6 +22,7 @@ package build
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"launchpad.net/snappy/_integration-tests/testutils"
@@ -29,13 +30,6 @@ import (
 
 const (
 	buildTestCmd = "go test -c ./_integration-tests/tests"
-	// The output of the build commands for testing goes to the testsBinDir path,
-	// which is under the _integration-tests directory. The
-	// _integration-tests/reboot-wrapper script (Test-Command's entry point of
-	// adt-run) takes care of including testsBinDir at the beginning of $PATH, so
-	// that these binaries (if they exist) take precedence over the system ones
-	buildSnappyCliCmd = "go build -o " + testsBinDir + "snappy ./cmd/snappy"
-	buildSnapdCmd     = "go build -o " + testsBinDir + "snapd ./cmd/snapd"
 
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
@@ -50,6 +44,16 @@ var (
 	osRename         = os.Rename
 	osSetenv         = os.Setenv
 	osGetenv         = os.Getenv
+
+	// The output of the build commands for testing goes to the testsBinDir path,
+	// which is under the _integration-tests directory. The
+	// _integration-tests/reboot-wrapper script (Test-Command's entry point of
+	// adt-run) takes care of including testsBinDir at the beginning of $PATH, so
+	// that these binaries (if they exist) take precedence over the system ones
+	buildSnappyCliCmd = "go build -o " +
+		filepath.Join(testsBinDir, "snappy") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snappy")
+	buildSnapdCmd = "go build -o " +
+		filepath.Join(testsBinDir, "snapd") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snapd")
 )
 
 // Assets builds the snappy and integration tests binaries for the target
