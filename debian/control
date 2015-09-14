@@ -18,6 +18,9 @@ Build-Depends: bash-completion,
                golang-pb-dev,
                golang-uboot-go-dev,
                golang-yaml.v2-dev,
+               golang-mux-dev,
+               golang-gopkg-tomb.v2-dev,
+               golang-go-systemd-dev,
                python3,
                python3-markdown
 Standards-Version: 3.9.6

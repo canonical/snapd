@@ -51,6 +51,11 @@ func String() string {
 	return rel.String()
 }
 
+// Get the release
+func Get() Release {
+	return rel
+}
+
 // Override sets up the release using a Release
 func Override(r Release) {
 	rel = r
