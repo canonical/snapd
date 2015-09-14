@@ -24,9 +24,12 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"syscall"
+
+	"launchpad.net/snappy/helpers"
 
 	"gopkg.in/yaml.v2"
 )
@@ -34,6 +37,11 @@ import (
 const (
 	tzPathEnvironment string = "UBUNTU_CORE_CONFIG_TZ_FILE"
 	tzPathDefault     string = "/etc/timezone"
+)
+
+var (
+	tzZoneInfoPath   string = "/usr/share/zoneinfo"
+	tzZoneInfoTarget string = "/etc/localtime"
 )
 
 const (
@@ -183,6 +191,10 @@ var getTimezone = func() (timezone string, err error) {
 // setTimezone sets the specified timezone for the system, an error is returned
 // if it can't.
 var setTimezone = func(timezone string) error {
+	if err := helpers.CopyFile(filepath.Join(tzZoneInfoPath, timezone), tzZoneInfoTarget, 0); err != nil {
+		return err
+	}
+
 	return ioutil.WriteFile(tzFile(), []byte(timezone), 0644)
 }
 
