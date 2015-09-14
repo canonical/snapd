@@ -29,14 +29,26 @@ import (
 	"launchpad.net/snappy/systemd"
 )
 
+type ServiceActor interface {
+	Enable() error
+	Disable() error
+	Start() error
+	Stop() error
+	Restart() error
+	Status() ([]string, error)
+	ServiceStatus() ([]*PackageServiceStatus, error)
+	Logs() ([]systemd.Log, error)
+	Loglines() ([]string, error)
+}
+
 type svcT struct {
 	m   *packageYaml
 	svc *ServiceYaml
 }
 
-// A ServiceActor collects the services found by FindServices and lets
+// A serviceActor collects the services found by FindServices and lets
 // you perform differnt actions (start, stop, etc) on them.
-type ServiceActor struct {
+type serviceActor struct {
 	svcs []*svcT
 	pb   progress.Meter
 	sysd systemd.Systemd
@@ -51,7 +63,7 @@ type ServiceActor struct {
 // returned.
 //
 // If no snap is specified, an empty result is not an error.
-func FindServices(snapName string, serviceName string, pb progress.Meter) (*ServiceActor, error) {
+func FindServices(snapName string, serviceName string, pb progress.Meter) (ServiceActor, error) {
 	var svcs []*svcT
 
 	repo := NewMetaLocalRepository()
@@ -90,7 +102,7 @@ func FindServices(snapName string, serviceName string, pb progress.Meter) (*Serv
 		}
 	}
 
-	return &ServiceActor{
+	return &serviceActor{
 		svcs: svcs,
 		pb:   pb,
 		sysd: systemd.New(globalRootDir, pb),
@@ -98,7 +110,8 @@ func FindServices(snapName string, serviceName string, pb progress.Meter) (*Serv
 }
 
 // Status of all the found services.
-func (actor *ServiceActor) Status() ([]string, error) {
+func (actor *serviceActor) Status() ([]string, error) {
+	// TODO: make this a [i.String() for i in actor.ServiceStatus()]
 	var stati []string
 	for _, svc := range actor.svcs {
 		svcname := filepath.Base(generateServiceFileName(svc.m, *svc.svc))
@@ -113,8 +126,36 @@ func (actor *ServiceActor) Status() ([]string, error) {
 	return stati, nil
 }
 
+// A PackageServiceStatus annotates systemd's ServiceStatus with
+// package information systemd is unaware of.
+type PackageServiceStatus struct {
+	systemd.ServiceStatus
+	PackageName string `json:"package-name"`
+	ServiceName string `json:"service-name"`
+}
+
+// ServiceStatus of all the found services.
+func (actor *serviceActor) ServiceStatus() ([]*PackageServiceStatus, error) {
+	var stati []*PackageServiceStatus
+	for _, svc := range actor.svcs {
+		svcname := filepath.Base(generateServiceFileName(svc.m, *svc.svc))
+		status, err := actor.sysd.ServiceStatus(svcname)
+		if err != nil {
+			return nil, err
+		}
+		// TODO: move these into sysd; this is ugly
+		stati = append(stati, &PackageServiceStatus{
+			ServiceStatus: *status,
+			PackageName:   svc.m.Name,
+			ServiceName:   svc.svc.Name,
+		})
+	}
+
+	return stati, nil
+}
+
 // Start all the found services.
-func (actor *ServiceActor) Start() error {
+func (actor *serviceActor) Start() error {
 	for _, svc := range actor.svcs {
 		svcname := filepath.Base(generateServiceFileName(svc.m, *svc.svc))
 		if err := actor.sysd.Start(svcname); err != nil {
@@ -127,7 +168,7 @@ func (actor *ServiceActor) Start() error {
 }
 
 // Stop all the found services.
-func (actor *ServiceActor) Stop() error {
+func (actor *serviceActor) Stop() error {
 	for _, svc := range actor.svcs {
 		svcname := filepath.Base(generateServiceFileName(svc.m, *svc.svc))
 		if err := actor.sysd.Stop(svcname, time.Duration(svc.svc.StopTimeout)); err != nil {
@@ -140,7 +181,7 @@ func (actor *ServiceActor) Stop() error {
 }
 
 // Restart all the found services.
-func (actor *ServiceActor) Restart() error {
+func (actor *serviceActor) Restart() error {
 	err := actor.Stop()
 	if err != nil {
 		return err
@@ -150,7 +191,7 @@ func (actor *ServiceActor) Restart() error {
 }
 
 // Enable all the found services.
-func (actor *ServiceActor) Enable() error {
+func (actor *serviceActor) Enable() error {
 	for _, svc := range actor.svcs {
 		svcname := filepath.Base(generateServiceFileName(svc.m, *svc.svc))
 		if err := actor.sysd.Enable(svcname); err != nil {
@@ -165,7 +206,7 @@ func (actor *ServiceActor) Enable() error {
 }
 
 // Disable all the found services.
-func (actor *ServiceActor) Disable() error {
+func (actor *serviceActor) Disable() error {
 	for _, svc := range actor.svcs {
 		svcname := filepath.Base(generateServiceFileName(svc.m, *svc.svc))
 		if err := actor.sysd.Disable(svcname); err != nil {
@@ -180,7 +221,7 @@ func (actor *ServiceActor) Disable() error {
 }
 
 // Logs for all found services.
-func (actor *ServiceActor) Logs() ([]systemd.Log, error) {
+func (actor *serviceActor) Logs() ([]systemd.Log, error) {
 	var svcnames []string
 
 	for _, svc := range actor.svcs {
@@ -197,7 +238,7 @@ func (actor *ServiceActor) Logs() ([]systemd.Log, error) {
 }
 
 // Loglines serializes the logs for all found services
-func (actor *ServiceActor) Loglines() ([]string, error) {
+func (actor *serviceActor) Loglines() ([]string, error) {
 	var lines []string
 
 	logs, err := actor.Logs()

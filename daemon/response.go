@@ -95,6 +95,14 @@ func (r *resp) Self(*Command, *http.Request) Response {
 
 // SyncResponse builds a "sync" response from the given metadata.
 func SyncResponse(metadata interface{}) Response {
+	if _, ok := metadata.(error); ok {
+		return InternalError
+	}
+
+	if rsp, ok := metadata.(Response); ok {
+		return rsp
+	}
+
 	return &resp{
 		Type:     ResponseTypeSync,
 		Status:   http.StatusOK,

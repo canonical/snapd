@@ -93,6 +93,7 @@ type Systemd interface {
 	GenServiceFile(desc *ServiceDescription) string
 	GenSocketFile(desc *ServiceDescription) string
 	Status(service string) (string, error)
+	ServiceStatus(service string) (*ServiceStatus, error)
 	Logs(services []string) ([]Log, error)
 }
 
@@ -215,12 +216,30 @@ func (*systemd) Logs(serviceNames []string) ([]Log, error) {
 var statusregex = regexp.MustCompile(`(?m)^(?:(.*?)=(.*))?$`)
 
 func (s *systemd) Status(serviceName string) (string, error) {
-	bs, err := SystemctlCmd("show", "--property=Id,LoadState,ActiveState,SubState,UnitFileState", serviceName)
+	status, err := s.ServiceStatus(serviceName)
 	if err != nil {
 		return "", err
 	}
 
-	load, active, sub, unit := "", "", "", ""
+	return fmt.Sprintf("%s; %s; %s (%s)", status.UnitFileState, status.LoadState, status.ActiveState, status.SubState), nil
+}
+
+// A ServiceStatus holds structured service status information.
+type ServiceStatus struct {
+	ServiceFileName string `json:"service-file-name"`
+	LoadState       string `json:"load-state"`
+	ActiveState     string `json:"active-state"`
+	SubState        string `json:"sub-state"`
+	UnitFileState   string `json:"unit-file-state"`
+}
+
+func (s *systemd) ServiceStatus(serviceName string) (*ServiceStatus, error) {
+	bs, err := SystemctlCmd("show", "--property=Id,LoadState,ActiveState,SubState,UnitFileState", serviceName)
+	if err != nil {
+		return nil, err
+	}
+
+	status := &ServiceStatus{ServiceFileName: serviceName}
 
 	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
 		if len(bs[0]) > 0 {
@@ -228,18 +247,18 @@ func (s *systemd) Status(serviceName string) (string, error) {
 			v := string(bs[2])
 			switch k {
 			case "LoadState":
-				load = v
+				status.LoadState = v
 			case "ActiveState":
-				active = v
+				status.ActiveState = v
 			case "SubState":
-				sub = v
+				status.SubState = v
 			case "UnitFileState":
-				unit = v
+				status.UnitFileState = v
 			}
 		}
 	}
 
-	return fmt.Sprintf("%s; %s; %s (%s)", unit, load, active, sub), nil
+	return status, nil
 }
 
 // Stop the given service, and wait until it has stopped.
