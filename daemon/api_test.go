@@ -411,7 +411,7 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	c.Check(tf1 < tf2, check.Equals, true)
 }
 
-func (s *apiSuite) TestPostPacakgeBadRequest(c *check.C) {
+func (s *apiSuite) TestPostPackageBadRequest(c *check.C) {
 	d := New()
 	d.addRoutes()
 
@@ -431,7 +431,7 @@ func (s *apiSuite) TestPostPacakgeBadRequest(c *check.C) {
 
 }
 
-func (s *apiSuite) TestPostPacakgeBadAction(c *check.C) {
+func (s *apiSuite) TestPostPackageBadAction(c *check.C) {
 	d := New()
 	d.addRoutes()
 
@@ -451,7 +451,7 @@ func (s *apiSuite) TestPostPacakgeBadAction(c *check.C) {
 
 }
 
-func (s *apiSuite) TestPostPacakge(c *check.C) {
+func (s *apiSuite) TestPostPackage(c *check.C) {
 	d := New()
 	d.addRoutes()
 
@@ -496,7 +496,7 @@ func (s *apiSuite) TestPostPacakge(c *check.C) {
 	c.Check(task.Metadata(), check.Equals, "hi")
 }
 
-func (s *apiSuite) TestPostPacakgeDispatch(c *check.C) {
+func (s *apiSuite) TestPostPackageDispatch(c *check.C) {
 	inst := &packageInstruction{}
 
 	type T struct {
