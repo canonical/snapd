@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"syscall"
@@ -42,14 +43,36 @@ const (
 	autopilotTimerDisabled string = "disabled"
 )
 
+var (
+	modprobePath        = "/etc/modprobe.d/ubuntu-core.conf"
+	networkRoot         = "/etc/network/interfaces.d/"
+	pppRoot             = "/etc/ppp/"
+	watchdogConfigPath  = "/etc/watchdog.conf"
+	watchdogStartupPath = "/etc/default/watchdog"
+)
+
 // ErrInvalidUnitStatus signals that a unit is not returning a status
 // of "enabled" or "disabled".
 var ErrInvalidUnitStatus = errors.New("invalid unit status")
 
 type systemConfig struct {
-	Autopilot *bool   `yaml:"autopilot,omitempty"`
-	Timezone  *string `yaml:"timezone,omitempty"`
-	Hostname  *string `yaml:"hostname,omitempty"`
+	Autopilot *bool               `yaml:"autopilot,omitempty"`
+	Timezone  *string             `yaml:"timezone,omitempty"`
+	Hostname  *string             `yaml:"hostname,omitempty"`
+	Modprobe  *string             `yaml:"modprobe,omitempty"`
+	Network   []passthroughConfig `yaml:"network,omitempty"`
+	PPP       []passthroughConfig `yaml:"ppp,omitempty"`
+	Watchdog  *watchdogConfig     `yaml:"watchdog,omitempty"`
+}
+
+type passthroughConfig struct {
+	Name    string `yaml:"name,omitempty"`
+	Content string `yaml:"content,omitempty"`
+}
+
+type watchdogConfig struct {
+	Startup string `yaml:"startup,omitempty"`
+	Config  string `yaml:"config,omitempty"`
 }
 
 type coreConfig struct {
@@ -75,11 +98,31 @@ func newSystemConfig() (*systemConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	modprobe, err := getModprobe()
+	if err != nil {
+		return nil, err
+	}
+	network, err := getNetwork()
+	if err != nil {
+		return nil, err
+	}
+	ppp, err := getPPP()
+	if err != nil {
+		return nil, err
+	}
+	watchdog, err := getWatchdog()
+	if err != nil {
+		return nil, err
+	}
 
 	config := &systemConfig{
 		Autopilot: &autopilot,
 		Timezone:  &tz,
 		Hostname:  &hostname,
+		Modprobe:  &modprobe,
+		Network:   network,
+		PPP:       ppp,
+		Watchdog:  watchdog,
 	}
 
 	return config, nil
@@ -103,6 +146,19 @@ func Get() (rawConfig string, err error) {
 	}
 
 	return string(out), nil
+}
+
+func passthroughEqual(a, b []passthroughConfig) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+
+	return true
 }
 
 // Set is used to configure settings for the system, this is meant to
@@ -153,6 +209,38 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 			if err := setHostname(*newConfig.Hostname); err != nil {
 				return "", err
 			}
+		case "Modprobe":
+			if *oldConfig.Modprobe == *newConfig.Modprobe {
+				continue
+			}
+
+			if err := setModprobe(*newConfig.Modprobe); err != nil {
+				return "", err
+			}
+		case "Network":
+			if passthroughEqual(oldConfig.Network, newConfig.Network) {
+				continue
+			}
+
+			if err := setNetwork(newConfig.Network); err != nil {
+				return "", err
+			}
+		case "PPP":
+			if passthroughEqual(oldConfig.PPP, newConfig.PPP) {
+				continue
+			}
+
+			if err := setPPP(newConfig.PPP); err != nil {
+				return "", err
+			}
+		case "Watchdog":
+			if oldConfig.Watchdog != nil && *oldConfig.Watchdog == *newConfig.Watchdog {
+				continue
+			}
+
+			if err := setWatchdog(newConfig.Watchdog); err != nil {
+				return "", err
+			}
 		}
 	}
 
@@ -184,6 +272,102 @@ var getTimezone = func() (timezone string, err error) {
 // if it can't.
 var setTimezone = func(timezone string) error {
 	return ioutil.WriteFile(tzFile(), []byte(timezone), 0644)
+}
+
+func getPassthrough(rootDir string) (pc []passthroughConfig, err error) {
+	filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+		content, err := ioutil.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		pc = append(pc, passthroughConfig{
+			Name:    path[len(rootDir):],
+			Content: string(content),
+		})
+		return nil
+	})
+
+	return pc, nil
+
+}
+func setPassthrough(rootDir string, pc []passthroughConfig) error {
+	for _, c := range pc {
+		path := filepath.Join(rootDir, c.Name)
+		if c.Content == "" {
+			os.Remove(path)
+			continue
+		}
+
+		if err := ioutil.WriteFile(path, []byte(c.Content), 0644); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+var getNetwork = func() (pc []passthroughConfig, err error) {
+	return getPassthrough(networkRoot)
+}
+
+var setNetwork = func(pc []passthroughConfig) error {
+	return setPassthrough(networkRoot, pc)
+}
+
+var getPPP = func() (pc []passthroughConfig, err error) {
+	return getPassthrough(pppRoot)
+}
+
+var setPPP = func(pc []passthroughConfig) error {
+	return setPassthrough(pppRoot, pc)
+}
+
+// getModprobe returns the current modprobe config
+var getModprobe = func() (string, error) {
+	modprobe, err := ioutil.ReadFile(modprobePath)
+	if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+
+	return string(modprobe), nil
+}
+
+// setModprobe sets the specified modprobe config
+var setModprobe = func(modprobe string) error {
+	return ioutil.WriteFile(modprobePath, []byte(modprobe), 0644)
+}
+
+// getWatchdog returns the current watchdog config
+var getWatchdog = func() (*watchdogConfig, error) {
+	startup, err := ioutil.ReadFile(watchdogStartupPath)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	config, err := ioutil.ReadFile(watchdogConfigPath)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	// nil to make the yaml empty
+	if len(startup) == 0 && len(config) == 0 {
+		return nil, nil
+	}
+
+	return &watchdogConfig{
+		Startup: string(startup),
+		Config:  string(config)}, nil
+}
+
+// setWatchdog sets the specified watchdog config
+var setWatchdog = func(wf *watchdogConfig) error {
+	if err := ioutil.WriteFile(watchdogStartupPath, []byte(wf.Startup), 0644); err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(watchdogConfigPath, []byte(wf.Config), 0644)
 }
 
 // for testing purposes

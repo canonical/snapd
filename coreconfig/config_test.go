@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	. "gopkg.in/check.v1"
+	"launchpad.net/snappy/helpers"
 )
 
 // Hook up check.v1 into the "go test" runner.
@@ -48,6 +49,11 @@ var (
 	originalCmdAutopilotEnabled = cmdAutopilotEnabled
 	originalCmdSystemctl        = cmdSystemctl
 	originalHostnamePath        = hostnamePath
+	originalModprobePath        = modprobePath
+	originalNetworkRoot         = networkRoot
+	originalPppRoot             = pppRoot
+	originalWatchdogStartupPath = watchdogStartupPath
+	originalWatchdogConfigPath  = watchdogConfigPath
 )
 
 type ConfigTestSuite struct {
@@ -74,6 +80,11 @@ func (cts *ConfigTestSuite) SetUpTest(c *C) {
 		hostname = host
 		return nil
 	}
+
+	networkRoot = c.MkDir() + "/"
+	pppRoot = c.MkDir() + "/"
+	watchdogConfigPath = filepath.Join(c.MkDir(), "watchdog-config")
+	watchdogStartupPath = filepath.Join(c.MkDir(), "watchdog-startup")
 }
 
 func (cts *ConfigTestSuite) TearDownTest(c *C) {
@@ -92,6 +103,11 @@ func (cts *ConfigTestSuite) TearDownTest(c *C) {
 	cmdStopAutopilot = originalCmdStopAutopilot
 	cmdAutopilotEnabled = originalCmdAutopilotEnabled
 	cmdSystemctl = originalCmdSystemctl
+	modprobePath = originalModprobePath
+	networkRoot = originalNetworkRoot
+	pppRoot = originalPppRoot
+	watchdogStartupPath = originalWatchdogStartupPath
+	watchdogConfigPath = originalWatchdogConfigPath
 }
 
 // TestGet is a broad test, close enough to be an integration test for
@@ -103,6 +119,7 @@ func (cts *ConfigTestSuite) TestGet(c *C) {
     autopilot: false
     timezone: America/Argentina/Cordoba
     hostname: testhost
+    modprobe: ""
 `
 
 	rawConfig, err := Get()
@@ -118,6 +135,7 @@ func (cts *ConfigTestSuite) TestSet(c *C) {
     autopilot: true
     timezone: America/Argentina/Mendoza
     hostname: testhost
+    modprobe: ""
 `
 
 	cmdAutopilotEnabled = []string{"-c", "echo enabled"}
@@ -134,6 +152,7 @@ func (cts *ConfigTestSuite) TestSetTimezone(c *C) {
     autopilot: false
     timezone: America/Argentina/Mendoza
     hostname: testhost
+    modprobe: ""
 `
 
 	rawConfig, err := Set(expected)
@@ -149,6 +168,7 @@ func (cts *ConfigTestSuite) TestSetAutopilot(c *C) {
     autopilot: true
     timezone: America/Argentina/Cordoba
     hostname: testhost
+    modprobe: ""
 `
 
 	enabled := false
@@ -167,6 +187,7 @@ func (cts *ConfigTestSuite) TestSetHostname(c *C) {
     autopilot: false
     timezone: America/Argentina/Cordoba
     hostname: NEWtesthost
+    modprobe: ""
 `
 
 	rawConfig, err := Set(expected)
@@ -180,6 +201,7 @@ func (cts *ConfigTestSuite) TestSetInvalid(c *C) {
     autopilot: false
     timezone America/Argentina/Mendoza
     hostname: testhost
+    modprobe: ""
 `
 
 	rawConfig, err := Set(input)
@@ -193,6 +215,7 @@ func (cts *ConfigTestSuite) TestNoChangeSet(c *C) {
     autopilot: false
     timezone: America/Argentina/Cordoba
     hostname: testhost
+    modprobe: ""
 `
 
 	rawConfig, err := Set(input)
@@ -206,12 +229,14 @@ func (cts *ConfigTestSuite) TestPartialInput(c *C) {
     autopilot: false
     timezone: America/Argentina/Cordoba
     hostname: testhost
+    modprobe: ""
 `
 
 	input := `config:
   ubuntu-core:
     autopilot: false
     timezone: America/Argentina/Cordoba
+    modprobe: ""
 `
 
 	rawConfig, err := Set(input)
@@ -249,6 +274,7 @@ func (cts *ConfigTestSuite) TestErrorOnTzSet(c *C) {
     autopilot: false
     timezone: America/Argentina/Mendoza
     hostname: testhost
+    modprobe: ""
 `
 
 	rawConfig, err := Set(input)
@@ -270,6 +296,7 @@ func (cts *ConfigTestSuite) TestErrorOnAutopilotSet(c *C) {
     autopilot: true
     timezone: America/Argentina/Mendoza
     hostname: testhost
+    modprobe: ""
 `
 
 	enabled := false
@@ -287,6 +314,7 @@ func (cts *ConfigTestSuite) TestErrorOnSetHostname(c *C) {
     autopilot: false
     timezone: America/Argentina/Cordoba
     hostname: NEWtesthost
+    modprobe: ""
 `
 
 	setHostname = func(string) error { return errors.New("this is bad") }
@@ -302,6 +330,7 @@ func (cts *ConfigTestSuite) TestErrorOnGetHostname(c *C) {
     autopilot: false
     timezone: America/Argentina/Cordoba
     hostname: NEWtesthost
+    modprobe: ""
 `
 
 	getHostname = func() (string, error) { return "", errors.New("this is bad") }
@@ -397,4 +426,218 @@ func (cts *ConfigTestSuite) TestSetHostnameImplErrors(c *C) {
 
 	err := setHostname("newhostname")
 	c.Assert(err, DeepEquals, expectedErr)
+}
+
+func (cts *ConfigTestSuite) TestModprobe(c *C) {
+	modprobePath = filepath.Join(c.MkDir(), "test.conf")
+
+	err := setModprobe("blacklist floppy")
+	c.Assert(err, IsNil)
+
+	modprobe, err := getModprobe()
+	c.Assert(err, IsNil)
+	c.Assert(modprobe, Equals, "blacklist floppy")
+}
+
+func (cts *ConfigTestSuite) TestModprobeYaml(c *C) {
+	modprobePath = filepath.Join(c.MkDir(), "test.conf")
+
+	input := `config:
+  ubuntu-core:
+    modprobe: |
+      blacklist floppy
+      softdep mlx4_core post: mlx4_en
+`
+	_, err := Set(input)
+	c.Assert(err, IsNil)
+
+	// ensure its really there
+	content, err := ioutil.ReadFile(modprobePath)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "blacklist floppy\nsoftdep mlx4_core post: mlx4_en\n")
+}
+
+func (cts *ConfigTestSuite) TestNetworkGet(c *C) {
+	path := filepath.Join(networkRoot, "eth0")
+	content := "auto eth0"
+	err := ioutil.WriteFile(path, []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	nc, err := getNetwork()
+	c.Assert(err, IsNil)
+	c.Assert(nc, DeepEquals, []passthroughConfig{
+		{Name: "eth0", Content: "auto eth0"},
+	})
+}
+
+func (cts *ConfigTestSuite) TestNetworkSet(c *C) {
+	nc := []passthroughConfig{
+		{Name: "eth0", Content: "auto eth0"},
+	}
+	path := filepath.Join(networkRoot, nc[0].Name)
+	err := setNetwork(nc)
+	c.Assert(err, IsNil)
+	content, err := ioutil.ReadFile(path)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, nc[0].Content)
+}
+
+func (cts *ConfigTestSuite) TestNetworkSetEmptyRemoves(c *C) {
+	path := filepath.Join(networkRoot, "eth0")
+	content := "auto eth0"
+	err := ioutil.WriteFile(path, []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	// empty content removes
+	nc := []passthroughConfig{
+		{Name: "eth0", Content: ""},
+	}
+	err = setNetwork(nc)
+	c.Assert(err, IsNil)
+	_, err = ioutil.ReadFile(path)
+	c.Assert(helpers.FileExists(path), Equals, false)
+}
+
+func (cts *ConfigTestSuite) TestPppGet(c *C) {
+	path := filepath.Join(pppRoot, "chap-secrets")
+	content := "password"
+	err := ioutil.WriteFile(path, []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	nc, err := getPPP()
+	c.Assert(err, IsNil)
+	c.Assert(nc, DeepEquals, []passthroughConfig{
+		{Name: "chap-secrets", Content: "password"},
+	})
+}
+
+func (cts *ConfigTestSuite) TestPppSet(c *C) {
+	nc := []passthroughConfig{
+		{Name: "chap-secrets", Content: "another secret"},
+	}
+	path := filepath.Join(pppRoot, nc[0].Name)
+	err := setPPP(nc)
+	c.Assert(err, IsNil)
+	content, err := ioutil.ReadFile(path)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, nc[0].Content)
+}
+
+func (cts *ConfigTestSuite) TestNetworkSetViaYaml(c *C) {
+	modprobePath = filepath.Join(c.MkDir(), "test.conf")
+
+	input := `
+config:
+  ubuntu-core:
+    network:
+      - name: eth0
+        content: auto dhcp
+`
+	_, err := Set(input)
+	c.Assert(err, IsNil)
+
+	// ensure its really there
+	content, err := ioutil.ReadFile(filepath.Join(networkRoot, "eth0"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "auto dhcp")
+}
+
+func (cts *ConfigTestSuite) TestPPPSetViaYaml(c *C) {
+	modprobePath = filepath.Join(c.MkDir(), "test.conf")
+
+	input := `
+config:
+  ubuntu-core:
+    ppp:
+      - name: chap-secret
+        content: password
+`
+	_, err := Set(input)
+	c.Assert(err, IsNil)
+
+	// ensure its really there
+	content, err := ioutil.ReadFile(filepath.Join(pppRoot, "chap-secret"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "password")
+}
+
+func (cts *ConfigTestSuite) TestPassthroughConfigEqual(c *C) {
+	a := []passthroughConfig{
+		{Name: "key", Content: "value"},
+	}
+	b := []passthroughConfig{
+		{Name: "key", Content: "value"},
+	}
+	c.Assert(passthroughEqual(a, b), Equals, true)
+}
+
+func (cts *ConfigTestSuite) TestPassthroughConfigNotEqualDifferentSize(c *C) {
+	a := []passthroughConfig{}
+	b := []passthroughConfig{
+		{Name: "key", Content: "value"},
+	}
+	c.Assert(passthroughEqual(a, b), Equals, false)
+}
+
+func (cts *ConfigTestSuite) TestPassthroughConfigNotEqualDifferentKeys(c *C) {
+	a := []passthroughConfig{
+		{Name: "key", Content: "value"},
+	}
+	b := []passthroughConfig{
+		{Name: "other-key", Content: "value"},
+	}
+	c.Assert(passthroughEqual(a, b), Equals, false)
+}
+
+func (cts *ConfigTestSuite) TestWatchdogGet(c *C) {
+	startup := "# some startup watchdog config"
+	err := ioutil.WriteFile(watchdogStartupPath, []byte(startup), 0644)
+	c.Assert(err, IsNil)
+
+	config := "# some watchdog config"
+	err = ioutil.WriteFile(watchdogConfigPath, []byte(config), 0644)
+	c.Assert(err, IsNil)
+
+	wc, err := getWatchdog()
+	c.Assert(err, IsNil)
+	c.Assert(wc, DeepEquals, &watchdogConfig{
+		Startup: startup, Config: config,
+	})
+}
+
+func (cts *ConfigTestSuite) TestWatchdogSet(c *C) {
+	wc := &watchdogConfig{
+		Startup: "startup", Config: "secret",
+	}
+	err := setWatchdog(wc)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(watchdogStartupPath)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, wc.Startup)
+
+	content, err = ioutil.ReadFile(watchdogConfigPath)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, wc.Config)
+}
+
+func (cts *ConfigTestSuite) TestWatchdogSetViaYaml(c *C) {
+	input := `
+config:
+  ubuntu-core:
+    watchdog:
+      startup: some startup
+      config: some config
+`
+	_, err := Set(input)
+	c.Assert(err, IsNil)
+
+	// ensure its really there
+	content, err := ioutil.ReadFile(watchdogStartupPath)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "some startup")
+
+	content, err = ioutil.ReadFile(watchdogConfigPath)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "some config")
 }
