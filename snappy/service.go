@@ -29,6 +29,8 @@ import (
 	"launchpad.net/snappy/systemd"
 )
 
+// A ServiceActor collects the services found by FindServices and lets
+// you perform differnt actions (start, stop, etc) on them.
 type ServiceActor interface {
 	Enable() error
 	Disable() error
@@ -46,8 +48,6 @@ type svcT struct {
 	svc *ServiceYaml
 }
 
-// A serviceActor collects the services found by FindServices and lets
-// you perform differnt actions (start, stop, etc) on them.
 type serviceActor struct {
 	svcs []*svcT
 	pb   progress.Meter
