@@ -41,7 +41,7 @@ const (
 // Response knows how to render itself, how to handle itself, and how to find itself
 type Response interface {
 	Render(w http.ResponseWriter) ([]byte, int)
-	Handler(w http.ResponseWriter, r *http.Request)
+	ServeHTTP(w http.ResponseWriter, r *http.Request)
 	Self(*Command, *http.Request) Response // has the same arity as ResponseFunc for convenience
 }
 
@@ -70,7 +70,7 @@ func (r *resp) Render(w http.ResponseWriter) (buf []byte, status int) {
 	return bs, r.Status
 }
 
-func (r *resp) Handler(w http.ResponseWriter, _ *http.Request) {
+func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	bs, status := r.Render(w)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -102,6 +102,7 @@ func ErrorResponse(status int) Response {
 // standard error responses
 var (
 	NotFound      = ErrorResponse(http.StatusNotFound)
+	BadRequest    = ErrorResponse(http.StatusBadRequest)
 	BadMethod     = ErrorResponse(http.StatusMethodNotAllowed)
 	InternalError = ErrorResponse(http.StatusInternalServerError)
 )

@@ -21,10 +21,12 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/ioutil"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -33,14 +35,182 @@ import (
 	"gopkg.in/check.v1"
 
 	"launchpad.net/snappy/release"
+	"launchpad.net/snappy/snappy"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { check.TestingT(t) }
 
-type apiSuite struct{}
+type apiSuite struct {
+	parts []snappy.Part
+	err   error
+	vars  map[string]string
+}
 
 var _ = check.Suite(&apiSuite{})
+
+func (s *apiSuite) Details(string) ([]snappy.Part, error) {
+	return s.parts, s.err
+}
+
+func (s *apiSuite) muxVars(*http.Request) map[string]string {
+	return s.vars
+}
+
+func (s *apiSuite) SetUpSuite(c *check.C) {
+	newRepo = func() metarepo {
+		return s
+	}
+	muxVars = s.muxVars
+}
+
+func (s *apiSuite) SetUpTest(c *check.C) {
+	s.parts = nil
+	s.err = nil
+	s.vars = nil
+}
+
+func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	s.vars = map[string]string{"package": "foo"}
+
+	s.parts = []snappy.Part{&tP{
+		name:          "foo",
+		version:       "v1",
+		description:   "description",
+		origin:        "bar",
+		vendor:        "a vendor",
+		isInstalled:   true,
+		isActive:      true,
+		icon:          "icon.png",
+		_type:         "a type",
+		installedSize: 42,
+		downloadSize:  2,
+	}}
+	rsp, ok := getPackageInfo(packageInfoCmd, nil).(*resp)
+	c.Assert(ok, check.Equals, true)
+
+	expected := &resp{
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
+		Metadata: map[string]string{
+			"name":           "foo",
+			"version":        "v1",
+			"description":    "description",
+			"origin":         "bar",
+			"vendor":         "a vendor",
+			"status":         "active",
+			"icon":           "icon.png",
+			"type":           "a type",
+			"download_size":  "2",
+			"installed_size": "42",
+			"resource":       "/1.0/packages/foo.bar",
+		},
+	}
+
+	c.Check(rsp, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestPackageInfoBadReq(c *check.C) {
+	// no muxVars; can't really happen afaict
+	c.Check(getPackageInfo(packageInfoCmd, nil), check.Equals, BadRequest)
+}
+
+func (s *apiSuite) TestPackageInfoNotFound(c *check.C) {
+	s.vars = map[string]string{"package": "foo"}
+	s.err = snappy.ErrPackageNotFound
+
+	c.Check(getPackageInfo(packageInfoCmd, nil), check.Equals, NotFound)
+}
+
+func (s *apiSuite) TestPackageInfoNoneFound(c *check.C) {
+	s.vars = map[string]string{"package": "foo"}
+
+	c.Check(getPackageInfo(packageInfoCmd, nil), check.Equals, NotFound)
+}
+
+func (s *apiSuite) TestPackageInfoWeirdDetails(c *check.C) {
+	s.vars = map[string]string{"package": "foo"}
+	s.err = errors.New("weird")
+	c.Check(getPackageInfo(packageInfoCmd, nil), check.Equals, InternalError)
+}
+
+func (s *apiSuite) TestPackageInfoMixedResults(c *check.C) {
+	s.vars = map[string]string{"package": "foo"}
+	s.parts = []snappy.Part{&tP{name: "foo"}, &tP{name: "bar"}}
+	c.Check(getPackageInfo(packageInfoCmd, nil), check.Equals, InternalError)
+}
+
+func (s *apiSuite) TestPackageInfoWeirdRoute(c *check.C) {
+	// can't really happen
+
+	d := New()
+	d.addRoutes()
+
+	// use the wrong command to force the issue
+	wrongCmd := &Command{Path: "/{what}", d: d}
+	s.vars = map[string]string{"package": "foo"}
+	s.parts = []snappy.Part{&tP{name: "foo"}}
+	c.Check(getPackageInfo(wrongCmd, nil), check.Equals, InternalError)
+}
+
+func (s *apiSuite) TestPackageInfoBadRoute(c *check.C) {
+	// can't really happen, v2
+
+	d := New()
+	d.addRoutes()
+
+	// get the route and break it
+	route := d.router.Get(packageInfoCmd.Path)
+	c.Assert(route.Name("foo").GetError(), check.NotNil)
+
+	s.vars = map[string]string{"package": "foo"}
+	s.parts = []snappy.Part{&tP{name: "foo"}}
+	c.Check(getPackageInfo(packageInfoCmd, nil), check.Equals, InternalError)
+}
+
+func (s *apiSuite) TestParts2Map(c *check.C) {
+	parts := []snappy.Part{&tP{
+		name:          "foo",
+		version:       "v1",
+		description:   "description",
+		origin:        "bar",
+		vendor:        "a vendor",
+		isInstalled:   true,
+		isActive:      true,
+		icon:          "icon.png",
+		_type:         "a type",
+		installedSize: 42,
+		downloadSize:  2,
+	}}
+
+	resource := "/1.0/packages/foo.bar"
+
+	expected := map[string]string{
+		"name":           "foo",
+		"version":        "v1",
+		"description":    "description",
+		"origin":         "bar",
+		"vendor":         "a vendor",
+		"status":         "active",
+		"icon":           "icon.png",
+		"type":           "a type",
+		"download_size":  "2",
+		"installed_size": "42",
+		"resource":       resource,
+	}
+
+	c.Check(parts2map(parts, resource), check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestParts2MapState(c *check.C) {
+	c.Check(parts2map([]snappy.Part{&tP{}}, "")["status"], check.Equals, "not installed")
+	c.Check(parts2map([]snappy.Part{&tP{isInstalled: true}}, "")["status"], check.Equals, "installed")
+	c.Check(parts2map([]snappy.Part{&tP{isInstalled: true, isActive: true}}, "")["status"], check.Equals, "active")
+	// TODO: more statuses
+}
 
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	// Very basic check to help stop us from not adding all the
@@ -71,7 +241,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		return true
 	})
 
-	exceptions := []string{"api"}
+	exceptions := []string{"api", "newRepo", "muxVars"}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
 }
@@ -86,7 +256,7 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	rec := httptest.NewRecorder()
 	c.Check(rootCmd.Path, check.Equals, "/")
 
-	rootCmd.GET(rootCmd, nil).Handler(rec, nil)
+	rootCmd.GET(rootCmd, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
@@ -114,7 +284,7 @@ func (s *apiSuite) TestV1(c *check.C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(d, "channel.ini"), []byte("[service]\nchannel: ubuntu-flavor/release/channel"), 0644), check.IsNil)
 	c.Assert(release.Setup(root), check.IsNil)
 
-	v1Cmd.GET(v1Cmd, nil).Handler(rec, nil)
+	v1Cmd.GET(v1Cmd, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
