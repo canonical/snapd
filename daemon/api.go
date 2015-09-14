@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -34,7 +35,7 @@ var api = []*Command{
 	rootCmd,
 	v1Cmd,
 	packagesCmd,
-	packageInfoCmd,
+	packageCmd,
 }
 
 var (
@@ -50,9 +51,10 @@ var (
 
 	packagesCmd = &Command{
 		Path: "/1.0/packages",
+		GET:  getPackagesInfo,
 	}
 
-	packageInfoCmd = &Command{
+	packageCmd = &Command{
 		Path: "/1.0/packages/{package}",
 		GET:  getPackageInfo,
 	}
@@ -70,10 +72,19 @@ func v1Get(c *Command, r *http.Request) Response {
 
 type metarepo interface {
 	Details(string) ([]snappy.Part, error)
+	All() ([]snappy.Part, error)
 }
 
 var newRepo = func() metarepo {
 	return snappy.NewMetaRepository()
+}
+
+var newLocalRepo = func() metarepo {
+	return snappy.NewMetaLocalRepository()
+}
+
+var newRemoteRepo = func() metarepo {
+	return snappy.NewMetaStoreRepository()
 }
 
 var muxVars = mux.Vars
@@ -162,4 +173,89 @@ func parts2map(parts []snappy.Part, resource string) map[string]string {
 	}
 
 	return result
+}
+
+type byQN []snappy.Part
+
+func (ps byQN) Len() int      { return len(ps) }
+func (ps byQN) Swap(a, b int) { ps[a], ps[b] = ps[b], ps[a] }
+func (ps byQN) Less(a, b int) bool {
+	return snappy.QualifiedName(ps[a]) < snappy.QualifiedName(ps[b])
+}
+
+func addPart(results map[string]map[string]string, current []snappy.Part, oldName string, route *mux.Route) []snappy.Part {
+	url, err := route.URL("package", oldName)
+	if err != nil {
+		logger.Noticef("route can't build URL for package %s: %v", oldName, err)
+		return current
+	}
+
+	results[oldName] = parts2map(current, url.String())
+
+	return nil
+}
+
+// plural!
+func getPackagesInfo(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(packageCmd.Path)
+	if route == nil {
+		logger.Noticef("router can't find route for packages")
+		return InternalError
+	}
+
+	sources := r.URL.Query().Get("sources")
+	var repo metarepo
+	switch sources {
+	case "local":
+		repo = newLocalRepo()
+	case "remote":
+		repo = newRemoteRepo()
+	default:
+		repo = newRepo()
+	}
+
+	found, err := repo.All()
+	if err != nil {
+		if err == snappy.ErrPackageNotFound {
+			return NotFound
+		}
+
+		return InternalError
+	}
+
+	if len(found) == 0 {
+		return NotFound
+	}
+
+	sort.Sort(byQN(found))
+
+	results := make(map[string]map[string]string)
+	var current []snappy.Part
+	var oldName string
+	for i := range found {
+		name := snappy.QualifiedName(found[i])
+		if name != oldName && len(current) > 0 {
+			current = addPart(results, current, oldName, route)
+			if current != nil {
+				return InternalError
+			}
+		}
+		oldName = name
+		current = append(current, found[i])
+	}
+	if len(current) > 0 {
+		current = addPart(results, current, oldName, route)
+		if current != nil {
+			return InternalError
+		}
+	}
+
+	return SyncResponse(map[string]interface{}{
+		"packages": results,
+		"paging": map[string]interface{}{
+			"pages": 1,
+			"page":  1,
+			"count": len(results),
+		},
+	})
 }

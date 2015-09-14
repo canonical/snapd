@@ -1353,6 +1353,12 @@ func (s *SnapLocalRepository) Installed() (parts []Part, err error) {
 	return s.partsForGlobExpr(globExpr)
 }
 
+// All the parts (ie all installed + removed-but-not-purged)
+//
+// TODO: that thing about removed
+func (s *SnapLocalRepository) All() ([]Part, error) {
+	return s.Installed()
+}
 func (s *SnapLocalRepository) partsForGlobExpr(globExpr string) (parts []Part, err error) {
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
@@ -1780,6 +1786,38 @@ func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err 
 
 	snap := NewRemoteSnapPart(detailsData)
 	parts = append(parts, snap)
+
+	return parts, nil
+}
+
+// All (installable) parts from the store
+func (s *SnapUbuntuStoreRepository) All() ([]Part, error) {
+	req, err := http.NewRequest("GET", s.searchURI.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// set headers
+	setUbuntuStoreHeaders(req)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var searchData searchResults
+
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&searchData); err != nil {
+		return nil, err
+	}
+
+	parts := make([]Part, len(searchData.Payload.Packages))
+	for i, pkg := range searchData.Payload.Packages {
+		parts[i] = NewRemoteSnapPart(pkg)
+	}
 
 	return parts, nil
 }
