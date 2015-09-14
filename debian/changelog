@@ -1,3 +1,24 @@
+ubuntu-snappy (1.6ubuntu1) wily; urgency=medium
+
+  * New upstream release, including the following changes:
+    - Fix hwaccess for gpio (LP: #1493389, LP: #1488618)
+    - Fix handleAssets name normalization
+    - Run boot-ok job late (LP: #1476129)
+    - Add support for systemd socket files
+    - Add "snappy service" command
+    - Documentation improvements
+    - Many test improvements (unit and integration)
+    - Override sideload versions
+    - Go1.5 fixes
+    - Add i18n
+    - Add man-page
+    - Add .snapignore
+    - Run services that uses external ports only after the network is up
+    - Bufix in Synbootloader (LP: 1474125)
+    - Use uboot.env for boot state tracking
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 09 Sep 2015 14:20:22 +0200
+
 ubuntu-snappy (1.5ubuntu1) wily; urgency=medium
 
   * New upstream release, including the following changes:

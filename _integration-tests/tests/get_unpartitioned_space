@@ -5,4 +5,4 @@ set -e
 writable_part="$(findfs LABEL=writable)"
 syspath="$(dirname $(realpath /sys/class/block/$(basename $writable_part)))"
 device="$(realpath /dev/block/$(cat $syspath/dev))"
-sudo parted $device unit % print free | grep 'Free Space' | tail -n1 | awk '{print $3}'
+sudo parted -s $device unit % print free | grep 'Free Space' | tail -n1 | awk '{print $3}'
