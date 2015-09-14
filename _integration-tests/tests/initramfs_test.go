@@ -38,6 +38,7 @@ type initRAMFSSuite struct {
 func (s *initRAMFSSuite) TestFreeSpace(c *check.C) {
 	cmd := exec.Command("sh", "_integration-tests/tests/get_unpartitioned_space")
 	free, err := cmd.Output()
+	c.Assert(err, check.IsNil, check.Commentf("Error running the script to get the free space: %s", err))
 	freePercent := strings.TrimRight(strings.TrimSpace(string(free)), "%")
 	freePercentFloat, err := strconv.ParseFloat(freePercent, 32)
 	c.Assert(err, check.IsNil,
