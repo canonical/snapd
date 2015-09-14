@@ -50,7 +50,7 @@ import (
 )
 
 const (
-	// the origin for sideloaded snaps
+	// SideloadedOrigin is the (forced) origin for sideloaded snaps
 	SideloadedOrigin = "sideload"
 )
 
