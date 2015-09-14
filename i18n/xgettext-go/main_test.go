@@ -390,3 +390,127 @@ msgstr  ""
 `, header, fname)
 	c.Assert(string(got), Equals, expected)
 }
+
+func (s *xgettextTestSuite) TestProcessFilesConcat(c *C) {
+	fname := makeGoSourceFile(c, []byte(`package main
+
+func main() {
+    // TRANSLATORS: foo comment
+    i18n.G("foo\n" + "bar\n" + "baz")
+}
+`))
+	err := processFiles([]string{fname})
+	c.Assert(err, IsNil)
+
+	c.Assert(msgIDs, DeepEquals, map[string][]msgID{
+		"foo\\nbar\\nbaz": []msgID{
+			{
+				comment: "#. TRANSLATORS: foo comment\n",
+				fname:   fname,
+				line:    5,
+			},
+		},
+	})
+}
+
+func (s *xgettextTestSuite) TestProcessFilesWithQuote(c *C) {
+	fname := makeGoSourceFile(c, []byte(fmt.Sprintf(`package main
+
+func main() {
+    i18n.G(%[1]s foo "bar"%[1]s)
+}
+`, "`")))
+	err := processFiles([]string{fname})
+	c.Assert(err, IsNil)
+
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+
+	expected := fmt.Sprintf(`%s
+#: %[2]s:4
+msgid   " foo \"bar\""
+msgstr  ""
+
+`, header, fname)
+	c.Check(out.String(), Equals, expected)
+
+}
+
+func (s *xgettextTestSuite) TestWriteOutputMultilines(c *C) {
+	msgIDs = map[string][]msgID{
+		"foo\\nbar\\nbaz": []msgID{
+			{
+				fname:   "fname",
+				line:    2,
+				comment: "#. foo\n",
+			},
+		},
+	}
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+	expected := fmt.Sprintf(`%s
+#. foo
+#: fname:2
+msgid   "foo\n"
+        "bar\n"
+        "baz"
+msgstr  ""
+
+`, header)
+	c.Assert(out.String(), Equals, expected)
+}
+
+func (s *xgettextTestSuite) TestWriteOutputTidy(c *C) {
+	msgIDs = map[string][]msgID{
+		"foo\\nbar\\nbaz": []msgID{
+			{
+				fname: "fname",
+				line:  2,
+			},
+		},
+		"zzz\\n": []msgID{
+			{
+				fname: "fname",
+				line:  4,
+			},
+		},
+	}
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+	expected := fmt.Sprintf(`%s
+#: fname:2
+msgid   "foo\n"
+        "bar\n"
+        "baz"
+msgstr  ""
+
+#: fname:4
+msgid   "zzz\n"
+msgstr  ""
+
+`, header)
+	c.Assert(out.String(), Equals, expected)
+}
+
+func (s *xgettextTestSuite) TestProcessFilesWithDoubleQuote(c *C) {
+	fname := makeGoSourceFile(c, []byte(`package main
+
+func main() {
+    i18n.G("foo \"bar\"")
+}
+`))
+	err := processFiles([]string{fname})
+	c.Assert(err, IsNil)
+
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+
+	expected := fmt.Sprintf(`%s
+#: %[2]s:4
+msgid   "foo \"bar\""
+msgstr  ""
+
+`, header, fname)
+	c.Check(out.String(), Equals, expected)
+
+}
