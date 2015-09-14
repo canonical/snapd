@@ -20,15 +20,15 @@
 package tests
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/partition"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 const (
@@ -38,11 +38,6 @@ const (
 	initrdFilename             = "initrd"
 	systemdFilename            = "systemd"
 	destFilenamePrefix         = "snappy-selftest-"
-	bootBase                   = "/boot"
-	ubootDir                   = bootBase + "/uboot"
-	grubDir                    = bootBase + "/grub"
-	ubootConfigFile            = ubootDir + "/snappy-system.txt"
-	grubConfigFile             = grubDir + "/grubenv"
 )
 
 type zeroSizeKernel struct{}
@@ -61,8 +56,10 @@ func (zeroSizeInitrd) set(c *check.C) {
 	if classicKernelFiles(c) {
 		commonSet(c, BaseAltPartitionPath, origBootFilenamePattern, initrdFilename)
 	} else {
-		boot := bootSystem(c)
-		dir := bootDirectory(boot)
+		boot, err := partition.BootSystem()
+		c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
+		dir := partition.BootDir(boot)
+
 		bootFileNamePattern := newKernelFilenamePattern(c, boot, true)
 		commonSet(c, dir, bootFileNamePattern, initrdFilename)
 	}
@@ -72,8 +69,10 @@ func (zeroSizeInitrd) unset(c *check.C) {
 	if classicKernelFiles(c) {
 		commonUnset(c, BaseAltPartitionPath, origBootFilenamePattern, initrdFilename)
 	} else {
-		boot := bootSystem(c)
-		dir := bootDirectory(boot)
+		boot, err := partition.BootSystem()
+		c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
+		dir := partition.BootDir(boot)
+
 		bootFileNamePattern := newKernelFilenamePattern(c, boot, false)
 		commonUnset(c, dir, bootFileNamePattern, initrdFilename)
 	}
@@ -154,68 +153,6 @@ func classicKernelFiles(c *check.C) bool {
 	return len(matches) == 1
 }
 
-func bootSystem(c *check.C) string {
-	matches, err := filepath.Glob(bootBase + "/grub")
-
-	c.Assert(err, check.IsNil, check.Commentf("Error: %v", err))
-
-	if len(matches) == 1 {
-		return "grub"
-	}
-	return "uboot"
-}
-
-func bootDirectory(bootSystem string) string {
-	if bootSystem == "grub" {
-		return grubDir
-	}
-	return ubootDir
-}
-
-func bootConfigFile(bootSystem string) string {
-	if bootSystem == "grub" {
-		return grubConfigFile
-	}
-	return ubootConfigFile
-}
-
-func currentPartition(c *check.C, bootSystem string) (partition string) {
-	bootConfigFile := bootConfigFile(bootSystem)
-	file, err := os.Open(bootConfigFile)
-
-	c.Assert(err, check.IsNil,
-		check.Commentf("Error reading boot config file %s", bootConfigFile))
-
-	defer file.Close()
-
-	reader := bufio.NewReader(file)
-	scanner := bufio.NewScanner(reader)
-
-	scanner.Split(bufio.ScanLines)
-
-	for scanner.Scan() {
-		if strings.HasPrefix(scanner.Text(), "snappy_ab") {
-			fields := strings.Split(scanner.Text(), "=")
-			if len(fields) > 1 {
-				if bootSystem == "grub" {
-					partition = fields[1]
-				} else {
-					partition = otherPart(fields[1])
-				}
-			}
-			return
-		}
-	}
-	return
-}
-
-func otherPart(current string) string {
-	if current == "a" {
-		return "b"
-	}
-	return "a"
-}
-
 // newKernelFilenamePattern returns the filename pattern to modify files
 // in the partition declared in the boot config file.
 //
@@ -226,11 +163,12 @@ func otherPart(current string) string {
 // we want to change the files in the other partition
 func newKernelFilenamePattern(c *check.C, bootSystem string, afterUpdate bool) string {
 	var actualPartition string
-	partition := currentPartition(c, bootSystem)
+	part, err := partition.NextBootPartition()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the current partition: %s", err))
 	if afterUpdate {
-		actualPartition = partition
+		actualPartition = part
 	} else {
-		actualPartition = otherPart(partition)
+		actualPartition = partition.OtherPartition(part)
 	}
 	return filepath.Join(actualPartition, "%s%s*")
 }
@@ -247,7 +185,9 @@ func (s *failoverSuite) TestZeroSizeKernel(c *check.C) {
 func (s *failoverSuite) TestZeroSizeInitrd(c *check.C) {
 	// Skip if on uboot due to https://bugs.launchpad.net/snappy/+bug/1480248
 	// (fgimenez 20150731)
-	if bootSystem(c) == "uboot" {
+	boot, err := partition.BootSystem()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
+	if boot == "uboot" {
 		c.Skip("Failover for empty initrd not working in uboot")
 	}
 	commonFailoverTest(c, zeroSizeInitrd{})
