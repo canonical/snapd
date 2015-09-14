@@ -436,12 +436,12 @@ func (s *SystemImageRepository) Search(terms string) (versions []Part, err error
 }
 
 // Details returns details for the given snap
-func (s *SystemImageRepository) Details(snapName string) (versions []Part, err error) {
-	if snapName == systemImagePartName {
-		part := makeCurrentPart(s.partition)
-		versions = append(versions, part)
+func (s *SystemImageRepository) Details(name string, origin string) ([]Part, error) {
+	if name == systemImagePartName && origin == systemImagePartOrigin {
+		return []Part{makeCurrentPart(s.partition)}, nil
 	}
-	return versions, err
+
+	return nil, ErrPackageNotFound
 }
 
 // Updates returns the available updates

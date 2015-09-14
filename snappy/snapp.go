@@ -697,6 +697,10 @@ func (s *SnapPart) Origin() string {
 		return r.Origin
 	}
 
+	if s.origin == "" {
+		return SideloadedOrigin
+	}
+
 	return s.origin
 }
 
@@ -1327,14 +1331,14 @@ func (s *SnapLocalRepository) Description() string {
 }
 
 // Details returns details for the given snap
-func (s *SnapLocalRepository) Details(name string) (versions []Part, err error) {
-	// XXX: this is broken wrt origin packages (e.g. frameworks)
-	if !strings.ContainsRune(name, '.') {
-		name += ".*"
+func (s *SnapLocalRepository) Details(name string, origin string) (versions []Part, err error) {
+	if origin == "" || origin == SideloadedOrigin {
+		origin = "*"
 	}
+	appParts, err := s.partsForGlobExpr(filepath.Join(s.path, name+"."+origin, "*", "meta", "package.yaml"))
+	fmkParts, err := s.partsForGlobExpr(filepath.Join(s.path, name, "*", "meta", "package.yaml"))
 
-	globExpr := filepath.Join(s.path, name, "*", "meta", "package.yaml")
-	parts, err := s.partsForGlobExpr(globExpr)
+	parts := append(appParts, fmkParts...)
 
 	if len(parts) == 0 {
 		return nil, ErrPackageNotFound
@@ -1749,7 +1753,12 @@ func (s *SnapUbuntuStoreRepository) Description() string {
 }
 
 // Details returns details for the given snap in this repository
-func (s *SnapUbuntuStoreRepository) Details(snapName string) (parts []Part, err error) {
+func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts []Part, err error) {
+	snapName := name
+	if origin != "" {
+		snapName = name + "." + origin
+	}
+
 	url, err := s.detailsURI.Parse(snapName)
 	if err != nil {
 		return nil, err
