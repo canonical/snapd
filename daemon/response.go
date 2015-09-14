@@ -34,8 +34,8 @@ type ResponseType string
 // following “type” field:
 const (
 	ResponseTypeSync  ResponseType = "sync"
-	ResponseTypeAsync              = "async"
-	ResponseTypeError              = "error"
+	ResponseTypeAsync ResponseType = "async"
+	ResponseTypeError ResponseType = "error"
 )
 
 // Response knows how to render itself, how to handle itself, and how to find itself
@@ -73,7 +73,18 @@ func (r *resp) Render(w http.ResponseWriter) (buf []byte, status int) {
 func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	bs, status := r.Render(w)
 
-	w.Header().Set("Content-Type", "application/json")
+	hdr := w.Header()
+	if r.Type == ResponseTypeAsync {
+		if m, ok := r.Metadata.(map[string]interface{}); ok {
+			if location, ok := m["resource"]; ok {
+				if location, ok := location.(string); ok && location != "" {
+					hdr.Set("Location", location)
+				}
+			}
+		}
+	}
+
+	hdr.Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	w.Write(bs)
 }
@@ -91,6 +102,15 @@ func SyncResponse(metadata interface{}) Response {
 	}
 }
 
+// AsyncResponse builds an "async" response from the given *Task
+func AsyncResponse(metadata map[string]interface{}) Response {
+	return &resp{
+		Type:     ResponseTypeAsync,
+		Status:   http.StatusAccepted,
+		Metadata: metadata,
+	}
+}
+
 // ErrorResponse builds an "error" response from the given error status.
 func ErrorResponse(status int) Response {
 	return &resp{
@@ -101,8 +121,9 @@ func ErrorResponse(status int) Response {
 
 // standard error responses
 var (
-	NotFound      = ErrorResponse(http.StatusNotFound)
-	BadRequest    = ErrorResponse(http.StatusBadRequest)
-	BadMethod     = ErrorResponse(http.StatusMethodNotAllowed)
-	InternalError = ErrorResponse(http.StatusInternalServerError)
+	NotFound       = ErrorResponse(http.StatusNotFound)
+	BadRequest     = ErrorResponse(http.StatusBadRequest)
+	BadMethod      = ErrorResponse(http.StatusMethodNotAllowed)
+	InternalError  = ErrorResponse(http.StatusInternalServerError)
+	NotImplemented = ErrorResponse(http.StatusNotImplemented)
 )

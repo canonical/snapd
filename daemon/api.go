@@ -20,16 +20,18 @@
 package daemon
 
 import (
+	"encoding/json"
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/snappy"
-	"strings"
 )
 
 var api = []*Command{
@@ -59,6 +61,7 @@ var (
 	packageCmd = &Command{
 		Path: "/1.0/packages/{package}",
 		GET:  getPackageInfo,
+		POST: postPackage,
 	}
 
 	operationCmd = &Command{
@@ -74,7 +77,7 @@ func v1Get(c *Command, r *http.Request) Response {
 		"release":         rel.Series,
 		"default_channel": rel.Channel,
 		"api_compat":      "0",
-	}).Self(c, r)
+	})
 }
 
 type metarepo interface {
@@ -291,4 +294,121 @@ func getOpInfo(c *Command, r *http.Request) Response {
 	}
 
 	return SyncResponse(task.Map(route))
+}
+
+type packageInstruction struct {
+	Action   string `json:"action"`
+	LeaveOld bool   `json:"leave_old"`
+	pkg      string
+	prog     progress.Meter
+}
+
+func (inst *packageInstruction) install() interface{} {
+	flags := snappy.DoInstallGC
+	if inst.LeaveOld {
+		flags = 0
+	}
+	_, err := snappy.Install(inst.pkg, flags, inst.prog)
+
+	if err != nil {
+		return err
+	}
+
+	// TODO: return the log
+	// also to do: commands update their output dynamically, as it changes.
+	return nil
+}
+
+func (inst *packageInstruction) update() interface{} {
+	// zomg :-(
+	// TODO: query the store for just this package, instead of this
+
+	flags := snappy.DoInstallGC
+	if inst.LeaveOld {
+		flags = 0
+	}
+
+	parts, err := snappy.ListUpdates()
+	if err != nil {
+		return err
+	}
+
+	for _, part := range parts {
+		if snappy.QualifiedName(part) == inst.pkg {
+			if _, err := part.Install(inst.prog, flags); err != nil {
+				return err
+			}
+			return snappy.GarbageCollect(inst.pkg, flags, inst.prog)
+		}
+	}
+
+	return "package is up to date"
+}
+
+func (inst *packageInstruction) remove() interface{} {
+	flags := snappy.DoRemoveGC
+	if inst.LeaveOld {
+		flags = 0
+	}
+
+	return snappy.Remove(inst.pkg, flags, inst.prog)
+}
+
+func (inst *packageInstruction) purge() interface{} {
+	return snappy.Purge(inst.pkg, 0, inst.prog)
+}
+
+func (inst *packageInstruction) rollback() interface{} {
+	_, err := snappy.Rollback(inst.pkg, "", inst.prog)
+	return err
+}
+
+func (inst *packageInstruction) dispatch() func() interface{} {
+	switch inst.Action {
+	case "install":
+		// TODO: licenses
+		return inst.install
+	case "update":
+		return inst.update
+	case "remove":
+		return inst.remove
+	case "purge":
+		return inst.purge
+	case "rollback":
+		return inst.rollback
+	default:
+		return nil
+	}
+}
+
+func pkgActionDispatchImpl(inst *packageInstruction) func() interface{} {
+	return inst.dispatch()
+}
+
+var pkgActionDispatch = pkgActionDispatchImpl
+
+func postPackage(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(operationCmd.Path)
+	if route == nil {
+		logger.Noticef("router can't find route for operation")
+		return InternalError
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	var inst packageInstruction
+	if err := decoder.Decode(&inst); err != nil {
+		logger.Noticef("can't decode request body into package instruction: %v", err)
+		return BadRequest
+	}
+
+	inst.pkg = muxVars(r)["package"]
+	inst.prog = &progress.NullProgress{}
+
+	f := pkgActionDispatch(&inst)
+	if f == nil {
+		logger.Noticef("unknown action %s", inst.Action)
+		return BadRequest
+	}
+
+	return AsyncResponse(c.d.AddTask(f).Map(route))
 }
