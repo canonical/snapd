@@ -46,9 +46,9 @@ type Response interface {
 }
 
 type resp struct {
-	Type     ResponseType `json:"type"`
-	Status   int          `json:"status_code"`
-	Metadata interface{}  `json:"metadata"`
+	Type   ResponseType `json:"type"`
+	Status int          `json:"status_code"`
+	Result interface{}  `json:"result"`
 }
 
 func (r *resp) MarshalJSON() ([]byte, error) {
@@ -56,7 +56,7 @@ func (r *resp) MarshalJSON() ([]byte, error) {
 		"type":        r.Type,
 		"status":      http.StatusText(r.Status),
 		"status_code": r.Status,
-		"metadata":    &r.Metadata,
+		"result":      &r.Result,
 	})
 }
 
@@ -75,7 +75,7 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 	hdr := w.Header()
 	if r.Type == ResponseTypeAsync {
-		if m, ok := r.Metadata.(map[string]interface{}); ok {
+		if m, ok := r.Result.(map[string]interface{}); ok {
 			if location, ok := m["resource"]; ok {
 				if location, ok := location.(string); ok && location != "" {
 					hdr.Set("Location", location)
@@ -93,29 +93,29 @@ func (r *resp) Self(*Command, *http.Request) Response {
 	return r
 }
 
-// SyncResponse builds a "sync" response from the given metadata.
-func SyncResponse(metadata interface{}) Response {
-	if _, ok := metadata.(error); ok {
+// SyncResponse builds a "sync" response from the given result.
+func SyncResponse(result interface{}) Response {
+	if _, ok := result.(error); ok {
 		return InternalError
 	}
 
-	if rsp, ok := metadata.(Response); ok {
+	if rsp, ok := result.(Response); ok {
 		return rsp
 	}
 
 	return &resp{
-		Type:     ResponseTypeSync,
-		Status:   http.StatusOK,
-		Metadata: metadata,
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
+		Result: result,
 	}
 }
 
 // AsyncResponse builds an "async" response from the given *Task
-func AsyncResponse(metadata map[string]interface{}) Response {
+func AsyncResponse(result map[string]interface{}) Response {
 	return &resp{
-		Type:     ResponseTypeAsync,
-		Status:   http.StatusAccepted,
-		Metadata: metadata,
+		Type:   ResponseTypeAsync,
+		Status: http.StatusAccepted,
+		Result: result,
 	}
 }
 
