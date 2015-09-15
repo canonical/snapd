@@ -101,7 +101,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 			flags |= AllowUnauthenticated
 		}
 
-		return installClick(name, flags, meter, sideloadedOrigin)
+		return installClick(name, flags, meter, SideloadedOrigin)
 	}
 
 	// check repos next

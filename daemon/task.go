@@ -130,6 +130,8 @@ func RunTask(f func() interface{}) *Task {
 		t.metadata = out
 
 		if err, ok := out.(error); ok {
+			// // TODO: make errors properly json-serializable, and avoid this hack (loses info!)
+			// t.metadata = err.Error()
 			return err
 		}
 

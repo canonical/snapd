@@ -750,7 +750,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 		cm.Name = fmt.Sprintf("%s.%s", cm.Name, origin)
 	}
 
-	if origin == sideloadedOrigin {
+	if origin == SideloadedOrigin {
 		cm.Version = filepath.Base(filepath.Join(clickMetaDir, "..", ".."))
 	}
 

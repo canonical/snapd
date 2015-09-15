@@ -258,7 +258,17 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		return true
 	})
 
-	exceptions := []string{"api", "newRepo", "newLocalRepo", "newRemoteRepo", "muxVars", "pkgActionDispatch", "findServices"}
+	exceptions := []string{ // keep sorted, for scanning ease
+		"api",
+		"findServices",
+		"maxReadBuflen",
+		"muxVars",
+		"newLocalRepo",
+		"newRemoteRepo",
+		"newRepo",
+		"newSnap",
+		"pkgActionDispatch",
+	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
 }
@@ -625,4 +635,52 @@ func (s *apiSuite) TestPackageServicePut(c *check.C) {
 	c.Assert(rsp, check.NotNil)
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
 	c.Check(rsp.Status, check.Equals, http.StatusAccepted)
+}
+
+func (s *apiSuite) TestSideloadPackage(c *check.C) {
+	// try a direct upload, with no x-allow-unsigned header
+	s.sideloadCheck(c, "xyzzy", false, nil)
+	// try a direct upload *with* an x-allow-unsigned header
+	s.sideloadCheck(c, "xyzzy", true, map[string]string{"X-Allow-Unsigned": "Very Yes"})
+	// try a multipart/form-data upload without allow-unsigned
+	s.sideloadCheck(c, "----hello--\r\nContent-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n\r\nxyzzy\r\n----hello----\r\n", false, map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"})
+	// and one *with* allow-unsigned
+	s.sideloadCheck(c, "----hello--\r\nContent-Disposition: form-data; name=\"unsigned-ok\"\r\n\r\n----hello--\r\nContent-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n\r\nxyzzy\r\n----hello----\r\n", false, map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"})
+}
+
+func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bool, head map[string]string) {
+	ch := make(chan struct{})
+	tmpfile, err := ioutil.TempFile("", "test-")
+	c.Assert(err, check.IsNil)
+	_, err = tmpfile.WriteString(content)
+	c.Check(err, check.IsNil)
+	_, err = tmpfile.Seek(0, 0)
+	c.Check(err, check.IsNil)
+
+	// setup done
+
+	newSnap = func(fn string, origin string, unauthOk bool) (snappy.Part, error) {
+		c.Check(origin, check.Equals, snappy.SideloadedOrigin)
+		c.Check(unauthOk, check.Equals, unsignedExpected)
+
+		bs, err := ioutil.ReadFile(fn)
+		c.Check(err, check.IsNil)
+		c.Check(string(bs), check.Equals, "xyzzy")
+
+		ch <- struct{}{}
+
+		return &tP{}, nil
+	}
+	defer func() { newSnap = newSnapImpl }()
+
+	req, err := http.NewRequest("POST", "/1.0/packages", tmpfile)
+	c.Assert(err, check.IsNil)
+	for k, v := range head {
+		req.Header.Set(k, v)
+	}
+
+	rsp := sideloadPackage(packagesCmd, req).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+
+	<-ch
 }
