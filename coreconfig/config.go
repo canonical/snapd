@@ -40,8 +40,8 @@ const (
 )
 
 var (
-	tzZoneInfoPath   string = "/usr/share/zoneinfo"
-	tzZoneInfoTarget string = "/etc/localtime"
+	tzZoneInfoPath   = "/usr/share/zoneinfo"
+	tzZoneInfoTarget = "/etc/localtime"
 )
 
 const (
