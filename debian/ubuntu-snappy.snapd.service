@@ -1,0 +1,6 @@
+[Unit]
+Description=Snappy daemon
+After=snappy-wait4network.service
+
+[Service]
+ExecStart=/usr/bin/snapd

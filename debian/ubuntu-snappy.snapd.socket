@@ -1,0 +1,9 @@
+[Unit]
+Description=Socket activation for snappy daemon
+After=snappy-wait4network.service
+
+[Socket]
+ListenStream=@snapd
+
+[Install]
+WantedBy=multi-user.target
