@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/coreos/go-systemd/activation"
 	"github.com/gorilla/mux"
@@ -33,9 +35,11 @@ import (
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
-	listener net.Listener
-	tomb     tomb.Tomb
-	router   *mux.Router
+	sync.RWMutex // for concurrent access to the tasks map
+	tasks        map[string]*Task
+	listener     net.Listener
+	tomb         tomb.Tomb
+	router       *mux.Router
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -53,9 +57,9 @@ type Command struct {
 	d *Daemon
 }
 
-func (c *Command) handler(w http.ResponseWriter, r *http.Request) {
+func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var rspf ResponseFunc
-	rsp := BadMethod
+	var rsp Response = BadMethod
 
 	switch r.Method {
 	case "GET":
@@ -71,12 +75,41 @@ func (c *Command) handler(w http.ResponseWriter, r *http.Request) {
 		rsp = rspf(c, r)
 	}
 
-	rsp.Handler(w, r)
+	rsp.ServeHTTP(w, r)
+}
+
+type wrappedWriter struct {
+	w http.ResponseWriter
+	s int
+}
+
+func (w *wrappedWriter) Header() http.Header {
+	return w.w.Header()
+}
+
+func (w *wrappedWriter) Write(bs []byte) (int, error) {
+	return w.w.Write(bs)
+}
+
+func (w *wrappedWriter) WriteHeader(s int) {
+	w.w.WriteHeader(s)
+	w.s = s
+}
+
+func logit(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ww := &wrappedWriter{w: w}
+		t0 := time.Now()
+		handler.ServeHTTP(ww, r)
+		t := time.Now().Sub(t0)
+		logger.Debugf("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
+	})
 }
 
 // Init sets up the Daemon's internal workings.
 // Don't call more than once.
 func (d *Daemon) Init() error {
+	t0 := time.Now()
 	listeners, err := activation.Listeners(false)
 	if err != nil {
 		return err
@@ -88,23 +121,38 @@ func (d *Daemon) Init() error {
 
 	d.listener = listeners[0]
 
+	d.addRoutes()
+
+	logger.Debugf("init done in %s", time.Now().Sub(t0))
+
+	return nil
+}
+
+const (
+	iconPath   = "/var/lib/snappy/icons/"
+	iconPrefix = "/1.0/icons/"
+)
+
+func (d *Daemon) addRoutes() {
 	d.router = mux.NewRouter()
 
 	for _, c := range api {
 		c.d = d
 		logger.Debugf("adding %s", c.Path)
-		d.router.HandleFunc(c.Path, c.handler).Name(c.Path)
+		d.router.Handle(c.Path, c).Name(c.Path)
 	}
 
-	d.router.NotFoundHandler = http.HandlerFunc(NotFound.Handler)
+	// hrmph
+	d.router.PathPrefix(iconPrefix).Handler(http.StripPrefix(iconPrefix, http.FileServer(http.Dir(iconPath)))).Name(iconPrefix)
+	// also maybe add a /favicon.ico handler...
 
-	return nil
+	d.router.NotFoundHandler = NotFound
 }
 
 // Start the Daemon
 func (d *Daemon) Start() {
 	d.tomb.Go(func() error {
-		return http.Serve(d.listener, d.router)
+		return http.Serve(d.listener, logit(d.router))
 	})
 }
 
@@ -119,7 +167,26 @@ func (d *Daemon) Dying() <-chan struct{} {
 	return d.tomb.Dying()
 }
 
+// AddTask runs the given function as a task
+func (d *Daemon) AddTask(f func() interface{}) *Task {
+	t := RunTask(f)
+	d.Lock()
+	defer d.Unlock()
+	d.tasks[t.UUID()] = t
+
+	return t
+}
+
+// GetTask retrieves a task from the tasks map, by uuid.
+func (d *Daemon) GetTask(uuid string) *Task {
+	d.RLock()
+	defer d.RUnlock()
+	return d.tasks[uuid]
+}
+
 // New Daemon
 func New() *Daemon {
-	return &Daemon{}
+	return &Daemon{
+		tasks: make(map[string]*Task),
+	}
 }

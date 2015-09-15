@@ -46,7 +46,9 @@ The following keys are optional:
     * `stop`: (optional) the command to stop the service
     * `stop-timeout`: (optional) the time in seconds to wait for the
                       service to stop
-    * `poststop`: a command that runs after the service has stopped
+    * `poststop`: (optional) a command that runs after the service has stopped
+    * `forking`: (optional) set to "true" if the service calls fork() as
+                 part of its startup
     * `caps`: (optional) list of additional security policies to add.
               See `security.md` for details
     * `security-template`: (optional) alternate security template to use

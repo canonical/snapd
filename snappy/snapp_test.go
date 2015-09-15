@@ -597,7 +597,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(snap, NotNil)
 
 	// the actual test
-	results, err := snap.Details(funkyAppName + "." + funkyAppOrigin)
+	results, err := snap.Details(funkyAppName, funkyAppOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Check(results[0].Name(), Equals, funkyAppName)
@@ -626,7 +626,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(snap, NotNil)
 
 	// the actual test
-	results, err := snap.Details("no-such-pkg")
+	results, err := snap.Details("no-such-pkg", "")
 	c.Assert(results, HasLen, 0)
 	c.Assert(err, NotNil)
 }
@@ -934,7 +934,7 @@ type: oem
 	c.Assert(repo, NotNil)
 
 	// we just ensure that the right header is set
-	repo.Details("xkcd")
+	repo.Details("xkcd", "")
 }
 
 func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {

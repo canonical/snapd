@@ -94,9 +94,11 @@ func execHook(execCmd string) (err error) {
 	cmd := exec.Command("sh", "-c", execCmd)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		if exitCode, err := helpers.ExitCode(err); err == nil {
-			return &ErrHookFailed{cmd: execCmd,
-				output:   string(output),
-				exitCode: exitCode}
+			return &ErrHookFailed{
+				Cmd:      execCmd,
+				Output:   string(output),
+				ExitCode: exitCode,
+			}
 		}
 		return err
 	}
@@ -400,9 +402,9 @@ func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error 
 			value := v.Field(i).String()
 			if !r.MatchString(value) {
 				return &ErrStructIllegalContent{
-					field:     key,
-					content:   value,
-					whitelist: whitelist,
+					Field:     key,
+					Content:   value,
+					Whitelist: whitelist,
 				}
 			}
 		}
@@ -447,6 +449,7 @@ func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile str
 			IsFramework:    m.Type == pkg.TypeFramework,
 			IsNetworked:    service.Ports != nil && len(service.Ports.External) > 0,
 			BusName:        service.BusName,
+			Forking:        service.Forking,
 			UdevAppName:    udevPartName,
 			Socket:         service.Socket,
 			SocketFileName: socketFileName,
@@ -750,7 +753,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 		cm.Name = fmt.Sprintf("%s.%s", cm.Name, origin)
 	}
 
-	if origin == sideloadedOrigin {
+	if origin == SideloadedOrigin {
 		cm.Version = filepath.Base(filepath.Join(clickMetaDir, "..", ".."))
 	}
 
@@ -835,9 +838,9 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 			if err := cmd.Run(); err != nil {
 				if exitCode, err := helpers.ExitCode(err); err == nil {
 					return &ErrDataCopyFailed{
-						oldPath:  oldPath,
-						newPath:  newPath,
-						exitCode: exitCode}
+						OldPath:  oldPath,
+						NewPath:  newPath,
+						ExitCode: exitCode}
 				}
 				return err
 			}

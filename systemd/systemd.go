@@ -93,6 +93,7 @@ type Systemd interface {
 	GenServiceFile(desc *ServiceDescription) string
 	GenSocketFile(desc *ServiceDescription) string
 	Status(service string) (string, error)
+	ServiceStatus(service string) (*ServiceStatus, error)
 	Logs(services []string) ([]Log, error)
 }
 
@@ -115,6 +116,7 @@ type ServiceDescription struct {
 	IsNetworked     bool
 	BusName         string
 	UdevAppName     string
+	Forking         bool
 	Socket          bool
 	SocketFileName  string
 	ListenStream    string
@@ -215,12 +217,30 @@ func (*systemd) Logs(serviceNames []string) ([]Log, error) {
 var statusregex = regexp.MustCompile(`(?m)^(?:(.*?)=(.*))?$`)
 
 func (s *systemd) Status(serviceName string) (string, error) {
-	bs, err := SystemctlCmd("show", "--property=Id,LoadState,ActiveState,SubState,UnitFileState", serviceName)
+	status, err := s.ServiceStatus(serviceName)
 	if err != nil {
 		return "", err
 	}
 
-	load, active, sub, unit := "", "", "", ""
+	return fmt.Sprintf("%s; %s; %s (%s)", status.UnitFileState, status.LoadState, status.ActiveState, status.SubState), nil
+}
+
+// A ServiceStatus holds structured service status information.
+type ServiceStatus struct {
+	ServiceFileName string `json:"service_file_name"`
+	LoadState       string `json:"load_state"`
+	ActiveState     string `json:"active_state"`
+	SubState        string `json:"sub_state"`
+	UnitFileState   string `json:"unit_file_state"`
+}
+
+func (s *systemd) ServiceStatus(serviceName string) (*ServiceStatus, error) {
+	bs, err := SystemctlCmd("show", "--property=Id,LoadState,ActiveState,SubState,UnitFileState", serviceName)
+	if err != nil {
+		return nil, err
+	}
+
+	status := &ServiceStatus{ServiceFileName: serviceName}
 
 	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
 		if len(bs[0]) > 0 {
@@ -228,18 +248,18 @@ func (s *systemd) Status(serviceName string) (string, error) {
 			v := string(bs[2])
 			switch k {
 			case "LoadState":
-				load = v
+				status.LoadState = v
 			case "ActiveState":
-				active = v
+				status.ActiveState = v
 			case "SubState":
-				sub = v
+				status.SubState = v
 			case "UnitFileState":
-				unit = v
+				status.UnitFileState = v
 			}
 		}
 	}
 
-	return fmt.Sprintf("%s; %s; %s (%s)", unit, load, active, sub), nil
+	return status, nil
 }
 
 // Stop the given service, and wait until it has stopped.
@@ -291,8 +311,9 @@ Environment="SNAP_APP={{.AppTriple}}" {{.EnvVars}}
 {{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
 {{if .PostStop}}ExecStopPost=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathPostStop}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
-{{if .BusName}}BusName={{.BusName}}{{end}}
-{{if .BusName}}Type=dbus{{end}}
+{{if .BusName}}BusName={{.BusName}}
+Type=dbus{{else}}{{if .Forking}}Type=forking{{end}}
+{{end}}
 
 [Install]
 WantedBy={{.ServiceSystemdTarget}}
@@ -434,7 +455,12 @@ func IsTimeout(err error) bool {
 
 const myFmt = "2006-01-02T15:04:05.000000Z07:00"
 
-func (l Log) String() string {
+// Timestamp of the Log, formatted like RFC3339 to µs precision.
+//
+// If no timestamp, the string "-(no timestamp!)-" -- and something is
+// wrong with your system. Some other "impossible" error conditions
+// also result in "-(errror message)-" timestamps.
+func (l Log) Timestamp() string {
 	t := "-(no timestamp!)-"
 	if ius, ok := l["__REALTIME_TIMESTAMP"]; ok {
 		// according to systemd.journal-fields(7) it's microseconds as a decimal string
@@ -450,14 +476,37 @@ func (l Log) String() string {
 		}
 	}
 
-	sid, ok := l["SYSLOG_IDENTIFIER"].(string)
-	if !ok {
-		sid = "-"
-	}
-	msg, ok := l["MESSAGE"].(string)
-	if !ok {
-		msg = "-"
+	return t
+}
+
+// RawTimestamp of the log: microseconds since epoch UTC, as a decimal
+// string, or "-" if missing.
+func (l Log) RawTimestamp() string {
+	if ius, ok := l["__REALTIME_TIMESTAMP"].(string); ok {
+		return ius
 	}
 
-	return fmt.Sprintf("%s %s %s", t, sid, msg)
+	return "-"
+}
+
+// Message of the Log, if any; otherwise, "-".
+func (l Log) Message() string {
+	if msg, ok := l["MESSAGE"].(string); ok {
+		return msg
+	}
+
+	return "-"
+}
+
+// SID is the syslog identifier of the Log, if any; otherwise, "-".
+func (l Log) SID() string {
+	if sid, ok := l["SYSLOG_IDENTIFIER"].(string); ok {
+		return sid
+	}
+
+	return "-"
+}
+
+func (l Log) String() string {
+	return fmt.Sprintf("%s %s %s", l.Timestamp(), l.SID(), l.Message())
 }
