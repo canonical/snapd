@@ -26,6 +26,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -644,6 +645,7 @@ func sideloadPackage(c *Command, r *http.Request) Response {
 		logger.Noticef("router can't find route for operation")
 		return InternalError
 	}
+
 	body := r.Body
 	unsignedOk := false
 	contentType := r.Header.Get("Content-Type")
@@ -664,18 +666,21 @@ func sideloadPackage(c *Command, r *http.Request) Response {
 		// if allow-unsigned is present in the form, unsigned is OK
 		_, unsignedOk = form.Value["allow-unsigned"]
 
-	out:
 		// form.File is a map of arrays of *FileHeader things
 		// we just allow one (for now at least)
+	out:
 		for _, v := range form.File {
 			for i := range v {
 				body, err = v[i].Open()
 				if err != nil {
 					return BadRequest
 				}
+				defer body.Close()
+
 				break out
 			}
 		}
+		defer form.RemoveAll()
 	} else {
 		// Looks like user didn't understand that multipart thing.
 		// Maybe they just POSTed the snap at us (quite handy to do with e.g. curl).
@@ -691,10 +696,13 @@ func sideloadPackage(c *Command, r *http.Request) Response {
 	}
 
 	if _, err := io.Copy(tmpf, body); err != nil {
+		os.Remove(tmpf.Name())
 		return InternalError // maybe BadRequest?
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
+		defer os.Remove(tmpf.Name())
+
 		part, err := newSnap(tmpf.Name(), snappy.SideloadedOrigin, unsignedOk)
 		if err != nil {
 			return err
