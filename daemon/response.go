@@ -151,8 +151,11 @@ func ErrorResponse(status int) ErrorResponseFunc {
 	return r.SetError
 }
 
+// ErrorResponseFunc is a callable error Response.
+// So you can return e.g. InternalError, or InternalError(err, "something broke"), etc.
 type ErrorResponseFunc func(error, string, ...interface{}) Response
 
+// Render the response
 func (f ErrorResponseFunc) Render(w http.ResponseWriter) ([]byte, int) {
 	return f(nil, "").Render(w)
 }
@@ -161,6 +164,7 @@ func (f ErrorResponseFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f(nil, "").ServeHTTP(w, r)
 }
 
+// Self returns (a copy of) this same response; mostly for convenience.
 func (f ErrorResponseFunc) Self(*Command, *http.Request) Response {
 	return f(nil, "")
 }
