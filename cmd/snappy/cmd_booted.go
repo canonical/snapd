@@ -21,6 +21,7 @@ package main
 
 import (
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/snappy"
 )
@@ -46,6 +47,11 @@ func (x *cmdBooted) doBooted() error {
 	parts, err := snappy.ActiveSnapsByType(pkg.TypeCore)
 	if err != nil {
 		return err
+	}
+
+	// FIXME: move into its own job?
+	if err := partition.MigrateToDynamicGrub(); err != nil {
+		logger.Noticef("failed to migrate grub cfg: %v", err)
 	}
 
 	return parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
