@@ -37,6 +37,10 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-pubuntu-snappy \
 		snappy-wait4network.service
+	# enable snapd
+	dh_systemd_enable \
+		-pubuntu-snappy \
+		ubuntu-snappy.snapd.socket
 
 override_dh_systemd_start:
 	# start boot-ok
@@ -60,6 +64,10 @@ override_dh_systemd_start:
 	dh_systemd_start \
 		-pubuntu-snappy \
 		snappy-wait4network.service
+	# start snapd
+	dh_systemd_start \
+		-pubuntu-snappy \
+		ubuntu-snappy.snapd.socket
 
 # we need the builddir; is there a simpler way to get it?
 BUILDDIR:=${CURDIR}/obj-$(shell dpkg-architecture -qDEB_TARGET_GNU_TYPE)

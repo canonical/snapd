@@ -1,0 +1,5 @@
+[Unit]
+Description=Snappy daemon
+
+[Service]
+ExecStart=/usr/bin/snapd
