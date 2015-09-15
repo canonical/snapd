@@ -37,6 +37,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/snappy"
 )
@@ -257,7 +258,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		return true
 	})
 
-	exceptions := []string{"api", "newRepo", "newLocalRepo", "newRemoteRepo", "muxVars", "pkgActionDispatch"}
+	exceptions := []string{"api", "newRepo", "newLocalRepo", "newRemoteRepo", "muxVars", "pkgActionDispatch", "findServices"}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
 }
@@ -543,6 +544,7 @@ func (s *apiSuite) TestPackageGetConfig(c *check.C) {
 		Metadata: configStr,
 	})
 }
+
 func (s *apiSuite) TestPackagePutConfig(c *check.C) {
 	d := New()
 	d.addRoutes()
@@ -567,4 +569,60 @@ func (s *apiSuite) TestPackagePutConfig(c *check.C) {
 		Status:   http.StatusOK,
 		Metadata: newConfigStr,
 	})
+}
+
+func (s *apiSuite) TestPackageServiceGet(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
+		return &tSA{ssout: []*snappy.PackageServiceStatus{{ServiceName: "svc"}}}, nil
+	}
+
+	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/services", nil)
+	c.Assert(err, check.IsNil)
+
+	s.parts = []snappy.Part{
+		&tP{name: "foo", version: "v1", origin: "bar", isActive: true,
+			svcYamls: []snappy.ServiceYaml{{Name: "svc"}},
+		},
+	}
+	s.vars = map[string]string{"package": "foo.bar"} // NB: no service specified
+
+	rsp := packageService(packageSvcsCmd, req).(*resp)
+	c.Assert(rsp, check.NotNil)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+
+	m := rsp.Metadata.(map[string]*svcDesc)
+	c.Assert(m["svc"], check.DeepEquals, &svcDesc{
+		Op:     "status",
+		Spec:   &snappy.ServiceYaml{Name: "svc"},
+		Status: &snappy.PackageServiceStatus{ServiceName: "svc"},
+	})
+}
+
+func (s *apiSuite) TestPackageServicePut(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
+		return &tSA{ssout: []*snappy.PackageServiceStatus{{ServiceName: "svc"}}}, nil
+	}
+
+	buf := bytes.NewBufferString(`{"action": "stop"}`)
+	req, err := http.NewRequest("PUT", "/1.0/packages/foo.bar/services", buf)
+	c.Assert(err, check.IsNil)
+
+	s.parts = []snappy.Part{
+		&tP{name: "foo", version: "v1", origin: "bar", isActive: true,
+			svcYamls: []snappy.ServiceYaml{{Name: "svc"}},
+		},
+	}
+	s.vars = map[string]string{"package": "foo.bar"} // NB: no service specified
+
+	rsp := packageService(packageSvcsCmd, req).(*resp)
+	c.Assert(rsp, check.NotNil)
+	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+	c.Check(rsp.Status, check.Equals, http.StatusAccepted)
 }

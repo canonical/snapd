@@ -41,6 +41,8 @@ var api = []*Command{
 	packagesCmd,
 	packageCmd,
 	packageConfigCmd,
+	packageSvcCmd,
+	packageSvcsCmd,
 	operationCmd,
 }
 
@@ -70,6 +72,18 @@ var (
 		Path: "/1.0/packages/{package}/config",
 		GET:  packageConfig,
 		PUT:  packageConfig,
+	}
+
+	packageSvcsCmd = &Command{
+		Path: "/1.0/packages/{package}/services",
+		GET:  packageService,
+		PUT:  packageService,
+	}
+
+	packageSvcCmd = &Command{
+		Path: "/1.0/packages/{package}/services/{service}",
+		GET:  packageService,
+		PUT:  packageService,
 	}
 
 	operationCmd = &Command{
@@ -283,26 +297,166 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 	})
 }
 
-func packageConfig(c *Command, r *http.Request) Response {
-	pkgName := muxVars(r)["package"]
-	if pkgName == "" {
-		return BadRequest
-	}
-
+func getActivePkg(qn string) ([]snappy.Part, error) {
 	// TODO: below should be rolled into ActiveSnapByName
 	// (specifically: ActiveSnapByname should know about origins)
 	repo := newLocalRepo()
 	all, err := repo.All()
 	if err != nil {
 		logger.Noticef("unable to get package list: %v", err)
-		return InternalError
+		return nil, err
 	}
 
 	parts := all[:0]
-	for _, part := range snappy.FindSnapsByName(pkgName, all) {
+	for _, part := range snappy.FindSnapsByName(qn, all) {
 		if part.IsActive() {
 			parts = append(parts, part)
 		}
+	}
+
+	return parts, nil
+}
+
+var findServices = snappy.FindServices
+
+type svcDesc struct {
+	Op     string                       `json:"op"`
+	Spec   *snappy.ServiceYaml          `json:"spec"`
+	Status *snappy.PackageServiceStatus `json:"status"`
+}
+
+func packageService(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(operationCmd.Path)
+	if route == nil {
+		logger.Noticef("router can't find route for operation")
+		return InternalError
+	}
+
+	vars := muxVars(r)
+	pkgName := vars["package"]
+	if pkgName == "" {
+		return BadRequest
+	}
+	svcName := vars["service"]
+
+	action := "status"
+
+	if r.Method != "GET" {
+		decoder := json.NewDecoder(r.Body)
+		var cmd map[string]string
+		if err := decoder.Decode(&cmd); err != nil {
+			logger.Noticef("can't decode request body into service command: %v", err)
+			return BadRequest
+		}
+
+		action = cmd["action"]
+	}
+
+	switch action {
+	case "status", "start", "stop", "restart", "enable", "disable":
+		// ok
+	default:
+		return BadRequest
+	}
+
+	parts, err := getActivePkg(pkgName)
+	if err != nil {
+		return InternalError
+	}
+
+	switch len(parts) {
+	default:
+		return BadRequest
+	case 0:
+		return NotFound
+	case 1:
+		// yay, or something
+	}
+
+	part, ok := parts[0].(snappy.ServiceYamler)
+	if !ok {
+		return InternalError
+	}
+	svcs := part.ServiceYamls()
+
+	if len(svcs) == 0 {
+		return NotFound
+	}
+
+	svcmap := make(map[string]*svcDesc, len(svcs))
+	for i := range svcs {
+		svcmap[svcs[i].Name] = &svcDesc{Spec: &svcs[i], Op: action}
+	}
+
+	if svcName != "" && svcmap[svcName] == nil {
+		return NotFound
+	}
+
+	actor, err := findServices(pkgName, svcName, &progress.NullProgress{})
+	if err != nil {
+		logger.Noticef("no services found: %v", err)
+		return NotFound
+	}
+
+	f := func() interface{} {
+		status, err := actor.ServiceStatus()
+		if err != nil {
+			logger.Noticef("unable to get status for %s [%s]: %v", pkgName, svcName, err)
+			return err
+		}
+
+		for i := range status {
+			if desc, ok := svcmap[status[i].ServiceName]; ok {
+				desc.Status = status[i]
+			} else {
+				// shouldn't really happen, but can't hurt
+				svcmap[status[i].ServiceName] = &svcDesc{Status: status[i]}
+			}
+		}
+
+		if svcName == "" {
+			return svcmap
+		}
+
+		return svcmap[svcName]
+	}
+
+	if action == "status" {
+		return SyncResponse(f())
+	}
+
+	return AsyncResponse(c.d.AddTask(func() interface{} {
+		switch action {
+		case "start":
+			err = actor.Start()
+		case "stop":
+			err = actor.Stop()
+		case "enable":
+			err = actor.Enable()
+		case "disable":
+			err = actor.Disable()
+		case "restart":
+			err = actor.Restart()
+		}
+
+		if err != nil {
+			logger.Noticef("unable to %s %s [%s]: %v\n", action, pkgName, svcName, err)
+			return err
+		}
+
+		return f()
+	}).Map(route))
+}
+
+func packageConfig(c *Command, r *http.Request) Response {
+	pkgName := muxVars(r)["package"]
+	if pkgName == "" {
+		return BadRequest
+	}
+
+	parts, err := getActivePkg(pkgName)
+	if err != nil {
+		return InternalError
 	}
 
 	switch len(parts) {

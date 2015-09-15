@@ -152,6 +152,22 @@ func (s *SystemdTestSuite) TestStatus(c *C) {
 	c.Check(out, Equals, "UnitFileState; LoadState; ActiveState (SubState)")
 }
 
+func (s *SystemdTestSuite) TestStatusObj(c *C) {
+	s.outs = [][]byte{
+		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\nUnitFileState=UnitFileState\n"),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).ServiceStatus("foo")
+	c.Assert(err, IsNil)
+	c.Check(out, DeepEquals, &ServiceStatus{
+		ServiceFileName: "foo",
+		LoadState:       "LoadState",
+		ActiveState:     "ActiveState",
+		SubState:        "SubState",
+		UnitFileState:   "UnitFileState",
+	})
+}
+
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {
 	oldSteps := stopSteps
 	oldDelay := stopDelay
