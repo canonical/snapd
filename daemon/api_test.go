@@ -112,7 +112,7 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 	expected := &resp{
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
-		Metadata: map[string]string{
+		Result: map[string]string{
 			"name":           "foo",
 			"version":        "v1",
 			"description":    "description",
@@ -285,7 +285,7 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Metadata, check.DeepEquals, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestV1(c *check.C) {
@@ -319,7 +319,7 @@ func (s *apiSuite) TestV1(c *check.C) {
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Metadata, check.DeepEquals, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
@@ -340,9 +340,9 @@ func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
-	c.Check(rsp.Metadata, check.NotNil)
+	c.Check(rsp.Result, check.NotNil)
 
-	meta, ok := rsp.Metadata.(map[string]interface{})
+	meta, ok := rsp.Result.(map[string]interface{})
 	c.Assert(ok, check.Equals, true)
 	c.Assert(meta, check.NotNil)
 	c.Check(meta["paging"], check.DeepEquals, map[string]interface{}{"pages": 1, "page": 1, "count": len(s.parts)})
@@ -384,13 +384,13 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Metadata, check.DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
 		"resource":   "/1.0/operations/" + id,
 		"status":     TaskRunning,
 		"may_cancel": false,
 		"created_at": FormatTime(t.CreatedAt()),
 		"updated_at": FormatTime(t.UpdatedAt()),
-		"metadata":   nil,
+		"output":     nil,
 	})
 	tf1 := t.UpdatedAt().UTC().UnixNano()
 
@@ -401,13 +401,13 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Metadata, check.DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
 		"resource":   "/1.0/operations/" + id,
 		"status":     TaskSucceeded,
 		"may_cancel": false,
 		"created_at": FormatTime(t.CreatedAt()),
 		"updated_at": FormatTime(t.UpdatedAt()),
-		"metadata":   "hello",
+		"output":     "hello",
 	})
 
 	tf2 := t.UpdatedAt().UTC().UnixNano()
@@ -481,7 +481,7 @@ func (s *apiSuite) TestPostPackage(c *check.C) {
 	rsp := postPackage(packageCmd, req).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
-	m := rsp.Metadata.(map[string]interface{})
+	m := rsp.Result.(map[string]interface{})
 	c.Assert(m["resource"], check.Matches, "/1.0/operations/.*")
 
 	uuid := m["resource"].(string)[16:]
@@ -497,7 +497,7 @@ func (s *apiSuite) TestPostPackage(c *check.C) {
 	task = d.GetTask(uuid)
 	c.Assert(task, check.NotNil)
 	c.Check(task.State(), check.Equals, TaskSucceeded)
-	c.Check(task.Metadata(), check.Equals, "hi")
+	c.Check(task.Output(), check.Equals, "hi")
 }
 
 func (s *apiSuite) TestPostPackageDispatch(c *check.C) {
@@ -543,9 +543,9 @@ func (s *apiSuite) TestPackageGetConfig(c *check.C) {
 	rsp := packageConfig(packagesCmd, req).(*resp)
 
 	c.Check(rsp, check.DeepEquals, &resp{
-		Type:     ResponseTypeSync,
-		Status:   http.StatusOK,
-		Metadata: configStr,
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
+		Result: configStr,
 	})
 }
 
@@ -569,9 +569,9 @@ func (s *apiSuite) TestPackagePutConfig(c *check.C) {
 	rsp := packageConfig(packagesCmd, req).(*resp)
 
 	c.Check(rsp, check.DeepEquals, &resp{
-		Type:     ResponseTypeSync,
-		Status:   http.StatusOK,
-		Metadata: newConfigStr,
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
+		Result: newConfigStr,
 	})
 }
 
@@ -598,7 +598,7 @@ func (s *apiSuite) TestPackageServiceGet(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 
-	m := rsp.Metadata.(map[string]*svcDesc)
+	m := rsp.Result.(map[string]*svcDesc)
 	c.Assert(m["svc"], check.DeepEquals, &svcDesc{
 		Op:     "status",
 		Spec:   &snappy.ServiceYaml{Name: "svc"},

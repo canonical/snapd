@@ -43,7 +43,7 @@ func (s *taskSuite) TestTask(c *check.C) {
 	})
 
 	c.Check(t.UUID(), check.Equals, t.id.String())
-	c.Check(t.Metadata(), check.IsNil)
+	c.Check(t.Output(), check.IsNil)
 	c.Check(t.State(), check.Equals, TaskRunning)
 	c.Check(t.Location(route), check.Equals, "/xyzzy/"+t.id.String())
 
@@ -53,7 +53,7 @@ func (s *taskSuite) TestTask(c *check.C) {
 	time.Sleep(time.Millisecond)
 
 	c.Check(t.State(), check.Equals, TaskSucceeded)
-	c.Check(t.Metadata(), check.Equals, 42)
+	c.Check(t.Output(), check.Equals, 42)
 }
 
 func (s *taskSuite) TestFails(c *check.C) {
@@ -69,7 +69,7 @@ func (s *taskSuite) TestFails(c *check.C) {
 	})
 
 	c.Check(t.UUID(), check.Equals, t.id.String())
-	c.Check(t.Metadata(), check.IsNil)
+	c.Check(t.Output(), check.IsNil)
 	c.Check(t.State(), check.Equals, TaskRunning)
 	c.Check(t.Location(route), check.Equals, "/xyzzy/"+t.id.String())
 
@@ -79,5 +79,5 @@ func (s *taskSuite) TestFails(c *check.C) {
 	time.Sleep(time.Millisecond)
 
 	c.Check(t.State(), check.Equals, TaskFailed)
-	c.Check(t.Metadata(), check.Equals, err)
+	c.Check(t.Output(), check.Equals, err.Error())
 }
