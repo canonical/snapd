@@ -130,8 +130,8 @@ func (actor *serviceActor) Status() ([]string, error) {
 // package information systemd is unaware of.
 type PackageServiceStatus struct {
 	systemd.ServiceStatus
-	PackageName string `json:"package-name"`
-	ServiceName string `json:"service-name"`
+	PackageName string `json:"package_name"`
+	ServiceName string `json:"service_name"`
 }
 
 // ServiceStatus of all the found services.
