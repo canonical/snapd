@@ -26,6 +26,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -690,12 +691,12 @@ func sideloadPackage(c *Command, r *http.Request) Response {
 	}
 
 	if _, err := io.Copy(tmpf, body); err != nil {
-		os.Unlink(tmpf.Name())
+		os.Remove(tmpf.Name())
 		return InternalError // maybe BadRequest?
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
-		defer os.Unlink(tmpf.Name())
+		defer os.Remove(tmpf.Name())
 
 		part, err := newSnap(tmpf.Name(), snappy.SideloadedOrigin, unsignedOk)
 		if err != nil {
