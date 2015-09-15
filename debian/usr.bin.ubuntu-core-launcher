@@ -5,6 +5,7 @@
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
     /etc/ld.so.cache r,
+    /lib/@{multiarch}/ld-*.so mr,
     # libc, you are funny
     /lib/@{multiarch}/libc{,-[0-9]*}.so* mr,
     /lib/@{multiarch}/libpthread{,-[0-9]*}.so* mr,
@@ -15,6 +16,8 @@
     /lib/@{multiarch}/libudev.so* mr,
     /usr/lib/@{multiarch}/libseccomp.so* mr,
     /lib/@{multiarch}/libseccomp.so* mr,
+
+    /usr/bin/ubuntu-core-launcher r,
 
     /dev/null rw,
     /dev/full rw,
