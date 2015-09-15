@@ -1,3 +1,5 @@
 debian/*.service /lib/systemd/system/
 debian/*.target /lib/systemd/system/
 debian/*.timer /lib/systemd/system/
+# grub.d/09_snappy for compatiblity with older systems
+etc
