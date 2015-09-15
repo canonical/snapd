@@ -172,6 +172,7 @@ func (cts *ConfigTestSuite) TestSetTimezoneAlreadyExists(c *C) {
     autopilot: false
     timezone: America/Argentina/Mendoza
     hostname: testhost
+    modprobe: ""
 `
 	canary := []byte("Ni Ni Ni")
 	err := ioutil.WriteFile(tzZoneInfoTarget, canary, 0644)
