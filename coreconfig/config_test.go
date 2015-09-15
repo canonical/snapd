@@ -26,8 +26,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	. "gopkg.in/check.v1"
 	"launchpad.net/snappy/helpers"
+
+	. "gopkg.in/check.v1"
 )
 
 // Hook up check.v1 into the "go test" runner.
@@ -54,6 +55,7 @@ var (
 	originalPppRoot             = pppRoot
 	originalWatchdogStartupPath = watchdogStartupPath
 	originalWatchdogConfigPath  = watchdogConfigPath
+	originalTzZoneInfoTarget    = tzZoneInfoTarget
 )
 
 type ConfigTestSuite struct {
@@ -80,6 +82,7 @@ func (cts *ConfigTestSuite) SetUpTest(c *C) {
 		hostname = host
 		return nil
 	}
+	tzZoneInfoTarget = filepath.Join(c.MkDir(), "localtime")
 
 	interfacesRoot = c.MkDir() + "/"
 	pppRoot = c.MkDir() + "/"
@@ -108,6 +111,7 @@ func (cts *ConfigTestSuite) TearDownTest(c *C) {
 	pppRoot = originalPppRoot
 	watchdogStartupPath = originalWatchdogStartupPath
 	watchdogConfigPath = originalWatchdogConfigPath
+	tzZoneInfoTarget = originalTzZoneInfoTarget
 }
 
 // TestGet is a broad test, close enough to be an integration test for
@@ -158,6 +162,7 @@ func (cts *ConfigTestSuite) TestSetTimezone(c *C) {
 	rawConfig, err := Set(expected)
 	c.Assert(err, IsNil)
 	c.Assert(rawConfig, Equals, expected)
+	c.Assert(helpers.FileExists(tzZoneInfoTarget), Equals, true)
 }
 
 // TestSetAutopilot is a broad test, close enough to be an integration test.

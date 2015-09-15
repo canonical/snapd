@@ -29,11 +29,11 @@ import (
 
 // A Task encapsulates an asynchronous operation.
 type Task struct {
-	id       UUID
-	tomb     tomb.Tomb
-	t0       time.Time
-	tf       time.Time
-	metadata interface{}
+	id     UUID
+	tomb   tomb.Tomb
+	t0     time.Time
+	tf     time.Time
+	output interface{}
 }
 
 // A task can be in one of three states
@@ -53,14 +53,15 @@ func (t *Task) UpdatedAt() time.Time {
 	return t.tf
 }
 
-// Metadata is the outcome of this task. If the task is still running
-// this will be nil.
-func (t *Task) Metadata() interface{} {
+// Output of this task. If the task is still running this will be nil.
+//
+// TODO: output can and should go changing as the task progresses
+func (t *Task) Output() interface{} {
 	if t.tomb.Alive() {
 		return nil
 	}
 
-	return t.metadata
+	return t.output
 }
 
 // State of the task
@@ -108,7 +109,7 @@ func (t *Task) Map(route *mux.Route) map[string]interface{} {
 		"created_at": FormatTime(t.CreatedAt()),
 		"updated_at": FormatTime(t.UpdatedAt()),
 		"may_cancel": false,
-		"metadata":   t.Metadata(),
+		"output":     t.Output(),
 	}
 }
 
@@ -127,9 +128,14 @@ func RunTask(f func() interface{}) *Task {
 			t.tf = time.Now()
 		}()
 		out := f()
-		t.metadata = out
+		t.output = out
 
 		if err, ok := out.(error); ok {
+			// // TODO: make errors properly json-serializable, and avoid this hack (loses info!)
+			t.output = map[string]interface{}{
+				"obj": err,
+				"str": err.Error(),
+			}
 			return err
 		}
 

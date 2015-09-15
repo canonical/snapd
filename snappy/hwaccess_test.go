@@ -302,7 +302,7 @@ exit 1`
 
 	err = regenerateAppArmorRulesImpl()
 	c.Assert(err, DeepEquals, &ErrApparmorGenerate{
-		exitCode: 1,
-		output:   []byte("meep\n"),
+		ExitCode: 1,
+		Output:   []byte("meep\n"),
 	})
 }

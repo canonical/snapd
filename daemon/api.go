@@ -21,14 +21,18 @@ package daemon
 
 import (
 	"encoding/json"
+	"io"
+	"io/ioutil"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/gorilla/mux"
 
-	"io/ioutil"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
@@ -41,6 +45,9 @@ var api = []*Command{
 	packagesCmd,
 	packageCmd,
 	packageConfigCmd,
+	packageSvcCmd,
+	packageSvcsCmd,
+	packageSvcLogsCmd,
 	operationCmd,
 }
 
@@ -58,18 +65,36 @@ var (
 	packagesCmd = &Command{
 		Path: "/1.0/packages",
 		GET:  getPackagesInfo,
+		POST: sideloadPackage,
 	}
 
 	packageCmd = &Command{
-		Path: "/1.0/packages/{package}",
+		Path: "/1.0/packages/{name}.{origin}",
 		GET:  getPackageInfo,
 		POST: postPackage,
 	}
 
 	packageConfigCmd = &Command{
-		Path: "/1.0/packages/{package}/config",
+		Path: "/1.0/packages/{name}.{origin}/config",
 		GET:  packageConfig,
 		PUT:  packageConfig,
+	}
+
+	packageSvcsCmd = &Command{
+		Path: "/1.0/packages/{name}.{origin}/services",
+		GET:  packageService,
+		PUT:  packageService,
+	}
+
+	packageSvcCmd = &Command{
+		Path: "/1.0/packages/{name}.{origin}/services/{service}",
+		GET:  packageService,
+		PUT:  packageService,
+	}
+
+	packageSvcLogsCmd = &Command{
+		Path: "/1.0/packages/{name}.{origin}/services/{service}/logs",
+		GET:  getLogs,
 	}
 
 	operationCmd = &Command{
@@ -89,7 +114,7 @@ func v1Get(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Details(string) ([]snappy.Part, error)
+	Details(string, string) ([]snappy.Part, error)
 	All() ([]snappy.Part, error)
 }
 
@@ -108,44 +133,36 @@ var newRemoteRepo = func() metarepo {
 var muxVars = mux.Vars
 
 func getPackageInfo(c *Command, r *http.Request) Response {
-	reqName := muxVars(r)["package"]
-	if reqName == "" {
+	vars := muxVars(r)
+	name := vars["name"]
+	origin := vars["origin"]
+	if name == "" || origin == "" {
 		// can't happen, i think? mux won't let it
-		return BadRequest
+		return BadRequest(nil, "missing name or origin")
 	}
+
 	repo := newRepo()
-	found, err := repo.Details(reqName)
+	found, err := repo.Details(name, origin)
 	if err != nil {
 		if err == snappy.ErrPackageNotFound {
 			return NotFound
 		}
 
-		return InternalError
+		return InternalError(err, "unable to list packages: %v", err)
 	}
 
 	if len(found) == 0 {
 		return NotFound
 	}
 
-	name := snappy.QualifiedName(found[0])
-	for i := range found {
-		n := snappy.QualifiedName(found[i])
-		if n != name {
-			logger.Noticef("in getting details for %q: found parts with different qualified names: %q and %q.", reqName, name, n)
-			return InternalError
-		}
-	}
-
 	route := c.d.router.Get(c.Path)
 	if route == nil {
-		logger.Noticef("router can't find route for package %s", name)
-		return InternalError
+		return InternalError(nil, "router can't find route for package %s.%s", name, origin)
 	}
 
-	url, err := route.URL("package", name)
+	url, err := route.URL("name", name, "origin", origin)
 	if err != nil {
-		logger.Noticef("route can't build URL for package %s: %v", name, err)
-		return InternalError
+		return InternalError(err, "route can't build URL for package %s.%s: %v", name, origin, err)
 	}
 
 	result := parts2map(found, url.String())
@@ -206,14 +223,13 @@ func (ps byQN) Less(a, b int) bool {
 	return snappy.QualifiedName(ps[a]) < snappy.QualifiedName(ps[b])
 }
 
-func addPart(results map[string]map[string]string, current []snappy.Part, oldName string, route *mux.Route) []snappy.Part {
-	url, err := route.URL("package", oldName)
+func addPart(results map[string]map[string]string, current []snappy.Part, name string, origin string, route *mux.Route) error {
+	url, err := route.URL("name", name, "origin", origin)
 	if err != nil {
-		logger.Noticef("route can't build URL for package %s: %v", oldName, err)
-		return current
+		return err
 	}
 
-	results[oldName] = parts2map(current, url.String())
+	results[name+"."+origin] = parts2map(current, url.String())
 
 	return nil
 }
@@ -222,8 +238,7 @@ func addPart(results map[string]map[string]string, current []snappy.Part, oldNam
 func getPackagesInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(packageCmd.Path)
 	if route == nil {
-		logger.Noticef("router can't find route for packages")
-		return InternalError
+		return InternalError(nil, "router can't find route for packages")
 	}
 
 	sources := r.URL.Query().Get("sources")
@@ -243,7 +258,7 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 			return NotFound
 		}
 
-		return InternalError
+		return InternalError(err, "unable to list packages: %v", err)
 	}
 
 	if len(found) == 0 {
@@ -255,21 +270,24 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 	results := make(map[string]map[string]string)
 	var current []snappy.Part
 	var oldName string
+	var oldOrigin string
 	for i := range found {
-		name := snappy.QualifiedName(found[i])
-		if name != oldName && len(current) > 0 {
-			current = addPart(results, current, oldName, route)
-			if current != nil {
-				return InternalError
+		name := found[i].Name()
+		origin := found[i].Origin()
+		if (name != oldName || origin != oldOrigin) && len(current) > 0 {
+			if err := addPart(results, current, oldName, oldOrigin, route); err != nil {
+				return InternalError(err, "can't get details for %s.%s: %v", oldName, oldOrigin, err)
 			}
+			current = nil
 		}
 		oldName = name
+		oldOrigin = origin
 		current = append(current, found[i])
 	}
+
 	if len(current) > 0 {
-		current = addPart(results, current, oldName, route)
-		if current != nil {
-			return InternalError
+		if err := addPart(results, current, oldName, oldOrigin, route); err != nil {
+			return InternalError(err, "can't get details for %s.%s: %v", oldName, oldOrigin, err)
 		}
 	}
 
@@ -283,31 +301,173 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 	})
 }
 
-func packageConfig(c *Command, r *http.Request) Response {
-	pkgName := muxVars(r)["package"]
-	if pkgName == "" {
-		return BadRequest
-	}
-
+func getActivePkg(fullname string) ([]snappy.Part, error) {
 	// TODO: below should be rolled into ActiveSnapByName
 	// (specifically: ActiveSnapByname should know about origins)
 	repo := newLocalRepo()
 	all, err := repo.All()
 	if err != nil {
-		logger.Noticef("unable to get package list: %v", err)
-		return InternalError
+		return nil, err
 	}
 
 	parts := all[:0]
-	for _, part := range snappy.FindSnapsByName(pkgName, all) {
+	for _, part := range snappy.FindSnapsByName(fullname, all) {
 		if part.IsActive() {
 			parts = append(parts, part)
 		}
 	}
 
+	return parts, nil
+}
+
+var findServices = snappy.FindServices
+
+type svcDesc struct {
+	Op     string                       `json:"op"`
+	Spec   *snappy.ServiceYaml          `json:"spec"`
+	Status *snappy.PackageServiceStatus `json:"status"`
+}
+
+func packageService(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(operationCmd.Path)
+	if route == nil {
+		return InternalError(nil, "router can't find route for operation")
+	}
+
+	vars := muxVars(r)
+	name := vars["name"]
+	origin := vars["origin"]
+	if name == "" || origin == "" {
+		return BadRequest(nil, "missing name or origin")
+	}
+	svcName := vars["service"]
+	pkgName := name + "." + origin
+
+	action := "status"
+
+	if r.Method != "GET" {
+		decoder := json.NewDecoder(r.Body)
+		var cmd map[string]string
+		if err := decoder.Decode(&cmd); err != nil {
+			return BadRequest(err, "can't decode request body into service command: %v", err)
+		}
+
+		action = cmd["action"]
+	}
+
+	switch action {
+	case "status", "start", "stop", "restart", "enable", "disable":
+		// ok
+	default:
+		return BadRequest(nil, "unknown action %s", action)
+	}
+
+	parts, err := getActivePkg(pkgName)
+	if err != nil {
+		return InternalError(err, "unable to get package list: %v", err)
+	}
+
 	switch len(parts) {
 	default:
-		return BadRequest
+		return InternalError(nil, "found %d active for %s", len(parts), pkgName)
+	case 0:
+		return NotFound
+	case 1:
+		// yay, or something
+	}
+
+	part, ok := parts[0].(snappy.ServiceYamler)
+	if !ok {
+		return InternalError(nil, "active package of type %T does not implement snappy.ServiceYamler", parts[0])
+	}
+	svcs := part.ServiceYamls()
+
+	if len(svcs) == 0 {
+		return NotFound(nil, "package %q has no services", pkgName)
+	}
+
+	svcmap := make(map[string]*svcDesc, len(svcs))
+	for i := range svcs {
+		svcmap[svcs[i].Name] = &svcDesc{Spec: &svcs[i], Op: action}
+	}
+
+	if svcName != "" && svcmap[svcName] == nil {
+		return NotFound(nil, "package %q has no service %q", pkgName, svcName)
+	}
+
+	// note findServices takes the *bare* name
+	actor, err := findServices(name, svcName, &progress.NullProgress{})
+	if err != nil {
+		return InternalError(err, "no services for %q [%q] found: %v", pkgName, svcName, err)
+	}
+
+	f := func() interface{} {
+		status, err := actor.ServiceStatus()
+		if err != nil {
+			logger.Noticef("unable to get status for %q [%q]: %v", pkgName, svcName, err)
+			return err
+		}
+
+		for i := range status {
+			if desc, ok := svcmap[status[i].ServiceName]; ok {
+				desc.Status = status[i]
+			} else {
+				// shouldn't really happen, but can't hurt
+				svcmap[status[i].ServiceName] = &svcDesc{Status: status[i]}
+			}
+		}
+
+		if svcName == "" {
+			return svcmap
+		}
+
+		return svcmap[svcName]
+	}
+
+	if action == "status" {
+		return SyncResponse(f())
+	}
+
+	return AsyncResponse(c.d.AddTask(func() interface{} {
+		switch action {
+		case "start":
+			err = actor.Start()
+		case "stop":
+			err = actor.Stop()
+		case "enable":
+			err = actor.Enable()
+		case "disable":
+			err = actor.Disable()
+		case "restart":
+			err = actor.Restart()
+		}
+
+		if err != nil {
+			logger.Noticef("unable to %s %q [%q]: %v\n", action, pkgName, svcName, err)
+			return err
+		}
+
+		return f()
+	}).Map(route))
+}
+
+func packageConfig(c *Command, r *http.Request) Response {
+	vars := muxVars(r)
+	name := vars["name"]
+	origin := vars["origin"]
+	if name == "" || origin == "" {
+		return BadRequest(nil, "missing name or origin")
+	}
+	pkgName := name + "." + origin
+
+	parts, err := getActivePkg(pkgName)
+	if err != nil {
+		return InternalError(err, "unable to get package list: %v", err)
+	}
+
+	switch len(parts) {
+	default:
+		return InternalError(nil, "found %d active for %s", len(parts), pkgName)
 	case 0:
 		return NotFound
 	case 1:
@@ -316,14 +476,12 @@ func packageConfig(c *Command, r *http.Request) Response {
 
 	bs, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		logger.Noticef("reading config request body gave %v", err)
-		return BadRequest
+		return BadRequest(err, "reading config request body gave %v", err)
 	}
 
 	config, err := parts[0].Config(bs)
 	if err != nil {
-		logger.Noticef("unable to retrieve config for %s: %v", pkgName, err)
-		return InternalError
+		return InternalError(err, "unable to retrieve config for %s: %v", pkgName, err)
 	}
 
 	return SyncResponse(config)
@@ -332,16 +490,10 @@ func packageConfig(c *Command, r *http.Request) Response {
 func getOpInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(c.Path)
 	if route == nil {
-		logger.Noticef("router can't find route for operation")
-		return InternalError
+		return InternalError(nil, "router can't find route for operation")
 	}
 
 	id := muxVars(r)["uuid"]
-	if id == "" {
-		// can't happen, i think? mux won't let it
-		return BadRequest
-	}
-
 	task := c.d.GetTask(id)
 	if task == nil {
 		return NotFound
@@ -444,25 +596,136 @@ var pkgActionDispatch = pkgActionDispatchImpl
 func postPackage(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(operationCmd.Path)
 	if route == nil {
-		logger.Noticef("router can't find route for operation")
-		return InternalError
+		return InternalError(nil, "router can't find route for operation")
 	}
 
 	decoder := json.NewDecoder(r.Body)
 	var inst packageInstruction
 	if err := decoder.Decode(&inst); err != nil {
-		logger.Noticef("can't decode request body into package instruction: %v", err)
-		return BadRequest
+		return BadRequest(err, "can't decode request body into package instruction: %v", err)
 	}
 
-	inst.pkg = muxVars(r)["package"]
+	vars := muxVars(r)
+	inst.pkg = vars["name"] + "." + vars["origin"]
 	inst.prog = &progress.NullProgress{}
 
 	f := pkgActionDispatch(&inst)
 	if f == nil {
-		logger.Noticef("unknown action %s", inst.Action)
-		return BadRequest
+		return BadRequest(nil, "unknown action %s", inst.Action)
 	}
 
 	return AsyncResponse(c.d.AddTask(f).Map(route))
+}
+
+const maxReadBuflen = 1024 * 1024
+
+func newSnapImpl(filename string, origin string, unsignedOk bool) (snappy.Part, error) {
+	return snappy.NewSnapPartFromSnapFile(filename, origin, unsignedOk)
+}
+
+var newSnap = newSnapImpl
+
+func sideloadPackage(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(operationCmd.Path)
+	if route == nil {
+		return InternalError(nil, "router can't find route for operation")
+	}
+
+	body := r.Body
+	unsignedOk := false
+	contentType := r.Header.Get("Content-Type")
+
+	if strings.HasPrefix(contentType, "multipart/") {
+		// spec says POSTs to sideload packages should be “a multipart file upload”
+
+		_, params, err := mime.ParseMediaType(contentType)
+		if err != nil {
+			return BadRequest(err, "")
+		}
+
+		form, err := multipart.NewReader(r.Body, params["boundary"]).ReadForm(maxReadBuflen)
+		if err != nil {
+			return BadRequest(err, "")
+		}
+
+		// if allow-unsigned is present in the form, unsigned is OK
+		_, unsignedOk = form.Value["allow-unsigned"]
+
+		// form.File is a map of arrays of *FileHeader things
+		// we just allow one (for now at least)
+	out:
+		for _, v := range form.File {
+			for i := range v {
+				body, err = v[i].Open()
+				if err != nil {
+					return BadRequest(err, "")
+				}
+				defer body.Close()
+
+				break out
+			}
+		}
+		defer form.RemoveAll()
+	} else {
+		// Looks like user didn't understand that multipart thing.
+		// Maybe they just POSTed the snap at us (quite handy to do with e.g. curl).
+		// So we try that.
+
+		// If x-allow-unsigned is present, unsigned is OK
+		_, unsignedOk = r.Header["X-Allow-Unsigned"]
+	}
+
+	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
+	if err != nil {
+		return InternalError(err, "can't create tempfile: %v", err)
+	}
+
+	if _, err := io.Copy(tmpf, body); err != nil {
+		os.Remove(tmpf.Name())
+		return InternalError(err, "can't copy request into tempfile: %v", err)
+	}
+
+	return AsyncResponse(c.d.AddTask(func() interface{} {
+		defer os.Remove(tmpf.Name())
+
+		part, err := newSnap(tmpf.Name(), snappy.SideloadedOrigin, unsignedOk)
+		if err != nil {
+			return err
+		}
+
+		name, err := part.Install(&progress.NullProgress{}, 0)
+		if err != nil {
+			return err
+		}
+
+		return name
+	}).Map(route))
+}
+
+func getLogs(c *Command, r *http.Request) Response {
+	vars := muxVars(r)
+	name := vars["name"]
+	svcName := vars["service"]
+
+	actor, err := findServices(name, svcName, &progress.NullProgress{})
+	if err != nil {
+		return NotFound(err, "no services found for %q: %v", name, err)
+	}
+
+	rawlogs, err := actor.Logs()
+	if err != nil {
+		return InternalError(err, "unable to get logs for %q: %v", name, err)
+	}
+
+	logs := make([]map[string]interface{}, len(rawlogs))
+
+	for i := range rawlogs {
+		logs[i] = map[string]interface{}{
+			"timestamp": rawlogs[i].RawTimestamp(),
+			"message":   rawlogs[i].Message(),
+			"raw":       rawlogs[i],
+		}
+	}
+
+	return SyncResponse(logs)
 }

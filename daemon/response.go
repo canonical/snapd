@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"launchpad.net/snappy/logger"
@@ -46,9 +47,9 @@ type Response interface {
 }
 
 type resp struct {
-	Type     ResponseType `json:"type"`
-	Status   int          `json:"status_code"`
-	Metadata interface{}  `json:"metadata"`
+	Type   ResponseType `json:"type"`
+	Status int          `json:"status_code"`
+	Result interface{}  `json:"result"`
 }
 
 func (r *resp) MarshalJSON() ([]byte, error) {
@@ -56,7 +57,7 @@ func (r *resp) MarshalJSON() ([]byte, error) {
 		"type":        r.Type,
 		"status":      http.StatusText(r.Status),
 		"status_code": r.Status,
-		"metadata":    &r.Metadata,
+		"result":      &r.Result,
 	})
 }
 
@@ -75,7 +76,7 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 	hdr := w.Header()
 	if r.Type == ResponseTypeAsync {
-		if m, ok := r.Metadata.(map[string]interface{}); ok {
+		if m, ok := r.Result.(map[string]interface{}); ok {
 			if location, ok := m["resource"]; ok {
 				if location, ok := location.(string); ok && location != "" {
 					hdr.Set("Location", location)
@@ -93,30 +94,79 @@ func (r *resp) Self(*Command, *http.Request) Response {
 	return r
 }
 
-// SyncResponse builds a "sync" response from the given metadata.
-func SyncResponse(metadata interface{}) Response {
+func (r *resp) SetError(err error, format string, v ...interface{}) Response {
+	m := make(map[string]interface{})
+	newr := &resp{
+		Type:   ResponseTypeError,
+		Result: m,
+		Status: r.Status,
+	}
+
+	if format != "" {
+		logger.Noticef(format, v...)
+		m["msg"] = fmt.Sprintf(format, v...)
+	}
+
+	if err != nil {
+		m["obj"] = err
+		m["str"] = err.Error()
+	}
+
+	return newr
+}
+
+// SyncResponse builds a "sync" response from the given result.
+func SyncResponse(result interface{}) Response {
+	if err, ok := result.(error); ok {
+		return InternalError(err, "")
+	}
+
+	if rsp, ok := result.(Response); ok {
+		return rsp
+	}
+
 	return &resp{
-		Type:     ResponseTypeSync,
-		Status:   http.StatusOK,
-		Metadata: metadata,
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
+		Result: result,
 	}
 }
 
 // AsyncResponse builds an "async" response from the given *Task
-func AsyncResponse(metadata map[string]interface{}) Response {
+func AsyncResponse(result map[string]interface{}) Response {
 	return &resp{
-		Type:     ResponseTypeAsync,
-		Status:   http.StatusAccepted,
-		Metadata: metadata,
+		Type:   ResponseTypeAsync,
+		Status: http.StatusAccepted,
+		Result: result,
 	}
 }
 
 // ErrorResponse builds an "error" response from the given error status.
-func ErrorResponse(status int) Response {
-	return &resp{
+func ErrorResponse(status int) ErrorResponseFunc {
+	r := &resp{
 		Type:   ResponseTypeError,
 		Status: status,
 	}
+
+	return r.SetError
+}
+
+// ErrorResponseFunc is a callable error Response.
+// So you can return e.g. InternalError, or InternalError(err, "something broke"), etc.
+type ErrorResponseFunc func(error, string, ...interface{}) Response
+
+// Render the response
+func (f ErrorResponseFunc) Render(w http.ResponseWriter) ([]byte, int) {
+	return f(nil, "").Render(w)
+}
+
+func (f ErrorResponseFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	f(nil, "").ServeHTTP(w, r)
+}
+
+// Self returns (a copy of) this same response; mostly for convenience.
+func (f ErrorResponseFunc) Self(*Command, *http.Request) Response {
+	return f(nil, "")
 }
 
 // standard error responses

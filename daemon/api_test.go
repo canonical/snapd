@@ -37,8 +37,10 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/snappy"
+	"launchpad.net/snappy/systemd"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -52,7 +54,7 @@ type apiSuite struct {
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Details(string) ([]snappy.Part, error) {
+func (s *apiSuite) Details(string, string) ([]snappy.Part, error) {
 	return s.parts, s.err
 }
 
@@ -90,7 +92,7 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 	d := New()
 	d.addRoutes()
 
-	s.vars = map[string]string{"package": "foo"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
 	s.parts = []snappy.Part{&tP{
 		name:          "foo",
@@ -111,7 +113,7 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 	expected := &resp{
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
-		Metadata: map[string]string{
+		Result: map[string]string{
 			"name":           "foo",
 			"version":        "v1",
 			"description":    "description",
@@ -129,34 +131,28 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 	c.Check(rsp, check.DeepEquals, expected)
 }
 
-func (s *apiSuite) TestPackageInfoBadReq(c *check.C) {
-	// no muxVars; can't really happen afaict
-	c.Check(getPackageInfo(packageCmd, nil), check.Equals, BadRequest)
-}
-
 func (s *apiSuite) TestPackageInfoNotFound(c *check.C) {
-	s.vars = map[string]string{"package": "foo"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.err = snappy.ErrPackageNotFound
 
-	c.Check(getPackageInfo(packageCmd, nil), check.Equals, NotFound)
+	c.Check(getPackageInfo(packageCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
 
 func (s *apiSuite) TestPackageInfoNoneFound(c *check.C) {
-	s.vars = map[string]string{"package": "foo"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
-	c.Check(getPackageInfo(packageCmd, nil), check.Equals, NotFound)
+	c.Check(getPackageInfo(packageCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
 
 func (s *apiSuite) TestPackageInfoWeirdDetails(c *check.C) {
-	s.vars = map[string]string{"package": "foo"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.err = errors.New("weird")
-	c.Check(getPackageInfo(packageCmd, nil), check.Equals, InternalError)
-}
 
-func (s *apiSuite) TestPackageInfoMixedResults(c *check.C) {
-	s.vars = map[string]string{"package": "foo"}
-	s.parts = []snappy.Part{&tP{name: "foo"}, &tP{name: "bar"}}
-	c.Check(getPackageInfo(packageCmd, nil), check.Equals, InternalError)
+	rsp := getPackageInfo(packageCmd, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
+	c.Check(rsp.Result, check.NotNil)
 }
 
 func (s *apiSuite) TestPackageInfoWeirdRoute(c *check.C) {
@@ -167,9 +163,9 @@ func (s *apiSuite) TestPackageInfoWeirdRoute(c *check.C) {
 
 	// use the wrong command to force the issue
 	wrongCmd := &Command{Path: "/{what}", d: d}
-	s.vars = map[string]string{"package": "foo"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.parts = []snappy.Part{&tP{name: "foo"}}
-	c.Check(getPackageInfo(wrongCmd, nil), check.Equals, InternalError)
+	c.Check(getPackageInfo(wrongCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
 }
 
 func (s *apiSuite) TestPackageInfoBadRoute(c *check.C) {
@@ -182,9 +178,14 @@ func (s *apiSuite) TestPackageInfoBadRoute(c *check.C) {
 	route := d.router.Get(packageCmd.Path)
 	c.Assert(route.Name("foo").GetError(), check.NotNil)
 
-	s.vars = map[string]string{"package": "foo"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.parts = []snappy.Part{&tP{name: "foo"}}
-	c.Check(getPackageInfo(packageCmd, nil), check.Equals, InternalError)
+
+	rsp := getPackageInfo(packageCmd, nil).Self(nil, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
+	c.Check(rsp.Result.(map[string]interface{})["msg"], check.Matches, `route can't build URL .*`)
 }
 
 func (s *apiSuite) TestParts2Map(c *check.C) {
@@ -257,7 +258,17 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		return true
 	})
 
-	exceptions := []string{"api", "newRepo", "newLocalRepo", "newRemoteRepo", "muxVars", "pkgActionDispatch"}
+	exceptions := []string{ // keep sorted, for scanning ease
+		"api",
+		"findServices",
+		"maxReadBuflen",
+		"muxVars",
+		"newLocalRepo",
+		"newRemoteRepo",
+		"newRepo",
+		"newSnap",
+		"pkgActionDispatch",
+	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
 }
@@ -280,7 +291,7 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Metadata, check.DeepEquals, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestV1(c *check.C) {
@@ -314,7 +325,7 @@ func (s *apiSuite) TestV1(c *check.C) {
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Metadata, check.DeepEquals, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
@@ -335,9 +346,9 @@ func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
-	c.Check(rsp.Metadata, check.NotNil)
+	c.Check(rsp.Result, check.NotNil)
 
-	meta, ok := rsp.Metadata.(map[string]interface{})
+	meta, ok := rsp.Result.(map[string]interface{})
 	c.Assert(ok, check.Equals, true)
 	c.Assert(meta, check.NotNil)
 	c.Check(meta["paging"], check.DeepEquals, map[string]interface{}{"pages": 1, "page": 1, "count": len(s.parts)})
@@ -363,7 +374,9 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	d.addRoutes()
 
 	s.vars = map[string]string{"uuid": "42"}
-	c.Check(getOpInfo(operationCmd, nil), check.Equals, NotFound)
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
 
 	ch := make(chan struct{})
 
@@ -375,17 +388,17 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	id := t.UUID()
 	s.vars = map[string]string{"uuid": id}
 
-	rsp := getOpInfo(operationCmd, nil).(*resp)
+	rsp = getOpInfo(operationCmd, nil).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Metadata, check.DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
 		"resource":   "/1.0/operations/" + id,
 		"status":     TaskRunning,
 		"may_cancel": false,
 		"created_at": FormatTime(t.CreatedAt()),
 		"updated_at": FormatTime(t.UpdatedAt()),
-		"metadata":   nil,
+		"output":     nil,
 	})
 	tf1 := t.UpdatedAt().UTC().UnixNano()
 
@@ -396,13 +409,13 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Metadata, check.DeepEquals, map[string]interface{}{
+	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
 		"resource":   "/1.0/operations/" + id,
 		"status":     TaskSucceeded,
 		"may_cancel": false,
 		"created_at": FormatTime(t.CreatedAt()),
 		"updated_at": FormatTime(t.UpdatedAt()),
-		"metadata":   "hello",
+		"output":     "hello",
 	})
 
 	tf2 := t.UpdatedAt().UTC().UnixNano()
@@ -415,19 +428,19 @@ func (s *apiSuite) TestPostPackageBadRequest(c *check.C) {
 	d.addRoutes()
 
 	s.vars = map[string]string{"uuid": "42"}
-	c.Check(getOpInfo(operationCmd, nil), check.Equals, NotFound)
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
 
 	buf := bytes.NewBufferString(`hello`)
 	req, err := http.NewRequest("POST", "/1.0/packages/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := postPackage(packageCmd, req).(*resp)
+	rsp = postPackage(packageCmd, req).(*resp)
 
-	c.Check(rsp, check.DeepEquals, &resp{
-		Type:   ResponseTypeError,
-		Status: http.StatusBadRequest,
-	})
-
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Result, check.NotNil)
 }
 
 func (s *apiSuite) TestPostPackageBadAction(c *check.C) {
@@ -435,7 +448,7 @@ func (s *apiSuite) TestPostPackageBadAction(c *check.C) {
 	d.addRoutes()
 
 	s.vars = map[string]string{"uuid": "42"}
-	c.Check(getOpInfo(operationCmd, nil), check.Equals, NotFound)
+	c.Check(getOpInfo(operationCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 
 	buf := bytes.NewBufferString(`{"action": "potato"}`)
 	req, err := http.NewRequest("POST", "/1.0/packages/hello-world", buf)
@@ -443,11 +456,9 @@ func (s *apiSuite) TestPostPackageBadAction(c *check.C) {
 
 	rsp := postPackage(packageCmd, req).(*resp)
 
-	c.Check(rsp, check.DeepEquals, &resp{
-		Type:   ResponseTypeError,
-		Status: http.StatusBadRequest,
-	})
-
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Result, check.NotNil)
 }
 
 func (s *apiSuite) TestPostPackage(c *check.C) {
@@ -455,7 +466,7 @@ func (s *apiSuite) TestPostPackage(c *check.C) {
 	d.addRoutes()
 
 	s.vars = map[string]string{"uuid": "42"}
-	c.Check(getOpInfo(operationCmd, nil), check.Equals, NotFound)
+	c.Check(getOpInfo(operationCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 
 	ch := make(chan struct{})
 
@@ -476,7 +487,7 @@ func (s *apiSuite) TestPostPackage(c *check.C) {
 	rsp := postPackage(packageCmd, req).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
-	m := rsp.Metadata.(map[string]interface{})
+	m := rsp.Result.(map[string]interface{})
 	c.Assert(m["resource"], check.Matches, "/1.0/operations/.*")
 
 	uuid := m["resource"].(string)[16:]
@@ -492,7 +503,7 @@ func (s *apiSuite) TestPostPackage(c *check.C) {
 	task = d.GetTask(uuid)
 	c.Assert(task, check.NotNil)
 	c.Check(task.State(), check.Equals, TaskSucceeded)
-	c.Check(task.Metadata(), check.Equals, "hi")
+	c.Check(task.Output(), check.Equals, "hi")
 }
 
 func (s *apiSuite) TestPostPackageDispatch(c *check.C) {
@@ -527,7 +538,7 @@ func (s *apiSuite) TestPackageGetConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	configStr := "some: config"
-	s.vars = map[string]string{"package": "foo.bar"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.parts = []snappy.Part{
 		&tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: configStr},
 		&tP{name: "bar", version: "v2", origin: "baz", isActive: true},
@@ -538,11 +549,12 @@ func (s *apiSuite) TestPackageGetConfig(c *check.C) {
 	rsp := packageConfig(packagesCmd, req).(*resp)
 
 	c.Check(rsp, check.DeepEquals, &resp{
-		Type:     ResponseTypeSync,
-		Status:   http.StatusOK,
-		Metadata: configStr,
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
+		Result: configStr,
 	})
 }
+
 func (s *apiSuite) TestPackagePutConfig(c *check.C) {
 	d := New()
 	d.addRoutes()
@@ -552,7 +564,7 @@ func (s *apiSuite) TestPackagePutConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	configStr := "some: config"
-	s.vars = map[string]string{"package": "foo.bar"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.parts = []snappy.Part{
 		&tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: configStr},
 		&tP{name: "bar", version: "v2", origin: "baz", isActive: true},
@@ -563,8 +575,136 @@ func (s *apiSuite) TestPackagePutConfig(c *check.C) {
 	rsp := packageConfig(packagesCmd, req).(*resp)
 
 	c.Check(rsp, check.DeepEquals, &resp{
-		Type:     ResponseTypeSync,
-		Status:   http.StatusOK,
-		Metadata: newConfigStr,
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
+		Result: newConfigStr,
+	})
+}
+
+func (s *apiSuite) TestPackageServiceGet(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
+		return &tSA{ssout: []*snappy.PackageServiceStatus{{ServiceName: "svc"}}}, nil
+	}
+
+	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/services", nil)
+	c.Assert(err, check.IsNil)
+
+	s.parts = []snappy.Part{
+		&tP{name: "foo", version: "v1", origin: "bar", isActive: true,
+			svcYamls: []snappy.ServiceYaml{{Name: "svc"}},
+		},
+	}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
+
+	rsp := packageService(packageSvcsCmd, req).(*resp)
+	c.Assert(rsp, check.NotNil)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+
+	m := rsp.Result.(map[string]*svcDesc)
+	c.Assert(m["svc"], check.DeepEquals, &svcDesc{
+		Op:     "status",
+		Spec:   &snappy.ServiceYaml{Name: "svc"},
+		Status: &snappy.PackageServiceStatus{ServiceName: "svc"},
+	})
+}
+
+func (s *apiSuite) TestPackageServicePut(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
+		return &tSA{ssout: []*snappy.PackageServiceStatus{{ServiceName: "svc"}}}, nil
+	}
+
+	buf := bytes.NewBufferString(`{"action": "stop"}`)
+	req, err := http.NewRequest("PUT", "/1.0/packages/foo.bar/services", buf)
+	c.Assert(err, check.IsNil)
+
+	s.parts = []snappy.Part{
+		&tP{name: "foo", version: "v1", origin: "bar", isActive: true,
+			svcYamls: []snappy.ServiceYaml{{Name: "svc"}},
+		},
+	}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
+
+	rsp := packageService(packageSvcsCmd, req).(*resp)
+	c.Assert(rsp, check.NotNil)
+	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+	c.Check(rsp.Status, check.Equals, http.StatusAccepted)
+}
+
+func (s *apiSuite) TestSideloadPackage(c *check.C) {
+	// try a direct upload, with no x-allow-unsigned header
+	s.sideloadCheck(c, "xyzzy", false, nil)
+	// try a direct upload *with* an x-allow-unsigned header
+	s.sideloadCheck(c, "xyzzy", true, map[string]string{"X-Allow-Unsigned": "Very Yes"})
+	// try a multipart/form-data upload without allow-unsigned
+	s.sideloadCheck(c, "----hello--\r\nContent-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n\r\nxyzzy\r\n----hello----\r\n", false, map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"})
+	// and one *with* allow-unsigned
+	s.sideloadCheck(c, "----hello--\r\nContent-Disposition: form-data; name=\"unsigned-ok\"\r\n\r\n----hello--\r\nContent-Disposition: form-data; name=\"x\"; filename=\"x\"\r\n\r\nxyzzy\r\n----hello----\r\n", false, map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"})
+}
+
+func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bool, head map[string]string) {
+	ch := make(chan struct{})
+	tmpfile, err := ioutil.TempFile("", "test-")
+	c.Assert(err, check.IsNil)
+	_, err = tmpfile.WriteString(content)
+	c.Check(err, check.IsNil)
+	_, err = tmpfile.Seek(0, 0)
+	c.Check(err, check.IsNil)
+
+	// setup done
+
+	newSnap = func(fn string, origin string, unauthOk bool) (snappy.Part, error) {
+		c.Check(origin, check.Equals, snappy.SideloadedOrigin)
+		c.Check(unauthOk, check.Equals, unsignedExpected)
+
+		bs, err := ioutil.ReadFile(fn)
+		c.Check(err, check.IsNil)
+		c.Check(string(bs), check.Equals, "xyzzy")
+
+		ch <- struct{}{}
+
+		return &tP{}, nil
+	}
+	defer func() { newSnap = newSnapImpl }()
+
+	req, err := http.NewRequest("POST", "/1.0/packages", tmpfile)
+	c.Assert(err, check.IsNil)
+	for k, v := range head {
+		req.Header.Set(k, v)
+	}
+
+	rsp := sideloadPackage(packagesCmd, req).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+
+	<-ch
+}
+
+func (s *apiSuite) TestServiceLogs(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	log := systemd.Log{
+		"__REALTIME_TIMESTAMP": "42",
+		"MESSAGE":              "hi",
+	}
+
+	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
+		return &tSA{lgout: []systemd.Log{log}}, nil
+	}
+
+	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/services/baz/logs", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getLogs(packageSvcLogsCmd, req).(*resp)
+	c.Assert(rsp, check.DeepEquals, &resp{
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
+		Result: []map[string]interface{}{{"message": "hi", "timestamp": "42", "raw": log}},
 	})
 }
