@@ -47,6 +47,7 @@ var api = []*Command{
 	packageConfigCmd,
 	packageSvcCmd,
 	packageSvcsCmd,
+	packageSvcLogsCmd,
 	operationCmd,
 }
 
@@ -89,6 +90,11 @@ var (
 		Path: "/1.0/packages/{name}.{origin}/services/{service}",
 		GET:  packageService,
 		PUT:  packageService,
+	}
+
+	packageSvcLogsCmd = &Command{
+		Path: "/1.0/packages/{name}.{origin}/services/{service}/logs",
+		GET:  getLogs,
 	}
 
 	operationCmd = &Command{
@@ -715,4 +721,34 @@ func sideloadPackage(c *Command, r *http.Request) Response {
 
 		return name
 	}).Map(route))
+}
+
+func getLogs(c *Command, r *http.Request) Response {
+	vars := muxVars(r)
+	name := vars["name"]
+	svcName := vars["service"]
+
+	actor, err := findServices(name, svcName, &progress.NullProgress{})
+	if err != nil {
+		logger.Noticef("no services found for %s: %v", name, err)
+		return NotFound
+	}
+
+	rawlogs, err := actor.Logs()
+	if err != nil {
+		logger.Noticef("unable to get logs for %s: %v", name, err)
+		return InternalError
+	}
+
+	logs := make([]map[string]interface{}, len(rawlogs))
+
+	for i := range rawlogs {
+		logs[i] = map[string]interface{}{
+			"timestamp": rawlogs[i].RawTimestamp(),
+			"message":   rawlogs[i].Message(),
+			"raw":       rawlogs[i],
+		}
+	}
+
+	return SyncResponse(logs)
 }

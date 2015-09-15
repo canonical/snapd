@@ -40,6 +40,7 @@ import (
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/snappy"
+	"launchpad.net/snappy/systemd"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -677,4 +678,28 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
 
 	<-ch
+}
+
+func (s *apiSuite) TestServiceLogs(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	log := systemd.Log{
+		"__REALTIME_TIMESTAMP": "42",
+		"MESSAGE":              "hi",
+	}
+
+	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
+		return &tSA{lgout: []systemd.Log{log}}, nil
+	}
+
+	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/services/baz/logs", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getLogs(packageSvcLogsCmd, req).(*resp)
+	c.Assert(rsp, check.DeepEquals, &resp{
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
+		Result: []map[string]interface{}{{"message": "hi", "timestamp": "42", "raw": log}},
+	})
 }

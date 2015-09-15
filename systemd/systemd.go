@@ -453,7 +453,12 @@ func IsTimeout(err error) bool {
 
 const myFmt = "2006-01-02T15:04:05.000000Z07:00"
 
-func (l Log) String() string {
+// Timestamp of the Log, formatted like RFC3339 to µs precision.
+//
+// If no timestamp, the string "-(no timestamp!)-" -- and something is
+// wrong with your system. Some other "impossible" error conditions
+// also result in "-(errror message)-" timestamps.
+func (l Log) Timestamp() string {
 	t := "-(no timestamp!)-"
 	if ius, ok := l["__REALTIME_TIMESTAMP"]; ok {
 		// according to systemd.journal-fields(7) it's microseconds as a decimal string
@@ -469,14 +474,37 @@ func (l Log) String() string {
 		}
 	}
 
-	sid, ok := l["SYSLOG_IDENTIFIER"].(string)
-	if !ok {
-		sid = "-"
-	}
-	msg, ok := l["MESSAGE"].(string)
-	if !ok {
-		msg = "-"
+	return t
+}
+
+// RawTimestamp of the log: microseconds since epoch UTC, as a decimal
+// string, or "-" if missing.
+func (l Log) RawTimestamp() string {
+	if ius, ok := l["__REALTIME_TIMESTAMP"].(string); ok {
+		return ius
 	}
 
-	return fmt.Sprintf("%s %s %s", t, sid, msg)
+	return "-"
+}
+
+// Message of the Log, if any; otherwise, "-".
+func (l Log) Message() string {
+	if msg, ok := l["MESSAGE"].(string); ok {
+		return msg
+	}
+
+	return "-"
+}
+
+// SID is the syslog identifier of the Log, if any; otherwise, "-".
+func (l Log) SID() string {
+	if sid, ok := l["SYSLOG_IDENTIFIER"].(string); ok {
+		return sid
+	}
+
+	return "-"
+}
+
+func (l Log) String() string {
+	return fmt.Sprintf("%s %s %s", l.Timestamp(), l.SID(), l.Message())
 }
