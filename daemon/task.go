@@ -132,7 +132,10 @@ func RunTask(f func() interface{}) *Task {
 
 		if err, ok := out.(error); ok {
 			// // TODO: make errors properly json-serializable, and avoid this hack (loses info!)
-			t.output = err.Error()
+			t.output = map[string]interface{}{
+				"obj": err,
+				"str": err.Error(),
+			}
 			return err
 		}
 

@@ -79,5 +79,8 @@ func (s *taskSuite) TestFails(c *check.C) {
 	time.Sleep(time.Millisecond)
 
 	c.Check(t.State(), check.Equals, TaskFailed)
-	c.Check(t.Output(), check.Equals, err.Error())
+	c.Check(t.Output(), check.DeepEquals, map[string]interface{}{
+		"obj": err,
+		"str": err.Error(),
+	})
 }

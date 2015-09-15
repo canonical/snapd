@@ -131,28 +131,28 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 	c.Check(rsp, check.DeepEquals, expected)
 }
 
-func (s *apiSuite) TestPackageInfoBadReq(c *check.C) {
-	// no muxVars; can't really happen afaict
-	c.Check(getPackageInfo(packageCmd, nil), check.Equals, BadRequest)
-}
-
 func (s *apiSuite) TestPackageInfoNotFound(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.err = snappy.ErrPackageNotFound
 
-	c.Check(getPackageInfo(packageCmd, nil), check.Equals, NotFound)
+	c.Check(getPackageInfo(packageCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
 
 func (s *apiSuite) TestPackageInfoNoneFound(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
-	c.Check(getPackageInfo(packageCmd, nil), check.Equals, NotFound)
+	c.Check(getPackageInfo(packageCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
 
 func (s *apiSuite) TestPackageInfoWeirdDetails(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.err = errors.New("weird")
-	c.Check(getPackageInfo(packageCmd, nil), check.Equals, InternalError)
+
+	rsp := getPackageInfo(packageCmd, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
+	c.Check(rsp.Result, check.NotNil)
 }
 
 func (s *apiSuite) TestPackageInfoWeirdRoute(c *check.C) {
@@ -165,7 +165,7 @@ func (s *apiSuite) TestPackageInfoWeirdRoute(c *check.C) {
 	wrongCmd := &Command{Path: "/{what}", d: d}
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.parts = []snappy.Part{&tP{name: "foo"}}
-	c.Check(getPackageInfo(wrongCmd, nil), check.Equals, InternalError)
+	c.Check(getPackageInfo(wrongCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
 }
 
 func (s *apiSuite) TestPackageInfoBadRoute(c *check.C) {
@@ -180,7 +180,12 @@ func (s *apiSuite) TestPackageInfoBadRoute(c *check.C) {
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.parts = []snappy.Part{&tP{name: "foo"}}
-	c.Check(getPackageInfo(packageCmd, nil), check.Equals, InternalError)
+
+	rsp := getPackageInfo(packageCmd, nil).Self(nil, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
+	c.Check(rsp.Result.(map[string]interface{})["msg"], check.Matches, `route can't build URL .*`)
 }
 
 func (s *apiSuite) TestParts2Map(c *check.C) {
@@ -369,7 +374,9 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	d.addRoutes()
 
 	s.vars = map[string]string{"uuid": "42"}
-	c.Check(getOpInfo(operationCmd, nil), check.Equals, NotFound)
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
 
 	ch := make(chan struct{})
 
@@ -381,7 +388,7 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	id := t.UUID()
 	s.vars = map[string]string{"uuid": id}
 
-	rsp := getOpInfo(operationCmd, nil).(*resp)
+	rsp = getOpInfo(operationCmd, nil).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
@@ -421,19 +428,19 @@ func (s *apiSuite) TestPostPackageBadRequest(c *check.C) {
 	d.addRoutes()
 
 	s.vars = map[string]string{"uuid": "42"}
-	c.Check(getOpInfo(operationCmd, nil), check.Equals, NotFound)
+	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
 
 	buf := bytes.NewBufferString(`hello`)
 	req, err := http.NewRequest("POST", "/1.0/packages/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := postPackage(packageCmd, req).(*resp)
+	rsp = postPackage(packageCmd, req).(*resp)
 
-	c.Check(rsp, check.DeepEquals, &resp{
-		Type:   ResponseTypeError,
-		Status: http.StatusBadRequest,
-	})
-
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Result, check.NotNil)
 }
 
 func (s *apiSuite) TestPostPackageBadAction(c *check.C) {
@@ -441,7 +448,7 @@ func (s *apiSuite) TestPostPackageBadAction(c *check.C) {
 	d.addRoutes()
 
 	s.vars = map[string]string{"uuid": "42"}
-	c.Check(getOpInfo(operationCmd, nil), check.Equals, NotFound)
+	c.Check(getOpInfo(operationCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 
 	buf := bytes.NewBufferString(`{"action": "potato"}`)
 	req, err := http.NewRequest("POST", "/1.0/packages/hello-world", buf)
@@ -449,11 +456,9 @@ func (s *apiSuite) TestPostPackageBadAction(c *check.C) {
 
 	rsp := postPackage(packageCmd, req).(*resp)
 
-	c.Check(rsp, check.DeepEquals, &resp{
-		Type:   ResponseTypeError,
-		Status: http.StatusBadRequest,
-	})
-
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Result, check.NotNil)
 }
 
 func (s *apiSuite) TestPostPackage(c *check.C) {
@@ -461,7 +466,7 @@ func (s *apiSuite) TestPostPackage(c *check.C) {
 	d.addRoutes()
 
 	s.vars = map[string]string{"uuid": "42"}
-	c.Check(getOpInfo(operationCmd, nil), check.Equals, NotFound)
+	c.Check(getOpInfo(operationCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 
 	ch := make(chan struct{})
 

@@ -100,8 +100,8 @@ func regenerateAppArmorRulesImpl() error {
 	if output, err := exec.Command(aaClickHookCmd, "-f").CombinedOutput(); err != nil {
 		if exitCode, err := helpers.ExitCode(err); err == nil {
 			return &ErrApparmorGenerate{
-				exitCode: exitCode,
-				output:   output,
+				ExitCode: exitCode,
+				Output:   output,
 			}
 		}
 		return err

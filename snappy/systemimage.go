@@ -257,13 +257,13 @@ func (s *SystemImagePart) verifyUpgradeWasApplied() error {
 
 	if latestPart == nil {
 		return &ErrUpgradeVerificationFailed{
-			msg: "could not find latest installed partition",
+			Msg: "could not find latest installed partition",
 		}
 	}
 
 	if s.version != latestPart.Version() {
 		return &ErrUpgradeVerificationFailed{
-			msg: fmt.Sprintf("found %q but expected %q", latestPart.Version(), s.version),
+			Msg: fmt.Sprintf("found %q but expected %q", latestPart.Version(), s.version),
 		}
 	}
 

@@ -86,7 +86,7 @@ func Install(name string, flags InstallFlags, meter progress.Meter) (string, err
 func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName string, err error) {
 	defer func() {
 		if err != nil {
-			err = &ErrInstallFailed{snap: name, origErr: err}
+			err = &ErrInstallFailed{Snap: name, OrigErr: err}
 		}
 	}()
 
