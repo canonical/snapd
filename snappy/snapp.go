@@ -148,6 +148,7 @@ type ServiceYaml struct {
 	PostStop    string  `yaml:"poststop,omitempty" json:"poststop,omitempty"`
 	StopTimeout Timeout `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
 	BusName     string  `yaml:"bus-name,omitempty" json:"bus-name,omitempty"`
+	Forking     bool    `yaml:"forking,omitempty" json:"forking,omitempty"`
 
 	// set to yes if we need to create a systemd socket for this service
 	Socket       bool   `yaml:"socket,omitempty" json:"socket,omitempty"`
