@@ -94,9 +94,11 @@ func execHook(execCmd string) (err error) {
 	cmd := exec.Command("sh", "-c", execCmd)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		if exitCode, err := helpers.ExitCode(err); err == nil {
-			return &ErrHookFailed{cmd: execCmd,
-				output:   string(output),
-				exitCode: exitCode}
+			return &ErrHookFailed{
+				Cmd:      execCmd,
+				Output:   string(output),
+				ExitCode: exitCode,
+			}
 		}
 		return err
 	}
@@ -300,10 +302,6 @@ export SNAPP_OLD_PWD="$(pwd)"
 # app info
 {{.NewAppVars}}
 
-if [ ! -d "$SNAP_APP_TMPDIR" ]; then
-    mkdir -p -m1777 "$SNAP_APP_TMPDIR"
-fi
-
 if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
    mkdir -p "$SNAP_APP_USER_DATA_PATH"
 fi
@@ -404,9 +402,9 @@ func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error 
 			value := v.Field(i).String()
 			if !r.MatchString(value) {
 				return &ErrStructIllegalContent{
-					field:     key,
-					content:   value,
-					whitelist: whitelist,
+					Field:     key,
+					Content:   value,
+					Whitelist: whitelist,
 				}
 			}
 		}
@@ -431,28 +429,55 @@ func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile str
 		desc = fmt.Sprintf("service %s for package %s", service.Name, m.Name)
 	}
 
+	socketFileName := ""
+	if service.Socket {
+		socketFileName = filepath.Base(generateSocketFileName(m, service))
+	}
+
 	return systemd.New(globalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
-			AppName:     m.Name,
-			ServiceName: service.Name,
-			Version:     m.Version,
-			Description: desc,
-			AppPath:     baseDir,
-			Start:       service.Start,
-			Stop:        service.Stop,
-			PostStop:    service.PostStop,
-			StopTimeout: time.Duration(service.StopTimeout),
-			AaProfile:   aaProfile,
-			IsFramework: m.Type == pkg.TypeFramework,
-			IsNetworked: service.Ports != nil && len(service.Ports.External) > 0,
-			BusName:     service.BusName,
-			Forking:     service.Forking,
-			UdevAppName: udevPartName,
+			AppName:        m.Name,
+			ServiceName:    service.Name,
+			Version:        m.Version,
+			Description:    desc,
+			AppPath:        baseDir,
+			Start:          service.Start,
+			Stop:           service.Stop,
+			PostStop:       service.PostStop,
+			StopTimeout:    time.Duration(service.StopTimeout),
+			AaProfile:      aaProfile,
+			IsFramework:    m.Type == pkg.TypeFramework,
+			IsNetworked:    service.Ports != nil && len(service.Ports.External) > 0,
+			BusName:        service.BusName,
+			Forking:        service.Forking,
+			UdevAppName:    udevPartName,
+			Socket:         service.Socket,
+			SocketFileName: socketFileName,
+		}), nil
+}
+func generateSnapSocketFile(service ServiceYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
+	if err := verifyServiceYaml(service); err != nil {
+		return "", err
+	}
+
+	serviceFileName := filepath.Base(generateServiceFileName(m, service))
+
+	return systemd.New(globalRootDir, nil).GenSocketFile(
+		&systemd.ServiceDescription{
+			ServiceFileName: serviceFileName,
+			ListenStream:    service.ListenStream,
+			SocketMode:      service.SocketMode,
+			SocketUser:      service.SocketUser,
+			SocketGroup:     service.SocketGroup,
 		}), nil
 }
 
 func generateServiceFileName(m *packageYaml, service ServiceYaml) string {
 	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
+}
+
+func generateSocketFileName(m *packageYaml, service ServiceYaml) string {
+	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.socket", m.Name, service.Name, m.Version))
 }
 
 func generateBusPolicyFileName(m *packageYaml, service ServiceYaml) string {
@@ -483,6 +508,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
+		// Generate service file
 		content, err := generateSnapServicesFile(service, realBaseDir, aaProfile, m)
 		if err != nil {
 			return err
@@ -492,7 +518,18 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0644); err != nil {
 			return err
 		}
-
+		// Generate systemd socket file if needed
+		if service.Socket {
+			content, err := generateSnapSocketFile(service, realBaseDir, aaProfile, m)
+			if err != nil {
+				return err
+			}
+			socketFilename := generateSocketFileName(m, service)
+			os.MkdirAll(filepath.Dir(socketFilename), 0755)
+			if err := ioutil.WriteFile(socketFilename, []byte(content), 0644); err != nil {
+				return err
+			}
+		}
 		// If necessary, generate the DBus policy file so the framework
 		// service is allowed to start
 		if m.Type == pkg.TypeFramework && service.BusName != "" {
@@ -529,6 +566,20 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 				return err
 			}
 		}
+
+		if service.Socket {
+			socketName := filepath.Base(generateSocketFileName(m, service))
+			// we always enable the socket even in inhibit hooks
+			if err := sysd.Enable(socketName); err != nil {
+				return err
+			}
+
+			if !inhibitHooks {
+				if err := sysd.Start(socketName); err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	return nil
@@ -554,6 +605,10 @@ func (m *packageYaml) removePackageServices(baseDir string, inter interacter) er
 
 		if err := os.Remove(generateServiceFileName(m, service)); err != nil && !os.IsNotExist(err) {
 			logger.Noticef("Failed to remove service file for %q: %v", serviceName, err)
+		}
+
+		if err := os.Remove(generateSocketFileName(m, service)); err != nil && !os.IsNotExist(err) {
+			logger.Noticef("Failed to remove socket file for %q: %v", serviceName, err)
 		}
 
 		// Also remove DBus system policy file
@@ -698,7 +753,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 		cm.Name = fmt.Sprintf("%s.%s", cm.Name, origin)
 	}
 
-	if origin == sideloadedOrigin {
+	if origin == SideloadedOrigin {
 		cm.Version = filepath.Base(filepath.Join(clickMetaDir, "..", ".."))
 	}
 
@@ -783,9 +838,9 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 			if err := cmd.Run(); err != nil {
 				if exitCode, err := helpers.ExitCode(err); err == nil {
 					return &ErrDataCopyFailed{
-						oldPath:  oldPath,
-						newPath:  newPath,
-						exitCode: exitCode}
+						OldPath:  oldPath,
+						NewPath:  newPath,
+						ExitCode: exitCode}
 				}
 				return err
 			}

@@ -1,4 +1,5 @@
 /usr/bin/snappy
+/usr/bin/snapd
 data/completion/snappy /usr/share/bash-completion/completions/
 # i18n stuff
 ../../share /usr

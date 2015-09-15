@@ -102,7 +102,7 @@ func (s *ServiceActorSuite) TestFindServicesNoPackagesNoPattern(c *C) {
 	actor, err := FindServices("", "", s.pb)
 	c.Check(err, IsNil)
 	c.Assert(actor, NotNil)
-	c.Check(actor.svcs, HasLen, 0)
+	c.Check(actor.(*serviceActor).svcs, HasLen, 0)
 }
 
 func (s *ServiceActorSuite) TestFindServicesNoServices(c *C) {
@@ -114,7 +114,7 @@ func (s *ServiceActorSuite) TestFindServicesFindsServices(c *C) {
 	actor, err := FindServices("", "", s.pb)
 	c.Assert(err, IsNil)
 	c.Assert(actor, NotNil)
-	c.Check(actor.svcs, HasLen, 1)
+	c.Check(actor.(*serviceActor).svcs, HasLen, 1)
 
 	s.outs = [][]byte{
 		nil, // for the "stop"
@@ -128,6 +128,7 @@ func (s *ServiceActorSuite) TestFindServicesFindsServices(c *C) {
 		nil, // for the "disable"
 		nil, // for disable's reload
 		[]byte("Id=x\nLoadState=loaded\nActiveState=active\nSubState=running\nUnitFileState=enabled\n"), // status
+		[]byte("Id=x\nLoadState=loaded\nActiveState=active\nSubState=running\nUnitFileState=enabled\n"), // status obj
 	}
 	s.errors = []error{
 		nil, nil, // stop & check
@@ -138,6 +139,7 @@ func (s *ServiceActorSuite) TestFindServicesFindsServices(c *C) {
 		nil,                // disable
 		nil,                // for disable's reload
 		nil,                // status
+		nil,                // status obj
 		&systemd.Timeout{}, // flag
 	}
 	s.jerrs = nil
@@ -151,10 +153,27 @@ func (s *ServiceActorSuite) TestFindServicesFindsServices(c *C) {
 	c.Check(actor.Restart(), IsNil)
 	c.Check(actor.Enable(), IsNil)
 	c.Check(actor.Disable(), IsNil)
+
 	status, err := actor.Status()
 	c.Check(err, IsNil)
 	c.Assert(status, HasLen, 1)
 	c.Check(status[0], Equals, "hello-app\tsvc1\tenabled; loaded; active (running)")
+
+	stobj, err := actor.ServiceStatus()
+	c.Check(err, IsNil)
+	c.Assert(stobj, HasLen, 1)
+	c.Check(stobj[0], DeepEquals, &PackageServiceStatus{
+		ServiceStatus: systemd.ServiceStatus{
+			ServiceFileName: "hello-app_svc1_1.10.service",
+			LoadState:       "loaded",
+			ActiveState:     "active",
+			SubState:        "running",
+			UnitFileState:   "enabled",
+		},
+		PackageName: "hello-app",
+		ServiceName: "svc1",
+	})
+
 	logs, err := actor.Logs()
 	c.Check(err, IsNil)
 	c.Check(logs, DeepEquals, []systemd.Log{{"foo": "bar", "baz": 42.}})
@@ -167,7 +186,7 @@ func (s *ServiceActorSuite) TestFindServicesReportsErrors(c *C) {
 	actor, err := FindServices("", "", s.pb)
 	c.Assert(err, IsNil)
 	c.Assert(actor, NotNil)
-	c.Check(actor.svcs, HasLen, 1)
+	c.Check(actor.(*serviceActor).svcs, HasLen, 1)
 
 	anError := errors.New("error")
 

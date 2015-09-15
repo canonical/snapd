@@ -7,25 +7,25 @@ msgid ""
 msgstr ""
 "Project-Id-Version: snappy\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
-"POT-Creation-Date: 2015-07-08 10:00+0200\n"
-"PO-Revision-Date: 2015-07-09 18:55+0000\n"
-"Last-Translator: Leo Arias <leo.arias@canonical.com>\n"
+"POT-Creation-Date: 2015-09-14 10:22+0100\n"
+"PO-Revision-Date: 2015-09-13 12:42+0000\n"
+"Last-Translator: Adolfo Jayme <fitoschido@gmail.com>\n"
 "Language-Team: Spanish <es@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2015-09-01 05:40+0000\n"
-"X-Generator: Launchpad (build 17690)\n"
-
-#. TRANSLATORS: the %s stand for "name", "version", "description"
-#, c-format
-msgid "%s\t%s\t%s (forks not shown: %d)\t"
-msgstr "%s\t%s\t%s (bifurcaciones no mostradas: %d)\t"
+"X-Launchpad-Export-Date: 2015-09-15 05:49+0000\n"
+"X-Generator: Launchpad (build 17737)\n"
 
 #. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
 #, c-format
 msgid "%s: %s\n"
 msgstr "%s: %s\n"
+
+#. TRANSLATORS: the %s stand for "name", "version", "description"
+#, c-format
+msgid "%s\t%s\t%s (forks not shown: %d)\t"
+msgstr "%s\t%s\t%s (bifurcaciones no mostradas: %d)\t"
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
@@ -54,6 +54,23 @@ msgid "2fa code: "
 msgstr "Código 2fa: "
 
 msgid ""
+"A concise summary of key attributes of the snappy system, such as the "
+"release and channel.\n"
+"\n"
+"The verbose output includes the specific version information for the factory "
+"image, the running image and the image that will be run on reboot, together "
+"with a list of the available channels for this image.\n"
+"\n"
+"Providing a package name will display information about a specific installed "
+"package.\n"
+"\n"
+"The verbose version of the info command for a package will also tell you the "
+"available channels for that package, when it was installed for the first "
+"time, disk space utilization, and in the case of frameworks, which apps are "
+"able to use the framework."
+msgstr ""
+
+msgid ""
 "Allows rollback of a snap to a previous installed version. Without any "
 "arguments, the previous installed version is selected. It is also possible "
 "to specify the version to rollback to as a additional argument.\n"
@@ -72,6 +89,7 @@ msgid "Builds a snap package"
 msgstr "Construye un paquete snap"
 
 #. TRANSLATORS: the first %q is the file that can not be read and %v is the error message
+#, c-format
 msgid "Can't read hook file %q: %v"
 msgstr "No se puede leer el archivo de «hook» %q: %v"
 
@@ -155,6 +173,27 @@ msgstr "Contraseña: "
 msgid "Provide information about a specific installed package"
 msgstr ""
 
+msgid ""
+"Provides a list of all active components installed on a snappy system.\n"
+"\n"
+"If requested, the command will find out if there are updates for any of the "
+"components and indicate that by appending a * to the date. This will be "
+"slower as it requires a round trip to the app store on the network.\n"
+"\n"
+"The developer information refers to non-mainline versions of a package (much "
+"like PPAs in deb-based Ubuntu). If the package is the primary version of "
+"that package in Ubuntu then the developer info is not shown. This allows one "
+"to identify packages which have custom, non-standard versions installed. As "
+"a special case, the “sideload” developer refers to packages installed "
+"manually on the system.\n"
+"\n"
+"When a verbose listing is requested, information about the channel used is "
+"displayed; which is one of alpha, beta, rc or stable, and all fields are "
+"fully expanded too. In some cases, older (inactive) versions of snappy "
+"packages will be installed, these will be shown in the verbose output and "
+"the active version indicated with a * appended to the name of the component."
+msgstr ""
+
 msgid "Provides more detailed information"
 msgstr ""
 
@@ -165,6 +204,12 @@ msgstr ""
 #, c-format
 msgid "Purging %s\n"
 msgstr "Purgando %s\n"
+
+msgid "Query and modify snappy services"
+msgstr ""
+
+msgid "Query and modify snappy services of locally-installed packages"
+msgstr ""
 
 msgid "Query the store for available packages"
 msgstr "Consultar la tienda por paquetes disponibles"
@@ -194,6 +239,14 @@ msgstr "Eliminar una parte de snap"
 msgid "Remove all the data from the listed packages"
 msgstr "Eliminar todos los datos de los paquetes listados"
 
+msgid ""
+"Remove all the data from the listed packages. Normally this is used for "
+"packages that have been removed and attempting to purge data for an "
+"installed package will result in an error. The --installed option  overrides "
+"that and enables the administrator to purge all data for an installed "
+"package (effectively resetting the package completely)."
+msgstr ""
+
 msgid "Remove hardware from a specific installed package"
 msgstr ""
 
@@ -217,6 +270,16 @@ msgstr "Establecer la configuración de un paquete instalado"
 msgid "Set properties of system or package"
 msgstr "Establecer las propiedades de un sistema o paquete"
 
+msgid ""
+"Set properties of system or package\n"
+"\n"
+"Supported properties are:\n"
+"  active=VERSION\n"
+"\n"
+"Example:\n"
+"  set hello-world active=1.0\n"
+msgstr ""
+
 #. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
 #, c-format
 msgid "Setting %s to version %s\n"
@@ -231,10 +294,21 @@ msgstr ""
 msgid "Show channel information and expand all fields"
 msgstr ""
 
+msgid "Snap\tService\tState"
+msgstr ""
+
 msgid "Specify an alternate output directory for the resulting package"
 msgstr ""
 
 msgid "The Package to install (name or path)"
+msgstr ""
+
+msgid ""
+"The \"versions\" command is no longer available.\n"
+"\n"
+"Please use the \"list\" command instead to see what is installed.\n"
+"The \"list -u\" (or \"list --updates\") will show you the available updates\n"
+"and \"list -v\" (or \"list --verbose\") will show all installed versions.\n"
 msgstr ""
 
 msgid "The configuration for the given file"
@@ -300,6 +374,7 @@ msgid "architecture: %s\n"
 msgstr "arquitectura: %s\n"
 
 #. TRANSLATORS: the %s is a size
+#, c-format
 msgid "binary-size: %v\n"
 msgstr "tamaño del binario: %v\n"
 
@@ -316,7 +391,7 @@ msgstr "tamaño de los datos: %s\n"
 #. TRANSLATORS: the %s is a comma separated list of framework names
 #, c-format
 msgid "frameworks: %s\n"
-msgstr "frameworks: %s\n"
+msgstr "marcos: %s\n"
 
 #. TRANSLATORS: the %s is a date
 #, c-format
@@ -325,6 +400,9 @@ msgstr "instalado: %s\n"
 
 msgid "package name is required"
 msgstr "se requiere el nombre del paquete"
+
+msgid "produces manpage"
+msgstr ""
 
 #. TRANSLATORS: the %s release string
 #, c-format
@@ -338,6 +416,30 @@ msgstr ""
 "snappy autopilot provocó un reinicio para arrancar en un sistema actualizado "
 "-- desactive temporalmente el reinicio ejecutando «sudo shutdown -c»"
 
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#, c-format
+msgid "unable to disable %s's service %s: %v"
+msgstr ""
+
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#, c-format
+msgid "unable to enable %s's service %s: %v"
+msgstr ""
+
+#, c-format
+msgid "unable to get logs: %v"
+msgstr ""
+
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#, c-format
+msgid "unable to start %s's service %s: %v"
+msgstr ""
+
+#. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
+#, c-format
+msgid "unable to stop %s's service %s: %v"
+msgstr ""
+
 #. TRANSLATORS: the %s is a date
 #, c-format
 msgid "updated: %s\n"
@@ -347,6 +449,3 @@ msgstr "actualizado: %s\n"
 #, c-format
 msgid "version: %s\n"
 msgstr "versión: %s\n"
-
-msgid "versions"
-msgstr "versiones"

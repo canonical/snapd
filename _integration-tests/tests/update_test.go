@@ -20,15 +20,41 @@
 package tests
 
 import (
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"io/ioutil"
+	"path"
 
-	check "gopkg.in/check.v1"
+	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/partition"
+
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&updateSuite{})
 
 type updateSuite struct {
 	SnappySuite
+}
+
+func (s *updateSuite) assertBootDirContents(c *check.C) {
+	system, err := partition.BootSystem()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
+	current, err := partition.CurrentPartition()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the current partition: %s", err))
+	files, err := ioutil.ReadDir(
+		path.Join(partition.BootDir(system), partition.OtherPartition(current)))
+	c.Assert(err, check.IsNil, check.Commentf("Error reading the other partition boot dir: %s", err))
+
+	expectedFileNames := []string{"hardware.yaml", "initrd.img", "vmlinuz"}
+	if system == "uboot" {
+		expectedFileNames = append([]string{"dtbs"}, expectedFileNames...)
+	}
+
+	fileNames := []string{}
+	for _, f := range files {
+		fileNames = append(fileNames, f.Name())
+	}
+	c.Assert(fileNames, check.DeepEquals, expectedFileNames,
+		check.Commentf("Wrong files in the other partition boot dir"))
 }
 
 // Test that the update to the same release and channel must install a newer
@@ -42,6 +68,7 @@ func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 			".*" +
 			"^Reboot to use .*ubuntu-core.\n"
 		c.Assert(updateOutput, check.Matches, expected)
+		s.assertBootDirContents(c)
 		Reboot(c)
 	} else if AfterReboot(c) {
 		RemoveRebootMark(c)

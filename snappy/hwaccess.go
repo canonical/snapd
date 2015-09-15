@@ -47,7 +47,7 @@ func getHWAccessJSONFile(snapname string) string {
 
 // Return true if the device string is a valid device
 func validDevice(device string) bool {
-	validPrefixes := []string{"/dev", "/sys/devices", "/sys/class/gpio/export", "/sys/class/gpio/unexport"}
+	validPrefixes := []string{"/dev", "/sys/devices", "/sys/class/gpio"}
 
 	for _, s := range validPrefixes {
 		if strings.HasPrefix(device, s) {
@@ -100,8 +100,8 @@ func regenerateAppArmorRulesImpl() error {
 	if output, err := exec.Command(aaClickHookCmd, "-f").CombinedOutput(); err != nil {
 		if exitCode, err := helpers.ExitCode(err); err == nil {
 			return &ErrApparmorGenerate{
-				exitCode: exitCode,
-				output:   output,
+				ExitCode: exitCode,
+				Output:   output,
 			}
 		}
 		return err
