@@ -284,9 +284,9 @@ func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error
 	}
 	if len(missing) > 0 {
 		return &ErrInvalidYaml{
-			file: file,
-			yaml: yamlData,
-			err:  fmt.Errorf("missing required fields '%s'", strings.Join(missing, ", ")),
+			File: file,
+			Yaml: yamlData,
+			Err:  fmt.Errorf("missing required fields '%s'", strings.Join(missing, ", ")),
 		}
 	}
 
@@ -315,7 +315,7 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 	var m packageYaml
 	err := yaml.Unmarshal(yamlData, &m)
 	if err != nil {
-		return nil, &ErrInvalidYaml{file: "package.yaml", err: err, yaml: yamlData}
+		return nil, &ErrInvalidYaml{File: "package.yaml", Err: err, Yaml: yamlData}
 	}
 
 	if err := validatePackageYamlData("package.yaml", yamlData, &m); err != nil {
@@ -637,7 +637,7 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 	var h hashesYaml
 	err = yaml.Unmarshal(hashesData, &h)
 	if err != nil {
-		return nil, &ErrInvalidYaml{file: "hashes.yaml", err: err, yaml: hashesData}
+		return nil, &ErrInvalidYaml{File: "hashes.yaml", Err: err, Yaml: hashesData}
 	}
 	part.hash = h.ArchiveSha512
 
@@ -650,7 +650,7 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 
 		var r remoteSnap
 		if err := yaml.Unmarshal(content, &r); err != nil {
-			return nil, &ErrInvalidYaml{file: remoteManifestPath, err: err, yaml: content}
+			return nil, &ErrInvalidYaml{File: remoteManifestPath, Err: err, Yaml: content}
 		}
 		part.remoteM = &r
 	}
@@ -1301,8 +1301,8 @@ func (s *SnapPart) RefreshDependentsSecurity(oldPart *SnapPart, inter interacter
 	if output, err := cmd.CombinedOutput(); err != nil {
 		if exitCode, err := helpers.ExitCode(err); err == nil {
 			return &ErrApparmorGenerate{
-				exitCode: exitCode,
-				output:   output,
+				ExitCode: exitCode,
+				Output:   output,
 			}
 		}
 		return err
@@ -1514,7 +1514,7 @@ func download(name string, w io.Writer, req *http.Request, pbar progress.Meter) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return &ErrDownload{code: resp.StatusCode, url: req.URL}
+		return &ErrDownload{Code: resp.StatusCode, URL: req.URL}
 	}
 
 	if pbar != nil {

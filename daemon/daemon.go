@@ -59,7 +59,7 @@ type Command struct {
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var rspf ResponseFunc
-	rsp := BadMethod
+	var rsp Response = BadMethod
 
 	switch r.Method {
 	case "GET":

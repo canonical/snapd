@@ -1544,8 +1544,8 @@ services:
 func (s *SnapTestSuite) TestExecHookCorrectErrType(c *C) {
 	err := execHook("false")
 	c.Assert(err, DeepEquals, &ErrHookFailed{
-		cmd:      "false",
-		exitCode: 1,
+		Cmd:      "false",
+		ExitCode: 1,
 	})
 }
 
@@ -1554,9 +1554,9 @@ func (s *SnapTestSuite) TestCopySnapDataDirectoryError(c *C) {
 	newPath := "/nonono-i-can-not-write-here"
 	err := copySnapDataDirectory(oldPath, newPath)
 	c.Assert(err, DeepEquals, &ErrDataCopyFailed{
-		oldPath:  oldPath,
-		newPath:  newPath,
-		exitCode: 1,
+		OldPath:  oldPath,
+		NewPath:  newPath,
+		ExitCode: 1,
 	})
 }
 

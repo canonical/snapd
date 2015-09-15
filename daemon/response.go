@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"launchpad.net/snappy/logger"
@@ -93,10 +94,31 @@ func (r *resp) Self(*Command, *http.Request) Response {
 	return r
 }
 
+func (r *resp) SetError(err error, format string, v ...interface{}) Response {
+	m := make(map[string]interface{})
+	newr := &resp{
+		Type:   ResponseTypeError,
+		Result: m,
+		Status: r.Status,
+	}
+
+	if format != "" {
+		logger.Noticef(format, v...)
+		m["msg"] = fmt.Sprintf(format, v...)
+	}
+
+	if err != nil {
+		m["obj"] = err
+		m["str"] = err.Error()
+	}
+
+	return newr
+}
+
 // SyncResponse builds a "sync" response from the given result.
 func SyncResponse(result interface{}) Response {
-	if _, ok := result.(error); ok {
-		return InternalError
+	if err, ok := result.(error); ok {
+		return InternalError(err, "")
 	}
 
 	if rsp, ok := result.(Response); ok {
@@ -120,11 +142,31 @@ func AsyncResponse(result map[string]interface{}) Response {
 }
 
 // ErrorResponse builds an "error" response from the given error status.
-func ErrorResponse(status int) Response {
-	return &resp{
+func ErrorResponse(status int) ErrorResponseFunc {
+	r := &resp{
 		Type:   ResponseTypeError,
 		Status: status,
 	}
+
+	return r.SetError
+}
+
+// ErrorResponseFunc is a callable error Response.
+// So you can return e.g. InternalError, or InternalError(err, "something broke"), etc.
+type ErrorResponseFunc func(error, string, ...interface{}) Response
+
+// Render the response
+func (f ErrorResponseFunc) Render(w http.ResponseWriter) ([]byte, int) {
+	return f(nil, "").Render(w)
+}
+
+func (f ErrorResponseFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	f(nil, "").ServeHTTP(w, r)
+}
+
+// Self returns (a copy of) this same response; mostly for convenience.
+func (f ErrorResponseFunc) Self(*Command, *http.Request) Response {
+	return f(nil, "")
 }
 
 // standard error responses
