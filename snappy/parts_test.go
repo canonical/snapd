@@ -64,7 +64,7 @@ func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {
 	m := NewMetaRepository()
 	c.Assert(m, NotNil)
 
-	parts, err := m.Details("hello-app")
+	parts, err := m.Details("hello-app", "")
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "hello-app")

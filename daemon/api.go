@@ -68,25 +68,25 @@ var (
 	}
 
 	packageCmd = &Command{
-		Path: "/1.0/packages/{package}",
+		Path: "/1.0/packages/{name}.{origin}",
 		GET:  getPackageInfo,
 		POST: postPackage,
 	}
 
 	packageConfigCmd = &Command{
-		Path: "/1.0/packages/{package}/config",
+		Path: "/1.0/packages/{name}.{origin}/config",
 		GET:  packageConfig,
 		PUT:  packageConfig,
 	}
 
 	packageSvcsCmd = &Command{
-		Path: "/1.0/packages/{package}/services",
+		Path: "/1.0/packages/{name}.{origin}/services",
 		GET:  packageService,
 		PUT:  packageService,
 	}
 
 	packageSvcCmd = &Command{
-		Path: "/1.0/packages/{package}/services/{service}",
+		Path: "/1.0/packages/{name}.{origin}/services/{service}",
 		GET:  packageService,
 		PUT:  packageService,
 	}
@@ -108,7 +108,7 @@ func v1Get(c *Command, r *http.Request) Response {
 }
 
 type metarepo interface {
-	Details(string) ([]snappy.Part, error)
+	Details(string, string) ([]snappy.Part, error)
 	All() ([]snappy.Part, error)
 }
 
@@ -127,13 +127,16 @@ var newRemoteRepo = func() metarepo {
 var muxVars = mux.Vars
 
 func getPackageInfo(c *Command, r *http.Request) Response {
-	reqName := muxVars(r)["package"]
-	if reqName == "" {
+	vars := muxVars(r)
+	name := vars["name"]
+	origin := vars["origin"]
+	if name == "" || origin == "" {
 		// can't happen, i think? mux won't let it
 		return BadRequest
 	}
+
 	repo := newRepo()
-	found, err := repo.Details(reqName)
+	found, err := repo.Details(name, origin)
 	if err != nil {
 		if err == snappy.ErrPackageNotFound {
 			return NotFound
@@ -146,24 +149,15 @@ func getPackageInfo(c *Command, r *http.Request) Response {
 		return NotFound
 	}
 
-	name := snappy.QualifiedName(found[0])
-	for i := range found {
-		n := snappy.QualifiedName(found[i])
-		if n != name {
-			logger.Noticef("in getting details for %q: found parts with different qualified names: %q and %q.", reqName, name, n)
-			return InternalError
-		}
-	}
-
 	route := c.d.router.Get(c.Path)
 	if route == nil {
-		logger.Noticef("router can't find route for package %s", name)
+		logger.Noticef("router can't find route for package %s.%s", name, origin)
 		return InternalError
 	}
 
-	url, err := route.URL("package", name)
+	url, err := route.URL("name", name, "origin", origin)
 	if err != nil {
-		logger.Noticef("route can't build URL for package %s: %v", name, err)
+		logger.Noticef("route can't build URL for package %s.%s: %v", name, origin, err)
 		return InternalError
 	}
 
@@ -225,14 +219,14 @@ func (ps byQN) Less(a, b int) bool {
 	return snappy.QualifiedName(ps[a]) < snappy.QualifiedName(ps[b])
 }
 
-func addPart(results map[string]map[string]string, current []snappy.Part, oldName string, route *mux.Route) []snappy.Part {
-	url, err := route.URL("package", oldName)
+func addPart(results map[string]map[string]string, current []snappy.Part, name string, origin string, route *mux.Route) []snappy.Part {
+	url, err := route.URL("name", name, "origin", origin)
 	if err != nil {
-		logger.Noticef("route can't build URL for package %s: %v", oldName, err)
+		logger.Noticef("route can't build URL for package %s.%s: %v", name, origin, err)
 		return current
 	}
 
-	results[oldName] = parts2map(current, url.String())
+	results[name+"."+origin] = parts2map(current, url.String())
 
 	return nil
 }
@@ -274,19 +268,23 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 	results := make(map[string]map[string]string)
 	var current []snappy.Part
 	var oldName string
+	var oldOrigin string
 	for i := range found {
-		name := snappy.QualifiedName(found[i])
-		if name != oldName && len(current) > 0 {
-			current = addPart(results, current, oldName, route)
+		name := found[i].Name()
+		origin := found[i].Origin()
+		if (name != oldName || origin != oldOrigin) && len(current) > 0 {
+			current = addPart(results, current, oldName, oldOrigin, route)
 			if current != nil {
 				return InternalError
 			}
 		}
 		oldName = name
+		oldOrigin = origin
 		current = append(current, found[i])
 	}
+
 	if len(current) > 0 {
-		current = addPart(results, current, oldName, route)
+		current = addPart(results, current, oldName, oldOrigin, route)
 		if current != nil {
 			return InternalError
 		}
@@ -302,7 +300,7 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 	})
 }
 
-func getActivePkg(qn string) ([]snappy.Part, error) {
+func getActivePkg(fullname string) ([]snappy.Part, error) {
 	// TODO: below should be rolled into ActiveSnapByName
 	// (specifically: ActiveSnapByname should know about origins)
 	repo := newLocalRepo()
@@ -313,7 +311,7 @@ func getActivePkg(qn string) ([]snappy.Part, error) {
 	}
 
 	parts := all[:0]
-	for _, part := range snappy.FindSnapsByName(qn, all) {
+	for _, part := range snappy.FindSnapsByName(fullname, all) {
 		if part.IsActive() {
 			parts = append(parts, part)
 		}
@@ -338,11 +336,13 @@ func packageService(c *Command, r *http.Request) Response {
 	}
 
 	vars := muxVars(r)
-	pkgName := vars["package"]
-	if pkgName == "" {
+	name := vars["name"]
+	origin := vars["origin"]
+	if name == "" || origin == "" {
 		return BadRequest
 	}
 	svcName := vars["service"]
+	pkgName := name + "." + origin
 
 	action := "status"
 
@@ -397,7 +397,8 @@ func packageService(c *Command, r *http.Request) Response {
 		return NotFound
 	}
 
-	actor, err := findServices(pkgName, svcName, &progress.NullProgress{})
+	// note findServices takes the *bare* name
+	actor, err := findServices(name, svcName, &progress.NullProgress{})
 	if err != nil {
 		logger.Noticef("no services found: %v", err)
 		return NotFound
@@ -454,10 +455,13 @@ func packageService(c *Command, r *http.Request) Response {
 }
 
 func packageConfig(c *Command, r *http.Request) Response {
-	pkgName := muxVars(r)["package"]
-	if pkgName == "" {
+	vars := muxVars(r)
+	name := vars["name"]
+	origin := vars["origin"]
+	if name == "" || origin == "" {
 		return BadRequest
 	}
+	pkgName := name + "." + origin
 
 	parts, err := getActivePkg(pkgName)
 	if err != nil {
@@ -614,7 +618,8 @@ func postPackage(c *Command, r *http.Request) Response {
 		return BadRequest
 	}
 
-	inst.pkg = muxVars(r)["package"]
+	vars := muxVars(r)
+	inst.pkg = vars["name"] + "." + vars["origin"]
 	inst.prog = &progress.NullProgress{}
 
 	f := pkgActionDispatch(&inst)

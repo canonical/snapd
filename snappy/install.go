@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/partition"
@@ -111,7 +112,14 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 		return "", err
 	}
 
-	found, err := mStore.Details(name)
+	origin := ""
+	idx := strings.IndexRune(name, '.')
+	if idx > -1 {
+		origin = name[idx+1:]
+		name = name[:idx]
+	}
+
+	found, err := mStore.Details(name, origin)
 	if err != nil {
 		return "", err
 	}

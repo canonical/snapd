@@ -53,7 +53,7 @@ type apiSuite struct {
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Details(string) ([]snappy.Part, error) {
+func (s *apiSuite) Details(string, string) ([]snappy.Part, error) {
 	return s.parts, s.err
 }
 
@@ -91,7 +91,7 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 	d := New()
 	d.addRoutes()
 
-	s.vars = map[string]string{"package": "foo"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
 	s.parts = []snappy.Part{&tP{
 		name:          "foo",
@@ -136,27 +136,21 @@ func (s *apiSuite) TestPackageInfoBadReq(c *check.C) {
 }
 
 func (s *apiSuite) TestPackageInfoNotFound(c *check.C) {
-	s.vars = map[string]string{"package": "foo"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.err = snappy.ErrPackageNotFound
 
 	c.Check(getPackageInfo(packageCmd, nil), check.Equals, NotFound)
 }
 
 func (s *apiSuite) TestPackageInfoNoneFound(c *check.C) {
-	s.vars = map[string]string{"package": "foo"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
 	c.Check(getPackageInfo(packageCmd, nil), check.Equals, NotFound)
 }
 
 func (s *apiSuite) TestPackageInfoWeirdDetails(c *check.C) {
-	s.vars = map[string]string{"package": "foo"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.err = errors.New("weird")
-	c.Check(getPackageInfo(packageCmd, nil), check.Equals, InternalError)
-}
-
-func (s *apiSuite) TestPackageInfoMixedResults(c *check.C) {
-	s.vars = map[string]string{"package": "foo"}
-	s.parts = []snappy.Part{&tP{name: "foo"}, &tP{name: "bar"}}
 	c.Check(getPackageInfo(packageCmd, nil), check.Equals, InternalError)
 }
 
@@ -168,7 +162,7 @@ func (s *apiSuite) TestPackageInfoWeirdRoute(c *check.C) {
 
 	// use the wrong command to force the issue
 	wrongCmd := &Command{Path: "/{what}", d: d}
-	s.vars = map[string]string{"package": "foo"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.parts = []snappy.Part{&tP{name: "foo"}}
 	c.Check(getPackageInfo(wrongCmd, nil), check.Equals, InternalError)
 }
@@ -183,7 +177,7 @@ func (s *apiSuite) TestPackageInfoBadRoute(c *check.C) {
 	route := d.router.Get(packageCmd.Path)
 	c.Assert(route.Name("foo").GetError(), check.NotNil)
 
-	s.vars = map[string]string{"package": "foo"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.parts = []snappy.Part{&tP{name: "foo"}}
 	c.Check(getPackageInfo(packageCmd, nil), check.Equals, InternalError)
 }
@@ -538,7 +532,7 @@ func (s *apiSuite) TestPackageGetConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	configStr := "some: config"
-	s.vars = map[string]string{"package": "foo.bar"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.parts = []snappy.Part{
 		&tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: configStr},
 		&tP{name: "bar", version: "v2", origin: "baz", isActive: true},
@@ -564,7 +558,7 @@ func (s *apiSuite) TestPackagePutConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	configStr := "some: config"
-	s.vars = map[string]string{"package": "foo.bar"}
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.parts = []snappy.Part{
 		&tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: configStr},
 		&tP{name: "bar", version: "v2", origin: "baz", isActive: true},
@@ -597,7 +591,7 @@ func (s *apiSuite) TestPackageServiceGet(c *check.C) {
 			svcYamls: []snappy.ServiceYaml{{Name: "svc"}},
 		},
 	}
-	s.vars = map[string]string{"package": "foo.bar"} // NB: no service specified
+	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
 
 	rsp := packageService(packageSvcsCmd, req).(*resp)
 	c.Assert(rsp, check.NotNil)
@@ -629,7 +623,7 @@ func (s *apiSuite) TestPackageServicePut(c *check.C) {
 			svcYamls: []snappy.ServiceYaml{{Name: "svc"}},
 		},
 	}
-	s.vars = map[string]string{"package": "foo.bar"} // NB: no service specified
+	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
 
 	rsp := packageService(packageSvcsCmd, req).(*resp)
 	c.Assert(rsp, check.NotNil)
