@@ -1,9 +1,9 @@
 [Unit]
 Description=Socket activation for snappy daemon
-After=snappy-wait4network.service
+After=ubuntu-snappy.firstboot.service
 
 [Socket]
 ListenStream=@snapd
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=ubuntu-snappy.frameworks.target
