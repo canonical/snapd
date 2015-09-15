@@ -26,6 +26,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"launchpad.net/snappy/helpers"
+
 	. "gopkg.in/check.v1"
 )
 
@@ -48,6 +50,7 @@ var (
 	originalCmdAutopilotEnabled = cmdAutopilotEnabled
 	originalCmdSystemctl        = cmdSystemctl
 	originalHostnamePath        = hostnamePath
+	originalTzZoneInfoTarget    = tzZoneInfoTarget
 )
 
 type ConfigTestSuite struct {
@@ -74,6 +77,8 @@ func (cts *ConfigTestSuite) SetUpTest(c *C) {
 		hostname = host
 		return nil
 	}
+	tzZoneInfoTarget = filepath.Join(c.MkDir(), "localtime")
+
 }
 
 func (cts *ConfigTestSuite) TearDownTest(c *C) {
@@ -92,6 +97,7 @@ func (cts *ConfigTestSuite) TearDownTest(c *C) {
 	cmdStopAutopilot = originalCmdStopAutopilot
 	cmdAutopilotEnabled = originalCmdAutopilotEnabled
 	cmdSystemctl = originalCmdSystemctl
+	tzZoneInfoTarget = originalTzZoneInfoTarget
 }
 
 // TestGet is a broad test, close enough to be an integration test for
@@ -139,6 +145,7 @@ func (cts *ConfigTestSuite) TestSetTimezone(c *C) {
 	rawConfig, err := Set(expected)
 	c.Assert(err, IsNil)
 	c.Assert(rawConfig, Equals, expected)
+	c.Assert(helpers.FileExists(tzZoneInfoTarget), Equals, true)
 }
 
 // TestSetAutopilot is a broad test, close enough to be an integration test.

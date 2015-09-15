@@ -6,6 +6,8 @@ export DH_OPTIONS
 export DH_GOPKG := launchpad.net/snappy
 #export DEB_BUILD_OPTIONS=nocheck
 
+RELEASE = $(shell lsb_release -c -s)
+
 %:
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd
 
@@ -65,7 +67,11 @@ BUILDDIR:=${CURDIR}/obj-$(shell dpkg-architecture -qDEB_TARGET_GNU_TYPE)
 override_dh_auto_build:
 	dh_auto_build
 	# this will update the i18n stuff using our build-in xgettext-go
-	GOPATH=${BUILDDIR} go generate ./i18n
+	if [ "$(RELEASE)" = "vivid" ]; then\
+		GOPATH=${BUILDDIR} ./update-pot;\
+	else\
+		GOPATH=${BUILDDIR} go generate ./i18n;\
+	fi;
 
 override_dh_auto_install: snappy.8
 	dh_auto_install -O--buildsystem=golang
