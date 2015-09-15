@@ -284,7 +284,7 @@ var getTimezone = func() (timezone string, err error) {
 // setTimezone sets the specified timezone for the system, an error is returned
 // if it can't.
 var setTimezone = func(timezone string) error {
-	if err := helpers.CopyFile(filepath.Join(tzZoneInfoPath, timezone), tzZoneInfoTarget, 0); err != nil {
+	if err := helpers.CopyFile(filepath.Join(tzZoneInfoPath, timezone), tzZoneInfoTarget, helpers.CopyFlagOverwrite); err != nil {
 		return err
 	}
 

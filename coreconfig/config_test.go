@@ -165,6 +165,26 @@ func (cts *ConfigTestSuite) TestSetTimezone(c *C) {
 	c.Assert(helpers.FileExists(tzZoneInfoTarget), Equals, true)
 }
 
+func (cts *ConfigTestSuite) TestSetTimezoneAlreadyExists(c *C) {
+	// TODO figure out if we care about exact output or just want valid yaml.
+	expected := `config:
+  ubuntu-core:
+    autopilot: false
+    timezone: America/Argentina/Mendoza
+    hostname: testhost
+`
+	canary := []byte("Ni Ni Ni")
+	err := ioutil.WriteFile(tzZoneInfoTarget, canary, 0644)
+	c.Assert(err, IsNil)
+
+	rawConfig, err := Set(expected)
+	c.Assert(err, IsNil)
+	c.Assert(rawConfig, Equals, expected)
+	content, err := ioutil.ReadFile(tzZoneInfoTarget)
+	c.Assert(err, IsNil)
+	c.Assert(content, Not(DeepEquals), []byte(canary))
+}
+
 // TestSetAutopilot is a broad test, close enough to be an integration test.
 func (cts *ConfigTestSuite) TestSetAutopilot(c *C) {
 	// TODO figure out if we care about exact output or just want valid yaml.

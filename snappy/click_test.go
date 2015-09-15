@@ -429,7 +429,7 @@ type: framework
 	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
 	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
 	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
-	m, err := parsePackageYamlData(yaml)
+	m, err := parsePackageYamlData(yaml, false)
 	c.Assert(err, IsNil)
 	c.Assert(writeDebianControl(tmpdir, m), IsNil)
 	c.Assert(writeClickManifest(tmpdir, m), IsNil)
@@ -1422,7 +1422,7 @@ binaries:
 	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
 	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
 	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
-	m, err := parsePackageYamlData(yaml)
+	m, err := parsePackageYamlData(yaml, false)
 	c.Assert(err, IsNil)
 	c.Assert(writeDebianControl(tmpdir, m), IsNil)
 	c.Assert(writeClickManifest(tmpdir, m), IsNil)
@@ -1487,7 +1487,7 @@ binaries:
 services:
  - name: bar
    start: baz
-`))
+`), false)
 	c.Assert(err, IsNil)
 
 	snapSeccompDir = c.MkDir()
@@ -1511,7 +1511,7 @@ binaries:
 services:
  - name: bar
    start: baz
-`))
+`), false)
 	c.Assert(err, IsNil)
 
 	snapSeccompDir = c.MkDir()

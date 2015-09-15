@@ -271,7 +271,10 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 		return nil, err
 	}
 
-	return parsePackageYamlData(yamlData)
+	// legacy support sucks :-/
+	hasConfig := helpers.FileExists(filepath.Join(filepath.Dir(yamlPath), "hooks", "snappy-config"))
+
+	return parsePackageYamlData(yamlData, hasConfig)
 }
 
 func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error {
@@ -312,7 +315,7 @@ func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error
 	return nil
 }
 
-func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
+func parsePackageYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error) {
 	var m packageYaml
 	err := yaml.Unmarshal(yamlData, &m)
 	if err != nil {
@@ -358,7 +361,7 @@ func parsePackageYamlData(yamlData []byte) (*packageYaml, error) {
 		}
 	}
 
-	m.legacyIntegration()
+	m.legacyIntegration(hasConfig)
 
 	return &m, nil
 }
@@ -502,7 +505,7 @@ func (m *packageYaml) legacyIntegrateSecDef(hookName string, s *SecurityDefiniti
 }
 
 // legacyIntegration sets up the Integration property of packageYaml from its other attributes
-func (m *packageYaml) legacyIntegration() {
+func (m *packageYaml) legacyIntegration(hasConfig bool) {
 	if m.Integration != nil {
 		// TODO: append "Overriding user-provided values." to the end of the blurb.
 		logger.Noticef(`The "integration" key is deprecated, and all uses of "integration" should be rewritten; see https://developer.ubuntu.com/en/snappy/guides/package-metadata/ (the "binaries" and "services" sections are probably especially relevant)."`)
@@ -532,6 +535,10 @@ func (m *packageYaml) legacyIntegration() {
 
 		// handle the apparmor stuff
 		m.legacyIntegrateSecDef(hookName, &v.SecurityDefinitions)
+	}
+
+	if hasConfig {
+		m.Integration["snappy-config"] = clickAppHook{"apparmor": "meta/snappy-config.apparmor"}
 	}
 }
 
@@ -569,7 +576,10 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 		return nil, err
 	}
 
-	m, err := parsePackageYamlData(yamlData)
+	_, err = d.MetaMember("hooks/config")
+	hasConfig := err == nil
+
+	m, err := parsePackageYamlData(yamlData, hasConfig)
 	if err != nil {
 		return nil, err
 	}
