@@ -21,32 +21,26 @@ package main
 
 import (
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/snappy"
+	"launchpad.net/snappy/partition"
 )
 
-type cmdBooted struct {
+type cmdGrubMigrate struct {
 }
 
 func init() {
-	_, err := parser.AddCommand("booted",
+	_, err := parser.AddCommand("grub-migrate",
 		"internal",
 		"internal",
-		&cmdBooted{})
+		&cmdGrubMigrate{})
 	if err != nil {
-		logger.Panicf("Unable to booted: %v", err)
+		logger.Panicf("Unable to grub-migrate: %v", err)
 	}
 }
 
-func (x *cmdBooted) Execute(args []string) error {
-	return withMutex(x.doBooted)
+func (x *cmdGrubMigrate) Execute(args []string) error {
+	return withMutex(x.doGrubMigrate)
 }
 
-func (x *cmdBooted) doBooted() error {
-	parts, err := snappy.ActiveSnapsByType(pkg.TypeCore)
-	if err != nil {
-		return err
-	}
-
-	return parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
+func (x *cmdGrubMigrate) doGrubMigrate() error {
+	return partition.MigrateToDynamicGrub()
 }
