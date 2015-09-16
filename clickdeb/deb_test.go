@@ -126,7 +126,7 @@ func (s *ClickDebTestSuite) TestSnapDebControlMemberMissing(c *C) {
 	d, err := Open(debName)
 	c.Assert(err, IsNil)
 	_, err = d.ControlMember("no such file")
-	c.Assert(err, NotNil)
+	c.Assert(err, Equals, ErrMemberNotFound)
 }
 
 func (s *ClickDebTestSuite) TestSnapDebMetaMember(c *C) {
@@ -144,7 +144,7 @@ func (s *ClickDebTestSuite) TestSnapDebMetaMemberMissing(c *C) {
 	d, err := Open(debName)
 	c.Assert(err, IsNil)
 	_, err = d.MetaMember("no such file")
-	c.Assert(err, NotNil)
+	c.Assert(err, Equals, ErrMemberNotFound)
 }
 
 func (s *ClickDebTestSuite) TestSnapDebUnpack(c *C) {
