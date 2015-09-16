@@ -272,7 +272,7 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 	}
 
 	// legacy support sucks :-/
-	hasConfig := helpers.FileExists(filepath.Join(filepath.Dir(yamlPath), "hooks", "snappy-config"))
+	hasConfig := helpers.FileExists(filepath.Join(filepath.Dir(yamlPath), "hooks", "config"))
 
 	return parsePackageYamlData(yamlData, hasConfig)
 }
@@ -576,7 +576,7 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 		return nil, err
 	}
 
-	_, err = d.MetaMember("hooks/config")
+	_, err := d.MetaMember("hooks/config")
 	hasConfig := err == nil
 
 	m, err := parsePackageYamlData(yamlData, hasConfig)

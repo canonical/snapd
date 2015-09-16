@@ -120,6 +120,15 @@ func (s *ClickDebTestSuite) TestSnapDebControlMember(c *C) {
 	c.Assert(string(content), Equals, string(testDebControl))
 }
 
+func (s *ClickDebTestSuite) TestSnapDebControlMemberMissing(c *C) {
+	debName := makeTestDeb(c, "gzip")
+
+	d, err := Open(debName)
+	c.Assert(err, IsNil)
+	_, err = d.ControlMember("no such file")
+	c.Assert(err, NotNil)
+}
+
 func (s *ClickDebTestSuite) TestSnapDebMetaMember(c *C) {
 	debName := makeTestDeb(c, "gzip")
 	d, err := Open(debName)
@@ -127,6 +136,15 @@ func (s *ClickDebTestSuite) TestSnapDebMetaMember(c *C) {
 	yaml, err := d.MetaMember("package.yaml")
 	c.Assert(err, IsNil)
 	c.Assert(string(yaml), Equals, "name: foo")
+}
+
+func (s *ClickDebTestSuite) TestSnapDebMetaMemberMissing(c *C) {
+	debName := makeTestDeb(c, "gzip")
+
+	d, err := Open(debName)
+	c.Assert(err, IsNil)
+	_, err = d.MetaMember("no such file")
+	c.Assert(err, NotNil)
 }
 
 func (s *ClickDebTestSuite) TestSnapDebUnpack(c *C) {
