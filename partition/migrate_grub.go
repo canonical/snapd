@@ -121,6 +121,9 @@ func copyKernelAssets(prefixDir, grubTargetDir string) error {
 	return nil
 }
 
+// MigrateToDynamicGrub rearranges things to work with the old,
+// dynamic grub setup. Needed for when you rollback over the switch to
+// static grub.
 func MigrateToDynamicGrub() error {
 	grubConfigRaw, err := ioutil.ReadFile(bootloaderGrubConfigFile)
 	if err != nil && !os.IsNotExist(err) {
