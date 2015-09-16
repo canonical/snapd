@@ -1,11 +1,16 @@
 #!/bin/sh
 
-set -ev
+set -eu
 
 if which goctest >/dev/null; then
     goctest="goctest"
 else
     goctest="go test"
+fi
+
+QUICK=""
+if [ "${1:-}" = "--quick" ]; then
+    QUICK=yes
 fi
 
 echo Checking docs
@@ -20,27 +25,26 @@ if [ -n "$fmt" ]; then
     exit 1
 fi
 
-echo Installing godeps
-go get launchpad.net/godeps
-export PATH=$PATH:$GOPATH/bin
+if [ -z "$QUICK" ]; then
+    echo Installing godeps
+    go get launchpad.net/godeps
+    export PATH=$PATH:$GOPATH/bin
 
-echo Install golint
-go get github.com/golang/lint/golint
-export PATH=$PATH:$GOPATH/bin
+    echo Install golint
+    go get github.com/golang/lint/golint
+    export PATH=$PATH:$GOPATH/bin
 
-echo Obtaining dependencies
-godeps -u dependencies.tsv
+    echo Obtaining dependencies
+    godeps -u dependencies.tsv
 
-
-
-echo Building
-go build -v launchpad.net/snappy/...
+    echo Building
+    go build -v launchpad.net/snappy/...
 
 
-# tests
-echo Running tests from $(pwd)
-$goctest -v -cover ./...
-
+    # tests
+    echo Running tests from $(pwd)
+    $goctest -v -cover ./...
+fi
 
 # go vet
 echo Running vet
@@ -67,21 +71,23 @@ if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; 
 fi
 
 
-# integration tests
-echo Building the integration tests
-go build _integration-tests/main.go
+if [ -z "$QUICK" ]; then
+    # integration tests
+    echo Building the integration tests
+    go build _integration-tests/main.go
 
-# the rabbit hole
-echo Running the tests for the integration testutils
-$goctest -v -cover ./_integration-tests/testutils/...
+    # the rabbit hole
+    echo Running the tests for the integration testutils
+    $goctest -v -cover ./_integration-tests/testutils/...
 
-# integration suite in kvm
-if which adt-run >/dev/null 2>&1; then
-    echo "Running integration tests on rolling edge"
-    go run _integration-tests/main.go --snappy-from-branch
-    # print the results.
-    if which subunit2pyunit >/dev/null 2>&1; then
-        subunit-1to2 /tmp/snappy-test/output/artifacts/results.subunit | subunit2pyunit
+    # integration suite in kvm
+    if which adt-run >/dev/null 2>&1; then
+        echo "Running integration tests on rolling edge"
+        go run _integration-tests/main.go --snappy-from-branch
+        # print the results.
+        if which subunit2pyunit >/dev/null 2>&1; then
+            subunit-1to2 /tmp/snappy-test/output/artifacts/results.subunit | subunit2pyunit
+        fi
     fi
 fi
 
