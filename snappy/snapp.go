@@ -576,7 +576,7 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 		return nil, err
 	}
 
-	_, err := d.MetaMember("hooks/config")
+	_, err = d.MetaMember("hooks/config")
 	hasConfig := err == nil
 
 	m, err := parsePackageYamlData(yamlData, hasConfig)
