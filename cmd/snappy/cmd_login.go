@@ -24,8 +24,6 @@ import (
 	"fmt"
 	"os"
 
-	"golang.org/x/crypto/ssh/terminal"
-
 	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/snappy"
@@ -76,7 +74,7 @@ func (x *cmdLogin) Execute(args []string) error {
 
 	username := x.Positional.UserName
 	fmt.Print(i18n.G("Password: "))
-	password, err := terminal.ReadPassword(0)
+	password, err := xreadPassword(0)
 	fmt.Print("\n")
 	if err != nil {
 		return err
