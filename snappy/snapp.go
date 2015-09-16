@@ -272,7 +272,7 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 	}
 
 	// legacy support sucks :-/
-	hasConfig := helpers.FileExists(filepath.Join(filepath.Dir(yamlPath), "hooks", "snappy-config"))
+	hasConfig := helpers.FileExists(filepath.Join(filepath.Dir(yamlPath), "hooks", "config"))
 
 	return parsePackageYamlData(yamlData, hasConfig)
 }
