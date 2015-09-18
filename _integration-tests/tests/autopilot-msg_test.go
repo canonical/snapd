@@ -38,6 +38,11 @@ type autopilotMsgSuite struct {
 func (s *autopilotMsgSuite) TestAutoPilotMessageIsPrinted(c *check.C) {
 	ExecCommand(c, "sudo", "systemctl", "start", "snappy-autopilot")
 
+	// do not pollute the other tests with the now installed hello-world
+	s.AddCleanup(func() {
+		RemoveSnap(c, "hello-world")
+	})
+
 	// FIXME: risk of race
 	// (i.e. systemctl start finishes before install runs)
 	snappyOutput, _ := exec.Command("sudo", "snappy", "install", "hello-world").CombinedOutput()
