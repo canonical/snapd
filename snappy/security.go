@@ -215,7 +215,7 @@ func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 
 	err = yaml.Unmarshal(yamlData, &s)
 	if err != nil {
-		return &ErrInvalidYaml{file: "package.yaml[seccomp override]", err: err, yaml: yamlData}
+		return &ErrInvalidYaml{File: "package.yaml[seccomp override]", Err: err, Yaml: yamlData}
 	}
 	// These must always be specified together
 	if (s.PolicyVersion == 0 && s.PolicyVendor != "") || (s.PolicyVersion != 0 && s.PolicyVendor == "") {

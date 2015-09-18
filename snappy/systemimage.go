@@ -257,13 +257,13 @@ func (s *SystemImagePart) verifyUpgradeWasApplied() error {
 
 	if latestPart == nil {
 		return &ErrUpgradeVerificationFailed{
-			msg: "could not find latest installed partition",
+			Msg: "could not find latest installed partition",
 		}
 	}
 
 	if s.version != latestPart.Version() {
 		return &ErrUpgradeVerificationFailed{
-			msg: fmt.Sprintf("found %q but expected %q", latestPart.Version(), s.version),
+			Msg: fmt.Sprintf("found %q but expected %q", latestPart.Version(), s.version),
 		}
 	}
 
@@ -436,12 +436,12 @@ func (s *SystemImageRepository) Search(terms string) (versions []Part, err error
 }
 
 // Details returns details for the given snap
-func (s *SystemImageRepository) Details(snapName string) (versions []Part, err error) {
-	if snapName == systemImagePartName {
-		part := makeCurrentPart(s.partition)
-		versions = append(versions, part)
+func (s *SystemImageRepository) Details(name string, origin string) ([]Part, error) {
+	if name == systemImagePartName && origin == systemImagePartOrigin {
+		return []Part{makeCurrentPart(s.partition)}, nil
 	}
-	return versions, err
+
+	return nil, ErrPackageNotFound
 }
 
 // Updates returns the available updates
@@ -480,6 +480,11 @@ func (s *SystemImageRepository) Installed() (parts []Part, err error) {
 	}
 
 	return parts, err
+}
+
+// All installed parts. SystemImageParts are non-removable.
+func (s *SystemImageRepository) All() ([]Part, error) {
+	return s.Installed()
 }
 
 // needsSync determines if syncing boot assets is required

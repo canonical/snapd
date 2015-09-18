@@ -9,6 +9,10 @@
 
  *  Internet access in the test bed.
 
+ *  (Optional) subunit, to display nice test results in the terminal:
+
+        sudo apt-get install subunit
+
 ## Setting up the project
 
 First you need to set up the GOPATH, get the snappy sources and the
@@ -57,9 +61,6 @@ You can execute the integration suite in a remote snappy machine with:
 
     go run _integration-tests/main.go --ip {testbed-ip} --port {testbed-port} \
     --arch {testbed-arch}
-
-The test runner will use `ssh-copy-id` to send your identity file to the
-testbed, so it will ask for the password of the ubuntu user in the test bed.
 
 When running in a remote machine, the test runner assumes the test bed is in
 the latest rolling edge version, and it will skip all the tests that

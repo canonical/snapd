@@ -165,19 +165,6 @@ func (s *AutopkgtestSuite) TestAdtRunRemoteCallsPrepareTargetDir(c *check.C) {
 		check.Commentf("Expected call %s not executed 1 time", expectedMkDirCall))
 }
 
-func (s *AutopkgtestSuite) TestAdtRunRemoteCallsSSHCopyId(c *check.C) {
-	s.subject.AdtRunRemote(testbedIP, testbedPort)
-
-	expectedExecCommadCall := fmt.Sprintf("ssh-copy-id -p %s ubuntu@%s", strconv.Itoa(testbedPort), testbedIP)
-
-	outputDir := outputDir(testArtifactsPath)
-	adtrunRemoteCmd(controlFile, sourceCodePath, outputDir, testbedIP, testbedPort)
-
-	c.Assert(s.execCalls[expectedExecCommadCall],
-		check.Equals, 1,
-		check.Commentf("Expected call %s not executed 1 time", expectedExecCommadCall))
-}
-
 func (s *AutopkgtestSuite) TestAdtRunRemoteCallsExecCommand(c *check.C) {
 	s.subject.AdtRunRemote(testbedIP, testbedPort)
 
@@ -212,7 +199,8 @@ func adtrunLocalCmd(controlFile, sourceCodePath, outputDir, imgPath string) stri
 func adtrunRemoteCmd(controlFile, sourceCodePath, outputDir, testbedIP string, testbedPort int) string {
 	port := strconv.Itoa(testbedPort)
 	idFile := filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa")
-	options := fmt.Sprintf("--- ssh -H %s -p %s -l ubuntu -i %s --reboot", testbedIP, port, idFile)
+	options := fmt.Sprintf("--- ssh -H %s -p %s -l ubuntu -i %s --reboot --timeout-ssh %d",
+		testbedIP, port, idFile, sshTimeout)
 
 	return adtrunCommonCmd(controlFile, sourceCodePath, outputDir, options)
 }

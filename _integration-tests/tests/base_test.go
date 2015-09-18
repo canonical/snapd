@@ -20,10 +20,20 @@
 package tests
 
 import (
+	"io"
+	"os"
 	"testing"
 
-	. "gopkg.in/check.v1"
+	"launchpad.net/snappy/_integration-tests/testutils/report"
+	"launchpad.net/snappy/_integration-tests/testutils/runner"
 )
 
 // Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) { TestingT(t) }
+func Test(t *testing.T) {
+	output := io.MultiWriter(
+		os.Stdout,
+		&report.ParserReporter{
+			Next: &report.FileReporter{}})
+
+	runner.TestingT(t, output)
+}

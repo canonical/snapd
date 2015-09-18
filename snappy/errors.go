@@ -150,77 +150,77 @@ var (
 
 // ErrDownload represents a download error
 type ErrDownload struct {
-	code int
-	url  *url.URL
+	Code int
+	URL  *url.URL
 }
 
 func (e *ErrDownload) Error() string {
-	return fmt.Sprintf("received an unexpected http response code (%v) when trying to download %s", e.code, e.url)
+	return fmt.Sprintf("received an unexpected http response code (%v) when trying to download %s", e.Code, e.URL)
 }
 
 // ErrArchitectureNotSupported is returned when trying to install a snappy package that
 // is not supported on the system
 type ErrArchitectureNotSupported struct {
-	architectures []string
+	Architectures []string
 }
 
 func (e *ErrArchitectureNotSupported) Error() string {
-	return fmt.Sprintf("package's supported architectures (%s) is incompatible with this system (%s)", strings.Join(e.architectures, ", "), helpers.UbuntuArchitecture())
+	return fmt.Sprintf("package's supported architectures (%s) is incompatible with this system (%s)", strings.Join(e.Architectures, ", "), helpers.UbuntuArchitecture())
 }
 
 // ErrInstallFailed is an error type for installation errors for snaps
 type ErrInstallFailed struct {
-	snap    string
-	origErr error
+	Snap    string
+	OrigErr error
 }
 
 // ErrInstallFailed is an error type for installation errors for snaps
 func (e *ErrInstallFailed) Error() string {
-	return fmt.Sprintf("%s failed to install: %s", e.snap, e.origErr)
+	return fmt.Sprintf("%s failed to install: %s", e.Snap, e.OrigErr)
 }
 
 // ErrHookFailed is returned if a hook command fails
 type ErrHookFailed struct {
-	cmd      string
-	output   string
-	exitCode int
+	Cmd      string
+	Output   string
+	ExitCode int
 }
 
 func (e *ErrHookFailed) Error() string {
-	return fmt.Sprintf("hook command %v failed with exit status %d (output: %q)", e.cmd, e.exitCode, e.output)
+	return fmt.Sprintf("hook command %v failed with exit status %d (output: %q)", e.Cmd, e.ExitCode, e.Output)
 }
 
 // ErrDataCopyFailed is returned if copying the snap data fialed
 type ErrDataCopyFailed struct {
-	oldPath  string
-	newPath  string
-	exitCode int
+	OldPath  string
+	NewPath  string
+	ExitCode int
 }
 
 func (e *ErrDataCopyFailed) Error() string {
-	return fmt.Sprintf("data copy from %v to %v failed with exit status %d", e.oldPath, e.newPath, e.exitCode)
+	return fmt.Sprintf("data copy from %v to %v failed with exit status %d", e.OldPath, e.NewPath, e.ExitCode)
 }
 
 // ErrUpgradeVerificationFailed is returned if the upgrade has not
 // worked (i.e. no new version on the other partition)
 type ErrUpgradeVerificationFailed struct {
-	msg string
+	Msg string
 }
 
 func (e *ErrUpgradeVerificationFailed) Error() string {
-	return fmt.Sprintf("upgrade verification failed: %s", e.msg)
+	return fmt.Sprintf("upgrade verification failed: %s", e.Msg)
 }
 
 // ErrStructIllegalContent is returned if a struct contains illegal content
 // as matched via "verifyWhitelistForStruct"
 type ErrStructIllegalContent struct {
-	field     string
-	content   string
-	whitelist string
+	Field     string
+	Content   string
+	Whitelist string
 }
 
 func (e *ErrStructIllegalContent) Error() string {
-	return fmt.Sprintf("services description field '%s' contains illegal '%s' (legal: '%s')", e.field, e.content, e.whitelist)
+	return fmt.Sprintf("services description field '%s' contains illegal '%s' (legal: '%s')", e.Field, e.Content, e.Whitelist)
 }
 
 // ErrGarbageCollectImpossible is alerting about some of the assumptions of the
@@ -254,22 +254,22 @@ func (e ErrFrameworkInUse) Error() string {
 
 // ErrApparmorGenerate is reported if the apparmor profile generation fails
 type ErrApparmorGenerate struct {
-	exitCode int
-	output   []byte
+	ExitCode int
+	Output   []byte
 }
 
 func (e ErrApparmorGenerate) Error() string {
-	return fmt.Sprintf("apparmor generate fails with %v: '%v'", e.exitCode, string(e.output))
+	return fmt.Sprintf("apparmor generate fails with %v: '%v'", e.ExitCode, string(e.Output))
 }
 
 // ErrInvalidYaml is returned if a yaml file can not be parsed
 type ErrInvalidYaml struct {
-	file string
-	err  error
-	yaml []byte
+	File string
+	Err  error
+	Yaml []byte
 }
 
 func (e *ErrInvalidYaml) Error() string {
 	// %#v of string(yaml) so the yaml is presented as a human-readable string, but in a single greppable line
-	return fmt.Sprintf("can not parse %s: %v (from: %#v)", e.file, e.err, string(e.yaml))
+	return fmt.Sprintf("can not parse %s: %v (from: %#v)", e.File, e.Err, string(e.Yaml))
 }

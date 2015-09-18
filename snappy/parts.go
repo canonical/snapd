@@ -34,8 +34,8 @@ import (
 // SystemConfig is a config map holding configs for multiple packages
 type SystemConfig map[string]interface{}
 
-// ServiceYamls implements snappy packages that offer services
-type ServiceYamls interface {
+// ServiceYamler implements snappy packages that offer services
+type ServiceYamler interface {
 	ServiceYamls() []ServiceYaml
 }
 
@@ -105,10 +105,12 @@ type Repository interface {
 	Description() string
 
 	// action
-	Details(snappName string) ([]Part, error)
+	Details(name string, origin string) ([]Part, error)
 
 	Updates() ([]Part, error)
 	Installed() ([]Part, error)
+
+	All() ([]Part, error)
 }
 
 // MetaRepository contains all available single repositories can can be used
@@ -172,6 +174,21 @@ func (m *MetaRepository) Installed() (parts []Part, err error) {
 	return parts, err
 }
 
+// All the parts
+func (m *MetaRepository) All() ([]Part, error) {
+	var parts []Part
+
+	for _, r := range m.all {
+		all, err := r.All()
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, all...)
+	}
+
+	return parts, nil
+}
+
 // Updates returns all updatable parts
 func (m *MetaRepository) Updates() (parts []Part, err error) {
 	for _, r := range m.all {
@@ -186,9 +203,11 @@ func (m *MetaRepository) Updates() (parts []Part, err error) {
 }
 
 // Details returns details for the given snap name
-func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
+func (m *MetaRepository) Details(name string, origin string) ([]Part, error) {
+	var parts []Part
+
 	for _, r := range m.all {
-		results, err := r.Details(snapyName)
+		results, err := r.Details(name, origin)
 		// ignore network errors here, we will also collect
 		// local results
 		_, netError := err.(net.Error)
@@ -197,12 +216,12 @@ func (m *MetaRepository) Details(snapyName string) (parts []Part, err error) {
 		case err == ErrPackageNotFound || netError || urlError:
 			continue
 		case err != nil:
-			return parts, err
+			return nil, err
 		}
 		parts = append(parts, results...)
 	}
 
-	return parts, err
+	return parts, nil
 }
 
 // ActiveSnapsByType returns all installed snaps with the given type

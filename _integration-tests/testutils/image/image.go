@@ -51,7 +51,7 @@ func (img Image) UdfCreate() (string, error) {
 	udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
 
 	if img.revision != "" {
-		udfCommand = append(udfCommand, "--revision", img.revision)
+		udfCommand = append(udfCommand, "--revision="+img.revision)
 	}
 
 	imagePath := img.imagePath(imageDir)
