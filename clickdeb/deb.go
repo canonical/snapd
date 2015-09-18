@@ -42,6 +42,9 @@ var (
 	// ErrSnapInvalidContent is returned if a snap package contains
 	// invalid content
 	ErrSnapInvalidContent = errors.New("snap contains invalid content")
+
+	// ErrMemberNotFound is returned when a tar member is not found in the archive
+	ErrMemberNotFound = errors.New("member not found")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem
@@ -180,8 +183,10 @@ func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error
 		return nil, err
 	}
 
+	found := false
 	err = helpers.TarIterate(dataReader, func(tr *tar.Reader, hdr *tar.Header) error {
 		if filepath.Clean(hdr.Name) == tarMember {
+			found = true
 			content, err = ioutil.ReadAll(tr)
 			if err != nil {
 				return err
@@ -190,6 +195,10 @@ func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error
 
 		return nil
 	})
+
+	if !found {
+		return nil, ErrMemberNotFound
+	}
 
 	if err != nil {
 		return nil, err

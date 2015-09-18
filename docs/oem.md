@@ -99,6 +99,15 @@ package to provide a more generic `device` package.
 
 The only supported layout today is AB.
 
+#### Hardware assign
+
+Hardware can be assigned directly to a snap part in the oem snap.
+This is useful if you are building e.g. a fixed function device.
+The "assign" key is used and it takes a list of snap parts as parameter
+that will then get access to the devices specified by the "rules"
+section. The matching is flexible and follows what the kernel/udev
+is doing.
+
 ## Structure and layout
 
 The `package.yaml` is structured as:
@@ -130,7 +139,8 @@ The `package.yaml` is structured as:
 		        - # package list
 		    preinstalled:
 		        - # package list
-		hardware: # mandatory
+
+                hardware: # mandatory
 		    platform: platform-string # mandatory
 		    architecture: architecture-string 
                           # mandatory (armhf, amd64, i386, 
@@ -146,18 +156,32 @@ The `package.yaml` is structured as:
 		            - path: file-path
 		              offset: offset-uint64
 
+                assign: # optional
+                    - part-id: random-app
+                      rules:
+                          - kernel: kernelname*
+                            with-subsystems:
+                                - aSubsystem
+                            with-driver:
+                                - some-driver
+                            with-attrs:
+                                - idVendor=someVendorId
+                            with-props:
+                                - someUdevEnv=someValue
+                          - subsystem: block
 
 The package header section is common to all packages
 
 The general rules for config:
 
 - only applied on first boot.
-- if the config is immutable, updates to the `oem` package will be reflected.
 
 Rules about packages in the config:
 
-- a package listed in this map is preinstalled on image roll out (`ubuntu-core`
-  is implicit)
+- a package listed in this map is automatically preinstalled from the store
+  on image roll out. `ubuntu-core` is always implicitly installed. The
+  `oem` snap is also installed and can not be (re)configured after the
+  install.
 
 The `oem` part of the `package.yaml` is not a configuration per se and treated
 separately.
@@ -179,9 +203,6 @@ type: oem
 config:
     ubuntu-core:
         hostname: myhostname
-        services:
-            - name: ssh
-              enabled: true
         no-cloud: true
     config-example.canonical:
         msg: Yay!

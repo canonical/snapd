@@ -37,8 +37,9 @@ func verifyBusName(busName string) error {
 
 	if !r.MatchString(busName) {
 		return &ErrStructIllegalContent{
-			content:   busName,
-			whitelist: rs,
+			Field:     "bus-name",
+			Content:   busName,
+			Whitelist: rs,
 		}
 	}
 	return nil

@@ -66,7 +66,7 @@ func (s *OemSuite) TestStoreID(c *C) {
 }
 
 func (s *OemSuite) TestWriteApparmorAdditionalFile(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml)
+	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
 	err = writeApparmorAdditionalFile(m)
@@ -78,7 +78,7 @@ func (s *OemSuite) TestWriteApparmorAdditionalFile(c *C) {
 }
 
 func (s *OemSuite) TestCleanupOemHardwareRules(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml)
+	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
 	err = writeApparmorAdditionalFile(m)

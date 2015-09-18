@@ -38,19 +38,23 @@ type cmdService struct {
 	Restart svcRestart `command:"restart"`
 	Enable  svcEnable  `command:"enable"`
 	Disable svcDisable `command:"disable"`
+	Logs    svcLogs    `command:"logs"`
 }
+
 type svcBase struct {
 	Args struct {
 		Snap    string `positional-arg-name:"snap"`
 		Service string `positional-arg-name:"service"`
 	} `positional-args:"yes"`
 }
+
 type svcStatus struct{ svcBase }
 type svcStart struct{ svcBase }
 type svcStop struct{ svcBase }
 type svcRestart struct{ svcBase }
 type svcEnable struct{ svcBase }
 type svcDisable struct{ svcBase }
+type svcLogs struct{ svcBase }
 
 func init() {
 	_, err := parser.AddCommand("service",
@@ -71,6 +75,7 @@ const (
 	doRestart
 	doEnable
 	doDisable
+	doLogs
 )
 
 func (s *svcBase) doExecute(cmd int) ([]string, error) {
@@ -82,6 +87,8 @@ func (s *svcBase) doExecute(cmd int) ([]string, error) {
 	switch cmd {
 	case doStatus:
 		return actor.Status()
+	case doLogs:
+		return actor.Loglines()
 	case doStart:
 		return nil, actor.Start()
 	case doStop:
@@ -125,6 +132,21 @@ func (s *svcStatus) Execute(args []string) error {
 	w.Flush()
 
 	return err
+}
+
+func (s *svcLogs) Execute([]string) error {
+	return withMutex(func() error {
+		logs, err := s.doExecute(doLogs)
+		if err != nil {
+			return err
+		}
+
+		for i := range logs {
+			fmt.Println(logs[i])
+		}
+
+		return nil
+	})
 }
 
 func (s *svcStart) Execute(args []string) error {

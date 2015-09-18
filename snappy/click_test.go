@@ -429,7 +429,7 @@ type: framework
 	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
 	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
 	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
-	m, err := parsePackageYamlData(yaml)
+	m, err := parsePackageYamlData(yaml, false)
 	c.Assert(err, IsNil)
 	c.Assert(writeDebianControl(tmpdir, m), IsNil)
 	c.Assert(writeClickManifest(tmpdir, m), IsNil)
@@ -537,7 +537,7 @@ vendor: Foo Bar <foo@example.com>`)
 
 	// different origin, this shows we have no origin support at this
 	// level, but sideloading also works.
-	_, err = installClick(snapFile, 0, nil, sideloadedOrigin)
+	_, err = installClick(snapFile, 0, nil, SideloadedOrigin)
 	c.Check(err, IsNil)
 
 	// a package name fork, IOW, a different OEM package.
@@ -762,10 +762,6 @@ export SNAP_ORIGIN="mvo"
 export SNAP_FULLNAME="pastebinit.mvo"
 export SNAP_ARCH="%[1]s"
 export SNAP_APP_USER_DATA_PATH="$HOME/apps/pastebinit.mvo/1.4.0.0.1/"
-
-if [ ! -d "$SNAP_APP_TMPDIR" ]; then
-    mkdir -p -m1777 "$SNAP_APP_TMPDIR"
-fi
 
 if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
    mkdir -p "$SNAP_APP_USER_DATA_PATH"
@@ -1238,10 +1234,32 @@ TimeoutStopSec=30
 [Install]
 WantedBy=multi-user.target
 `
-	expectedServiceAppWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "\n", helpers.UbuntuArchitecture())
-	expectedNetAppWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".canonical", "canonical", "\n", helpers.UbuntuArchitecture())
-	expectedServiceFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "BusName=foo.bar.baz\nType=dbus", helpers.UbuntuArchitecture())
+	expectedServiceAppWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "\n", helpers.UbuntuArchitecture())
+	expectedNetAppWrapper         = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".canonical", "canonical", "\n", helpers.UbuntuArchitecture())
+	expectedServiceFmkWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "BusName=foo.bar.baz\nType=dbus", helpers.UbuntuArchitecture())
+	expectedSocketUsingWrapper    = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket\nRequires=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket", ".canonical", "canonical", "\n", helpers.UbuntuArchitecture())
+	expectedTypeForkingFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "Type=forking\n", helpers.UbuntuArchitecture())
 )
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
+	service := ServiceYaml{
+		Name:        "xkcd-webserver",
+		Start:       "bin/foo start",
+		Stop:        "bin/foo stop",
+		PostStop:    "bin/foo post-stop",
+		StopTimeout: DefaultTimeout,
+		Description: "A fun webserver",
+		Forking:     true,
+	}
+	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
+	m := packageYaml{Name: "xkcd-webserver",
+		Version: "0.3.4"}
+
+	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	c.Assert(err, IsNil)
+	c.Assert(generatedWrapper, Equals, expectedTypeForkingFmkWrapper)
+}
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 	service := ServiceYaml{
@@ -1404,7 +1422,7 @@ binaries:
 	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
 	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
 	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
-	m, err := parsePackageYamlData(yaml)
+	m, err := parsePackageYamlData(yaml, false)
 	c.Assert(err, IsNil)
 	c.Assert(writeDebianControl(tmpdir, m), IsNil)
 	c.Assert(writeClickManifest(tmpdir, m), IsNil)
@@ -1469,7 +1487,7 @@ binaries:
 services:
  - name: bar
    start: baz
-`))
+`), false)
 	c.Assert(err, IsNil)
 
 	snapSeccompDir = c.MkDir()
@@ -1493,7 +1511,7 @@ binaries:
 services:
  - name: bar
    start: baz
-`))
+`), false)
 	c.Assert(err, IsNil)
 
 	snapSeccompDir = c.MkDir()
@@ -1547,8 +1565,8 @@ services:
 func (s *SnapTestSuite) TestExecHookCorrectErrType(c *C) {
 	err := execHook("false")
 	c.Assert(err, DeepEquals, &ErrHookFailed{
-		cmd:      "false",
-		exitCode: 1,
+		Cmd:      "false",
+		ExitCode: 1,
 	})
 }
 
@@ -1557,8 +1575,62 @@ func (s *SnapTestSuite) TestCopySnapDataDirectoryError(c *C) {
 	newPath := "/nonono-i-can-not-write-here"
 	err := copySnapDataDirectory(oldPath, newPath)
 	c.Assert(err, DeepEquals, &ErrDataCopyFailed{
-		oldPath:  oldPath,
-		newPath:  newPath,
-		exitCode: 1,
+		OldPath:  oldPath,
+		NewPath:  newPath,
+		ExitCode: 1,
 	})
+}
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
+	service := ServiceYaml{Name: "xkcd-webserver",
+		Start:        "bin/foo start",
+		Description:  "meep",
+		Socket:       true,
+		ListenStream: "/var/run/docker.sock",
+		SocketMode:   "0660",
+		SocketUser:   "root",
+		SocketGroup:  "adm",
+	}
+	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
+	m := packageYaml{
+		Name:    "xkcd-webserver",
+		Version: "0.3.4"}
+
+	content, err := generateSnapSocketFile(service, pkgPath, aaProfile, &m)
+	c.Assert(err, IsNil)
+	c.Assert(content, Equals, `[Unit]
+Description= Socket Unit File
+PartOf=xkcd-webserver_xkcd-webserver_0.3.4.service
+X-Snappy=yes
+
+[Socket]
+ListenStream=/var/run/docker.sock
+SocketMode=0660
+SocketUser=root
+SocketGroup=adm
+
+[Install]
+WantedBy=sockets.target
+`)
+}
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSockte(c *C) {
+	service := ServiceYaml{
+		Name:        "xkcd-webserver",
+		Start:       "bin/foo start",
+		Stop:        "bin/foo stop",
+		PostStop:    "bin/foo post-stop",
+		StopTimeout: DefaultTimeout,
+		Description: "A fun webserver",
+		Socket:      true,
+	}
+	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
+	m := packageYaml{Name: "xkcd-webserver",
+		Version: "0.3.4"}
+
+	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	c.Assert(err, IsNil)
+	c.Assert(generatedWrapper, Equals, expectedSocketUsingWrapper)
 }

@@ -199,7 +199,8 @@ func adtrunLocalCmd(controlFile, sourceCodePath, outputDir, imgPath string) stri
 func adtrunRemoteCmd(controlFile, sourceCodePath, outputDir, testbedIP string, testbedPort int) string {
 	port := strconv.Itoa(testbedPort)
 	idFile := filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa")
-	options := fmt.Sprintf("--- ssh -H %s -p %s -l ubuntu -i %s --reboot", testbedIP, port, idFile)
+	options := fmt.Sprintf("--- ssh -H %s -p %s -l ubuntu -i %s --reboot --timeout-ssh %d",
+		testbedIP, port, idFile, sshTimeout)
 
 	return adtrunCommonCmd(controlFile, sourceCodePath, outputDir, options)
 }

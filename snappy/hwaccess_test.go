@@ -132,11 +132,19 @@ func (s *SnapTestSuite) TestListHWAccessNoAdditionalAccess(c *C) {
 func (s *SnapTestSuite) TestListHWAccess(c *C) {
 	makeInstalledMockSnap(s.tempdir, "")
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
+	c.Assert(err, IsNil)
+
 	err = AddHWAccess("hello-app", "/sys/devices/gpio1")
+	c.Assert(err, IsNil)
+
+	err = AddHWAccess("hello-app", "/sys/class/gpio/export")
+	c.Assert(err, IsNil)
+
+	err = AddHWAccess("hello-app", "/sys/class/gpio/unexport")
+	c.Assert(err, IsNil)
 
 	writePaths, err := ListHWAccess("hello-app")
-	c.Assert(err, IsNil)
-	c.Assert(writePaths, DeepEquals, []string{"/dev/ttyUSB0", "/sys/devices/gpio1"})
+	c.Assert(writePaths, DeepEquals, []string{"/dev/ttyUSB0", "/sys/devices/gpio1", "/sys/class/gpio/export", "/sys/class/gpio/unexport"})
 }
 
 func (s *SnapTestSuite) TestRemoveHWAccessInvalidDevice(c *C) {
@@ -294,7 +302,7 @@ exit 1`
 
 	err = regenerateAppArmorRulesImpl()
 	c.Assert(err, DeepEquals, &ErrApparmorGenerate{
-		exitCode: 1,
-		output:   []byte("meep\n"),
+		ExitCode: 1,
+		Output:   []byte("meep\n"),
 	})
 }

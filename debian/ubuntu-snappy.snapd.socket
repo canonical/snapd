@@ -1,0 +1,8 @@
+[Unit]
+Description=Socket activation for snappy daemon
+
+[Socket]
+ListenStream=@snapd
+
+[Install]
+WantedBy=sockets.target
