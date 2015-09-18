@@ -58,9 +58,15 @@ var (
 	watchdogStartupPath = "/etc/default/watchdog"
 )
 
-// ErrInvalidUnitStatus signals that a unit is not returning a status
-// of "enabled" or "disabled".
-var ErrInvalidUnitStatus = errors.New("invalid unit status")
+var (
+	// ErrInvalidUnitStatus signals that a unit is not returning a status
+	// of "enabled" or "disabled".
+	ErrInvalidUnitStatus = errors.New("invalid unit status")
+
+	// ErrInvalidConfig is returned from Set when the value
+	// provided is not a valid configuration string.
+	ErrInvalidConfig = errors.New("invalid ubuntu-core configuration")
+)
 
 type systemConfig struct {
 	Autopilot *bool           `yaml:"autopilot,omitempty"`
@@ -194,6 +200,9 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 		return "", err
 	}
 	newConfig := configWrap.Config.UbuntuCore
+	if newConfig == nil {
+		return "", ErrInvalidConfig
+	}
 
 	rNewConfig := reflect.ValueOf(newConfig).Elem()
 	rType := rNewConfig.Type()

@@ -148,6 +148,18 @@ func (cts *ConfigTestSuite) TestSet(c *C) {
 	c.Assert(rawConfig, Equals, expected)
 }
 
+func (cts *ConfigTestSuite) TestSetBadValueDoesNotPanic(c *C) {
+	for _, s := range []string{
+		"",
+		"\n",
+		"config:\n",
+		"config:\n ubuntu-core:\n",
+	} {
+		_, err := Set(s)
+		c.Assert(err, NotNil)
+	}
+}
+
 // TestSetTimezone is a broad test, close enough to be an integration test.
 func (cts *ConfigTestSuite) TestSetTimezone(c *C) {
 	// TODO figure out if we care about exact output or just want valid yaml.
