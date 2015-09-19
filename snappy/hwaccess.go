@@ -22,7 +22,6 @@ package snappy
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -115,6 +114,21 @@ func udevRulesPathForPart(partid string) string {
 	return filepath.Join(snapUdevRulesDir, fmt.Sprintf("70-snappy_hwassign_%s.rules", partid))
 }
 
+func addUdevRuleForSnap(snapname, udev_rule string) error {
+	file, err := os.OpenFile(udevRulesPathForPart(snapname), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	if _, err = file.WriteString(udev_rule); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 	os.MkdirAll(snapUdevRulesDir, 0755)
 
@@ -130,7 +144,7 @@ func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"
 `, filepath.Base(device), snapname)
 
-	if err := ioutil.WriteFile(udevRulesPathForPart(snapname), []byte(acl), 0644); err != nil {
+	if err := addUdevRuleForSnap(snapname, acl); err != nil {
 		return err
 	}
 
