@@ -156,7 +156,7 @@ func (cts *ConfigTestSuite) TestSetBadValueDoesNotPanic(c *C) {
 		"config:\n ubuntu-core:\n",
 	} {
 		_, err := Set(s)
-		c.Assert(err, NotNil)
+		c.Assert(err, Equals, ErrInvalidConfig)
 	}
 }
 
