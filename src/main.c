@@ -263,6 +263,106 @@ void setup_private_mount(const char* appname) {
     }
 }
 
+bool is_running_on_regular_ubuntu() {
+   struct stat buf;
+   if (stat("/var/lib/dpkg/status", &buf) == 0) {
+         return true;
+   }
+   
+   return false;
+}
+
+bool is_mountpoint(const char * const mountpoint) {
+   int status;
+   pid_t pid = fork();
+   if (pid == 0) {
+      char *args[4];
+      args[0] = "/bin/mountpoint";
+      args[1] = (char*)mountpoint;
+      args[2] = NULL;
+      execv(args[0], args);
+   }
+   if(waitpid(pid, &status, 0) < 0)
+      die("waitpid failed");
+
+   return (WIFEXITED(status) && WEXITSTATUS(status) == 0);
+}
+
+void mount_snap(const char * const snap, const char * const mountpoint) {
+   fprintf(stderr, "mount_snap\n");
+   int status;
+   pid_t pid = fork();
+   if (pid == 0) {
+      char *args[4];
+      args[0] = "/bin/mount";
+      args[1] = (char*)snap;
+      args[2] = (char*)mountpoint;
+      args[3] = NULL;
+
+      // required before calling exec on mount
+      if(setuid(0) != 0)
+         die("setuid(0) failed");
+      execv(args[0], args);
+   }
+   if(WIFEXITED(status) && WEXITSTATUS(status) != 0)
+      die("child exited with status %i", WEXITSTATUS(status));
+   else if(WIFSIGNALED(status))
+      die("child died with signal %i", WTERMSIG(status));
+}
+
+void make_root_rprivate() {
+   int status;
+   pid_t pid = fork();
+   if (pid == 0) {
+      char *args[4];
+      args[0] = "/bin/mount";
+      args[1] = "--make-rprivate";
+      args[2] = "/";
+      args[3] = NULL;
+
+      if(setuid(0) != 0)
+         die("setuid(0) failed");
+      execv(args[0], args);
+   }
+   if(waitpid(pid, &status, 0) < 0)
+         die("waitpid failed");
+   if(WIFEXITED(status) && WEXITSTATUS(status) != 0)
+      die("child exited with status %i", WEXITSTATUS(status));
+   else if(WIFSIGNALED(status))
+      die("child died with signal %i", WTERMSIG(status));
+}
+
+void setup_snappy_os_mounts() {
+   fprintf(stderr, "setup_snappy_os_mounts()\n");
+
+   make_root_rprivate();
+   
+   // FIXME: hardcoded
+   const char *os_snap = "/os/ubuntu-core.sideload/current/blob.snap";
+   const char *mountpoint = "/os/ubuntu-core.sideload/current/run";
+
+   // find out if we need to mount
+   if(!is_mountpoint(mountpoint)) {
+      mount_snap(os_snap, mountpoint);
+   }
+
+   const char *mounts[] = {"/bin", "/sbin", "/lib", "/lib64", "/usr"};
+   for (int i=0; i < sizeof(mounts)/sizeof(char*); i++) {
+      // we mount the OS snap /bin over the real /bin in this NS
+      const char *dst = mounts[i];
+
+      char buf[512];
+      must_snprintf(buf, sizeof(buf), "%s%s", mountpoint, dst);
+      const char *src = buf;
+
+      fprintf(stderr, "mounting %s -> %s\n", src, dst);
+      if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
+         die("unable to bind %s to %s", src, dst);
+      }
+   }
+}
+
+
 int main(int argc, char **argv)
 {
    const int NR_ARGS = 3;
@@ -303,6 +403,11 @@ int main(int argc, char **argv)
        if(snappy_udev_setup_required(appname)) {
           setup_devices_cgroup(appname);
           setup_udev_snappy_assign(appname);
+       }
+
+       // do the mounting if run on a non-native snappy system
+       if(is_running_on_regular_ubuntu()) {
+          setup_snappy_os_mounts();
        }
 
        // the rest does not so drop privs back to calling user
