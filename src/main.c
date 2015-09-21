@@ -335,6 +335,12 @@ void make_root_rprivate() {
 void setup_snappy_os_mounts() {
    fprintf(stderr, "setup_snappy_os_mounts()\n");
 
+   // unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >= 2.14
+   // if using an older glibc, you'd need -D_BSD_SOURCE or -D_SVID_SORUCE.
+   if (unshare(CLONE_NEWNS) < 0) {
+      die("unable to set up mount namespace");
+   }
+
    make_root_rprivate();
    
    // FIXME: hardcoded
