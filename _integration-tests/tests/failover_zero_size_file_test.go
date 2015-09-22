@@ -162,15 +162,19 @@ func classicKernelFiles(c *check.C) bool {
 // If we are not in an update process (ie. we are unsetting the failover conditions)
 // we want to change the files in the other partition
 func newKernelFilenamePattern(c *check.C, bootSystem string, afterUpdate bool) string {
-	var actualPartition string
-	part, err := partition.NextBootPartition()
-	c.Assert(err, check.IsNil, check.Commentf("Error getting the current partition: %s", err))
+	var part string
+	var err error
 	if afterUpdate {
-		actualPartition = part
+		part, err = partition.NextBootPartition()
+		c.Assert(err, check.IsNil,
+			check.Commentf("Error getting the next boot partition: %s", err))
 	} else {
-		actualPartition = partition.OtherPartition(part)
+		part, err = partition.CurrentPartition()
+		c.Assert(err, check.IsNil,
+			check.Commentf("Error getting the current partition: %s", err))
+		part = partition.OtherPartition(part)
 	}
-	return filepath.Join(actualPartition, "%s%s*")
+	return filepath.Join(part, "%s%s*")
 }
 
 /*
