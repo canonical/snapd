@@ -20,6 +20,7 @@
 package snappy
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -211,6 +212,51 @@ func ListHWAccess(snapname string) ([]string, error) {
 	return appArmorAdditional.WritePath, nil
 }
 
+func UpdateUdevRuleForSnap(snapname, device string) error {
+	udevRulesFile := udevRulesPathForPart(snapname)
+
+	if helpers.FileExists(udevRulesFile) {
+		file, err := os.Open(udevRulesFile)
+
+		if nil != err {
+			return err
+		}
+
+		// Get the full list of rules to keep
+		var rules_to_keep []string
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			rule := scanner.Text()
+			if "" != rule && !strings.Contains(rule, "\""+filepath.Base(device)+"\"") {
+				rules_to_keep = append(rules_to_keep, rule)
+			}
+		}
+
+		// Delete the file and create a new one if there is at least
+		// one rule left.
+		file.Close()
+		if err = os.Remove(udevRulesFile); nil != err {
+			return err
+		}
+		if 0 != len(rules_to_keep) {
+			file, err = os.OpenFile(udevRulesFile, os.O_CREATE|os.O_WRONLY, 0644)
+			if nil != err {
+				return err
+			}
+
+			defer file.Close()
+
+			for _, rule := range rules_to_keep {
+				if _, err := file.WriteString(rule + "\n"); nil != err {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // RemoveHWAccess allows the given snap package to access the given hardware
 // device
 func RemoveHWAccess(snapname, device string) error {
@@ -241,14 +287,13 @@ func RemoveHWAccess(snapname, device string) error {
 		return err
 	}
 
-	udevRulesFile := udevRulesPathForPart(snapname)
-	if helpers.FileExists(udevRulesFile) {
-		if err := os.Remove(udevRulesFile); err != nil {
-			return err
-		}
-		if err := activateOemHardwareUdevRules(); err != nil {
-			return err
-		}
+	err = UpdateUdevRuleForSnap(snapname, device)
+	if nil != err {
+		return err
+	}
+
+	if err := activateOemHardwareUdevRules(); err != nil {
+		return err
 	}
 
 	// re-generate apparmor rules
