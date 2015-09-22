@@ -119,5 +119,5 @@ func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 	c.Assert(err, check.NotNil)
 	c.Assert(string(output), check.Equals,
 		"Installing unexisting.canonical\n"+
-			"unexisting.canonical failed to install: snappy package not found\n")
+			"unexisting failed to install: snappy package not found\n")
 }
