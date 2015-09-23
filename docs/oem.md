@@ -193,48 +193,47 @@ Rules about `software`:
 
 As an example
 
-```yaml
-name: beagleboneblack.sergiusens
-vendor: Sergio Schvezov <sergiusens@gmail.com>
-icon: meta/element14.png
-version: 1.1
-type: oem
 
-config:
-    ubuntu-core:
-        hostname: myhostname
-        no-cloud: true
-    config-example.canonical:
-        msg: Yay!
+    name: beagleboneblack.sergiusens
+    vendor: Sergio Schvezov <sergiusens@gmail.com>
+    icon: meta/element14.png
+    version: 1.1
+    type: oem
 
-immutable-config:
-    - ubuntu-core/services/*
-    - webdm/*
+    config:
+        ubuntu-core:
+            hostname: myhostname
+            no-cloud: true
+        config-example.canonical:
+            msg: Yay!
 
-oem:
-    store:
-        id: mystore
-    branding:
-        name:  Beagle Bone Black
-        logo: logo.png
-    software:
-        built-in:
-            - webdm
-        preinstalled:
-            - system-status.victor
-            - pastebinit.mvo
-            - config-example.canonical
-    hardware:
-        platform: am335x-boneblack
-        architecture: armhf
-        partition-layout: system-AB
-        bootloader: u-boot
-        boot-assets:
-            files:
-                - path: uEnv.txt
-            raw-files:
-                - path: MLO
-                  offset: 131072 # 128 * 1024
-                - path: u-boot.img
-                  offset: 393216 # 384 * 1024
-```
+    immutable-config:
+        - ubuntu-core/services/*
+        - webdm/*
+
+    oem:
+        store:
+            id: mystore
+        branding:
+            name:  Beagle Bone Black
+            logo: logo.png
+        software:
+            built-in:
+                - webdm
+            preinstalled:
+                - system-status.victor
+                - pastebinit.mvo
+                - config-example.canonical
+        hardware:
+            platform: am335x-boneblack
+            architecture: armhf
+            partition-layout: system-AB
+            bootloader: u-boot
+            boot-assets:
+                files:
+                    - path: uEnv.txt
+                raw-files:
+                    - path: MLO
+                      offset: 131072 # 128 * 1024
+                    - path: u-boot.img
+                      offset: 393216 # 384 * 1024

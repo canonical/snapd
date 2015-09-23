@@ -249,13 +249,15 @@ func ActiveSnapsByType(snapTs ...pkg.Type) (res []Part, err error) {
 // ActiveSnapNamesByType returns all installed snap names with the given type
 var ActiveSnapNamesByType = activeSnapNamesByTypeImpl
 
-func activeSnapNamesByTypeImpl(snapTs ...pkg.Type) (res []string, err error) {
+func activeSnapNamesByTypeImpl(snapTs ...pkg.Type) ([]string, error) {
 	installed, err := ActiveSnapsByType(snapTs...)
-	for _, part := range installed {
-		res = append(res, part.Name())
+	res := make([]string, len(installed))
+
+	for i, part := range installed {
+		res[i] = QualifiedName(part)
 	}
 
-	return res, nil
+	return res, err
 }
 
 // ActiveSnapByName returns all active snaps with the given name
