@@ -12,7 +12,9 @@ unxz /tmp/initrd.xz
 mkdir $initrd_unpack_dir || true
 cd $initrd_unpack_dir
 cpio -id < /tmp/initrd
+# We need sfdisk to shrink the partition in mbr.
 cp /sbin/sfdisk sbin
+# Libs required by sfdisk.
 cp /lib/*/libfdisk.so.1 lib
 cp /lib/*/libsmartcols.so.1 lib
 cp $tree_dir/_integration-tests/scripts/resize-writable-test scripts/local-premount/

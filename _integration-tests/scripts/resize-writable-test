@@ -80,10 +80,12 @@ do_mbr()
     DEV=$1
     PART=$2
     endsize=$(get_end $PART)
+    # We can't just resize with parted because it prints a warning when you try to shrink the
+    # partition.
     part_start="$(parted -ms $DEV unit B print | grep ^$PART: | cut -d: -f2 | sed 's/B$//')"
     part_end=$(($endsize-$part_start))
-    part_end_blocks=$(($part_end/512))
-    echo ", ${part_end_blocks}" | sfdisk -f -N$PART $DEV
+    part_end_sectors=$(($part_end/512))
+    echo ", ${part_end_sectors}" | sfdisk -f -N$PART $DEV
 }
 
 
