@@ -20,6 +20,7 @@
 package tests
 
 import (
+	"os"
 	"os/exec"
 	"path"
 	"strconv"
@@ -55,6 +56,19 @@ func getCurrentBootDir(c *check.C) string {
 	current, err := partition.CurrentPartition()
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the current partition: %s", err))
 	return path.Join(bootDir, current)
+}
+
+func (s *initRAMFSSuite) SetUpTest(c *check.C) {
+	s.SnappySuite.SetUpTest(c)
+	bootDir := getCurrentBootDir(c)
+	common.ExecCommand(c, "cp", path.Join(bootDir, "initramfs.img"), os.Getenv("ADT_ARTIFACTS"))
+}
+
+func (s *initRAMFSSuite) TearDownTest(c *check.C) {
+	s.SnappySuite.TearDownTest(c)
+	bootDir := getCurrentBootDir(c)
+	common.ExecCommand(
+		c, "sudo", "mv", path.Join(os.Getenv("ADT_ARTIFACTS"), "initramfs.img"), bootDir)
 }
 
 func (s *initRAMFSSuite) TestFreeSpaceWithoutResize(c *check.C) {
