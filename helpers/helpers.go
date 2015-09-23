@@ -115,6 +115,10 @@ var mknod = syscall.Mknod
 
 // UnpackTar unpacks the given tar file into the target directory
 func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
+	// ensure we we extract with the original permissions
+	oldUmask := syscall.Umask(0)
+	defer syscall.Umask(oldUmask)
+
 	return TarIterate(r, func(tr *tar.Reader, hdr *tar.Header) (err error) {
 		// run tar transform func
 		name := hdr.Name

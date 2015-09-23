@@ -57,6 +57,29 @@ icon: meta/hello.svg`)
 	c.Assert(parts[0].Name(), Equals, "framework1")
 }
 
+func (s *SnapTestSuite) TestActiveSnapNamesByType(c *C) {
+	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app
+version: 1.10
+vendor: example.com`)
+	c.Assert(err, IsNil)
+	makeSnapActive(yamlPath)
+
+	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: fwk
+version: 1.0
+type: framework
+vendor: example.com`)
+	c.Assert(err, IsNil)
+	makeSnapActive(yamlPath)
+
+	names, err := ActiveSnapNamesByType(pkg.TypeApp)
+	c.Check(err, IsNil)
+	c.Check(names, DeepEquals, []string{"app." + testOrigin})
+
+	names, err = ActiveSnapNamesByType(pkg.TypeFramework)
+	c.Check(err, IsNil)
+	c.Check(names, DeepEquals, []string{"fwk"})
+}
+
 func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
