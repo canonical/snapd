@@ -1,4 +1,4 @@
-#! /bin/sh -e
+#! /bin/sh -ex
 # initramfs local-premount script to resize writable for testing
 
 PREREQ=""
@@ -46,7 +46,7 @@ get_end()
     echo "endsize: ${endsize}" >/dev/kmsg || true
     endsize_percent=$(($endsize*$writable_percent/100))
     echo "endsize percent: ${endsize_percent}" >/dev/kmsg || true
-    echo "$endsize_percent"B
+    echo "$endsize_percent"
 }
 
 do_gpt()
@@ -59,7 +59,7 @@ do_gpt()
     # re-create all partitions from backup table
     grep -E ^'[0-9]{1,}': $TMPFILE|while read -r num start end size type name flags; do
         if [ "$name" = "writable" ]; then
-            endsize=$(get_end $num)
+            endsize=$(get_end $num)B
             parted -s $DEV mkpart \"$name\" \"$type\" $start $endsize
         else
             flags="$(echo $flags|sed -e 's/[,;]//g' -e 's/ /:/')"
@@ -80,7 +80,10 @@ do_mbr()
     DEV=$1
     PART=$2
     endsize=$(get_end $PART)
-    parted -s $DEV resizepart $PART $endsize
+    part_start="$(parted -ms $DEV unit B print | grep ^$PART: | cut -d: -f2 | sed 's/B$//')"
+    part_end=$(($endsize-$part_start))
+    part_end_blocks=$(($part_end/512))
+    echo ", ${part_end_blocks}" | sfdisk -f -N$PART $DEV
 }
 
 
