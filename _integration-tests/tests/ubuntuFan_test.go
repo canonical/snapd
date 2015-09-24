@@ -48,7 +48,7 @@ func (s *fanTestSuite) SetUpTest(c *check.C) {
 	if common.Release(c) == "15.04" {
 		c.Skip("Ubuntu Fan not available in 15.04")
 	}
-	
+
 	s.SnappySuite.SetUpTest(c)
 	var err error
 	s.subjectIP, err = getIPAddr(c)

@@ -22,13 +22,12 @@ package common
 import (
 	"bufio"
 	"strings"
-	
+
 	"gopkg.in/check.v1"
 )
 
 // dependency aliasing
 var execCommand = ExecCommand
-
 
 // Release returns the release of the current snappy image
 func Release(c *check.C) string {

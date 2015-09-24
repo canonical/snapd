@@ -19,7 +19,7 @@
 
 package common
 
-import 	"gopkg.in/check.v1"
+import "gopkg.in/check.v1"
 
 type infoTestSuite struct {
 	execReturnValue string
@@ -42,11 +42,11 @@ func (s *infoTestSuite) fakeExecCommand(c *check.C, args ...string) (output stri
 }
 
 var releaseTests = []struct {
-	infoOutput string
+	infoOutput      string
 	expectedRelease string
 }{
 	{"someInfo1: someValue1\nrelease: ubuntu-core/15.04/edge\nsomeInfo2: someValue2", "15.04"},
-	{"someInfo1: someValue1\nrelease: ubuntu-core/rolling/alpha\nsomeInfo2: someValue2", "rolling"},	
+	{"someInfo1: someValue1\nrelease: ubuntu-core/rolling/alpha\nsomeInfo2: someValue2", "rolling"},
 }
 
 func (s *infoTestSuite) TestRelease(c *check.C) {
