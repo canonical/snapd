@@ -36,7 +36,7 @@ type configSuite struct {
 }
 
 func (s *configSuite) SetUpTest(c *check.C) {
-	s.backConfig = actualConfig(c)
+	s.backConfig = currentConfig(c)
 }
 
 func (s *configSuite) TearDownTest(c *check.C) {
@@ -44,15 +44,25 @@ func (s *configSuite) TearDownTest(c *check.C) {
 }
 
 func (s *configSuite) TestModprobe(c *check.C) {
-	targetCfg := `modprobe: blacklist floppy`
-	modprobeConfig := configString(targetCfg)
+	s.doTest(c, `modprobe: blacklist floppy`)
+}
 
-	err := s.setConfig(c, modprobeConfig)
+func (s *configSuite) TestPPP(c *check.C) {
+	s.doTest(c, `network:
+    ppp:
+      - name: chap-secrets
+        content: secret`)
+}
+
+func (s *configSuite) doTest(c *check.C, targetCfg string) {
+	config := configString(targetCfg)
+
+	err := s.setConfig(c, config)
 	c.Assert(err, check.IsNil)
 
-	config := actualConfig(c)
+	actualConfig := currentConfig(c)
 
-	c.Assert(config, check.Matches, "(?Usm).*"+targetCfg+".*")
+	c.Assert(actualConfig, check.Matches, "(?Usm).*"+targetCfg+".*")
 }
 
 func (s *configSuite) setConfig(c *check.C, config string) (err error) {
@@ -68,7 +78,7 @@ func (s *configSuite) setConfig(c *check.C, config string) (err error) {
 	return
 }
 
-func actualConfig(c *check.C) string {
+func currentConfig(c *check.C) string {
 	return common.ExecCommand(c, "snappy", "config", "ubuntu-core")
 }
 
