@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -115,15 +116,25 @@ func udevRulesPathForPart(partid string) string {
 	return filepath.Join(snapUdevRulesDir, fmt.Sprintf("70-snappy_hwassign_%s.rules", partid))
 }
 
-func addUdevRuleForSnap(snapname, udev_rule string) error {
-	file, err := os.OpenFile(udevRulesPathForPart(snapname), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
+func addUdevRuleForSnap(snapname, new_rule string) error {
+	udevRulesFile := udevRulesPathForPart(snapname)
+
+	if !helpers.FileExists(udevRulesFile) {
+		file, err := os.OpenFile(udevRulesFile, os.O_CREATE, 0644)
+		if nil != err {
+			return err
+		}
+		file.Close()
+	}
+
+	rules, err := ioutil.ReadFile(udevRulesFile)
+	if nil != err {
 		return err
 	}
 
-	defer file.Close()
+	updated_rules := append(rules, new_rule...)
 
-	if _, err = file.WriteString(udev_rule); err != nil {
+	if err := helpers.AtomicWriteFile(udevRulesFile, updated_rules, 0644); nil != err {
 		return err
 	}
 
@@ -212,44 +223,44 @@ func ListHWAccess(snapname string) ([]string, error) {
 	return appArmorAdditional.WritePath, nil
 }
 
-func UpdateUdevRuleForSnap(snapname, device string) error {
+func removeUdevRuleForSnap(snapname, device string) error {
 	udevRulesFile := udevRulesPathForPart(snapname)
 
 	if helpers.FileExists(udevRulesFile) {
 		file, err := os.Open(udevRulesFile)
-
 		if nil != err {
 			return err
 		}
 
 		// Get the full list of rules to keep
-		var rules_to_keep []string
+		var rulesToKeep []string
 		scanner := bufio.NewScanner(file)
+		device_pattern := "\"" + filepath.Base(device) + "\""
+
 		for scanner.Scan() {
 			rule := scanner.Text()
-			if "" != rule && !strings.Contains(rule, "\""+filepath.Base(device)+"\"") {
-				rules_to_keep = append(rules_to_keep, rule)
+			if "" != rule && !strings.Contains(rule, device_pattern) {
+				rulesToKeep = append(rulesToKeep, rule)
 			}
 		}
-
-		// Delete the file and create a new one if there is at least
-		// one rule left.
 		file.Close()
-		if err = os.Remove(udevRulesFile); nil != err {
-			return err
-		}
-		if 0 != len(rules_to_keep) {
-			file, err = os.OpenFile(udevRulesFile, os.O_CREATE|os.O_WRONLY, 0644)
-			if nil != err {
+
+		// Update the file with the remaining rules or delete it
+		// if there is not any rule left.
+		if 0 < len(rulesToKeep) {
+			// Appending the []string list of rules in a single
+			// string to convert it later in []byte
+			var out string
+			for _, rule := range rulesToKeep {
+				out = out + rule + "\n"
+			}
+
+			if err := helpers.AtomicWriteFile(udevRulesFile, []byte(out), 0644); nil != err {
 				return err
 			}
-
-			defer file.Close()
-
-			for _, rule := range rules_to_keep {
-				if _, err := file.WriteString(rule + "\n"); nil != err {
-					return err
-				}
+		} else {
+			if err := os.Remove(udevRulesFile); nil != err {
+				return err
 			}
 		}
 	}
@@ -287,8 +298,7 @@ func RemoveHWAccess(snapname, device string) error {
 		return err
 	}
 
-	err = UpdateUdevRuleForSnap(snapname, device)
-	if nil != err {
+	if err = removeUdevRuleForSnap(snapname, device); nil != err {
 		return err
 	}
 
