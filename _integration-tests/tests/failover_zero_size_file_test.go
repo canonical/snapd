@@ -53,29 +53,21 @@ func (zeroSizeKernel) unset(c *check.C) {
 }
 
 func (zeroSizeInitrd) set(c *check.C) {
-	if classicKernelFiles(c) {
-		commonSet(c, BaseAltPartitionPath, origBootFilenamePattern, initrdFilename)
-	} else {
-		boot, err := partition.BootSystem()
-		c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
-		dir := partition.BootDir(boot)
-
-		bootFileNamePattern := newKernelFilenamePattern(c, boot, true)
-		commonSet(c, dir, bootFileNamePattern, initrdFilename)
-	}
+	boot, err := partition.BootSystem()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
+	dir := partition.BootDir(boot)
+	
+	bootFileNamePattern := newKernelFilenamePattern(c, boot, true)
+	commonSet(c, dir, bootFileNamePattern, initrdFilename)
 }
 
 func (zeroSizeInitrd) unset(c *check.C) {
-	if classicKernelFiles(c) {
-		commonUnset(c, BaseAltPartitionPath, origBootFilenamePattern, initrdFilename)
-	} else {
-		boot, err := partition.BootSystem()
-		c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
-		dir := partition.BootDir(boot)
+	boot, err := partition.BootSystem()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
+	dir := partition.BootDir(boot)
 
-		bootFileNamePattern := newKernelFilenamePattern(c, boot, false)
-		commonUnset(c, dir, bootFileNamePattern, initrdFilename)
-	}
+	bootFileNamePattern := newKernelFilenamePattern(c, boot, false)
+  commonUnset(c, dir, bootFileNamePattern, initrdFilename)
 }
 
 func (zeroSizeSystemd) set(c *check.C) {
@@ -142,15 +134,6 @@ func getSingleFilename(c *check.C, pattern string) string {
 		check.Commentf("%d files matching %s, 1 expected", len(matches), pattern))
 
 	return matches[0]
-}
-
-func classicKernelFiles(c *check.C) bool {
-	initrdClassicFilenamePattern := fmt.Sprintf("/boot/%s*-generic", initrdFilename)
-	matches, err := filepath.Glob(initrdClassicFilenamePattern)
-
-	c.Assert(err, check.IsNil, check.Commentf("Error: %v", err))
-
-	return len(matches) == 1
 }
 
 // newKernelFilenamePattern returns the filename pattern to modify files
