@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 )
 
@@ -42,7 +43,7 @@ type appArmorAdditionalJSON struct {
 
 // return the json filename to add to the security json
 func getHWAccessJSONFile(snapname string) string {
-	return filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.json.additional", snapname))
+	return filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s.json.additional", snapname))
 }
 
 // Return true if the device string is a valid device
@@ -112,11 +113,11 @@ func regenerateAppArmorRulesImpl() error {
 
 func udevRulesPathForPart(partid string) string {
 	// use 70- here so that its read before the OEM rules
-	return filepath.Join(snapUdevRulesDir, fmt.Sprintf("70-snappy_hwassign_%s.rules", partid))
+	return filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("70-snappy_hwassign_%s.rules", partid))
 }
 
 func writeUdevRuleForDeviceCgroup(snapname, device string) error {
-	os.MkdirAll(snapUdevRulesDir, 0755)
+	os.MkdirAll(dirs.SnapUdevRulesDir, 0755)
 
 	// the device cgroup/launcher etc support only the apps level,
 	// not a binary/service or version, so if we get a full
@@ -147,7 +148,7 @@ func AddHWAccess(snapname, device string) error {
 	}
 
 	// check if there is anything apparmor related to add to
-	globExpr := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_*.json", snapname))
+	globExpr := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s_*.json", snapname))
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
 		return err

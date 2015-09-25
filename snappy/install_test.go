@@ -30,6 +30,8 @@ import (
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
+
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/progress"
 )
@@ -50,7 +52,7 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 }
 
 func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
-	snapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "apps")
+	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "apps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "apps")
 	homeData := filepath.Join(homeDir, "foo", "1.0")
 	err := os.MkdirAll(homeData, 0755)
@@ -77,7 +79,7 @@ vendor: Foo Bar <foo@example.com>
 func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 	s.installThree(c, AllowUnauthenticated|DoInstallGC)
 
-	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo.sideload", "*"))
+	globs, err := filepath.Glob(filepath.Join(dirs.SnapAppsDir, "foo.sideload", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(globs, HasLen, 2+1) // +1 for "current"
 }
@@ -86,7 +88,7 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 	s.installThree(c, AllowUnauthenticated)
 
-	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo.sideload", "*"))
+	globs, err := filepath.Glob(filepath.Join(dirs.SnapAppsDir, "foo.sideload", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(globs, HasLen, 3+1) // +1 for "current"
 }

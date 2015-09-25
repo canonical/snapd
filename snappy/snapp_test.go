@@ -31,6 +31,7 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/clickdeb"
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/pkg"
@@ -58,18 +59,18 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 		return new(MockPartition)
 	}
 
-	SetRootDir(s.tempdir)
+	dirs.SetRootDir(s.tempdir)
 	policy.SecBase = filepath.Join(s.tempdir, "security")
-	os.MkdirAll(snapServicesDir, 0755)
-	os.MkdirAll(snapSeccompDir, 0755)
+	os.MkdirAll(dirs.SnapServicesDir, 0755)
+	os.MkdirAll(dirs.SnapSeccompDir, 0755)
 
 	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
-	clickSystemHooksDir = filepath.Join(s.tempdir, "/usr/share/click/hooks")
-	os.MkdirAll(clickSystemHooksDir, 0755)
+	dirs.ClickSystemHooksDir = filepath.Join(s.tempdir, "/usr/share/click/hooks")
+	os.MkdirAll(dirs.ClickSystemHooksDir, 0755)
 
 	// create a fake systemd environment
-	os.MkdirAll(filepath.Join(snapServicesDir, "multi-user.target.wants"), 0755)
+	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 
 	// we may not have debsig-verify installed (and we don't need it
 	// for the unittests)
@@ -692,12 +693,12 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	iconPath := filepath.Join(snapIconsDir, "foo.bar_1.0.png")
+	iconPath := filepath.Join(dirs.SnapIconsDir, "foo.bar_1.0.png")
 	c.Check(installed[0].Icon(), Equals, iconPath)
 	c.Check(installed[0].Origin(), Equals, "bar")
 	c.Check(installed[0].Description(), Equals, "this is a description")
 
-	_, err = os.Stat(filepath.Join(snapMetaDir, "foo.bar_1.0.manifest"))
+	_, err = os.Stat(filepath.Join(dirs.SnapMetaDir, "foo.bar_1.0.manifest"))
 	c.Check(err, IsNil)
 }
 
@@ -1118,11 +1119,11 @@ func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
 
-	err = os.MkdirAll(snapMetaDir, 0755)
+	err = os.MkdirAll(dirs.SnapMetaDir, 0755)
 	c.Assert(err, IsNil)
 
 	data = "name: afoo\nalias: afoo\ndescription: something nice\ndownloadsize: 10\norigin: someplace"
-	err = ioutil.WriteFile(filepath.Join(snapMetaDir, "afoo_1.manifest"), []byte(data), 0644)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapMetaDir, "afoo_1.manifest"), []byte(data), 0644)
 	c.Assert(err, IsNil)
 
 	snaps, err := ListInstalled()
@@ -1192,14 +1193,14 @@ type: framework`), false)
 }
 
 func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
-	oldDir := snapAppArmorDir
+	oldDir := dirs.SnapAppArmorDir
 	defer func() {
-		snapAppArmorDir = oldDir
+		dirs.SnapAppArmorDir = oldDir
 		timestampUpdater = helpers.UpdateTimestamp
 	}()
 	touched := []string{}
-	snapAppArmorDir = c.MkDir()
-	fn := filepath.Join(snapAppArmorDir, "foo."+testOrigin+"_hello_1.0.json")
+	dirs.SnapAppArmorDir = c.MkDir()
+	fn := filepath.Join(dirs.SnapAppArmorDir, "foo."+testOrigin+"_hello_1.0.json")
 	c.Assert(os.Symlink(fn, fn), IsNil)
 	timestampUpdater = func(s string) error {
 		touched = append(touched, s)
@@ -1457,18 +1458,18 @@ func (s *SnapTestSuite) TestWriteHardwareUdevEtc(c *C) {
 	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
-	snapUdevRulesDir = c.MkDir()
+	dirs.SnapUdevRulesDir = c.MkDir()
 	writeOemHardwareUdevRules(m)
 
-	c.Assert(helpers.FileExists(filepath.Join(snapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")), Equals, true)
+	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")), Equals, true)
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
 	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
-	snapUdevRulesDir = c.MkDir()
-	udevRulesFile := filepath.Join(snapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")
+	dirs.SnapUdevRulesDir = c.MkDir()
+	udevRulesFile := filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")
 	c.Assert(ioutil.WriteFile(udevRulesFile, nil, 0644), Equals, nil)
 	cleanupOemHardwareUdevRules(m)
 

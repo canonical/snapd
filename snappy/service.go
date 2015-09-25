@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
@@ -105,7 +106,7 @@ func FindServices(snapName string, serviceName string, pb progress.Meter) (Servi
 	return &serviceActor{
 		svcs: svcs,
 		pb:   pb,
-		sysd: systemd.New(globalRootDir, pb),
+		sysd: systemd.New(dirs.GlobalRootDir, pb),
 	}, nil
 }
 
