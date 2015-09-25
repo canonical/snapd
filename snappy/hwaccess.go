@@ -119,17 +119,14 @@ func udevRulesPathForPart(partid string) string {
 func addUdevRuleForSnap(snapname, newRule string) error {
 	udevRulesFile := udevRulesPathForPart(snapname)
 
-	if file, err := os.OpenFile(udevRulesFile, os.O_CREATE|os.O_EXCL, 0644); err == nil {
-		file.Close()
-	} else if !os.IsExist(err) {
-		return err
-	}
-
 	rules, err := ioutil.ReadFile(udevRulesFile)
-	if nil != err {
+	if nil != err && !os.IsNotExist(err) {
 		return err
 	}
 
+	// At this point either rules variable contains some rules if the
+	// file exists, or it is nil if the file does not exist yet.
+	// In both cases, updatedRules will have the right content.
 	updatedRules := append(rules, newRule...)
 
 	if err := helpers.AtomicWriteFile(udevRulesFile, updatedRules, 0644); nil != err {
