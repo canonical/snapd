@@ -35,6 +35,13 @@ const (
 	reHasEpoch = "^[0-9]+:"
 )
 
+var (
+	matchDigit = regexp.MustCompile(reDigit).Match
+	matchAlpha = regexp.MustCompile(reAlpha).Match
+	findFrags  = regexp.MustCompile(reDigitOrNonDigit).FindAllString
+	matchEpoch = regexp.MustCompile(reHasEpoch).MatchString
+)
+
 // golang: seriously? that's sad!
 func max(a, b int) int {
 	if a < b {
@@ -57,12 +64,12 @@ func chOrder(ch uint8) int {
 	if ch == '~' {
 		return -1
 	}
-	if matched, _ := regexp.MatchString(reAlpha, string(ch)); matched {
+	if matchAlpha([]byte{ch}) {
 		return int(ch)
 	}
 
 	// can only happen if cmpString sets '0' because there is no fragment
-	if matched, _ := regexp.MatchString(reDigit, string(ch)); matched {
+	if matchDigit([]byte{ch}) {
 		return 0
 	}
 
@@ -101,15 +108,13 @@ func cmpFragment(a, b string) int {
 }
 
 func getFragments(a string) []string {
-	re := regexp.MustCompile(reDigitOrNonDigit)
-	matches := re.FindAllString(a, -1)
-	return matches
+	return findFrags(a, -1)
 }
 
 // VersionIsValid returns true if the given string is a valid snap
 // version number
 func VersionIsValid(a string) bool {
-	if matched, _ := regexp.MatchString(reHasEpoch, a); matched {
+	if matchEpoch(a) {
 		return false
 	}
 	if strings.Count(a, "-") > 1 {
