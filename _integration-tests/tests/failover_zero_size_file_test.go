@@ -56,7 +56,7 @@ func (zeroSizeInitrd) set(c *check.C) {
 	boot, err := partition.BootSystem()
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
 	dir := partition.BootDir(boot)
-	
+
 	bootFileNamePattern := newKernelFilenamePattern(c, boot, true)
 	commonSet(c, dir, bootFileNamePattern, initrdFilename)
 }
@@ -67,7 +67,7 @@ func (zeroSizeInitrd) unset(c *check.C) {
 	dir := partition.BootDir(boot)
 
 	bootFileNamePattern := newKernelFilenamePattern(c, boot, false)
-  commonUnset(c, dir, bootFileNamePattern, initrdFilename)
+	commonUnset(c, dir, bootFileNamePattern, initrdFilename)
 }
 
 func (zeroSizeSystemd) set(c *check.C) {
