@@ -221,42 +221,40 @@ func ListHWAccess(snapname string) ([]string, error) {
 func removeUdevRuleForSnap(snapname, device string) error {
 	udevRulesFile := udevRulesPathForPart(snapname)
 
-	if helpers.FileExists(udevRulesFile) {
-		file, err := os.Open(udevRulesFile)
-		if nil != err {
+	file, err := os.Open(udevRulesFile)
+	if nil != err && !os.IsNotExist(err) {
+		return err
+	}
+
+	// Get the full list of rules to keep
+	var rulesToKeep []string
+	scanner := bufio.NewScanner(file)
+	devicePattern := "\"" + filepath.Base(device) + "\""
+
+	for scanner.Scan() {
+		rule := scanner.Text()
+		if "" != rule && !strings.Contains(rule, devicePattern) {
+			rulesToKeep = append(rulesToKeep, rule)
+		}
+	}
+	file.Close()
+
+	// Update the file with the remaining rules or delete it
+	// if there is not any rule left.
+	if 0 < len(rulesToKeep) {
+		// Appending the []string list of rules in a single
+		// string to convert it later in []byte
+		var out string
+		for _, rule := range rulesToKeep {
+			out = out + rule + "\n"
+		}
+
+		if err := helpers.AtomicWriteFile(udevRulesFile, []byte(out), 0644); nil != err {
 			return err
 		}
-
-		// Get the full list of rules to keep
-		var rulesToKeep []string
-		scanner := bufio.NewScanner(file)
-		devicePattern := "\"" + filepath.Base(device) + "\""
-
-		for scanner.Scan() {
-			rule := scanner.Text()
-			if "" != rule && !strings.Contains(rule, devicePattern) {
-				rulesToKeep = append(rulesToKeep, rule)
-			}
-		}
-		file.Close()
-
-		// Update the file with the remaining rules or delete it
-		// if there is not any rule left.
-		if 0 < len(rulesToKeep) {
-			// Appending the []string list of rules in a single
-			// string to convert it later in []byte
-			var out string
-			for _, rule := range rulesToKeep {
-				out = out + rule + "\n"
-			}
-
-			if err := helpers.AtomicWriteFile(udevRulesFile, []byte(out), 0644); nil != err {
-				return err
-			}
-		} else {
-			if err := os.Remove(udevRulesFile); nil != err {
-				return err
-			}
+	} else {
+		if err := os.Remove(udevRulesFile); nil != err {
+			return err
 		}
 	}
 
