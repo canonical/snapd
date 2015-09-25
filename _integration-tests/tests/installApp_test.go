@@ -91,7 +91,7 @@ func (s *installAppSuite) TestInfoMustPrintInstalledPackageInformation(c *check.
 
 	infoOutput := common.ExecCommand(c, "snappy", "info")
 
-	expected := "(?ms).*^apps: hello-world\n"
+	expected := "(?ms).*^apps: hello-world.canonical\n"
 	c.Assert(infoOutput, check.Matches, expected)
 }
 
