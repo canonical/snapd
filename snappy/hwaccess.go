@@ -116,15 +116,13 @@ func udevRulesPathForPart(partid string) string {
 	return filepath.Join(snapUdevRulesDir, fmt.Sprintf("70-snappy_hwassign_%s.rules", partid))
 }
 
-func addUdevRuleForSnap(snapname, new_rule string) error {
+func addUdevRuleForSnap(snapname, newRule string) error {
 	udevRulesFile := udevRulesPathForPart(snapname)
 
-	if !helpers.FileExists(udevRulesFile) {
-		file, err := os.OpenFile(udevRulesFile, os.O_CREATE, 0644)
-		if nil != err {
-			return err
-		}
+	if file, err := os.OpenFile(udevRulesFile, os.O_CREATE|os.O_EXCL, 0644); err == nil {
 		file.Close()
+	} else if !os.IsExist(err) {
+		return err
 	}
 
 	rules, err := ioutil.ReadFile(udevRulesFile)
@@ -132,9 +130,9 @@ func addUdevRuleForSnap(snapname, new_rule string) error {
 		return err
 	}
 
-	updated_rules := append(rules, new_rule...)
+	updatedRules := append(rules, newRule...)
 
-	if err := helpers.AtomicWriteFile(udevRulesFile, updated_rules, 0644); nil != err {
+	if err := helpers.AtomicWriteFile(udevRulesFile, updatedRules, 0644); nil != err {
 		return err
 	}
 
@@ -235,11 +233,11 @@ func removeUdevRuleForSnap(snapname, device string) error {
 		// Get the full list of rules to keep
 		var rulesToKeep []string
 		scanner := bufio.NewScanner(file)
-		device_pattern := "\"" + filepath.Base(device) + "\""
+		devicePattern := "\"" + filepath.Base(device) + "\""
 
 		for scanner.Scan() {
 			rule := scanner.Text()
-			if "" != rule && !strings.Contains(rule, device_pattern) {
+			if "" != rule && !strings.Contains(rule, devicePattern) {
 				rulesToKeep = append(rulesToKeep, rule)
 			}
 		}
