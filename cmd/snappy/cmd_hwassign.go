@@ -29,14 +29,15 @@ import (
 
 type cmdHWAssign struct {
 	Positional struct {
-		PackageName string `positional-arg-name:"package name"`
-		DevicePath  string `positional-arg-name:"device path"`
-	} `required:"true" positional-args:"yes"`
+		PackageName string `positional-arg-name:"package_name" required:"true"`
+		DevicePath  string `positional-arg-name:"device_path" required:"true"`
+		SymlinkPath string `positional-arg-name:"symlink_path" required:"false"`
+	} `positional-args:"yes"`
 }
 
 var shortHWAssignHelp = i18n.G("Assign a hardware device to a package")
 
-var longHWAssignHelp = i18n.G("This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package.")
+var longHWAssignHelp = i18n.G("This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package, possibly through symlink if provided.")
 
 func init() {
 	arg, err := parser.AddCommand("hw-assign",
@@ -46,8 +47,9 @@ func init() {
 	if err != nil {
 		logger.Panicf("Unable to hwassign: %v", err)
 	}
-	addOptionDescription(arg, "package name", i18n.G("Assign hardware to a specific installed package"))
-	addOptionDescription(arg, "device path", i18n.G("The hardware device path (e.g. /dev/ttyUSB0)"))
+	addOptionDescription(arg, "package_name", i18n.G("Assign hardware to a specific installed package"))
+	addOptionDescription(arg, "device_path", i18n.G("The hardware device path (e.g. /dev/ttyUSB0)"))
+	addOptionDescription(arg, "symlink_path", i18n.G("The optional symlink to device path (e.g. /dev/symlink)"))
 }
 
 func (x *cmdHWAssign) Execute(args []string) error {
@@ -55,6 +57,15 @@ func (x *cmdHWAssign) Execute(args []string) error {
 }
 
 func (x *cmdHWAssign) doHWAssign() error {
+	if "" != x.Positional.SymlinkPath {
+		if err := snappy.AddSymlinkToHWDevice(
+			x.Positional.PackageName,
+			x.Positional.DevicePath,
+			x.Positional.SymlinkPath); err != nil {
+			return err
+		}
+	}
+
 	if err := snappy.AddHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
 		if err == snappy.ErrHWAccessAlreadyAdded {
 			// TRANSLATORS: the first %s is a pkgname, the second %s is a path

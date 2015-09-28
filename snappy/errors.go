@@ -51,6 +51,10 @@ var (
 	// is given in the hw-assign command
 	ErrInvalidHWDevice = errors.New("invalid hardware device")
 
+	// ErrInvalidSymlinkToHWDevice is returned when a invalid symlink to hardware device
+	// is given in the hw-assign command
+	ErrInvalidSymlinkToHWDevice = errors.New("invalid symlink to hardware device")
+
 	// ErrHWAccessRemoveNotFound is returned if the user tries to
 	// remove a device that does not exist
 	ErrHWAccessRemoveNotFound = errors.New("can not find device in hw-access list")

@@ -209,6 +209,14 @@ func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
 }
 `)
 
+	// check the udev rule file contains all the rules
+	content, err = ioutil.ReadFile(filepath.Join(snapUdevRulesDir, "70-snappy_hwassign_hello-app.rules"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `
+KERNEL=="bar", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
+
+KERNEL=="bar*", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
+`)
 	// remove
 	err = RemoveHWAccess("hello-app", "/dev/bar")
 	c.Assert(err, IsNil)
@@ -228,6 +236,11 @@ func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
     "/run/udev/data/*"
   ]
 }
+`)
+	// check the udevReadGlob Udev rule is still there
+	content, err = ioutil.ReadFile(filepath.Join(snapUdevRulesDir, "70-snappy_hwassign_hello-app.rules"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `KERNEL=="bar*", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
 `)
 }
 
@@ -271,6 +284,24 @@ func (s *SnapTestSuite) TestWriteUdevRulesForDeviceCgroup(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(got), Equals, `
 KERNEL=="ttyS0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="foo-app"
+`)
+
+	verifyUdevAdmActivateRules(c, runUdevAdmCalls)
+}
+
+func (s *SnapTestSuite) TestWriteSymlinkUdevRuleForDeviceCgroup(c *C) {
+	var runUdevAdmCalls [][]string
+	runUdevAdm = makeRunUdevAdmMock(&runUdevAdmCalls)
+
+	snapapp := "foo-app_meep_1.0"
+
+	err := writeSymlinkUdevRuleForDeviceCgroup(snapapp, "/dev/ttyS0", "/dev/symS0")
+	c.Assert(err, IsNil)
+
+	got, err := ioutil.ReadFile(filepath.Join(snapUdevRulesDir, "70-snappy_hwassign_foo-app.rules"))
+	c.Assert(err, IsNil)
+	c.Assert(string(got), Equals, `
+ACTION=="add", KERNEL=="ttyS0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="foo-app", SYMLINK+="symS0"
 `)
 
 	verifyUdevAdmActivateRules(c, runUdevAdmCalls)
