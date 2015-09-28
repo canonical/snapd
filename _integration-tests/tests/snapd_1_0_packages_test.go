@@ -65,7 +65,6 @@ func (s *snapd10PackagesTestSuite) SetUpTest(c *check.C) {
 	var err error
 	s.snapPath, err = build.LocalSnap(c, build.BasicSnapName)
 	c.Assert(err, check.IsNil)
-
 }
 
 func (s *snapd10PackagesTestSuite) TearDownTest(c *check.C) {
