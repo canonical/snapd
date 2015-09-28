@@ -80,3 +80,11 @@ func (s *snapBuildTestSuite) TestLocalSnapReturnsSnapPath(c *check.C) {
 	expected := filepath.Join(buildPath(s.defaultSnapName), s.defaultSnapName+snapFilenameSufix)
 	c.Assert(snapPath, check.Equals, expected)
 }
+
+func (s *snapBuildTestSuite) TestLocalSnapReturnsError(c *check.C) {
+	s.execReturnValue = "Wrong return value"
+	snapPath, err := LocalSnap(c, s.defaultSnapName)
+
+	c.Assert(err, check.NotNil)
+	c.Assert(snapPath, check.Equals, "")
+}
