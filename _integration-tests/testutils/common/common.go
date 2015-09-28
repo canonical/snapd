@@ -60,7 +60,7 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 	Cfg, err = config.ReadConfig(
 		"_integration-tests/data/output/testconfig.json")
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
-	
+
 	if !isInRebootProcess() {
 		if Cfg.Update || Cfg.Rollback {
 			switchSystemImageConf(c, Cfg.TargetRelease, Cfg.TargetChannel, "0")
@@ -82,7 +82,7 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 		}
 	} else if CheckRebootMark("setupsuite-rollback") {
 		RemoveRebootMark(c)
-		// Rollback was already executed. Update the config so it's not triggered again.		
+		// Rollback was already executed. Update the config so it's not triggered again.
 		Cfg.Rollback = false
 		Cfg.Write()
 	}
