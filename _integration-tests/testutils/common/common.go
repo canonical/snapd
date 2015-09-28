@@ -29,7 +29,7 @@ import (
 	"strconv"
 	"strings"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 
 	"launchpad.net/snappy/_integration-tests/testutils/config"
 )
