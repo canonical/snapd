@@ -28,111 +28,123 @@ import (
 	"gopkg.in/check.v1"
 )
 
+const (
+	outputPattern = "myOutputPattern"
+)
+
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { check.TestingT(t) }
 
 type waitTestSuite struct {
-	execCalls       map[string]int
-	execReturnValue string
-	backExecCommand func(*check.C, ...string) string
+	myFuncCalls       int
+	myFuncReturnValue string
+	myFuncError       bool
+
+	outputPattern string
 
 	initTime time.Time
 	delay    time.Duration
+
+	backInterval       time.Duration
+	backMaxWaitRetries int
 }
 
 var _ = check.Suite(&waitTestSuite{})
 
-func (s *waitTestSuite) SetUpSuite(c *check.C) {
-	s.backExecCommand = execCommand
-	execCommand = s.fakeExecCommand
-}
-
-func (s *waitTestSuite) TearDownSuite(c *check.C) {
-	execCommand = s.backExecCommand
-}
-
 func (s *waitTestSuite) SetUpTest(c *check.C) {
-	s.execCalls = make(map[string]int)
-	s.execReturnValue = ""
+	s.myFuncCalls = 0
+	s.myFuncReturnValue = outputPattern
+	s.myFuncError = false
+
+	s.backInterval = interval
+	s.backMaxWaitRetries = maxWaitRetries
+
 	// save the starting time to be able to measure delays
 	s.initTime = time.Now()
 	// reset delay, each test will set it up if needed
 	s.delay = 0
+
+	interval = 1
 }
 
-func (s *waitTestSuite) fakeExecCommand(c *check.C, args ...string) (output string) {
-	s.execCalls[strings.Join(args, " ")]++
+func (s *waitTestSuite) TearDownTest(c *check.C) {
+	interval = s.backInterval
+	maxWaitRetries = s.backMaxWaitRetries
+}
+
+func (s *waitTestSuite) myFunc() (output string, err error) {
+	s.myFuncCalls++
 
 	// after the given delay (0 by default) this method will return the value specified at
-	// execReturnValue, before it all the calls will return an empty string
+	// myFuncReturnValue, before it all the calls will return an empty string
 	if time.Since(s.initTime) >= s.delay {
-		output = s.execReturnValue
+		output = s.myFuncReturnValue
+		if s.myFuncError {
+			err = fmt.Errorf("Error!")
+		}
 	}
-
 	return
 }
 
-func (s *waitTestSuite) TestForCommandExists(c *check.C) {
-	cmd := "mycommand"
-	outputPattern := "myOutput"
-	s.execReturnValue = "myOutput"
-
-	err := ForCommand(c, outputPattern, cmd)
+func (s *waitTestSuite) TestForFunctionExists(c *check.C) {
+	err := ForFunction(c, outputPattern, s.myFunc)
 
 	c.Assert(err, check.IsNil, check.Commentf("Got error %s", err))
 }
 
-func (s *waitTestSuite) TestForCommandCallsGivenCommand(c *check.C) {
-	cmd := []string{"mycmd", "mypar"}
-	outputPattern := "myOutput"
-	s.execReturnValue = "myOutput"
+func (s *waitTestSuite) TestForFunctionCallsGivenFunction(c *check.C) {
+	ForFunction(c, outputPattern, s.myFunc)
 
-	ForCommand(c, outputPattern, cmd...)
-
-	execCalls := s.execCalls["mycmd mypar"]
-
-	c.Assert(execCalls, check.Equals, 1,
-		check.Commentf("Expected 1 call to ExecCommand with 'mycmd mypar', got %d", execCalls))
+	c.Assert(s.myFuncCalls, check.Equals, 1,
+		check.Commentf("Expected 1 call to ExecCommand with 'mycmd mypar', got %d", s.myFuncCalls))
 }
 
-func (s *waitTestSuite) TestForCommandFailsOnUnmatchedOutput(c *check.C) {
-	cmd := []string{"mycmd", "mypar"}
-	outputPattern := "myOutput"
-	s.execReturnValue = "anotherOutput"
+func (s *waitTestSuite) TestForFunctionReturnsFunctionError(c *check.C) {
+	s.myFuncError = true
 
-	backMaxWaitRetries := maxWaitRetries
-	defer func() { maxWaitRetries = backMaxWaitRetries }()
-	maxWaitRetries = 0
-
-	err := ForCommand(c, outputPattern, cmd...)
+	err := ForFunction(c, outputPattern, s.myFunc)
 
 	c.Assert(err, check.NotNil, check.Commentf("Didn't get expected error"))
 }
 
-func (s *waitTestSuite) TestForCommandRetriesCalls(c *check.C) {
-	cmd := []string{"mycmd", "mypar"}
-	outputPattern := "myOutput"
-	s.execReturnValue = "myOutput"
+func (s *waitTestSuite) TestForFunctionReturnsFunctionErrorOnRetry(c *check.C) {
+	s.myFuncError = true
+	s.delay = 1 * time.Millisecond
 
-	s.delay = 10 * time.Millisecond
+	err := ForFunction(c, outputPattern, s.myFunc)
 
-	err := ForCommand(c, outputPattern, cmd...)
-
-	c.Assert(err, check.IsNil, check.Commentf("Got error %s", err))
+	c.Assert(err, check.NotNil, check.Commentf("Didn't get expected error"))
 }
 
-func (s *waitTestSuite) TestForCommandHonoursMaxWaitRetries(c *check.C) {
-	cmd := []string{"mycmd", "mypar"}
-	outputPattern := "myOutput"
+func (s *waitTestSuite) TestForFunctionFailsOnUnmatchedOutput(c *check.C) {
+	maxWaitRetries = 0
 
-	backMaxWaitRetries := maxWaitRetries
-	defer func() { maxWaitRetries = backMaxWaitRetries }()
+	s.myFuncReturnValue = "anotherPattern"
+	err := ForFunction(c, outputPattern, s.myFunc)
+
+	c.Assert(err, check.NotNil, check.Commentf("Didn't get expected error"))
+}
+
+func (s *waitTestSuite) TestForFunctionRetriesCalls(c *check.C) {
+	maxWaitRetries = 2
+
+	s.delay = 2 * time.Millisecond
+
+	err := ForFunction(c, outputPattern, s.myFunc)
+
+	c.Assert(err, check.IsNil, check.Commentf("Got error %s", err))
+	c.Assert(s.myFuncCalls > 0, check.Equals, true)
+}
+
+func (s *waitTestSuite) TestForFunctionHonoursMaxWaitRetries(c *check.C) {
 	maxWaitRetries = 3
 
-	ForCommand(c, outputPattern, cmd...)
+	s.myFuncReturnValue = "anotherPattern"
+
+	ForFunction(c, outputPattern, s.myFunc)
 
 	// the first call is not actually a retry
-	actualRetries := s.execCalls["mycmd mypar"] - 1
+	actualRetries := s.myFuncCalls - 1
 
 	c.Assert(actualRetries, check.Equals, maxWaitRetries,
 		check.Commentf("Actual number of retries %d does not match max retries %d",
@@ -169,4 +181,38 @@ func (s *waitTestSuite) TestForServerOnPortCallsForCommand(c *check.C) {
 
 	expectedCalled := `ForCommand called with pattern '(?msU)^.*tcp.*0\.0\.0\.0:1234 .*' and cmds 'netstat -tapn'`
 	c.Assert(called, check.Equals, expectedCalled, check.Commentf("Expected call to ForCommand didn't happen"))
+}
+
+func (s *waitTestSuite) TestForCommandCallsForFunction(c *check.C) {
+	backForFunction := ForFunction
+	defer func() { ForFunction = backForFunction }()
+	var called string
+
+	ForFunction = func(c *check.C, pattern string, inputFunc func() (string, error)) (err error) {
+		called = fmt.Sprintf("ForFunction called with pattern '%s' and execCommand wrapper", pattern)
+		return
+	}
+
+	ForCommand(c, "pattern", "ls")
+
+	expectedCalled := `ForFunction called with pattern 'pattern' and execCommand wrapper`
+	c.Assert(called, check.Equals, expectedCalled, check.Commentf("Expected call to ForFunction didn't happen"))
+}
+
+func (s *waitTestSuite) TestForCommandUsesExecCommand(c *check.C) {
+	maxWaitRetries = 0
+
+	backExecCommand := execCommand
+	defer func() { execCommand = backExecCommand }()
+	var called string
+
+	execCommand = func(c *check.C, cmds ...string) (output string) {
+		called = fmt.Sprintf("execCommand called with cmds %s", cmds)
+		return
+	}
+
+	ForCommand(c, "pattern", "ls")
+
+	expectedCalled := `execCommand called with cmds [ls]`
+	c.Assert(called, check.Equals, expectedCalled, check.Commentf("Expected call to execCommand didn't happen"))
 }
