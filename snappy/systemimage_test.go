@@ -147,13 +147,13 @@ func (s *SITestSuite) TestUpdateHasUpdate(c *C) {
 }
 
 type MockPartition struct {
-	toggleNextBootCalled      bool
+	toggleNextBoot            bool
 	markBootSuccessfulCalled  bool
 	syncBootloaderFilesCalled bool
 }
 
 func (p *MockPartition) ToggleNextBoot() error {
-	p.toggleNextBootCalled = true
+	p.toggleNextBoot = !p.toggleNextBoot
 	return nil
 }
 
@@ -166,7 +166,7 @@ func (p *MockPartition) SyncBootloaderFiles(map[string]string) error {
 	return nil
 }
 func (p *MockPartition) IsNextBootOther() bool {
-	return false
+	return p.toggleNextBoot
 }
 
 func (p *MockPartition) RunWithOther(option partition.MountOption, f func(otherRoot string) (err error)) (err error) {
@@ -199,7 +199,7 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	// do the install
 	_, err = sp.Install(pb, 0)
 	c.Assert(err, IsNil)
-	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
+	c.Assert(mockPartition.toggleNextBoot, Equals, true)
 	c.Assert(pb.total, Equals, 100.0)
 	c.Assert(pb.spin, Equals, true)
 	c.Assert(pb.spinMsg, Equals, "Applying")
@@ -269,7 +269,7 @@ func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 
 	_, err = sp.Install(nil, 0)
 	c.Assert(err, IsNil)
-	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
+	c.Assert(mockPartition.toggleNextBoot, Equals, true)
 }
 
 func (s *SITestSuite) TestSystemImagePartSetActiveAlreadyActive(c *C) {
@@ -280,9 +280,9 @@ func (s *SITestSuite) TestSystemImagePartSetActiveAlreadyActive(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.SetActive(nil)
+	err = sp.SetActive(true, nil)
 	c.Assert(err, IsNil)
-	c.Assert(mockPartition.toggleNextBootCalled, Equals, false)
+	c.Assert(mockPartition.toggleNextBoot, Equals, false)
 }
 
 func (s *SITestSuite) TestSystemImagePartSetActiveMakeActive(c *C) {
@@ -293,9 +293,92 @@ func (s *SITestSuite) TestSystemImagePartSetActiveMakeActive(c *C) {
 	mockPartition := MockPartition{}
 	sp.partition = &mockPartition
 
-	err = sp.SetActive(nil)
+	err = sp.SetActive(true, nil)
 	c.Assert(err, IsNil)
-	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
+	c.Assert(mockPartition.toggleNextBoot, Equals, true)
+}
+
+func (s *SITestSuite) TestSystemImagePartSetActiveAlreadyToggled(c *C) {
+	// in other words, check that calling SetActive twice does not
+	// untoggle
+	parts, err := s.systemImage.Installed()
+
+	sp := parts[1].(*SystemImagePart)
+	c.Assert(sp.IsActive(), Equals, false)
+	mockPartition := MockPartition{toggleNextBoot: true}
+	sp.partition = &mockPartition
+
+	err = sp.SetActive(true, nil)
+	c.Assert(err, IsNil)
+	c.Assert(mockPartition.toggleNextBoot, Equals, true)
+}
+
+func (s *SITestSuite) TestSystemImagePartSetActiveAlreadyActiveAlreadyToggled(c *C) {
+	// in other words, check that calling SetActive on one
+	// partition when it's been called on the other one undoes the
+	// toggle
+	parts, err := s.systemImage.Installed()
+
+	sp := parts[0].(*SystemImagePart)
+	c.Assert(sp.IsActive(), Equals, true)
+	mockPartition := MockPartition{toggleNextBoot: true}
+	sp.partition = &mockPartition
+
+	err = sp.SetActive(true, nil)
+	c.Assert(err, IsNil)
+	c.Assert(mockPartition.toggleNextBoot, Equals, false)
+}
+
+func (s *SITestSuite) TestSystemImagePartUnsetActiveOnActive(c *C) {
+	parts, err := s.systemImage.Installed()
+
+	sp := parts[0].(*SystemImagePart)
+	c.Assert(sp.IsActive(), Equals, true)
+	mockPartition := MockPartition{}
+	sp.partition = &mockPartition
+
+	err = sp.SetActive(false, nil)
+	c.Assert(err, IsNil)
+	c.Assert(mockPartition.toggleNextBoot, Equals, true)
+}
+
+func (s *SITestSuite) TestSystemImagePartUnsetActiveOnUnactiveNOP(c *C) {
+	parts, err := s.systemImage.Installed()
+
+	sp := parts[1].(*SystemImagePart)
+	c.Assert(sp.IsActive(), Equals, false)
+	mockPartition := MockPartition{}
+	sp.partition = &mockPartition
+
+	err = sp.SetActive(false, nil)
+	c.Assert(err, IsNil)
+	c.Assert(mockPartition.toggleNextBoot, Equals, false)
+}
+
+func (s *SITestSuite) TestSystemImagePartUnsetActiveAlreadyToggled(c *C) {
+	parts, err := s.systemImage.Installed()
+
+	sp := parts[1].(*SystemImagePart)
+	c.Assert(sp.IsActive(), Equals, false)
+	mockPartition := MockPartition{toggleNextBoot: true}
+	sp.partition = &mockPartition
+
+	err = sp.SetActive(false, nil)
+	c.Assert(err, IsNil)
+	c.Assert(mockPartition.toggleNextBoot, Equals, false)
+}
+
+func (s *SITestSuite) TestSystemImagePartUnsetActiveAlreadyActiveAlreadyToggled(c *C) {
+	parts, err := s.systemImage.Installed()
+
+	sp := parts[0].(*SystemImagePart)
+	c.Assert(sp.IsActive(), Equals, true)
+	mockPartition := MockPartition{toggleNextBoot: true}
+	sp.partition = &mockPartition
+
+	err = sp.SetActive(false, nil)
+	c.Assert(err, IsNil)
+	c.Assert(mockPartition.toggleNextBoot, Equals, true)
 }
 
 func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedSuccess(c *C) {
@@ -464,7 +547,7 @@ func (s *SITestSuite) TestSystemImagePartInstallRollbackNoSyncbootfiles(c *C) {
 
 	// ensure that we do not sync the bootfiles in this case (see above)
 	c.Assert(mockPartition.syncBootloaderFilesCalled, Equals, false)
-	c.Assert(mockPartition.toggleNextBootCalled, Equals, true)
+	c.Assert(mockPartition.toggleNextBoot, Equals, true)
 }
 
 func (s *SITestSuite) TestNeedsBootAssetSyncNeedsSync(c *C) {

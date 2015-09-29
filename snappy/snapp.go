@@ -980,8 +980,12 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 }
 
 // SetActive sets the snap active
-func (s *SnapPart) SetActive(pb progress.Meter) (err error) {
-	return s.activate(false, pb)
+func (s *SnapPart) SetActive(active bool, pb progress.Meter) (err error) {
+	if active {
+		return s.activate(false, pb)
+	}
+
+	return s.deactivate(false, pb)
 }
 
 func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
@@ -1652,7 +1656,7 @@ func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (strin
 }
 
 // SetActive sets the snap active
-func (s *RemoteSnapPart) SetActive(progress.Meter) error {
+func (s *RemoteSnapPart) SetActive(bool, progress.Meter) error {
 	return ErrNotInstalled
 }
 

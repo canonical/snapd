@@ -569,6 +569,14 @@ func (inst *packageInstruction) rollback() interface{} {
 	return err
 }
 
+func (inst *packageInstruction) activate() interface{} {
+	return snappy.SetActive(inst.pkg, true, inst.prog)
+}
+
+func (inst *packageInstruction) deactivate() interface{} {
+	return snappy.SetActive(inst.pkg, false, inst.prog)
+}
+
 func (inst *packageInstruction) dispatch() func() interface{} {
 	switch inst.Action {
 	case "install":
@@ -582,6 +590,10 @@ func (inst *packageInstruction) dispatch() func() interface{} {
 		return inst.purge
 	case "rollback":
 		return inst.rollback
+	case "activate":
+		return inst.activate
+	case "deactivate":
+		return inst.deactivate
 	default:
 		return nil
 	}
