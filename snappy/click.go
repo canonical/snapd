@@ -42,6 +42,7 @@ import (
 	"time"
 
 	"launchpad.net/snappy/clickdeb"
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
@@ -154,7 +155,7 @@ func readClickHookFile(hookFile string) (hook clickHook, err error) {
 func systemClickHooks() (hooks map[string]clickHook, err error) {
 	hooks = make(map[string]clickHook)
 
-	hookFiles, err := filepath.Glob(filepath.Join(clickSystemHooksDir, "*.hook"))
+	hookFiles, err := filepath.Glob(filepath.Join(dirs.ClickSystemHooksDir, "*.hook"))
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +207,7 @@ func iterHooks(m *packageYaml, origin string, inhibitHooks bool, f iterHooksFunc
 				continue
 			}
 
-			dst := filepath.Join(globalRootDir, expandHookPattern(m.qualifiedName(origin), app, m.Version, systemHook.pattern))
+			dst := filepath.Join(dirs.GlobalRootDir, expandHookPattern(m.qualifiedName(origin), app, m.Version, systemHook.pattern))
 
 			if _, err := os.Stat(dst); err == nil {
 				if err := os.Remove(dst); err != nil {
@@ -274,7 +275,7 @@ func generateBinaryName(m *packageYaml, binary Binary) string {
 		binName = fmt.Sprintf("%s.%s", m.Name, filepath.Base(binary.Name))
 	}
 
-	return filepath.Join(snapBinariesDir, binName)
+	return filepath.Join(dirs.SnapBinariesDir, binName)
 }
 
 func binPathForBinary(pkgPath string, binary Binary) string {
@@ -434,7 +435,7 @@ func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile str
 		socketFileName = filepath.Base(generateSocketFileName(m, service))
 	}
 
-	return systemd.New(globalRootDir, nil).GenServiceFile(
+	return systemd.New(dirs.GlobalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
 			AppName:        m.Name,
 			ServiceName:    service.Name,
@@ -462,7 +463,7 @@ func generateSnapSocketFile(service ServiceYaml, baseDir string, aaProfile strin
 
 	serviceFileName := filepath.Base(generateServiceFileName(m, service))
 
-	return systemd.New(globalRootDir, nil).GenSocketFile(
+	return systemd.New(dirs.GlobalRootDir, nil).GenSocketFile(
 		&systemd.ServiceDescription{
 			ServiceFileName: serviceFileName,
 			ListenStream:    service.ListenStream,
@@ -473,15 +474,15 @@ func generateSnapSocketFile(service ServiceYaml, baseDir string, aaProfile strin
 }
 
 func generateServiceFileName(m *packageYaml, service ServiceYaml) string {
-	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
+	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
 }
 
 func generateSocketFileName(m *packageYaml, service ServiceYaml) string {
-	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.socket", m.Name, service.Name, m.Version))
+	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.socket", m.Name, service.Name, m.Version))
 }
 
 func generateBusPolicyFileName(m *packageYaml, service ServiceYaml) string {
-	return filepath.Join(snapBusPolicyDir, fmt.Sprintf("%s_%s_%s.conf", m.Name, service.Name, m.Version))
+	return filepath.Join(dirs.SnapBusPolicyDir, fmt.Sprintf("%s_%s_%s.conf", m.Name, service.Name, m.Version))
 }
 
 // takes a directory and removes the global root, this is needed
@@ -490,11 +491,11 @@ func generateBusPolicyFileName(m *packageYaml, service ServiceYaml) string {
 var stripGlobalRootDir = stripGlobalRootDirImpl
 
 func stripGlobalRootDirImpl(dir string) string {
-	if globalRootDir == "/" {
+	if dirs.GlobalRootDir == "/" {
 		return dir
 	}
 
-	return dir[len(globalRootDir):]
+	return dir[len(dirs.GlobalRootDir):]
 }
 
 func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inter interacter) error {
@@ -549,7 +550,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		//
 		// *but* always run enable (which just sets a symlink)
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		sysd := systemd.New(globalRootDir, inter)
+		sysd := systemd.New(dirs.GlobalRootDir, inter)
 		if !inhibitHooks {
 			if err := sysd.DaemonReload(); err != nil {
 				return err
@@ -586,7 +587,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 }
 
 func (m *packageYaml) removePackageServices(baseDir string, inter interacter) error {
-	sysd := systemd.New(globalRootDir, inter)
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	for _, service := range m.ServiceYamls {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
 		if err := sysd.Disable(serviceName); err != nil {
@@ -628,7 +629,7 @@ func (m *packageYaml) removePackageServices(baseDir string, inter interacter) er
 }
 
 func (m *packageYaml) addPackageBinaries(baseDir string) error {
-	if err := os.MkdirAll(snapBinariesDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapBinariesDir, 0755); err != nil {
 		return err
 	}
 
@@ -673,7 +674,7 @@ func (m *packageYaml) addOneSecurityPolicy(name string, sd SecurityDefinitions, 
 		return err
 	}
 
-	fn := filepath.Join(snapSeccompDir, profileName)
+	fn := filepath.Join(dirs.SnapSeccompDir, profileName)
 	if err := ioutil.WriteFile(fn, content, 0644); err != nil {
 		return err
 	}
@@ -706,7 +707,7 @@ func (m *packageYaml) removeOneSecurityPolicy(name, baseDir string) error {
 	if err != nil {
 		return err
 	}
-	fn := filepath.Join(snapSeccompDir, profileName)
+	fn := filepath.Join(dirs.SnapSeccompDir, profileName)
 	if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -799,15 +800,15 @@ func removeSnapData(fullName, version string) error {
 // snapDataDirs returns the list of data directories for the given snap version
 func snapDataDirs(fullName, version string) ([]string, error) {
 	// collect the directories, homes first
-	dirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, fullName, version))
+	found, err := filepath.Glob(filepath.Join(dirs.SnapDataHomeGlob, fullName, version))
 	if err != nil {
 		return nil, err
 	}
 	// then system data
-	systemPath := filepath.Join(snapDataDir, fullName, version)
-	dirs = append(dirs, systemPath)
+	systemPath := filepath.Join(dirs.SnapDataDir, fullName, version)
+	found = append(found, systemPath)
 
-	return dirs, nil
+	return found, nil
 }
 
 // Copy all data for "fullName" from "oldVersion" to "newVersion"
