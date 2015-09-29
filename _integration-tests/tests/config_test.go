@@ -49,9 +49,24 @@ func (s *configSuite) TestModprobe(c *check.C) {
 
 func (s *configSuite) TestPPP(c *check.C) {
 	s.doTest(c, `network:
-    ppp:
+      ppp:
       - name: chap-secrets
         content: secret`)
+}
+
+func (s *configSuite) TestWatchdog(c *check.C) {
+	s.doTest(c, `watchdog:
+      startup: |
+        run_watchdog=0
+        run_wd_keepalive=0
+        watchdog_module="none"`)
+}
+
+func (s *configSuite) TestNetworkInterfaces(c *check.C) {
+	s.doTest(c, `network:
+      interfaces:
+      - name: eth0
+        content: config`)
 }
 
 func (s *configSuite) doTest(c *check.C, targetCfg string) {
