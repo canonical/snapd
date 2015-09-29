@@ -114,10 +114,12 @@ func (s *purgeSuite) TestPurgeActiveExplicitOK(c *C) {
 	inter := &MockProgressMeter{}
 	ddir, part := s.mkpkg(c)
 	c.Assert(part.activate(true, inter), IsNil)
+	canary := filepath.Join(ddir, "canary")
+	c.Assert(os.Mkdir(canary, 0755), IsNil)
 
 	err := Purge("hello-app", DoPurgeActive, inter)
 	c.Check(err, IsNil)
-	c.Check(helpers.FileExists(ddir), Equals, false)
+	c.Check(helpers.FileExists(canary), Equals, false)
 	c.Check(inter.notified, HasLen, 0)
 }
 
@@ -125,6 +127,8 @@ func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 	inter := &MockProgressMeter{}
 	ddir, part := s.mkpkg(c, "v1", "services:\n - name: svc")
 	c.Assert(part.activate(true, inter), IsNil)
+	canary := filepath.Join(ddir, "canary")
+	c.Assert(os.Mkdir(canary, 0755), IsNil)
 
 	called := [][]string{}
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
@@ -134,7 +138,7 @@ func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 
 	err := Purge("hello-app", DoPurgeActive, inter)
 	c.Check(err, IsNil)
-	c.Check(helpers.FileExists(ddir), Equals, false)
+	c.Check(helpers.FileExists(canary), Equals, false)
 	c.Assert(inter.notified, HasLen, 1)
 	c.Check(inter.notified[0], Matches, `Waiting for .* to stop.`)
 	rv := make(map[string]int)

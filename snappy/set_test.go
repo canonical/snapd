@@ -22,7 +22,6 @@ package snappy
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -80,7 +79,12 @@ func (s *SnapTestSuite) TestSetActive(c *C) {
 
 	path, err := filepath.EvalSymlinks(filepath.Join(snapAppsDir, fooComposedName, "current"))
 	c.Assert(err, IsNil)
-	c.Assert(strings.HasSuffix(path, "/"+fooComposedName+"/2.0"), Equals, true)
+	c.Check(path, Equals, filepath.Join(snapAppsDir, fooComposedName, "2.0"))
+
+	path, err = filepath.EvalSymlinks(filepath.Join(snapDataDir, fooComposedName, "current"))
+	c.Assert(err, IsNil)
+	c.Check(path, Equals, filepath.Join(snapDataDir, fooComposedName, "2.0"))
+
 	meter := &MockProgressMeter{}
 
 	// setActive has some ugly print
@@ -94,6 +98,8 @@ func (s *SnapTestSuite) TestSetActive(c *C) {
 
 	err = makeSnapActiveByNameAndVersion("foo", "1.0", meter)
 	c.Assert(err, IsNil)
-	path, err = filepath.EvalSymlinks(filepath.Join(snapAppsDir, fooComposedName, "current"))
-	c.Assert(strings.HasSuffix(path, "/"+fooComposedName+"/1.0"), Equals, true)
+	path, _ = filepath.EvalSymlinks(filepath.Join(snapAppsDir, fooComposedName, "current"))
+	c.Check(path, Equals, filepath.Join(snapAppsDir, fooComposedName, "1.0"))
+	path, _ = filepath.EvalSymlinks(filepath.Join(snapDataDir, fooComposedName, "current"))
+	c.Check(path, Equals, filepath.Join(snapDataDir, fooComposedName, "1.0"))
 }
