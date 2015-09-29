@@ -155,18 +155,30 @@ func (s *SystemImagePart) Date() time.Time {
 }
 
 // SetActive sets the snap active
-func (s *SystemImagePart) SetActive(pb progress.Meter) (err error) {
+func (s *SystemImagePart) SetActive(active bool, pb progress.Meter) error {
 	isNextBootOther := s.partition.IsNextBootOther()
-	// active and no switch scheduled -> nothing to do
-	if s.IsActive() && !isNextBootOther {
-		return nil
-	}
-	// not currently active but switch scheduled already -> nothing to do
-	if !s.IsActive() && isNextBootOther {
-		return nil
+	isActive := s.IsActive()
+
+	// * active
+	// | * isActive
+	// | | * isNextBootOther
+	// | | |
+	// F F F nop
+	// F F T toggle
+	// F T F toggle
+	// F T T nop
+	// T F F toggle
+	// T F T nop
+	// T T F nop
+	// T T T toggle
+	//
+	// ∴ this function is the parity (a.k.a. XOR, ⊻) of these inputs \o/
+	// ( and, ∀ p, q boolean: p ⊻ q ⇔ p ≠ q )
+	if active != isActive != isNextBootOther {
+		return s.partition.ToggleNextBoot()
 	}
 
-	return s.partition.ToggleNextBoot()
+	return nil
 }
 
 // override in tests
