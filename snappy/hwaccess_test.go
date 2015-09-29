@@ -337,3 +337,41 @@ exit 1`
 		Output:   []byte("meep\n"),
 	})
 }
+
+func (s *SnapTestSuite) TesthasSnapApparmorJSON(c *C) {
+	err := hasSnapApparmorJSON("non-existent-app")
+	c.Assert(err, Equals, ErrPackageNotFound)
+
+	makeInstalledMockSnap(s.tempdir, "")
+	err = AddHWAccess("hello-app", "/dev/ttyUSB0")
+	c.Assert(err, IsNil)
+
+	err = hasSnapApparmorJSON("hello-app")
+	c.Assert(err, IsNil)
+}
+
+func (s *SnapTestSuite) TestAddNewWritePathForSnap(c *C) {
+	// try add path to non existent app
+	err := addNewWritePathForSnap("non-existent-app", "/dev/ttyUSB0")
+	c.Assert(err != nil, Equals, true)
+
+	// try add same path twice
+	makeInstalledMockSnap(s.tempdir, "")
+	err = addNewWritePathForSnap("hello-app", "/dev/ttyUSB0")
+	c.Assert(err, IsNil)
+	err = addNewWritePathForSnap("hello-app", "/dev/ttyUSB0")
+	c.Assert(err, Equals, ErrHWAccessAlreadyAdded)
+
+	// check file path has been added right
+	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `{
+  "write_path": [
+    "/dev/ttyUSB0"
+  ],
+  "read_path": [
+    "/run/udev/data/*"
+  ]
+}
+`)
+}

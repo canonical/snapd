@@ -186,34 +186,8 @@ ACTION=="add", KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s", SYMLIN
 
 var regenerateAppArmorRules = regenerateAppArmorRulesImpl
 
-// AddSymlinkToHWDevice writes an Udev rule to create a symlink to the
-// given hardware device
-func AddSymlinkToHWDevice(snapname, device, symlink string) error {
-	if !validDevice(device) {
-		return ErrInvalidHWDevice
-	}
-
-	if !validDevice(symlink) {
-		return ErrInvalidSymlinkToHWDevice
-	}
-
-	if "" != symlink {
-		if err := writeSymlinkUdevRuleForDeviceCgroup(snapname, device, symlink); nil != err {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// AddHWAccess allows the given snap package to access the given hardware
-// device
-func AddHWAccess(snapname, device string) error {
-	if !validDevice(device) {
-		return ErrInvalidHWDevice
-	}
-
-	// check if there is anything apparmor related to add to
+// check if there is anything apparmor related to add to
+func hasSnapApparmorJSON(snapname string) error {
 	globExpr := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_*.json", snapname))
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
@@ -223,6 +197,10 @@ func AddHWAccess(snapname, device string) error {
 		return ErrPackageNotFound
 	}
 
+	return nil
+}
+
+func addNewWritePathForSnap(snapname, device string) error {
 	// read .additional file, its ok if the file does not exist (yet)
 	appArmorAdditional, err := readHWAccessJSONFile(snapname)
 	if err != nil && !os.IsNotExist(err) {
@@ -244,6 +222,24 @@ func AddHWAccess(snapname, device string) error {
 		return err
 	}
 
+	return nil
+}
+
+// AddHWAccess allows the given snap package to access the given hardware
+// device
+func AddHWAccess(snapname, device string) error {
+	if !validDevice(device) {
+		return ErrInvalidHWDevice
+	}
+
+	if err := hasSnapApparmorJSON(snapname); nil != err {
+		return err
+	}
+
+	if err := addNewWritePathForSnap(snapname, device); nil != err {
+		return err
+	}
+
 	// add udev rule for device cgroup
 	if err := writeUdevRuleForDeviceCgroup(snapname, device); err != nil {
 		return err
@@ -251,6 +247,32 @@ func AddHWAccess(snapname, device string) error {
 
 	// re-generate apparmor fules
 	return regenerateAppArmorRules()
+}
+
+// AddSymlinkToHWDevice writes an Udev rule to create a symlink to the
+// given hardware device
+func AddSymlinkToHWDevice(snapname, device, symlink string) error {
+	if !validDevice(device) {
+		return ErrInvalidHWDevice
+	}
+
+	if !validDevice(symlink) {
+		return ErrInvalidSymlinkToHWDevice
+	}
+
+	if err := hasSnapApparmorJSON(snapname); nil != err {
+		return err
+	}
+
+	if err := addNewWritePathForSnap(snapname, symlink); nil != err {
+		return err
+	}
+
+	if err := writeSymlinkUdevRuleForDeviceCgroup(snapname, device, symlink); nil != err {
+		return err
+	}
+
+	return nil
 }
 
 // ListHWAccess returns a list of hardware-device strings that the snap
