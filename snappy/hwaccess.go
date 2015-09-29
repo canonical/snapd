@@ -20,6 +20,7 @@
 package snappy
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -116,6 +117,26 @@ func udevRulesPathForPart(partid string) string {
 	return filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("70-snappy_hwassign_%s.rules", partid))
 }
 
+func addUdevRuleForSnap(snapname, newRule string) error {
+	udevRulesFile := udevRulesPathForPart(snapname)
+
+	rules, err := ioutil.ReadFile(udevRulesFile)
+	if nil != err && !os.IsNotExist(err) {
+		return err
+	}
+
+	// At this point either rules variable contains some rules if the
+	// file exists, or it is nil if the file does not exist yet.
+	// In both cases, updatedRules will have the right content.
+	updatedRules := append(rules, newRule...)
+
+	if err := helpers.AtomicWriteFile(udevRulesFile, updatedRules, 0644); nil != err {
+		return err
+	}
+
+	return nil
+}
+
 func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 	os.MkdirAll(dirs.SnapUdevRulesDir, 0755)
 
@@ -131,7 +152,7 @@ func writeUdevRuleForDeviceCgroup(snapname, device string) error {
 KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"
 `, filepath.Base(device), snapname)
 
-	if err := ioutil.WriteFile(udevRulesPathForPart(snapname), []byte(acl), 0644); err != nil {
+	if err := addUdevRuleForSnap(snapname, acl); err != nil {
 		return err
 	}
 
@@ -198,6 +219,49 @@ func ListHWAccess(snapname string) ([]string, error) {
 	return appArmorAdditional.WritePath, nil
 }
 
+func removeUdevRuleForSnap(snapname, device string) error {
+	udevRulesFile := udevRulesPathForPart(snapname)
+
+	file, err := os.Open(udevRulesFile)
+	if nil != err && !os.IsNotExist(err) {
+		return err
+	}
+
+	// Get the full list of rules to keep
+	var rulesToKeep []string
+	scanner := bufio.NewScanner(file)
+	devicePattern := "\"" + filepath.Base(device) + "\""
+
+	for scanner.Scan() {
+		rule := scanner.Text()
+		if "" != rule && !strings.Contains(rule, devicePattern) {
+			rulesToKeep = append(rulesToKeep, rule)
+		}
+	}
+	file.Close()
+
+	// Update the file with the remaining rules or delete it
+	// if there is not any rule left.
+	if 0 < len(rulesToKeep) {
+		// Appending the []string list of rules in a single
+		// string to convert it later in []byte
+		var out string
+		for _, rule := range rulesToKeep {
+			out = out + rule + "\n"
+		}
+
+		if err := helpers.AtomicWriteFile(udevRulesFile, []byte(out), 0644); nil != err {
+			return err
+		}
+	} else {
+		if err := os.Remove(udevRulesFile); nil != err {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // RemoveHWAccess allows the given snap package to access the given hardware
 // device
 func RemoveHWAccess(snapname, device string) error {
@@ -228,14 +292,12 @@ func RemoveHWAccess(snapname, device string) error {
 		return err
 	}
 
-	udevRulesFile := udevRulesPathForPart(snapname)
-	if helpers.FileExists(udevRulesFile) {
-		if err := os.Remove(udevRulesFile); err != nil {
-			return err
-		}
-		if err := activateOemHardwareUdevRules(); err != nil {
-			return err
-		}
+	if err = removeUdevRuleForSnap(snapname, device); nil != err {
+		return err
+	}
+
+	if err := activateOemHardwareUdevRules(); err != nil {
+		return err
 	}
 
 	// re-generate apparmor rules

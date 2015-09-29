@@ -210,6 +210,14 @@ func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
 }
 `)
 
+	// check the udev rule file contains all the rules
+	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapUdevRulesDir, "70-snappy_hwassign_hello-app.rules"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `
+KERNEL=="bar", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
+
+KERNEL=="bar*", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
+`)
 	// remove
 	err = RemoveHWAccess("hello-app", "/dev/bar")
 	c.Assert(err, IsNil)
@@ -229,6 +237,11 @@ func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
     "/run/udev/data/*"
   ]
 }
+`)
+	// check the udevReadGlob Udev rule is still there
+	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapUdevRulesDir, "70-snappy_hwassign_hello-app.rules"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `KERNEL=="bar*", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
 `)
 }
 

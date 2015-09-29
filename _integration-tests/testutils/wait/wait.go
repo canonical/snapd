@@ -33,8 +33,11 @@ var (
 	// dependency aliasing
 	execCommand = common.ExecCommand
 	// ForCommand dep alias
-	ForCommand     = forCommand
+	ForCommand = forCommand
+	// ForFunction dep alias
+	ForFunction    = forFunction
 	maxWaitRetries = 100
+	interval       = time.Duration(100)
 )
 
 // ForActiveService uses ForCommand to check for an active service
@@ -47,19 +50,27 @@ func ForServerOnPort(c *check.C, port int) (err error) {
 	return ForCommand(c, fmt.Sprintf(`(?msU)^.*tcp.*0\.0\.0\.0:%d .*`, port), "netstat", "-tapn")
 }
 
-// forCommand keeps trying to execute the given command to get an output that
+// forCommand uses ForFunction to check for the execCommand output
+func forCommand(c *check.C, outputPattern string, cmds ...string) (err error) {
+	return ForFunction(c, outputPattern, func() (string, error) { return execCommand(c, cmds...), nil })
+}
+
+// forFunction keeps trying to execute the given function to get an output that
 // matches the given pattern until it is obtained or the maximun number of
 // retries is executed
-func forCommand(c *check.C, outputPattern string, cmds ...string) (err error) {
-	output := execCommand(c, cmds...)
-
+func forFunction(c *check.C, outputPattern string, inputFunc func() (string, error)) (err error) {
 	re := regexp.MustCompile(outputPattern)
+
+	output, err := inputFunc()
+	if err != nil {
+		return
+	}
 
 	if match := re.FindString(output); match != "" {
 		return
 	}
 
-	checkInterval := time.Millisecond * 100
+	checkInterval := time.Millisecond * interval
 	var retries int
 
 	ticker := time.NewTicker(checkInterval)
@@ -68,7 +79,11 @@ func forCommand(c *check.C, outputPattern string, cmds ...string) (err error) {
 	for {
 		select {
 		case <-tickChan:
-			output = execCommand(c, cmds...)
+			output, err = inputFunc()
+			if err != nil {
+				ticker.Stop()
+				return
+			}
 			if match := re.FindString(output); match != "" {
 				ticker.Stop()
 				return
@@ -76,7 +91,7 @@ func forCommand(c *check.C, outputPattern string, cmds ...string) (err error) {
 			retries++
 			if retries >= maxWaitRetries {
 				ticker.Stop()
-				return fmt.Errorf("Pattern not found in command output")
+				return fmt.Errorf("Pattern not found in function output")
 			}
 		}
 	}
