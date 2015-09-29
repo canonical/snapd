@@ -22,6 +22,7 @@ package tests
 import (
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 
@@ -77,7 +78,7 @@ func (s *configSuite) doTest(c *check.C, targetCfg string) {
 
 	actualConfig := currentConfig(c)
 
-	c.Assert(actualConfig, check.Matches, "(?Usm).*"+targetCfg+".*")
+	c.Assert(actualConfig, check.Matches, "(?Usm).*"+strings.Replace(targetCfg, "\n", "\n.*", -1)+".*")
 }
 
 func (s *configSuite) setConfig(c *check.C, config string) (err error) {
@@ -94,7 +95,7 @@ func (s *configSuite) setConfig(c *check.C, config string) (err error) {
 }
 
 func currentConfig(c *check.C) string {
-	return common.ExecCommand(c, "snappy", "config", "ubuntu-core")
+	return common.ExecCommand(c, "sudo", "snappy", "config", "ubuntu-core")
 }
 
 func configString(cfg string) string {
