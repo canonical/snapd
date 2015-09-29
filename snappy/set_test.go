@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
 )
@@ -77,13 +78,13 @@ func (s *SnapTestSuite) TestSetProperty(c *C) {
 func (s *SnapTestSuite) TestSetActive(c *C) {
 	makeTwoTestSnaps(c, pkg.TypeApp)
 
-	path, err := filepath.EvalSymlinks(filepath.Join(snapAppsDir, fooComposedName, "current"))
+	path, err := filepath.EvalSymlinks(filepath.Join(dirs.SnapAppsDir, fooComposedName, "current"))
 	c.Assert(err, IsNil)
-	c.Check(path, Equals, filepath.Join(snapAppsDir, fooComposedName, "2.0"))
+	c.Check(path, Equals, filepath.Join(dirs.SnapAppsDir, fooComposedName, "2.0"))
 
-	path, err = filepath.EvalSymlinks(filepath.Join(snapDataDir, fooComposedName, "current"))
+	path, err = filepath.EvalSymlinks(filepath.Join(dirs.SnapDataDir, fooComposedName, "current"))
 	c.Assert(err, IsNil)
-	c.Check(path, Equals, filepath.Join(snapDataDir, fooComposedName, "2.0"))
+	c.Check(path, Equals, filepath.Join(dirs.SnapDataDir, fooComposedName, "2.0"))
 
 	meter := &MockProgressMeter{}
 
@@ -98,8 +99,8 @@ func (s *SnapTestSuite) TestSetActive(c *C) {
 
 	err = makeSnapActiveByNameAndVersion("foo", "1.0", meter)
 	c.Assert(err, IsNil)
-	path, _ = filepath.EvalSymlinks(filepath.Join(snapAppsDir, fooComposedName, "current"))
-	c.Check(path, Equals, filepath.Join(snapAppsDir, fooComposedName, "1.0"))
-	path, _ = filepath.EvalSymlinks(filepath.Join(snapDataDir, fooComposedName, "current"))
-	c.Check(path, Equals, filepath.Join(snapDataDir, fooComposedName, "1.0"))
+	path, _ = filepath.EvalSymlinks(filepath.Join(dirs.SnapAppsDir, fooComposedName, "current"))
+	c.Check(path, Equals, filepath.Join(dirs.SnapAppsDir, fooComposedName, "1.0"))
+	path, _ = filepath.EvalSymlinks(filepath.Join(dirs.SnapDataDir, fooComposedName, "current"))
+	c.Check(path, Equals, filepath.Join(dirs.SnapDataDir, fooComposedName, "1.0"))
 }
