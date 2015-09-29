@@ -78,8 +78,13 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 	s.installThree(c, AllowUnauthenticated|DoInstallGC)
 
 	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo.sideload", "*"))
-	c.Assert(err, IsNil)
-	c.Assert(globs, HasLen, 2+1) // +1 for "current"
+	c.Check(err, IsNil)
+	c.Check(globs, HasLen, 2+1) // +1 for "current"
+
+	// gc should leave one more data than app
+	globs, err = filepath.Glob(filepath.Join(snapDataDir, "foo.sideload", "*"))
+	c.Check(err, IsNil)
+	c.Check(globs, HasLen, 3+1) // +1 for "current"
 }
 
 // check that if flags does not include DoInstallGC, no gc is done
@@ -89,6 +94,10 @@ func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 	globs, err := filepath.Glob(filepath.Join(snapAppsDir, "foo.sideload", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(globs, HasLen, 3+1) // +1 for "current"
+
+	globs, err = filepath.Glob(filepath.Join(snapDataDir, "foo.sideload", "*"))
+	c.Check(err, IsNil)
+	c.Check(globs, HasLen, 3+1) // +1 for "current"
 }
 
 func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {

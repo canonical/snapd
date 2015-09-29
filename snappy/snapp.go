@@ -1036,8 +1036,22 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
 	}
 
+	dbase := filepath.Join(snapDataDir, QualifiedName(s))
+	currentDataSymlink := filepath.Join(dbase, "current")
+	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
+	}
+
 	// symlink is relative to parent dir
-	return os.Symlink(filepath.Base(s.basedir), currentActiveSymlink)
+	if err := os.Symlink(filepath.Base(s.basedir), currentActiveSymlink); err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Join(dbase, s.Version()), 0755); err != nil {
+		return err
+	}
+
+	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
 }
 
 func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
@@ -1081,6 +1095,11 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	// and finally the current symlink
 	if err := os.Remove(currentSymlink); err != nil {
 		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
+	}
+
+	currentDataSymlink := filepath.Join(snapDataDir, QualifiedName(s), "current")
+	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
 	}
 
 	return nil
