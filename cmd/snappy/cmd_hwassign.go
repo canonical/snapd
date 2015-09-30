@@ -57,15 +57,6 @@ func (x *cmdHWAssign) Execute(args []string) error {
 }
 
 func (x *cmdHWAssign) doHWAssign() error {
-	if "" != x.Positional.SymlinkPath {
-		if err := snappy.AddSymlinkToHWDevice(
-			x.Positional.PackageName,
-			x.Positional.DevicePath,
-			x.Positional.SymlinkPath); err != nil {
-			return err
-		}
-	}
-
 	if err := snappy.AddHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
 		if err == snappy.ErrHWAccessAlreadyAdded {
 			// TRANSLATORS: the first %s is a pkgname, the second %s is a path
@@ -74,6 +65,15 @@ func (x *cmdHWAssign) doHWAssign() error {
 		}
 
 		return err
+	}
+
+	if "" != x.Positional.SymlinkPath {
+		if err := snappy.AddSymlinkToHWDevice(
+			x.Positional.PackageName,
+			x.Positional.DevicePath,
+			x.Positional.SymlinkPath); err != nil {
+			return err
+		}
 	}
 
 	// TRANSLATORS: the first %s is a pkgname, the second %s is a path

@@ -37,8 +37,9 @@ const udevDataGlob = "/run/udev/data/*"
 var aaClickHookCmd = "aa-clickhook"
 
 type appArmorAdditionalJSON struct {
-	WritePath []string `json:"write_path,omitempty"`
-	ReadPath  []string `json:"read_path,omitempty"`
+	WritePath   []string          `json:"write_path,omitempty"`
+	ReadPath    []string          `json:"read_path,omitempty"`
+	SymlinkPath map[string]string `json:"symlink_path,omitempty"`
 }
 
 // return the json filename to add to the security json
@@ -225,6 +226,53 @@ func addNewWritePathForSnap(snapname, device string) error {
 	return nil
 }
 
+func isStringInSlice(key string, slice []string) bool {
+	for _, p := range slice {
+		if p == key {
+			return true
+		}
+	}
+	return false
+}
+
+func addNewSymlinkPathForSnap(snapname, symlink, device string) error {
+	// read .additional file, its ok if the file does not exist (yet)
+	appArmorAdditional, err := readHWAccessJSONFile(snapname)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	// It is expected to have already access to the
+	// real hw device before creating a symlink to it
+	if !isStringInSlice(device, appArmorAdditional.WritePath) {
+		return ErrHWAccessRemoveNotFound
+	}
+
+	if isStringInSlice(symlink, appArmorAdditional.WritePath) {
+		return ErrSymlinkToHWNameCollision
+	}
+	if nil != appArmorAdditional.SymlinkPath {
+		for key := range appArmorAdditional.SymlinkPath {
+			if key == symlink {
+				return ErrSymlinkToHWAlreadyAdded
+			}
+		}
+	} else {
+		appArmorAdditional.SymlinkPath = make(map[string]string)
+	}
+
+	// add the new symlink:hw-device pair
+	appArmorAdditional.SymlinkPath[symlink] = device
+
+	// and write the data out
+	err = writeHWAccessJSONFile(snapname, appArmorAdditional)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // AddHWAccess allows the given snap package to access the given hardware
 // device
 func AddHWAccess(snapname, device string) error {
@@ -264,7 +312,7 @@ func AddSymlinkToHWDevice(snapname, device, symlink string) error {
 		return err
 	}
 
-	if err := addNewWritePathForSnap(snapname, symlink); nil != err {
+	if err := addNewSymlinkPathForSnap(snapname, symlink, device); nil != err {
 		return err
 	}
 
@@ -331,8 +379,8 @@ func removeUdevRuleForSnap(snapname, device string) error {
 
 // RemoveHWAccess allows the given snap package to access the given hardware
 // device
-func RemoveHWAccess(snapname, device string) error {
-	if !validDevice(device) {
+func RemoveHWAccess(snapname, path string) error {
+	if !validDevice(path) {
 		return ErrInvalidHWDevice
 	}
 
@@ -341,26 +389,67 @@ func RemoveHWAccess(snapname, device string) error {
 		return err
 	}
 
-	// remove write path, please golang make this easier!
-	newWritePath := []string{}
-	for _, p := range appArmorAdditional.WritePath {
-		if p != device {
-			newWritePath = append(newWritePath, p)
+	// Check whether it is a symlink first
+	device, symlink, err := resolveSymlink(snapname, path)
+	if nil != err {
+		return err
+	}
+
+	// When unassigning a symlink, path == symlink and only the
+	// symlink has to be removed.
+	// When unassigning an HW device, path == device (while symlink
+	// can be another path or a null string) and both device
+	// and symlink (if any) have to be removed.
+	if path == device {
+		// remove write path, please golang make this easier!
+		newWritePath := []string{}
+		for _, p := range appArmorAdditional.WritePath {
+			if p != device {
+				newWritePath = append(newWritePath, p)
+			}
 		}
-	}
-	if len(newWritePath) == len(appArmorAdditional.WritePath) {
-		return ErrHWAccessRemoveNotFound
-	}
-	appArmorAdditional.WritePath = newWritePath
 
-	// and write it out again
-	err = writeHWAccessJSONFile(snapname, appArmorAdditional)
-	if err != nil {
-		return err
+		if len(newWritePath) == len(appArmorAdditional.WritePath) {
+			return ErrHWAccessRemoveNotFound
+		}
+
+		// Update WritePath
+		appArmorAdditional.WritePath = newWritePath
+
+		// and write it out again
+		err = writeHWAccessJSONFile(snapname, appArmorAdditional)
+		if err != nil {
+			return err
+		}
+
+		if err = removeUdevRuleForSnap(snapname, device); nil != err {
+			return err
+		}
+
 	}
 
-	if err = removeUdevRuleForSnap(snapname, device); nil != err {
-		return err
+	if "" != symlink {
+		newSymlinkPath := make(map[string]string)
+		for key, value := range appArmorAdditional.SymlinkPath {
+			if key != symlink {
+				newSymlinkPath[key] = value
+			}
+		}
+
+		if len(appArmorAdditional.SymlinkPath) == len(newSymlinkPath) {
+			return ErrHWAccessRemoveNotFound
+		}
+
+		appArmorAdditional.SymlinkPath = newSymlinkPath
+
+		err = writeHWAccessJSONFile(snapname, appArmorAdditional)
+		if err != nil {
+			return err
+		}
+
+		if err := removeUdevRuleForSnap(snapname, symlink); nil != err {
+			return err
+		}
 	}
 
 	if err := activateOemHardwareUdevRules(); err != nil {
@@ -383,4 +472,26 @@ func RemoveAllHWAccess(snapname string) error {
 	}
 
 	return regenerateAppArmorRules()
+}
+
+func resolveSymlink(snapname, path string) (device, symlink string, err error) {
+	appArmorAdditional, err := readHWAccessJSONFile(snapname)
+	if nil != err {
+		return "", "", err
+	}
+
+	if nil != appArmorAdditional.SymlinkPath {
+		for symlink, device := range appArmorAdditional.SymlinkPath {
+			if path == symlink || path == device {
+				return device, symlink, nil
+			}
+		}
+	}
+
+	// no symlink found, path must be an HW device
+	if !isStringInSlice(path, appArmorAdditional.WritePath) {
+		return "", "", ErrHWAccessRemoveNotFound
+	}
+
+	return path, "", nil
 }

@@ -338,7 +338,7 @@ exit 1`
 	})
 }
 
-func (s *SnapTestSuite) TesthasSnapApparmorJSON(c *C) {
+func (s *SnapTestSuite) TestHasSnapApparmorJSON(c *C) {
 	err := hasSnapApparmorJSON("non-existent-app")
 	c.Assert(err, Equals, ErrPackageNotFound)
 
@@ -351,18 +351,14 @@ func (s *SnapTestSuite) TesthasSnapApparmorJSON(c *C) {
 }
 
 func (s *SnapTestSuite) TestAddNewWritePathForSnap(c *C) {
-	// try add path to non existent app
-	err := addNewWritePathForSnap("non-existent-app", "/dev/ttyUSB0")
-	c.Assert(err != nil, Equals, true)
-
 	// try add same path twice
 	makeInstalledMockSnap(s.tempdir, "")
-	err = addNewWritePathForSnap("hello-app", "/dev/ttyUSB0")
+	err := addNewWritePathForSnap("hello-app", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
 	err = addNewWritePathForSnap("hello-app", "/dev/ttyUSB0")
 	c.Assert(err, Equals, ErrHWAccessAlreadyAdded)
 
-	// check file path has been added right
+	// check .additional file is written right
 	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, `{
@@ -373,5 +369,167 @@ func (s *SnapTestSuite) TestAddNewWritePathForSnap(c *C) {
     "/run/udev/data/*"
   ]
 }
+`)
+}
+
+func (s *SnapTestSuite) TestAddNewSymlinkPathForSnap(c *C) {
+	makeInstalledMockSnap(s.tempdir, "")
+
+	// try add as symlink to an hw device not in write path, yet
+	err := addNewSymlinkPathForSnap("hello-app", "/dev/symtest0", "/dev/ttyUSB0")
+	c.Assert(err, Equals, ErrHWAccessRemoveNotFound)
+
+	// try add the same symlink twice
+	err = addNewWritePathForSnap("hello-app", "/dev/ttyUSB0")
+	c.Assert(err, IsNil)
+	err = addNewSymlinkPathForSnap("hello-app", "/dev/symtest0", "/dev/ttyUSB0")
+	c.Assert(err, IsNil)
+	err = addNewSymlinkPathForSnap("hello-app", "/dev/symtest0", "/dev/ttyUSB0")
+	c.Assert(err, Equals, ErrSymlinkToHWAlreadyAdded)
+
+	// check .additional file is written right
+	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `{
+  "write_path": [
+    "/dev/ttyUSB0"
+  ],
+  "read_path": [
+    "/run/udev/data/*"
+  ],
+  "symlink_path": {
+    "/dev/symtest0": "/dev/ttyUSB0"
+  }
+}
+`)
+
+	// try add a second symlink
+	err = AddHWAccess("hello-app", "/dev/ttyUSB1")
+	c.Assert(err, IsNil)
+
+	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB1", "/dev/symtest1")
+	c.Assert(err, IsNil)
+
+	// check .additional file is written right
+	content, err = ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `{
+  "write_path": [
+    "/dev/ttyUSB0",
+    "/dev/ttyUSB1"
+  ],
+  "read_path": [
+    "/run/udev/data/*"
+  ],
+  "symlink_path": {
+    "/dev/symtest0": "/dev/ttyUSB0",
+    "/dev/symtest1": "/dev/ttyUSB1"
+  }
+}
+`)
+	// try add symlink with the same name of one of snap's write paths
+	err = addNewSymlinkPathForSnap("hello-app", "/dev/ttyUSB1", "/dev/ttyUSB1")
+	c.Assert(err, Equals, ErrSymlinkToHWNameCollision)
+}
+
+func (s *SnapTestSuite) TestRemoveSymlinkToHWDevice(c *C) {
+	aaClickHookCmd = "true"
+	makeInstalledMockSnap(s.tempdir, "")
+
+	// Add access to 2 devices
+	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
+	c.Assert(err, IsNil)
+	err = AddHWAccess("hello-app", "/dev/ttyUSB1")
+	c.Assert(err, IsNil)
+
+	// Adding a symlinks
+	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB0", "/dev/symtest0")
+	c.Assert(err, IsNil)
+
+	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB1", "/dev/symtest1")
+	c.Assert(err, IsNil)
+
+	// Remove hw device with symlink: the symlink is expected to be removed too
+	err = RemoveHWAccess("hello-app", "/dev/ttyUSB1")
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `{
+  "write_path": [
+    "/dev/ttyUSB0"
+  ],
+  "read_path": [
+    "/run/udev/data/*"
+  ],
+  "symlink_path": {
+    "/dev/symtest0": "/dev/ttyUSB0"
+  }
+}
+`)
+
+	// Remove only the symlink
+	err = RemoveHWAccess("hello-app", "/dev/symtest0")
+	c.Assert(err, IsNil)
+
+	// having removed the last symlink, SymlinkPath is expected to be nil
+	appArmorAdditional, err := readHWAccessJSONFile("hello-app")
+	c.Assert(err, IsNil)
+	c.Assert(appArmorAdditional.SymlinkPath, IsNil)
+
+	// expecting write path unchanged
+	content, err = ioutil.ReadFile(filepath.Join(snapAppArmorDir, "hello-app.json.additional"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `{
+  "write_path": [
+    "/dev/ttyUSB0"
+  ],
+  "read_path": [
+    "/run/udev/data/*"
+  ]
+}
+`)
+}
+
+func (s *SnapTestSuite) TestRemoveUdevRuleForSnap(c *C) {
+	aaClickHookCmd = "true"
+	makeInstalledMockSnap(s.tempdir, "")
+
+	// Add access to 3 devices and 2 symlinks
+	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
+	c.Assert(err, IsNil)
+	err = AddHWAccess("hello-app", "/dev/ttyUSB1")
+	c.Assert(err, IsNil)
+	err = AddHWAccess("hello-app", "/dev/ttyUSB2")
+	c.Assert(err, IsNil)
+	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB0", "/dev/symlink0")
+	c.Assert(err, IsNil)
+	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB1", "/dev/symlink1")
+	c.Assert(err, IsNil)
+
+	// Remove the device without symlink
+	err = RemoveHWAccess("hello-app", "/dev/ttyUSB2")
+	c.Assert(err, IsNil)
+	content, err := ioutil.ReadFile(filepath.Join(snapUdevRulesDir, "70-snappy_hwassign_hello-app.rules"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `KERNEL=="ttyUSB0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
+KERNEL=="ttyUSB1", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
+ACTION=="add", KERNEL=="ttyUSB0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app", SYMLINK+="symlink0"
+ACTION=="add", KERNEL=="ttyUSB1", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app", SYMLINK+="symlink1"
+`)
+	// Remove a device with a symlink
+	err = RemoveHWAccess("hello-app", "/dev/ttyUSB1")
+	c.Assert(err, IsNil)
+	content, err = ioutil.ReadFile(filepath.Join(snapUdevRulesDir, "70-snappy_hwassign_hello-app.rules"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `KERNEL=="ttyUSB0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
+ACTION=="add", KERNEL=="ttyUSB0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app", SYMLINK+="symlink0"
+`)
+	// Remove the symlink
+	err = RemoveHWAccess("hello-app", "/dev/symlink0")
+	c.Assert(err, IsNil)
+	content, err = ioutil.ReadFile(filepath.Join(snapUdevRulesDir, "70-snappy_hwassign_hello-app.rules"))
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, `KERNEL=="ttyUSB0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
 `)
 }
