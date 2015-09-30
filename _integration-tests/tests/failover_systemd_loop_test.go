@@ -24,7 +24,6 @@ import (
 
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
@@ -73,8 +72,8 @@ func (systemdDependencyLoop) unset(c *check.C) {
 }
 
 func installService(c *check.C, serviceName, serviceCfg, basePath string) {
-	partition.MakeWritable(c, basePath)
-	defer partition.MakeReadonly(c, basePath)
+	common.MakeWritable(c, basePath)
+	defer common.MakeReadonly(c, basePath)
 
 	// Create service file
 	serviceFile := fmt.Sprintf("%s%s/%s.service", basePath, baseSystemdPath, serviceName)
@@ -95,8 +94,8 @@ func installService(c *check.C, serviceName, serviceCfg, basePath string) {
 }
 
 func unInstallService(c *check.C, serviceName, basePath string) {
-	partition.MakeWritable(c, basePath)
-	defer partition.MakeReadonly(c, basePath)
+	common.MakeWritable(c, basePath)
+	defer common.MakeReadonly(c, basePath)
 
 	// Disable the service
 	cli.ExecCommand(c, "sudo", "chroot", basePath,

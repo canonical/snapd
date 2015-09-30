@@ -107,8 +107,8 @@ func renameFile(c *check.C, basePath, oldFilename, newFilename string, keepOld b
 	// Only need to make writable and revert for BaseAltPartitionPath,
 	// kernel files' boot directory is writable
 	if basePath == common.BaseAltPartitionPath {
-		partition.MakeWritable(c, basePath)
-		defer partition.MakeReadonly(c, basePath)
+		common.MakeWritable(c, basePath)
+		defer common.MakeReadonly(c, basePath)
 	}
 
 	cli.ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
