@@ -20,15 +20,15 @@
 package tests
 
 import (
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
 )
 
 var _ = check.Suite(&failoverSuite{})
 
 type failoverSuite struct {
-	SnappySuite
+	common.SnappySuite
 }
 
 // The types that implement this interface can be used in the test logic
@@ -43,16 +43,16 @@ type failer interface {
 // type implementing the failer interface and call this function with an instance
 // of it
 func commonFailoverTest(c *check.C, f failer) {
-	currentVersion := GetCurrentUbuntuCoreVersion(c)
+	currentVersion := common.GetCurrentUbuntuCoreVersion(c)
 
-	if AfterReboot(c) {
-		RemoveRebootMark(c)
+	if common.AfterReboot(c) {
+		common.RemoveRebootMark(c)
 		f.unset(c)
-		c.Assert(GetSavedVersion(c), check.Equals, currentVersion)
+		c.Assert(common.GetSavedVersion(c), check.Equals, currentVersion)
 	} else {
-		SetSavedVersion(c, currentVersion-1)
-		CallFakeUpdate(c)
+		common.SetSavedVersion(c, currentVersion-1)
+		common.CallFakeUpdate(c)
 		f.set(c)
-		Reboot(c)
+		common.Reboot(c)
 	}
 }

@@ -23,10 +23,11 @@ import (
 	"net/http"
 	"os/exec"
 
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&installAppSuite{})
@@ -57,7 +58,7 @@ func (s *installAppSuite) TestCallBinaryFromInstalledSnap(c *check.C) {
 		common.RemoveSnap(c, "hello-world")
 	})
 
-	echoOutput := common.ExecCommand(c, "hello-world.echo")
+	echoOutput := cli.ExecCommand(c, "hello-world.echo")
 
 	c.Assert(echoOutput, check.Equals, "Hello World!\n")
 }
@@ -89,7 +90,7 @@ func (s *installAppSuite) TestInfoMustPrintInstalledPackageInformation(c *check.
 		common.RemoveSnap(c, "hello-world")
 	})
 
-	infoOutput := common.ExecCommand(c, "snappy", "info")
+	infoOutput := cli.ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms).*^apps: hello-world.canonical\n"
 	c.Assert(infoOutput, check.Matches, expected)
