@@ -80,7 +80,13 @@ func (s *configSuite) doTest(c *check.C, targetCfg string) {
 
 	actualConfig := currentConfig(c)
 
-	c.Assert(actualConfig, check.Matches, "(?Usm).*"+strings.Replace(targetCfg, "\n", "\n.*", -1)+".*")
+	// we admit any characters after a new line, this is needed because the reuse
+	// of the config yaml string in the regex pattern, after setting a configuration
+	// option any other sibling options can appear before the one set when displaying
+	// the configuration (for instance, network-interfaces is always shown before
+	// network-ppp)
+	configPattern := "(?Usm).*" + strings.Replace(targetCfg, "\n", "\n.*", -1) + ".*"
+	c.Assert(actualConfig, check.Matches, configPattern)
 }
 
 func (s *configSuite) setConfig(c *check.C, config string) (err error) {
