@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-09-28 14:48+0200\n"
+        "POT-Creation-Date: 2015-09-30 17:30+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -275,9 +275,6 @@ msgstr  ""
 msgid   "The hardware device path (e.g. /dev/ttyUSB0)"
 msgstr  ""
 
-msgid   "The optional symlink to device path (e.g. /dev/symlink)"
-msgstr  ""
-
 msgid   "The package to rollback "
 msgstr  ""
 
@@ -309,6 +306,12 @@ msgid   "Use --show-all to see all available forks."
 msgstr  ""
 
 msgid   "Username for the login"
+msgstr  ""
+
+msgid   "[optional] symlink to device path (e.g. /dev/symlink)"
+msgstr  ""
+
+msgid   "[optional] the properties that the device must match to create a symlink, written using UDEV rules syntax (e.g. ATTRS{VendorID}==...)"
 msgstr  ""
 
 #. TRANSLATORS: the %s represents a list of installed appnames

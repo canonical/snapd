@@ -168,14 +168,19 @@ KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"
 	return activateOemHardwareUdevRules()
 }
 
-func writeSymlinkUdevRuleForDeviceCgroup(snapname, device, symlink string) error {
+func writeSymlinkUdevRuleForDeviceCgroup(snapname, device, symlink, deviceProperties string) error {
 	os.MkdirAll(snapUdevRulesDir, 0755)
 
 	snapname = stripSnapName(snapname)
 
 	acl := fmt.Sprintf(`
-ACTION=="add", KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s", SYMLINK+="%v"
-`, filepath.Base(device), snapname, filepath.Base(symlink))
+ACTION=="add", KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"`, filepath.Base(device), snapname)
+
+	if "" != deviceProperties {
+		acl += fmt.Sprintf(", %s", deviceProperties)
+	}
+
+	acl += fmt.Sprintf(", SYMLINK+=\"%s\"\n", filepath.Base(symlink))
 
 	if err := addUdevRuleForSnap(snapname, acl); err != nil {
 		return err
@@ -299,7 +304,7 @@ func AddHWAccess(snapname, device string) error {
 
 // AddSymlinkToHWDevice writes an Udev rule to create a symlink to the
 // given hardware device
-func AddSymlinkToHWDevice(snapname, device, symlink string) error {
+func AddSymlinkToHWDevice(snapname, device, symlink, deviceProperties string) error {
 	if !validDevice(device) {
 		return ErrInvalidHWDevice
 	}
@@ -316,7 +321,7 @@ func AddSymlinkToHWDevice(snapname, device, symlink string) error {
 		return err
 	}
 
-	if err := writeSymlinkUdevRuleForDeviceCgroup(snapname, device, symlink); nil != err {
+	if err := writeSymlinkUdevRuleForDeviceCgroup(snapname, device, symlink, deviceProperties); nil != err {
 		return err
 	}
 

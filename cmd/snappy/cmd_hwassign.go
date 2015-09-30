@@ -29,9 +29,10 @@ import (
 
 type cmdHWAssign struct {
 	Positional struct {
-		PackageName string `positional-arg-name:"package_name" required:"true"`
-		DevicePath  string `positional-arg-name:"device_path" required:"true"`
-		SymlinkPath string `positional-arg-name:"symlink_path" required:"false"`
+		PackageName      string `positional-arg-name:"package_name" required:"true"`
+		DevicePath       string `positional-arg-name:"device_path" required:"true"`
+		SymlinkPath      string `positional-arg-name:"symlink_path" required:"false"`
+		DeviceProperties string `positional-arg-name:"device_properties" required:"false"`
 	} `positional-args:"yes"`
 }
 
@@ -49,7 +50,8 @@ func init() {
 	}
 	addOptionDescription(arg, "package_name", i18n.G("Assign hardware to a specific installed package"))
 	addOptionDescription(arg, "device_path", i18n.G("The hardware device path (e.g. /dev/ttyUSB0)"))
-	addOptionDescription(arg, "symlink_path", i18n.G("The optional symlink to device path (e.g. /dev/symlink)"))
+	addOptionDescription(arg, "symlink_path", i18n.G("[optional] symlink to device path (e.g. /dev/symlink)"))
+	addOptionDescription(arg, "device_properties", i18n.G("[optional] the properties that the device must match to create a symlink, written using UDEV rules syntax (e.g. ATTRS{VendorID}==...)"))
 }
 
 func (x *cmdHWAssign) Execute(args []string) error {
@@ -71,7 +73,9 @@ func (x *cmdHWAssign) doHWAssign() error {
 		if err := snappy.AddSymlinkToHWDevice(
 			x.Positional.PackageName,
 			x.Positional.DevicePath,
-			x.Positional.SymlinkPath); err != nil {
+			x.Positional.SymlinkPath,
+			x.Positional.DeviceProperties,
+		); err != nil {
 			return err
 		}
 	}
