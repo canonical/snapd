@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
 )
@@ -139,10 +140,10 @@ func NewMetaLocalRepository() *MetaRepository {
 	if repo := NewSystemImageRepository(); repo != nil {
 		m.all = append(m.all, repo)
 	}
-	if repo := NewLocalSnapRepository(snapAppsDir); repo != nil {
+	if repo := NewLocalSnapRepository(dirs.SnapAppsDir); repo != nil {
 		m.all = append(m.all, repo)
 	}
-	if repo := NewLocalSnapRepository(snapOemDir); repo != nil {
+	if repo := NewLocalSnapRepository(dirs.SnapOemDir); repo != nil {
 		m.all = append(m.all, repo)
 	}
 
@@ -347,10 +348,10 @@ func PackageNameActive(name string) bool {
 // iconPath returns the would be path for the local icon
 func iconPath(s Part) string {
 	// TODO: care about extension ever being different than png
-	return filepath.Join(snapIconsDir, fmt.Sprintf("%s_%s.png", QualifiedName(s), s.Version()))
+	return filepath.Join(dirs.SnapIconsDir, fmt.Sprintf("%s_%s.png", QualifiedName(s), s.Version()))
 }
 
 // manifestPath returns the would be path for the store manifest meta data
 func manifestPath(s Part) string {
-	return filepath.Join(snapMetaDir, fmt.Sprintf("%s_%s.manifest", QualifiedName(s), s.Version()))
+	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", QualifiedName(s), s.Version()))
 }

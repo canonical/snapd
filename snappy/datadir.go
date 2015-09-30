@@ -22,6 +22,8 @@ package snappy
 import (
 	"path/filepath"
 	"strings"
+
+	"launchpad.net/snappy/dirs"
 )
 
 // A SnapDataDir represents a single data directory for a version of a package
@@ -102,5 +104,5 @@ func data1(spec, basedir string) []SnapDataDir {
 
 // DataDirs returns the list of all SnapDataDirs in the system.
 func DataDirs(spec string) []SnapDataDir {
-	return append(data1(spec, snapDataHomeGlob), data1(spec, snapDataDir)...)
+	return append(data1(spec, dirs.SnapDataHomeGlob), data1(spec, dirs.SnapDataDir)...)
 }

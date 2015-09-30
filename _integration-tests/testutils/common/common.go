@@ -57,11 +57,12 @@ type SnappySuite struct {
 func (s *SnappySuite) SetUpSuite(c *check.C) {
 	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
+	var err error
+	Cfg, err = config.ReadConfig(
+		"_integration-tests/data/output/testconfig.json")
+	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
+
 	if !isInRebootProcess() {
-		var err error
-		Cfg, err = config.ReadConfig(
-			"_integration-tests/data/output/testconfig.json")
-		c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 		if Cfg.Update || Cfg.Rollback {
 			switchSystemImageConf(c, Cfg.TargetRelease, Cfg.TargetChannel, "0")
 			// Always use the installed snappy because we are updating from an old
@@ -73,12 +74,18 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 		}
 	} else if CheckRebootMark("setupsuite-update") {
 		RemoveRebootMark(c)
+		// Update was already executed. Update the config so it's not triggered again.
+		Cfg.Update = false
+		Cfg.Write()
 		if Cfg.Rollback {
 			cli.ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core")
 			RebootWithMark(c, "setupsuite-rollback")
 		}
 	} else if CheckRebootMark("setupsuite-rollback") {
 		RemoveRebootMark(c)
+		// Rollback was already executed. Update the config so it's not triggered again.
+		Cfg.Rollback = false
+		Cfg.Write()
 	}
 }
 

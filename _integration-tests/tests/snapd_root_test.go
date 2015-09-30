@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,25 +17,25 @@
  *
  */
 
-package snappy
+package tests
 
-import (
-	"os"
+import "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/release"
-)
+var _ = check.Suite(&snapdRootTestSuite{})
 
-func init() {
-	// init the global directories at startup
-	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
-	if root == "" {
-		root = "/"
-	}
+type snapdRootTestSuite struct {
+	snapdTestSuite
+}
 
-	dirs.SetRootDir(root)
+func (s *snapdRootTestSuite) TestResource(c *check.C) {
+	exerciseAPI(c, s)
+}
 
-	// we don't need to care for the error here to take into account when
-	// initialized on a non snappy system
-	release.Setup(dirs.GlobalRootDir)
+func (s *snapdRootTestSuite) resource() string {
+	return baseURL + "/"
+}
+
+func (s *snapdRootTestSuite) getInteractions() apiInteractions {
+	return []apiInteraction{{
+		responsePattern: `(?U){"result":\[".*"\],"status":"OK","status_code":200,"type":"sync"}`}}
 }

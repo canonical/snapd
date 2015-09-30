@@ -39,6 +39,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"launchpad.net/snappy/clickdeb"
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/oauth"
@@ -584,10 +585,10 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 		return nil, err
 	}
 
-	targetDir := snapAppsDir
+	targetDir := dirs.SnapAppsDir
 	// the "oem" parts are special
 	if m.Type == pkg.TypeOem {
-		targetDir = snapOemDir
+		targetDir = dirs.SnapOemDir
 	}
 
 	if origin == SideloadedOrigin {
@@ -823,7 +824,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	fullName := QualifiedName(s)
-	dataDir := filepath.Join(snapDataDir, fullName, s.Version())
+	dataDir := filepath.Join(dirs.SnapDataDir, fullName, s.Version())
 
 	var oldPart *SnapPart
 	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current")); currentActiveDir != "" {
@@ -849,7 +850,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 
 	// we need to call the external helper so that we can reliable drop
 	// privs
-	if err := s.deb.UnpackWithDropPrivs(s.basedir, globalRootDir); err != nil {
+	if err := s.deb.UnpackWithDropPrivs(s.basedir, dirs.GlobalRootDir); err != nil {
 		return "", err
 	}
 
@@ -926,7 +927,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 			return "", err
 		}
 
-		sysd := systemd.New(globalRootDir, inter)
+		sysd := systemd.New(dirs.GlobalRootDir, inter)
 		stopped := make(map[string]time.Duration)
 		defer func() {
 			if err != nil {
@@ -1007,7 +1008,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	}
 
 	if s.Type() == pkg.TypeFramework {
-		if err := policy.Install(s.Name(), s.basedir, globalRootDir); err != nil {
+		if err := policy.Install(s.Name(), s.basedir, dirs.GlobalRootDir); err != nil {
 			return err
 		}
 	}
@@ -1036,8 +1037,22 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
 	}
 
+	dbase := filepath.Join(dirs.SnapDataDir, QualifiedName(s))
+	currentDataSymlink := filepath.Join(dbase, "current")
+	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
+	}
+
 	// symlink is relative to parent dir
-	return os.Symlink(filepath.Base(s.basedir), currentActiveSymlink)
+	if err := os.Symlink(filepath.Base(s.basedir), currentActiveSymlink); err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Join(dbase, s.Version()), 0755); err != nil {
+		return err
+	}
+
+	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
 }
 
 func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
@@ -1069,7 +1084,7 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	if s.Type() == pkg.TypeFramework {
-		if err := policy.Remove(s.Name(), s.basedir, globalRootDir); err != nil {
+		if err := policy.Remove(s.Name(), s.basedir, dirs.GlobalRootDir); err != nil {
 			return err
 		}
 	}
@@ -1081,6 +1096,11 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	// and finally the current symlink
 	if err := os.Remove(currentSymlink); err != nil {
 		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
+	}
+
+	currentDataSymlink := filepath.Join(dirs.SnapDataDir, QualifiedName(s), "current")
+	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
+		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
 	}
 
 	return nil
@@ -1260,7 +1280,7 @@ func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
 var timestampUpdater = helpers.UpdateTimestamp
 
 func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
-	fn := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_%s_%s.json", fullName, thing, version))
+	fn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s_%s_%s.json", fullName, thing, version))
 	return timestampUpdater(fn)
 }
 
@@ -1572,7 +1592,7 @@ func (s *RemoteSnapPart) Download(pbar progress.Meter) (string, error) {
 }
 
 func (s *RemoteSnapPart) downloadIcon(pbar progress.Meter) error {
-	if err := os.MkdirAll(snapIconsDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapIconsDir, 0755); err != nil {
 		return err
 	}
 
@@ -1605,7 +1625,7 @@ func (s *RemoteSnapPart) saveStoreManifest() error {
 		return err
 	}
 
-	if err := os.MkdirAll(snapMetaDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapMetaDir, 0755); err != nil {
 		return err
 	}
 

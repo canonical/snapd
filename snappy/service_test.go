@@ -21,13 +21,14 @@ package snappy
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
-	"os"
-	"path/filepath"
 )
 
 type ServiceActorSuite struct {
@@ -74,12 +75,12 @@ func (s *ServiceActorSuite) SetUpTest(c *C) {
 	// force UTC timezone, for reproducible timestamps
 	os.Setenv("TZ", "")
 
-	SetRootDir(c.MkDir())
+	dirs.SetRootDir(c.MkDir())
 	// TODO: this mkdir hack is so enable doesn't fail; remove when enable is the same as the rest
-	c.Assert(os.MkdirAll(filepath.Join(globalRootDir, "/etc/systemd/system/multi-user.target.wants"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/multi-user.target.wants"), 0755), IsNil)
 	systemd.SystemctlCmd = s.myRun
 	systemd.JournalctlCmd = s.myJctl
-	makeInstalledMockSnap(globalRootDir, "")
+	makeInstalledMockSnap(dirs.GlobalRootDir, "")
 	s.i = 0
 	s.argses = nil
 	s.errors = nil
@@ -98,7 +99,7 @@ func (s *ServiceActorSuite) TestFindServicesNoPackages(c *C) {
 
 func (s *ServiceActorSuite) TestFindServicesNoPackagesNoPattern(c *C) {
 	// tricky way of hiding the installed package ;)
-	SetRootDir(c.MkDir())
+	dirs.SetRootDir(c.MkDir())
 	actor, err := FindServices("", "", s.pb)
 	c.Check(err, IsNil)
 	c.Assert(actor, NotNil)
