@@ -37,10 +37,12 @@ type configSuite struct {
 }
 
 func (s *configSuite) SetUpTest(c *check.C) {
+	s.SnappySuite.SetUpTest(c)
 	s.backConfig = currentConfig(c)
 }
 
 func (s *configSuite) TearDownTest(c *check.C) {
+	s.SnappySuite.TearDownTest(c)
 	s.setConfig(c, s.backConfig)
 }
 
