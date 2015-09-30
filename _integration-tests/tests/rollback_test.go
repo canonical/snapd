@@ -41,6 +41,8 @@ func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
 		Reboot(c)
 	} else if CheckRebootMark(c.TestName()) {
 		RemoveRebootMark(c)
+		// Workaround for bug https://bugs.launchpad.net/snappy/+bug/1498293
+		// TODO remove once the bug is fixed. --elopio - 2015-09-30
 		wait.ForFunction(c, "regular", partition.Mode)
 		currentVersion := GetCurrentUbuntuCoreVersion(c)
 		c.Assert(currentVersion > GetSavedVersion(c), check.Equals, true)
@@ -50,7 +52,6 @@ func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
 		RebootWithMark(c, c.TestName()+"-rollback")
 	} else if CheckRebootMark(c.TestName() + "-rollback") {
 		RemoveRebootMark(c)
-		wait.ForFunction(c, "regular", partition.Mode)
 		c.Assert(
 			GetCurrentUbuntuCoreVersion(c) < GetSavedVersion(c), check.Equals, true)
 	}
