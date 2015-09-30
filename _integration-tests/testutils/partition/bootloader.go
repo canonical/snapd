@@ -25,6 +25,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gopkg.in/check.v1"
+
+	"launchpad.net/snappy/_integration-tests/testutils"
 )
 
 const (
@@ -161,4 +165,18 @@ func CurrentPartition() (partition string, err error) {
 		}
 	}
 	return
+}
+
+// MakeWritable remounts a path with read and write permissions.
+func MakeWritable(c *check.C, path string) {
+	//wait.ForCommand(c, "^$", "lsof", "/", "|", "awk", "'$4", "~", "/[0-9].*w/'")
+
+	testutils.ExecCommand("sudo", "mount", "-o", "remount,rw", path)
+}
+
+// MakeReadonly remounts a path with only read permissions.
+func MakeReadonly(c *check.C, path string) {
+	//wait.ForCommand(c, "^$", "lsof", "/", "|", "awk", "'$4", "~", "/[0-9].*w/'")
+
+	testutils.ExecCommand("sudo", "mount", "-o", "remount,ro", path)
 }
