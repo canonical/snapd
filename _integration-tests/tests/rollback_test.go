@@ -23,6 +23,8 @@ import (
 	"strconv"
 
 	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/partition"
+	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
 	check "gopkg.in/check.v1"
 )
@@ -39,6 +41,9 @@ func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
 		Reboot(c)
 	} else if CheckRebootMark(c.TestName()) {
 		RemoveRebootMark(c)
+		// Workaround for bug https://bugs.launchpad.net/snappy/+bug/1498293
+		// TODO remove once the bug is fixed. --elopio - 2015-09-30
+		wait.ForFunction(c, "regular", partition.Mode)
 		currentVersion := GetCurrentUbuntuCoreVersion(c)
 		c.Assert(currentVersion > GetSavedVersion(c), check.Equals, true)
 		ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core",
