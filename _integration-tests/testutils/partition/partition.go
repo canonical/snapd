@@ -20,19 +20,57 @@
 package partition
 
 import (
+	"bufio"
+	"fmt"
+	"regexp"
+	"strings"
+
 	"gopkg.in/check.v1"
 
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
+	"launchpad.net/snappy/_integration-tests/testutils/wait"
 )
 
-var execCommand = cli.ExecCommand
+const lsofIdlePattern = `volume-is-idle`
+
+var (
+	execCommand     = cli.ExecCommand
+	waitForFunction = wait.ForFunction
+)
 
 // MakeWritable remounts a path with read and write permissions.
-func MakeWritable(c *check.C, path string) {
-	execCommand(c, "sudo", "mount", "-o", "remount,rw", path)
+func MakeWritable(c *check.C, path string) (err error) {
+	return commonMount(c, path, "remount,rw")
 }
 
 // MakeReadonly remounts a path with only read permissions.
-func MakeReadonly(c *check.C, path string) {
-	execCommand(c, "sudo", "mount", "-o", "remount,ro", path)
+func MakeReadonly(c *check.C, path string) (err error) {
+	return commonMount(c, path, "remount,ro")
+}
+
+func commonMount(c *check.C, path, mountOption string) (err error) {
+	err = waitForFunction(c, lsofIdlePattern, checkPathBusyFunc(c, path))
+
+	if err != nil {
+		return
+	}
+
+	execCommand(c, "sudo", "mount", "-o", mountOption, path)
+	return
+}
+
+func checkPathBusyFunc(c *check.C, path string) func() (string, error) {
+	return func() (result string, err error) {
+		info := execCommand(c, "lsof", path)
+		reader := strings.NewReader(info)
+		scanner := bufio.NewScanner(reader)
+		for scanner.Scan() {
+			fields := strings.Fields(scanner.Text())
+			if match, _ := regexp.MatchString("^[0-9]+w$", fields[3]); match {
+				fmt.Printf("match! %s", fields[3])
+				return fields[3], nil
+			}
+		}
+		return lsofIdlePattern, nil
+	}
 }
