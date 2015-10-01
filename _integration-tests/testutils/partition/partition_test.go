@@ -53,7 +53,7 @@ func (s *partitionTestSuite) fakeExecCommand(c *check.C, args ...string) (output
 }
 
 func (s *partitionTestSuite) TestMakeWritable(c *check.C) {
-	cmd := strings.Join([]string{"sudo", "mount", "-o", "remount,rw", path}, " ")
+	cmd := "sudo mount -o remount,rw " + path
 
 	MakeWritable(c, path)
 
@@ -61,7 +61,7 @@ func (s *partitionTestSuite) TestMakeWritable(c *check.C) {
 }
 
 func (s *partitionTestSuite) TestMakeReadOnly(c *check.C) {
-	cmd := strings.Join([]string{"sudo", "mount", "-o", "remount,ro", path}, " ")
+	cmd := "sudo mount -o remount,ro " + path
 
 	MakeReadonly(c, path)
 
