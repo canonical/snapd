@@ -18,3 +18,68 @@
  */
 
 package cli
+
+import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"testing"
+
+	"gopkg.in/check.v1"
+)
+
+const execOutput = "myoutput"
+
+// Hook up check.v1 into the "go test" runner
+func Test(t *testing.T) { check.TestingT(t) }
+
+type cliTestSuite struct {
+	backExecCommand func(string, ...string) *exec.Cmd
+}
+
+var _ = check.Suite(&cliTestSuite{})
+
+func (s *cliTestSuite) SetUpSuite(c *check.C) {
+	s.backExecCommand = execCommand
+	execCommand = s.fakeExecCommand
+}
+
+func (s *cliTestSuite) TearDownSuite(c *check.C) {
+	execCommand = s.backExecCommand
+}
+
+func (s *cliTestSuite) fakeExecCommand(command string, args ...string) *exec.Cmd {
+	cs := []string{"-check.f=cliTestSuite.TestHelperProcess", "--", command}
+	cs = append(cs, args...)
+	cmd := exec.Command(os.Args[0], cs...)
+	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
+	return cmd
+}
+
+func (s *cliTestSuite) TestHelperProcess(c *check.C) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+	fmt.Fprintf(os.Stdout, execOutput)
+	os.Exit(0)
+}
+
+func (s *cliTestSuite) TestExecCommand(c *check.C) {
+	actualOutput := ExecCommand(c, "mycmd")
+
+	c.Assert(actualOutput, check.Equals, execOutput)
+}
+
+func (s *cliTestSuite) TestExecCommandToFile(c *check.C) {
+	outputFile, err := ioutil.TempFile("", "snappy-exec")
+	c.Assert(err, check.IsNil)
+	outputFile.Close()
+	defer os.Remove(outputFile.Name())
+
+	ExecCommandToFile(c, outputFile.Name(), "mycmd")
+
+	actualFileContents, err := ioutil.ReadFile(outputFile.Name())
+	c.Assert(err, check.IsNil)
+	c.Assert(string(actualFileContents), check.Equals, execOutput)
+}

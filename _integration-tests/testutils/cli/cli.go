@@ -28,11 +28,13 @@ import (
 	"gopkg.in/check.v1"
 )
 
+var execCommand = exec.Command
+
 // ExecCommand executes a shell command and returns a string with the output
 // of the command. In case of error, it will fail the test.
 func ExecCommand(c *check.C, cmds ...string) string {
 	fmt.Println(strings.Join(cmds, " "))
-	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
+	cmd := execCommand(cmds[0], cmds[1:len(cmds)]...)
 	output, err := cmd.CombinedOutput()
 	stringOutput := string(output)
 	fmt.Print(stringOutput)
@@ -43,7 +45,7 @@ func ExecCommand(c *check.C, cmds ...string) string {
 // ExecCommandToFile executes a shell command and saves the output of the
 // command to a file. In case of error, it will fail the test.
 func ExecCommandToFile(c *check.C, filename string, cmds ...string) {
-	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
+	cmd := execCommand(cmds[0], cmds[1:len(cmds)]...)
 	outfile, err := os.Create(filename)
 	c.Assert(err, check.IsNil, check.Commentf("Error creating output file %s", filename))
 
