@@ -17,31 +17,25 @@
  *
  */
 
-package autopkgtest
+package tests
 
-import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"strconv"
-)
+import "gopkg.in/check.v1"
 
-const (
-	commonSSHOptions = "--- ssh "
-	sshTimeout       = 600
-)
+var _ = check.Suite(&snapd10TestSuite{})
 
-func kvmSSHOptions(imagePath string) string {
-	return fmt.Sprint(commonSSHOptions,
-		"-s /usr/share/autopkgtest/ssh-setup/snappy -- -b -i ", imagePath)
+type snapd10TestSuite struct {
+	snapdTestSuite
 }
 
-func remoteTestbedSSHOptions(testbedIP string, testbedPort int) string {
-	return fmt.Sprint(commonSSHOptions,
-		"-H ", testbedIP,
-		" -p ", strconv.Itoa(testbedPort),
-		" -l ubuntu",
-		" -i ", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa"),
-		" --reboot",
-		" --timeout-ssh ", strconv.Itoa(sshTimeout))
+func (s *snapd10TestSuite) TestResource(c *check.C) {
+	exerciseAPI(c, s)
+}
+
+func (s *snapd10TestSuite) resource() string {
+	return baseURL + "/1.0"
+}
+
+func (s *snapd10TestSuite) getInteractions() apiInteractions {
+	return []apiInteraction{{
+		responsePattern: `(?U){"result":{"api_compat":"0","default_channel":".*","flavor":".*","release":".*"},"status":"OK","status_code":200,"type":"sync"}`}}
 }
