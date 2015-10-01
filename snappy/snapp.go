@@ -1719,7 +1719,13 @@ func getStructFields(s interface{}) []string {
 }
 
 func init() {
-	storeBaseURI, err := url.Parse("https://search.apps.ubuntu.com/api/v1/")
+	spi := "https://search.apps.ubuntu.com/api/v1/"
+
+	if os.Getenv("SNAPPY_USE_STAGING_SPI") != "" {
+		spi = "https://search.apps.staging.ubuntu.com/api/v1/"
+	}
+
+	storeBaseURI, err := url.Parse(spi)
 	if err != nil {
 		panic(err)
 	}
