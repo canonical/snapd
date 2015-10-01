@@ -192,7 +192,7 @@ func outputDir(basePath string) string {
 }
 
 func adtrunLocalCmd(controlFile, sourceCodePath, outputDir, imgPath string) string {
-	options := fmt.Sprintf("--- ssh -s /usr/share/autopkgtest/ssh-setup/snappy -- -i %s", imgPath)
+	options := fmt.Sprintf("--- ssh -s /usr/share/autopkgtest/ssh-setup/snappy -- -b -i %s", imgPath)
 	return adtrunCommonCmd(controlFile, sourceCodePath, outputDir, options)
 }
 
