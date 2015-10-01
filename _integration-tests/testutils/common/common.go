@@ -32,6 +32,7 @@ import (
 
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/config"
+	"launchpad.net/snappy/_integration-tests/testutils/partition"
 )
 
 const (
@@ -127,8 +128,8 @@ func (s *SnappySuite) TearDownTest(c *check.C) {
 		m[channelCfgOtherBackupFile()] = BaseAltPartitionPath
 		for backup, target := range m {
 			if _, err := os.Stat(backup); err == nil {
-				MakeWritable(c, target)
-				defer MakeReadonly(c, target)
+				partition.MakeWritable(c, target)
+				defer partition.MakeReadonly(c, target)
 				original := filepath.Join(target, channelCfgFile)
 				c.Logf("Restoring %s...", original)
 				cli.ExecCommand(c, "sudo", "mv", backup, original)
@@ -153,8 +154,8 @@ func switchSystemImageConf(c *check.C, release, channel, version string) {
 	for _, target := range targets {
 		file := filepath.Join(target, channelCfgFile)
 		if _, err := os.Stat(file); err == nil {
-			MakeWritable(c, target)
-			defer MakeReadonly(c, target)
+			partition.MakeWritable(c, target)
+			defer partition.MakeReadonly(c, target)
 			replaceSystemImageValues(c, file, release, channel, version)
 		}
 	}
@@ -228,23 +229,13 @@ func switchChannelVersionWithBackup(c *check.C, newVersion int) {
 	for target, backup := range m {
 		file := filepath.Join(target, channelCfgFile)
 		if _, err := os.Stat(file); err == nil {
-			MakeWritable(c, target)
-			defer MakeReadonly(c, target)
+			partition.MakeWritable(c, target)
+			defer partition.MakeReadonly(c, target)
 			// Back up the file. It will be restored during the test tear down.
 			cli.ExecCommand(c, "cp", file, backup)
 			replaceSystemImageValues(c, file, "", "", strconv.Itoa(newVersion))
 		}
 	}
-}
-
-// MakeWritable remounts a path with read and write permissions.
-func MakeWritable(c *check.C, path string) {
-	cli.ExecCommand(c, "sudo", "mount", "-o", "remount,rw", path)
-}
-
-// MakeReadonly remounts a path with only read permissions.
-func MakeReadonly(c *check.C, path string) {
-	cli.ExecCommand(c, "sudo", "mount", "-o", "remount,ro", path)
 }
 
 // Reboot requests a reboot using the test name as the mark.
