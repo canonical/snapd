@@ -58,7 +58,7 @@ icon: meta/hello.svg`)
 	c.Assert(parts[0].Name(), Equals, "framework1")
 }
 
-func (s *SnapTestSuite) TestActiveSnapNamesByType(c *C) {
+func (s *SnapTestSuite) TestActiveSnapIterByType(c *C) {
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app
 version: 1.10
 vendor: example.com`)
@@ -72,13 +72,34 @@ vendor: example.com`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	names, err := ActiveSnapNamesByType(pkg.TypeApp)
-	c.Check(err, IsNil)
-	c.Check(names, DeepEquals, []string{"app." + testOrigin})
+	type T struct {
+		f func(Part) string
+		t pkg.Type
+		n string
+	}
 
-	names, err = ActiveSnapNamesByType(pkg.TypeFramework)
+	for _, t := range []T{
+		{BareName, pkg.TypeApp, "app"},
+		{BareName, pkg.TypeFramework, "fwk"},
+		{QualifiedName, pkg.TypeApp, "app." + testOrigin},
+		{QualifiedName, pkg.TypeFramework, "fwk"},
+		{FullName, pkg.TypeApp, "app." + testOrigin},
+		{FullName, pkg.TypeFramework, "fwk.sideload"}, // .sideload here is an artifact of where we're storing the origin for frameworks :-/
+	} {
+		names, err := ActiveSnapIterByType(t.f, t.t)
+		c.Check(err, IsNil)
+		c.Check(names, DeepEquals, []string{t.n})
+	}
+
+	nm := make(map[string]bool, 2)
+	names, err := ActiveSnapIterByType(QualifiedName, pkg.TypeApp, pkg.TypeFramework)
 	c.Check(err, IsNil)
-	c.Check(names, DeepEquals, []string{"fwk"})
+	c.Assert(names, HasLen, 2)
+	for i := range names {
+		nm[names[i]] = true
+	}
+
+	c.Check(nm, DeepEquals, map[string]bool{"fwk": true, "app." + testOrigin: true})
 }
 
 func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {

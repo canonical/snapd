@@ -426,7 +426,7 @@ func (m *packageYaml) FrameworksForClick() string {
 }
 
 func (m *packageYaml) checkForFrameworks() error {
-	installed, err := ActiveSnapNamesByType(pkg.TypeFramework)
+	installed, err := ActiveSnapIterByType(BareName, pkg.TypeFramework)
 	if err != nil {
 		return err
 	}
@@ -1764,7 +1764,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
 
 	// frameworks
-	frameworks, _ := ActiveSnapNamesByType(pkg.TypeFramework)
+	frameworks, _ := ActiveSnapIterByType(BareName, pkg.TypeFramework)
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(addCoreFmk(frameworks), ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
@@ -1916,7 +1916,9 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// the store only supports apps, oem and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
-	installed, err := ActiveSnapNamesByType(pkg.TypeApp, pkg.TypeFramework, pkg.TypeOem)
+	//
+	// NOTE this *will* send .sideload apps to the store.
+	installed, err := ActiveSnapIterByType(FullName, pkg.TypeApp, pkg.TypeFramework, pkg.TypeOem)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}
