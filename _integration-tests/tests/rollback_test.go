@@ -22,9 +22,9 @@ package tests
 import (
 	"strconv"
 
+	. "launchpad.net/snappy/_integration-tests/testutils/common"
 	"launchpad.net/snappy/_integration-tests/testutils/partition"
 	"launchpad.net/snappy/_integration-tests/testutils/wait"
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
 
 	check "gopkg.in/check.v1"
 )
