@@ -40,6 +40,12 @@ import (
 
 var systemImageServer = "https://system-image.ubuntu.com/"
 
+func init() {
+	if os.Getenv("SNAPPY_USE_STAGING_SYSIMG") != "" {
+		systemImageServer = "https://system-image.staging.ubuntu.com/"
+	}
+}
+
 type updateStatus struct {
 	targetVersion        string
 	targetVersionDetails string
