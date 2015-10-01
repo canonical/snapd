@@ -38,13 +38,7 @@ import (
 	"launchpad.net/snappy/progress"
 )
 
-var systemImageServer = "https://system-image.ubuntu.com/"
-
-func init() {
-	if os.Getenv("SNAPPY_USE_STAGING_SYSIMG") != "" {
-		systemImageServer = "https://system-image.staging.ubuntu.com/"
-	}
-}
+var systemImageServer string
 
 type updateStatus struct {
 	targetVersion        string
@@ -72,6 +66,17 @@ type channelImageGlobal struct {
 type channelJSON struct {
 	Global channelImageGlobal `json:"global"`
 	Images []channelImage     `json:"images"`
+}
+
+func sysImgURL() string {
+	if os.Getenv("SNAPPY_USE_STAGING_SYSIMG") != "" {
+		return "https://system-image.staging.ubuntu.com/"
+	}
+	return "https://system-image.ubuntu.com/"
+}
+
+func init() {
+	systemImageServer = sysImgURL()
 }
 
 func systemImageClientCheckForUpdates(configFile string) (us updateStatus, err error) {
