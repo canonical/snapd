@@ -1633,3 +1633,14 @@ func (s *SnapTestSuite) TestIntegrateService(c *C) {
 			"apparmor": "meta/svc.apparmor",
 		}})
 }
+
+func (s *SnapTestSuite) TestSpiURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SPI", ""), IsNil)
+	before := spiURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SPI", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_SPI", "")
+	after := spiURL()
+
+	c.Check(before, Not(Equals), after)
+}
