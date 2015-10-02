@@ -31,10 +31,16 @@ import (
 	"launchpad.net/snappy/_integration-tests/testutils/wait"
 )
 
-const lsofIdlePattern = `volume-is-idle`
+const (
+	// beginning of the string returned by lsof -V when the partition
+	// is not being used, in this case the exit status of lsof is 1
+	lsofNotUsed = "lsof: no file system use located"
+	// custom pattern to be returned by the check functions
+	lsofNotBeingWritten = "volume-is-idle"
+)
 
 var (
-	execCommand     = cli.ExecCommand
+	execCommand     = cli.ExecCommandErr
 	waitForFunction = wait.ForFunction
 )
 
@@ -49,19 +55,26 @@ func MakeReadonly(c *check.C, path string) (err error) {
 }
 
 func commonMount(c *check.C, path, mountOption string) (err error) {
-	err = waitForFunction(c, lsofIdlePattern, checkPathBusyFunc(c, path))
+	err = waitForFunction(c, lsofNotBeingWritten, checkPathBusyFunc(path))
 
 	if err != nil {
 		return
 	}
 
-	execCommand(c, "sudo", "mount", "-o", mountOption, path)
+	execCommand("sudo", "mount", "-o", mountOption, path)
 	return
 }
 
-func checkPathBusyFunc(c *check.C, path string) func() (string, error) {
+func checkPathBusyFunc(path string) func() (string, error) {
 	return func() (result string, err error) {
-		info := execCommand(c, "lsof", path)
+		// lsof exit status is 1 for unused partitions
+		var info string
+		if info, err = execCommand("lsof", "-V", path); err != nil {
+			// check if the output matches lsofNotUsed
+			if !strings.HasPrefix(info, lsofNotUsed) {
+				return info, err
+			}
+		}
 		reader := strings.NewReader(info)
 		scanner := bufio.NewScanner(reader)
 		for scanner.Scan() {
@@ -71,6 +84,6 @@ func checkPathBusyFunc(c *check.C, path string) func() (string, error) {
 				return fields[3], nil
 			}
 		}
-		return lsofIdlePattern, nil
+		return lsofNotBeingWritten, nil
 	}
 }

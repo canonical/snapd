@@ -30,14 +30,15 @@ const (
 	path        = "mypath"
 	writableCmd = "sudo mount -o remount,rw " + path
 	readonlyCmd = "sudo mount -o remount,ro " + path
-	waitCmd     = lsofIdlePattern
+	waitCmd     = lsofNotBeingWritten
 )
 
 type partitionTestSuite struct {
 	execCalls           map[string]int
 	waitCalls           map[string]int
 	execOutput          string
-	backExecCommand     func(*check.C, ...string) string
+	execError           bool
+	backExecCommand     func(...string) (string, error)
 	backWaitForFunction func(*check.C, string, func() (string, error)) error
 	waitError           bool
 }
@@ -61,11 +62,17 @@ func (s *partitionTestSuite) SetUpTest(c *check.C) {
 	s.waitCalls = make(map[string]int)
 	s.waitError = false
 	s.execOutput = ""
+	s.execError = false
 }
 
-func (s *partitionTestSuite) fakeExecCommand(c *check.C, args ...string) (output string) {
+func (s *partitionTestSuite) fakeExecCommand(args ...string) (output string, err error) {
 	s.execCalls[strings.Join(args, " ")]++
-	return s.execOutput
+
+	if s.execError {
+		err = fmt.Errorf("Exec error!")
+	}
+
+	return s.execOutput, err
 }
 
 func (s *partitionTestSuite) fakeWaitForFunction(c *check.C, pattern string, f func() (string, error)) (err error) {
@@ -134,13 +141,13 @@ prg  4827 user   15w   REG    8,2    197132 12452026 /home/user/prg`, "15w"},
 		{`prg  4827 user  mem    REG    8,2      3339 10354893 /usr/share/prg
 prg  4827 user   15w   REG    8,2    197132 12452026 /home/user/prg
 prg  4827 user   1w   REG    8,2    197132 12452026 /home/user/prg`, "15w"},
-		{`prg  4827 user  mem    REG    8,2      3339 10354893 /usr/share/prg`, lsofIdlePattern},
-		{`prg  4827 user  cwd    REG    8,2      3339 10354893 /usr/share/prg`, lsofIdlePattern},
+		{`prg  4827 user  mem    REG    8,2      3339 10354893 /usr/share/prg`, lsofNotBeingWritten},
+		{`prg  4827 user  cwd    REG    8,2      3339 10354893 /usr/share/prg`, lsofNotBeingWritten},
 	}
 
 	for _, testCase := range testCases {
 		s.execOutput = testCase.execCommandOutput
-		f := checkPathBusyFunc(c, path)
+		f := checkPathBusyFunc(path)
 
 		actual, err := f()
 		c.Check(err, check.IsNil)
@@ -148,4 +155,16 @@ prg  4827 user   1w   REG    8,2    197132 12452026 /home/user/prg`, "15w"},
 			check.Commentf("input text %s, expected output %s, obtained %s",
 				testCase.execCommandOutput, testCase.expected, actual))
 	}
+}
+
+func (s *partitionTestSuite) TestCheckPartitionBusyFuncReturnsErrorOnLsofError(c *check.C) {
+	s.execOutput = "not an lsof common output on not used partitions"
+	s.execError = true
+
+	f := checkPathBusyFunc(path)
+
+	actual, err := f()
+
+	c.Check(err, check.NotNil)
+	c.Check(actual, check.Equals, s.execOutput)
 }

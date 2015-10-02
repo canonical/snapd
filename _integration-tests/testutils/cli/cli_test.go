@@ -36,6 +36,7 @@ func Test(t *testing.T) { check.TestingT(t) }
 
 type cliTestSuite struct {
 	backExecCommand func(string, ...string) *exec.Cmd
+	helperProcess   string
 }
 
 var _ = check.Suite(&cliTestSuite{})
@@ -49,8 +50,12 @@ func (s *cliTestSuite) TearDownSuite(c *check.C) {
 	execCommand = s.backExecCommand
 }
 
+func (s *cliTestSuite) SetUpTest(c *check.C) {
+	s.helperProcess = "TestHelperProcess"
+}
+
 func (s *cliTestSuite) fakeExecCommand(command string, args ...string) *exec.Cmd {
-	cs := []string{"-check.f=cliTestSuite.TestHelperProcess", "--", command}
+	cs := []string{"-check.f=cliTestSuite." + s.helperProcess, "--", command}
 	cs = append(cs, args...)
 	cmd := exec.Command(os.Args[0], cs...)
 	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
@@ -58,11 +63,19 @@ func (s *cliTestSuite) fakeExecCommand(command string, args ...string) *exec.Cmd
 }
 
 func (s *cliTestSuite) TestHelperProcess(c *check.C) {
+	baseHelperProcess(0)
+}
+
+func (s *cliTestSuite) TestHelperProcessErr(c *check.C) {
+	baseHelperProcess(1)
+}
+
+func baseHelperProcess(exitValue int) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
 	}
 	fmt.Fprintf(os.Stdout, execOutput)
-	os.Exit(0)
+	os.Exit(exitValue)
 }
 
 func (s *cliTestSuite) TestExecCommand(c *check.C) {
@@ -82,4 +95,19 @@ func (s *cliTestSuite) TestExecCommandToFile(c *check.C) {
 	actualFileContents, err := ioutil.ReadFile(outputFile.Name())
 	c.Assert(err, check.IsNil)
 	c.Assert(string(actualFileContents), check.Equals, execOutput)
+}
+
+func (s *cliTestSuite) TestExecCommandErr(c *check.C) {
+	actualOutput, err := ExecCommandErr("mycmd")
+
+	c.Assert(actualOutput, check.Equals, execOutput)
+	c.Assert(err, check.IsNil)
+}
+
+func (s *cliTestSuite) TestExecCommandErrWithError(c *check.C) {
+	s.helperProcess = "TestHelperProcessErr"
+	actualOutput, err := ExecCommandErr("mycmd")
+
+	c.Assert(actualOutput, check.Equals, execOutput)
+	c.Assert(err, check.NotNil)
 }
