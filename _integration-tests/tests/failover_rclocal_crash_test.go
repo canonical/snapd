@@ -24,6 +24,7 @@ import (
 
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
@@ -31,8 +32,8 @@ import (
 type rcLocalCrash struct{}
 
 func (rcLocalCrash) set(c *check.C) {
-	common.MakeWritable(c, common.BaseAltPartitionPath)
-	defer common.MakeReadonly(c, common.BaseAltPartitionPath)
+	partition.MakeWritable(c, common.BaseAltPartitionPath)
+	defer partition.MakeReadonly(c, common.BaseAltPartitionPath)
 	targetFile := fmt.Sprintf("%s/etc/rc.local", common.BaseAltPartitionPath)
 	cli.ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
 
@@ -41,8 +42,8 @@ func (rcLocalCrash) set(c *check.C) {
 }
 
 func (rcLocalCrash) unset(c *check.C) {
-	common.MakeWritable(c, common.BaseAltPartitionPath)
-	defer common.MakeReadonly(c, common.BaseAltPartitionPath)
+	partition.MakeWritable(c, common.BaseAltPartitionPath)
+	defer partition.MakeReadonly(c, common.BaseAltPartitionPath)
 	cli.ExecCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", common.BaseAltPartitionPath))
 }
 
