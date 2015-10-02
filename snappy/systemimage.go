@@ -117,7 +117,7 @@ func (s *SystemImagePart) Version() string {
 
 // Description returns the description
 func (s *SystemImagePart) Description() string {
-	return "ubuntu-core description"
+	return "A secure, minimal transactional OS for devices and containers."
 }
 
 // Hash returns the hash
