@@ -158,7 +158,7 @@ prg  4827 user   1w   REG    8,2    197132 12452026 /home/user/prg`, "15w"},
 }
 
 func (s *partitionTestSuite) TestCheckPartitionBusyFuncReturnsErrorOnLsofError(c *check.C) {
-	s.execOutput = "not an lsof common output on not used partitions"
+	s.execOutput = "not a lsof common output on not used partitions"
 	s.execError = true
 
 	f := checkPathBusyFunc(path)
