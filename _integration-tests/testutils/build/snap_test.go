@@ -37,13 +37,13 @@ type snapBuildTestSuite struct {
 var _ = check.Suite(&snapBuildTestSuite{})
 
 func (s *snapBuildTestSuite) SetUpSuite(c *check.C) {
-	s.backExecCommand = commonExecCommand
-	commonExecCommand = s.fakeExecCommand
+	s.backExecCommand = cliExecCommand
+	cliExecCommand = s.fakeExecCommand
 	s.defaultSnapName = "mySnapName"
 }
 
 func (s *snapBuildTestSuite) TearDownSuite(c *check.C) {
-	commonExecCommand = s.backExecCommand
+	cliExecCommand = s.backExecCommand
 }
 
 func (s *snapBuildTestSuite) SetUpTest(c *check.C) {

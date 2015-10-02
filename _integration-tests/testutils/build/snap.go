@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 
 	"gopkg.in/check.v1"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 )
 
 const (
@@ -42,11 +42,11 @@ const (
 
 var (
 	// dependency aliasing
-	commonExecCommand = common.ExecCommand
+	cliExecCommand = cli.ExecCommand
 )
 
 func buildSnap(c *check.C, snapPath string) string {
-	return commonExecCommand(c, "snappy", "build", snapPath, "-o", snapPath)
+	return cliExecCommand(c, "snappy", "build", snapPath, "-o", snapPath)
 }
 
 // LocalSnap issues the command to build a snap and returns the path of the generated file

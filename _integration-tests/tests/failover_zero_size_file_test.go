@@ -25,7 +25,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
 	"launchpad.net/snappy/_integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
@@ -45,11 +46,11 @@ type zeroSizeInitrd struct{}
 type zeroSizeSystemd struct{}
 
 func (zeroSizeKernel) set(c *check.C) {
-	commonSet(c, BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
+	commonSet(c, common.BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
 }
 
 func (zeroSizeKernel) unset(c *check.C) {
-	commonUnset(c, BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
+	commonUnset(c, common.BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
 }
 
 func (zeroSizeInitrd) set(c *check.C) {
@@ -71,11 +72,11 @@ func (zeroSizeInitrd) unset(c *check.C) {
 }
 
 func (zeroSizeSystemd) set(c *check.C) {
-	commonSet(c, BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
+	commonSet(c, common.BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
 }
 
 func (zeroSizeSystemd) unset(c *check.C) {
-	commonUnset(c, BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
+	commonUnset(c, common.BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
 }
 
 func commonSet(c *check.C, baseOtherPath, origPattern, filename string) {
@@ -105,17 +106,17 @@ func commonUnset(c *check.C, baseOtherPath, origPattern, filename string) {
 func renameFile(c *check.C, basePath, oldFilename, newFilename string, keepOld bool) {
 	// Only need to make writable and revert for BaseAltPartitionPath,
 	// kernel files' boot directory is writable
-	if basePath == BaseAltPartitionPath {
-		MakeWritable(c, basePath)
-		defer MakeReadonly(c, basePath)
+	if basePath == common.BaseAltPartitionPath {
+		common.MakeWritable(c, basePath)
+		defer common.MakeReadonly(c, basePath)
 	}
 
-	ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
+	cli.ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
 
 	if keepOld {
-		ExecCommand(c, "sudo", "touch", oldFilename)
+		cli.ExecCommand(c, "sudo", "touch", oldFilename)
 		mode := getFileMode(c, newFilename)
-		ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), oldFilename)
+		cli.ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), oldFilename)
 	}
 }
 

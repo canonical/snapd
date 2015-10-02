@@ -23,7 +23,7 @@ import (
 	"io/ioutil"
 	"path"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
 	"launchpad.net/snappy/_integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
@@ -32,7 +32,7 @@ import (
 var _ = check.Suite(&updateSuite{})
 
 type updateSuite struct {
-	SnappySuite
+	common.SnappySuite
 }
 
 func (s *updateSuite) assertBootDirContents(c *check.C) {
@@ -62,17 +62,17 @@ func (s *updateSuite) assertBootDirContents(c *check.C) {
 // modified to fake an update. If there is a version available, the image will
 // be up-to-date after running this test.
 func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
-	if BeforeReboot() {
-		updateOutput := CallFakeUpdate(c)
+	if common.BeforeReboot() {
+		updateOutput := common.CallFakeUpdate(c)
 		expected := "(?ms)" +
 			".*" +
 			"^Reboot to use .*ubuntu-core.\n"
 		c.Assert(updateOutput, check.Matches, expected)
 		s.assertBootDirContents(c)
-		Reboot(c)
-	} else if AfterReboot(c) {
-		RemoveRebootMark(c)
-		c.Assert(GetCurrentUbuntuCoreVersion(c) > GetSavedVersion(c),
+		common.Reboot(c)
+	} else if common.AfterReboot(c) {
+		common.RemoveRebootMark(c)
+		c.Assert(common.GetCurrentUbuntuCoreVersion(c) > common.GetSavedVersion(c),
 			check.Equals, true)
 	}
 }

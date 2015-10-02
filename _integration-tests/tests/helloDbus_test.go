@@ -20,6 +20,7 @@
 package tests
 
 import (
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 
 	"gopkg.in/check.v1"
@@ -38,7 +39,7 @@ func (s *helloDbusSuite) TestCmdOutput(c *check.C) {
 	common.InstallSnap(c, "hello-dbus-app.canonical")
 	defer common.RemoveSnap(c, "hello-dbus-app.canonical")
 
-	output := common.ExecCommand(c, "hello-dbus-app.client")
+	output := cli.ExecCommand(c, "hello-dbus-app.client")
 
 	expected := "PASS\n"
 

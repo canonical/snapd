@@ -22,26 +22,28 @@ package tests
 import (
 	"fmt"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 type rcLocalCrash struct{}
 
 func (rcLocalCrash) set(c *check.C) {
-	MakeWritable(c, BaseAltPartitionPath)
-	defer MakeReadonly(c, BaseAltPartitionPath)
-	targetFile := fmt.Sprintf("%s/etc/rc.local", BaseAltPartitionPath)
-	ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
-	ExecCommandToFile(c, targetFile,
+	common.MakeWritable(c, common.BaseAltPartitionPath)
+	defer common.MakeReadonly(c, common.BaseAltPartitionPath)
+	targetFile := fmt.Sprintf("%s/etc/rc.local", common.BaseAltPartitionPath)
+	cli.ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
+
+	cli.ExecCommandToFile(c, targetFile,
 		"sudo", "echo", "#!bin/sh\nprintf c > /proc/sysrq-trigger")
 }
 
 func (rcLocalCrash) unset(c *check.C) {
-	MakeWritable(c, BaseAltPartitionPath)
-	defer MakeReadonly(c, BaseAltPartitionPath)
-	ExecCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", BaseAltPartitionPath))
+	common.MakeWritable(c, common.BaseAltPartitionPath)
+	defer common.MakeReadonly(c, common.BaseAltPartitionPath)
+	cli.ExecCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", common.BaseAltPartitionPath))
 }
 
 /*
