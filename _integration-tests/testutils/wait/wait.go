@@ -24,14 +24,14 @@ import (
 	"regexp"
 	"time"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 
-	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 )
 
 var (
 	// dependency aliasing
-	execCommand = common.ExecCommand
+	execCommand = cli.ExecCommand
 	// ForCommand dep alias
 	ForCommand = forCommand
 	// ForFunction dep alias

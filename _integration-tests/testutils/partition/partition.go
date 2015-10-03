@@ -17,29 +17,22 @@
  *
  */
 
-package tests
+package partition
 
 import (
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
-
 	"gopkg.in/check.v1"
+
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 )
 
-var _ = check.Suite(&searchSuite{})
+var execCommand = cli.ExecCommand
 
-type searchSuite struct {
-	common.SnappySuite
+// MakeWritable remounts a path with read and write permissions.
+func MakeWritable(c *check.C, path string) {
+	execCommand(c, "sudo", "mount", "-o", "remount,rw", path)
 }
 
-func (s *searchSuite) TestSearchFrameworkMustPrintMatch(c *check.C) {
-	searchOutput := cli.ExecCommand(c, "snappy", "search", "hello-dbus-fwk")
-
-	expected := "(?ms)" +
-		"Name +Version +Summary *\n" +
-		".*" +
-		"^hello-dbus-fwk +.* +hello-dbus-fwk *\n" +
-		".*"
-
-	c.Assert(searchOutput, check.Matches, expected)
+// MakeReadonly remounts a path with only read permissions.
+func MakeReadonly(c *check.C, path string) {
+	execCommand(c, "sudo", "mount", "-o", "remount,ro", path)
 }
