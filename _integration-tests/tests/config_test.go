@@ -24,6 +24,7 @@ import (
 	"os"
 	"strings"
 
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 
 	"gopkg.in/check.v1"
@@ -97,13 +98,13 @@ func (s *configSuite) setConfig(c *check.C, config string) (err error) {
 	}
 	_, err = configFile.Write([]byte(config))
 
-	common.ExecCommand(c, "sudo", "snappy", "config", "ubuntu-core", configFile.Name())
+	cli.ExecCommand(c, "sudo", "snappy", "config", "ubuntu-core", configFile.Name())
 
 	return
 }
 
 func currentConfig(c *check.C) string {
-	return common.ExecCommand(c, "sudo", "snappy", "config", "ubuntu-core")
+	return cli.ExecCommand(c, "sudo", "snappy", "config", "ubuntu-core")
 }
 
 func configString(cfg string) string {
