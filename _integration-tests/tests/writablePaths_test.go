@@ -27,9 +27,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 const writablePathsListFile = "/etc/system-image/writable-paths"
@@ -37,7 +37,7 @@ const writablePathsListFile = "/etc/system-image/writable-paths"
 var _ = check.Suite(&writablePathsSuite{})
 
 type writablePathsSuite struct {
-	SnappySuite
+	common.SnappySuite
 }
 
 var IsWritable check.Checker = &isWritable{}
