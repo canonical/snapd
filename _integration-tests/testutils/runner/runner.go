@@ -25,7 +25,7 @@ import (
 	"strings"
 	"testing"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 var (

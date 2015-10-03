@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
@@ -75,7 +76,7 @@ func (s *fanTestSuite) TestFanCommandExists(c *check.C) {
 }
 
 func (s *fanTestSuite) TestFanCommandCreatesFanBridge(c *check.C) {
-	output := common.ExecCommand(c, "ifconfig")
+	output := cli.ExecCommand(c, "ifconfig")
 
 	expectedPattern := fmt.Sprintf("(?msi).*%s.*%s.*", s.fanName(), s.bridgeIP)
 
@@ -89,7 +90,7 @@ func (s *fanTestSuite) TestDockerCreatesAContainerInsideTheFan(c *check.C) {
 	s.configureDockerToUseBridge(c)
 	defer s.removeBridgeFromDockerConf(c)
 
-	output := common.ExecCommand(c, "docker", "run", "-t", baseContainer, "ifconfig")
+	output := cli.ExecCommand(c, "docker", "run", "-t", baseContainer, "ifconfig")
 
 	expectedIP := strings.TrimRight(s.bridgeIP, ".1") + ".2"
 	expectedPattern := fmt.Sprintf("(?ms).*inet addr:%s.*", expectedIP)
@@ -105,12 +106,12 @@ func (s *fanTestSuite) TestContainersInTheFanAreReachable(c *check.C) {
 	defer s.removeBridgeFromDockerConf(c)
 
 	// spin up first container
-	common.ExecCommand(c, "docker", "run", "-d", "-t", baseContainer)
+	cli.ExecCommand(c, "docker", "run", "-d", "-t", baseContainer)
 	// the first assigned IP in the fan will end with ".2"
 	firstIPAddr := strings.TrimRight(s.bridgeIP, ".1") + ".2"
 
 	// ping from a second container
-	output := common.ExecCommand(c, "docker", "run", "-t", baseContainer, "ping", firstIPAddr, "-c", "1")
+	output := cli.ExecCommand(c, "docker", "run", "-t", baseContainer, "ping", firstIPAddr, "-c", "1")
 
 	expectedPattern := "(?ms).*1 packets transmitted, 1 packets received, 0% packet loss.*"
 
@@ -142,14 +143,14 @@ func (s *fanTestSuite) fanBridgeIP(c *check.C) (bridgeIP string) {
 }
 
 func (s *fanTestSuite) fanCtl(c *check.C, cmd string) string {
-	return common.ExecCommand(c,
+	return cli.ExecCommand(c,
 		"sudo", "fanctl", cmd, firstOverlaySegment+".0.0.0/8", s.subjectIP+"/16")
 }
 
 func (s *fanTestSuite) configureDockerToUseBridge(c *check.C) {
 	cfgFile := dockerCfgFile(c)
 
-	common.ExecCommand(c, "sudo", "sed", "-i",
+	cli.ExecCommand(c, "sudo", "sed", "-i",
 		fmt.Sprintf(`s/DOCKER_OPTIONS=\"\"/DOCKER_OPTIONS=\"%s\"/`, s.dockerOptions()),
 		cfgFile)
 
@@ -159,7 +160,7 @@ func (s *fanTestSuite) configureDockerToUseBridge(c *check.C) {
 func (s *fanTestSuite) removeBridgeFromDockerConf(c *check.C) {
 	cfgFile := dockerCfgFile(c)
 
-	common.ExecCommand(c, "sudo", "sed", "-i",
+	cli.ExecCommand(c, "sudo", "sed", "-i",
 		`s/DOCKER_OPTIONS=\".*\"/DOCKER_OPTIONS=\"\"/`,
 		cfgFile)
 
@@ -175,7 +176,7 @@ func restartDocker(c *check.C) {
 	dockerVersion := common.GetCurrentVersion(c, "docker")
 	dockerService := fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion)
 
-	common.ExecCommand(c, "sudo", "systemctl", "restart", dockerService)
+	cli.ExecCommand(c, "sudo", "systemctl", "restart", dockerService)
 
 	// we need to wait until the socket is ready, an active systemctl status is not enough
 	err := wait.ForCommand(c, `(?ms).*docker\.sock\s.*`, "ls", "/run")
@@ -199,7 +200,7 @@ func setUpDocker(c *check.C) {
 	err := wait.ForActiveService(c, dockerService)
 	c.Assert(err, check.IsNil)
 
-	common.ExecCommand(c, "docker", "pull", baseContainer)
+	cli.ExecCommand(c, "docker", "pull", baseContainer)
 }
 
 func tearDownDocker(c *check.C) {
