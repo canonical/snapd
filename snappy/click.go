@@ -87,7 +87,7 @@ var killWait = 5 * time.Second
 
 // servicesBinariesStringsWhitelist is the whitelist of legal chars
 // in the "binaries" and "services" section of the package.yaml
-const servicesBinariesStringsWhitelist = `^[A-Za-z0-9/. _#:-]*$`
+var servicesBinariesStringsWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
 
 // Execute the hook.Exec command
 func execHook(execCmd string) (err error) {
@@ -373,11 +373,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 
 // verifyStructStringsAgainstWhitelist takes a struct and ensures that
 // the given whitelist regexp matches all string fields of the struct
-func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error {
-	r, err := regexp.Compile(whitelist)
-	if err != nil {
-		return err
-	}
+func verifyStructStringsAgainstWhitelist(s interface{}, whitelist *regexp.Regexp) error {
 
 	// check all members of the services struct against our whitelist
 	t := reflect.TypeOf(s)
@@ -401,11 +397,11 @@ func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error 
 		if v.Field(i).Kind() == reflect.String {
 			key := t.Field(i).Name
 			value := v.Field(i).String()
-			if !r.MatchString(value) {
+			if !whitelist.MatchString(value) {
 				return &ErrStructIllegalContent{
 					Field:     key,
 					Content:   value,
-					Whitelist: whitelist,
+					Whitelist: whitelist.String(),
 				}
 			}
 		}
