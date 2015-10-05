@@ -46,7 +46,7 @@ type hwAssignSuite struct {
 }
 
 func (s *hwAssignSuite) SetUpTest(c *check.C) {
-	s.SnappySuite.SetUpTest(c)
+	s.SetUpTest(c)
 	var err error
 	s.snapPath, err = build.LocalSnap(c, snapName)
 	c.Assert(err, check.IsNil)
@@ -54,7 +54,7 @@ func (s *hwAssignSuite) SetUpTest(c *check.C) {
 }
 
 func (s *hwAssignSuite) TearDownTest(c *check.C) {
-	s.SnappySuite.TearDownTest(c)
+	s.TearDownTest(c)
 	os.Remove(s.snapPath)
 	common.RemoveSnap(c, snapName)
 }
