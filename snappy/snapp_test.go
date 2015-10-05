@@ -770,7 +770,8 @@ architectures:
 func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
 	snap := RemoteSnapPart{}
 
-	c.Assert(snap.SetActive(nil), Equals, ErrNotInstalled)
+	c.Assert(snap.SetActive(true, nil), Equals, ErrNotInstalled)
+	c.Assert(snap.SetActive(false, nil), Equals, ErrNotInstalled)
 	c.Assert(snap.Uninstall(nil), Equals, ErrNotInstalled)
 }
 
