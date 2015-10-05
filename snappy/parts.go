@@ -54,6 +54,16 @@ func QualifiedName(p Part) string {
 	return p.Name() + "." + p.Origin()
 }
 
+// BareName of a Part is just its Name
+func BareName(p Part) string {
+	return p.Name()
+}
+
+// FullName of a Part is Name.Origin
+func FullName(p Part) string {
+	return p.Name() + "." + p.Origin()
+}
+
 // Part representation of a snappy part
 type Part interface {
 
@@ -248,14 +258,14 @@ func ActiveSnapsByType(snapTs ...pkg.Type) (res []Part, err error) {
 }
 
 // ActiveSnapNamesByType returns all installed snap names with the given type
-var ActiveSnapNamesByType = activeSnapNamesByTypeImpl
+var ActiveSnapIterByType = activeSnapIterByTypeImpl
 
-func activeSnapNamesByTypeImpl(snapTs ...pkg.Type) ([]string, error) {
+func activeSnapIterByTypeImpl(f func(Part) string, snapTs ...pkg.Type) ([]string, error) {
 	installed, err := ActiveSnapsByType(snapTs...)
 	res := make([]string, len(installed))
 
 	for i, part := range installed {
-		res[i] = QualifiedName(part)
+		res[i] = f(part)
 	}
 
 	return res, err
