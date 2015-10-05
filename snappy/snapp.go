@@ -1718,8 +1718,16 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
+func cpiURL() string {
+	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+		return "https://search.apps.staging.ubuntu.com/api/v1/"
+	}
+
+	return "https://search.apps.ubuntu.com/api/v1/"
+}
+
 func init() {
-	storeBaseURI, err := url.Parse("https://search.apps.ubuntu.com/api/v1/")
+	storeBaseURI, err := url.Parse(cpiURL())
 	if err != nil {
 		panic(err)
 	}

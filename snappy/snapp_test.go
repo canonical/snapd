@@ -1633,3 +1633,14 @@ func (s *SnapTestSuite) TestIntegrateService(c *C) {
 			"apparmor": "meta/svc.apparmor",
 		}})
 }
+
+func (s *SnapTestSuite) TestCpiURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	before := cpiURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	after := cpiURL()
+
+	c.Check(before, Not(Equals), after)
+}
