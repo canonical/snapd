@@ -41,7 +41,6 @@ const (
 
 // Response knows how to render itself, how to handle itself, and how to find itself
 type Response interface {
-	Render(w http.ResponseWriter) ([]byte, int)
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
 	Self(*Command, *http.Request) Response // has the same arity as ResponseFunc for convenience
 }
@@ -61,18 +60,14 @@ func (r *resp) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (r *resp) Render(w http.ResponseWriter) (buf []byte, status int) {
+func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	status := r.Status
 	bs, err := r.MarshalJSON()
 	if err != nil {
 		logger.Noticef("unable to marshal %#v to JSON: %v", *r, err)
-		return nil, http.StatusInternalServerError
+		bs = nil
+		status = http.StatusInternalServerError
 	}
-
-	return bs, r.Status
-}
-
-func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	bs, status := r.Render(w)
 
 	hdr := w.Header()
 	if r.Type == ResponseTypeAsync {
@@ -151,14 +146,20 @@ func ErrorResponse(status int) ErrorResponseFunc {
 	return r.SetError
 }
 
+// A FileResponse 's ServeHTTP method serves the file
+type FileResponse string
+
+// Self from the Response interface
+func (f FileResponse) Self(*Command, *http.Request) Response { return f }
+
+// ServeHTTP from the Response interface
+func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, string(f))
+}
+
 // ErrorResponseFunc is a callable error Response.
 // So you can return e.g. InternalError, or InternalError(err, "something broke"), etc.
 type ErrorResponseFunc func(error, string, ...interface{}) Response
-
-// Render the response
-func (f ErrorResponseFunc) Render(w http.ResponseWriter) ([]byte, int) {
-	return f(nil, "").Render(w)
-}
 
 func (f ErrorResponseFunc) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f(nil, "").ServeHTTP(w, r)
