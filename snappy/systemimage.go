@@ -39,11 +39,16 @@ import (
 	"launchpad.net/snappy/provisioning"
 )
 
+// SystemImagePart have constant name, origin, and vendor.
 const (
-	systemImagePartName   = "ubuntu-core"
-	systemImagePartOrigin = "ubuntu"
-	systemImagePartVendor = "Canonical Ltd."
+	SystemImagePartName = "ubuntu-core"
+	// SystemImagePartOrigin is the origin of any system image part
+	SystemImagePartOrigin = "ubuntu"
+	// SystemImagePartVendor is the vendor of any system image part
+	SystemImagePartVendor = "Canonical Ltd."
+)
 
+const (
 	// location of the channel config on the filesystem.
 	//
 	// This file specifies the s-i version installed on the rootfs
@@ -97,17 +102,17 @@ func (s *SystemImagePart) Type() pkg.Type {
 
 // Name returns the name
 func (s *SystemImagePart) Name() string {
-	return systemImagePartName
+	return SystemImagePartName
 }
 
 // Origin returns the origin ("ubuntu")
 func (s *SystemImagePart) Origin() string {
-	return systemImagePartOrigin
+	return SystemImagePartOrigin
 }
 
 // Vendor returns the vendor ("Canonical Ltd.")
 func (s *SystemImagePart) Vendor() string {
-	return systemImagePartVendor
+	return SystemImagePartVendor
 }
 
 // Version returns the version
@@ -248,7 +253,7 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 	if err = s.partition.ToggleNextBoot(); err != nil {
 		return "", err
 	}
-	return systemImagePartName, nil
+	return SystemImagePartName, nil
 }
 
 // Ensure the expected version update was applied to the expected partition.
@@ -440,7 +445,7 @@ func (s *SystemImageRepository) Description() string {
 
 // Search searches the SystemImageRepository for the given terms
 func (s *SystemImageRepository) Search(terms string) (versions []Part, err error) {
-	if strings.Contains(terms, systemImagePartName) {
+	if strings.Contains(terms, SystemImagePartName) {
 		part := makeCurrentPart(s.partition)
 		versions = append(versions, part)
 	}
@@ -449,7 +454,7 @@ func (s *SystemImageRepository) Search(terms string) (versions []Part, err error
 
 // Details returns details for the given snap
 func (s *SystemImageRepository) Details(name string, origin string) ([]Part, error) {
-	if name == systemImagePartName && origin == systemImagePartOrigin {
+	if name == SystemImagePartName && origin == SystemImagePartOrigin {
 		return []Part{makeCurrentPart(s.partition)}, nil
 	}
 
@@ -457,28 +462,33 @@ func (s *SystemImageRepository) Details(name string, origin string) ([]Part, err
 }
 
 // Updates returns the available updates
-func (s *SystemImageRepository) Updates() (parts []Part, err error) {
+func (s *SystemImageRepository) Updates() ([]Part, error) {
 	configFile := filepath.Join(systemImageRoot, systemImageChannelConfig)
 	updateStatus, err := systemImageClientCheckForUpdates(configFile)
+	if err != nil {
+		return nil, err
+	}
 
 	current := makeCurrentPart(s.partition)
 	// no VersionCompare here because the channel provides a "order" and
 	// that may go backwards when switching channels(?)
 	if current.Version() != updateStatus.targetVersion {
-		parts = append(parts, &SystemImagePart{
+		return []Part{&SystemImagePart{
 			version:        updateStatus.targetVersion,
 			versionDetails: updateStatus.targetVersionDetails,
 			lastUpdate:     updateStatus.lastUpdate,
 			updateSize:     updateStatus.updateSize,
 			channelName:    current.(*SystemImagePart).channelName,
-			partition:      s.partition})
+			partition:      s.partition}}, nil
 	}
 
-	return parts, err
+	return nil, nil
 }
 
 // Installed returns the installed snaps from this repository
-func (s *SystemImageRepository) Installed() (parts []Part, err error) {
+func (s *SystemImageRepository) Installed() ([]Part, error) {
+	var parts []Part
+
 	// current partition
 	curr := makeCurrentPart(s.partition)
 	if curr != nil {
@@ -491,12 +501,18 @@ func (s *SystemImageRepository) Installed() (parts []Part, err error) {
 		parts = append(parts, other)
 	}
 
-	return parts, err
+	return parts, nil
 }
 
 // All installed parts. SystemImageParts are non-removable.
 func (s *SystemImageRepository) All() ([]Part, error) {
-	return s.Installed()
+	parts, _ := s.Updates()
+	inst, err := s.Installed()
+	if err != nil {
+		return nil, err
+	}
+
+	return append(inst, parts...), nil
 }
 
 // needsSync determines if syncing boot assets is required
