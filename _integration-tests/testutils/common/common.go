@@ -62,7 +62,7 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 		"_integration-tests/data/output/testconfig.json")
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 
-	if !isInRebootProcess() {
+	if !IsInRebootProcess() {
 		if Cfg.Update || Cfg.Rollback {
 			switchSystemImageConf(c, Cfg.TargetRelease, Cfg.TargetChannel, "0")
 			// Always use the installed snappy because we are updating from an old
@@ -275,7 +275,8 @@ func CheckRebootMark(mark string) bool {
 	return os.Getenv("ADT_REBOOT_MARK") == mark
 }
 
-func isInRebootProcess() bool {
+// IsInRebootProcess returns True if the suite needs to execute a reboot or has just rebooted.
+func IsInRebootProcess() bool {
 	return !CheckRebootMark("") || NeedsReboot()
 }
 
