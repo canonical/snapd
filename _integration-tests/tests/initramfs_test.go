@@ -62,14 +62,14 @@ func getCurrentBootDir(c *check.C) string {
 func (s *initRAMFSSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
 	bootDir := getCurrentBootDir(c)
-	cli.ExecCommand(c, "cp", path.Join(bootDir, "initramfs.img"), os.Getenv("ADT_ARTIFACTS"))
+	cli.ExecCommand(c, "cp", path.Join(bootDir, "initrd.img"), os.Getenv("ADT_ARTIFACTS"))
 }
 
 func (s *initRAMFSSuite) TearDownTest(c *check.C) {
 	s.SnappySuite.TearDownTest(c)
 	bootDir := getCurrentBootDir(c)
 	cli.ExecCommand(
-		c, "sudo", "mv", path.Join(os.Getenv("ADT_ARTIFACTS"), "initramfs.img"), bootDir)
+		c, "sudo", "mv", path.Join(os.Getenv("ADT_ARTIFACTS"), "initrd.img"), bootDir)
 }
 
 func (s *initRAMFSSuite) TestFreeSpaceWithoutResize(c *check.C) {
