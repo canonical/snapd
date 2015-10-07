@@ -32,8 +32,9 @@ import (
 	"syscall"
 	"text/template"
 
-	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/pkg/clickdeb"
+	"launchpad.net/snappy/pkg/snapfs"
 
 	"gopkg.in/yaml.v2"
 )
@@ -544,6 +545,28 @@ func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error)
 				return "", err
 			}
 		}
+	}
+
+	return snapName, nil
+}
+
+// BuildSnapfsSnap the given sourceDirectory and return the generated snap file
+func BuildSnapfsSnap(sourceDir, targetDir string) (string, error) {
+	// create build dir
+	buildDir, err := ioutil.TempDir("", "snappy-build-")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(buildDir)
+
+	snapName, err := prepare(sourceDir, targetDir, buildDir)
+	if err != nil {
+		return "", err
+	}
+
+	d := snapfs.New(snapName)
+	if err = d.Build(buildDir); err != nil {
+		return "", err
 	}
 
 	return snapName, nil

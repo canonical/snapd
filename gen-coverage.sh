@@ -8,23 +8,9 @@ go get gopkg.in/matm/v1/gocov-html
 # pass alternative output dir in $1
 OUTPUTDIR=${1:-$(pwd)}
 
-(cd snappy &&
-        $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-snappy.html)
-(cd partition &&
-        $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-partition.html)
-(cd logger &&
-        $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-logger.html)
-(cd helpers &&
-        $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-helpers.html)
-(cd coreconfig &&
-        $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-coreconfig.html)
-(cd clickdeb &&
-        $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-clickdeb.html)
-(cd priv &&
-	$GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-priv.html)
-(cd release &&
-	$GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-release.html)
-(cd oauth &&
-	$GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-release.html)
+for d in pkg/snapfs snappy partition logger helpers coreconfig clickdeb priv release oauth; do
+    (cd $d &&
+      $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-$(echo $d|sed -r 's#/#_#').html)
+done
 
 echo "Coverage html reports are available in $OUTPUTDIR"

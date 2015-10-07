@@ -41,12 +41,12 @@ import (
 	"text/template"
 	"time"
 
-	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
+	"launchpad.net/snappy/pkg/clickdeb"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
 

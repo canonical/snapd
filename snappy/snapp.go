@@ -38,12 +38,12 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/oauth"
 	"launchpad.net/snappy/pkg"
+	"launchpad.net/snappy/pkg/clickdeb"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"

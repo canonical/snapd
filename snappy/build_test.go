@@ -493,3 +493,35 @@ vendor: Foo <foo@example.com>
 	_, err = BuildLegacySnap(sourceDir, "")
 	c.Assert(err, ErrorMatches, "can not handle type of file .*")
 }
+
+func (s *SnapTestSuite) TestBuildSnapfsSimple(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+architecture: ["i386", "amd64"]
+integration:
+ app:
+  apparmor-profile: meta/hello.apparmor
+`)
+
+	resultSnap, err := BuildSnapfsSnap(sourceDir, "")
+	c.Assert(err, IsNil)
+	defer os.Remove(resultSnap)
+
+	// check that there is result
+	_, err = os.Stat(resultSnap)
+	c.Assert(err, IsNil)
+	c.Assert(resultSnap, Equals, "hello_1.0.1_multi.snap")
+
+	// check that the content looks sane
+	output, err := exec.Command("unsquashfs", "-ll", "hello_1.0.1_multi.snap").CombinedOutput()
+	c.Assert(err, IsNil)
+	for _, needle := range []string{
+		"meta/package.yaml",
+		"meta/readme.md",
+		"bin/hello-world",
+		"symlink -> bin/hello-world",
+	} {
+		c.Assert(strings.Contains(string(output), needle), Equals, true)
+	}
+}
