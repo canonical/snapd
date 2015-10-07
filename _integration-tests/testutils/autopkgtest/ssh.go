@@ -26,11 +26,14 @@ import (
 	"strconv"
 )
 
-const commonSSHOptions = "--- ssh "
+const (
+	commonSSHOptions = "--- ssh "
+	sshTimeout       = 600
+)
 
 func kvmSSHOptions(imagePath string) string {
 	return fmt.Sprint(commonSSHOptions,
-		"-s /usr/share/autopkgtest/ssh-setup/snappy -- -i ", imagePath)
+		"-s /usr/share/autopkgtest/ssh-setup/snappy -- -b -i ", imagePath)
 }
 
 func remoteTestbedSSHOptions(testbedIP string, testbedPort int) string {
@@ -39,5 +42,6 @@ func remoteTestbedSSHOptions(testbedIP string, testbedPort int) string {
 		" -p ", strconv.Itoa(testbedPort),
 		" -l ubuntu",
 		" -i ", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa"),
-		" --reboot")
+		" --reboot",
+		" --timeout-ssh ", strconv.Itoa(sshTimeout))
 }

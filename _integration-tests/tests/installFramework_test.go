@@ -23,10 +23,11 @@ import (
 	"fmt"
 	"regexp"
 
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&installFrameworkSuite{})
@@ -50,7 +51,7 @@ func isDockerServiceRunning(c *check.C) bool {
 	err := wait.ForActiveService(c, dockerService)
 	c.Assert(err, check.IsNil)
 
-	statusOutput := common.ExecCommand(
+	statusOutput := cli.ExecCommand(
 		c, "systemctl", "status",
 		dockerService)
 

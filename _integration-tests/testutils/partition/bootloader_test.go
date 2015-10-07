@@ -244,7 +244,7 @@ blabla`
 		return "test-system", nil
 	}
 
-	mode, err := mode()
+	mode, err := Mode()
 
 	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
 	c.Assert(mode, check.Equals, "test_mode", check.Commentf("Wrong mode"))

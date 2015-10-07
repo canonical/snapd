@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -482,4 +483,35 @@ func (ts *HTestSuite) TestCopyIfDifferentErrorsOnNoSrc(c *C) {
 
 	err := CopyIfDifferent(src, dst)
 	c.Assert(err, NotNil)
+}
+
+func (ts *HTestSuite) TestUnpackPermissions(c *C) {
+	tarArchive := filepath.Join(c.MkDir(), "foo.tar")
+
+	canaryName := "foo"
+	canaryPerms := os.FileMode(0644)
+	tmpdir := c.MkDir()
+	err := ioutil.WriteFile(filepath.Join(tmpdir, canaryName), []byte(nil), canaryPerms)
+	c.Assert(err, IsNil)
+
+	ChDir(tmpdir, func() {
+		cmd := exec.Command("tar", "cvf", tarArchive, ".")
+		_, err = cmd.CombinedOutput()
+		c.Assert(err, IsNil)
+	})
+
+	// set crazy umask
+	oldUmask := syscall.Umask(0077)
+	defer syscall.Umask(oldUmask)
+
+	// unpack
+	unpackdir := c.MkDir()
+	f, err := os.Open(tarArchive)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	UnpackTar(f, unpackdir, nil)
+
+	st, err := os.Stat(filepath.Join(unpackdir, canaryName))
+	c.Assert(err, IsNil)
+	c.Assert(st.Mode()&os.ModePerm, Equals, canaryPerms)
 }

@@ -7,15 +7,15 @@ msgid ""
 msgstr ""
 "Project-Id-Version: snappy\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
-"POT-Creation-Date: 2015-09-11 18:22+0200\n"
-"PO-Revision-Date: 2015-09-12 05:27+0000\n"
+"POT-Creation-Date: 2015-09-29 10:18+0100\n"
+"PO-Revision-Date: 2015-09-18 21:59+0000\n"
 "Last-Translator: Marcos Lans <Unknown>\n"
 "Language-Team: Galician <gl@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2015-09-12 05:41+0000\n"
-"X-Generator: Launchpad (build 17720)\n"
+"X-Launchpad-Export-Date: 2015-10-06 06:22+0000\n"
+"X-Generator: Launchpad (build 17796)\n"
 
 #. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
 #, c-format
@@ -70,6 +70,14 @@ msgid ""
 "able to use the framework."
 msgstr ""
 
+msgid "Activate a package"
+msgstr ""
+
+msgid ""
+"Activate a package that has previously been deactivated. If the package is "
+"already activated, do nothing."
+msgstr ""
+
 msgid ""
 "Allows rollback of a snap to a previous installed version. Without any "
 "arguments, the previous installed version is selected. It is also possible "
@@ -108,6 +116,13 @@ msgstr ""
 msgid "Creates a snap package and if available, runs the review scripts."
 msgstr ""
 "Crea un paquete snap e, se están dispoñíbeis, executa os scripts de revisión."
+
+msgid "Deactivate a package"
+msgstr ""
+
+msgid ""
+"Deactivate a package. If the package is already deactivated, do nothing."
+msgstr ""
 
 msgid "Display a summary of key attributes of the snappy system."
 msgstr "Mostra un resumo dos atributos principais do sistema snappy."
@@ -246,6 +261,11 @@ msgid ""
 "that and enables the administrator to purge all data for an installed "
 "package (effectively resetting the package completely)."
 msgstr ""
+"Eliminar todos os datos dos paquetes da lista. Normalmente úsase para "
+"paquetes eliminados que cando se tentan purgar os seus datos obtemos un "
+"erro. A opción --installed anula iso e activa que o aministrador poida "
+"purgar todos os datos dun paquete instalado (restabelecendo eficaz e "
+"completamente o paquete)"
 
 msgid "Remove hardware from a specific installed package"
 msgstr "Eliminar hardware para un paquete instalado"
@@ -279,6 +299,13 @@ msgid ""
 "Example:\n"
 "  set hello-world active=1.0\n"
 msgstr ""
+"Estabelece as propiedade do sistema ou paquete\n"
+"\n"
+"As propiedades aceptadas son:\n"
+"  active=VERSION\n"
+"\n"
+"Exemplo:\n"
+"  set hello-world active=1.0\n"
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is the new version
 #, c-format
@@ -295,7 +322,7 @@ msgid "Show channel information and expand all fields"
 msgstr "Mostrar a información da canle e ampliar todos os campos"
 
 msgid "Snap\tService\tState"
-msgstr ""
+msgstr "Snap\tServizo\tEstado"
 
 msgid "Specify an alternate output directory for the resulting package"
 msgstr "Indicar un cartafol de saída alternativo para o paquete resultante"
@@ -310,6 +337,11 @@ msgid ""
 "The \"list -u\" (or \"list --updates\") will show you the available updates\n"
 "and \"list -v\" (or \"list --verbose\") will show all installed versions.\n"
 msgstr ""
+"A orde «versions» xa non está dispoñíbel.\n"
+"\n"
+"Use a orde «list» no seu canto para ver cal está instalada.\n"
+"«list -u» (ou «list --updates») mostrará as actualizacións dispoñíbeis.\n"
+"e «list -v» (ou «list --verbose») mostrará todas as versións instaladas.\n"
 
 msgid "The configuration for the given file"
 msgstr "Configuración para o ficheiro dado"
@@ -423,21 +455,21 @@ msgstr "Non foi posíbel desactivar o servizo de %s %s: %v"
 #. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 #, c-format
 msgid "unable to enable %s's service %s: %v"
-msgstr ""
+msgstr "non foi posíbel activar o servizo para %s %s: %v"
 
 #, c-format
 msgid "unable to get logs: %v"
-msgstr ""
+msgstr "non foi posíbel obter os rexistros: %v"
 
 #. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 #, c-format
 msgid "unable to start %s's service %s: %v"
-msgstr ""
+msgstr "non foi posíbel iniciar o servizo para %s %s: %v"
 
 #. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 #, c-format
 msgid "unable to stop %s's service %s: %v"
-msgstr ""
+msgstr "non foi posíbel parar o servizo para %s %s: %v"
 
 #. TRANSLATORS: the %s is a date
 #, c-format

@@ -11,4 +11,4 @@ mkdir -p $GOPATH/src/launchpad.net/snappy
 cp -a . $GOPATH/src/launchpad.net/snappy/
 cd $GOPATH/src/launchpad.net/snappy
 
-./run-checks
+sh -v ./run-checks

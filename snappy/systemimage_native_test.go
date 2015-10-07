@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -120,4 +121,15 @@ func (s *SITestSuite) TestCheckForUpdates(c *C) {
 	c.Assert(updateStatus.targetVersion, Equals, "2")
 	c.Assert(updateStatus.targetVersionDetails, Equals, ",version=2")
 	c.Assert(updateStatus.lastUpdate, Equals, time.Date(2015, 02, 19, 18, 26, 23, 0, time.UTC))
+}
+
+func (s *SITestSuite) TestSysImgURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SYSIMG", ""), IsNil)
+	before := sysImgURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SYSIMG", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_SYSIMG", "")
+	after := sysImgURL()
+
+	c.Check(before, Not(Equals), after)
 }

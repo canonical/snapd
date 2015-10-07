@@ -89,8 +89,6 @@ func constructValue(val interface{}) string {
 	default:
 		panic(fmt.Sprintf("unknown type: %v", val))
 	}
-
-	return ""
 }
 
 func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bool {

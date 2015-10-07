@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 	"launchpad.net/snappy/_integration-tests/testutils/partition"
 
@@ -61,13 +62,13 @@ func getCurrentBootDir(c *check.C) string {
 func (s *initRAMFSSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
 	bootDir := getCurrentBootDir(c)
-	common.ExecCommand(c, "cp", path.Join(bootDir, "initramfs.img"), os.Getenv("ADT_ARTIFACTS"))
+	cli.ExecCommand(c, "cp", path.Join(bootDir, "initramfs.img"), os.Getenv("ADT_ARTIFACTS"))
 }
 
 func (s *initRAMFSSuite) TearDownTest(c *check.C) {
 	s.SnappySuite.TearDownTest(c)
 	bootDir := getCurrentBootDir(c)
-	common.ExecCommand(
+	cli.ExecCommand(
 		c, "sudo", "mv", path.Join(os.Getenv("ADT_ARTIFACTS"), "initramfs.img"), bootDir)
 }
 
@@ -75,7 +76,7 @@ func (s *initRAMFSSuite) TestFreeSpaceWithoutResize(c *check.C) {
 	writablePercent := "95"
 	if common.BeforeReboot() {
 		bootDir := getCurrentBootDir(c)
-		common.ExecCommand(
+		cli.ExecCommand(
 			c, "sh", "-x", "_integration-tests/scripts/install-test-initramfs", bootDir, writablePercent)
 		common.Reboot(c)
 	} else if common.AfterReboot(c) {

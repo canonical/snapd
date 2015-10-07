@@ -234,8 +234,17 @@ func (b *bootloaderType) HandleAssets() (err error) {
 		// expand path
 		path := filepath.Join(cacheDir, file)
 
+		// It may happen that a delta update does not contain
+		// the kernel. The reason is that e.g. the initramfs tools
+		// got updated so the generated initrd is different but
+		// the kernel stayed the same. Because the hardware.yaml
+		// is build on cdimage and the delta is generated later
+		// we cannot know this at hardware.yaml generation time.
+		// So we simply ignore missing files here. There is no
+		// risk because snappy will always sync the known good
+		// kernel first
 		if !helpers.FileExists(path) {
-			return fmt.Errorf("can not find file %s", path)
+			continue
 		}
 
 		// ensure we remove the dir later

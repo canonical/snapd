@@ -31,6 +31,7 @@ import (
 	"strings"
 
 	"launchpad.net/snappy/clickdeb"
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/pkg"
@@ -58,18 +59,18 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 		return new(MockPartition)
 	}
 
-	SetRootDir(s.tempdir)
+	dirs.SetRootDir(s.tempdir)
 	policy.SecBase = filepath.Join(s.tempdir, "security")
-	os.MkdirAll(snapServicesDir, 0755)
-	os.MkdirAll(snapSeccompDir, 0755)
+	os.MkdirAll(dirs.SnapServicesDir, 0755)
+	os.MkdirAll(dirs.SnapSeccompDir, 0755)
 
 	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
-	clickSystemHooksDir = filepath.Join(s.tempdir, "/usr/share/click/hooks")
-	os.MkdirAll(clickSystemHooksDir, 0755)
+	dirs.ClickSystemHooksDir = filepath.Join(s.tempdir, "/usr/share/click/hooks")
+	os.MkdirAll(dirs.ClickSystemHooksDir, 0755)
 
 	// create a fake systemd environment
-	os.MkdirAll(filepath.Join(snapServicesDir, "multi-user.target.wants"), 0755)
+	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 
 	// we may not have debsig-verify installed (and we don't need it
 	// for the unittests)
@@ -106,7 +107,7 @@ func (s *SnapTestSuite) TearDownTest(c *C) {
 	aaClickHookCmd = s.clickhook
 	policy.SecBase = s.secbase
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
-	ActiveSnapNamesByType = activeSnapNamesByTypeImpl
+	ActiveSnapIterByType = activeSnapIterByTypeImpl
 	duCmd = "du"
 	stripGlobalRootDir = stripGlobalRootDirImpl
 	runScFilterGen = runScFilterGenImpl
@@ -514,8 +515,8 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryAliasSearch(c *C) {
 
 	c.Check(parts[0].Channel(), Equals, "edge")
 }
-func mockActiveSnapNamesByType(mockSnaps []string) {
-	ActiveSnapNamesByType = func(snapTs ...pkg.Type) (res []string, err error) {
+func mockActiveSnapIterByType(mockSnaps []string) {
+	ActiveSnapIterByType = func(f func(Part) string, snapTs ...pkg.Type) (res []string, err error) {
 		return mockSnaps, nil
 	}
 }
@@ -537,9 +538,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)
 
-	// override the real ActiveSnapNamesByType to return our
+	// override the real ActiveSnapIterByType to return our
 	// mock data
-	mockActiveSnapNamesByType([]string{funkyAppName})
+	mockActiveSnapIterByType([]string{funkyAppName})
 
 	// the actual test
 	results, err := snap.Updates()
@@ -560,7 +561,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
 	// ensure we do not hit the net if there is nothing installed
 	// (otherwise the store will send us all snaps)
 	snap.bulkURI = "http://i-do.not-exist.really-not"
-	mockActiveSnapNamesByType([]string{})
+	mockActiveSnapIterByType([]string{})
 
 	// the actual test
 	results, err := snap.Updates()
@@ -597,7 +598,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(snap, NotNil)
 
 	// the actual test
-	results, err := snap.Details(funkyAppName + "." + funkyAppOrigin)
+	results, err := snap.Details(funkyAppName, funkyAppOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Check(results[0].Name(), Equals, funkyAppName)
@@ -626,7 +627,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(snap, NotNil)
 
 	// the actual test
-	results, err := snap.Details("no-such-pkg")
+	results, err := snap.Details("no-such-pkg", "")
 	c.Assert(results, HasLen, 0)
 	c.Assert(err, NotNil)
 }
@@ -692,12 +693,12 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	iconPath := filepath.Join(snapIconsDir, "foo.bar_1.0.png")
+	iconPath := filepath.Join(dirs.SnapIconsDir, "foo.bar_1.0.png")
 	c.Check(installed[0].Icon(), Equals, iconPath)
 	c.Check(installed[0].Origin(), Equals, "bar")
 	c.Check(installed[0].Description(), Equals, "this is a description")
 
-	_, err = os.Stat(filepath.Join(snapMetaDir, "foo.bar_1.0.manifest"))
+	_, err = os.Stat(filepath.Join(dirs.SnapMetaDir, "foo.bar_1.0.manifest"))
 	c.Check(err, IsNil)
 }
 
@@ -769,7 +770,8 @@ architectures:
 func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
 	snap := RemoteSnapPart{}
 
-	c.Assert(snap.SetActive(nil), Equals, ErrNotInstalled)
+	c.Assert(snap.SetActive(true, nil), Equals, ErrNotInstalled)
+	c.Assert(snap.SetActive(false, nil), Equals, ErrNotInstalled)
 	c.Assert(snap.Uninstall(nil), Equals, ErrNotInstalled)
 }
 
@@ -878,7 +880,7 @@ architecture:
   armhf:
     no
 `)
-	_, err := parsePackageYamlData(data)
+	_, err := parsePackageYamlData(data, false)
 	c.Assert(err, NotNil)
 }
 
@@ -890,7 +892,7 @@ architecture:
   - armhf:
       sometimes
 `)
-	_, err := parsePackageYamlData(data)
+	_, err := parsePackageYamlData(data, false)
 	c.Assert(err, NotNil)
 }
 
@@ -934,7 +936,7 @@ type: oem
 	c.Assert(repo, NotNil)
 
 	// we just ensure that the right header is set
-	repo.Details("xkcd")
+	repo.Details("xkcd", "")
 }
 
 func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {
@@ -990,7 +992,7 @@ binaries:
 `)
 
 func (s *SnapTestSuite) TestPackageYamlSecurityBinaryParsing(c *C) {
-	m, err := parsePackageYamlData(securityBinaryPackageYaml)
+	m, err := parsePackageYamlData(securityBinaryPackageYaml, false)
 	c.Assert(err, IsNil)
 
 	c.Assert(m.Binaries[0].Name, Equals, "testme")
@@ -1026,7 +1028,7 @@ services:
 `)
 
 func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
-	m, err := parsePackageYamlData(securityServicePackageYaml)
+	m, err := parsePackageYamlData(securityServicePackageYaml, false)
 	c.Assert(err, IsNil)
 
 	c.Assert(m.ServiceYamls[0].Name, Equals, "testme-service")
@@ -1043,7 +1045,7 @@ func (s *SnapTestSuite) TestPackageYamlFrameworkParsing(c *C) {
 version: 1.0
 vendor: foo
 framework: one, two
-`))
+`), false)
 	c.Assert(err, IsNil)
 	c.Assert(m.Frameworks, HasLen, 2)
 	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
@@ -1057,7 +1059,7 @@ vendor: foo
 frameworks:
  - one
  - two
-`))
+`), false)
 	c.Assert(err, IsNil)
 	c.Assert(m.Frameworks, HasLen, 2)
 	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
@@ -1072,7 +1074,7 @@ frameworks:
  - one
  - two
 framework: three, four
-`))
+`), false)
 	c.Assert(err, Equals, ErrInvalidFrameworkSpecInYaml)
 }
 
@@ -1082,7 +1084,7 @@ func (s *SnapTestSuite) TestDetectsAlreadyInstalled(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
 
-	yaml, err := parsePackageYamlData([]byte(data))
+	yaml, err := parsePackageYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
 	c.Check(yaml.checkForPackageInstalled("otherns"), Equals, ErrPackageNameAlreadyInstalled)
 }
@@ -1096,7 +1098,7 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameOrigin(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
 
-	yaml, err := parsePackageYamlData([]byte(data))
+	yaml, err := parsePackageYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
 	c.Check(yaml.checkForPackageInstalled(testOrigin), IsNil)
 }
@@ -1107,7 +1109,7 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworks(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
 
-	yaml, err := parsePackageYamlData([]byte(data))
+	yaml, err := parsePackageYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
 	c.Check(yaml.checkForPackageInstalled("otherns"), IsNil)
 }
@@ -1118,11 +1120,11 @@ func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
 
-	err = os.MkdirAll(snapMetaDir, 0755)
+	err = os.MkdirAll(dirs.SnapMetaDir, 0755)
 	c.Assert(err, IsNil)
 
 	data = "name: afoo\nalias: afoo\ndescription: something nice\ndownloadsize: 10\norigin: someplace"
-	err = ioutil.WriteFile(filepath.Join(snapMetaDir, "afoo_1.manifest"), []byte(data), 0644)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapMetaDir, "afoo_1.manifest"), []byte(data), 0644)
 	c.Assert(err, IsNil)
 
 	snaps, err := ListInstalled()
@@ -1146,7 +1148,7 @@ services:
 binaries:
  - name: foo
 `)
-	yaml, err := parsePackageYamlData(data)
+	yaml, err := parsePackageYamlData(data, false)
 	c.Assert(err, IsNil)
 	err = yaml.checkForNameClashes()
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
@@ -1160,7 +1162,7 @@ frameworks:
  - missing
  - also-missing
 `)
-	yaml, err := parsePackageYamlData(data)
+	yaml, err := parsePackageYamlData(data, false)
 	c.Assert(err, IsNil)
 	err = yaml.checkForFrameworks()
 	c.Assert(err, ErrorMatches, `missing frameworks: missing, also-missing`)
@@ -1178,7 +1180,7 @@ frameworks:
 	yaml, err := parsePackageYamlData([]byte(`name: fmk
 version: 1.0
 vendor: foo
-type: framework`))
+type: framework`), false)
 	c.Assert(err, IsNil)
 	part := &SnapPart{m: yaml}
 	deps, err := part.Dependents()
@@ -1192,14 +1194,14 @@ type: framework`))
 }
 
 func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
-	oldDir := snapAppArmorDir
+	oldDir := dirs.SnapAppArmorDir
 	defer func() {
-		snapAppArmorDir = oldDir
+		dirs.SnapAppArmorDir = oldDir
 		timestampUpdater = helpers.UpdateTimestamp
 	}()
 	touched := []string{}
-	snapAppArmorDir = c.MkDir()
-	fn := filepath.Join(snapAppArmorDir, "foo."+testOrigin+"_hello_1.0.json")
+	dirs.SnapAppArmorDir = c.MkDir()
+	fn := filepath.Join(dirs.SnapAppArmorDir, "foo."+testOrigin+"_hello_1.0.json")
 	c.Assert(os.Symlink(fn, fn), IsNil)
 	timestampUpdater = func(s string) error {
 		touched = append(touched, s)
@@ -1234,7 +1236,7 @@ binaries:
 	c.Assert(ioutil.WriteFile(filepath.Join(d2, dp, "foo"), []byte("x"), 0644), IsNil)
 
 	pb := &MockProgressMeter{}
-	m, err := parsePackageYamlData([]byte(yaml))
+	m, err := parsePackageYamlData([]byte(yaml), false)
 	part := &SnapPart{m: m, origin: testOrigin, basedir: d1}
 	c.Assert(part.RefreshDependentsSecurity(&SnapPart{basedir: d2}, pb), IsNil)
 	c.Check(touched, DeepEquals, []string{fn})
@@ -1350,7 +1352,7 @@ version: 1.0
 binaries:
  - name: tes!me
    exec: something
-`))
+`), false)
 	c.Assert(err, NotNil)
 }
 
@@ -1360,7 +1362,7 @@ version: 1.0
 services:
  - name: tes!me
    start: something
-`))
+`), false)
 	c.Assert(err, NotNil)
 }
 
@@ -1398,7 +1400,7 @@ func (s *SnapTestSuite) TestIllegalPackageNameWithOrigin(c *C) {
 	_, err := parsePackageYamlData([]byte(`name: foo.something
 version: 1.0
 vendor: foo
-`))
+`), false)
 
 	c.Assert(err, Equals, ErrPackageNameNotSupported)
 }
@@ -1427,7 +1429,7 @@ oem:
 `)
 
 func (s *SnapTestSuite) TestParseHardwareYaml(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml)
+	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 	c.Assert(m.OEM.Hardware.Assign[0].PartID, Equals, "device-hive-iot-hal")
 	c.Assert(m.OEM.Hardware.Assign[0].Rules[0].Kernel, Equals, "ttyUSB0")
@@ -1444,7 +1446,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb-serial", DRIVER=="pl2303", ATTRS{idVendor}=="
 `
 
 func (s *SnapTestSuite) TestGenerateHardwareYamlData(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml)
+	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
 	output, err := m.OEM.Hardware.Assign[0].generateUdevRuleContent()
@@ -1454,21 +1456,21 @@ func (s *SnapTestSuite) TestGenerateHardwareYamlData(c *C) {
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevEtc(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml)
+	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
-	snapUdevRulesDir = c.MkDir()
+	dirs.SnapUdevRulesDir = c.MkDir()
 	writeOemHardwareUdevRules(m)
 
-	c.Assert(helpers.FileExists(filepath.Join(snapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")), Equals, true)
+	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")), Equals, true)
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml)
+	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
-	snapUdevRulesDir = c.MkDir()
-	udevRulesFile := filepath.Join(snapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")
+	dirs.SnapUdevRulesDir = c.MkDir()
+	udevRulesFile := filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")
 	c.Assert(ioutil.WriteFile(udevRulesFile, nil, 0644), Equals, nil)
 	cleanupOemHardwareUdevRules(m)
 
@@ -1492,12 +1494,21 @@ func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
 	c.Assert(cmds, HasLen, 2)
 }
 
+func (s *SnapTestSuite) TestLegacyConfigHook(c *C) {
+	packageYaml, err := parsePackageYamlData([]byte(`name: foo
+version: 1.0
+vendor: Foo Bar <foo@example.com>
+`), true)
+	c.Assert(err, IsNil)
+	c.Check(packageYaml.Integration["snappy-config"], DeepEquals, clickAppHook{"apparmor": "meta/snappy-config.apparmor"})
+}
+
 func (s *SnapTestSuite) TestQualifiedNameName(c *C) {
 	packageYaml, err := parsePackageYamlData([]byte(`name: foo
 version: 1.0
 icon: foo.svg
 vendor: Foo Bar <foo@example.com>
-`))
+`), false)
 	c.Assert(err, IsNil)
 
 	udevName := packageYaml.qualifiedName("mvo")
@@ -1510,7 +1521,7 @@ version: 1.0
 icon: foo.svg
 type: framework
 vendor: Foo Bar <foo@example.com>
-`))
+`), false)
 	c.Assert(err, IsNil)
 
 	udevName := packageYaml.qualifiedName("")
@@ -1521,7 +1532,7 @@ func (s *SnapTestSuite) TestParsePackageYamlDataChecksName(c *C) {
 	_, err := parsePackageYamlData([]byte(`
 version: 1.0
 vendor: Foo Bar <foo@example.com>
-`))
+`), false)
 	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required fields 'name'.*")
 }
 
@@ -1529,7 +1540,7 @@ func (s *SnapTestSuite) TestParsePackageYamlDataChecksVersion(c *C) {
 	_, err := parsePackageYamlData([]byte(`
 name: foo
 vendor: Foo Bar <foo@example.com>
-`))
+`), false)
 	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required fields 'version'.*")
 }
 
@@ -1537,22 +1548,31 @@ func (s *SnapTestSuite) TestParsePackageYamlDataChecksVendor(c *C) {
 	_, err := parsePackageYamlData([]byte(`
 name: foo
 version: 1.0
-`))
+`), false)
 	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required fields 'vendor'.*")
 }
 
 func (s *SnapTestSuite) TestParsePackageYamlDataChecksMultiple(c *C) {
 	_, err := parsePackageYamlData([]byte(`
-`))
+`), false)
 	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required fields 'name, version, vendor'.*")
 }
 
 func (s *SnapTestSuite) TestIntegrateBoring(c *C) {
 	m := &packageYaml{}
-	m.legacyIntegration()
+	m.legacyIntegration(false)
 
 	// no binaries, no service, no legacyIntegration
 	c.Check(m.Integration, HasLen, 0)
+}
+
+func (s *SnapTestSuite) TestIntegrateConfig(c *C) {
+	m := &packageYaml{}
+	m.legacyIntegration(true)
+
+	// no binaries, no service, but config! => legacyIntegration
+	c.Check(m.Integration, HasLen, 1)
+	c.Check(m.Integration["snappy-config"], DeepEquals, clickAppHook{"apparmor": "meta/snappy-config.apparmor"})
 }
 
 func (s *SnapTestSuite) TestIntegrateBinary(c *C) {
@@ -1578,7 +1598,7 @@ func (s *SnapTestSuite) TestIntegrateBinary(c *C) {
 			},
 		},
 	}
-	m.legacyIntegration()
+	m.legacyIntegration(false)
 
 	c.Check(m.Integration, DeepEquals, map[string]clickAppHook{
 		"testme": {
@@ -1605,11 +1625,22 @@ func (s *SnapTestSuite) TestIntegrateService(c *C) {
 		},
 	}
 
-	m.legacyIntegration()
+	m.legacyIntegration(false)
 
 	// no binaries, no service, no integrate
 	c.Check(m.Integration, DeepEquals, map[string]clickAppHook{
 		"svc": clickAppHook{
 			"apparmor": "meta/svc.apparmor",
 		}})
+}
+
+func (s *SnapTestSuite) TestCpiURLDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	before := cpiURL()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	after := cpiURL()
+
+	c.Check(before, Not(Equals), after)
 }
