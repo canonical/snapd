@@ -56,7 +56,9 @@ func New(name, origin, version string, pkgType pkg.Type) snappy.Part {
 		pkgType: pkgType,
 	}
 
-	content, _ := ioutil.ReadFile(snappy.ManifestPath(part))
+	// try to load the remote manifest, that would've been kept
+	// around when installing from the store.
+	content, _ := ioutil.ReadFile(snappy.RemoteManifestPath(part))
 	yaml.Unmarshal(content, &(part.remote))
 
 	return part
