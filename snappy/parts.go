@@ -361,7 +361,7 @@ func iconPath(s Part) string {
 	return filepath.Join(dirs.SnapIconsDir, fmt.Sprintf("%s_%s.png", QualifiedName(s), s.Version()))
 }
 
-// manifestPath returns the would be path for the store manifest meta data
-func manifestPath(s Part) string {
+// ManifestPath returns the would be path for the store manifest meta data
+func ManifestPath(s Part) string {
 	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", QualifiedName(s), s.Version()))
 }
