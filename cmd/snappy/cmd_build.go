@@ -53,7 +53,7 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 		args = []string{"."}
 	}
 
-	snapPackage, err := snappy.Build(args[0], x.Output)
+	snapPackage, err := snappy.BuildLegacySnap(args[0], x.Output)
 	if err != nil {
 		return err
 	}

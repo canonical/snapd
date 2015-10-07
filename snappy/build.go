@@ -489,9 +489,7 @@ func checkLicenseExists(sourceDir string) error {
 
 var licenseChecker = checkLicenseExists
 
-// Build the given sourceDirectory and return the generated snap file
-func Build(sourceDir, targetDir string) (string, error) {
-
+func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error) {
 	// ensure we have valid content
 	m, err := parsePackageYamlFile(filepath.Join(sourceDir, "meta", "package.yaml"))
 	if err != nil {
@@ -507,13 +505,6 @@ func Build(sourceDir, targetDir string) (string, error) {
 	if err := m.checkForNameClashes(); err != nil {
 		return "", err
 	}
-
-	// create build dir
-	buildDir, err := ioutil.TempDir("", "snappy-build-")
-	if err != nil {
-		return "", err
-	}
-	defer os.RemoveAll(buildDir)
 
 	if err := copyToBuildDir(sourceDir, buildDir); err != nil {
 		return "", err
@@ -544,7 +535,7 @@ func Build(sourceDir, targetDir string) (string, error) {
 	}
 
 	// build the package
-	snapName := fmt.Sprintf("%s_%s_%v.snap", m.Name, m.Version, debArchitecture(m))
+	snapName = fmt.Sprintf("%s_%s_%v.snap", m.Name, m.Version, debArchitecture(m))
 
 	if targetDir != "" {
 		snapName = filepath.Join(targetDir, snapName)
@@ -555,7 +546,23 @@ func Build(sourceDir, targetDir string) (string, error) {
 		}
 	}
 
-	// build it
+	return snapName, nil
+}
+
+// BuildLegacySnap the given sourceDirectory and return the generated snap file
+func BuildLegacySnap(sourceDir, targetDir string) (string, error) {
+	// create build dir
+	buildDir, err := ioutil.TempDir("", "snappy-build-")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(buildDir)
+
+	snapName, err := prepare(sourceDir, targetDir, buildDir)
+	if err != nil {
+		return "", err
+	}
+
 	d, err := clickdeb.Create(snapName)
 	if err != nil {
 		return "", err

@@ -102,7 +102,7 @@ integration:
   apparmor-profile: meta/hello.apparmor
 `)
 
-	resultSnap, err := Build(sourceDir, "")
+	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -152,7 +152,7 @@ binaries:
  - name: bin/hello-world
 `)
 
-	resultSnap, err := Build(sourceDir, "")
+	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -194,7 +194,7 @@ services:
    start: bin/hello-world
 `)
 
-	resultSnap, err := Build(sourceDir, "")
+	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -236,7 +236,7 @@ vendor: Foo <foo@example.com>
 	err := ioutil.WriteFile(filepath.Join(hooksDir, "config"), []byte(""), 0755)
 	c.Assert(err, IsNil)
 
-	resultSnap, err := Build(sourceDir, "")
+	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -265,7 +265,7 @@ vendor: Foo <foo@example.com>
 func (s *SnapTestSuite) TestBuildNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "package.yaml")), IsNil)
-	_, err := Build(sourceDir, "")
+	_, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
 }
 
@@ -279,7 +279,7 @@ integration:
   apparmor-profile: meta/hello.apparmor
 explicit-license-agreement: Y
 `)
-	_, err := Build(sourceDir, "")
+	_, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
 }
 
@@ -295,7 +295,7 @@ explicit-license-agreement: Y
 `)
 	lic := filepath.Join(sourceDir, "meta", "license.txt")
 	ioutil.WriteFile(lic, []byte("\n"), 0755)
-	_, err := Build(sourceDir, "")
+	_, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, Equals, ErrLicenseBlank)
 }
 
@@ -390,7 +390,7 @@ integration:
 
 	outputDir := filepath.Join(c.MkDir(), "output")
 	snapOutput := filepath.Join(outputDir, "hello_1.0.1_multi.snap")
-	resultSnap, err := Build(sourceDir, outputDir)
+	resultSnap, err := BuildLegacySnap(sourceDir, outputDir)
 	c.Assert(err, IsNil)
 
 	// check that there is result
@@ -438,7 +438,7 @@ services:
 binaries:
  - name: foo
 `)
-	_, err := Build(sourceDir, "")
+	_, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
 }
 
@@ -469,7 +469,7 @@ version: 1.0.1
 vendor: Foo <foo@example.com>
 `)
 
-	resultSnap, err := Build(sourceDir, "")
+	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -490,6 +490,6 @@ vendor: Foo <foo@example.com>
 	err := syscall.Mkfifo(filepath.Join(sourceDir, "fifo"), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = Build(sourceDir, "")
+	_, err = BuildLegacySnap(sourceDir, "")
 	c.Assert(err, ErrorMatches, "can not handle type of file .*")
 }
