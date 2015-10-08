@@ -104,6 +104,8 @@ func (s *lightweightSuite) TestLoadBadName(c *check.C) {
 func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
 	bag := PartBagByName("fmk", "sideload")
 	m := bag.Map(nil)
+	c.Check(m["installed_size"], check.Matches, "[0-9]+")
+	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":               "fmk",
 		"origin":             "sideload",
@@ -112,7 +114,6 @@ func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
 		"icon":               filepath.Join(s.d, "apps", "fmk", "120", "icon.png"),
 		"type":               "framework",
 		"vendor":             "example.com",
-		"installed_size":     "214", // this'll change :-/
 		"download_size":      "-1",
 		"description":        "",
 		"rollback_available": "119",
@@ -174,17 +175,18 @@ func (s *lightweightSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
 func (s *lightweightSuite) TestMapAppNoPart(c *check.C) {
 	bag := PartBagByName("foo", "bar")
 	m := bag.Map(nil)
+	c.Check(m["installed_size"], check.Matches, "[0-9]+")
+	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]string{
-		"name":           "foo",
-		"origin":         "bar",
-		"status":         "active",
-		"version":        "1.0",
-		"icon":           filepath.Join(s.d, "apps", "foo.bar", "1.0", "icon.png"),
-		"type":           "app",
-		"vendor":         "example.com",
-		"installed_size": "208", // this'll change :-/
-		"download_size":  "-1",
-		"description":    "",
+		"name":          "foo",
+		"origin":        "bar",
+		"status":        "active",
+		"version":       "1.0",
+		"icon":          filepath.Join(s.d, "apps", "foo.bar", "1.0", "icon.png"),
+		"type":          "app",
+		"vendor":        "example.com",
+		"download_size": "-1",
+		"description":   "",
 	})
 }
 
@@ -201,6 +203,8 @@ func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 
 	bag := PartBagByName("foo", "bar")
 	m := bag.Map(part)
+	c.Check(m["installed_size"], check.Matches, "[0-9]+")
+	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":             "foo",
 		"origin":           "bar",
@@ -209,7 +213,6 @@ func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 		"icon":             filepath.Join(s.d, "apps", "foo.bar", "1.0", "icon.png"),
 		"type":             "app",
 		"vendor":           "example.com",
-		"installed_size":   "208", // this'll change :-/
 		"download_size":    "42",
 		"description":      "",
 		"update_available": "2",
@@ -264,17 +267,18 @@ func (s *lightweightSuite) TestMapRemovedAppNoPart(c *check.C) {
 func (s *lightweightSuite) TestMapInactiveOemNoPart(c *check.C) {
 	bag := PartBagByName("oem", "canonical")
 	m := bag.Map(nil)
+	c.Check(m["installed_size"], check.Matches, "[0-9]+")
+	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]string{
-		"name":           "oem",
-		"origin":         "sideload", // best guess
-		"status":         "installed",
-		"version":        "3",
-		"icon":           filepath.Join(s.d, "oem", "oem", "3", "icon.png"),
-		"type":           "oem",
-		"vendor":         "example.com",
-		"installed_size": "206",
-		"download_size":  "-1",
-		"description":    "",
+		"name":          "oem",
+		"origin":        "sideload", // best guess
+		"status":        "installed",
+		"version":       "3",
+		"icon":          filepath.Join(s.d, "oem", "oem", "3", "icon.png"),
+		"type":          "oem",
+		"vendor":        "example.com",
+		"download_size": "-1",
+		"description":   "",
 	})
 }
 
