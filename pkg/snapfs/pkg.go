@@ -101,22 +101,21 @@ func (s *Snap) Verify(unauthOk bool) error {
 
 // Build builds the snap
 func (s *Snap) Build(buildDir string) error {
-	var err error
 	fullSnapPath, err := filepath.Abs(s.path)
 	if err != nil {
 		return err
 	}
-	helpers.ChDir(buildDir, func() {
+
+	return helpers.ChDir(buildDir, func() error {
 		cmd := exec.Command(
 			"mksquashfs",
 			".", fullSnapPath,
 			"-all-root",
 			"-noappend",
 			"-comp", "xz")
-		if output, aerr := cmd.CombinedOutput(); aerr != nil {
-			err = fmt.Errorf("mksquashfs failed: %v (%v)", aerr, output)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("mksquashfs failed: %v (%v)", err, output)
 		}
+		return nil
 	})
-
-	return err
 }

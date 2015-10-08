@@ -117,10 +117,11 @@ func (ts *HTestSuite) TestChdir(c *C) {
 	cwd, err := os.Getwd()
 	c.Assert(err, IsNil)
 	c.Assert(cwd, Not(Equals), tmpdir)
-	ChDir(tmpdir, func() {
+	ChDir(tmpdir, func() error {
 		cwd, err := os.Getwd()
 		c.Assert(err, IsNil)
 		c.Assert(cwd, Equals, tmpdir)
+		return err
 	})
 }
 
@@ -494,10 +495,11 @@ func (ts *HTestSuite) TestUnpackPermissions(c *C) {
 	err := ioutil.WriteFile(filepath.Join(tmpdir, canaryName), []byte(nil), canaryPerms)
 	c.Assert(err, IsNil)
 
-	ChDir(tmpdir, func() {
+	ChDir(tmpdir, func() error {
 		cmd := exec.Command("tar", "cvf", tarArchive, ".")
 		_, err = cmd.CombinedOutput()
 		c.Assert(err, IsNil)
+		return err
 	})
 
 	// set crazy umask
