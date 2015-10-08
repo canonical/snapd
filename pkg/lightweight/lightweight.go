@@ -17,10 +17,10 @@
  *
  */
 
-// Package husk provides a quick way of loading things that can become snaps.
+// Package lightweight provides a quick way of loading things that can become snaps.
 //
-// A husk has a name and n versions; it might not even know its origin.
-package husk
+// A lightweight.PartBag has a name and n versions; it might not even know its origin.
+package lightweight
 
 import (
 	"errors"
@@ -42,7 +42,9 @@ import (
 // e.g. foo/bar.baz/quux -> bar, baz, quux
 //
 // panics if given path is lacking at least one separator (ie bar/quux
-// works (barely); quux panics)
+// works (barely); quux panics). As it's supposed to be called with
+// the results of a glob on <pkgdir>/<pkg|*>/*, this is only a problem
+// if it's being used wrong.
 func split(path string) (name string, ext string, file string) {
 	idxFileSep := strings.LastIndexByte(path, os.PathSeparator)
 	if idxFileSep < 0 {
@@ -67,8 +69,11 @@ func split(path string) (name string, ext string, file string) {
 }
 
 // extract the name, origin and list of versions from a list of paths that
-// end {name}[.{origin}]/{version}. If the origin changes, stop and
+// end {name}[.{origin}]/{version}. If the name or origin changes, stop and
 // return the versions so far, and the remaining paths.
+//
+// Calls split() on each path in paths, so will panic if it does not have
+// the right number of path separators, as it's a programming error.
 func extract(paths []string) (string, string, []string, []string) {
 	name, origin, _ := split(paths[0])
 
@@ -90,8 +95,8 @@ func versionSort(versions []string) {
 	sort.Sort(sort.Reverse(snappy.ByVersion(versions)))
 }
 
-// ByName finds husks with the given name.
-func ByName(name string, origin string) *Husk {
+// PartBagByName finds a PartBag with the given name.
+func PartBagByName(name string, origin string) *PartBag {
 	if strings.ContainsAny(name, ".*?/") || strings.ContainsAny(origin, ".*?/") {
 		panic("invalid name " + name + "." + origin)
 	}
@@ -103,8 +108,8 @@ func ByName(name string, origin string) *Husk {
 	return nil
 }
 
-// All the husks in the system.
-func All() map[string]*Husk {
+// AllPartBags the PartBags in the system.
+func AllPartBags() map[string]*PartBag {
 	return find("*", "*")
 }
 
@@ -118,8 +123,8 @@ func newCoreRepoImpl() repo {
 
 var newCoreRepo = newCoreRepoImpl
 
-func find(name string, origin string) map[string]*Husk {
-	husks := make(map[string]*Husk)
+func find(name string, origin string) map[string]*PartBag {
+	bags := make(map[string]*PartBag)
 
 	if (name == snappy.SystemImagePartName || name == "*") && (origin == snappy.SystemImagePartOrigin || origin == "*") {
 		// TODO: make this do less work
@@ -138,14 +143,14 @@ func find(name string, origin string) map[string]*Husk {
 			}
 			versionSort(versions)
 
-			husk := &Husk{
+			bag := &PartBag{
 				Name:     snappy.SystemImagePartName,
 				Origin:   snappy.SystemImagePartOrigin,
 				Type:     pkg.TypeCore,
 				Versions: versions,
 				concrete: &concreteCore{},
 			}
-			husks[husk.QualifiedName()] = husk
+			bags[bag.QualifiedName()] = bag
 		}
 	}
 
@@ -157,8 +162,9 @@ func find(name string, origin string) map[string]*Husk {
 
 	for _, s := range []T{
 		{dirs.SnapAppsDir, name + "." + origin, pkg.TypeApp},
-		{dirs.SnapAppsDir, name, pkg.TypeFramework},
+		{dirs.SnapAppsDir, name, pkg.TypeFramework}, // frameworks are installed under /apps also, for now
 	} {
+		// all snaps share the data dir, hence this bit of mess
 		paths, _ := filepath.Glob(filepath.Join(dirs.SnapDataDir, s.qn, "*"))
 		for len(paths) > 0 {
 			var name string
@@ -173,30 +179,32 @@ func find(name string, origin string) map[string]*Husk {
 
 			versionSort(versions)
 
+			// if oems were removable, there'd be know way of
+			// telling the kind of a removed origin-less package
 			if s.typ == pkg.TypeFramework && helpers.FileExists(filepath.Join(dirs.SnapOemDir, name)) {
 				s.typ = pkg.TypeOem
 				s.inst = dirs.SnapOemDir
 			}
 
-			husk := &Husk{
+			bag := &PartBag{
 				Name:     name,
 				Origin:   origin,
 				Type:     s.typ,
 				Versions: versions,
 			}
 
-			husk.concrete = NewConcrete(husk, s.inst)
+			bag.concrete = NewConcrete(bag, s.inst)
 
-			husks[husk.QualifiedName()] = husk
+			bags[bag.QualifiedName()] = bag
 		}
 	}
 
-	return husks
+	return bags
 }
 
-// A Husk is a lightweight object that represents and knows how to
+// A PartBag is a lightweight object that represents and knows how to
 // load a Part on demand.
-type Husk struct {
+type PartBag struct {
 	Name     string
 	Origin   string
 	Type     pkg.Type
@@ -204,7 +212,7 @@ type Husk struct {
 	concrete Concreter
 }
 
-// Concreter hides the part-specific details of husks
+// Concreter hides the part-specific details of PartBags
 type Concreter interface {
 	IsInstalled(string) bool
 	ActiveIndex() int
@@ -215,27 +223,27 @@ type Concreter interface {
 // needing a Concreter for app/fmk/oem snaps (ie not core).
 var NewConcrete = newConcreteImpl
 
-func newConcreteImpl(husk *Husk, instdir string) Concreter {
+func newConcreteImpl(bag *PartBag, instdir string) Concreter {
 	return &concreteSnap{
-		self:    husk,
+		self:    bag,
 		instdir: instdir,
 	}
 }
 
-// QualifiedName of the husk.
+// QualifiedName of the PartBag.
 //
-// because husks read their origin from the filesystem, you don't need
+// because PartBags read their origin from the filesystem, you don't need
 // to check the pacakge type.
-func (h *Husk) QualifiedName() string {
-	if h.Origin == "" {
-		return h.Name
+func (bag *PartBag) QualifiedName() string {
+	if bag.Origin == "" {
+		return bag.Name
 	}
-	return h.FullName()
+	return bag.FullName()
 }
 
-// FullName of the husk
-func (h *Husk) FullName() string {
-	return h.Name + "." + h.Origin
+// FullName of the PartBag
+func (bag *PartBag) FullName() string {
+	return bag.Name + "." + bag.Origin
 }
 
 var (
@@ -268,7 +276,7 @@ func (*concreteCore) Load(version string) (snappy.Part, error) {
 }
 
 type concreteSnap struct {
-	self    *Husk
+	self    *PartBag
 	instdir string
 }
 
@@ -286,7 +294,7 @@ func (c *concreteSnap) ActiveIndex() int {
 
 	// Linear search is fine for now.
 	//
-	// If it ever becomes a problem, remember h.Versions is sorted
+	// If it ever becomes a problem, remember bag.Versions is sorted
 	// so you can use go's sort.Search and snappy.VersionCompare,
 	// but VersionCompare is not cheap, so that (on my machine, at
 	// the time of writing) linear of even 100k versions is only
@@ -331,36 +339,42 @@ func (c *concreteSnap) Load(version string) (snappy.Part, error) {
 }
 
 // IsInstalled checks whether the given part is installed
-func (h *Husk) IsInstalled(idx int) bool {
-	if idx < 0 || idx >= len(h.Versions) {
+func (bag *PartBag) IsInstalled(idx int) bool {
+	if idx < 0 || idx >= len(bag.Versions) {
 		return false
 	}
 
-	return h.concrete.IsInstalled(h.Versions[idx])
+	return bag.concrete.IsInstalled(bag.Versions[idx])
 }
 
 // ActiveIndex returns the index of the active version, or -1
-func (h *Husk) ActiveIndex() int {
-	if h == nil || len(h.Versions) == 0 {
+func (bag *PartBag) ActiveIndex() int {
+	if bag == nil || len(bag.Versions) == 0 {
 		return -1
 	}
 
-	return h.concrete.ActiveIndex()
+	return bag.concrete.ActiveIndex()
 }
 
-// Load a Part from the Husk
-func (h *Husk) Load(versionIdx int) (snappy.Part, error) {
-	if h == nil {
+// Load a Part from the PartBag
+func (bag *PartBag) Load(versionIdx int) (snappy.Part, error) {
+	if bag == nil {
 		return nil, nil
 	}
 
-	if versionIdx < 0 || versionIdx >= len(h.Versions) {
+	if versionIdx < 0 || versionIdx >= len(bag.Versions) {
 		return nil, ErrBadVersionIndex
 	}
 
-	version := h.Versions[versionIdx]
+	version := bag.Versions[versionIdx]
 
-	return h.concrete.Load(version)
+	return bag.concrete.Load(version)
+}
+
+// LoadActive gets the active index and loads it.
+// If none active, returns a nil Part and ErrBadVersionIndex.
+func (bag *PartBag) LoadActive() (snappy.Part, error) {
+	return bag.Load(bag.ActiveIndex())
 }
 
 // LoadBest looks for the best candidate Part and loads it.
@@ -372,52 +386,52 @@ func (h *Husk) Load(versionIdx int) (snappy.Part, error) {
 // If not even a removed part can be loaded, something is wrong. Nil
 // is returned, but you're in trouble (did the filesystem just
 // disappear under us?).
-func (h *Husk) LoadBest() snappy.Part {
-	if h == nil {
+func (bag *PartBag) LoadBest() snappy.Part {
+	if bag == nil {
 		return nil
 	}
-	if len(h.Versions) == 0 {
+	if len(bag.Versions) == 0 {
 		return nil
 	}
 
-	activeIdx := h.ActiveIndex()
-	if part, err := h.Load(activeIdx); err == nil {
+	activeIdx := bag.ActiveIndex()
+	if part, err := bag.Load(activeIdx); err == nil {
 		return part
 	}
 
-	for i := 0; i < len(h.Versions); i++ {
-		if h.IsInstalled(i) {
-			if part, err := h.Load(i); err == nil {
+	for i := 0; i < len(bag.Versions); i++ {
+		if bag.IsInstalled(i) {
+			if part, err := bag.Load(i); err == nil {
 				return part
 			}
 		}
 	}
 
-	part, _ := h.Load(0)
+	part, _ := bag.Load(0)
 
 	return part
 }
 
-// Map this husk into a map[string]string, augmenting it with the
+// Map this PartBag into a map[string]string, augmenting it with the
 // given (purportedly remote) Part.
 //
-// It is a programming error (->panic) to call Map on a nil *Husk with
-// a nil Part. Husk or part may be nil, but not both.
+// It is a programming error (->panic) to call Map on a nil *PartBag with
+// a nil Part. PartBag or part may be nil, but not both.
 //
 // Also may panic if the remote part is nil and LoadBest can't load a
 // Part at all.
-func (h *Husk) Map(remotePart snappy.Part) map[string]string {
+func (bag *PartBag) Map(remotePart snappy.Part) map[string]string {
 	var version, update, rollback, icon, name, origin, _type, vendor, description string
 
-	if h == nil && remotePart == nil {
-		panic("husk & part both nil -- how did i even get here")
+	if bag == nil && remotePart == nil {
+		panic("part bag & part both nil -- how did i even get here")
 	}
 
 	status := "not installed"
 	installedSize := "-1"
 	downloadSize := "-1"
 
-	part := h.LoadBest()
+	part := bag.LoadBest()
 	if part != nil {
 		if part.IsActive() {
 			status = "active"
@@ -463,7 +477,7 @@ func (h *Husk) Map(remotePart snappy.Part) map[string]string {
 		downloadSize = strconv.FormatInt(remotePart.DownloadSize(), 10)
 	}
 
-	if activeIdx := h.ActiveIndex(); activeIdx >= 0 {
+	if activeIdx := bag.ActiveIndex(); activeIdx >= 0 {
 		if remotePart != nil && version != remotePart.Version() {
 			// XXX: this does not handle the case where the
 			// one in the store is not the greatest version
@@ -472,12 +486,12 @@ func (h *Husk) Map(remotePart snappy.Part) map[string]string {
 			update = remotePart.Version()
 		}
 
-		for i := activeIdx + 1; i < len(h.Versions); i++ {
+		for i := activeIdx + 1; i < len(bag.Versions); i++ {
 			// XXX: it's also possible to "roll back" to a
 			// store version in the case mentioned above;
 			// also not covered by this code.
-			if h.IsInstalled(i) {
-				rollback = h.Versions[i]
+			if bag.IsInstalled(i) {
+				rollback = bag.Versions[i]
 				break
 			}
 		}

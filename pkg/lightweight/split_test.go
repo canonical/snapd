@@ -17,7 +17,7 @@
  *
  */
 
-package husk
+package lightweight
 
 import (
 	"gopkg.in/check.v1"

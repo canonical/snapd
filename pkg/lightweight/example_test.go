@@ -17,7 +17,7 @@
  *
  */
 
-package husk_test
+package lightweight_test
 
 import (
 	"fmt"
@@ -26,10 +26,14 @@ import (
 	"path/filepath"
 
 	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/pkg/husk"
+	"launchpad.net/snappy/pkg/lightweight"
 )
 
-func ExampleHusk() {
+// we don't use example tests nearly as often as we should :-)
+// https://blog.golang.org/examples if you haven't seen them used before.
+// (also: look at it in the 'go doc' output for this package)
+
+func ExamplePartBag() {
 	d, _ := ioutil.TempDir("", "test-xyzzy-")
 	defer os.RemoveAll(d)
 	dirs.SetRootDir(d)
@@ -40,12 +44,12 @@ func ExampleHusk() {
 	os.MkdirAll(filepath.Join(dirs.SnapDataDir, "qux", "0.5"), 0755)
 	os.MkdirAll(filepath.Join(dirs.SnapOemDir, "qux", "0.5"), 0755)
 
-	husks := husk.All()
+	bags := lightweight.AllPartBags()
 
 	for _, k := range []string{"foo.bar", "baz", "qux"} {
-		h := husks[k]
+		bag := bags[k]
 		fmt.Printf("Found %d versions for %s, type %q: %s\n",
-			len(h.Versions), h.QualifiedName(), h.Type, h.Versions)
+			len(bag.Versions), bag.QualifiedName(), bag.Type, bag.Versions)
 	}
 	// Output:
 	// Found 3 versions for foo.bar, type "app": [0.5 0.2 0.1]
