@@ -634,7 +634,7 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 	}
 	part.hash = h.ArchiveSha512
 
-	remoteManifestPath := ManifestPath(part)
+	remoteManifestPath := RemoteManifestPath(part)
 	if helpers.FileExists(remoteManifestPath) {
 		content, err := ioutil.ReadFile(remoteManifestPath)
 		if err != nil {
@@ -1615,7 +1615,7 @@ func (s *RemoteSnapPart) saveStoreManifest() error {
 	}
 
 	// don't worry about previous contents
-	return ioutil.WriteFile(ManifestPath(s), content, 0644)
+	return ioutil.WriteFile(RemoteManifestPath(s), content, 0644)
 }
 
 // Install installs the snap

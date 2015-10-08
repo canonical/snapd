@@ -1,0 +1,3 @@
+#!/bin/sh
+
+dd if=/dev/kmsg iflag=nonblock

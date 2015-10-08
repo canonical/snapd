@@ -64,7 +64,7 @@ publisher: example.com
 iconurl: http://i.stack.imgur.com/i8q1U.jpg
 downloadsize: 5554242
 `
-	p := snappy.ManifestPath(part)
+	p := snappy.RemoteManifestPath(part)
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(p, []byte(content), 0644), check.IsNil)
 
