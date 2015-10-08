@@ -46,7 +46,8 @@ import (
 // the results of a glob on <pkgdir>/<pkg|*>/*, this is only a problem
 // if it's being used wrong.
 func split(path string) (name string, ext string, file string) {
-	idxFileSep := strings.LastIndexByte(path, os.PathSeparator)
+	const sep = string(os.PathSeparator)
+	idxFileSep := strings.LastIndex(path, sep)
 	if idxFileSep < 0 {
 		panic("bad path given to split: must have at least two separators")
 	}
@@ -55,12 +56,12 @@ func split(path string) (name string, ext string, file string) {
 	path = path[:idxFileSep]
 	name = path
 
-	idxDirSep := strings.LastIndexByte(path, os.PathSeparator)
+	idxDirSep := strings.LastIndex(path, sep)
 	if idxDirSep > -1 {
 		name = path[idxDirSep+1:]
 	}
 
-	idxOrig := strings.LastIndexByte(name, '.')
+	idxOrig := strings.LastIndex(name, ".")
 	if idxOrig < 0 {
 		return name, "", file
 	}
