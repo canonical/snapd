@@ -36,7 +36,7 @@ type serviceSuite struct {
 	common.SnappySuite
 }
 
-func (s *serviceSuite) TearDownTesT(c *check.C) {
+func (s *serviceSuite) TearDownTest(c *check.C) {
 	if !common.NeedsReboot() && common.CheckRebootMark("") {
 		common.RemoveSnap(c, "hello-dbus-fwk.canonical")
 	}
