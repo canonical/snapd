@@ -35,7 +35,7 @@ import (
 
 	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/pkg/husk"
+	"launchpad.net/snappy/pkg/lightweight"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/snappy"
@@ -154,8 +154,8 @@ func getPackageInfo(c *Command, r *http.Request) Response {
 		part = parts[0]
 	}
 
-	hsk := husk.ByName(name, origin)
-	if hsk == nil && part == nil {
+	bag := lightweight.PartBagByName(name, origin)
+	if bag == nil && part == nil {
 		return NotFound
 	}
 
@@ -169,7 +169,7 @@ func getPackageInfo(c *Command, r *http.Request) Response {
 		return InternalError(err, "route can't build URL for package %s.%s: %v", name, origin, err)
 	}
 
-	result := webify(hsk.Map(part), url.String())
+	result := webify(bag.Map(part), url.String())
 
 	return SyncResponse(result)
 }
@@ -237,7 +237,7 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 
 	sort.Sort(byQN(found))
 
-	husks := husk.All()
+	bags := lightweight.AllPartBags()
 
 	results := make(map[string]map[string]string)
 	for _, part := range found {
@@ -251,11 +251,11 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 
 		fullname := name + "." + origin
 		qn := snappy.QualifiedName(part)
-		results[fullname] = webify(husks[qn].Map(part), url.String())
-		delete(husks, qn)
+		results[fullname] = webify(bags[qn].Map(part), url.String())
+		delete(bags, qn)
 	}
 
-	for _, v := range husks {
+	for _, v := range bags {
 		m := v.Map(nil)
 		name := m["name"]
 		origin := m["origin"]
@@ -322,13 +322,13 @@ func packageService(c *Command, r *http.Request) Response {
 		return BadRequest(nil, "unknown action %s", action)
 	}
 
-	h := husk.ByName(name, origin)
-	idx := h.ActiveIndex()
+	bag := lightweight.PartBagByName(name, origin)
+	idx := bag.ActiveIndex()
 	if idx < 0 {
 		return NotFound
 	}
 
-	ipart, err := h.Load(idx)
+	ipart, err := bag.Load(idx)
 	if err != nil {
 		return InternalError(err, "unable to get load active package: %v", err)
 	}
@@ -417,13 +417,13 @@ func packageConfig(c *Command, r *http.Request) Response {
 	}
 	pkgName := name + "." + origin
 
-	h := husk.ByName(name, origin)
-	idx := h.ActiveIndex()
+	bag := lightweight.PartBagByName(name, origin)
+	idx := bag.ActiveIndex()
 	if idx < 0 {
 		return NotFound
 	}
 
-	part, err := h.Load(idx)
+	part, err := bag.Load(idx)
 	if err != nil {
 		return InternalError(err, "unable to get load active package: %v", err)
 	}
@@ -710,12 +710,12 @@ func appIconGet(c *Command, r *http.Request) Response {
 	name := vars["name"]
 	origin := vars["origin"]
 
-	hsk := husk.ByName(name, origin)
-	if hsk == nil || len(hsk.Versions) == 0 {
+	bag := lightweight.PartBagByName(name, origin)
+	if bag == nil || len(bag.Versions) == 0 {
 		return NotFound
 	}
 
-	part := hsk.LoadBest()
+	part := bag.LoadBest()
 	if part == nil {
 		return NotFound
 	}

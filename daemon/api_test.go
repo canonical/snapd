@@ -40,7 +40,7 @@ import (
 
 	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/pkg/husk"
+	"launchpad.net/snappy/pkg/lightweight"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/snappy"
@@ -541,11 +541,11 @@ func (s *apiSuite) TestPackageGetConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	configStr := "some: config"
-	oldConcrete := husk.NewConcrete
+	oldConcrete := lightweight.NewConcrete
 	defer func() {
-		husk.NewConcrete = oldConcrete
+		lightweight.NewConcrete = oldConcrete
 	}()
-	husk.NewConcrete = func(*husk.Husk, string) husk.Concreter {
+	lightweight.NewConcrete = func(*lightweight.PartBag, string) lightweight.Concreter {
 		return &cfgc{configStr}
 	}
 
@@ -570,11 +570,11 @@ func (s *apiSuite) TestPackagePutConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	configStr := "some: config"
-	oldConcrete := husk.NewConcrete
+	oldConcrete := lightweight.NewConcrete
 	defer func() {
-		husk.NewConcrete = oldConcrete
+		lightweight.NewConcrete = oldConcrete
 	}()
-	husk.NewConcrete = func(*husk.Husk, string) husk.Concreter {
+	lightweight.NewConcrete = func(*lightweight.PartBag, string) lightweight.Concreter {
 		return &cfgc{configStr}
 	}
 
