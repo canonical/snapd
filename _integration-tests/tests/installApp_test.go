@@ -84,18 +84,6 @@ func (s *installAppSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *ch
 	c.Assert(string(echoOutput), check.Matches, expected)
 }
 
-func (s *installAppSuite) TestInfoMustPrintInstalledPackageInformation(c *check.C) {
-	common.InstallSnap(c, "hello-world")
-	s.AddCleanup(func() {
-		common.RemoveSnap(c, "hello-world")
-	})
-
-	infoOutput := cli.ExecCommand(c, "snappy", "info")
-
-	expected := "(?ms).*^apps: hello-world.canonical\n"
-	c.Assert(infoOutput, check.Matches, expected)
-}
-
 func (s *installAppSuite) TestAppNetworkingServiceMustBeStarted(c *check.C) {
 	baseAppName := "xkcd-webserver"
 	appName := baseAppName + ".canonical"
