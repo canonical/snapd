@@ -30,11 +30,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/pkg"
+	"launchpad.net/snappy/pkg/clickdeb"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/systemd"
