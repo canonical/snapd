@@ -22,6 +22,7 @@ package tests
 import (
 	"net/http"
 
+  "launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
@@ -47,4 +48,25 @@ func (s *webserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(resp.Status, check.Equals, "200 OK")
 	c.Assert(resp.Proto, check.Equals, "HTTP/1.0")
+}
+
+var _ = check.Suite(&frameworkExampleSuite{})
+
+type frameworkExampleSuite struct {
+	common.SnappySuite
+}
+
+func (s *frameworkExampleSuite) TestFrameworkClient(c *check.C) {
+	common.InstallSnap(c, "hello-dbus-fwk.canonical")
+	defer common.RemoveSnap(c, "hello-dbus-fwk.canonical")
+
+	common.InstallSnap(c, "hello-dbus-app.canonical")
+	defer common.RemoveSnap(c, "hello-dbus-app.canonical")
+
+	output := cli.ExecCommand(c, "hello-dbus-app.client")
+
+	expected := "PASS\n"
+
+	c.Assert(output, check.Equals, expected,
+		check.Commentf("Expected output %s not found, %s", expected, output))
 }

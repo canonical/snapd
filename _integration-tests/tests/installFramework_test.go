@@ -45,18 +45,3 @@ func (s *installFrameworkSuite) TestInstallFrameworkMustPrintPackageInformation(
 
 	c.Assert(installOutput, check.Matches, expected)
 }
-
-func (s *installFrameworkSuite) TestFrameworkClient(c *check.C) {
-	common.InstallSnap(c, "hello-dbus-fwk.canonical")
-	defer common.RemoveSnap(c, "hello-dbus-fwk.canonical")
-
-	common.InstallSnap(c, "hello-dbus-app.canonical")
-	defer common.RemoveSnap(c, "hello-dbus-app.canonical")
-
-	output := cli.ExecCommand(c, "hello-dbus-app.client")
-
-	expected := "PASS\n"
-
-	c.Assert(output, check.Equals, expected,
-		check.Commentf("Expected output %s not found, %s", expected, output))
-}
