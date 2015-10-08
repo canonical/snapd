@@ -17,7 +17,7 @@
  *
  */
 
-package husk
+package lightweight
 
 import (
 	"fmt"
@@ -36,15 +36,15 @@ import (
 	"launchpad.net/snappy/snappy"
 )
 
-type huskSuite struct {
+type lightweightSuite struct {
 	d string
 }
 
 func Test(t *testing.T) { check.TestingT(t) }
 
-var _ = check.Suite(&huskSuite{})
+var _ = check.Suite(&lightweightSuite{})
 
-func (s *huskSuite) SetUpTest(c *check.C) {
+func (s *lightweightSuite) SetUpTest(c *check.C) {
 	s.d = c.MkDir()
 	dirs.SetRootDir(s.d)
 
@@ -67,11 +67,11 @@ func (s *huskSuite) SetUpTest(c *check.C) {
 	}
 }
 
-func (s *huskSuite) TearDownTest(c *check.C) {
+func (s *lightweightSuite) TearDownTest(c *check.C) {
 	newCoreRepo = newCoreRepoImpl
 }
 
-func (s *huskSuite) MkInstalled(c *check.C, _type pkg.Type, appdir, name, origin, version string, active bool) {
+func (s *lightweightSuite) MkInstalled(c *check.C, _type pkg.Type, appdir, name, origin, version string, active bool) {
 	qn := name
 	if origin != "" {
 		qn += "." + origin
@@ -90,20 +90,20 @@ func (s *huskSuite) MkInstalled(c *check.C, _type pkg.Type, appdir, name, origin
 	}
 }
 
-func (s *huskSuite) MkRemoved(c *check.C, qn, version string) {
+func (s *lightweightSuite) MkRemoved(c *check.C, qn, version string) {
 	dpath := filepath.Join(dirs.SnapDataDir, qn, version)
 	c.Check(os.MkdirAll(dpath, 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(dpath, "test.txt"), []byte("hello there\n"), 0644), check.IsNil)
 
 }
 
-func (s *huskSuite) TestLoadBadName(c *check.C) {
-	c.Check(func() { ByName("*", "*") }, check.PanicMatches, "invalid name .*")
+func (s *lightweightSuite) TestLoadBadName(c *check.C) {
+	c.Check(func() { PartBagByName("*", "*") }, check.PanicMatches, "invalid name .*")
 }
 
-func (s *huskSuite) TestMapFmkNoPart(c *check.C) {
-	h := ByName("fmk", "sideload")
-	m := h.Map(nil)
+func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
+	bag := PartBagByName("fmk", "sideload")
+	m := bag.Map(nil)
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":               "fmk",
 		"origin":             "sideload",
@@ -119,9 +119,9 @@ func (s *huskSuite) TestMapFmkNoPart(c *check.C) {
 	})
 }
 
-func (s *huskSuite) TestMapRemovedFmkNoPart(c *check.C) {
-	h := ByName("fmk2", "sideload")
-	m := h.Map(nil)
+func (s *lightweightSuite) TestMapRemovedFmkNoPart(c *check.C) {
+	bag := PartBagByName("fmk2", "sideload")
+	m := bag.Map(nil)
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":           "fmk2",
 		"origin":         "sideload",
@@ -136,7 +136,7 @@ func (s *huskSuite) TestMapRemovedFmkNoPart(c *check.C) {
 	})
 }
 
-func (s *huskSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
+func (s *lightweightSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
 	snap := remote.Snap{
 		Name:         "fmk2",
 		Origin:       "fmk2origin",
@@ -155,8 +155,8 @@ func (s *huskSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(p, content, 0644), check.IsNil)
 
-	h := ByName("fmk2", "fmk2origin")
-	m := h.Map(nil)
+	bag := PartBagByName("fmk2", "fmk2origin")
+	m := bag.Map(nil)
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":           "fmk2",
 		"origin":         "fmk2origin",
@@ -171,9 +171,9 @@ func (s *huskSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
 	})
 }
 
-func (s *huskSuite) TestMapAppNoPart(c *check.C) {
-	h := ByName("foo", "bar")
-	m := h.Map(nil)
+func (s *lightweightSuite) TestMapAppNoPart(c *check.C) {
+	bag := PartBagByName("foo", "bar")
+	m := bag.Map(nil)
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":           "foo",
 		"origin":         "bar",
@@ -188,7 +188,7 @@ func (s *huskSuite) TestMapAppNoPart(c *check.C) {
 	})
 }
 
-func (s *huskSuite) TestMapAppWithPart(c *check.C) {
+func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 	snap := remote.Snap{
 		Name:         "foo",
 		Origin:       "bar",
@@ -199,8 +199,8 @@ func (s *huskSuite) TestMapAppWithPart(c *check.C) {
 	}
 	part := snappy.NewRemoteSnapPart(snap)
 
-	h := ByName("foo", "bar")
-	m := h.Map(part)
+	bag := PartBagByName("foo", "bar")
+	m := bag.Map(part)
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":             "foo",
 		"origin":           "bar",
@@ -216,7 +216,7 @@ func (s *huskSuite) TestMapAppWithPart(c *check.C) {
 	})
 }
 
-func (s *huskSuite) TestMapAppNoHusk(c *check.C) {
+func (s *lightweightSuite) TestMapAppNoPartBag(c *check.C) {
 	snap := remote.Snap{
 		Name:         "foo",
 		Origin:       "bar",
@@ -228,7 +228,7 @@ func (s *huskSuite) TestMapAppNoHusk(c *check.C) {
 	}
 	part := snappy.NewRemoteSnapPart(snap)
 
-	m := (*Husk)(nil).Map(part)
+	m := (*PartBag)(nil).Map(part)
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":           "foo",
 		"origin":         "bar",
@@ -244,9 +244,9 @@ func (s *huskSuite) TestMapAppNoHusk(c *check.C) {
 
 }
 
-func (s *huskSuite) TestMapRemovedAppNoPart(c *check.C) {
-	h := ByName("foo", "baz")
-	m := h.Map(nil)
+func (s *lightweightSuite) TestMapRemovedAppNoPart(c *check.C) {
+	bag := PartBagByName("foo", "baz")
+	m := bag.Map(nil)
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":           "foo",
 		"origin":         "baz",
@@ -261,9 +261,9 @@ func (s *huskSuite) TestMapRemovedAppNoPart(c *check.C) {
 	})
 }
 
-func (s *huskSuite) TestMapInactiveOemNoPart(c *check.C) {
-	h := ByName("oem", "canonical")
-	m := h.Map(nil)
+func (s *lightweightSuite) TestMapInactiveOemNoPart(c *check.C) {
+	bag := PartBagByName("oem", "canonical")
+	m := bag.Map(nil)
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":           "oem",
 		"origin":         "sideload", // best guess
@@ -278,103 +278,103 @@ func (s *huskSuite) TestMapInactiveOemNoPart(c *check.C) {
 	})
 }
 
-func (s *huskSuite) TestLoadBadApp(c *check.C) {
+func (s *lightweightSuite) TestLoadBadApp(c *check.C) {
 	s.MkRemoved(c, "quux.blah", "1")
 	// an unparsable package.yaml:
 	c.Check(os.MkdirAll(filepath.Join(dirs.SnapAppsDir, "quux.blah", "1", "meta", "package.yaml"), 0755), check.IsNil)
 
-	h := ByName("quux", "blah")
-	c.Assert(h, check.NotNil)
-	c.Assert(h.Versions, check.DeepEquals, []string{"1"})
+	bag := PartBagByName("quux", "blah")
+	c.Assert(bag, check.NotNil)
+	c.Assert(bag.Versions, check.DeepEquals, []string{"1"})
 
-	p, err := h.Load(0)
+	p, err := bag.Load(0)
 	c.Check(err, check.NotNil)
 	c.Check(p, check.IsNil)
 	c.Check(p == nil, check.Equals, true) // NOTE this is stronger than the above
 }
 
-func (s *huskSuite) TestLoadFmk(c *check.C) {
-	h := ByName("fmk", "")
-	c.Assert(h, check.NotNil)
-	c.Assert(h.Versions, check.HasLen, 4)
+func (s *lightweightSuite) TestLoadFmk(c *check.C) {
+	bag := PartBagByName("fmk", "")
+	c.Assert(bag, check.NotNil)
+	c.Assert(bag.Versions, check.HasLen, 4)
 	// versions are sorted backwards by version -- index 0 is always newest version
-	c.Check(h.Versions, check.DeepEquals, []string{"123", "120", "119", "12a1"})
+	c.Check(bag.Versions, check.DeepEquals, []string{"123", "120", "119", "12a1"})
 	// other things are as expected
-	c.Check(h.Name, check.Equals, "fmk")
-	c.Check(h.Type, check.Equals, pkg.TypeFramework)
-	c.Check(h.ActiveIndex(), check.Equals, 1)
+	c.Check(bag.Name, check.Equals, "fmk")
+	c.Check(bag.Type, check.Equals, pkg.TypeFramework)
+	c.Check(bag.ActiveIndex(), check.Equals, 1)
 
-	c.Check(h.IsInstalled(0), check.Equals, true)
-	p, err := h.Load(0)
+	c.Check(bag.IsInstalled(0), check.Equals, true)
+	p, err := bag.Load(0)
 	c.Check(err, check.IsNil)
 	// load loaded the right implementation of Part
 	c.Check(p, check.FitsTypeOf, new(snappy.SnapPart))
 	c.Check(p.IsActive(), check.Equals, false)
 	c.Check(p.Version(), check.Equals, "123")
 
-	c.Check(h.IsInstalled(1), check.Equals, true)
-	p, err = h.Load(1)
+	c.Check(bag.IsInstalled(1), check.Equals, true)
+	p, err = bag.Load(1)
 	c.Check(err, check.IsNil)
 	c.Check(p, check.FitsTypeOf, new(snappy.SnapPart))
 	c.Check(p.IsActive(), check.Equals, true)
 	c.Check(p.Version(), check.Equals, "120")
 
-	c.Check(h.IsInstalled(2), check.Equals, true)
-	p, err = h.Load(2)
+	c.Check(bag.IsInstalled(2), check.Equals, true)
+	p, err = bag.Load(2)
 	c.Check(err, check.IsNil)
 	c.Check(p, check.FitsTypeOf, new(snappy.SnapPart))
 	c.Check(p.IsActive(), check.Equals, false)
 	c.Check(p.Version(), check.Equals, "119")
 
-	c.Check(h.IsInstalled(3), check.Equals, false)
-	p, err = h.Load(3)
+	c.Check(bag.IsInstalled(3), check.Equals, false)
+	p, err = bag.Load(3)
 	c.Check(err, check.IsNil)
 	c.Check(p, check.FitsTypeOf, new(removed.Removed))
 	c.Check(p.Version(), check.Equals, "12a1")
 
-	_, err = h.Load(42)
+	_, err = bag.Load(42)
 	c.Check(err, check.Equals, ErrBadVersionIndex)
 
 }
 
-func (s *huskSuite) TestLoadApp(c *check.C) {
-	h0 := ByName("foo", "bar")
-	h1 := ByName("foo", "baz")
+func (s *lightweightSuite) TestLoadApp(c *check.C) {
+	bag0 := PartBagByName("foo", "bar")
+	bag1 := PartBagByName("foo", "baz")
 
-	c.Check(h0.QualifiedName(), check.Equals, "foo.bar")
-	c.Check(h0.Versions, check.DeepEquals, []string{"1.0", "0.9"})
-	c.Check(h0.Type, check.Equals, pkg.TypeApp)
-	c.Check(h0.ActiveIndex(), check.Equals, 0)
+	c.Check(bag0.QualifiedName(), check.Equals, "foo.bar")
+	c.Check(bag0.Versions, check.DeepEquals, []string{"1.0", "0.9"})
+	c.Check(bag0.Type, check.Equals, pkg.TypeApp)
+	c.Check(bag0.ActiveIndex(), check.Equals, 0)
 
-	c.Check(h1.QualifiedName(), check.Equals, "foo.baz")
-	c.Check(h1.Versions, check.DeepEquals, []string{"0.8"})
-	c.Check(h1.Type, check.Equals, pkg.TypeApp)
-	c.Check(h1.ActiveIndex(), check.Equals, -1)
+	c.Check(bag1.QualifiedName(), check.Equals, "foo.baz")
+	c.Check(bag1.Versions, check.DeepEquals, []string{"0.8"})
+	c.Check(bag1.Type, check.Equals, pkg.TypeApp)
+	c.Check(bag1.ActiveIndex(), check.Equals, -1)
 
-	c.Check(h0.IsInstalled(0), check.Equals, true)
-	p, err := h0.Load(0)
+	c.Check(bag0.IsInstalled(0), check.Equals, true)
+	p, err := bag0.Load(0)
 	c.Check(err, check.IsNil)
 	c.Check(p, check.FitsTypeOf, new(snappy.SnapPart))
 	c.Check(p.IsActive(), check.Equals, true)
 	c.Check(p.Version(), check.Equals, "1.0")
 
-	c.Check(h0.IsInstalled(1), check.Equals, false)
-	p, err = h0.Load(1)
+	c.Check(bag0.IsInstalled(1), check.Equals, false)
+	p, err = bag0.Load(1)
 	c.Check(err, check.IsNil)
 	c.Check(p, check.FitsTypeOf, new(removed.Removed))
 	c.Check(p.IsActive(), check.Equals, false)
 	c.Check(p.Version(), check.Equals, "0.9")
 
-	c.Check(h1.IsInstalled(0), check.Equals, false)
-	p, err = h1.Load(0)
+	c.Check(bag1.IsInstalled(0), check.Equals, false)
+	p, err = bag1.Load(0)
 	c.Check(err, check.IsNil)
 	c.Check(p, check.FitsTypeOf, new(removed.Removed))
 	c.Check(p.IsActive(), check.Equals, false)
 	c.Check(p.Version(), check.Equals, "0.8")
 }
 
-func (s *huskSuite) TestLoadOem(c *check.C) {
-	oem := ByName("oem", "whatever")
+func (s *lightweightSuite) TestLoadOem(c *check.C) {
+	oem := PartBagByName("oem", "whatever")
 	c.Assert(oem, check.NotNil)
 	c.Check(oem.Versions, check.DeepEquals, []string{"3"})
 	c.Check(oem.Type, check.Equals, pkg.TypeOem)
@@ -393,8 +393,8 @@ func (r mockrepo) All() ([]snappy.Part, error) {
 	return []snappy.Part{r.p}, nil
 }
 
-func (s *huskSuite) TestLoadCore(c *check.C) {
-	core := ByName(snappy.SystemImagePartName, snappy.SystemImagePartOrigin)
+func (s *lightweightSuite) TestLoadCore(c *check.C) {
+	core := PartBagByName(snappy.SystemImagePartName, snappy.SystemImagePartOrigin)
 	c.Assert(core, check.NotNil)
 	c.Check(core.Versions, check.DeepEquals, []string{"1"})
 
@@ -405,8 +405,8 @@ func (s *huskSuite) TestLoadCore(c *check.C) {
 	c.Check(p.Version(), check.Equals, "1")
 }
 
-func (s *huskSuite) TestAll(c *check.C) {
-	all := All()
+func (s *lightweightSuite) TestAll(c *check.C) {
+	all := AllPartBags()
 
 	c.Check(all, check.HasLen, 6) // 2 fmk, 2 app, 1 oem, 1 core
 }
