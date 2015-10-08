@@ -25,20 +25,10 @@ import (
 
 	"gopkg.in/check.v1"
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
+	"launchpad.net/snappy/_integration-tests/testutils/data"
 )
-
-const (
-	// BaseSnapPath is the path for the snap sources used in testing
-	BaseSnapPath = "_integration-tests/data/snaps"
-	// BasicSnapName is the name of the basic snap
-	BasicSnapName = "basic"
-	// WrongYamlSnapName is the name of a snap with an invalid meta yaml
-	WrongYamlSnapName = "wrong-yaml"
-	// MissingReadmeSnapName is the name of a snap without readme
-	MissingReadmeSnapName = "missing-readme"
-
-	snapFilenameSufix = "_1.0_all.snap"
-)
+	
+const	snapFilenameSufix = "_1.0_all.snap"
 
 var (
 	// dependency aliasing
@@ -67,5 +57,5 @@ func LocalSnap(c *check.C, snapName string) (snapPath string, err error) {
 }
 
 func buildPath(snap string) string {
-	return filepath.Join(BaseSnapPath, snap)
+	return filepath.Join(data.BaseSnapPath, snap)
 }

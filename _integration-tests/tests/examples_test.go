@@ -29,6 +29,23 @@ import (
 	"gopkg.in/check.v1"
 )
 
+var _ = check.Suite(&helloWorldExampleSuite{})
+
+type helloWorldExampleSuite struct {
+	common.SnappySuite
+}
+
+func (s *helloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
+	common.InstallSnap(c, "hello-world")
+	s.AddCleanup(func() {
+		common.RemoveSnap(c, "hello-world")
+	})
+
+	echoOutput := cli.ExecCommand(c, "hello-world.echo")
+
+	c.Assert(echoOutput, check.Equals, "Hello World!\n")
+}
+
 var _ = check.Suite(&webserverExampleSuite{})
 
 type webserverExampleSuite struct {

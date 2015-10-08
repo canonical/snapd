@@ -26,6 +26,7 @@ import (
 
 	"launchpad.net/snappy/_integration-tests/testutils/build"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/data"	
 
 	"gopkg.in/check.v1"
 )
@@ -38,37 +39,37 @@ type buildSuite struct {
 
 func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
 	// build basic snap and check output
-	snapPath, err := build.LocalSnap(c, build.BasicSnapName)
+	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil)
 
 	// install built snap and check output
 	installOutput := common.InstallSnap(c, snapPath)
-	defer common.RemoveSnap(c, build.BasicSnapName)
+	defer common.RemoveSnap(c, data.BasicSnapName)
 	expected := "(?ms)" +
 		"Installing " + snapPath + "\n" +
 		".*Signature check failed, but installing anyway as requested\n" +
 		"Name +Date +Version +Developer \n" +
 		".*\n" +
-		build.BasicSnapName + " +.* +.* +sideload  \n" +
+		data.BasicSnapName + " +.* +.* +sideload  \n" +
 		".*\n"
 
 	c.Check(installOutput, check.Matches, expected)
 }
 
 func (s *buildSuite) TestBuildWrongYamlSnapOnSnappy(c *check.C) {
-	commonWrongTest(c, build.WrongYamlSnapName,
+	commonWrongTest(c, data.WrongYamlSnapName,
 		"(?msi).*Can not parse.*yaml: line 2: mapping values are not allowed in this context.*")
 }
 
 func (s *buildSuite) TestBuildMissingReadmeSnapOnSnappy(c *check.C) {
-	commonWrongTest(c, build.MissingReadmeSnapName,
+	commonWrongTest(c, data.MissingReadmeSnapName,
 		".*readme.md: no such file or directory\n")
 }
 
 func commonWrongTest(c *check.C, testName, expected string) {
 	// build wrong snap and check error
-	cmd := exec.Command("snappy", "build", fmt.Sprintf("%s/%s", build.BaseSnapPath, testName))
+	cmd := exec.Command("snappy", "build", fmt.Sprintf("%s/%s", data.BaseSnapPath, testName))
 	echoOutput, err := cmd.CombinedOutput()
 	c.Assert(err, check.NotNil, check.Commentf("%s should not be built", testName))
 
