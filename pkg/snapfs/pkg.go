@@ -44,6 +44,32 @@ func New(path string) *Snap {
 	return &Snap{path: path}
 }
 
+// Close is not doing anything for snapfs - COMPAT
+func (s *Snap) Close() error {
+	return nil
+}
+
+// ControlMember extracts from meta/ - COMPAT
+func (s *Snap) ControlMember(controlMember string) ([]byte, error) {
+	return s.ReadFile(filepath.Join("DEBIAN", controlMember))
+}
+
+// MetaMember extracts from meta/ - COMPAT
+func (s *Snap) MetaMember(metaMember string) ([]byte, error) {
+	return s.ReadFile(filepath.Join("meta", metaMember))
+}
+
+// ExtractHashes does notthing for snapfs snaps - COMAPT
+func (s *Snap) ExtractHashes(dir string) error {
+	return nil
+}
+
+// UnpackWithDropPrivs unpacks the meta and puts stuff in place - COMAPT
+func (s *Snap) UnpackWithDropPrivs(instDir, rootdir string) error {
+	// FIXME: actually drop privs
+	return s.Unpack("*", instDir)
+}
+
 // UnpackMeta unpacks just the meta/* directory of the given snap
 func (s *Snap) UnpackMeta(dst string) error {
 	if err := s.Unpack("meta/*", dst); err != nil {
