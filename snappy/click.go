@@ -431,13 +431,19 @@ func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile str
 		socketFileName = filepath.Base(generateSocketFileName(m, service))
 	}
 
+	// add runDir if needed (for squashfs mounts)
+	appPath := baseDir
+	if m.runDir != "" {
+		appPath = filepath.Join(baseDir, m.runDir)
+	}
+	
 	return systemd.New(dirs.GlobalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
 			AppName:        m.Name,
 			ServiceName:    service.Name,
 			Version:        m.Version,
 			Description:    desc,
-			AppPath:        filepath.Join(baseDir, m.runDir),
+			AppPath:        appPath,
 			Start:          service.Start,
 			Stop:           service.Stop,
 			PostStop:       service.PostStop,
