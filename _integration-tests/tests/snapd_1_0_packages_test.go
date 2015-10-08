@@ -23,6 +23,7 @@ import (
 	"os"
 
 	"launchpad.net/snappy/_integration-tests/testutils/build"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
 
 	"gopkg.in/check.v1"
 )
@@ -70,6 +71,7 @@ func (s *snapd10PackagesTestSuite) SetUpTest(c *check.C) {
 func (s *snapd10PackagesTestSuite) TearDownTest(c *check.C) {
 	s.snapdTestSuite.TearDownTest(c)
 	os.Remove(s.snapPath)
+	common.RemoveSnap(c, build.BasicSnapName)
 }
 
 func (s *snapd10PackagesTestSuite) resource() string {
