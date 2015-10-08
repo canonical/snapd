@@ -125,6 +125,20 @@ func (ts *HTestSuite) TestChdir(c *C) {
 	})
 }
 
+func (ts *HTestSuite) TestChdirErrorNoDir(c *C) {
+	err := ChDir("random-dir-that-does-not-exist", func() error {
+		return nil
+	})
+	c.Assert(err, ErrorMatches, "chdir .*: no such file or directory")
+}
+
+func (ts *HTestSuite) TestChdirErrorFromFunc(c *C) {
+	err := ChDir("/", func() error {
+		return fmt.Errorf("meep")
+	})
+	c.Assert(err, ErrorMatches, "meep")
+}
+
 func (ts *HTestSuite) TestExitCode(c *C) {
 	cmd := exec.Command("true")
 	err := cmd.Run()
