@@ -21,7 +21,9 @@ package tests
 
 import (
 	"fmt"
+	"os"
 
+	"launchpad.net/snappy/_integration-tests/testutils/build"
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 
@@ -53,15 +55,17 @@ func (s *infoSuite) TestInfoMustPrintReleaseAndChannel(c *check.C) {
 }
 
 func (s *infoSuite) TestInfoMustPrintInstalledApps(c *check.C) {
-	common.InstallSnap(c, "hello-world")
-	s.AddCleanup(func() {
-		common.RemoveSnap(c, "hello-world")
-	})
+	snapPath, err := build.LocalSnap(c, build.BasicSnapName)
+	defer os.Remove(snapPath)
+	c.Assert(err, check.IsNil)
+	common.InstallSnap(c, snapPath)
+	defer common.RemoveSnap(c, build.BasicSnapName)
+
 	infoOutput := cli.ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms)" +
 		".*" +
-		"^apps: .*hello-world.*\n"
+		"^apps: .*" + build.BasicSnapName + "\\.sideload.*\n"
 	c.Assert(infoOutput, check.Matches, expected)
 }
 
