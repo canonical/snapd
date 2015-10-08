@@ -144,6 +144,12 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 	rsp, ok := getPackageInfo(packageCmd, nil).(*resp)
 	c.Assert(ok, check.Equals, true)
 
+	// installed_size depends on vagaries of the filesystem, just check regexp
+	c.Assert(rsp, check.NotNil)
+	c.Assert(rsp.Result, check.NotNil)
+	c.Check(rsp.Result["installed_size"], check.Matches, "[0-9]+")
+	delete(rsp.Result, "installed_size")
+
 	expected := &resp{
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
@@ -157,7 +163,6 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 			"icon":               "/1.0/icons/foo.bar/icon",
 			"type":               string(pkg.TypeApp),
 			"download_size":      "2",
-			"installed_size":     "180",
 			"resource":           "/1.0/packages/foo.bar",
 			"update_available":   "v2",
 			"rollback_available": "v0",
