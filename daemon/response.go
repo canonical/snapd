@@ -39,7 +39,7 @@ const (
 	ResponseTypeError ResponseType = "error"
 )
 
-// Response knows how to render itself, how to handle itself, and how to find itself
+// Response knows how to serve itself, and how to find itself
 type Response interface {
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
 	Self(*Command, *http.Request) Response // has the same arity as ResponseFunc for convenience
