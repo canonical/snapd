@@ -20,10 +20,12 @@
 package snappy
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 
@@ -138,7 +140,8 @@ integration:
 	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_multi.snap").Output()
 	c.Assert(err, IsNil)
 	for _, needle := range []string{"./meta/package.yaml", "./meta/readme.md", "./bin/hello-world", "./symlink -> bin/hello-world"} {
-		c.Assert(strings.Contains(string(readFiles), needle), Equals, true)
+		expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta(needle))
+		c.Assert(string(readFiles), Matches, expr)
 	}
 }
 
@@ -425,7 +428,8 @@ integration:
 	readFiles, err := exec.Command("dpkg-deb", "-c", snapOutput).Output()
 	c.Assert(err, IsNil)
 	for _, needle := range []string{"./meta/package.yaml", "./meta/readme.md", "./bin/hello-world"} {
-		c.Assert(strings.Contains(string(readFiles), needle), Equals, true)
+		expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta(needle))
+		c.Assert(string(readFiles), Matches, expr)
 	}
 }
 
@@ -522,6 +526,7 @@ integration:
 		"bin/hello-world",
 		"symlink -> bin/hello-world",
 	} {
-		c.Assert(strings.Contains(string(output), needle), Equals, true)
+		expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta(needle))
+		c.Assert(string(output), Matches, expr)
 	}
 }

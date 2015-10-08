@@ -33,17 +33,10 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-// systemd's testsuite
 type SquashfsTestSuite struct {
 }
 
 var _ = Suite(&SquashfsTestSuite{})
-
-func (s *SquashfsTestSuite) SetUpTest(c *C) {
-}
-
-func (s *SquashfsTestSuite) TearDownTest(c *C) {
-}
 
 func makeSnap(c *C, manifest, data string) *Snap {
 	tmp := c.MkDir()

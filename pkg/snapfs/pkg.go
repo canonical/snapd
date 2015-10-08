@@ -55,17 +55,9 @@ func (s *Snap) UnpackMeta(dst string) error {
 
 // Unpack unpacks the src (which may be a glob into the given target dir
 func (s *Snap) Unpack(src, dstDir string) error {
-	tmpdir, err := ioutil.TempDir("", "unpack-file")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmpdir)
-
 	cmd := exec.Command("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src)
-	//cmd.Stdout = os.Stdout
-	//cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("unpack failed: %v", err)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("unpack failed: %v (%v)", err, output)
 	}
 
 	return nil
@@ -81,10 +73,8 @@ func (s *Snap) ReadFile(path string) (content []byte, err error) {
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
 	cmd := exec.Command("unsquashfs", "-i", "-d", unpackDir, s.path, path)
-	//cmd.Stdout = os.Stdout
-	//cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("ReadFile %s failed: %v", path, err)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("ReadFile %q failed: %v (%v)", path, err, output)
 	}
 
 	return ioutil.ReadFile(filepath.Join(unpackDir, path))
@@ -92,11 +82,10 @@ func (s *Snap) ReadFile(path string) (content []byte, err error) {
 
 // CopyBlob copies the snap to a new place
 func (s *Snap) CopyBlob(targetFile string) error {
+	// FIXME: helpers.CopyFile() has no preserve attribute flag yet
 	cmd := exec.Command("cp", "-a", s.path, targetFile)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("cp %s %s failed: %v", s.path, targetFile, err)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("cp %q %q failed: %v (%v)", s.path, targetFile, err, output)
 	}
 
 	return nil
@@ -104,7 +93,9 @@ func (s *Snap) CopyBlob(targetFile string) error {
 
 // Verify verifies the snap
 func (s *Snap) Verify(unauthOk bool) error {
-	// FIMXE: meh, meh, bä
+	// FIMXE: there is no verification yet for snapfs packages, this
+	//        will be done via assertions later for now we rely on
+	//        the https security
 	return nil
 }
 
@@ -122,10 +113,8 @@ func (s *Snap) Build(buildDir string) error {
 			"-all-root",
 			"-noappend",
 			"-comp", "xz")
-		//cmd.Stdout = os.Stdout
-		//cmd.Stderr = os.Stderr
-		if aerr := cmd.Run(); aerr != nil {
-			err = fmt.Errorf("mksquashfs failed: %v", aerr)
+		if output, aerr := cmd.CombinedOutput(); aerr != nil {
+			err = fmt.Errorf("mksquashfs failed: %v (%v)", aerr, output)
 		}
 	})
 
