@@ -27,6 +27,8 @@ import (
 	"strings"
 	"testing"
 
+	"launchpad.net/snappy/helpers"
+
 	. "gopkg.in/check.v1"
 )
 
@@ -53,7 +55,7 @@ func makeSnap(c *C, manifest, data string) *Snap {
 	c.Assert(err, IsNil)
 
 	// some data
-	err = ioutil.WriteFile(filepath.Join(tmp, "data"), []byte(data), 0644)
+	err = ioutil.WriteFile(filepath.Join(tmp, "data.bin"), []byte(data), 0644)
 	c.Assert(err, IsNil)
 
 	// build it
@@ -65,6 +67,23 @@ func makeSnap(c *C, manifest, data string) *Snap {
 	return snap
 }
 
+func (s *SquashfsTestSuite) SetUpTest(c *C) {
+	err := os.Chdir(c.MkDir())
+	c.Assert(err, IsNil)
+}
+
+func (s *SquashfsTestSuite) TestName(c *C) {
+	snap := New("/path/to/foo.snap")
+	c.Assert(snap.Name(), Equals, "foo.snap")
+}
+
+// FIXME: stub that needs to be fleshed out once assertions land
+//        and we actually do verify
+func (s *SquashfsTestSuite) TestVerify(c *C) {
+	err := New("foo").Verify(false)
+	c.Assert(err, IsNil)
+}
+
 func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	snap := makeSnap(c, "name: foo", "")
 
@@ -73,24 +92,50 @@ func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	c.Assert(string(content), Equals, "name: foo")
 }
 
-func (s *SquashfsTestSuite) TestUnpack(c *C) {
+func (s *SquashfsTestSuite) TestCopyBlob(c *C) {
+	snap := makeSnap(c, "name: foo", "")
+	dst := filepath.Join(c.MkDir(), "blob.snap")
+
+	err := snap.CopyBlob(dst)
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FilesAreEqual(snap.Name(), dst), Equals, true)
+}
+
+func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
 	data := "some random data"
 	snap := makeSnap(c, "", data)
 
 	outputDir := c.MkDir()
-	err := snap.Unpack("data", outputDir)
+	err := snap.Unpack("data*", outputDir)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(outputDir, "data"))
+	// this is the file we expect
+	content, err := ioutil.ReadFile(filepath.Join(outputDir, "data.bin"))
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, data)
+
+	// ensure glob was honored
+	c.Assert(helpers.FileExists(filepath.Join(outputDir, "meta/package.yaml")), Equals, false)
+}
+
+func (s *SquashfsTestSuite) TestUnpackMeta(c *C) {
+	snap := makeSnap(c, "", "random-data")
+
+	outputDir := c.MkDir()
+	err := snap.UnpackMeta(outputDir)
+	c.Assert(err, IsNil)
+
+	// we got the meta/ stuff
+	c.Assert(helpers.FileExists(filepath.Join(outputDir, "meta/package.yaml")), Equals, true)
+	// ... but not the data
+	c.Assert(helpers.FileExists(filepath.Join(outputDir, "data.bin")), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestBuild(c *C) {
 	buildDir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(buildDir, "data"), []byte("data"), 0644)
+	err = ioutil.WriteFile(filepath.Join(buildDir, "data.bin"), []byte("data"), 0644)
 	c.Assert(err, IsNil)
 
 	snap := New(filepath.Join(c.MkDir(), "foo.snap"))
@@ -105,7 +150,7 @@ func (s *SquashfsTestSuite) TestBuild(c *C) {
 	split := strings.Split(string(outputWithHeader), "\n")
 	output := strings.Join(split[3:], "\n")
 	c.Assert(string(output), Equals, `squashfs-root
-squashfs-root/data
+squashfs-root/data.bin
 squashfs-root/random
 squashfs-root/random/dir
 `)
