@@ -278,8 +278,8 @@ func generateBinaryName(m *packageYaml, binary Binary) string {
 	return filepath.Join(dirs.SnapBinariesDir, binName)
 }
 
-func binPathForBinary(pkgPath string, binary Binary) string {
-	return filepath.Join(pkgPath, binary.Exec)
+func binPathForBinary(pkgPath, runDir string, binary Binary) string {
+	return filepath.Join(pkgPath, runDir, binary.Exec)
 }
 
 func verifyBinariesYaml(binary Binary) error {
@@ -321,7 +321,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		return "", err
 	}
 
-	actualBinPath := binPathForBinary(pkgPath, binary)
+	actualBinPath := binPathForBinary(pkgPath, m.runDir, binary)
 	udevPartName := m.qualifiedName(origin)
 
 	var templateOut bytes.Buffer
@@ -437,7 +437,7 @@ func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile str
 			ServiceName:    service.Name,
 			Version:        m.Version,
 			Description:    desc,
-			AppPath:        baseDir,
+			AppPath:        filepath.Join(baseDir, m.runDir),
 			Start:          service.Start,
 			Stop:           service.Stop,
 			PostStop:       service.PostStop,

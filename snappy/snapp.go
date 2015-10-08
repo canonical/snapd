@@ -236,6 +236,10 @@ type packageYaml struct {
 
 	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement,omitempty"`
 	LicenseVersion           string `yaml:"license-version,omitempty"`
+
+	// FIXME: HACK to workaround the fact that a squashfs snap
+	//        is mounted to $basedir/run instead of $basedir/
+	runDir string
 }
 
 type remoteSnap struct {
@@ -641,7 +645,7 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 	// read hash, its ok if its not there, some older versions of
 	// snappy did not write this file
 	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes.yaml"))
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
@@ -1027,6 +1031,10 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
+	// FIXME: UGLY!
+	if s.deb != nil {
+		s.m.runDir = s.deb.RunPrefix()
+	}
 	// add the "binaries:" from the package.yaml
 	if err := s.m.addPackageBinaries(s.basedir); err != nil {
 		return err
@@ -1034,6 +1042,13 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	// add the "services:" from the package.yaml
 	if err := s.m.addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
 		return err
+	}
+	// generate the automount unit for the squashfs
+	// FIXME: this is ugly
+	if s.deb != nil && s.deb.NeedsAutoMountUnit() {
+		if err := s.m.addSnapfsAutomount(s.basedir, inhibitHooks, inter); err != nil {
+			return err
+		}
 	}
 
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
@@ -1083,6 +1098,9 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	if err := s.m.removeSecurityPolicy(s.basedir); err != nil {
+		return err
+	}
+	if err := s.m.removeSnapfsAutomount(s.basedir, inter); err != nil {
 		return err
 	}
 
@@ -1144,6 +1162,9 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 	if err := removeClickHooks(s.m, s.origin, false); err != nil {
 		return err
 	}
+
+	// unmount squashfs but ignore errors as its ok if the fs is not mounted
+	exec.Command("unmount", "--lazy", filepath.Join(s.basedir)).Run()
 
 	if err := s.deactivate(false, inter); err != nil && err != ErrSnapNotActive {
 		return err
@@ -2009,4 +2030,76 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	}
 
 	return env
+}
+
+func mountUnitPath(baseDir, ext string) string {
+	mountPath := filepath.Join(baseDir, "run")
+	// FIXME: use github.com/coreos/go-systemd/unit/escape.go
+	//        once we can update go-systemd. we can not right now
+	//        because versions >= 2 are not compatible with go1.3 from
+	//        15.04
+	p, _ := exec.Command("systemd-escape", mountPath[1:]).Output()
+	escapedPath := strings.TrimSpace(string(p))
+	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s.%s", escapedPath, ext))
+}
+
+func (m *packageYaml) addSnapfsAutomount(baseDir string, inhibitHooks bool, inter interacter) error {
+	squashfsPath := fmt.Sprintf("%s/blob.snap", baseDir)
+
+	mountUnit := fmt.Sprintf(`[Unit]
+Description=Snapfs automount unit for %s
+
+[Mount]
+What=%s
+Where=%s/run
+`, m.Name, squashfsPath, baseDir)
+
+	autoMountUnit := fmt.Sprintf(`[Unit]
+Description=Snapfs automount unit for %s
+
+[Automount]
+Where=%s/run
+TimeoutIdleSec=30
+
+[Install]
+WantedBy=multi-user.target
+`, m.Name, baseDir)
+
+	if err := ioutil.WriteFile(mountUnitPath(baseDir, "mount"), []byte(mountUnit), 0644); err != nil {
+		return err
+	}
+
+	if err := ioutil.WriteFile(mountUnitPath(baseDir, "automount"), []byte(autoMountUnit), 0644); err != nil {
+		return err
+	}
+
+	// we always enable the mount unit even in inhibit hooks
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
+	autoMountUnitName := filepath.Base(mountUnitPath(baseDir, "automount"))
+	if err := sysd.Enable(autoMountUnitName); err != nil {
+		return err
+	}
+
+	if !inhibitHooks {
+		return sysd.Start(autoMountUnitName)
+	}
+
+	return nil
+}
+
+func (m *packageYaml) removeSnapfsAutomount(baseDir string, inter interacter) error {
+	// ignore error
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
+
+	for _, s := range []string{"mount", "automount"} {
+		unit := mountUnitPath(baseDir, s)
+		if helpers.FileExists(unit) {
+			_ = sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second))
+			if err := os.Remove(unit); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

@@ -36,6 +36,9 @@ type PackageInterface interface {
 	ControlMember(name string) ([]byte, error)
 	MetaMember(name string) ([]byte, error)
 	ExtractHashes(targetDir string) error
+
+	NeedsAutoMountUnit() bool
+	RunPrefix() string
 }
 
 func byteSliceEqual(a, b []byte) bool {

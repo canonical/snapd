@@ -39,6 +39,16 @@ func (s *Snap) Name() string {
 	return filepath.Base(s.path)
 }
 
+// NeedsAutoMountUnit returns false
+func (s *Snap) NeedsAutoMountUnit() bool {
+	return true
+}
+
+// RunPrefix returns the path where the runtime stuff is located
+func (s *Snap) RunPrefix() string {
+	return "run"
+}
+
 // New returns a new Snapfs snap
 func New(path string) *Snap {
 	return &Snap{path: path}
@@ -67,7 +77,11 @@ func (s *Snap) ExtractHashes(dir string) error {
 // UnpackWithDropPrivs unpacks the meta and puts stuff in place - COMAPT
 func (s *Snap) UnpackWithDropPrivs(instDir, rootdir string) error {
 	// FIXME: actually drop privs
-	return s.Unpack("*", instDir)
+	if err := s.UnpackMeta(instDir); err != nil {
+		return err
+	}
+
+	return s.CopyBlob(filepath.Join(instDir, "blob.snap"))
 }
 
 // UnpackMeta unpacks just the meta/* directory of the given snap

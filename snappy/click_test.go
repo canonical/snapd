@@ -822,7 +822,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
 	binary := Binary{Name: "pastebinit", Exec: "bin/pastebinit"}
 	pkgPath := "/apps/pastebinit.mvo/1.0/"
-	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/apps/pastebinit.mvo/1.0/bin/pastebinit")
+	c.Assert(binPathForBinary(pkgPath, "", binary), Equals, "/apps/pastebinit.mvo/1.0/bin/pastebinit")
 }
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
@@ -831,7 +831,7 @@ func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
 		Exec: "bin/random-pastebin",
 	}
 	pkgPath := "/apps/pastebinit.mvo/1.1/"
-	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/apps/pastebinit.mvo/1.1/bin/random-pastebin")
+	c.Assert(binPathForBinary(pkgPath, "", binary), Equals, "/apps/pastebinit.mvo/1.1/bin/random-pastebin")
 }
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {
