@@ -93,7 +93,7 @@ func (s *Snap) CopyBlob(targetFile string) error {
 
 // Verify verifies the snap
 func (s *Snap) Verify(unauthOk bool) error {
-	// FIMXE: there is no verification yet for snapfs packages, this
+	// FIXME: there is no verification yet for snapfs packages, this
 	//        will be done via assertions later for now we rely on
 	//        the https security
 	return nil
