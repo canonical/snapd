@@ -20,12 +20,10 @@
 package tests
 
 import (
-	"net/http"
 	"os/exec"
 
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
 )
@@ -82,23 +80,6 @@ func (s *installAppSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *ch
 		"cannot create /var/tmp/myevil.txt: Permission denied\n"
 
 	c.Assert(string(echoOutput), check.Matches, expected)
-}
-
-func (s *installAppSuite) TestAppNetworkingServiceMustBeStarted(c *check.C) {
-	baseAppName := "xkcd-webserver"
-	appName := baseAppName + ".canonical"
-	common.InstallSnap(c, appName)
-	s.AddCleanup(func() {
-		common.RemoveSnap(c, appName)
-	})
-
-	err := wait.ForServerOnPort(c, 80)
-	c.Assert(err, check.IsNil)
-
-	resp, err := http.Get("http://localhost")
-	c.Assert(err, check.IsNil)
-	c.Check(resp.Status, check.Equals, "200 OK")
-	c.Assert(resp.Proto, check.Equals, "HTTP/1.0")
 }
 
 func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
