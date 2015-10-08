@@ -181,7 +181,7 @@ type SnapPart struct {
 	isActive    bool
 	isInstalled bool
 	description string
-	deb         PackageInterface
+	deb         PackageFile
 	basedir     string
 }
 
@@ -432,7 +432,7 @@ func (m *packageYaml) checkForFrameworks() error {
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func (m *packageYaml) checkLicenseAgreement(ag agreer, d PackageInterface, currentActiveDir string) error {
+func (m *packageYaml) checkLicenseAgreement(ag agreer, d PackageFile, currentActiveDir string) error {
 	if !m.ExplicitLicenseAgreement {
 		return nil
 	}
