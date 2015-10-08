@@ -354,7 +354,7 @@ func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
 
 	for i := range ddirs {
 		qn, version := ddirs[i][0], ddirs[i][1]
-		idx := strings.LastIndexByte(qn, '.')
+		idx := strings.LastIndex(qn, ".")
 		name, origin := qn[:idx], qn[idx+1:]
 		got := packages[qn]
 		c.Assert(got, check.NotNil, check.Commentf(qn))
