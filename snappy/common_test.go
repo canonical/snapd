@@ -39,6 +39,9 @@ const (
 	helloAppComposedName = "hello-app.testspacethename"
 )
 
+// here to make it easy to switch in tests to "BuildSnapfsSnap"
+var snapBuilderFunc = BuildLegacySnap
+
 // makeInstalledMockSnap creates a installed mock snap without any
 // content other than the meta data
 func makeInstalledMockSnap(tempdir, packageYamlContent string) (yamlFile string, err error) {
@@ -142,7 +145,7 @@ vendor: Foo Bar <foo@example.com>
 	// build it
 	err := helpers.ChDir(tmpdir, func() error {
 		var err error
-		snapFile, err = BuildLegacySnap(tmpdir, "")
+		snapFile, err = snapBuilderFunc(tmpdir, "")
 		c.Assert(err, IsNil)
 		return err
 	})
