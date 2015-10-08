@@ -151,7 +151,7 @@ func (s *lightweightSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
 	content, err := yaml.Marshal(snap)
 	c.Assert(err, check.IsNil)
 
-	p := snappy.ManifestPath(part)
+	p := snappy.RemoteManifestPath(part)
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(p, content, 0644), check.IsNil)
 
