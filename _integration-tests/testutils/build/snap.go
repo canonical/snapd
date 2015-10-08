@@ -27,8 +27,8 @@ import (
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/data"
 )
-	
-const	snapFilenameSufix = "_1.0_all.snap"
+
+const snapFilenameSufix = "_1.0_all.snap"
 
 var (
 	// dependency aliasing

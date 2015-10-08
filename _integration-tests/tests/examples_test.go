@@ -22,7 +22,7 @@ package tests
 import (
 	"net/http"
 
-  "launchpad.net/snappy/_integration-tests/testutils/cli"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
@@ -56,7 +56,7 @@ func (s *webserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
 	baseAppName := "xkcd-webserver"
 	appName := baseAppName + ".canonical"
 	common.InstallSnap(c, appName)
-	defer	common.RemoveSnap(c, appName)
+	defer common.RemoveSnap(c, appName)
 
 	err := wait.ForServerOnPort(c, 80)
 	c.Assert(err, check.IsNil)

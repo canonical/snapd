@@ -24,9 +24,9 @@ import (
 	"os/exec"
 
 	"launchpad.net/snappy/_integration-tests/testutils/build"
-	"launchpad.net/snappy/_integration-tests/testutils/cli"	
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/data"	
+	"launchpad.net/snappy/_integration-tests/testutils/data"
 
 	"gopkg.in/check.v1"
 )
