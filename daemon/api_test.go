@@ -146,9 +146,10 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 
 	// installed_size depends on vagaries of the filesystem, just check regexp
 	c.Assert(rsp, check.NotNil)
-	c.Assert(rsp.Result, check.NotNil)
-	c.Check(rsp.Result["installed_size"], check.Matches, "[0-9]+")
-	delete(rsp.Result, "installed_size")
+	c.Assert(rsp.Result, check.FitsTypeOf, map[string]string{})
+	m := rsp.Result.(map[string]string)
+	c.Check(m["installed_size"], check.Matches, "[0-9]+")
+	delete(m, "installed_size")
 
 	expected := &resp{
 		Type:   ResponseTypeSync,
