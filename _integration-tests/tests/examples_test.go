@@ -46,6 +46,27 @@ func (s *helloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
 	c.Assert(echoOutput, check.Equals, "Hello World!\n")
 }
 
+func (s *helloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDeniedError(c *check.C) {
+	common.InstallSnap(c, "hello-world")
+	s.AddCleanup(func() {
+		common.RemoveSnap(c, "hello-world")
+	})
+
+	echoOutput, err := cli.ExecCommandErr("hello-world.evil")
+	c.Assert(err, check.NotNil, check.Commentf("hello-world.evil did not fail"))
+
+	expected := "" +
+		"Hello Evil World!\n" +
+		"This example demonstrates the app confinement\n" +
+		"You should see a permission denied error next\n" +
+		"/apps/hello-world.canonical/.*/bin/evil: \\d+: " +
+		"/apps/hello-world.canonical/.*/bin/evil: " +
+		"cannot create /var/tmp/myevil.txt: Permission denied\n"
+
+	c.Assert(string(echoOutput), check.Matches, expected)
+}
+
+
 var _ = check.Suite(&webserverExampleSuite{})
 
 type webserverExampleSuite struct {
