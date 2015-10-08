@@ -100,19 +100,17 @@ func (s *Snap) Verify(unauthOk bool) error {
 
 // Build builds the snap
 func (s *Snap) Build(buildDir string) error {
-	var err error
 	fullSnapPath, err := filepath.Abs(s.path)
 	if err != nil {
 		return err
 	}
-	helpers.ChDir(buildDir, func() {
-		err = runCommand(
+
+	return helpers.ChDir(buildDir, func() error {
+		return runCommand(
 			"mksquashfs",
 			".", fullSnapPath,
 			"-all-root",
 			"-noappend",
 			"-comp", "xz")
 	})
-
-	return err
 }

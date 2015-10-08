@@ -140,10 +140,11 @@ vendor: Foo Bar <foo@example.com>
 		ioutil.WriteFile(license, []byte(content), 0644)
 	}
 	// build it
-	err := helpers.ChDir(tmpdir, func() {
+	err := helpers.ChDir(tmpdir, func() error {
 		var err error
 		snapFile, err = BuildLegacySnap(tmpdir, "")
 		c.Assert(err, IsNil)
+		return err
 	})
 	c.Assert(err, IsNil)
 	return filepath.Join(tmpdir, snapFile)
