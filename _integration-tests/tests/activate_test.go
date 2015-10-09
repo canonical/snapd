@@ -32,8 +32,8 @@ import (
 const (
 	activateSnapName    = "basic-binaries"
 	activateBinName     = activateSnapName + ".echo"
-	activateEchoOutput  = "From basic-binary snap\n"
-	baseActivatePattern = `(?msU).*basic-binary\s*.*\s*.*sideload`
+	activateEchoOutput  = "From basic-binaries snap\n"
+	baseActivatePattern = "(?msU).*" + activateSnapName + `\s*.*\s*.*sideload`
 	activatedPattern    = baseActivatePattern + `\*\s*\n.*`
 	deActivatedPattern  = baseActivatePattern + `\s*\n.*`
 )
