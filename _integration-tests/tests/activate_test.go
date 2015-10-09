@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	activateSnapName    = "basic-binary"
+	activateSnapName    = "basic-binaries"
 	activateBinName     = activateSnapName + ".echo"
 	activateEchoOutput  = "From basic-binary snap\n"
 	baseActivatePattern = `(?msU).*basic-binary\s*.*\s*.*sideload`
@@ -56,16 +56,6 @@ func (s *activateSuite) SetUpSuite(c *check.C) {
 func (s *activateSuite) TearDownSuite(c *check.C) {
 	os.Remove(s.snapPath)
 	common.RemoveSnap(c, activateSnapName)
-}
-
-func (s *activateSuite) TestSnapIsInstalled(c *check.C) {
-	output := cli.ExecCommand(c, activateBinName)
-
-	c.Assert(output, check.Equals, activateEchoOutput)
-
-	list := cli.ExecCommand(c, "snappy", "list", "-v")
-
-	c.Assert(list, check.Matches, activatedPattern)
 }
 
 func (s *activateSuite) TestDeactivateRemovesBinary(c *check.C) {
