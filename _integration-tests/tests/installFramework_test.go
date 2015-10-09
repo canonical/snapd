@@ -20,12 +20,8 @@
 package tests
 
 import (
-	"fmt"
-	"regexp"
-
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
 )
@@ -36,60 +32,31 @@ type installFrameworkSuite struct {
 	common.SnappySuite
 }
 
-func (s *installFrameworkSuite) TearDownTest(c *check.C) {
-	if !common.NeedsReboot() && common.CheckRebootMark("") {
-		common.RemoveSnap(c, "docker")
-	}
-	// run cleanup last
-	s.SnappySuite.TearDownTest(c)
-}
-
-func isDockerServiceRunning(c *check.C) bool {
-	dockerVersion := common.GetCurrentVersion(c, "docker")
-	dockerService := fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion)
-
-	err := wait.ForActiveService(c, dockerService)
-	c.Assert(err, check.IsNil)
-
-	statusOutput := cli.ExecCommand(
-		c, "systemctl", "status",
-		dockerService)
-
-	expected := "(?ms)" +
-		".* docker_docker-daemon_.*\\.service .*\n" +
-		".*Loaded: loaded .*\n" +
-		".*Active: active \\(running\\) .*\n" +
-		".*"
-
-	matched, err := regexp.MatchString(expected, statusOutput)
-	c.Assert(err, check.IsNil)
-	return matched
-}
-
 func (s *installFrameworkSuite) TestInstallFrameworkMustPrintPackageInformation(c *check.C) {
-	installOutput := common.InstallSnap(c, "docker")
+	installOutput := common.InstallSnap(c, "hello-dbus-fwk.canonical")
+	defer common.RemoveSnap(c, "hello-dbus-fwk.canonical")
 
 	expected := "(?ms)" +
-		"Installing docker\n" +
+		"Installing hello-dbus-fwk.canonical\n" +
 		"Name +Date +Version +Developer \n" +
 		".*" +
-		"^docker +.* +.* +canonical \n" +
+		"^hello-dbus-fwk +.* +.* +canonical \n" +
 		".*"
 
 	c.Assert(installOutput, check.Matches, expected)
 }
 
-func (s *installFrameworkSuite) TestInstalledFrameworkServiceMustBeStarted(c *check.C) {
-	common.InstallSnap(c, "docker")
-	c.Assert(isDockerServiceRunning(c), check.Equals, true)
-}
+func (s *installFrameworkSuite) TestFrameworkClient(c *check.C) {
+	common.InstallSnap(c, "hello-dbus-fwk.canonical")
+	defer common.RemoveSnap(c, "hello-dbus-fwk.canonical")
 
-func (s *installFrameworkSuite) TestFrameworkServiceMustBeStartedAfterReboot(c *check.C) {
-	if common.BeforeReboot() {
-		common.InstallSnap(c, "docker")
-		common.Reboot(c)
-	} else if common.AfterReboot(c) {
-		common.RemoveRebootMark(c)
-		c.Assert(isDockerServiceRunning(c), check.Equals, true)
-	}
+	common.InstallSnap(c, "hello-dbus-app.canonical")
+	defer common.RemoveSnap(c, "hello-dbus-app.canonical")
+
+	output := cli.ExecCommand(c, "hello-dbus-app.client")
+
+	expected := "PASS\n"
+
+	c.Assert(output, check.Equals, expected,
+		check.Commentf("Expected output %s not found, %s", expected, output))
 }
