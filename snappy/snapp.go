@@ -374,7 +374,6 @@ func (m *packageYaml) checkForPackageInstalled(origin string) error {
 		return nil
 	}
 
-	println("***", part.Origin(), "=?", origin, ":", part.Origin() == origin)
 	if part.Origin() != origin {
 		return ErrPackageNameAlreadyInstalled
 	}
