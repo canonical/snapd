@@ -77,6 +77,9 @@ func data1(spec, basedir string) []SnapDataDir {
 	// and you want us to be able to clean that up.
 	for _, dir := range dirs {
 		version := filepath.Base(dir)
+		if version == "current" {
+			continue
+		}
 		name := filepath.Base(filepath.Dir(dir))
 		origin := ""
 		idx := strings.LastIndexAny(name, ".")
