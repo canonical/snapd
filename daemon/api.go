@@ -119,12 +119,18 @@ var (
 
 func v1Get(c *Command, r *http.Request) Response {
 	rel := release.Get()
-	return SyncResponse(map[string]string{
+	m := map[string]string{
 		"flavor":          rel.Flavor,
 		"release":         rel.Series,
 		"default_channel": rel.Channel,
 		"api_compat":      "0",
-	})
+	}
+
+	if store := snappy.StoreID(); store != "" {
+		m["store"] = store
+	}
+
+	return SyncResponse(m)
 }
 
 type metarepo interface {
