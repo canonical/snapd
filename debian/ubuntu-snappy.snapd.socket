@@ -2,7 +2,11 @@
 Description=Socket activation for snappy daemon
 
 [Socket]
-ListenStream=@snapd
+ListenStream=/run/snapd
+SocketMode=0600
+# these are the defaults, but can't hurt to specify them anyway:
+SocketUser=root
+SocketGroup=root
 
 [Install]
 WantedBy=sockets.target
