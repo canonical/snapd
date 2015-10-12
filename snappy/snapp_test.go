@@ -63,6 +63,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	policy.SecBase = filepath.Join(s.tempdir, "security")
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
 	os.MkdirAll(dirs.SnapSeccompDir, 0755)
+	os.MkdirAll(dirs.SnapMetaDir, 0755)
 
 	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
@@ -1090,8 +1091,7 @@ func (s *SnapTestSuite) TestDetectsAlreadyInstalled(c *C) {
 }
 
 func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameOrigin(c *C) {
-	// XXX: should this be allowed? right now it is (=> you can re-sideload the same version of your apps)
-	//      (remote snaps are stopped before clickInstall gets to run)
+	// NOTE remote snaps are stopped before clickInstall gets to run
 
 	data := "name: afoo\nversion: 1\nvendor: foo"
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
@@ -1103,7 +1103,7 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameOrigin(c *C) {
 	c.Check(yaml.checkForPackageInstalled(testOrigin), IsNil)
 }
 
-func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworks(c *C) {
+func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworkSameOrigin(c *C) {
 	data := "name: afoo\nversion: 1\nvendor: foo\ntype: framework"
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
 	c.Assert(err, IsNil)
@@ -1111,7 +1111,18 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworks(c *C) {
 
 	yaml, err := parsePackageYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(yaml.checkForPackageInstalled("otherns"), IsNil)
+	c.Check(yaml.checkForPackageInstalled(testOrigin), IsNil)
+}
+
+func (s *SnapTestSuite) TestDetectsAlreadyInstalledFramework(c *C) {
+	data := "name: afoo\nversion: 1\nvendor: foo\ntype: framework"
+	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
+	c.Assert(err, IsNil)
+	c.Assert(makeSnapActive(yamlPath), IsNil)
+
+	yaml, err := parsePackageYamlData([]byte(data), false)
+	c.Assert(err, IsNil)
+	c.Check(yaml.checkForPackageInstalled("otherns"), Equals, ErrPackageNameAlreadyInstalled)
 }
 
 func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {

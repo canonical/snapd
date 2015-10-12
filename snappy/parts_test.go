@@ -84,7 +84,7 @@ vendor: example.com`)
 		{QualifiedName, pkg.TypeApp, "app." + testOrigin},
 		{QualifiedName, pkg.TypeFramework, "fwk"},
 		{FullName, pkg.TypeApp, "app." + testOrigin},
-		{FullName, pkg.TypeFramework, "fwk.sideload"}, // .sideload here is an artifact of where we're storing the origin for frameworks :-/
+		{FullName, pkg.TypeFramework, "fwk." + testOrigin},
 	} {
 		names, err := ActiveSnapIterByType(t.f, t.t)
 		c.Check(err, IsNil)
@@ -212,7 +212,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
 	c.Assert(err, IsNil)
 
 	parts := FindSnapsByNameAndVersion("fmk."+testOrigin, "1", installed)
-	c.Check(parts, HasLen, 0)
+	c.Check(parts, HasLen, 1)
 	parts = FindSnapsByNameAndVersion("fmk.badOrigin", "1", installed)
 	c.Check(parts, HasLen, 0)
 

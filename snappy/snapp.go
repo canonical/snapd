@@ -374,10 +374,8 @@ func (m *packageYaml) checkForPackageInstalled(origin string) error {
 		return nil
 	}
 
-	if m.Type != pkg.TypeFramework && m.Type != pkg.TypeOem {
-		if part.Origin() != origin {
-			return ErrPackageNameAlreadyInstalled
-		}
+	if part.Origin() != origin {
+		return ErrPackageNameAlreadyInstalled
 	}
 
 	return nil
