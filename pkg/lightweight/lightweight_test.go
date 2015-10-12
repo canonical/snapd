@@ -87,6 +87,7 @@ func (s *lightweightSuite) MkInstalled(c *check.C, _type pkg.Type, appdir, name,
 
 	if active {
 		c.Check(os.Symlink(version, filepath.Join(appdir, qn, "current")), check.IsNil)
+		c.Check(os.Symlink(version, filepath.Join(dirs.SnapDataDir, qn, "current")), check.IsNil)
 	}
 }
 

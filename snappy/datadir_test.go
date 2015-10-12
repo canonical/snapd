@@ -81,8 +81,10 @@ func (s *DataDirSuite) TestEverywhichwhereDataDirs(c *C) {
 	home := strings.Replace(dirs.SnapDataHomeGlob, "*", "user1", -1)
 	c.Assert(os.MkdirAll(filepath.Join(home, "foo.bar", "v0"), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(home, "foo.bar", "v1"), 0755), IsNil)
+	c.Assert(os.Symlink("v1", filepath.Join(home, "foo.bar", "current")), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, "foo.xyzzy", "v1"), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, "foo", "v3"), 0755), IsNil)
+	c.Assert(os.Symlink("v3", filepath.Join(dirs.SnapDataDir, "foo", "current")), IsNil)
 	dds := DataDirs("foo")
 	c.Assert(dds, HasLen, 4)
 	hi := 0

@@ -59,3 +59,12 @@ func (s *splitSuite) TestExtract(c *check.C) {
 	c.Check(vs, check.DeepEquals, []string{"v1", "v2"})
 	c.Check(ps, check.DeepEquals, []string{"meh/foo.baz/v3"})
 }
+
+func (s *splitSuite) TestExtractCurrent(c *check.C) {
+	ps := []string{"meh/foo.bar/current", "meh/foo.bar/v1", "meh/foo.bar/v2", "meh/foo.baz/v3"}
+	n, o, vs, ps := extract(ps)
+	c.Check(n, check.Equals, "foo")
+	c.Check(o, check.Equals, "bar")
+	c.Check(vs, check.DeepEquals, []string{"v1", "v2"})
+	c.Check(ps, check.DeepEquals, []string{"meh/foo.baz/v3"})
+}

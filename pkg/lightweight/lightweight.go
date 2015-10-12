@@ -84,9 +84,13 @@ func extract(paths []string) (string, string, []string, []string) {
 		if name != n || origin != o {
 			break
 		}
+		paths = paths[1:]
+
+		if v == "current" {
+			continue
+		}
 
 		versions = append(versions, v)
-		paths = paths[1:]
 	}
 
 	return name, origin, versions, paths
