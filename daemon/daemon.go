@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -175,6 +176,27 @@ func (d *Daemon) GetTask(uuid string) *Task {
 	d.RLock()
 	defer d.RUnlock()
 	return d.tasks[uuid]
+}
+
+var (
+	errTaskNotFound     = errors.New("task not found")
+	errTaskStillRunning = errors.New("task still running")
+)
+
+// DeleteTask removes a task from the tasks map, by uuid.
+func (d *Daemon) DeleteTask(uuid string) error {
+	d.Lock()
+	defer d.Unlock()
+	task, ok := d.tasks[uuid]
+	if !ok || task == nil {
+		return errTaskNotFound
+	}
+	if task.State() != TaskRunning {
+		delete(d.tasks, uuid)
+		return nil
+	}
+
+	return errTaskStillRunning
 }
 
 // New Daemon

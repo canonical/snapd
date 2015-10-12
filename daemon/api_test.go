@@ -415,6 +415,40 @@ func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
 	}
 }
 
+func (s *apiSuite) TestDeleteOpNotFound(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	s.vars = map[string]string{"uuid": "42"}
+	rsp := deleteOp(operationCmd, nil).Self(nil, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
+}
+
+func (s *apiSuite) TestDeleteOpStillRunning(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	d.tasks["42"] = &Task{}
+	s.vars = map[string]string{"uuid": "42"}
+	rsp := deleteOp(operationCmd, nil).Self(nil, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+}
+
+func (s *apiSuite) TestDeleteOp(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	task := &Task{}
+	d.tasks["42"] = task
+	task.tomb.Kill(nil)
+	s.vars = map[string]string{"uuid": "42"}
+	rsp := deleteOp(operationCmd, nil).Self(nil, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+}
+
 func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	d := New()
 	d.addRoutes()
