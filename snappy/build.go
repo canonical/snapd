@@ -429,14 +429,15 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 			return errin
 		}
 
-		if shouldExclude(sourceDir, filepath.Base(path)) {
+		relpath := path[len(sourceDir):]
+		if relpath == "/DEBIAN" || shouldExclude(sourceDir, filepath.Base(path)) {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		dest := filepath.Join(buildDir, path[len(sourceDir):])
+		dest := filepath.Join(buildDir, relpath)
 
 		// handle dirs
 		if info.IsDir() {
