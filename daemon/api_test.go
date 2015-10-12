@@ -116,6 +116,22 @@ vendor: a vendor
 	}
 }
 
+func (s *apiSuite) mkOem(c *check.C, store string) {
+	content := []byte(fmt.Sprintf(`name: test
+version: 1
+vendor: a vendor
+type: oem
+oem: {store: {id: %q}}
+`, store))
+
+	d := filepath.Join(dirs.SnapOemDir, "test")
+	m := filepath.Join(d, "1", "meta")
+	c.Assert(os.MkdirAll(m, 0755), check.IsNil)
+	c.Assert(os.Symlink("1", filepath.Join(d, "current")), check.IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(m, "package.yaml"), content, 0644), check.IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(m, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
+}
+
 func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 	d := New()
 	d.addRoutes()
@@ -294,6 +310,15 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
+func (s *apiSuite) mkrelease(c *check.C) {
+	// set up release
+	root := c.MkDir()
+	d := filepath.Join(root, "etc", "system-image")
+	c.Assert(os.MkdirAll(d, 0755), check.IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "channel.ini"), []byte("[service]\nchannel: ubuntu-flavor/release/channel"), 0644), check.IsNil)
+	c.Assert(release.Setup(root), check.IsNil)
+}
+
 func (s *apiSuite) TestV1(c *check.C) {
 	// check it only does GET
 	c.Check(v1Cmd.PUT, check.IsNil)
@@ -304,12 +329,7 @@ func (s *apiSuite) TestV1(c *check.C) {
 	rec := httptest.NewRecorder()
 	c.Check(v1Cmd.Path, check.Equals, "/1.0")
 
-	// set up release
-	root := c.MkDir()
-	d := filepath.Join(root, "etc", "system-image")
-	c.Assert(os.MkdirAll(d, 0755), check.IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "channel.ini"), []byte("[service]\nchannel: ubuntu-flavor/release/channel"), 0644), check.IsNil)
-	c.Assert(release.Setup(root), check.IsNil)
+	s.mkrelease(c)
 
 	v1Cmd.GET(v1Cmd, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
@@ -320,6 +340,30 @@ func (s *apiSuite) TestV1(c *check.C) {
 		"release":         "release",
 		"default_channel": "channel",
 		"api_compat":      "0",
+	}
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestV1Store(c *check.C) {
+	rec := httptest.NewRecorder()
+	c.Check(v1Cmd.Path, check.Equals, "/1.0")
+
+	s.mkrelease(c)
+	s.mkOem(c, "some-store")
+
+	v1Cmd.GET(v1Cmd, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 200)
+
+	expected := map[string]interface{}{
+		"flavor":          "flavor",
+		"release":         "release",
+		"default_channel": "channel",
+		"api_compat":      "0",
+		"store":           "some-store",
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
