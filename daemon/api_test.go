@@ -27,6 +27,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -243,7 +244,7 @@ func (s *apiSuite) TestPackageInfoBadRoute(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
-	c.Check(rsp.Result.(map[string]interface{})["msg"], check.Matches, `route can't build URL .*`)
+	c.Check(rsp.Result.(*errorResult).Msg, check.Matches, `route can't build URL .*`)
 }
 
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
@@ -575,12 +576,16 @@ func (s *apiSuite) TestPostPackageDispatch(c *check.C) {
 	}
 }
 
-type cfgc struct{ cfg string }
+type cfgc struct {
+	cfg string
+	err error
+	idx int
+}
 
 func (cfgc) IsInstalled(string) bool { return true }
-func (cfgc) ActiveIndex() int        { return 0 }
+func (c cfgc) ActiveIndex() int      { return c.idx }
 func (c cfgc) Load(string) (snappy.Part, error) {
-	return &tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: c.cfg}, nil
+	return &tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: c.cfg, configErr: c.err}, nil
 }
 
 func (s *apiSuite) TestPackageGetConfig(c *check.C) {
@@ -596,7 +601,7 @@ func (s *apiSuite) TestPackageGetConfig(c *check.C) {
 		lightweight.NewConcrete = oldConcrete
 	}()
 	lightweight.NewConcrete = func(*lightweight.PartBag, string) lightweight.Concreter {
-		return &cfgc{configStr}
+		return &cfgc{cfg: configStr}
 	}
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
@@ -609,6 +614,43 @@ func (s *apiSuite) TestPackageGetConfig(c *check.C) {
 		Status: http.StatusOK,
 		Result: configStr,
 	})
+}
+
+func (s *apiSuite) TestPackageGetConfigMissing(c *check.C) {
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+
+	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+	c.Assert(err, check.IsNil)
+
+	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
+
+	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
+}
+
+func (s *apiSuite) TestPackageGetConfigInactive(c *check.C) {
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+
+	s.mkInstalled(c, "foo", "bar", "v1", false, "")
+
+	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+	c.Assert(err, check.IsNil)
+
+	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
+
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+}
+
+func (s *apiSuite) TestPackageGetConfigNoConfig(c *check.C) {
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+
+	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+
+	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+	c.Assert(err, check.IsNil)
+
+	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
+
+	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
 }
 
 func (s *apiSuite) TestPackagePutConfig(c *check.C) {
@@ -625,19 +667,160 @@ func (s *apiSuite) TestPackagePutConfig(c *check.C) {
 		lightweight.NewConcrete = oldConcrete
 	}()
 	lightweight.NewConcrete = func(*lightweight.PartBag, string) lightweight.Concreter {
-		return &cfgc{configStr}
+		return &cfgc{cfg: configStr}
 	}
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
-	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
+	rsp := packageConfig(packageConfigCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp, check.DeepEquals, &resp{
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
 		Result: newConfigStr,
 	})
+}
+
+func (s *apiSuite) TestPackagePutConfigMissing(c *check.C) {
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+
+	req, err := http.NewRequest("PUT", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+	c.Assert(err, check.IsNil)
+
+	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
+
+	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
+}
+
+func (s *apiSuite) TestPackagePutConfigInactive(c *check.C) {
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+
+	s.mkInstalled(c, "foo", "bar", "v1", false, "")
+
+	req, err := http.NewRequest("PUT", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+	c.Assert(err, check.IsNil)
+
+	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
+
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+}
+
+func (s *apiSuite) TestPackagePutConfigNoConfig(c *check.C) {
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+
+	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+
+	req, err := http.NewRequest("PUT", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+	c.Assert(err, check.IsNil)
+
+	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
+
+	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
+}
+
+func (s *apiSuite) TestConfigMultiBadBody(c *check.C) {
+	d := New()
+	d.addRoutes()
+
+	req, err := http.NewRequest("PUT", "/1.0/packages", bytes.NewBuffer(nil))
+	c.Assert(err, check.IsNil)
+	rsp := configMulti(packagesCmd, req).Self(nil, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+}
+
+func (s *apiSuite) TestPackagesPutStr(c *check.C) {
+	newConfigs := map[string]string{"foo.bar": "some other config", "baz.qux": "stuff", "missing.pkg": "blah blah"}
+	bs, err := json.Marshal(newConfigs)
+	c.Assert(err, check.IsNil)
+	s.genericTestPackagePut(c, bytes.NewBuffer(bs), 2, map[string]*configSub{
+		"foo.bar":     &configSub{Status: TaskSucceeded, Output: "some other config"},
+		"baz.qux":     &configSub{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrConfigNotFound.Error(), Obj: snappy.ErrConfigNotFound, Msg: "Config failed"}},
+		"missing.pkg": &configSub{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrPackageNotFound.Error(), Obj: snappy.ErrPackageNotFound}},
+	})
+}
+
+func (s *apiSuite) TestPackagesPutNil(c *check.C) {
+	newConfigs := map[string][]byte{"foo.bar": nil, "mip.brp": nil}
+	bs, err := json.Marshal(newConfigs)
+	c.Assert(err, check.IsNil)
+	s.genericTestPackagePut(c, bytes.NewBuffer(bs), 2, map[string]*configSub{
+		"foo.bar": &configSub{Status: TaskSucceeded, Output: "some: config"},
+		"mip.brp": &configSub{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrSnapNotActive.Error(), Obj: snappy.ErrSnapNotActive}},
+	})
+}
+
+func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, concreteNo int, expected map[string]*configSub) {
+	d := New()
+	d.addRoutes()
+
+	req, err := http.NewRequest("PUT", "/1.0/packages", body)
+	c.Assert(err, check.IsNil)
+
+	configStr := "some: config"
+	oldConcrete := lightweight.NewConcrete
+	defer func() {
+		lightweight.NewConcrete = oldConcrete
+	}()
+	lightweight.NewConcrete = func(bag *lightweight.PartBag, _ string) lightweight.Concreter {
+		switch bag.Name {
+		case "foo":
+			return &cfgc{cfg: configStr}
+		case "mip":
+			return &cfgc{idx: -1}
+		default:
+			return &cfgc{err: snappy.ErrConfigNotFound}
+		}
+	}
+
+	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+	s.mkInstalled(c, "baz", "qux", "v1", true, "")
+	s.mkInstalled(c, "mip", "brp", "v1", false, "")
+
+	rsp := configMulti(packagesCmd, req).Self(nil, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+	c.Check(rsp.Status, check.Equals, http.StatusAccepted)
+	m := rsp.Result.(map[string]interface{})
+	c.Check(m["resource"], check.Matches, "/1.0/operations/.*")
+
+	uuid := m["resource"].(string)[16:]
+
+	task := d.GetTask(uuid)
+	c.Assert(task, check.NotNil)
+	c.Check(task.State(), check.Equals, TaskRunning)
+
+	// wait up to another ten seconds (!) for the task to finish properly
+	for i := 0; i < 1000; i++ {
+		if d.GetTask(uuid).State() != TaskRunning {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	c.Assert(task.State(), check.Equals, TaskSucceeded)
+	out := task.Output().(map[string]*configSub)
+	c.Check(out, check.HasLen, len(expected))
+
+	var missing []string
+	for k, v := range out {
+		exp, ok := expected[k]
+		if !ok {
+			missing = append(missing, k)
+			continue
+		}
+
+		c.Check(v.Status, check.Equals, exp.Status, check.Commentf(k))
+		c.Check(v.Output, check.DeepEquals, exp.Output, check.Commentf(k))
+	}
+	c.Check(missing, check.HasLen, 0, check.Commentf("missing from expected"))
+	missing = nil
+	for k := range expected {
+		if _, ok := out[k]; !ok {
+			missing = append(missing, k)
+		}
+	}
+	c.Check(missing, check.HasLen, 0, check.Commentf("missing from obtained"))
 }
 
 func (s *apiSuite) TestPackageServiceGet(c *check.C) {
