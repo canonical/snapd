@@ -66,7 +66,6 @@ func (s *helloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDenied
 	c.Assert(string(echoOutput), check.Matches, expected)
 }
 
-
 var _ = check.Suite(&webserverExampleSuite{})
 
 type webserverExampleSuite struct {
