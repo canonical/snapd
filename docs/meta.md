@@ -72,10 +72,23 @@ The following keys are optional:
     * `bus-name`: (optional) message bus connection name for the service.
       May only be specified for snaps of 'type: framework' (see above). See
       frameworks.md for details.
-    * `socket`: (optional) Set to "true" is the service is socket activated
-    * `listen-stream`: (optional) The full path of the stream socket
-    * `socket-user`: (optional) The user that owns the stream socket
-    * `socket-group`: (optional) The group that own the stream socket
+    * `socket`: (optional) Set to "true" if the service is socket activated.
+                Must be specified with `listen-stream`.
+    * `listen-stream`: (optional) The full path of the stream socket or an
+		abstract socket. When specifying an absolute path, it should
+		normally be in one of the app-specific writable directories.
+		When specifying an abstract socket, it must start with '@' and
+		typically be followed by either the snap package name or the
+                snap package name followed by '\_' and any other characters
+                (eg, '@name' or '@name\_something').
+    * `socket-user`: (optional) The user that owns the stream socket. The user
+                     should normally match the snap package name. Must be
+		     specified with `listen-stream`. This option is reserved
+                     for future use.
+    * `socket-group`: (optional) The group that own the stream socket. The
+                      group should normally match the snap package name. Must
+		      be specified with `listen-stream`. This option is
+                      reserved for future use.
 
 * `binaries`: the binaries (executables) that the snap provides
     * `name`: (required) the name of the binary, the user will be able to
