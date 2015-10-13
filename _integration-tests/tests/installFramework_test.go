@@ -20,7 +20,12 @@
 package tests
 
 import (
+	"fmt"
+	"os"
+	
+	"launchpad.net/snappy/_integration-tests/testutils/build"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/data"	
 
 	"gopkg.in/check.v1"
 )
@@ -32,14 +37,18 @@ type installFrameworkSuite struct {
 }
 
 func (s *installFrameworkSuite) TestInstallFrameworkMustPrintPackageInformation(c *check.C) {
-	installOutput := common.InstallSnap(c, "hello-dbus-fwk.canonical")
-	defer common.RemoveSnap(c, "hello-dbus-fwk.canonical")
+	snapPath, err := build.LocalSnap(c, data.BasicFrameworkSnapName)
+	defer os.Remove(snapPath)
+	c.Assert(err, check.IsNil)
+	installOutput := common.InstallSnap(c, snapPath)
+	defer common.RemoveSnap(c, data.BasicFrameworkSnapName)
 
 	expected := "(?ms)" +
-		"Installing hello-dbus-fwk.canonical\n" +
+		fmt.Sprintf("Installing %s\n", snapPath) +
+		".*Signature check failed, but installing anyway as requested\n" +
 		"Name +Date +Version +Developer \n" +
 		".*" +
-		"^hello-dbus-fwk +.* +.* +canonical \n" +
+		"^basic-framework +.* +.* +sideload *\n" +
 		".*"
 
 	c.Assert(installOutput, check.Matches, expected)
