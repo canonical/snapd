@@ -24,10 +24,11 @@ import (
 	"strings"
 
 	"gopkg.in/check.v1"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 )
 
 // dependency aliasing
-var execCommand = ExecCommand
+var execCommand = cli.ExecCommand
 
 // Release returns the release of the current snappy image
 func Release(c *check.C) string {

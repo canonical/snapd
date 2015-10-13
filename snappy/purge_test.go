@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/systemd"
 )
@@ -39,13 +40,14 @@ var _ = Suite(&purgeSuite{})
 
 func (s *purgeSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
-	SetRootDir(s.tempdir)
-	os.MkdirAll(filepath.Join(snapServicesDir, "multi-user.target.wants"), 0755)
+	dirs.SetRootDir(s.tempdir)
+	os.MkdirAll(dirs.SnapMetaDir, 0755)
+	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
-	snapSeccompDir = c.MkDir()
+	dirs.SnapSeccompDir = c.MkDir()
 	runScFilterGen = mockRunScFilterGen
 }
 
@@ -78,7 +80,7 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDir string, part *SnapPart
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", app+".manifest"), []byte(`{"name": "`+app+`"}`), 0644), IsNil)
 
-	dataDir = filepath.Join(snapDataDir, app, version)
+	dataDir = filepath.Join(dirs.SnapDataDir, app, version)
 	c.Assert(os.MkdirAll(dataDir, 0755), IsNil)
 	canaryDataFile := filepath.Join(dataDir, "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)

@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-09-14 10:22+0100\n"
+        "POT-Creation-Date: 2015-09-29 10:18+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -61,6 +61,12 @@ msgid   "A concise summary of key attributes of the snappy system, such as the r
         "The verbose version of the info command for a package will also tell you the available channels for that package, when it was installed for the first time, disk space utilization, and in the case of frameworks, which apps are able to use the framework."
 msgstr  ""
 
+msgid   "Activate a package"
+msgstr  ""
+
+msgid   "Activate a package that has previously been deactivated. If the package is already activated, do nothing."
+msgstr  ""
+
 msgid   "Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.\n"
 msgstr  ""
 
@@ -82,6 +88,12 @@ msgid   "Configures a package. The configuration is a YAML file, provided in the
 msgstr  ""
 
 msgid   "Creates a snap package and if available, runs the review scripts."
+msgstr  ""
+
+msgid   "Deactivate a package"
+msgstr  ""
+
+msgid   "Deactivate a package. If the package is already deactivated, do nothing."
 msgstr  ""
 
 msgid   "Display a summary of key attributes of the snappy system."

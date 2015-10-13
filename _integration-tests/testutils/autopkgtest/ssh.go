@@ -33,7 +33,7 @@ const (
 
 func kvmSSHOptions(imagePath string) string {
 	return fmt.Sprint(commonSSHOptions,
-		"-s /usr/share/autopkgtest/ssh-setup/snappy -- -i ", imagePath)
+		"-s /usr/share/autopkgtest/ssh-setup/snappy -- -b -i ", imagePath)
 }
 
 func remoteTestbedSSHOptions(testbedIP string, testbedPort int) string {

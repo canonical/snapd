@@ -117,11 +117,26 @@ func (ts *HTestSuite) TestChdir(c *C) {
 	cwd, err := os.Getwd()
 	c.Assert(err, IsNil)
 	c.Assert(cwd, Not(Equals), tmpdir)
-	ChDir(tmpdir, func() {
+	ChDir(tmpdir, func() error {
 		cwd, err := os.Getwd()
 		c.Assert(err, IsNil)
 		c.Assert(cwd, Equals, tmpdir)
+		return err
 	})
+}
+
+func (ts *HTestSuite) TestChdirErrorNoDir(c *C) {
+	err := ChDir("random-dir-that-does-not-exist", func() error {
+		return nil
+	})
+	c.Assert(err, ErrorMatches, "chdir .*: no such file or directory")
+}
+
+func (ts *HTestSuite) TestChdirErrorFromFunc(c *C) {
+	err := ChDir("/", func() error {
+		return fmt.Errorf("meep")
+	})
+	c.Assert(err, ErrorMatches, "meep")
 }
 
 func (ts *HTestSuite) TestExitCode(c *C) {
@@ -494,10 +509,11 @@ func (ts *HTestSuite) TestUnpackPermissions(c *C) {
 	err := ioutil.WriteFile(filepath.Join(tmpdir, canaryName), []byte(nil), canaryPerms)
 	c.Assert(err, IsNil)
 
-	ChDir(tmpdir, func() {
+	ChDir(tmpdir, func() error {
 		cmd := exec.Command("tar", "cvf", tarArchive, ".")
 		_, err = cmd.CombinedOutput()
 		c.Assert(err, IsNil)
+		return err
 	})
 
 	// set crazy umask

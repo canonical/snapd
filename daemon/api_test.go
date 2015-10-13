@@ -32,11 +32,15 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"gopkg.in/check.v1"
 
+	"launchpad.net/snappy/dirs"
+	"launchpad.net/snappy/pkg"
+	"launchpad.net/snappy/pkg/lightweight"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/snappy"
@@ -62,30 +66,70 @@ func (s *apiSuite) All() ([]snappy.Part, error) {
 	return s.parts, s.err
 }
 
+func (s *apiSuite) Updates() ([]snappy.Part, error) {
+	return s.parts, s.err
+}
+
 func (s *apiSuite) muxVars(*http.Request) map[string]string {
 	return s.vars
 }
 
 func (s *apiSuite) SetUpSuite(c *check.C) {
-	newRepo = func() metarepo {
+	newRemoteRepo = func() metarepo {
 		return s
 	}
-	newLocalRepo = newRepo
-	newRemoteRepo = newRepo
+	newSystemRepo = newRemoteRepo
 	muxVars = s.muxVars
 }
 
 func (s *apiSuite) TearDownSuite(c *check.C) {
-	newLocalRepo = nil
 	newRemoteRepo = nil
-	newRepo = nil
+	newSystemRepo = nil
 	muxVars = nil
 }
 
 func (s *apiSuite) SetUpTest(c *check.C) {
+	dirs.SetRootDir(c.MkDir())
+
 	s.parts = nil
 	s.err = nil
 	s.vars = nil
+}
+
+func (s *apiSuite) mkInstalled(c *check.C, name, origin, version string, active bool, extraYaml string) {
+	fullname := name + "." + origin
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, fullname, version), 0755), check.IsNil)
+
+	metadir := filepath.Join(dirs.SnapAppsDir, fullname, version, "meta")
+	c.Assert(os.MkdirAll(metadir, 0755), check.IsNil)
+
+	content := fmt.Sprintf(`
+name: %s
+version: %s
+vendor: a vendor
+%s`, name, version, extraYaml)
+	c.Check(ioutil.WriteFile(filepath.Join(metadir, "package.yaml"), []byte(content), 0644), check.IsNil)
+	c.Check(ioutil.WriteFile(filepath.Join(metadir, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
+
+	if active {
+		c.Assert(os.Symlink(version, filepath.Join(dirs.SnapAppsDir, fullname, "current")), check.IsNil)
+	}
+}
+
+func (s *apiSuite) mkOem(c *check.C, store string) {
+	content := []byte(fmt.Sprintf(`name: test
+version: 1
+vendor: a vendor
+type: oem
+oem: {store: {id: %q}}
+`, store))
+
+	d := filepath.Join(dirs.SnapOemDir, "test")
+	m := filepath.Join(d, "1", "meta")
+	c.Assert(os.MkdirAll(m, 0755), check.IsNil)
+	c.Assert(os.Symlink("1", filepath.Join(d, "current")), check.IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(m, "package.yaml"), content, 0644), check.IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(m, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
 }
 
 func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
@@ -94,37 +138,51 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
+	// the store tells us about v2
 	s.parts = []snappy.Part{&tP{
-		name:          "foo",
-		version:       "v1",
-		description:   "description",
-		origin:        "bar",
-		vendor:        "a vendor",
-		isInstalled:   true,
-		isActive:      true,
-		icon:          iconPath + "icon.png",
-		_type:         "a type",
-		installedSize: 42,
-		downloadSize:  2,
+		name:         "foo",
+		version:      "v2",
+		description:  "description",
+		origin:       "bar",
+		vendor:       "a vendor",
+		isInstalled:  true,
+		isActive:     true,
+		icon:         dirs.SnapIconsDir + "icon.png",
+		_type:        pkg.TypeApp,
+		downloadSize: 2,
 	}}
+
+	// we have v0 installed
+	s.mkInstalled(c, "foo", "bar", "v0", false, "")
+	// and v1 is current
+	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+
 	rsp, ok := getPackageInfo(packageCmd, nil).(*resp)
 	c.Assert(ok, check.Equals, true)
+
+	// installed_size depends on vagaries of the filesystem, just check regexp
+	c.Assert(rsp, check.NotNil)
+	c.Assert(rsp.Result, check.FitsTypeOf, map[string]string{})
+	m := rsp.Result.(map[string]string)
+	c.Check(m["installed_size"], check.Matches, "[0-9]+")
+	delete(m, "installed_size")
 
 	expected := &resp{
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
 		Result: map[string]string{
-			"name":           "foo",
-			"version":        "v1",
-			"description":    "description",
-			"origin":         "bar",
-			"vendor":         "a vendor",
-			"status":         "active",
-			"icon":           iconPrefix + "icon.png",
-			"type":           "a type",
-			"download_size":  "2",
-			"installed_size": "42",
-			"resource":       "/1.0/packages/foo.bar",
+			"name":               "foo",
+			"version":            "v1",
+			"description":        "description",
+			"origin":             "bar",
+			"vendor":             "a vendor",
+			"status":             "active",
+			"icon":               "/1.0/icons/foo.bar/icon",
+			"type":               string(pkg.TypeApp),
+			"download_size":      "2",
+			"resource":           "/1.0/packages/foo.bar",
+			"update_available":   "v2",
+			"rollback_available": "v0",
 		},
 	}
 
@@ -144,14 +202,14 @@ func (s *apiSuite) TestPackageInfoNoneFound(c *check.C) {
 	c.Check(getPackageInfo(packageCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
 
-func (s *apiSuite) TestPackageInfoWeirdDetails(c *check.C) {
+func (s *apiSuite) TestPackageInfoIgnoresRemoteErrors(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.err = errors.New("weird")
 
-	rsp := getPackageInfo(packageCmd, nil).(*resp)
+	rsp := getPackageInfo(packageCmd, nil).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
+	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
 	c.Check(rsp.Result, check.NotNil)
 }
 
@@ -188,47 +246,6 @@ func (s *apiSuite) TestPackageInfoBadRoute(c *check.C) {
 	c.Check(rsp.Result.(map[string]interface{})["msg"], check.Matches, `route can't build URL .*`)
 }
 
-func (s *apiSuite) TestParts2Map(c *check.C) {
-	parts := []snappy.Part{&tP{
-		name:          "foo",
-		version:       "v1",
-		description:   "description",
-		origin:        "bar",
-		vendor:        "a vendor",
-		isInstalled:   true,
-		isActive:      true,
-		icon:          "icon.png",
-		_type:         "a type",
-		installedSize: 42,
-		downloadSize:  2,
-	}}
-
-	resource := "/1.0/packages/foo.bar"
-
-	expected := map[string]string{
-		"name":           "foo",
-		"version":        "v1",
-		"description":    "description",
-		"origin":         "bar",
-		"vendor":         "a vendor",
-		"status":         "active",
-		"icon":           "icon.png",
-		"type":           "a type",
-		"download_size":  "2",
-		"installed_size": "42",
-		"resource":       resource,
-	}
-
-	c.Check(parts2map(parts, resource), check.DeepEquals, expected)
-}
-
-func (s *apiSuite) TestParts2MapState(c *check.C) {
-	c.Check(parts2map([]snappy.Part{&tP{}}, "")["status"], check.Equals, "not installed")
-	c.Check(parts2map([]snappy.Part{&tP{isInstalled: true}}, "")["status"], check.Equals, "installed")
-	c.Check(parts2map([]snappy.Part{&tP{isInstalled: true, isActive: true}}, "")["status"], check.Equals, "active")
-	// TODO: more statuses
-}
-
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	// Very basic check to help stop us from not adding all the
 	// commands to the command list.
@@ -263,9 +280,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"findServices",
 		"maxReadBuflen",
 		"muxVars",
-		"newLocalRepo",
 		"newRemoteRepo",
-		"newRepo",
+		"newSystemRepo",
 		"newSnap",
 		"pkgActionDispatch",
 	}
@@ -294,6 +310,15 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
+func (s *apiSuite) mkrelease(c *check.C) {
+	// set up release
+	root := c.MkDir()
+	d := filepath.Join(root, "etc", "system-image")
+	c.Assert(os.MkdirAll(d, 0755), check.IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "channel.ini"), []byte("[service]\nchannel: ubuntu-flavor/release/channel"), 0644), check.IsNil)
+	c.Assert(release.Setup(root), check.IsNil)
+}
+
 func (s *apiSuite) TestV1(c *check.C) {
 	// check it only does GET
 	c.Check(v1Cmd.PUT, check.IsNil)
@@ -304,12 +329,7 @@ func (s *apiSuite) TestV1(c *check.C) {
 	rec := httptest.NewRecorder()
 	c.Check(v1Cmd.Path, check.Equals, "/1.0")
 
-	// set up release
-	root := c.MkDir()
-	d := filepath.Join(root, "etc", "system-image")
-	c.Assert(os.MkdirAll(d, 0755), check.IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "channel.ini"), []byte("[service]\nchannel: ubuntu-flavor/release/channel"), 0644), check.IsNil)
-	c.Assert(release.Setup(root), check.IsNil)
+	s.mkrelease(c)
 
 	v1Cmd.GET(v1Cmd, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
@@ -328,6 +348,30 @@ func (s *apiSuite) TestV1(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
+func (s *apiSuite) TestV1Store(c *check.C) {
+	rec := httptest.NewRecorder()
+	c.Check(v1Cmd.Path, check.Equals, "/1.0")
+
+	s.mkrelease(c)
+	s.mkOem(c, "some-store")
+
+	v1Cmd.GET(v1Cmd, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 200)
+
+	expected := map[string]interface{}{
+		"flavor":          "flavor",
+		"release":         "release",
+		"default_channel": "channel",
+		"api_compat":      "0",
+		"store":           "some-store",
+	}
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
 func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
 	d := New()
 	d.addRoutes()
@@ -335,12 +379,12 @@ func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
 	req, err := http.NewRequest("GET", "/1.0/packages", nil)
 	c.Assert(err, check.IsNil)
 
-	s.parts = []snappy.Part{
-		&tP{name: "foo", version: "v1", origin: "bar"},
-		&tP{name: "bar", version: "v2", origin: "baz"},
-		&tP{name: "baz", version: "v3", origin: "qux"},
-		&tP{name: "qux", version: "v4", origin: "mip"},
+	ddirs := [][2]string{{"foo.bar", "v1"}, {"bar.baz", "v2"}, {"baz.qux", "v3"}, {"qux.mip", "v4"}}
+
+	for i := range ddirs {
+		c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, ddirs[i][0], ddirs[i][1]), 0755), check.IsNil)
 	}
+
 	rsp, ok := getPackagesInfo(packagesCmd, req).(*resp)
 	c.Assert(ok, check.Equals, true)
 
@@ -351,21 +395,22 @@ func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
 	meta, ok := rsp.Result.(map[string]interface{})
 	c.Assert(ok, check.Equals, true)
 	c.Assert(meta, check.NotNil)
-	c.Check(meta["paging"], check.DeepEquals, map[string]interface{}{"pages": 1, "page": 1, "count": len(s.parts)})
+	c.Check(meta["paging"], check.DeepEquals, map[string]interface{}{"pages": 1, "page": 1, "count": len(ddirs)})
 
 	packages, ok := meta["packages"].(map[string]map[string]string)
 	c.Assert(ok, check.Equals, true)
 	c.Check(packages, check.NotNil)
-	c.Check(packages, check.HasLen, len(s.parts))
+	c.Check(packages, check.HasLen, len(ddirs))
 
-	for _, part := range s.parts {
-		part := part.(*tP)
-		qn := part.name + "." + part.origin
+	for i := range ddirs {
+		qn, version := ddirs[i][0], ddirs[i][1]
+		idx := strings.LastIndex(qn, ".")
+		name, origin := qn[:idx], qn[idx+1:]
 		got := packages[qn]
 		c.Assert(got, check.NotNil, check.Commentf(qn))
-		c.Check(got["name"], check.Equals, part.name)
-		c.Check(got["version"], check.Equals, part.version)
-		c.Check(got["origin"], check.Equals, part.origin)
+		c.Check(got["name"], check.Equals, name)
+		c.Check(got["version"], check.Equals, version)
+		c.Check(got["origin"], check.Equals, origin)
 	}
 }
 
@@ -530,6 +575,14 @@ func (s *apiSuite) TestPostPackageDispatch(c *check.C) {
 	}
 }
 
+type cfgc struct{ cfg string }
+
+func (cfgc) IsInstalled(string) bool { return true }
+func (cfgc) ActiveIndex() int        { return 0 }
+func (c cfgc) Load(string) (snappy.Part, error) {
+	return &tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: c.cfg}, nil
+}
+
 func (s *apiSuite) TestPackageGetConfig(c *check.C) {
 	d := New()
 	d.addRoutes()
@@ -538,13 +591,16 @@ func (s *apiSuite) TestPackageGetConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	configStr := "some: config"
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
-	s.parts = []snappy.Part{
-		&tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: configStr},
-		&tP{name: "bar", version: "v2", origin: "baz", isActive: true},
-		&tP{name: "baz", version: "v3", origin: "qux", isActive: true},
-		&tP{name: "qux", version: "v4", origin: "mip", isActive: true},
+	oldConcrete := lightweight.NewConcrete
+	defer func() {
+		lightweight.NewConcrete = oldConcrete
+	}()
+	lightweight.NewConcrete = func(*lightweight.PartBag, string) lightweight.Concreter {
+		return &cfgc{configStr}
 	}
+
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
 	rsp := packageConfig(packagesCmd, req).(*resp)
 
@@ -564,15 +620,18 @@ func (s *apiSuite) TestPackagePutConfig(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	configStr := "some: config"
-	s.vars = map[string]string{"name": "foo", "origin": "bar"}
-	s.parts = []snappy.Part{
-		&tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: configStr},
-		&tP{name: "bar", version: "v2", origin: "baz", isActive: true},
-		&tP{name: "baz", version: "v3", origin: "qux", isActive: true},
-		&tP{name: "qux", version: "v4", origin: "mip", isActive: true},
+	oldConcrete := lightweight.NewConcrete
+	defer func() {
+		lightweight.NewConcrete = oldConcrete
+	}()
+	lightweight.NewConcrete = func(*lightweight.PartBag, string) lightweight.Concreter {
+		return &cfgc{configStr}
 	}
 
-	rsp := packageConfig(packagesCmd, req).(*resp)
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+	s.mkInstalled(c, "foo", "bar", "v1", true, "")
+
+	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp, check.DeepEquals, &resp{
 		Type:   ResponseTypeSync,
@@ -592,11 +651,7 @@ func (s *apiSuite) TestPackageServiceGet(c *check.C) {
 	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/services", nil)
 	c.Assert(err, check.IsNil)
 
-	s.parts = []snappy.Part{
-		&tP{name: "foo", version: "v1", origin: "bar", isActive: true,
-			svcYamls: []snappy.ServiceYaml{{Name: "svc"}},
-		},
-	}
+	s.mkInstalled(c, "foo", "bar", "v1", true, "services: [{name: svc}]")
 	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
 
 	rsp := packageService(packageSvcsCmd, req).(*resp)
@@ -605,11 +660,10 @@ func (s *apiSuite) TestPackageServiceGet(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 
 	m := rsp.Result.(map[string]*svcDesc)
-	c.Assert(m["svc"], check.DeepEquals, &svcDesc{
-		Op:     "status",
-		Spec:   &snappy.ServiceYaml{Name: "svc"},
-		Status: &snappy.PackageServiceStatus{ServiceName: "svc"},
-	})
+	c.Assert(m["svc"], check.FitsTypeOf, new(svcDesc))
+	c.Check(m["svc"].Op, check.Equals, "status")
+	c.Check(m["svc"].Spec, check.DeepEquals, &snappy.ServiceYaml{Name: "svc", StopTimeout: snappy.DefaultTimeout})
+	c.Check(m["svc"].Status, check.DeepEquals, &snappy.PackageServiceStatus{ServiceName: "svc"})
 }
 
 func (s *apiSuite) TestPackageServicePut(c *check.C) {
@@ -624,11 +678,7 @@ func (s *apiSuite) TestPackageServicePut(c *check.C) {
 	req, err := http.NewRequest("PUT", "/1.0/packages/foo.bar/services", buf)
 	c.Assert(err, check.IsNil)
 
-	s.parts = []snappy.Part{
-		&tP{name: "foo", version: "v1", origin: "bar", isActive: true,
-			svcYamls: []snappy.ServiceYaml{{Name: "svc"}},
-		},
-	}
+	s.mkInstalled(c, "foo", "bar", "v1", true, "services: [{name: svc}]")
 	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
 
 	rsp := packageService(packageSvcsCmd, req).(*resp)

@@ -103,8 +103,8 @@ func ubuntuCoreChannel() string {
 
 func info() error {
 	release := ubuntuCoreChannel()
-	frameworks, _ := snappy.ActiveSnapNamesByType(pkg.TypeFramework)
-	apps, _ := snappy.ActiveSnapNamesByType(pkg.TypeApp)
+	frameworks, _ := snappy.ActiveSnapIterByType(snappy.FullName, pkg.TypeFramework)
+	apps, _ := snappy.ActiveSnapIterByType(snappy.FullName, pkg.TypeApp)
 
 	// TRANSLATORS: the %s release string
 	fmt.Printf(i18n.G("release: %s\n"), release)

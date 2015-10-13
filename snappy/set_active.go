@@ -17,31 +17,37 @@
  *
  */
 
-package tests
+package snappy
 
 import (
-	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"sort"
 
-	"gopkg.in/check.v1"
+	"launchpad.net/snappy/progress"
 )
 
-var _ = check.Suite(&helloDbusSuite{})
+// SetActive sets the active state of the given package
+func SetActive(fullName string, active bool, meter progress.Meter) error {
+	// TODO: switch this to using lightweights
+	m := NewMetaLocalRepository()
+	installed, err := m.Installed()
+	if err != nil {
+		return err
+	}
 
-type helloDbusSuite struct {
-	common.SnappySuite
-}
+	parts := FindSnapsByName(fullName, installed)
+	if len(parts) == 0 {
+		return ErrPackageNotFound
+	}
 
-func (s *helloDbusSuite) TestCmdOutput(c *check.C) {
-	common.InstallSnap(c, "hello-dbus-fwk.canonical")
-	defer common.RemoveSnap(c, "hello-dbus-fwk.canonical")
+	sort.Sort(sort.Reverse(BySnapVersion(parts)))
 
-	common.InstallSnap(c, "hello-dbus-app.canonical")
-	defer common.RemoveSnap(c, "hello-dbus-app.canonical")
+	part := parts[0]
+	for i := range parts {
+		if parts[i].IsActive() {
+			part = parts[i]
+			break
+		}
+	}
 
-	output := common.ExecCommand(c, "hello-dbus-app.client")
-
-	expected := "PASS\n"
-
-	c.Assert(output, check.Equals, expected,
-		check.Commentf("Expected output %s not found, %s", expected, output))
+	return part.SetActive(active, meter)
 }

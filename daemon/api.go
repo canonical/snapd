@@ -27,13 +27,15 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/gorilla/mux"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg/lightweight"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
 	"launchpad.net/snappy/snappy"
@@ -42,6 +44,8 @@ import (
 var api = []*Command{
 	rootCmd,
 	v1Cmd,
+	metaIconCmd,
+	appIconCmd,
 	packagesCmd,
 	packageCmd,
 	packageConfigCmd,
@@ -60,6 +64,16 @@ var (
 	v1Cmd = &Command{
 		Path: "/1.0",
 		GET:  v1Get,
+	}
+
+	metaIconCmd = &Command{
+		Path: "/1.0/icons/{icon}",
+		GET:  metaIconGet,
+	}
+
+	appIconCmd = &Command{
+		Path: "/1.0/icons/{name}.{origin}/icon",
+		GET:  appIconGet,
 	}
 
 	packagesCmd = &Command{
@@ -105,29 +119,32 @@ var (
 
 func v1Get(c *Command, r *http.Request) Response {
 	rel := release.Get()
-	return SyncResponse(map[string]string{
+	m := map[string]string{
 		"flavor":          rel.Flavor,
 		"release":         rel.Series,
 		"default_channel": rel.Channel,
 		"api_compat":      "0",
-	})
+	}
+
+	if store := snappy.StoreID(); store != "" {
+		m["store"] = store
+	}
+
+	return SyncResponse(m)
 }
 
 type metarepo interface {
 	Details(string, string) ([]snappy.Part, error)
 	All() ([]snappy.Part, error)
-}
-
-var newRepo = func() metarepo {
-	return snappy.NewMetaRepository()
-}
-
-var newLocalRepo = func() metarepo {
-	return snappy.NewMetaLocalRepository()
+	Updates() ([]snappy.Part, error)
 }
 
 var newRemoteRepo = func() metarepo {
 	return snappy.NewMetaStoreRepository()
+}
+
+var newSystemRepo = func() metarepo {
+	return snappy.NewSystemImageRepository()
 }
 
 var muxVars = mux.Vars
@@ -136,22 +153,15 @@ func getPackageInfo(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 	origin := vars["origin"]
-	if name == "" || origin == "" {
-		// can't happen, i think? mux won't let it
-		return BadRequest(nil, "missing name or origin")
+
+	repo := newRemoteRepo()
+	var part snappy.Part
+	if parts, _ := repo.Details(name, origin); len(parts) > 0 {
+		part = parts[0]
 	}
 
-	repo := newRepo()
-	found, err := repo.Details(name, origin)
-	if err != nil {
-		if err == snappy.ErrPackageNotFound {
-			return NotFound
-		}
-
-		return InternalError(err, "unable to list packages: %v", err)
-	}
-
-	if len(found) == 0 {
+	bag := lightweight.PartBagByName(name, origin)
+	if bag == nil && part == nil {
 		return NotFound
 	}
 
@@ -165,51 +175,37 @@ func getPackageInfo(c *Command, r *http.Request) Response {
 		return InternalError(err, "route can't build URL for package %s.%s: %v", name, origin, err)
 	}
 
-	result := parts2map(found, url.String())
+	result := webify(bag.Map(part), url.String())
 
 	return SyncResponse(result)
 }
 
-// parts2map takes a slice of parts with the same name and returns a
-// single map with that part's metadata (including rollback_available
-// & etc).
-func parts2map(parts []snappy.Part, resource string) map[string]string {
-	if len(parts) == 0 {
-		return nil
+func webify(result map[string]string, resource string) map[string]string {
+	result["resource"] = resource
+
+	icon := result["icon"]
+	if icon == "" || strings.HasPrefix(icon, "http") {
+		return result
 	}
 
-	// TODO: handle multiple results in parts; set rollback_available; set update_available
-	part := parts[0]
-	var status string
-	if part.IsInstalled() {
-		if part.IsActive() {
-			status = "active"
-		} else {
-			// can't really happen
-			status = "installed"
-		}
+	result["icon"] = ""
+
+	var route *mux.Route
+	var args []string
+
+	if strings.HasPrefix(icon, dirs.SnapIconsDir) {
+		route = metaIconCmd.d.router.Get(metaIconCmd.Path)
+		args = []string{"icon", icon[len(dirs.SnapIconsDir)+1:]}
 	} else {
-		status = "not installed"
-	}
-	// TODO: check for removed and transients (extend the Part interface for removed; check ops for transients)
-
-	icon := part.Icon()
-	if strings.HasPrefix(icon, iconPath) {
-		icon = iconPrefix + icon[len(iconPath):]
+		route = appIconCmd.d.router.Get(appIconCmd.Path)
+		args = []string{"name", result["name"], "origin", result["origin"]}
 	}
 
-	result := map[string]string{
-		"icon":           icon,
-		"name":           part.Name(),
-		"origin":         part.Origin(),
-		"resource":       resource,
-		"status":         status,
-		"type":           string(part.Type()),
-		"vendor":         part.Vendor(),
-		"version":        part.Version(),
-		"description":    part.Description(),
-		"installed_size": strconv.FormatInt(part.InstalledSize(), 10),
-		"download_size":  strconv.FormatInt(part.DownloadSize(), 10),
+	if route != nil {
+		url, err := route.URL(args...)
+		if err == nil {
+			result["icon"] = url.String()
+		}
 	}
 
 	return result
@@ -223,17 +219,6 @@ func (ps byQN) Less(a, b int) bool {
 	return snappy.QualifiedName(ps[a]) < snappy.QualifiedName(ps[b])
 }
 
-func addPart(results map[string]map[string]string, current []snappy.Part, name string, origin string, route *mux.Route) error {
-	url, err := route.URL("name", name, "origin", origin)
-	if err != nil {
-		return err
-	}
-
-	results[name+"."+origin] = parts2map(current, url.String())
-
-	return nil
-}
-
 // plural!
 func getPackagesInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(packageCmd.Path)
@@ -241,83 +226,64 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 		return InternalError(nil, "router can't find route for packages")
 	}
 
-	sources := r.URL.Query().Get("sources")
-	var repo metarepo
-	switch sources {
-	case "local":
-		repo = newLocalRepo()
-	case "remote":
-		repo = newRemoteRepo()
-	default:
-		repo = newRepo()
+	sources := make([]string, 1, 3)
+	sources[0] = "local"
+	// we're not worried if the remote repos error out
+	found, _ := newRemoteRepo().All()
+	if len(found) > 0 {
+		sources = append(sources, "store")
 	}
 
-	found, err := repo.All()
-	if err != nil {
-		if err == snappy.ErrPackageNotFound {
-			return NotFound
-		}
-
-		return InternalError(err, "unable to list packages: %v", err)
+	upd, _ := newSystemRepo().Updates()
+	if len(upd) > 0 {
+		sources = append(sources, "system-image")
 	}
 
-	if len(found) == 0 {
-		return NotFound
-	}
+	found = append(found, upd...)
 
 	sort.Sort(byQN(found))
 
+	bags := lightweight.AllPartBags()
+
 	results := make(map[string]map[string]string)
-	var current []snappy.Part
-	var oldName string
-	var oldOrigin string
-	for i := range found {
-		name := found[i].Name()
-		origin := found[i].Origin()
-		if (name != oldName || origin != oldOrigin) && len(current) > 0 {
-			if err := addPart(results, current, oldName, oldOrigin, route); err != nil {
-				return InternalError(err, "can't get details for %s.%s: %v", oldName, oldOrigin, err)
-			}
-			current = nil
+	for _, part := range found {
+		name := part.Name()
+		origin := part.Origin()
+
+		url, err := route.URL("name", name, "origin", origin)
+		if err != nil {
+			return InternalError(err, "can't get route to details for %s.%s: %v", name, origin, err)
 		}
-		oldName = name
-		oldOrigin = origin
-		current = append(current, found[i])
+
+		fullname := name + "." + origin
+		qn := snappy.QualifiedName(part)
+		results[fullname] = webify(bags[qn].Map(part), url.String())
+		delete(bags, qn)
 	}
 
-	if len(current) > 0 {
-		if err := addPart(results, current, oldName, oldOrigin, route); err != nil {
-			return InternalError(err, "can't get details for %s.%s: %v", oldName, oldOrigin, err)
+	for _, v := range bags {
+		m := v.Map(nil)
+		name := m["name"]
+		origin := m["origin"]
+
+		resource := "no resource URL for this resource"
+		url, _ := route.URL("name", name, "origin", origin)
+		if url != nil {
+			resource = url.String()
 		}
+
+		results[name+"."+origin] = webify(m, resource)
 	}
 
 	return SyncResponse(map[string]interface{}{
 		"packages": results,
+		"sources":  sources,
 		"paging": map[string]interface{}{
 			"pages": 1,
 			"page":  1,
 			"count": len(results),
 		},
 	})
-}
-
-func getActivePkg(fullname string) ([]snappy.Part, error) {
-	// TODO: below should be rolled into ActiveSnapByName
-	// (specifically: ActiveSnapByname should know about origins)
-	repo := newLocalRepo()
-	all, err := repo.All()
-	if err != nil {
-		return nil, err
-	}
-
-	parts := all[:0]
-	for _, part := range snappy.FindSnapsByName(fullname, all) {
-		if part.IsActive() {
-			parts = append(parts, part)
-		}
-	}
-
-	return parts, nil
 }
 
 var findServices = snappy.FindServices
@@ -362,23 +328,20 @@ func packageService(c *Command, r *http.Request) Response {
 		return BadRequest(nil, "unknown action %s", action)
 	}
 
-	parts, err := getActivePkg(pkgName)
-	if err != nil {
-		return InternalError(err, "unable to get package list: %v", err)
-	}
-
-	switch len(parts) {
-	default:
-		return InternalError(nil, "found %d active for %s", len(parts), pkgName)
-	case 0:
+	bag := lightweight.PartBagByName(name, origin)
+	idx := bag.ActiveIndex()
+	if idx < 0 {
 		return NotFound
-	case 1:
-		// yay, or something
 	}
 
-	part, ok := parts[0].(snappy.ServiceYamler)
+	ipart, err := bag.Load(idx)
+	if err != nil {
+		return InternalError(err, "unable to get load active package: %v", err)
+	}
+
+	part, ok := ipart.(*snappy.SnapPart)
 	if !ok {
-		return InternalError(nil, "active package of type %T does not implement snappy.ServiceYamler", parts[0])
+		return InternalError(nil, "active package is not a *snappy.SnapPart: %T", ipart)
 	}
 	svcs := part.ServiceYamls()
 
@@ -460,18 +423,15 @@ func packageConfig(c *Command, r *http.Request) Response {
 	}
 	pkgName := name + "." + origin
 
-	parts, err := getActivePkg(pkgName)
-	if err != nil {
-		return InternalError(err, "unable to get package list: %v", err)
+	bag := lightweight.PartBagByName(name, origin)
+	idx := bag.ActiveIndex()
+	if idx < 0 {
+		return NotFound
 	}
 
-	switch len(parts) {
-	default:
-		return InternalError(nil, "found %d active for %s", len(parts), pkgName)
-	case 0:
-		return NotFound
-	case 1:
-		// yay, or something
+	part, err := bag.Load(idx)
+	if err != nil {
+		return InternalError(err, "unable to get load active package: %v", err)
 	}
 
 	bs, err := ioutil.ReadAll(r.Body)
@@ -479,7 +439,7 @@ func packageConfig(c *Command, r *http.Request) Response {
 		return BadRequest(err, "reading config request body gave %v", err)
 	}
 
-	config, err := parts[0].Config(bs)
+	config, err := part.Config(bs)
 	if err != nil {
 		return InternalError(err, "unable to retrieve config for %s: %v", pkgName, err)
 	}
@@ -569,6 +529,14 @@ func (inst *packageInstruction) rollback() interface{} {
 	return err
 }
 
+func (inst *packageInstruction) activate() interface{} {
+	return snappy.SetActive(inst.pkg, true, inst.prog)
+}
+
+func (inst *packageInstruction) deactivate() interface{} {
+	return snappy.SetActive(inst.pkg, false, inst.prog)
+}
+
 func (inst *packageInstruction) dispatch() func() interface{} {
 	switch inst.Action {
 	case "install":
@@ -582,6 +550,10 @@ func (inst *packageInstruction) dispatch() func() interface{} {
 		return inst.purge
 	case "rollback":
 		return inst.rollback
+	case "activate":
+		return inst.activate
+	case "deactivate":
+		return inst.deactivate
 	default:
 		return nil
 	}
@@ -728,4 +700,36 @@ func getLogs(c *Command, r *http.Request) Response {
 	}
 
 	return SyncResponse(logs)
+}
+
+func metaIconGet(c *Command, r *http.Request) Response {
+	vars := muxVars(r)
+	name := vars["icon"]
+
+	path := filepath.Join(dirs.SnapIconsDir, name)
+
+	return FileResponse(path)
+}
+
+func appIconGet(c *Command, r *http.Request) Response {
+	vars := muxVars(r)
+	name := vars["name"]
+	origin := vars["origin"]
+
+	bag := lightweight.PartBagByName(name, origin)
+	if bag == nil || len(bag.Versions) == 0 {
+		return NotFound
+	}
+
+	part := bag.LoadBest()
+	if part == nil {
+		return NotFound
+	}
+
+	path := filepath.Clean(part.Icon())
+	if !strings.HasPrefix(path, dirs.SnapAppsDir) && !strings.HasPrefix(path, dirs.SnapOemDir) {
+		return BadRequest
+	}
+
+	return FileResponse(path)
 }

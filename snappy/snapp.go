@@ -38,11 +38,12 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"launchpad.net/snappy/clickdeb"
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/oauth"
 	"launchpad.net/snappy/pkg"
+	"launchpad.net/snappy/pkg/remote"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
@@ -174,13 +175,13 @@ type Binary struct {
 // SnapPart represents a generic snap type
 type SnapPart struct {
 	m           *packageYaml
-	remoteM     *remoteSnap
+	remoteM     *remote.Snap
 	origin      string
 	hash        string
 	isActive    bool
 	isInstalled bool
 	description string
-	deb         *clickdeb.ClickDeb
+	deb         PackageFile
 	basedir     string
 }
 
@@ -238,29 +239,9 @@ type packageYaml struct {
 	LicenseVersion           string `yaml:"license-version,omitempty"`
 }
 
-type remoteSnap struct {
-	Alias           string             `json:"alias,omitempty"`
-	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
-	DownloadSha512  string             `json:"download_sha512,omitempty"`
-	Description     string             `json:"description,omitempty"`
-	DownloadSize    int64              `json:"binary_filesize,omitempty"`
-	DownloadURL     string             `json:"download_url,omitempty"`
-	IconURL         string             `json:"icon_url"`
-	LastUpdated     string             `json:"last_updated,omitempty"`
-	Name            string             `json:"package_name"`
-	Origin          string             `json:"origin"`
-	Prices          map[string]float64 `json:"prices,omitempty"`
-	Publisher       string             `json:"publisher,omitempty"`
-	RatingsAverage  float64            `json:"ratings_average,omitempty"`
-	SupportURL      string             `json:"support_url"`
-	Title           string             `json:"title"`
-	Type            pkg.Type           `json:"content,omitempty"`
-	Version         string             `json:"version"`
-}
-
 type searchResults struct {
 	Payload struct {
-		Packages []remoteSnap `json:"clickindex:package"`
+		Packages []remote.Snap `json:"clickindex:package"`
 	} `json:"_embedded"`
 }
 
@@ -393,10 +374,8 @@ func (m *packageYaml) checkForPackageInstalled(origin string) error {
 		return nil
 	}
 
-	if m.Type != pkg.TypeFramework && m.Type != pkg.TypeOem {
-		if part.Origin() != origin {
-			return ErrPackageNameAlreadyInstalled
-		}
+	if part.Origin() != origin {
+		return ErrPackageNameAlreadyInstalled
 	}
 
 	return nil
@@ -425,7 +404,7 @@ func (m *packageYaml) FrameworksForClick() string {
 }
 
 func (m *packageYaml) checkForFrameworks() error {
-	installed, err := ActiveSnapNamesByType(pkg.TypeFramework)
+	installed, err := ActiveSnapIterByType(BareName, pkg.TypeFramework)
 	if err != nil {
 		return err
 	}
@@ -451,7 +430,7 @@ func (m *packageYaml) checkForFrameworks() error {
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, currentActiveDir string) error {
+func (m *packageYaml) checkLicenseAgreement(ag agreer, d PackageFile, currentActiveDir string) error {
 	if !m.ExplicitLicenseAgreement {
 		return nil
 	}
@@ -559,15 +538,15 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 }
 
 // NewSnapPartFromSnapFile loads a snap from the given (clickdeb) snap file.
-// Caller should call Close on the clickdeb.
+// Caller should call Close on the pkg.
 // TODO: expose that Close.
 func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
-	if err := clickdeb.Verify(snapFile, unauthOk); err != nil {
+	d, err := OpenPackageFile(snapFile)
+	if err != nil {
 		return nil, err
 	}
 
-	d, err := clickdeb.Open(snapFile)
-	if err != nil {
+	if err := d.Verify(unauthOk); err != nil {
 		return nil, err
 	}
 
@@ -584,10 +563,10 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 		return nil, err
 	}
 
-	targetDir := snapAppsDir
+	targetDir := dirs.SnapAppsDir
 	// the "oem" parts are special
 	if m.Type == pkg.TypeOem {
-		targetDir = snapOemDir
+		targetDir = dirs.SnapOemDir
 	}
 
 	if origin == SideloadedOrigin {
@@ -652,14 +631,14 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 	}
 	part.hash = h.ArchiveSha512
 
-	remoteManifestPath := manifestPath(part)
+	remoteManifestPath := RemoteManifestPath(part)
 	if helpers.FileExists(remoteManifestPath) {
 		content, err := ioutil.ReadFile(remoteManifestPath)
 		if err != nil {
 			return nil, err
 		}
 
-		var r remoteSnap
+		var r remote.Snap
 		if err := yaml.Unmarshal(content, &r); err != nil {
 			return nil, &ErrInvalidYaml{File: remoteManifestPath, Err: err, Yaml: content}
 		}
@@ -823,7 +802,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	fullName := QualifiedName(s)
-	dataDir := filepath.Join(snapDataDir, fullName, s.Version())
+	dataDir := filepath.Join(dirs.SnapDataDir, fullName, s.Version())
 
 	var oldPart *SnapPart
 	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current")); currentActiveDir != "" {
@@ -849,7 +828,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 
 	// we need to call the external helper so that we can reliable drop
 	// privs
-	if err := s.deb.UnpackWithDropPrivs(s.basedir, globalRootDir); err != nil {
+	if err := s.deb.UnpackWithDropPrivs(s.basedir, dirs.GlobalRootDir); err != nil {
 		return "", err
 	}
 
@@ -926,7 +905,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 			return "", err
 		}
 
-		sysd := systemd.New(globalRootDir, inter)
+		sysd := systemd.New(dirs.GlobalRootDir, inter)
 		stopped := make(map[string]time.Duration)
 		defer func() {
 			if err != nil {
@@ -980,8 +959,12 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 }
 
 // SetActive sets the snap active
-func (s *SnapPart) SetActive(pb progress.Meter) (err error) {
-	return s.activate(false, pb)
+func (s *SnapPart) SetActive(active bool, pb progress.Meter) (err error) {
+	if active {
+		return s.activate(false, pb)
+	}
+
+	return s.deactivate(false, pb)
 }
 
 func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
@@ -1007,7 +990,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	}
 
 	if s.Type() == pkg.TypeFramework {
-		if err := policy.Install(s.Name(), s.basedir, globalRootDir); err != nil {
+		if err := policy.Install(s.Name(), s.basedir, dirs.GlobalRootDir); err != nil {
 			return err
 		}
 	}
@@ -1036,7 +1019,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
 	}
 
-	dbase := filepath.Join(snapDataDir, QualifiedName(s))
+	dbase := filepath.Join(dirs.SnapDataDir, QualifiedName(s))
 	currentDataSymlink := filepath.Join(dbase, "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
@@ -1083,7 +1066,7 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	if s.Type() == pkg.TypeFramework {
-		if err := policy.Remove(s.Name(), s.basedir, globalRootDir); err != nil {
+		if err := policy.Remove(s.Name(), s.basedir, dirs.GlobalRootDir); err != nil {
 			return err
 		}
 	}
@@ -1097,7 +1080,7 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 		logger.Noticef("Failed to remove %q: %v", currentSymlink, err)
 	}
 
-	currentDataSymlink := filepath.Join(snapDataDir, QualifiedName(s), "current")
+	currentDataSymlink := filepath.Join(dirs.SnapDataDir, QualifiedName(s), "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
 	}
@@ -1279,7 +1262,7 @@ func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
 var timestampUpdater = helpers.UpdateTimestamp
 
 func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
-	fn := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_%s_%s.json", fullName, thing, version))
+	fn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s_%s_%s.json", fullName, thing, version))
 	return timestampUpdater(fn)
 }
 
@@ -1445,7 +1428,7 @@ func originFromYamlPath(path string) (string, error) {
 
 // RemoteSnapPart represents a snap available on the server
 type RemoteSnapPart struct {
-	pkg remoteSnap
+	pkg remote.Snap
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
@@ -1591,7 +1574,7 @@ func (s *RemoteSnapPart) Download(pbar progress.Meter) (string, error) {
 }
 
 func (s *RemoteSnapPart) downloadIcon(pbar progress.Meter) error {
-	if err := os.MkdirAll(snapIconsDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapIconsDir, 0755); err != nil {
 		return err
 	}
 
@@ -1624,12 +1607,12 @@ func (s *RemoteSnapPart) saveStoreManifest() error {
 		return err
 	}
 
-	if err := os.MkdirAll(snapMetaDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapMetaDir, 0755); err != nil {
 		return err
 	}
 
 	// don't worry about previous contents
-	return ioutil.WriteFile(manifestPath(s), content, 0644)
+	return ioutil.WriteFile(RemoteManifestPath(s), content, 0644)
 }
 
 // Install installs the snap
@@ -1652,7 +1635,7 @@ func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (strin
 }
 
 // SetActive sets the snap active
-func (s *RemoteSnapPart) SetActive(progress.Meter) error {
+func (s *RemoteSnapPart) SetActive(bool, progress.Meter) error {
 	return ErrNotInstalled
 }
 
@@ -1677,8 +1660,8 @@ func (s *RemoteSnapPart) Frameworks() ([]string, error) {
 }
 
 // NewRemoteSnapPart returns a new RemoteSnapPart from the given
-// remoteSnap data
-func NewRemoteSnapPart(data remoteSnap) *RemoteSnapPart {
+// remote.Snap data
+func NewRemoteSnapPart(data remote.Snap) *RemoteSnapPart {
 	return &RemoteSnapPart{pkg: data}
 }
 
@@ -1713,8 +1696,16 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
+func cpiURL() string {
+	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+		return "https://search.apps.staging.ubuntu.com/api/v1/"
+	}
+
+	return "https://search.apps.ubuntu.com/api/v1/"
+}
+
 func init() {
-	storeBaseURI, err := url.Parse("https://search.apps.ubuntu.com/api/v1/")
+	storeBaseURI, err := url.Parse(cpiURL())
 	if err != nil {
 		panic(err)
 	}
@@ -1725,7 +1716,7 @@ func init() {
 	}
 
 	v := url.Values{}
-	v.Set("fields", strings.Join(getStructFields(remoteSnap{}), ","))
+	v.Set("fields", strings.Join(getStructFields(remote.Snap{}), ","))
 	storeSearchURI.RawQuery = v.Encode()
 
 	storeDetailsURI, err = storeBaseURI.Parse("package/")
@@ -1759,7 +1750,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
 
 	// frameworks
-	frameworks, _ := ActiveSnapNamesByType(pkg.TypeFramework)
+	frameworks, _ := ActiveSnapIterByType(BareName, pkg.TypeFramework)
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(addCoreFmk(frameworks), ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
@@ -1818,7 +1809,7 @@ func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts [
 	}
 
 	// and decode json
-	var detailsData remoteSnap
+	var detailsData remote.Snap
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&detailsData); err != nil {
 		return nil, err
@@ -1911,7 +1902,9 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// the store only supports apps, oem and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
-	installed, err := ActiveSnapNamesByType(pkg.TypeApp, pkg.TypeFramework, pkg.TypeOem)
+	//
+	// NOTE this *will* send .sideload apps to the store.
+	installed, err := ActiveSnapIterByType(FullName, pkg.TypeApp, pkg.TypeFramework, pkg.TypeOem)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}
@@ -1937,7 +1930,7 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	}
 	defer resp.Body.Close()
 
-	var updateData []remoteSnap
+	var updateData []remote.Snap
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&updateData); err != nil {
 		return nil, err

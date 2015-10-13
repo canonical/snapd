@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
 )
@@ -57,7 +58,7 @@ icon: meta/hello.svg`)
 	c.Assert(parts[0].Name(), Equals, "framework1")
 }
 
-func (s *SnapTestSuite) TestActiveSnapNamesByType(c *C) {
+func (s *SnapTestSuite) TestActiveSnapIterByType(c *C) {
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app
 version: 1.10
 vendor: example.com`)
@@ -71,13 +72,34 @@ vendor: example.com`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	names, err := ActiveSnapNamesByType(pkg.TypeApp)
-	c.Check(err, IsNil)
-	c.Check(names, DeepEquals, []string{"app." + testOrigin})
+	type T struct {
+		f func(Part) string
+		t pkg.Type
+		n string
+	}
 
-	names, err = ActiveSnapNamesByType(pkg.TypeFramework)
+	for _, t := range []T{
+		{BareName, pkg.TypeApp, "app"},
+		{BareName, pkg.TypeFramework, "fwk"},
+		{QualifiedName, pkg.TypeApp, "app." + testOrigin},
+		{QualifiedName, pkg.TypeFramework, "fwk"},
+		{FullName, pkg.TypeApp, "app." + testOrigin},
+		{FullName, pkg.TypeFramework, "fwk." + testOrigin},
+	} {
+		names, err := ActiveSnapIterByType(t.f, t.t)
+		c.Check(err, IsNil)
+		c.Check(names, DeepEquals, []string{t.n})
+	}
+
+	nm := make(map[string]bool, 2)
+	names, err := ActiveSnapIterByType(QualifiedName, pkg.TypeApp, pkg.TypeFramework)
 	c.Check(err, IsNil)
-	c.Check(names, DeepEquals, []string{"fwk"})
+	c.Assert(names, HasLen, 2)
+	for i := range names {
+		nm[names[i]] = true
+	}
+
+	c.Check(nm, DeepEquals, map[string]bool{"fwk": true, "app." + testOrigin: true})
 }
 
 func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {
@@ -96,7 +118,7 @@ func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(snapAppsDir)
+	repo := NewLocalSnapRepository(dirs.SnapAppsDir)
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
@@ -106,7 +128,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(snapAppsDir)
+	repo := NewLocalSnapRepository(dirs.SnapAppsDir)
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
@@ -118,7 +140,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithOrigin(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(snapAppsDir)
+	repo := NewLocalSnapRepository(dirs.SnapAppsDir)
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
@@ -130,7 +152,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameWithOrigin(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithOriginNotThere(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(snapAppsDir)
+	repo := NewLocalSnapRepository(dirs.SnapAppsDir)
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
@@ -162,7 +184,7 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(snapAppsDir)
+	repo := NewLocalSnapRepository(dirs.SnapAppsDir)
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
@@ -185,12 +207,12 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "name: fmk\ntype: framework\nversion: 1\nvendor: foo")
-	repo := NewLocalSnapRepository(snapAppsDir)
+	repo := NewLocalSnapRepository(dirs.SnapAppsDir)
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
 	parts := FindSnapsByNameAndVersion("fmk."+testOrigin, "1", installed)
-	c.Check(parts, HasLen, 0)
+	c.Check(parts, HasLen, 1)
 	parts = FindSnapsByNameAndVersion("fmk.badOrigin", "1", installed)
 	c.Check(parts, HasLen, 0)
 

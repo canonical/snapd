@@ -128,11 +128,6 @@ func (d *Daemon) Init() error {
 	return nil
 }
 
-const (
-	iconPath   = "/var/lib/snappy/icons/"
-	iconPrefix = "/1.0/icons/"
-)
-
 func (d *Daemon) addRoutes() {
 	d.router = mux.NewRouter()
 
@@ -142,8 +137,6 @@ func (d *Daemon) addRoutes() {
 		d.router.Handle(c.Path, c).Name(c.Path)
 	}
 
-	// hrmph
-	d.router.PathPrefix(iconPrefix).Handler(http.StripPrefix(iconPrefix, http.FileServer(http.Dir(iconPath)))).Name(iconPrefix)
 	// also maybe add a /favicon.ico handler...
 
 	d.router.NotFoundHandler = NotFound
