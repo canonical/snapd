@@ -113,8 +113,9 @@ var (
 	}
 
 	operationCmd = &Command{
-		Path: "/1.0/operations/{uuid}",
-		GET:  getOpInfo,
+		Path:   "/1.0/operations/{uuid}",
+		GET:    getOpInfo,
+		DELETE: deleteOp,
 	}
 )
 
@@ -518,6 +519,22 @@ func getOpInfo(c *Command, r *http.Request) Response {
 	}
 
 	return SyncResponse(task.Map(route))
+}
+
+func deleteOp(c *Command, r *http.Request) Response {
+	id := muxVars(r)["uuid"]
+	err := c.d.DeleteTask(id)
+
+	switch err {
+	case nil:
+		return SyncResponse("done")
+	case errTaskNotFound:
+		return NotFound
+	case errTaskStillRunning:
+		return BadRequest
+	default:
+		return InternalError(err, "")
+	}
 }
 
 type packageInstruction struct {
