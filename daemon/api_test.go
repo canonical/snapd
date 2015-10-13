@@ -733,10 +733,10 @@ func (s *apiSuite) TestPackagesPutStr(c *check.C) {
 	newConfigs := map[string]string{"foo.bar": "some other config", "baz.qux": "stuff", "missing.pkg": "blah blah"}
 	bs, err := json.Marshal(newConfigs)
 	c.Assert(err, check.IsNil)
-	s.genericTestPackagePut(c, bytes.NewBuffer(bs), 2, map[string]*configSub{
-		"foo.bar":     &configSub{Status: TaskSucceeded, Output: "some other config"},
-		"baz.qux":     &configSub{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrConfigNotFound.Error(), Obj: snappy.ErrConfigNotFound, Msg: "Config failed"}},
-		"missing.pkg": &configSub{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrPackageNotFound.Error(), Obj: snappy.ErrPackageNotFound}},
+	s.genericTestPackagePut(c, bytes.NewBuffer(bs), 2, map[string]*configSubtask{
+		"foo.bar":     &configSubtask{Status: TaskSucceeded, Output: "some other config"},
+		"baz.qux":     &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrConfigNotFound.Error(), Obj: snappy.ErrConfigNotFound, Msg: "Config failed"}},
+		"missing.pkg": &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrPackageNotFound.Error(), Obj: snappy.ErrPackageNotFound}},
 	})
 }
 
@@ -744,13 +744,13 @@ func (s *apiSuite) TestPackagesPutNil(c *check.C) {
 	newConfigs := map[string][]byte{"foo.bar": nil, "mip.brp": nil}
 	bs, err := json.Marshal(newConfigs)
 	c.Assert(err, check.IsNil)
-	s.genericTestPackagePut(c, bytes.NewBuffer(bs), 2, map[string]*configSub{
-		"foo.bar": &configSub{Status: TaskSucceeded, Output: "some: config"},
-		"mip.brp": &configSub{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrSnapNotActive.Error(), Obj: snappy.ErrSnapNotActive}},
+	s.genericTestPackagePut(c, bytes.NewBuffer(bs), 2, map[string]*configSubtask{
+		"foo.bar": &configSubtask{Status: TaskSucceeded, Output: "some: config"},
+		"mip.brp": &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrSnapNotActive.Error(), Obj: snappy.ErrSnapNotActive}},
 	})
 }
 
-func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, concreteNo int, expected map[string]*configSub) {
+func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, concreteNo int, expected map[string]*configSubtask) {
 	d := New()
 	d.addRoutes()
 
@@ -799,7 +799,7 @@ func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, concreteNo 
 	}
 
 	c.Assert(task.State(), check.Equals, TaskSucceeded)
-	out := task.Output().(map[string]*configSub)
+	out := task.Output().(map[string]*configSubtask)
 	c.Check(out, check.HasLen, len(expected))
 
 	var missing []string

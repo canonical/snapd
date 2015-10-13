@@ -452,7 +452,7 @@ func packageConfig(c *Command, r *http.Request) Response {
 	return SyncResponse(config)
 }
 
-type configSub struct {
+type configSubtask struct {
 	Status string      `json:"status"`
 	Output interface{} `json:"output"`
 }
@@ -470,11 +470,11 @@ func configMulti(c *Command, r *http.Request) Response {
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
-		rspmap := make(map[string]*configSub, len(pkgmap))
+		rspmap := make(map[string]*configSubtask, len(pkgmap))
 		bags := lightweight.AllPartBags()
 		for pkg, cfg := range pkgmap {
 			out := errorResult{}
-			sub := configSub{Status: TaskFailed, Output: &out}
+			sub := configSubtask{Status: TaskFailed, Output: &out}
 			rspmap[pkg] = &sub
 			bag, ok := bags[pkg]
 			if !ok {
