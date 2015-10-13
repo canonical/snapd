@@ -45,17 +45,21 @@ type activateSuite struct {
 	snapPath string
 }
 
-func (s *activateSuite) SetUpSuite(c *check.C) {
-	s.SnappySuite.SetUpSuite(c)
+func (s *activateSuite) SetUpTest(c *check.C) {
+	s.SnappySuite.SetUpTest(c)
+	if common.Release(c) == "15.04" {
+		c.Skip("activate CLI command not available on 15.04, reenable the test when present")
+	}
 	var err error
 	s.snapPath, err = build.LocalSnap(c, activateSnapName)
 	c.Assert(err, check.IsNil)
 	common.InstallSnap(c, s.snapPath)
 }
 
-func (s *activateSuite) TearDownSuite(c *check.C) {
+func (s *activateSuite) TearDownTest(c *check.C) {
 	os.Remove(s.snapPath)
 	common.RemoveSnap(c, activateSnapName)
+	s.SnappySuite.TearDownTest(c)
 }
 
 func (s *activateSuite) TestDeactivateRemovesBinary(c *check.C) {
