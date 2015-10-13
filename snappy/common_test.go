@@ -26,11 +26,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/pkg"
-
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
+
+	"launchpad.net/snappy/dirs"
+	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/pkg"
+	"launchpad.net/snappy/pkg/remote"
 )
 
 const (
@@ -38,6 +40,9 @@ const (
 	fooComposedName      = "foo.testspacethename"
 	helloAppComposedName = "hello-app.testspacethename"
 )
+
+// here to make it easy to switch in tests to "BuildSnapfsSnap"
+var snapBuilderFunc = BuildLegacySnap
 
 // makeInstalledMockSnap creates a installed mock snap without any
 // content other than the meta data
@@ -87,7 +92,32 @@ services:
 		return "", err
 	}
 
+	if err := storeMinimalRemoteManifest(dirName, m.Name, testOrigin, m.Version, "Hello"); err != nil {
+		return "", err
+	}
+
 	return yamlFile, nil
+}
+
+func storeMinimalRemoteManifest(qn, name, origin, version, desc string) error {
+	if origin == SideloadedOrigin {
+		panic("store remote manifest for sideloaded package")
+	}
+	content, err := yaml.Marshal(remote.Snap{
+		Name:        name,
+		Origin:      origin,
+		Version:     version,
+		Description: desc,
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := ioutil.WriteFile(filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", qn, version)), content, 0644); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func addDefaultApparmorJSON(tempdir, apparmorJSONPath string) error {
@@ -140,10 +170,11 @@ vendor: Foo Bar <foo@example.com>
 		ioutil.WriteFile(license, []byte(content), 0644)
 	}
 	// build it
-	err := helpers.ChDir(tmpdir, func() {
+	err := helpers.ChDir(tmpdir, func() error {
 		var err error
-		snapFile, err = Build(tmpdir, "")
+		snapFile, err = snapBuilderFunc(tmpdir, "")
 		c.Assert(err, IsNil)
+		return err
 	})
 	c.Assert(err, IsNil)
 	return filepath.Join(tmpdir, snapFile)
@@ -163,19 +194,23 @@ vendor: Foo Bar <foo@example.com>
 		packageYaml += strings.Join(extra, "\n") + "\n"
 	}
 
+	qn := "foo." + testOrigin
 	if snapType != pkg.TypeApp {
 		packageYaml += fmt.Sprintf("type: %s\n", snapType)
+		qn = "foo"
 	}
 
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	n, err := installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
+	c.Assert(storeMinimalRemoteManifest(qn, "foo", testOrigin, "1.0", ""), IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
 	n, err = installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
+	c.Assert(storeMinimalRemoteManifest(qn, "foo", testOrigin, "2.0", ""), IsNil)
 
 	m := NewMetaRepository()
 	installed, err := m.Installed()

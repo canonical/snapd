@@ -155,6 +155,11 @@ func (d *ClickDeb) Close() error {
 	return d.file.Close()
 }
 
+// Verify checks that the clickdeb is signed
+func (d *ClickDeb) Verify(allowUnauthenticated bool) error {
+	return Verify(d.Name(), allowUnauthenticated)
+}
+
 // ControlMember returns the content of the given control member file
 // (e.g. the content of the "manifest" file in the control.tar.gz ar member)
 func (d *ClickDeb) ControlMember(controlMember string) (content []byte, err error) {

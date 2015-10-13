@@ -27,7 +27,7 @@ import (
 
 // SetActive sets the active state of the given package
 func SetActive(fullName string, active bool, meter progress.Meter) error {
-	// TODO: switch this to using husks
+	// TODO: switch this to using lightweights
 	m := NewMetaLocalRepository()
 	installed, err := m.Installed()
 	if err != nil {

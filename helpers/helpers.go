@@ -49,15 +49,16 @@ func init() {
 }
 
 // ChDir runs runs "f" inside the given directory
-func ChDir(newDir string, f func()) (err error) {
+func ChDir(newDir string, f func() error) (err error) {
 	cwd, err := os.Getwd()
-	os.Chdir(newDir)
-	defer os.Chdir(cwd)
 	if err != nil {
 		return err
 	}
-	f()
-	return err
+	if err := os.Chdir(newDir); err != nil {
+		return err
+	}
+	defer os.Chdir(cwd)
+	return f()
 }
 
 // ExitCode extract the exit code from the error of a failed cmd.Run() or the

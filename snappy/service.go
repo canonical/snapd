@@ -72,6 +72,10 @@ func FindServices(snapName string, serviceName string, pb progress.Meter) (Servi
 
 	foundSnap := false
 	for _, part := range installed {
+		if !part.IsActive() {
+			continue
+		}
+
 		snap, ok := part.(*SnapPart)
 		if !ok {
 			// can't happen

@@ -54,22 +54,22 @@ func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) 
 }
 
 func (s *installAppSuite) TestCallSuccessfulBinaryFromInstalledSnap(c *check.C) {
-	snapPath, err := build.LocalSnap(c, data.BasicWithBinariesSnapName)
+	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil)
 	common.InstallSnap(c, snapPath)
-	defer common.RemoveSnap(c, data.BasicWithBinariesSnapName)
+	defer common.RemoveSnap(c, data.BasicBinariesSnapName)
 
 	// Exec command does not fail.
 	cli.ExecCommand(c, "basic-with-binaries.success")
 }
 
 func (s *installAppSuite) TestCallFailBinaryFromInstalledSnap(c *check.C) {
-	snapPath, err := build.LocalSnap(c, data.BasicWithBinariesSnapName)
+	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil)
 	common.InstallSnap(c, snapPath)
-	defer common.RemoveSnap(c, data.BasicWithBinariesSnapName)
+	defer common.RemoveSnap(c, data.BasicBinariesSnapName)
 
 	_, err = cli.ExecCommandErr("basic-with-binaries.fail")
 	c.Assert(err, check.NotNil, check.Commentf("The binary did not fail"))

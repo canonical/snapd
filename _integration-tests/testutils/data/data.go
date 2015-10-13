@@ -24,8 +24,8 @@ const (
 	BaseSnapPath = "_integration-tests/data/snaps"
 	// BasicSnapName is the name of the basic snap
 	BasicSnapName = "basic"
-	// BasicWithBinariesSnapName is the name of the basic snap with binaries
-	BasicWithBinariesSnapName = "basic-with-binaries"
+	// BasicBinariesSnapName is the name of the basic snap with binaries
+	BasicBinariesSnapName = "basic-binaries"
 	// WrongYamlSnapName is the name of a snap with an invalid meta yaml
 	WrongYamlSnapName = "wrong-yaml"
 	// MissingReadmeSnapName is the name of a snap without readme

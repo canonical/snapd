@@ -38,7 +38,6 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
@@ -182,7 +181,7 @@ type SnapPart struct {
 	isActive    bool
 	isInstalled bool
 	description string
-	deb         *clickdeb.ClickDeb
+	deb         PackageFile
 	basedir     string
 }
 
@@ -375,10 +374,8 @@ func (m *packageYaml) checkForPackageInstalled(origin string) error {
 		return nil
 	}
 
-	if m.Type != pkg.TypeFramework && m.Type != pkg.TypeOem {
-		if part.Origin() != origin {
-			return ErrPackageNameAlreadyInstalled
-		}
+	if part.Origin() != origin {
+		return ErrPackageNameAlreadyInstalled
 	}
 
 	return nil
@@ -433,7 +430,7 @@ func (m *packageYaml) checkForFrameworks() error {
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func (m *packageYaml) checkLicenseAgreement(ag agreer, d *clickdeb.ClickDeb, currentActiveDir string) error {
+func (m *packageYaml) checkLicenseAgreement(ag agreer, d PackageFile, currentActiveDir string) error {
 	if !m.ExplicitLicenseAgreement {
 		return nil
 	}
@@ -541,15 +538,15 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 }
 
 // NewSnapPartFromSnapFile loads a snap from the given (clickdeb) snap file.
-// Caller should call Close on the clickdeb.
+// Caller should call Close on the pkg.
 // TODO: expose that Close.
 func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
-	if err := clickdeb.Verify(snapFile, unauthOk); err != nil {
+	d, err := OpenPackageFile(snapFile)
+	if err != nil {
 		return nil, err
 	}
 
-	d, err := clickdeb.Open(snapFile)
-	if err != nil {
+	if err := d.Verify(unauthOk); err != nil {
 		return nil, err
 	}
 
