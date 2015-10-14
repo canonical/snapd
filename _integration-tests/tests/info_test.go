@@ -26,6 +26,7 @@ import (
 	"launchpad.net/snappy/_integration-tests/testutils/build"
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/data"
 
 	"gopkg.in/check.v1"
 )
@@ -55,17 +56,17 @@ func (s *infoSuite) TestInfoMustPrintReleaseAndChannel(c *check.C) {
 }
 
 func (s *infoSuite) TestInfoMustPrintInstalledApps(c *check.C) {
-	snapPath, err := build.LocalSnap(c, build.BasicSnapName)
+	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil)
 	common.InstallSnap(c, snapPath)
-	defer common.RemoveSnap(c, build.BasicSnapName)
+	defer common.RemoveSnap(c, data.BasicSnapName)
 
 	infoOutput := cli.ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms)" +
 		".*" +
-		"^apps: .*" + build.BasicSnapName + "\\.sideload.*\n"
+		"^apps: .*" + data.BasicSnapName + "\\.sideload.*\n"
 	c.Assert(infoOutput, check.Matches, expected)
 }
 

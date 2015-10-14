@@ -27,10 +27,11 @@ import (
 	"launchpad.net/snappy/_integration-tests/testutils/build"
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/data"
 )
 
 const (
-	activateSnapName    = "basic-binaries"
+	activateSnapName    = data.BasicBinariesSnapName
 	activateBinName     = activateSnapName + ".echo"
 	activateEchoOutput  = "From basic-binaries snap\n"
 	baseActivatePattern = "(?msU).*" + activateSnapName + `\s*.*\s*.*sideload`
