@@ -30,7 +30,6 @@ import (
 	"strconv"
 	"strings"
 
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
@@ -52,9 +51,9 @@ type snapdTestSuite struct {
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
-	snapdBin := strings.TrimSpace(cli.ExecCommand(c, "which", "snapd"))
-	s.cmd = exec.Command("sudo", "/lib/systemd/systemd-activate",
-		"-l", "0.0.0.0:"+port, snapdBin)
+	s.cmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
+		"/lib/systemd/systemd-activate",
+		"-l", "0.0.0.0:"+port, "snapd")
 
 	s.cmd.Start()
 
