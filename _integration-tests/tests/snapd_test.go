@@ -57,7 +57,7 @@ func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.cmd.Start()
 
 	intPort, _ := strconv.Atoi(port)
-	err := wait.ForServerOnPort(c, intPort)
+	err := wait.ForServerOnPort(c, "tcp", intPort)
 	c.Assert(err, check.IsNil)
 }
 

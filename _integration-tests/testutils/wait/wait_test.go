@@ -177,9 +177,9 @@ func (s *waitTestSuite) TestForServerOnPortCallsForCommand(c *check.C) {
 		return
 	}
 
-	ForServerOnPort(c, 1234)
+	ForServerOnPort(c, "tcp", 1234)
 
-	expectedCalled := `ForCommand called with pattern '(?msU)^.*tcp.*0\.0\.0\.0:1234 .*' and cmds 'netstat -tapn'`
+	expectedCalled := `ForCommand called with pattern '(?msU)^.*tcp.*:1234 .*LISTEN.*' and cmds 'netstat -tapn'`
 	c.Assert(called, check.Equals, expectedCalled, check.Commentf("Expected call to ForCommand didn't happen"))
 }
 

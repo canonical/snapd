@@ -46,8 +46,9 @@ func ForActiveService(c *check.C, serviceName string) (err error) {
 }
 
 // ForServerOnPort uses ForCommand to check for process listening on the given port
-func ForServerOnPort(c *check.C, port int) (err error) {
-	return ForCommand(c, fmt.Sprintf(`(?msU)^.*tcp.*0\.0\.0\.0:%d .*`, port), "netstat", "-tapn")
+func ForServerOnPort(c *check.C, protocol string, port int) (err error) {
+	return ForCommand(c, fmt.Sprintf(`(?msU)^.*%s.*:%d .* LISTEN.*`, protocol, port),
+		"netstat", "-tapn")
 }
 
 // forCommand uses ForFunction to check for the execCommand output
