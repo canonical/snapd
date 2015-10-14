@@ -21,7 +21,7 @@ package tests
 
 import (
 	"fmt"
-	"io/ioutil"	
+	"io/ioutil"
 	"net/http"
 	"os"
 
@@ -123,7 +123,7 @@ var configTests = []struct {
 	message string
 }{
 	{"config-example", "", "test config example message"},
-	{"config-example-bash", ".canonical",	"test config example bash message"},
+	{"config-example-bash", ".canonical", "test config example bash message"},
 }
 
 func (s *configExampleSuite) TestPrintMessageFromConfig(c *check.C) {
@@ -141,8 +141,8 @@ func (s *configExampleSuite) TestPrintMessageFromConfig(c *check.C) {
 		c.Assert(err, check.IsNil, check.Commentf("Error creating temp file: %s", err))
 		_, err = configFile.Write([]byte(config))
 		c.Assert(err, check.IsNil, check.Commentf("Error writing the conf to the temp file: %s", err))
-	
-		cli.ExecCommand(c, "sudo", "snappy", "config", t.snap, configFile.Name())	
+
+		cli.ExecCommand(c, "sudo", "snappy", "config", t.snap, configFile.Name())
 
 		output := cli.ExecCommand(c, t.snap+".hello")
 		c.Assert(output, check.Equals, t.message, check.Commentf("Wrong message"))
