@@ -1,3 +1,3 @@
-Basic snap
+Basic framework snap
 
-A basic buildable snap
+A basic buildable framework snap
