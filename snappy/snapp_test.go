@@ -322,6 +322,7 @@ const MockDetailsJSON = `{
     "blacklist_country_codes": [
         "AX"
     ],
+    "channel": "edge",
     "changelog": "",
     "click_framework": [],
     "click_version": "0.1",
@@ -476,8 +477,6 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Check(parts[0].Vendor(), Equals, funkyAppVendor)
 	c.Check(parts[0].Version(), Equals, "42")
 	c.Check(parts[0].Description(), Equals, "Returns for store credit only.")
-
-	c.Check(parts[0].Channel(), Equals, "edge")
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryAliasSearch(c *C) {
@@ -513,8 +512,6 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryAliasSearch(c *C) {
 
 	alias := results["hello-world"].Alias
 	c.Assert(alias, DeepEquals, parts[0])
-
-	c.Check(parts[0].Channel(), Equals, "edge")
 }
 func mockActiveSnapIterByType(mockSnaps []string) {
 	ActiveSnapIterByType = func(f func(Part) string, snapTs ...pkg.Type) (res []string, err error) {
@@ -609,6 +606,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(results[0].Hash(), Equals, "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42")
 	c.Check(results[0].Date().String(), Equals, "2015-04-15 18:30:16 +0000 UTC")
 	c.Check(results[0].DownloadSize(), Equals, int64(65375))
+	c.Check(results[0].Channel(), Equals, "edge")
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {

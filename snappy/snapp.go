@@ -1468,8 +1468,7 @@ func (s *RemoteSnapPart) Hash() string {
 
 // Channel returns the channel used
 func (s *RemoteSnapPart) Channel() string {
-	// FIXME: real channel support, this requires server work
-	return "edge"
+	return s.pkg.Channel
 }
 
 // Icon returns the icon
