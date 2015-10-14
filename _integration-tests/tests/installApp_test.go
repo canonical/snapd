@@ -20,6 +20,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 
@@ -38,16 +39,18 @@ type installAppSuite struct {
 }
 
 func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) {
-	installOutput := common.InstallSnap(c, "hello-world")
-	s.AddCleanup(func() {
-		common.RemoveSnap(c, "hello-world")
-	})
+	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
+	defer os.Remove(snapPath)
+	c.Assert(err, check.IsNil)
+	installOutput := common.InstallSnap(c, snapPath)
+	defer common.RemoveSnap(c, data.BasicSnapName)
 
 	expected := "(?ms)" +
-		"Installing hello-world\n" +
+		fmt.Sprintf("Installing %s\n", snapPath) +
+		".*Signature check failed, but installing anyway as requested\n" +
 		"Name +Date +Version +Developer \n" +
 		".*" +
-		"^hello-world +.* +.* +canonical \n" +
+		"^basic +.* +.* +sideload *\n" +
 		".*"
 
 	c.Assert(installOutput, check.Matches, expected)

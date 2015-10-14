@@ -26,6 +26,8 @@ const (
 	BasicSnapName = "basic"
 	// BasicBinariesSnapName is the name of the basic snap with binaries
 	BasicBinariesSnapName = "basic-binaries"
+	// BasicFrameworkSnapName is the name of the basic framework snap
+	BasicFrameworkSnapName = "basic-framework"
 	// WrongYamlSnapName is the name of a snap with an invalid meta yaml
 	WrongYamlSnapName = "wrong-yaml"
 	// MissingReadmeSnapName is the name of a snap without readme
