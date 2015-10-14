@@ -21,7 +21,7 @@ package tests
 
 import (
 	"fmt"
-	"io/ioutil"	
+	"io/ioutil"
 	"net/http"
 	"os"
 
@@ -109,7 +109,7 @@ func (s *goWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the http resource: %s", err))
 	c.Check(resp.Status, check.Equals, "200 OK", check.Commentf("Wrong reply status"))
 	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil, check.Commentf("Error reading the reply body: %s", err))	
+	c.Assert(err, check.IsNil, check.Commentf("Error reading the reply body: %s", err))
 	c.Assert(string(body), check.Equals, "Hello World\n", check.Commentf("Wrong reply body"))
 }
 
@@ -146,7 +146,7 @@ var configTests = []struct {
 	message string
 }{
 	{"config-example", "", "test config example message"},
-	{"config-example-bash", ".canonical",	"test config example bash message"},
+	{"config-example-bash", ".canonical", "test config example bash message"},
 }
 
 func (s *configExampleSuite) TestPrintMessageFromConfig(c *check.C) {
@@ -164,8 +164,8 @@ func (s *configExampleSuite) TestPrintMessageFromConfig(c *check.C) {
 		c.Assert(err, check.IsNil, check.Commentf("Error creating temp file: %s", err))
 		_, err = configFile.Write([]byte(config))
 		c.Assert(err, check.IsNil, check.Commentf("Error writing the conf to the temp file: %s", err))
-	
-		cli.ExecCommand(c, "sudo", "snappy", "config", t.snap, configFile.Name())	
+
+		cli.ExecCommand(c, "sudo", "snappy", "config", t.snap, configFile.Name())
 
 		output := cli.ExecCommand(c, t.snap+".hello")
 		c.Assert(output, check.Equals, t.message, check.Commentf("Wrong message"))
