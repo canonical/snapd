@@ -20,7 +20,10 @@
 package tests
 
 import (
+	"fmt"
+	"io/ioutil"	
 	"net/http"
+	"os"
 
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
@@ -106,4 +109,42 @@ func (s *frameworkExampleSuite) TestFrameworkClient(c *check.C) {
 
 	c.Assert(output, check.Equals, expected,
 		check.Commentf("Expected output %s not found, %s", expected, output))
+}
+
+var _ = check.Suite(&configExampleSuite{})
+
+type configExampleSuite struct {
+	common.SnappySuite
+}
+
+var configTests = []struct {
+	snap    string
+	origin  string
+	message string
+}{
+	{"config-example", "", "test config example message"},
+	{"config-example-bash", ".canonical",	"test config example bash message"},
+}
+
+func (s *configExampleSuite) TestPrintMessageFromConfig(c *check.C) {
+	for _, t := range configTests {
+		common.InstallSnap(c, t.snap+t.origin)
+		defer common.RemoveSnap(c, t.snap)
+
+		config := fmt.Sprintf(`config:
+  %s:
+    msg: |
+      %s`, t.snap, t.message)
+
+		configFile, err := ioutil.TempFile("", "snappy-cfg")
+		defer func() { configFile.Close(); os.Remove(configFile.Name()) }()
+		c.Assert(err, check.IsNil, check.Commentf("Error creating temp file: %s", err))
+		_, err = configFile.Write([]byte(config))
+		c.Assert(err, check.IsNil, check.Commentf("Error writing the conf to the temp file: %s", err))
+	
+		cli.ExecCommand(c, "sudo", "snappy", "config", t.snap, configFile.Name())	
+
+		output := cli.ExecCommand(c, t.snap+".hello")
+		c.Assert(output, check.Equals, t.message, check.Commentf("Wrong message"))
+	}
 }
