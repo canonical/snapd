@@ -69,25 +69,48 @@ func (s *helloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDenied
 	c.Assert(string(echoOutput), check.Matches, expected)
 }
 
-var _ = check.Suite(&webserverExampleSuite{})
+var _ = check.Suite(&pythonWebserverExampleSuite{})
 
-type webserverExampleSuite struct {
+type pythonWebserverExampleSuite struct {
 	common.SnappySuite
 }
 
-func (s *webserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
+func (s *pythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
 	baseAppName := "xkcd-webserver"
 	appName := baseAppName + ".canonical"
 	common.InstallSnap(c, appName)
 	defer common.RemoveSnap(c, appName)
 
-	err := wait.ForServerOnPort(c, 80)
+	err := wait.ForServerOnPort(c, "tcp", 80)
 	c.Assert(err, check.IsNil)
 
 	resp, err := http.Get("http://localhost")
 	c.Assert(err, check.IsNil)
 	c.Check(resp.Status, check.Equals, "200 OK")
 	c.Assert(resp.Proto, check.Equals, "HTTP/1.0")
+}
+
+var _ = check.Suite(&goWebserverExampleSuite{})
+
+type goWebserverExampleSuite struct {
+	common.SnappySuite
+}
+
+func (s *goWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
+	appName := "go-example-webserver"
+	common.InstallSnap(c, appName)
+	defer common.RemoveSnap(c, appName)
+
+	err := wait.ForServerOnPort(c, "tcp6", 8081)
+	c.Assert(err, check.IsNil, check.Commentf("Error waiting for server: %s", err))
+
+	resp, err := http.Get("http://localhost:8081/")
+	defer resp.Body.Close()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the http resource: %s", err))
+	c.Check(resp.Status, check.Equals, "200 OK", check.Commentf("Wrong reply status"))
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil, check.Commentf("Error reading the reply body: %s", err))
+	c.Assert(string(body), check.Equals, "Hello World\n", check.Commentf("Wrong reply body"))
 }
 
 var _ = check.Suite(&frameworkExampleSuite{})
