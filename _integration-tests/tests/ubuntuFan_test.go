@@ -194,10 +194,8 @@ func (s *fanTestSuite) dockerOptions() string {
 
 func setUpDocker(c *check.C) {
 	common.InstallSnap(c, "docker")
-	dockerVersion := common.GetCurrentVersion(c, "docker")
-	dockerService := fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion)
 
-	err := wait.ForActiveService(c, dockerService)
+	err := wait.ForCommand(c, `(?ms).*docker\.sock\s.*`, "ls", "/run")
 	c.Assert(err, check.IsNil)
 
 	cli.ExecCommand(c, "docker", "pull", baseContainer)
