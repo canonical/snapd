@@ -33,6 +33,7 @@ import (
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/config"
 	"launchpad.net/snappy/_integration-tests/testutils/partition"
+	"launchpad.net/snappy/_integration-tests/testutils/wait"
 )
 
 const (
