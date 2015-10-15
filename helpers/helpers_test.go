@@ -269,7 +269,7 @@ func (ts *HTestSuite) TestAtomicWriteFilePermissions(c *C) {
 func (ts *HTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) {
 	tmpdir := c.MkDir()
 	realMakeRandomString := MakeRandomString
-	defer func() { MakeRandomString = realMakeRandomString}()
+	defer func() { MakeRandomString = realMakeRandomString }()
 	MakeRandomString = func(n int) string {
 		// chosen by fair dice roll.
 		// guranteed to be random.
