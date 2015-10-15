@@ -55,6 +55,10 @@ type SnappySuite struct {
 // SetUpSuite disables the snappy autopilot. It will run before all the
 // integration suites.
 func (s *SnappySuite) SetUpSuite(c *check.C) {
+	// Workaround for bug https://bugs.launchpad.net/snappy/+bug/1498293
+	// TODO remove once the bug is fixed. --fgimenez - 2015-10-06
+	wait.ForFunction(c, "regular", partition.Mode)
+
 	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 	var err error
