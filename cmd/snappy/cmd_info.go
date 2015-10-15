@@ -30,9 +30,9 @@ import (
 )
 
 type cmdInfo struct {
-	Verbose      bool `short:"v" long:"verbose"`
-	IncludeStore bool `long:"include-store"`
-	Positional   struct {
+	Verbose       bool `short:"v" long:"verbose"`
+	IncludeRemote bool `long:"include-remote"`
+	Positional    struct {
 		PackageName string `positional-arg-name:"package name"`
 	} `positional-args:"yes"`
 }
@@ -57,13 +57,13 @@ func init() {
 		logger.Panicf("Unable to info: %v", err)
 	}
 	addOptionDescription(arg, "verbose", i18n.G("Provides more detailed information"))
-	addOptionDescription(arg, "include-store", i18n.G("Provide information about packages from the store"))
+	addOptionDescription(arg, "include-remote", i18n.G("Include information about packages from the snappy store"))
 	addOptionDescription(arg, "package name", i18n.G("Provide information about a specific installed package"))
 }
 
 func (x *cmdInfo) Execute(args []string) (err error) {
 	if x.Positional.PackageName != "" {
-		return snapInfo(x.Positional.PackageName, x.IncludeStore, x.Verbose)
+		return snapInfo(x.Positional.PackageName, x.IncludeRemote, x.Verbose)
 	}
 
 	return info()
