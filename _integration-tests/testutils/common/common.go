@@ -57,7 +57,9 @@ type SnappySuite struct {
 // integration suites.
 func (s *SnappySuite) SetUpSuite(c *check.C) {
 	// Workaround for bug https://bugs.launchpad.net/snappy/+bug/1498293
-	// TODO remove once the bug is fixed. --fgimenez - 2015-10-06
+	// TODO remove once the bug is fixed
+	// originally added by elopio - 2015-09-30 to the rollback test, moved
+	// here by --fgimenez - 2015-10-15
 	wait.ForFunction(c, "regular", partition.Mode)
 
 	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
