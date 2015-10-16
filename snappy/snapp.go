@@ -1135,12 +1135,12 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 		return err
 	}
 
-	// unmount squashfs but ignore errors as its ok if the fs is not mounted
-	exec.Command("unmount", "--lazy", filepath.Join(s.basedir)).Run()
-
 	if err := s.deactivate(false, inter); err != nil && err != ErrSnapNotActive {
 		return err
 	}
+
+	// unmount squashfs but ignore errors as its ok if the fs is not mounted
+	exec.Command("unmount", "--lazy", filepath.Join(s.basedir)).CombinedOutput()
 
 	err = os.RemoveAll(s.basedir)
 	if err != nil {
