@@ -84,14 +84,9 @@ func (s *Snap) ExtractHashes(dir string) error {
 
 // UnpackWithDropPrivs just copies the blob into place - COMPAT
 func (s *Snap) UnpackWithDropPrivs(instDir, rootdir string) error {
-	// FIXME: we need to unpack "meta/*" here because otherwise there is
-	//        a race condition, i.e. when we tell systemd to
-	//        start the automount unit it will return before the
-	//        part is actually mounted. starting the mount unit
-	//        also does not help, it also returns before its mounted
-	//
-	// plus we need it for "snappy list -v" right now as old snaps
-	// will not have a active automount unit 
+	// FIXME: we need to unpack "meta/*" here because otherwise there
+	//        is no meta/package.yaml for "snappy list -v" for
+	//        inactive versions
 	if err := s.UnpackMeta(instDir); err != nil {
 		return err
 	}

@@ -996,6 +996,12 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		}
 	}
 
+	// the hooks must run before the snap is (auto)mounted
+	// the reason is that the click hooks use:
+	//   ".click/$name.$origin.manifest"
+	// but because the origin is not known at build time it needs
+	// to be generated at runtime but will be mounted over once
+	// the snap is mounted
 	if err := installClickHooks(s.basedir, s.m, s.origin, inhibitHooks); err != nil {
 		// cleanup the failed hooks
 		removeClickHooks(s.m, s.origin, inhibitHooks)
