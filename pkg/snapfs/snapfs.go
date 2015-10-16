@@ -31,6 +31,17 @@ import (
 	"launchpad.net/snappy/helpers"
 )
 
+// BlobPath is a helper that calculates the blob path from the baseDir
+// FIXME: feels wrong (both location and approach). need something better
+func BlobPath(instDir string) string {
+	l := strings.Split(instDir, "/")
+	if len(l) < 2 {
+		panic(fmt.Sprintf("invalid path for BlobPath: %q", instDir))
+	}
+
+	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", l[len(l)-2], l[len(l)-1]))
+}
+
 // Snap is the squashfs based snap
 type Snap struct {
 	path string
@@ -88,15 +99,8 @@ func (s *Snap) UnpackWithDropPrivs(instDir, rootdir string) error {
 		}
 	}
 
-	// FIXME: wrong layer to calculate the final filename
-	l := strings.Split(instDir, "/")
-	if len(l) < 2 {
-		return fmt.Errorf("invalid instDir: %q", instDir)
-	}
-	squashfsPath := filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", l[len(l)-2], l[len(l)-1]))
-
 	// FIXME: helpers.CopyFile() has no preserve attribute flag yet
-	return runCommand("cp", "-a", s.path, squashfsPath)
+	return runCommand("cp", "-a", s.path, BlobPath(instDir))
 }
 
 // UnpackMeta unpacks just the meta/* directory of the given snap

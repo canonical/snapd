@@ -150,3 +150,21 @@ func (s *SnapfsTestSuite) TestRemoveSnapfsAutomount(c *C) {
 		c.Assert(helpers.FileExists(p), Equals, false)
 	}
 }
+
+func (s *SnapfsTestSuite) TestRemoveViaSnapfsWorks(c *C) {
+	snapPkg := makeTestSnapPackage(c, packageHello)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	_, err = part.Install(&MockProgressMeter{}, 0)
+	c.Assert(err, IsNil)
+
+	// after install the blob is in the right dir
+	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, true)
+
+	// now remove and ensure its gone
+	err = part.Uninstall(&MockProgressMeter{})
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, false)
+
+}

@@ -44,6 +44,7 @@ import (
 	"launchpad.net/snappy/oauth"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/pkg/remote"
+	"launchpad.net/snappy/pkg/snapfs"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
@@ -1146,6 +1147,11 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 		return err
 	}
 
+	err = os.RemoveAll(snapfs.BlobPath(s.basedir))
+	if err != nil {
+		return err
+	}
+
 	// best effort(?)
 	os.Remove(filepath.Dir(s.basedir))
 
@@ -2014,13 +2020,7 @@ func mountUnitPath(baseDir, ext string) string {
 }
 
 func (m *packageYaml) addSnapfsAutomount(baseDir string, inhibitHooks bool, inter interacter) error {
-	l := strings.Split(baseDir, "/")
-	if len(l) < 2 {
-		return fmt.Errorf("invalid instDir: %q", baseDir)
-	}
-	squashfsPath := filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", l[len(l)-2], l[len(l)-1]))
-
-	squashfsPath = stripGlobalRootDir(squashfsPath)
+	squashfsPath := stripGlobalRootDir(snapfs.BlobPath(baseDir))
 	whereDir := stripGlobalRootDir(baseDir)
 
 	mountUnit := fmt.Sprintf(`[Unit]
@@ -2042,11 +2042,11 @@ TimeoutIdleSec=30
 WantedBy=multi-user.target
 `, m.Name, whereDir)
 
-	if err := ioutil.WriteFile(mountUnitPath(whereDir, "mount"), []byte(mountUnit), 0644); err != nil {
+	if err := helpers.AtomicWriteFile(mountUnitPath(whereDir, "mount"), []byte(mountUnit), 0644); err != nil {
 		return err
 	}
 
-	if err := ioutil.WriteFile(mountUnitPath(whereDir, "automount"), []byte(autoMountUnit), 0644); err != nil {
+	if err := helpers.AtomicWriteFile(mountUnitPath(whereDir, "automount"), []byte(autoMountUnit), 0644); err != nil {
 		return err
 	}
 
@@ -2065,12 +2065,12 @@ WantedBy=multi-user.target
 }
 
 func (m *packageYaml) removeSnapfsAutomount(baseDir string, inter interacter) error {
-	// ignore error
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
-
 	for _, s := range []string{"mount", "automount"} {
 		unit := mountUnitPath(stripGlobalRootDir(baseDir), s)
 		if helpers.FileExists(unit) {
+			// we ignore errors, nothing should stop removals
+			_ = sysd.Disable(filepath.Base(unit))
 			_ = sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second))
 			if err := os.Remove(unit); err != nil {
 				return err
