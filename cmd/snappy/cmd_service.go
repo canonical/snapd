@@ -135,7 +135,7 @@ func (s *svcStatus) Execute(args []string) error {
 }
 
 func (s *svcLogs) Execute([]string) error {
-	return withMutex(func() error {
+	return withMutexAndRetry(func() error {
 		logs, err := s.doExecute(doLogs)
 		if err != nil {
 			return err

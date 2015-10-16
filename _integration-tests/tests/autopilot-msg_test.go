@@ -22,7 +22,8 @@ package tests
 import (
 	"os/exec"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
 
 	check "gopkg.in/check.v1"
 )
@@ -30,17 +31,17 @@ import (
 var _ = check.Suite(&autopilotMsgSuite{})
 
 type autopilotMsgSuite struct {
-	SnappySuite
+	common.SnappySuite
 }
 
 // Test that there is a proper message if the autopilot runs in the
 // background
 func (s *autopilotMsgSuite) TestAutoPilotMessageIsPrinted(c *check.C) {
-	ExecCommand(c, "sudo", "systemctl", "start", "snappy-autopilot")
+	cli.ExecCommand(c, "sudo", "systemctl", "start", "snappy-autopilot")
 
 	// do not pollute the other tests with the now installed hello-world
 	s.AddCleanup(func() {
-		RemoveSnap(c, "hello-world")
+		common.RemoveSnap(c, "hello-world")
 	})
 
 	// FIXME: risk of race
