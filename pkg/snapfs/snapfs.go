@@ -34,7 +34,7 @@ import (
 // BlobPath is a helper that calculates the blob path from the baseDir
 // FIXME: feels wrong (both location and approach). need something better
 func BlobPath(instDir string) string {
-	l := strings.Split(instDir, "/")
+	l := strings.Split(filepath.Clean(instDir), string(filepath.Separator))
 	if len(l) < 2 {
 		panic(fmt.Sprintf("invalid path for BlobPath: %q", instDir))
 	}
