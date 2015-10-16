@@ -1651,11 +1651,11 @@ func (s *SnapTestSuite) TestWriteCompatManifestJSON(c *C) {
     "name": "hello-world"
 }
 `)
-	manifestJson := filepath.Join(s.tempdir, "hello-world.some-origin.manifest")
+	manifestJSON := filepath.Join(s.tempdir, "hello-world.some-origin.manifest")
 
 	err := writeCompatManifestJSON(s.tempdir, manifest, "some-origin")
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(manifestJson), Equals, true)
+	c.Assert(helpers.FileExists(manifestJSON), Equals, true)
 }
 
 func (s *SnapTestSuite) TestWriteCompatManifestJSONNoFollow(c *C) {
@@ -1663,13 +1663,13 @@ func (s *SnapTestSuite) TestWriteCompatManifestJSONNoFollow(c *C) {
     "name": "hello-world"
 }
 `)
-	manifestJson := filepath.Join(s.tempdir, "hello-world.some-origin.manifest")
+	manifestJSON := filepath.Join(s.tempdir, "hello-world.some-origin.manifest")
 	symlinkTarget := filepath.Join(s.tempdir, "symlink-target")
-	os.Symlink(symlinkTarget, manifestJson)
+	os.Symlink(symlinkTarget, manifestJSON)
 	c.Assert(helpers.FileExists(symlinkTarget), Equals, false)
 
 	err := writeCompatManifestJSON(s.tempdir, manifest, "some-origin")
 	c.Assert(err, IsNil)
-	c.Check(helpers.FileExists(manifestJson), Equals, true)
+	c.Check(helpers.FileExists(manifestJSON), Equals, true)
 	c.Check(helpers.FileExists(symlinkTarget), Equals, false)
 }
