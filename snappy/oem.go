@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
 )
@@ -141,7 +142,7 @@ func bootAssetFilePaths() map[string]string {
 	}
 
 	fileList := make(map[string]string)
-	oemPath := filepath.Join(snapOemDir, oem.Name, oem.Version)
+	oemPath := filepath.Join(dirs.SnapOemDir, oem.Name, oem.Version)
 
 	for _, asset := range oem.OEM.Hardware.BootAssets.Files {
 		orig := filepath.Join(oemPath, asset.Path)
@@ -184,7 +185,7 @@ func IsBuiltInSoftware(name string) bool {
 }
 
 func cleanupOemHardwareUdevRules(m *packageYaml) error {
-	oldFiles, err := filepath.Glob(filepath.Join(snapUdevRulesDir, fmt.Sprintf("80-snappy_%s_*.rules", m.Name)))
+	oldFiles, err := filepath.Glob(filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("80-snappy_%s_*.rules", m.Name)))
 	if err != nil {
 		return err
 	}
@@ -195,7 +196,7 @@ func cleanupOemHardwareUdevRules(m *packageYaml) error {
 
 	// cleanup the additional files
 	for _, h := range m.OEM.Hardware.Assign {
-		jsonAdditionalPath := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
+		jsonAdditionalPath := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
 		err = os.Remove(jsonAdditionalPath)
 		if err != nil && !os.IsNotExist(err) {
 			logger.Noticef("Failed to remove %q: %v", jsonAdditionalPath, err)
@@ -206,7 +207,7 @@ func cleanupOemHardwareUdevRules(m *packageYaml) error {
 }
 
 func writeOemHardwareUdevRules(m *packageYaml) error {
-	os.MkdirAll(snapUdevRulesDir, 0755)
+	os.MkdirAll(dirs.SnapUdevRulesDir, 0755)
 
 	// cleanup
 	if err := cleanupOemHardwareUdevRules(m); err != nil {
@@ -218,7 +219,7 @@ func writeOemHardwareUdevRules(m *packageYaml) error {
 		if err != nil {
 			return err
 		}
-		outfile := filepath.Join(snapUdevRulesDir, fmt.Sprintf("80-snappy_%s_%s.rules", m.Name, h.PartID))
+		outfile := filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("80-snappy_%s_%s.rules", m.Name, h.PartID))
 		if err := ioutil.WriteFile(outfile, []byte(rulesContent), 0644); err != nil {
 			return err
 		}
@@ -262,12 +263,12 @@ const apparmorAdditionalContent = `{
 // and the ubuntu-core-launcher is then used to generate a confinement
 // based on the devices cgroup.
 func writeApparmorAdditionalFile(m *packageYaml) error {
-	if err := os.MkdirAll(snapAppArmorDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapAppArmorDir, 0755); err != nil {
 		return err
 	}
 
 	for _, h := range m.OEM.Hardware.Assign {
-		jsonAdditionalPath := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
+		jsonAdditionalPath := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
 		if err := ioutil.WriteFile(jsonAdditionalPath, []byte(apparmorAdditionalContent), 0644); err != nil {
 			return err
 		}

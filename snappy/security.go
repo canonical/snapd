@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
 )
@@ -138,7 +139,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 		return content, err
 	}
 
-	os.MkdirAll(snapSeccompDir, 0755)
+	os.MkdirAll(dirs.SnapSeccompDir, 0755)
 
 	// defaults
 	policyVendor := defaultPolicyVendor
@@ -187,7 +188,7 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 	// Build up the command line
 	args := []string{
 		"sc-filtergen",
-		fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(snapSeccompDir)),
+		fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(dirs.SnapSeccompDir)),
 		fmt.Sprintf("--policy-vendor=%s", policyVendor),
 		fmt.Sprintf("--policy-version=%.2f", policyVersion),
 		fmt.Sprintf("--template=%s", template),
@@ -215,7 +216,7 @@ func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 
 	err = yaml.Unmarshal(yamlData, &s)
 	if err != nil {
-		return &ErrInvalidYaml{file: "package.yaml[seccomp override]", err: err, yaml: yamlData}
+		return &ErrInvalidYaml{File: "package.yaml[seccomp override]", Err: err, Yaml: yamlData}
 	}
 	// These must always be specified together
 	if (s.PolicyVersion == 0 && s.PolicyVendor != "") || (s.PolicyVersion != 0 && s.PolicyVendor == "") {

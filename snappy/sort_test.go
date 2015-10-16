@@ -23,6 +23,9 @@ import (
 	"sort"
 
 	. "gopkg.in/check.v1"
+
+	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/pkg/remote"
 )
 
 type SortTestSuite struct {
@@ -81,10 +84,21 @@ func (s *SortTestSuite) TestSort(c *C) {
 
 func (s *SortTestSuite) TestSortSnaps(c *C) {
 	snaps := []Part{
-		&RemoteSnapPart{pkg: remoteSnap{Version: "2.0"}},
-		&RemoteSnapPart{pkg: remoteSnap{Version: "1.0"}},
+		&RemoteSnapPart{pkg: remote.Snap{Version: "2.0"}},
+		&RemoteSnapPart{pkg: remote.Snap{Version: "1.0"}},
 	}
 	sort.Sort(BySnapVersion(snaps))
 	c.Assert(snaps[0].Version(), Equals, "1.0")
 	c.Assert(snaps[1].Version(), Equals, "2.0")
+}
+
+func (s *SortTestSuite) TestSideloadVersion(c *C) {
+	n := 1000
+	vs := make(ByVersion, n)
+
+	for i := 0; i < n; i++ {
+		vs[i] = helpers.NewSideloadVersion()
+	}
+
+	c.Check(sort.IsSorted(vs), Equals, true)
 }

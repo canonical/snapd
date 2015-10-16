@@ -1,12 +1,34 @@
 #!/bin/sh
 
-set -ev
+set -eu
 
 if which goctest >/dev/null; then
     goctest="goctest"
 else
     goctest="go test"
 fi
+
+QUICK=""
+if [ "${1:-}" = "--quick" ]; then
+    QUICK=yes
+fi
+
+endmsg() {
+    if [ $? -eq 0 ]; then
+        p="success.txt"
+        m="All good, what could possibly go wrong."
+    else
+        p="failure.txt"
+        m="Crushing failure and despair."
+    fi
+    echo
+    if [ -t 1 -a -z "$QUICK" ]; then
+        cat "data/$p"
+    else
+        echo "$m"
+    fi
+}
+trap endmsg EXIT
 
 echo Checking docs
 ./mdlint.py docs/*.md
@@ -16,62 +38,74 @@ fmt=$(gofmt -l .)
 
 if [ -n "$fmt" ]; then
     echo "Formatting wrong in following files"
-    echo $fmt
+    echo "$fmt"
     exit 1
 fi
 
-echo Installing godeps
-go get launchpad.net/godeps
-export PATH=$PATH:$GOPATH/bin
+if [ -z "$QUICK" ]; then
+    echo Installing godeps
+    go get launchpad.net/godeps
+    export PATH=$PATH:$GOPATH/bin
 
-echo Install golint
-go get github.com/golang/lint/golint
-export PATH=$PATH:$GOPATH/bin
+    echo Install golint
+    go get github.com/golang/lint/golint
+    export PATH=$PATH:$GOPATH/bin
 
-echo Obtaining dependencies
-godeps -u dependencies.tsv
+    echo Obtaining dependencies
+    godeps -u dependencies.tsv
 
-
-
-echo Building
-go build -v launchpad.net/snappy/...
+    echo Building
+    go build -v launchpad.net/snappy/...
 
 
-# tests
-echo Running tests from $(pwd)
-$goctest -v -cover ./...
-
+    # tests
+    echo Running tests from $(pwd)
+    $goctest -v -cover ./...
+fi
 
 # go vet
 echo Running vet
 go vet ./...
 go vet ./_integration-tests/tests/...
+go vet ./_integration-tests/testutils/...
 
 # golint
 echo Running lint
-lint=$(golint ./... && golint ./_integration-tests/tests/...)
+lint=$(golint ./... && golint ./_integration-tests/testutils/... && golint ./_integration-tests/tests/...)
 if [ -n "$lint" ]; then
     echo "Lint complains:"
-    echo $lint
+    echo "$lint"
     exit 1
 fi
 
-# pot file
-TMPF="$(mktemp)"
-./update-pot "$TMPF"
-trap "rm -f $TMPF" 0
-if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
-    echo "You need to run ./update-pot"
-    exit 1
+(
+    # pot file
+    TMPF="$(mktemp)"
+    trap "rm -f $TMPF" 0
+    ./update-pot "$TMPF"
+    if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
+        echo "You need to run ./update-pot"
+        exit 1
+    fi
+    # This is a subshell so we don't overwrite the all-important outer trap.
+)
+
+if [ -z "$QUICK" ]; then
+    # integration tests
+    echo Building the integration tests
+    go build _integration-tests/main.go
+
+    # the rabbit hole
+    echo Running the tests for the integration testutils
+    $goctest -v -cover ./_integration-tests/testutils/...
+
+    # integration suite in kvm
+    if which adt-run >/dev/null 2>&1; then
+        echo "Running integration tests on rolling edge"
+        go run _integration-tests/main.go --snappy-from-branch
+        # print the results.
+        if which subunit2pyunit >/dev/null 2>&1; then
+            subunit-1to2 /tmp/snappy-test/output/artifacts/results.subunit | subunit2pyunit
+        fi
+    fi
 fi
-
-# always build
-go build _integration-tests/main.go
-
-# integration tests
-if which adt-run >/dev/null 2>&1; then
-    echo "Running integration tests"
-    go run _integration-tests/main.go --snappy-from-branch
-fi
-
-echo "All good, what could possibly go wrong"

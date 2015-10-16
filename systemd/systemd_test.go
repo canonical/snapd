@@ -48,22 +48,39 @@ type SystemdTestSuite struct {
 	argses [][]string
 	errors []error
 	outs   [][]byte
-	rep    *testreporter
+
+	j     int
+	jsvcs [][]string
+	jouts [][]byte
+	jerrs []error
+
+	rep *testreporter
 }
 
 var _ = Suite(&SystemdTestSuite{})
 
 func (s *SystemdTestSuite) SetUpTest(c *C) {
+	// force UTC timezone, for reproducible timestamps
+	os.Setenv("TZ", "")
+
 	SystemctlCmd = s.myRun
 	s.i = 0
 	s.argses = nil
 	s.errors = nil
 	s.outs = nil
+
+	JournalctlCmd = s.myJctl
+	s.j = 0
+	s.jsvcs = nil
+	s.jouts = nil
+	s.jerrs = nil
+
 	s.rep = new(testreporter)
 }
 
 func (s *SystemdTestSuite) TearDownTest(c *C) {
 	SystemctlCmd = run
+	JournalctlCmd = jctl
 }
 
 func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
@@ -75,6 +92,20 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
 		err = s.errors[s.i]
 	}
 	s.i++
+	return out, err
+}
+
+func (s *SystemdTestSuite) myJctl(svcs []string) (out []byte, err error) {
+	s.jsvcs = append(s.jsvcs, svcs)
+
+	if s.j < len(s.jouts) {
+		out = s.jouts[s.j]
+	}
+	if s.j < len(s.jerrs) {
+		err = s.jerrs[s.j]
+	}
+	s.j++
+
 	return out, err
 }
 
@@ -109,6 +140,32 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
 	c.Check(s.argses[1], DeepEquals, s.argses[2])
 	c.Check(s.argses[1], DeepEquals, s.argses[3])
+}
+
+func (s *SystemdTestSuite) TestStatus(c *C) {
+	s.outs = [][]byte{
+		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\nUnitFileState=UnitFileState\n"),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).Status("foo")
+	c.Assert(err, IsNil)
+	c.Check(out, Equals, "UnitFileState; LoadState; ActiveState (SubState)")
+}
+
+func (s *SystemdTestSuite) TestStatusObj(c *C) {
+	s.outs = [][]byte{
+		[]byte("Id=Thing\nLoadState=LoadState\nActiveState=ActiveState\nSubState=SubState\nUnitFileState=UnitFileState\n"),
+	}
+	s.errors = []error{nil}
+	out, err := New("", s.rep).ServiceStatus("foo")
+	c.Assert(err, IsNil)
+	c.Check(out, DeepEquals, &ServiceStatus{
+		ServiceFileName: "foo",
+		LoadState:       "LoadState",
+		ActiveState:     "ActiveState",
+		SubState:        "SubState",
+		UnitFileState:   "UnitFileState",
+	})
 }
 
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {
@@ -171,6 +228,10 @@ var (
 	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "\n", helpers.UbuntuArchitecture())
 	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "\n", helpers.UbuntuArchitecture())
 	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "BusName=foo.bar.baz\nType=dbus", helpers.UbuntuArchitecture())
+
+	// things that need network
+	expectedNetAppService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".mvo", "mvo", "\n", helpers.UbuntuArchitecture())
+	expectedNetFmkService = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", "", "", "\n", helpers.UbuntuArchitecture())
 )
 
 func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
@@ -192,6 +253,26 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedAppService)
 }
 
+func (s *SystemdTestSuite) TestGenNetAppServiceFile(c *C) {
+
+	desc := &ServiceDescription{
+		AppName:     "app",
+		ServiceName: "service",
+		Version:     "1.0",
+		Description: "descr",
+		AppPath:     "/apps/app.mvo/1.0/",
+		Start:       "bin/start",
+		Stop:        "bin/stop",
+		PostStop:    "bin/stop --post",
+		StopTimeout: time.Duration(10 * time.Second),
+		AaProfile:   "aa-profile",
+		IsNetworked: true,
+		UdevAppName: "app.mvo",
+	}
+
+	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedNetAppService)
+}
+
 func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
 
 	desc := &ServiceDescription{
@@ -210,6 +291,27 @@ func (s *SystemdTestSuite) TestGenFmkServiceFile(c *C) {
 	}
 
 	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedFmkService)
+}
+
+func (s *SystemdTestSuite) TestGenNetFmkServiceFile(c *C) {
+
+	desc := &ServiceDescription{
+		AppName:     "app",
+		ServiceName: "service",
+		Version:     "1.0",
+		Description: "descr",
+		AppPath:     "/apps/app/1.0/",
+		Start:       "bin/start",
+		Stop:        "bin/stop",
+		PostStop:    "bin/stop --post",
+		StopTimeout: time.Duration(10 * time.Second),
+		AaProfile:   "aa-profile",
+		IsNetworked: true,
+		IsFramework: true,
+		UdevAppName: "app",
+	}
+
+	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedNetFmkService)
 }
 
 func (s *SystemdTestSuite) TestGenServiceFileWithBusName(c *C) {
@@ -256,4 +358,56 @@ func (s *SystemdTestSuite) TestKill(c *C) {
 func (s *SystemdTestSuite) TestIsTimeout(c *C) {
 	c.Check(IsTimeout(os.ErrInvalid), Equals, false)
 	c.Check(IsTimeout(&Timeout{}), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestLogErrJctl(c *C) {
+	s.jerrs = []error{&Timeout{}}
+
+	logs, err := New("", s.rep).Logs([]string{"foo"})
+	c.Check(err, NotNil)
+	c.Check(logs, IsNil)
+	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
+	c.Check(s.j, Equals, 1)
+}
+
+func (s *SystemdTestSuite) TestLogErrJSON(c *C) {
+	s.jouts = [][]byte{[]byte("this is not valid json.")}
+
+	logs, err := New("", s.rep).Logs([]string{"foo"})
+	c.Check(err, NotNil)
+	c.Check(logs, IsNil)
+	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
+	c.Check(s.j, Equals, 1)
+}
+
+func (s *SystemdTestSuite) TestLogs(c *C) {
+	s.jouts = [][]byte{[]byte(`{"a": 1}
+{"a": 2}
+`)}
+
+	logs, err := New("", s.rep).Logs([]string{"foo"})
+	c.Check(err, IsNil)
+	c.Check(logs, DeepEquals, []Log{{"a": 1.}, {"a": 2.}})
+	c.Check(s.jsvcs, DeepEquals, [][]string{{"foo"}})
+	c.Check(s.j, Equals, 1)
+}
+
+func (s *SystemdTestSuite) TestLogString(c *C) {
+	c.Check(Log{}.String(), Equals, "-(no timestamp!)- - -")
+	c.Check(Log{
+		"__REALTIME_TIMESTAMP": 42,
+	}.String(), Equals, "-(timestamp not a string: 42)- - -")
+	c.Check(Log{
+		"__REALTIME_TIMESTAMP": "what",
+	}.String(), Equals, "-(timestamp not a decimal number: \"what\")- - -")
+	c.Check(Log{
+		"__REALTIME_TIMESTAMP": "0",
+		"MESSAGE":              "hi",
+	}.String(), Equals, "1970-01-01T00:00:00.000000Z - hi")
+	c.Check(Log{
+		"__REALTIME_TIMESTAMP": "42",
+		"MESSAGE":              "hi",
+		"SYSLOG_IDENTIFIER":    "me",
+	}.String(), Equals, "1970-01-01T00:00:00.000042Z me hi")
+
 }

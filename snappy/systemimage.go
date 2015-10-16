@@ -39,11 +39,16 @@ import (
 	"launchpad.net/snappy/provisioning"
 )
 
+// SystemImagePart have constant name, origin, and vendor.
 const (
-	systemImagePartName   = "ubuntu-core"
-	systemImagePartOrigin = "ubuntu"
-	systemImagePartVendor = "Canonical Ltd."
+	SystemImagePartName = "ubuntu-core"
+	// SystemImagePartOrigin is the origin of any system image part
+	SystemImagePartOrigin = "ubuntu"
+	// SystemImagePartVendor is the vendor of any system image part
+	SystemImagePartVendor = "Canonical Ltd."
+)
 
+const (
 	// location of the channel config on the filesystem.
 	//
 	// This file specifies the s-i version installed on the rootfs
@@ -97,17 +102,17 @@ func (s *SystemImagePart) Type() pkg.Type {
 
 // Name returns the name
 func (s *SystemImagePart) Name() string {
-	return systemImagePartName
+	return SystemImagePartName
 }
 
 // Origin returns the origin ("ubuntu")
 func (s *SystemImagePart) Origin() string {
-	return systemImagePartOrigin
+	return SystemImagePartOrigin
 }
 
 // Vendor returns the vendor ("Canonical Ltd.")
 func (s *SystemImagePart) Vendor() string {
-	return systemImagePartVendor
+	return SystemImagePartVendor
 }
 
 // Version returns the version
@@ -117,7 +122,7 @@ func (s *SystemImagePart) Version() string {
 
 // Description returns the description
 func (s *SystemImagePart) Description() string {
-	return "ubuntu-core description"
+	return "A secure, minimal transactional OS for devices and containers."
 }
 
 // Hash returns the hash
@@ -155,18 +160,30 @@ func (s *SystemImagePart) Date() time.Time {
 }
 
 // SetActive sets the snap active
-func (s *SystemImagePart) SetActive(pb progress.Meter) (err error) {
+func (s *SystemImagePart) SetActive(active bool, pb progress.Meter) error {
 	isNextBootOther := s.partition.IsNextBootOther()
-	// active and no switch scheduled -> nothing to do
-	if s.IsActive() && !isNextBootOther {
-		return nil
-	}
-	// not currently active but switch scheduled already -> nothing to do
-	if !s.IsActive() && isNextBootOther {
-		return nil
+	isActive := s.IsActive()
+
+	// * active
+	// | * isActive
+	// | | * isNextBootOther
+	// | | |
+	// F F F nop
+	// F F T toggle
+	// F T F toggle
+	// F T T nop
+	// T F F toggle
+	// T F T nop
+	// T T F nop
+	// T T T toggle
+	//
+	// ∴ this function is the parity (a.k.a. XOR, ⊻) of these inputs \o/
+	// ( and, ∀ p, q boolean: p ⊻ q ⇔ p ≠ q )
+	if active != isActive != isNextBootOther {
+		return s.partition.ToggleNextBoot()
 	}
 
-	return s.partition.ToggleNextBoot()
+	return nil
 }
 
 // override in tests
@@ -191,12 +208,14 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 
 	// Ensure there is always a kernel + initrd to boot with, even
 	// if the update does not provide new versions.
-	if pb != nil {
-		pb.Notify("Syncing boot files")
-	}
-	err = s.partition.SyncBootloaderFiles(bootAssetFilePaths())
-	if err != nil {
-		return "", err
+	if s.needsBootAssetSync() {
+		if pb != nil {
+			pb.Notify("Syncing boot files")
+		}
+		err = s.partition.SyncBootloaderFiles(bootAssetFilePaths())
+		if err != nil {
+			return "", err
+		}
 	}
 
 	// find out what config file to use, the other partition may be
@@ -234,7 +253,7 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 	if err = s.partition.ToggleNextBoot(); err != nil {
 		return "", err
 	}
-	return systemImagePartName, nil
+	return SystemImagePartName, nil
 }
 
 // Ensure the expected version update was applied to the expected partition.
@@ -255,13 +274,13 @@ func (s *SystemImagePart) verifyUpgradeWasApplied() error {
 
 	if latestPart == nil {
 		return &ErrUpgradeVerificationFailed{
-			msg: "could not find latest installed partition",
+			Msg: "could not find latest installed partition",
 		}
 	}
 
 	if s.version != latestPart.Version() {
 		return &ErrUpgradeVerificationFailed{
-			msg: fmt.Sprintf("found %q but expected %q", latestPart.Version(), s.version),
+			Msg: fmt.Sprintf("found %q but expected %q", latestPart.Version(), s.version),
 		}
 	}
 
@@ -426,7 +445,7 @@ func (s *SystemImageRepository) Description() string {
 
 // Search searches the SystemImageRepository for the given terms
 func (s *SystemImageRepository) Search(terms string) (versions []Part, err error) {
-	if strings.Contains(terms, systemImagePartName) {
+	if strings.Contains(terms, SystemImagePartName) {
 		part := makeCurrentPart(s.partition)
 		versions = append(versions, part)
 	}
@@ -434,37 +453,42 @@ func (s *SystemImageRepository) Search(terms string) (versions []Part, err error
 }
 
 // Details returns details for the given snap
-func (s *SystemImageRepository) Details(snapName string) (versions []Part, err error) {
-	if snapName == systemImagePartName {
-		part := makeCurrentPart(s.partition)
-		versions = append(versions, part)
+func (s *SystemImageRepository) Details(name string, origin string) ([]Part, error) {
+	if name == SystemImagePartName && origin == SystemImagePartOrigin {
+		return []Part{makeCurrentPart(s.partition)}, nil
 	}
-	return versions, err
+
+	return nil, ErrPackageNotFound
 }
 
 // Updates returns the available updates
-func (s *SystemImageRepository) Updates() (parts []Part, err error) {
+func (s *SystemImageRepository) Updates() ([]Part, error) {
 	configFile := filepath.Join(systemImageRoot, systemImageChannelConfig)
 	updateStatus, err := systemImageClientCheckForUpdates(configFile)
+	if err != nil {
+		return nil, err
+	}
 
 	current := makeCurrentPart(s.partition)
 	// no VersionCompare here because the channel provides a "order" and
 	// that may go backwards when switching channels(?)
 	if current.Version() != updateStatus.targetVersion {
-		parts = append(parts, &SystemImagePart{
+		return []Part{&SystemImagePart{
 			version:        updateStatus.targetVersion,
 			versionDetails: updateStatus.targetVersionDetails,
 			lastUpdate:     updateStatus.lastUpdate,
 			updateSize:     updateStatus.updateSize,
 			channelName:    current.(*SystemImagePart).channelName,
-			partition:      s.partition})
+			partition:      s.partition}}, nil
 	}
 
-	return parts, err
+	return nil, nil
 }
 
 // Installed returns the installed snaps from this repository
-func (s *SystemImageRepository) Installed() (parts []Part, err error) {
+func (s *SystemImageRepository) Installed() ([]Part, error) {
+	var parts []Part
+
 	// current partition
 	curr := makeCurrentPart(s.partition)
 	if curr != nil {
@@ -477,5 +501,45 @@ func (s *SystemImageRepository) Installed() (parts []Part, err error) {
 		parts = append(parts, other)
 	}
 
-	return parts, err
+	return parts, nil
+}
+
+// All installed parts. SystemImageParts are non-removable.
+func (s *SystemImageRepository) All() ([]Part, error) {
+	return s.Installed()
+}
+
+// needsSync determines if syncing boot assets is required
+func (s *SystemImagePart) needsBootAssetSync() bool {
+	// current partition
+	curr := makeCurrentPart(s.partition)
+	if curr == nil {
+		// this should never ever happen
+		panic("current part does not exist")
+	}
+
+	// other partition
+	other := makeOtherPart(s.partition)
+	if other == nil {
+		return true
+	}
+
+	// the idea here is that a channel change on the other
+	// partition always triggers a full image download so
+	// there is no need for syncing the assets (because the
+	// kernel is included in the full image already)
+	//
+	// FIXME: its not entirely clear if this is true, there
+	// is no mechanism to switch channels right now and all
+	// the tests always switch both partitions
+	if curr.Channel() != other.Channel() {
+		return false
+	}
+
+	// if the other version is already a higher version number
+	// than the current one it means all the kernel updates
+	// has happend already and we do not need to sync the
+	// bootloader files, see:
+	// https://bugs.launchpad.net/snappy/+bug/1474125
+	return VersionCompare(curr.Version(), other.Version()) > 0
 }

@@ -32,8 +32,9 @@ import (
 	"syscall"
 	"text/template"
 
-	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/pkg/clickdeb"
+	"launchpad.net/snappy/pkg/snapfs"
 
 	"gopkg.in/yaml.v2"
 )
@@ -51,7 +52,7 @@ exit 1
 //
 // Please resist the temptation of optimizing the regexp by grouping
 // things by hand. People will find it unreadable enough as it is.
-var shouldExclude = regexp.MustCompile(strings.Join([]string{
+var shouldExcludeDefault = regexp.MustCompile(strings.Join([]string{
 	`\.snap$`, // added
 	`\.click$`,
 	`^\..*\.sw.$`,
@@ -82,7 +83,60 @@ var shouldExclude = regexp.MustCompile(strings.Join([]string{
 	`^_MTN$`,
 	`^_darcs$`,
 	`^{arch}$`,
+	`^\.snapignore$`,
 }, "|")).MatchString
+
+// fake static function variables
+type keep struct {
+	basedir string
+	exclude func(string) bool
+}
+
+func (k *keep) shouldExclude(basedir string, file string) bool {
+	if basedir == k.basedir {
+		if k.exclude == nil {
+			return false
+		}
+
+		return k.exclude(file)
+	}
+
+	k.basedir = basedir
+	k.exclude = nil
+
+	snapignore, err := os.Open(filepath.Join(basedir, ".snapignore"))
+	if err != nil {
+		return false
+	}
+
+	scanner := bufio.NewScanner(snapignore)
+	var lines []string
+	for scanner.Scan() {
+		line := scanner.Text()
+		if _, err := regexp.Compile(line); err != nil {
+			// not a regexp
+			line = regexp.QuoteMeta(line)
+		}
+		lines = append(lines, line)
+	}
+
+	fullRegex := strings.Join(lines, "|")
+	exclude, err := regexp.Compile(fullRegex)
+	if err == nil {
+		k.exclude = exclude.MatchString
+
+		return k.exclude(file)
+	}
+
+	// can't happen; can't even find a way to trigger it in testing.
+	panic(fmt.Sprintf("|-composition of valid regexps is invalid?!? Please report this bug: %#v", fullRegex))
+}
+
+var shouldExcludeDynamic = new(keep).shouldExclude
+
+func shouldExclude(basedir string, file string) bool {
+	return shouldExcludeDefault(file) || shouldExcludeDynamic(basedir, file)
+}
 
 // small helper that return the architecture or "multi" if its multiple arches
 func debArchitecture(m *packageYaml) string {
@@ -139,7 +193,7 @@ func handleBinaries(buildDir string, m *packageYaml) error {
 }
 
 func handleServices(buildDir string, m *packageYaml) error {
-	for _, v := range m.Services {
+	for _, v := range m.ServiceYamls {
 		hookName := filepath.Base(v.Name)
 
 		// handle the apparmor stuff
@@ -375,14 +429,15 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 			return errin
 		}
 
-		if shouldExclude(filepath.Base(path)) {
+		relpath := path[len(sourceDir):]
+		if relpath == "/DEBIAN" || shouldExclude(sourceDir, filepath.Base(path)) {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		dest := filepath.Join(buildDir, path[len(sourceDir):])
+		dest := filepath.Join(buildDir, relpath)
 
 		// handle dirs
 		if info.IsDir() {
@@ -436,9 +491,7 @@ func checkLicenseExists(sourceDir string) error {
 
 var licenseChecker = checkLicenseExists
 
-// Build the given sourceDirectory and return the generated snap file
-func Build(sourceDir, targetDir string) (string, error) {
-
+func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error) {
 	// ensure we have valid content
 	m, err := parsePackageYamlFile(filepath.Join(sourceDir, "meta", "package.yaml"))
 	if err != nil {
@@ -454,13 +507,6 @@ func Build(sourceDir, targetDir string) (string, error) {
 	if err := m.checkForNameClashes(); err != nil {
 		return "", err
 	}
-
-	// create build dir
-	buildDir, err := ioutil.TempDir("", "snappy-build-")
-	if err != nil {
-		return "", err
-	}
-	defer os.RemoveAll(buildDir)
 
 	if err := copyToBuildDir(sourceDir, buildDir); err != nil {
 		return "", err
@@ -491,7 +537,7 @@ func Build(sourceDir, targetDir string) (string, error) {
 	}
 
 	// build the package
-	snapName := fmt.Sprintf("%s_%s_%v.snap", m.Name, m.Version, debArchitecture(m))
+	snapName = fmt.Sprintf("%s_%s_%v.snap", m.Name, m.Version, debArchitecture(m))
 
 	if targetDir != "" {
 		snapName = filepath.Join(targetDir, snapName)
@@ -502,7 +548,45 @@ func Build(sourceDir, targetDir string) (string, error) {
 		}
 	}
 
-	// build it
+	return snapName, nil
+}
+
+// BuildSnapfsSnap the given sourceDirectory and return the generated snap file
+func BuildSnapfsSnap(sourceDir, targetDir string) (string, error) {
+	// create build dir
+	buildDir, err := ioutil.TempDir("", "snappy-build-")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(buildDir)
+
+	snapName, err := prepare(sourceDir, targetDir, buildDir)
+	if err != nil {
+		return "", err
+	}
+
+	d := snapfs.New(snapName)
+	if err = d.Build(buildDir); err != nil {
+		return "", err
+	}
+
+	return snapName, nil
+}
+
+// BuildLegacySnap the given sourceDirectory and return the generated snap file
+func BuildLegacySnap(sourceDir, targetDir string) (string, error) {
+	// create build dir
+	buildDir, err := ioutil.TempDir("", "snappy-build-")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(buildDir)
+
+	snapName, err := prepare(sourceDir, targetDir, buildDir)
+	if err != nil {
+		return "", err
+	}
+
 	d, err := clickdeb.Create(snapName)
 	if err != nil {
 		return "", err

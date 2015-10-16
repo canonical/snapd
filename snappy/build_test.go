@@ -20,10 +20,12 @@
 package snappy
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 
@@ -102,7 +104,7 @@ integration:
   apparmor-profile: meta/hello.apparmor
 `)
 
-	resultSnap, err := Build(sourceDir, "")
+	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -138,7 +140,8 @@ integration:
 	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_multi.snap").Output()
 	c.Assert(err, IsNil)
 	for _, needle := range []string{"./meta/package.yaml", "./meta/readme.md", "./bin/hello-world", "./symlink -> bin/hello-world"} {
-		c.Assert(strings.Contains(string(readFiles), needle), Equals, true)
+		expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta(needle))
+		c.Assert(string(readFiles), Matches, expr)
 	}
 }
 
@@ -152,7 +155,7 @@ binaries:
  - name: bin/hello-world
 `)
 
-	resultSnap, err := Build(sourceDir, "")
+	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -194,7 +197,7 @@ services:
    start: bin/hello-world
 `)
 
-	resultSnap, err := Build(sourceDir, "")
+	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -236,7 +239,7 @@ vendor: Foo <foo@example.com>
 	err := ioutil.WriteFile(filepath.Join(hooksDir, "config"), []byte(""), 0755)
 	c.Assert(err, IsNil)
 
-	resultSnap, err := Build(sourceDir, "")
+	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -265,7 +268,7 @@ vendor: Foo <foo@example.com>
 func (s *SnapTestSuite) TestBuildNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "package.yaml")), IsNil)
-	_, err := Build(sourceDir, "")
+	_, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
 }
 
@@ -279,7 +282,7 @@ integration:
   apparmor-profile: meta/hello.apparmor
 explicit-license-agreement: Y
 `)
-	_, err := Build(sourceDir, "")
+	_, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
 }
 
@@ -295,7 +298,7 @@ explicit-license-agreement: Y
 `)
 	lic := filepath.Join(sourceDir, "meta", "license.txt")
 	ioutil.WriteFile(lic, []byte("\n"), 0755)
-	_, err := Build(sourceDir, "")
+	_, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, Equals, ErrLicenseBlank)
 }
 
@@ -341,6 +344,23 @@ func (s *SnapTestSuite) TestCopyExcludesBackups(c *C) {
 	c.Check(string(out), Matches, `(?m)Only in \S+: foo~`)
 }
 
+func (s *SnapTestSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	target := c.MkDir()
+	// add a toplevel DEBIAN
+	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "DEBIAN", "foo"), 0755), IsNil)
+	// and a non-toplevel DEBIAN
+	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "bar", "DEBIAN", "baz"), 0755), IsNil)
+	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	cmd := exec.Command("diff", "-qr", sourceDir, target)
+	cmd.Env = append(cmd.Env, "LANG=C")
+	out, err := cmd.Output()
+	c.Check(err, NotNil)
+	c.Check(string(out), Matches, `(?m)Only in \S+: DEBIAN`)
+	// but *only one* DEBIAN is skipped
+	c.Check(strings.Count(string(out), "Only in"), Equals, 1)
+}
+
 func (s *SnapTestSuite) TestCopyExcludesWholeDirs(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 	target := c.MkDir()
@@ -356,6 +376,28 @@ func (s *SnapTestSuite) TestCopyExcludesWholeDirs(c *C) {
 	c.Check(string(out), Matches, `(?m)Only in \S+: \.bzr`)
 }
 
+func (s *SnapTestSuite) TestExcludeDynamicFalseIfNoSnapignore(c *C) {
+	basedir := c.MkDir()
+	c.Check(shouldExcludeDynamic(basedir, "foo"), Equals, false)
+}
+
+func (s *SnapTestSuite) TestExcludeDynamicWorksIfSnapignore(c *C) {
+	basedir := c.MkDir()
+	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("foo\nb.r\n"), 0644), IsNil)
+	c.Check(shouldExcludeDynamic(basedir, "foo"), Equals, true)
+	c.Check(shouldExcludeDynamic(basedir, "bar"), Equals, true)
+	c.Check(shouldExcludeDynamic(basedir, "bzr"), Equals, true)
+	c.Check(shouldExcludeDynamic(basedir, "baz"), Equals, false)
+}
+
+func (s *SnapTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
+	basedir := c.MkDir()
+	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("*hello\n"), 0644), IsNil)
+	// note “*hello” is not a valid regexp, so will be taken literally (not globbed!)
+	c.Check(shouldExcludeDynamic(basedir, "ahello"), Equals, false)
+	c.Check(shouldExcludeDynamic(basedir, "*hello"), Equals, true)
+}
+
 func (s *SnapTestSuite) TestBuildSimpleOutputDir(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
@@ -368,7 +410,7 @@ integration:
 
 	outputDir := filepath.Join(c.MkDir(), "output")
 	snapOutput := filepath.Join(outputDir, "hello_1.0.1_multi.snap")
-	resultSnap, err := Build(sourceDir, outputDir)
+	resultSnap, err := BuildLegacySnap(sourceDir, outputDir)
 	c.Assert(err, IsNil)
 
 	// check that there is result
@@ -403,7 +445,8 @@ integration:
 	readFiles, err := exec.Command("dpkg-deb", "-c", snapOutput).Output()
 	c.Assert(err, IsNil)
 	for _, needle := range []string{"./meta/package.yaml", "./meta/readme.md", "./bin/hello-world"} {
-		c.Assert(strings.Contains(string(readFiles), needle), Equals, true)
+		expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta(needle))
+		c.Assert(string(readFiles), Matches, expr)
 	}
 }
 
@@ -416,7 +459,7 @@ services:
 binaries:
  - name: foo
 `)
-	_, err := Build(sourceDir, "")
+	_, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
 }
 
@@ -447,7 +490,7 @@ version: 1.0.1
 vendor: Foo <foo@example.com>
 `)
 
-	resultSnap, err := Build(sourceDir, "")
+	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 
@@ -468,6 +511,39 @@ vendor: Foo <foo@example.com>
 	err := syscall.Mkfifo(filepath.Join(sourceDir, "fifo"), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = Build(sourceDir, "")
+	_, err = BuildLegacySnap(sourceDir, "")
 	c.Assert(err, ErrorMatches, "can not handle type of file .*")
+}
+
+func (s *SnapTestSuite) TestBuildSnapfsSimple(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 1.0.1
+vendor: Foo <foo@example.com>
+architecture: ["i386", "amd64"]
+integration:
+ app:
+  apparmor-profile: meta/hello.apparmor
+`)
+
+	resultSnap, err := BuildSnapfsSnap(sourceDir, "")
+	c.Assert(err, IsNil)
+	defer os.Remove(resultSnap)
+
+	// check that there is result
+	_, err = os.Stat(resultSnap)
+	c.Assert(err, IsNil)
+	c.Assert(resultSnap, Equals, "hello_1.0.1_multi.snap")
+
+	// check that the content looks sane
+	output, err := exec.Command("unsquashfs", "-ll", "hello_1.0.1_multi.snap").CombinedOutput()
+	c.Assert(err, IsNil)
+	for _, needle := range []string{
+		"meta/package.yaml",
+		"meta/readme.md",
+		"bin/hello-world",
+		"symlink -> bin/hello-world",
+	} {
+		expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta(needle))
+		c.Assert(string(output), Matches, expr)
+	}
 }

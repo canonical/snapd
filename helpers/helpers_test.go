@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -116,11 +117,26 @@ func (ts *HTestSuite) TestChdir(c *C) {
 	cwd, err := os.Getwd()
 	c.Assert(err, IsNil)
 	c.Assert(cwd, Not(Equals), tmpdir)
-	ChDir(tmpdir, func() {
+	ChDir(tmpdir, func() error {
 		cwd, err := os.Getwd()
 		c.Assert(err, IsNil)
 		c.Assert(cwd, Equals, tmpdir)
+		return err
 	})
+}
+
+func (ts *HTestSuite) TestChdirErrorNoDir(c *C) {
+	err := ChDir("random-dir-that-does-not-exist", func() error {
+		return nil
+	})
+	c.Assert(err, ErrorMatches, "chdir .*: no such file or directory")
+}
+
+func (ts *HTestSuite) TestChdirErrorFromFunc(c *C) {
+	err := ChDir("/", func() error {
+		return fmt.Errorf("meep")
+	})
+	c.Assert(err, ErrorMatches, "meep")
 }
 
 func (ts *HTestSuite) TestExitCode(c *C) {
@@ -215,10 +231,10 @@ func (ts *HTestSuite) TestMakeRandomString(c *C) {
 	rand.Seed(1)
 
 	s1 := MakeRandomString(10)
-	c.Assert(s1, Equals, "GMWjGsAPga")
+	c.Assert(s1, Equals, "gmwJgSapGA")
 
 	s2 := MakeRandomString(5)
-	c.Assert(s2, Equals, "TlmOD")
+	c.Assert(s2, Equals, "tLMod")
 }
 
 func (ts *HTestSuite) TestAtomicWriteFile(c *C) {
@@ -248,6 +264,24 @@ func (ts *HTestSuite) TestAtomicWriteFilePermissions(c *C) {
 	st, err := os.Stat(p)
 	c.Assert(err, IsNil)
 	c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0600))
+}
+
+func (ts *HTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) {
+	tmpdir := c.MkDir()
+	realMakeRandomString := MakeRandomString
+	defer func() { MakeRandomString = realMakeRandomString }()
+	MakeRandomString = func(n int) string {
+		// chosen by fair dice roll.
+		// guranteed to be random.
+		return "4"
+	}
+
+	p := filepath.Join(tmpdir, "foo")
+	err := ioutil.WriteFile(p+".4", []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	err = AtomicWriteFile(p, []byte(""), 0600)
+	c.Assert(err, ErrorMatches, "open .*: file exists")
 }
 
 func (ts *HTestSuite) TestCurrentHomeDirHOMEenv(c *C) {
@@ -482,4 +516,36 @@ func (ts *HTestSuite) TestCopyIfDifferentErrorsOnNoSrc(c *C) {
 
 	err := CopyIfDifferent(src, dst)
 	c.Assert(err, NotNil)
+}
+
+func (ts *HTestSuite) TestUnpackPermissions(c *C) {
+	tarArchive := filepath.Join(c.MkDir(), "foo.tar")
+
+	canaryName := "foo"
+	canaryPerms := os.FileMode(0644)
+	tmpdir := c.MkDir()
+	err := ioutil.WriteFile(filepath.Join(tmpdir, canaryName), []byte(nil), canaryPerms)
+	c.Assert(err, IsNil)
+
+	ChDir(tmpdir, func() error {
+		cmd := exec.Command("tar", "cvf", tarArchive, ".")
+		_, err = cmd.CombinedOutput()
+		c.Assert(err, IsNil)
+		return err
+	})
+
+	// set crazy umask
+	oldUmask := syscall.Umask(0077)
+	defer syscall.Umask(oldUmask)
+
+	// unpack
+	unpackdir := c.MkDir()
+	f, err := os.Open(tarArchive)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	UnpackTar(f, unpackdir, nil)
+
+	st, err := os.Stat(filepath.Join(unpackdir, canaryName))
+	c.Assert(err, IsNil)
+	c.Assert(st.Mode()&os.ModePerm, Equals, canaryPerms)
 }
