@@ -93,15 +93,6 @@ func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	c.Assert(string(content), Equals, "name: foo")
 }
 
-func (s *SquashfsTestSuite) TestCopyBlob(c *C) {
-	snap := makeSnap(c, "name: foo", "")
-	dst := filepath.Join(c.MkDir(), "blob.snap")
-
-	err := snap.CopyBlob(dst)
-	c.Assert(err, IsNil)
-	c.Assert(helpers.FilesAreEqual(snap.Name(), dst), Equals, true)
-}
-
 func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
 	data := "some random data"
 	snap := makeSnap(c, "", data)
