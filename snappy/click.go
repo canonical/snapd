@@ -278,8 +278,8 @@ func generateBinaryName(m *packageYaml, binary Binary) string {
 	return filepath.Join(dirs.SnapBinariesDir, binName)
 }
 
-func binPathForBinary(pkgPath, runDir string, binary Binary) string {
-	return filepath.Join(pkgPath, runDir, binary.Exec)
+func binPathForBinary(pkgPath string, binary Binary) string {
+	return filepath.Join(pkgPath, binary.Exec)
 }
 
 func verifyBinariesYaml(binary Binary) error {
@@ -321,7 +321,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		return "", err
 	}
 
-	actualBinPath := binPathForBinary(pkgPath, m.runDir, binary)
+	actualBinPath := binPathForBinary(pkgPath, binary)
 	udevPartName := m.qualifiedName(origin)
 
 	var templateOut bytes.Buffer
@@ -431,19 +431,13 @@ func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile str
 		socketFileName = filepath.Base(generateSocketFileName(m, service))
 	}
 
-	// add runDir if needed (for squashfs mounts)
-	appPath := baseDir
-	if m.runDir != "" {
-		appPath = filepath.Join(baseDir, m.runDir)
-	}
-	
 	return systemd.New(dirs.GlobalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
 			AppName:        m.Name,
 			ServiceName:    service.Name,
 			Version:        m.Version,
 			Description:    desc,
-			AppPath:        appPath,
+			AppPath:        baseDir,
 			Start:          service.Start,
 			Stop:           service.Stop,
 			PostStop:       service.PostStop,

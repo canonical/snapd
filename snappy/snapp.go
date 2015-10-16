@@ -181,7 +181,7 @@ type SnapPart struct {
 	isActive    bool
 	isInstalled bool
 	description string
-	deb         PackageFile
+	deb         pkg.File
 	basedir     string
 }
 
@@ -237,10 +237,6 @@ type packageYaml struct {
 
 	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement,omitempty"`
 	LicenseVersion           string `yaml:"license-version,omitempty"`
-
-	// FIXME: HACK to workaround the fact that a squashfs snap
-	//        is mounted to $basedir/run instead of $basedir/
-	runDir string
 }
 
 type searchResults struct {
@@ -434,7 +430,7 @@ func (m *packageYaml) checkForFrameworks() error {
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func (m *packageYaml) checkLicenseAgreement(ag agreer, d PackageFile, currentActiveDir string) error {
+func (m *packageYaml) checkLicenseAgreement(ag agreer, d pkg.File, currentActiveDir string) error {
 	if !m.ExplicitLicenseAgreement {
 		return nil
 	}
@@ -545,7 +541,7 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 // Caller should call Close on the pkg.
 // TODO: expose that Close.
 func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
-	d, err := OpenPackageFile(snapFile)
+	d, err := pkg.Open(snapFile)
 	if err != nil {
 		return nil, err
 	}
@@ -1005,23 +1001,6 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	// generate the security policy from the package.yaml
-	if err := s.m.addSecurityPolicy(s.basedir); err != nil {
-		return err
-	}
-
-	// FIXME: UGLY!
-	if s.deb != nil {
-		s.m.runDir = s.deb.RunPrefix()
-	}
-	// add the "binaries:" from the package.yaml
-	if err := s.m.addPackageBinaries(s.basedir); err != nil {
-		return err
-	}
-	// add the "services:" from the package.yaml
-	if err := s.m.addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
-		return err
-	}
 	// generate the automount unit for the squashfs
 	// FIXME: this is ugly
 	if s.deb != nil && s.deb.NeedsAutoMountUnit() {
@@ -1030,6 +1009,19 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		}
 	}
 
+	// generate the security policy from the package.yaml
+	if err := s.m.addSecurityPolicy(s.basedir); err != nil {
+		return err
+	}
+
+	// add the "binaries:" from the package.yaml
+	if err := s.m.addPackageBinaries(s.basedir); err != nil {
+		return err
+	}
+	// add the "services:" from the package.yaml
+	if err := s.m.addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
+		return err
+	}
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
 	}
@@ -2012,49 +2004,55 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 }
 
 func mountUnitPath(baseDir, ext string) string {
-	mountPath := filepath.Join(baseDir, "run")
 	// FIXME: use github.com/coreos/go-systemd/unit/escape.go
 	//        once we can update go-systemd. we can not right now
 	//        because versions >= 2 are not compatible with go1.3 from
 	//        15.04
-	p, _ := exec.Command("systemd-escape", mountPath[1:]).Output()
+	p, _ := exec.Command("systemd-escape", baseDir[1:]).Output()
 	escapedPath := strings.TrimSpace(string(p))
 	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s.%s", escapedPath, ext))
 }
 
 func (m *packageYaml) addSnapfsAutomount(baseDir string, inhibitHooks bool, inter interacter) error {
-	squashfsPath := fmt.Sprintf("%s/blob.snap", baseDir)
+	l := strings.Split(baseDir, "/")
+	if len(l) < 2 {
+		return fmt.Errorf("invalid instDir: %q", baseDir)
+	}
+	squashfsPath := filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", l[len(l)-2], l[len(l)-1]))
+
+	squashfsPath = stripGlobalRootDir(squashfsPath)
+	whereDir := stripGlobalRootDir(baseDir)
 
 	mountUnit := fmt.Sprintf(`[Unit]
-Description=Snapfs automount unit for %s
+Description=Snapfs mount unit for %s
 
 [Mount]
 What=%s
-Where=%s/run
-`, m.Name, squashfsPath, baseDir)
+Where=%s
+`, m.Name, squashfsPath, whereDir)
 
 	autoMountUnit := fmt.Sprintf(`[Unit]
 Description=Snapfs automount unit for %s
 
 [Automount]
-Where=%s/run
+Where=%s
 TimeoutIdleSec=30
 
 [Install]
 WantedBy=multi-user.target
-`, m.Name, baseDir)
+`, m.Name, whereDir)
 
-	if err := ioutil.WriteFile(mountUnitPath(baseDir, "mount"), []byte(mountUnit), 0644); err != nil {
+	if err := ioutil.WriteFile(mountUnitPath(whereDir, "mount"), []byte(mountUnit), 0644); err != nil {
 		return err
 	}
 
-	if err := ioutil.WriteFile(mountUnitPath(baseDir, "automount"), []byte(autoMountUnit), 0644); err != nil {
+	if err := ioutil.WriteFile(mountUnitPath(whereDir, "automount"), []byte(autoMountUnit), 0644); err != nil {
 		return err
 	}
 
 	// we always enable the mount unit even in inhibit hooks
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
-	autoMountUnitName := filepath.Base(mountUnitPath(baseDir, "automount"))
+	autoMountUnitName := filepath.Base(mountUnitPath(whereDir, "automount"))
 	if err := sysd.Enable(autoMountUnitName); err != nil {
 		return err
 	}
@@ -2071,7 +2069,7 @@ func (m *packageYaml) removeSnapfsAutomount(baseDir string, inter interacter) er
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
 	for _, s := range []string{"mount", "automount"} {
-		unit := mountUnitPath(baseDir, s)
+		unit := mountUnitPath(stripGlobalRootDir(baseDir), s)
 		if helpers.FileExists(unit) {
 			_ = sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second))
 			if err := os.Remove(unit); err != nil {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package snappy
+package pkg
 
 import (
 	"bytes"
@@ -29,8 +29,8 @@ import (
 	"launchpad.net/snappy/pkg/snapfs"
 )
 
-// PackageFile is the interface to interact with the low-level snap files
-type PackageFile interface {
+// File is the interface to interact with the low-level snap files
+type File interface {
 	Verify(allowUnauthenticated bool) error
 	Close() error
 	UnpackWithDropPrivs(targetDir, rootDir string) error
@@ -39,11 +39,10 @@ type PackageFile interface {
 	ExtractHashes(targetDir string) error
 
 	NeedsAutoMountUnit() bool
-	RunPrefix() string
 }
 
-// OpenPackageFile opens a given snap file with the right backend
-func OpenPackageFile(path string) (PackageFile, error) {
+// Open opens a given snap file with the right backend
+func Open(path string) (File, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err

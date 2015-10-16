@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 )
 
@@ -43,11 +44,6 @@ func (s *Snap) Name() string {
 // NeedsAutoMountUnit returns false
 func (s *Snap) NeedsAutoMountUnit() bool {
 	return true
-}
-
-// RunPrefix returns the path where the runtime stuff is located
-func (s *Snap) RunPrefix() string {
-	return "run"
 }
 
 // New returns a new Snapfs snap
@@ -75,14 +71,32 @@ func (s *Snap) ExtractHashes(dir string) error {
 	return nil
 }
 
-// UnpackWithDropPrivs unpacks the meta and puts stuff in place - COMAPT
+// UnpackWithDropPrivs just copies the blob into place - COMPAT
 func (s *Snap) UnpackWithDropPrivs(instDir, rootdir string) error {
-	// FIXME: actually drop privs
+	// FIXME: we need to unpack here because otherwise there is
+	//        a race condition, i.e. when we tell systemd to
+	//        start the automount unit it will return before the
+	//        part is actually mounted
 	if err := s.UnpackMeta(instDir); err != nil {
 		return err
 	}
 
-	return s.CopyBlob(filepath.Join(instDir, "blob.snap"))
+	// ensure mount-point and blob dir
+	for _, dir := range []string{instDir, dirs.SnapBlobDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+
+	// FIXME: wrong layer to calculate the final filename
+	l := strings.Split(instDir, "/")
+	if len(l) < 2 {
+		return fmt.Errorf("invalid instDir: %q", instDir)
+	}
+	squashfsPath := filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", l[len(l)-2], l[len(l)-1]))
+
+	// FIXME: helpers.CopyFile() has no preserve attribute flag yet
+	return runCommand("cp", "-a", s.path, squashfsPath)
 }
 
 // UnpackMeta unpacks just the meta/* directory of the given snap
@@ -122,12 +136,6 @@ func (s *Snap) ReadFile(path string) (content []byte, err error) {
 	}
 
 	return ioutil.ReadFile(filepath.Join(unpackDir, path))
-}
-
-// CopyBlob copies the snap to a new place
-func (s *Snap) CopyBlob(targetFile string) error {
-	// FIXME: helpers.CopyFile() has no preserve attribute flag yet
-	return runCommand("cp", "-a", s.path, targetFile)
 }
 
 // Verify verifies the snap

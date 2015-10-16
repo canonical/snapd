@@ -155,11 +155,6 @@ func (d *ClickDeb) NeedsAutoMountUnit() bool {
 	return false
 }
 
-// RunPrefix returns a empty path here
-func (d *ClickDeb) RunPrefix() string {
-	return ""
-}
-
 // Close closes the backing file
 func (d *ClickDeb) Close() error {
 	return d.file.Close()
