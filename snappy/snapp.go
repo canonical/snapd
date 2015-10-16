@@ -2020,7 +2020,7 @@ func mountUnitPath(baseDir, ext string) string {
 	//        once we can update go-systemd. we can not right now
 	//        because versions >= 2 are not compatible with go1.3 from
 	//        15.04
-	p, _ := exec.Command("systemd-escape", baseDir[1:]).Output()
+	p, _ := exec.Command("systemd-escape", "--path", baseDir).Output()
 	escapedPath := strings.TrimSpace(string(p))
 	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s.%s", escapedPath, ext))
 }

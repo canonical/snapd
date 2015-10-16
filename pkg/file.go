@@ -51,7 +51,7 @@ func Open(path string) (File, error) {
 
 	// look, libmagic!
 	header := make([]byte, 20)
-	if _, err := f.Read(header); err != nil {
+	if _, err := f.ReadAt(header, 0); err != nil {
 		return nil, err
 	}
 	// note that we only support little endian squashfs for now
