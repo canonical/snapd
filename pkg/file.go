@@ -54,7 +54,8 @@ func Open(path string) (File, error) {
 	if _, err := f.ReadAt(header, 0); err != nil {
 		return nil, err
 	}
-	// note that we only support little endian squashfs for now
+	// Note that we only support little endian squashfs. There
+	// is nothing else with squashfs 4.0.
 	if bytes.HasPrefix(header, []byte{'h', 's', 'q', 's'}) {
 		return snapfs.New(path), nil
 	}
