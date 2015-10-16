@@ -21,73 +21,35 @@ package tests
 
 import (
 	"fmt"
-	"regexp"
+	"os"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/build"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/data"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&installFrameworkSuite{})
 
 type installFrameworkSuite struct {
-	SnappySuite
-}
-
-func (s *installFrameworkSuite) TearDownTest(c *check.C) {
-	if !NeedsReboot() && CheckRebootMark("") {
-		RemoveSnap(c, "docker")
-	}
-	// run cleanup last
-	s.SnappySuite.TearDownTest(c)
-}
-
-func isDockerServiceRunning(c *check.C) bool {
-	dockerVersion := GetCurrentVersion(c, "docker")
-	dockerService := fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion)
-
-	err := WaitForActiveService(c, dockerService)
-	c.Assert(err, check.IsNil)
-
-	statusOutput := ExecCommand(
-		c, "systemctl", "status",
-		dockerService)
-
-	expected := "(?ms)" +
-		".* docker_docker-daemon_.*\\.service .*\n" +
-		".*Loaded: loaded .*\n" +
-		".*Active: active \\(running\\) .*\n" +
-		".*"
-
-	matched, err := regexp.MatchString(expected, statusOutput)
-	c.Assert(err, check.IsNil)
-	return matched
+	common.SnappySuite
 }
 
 func (s *installFrameworkSuite) TestInstallFrameworkMustPrintPackageInformation(c *check.C) {
-	installOutput := InstallSnap(c, "docker")
+	snapPath, err := build.LocalSnap(c, data.BasicFrameworkSnapName)
+	defer os.Remove(snapPath)
+	c.Assert(err, check.IsNil)
+	installOutput := common.InstallSnap(c, snapPath)
+	defer common.RemoveSnap(c, data.BasicFrameworkSnapName)
 
 	expected := "(?ms)" +
-		"Installing docker\n" +
+		fmt.Sprintf("Installing %s\n", snapPath) +
+		".*Signature check failed, but installing anyway as requested\n" +
 		"Name +Date +Version +Developer \n" +
 		".*" +
-		"^docker +.* +.* +canonical \n" +
+		"^basic-framework +.* +.* +sideload *\n" +
 		".*"
 
 	c.Assert(installOutput, check.Matches, expected)
-}
-
-func (s *installFrameworkSuite) TestInstalledFrameworkServiceMustBeStarted(c *check.C) {
-	InstallSnap(c, "docker")
-	c.Assert(isDockerServiceRunning(c), check.Equals, true)
-}
-
-func (s *installFrameworkSuite) TestFrameworkServiceMustBeStartedAfterReboot(c *check.C) {
-	if BeforeReboot() {
-		InstallSnap(c, "docker")
-		Reboot(c)
-	} else if AfterReboot(c) {
-		RemoveRebootMark(c)
-		c.Assert(isDockerServiceRunning(c), check.Equals, true)
-	}
 }

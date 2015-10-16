@@ -22,14 +22,14 @@ package build
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"launchpad.net/snappy/_integration-tests/testutils"
 )
 
 const (
-	buildTestCmd   = "go test -c ./_integration-tests/tests"
-	buildSnappyCmd = "go build -o " + testsBinDir + "snappy ./cmd/snappy"
+	buildTestCmd = "go test -c ./_integration-tests/tests"
 
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
@@ -44,6 +44,16 @@ var (
 	osRename         = os.Rename
 	osSetenv         = os.Setenv
 	osGetenv         = os.Getenv
+
+	// The output of the build commands for testing goes to the testsBinDir path,
+	// which is under the _integration-tests directory. The
+	// _integration-tests/reboot-wrapper script (Test-Command's entry point of
+	// adt-run) takes care of including testsBinDir at the beginning of $PATH, so
+	// that these binaries (if they exist) take precedence over the system ones
+	buildSnappyCliCmd = "go build -o " +
+		filepath.Join(testsBinDir, "snappy") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snappy")
+	buildSnapdCmd = "go build -o " +
+		filepath.Join(testsBinDir, "snapd") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snapd")
 )
 
 // Assets builds the snappy and integration tests binaries for the target
@@ -55,15 +65,19 @@ func Assets(useSnappyFromBranch bool, arch string) {
 		// FIXME We need to build an image that has the snappy from the branch
 		// installed. --elopio - 2015-06-25.
 		buildSnappyCLI(arch)
+		buildSnapd(arch)
 	}
 	buildTests(arch)
 }
 
 func buildSnappyCLI(arch string) {
 	fmt.Println("Building snappy CLI...")
-	// On the root of the project we have a directory called snappy, so we
-	// output the binary for the tests in the tests directory.
-	goCall(arch, buildSnappyCmd)
+	goCall(arch, buildSnappyCliCmd)
+}
+
+func buildSnapd(arch string) {
+	fmt.Println("Building snapd...")
+	goCall(arch, buildSnapdCmd)
 }
 
 func buildTests(arch string) {
@@ -80,8 +94,15 @@ func goCall(arch string, cmd string) {
 		defer osSetenv("GOARCH", osGetenv("GOARCH"))
 		osSetenv("GOARCH", arch)
 		if arch == "arm" {
-			defer osSetenv("GOARM", osGetenv("GOARM"))
-			osSetenv("GOARM", defaultGoArm)
+			envs := map[string]string{
+				"GOARM":       defaultGoArm,
+				"CGO_ENABLED": "1",
+				"CC":          "arm-linux-gnueabihf-gcc",
+			}
+			for env, value := range envs {
+				defer osSetenv(env, osGetenv(env))
+				osSetenv(env, value)
+			}
 		}
 	}
 	execCommand(strings.Fields(cmd)...)

@@ -23,16 +23,17 @@ import (
 	"fmt"
 	"os"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
 
 	"github.com/mvo5/goconfigparser"
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&listSuite{})
 
 type listSuite struct {
-	SnappySuite
+	common.SnappySuite
 }
 
 func getVersionFromConfig(c *check.C) string {
@@ -51,7 +52,7 @@ func getVersionFromConfig(c *check.C) string {
 }
 
 func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
-	listOutput := ExecCommand(c, "snappy", "list")
+	listOutput := cli.ExecCommand(c, "snappy", "list")
 
 	expected := "(?ms)" +
 		"Name +Date +Version +Developer *\n" +
@@ -62,12 +63,12 @@ func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
 }
 
 func (s *listSuite) TestListMustPrintAppVersion(c *check.C) {
-	InstallSnap(c, "hello-world")
+	common.InstallSnap(c, "hello-world")
 	s.AddCleanup(func() {
-		RemoveSnap(c, "hello-world")
+		common.RemoveSnap(c, "hello-world")
 	})
 
-	listOutput := ExecCommand(c, "snappy", "list")
+	listOutput := cli.ExecCommand(c, "snappy", "list")
 	expected := "(?ms)" +
 		"Name +Date +Version +Developer *\n" +
 		".*" +

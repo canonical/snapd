@@ -21,100 +21,61 @@ package tests
 
 import (
 	"fmt"
-	"net/http"
+	"os"
 	"os/exec"
-	"time"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/build"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/data"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&installAppSuite{})
 
 type installAppSuite struct {
-	SnappySuite
+	common.SnappySuite
 }
 
 func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) {
-	installOutput := InstallSnap(c, "hello-world")
-	s.AddCleanup(func() {
-		RemoveSnap(c, "hello-world")
-	})
+	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
+	defer os.Remove(snapPath)
+	c.Assert(err, check.IsNil)
+	installOutput := common.InstallSnap(c, snapPath)
+	defer common.RemoveSnap(c, data.BasicSnapName)
 
 	expected := "(?ms)" +
-		"Installing hello-world\n" +
+		fmt.Sprintf("Installing %s\n", snapPath) +
+		".*Signature check failed, but installing anyway as requested\n" +
 		"Name +Date +Version +Developer \n" +
 		".*" +
-		"^hello-world +.* +.* +canonical \n" +
+		"^basic +.* +.* +sideload *\n" +
 		".*"
 
 	c.Assert(installOutput, check.Matches, expected)
 }
 
-func (s *installAppSuite) TestCallBinaryFromInstalledSnap(c *check.C) {
-	InstallSnap(c, "hello-world")
-	s.AddCleanup(func() {
-		RemoveSnap(c, "hello-world")
-	})
-
-	echoOutput := ExecCommand(c, "hello-world.echo")
-
-	c.Assert(echoOutput, check.Equals, "Hello World!\n")
-}
-
-func (s *installAppSuite) TestCallBinaryWithPermissionDeniedMustPrintError(c *check.C) {
-	InstallSnap(c, "hello-world")
-	s.AddCleanup(func() {
-		RemoveSnap(c, "hello-world")
-	})
-
-	cmd := exec.Command("hello-world.evil")
-	echoOutput, err := cmd.CombinedOutput()
-	c.Assert(err, check.NotNil, check.Commentf("hello-world.evil did not fail"))
-
-	expected := "" +
-		"Hello Evil World!\n" +
-		"This example demonstrates the app confinement\n" +
-		"You should see a permission denied error next\n" +
-		"/apps/hello-world.canonical/.*/bin/evil: \\d+: " +
-		"/apps/hello-world.canonical/.*/bin/evil: " +
-		"cannot create /var/tmp/myevil.txt: Permission denied\n"
-
-	c.Assert(string(echoOutput), check.Matches, expected)
-}
-
-func (s *installAppSuite) TestInfoMustPrintInstalledPackageInformation(c *check.C) {
-	InstallSnap(c, "hello-world")
-	s.AddCleanup(func() {
-		RemoveSnap(c, "hello-world")
-	})
-
-	infoOutput := ExecCommand(c, "snappy", "info")
-
-	expected := "(?ms).*^apps: hello-world\n"
-	c.Assert(infoOutput, check.Matches, expected)
-}
-
-func (s *installAppSuite) TestAppNetworkingServiceMustBeStarted(c *check.C) {
-	baseAppName := "xkcd-webserver"
-	appName := baseAppName + ".canonical"
-	InstallSnap(c, appName)
-	s.AddCleanup(func() {
-		RemoveSnap(c, appName)
-	})
-
-	appVersion := GetCurrentVersion(c, baseAppName)
-	appService := fmt.Sprintf("%s_%s_%s.service", baseAppName, baseAppName, appVersion)
-
-	err := WaitForActiveService(c, appService)
+func (s *installAppSuite) TestCallSuccessfulBinaryFromInstalledSnap(c *check.C) {
+	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
+	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil)
+	common.InstallSnap(c, snapPath)
+	defer common.RemoveSnap(c, data.BasicBinariesSnapName)
 
-	time.Sleep(1 * time.Second)
-	resp, err := http.Get("http://localhost")
+	// Exec command does not fail.
+	cli.ExecCommand(c, "basic-binaries.success")
+}
+
+func (s *installAppSuite) TestCallFailBinaryFromInstalledSnap(c *check.C) {
+	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
+	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil)
-	c.Check(resp.Status, check.Equals, "200 OK")
-	c.Assert(resp.Proto, check.Equals, "HTTP/1.0")
+	common.InstallSnap(c, snapPath)
+	defer common.RemoveSnap(c, data.BasicBinariesSnapName)
+
+	_, err = cli.ExecCommandErr("basic-binaries.fail")
+	c.Assert(err, check.NotNil, check.Commentf("The binary did not fail"))
 }
 
 func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
@@ -124,5 +85,5 @@ func (s *installAppSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 	c.Assert(err, check.NotNil)
 	c.Assert(string(output), check.Equals,
 		"Installing unexisting.canonical\n"+
-			"unexisting.canonical failed to install: snappy package not found\n")
+			"unexisting failed to install: snappy package not found\n")
 }

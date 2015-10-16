@@ -1,9 +1,10 @@
 [Unit]
 Description=Notify bootloader that boot was successful
+After=multi-user.target
 
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/snappy booted
 
 [Install]
-WantedBy=getty.target
+WantedBy=multi-user.target

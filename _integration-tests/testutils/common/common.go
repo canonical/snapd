@@ -23,16 +23,16 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/config"
+	"launchpad.net/snappy/_integration-tests/testutils/partition"
 )
 
 const (
@@ -55,30 +55,37 @@ type SnappySuite struct {
 // SetUpSuite disables the snappy autopilot. It will run before all the
 // integration suites.
 func (s *SnappySuite) SetUpSuite(c *check.C) {
-	ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
-	ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
+	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
+	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
+	var err error
+	Cfg, err = config.ReadConfig(
+		"_integration-tests/data/output/testconfig.json")
+	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
+
 	if !isInRebootProcess() {
-		var err error
-		Cfg, err = config.ReadConfig(
-			"_integration-tests/data/output/testconfig.json")
-		c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 		if Cfg.Update || Cfg.Rollback {
 			switchSystemImageConf(c, Cfg.TargetRelease, Cfg.TargetChannel, "0")
 			// Always use the installed snappy because we are updating from an old
 			// image, so we should not use the snappy from the branch.
-			output := ExecCommand(c, "sudo", "/usr/bin/snappy", "update")
+			output := cli.ExecCommand(c, "sudo", "/usr/bin/snappy", "update")
 			if output != "" {
 				RebootWithMark(c, "setupsuite-update")
 			}
 		}
 	} else if CheckRebootMark("setupsuite-update") {
 		RemoveRebootMark(c)
+		// Update was already executed. Update the config so it's not triggered again.
+		Cfg.Update = false
+		Cfg.Write()
 		if Cfg.Rollback {
-			ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core")
+			cli.ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core")
 			RebootWithMark(c, "setupsuite-rollback")
 		}
 	} else if CheckRebootMark("setupsuite-rollback") {
 		RemoveRebootMark(c)
+		// Rollback was already executed. Update the config so it's not triggered again.
+		Cfg.Rollback = false
+		Cfg.Write()
 	}
 }
 
@@ -121,11 +128,11 @@ func (s *SnappySuite) TearDownTest(c *check.C) {
 		m[channelCfgOtherBackupFile()] = BaseAltPartitionPath
 		for backup, target := range m {
 			if _, err := os.Stat(backup); err == nil {
-				MakeWritable(c, target)
-				defer MakeReadonly(c, target)
+				partition.MakeWritable(c, target)
+				defer partition.MakeReadonly(c, target)
 				original := filepath.Join(target, channelCfgFile)
 				c.Logf("Restoring %s...", original)
-				ExecCommand(c, "sudo", "mv", backup, original)
+				cli.ExecCommand(c, "sudo", "mv", backup, original)
 			}
 		}
 	}
@@ -147,8 +154,8 @@ func switchSystemImageConf(c *check.C, release, channel, version string) {
 	for _, target := range targets {
 		file := filepath.Join(target, channelCfgFile)
 		if _, err := os.Stat(file); err == nil {
-			MakeWritable(c, target)
-			defer MakeReadonly(c, target)
+			partition.MakeWritable(c, target)
+			defer partition.MakeReadonly(c, target)
 			replaceSystemImageValues(c, file, release, channel, version)
 		}
 	}
@@ -163,12 +170,12 @@ func replaceSystemImageValues(c *check.C, file, release, channel, version string
 	}
 	for value, regex := range replaceRegex {
 		if value != "" {
-			ExecCommand(c,
+			cli.ExecCommand(c,
 				"sudo", "sed", "-i", fmt.Sprintf(regex, value), file)
 		}
 	}
 	// Leave the new file in the test log.
-	ExecCommand(c, "cat", file)
+	cli.ExecCommand(c, "cat", file)
 }
 
 func channelCfgBackupFile() string {
@@ -179,35 +186,9 @@ func channelCfgOtherBackupFile() string {
 	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "channel.ini.other")
 }
 
-// ExecCommand executes a shell command and returns a string with the output
-// of the command. In case of error, it will fail the test.
-func ExecCommand(c *check.C, cmds ...string) string {
-	fmt.Println(strings.Join(cmds, " "))
-	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
-	output, err := cmd.CombinedOutput()
-	stringOutput := string(output)
-	fmt.Print(stringOutput)
-	c.Assert(err, check.IsNil, check.Commentf("Error: %v", stringOutput))
-	return stringOutput
-}
-
-// ExecCommandToFile executes a shell command and saves the output of the
-// command to a file. In case of error, it will fail the test.
-func ExecCommandToFile(c *check.C, filename string, cmds ...string) {
-	cmd := exec.Command(cmds[0], cmds[1:len(cmds)]...)
-	outfile, err := os.Create(filename)
-	c.Assert(err, check.IsNil, check.Commentf("Error creating output file %s", filename))
-
-	defer outfile.Close()
-	cmd.Stdout = outfile
-
-	err = cmd.Run()
-	c.Assert(err, check.IsNil, check.Commentf("Error executing command '%v': %v", cmds, err))
-}
-
 // GetCurrentVersion returns the version of the installed and active package.
 func GetCurrentVersion(c *check.C, packageName string) string {
-	output := ExecCommand(c, "snappy", "list")
+	output := cli.ExecCommand(c, "snappy", "list")
 	pattern := "(?mU)^" + packageName + " +(.*)$"
 	re := regexp.MustCompile(pattern)
 	match := re.FindStringSubmatch(string(output))
@@ -231,7 +212,7 @@ func GetCurrentUbuntuCoreVersion(c *check.C) int {
 func CallFakeUpdate(c *check.C) string {
 	c.Log("Preparing fake and calling update.")
 	fakeAvailableUpdate(c)
-	return ExecCommand(c, "sudo", "snappy", "update")
+	return cli.ExecCommand(c, "sudo", "snappy", "update")
 }
 
 func fakeAvailableUpdate(c *check.C) {
@@ -248,23 +229,13 @@ func switchChannelVersionWithBackup(c *check.C, newVersion int) {
 	for target, backup := range m {
 		file := filepath.Join(target, channelCfgFile)
 		if _, err := os.Stat(file); err == nil {
-			MakeWritable(c, target)
-			defer MakeReadonly(c, target)
+			partition.MakeWritable(c, target)
+			defer partition.MakeReadonly(c, target)
 			// Back up the file. It will be restored during the test tear down.
-			ExecCommand(c, "cp", file, backup)
+			cli.ExecCommand(c, "cp", file, backup)
 			replaceSystemImageValues(c, file, "", "", strconv.Itoa(newVersion))
 		}
 	}
-}
-
-// MakeWritable remounts a path with read and write permissions.
-func MakeWritable(c *check.C, path string) {
-	ExecCommand(c, "sudo", "mount", "-o", "remount,rw", path)
-}
-
-// MakeReadonly remounts a path with only read permissions.
-func MakeReadonly(c *check.C, path string) {
-	ExecCommand(c, "sudo", "mount", "-o", "remount,ro", path)
 }
 
 // Reboot requests a reboot using the test name as the mark.
@@ -340,40 +311,10 @@ func getVersionFile() string {
 
 // InstallSnap executes the required command to install the specified snap
 func InstallSnap(c *check.C, packageName string) string {
-	return ExecCommand(c, "sudo", "snappy", "install", packageName, "--allow-unauthenticated")
+	return cli.ExecCommand(c, "sudo", "snappy", "install", packageName, "--allow-unauthenticated")
 }
 
 // RemoveSnap executes the required command to remove the specified snap
 func RemoveSnap(c *check.C, packageName string) string {
-	return ExecCommand(c, "sudo", "snappy", "remove", packageName)
-}
-
-// WaitForActiveService keeps asking for the active state of the given service until
-// it is active or the maximun waiting time expires, in which case an error is returned
-func WaitForActiveService(c *check.C, serviceName string) error {
-	maxWait := time.Second * 10
-	checkInterval := time.Millisecond * 500
-
-	timer := time.NewTimer(maxWait)
-	timeChan := timer.C
-
-	ticker := time.NewTicker(checkInterval)
-	tickChan := ticker.C
-
-	for {
-		select {
-		case <-timeChan:
-			ticker.Stop()
-			journalctlOutput := ExecCommand(c, "sudo", "journalctl", "-u", serviceName)
-			return fmt.Errorf("Service %s not active after %s, journalctl output: %s",
-				serviceName, maxWait, journalctlOutput)
-		case <-tickChan:
-			statusOutput := ExecCommand(
-				c, "systemctl", "show", "-p", "ActiveState", serviceName)
-			if statusOutput == "ActiveState=active\n" {
-				timer.Stop()
-				return nil
-			}
-		}
-	}
+	return cli.ExecCommand(c, "sudo", "snappy", "remove", packageName)
 }

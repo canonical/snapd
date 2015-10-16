@@ -20,15 +20,16 @@
 package tests
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/partition"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 const (
@@ -38,11 +39,6 @@ const (
 	initrdFilename             = "initrd"
 	systemdFilename            = "systemd"
 	destFilenamePrefix         = "snappy-selftest-"
-	bootBase                   = "/boot"
-	ubootDir                   = bootBase + "/uboot"
-	grubDir                    = bootBase + "/grub"
-	ubootConfigFile            = ubootDir + "/snappy-system.txt"
-	grubConfigFile             = grubDir + "/grubenv"
 )
 
 type zeroSizeKernel struct{}
@@ -50,41 +46,37 @@ type zeroSizeInitrd struct{}
 type zeroSizeSystemd struct{}
 
 func (zeroSizeKernel) set(c *check.C) {
-	commonSet(c, BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
+	commonSet(c, common.BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
 }
 
 func (zeroSizeKernel) unset(c *check.C) {
-	commonUnset(c, BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
+	commonUnset(c, common.BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
 }
 
 func (zeroSizeInitrd) set(c *check.C) {
-	if classicKernelFiles(c) {
-		commonSet(c, BaseAltPartitionPath, origBootFilenamePattern, initrdFilename)
-	} else {
-		boot := bootSystem(c)
-		dir := bootDirectory(boot)
-		bootFileNamePattern := newKernelFilenamePattern(c, boot, true)
-		commonSet(c, dir, bootFileNamePattern, initrdFilename)
-	}
+	boot, err := partition.BootSystem()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
+	dir := partition.BootDir(boot)
+
+	bootFileNamePattern := newKernelFilenamePattern(c, boot, true)
+	commonSet(c, dir, bootFileNamePattern, initrdFilename)
 }
 
 func (zeroSizeInitrd) unset(c *check.C) {
-	if classicKernelFiles(c) {
-		commonUnset(c, BaseAltPartitionPath, origBootFilenamePattern, initrdFilename)
-	} else {
-		boot := bootSystem(c)
-		dir := bootDirectory(boot)
-		bootFileNamePattern := newKernelFilenamePattern(c, boot, true)
-		commonUnset(c, dir, bootFileNamePattern, initrdFilename)
-	}
+	boot, err := partition.BootSystem()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
+	dir := partition.BootDir(boot)
+
+	bootFileNamePattern := newKernelFilenamePattern(c, boot, false)
+	commonUnset(c, dir, bootFileNamePattern, initrdFilename)
 }
 
 func (zeroSizeSystemd) set(c *check.C) {
-	commonSet(c, BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
+	commonSet(c, common.BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
 }
 
 func (zeroSizeSystemd) unset(c *check.C) {
-	commonUnset(c, BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
+	commonUnset(c, common.BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
 }
 
 func commonSet(c *check.C, baseOtherPath, origPattern, filename string) {
@@ -114,17 +106,17 @@ func commonUnset(c *check.C, baseOtherPath, origPattern, filename string) {
 func renameFile(c *check.C, basePath, oldFilename, newFilename string, keepOld bool) {
 	// Only need to make writable and revert for BaseAltPartitionPath,
 	// kernel files' boot directory is writable
-	if basePath == BaseAltPartitionPath {
-		MakeWritable(c, basePath)
-		defer MakeReadonly(c, basePath)
+	if basePath == common.BaseAltPartitionPath {
+		partition.MakeWritable(c, basePath)
+		defer partition.MakeReadonly(c, basePath)
 	}
 
-	ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
+	cli.ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
 
 	if keepOld {
-		ExecCommand(c, "sudo", "touch", oldFilename)
+		cli.ExecCommand(c, "sudo", "touch", oldFilename)
 		mode := getFileMode(c, newFilename)
-		ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), oldFilename)
+		cli.ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), oldFilename)
 	}
 }
 
@@ -145,77 +137,6 @@ func getSingleFilename(c *check.C, pattern string) string {
 	return matches[0]
 }
 
-func classicKernelFiles(c *check.C) bool {
-	initrdClassicFilenamePattern := fmt.Sprintf("/boot/%s*-generic", initrdFilename)
-	matches, err := filepath.Glob(initrdClassicFilenamePattern)
-
-	c.Assert(err, check.IsNil, check.Commentf("Error: %v", err))
-
-	return len(matches) == 1
-}
-
-func bootSystem(c *check.C) string {
-	matches, err := filepath.Glob(bootBase + "/grub")
-
-	c.Assert(err, check.IsNil, check.Commentf("Error: %v", err))
-
-	if len(matches) == 1 {
-		return "grub"
-	}
-	return "uboot"
-}
-
-func bootDirectory(bootSystem string) string {
-	if bootSystem == "grub" {
-		return grubDir
-	}
-	return ubootDir
-}
-
-func bootConfigFile(bootSystem string) string {
-	if bootSystem == "grub" {
-		return grubConfigFile
-	}
-	return ubootConfigFile
-}
-
-func currentPartition(c *check.C, bootSystem string) (partition string) {
-	bootConfigFile := bootConfigFile(bootSystem)
-	file, err := os.Open(bootConfigFile)
-
-	c.Assert(err, check.IsNil,
-		check.Commentf("Error reading boot config file %s", bootConfigFile))
-
-	defer file.Close()
-
-	reader := bufio.NewReader(file)
-	scanner := bufio.NewScanner(reader)
-
-	scanner.Split(bufio.ScanLines)
-
-	for scanner.Scan() {
-		if strings.HasPrefix(scanner.Text(), "snappy_ab") {
-			fields := strings.Split(scanner.Text(), "=")
-			if len(fields) > 1 {
-				if bootSystem == "grub" {
-					partition = fields[1]
-				} else {
-					partition = otherPart(fields[1])
-				}
-			}
-			return
-		}
-	}
-	return
-}
-
-func otherPart(current string) string {
-	if current == "a" {
-		return "b"
-	}
-	return "a"
-}
-
 // newKernelFilenamePattern returns the filename pattern to modify files
 // in the partition declared in the boot config file.
 //
@@ -225,14 +146,19 @@ func otherPart(current string) string {
 // If we are not in an update process (ie. we are unsetting the failover conditions)
 // we want to change the files in the other partition
 func newKernelFilenamePattern(c *check.C, bootSystem string, afterUpdate bool) string {
-	var actualPartition string
-	partition := currentPartition(c, bootSystem)
+	var part string
+	var err error
 	if afterUpdate {
-		actualPartition = partition
+		part, err = partition.NextBootPartition()
+		c.Assert(err, check.IsNil,
+			check.Commentf("Error getting the next boot partition: %s", err))
 	} else {
-		actualPartition = otherPart(partition)
+		part, err = partition.CurrentPartition()
+		c.Assert(err, check.IsNil,
+			check.Commentf("Error getting the current partition: %s", err))
+		part = partition.OtherPartition(part)
 	}
-	return filepath.Join(actualPartition, "%s%s*")
+	return filepath.Join(part, "%s%s*")
 }
 
 /*

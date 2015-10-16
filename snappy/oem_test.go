@@ -26,9 +26,10 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"launchpad.net/snappy/helpers"
-
 	. "gopkg.in/check.v1"
+
+	"launchpad.net/snappy/dirs"
+	"launchpad.net/snappy/helpers"
 )
 
 type OemSuite struct {
@@ -66,25 +67,25 @@ func (s *OemSuite) TestStoreID(c *C) {
 }
 
 func (s *OemSuite) TestWriteApparmorAdditionalFile(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml)
+	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
 	err = writeApparmorAdditionalFile(m)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(snapAppArmorDir, "device-hive-iot-hal.json.additional"))
+	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorDir, "device-hive-iot-hal.json.additional"))
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, apparmorAdditionalContent)
 }
 
 func (s *OemSuite) TestCleanupOemHardwareRules(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml)
+	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
 	err = writeApparmorAdditionalFile(m)
 	c.Assert(err, IsNil)
 
-	additionalFile := filepath.Join(snapAppArmorDir, "device-hive-iot-hal.json.additional")
+	additionalFile := filepath.Join(dirs.SnapAppArmorDir, "device-hive-iot-hal.json.additional")
 	c.Assert(helpers.FileExists(additionalFile), Equals, true)
 
 	err = cleanupOemHardwareUdevRules(m)

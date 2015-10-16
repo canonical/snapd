@@ -49,15 +49,16 @@ func init() {
 }
 
 // ChDir runs runs "f" inside the given directory
-func ChDir(newDir string, f func()) (err error) {
+func ChDir(newDir string, f func() error) (err error) {
 	cwd, err := os.Getwd()
-	os.Chdir(newDir)
-	defer os.Chdir(cwd)
 	if err != nil {
 		return err
 	}
-	f()
-	return err
+	if err := os.Chdir(newDir); err != nil {
+		return err
+	}
+	defer os.Chdir(cwd)
+	return f()
 }
 
 // ExitCode extract the exit code from the error of a failed cmd.Run() or the
@@ -115,6 +116,10 @@ var mknod = syscall.Mknod
 
 // UnpackTar unpacks the given tar file into the target directory
 func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
+	// ensure we we extract with the original permissions
+	oldUmask := syscall.Umask(0)
+	defer syscall.Umask(oldUmask)
+
 	return TarIterate(r, func(tr *tar.Reader, hdr *tar.Header) (err error) {
 		// run tar transform func
 		name := hdr.Name
@@ -264,7 +269,7 @@ func IsDirectory(path string) bool {
 const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy"
 
 // MakeRandomString returns a random string of length length
-func MakeRandomString(length int) string {
+var MakeRandomString = func(length int) string {
 
 	out := ""
 	for i := 0; i < length; i++ {
@@ -288,9 +293,12 @@ func NewSideloadVersion() string {
 }
 
 // AtomicWriteFile updates the filename atomically and works otherwise
-// exactly like io/ioutil.WriteFile()
+// like io/ioutil.WriteFile()
+//
+// Note that it won't follow symlinks and will replace existing symlinks
+// with the real file
 func AtomicWriteFile(filename string, data []byte, perm os.FileMode) (err error) {
-	tmp := filename + ".new"
+	tmp := filename + "." + MakeRandomString(12)
 
 	// XXX: if go switches to use aio_fsync, we need to open the dir for writing
 	dir, err := os.Open(filepath.Dir(filename))
@@ -299,7 +307,7 @@ func AtomicWriteFile(filename string, data []byte, perm os.FileMode) (err error)
 	}
 	defer dir.Close()
 
-	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm)
 	if err != nil {
 		return err
 	}
@@ -486,18 +494,25 @@ func RSyncWithDelete(srcDirName, destDirName string) error {
 	}
 
 	// then copy or update the data from srcdir to destdir
-	err = filepath.Walk(srcDirName, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(srcDirName, func(src string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// relative to the root "srcDirName"
-		relPath := path[len(srcDirName):]
-		if info.IsDir() {
-			return os.MkdirAll(filepath.Join(destDirName, relPath), info.Mode())
-		}
-		src := path
+		relPath := src[len(srcDirName):]
 		dst := filepath.Join(destDirName, relPath)
+		if info.IsDir() {
+			if err := os.MkdirAll(dst, info.Mode()); err != nil {
+				return err
+			}
+
+			// this can panic. The alternative would be to use the "st, ok" pattern, and then if !ok... panic?
+			st := info.Sys().(*syscall.Stat_t)
+			ts := []syscall.Timespec{st.Atim, st.Mtim}
+
+			return syscall.UtimesNano(dst, ts)
+		}
 		if !FilesAreEqual(src, dst) {
 			// XXX: we should (eventually) use CopyFile here,
 			//      but we need to teach it about preserving

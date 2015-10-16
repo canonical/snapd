@@ -25,6 +25,8 @@ import (
 	"strings"
 
 	. "gopkg.in/check.v1"
+
+	"launchpad.net/snappy/dirs"
 )
 
 type DataDirSuite struct{}
@@ -32,14 +34,14 @@ type DataDirSuite struct{}
 var _ = Suite(&DataDirSuite{})
 
 func (s *DataDirSuite) SetUpTest(c *C) {
-	SetRootDir(c.MkDir())
+	dirs.SetRootDir(c.MkDir())
 }
 
 func (s *DataDirSuite) TestSystemDataDirs(c *C) {
-	c.Assert(os.MkdirAll(filepath.Join(snapDataDir, "foo.bar", "v1"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, "foo.bar", "v1"), 0755), IsNil)
 	dds := DataDirs("foo")
 	c.Check(dds, DeepEquals, []SnapDataDir{{
-		Base:    snapDataDir,
+		Base:    dirs.SnapDataDir,
 		Name:    "foo",
 		Origin:  "bar",
 		Version: "v1",
@@ -52,10 +54,10 @@ func (s *DataDirSuite) TestSystemDataDirs(c *C) {
 }
 
 func (s *DataDirSuite) TestDataDirsFramework(c *C) {
-	c.Assert(os.MkdirAll(filepath.Join(snapDataDir, "foo", "v1"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, "foo", "v1"), 0755), IsNil)
 	dds := DataDirs("foo")
 	c.Check(dds, DeepEquals, []SnapDataDir{{
-		Base:    snapDataDir,
+		Base:    dirs.SnapDataDir,
 		Name:    "foo",
 		Origin:  "",
 		Version: "v1",
@@ -64,11 +66,11 @@ func (s *DataDirSuite) TestDataDirsFramework(c *C) {
 }
 
 func (s *DataDirSuite) TestHomeDataDirs(c *C) {
-	home := strings.Replace(snapDataHomeGlob, "*", "user1", -1)
+	home := strings.Replace(dirs.SnapDataHomeGlob, "*", "user1", -1)
 	c.Assert(os.MkdirAll(filepath.Join(home, "foo.bar", "v1"), 0755), IsNil)
 	dds := DataDirs("foo")
 	c.Check(dds, DeepEquals, []SnapDataDir{{
-		Base:    snapDataHomeGlob,
+		Base:    dirs.SnapDataHomeGlob,
 		Name:    "foo",
 		Origin:  "bar",
 		Version: "v1",
@@ -76,39 +78,41 @@ func (s *DataDirSuite) TestHomeDataDirs(c *C) {
 }
 
 func (s *DataDirSuite) TestEverywhichwhereDataDirs(c *C) {
-	home := strings.Replace(snapDataHomeGlob, "*", "user1", -1)
+	home := strings.Replace(dirs.SnapDataHomeGlob, "*", "user1", -1)
 	c.Assert(os.MkdirAll(filepath.Join(home, "foo.bar", "v0"), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(home, "foo.bar", "v1"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(snapDataDir, "foo.xyzzy", "v1"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(snapDataDir, "foo", "v3"), 0755), IsNil)
+	c.Assert(os.Symlink("v1", filepath.Join(home, "foo.bar", "current")), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, "foo.xyzzy", "v1"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, "foo", "v3"), 0755), IsNil)
+	c.Assert(os.Symlink("v3", filepath.Join(dirs.SnapDataDir, "foo", "current")), IsNil)
 	dds := DataDirs("foo")
 	c.Assert(dds, HasLen, 4)
 	hi := 0
 	si := 2
-	if dds[0].Base == snapDataDir {
+	if dds[0].Base == dirs.SnapDataDir {
 		si = 0
 		hi = 2
 	}
 	c.Check(dds[hi], DeepEquals, SnapDataDir{
-		Base:    snapDataHomeGlob,
+		Base:    dirs.SnapDataHomeGlob,
 		Name:    "foo",
 		Origin:  "bar",
 		Version: "v0",
 	})
 	c.Check(dds[hi+1], DeepEquals, SnapDataDir{
-		Base:    snapDataHomeGlob,
+		Base:    dirs.SnapDataHomeGlob,
 		Name:    "foo",
 		Origin:  "bar",
 		Version: "v1",
 	})
 	c.Check(dds[si], DeepEquals, SnapDataDir{
-		Base:    snapDataDir,
+		Base:    dirs.SnapDataDir,
 		Name:    "foo",
 		Origin:  "",
 		Version: "v3",
 	})
 	c.Check(dds[si+1], DeepEquals, SnapDataDir{
-		Base:    snapDataDir,
+		Base:    dirs.SnapDataDir,
 		Name:    "foo",
 		Origin:  "xyzzy",
 		Version: "v1",

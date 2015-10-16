@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/pkg"
 )
 
@@ -80,7 +81,7 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
 	sec := &SecurityDefinitions{}
 
 	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
-	a.m.legacyIntegration()
+	a.m.legacyIntegration(false)
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
@@ -102,7 +103,7 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorCaps(c *C) {
 	}
 
 	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
-	a.m.legacyIntegration()
+	a.m.legacyIntegration(false)
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
@@ -125,7 +126,7 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorTemplate(c *C) {
 	}
 
 	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
-	a.m.legacyIntegration()
+	a.m.legacyIntegration(false)
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
@@ -147,7 +148,7 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorOverride(c *C) {
 	}
 
 	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
-	a.m.legacyIntegration()
+	a.m.legacyIntegration(false)
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
@@ -163,7 +164,7 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorPolicy(c *C) {
 	}
 
 	a.m.Binaries = append(a.m.Binaries, Binary{Name: "app", SecurityDefinitions: *sec})
-	a.m.legacyIntegration()
+	a.m.legacyIntegration(false)
 
 	err := handleApparmor(a.buildDir, a.m, "app", sec)
 	c.Assert(err, IsNil)
@@ -216,7 +217,7 @@ func (a *SecurityTestSuite) TestSnappySeccompSecurityTemplate(c *C) {
 	// sc-filtergen is called with mostly defaults
 	c.Assert(a.scFilterGenCall, DeepEquals, []string{
 		"sc-filtergen",
-		fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(snapSeccompDir)),
+		fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(dirs.SnapSeccompDir)),
 		"--policy-vendor=ubuntu-core",
 		"--policy-version=15.04",
 		"--template=something",
@@ -237,7 +238,7 @@ func (a *SecurityTestSuite) TestSnappySeccompSecurityCaps(c *C) {
 	// sc-filtergen is called with mostly defaults
 	c.Assert(a.scFilterGenCall, DeepEquals, []string{
 		"sc-filtergen",
-		fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(snapSeccompDir)),
+		fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(dirs.SnapSeccompDir)),
 		"--policy-vendor=ubuntu-core",
 		"--policy-version=15.04",
 		"--template=something",
@@ -269,7 +270,7 @@ policy-version: 18.10`), 0644)
 	// sc-filtergen is called with custom seccomp options
 	c.Assert(a.scFilterGenCall, DeepEquals, []string{
 		"sc-filtergen",
-		fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(snapSeccompDir)),
+		fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(dirs.SnapSeccompDir)),
 		"--policy-vendor=policy-vendor",
 		"--policy-version=18.10",
 		"--template=security-template",

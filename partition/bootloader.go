@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"launchpad.net/snappy/helpers"
 )
@@ -175,6 +176,12 @@ func (b *bootloaderType) SyncBootFiles(bootAssets map[string]string) (err error)
 	return helpers.RSyncWithDelete(srcDir, destDir)
 }
 
+// noramlizeAssetName transforms like "vmlinuz-4.1.0" -> "vmlinuz"
+func normalizeKernelInitrdName(name string) string {
+	name = filepath.Base(name)
+	return strings.SplitN(name, "-", 2)[0]
+}
+
 // FIXME:
 // - if this fails it will never be re-tried because the "other" patition
 //   is updated to revision-N in /etc/system-image/channel.ini
@@ -227,8 +234,17 @@ func (b *bootloaderType) HandleAssets() (err error) {
 		// expand path
 		path := filepath.Join(cacheDir, file)
 
+		// It may happen that a delta update does not contain
+		// the kernel. The reason is that e.g. the initramfs tools
+		// got updated so the generated initrd is different but
+		// the kernel stayed the same. Because the hardware.yaml
+		// is build on cdimage and the delta is generated later
+		// we cannot know this at hardware.yaml generation time.
+		// So we simply ignore missing files here. There is no
+		// risk because snappy will always sync the known good
+		// kernel first
 		if !helpers.FileExists(path) {
-			return fmt.Errorf("can not find file %s", path)
+			continue
 		}
 
 		// ensure we remove the dir later
@@ -238,7 +254,8 @@ func (b *bootloaderType) HandleAssets() (err error) {
 			}
 		}()
 
-		if err := runCommand("/bin/cp", path, destDir); err != nil {
+		target := filepath.Join(destDir, normalizeKernelInitrdName(file))
+		if err := runCommand("/bin/cp", path, target); err != nil {
 			return err
 		}
 	}

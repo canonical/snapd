@@ -21,55 +21,61 @@ package tests
 
 import (
 	"fmt"
+	"os"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/build"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/data"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&infoSuite{})
 
 type infoSuite struct {
-	SnappySuite
+	common.SnappySuite
 }
 
 func (s *infoSuite) TestInfoMustPrintReleaseAndChannel(c *check.C) {
 	// skip test when having a remote testbed (we can't know which the
 	// release and channels are)
-	if Cfg.RemoteTestbed {
+	if common.Cfg.RemoteTestbed {
 		c.Skip(fmt.Sprintf(
 			"Skipping %s while testing in remote testbed",
 			c.TestName()))
 	}
 
-	infoOutput := ExecCommand(c, "snappy", "info")
+	infoOutput := cli.ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms)" +
-		fmt.Sprintf("^release: ubuntu-core/%s/%s\n", Cfg.Release, Cfg.Channel) +
+		fmt.Sprintf("^release: ubuntu-core/%s/%s\n", common.Cfg.Release, common.Cfg.Channel) +
 		".*"
 
 	c.Assert(infoOutput, check.Matches, expected)
 }
 
 func (s *infoSuite) TestInfoMustPrintInstalledApps(c *check.C) {
-	InstallSnap(c, "hello-world")
-	s.AddCleanup(func() {
-		RemoveSnap(c, "hello-world")
-	})
-	infoOutput := ExecCommand(c, "snappy", "info")
+	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
+	defer os.Remove(snapPath)
+	c.Assert(err, check.IsNil)
+	common.InstallSnap(c, snapPath)
+	defer common.RemoveSnap(c, data.BasicSnapName)
+
+	infoOutput := cli.ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms)" +
 		".*" +
-		"^apps: .*hello-world.*\n"
+		"^apps: .*" + data.BasicSnapName + "\\.sideload.*\n"
 	c.Assert(infoOutput, check.Matches, expected)
 }
 
 func (s *infoSuite) TestInfoMustPrintInstalledFrameworks(c *check.C) {
-	InstallSnap(c, "hello-dbus-fwk.canonical")
+	common.InstallSnap(c, "hello-dbus-fwk.canonical")
 	s.AddCleanup(func() {
-		RemoveSnap(c, "hello-dbus-fwk.canonical")
+		common.RemoveSnap(c, "hello-dbus-fwk.canonical")
 	})
-	infoOutput := ExecCommand(c, "snappy", "info")
+	infoOutput := cli.ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms)" +
 		".*" +

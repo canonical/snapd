@@ -42,6 +42,9 @@ var (
 	// ErrSnapInvalidContent is returned if a snap package contains
 	// invalid content
 	ErrSnapInvalidContent = errors.New("snap contains invalid content")
+
+	// ErrMemberNotFound is returned when a tar member is not found in the archive
+	ErrMemberNotFound = errors.New("member not found")
 )
 
 // ErrUnpackFailed is the error type for a snap unpack problem
@@ -152,6 +155,11 @@ func (d *ClickDeb) Close() error {
 	return d.file.Close()
 }
 
+// Verify checks that the clickdeb is signed
+func (d *ClickDeb) Verify(allowUnauthenticated bool) error {
+	return Verify(d.Name(), allowUnauthenticated)
+}
+
 // ControlMember returns the content of the given control member file
 // (e.g. the content of the "manifest" file in the control.tar.gz ar member)
 func (d *ClickDeb) ControlMember(controlMember string) (content []byte, err error) {
@@ -180,8 +188,10 @@ func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error
 		return nil, err
 	}
 
+	found := false
 	err = helpers.TarIterate(dataReader, func(tr *tar.Reader, hdr *tar.Header) error {
 		if filepath.Clean(hdr.Name) == tarMember {
+			found = true
 			content, err = ioutil.ReadAll(tr)
 			if err != nil {
 				return err
@@ -190,6 +200,10 @@ func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error
 
 		return nil
 	})
+
+	if !found {
+		return nil, ErrMemberNotFound
+	}
 
 	if err != nil {
 		return nil, err

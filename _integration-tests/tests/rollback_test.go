@@ -22,32 +22,38 @@ package tests
 import (
 	"strconv"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/partition"
+	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&rollbackSuite{})
 
 type rollbackSuite struct {
-	SnappySuite
+	common.SnappySuite
 }
 
 func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
-	if BeforeReboot() {
-		CallFakeUpdate(c)
-		Reboot(c)
-	} else if CheckRebootMark(c.TestName()) {
-		RemoveRebootMark(c)
-		currentVersion := GetCurrentUbuntuCoreVersion(c)
-		c.Assert(currentVersion > GetSavedVersion(c), check.Equals, true)
-		ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core",
-			strconv.Itoa(GetSavedVersion(c)))
-		SetSavedVersion(c, currentVersion)
-		RebootWithMark(c, c.TestName()+"-rollback")
-	} else if CheckRebootMark(c.TestName() + "-rollback") {
-		RemoveRebootMark(c)
+	if common.BeforeReboot() {
+		common.CallFakeUpdate(c)
+		common.Reboot(c)
+	} else if common.CheckRebootMark(c.TestName()) {
+		common.RemoveRebootMark(c)
+		// Workaround for bug https://bugs.launchpad.net/snappy/+bug/1498293
+		// TODO remove once the bug is fixed. --elopio - 2015-09-30
+		wait.ForFunction(c, "regular", partition.Mode)
+		currentVersion := common.GetCurrentUbuntuCoreVersion(c)
+		c.Assert(currentVersion > common.GetSavedVersion(c), check.Equals, true)
+		cli.ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core",
+			strconv.Itoa(common.GetSavedVersion(c)))
+		common.SetSavedVersion(c, currentVersion)
+		common.RebootWithMark(c, c.TestName()+"-rollback")
+	} else if common.CheckRebootMark(c.TestName() + "-rollback") {
+		common.RemoveRebootMark(c)
 		c.Assert(
-			GetCurrentUbuntuCoreVersion(c) < GetSavedVersion(c), check.Equals, true)
+			common.GetCurrentUbuntuCoreVersion(c) < common.GetSavedVersion(c), check.Equals, true)
 	}
 }

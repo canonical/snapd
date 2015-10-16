@@ -192,14 +192,15 @@ func outputDir(basePath string) string {
 }
 
 func adtrunLocalCmd(controlFile, sourceCodePath, outputDir, imgPath string) string {
-	options := fmt.Sprintf("--- ssh -s /usr/share/autopkgtest/ssh-setup/snappy -- -i %s", imgPath)
+	options := fmt.Sprintf("--- ssh -s /usr/share/autopkgtest/ssh-setup/snappy -- -b -i %s", imgPath)
 	return adtrunCommonCmd(controlFile, sourceCodePath, outputDir, options)
 }
 
 func adtrunRemoteCmd(controlFile, sourceCodePath, outputDir, testbedIP string, testbedPort int) string {
 	port := strconv.Itoa(testbedPort)
 	idFile := filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa")
-	options := fmt.Sprintf("--- ssh -H %s -p %s -l ubuntu -i %s --reboot", testbedIP, port, idFile)
+	options := fmt.Sprintf("--- ssh -H %s -p %s -l ubuntu -i %s --reboot --timeout-ssh %d",
+		testbedIP, port, idFile, sshTimeout)
 
 	return adtrunCommonCmd(controlFile, sourceCodePath, outputDir, options)
 }

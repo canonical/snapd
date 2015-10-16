@@ -41,11 +41,12 @@ import (
 	"text/template"
 	"time"
 
-	"launchpad.net/snappy/clickdeb"
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/i18n"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
+	"launchpad.net/snappy/pkg/clickdeb"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/systemd"
 
@@ -86,7 +87,7 @@ var killWait = 5 * time.Second
 
 // servicesBinariesStringsWhitelist is the whitelist of legal chars
 // in the "binaries" and "services" section of the package.yaml
-const servicesBinariesStringsWhitelist = `^[A-Za-z0-9/. _#:-]*$`
+var servicesBinariesStringsWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
 
 // Execute the hook.Exec command
 func execHook(execCmd string) (err error) {
@@ -94,9 +95,11 @@ func execHook(execCmd string) (err error) {
 	cmd := exec.Command("sh", "-c", execCmd)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		if exitCode, err := helpers.ExitCode(err); err == nil {
-			return &ErrHookFailed{cmd: execCmd,
-				output:   string(output),
-				exitCode: exitCode}
+			return &ErrHookFailed{
+				Cmd:      execCmd,
+				Output:   string(output),
+				ExitCode: exitCode,
+			}
 		}
 		return err
 	}
@@ -152,7 +155,7 @@ func readClickHookFile(hookFile string) (hook clickHook, err error) {
 func systemClickHooks() (hooks map[string]clickHook, err error) {
 	hooks = make(map[string]clickHook)
 
-	hookFiles, err := filepath.Glob(filepath.Join(clickSystemHooksDir, "*.hook"))
+	hookFiles, err := filepath.Glob(filepath.Join(dirs.ClickSystemHooksDir, "*.hook"))
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +207,7 @@ func iterHooks(m *packageYaml, origin string, inhibitHooks bool, f iterHooksFunc
 				continue
 			}
 
-			dst := filepath.Join(globalRootDir, expandHookPattern(m.qualifiedName(origin), app, m.Version, systemHook.pattern))
+			dst := filepath.Join(dirs.GlobalRootDir, expandHookPattern(m.qualifiedName(origin), app, m.Version, systemHook.pattern))
 
 			if _, err := os.Stat(dst); err == nil {
 				if err := os.Remove(dst); err != nil {
@@ -272,7 +275,7 @@ func generateBinaryName(m *packageYaml, binary Binary) string {
 		binName = fmt.Sprintf("%s.%s", m.Name, filepath.Base(binary.Name))
 	}
 
-	return filepath.Join(snapBinariesDir, binName)
+	return filepath.Join(dirs.SnapBinariesDir, binName)
 }
 
 func binPathForBinary(pkgPath string, binary Binary) string {
@@ -299,10 +302,6 @@ export SNAPP_OLD_PWD="$(pwd)"
 
 # app info
 {{.NewAppVars}}
-
-if [ ! -d "$SNAP_APP_TMPDIR" ]; then
-    mkdir -p -m1777 "$SNAP_APP_TMPDIR"
-fi
 
 if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
    mkdir -p "$SNAP_APP_USER_DATA_PATH"
@@ -374,11 +373,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 
 // verifyStructStringsAgainstWhitelist takes a struct and ensures that
 // the given whitelist regexp matches all string fields of the struct
-func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error {
-	r, err := regexp.Compile(whitelist)
-	if err != nil {
-		return err
-	}
+func verifyStructStringsAgainstWhitelist(s interface{}, whitelist *regexp.Regexp) error {
 
 	// check all members of the services struct against our whitelist
 	t := reflect.TypeOf(s)
@@ -402,11 +397,11 @@ func verifyStructStringsAgainstWhitelist(s interface{}, whitelist string) error 
 		if v.Field(i).Kind() == reflect.String {
 			key := t.Field(i).Name
 			value := v.Field(i).String()
-			if !r.MatchString(value) {
+			if !whitelist.MatchString(value) {
 				return &ErrStructIllegalContent{
-					field:     key,
-					content:   value,
-					whitelist: whitelist,
+					Field:     key,
+					Content:   value,
+					Whitelist: whitelist.String(),
 				}
 			}
 		}
@@ -431,31 +426,59 @@ func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile str
 		desc = fmt.Sprintf("service %s for package %s", service.Name, m.Name)
 	}
 
-	return systemd.New(globalRootDir, nil).GenServiceFile(
+	socketFileName := ""
+	if service.Socket {
+		socketFileName = filepath.Base(generateSocketFileName(m, service))
+	}
+
+	return systemd.New(dirs.GlobalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
-			AppName:     m.Name,
-			ServiceName: service.Name,
-			Version:     m.Version,
-			Description: desc,
-			AppPath:     baseDir,
-			Start:       service.Start,
-			Stop:        service.Stop,
-			PostStop:    service.PostStop,
-			StopTimeout: time.Duration(service.StopTimeout),
-			AaProfile:   aaProfile,
-			IsFramework: m.Type == pkg.TypeFramework,
-			IsNetworked: service.Ports != nil && len(service.Ports.External) > 0,
-			BusName:     service.BusName,
-			UdevAppName: udevPartName,
+			AppName:        m.Name,
+			ServiceName:    service.Name,
+			Version:        m.Version,
+			Description:    desc,
+			AppPath:        baseDir,
+			Start:          service.Start,
+			Stop:           service.Stop,
+			PostStop:       service.PostStop,
+			StopTimeout:    time.Duration(service.StopTimeout),
+			AaProfile:      aaProfile,
+			IsFramework:    m.Type == pkg.TypeFramework,
+			IsNetworked:    service.Ports != nil && len(service.Ports.External) > 0,
+			BusName:        service.BusName,
+			Forking:        service.Forking,
+			UdevAppName:    udevPartName,
+			Socket:         service.Socket,
+			SocketFileName: socketFileName,
+		}), nil
+}
+func generateSnapSocketFile(service ServiceYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
+	if err := verifyServiceYaml(service); err != nil {
+		return "", err
+	}
+
+	serviceFileName := filepath.Base(generateServiceFileName(m, service))
+
+	return systemd.New(dirs.GlobalRootDir, nil).GenSocketFile(
+		&systemd.ServiceDescription{
+			ServiceFileName: serviceFileName,
+			ListenStream:    service.ListenStream,
+			SocketMode:      service.SocketMode,
+			SocketUser:      service.SocketUser,
+			SocketGroup:     service.SocketGroup,
 		}), nil
 }
 
 func generateServiceFileName(m *packageYaml, service ServiceYaml) string {
-	return filepath.Join(snapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
+	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
+}
+
+func generateSocketFileName(m *packageYaml, service ServiceYaml) string {
+	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.socket", m.Name, service.Name, m.Version))
 }
 
 func generateBusPolicyFileName(m *packageYaml, service ServiceYaml) string {
-	return filepath.Join(snapBusPolicyDir, fmt.Sprintf("%s_%s_%s.conf", m.Name, service.Name, m.Version))
+	return filepath.Join(dirs.SnapBusPolicyDir, fmt.Sprintf("%s_%s_%s.conf", m.Name, service.Name, m.Version))
 }
 
 // takes a directory and removes the global root, this is needed
@@ -464,11 +487,11 @@ func generateBusPolicyFileName(m *packageYaml, service ServiceYaml) string {
 var stripGlobalRootDir = stripGlobalRootDirImpl
 
 func stripGlobalRootDirImpl(dir string) string {
-	if globalRootDir == "/" {
+	if dirs.GlobalRootDir == "/" {
 		return dir
 	}
 
-	return dir[len(globalRootDir):]
+	return dir[len(dirs.GlobalRootDir):]
 }
 
 func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inter interacter) error {
@@ -482,6 +505,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
+		// Generate service file
 		content, err := generateSnapServicesFile(service, realBaseDir, aaProfile, m)
 		if err != nil {
 			return err
@@ -491,7 +515,18 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0644); err != nil {
 			return err
 		}
-
+		// Generate systemd socket file if needed
+		if service.Socket {
+			content, err := generateSnapSocketFile(service, realBaseDir, aaProfile, m)
+			if err != nil {
+				return err
+			}
+			socketFilename := generateSocketFileName(m, service)
+			os.MkdirAll(filepath.Dir(socketFilename), 0755)
+			if err := ioutil.WriteFile(socketFilename, []byte(content), 0644); err != nil {
+				return err
+			}
+		}
 		// If necessary, generate the DBus policy file so the framework
 		// service is allowed to start
 		if m.Type == pkg.TypeFramework && service.BusName != "" {
@@ -511,7 +546,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		//
 		// *but* always run enable (which just sets a symlink)
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		sysd := systemd.New(globalRootDir, inter)
+		sysd := systemd.New(dirs.GlobalRootDir, inter)
 		if !inhibitHooks {
 			if err := sysd.DaemonReload(); err != nil {
 				return err
@@ -528,13 +563,27 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 				return err
 			}
 		}
+
+		if service.Socket {
+			socketName := filepath.Base(generateSocketFileName(m, service))
+			// we always enable the socket even in inhibit hooks
+			if err := sysd.Enable(socketName); err != nil {
+				return err
+			}
+
+			if !inhibitHooks {
+				if err := sysd.Start(socketName); err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	return nil
 }
 
 func (m *packageYaml) removePackageServices(baseDir string, inter interacter) error {
-	sysd := systemd.New(globalRootDir, inter)
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	for _, service := range m.ServiceYamls {
 		serviceName := filepath.Base(generateServiceFileName(m, service))
 		if err := sysd.Disable(serviceName); err != nil {
@@ -555,6 +604,10 @@ func (m *packageYaml) removePackageServices(baseDir string, inter interacter) er
 			logger.Noticef("Failed to remove service file for %q: %v", serviceName, err)
 		}
 
+		if err := os.Remove(generateSocketFileName(m, service)); err != nil && !os.IsNotExist(err) {
+			logger.Noticef("Failed to remove socket file for %q: %v", serviceName, err)
+		}
+
 		// Also remove DBus system policy file
 		if err := os.Remove(generateBusPolicyFileName(m, service)); err != nil && !os.IsNotExist(err) {
 			logger.Noticef("Failed to remove bus policy file for service %q: %v", serviceName, err)
@@ -572,7 +625,7 @@ func (m *packageYaml) removePackageServices(baseDir string, inter interacter) er
 }
 
 func (m *packageYaml) addPackageBinaries(baseDir string) error {
-	if err := os.MkdirAll(snapBinariesDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapBinariesDir, 0755); err != nil {
 		return err
 	}
 
@@ -617,7 +670,7 @@ func (m *packageYaml) addOneSecurityPolicy(name string, sd SecurityDefinitions, 
 		return err
 	}
 
-	fn := filepath.Join(snapSeccompDir, profileName)
+	fn := filepath.Join(dirs.SnapSeccompDir, profileName)
 	if err := ioutil.WriteFile(fn, content, 0644); err != nil {
 		return err
 	}
@@ -650,7 +703,7 @@ func (m *packageYaml) removeOneSecurityPolicy(name, baseDir string) error {
 	if err != nil {
 		return err
 	}
-	fn := filepath.Join(snapSeccompDir, profileName)
+	fn := filepath.Join(dirs.SnapSeccompDir, profileName)
 	if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -697,7 +750,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 		cm.Name = fmt.Sprintf("%s.%s", cm.Name, origin)
 	}
 
-	if origin == sideloadedOrigin {
+	if origin == SideloadedOrigin {
 		cm.Version = filepath.Base(filepath.Join(clickMetaDir, "..", ".."))
 	}
 
@@ -705,7 +758,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644); err != nil {
+	if err := helpers.AtomicWriteFile(filepath.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644); err != nil {
 		return err
 	}
 
@@ -743,15 +796,15 @@ func removeSnapData(fullName, version string) error {
 // snapDataDirs returns the list of data directories for the given snap version
 func snapDataDirs(fullName, version string) ([]string, error) {
 	// collect the directories, homes first
-	dirs, err := filepath.Glob(filepath.Join(snapDataHomeGlob, fullName, version))
+	found, err := filepath.Glob(filepath.Join(dirs.SnapDataHomeGlob, fullName, version))
 	if err != nil {
 		return nil, err
 	}
 	// then system data
-	systemPath := filepath.Join(snapDataDir, fullName, version)
-	dirs = append(dirs, systemPath)
+	systemPath := filepath.Join(dirs.SnapDataDir, fullName, version)
+	found = append(found, systemPath)
 
-	return dirs, nil
+	return found, nil
 }
 
 // Copy all data for "fullName" from "oldVersion" to "newVersion"
@@ -782,9 +835,9 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 			if err := cmd.Run(); err != nil {
 				if exitCode, err := helpers.ExitCode(err); err == nil {
 					return &ErrDataCopyFailed{
-						oldPath:  oldPath,
-						newPath:  newPath,
-						exitCode: exitCode}
+						OldPath:  oldPath,
+						NewPath:  newPath,
+						ExitCode: exitCode}
 				}
 				return err
 			}

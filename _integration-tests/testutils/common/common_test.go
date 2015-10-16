@@ -22,20 +22,20 @@ package common
 import (
 	"testing"
 
-	. "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 // Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
+func Test(t *testing.T) { check.TestingT(t) }
 
 // testing a testsuite - thats so meta
 type MetaTestSuite struct {
 }
 
-var _ = Suite(&MetaTestSuite{})
+var _ = check.Suite(&MetaTestSuite{})
 
 // test trivial cleanup
-func (m *MetaTestSuite) TestCleanupSimple(c *C) {
+func (m *MetaTestSuite) TestCleanupSimple(c *check.C) {
 	canary := "not-called"
 	s := SnappySuite{}
 
@@ -44,7 +44,7 @@ func (m *MetaTestSuite) TestCleanupSimple(c *C) {
 	})
 	s.TearDownTest(c)
 
-	c.Assert(canary, Equals, "was-called")
+	c.Assert(canary, check.Equals, "was-called")
 }
 
 // a mock method that takes a parameter
@@ -55,7 +55,7 @@ func mockCleanupMethodWithParameters(s *string) {
 // test that whle AddCleanup() does not take any parameters itself,
 // functions that need parameters can be passed by creating an
 // anonymous function as a wrapper
-func (m *MetaTestSuite) TestCleanupWithParameters(c *C) {
+func (m *MetaTestSuite) TestCleanupWithParameters(c *check.C) {
 	canary := "not-called"
 	s := SnappySuite{}
 
@@ -64,5 +64,5 @@ func (m *MetaTestSuite) TestCleanupWithParameters(c *C) {
 	})
 	s.TearDownTest(c)
 
-	c.Assert(canary, Equals, "was-called")
+	c.Assert(canary, check.Equals, "was-called")
 }
