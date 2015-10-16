@@ -21,18 +21,12 @@ package tests
 
 import (
 	"bufio"
-	"bytes"
 	"io"
 	"os/exec"
 
 	"launchpad.net/snappy/_integration-tests/testutils/common"
 
 	"gopkg.in/check.v1"
-)
-
-const (
-	welcomePromptLines = 3
-	helpPromptLines    = 7
 )
 
 var _ = check.Suite(&consoleSuite{})
@@ -43,6 +37,11 @@ type consoleSuite struct {
 	stdin  io.WriteCloser
 	stdout io.ReadCloser
 	outbr  *bufio.Reader
+}
+
+type consoleMsg struct {
+	txt string
+	err error
 }
 
 func (s *consoleSuite) SetUpTest(c *check.C) {
@@ -76,31 +75,29 @@ func (s *consoleSuite) TearDownTest(c *check.C) {
 }
 
 func (s *consoleSuite) checkPrompt(c *check.C) {
-	output, err := s.readLinesFromConsole(welcomePromptLines)
-	c.Assert(err, check.IsNil)
+	expected := []string{"Welcome to the snappy console\n",
+		"Type 'help' for help\n",
+		"Type 'shell' for entering a shell\n"}
 
-	expected := `Welcome to the snappy console
-Type 'help' for help
-Type 'shell' for entering a shell
-`
-	c.Assert(output, check.Matches, expected)
+	match, err := s.matchLinesFromConsole(expected)
+
+	c.Assert(err, check.IsNil)
+	c.Assert(match, check.Equals, true)
 }
 
 func (s *consoleSuite) TestHelp(c *check.C) {
 	s.writeToConsole("help\n")
 
-	output, err := s.readLinesFromConsole(helpPromptLines)
+	expected := []string{"> Usage:\n",
+		"  snappy [OPTIONS] <command>\n", "\n",
+		"Help Options:\n",
+		"  -h, --help  Show this help message\n", "\n",
+		"Available commands:\n"}
+
+	match, err := s.matchLinesFromConsole(expected)
+
 	c.Assert(err, check.IsNil)
-
-	expected := `(?ms)> Usage:
-  snappy \[OPTIONS\] <command>
-
-Help Options:
-  -h, --help  Show this help message
-
-Available commands:
-`
-	c.Assert(output, check.Matches, expected)
+	c.Assert(match, check.Equals, true)
 }
 
 func (s *consoleSuite) writeToConsole(msg string) (err error) {
@@ -108,23 +105,35 @@ func (s *consoleSuite) writeToConsole(msg string) (err error) {
 	return
 }
 
-func (s *consoleSuite) readLinesFromConsole(nLines int) (line string, err error) {
-	var buffer bytes.Buffer
+func (s *consoleSuite) getConsoleChannel(len int) chan *consoleMsg {
+	c := make(chan *consoleMsg)
+	go func() {
+		for i := 0; i < len; i++ {
+			txt, err := s.outbr.ReadString(byte('\n'))
+			if err == io.EOF {
+				close(c)
+				return
+			}
+			if err != nil {
+				c <- &consoleMsg{"", err}
+			}
+			c <- &consoleMsg{txt, nil}
+		}
+	}()
+	return c
+}
 
-	var byteLine []byte
-	for i := 0; i < nLines; i++ {
-		byteLine, _, err = s.outbr.ReadLine()
-		if err != nil {
-			return
+func (s *consoleSuite) matchLinesFromConsole(lines []string) (match bool, err error) {
+	c := s.getConsoleChannel(len(lines))
+
+	for _, expected := range lines {
+		msg := <-c
+		if msg.err != nil {
+			return false, msg.err
 		}
-		_, err = buffer.Write(byteLine)
-		if err != nil {
-			return
-		}
-		_, err = buffer.WriteString("\n")
-		if err != nil {
-			return
+		if msg.txt != expected {
+			return false, nil
 		}
 	}
-	return buffer.String(), err
+	return true, nil
 }
