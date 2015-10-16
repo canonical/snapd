@@ -83,15 +83,11 @@ func (s *SnapfsTestSuite) TestInstallViaSnapfsWorks(c *C) {
 	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := mountUnitPath("/apps/hello-app.origin/1.10", "mount")
+	mup := systemd.MountUnitPath("/apps/hello-app.origin/1.10", "mount")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Matches, "(?ms).*^Where=/apps/hello-app.origin/1.10")
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snappy/snaps/hello-app.origin_1.10.snap")
-}
-
-func (s *SnapfsTestSuite) TestMountUnitPath(c *C) {
-	c.Assert(mountUnitPath("/apps/hello.origin/1.1", "mount"), Equals, filepath.Join(dirs.SnapServicesDir, "apps-hello.origin-1.1.mount"))
 }
 
 func (s *SnapfsTestSuite) TestAddSnapfsAutomount(c *C) {

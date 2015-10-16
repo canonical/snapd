@@ -2015,50 +2015,21 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	return env
 }
 
-func mountUnitPath(baseDir, ext string) string {
-	// FIXME: use github.com/coreos/go-systemd/unit/escape.go
-	//        once we can update go-systemd. we can not right now
-	//        because versions >= 2 are not compatible with go1.3 from
-	//        15.04
-	p, _ := exec.Command("systemd-escape", "--path", baseDir).Output()
-	escapedPath := strings.TrimSpace(string(p))
-	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s.%s", escapedPath, ext))
-}
-
 func (m *packageYaml) addSnapfsAutomount(baseDir string, inhibitHooks bool, inter interacter) error {
 	squashfsPath := stripGlobalRootDir(snapfs.BlobPath(baseDir))
 	whereDir := stripGlobalRootDir(baseDir)
 
-	mountUnit := fmt.Sprintf(`[Unit]
-Description=Snapfs mount unit for %s
-
-[Mount]
-What=%s
-Where=%s
-`, m.Name, squashfsPath, whereDir)
-
-	autoMountUnit := fmt.Sprintf(`[Unit]
-Description=Snapfs automount unit for %s
-
-[Automount]
-Where=%s
-TimeoutIdleSec=30
-
-[Install]
-WantedBy=multi-user.target
-`, m.Name, whereDir)
-
-	if err := helpers.AtomicWriteFile(mountUnitPath(whereDir, "mount"), []byte(mountUnit), 0644); err != nil {
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
+	_, err := sysd.WriteMountUnitFile(m.Name, squashfsPath, whereDir)
+	if err != nil {
 		return err
 	}
-
-	if err := helpers.AtomicWriteFile(mountUnitPath(whereDir, "automount"), []byte(autoMountUnit), 0644); err != nil {
+	autoMountUnitName, err := sysd.WriteAutoMountUnitFile(m.Name, whereDir)
+	if err != nil {
 		return err
 	}
 
 	// we always enable the mount unit even in inhibit hooks
-	sysd := systemd.New(dirs.GlobalRootDir, inter)
-	autoMountUnitName := filepath.Base(mountUnitPath(whereDir, "automount"))
 	if err := sysd.Enable(autoMountUnitName); err != nil {
 		return err
 	}
@@ -2073,7 +2044,7 @@ WantedBy=multi-user.target
 func (m *packageYaml) removeSnapfsAutomount(baseDir string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	for _, s := range []string{"mount", "automount"} {
-		unit := mountUnitPath(stripGlobalRootDir(baseDir), s)
+		unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), s)
 		if helpers.FileExists(unit) {
 			// we ignore errors, nothing should stop removals
 			_ = sysd.Disable(filepath.Base(unit))

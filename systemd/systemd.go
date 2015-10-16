@@ -33,6 +33,7 @@ import (
 	"text/template"
 	"time"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 )
@@ -95,6 +96,8 @@ type Systemd interface {
 	Status(service string) (string, error)
 	ServiceStatus(service string) (*ServiceStatus, error)
 	Logs(services []string) ([]Log, error)
+	WriteMountUnitFile(name, what, where string) (string, error)
+	WriteAutoMountUnitFile(name, where string) (string, error)
 }
 
 // A Log is a single entry in the systemd journal
@@ -509,4 +512,47 @@ func (l Log) SID() string {
 
 func (l Log) String() string {
 	return fmt.Sprintf("%s %s %s", l.Timestamp(), l.SID(), l.Message())
+}
+
+// MountUnitPath returns the path of a {,auto}mount unit
+func MountUnitPath(baseDir, ext string) string {
+	// FIXME: use github.com/coreos/go-systemd/unit/escape.go
+	//        once we can update go-systemd. we can not right now
+	//        because versions >= 2 are not compatible with go1.3 from
+	//        15.04
+	p, err := exec.Command("systemd-escape", "--path", baseDir).CombinedOutput()
+	if err != nil {
+		panic(fmt.Sprintf("systemd-escape failed for %s with %q", baseDir, p))
+	}
+	escapedPath := strings.TrimSpace(string(p))
+	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s.%s", escapedPath, ext))
+}
+
+func (s *systemd) WriteMountUnitFile(name, what, where string) (string, error) {
+	c := fmt.Sprintf(`[Unit]
+Description=Snapfs mount unit for %s
+
+[Mount]
+What=%s
+Where=%s
+`, name, what, where)
+
+	mu := MountUnitPath(where, "mount")
+	return filepath.Base(mu), helpers.AtomicWriteFile(mu, []byte(c), 0644)
+}
+
+func (s *systemd) WriteAutoMountUnitFile(name, where string) (string, error) {
+	c := fmt.Sprintf(`[Unit]
+Description=Snapfs automount unit for %s
+
+[Automount]
+Where=%s
+TimeoutIdleSec=30
+
+[Install]
+WantedBy=multi-user.target
+`, name, where)
+
+	mu := MountUnitPath(where, "automount")
+	return filepath.Base(mu), helpers.AtomicWriteFile(MountUnitPath(where, "automount"), []byte(c), 0644)
 }

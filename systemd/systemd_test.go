@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 )
 
@@ -410,4 +411,8 @@ func (s *SystemdTestSuite) TestLogString(c *C) {
 		"SYSLOG_IDENTIFIER":    "me",
 	}.String(), Equals, "1970-01-01T00:00:00.000042Z me hi")
 
+}
+
+func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
+	c.Assert(MountUnitPath("/apps/hello.origin/1.1", "mount"), Equals, filepath.Join(dirs.SnapServicesDir, "apps-hello.origin-1.1.mount"))
 }
