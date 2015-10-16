@@ -98,9 +98,6 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	runScFilterGen = mockRunScFilterGen
-
-	// ensure we do not look at the system
-	systemImageRoot = s.tempdir
 }
 
 func (s *SnapTestSuite) TearDownTest(c *C) {
