@@ -41,6 +41,7 @@ var _ = Suite(&purgeSuite{})
 func (s *purgeSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
+	os.MkdirAll(dirs.SnapMetaDir, 0755)
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil

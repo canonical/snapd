@@ -43,6 +43,7 @@ import (
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/oauth"
 	"launchpad.net/snappy/pkg"
+	"launchpad.net/snappy/pkg/remote"
 	"launchpad.net/snappy/policy"
 	"launchpad.net/snappy/progress"
 	"launchpad.net/snappy/release"
@@ -174,13 +175,13 @@ type Binary struct {
 // SnapPart represents a generic snap type
 type SnapPart struct {
 	m           *packageYaml
-	remoteM     *remoteSnap
+	remoteM     *remote.Snap
 	origin      string
 	hash        string
 	isActive    bool
 	isInstalled bool
 	description string
-	deb         PackageInterface
+	deb         PackageFile
 	basedir     string
 }
 
@@ -242,29 +243,9 @@ type packageYaml struct {
 	runDir string
 }
 
-type remoteSnap struct {
-	Alias           string             `json:"alias,omitempty"`
-	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
-	DownloadSha512  string             `json:"download_sha512,omitempty"`
-	Description     string             `json:"description,omitempty"`
-	DownloadSize    int64              `json:"binary_filesize,omitempty"`
-	DownloadURL     string             `json:"download_url,omitempty"`
-	IconURL         string             `json:"icon_url"`
-	LastUpdated     string             `json:"last_updated,omitempty"`
-	Name            string             `json:"package_name"`
-	Origin          string             `json:"origin"`
-	Prices          map[string]float64 `json:"prices,omitempty"`
-	Publisher       string             `json:"publisher,omitempty"`
-	RatingsAverage  float64            `json:"ratings_average,omitempty"`
-	SupportURL      string             `json:"support_url"`
-	Title           string             `json:"title"`
-	Type            pkg.Type           `json:"content,omitempty"`
-	Version         string             `json:"version"`
-}
-
 type searchResults struct {
 	Payload struct {
-		Packages []remoteSnap `json:"clickindex:package"`
+		Packages []remote.Snap `json:"clickindex:package"`
 	} `json:"_embedded"`
 }
 
@@ -397,10 +378,8 @@ func (m *packageYaml) checkForPackageInstalled(origin string) error {
 		return nil
 	}
 
-	if m.Type != pkg.TypeFramework && m.Type != pkg.TypeOem {
-		if part.Origin() != origin {
-			return ErrPackageNameAlreadyInstalled
-		}
+	if part.Origin() != origin {
+		return ErrPackageNameAlreadyInstalled
 	}
 
 	return nil
@@ -455,7 +434,7 @@ func (m *packageYaml) checkForFrameworks() error {
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func (m *packageYaml) checkLicenseAgreement(ag agreer, d PackageInterface, currentActiveDir string) error {
+func (m *packageYaml) checkLicenseAgreement(ag agreer, d PackageFile, currentActiveDir string) error {
 	if !m.ExplicitLicenseAgreement {
 		return nil
 	}
@@ -656,14 +635,14 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 	}
 	part.hash = h.ArchiveSha512
 
-	remoteManifestPath := manifestPath(part)
+	remoteManifestPath := RemoteManifestPath(part)
 	if helpers.FileExists(remoteManifestPath) {
 		content, err := ioutil.ReadFile(remoteManifestPath)
 		if err != nil {
 			return nil, err
 		}
 
-		var r remoteSnap
+		var r remote.Snap
 		if err := yaml.Unmarshal(content, &r); err != nil {
 			return nil, &ErrInvalidYaml{File: remoteManifestPath, Err: err, Yaml: content}
 		}
@@ -1470,7 +1449,7 @@ func originFromYamlPath(path string) (string, error) {
 
 // RemoteSnapPart represents a snap available on the server
 type RemoteSnapPart struct {
-	pkg remoteSnap
+	pkg remote.Snap
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
@@ -1654,7 +1633,7 @@ func (s *RemoteSnapPart) saveStoreManifest() error {
 	}
 
 	// don't worry about previous contents
-	return ioutil.WriteFile(manifestPath(s), content, 0644)
+	return ioutil.WriteFile(RemoteManifestPath(s), content, 0644)
 }
 
 // Install installs the snap
@@ -1702,8 +1681,8 @@ func (s *RemoteSnapPart) Frameworks() ([]string, error) {
 }
 
 // NewRemoteSnapPart returns a new RemoteSnapPart from the given
-// remoteSnap data
-func NewRemoteSnapPart(data remoteSnap) *RemoteSnapPart {
+// remote.Snap data
+func NewRemoteSnapPart(data remote.Snap) *RemoteSnapPart {
 	return &RemoteSnapPart{pkg: data}
 }
 
@@ -1758,7 +1737,7 @@ func init() {
 	}
 
 	v := url.Values{}
-	v.Set("fields", strings.Join(getStructFields(remoteSnap{}), ","))
+	v.Set("fields", strings.Join(getStructFields(remote.Snap{}), ","))
 	storeSearchURI.RawQuery = v.Encode()
 
 	storeDetailsURI, err = storeBaseURI.Parse("package/")
@@ -1851,7 +1830,7 @@ func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts [
 	}
 
 	// and decode json
-	var detailsData remoteSnap
+	var detailsData remote.Snap
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&detailsData); err != nil {
 		return nil, err
@@ -1972,7 +1951,7 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	}
 	defer resp.Body.Close()
 
-	var updateData []remoteSnap
+	var updateData []remote.Snap
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&updateData); err != nil {
 		return nil, err

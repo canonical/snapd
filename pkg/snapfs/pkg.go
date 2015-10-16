@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"launchpad.net/snappy/helpers"
 )
@@ -93,14 +94,18 @@ func (s *Snap) UnpackMeta(dst string) error {
 	return s.Unpack(".click/*", dst)
 }
 
-// Unpack unpacks the src (which may be a glob into the given target dir
-func (s *Snap) Unpack(src, dstDir string) error {
-	cmd := exec.Command("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src)
+var runCommand = func(args ...string) error {
+	cmd := exec.Command(args[0], args[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("unpack failed: %v (%v)", err, output)
+		return fmt.Errorf("cmd: %q failed: %v (%q)", strings.Join(args, " "), err, output)
 	}
 
 	return nil
+}
+
+// Unpack unpacks the src (which may be a glob into the given target dir
+func (s *Snap) Unpack(src, dstDir string) error {
+	return runCommand("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src)
 }
 
 // ReadFile returns the content of a single file inside a snapfs snap
@@ -112,9 +117,8 @@ func (s *Snap) ReadFile(path string) (content []byte, err error) {
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	cmd := exec.Command("unsquashfs", "-i", "-d", unpackDir, s.path, path)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("ReadFile %q failed: %v (%v)", path, err, output)
+	if err := runCommand("unsquashfs", "-i", "-d", unpackDir, s.path, path); err != nil {
+		return nil, err
 	}
 
 	return ioutil.ReadFile(filepath.Join(unpackDir, path))
@@ -123,17 +127,12 @@ func (s *Snap) ReadFile(path string) (content []byte, err error) {
 // CopyBlob copies the snap to a new place
 func (s *Snap) CopyBlob(targetFile string) error {
 	// FIXME: helpers.CopyFile() has no preserve attribute flag yet
-	cmd := exec.Command("cp", "-a", s.path, targetFile)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("cp %q %q failed: %v (%v)", s.path, targetFile, err, output)
-	}
-
-	return nil
+	return runCommand("cp", "-a", s.path, targetFile)
 }
 
 // Verify verifies the snap
 func (s *Snap) Verify(unauthOk bool) error {
-	// FIMXE: there is no verification yet for snapfs packages, this
+	// FIXME: there is no verification yet for snapfs packages, this
 	//        will be done via assertions later for now we rely on
 	//        the https security
 	return nil
@@ -147,15 +146,11 @@ func (s *Snap) Build(buildDir string) error {
 	}
 
 	return helpers.ChDir(buildDir, func() error {
-		cmd := exec.Command(
+		return runCommand(
 			"mksquashfs",
 			".", fullSnapPath,
 			"-all-root",
 			"-noappend",
 			"-comp", "xz")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("mksquashfs failed: %v (%v)", err, output)
-		}
-		return nil
 	})
 }

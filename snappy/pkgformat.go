@@ -20,6 +20,7 @@
 package snappy
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -28,8 +29,8 @@ import (
 	"launchpad.net/snappy/pkg/snapfs"
 )
 
-// PackageInterface is the interface to interact with the low-level snap files
-type PackageInterface interface {
+// PackageFile is the interface to interact with the low-level snap files
+type PackageFile interface {
 	Verify(allowUnauthenticated bool) error
 	Close() error
 	UnpackWithDropPrivs(targetDir, rootDir string) error
@@ -41,20 +42,8 @@ type PackageInterface interface {
 	RunPrefix() string
 }
 
-func byteSliceEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // OpenPackageFile opens a given snap file with the right backend
-func OpenPackageFile(path string) (PackageInterface, error) {
+func OpenPackageFile(path string) (PackageFile, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -67,7 +56,7 @@ func OpenPackageFile(path string) (PackageInterface, error) {
 		return nil, err
 	}
 	// note that we only support little endian squashfs for now
-	if byteSliceEqual(header[:4], []byte{'h', 's', 'q', 's'}) {
+	if bytes.HasPrefix(header, []byte{'h', 's', 'q', 's'}) {
 		return snapfs.New(path), nil
 	}
 	if strings.HasPrefix(string(header), "!<arch>\ndebian") {

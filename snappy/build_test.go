@@ -344,6 +344,23 @@ func (s *SnapTestSuite) TestCopyExcludesBackups(c *C) {
 	c.Check(string(out), Matches, `(?m)Only in \S+: foo~`)
 }
 
+func (s *SnapTestSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	target := c.MkDir()
+	// add a toplevel DEBIAN
+	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "DEBIAN", "foo"), 0755), IsNil)
+	// and a non-toplevel DEBIAN
+	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "bar", "DEBIAN", "baz"), 0755), IsNil)
+	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
+	cmd := exec.Command("diff", "-qr", sourceDir, target)
+	cmd.Env = append(cmd.Env, "LANG=C")
+	out, err := cmd.Output()
+	c.Check(err, NotNil)
+	c.Check(string(out), Matches, `(?m)Only in \S+: DEBIAN`)
+	// but *only one* DEBIAN is skipped
+	c.Check(strings.Count(string(out), "Only in"), Equals, 1)
+}
+
 func (s *SnapTestSuite) TestCopyExcludesWholeDirs(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 	target := c.MkDir()

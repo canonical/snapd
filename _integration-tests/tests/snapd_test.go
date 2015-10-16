@@ -51,13 +51,14 @@ type snapdTestSuite struct {
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
-	s.cmd = exec.Command("sudo", "/lib/systemd/systemd-activate",
+	s.cmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
+		"/lib/systemd/systemd-activate",
 		"-l", "0.0.0.0:"+port, "snapd")
 
 	s.cmd.Start()
 
 	intPort, _ := strconv.Atoi(port)
-	err := wait.ForServerOnPort(c, intPort)
+	err := wait.ForServerOnPort(c, "tcp", intPort)
 	c.Assert(err, check.IsNil)
 }
 
