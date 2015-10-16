@@ -30,9 +30,9 @@ import (
 	"strings"
 	"syscall"
 
-	"launchpad.net/snappy/clickdeb"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/pkg/clickdeb"
 )
 
 // #include <sys/prctl.h>

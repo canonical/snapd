@@ -30,7 +30,8 @@ import (
 const clickReview = "click-review"
 
 type cmdBuild struct {
-	Output string `long:"output" short:"o"`
+	Output      string `long:"output" short:"o"`
+	BuildSnapfs bool   `long:"snapfs"`
 }
 
 var longBuildHelp = i18n.G("Creates a snap package and if available, runs the review scripts.")
@@ -53,7 +54,12 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 		args = []string{"."}
 	}
 
-	snapPackage, err := snappy.Build(args[0], x.Output)
+	var snapPackage string
+	if x.BuildSnapfs {
+		snapPackage, err = snappy.BuildSnapfsSnap(args[0], x.Output)
+	} else {
+		snapPackage, err = snappy.BuildLegacySnap(args[0], x.Output)
+	}
 	if err != nil {
 		return err
 	}

@@ -69,7 +69,7 @@ func BootDir(bootSystem string) string {
 // config file. For uboot systems the boot config file does not change, so that
 // we take the other partition in that case
 func NextBootPartition() (partition string, err error) {
-	m, err := mode()
+	m, err := Mode()
 	if err != nil {
 		return
 	}
@@ -96,7 +96,8 @@ func NextBootPartition() (partition string, err error) {
 	return
 }
 
-func mode() (mode string, err error) {
+// Mode returns the current bootloader mode, regular or try.
+func Mode() (mode string, err error) {
 	return confValue("snappy_mode")
 }
 
@@ -144,7 +145,7 @@ func CurrentPartition() (partition string, err error) {
 	if err != nil {
 		return
 	}
-	m, err := mode()
+	m, err := Mode()
 	if err != nil {
 		return
 	}

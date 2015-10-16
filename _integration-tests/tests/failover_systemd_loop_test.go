@@ -22,9 +22,11 @@ package tests
 import (
 	"fmt"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/partition"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 const (
@@ -61,51 +63,51 @@ RequiredBy=sysinit.target
 type systemdDependencyLoop struct{}
 
 func (systemdDependencyLoop) set(c *check.C) {
-	installService(c, "deadlock", deadlockService, BaseAltPartitionPath)
-	installService(c, "emerg-reboot", rebootService, BaseAltPartitionPath)
+	installService(c, "deadlock", deadlockService, common.BaseAltPartitionPath)
+	installService(c, "emerg-reboot", rebootService, common.BaseAltPartitionPath)
 }
 
 func (systemdDependencyLoop) unset(c *check.C) {
-	unInstallService(c, "deadlock", BaseAltPartitionPath)
-	unInstallService(c, "emerg-reboot", BaseAltPartitionPath)
+	unInstallService(c, "deadlock", common.BaseAltPartitionPath)
+	unInstallService(c, "emerg-reboot", common.BaseAltPartitionPath)
 }
 
 func installService(c *check.C, serviceName, serviceCfg, basePath string) {
-	MakeWritable(c, basePath)
-	defer MakeReadonly(c, basePath)
+	partition.MakeWritable(c, basePath)
+	defer partition.MakeReadonly(c, basePath)
 
 	// Create service file
 	serviceFile := fmt.Sprintf("%s%s/%s.service", basePath, baseSystemdPath, serviceName)
-	ExecCommand(c, "sudo", "chmod", "a+w", fmt.Sprintf("%s%s", basePath, baseSystemdPath))
-	ExecCommandToFile(c, serviceFile, "sudo", "echo", serviceCfg)
+	cli.ExecCommand(c, "sudo", "chmod", "a+w", fmt.Sprintf("%s%s", basePath, baseSystemdPath))
+	cli.ExecCommandToFile(c, serviceFile, "sudo", "echo", serviceCfg)
 
 	// Create requires directory
 	requiresDirPart := fmt.Sprintf("%s/%s", baseSystemdPath, systemdTargetRequiresDir)
 	requiresDir := fmt.Sprintf("%s%s", basePath, requiresDirPart)
-	ExecCommand(c, "sudo", "mkdir", "-p", requiresDir)
+	cli.ExecCommand(c, "sudo", "mkdir", "-p", requiresDir)
 
 	// Symlink from the requires dir to the service file (with chroot for being
 	// usable in the other partition)
-	ExecCommand(c, "sudo", "chroot", basePath, "ln", "-s",
+	cli.ExecCommand(c, "sudo", "chroot", basePath, "ln", "-s",
 		fmt.Sprintf("%s/%s.service", baseSystemdPath, serviceName),
 		fmt.Sprintf("%s/%s.service", requiresDirPart, serviceName),
 	)
 }
 
 func unInstallService(c *check.C, serviceName, basePath string) {
-	MakeWritable(c, basePath)
-	defer MakeReadonly(c, basePath)
+	partition.MakeWritable(c, basePath)
+	defer partition.MakeReadonly(c, basePath)
 
 	// Disable the service
-	ExecCommand(c, "sudo", "chroot", basePath,
+	cli.ExecCommand(c, "sudo", "chroot", basePath,
 		"systemctl", "disable", fmt.Sprintf("%s.service", serviceName))
 
 	// Remove the service file
-	ExecCommand(c, "sudo", "rm",
+	cli.ExecCommand(c, "sudo", "rm",
 		fmt.Sprintf("%s%s/%s.service", basePath, baseSystemdPath, serviceName))
 
 	// Remove the requires symlink
-	ExecCommand(c, "sudo", "rm",
+	cli.ExecCommand(c, "sudo", "rm",
 		fmt.Sprintf("%s%s/%s/%s.service", basePath, baseSystemdPath, systemdTargetRequiresDir, serviceName))
 }
 

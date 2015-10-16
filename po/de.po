@@ -7,15 +7,15 @@ msgid ""
 msgstr ""
 "Project-Id-Version: snappy\n"
 "Report-Msgid-Bugs-To: FULL NAME <EMAIL@ADDRESS>\n"
-"POT-Creation-Date: 2015-09-14 10:22+0100\n"
+"POT-Creation-Date: 2015-09-29 10:18+0100\n"
 "PO-Revision-Date: 2015-09-02 22:57+0000\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: German <de@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Launchpad-Export-Date: 2015-09-15 05:49+0000\n"
-"X-Generator: Launchpad (build 17737)\n"
+"X-Launchpad-Export-Date: 2015-10-06 06:22+0000\n"
+"X-Generator: Launchpad (build 17796)\n"
 
 #. TRANSLATORS: the %s is a pkgname, the second a comma separated list of paths
 #, c-format
@@ -70,6 +70,14 @@ msgid ""
 "able to use the framework."
 msgstr ""
 
+msgid "Activate a package"
+msgstr ""
+
+msgid ""
+"Activate a package that has previously been deactivated. If the package is "
+"already activated, do nothing."
+msgstr ""
+
 msgid ""
 "Allows rollback of a snap to a previous installed version. Without any "
 "arguments, the previous installed version is selected. It is also possible "
@@ -98,6 +106,13 @@ msgid ""
 msgstr ""
 
 msgid "Creates a snap package and if available, runs the review scripts."
+msgstr ""
+
+msgid "Deactivate a package"
+msgstr ""
+
+msgid ""
+"Deactivate a package. If the package is already deactivated, do nothing."
 msgstr ""
 
 msgid "Display a summary of key attributes of the snappy system."

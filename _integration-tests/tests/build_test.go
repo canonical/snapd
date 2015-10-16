@@ -24,67 +24,54 @@ import (
 	"os"
 	"os/exec"
 
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/build"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/data"
 
-	. "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
-const (
-	baseSnapPath          = "_integration-tests/data/snaps"
-	basicSnapName         = "basic"
-	wrongYamlSnapName     = "wrong-yaml"
-	missingReadmeSnapName = "missing-readme"
-)
-
-var _ = Suite(&buildSuite{})
+var _ = check.Suite(&buildSuite{})
 
 type buildSuite struct {
-	SnappySuite
+	common.SnappySuite
 }
 
-func buildSnap(c *C, snapPath string) string {
-	return ExecCommand(c, "snappy", "build", snapPath)
-}
-
-func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *C) {
+func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
 	// build basic snap and check output
-	snapPath := baseSnapPath + "/" + basicSnapName
-	buildOutput := buildSnap(c, snapPath)
-	snapName := basicSnapName + "_1.0_all.snap"
-	expected := fmt.Sprintf("Generated '%s' snap\n", snapName)
-	c.Check(buildOutput, Equals, expected)
-	defer os.Remove(snapPath + "/" + snapName)
+	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
+	defer os.Remove(snapPath)
+	c.Assert(err, check.IsNil)
 
 	// install built snap and check output
-	installOutput := InstallSnap(c, snapName)
-	defer RemoveSnap(c, basicSnapName)
-	expected = "(?ms)" +
-		"Installing " + snapName + "\n" +
+	installOutput := common.InstallSnap(c, snapPath)
+	defer common.RemoveSnap(c, data.BasicSnapName)
+	expected := "(?ms)" +
+		"Installing " + snapPath + "\n" +
 		".*Signature check failed, but installing anyway as requested\n" +
 		"Name +Date +Version +Developer \n" +
 		".*\n" +
-		basicSnapName + " +.* +.* +sideload  \n" +
+		data.BasicSnapName + " +.* +.* +sideload  \n" +
 		".*\n"
 
-	c.Check(installOutput, Matches, expected)
-
-	// teardown, remove snap file
-	c.Assert(os.Remove(snapName), IsNil, Commentf("Error removing %s", snapName))
+	c.Check(installOutput, check.Matches, expected)
 }
 
-func (s *buildSuite) TestBuildWrongYamlSnapOnSnappy(c *C) {
-	commonWrongTest(c, wrongYamlSnapName, "(?msi).*Can not parse.*yaml: line 2: mapping values are not allowed in this context.*")
+func (s *buildSuite) TestBuildWrongYamlSnapOnSnappy(c *check.C) {
+	commonWrongTest(c, data.WrongYamlSnapName,
+		"(?msi).*Can not parse.*yaml: line 2: mapping values are not allowed in this context.*")
 }
 
-func (s *buildSuite) TestBuildMissingReadmeSnapOnSnappy(c *C) {
-	commonWrongTest(c, missingReadmeSnapName, ".*readme.md: no such file or directory\n")
+func (s *buildSuite) TestBuildMissingReadmeSnapOnSnappy(c *check.C) {
+	commonWrongTest(c, data.MissingReadmeSnapName,
+		".*readme.md: no such file or directory\n")
 }
 
-func commonWrongTest(c *C, testName, expected string) {
-	// build wrong snap and check output
-	cmd := exec.Command("snappy", "build", fmt.Sprintf("%s/%s", baseSnapPath, testName))
+func commonWrongTest(c *check.C, testName, expected string) {
+	// build wrong snap and check error
+	cmd := exec.Command("snappy", "build", fmt.Sprintf("%s/%s", data.BaseSnapPath, testName))
 	echoOutput, err := cmd.CombinedOutput()
-	c.Assert(err, NotNil, Commentf("%s should not be built", testName))
+	c.Assert(err, check.NotNil, check.Commentf("%s should not be built", testName))
 
-	c.Assert(string(echoOutput), Matches, expected)
+	c.Assert(string(echoOutput), check.Matches, expected)
 }

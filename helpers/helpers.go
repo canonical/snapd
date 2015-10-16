@@ -49,15 +49,16 @@ func init() {
 }
 
 // ChDir runs runs "f" inside the given directory
-func ChDir(newDir string, f func()) (err error) {
+func ChDir(newDir string, f func() error) (err error) {
 	cwd, err := os.Getwd()
-	os.Chdir(newDir)
-	defer os.Chdir(cwd)
 	if err != nil {
 		return err
 	}
-	f()
-	return err
+	if err := os.Chdir(newDir); err != nil {
+		return err
+	}
+	defer os.Chdir(cwd)
+	return f()
 }
 
 // ExitCode extract the exit code from the error of a failed cmd.Run() or the
@@ -115,6 +116,10 @@ var mknod = syscall.Mknod
 
 // UnpackTar unpacks the given tar file into the target directory
 func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
+	// ensure we we extract with the original permissions
+	oldUmask := syscall.Umask(0)
+	defer syscall.Umask(oldUmask)
+
 	return TarIterate(r, func(tr *tar.Reader, hdr *tar.Header) (err error) {
 		// run tar transform func
 		name := hdr.Name
