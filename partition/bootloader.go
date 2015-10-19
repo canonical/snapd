@@ -50,7 +50,7 @@ const (
 
 type bootloaderName string
 
-type bootLoader interface {
+type BootLoader interface {
 	// Name of the bootloader
 	Name() bootloaderName
 
@@ -70,6 +70,9 @@ type bootLoader interface {
 	// Return the value of the specified bootloader variable
 	GetBootVar(name string) (string, error)
 
+	// Set the value of the specified bootloader variable
+	SetBootVar(name, value string) error
+
 	// Return the 1-character name corresponding to the
 	// rootfs that will be used on _next_ boot.
 	//
@@ -88,10 +91,22 @@ type bootLoader interface {
 	BootDir() string
 }
 
+func Bootloader() (BootLoader, error) {
+	p := New()
+	if p == nil {
+		return nil, ErrBootloader
+	}
+	b, err := bootloader(p)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
 // Factory method that returns a new bootloader for the given partition
 var bootloader = bootloaderImpl
 
-func bootloaderImpl(p *Partition) (bootLoader, error) {
+func bootloaderImpl(p *Partition) (BootLoader, error) {
 	// try uboot
 	if uboot := newUboot(p); uboot != nil {
 		return uboot, nil

@@ -229,10 +229,14 @@ func (d *ClickDeb) ExtractHashes(dir string) error {
 	return ioutil.WriteFile(hashesFile, hashesData, 0644)
 }
 
-// Unpack unpacks the data.tar.{gz,bz2,xz} into the given target directory
+func (d *ClickDeb) Unpack(src, dst string) error {
+	return fmt.Errorf("clickdeb does not implement Unpack(src, dst)")
+}
+
+// UnpackAll unpacks the data.tar.{gz,bz2,xz} into the given target directory
 // with click specific verification, i.e. no files will be extracted outside
 // of the targetdir (no ".." inside the data.tar is allowed)
-func (d *ClickDeb) Unpack(targetDir string) error {
+func (d *ClickDeb) UnpackAll(targetDir string) error {
 	var err error
 
 	if _, err := d.file.Seek(0, 0); err != nil {
@@ -505,7 +509,7 @@ func skipToArMember(arReader *ar.Reader, memberPrefix string) (io.Reader, error)
 func (d *ClickDeb) UnpackWithDropPrivs(instDir, rootdir string) error {
 	// no need to drop privs, we are not root
 	if !helpers.ShouldDropPrivs() {
-		return d.Unpack(instDir)
+		return d.UnpackAll(instDir)
 	}
 
 	cmd := exec.Command("snappy", "internal-unpack", d.Name(), instDir, rootdir)

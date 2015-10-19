@@ -389,6 +389,9 @@ func (b *mockBootloader) HandleAssets() error {
 func (b *mockBootloader) GetBootVar(name string) (string, error) {
 	return "", nil
 }
+func (b *mockBootloader) SetBootVar(name, value string) error {
+	return nil
+}
 func (b *mockBootloader) GetNextBootRootFSName() (string, error) {
 	return "", nil
 }
@@ -403,7 +406,7 @@ func (b *mockBootloader) BootDir() string {
 func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 	runCommand = mockRunCommand
 	b := &mockBootloader{}
-	bootloader = func(p *Partition) (bootLoader, error) {
+	bootloader = func(p *Partition) (BootLoader, error) {
 		return b, nil
 	}
 
@@ -422,7 +425,7 @@ func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
 	runCommand = mockRunCommand
 	b := &mockBootloader{}
-	bootloader = func(p *Partition) (bootLoader, error) {
+	bootloader = func(p *Partition) (BootLoader, error) {
 		return b, nil
 	}
 
@@ -437,7 +440,7 @@ func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
 func (s *PartitionTestSuite) TestSyncBootFiles(c *C) {
 	runCommand = mockRunCommand
 	b := &mockBootloader{}
-	bootloader = func(p *Partition) (bootLoader, error) {
+	bootloader = func(p *Partition) (BootLoader, error) {
 		return b, nil
 	}
 

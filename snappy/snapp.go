@@ -42,6 +42,7 @@ import (
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/oauth"
+	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/pkg/remote"
 	"launchpad.net/snappy/pkg/snapfs"
@@ -238,6 +239,11 @@ type packageYaml struct {
 
 	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement,omitempty"`
 	LicenseVersion           string `yaml:"license-version,omitempty"`
+
+	// FIXME: move into a special kernel struct
+	Kernel string `yaml:"kernel,omitempty"`
+	Initrd string `yaml:"initrd,omitempty"`
+	Dtbs   string `yaml:"dtbs,omitempty"`
 }
 
 type searchResults struct {
@@ -564,6 +570,8 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 		return nil, err
 	}
 
+	// FIXME: make a special OemSnap that knows its install dir
+	//        instead of having this special case here
 	targetDir := dirs.SnapAppsDir
 	// the "oem" parts are special
 	if m.Type == pkg.TypeOem {
@@ -577,12 +585,14 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 	fullName := m.qualifiedName(origin)
 	instDir := filepath.Join(targetDir, fullName, m.Version)
 
-	return &SnapPart{
+	baseSnap := &SnapPart{
 		basedir: instDir,
 		origin:  origin,
 		m:       m,
 		deb:     d,
-	}, nil
+	}
+
+	return baseSnap, nil
 }
 
 // NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
@@ -831,6 +841,20 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	// privs
 	if err := s.deb.UnpackWithDropPrivs(s.basedir, dirs.GlobalRootDir); err != nil {
 		return "", err
+	}
+
+	// FIXME: kill
+	if s.m.Type == pkg.TypeKernel || s.m.Type == pkg.TypeOS {
+		if _, ok := s.deb.(*snapfs.Snap); !ok {
+			return "", fmt.Errorf("kernel/os snap must be of type snapfs")
+		}
+	}
+
+	// FIXME: move into KernelSnap instead of poluting generic code
+	if s.m.Type == pkg.TypeKernel {
+		if err := unpackKernel(s); err != nil {
+			return "", err
+		}
 	}
 
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
@@ -1100,6 +1124,30 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	currentDataSymlink := filepath.Join(dirs.SnapDataDir, QualifiedName(s), "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
+	}
+
+	// FIXME: create {Os,Kernel}Snap type instead of adding special
+	//        cases here
+	if s.m.Type == pkg.TypeOS || s.m.Type == pkg.TypeKernel {
+		b, err := partition.Bootloader()
+		if err != nil {
+			return err
+		}
+		var bootvar string
+		switch s.m.Type {
+		case pkg.TypeOS:
+			bootvar = "snappy_os"
+		case pkg.TypeKernel:
+			bootvar = "snappy_kernel"
+		}
+		blobName := filepath.Base(snapfs.BlobPath(s.basedir))
+		if err := b.SetBootVar(bootvar, blobName); err != nil {
+			return err
+		}
+
+		if err := b.SetBootVar("snappy_mode", "try"); err != nil {
+			return err
+		}
 	}
 
 	return nil
