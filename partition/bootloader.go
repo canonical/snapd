@@ -50,6 +50,7 @@ const (
 
 type BootloaderName string
 
+// FIXME: the interface of bootloader is too big
 type BootLoader interface {
 	// Name of the bootloader
 	Name() BootloaderName
