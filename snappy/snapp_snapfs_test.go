@@ -260,7 +260,11 @@ func (s *SnapfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
 }
 
 func (s *SnapfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
-	snapPkg := makeTestSnapPackage(c, packageKernel)
+	files := [][]string{
+			{"vmlinuz-4.2", "I'm a kernel"},
+			{"initrd.img-4.2", "...and I'm an initrd"},
+		}
+	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
 	c.Assert(err, IsNil)
 
