@@ -67,6 +67,10 @@ var (
 	// that is already in the hwaccess list
 	ErrHWAccessAlreadyAdded = errors.New("device is already in hw-access list")
 
+	// ErrHwDeviceAlreadySymlinked is returned when the device has already a symlink
+	// with a different name
+	ErrHwDeviceAlreadySymlinked = errors.New("device has a symlink already")
+
 	// ErrSymlinkToHWAlreadyAdded is returned if you try to add a symlink
 	// that is already in the hwaccess list
 	ErrSymlinkToHWAlreadyAdded = errors.New("symlink is already in hw-access list")

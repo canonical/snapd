@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-10-19 15:03+0200\n"
+        "POT-Creation-Date: 2015-10-19 17:05+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -28,12 +28,17 @@ msgstr  ""
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
-msgid   "'%s' is no longer allowed to access '%s'\n"
+msgid   "'%s' is allowed to access '%s' through symlink '%s' \n"
 msgstr  ""
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path
 #, c-format
-msgid   "'%s' is now allowed to access '%s'\n"
+msgid   "'%s' is allowed to access '%s'\n"
+msgstr  ""
+
+#. TRANSLATORS: the first %s is a pkgname, the second %s is a path
+#, c-format
+msgid   "'%s' is no longer allowed to access '%s'\n"
 msgstr  ""
 
 #. TRANSLATORS: the first %s is a pkgname, the second %s is a path

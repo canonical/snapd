@@ -59,12 +59,14 @@ func (x *cmdHWAssign) Execute(args []string) error {
 func (x *cmdHWAssign) doHWAssign() error {
 	if err := snappy.AddHWAccess(x.Positional.PackageName, x.Positional.DevicePath); err != nil {
 		if err == snappy.ErrHWAccessAlreadyAdded {
-			// TRANSLATORS: the first %s is a pkgname, the second %s is a path
-			fmt.Printf(i18n.G("'%s' previously allowed access to '%s'. Skipping\n"), x.Positional.PackageName, x.Positional.DevicePath)
-			return nil
+			if "" == x.Positional.SymlinkPath {
+				// TRANSLATORS: the first %s is a pkgname, the second %s is a path
+				fmt.Printf(i18n.G("'%s' previously allowed access to '%s'. Skipping\n"), x.Positional.PackageName, x.Positional.DevicePath)
+				return nil
+			}
+		} else {
+			return err
 		}
-
-		return err
 	}
 
 	if "" != x.Positional.SymlinkPath {
@@ -74,9 +76,12 @@ func (x *cmdHWAssign) doHWAssign() error {
 			x.Positional.SymlinkPath); err != nil {
 			return err
 		}
+		// TRANSLATORS: the first %s is a pkgname, the second %s is a path
+		fmt.Printf(i18n.G("'%s' is allowed to access '%s' through symlink '%s' \n"), x.Positional.PackageName, x.Positional.DevicePath, x.Positional.SymlinkPath)
+	} else {
+		// TRANSLATORS: the first %s is a pkgname, the second %s is a path
+		fmt.Printf(i18n.G("'%s' is allowed to access '%s'\n"), x.Positional.PackageName, x.Positional.DevicePath)
 	}
 
-	// TRANSLATORS: the first %s is a pkgname, the second %s is a path
-	fmt.Printf(i18n.G("'%s' is now allowed to access '%s'\n"), x.Positional.PackageName, x.Positional.DevicePath)
 	return nil
 }

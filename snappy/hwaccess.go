@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 )
 
@@ -169,7 +170,7 @@ KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"
 }
 
 func writeSymlinkUdevRuleForDeviceCgroup(snapname, device, symlink string) error {
-	os.MkdirAll(snapUdevRulesDir, 0755)
+	os.MkdirAll(dirs.SnapUdevRulesDir, 0755)
 
 	snapname = stripSnapName(snapname)
 
@@ -189,7 +190,7 @@ var regenerateAppArmorRules = regenerateAppArmorRulesImpl
 
 // check if there is anything apparmor related to add to
 func hasSnapApparmorJSON(snapname string) error {
-	globExpr := filepath.Join(snapAppArmorDir, fmt.Sprintf("%s_*.json", snapname))
+	globExpr := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s_*.json", snapname))
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
 		return err
@@ -251,10 +252,14 @@ func addNewSymlinkPathForSnap(snapname, symlink, device string) error {
 	if isStringInSlice(symlink, appArmorAdditional.WritePath) {
 		return ErrSymlinkToHWNameCollision
 	}
+
 	if nil != appArmorAdditional.SymlinkPath {
-		for key := range appArmorAdditional.SymlinkPath {
+		for key, item := range appArmorAdditional.SymlinkPath {
 			if key == symlink {
 				return ErrSymlinkToHWAlreadyAdded
+			}
+			if item == device {
+				return ErrHwDeviceAlreadySymlinked
 			}
 		}
 	} else {
@@ -448,7 +453,11 @@ func RemoveHWAccess(snapname, path string) error {
 		}
 
 		if err := removeUdevRuleForSnap(snapname, symlink); nil != err {
-			return err
+			// When there are only rules for the same HW device, the UDEV
+			// rule file might not exist anymore at this point.
+			if !os.IsNotExist(err) {
+				return err
+			}
 		}
 	}
 
