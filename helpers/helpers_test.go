@@ -298,6 +298,9 @@ func (ts *HTestSuite) TestCurrentHomeDirHOMEenv(c *C) {
 
 func (ts *HTestSuite) TestCurrentHomeDirNoHomeEnv(c *C) {
 	oldHome := os.Getenv("HOME")
+	if oldHome == "/sbuild-nonexistent" {
+		c.Skip("running in schroot this test won't work")
+	}
 	defer os.Setenv("HOME", oldHome)
 
 	os.Setenv("HOME", "")
