@@ -22,16 +22,10 @@ package snappy
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/pkg/snapfs"
 )
-
-func normalizeKernelInitrdName(name string) string {
-	name = filepath.Base(name)
-	return strings.SplitN(name, "-", 2)[0]
-}
 
 func unpackKernel(s *SnapPart) error {
 	bootdir := partition.BootloaderDir()
@@ -47,7 +41,7 @@ func unpackKernel(s *SnapPart) error {
 			return err
 		}
 		src = filepath.Join(dstDir, s.m.Kernel)
-		dst := filepath.Join(dstDir, normalizeKernelInitrdName(s.m.Kernel))
+		dst := filepath.Join(dstDir, partition.NormalizeKernelInitrdName(s.m.Kernel))
 		if err := os.Rename(src, dst); err != nil {
 			return err
 		}
@@ -58,7 +52,7 @@ func unpackKernel(s *SnapPart) error {
 			return err
 		}
 		src = filepath.Join(dstDir, s.m.Initrd)
-		dst := filepath.Join(dstDir, normalizeKernelInitrdName(s.m.Initrd))
+		dst := filepath.Join(dstDir, partition.NormalizeKernelInitrdName(s.m.Initrd))
 		if err := os.Rename(src, dst); err != nil {
 			return err
 		}

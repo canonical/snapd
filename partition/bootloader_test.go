@@ -24,8 +24,8 @@ import (
 )
 
 func (s *PartitionTestSuite) TestNormalizeAssetsName(c *C) {
-	c.Check(normalizeKernelInitrdName("subdir/vmlinuz-3.14"), Equals, "vmlinuz")
-	c.Check(normalizeKernelInitrdName("vmlinuz-3.14"), Equals, "vmlinuz")
-	c.Check(normalizeKernelInitrdName("initrd.img-2.71"), Equals, "initrd.img")
-	c.Check(normalizeKernelInitrdName("x-y-z"), Equals, "x")
+	c.Check(NormalizeKernelInitrdName("subdir/vmlinuz-3.14"), Equals, "vmlinuz")
+	c.Check(NormalizeKernelInitrdName("vmlinuz-3.14"), Equals, "vmlinuz")
+	c.Check(NormalizeKernelInitrdName("initrd.img-2.71"), Equals, "initrd.img")
+	c.Check(NormalizeKernelInitrdName("x-y-z"), Equals, "x")
 }

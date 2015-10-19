@@ -191,8 +191,8 @@ func (b *bootloaderType) SyncBootFiles(bootAssets map[string]string) (err error)
 	return helpers.RSyncWithDelete(srcDir, destDir)
 }
 
-// noramlizeAssetName transforms like "vmlinuz-4.1.0" -> "vmlinuz"
-func normalizeKernelInitrdName(name string) string {
+// NoramlizeAssetName transforms like "vmlinuz-4.1.0" -> "vmlinuz"
+func NormalizeKernelInitrdName(name string) string {
 	name = filepath.Base(name)
 	return strings.SplitN(name, "-", 2)[0]
 }
@@ -269,7 +269,7 @@ func (b *bootloaderType) HandleAssets() (err error) {
 			}
 		}()
 
-		target := filepath.Join(destDir, normalizeKernelInitrdName(file))
+		target := filepath.Join(destDir, NormalizeKernelInitrdName(file))
 		if err := runCommand("/bin/cp", path, target); err != nil {
 			return err
 		}
