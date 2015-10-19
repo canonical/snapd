@@ -257,7 +257,8 @@ func ActiveSnapsByType(snapTs ...pkg.Type) (res []Part, err error) {
 	return res, nil
 }
 
-// ActiveSnapNamesByType returns all installed snap names with the given type
+// ActiveSnapIterByType returns the result of applying the given
+// function to all active snaps with the given type.
 var ActiveSnapIterByType = activeSnapIterByTypeImpl
 
 func activeSnapIterByTypeImpl(f func(Part) string, snapTs ...pkg.Type) ([]string, error) {
