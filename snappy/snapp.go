@@ -843,7 +843,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		return "", err
 	}
 
-	// FIXME: kill
+	// FIXME: kill this check once we have only "snapfs" snaps
 	if s.m.Type == pkg.TypeKernel || s.m.Type == pkg.TypeOS {
 		if _, ok := s.deb.(*snapfs.Snap); !ok {
 			return "", fmt.Errorf("kernel/os snap must be of type snapfs")
