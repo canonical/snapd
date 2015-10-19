@@ -77,6 +77,20 @@ func (s *hwAssignSuite) TestSuccessAfterHwAssign(c *check.C) {
 	c.Assert(string(output), check.Not(check.Equals), hwAssignError)
 }
 
+func (s *hwAssignSuite) TestHwList(c *check.C) {
+	cmd := exec.Command("sudo", "snappy", "hw-info", installedSnapName)
+	output, _ := cmd.CombinedOutput()
+	c.Assert(string(output), check.Equals,
+		fmt.Sprintf("'%s:' is not allowed to access additional hardware\n", installedSnapName))
+
+	assign(c, snapName, hwName)
+	defer unassign(c, snapName, hwName)
+
+	cmd = exec.Command("sudo", "snappy", "hw-info", installedSnapName)
+	output, _ = cmd.CombinedOutput()
+	c.Assert(string(output), check.Equals, fmt.Sprintf("%s: %s\n", installedSnapName, hwName))
+}
+
 func (s *hwAssignSuite) TestErrorAfterHwUnAssign(c *check.C) {
 	assign(c, snapName, hwName)
 	unassign(c, snapName, hwName)
