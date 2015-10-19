@@ -295,7 +295,7 @@ func (s *SnapTestSuite) TestWriteSymlinkUdevRuleForDeviceCgroup(c *C) {
 
 	snapapp := "foo-app_meep_1.0"
 
-	err := writeSymlinkUdevRuleForDeviceCgroup(snapapp, "/dev/ttyS0", "/dev/symS0", "")
+	err := writeSymlinkUdevRuleForDeviceCgroup(snapapp, "/dev/ttyS0", "/dev/symS0")
 	c.Assert(err, IsNil)
 
 	got, err := ioutil.ReadFile(filepath.Join(snapUdevRulesDir, "70-snappy_hwassign_foo-app.rules"))
@@ -407,7 +407,7 @@ func (s *SnapTestSuite) TestAddNewSymlinkPathForSnap(c *C) {
 	err = AddHWAccess("hello-app", "/dev/ttyUSB1")
 	c.Assert(err, IsNil)
 
-	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB1", "/dev/symtest1", "")
+	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB1", "/dev/symtest1")
 	c.Assert(err, IsNil)
 
 	// check .additional file is written right
@@ -443,10 +443,10 @@ func (s *SnapTestSuite) TestRemoveSymlinkToHWDevice(c *C) {
 	c.Assert(err, IsNil)
 
 	// Adding a symlinks
-	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB0", "/dev/symtest0", "")
+	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB0", "/dev/symtest0")
 	c.Assert(err, IsNil)
 
-	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB1", "/dev/symtest1", "")
+	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB1", "/dev/symtest1")
 	c.Assert(err, IsNil)
 
 	// Remove hw device with symlink: the symlink is expected to be removed too
@@ -502,9 +502,9 @@ func (s *SnapTestSuite) TestRemoveUdevRuleForSnap(c *C) {
 	c.Assert(err, IsNil)
 	err = AddHWAccess("hello-app", "/dev/ttyUSB2")
 	c.Assert(err, IsNil)
-	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB0", "/dev/symlink0", "")
+	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB0", "/dev/symlink0")
 	c.Assert(err, IsNil)
-	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB1", "/dev/symlink1", "")
+	err = AddSymlinkToHWDevice("hello-app", "/dev/ttyUSB1", "/dev/symlink1")
 	c.Assert(err, IsNil)
 
 	// Remove the device without symlink
