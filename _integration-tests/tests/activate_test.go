@@ -53,7 +53,7 @@ func (s *activateSuite) SetUpTest(c *check.C) {
 	}
 	var err error
 	s.snapPath, err = build.LocalSnap(c, activateSnapName)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
 	common.InstallSnap(c, s.snapPath)
 }
 
@@ -68,8 +68,9 @@ func (s *activateSuite) TestDeactivateRemovesBinary(c *check.C) {
 	defer cli.ExecCommand(c, "sudo", "snappy", "activate", activateSnapName)
 	output, err := cli.ExecCommandErr(activateBinName)
 
-	c.Assert(err, check.NotNil)
-	c.Assert(output, check.Not(check.Equals), activateEchoOutput)
+	c.Assert(err, check.NotNil, check.Commentf("Deactivated snap binary did not exit with an error"))
+	c.Assert(output, check.Not(check.Equals), activateEchoOutput,
+		check.Commentf("Deactivated snap binary was not removed"))
 
 	list := cli.ExecCommand(c, "snappy", "list", "-v")
 
@@ -81,7 +82,8 @@ func (s *activateSuite) TestActivateBringsBinaryBack(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snappy", "activate", activateSnapName)
 	output := cli.ExecCommand(c, activateBinName)
 
-	c.Assert(output, check.Equals, activateEchoOutput)
+	c.Assert(output, check.Equals, activateEchoOutput,
+		check.Commentf("Wrong output from active snap binary"))
 
 	list := cli.ExecCommand(c, "snappy", "list", "-v")
 

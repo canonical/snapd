@@ -53,7 +53,7 @@ func (s *fanTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
 	var err error
 	s.subjectIP, err = getIPAddr(c)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error getting IP address: %s", err))
 
 	s.fanCtl(c, "up")
 	s.bridgeIP = s.fanBridgeIP(c)
@@ -198,7 +198,7 @@ func setUpDocker(c *check.C) {
 	dockerService := fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion)
 
 	err := wait.ForActiveService(c, dockerService)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error waiting for service: %s", err))
 
 	cli.ExecCommand(c, "docker", "pull", baseContainer)
 }

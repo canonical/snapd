@@ -41,7 +41,7 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
 	// build basic snap and check output
 	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 	defer os.Remove(snapPath)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
 
 	// install built snap and check output
 	installOutput := common.InstallSnap(c, snapPath)
