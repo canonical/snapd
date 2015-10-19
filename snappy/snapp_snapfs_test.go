@@ -26,13 +26,73 @@ import (
 
 	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
+	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/pkg/snapfs"
 	"launchpad.net/snappy/systemd"
 
 	. "gopkg.in/check.v1"
 )
 
+var mockb mockBootloader
+
+func newMockBootloader() (partition.BootLoader, error) {
+	mockb = mockBootloader{}
+	return &mockb, nil
+}
+
+type mockBootloader struct {
+	bootvars [][]string
+}
+
+func (b *mockBootloader) Name() partition.BootloaderName {
+	return ""
+}
+func (b *mockBootloader) ToggleRootFS(otherRootfs string) error {
+	return nil
+}
+func (b *mockBootloader) SyncBootFiles(bootAssets map[string]string) error {
+	return nil
+}
+func (b *mockBootloader) HandleAssets() error {
+	return nil
+}
+func (b *mockBootloader) GetBootVar(name string) (string, error) {
+	return "", nil
+}
+func (b *mockBootloader) SetBootVar(name, value string) error {
+	b.bootvars = append(b.bootvars, []string{name, value})
+	return nil
+}
+func (b *mockBootloader) GetNextBootRootFSName() (string, error) {
+	return "", nil
+}
+func (b *mockBootloader) MarkCurrentBootSuccessful(currentRootfs string) error {
+	return nil
+}
+func (b *mockBootloader) BootDir() string {
+	return ""
+}
+
+const packageHello = `name: hello-app
+version: 1.10
+vendor: Somebody
+icon: meta/hello.svg
+`
+
+const packageOS = `name: ubuntu-core
+version: 15.10-1
+type: os
+vendor: Someone
+`
+
+const packageKernel = `name: ubuntu-kernel
+version: 4.0-1
+type: kernel
+vendor: Someone
+`
+
 type SnapfsTestSuite struct {
+	mockBootloaderDir string
 }
 
 func (s *SnapfsTestSuite) SetUpTest(c *C) {
@@ -46,21 +106,26 @@ func (s *SnapfsTestSuite) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
+	// mock bootloader
+	partition.Bootloader = newMockBootloader
+
+	// and bootloader dir
+	s.mockBootloaderDir = c.MkDir()
+	partition.BootloaderDir = func() string {
+		return s.mockBootloaderDir
+	}
+
 	// ensure we use the right builder func (snapfs)
 	snapBuilderFunc = BuildSnapfsSnap
 }
 
 func (s *SnapfsTestSuite) TearDownTest(c *C) {
 	snapBuilderFunc = BuildLegacySnap
+	partition.Bootloader = partition.BootloaderImpl
+	partition.BootloaderDir = partition.BootloaderDirImpl
 }
 
 var _ = Suite(&SnapfsTestSuite{})
-
-const packageHello = `name: hello-app
-version: 1.10
-vendor: Somebody
-icon: meta/hello.svg
-`
 
 func (s *SnapfsTestSuite) TestMakeSnapMakesSnapfs(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
@@ -163,4 +228,44 @@ func (s *SnapfsTestSuite) TestRemoveViaSnapfsWorks(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, false)
 
+}
+
+func (s *SnapfsTestSuite) TestInstallOsSnapWithDebFails(c *C) {
+	// ensure we get a error when trying to install old style snap for OS
+	snapBuilderFunc = BuildLegacySnap
+
+	snapPkg := makeTestSnapPackage(c, packageOS)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	_, err = part.Install(&MockProgressMeter{}, 0)
+	c.Assert(err, ErrorMatches, "kernel/os snap must be of type snapfs")
+}
+
+func (s *SnapfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
+	snapPkg := makeTestSnapPackage(c, packageOS)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	_, err = part.Install(&MockProgressMeter{}, 0)
+	c.Assert(err, IsNil)
+
+	c.Assert(mockb.bootvars, DeepEquals, [][]string{
+		{"snappy_os", "ubuntu-core.origin_15.10-1.snap"},
+		{"snappy_mode", "try"},
+	})
+}
+
+func (s *SnapfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
+	snapPkg := makeTestSnapPackage(c, packageKernel)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	_, err = part.Install(&MockProgressMeter{}, 0)
+	c.Assert(err, IsNil)
+
+	c.Assert(mockb.bootvars, DeepEquals, [][]string{
+		{"snappy_kernel", "ubuntu-kernel.origin_4.0-1.snap"},
+		{"snappy_mode", "try"},
+	})
 }

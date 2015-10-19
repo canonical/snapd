@@ -1053,6 +1053,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	if err := s.m.addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
 		return err
 	}
+	// update current symlink
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
 	}
@@ -1070,6 +1071,30 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 
 	if err := os.MkdirAll(filepath.Join(dbase, s.Version()), 0755); err != nil {
 		return err
+	}
+
+	// FIXME: create {Os,Kernel}Snap type instead of adding special
+	//        cases here
+	if s.m.Type == pkg.TypeOS || s.m.Type == pkg.TypeKernel {
+		b, err := partition.Bootloader()
+		if err != nil {
+			return err
+		}
+		var bootvar string
+		switch s.m.Type {
+		case pkg.TypeOS:
+			bootvar = "snappy_os"
+		case pkg.TypeKernel:
+			bootvar = "snappy_kernel"
+		}
+		blobName := filepath.Base(snapfs.BlobPath(s.basedir))
+		if err := b.SetBootVar(bootvar, blobName); err != nil {
+			return err
+		}
+
+		if err := b.SetBootVar("snappy_mode", "try"); err != nil {
+			return err
+		}
 	}
 
 	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
@@ -1124,30 +1149,6 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	currentDataSymlink := filepath.Join(dirs.SnapDataDir, QualifiedName(s), "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentDataSymlink, err)
-	}
-
-	// FIXME: create {Os,Kernel}Snap type instead of adding special
-	//        cases here
-	if s.m.Type == pkg.TypeOS || s.m.Type == pkg.TypeKernel {
-		b, err := partition.Bootloader()
-		if err != nil {
-			return err
-		}
-		var bootvar string
-		switch s.m.Type {
-		case pkg.TypeOS:
-			bootvar = "snappy_os"
-		case pkg.TypeKernel:
-			bootvar = "snappy_kernel"
-		}
-		blobName := filepath.Base(snapfs.BlobPath(s.basedir))
-		if err := b.SetBootVar(bootvar, blobName); err != nil {
-			return err
-		}
-
-		if err := b.SetBootVar("snappy_mode", "try"); err != nil {
-			return err
-		}
 	}
 
 	return nil

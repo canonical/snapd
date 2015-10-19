@@ -48,7 +48,7 @@ type grub struct {
 	bootloaderType
 }
 
-const bootloaderNameGrub bootloaderName = "grub"
+const bootloaderNameGrub BootloaderName = "grub"
 
 // newGrub create a new Grub bootloader object
 func newGrub(partition *Partition) BootLoader {
@@ -65,7 +65,7 @@ func newGrub(partition *Partition) BootLoader {
 	return &g
 }
 
-func (g *grub) Name() bootloaderName {
+func (g *grub) Name() BootloaderName {
 	return bootloaderNameGrub
 }
 

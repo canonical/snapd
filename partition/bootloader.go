@@ -48,11 +48,11 @@ const (
 	bootloaderSystemAB = "system-AB"
 )
 
-type bootloaderName string
+type BootloaderName string
 
 type BootLoader interface {
 	// Name of the bootloader
-	Name() bootloaderName
+	Name() BootloaderName
 
 	// Switch bootloader configuration so that the "other" root
 	// filesystem partition will be used on next boot.
@@ -91,7 +91,9 @@ type BootLoader interface {
 	BootDir() string
 }
 
-func Bootloader() (BootLoader, error) {
+var Bootloader = BootloaderImpl
+
+func BootloaderImpl() (BootLoader, error) {
 	p := New()
 	if p == nil {
 		return nil, ErrBootloader
@@ -321,7 +323,9 @@ func (b *bootloaderType) HandleAssets() (err error) {
 
 // BootloaderDir returns the full path to the (mounted and writable)
 // bootloader-specific boot directory.
-func BootloaderDir() string {
+var BootloaderDir = BootloaderDirImpl
+
+func BootloaderDirImpl() string {
 	if helpers.FileExists(bootloaderUbootDir) {
 		return bootloaderUbootDir
 	} else if helpers.FileExists(bootloaderGrubDir) {
