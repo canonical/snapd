@@ -22,6 +22,7 @@ package snappy
 import (
 	"os"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/release"
 )
 
@@ -32,9 +33,9 @@ func init() {
 		root = "/"
 	}
 
-	SetRootDir(root)
+	dirs.SetRootDir(root)
 
 	// we don't need to care for the error here to take into account when
 	// initialized on a non snappy system
-	release.Setup(globalRootDir)
+	release.Setup(dirs.GlobalRootDir)
 }

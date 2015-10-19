@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/progress"
 )
@@ -50,6 +51,16 @@ func QualifiedName(p Part) string {
 	if t := p.Type(); t == pkg.TypeFramework || t == pkg.TypeOem {
 		return p.Name()
 	}
+	return p.Name() + "." + p.Origin()
+}
+
+// BareName of a Part is just its Name
+func BareName(p Part) string {
+	return p.Name()
+}
+
+// FullName of a Part is Name.Origin
+func FullName(p Part) string {
 	return p.Name() + "." + p.Origin()
 }
 
@@ -91,8 +102,8 @@ type Part interface {
 	// Config takes a yaml configuration and returns the full snap
 	// config with the changes. Note that "configuration" may be empty.
 	Config(configuration []byte) (newConfig string, err error)
-	// make a inactive part active
-	SetActive(pb progress.Meter) error
+	// make an inactive part active, or viceversa
+	SetActive(bool, progress.Meter) error
 
 	// get the list of frameworks needed by the part
 	Frameworks() ([]string, error)
@@ -139,10 +150,10 @@ func NewMetaLocalRepository() *MetaRepository {
 	if repo := NewSystemImageRepository(); repo != nil {
 		m.all = append(m.all, repo)
 	}
-	if repo := NewLocalSnapRepository(snapAppsDir); repo != nil {
+	if repo := NewLocalSnapRepository(dirs.SnapAppsDir); repo != nil {
 		m.all = append(m.all, repo)
 	}
-	if repo := NewLocalSnapRepository(snapOemDir); repo != nil {
+	if repo := NewLocalSnapRepository(dirs.SnapOemDir); repo != nil {
 		m.all = append(m.all, repo)
 	}
 
@@ -246,15 +257,16 @@ func ActiveSnapsByType(snapTs ...pkg.Type) (res []Part, err error) {
 	return res, nil
 }
 
-// ActiveSnapNamesByType returns all installed snap names with the given type
-var ActiveSnapNamesByType = activeSnapNamesByTypeImpl
+// ActiveSnapIterByType returns the result of applying the given
+// function to all active snaps with the given type.
+var ActiveSnapIterByType = activeSnapIterByTypeImpl
 
-func activeSnapNamesByTypeImpl(snapTs ...pkg.Type) ([]string, error) {
+func activeSnapIterByTypeImpl(f func(Part) string, snapTs ...pkg.Type) ([]string, error) {
 	installed, err := ActiveSnapsByType(snapTs...)
 	res := make([]string, len(installed))
 
 	for i, part := range installed {
-		res[i] = QualifiedName(part)
+		res[i] = f(part)
 	}
 
 	return res, err
@@ -333,7 +345,7 @@ func makeSnapActiveByNameAndVersion(pkg, ver string, inter progress.Meter) error
 	case 0:
 		return fmt.Errorf("Can not find %s with version %s", pkg, ver)
 	case 1:
-		return parts[0].SetActive(inter)
+		return parts[0].SetActive(true, inter)
 	default:
 		return fmt.Errorf("More than one %s with version %s", pkg, ver)
 	}
@@ -347,10 +359,10 @@ func PackageNameActive(name string) bool {
 // iconPath returns the would be path for the local icon
 func iconPath(s Part) string {
 	// TODO: care about extension ever being different than png
-	return filepath.Join(snapIconsDir, fmt.Sprintf("%s_%s.png", QualifiedName(s), s.Version()))
+	return filepath.Join(dirs.SnapIconsDir, fmt.Sprintf("%s_%s.png", QualifiedName(s), s.Version()))
 }
 
-// manifestPath returns the would be path for the store manifest meta data
-func manifestPath(s Part) string {
-	return filepath.Join(snapMetaDir, fmt.Sprintf("%s_%s.manifest", QualifiedName(s), s.Version()))
+// RemoteManifestPath returns the would be path for the store manifest meta data
+func RemoteManifestPath(s Part) string {
+	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", QualifiedName(s), s.Version()))
 }

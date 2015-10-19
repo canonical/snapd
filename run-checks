@@ -13,6 +13,23 @@ if [ "${1:-}" = "--quick" ]; then
     QUICK=yes
 fi
 
+endmsg() {
+    if [ $? -eq 0 ]; then
+        p="success.txt"
+        m="All good, what could possibly go wrong."
+    else
+        p="failure.txt"
+        m="Crushing failure and despair."
+    fi
+    echo
+    if [ -t 1 -a -z "$QUICK" ]; then
+        cat "data/$p"
+    else
+        echo "$m"
+    fi
+}
+trap endmsg EXIT
+
 echo Checking docs
 ./mdlint.py docs/*.md
 
@@ -61,15 +78,17 @@ if [ -n "$lint" ]; then
     exit 1
 fi
 
-# pot file
-TMPF="$(mktemp)"
-./update-pot "$TMPF"
-trap "rm -f $TMPF" 0
-if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
-    echo "You need to run ./update-pot"
-    exit 1
-fi
-
+(
+    # pot file
+    TMPF="$(mktemp)"
+    trap "rm -f $TMPF" 0
+    ./update-pot "$TMPF"
+    if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
+        echo "You need to run ./update-pot"
+        exit 1
+    fi
+    # This is a subshell so we don't overwrite the all-important outer trap.
+)
 
 if [ -z "$QUICK" ]; then
     # integration tests
@@ -90,5 +109,3 @@ if [ -z "$QUICK" ]; then
         fi
     fi
 fi
-
-echo "All good, what could possibly go wrong"

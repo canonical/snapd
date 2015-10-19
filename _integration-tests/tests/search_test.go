@@ -20,19 +20,20 @@
 package tests
 
 import (
-	. "launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
+	"launchpad.net/snappy/_integration-tests/testutils/common"
 
-	. "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
-var _ = Suite(&searchSuite{})
+var _ = check.Suite(&searchSuite{})
 
 type searchSuite struct {
-	SnappySuite
+	common.SnappySuite
 }
 
-func (s *searchSuite) TestSearchFrameworkMustPrintMatch(c *C) {
-	searchOutput := ExecCommand(c, "snappy", "search", "hello-dbus-fwk")
+func (s *searchSuite) TestSearchFrameworkMustPrintMatch(c *check.C) {
+	searchOutput := cli.ExecCommand(c, "snappy", "search", "hello-dbus-fwk")
 
 	expected := "(?ms)" +
 		"Name +Version +Summary *\n" +
@@ -40,5 +41,5 @@ func (s *searchSuite) TestSearchFrameworkMustPrintMatch(c *C) {
 		"^hello-dbus-fwk +.* +hello-dbus-fwk *\n" +
 		".*"
 
-	c.Assert(searchOutput, Matches, expected)
+	c.Assert(searchOutput, check.Matches, expected)
 }

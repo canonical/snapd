@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/progress"
 )
 
@@ -50,7 +51,7 @@ func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 	var active []*SnapPart
 
 	for _, datadir := range datadirs {
-		yamlPath := filepath.Join(snapAppsDir, datadir.QualifiedName(), datadir.Version, "meta", "package.yaml")
+		yamlPath := filepath.Join(dirs.SnapAppsDir, datadir.QualifiedName(), datadir.Version, "meta", "package.yaml")
 		part, err := NewInstalledSnapPart(yamlPath, datadir.Origin)
 		if err != nil {
 			// no such part installed

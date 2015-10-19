@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/systemd"
 )
@@ -39,13 +40,14 @@ var _ = Suite(&purgeSuite{})
 
 func (s *purgeSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
-	SetRootDir(s.tempdir)
-	os.MkdirAll(filepath.Join(snapServicesDir, "multi-user.target.wants"), 0755)
+	dirs.SetRootDir(s.tempdir)
+	os.MkdirAll(dirs.SnapMetaDir, 0755)
+	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
-	snapSeccompDir = c.MkDir()
+	dirs.SnapSeccompDir = c.MkDir()
 	runScFilterGen = mockRunScFilterGen
 }
 
@@ -78,7 +80,7 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDir string, part *SnapPart
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", app+".manifest"), []byte(`{"name": "`+app+`"}`), 0644), IsNil)
 
-	dataDir = filepath.Join(snapDataDir, app, version)
+	dataDir = filepath.Join(dirs.SnapDataDir, app, version)
 	c.Assert(os.MkdirAll(dataDir, 0755), IsNil)
 	canaryDataFile := filepath.Join(dataDir, "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
@@ -114,10 +116,12 @@ func (s *purgeSuite) TestPurgeActiveExplicitOK(c *C) {
 	inter := &MockProgressMeter{}
 	ddir, part := s.mkpkg(c)
 	c.Assert(part.activate(true, inter), IsNil)
+	canary := filepath.Join(ddir, "canary")
+	c.Assert(os.Mkdir(canary, 0755), IsNil)
 
 	err := Purge("hello-app", DoPurgeActive, inter)
 	c.Check(err, IsNil)
-	c.Check(helpers.FileExists(ddir), Equals, false)
+	c.Check(helpers.FileExists(canary), Equals, false)
 	c.Check(inter.notified, HasLen, 0)
 }
 
@@ -125,6 +129,8 @@ func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 	inter := &MockProgressMeter{}
 	ddir, part := s.mkpkg(c, "v1", "services:\n - name: svc")
 	c.Assert(part.activate(true, inter), IsNil)
+	canary := filepath.Join(ddir, "canary")
+	c.Assert(os.Mkdir(canary, 0755), IsNil)
 
 	called := [][]string{}
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
@@ -134,7 +140,7 @@ func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 
 	err := Purge("hello-app", DoPurgeActive, inter)
 	c.Check(err, IsNil)
-	c.Check(helpers.FileExists(ddir), Equals, false)
+	c.Check(helpers.FileExists(canary), Equals, false)
 	c.Assert(inter.notified, HasLen, 1)
 	c.Check(inter.notified[0], Matches, `Waiting for .* to stop.`)
 	rv := make(map[string]int)

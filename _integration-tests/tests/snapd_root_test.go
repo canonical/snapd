@@ -19,29 +19,23 @@
 
 package tests
 
-import (
-	"launchpad.net/snappy/_integration-tests/testutils/common"
+import "gopkg.in/check.v1"
 
-	"gopkg.in/check.v1"
-)
+var _ = check.Suite(&snapdRootTestSuite{})
 
-var _ = check.Suite(&helloDbusSuite{})
-
-type helloDbusSuite struct {
-	common.SnappySuite
+type snapdRootTestSuite struct {
+	snapdTestSuite
 }
 
-func (s *helloDbusSuite) TestCmdOutput(c *check.C) {
-	common.InstallSnap(c, "hello-dbus-fwk.canonical")
-	defer common.RemoveSnap(c, "hello-dbus-fwk.canonical")
+func (s *snapdRootTestSuite) TestResource(c *check.C) {
+	exerciseAPI(c, s)
+}
 
-	common.InstallSnap(c, "hello-dbus-app.canonical")
-	defer common.RemoveSnap(c, "hello-dbus-app.canonical")
+func (s *snapdRootTestSuite) resource() string {
+	return baseURL + "/"
+}
 
-	output := common.ExecCommand(c, "hello-dbus-app.client")
-
-	expected := "PASS\n"
-
-	c.Assert(output, check.Equals, expected,
-		check.Commentf("Expected output %s not found, %s", expected, output))
+func (s *snapdRootTestSuite) getInteractions() apiInteractions {
+	return []apiInteraction{{
+		responsePattern: `(?U){"result":\[".*"\],"status":"OK","status_code":200,"type":"sync"}`}}
 }
