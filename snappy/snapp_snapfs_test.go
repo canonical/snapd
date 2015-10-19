@@ -89,6 +89,9 @@ const packageKernel = `name: ubuntu-kernel
 version: 4.0-1
 type: kernel
 vendor: Someone
+
+kernel: vmlinuz-4.2
+initrd: initrd.img-4.2
 `
 
 type SnapfsTestSuite struct {
@@ -268,4 +271,29 @@ func (s *SnapfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 		{"snappy_kernel", "ubuntu-kernel.origin_4.0-1.snap"},
 		{"snappy_mode", "try"},
 	})
+}
+
+func (s *SnapfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
+	files := [][]string{
+		{"vmlinuz-4.2", "I'm a kernel"},
+		{"initrd.img-4.2", "...and I'm an initrd"},
+	}
+	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	_, err = part.Install(&MockProgressMeter{}, 0)
+	c.Assert(err, IsNil)
+
+	// kernel is here and normalized
+	vmlinuz := filepath.Join(s.mockBootloaderDir, "ubuntu-kernel.origin_4.0-1.snap", "vmlinuz")
+	content, err := ioutil.ReadFile(vmlinuz)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, files[0][1])
+
+	// and so is initrd
+	initrd := filepath.Join(s.mockBootloaderDir, "ubuntu-kernel.origin_4.0-1.snap", "initrd.img")
+	content, err = ioutil.ReadFile(initrd)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, files[1][1])
 }
