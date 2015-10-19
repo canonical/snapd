@@ -305,6 +305,7 @@ func FindSnapsByName(needle string, haystack []Part) (res []Part) {
 	return res
 }
 
+// SplitOrigin splits a snappy name name into a (name, origin) pair
 func SplitOrigin(name string) (string, string) {
 	idx := strings.LastIndexAny(name, ".")
 	if idx > -1 {
