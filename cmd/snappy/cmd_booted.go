@@ -21,8 +21,7 @@ package main
 
 import (
 	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/snappy"
+	"launchpad.net/snappy/partition"
 )
 
 type cmdBooted struct {
@@ -43,10 +42,6 @@ func (x *cmdBooted) Execute(args []string) error {
 }
 
 func (x *cmdBooted) doBooted() error {
-	parts, err := snappy.ActiveSnapsByType(pkg.TypeCore)
-	if err != nil {
-		return err
-	}
-
-	return parts[0].(*snappy.SystemImagePart).MarkBootSuccessful()
+	p := partition.New()
+	return p.MarkBootSuccessful()
 }
