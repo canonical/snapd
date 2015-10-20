@@ -147,7 +147,7 @@ func newBootLoader(partition *Partition, bootloaderDir string) *bootloaderType {
 	//        system the root partition has no label anymore
 	currentLabel := "snapfs"
 	if partition.rootPartition() != nil {
-		currentLabel  = partition.rootPartition().name
+		currentLabel = partition.rootPartition().name
 	}
 	otherLabel := partition.otherRootPartition().name
 
