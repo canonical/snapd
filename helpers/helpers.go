@@ -269,7 +269,7 @@ func IsDirectory(path string) bool {
 const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy"
 
 // MakeRandomString returns a random string of length length
-func MakeRandomString(length int) string {
+var MakeRandomString = func(length int) string {
 
 	out := ""
 	for i := 0; i < length; i++ {
@@ -293,9 +293,12 @@ func NewSideloadVersion() string {
 }
 
 // AtomicWriteFile updates the filename atomically and works otherwise
-// exactly like io/ioutil.WriteFile()
+// like io/ioutil.WriteFile()
+//
+// Note that it won't follow symlinks and will replace existing symlinks
+// with the real file
 func AtomicWriteFile(filename string, data []byte, perm os.FileMode) (err error) {
-	tmp := filename + ".new"
+	tmp := filename + "." + MakeRandomString(12)
 
 	// XXX: if go switches to use aio_fsync, we need to open the dir for writing
 	dir, err := os.Open(filepath.Dir(filename))
@@ -304,7 +307,7 @@ func AtomicWriteFile(filename string, data []byte, perm os.FileMode) (err error)
 	}
 	defer dir.Close()
 
-	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm)
 	if err != nil {
 		return err
 	}

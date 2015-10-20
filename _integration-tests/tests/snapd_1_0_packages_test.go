@@ -65,14 +65,14 @@ type snapd10PackagesTestSuite struct {
 func (s *snapd10PackagesTestSuite) SetUpTest(c *check.C) {
 	s.snapdTestSuite.SetUpTest(c)
 	var err error
-	s.snapPath, err = build.LocalSnap(c, data.BasicSnapName)
+	s.snapPath, err = build.LocalSnap(c, data.BasicConfigSnapName)
 	c.Assert(err, check.IsNil)
 }
 
 func (s *snapd10PackagesTestSuite) TearDownTest(c *check.C) {
 	s.snapdTestSuite.TearDownTest(c)
 	os.Remove(s.snapPath)
-	common.RemoveSnap(c, data.BasicSnapName)
+	common.RemoveSnap(c, data.BasicConfigSnapName)
 }
 
 func (s *snapd10PackagesTestSuite) resource() string {
@@ -93,7 +93,17 @@ func (s *snapd10PackagesTestSuite) postInteractions() apiInteractions {
 		payload:     s.snapPath,
 		waitPattern: `(?U){.*,"status":"active".*"status":"OK","status_code":200,"type":"sync"}`,
 		waitFunction: func() (string, error) {
-			output, err := genericRequest(s.resource()+"/"+data.BasicSnapName+".sideload", "GET", nil)
+			output, err := genericRequest(s.resource()+"/"+data.BasicConfigSnapName+".sideload", "GET", nil)
+			return string(output), err
+		}}}
+}
+
+func (s *snapd10PackagesTestSuite) putInteractions() apiInteractions {
+	return []apiInteraction{{
+		payload:     `{"` + data.BasicConfigSnapName + ".sideload" + `": "key: value"}`,
+		waitPattern: `(?Us){"result":.*` + data.BasicConfigSnapName + `.*key: value.*","status":"OK","status_code":200,"type":"sync"}`,
+		waitFunction: func() (string, error) {
+			output, err := genericRequest(s.resource()+"/"+data.BasicConfigSnapName+".sideload/config", "GET", nil)
 			return string(output), err
 		}}}
 }

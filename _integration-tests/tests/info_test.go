@@ -58,7 +58,7 @@ func (s *infoSuite) TestInfoMustPrintReleaseAndChannel(c *check.C) {
 func (s *infoSuite) TestInfoMustPrintInstalledApps(c *check.C) {
 	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 	defer os.Remove(snapPath)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
 	common.InstallSnap(c, snapPath)
 	defer common.RemoveSnap(c, data.BasicSnapName)
 

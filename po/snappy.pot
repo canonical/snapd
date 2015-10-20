@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-09-29 10:18+0100\n"
+        "POT-Creation-Date: 2015-10-15 15:53+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -111,6 +111,9 @@ msgstr  ""
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Generated '%s' snap\n"
+msgstr  ""
+
+msgid   "Include information about packages from the snappy store"
 msgstr  ""
 
 msgid   "Install a snap package"

@@ -25,6 +25,9 @@ import (
 	"github.com/gosexy/gettext"
 )
 
+// TEXTDOMAIN is the message domain used by snappy; see dgettext(3)
+// for more information.
+//
 // Note that we have to use dgettext() here because we are a library
 // and we can not use getext.Textdomain() as this would override the
 // applications default

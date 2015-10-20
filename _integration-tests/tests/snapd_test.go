@@ -58,7 +58,7 @@ func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.cmd.Start()
 
 	intPort, _ := strconv.Atoi(port)
-	err := wait.ForServerOnPort(c, intPort)
+	err := wait.ForServerOnPort(c, "tcp", intPort)
 	c.Assert(err, check.IsNil)
 }
 
@@ -192,20 +192,20 @@ func doInteraction(c *check.C, resource, verb string, interaction apiInteraction
 	}
 
 	body, err := genericRequest(resource, verb, payload)
-	c.Check(err, check.IsNil)
+	c.Check(err, check.IsNil, check.Commentf("Error making the request: %s", err))
 
 	if interaction.responseObject == nil {
 		interaction.responseObject = &response{}
 	}
 	err = json.Unmarshal(body, interaction.responseObject)
-	c.Check(err, check.IsNil)
+	c.Check(err, check.IsNil, check.Commentf("Error unmarshalling the response: %s", err))
 
 	if interaction.responsePattern != "" {
 		c.Check(string(body), check.Matches, interaction.responsePattern)
 	}
 	if interaction.waitPattern != "" {
 		err = wait.ForFunction(c, interaction.waitPattern, interaction.waitFunction)
-		c.Check(err, check.IsNil)
+		c.Check(err, check.IsNil, check.Commentf("Error waiting for function: %s", err))
 	}
 }
 

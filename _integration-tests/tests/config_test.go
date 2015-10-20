@@ -77,7 +77,7 @@ func (s *configSuite) doTest(c *check.C, targetCfg string) {
 	config := configString(targetCfg)
 
 	err := s.setConfig(c, config)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error setting config: %s", err))
 
 	actualConfig := currentConfig(c)
 
