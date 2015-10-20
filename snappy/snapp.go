@@ -1159,7 +1159,7 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 	// OEM snaps should not be removed as they are a key
 	// building block for OEMs. Prunning non active ones
 	// is acceptible.
-	if s.m.Type == pkg.TypeOem && s.IsActive() {
+	if (s.m.Type == pkg.TypeOem || s.m.Type == pkg.TypeKernel || s.m.Type == pkg.TypeOS) && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 

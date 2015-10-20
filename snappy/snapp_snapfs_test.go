@@ -349,3 +349,16 @@ func (s *SnapfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, false)
 }
+
+func (s *SnapfsTestSuite) TestActiveKernelOSNotRemovable(c *C) {
+	for _, yaml := range []string{packageKernel, packageOS} {
+		snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, yaml)
+		c.Assert(err, IsNil)
+
+		snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+		c.Assert(err, IsNil)
+
+		snap.isActive = true
+		c.Assert(snap.Uninstall(&MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+	}
+}
