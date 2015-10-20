@@ -108,6 +108,7 @@ func storeMinimalRemoteManifest(qn, name, origin, version, desc string) error {
 		Origin:      origin,
 		Version:     version,
 		Description: desc,
+		Channel:     "remote-channel",
 	})
 	if err != nil {
 		return err
