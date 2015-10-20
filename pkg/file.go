@@ -31,13 +31,27 @@ import (
 
 // File is the interface to interact with the low-level snap files.
 type File interface {
+	// Verify verfies the integrity of the file.
+	// FIXME: use flags here instead of a boolean
 	Verify(allowUnauthenticated bool) error
+	// Close closes the snapfile.
+	// FIXME: this can go away once we no longer support clickdebs.
 	Close() error
+	// UnpackWithDropPrivs unpacks the given the snap to the given
+	// targetdir relative to the given rootDir.
+	// FIXME: name leaks implementation details, should be Unpack()
 	UnpackWithDropPrivs(targetDir, rootDir string) error
+	// ControlMember returns the content of snap meta data files.
 	ControlMember(name string) ([]byte, error)
+	// MetaMember returns the content of snap meta data files.
+	// FIXME: redundant
 	MetaMember(name string) ([]byte, error)
+	// ExtractHashes extracs the hashes from the snap and puts
+	// them into the filesystem for verification.
 	ExtractHashes(targetDir string) error
 
+	// NeedsAutoMountUnit determines if it's required to setup
+	// an automount unit for the snap when the snap is activated
 	NeedsAutoMountUnit() bool
 }
 
@@ -45,14 +59,14 @@ type File interface {
 func Open(path string) (File, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot open snap: %v", err)
 	}
 	defer f.Close()
 
 	// look, libmagic!
 	header := make([]byte, 20)
 	if _, err := f.ReadAt(header, 0); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot read snap: %v", err)
 	}
 	// Note that we only support little endian squashfs. There
 	// is nothing else with squashfs 4.0.
@@ -63,5 +77,5 @@ func Open(path string) (File, error) {
 		return clickdeb.Open(path)
 	}
 
-	return nil, fmt.Errorf("unknown header %v", header)
+	return nil, fmt.Errorf("cannot open snap: unknown header: %q", header)
 }
