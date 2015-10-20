@@ -34,10 +34,24 @@ import (
 	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
+	"launchpad.net/snappy/progress"
 )
 
 type OemSnap struct {
 	SnapPart
+}
+
+func (s *OemSnap) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
+	name, err = s.SnapPart.Install(inter, flags)
+	if err != nil {
+		return "", err
+	}
+
+	if err := installOemHardwareUdevRules(s.m); err != nil {
+		return "", err
+	}
+
+	return name, nil
 }
 
 // OEM represents the structure inside the package.yaml for the oem component

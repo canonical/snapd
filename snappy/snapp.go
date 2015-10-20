@@ -816,13 +816,6 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		return "", err
 	}
 
-	// the "oem" parts are special
-	if s.Type() == pkg.TypeOem {
-		if err := installOemHardwareUdevRules(s.m); err != nil {
-			return "", err
-		}
-	}
-
 	fullName := QualifiedName(s)
 	dataDir := filepath.Join(dirs.SnapDataDir, fullName, s.Version())
 
