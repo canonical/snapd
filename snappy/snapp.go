@@ -1227,6 +1227,25 @@ func (s *SnapPart) Config(configuration []byte) (new string, err error) {
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *SnapPart) NeedsReboot() bool {
+	// FIXME: move out into os/kernel snap type
+	if s.m.Type == pkg.TypeKernel || s.m.Type == pkg.TypeOS {
+		var bootvar string
+		switch s.m.Type {
+		case pkg.TypeKernel:
+			bootvar = "snappy_kernel"
+		case pkg.TypeOS:
+			bootvar = "snappy_os"
+		}
+		b, err := partition.Bootloader()
+		if err != nil {
+			return false
+		}
+		snappyKernel, _ := b.GetBootVar(bootvar)
+		if !s.IsActive() && snappyKernel == s.Version() {
+			return true
+		}
+	}
+
 	return false
 }
 
