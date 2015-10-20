@@ -29,7 +29,7 @@ import (
 	"launchpad.net/snappy/pkg/snapfs"
 )
 
-// File is the interface to interact with the low-level snap files
+// File is the interface to interact with the low-level snap files.
 type File interface {
 	Verify(allowUnauthenticated bool) error
 	Close() error
@@ -41,7 +41,7 @@ type File interface {
 	NeedsAutoMountUnit() bool
 }
 
-// Open opens a given snap file with the right backend
+// Open opens a given snap file with the right backend.
 func Open(path string) (File, error) {
 	f, err := os.Open(path)
 	if err != nil {
