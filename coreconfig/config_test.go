@@ -51,6 +51,7 @@ var (
 	originalCmdSystemctl        = cmdSystemctl
 	originalHostnamePath        = hostnamePath
 	originalModprobePath        = modprobePath
+	originalModulesPath         = modulesPath
 	originalInterfacesRoot      = interfacesRoot
 	originalPppRoot             = pppRoot
 	originalWatchdogStartupPath = watchdogStartupPath
@@ -107,6 +108,7 @@ func (cts *ConfigTestSuite) TearDownTest(c *C) {
 	cmdAutopilotEnabled = originalCmdAutopilotEnabled
 	cmdSystemctl = originalCmdSystemctl
 	modprobePath = originalModprobePath
+	modulesPath = originalModulesPath
 	interfacesRoot = originalInterfacesRoot
 	pppRoot = originalPppRoot
 	watchdogStartupPath = originalWatchdogStartupPath
@@ -489,10 +491,131 @@ func (cts *ConfigTestSuite) TestModprobeYaml(c *C) {
 	_, err := Set(input)
 	c.Assert(err, IsNil)
 
-	// ensure its really there
+	// ensure it's really there
 	content, err := ioutil.ReadFile(modprobePath)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "blacklist floppy\nsoftdep mlx4_core post: mlx4_en\n")
+}
+
+func (cts *ConfigTestSuite) TestModules(c *C) {
+	modulesPath = filepath.Join(c.MkDir(), "test.conf")
+
+	modules, err := getModules()
+	c.Assert(err, IsNil)
+	c.Check(modules, HasLen, 0)
+
+	c.Assert(setModules(map[string]bool{"foo": true}), IsNil)
+
+	modules, err = getModules()
+	c.Assert(err, IsNil)
+	c.Check(modules, HasLen, 1)
+	c.Check(modules["foo"], Equals, true)
+
+	c.Assert(setModules(map[string]bool{"bar": true}), IsNil)
+
+	modules, err = getModules()
+	c.Assert(err, IsNil)
+	c.Check(modules, HasLen, 2)
+	c.Check(modules["foo"], Equals, true)
+	c.Check(modules["bar"], Equals, true)
+
+	c.Assert(setModules(map[string]bool{"foo": false}), IsNil)
+
+	modules, err = getModules()
+	c.Assert(err, IsNil)
+	c.Check(modules, HasLen, 1)
+	c.Check(modules["bar"], Equals, true)
+}
+
+func (cts *ConfigTestSuite) TestModulesHasWarning(c *C) {
+	modulesPath = filepath.Join(c.MkDir(), "test.conf")
+
+	c.Assert(setModules(map[string]bool{"foo": true}), IsNil)
+
+	bs, err := ioutil.ReadFile(modulesPath)
+	c.Assert(err, IsNil)
+	c.Check(string(bs), Matches, `(?s).*DO NOT EDIT.*`)
+}
+
+func (cts *ConfigTestSuite) TestModulesIsKinid(c *C) {
+	modulesPath = filepath.Join(c.MkDir(), "test.conf")
+	c.Assert(ioutil.WriteFile(modulesPath, []byte(`# hello
+# this is what happens when soembody comes and edits the file
+# just to be sure
+; modules-load.d(5) says comments can also start with a ;
+  ; actually not even start
+  # it's the first non-whitespace that counts
+#    also here's an empty line:
+
+# and here's a module with spurious whitespace:
+  oops
+# that is all. Have a good day.
+`), 0644), IsNil)
+
+	modules, err := getModules()
+	c.Check(err, IsNil)
+	c.Check(modules, DeepEquals, map[string]bool{"oops": true})
+}
+
+func (cts *ConfigTestSuite) TestModulesYaml(c *C) {
+	modulesPath = filepath.Join(c.MkDir(), "test.conf")
+
+	c.Assert(setModules(map[string]bool{"foo": true}), IsNil)
+
+	cfg, err := newSystemConfig()
+	c.Assert(err, IsNil)
+	c.Check(cfg.Modules, DeepEquals, map[string]bool{"foo": true})
+
+	input := `config:
+  ubuntu-core:
+    modules: {foo: false, bar: true}
+`
+	_, err = Set(input)
+	c.Assert(err, IsNil)
+
+	// ensure it's really there
+	content, err := ioutil.ReadFile(modulesPath)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Matches, `(?sm).*^bar$.*`)
+
+	modules, err := getModules()
+	c.Assert(err, IsNil)
+	c.Check(modules, DeepEquals, map[string]bool{"bar": true})
+}
+
+func (cts *ConfigTestSuite) TestModulesErrorWrite(c *C) {
+	// modulesPath is not writable, but only notexist read error
+	modulesPath = filepath.Join(c.MkDir(), "not-there", "test.conf")
+
+	c.Check(setModules(map[string]bool{"bar": true}), NotNil)
+
+	input := `config:
+  ubuntu-core:
+    modules: {foo: true}
+`
+	_, err := Set(input)
+	c.Check(err, NotNil)
+
+	_, err = getModules()
+	c.Check(err, IsNil)
+
+	_, err = newSystemConfig()
+	c.Check(err, IsNil)
+}
+
+func (cts *ConfigTestSuite) TestModulesErrorRW(c *C) {
+	modulesPath = c.MkDir()
+
+	modules, err := getModules()
+	c.Check(err, NotNil)
+	c.Check(modules, HasLen, 0)
+	c.Check(setModules(map[string]bool{"bar": true}), NotNil)
+
+	_, err = newSystemConfig()
+	c.Check(err, NotNil)
+
+	_, err = Set("config: {ubuntu-core: {modules: {foo: true}}}")
+	c.Check(err, NotNil)
 }
 
 func (cts *ConfigTestSuite) TestNetworkGet(c *C) {
@@ -573,7 +696,7 @@ config:
 	_, err := Set(input)
 	c.Assert(err, IsNil)
 
-	// ensure its really there
+	// ensure it's really there
 	content, err := ioutil.ReadFile(filepath.Join(interfacesRoot, "eth0"))
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "auto dhcp")
@@ -593,7 +716,7 @@ config:
 	_, err := Set(input)
 	c.Assert(err, IsNil)
 
-	// ensure its really there
+	// ensure it's really there
 	content, err := ioutil.ReadFile(filepath.Join(pppRoot, "chap-secret"))
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "password")
@@ -670,7 +793,7 @@ config:
 	_, err := Set(input)
 	c.Assert(err, IsNil)
 
-	// ensure its really there
+	// ensure it's really there
 	content, err := ioutil.ReadFile(watchdogStartupPath)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "some startup")
