@@ -27,6 +27,7 @@ import (
 type Snap struct {
 	Alias           string             `json:"alias,omitempty"`
 	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
+	Channel         string             `json:"channel,omitempty"`
 	DownloadSha512  string             `json:"download_sha512,omitempty"`
 	Description     string             `json:"description,omitempty"`
 	DownloadSize    int64              `json:"binary_filesize,omitempty"`

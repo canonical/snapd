@@ -249,12 +249,9 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	}
 	defer func() { newPartition = newPartitionImpl }()
 
-	tempdir := c.MkDir()
-	systemImageRoot = tempdir
-
-	makeFakeSystemImageChannelConfig(c, filepath.Join(tempdir, systemImageChannelConfig), "1")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, systemImageChannelConfig), "1")
 	// setup fake /other partition
-	makeFakeSystemImageChannelConfig(c, filepath.Join(tempdir, "other", systemImageChannelConfig), "2")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, "other", systemImageChannelConfig), "2")
 
 	siServer := runMockSystemImageWebServer()
 	defer siServer.Close()
