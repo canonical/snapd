@@ -36,6 +36,10 @@ import (
 	"launchpad.net/snappy/pkg"
 )
 
+type OemSnap struct {
+	SnapPart
+}
+
 // OEM represents the structure inside the package.yaml for the oem component
 // of an oem package type.
 type OEM struct {
@@ -292,9 +296,3 @@ func installOemHardwareUdevRules(m *packageYaml) error {
 
 	return nil
 }
-
-type OemSnap struct {
-       SnapPart
-}
-
-

@@ -579,20 +579,12 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (Sna
 		return nil, err
 	}
 
-	// FIXME: make a special OemSnap that knows its install dir
-	//        instead of having this special case here
-	targetDir := dirs.SnapAppsDir
-	// the "oem" parts are special
-	if m.Type == pkg.TypeOem {
-		targetDir = dirs.SnapOemDir
-	}
-
 	if origin == SideloadedOrigin {
 		m.Version = helpers.NewSideloadVersion()
 	}
 
 	fullName := m.qualifiedName(origin)
-	instDir := filepath.Join(targetDir, fullName, m.Version)
+	instDir := filepath.Join(dirs.SnapAppsDir, fullName, m.Version)
 
 	basePart := &SnapPart{
 		basedir: instDir,
@@ -603,7 +595,12 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (Sna
 
 	switch m.Type {
 	case pkg.TypeOem:
+		basePart.basedir = filepath.Join(dirs.SnapOemDir, fullName, m.Version)
 		return &OemSnap{SnapPart: *basePart}, nil
+	case pkg.TypeOS:
+		return &OsSnap{SnapPart: *basePart}, nil
+	case pkg.TypeKernel:
+		return &KernelSnap{SnapPart: *basePart}, nil
 	}
 
 	return basePart, nil

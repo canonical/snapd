@@ -27,6 +27,10 @@ import (
 	"launchpad.net/snappy/pkg/snapfs"
 )
 
+type KernelSnap struct {
+	SnapPart
+}
+
 func unpackKernel(s *SnapPart) error {
 	bootdir := partition.BootloaderDir()
 	if err := os.MkdirAll(filepath.Join(bootdir, s.Version()), 0755); err !=
