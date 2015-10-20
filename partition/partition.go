@@ -347,6 +347,12 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 // IsNextBootOther return true if the next boot will use the other rootfs
 // partition.
 func (p *Partition) IsNextBootOther() bool {
+
+	// we are on a all-snap system, snappy_ab is irelevant here
+	if p.rootPartition() == nil {
+		return false
+	}
+
 	bootloader, err := bootloader(p)
 	if err != nil {
 		return false
