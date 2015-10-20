@@ -77,7 +77,7 @@ type systemConfig struct {
 	Timezone  *string         `yaml:"timezone,omitempty"`
 	Hostname  *string         `yaml:"hostname,omitempty"`
 	Modprobe  *string         `yaml:"modprobe,omitempty"`
-	Modules   []string        `yaml:"modules,omitempty"`
+	Modules   []string        `yaml:"load-kernel-modules,omitempty"`
 	Network   *networkConfig  `yaml:"network,omitempty"`
 	Watchdog  *watchdogConfig `yaml:"watchdog,omitempty"`
 }
@@ -379,7 +379,7 @@ var setModprobe = func(modprobe string) error {
 	return helpers.AtomicWriteFile(modprobePath, []byte(modprobe), 0644)
 }
 
-var getModules = func() ([]string, error) {
+func getModules() ([]string, error) {
 	f, err := os.Open(modulesPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -421,7 +421,7 @@ const modulesHeader = `#
 # it is auto-generated, and will be overwritten.
 `
 
-var setModules = func(modules []string) error {
+func setModules(modules []string) error {
 	oldModules, err := getModules()
 	if err != nil {
 		return err

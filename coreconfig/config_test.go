@@ -630,7 +630,7 @@ func (cts *ConfigTestSuite) TestModulesYaml(c *C) {
 
 	input := `config:
   ubuntu-core:
-    modules: [-foo, bar]
+    load-kernel-modules: [-foo, bar]
 `
 	_, err = Set(input)
 	c.Assert(err, IsNil)
@@ -653,7 +653,7 @@ func (cts *ConfigTestSuite) TestModulesErrorWrite(c *C) {
 
 	input := `config:
   ubuntu-core:
-    modules: [foo]
+    load-kernel-modules: [foo]
 `
 	_, err := Set(input)
 	c.Check(err, NotNil)
