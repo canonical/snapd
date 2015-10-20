@@ -36,12 +36,11 @@ import (
 var mockb mockBootloader
 
 func newMockBootloader() (partition.BootLoader, error) {
-	mockb = mockBootloader{}
 	return &mockb, nil
 }
 
 type mockBootloader struct {
-	bootvars [][]string
+	bootvars map[string]string
 }
 
 func (b *mockBootloader) Name() partition.BootloaderName {
@@ -57,10 +56,10 @@ func (b *mockBootloader) HandleAssets() error {
 	return nil
 }
 func (b *mockBootloader) GetBootVar(name string) (string, error) {
-	return "", nil
+	return b.bootvars[name], nil
 }
 func (b *mockBootloader) SetBootVar(name, value string) error {
-	b.bootvars = append(b.bootvars, []string{name, value})
+	b.bootvars[name] = value
 	return nil
 }
 func (b *mockBootloader) GetNextBootRootFSName() (string, error) {
@@ -110,6 +109,9 @@ func (s *SnapfsTestSuite) SetUpTest(c *C) {
 	}
 
 	// mock bootloader
+	mockb = mockBootloader{
+		bootvars: make(map[string]string),
+	}
 	partition.Bootloader = newMockBootloader
 
 	// and bootloader dir
@@ -253,17 +255,17 @@ func (s *SnapfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
 	_, err = part.Install(&MockProgressMeter{}, 0)
 	c.Assert(err, IsNil)
 
-	c.Assert(mockb.bootvars, DeepEquals, [][]string{
-		{"snappy_os", "ubuntu-core.origin_15.10-1.snap"},
-		{"snappy_mode", "try"},
+	c.Assert(mockb.bootvars, DeepEquals, map[string]string{
+		"snappy_os":   "ubuntu-core.origin_15.10-1.snap",
+		"snappy_mode": "try",
 	})
 }
 
 func (s *SnapfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 	files := [][]string{
-			{"vmlinuz-4.2", "I'm a kernel"},
-			{"initrd.img-4.2", "...and I'm an initrd"},
-		}
+		{"vmlinuz-4.2", "I'm a kernel"},
+		{"initrd.img-4.2", "...and I'm an initrd"},
+	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
 	c.Assert(err, IsNil)
@@ -271,9 +273,9 @@ func (s *SnapfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 	_, err = part.Install(&MockProgressMeter{}, 0)
 	c.Assert(err, IsNil)
 
-	c.Assert(mockb.bootvars, DeepEquals, [][]string{
-		{"snappy_kernel", "ubuntu-kernel.origin_4.0-1.snap"},
-		{"snappy_mode", "try"},
+	c.Assert(mockb.bootvars, DeepEquals, map[string]string{
+		"snappy_kernel": "ubuntu-kernel.origin_4.0-1.snap",
+		"snappy_mode":   "try",
 	})
 }
 
@@ -300,4 +302,30 @@ func (s *SnapfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	content, err = ioutil.ReadFile(initrd)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, files[1][1])
+}
+
+func (s *SnapfsTestSuite) TestInstallOsRebootRequired(c *C) {
+	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageOS)
+	c.Assert(err, IsNil)
+
+	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(snap.NeedsReboot(), Equals, false)
+
+	snap.isActive = false
+	mockb.bootvars["snappy_os"] = "ubuntu-core." + testOrigin + "_15.10-1.snap"
+	c.Assert(snap.NeedsReboot(), Equals, true)
+}
+
+func (s *SnapfsTestSuite) TestInstallKernelRebootRequired(c *C) {
+	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageKernel)
+	c.Assert(err, IsNil)
+
+	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(snap.NeedsReboot(), Equals, false)
+
+	snap.isActive = false
+	mockb.bootvars["snappy_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
+	c.Assert(snap.NeedsReboot(), Equals, true)
 }

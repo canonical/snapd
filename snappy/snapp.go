@@ -1240,8 +1240,9 @@ func (s *SnapPart) NeedsReboot() bool {
 		if err != nil {
 			return false
 		}
-		snappyKernel, _ := b.GetBootVar(bootvar)
-		if !s.IsActive() && snappyKernel == s.Version() {
+		nextBootVer, _ := b.GetBootVar(bootvar)
+		squashfsName := filepath.Base(stripGlobalRootDir(snapfs.BlobPath(s.basedir)))
+		if !s.IsActive() && nextBootVer == squashfsName {
 			return true
 		}
 	}
