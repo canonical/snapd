@@ -90,16 +90,21 @@ func (s *hwAssignSuite) TestErrorAfterHwUnAssign(c *check.C) {
 
 func (s *hwAssignSuite) TestHwInfo(c *check.C) {
 	cmd := exec.Command("sudo", "snappy", "hw-info", installedSnapName)
-	output, _ := cmd.CombinedOutput()
-	c.Assert(string(output), check.Equals,
-		fmt.Sprintf("'%s:' is not allowed to access additional hardware\n", installedSnapName))
+	boutput, _ := cmd.CombinedOutput()
+	output := string(boutput)
+	expected := fmt.Sprintf("'%s:' is not allowed to access additional hardware\n", installedSnapName)
+	c.Assert(output, check.Equals, expected,
+		check.Commentf(`Expected "%s", obtained "%s"`, expected, output))
 
 	assign(c, snapName, hwName)
 	defer unassign(c, snapName, hwName)
 
 	cmd = exec.Command("sudo", "snappy", "hw-info", installedSnapName)
-	output, _ = cmd.CombinedOutput()
-	c.Assert(string(output), check.Equals, fmt.Sprintf("%s: %s\n", installedSnapName, hwName))
+	boutput, _ = cmd.CombinedOutput()
+	output = string(boutput)
+	expected = fmt.Sprintf("%s: %s\n", installedSnapName, hwName)
+	c.Assert(output, check.Equals, expected,
+		check.Commentf(`Expected "%s", obtained "%s"`, expected, output))
 }
 
 func assign(c *check.C, snap, hw string) {
