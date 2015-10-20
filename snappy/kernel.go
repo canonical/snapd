@@ -43,45 +43,52 @@ func (s *KernelSnap) Uninstall(pb progress.Meter) (err error) {
 	return s.SnapPart.Uninstall(pb)
 }
 
-func unpackKernel(s *SnapPart) error {
+func (s *KernelSnap) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
+	// do the generic install
+	name, err = s.SnapPart.Install(inter, flags)
+	if err != nil {
+		return name, err
+	}
+
+	// now do the kernel specific bits
 	bootdir := partition.BootloaderDir()
 	if err := os.MkdirAll(filepath.Join(bootdir, s.Version()), 0755); err !=
 		nil {
-		return err
+		return name, err
 	}
 	blobName := filepath.Base(snapfs.BlobPath(s.basedir))
 	dstDir := filepath.Join(bootdir, blobName)
 	if s.m.Kernel != "" {
 		src := s.m.Kernel
 		if err := s.deb.Unpack(src, dstDir); err != nil {
-			return err
+			return name, err
 		}
 		src = filepath.Join(dstDir, s.m.Kernel)
 		dst := filepath.Join(dstDir, partition.NormalizeKernelInitrdName(s.m.Kernel))
 		if err := os.Rename(src, dst); err != nil {
-			return err
+			return name, err
 		}
 	}
 	if s.m.Initrd != "" {
 		src := s.m.Initrd
 		if err := s.deb.Unpack(src, dstDir); err != nil {
-			return err
+			return name, err
 		}
 		src = filepath.Join(dstDir, s.m.Initrd)
 		dst := filepath.Join(dstDir, partition.NormalizeKernelInitrdName(s.m.Initrd))
 		if err := os.Rename(src, dst); err != nil {
-			return err
+			return name, err
 		}
 	}
 	if s.m.Dtbs != "" {
 		src := s.m.Dtbs
 		dst := filepath.Join(dstDir, s.m.Dtbs)
 		if err := s.deb.Unpack(src, dst); err != nil {
-			return err
+			return name, err
 		}
 	}
 
-	return nil
+	return name, nil
 }
 
 func removeKernel(s *SnapPart) error {

@@ -873,13 +873,6 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		}
 	}
 
-	// FIXME: move into KernelSnap instead of poluting generic code
-	if s.m.Type == pkg.TypeKernel {
-		if err := unpackKernel(s); err != nil {
-			return "", err
-		}
-	}
-
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
 	// all hooks this can go away
 	clickMetaDir := filepath.Join(s.basedir, ".click", "info")
