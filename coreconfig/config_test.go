@@ -537,7 +537,7 @@ func (cts *ConfigTestSuite) TestModulesHasWarning(c *C) {
 	c.Check(string(bs), Matches, `(?s).*DO NOT EDIT.*`)
 }
 
-func (cts *ConfigTestSuite) TestModulesIsKinid(c *C) {
+func (cts *ConfigTestSuite) TestModulesIsKind(c *C) {
 	modulesPath = filepath.Join(c.MkDir(), "test.conf")
 	c.Assert(ioutil.WriteFile(modulesPath, []byte(`# hello
 # this is what happens when soembody comes and edits the file
