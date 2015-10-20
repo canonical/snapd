@@ -50,14 +50,14 @@ func (s *consoleSuite) SetUpTest(c *check.C) {
 	var err error
 	s.cmd = exec.Command("snappy", "console")
 	s.stdin, err = s.cmd.StdinPipe()
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Expected nil error, got %s", err))
 	s.stdout, err = s.cmd.StdoutPipe()
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Expected nil error, got %s", err))
 
 	s.outbr = bufio.NewReader(s.stdout)
 
 	err = s.cmd.Start()
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Expected nil error, got %s", err))
 
 	s.checkPrompt(c)
 }
@@ -81,8 +81,9 @@ func (s *consoleSuite) checkPrompt(c *check.C) {
 
 	match, err := s.matchLinesFromConsole(expected)
 
-	c.Assert(err, check.IsNil)
-	c.Assert(match, check.Equals, true)
+	c.Assert(err, check.IsNil, check.Commentf("Expected nil error, got %s", err))
+	c.Assert(match, check.Equals, true,
+		check.Commentf("Console output didn't match expected value"))
 }
 
 func (s *consoleSuite) TestHelp(c *check.C) {
@@ -96,8 +97,9 @@ func (s *consoleSuite) TestHelp(c *check.C) {
 
 	match, err := s.matchLinesFromConsole(expected)
 
-	c.Assert(err, check.IsNil)
-	c.Assert(match, check.Equals, true)
+	c.Assert(err, check.IsNil, check.Commentf("Expected nil error, got %s", err))
+	c.Assert(match, check.Equals, true,
+		check.Commentf("Console output didn't match expected value"))
 }
 
 func (s *consoleSuite) writeToConsole(msg string) (err error) {
