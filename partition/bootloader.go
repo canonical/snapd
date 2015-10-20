@@ -142,12 +142,6 @@ type bootloaderType struct {
 }
 
 func newBootLoader(partition *Partition, bootloaderDir string) *bootloaderType {
-	// FIXME: is this the right thing to do? i.e. what should we do
-	//        on a single partition system?
-	if partition.otherRootPartition() == nil {
-		return nil
-	}
-
 	// full label of the system {system-a,system-b}
 	// FIXME: investigate if we can remove this, on an all-snap
 	//        system the root partition has no label anymore
