@@ -329,3 +329,23 @@ func (s *SnapfsTestSuite) TestInstallKernelRebootRequired(c *C) {
 	mockb.bootvars["snappy_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
 	c.Assert(snap.NeedsReboot(), Equals, true)
 }
+
+func (s *SnapfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
+	files := [][]string{
+		{"vmlinuz-4.2", "I'm a kernel"},
+		{"initrd.img-4.2", "...and I'm an initrd"},
+	}
+	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	_, err = part.Install(&MockProgressMeter{}, 0)
+	c.Assert(err, IsNil)
+	kernelAssetsDir := filepath.Join(s.mockBootloaderDir, "ubuntu-kernel.origin_4.0-1.snap")
+	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, true)
+
+	// ensure uninstall cleans the kernel assets
+	err = part.Uninstall(&MockProgressMeter{})
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, false)
+}

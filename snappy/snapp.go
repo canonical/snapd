@@ -1207,6 +1207,13 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 		return err
 	}
 
+	// FIXME: this needs to go into a special kernel snap
+	if s.m.Type == pkg.TypeKernel {
+		if err := removeKernel(s); err != nil {
+			logger.Noticef("Failed to remove kernel assets %s", err)
+		}
+	}
+
 	// best effort(?)
 	os.Remove(filepath.Dir(s.basedir))
 

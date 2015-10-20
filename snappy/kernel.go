@@ -67,3 +67,14 @@ func unpackKernel(s *SnapPart) error {
 
 	return nil
 }
+
+func removeKernel(s *SnapPart) error {
+	bootdir := partition.BootloaderDir()
+	if err := os.MkdirAll(filepath.Join(bootdir, s.Version()), 0755); err !=
+		nil {
+		return err
+	}
+	blobName := filepath.Base(snapfs.BlobPath(s.basedir))
+	dstDir := filepath.Join(bootdir, blobName)
+	return os.RemoveAll(dstDir)
+}
