@@ -706,8 +706,12 @@ func (s *SnapPart) Hash() string {
 
 // Channel returns the channel used
 func (s *SnapPart) Channel() string {
-	// FIXME: real channel support
-	return "edge"
+	if r := s.remoteM; r != nil {
+		return r.Channel
+	}
+
+	// default for compat with older installs
+	return "stable"
 }
 
 // Icon returns the path to the icon

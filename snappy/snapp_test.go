@@ -1650,3 +1650,11 @@ func (s *SnapTestSuite) TestCpiURLDependsOnEnviron(c *C) {
 
 	c.Check(before, Not(Equals), after)
 }
+
+func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
+	snapYaml, err := s.makeInstalledMockSnap()
+	c.Assert(err, IsNil)
+
+	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(snap.Channel(), Equals, "remote-channel")
+}
