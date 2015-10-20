@@ -292,3 +292,9 @@ func installOemHardwareUdevRules(m *packageYaml) error {
 
 	return nil
 }
+
+type OemSnap struct {
+       SnapPart
+}
+
+

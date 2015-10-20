@@ -209,6 +209,15 @@ func (v *deprecarch) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// FIXME: name suckso
+type SnapIF interface {
+	Part
+	activate(inhibitHooks bool, inter interacter) error
+	deactivate(inhibitHooks bool, inter interacter) error
+	remove(inter interacter) error
+	ServiceYamls() []ServiceYaml
+}
+
 // TODO split into payloads per package type composing the common
 // elements for all snaps.
 type packageYaml struct {
@@ -547,7 +556,7 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 // NewSnapPartFromSnapFile loads a snap from the given (clickdeb) snap file.
 // Caller should call Close on the pkg.
 // TODO: expose that Close.
-func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
+func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (SnapIF, error) {
 	d, err := pkg.Open(snapFile)
 	if err != nil {
 		return nil, err
@@ -585,14 +594,19 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 	fullName := m.qualifiedName(origin)
 	instDir := filepath.Join(targetDir, fullName, m.Version)
 
-	baseSnap := &SnapPart{
+	basePart := &SnapPart{
 		basedir: instDir,
 		origin:  origin,
 		m:       m,
 		deb:     d,
 	}
 
-	return baseSnap, nil
+	switch m.Type {
+	case pkg.TypeOem:
+		return &OemSnap{SnapPart: *basePart}, nil
+	}
+
+	return basePart, nil
 }
 
 // NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath

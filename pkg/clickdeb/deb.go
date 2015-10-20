@@ -30,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -127,13 +128,19 @@ type ClickDeb struct {
 	file *os.File
 }
 
+func clickDebFinalizer(d *ClickDeb) {
+	d.file.Close()
+}
+
 // Open calls os.Open and uses that file for the backing file.
 func Open(path string) (*ClickDeb, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	return &ClickDeb{f}, nil
+	deb := &ClickDeb{f}
+	runtime.SetFinalizer(deb, clickDebFinalizer)
+	return deb, nil
 }
 
 // Create calls os.Create and uses that file for the backing file.
@@ -142,7 +149,9 @@ func Create(path string) (*ClickDeb, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ClickDeb{f}, nil
+	deb := &ClickDeb{f}
+	runtime.SetFinalizer(deb, clickDebFinalizer)
+	return deb, nil
 }
 
 // Name returns the Name of the backing file

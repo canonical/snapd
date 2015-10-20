@@ -138,7 +138,7 @@ func (s *SnapfsTestSuite) TestMakeSnapMakesSnapfs(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure the right backend got picked up
-	c.Assert(part.deb, FitsTypeOf, &snapfs.Snap{})
+	c.Assert(part.(*SnapPart).deb, FitsTypeOf, &snapfs.Snap{})
 }
 
 func (s *SnapfsTestSuite) TestInstallViaSnapfsWorks(c *C) {
