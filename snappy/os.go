@@ -19,8 +19,18 @@ package snappy
  *
  */
 
-import ()
+import (
+	"launchpad.net/snappy/progress"
+)
 
 type OsSnap struct {
 	SnapPart
+}
+
+func (s *OsSnap) Uninstall(pb progress.Meter) (err error) {
+	if s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	return s.SnapPart.Uninstall(pb)
 }

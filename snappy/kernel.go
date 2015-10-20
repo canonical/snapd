@@ -25,10 +25,22 @@ import (
 
 	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/pkg/snapfs"
+	"launchpad.net/snappy/progress"
 )
 
 type KernelSnap struct {
 	SnapPart
+}
+
+// OEM snaps should not be removed as they are a key
+// building block for OEMs. Prunning non active ones
+// is acceptible.
+func (s *KernelSnap) Uninstall(pb progress.Meter) (err error) {
+	if s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	return s.SnapPart.Uninstall(pb)
 }
 
 func unpackKernel(s *SnapPart) error {

@@ -214,6 +214,7 @@ type SnapIF interface {
 	Part
 	activate(inhibitHooks bool, inter interacter) error
 	deactivate(inhibitHooks bool, inter interacter) error
+	Dir() string
 	remove(inter interacter) error
 	ServiceYamls() []ServiceYaml
 }
@@ -538,17 +539,16 @@ func (m *packageYaml) legacyIntegration(hasConfig bool) {
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
-func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
+func NewInstalledSnapPart(yamlPath, origin string) (SnapIF, error) {
 	m, err := parsePackageYamlFile(yamlPath)
 	if err != nil {
 		return nil, err
 	}
 
-	part, err := NewSnapPartFromYaml(yamlPath, origin, m)
+	part, err := newSnapPartFromYaml(yamlPath, origin, m, true)
 	if err != nil {
 		return nil, err
 	}
-	part.isInstalled = true
 
 	return part, nil
 }
@@ -593,6 +593,7 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (Sna
 		deb:     d,
 	}
 
+	// FIXME: duplicated code
 	switch m.Type {
 	case pkg.TypeOem:
 		basePart.basedir = filepath.Join(dirs.SnapOemDir, fullName, m.Version)
@@ -606,16 +607,17 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (Sna
 	return basePart, nil
 }
 
-// NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
-func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, error) {
+// newSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
+func newSnapPartFromYaml(yamlPath, origin string, m *packageYaml, installed bool) (SnapIF, error) {
 	if _, err := os.Stat(yamlPath); err != nil {
 		return nil, err
 	}
 
 	part := &SnapPart{
-		basedir: filepath.Dir(filepath.Dir(yamlPath)),
-		origin:  origin,
-		m:       m,
+		basedir:     filepath.Dir(filepath.Dir(yamlPath)),
+		origin:      origin,
+		m:           m,
+		isInstalled: installed,
 	}
 
 	// override the package's idea of its version
@@ -667,6 +669,19 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 		part.remoteM = &r
 	}
 
+	// FIXME: duplicated code
+	basePart := part
+	switch m.Type {
+	case pkg.TypeOem:
+		fullName := m.qualifiedName(origin)
+		basePart.basedir = filepath.Join(dirs.SnapOemDir, fullName, m.Version)
+		return &OemSnap{SnapPart: *basePart}, nil
+	case pkg.TypeOS:
+		return &OsSnap{SnapPart: *basePart}, nil
+	case pkg.TypeKernel:
+		return &KernelSnap{SnapPart: *basePart}, nil
+	}
+
 	return part, nil
 }
 
@@ -683,6 +698,10 @@ func (s *SnapPart) Type() pkg.Type {
 // Name returns the name
 func (s *SnapPart) Name() string {
 	return s.m.Name
+}
+
+func (s *SnapPart) Dir() string {
+	return s.basedir
 }
 
 // Version returns the version
@@ -819,7 +838,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	fullName := QualifiedName(s)
 	dataDir := filepath.Join(dirs.SnapDataDir, fullName, s.Version())
 
-	var oldPart *SnapPart
+	var oldPart SnapIF
 	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current")); currentActiveDir != "" {
 		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "package.yaml"), s.origin)
 		if err != nil {
@@ -1160,13 +1179,6 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 
 // Uninstall remove the snap from the system
 func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
-	// OEM snaps should not be removed as they are a key
-	// building block for OEMs. Prunning non active ones
-	// is acceptible.
-	if (s.m.Type == pkg.TypeOem || s.m.Type == pkg.TypeKernel || s.m.Type == pkg.TypeOS) && s.IsActive() {
-		return ErrPackageNotRemovable
-	}
-
 	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
@@ -1396,12 +1408,12 @@ func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) er
 }
 
 // RefreshDependentsSecurity refreshes the security policies of dependent snaps
-func (s *SnapPart) RefreshDependentsSecurity(oldPart *SnapPart, inter interacter) (err error) {
+func (s *SnapPart) RefreshDependentsSecurity(oldPart SnapIF, inter interacter) (err error) {
 	oldBaseDir := ""
 	if oldPart != nil {
-		oldBaseDir = oldPart.basedir
+		oldBaseDir = oldPart.Dir()
 	}
-	upPol, upTpl := policy.AppArmorDelta(oldBaseDir, s.basedir, s.Name()+"_")
+	upPol, upTpl := policy.AppArmorDelta(oldBaseDir, s.Dir(), s.Name()+"_")
 
 	deps, err := s.Dependents()
 	if err != nil {
@@ -2063,7 +2075,7 @@ func (s *SnapUbuntuStoreRepository) Installed() (parts []Part, err error) {
 // The returned environment contains additional SNAP_* variables that
 // are required when calling a meta/hook/ script and that will override
 // any already existing SNAP_* variables in os.Environment()
-func makeSnapHookEnv(part *SnapPart) (env []string) {
+func makeSnapHookEnv(part SnapIF) (env []string) {
 	desc := struct {
 		AppName     string
 		AppArch     string
@@ -2074,7 +2086,7 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	}{
 		part.Name(),
 		helpers.UbuntuArchitecture(),
-		part.basedir,
+		part.Dir(),
 		part.Version(),
 		QualifiedName(part),
 		part.Origin(),

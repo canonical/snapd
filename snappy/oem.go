@@ -54,6 +54,14 @@ func (s *OemSnap) Install(inter progress.Meter, flags InstallFlags) (name string
 	return name, nil
 }
 
+func (s *OemSnap) Uninstall(pb progress.Meter) (err error) {
+	if s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	return s.SnapPart.Uninstall(pb)
+}
+
 // OEM represents the structure inside the package.yaml for the oem component
 // of an oem package type.
 type OEM struct {
@@ -147,7 +155,7 @@ var getOem = getOemImpl
 func getOemImpl() (*packageYaml, error) {
 	oems, _ := ActiveSnapsByType(pkg.TypeOem)
 	if len(oems) == 1 {
-		return oems[0].(*SnapPart).m, nil
+		return oems[0].(*OemSnap).m, nil
 	}
 
 	return nil, errors.New("no oem snap")

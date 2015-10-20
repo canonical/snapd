@@ -312,7 +312,7 @@ func (s *SnapfsTestSuite) TestInstallOsRebootRequired(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snap.NeedsReboot(), Equals, false)
 
-	snap.isActive = false
+	snap.(*OsSnap).isActive = false
 	mockb.bootvars["snappy_os"] = "ubuntu-core." + testOrigin + "_15.10-1.snap"
 	c.Assert(snap.NeedsReboot(), Equals, true)
 }
@@ -325,7 +325,7 @@ func (s *SnapfsTestSuite) TestInstallKernelRebootRequired(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snap.NeedsReboot(), Equals, false)
 
-	snap.isActive = false
+	snap.(*KernelSnap).isActive = false
 	mockb.bootvars["snappy_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
 	c.Assert(snap.NeedsReboot(), Equals, true)
 }
@@ -350,15 +350,24 @@ func (s *SnapfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, false)
 }
 
-func (s *SnapfsTestSuite) TestActiveKernelOSNotRemovable(c *C) {
-	for _, yaml := range []string{packageKernel, packageOS} {
-		snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, yaml)
-		c.Assert(err, IsNil)
+func (s *SnapfsTestSuite) TestActiveKernelNotRemovable(c *C) {
+	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageKernel)
+	c.Assert(err, IsNil)
 
-		snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
-		c.Assert(err, IsNil)
+	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
 
-		snap.isActive = true
-		c.Assert(snap.Uninstall(&MockProgressMeter{}), Equals, ErrPackageNotRemovable)
-	}
+	snap.(*KernelSnap).isActive = true
+	c.Assert(snap.Uninstall(&MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+}
+
+func (s *SnapfsTestSuite) TestActiveOSNotRemovable(c *C) {
+	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageOS)
+	c.Assert(err, IsNil)
+
+	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
+
+	snap.(*OsSnap).isActive = true
+	c.Assert(snap.Uninstall(&MockProgressMeter{}), Equals, ErrPackageNotRemovable)
 }
