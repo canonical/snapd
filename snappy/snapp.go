@@ -1753,6 +1753,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(addCoreFmk(frameworks), ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
+	req.Header.Set("X-Ubuntu-Device-Channel", release.Get().Channel)
 
 	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
 		req.Header.Set("X-Ubuntu-Store", storeID)
@@ -1903,7 +1904,10 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// sense in sending it our ubuntu-core snap
 	//
 	// NOTE this *will* send .sideload apps to the store.
-	installed, err := ActiveSnapIterByType(FullName, pkg.TypeApp, pkg.TypeFramework, pkg.TypeOem)
+	fullNameWithChannel := func(p Part) string {
+		return fmt.Sprintf("%s/%s", FullName(p), p.Channel())
+	}
+	installed, err := ActiveSnapIterByType(fullNameWithChannel, pkg.TypeApp, pkg.TypeFramework, pkg.TypeOem)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}

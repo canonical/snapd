@@ -273,7 +273,7 @@ const MockSearchJSON = `{
 `
 
 /* acquired via:
-curl -s --data-binary '{"name":["8nzc1x4iim2xj1g2ul64.chipaca"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/click-metadata/
+curl -s --data-binary '{"name":["8nzc1x4iim2xj1g2ul64.chipaca"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/click-metadata
 */
 const MockUpdatesJSON = `[
     {
