@@ -312,7 +312,6 @@ func (s *SnapfsTestSuite) TestInstallOsRebootRequired(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snap.NeedsReboot(), Equals, false)
 
-	snap.isActive = false
 	mockb.bootvars["snappy_os"] = "ubuntu-core." + testOrigin + "_15.10-1.snap"
 	c.Assert(snap.NeedsReboot(), Equals, true)
 }
@@ -325,7 +324,11 @@ func (s *SnapfsTestSuite) TestInstallKernelRebootRequired(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snap.NeedsReboot(), Equals, false)
 
-	snap.isActive = false
+	// simulate scheduled next boot is a new kernel
 	mockb.bootvars["snappy_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
 	c.Assert(snap.NeedsReboot(), Equals, true)
+
+	// simulate we booted the kernel successfully
+	mockb.bootvars["snappy_good_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
+	c.Assert(snap.NeedsReboot(), Equals, false)
 }

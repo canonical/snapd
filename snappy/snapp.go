@@ -1229,20 +1229,23 @@ func (s *SnapPart) Config(configuration []byte) (new string, err error) {
 func (s *SnapPart) NeedsReboot() bool {
 	// FIXME: move out into os/kernel snap type
 	if s.m.Type == pkg.TypeKernel || s.m.Type == pkg.TypeOS {
-		var bootvar string
+		var nextBoot, goodBoot string
 		switch s.m.Type {
 		case pkg.TypeKernel:
-			bootvar = "snappy_kernel"
+			nextBoot = "snappy_kernel"
+			goodBoot = "snappy_good_kernel"
 		case pkg.TypeOS:
-			bootvar = "snappy_os"
+			nextBoot = "snappy_os"
+			goodBoot = "snappy_good_os"
 		}
 		b, err := partition.Bootloader()
 		if err != nil {
 			return false
 		}
-		nextBootVer, _ := b.GetBootVar(bootvar)
+		nextBootVer, _ := b.GetBootVar(nextBoot)
+		goodBootVer, _ := b.GetBootVar(goodBoot)
 		squashfsName := filepath.Base(stripGlobalRootDir(snapfs.BlobPath(s.basedir)))
-		if !s.IsActive() && nextBootVer == squashfsName {
+		if nextBootVer == squashfsName && goodBootVer != nextBootVer {
 			return true
 		}
 	}
