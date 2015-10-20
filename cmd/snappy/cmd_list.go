@@ -140,7 +140,7 @@ func showRebootMessage(installed []snappy.Part, o io.Writer) {
 		//        there are only two version instaleld and
 		//        there is only a single part that may requires
 		//        a reboot
-		if part.Type() != pkg.TypeCore {
+		if part.Type() != pkg.TypeCore && part.Type() != pkg.TypeKernel && part.Type() != pkg.TypeOS {
 			continue
 		}
 
