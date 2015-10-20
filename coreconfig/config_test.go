@@ -504,33 +504,95 @@ func (cts *ConfigTestSuite) TestModules(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(modules, HasLen, 0)
 
-	c.Assert(setModules(map[string]bool{"foo": true}), IsNil)
+	c.Assert(setModules([]string{"foo"}), IsNil)
 
 	modules, err = getModules()
 	c.Assert(err, IsNil)
-	c.Check(modules, HasLen, 1)
-	c.Check(modules["foo"], Equals, true)
+	c.Check(modules, DeepEquals, []string{"foo"})
 
-	c.Assert(setModules(map[string]bool{"bar": true}), IsNil)
-
-	modules, err = getModules()
-	c.Assert(err, IsNil)
-	c.Check(modules, HasLen, 2)
-	c.Check(modules["foo"], Equals, true)
-	c.Check(modules["bar"], Equals, true)
-
-	c.Assert(setModules(map[string]bool{"foo": false}), IsNil)
+	c.Assert(setModules([]string{"bar"}), IsNil)
 
 	modules, err = getModules()
 	c.Assert(err, IsNil)
-	c.Check(modules, HasLen, 1)
-	c.Check(modules["bar"], Equals, true)
+	c.Check(modules, DeepEquals, []string{"bar", "foo"})
+
+	c.Assert(setModules([]string{"-foo"}), IsNil)
+
+	modules, err = getModules()
+	c.Assert(err, IsNil)
+	c.Check(modules, DeepEquals, []string{"bar"})
+}
+
+func (cts *ConfigTestSuite) TestModulesRemoveAbsent(c *C) {
+	modulesPath = filepath.Join(c.MkDir(), "test.conf")
+
+	c.Assert(setModules([]string{"foo"}), IsNil)
+	c.Assert(setModules([]string{"-bar"}), IsNil)
+
+	modules, err := getModules()
+	c.Assert(err, IsNil)
+	c.Check(modules, DeepEquals, []string{"foo"})
+}
+
+func (cts *ConfigTestSuite) TestModulesRemoveEmpty(c *C) {
+	modulesPath = filepath.Join(c.MkDir(), "test.conf")
+
+	c.Assert(setModules([]string{"foo"}), IsNil)
+	c.Assert(setModules([]string{"-"}), IsNil)
+
+	modules, err := getModules()
+	c.Assert(err, IsNil)
+	c.Check(modules, DeepEquals, []string{"foo"})
+}
+
+func (cts *ConfigTestSuite) TestModulesRemoveBlank(c *C) {
+	modulesPath = filepath.Join(c.MkDir(), "test.conf")
+
+	c.Assert(setModules([]string{"foo"}), IsNil)
+	c.Assert(setModules([]string{"- "}), IsNil)
+
+	modules, err := getModules()
+	c.Assert(err, IsNil)
+	c.Check(modules, DeepEquals, []string{"foo"})
+}
+
+func (cts *ConfigTestSuite) TestModulesAddDupe(c *C) {
+	modulesPath = filepath.Join(c.MkDir(), "test.conf")
+
+	c.Assert(setModules([]string{"foo"}), IsNil)
+	c.Assert(setModules([]string{"foo"}), IsNil)
+
+	modules, err := getModules()
+	c.Assert(err, IsNil)
+	c.Check(modules, DeepEquals, []string{"foo"})
+}
+
+func (cts *ConfigTestSuite) TestModulesAddEmpty(c *C) {
+	modulesPath = filepath.Join(c.MkDir(), "test.conf")
+
+	c.Assert(setModules([]string{"foo"}), IsNil)
+	c.Assert(setModules([]string{""}), IsNil)
+
+	modules, err := getModules()
+	c.Assert(err, IsNil)
+	c.Check(modules, DeepEquals, []string{"foo"})
+}
+
+func (cts *ConfigTestSuite) TestModulesAddBlank(c *C) {
+	modulesPath = filepath.Join(c.MkDir(), "test.conf")
+
+	c.Assert(setModules([]string{"foo"}), IsNil)
+	c.Assert(setModules([]string{" "}), IsNil)
+
+	modules, err := getModules()
+	c.Assert(err, IsNil)
+	c.Check(modules, DeepEquals, []string{"foo"})
 }
 
 func (cts *ConfigTestSuite) TestModulesHasWarning(c *C) {
 	modulesPath = filepath.Join(c.MkDir(), "test.conf")
 
-	c.Assert(setModules(map[string]bool{"foo": true}), IsNil)
+	c.Assert(setModules([]string{"foo"}), IsNil)
 
 	bs, err := ioutil.ReadFile(modulesPath)
 	c.Assert(err, IsNil)
@@ -554,21 +616,21 @@ func (cts *ConfigTestSuite) TestModulesIsKind(c *C) {
 
 	modules, err := getModules()
 	c.Check(err, IsNil)
-	c.Check(modules, DeepEquals, map[string]bool{"oops": true})
+	c.Check(modules, DeepEquals, []string{"oops"})
 }
 
 func (cts *ConfigTestSuite) TestModulesYaml(c *C) {
 	modulesPath = filepath.Join(c.MkDir(), "test.conf")
 
-	c.Assert(setModules(map[string]bool{"foo": true}), IsNil)
+	c.Assert(setModules([]string{"foo"}), IsNil)
 
 	cfg, err := newSystemConfig()
 	c.Assert(err, IsNil)
-	c.Check(cfg.Modules, DeepEquals, map[string]bool{"foo": true})
+	c.Check(cfg.Modules, DeepEquals, []string{"foo"})
 
 	input := `config:
   ubuntu-core:
-    modules: {foo: false, bar: true}
+    modules: [-foo, bar]
 `
 	_, err = Set(input)
 	c.Assert(err, IsNil)
@@ -580,18 +642,18 @@ func (cts *ConfigTestSuite) TestModulesYaml(c *C) {
 
 	modules, err := getModules()
 	c.Assert(err, IsNil)
-	c.Check(modules, DeepEquals, map[string]bool{"bar": true})
+	c.Check(modules, DeepEquals, []string{"bar"})
 }
 
 func (cts *ConfigTestSuite) TestModulesErrorWrite(c *C) {
 	// modulesPath is not writable, but only notexist read error
 	modulesPath = filepath.Join(c.MkDir(), "not-there", "test.conf")
 
-	c.Check(setModules(map[string]bool{"bar": true}), NotNil)
+	c.Check(setModules([]string{"bar"}), NotNil)
 
 	input := `config:
   ubuntu-core:
-    modules: {foo: true}
+    modules: [foo]
 `
 	_, err := Set(input)
 	c.Check(err, NotNil)
@@ -609,12 +671,12 @@ func (cts *ConfigTestSuite) TestModulesErrorRW(c *C) {
 	modules, err := getModules()
 	c.Check(err, NotNil)
 	c.Check(modules, HasLen, 0)
-	c.Check(setModules(map[string]bool{"bar": true}), NotNil)
+	c.Check(setModules([]string{"bar"}), NotNil)
 
 	_, err = newSystemConfig()
 	c.Check(err, NotNil)
 
-	_, err = Set("config: {ubuntu-core: {modules: {foo: true}}}")
+	_, err = Set("config: {ubuntu-core: {modules: [foo]}}")
 	c.Check(err, NotNil)
 }
 

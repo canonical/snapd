@@ -28,6 +28,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -76,7 +77,7 @@ type systemConfig struct {
 	Timezone  *string         `yaml:"timezone,omitempty"`
 	Hostname  *string         `yaml:"hostname,omitempty"`
 	Modprobe  *string         `yaml:"modprobe,omitempty"`
-	Modules   map[string]bool `yaml:"modules,omitempty"`
+	Modules   []string        `yaml:"modules,omitempty"`
 	Network   *networkConfig  `yaml:"network,omitempty"`
 	Watchdog  *watchdogConfig `yaml:"watchdog,omitempty"`
 }
@@ -378,13 +379,11 @@ var setModprobe = func(modprobe string) error {
 	return helpers.AtomicWriteFile(modprobePath, []byte(modprobe), 0644)
 }
 
-var getModules = func() (map[string]bool, error) {
-	modules := make(map[string]bool)
-
+var getModules = func() ([]string, error) {
 	f, err := os.Open(modulesPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return modules, nil
+			return nil, nil
 		}
 
 		return nil, err
@@ -394,6 +393,7 @@ var getModules = func() (map[string]bool, error) {
 	// but you know they're just going to edit it anyway
 	// so be kind
 
+	var modules []string
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -404,11 +404,14 @@ var getModules = func() (map[string]bool, error) {
 			continue
 		}
 
-		modules[line] = true
+		modules = append(modules, line)
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
+
+	// doing the sort on get makes testing easier
+	sort.Strings(modules)
 
 	return modules, nil
 }
@@ -418,17 +421,35 @@ const modulesHeader = `#
 # it is auto-generated, and will be overwritten.
 `
 
-var setModules = func(modules map[string]bool) error {
+var setModules = func(modules []string) error {
 	oldModules, err := getModules()
 	if err != nil {
 		return err
 	}
 
-	for k, v := range modules {
-		if v {
-			oldModules[k] = v
+	for i := range modules {
+		m := strings.TrimSpace(modules[i])
+		if len(m) == 0 {
+			continue
+		}
+
+		if m[0] == '-' {
+			m = m[1:]
+			idx := sort.SearchStrings(oldModules, m)
+			if idx == len(oldModules) || oldModules[idx] != m {
+				// not found
+				continue
+			}
+			oldModules = append(oldModules[:idx], oldModules[idx+1:]...)
 		} else {
-			delete(oldModules, k)
+			idx := sort.SearchStrings(oldModules, m)
+			if idx < len(oldModules) && oldModules[idx] == m {
+				// already got it
+				continue
+			}
+			oldModules = append(oldModules, "")
+			copy(oldModules[idx+1:], oldModules[idx:])
+			oldModules[idx] = m
 		}
 	}
 
@@ -437,8 +458,8 @@ var setModules = func(modules map[string]bool) error {
 	// bytes' Write* methods always return nil error
 	buf.WriteString(modulesHeader)
 
-	for k := range oldModules {
-		buf.WriteString(k)
+	for i := range oldModules {
+		buf.WriteString(oldModules[i])
 		buf.WriteByte('\n')
 	}
 
