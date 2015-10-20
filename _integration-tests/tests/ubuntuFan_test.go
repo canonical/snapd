@@ -180,10 +180,10 @@ func restartDocker(c *check.C) {
 
 	// we need to wait until the socket is ready, an active systemctl status is not enough
 	err := wait.ForActiveService(c, dockerService)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Expected nil error, got %s", err))
 
 	err = wait.ForCommand(c, `(?ms).*docker\.sock\s.*`, "ls", "/run")
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Expected nil error, got %s", err))
 }
 
 func (s *fanTestSuite) fanName() string {
@@ -204,7 +204,7 @@ func setUpDocker(c *check.C) {
 	c.Assert(err, check.IsNil, check.Commentf("Error waiting for service: %s", err))
 
 	err = wait.ForCommand(c, `(?ms).*docker\.sock\s.*`, "ls", "/run")
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Expected nil error, got %s", err))
 
 	cli.ExecCommand(c, "docker", "pull", baseContainer)
 }
