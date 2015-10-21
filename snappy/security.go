@@ -358,8 +358,8 @@ func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, template st
 		return "", err
 	}
 
-	scPolicy := t
-	scPolicy += "\n" + p
+	scPolicy := t + "\n" + p
+	scPolicy = strings.Replace(scPolicy, "\ndeny ", "\n# EXPLICITLY DENIED: ", -1)
 
 	return scPolicy, nil
 }
