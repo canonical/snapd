@@ -49,11 +49,11 @@ var (
 	aaFrameworkPolicyDir = filepath.Join(policy.SecBase, "apparmor")
 	scFrameworkPolicyDir = filepath.Join(policy.SecBase, "seccomp")
 
-	ErrOriginNotFound = errors.New("could not detect origin")
-	ErrTemplateNotFound = errors.New("could not find specified template")
-	ErrCapNotFound = errors.New("could not specified cap")
-	ErrInvalidAppId = errors.New("invalid APP_ID")
-	ErrPolicyGen = errors.New("errors found when generating policy")
+	errOriginNotFound   = errors.New("could not detect origin")
+	errTemplateNotFound = errors.New("could not find specified template")
+	errCapNotFound      = errors.New("could not specified cap")
+	errInvalidAppID     = errors.New("invalid APP_ID")
+	errPolicyGen        = errors.New("errors found when generating policy")
 )
 
 type apparmorJSONTemplate struct {
@@ -71,11 +71,11 @@ type securitySeccompOverride struct {
 	PolicyVersion float64  `yaml:"policy-version"`
 }
 
-type securityAppId struct {
-	AppId		string
-	Pkgname		string
-	Appname		string
-	Version		string
+type securityAppID struct {
+	AppID   string
+	Pkgname string
+	Appname string
+	Version string
 }
 
 const defaultTemplate = "default"
@@ -266,12 +266,12 @@ func findTemplate(template string, policyType string) (string, error) {
 	} else if policyType == "seccomp" {
 		fn = filepath.Join(scPolicyDir, subdir, template)
 	} else {
-		return "", ErrTemplateNotFound
+		return "", errTemplateNotFound
 	}
 	var t bytes.Buffer
 	tmp, err := ioutil.ReadFile(fn)
 	if err != nil {
-		return "", ErrTemplateNotFound
+		return "", errTemplateNotFound
 	}
 	t.Write(tmp)
 
@@ -294,7 +294,7 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 	} else if policyType == "seccomp" {
 		parent = filepath.Join(scPolicyDir, subdir)
 	} else {
-		return "", ErrCapNotFound
+		return "", errCapNotFound
 	}
 
 	var p bytes.Buffer
@@ -302,7 +302,7 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 		fn := filepath.Join(parent, c)
 		tmp, err := ioutil.ReadFile(fn)
 		if err != nil {
-			return "", ErrTemplateNotFound
+			return "", errTemplateNotFound
 		}
 		p.Write(tmp)
 	}
@@ -310,7 +310,7 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 	return p.String(), nil
 }
 
-func getAppArmorTemplatedPolicy(m *packageYaml, appId *securityAppId, template string, caps []string) (string, error) {
+func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string) (string, error) {
 	t, err := findTemplate(template, "apparmor")
 	if err != nil {
 		return "", err
@@ -321,17 +321,17 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appId *securityAppId, template s
 	}
 
 	aavars := "\n# Specified profile variables\n"
-	aavars += fmt.Sprintf("@{APP_APPNAME}=\"%s\"\n", appId.Appname)
+	aavars += fmt.Sprintf("@{APP_APPNAME}=\"%s\"\n", appID.Appname)
 	aavars += fmt.Sprintf("@{APP_ID_DBUS}=\"%s\"\n", "TODO")
 	aavars += fmt.Sprintf("@{APP_PKGNAME_DBUS}=\"%s\"\n", "TODO")
-	aavars += fmt.Sprintf("@{APP_PKGNAME}=\"%s\"\n", appId.Pkgname)
-	aavars += fmt.Sprintf("@{APP_Version}=\"%s\"\n", appId.Version)
+	aavars += fmt.Sprintf("@{APP_PKGNAME}=\"%s\"\n", appID.Pkgname)
+	aavars += fmt.Sprintf("@{APP_VERSION}=\"%s\"\n", appID.Version)
 	aavars += "@{INSTALL_DIR}=\"{/apps,/oem}\"\n"
 	aavars += "# Deprecated:\n"
 	aavars += "@{CLICK_DIR}=\"{/apps,/oem}\""
-	aa_policy := strings.Replace(t, "\n###VAR###\n", aavars, 1)
+	aaPolicy := strings.Replace(t, "\n###VAR###\n", aavars, 1)
 
-	aa_policy = strings.Replace(aa_policy, "\n###PROFILEATTACH###", fmt.Sprintf("\nprofile \"%s\"", appId.AppId), 1)
+	aaPolicy = strings.Replace(aaPolicy, "\n###PROFILEATTACH###", fmt.Sprintf("\nprofile \"%s\"", appID.AppID), 1)
 
 	// FIXME: indentation
 	aacap := "# No caps (policy groups) specified\n"
@@ -339,16 +339,16 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appId *securityAppId, template s
 		aacap = "# Rules specified via caps (policy groups)\n"
 		aacap += p + "\n"
 	}
-	aa_policy = strings.Replace(aa_policy, "###POLICYGROUPS###\n", aacap, 1)
+	aaPolicy = strings.Replace(aaPolicy, "###POLICYGROUPS###\n", aacap, 1)
 
-	aa_policy = strings.Replace(aa_policy, "###ABSTRACTIONS###\n", "# No abstractions specified\n", 1)
-	aa_policy = strings.Replace(aa_policy, "###READS###\n", "# No read paths specified\n", 1)
-	aa_policy = strings.Replace(aa_policy, "###WRITES###\n", "# No write paths specified\n", 1)
+	aaPolicy = strings.Replace(aaPolicy, "###ABSTRACTIONS###\n", "# No abstractions specified\n", 1)
+	aaPolicy = strings.Replace(aaPolicy, "###READS###\n", "# No read paths specified\n", 1)
+	aaPolicy = strings.Replace(aaPolicy, "###WRITES###\n", "# No write paths specified\n", 1)
 
-	return aa_policy, nil
+	return aaPolicy, nil
 }
 
-func getSeccompTemplatedPolicy(m *packageYaml, appId *securityAppId, template string, caps []string) (string, error) {
+func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string) (string, error) {
 	t, err := findTemplate(template, "seccomp")
 	if err != nil {
 		return "", err
@@ -358,146 +358,198 @@ func getSeccompTemplatedPolicy(m *packageYaml, appId *securityAppId, template st
 		return "", err
 	}
 
-	sc_policy := t
-	sc_policy += "\n" + p
+	scPolicy := t
+	scPolicy += "\n" + p
 
-	return sc_policy, nil
+	return scPolicy, nil
 }
 
-func getAppArmorCustomPolicy(m *packageYaml, appId *securityAppId, fn string) (string, error) {
+func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (string, error) {
 	return "TODO: apparmor security-policy", nil
 }
 
-func getSeccompCustomPolicy(m *packageYaml, appId *securityAppId, fn string) (string, error) {
+func getSeccompCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (string, error) {
 	return "TODO: seccomp security-policy", nil
 }
 
-func getAppId(appId string) (*securityAppId, error) {
-	tmp := strings.Split(appId, "_")
+func getAppID(appID string) (*securityAppID, error) {
+	tmp := strings.Split(appID, "_")
 	if len(tmp) != 3 {
-		return nil, ErrInvalidAppId
+		return nil, errInvalidAppID
 	}
-	id := securityAppId{
-		AppId:		appId,
-		Pkgname:	tmp[0],
-		Appname:	tmp[1],
-		Version:	tmp[2],
+	id := securityAppID{
+		AppID:   appID,
+		Pkgname: tmp[0],
+		Appname: tmp[1],
+		Version: tmp[2],
 	}
 	return &id, nil
 }
 
+func loadAppArmorPolicy(fn string) ([]byte, error) {
+	cmd := exec.Command("/sbin/apparmor_parser", "-r", "--write-cache", fn)
+	return cmd.CombinedOutput()
+}
+
 func generatePolicy(m *packageYaml, baseDir string) error {
-	found_error := false
+	foundError := false
+
 	for _, service := range m.ServiceYamls {
-		appId, err := getSecurityProfile(m, service.Name, baseDir)
+		appID, err := getSecurityProfile(m, service.Name, baseDir)
 		if err != nil {
-			found_error = true
+			foundError = true
 			logger.Noticef("Failed to obtain APP_ID for %s: %v", service.Name, err)
 			continue
 		}
 
-		id, err := getAppId(appId)
+		id, err := getAppID(appID)
 		if err != nil {
-			found_error = true
+			foundError = true
 			logger.Noticef("Failed to obtain APP_ID for %s: %v", service.Name, err)
 			continue
 		}
 
-		aa_policy := ""
-		sc_policy := ""
+		aaPolicy := ""
+		scPolicy := ""
 		if service.SecurityPolicy != nil {
-			aa_policy, err = getAppArmorCustomPolicy(m, id, service.SecurityPolicy.Apparmor)
+			aaPolicy, err = getAppArmorCustomPolicy(m, id, service.SecurityPolicy.Apparmor)
 			if err != nil {
-				found_error = true
+				foundError = true
 				logger.Noticef("Failed to generate custom AppArmor policy for %s: %v", service.Name, err)
 				continue
 			}
-			sc_policy, err = getAppArmorCustomPolicy(m, id, service.SecurityPolicy.Seccomp)
+			scPolicy, err = getAppArmorCustomPolicy(m, id, service.SecurityPolicy.Seccomp)
 			if err != nil {
-				found_error = true
+				foundError = true
 				logger.Noticef("Failed to generate custom seccomp policy for %s: %v", service.Name, err)
 				continue
 			}
 		} else if service.SecurityOverride != nil {
-			aa_policy = "TODO: security-override"
-			sc_policy = "TODO: security-override"
+			aaPolicy = "TODO: security-override"
+			scPolicy = "TODO: security-override"
 		} else {
-			aa_policy, err = getAppArmorTemplatedPolicy(m, id, service.SecurityTemplate, service.SecurityCaps)
+			aaPolicy, err = getAppArmorTemplatedPolicy(m, id, service.SecurityTemplate, service.SecurityCaps)
 			if err != nil {
-				found_error = true
+				foundError = true
 				logger.Noticef("Failed to generate AppArmor policy for %s: %v", service.Name, err)
 				continue
 			}
-			sc_policy, err = getSeccompTemplatedPolicy(m, id, service.SecurityTemplate, service.SecurityCaps)
+			scPolicy, err = getSeccompTemplatedPolicy(m, id, service.SecurityTemplate, service.SecurityCaps)
 			if err != nil {
-				found_error = true
+				foundError = true
 				logger.Noticef("Failed to generate seccomp policy for %s: %v", service.Name, err)
 				continue
 			}
 		}
-		fmt.Printf("AppArmor Policy:\n%s", aa_policy)
-		fmt.Printf("Seccomp Policy:\n%s", sc_policy)
+		// FIXME
+		//aaFn := filepath.Join(aaProfilesDir, id.AppID)
+		aaFn := filepath.Join("/tmp/snappy/apparmor/profiles", id.AppID)
+		os.MkdirAll(filepath.Dir(aaFn), 0755)
+		err = ioutil.WriteFile(aaFn, []byte(aaPolicy), 0644)
+		if err != nil {
+			foundError = true
+			logger.Noticef("Failed to write AppArmor policy for %s: %v", service.Name, err)
+		}
+		out, err := loadAppArmorPolicy(aaFn)
+		if err != nil {
+			foundError = true
+			logger.Noticef("Failed to load AppArmor policy for %s: %v\n:%s", service.Name, err, out)
+		}
+
+		// FIXME
+		//scFn := filepath.Join(aaProfilesDir, id.AppID)
+		scFn := filepath.Join("/tmp/snappy/seccomp/profiles", id.AppID)
+		os.MkdirAll(filepath.Dir(scFn), 0755)
+		err = ioutil.WriteFile(scFn, []byte(scPolicy), 0644)
+		if err != nil {
+			foundError = true
+			logger.Noticef("Failed to write seccomp policy for %s: %v", service.Name, err)
+		}
 	}
 
 	// TODO: is there any way to combine this with the above?
 	for _, binary := range m.Binaries {
-		appId, err := getSecurityProfile(m, binary.Name, baseDir)
+		appID, err := getSecurityProfile(m, binary.Name, baseDir)
 		if err != nil {
-			found_error = true
+			foundError = true
 			logger.Noticef("Failed to obtain APP_ID for %s: %v", binary.Name, err)
 			continue
 		}
 
-		id, err := getAppId(appId)
+		id, err := getAppID(appID)
 		if err != nil {
-			found_error = true
+			foundError = true
 			logger.Noticef("Failed to obtain APP_ID for %s: %v", binary.Name, err)
 			continue
 		}
 
-		aa_policy := ""
-		sc_policy := ""
+		aaPolicy := ""
+		scPolicy := ""
 		if binary.SecurityPolicy != nil {
-			aa_policy, err = getAppArmorCustomPolicy(m, id, binary.SecurityPolicy.Apparmor)
+			aaPolicy, err = getAppArmorCustomPolicy(m, id, binary.SecurityPolicy.Apparmor)
 			if err != nil {
-				found_error = true
+				foundError = true
 				logger.Noticef("Failed to generate custom AppArmor policy for %s: %v", binary.Name, err)
 				continue
 			}
-			sc_policy, err = getAppArmorCustomPolicy(m, id, binary.SecurityPolicy.Seccomp)
+			scPolicy, err = getAppArmorCustomPolicy(m, id, binary.SecurityPolicy.Seccomp)
 			if err != nil {
-				found_error = true
+				foundError = true
 				logger.Noticef("Failed to generate custom seccomp policy for %s: %v", binary.Name, err)
 				continue
 			}
 		} else if binary.SecurityOverride != nil {
-			aa_policy = "TODO: security-override"
-			sc_policy = "TODO: security-override"
+			aaPolicy = "TODO: security-override"
+			scPolicy = "TODO: security-override"
 		} else {
-			aa_policy, err = getAppArmorTemplatedPolicy(m, id, binary.SecurityTemplate, binary.SecurityCaps)
+			aaPolicy, err = getAppArmorTemplatedPolicy(m, id, binary.SecurityTemplate, binary.SecurityCaps)
 			if err != nil {
-				found_error = true
+				foundError = true
 				logger.Noticef("Failed to generate AppArmor policy for %s: %v", binary.Name, err)
 				continue
 			}
-			sc_policy, err = getSeccompTemplatedPolicy(m, id, binary.SecurityTemplate, binary.SecurityCaps)
+			scPolicy, err = getSeccompTemplatedPolicy(m, id, binary.SecurityTemplate, binary.SecurityCaps)
 			if err != nil {
-				found_error = true
+				foundError = true
 				logger.Noticef("Failed to generate seccomp policy for %s: %v", binary.Name, err)
 				continue
 			}
 		}
-		fmt.Printf("AppArmor Policy:\n%s", aa_policy)
-		fmt.Printf("Seccomp Policy:\n%s", sc_policy)
+		// FIXME
+		//aaFn := filepath.Join(aaProfilesDir, id.AppID)
+		aaFn := filepath.Join("/tmp/snappy/apparmor/profiles", id.AppID)
+		os.MkdirAll(filepath.Dir(aaFn), 0755)
+		err = ioutil.WriteFile(aaFn, []byte(aaPolicy), 0644)
+		if err != nil {
+			foundError = true
+			logger.Noticef("Failed to write AppArmor policy for %s: %v", binary.Name, err)
+		}
+		out, err := loadAppArmorPolicy(aaFn)
+		if err != nil {
+			foundError = true
+			logger.Noticef("Failed to load AppArmor policy for %s: %v\n:%s", binary.Name, err, out)
+		}
+
+		// FIXME
+		//scFn := filepath.Join(aaProfilesDir, id.AppID)
+		scFn := filepath.Join("/tmp/snappy/seccomp/profiles", id.AppID)
+		os.MkdirAll(filepath.Dir(scFn), 0755)
+		err = ioutil.WriteFile(scFn, []byte(scPolicy), 0644)
+		if err != nil {
+			foundError = true
+			logger.Noticef("Failed to write seccomp policy for %s: %v", binary.Name, err)
+		}
 	}
 
-	if found_error {
-		return ErrPolicyGen
+	if foundError {
+		return errPolicyGen
 	}
 
 	return nil
 }
 
+// GeneratePolicyFromFile is used to generate security policy on the system
+// from the specified manifest file name
 func GeneratePolicyFromFile(fn string, force []bool) error {
 	m, err := parsePackageYamlFile(fn)
 	if err != nil {
@@ -508,7 +560,7 @@ func GeneratePolicyFromFile(fn string, force []bool) error {
 		_, err = originFromYamlPath(fn)
 		if err != nil {
 			if err == ErrInvalidPart {
-				err = ErrOriginNotFound
+				err = errOriginNotFound
 			}
 			return err
 		}
