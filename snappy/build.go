@@ -441,7 +441,10 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 
 		// handle dirs
 		if info.IsDir() {
-			return os.Mkdir(dest, info.Mode())
+			if err := os.Mkdir(dest, info.Mode()); err != nil {
+				return err
+			}
+			return os.Chown(dest, int(info.Sys().(*syscall.Stat_t).Uid), int(info.Sys().(*syscall.Stat_t).Gid))
 		}
 
 		// handle char/block devices
@@ -467,8 +470,8 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 			// whee
 			return nil
 		}
-		// sigh. ok, copy it is.
-		return helpers.CopyFile(path, dest, helpers.CopyFlagDefault)
+		// CopySpecialFile preserves permissions and owner
+		return helpers.CopySpecialFile(path, dest)
 	})
 }
 
