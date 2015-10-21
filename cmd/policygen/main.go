@@ -24,7 +24,7 @@ import (
 	"os"
 
 	"launchpad.net/snappy/logger"
-//	"launchpad.net/snappy/priv"
+	//"launchpad.net/snappy/priv"
 )
 
 func init() {
@@ -44,4 +44,3 @@ func main() {
 	fmt.Fprintln(os.Stderr, err)
 	os.Exit(0)
 }
-
