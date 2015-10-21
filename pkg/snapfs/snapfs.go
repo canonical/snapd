@@ -160,7 +160,6 @@ func (s *Snap) Build(buildDir string) error {
 		return runCommand(
 			"mksquashfs",
 			".", fullSnapPath,
-			"-all-root",
 			"-noappend",
 			"-comp", "xz")
 	})
