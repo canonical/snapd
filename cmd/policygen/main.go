@@ -25,7 +25,17 @@ import (
 
 	"launchpad.net/snappy/logger"
 	//"launchpad.net/snappy/priv"
+
+	"github.com/jessevdk/go-flags"
 )
+
+type options struct {
+	Force []bool `short:"f" long:"force" description:"Force policy generation"`
+}
+
+var optionsData options
+
+var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
 
 func init() {
 	err := logger.SimpleSetup()
@@ -39,8 +49,11 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
 	}
-
-	// FIXME: need root
-	fmt.Fprintln(os.Stderr, err)
+	if _, err := parser.Parse(); err != nil {
+		// FIXME: need root
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Fprintln(os.Stderr, "TODO")
 	os.Exit(0)
 }
