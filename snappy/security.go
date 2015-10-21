@@ -21,6 +21,7 @@ package snappy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -33,6 +34,10 @@ import (
 	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
+)
+
+var (
+	ErrOriginNotFound = errors.New("could not detect origin")
 )
 
 type apparmorJSONTemplate struct {
@@ -224,4 +229,45 @@ func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 	}
 
 	return nil
+}
+
+func generatePolicy(m *packageYaml, baseDir string) error {
+
+	for _, service := range m.ServiceYamls {
+		appId, err := getSecurityProfile(m, service.Name, baseDir)
+		if err != nil {
+			return err
+		}
+		fmt.Println(appId)
+	}
+
+	return nil
+}
+
+func GeneratePolicyFromFile(fn string, force []bool) error {
+	m, err := parsePackageYamlFile(fn)
+	if err != nil {
+		return err
+	}
+
+	if m.Type == "" || m.Type == pkg.TypeApp {
+		_, err = originFromYamlPath(fn)
+		if err != nil {
+			if err == ErrInvalidPart {
+				err = ErrOriginNotFound
+			}
+			return err
+		}
+	}
+
+	// TODO: verify cache files here
+
+	baseDir := strings.Replace(fn, "/meta/package.yaml", "", 1)
+	fmt.Println(baseDir)
+	err = generatePolicy(m, baseDir)
+	if err != nil {
+		return err
+	}
+
+	return err
 }

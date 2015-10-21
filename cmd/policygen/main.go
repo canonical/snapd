@@ -20,13 +20,25 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"launchpad.net/snappy/logger"
+	"launchpad.net/snappy/snappy"
 	//"launchpad.net/snappy/priv"
 
 	"github.com/jessevdk/go-flags"
+)
+
+var (
+	// ErrNotEnoughArgs is returned when absolute path to package.yaml is
+	// not specified
+	ErrNotEnoughArgs = errors.New("must supply path to package.yaml")
+
+	// ErrPackageYamlNotFound is returned when the absolute path to
+	// package.yaml does not exist
+	ErrPackageYamlNotFound = errors.New("must supply path to package.yaml")
 )
 
 type options struct {
@@ -54,6 +66,22 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Fprintln(os.Stderr, "TODO")
+
+	if len(os.Args) != 2 {
+		fmt.Fprintln(os.Stderr, "must supply path to package.yaml")
+		os.Exit(1)
+	}
+
+	fn := os.Args[1]
+	if _, err := os.Stat(fn); os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "no such file: %s\n", fn)
+		os.Exit(1)
+	}
+
+	if err := snappy.GeneratePolicyFromFile(fn, optionsData.Force); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
 	os.Exit(0)
 }
