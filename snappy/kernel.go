@@ -23,12 +23,14 @@ import (
 	"os"
 	"path/filepath"
 
+	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/partition"
 	"launchpad.net/snappy/pkg/snapfs"
 )
 
 func unpackKernel(s *SnapPart) error {
-	bootdir := partition.BootloaderDir()
+	bootdir := filepath.Join(dirs.GlobalRootDir, partition.BootloaderDir())
+		
 	if err := os.MkdirAll(filepath.Join(bootdir, s.Version()), 0755); err !=
 		nil {
 		return err
