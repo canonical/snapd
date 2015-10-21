@@ -149,7 +149,10 @@ func newBootLoader(partition *Partition, bootloaderDir string) *bootloaderType {
 	if partition.rootPartition() != nil {
 		currentLabel = partition.rootPartition().name
 	}
-	otherLabel := partition.otherRootPartition().name
+	otherLabel := "snapfs"
+	if partition.otherRootPartition() != nil {
+		otherLabel = partition.otherRootPartition().name
+	}
 
 	// single letter description of the rootfs {a,b}
 	currentRootfs := string(currentLabel[len(currentLabel)-1])
