@@ -135,7 +135,7 @@ func enableFirstEther() error {
 	ethfile := filepath.Join(ethdir, eth)
 	data := fmt.Sprintf("allow-hotplug %[1]s\niface %[1]s inet dhcp\n", eth)
 
-	if err := helpers.AtomicWriteFile(ethfile, []byte(data), 0644); err != nil {
+	if err := helpers.AtomicWriteFile(ethfile, []byte(data), 0644, 0); err != nil {
 		return err
 	}
 

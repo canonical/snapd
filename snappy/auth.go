@@ -139,7 +139,7 @@ func WriteStoreToken(token StoreToken) error {
 		return nil
 	}
 
-	return helpers.AtomicWriteFile(targetFile, []byte(outStr), 0600)
+	return helpers.AtomicWriteFile(targetFile, []byte(outStr), 0600, 0)
 }
 
 // ReadStoreToken reads a token previously write via WriteStoreToken

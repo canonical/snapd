@@ -261,7 +261,7 @@ func modifyNameValueFile(path string, changes []configFileChange) error {
 	}
 
 	if updateNeeded {
-		return atomicWriteFile(path, buf.Bytes(), 0644)
+		return atomicWriteFile(path, buf.Bytes(), 0644, 0)
 	}
 
 	return nil
