@@ -241,7 +241,7 @@ func (ts *HTestSuite) TestAtomicWriteFile(c *C) {
 	tmpdir := c.MkDir()
 
 	p := filepath.Join(tmpdir, "foo")
-	err := AtomicWriteFile(p, []byte("canary"), 0644)
+	err := AtomicWriteFile(p, []byte("canary"), 0644, 0)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(p)
@@ -258,7 +258,7 @@ func (ts *HTestSuite) TestAtomicWriteFilePermissions(c *C) {
 	tmpdir := c.MkDir()
 
 	p := filepath.Join(tmpdir, "foo")
-	err := AtomicWriteFile(p, []byte(""), 0600)
+	err := AtomicWriteFile(p, []byte(""), 0600, 0)
 	c.Assert(err, IsNil)
 
 	st, err := os.Stat(p)
@@ -270,11 +270,25 @@ func (ts *HTestSuite) TestAtomicWriteFileOverwrite(c *C) {
 	tmpdir := c.MkDir()
 	p := filepath.Join(tmpdir, "foo")
 	c.Assert(ioutil.WriteFile(p, []byte("hello"), 0644), IsNil)
-	c.Assert(AtomicWriteFile(p, []byte("hi"), 0600), IsNil)
+	c.Assert(AtomicWriteFile(p, []byte("hi"), 0600, 0), IsNil)
 
 	content, err := ioutil.ReadFile(p)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "hi")
+}
+
+func (ts *HTestSuite) TestAtomicWriteFileSymlinkNoFollow(c *C) {
+	tmpdir := c.MkDir()
+	rodir := filepath.Join(tmpdir, "ro")
+	p := filepath.Join(rodir, "foo")
+	s := filepath.Join(tmpdir, "foo")
+	c.Assert(os.MkdirAll(rodir, 0755), IsNil)
+	c.Assert(os.Symlink(s, p), IsNil)
+	c.Assert(os.Chmod(rodir, 0500), IsNil)
+	defer os.Chmod(rodir, 0700)
+
+	err := AtomicWriteFile(p, []byte("hi"), 0600, 0)
+	c.Assert(err, NotNil)
 }
 
 func (ts *HTestSuite) TestAtomicWriteFileAbsoluteSymlinks(c *C) {
@@ -287,7 +301,7 @@ func (ts *HTestSuite) TestAtomicWriteFileAbsoluteSymlinks(c *C) {
 	c.Assert(os.Chmod(rodir, 0500), IsNil)
 	defer os.Chmod(rodir, 0700)
 
-	err := AtomicWriteFile(p, []byte("hi"), 0600)
+	err := AtomicWriteFile(p, []byte("hi"), 0600, AtomicWriteFollow)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(p)
@@ -306,7 +320,7 @@ func (ts *HTestSuite) TestAtomicWriteFileOverwriteAbsoluteSymlink(c *C) {
 	defer os.Chmod(rodir, 0700)
 
 	c.Assert(ioutil.WriteFile(s, []byte("hello"), 0644), IsNil)
-	c.Assert(AtomicWriteFile(p, []byte("hi"), 0600), IsNil)
+	c.Assert(AtomicWriteFile(p, []byte("hi"), 0600, AtomicWriteFollow), IsNil)
 
 	content, err := ioutil.ReadFile(p)
 	c.Assert(err, IsNil)
@@ -322,7 +336,7 @@ func (ts *HTestSuite) TestAtomicWriteFileRelativeSymlinks(c *C) {
 	c.Assert(os.Chmod(rodir, 0500), IsNil)
 	defer os.Chmod(rodir, 0700)
 
-	err := AtomicWriteFile(p, []byte("hi"), 0600)
+	err := AtomicWriteFile(p, []byte("hi"), 0600, AtomicWriteFollow)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(p)
@@ -341,7 +355,7 @@ func (ts *HTestSuite) TestAtomicWriteFileOverwriteRelativeSymlink(c *C) {
 	defer os.Chmod(rodir, 0700)
 
 	c.Assert(ioutil.WriteFile(s, []byte("hello"), 0644), IsNil)
-	c.Assert(AtomicWriteFile(p, []byte("hi"), 0600), IsNil)
+	c.Assert(AtomicWriteFile(p, []byte("hi"), 0600, AtomicWriteFollow), IsNil)
 
 	content, err := ioutil.ReadFile(p)
 	c.Assert(err, IsNil)
@@ -362,7 +376,7 @@ func (ts *HTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) {
 	err := ioutil.WriteFile(p+".4", []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	err = AtomicWriteFile(p, []byte(""), 0600)
+	err = AtomicWriteFile(p, []byte(""), 0600, 0)
 	c.Assert(err, ErrorMatches, "open .*: file exists")
 }
 

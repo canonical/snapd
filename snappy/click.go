@@ -758,7 +758,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 	if err != nil {
 		return err
 	}
-	if err := helpers.AtomicWriteFile(filepath.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644); err != nil {
+	if err := helpers.AtomicWriteFile(filepath.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644, 0); err != nil {
 		return err
 	}
 
