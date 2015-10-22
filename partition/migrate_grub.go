@@ -149,5 +149,5 @@ func MigrateToDynamicGrub() error {
 		}
 	}
 
-	return helpers.AtomicWriteFile(bootloaderGrubConfigFile, []byte(newGrubConfig), 0644)
+	return helpers.AtomicWriteFile(bootloaderGrubConfigFile, []byte(newGrubConfig), 0644, 0)
 }

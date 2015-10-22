@@ -291,9 +291,9 @@ func (s *PartitionTestSuite) TestNoWriteNotNeeded(c *C) {
 	s.makeFakeUbootEnv(c)
 
 	atomiCall := false
-	atomicWriteFile = func(a string, b []byte, c os.FileMode) error {
+	atomicWriteFile = func(a string, b []byte, c os.FileMode, f helpers.AtomicWriteFlags) error {
 		atomiCall = true
-		return helpers.AtomicWriteFile(a, b, c)
+		return helpers.AtomicWriteFile(a, b, c, f)
 	}
 
 	partition := New()
@@ -311,9 +311,9 @@ func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
 	c.Assert(ioutil.WriteFile(bootloaderUbootEnvFile, []byte(""), 0644), IsNil)
 
 	atomiCall := false
-	atomicWriteFile = func(a string, b []byte, c os.FileMode) error {
+	atomicWriteFile = func(a string, b []byte, c os.FileMode, f helpers.AtomicWriteFlags) error {
 		atomiCall = true
-		return helpers.AtomicWriteFile(a, b, c)
+		return helpers.AtomicWriteFile(a, b, c, f)
 	}
 
 	partition := New()
