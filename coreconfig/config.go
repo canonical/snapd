@@ -39,12 +39,12 @@ import (
 
 const (
 	tzPathEnvironment string = "UBUNTU_CORE_CONFIG_TZ_FILE"
-	tzPathDefault     string = "/etc/timezone"
+	tzPathDefault     string = "/etc/writable/timezone"
 )
 
 var (
 	tzZoneInfoPath   = "/usr/share/zoneinfo"
-	tzZoneInfoTarget = "/etc/localtime"
+	tzZoneInfoTarget = "/etc/writable/localtime"
 )
 
 const (
@@ -58,8 +58,8 @@ var (
 	modulesPath         = "/etc/modules-load.d/ubuntu-core.conf"
 	interfacesRoot      = "/etc/network/interfaces.d/"
 	pppRoot             = "/etc/ppp/"
-	watchdogConfigPath  = "/etc/watchdog.conf"
-	watchdogStartupPath = "/etc/default/watchdog"
+	watchdogConfigPath  = "/etc/writable/watchdog.conf"
+	watchdogStartupPath = "/etc/writable/default/watchdog"
 )
 
 var (
