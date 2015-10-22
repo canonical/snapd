@@ -49,7 +49,7 @@ func (s *hwAssignSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
 	var err error
 	s.snapPath, err = build.LocalSnap(c, snapName)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
 	common.InstallSnap(c, s.snapPath)
 }
 
@@ -63,8 +63,10 @@ func (s *hwAssignSuite) TestErrorWithoutHwAssign(c *check.C) {
 	cmd := exec.Command(binName)
 	output, err := cmd.CombinedOutput()
 
-	c.Assert(err, check.NotNil)
-	c.Assert(string(output), check.Equals, hwAssignError)
+	c.Assert(err, check.NotNil,
+		check.Commentf("The snap binary without hardware assigned did not exit with an error"))
+	c.Assert(string(output), check.Equals, hwAssignError,
+		check.Commentf("Wrong error message"))
 }
 
 func (s *hwAssignSuite) TestSuccessAfterHwAssign(c *check.C) {
@@ -74,7 +76,8 @@ func (s *hwAssignSuite) TestSuccessAfterHwAssign(c *check.C) {
 	cmd := exec.Command(binName)
 	output, _ := cmd.CombinedOutput()
 
-	c.Assert(string(output), check.Not(check.Equals), hwAssignError)
+	c.Assert(string(output), check.Not(check.Equals), hwAssignError,
+		check.Commentf("The snap binary with hardware assigned printed a permission denied error"))
 }
 
 func (s *hwAssignSuite) TestErrorAfterHwUnAssign(c *check.C) {
@@ -84,23 +87,45 @@ func (s *hwAssignSuite) TestErrorAfterHwUnAssign(c *check.C) {
 	cmd := exec.Command(binName)
 	output, err := cmd.CombinedOutput()
 
-	c.Assert(err, check.NotNil)
-	c.Assert(string(output), check.Equals, hwAssignError)
+	c.Assert(err, check.NotNil,
+		check.Commentf("The snap binary without hardware assigned did not exit with an error"))
+	c.Assert(string(output), check.Equals, hwAssignError,
+		check.Commentf("Wrong error message"))
+}
+
+func (s *hwAssignSuite) TestHwInfo(c *check.C) {
+	cmd := exec.Command("sudo", "snappy", "hw-info", installedSnapName)
+	boutput, _ := cmd.CombinedOutput()
+	output := string(boutput)
+	expected := fmt.Sprintf("'%s:' is not allowed to access additional hardware\n", installedSnapName)
+	c.Assert(output, check.Equals, expected,
+		check.Commentf(`Expected "%s", obtained "%s"`, expected, output))
+
+	assign(c, snapName, hwName)
+	defer unassign(c, snapName, hwName)
+
+	cmd = exec.Command("sudo", "snappy", "hw-info", installedSnapName)
+	boutput, _ = cmd.CombinedOutput()
+	output = string(boutput)
+	expected = fmt.Sprintf("%s: %s\n", installedSnapName, hwName)
+	c.Assert(output, check.Equals, expected,
+		check.Commentf(`Expected "%s", obtained "%s"`, expected, output))
 }
 
 func assign(c *check.C, snap, hw string) {
 	cmd := exec.Command("sudo", "snappy", "hw-assign", installedSnapName, hwName)
 	output, err := cmd.CombinedOutput()
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error assigning hardware: %s", err))
 	c.Assert(string(output), check.Equals,
-		fmt.Sprintf("'%s' is now allowed to access '%s'\n", installedSnapName, hwName))
+		fmt.Sprintf("'%s' is now allowed to access '%s'\n", installedSnapName, hwName),
+		check.Commentf("Wrong message after assigning hardware"))
 }
 
 func unassign(c *check.C, snap, hw string) {
 	cmd := exec.Command("sudo", "snappy", "hw-unassign", installedSnapName, hwName)
 	output, err := cmd.CombinedOutput()
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error unassigning hardware: %s", err))
 	c.Assert(string(output), check.Equals,
-		fmt.Sprintf("'%s' is no longer allowed to access '%s'\n", installedSnapName, hwName))
-
+		fmt.Sprintf("'%s' is no longer allowed to access '%s'\n", installedSnapName, hwName),
+		check.Commentf("Wrong message after unassigning hardware"))
 }

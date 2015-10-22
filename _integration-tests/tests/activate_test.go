@@ -27,10 +27,11 @@ import (
 	"launchpad.net/snappy/_integration-tests/testutils/build"
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/data"
 )
 
 const (
-	activateSnapName    = "basic-binaries"
+	activateSnapName    = data.BasicBinariesSnapName
 	activateBinName     = activateSnapName + ".echo"
 	activateEchoOutput  = "From basic-binaries snap\n"
 	baseActivatePattern = "(?msU).*" + activateSnapName + `\s*.*\s*.*sideload`
@@ -45,17 +46,21 @@ type activateSuite struct {
 	snapPath string
 }
 
-func (s *activateSuite) SetUpSuite(c *check.C) {
-	s.SnappySuite.SetUpSuite(c)
+func (s *activateSuite) SetUpTest(c *check.C) {
+	s.SnappySuite.SetUpTest(c)
+	if common.Release(c) == "15.04" {
+		c.Skip("activate CLI command not available on 15.04, reenable the test when present")
+	}
 	var err error
 	s.snapPath, err = build.LocalSnap(c, activateSnapName)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
 	common.InstallSnap(c, s.snapPath)
 }
 
-func (s *activateSuite) TearDownSuite(c *check.C) {
+func (s *activateSuite) TearDownTest(c *check.C) {
 	os.Remove(s.snapPath)
 	common.RemoveSnap(c, activateSnapName)
+	s.SnappySuite.TearDownTest(c)
 }
 
 func (s *activateSuite) TestDeactivateRemovesBinary(c *check.C) {
@@ -63,8 +68,9 @@ func (s *activateSuite) TestDeactivateRemovesBinary(c *check.C) {
 	defer cli.ExecCommand(c, "sudo", "snappy", "activate", activateSnapName)
 	output, err := cli.ExecCommandErr(activateBinName)
 
-	c.Assert(err, check.NotNil)
-	c.Assert(output, check.Not(check.Equals), activateEchoOutput)
+	c.Assert(err, check.NotNil, check.Commentf("Deactivated snap binary did not exit with an error"))
+	c.Assert(output, check.Not(check.Equals), activateEchoOutput,
+		check.Commentf("Deactivated snap binary was not removed"))
 
 	list := cli.ExecCommand(c, "snappy", "list", "-v")
 
@@ -76,7 +82,8 @@ func (s *activateSuite) TestActivateBringsBinaryBack(c *check.C) {
 	cli.ExecCommand(c, "sudo", "snappy", "activate", activateSnapName)
 	output := cli.ExecCommand(c, activateBinName)
 
-	c.Assert(output, check.Equals, activateEchoOutput)
+	c.Assert(output, check.Equals, activateEchoOutput,
+		check.Commentf("Wrong output from active snap binary"))
 
 	list := cli.ExecCommand(c, "snappy", "list", "-v")
 

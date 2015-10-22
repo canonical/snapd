@@ -20,7 +20,10 @@
 package tests
 
 import (
+	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
 
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
@@ -29,25 +32,86 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&webserverExampleSuite{})
+var _ = check.Suite(&helloWorldExampleSuite{})
 
-type webserverExampleSuite struct {
+type helloWorldExampleSuite struct {
 	common.SnappySuite
 }
 
-func (s *webserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
+func (s *helloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
+	common.InstallSnap(c, "hello-world")
+	s.AddCleanup(func() {
+		common.RemoveSnap(c, "hello-world")
+	})
+
+	echoOutput := cli.ExecCommand(c, "hello-world.echo")
+
+	c.Assert(echoOutput, check.Equals, "Hello World!\n",
+		check.Commentf("Wrong output from hello-world binary"))
+}
+
+func (s *helloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDeniedError(c *check.C) {
+	common.InstallSnap(c, "hello-world")
+	s.AddCleanup(func() {
+		common.RemoveSnap(c, "hello-world")
+	})
+
+	echoOutput, err := cli.ExecCommandErr("hello-world.evil")
+	c.Assert(err, check.NotNil, check.Commentf("hello-world.evil did not fail"))
+
+	expected := "" +
+		"Hello Evil World!\n" +
+		"This example demonstrates the app confinement\n" +
+		"You should see a permission denied error next\n" +
+		"/apps/hello-world.canonical/.*/bin/evil: \\d+: " +
+		"/apps/hello-world.canonical/.*/bin/evil: " +
+		"cannot create /var/tmp/myevil.txt: Permission denied\n"
+
+	c.Assert(string(echoOutput), check.Matches, expected)
+}
+
+var _ = check.Suite(&pythonWebserverExampleSuite{})
+
+type pythonWebserverExampleSuite struct {
+	common.SnappySuite
+}
+
+func (s *pythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
 	baseAppName := "xkcd-webserver"
 	appName := baseAppName + ".canonical"
 	common.InstallSnap(c, appName)
 	defer common.RemoveSnap(c, appName)
 
-	err := wait.ForServerOnPort(c, 80)
-	c.Assert(err, check.IsNil)
+	err := wait.ForServerOnPort(c, "tcp", 80)
+	c.Assert(err, check.IsNil, check.Commentf("Error waiting for server: %s", err))
 
 	resp, err := http.Get("http://localhost")
-	c.Assert(err, check.IsNil)
-	c.Check(resp.Status, check.Equals, "200 OK")
-	c.Assert(resp.Proto, check.Equals, "HTTP/1.0")
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the http resource: %s", err))
+	c.Check(resp.Status, check.Equals, "200 OK", check.Commentf("Wrong reply status"))
+	c.Assert(resp.Proto, check.Equals, "HTTP/1.0", check.Commentf("Wrong reply protocol"))
+}
+
+var _ = check.Suite(&goWebserverExampleSuite{})
+
+type goWebserverExampleSuite struct {
+	common.SnappySuite
+}
+
+func (s *goWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
+	appName := "go-example-webserver"
+	common.InstallSnap(c, appName)
+	defer common.RemoveSnap(c, appName)
+
+	err := wait.ForServerOnPort(c, "tcp6", 8081)
+	c.Assert(err, check.IsNil, check.Commentf("Error waiting for server: %s", err))
+
+	resp, err := http.Get("http://localhost:8081/")
+	defer resp.Body.Close()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the http resource: %s", err))
+	c.Check(resp.Status, check.Equals, "200 OK", check.Commentf("Wrong reply status"))
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, check.IsNil, check.Commentf("Error reading the reply body: %s", err))
+	c.Assert(string(body), check.Equals, "Hello World\n", check.Commentf("Wrong reply body"))
 }
 
 var _ = check.Suite(&frameworkExampleSuite{})
@@ -69,4 +133,42 @@ func (s *frameworkExampleSuite) TestFrameworkClient(c *check.C) {
 
 	c.Assert(output, check.Equals, expected,
 		check.Commentf("Expected output %s not found, %s", expected, output))
+}
+
+var _ = check.Suite(&configExampleSuite{})
+
+type configExampleSuite struct {
+	common.SnappySuite
+}
+
+var configTests = []struct {
+	snap    string
+	origin  string
+	message string
+}{
+	{"config-example", "", "test config example message"},
+	{"config-example-bash", ".canonical", "test config example bash message"},
+}
+
+func (s *configExampleSuite) TestPrintMessageFromConfig(c *check.C) {
+	for _, t := range configTests {
+		common.InstallSnap(c, t.snap+t.origin)
+		defer common.RemoveSnap(c, t.snap)
+
+		config := fmt.Sprintf(`config:
+  %s:
+    msg: |
+      %s`, t.snap, t.message)
+
+		configFile, err := ioutil.TempFile("", "snappy-cfg")
+		defer func() { configFile.Close(); os.Remove(configFile.Name()) }()
+		c.Assert(err, check.IsNil, check.Commentf("Error creating temp file: %s", err))
+		_, err = configFile.Write([]byte(config))
+		c.Assert(err, check.IsNil, check.Commentf("Error writing the conf to the temp file: %s", err))
+
+		cli.ExecCommand(c, "sudo", "snappy", "config", t.snap, configFile.Name())
+
+		output := cli.ExecCommand(c, t.snap+".hello")
+		c.Assert(output, check.Equals, t.message, check.Commentf("Wrong message"))
+	}
 }

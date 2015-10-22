@@ -257,7 +257,8 @@ func ActiveSnapsByType(snapTs ...pkg.Type) (res []Part, err error) {
 	return res, nil
 }
 
-// ActiveSnapNamesByType returns all installed snap names with the given type
+// ActiveSnapIterByType returns the result of applying the given
+// function to all active snaps with the given type.
 var ActiveSnapIterByType = activeSnapIterByTypeImpl
 
 func activeSnapIterByTypeImpl(f func(Part) string, snapTs ...pkg.Type) ([]string, error) {
@@ -293,7 +294,7 @@ func ActiveSnapByName(needle string) Part {
 // FindSnapsByName returns all snaps with the given name in the "haystack"
 // slice of parts (useful for filtering)
 func FindSnapsByName(needle string, haystack []Part) (res []Part) {
-	name, origin := splitOrigin(needle)
+	name, origin := SplitOrigin(needle)
 	ignorens := origin == ""
 
 	for _, part := range haystack {
@@ -305,7 +306,8 @@ func FindSnapsByName(needle string, haystack []Part) (res []Part) {
 	return res
 }
 
-func splitOrigin(name string) (string, string) {
+// SplitOrigin splits a snappy name name into a (name, origin) pair
+func SplitOrigin(name string) (string, string) {
 	idx := strings.LastIndexAny(name, ".")
 	if idx > -1 {
 		return name[:idx], name[idx+1:]
@@ -317,7 +319,7 @@ func splitOrigin(name string) (string, string) {
 // FindSnapsByNameAndVersion returns the parts with the name/version in the
 // given slice of parts
 func FindSnapsByNameAndVersion(needle, version string, haystack []Part) []Part {
-	name, origin := splitOrigin(needle)
+	name, origin := SplitOrigin(needle)
 	ignorens := origin == ""
 	var found []Part
 

@@ -21,10 +21,13 @@ package tests
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 
+	"launchpad.net/snappy/_integration-tests/testutils/build"
 	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/data"
 	"launchpad.net/snappy/_integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
@@ -38,25 +41,23 @@ type serviceSuite struct {
 
 func (s *serviceSuite) TearDownTest(c *check.C) {
 	if !common.NeedsReboot() && common.CheckRebootMark("") {
-		common.RemoveSnap(c, "hello-dbus-fwk.canonical")
+		common.RemoveSnap(c, data.BasicServiceSnapName)
 	}
 	// run cleanup last
 	s.SnappySuite.TearDownTest(c)
 }
 
 func isServiceRunning(c *check.C) bool {
-	packageVersion := common.GetCurrentVersion(c, "hello-dbus-fwk")
-	service := fmt.Sprintf("hello-dbus-fwk_srv_%s.service", packageVersion)
+	packageVersion := common.GetCurrentVersion(c, data.BasicServiceSnapName)
+	service := fmt.Sprintf("%s_service_%s.service", data.BasicServiceSnapName, packageVersion)
 
 	err := wait.ForActiveService(c, service)
 	c.Assert(err, check.IsNil)
 
-	statusOutput := cli.ExecCommand(
-		c, "systemctl", "status",
-		service)
+	statusOutput := cli.ExecCommand(c, "systemctl", "status", service)
 
 	expected := "(?ms)" +
-		".* hello-dbus-fwk_srv_.*\\.service .*\n" +
+		fmt.Sprintf(".* %s_service_.*\\.service .*\n", data.BasicServiceSnapName) +
 		".*Loaded: loaded .*\n" +
 		".*Active: active \\(running\\) .*\n" +
 		".*"
@@ -66,29 +67,35 @@ func isServiceRunning(c *check.C) bool {
 	return matched
 }
 
-func (s *serviceSuite) TestInstalledServiceMustBeStarted(c *check.C) {
-	common.InstallSnap(c, "hello-dbus-fwk.canonical")
+func installSnapWithService(c *check.C) {
+	snapPath, err := build.LocalSnap(c, data.BasicServiceSnapName)
+	defer os.Remove(snapPath)
+	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
+	common.InstallSnap(c, snapPath)
+}
 
-	c.Assert(isServiceRunning(c), check.Equals, true)
+func (s *serviceSuite) TestInstalledServiceMustBeStarted(c *check.C) {
+	installSnapWithService(c)
+	c.Assert(isServiceRunning(c), check.Equals, true, check.Commentf("Service is not running"))
 }
 
 func (s *serviceSuite) TestServiceMustBeStartedAfterReboot(c *check.C) {
 	if common.BeforeReboot() {
-		common.InstallSnap(c, "hello-dbus-fwk.canonical")
+		installSnapWithService(c)
 		common.Reboot(c)
 	} else if common.AfterReboot(c) {
 		common.RemoveRebootMark(c)
-		c.Assert(isServiceRunning(c), check.Equals, true)
+		c.Assert(isServiceRunning(c), check.Equals, true, check.Commentf("Service is not running"))
 	}
 }
 
 func (s *serviceSuite) TestServiceMustBeStartedAfterUpdate(c *check.C) {
 	if common.BeforeReboot() {
-		common.InstallSnap(c, "hello-dbus-fwk.canonical")
+		installSnapWithService(c)
 		common.CallFakeUpdate(c)
 		common.Reboot(c)
 	} else if common.AfterReboot(c) {
 		common.RemoveRebootMark(c)
-		c.Assert(isServiceRunning(c), check.Equals, true)
+		c.Assert(isServiceRunning(c), check.Equals, true, check.Commentf("Service is not running"))
 	}
 }

@@ -1,0 +1,8 @@
+name: basic-service
+version: 1.0
+vendor: Snappy Developers <snappy-devel@lists.ubuntu.com>
+icon: meta/snappy64.png
+services:
+  - name: service
+    start: ./bin/start
+    description: Test service

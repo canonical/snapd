@@ -20,11 +20,15 @@
 package tests
 
 import (
+	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 
+	"launchpad.net/snappy/_integration-tests/testutils/cli"
 	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"launchpad.net/snappy/_integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
@@ -35,14 +39,69 @@ type initRAMFSSuite struct {
 	common.SnappySuite
 }
 
-func (s *initRAMFSSuite) TestFreeSpace(c *check.C) {
-	cmd := exec.Command("sh", "_integration-tests/tests/get_unpartitioned_space")
+func getFreeSpacePercent(c *check.C) float64 {
+	cmd := exec.Command("sh", "_integration-tests/scripts/get_unpartitioned_space")
 	free, err := cmd.Output()
 	c.Assert(err, check.IsNil, check.Commentf("Error running the script to get the free space: %s", err))
 	freePercent := strings.TrimRight(strings.TrimSpace(string(free)), "%")
 	freePercentFloat, err := strconv.ParseFloat(freePercent, 32)
 	c.Assert(err, check.IsNil,
 		check.Commentf("Error converting the free space percentage to float: %s", err))
-	c.Assert(freePercentFloat < 10, check.Equals, true,
-		check.Commentf("The free space at the end of the disk is greater than 10%"))
+	return freePercentFloat
+}
+
+func getCurrentBootDir(c *check.C) string {
+	system, err := partition.BootSystem()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
+	bootDir := partition.BootDir(system)
+	current, err := partition.CurrentPartition()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the current partition: %s", err))
+	return path.Join(bootDir, current)
+}
+
+func (s *initRAMFSSuite) SetUpTest(c *check.C) {
+	s.SnappySuite.SetUpTest(c)
+	if common.BeforeReboot() {
+		bootDir := getCurrentBootDir(c)
+		cli.ExecCommand(c, "cp", path.Join(bootDir, "initrd.img"), os.Getenv("ADT_ARTIFACTS"))
+	}
+}
+
+func (s *initRAMFSSuite) TearDownTest(c *check.C) {
+	s.SnappySuite.TearDownTest(c)
+	if !common.IsInRebootProcess() {
+		bootDir := getCurrentBootDir(c)
+		cli.ExecCommand(
+			c, "sudo", "mv", path.Join(os.Getenv("ADT_ARTIFACTS"), "initrd.img"), bootDir)
+	}
+}
+
+func (s *initRAMFSSuite) TestFreeSpaceWithoutResize(c *check.C) {
+	writablePercent := "95"
+	if common.BeforeReboot() {
+		bootDir := getCurrentBootDir(c)
+		cli.ExecCommand(
+			c, "sh", "-x", "_integration-tests/scripts/install-test-initramfs", bootDir, writablePercent)
+		common.Reboot(c)
+	} else if common.AfterReboot(c) {
+		common.RemoveRebootMark(c)
+		freeSpace := getFreeSpacePercent(c)
+		c.Assert(freeSpace, check.Equals, float64(5),
+			check.Commentf("The writable partition was resized"))
+	}
+}
+
+func (s *initRAMFSSuite) TestFreeSpaceWithResize(c *check.C) {
+	if common.BeforeReboot() {
+		bootDir := getCurrentBootDir(c)
+		writablePercent := "85"
+		cli.ExecCommand(
+			c, "sh", "-x", "_integration-tests/scripts/install-test-initramfs", bootDir, writablePercent)
+		common.Reboot(c)
+	} else if common.AfterReboot(c) {
+		common.RemoveRebootMark(c)
+		freeSpace := getFreeSpacePercent(c)
+		c.Assert(freeSpace < 10, check.Equals, true,
+			check.Commentf("The writable partition was not resized"))
+	}
 }

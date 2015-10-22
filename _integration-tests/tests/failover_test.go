@@ -48,7 +48,8 @@ func commonFailoverTest(c *check.C, f failer) {
 	if common.AfterReboot(c) {
 		common.RemoveRebootMark(c)
 		f.unset(c)
-		c.Assert(common.GetSavedVersion(c), check.Equals, currentVersion)
+		c.Assert(common.GetSavedVersion(c), check.Equals, currentVersion,
+			check.Commentf("Rebooted to the wrong version"))
 	} else {
 		common.SetSavedVersion(c, currentVersion-1)
 		common.CallFakeUpdate(c)

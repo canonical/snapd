@@ -89,22 +89,28 @@ func (r *resp) Self(*Command, *http.Request) Response {
 	return r
 }
 
+type errorResult struct {
+	Str string `json:"str,omitempty"`
+	Msg string `json:"msg,omitempty"`
+	Obj error  `json:"obj,omitempty"`
+}
+
 func (r *resp) SetError(err error, format string, v ...interface{}) Response {
-	m := make(map[string]interface{})
+	m := errorResult{}
 	newr := &resp{
 		Type:   ResponseTypeError,
-		Result: m,
+		Result: &m,
 		Status: r.Status,
 	}
 
 	if format != "" {
 		logger.Noticef(format, v...)
-		m["msg"] = fmt.Sprintf(format, v...)
+		m.Msg = fmt.Sprintf(format, v...)
 	}
 
 	if err != nil {
-		m["obj"] = err
-		m["str"] = err.Error()
+		m.Obj = err
+		m.Str = err.Error()
 	}
 
 	return newr

@@ -80,6 +80,7 @@ var (
 		Path: "/1.0/packages",
 		GET:  getPackagesInfo,
 		POST: sideloadPackage,
+		PUT:  configMulti,
 	}
 
 	packageCmd = &Command{
@@ -112,8 +113,9 @@ var (
 	}
 
 	operationCmd = &Command{
-		Path: "/1.0/operations/{uuid}",
-		GET:  getOpInfo,
+		Path:   "/1.0/operations/{uuid}",
+		GET:    getOpInfo,
+		DELETE: deleteOp,
 	}
 )
 
@@ -424,9 +426,13 @@ func packageConfig(c *Command, r *http.Request) Response {
 	pkgName := name + "." + origin
 
 	bag := lightweight.PartBagByName(name, origin)
+	if bag == nil {
+		return NotFound
+	}
+
 	idx := bag.ActiveIndex()
 	if idx < 0 {
-		return NotFound
+		return BadRequest
 	}
 
 	part, err := bag.Load(idx)
@@ -447,6 +453,59 @@ func packageConfig(c *Command, r *http.Request) Response {
 	return SyncResponse(config)
 }
 
+type configSubtask struct {
+	Status string      `json:"status"`
+	Output interface{} `json:"output"`
+}
+
+func configMulti(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(operationCmd.Path)
+	if route == nil {
+		return InternalError(nil, "router can't find route for operation")
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	var pkgmap map[string]string
+	if err := decoder.Decode(&pkgmap); err != nil {
+		return BadRequest(err, "can't decode request body into map[string]string: %v", err)
+	}
+
+	return AsyncResponse(c.d.AddTask(func() interface{} {
+		rspmap := make(map[string]*configSubtask, len(pkgmap))
+		bags := lightweight.AllPartBags()
+		for pkg, cfg := range pkgmap {
+			out := errorResult{}
+			sub := configSubtask{Status: TaskFailed, Output: &out}
+			rspmap[pkg] = &sub
+			bag, ok := bags[pkg]
+			if !ok {
+				out.Str = snappy.ErrPackageNotFound.Error()
+				out.Obj = snappy.ErrPackageNotFound
+				continue
+			}
+
+			part, _ := bag.Load(bag.ActiveIndex())
+			if part == nil {
+				out.Str = snappy.ErrSnapNotActive.Error()
+				out.Obj = snappy.ErrSnapNotActive
+				continue
+			}
+
+			config, err := part.Config([]byte(cfg))
+			if err != nil {
+				out.Msg = "Config failed"
+				out.Str = err.Error()
+				out.Obj = err
+				continue
+			}
+			sub.Status = TaskSucceeded
+			sub.Output = config
+		}
+
+		return rspmap
+	}).Map(route))
+}
+
 func getOpInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(c.Path)
 	if route == nil {
@@ -460,6 +519,22 @@ func getOpInfo(c *Command, r *http.Request) Response {
 	}
 
 	return SyncResponse(task.Map(route))
+}
+
+func deleteOp(c *Command, r *http.Request) Response {
+	id := muxVars(r)["uuid"]
+	err := c.d.DeleteTask(id)
+
+	switch err {
+	case nil:
+		return SyncResponse("done")
+	case errTaskNotFound:
+		return NotFound
+	case errTaskStillRunning:
+		return BadRequest
+	default:
+		return InternalError(err, "")
+	}
 }
 
 type packageInstruction struct {
