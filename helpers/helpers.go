@@ -298,6 +298,13 @@ func NewSideloadVersion() string {
 // Note that it won't follow symlinks and will replace existing symlinks
 // with the real file
 func AtomicWriteFile(filename string, data []byte, perm os.FileMode) (err error) {
+	if fn, err := os.Readlink(filename); err == nil || (fn != "" && os.IsNotExist(err)) {
+		if filepath.IsAbs(fn) {
+			filename = fn
+		} else {
+			filename = filepath.Join(filepath.Dir(filename), fn)
+		}
+	}
 	tmp := filename + "." + MakeRandomString(12)
 
 	// XXX: if go switches to use aio_fsync, we need to open the dir for writing

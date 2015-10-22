@@ -266,6 +266,88 @@ func (ts *HTestSuite) TestAtomicWriteFilePermissions(c *C) {
 	c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0600))
 }
 
+func (ts *HTestSuite) TestAtomicWriteFileOverwrite(c *C) {
+	tmpdir := c.MkDir()
+	p := filepath.Join(tmpdir, "foo")
+	c.Assert(ioutil.WriteFile(p, []byte("hello"), 0644), IsNil)
+	c.Assert(AtomicWriteFile(p, []byte("hi"), 0600), IsNil)
+
+	content, err := ioutil.ReadFile(p)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "hi")
+}
+
+func (ts *HTestSuite) TestAtomicWriteFileAbsoluteSymlinks(c *C) {
+	tmpdir := c.MkDir()
+	rodir := filepath.Join(tmpdir, "ro")
+	p := filepath.Join(rodir, "foo")
+	s := filepath.Join(tmpdir, "foo")
+	c.Assert(os.MkdirAll(rodir, 0755), IsNil)
+	c.Assert(os.Symlink(s, p), IsNil)
+	c.Assert(os.Chmod(rodir, 0500), IsNil)
+	defer os.Chmod(rodir, 0700)
+
+	err := AtomicWriteFile(p, []byte("hi"), 0600)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(p)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "hi")
+}
+
+func (ts *HTestSuite) TestAtomicWriteFileOverwriteAbsoluteSymlink(c *C) {
+	tmpdir := c.MkDir()
+	rodir := filepath.Join(tmpdir, "ro")
+	p := filepath.Join(rodir, "foo")
+	s := filepath.Join(tmpdir, "foo")
+	c.Assert(os.MkdirAll(rodir, 0755), IsNil)
+	c.Assert(os.Symlink(s, p), IsNil)
+	c.Assert(os.Chmod(rodir, 0500), IsNil)
+	defer os.Chmod(rodir, 0700)
+
+	c.Assert(ioutil.WriteFile(s, []byte("hello"), 0644), IsNil)
+	c.Assert(AtomicWriteFile(p, []byte("hi"), 0600), IsNil)
+
+	content, err := ioutil.ReadFile(p)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "hi")
+}
+
+func (ts *HTestSuite) TestAtomicWriteFileRelativeSymlinks(c *C) {
+	tmpdir := c.MkDir()
+	rodir := filepath.Join(tmpdir, "ro")
+	p := filepath.Join(rodir, "foo")
+	c.Assert(os.MkdirAll(rodir, 0755), IsNil)
+	c.Assert(os.Symlink("../foo", p), IsNil)
+	c.Assert(os.Chmod(rodir, 0500), IsNil)
+	defer os.Chmod(rodir, 0700)
+
+	err := AtomicWriteFile(p, []byte("hi"), 0600)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(p)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "hi")
+}
+
+func (ts *HTestSuite) TestAtomicWriteFileOverwriteRelativeSymlink(c *C) {
+	tmpdir := c.MkDir()
+	rodir := filepath.Join(tmpdir, "ro")
+	p := filepath.Join(rodir, "foo")
+	s := filepath.Join(tmpdir, "foo")
+	c.Assert(os.MkdirAll(rodir, 0755), IsNil)
+	c.Assert(os.Symlink("../foo", p), IsNil)
+	c.Assert(os.Chmod(rodir, 0500), IsNil)
+	defer os.Chmod(rodir, 0700)
+
+	c.Assert(ioutil.WriteFile(s, []byte("hello"), 0644), IsNil)
+	c.Assert(AtomicWriteFile(p, []byte("hi"), 0600), IsNil)
+
+	content, err := ioutil.ReadFile(p)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "hi")
+}
+
 func (ts *HTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) {
 	tmpdir := c.MkDir()
 	realMakeRandomString := MakeRandomString
