@@ -28,7 +28,6 @@ import (
 
 	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/systemd"
 
 	"gopkg.in/yaml.v2"
 )
@@ -137,10 +136,6 @@ func enableFirstEther() error {
 	data := fmt.Sprintf("allow-hotplug %[1]s\niface %[1]s inet dhcp\n", eth)
 
 	if err := helpers.AtomicWriteFile(ethfile, []byte(data), 0644); err != nil {
-		return err
-	}
-
-	if _, err := systemd.SystemctlCmd("restart", "networking", "--no-block"); err != nil {
 		return err
 	}
 
