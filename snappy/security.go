@@ -52,7 +52,7 @@ type securitySeccompOverride struct {
 
 const defaultTemplate = "default"
 
-var defaultPolicyGroups = []string{"networking"}
+var defaultPolicyGroups = []string{"network-client"}
 
 // TODO: autodetect, this won't work for personal
 const defaultPolicyVendor = "ubuntu-core"

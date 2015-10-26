@@ -162,7 +162,7 @@ framework in the above framework yaml example, it might use:
         description: "desc for qux service"
         start: bin/qux
         caps:
-          - networking
+          - network-client
           - foo_bar-client
 
 See `security.md` for more information on specifying `caps` and a
