@@ -64,6 +64,18 @@ func FullName(p Part) string {
 	return p.Name() + "." + p.Origin()
 }
 
+// FullNameWithChannel returns the FullName, with the channel appended
+// if it has one.
+func fullNameWithChannel(p Part) string {
+	name := FullName(p)
+	ch := p.Channel()
+	if ch == "" {
+		return name
+	}
+
+	return fmt.Sprintf("%s/%s", name, ch)
+}
+
 // Part representation of a snappy part
 type Part interface {
 
