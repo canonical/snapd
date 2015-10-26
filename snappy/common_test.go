@@ -92,14 +92,14 @@ services:
 		return "", err
 	}
 
-	if err := storeMinimalRemoteManifest(dirName, m.Name, testOrigin, m.Version, "Hello"); err != nil {
+	if err := storeMinimalRemoteManifest(dirName, m.Name, testOrigin, m.Version, "Hello", "remote-channel"); err != nil {
 		return "", err
 	}
 
 	return yamlFile, nil
 }
 
-func storeMinimalRemoteManifest(qn, name, origin, version, desc string) error {
+func storeMinimalRemoteManifest(qn, name, origin, version, desc, channel string) error {
 	if origin == SideloadedOrigin {
 		panic("store remote manifest for sideloaded package")
 	}
@@ -108,7 +108,7 @@ func storeMinimalRemoteManifest(qn, name, origin, version, desc string) error {
 		Origin:      origin,
 		Version:     version,
 		Description: desc,
-		Channel:     "remote-channel",
+		Channel:     channel,
 	})
 	if err != nil {
 		return err
@@ -205,13 +205,13 @@ vendor: Foo Bar <foo@example.com>
 	n, err := installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
-	c.Assert(storeMinimalRemoteManifest(qn, "foo", testOrigin, "1.0", ""), IsNil)
+	c.Assert(storeMinimalRemoteManifest(qn, "foo", testOrigin, "1.0", "", "remote-channel"), IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
 	n, err = installClick(snapFile, AllowUnauthenticated|AllowOEM, inter, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, "foo")
-	c.Assert(storeMinimalRemoteManifest(qn, "foo", testOrigin, "2.0", ""), IsNil)
+	c.Assert(storeMinimalRemoteManifest(qn, "foo", testOrigin, "2.0", "", "remote-channel"), IsNil)
 
 	m := NewMetaRepository()
 	installed, err := m.Installed()

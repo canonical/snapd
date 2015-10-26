@@ -523,7 +523,7 @@ icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
 	_, err := installClick(snapFile, AllowOEM, nil, testOrigin)
 	c.Assert(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "1.0", ""), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "1.0", "", "remote-channel"), IsNil)
 
 	contentFile := filepath.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
@@ -539,7 +539,7 @@ icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
 	_, err = installClick(snapFile, 0, nil, testOrigin)
 	c.Check(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "2.0", ""), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "2.0", "", "remote-channel"), IsNil)
 
 	// XXX: I think this next test now tests something we actually don't
 	// want. At least for fwks and apps, sideloading something installed
