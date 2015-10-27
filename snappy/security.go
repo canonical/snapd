@@ -38,6 +38,14 @@ import (
 	"launchpad.net/snappy/policy"
 )
 
+type errPolicyNotFound struct {
+	pol_type string
+	pol string
+}
+func (e *errPolicyNotFound) Error() string {
+	return fmt.Sprintf("could not find specified %s: %s", e.pol_type, e.pol)
+}
+
 var (
 	// Generated policy
 	aaProfilesDir = filepath.Join(policy.SecBase, "apparmor/profiles")
@@ -50,8 +58,7 @@ var (
 	scFrameworkPolicyDir = filepath.Join(policy.SecBase, "seccomp")
 
 	errOriginNotFound   = errors.New("could not detect origin")
-	errTemplateNotFound = errors.New("could not find specified template")
-	errCapNotFound      = errors.New("could not specified cap")
+	errPolicyTypeNotFound = errors.New("could not find specified policy type")
 	errInvalidAppID     = errors.New("invalid APP_ID")
 	errPolicyGen        = errors.New("errors found when generating policy")
 )
@@ -259,21 +266,35 @@ func findTemplate(template string, policyType string) (string, error) {
 		template = defaultTemplate
 	}
 
-	fn := ""
+	system_template := ""
+	fw_template := ""
 	subdir := fmt.Sprintf("templates/%s/%0.2f", defaultPolicyVendor, defaultPolicyVersion)
 	if policyType == "apparmor" {
-		fn = filepath.Join(aaPolicyDir, subdir, template)
+		system_template = filepath.Join(aaPolicyDir, subdir, template)
+		fw_template = filepath.Join(aaFrameworkPolicyDir, "templates", template)
 	} else if policyType == "seccomp" {
-		fn = filepath.Join(scPolicyDir, subdir, template)
+		system_template = filepath.Join(scPolicyDir, subdir, template)
+		fw_template = filepath.Join(scFrameworkPolicyDir, "templates", template)
 	} else {
-		return "", errTemplateNotFound
+		return "", errPolicyTypeNotFound
 	}
+
+	// Always prefer system policy
+	found := false
+	fns := []string{system_template, fw_template}
 	var t bytes.Buffer
-	tmp, err := ioutil.ReadFile(fn)
-	if err != nil {
-		return "", errTemplateNotFound
+	for _, fn := range fns {
+		tmp, err := ioutil.ReadFile(fn)
+		if err == nil {
+			t.Write(tmp)
+			found = true
+			break
+		}
 	}
-	t.Write(tmp)
+
+	if found == false {
+		return "", &errPolicyNotFound{"template", template}
+	}
 
 	return t.String(), nil
 }
@@ -289,22 +310,41 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 
 	subdir := fmt.Sprintf("policygroups/%s/%0.2f", defaultPolicyVendor, defaultPolicyVersion)
 	parent := ""
+	fw_parent := ""
 	if policyType == "apparmor" {
 		parent = filepath.Join(aaPolicyDir, subdir)
+		fw_parent = filepath.Join(aaFrameworkPolicyDir, "policygroups")
 	} else if policyType == "seccomp" {
 		parent = filepath.Join(scPolicyDir, subdir)
+		fw_parent = filepath.Join(scFrameworkPolicyDir, "policygroups")
 	} else {
-		return "", errCapNotFound
+		return "", errPolicyTypeNotFound
 	}
 
+	// Nothing to find if caps is empty
+	found := len(caps) == 0
+	bad_cap := ""
 	var p bytes.Buffer
 	for _, c := range caps {
-		fn := filepath.Join(parent, c)
-		tmp, err := ioutil.ReadFile(fn)
-		if err != nil {
-			return "", errTemplateNotFound
+		// Always prefer system policy
+		dirs := []string{parent, fw_parent}
+		for _, dir := range dirs {
+			fn := filepath.Join(dir, c)
+			tmp, err := ioutil.ReadFile(fn)
+			if err == nil {
+				p.Write(tmp)
+				found = true
+				break
+			}
 		}
-		p.Write(tmp)
+		if found == false {
+			bad_cap = c
+			break
+		}
+	}
+
+	if found == false {
+		return "", &errPolicyNotFound{"cap", bad_cap}
 	}
 
 	return p.String(), nil
@@ -462,9 +502,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 				continue
 			}
 		}
-		// FIXME
-		//aaFn := filepath.Join(aaProfilesDir, id.AppID)
-		aaFn := filepath.Join("/tmp/snappy/apparmor/profiles", id.AppID)
+		aaFn := filepath.Join(aaProfilesDir, id.AppID)
 		os.MkdirAll(filepath.Dir(aaFn), 0755)
 		err = ioutil.WriteFile(aaFn, []byte(aaPolicy), 0644)
 		if err != nil {
@@ -477,9 +515,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 			logger.Noticef("Failed to load AppArmor policy for %s: %v\n:%s", service.Name, err, out)
 		}
 
-		// FIXME
-		//scFn := filepath.Join(aaProfilesDir, id.AppID)
-		scFn := filepath.Join("/tmp/snappy/seccomp/profiles", id.AppID)
+		scFn := filepath.Join(aaProfilesDir, id.AppID)
 		os.MkdirAll(filepath.Dir(scFn), 0755)
 		err = ioutil.WriteFile(scFn, []byte(scPolicy), 0644)
 		if err != nil {
