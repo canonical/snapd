@@ -30,6 +30,20 @@ endmsg() {
 }
 trap endmsg EXIT
 
+# Prepare the coverage output profile.
+rm -rf .coverage
+mkdir .coverage
+echo "mode: set" > .coverage/coverage.out
+
+# Append the coverage profile of a package to the project coverage.
+append_coverage() {
+    local profile="$1"
+    if [ -f $profile ]; then
+        cat $profile | grep -v "mode: set" >> .coverage/coverage.out
+        rm $profile
+    fi
+}
+
 echo Checking docs
 ./mdlint.py docs/*.md
 
@@ -60,7 +74,10 @@ if [ -z "$QUICK" ]; then
 
     # tests
     echo Running tests from $(pwd)
-    $goctest -v -cover ./...
+    for pkg in $(go list ./...); do
+        $goctest -v -coverprofile=.coverage/profile.out $pkg
+        append_coverage .coverage/profile.out
+    done
 fi
 
 # go vet
