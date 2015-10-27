@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -92,6 +93,22 @@ var defaultPolicyGroups = []string{"network-client"}
 // TODO: autodetect, this won't work for personal
 const defaultPolicyVendor = "ubuntu-core"
 const defaultPolicyVersion = 15.04
+
+// Generate a string suitable for use in a DBus object
+func dbusPath(s string) (string) {
+	dbus_s := ""
+	ok := regexp.MustCompile(`^[a-zA-Z0-9]$`)
+
+	for _, c := range strings.Split(s, "") {
+		if ok.MatchString(c) {
+			dbus_s += c
+		} else {
+			dbus_s += fmt.Sprintf("_%02x", c)
+		}
+	}
+
+	return dbus_s
+}
 
 func (s *SecurityDefinitions) generateApparmorJSONContent() ([]byte, error) {
 	t := apparmorJSONTemplate{
@@ -353,9 +370,8 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 func getAppArmorVars(appID *securityAppID) string {
 	aavars := "\n# Specified profile variables\n"
 	aavars += fmt.Sprintf("@{APP_APPNAME}=\"%s\"\n", appID.Appname)
-	// FIXME:
-	aavars += fmt.Sprintf("@{APP_ID_DBUS}=\"%s\"\n", "TODO")
-	aavars += fmt.Sprintf("@{APP_PKGNAME_DBUS}=\"%s\"\n", "TODO")
+	aavars += fmt.Sprintf("@{APP_ID_DBUS}=\"%s\"\n", dbusPath(appID.AppID))
+	aavars += fmt.Sprintf("@{APP_PKGNAME_DBUS}=\"%s\"\n", dbusPath(appID.Pkgname))
 	aavars += fmt.Sprintf("@{APP_PKGNAME}=\"%s\"\n", appID.Pkgname)
 	aavars += fmt.Sprintf("@{APP_VERSION}=\"%s\"\n", appID.Version)
 	aavars += "@{INSTALL_DIR}=\"{/apps,/oem}\"\n"
@@ -479,7 +495,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 				logger.Noticef("Failed to generate custom AppArmor policy for %s: %v", service.Name, err)
 				continue
 			}
-			scPolicy, err = getAppArmorCustomPolicy(m, id, filepath.Join(baseDir, service.SecurityPolicy.Seccomp))
+			scPolicy, err = getSeccompCustomPolicy(m, id, filepath.Join(baseDir, service.SecurityPolicy.Seccomp))
 			if err != nil {
 				foundError = true
 				logger.Noticef("Failed to generate custom seccomp policy for %s: %v", service.Name, err)
@@ -515,7 +531,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 			logger.Noticef("Failed to load AppArmor policy for %s: %v\n:%s", service.Name, err, out)
 		}
 
-		scFn := filepath.Join(aaProfilesDir, id.AppID)
+		scFn := filepath.Join(scProfilesDir, id.AppID)
 		os.MkdirAll(filepath.Dir(scFn), 0755)
 		err = ioutil.WriteFile(scFn, []byte(scPolicy), 0644)
 		if err != nil {
@@ -549,7 +565,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 				logger.Noticef("Failed to generate custom AppArmor policy for %s: %v", binary.Name, err)
 				continue
 			}
-			scPolicy, err = getAppArmorCustomPolicy(m, id, filepath.Join(baseDir, binary.SecurityPolicy.Seccomp))
+			scPolicy, err = getSeccompCustomPolicy(m, id, filepath.Join(baseDir, binary.SecurityPolicy.Seccomp))
 			if err != nil {
 				foundError = true
 				logger.Noticef("Failed to generate custom seccomp policy for %s: %v", binary.Name, err)
@@ -572,9 +588,8 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 				continue
 			}
 		}
-		// FIXME
-		//aaFn := filepath.Join(aaProfilesDir, id.AppID)
-		aaFn := filepath.Join("/tmp/snappy/apparmor/profiles", id.AppID)
+
+		aaFn := filepath.Join(aaProfilesDir, id.AppID)
 		os.MkdirAll(filepath.Dir(aaFn), 0755)
 		err = ioutil.WriteFile(aaFn, []byte(aaPolicy), 0644)
 		if err != nil {
@@ -587,9 +602,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 			logger.Noticef("Failed to load AppArmor policy for %s: %v\n:%s", binary.Name, err, out)
 		}
 
-		// FIXME
-		//scFn := filepath.Join(aaProfilesDir, id.AppID)
-		scFn := filepath.Join("/tmp/snappy/seccomp/profiles", id.AppID)
+		scFn := filepath.Join(scProfilesDir, id.AppID)
 		os.MkdirAll(filepath.Dir(scFn), 0755)
 		err = ioutil.WriteFile(scFn, []byte(scPolicy), 0644)
 		if err != nil {
