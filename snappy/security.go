@@ -99,7 +99,7 @@ func dbusPath(s string) (string) {
 	dbus_s := ""
 	ok := regexp.MustCompile(`^[a-zA-Z0-9]$`)
 
-	for _, c := range strings.Split(s, "") {
+	for _, c := range strings.SplitAfter(s, "") {
 		if ok.MatchString(c) {
 			dbus_s += c
 		} else {
@@ -108,6 +108,21 @@ func dbusPath(s string) (string) {
 	}
 
 	return dbus_s
+}
+
+// Calculate whitespace prefix based on occurrence of s in t
+func findWhitespacePrefix(t string, s string) (string) {
+	pat := regexp.MustCompile(`^ *` + s)
+	p := ""
+	for _, line := range strings.Split(t, "\n") {
+		if pat.MatchString(line) {
+			for i := 0 ; i < len(line) - len(strings.TrimLeft(line, " ")) ; i++ {
+				p += " "
+			}
+			break
+		}
+	}
+	return p
 }
 
 func (s *SecurityDefinitions) generateApparmorJSONContent() ([]byte, error) {
@@ -350,6 +365,9 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 			tmp, err := ioutil.ReadFile(fn)
 			if err == nil {
 				p.Write(tmp)
+				if c != caps[len(caps) - 1 ] {
+					p.Write([]byte("\n"))
+				}
 				found = true
 				break
 			}
@@ -367,6 +385,7 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 	return p.String(), nil
 }
 
+// TODO: once verified, reorganize all these
 func getAppArmorVars(appID *securityAppID) string {
 	aavars := "\n# Specified profile variables\n"
 	aavars += fmt.Sprintf("@{APP_APPNAME}=\"%s\"\n", appID.Appname)
@@ -394,14 +413,23 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template s
 	aaPolicy := strings.Replace(t, "\n###VAR###\n", getAppArmorVars(appID)+"\n", 1)
 	aaPolicy = strings.Replace(aaPolicy, "\n###PROFILEATTACH###", fmt.Sprintf("\nprofile \"%s\"", appID.AppID), 1)
 
-	// FIXME: indentation
-	aacap := "# No caps (policy groups) specified\n"
-	if p != "" {
-		aacap = "# Rules specified via caps (policy groups)\n"
-		aacap += p + "\n"
+	aacaps := ""
+	if p == "" {
+		aacaps += "# No caps (policy groups) specified\n"
+	} else {
+		aacaps += "# Rules specified via caps (policy groups)\n"
+	        prefix := findWhitespacePrefix(t, "###POLICYGROUPS###")
+		for _, line := range strings.Split(p, "\n") {
+			if len(line) == 0 {
+				aacaps += line + "\n"
+			} else {
+				aacaps += fmt.Sprintf("%s%s\n", prefix, line)
+			}
+		}
 	}
-	aaPolicy = strings.Replace(aaPolicy, "###POLICYGROUPS###\n", aacap, 1)
+	aaPolicy = strings.Replace(aaPolicy, "###POLICYGROUPS###\n", aacaps, 1)
 
+	// Only used with security-override
 	aaPolicy = strings.Replace(aaPolicy, "###ABSTRACTIONS###\n", "# No abstractions specified\n", 1)
 	aaPolicy = strings.Replace(aaPolicy, "###READS###\n", "# No read paths specified\n", 1)
 	aaPolicy = strings.Replace(aaPolicy, "###WRITES###\n", "# No write paths specified\n", 1)
