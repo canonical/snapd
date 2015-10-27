@@ -1,3 +1,11 @@
+ubuntu-core-launcher (1.0.10) xenial; urgency=medium
+
+  * debian/usr.bin.ubuntu-core-launcher:
+    - use attach_disconnected (LP: #1471862)
+    - also allow 'mr' for /lib/@{multiarch}/ld-*.so
+
+ -- Jamie Strandboge <jamie@ubuntu.com>  Tue, 27 Oct 2015 08:24:00 -0500
+
 ubuntu-core-launcher (1.0.9) wily; urgency=medium
 
   * debian/usr.bin.ubuntu-core-launcher: add rw for /dev/null, /dev/full and
