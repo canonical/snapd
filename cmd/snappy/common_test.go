@@ -25,7 +25,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/logger"
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 // Hook up check.v1 into the "go test" runner

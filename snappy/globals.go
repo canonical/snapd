@@ -22,8 +22,8 @@ package snappy
 import (
 	"os"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/release"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/release"
 )
 
 func init() {

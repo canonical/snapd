@@ -27,7 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg"
 )
 
 type fakePart struct {

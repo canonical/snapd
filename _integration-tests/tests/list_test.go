@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"os"
 
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
 
 	"github.com/mvo5/goconfigparser"
 	"gopkg.in/check.v1"

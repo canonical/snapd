@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 )
 
 const (

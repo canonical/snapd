@@ -22,9 +22,9 @@ package daemon
 import (
 	"time"
 
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/snappy"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // a for-testing Part

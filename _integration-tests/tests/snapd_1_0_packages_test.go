@@ -22,9 +22,9 @@ package tests
 import (
 	"os"
 
-	"launchpad.net/snappy/_integration-tests/testutils/build"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/data"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/build"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/data"
 
 	"gopkg.in/check.v1"
 )

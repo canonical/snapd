@@ -30,9 +30,9 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/config"
-	"launchpad.net/snappy/_integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/config"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/partition"
 )
 
 const (
