@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"sort"
 
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 // Rollback will roll the given pkg back to the given ver. If the version

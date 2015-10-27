@@ -20,8 +20,8 @@
 package daemon
 
 import (
-	"launchpad.net/snappy/snappy"
-	"launchpad.net/snappy/systemd"
+	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/systemd"
 )
 
 type tSA struct {

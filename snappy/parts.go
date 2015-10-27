@@ -27,9 +27,9 @@ import (
 	"strings"
 	"time"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 // SystemConfig is a config map holding configs for multiple packages

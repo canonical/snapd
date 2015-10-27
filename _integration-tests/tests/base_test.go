@@ -26,11 +26,11 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/partition"
-	"launchpad.net/snappy/_integration-tests/testutils/report"
-	"launchpad.net/snappy/_integration-tests/testutils/runner"
-	"launchpad.net/snappy/_integration-tests/testutils/wait"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/report"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/runner"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/wait"
 )
 
 func init() {
