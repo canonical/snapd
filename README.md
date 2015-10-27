@@ -16,7 +16,8 @@ is similar to Java's `CLASSPATH` or Python's `~/.local`. `GOPATH` is documented
 Various conventions exist for naming the location of your `GOPATH`, but it
 should exist, and be writable by you. For example
 
-    export GOPATH=${HOME}/work mkdir $GOPATH
+    export GOPATH=${HOME}/work
+    mkdir $GOPATH
 
 will define and create `$HOME/work` as your local `GOPATH`. The `go` tool
 itself will create three subdirectories inside your `GOPATH` when required;
@@ -69,10 +70,11 @@ http://www.ubuntu.com/legal/contributors
 To get the source and propose a merge, this is what typically needs to
 be done:
 
-     bzr branch lp:snappy my-work
-     cd my-work
-     [hack on mywork]
-     bzr lp-propose
+    cd ~/work/src/github.com/ubuntu-core/snappy
+    git checkout -b my-work
+    [hack on mywork]
+    git push
+    [create pull request]
 
 We value good tests, so when you fix a bug or add a new feature we highly
 encourage you to create a test in $source_testing.go. See also the section
