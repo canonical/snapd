@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-10-28 09:19+0100\n"
+        "POT-Creation-Date: 2015-10-28 16:28+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -71,7 +71,7 @@ msgid   "Allows rollback of a snap to a previous installed version. Without any 
 msgstr  ""
 
 #, c-format
-msgid   "Another snappy is running in the background, will try again in %d seconds...\n"
+msgid   "Another snappy is running, will try again in %d seconds...\n"
         "Press ctrl-c to cancel.\n"
 msgstr  ""
 

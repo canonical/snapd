@@ -63,7 +63,7 @@ Press ctrl-c to cancel.
 `)
 			} else {
 				msg = i18n.G(
-					`Another snappy is running in the background, will try again in %d seconds...
+					`Another snappy is running, will try again in %d seconds...
 Press ctrl-c to cancel.
 `)
 			}
