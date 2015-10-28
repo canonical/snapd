@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/_integration-tests/testutils"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils"
 )
 
 // Image type encapsulates image actions

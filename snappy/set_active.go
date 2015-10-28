@@ -22,7 +22,7 @@ package snappy
 import (
 	"sort"
 
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 // SetActive sets the active state of the given package

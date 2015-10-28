@@ -31,7 +31,7 @@ import (
 	"sync"
 	"syscall"
 
-	"launchpad.net/snappy/logger"
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 const (

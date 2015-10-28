@@ -76,7 +76,7 @@ func (s *ParserReportSuite) TestParserReporterReturnsTheNumberOfBytesWritten(c *
 }
 
 func (s *ParserReportSuite) TestParserReporterOutputsSuccess(c *check.C) {
-	s.subject.Write([]byte(fmt.Sprintf("PASS: /tmp/snappy-tests-job/18811/src/launchpad.net/snappy/_integration-tests/tests/apt_test.go:34: %s      0.005s\n", s.testID)))
+	s.subject.Write([]byte(fmt.Sprintf("PASS: /tmp/snappy-tests-job/18811/src/github.com/ubuntu-core/snappy/_integration-tests/tests/apt_test.go:34: %s      0.005s\n", s.testID)))
 
 	expected := fmt.Sprintf("success: %s\n", s.testID)
 	actual := s.output.String()
@@ -87,7 +87,7 @@ func (s *ParserReportSuite) TestParserReporterOutputsSuccess(c *check.C) {
 }
 
 func (s *ParserReportSuite) TestParserReporterOutputsFailure(c *check.C) {
-	s.subject.Write([]byte(fmt.Sprintf("FAIL: /tmp/snappy-tests-job/710/src/launchpad.net/snappy/_integration-tests/tests/installFramework_test.go:85: %s\n", s.testID)))
+	s.subject.Write([]byte(fmt.Sprintf("FAIL: /tmp/snappy-tests-job/710/src/github.com/ubuntu-core/snappy/_integration-tests/tests/installFramework_test.go:85: %s\n", s.testID)))
 
 	expected := fmt.Sprintf("failure: %s\n", s.testID)
 	actual := s.output.String()
@@ -99,7 +99,7 @@ func (s *ParserReportSuite) TestParserReporterOutputsFailure(c *check.C) {
 
 func (s *ParserReportSuite) TestParserReporterOutputsSkip(c *check.C) {
 	skipReason := "skip reason"
-	s.subject.Write([]byte(fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/launchpad.net/snappy/_integration-tests/tests/info_test.go:36: %s (%s)\n", s.testID, skipReason)))
+	s.subject.Write([]byte(fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/github.com/ubuntu-core/snappy/_integration-tests/tests/info_test.go:36: %s (%s)\n", s.testID, skipReason)))
 
 	expected := fmt.Sprintf("skip: %s [\n%s\n]\n", s.testID, skipReason)
 	actual := s.output.String()
