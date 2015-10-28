@@ -263,12 +263,8 @@ func (m *MockProgressMeter) Notify(msg string) {
 	m.notified = append(m.notified, msg)
 }
 
-// seccomp filter mocks
-const scFilterGenFakeResult = `
-syscall1
-syscall2
-`
-
-func mockRunScFilterGen(argv ...string) ([]byte, error) {
-	return []byte(scFilterGenFakeResult), nil
+// apparmor_parser mocks
+func mockRunAppArmorParser(argv ...string) ([]byte, error) {
+	return nil, nil
 }
+
