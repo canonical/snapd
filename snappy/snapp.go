@@ -1264,8 +1264,7 @@ func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
 }
 
 // RequestAppArmorUpdate checks whether changes to the given policies and
-// templates impacts the snap, and updates the timestamp of the relevant json
-// symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits).
+// templates impacts the snap, and updates the policy if needed
 func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
 	needsUpdate := false
 	for _, svc := range s.ServiceYamls() {
@@ -1280,7 +1279,8 @@ func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) er
 	}
 
 	if needsUpdate {
-		err := generatePolicy(s.m, s.basedir); if err != nil {
+		err := generatePolicy(s.m, s.basedir)
+		if err != nil {
 			return err
 		}
 	}
