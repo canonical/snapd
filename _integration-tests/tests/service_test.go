@@ -24,11 +24,11 @@ import (
 	"os"
 	"regexp"
 
-	"launchpad.net/snappy/_integration-tests/testutils/build"
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/data"
-	"launchpad.net/snappy/_integration-tests/testutils/wait"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/build"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/data"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
 )

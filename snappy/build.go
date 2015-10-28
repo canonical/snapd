@@ -32,9 +32,9 @@ import (
 	"syscall"
 	"text/template"
 
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/pkg/clickdeb"
-	"launchpad.net/snappy/pkg/snapfs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/pkg/clickdeb"
+	"github.com/ubuntu-core/snappy/pkg/snapfs"
 
 	"gopkg.in/yaml.v2"
 )
