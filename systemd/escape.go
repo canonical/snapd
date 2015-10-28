@@ -28,8 +28,10 @@ import (
 const allowed = `:_.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
 
 // EscapePath works like systemd-escape --path
-// FIMXE: use "github.com/coreos/go-systemd/unit" once we stop worry about
-//        compatibility for go1.3
+// FIXME: use github.com/coreos/go-systemd/unit/escape.go
+//        once we can update go-systemd. we can not right now
+//        because versions >= 2 are not compatible with go1.3 from
+//        15.04
 func EscapePath(in string) string {
 	out := ""
 
