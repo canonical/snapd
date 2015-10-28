@@ -93,8 +93,11 @@ type securityAppID struct {
 // etc) of the system, which is needed for determining the security policy
 // policy-vendor
 func FindUbuntuFlavor() (string, error) {
-	// TODO: snappy list-- if has ubuntu-personal, use it, otherwise use
-	// ubuntu-core
+	// TODO: a downloaded snap targets a particular device. We need to map
+	// that device type (flavor) to installed system security policy (eg
+	// ubuntu-core, ubuntu-personal, etc). As of 2015-10-28,
+	// ubuntu-personal images are no longer generated, and there is no
+	// mechanism to know what the snap targets.
 	return "ubuntu-core", nil
 }
 
