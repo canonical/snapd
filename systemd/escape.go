@@ -20,6 +20,7 @@
 package systemd
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -30,22 +31,32 @@ const allowed = `:_.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567
 // FIMXE: use "github.com/coreos/go-systemd/unit" once we stop worry about
 //        compatibility for go1.3
 func EscapePath(in string) string {
-	out := []byte{}
+	out := ""
 
+	// clean and trim leading/trailing "/"
 	in = filepath.Clean(in)
-	in = strings.TrimLeft(in, "/")
+	in = strings.Trim(in, "/")
+
+	// empty strings is "/"
 	if len(in) == 0 {
 		in = "/"
 	}
-	in = strings.Replace(in, "/", "-", -1)
-
-	for i := 0; i < len(in); i++ {
-		if strings.IndexByte(allowed, in[i]) >= 0 {
-			out = append(out, in[i])
-		} else {
-			out = append(out, byte(in[i]))
-		}
+	// leading "." is special
+	if in[0] == '.' {
+		out += fmt.Sprintf(`\x%x`, in[0])
+		in = in[1:len(in)]
 	}
 
-	return string(out)
+	// replace all special chars
+	for i := 0; i < len(in); i++ {
+		if strings.IndexByte(allowed, in[i]) >= 0 {
+			out += fmt.Sprintf("%c", in[i])
+		} else {
+			out += fmt.Sprintf(`\x%x`, (in[i]))
+		}
+	}
+	// now replace the special char "/" with "-"
+	out = strings.Replace(out, `\x2f`, `-`, -1)
+
+	return out
 }
