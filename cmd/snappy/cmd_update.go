@@ -56,7 +56,7 @@ const (
 var shutdownMsg = i18n.G("snappy autopilot triggered a reboot to boot into an up to date system -- temprorarily disable the reboot by running 'sudo shutdown -c'")
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
-	return withMutex(x.doUpdate)
+	return withMutexAndRetry(x.doUpdate)
 }
 
 func (x *cmdUpdate) doUpdate() error {

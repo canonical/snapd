@@ -54,7 +54,7 @@ func init() {
 }
 
 func (x *cmdInstall) Execute(args []string) error {
-	return withMutex(x.doInstall)
+	return withMutexAndRetry(x.doInstall)
 }
 
 func (x *cmdInstall) doInstall() error {

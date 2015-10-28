@@ -52,7 +52,7 @@ func init() {
 }
 
 func (x *cmdActivate) Execute(args []string) error {
-	return withMutex(x.doActivate)
+	return withMutexAndRetry(x.doActivate)
 }
 
 func (x *cmdActivate) doActivate() error {
