@@ -571,7 +571,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 
 // GeneratePolicyFromFile is used to generate security policy on the system
 // from the specified manifest file name
-func GeneratePolicyFromFile(fn string, force []bool) error {
+func GeneratePolicyFromFile(fn string, force bool) error {
 	m, err := parsePackageYamlFile(fn)
 	if err != nil {
 		return err

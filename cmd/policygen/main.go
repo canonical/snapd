@@ -42,7 +42,7 @@ var (
 )
 
 type options struct {
-	Force []bool `short:"f" long:"force" description:"Force policy generation"`
+	Force bool `short:"f" long:"force" description:"Force policy generation"`
 }
 
 var optionsData options

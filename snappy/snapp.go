@@ -28,7 +28,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -889,6 +888,11 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		return "", err
 	}
 
+	// Generate the security policy
+	if err := GeneratePolicyFromFile(filepath.Join(s.basedir, "meta", "package.yaml"), true); err != nil {
+		return "", err
+	}
+
 	// and finally make active
 	err = s.activate(inhibitHooks, inter)
 	defer func() {
@@ -1312,17 +1316,6 @@ func (s *SnapPart) RefreshDependentsSecurity(oldPart *SnapPart, inter interacter
 		if err != nil {
 			return err
 		}
-	}
-
-	cmd := exec.Command(aaClickHookCmd)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		if exitCode, err := helpers.ExitCode(err); err == nil {
-			return &ErrApparmorGenerate{
-				ExitCode: exitCode,
-				Output:   output,
-			}
-		}
-		return err
 	}
 
 	return nil
