@@ -26,9 +26,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/systemd"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/systemd"
 )
 
 type ServiceActorSuite struct {

@@ -1,6 +1,6 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: snappy
-Source: https://launchpad.net/snappy
+Source: https://github.com/ubuntu-core/snappy
 
 Files: *
 Copyright: Copyright (C) 2014,2015 Canonical, Ltd.

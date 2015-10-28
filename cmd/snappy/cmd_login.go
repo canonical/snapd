@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"os"
 
-	"launchpad.net/snappy/i18n"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/snappy"
+	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 type cmdLogin struct {

@@ -1,4 +1,4 @@
 {{ $filter := .Filter }}
 {{ $test := .Test }}
-Test-Command: ./_integration-tests/reboot-wrapper {{ $test }} {{ if $filter }}-gocheck.f {{ $filter }}{{ end }}
+Test-Command: ./_integration-tests/scripts/reboot-wrapper {{ $test }} {{ if $filter }}-gocheck.f {{ $filter }}{{ end }}
 Restrictions: allow-stderr

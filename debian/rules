@@ -3,7 +3,7 @@
 
 #export DH_VERBOSE=1
 export DH_OPTIONS
-export DH_GOPKG := launchpad.net/snappy
+export DH_GOPKG := github.com/ubuntu-core/snappy
 #export DEB_BUILD_OPTIONS=nocheck
 
 RELEASE = $(shell lsb_release -c -s)

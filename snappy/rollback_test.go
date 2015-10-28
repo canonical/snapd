@@ -22,7 +22,7 @@ package snappy
 import (
 	. "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg"
 )
 
 func (s *SnapTestSuite) TestRollbackWithVersion(c *C) {

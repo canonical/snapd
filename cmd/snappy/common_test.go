@@ -23,8 +23,9 @@ import (
 	"testing"
 
 	"github.com/jessevdk/go-flags"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -66,6 +67,10 @@ func (s *CmdTestSuite) TestAddOptionDescriptionOrPanicForPositional(c *C) {
 }
 
 func (s *CmdTestSuite) TestAddOptionDescriptionOrPanicWillPanic(c *C) {
+	// disable logging so log doesn't scare people
+	logger.SetLogger(logger.NullLogger)
+	defer func() { c.Check(logger.SimpleSetup(), IsNil) }()
+
 	parser := flags.NewParser(&struct{}{}, 0)
 	arg, err := parser.AddCommand("mock", "shortHelp", "longHelp", &struct{}{})
 	c.Assert(err, IsNil)

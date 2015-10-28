@@ -25,9 +25,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/wait"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
 )
@@ -53,7 +53,7 @@ func (s *fanTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
 	var err error
 	s.subjectIP, err = getIPAddr(c)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error getting IP address: %s", err))
 
 	s.fanCtl(c, "up")
 	s.bridgeIP = s.fanBridgeIP(c)
@@ -179,8 +179,11 @@ func restartDocker(c *check.C) {
 	cli.ExecCommand(c, "sudo", "systemctl", "restart", dockerService)
 
 	// we need to wait until the socket is ready, an active systemctl status is not enough
-	err := wait.ForCommand(c, `(?ms).*docker\.sock\s.*`, "ls", "/run")
-	c.Assert(err, check.IsNil)
+	err := wait.ForActiveService(c, dockerService)
+	c.Assert(err, check.IsNil, check.Commentf("Expected nil error, got %s", err))
+
+	err = wait.ForCommand(c, `(?ms).*docker\.sock\s.*`, "ls", "/run")
+	c.Assert(err, check.IsNil, check.Commentf("Expected nil error, got %s", err))
 }
 
 func (s *fanTestSuite) fanName() string {
@@ -198,7 +201,10 @@ func setUpDocker(c *check.C) {
 	dockerService := fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion)
 
 	err := wait.ForActiveService(c, dockerService)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error waiting for service: %s", err))
+
+	err = wait.ForCommand(c, `(?ms).*docker\.sock\s.*`, "ls", "/run")
+	c.Assert(err, check.IsNil, check.Commentf("Expected nil error, got %s", err))
 
 	cli.ExecCommand(c, "docker", "pull", baseContainer)
 }

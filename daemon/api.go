@@ -33,12 +33,12 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/pkg/lightweight"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/release"
-	"launchpad.net/snappy/snappy"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/pkg/lightweight"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 var api = []*Command{

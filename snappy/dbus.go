@@ -24,7 +24,7 @@ import (
 	"regexp"
 	"text/template"
 
-	"launchpad.net/snappy/logger"
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 func verifyBusName(busName string) error {

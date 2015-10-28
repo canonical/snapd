@@ -26,9 +26,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 func (s *SnapTestSuite) TestActiveSnapByType(c *C) {
@@ -85,6 +85,20 @@ vendor: example.com`)
 		{QualifiedName, pkg.TypeFramework, "fwk"},
 		{FullName, pkg.TypeApp, "app." + testOrigin},
 		{FullName, pkg.TypeFramework, "fwk." + testOrigin},
+		{fullNameWithChannel, pkg.TypeApp, "app." + testOrigin + "/remote-channel"},
+		{fullNameWithChannel, pkg.TypeFramework, "fwk." + testOrigin + "/remote-channel"},
+	} {
+		names, err := ActiveSnapIterByType(t.f, t.t)
+		c.Check(err, IsNil)
+		c.Check(names, DeepEquals, []string{t.n})
+	}
+
+	// now remove the channel
+	storeMinimalRemoteManifest("app."+testOrigin, "app", testOrigin, "1.10", "Hello.", "")
+	storeMinimalRemoteManifest("fwk", "fwk", testOrigin, "1.0", "Hello.", "")
+	for _, t := range []T{
+		{fullNameWithChannel, pkg.TypeApp, "app." + testOrigin},
+		{fullNameWithChannel, pkg.TypeFramework, "fwk." + testOrigin},
 	} {
 		names, err := ActiveSnapIterByType(t.f, t.t)
 		c.Check(err, IsNil)
