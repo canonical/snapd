@@ -48,20 +48,29 @@ func (e *errPolicyNotFound) Error() string {
 }
 
 var (
-	// Generated policy
-	aaProfilesDir = filepath.Join(policy.SecBase, "apparmor/profiles")
-	scProfilesDir = filepath.Join(policy.SecBase, "seccomp/profiles")
+	// Note: these are true for ubuntu-core but perhaps not other flavors
+        defaultTemplate         = "default"
+        defaultPolicyGroups     = []string{"network-client"}
+
+	// These are set elsewhere
+        defaultPolicyVendor     = ""
+        defaultPolicyVersion    = ""
+
 	// Templates and policy groups (caps)
 	aaPolicyDir = "/usr/share/apparmor/easyprof"
 	scPolicyDir = "/usr/share/seccomp"
 	// Framework policy
 	aaFrameworkPolicyDir = filepath.Join(policy.SecBase, "apparmor")
 	scFrameworkPolicyDir = filepath.Join(policy.SecBase, "seccomp")
+	// AppArmor cache dir
+	aaCacheDir = "/var/cache/apparmor"
 
-	errOriginNotFound     = errors.New("could not detect origin")
-	errPolicyTypeNotFound = errors.New("could not find specified policy type")
-	errInvalidAppID       = errors.New("invalid APP_ID")
-	errPolicyGen          = errors.New("errors found when generating policy")
+	errOriginNotFound        = errors.New("could not detect origin")
+	errPolicyTypeNotFound    = errors.New("could not find specified policy type")
+	errInvalidAppID          = errors.New("invalid APP_ID")
+	errPolicyGen             = errors.New("errors found when generating policy")
+	ErrSystemVersionNotFound = errors.New("could not detect system version")
+	ErrSystemFlavorNotFound  = errors.New("could not detect system flavor")
 )
 
 type securitySeccompOverride struct {
@@ -75,13 +84,38 @@ type securityAppID struct {
 	Version string
 }
 
-const defaultTemplate = "default"
 
-var defaultPolicyGroups = []string{"network-client"}
+func FindUbuntuFlavor() (string, error) {
+	// TODO: snappy list-- if has ubuntu-personal, use it, otherwise use
+	// ubuntu-core
+	return "ubuntu-core", nil
+}
 
-// TODO: autodetect, this won't work for personal
-const defaultPolicyVendor = "ubuntu-core"
-const defaultPolicyVersion = 15.04
+func FindUbuntuVersion() (string, error) {
+	var buffer bytes.Buffer
+	fn := "/etc/lsb-release"
+	content, err := ioutil.ReadFile(fn)
+	if err != nil {
+		logger.Noticef("Failed to read %q: %v", fn, err)
+		return "", err
+	}
+	buffer.Write(content)
+
+	v := ""
+	for _, line := range strings.Split(buffer.String(), "\n") {
+		if strings.HasPrefix(line, "DISTRIB_RELEASE=") {
+			tmp := strings.Split(line, "=")
+			if len(tmp) != 2 {
+				return v, ErrSystemVersionNotFound
+			}
+			v = tmp[1]
+		}
+	}
+	if v == "" {
+		err = ErrSystemVersionNotFound
+	}
+	return v, err
+}
 
 // Generate a string suitable for use in a DBus object
 func dbusPath(s string) string {
@@ -132,76 +166,6 @@ func runScFilterGenImpl(argv ...string) ([]byte, error) {
 	return cmd.Output()
 }
 
-// seccomp specific
-func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]byte, error) {
-	if sd.SecurityPolicy != nil && sd.SecurityPolicy.Seccomp != "" {
-		fn := filepath.Join(baseDir, sd.SecurityPolicy.Seccomp)
-		content, err := ioutil.ReadFile(fn)
-		if err != nil {
-			logger.Noticef("Failed to read %q: %v", fn, err)
-		}
-		return content, err
-	}
-
-	os.MkdirAll(dirs.SnapSeccompDir, 0755)
-
-	// defaults
-	policyVendor := defaultPolicyVendor
-	policyVersion := defaultPolicyVersion
-	template := defaultTemplate
-	caps := []string{}
-	for _, p := range defaultPolicyGroups {
-		caps = append(caps, p)
-	}
-	syscalls := []string{}
-
-	if sd.SecurityOverride != nil {
-		if sd.SecurityOverride.Seccomp == "" {
-			logger.Noticef("No seccomp policy found")
-			return nil, ErrNoSeccompPolicy
-		}
-
-		fn := filepath.Join(baseDir, sd.SecurityOverride.Seccomp)
-		var s securitySeccompOverride
-		err := readSeccompOverride(fn, &s)
-		if err != nil {
-			logger.Noticef("Failed to read %q: %v", fn, err)
-			return nil, err
-		}
-
-		syscalls = s.Syscalls
-	} else {
-		if sd.SecurityTemplate != "" {
-			template = sd.SecurityTemplate
-		}
-		if sd.SecurityCaps != nil {
-			caps = sd.SecurityCaps
-		}
-	}
-
-	// Build up the command line
-	args := []string{
-		"sc-filtergen",
-		fmt.Sprintf("--include-policy-dir=%s", filepath.Dir(dirs.SnapSeccompDir)),
-		fmt.Sprintf("--policy-vendor=%s", policyVendor),
-		fmt.Sprintf("--policy-version=%.2f", policyVersion),
-		fmt.Sprintf("--template=%s", template),
-	}
-	if len(caps) > 0 {
-		args = append(args, fmt.Sprintf("--policy-groups=%s", strings.Join(caps, ",")))
-	}
-	if len(syscalls) > 0 {
-		args = append(args, fmt.Sprintf("--syscalls=%s", strings.Join(syscalls, ",")))
-	}
-
-	content, err := runScFilterGen(args...)
-	if err != nil {
-		logger.Noticef("%v failed", args)
-	}
-
-	return content, err
-}
-
 func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 	yamlData, err := ioutil.ReadFile(yamlPath)
 	if err != nil {
@@ -223,7 +187,7 @@ func findTemplate(template string, policyType string) (string, error) {
 
 	systemTemplate := ""
 	fwTemplate := ""
-	subdir := fmt.Sprintf("templates/%s/%0.2f", defaultPolicyVendor, defaultPolicyVersion)
+	subdir := fmt.Sprintf("templates/%s/%s", defaultPolicyVendor, defaultPolicyVersion)
 	if policyType == "apparmor" {
 		systemTemplate = filepath.Join(aaPolicyDir, subdir, template)
 		fwTemplate = filepath.Join(aaFrameworkPolicyDir, "templates", template)
@@ -263,7 +227,7 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 		caps = []string{}
 	}
 
-	subdir := fmt.Sprintf("policygroups/%s/%0.2f", defaultPolicyVendor, defaultPolicyVersion)
+	subdir := fmt.Sprintf("policygroups/%s/%s", defaultPolicyVendor, defaultPolicyVersion)
 	parent := ""
 	fwParent := ""
 	if policyType == "apparmor" {
@@ -282,8 +246,8 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 	var p bytes.Buffer
 	for _, c := range caps {
 		// Always prefer system policy
-		dirs := []string{parent, fwParent}
-		for _, dir := range dirs {
+		policyDirs := []string{parent, fwParent}
+		for _, dir := range policyDirs {
 			fn := filepath.Join(dir, c)
 			tmp, err := ioutil.ReadFile(fn)
 			if err == nil {
@@ -415,11 +379,64 @@ func getAppID(appID string) (*securityAppID, error) {
 }
 
 func loadAppArmorPolicy(fn string) ([]byte, error) {
-	cmd := exec.Command("/sbin/apparmor_parser", "-r", "--write-cache", fn)
+	cmd := exec.Command("/sbin/apparmor_parser", "-r", "--write-cache", "-L", aaCacheDir, fn)
 	return cmd.CombinedOutput()
 }
 
+func (m *packageYaml) removeOneSecurityPolicy(name, baseDir string) error {
+	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
+	if err != nil {
+		return err
+	}
+
+	// seccomp profile
+	fn := filepath.Join(dirs.SnapSeccompDir, profileName)
+	if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	// apparmor cache
+	fn = filepath.Join(aaCacheDir, profileName)
+	if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	// apparmor profile
+	fn = filepath.Join(dirs.SnapAppArmorDir, profileName)
+	if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
+}
+
+func removePolicy(m *packageYaml, baseDir string) error {
+	for _, service := range m.ServiceYamls {
+		if err := m.removeOneSecurityPolicy(service.Name, baseDir); err != nil {
+			return err
+		}
+	}
+
+	for _, binary := range m.Binaries {
+		if err := m.removeOneSecurityPolicy(binary.Name, baseDir); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func generatePolicy(m *packageYaml, baseDir string) error {
+	var err error
+	defaultPolicyVendor, err = FindUbuntuFlavor()
+	if err != nil {
+		return err
+	}
+	defaultPolicyVersion, err = FindUbuntuVersion()
+	if err != nil {
+		return err
+	}
+
 	foundError := false
 
 	for _, service := range m.ServiceYamls {
@@ -469,7 +486,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 				continue
 			}
 		}
-		aaFn := filepath.Join(aaProfilesDir, id.AppID)
+		aaFn := filepath.Join(dirs.SnapAppArmorDir, id.AppID)
 		os.MkdirAll(filepath.Dir(aaFn), 0755)
 		err = ioutil.WriteFile(aaFn, []byte(aaPolicy), 0644)
 		if err != nil {
@@ -482,7 +499,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 			logger.Noticef("Failed to load AppArmor policy for %s: %v\n:%s", service.Name, err, out)
 		}
 
-		scFn := filepath.Join(scProfilesDir, id.AppID)
+		scFn := filepath.Join(dirs.SnapSeccompDir, id.AppID)
 		os.MkdirAll(filepath.Dir(scFn), 0755)
 		err = ioutil.WriteFile(scFn, []byte(scPolicy), 0644)
 		if err != nil {
@@ -540,7 +557,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 			}
 		}
 
-		aaFn := filepath.Join(aaProfilesDir, id.AppID)
+		aaFn := filepath.Join(dirs.SnapAppArmorDir, id.AppID)
 		os.MkdirAll(filepath.Dir(aaFn), 0755)
 		err = ioutil.WriteFile(aaFn, []byte(aaPolicy), 0644)
 		if err != nil {
@@ -553,7 +570,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 			logger.Noticef("Failed to load AppArmor policy for %s: %v\n:%s", binary.Name, err, out)
 		}
 
-		scFn := filepath.Join(scProfilesDir, id.AppID)
+		scFn := filepath.Join(dirs.SnapSeccompDir, id.AppID)
 		os.MkdirAll(filepath.Dir(scFn), 0755)
 		err = ioutil.WriteFile(scFn, []byte(scPolicy), 0644)
 		if err != nil {

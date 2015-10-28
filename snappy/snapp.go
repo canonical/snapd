@@ -888,11 +888,6 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		return "", err
 	}
 
-	// Generate the security policy
-	if err := GeneratePolicyFromFile(filepath.Join(s.basedir, "meta", "package.yaml"), true); err != nil {
-		return "", err
-	}
-
 	// and finally make active
 	err = s.activate(inhibitHooks, inter)
 	defer func() {
@@ -1010,7 +1005,8 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	}
 
 	// generate the security policy from the package.yaml
-	if err := s.m.addSecurityPolicy(s.basedir); err != nil {
+	appsDir := filepath.Join(dirs.SnapAppsDir, QualifiedName(s), s.Version())
+	if err := s.m.addSecurityPolicy(appsDir); err != nil {
 		return err
 	}
 

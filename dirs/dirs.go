@@ -55,7 +55,7 @@ func SetRootDir(rootdir string) {
 	SnapOemDir = filepath.Join(rootdir, "/oem")
 	SnapDataDir = filepath.Join(rootdir, "/var/lib/apps")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/apps/")
-	SnapAppArmorDir = filepath.Join(rootdir, "/var/lib/apparmor/clicks")
+	SnapAppArmorDir = filepath.Join(rootdir, SnappyDir, "apparmor", "profiles")
 	SnapSeccompDir = filepath.Join(rootdir, SnappyDir, "seccomp", "profiles")
 	SnapIconsDir = filepath.Join(rootdir, SnappyDir, "icons")
 	SnapMetaDir = filepath.Join(rootdir, SnappyDir, "meta")
