@@ -25,8 +25,8 @@ import (
 	"os"
 	"strings"
 
-	"launchpad.net/snappy/pkg/clickdeb"
-	"launchpad.net/snappy/pkg/snapfs"
+	"github.com/ubuntu-core/snappy/pkg/clickdeb"
+	"github.com/ubuntu-core/snappy/pkg/snapfs"
 )
 
 // File is the interface to interact with the low-level snap files.

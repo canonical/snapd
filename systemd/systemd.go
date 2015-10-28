@@ -538,7 +538,7 @@ Where=%s
 `, name, what, where)
 
 	mu := MountUnitPath(where, "mount")
-	return filepath.Base(mu), helpers.AtomicWriteFile(mu, []byte(c), 0644)
+	return filepath.Base(mu), helpers.AtomicWriteFile(mu, []byte(c), 0644, 0)
 }
 
 func (s *systemd) WriteAutoMountUnitFile(name, where string) (string, error) {
@@ -554,5 +554,5 @@ WantedBy=multi-user.target
 `, name, where)
 
 	mu := MountUnitPath(where, "automount")
-	return filepath.Base(mu), helpers.AtomicWriteFile(MountUnitPath(where, "automount"), []byte(c), 0644)
+	return filepath.Base(mu), helpers.AtomicWriteFile(MountUnitPath(where, "automount"), []byte(c), 0644, 0)
 }

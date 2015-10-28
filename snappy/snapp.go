@@ -44,6 +44,7 @@ import (
 	"github.com/ubuntu-core/snappy/oauth"
 	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/pkg/remote"
+	"github.com/ubuntu-core/snappy/pkg/snapfs"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
