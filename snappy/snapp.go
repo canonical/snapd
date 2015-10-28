@@ -1266,23 +1266,28 @@ func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
 // RequestAppArmorUpdate checks whether changes to the given policies and
 // templates impacts the snap, and updates the policy if needed
 func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
-	needsUpdate := false
+	var foundError error
 	for _, svc := range s.ServiceYamls() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
-			needsUpdate = true
+			err := svc.generatePolicyForServiceBinary(s.m, svc.Name, s.basedir)
+			if err != nil {
+				logger.Noticef("Failed to regenerate policy for %s: %v", svc.Name, err)
+				foundError = err
+			}
 		}
 	}
 	for _, bin := range s.Binaries() {
 		if bin.NeedsAppArmorUpdate(policies, templates) {
-			needsUpdate = true
+			err := bin.generatePolicyForServiceBinary(s.m, bin.Name, s.basedir)
+			if err != nil {
+				logger.Noticef("Failed to regenerate policy for %s: %v", bin.Name, err)
+				foundError = err
+			}
 		}
 	}
 
-	if needsUpdate {
-		err := generatePolicy(s.m, s.basedir)
-		if err != nil {
-			return err
-		}
+	if foundError != nil {
+		return foundError
 	}
 
 	return nil
