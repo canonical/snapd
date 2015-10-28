@@ -178,7 +178,6 @@ binaries:
  "title": "some title",
  "hooks": {
   "hello-world": {
-   "apparmor": "meta/hello-world.apparmor",
    "bin-path": "bin/hello-world"
   }
  }
@@ -219,9 +218,7 @@ services:
  "maintainer": "Foo \u003cfoo@example.com\u003e",
  "title": "some title",
  "hooks": {
-  "foo": {
-   "apparmor": "meta/foo.apparmor"
-  }
+  "foo": {}
  }
 }`
 	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_3.0.1_all.snap", "manifest").Output()
