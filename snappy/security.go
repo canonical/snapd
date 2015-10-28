@@ -232,8 +232,8 @@ func findTemplate(template string, policyType string) (string, error) {
 }
 
 func findCaps(caps []string, template string, policyType string) (string, error) {
-	// FIXME: this is snappy specific, on other systems like the
-	//        phone we may want different defaults.
+	// XXX: this is snappy specific, on other systems like the phone we may
+	// want different defaults.
 	if template == "" && caps == nil {
 		caps = defaultPolicyGroups
 	} else if caps == nil {
