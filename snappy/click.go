@@ -662,20 +662,6 @@ func (m *packageYaml) removePackageBinaries(baseDir string) error {
 	return nil
 }
 
-func (m *packageYaml) addSecurityPolicy(baseDir string) error {
-	if err := generatePolicy(m, baseDir); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (m *packageYaml) removeSecurityPolicy(baseDir string) error {
-	if err := removePolicy(m, baseDir); err != nil {
-		return err
-	}
-	return nil
-}
-
 type agreer interface {
 	Agreed(intro, license string) bool
 }

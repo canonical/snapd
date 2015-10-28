@@ -1006,7 +1006,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 
 	// generate the security policy from the package.yaml
 	appsDir := filepath.Join(dirs.SnapAppsDir, QualifiedName(s), s.Version())
-	if err := s.m.addSecurityPolicy(appsDir); err != nil {
+	if err := generatePolicy(s.m, appsDir); err != nil {
 		return err
 	}
 
@@ -1065,7 +1065,7 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	if err := s.m.removeSecurityPolicy(s.basedir); err != nil {
+	if err := removePolicy(s.m, s.basedir); err != nil {
 		return err
 	}
 
@@ -1263,31 +1263,25 @@ func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
 	return nil
 }
 
-var timestampUpdater = helpers.UpdateTimestamp
-
-func updateAppArmorJSONTimestamp(fullName, thing, version string) error {
-	fn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s_%s_%s.json", fullName, thing, version))
-	return timestampUpdater(fn)
-}
-
 // RequestAppArmorUpdate checks whether changes to the given policies and
 // templates impacts the snap, and updates the timestamp of the relevant json
 // symlinks (thus requesting aaClickHookCmd regenerate the appropriate bits).
 func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
-
-	fullName := QualifiedName(s)
+	needsUpdate := false
 	for _, svc := range s.ServiceYamls() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
-			if err := updateAppArmorJSONTimestamp(fullName, svc.Name, s.Version()); err != nil {
-				return err
-			}
+			needsUpdate = true
 		}
 	}
 	for _, bin := range s.Binaries() {
 		if bin.NeedsAppArmorUpdate(policies, templates) {
-			if err := updateAppArmorJSONTimestamp(fullName, bin.Name, s.Version()); err != nil {
-				return err
-			}
+			needsUpdate = true
+		}
+	}
+
+	if needsUpdate {
+		err := generatePolicy(s.m, s.basedir); if err != nil {
+			return err
 		}
 	}
 
