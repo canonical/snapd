@@ -3,7 +3,10 @@ dist: trusty
 language: go
 env:
   global:
-    - secure: "PkmY54fBn83ZHkDuortqgNOwR2JDlIMSEjD9yIYVEg1iMsHicA3BknM35kGbFCqlSn4GU8DTgJEKFXAZkVlanei+da2R24GH/kKbZQOUvclzTxJteev0rTm8ZJltXKTRnj/e/1UyeM2kum7fVrGwWpG7rQBi7SPF/ROM5jM+CMbI9R2g+LXruKNYmofSa9cZk8gYOXwaaXmXCm0d4UnJDesWcQ+4v+GuovnC8lkIKK9BjxbmWPVp8+cCtRkRxBkML9pZK9WUCXvgxlGf80F6N8vmgCzo9/LITJcSKmyO/OCQmhn9NnKHUCn8xLSjrZkWCL0JKZAzMhGXrmGhC17NnV3VZ8tfYVWrBZV5aVh2KK5vdYlW5sas0BgxBppTmFeYCetjs/VpAuCFlchV98sSgpnGSc9F5qEiez5DUWvvlVzjO9soHKtQeecgHrfk7Bgp9P0n1jvVEh3uFMK52tOPOF6mc9EDnivKa698381iD+ob3KC+IXYNmQlG36V4b0uhCrupp1PES/l6ZVjDrPVmd/J7UQJDLWdH2KmKkXwQIobBCyor4mlyA/j+EMm08cQ7uX5GfD+3zFrMqvOs7QIt+8RpGrSZGx4H9t7/w7BBAtYlOkrW2voPrvB0DgglvixWrVQ7hgj5cYGTLsxaemGcotiKEoGBVlV0pRRelesFxLE="
+    # Encrypted Coveralls token. The secret token for your repository can be found at the bottom of
+    # your repository's page on Coveralls. To encrypt it, install the travis gem and run:
+    #     travis encrypt -r ubuntu-core/snappy COVERALLS_TOKEN=$secret_token
+    - secure: "bHMAmu1F32uc3EXYuK8VnxK3x57aZTr0L4f4J1SKLKKkCy9khvwfBRXP+mlBtNzTjzN9TPYYXc5M6JYJKlM9a8ylu+kzjJBzpW6oI01yKskJuzSr7QbQl9SPoSxYvIZC38df+pJV7dCBtiK/ikXWixRtf316VaQOkaVYcLYs5lYvSrPTGYrEr90CHH2ZlVgUASdee3t6Ew7jIbs0MKRz1AOtrU2N2OZj9SmLa3PBB3syMpamf5aJW/kDR7JrRCLHdbTMDtGk+B8klPKofhOEGzplAqnzeBdMS2yqZ+qBH85w40NX3HEyQryzdidod1VmMfj9AUIgsy8rdfwWjjp0GxdSG9sX4KBi8sgtBfq4S7VtluWPQwe0/l6y3spZv7agNzVej6fM+hongFlpvuXMxGHuiqbkln4cx8KWD+jr5eljdinbxQKXHVn/xOiGLl4rcVMgVaYna/t6tVSBmOD0G45Q/UBu1b+AxdchDzMzv+A4ASwRJwYHUPj1SIlducd+VfvucVDiczF9CqnquCwgoJKN5vufxyz4wPgqnwhXwTd1+f+lROoB3gOE0aQya8wSGIulqZO5DbHkCO/gFMKRTxNIk9FM+CZwwFgPiqlOeY88nnHK1tY/ShIihK1jV6BSl1UkZEn91h64/0zh22YJ3/yp3mP30L8Q5MwgsXdeZNI="
 
 before_install:
   - sudo apt-get update -qq
@@ -11,4 +14,4 @@ before_install:
 script: sh -v ./run-checks
 after_success:
   - go get github.com/mattn/goveralls
-  - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_BRANCH == "master" && goveralls -coverprofile .coverage/coverage.out -service=travis-ci -repotoken $COVERALLS_TOKEN
+  - goveralls -coverprofile .coverage/coverage.out -service=travis-ci -repotoken $COVERALLS_TOKEN
