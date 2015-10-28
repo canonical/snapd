@@ -73,7 +73,6 @@ func (ts *PrivTestSuite) TestPrivMutex(c *C) {
 
 	err = privMutex.Unlock()
 	c.Assert(err, IsNil)
-	c.Assert(privMutex.lock, IsNil)
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
 }
 
@@ -140,4 +139,13 @@ func (ts *PrivTestSuite) TestWithPrivMutexErrOnLockHeld(c *C) {
 	c.Assert(err, Equals, ErrAlreadyLocked)
 	// and we did not call it too often
 	c.Assert(callCount, Equals, 1)
+}
+
+func (ts *PrivTestSuite) TestPrivLockLock(c *C) {
+	lockfile := filepath.Join(ts.tempdir, "lock")
+	priv := New(lockfile)
+	for i := 0; i < 3; i++ {
+		priv.Lock()
+		priv.Unlock()
+	}
 }

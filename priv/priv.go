@@ -100,9 +100,6 @@ func (m *Mutex) Unlock() error {
 		return err
 	}
 
-	// invalidate
-	m.lock = nil
-
 	return nil
 }
 
