@@ -27,8 +27,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/oauth"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/oauth"
 
 	. "gopkg.in/check.v1"
 )

@@ -371,7 +371,7 @@ type mockBootloader struct {
 	SyncBootFilesCalled             bool
 }
 
-func (b *mockBootloader) Name() bootloaderName {
+func (b *mockBootloader) Name() BootloaderName {
 	return "mocky"
 }
 func (b *mockBootloader) ToggleRootFS(otherRootfs string) error {

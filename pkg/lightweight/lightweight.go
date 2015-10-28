@@ -31,11 +31,11 @@ import (
 	"strconv"
 	"strings"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/pkg/removed"
-	"launchpad.net/snappy/snappy"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg/removed"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // split a path into the name and extension of the directory, and the file.

@@ -28,7 +28,7 @@ import (
 	"strings"
 	"testing"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 
 	. "gopkg.in/check.v1"
 )

@@ -30,8 +30,8 @@ import (
 	"strconv"
 	"strings"
 
-	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/wait"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
 )
