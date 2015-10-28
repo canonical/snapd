@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-10-15 15:53+0200\n"
+        "POT-Creation-Date: 2015-10-28 09:19+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -71,7 +71,8 @@ msgid   "Allows rollback of a snap to a previous installed version. Without any 
 msgstr  ""
 
 #, c-format
-msgid   "Another snappy is running in the background, will try again in %d seconds...\nPress ctrl-c to cancel.\n"
+msgid   "Another snappy is running in the background, will try again in %d seconds...\n"
+        "Press ctrl-c to cancel.\n"
 msgstr  ""
 
 msgid   "Assign a hardware device to a package"
@@ -298,7 +299,9 @@ msgid   "The package to rollback "
 msgstr  ""
 
 #, c-format
-msgid   "The snappy autopilot is updating your system in the background. This may\ntake some minutes. Will try again in %d seconds...\nPress ctrl-c to cancel.\n"
+msgid   "The snappy autopilot is updating your system in the background. This may\n"
+        "take some minutes. Will try again in %d seconds...\n"
+        "Press ctrl-c to cancel.\n"
 msgstr  ""
 
 msgid   "The version to rollback to"
