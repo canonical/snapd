@@ -38,7 +38,7 @@ import (
 	"text/template"
 	"time"
 
-	"launchpad.net/snappy/logger"
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 var goarch = runtime.GOARCH
@@ -292,12 +292,29 @@ func NewSideloadVersion() string {
 	return string(bs)
 }
 
+// AtomicWriteFlags are a bitfield of flags for AtomicWriteFile
+type AtomicWriteFlags uint
+
+const (
+	// AtomicWriteFollow makes AtomicWriteFile follows symlinks
+	AtomicWriteFollow AtomicWriteFlags = 1 << iota
+)
+
 // AtomicWriteFile updates the filename atomically and works otherwise
 // like io/ioutil.WriteFile()
 //
 // Note that it won't follow symlinks and will replace existing symlinks
 // with the real file
-func AtomicWriteFile(filename string, data []byte, perm os.FileMode) (err error) {
+func AtomicWriteFile(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags) (err error) {
+	if flags&AtomicWriteFollow != 0 {
+		if fn, err := os.Readlink(filename); err == nil || (fn != "" && os.IsNotExist(err)) {
+			if filepath.IsAbs(fn) {
+				filename = fn
+			} else {
+				filename = filepath.Join(filepath.Dir(filename), fn)
+			}
+		}
+	}
 	tmp := filename + "." + MakeRandomString(12)
 
 	// XXX: if go switches to use aio_fsync, we need to open the dir for writing

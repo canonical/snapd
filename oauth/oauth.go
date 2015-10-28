@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"time"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 )
 
 // Token contains the sso token

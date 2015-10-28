@@ -30,10 +30,9 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/config"
-	"launchpad.net/snappy/_integration-tests/testutils/partition"
-	"launchpad.net/snappy/_integration-tests/testutils/wait"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/config"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/partition"
 )
 
 const (
@@ -56,14 +55,6 @@ type SnappySuite struct {
 // SetUpSuite disables the snappy autopilot. It will run before all the
 // integration suites.
 func (s *SnappySuite) SetUpSuite(c *check.C) {
-	// Workaround for bug https://bugs.launchpad.net/snappy/+bug/1498293
-	// TODO remove once the bug is fixed
-	// originally added by elopio - 2015-09-30 to the rollback test, moved
-	// here by --fgimenez - 2015-10-15
-	wait.ForFunction(c, "regular", partition.Mode)
-
-	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
-	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 	var err error
 	Cfg, err = config.ReadConfig(
 		"_integration-tests/data/output/testconfig.json")

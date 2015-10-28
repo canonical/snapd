@@ -22,7 +22,7 @@ package priv
 import (
 	"path/filepath"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 
 	. "gopkg.in/check.v1"
 )

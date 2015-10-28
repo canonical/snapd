@@ -55,7 +55,7 @@ if [ -z "$QUICK" ]; then
     godeps -u dependencies.tsv
 
     echo Building
-    go build -v launchpad.net/snappy/...
+    go build -v github.com/ubuntu-core/snappy/...
 
 
     # tests

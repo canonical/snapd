@@ -30,14 +30,14 @@ import (
 
 	"github.com/mvo5/goconfigparser"
 
-	"launchpad.net/snappy/coreconfig"
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/partition"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/provisioning"
+	"github.com/ubuntu-core/snappy/coreconfig"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/provisioning"
 )
 
 // SystemImagePart have constant name, origin, and vendor.

@@ -24,9 +24,26 @@ import (
 	"os"
 	"testing"
 
-	"launchpad.net/snappy/_integration-tests/testutils/report"
-	"launchpad.net/snappy/_integration-tests/testutils/runner"
+	"gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/report"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/runner"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/wait"
 )
+
+func init() {
+	c := &check.C{}
+	// Workaround for bug https://bugs.launchpad.net/snappy/+bug/1498293
+	// TODO remove once the bug is fixed
+	// originally added by elopio - 2015-09-30 to the rollback test, moved
+	// here by --fgimenez - 2015-10-15
+	wait.ForFunction(c, "regular", partition.Mode)
+
+	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
+	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
+}
 
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) {

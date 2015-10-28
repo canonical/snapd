@@ -23,8 +23,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/logger"
 
 	"gopkg.in/yaml.v2"
 )

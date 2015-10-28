@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/dirs"
+	"github.com/ubuntu-core/snappy/dirs"
 )
 
 // A SnapDataDir represents a single data directory for a version of a package

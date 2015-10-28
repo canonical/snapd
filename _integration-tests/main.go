@@ -26,11 +26,11 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"launchpad.net/snappy/_integration-tests/testutils"
-	"launchpad.net/snappy/_integration-tests/testutils/autopkgtest"
-	"launchpad.net/snappy/_integration-tests/testutils/build"
-	"launchpad.net/snappy/_integration-tests/testutils/config"
-	"launchpad.net/snappy/_integration-tests/testutils/image"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/autopkgtest"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/build"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/config"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/image"
 )
 
 const (

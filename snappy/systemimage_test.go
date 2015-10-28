@@ -28,9 +28,9 @@ import (
 	"strings"
 	"testing"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/partition"
-	"launchpad.net/snappy/provisioning"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/provisioning"
 
 	. "gopkg.in/check.v1"
 )

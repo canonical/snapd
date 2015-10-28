@@ -25,7 +25,7 @@ import (
 	"net/url"
 	"strings"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 )
 
 var (

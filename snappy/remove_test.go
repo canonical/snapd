@@ -22,8 +22,8 @@ package snappy
 import (
 	. "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 func (s *SnapTestSuite) TestRemoveNonExistingRaisesError(c *C) {
