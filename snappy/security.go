@@ -172,13 +172,6 @@ func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error)
 	return fmt.Sprintf("%s.%s_%s_%s", m.Name, origin, cleanedName, m.Version), err
 }
 
-var runScFilterGen = runScFilterGenImpl
-
-func runScFilterGenImpl(argv ...string) ([]byte, error) {
-	cmd := exec.Command(argv[0], argv[1:]...)
-	return cmd.Output()
-}
-
 func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 	yamlData, err := ioutil.ReadFile(yamlPath)
 	if err != nil {
