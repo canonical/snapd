@@ -87,32 +87,6 @@ type Ports struct {
 	External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
 }
 
-// SecurityOverrideDefinition is used to override apparmor or seccomp
-// security defaults
-type SecurityOverrideDefinition struct {
-	Apparmor string `yaml:"apparmor" json:"apparmor"`
-	Seccomp  string `yaml:"seccomp" json:"seccomp"`
-}
-
-// SecurityPolicyDefinition is used to provide hand-crafted policy
-type SecurityPolicyDefinition struct {
-	Apparmor string `yaml:"apparmor" json:"apparmor"`
-	Seccomp  string `yaml:"seccomp" json:"seccomp"`
-}
-
-// SecurityDefinitions contains the common apparmor/seccomp definitions
-type SecurityDefinitions struct {
-	// SecurityTemplate is a template like "default"
-	SecurityTemplate string `yaml:"security-template,omitempty" json:"security-template,omitempty"`
-	// SecurityOverride is a override for the high level security json
-	SecurityOverride *SecurityOverrideDefinition `yaml:"security-override,omitempty" json:"security-override,omitempty"`
-	// SecurityPolicy is a hand-crafted low-level policy
-	SecurityPolicy *SecurityPolicyDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
-
-	// SecurityCaps is are the apparmor/seccomp capabilities for an app
-	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
-}
-
 // NeedsAppArmorUpdate checks whether the security definitions are impacted by
 // changes to policies or templates.
 func (sd *SecurityDefinitions) NeedsAppArmorUpdate(policies, templates map[string]bool) bool {
@@ -463,25 +437,6 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d PackageFile, currentAct
 	return nil
 }
 
-func (m *packageYaml) legacyIntegrateSecDef(hookName string, s *SecurityDefinitions) {
-	// see if we have a custom security policy
-	if s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != "" {
-		m.Integration[hookName]["apparmor-profile"] = s.SecurityPolicy.Apparmor
-		return
-	}
-
-	// see if we have a security override
-	if s.SecurityOverride != nil && s.SecurityOverride.Apparmor != "" {
-		m.Integration[hookName]["apparmor"] = s.SecurityOverride.Apparmor
-		return
-	}
-
-	// apparmor template
-	m.Integration[hookName]["apparmor"] = filepath.Join("meta", hookName+".apparmor")
-
-	return
-}
-
 // legacyIntegration sets up the Integration property of packageYaml from its other attributes
 func (m *packageYaml) legacyIntegration(hasConfig bool) {
 	if m.Integration != nil {
@@ -500,8 +455,6 @@ func (m *packageYaml) legacyIntegration(hasConfig bool) {
 		}
 		// legacy click hook
 		m.Integration[hookName]["bin-path"] = v.Exec
-
-		m.legacyIntegrateSecDef(hookName, &v.SecurityDefinitions)
 	}
 
 	for _, v := range m.ServiceYamls {
@@ -510,9 +463,6 @@ func (m *packageYaml) legacyIntegration(hasConfig bool) {
 		if _, ok := m.Integration[hookName]; !ok {
 			m.Integration[hookName] = clickAppHook{}
 		}
-
-		// handle the apparmor stuff
-		m.legacyIntegrateSecDef(hookName, &v.SecurityDefinitions)
 	}
 
 	if hasConfig {

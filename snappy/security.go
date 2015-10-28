@@ -30,7 +30,7 @@ import (
 	"regexp"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	//"gopkg.in/yaml.v2"
 
 	"launchpad.net/snappy/dirs"
 	"launchpad.net/snappy/logger"
@@ -78,8 +78,44 @@ var (
 	ErrSystemFlavorNotFound = errors.New("could not detect system flavor")
 )
 
-type securitySeccompOverride struct {
-	Syscalls []string `yaml:"syscalls,omitempty"`
+// SecuritySeccompOverrideDefinition is used to override seccomp security
+// defaults
+type SecuritySeccompOverrideDefinition struct {
+	Syscalls []string `yaml:"syscalls,omitempty" json:"syscalls,omitempty"`
+}
+
+// SecurityAppArmorOverrideDefinition is used to override apparmor security
+// defaults
+type SecurityAppArmorOverrideDefinition struct {
+	ReadPaths    []string `yaml:"read-paths,omitempty" json:"read-paths,omitempty"`
+	WritePaths   []string `yaml:"write-paths,omitempty" json:"write-paths,omitempty"`
+	Abstractions []string `yaml:"abstractions,omitempty" json:"abstractions,omitempty"`
+}
+
+// SecurityOverrideDefinition is used to override apparmor or seccomp
+// security defaults
+type SecurityOverrideDefinition struct {
+	AppArmor *SecurityAppArmorOverrideDefinition `yaml:"apparmor" json:"apparmor"`
+	Seccomp  *SecuritySeccompOverrideDefinition `yaml:"seccomp" json:"seccomp"`
+}
+
+// SecurityPolicyDefinition is used to provide hand-crafted policy
+type SecurityPolicyDefinition struct {
+	Apparmor string `yaml:"apparmor" json:"apparmor"`
+	Seccomp  string `yaml:"seccomp" json:"seccomp"`
+}
+
+// SecurityDefinitions contains the common apparmor/seccomp definitions
+type SecurityDefinitions struct {
+	// SecurityTemplate is a template like "default"
+	SecurityTemplate string `yaml:"security-template,omitempty" json:"security-template,omitempty"`
+	// SecurityOverride is a override for the high level security json
+	SecurityOverride *SecurityOverrideDefinition `yaml:"security-override,omitempty" json:"security-override,omitempty"`
+	// SecurityPolicy is a hand-crafted low-level policy
+	SecurityPolicy *SecurityPolicyDefinition `yaml:"security-policy,omitempty" json:"security-policy,omitempty"`
+
+	// SecurityCaps is are the apparmor/seccomp capabilities for an app
+	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
 }
 
 type securityAppID struct {
@@ -170,20 +206,6 @@ func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error)
 	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
 
 	return fmt.Sprintf("%s.%s_%s_%s", m.Name, origin, cleanedName, m.Version), err
-}
-
-func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
-	yamlData, err := ioutil.ReadFile(yamlPath)
-	if err != nil {
-		return err
-	}
-
-	err = yaml.Unmarshal(yamlData, &s)
-	if err != nil {
-		return &ErrInvalidYaml{File: "package.yaml[seccomp override]", Err: err, Yaml: yamlData}
-	}
-
-	return nil
 }
 
 func findTemplate(template string, policyType string) (string, error) {
@@ -293,7 +315,32 @@ func getAppArmorVars(appID *securityAppID) string {
 	return aavars
 }
 
-func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string) (string, error) {
+func genAppArmorPathRule(path string, access string) (string, error) {
+	if !strings.HasPrefix(path, "/") && !strings.HasPrefix(path, "@{") {
+		logger.Noticef("Bad path: %s", path)
+		return "", errPolicyGen
+	}
+
+	owner := ""
+	if strings.HasPrefix(path, "/home") || strings.HasPrefix(path, "@{HOME") {
+		owner = "owner "
+	}
+
+	rules := ""
+	if strings.HasSuffix(path, "/") {
+		rules += fmt.Sprintf("%s %s,\n", path, access)
+		rules += fmt.Sprintf("%s%s** %s,\n", owner, path, access)
+	} else if strings.HasSuffix(path, "/**") ||  strings.HasSuffix(path, "/*") {
+		rules += fmt.Sprintf("%s/ %s,\n", filepath.Dir(path), access)
+		rules += fmt.Sprintf("%s%s %s,\n", owner, path, access)
+	} else {
+		rules += fmt.Sprintf("%s%s %s,\n", owner, path, access)
+	}
+
+	return rules, nil
+}
+
+func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string, overrides *SecurityAppArmorOverrideDefinition) (string, error) {
 	t, err := findTemplate(template, "apparmor")
 	if err != nil {
 		return "", err
@@ -322,15 +369,56 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template s
 	}
 	aaPolicy = strings.Replace(aaPolicy, "###POLICYGROUPS###\n", aacaps, 1)
 
-	// Only used with security-override
-	aaPolicy = strings.Replace(aaPolicy, "###ABSTRACTIONS###\n", "# No abstractions specified\n", 1)
-	aaPolicy = strings.Replace(aaPolicy, "###READS###\n", "# No read paths specified\n", 1)
-	aaPolicy = strings.Replace(aaPolicy, "###WRITES###\n", "# No write paths specified\n", 1)
+	if overrides == nil {
+		// Only used with security-override
+		aaPolicy = strings.Replace(aaPolicy, "###ABSTRACTIONS###\n", "# No abstractions specified\n", 1)
+		aaPolicy = strings.Replace(aaPolicy, "###READS###\n", "# No read paths specified\n", 1)
+		aaPolicy = strings.Replace(aaPolicy, "###WRITES###\n", "# No write paths specified\n", 1)
+	} else {
+		if overrides.ReadPaths != nil {
+			s := "# Additional read-paths from security-override\n"
+			prefix := findWhitespacePrefix(t, "###READS###")
+			for _, readpath := range overrides.ReadPaths {
+				rules, err :=  genAppArmorPathRule(strings.Trim(readpath, " "), "rk")
+				if err != nil {
+					return "", err
+				}
+				lines := strings.Split(rules, "\n")
+				for _, rule := range lines {
+					s += fmt.Sprintf("%s%s\n", prefix, rule)
+				}
+			}
+			aaPolicy =  strings.Replace(aaPolicy, "###READS###\n", s, 1)
+		}
+		if overrides.WritePaths != nil {
+			s := "# Additional write-paths from security-override\n"
+			prefix := findWhitespacePrefix(t, "###WRITES###")
+			for _, writepath := range overrides.WritePaths {
+				rules, err :=  genAppArmorPathRule(strings.Trim(writepath, " "), "rwk")
+				if err != nil {
+					return "", err
+				}
+				lines := strings.Split(rules, "\n")
+				for _, rule := range lines {
+					s += fmt.Sprintf("%s%s\n", prefix, rule)
+				}
+			}
+			aaPolicy =  strings.Replace(aaPolicy, "###WRITES###\n", s, 1)
+		}
+		if overrides.Abstractions != nil {
+			s := "# Additional abstractions from security-override\n"
+			prefix := findWhitespacePrefix(t, "###ABSTRACTIONS###")
+			for _, abs := range overrides.Abstractions {
+				s += fmt.Sprintf("%s#include <abstractions/%s>\n", prefix, abs)
+			}
+			aaPolicy =  strings.Replace(aaPolicy, "###ABSTRACTIONS###\n", s, 1)
+		}
+	}
 
 	return aaPolicy, nil
 }
 
-func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string) (string, error) {
+func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string, overrides *SecuritySeccompOverrideDefinition) (string, error) {
 	t, err := findTemplate(template, "seccomp")
 	if err != nil {
 		return "", err
@@ -341,6 +429,14 @@ func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, template st
 	}
 
 	scPolicy := t + "\n" + p
+
+	if overrides != nil && overrides.Syscalls != nil {
+		scPolicy += "\n# Addtional syscalls from security-override\n"
+		for _, syscall := range overrides.Syscalls {
+			scPolicy += fmt.Sprintf("%s\n", syscall)
+		}
+	}
+
 	scPolicy = strings.Replace(scPolicy, "\ndeny ", "\n# EXPLICITLY DENIED: ", -1)
 
 	return scPolicy, nil
@@ -458,16 +554,23 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *packageYaml, na
 			logger.Noticef("Failed to generate custom seccomp policy for %s: %v", name, err)
 			return err
 		}
-	} else if sd.SecurityOverride != nil {
-		aaPolicy = "TODO: security-override"
-		scPolicy = "TODO: security-override"
 	} else {
-		aaPolicy, err = getAppArmorTemplatedPolicy(m, id, sd.SecurityTemplate, sd.SecurityCaps)
+		if sd.SecurityOverride.AppArmor == nil {
+			aaPolicy, err = getAppArmorTemplatedPolicy(m, id, sd.SecurityTemplate, sd.SecurityCaps, nil)
+		} else {
+			aaPolicy, err = getAppArmorTemplatedPolicy(m, id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride.AppArmor)
+		}
 		if err != nil {
 			logger.Noticef("Failed to generate AppArmor policy for %s: %v", name, err)
 			return err
 		}
-		scPolicy, err = getSeccompTemplatedPolicy(m, id, sd.SecurityTemplate, sd.SecurityCaps)
+
+		if sd.SecurityOverride.Seccomp == nil {
+			scPolicy, err = getSeccompTemplatedPolicy(m, id, sd.SecurityTemplate, sd.SecurityCaps, nil)
+		} else {
+			scPolicy, err = getSeccompTemplatedPolicy(m, id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride.Seccomp)
+		}
+
 		if err != nil {
 			logger.Noticef("Failed to generate seccomp policy for %s: %v", name, err)
 			return err
