@@ -48,7 +48,7 @@ func (s *purgeSuite) SetUpTest(c *C) {
 	}
 
 	dirs.SnapSeccompDir = c.MkDir()
-	runScFilterGen = mockRunScFilterGen
+	dirs.SnapAppArmorDir = c.MkDir()
 }
 
 func (s *purgeSuite) TestPurgeNonExistingRaisesError(c *C) {
