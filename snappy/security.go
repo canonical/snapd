@@ -439,6 +439,72 @@ func removePolicy(m *packageYaml, baseDir string) error {
 	return nil
 }
 
+func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *packageYaml, name string, baseDir string) error {
+	appID, err := getSecurityProfile(m, name, baseDir)
+	if err != nil {
+		logger.Noticef("Failed to obtain APP_ID for %s: %v", name, err)
+		return err
+	}
+
+	id, err := getAppID(appID)
+	if err != nil {
+		logger.Noticef("Failed to obtain APP_ID for %s: %v", name, err)
+		return err
+	}
+
+	aaPolicy := ""
+	scPolicy := ""
+	if sd.SecurityPolicy != nil {
+		aaPolicy, err = getAppArmorCustomPolicy(m, id, filepath.Join(baseDir, sd.SecurityPolicy.Apparmor))
+		if err != nil {
+			logger.Noticef("Failed to generate custom AppArmor policy for %s: %v", name, err)
+			return err
+		}
+		scPolicy, err = getSeccompCustomPolicy(m, id, filepath.Join(baseDir, sd.SecurityPolicy.Seccomp))
+		if err != nil {
+			logger.Noticef("Failed to generate custom seccomp policy for %s: %v", name, err)
+			return err
+		}
+	} else if sd.SecurityOverride != nil {
+		aaPolicy = "TODO: security-override"
+		scPolicy = "TODO: security-override"
+	} else {
+		aaPolicy, err = getAppArmorTemplatedPolicy(m, id, sd.SecurityTemplate, sd.SecurityCaps)
+		if err != nil {
+			logger.Noticef("Failed to generate AppArmor policy for %s: %v", name, err)
+			return err
+		}
+		scPolicy, err = getSeccompTemplatedPolicy(m, id, sd.SecurityTemplate, sd.SecurityCaps)
+		if err != nil {
+			logger.Noticef("Failed to generate seccomp policy for %s: %v", name, err)
+			return err
+		}
+	}
+
+	scFn := filepath.Join(dirs.SnapSeccompDir, id.AppID)
+	os.MkdirAll(filepath.Dir(scFn), 0755)
+	err = ioutil.WriteFile(scFn, []byte(scPolicy), 0644)
+	if err != nil {
+		logger.Noticef("Failed to write seccomp policy for %s: %v", name, err)
+		return err
+	}
+
+	aaFn := filepath.Join(dirs.SnapAppArmorDir, id.AppID)
+	os.MkdirAll(filepath.Dir(aaFn), 0755)
+	err = ioutil.WriteFile(aaFn, []byte(aaPolicy), 0644)
+	if err != nil {
+		logger.Noticef("Failed to write AppArmor policy for %s: %v", name, err)
+		return err
+	}
+	out, err := loadAppArmorPolicy(aaFn)
+	if err != nil {
+		logger.Noticef("Failed to load AppArmor policy for %s: %v\n:%s", name, err, out)
+		return err
+	}
+
+	return nil
+}
+
 func generatePolicy(m *packageYaml, baseDir string) error {
 	var err error
 	defaultPolicyVendor, err = FindUbuntuFlavor()
@@ -453,142 +519,20 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 	foundError := false
 
 	for _, service := range m.ServiceYamls {
-		appID, err := getSecurityProfile(m, service.Name, baseDir)
+		err := service.generatePolicyForServiceBinary(m, service.Name, baseDir)
 		if err != nil {
 			foundError = true
 			logger.Noticef("Failed to obtain APP_ID for %s: %v", service.Name, err)
 			continue
-		}
-
-		id, err := getAppID(appID)
-		if err != nil {
-			foundError = true
-			logger.Noticef("Failed to obtain APP_ID for %s: %v", service.Name, err)
-			continue
-		}
-
-		aaPolicy := ""
-		scPolicy := ""
-		if service.SecurityPolicy != nil {
-			aaPolicy, err = getAppArmorCustomPolicy(m, id, filepath.Join(baseDir, service.SecurityPolicy.Apparmor))
-			if err != nil {
-				foundError = true
-				logger.Noticef("Failed to generate custom AppArmor policy for %s: %v", service.Name, err)
-				continue
-			}
-			scPolicy, err = getSeccompCustomPolicy(m, id, filepath.Join(baseDir, service.SecurityPolicy.Seccomp))
-			if err != nil {
-				foundError = true
-				logger.Noticef("Failed to generate custom seccomp policy for %s: %v", service.Name, err)
-				continue
-			}
-		} else if service.SecurityOverride != nil {
-			aaPolicy = "TODO: security-override"
-			scPolicy = "TODO: security-override"
-		} else {
-			aaPolicy, err = getAppArmorTemplatedPolicy(m, id, service.SecurityTemplate, service.SecurityCaps)
-			if err != nil {
-				foundError = true
-				logger.Noticef("Failed to generate AppArmor policy for %s: %v", service.Name, err)
-				continue
-			}
-			scPolicy, err = getSeccompTemplatedPolicy(m, id, service.SecurityTemplate, service.SecurityCaps)
-			if err != nil {
-				foundError = true
-				logger.Noticef("Failed to generate seccomp policy for %s: %v", service.Name, err)
-				continue
-			}
-		}
-		aaFn := filepath.Join(dirs.SnapAppArmorDir, id.AppID)
-		os.MkdirAll(filepath.Dir(aaFn), 0755)
-		err = ioutil.WriteFile(aaFn, []byte(aaPolicy), 0644)
-		if err != nil {
-			foundError = true
-			logger.Noticef("Failed to write AppArmor policy for %s: %v", service.Name, err)
-		}
-		out, err := loadAppArmorPolicy(aaFn)
-		if err != nil {
-			foundError = true
-			logger.Noticef("Failed to load AppArmor policy for %s: %v\n:%s", service.Name, err, out)
-		}
-
-		scFn := filepath.Join(dirs.SnapSeccompDir, id.AppID)
-		os.MkdirAll(filepath.Dir(scFn), 0755)
-		err = ioutil.WriteFile(scFn, []byte(scPolicy), 0644)
-		if err != nil {
-			foundError = true
-			logger.Noticef("Failed to write seccomp policy for %s: %v", service.Name, err)
 		}
 	}
 
-	// TODO: is there any way to combine this with the above?
 	for _, binary := range m.Binaries {
-		appID, err := getSecurityProfile(m, binary.Name, baseDir)
+		err := binary.generatePolicyForServiceBinary(m, binary.Name, baseDir)
 		if err != nil {
 			foundError = true
 			logger.Noticef("Failed to obtain APP_ID for %s: %v", binary.Name, err)
 			continue
-		}
-
-		id, err := getAppID(appID)
-		if err != nil {
-			foundError = true
-			logger.Noticef("Failed to obtain APP_ID for %s: %v", binary.Name, err)
-			continue
-		}
-
-		aaPolicy := ""
-		scPolicy := ""
-		if binary.SecurityPolicy != nil {
-			aaPolicy, err = getAppArmorCustomPolicy(m, id, filepath.Join(baseDir, binary.SecurityPolicy.Apparmor))
-			if err != nil {
-				foundError = true
-				logger.Noticef("Failed to generate custom AppArmor policy for %s: %v", binary.Name, err)
-				continue
-			}
-			scPolicy, err = getSeccompCustomPolicy(m, id, filepath.Join(baseDir, binary.SecurityPolicy.Seccomp))
-			if err != nil {
-				foundError = true
-				logger.Noticef("Failed to generate custom seccomp policy for %s: %v", binary.Name, err)
-				continue
-			}
-		} else if binary.SecurityOverride != nil {
-			aaPolicy = "TODO: security-override"
-			scPolicy = "TODO: security-override"
-		} else {
-			aaPolicy, err = getAppArmorTemplatedPolicy(m, id, binary.SecurityTemplate, binary.SecurityCaps)
-			if err != nil {
-				foundError = true
-				logger.Noticef("Failed to generate AppArmor policy for %s: %v", binary.Name, err)
-				continue
-			}
-			scPolicy, err = getSeccompTemplatedPolicy(m, id, binary.SecurityTemplate, binary.SecurityCaps)
-			if err != nil {
-				foundError = true
-				logger.Noticef("Failed to generate seccomp policy for %s: %v", binary.Name, err)
-				continue
-			}
-		}
-
-		aaFn := filepath.Join(dirs.SnapAppArmorDir, id.AppID)
-		os.MkdirAll(filepath.Dir(aaFn), 0755)
-		err = ioutil.WriteFile(aaFn, []byte(aaPolicy), 0644)
-		if err != nil {
-			foundError = true
-			logger.Noticef("Failed to write AppArmor policy for %s: %v", binary.Name, err)
-		}
-		out, err := loadAppArmorPolicy(aaFn)
-		if err != nil {
-			foundError = true
-			logger.Noticef("Failed to load AppArmor policy for %s: %v\n:%s", binary.Name, err, out)
-		}
-
-		scFn := filepath.Join(dirs.SnapSeccompDir, id.AppID)
-		os.MkdirAll(filepath.Dir(scFn), 0755)
-		err = ioutil.WriteFile(scFn, []byte(scPolicy), 0644)
-		if err != nil {
-			foundError = true
-			logger.Noticef("Failed to write seccomp policy for %s: %v", binary.Name, err)
 		}
 	}
 
