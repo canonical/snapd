@@ -25,9 +25,9 @@ import (
 	"net/http"
 	"os"
 
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/wait"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
 )
@@ -46,7 +46,8 @@ func (s *helloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
 
 	echoOutput := cli.ExecCommand(c, "hello-world.echo")
 
-	c.Assert(echoOutput, check.Equals, "Hello World!\n")
+	c.Assert(echoOutput, check.Equals, "Hello World!\n",
+		check.Commentf("Wrong output from hello-world binary"))
 }
 
 func (s *helloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDeniedError(c *check.C) {
@@ -82,12 +83,12 @@ func (s *pythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *chec
 	defer common.RemoveSnap(c, appName)
 
 	err := wait.ForServerOnPort(c, "tcp", 80)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error waiting for server: %s", err))
 
 	resp, err := http.Get("http://localhost")
-	c.Assert(err, check.IsNil)
-	c.Check(resp.Status, check.Equals, "200 OK")
-	c.Assert(resp.Proto, check.Equals, "HTTP/1.0")
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the http resource: %s", err))
+	c.Check(resp.Status, check.Equals, "200 OK", check.Commentf("Wrong reply status"))
+	c.Assert(resp.Proto, check.Equals, "HTTP/1.0", check.Commentf("Wrong reply protocol"))
 }
 
 var _ = check.Suite(&goWebserverExampleSuite{})

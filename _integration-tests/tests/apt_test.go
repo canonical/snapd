@@ -20,8 +20,8 @@
 package tests
 
 import (
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
 
 	"gopkg.in/check.v1"
 )
@@ -36,5 +36,5 @@ func (s *aptSuite) TestAptGetMustPrintError(c *check.C) {
 	aptOutput := cli.ExecCommand(c, "apt-get", "update")
 
 	expected := "Ubuntu Core does not use apt-get, see 'snappy --help'!\n"
-	c.Assert(aptOutput, check.Equals, expected)
+	c.Assert(aptOutput, check.Equals, expected, check.Commentf("Wrong apt-get output"))
 }

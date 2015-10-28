@@ -22,7 +22,7 @@ package tests
 import (
 	"gopkg.in/check.v1"
 
-	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
 )
 
 var _ = check.Suite(&failoverSuite{})
@@ -48,7 +48,8 @@ func commonFailoverTest(c *check.C, f failer) {
 	if common.AfterReboot(c) {
 		common.RemoveRebootMark(c)
 		f.unset(c)
-		c.Assert(common.GetSavedVersion(c), check.Equals, currentVersion)
+		c.Assert(common.GetSavedVersion(c), check.Equals, currentVersion,
+			check.Commentf("Rebooted to the wrong version"))
 	} else {
 		common.SetSavedVersion(c, currentVersion-1)
 		common.CallFakeUpdate(c)

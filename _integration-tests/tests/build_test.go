@@ -24,9 +24,9 @@ import (
 	"os"
 	"os/exec"
 
-	"launchpad.net/snappy/_integration-tests/testutils/build"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/data"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/build"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/data"
 
 	"gopkg.in/check.v1"
 )
@@ -41,7 +41,7 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
 	// build basic snap and check output
 	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
 	defer os.Remove(snapPath)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
 
 	// install built snap and check output
 	installOutput := common.InstallSnap(c, snapPath)

@@ -30,8 +30,8 @@ import (
 	"strconv"
 	"strings"
 
-	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/wait"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
 )
@@ -192,20 +192,20 @@ func doInteraction(c *check.C, resource, verb string, interaction apiInteraction
 	}
 
 	body, err := genericRequest(resource, verb, payload)
-	c.Check(err, check.IsNil)
+	c.Check(err, check.IsNil, check.Commentf("Error making the request: %s", err))
 
 	if interaction.responseObject == nil {
 		interaction.responseObject = &response{}
 	}
 	err = json.Unmarshal(body, interaction.responseObject)
-	c.Check(err, check.IsNil)
+	c.Check(err, check.IsNil, check.Commentf("Error unmarshalling the response: %s", err))
 
 	if interaction.responsePattern != "" {
 		c.Check(string(body), check.Matches, interaction.responsePattern)
 	}
 	if interaction.waitPattern != "" {
 		err = wait.ForFunction(c, interaction.waitPattern, interaction.waitFunction)
-		c.Check(err, check.IsNil)
+		c.Check(err, check.IsNil, check.Commentf("Error waiting for function: %s", err))
 	}
 }
 

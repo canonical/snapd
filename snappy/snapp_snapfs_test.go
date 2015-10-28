@@ -22,9 +22,9 @@ package snappy
 import (
 	"path/filepath"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/pkg/snapfs"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/pkg/snapfs"
 
 	. "gopkg.in/check.v1"
 )

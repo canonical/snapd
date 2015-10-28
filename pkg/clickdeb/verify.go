@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"os/exec"
 
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 const (

@@ -30,9 +30,9 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/config"
-	"launchpad.net/snappy/_integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/config"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/partition"
 )
 
 const (
@@ -55,14 +55,12 @@ type SnappySuite struct {
 // SetUpSuite disables the snappy autopilot. It will run before all the
 // integration suites.
 func (s *SnappySuite) SetUpSuite(c *check.C) {
-	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
-	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 	var err error
 	Cfg, err = config.ReadConfig(
 		"_integration-tests/data/output/testconfig.json")
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 
-	if !isInRebootProcess() {
+	if !IsInRebootProcess() {
 		if Cfg.Update || Cfg.Rollback {
 			switchSystemImageConf(c, Cfg.TargetRelease, Cfg.TargetChannel, "0")
 			// Always use the installed snappy because we are updating from an old
@@ -275,7 +273,8 @@ func CheckRebootMark(mark string) bool {
 	return os.Getenv("ADT_REBOOT_MARK") == mark
 }
 
-func isInRebootProcess() bool {
+// IsInRebootProcess returns True if the suite needs to execute a reboot or has just rebooted.
+func IsInRebootProcess() bool {
 	return !CheckRebootMark("") || NeedsReboot()
 }
 
