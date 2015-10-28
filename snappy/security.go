@@ -21,7 +21,6 @@ package snappy
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -40,11 +39,12 @@ import (
 )
 
 type errPolicyNotFound struct {
-	pol_type string
-	pol string
+	polType string
+	pol     string
 }
+
 func (e *errPolicyNotFound) Error() string {
-	return fmt.Sprintf("could not find specified %s: %s", e.pol_type, e.pol)
+	return fmt.Sprintf("could not find specified %s: %s", e.polType, e.pol)
 }
 
 var (
@@ -58,25 +58,14 @@ var (
 	aaFrameworkPolicyDir = filepath.Join(policy.SecBase, "apparmor")
 	scFrameworkPolicyDir = filepath.Join(policy.SecBase, "seccomp")
 
-	errOriginNotFound   = errors.New("could not detect origin")
+	errOriginNotFound     = errors.New("could not detect origin")
 	errPolicyTypeNotFound = errors.New("could not find specified policy type")
-	errInvalidAppID     = errors.New("invalid APP_ID")
-	errPolicyGen        = errors.New("errors found when generating policy")
+	errInvalidAppID       = errors.New("invalid APP_ID")
+	errPolicyGen          = errors.New("errors found when generating policy")
 )
 
-type apparmorJSONTemplate struct {
-	Template      string   `json:"template"`
-	PolicyGroups  []string `json:"policy_groups"`
-	PolicyVendor  string   `json:"policy_vendor"`
-	PolicyVersion float64  `json:"policy_version"`
-}
-
 type securitySeccompOverride struct {
-	Template      string   `yaml:"security-template,omitempty"`
-	PolicyGroups  []string `yaml:"caps,omitempty"`
-	Syscalls      []string `yaml:"syscalls,omitempty"`
-	PolicyVendor  string   `yaml:"policy-vendor"`
-	PolicyVersion float64  `yaml:"policy-version"`
+	Syscalls []string `yaml:"syscalls,omitempty"`
 }
 
 type securityAppID struct {
@@ -95,86 +84,34 @@ const defaultPolicyVendor = "ubuntu-core"
 const defaultPolicyVersion = 15.04
 
 // Generate a string suitable for use in a DBus object
-func dbusPath(s string) (string) {
-	dbus_s := ""
+func dbusPath(s string) string {
+	dbusStr := ""
 	ok := regexp.MustCompile(`^[a-zA-Z0-9]$`)
 
 	for _, c := range strings.SplitAfter(s, "") {
 		if ok.MatchString(c) {
-			dbus_s += c
+			dbusStr += c
 		} else {
-			dbus_s += fmt.Sprintf("_%02x", c)
+			dbusStr += fmt.Sprintf("_%02x", c)
 		}
 	}
 
-	return dbus_s
+	return dbusStr
 }
 
 // Calculate whitespace prefix based on occurrence of s in t
-func findWhitespacePrefix(t string, s string) (string) {
+func findWhitespacePrefix(t string, s string) string {
 	pat := regexp.MustCompile(`^ *` + s)
 	p := ""
 	for _, line := range strings.Split(t, "\n") {
 		if pat.MatchString(line) {
-			for i := 0 ; i < len(line) - len(strings.TrimLeft(line, " ")) ; i++ {
+			for i := 0; i < len(line)-len(strings.TrimLeft(line, " ")); i++ {
 				p += " "
 			}
 			break
 		}
 	}
 	return p
-}
-
-func (s *SecurityDefinitions) generateApparmorJSONContent() ([]byte, error) {
-	t := apparmorJSONTemplate{
-		Template:      s.SecurityTemplate,
-		PolicyGroups:  s.SecurityCaps,
-		PolicyVendor:  defaultPolicyVendor,
-		PolicyVersion: defaultPolicyVersion,
-	}
-
-	// FIXME: this is snappy specific, on other systems like the
-	//        phone we may want different defaults.
-	if t.Template == "" && t.PolicyGroups == nil {
-		t.PolicyGroups = defaultPolicyGroups
-	}
-
-	// never write a null value out into the json
-	if t.PolicyGroups == nil {
-		t.PolicyGroups = []string{}
-	}
-
-	if t.Template == "" {
-		t.Template = defaultTemplate
-	}
-
-	outStr, err := json.MarshalIndent(t, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-
-	return outStr, nil
-}
-
-func handleApparmor(buildDir string, m *packageYaml, hookName string, s *SecurityDefinitions) error {
-	hasSecPol := s.SecurityPolicy != nil && s.SecurityPolicy.Apparmor != ""
-	hasSecOvr := s.SecurityOverride != nil && s.SecurityOverride.Apparmor != ""
-
-	if hasSecPol || hasSecOvr {
-		return nil
-	}
-
-	// generate apparmor template
-	apparmorJSONFile := m.Integration[hookName]["apparmor"]
-	securityJSONContent, err := s.generateApparmorJSONContent()
-	if err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(filepath.Join(buildDir, apparmorJSONFile), securityJSONContent, 0644); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error) {
@@ -232,16 +169,6 @@ func generateSeccompPolicy(baseDir, appName string, sd SecurityDefinitions) ([]b
 			return nil, err
 		}
 
-		if s.Template != "" {
-			template = s.Template
-		}
-		if s.PolicyVendor != "" {
-			policyVendor = s.PolicyVendor
-		}
-		if s.PolicyVersion != 0 {
-			policyVersion = s.PolicyVersion
-		}
-		caps = s.PolicyGroups
 		syscalls = s.Syscalls
 	} else {
 		if sd.SecurityTemplate != "" {
@@ -285,10 +212,6 @@ func readSeccompOverride(yamlPath string, s *securitySeccompOverride) error {
 	if err != nil {
 		return &ErrInvalidYaml{File: "package.yaml[seccomp override]", Err: err, Yaml: yamlData}
 	}
-	// These must always be specified together
-	if (s.PolicyVersion == 0 && s.PolicyVendor != "") || (s.PolicyVersion != 0 && s.PolicyVendor == "") {
-		return ErrInvalidSeccompPolicy
-	}
 
 	return nil
 }
@@ -298,22 +221,22 @@ func findTemplate(template string, policyType string) (string, error) {
 		template = defaultTemplate
 	}
 
-	system_template := ""
-	fw_template := ""
+	systemTemplate := ""
+	fwTemplate := ""
 	subdir := fmt.Sprintf("templates/%s/%0.2f", defaultPolicyVendor, defaultPolicyVersion)
 	if policyType == "apparmor" {
-		system_template = filepath.Join(aaPolicyDir, subdir, template)
-		fw_template = filepath.Join(aaFrameworkPolicyDir, "templates", template)
+		systemTemplate = filepath.Join(aaPolicyDir, subdir, template)
+		fwTemplate = filepath.Join(aaFrameworkPolicyDir, "templates", template)
 	} else if policyType == "seccomp" {
-		system_template = filepath.Join(scPolicyDir, subdir, template)
-		fw_template = filepath.Join(scFrameworkPolicyDir, "templates", template)
+		systemTemplate = filepath.Join(scPolicyDir, subdir, template)
+		fwTemplate = filepath.Join(scFrameworkPolicyDir, "templates", template)
 	} else {
 		return "", errPolicyTypeNotFound
 	}
 
 	// Always prefer system policy
 	found := false
-	fns := []string{system_template, fw_template}
+	fns := []string{systemTemplate, fwTemplate}
 	var t bytes.Buffer
 	for _, fn := range fns {
 		tmp, err := ioutil.ReadFile(fn)
@@ -342,30 +265,30 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 
 	subdir := fmt.Sprintf("policygroups/%s/%0.2f", defaultPolicyVendor, defaultPolicyVersion)
 	parent := ""
-	fw_parent := ""
+	fwParent := ""
 	if policyType == "apparmor" {
 		parent = filepath.Join(aaPolicyDir, subdir)
-		fw_parent = filepath.Join(aaFrameworkPolicyDir, "policygroups")
+		fwParent = filepath.Join(aaFrameworkPolicyDir, "policygroups")
 	} else if policyType == "seccomp" {
 		parent = filepath.Join(scPolicyDir, subdir)
-		fw_parent = filepath.Join(scFrameworkPolicyDir, "policygroups")
+		fwParent = filepath.Join(scFrameworkPolicyDir, "policygroups")
 	} else {
 		return "", errPolicyTypeNotFound
 	}
 
 	// Nothing to find if caps is empty
 	found := len(caps) == 0
-	bad_cap := ""
+	badCap := ""
 	var p bytes.Buffer
 	for _, c := range caps {
 		// Always prefer system policy
-		dirs := []string{parent, fw_parent}
+		dirs := []string{parent, fwParent}
 		for _, dir := range dirs {
 			fn := filepath.Join(dir, c)
 			tmp, err := ioutil.ReadFile(fn)
 			if err == nil {
 				p.Write(tmp)
-				if c != caps[len(caps) - 1 ] {
+				if c != caps[len(caps)-1] {
 					p.Write([]byte("\n"))
 				}
 				found = true
@@ -373,13 +296,13 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 			}
 		}
 		if found == false {
-			bad_cap = c
+			badCap = c
 			break
 		}
 	}
 
 	if found == false {
-		return "", &errPolicyNotFound{"cap", bad_cap}
+		return "", &errPolicyNotFound{"cap", badCap}
 	}
 
 	return p.String(), nil
@@ -418,7 +341,7 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template s
 		aacaps += "# No caps (policy groups) specified\n"
 	} else {
 		aacaps += "# Rules specified via caps (policy groups)\n"
-	        prefix := findWhitespacePrefix(t, "###POLICYGROUPS###")
+		prefix := findWhitespacePrefix(t, "###POLICYGROUPS###")
 		for _, line := range strings.Split(p, "\n") {
 			if len(line) == 0 {
 				aacaps += line + "\n"

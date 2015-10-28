@@ -180,49 +180,14 @@ func parseReadme(readme string) (title, description string, err error) {
 	return title, description, nil
 }
 
-func handleBinaries(buildDir string, m *packageYaml) error {
-	for _, v := range m.Binaries {
-		hookName := filepath.Base(v.Name)
-		// handle the apparmor stuff
-		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func handleServices(buildDir string, m *packageYaml) error {
-	for _, v := range m.ServiceYamls {
-		hookName := filepath.Base(v.Name)
-
-		// handle the apparmor stuff
-		if err := handleApparmor(buildDir, m, hookName, &v.SecurityDefinitions); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func handleConfigHookApparmor(buildDir string, m *packageYaml) error {
+func handleConfigHook(buildDir string, m *packageYaml) error {
 	configHookFile := filepath.Join(buildDir, "meta", "hooks", "config")
 	if !helpers.FileExists(configHookFile) {
 		return nil
 	}
 
 	hookName := "snappy-config"
-	s := &SecurityDefinitions{}
-	content, err := s.generateApparmorJSONContent()
-	if err != nil {
-		return err
-	}
-	configApparmorJSONFile := filepath.Join("meta", hookName+".apparmor")
-	if err := ioutil.WriteFile(filepath.Join(buildDir, configApparmorJSONFile), content, 0644); err != nil {
-		return err
-	}
 	m.Integration[hookName] = make(map[string]string)
-	m.Integration[hookName]["apparmor"] = configApparmorJSONFile
 
 	return nil
 }
@@ -512,18 +477,8 @@ func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error)
 		return "", err
 	}
 
-	// generate compat hooks for binaries
-	if err := handleBinaries(buildDir, m); err != nil {
-		return "", err
-	}
-
-	// generate compat hooks for services
-	if err := handleServices(buildDir, m); err != nil {
-		return "", err
-	}
-
 	// generate config hook apparmor
-	if err := handleConfigHookApparmor(buildDir, m); err != nil {
+	if err := handleConfigHook(buildDir, m); err != nil {
 		return "", err
 	}
 
