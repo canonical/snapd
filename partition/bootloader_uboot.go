@@ -26,7 +26,7 @@ import (
 	"os"
 	"strings"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 
 	"github.com/mvo5/goconfigparser"
 	"github.com/mvo5/uboot-go/uenv"
@@ -265,7 +265,7 @@ func modifyNameValueFile(path string, changes []configFileChange) error {
 	}
 
 	if updateNeeded {
-		return atomicWriteFile(path, buf.Bytes(), 0644)
+		return atomicWriteFile(path, buf.Bytes(), 0644, 0)
 	}
 
 	return nil

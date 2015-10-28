@@ -24,11 +24,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/partition"
-	"launchpad.net/snappy/pkg/snapfs"
-	"launchpad.net/snappy/systemd"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/pkg/snapfs"
+	"github.com/ubuntu-core/snappy/systemd"
 
 	. "gopkg.in/check.v1"
 )
@@ -312,7 +312,6 @@ func (s *SnapfsTestSuite) TestInstallOsRebootRequired(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snap.NeedsReboot(), Equals, false)
 
-	snap.isActive = false
 	mockb.bootvars["snappy_os"] = "ubuntu-core." + testOrigin + "_15.10-1.snap"
 	c.Assert(snap.NeedsReboot(), Equals, true)
 }
@@ -325,9 +324,13 @@ func (s *SnapfsTestSuite) TestInstallKernelRebootRequired(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snap.NeedsReboot(), Equals, false)
 
-	snap.isActive = false
+	// simulate scheduled next boot is a new kernel
 	mockb.bootvars["snappy_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
 	c.Assert(snap.NeedsReboot(), Equals, true)
+
+	// simulate we booted the kernel successfully
+	mockb.bootvars["snappy_good_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
+	c.Assert(snap.NeedsReboot(), Equals, false)
 }
 
 func (s *SnapfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {

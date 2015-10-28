@@ -25,8 +25,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/pkg/lightweight"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/pkg/lightweight"
 )
 
 // we don't use example tests nearly as often as we should :-)

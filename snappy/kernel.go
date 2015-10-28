@@ -23,8 +23,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"launchpad.net/snappy/partition"
-	"launchpad.net/snappy/pkg/snapfs"
+	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/pkg/snapfs"
 )
 
 func unpackKernel(s *SnapPart) error {

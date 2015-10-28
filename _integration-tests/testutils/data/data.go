@@ -26,6 +26,8 @@ const (
 	BasicSnapName = "basic"
 	// BasicBinariesSnapName is the name of the basic snap with binaries
 	BasicBinariesSnapName = "basic-binaries"
+	// BasicConfigSnapName is the name of the basic snap with config hook
+	BasicConfigSnapName = "basic-config"
 	// BasicFrameworkSnapName is the name of the basic framework snap
 	BasicFrameworkSnapName = "basic-framework"
 	// BasicServiceSnapName is the name of the basic snap with a service

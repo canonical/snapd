@@ -34,8 +34,8 @@ import (
 
 	"github.com/mvo5/goconfigparser"
 
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 var systemImageServer string

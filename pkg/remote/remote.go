@@ -20,13 +20,14 @@
 package remote
 
 import (
-	"launchpad.net/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg"
 )
 
 // A Snap encapsulates the data sent to us from the store.
 type Snap struct {
 	Alias           string             `json:"alias,omitempty"`
 	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
+	Channel         string             `json:"channel,omitempty"`
 	DownloadSha512  string             `json:"download_sha512,omitempty"`
 	Description     string             `json:"description,omitempty"`
 	DownloadSize    int64              `json:"binary_filesize,omitempty"`
