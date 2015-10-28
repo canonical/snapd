@@ -49,12 +49,12 @@ func (e *errPolicyNotFound) Error() string {
 
 var (
 	// Note: these are true for ubuntu-core but perhaps not other flavors
-        defaultTemplate         = "default"
-        defaultPolicyGroups     = []string{"network-client"}
+	defaultTemplate     = "default"
+	defaultPolicyGroups = []string{"network-client"}
 
 	// These are set elsewhere
-        defaultPolicyVendor     = ""
-        defaultPolicyVersion    = ""
+	defaultPolicyVendor  = ""
+	defaultPolicyVersion = ""
 
 	// Templates and policy groups (caps)
 	aaPolicyDir = "/usr/share/apparmor/easyprof"
@@ -65,12 +65,17 @@ var (
 	// AppArmor cache dir
 	aaCacheDir = "/var/cache/apparmor"
 
-	errOriginNotFound        = errors.New("could not detect origin")
-	errPolicyTypeNotFound    = errors.New("could not find specified policy type")
-	errInvalidAppID          = errors.New("invalid APP_ID")
-	errPolicyGen             = errors.New("errors found when generating policy")
+	errOriginNotFound     = errors.New("could not detect origin")
+	errPolicyTypeNotFound = errors.New("could not find specified policy type")
+	errInvalidAppID       = errors.New("invalid APP_ID")
+	errPolicyGen          = errors.New("errors found when generating policy")
+
+	// ErrSystemVersionNotFound could not detect system version (eg, 15.04,
+	// 15.10, etc)
 	ErrSystemVersionNotFound = errors.New("could not detect system version")
-	ErrSystemFlavorNotFound  = errors.New("could not detect system flavor")
+	// ErrSystemFlavorNotFound could not detect system flavor (eg,
+	// ubuntu-core, ubuntu-personal, etc)
+	ErrSystemFlavorNotFound = errors.New("could not detect system flavor")
 )
 
 type securitySeccompOverride struct {
@@ -84,13 +89,18 @@ type securityAppID struct {
 	Version string
 }
 
-
+// FindUbuntuFlavor determines the flavor (eg, ubuntu-core, ubuntu-personal,
+// etc) of the system, which is needed for determining the security policy
+// policy-vendor
 func FindUbuntuFlavor() (string, error) {
 	// TODO: snappy list-- if has ubuntu-personal, use it, otherwise use
 	// ubuntu-core
 	return "ubuntu-core", nil
 }
 
+// FindUbuntuVersion determines the version (eg, 15.04, 15.10, etc) of the
+// system, which is needed for determining the security policy
+// policy-version
 func FindUbuntuVersion() (string, error) {
 	var buffer bytes.Buffer
 	fn := "/etc/lsb-release"
