@@ -22,6 +22,7 @@ package build
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 
 	"gopkg.in/check.v1"
 
@@ -49,8 +50,13 @@ func LocalSnap(c *check.C, snapName string) (snapPath string, err error) {
 	snapName = snapName + snapFilenameSufix
 
 	path := filepath.Join(buildPath, snapName)
-	expected := fmt.Sprintf("Generated '%s' snap\n", path)
-	if buildOutput != expected {
+
+	expected := fmt.Sprintf("(?ms).*Generated '%s' snap\n$", path)
+	matched, err := regexp.MatchString(expected, buildOutput)
+	if err != nil {
+		return "", err
+	}
+	if !matched {
 		return "", fmt.Errorf("Error building snap, expected output %s, obtained %s",
 			expected, buildOutput)
 	}
