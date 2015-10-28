@@ -1,3 +1,4 @@
+[![Build Status][travis-image]][travis-url] [![Coverage Status][coveralls-image]][coveralls-url]
 # snappy
 
 Snappy is part of Ubuntu Core and enables a fully transactional Ubuntu system.
@@ -111,4 +112,12 @@ To obtain the correct dependencies for the project, run:
 If the dependencies need updating
 
     godeps -t ./... > dependencies.tsv
+
+
+[travis-image]: https://travis-ci.org/ubuntu-core/snappy.svg?branch=master
+[travis-url]: https://travis-ci.org/ubuntu-core/snappy.svg?branch=master
+
+[coveralls-image]: https://coveralls.io/repos/ubuntu-core/snappy/badge.svg?branch=master&service=github
+[coveralls-url]: https://coveralls.io/github/ubuntu-core/snappy?branch=master
+
 
