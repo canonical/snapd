@@ -3,3 +3,4 @@ _integration-tests/data/output/
 ./share
 ./snappy/hello_1.0.1_all.snap
 ./tags
+.coverage
