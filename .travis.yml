@@ -14,4 +14,4 @@ before_install:
 script: sh -v ./run-checks
 after_success:
   - go get github.com/mattn/goveralls
-  - goveralls -coverprofile .coverage/coverage.out -service=travis-ci -repotoken $COVERALLS_TOKEN
+  - goveralls -coverprofile=.coverage/coverage.out -service=travis-ci -repotoken=$COVERALLS_TOKEN
