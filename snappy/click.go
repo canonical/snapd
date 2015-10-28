@@ -78,8 +78,10 @@ type clickHook struct {
 
 // ignore hooks of this type
 var ignoreHooks = map[string]bool{
-	"bin-path":       true,
-	"snappy-systemd": true,
+	"bin-path":         true,
+	"snappy-systemd":   true,
+	"apparmor":         true,
+	"apparmor-profile": true,
 }
 
 // wait this time between TERM and KILL
