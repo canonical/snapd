@@ -20,8 +20,8 @@
 package main
 
 import (
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/snappy"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 type cmdInternalRunHooks struct {

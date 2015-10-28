@@ -20,8 +20,8 @@
 package main
 
 import (
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/partition"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/partition"
 )
 
 type cmdGrubMigrate struct {

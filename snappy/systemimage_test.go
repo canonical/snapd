@@ -28,8 +28,9 @@ import (
 	"strings"
 	"testing"
 
-	"launchpad.net/snappy/partition"
-	"launchpad.net/snappy/provisioning"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/provisioning"
 
 	. "gopkg.in/check.v1"
 )
@@ -51,13 +52,10 @@ func (s *SITestSuite) SetUpTest(c *C) {
 
 	s.systemImage = NewSystemImageRepository()
 	c.Assert(s, NotNil)
-	// setup alternative root for system image
-	tempdir := c.MkDir()
-	systemImageRoot = tempdir
 
-	makeFakeSystemImageChannelConfig(c, filepath.Join(tempdir, systemImageChannelConfig), "1")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, systemImageChannelConfig), "1")
 	// setup fake /other partition
-	makeFakeSystemImageChannelConfig(c, filepath.Join(tempdir, "other", systemImageChannelConfig), "0")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, "other", systemImageChannelConfig), "0")
 
 	// run test webserver instead of talking to the real one
 	//
@@ -66,12 +64,11 @@ func (s *SITestSuite) SetUpTest(c *C) {
 	c.Assert(s.mockSystemImageWebServer, NotNil)
 
 	// create mock system-image-cli
-	systemImageCli = makeMockSystemImageCli(c, tempdir)
+	systemImageCli = makeMockSystemImageCli(c, dirs.GlobalRootDir)
 }
 
 func (s *SITestSuite) TearDownTest(c *C) {
 	s.mockSystemImageWebServer.Close()
-	systemImageRoot = "/"
 	bootloaderDir = bootloaderDirImpl
 }
 
@@ -184,7 +181,7 @@ func (s *SITestSuite) TestSystemImagePartInstallUpdatesPartition(c *C) {
 	// FIXME: ideally we would change the version to "2" as a side-effect
 	// of calling sp.Install() we need to update it because the
 	// sp.Install() will verify that it got applied
-	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "2")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, "other", systemImageChannelConfig), "2")
 
 	// add a update
 	mockSystemImageIndexJSON = fmt.Sprintf(mockSystemImageIndexJSONTemplate, "2")
@@ -257,7 +254,7 @@ func (s *SITestSuite) TestSystemImagePartInstall(c *C) {
 	// FIXME: ideally we would change the version to "2" as a side-effect
 	// of calling sp.Install() we need to update it because the
 	// sp.Install() will verify that it got applied
-	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "2")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, "other", systemImageChannelConfig), "2")
 
 	// add a update
 	mockSystemImageIndexJSON = fmt.Sprintf(mockSystemImageIndexJSONTemplate, "2")
@@ -386,7 +383,7 @@ func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedSuccess(c *C) {
 	//  - "1" on current
 	//  - "2" on other
 	// the webserver will tell us that "2" is latest
-	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "2")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, "other", systemImageChannelConfig), "2")
 	parts, err := s.systemImage.Updates()
 
 	part := parts[0].(*SystemImagePart)
@@ -399,7 +396,7 @@ func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedFailure(c *C) {
 	//
 	// but this time the other part is *not* updated, i.e. we set it to
 	// something else
-	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "1")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, "other", systemImageChannelConfig), "1")
 
 	// the update will have "2" and we only installed "1" on other
 	parts, err := s.systemImage.Updates()
@@ -413,7 +410,7 @@ func (s *SITestSuite) TestTestVerifyUpgradeWasAppliedFailure(c *C) {
 
 func (s *SITestSuite) TestOtherIsEmpty(c *C) {
 	otherRoot := "/other"
-	otherRootFull := filepath.Join(systemImageRoot, otherRoot)
+	otherRootFull := filepath.Join(dirs.GlobalRootDir, otherRoot)
 
 	siConfig := filepath.Join(otherRootFull, systemImageChannelConfig)
 
@@ -530,8 +527,8 @@ func (s *SITestSuite) TestSystemImagePartInstallRollbackNoSyncbootfiles(c *C) {
 
 	// we are on 1 and "upgrade" to 2 which is already installed
 	// (e.g. because we rolled back earlier)
-	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, systemImageChannelConfig), "1")
-	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "2")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, systemImageChannelConfig), "1")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, "other", systemImageChannelConfig), "2")
 
 	// now we get the other part (v2)
 	parts, err := s.systemImage.Installed()
@@ -559,7 +556,7 @@ func (s *SITestSuite) TestNeedsBootAssetSyncNeedsSync(c *C) {
 }
 
 func (s *SITestSuite) TestNeedsBootAssetSyncNoNeed(c *C) {
-	makeFakeSystemImageChannelConfig(c, filepath.Join(systemImageRoot, "other", systemImageChannelConfig), "2")
+	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, "other", systemImageChannelConfig), "2")
 
 	parts, err := s.systemImage.Installed()
 	c.Assert(err, IsNil)

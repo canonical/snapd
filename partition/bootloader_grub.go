@@ -22,7 +22,7 @@ package partition
 import (
 	"fmt"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 
 	"github.com/mvo5/goconfigparser"
 )

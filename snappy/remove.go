@@ -22,7 +22,7 @@ package snappy
 import (
 	"strings"
 
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 // RemoveFlags can be used to pass additional flags to the snap removal request

@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 )
 
 const (
@@ -48,8 +48,10 @@ const (
 	bootloaderSystemAB = "system-AB"
 )
 
+// BootloaderName is the human readable name of the bootloader (e.g. grub)
 type BootloaderName string
 
+// BootLoader provides a way to interact with the system bootloader
 // FIXME: the interface of bootloader is too big
 type BootLoader interface {
 	// Name of the bootloader
@@ -92,8 +94,10 @@ type BootLoader interface {
 	BootDir() string
 }
 
+// Bootloader returns a bootloader struct
 var Bootloader = BootloaderImpl
 
+// BootloaderImpl is the actual implementation
 func BootloaderImpl() (BootLoader, error) {
 	p := New()
 	if p == nil {
@@ -194,7 +198,7 @@ func (b *bootloaderType) SyncBootFiles(bootAssets map[string]string) (err error)
 	return helpers.RSyncWithDelete(srcDir, destDir)
 }
 
-// NoramlizeAssetName transforms like "vmlinuz-4.1.0" -> "vmlinuz"
+// NormalizeKernelInitrdName transforms like "vmlinuz-4.1.0" -> "vmlinuz"
 func NormalizeKernelInitrdName(name string) string {
 	name = filepath.Base(name)
 	return strings.SplitN(name, "-", 2)[0]
@@ -326,6 +330,8 @@ func (b *bootloaderType) HandleAssets() (err error) {
 // bootloader-specific boot directory.
 var BootloaderDir = BootloaderDirImpl
 
+// BootloaderDirImpl is the actual bootloder dir implementation, useful
+// for tests
 func BootloaderDirImpl() string {
 	if helpers.FileExists(bootloaderUbootDir) {
 		return bootloaderUbootDir

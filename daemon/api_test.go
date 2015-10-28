@@ -39,13 +39,13 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/pkg/lightweight"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/release"
-	"launchpad.net/snappy/snappy"
-	"launchpad.net/snappy/systemd"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg/lightweight"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/ubuntu-core/snappy/systemd"
 )
 
 // Hook up check.v1 into the "go test" runner

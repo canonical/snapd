@@ -23,15 +23,16 @@ import (
 	"fmt"
 	"strings"
 
-	"launchpad.net/snappy/i18n"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/snappy"
+	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 type cmdInfo struct {
-	Verbose    bool `short:"v" long:"verbose"`
-	Positional struct {
+	Verbose       bool `short:"v" long:"verbose"`
+	IncludeRemote bool `long:"include-remote"`
+	Positional    struct {
 		PackageName string `positional-arg-name:"package name"`
 	} `positional-args:"yes"`
 }
@@ -56,19 +57,28 @@ func init() {
 		logger.Panicf("Unable to info: %v", err)
 	}
 	addOptionDescription(arg, "verbose", i18n.G("Provides more detailed information"))
+	addOptionDescription(arg, "include-remote", i18n.G("Include information about packages from the snappy store"))
 	addOptionDescription(arg, "package name", i18n.G("Provide information about a specific installed package"))
 }
 
 func (x *cmdInfo) Execute(args []string) (err error) {
 	if x.Positional.PackageName != "" {
-		return snapInfo(x.Positional.PackageName, x.Verbose)
+		return snapInfo(x.Positional.PackageName, x.IncludeRemote, x.Verbose)
 	}
 
 	return info()
 }
 
-func snapInfo(pkgname string, verbose bool) error {
+func snapInfo(pkgname string, includeStore, verbose bool) error {
 	snap := snappy.ActiveSnapByName(pkgname)
+	if snap == nil && includeStore {
+		m := snappy.NewUbuntuStoreSnapRepository()
+		snaps, err := m.Details(snappy.SplitOrigin(pkgname))
+		if err == nil && len(snaps) == 1 {
+			snap = snaps[0]
+		}
+	}
+
 	if snap == nil {
 		return fmt.Errorf("No snap '%s' found", pkgname)
 	}

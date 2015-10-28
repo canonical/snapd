@@ -24,10 +24,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/i18n"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/systemd"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/systemd"
 )
 
 // A ServiceActor collects the services found by FindServices and lets

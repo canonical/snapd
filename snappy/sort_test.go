@@ -24,8 +24,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/pkg/remote"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/pkg/remote"
 )
 
 type SortTestSuite struct {
