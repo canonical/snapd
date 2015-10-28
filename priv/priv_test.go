@@ -20,7 +20,7 @@
 package priv
 
 import (
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 
 	"path/filepath"
 	"testing"

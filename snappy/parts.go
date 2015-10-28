@@ -27,9 +27,9 @@ import (
 	"strings"
 	"time"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 // SystemConfig is a config map holding configs for multiple packages
@@ -62,6 +62,18 @@ func BareName(p Part) string {
 // FullName of a Part is Name.Origin
 func FullName(p Part) string {
 	return p.Name() + "." + p.Origin()
+}
+
+// FullNameWithChannel returns the FullName, with the channel appended
+// if it has one.
+func fullNameWithChannel(p Part) string {
+	name := FullName(p)
+	ch := p.Channel()
+	if ch == "" {
+		return name
+	}
+
+	return fmt.Sprintf("%s/%s", name, ch)
 }
 
 // Part representation of a snappy part
@@ -294,7 +306,7 @@ func ActiveSnapByName(needle string) Part {
 // FindSnapsByName returns all snaps with the given name in the "haystack"
 // slice of parts (useful for filtering)
 func FindSnapsByName(needle string, haystack []Part) (res []Part) {
-	name, origin := splitOrigin(needle)
+	name, origin := SplitOrigin(needle)
 	ignorens := origin == ""
 
 	for _, part := range haystack {
@@ -306,7 +318,8 @@ func FindSnapsByName(needle string, haystack []Part) (res []Part) {
 	return res
 }
 
-func splitOrigin(name string) (string, string) {
+// SplitOrigin splits a snappy name name into a (name, origin) pair
+func SplitOrigin(name string) (string, string) {
 	idx := strings.LastIndexAny(name, ".")
 	if idx > -1 {
 		return name[:idx], name[idx+1:]
@@ -318,7 +331,7 @@ func splitOrigin(name string) (string, string) {
 // FindSnapsByNameAndVersion returns the parts with the name/version in the
 // given slice of parts
 func FindSnapsByNameAndVersion(needle, version string, haystack []Part) []Part {
-	name, origin := splitOrigin(needle)
+	name, origin := SplitOrigin(needle)
 	ignorens := origin == ""
 	var found []Part
 

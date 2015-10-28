@@ -29,11 +29,11 @@ import (
 	"gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/pkg/remote"
-	"launchpad.net/snappy/pkg/removed"
-	"launchpad.net/snappy/snappy"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg/remote"
+	"github.com/ubuntu-core/snappy/pkg/removed"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 type lightweightSuite struct {

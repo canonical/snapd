@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"strings"
 
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 // map from

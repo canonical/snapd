@@ -25,9 +25,9 @@ import (
 	"net/http"
 	"os"
 
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/wait"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
 )
@@ -89,29 +89,6 @@ func (s *pythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *chec
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the http resource: %s", err))
 	c.Check(resp.Status, check.Equals, "200 OK", check.Commentf("Wrong reply status"))
 	c.Assert(resp.Proto, check.Equals, "HTTP/1.0", check.Commentf("Wrong reply protocol"))
-}
-
-var _ = check.Suite(&goWebserverExampleSuite{})
-
-type goWebserverExampleSuite struct {
-	common.SnappySuite
-}
-
-func (s *goWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
-	appName := "go-example-webserver"
-	common.InstallSnap(c, appName)
-	defer common.RemoveSnap(c, appName)
-
-	err := wait.ForServerOnPort(c, "tcp6", 8081)
-	c.Assert(err, check.IsNil, check.Commentf("Error waiting for server: %s", err))
-
-	resp, err := http.Get("http://localhost:8081/")
-	defer resp.Body.Close()
-	c.Assert(err, check.IsNil, check.Commentf("Error getting the http resource: %s", err))
-	c.Check(resp.Status, check.Equals, "200 OK", check.Commentf("Wrong reply status"))
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, check.IsNil, check.Commentf("Error reading the reply body: %s", err))
-	c.Assert(string(body), check.Equals, "Hello World\n", check.Commentf("Wrong reply body"))
 }
 
 var _ = check.Suite(&goWebserverExampleSuite{})

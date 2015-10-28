@@ -1,6 +1,7 @@
 [Unit]
 Description=Run snappy firstboot setup
-Before=cloud-init.service
+After=local-fs.target
+Before=system-ifup.slice cloud-init-local.service cloud-init.service
 
 [Service]
 Type=oneshot

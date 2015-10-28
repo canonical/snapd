@@ -21,8 +21,10 @@ package partition
 
 import (
 	"fmt"
+	"path/filepath"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -89,7 +91,7 @@ func (g *grub) ToggleRootFS(otherRootfs string) (err error) {
 func (g *grub) GetBootVar(name string) (value string, err error) {
 	// Grub doesn't provide a get verb, so retrieve all values and
 	// search for the required variable ourselves.
-	output, err := runCommandWithStdout(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "list")
+	output, err := runCommandWithStdout(bootloaderGrubEnvCmd, filepath.Join(dirs.GlobalRootDir, bootloaderGrubEnvFile), "list")
 	if err != nil {
 		return "", err
 	}
@@ -108,7 +110,7 @@ func (g *grub) SetBootVar(name, value string) (err error) {
 	// RunCommand() does not use a shell and thus adding quotes
 	// stores them in the environment file (which is not desirable)
 	arg := fmt.Sprintf("%s=%s", name, value)
-	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", arg)
+	return runCommand(bootloaderGrubEnvCmd, filepath.Join(dirs.GlobalRootDir, bootloaderGrubEnvFile), "set", arg)
 }
 
 func (g *grub) GetNextBootRootFSName() (label string, err error) {

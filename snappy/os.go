@@ -20,7 +20,7 @@ package snappy
  */
 
 import (
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 type OsSnap struct {

@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 // PurgeFlags can be used to pass additional flags to the snap removal request

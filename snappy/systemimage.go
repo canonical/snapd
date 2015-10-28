@@ -30,13 +30,14 @@ import (
 
 	"github.com/mvo5/goconfigparser"
 
-	"launchpad.net/snappy/coreconfig"
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/partition"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/provisioning"
+	"github.com/ubuntu-core/snappy/coreconfig"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/provisioning"
 )
 
 // SystemImagePart have constant name, origin, and vendor.
@@ -67,10 +68,6 @@ var (
 	// the system-image-cli binary
 	systemImageCli = "system-image-cli"
 )
-
-// This is the root directory of the filesystem. Its only useful to
-// change when writing tests
-var systemImageRoot = "/"
 
 // will replace newPartition() to return a mockPartition
 var newPartition = newPartitionImpl
@@ -225,7 +222,7 @@ func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name s
 		// XXX: Note that systemImageDownloadUpdate() requires
 		// the s-i _client_ config file whereas otherIsEmpty()
 		// checks the s-i _channel_ config file.
-		otherConfigFile := filepath.Join(systemImageRoot, otherRoot, systemImageClientConfig)
+		otherConfigFile := filepath.Join(dirs.GlobalRootDir, otherRoot, systemImageClientConfig)
 		if !otherIsEmpty(otherRoot) && helpers.FileExists(otherConfigFile) {
 			configFile = otherConfigFile
 		}
@@ -370,7 +367,7 @@ func makePartFromSystemImageConfigFile(p partition.Interface, channelIniPath str
 
 // Returns the part associated with the current rootfs
 func makeCurrentPart(p partition.Interface) Part {
-	configFile := filepath.Join(systemImageRoot, systemImageChannelConfig)
+	configFile := filepath.Join(dirs.GlobalRootDir, systemImageChannelConfig)
 	part, err := makePartFromSystemImageConfigFile(p, configFile, true)
 	if err != nil {
 		return nil
@@ -387,7 +384,7 @@ func makeCurrentPart(p partition.Interface) Part {
 // This function encapsulates the heuristics to determine if the rootfs
 // is complete.
 func otherIsEmpty(root string) bool {
-	configFile := filepath.Join(systemImageRoot, root, systemImageChannelConfig)
+	configFile := filepath.Join(dirs.GlobalRootDir, root, systemImageChannelConfig)
 
 	st, err := os.Stat(configFile)
 
@@ -417,7 +414,7 @@ func makeOtherPart(p partition.Interface) Part {
 			return nil
 		}
 
-		configFile := filepath.Join(systemImageRoot, otherRoot, systemImageChannelConfig)
+		configFile := filepath.Join(dirs.GlobalRootDir, otherRoot, systemImageChannelConfig)
 		part, err = makePartFromSystemImageConfigFile(p, configFile, false)
 		if err != nil {
 			logger.Noticef("Can not make system-image part for %q: %v", configFile, err)
@@ -455,7 +452,7 @@ func (s *SystemImageRepository) Details(name string, origin string) ([]Part, err
 
 // Updates returns the available updates
 func (s *SystemImageRepository) Updates() ([]Part, error) {
-	configFile := filepath.Join(systemImageRoot, systemImageChannelConfig)
+	configFile := filepath.Join(dirs.GlobalRootDir, systemImageChannelConfig)
 	updateStatus, err := systemImageClientCheckForUpdates(configFile)
 	if err != nil {
 		return nil, err

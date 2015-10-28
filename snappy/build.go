@@ -32,9 +32,9 @@ import (
 	"syscall"
 	"text/template"
 
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/pkg/clickdeb"
-	"launchpad.net/snappy/pkg/snapfs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/pkg/clickdeb"
+	"github.com/ubuntu-core/snappy/pkg/snapfs"
 
 	"gopkg.in/yaml.v2"
 )
@@ -441,7 +441,10 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 
 		// handle dirs
 		if info.IsDir() {
-			return os.Mkdir(dest, info.Mode())
+			if err := os.Mkdir(dest, info.Mode()); err != nil {
+				return err
+			}
+			return os.Chown(dest, int(info.Sys().(*syscall.Stat_t).Uid), int(info.Sys().(*syscall.Stat_t).Gid))
 		}
 
 		// handle char/block devices
@@ -467,8 +470,8 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 			// whee
 			return nil
 		}
-		// sigh. ok, copy it is.
-		return helpers.CopyFile(path, dest, helpers.CopyFlagDefault)
+		// CopySpecialFile preserves permissions and owner
+		return helpers.CopySpecialFile(path, dest)
 	})
 }
 

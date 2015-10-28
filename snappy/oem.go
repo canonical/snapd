@@ -31,10 +31,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 type OemSnap struct {

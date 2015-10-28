@@ -23,9 +23,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"launchpad.net/snappy/partition"
-	"launchpad.net/snappy/pkg/snapfs"
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/pkg/snapfs"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 type KernelSnap struct {

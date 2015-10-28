@@ -28,7 +28,7 @@ import (
 
 	"github.com/peterh/liner"
 
-	"launchpad.net/snappy/logger"
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 // for testing

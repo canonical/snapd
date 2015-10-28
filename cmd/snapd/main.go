@@ -25,8 +25,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"launchpad.net/snappy/daemon"
-	"launchpad.net/snappy/logger"
+	"github.com/ubuntu-core/snappy/daemon"
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 func init() {
