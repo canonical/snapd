@@ -27,9 +27,9 @@ import (
 	"strings"
 	"time"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 // SystemConfig is a config map holding configs for multiple packages
@@ -62,6 +62,18 @@ func BareName(p Part) string {
 // FullName of a Part is Name.Origin
 func FullName(p Part) string {
 	return p.Name() + "." + p.Origin()
+}
+
+// FullNameWithChannel returns the FullName, with the channel appended
+// if it has one.
+func fullNameWithChannel(p Part) string {
+	name := FullName(p)
+	ch := p.Channel()
+	if ch == "" {
+		return name
+	}
+
+	return fmt.Sprintf("%s/%s", name, ch)
 }
 
 // Part representation of a snappy part

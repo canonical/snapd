@@ -24,10 +24,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/pkg/snapfs"
-	"launchpad.net/snappy/systemd"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/pkg/snapfs"
+	"github.com/ubuntu-core/snappy/systemd"
 
 	. "gopkg.in/check.v1"
 )

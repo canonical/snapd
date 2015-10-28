@@ -26,7 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/dirs"
+	"github.com/ubuntu-core/snappy/dirs"
 )
 
 type DataDirSuite struct{}

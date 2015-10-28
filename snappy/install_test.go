@@ -31,9 +31,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/partition"
-	"launchpad.net/snappy/progress"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 func makeCloudInitMetaData(c *C, content string) string {

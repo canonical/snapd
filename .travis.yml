@@ -1,0 +1,7 @@
+sudo: required
+dist: trusty
+language: go
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq squashfs-tools
+script: sh -v ./run-checks

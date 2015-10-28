@@ -24,8 +24,8 @@ import (
 	"os"
 	"os/exec"
 
-	"launchpad.net/snappy/_integration-tests/testutils/build"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/build"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
 
 	"gopkg.in/check.v1"
 )
@@ -91,6 +91,25 @@ func (s *hwAssignSuite) TestErrorAfterHwUnAssign(c *check.C) {
 		check.Commentf("The snap binary without hardware assigned did not exit with an error"))
 	c.Assert(string(output), check.Equals, hwAssignError,
 		check.Commentf("Wrong error message"))
+}
+
+func (s *hwAssignSuite) TestHwInfo(c *check.C) {
+	cmd := exec.Command("sudo", "snappy", "hw-info", installedSnapName)
+	boutput, _ := cmd.CombinedOutput()
+	output := string(boutput)
+	expected := fmt.Sprintf("'%s:' is not allowed to access additional hardware\n", installedSnapName)
+	c.Assert(output, check.Equals, expected,
+		check.Commentf(`Expected "%s", obtained "%s"`, expected, output))
+
+	assign(c, snapName, hwName)
+	defer unassign(c, snapName, hwName)
+
+	cmd = exec.Command("sudo", "snappy", "hw-info", installedSnapName)
+	boutput, _ = cmd.CombinedOutput()
+	output = string(boutput)
+	expected = fmt.Sprintf("%s: %s\n", installedSnapName, hwName)
+	c.Assert(output, check.Equals, expected,
+		check.Commentf(`Expected "%s", obtained "%s"`, expected, output))
 }
 
 func assign(c *check.C, snap, hw string) {

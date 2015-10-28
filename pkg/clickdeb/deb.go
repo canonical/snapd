@@ -33,7 +33,7 @@ import (
 	"strings"
 	"time"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 
 	"github.com/blakesmith/ar"
 )

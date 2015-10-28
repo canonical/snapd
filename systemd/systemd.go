@@ -33,9 +33,9 @@ import (
 	"text/template"
 	"time"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 var (

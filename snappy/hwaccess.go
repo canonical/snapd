@@ -29,8 +29,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
 )
 
 const udevDataGlob = "/run/udev/data/*"
@@ -91,7 +91,7 @@ func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditiona
 	out = append(out, '\n')
 
 	additionalFile := getHWAccessJSONFile(snapname)
-	if err := helpers.AtomicWriteFile(additionalFile, out, 0640); err != nil {
+	if err := helpers.AtomicWriteFile(additionalFile, out, 0640, 0); err != nil {
 		return err
 	}
 
@@ -130,7 +130,7 @@ func addUdevRuleForSnap(snapname, newRule string) error {
 	// In both cases, updatedRules will have the right content.
 	updatedRules := append(rules, newRule...)
 
-	if err := helpers.AtomicWriteFile(udevRulesFile, updatedRules, 0644); nil != err {
+	if err := helpers.AtomicWriteFile(udevRulesFile, updatedRules, 0644, 0); nil != err {
 		return err
 	}
 
@@ -250,7 +250,7 @@ func removeUdevRuleForSnap(snapname, device string) error {
 			out = out + rule + "\n"
 		}
 
-		if err := helpers.AtomicWriteFile(udevRulesFile, []byte(out), 0644); nil != err {
+		if err := helpers.AtomicWriteFile(udevRulesFile, []byte(out), 0644, 0); nil != err {
 			return err
 		}
 	} else {

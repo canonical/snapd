@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"launchpad.net/snappy/logger"
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 // ResponseType is the response type
