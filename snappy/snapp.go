@@ -215,7 +215,6 @@ type SnapIF interface {
 	activate(inhibitHooks bool, inter interacter) error
 	deactivate(inhibitHooks bool, inter interacter) error
 	Dir() string
-	remove(inter interacter) error
 	ServiceYamls() []ServiceYaml
 }
 
@@ -1208,13 +1207,6 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 	err = os.RemoveAll(snapfs.BlobPath(s.basedir))
 	if err != nil {
 		return err
-	}
-
-	// FIXME: this needs to go into a special kernel snap
-	if s.m.Type == pkg.TypeKernel {
-		if err := removeKernel(s); err != nil {
-			logger.Noticef("Failed to remove kernel assets %s", err)
-		}
 	}
 
 	// best effort(?)

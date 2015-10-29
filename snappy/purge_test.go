@@ -193,7 +193,7 @@ func (s *purgeSuite) TestPurgeRemovedWorks(c *C) {
 	inter := &MockProgressMeter{}
 	ddir, part := s.mkpkg(c)
 
-	err := part.remove(inter)
+	err := part.(*SnapPart).remove(inter)
 	c.Assert(err, IsNil)
 	c.Check(helpers.FileExists(ddir), Equals, true)
 

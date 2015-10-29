@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/pkg/snapfs"
 	"github.com/ubuntu-core/snappy/progress"
@@ -40,7 +41,19 @@ func (s *KernelSnap) Uninstall(pb progress.Meter) (err error) {
 		return ErrPackageNotRemovable
 	}
 
-	return s.SnapPart.Uninstall(pb)
+	// generic uninstall
+	if err := s.SnapPart.Uninstall(pb); err != nil {
+		return err
+	}
+
+	// remove the kernel blob
+	blobName := filepath.Base(snapfs.BlobPath(s.basedir))
+	dstDir := filepath.Join(partition.BootloaderDir(), blobName)
+	if err := os.RemoveAll(dstDir); err != nil {
+		logger.Noticef("Failed to remove kernel assets %s", err)
+	}
+
+	return nil
 }
 
 func (s *KernelSnap) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
@@ -99,10 +112,4 @@ func (s *KernelSnap) Install(inter progress.Meter, flags InstallFlags) (name str
 	}
 
 	return name, dir.Sync()
-}
-
-func removeKernel(s *SnapPart) error {
-	blobName := filepath.Base(snapfs.BlobPath(s.basedir))
-	dstDir := filepath.Join(partition.BootloaderDir(), blobName)
-	return os.RemoveAll(dstDir)
 }
