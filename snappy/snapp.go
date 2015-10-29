@@ -1213,9 +1213,9 @@ func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
 	return nil
 }
 
-// RequestAppArmorUpdate checks whether changes to the given policies and
+// RequestSecurityPolicyUpdate checks whether changes to the given policies and
 // templates impacts the snap, and updates the policy if needed
-func (s *SnapPart) RequestAppArmorUpdate(policies, templates map[string]bool) error {
+func (s *SnapPart) RequestSecurityPolicyUpdate(policies, templates map[string]bool) error {
 	var foundError error
 	for _, svc := range s.ServiceYamls() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
@@ -1257,7 +1257,7 @@ func (s *SnapPart) RefreshDependentsSecurity(oldPart *SnapPart, inter interacter
 	}
 
 	for _, dep := range deps {
-		err := dep.RequestAppArmorUpdate(upPol, upTpl)
+		err := dep.RequestSecurityPolicyUpdate(upPol, upTpl)
 		if err != nil {
 			return err
 		}

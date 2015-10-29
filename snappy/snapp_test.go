@@ -1211,7 +1211,7 @@ func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
 	}()
 	touched := []string{}
 	dirs.SnapAppArmorDir = c.MkDir()
-	fn := filepath.Join(dirs.SnapAppArmorDir, "foo."+testOrigin+"_hello_1.0.json")
+	fn := filepath.Join(dirs.SnapAppArmorDir, "foo."+testOrigin+"_hello_1.0")
 	c.Assert(os.Symlink(fn, fn), IsNil)
 
 	_, err := makeInstalledMockSnap(s.tempdir, `name: foo
@@ -1239,7 +1239,7 @@ binaries:
 	_, err = makeInstalledMockSnap(d2, "name: fmk\ntype: framework\nversion: 2\nvendor: foo")
 	c.Assert(err, IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(d2, dp), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d2, dp, "foo"), []byte("x"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d2, dp, "fmk_foo"), []byte("x"), 0644), IsNil)
 
 	pb := &MockProgressMeter{}
 	m, err := parsePackageYamlData([]byte(yaml), false)
@@ -1305,34 +1305,34 @@ func (s *SnapTestSuite) TestNeedsAppArmorUpdatePolicyAbsent(c *C) {
 	c.Check(sd.NeedsAppArmorUpdate(map[string]bool{"foo_bar": true}, nil), Equals, false)
 }
 
-func (s *SnapTestSuite) TestRequestAppArmorUpdateService(c *C) {
+func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateService(c *C) {
 	var updated []string
 	// if one of the services needs updating, it's updated and returned
 	svc := ServiceYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	part := &SnapPart{m: &packageYaml{Name: "part", ServiceYamls: []ServiceYaml{svc}, Version: "42"}, origin: testOrigin}
-	err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
+	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
 	c.Assert(err, IsNil)
 	c.Assert(updated, HasLen, 1)
-	c.Check(filepath.Base(updated[0]), Equals, "part."+testOrigin+"_svc_42.json")
+	c.Check(filepath.Base(updated[0]), Equals, "part."+testOrigin+"_svc_42")
 }
 
-func (s *SnapTestSuite) TestRequestAppArmorUpdateBinary(c *C) {
+func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateBinary(c *C) {
 	var updated []string
 	// if one of the binaries needs updating, the part needs updating
 	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	part := &SnapPart{m: &packageYaml{Name: "part", Binaries: []Binary{bin}, Version: "42"}, origin: testOrigin}
-	err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
+	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
 	c.Assert(err, IsNil)
 	c.Assert(updated, HasLen, 1)
-	c.Check(filepath.Base(updated[0]), Equals, "part."+testOrigin+"_echo_42.json")
+	c.Check(filepath.Base(updated[0]), Equals, "part."+testOrigin+"_echo_42")
 }
 
-func (s *SnapTestSuite) TestRequestAppArmorUpdateNothing(c *C) {
+func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateNothing(c *C) {
 	var updated []string
 	svc := ServiceYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	part := &SnapPart{m: &packageYaml{ServiceYamls: []ServiceYaml{svc}, Binaries: []Binary{bin}, Version: "42"}, origin: testOrigin}
-	err := part.RequestAppArmorUpdate(nil, nil)
+	err := part.RequestSecurityPolicyUpdate(nil, nil)
 	c.Check(err, IsNil)
 	c.Check(updated, HasLen, 0)
 }
