@@ -120,6 +120,9 @@ var (
 )
 
 func v1Get(c *Command, r *http.Request) Response {
+	c.d.fmutex.Lock()
+	defer c.d.fmutex.Unlock()
+
 	rel := release.Get()
 	m := map[string]string{
 		"flavor":          rel.Flavor,
@@ -155,6 +158,9 @@ func getPackageInfo(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 	origin := vars["origin"]
+
+	c.d.fmutex.Lock()
+	defer c.d.fmutex.Unlock()
 
 	repo := newRemoteRepo()
 	var part snappy.Part
@@ -227,6 +233,9 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 	if route == nil {
 		return InternalError(nil, "router can't find route for packages")
 	}
+
+	c.d.fmutex.Lock()
+	defer c.d.fmutex.Unlock()
 
 	sources := make([]string, 1, 3)
 	sources[0] = "local"
@@ -323,9 +332,15 @@ func packageService(c *Command, r *http.Request) Response {
 		action = cmd["action"]
 	}
 
+	reachedAsync := false
 	switch action {
 	case "status", "start", "stop", "restart", "enable", "disable":
-		// ok
+		c.d.fmutex.Lock()
+		defer func() {
+			if !reachedAsync {
+				c.d.fmutex.Unlock()
+			}
+		}()
 	default:
 		return BadRequest(nil, "unknown action %s", action)
 	}
@@ -393,7 +408,11 @@ func packageService(c *Command, r *http.Request) Response {
 		return SyncResponse(f())
 	}
 
+	reachedAsync = true
+
 	return AsyncResponse(c.d.AddTask(func() interface{} {
+		defer c.d.fmutex.Unlock()
+
 		switch action {
 		case "start":
 			err = actor.Start()
@@ -424,6 +443,9 @@ func packageConfig(c *Command, r *http.Request) Response {
 		return BadRequest(nil, "missing name or origin")
 	}
 	pkgName := name + "." + origin
+
+	c.d.fmutex.Lock()
+	defer c.d.fmutex.Unlock()
 
 	bag := lightweight.PartBagByName(name, origin)
 	if bag == nil {
@@ -471,6 +493,9 @@ func configMulti(c *Command, r *http.Request) Response {
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
+		c.d.fmutex.Lock()
+		defer c.d.fmutex.Unlock()
+
 		rspmap := make(map[string]*configSubtask, len(pkgmap))
 		bags := lightweight.AllPartBags()
 		for pkg, cfg := range pkgmap {
@@ -661,7 +686,11 @@ func postPackage(c *Command, r *http.Request) Response {
 		return BadRequest(nil, "unknown action %s", inst.Action)
 	}
 
-	return AsyncResponse(c.d.AddTask(f).Map(route))
+	return AsyncResponse(c.d.AddTask(func() interface{} {
+		c.d.fmutex.Lock()
+		defer c.d.fmutex.Unlock()
+		return f()
+	}).Map(route))
 }
 
 const maxReadBuflen = 1024 * 1024
@@ -740,6 +769,9 @@ func sideloadPackage(c *Command, r *http.Request) Response {
 			return err
 		}
 
+		c.d.fmutex.Lock()
+		defer c.d.fmutex.Unlock()
+
 		name, err := part.Install(&progress.NullProgress{}, 0)
 		if err != nil {
 			return err
@@ -753,6 +785,9 @@ func getLogs(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 	svcName := vars["service"]
+
+	c.d.fmutex.Lock()
+	defer c.d.fmutex.Unlock()
 
 	actor, err := findServices(name, svcName, &progress.NullProgress{})
 	if err != nil {
@@ -790,6 +825,9 @@ func appIconGet(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 	origin := vars["origin"]
+
+	c.d.fmutex.Lock()
+	defer c.d.fmutex.Unlock()
 
 	bag := lightweight.PartBagByName(name, origin)
 	if bag == nil || len(bag.Versions) == 0 {

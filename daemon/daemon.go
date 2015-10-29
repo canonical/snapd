@@ -31,6 +31,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/ubuntu-core/snappy/daemon/fmutex"
 	"github.com/ubuntu-core/snappy/logger"
 )
 
@@ -41,6 +42,7 @@ type Daemon struct {
 	listener     net.Listener
 	tomb         tomb.Tomb
 	router       *mux.Router
+	fmutex       sync.Locker // for concurrent operations
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -121,6 +123,7 @@ func (d *Daemon) Init() error {
 	}
 
 	d.listener = listeners[0]
+	d.fmutex = fmutex.New()
 
 	d.addRoutes()
 
