@@ -83,7 +83,11 @@ services:
 		return "", err
 	}
 
-	if err := addDefaultApparmorJSON(tempdir, "hello-app_hello_1.10.json"); err != nil {
+	if err := addDefaultApparmorProfile("hello-app_hello_1.10"); err != nil {
+		return "", err
+	}
+
+	if err := addDefaultApparmorProfile("hello-app_svc1_1.10"); err != nil {
 		return "", err
 	}
 
@@ -121,19 +125,21 @@ func storeMinimalRemoteManifest(qn, name, origin, version, desc string) error {
 	return nil
 }
 
-func addDefaultApparmorJSON(tempdir, apparmorJSONPath string) error {
-	appArmorDir := filepath.Join(tempdir, "var", "lib", "apparmor", "clicks")
+func addDefaultApparmorProfile(appid string) error {
+	appArmorDir := dirs.SnapAppArmorDir
+
 	if err := os.MkdirAll(appArmorDir, 0775); err != nil {
 		return err
 	}
 
-	const securityJSON = `{
-  "policy_vendor": "ubuntu-core"
-  "policy_version": 15.04
+	const securityProfile = `
+#include <tunables/global
+profile "foo" (attach_disconnected) {
+	#include <abstractions/base>
 }`
 
-	apparmorFile := filepath.Join(appArmorDir, apparmorJSONPath)
-	return ioutil.WriteFile(apparmorFile, []byte(securityJSON), 0644)
+	apparmorFile := filepath.Join(appArmorDir, appid)
+	return ioutil.WriteFile(apparmorFile, []byte(securityProfile), 0644)
 }
 
 // makeTestSnapPackage creates a real snap package that can be installed on
