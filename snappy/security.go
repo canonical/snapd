@@ -589,7 +589,6 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *packageYaml, na
 		} else {
 			scPolicy, err = getSeccompTemplatedPolicy(m, id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride.Seccomp)
 		}
-
 		if err != nil {
 			logger.Noticef("Failed to generate seccomp policy for %s: %v", name, err)
 			return err
