@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/helpers"
@@ -100,9 +101,9 @@ func FirstBoot() error {
 	return oemConfig()
 }
 
-const firstbootDir = "/var/lib/snappy/firstboot"
-
-var stampFile = filepath.Join(firstbootDir, "stamp")
+// NOTE: if you change stampFile, update the condition in
+// ubuntu-snappy.firstboot.service to match
+var stampFile = "/var/lib/snappy/firstboot/stamp"
 
 func stampFirstBoot() error {
 	// filepath.Dir instead of firstbootDir directly to ease testing
@@ -119,6 +120,7 @@ func stampFirstBoot() error {
 
 var globs = []string{"/sys/class/net/eth*", "/sys/class/net/en*"}
 var ethdir = "/etc/network/interfaces.d"
+var ifup = "/sbin/ifup"
 
 func enableFirstEther() error {
 	var eths []string
@@ -136,6 +138,13 @@ func enableFirstEther() error {
 	data := fmt.Sprintf("allow-hotplug %[1]s\niface %[1]s inet dhcp\n", eth)
 
 	if err := helpers.AtomicWriteFile(ethfile, []byte(data), 0644, 0); err != nil {
+		return err
+	}
+
+	ifup := exec.Command(ifup, eth)
+	ifup.Stdout = os.Stdout
+	ifup.Stderr = os.Stderr
+	if err := ifup.Run(); err != nil {
 		return err
 	}
 
