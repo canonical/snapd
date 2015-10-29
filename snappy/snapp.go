@@ -785,12 +785,6 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		return "", err
 	}
 
-	// generate the security policy from the package.yaml
-	appsDir := filepath.Join(dirs.SnapAppsDir, QualifiedName(s), s.Version())
-	if err := generatePolicy(s.m, appsDir); err != nil {
-		return "", err
-	}
-
 	// legacy, the hooks need this. Once we converted all hooks this can go
 	// away
 	clickMetaDir := filepath.Join(s.basedir, ".click", "info")
@@ -966,6 +960,12 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	}
 	// add the "services:" from the package.yaml
 	if err := s.m.addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
+		return err
+	}
+
+	// generate the security policy from the package.yaml
+	appsDir := filepath.Join(dirs.SnapAppsDir, QualifiedName(s), s.Version())
+	if err := generatePolicy(s.m, appsDir); err != nil {
 		return err
 	}
 
