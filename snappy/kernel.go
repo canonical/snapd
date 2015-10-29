@@ -23,20 +23,21 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/pkg/snapfs"
 )
 
 func unpackKernel(s *SnapPart) error {
-	bootdir := filepath.Join(dirs.GlobalRootDir, partition.BootloaderDir())
-
-	if err := os.MkdirAll(filepath.Join(bootdir, s.Version()), 0755); err !=
-		nil {
+	blobName := filepath.Base(snapfs.BlobPath(s.basedir))
+	dstDir := filepath.Join(partition.BootloaderDir(), blobName)
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
 	}
-	blobName := filepath.Base(snapfs.BlobPath(s.basedir))
-	dstDir := filepath.Join(bootdir, blobName)
+	dir, err := os.Open(dstDir)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
 	if s.m.Kernel != "" {
 		src := s.m.Kernel
 		if err := s.deb.Unpack(src, dstDir); err != nil {
@@ -45,6 +46,9 @@ func unpackKernel(s *SnapPart) error {
 		src = filepath.Join(dstDir, s.m.Kernel)
 		dst := filepath.Join(dstDir, partition.NormalizeKernelInitrdName(s.m.Kernel))
 		if err := os.Rename(src, dst); err != nil {
+			return err
+		}
+		if err := dir.Sync(); err != nil {
 			return err
 		}
 	}
@@ -58,6 +62,9 @@ func unpackKernel(s *SnapPart) error {
 		if err := os.Rename(src, dst); err != nil {
 			return err
 		}
+		if err := dir.Sync(); err != nil {
+			return err
+		}
 	}
 	if s.m.Dtbs != "" {
 		src := s.m.Dtbs
@@ -67,16 +74,11 @@ func unpackKernel(s *SnapPart) error {
 		}
 	}
 
-	return nil
+	return dir.Sync()
 }
 
 func removeKernel(s *SnapPart) error {
-	bootdir := partition.BootloaderDir()
-	if err := os.MkdirAll(filepath.Join(bootdir, s.Version()), 0755); err !=
-		nil {
-		return err
-	}
 	blobName := filepath.Base(snapfs.BlobPath(s.basedir))
-	dstDir := filepath.Join(bootdir, blobName)
+	dstDir := filepath.Join(partition.BootloaderDir(), blobName)
 	return os.RemoveAll(dstDir)
 }

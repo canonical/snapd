@@ -516,15 +516,7 @@ func (l Log) String() string {
 
 // MountUnitPath returns the path of a {,auto}mount unit
 func MountUnitPath(baseDir, ext string) string {
-	// FIXME: use github.com/coreos/go-systemd/unit/escape.go
-	//        once we can update go-systemd. we can not right now
-	//        because versions >= 2 are not compatible with go1.3 from
-	//        15.04
-	p, err := exec.Command("systemd-escape", "--path", baseDir).CombinedOutput()
-	if err != nil {
-		panic(fmt.Sprintf("systemd-escape failed for %s with %q", baseDir, p))
-	}
-	escapedPath := strings.TrimSpace(string(p))
+	escapedPath := EscapePath(baseDir)
 	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s.%s", escapedPath, ext))
 }
 
