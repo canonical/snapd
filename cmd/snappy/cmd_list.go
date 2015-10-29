@@ -28,7 +28,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -134,19 +133,10 @@ func showRebootMessage(installed []snappy.Part, o io.Writer) {
 	needsReboot := false
 
 	for _, part := range installed {
-		// FIXME: extend this later to look at more than just
-		//        core - once we do that the logic here needs
-		//        to be modified as the current code assumes
-		//        there are only two version instaleld and
-		//        there is only a single part that may requires
-		//        a reboot
-		if part.Type() != pkg.TypeCore && part.Type() != pkg.TypeKernel && part.Type() != pkg.TypeOS {
+		if !part.NeedsReboot() {
 			continue
 		}
-
-		if part.NeedsReboot() {
-			needsReboot = true
-		}
+		needsReboot = true
 
 		if part.IsActive() {
 			currentVersion = part.Version()
@@ -156,14 +146,17 @@ func showRebootMessage(installed []snappy.Part, o io.Writer) {
 		}
 	}
 
-	if needsReboot {
-		if snappy.VersionCompare(otherVersion, currentVersion) > 0 {
-			// TRANSLATORS: the %s is a pkgname
-			fmt.Fprintln(o, fmt.Sprintf(i18n.G("Reboot to use the new %s."), otherName))
-		} else {
-			// TRANSLATORS: the first %s is a pkgname the second a version
-			fmt.Fprintln(o, fmt.Sprintf(i18n.G("Reboot to use %s version %s."), otherName, otherVersion))
-		}
+	// nothing to show
+	if !needsReboot {
+		return
+	}
+
+	if snappy.VersionCompare(otherVersion, currentVersion) > 0 {
+		// TRANSLATORS: the %s is a pkgname
+		fmt.Fprintln(o, fmt.Sprintf(i18n.G("Reboot to use the new %s."), otherName))
+	} else {
+		// TRANSLATORS: the first %s is a pkgname the second a version
+		fmt.Fprintln(o, fmt.Sprintf(i18n.G("Reboot to use %s version %s."), otherName, otherVersion))
 	}
 }
 

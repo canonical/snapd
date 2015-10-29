@@ -51,13 +51,17 @@ func (s *KernelSnap) Install(inter progress.Meter, flags InstallFlags) (name str
 	}
 
 	// now do the kernel specific bits
-	bootdir := partition.BootloaderDir()
-	if err := os.MkdirAll(filepath.Join(bootdir, s.Version()), 0755); err !=
-		nil {
-		return name, err
-	}
 	blobName := filepath.Base(snapfs.BlobPath(s.basedir))
-	dstDir := filepath.Join(bootdir, blobName)
+	dstDir := filepath.Join(partition.BootloaderDir(), blobName)
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return "", err
+	}
+	dir, err := os.Open(dstDir)
+	if err != nil {
+		return "", err
+	}
+	defer dir.Close()
+
 	if s.m.Kernel != "" {
 		src := s.m.Kernel
 		if err := s.deb.Unpack(src, dstDir); err != nil {
@@ -67,6 +71,9 @@ func (s *KernelSnap) Install(inter progress.Meter, flags InstallFlags) (name str
 		dst := filepath.Join(dstDir, partition.NormalizeKernelInitrdName(s.m.Kernel))
 		if err := os.Rename(src, dst); err != nil {
 			return name, err
+		}
+		if err := dir.Sync(); err != nil {
+			return "", err
 		}
 	}
 	if s.m.Initrd != "" {
@@ -79,6 +86,9 @@ func (s *KernelSnap) Install(inter progress.Meter, flags InstallFlags) (name str
 		if err := os.Rename(src, dst); err != nil {
 			return name, err
 		}
+		if err := dir.Sync(); err != nil {
+			return "", err
+		}
 	}
 	if s.m.Dtbs != "" {
 		src := s.m.Dtbs
@@ -88,16 +98,11 @@ func (s *KernelSnap) Install(inter progress.Meter, flags InstallFlags) (name str
 		}
 	}
 
-	return name, nil
+	return name, dir.Sync()
 }
 
 func removeKernel(s *SnapPart) error {
-	bootdir := partition.BootloaderDir()
-	if err := os.MkdirAll(filepath.Join(bootdir, s.Version()), 0755); err !=
-		nil {
-		return err
-	}
 	blobName := filepath.Base(snapfs.BlobPath(s.basedir))
-	dstDir := filepath.Join(bootdir, blobName)
+	dstDir := filepath.Join(partition.BootloaderDir(), blobName)
 	return os.RemoveAll(dstDir)
 }
