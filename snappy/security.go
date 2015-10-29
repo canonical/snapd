@@ -713,7 +713,7 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 
 	// TODO: verify cache files here
 
-	baseDir := strings.Replace(fn, "/meta/package.yaml", "", 1)
+	baseDir := filepath.Dir(filepath.Dir(fn))
 	err = generatePolicy(m, baseDir)
 	if err != nil {
 		return err
