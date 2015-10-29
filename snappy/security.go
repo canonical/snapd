@@ -631,12 +631,12 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 		return err
 	}
 
-	foundError := false
+	var foundError error
 
 	for _, service := range m.ServiceYamls {
 		err := service.generatePolicyForServiceBinary(m, service.Name, baseDir)
 		if err != nil {
-			foundError = true
+			foundError = err
 			logger.Noticef("Failed to obtain APP_ID for %s: %v", service.Name, err)
 			continue
 		}
@@ -645,14 +645,14 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 	for _, binary := range m.Binaries {
 		err := binary.generatePolicyForServiceBinary(m, binary.Name, baseDir)
 		if err != nil {
-			foundError = true
+			foundError = err
 			logger.Noticef("Failed to obtain APP_ID for %s: %v", binary.Name, err)
 			continue
 		}
 	}
 
-	if foundError {
-		return errPolicyGen
+	if foundError != nil {
+		return foundError
 	}
 
 	return nil
