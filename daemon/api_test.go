@@ -34,7 +34,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"testing"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -47,9 +46,6 @@ import (
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/systemd"
 )
-
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { check.TestingT(t) }
 
 type apiSuite struct {
 	parts []snappy.Part
@@ -134,8 +130,7 @@ oem: {store: {id: %q}}
 }
 
 func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
-	d := New()
-	d.addRoutes()
+	newTestDaemon()
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
@@ -217,8 +212,7 @@ func (s *apiSuite) TestPackageInfoIgnoresRemoteErrors(c *check.C) {
 func (s *apiSuite) TestPackageInfoWeirdRoute(c *check.C) {
 	// can't really happen
 
-	d := New()
-	d.addRoutes()
+	d := newTestDaemon()
 
 	// use the wrong command to force the issue
 	wrongCmd := &Command{Path: "/{what}", d: d}
@@ -230,8 +224,7 @@ func (s *apiSuite) TestPackageInfoWeirdRoute(c *check.C) {
 func (s *apiSuite) TestPackageInfoBadRoute(c *check.C) {
 	// can't really happen, v2
 
-	d := New()
-	d.addRoutes()
+	d := newTestDaemon()
 
 	// get the route and break it
 	route := d.router.Get(packageCmd.Path)
@@ -374,9 +367,6 @@ func (s *apiSuite) TestV1Store(c *check.C) {
 }
 
 func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
-	d := New()
-	d.addRoutes()
-
 	req, err := http.NewRequest("GET", "/1.0/packages", nil)
 	c.Assert(err, check.IsNil)
 
@@ -416,9 +406,6 @@ func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
 }
 
 func (s *apiSuite) TestDeleteOpNotFound(c *check.C) {
-	d := New()
-	d.addRoutes()
-
 	s.vars = map[string]string{"uuid": "42"}
 	rsp := deleteOp(operationCmd, nil).Self(nil, nil).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
@@ -426,8 +413,7 @@ func (s *apiSuite) TestDeleteOpNotFound(c *check.C) {
 }
 
 func (s *apiSuite) TestDeleteOpStillRunning(c *check.C) {
-	d := New()
-	d.addRoutes()
+	d := newTestDaemon()
 
 	d.tasks["42"] = &Task{}
 	s.vars = map[string]string{"uuid": "42"}
@@ -437,8 +423,7 @@ func (s *apiSuite) TestDeleteOpStillRunning(c *check.C) {
 }
 
 func (s *apiSuite) TestDeleteOp(c *check.C) {
-	d := New()
-	d.addRoutes()
+	d := newTestDaemon()
 
 	task := &Task{}
 	d.tasks["42"] = task
@@ -450,8 +435,7 @@ func (s *apiSuite) TestDeleteOp(c *check.C) {
 }
 
 func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
-	d := New()
-	d.addRoutes()
+	d := newTestDaemon()
 
 	s.vars = map[string]string{"uuid": "42"}
 	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
@@ -504,9 +488,6 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 }
 
 func (s *apiSuite) TestPostPackageBadRequest(c *check.C) {
-	d := New()
-	d.addRoutes()
-
 	s.vars = map[string]string{"uuid": "42"}
 	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
@@ -524,9 +505,6 @@ func (s *apiSuite) TestPostPackageBadRequest(c *check.C) {
 }
 
 func (s *apiSuite) TestPostPackageBadAction(c *check.C) {
-	d := New()
-	d.addRoutes()
-
 	s.vars = map[string]string{"uuid": "42"}
 	c.Check(getOpInfo(operationCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 
@@ -542,8 +520,7 @@ func (s *apiSuite) TestPostPackageBadAction(c *check.C) {
 }
 
 func (s *apiSuite) TestPostPackage(c *check.C) {
-	d := New()
-	d.addRoutes()
+	d := newTestDaemon()
 
 	s.vars = map[string]string{"uuid": "42"}
 	c.Check(getOpInfo(operationCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
@@ -623,9 +600,6 @@ func (c cfgc) Load(string) (snappy.Part, error) {
 }
 
 func (s *apiSuite) TestPackageGetConfig(c *check.C) {
-	d := New()
-	d.addRoutes()
-
 	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
@@ -688,9 +662,6 @@ func (s *apiSuite) TestPackageGetConfigNoConfig(c *check.C) {
 }
 
 func (s *apiSuite) TestPackagePutConfig(c *check.C) {
-	d := New()
-	d.addRoutes()
-
 	newConfigStr := "some other config"
 	req, err := http.NewRequest("PUT", "/1.0/packages/foo.bar/config", bytes.NewBufferString(newConfigStr))
 	c.Assert(err, check.IsNil)
@@ -754,8 +725,7 @@ func (s *apiSuite) TestPackagePutConfigNoConfig(c *check.C) {
 }
 
 func (s *apiSuite) TestConfigMultiBadBody(c *check.C) {
-	d := New()
-	d.addRoutes()
+	newTestDaemon()
 
 	req, err := http.NewRequest("PUT", "/1.0/packages", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
@@ -785,8 +755,7 @@ func (s *apiSuite) TestPackagesPutNil(c *check.C) {
 }
 
 func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, concreteNo int, expected map[string]*configSubtask) {
-	d := New()
-	d.addRoutes()
+	d := newTestDaemon()
 
 	req, err := http.NewRequest("PUT", "/1.0/packages", body)
 	c.Assert(err, check.IsNil)
@@ -858,9 +827,6 @@ func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, concreteNo 
 }
 
 func (s *apiSuite) TestPackageServiceGet(c *check.C) {
-	d := New()
-	d.addRoutes()
-
 	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
 		return &tSA{ssout: []*snappy.PackageServiceStatus{{ServiceName: "svc"}}}, nil
 	}
@@ -884,9 +850,6 @@ func (s *apiSuite) TestPackageServiceGet(c *check.C) {
 }
 
 func (s *apiSuite) TestPackageServicePut(c *check.C) {
-	d := New()
-	d.addRoutes()
-
 	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
 		return &tSA{ssout: []*snappy.PackageServiceStatus{{ServiceName: "svc"}}}, nil
 	}
@@ -953,9 +916,6 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 }
 
 func (s *apiSuite) TestServiceLogs(c *check.C) {
-	d := New()
-	d.addRoutes()
-
 	log := systemd.Log{
 		"__REALTIME_TIMESTAMP": "42",
 		"MESSAGE":              "hi",

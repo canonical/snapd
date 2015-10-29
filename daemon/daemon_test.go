@@ -22,15 +22,28 @@ package daemon
 import (
 	"net/http"
 	"net/http/httptest"
+	"testing"
 
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
 )
 
+// Hook up check.v1 into the "go test" runner
+func Test(t *testing.T) { check.TestingT(t) }
+
 type daemonSuite struct{}
 
 var _ = check.Suite(&daemonSuite{})
 
+// build a new daemon, with only a little of Init(), suitable for the tests
+func newTestDaemon() *Daemon {
+	d := New()
+	d.addRoutes()
+
+	return d
+}
+
+// aResponse suitable for testing
 type mockHandler struct {
 	cmd        *Command
 	lastMethod string
