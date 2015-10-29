@@ -31,7 +31,7 @@ import (
 
 func mockRegenerateAppArmorRules() *bool {
 	regenerateAppArmorRulesWasCalled := false
-	regenerateAppArmorRules = func() error {
+	regenerateAppArmorRules = func(string) error {
 		regenerateAppArmorRulesWasCalled = true
 		return nil
 	}
@@ -69,7 +69,6 @@ func (s *SnapTestSuite) TestAddHWAccessInvalidDevice(c *C) {
 }
 
 func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
-	aaClickHookCmd = "true"
 	makeInstalledMockSnap(s.tempdir, "")
 
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
@@ -93,7 +92,6 @@ func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
 }
 
 func (s *SnapTestSuite) TestAddHWAccessAddSameDeviceTwice(c *C) {
-	aaClickHookCmd = "true"
 	makeInstalledMockSnap(s.tempdir, "")
 
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
@@ -112,14 +110,6 @@ func (s *SnapTestSuite) TestAddHWAccessUnknownPackage(c *C) {
 	err := AddHWAccess("xxx", "/dev/ttyUSB0")
 	c.Assert(err, Equals, ErrPackageNotFound)
 	c.Assert(*regenerateAppArmorRulesWasCalled, Equals, false)
-}
-
-func (s *SnapTestSuite) TestAddHWAccessHookFails(c *C) {
-	aaClickHookCmd = "false"
-	makeInstalledMockSnap(s.tempdir, "")
-
-	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
-	c.Assert(err.Error(), Equals, "apparmor generate fails with 1: ''")
 }
 
 func (s *SnapTestSuite) TestListHWAccessNoAdditionalAccess(c *C) {
@@ -154,8 +144,6 @@ func (s *SnapTestSuite) TestRemoveHWAccessInvalidDevice(c *C) {
 }
 
 func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
-	aaClickHookCmd = "true"
-
 	makeInstalledMockSnap(s.tempdir, "")
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 
@@ -186,7 +174,6 @@ func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
 }
 
 func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
-	aaClickHookCmd = "true"
 	makeInstalledMockSnap(s.tempdir, "")
 
 	// setup
@@ -303,20 +290,4 @@ func (s *SnapTestSuite) TestRemoveAllHWAccess(c *C) {
 	c.Check(helpers.FileExists(filepath.Join(dirs.SnapUdevRulesDir, "70-snappy_hwassign_foo-app.rules")), Equals, false)
 	c.Check(helpers.FileExists(filepath.Join(dirs.SnapAppArmorDir, "hello-app.json.additional")), Equals, false)
 	c.Check(*regenerateAppArmorRulesWasCalled, Equals, true)
-}
-
-func (s *SnapTestSuite) TestRegenerateAppaArmorRulesErr(c *C) {
-	script := `#!/bin/sh
-echo meep
-exit 1`
-	mockFailHookFile := filepath.Join(c.MkDir(), "failing-aa-hook")
-	err := ioutil.WriteFile(mockFailHookFile, []byte(script), 0755)
-	c.Assert(err, IsNil)
-	aaClickHookCmd = mockFailHookFile
-
-	err = regenerateAppArmorRulesImpl()
-	c.Assert(err, DeepEquals, &ErrApparmorGenerate{
-		ExitCode: 1,
-		Output:   []byte("meep\n"),
-	})
 }

@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -98,14 +97,19 @@ func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditiona
 	return nil
 }
 
-func regenerateAppArmorRulesImpl() error {
-	if output, err := exec.Command(aaClickHookCmd, "-f").CombinedOutput(); err != nil {
-		if exitCode, err := helpers.ExitCode(err); err == nil {
-			return &ErrApparmorGenerate{
-				ExitCode: exitCode,
-				Output:   output,
-			}
-		}
+func regenerateAppArmorRulesImpl(snapname string) error {
+	// check if there is anything apparmor related to add to
+	globExpr := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s_*", snapname))
+	matches, err := filepath.Glob(globExpr)
+	if err != nil {
+		return err
+	}
+	if len(matches) == 0 {
+		return ErrPackageNotFound
+	}
+
+	err = regeneratePolicyForSnap(snapname)
+	if err != nil {
 		return err
 	}
 
@@ -169,7 +173,7 @@ func AddHWAccess(snapname, device string) error {
 	}
 
 	// check if there is anything apparmor related to add to
-	globExpr := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s_*.json", snapname))
+	globExpr := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s_*", snapname))
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
 		return err
@@ -205,7 +209,7 @@ func AddHWAccess(snapname, device string) error {
 	}
 
 	// re-generate apparmor fules
-	return regenerateAppArmorRules()
+	return regenerateAppArmorRules(snapname)
 }
 
 // ListHWAccess returns a list of hardware-device strings that the snap
@@ -301,7 +305,7 @@ func RemoveHWAccess(snapname, device string) error {
 	}
 
 	// re-generate apparmor rules
-	return regenerateAppArmorRules()
+	return regenerateAppArmorRules(snapname)
 }
 
 // RemoveAllHWAccess removes all hw access from the given snap.
@@ -315,5 +319,5 @@ func RemoveAllHWAccess(snapname string) error {
 		}
 	}
 
-	return regenerateAppArmorRules()
+	return regenerateAppArmorRules(snapname)
 }
