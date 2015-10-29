@@ -120,6 +120,7 @@ func stampFirstBoot() error {
 
 var globs = []string{"/sys/class/net/eth*", "/sys/class/net/en*"}
 var ethdir = "/etc/network/interfaces.d"
+var ifup = "/sbin/ifup"
 
 func enableFirstEther() error {
 	var eths []string
@@ -140,7 +141,7 @@ func enableFirstEther() error {
 		return err
 	}
 
-	ifup := exec.Command("/sbin/ifup", eth)
+	ifup := exec.Command(ifup, eth)
 	ifup.Stdout = os.Stdout
 	ifup.Stderr = os.Stderr
 	if err := ifup.Run(); err != nil {

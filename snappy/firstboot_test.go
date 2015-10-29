@@ -54,6 +54,7 @@ type FirstBootTestSuite struct {
 	oemConfig map[string]interface{}
 	globs     []string
 	ethdir    string
+	ifup      string
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -73,6 +74,8 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	globs = nil
 	s.ethdir = ethdir
 	ethdir = c.MkDir()
+	s.ifup = ifup
+	ifup = "/bin/true"
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
@@ -80,6 +83,7 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	activeSnapsByType = ActiveSnapsByType
 	globs = s.globs
 	ethdir = s.ethdir
+	ifup = s.ifup
 }
 
 func (s *FirstBootTestSuite) mockActiveSnapNamesByType() *fakePart {
