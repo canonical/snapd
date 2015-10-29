@@ -437,7 +437,6 @@ type: framework
 	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
 	d, err := clickdeb.Create(snapName)
 	c.Assert(err, IsNil)
-	defer d.Close()
 	c.Assert(d.Build(tmpdir, func(dataTar string) error {
 		return writeHashes(tmpdir, dataTar)
 	}), IsNil)
@@ -1440,7 +1439,6 @@ binaries:
 	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
 	d, err := clickdeb.Create(snapName)
 	c.Assert(err, IsNil)
-	defer d.Close()
 	c.Assert(d.Build(tmpdir, func(dataTar string) error {
 		return writeHashes(tmpdir, dataTar)
 	}), IsNil)

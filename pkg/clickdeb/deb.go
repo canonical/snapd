@@ -30,7 +30,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -126,21 +125,12 @@ func clickVerifyContentFn(path string) (string, error) {
 // ClickDeb provides support for the "click" containers (a special kind of
 // deb package).
 type ClickDeb struct {
-	file *os.File
-}
-
-func clickDebFinalizer(d *ClickDeb) {
-	d.file.Close()
+	path string
 }
 
 // Open calls os.Open and uses that file for the backing file.
 func Open(path string) (*ClickDeb, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	deb := &ClickDeb{f}
-	runtime.SetFinalizer(deb, clickDebFinalizer)
+	deb := &ClickDeb{path}
 	return deb, nil
 }
 
@@ -150,24 +140,19 @@ func Create(path string) (*ClickDeb, error) {
 	if err != nil {
 		return nil, err
 	}
-	deb := &ClickDeb{f}
-	runtime.SetFinalizer(deb, clickDebFinalizer)
+	f.Close()
+	deb := &ClickDeb{path}
 	return deb, nil
 }
 
 // Name returns the Name of the backing file.
 func (d *ClickDeb) Name() string {
-	return d.file.Name()
+	return d.path
 }
 
 // NeedsAutoMountUnit returns false.
 func (d *ClickDeb) NeedsAutoMountUnit() bool {
 	return false
-}
-
-// Close closes the backing file.
-func (d *ClickDeb) Close() error {
-	return d.file.Close()
 }
 
 // Verify checks that the clickdeb is signed.
@@ -192,12 +177,17 @@ func (d *ClickDeb) MetaMember(metaMember string) (content []byte, err error) {
 //
 // Confused? look at ControlMember and MetaMember, which this generalises.
 func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error) {
+	f, err := os.Open(d.Name())
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
 
-	if _, err := d.file.Seek(0, 0); err != nil {
+	if _, err := f.Seek(0, 0); err != nil {
 		return nil, err
 	}
 
-	arReader := ar.NewReader(d.file)
+	arReader := ar.NewReader(f)
 	dataReader, err := skipToArMember(arReader, arMember)
 	if err != nil {
 		return nil, err
@@ -248,13 +238,17 @@ func (d *ClickDeb) Unpack(src, dst string) error {
 // with click specific verification, i.e. no files will be extracted outside
 // of the targetdir (no ".." inside the data.tar is allowed)
 func (d *ClickDeb) UnpackAll(targetDir string) error {
-	var err error
+	f, err := os.Open(d.Name())
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 
-	if _, err := d.file.Seek(0, 0); err != nil {
+	if _, err := f.Seek(0, 0); err != nil {
 		return err
 	}
 
-	arReader := ar.NewReader(d.file)
+	arReader := ar.NewReader(f)
 	dataReader, err := skipToArMember(arReader, "data.tar")
 	if err != nil {
 		return err
@@ -452,7 +446,11 @@ func (d *ClickDeb) Build(sourceDir string, dataTarFinishedCallback func(dataName
 	}
 
 	// create ar
-	arWriter := ar.NewWriter(d.file)
+	f, err := os.Create(d.Name())
+	if err != nil {
+		return err
+	}
+	arWriter := ar.NewWriter(f)
 	arWriter.WriteGlobalHeader()
 
 	// debian magic

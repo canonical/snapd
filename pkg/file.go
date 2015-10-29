@@ -34,9 +34,6 @@ type File interface {
 	// Verify verfies the integrity of the file.
 	// FIXME: use flags here instead of a boolean
 	Verify(allowUnauthenticated bool) error
-	// Close closes the snapfile.
-	// FIXME: this can go away once we no longer support clickdebs.
-	Close() error
 	// UnpackWithDropPrivs unpacks the given the snap to the given
 	// targetdir relative to the given rootDir.
 	// FIXME: name leaks implementation details, should be Unpack()
