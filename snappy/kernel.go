@@ -25,6 +25,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/pkg/snapfs"
 	"github.com/ubuntu-core/snappy/progress"
 )
@@ -112,4 +113,31 @@ func (s *KernelSnap) Install(inter progress.Meter, flags InstallFlags) (name str
 	}
 
 	return name, dir.Sync()
+}
+
+func setNextBoot(s *SnapPart) error {
+	if s.m.Type != pkg.TypeOS && s.m.Type != pkg.TypeKernel {
+		return nil
+	}
+	var bootvar string
+	switch s.m.Type {
+	case pkg.TypeOS:
+		bootvar = "snappy_os"
+	case pkg.TypeKernel:
+		bootvar = "snappy_kernel"
+	}
+	b, err := partition.Bootloader()
+	if err != nil {
+		return err
+	}
+	blobName := filepath.Base(snapfs.BlobPath(s.basedir))
+	if err := b.SetBootVar(bootvar, blobName); err != nil {
+		return err
+	}
+
+	if err := b.SetBootVar("snappy_mode", "try"); err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -1084,26 +1084,8 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 
 	// FIXME: create {Os,Kernel}Snap type instead of adding special
 	//        cases here
-	if s.m.Type == pkg.TypeOS || s.m.Type == pkg.TypeKernel {
-		b, err := partition.Bootloader()
-		if err != nil {
-			return err
-		}
-		var bootvar string
-		switch s.m.Type {
-		case pkg.TypeOS:
-			bootvar = "snappy_os"
-		case pkg.TypeKernel:
-			bootvar = "snappy_kernel"
-		}
-		blobName := filepath.Base(snapfs.BlobPath(s.basedir))
-		if err := b.SetBootVar(bootvar, blobName); err != nil {
-			return err
-		}
-
-		if err := b.SetBootVar("snappy_mode", "try"); err != nil {
-			return err
-		}
+	if err := setNextBoot(s); err != nil {
+		return err
 	}
 
 	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
