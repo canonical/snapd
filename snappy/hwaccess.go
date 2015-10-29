@@ -98,17 +98,7 @@ func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditiona
 }
 
 func regenerateAppArmorRulesImpl(snapname string) error {
-	// check if there is anything apparmor related to add to
-	globExpr := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s_*", snapname))
-	matches, err := filepath.Glob(globExpr)
-	if err != nil {
-		return err
-	}
-	if len(matches) == 0 {
-		return ErrPackageNotFound
-	}
-
-	err = regeneratePolicyForSnap(snapname)
+	err := regeneratePolicyForSnap(snapname)
 	if err != nil {
 		return err
 	}

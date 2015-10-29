@@ -667,7 +667,8 @@ func regeneratePolicyForSnap(snapname string) error {
 		return err
 	}
 	if len(matches) == 0 {
-		return ErrPackageNotFound
+		// Nothing to regenerate is not an error
+		return nil
 	}
 
 	appliedVersion := ""
