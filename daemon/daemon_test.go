@@ -20,7 +20,6 @@
 package daemon
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 
@@ -91,5 +90,7 @@ func (s *daemonSuite) TestAddRoutes(c *check.C) {
 
 	c.Check(got, check.DeepEquals, expected) // this'll stop being true if routes are added that aren't commands (e.g. for the favicon)
 
-	c.Check(fmt.Sprintf("%p", d.router.NotFoundHandler), check.Equals, fmt.Sprintf("%p", NotFound))
+	// XXX: still waiting to know how to check d.router.NotFoundHandler has been set to NotFound
+	//      the old test relied on undefined behaviour:
+	//      c.Check(fmt.Sprintf("%p", d.router.NotFoundHandler), check.Equals, fmt.Sprintf("%p", NotFound))
 }

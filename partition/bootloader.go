@@ -98,6 +98,7 @@ type BootLoader interface {
 var Bootloader = BootloaderImpl
 
 // BootloaderImpl is the actual implementation
+// FIXME: used in the tests right now, but we don't want to expose the Impl
 func BootloaderImpl() (BootLoader, error) {
 	p := New()
 	if p == nil {
@@ -334,6 +335,7 @@ var BootloaderDir = BootloaderDirImpl
 
 // BootloaderDirImpl is the actual bootloder dir implementation, useful
 // for tests
+// FIXME: used in the tests right now, but we don't want to expose the Impl
 func BootloaderDirImpl() string {
 	if helpers.FileExists(bootloaderUbootDir) {
 		return bootloaderUbootDir
