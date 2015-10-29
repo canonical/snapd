@@ -297,4 +297,3 @@ func (m *MockProgressMeter) Notify(msg string) {
 func mockRunAppArmorParser(argv ...string) ([]byte, error) {
 	return nil, nil
 }
-
