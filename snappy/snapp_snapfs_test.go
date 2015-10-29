@@ -27,6 +27,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/pkg/clickdeb"
 	"github.com/ubuntu-core/snappy/pkg/snapfs"
 	"github.com/ubuntu-core/snappy/systemd"
 
@@ -238,6 +239,12 @@ func (s *SnapfsTestSuite) TestRemoveViaSnapfsWorks(c *C) {
 func (s *SnapfsTestSuite) TestInstallOsSnapWithDebFails(c *C) {
 	// ensure we get a error when trying to install old style snap for OS
 	snapBuilderFunc = BuildLegacySnap
+
+	oldCmd := clickdeb.VerifyCmd
+	clickdeb.VerifyCmd = "true"
+	defer func() {
+		clickdeb.VerifyCmd = oldCmd
+	}()
 
 	snapPkg := makeTestSnapPackage(c, packageOS)
 	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
