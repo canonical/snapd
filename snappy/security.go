@@ -33,6 +33,7 @@ import (
 	//"gopkg.in/yaml.v2"
 
 	"launchpad.net/snappy/dirs"
+	"launchpad.net/snappy/helpers"
 	"launchpad.net/snappy/logger"
 	"launchpad.net/snappy/pkg"
 	"launchpad.net/snappy/policy"
@@ -652,6 +653,40 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 
 	if foundError {
 		return errPolicyGen
+	}
+
+	return nil
+}
+
+// regeneratePolicyForSnap is used to regenerate all security policy for a
+// given snap
+func regeneratePolicyForSnap(snapname string) error {
+	globExpr := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s_*", snapname))
+	matches, err := filepath.Glob(globExpr)
+	if err != nil {
+		return err
+	}
+	if len(matches) == 0 {
+		return ErrPackageNotFound
+	}
+
+	appliedVersion := ""
+	for _, profile := range matches {
+		appID, err := getAppID(filepath.Base(profile))
+		if err != nil {
+			return err
+		}
+		if appID.Version != appliedVersion {
+			fn := filepath.Join(dirs.SnapAppsDir, appID.Pkgname, appID.Version, "meta", "package.yaml")
+			if !helpers.FileExists(fn) {
+				continue
+			}
+			err := GeneratePolicyFromFile(fn, true)
+			if err != nil {
+				return err
+			}
+			appliedVersion = appID.Version
+		}
 	}
 
 	return nil
