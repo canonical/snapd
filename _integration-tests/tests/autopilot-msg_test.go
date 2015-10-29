@@ -22,10 +22,10 @@ package tests
 import (
 	"os/exec"
 
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&autopilotMsgSuite{})
