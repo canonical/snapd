@@ -209,6 +209,7 @@ func (v *deprecarch) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// SnapIF is the interface that all Snap types must support.
 // FIXME: name suckso
 type SnapIF interface {
 	Part
@@ -684,11 +685,12 @@ func (s *SnapPart) Type() pkg.Type {
 	return "app"
 }
 
-// Name returns the name
+// Name returns the name.
 func (s *SnapPart) Name() string {
 	return s.m.Name
 }
 
+// Dir returns the install directory of the snap.
 func (s *SnapPart) Dir() string {
 	return s.basedir
 }

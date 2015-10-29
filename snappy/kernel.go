@@ -30,13 +30,13 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 )
 
+// KernelSnap is a specialized snap for kernels.
 type KernelSnap struct {
 	SnapPart
 }
 
-// OEM snaps should not be removed as they are a key
-// building block for OEMs. Prunning non active ones
-// is acceptible.
+// Uninstall is only allowed for inactive kernel snaps (you never
+// want to remove a running kernel :).
 func (s *KernelSnap) Uninstall(pb progress.Meter) (err error) {
 	if s.IsActive() {
 		return ErrPackageNotRemovable
@@ -57,6 +57,7 @@ func (s *KernelSnap) Uninstall(pb progress.Meter) (err error) {
 	return nil
 }
 
+// Install will install the blob and extract the kernel artifacts.
 func (s *KernelSnap) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
 	// do the generic install
 	name, err = s.SnapPart.Install(inter, flags)

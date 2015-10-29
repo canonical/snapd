@@ -37,10 +37,13 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 )
 
+// OemSnap represents the OEM snap.
 type OemSnap struct {
 	SnapPart
 }
 
+// Install for the OEM snap is special, it may install additional hardware
+// udev rules.
 func (s *OemSnap) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
 	name, err = s.SnapPart.Install(inter, flags)
 	if err != nil {
@@ -54,6 +57,9 @@ func (s *OemSnap) Install(inter progress.Meter, flags InstallFlags) (name string
 	return name, nil
 }
 
+// Uninstall for OEM snaps is restricted. They should not be removed
+// when active as they are a key building block for OEMs.
+// Prunning non active ones is acceptible.
 func (s *OemSnap) Uninstall(pb progress.Meter) (err error) {
 	if s.IsActive() {
 		return ErrPackageNotRemovable

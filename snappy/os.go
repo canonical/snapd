@@ -23,10 +23,12 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 )
 
+// OsSnap represents the snap type that contains the operating system core.
 type OsSnap struct {
 	SnapPart
 }
 
+// Uninstall for the OS snap restricts removal to only inactive snaps.
 func (s *OsSnap) Uninstall(pb progress.Meter) (err error) {
 	if s.IsActive() {
 		return ErrPackageNotRemovable
