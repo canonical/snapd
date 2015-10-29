@@ -25,14 +25,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/priv"
 
 	"github.com/jessevdk/go-flags"
 )
-
-const snappyLockFile = "/run/snappy.lock"
 
 func isAutoPilotRunning() bool {
 	unitName := "snappy-autopilot"
@@ -48,7 +47,7 @@ func isAutoPilotRunning() bool {
 // automatic re-try and helpful messages if the lock is already taken
 func withMutexAndRetry(f func() error) error {
 	for {
-		err := priv.WithMutex(snappyLockFile, f)
+		err := priv.WithMutex(dirs.SnapLockFile, f)
 		// if already locked, auto-retry
 		if err == priv.ErrAlreadyLocked {
 			var msg string
