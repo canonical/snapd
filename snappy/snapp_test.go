@@ -1018,7 +1018,7 @@ services:
    stop: bin/testme-service.stop
    description: "testme service"
    caps:
-     - "networking"
+     - "network-client"
      - "foo_group"
    security-template: "foo_template"
 `)
@@ -1031,7 +1031,7 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 	c.Assert(m.ServiceYamls[0].Start, Equals, "bin/testme-service.start")
 	c.Assert(m.ServiceYamls[0].Stop, Equals, "bin/testme-service.stop")
 	c.Assert(m.ServiceYamls[0].SecurityCaps, HasLen, 2)
-	c.Assert(m.ServiceYamls[0].SecurityCaps[0], Equals, "networking")
+	c.Assert(m.ServiceYamls[0].SecurityCaps[0], Equals, "network-client")
 	c.Assert(m.ServiceYamls[0].SecurityCaps[1], Equals, "foo_group")
 	c.Assert(m.ServiceYamls[0].SecurityTemplate, Equals, "foo_template")
 }

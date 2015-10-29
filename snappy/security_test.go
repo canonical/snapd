@@ -90,7 +90,7 @@ func (a *SecurityTestSuite) TestSnappyHandleApparmorSecurityDefault(c *C) {
 	a.verifyApparmorFile(c, `{
   "template": "default",
   "policy_groups": [
-    "networking"
+    "network-client"
   ],
   "policy_vendor": "ubuntu-core",
   "policy_version": 15.04
@@ -221,7 +221,7 @@ func (a *SecurityTestSuite) TestSnappySeccompSecurityTemplate(c *C) {
 		"--policy-vendor=ubuntu-core",
 		"--policy-version=15.04",
 		"--template=something",
-		"--policy-groups=networking",
+		"--policy-groups=network-client",
 	})
 }
 
