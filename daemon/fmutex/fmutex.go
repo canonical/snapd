@@ -17,7 +17,7 @@
  *
  */
 
-// fmutex implements locking for the snappy daemon
+// Package fmutex implements locking for the snappy daemon
 package fmutex
 
 import (
@@ -52,6 +52,7 @@ func flockImpl() FLocker {
 // testing, as priv.Mutex requires root.
 var NewFLock = flockImpl
 
+// New returns a brand new FMutex, ready for use.
 func New() *FMutex {
 	return &FMutex{
 		mutex: &sync.Mutex{},
