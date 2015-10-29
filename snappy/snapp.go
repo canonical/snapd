@@ -553,6 +553,21 @@ func NewInstalledSnapPart(yamlPath, origin string) (SnapIF, error) {
 	return part, nil
 }
 
+func snapIFFactory(basePart *SnapPart) SnapIF {
+	switch basePart.m.Type {
+	case pkg.TypeOem:
+		fullName := basePart.m.qualifiedName(basePart.origin)
+		basePart.basedir = filepath.Join(dirs.SnapOemDir, fullName, basePart.m.Version)
+		return &OemSnap{SnapPart: *basePart}
+	case pkg.TypeOS:
+		return &OsSnap{SnapPart: *basePart}
+	case pkg.TypeKernel:
+		return &KernelSnap{SnapPart: *basePart}
+	}
+
+	return basePart
+}
+
 // NewSnapPartFromSnapFile loads a snap from the given (clickdeb) snap file.
 // Caller should call Close on the pkg.
 // TODO: expose that Close.
@@ -592,19 +607,7 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (Sna
 		m:       m,
 		deb:     d,
 	}
-
-	// FIXME: duplicated code
-	switch m.Type {
-	case pkg.TypeOem:
-		basePart.basedir = filepath.Join(dirs.SnapOemDir, fullName, m.Version)
-		return &OemSnap{SnapPart: *basePart}, nil
-	case pkg.TypeOS:
-		return &OsSnap{SnapPart: *basePart}, nil
-	case pkg.TypeKernel:
-		return &KernelSnap{SnapPart: *basePart}, nil
-	}
-
-	return basePart, nil
+	return snapIFFactory(basePart), nil
 }
 
 // newSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
@@ -669,20 +672,7 @@ func newSnapPartFromYaml(yamlPath, origin string, m *packageYaml, installed bool
 		part.remoteM = &r
 	}
 
-	// FIXME: duplicated code
-	basePart := part
-	switch m.Type {
-	case pkg.TypeOem:
-		fullName := m.qualifiedName(origin)
-		basePart.basedir = filepath.Join(dirs.SnapOemDir, fullName, m.Version)
-		return &OemSnap{SnapPart: *basePart}, nil
-	case pkg.TypeOS:
-		return &OsSnap{SnapPart: *basePart}, nil
-	case pkg.TypeKernel:
-		return &KernelSnap{SnapPart: *basePart}, nil
-	}
-
-	return part, nil
+	return snapIFFactory(part), nil
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
