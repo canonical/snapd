@@ -12,20 +12,25 @@ STATIC=""
 UNIT=""
 INTEGRATION=""
 
-if [ $# -eq 0 ]; then
-    STATIC="yes"
-    UNIT="yes"
-    INTEGRATION="yes"
-elif [ "${1:-}" = "--static" ]; then
-    STATIC="yes"
-elif [ "${1:-}" = "--unit" ]; then
-    UNIT="yes"
-elif [ "${1:-}" = "--integration" ]; then
-    INTEGRATION="yes"
-else
-    echo "Wrong flag ${1}. To run a single suite use --static, --unit or --integration."
-    exit 1
-fi
+case "${1:-all}" in
+    all)
+        STATIC="yes"
+        UNIT="yes"
+        INTEGRATION="yes"
+    ;;
+    --static)
+        STATIC="yes"
+        ;;
+    --unit)
+        UNIT="yes"
+        ;;
+    --integration)
+        INTEGRATION="yes"
+        ;;
+    *)
+        echo "Wrong flag ${1}. To run a single suite use --static, --unit or --integration."
+        exit 1
+esac
 
 endmsg() {
     if [ $? -eq 0 ]; then
