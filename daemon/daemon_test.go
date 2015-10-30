@@ -35,17 +35,10 @@ type daemonSuite struct{}
 
 var _ = check.Suite(&daemonSuite{})
 
-// a NOP sync.Locker
-type nopLocker struct{}
-
-func (nopLocker) Lock()   {}
-func (nopLocker) Unlock() {}
-
 // build a new daemon, with only a little of Init(), suitable for the tests
 func newTestDaemon() *Daemon {
 	d := New()
 	d.addRoutes()
-	d.fmutex = nopLocker{}
 
 	return d
 }

@@ -36,6 +36,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/pkg/lightweight"
+	"github.com/ubuntu-core/snappy/priv"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -120,8 +121,11 @@ var (
 )
 
 func v1Get(c *Command, r *http.Request) Response {
-	c.d.fmutex.Lock()
-	defer c.d.fmutex.Unlock()
+	lock, err := priv.FileLock(dirs.SnapLockFile, true)
+	if err != nil {
+		return InternalError(err, "Unable to acquire lock")
+	}
+	defer lock.Unlock()
 
 	rel := release.Get()
 	m := map[string]string{
@@ -159,8 +163,11 @@ func getPackageInfo(c *Command, r *http.Request) Response {
 	name := vars["name"]
 	origin := vars["origin"]
 
-	c.d.fmutex.Lock()
-	defer c.d.fmutex.Unlock()
+	lock, err := priv.FileLock(dirs.SnapLockFile, true)
+	if err != nil {
+		return InternalError(err, "Unable to acquire lock")
+	}
+	defer lock.Unlock()
 
 	repo := newRemoteRepo()
 	var part snappy.Part
@@ -234,8 +241,11 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 		return InternalError(nil, "router can't find route for packages")
 	}
 
-	c.d.fmutex.Lock()
-	defer c.d.fmutex.Unlock()
+	lock, err := priv.FileLock(dirs.SnapLockFile, true)
+	if err != nil {
+		return InternalError(err, "Unable to acquire lock")
+	}
+	defer lock.Unlock()
 
 	sources := make([]string, 1, 3)
 	sources[0] = "local"
@@ -332,13 +342,20 @@ func packageService(c *Command, r *http.Request) Response {
 		action = cmd["action"]
 	}
 
+	var lock priv.LockedFile
 	reachedAsync := false
 	switch action {
 	case "status", "start", "stop", "restart", "enable", "disable":
-		c.d.fmutex.Lock()
+		var err error
+		lock, err = priv.FileLock(dirs.SnapLockFile, true)
+
+		if err != nil {
+			return InternalError(err, "Unable to acquire lock")
+		}
+
 		defer func() {
 			if !reachedAsync {
-				c.d.fmutex.Unlock()
+				lock.Unlock()
 			}
 		}()
 	default:
@@ -411,7 +428,7 @@ func packageService(c *Command, r *http.Request) Response {
 	reachedAsync = true
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
-		defer c.d.fmutex.Unlock()
+		defer lock.Unlock()
 
 		switch action {
 		case "start":
@@ -444,8 +461,11 @@ func packageConfig(c *Command, r *http.Request) Response {
 	}
 	pkgName := name + "." + origin
 
-	c.d.fmutex.Lock()
-	defer c.d.fmutex.Unlock()
+	lock, err := priv.FileLock(dirs.SnapLockFile, true)
+	if err != nil {
+		return InternalError(err, "Unable to acquire lock")
+	}
+	defer lock.Unlock()
 
 	bag := lightweight.PartBagByName(name, origin)
 	if bag == nil {
@@ -493,8 +513,11 @@ func configMulti(c *Command, r *http.Request) Response {
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
-		c.d.fmutex.Lock()
-		defer c.d.fmutex.Unlock()
+		lock, err := priv.FileLock(dirs.SnapLockFile, true)
+		if err != nil {
+			return err
+		}
+		defer lock.Unlock()
 
 		rspmap := make(map[string]*configSubtask, len(pkgmap))
 		bags := lightweight.AllPartBags()
@@ -687,8 +710,11 @@ func postPackage(c *Command, r *http.Request) Response {
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
-		c.d.fmutex.Lock()
-		defer c.d.fmutex.Unlock()
+		lock, err := priv.FileLock(dirs.SnapLockFile, true)
+		if err != nil {
+			return err
+		}
+		defer lock.Unlock()
 		return f()
 	}).Map(route))
 }
@@ -769,8 +795,11 @@ func sideloadPackage(c *Command, r *http.Request) Response {
 			return err
 		}
 
-		c.d.fmutex.Lock()
-		defer c.d.fmutex.Unlock()
+		lock, err := priv.FileLock(dirs.SnapLockFile, true)
+		if err != nil {
+			return err
+		}
+		defer lock.Unlock()
 
 		name, err := part.Install(&progress.NullProgress{}, 0)
 		if err != nil {
@@ -786,8 +815,11 @@ func getLogs(c *Command, r *http.Request) Response {
 	name := vars["name"]
 	svcName := vars["service"]
 
-	c.d.fmutex.Lock()
-	defer c.d.fmutex.Unlock()
+	lock, err := priv.FileLock(dirs.SnapLockFile, true)
+	if err != nil {
+		return InternalError(err, "Unable to acquire lock")
+	}
+	defer lock.Unlock()
 
 	actor, err := findServices(name, svcName, &progress.NullProgress{})
 	if err != nil {
@@ -826,8 +858,11 @@ func appIconGet(c *Command, r *http.Request) Response {
 	name := vars["name"]
 	origin := vars["origin"]
 
-	c.d.fmutex.Lock()
-	defer c.d.fmutex.Unlock()
+	lock, err := priv.FileLock(dirs.SnapLockFile, true)
+	if err != nil {
+		return InternalError(err, "Unable to acquire lock")
+	}
+	defer lock.Unlock()
 
 	bag := lightweight.PartBagByName(name, origin)
 	if bag == nil || len(bag.Versions) == 0 {
