@@ -8,9 +8,23 @@ else
     goctest="go test"
 fi
 
-QUICK=""
-if [ "${1:-}" = "--quick" ]; then
-    QUICK=yes
+STATIC=""
+UNIT=""
+INTEGRATION=""
+
+if [ $# -eq 0 ]; then
+    STATIC="yes"
+    UNIT="yes"
+    INTEGRATION="yes"
+elif [ "${1:-}" = "--static" ]; then
+    STATIC="yes"
+elif [ "${1:-}" = "--unit" ]; then
+    UNIT="yes"
+elif [ "${1:-}" = "--integration" ]; then
+    INTEGRATION="yes"
+else
+    echo "Wrong flag ${1}. To run a single suite use --static, --unit or --integration."
+    exit 1
 fi
 
 endmsg() {
@@ -22,18 +36,13 @@ endmsg() {
         m="Crushing failure and despair."
     fi
     echo
-    if [ -t 1 -a -z "$QUICK" ]; then
+    if [ -t 1 -a -z "$STATIC" ]; then
         cat "data/$p"
     else
         echo "$m"
     fi
 }
 trap endmsg EXIT
-
-# Prepare the coverage output profile.
-rm -rf .coverage
-mkdir .coverage
-echo "mode: set" > .coverage/coverage.out
 
 # Append the coverage profile of a package to the project coverage.
 append_coverage() {
@@ -44,19 +53,56 @@ append_coverage() {
     fi
 }
 
-echo Checking docs
-./mdlint.py docs/*.md
+if [ ! -z "$STATIC" ]; then
+    # Run static tests.
+    echo Checking docs
+    ./mdlint.py docs/*.md
 
-echo Checking formatting
-fmt=$(gofmt -l .)
+    echo Checking formatting
+    fmt=$(gofmt -l .)
 
-if [ -n "$fmt" ]; then
-    echo "Formatting wrong in following files"
-    echo "$fmt"
-    exit 1
+    if [ -n "$fmt" ]; then
+        echo "Formatting wrong in following files"
+        echo "$fmt"
+        exit 1
+    fi
+
+    # go vet
+    echo Running vet
+    go vet ./...
+    go vet ./_integration-tests/tests/...
+    go vet ./_integration-tests/testutils/...
+
+    # golint
+    echo Running lint
+    lint=$(golint ./... && golint ./_integration-tests/testutils/... && golint ./_integration-tests/tests/...)
+    if [ -n "$lint" ]; then
+        echo "Lint complains:"
+        echo "$lint"
+        exit 1
+    fi
+
+    (
+        # pot file
+        echo Checking translations
+        TMPF="$(mktemp)"
+        trap "rm -f $TMPF" 0
+        ./update-pot "$TMPF"
+        if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
+            echo "You need to run ./update-pot"
+            exit 1
+        fi
+        # This is a subshell so we don't overwrite the all-important outer trap.
+    )
+
 fi
 
-if [ -z "$QUICK" ]; then
+if [ ! -z "$UNIT" ]; then
+    # Prepare the coverage output profile.
+    rm -rf .coverage
+    mkdir .coverage
+    echo "mode: set" > .coverage/coverage.out
+
     echo Installing godeps
     go get launchpad.net/godeps
     export PATH=$PATH:$GOPATH/bin
@@ -80,34 +126,7 @@ if [ -z "$QUICK" ]; then
     done
 fi
 
-# go vet
-echo Running vet
-go vet ./...
-go vet ./_integration-tests/tests/...
-go vet ./_integration-tests/testutils/...
-
-# golint
-echo Running lint
-lint=$(golint ./... && golint ./_integration-tests/testutils/... && golint ./_integration-tests/tests/...)
-if [ -n "$lint" ]; then
-    echo "Lint complains:"
-    echo "$lint"
-    exit 1
-fi
-
-(
-    # pot file
-    TMPF="$(mktemp)"
-    trap "rm -f $TMPF" 0
-    ./update-pot "$TMPF"
-    if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
-        echo "You need to run ./update-pot"
-        exit 1
-    fi
-    # This is a subshell so we don't overwrite the all-important outer trap.
-)
-
-if [ -z "$QUICK" ]; then
+if [ ! -z "$INTEGRATION" ]; then
     # integration tests
     echo Building the integration tests
     go build _integration-tests/main.go
