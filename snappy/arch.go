@@ -45,4 +45,5 @@ func Architecture() ArchitectureType {
 // SetArchitecture allows overriding the auto detected Architecture
 func SetArchitecture(newArch ArchitectureType) {
 	arch = newArch
+	helpers.SetUbuntuArchitecture(string(newArch))
 }
