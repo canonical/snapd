@@ -20,8 +20,7 @@
 package snappy
 
 import (
-	//"fmt"
-	//"io/ioutil"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -81,4 +80,31 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfileFramework(c *C) {
 	ap, err := getSecurityProfile(&m, b.Name, "/apps/foo.mvo/1.0/")
 	c.Assert(err, IsNil)
 	c.Check(ap, Equals, "foo_bin-app_1.0")
+}
+
+func (a *SecurityTestSuite) TestSnappyFindUbuntuVersion(c *C) {
+	realLsbRelease := lsbRelease
+	defer func() { lsbRelease = realLsbRelease }()
+
+	lsbRelease = filepath.Join(c.MkDir(), "mock-lsb-release")
+	s := `DISTRIB_RELEASE=18.09`
+	err := ioutil.WriteFile(lsbRelease, []byte(s), 0644)
+	c.Assert(err, IsNil)
+
+	ver, err := findUbuntuVersion()
+	c.Assert(err, IsNil)
+	c.Assert(ver, Equals, "18.09")
+}
+
+func (a *SecurityTestSuite) TestSnappyFindUbuntuVersionNotFound(c *C) {
+	realLsbRelease := lsbRelease
+	defer func() { lsbRelease = realLsbRelease }()
+
+	lsbRelease = filepath.Join(c.MkDir(), "mock-lsb-release")
+	s := `silly stuff`
+	err := ioutil.WriteFile(lsbRelease, []byte(s), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = findUbuntuVersion()
+	c.Assert(err, Equals, ErrSystemVersionNotFound)
 }

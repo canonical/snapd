@@ -77,7 +77,10 @@ var (
 	ErrSystemFlavorNotFound = errors.New("could not detect system flavor")
 )
 
-var runAppArmorParser = runAppArmorParserImpl
+var (
+	lsbRelease        = "/etc/lsb-release"
+	runAppArmorParser = runAppArmorParserImpl
+)
 
 func runAppArmorParserImpl(argv ...string) ([]byte, error) {
 	cmd := exec.Command(argv[0], argv[1:]...)
@@ -140,6 +143,10 @@ func findUbuntuFlavor() (string, error) {
 	// ubuntu-core, ubuntu-personal, etc). As of 2015-10-28,
 	// ubuntu-personal images are no longer generated, and there is no
 	// mechanism to know what the snap targets.
+	//
+	// FIXME: just use:
+	//    return fmt.Sprintf("ubuntu-%s", release.Get().Flavor)
+	// here
 	return "ubuntu-core", nil
 }
 
@@ -147,29 +154,23 @@ func findUbuntuFlavor() (string, error) {
 // system, which is needed for determining the security policy
 // policy-version
 func findUbuntuVersion() (string, error) {
-	var buffer bytes.Buffer
-	fn := "/etc/lsb-release"
-	content, err := ioutil.ReadFile(fn)
+	content, err := ioutil.ReadFile(lsbRelease)
 	if err != nil {
-		logger.Noticef("Failed to read %q: %v", fn, err)
+		logger.Noticef("Failed to read %q: %v", lsbRelease, err)
 		return "", err
 	}
-	buffer.Write(content)
 
-	v := ""
-	for _, line := range strings.Split(buffer.String(), "\n") {
+	for _, line := range strings.Split(string(content), "\n") {
 		if strings.HasPrefix(line, "DISTRIB_RELEASE=") {
 			tmp := strings.Split(line, "=")
 			if len(tmp) != 2 {
-				return v, ErrSystemVersionNotFound
+				return "", ErrSystemVersionNotFound
 			}
-			v = tmp[1]
+			return tmp[1], nil
 		}
 	}
-	if v == "" {
-		err = ErrSystemVersionNotFound
-	}
-	return v, err
+
+	return "", ErrSystemVersionNotFound
 }
 
 // Generate a string suitable for use in a DBus object
