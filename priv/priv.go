@@ -36,7 +36,8 @@ var (
 
 // Mutex is the snappy mutual exclusion primitive.
 type Mutex struct {
-	lock *FileLock
+	filename string
+	flock    LockedFile
 }
 
 // Determine if caller is running as the superuser
@@ -48,9 +49,10 @@ func isRootReal() bool {
 var isRoot = isRootReal
 
 // New should be called when starting a privileged operation.
-func New(fileName string) *Mutex {
+func New(filename string) *Mutex {
 	return &Mutex{
-		lock: NewFileLock(fileName),
+		filename: filename,
+		flock:    -1,
 	}
 }
 
@@ -67,21 +69,28 @@ func (m *Mutex) commonChecks() error {
 // Lock attempts to acquire the mutex lock, and wil block if it is
 // already locked.
 func (m *Mutex) Lock() error {
-	if err := m.commonChecks(); err != nil {
-		return err
-	}
-
-	return m.lock.Lock(true)
+	return m.lock(true)
 }
 
 // TryLock attempts to acquire the mutex lock. If it is already locked,
 // it will return ErrAlreadyLocked.
 func (m *Mutex) TryLock() error {
+	return m.lock(false)
+}
+
+func (m *Mutex) lock(blocking bool) error {
 	if err := m.commonChecks(); err != nil {
 		return err
 	}
 
-	return m.lock.Lock(false)
+	flock, err := FileLock(m.filename, blocking)
+	if err != nil {
+		return err
+	}
+
+	m.flock = flock
+
+	return nil
 }
 
 // Unlock will unlock the specified mutex, returning ErrNotLocked if
@@ -91,16 +100,10 @@ func (m *Mutex) Unlock() error {
 		return err
 	}
 
-	if m.lock == nil {
-		return ErrNotLocked
-	}
+	flock := m.flock
+	m.flock = -1
 
-	err := m.lock.Unlock()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return flock.Unlock()
 }
 
 // WithMutex runs the function f with the priv.Mutex hold

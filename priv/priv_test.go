@@ -20,13 +20,13 @@
 package priv
 
 import (
-	"github.com/ubuntu-core/snappy/helpers"
-
 	"path/filepath"
 	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/helpers"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -53,11 +53,11 @@ func (ts *PrivTestSuite) TestPrivMutex(c *C) {
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
 
 	privMutex := New(lockfile)
-	c.Assert(privMutex, Not(IsNil))
+	c.Assert(privMutex, NotNil)
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
 
 	err := privMutex.Unlock()
-	c.Assert(err, DeepEquals, ErrNotLocked)
+	c.Assert(err, NotNil)
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
 
 	err = privMutex.Lock()
@@ -73,7 +73,6 @@ func (ts *PrivTestSuite) TestPrivMutex(c *C) {
 
 	err = privMutex.Unlock()
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(lockfile), Equals, false)
 }
 
 func (ts *PrivTestSuite) TestPrivMutexIsNotRoot(c *C) {
@@ -117,13 +116,15 @@ func (ts *PrivTestSuite) TestWithPrivMutexErrOnLockHeld(c *C) {
 		return nil
 	}
 
+	ch := make(chan bool)
 	lockfile := filepath.Join(ts.tempdir, "lock")
 	go func() {
 		err1 = WithMutex(lockfile, slowFunc)
+		ch <- true
 	}()
 	err2 = WithMutex(lockfile, slowFunc)
-	// give the go routine time to catch up
-	time.Sleep(delay + 1)
+	// wait for the goroutine
+	<-ch
 
 	// find which err is set (depends on the order in which go
 	// runs the goroutine)
@@ -133,7 +134,7 @@ func (ts *PrivTestSuite) TestWithPrivMutexErrOnLockHeld(c *C) {
 		err = err2
 	}
 
-	// only one functions errored
+	// only one of the functions errored
 	c.Assert(err1 != nil && err2 != nil, Equals, false)
 	// the other returned a proper error
 	c.Assert(err, Equals, ErrAlreadyLocked)

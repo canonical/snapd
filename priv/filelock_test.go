@@ -17,18 +17,19 @@
  *
  */
 
-package priv
+package priv_test
 
 import (
 	"path/filepath"
-
-	"github.com/ubuntu-core/snappy/helpers"
+	"time"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/priv"
 )
 
-type FileLockTestSuite struct {
-}
+type FileLockTestSuite struct{}
 
 var _ = Suite(&FileLockTestSuite{})
 
@@ -37,27 +38,55 @@ func (ts *FileLockTestSuite) TestFileLock(c *C) {
 
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
 
-	lock := NewFileLock(lockfile)
-	c.Assert(lock, Not(IsNil))
-	c.Assert(lock.Filename, Equals, lockfile)
-	c.Assert(lock.realFile, IsNil)
-
-	err := lock.Unlock()
-	c.Assert(err, Equals, ErrNotLocked)
-
-	// can only test non-blocking in a single process.
-	err = lock.Lock(false)
+	lock, err := priv.FileLock(lockfile, false)
 	c.Assert(err, IsNil)
+	c.Check(lock > -1, Equals, true)
 
 	c.Assert(helpers.FileExists(lockfile), Equals, true)
-	c.Assert(lock.Filename, Equals, lockfile)
-	c.Assert(lock.realFile, Not(IsNil))
-
-	err = lock.Lock(false)
-	c.Assert(err, Equals, ErrAlreadyLocked)
 
 	err = lock.Unlock()
 	c.Assert(err, IsNil)
+}
 
-	c.Assert(helpers.FileExists(lockfile), Equals, false)
+func (ts *FileLockTestSuite) TestFileLockLocks(c *C) {
+	lockfile := filepath.Join(c.MkDir(), "lock")
+	ch1 := make(chan bool)
+	ch2 := make(chan bool)
+
+	go func() {
+		ch1 <- true
+		lock, err := priv.FileLock(lockfile, true)
+		c.Assert(err, IsNil)
+		ch1 <- true
+		ch1 <- true
+		ch2 <- true
+		c.Check(lock.Unlock(), IsNil)
+	}()
+
+	go func() {
+		<-ch1
+		<-ch1
+		lock, err := priv.FileLock(lockfile, false)
+		c.Assert(err, Equals, priv.ErrAlreadyLocked)
+		<-ch1
+
+		lock, err = priv.FileLock(lockfile, true)
+		c.Assert(err, IsNil)
+		ch2 <- false
+		c.Check(lock.Unlock(), IsNil)
+	}()
+
+	var bs []bool
+	for {
+		select {
+		case b := <-ch2:
+			bs = append(bs, b)
+			if len(bs) == 2 {
+				c.Check(bs, DeepEquals, []bool{true, false})
+				c.SucceedNow()
+			}
+		case <-time.After(time.Second):
+			c.Fatal("timeout")
+		}
+	}
 }
