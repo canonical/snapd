@@ -48,13 +48,6 @@ var optionsData options
 
 var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
 
-func init() {
-	err := logger.SimpleSetup()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
-	}
-}
-
 func main() {
 	err := logger.SimpleSetup()
 	if err != nil {
