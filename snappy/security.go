@@ -143,10 +143,10 @@ func findUbuntuFlavor() (string, error) {
 	return "ubuntu-core", nil
 }
 
-// FindUbuntuVersion determines the version (eg, 15.04, 15.10, etc) of the
+// findUbuntuVersion determines the version (eg, 15.04, 15.10, etc) of the
 // system, which is needed for determining the security policy
 // policy-version
-func FindUbuntuVersion() (string, error) {
+func findUbuntuVersion() (string, error) {
 	var buffer bytes.Buffer
 	fn := "/etc/lsb-release"
 	content, err := ioutil.ReadFile(fn)
@@ -623,7 +623,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 	if err != nil {
 		return err
 	}
-	defaultPolicyVersion, err = FindUbuntuVersion()
+	defaultPolicyVersion, err = findUbuntuVersion()
 	if err != nil {
 		return err
 	}
