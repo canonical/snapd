@@ -49,12 +49,16 @@ var optionsData options
 var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
 
 func main() {
+	if os.Getuid() != 0 {
+		fmt.Fprintf(os.Stderr, "ERROR: needs root\n")
+		os.Exit(1)
+	}
+
 	err := logger.SimpleSetup()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
 	}
 	if _, err := parser.Parse(); err != nil {
-		// FIXME: need root
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
