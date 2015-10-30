@@ -122,3 +122,21 @@ func (a *SecurityTestSuite) TestSecurityFindWhitespacePrefix(c *C) {
 	t = `not there`
 	c.Assert(findWhitespacePrefix(t, "###POLICYGROUPS###"), Equals, "")
 }
+
+func (a *SecurityTestSuite) TestSecurityFindTemplateApparmor(c *C) {
+	aaPolicyDir = c.MkDir()
+	mockTemplate := filepath.Join(aaPolicyDir, "templates", "mock-templ")
+	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockTemplate, []byte(`something`), 0644)
+	c.Assert(err, IsNil)
+
+	t, err := findTemplate("mock-templ", "apparmor")
+	c.Assert(err, IsNil)
+	c.Assert(t, Matches, "something")
+}
+
+func (a *SecurityTestSuite) TestSecurityFindTemplateApparmorNotFound(c *C) {
+	_, err := findTemplate("not-available-templ", "apparmor")
+	c.Assert(err, DeepEquals, &errPolicyNotFound{"template", "not-available-templ"})
+}

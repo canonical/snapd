@@ -222,7 +222,7 @@ func findTemplate(template string, policyType string) (string, error) {
 
 	systemTemplate := ""
 	fwTemplate := ""
-	subdir := fmt.Sprintf("templates/%s/%s", defaultPolicyVendor, defaultPolicyVersion)
+	subdir := filepath.Join("templates", defaultPolicyVendor, defaultPolicyVersion)
 	if policyType == "apparmor" {
 		systemTemplate = filepath.Join(aaPolicyDir, subdir, template)
 		fwTemplate = filepath.Join(aaFrameworkPolicyDir, "templates", template)
@@ -234,23 +234,15 @@ func findTemplate(template string, policyType string) (string, error) {
 	}
 
 	// Always prefer system policy
-	found := false
 	fns := []string{systemTemplate, fwTemplate}
-	var t bytes.Buffer
 	for _, fn := range fns {
-		tmp, err := ioutil.ReadFile(fn)
+		content, err := ioutil.ReadFile(fn)
 		if err == nil {
-			t.Write(tmp)
-			found = true
-			break
+			return string(content), nil
 		}
 	}
 
-	if found == false {
-		return "", &errPolicyNotFound{"template", template}
-	}
-
-	return t.String(), nil
+	return "", &errPolicyNotFound{"template", template}
 }
 
 func findCaps(caps []string, template string, policyType string) (string, error) {
