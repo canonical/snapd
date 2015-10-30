@@ -20,42 +20,37 @@
 package fmutex_test
 
 import (
-	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/daemon/fmutex"
+	"github.com/ubuntu-core/snappy/dirs"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { check.TestingT(t) }
 
-type fmSuite struct {
-	newFlock func() fmutex.FLocker
-	lck      testFLocker
-}
+type fmSuite struct{}
 
 var _ = check.Suite(&fmSuite{})
 
-type testFLocker struct {
-	e error
+func (s fmSuite) SetUpTest(c *check.C) {
+	dirs.SetRootDir(c.MkDir())
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapLockFile), 0755), check.IsNil)
 }
 
-func (n testFLocker) Lock() error   { return n.e }
-func (n testFLocker) Unlock() error { return n.e }
+func (s fmSuite) TestFileIsLocked(c *check.C) {
+	lck := fmutex.New()
+	lck.Lock()
+	defer lck.Unlock()
 
-func (s *fmSuite) SetUpTest(c *check.C) {
-	s.newFlock = fmutex.NewFLock
-	s.lck = testFLocker{}
-	fmutex.NewFLock = func() fmutex.FLocker {
-		return &s.lck
-	}
-}
-
-func (s fmSuite) TearDownTest(c *check.C) {
-	fmutex.NewFLock = s.newFlock
+	// try to lock the lockfile from a different process
+	c.Assert(exec.Command("flock", "--nonblock", dirs.SnapLockFile, "echo").Run(), check.NotNil)
 }
 
 func (s fmSuite) TestBasic(c *check.C) {
@@ -96,28 +91,10 @@ func (s fmSuite) TestBasic(c *check.C) {
 	c.Check(bs, check.DeepEquals, []bool{true, true, true, false, false, false})
 }
 
-func (s *fmSuite) TestLockPanicsOnError(c *check.C) {
-	s.lck.e = errors.New("bzzt")
+func (s *fmSuite) TestPanicsOnError(c *check.C) {
+	dirs.SnapLockFile = "/does/not/exist"
 	lck := fmutex.New()
 
-	c.Check(lck.Lock, check.PanicMatches, "unable to lock .* bzzt")
-}
-
-func (s *fmSuite) TestUnlockPanicsOnError(c *check.C) {
-	lck := fmutex.New()
-	lck.Lock()
-
-	s.lck.e = errors.New("bzzt")
-
-	c.Check(lck.Unlock, check.PanicMatches, "unable to unlock .* bzzt")
-	s.lck.e = nil
-	lck.Unlock()
-}
-
-func (s *fmSuite) TestActualPrivMutexPanics(c *check.C) {
-	fmutex.NewFLock = s.newFlock
-	lck := fmutex.New()
-
-	c.Check(lck.Lock, check.PanicMatches, "unable to lock .* privileges required")
-
+	c.Check(lck.Lock, check.PanicMatches, "unable to lock .*")
+	c.Check(lck.Unlock, check.PanicMatches, "unable to unlock .*")
 }

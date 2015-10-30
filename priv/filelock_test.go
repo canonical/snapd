@@ -60,6 +60,4 @@ func (ts *FileLockTestSuite) TestFileLock(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(helpers.FileExists(lockfile), Equals, false)
-	c.Assert(lock.Filename, Equals, "")
-	c.Assert(lock.realFile, IsNil)
 }

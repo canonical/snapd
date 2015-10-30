@@ -30,33 +30,17 @@ import (
 
 // FMutex gives you an exclusive mutex that also holds the filesystem lock.
 type FMutex struct {
-	mutex sync.Locker
-	flock FLocker
+	mutex *sync.Mutex
+	flock *priv.FileLock
 }
 
 var _ sync.Locker = (*FMutex)(nil)
-
-// FLocker is the part of priv.Mutex that we use.
-type FLocker interface {
-	Lock() error
-	Unlock() error
-}
-
-func flockImpl() FLocker {
-	return priv.New(dirs.SnapLockFile)
-}
-
-// NewFLock constructs a new FLocker and returns it.
-//
-// In the default implementation it's a priv.Mutex. Exposed for
-// testing, as priv.Mutex requires root.
-var NewFLock = flockImpl
 
 // New returns a brand new FMutex, ready for use.
 func New() *FMutex {
 	return &FMutex{
 		mutex: &sync.Mutex{},
-		flock: NewFLock(),
+		flock: priv.NewFileLock(dirs.SnapLockFile),
 	}
 }
 
@@ -64,9 +48,9 @@ func New() *FMutex {
 func (fm *FMutex) Lock() {
 	fm.mutex.Lock()
 
-	if err := fm.flock.Lock(); err != nil {
+	if err := fm.flock.Lock(true); err != nil {
 		// Any errors will be fatal to the daemon; might as well panic
-		logger.Panicf("unable to lock priv.Mutex: %v", err)
+		logger.Panicf("unable to lock priv.FileLock: %v", err)
 	}
 }
 
@@ -74,7 +58,7 @@ func (fm *FMutex) Lock() {
 // filesystem lock can't be released, also panic.
 func (fm *FMutex) Unlock() {
 	if err := fm.flock.Unlock(); err != nil {
-		logger.Panicf("unable to unlock priv.Mutex: %v", err)
+		logger.Panicf("unable to unlock priv.FileLock: %v", err)
 	}
 
 	fm.mutex.Unlock()

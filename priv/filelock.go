@@ -81,9 +81,5 @@ func (l *FileLock) Unlock() error {
 
 	filename := l.Filename
 
-	// Invalidate
-	l.realFile = nil
-	l.Filename = ""
-
 	return os.Remove(filename)
 }
