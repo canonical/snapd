@@ -17,7 +17,7 @@ case "${1:-all}" in
         STATIC="yes"
         UNIT="yes"
         INTEGRATION="yes"
-    ;;
+        ;;
     --static)
         STATIC="yes"
         ;;
