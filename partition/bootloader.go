@@ -48,11 +48,14 @@ const (
 	bootloaderSystemAB = "system-AB"
 )
 
-type bootloaderName string
+// BootloaderName is the human readable name of the bootloader (e.g. grub)
+type BootloaderName string
 
-type bootLoader interface {
+// BootLoader provides a way to interact with the system bootloader
+// FIXME: the interface of bootloader is too big
+type BootLoader interface {
 	// Name of the bootloader
-	Name() bootloaderName
+	Name() BootloaderName
 
 	// Switch bootloader configuration so that the "other" root
 	// filesystem partition will be used on next boot.
@@ -69,6 +72,9 @@ type bootLoader interface {
 
 	// Return the value of the specified bootloader variable
 	GetBootVar(name string) (string, error)
+
+	// Set the value of the specified bootloader variable
+	SetBootVar(name, value string) error
 
 	// Return the 1-character name corresponding to the
 	// rootfs that will be used on _next_ boot.
@@ -88,10 +94,27 @@ type bootLoader interface {
 	BootDir() string
 }
 
+// Bootloader returns a bootloader struct
+var Bootloader = BootloaderImpl
+
+// BootloaderImpl is the actual implementation
+// FIXME: used in the tests right now, but we don't want to expose the Impl
+func BootloaderImpl() (BootLoader, error) {
+	p := New()
+	if p == nil {
+		return nil, ErrBootloader
+	}
+	b, err := bootloader(p)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
 // Factory method that returns a new bootloader for the given partition
 var bootloader = bootloaderImpl
 
-func bootloaderImpl(p *Partition) (bootLoader, error) {
+func bootloaderImpl(p *Partition) (BootLoader, error) {
 	// try uboot
 	if uboot := newUboot(p); uboot != nil {
 		return uboot, nil
@@ -124,14 +147,13 @@ type bootloaderType struct {
 }
 
 func newBootLoader(partition *Partition, bootloaderDir string) *bootloaderType {
-	// FIXME: is this the right thing to do? i.e. what should we do
-	//        on a single partition system?
-	if partition.otherRootPartition() == nil {
-		return nil
-	}
-
 	// full label of the system {system-a,system-b}
-	currentLabel := partition.rootPartition().name
+	// FIXME: investigate if we can remove this, on an all-snap
+	//        system the root partition has no label anymore
+	currentLabel := "snapfs"
+	if partition.rootPartition() != nil {
+		currentLabel = partition.rootPartition().name
+	}
 	otherLabel := partition.otherRootPartition().name
 
 	// single letter description of the rootfs {a,b}
@@ -176,8 +198,8 @@ func (b *bootloaderType) SyncBootFiles(bootAssets map[string]string) (err error)
 	return helpers.RSyncWithDelete(srcDir, destDir)
 }
 
-// noramlizeAssetName transforms like "vmlinuz-4.1.0" -> "vmlinuz"
-func normalizeKernelInitrdName(name string) string {
+// NormalizeKernelInitrdName transforms like "vmlinuz-4.1.0" -> "vmlinuz"
+func NormalizeKernelInitrdName(name string) string {
 	name = filepath.Base(name)
 	return strings.SplitN(name, "-", 2)[0]
 }
@@ -254,7 +276,7 @@ func (b *bootloaderType) HandleAssets() (err error) {
 			}
 		}()
 
-		target := filepath.Join(destDir, normalizeKernelInitrdName(file))
+		target := filepath.Join(destDir, NormalizeKernelInitrdName(file))
 		if err := runCommand("/bin/cp", path, target); err != nil {
 			return err
 		}
@@ -306,7 +328,12 @@ func (b *bootloaderType) HandleAssets() (err error) {
 
 // BootloaderDir returns the full path to the (mounted and writable)
 // bootloader-specific boot directory.
-func BootloaderDir() string {
+var BootloaderDir = BootloaderDirImpl
+
+// BootloaderDirImpl is the actual bootloder dir implementation, useful
+// for tests
+// FIXME: used in the tests right now, but we don't want to expose the Impl
+func BootloaderDirImpl() string {
 	if helpers.FileExists(bootloaderUbootDir) {
 		return bootloaderUbootDir
 	} else if helpers.FileExists(bootloaderGrubDir) {
