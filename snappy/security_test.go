@@ -176,3 +176,36 @@ func (a *SecurityTestSuite) TestSecurityGetAppArmorVars(c *C) {
 # Deprecated:
 @{CLICK_DIR}="{/apps,/oem}"`)
 }
+
+func (a *SecurityTestSuite) TestSecurityGenAppArmorPathRuleSimple(c *C) {
+	pr, err := genAppArmorPathRule("/some/path", "rk")
+	c.Assert(err, IsNil)
+	c.Assert(pr, Equals, "/some/path rk,\n")
+}
+
+func (a *SecurityTestSuite) TestSecurityGenAppArmorPathRuleDir(c *C) {
+	pr, err := genAppArmorPathRule("/some/path/", "rk")
+	c.Assert(err, IsNil)
+	c.Assert(pr, Equals, `/some/path/ rk,
+/some/path/** rk,
+`)
+}
+
+func (a *SecurityTestSuite) TestSecurityGenAppArmorPathRuleDirGlob(c *C) {
+	pr, err := genAppArmorPathRule("/some/path/**", "rk")
+	c.Assert(err, IsNil)
+	c.Assert(pr, Equals, `/some/path/ rk,
+/some/path/** rk,
+`)
+}
+
+func (a *SecurityTestSuite) TestSecurityGenAppArmorPathRuleHome(c *C) {
+	pr, err := genAppArmorPathRule("/home/something", "rk")
+	c.Assert(err, IsNil)
+	c.Assert(pr, Equals, "owner /home/something rk,\n")
+}
+
+func (a *SecurityTestSuite) TestSecurityGenAppArmorPathRuleError(c *C) {
+	_, err := genAppArmorPathRule("some/path", "rk")
+	c.Assert(err, Equals, errPolicyGen)
+}
