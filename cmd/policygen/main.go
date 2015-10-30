@@ -41,7 +41,10 @@ var (
 )
 
 type options struct {
-	Force bool `short:"f" long:"force" description:"Force policy generation"`
+	Force      bool `short:"f" long:"force" description:"Force policy generation"`
+	Positional struct {
+		PackageYaml string `positional-arg-name:"package name"`
+	} `positional-args:"yes"`
 }
 
 var optionsData options
@@ -63,12 +66,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if len(os.Args) != 2 {
+	fn := optionsData.Positional.PackageYaml
+	if fn == "" {
 		fmt.Fprintln(os.Stderr, "must supply path to package.yaml")
 		os.Exit(1)
 	}
-
-	fn := os.Args[1]
 	if _, err := os.Stat(fn); os.IsNotExist(err) {
 		fmt.Fprintf(os.Stderr, "no such file: %s\n", fn)
 		os.Exit(1)
