@@ -108,3 +108,17 @@ func (a *SecurityTestSuite) TestSnappyFindUbuntuVersionNotFound(c *C) {
 	_, err = findUbuntuVersion()
 	c.Assert(err, Equals, ErrSystemVersionNotFound)
 }
+
+func (a *SecurityTestSuite) TestSecurityGenDbusPath(c *C) {
+	c.Assert(dbusPath("foo"), Equals, "foo")
+	c.Assert(dbusPath("foo bar"), Equals, "foo_20bar")
+	c.Assert(dbusPath("foo/bar"), Equals, "foo_2fbar")
+}
+
+func (a *SecurityTestSuite) TestSecurityFindWhitespacePrefix(c *C) {
+	t := `  ###POLICYGROUPS###`
+	c.Assert(findWhitespacePrefix(t, "###POLICYGROUPS###"), Equals, "  ")
+
+	t = `not there`
+	c.Assert(findWhitespacePrefix(t, "###POLICYGROUPS###"), Equals, "")
+}
