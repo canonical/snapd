@@ -117,10 +117,16 @@ if [ ! -z "$UNIT" ]; then
     echo Building
     go build -v github.com/ubuntu-core/snappy/...
 
-
     # tests
     echo Running tests from $(pwd)
     for pkg in $(go list ./...); do
+        $goctest -v -coverprofile=.coverage/profile.out $pkg
+        append_coverage .coverage/profile.out
+    done
+
+    # the rabbit hole
+    echo Running the tests for the integration testutils
+    for pkg in $(go list ./_integration-tests/testutils/...); do
         $goctest -v -coverprofile=.coverage/profile.out $pkg
         append_coverage .coverage/profile.out
     done
@@ -130,10 +136,6 @@ if [ ! -z "$INTEGRATION" ]; then
     # integration tests
     echo Building the integration tests
     go build _integration-tests/main.go
-
-    # the rabbit hole
-    echo Running the tests for the integration testutils
-    $goctest -v -cover ./_integration-tests/testutils/...
 
     # integration suite in kvm
     if which adt-run >/dev/null 2>&1; then
