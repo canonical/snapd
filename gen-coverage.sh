@@ -2,15 +2,8 @@
 
 set -e
 
-go get github.com/axw/gocov/gocov
-go get gopkg.in/matm/v1/gocov-html
+./run-checks --unit
 
-# pass alternative output dir in $1
-OUTPUTDIR=${1:-$(pwd)}
+go tool cover -html=.coverage/coverage.out -o .coverage/coverage.html
 
-for d in pkg/snapfs pkg/clickdeb snappy partition logger helpers coreconfig priv release oauth; do
-    (cd $d &&
-      $GOPATH/bin/gocov test | $GOPATH/bin/gocov-html > $OUTPUTDIR/cov-$(echo $d|sed -r 's#/#_#').html)
-done
-
-echo "Coverage html reports are available in $OUTPUTDIR"
+echo "Coverage html reports are available in .coverage/coverage.html"
