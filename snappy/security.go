@@ -254,7 +254,7 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 		caps = []string{}
 	}
 
-	subdir := fmt.Sprintf("policygroups/%s/%s", defaultPolicyVendor, defaultPolicyVersion)
+	subdir := filepath.Join("policygroups", defaultPolicyVendor, defaultPolicyVersion)
 	parent := ""
 	fwParent := ""
 	if policyType == "apparmor" {
@@ -268,7 +268,11 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 	}
 
 	// Nothing to find if caps is empty
-	found := len(caps) == 0
+	if len(caps) == 0 {
+		return "", nil
+	}
+
+	found := false
 	badCap := ""
 	var p bytes.Buffer
 	for _, c := range caps {

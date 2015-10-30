@@ -123,6 +123,7 @@ func (a *SecurityTestSuite) TestSecurityFindWhitespacePrefix(c *C) {
 	c.Assert(findWhitespacePrefix(t, "###POLICYGROUPS###"), Equals, "")
 }
 
+// FIXME: need additional test for frameworkPolicy
 func (a *SecurityTestSuite) TestSecurityFindTemplateApparmor(c *C) {
 	aaPolicyDir = c.MkDir()
 	mockTemplate := filepath.Join(aaPolicyDir, "templates", "mock-templ")
@@ -139,4 +140,20 @@ func (a *SecurityTestSuite) TestSecurityFindTemplateApparmor(c *C) {
 func (a *SecurityTestSuite) TestSecurityFindTemplateApparmorNotFound(c *C) {
 	_, err := findTemplate("not-available-templ", "apparmor")
 	c.Assert(err, DeepEquals, &errPolicyNotFound{"template", "not-available-templ"})
+}
+
+// FIXME: need additional test for frameworkPolicy
+func (a *SecurityTestSuite) TestSecurityFindCaps(c *C) {
+	aaPolicyDir = c.MkDir()
+	for _, f := range []string{"cap1", "cap2"} {
+		mockPG := filepath.Join(aaPolicyDir, "policygroups", defaultPolicyVendor, defaultPolicyVersion, f)
+		err := os.MkdirAll(filepath.Dir(mockPG), 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(mockPG, []byte(f), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	cap, err := findCaps([]string{"cap1", "cap2"}, "mock-templ", "apparmor")
+	c.Assert(err, IsNil)
+	c.Assert(cap, Equals, "cap1\ncap2")
 }
