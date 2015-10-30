@@ -131,10 +131,10 @@ type securityAppID struct {
 	Version string
 }
 
-// FindUbuntuFlavor determines the flavor (eg, ubuntu-core, ubuntu-personal,
+// findUbuntuFlavor determines the flavor (eg, ubuntu-core, ubuntu-personal,
 // etc) of the system, which is needed for determining the security policy
 // policy-vendor
-func FindUbuntuFlavor() (string, error) {
+func findUbuntuFlavor() (string, error) {
 	// TODO: a downloaded snap targets a particular device. We need to map
 	// that device type (flavor) to installed system security policy (eg
 	// ubuntu-core, ubuntu-personal, etc). As of 2015-10-28,
@@ -619,7 +619,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *packageYaml, na
 
 func generatePolicy(m *packageYaml, baseDir string) error {
 	var err error
-	defaultPolicyVendor, err = FindUbuntuFlavor()
+	defaultPolicyVendor, err = findUbuntuFlavor()
 	if err != nil {
 		return err
 	}
