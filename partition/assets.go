@@ -34,7 +34,7 @@ type hardwareSpecType struct {
 	Initrd          string         `yaml:"initrd"`
 	DtbDir          string         `yaml:"dtbs"`
 	PartitionLayout string         `yaml:"partition-layout"`
-	Bootloader      bootloaderName `yaml:"bootloader"`
+	Bootloader      BootloaderName `yaml:"bootloader"`
 }
 
 var (

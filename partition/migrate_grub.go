@@ -105,7 +105,7 @@ func copyKernelAssets(prefixDir, grubTargetDir string) error {
 		if len(matches) != 1 {
 			return fmt.Errorf("Incorrect matches for %v: %v", p, matches)
 		}
-		name := normalizeKernelInitrdName(filepath.Base(matches[0]))
+		name := NormalizeKernelInitrdName(filepath.Base(matches[0]))
 		targetPath := filepath.Join(bootloaderGrubDir, grubTargetDir, name)
 		os.MkdirAll(filepath.Dir(targetPath), 0755)
 		// FIXME: valid?

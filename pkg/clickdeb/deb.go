@@ -40,33 +40,34 @@ import (
 
 var (
 	// ErrSnapInvalidContent is returned if a snap package contains
-	// invalid content
+	// invalid content.
 	ErrSnapInvalidContent = errors.New("snap contains invalid content")
 
-	// ErrMemberNotFound is returned when a tar member is not found in the archive
+	// ErrMemberNotFound is returned when a tar member is not found in
+	// the archive.
 	ErrMemberNotFound = errors.New("member not found")
 )
 
-// ErrUnpackFailed is the error type for a snap unpack problem
+// ErrUnpackFailed is the error type for a snap unpack problem.
 type ErrUnpackFailed struct {
 	snapFile string
 	instDir  string
 	origErr  error
 }
 
-// ErrUnpackFailed is returned if unpacking a snap fails
+// ErrUnpackFailed is returned if unpacking a snap fails.
 func (e *ErrUnpackFailed) Error() string {
 	return fmt.Sprintf("unpack %s to %s failed with %s", e.snapFile, e.instDir, e.origErr)
 }
 
-// simple pipe based xz reader
+// Simple pipe based xz reader.
 func xzPipeReader(r io.Reader) io.Reader {
 	pr, pw := io.Pipe()
 	cmd := exec.Command("xz", "--decompress", "--stdout")
 	cmd.Stdin = r
 	cmd.Stdout = pw
 
-	// run xz in its own go-routine
+	// run xz in its own go-routine.
 	go func() {
 		pw.CloseWithError(cmd.Run())
 	}()
@@ -74,7 +75,7 @@ func xzPipeReader(r io.Reader) io.Reader {
 	return pr
 }
 
-// simple pipe based xz writer
+// Simple pipe based xz writer.
 type xzPipeWriter struct {
 	cmd *exec.Cmd
 	w   io.Writer
@@ -93,7 +94,7 @@ func newXZPipeWriter(w io.Writer) *xzPipeWriter {
 	x.cmd.Stdout = x.w
 	x.cmd.Stderr = os.Stderr
 
-	// Start is async
+	// Start is async.
 	x.cmd.Start()
 
 	return x
@@ -108,7 +109,7 @@ func (x *xzPipeWriter) Close() error {
 	return x.cmd.Wait()
 }
 
-// ensure that the content of our data is valid:
+// Ensure that the content of our data is valid:
 // - no relative path allowed to prevent writing outside of the parent dir
 func clickVerifyContentFn(path string) (string, error) {
 	path = filepath.Clean(path)
@@ -122,7 +123,7 @@ func clickVerifyContentFn(path string) (string, error) {
 }
 
 // ClickDeb provides support for the "click" containers (a special kind of
-// deb package)
+// deb package).
 type ClickDeb struct {
 	file *os.File
 }
@@ -145,29 +146,34 @@ func Create(path string) (*ClickDeb, error) {
 	return &ClickDeb{f}, nil
 }
 
-// Name returns the Name of the backing file
+// Name returns the Name of the backing file.
 func (d *ClickDeb) Name() string {
 	return d.file.Name()
 }
 
-// Close closes the backing file
+// NeedsAutoMountUnit returns false.
+func (d *ClickDeb) NeedsAutoMountUnit() bool {
+	return false
+}
+
+// Close closes the backing file.
 func (d *ClickDeb) Close() error {
 	return d.file.Close()
 }
 
-// Verify checks that the clickdeb is signed
+// Verify checks that the clickdeb is signed.
 func (d *ClickDeb) Verify(allowUnauthenticated bool) error {
 	return Verify(d.Name(), allowUnauthenticated)
 }
 
 // ControlMember returns the content of the given control member file
-// (e.g. the content of the "manifest" file in the control.tar.gz ar member)
+// (e.g. the content of the "manifest" file in the control.tar.gz ar member).
 func (d *ClickDeb) ControlMember(controlMember string) (content []byte, err error) {
 	return d.member("control.tar", controlMember)
 }
 
 // MetaMember returns the content of the given meta file (e.g. the content of
-// the "package.yaml" file) from the data.tar.gz ar member's meta/ directory
+// the "package.yaml" file) from the data.tar.gz ar member's meta/ directory.
 func (d *ClickDeb) MetaMember(metaMember string) (content []byte, err error) {
 	return d.member("data.tar", filepath.Join("meta", metaMember))
 }
@@ -213,7 +219,7 @@ func (d *ClickDeb) member(arMember, tarMember string) (content []byte, err error
 }
 
 // ExtractHashes reads "hashes.yaml" from the clickdeb and writes it to
-// the given directory
+// the given directory.
 func (d *ClickDeb) ExtractHashes(dir string) error {
 	hashesFile := filepath.Join(dir, "hashes.yaml")
 	hashesData, err := d.ControlMember("hashes.yaml")
@@ -224,10 +230,15 @@ func (d *ClickDeb) ExtractHashes(dir string) error {
 	return ioutil.WriteFile(hashesFile, hashesData, 0644)
 }
 
-// Unpack unpacks the data.tar.{gz,bz2,xz} into the given target directory
+// Unpack unpacks the clickdeb
+func (d *ClickDeb) Unpack(src, dst string) error {
+	return fmt.Errorf("clickdeb does not implement Unpack(src, dst)")
+}
+
+// UnpackAll unpacks the data.tar.{gz,bz2,xz} into the given target directory
 // with click specific verification, i.e. no files will be extracted outside
 // of the targetdir (no ".." inside the data.tar is allowed)
-func (d *ClickDeb) Unpack(targetDir string) error {
+func (d *ClickDeb) UnpackAll(targetDir string) error {
 	var err error
 
 	if _, err := d.file.Seek(0, 0); err != nil {
@@ -244,7 +255,7 @@ func (d *ClickDeb) Unpack(targetDir string) error {
 	return helpers.UnpackTar(dataReader, targetDir, clickVerifyContentFn)
 }
 
-// FIXME: this should move into the "ar" library itself
+// FIXME: this should move into the "ar" library itself.
 func addFileToAr(arWriter *ar.Writer, filename string) error {
 	dataF, err := os.Open(filename)
 	if err != nil {
@@ -276,7 +287,7 @@ func addFileToAr(arWriter *ar.Writer, filename string) error {
 	return nil
 }
 
-// FIXME: this should move into the "ar" library itself
+// FIXME: this should move into the "ar" library itself.
 func addDataToAr(arWriter *ar.Writer, filename string, data []byte) error {
 	size := int64(len(data))
 	hdr := &ar.Header{
@@ -295,11 +306,11 @@ func addDataToAr(arWriter *ar.Writer, filename string, data []byte) error {
 }
 
 // tarExcludeFunc is a helper for tarCreate that is called for each file
-// that is about to be added. If it returns "false" the file is skipped
+// that is about to be added. If it returns "false" the file is skipped.
 type tarExcludeFunc func(path string) bool
 
 // tarCreate creates a tarfile for a clickdeb, all files in the archive
-// belong to root (same as dpkg-deb)
+// belong to root (same as dpkg-deb).
 func tarCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 	w, err := os.Create(tarname)
 	if err != nil {
@@ -397,7 +408,7 @@ func tarCreate(tarname string, sourceDir string, fn tarExcludeFunc) error {
 }
 
 // Build takes a build debian directory with DEBIAN/ dir and creates a
-// clickdeb from it
+// clickdeb from it.
 func (d *ClickDeb) Build(sourceDir string, dataTarFinishedCallback func(dataName string) error) error {
 	var err error
 
@@ -496,11 +507,11 @@ func skipToArMember(arReader *ar.Reader, memberPrefix string) (io.Reader, error)
 // target dir and drop privs when doing this.
 //
 // To do this reliably in go we need to exec a helper as we can not
-// just fork() and drop privs in the child (no support for stock fork in go)
+// just fork() and drop privs in the child (no support for stock fork in go).
 func (d *ClickDeb) UnpackWithDropPrivs(instDir, rootdir string) error {
 	// no need to drop privs, we are not root
 	if !helpers.ShouldDropPrivs() {
-		return d.Unpack(instDir)
+		return d.UnpackAll(instDir)
 	}
 
 	cmd := exec.Command("snappy", "internal-unpack", d.Name(), instDir, rootdir)

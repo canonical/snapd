@@ -42,8 +42,10 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/oauth"
+	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/pkg/remote"
+	"github.com/ubuntu-core/snappy/pkg/snapfs"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
@@ -181,7 +183,7 @@ type SnapPart struct {
 	isActive    bool
 	isInstalled bool
 	description string
-	deb         PackageFile
+	deb         pkg.File
 	basedir     string
 }
 
@@ -237,6 +239,11 @@ type packageYaml struct {
 
 	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement,omitempty"`
 	LicenseVersion           string `yaml:"license-version,omitempty"`
+
+	// FIXME: move into a special kernel struct
+	Kernel string `yaml:"kernel,omitempty"`
+	Initrd string `yaml:"initrd,omitempty"`
+	Dtbs   string `yaml:"dtbs,omitempty"`
 }
 
 type searchResults struct {
@@ -430,7 +437,7 @@ func (m *packageYaml) checkForFrameworks() error {
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func (m *packageYaml) checkLicenseAgreement(ag agreer, d PackageFile, currentActiveDir string) error {
+func (m *packageYaml) checkLicenseAgreement(ag agreer, d pkg.File, currentActiveDir string) error {
 	if !m.ExplicitLicenseAgreement {
 		return nil
 	}
@@ -541,7 +548,7 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 // Caller should call Close on the pkg.
 // TODO: expose that Close.
 func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
-	d, err := OpenPackageFile(snapFile)
+	d, err := pkg.Open(snapFile)
 	if err != nil {
 		return nil, err
 	}
@@ -563,6 +570,8 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 		return nil, err
 	}
 
+	// FIXME: make a special OemSnap that knows its install dir
+	//        instead of having this special case here
 	targetDir := dirs.SnapAppsDir
 	// the "oem" parts are special
 	if m.Type == pkg.TypeOem {
@@ -576,12 +585,14 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 	fullName := m.qualifiedName(origin)
 	instDir := filepath.Join(targetDir, fullName, m.Version)
 
-	return &SnapPart{
+	baseSnap := &SnapPart{
 		basedir: instDir,
 		origin:  origin,
 		m:       m,
 		deb:     d,
-	}, nil
+	}
+
+	return baseSnap, nil
 }
 
 // NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
@@ -620,7 +631,7 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 	// read hash, its ok if its not there, some older versions of
 	// snappy did not write this file
 	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes.yaml"))
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
@@ -836,6 +847,20 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		return "", err
 	}
 
+	// FIXME: kill this check once we have only "snapfs" snaps
+	if s.m.Type == pkg.TypeKernel || s.m.Type == pkg.TypeOS {
+		if _, ok := s.deb.(*snapfs.Snap); !ok {
+			return "", fmt.Errorf("kernel/os snap must be of type snapfs")
+		}
+	}
+
+	// FIXME: move into KernelSnap instead of poluting generic code
+	if s.m.Type == pkg.TypeKernel {
+		if err := unpackKernel(s); err != nil {
+			return "", err
+		}
+	}
+
 	// legacy, the hooks (e.g. apparmor) need this. Once we converted
 	// all hooks this can go away
 	clickMetaDir := filepath.Join(s.basedir, ".click", "info")
@@ -999,10 +1024,24 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		}
 	}
 
+	// the hooks must run before the snap is (auto)mounted
+	// the reason is that the click hooks use:
+	//   ".click/$name.$origin.manifest"
+	// but because the origin is not known at build time it needs
+	// to be generated at runtime but will be mounted over once
+	// the snap is mounted
 	if err := installClickHooks(s.basedir, s.m, s.origin, inhibitHooks); err != nil {
 		// cleanup the failed hooks
 		removeClickHooks(s.m, s.origin, inhibitHooks)
 		return err
+	}
+
+	// generate the automount unit for the squashfs
+	// FIXME: this is ugly
+	if s.deb != nil && s.deb.NeedsAutoMountUnit() {
+		if err := s.m.addSnapfsAutomount(s.basedir, inhibitHooks, inter); err != nil {
+			return err
+		}
 	}
 
 	// generate the security policy from the package.yaml
@@ -1018,7 +1057,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	if err := s.m.addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
 		return err
 	}
-
+	// update current symlink
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
 	}
@@ -1036,6 +1075,30 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 
 	if err := os.MkdirAll(filepath.Join(dbase, s.Version()), 0755); err != nil {
 		return err
+	}
+
+	// FIXME: create {Os,Kernel}Snap type instead of adding special
+	//        cases here
+	if s.m.Type == pkg.TypeOS || s.m.Type == pkg.TypeKernel {
+		b, err := partition.Bootloader()
+		if err != nil {
+			return err
+		}
+		var bootvar string
+		switch s.m.Type {
+		case pkg.TypeOS:
+			bootvar = "snappy_os"
+		case pkg.TypeKernel:
+			bootvar = "snappy_kernel"
+		}
+		blobName := filepath.Base(snapfs.BlobPath(s.basedir))
+		if err := b.SetBootVar(bootvar, blobName); err != nil {
+			return err
+		}
+
+		if err := b.SetBootVar("snappy_mode", "try"); err != nil {
+			return err
+		}
 	}
 
 	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
@@ -1066,6 +1129,9 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	if err := s.m.removeSecurityPolicy(s.basedir); err != nil {
+		return err
+	}
+	if err := s.m.removeSnapfsAutomount(s.basedir, inter); err != nil {
 		return err
 	}
 
@@ -1132,7 +1198,15 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 		return err
 	}
 
+	// unmount squashfs but ignore errors as its ok if the fs is not mounted
+	exec.Command("unmount", "--lazy", filepath.Join(s.basedir)).CombinedOutput()
+
 	err = os.RemoveAll(s.basedir)
+	if err != nil {
+		return err
+	}
+
+	err = os.RemoveAll(snapfs.BlobPath(s.basedir))
 	if err != nil {
 		return err
 	}
@@ -1992,4 +2066,47 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	}
 
 	return env
+}
+
+func (m *packageYaml) addSnapfsAutomount(baseDir string, inhibitHooks bool, inter interacter) error {
+	squashfsPath := stripGlobalRootDir(snapfs.BlobPath(baseDir))
+	whereDir := stripGlobalRootDir(baseDir)
+
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
+	_, err := sysd.WriteMountUnitFile(m.Name, squashfsPath, whereDir)
+	if err != nil {
+		return err
+	}
+	autoMountUnitName, err := sysd.WriteAutoMountUnitFile(m.Name, whereDir)
+	if err != nil {
+		return err
+	}
+
+	// we always enable the mount unit even in inhibit hooks
+	if err := sysd.Enable(autoMountUnitName); err != nil {
+		return err
+	}
+
+	if !inhibitHooks {
+		return sysd.Start(autoMountUnitName)
+	}
+
+	return nil
+}
+
+func (m *packageYaml) removeSnapfsAutomount(baseDir string, inter interacter) error {
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
+	for _, s := range []string{"mount", "automount"} {
+		unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), s)
+		if helpers.FileExists(unit) {
+			// we ignore errors, nothing should stop removals
+			_ = sysd.Disable(filepath.Base(unit))
+			_ = sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second))
+			if err := os.Remove(unit); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

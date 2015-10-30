@@ -142,7 +142,15 @@ func makeTestSnapPackage(c *C, packageYamlContent string) (snapFile string) {
 	return makeTestSnapPackageFull(c, packageYamlContent, true)
 }
 
+func makeTestSnapPackageWithFiles(c *C, packageYamlContent string, files [][]string) (snapFile string) {
+	return makeTestSnapPackageFullWithFiles(c, packageYamlContent, true, files)
+}
+
 func makeTestSnapPackageFull(c *C, packageYamlContent string, makeLicense bool) (snapFile string) {
+	return makeTestSnapPackageFullWithFiles(c, packageYamlContent, makeLicense, [][]string{})
+}
+
+func makeTestSnapPackageFullWithFiles(c *C, packageYamlContent string, makeLicense bool, files [][]string) (snapFile string) {
 	tmpdir := c.MkDir()
 	// content
 	os.MkdirAll(filepath.Join(tmpdir, "bin"), 0755)
@@ -164,14 +172,23 @@ vendor: Foo Bar <foo@example.com>
 	ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
 	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
 	content = "Random\nExample"
-	ioutil.WriteFile(readmeMd, []byte(content), 0644)
+	err := ioutil.WriteFile(readmeMd, []byte(content), 0644)
+	c.Assert(err, IsNil)
 	if makeLicense {
 		license := filepath.Join(tmpdir, "meta", "license.txt")
 		content = "WTFPL"
 		ioutil.WriteFile(license, []byte(content), 0644)
 	}
+
+	for _, filenameAndContent := range files {
+		filename := filenameAndContent[0]
+		content := filenameAndContent[1]
+		err = ioutil.WriteFile(filepath.Join(tmpdir, filename), []byte(content), 0644)
+		c.Assert(err, IsNil)
+	}
+
 	// build it
-	err := helpers.ChDir(tmpdir, func() error {
+	err = helpers.ChDir(tmpdir, func() error {
 		var err error
 		snapFile, err = snapBuilderFunc(tmpdir, "")
 		c.Assert(err, IsNil)
