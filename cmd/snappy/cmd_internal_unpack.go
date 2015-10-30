@@ -183,7 +183,7 @@ func unpackAndDropPrivs(snapFile, targetDir, rootDir string) error {
 		}
 	}
 
-	return d.Unpack(targetDir)
+	return d.UnpackAll(targetDir)
 }
 
 func init() {

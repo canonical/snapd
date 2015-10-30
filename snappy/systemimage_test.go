@@ -138,7 +138,7 @@ func (s *SITestSuite) TestUpdateHasUpdate(c *C) {
 	parts, err := s.systemImage.Updates()
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
-	c.Assert(parts[0].Name(), Equals, "ubuntu-core")
+	c.Assert(parts[0].Name(), Equals, SystemImagePartName)
 	c.Assert(parts[0].Version(), Equals, "2")
 	c.Assert(parts[0].DownloadSize(), Equals, int64(123166488))
 }
