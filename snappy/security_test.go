@@ -34,6 +34,8 @@ type SecurityTestSuite struct {
 	m                     *packageYaml
 	scFilterGenCall       []string
 	scFilterGenCallReturn []byte
+
+	aaPolicyDir string
 }
 
 var _ = Suite(&SecurityTestSuite{})
@@ -47,6 +49,12 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 		Version:     "1.0",
 		Integration: make(map[string]clickAppHook),
 	}
+
+	a.aaPolicyDir = aaPolicyDir
+}
+
+func (a *SecurityTestSuite) TearDownTest(c *C) {
+	aaPolicyDir = a.aaPolicyDir
 }
 
 func (a *SecurityTestSuite) TestSnappyGetSecurityProfile(c *C) {
@@ -126,7 +134,7 @@ func (a *SecurityTestSuite) TestSecurityFindWhitespacePrefix(c *C) {
 // FIXME: need additional test for frameworkPolicy
 func (a *SecurityTestSuite) TestSecurityFindTemplateApparmor(c *C) {
 	aaPolicyDir = c.MkDir()
-	mockTemplate := filepath.Join(aaPolicyDir, "templates", "mock-templ")
+	mockTemplate := filepath.Join(aaPolicyDir, "templates", defaultPolicyVendor, defaultPolicyVersion, "mock-templ")
 	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockTemplate, []byte(`something`), 0644)
