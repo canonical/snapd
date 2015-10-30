@@ -74,6 +74,10 @@ if [ ! -z "$STATIC" ]; then
     go vet ./_integration-tests/testutils/...
 
     # golint
+    echo Install golint
+    go get github.com/golang/lint/golint
+    export PATH=$PATH:$GOPATH/bin
+
     echo Running lint
     lint=$(golint ./... && golint ./_integration-tests/testutils/... && golint ./_integration-tests/tests/...)
     if [ -n "$lint" ]; then
@@ -105,10 +109,6 @@ if [ ! -z "$UNIT" ]; then
 
     echo Installing godeps
     go get launchpad.net/godeps
-    export PATH=$PATH:$GOPATH/bin
-
-    echo Install golint
-    go get github.com/golang/lint/golint
     export PATH=$PATH:$GOPATH/bin
 
     echo Obtaining dependencies
