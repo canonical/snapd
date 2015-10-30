@@ -157,3 +157,22 @@ func (a *SecurityTestSuite) TestSecurityFindCaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(cap, Equals, "cap1\ncap2")
 }
+
+func (a *SecurityTestSuite) TestSecurityGetAppArmorVars(c *C) {
+	appID := &securityAppID{
+		Appname: "foo",
+		Version: "1.0",
+		AppID:   "id",
+		Pkgname: "pkgname",
+	}
+	c.Assert(getAppArmorVars(appID), Equals, `
+# Specified profile variables
+@{APP_APPNAME}="foo"
+@{APP_ID_DBUS}="id"
+@{APP_PKGNAME_DBUS}="pkgname"
+@{APP_PKGNAME}="pkgname"
+@{APP_VERSION}="1.0"
+@{INSTALL_DIR}="{/apps,/oem}"
+# Deprecated:
+@{CLICK_DIR}="{/apps,/oem}"`)
+}
