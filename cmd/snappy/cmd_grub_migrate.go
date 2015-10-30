@@ -20,8 +20,8 @@
 package main
 
 import (
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/partition"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/partition"
 )
 
 type cmdGrubMigrate struct {
@@ -38,7 +38,7 @@ func init() {
 }
 
 func (x *cmdGrubMigrate) Execute(args []string) error {
-	return withMutex(x.doGrubMigrate)
+	return withMutexAndRetry(x.doGrubMigrate)
 }
 
 func (x *cmdGrubMigrate) doGrubMigrate() error {

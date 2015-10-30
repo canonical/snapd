@@ -31,13 +31,13 @@ import (
 	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/pkg/clickdeb"
-	"launchpad.net/snappy/policy"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/systemd"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg/clickdeb"
+	"github.com/ubuntu-core/snappy/policy"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/systemd"
 )
 
 func (s *SnapTestSuite) TestReadManifest(c *C) {
@@ -516,7 +516,7 @@ icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
 	_, err := installClick(snapFile, AllowOEM, nil, testOrigin)
 	c.Assert(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "1.0", ""), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "1.0", "", "remote-channel"), IsNil)
 
 	contentFile := filepath.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
@@ -532,7 +532,7 @@ icon: foo.svg
 vendor: Foo Bar <foo@example.com>`)
 	_, err = installClick(snapFile, 0, nil, testOrigin)
 	c.Check(err, IsNil)
-	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "2.0", ""), IsNil)
+	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "2.0", "", "remote-channel"), IsNil)
 
 	// XXX: I think this next test now tests something we actually don't
 	// want. At least for fwks and apps, sideloading something installed

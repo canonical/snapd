@@ -25,9 +25,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
@@ -171,13 +171,6 @@ func (s *failoverSuite) TestZeroSizeKernel(c *check.C) {
 */
 
 func (s *failoverSuite) TestZeroSizeInitrd(c *check.C) {
-	// Skip if on uboot due to https://bugs.launchpad.net/snappy/+bug/1480248
-	// (fgimenez 20150731)
-	boot, err := partition.BootSystem()
-	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
-	if boot == "uboot" {
-		c.Skip("Failover for empty initrd not working in uboot")
-	}
 	commonFailoverTest(c, zeroSizeInitrd{})
 }
 

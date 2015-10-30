@@ -20,21 +20,37 @@
 package tests
 
 import (
+	"os/exec"
+
 	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
 
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&aptSuite{})
+var _ = check.Suite(&autopilotMsgSuite{})
 
-type aptSuite struct {
+type autopilotMsgSuite struct {
 	common.SnappySuite
 }
 
-func (s *aptSuite) TestAptGetMustPrintError(c *check.C) {
-	aptOutput := cli.ExecCommand(c, "apt-get", "update")
+// Test that there is a proper message if the autopilot runs in the
+// background
+func (s *autopilotMsgSuite) TestAutoPilotMessageIsPrinted(c *check.C) {
+	cli.ExecCommand(c, "sudo", "systemctl", "start", "snappy-autopilot")
 
-	expected := "Ubuntu Core does not use apt-get, see 'snappy --help'!\n"
-	c.Assert(aptOutput, check.Equals, expected, check.Commentf("Wrong apt-get output"))
+	// do not pollute the other tests with the now installed hello-world
+	s.AddCleanup(func() {
+		common.RemoveSnap(c, "hello-world")
+	})
+
+	// FIXME: risk of race
+	// (i.e. systemctl start finishes before install runs)
+	snappyOutput, _ := exec.Command("sudo", "snappy", "install", "hello-world").CombinedOutput()
+
+	expected := "(?ms)" +
+		".*" +
+		"^The snappy autopilot is updating your system.*\n" +
+		".*"
+	c.Assert(string(snappyOutput), check.Matches, expected)
 }

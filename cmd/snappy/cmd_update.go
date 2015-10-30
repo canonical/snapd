@@ -25,10 +25,10 @@ import (
 	"os/exec"
 	"strings"
 
-	"launchpad.net/snappy/i18n"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/snappy"
+	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 type cmdUpdate struct {
@@ -56,7 +56,7 @@ const (
 var shutdownMsg = i18n.G("snappy autopilot triggered a reboot to boot into an up to date system -- temprorarily disable the reboot by running 'sudo shutdown -c'")
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
-	return withMutex(x.doUpdate)
+	return withMutexAndRetry(x.doUpdate)
 }
 
 func (x *cmdUpdate) doUpdate() error {

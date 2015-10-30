@@ -27,8 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/systemd"
+	"github.com/ubuntu-core/snappy/pkg"
 )
 
 type fakePart struct {
@@ -55,21 +54,12 @@ type FirstBootTestSuite struct {
 	oemConfig map[string]interface{}
 	globs     []string
 	ethdir    string
-	sctlargs  []string
-	sctlerr   error
+	ifup      string
 }
 
 var _ = Suite(&FirstBootTestSuite{})
 
-func (s *FirstBootTestSuite) systemctl(args ...string) (out []byte, err error) {
-	s.sctlargs = args
-	return nil, s.sctlerr
-}
-
 func (s *FirstBootTestSuite) SetUpTest(c *C) {
-	s.sctlerr = nil
-	s.sctlargs = nil
-	systemd.SystemctlCmd = s.systemctl
 	stampFile = filepath.Join(c.MkDir(), "stamp")
 
 	configMyApp := make(SystemConfig)
@@ -84,6 +74,8 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	globs = nil
 	s.ethdir = ethdir
 	ethdir = c.MkDir()
+	s.ifup = ifup
+	ifup = "/bin/true"
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
@@ -91,6 +83,7 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	activeSnapsByType = ActiveSnapsByType
 	globs = s.globs
 	ethdir = s.ethdir
+	ifup = s.ifup
 }
 
 func (s *FirstBootTestSuite) mockActiveSnapNamesByType() *fakePart {
@@ -161,20 +154,6 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEth(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(string(bs), Equals, "allow-hotplug eth42\niface eth42 inet dhcp\n")
 
-	c.Check(s.sctlargs, DeepEquals, []string{"restart", "networking", "--no-block"})
-}
-
-func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEthFailsIfSystemctlFails(c *C) {
-	dir := c.MkDir()
-	_, err := os.Create(filepath.Join(dir, "eth42"))
-	c.Assert(err, IsNil)
-	s.sctlerr = fmt.Errorf("Error")
-
-	globs = []string{filepath.Join(dir, "eth*")}
-	c.Check(enableFirstEther(), Equals, s.sctlerr)
-	fs, _ := filepath.Glob(filepath.Join(ethdir, "*"))
-	c.Check(fs, HasLen, 1)
-	c.Check(s.sctlargs, DeepEquals, []string{"restart", "networking", "--no-block"})
 }
 
 func (s *FirstBootTestSuite) TestEnableFirstEtherBadEthDir(c *C) {

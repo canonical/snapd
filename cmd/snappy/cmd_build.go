@@ -21,10 +21,12 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 
-	"launchpad.net/snappy/i18n"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/snappy"
+	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 const clickReview = "click-review"
@@ -64,20 +66,16 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 		return err
 	}
 
-	/*
-		Disabling review tools run until the output reflects reality more closely
-
-		_, err = exec.LookPath(clickReview)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not review package (%s not available)\n", clickReview)
-		}
-
+	_, err = exec.LookPath(clickReview)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not review package (%s not available)\n", clickReview)
+	} else {
 		cmd := exec.Command(clickReview, snapPackage)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		// we ignore the error for now
 		_ = cmd.Run()
-	*/
+	}
 
 	// TRANSLATORS: the %s is a pkgname
 	fmt.Printf(i18n.G("Generated '%s' snap\n"), snapPackage)

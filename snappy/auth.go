@@ -27,8 +27,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/oauth"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/oauth"
 )
 
 var (
@@ -139,7 +139,7 @@ func WriteStoreToken(token StoreToken) error {
 		return nil
 	}
 
-	return helpers.AtomicWriteFile(targetFile, []byte(outStr), 0600)
+	return helpers.AtomicWriteFile(targetFile, []byte(outStr), 0600, 0)
 }
 
 // ReadStoreToken reads a token previously write via WriteStoreToken

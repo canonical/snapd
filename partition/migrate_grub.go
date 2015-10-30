@@ -26,8 +26,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 const newGrubConfig string = `
@@ -149,5 +149,5 @@ func MigrateToDynamicGrub() error {
 		}
 	}
 
-	return helpers.AtomicWriteFile(bootloaderGrubConfigFile, []byte(newGrubConfig), 0644)
+	return helpers.AtomicWriteFile(bootloaderGrubConfigFile, []byte(newGrubConfig), 0644, 0)
 }

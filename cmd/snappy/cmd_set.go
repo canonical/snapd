@@ -23,10 +23,10 @@ import (
 	"fmt"
 	"strings"
 
-	"launchpad.net/snappy/i18n"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/snappy"
+	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 type cmdSet struct {
@@ -54,7 +54,7 @@ func init() {
 
 func (x *cmdSet) Execute(args []string) (err error) {
 	x.args = args
-	return withMutex(x.doSet)
+	return withMutexAndRetry(x.doSet)
 }
 
 func (x *cmdSet) doSet() (err error) {

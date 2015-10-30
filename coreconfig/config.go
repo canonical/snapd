@@ -32,7 +32,7 @@ import (
 	"strings"
 	"syscall"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 
 	"gopkg.in/yaml.v2"
 )
@@ -311,7 +311,7 @@ var setTimezone = func(timezone string) error {
 		return err
 	}
 
-	return helpers.AtomicWriteFile(tzFile(), []byte(timezone), 0644)
+	return helpers.AtomicWriteFile(tzFile(), []byte(timezone), 0644, helpers.AtomicWriteFollow)
 }
 
 func getPassthrough(rootDir string) (pc []passthroughConfig, err error) {
@@ -340,7 +340,7 @@ func setPassthrough(rootDir string, pc []passthroughConfig) error {
 			os.Remove(path)
 			continue
 		}
-		if err := helpers.AtomicWriteFile(path, []byte(c.Content), 0644); err != nil {
+		if err := helpers.AtomicWriteFile(path, []byte(c.Content), 0644, helpers.AtomicWriteFollow); err != nil {
 			return err
 		}
 	}
@@ -376,7 +376,7 @@ var getModprobe = func() (string, error) {
 
 // setModprobe sets the specified modprobe config
 var setModprobe = func(modprobe string) error {
-	return helpers.AtomicWriteFile(modprobePath, []byte(modprobe), 0644)
+	return helpers.AtomicWriteFile(modprobePath, []byte(modprobe), 0644, helpers.AtomicWriteFollow)
 }
 
 func getModules() ([]string, error) {
@@ -463,7 +463,7 @@ func setModules(modules []string) error {
 		buf.WriteByte('\n')
 	}
 
-	return helpers.AtomicWriteFile(modulesPath, buf.Bytes(), 0644)
+	return helpers.AtomicWriteFile(modulesPath, buf.Bytes(), 0644, helpers.AtomicWriteFollow)
 }
 
 // getWatchdog returns the current watchdog config
@@ -489,11 +489,11 @@ var getWatchdog = func() (*watchdogConfig, error) {
 
 // setWatchdog sets the specified watchdog config
 var setWatchdog = func(wf *watchdogConfig) error {
-	if err := helpers.AtomicWriteFile(watchdogStartupPath, []byte(wf.Startup), 0644); err != nil {
+	if err := helpers.AtomicWriteFile(watchdogStartupPath, []byte(wf.Startup), 0644, helpers.AtomicWriteFollow); err != nil {
 		return err
 	}
 
-	return helpers.AtomicWriteFile(watchdogConfigPath, []byte(wf.Config), 0644)
+	return helpers.AtomicWriteFile(watchdogConfigPath, []byte(wf.Config), 0644, helpers.AtomicWriteFollow)
 }
 
 // for testing purposes
@@ -568,5 +568,5 @@ var setHostname = func(hostname string) error {
 		return err
 	}
 
-	return helpers.AtomicWriteFile(hostnamePath, hostnameB, 0644)
+	return helpers.AtomicWriteFile(hostnamePath, hostnameB, 0644, helpers.AtomicWriteFollow)
 }

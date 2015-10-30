@@ -37,16 +37,16 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/oauth"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/pkg/remote"
-	"launchpad.net/snappy/policy"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/release"
-	"launchpad.net/snappy/systemd"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/oauth"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg/remote"
+	"github.com/ubuntu-core/snappy/policy"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/systemd"
 )
 
 const (
@@ -1846,9 +1846,6 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// sense in sending it our ubuntu-core snap
 	//
 	// NOTE this *will* send .sideload apps to the store.
-	fullNameWithChannel := func(p Part) string {
-		return fmt.Sprintf("%s/%s", FullName(p), p.Channel())
-	}
 	installed, err := ActiveSnapIterByType(fullNameWithChannel, pkg.TypeApp, pkg.TypeFramework, pkg.TypeOem)
 	if err != nil || len(installed) == 0 {
 		return nil, err

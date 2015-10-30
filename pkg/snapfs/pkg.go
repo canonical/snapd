@@ -27,7 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 )
 
 // Snap is the squashfs based snap

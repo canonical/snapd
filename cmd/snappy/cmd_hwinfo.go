@@ -23,9 +23,9 @@ import (
 	"fmt"
 	"strings"
 
-	"launchpad.net/snappy/i18n"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/snappy"
+	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 type cmdHWInfo struct {
@@ -76,7 +76,7 @@ func outputHWAccessForAll() error {
 }
 
 func (x *cmdHWInfo) Execute(args []string) error {
-	return withMutex(x.doHWInfo)
+	return withMutexAndRetry(x.doHWInfo)
 }
 
 func (x *cmdHWInfo) doHWInfo() error {

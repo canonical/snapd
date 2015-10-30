@@ -24,8 +24,8 @@ import (
 	"os"
 	"os/exec"
 
-	"launchpad.net/snappy/_integration-tests/testutils/build"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/build"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
 
 	"gopkg.in/check.v1"
 )

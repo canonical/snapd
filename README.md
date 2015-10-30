@@ -1,3 +1,4 @@
+[![Build Status][travis-image]][travis-url] [![Coverage Status][coveralls-image]][coveralls-url]
 # snappy
 
 Snappy is part of Ubuntu Core and enables a fully transactional Ubuntu system.
@@ -34,7 +35,7 @@ Add `$GOPATH/bin` to your `PATH`, so you can run the go programs you install:
 
 The easiest way to get the source for `snappy` is to use the `go get` command.
 
-    go get -d -v launchpad.net/snappy/...
+    go get -d -v github.com/ubuntu-core/snappy/...
 
 This command will checkout the source of `snappy` and inspect it for any unmet
 Go package dependencies, downloading those as well. `go get` will also build
@@ -44,19 +45,19 @@ the `-d` flag. More details on the `go get` flags are available using
     go help get
 
 At this point you will have the git local repository of the `snappy` source at
-`$GOPATH/launchpad.net/snappy/snappy`. The source for any
+`$GOPATH/github.com/ubuntu-core/snappy/snappy`. The source for any
 dependent packages will also be available inside `$GOPATH`.
 
 ### Building
 
 To build, once the sources are available and `GOPATH` is set, you can just run
 
-    go build -o /tmp/snappy launchpad.net/snappy/cmd/snappy
+    go build -o /tmp/snappy github.com/ubuntu-core/snappy/cmd/snappy
 
 to get the `snappy` binary in /tmp (or without -o to get it in the current
 working directory). Alternatively:
 
-    go install launchpad.net/snappy/...
+    go install github.com/ubuntu-core/snappy/...
 
 to have it available in `$GOPATH/bin`
 
@@ -111,4 +112,12 @@ To obtain the correct dependencies for the project, run:
 If the dependencies need updating
 
     godeps -t ./... > dependencies.tsv
+
+
+[travis-image]: https://travis-ci.org/ubuntu-core/snappy.svg?branch=master
+[travis-url]: https://travis-ci.org/ubuntu-core/snappy.svg?branch=master
+
+[coveralls-image]: https://coveralls.io/repos/ubuntu-core/snappy/badge.svg?branch=master&service=github
+[coveralls-url]: https://coveralls.io/github/ubuntu-core/snappy?branch=master
+
 

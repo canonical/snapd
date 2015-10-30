@@ -8,10 +8,29 @@ else
     goctest="go test"
 fi
 
-QUICK=""
-if [ "${1:-}" = "--quick" ]; then
-    QUICK=yes
-fi
+STATIC=""
+UNIT=""
+INTEGRATION=""
+
+case "${1:-all}" in
+    all)
+        STATIC="yes"
+        UNIT="yes"
+        INTEGRATION="yes"
+        ;;
+    --static)
+        STATIC="yes"
+        ;;
+    --unit)
+        UNIT="yes"
+        ;;
+    --integration)
+        INTEGRATION="yes"
+        ;;
+    *)
+        echo "Wrong flag ${1}. To run a single suite use --static, --unit or --integration."
+        exit 1
+esac
 
 endmsg() {
     if [ $? -eq 0 ]; then
@@ -22,7 +41,7 @@ endmsg() {
         m="Crushing failure and despair."
     fi
     echo
-    if [ -t 1 -a -z "$QUICK" ]; then
+    if [ -t 1 -a -z "$STATIC" ]; then
         cat "data/$p"
     else
         echo "$m"
@@ -30,74 +49,98 @@ endmsg() {
 }
 trap endmsg EXIT
 
-echo Checking docs
-./mdlint.py docs/*.md
+# Append the coverage profile of a package to the project coverage.
+append_coverage() {
+    local profile="$1"
+    if [ -f $profile ]; then
+        cat $profile | grep -v "mode: set" >> .coverage/coverage.out
+        rm $profile
+    fi
+}
 
-echo Checking formatting
-fmt=$(gofmt -l .)
+if [ ! -z "$STATIC" ]; then
+    # Run static tests.
+    echo Checking docs
+    ./mdlint.py docs/*.md
 
-if [ -n "$fmt" ]; then
-    echo "Formatting wrong in following files"
-    echo "$fmt"
-    exit 1
-fi
+    echo Checking formatting
+    fmt=$(gofmt -l .)
 
-if [ -z "$QUICK" ]; then
-    echo Installing godeps
-    go get launchpad.net/godeps
-    export PATH=$PATH:$GOPATH/bin
+    if [ -n "$fmt" ]; then
+        echo "Formatting wrong in following files"
+        echo "$fmt"
+        exit 1
+    fi
 
+    # go vet
+    echo Running vet
+    go vet ./...
+    go vet ./_integration-tests/tests/...
+    go vet ./_integration-tests/testutils/...
+
+    # golint
     echo Install golint
     go get github.com/golang/lint/golint
+    export PATH=$PATH:$GOPATH/bin
+
+    echo Running lint
+    lint=$(golint ./... && golint ./_integration-tests/testutils/... && golint ./_integration-tests/tests/...)
+    if [ -n "$lint" ]; then
+        echo "Lint complains:"
+        echo "$lint"
+        exit 1
+    fi
+
+    (
+        # pot file
+        echo Checking translations
+        TMPF="$(mktemp)"
+        trap "rm -f $TMPF" 0
+        ./update-pot "$TMPF"
+        if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
+            echo "You need to run ./update-pot"
+            exit 1
+        fi
+        # This is a subshell so we don't overwrite the all-important outer trap.
+    )
+
+fi
+
+if [ ! -z "$UNIT" ]; then
+    # Prepare the coverage output profile.
+    rm -rf .coverage
+    mkdir .coverage
+    echo "mode: set" > .coverage/coverage.out
+
+    echo Installing godeps
+    go get launchpad.net/godeps
     export PATH=$PATH:$GOPATH/bin
 
     echo Obtaining dependencies
     godeps -u dependencies.tsv
 
     echo Building
-    go build -v launchpad.net/snappy/...
-
+    go build -v github.com/ubuntu-core/snappy/...
 
     # tests
     echo Running tests from $(pwd)
-    $goctest -v -cover ./...
-fi
-
-# go vet
-echo Running vet
-go vet ./...
-go vet ./_integration-tests/tests/...
-go vet ./_integration-tests/testutils/...
-
-# golint
-echo Running lint
-lint=$(golint ./... && golint ./_integration-tests/testutils/... && golint ./_integration-tests/tests/...)
-if [ -n "$lint" ]; then
-    echo "Lint complains:"
-    echo "$lint"
-    exit 1
-fi
-
-(
-    # pot file
-    TMPF="$(mktemp)"
-    trap "rm -f $TMPF" 0
-    ./update-pot "$TMPF"
-    if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
-        echo "You need to run ./update-pot"
-        exit 1
-    fi
-    # This is a subshell so we don't overwrite the all-important outer trap.
-)
-
-if [ -z "$QUICK" ]; then
-    # integration tests
-    echo Building the integration tests
-    go build _integration-tests/main.go
+    for pkg in $(go list ./...); do
+        $goctest -v -coverprofile=.coverage/profile.out $pkg
+        append_coverage .coverage/profile.out
+    done
 
     # the rabbit hole
     echo Running the tests for the integration testutils
-    $goctest -v -cover ./_integration-tests/testutils/...
+    for pkg in $(go list ./_integration-tests/testutils/...); do
+        $goctest -v -coverprofile=.coverage/profile.out $pkg
+        append_coverage .coverage/profile.out
+    done
+fi
+
+if [ ! -z "$INTEGRATION" ]; then
+    # integration tests
+    echo Building the integration tests
+    go build _integration-tests/main.go
 
     # integration suite in kvm
     if which adt-run >/dev/null 2>&1; then

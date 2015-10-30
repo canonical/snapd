@@ -20,17 +20,62 @@
 package main
 
 import (
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
+	"fmt"
+	"os/exec"
+	"strings"
+	"time"
+
+	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/priv"
 
 	"github.com/jessevdk/go-flags"
 )
 
 const snappyLockFile = "/run/snappy.lock"
 
-// withMutex runs the given function with a filelock mutex
-func withMutex(f func() error) error {
-	return priv.WithMutex(snappyLockFile, f)
+func isAutoPilotRunning() bool {
+	unitName := "snappy-autopilot"
+	bs, err := exec.Command("systemctl", "show", "--property=SubState", unitName).CombinedOutput()
+	if err != nil {
+		return false
+	}
+
+	return strings.TrimSpace(string(bs)) == "SubState=running"
+}
+
+// withMutexAndRetry runs the given function with a filelock mutex and provides
+// automatic re-try and helpful messages if the lock is already taken
+func withMutexAndRetry(f func() error) error {
+	for {
+		err := priv.WithMutex(snappyLockFile, f)
+		// if already locked, auto-retry
+		if err == priv.ErrAlreadyLocked {
+			var msg string
+			if isAutoPilotRunning() {
+				// FIXME: we could even do a
+				//    journalctl -u snappy-autopilot
+				// here
+				msg = i18n.G(
+					`The snappy autopilot is updating your system in the background. This may
+take some minutes. Will try again in %d seconds...
+Press ctrl-c to cancel.
+`)
+			} else {
+				msg = i18n.G(
+					`Another snappy is running, will try again in %d seconds...
+Press ctrl-c to cancel.
+`)
+			}
+			// wait a wee bit
+			wait := 5
+			fmt.Printf(msg, wait)
+			time.Sleep(time.Duration(wait) * time.Second)
+			continue
+		}
+
+		return err
+	}
 }
 
 // addOptionDescription will try to find the given longName in the

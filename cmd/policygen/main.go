@@ -24,9 +24,8 @@ import (
 	"fmt"
 	"os"
 
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/snappy"
-	//"launchpad.net/snappy/priv"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/snappy"
 
 	"github.com/jessevdk/go-flags"
 )

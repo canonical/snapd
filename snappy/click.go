@@ -41,14 +41,14 @@ import (
 	"text/template"
 	"time"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/i18n"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/pkg/clickdeb"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/systemd"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg/clickdeb"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/systemd"
 
 	"github.com/mvo5/goconfigparser"
 )
@@ -692,7 +692,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 	if err != nil {
 		return err
 	}
-	if err := helpers.AtomicWriteFile(filepath.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644); err != nil {
+	if err := helpers.AtomicWriteFile(filepath.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644, 0); err != nil {
 		return err
 	}
 

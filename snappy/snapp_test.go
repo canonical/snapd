@@ -30,14 +30,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/partition"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/pkg/clickdeb"
-	"launchpad.net/snappy/policy"
-	"launchpad.net/snappy/release"
-	"launchpad.net/snappy/systemd"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg/clickdeb"
+	"github.com/ubuntu-core/snappy/policy"
+	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/systemd"
 
 	. "gopkg.in/check.v1"
 )
@@ -1023,7 +1023,7 @@ services:
    stop: bin/testme-service.stop
    description: "testme service"
    caps:
-     - "networking"
+     - "network-client"
      - "foo_group"
    security-template: "foo_template"
 `)
@@ -1036,7 +1036,7 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 	c.Assert(m.ServiceYamls[0].Start, Equals, "bin/testme-service.start")
 	c.Assert(m.ServiceYamls[0].Stop, Equals, "bin/testme-service.stop")
 	c.Assert(m.ServiceYamls[0].SecurityCaps, HasLen, 2)
-	c.Assert(m.ServiceYamls[0].SecurityCaps[0], Equals, "networking")
+	c.Assert(m.ServiceYamls[0].SecurityCaps[0], Equals, "network-client")
 	c.Assert(m.ServiceYamls[0].SecurityCaps[1], Equals, "foo_group")
 	c.Assert(m.ServiceYamls[0].SecurityTemplate, Equals, "foo_template")
 }
