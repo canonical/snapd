@@ -148,14 +148,14 @@ func (s *ClickDebTestSuite) TestSnapDebMetaMemberMissing(c *C) {
 	c.Assert(err, Equals, ErrMemberNotFound)
 }
 
-func (s *ClickDebTestSuite) TestSnapDebUnpack(c *C) {
+func (s *ClickDebTestSuite) TestSnapDebUnpackAll(c *C) {
 	targetDir := c.MkDir()
 
 	for _, comp := range []string{"gzip", "bzip2", "xz"} {
 		debName := makeTestDeb(c, comp)
 		d, err := Open(debName)
 		c.Assert(err, IsNil)
-		err = d.Unpack(targetDir)
+		err = d.UnpackAll(targetDir)
 		c.Assert(err, IsNil)
 		expectedFile := filepath.Join(targetDir, "usr", "bin", "foo")
 		c.Assert(helpers.FileExists(expectedFile), Equals, true)

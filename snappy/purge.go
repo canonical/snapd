@@ -48,7 +48,7 @@ func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 
 	purgeActive := flags&DoPurgeActive != 0
 
-	var active []*SnapPart
+	var active []SnapIF
 
 	for _, datadir := range datadirs {
 		yamlPath := filepath.Join(dirs.SnapAppsDir, datadir.QualifiedName(), datadir.Version, "meta", "package.yaml")

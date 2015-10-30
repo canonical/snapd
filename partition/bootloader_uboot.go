@@ -60,7 +60,7 @@ var (
 	atomicWriteFile = helpers.AtomicWriteFile
 )
 
-const bootloaderNameUboot bootloaderName = "u-boot"
+const bootloaderNameUboot BootloaderName = "u-boot"
 
 type uboot struct {
 	bootloaderType
@@ -77,7 +77,7 @@ var setBootVar = func(name, value string) error { return nil }
 var getBootVar = func(name string) (string, error) { return "", nil }
 
 // newUboot create a new Uboot bootloader object
-func newUboot(partition *Partition) bootLoader {
+func newUboot(partition *Partition) BootLoader {
 	if !helpers.FileExists(bootloaderUbootConfigFile) {
 		return nil
 	}
@@ -99,7 +99,7 @@ func newUboot(partition *Partition) bootLoader {
 	return &u
 }
 
-func (u *uboot) Name() bootloaderName {
+func (u *uboot) Name() BootloaderName {
 	return bootloaderNameUboot
 }
 
@@ -163,6 +163,10 @@ func getBootVarFwEnv(name string) (string, error) {
 
 func (u *uboot) GetBootVar(name string) (value string, err error) {
 	return getBootVar(name)
+}
+
+func (u *uboot) SetBootVar(name, value string) error {
+	return setBootVar(name, value)
 }
 
 func (u *uboot) GetNextBootRootFSName() (label string, err error) {

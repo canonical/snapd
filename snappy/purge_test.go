@@ -59,7 +59,7 @@ func (s *purgeSuite) TestPurgeNonExistingRaisesError(c *C) {
 	c.Check(inter.notified, HasLen, 0)
 }
 
-func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDir string, part *SnapPart) {
+func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDir string, part SnapIF) {
 	version := "1.10"
 	extra := ""
 	switch len(args) {
@@ -193,7 +193,7 @@ func (s *purgeSuite) TestPurgeRemovedWorks(c *C) {
 	inter := &MockProgressMeter{}
 	ddir, part := s.mkpkg(c)
 
-	err := part.remove(inter)
+	err := part.(*SnapPart).remove(inter)
 	c.Assert(err, IsNil)
 	c.Check(helpers.FileExists(ddir), Equals, true)
 

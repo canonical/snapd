@@ -334,7 +334,15 @@ func (p *Partition) ToggleNextBoot() (err error) {
 }
 
 // MarkBootSuccessful marks the boot as successful
-func (p *Partition) MarkBootSuccessful() (err error) {
+func (p *Partition) MarkBootSuccessful() error {
+	if p.rootPartition() != nil {
+		return p.markBootSuccessfulSnappyAB()
+	}
+
+	return p.markBootSuccessfulAllSnaps()
+}
+
+func (p *Partition) markBootSuccessfulSnappyAB() error {
 	bootloader, err := bootloader(p)
 	if err != nil {
 		return err
@@ -344,9 +352,48 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 	return bootloader.MarkCurrentBootSuccessful(currentRootfs)
 }
 
+func (p *Partition) markBootSuccessfulAllSnaps() error {
+	bootloader, err := bootloader(p)
+	if err != nil {
+		return err
+	}
+
+	// FIXME: these vars should be applied all in a single run
+	for _, k := range []string{"snappy_os", "snappy_kernel"} {
+		value, err := bootloader.GetBootVar(k)
+		if err != nil {
+			return err
+		}
+
+		// FIXME: ugly string replace
+		newKey := strings.Replace(k, "snappy_", "snappy_good_", -1)
+		if err := bootloader.SetBootVar(newKey, value); err != nil {
+			return err
+		}
+
+		if err := bootloader.SetBootVar("snappy_mode", "regular"); err != nil {
+			return err
+		}
+
+		if err := bootloader.SetBootVar("snappy_trial_boot", "0"); err != nil {
+			return err
+		}
+
+	}
+
+	// legacy uboot support, does not error if the file is not there
+	return os.RemoveAll(bootloaderUbootStampFile)
+}
+
 // IsNextBootOther return true if the next boot will use the other rootfs
 // partition.
 func (p *Partition) IsNextBootOther() bool {
+
+	// we are on a all-snap system, snappy_ab is irelevant here
+	if p.rootPartition() == nil {
+		return false
+	}
+
 	bootloader, err := bootloader(p)
 	if err != nil {
 		return false

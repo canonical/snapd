@@ -21,7 +21,9 @@ package partition
 
 import (
 	"fmt"
+	"path/filepath"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 
 	"github.com/mvo5/goconfigparser"
@@ -48,10 +50,10 @@ type grub struct {
 	bootloaderType
 }
 
-const bootloaderNameGrub bootloaderName = "grub"
+const bootloaderNameGrub BootloaderName = "grub"
 
 // newGrub create a new Grub bootloader object
-func newGrub(partition *Partition) bootLoader {
+func newGrub(partition *Partition) BootLoader {
 	if !helpers.FileExists(bootloaderGrubConfigFile) {
 		return nil
 	}
@@ -65,7 +67,7 @@ func newGrub(partition *Partition) bootLoader {
 	return &g
 }
 
-func (g *grub) Name() bootloaderName {
+func (g *grub) Name() BootloaderName {
 	return bootloaderNameGrub
 }
 
@@ -76,20 +78,20 @@ func (g *grub) Name() bootloaderName {
 // Update the grub configuration.
 func (g *grub) ToggleRootFS(otherRootfs string) (err error) {
 
-	if err := g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry); err != nil {
+	if err := g.SetBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry); err != nil {
 		return err
 	}
 
 	// Record the partition that will be used for next boot. This
 	// isn't necessary for correct operation under grub, but allows
 	// us to query the next boot device easily.
-	return g.setBootVar(bootloaderRootfsVar, otherRootfs)
+	return g.SetBootVar(bootloaderRootfsVar, otherRootfs)
 }
 
 func (g *grub) GetBootVar(name string) (value string, err error) {
 	// Grub doesn't provide a get verb, so retrieve all values and
 	// search for the required variable ourselves.
-	output, err := runCommandWithStdout(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "list")
+	output, err := runCommandWithStdout(bootloaderGrubEnvCmd, filepath.Join(dirs.GlobalRootDir, bootloaderGrubEnvFile), "list")
 	if err != nil {
 		return "", err
 	}
@@ -103,12 +105,12 @@ func (g *grub) GetBootVar(name string) (value string, err error) {
 	return cfg.Get("", name)
 }
 
-func (g *grub) setBootVar(name, value string) (err error) {
+func (g *grub) SetBootVar(name, value string) (err error) {
 	// note that strings are not quoted since because
 	// RunCommand() does not use a shell and thus adding quotes
 	// stores them in the environment file (which is not desirable)
 	arg := fmt.Sprintf("%s=%s", name, value)
-	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile, "set", arg)
+	return runCommand(bootloaderGrubEnvCmd, filepath.Join(dirs.GlobalRootDir, bootloaderGrubEnvFile), "set", arg)
 }
 
 func (g *grub) GetNextBootRootFSName() (label string, err error) {
@@ -117,15 +119,15 @@ func (g *grub) GetNextBootRootFSName() (label string, err error) {
 
 func (g *grub) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
 	// Clear the variable set on boot to denote a good boot.
-	if err := g.setBootVar(bootloaderTrialBootVar, "0"); err != nil {
+	if err := g.SetBootVar(bootloaderTrialBootVar, "0"); err != nil {
 		return err
 	}
 
-	if err := g.setBootVar(bootloaderRootfsVar, currentRootfs); err != nil {
+	if err := g.SetBootVar(bootloaderRootfsVar, currentRootfs); err != nil {
 		return err
 	}
 
-	return g.setBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
+	return g.SetBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
 }
 
 func (g *grub) BootDir() string {

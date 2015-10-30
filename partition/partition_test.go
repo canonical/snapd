@@ -122,6 +122,17 @@ NAME="sr0" LABEL="" PKNAME="" MOUNTPOINT=""
 	return strings.Split(dualData, "\n"), err
 }
 
+func mockRunLsblkAllSnap() (output []string, err error) {
+	dualData := `
+NAME="sda" LABEL="" PKNAME="" MOUNTPOINT=""
+NAME="sda1" LABEL="" PKNAME="sda" MOUNTPOINT=""
+NAME="sda2" LABEL="system-boot" PKNAME="sda" MOUNTPOINT="/boot/efi"
+NAME="sda5" LABEL="writable" PKNAME="sda" MOUNTPOINT="/writable"
+NAME="loop0" LABEL="" PKNAME="" MOUNTPOINT="/"
+`
+	return strings.Split(dualData, "\n"), err
+}
+
 func (s *PartitionTestSuite) TestSnappyDualRoot(c *C) {
 	p := New()
 	c.Assert(p.dualRootPartitions(), Equals, true)
@@ -369,9 +380,16 @@ type mockBootloader struct {
 	HandleAssetsCalled              bool
 	MarkCurrentBootSuccessfulCalled bool
 	SyncBootFilesCalled             bool
+	Bootvars                        map[string]string
 }
 
-func (b *mockBootloader) Name() bootloaderName {
+func newMockBootloader() *mockBootloader {
+	return &mockBootloader{
+		Bootvars: make(map[string]string),
+	}
+}
+
+func (b *mockBootloader) Name() BootloaderName {
 	return "mocky"
 }
 func (b *mockBootloader) ToggleRootFS(otherRootfs string) error {
@@ -387,7 +405,11 @@ func (b *mockBootloader) HandleAssets() error {
 	return nil
 }
 func (b *mockBootloader) GetBootVar(name string) (string, error) {
-	return "", nil
+	return b.Bootvars[name], nil
+}
+func (b *mockBootloader) SetBootVar(name, value string) error {
+	b.Bootvars[name] = value
+	return nil
 }
 func (b *mockBootloader) GetNextBootRootFSName() (string, error) {
 	return "", nil
@@ -402,8 +424,8 @@ func (b *mockBootloader) BootDir() string {
 
 func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 	runCommand = mockRunCommand
-	b := &mockBootloader{}
-	bootloader = func(p *Partition) (bootLoader, error) {
+	b := newMockBootloader()
+	bootloader = func(p *Partition) (BootLoader, error) {
 		return b, nil
 	}
 
@@ -419,10 +441,10 @@ func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
 
-func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
+func (s *PartitionTestSuite) TestMarkBootSuccessfulSnappyAB(c *C) {
 	runCommand = mockRunCommand
-	b := &mockBootloader{}
-	bootloader = func(p *Partition) (bootLoader, error) {
+	b := newMockBootloader()
+	bootloader = func(p *Partition) (BootLoader, error) {
 		return b, nil
 	}
 
@@ -434,10 +456,35 @@ func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
 	c.Assert(b.MarkCurrentBootSuccessfulCalled, Equals, true)
 }
 
+func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
+	runCommand = mockRunCommand
+	b := newMockBootloader()
+	bootloader = func(p *Partition) (BootLoader, error) {
+		return b, nil
+	}
+	runLsblk = mockRunLsblkAllSnap
+
+	p := New()
+	c.Assert(c, NotNil)
+
+	b.Bootvars["snappy_os"] = "os1"
+	b.Bootvars["snappy_kernel"] = "k1"
+	err := p.MarkBootSuccessful()
+	c.Assert(err, IsNil)
+	c.Assert(b.Bootvars, DeepEquals, map[string]string{
+		"snappy_mode":        "regular",
+		"snappy_trial_boot":  "0",
+		"snappy_kernel":      "k1",
+		"snappy_good_kernel": "k1",
+		"snappy_os":          "os1",
+		"snappy_good_os":     "os1",
+	})
+}
+
 func (s *PartitionTestSuite) TestSyncBootFiles(c *C) {
 	runCommand = mockRunCommand
-	b := &mockBootloader{}
-	bootloader = func(p *Partition) (bootLoader, error) {
+	b := newMockBootloader()
+	bootloader = func(p *Partition) (BootLoader, error) {
 		return b, nil
 	}
 

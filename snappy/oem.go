@@ -34,7 +34,39 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/progress"
 )
+
+// OemSnap represents the OEM snap.
+type OemSnap struct {
+	SnapPart
+}
+
+// Install for the OEM snap is special, it may install additional hardware
+// udev rules.
+func (s *OemSnap) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
+	name, err = s.SnapPart.Install(inter, flags)
+	if err != nil {
+		return "", err
+	}
+
+	if err := installOemHardwareUdevRules(s.m); err != nil {
+		return "", err
+	}
+
+	return name, nil
+}
+
+// Uninstall for OEM snaps is restricted. They should not be removed
+// when active as they are a key building block for OEMs.
+// Prunning non active ones is acceptible.
+func (s *OemSnap) Uninstall(pb progress.Meter) (err error) {
+	if s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	return s.SnapPart.Uninstall(pb)
+}
 
 // OEM represents the structure inside the package.yaml for the oem component
 // of an oem package type.
@@ -129,7 +161,7 @@ var getOem = getOemImpl
 func getOemImpl() (*packageYaml, error) {
 	oems, _ := ActiveSnapsByType(pkg.TypeOem)
 	if len(oems) == 1 {
-		return oems[0].(*SnapPart).m, nil
+		return oems[0].(*OemSnap).m, nil
 	}
 
 	return nil, errors.New("no oem snap")

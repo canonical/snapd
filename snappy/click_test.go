@@ -398,7 +398,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	yamlPath := filepath.Join(instDir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(nil)
+	err = part.Uninstall(nil)
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
@@ -437,7 +437,6 @@ type: framework
 	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
 	d, err := clickdeb.Create(snapName)
 	c.Assert(err, IsNil)
-	defer d.Close()
 	c.Assert(d.Build(tmpdir, func(dataTar string) error {
 		return writeHashes(tmpdir, dataTar)
 	}), IsNil)
@@ -476,7 +475,7 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 	yamlPath := filepath.Join(appdir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(nil)
+	err = part.Uninstall(nil)
 	c.Assert(err, IsNil)
 }
 
@@ -495,7 +494,7 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicyWeirdClickManifest(c *C) {
 	yamlPath := filepath.Join(appdir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(nil)
+	err = part.Uninstall(nil)
 	c.Assert(err, IsNil)
 }
 
@@ -865,7 +864,7 @@ binaries:
 	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(nil)
+	err = part.Uninstall(nil)
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
@@ -924,7 +923,7 @@ services:
 	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(&progress.NullProgress{})
+	err = part.Uninstall(&progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(servicesFile), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
@@ -1440,7 +1439,6 @@ binaries:
 	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
 	d, err := clickdeb.Create(snapName)
 	c.Assert(err, IsNil)
-	defer d.Close()
 	c.Assert(d.Build(tmpdir, func(dataTar string) error {
 		return writeHashes(tmpdir, dataTar)
 	}), IsNil)

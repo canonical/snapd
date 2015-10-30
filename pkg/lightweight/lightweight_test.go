@@ -388,7 +388,7 @@ func (s *lightweightSuite) TestLoadOem(c *check.C) {
 	c.Check(oem.ActiveIndex(), check.Equals, -1)
 	p, err := oem.Load(0)
 	c.Check(err, check.IsNil)
-	c.Check(p, check.FitsTypeOf, new(snappy.SnapPart))
+	c.Check(p, check.FitsTypeOf, new(snappy.OemSnap))
 	c.Check(p.Version(), check.Equals, "3")
 }
 

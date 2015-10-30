@@ -1,3 +1,5 @@
+package snappy
+
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
@@ -17,15 +19,20 @@
  *
  */
 
-package partition
-
 import (
-	. "gopkg.in/check.v1"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
-func (s *PartitionTestSuite) TestNormalizeAssetsName(c *C) {
-	c.Check(NormalizeKernelInitrdName("subdir/vmlinuz-3.14"), Equals, "vmlinuz")
-	c.Check(NormalizeKernelInitrdName("vmlinuz-3.14"), Equals, "vmlinuz")
-	c.Check(NormalizeKernelInitrdName("initrd.img-2.71"), Equals, "initrd.img")
-	c.Check(NormalizeKernelInitrdName("x-y-z"), Equals, "x")
+// OsSnap represents the snap type that contains the operating system core.
+type OsSnap struct {
+	SnapPart
+}
+
+// Uninstall for the OS snap restricts removal to only inactive snaps.
+func (s *OsSnap) Uninstall(pb progress.Meter) (err error) {
+	if s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	return s.SnapPart.Uninstall(pb)
 }

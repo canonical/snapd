@@ -42,7 +42,7 @@ import (
 
 // SystemImagePart have constant name, origin, and vendor.
 const (
-	SystemImagePartName = "ubuntu-core"
+	SystemImagePartName = "ubuntu-core-legacy"
 	// SystemImagePartOrigin is the origin of any system image part
 	SystemImagePartOrigin = "ubuntu"
 	// SystemImagePartVendor is the vendor of any system image part
@@ -306,14 +306,6 @@ func (s *SystemImagePart) NeedsReboot() bool {
 	}
 
 	return false
-}
-
-// MarkBootSuccessful marks the *currently* booted rootfs as "good"
-// (it booted :)
-// Note: Not part of the Part interface.
-func (s *SystemImagePart) MarkBootSuccessful() (err error) {
-
-	return s.partition.MarkBootSuccessful()
 }
 
 // Channel returns the system-image-server channel used
