@@ -1658,3 +1658,21 @@ func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
 	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
 	c.Assert(snap.Channel(), Equals, "remote-channel")
 }
+
+func (s *SnapTestSuite) TestIcon(c *C) {
+	snapYaml, err := s.makeInstalledMockSnap()
+	part, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
+	c.Check(part.Icon(), Matches, filepath.Join(dirs.SnapAppsDir, QualifiedName(part), part.Version(), "meta/hello.svg"))
+}
+
+func (s *SnapTestSuite) TestIconEmpty(c *C) {
+	snapYaml, err := s.makeInstalledMockSnap(`name: foo
+version: 1.0
+vendor: foo
+`)
+	part, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
+	// no icon in the yaml!
+	c.Check(part.Icon(), Equals, "")
+}

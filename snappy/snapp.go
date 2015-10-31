@@ -725,6 +725,10 @@ func (s *SnapPart) Icon() string {
 		return iconPath(s)
 	}
 
+	if s.m.Icon == "" {
+		return ""
+	}
+
 	return filepath.Join(s.basedir, s.m.Icon)
 }
 
