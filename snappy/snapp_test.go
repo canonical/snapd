@@ -476,6 +476,25 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Check(parts[0].Description(), Equals, "Returns for store credit only.")
 }
 
+func (s *SnapTestSuite) TestUbuntuStoreAll(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.RawQuery, Equals, "")
+		io.WriteString(w, MockSearchJSON)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	storeSearchURI, err = url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	repo := NewUbuntuStoreSnapRepository()
+	c.Assert(repo, NotNil)
+
+	results, err := repo.All()
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+}
+
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryAliasSearch(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, MockAliasSearchJSON)
