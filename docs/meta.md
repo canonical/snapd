@@ -111,4 +111,4 @@ See `config.md` for details.
 
 # Examples
 
-See lp:~snappy-dev/snappy-hub/snappy-examples for up-to-date examples.
+See https://github.com/ubuntu-core/snappy-testdata for up-to-date examples.
