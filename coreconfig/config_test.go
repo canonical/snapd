@@ -35,28 +35,28 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 var (
-	originalGetTimezone         = getTimezone
-	originalSetTimezone         = setTimezone
-	originalGetAutopilot        = getAutopilot
-	originalSetAutopilot        = setAutopilot
-	originalGetHostname         = getHostname
-	originalSetHostname         = setHostname
-	originalSyscallSethostname  = syscallSethostname
-	originalYamlMarshal         = yamlMarshal
-	originalCmdEnableAutopilot  = cmdEnableAutopilot
-	originalCmdDisableAutopilot = cmdDisableAutopilot
-	originalCmdStartAutopilot   = cmdStartAutopilot
-	originalCmdStopAutopilot    = cmdStopAutopilot
-	originalCmdAutopilotEnabled = cmdAutopilotEnabled
-	originalCmdSystemctl        = cmdSystemctl
-	originalHostnamePath        = hostnamePath
-	originalModprobePath        = modprobePath
-	originalModulesPath         = modulesPath
-	originalInterfacesRoot      = interfacesRoot
-	originalPppRoot             = pppRoot
-	originalWatchdogStartupPath = watchdogStartupPath
-	originalWatchdogConfigPath  = watchdogConfigPath
-	originalTzZoneInfoTarget    = tzZoneInfoTarget
+	originalGetTimezone          = getTimezone
+	originalSetTimezone          = setTimezone
+	originalGetAutoUpdate        = getAutoUpdate
+	originalSetAutoUpdate        = setAutoUpdate
+	originalGetHostname          = getHostname
+	originalSetHostname          = setHostname
+	originalSyscallSethostname   = syscallSethostname
+	originalYamlMarshal          = yamlMarshal
+	originalCmdEnableAutoUpdate  = cmdEnableAutoUpdate
+	originalCmdDisableAutoUpdate = cmdDisableAutoUpdate
+	originalCmdStartAutoUpdate   = cmdStartAutoUpdate
+	originalCmdStopAutoUpdate    = cmdStopAutoUpdate
+	originalCmdAutoUpdateEnabled = cmdAutoUpdateEnabled
+	originalCmdSystemctl         = cmdSystemctl
+	originalHostnamePath         = hostnamePath
+	originalModprobePath         = modprobePath
+	originalModulesPath          = modulesPath
+	originalInterfacesRoot       = interfacesRoot
+	originalPppRoot              = pppRoot
+	originalWatchdogStartupPath  = watchdogStartupPath
+	originalWatchdogConfigPath   = watchdogConfigPath
+	originalTzZoneInfoTarget     = tzZoneInfoTarget
 )
 
 type ConfigTestSuite struct {
@@ -73,9 +73,9 @@ func (cts *ConfigTestSuite) SetUpTest(c *C) {
 	os.Setenv(tzPathEnvironment, tzPath)
 
 	cmdSystemctl = "/bin/sh"
-	cmdAutopilotEnabled = []string{"-c", "echo disabled"}
-	cmdEnableAutopilot = []string{"-c", "/bin/true"}
-	cmdStartAutopilot = []string{"-c", "/bin/true"}
+	cmdAutoUpdateEnabled = []string{"-c", "echo disabled"}
+	cmdEnableAutoUpdate = []string{"-c", "/bin/true"}
+	cmdStartAutoUpdate = []string{"-c", "/bin/true"}
 
 	hostname := "testhost"
 	getHostname = func() (string, error) { return hostname, nil }
@@ -94,18 +94,18 @@ func (cts *ConfigTestSuite) SetUpTest(c *C) {
 func (cts *ConfigTestSuite) TearDownTest(c *C) {
 	getTimezone = originalGetTimezone
 	setTimezone = originalSetTimezone
-	getAutopilot = originalGetAutopilot
-	setAutopilot = originalSetAutopilot
+	getAutoUpdate = originalGetAutoUpdate
+	setAutoUpdate = originalSetAutoUpdate
 	getHostname = originalGetHostname
 	setHostname = originalSetHostname
 	syscallSethostname = originalSyscallSethostname
 	hostnamePath = originalHostnamePath
 	yamlMarshal = originalYamlMarshal
-	cmdEnableAutopilot = originalCmdEnableAutopilot
-	cmdDisableAutopilot = originalCmdDisableAutopilot
-	cmdStartAutopilot = originalCmdStartAutopilot
-	cmdStopAutopilot = originalCmdStopAutopilot
-	cmdAutopilotEnabled = originalCmdAutopilotEnabled
+	cmdEnableAutoUpdate = originalCmdEnableAutoUpdate
+	cmdDisableAutoUpdate = originalCmdDisableAutoUpdate
+	cmdStartAutoUpdate = originalCmdStartAutoUpdate
+	cmdStopAutoUpdate = originalCmdStopAutoUpdate
+	cmdAutoUpdateEnabled = originalCmdAutoUpdateEnabled
 	cmdSystemctl = originalCmdSystemctl
 	modprobePath = originalModprobePath
 	modulesPath = originalModulesPath
@@ -122,7 +122,7 @@ func (cts *ConfigTestSuite) TestGet(c *C) {
 	// TODO figure out if we care about exact output or just want valid yaml.
 	expectedOutput := `config:
   ubuntu-core:
-    autopilot: false
+    autoupdate: false
     timezone: America/Argentina/Cordoba
     hostname: testhost
     modprobe: ""
@@ -138,13 +138,13 @@ func (cts *ConfigTestSuite) TestSet(c *C) {
 	// TODO figure out if we care about exact output or just want valid yaml.
 	expected := `config:
   ubuntu-core:
-    autopilot: true
+    autoupdate: true
     timezone: America/Argentina/Mendoza
     hostname: testhost
     modprobe: ""
 `
 
-	cmdAutopilotEnabled = []string{"-c", "echo enabled"}
+	cmdAutoUpdateEnabled = []string{"-c", "echo enabled"}
 	rawConfig, err := Set(expected)
 	c.Assert(err, IsNil)
 	c.Assert(rawConfig, Equals, expected)
@@ -167,7 +167,7 @@ func (cts *ConfigTestSuite) TestSetTimezone(c *C) {
 	// TODO figure out if we care about exact output or just want valid yaml.
 	expected := `config:
   ubuntu-core:
-    autopilot: false
+    autoupdate: false
     timezone: America/Argentina/Mendoza
     hostname: testhost
     modprobe: ""
@@ -183,7 +183,7 @@ func (cts *ConfigTestSuite) TestSetTimezoneAlreadyExists(c *C) {
 	// TODO figure out if we care about exact output or just want valid yaml.
 	expected := `config:
   ubuntu-core:
-    autopilot: false
+    autoupdate: false
     timezone: America/Argentina/Mendoza
     hostname: testhost
     modprobe: ""
@@ -200,20 +200,20 @@ func (cts *ConfigTestSuite) TestSetTimezoneAlreadyExists(c *C) {
 	c.Assert(content, Not(DeepEquals), []byte(canary))
 }
 
-// TestSetAutopilot is a broad test, close enough to be an integration test.
-func (cts *ConfigTestSuite) TestSetAutopilot(c *C) {
+// TestSetAutoUpdate is a broad test, close enough to be an integration test.
+func (cts *ConfigTestSuite) TestSetAutoUpdate(c *C) {
 	// TODO figure out if we care about exact output or just want valid yaml.
 	expected := `config:
   ubuntu-core:
-    autopilot: true
+    autoupdate: true
     timezone: America/Argentina/Cordoba
     hostname: testhost
     modprobe: ""
 `
 
 	enabled := false
-	getAutopilot = func() (bool, error) { return enabled, nil }
-	setAutopilot = func(state bool) error { enabled = state; return nil }
+	getAutoUpdate = func() (bool, error) { return enabled, nil }
+	setAutoUpdate = func(state bool) error { enabled = state; return nil }
 
 	rawConfig, err := Set(expected)
 	c.Assert(err, IsNil)
@@ -224,7 +224,7 @@ func (cts *ConfigTestSuite) TestSetAutopilot(c *C) {
 func (cts *ConfigTestSuite) TestSetHostname(c *C) {
 	expected := `config:
   ubuntu-core:
-    autopilot: false
+    autoupdate: false
     timezone: America/Argentina/Cordoba
     hostname: NEWtesthost
     modprobe: ""
@@ -238,7 +238,7 @@ func (cts *ConfigTestSuite) TestSetHostname(c *C) {
 func (cts *ConfigTestSuite) TestSetInvalid(c *C) {
 	input := `config:
   ubuntu-core:
-    autopilot: false
+    autoupdate: false
     timezone America/Argentina/Mendoza
     hostname: testhost
     modprobe: ""
@@ -252,7 +252,7 @@ func (cts *ConfigTestSuite) TestSetInvalid(c *C) {
 func (cts *ConfigTestSuite) TestNoChangeSet(c *C) {
 	input := `config:
   ubuntu-core:
-    autopilot: false
+    autoupdate: false
     timezone: America/Argentina/Cordoba
     hostname: testhost
     modprobe: ""
@@ -266,7 +266,7 @@ func (cts *ConfigTestSuite) TestNoChangeSet(c *C) {
 func (cts *ConfigTestSuite) TestPartialInput(c *C) {
 	expected := `config:
   ubuntu-core:
-    autopilot: false
+    autoupdate: false
     timezone: America/Argentina/Cordoba
     hostname: testhost
     modprobe: ""
@@ -274,7 +274,7 @@ func (cts *ConfigTestSuite) TestPartialInput(c *C) {
 
 	input := `config:
   ubuntu-core:
-    autopilot: false
+    autoupdate: false
     timezone: America/Argentina/Cordoba
     modprobe: ""
 `
@@ -311,7 +311,7 @@ func (cts *ConfigTestSuite) TestErrorOnTzSet(c *C) {
 
 	input := `config:
   ubuntu-core:
-    autopilot: false
+    autoupdate: false
     timezone: America/Argentina/Mendoza
     hostname: testhost
     modprobe: ""
@@ -322,26 +322,26 @@ func (cts *ConfigTestSuite) TestErrorOnTzSet(c *C) {
 	c.Assert(rawConfig, Equals, "")
 }
 
-func (cts *ConfigTestSuite) TestBadAutopilotOnGet(c *C) {
-	getAutopilot = func() (bool, error) { return false, errors.New("Bad mock autopilot") }
+func (cts *ConfigTestSuite) TestBadAutoUpdateOnGet(c *C) {
+	getAutoUpdate = func() (bool, error) { return false, errors.New("Bad mock autoUpdate") }
 
 	rawConfig, err := Get()
 	c.Assert(err, NotNil)
 	c.Assert(rawConfig, Equals, "")
 }
 
-func (cts *ConfigTestSuite) TestErrorOnAutopilotSet(c *C) {
+func (cts *ConfigTestSuite) TestErrorOnAutoUpdateSet(c *C) {
 	input := `config:
   ubuntu-core:
-    autopilot: true
+    autoupdate: true
     timezone: America/Argentina/Mendoza
     hostname: testhost
     modprobe: ""
 `
 
 	enabled := false
-	getAutopilot = func() (bool, error) { return enabled, nil }
-	setAutopilot = func(state bool) error { enabled = state; return errors.New("setAutopilot error") }
+	getAutoUpdate = func() (bool, error) { return enabled, nil }
+	setAutoUpdate = func(state bool) error { enabled = state; return errors.New("setAutoUpdate error") }
 
 	rawConfig, err := Set(input)
 	c.Assert(err, NotNil)
@@ -351,7 +351,7 @@ func (cts *ConfigTestSuite) TestErrorOnAutopilotSet(c *C) {
 func (cts *ConfigTestSuite) TestErrorOnSetHostname(c *C) {
 	input := `config:
   ubuntu-core:
-    autopilot: false
+    autoupdate: false
     timezone: America/Argentina/Cordoba
     hostname: NEWtesthost
     modprobe: ""
@@ -367,7 +367,7 @@ func (cts *ConfigTestSuite) TestErrorOnSetHostname(c *C) {
 func (cts *ConfigTestSuite) TestErrorOnGetHostname(c *C) {
 	input := `config:
   ubuntu-core:
-    autopilot: false
+    autoupdate: false
     timezone: America/Argentina/Cordoba
     hostname: NEWtesthost
     modprobe: ""
@@ -398,52 +398,52 @@ func (cts *ConfigTestSuite) TestInvalidTzFile(c *C) {
 	c.Assert(tz, Equals, "")
 }
 
-func (cts *ConfigTestSuite) TestInvalidAutopilotUnitStatus(c *C) {
-	cmdAutopilotEnabled = []string{"-c", "echo unkown"}
+func (cts *ConfigTestSuite) TestInvalidAutoUpdateUnitStatus(c *C) {
+	cmdAutoUpdateEnabled = []string{"-c", "echo unkown"}
 
-	autopilot, err := getAutopilot()
+	autoUpdate, err := getAutoUpdate()
 	c.Assert(err, NotNil)
-	c.Assert(autopilot, Equals, false)
+	c.Assert(autoUpdate, Equals, false)
 }
 
-func (cts *ConfigTestSuite) TestInvalidAutopilotExitStatus(c *C) {
-	cmdAutopilotEnabled = []string{"-c", "exit 2"}
+func (cts *ConfigTestSuite) TestInvalidAutoUpdateExitStatus(c *C) {
+	cmdAutoUpdateEnabled = []string{"-c", "exit 2"}
 
-	autopilot, err := getAutopilot()
+	autoUpdate, err := getAutoUpdate()
 	c.Assert(err, NotNil)
-	c.Assert(autopilot, Equals, false)
+	c.Assert(autoUpdate, Equals, false)
 }
 
-func (cts *ConfigTestSuite) TestInvalidGetAutopilotCommand(c *C) {
+func (cts *ConfigTestSuite) TestInvalidGetAutoUpdateCommand(c *C) {
 	cmdSystemctl = "/bin/sh"
-	cmdAutopilotEnabled = []string{"-c", "/bin/false"}
+	cmdAutoUpdateEnabled = []string{"-c", "/bin/false"}
 
-	autopilot, err := getAutopilot()
+	autoUpdate, err := getAutoUpdate()
 	c.Assert(err, NotNil)
-	c.Assert(autopilot, Equals, false)
+	c.Assert(autoUpdate, Equals, false)
 }
 
-func (cts *ConfigTestSuite) TestSetAutopilots(c *C) {
+func (cts *ConfigTestSuite) TestSetAutoUpdates(c *C) {
 	cmdSystemctl = "/bin/sh"
 
 	// no errors
-	c.Assert(setAutopilot(true), IsNil)
+	c.Assert(setAutoUpdate(true), IsNil)
 
 	// enable cases
-	cmdEnableAutopilot = []string{"-c", "/bin/true"}
-	cmdStartAutopilot = []string{"-c", "/bin/false"}
-	c.Assert(setAutopilot(true), NotNil)
+	cmdEnableAutoUpdate = []string{"-c", "/bin/true"}
+	cmdStartAutoUpdate = []string{"-c", "/bin/false"}
+	c.Assert(setAutoUpdate(true), NotNil)
 
-	cmdEnableAutopilot = []string{"-c", "/bin/false"}
-	c.Assert(setAutopilot(true), NotNil)
+	cmdEnableAutoUpdate = []string{"-c", "/bin/false"}
+	c.Assert(setAutoUpdate(true), NotNil)
 
 	// disable cases
-	cmdStopAutopilot = []string{"-c", "/bin/true"}
-	cmdDisableAutopilot = []string{"-c", "/bin/false"}
-	c.Assert(setAutopilot(false), NotNil)
+	cmdStopAutoUpdate = []string{"-c", "/bin/true"}
+	cmdDisableAutoUpdate = []string{"-c", "/bin/false"}
+	c.Assert(setAutoUpdate(false), NotNil)
 
-	cmdStopAutopilot = []string{"-c", "/bin/false"}
-	c.Assert(setAutopilot(false), NotNil)
+	cmdStopAutoUpdate = []string{"-c", "/bin/false"}
+	c.Assert(setAutoUpdate(false), NotNil)
 }
 
 func (cts *ConfigTestSuite) TestSetHostnameImpl(c *C) {

@@ -428,10 +428,10 @@ msgid "release: %s\n"
 msgstr "publicación: %s\n"
 
 msgid ""
-"snappy autopilot triggered a reboot to boot into an up to date system -- "
+"snappy autoupdate triggered a reboot to boot into an up to date system -- "
 "temprorarily disable the reboot by running 'sudo shutdown -c'"
 msgstr ""
-"snappy autopilot provocó un reinicio para arrancar en un sistema actualizado "
+"snappy autoupdate provocó un reinicio para arrancar en un sistema actualizado "
 "-- desactive temporalmente el reinicio ejecutando «sudo shutdown -c»"
 
 #. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error

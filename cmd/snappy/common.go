@@ -34,8 +34,8 @@ import (
 
 const snappyLockFile = "/run/snappy.lock"
 
-func isAutoPilotRunning() bool {
-	unitName := "snappy-autopilot"
+func isAutoUpdateRunning() bool {
+	unitName := "snappy-autoupdate"
 	bs, err := exec.Command("systemctl", "show", "--property=SubState", unitName).CombinedOutput()
 	if err != nil {
 		return false
@@ -52,12 +52,12 @@ func withMutexAndRetry(f func() error) error {
 		// if already locked, auto-retry
 		if err == priv.ErrAlreadyLocked {
 			var msg string
-			if isAutoPilotRunning() {
+			if isAutoUpdateRunning() {
 				// FIXME: we could even do a
 				//    journalctl -u snappy-autopilot
 				// here
 				msg = i18n.G(
-					`The snappy autopilot is updating your system in the background. This may
+					`snappy autoupdate is updating your system in the background. This may
 take some minutes. Will try again in %d seconds...
 Press ctrl-c to cancel.
 `)
