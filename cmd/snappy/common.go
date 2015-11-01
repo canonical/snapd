@@ -35,7 +35,7 @@ import (
 const snappyLockFile = "/run/snappy.lock"
 
 func isAutoUpdateRunning() bool {
-	unitName := "snappy-autoupdate"
+	unitName := "snappy-autopilot"
 	bs, err := exec.Command("systemctl", "show", "--property=SubState", unitName).CombinedOutput()
 	if err != nil {
 		return false
