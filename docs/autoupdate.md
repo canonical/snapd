@@ -5,7 +5,7 @@ date. It is enabled by default, and can be disabled via `snappy config`.
 
 ## Usage
 
-To check whether the timer is active, run
+To check whether the feature is active, run
 
     snappy config ubuntu-core | grep autoupdate
 
@@ -17,10 +17,10 @@ and you then re-enable it via
 
     echo 'config: {ubuntu-core: {autoupdate: on}}' | sudo snappy config ubuntu-core
 
-Every time the timer triggers it will try to update the whole system;
+Every time autoupdate triggers it will try to update the whole system;
 if an `ubuntu-core` update is available the system will automatically
 reboot, although a message is printed to console with instructions on
-how to abort the reboot, in case you are logged in.
+how to abort the reboot, in case you are logged in at the time.
 
 ## Implementation details
 
