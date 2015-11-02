@@ -397,3 +397,63 @@ func (a *SecurityTestSuite) TestSecurityGenSeccompTemplatedPolicy(c *C) {
 	c.Check(err, IsNil)
 	c.Check(p, Equals, expectedGeneratedSeccompProfile)
 }
+
+var aaCustomPolicy = `
+# Description: Allows unrestricted access to the system
+# Usage: reserved
+
+# vim:syntax=apparmor
+
+#include <tunables/global>
+
+# Define vars with unconfined since autopilot rules may reference them
+###VAR###
+
+# v2 compatible wildly permissive profile
+###PROFILEATTACH### (attach_disconnected) {
+  capability,
+}
+`
+var expectedAaCustomPolicy = `
+# Description: Allows unrestricted access to the system
+# Usage: reserved
+
+# vim:syntax=apparmor
+
+#include <tunables/global>
+
+# Define vars with unconfined since autopilot rules may reference them
+# Specified profile variables
+@{APP_APPNAME}=""
+@{APP_ID_DBUS}="foo_5fbar_5f1_2e0"
+@{APP_PKGNAME_DBUS}="foo"
+@{APP_PKGNAME}="foo"
+@{APP_VERSION}="1.0"
+@{INSTALL_DIR}="{/apps,/oem}"
+# Deprecated:
+@{CLICK_DIR}="{/apps,/oem}"
+
+# v2 compatible wildly permissive profile
+profile "foo_bar_1.0" (attach_disconnected) {
+  capability,
+}
+`
+
+func (a *SecurityTestSuite) TestSecurityGetApparmorCustomPolicy(c *C) {
+	m := &packageYaml{
+		Name:    "foo",
+		Version: "1.0",
+	}
+	appid := &securityAppID{
+		AppID:   "foo_bar_1.0",
+		Pkgname: "foo",
+		Version: "1.0",
+	}
+	customPolicy := filepath.Join(c.MkDir(), "foo")
+	err := ioutil.WriteFile(customPolicy, []byte(aaCustomPolicy), 0644)
+	c.Assert(err, IsNil)
+
+	p, err := getAppArmorCustomPolicy(m, appid, customPolicy)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, expectedAaCustomPolicy)
+}

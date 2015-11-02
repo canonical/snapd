@@ -447,14 +447,12 @@ func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, template st
 }
 
 func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (string, error) {
-	var custom bytes.Buffer
-	tmp, err := ioutil.ReadFile(fn)
+	custom, err := ioutil.ReadFile(fn)
 	if err != nil {
 		return "", err
 	}
-	custom.Write(tmp)
 
-	aaPolicy := strings.Replace(custom.String(), "\n###VAR###\n", getAppArmorVars(appID)+"\n", 1)
+	aaPolicy := strings.Replace(string(custom), "\n###VAR###\n", getAppArmorVars(appID)+"\n", 1)
 	aaPolicy = strings.Replace(aaPolicy, "\n###PROFILEATTACH###", fmt.Sprintf("\nprofile \"%s\"", appID.AppID), 1)
 
 	return aaPolicy, nil
