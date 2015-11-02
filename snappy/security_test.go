@@ -471,3 +471,19 @@ func (a *SecurityTestSuite) TestSecurityGetSeccompCustomPolicy(c *C) {
 	c.Check(err, IsNil)
 	c.Check(p, Equals, `canary`)
 }
+
+func (a *SecurityTestSuite) TestSecurityGetAppID(c *C) {
+	id, err := getAppID("pkg_app_1.0")
+	c.Assert(err, IsNil)
+	c.Assert(id, DeepEquals, &securityAppID{
+		AppID:   "pkg_app_1.0",
+		Pkgname: "pkg",
+		Appname: "app",
+		Version: "1.0",
+	})
+}
+
+func (a *SecurityTestSuite) TestSecurityGetAppIDInvalid(c *C) {
+	_, err := getAppID("invalid")
+	c.Assert(err, Equals, errInvalidAppID)
+}
