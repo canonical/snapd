@@ -35,11 +35,6 @@ import (
 
 const udevDataGlob = "/run/udev/data/*"
 
-type appArmorAdditionalYAML struct {
-	WritePath []string `yaml:"write_path,omitempty"`
-	ReadPath  []string `yaml:"read_path,omitempty"`
-}
-
 // return the yaml filename to add to the security yaml
 func getHWAccessYamlFile(snapname string) string {
 	return filepath.Join(dirs.SnapAppArmorAdditionalDir, fmt.Sprintf("%s.hwaccess.yaml", snapname))
@@ -58,8 +53,8 @@ func validDevice(device string) bool {
 	return false
 }
 
-func readHWAccessYamlFile(snapname string) (appArmorAdditionalYAML, error) {
-	var appArmorAdditional appArmorAdditionalYAML
+func readHWAccessYamlFile(snapname string) (SecurityAppArmorOverrideDefinition, error) {
+	var appArmorAdditional SecurityAppArmorOverrideDefinition
 
 	additionalFile := getHWAccessYamlFile(snapname)
 	f, err := os.Open(additionalFile)
@@ -78,11 +73,11 @@ func readHWAccessYamlFile(snapname string) (appArmorAdditionalYAML, error) {
 	return appArmorAdditional, nil
 }
 
-func writeHWAccessYamlFile(snapname string, appArmorAdditional appArmorAdditionalYAML) error {
-	if len(appArmorAdditional.WritePath) == 0 {
-		appArmorAdditional.ReadPath = nil
+func writeHWAccessYamlFile(snapname string, appArmorAdditional SecurityAppArmorOverrideDefinition) error {
+	if len(appArmorAdditional.WritePaths) == 0 {
+		appArmorAdditional.ReadPaths = nil
 	} else {
-		appArmorAdditional.ReadPath = []string{udevDataGlob}
+		appArmorAdditional.ReadPaths = []string{udevDataGlob}
 	}
 	out, err := yaml.Marshal(appArmorAdditional)
 	if err != nil {
@@ -184,13 +179,13 @@ func AddHWAccess(snapname, device string) error {
 	}
 
 	// check for dupes, please golang make this simpler
-	for _, p := range appArmorAdditional.WritePath {
+	for _, p := range appArmorAdditional.WritePaths {
 		if p == device {
 			return ErrHWAccessAlreadyAdded
 		}
 	}
 	// add the new write path
-	appArmorAdditional.WritePath = append(appArmorAdditional.WritePath, device)
+	appArmorAdditional.WritePaths = append(appArmorAdditional.WritePaths, device)
 
 	// and write the data out
 	err = writeHWAccessYamlFile(snapname, appArmorAdditional)
@@ -215,7 +210,7 @@ func ListHWAccess(snapname string) ([]string, error) {
 		return nil, err
 	}
 
-	return appArmorAdditional.WritePath, nil
+	return appArmorAdditional.WritePaths, nil
 }
 
 func removeUdevRuleForSnap(snapname, device string) error {
@@ -274,16 +269,16 @@ func RemoveHWAccess(snapname, device string) error {
 	}
 
 	// remove write path, please golang make this easier!
-	newWritePath := []string{}
-	for _, p := range appArmorAdditional.WritePath {
+	newWritePaths := []string{}
+	for _, p := range appArmorAdditional.WritePaths {
 		if p != device {
-			newWritePath = append(newWritePath, p)
+			newWritePaths = append(newWritePaths, p)
 		}
 	}
-	if len(newWritePath) == len(appArmorAdditional.WritePath) {
+	if len(newWritePaths) == len(appArmorAdditional.WritePaths) {
 		return ErrHWAccessRemoveNotFound
 	}
-	appArmorAdditional.WritePath = newWritePath
+	appArmorAdditional.WritePaths = newWritePaths
 
 	// and write it out again
 	err = writeHWAccessYamlFile(snapname, appArmorAdditional)

@@ -47,10 +47,10 @@ func (s *SnapTestSuite) TestAddHWAccessSimple(c *C) {
 	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert("\n"+string(content), Equals, `
-write_path:
-- /dev/ttyUSB0
-read_path:
+read-paths:
 - /run/udev/data/*
+write-paths:
+- /dev/ttyUSB0
 `)
 	// ensure the regenerate code was called
 	c.Assert(*regenerateAppArmorRulesWasCalled, Equals, true)
@@ -76,11 +76,11 @@ func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
 	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert("\n"+string(content), Equals, `
-write_path:
+read-paths:
+- /run/udev/data/*
+write-paths:
 - /dev/ttyUSB0
 - /sys/devices/gpio1
-read_path:
-- /run/udev/data/*
 `)
 
 }
@@ -181,11 +181,11 @@ func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
 	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert("\n"+string(content), Equals, `
-write_path:
+read-paths:
+- /run/udev/data/*
+write-paths:
 - /dev/bar
 - /dev/bar*
-read_path:
-- /run/udev/data/*
 `)
 
 	// check the udev rule file contains all the rules
@@ -208,10 +208,10 @@ KERNEL=="bar*", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
 	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert("\n"+string(content), Equals, `
-write_path:
-- /dev/bar*
-read_path:
+read-paths:
 - /run/udev/data/*
+write-paths:
+- /dev/bar*
 `)
 	// check the udevReadGlob Udev rule is still there
 	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapUdevRulesDir, "70-snappy_hwassign_hello-app.rules"))
