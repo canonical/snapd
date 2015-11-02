@@ -36,6 +36,7 @@ type SecurityTestSuite struct {
 	scFilterGenCallReturn []byte
 
 	aaPolicyDir string
+	scPolicyDir string
 }
 
 var _ = Suite(&SecurityTestSuite{})
@@ -52,10 +53,13 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 
 	a.aaPolicyDir = aaPolicyDir
 	aaPolicyDir = c.MkDir()
+	a.scPolicyDir = scPolicyDir
+	scPolicyDir = c.MkDir()
 }
 
 func (a *SecurityTestSuite) TearDownTest(c *C) {
 	aaPolicyDir = a.aaPolicyDir
+	scPolicyDir = a.scPolicyDir
 }
 
 func makeMockApparmorTemplate(c *C, templateName string, content []byte) {
@@ -68,6 +72,23 @@ func makeMockApparmorTemplate(c *C, templateName string, content []byte) {
 
 func makeMockApparmorCap(c *C, capname string, content []byte) {
 	mockPG := filepath.Join(aaPolicyDir, "policygroups", defaultPolicyVendor, defaultPolicyVersion, capname)
+	err := os.MkdirAll(filepath.Dir(mockPG), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(mockPG, []byte(content), 0644)
+	c.Assert(err, IsNil)
+}
+
+func makeMockSeccompTemplate(c *C, templateName string, content []byte) {
+	mockTemplate := filepath.Join(scPolicyDir, "templates", defaultPolicyVendor, defaultPolicyVersion, templateName)
+	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockTemplate, content, 0644)
+	c.Assert(err, IsNil)
+}
+
+func makeMockSeccompCap(c *C, capname string, content []byte) {
+	mockPG := filepath.Join(scPolicyDir, "policygroups", defaultPolicyVendor, defaultPolicyVersion, capname)
 	err := os.MkdirAll(filepath.Dir(mockPG), 0755)
 	c.Assert(err, IsNil)
 
@@ -324,4 +345,55 @@ func (a *SecurityTestSuite) TestSecurityGenAppArmorTemplatePolicy(c *C) {
 	p, err := getAppArmorTemplatedPolicy(m, appid, template, caps, overrides)
 	c.Check(err, IsNil)
 	c.Check(p, Equals, expectedGeneratedAaProfile)
+}
+
+var mockSeccompTemplate = []byte(`
+# Description: Allows access to app-specific directories and basic runtime
+# Usage: common
+#
+
+# Dangerous syscalls that we don't ever want to allow
+
+# kexec
+deny kexec_load
+
+# fine
+alarm
+`)
+
+var expectedGeneratedSeccompProfile = `
+# Description: Allows access to app-specific directories and basic runtime
+# Usage: common
+#
+
+# Dangerous syscalls that we don't ever want to allow
+
+# kexec
+# EXPLICITLY DENIED: kexec_load
+
+# fine
+alarm
+
+#cap1
+capino
+`
+
+func (a *SecurityTestSuite) TestSecurityGenSeccompTemplatedPolicy(c *C) {
+	makeMockSeccompTemplate(c, "mock-template", mockSeccompTemplate)
+	makeMockSeccompCap(c, "cap1", []byte("#cap1\ncapino\n"))
+
+	m := &packageYaml{
+		Name:    "foo",
+		Version: "1.0",
+	}
+	appid := &securityAppID{
+		Pkgname: "foo",
+		Version: "1.0",
+	}
+	template := "mock-template"
+	caps := []string{"cap1"}
+	overrides := &SecuritySeccompOverrideDefinition{}
+	p, err := getSeccompTemplatedPolicy(m, appid, template, caps, overrides)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, expectedGeneratedSeccompProfile)
 }
