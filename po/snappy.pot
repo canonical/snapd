@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-10-28 16:28+0100\n"
+        "POT-Creation-Date: 2015-11-02 15:39+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -277,6 +277,9 @@ msgid   "Specify an alternate output directory for the resulting package"
 msgstr  ""
 
 msgid   "The Package to install (name or path)"
+msgstr  ""
+
+msgid   "The Package to update"
 msgstr  ""
 
 msgid   "The \"versions\" command is no longer available.\n"
