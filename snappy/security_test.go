@@ -51,10 +51,28 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 	}
 
 	a.aaPolicyDir = aaPolicyDir
+	aaPolicyDir = c.MkDir()
 }
 
 func (a *SecurityTestSuite) TearDownTest(c *C) {
 	aaPolicyDir = a.aaPolicyDir
+}
+
+func makeMockApparmorTemplate(c *C, templateName string, content []byte) {
+	mockTemplate := filepath.Join(aaPolicyDir, "templates", defaultPolicyVendor, defaultPolicyVersion, templateName)
+	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockTemplate, content, 0644)
+	c.Assert(err, IsNil)
+}
+
+func makeMockApparmorCap(c *C, capname string, content []byte) {
+	mockPG := filepath.Join(aaPolicyDir, "policygroups", defaultPolicyVendor, defaultPolicyVersion, capname)
+	err := os.MkdirAll(filepath.Dir(mockPG), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(mockPG, []byte(content), 0644)
+	c.Assert(err, IsNil)
 }
 
 func (a *SecurityTestSuite) TestSnappyGetSecurityProfile(c *C) {
@@ -133,14 +151,9 @@ func (a *SecurityTestSuite) TestSecurityFindWhitespacePrefix(c *C) {
 
 // FIXME: need additional test for frameworkPolicy
 func (a *SecurityTestSuite) TestSecurityFindTemplateApparmor(c *C) {
-	aaPolicyDir = c.MkDir()
-	mockTemplate := filepath.Join(aaPolicyDir, "templates", defaultPolicyVendor, defaultPolicyVersion, "mock-templ")
-	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockTemplate, []byte(`something`), 0644)
-	c.Assert(err, IsNil)
+	makeMockApparmorTemplate(c, "mock-template", []byte(`something`))
 
-	t, err := findTemplate("mock-templ", "apparmor")
+	t, err := findTemplate("mock-template", "apparmor")
 	c.Assert(err, IsNil)
 	c.Assert(t, Matches, "something")
 }
@@ -154,14 +167,10 @@ func (a *SecurityTestSuite) TestSecurityFindTemplateApparmorNotFound(c *C) {
 func (a *SecurityTestSuite) TestSecurityFindCaps(c *C) {
 	aaPolicyDir = c.MkDir()
 	for _, f := range []string{"cap1", "cap2"} {
-		mockPG := filepath.Join(aaPolicyDir, "policygroups", defaultPolicyVendor, defaultPolicyVersion, f)
-		err := os.MkdirAll(filepath.Dir(mockPG), 0755)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(mockPG, []byte(f), 0644)
-		c.Assert(err, IsNil)
+		makeMockApparmorCap(c, f, []byte(f))
 	}
 
-	cap, err := findCaps([]string{"cap1", "cap2"}, "mock-templ", "apparmor")
+	cap, err := findCaps([]string{"cap1", "cap2"}, "mock-template", "apparmor")
 	c.Assert(err, IsNil)
 	c.Assert(cap, Equals, "cap1\ncap2")
 }
@@ -216,4 +225,103 @@ func (a *SecurityTestSuite) TestSecurityGenAppArmorPathRuleHome(c *C) {
 func (a *SecurityTestSuite) TestSecurityGenAppArmorPathRuleError(c *C) {
 	_, err := genAppArmorPathRule("some/path", "rk")
 	c.Assert(err, Equals, errPolicyGen)
+}
+
+var mockApparmorTemplate = []byte(`
+# Description: Allows unrestricted access to the system
+# Usage: reserved
+
+# vim:syntax=apparmor
+
+#include <tunables/global>
+
+# Define vars with unconfined since autopilot rules may reference them
+###VAR###
+
+# v2 compatible wildly permissive profile
+###PROFILEATTACH### (attach_disconnected) {
+  capability,
+  network,
+  / rwkl,
+  /** rwlkm,
+  # Ubuntu Core is a minimal system so don't use 'pix' here. There are few
+  # profiles to transition to, and those that exist either won't work right
+  # anyway (eg, ubuntu-core-launcher) or would need to be modified to work
+  # with snaps (dhclient).
+  /** ix,
+
+  mount,
+  remount,
+
+  ###ABSTRACTIONS###
+
+  ###POLICYGROUPS###
+
+  ###READS###
+
+  ###WRITES###
+}`)
+
+var expectedGeneratedAaProfile = `
+# Description: Allows unrestricted access to the system
+# Usage: reserved
+
+# vim:syntax=apparmor
+
+#include <tunables/global>
+
+# Define vars with unconfined since autopilot rules may reference them
+# Specified profile variables
+@{APP_APPNAME}=""
+@{APP_ID_DBUS}=""
+@{APP_PKGNAME_DBUS}="foo"
+@{APP_PKGNAME}="foo"
+@{APP_VERSION}="1.0"
+@{INSTALL_DIR}="{/apps,/oem}"
+# Deprecated:
+@{CLICK_DIR}="{/apps,/oem}"
+
+# v2 compatible wildly permissive profile
+profile "" (attach_disconnected) {
+  capability,
+  network,
+  / rwkl,
+  /** rwlkm,
+  # Ubuntu Core is a minimal system so don't use 'pix' here. There are few
+  # profiles to transition to, and those that exist either won't work right
+  # anyway (eg, ubuntu-core-launcher) or would need to be modified to work
+  # with snaps (dhclient).
+  /** ix,
+
+  mount,
+  remount,
+
+  # No abstractions specified
+
+  # Rules specified via caps (policy groups)
+  capito
+
+  # No read paths specified
+
+  # No write paths specified
+}`
+
+func (a *SecurityTestSuite) TestSecurityGenAppArmorTemplatePolicy(c *C) {
+	makeMockApparmorTemplate(c, "mock-template", mockApparmorTemplate)
+	makeMockApparmorCap(c, "cap1", []byte(`capito`))
+
+	m := &packageYaml{
+		Name:    "foo",
+		Version: "1.0",
+	}
+	appid := &securityAppID{
+		Pkgname: "foo",
+		Version: "1.0",
+	}
+	template := "mock-template"
+	caps := []string{"cap1"}
+	overrides := &SecurityAppArmorOverrideDefinition{}
+	p, err := getAppArmorTemplatedPolicy(m, appid, template, caps, overrides)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, expectedGeneratedAaProfile)
 }
