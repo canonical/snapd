@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/pkg"
 )
 
@@ -37,6 +38,9 @@ type SecurityTestSuite struct {
 
 	aaPolicyDir string
 	scPolicyDir string
+
+	SnapAppArmorDir string
+	SnapSeccompDir  string
 }
 
 var _ = Suite(&SecurityTestSuite{})
@@ -55,11 +59,19 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 	aaPolicyDir = c.MkDir()
 	a.scPolicyDir = scPolicyDir
 	scPolicyDir = c.MkDir()
+
+	a.SnapAppArmorDir = dirs.SnapAppArmorDir
+	dirs.SnapAppArmorDir = c.MkDir()
+
+	a.SnapSeccompDir = dirs.SnapSeccompDir
+	dirs.SnapSeccompDir = c.MkDir()
 }
 
 func (a *SecurityTestSuite) TearDownTest(c *C) {
 	aaPolicyDir = a.aaPolicyDir
 	scPolicyDir = a.scPolicyDir
+	dirs.SnapAppArmorDir = a.SnapAppArmorDir
+	dirs.SnapSeccompDir = a.SnapSeccompDir
 }
 
 func makeMockApparmorTemplate(c *C, templateName string, content []byte) {
@@ -486,4 +498,87 @@ func (a *SecurityTestSuite) TestSecurityGetAppID(c *C) {
 func (a *SecurityTestSuite) TestSecurityGetAppIDInvalid(c *C) {
 	_, err := getAppID("invalid")
 	c.Assert(err, Equals, errInvalidAppID)
+}
+
+func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesSilly(c *C) {
+	sd := &SecurityDefinitions{}
+	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{}
+	sd.mergeAppArmorSecurityOverrides(hwaccessOverrides)
+
+	c.Assert(sd, DeepEquals, &SecurityDefinitions{
+		SecurityOverride: &SecurityOverrideDefinition{
+			AppArmor: &SecurityAppArmorOverrideDefinition{},
+		},
+	})
+}
+
+func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesOverrides(c *C) {
+	sd := &SecurityDefinitions{}
+	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{
+		ReadPaths:  []string{"read1"},
+		WritePaths: []string{"write1"},
+	}
+	sd.mergeAppArmorSecurityOverrides(hwaccessOverrides)
+
+	c.Assert(sd, DeepEquals, &SecurityDefinitions{
+		SecurityOverride: &SecurityOverrideDefinition{
+			AppArmor: hwaccessOverrides,
+		},
+	})
+}
+
+func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesMerges(c *C) {
+	sd := &SecurityDefinitions{
+		SecurityOverride: &SecurityOverrideDefinition{
+			AppArmor: &SecurityAppArmorOverrideDefinition{
+				ReadPaths: []string{"orig1"},
+			},
+		},
+	}
+	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{
+		ReadPaths:  []string{"read1"},
+		WritePaths: []string{"write1"},
+	}
+	sd.mergeAppArmorSecurityOverrides(hwaccessOverrides)
+
+	c.Assert(sd, DeepEquals, &SecurityDefinitions{
+		SecurityOverride: &SecurityOverrideDefinition{
+			AppArmor: &SecurityAppArmorOverrideDefinition{
+				ReadPaths:  []string{"orig1", "read1"},
+				WritePaths: []string{"write1"},
+			},
+		},
+	})
+}
+
+func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinarySilly(c *C) {
+	makeMockApparmorTemplate(c, "default", []byte(``))
+	makeMockApparmorCap(c, "network-client", []byte(``))
+	makeMockSeccompTemplate(c, "default", []byte(``))
+	makeMockSeccompCap(c, "network-client", []byte(``))
+
+	loadAppArmorPolicyCalled := false
+	loadAppArmorPolicy = func(fn string) ([]byte, error) {
+		loadAppArmorPolicyCalled = true
+		return nil, nil
+	}
+
+	sd := &SecurityDefinitions{}
+	m := &packageYaml{
+		Name:    "pkg",
+		Version: "1.0",
+	}
+
+	// generate the apparmor profile
+	err := sd.generatePolicyForServiceBinary(m, "binary", "/apps/app.origin/1.0")
+	c.Assert(err, IsNil)
+
+	// ensure the apparmor policy got loaded
+	c.Assert(loadAppArmorPolicyCalled, Equals, true)
+
+	// ensure the file is written correctly
+	expectedProfile := filepath.Join(dirs.SnapAppArmorDir, "pkg.origin_binary_1.0")
+	content, err := ioutil.ReadFile(expectedProfile)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "")
 }

@@ -481,7 +481,7 @@ func getAppID(appID string) (*securityAppID, error) {
 	return &id, nil
 }
 
-func loadAppArmorPolicy(fn string) ([]byte, error) {
+var loadAppArmorPolicy = func(fn string) ([]byte, error) {
 	args := []string{
 		"/sbin/apparmor_parser",
 		"-r",
@@ -539,6 +539,17 @@ func removePolicy(m *packageYaml, baseDir string) error {
 	return nil
 }
 
+func (sd *SecurityDefinitions) mergeAppArmorSecurityOverrides(new *SecurityAppArmorOverrideDefinition) {
+	if sd.SecurityOverride == nil {
+		sd.SecurityOverride = &SecurityOverrideDefinition{
+			AppArmor: &SecurityAppArmorOverrideDefinition{},
+		}
+	}
+	sd.SecurityOverride.AppArmor.ReadPaths = append(sd.SecurityOverride.AppArmor.ReadPaths, new.ReadPaths...)
+	sd.SecurityOverride.AppArmor.WritePaths = append(sd.SecurityOverride.AppArmor.WritePaths, new.WritePaths...)
+	sd.SecurityOverride.AppArmor.Abstractions = append(sd.SecurityOverride.AppArmor.Abstractions, new.Abstractions...)
+}
+
 func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *packageYaml, name string, baseDir string) error {
 	appID, err := getSecurityProfile(m, name, baseDir)
 	if err != nil {
@@ -551,6 +562,13 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *packageYaml, na
 		logger.Noticef("Failed to obtain APP_ID for %s: %v", name, err)
 		return err
 	}
+
+	// add the hw-override parts and merge with the other overrides
+	hwaccessOverrides, err := readHWAccessYamlFile(m.Name)
+	if !os.IsNotExist(err) {
+		return err
+	}
+	sd.mergeAppArmorSecurityOverrides(&hwaccessOverrides)
 
 	aaPolicy := ""
 	scPolicy := ""
