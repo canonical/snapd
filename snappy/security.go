@@ -459,13 +459,12 @@ func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (s
 }
 
 func getSeccompCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (string, error) {
-	var custom bytes.Buffer
-	tmp, err := ioutil.ReadFile(fn)
+	custom, err := ioutil.ReadFile(fn)
 	if err != nil {
 		return "", err
 	}
-	custom.Write(tmp)
-	return custom.String(), nil
+
+	return string(custom), nil
 }
 
 func getAppID(appID string) (*securityAppID, error) {

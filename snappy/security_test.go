@@ -457,3 +457,17 @@ func (a *SecurityTestSuite) TestSecurityGetApparmorCustomPolicy(c *C) {
 	c.Check(err, IsNil)
 	c.Check(p, Equals, expectedAaCustomPolicy)
 }
+
+func (a *SecurityTestSuite) TestSecurityGetSeccompCustomPolicy(c *C) {
+	// yes, getSeccompCustomPolicy does not care for packageYaml or appid
+	m := &packageYaml{}
+	appid := &securityAppID{}
+
+	customPolicy := filepath.Join(c.MkDir(), "foo")
+	err := ioutil.WriteFile(customPolicy, []byte(`canary`), 0644)
+	c.Assert(err, IsNil)
+
+	p, err := getSeccompCustomPolicy(m, appid, customPolicy)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, `canary`)
+}
