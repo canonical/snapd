@@ -44,16 +44,13 @@ func (s *SnapTestSuite) TestAddHWAccessSimple(c *C) {
 
 	err := AddHWAccess("hello-app", "/dev/ttyUSB0")
 	c.Assert(err, IsNil)
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorDir, "hello-app.json.additional"))
+	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml"))
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, `{
-  "write_path": [
-    "/dev/ttyUSB0"
-  ],
-  "read_path": [
-    "/run/udev/data/*"
-  ]
-}
+	c.Assert("\n"+string(content), Equals, `
+write_path:
+- /dev/ttyUSB0
+read_path:
+- /run/udev/data/*
 `)
 	// ensure the regenerate code was called
 	c.Assert(*regenerateAppArmorRulesWasCalled, Equals, true)
@@ -76,17 +73,14 @@ func (s *SnapTestSuite) TestAddHWAccessMultiplePaths(c *C) {
 	err = AddHWAccess("hello-app", "/sys/devices/gpio1")
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorDir, "hello-app.json.additional"))
+	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml"))
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, `{
-  "write_path": [
-    "/dev/ttyUSB0",
-    "/sys/devices/gpio1"
-  ],
-  "read_path": [
-    "/run/udev/data/*"
-  ]
-}
+	c.Assert("\n"+string(content), Equals, `
+write_path:
+- /dev/ttyUSB0
+- /sys/devices/gpio1
+read_path:
+- /run/udev/data/*
 `)
 
 }
@@ -168,7 +162,7 @@ func (s *SnapTestSuite) TestRemoveHWAccess(c *C) {
 	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapUdevRulesDir, udevRulesFilename)), Equals, false)
 
 	// check the json.additional got cleaned out
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorDir, "hello-app.json.additional"))
+	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "{}\n")
 }
@@ -184,17 +178,14 @@ func (s *SnapTestSuite) TestRemoveHWAccessMultipleDevices(c *C) {
 	c.Assert(writePaths, DeepEquals, []string{"/dev/bar", "/dev/bar*"})
 
 	// check the file only lists udevReadGlob once
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorDir, "hello-app.json.additional"))
+	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml"))
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, `{
-  "write_path": [
-    "/dev/bar",
-    "/dev/bar*"
-  ],
-  "read_path": [
-    "/run/udev/data/*"
-  ]
-}
+	c.Assert("\n"+string(content), Equals, `
+write_path:
+- /dev/bar
+- /dev/bar*
+read_path:
+- /run/udev/data/*
 `)
 
 	// check the udev rule file contains all the rules
@@ -214,16 +205,13 @@ KERNEL=="bar*", TAG:="snappy-assign", ENV{SNAPPY_APP}:="hello-app"
 	c.Assert(writePaths, DeepEquals, []string{"/dev/bar*"})
 
 	// check udevReadGlob is still there
-	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorDir, "hello-app.json.additional"))
+	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml"))
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, `{
-  "write_path": [
-    "/dev/bar*"
-  ],
-  "read_path": [
-    "/run/udev/data/*"
-  ]
-}
+	c.Assert("\n"+string(content), Equals, `
+write_path:
+- /dev/bar*
+read_path:
+- /run/udev/data/*
 `)
 	// check the udevReadGlob Udev rule is still there
 	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapUdevRulesDir, "70-snappy_hwassign_hello-app.rules"))
@@ -288,6 +276,6 @@ func (s *SnapTestSuite) TestRemoveAllHWAccess(c *C) {
 	c.Check(RemoveAllHWAccess("hello-app"), IsNil)
 
 	c.Check(helpers.FileExists(filepath.Join(dirs.SnapUdevRulesDir, "70-snappy_hwassign_foo-app.rules")), Equals, false)
-	c.Check(helpers.FileExists(filepath.Join(dirs.SnapAppArmorDir, "hello-app.json.additional")), Equals, false)
+	c.Check(helpers.FileExists(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml")), Equals, false)
 	c.Check(*regenerateAppArmorRulesWasCalled, Equals, true)
 }

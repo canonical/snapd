@@ -51,8 +51,6 @@ type SnapTestSuite struct {
 var _ = Suite(&SnapTestSuite{})
 
 func (s *SnapTestSuite) SetUpTest(c *C) {
-	s.clickhook = aaClickHookCmd
-	aaClickHookCmd = "/bin/true"
 	s.secbase = policy.SecBase
 	s.tempdir = c.MkDir()
 	newPartition = func() (p partition.Interface) {
@@ -102,7 +100,6 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 
 func (s *SnapTestSuite) TearDownTest(c *C) {
 	// ensure all functions are back to their original state
-	aaClickHookCmd = s.clickhook
 	policy.SecBase = s.secbase
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 	ActiveSnapIterByType = activeSnapIterByTypeImpl
