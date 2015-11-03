@@ -17,29 +17,34 @@
  *
  */
 
-package priv
+package lockfile
 
 import (
+	"errors"
 	sys "syscall" // XXX: if we are only targeting 15.04+, i.e. golang 1.5+, we should move to golang.org/x/sys
 )
+
+// ErrAlreadyLocked is returned when an attempts is made to lock an
+// already-locked FileLock.
+var ErrAlreadyLocked = errors.New("another snappy is running, try again later")
 
 // LockedFile is a handle you can use to Unlock a file lock.
 type LockedFile int
 
-// FileLock opens (and possibly creates) a new file at the given path
+// Lock opens (and possibly creates) a new file at the given path
 // and applies an exclusive advisory lock on it.
 //
-// If the file already has an advisory lock, the `blocking` flag
-// determins whether to block until it is removed or return
+// If the file already has an advisory lock, the `wait` flag
+// determins whether to wait until it is removed or return
 // ErrAlreadyLocked.
-func FileLock(path string, blocking bool) (LockedFile, error) {
+func Lock(path string, wait bool) (LockedFile, error) {
 	fd, err := sys.Open(path, sys.O_CREAT|sys.O_WRONLY, 0600)
 	if err != nil {
 		return -1, err
 	}
 
 	how := sys.LOCK_EX
-	if !blocking {
+	if !wait {
 		how |= sys.LOCK_NB
 	}
 
@@ -56,4 +61,15 @@ func FileLock(path string, blocking bool) (LockedFile, error) {
 func (fd LockedFile) Unlock() error {
 	// closing releases the lock
 	return sys.Close(int(fd))
+}
+
+// WithLock runs the function f while holding a Lock on the given file.
+func WithLock(path string, f func() error) error {
+	lock, err := Lock(path, false)
+	if err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
+	return f()
 }

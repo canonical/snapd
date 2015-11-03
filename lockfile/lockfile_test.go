@@ -17,45 +17,48 @@
  *
  */
 
-package priv_test
+package lockfile_test
 
 import (
 	"path/filepath"
+	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/priv"
+	"github.com/ubuntu-core/snappy/lockfile"
 )
 
 type FileLockTestSuite struct{}
 
+func Test(t *testing.T) { TestingT(t) }
+
 var _ = Suite(&FileLockTestSuite{})
 
 func (ts *FileLockTestSuite) TestFileLock(c *C) {
-	lockfile := filepath.Join(c.MkDir(), "lock")
+	path := filepath.Join(c.MkDir(), "lock")
 
-	c.Assert(helpers.FileExists(lockfile), Equals, false)
+	c.Assert(helpers.FileExists(path), Equals, false)
 
-	lock, err := priv.FileLock(lockfile, false)
+	lock, err := lockfile.Lock(path, false)
 	c.Assert(err, IsNil)
 	c.Check(lock > -1, Equals, true)
 
-	c.Assert(helpers.FileExists(lockfile), Equals, true)
+	c.Assert(helpers.FileExists(path), Equals, true)
 
 	err = lock.Unlock()
 	c.Assert(err, IsNil)
 }
 
 func (ts *FileLockTestSuite) TestFileLockLocks(c *C) {
-	lockfile := filepath.Join(c.MkDir(), "lock")
+	path := filepath.Join(c.MkDir(), "lock")
 	ch1 := make(chan bool)
 	ch2 := make(chan bool)
 
 	go func() {
 		ch1 <- true
-		lock, err := priv.FileLock(lockfile, true)
+		lock, err := lockfile.Lock(path, true)
 		c.Assert(err, IsNil)
 		ch1 <- true
 		ch1 <- true
@@ -66,11 +69,11 @@ func (ts *FileLockTestSuite) TestFileLockLocks(c *C) {
 	go func() {
 		<-ch1
 		<-ch1
-		lock, err := priv.FileLock(lockfile, false)
-		c.Assert(err, Equals, priv.ErrAlreadyLocked)
+		lock, err := lockfile.Lock(path, false)
+		c.Assert(err, Equals, lockfile.ErrAlreadyLocked)
 		<-ch1
 
-		lock, err = priv.FileLock(lockfile, true)
+		lock, err = lockfile.Lock(path, true)
 		c.Assert(err, IsNil)
 		ch2 <- false
 		c.Check(lock.Unlock(), IsNil)
@@ -89,4 +92,54 @@ func (ts *FileLockTestSuite) TestFileLockLocks(c *C) {
 			c.Fatal("timeout")
 		}
 	}
+}
+
+func (ts *FileLockTestSuite) TestWithLockSimple(c *C) {
+	called := false
+	path := filepath.Join(c.MkDir(), "lock")
+
+	err := lockfile.WithLock(path, func() error {
+		called = true
+		return nil
+	})
+
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, true)
+}
+
+func (ts *FileLockTestSuite) TestWithLockErrOnLockHeld(c *C) {
+
+	var err, err1, err2 error
+	var callCount int
+
+	slowFunc := func() error {
+		time.Sleep(time.Millisecond * 100)
+		callCount++
+		return nil
+	}
+
+	path := filepath.Join(c.MkDir(), "lock")
+	ch := make(chan bool)
+	go func() {
+		err1 = lockfile.WithLock(path, slowFunc)
+		ch <- true
+	}()
+	err2 = lockfile.WithLock(path, slowFunc)
+	// wait for the goroutine
+	<-ch
+
+	// find which err is set (depends on the order in which go
+	// runs the goroutine)
+	if err1 != nil {
+		err = err1
+	} else {
+		err = err2
+	}
+
+	// only one of the functions errored
+	c.Assert(err1 != nil && err2 != nil, Equals, false)
+	// the other returned a proper error
+	c.Assert(err, Equals, lockfile.ErrAlreadyLocked)
+	// and we did not call it too often
+	c.Assert(callCount, Equals, 1)
 }
