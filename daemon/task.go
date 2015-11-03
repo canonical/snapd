@@ -20,7 +20,9 @@
 package daemon
 
 import (
+	"errors"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -29,11 +31,13 @@ import (
 
 // A Task encapsulates an asynchronous operation.
 type Task struct {
-	id     UUID
-	tomb   tomb.Tomb
-	t0     time.Time
-	tf     time.Time
-	output interface{}
+	id         UUID
+	tomb       tomb.Tomb
+	sync.Mutex // protects the following
+	chin       chan interface{}
+	t0         time.Time
+	tf         time.Time
+	output     interface{}
 }
 
 // A task can be in one of three states
@@ -45,11 +49,17 @@ const (
 
 // CreatedAt returns the timestamp at which the task was created
 func (t *Task) CreatedAt() time.Time {
+	t.Lock()
+	defer t.Unlock()
+
 	return t.t0
 }
 
 // UpdatedAt returns the timestamp at which the task was updated
 func (t *Task) UpdatedAt() time.Time {
+	t.Lock()
+	defer t.Unlock()
+
 	return t.tf
 }
 
@@ -57,9 +67,8 @@ func (t *Task) UpdatedAt() time.Time {
 //
 // TODO: output can and should go changing as the task progresses
 func (t *Task) Output() interface{} {
-	if t.tomb.Alive() {
-		return nil
-	}
+	t.Lock()
+	defer t.Unlock()
 
 	return t.output
 }
@@ -103,44 +112,91 @@ func FormatTime(t time.Time) string {
 
 // Map the task onto a map[string]interface{}, using the given route for the Location()
 func (t *Task) Map(route *mux.Route) map[string]interface{} {
+	t.Lock()
+	defer t.Unlock()
+
 	return map[string]interface{}{
 		"resource":   t.Location(route),
 		"status":     t.State(),
-		"created_at": FormatTime(t.CreatedAt()),
-		"updated_at": FormatTime(t.UpdatedAt()),
+		"created_at": FormatTime(t.t0),
+		"updated_at": FormatTime(t.tf),
 		"may_cancel": false,
-		"output":     t.Output(),
+		"output":     t.output,
 	}
+}
+
+var ErrNoReceiver = errors.New("task is not receiving messages at this time")
+
+func (t *Task) Send(v interface{}) error {
+	t.Lock()
+	defer t.Unlock()
+
+	if t.chin == nil {
+		return ErrNoReceiver
+	}
+	t.output = nil
+	t.chin <- v
+
+	return nil
+}
+
+// NewTask creates a new Task with a random id.
+func NewTask() *Task {
+	return &Task{id: UUID4()}
 }
 
 // RunTask creates a Task for the given function and runs it.
 func RunTask(f func() interface{}) *Task {
-	id := UUID4()
-	t0 := time.Now()
-	t := &Task{
-		id: id,
-		t0: t0,
-		tf: t0,
-	}
-
-	t.tomb.Go(func() error {
-		defer func() {
-			t.tf = time.Now()
-		}()
-		out := f()
-		t.output = out
-
-		if err, ok := out.(error); ok {
-			// // TODO: make errors properly json-serializable, and avoid this hack (loses info!)
-			t.output = errorResult{
-				Obj: err,
-				Str: err.Error(),
-			}
-			return err
-		}
-
-		return nil
-	})
+	t := NewTask()
+	t.Run(f)
 
 	return t
+}
+
+// Run the given function.
+func (t *Task) Run(f func() interface{}) {
+	t.Lock()
+	defer t.Unlock()
+
+	t.t0 = time.Now()
+	t.tf = t.t0
+
+	t.tomb.Go(func() error {
+		var err error
+
+		out := f()
+
+		if chs, ok := out.([2]chan interface{}); ok {
+			t.Lock()
+			t.chin = chs[0]
+			t.Unlock()
+
+			for out := range chs[1] {
+				err = t.tick(out)
+			}
+		} else {
+			err = t.tick(out)
+		}
+
+		return err
+	})
+}
+
+func (t *Task) tick(out interface{}) error {
+	t.Lock()
+	defer t.Unlock()
+
+	t.tf = time.Now()
+	t.output = out
+
+	if err, ok := out.(error); ok {
+		// TODO: make errors properly json-serializable, and avoid this hack (loses info!)
+		t.output = errorResult{
+			Obj: err,
+			Str: err.Error(),
+		}
+		return err
+	}
+
+	return nil
 }
