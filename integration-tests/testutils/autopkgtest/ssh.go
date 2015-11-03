@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build integration
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,38 +18,31 @@
  *
  */
 
-package main
+package autopkgtest
 
 import (
 	"fmt"
 	"os"
-
-	"github.com/ubuntu-core/snappy/logger"
-
-	"github.com/jessevdk/go-flags"
+	"path/filepath"
+	"strconv"
 )
 
-type options struct {
-	// No global options yet
+const (
+	commonSSHOptions = "--- ssh "
+	sshTimeout       = 600
+)
+
+func kvmSSHOptions(imagePath string) string {
+	return fmt.Sprint(commonSSHOptions,
+		"-s /usr/share/autopkgtest/ssh-setup/snappy -- -b -i ", imagePath)
 }
 
-var optionsData options
-
-var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
-
-func init() {
-	err := logger.SimpleSetup()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
-	}
-}
-
-func main() {
-	if _, err := parser.Parse(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		if _, ok := err.(*flags.Error); !ok {
-			logger.Debugf("%v failed: %v", os.Args, err)
-		}
-		os.Exit(1)
-	}
+func remoteTestbedSSHOptions(testbedIP string, testbedPort int) string {
+	return fmt.Sprint(commonSSHOptions,
+		"-H ", testbedIP,
+		" -p ", strconv.Itoa(testbedPort),
+		" -l ubuntu",
+		" -i ", filepath.Join(os.Getenv("HOME"), ".ssh", "id_rsa"),
+		" --reboot",
+		" --timeout-ssh ", strconv.Itoa(sshTimeout))
 }
