@@ -34,6 +34,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/pkg/lightweight"
 	"github.com/ubuntu-core/snappy/progress"
@@ -120,6 +121,12 @@ var (
 )
 
 func v1Get(c *Command, r *http.Request) Response {
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return InternalError(err, "Unable to acquire lock")
+	}
+	defer lock.Unlock()
+
 	rel := release.Get()
 	m := map[string]string{
 		"flavor":          rel.Flavor,
@@ -155,6 +162,12 @@ func getPackageInfo(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 	origin := vars["origin"]
+
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return InternalError(err, "Unable to acquire lock")
+	}
+	defer lock.Unlock()
 
 	repo := newRemoteRepo()
 	var part snappy.Part
@@ -227,6 +240,12 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 	if route == nil {
 		return InternalError(nil, "router can't find route for packages")
 	}
+
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return InternalError(err, "Unable to acquire lock")
+	}
+	defer lock.Unlock()
 
 	sources := make([]string, 1, 3)
 	sources[0] = "local"
@@ -323,9 +342,22 @@ func packageService(c *Command, r *http.Request) Response {
 		action = cmd["action"]
 	}
 
+	var lock lockfile.LockedFile
+	reachedAsync := false
 	switch action {
 	case "status", "start", "stop", "restart", "enable", "disable":
-		// ok
+		var err error
+		lock, err = lockfile.Lock(dirs.SnapLockFile, true)
+
+		if err != nil {
+			return InternalError(err, "Unable to acquire lock")
+		}
+
+		defer func() {
+			if !reachedAsync {
+				lock.Unlock()
+			}
+		}()
 	default:
 		return BadRequest(nil, "unknown action %s", action)
 	}
@@ -393,7 +425,11 @@ func packageService(c *Command, r *http.Request) Response {
 		return SyncResponse(f())
 	}
 
+	reachedAsync = true
+
 	return AsyncResponse(c.d.AddTask(func() interface{} {
+		defer lock.Unlock()
+
 		switch action {
 		case "start":
 			err = actor.Start()
@@ -424,6 +460,12 @@ func packageConfig(c *Command, r *http.Request) Response {
 		return BadRequest(nil, "missing name or origin")
 	}
 	pkgName := name + "." + origin
+
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return InternalError(err, "Unable to acquire lock")
+	}
+	defer lock.Unlock()
 
 	bag := lightweight.PartBagByName(name, origin)
 	if bag == nil {
@@ -471,6 +513,12 @@ func configMulti(c *Command, r *http.Request) Response {
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
+		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+		if err != nil {
+			return err
+		}
+		defer lock.Unlock()
+
 		rspmap := make(map[string]*configSubtask, len(pkgmap))
 		bags := lightweight.AllPartBags()
 		for pkg, cfg := range pkgmap {
@@ -661,7 +709,14 @@ func postPackage(c *Command, r *http.Request) Response {
 		return BadRequest(nil, "unknown action %s", inst.Action)
 	}
 
-	return AsyncResponse(c.d.AddTask(f).Map(route))
+	return AsyncResponse(c.d.AddTask(func() interface{} {
+		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+		if err != nil {
+			return err
+		}
+		defer lock.Unlock()
+		return f()
+	}).Map(route))
 }
 
 const maxReadBuflen = 1024 * 1024
@@ -740,6 +795,12 @@ func sideloadPackage(c *Command, r *http.Request) Response {
 			return err
 		}
 
+		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+		if err != nil {
+			return err
+		}
+		defer lock.Unlock()
+
 		name, err := part.Install(&progress.NullProgress{}, 0)
 		if err != nil {
 			return err
@@ -753,6 +814,12 @@ func getLogs(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 	svcName := vars["service"]
+
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return InternalError(err, "Unable to acquire lock")
+	}
+	defer lock.Unlock()
 
 	actor, err := findServices(name, svcName, &progress.NullProgress{})
 	if err != nil {
@@ -790,6 +857,12 @@ func appIconGet(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 	origin := vars["origin"]
+
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return InternalError(err, "Unable to acquire lock")
+	}
+	defer lock.Unlock()
 
 	bag := lightweight.PartBagByName(name, origin)
 	if bag == nil || len(bag.Versions) == 0 {
