@@ -561,29 +561,13 @@ func (inst *packageInstruction) install() interface{} {
 }
 
 func (inst *packageInstruction) update() interface{} {
-	// zomg :-(
-	// TODO: query the store for just this package, instead of this
-
 	flags := snappy.DoInstallGC
 	if inst.LeaveOld {
 		flags = 0
 	}
 
-	parts, err := snappy.ListUpdates()
-	if err != nil {
-		return err
-	}
-
-	for _, part := range parts {
-		if snappy.QualifiedName(part) == inst.pkg {
-			if _, err := part.Install(inst.prog, flags); err != nil {
-				return err
-			}
-			return snappy.GarbageCollect(inst.pkg, flags, inst.prog)
-		}
-	}
-
-	return "package is up to date"
+	_, err := snappy.Update(inst.pkg, flags, inst.prog)
+	return err
 }
 
 func (inst *packageInstruction) remove() interface{} {

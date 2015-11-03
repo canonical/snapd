@@ -71,9 +71,11 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, erro
 		return nil, ErrNotInstalled
 	}
 
+	// zomg :-(
+	// TODO: query the store for just this package, instead of this
 	updates, err := ListUpdates()
 	upd := FindSnapsByName(QualifiedName(cur[0]), updates)
-	if len(upd) != 1 {
+	if len(upd) < 1 {
 		return nil, fmt.Errorf("no update found for %s", name)
 	}
 
