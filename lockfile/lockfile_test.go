@@ -20,7 +20,9 @@
 package lockfile_test
 
 import (
+	"os"
 	"path/filepath"
+	sys "syscall"
 	"testing"
 	"time"
 
@@ -43,7 +45,7 @@ func (ts *FileLockTestSuite) TestFileLock(c *C) {
 
 	lock, err := lockfile.Lock(path, false)
 	c.Assert(err, IsNil)
-	c.Check(lock > -1, Equals, true)
+	c.Check(lock > 0, Equals, true)
 
 	c.Assert(helpers.FileExists(path), Equals, true)
 
@@ -92,6 +94,26 @@ func (ts *FileLockTestSuite) TestFileLockLocks(c *C) {
 			c.Fatal("timeout")
 		}
 	}
+}
+
+func (ts *FileLockTestSuite) TestLockReuseAverted(c *C) {
+	dir := c.MkDir()
+	path := filepath.Join(dir, "lock")
+	lock, err := lockfile.Lock(path, true)
+	fd := uintptr(lock) // a copy!
+	c.Assert(err, IsNil)
+
+	c.Check(lock, Not(Equals), lockfile.LockedFile(0))
+	c.Assert(lock.Unlock(), IsNil)
+	c.Check(lock, Equals, lockfile.LockedFile(0))
+
+	f, err := os.Create(filepath.Join(dir, "file"))
+	c.Assert(err, IsNil)
+	// why os.File.Fd returns an uintptr is a mystery to me
+	c.Check(f.Fd(), Equals, fd)
+
+	c.Check(lock.Unlock(), Equals, sys.EBADFD)
+	c.Check(f.Sync(), IsNil)
 }
 
 func (ts *FileLockTestSuite) TestWithLockSimple(c *C) {

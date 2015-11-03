@@ -40,7 +40,7 @@ type LockedFile int
 func Lock(path string, wait bool) (LockedFile, error) {
 	fd, err := sys.Open(path, sys.O_CREAT|sys.O_WRONLY, 0600)
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 
 	how := sys.LOCK_EX
@@ -49,18 +49,27 @@ func Lock(path string, wait bool) (LockedFile, error) {
 	}
 
 	if err := sys.Flock(fd, how); err == sys.EWOULDBLOCK {
-		return -1, ErrAlreadyLocked
+		return 0, ErrAlreadyLocked
 	} else if err != nil {
-		return -1, err
+		return 0, err
 	}
 
 	return LockedFile(fd), nil
 }
 
 // Unlock closes the file, thus also removing the advisary lock on it.
-func (fd LockedFile) Unlock() error {
+func (fd *LockedFile) Unlock() error {
+	if *fd == 0 {
+		return sys.EBADFD
+	}
+
 	// closing releases the lock
-	return sys.Close(int(fd))
+	err := sys.Close(int(*fd))
+	if err == nil {
+		*fd = 0
+	}
+
+	return err
 }
 
 // WithLock runs the function f while holding a Lock on the given file.
