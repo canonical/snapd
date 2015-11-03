@@ -23,88 +23,84 @@ import (
 	"bytes"
 	"fmt"
 
-	check "gopkg.in/check.v1"
+	"github.com/testing-cabal/subunit-go"	
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&ParserReportSuite{})
 
-type ParserReportSuite struct {
-	subject *ParserReporter
-	output  bytes.Buffer
-	testID  string
+type StatuserSpy struct {
+	calls []subunit.Event
 }
 
-func (s *ParserReportSuite) SetUpSuite(c *check.C) {
-	s.subject = &ParserReporter{Next: &s.output}
-	s.testID = "testSuite.TestName"
+func (s *StatuserSpy) Status (event subunit.Event) error {
+	s.calls = append(s.calls, event)
+	return nil
+}
+
+type ParserReportSuite struct {
+	subject *SubunitV2ParserReporter
+	spy     *StatuserSpy
+	output  bytes.Buffer
 }
 
 func (s *ParserReportSuite) SetUpTest(c *check.C) {
-	s.output.Reset()
+	s.spy = &StatuserSpy{}
+	s.subject = &SubunitV2ParserReporter{statuser: s.spy}
 }
 
-func (s *ParserReportSuite) TestParserReporterOutputsNothingWithNotParseableInput(c *check.C) {
+func (s *ParserReportSuite) TestParserSendsNothingWitNotParseableInput(c *check.C) {
 	s.subject.Write([]byte("Not parseable"))
 
-	expected := ""
-	actual := s.output.String()
-
-	c.Assert(actual, check.Equals, expected,
-		check.Commentf("Obtained unexpected text output %s", actual))
+	c.Assert(len(s.spy.calls), check.Equals, 0,
+		check.Commentf("Unexpected event sent to subunit: %v", s.spy.calls))
 }
 
-func (s *ParserReportSuite) TestParserReporterOutputsAnnounce(c *check.C) {
-	s.subject.Write([]byte(fmt.Sprintf("****** Running %s\n", s.testID)))
+var eventTests = []struct {
+	gocheckOutput string
+	expectedTestID string
+	expectedStatus string
+} {
+	{"****** Running testSuite.TestExists\n", "testSuite.TestExists", "exists"},
+	{"PASS: /tmp/snappy-tests-job/18811/src/github.com/ubuntu-core/snappy/_integration-tests/tests/" +
+		"apt_test.go:34: testSuite.TestSuccess      0.005s\n", "testSuite.TestSuccess", "success"},
+	{"FAIL: /tmp/snappy-tests-job/710/src/github.com/ubuntu-core/snappy/_integration-tests/tests/" +
+		"installFramework_test.go:85: testSuite.TestFail\n", "testSuite.TestFail", "fail"},
+} 
 
-	expected := fmt.Sprintf("test: %s\n", s.testID)
-	actual := s.output.String()
+func (s *ParserReportSuite) TestParserReporterSendsEvents(c *check.C) {
+	for _, t := range eventTests {
+		s.spy.calls = []subunit.Event{}
+		s.subject.Write([]byte(t.gocheckOutput))
 
-	c.Assert(actual, check.Equals, expected,
-		check.Commentf("Expected text output %s not found, actual %s",
-			expected, actual))
-}
-
-func (s *ParserReportSuite) TestParserReporterReturnsTheNumberOfBytesWritten(c *check.C) {
-	actual, err := s.subject.Write([]byte(fmt.Sprintf("****** Running %s\n", s.testID)))
-	c.Assert(err, check.IsNil, check.Commentf("Error while writing to output %s", err))
-
-	expected := len([]byte(fmt.Sprintf("test: %s\n", s.testID)))
-
-	c.Assert(actual, check.Equals, expected,
-		check.Commentf("Expected length output %d not found, actual %d",
-			expected, actual))
-}
-
-func (s *ParserReportSuite) TestParserReporterOutputsSuccess(c *check.C) {
-	s.subject.Write([]byte(fmt.Sprintf("PASS: /tmp/snappy-tests-job/18811/src/github.com/ubuntu-core/snappy/_integration-tests/tests/apt_test.go:34: %s      0.005s\n", s.testID)))
-
-	expected := fmt.Sprintf("success: %s\n", s.testID)
-	actual := s.output.String()
-
-	c.Assert(actual, check.Equals, expected,
-		check.Commentf("Expected text output %s not found, actual %s",
-			expected, actual))
-}
-
-func (s *ParserReportSuite) TestParserReporterOutputsFailure(c *check.C) {
-	s.subject.Write([]byte(fmt.Sprintf("FAIL: /tmp/snappy-tests-job/710/src/github.com/ubuntu-core/snappy/_integration-tests/tests/installFramework_test.go:85: %s\n", s.testID)))
-
-	expected := fmt.Sprintf("failure: %s\n", s.testID)
-	actual := s.output.String()
-
-	c.Assert(actual, check.Equals, expected,
-		check.Commentf("Expected text output %s not found, actual %s",
-			expected, actual))
+		c.Check(len(s.spy.calls), check.Equals, 1,
+			check.Commentf("Unexpected events sent to subunit: %v", s.spy.calls))
+		event := s.spy.calls[0]
+		c.Check(event.TestID, check.Equals, t.expectedTestID,
+			check.Commentf("Wrong test id: %s", event.TestID))
+		c.Check(event.Status, check.Equals, t.expectedStatus,
+			check.Commentf("Wrong test status: %s", event.Status))
+	}
 }
 
 func (s *ParserReportSuite) TestParserReporterOutputsSkip(c *check.C) {
+	testID := "testSuite.TestSkip"
 	skipReason := "skip reason"
-	s.subject.Write([]byte(fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/github.com/ubuntu-core/snappy/_integration-tests/tests/info_test.go:36: %s (%s)\n", s.testID, skipReason)))
+	s.subject.Write([]byte(
+		fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/github.com/ubuntu-core/snappy/" +
+			"_integration-tests/tests/info_test.go:36: %s (%s)\n", testID, skipReason)))
 
-	expected := fmt.Sprintf("skip: %s [\n%s\n]\n", s.testID, skipReason)
-	actual := s.output.String()
-
-	c.Assert(actual, check.Equals, expected,
-		check.Commentf("Expected text output %s not found, actual %s",
-			expected, actual))
+	c.Check(len(s.spy.calls), check.Equals, 1,
+		check.Commentf("Unexpected events sent to subunit: %v", s.spy.calls))
+	event := s.spy.calls[0]
+	c.Check(event.TestID, check.Equals, testID,
+		check.Commentf("Wrong test id: %s", event.TestID))
+	c.Check(event.Status, check.Equals, "skip",
+		check.Commentf("Wrong test status: %s", event.Status))
+	c.Check(event.MIME, check.Equals, "text/plain;charset=utf8",
+		check.Commentf("Wront MIME: %s", event.MIME))
+	c.Check(event.FileName, check.Equals, "reason",
+		check.Commentf("Wrong file name: %s", event.FileName))
+	c.Check(string(event.FileBytes), check.Equals, skipReason,
+		check.Commentf("Wrong file contents: %s", event.FileBytes))
 }

@@ -148,7 +148,7 @@ if [ ! -z "$INTEGRATION" ]; then
         go run _integration-tests/main.go --snappy-from-branch
         # print the results.
         if which subunit2pyunit >/dev/null 2>&1; then
-            subunit-1to2 /tmp/snappy-test/output/artifacts/results.subunit | subunit2pyunit
+            subunit2pyunit /tmp/snappy-test/output/artifacts/results.subunit
         fi
     fi
 fi
