@@ -48,6 +48,20 @@ At this point you will have the git local repository of the `snappy` source at
 `$GOPATH/github.com/ubuntu-core/snappy/snappy`. The source for any
 dependent packages will also be available inside `$GOPATH`.
 
+### Dependencies handling
+
+To generate dependencies.tsv you need `godeps`, so
+
+    go get launchpad.net/godeps
+
+To obtain the correct dependencies for the project, run:
+
+    godeps -t -u dependencies.tsv
+
+If the dependencies need updating
+
+    godeps -t ./... > dependencies.tsv
+
 ### Building
 
 To build, once the sources are available and `GOPATH` is set, you can just run
@@ -99,19 +113,6 @@ If a test hangs, you can enable verbose mode:
 (or -check.v for less verbose output).
 
 There is more to read about the testing framework on the [website](https://labix.org/gocheck)
-### Dependencies handling
-
-To generate dependencies.tsv you need `godeps`, so
-
-    go get launchpad.net/godeps
-
-To obtain the correct dependencies for the project, run:
-
-    godeps -t -u dependencies.tsv
-
-If the dependencies need updating
-
-    godeps -t ./... > dependencies.tsv
 
 
 [travis-image]: https://travis-ci.org/ubuntu-core/snappy.svg?branch=master
