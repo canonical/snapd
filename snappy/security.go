@@ -824,3 +824,33 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 
 	return err
 }
+
+// RegenerateAllPolicy will re-generate all policy that needs re-generating
+func RegenerateAllPolicy(force bool) error {
+	installed, err := NewMetaLocalRepository().Installed()
+	if err != nil {
+		return err
+	}
+
+	for _, p := range installed {
+		if _, ok := p.(*SnapPart); !ok {
+			continue
+		}
+		basedir := p.(*SnapPart).basedir
+		yFn := filepath.Join(basedir, "meta", "package.yaml")
+
+		// FIXME: use ErrPolicyNeedsRegenerating here to check if
+		//        re-generation is needed
+		if err := CompareGeneratePolicyFromFile(yFn); err == nil {
+			continue
+		}
+
+		// re-generate!
+		logger.Noticef("re-generating security policy for %s", yFn)
+		if err := GeneratePolicyFromFile(yFn, force); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
