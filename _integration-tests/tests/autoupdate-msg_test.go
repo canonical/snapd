@@ -50,7 +50,7 @@ func (s *autoupdateMsgSuite) TestAutoUpdateMessageIsPrinted(c *check.C) {
 
 	expected := "(?ms)" +
 		".*" +
-		"^snappy autoupdate is updating your system.*\n" +
+		"^Snappy is updating your system.*\n" +
 		".*"
 	c.Assert(string(snappyOutput), check.Matches, expected)
 }

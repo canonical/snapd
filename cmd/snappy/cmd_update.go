@@ -53,7 +53,8 @@ const (
 	shutdownTimeout = "+10"
 )
 
-var shutdownMsg = i18n.G("snappy autoupdate triggered a reboot to boot into an up to date system -- temporarily disable the reboot by running 'sudo shutdown -c'")
+// TRANSLATORS: please keep this under 80 characters if possible
+var shutdownMsg = i18n.G("Snappy needs to reboot to finish an update. Defer with 'shutdown -c'.")
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
 	return withMutexAndRetry(x.doUpdate)

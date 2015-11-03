@@ -56,9 +56,11 @@ func withMutexAndRetry(f func() error) error {
 				// FIXME: we could even do a
 				//    journalctl -u snappy-autopilot
 				// here
+
+				// TRANSLATORS: please keep each line under 80 characters.
 				msg = i18n.G(
-					`snappy autoupdate is updating your system in the background. This may
-take some minutes. Will try again in %d seconds...
+					`Snappy is updating your system in the background. This may take some minutes.
+Will try again in %d seconds...
 Press ctrl-c to cancel.
 `)
 			} else {
