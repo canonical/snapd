@@ -40,7 +40,6 @@ var (
 	failureRegexp  = regexp.MustCompile(fmt.Sprintf(commonPattern, "FAIL") + "\n")
 	skipRegexp     = regexp.MustCompile(fmt.Sprintf(commonPattern, "SKIP") + skipPatternSufix)
 )
-	
 
 // Statuser reports the status of a test.
 type Statuser interface {
@@ -67,25 +66,25 @@ type SubunitV2ParserReporter struct {
 // NewSubunitV2ParserReporter returns a new ParserReporter that sends the report to the
 // writer argument.
 func NewSubunitV2ParserReporter(writer io.Writer) *SubunitV2ParserReporter {
-	return &SubunitV2ParserReporter{statuser: &subunit.StreamResultToBytes{Output: writer}	}
+	return &SubunitV2ParserReporter{statuser: &subunit.StreamResultToBytes{Output: writer}}
 }
 
 func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 	var err error
 
 	if matches := announceRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
-		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "exists"});
+		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "exists"})
 	} else if matches := successRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
-		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "success"});
+		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "success"})
 	} else if matches := failureRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
 		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "fail"})
 	} else if matches := skipRegexp.FindStringSubmatch(string(data)); len(matches) == 3 {
 		err = fr.statuser.Status(subunit.Event{
-			TestID: matches[1],
-			Status: "skip",
-			FileName: "reason",
+			TestID:    matches[1],
+			Status:    "skip",
+			FileName:  "reason",
 			FileBytes: []byte(matches[2]),
-			MIME: "text/plain;charset=utf8",
+			MIME:      "text/plain;charset=utf8",
 		})
 	}
 
