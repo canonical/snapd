@@ -413,7 +413,7 @@ msgid "release: %s\n"
 msgstr ""
 
 msgid ""
-"snappy autoupdate triggered a reboot to boot into an up to date system -- "
+"snappy autopilot triggered a reboot to boot into an up to date system -- "
 "temprorarily disable the reboot by running 'sudo shutdown -c'"
 msgstr ""
 
