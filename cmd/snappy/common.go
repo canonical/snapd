@@ -23,12 +23,14 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	sys "syscall"
 	"time"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/priv"
+	"github.com/ubuntu-core/snappy/snappy"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -46,10 +48,13 @@ func isAutoPilotRunning() bool {
 // withMutexAndRetry runs the given function with a filelock mutex and provides
 // automatic re-try and helpful messages if the lock is already taken
 func withMutexAndRetry(f func() error) error {
+	if sys.Getuid() != 0 {
+		return snappy.ErrNeedRoot
+	}
 	for {
-		err := priv.WithMutex(dirs.SnapLockFile, f)
+		err := lockfile.WithLock(dirs.SnapLockFile, f)
 		// if already locked, auto-retry
-		if err == priv.ErrAlreadyLocked {
+		if err == lockfile.ErrAlreadyLocked {
 			var msg string
 			if isAutoPilotRunning() {
 				// FIXME: we could even do a

@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build integration
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,38 +18,26 @@
  *
  */
 
-package main
+package tpl
 
 import (
-	"fmt"
 	"os"
-
-	"github.com/ubuntu-core/snappy/logger"
-
-	"github.com/jessevdk/go-flags"
+	"text/template"
 )
 
-type options struct {
-	// No global options yet
-}
-
-var optionsData options
-
-var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
-
-func init() {
-	err := logger.SimpleSetup()
+// Execute inserts the given data in the given template file, saving the results
+// in the given output file
+func Execute(tplFile, outputFile string, data interface{}) (err error) {
+	t, err := template.ParseFiles(tplFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
+		return
 	}
-}
 
-func main() {
-	if _, err := parser.Parse(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		if _, ok := err.(*flags.Error); !ok {
-			logger.Debugf("%v failed: %v", os.Args, err)
-		}
-		os.Exit(1)
+	fileHandler, err := os.Create(outputFile)
+	if err != nil {
+		return
 	}
+	defer fileHandler.Close()
+
+	return t.Execute(fileHandler, data)
 }

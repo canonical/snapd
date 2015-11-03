@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build integration
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,38 +18,25 @@
  *
  */
 
-package main
+package tests
 
-import (
-	"fmt"
-	"os"
+import "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/logger"
+var _ = check.Suite(&snapd10TestSuite{})
 
-	"github.com/jessevdk/go-flags"
-)
-
-type options struct {
-	// No global options yet
+type snapd10TestSuite struct {
+	snapdTestSuite
 }
 
-var optionsData options
-
-var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
-
-func init() {
-	err := logger.SimpleSetup()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
-	}
+func (s *snapd10TestSuite) TestResource(c *check.C) {
+	exerciseAPI(c, s)
 }
 
-func main() {
-	if _, err := parser.Parse(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		if _, ok := err.(*flags.Error); !ok {
-			logger.Debugf("%v failed: %v", os.Args, err)
-		}
-		os.Exit(1)
-	}
+func (s *snapd10TestSuite) resource() string {
+	return baseURL + "/1.0"
+}
+
+func (s *snapd10TestSuite) getInteractions() apiInteractions {
+	return []apiInteraction{{
+		responsePattern: `(?U){"result":{"api_compat":"0","default_channel":".*","flavor":".*","release":".*"},"status":"OK","status_code":200,"type":"sync"}`}}
 }

@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build integration
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,38 +18,24 @@
  *
  */
 
-package main
+package tests
 
 import (
-	"fmt"
-	"os"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 
-	"github.com/ubuntu-core/snappy/logger"
-
-	"github.com/jessevdk/go-flags"
+	"gopkg.in/check.v1"
 )
 
-type options struct {
-	// No global options yet
+var _ = check.Suite(&aptSuite{})
+
+type aptSuite struct {
+	common.SnappySuite
 }
 
-var optionsData options
+func (s *aptSuite) TestAptGetMustPrintError(c *check.C) {
+	aptOutput := cli.ExecCommand(c, "apt-get", "update")
 
-var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
-
-func init() {
-	err := logger.SimpleSetup()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
-	}
-}
-
-func main() {
-	if _, err := parser.Parse(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		if _, ok := err.(*flags.Error); !ok {
-			logger.Debugf("%v failed: %v", os.Args, err)
-		}
-		os.Exit(1)
-	}
+	expected := "Ubuntu Core does not use apt-get, see 'snappy --help'!\n"
+	c.Assert(aptOutput, check.Equals, expected, check.Commentf("Wrong apt-get output"))
 }
