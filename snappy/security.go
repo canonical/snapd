@@ -550,88 +550,95 @@ func (sd *SecurityDefinitions) mergeAppArmorSecurityOverrides(new *SecurityAppAr
 	sd.SecurityOverride.AppArmor.Abstractions = append(sd.SecurityOverride.AppArmor.Abstractions, new.Abstractions...)
 }
 
-func (sd *SecurityDefinitions) generatePolicyForServiceBinaryString(m *packageYaml, name string, baseDir string) (*securityAppID, string, string, error) {
+type securityPolicyResult struct {
+	id *securityAppID
+
+	aaPolicy string
+	aaFn     string
+
+	scPolicy string
+	scFn     string
+}
+
+func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYaml, name string, baseDir string) (*securityPolicyResult, error) {
+	res := &securityPolicyResult{}
 	appID, err := getSecurityProfile(m, name, baseDir)
 	if err != nil {
 		logger.Noticef("Failed to obtain APP_ID for %s: %v", name, err)
-		return nil, "", "", err
+		return nil, err
 	}
 
-	id, err := getAppID(appID)
+	res.id, err = getAppID(appID)
 	if err != nil {
 		logger.Noticef("Failed to obtain APP_ID for %s: %v", name, err)
-		return nil, "", "", err
+		return nil, err
 	}
 
 	// add the hw-override parts and merge with the other overrides
 	hwaccessOverrides, err := readHWAccessYamlFile(m.Name)
 	if !os.IsNotExist(err) {
-		return nil, "", "", err
+		return nil, err
 	}
 	sd.mergeAppArmorSecurityOverrides(&hwaccessOverrides)
 
-	aaPolicy := ""
-	scPolicy := ""
 	if sd.SecurityPolicy != nil {
-		aaPolicy, err = getAppArmorCustomPolicy(m, id, filepath.Join(baseDir, sd.SecurityPolicy.AppArmor))
+		res.aaPolicy, err = getAppArmorCustomPolicy(m, res.id, filepath.Join(baseDir, sd.SecurityPolicy.AppArmor))
 		if err != nil {
 			logger.Noticef("Failed to generate custom AppArmor policy for %s: %v", name, err)
-			return nil, "", "", err
+			return nil, err
 		}
-		scPolicy, err = getSeccompCustomPolicy(m, id, filepath.Join(baseDir, sd.SecurityPolicy.Seccomp))
+		res.scPolicy, err = getSeccompCustomPolicy(m, res.id, filepath.Join(baseDir, sd.SecurityPolicy.Seccomp))
 		if err != nil {
 			logger.Noticef("Failed to generate custom seccomp policy for %s: %v", name, err)
-			return nil, "", "", err
+			return nil, err
 		}
 	} else {
 		if sd.SecurityOverride == nil || sd.SecurityOverride.AppArmor == nil {
-			aaPolicy, err = getAppArmorTemplatedPolicy(m, id, sd.SecurityTemplate, sd.SecurityCaps, nil)
+			res.aaPolicy, err = getAppArmorTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, nil)
 		} else {
-			aaPolicy, err = getAppArmorTemplatedPolicy(m, id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride.AppArmor)
+			res.aaPolicy, err = getAppArmorTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride.AppArmor)
 		}
 		if err != nil {
 			logger.Noticef("Failed to generate AppArmor policy for %s: %v", name, err)
-			return nil, "", "", err
+			return nil, err
 		}
 
 		if sd.SecurityOverride == nil || sd.SecurityOverride.Seccomp == nil {
-			scPolicy, err = getSeccompTemplatedPolicy(m, id, sd.SecurityTemplate, sd.SecurityCaps, nil)
+			res.scPolicy, err = getSeccompTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, nil)
 		} else {
-			scPolicy, err = getSeccompTemplatedPolicy(m, id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride.Seccomp)
+			res.scPolicy, err = getSeccompTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride.Seccomp)
 		}
 		if err != nil {
 			logger.Noticef("Failed to generate seccomp policy for %s: %v", name, err)
-			return nil, "", "", err
+			return nil, err
 		}
 	}
+	res.scFn = filepath.Join(dirs.SnapSeccompDir, res.id.AppID)
+	res.aaFn = filepath.Join(dirs.SnapAppArmorDir, res.id.AppID)
 
-	return id, aaPolicy, scPolicy, nil
+	return res, nil
 }
 
 func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *packageYaml, name string, baseDir string) error {
-	// FIXME: make generatePolicyForServiceBinaryString() return a
-	//        struct instead
-	id, aaPolicy, scPolicy, err := sd.generatePolicyForServiceBinaryString(m, name, baseDir)
+	p, err := sd.generatePolicyForServiceBinaryResult(m, name, baseDir)
 	if err != nil {
 		return err
 	}
 
-	scFn := filepath.Join(dirs.SnapSeccompDir, id.AppID)
-	os.MkdirAll(filepath.Dir(scFn), 0755)
-	err = ioutil.WriteFile(scFn, []byte(scPolicy), 0644)
+	os.MkdirAll(filepath.Dir(p.scFn), 0755)
+	err = ioutil.WriteFile(p.scFn, []byte(p.scPolicy), 0644)
 	if err != nil {
 		logger.Noticef("Failed to write seccomp policy for %s: %v", name, err)
 		return err
 	}
 
-	aaFn := filepath.Join(dirs.SnapAppArmorDir, id.AppID)
-	os.MkdirAll(filepath.Dir(aaFn), 0755)
-	err = ioutil.WriteFile(aaFn, []byte(aaPolicy), 0644)
+	os.MkdirAll(filepath.Dir(p.aaFn), 0755)
+	err = ioutil.WriteFile(p.aaFn, []byte(p.aaPolicy), 0644)
 	if err != nil {
 		logger.Noticef("Failed to write AppArmor policy for %s: %v", name, err)
 		return err
 	}
-	out, err := loadAppArmorPolicy(aaFn)
+	out, err := loadAppArmorPolicy(p.aaFn)
 	if err != nil {
 		logger.Noticef("Failed to load AppArmor policy for %s: %v\n:%s", name, err, out)
 		return err
@@ -640,14 +647,23 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *packageYaml, na
 	return nil
 }
 
-func generatePolicy(m *packageYaml, baseDir string) error {
-	var err error
+// init the global variables like ubuntu flavor and errors if it fails
+func initGlobals() (err error) {
 	defaultPolicyVendor, err = findUbuntuFlavor()
 	if err != nil {
 		return err
 	}
+
 	defaultPolicyVersion, err = findUbuntuVersion()
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func generatePolicy(m *packageYaml, baseDir string) error {
+	if err := initGlobals(); err != nil {
 		return err
 	}
 
@@ -713,7 +729,22 @@ func regeneratePolicyForSnap(snapname string) error {
 	return nil
 }
 
-func comparePolicy(oldPolicyFn, newPolicy string) error {
+// compare if the given policy matches the current system policy
+// return an error if not
+func comparePolicyToCurrent(p *securityPolicyResult) error {
+	if err := compareSinglePolicyToCurrent(p.aaFn, p.aaPolicy); err != nil {
+		return err
+	}
+	if err := compareSinglePolicyToCurrent(p.scFn, p.scPolicy); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// helper for comparePolicyToCurrent that takes a single apparmor or seccomp
+// policy and compares it to the system version
+func compareSinglePolicyToCurrent(oldPolicyFn, newPolicy string) error {
 	oldPolicy, err := ioutil.ReadFile(oldPolicyFn)
 	if err != nil {
 		return err
@@ -727,14 +758,7 @@ func comparePolicy(oldPolicyFn, newPolicy string) error {
 // CompareGeneratePolicyFromFile is used to simulate security policy
 // generation and returns if the policy would have changed
 func CompareGeneratePolicyFromFile(fn string) error {
-	// FIXME: duplicated code with generatePolicy
-	var err error
-	defaultPolicyVendor, err = findUbuntuFlavor()
-	if err != nil {
-		return err
-	}
-	defaultPolicyVersion, err = findUbuntuVersion()
-	if err != nil {
+	if err := initGlobals(); err != nil {
 		return err
 	}
 
@@ -745,7 +769,7 @@ func CompareGeneratePolicyFromFile(fn string) error {
 	baseDir := filepath.Dir(filepath.Dir(fn))
 
 	for _, service := range m.ServiceYamls {
-		id, aaPolicy, scPolicy, err := service.generatePolicyForServiceBinaryString(m, service.Name, baseDir)
+		p, err := service.generatePolicyForServiceBinaryResult(m, service.Name, baseDir)
 
 		// FIXME: use apparmor_profile -p on both AppArmor profiles
 
@@ -753,30 +777,18 @@ func CompareGeneratePolicyFromFile(fn string) error {
 			// FIXME: what to do here?
 			return err
 		}
-		// now compare
-		aaFn := filepath.Join(dirs.SnapAppArmorDir, id.AppID)
-		if err := comparePolicy(aaFn, aaPolicy); err != nil {
-			return err
-		}
-		scFn := filepath.Join(dirs.SnapSeccompDir, id.AppID)
-		if err := comparePolicy(scFn, scPolicy); err != nil {
+		if err := comparePolicyToCurrent(p); err != nil {
 			return err
 		}
 	}
 
 	for _, binary := range m.Binaries {
-		id, aaPolicy, scPolicy, err := binary.generatePolicyForServiceBinaryString(m, binary.Name, baseDir)
+		p, err := binary.generatePolicyForServiceBinaryResult(m, binary.Name, baseDir)
 		if err != nil {
 			// FIXME: what to do here?
 			return err
 		}
-		// now compare
-		aaFn := filepath.Join(dirs.SnapAppArmorDir, id.AppID)
-		if err := comparePolicy(aaFn, aaPolicy); err != nil {
-			return err
-		}
-		scFn := filepath.Join(dirs.SnapSeccompDir, id.AppID)
-		if err := comparePolicy(scFn, scPolicy); err != nil {
+		if err := comparePolicyToCurrent(p); err != nil {
 			return err
 		}
 	}
