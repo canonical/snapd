@@ -38,12 +38,16 @@ import (
 )
 
 type errPolicyNotFound struct {
+	// type of policy, e.g. template or cap
 	polType string
-	pol     string
+	// apparmor or seccomp
+	polKind string
+	// name of the policy
+	pol string
 }
 
 func (e *errPolicyNotFound) Error() string {
-	return fmt.Sprintf("could not find specified %s: %s", e.polType, e.pol)
+	return fmt.Sprintf("could not find specified %s: %s (%s)", e.polType, e.pol, e.polKind)
 }
 
 var (
@@ -242,7 +246,7 @@ func findTemplate(template string, policyType string) (string, error) {
 		}
 	}
 
-	return "", &errPolicyNotFound{"template", template}
+	return "", &errPolicyNotFound{"template", policyType, template}
 }
 
 func findCaps(caps []string, template string, policyType string) (string, error) {
@@ -297,7 +301,7 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 	}
 
 	if found == false {
-		return "", &errPolicyNotFound{"cap", badCap}
+		return "", &errPolicyNotFound{"cap", policyType, badCap}
 	}
 
 	return p.String(), nil
@@ -719,6 +723,7 @@ func regeneratePolicyForSnap(snapname string) error {
 			return err
 		}
 		if appID.Version != appliedVersion {
+			// FIXME: dirs.SnapAppsDir is too simple, gadget
 			fn := filepath.Join(dirs.SnapAppsDir, appID.Pkgname, appID.Version, "meta", "package.yaml")
 			if !helpers.FileExists(fn) {
 				continue
@@ -804,6 +809,8 @@ func CompareGeneratePolicyFromFile(fn string) error {
 // GeneratePolicyFromFile is used to generate security policy on the system
 // from the specified manifest file name
 func GeneratePolicyFromFile(fn string, force bool) error {
+	// FIXME: force not used yet
+
 	m, err := parsePackageYamlFile(fn)
 	if err != nil {
 		return err
