@@ -265,7 +265,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	systemImageServer = mockServer.URL
 
 	// the test
-	updates, err := Update(0, &progress.NullProgress{})
+	updates, err := UpdateAll(0, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Assert(updates, HasLen, 1)
 	c.Check(updates[0].Name(), Equals, "foo")
