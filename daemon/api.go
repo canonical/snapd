@@ -34,9 +34,9 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/pkg/lightweight"
-	"github.com/ubuntu-core/snappy/priv"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -122,7 +122,7 @@ var (
 )
 
 func v1Get(c *Command, r *http.Request) Response {
-	lock, err := priv.FileLock(dirs.SnapLockFile, true)
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
 		return InternalError(err, "Unable to acquire lock")
 	}
@@ -164,7 +164,7 @@ func getPackageInfo(c *Command, r *http.Request) Response {
 	name := vars["name"]
 	origin := vars["origin"]
 
-	lock, err := priv.FileLock(dirs.SnapLockFile, true)
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
 		return InternalError(err, "Unable to acquire lock")
 	}
@@ -242,7 +242,7 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 		return InternalError(nil, "router can't find route for packages")
 	}
 
-	lock, err := priv.FileLock(dirs.SnapLockFile, true)
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
 		return InternalError(err, "Unable to acquire lock")
 	}
@@ -343,12 +343,12 @@ func packageService(c *Command, r *http.Request) Response {
 		action = cmd["action"]
 	}
 
-	var lock priv.LockedFile
+	var lock lockfile.LockedFile
 	reachedAsync := false
 	switch action {
 	case "status", "start", "stop", "restart", "enable", "disable":
 		var err error
-		lock, err = priv.FileLock(dirs.SnapLockFile, true)
+		lock, err = lockfile.Lock(dirs.SnapLockFile, true)
 
 		if err != nil {
 			return InternalError(err, "Unable to acquire lock")
@@ -462,7 +462,7 @@ func packageConfig(c *Command, r *http.Request) Response {
 	}
 	pkgName := name + "." + origin
 
-	lock, err := priv.FileLock(dirs.SnapLockFile, true)
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
 		return InternalError(err, "Unable to acquire lock")
 	}
@@ -514,7 +514,7 @@ func configMulti(c *Command, r *http.Request) Response {
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
-		lock, err := priv.FileLock(dirs.SnapLockFile, true)
+		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 		if err != nil {
 			return err
 		}
@@ -767,7 +767,7 @@ func postPackage(c *Command, r *http.Request) Response {
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
-		lock, err := priv.FileLock(dirs.SnapLockFile, true)
+		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 		if err != nil {
 			return err
 		}
@@ -852,7 +852,7 @@ func sideloadPackage(c *Command, r *http.Request) Response {
 			return err
 		}
 
-		lock, err := priv.FileLock(dirs.SnapLockFile, true)
+		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 		if err != nil {
 			return err
 		}
@@ -872,7 +872,7 @@ func getLogs(c *Command, r *http.Request) Response {
 	name := vars["name"]
 	svcName := vars["service"]
 
-	lock, err := priv.FileLock(dirs.SnapLockFile, true)
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
 		return InternalError(err, "Unable to acquire lock")
 	}
@@ -915,7 +915,7 @@ func appIconGet(c *Command, r *http.Request) Response {
 	name := vars["name"]
 	origin := vars["origin"]
 
-	lock, err := priv.FileLock(dirs.SnapLockFile, true)
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
 		return InternalError(err, "Unable to acquire lock")
 	}
