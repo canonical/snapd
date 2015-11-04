@@ -52,7 +52,7 @@ type Statuser interface {
 //
 // The input data is expected to be of the form of the textual
 // output of gocheck with verbose mode enabled, and the output
-// will be of the form defined by the subunit v2 format There
+// will be of the form defined by the subunit v2 format. There
 // are constants reflecting the expected patterns for this texts.
 // Additionally, it doesn't take  into account the SKIPs done
 // from a SetUpTest method, due to the nature of the snappy test
