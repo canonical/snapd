@@ -61,13 +61,21 @@ var eventTests = []struct {
 	gocheckOutput  string
 	expectedTestID string
 	expectedStatus string
-}{
-	{"****** Running testSuite.TestExists\n", "testSuite.TestExists", "exists"},
-	{"PASS: /tmp/snappy-tests-job/18811/src/github.com/ubuntu-core/snappy/integration-tests/tests/" +
-		"apt_test.go:34: testSuite.TestSuccess      0.005s\n", "testSuite.TestSuccess", "success"},
-	{"FAIL: /tmp/snappy-tests-job/710/src/github.com/ubuntu-core/snappy/integration-tests/tests/" +
-		"installFramework_test.go:85: testSuite.TestFail\n", "testSuite.TestFail", "fail"},
-}
+}{{
+	"****** Running testSuite.TestExists\n",
+	"testSuite.TestExists",
+	"exists",
+}, {
+	"PASS: /tmp/snappy-tests-job/18811/src/github.com/ubuntu-core/snappy/integration-tests/tests/" +
+		"apt_test.go:34: testSuite.TestSuccess      0.005s\n",
+	"testSuite.TestSuccess",
+	"success",
+}, {
+	"FAIL: /tmp/snappy-tests-job/710/src/github.com/ubuntu-core/snappy/integration-tests/tests/" +
+		"installFramework_test.go:85: testSuite.TestFail\n",
+	"testSuite.TestFail",
+	"fail",
+}}
 
 func (s *ParserReportSuite) TestParserReporterSendsEvents(c *check.C) {
 	for _, t := range eventTests {
