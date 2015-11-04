@@ -82,13 +82,10 @@ func (s *ParserReportSuite) TestParserReporterSendsEvents(c *check.C) {
 		s.spy.calls = []subunit.Event{}
 		s.subject.Write([]byte(t.gocheckOutput))
 
-		c.Check(len(s.spy.calls), check.Equals, 1,
-			check.Commentf("Unexpected events sent to subunit: %v", s.spy.calls))
+		c.Check(s.spy.calls, check.HasLen, 1)
 		event := s.spy.calls[0]
-		c.Check(event.TestID, check.Equals, t.expectedTestID,
-			check.Commentf("Wrong test id: %s", event.TestID))
-		c.Check(event.Status, check.Equals, t.expectedStatus,
-			check.Commentf("Wrong test status: %s", event.Status))
+		c.Check(event.TestID, check.Equals, t.expectedTestID)
+		c.Check(event.Status, check.Equals, t.expectedStatus)
 	}
 }
 
@@ -99,17 +96,11 @@ func (s *ParserReportSuite) TestParserReporterSendsSkipEvent(c *check.C) {
 		fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/github.com/ubuntu-core/snappy/"+
 			"integration-tests/tests/info_test.go:36: %s (%s)\n", testID, skipReason)))
 
-	c.Check(len(s.spy.calls), check.Equals, 1,
-		check.Commentf("Unexpected events sent to subunit: %v", s.spy.calls))
+	c.Check(len(s.spy.calls), check.HasLen, 1)
 	event := s.spy.calls[0]
-	c.Check(event.TestID, check.Equals, testID,
-		check.Commentf("Wrong test id: %s", event.TestID))
-	c.Check(event.Status, check.Equals, "skip",
-		check.Commentf("Wrong test status: %s", event.Status))
-	c.Check(event.MIME, check.Equals, "text/plain;charset=utf8",
-		check.Commentf("Wront MIME: %s", event.MIME))
-	c.Check(event.FileName, check.Equals, "reason",
-		check.Commentf("Wrong file name: %s", event.FileName))
-	c.Check(string(event.FileBytes), check.Equals, skipReason,
-		check.Commentf("Wrong file contents: %s", event.FileBytes))
+	c.Check(event.TestID, check.Equals, testID)
+	c.Check(event.Status, check.Equals, "skip")
+	c.Check(event.MIME, check.Equals, "text/plain;charset=utf8")
+	c.Check(event.FileName, check.Equals, "reason")
+	c.Check(string(event.FileBytes), check.Equals, skipReason)
 }
