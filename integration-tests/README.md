@@ -15,7 +15,7 @@
 
 ## Setting up the project
 
-First you need to set up the GOPATH, get the snappy sources and the
+First you need to set up the `GOPATH`, get the snappy sources and the
 dependencies as explained in the `README.md` that is located at the root of the
 branch.
 
@@ -34,8 +34,8 @@ to `ubuntu-device-flash`:
 
     go run integration-tests/main.go -tags=integration -release 15.04 -channel stable -revision 3
 
-The default values are suited to testing the most recent version, `rolling` for
-release, `edge` for channel and an empty revision, which picks the latest
+The default values are suited to testing the most recent version, *rolling* for
+`release`, *edge* for `channel` and an empty `revision`, which picks the latest
 available.
 
 ## Testing snappy from a branch
@@ -51,7 +51,7 @@ You can use this flag to test in a remote machine too.
 ## Filtering the tests to run
 
 With the `--filter` flag you can select the tests to run. For instance you can
-pass `MyTestSuite`, `MyTestSuite.FirstCustomTest` or `MyTestSuite.*CustomTest`:
+pass *MyTestSuite*, *MyTestSuite.FirstCustomTest* or *MyTestSuite.\*CustomTest*:
 
     go run integration-tests/main.go -tags=integration --filter MyTestSuite.FirstCustomTest
 
@@ -63,13 +63,13 @@ You can execute the integration suite in a remote snappy machine with:
     --arch {testbed-arch}
 
 When running in a remote machine, the test runner assumes the test bed is in
-the latest rolling edge version, and it will skip all the tests that
+the latest *rolling edge* version, and it will skip all the tests that
 require a different version. See the following section for instructions for
 setting up a BeagleBone Black as the test bed.
 
 ## Testing a BeagleBone Black
 
-First flash the latest rolling edge version into the sd card
+First flash the latest *rolling edge* version into the sd card
 (replacing `/dev/sdX` with the path to your card):
 
     sudo ubuntu-device-flash core rolling --channel edge --oem beagleblack \
@@ -79,7 +79,7 @@ First flash the latest rolling edge version into the sd card
     sync
 
 Then boot the board with the sd card, make sure that it is connected to the
-same network as the test runner host, and find the `{beaglebone-ip}`.
+same network as the test runner host, and find the *{beaglebone-ip}*.
 
 Run the tests with:
 
@@ -93,13 +93,13 @@ the `revision` flags specify the image that will be flashed, and the
 `target-release` and `target-channel` flags specify the values to be used in the
 update if they are different from the flashed values.
 
-For example, to update from rolling edge -1 to the latest and then run the
+For example, to update from *rolling edge -1* to the latest and then run the
 integration tests:
 
     go run integration-tests/main.go -tags=integration --snappy-from-branch \
     --revision=-1 --update
 
-To update from 15.04 alpha to rolling edge and then run the integration tests:
+To update from *15.04 alpha* to *rolling edge* and then run the integration tests:
 
     go run integration-tests/main.go -tags=integration --snappy-from-branch \
     --release=15.04 --channel=alpha \
@@ -112,7 +112,7 @@ rollback again to the old image and then run the whole suite on the rolled
 back system. You should use the `release`, `channel`, `revision`, `target-release`
 and `target-channel` flags as when testing an update.
 
-For example, to test a rollback from latest rolling edge to rolling edge -1:
+For example, to test a rollback from latest *rolling edge* to *rolling edge -1*:
 
     go run integration-tests/main.go -tags=integration \
     --revision=-1 --rollback
