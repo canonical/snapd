@@ -96,7 +96,7 @@ func (s *ParserReportSuite) TestParserReporterSendsSkipEvent(c *check.C) {
 		fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/github.com/ubuntu-core/snappy/"+
 			"integration-tests/tests/info_test.go:36: %s (%s)\n", testID, skipReason)))
 
-	c.Check(len(s.spy.calls), check.HasLen, 1)
+	c.Check(s.spy.calls, check.HasLen, 1)
 	event := s.spy.calls[0]
 	c.Check(event.TestID, check.Equals, testID)
 	c.Check(event.Status, check.Equals, "skip")
