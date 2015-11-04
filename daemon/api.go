@@ -117,6 +117,7 @@ var (
 		Path:   "/1.0/operations/{uuid}",
 		GET:    getOpInfo,
 		DELETE: deleteOp,
+		POST:   postOp,
 	}
 )
 
@@ -569,6 +570,31 @@ func getOpInfo(c *Command, r *http.Request) Response {
 	return SyncResponse(task.Map(route))
 }
 
+func postOp(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(c.Path)
+	if route == nil {
+		return InternalError(nil, "router can't find route for operation")
+	}
+
+	id := muxVars(r)["uuid"]
+	task := c.d.GetTask(id)
+	if task == nil {
+		return NotFound
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	var b bool
+	if err := decoder.Decode(&b); err != nil {
+		return BadRequest(err, "can't decode request body into boolean: %v", err)
+	}
+
+	if err := task.Send(b); err != nil {
+		return BadRequest(err, "operation is not expecting a POST")
+	}
+
+	return SyncResponse(task.Map(route))
+}
+
 func deleteOp(c *Command, r *http.Request) Response {
 	id := muxVars(r)["uuid"]
 	err := c.d.DeleteTask(id)
@@ -586,78 +612,151 @@ func deleteOp(c *Command, r *http.Request) Response {
 }
 
 type packageInstruction struct {
+	progress.NullProgress
 	Action   string `json:"action"`
 	LeaveOld bool   `json:"leave_old"`
 	pkg      string
-	prog     progress.Meter
+	chin     chan interface{}
+	chout    chan interface{}
+}
+
+func (inst *packageInstruction) Agreed(intro, licenseFile string) bool {
+	inst.chout <- map[string]interface{}{
+		"license_ack_needed": true,
+		"license_intro":      intro,
+		"license_text":       licenseFile,
+	}
+
+	b, ok := (<-inst.chin).(bool)
+	inst.chout <- nil
+
+	return ok && b
 }
 
 func (inst *packageInstruction) install() interface{} {
-	flags := snappy.DoInstallGC
-	if inst.LeaveOld {
-		flags = 0
-	}
-	_, err := snappy.Install(inst.pkg, flags, inst.prog)
-
+	inst.chin = make(chan interface{})
+	inst.chout = make(chan interface{})
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
 		return err
 	}
 
-	// TODO: return the log
-	// also to do: commands update their output dynamically, as it changes.
-	return nil
+	go func() {
+		defer close(inst.chout)
+		defer lock.Unlock()
+
+		flags := snappy.DoInstallGC
+		if inst.LeaveOld {
+			flags = 0
+		}
+		_, err = snappy.Install(inst.pkg, flags, inst)
+
+		inst.chout <- err
+
+		// TODO: return the log
+		// also to do: commands update their output dynamically, as it changes.
+	}()
+
+	return [2]chan interface{}{inst.chin, inst.chout}
 }
 
 func (inst *packageInstruction) update() interface{} {
-	// zomg :-(
-	// TODO: query the store for just this package, instead of this
+	inst.chin = make(chan interface{})
+	inst.chout = make(chan interface{})
 
-	flags := snappy.DoInstallGC
-	if inst.LeaveOld {
-		flags = 0
-	}
-
-	parts, err := snappy.ListUpdates()
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
 		return err
 	}
 
-	for _, part := range parts {
-		if snappy.QualifiedName(part) == inst.pkg {
-			if _, err := part.Install(inst.prog, flags); err != nil {
-				return err
-			}
-			return snappy.GarbageCollect(inst.pkg, flags, inst.prog)
-		}
-	}
+	go func() {
+		// zomg :-(
+		// TODO: query the store for just this package, instead of this
+		defer close(inst.chout)
+		defer lock.Unlock()
 
-	return "package is up to date"
+		flags := snappy.DoInstallGC
+		if inst.LeaveOld {
+			flags = 0
+		}
+
+		parts, err := snappy.ListUpdates()
+		if err != nil {
+			inst.chout <- err
+			return
+		}
+
+		for _, part := range parts {
+			if snappy.QualifiedName(part) == inst.pkg {
+				if _, err := part.Install(inst, flags); err != nil {
+					inst.chout <- err
+					return
+				}
+
+				inst.chout <- snappy.GarbageCollect(inst.pkg, flags, inst)
+				return
+			}
+		}
+		inst.chout <- "package is up to date"
+	}()
+
+	return [2]chan interface{}{inst.chin, inst.chout}
 }
 
 func (inst *packageInstruction) remove() interface{} {
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
 	flags := snappy.DoRemoveGC
 	if inst.LeaveOld {
 		flags = 0
 	}
 
-	return snappy.Remove(inst.pkg, flags, inst.prog)
+	return snappy.Remove(inst.pkg, flags, inst)
 }
 
 func (inst *packageInstruction) purge() interface{} {
-	return snappy.Purge(inst.pkg, 0, inst.prog)
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
+	return snappy.Purge(inst.pkg, 0, inst)
 }
 
 func (inst *packageInstruction) rollback() interface{} {
-	_, err := snappy.Rollback(inst.pkg, "", inst.prog)
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
+	_, err = snappy.Rollback(inst.pkg, "", inst)
 	return err
 }
 
 func (inst *packageInstruction) activate() interface{} {
-	return snappy.SetActive(inst.pkg, true, inst.prog)
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
+	return snappy.SetActive(inst.pkg, true, inst)
 }
 
 func (inst *packageInstruction) deactivate() interface{} {
-	return snappy.SetActive(inst.pkg, false, inst.prog)
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
+	return snappy.SetActive(inst.pkg, false, inst)
 }
 
 func (inst *packageInstruction) dispatch() func() interface{} {
@@ -702,21 +801,13 @@ func postPackage(c *Command, r *http.Request) Response {
 
 	vars := muxVars(r)
 	inst.pkg = vars["name"] + "." + vars["origin"]
-	inst.prog = &progress.NullProgress{}
 
 	f := pkgActionDispatch(&inst)
 	if f == nil {
 		return BadRequest(nil, "unknown action %s", inst.Action)
 	}
 
-	return AsyncResponse(c.d.AddTask(func() interface{} {
-		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-		if err != nil {
-			return err
-		}
-		defer lock.Unlock()
-		return f()
-	}).Map(route))
+	return AsyncResponse(c.d.AddTask(f).Map(route))
 }
 
 const maxReadBuflen = 1024 * 1024

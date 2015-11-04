@@ -936,3 +936,42 @@ func (s *apiSuite) TestServiceLogs(c *check.C) {
 		Result: []map[string]interface{}{{"message": "hi", "timestamp": "42", "raw": log}},
 	})
 }
+
+func (s *apiSuite) TestPostOp(c *check.C) {
+	syncCh := make(chan int)
+	d := newTestDaemon()
+
+	t := d.AddTask(func() interface{} {
+		chin := make(chan interface{})
+		chout := make(chan interface{})
+
+		go func() {
+			syncCh <- 1
+			chout <- fmt.Sprintf("got: %t", <-chin)
+			close(chout)
+		}()
+
+		return [2]chan interface{}{chin, chout}
+	})
+
+	<-syncCh
+
+	id := t.UUID()
+	s.vars = map[string]string{"uuid": id}
+
+	// only bools supported for now
+	buf := bytes.NewBufferString(`true`)
+	req, err := http.NewRequest("POST", "/1.0/operations/"+id, buf)
+	c.Assert(err, check.IsNil)
+
+	t.Lock()
+	c.Check(t.output, check.IsNil)
+	t.Unlock()
+
+	rsp := postOp(operationCmd, req).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+
+	t.tomb.Wait()
+	c.Check(t.output, check.Equals, "got: true")
+}
