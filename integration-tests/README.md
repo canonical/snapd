@@ -23,7 +23,7 @@ branch.
 
 You can execute the full integration suite in a local virtual machine with:
 
-    go run integration-tests/main.go -tags=integration
+    go run integration-tests/main.go
 
 The test runner will create the snappy images with `ubuntu-device-flash`, so it
 will ask for your password to run this command with `sudo`.
@@ -32,7 +32,7 @@ You can also especify more options to customize the image being created, includi
 the release, the channel and the revision to use. This parameters will be passed
 to `ubuntu-device-flash`:
 
-    go run integration-tests/main.go -tags=integration -release 15.04 -channel stable -revision 3
+    go run integration-tests/main.go -release 15.04 -channel stable -revision 3
 
 The default values are suited to testing the most recent version, `rolling` for
 release, `edge` for channel and an empty revision, which picks the latest
@@ -44,7 +44,7 @@ With the --snappy-from-branch flag, the snappy CLI command will be compiled
 from the current branch, copied to the test bed and used during the integration
 tests:
 
-    go run integration-tests/main.go -tags=integration --snappy-from-branch
+    go run integration-tests/main.go --snappy-from-branch
 
 You can use this flag to test in a remote machine too.
 
@@ -53,13 +53,13 @@ You can use this flag to test in a remote machine too.
 With the --filter flag you can select the tests to run. For instance you can
 pass MyTestSuite, MyTestSuite.FirstCustomTest or MyTestSuite.*CustomTest:
 
-    go run integration-tests/main.go -tags=integration --filter MyTestSuite.FirstCustomTest
+    go run integration-tests/main.go --filter MyTestSuite.FirstCustomTest
 
 ## Testing a remote machine
 
 You can execute the integration suite in a remote snappy machine with:
 
-    go run integration-tests/main.go -tags=integration --ip {testbed-ip} --port {testbed-port} \
+    go run integration-tests/main.go --ip {testbed-ip} --port {testbed-port} \
     --arch {testbed-arch}
 
 When running in a remote machine, the test runner assumes the test bed is in
@@ -83,7 +83,7 @@ same network as the test runner host, and find the {beaglebone-ip}.
 
 Run the tests with:
 
-    go run integration-tests/main.go -tags=integration --ip {beaglebone-ip} --arch arm
+    go run integration-tests/main.go --ip {beaglebone-ip} --arch arm
 
 ## Testing an update
 
@@ -96,12 +96,12 @@ update if they are different from the flashed values.
 For example, to update from rolling edge -1 to the latest and then run the
 integration tests:
 
-    go run integration-tests/main.go -tags=integration --snappy-from-branch \
+    go run integration-tests/main.go --snappy-from-branch \
     --revision=-1 --update
 
 To update from 15.04 alpha to rolling edge and then run the integration tests:
 
-    go run integration-tests/main.go -tags=integration --snappy-from-branch \
+    go run integration-tests/main.go --snappy-from-branch \
     --release=15.04 --channel=alpha \
     --update --target-release=rolling --target-channel=edge
 
@@ -114,5 +114,5 @@ target-channel flags as when testing an update.
 
 For example, to test a rollback from latest rolling edge to rolling edge -1:
 
-    go run integration-tests/main.go -tags=integration \
+    go run integration-tests/main.go \
     --revision=-1 --rollback

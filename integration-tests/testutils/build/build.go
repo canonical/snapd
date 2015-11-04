@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build integration
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	buildTestCmd = "go test -tags=integration -c ./integration-tests/tests"
+	buildTestCmd = "go test -c ./integration-tests/tests"
 
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
@@ -51,9 +51,9 @@ var (
 	// integration-tests/reboot-wrapper script (Test-Command's entry point of
 	// adt-run) takes care of including testsBinDir at the beginning of $PATH, so
 	// that these binaries (if they exist) take precedence over the system ones
-	buildSnappyCliCmd = "go build -o " +
+	buildSnappyCliCmd = "go build -tags=excludeintegration -o " +
 		filepath.Join(testsBinDir, "snappy") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snappy")
-	buildSnapdCmd = "go build -o " +
+	buildSnapdCmd = "go build -tags=excludeintegration -o " +
 		filepath.Join(testsBinDir, "snapd") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snapd")
 )
 
