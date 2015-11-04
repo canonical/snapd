@@ -62,6 +62,7 @@ type Statuser interface {
 // test's announce.
 type SubunitV2ParserReporter struct {
 	statuser Statuser
+	Next     io.Writer
 }
 
 // writerRecorder is used to record the number of bytes that subunit writes to the output.
@@ -79,8 +80,11 @@ func (w *writerRecorder) Write(data []byte) (int, error) {
 // NewSubunitV2ParserReporter returns a new ParserReporter that sends the report to the
 // writer argument.
 func NewSubunitV2ParserReporter(writer io.Writer) *SubunitV2ParserReporter {
-	wr := writerRecorder{writer: writer}
-	return &SubunitV2ParserReporter{statuser: &subunit.StreamResultToBytes{Output: wr}}
+	wr := &writerRecorder{writer: writer}
+	return &SubunitV2ParserReporter{
+		statuser: &subunit.StreamResultToBytes{Output: wr},
+		Next:     wr,
+	}
 }
 
 func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
@@ -102,5 +106,8 @@ func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 		})
 	}
 
-	return wr.nbytes, err
+	if wr, ok := fr.Next.(*writerRecorder); ok {
+		return wr.nbytes, err
+	}
+	return 0, err
 }
