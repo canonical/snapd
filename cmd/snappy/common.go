@@ -35,7 +35,7 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-func isAutoPilotRunning() bool {
+func isAutoUpdateRunning() bool {
 	unitName := "snappy-autopilot"
 	bs, err := exec.Command("systemctl", "show", "--property=SubState", unitName).CombinedOutput()
 	if err != nil {
@@ -56,13 +56,15 @@ func withMutexAndRetry(f func() error) error {
 		// if already locked, auto-retry
 		if err == lockfile.ErrAlreadyLocked {
 			var msg string
-			if isAutoPilotRunning() {
+			if isAutoUpdateRunning() {
 				// FIXME: we could even do a
 				//    journalctl -u snappy-autopilot
 				// here
+
+				// TRANSLATORS: please keep each line under 80 characters.
 				msg = i18n.G(
-					`The snappy autopilot is updating your system in the background. This may
-take some minutes. Will try again in %d seconds...
+					`Snappy is updating your system in the background. This may take some minutes.
+Will try again in %d seconds...
 Press ctrl-c to cancel.
 `)
 			} else {
