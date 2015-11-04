@@ -636,15 +636,20 @@ func (inst *packageInstruction) Agreed(intro, licenseFile string) bool {
 func (inst *packageInstruction) install() interface{} {
 	inst.chin = make(chan interface{})
 	inst.chout = make(chan interface{})
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return err
+	}
 
 	go func() {
 		defer close(inst.chout)
+		defer lock.Unlock()
 
 		flags := snappy.DoInstallGC
 		if inst.LeaveOld {
 			flags = 0
 		}
-		_, err := snappy.Install(inst.pkg, flags, inst)
+		_, err = snappy.Install(inst.pkg, flags, inst)
 
 		inst.chout <- err
 
@@ -659,10 +664,16 @@ func (inst *packageInstruction) update() interface{} {
 	inst.chin = make(chan interface{})
 	inst.chout = make(chan interface{})
 
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return err
+	}
+
 	go func() {
 		// zomg :-(
 		// TODO: query the store for just this package, instead of this
 		defer close(inst.chout)
+		defer lock.Unlock()
 
 		flags := snappy.DoInstallGC
 		if inst.LeaveOld {
@@ -693,6 +704,12 @@ func (inst *packageInstruction) update() interface{} {
 }
 
 func (inst *packageInstruction) remove() interface{} {
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
 	flags := snappy.DoRemoveGC
 	if inst.LeaveOld {
 		flags = 0
@@ -702,19 +719,43 @@ func (inst *packageInstruction) remove() interface{} {
 }
 
 func (inst *packageInstruction) purge() interface{} {
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
 	return snappy.Purge(inst.pkg, 0, inst)
 }
 
 func (inst *packageInstruction) rollback() interface{} {
-	_, err := snappy.Rollback(inst.pkg, "", inst)
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
+	_, err = snappy.Rollback(inst.pkg, "", inst)
 	return err
 }
 
 func (inst *packageInstruction) activate() interface{} {
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
 	return snappy.SetActive(inst.pkg, true, inst)
 }
 
 func (inst *packageInstruction) deactivate() interface{} {
+	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
+	if err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
 	return snappy.SetActive(inst.pkg, false, inst)
 }
 
@@ -766,14 +807,7 @@ func postPackage(c *Command, r *http.Request) Response {
 		return BadRequest(nil, "unknown action %s", inst.Action)
 	}
 
-	return AsyncResponse(c.d.AddTask(func() interface{} {
-		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-		if err != nil {
-			return err
-		}
-		defer lock.Unlock()
-		return f()
-	}).Map(route))
+	return AsyncResponse(c.d.AddTask(f).Map(route))
 }
 
 const maxReadBuflen = 1024 * 1024
