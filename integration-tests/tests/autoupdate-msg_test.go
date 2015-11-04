@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build integration
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -29,15 +29,15 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&autopilotMsgSuite{})
+var _ = check.Suite(&autoupdateMsgSuite{})
 
-type autopilotMsgSuite struct {
+type autoupdateMsgSuite struct {
 	common.SnappySuite
 }
 
-// Test that there is a proper message if the autopilot runs in the
+// Test that there is a proper message if autoupdate runs in the
 // background
-func (s *autopilotMsgSuite) TestAutoPilotMessageIsPrinted(c *check.C) {
+func (s *autoupdateMsgSuite) TestAutoUpdateMessageIsPrinted(c *check.C) {
 	cli.ExecCommand(c, "sudo", "systemctl", "start", "snappy-autopilot")
 
 	// do not pollute the other tests with the now installed hello-world
@@ -51,7 +51,7 @@ func (s *autopilotMsgSuite) TestAutoPilotMessageIsPrinted(c *check.C) {
 
 	expected := "(?ms)" +
 		".*" +
-		"^The snappy autopilot is updating your system.*\n" +
+		"^Snappy is updating your system.*\n" +
 		".*"
 	c.Assert(string(snappyOutput), check.Matches, expected)
 }
