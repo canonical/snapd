@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	buildTestCmd = "go test -tags=integration -c ./integration-tests/tests"
+	buildTestCmd = "go test -c ./integration-tests/tests"
 
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
