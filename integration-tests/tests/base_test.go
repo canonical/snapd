@@ -50,8 +50,6 @@ func init() {
 func Test(t *testing.T) {
 	output := io.MultiWriter(
 		os.Stdout,
-		&report.ParserReporter{
-			Next: &report.FileReporter{}})
-
+		report.NewSubunitV2ParserReporter(&report.FileReporter{}))
 	runner.TestingT(t, output)
 }
