@@ -58,6 +58,13 @@ append_coverage() {
     fi
 }
 
+echo Installing godeps
+go get launchpad.net/godeps
+export PATH=$PATH:$GOPATH/bin
+
+echo Obtaining dependencies
+godeps -u dependencies.tsv
+
 if [ ! -z "$STATIC" ]; then
     # Run static tests.
     echo Checking docs
@@ -109,13 +116,6 @@ if [ ! -z "$UNIT" ]; then
     rm -rf .coverage
     mkdir .coverage
     echo "mode: set" > .coverage/coverage.out
-
-    echo Installing godeps
-    go get launchpad.net/godeps
-    export PATH=$PATH:$GOPATH/bin
-
-    echo Obtaining dependencies
-    godeps -u dependencies.tsv
 
     echo Building
     go build -tags=excludeintegration -v github.com/ubuntu-core/snappy/...
