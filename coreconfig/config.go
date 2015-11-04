@@ -48,9 +48,9 @@ var (
 )
 
 const (
-	autopilotTimer         string = "snappy-autopilot.timer"
-	autopilotTimerEnabled  string = "enabled"
-	autopilotTimerDisabled string = "disabled"
+	autoUpdateTimer         string = "snappy-autopilot.timer"
+	autoUpdateTimerEnabled  string = "enabled"
+	autoUpdateTimerDisabled string = "disabled"
 )
 
 var (
@@ -73,13 +73,13 @@ var (
 )
 
 type systemConfig struct {
-	Autopilot *bool           `yaml:"autopilot,omitempty"`
-	Timezone  *string         `yaml:"timezone,omitempty"`
-	Hostname  *string         `yaml:"hostname,omitempty"`
-	Modprobe  *string         `yaml:"modprobe,omitempty"`
-	Modules   []string        `yaml:"load-kernel-modules,omitempty"`
-	Network   *networkConfig  `yaml:"network,omitempty"`
-	Watchdog  *watchdogConfig `yaml:"watchdog,omitempty"`
+	AutoUpdate *bool           `yaml:"autoupdate,omitempty"`
+	Timezone   *string         `yaml:"timezone,omitempty"`
+	Hostname   *string         `yaml:"hostname,omitempty"`
+	Modprobe   *string         `yaml:"modprobe,omitempty"`
+	Modules    []string        `yaml:"load-kernel-modules,omitempty"`
+	Network    *networkConfig  `yaml:"network,omitempty"`
+	Watchdog   *watchdogConfig `yaml:"watchdog,omitempty"`
 }
 
 type networkConfig struct {
@@ -112,7 +112,7 @@ func newSystemConfig() (*systemConfig, error) {
 		return nil, err
 	}
 
-	autopilot, err := getAutopilot()
+	autoUpdate, err := getAutoUpdate()
 	if err != nil {
 		return nil, err
 	}
@@ -150,13 +150,13 @@ func newSystemConfig() (*systemConfig, error) {
 	}
 
 	config := &systemConfig{
-		Autopilot: &autopilot,
-		Timezone:  &tz,
-		Hostname:  &hostname,
-		Modprobe:  &modprobe,
-		Modules:   modules,
-		Network:   network,
-		Watchdog:  watchdog,
+		AutoUpdate: &autoUpdate,
+		Timezone:   &tz,
+		Hostname:   &hostname,
+		Modprobe:   &modprobe,
+		Modules:    modules,
+		Network:    network,
+		Watchdog:   watchdog,
 	}
 
 	return config, nil
@@ -230,12 +230,12 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 			if err := setTimezone(*newConfig.Timezone); err != nil {
 				return "", err
 			}
-		case "Autopilot":
-			if *oldConfig.Autopilot == *newConfig.Autopilot {
+		case "AutoUpdate":
+			if *oldConfig.AutoUpdate == *newConfig.AutoUpdate {
 				continue
 			}
 
-			if err := setAutopilot(*newConfig.Autopilot); err != nil {
+			if err := setAutoUpdate(*newConfig.AutoUpdate); err != nil {
 				return "", err
 			}
 		case "Hostname":
@@ -498,13 +498,13 @@ var setWatchdog = func(wf *watchdogConfig) error {
 
 // for testing purposes
 var (
-	cmdAutopilotEnabled = []string{"is-enabled", autopilotTimer}
-	cmdSystemctl        = "systemctl"
+	cmdAutoUpdateEnabled = []string{"is-enabled", autoUpdateTimer}
+	cmdSystemctl         = "systemctl"
 )
 
-// getAutopilot returns the autopilot state
-var getAutopilot = func() (state bool, err error) {
-	out, err := exec.Command(cmdSystemctl, cmdAutopilotEnabled...).Output()
+// getAutoUpdate returns the autoupdate state
+var getAutoUpdate = func() (state bool, err error) {
+	out, err := exec.Command(cmdSystemctl, cmdAutoUpdateEnabled...).Output()
 	if exitErr, ok := err.(*exec.ExitError); ok {
 		waitStatus := exitErr.Sys().(syscall.WaitStatus)
 
@@ -516,9 +516,9 @@ var getAutopilot = func() (state bool, err error) {
 
 	status := strings.TrimSpace(string(out))
 
-	if status == autopilotTimerEnabled {
+	if status == autoUpdateTimerEnabled {
 		return true, nil
-	} else if status == autopilotTimerDisabled {
+	} else if status == autoUpdateTimerDisabled {
 		return false, nil
 	} else {
 		return false, ErrInvalidUnitStatus
@@ -527,26 +527,26 @@ var getAutopilot = func() (state bool, err error) {
 
 // for testing purposes
 var (
-	cmdEnableAutopilot  = []string{"enable", autopilotTimer}
-	cmdStartAutopilot   = []string{"start", autopilotTimer}
-	cmdDisableAutopilot = []string{"disable", autopilotTimer}
-	cmdStopAutopilot    = []string{"stop", autopilotTimer}
+	cmdEnableAutoUpdate  = []string{"enable", autoUpdateTimer}
+	cmdStartAutoUpdate   = []string{"start", autoUpdateTimer}
+	cmdDisableAutoUpdate = []string{"disable", autoUpdateTimer}
+	cmdStopAutoUpdate    = []string{"stop", autoUpdateTimer}
 )
 
-// setAutopilot enables and starts, or stops and disables autopilot
-var setAutopilot = func(stateEnabled bool) error {
+// setAutoUpdate enables and starts, or stops and disables autoupdate
+var setAutoUpdate = func(stateEnabled bool) error {
 	if stateEnabled {
-		if err := exec.Command(cmdSystemctl, cmdEnableAutopilot...).Run(); err != nil {
+		if err := exec.Command(cmdSystemctl, cmdEnableAutoUpdate...).Run(); err != nil {
 			return err
 		}
-		if err := exec.Command(cmdSystemctl, cmdStartAutopilot...).Run(); err != nil {
+		if err := exec.Command(cmdSystemctl, cmdStartAutoUpdate...).Run(); err != nil {
 			return err
 		}
 	} else {
-		if err := exec.Command(cmdSystemctl, cmdStopAutopilot...).Run(); err != nil {
+		if err := exec.Command(cmdSystemctl, cmdStopAutoUpdate...).Run(); err != nil {
 			return err
 		}
-		if err := exec.Command(cmdSystemctl, cmdDisableAutopilot...).Run(); err != nil {
+		if err := exec.Command(cmdSystemctl, cmdDisableAutoUpdate...).Run(); err != nil {
 			return err
 		}
 	}
