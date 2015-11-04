@@ -127,10 +127,12 @@ if [ ! -z "$UNIT" ]; then
         append_coverage .coverage/profile.out
     done
 
-    # the rabbit hole
     echo Building the integration tests
-    go build integration-tests/main.go
+    TMP_INTEGRATION="$(mktemp)"
+    trap "rm -f $TMP_INTEGRATION" 0
+    go build -v -o $TMP_INTEGRATION github.com/ubuntu-core/snappy/integration-tests/
 
+    # the rabbit hole
     echo Running the tests for the integration testutils
     for pkg in $(go list ./integration-tests/testutils/...); do
         $goctest -v -coverprofile=.coverage/profile.out $pkg
