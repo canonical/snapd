@@ -575,12 +575,17 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 	}
 
 	// add the hw-override parts and merge with the other overrides
-	hwaccessOverrides, err := readHWAccessYamlFile(m.Name)
-	if !os.IsNotExist(err) {
+	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+	if err != nil {
 		return nil, err
 	}
-	sd.mergeAppArmorSecurityOverrides(&hwaccessOverrides)
 
+	hwaccessOverrides, err := readHWAccessYamlFile(m.qualifiedName(origin))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	sd.mergeAppArmorSecurityOverrides(&hwaccessOverrides)
 	if sd.SecurityPolicy != nil {
 		res.aaPolicy, err = getAppArmorCustomPolicy(m, res.id, filepath.Join(baseDir, sd.SecurityPolicy.AppArmor))
 		if err != nil {
