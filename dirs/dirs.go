@@ -25,18 +25,18 @@ import "path/filepath"
 var (
 	GlobalRootDir string
 
-	SnapAppsDir      string
-	SnapOemDir       string
-	SnapDataDir      string
-	SnapDataHomeGlob string
-	SnapAppArmorDir  string
-	SnapAppArmorAdditionalDir string	
-	SnapSeccompDir   string
-	SnapUdevRulesDir string
-	LocaleDir        string
-	SnapIconsDir     string
-	SnapMetaDir      string
-	SnapLockFile     string
+	SnapAppsDir               string
+	SnapOemDir                string
+	SnapDataDir               string
+	SnapDataHomeGlob          string
+	SnapAppArmorDir           string
+	SnapAppArmorAdditionalDir string
+	SnapSeccompDir            string
+	SnapUdevRulesDir          string
+	LocaleDir                 string
+	SnapIconsDir              string
+	SnapMetaDir               string
+	SnapLockFile              string
 
 	SnapBinariesDir  string
 	SnapServicesDir  string
