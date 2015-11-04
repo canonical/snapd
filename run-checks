@@ -75,8 +75,7 @@ if [ ! -z "$STATIC" ]; then
     # go vet
     echo Running vet
     go vet ./...
-    go vet ./_integration-tests/tests/...
-    go vet ./_integration-tests/testutils/...
+    go vet -tags=integration ./...
 
     # golint
     echo Install golint
@@ -84,7 +83,7 @@ if [ ! -z "$STATIC" ]; then
     export PATH=$PATH:$GOPATH/bin
 
     echo Running lint
-    lint=$(golint ./... && golint ./_integration-tests/testutils/... && golint ./_integration-tests/tests/...)
+    lint=$(golint ./... && golint ./integration-tests/testutils/... && golint ./integration-tests/tests/...)
     if [ -n "$lint" ]; then
         echo "Lint complains:"
         echo "$lint"
@@ -131,8 +130,9 @@ if [ ! -z "$UNIT" ]; then
 
     # the rabbit hole
     echo Running the tests for the integration testutils
-    for pkg in $(go list ./_integration-tests/testutils/...); do
-        $goctest -v -coverprofile=.coverage/profile.out $pkg
+    # go list doesn't take into account build tags
+    for pkg in $(ls ./integration-tests/testutils/); do
+        $goctest -tags=integration -v -coverprofile=.coverage/profile.out "github.com/ubuntu-core/snappy/integration-tests/testutils/$pkg"
         append_coverage .coverage/profile.out
     done
 fi
@@ -140,12 +140,12 @@ fi
 if [ ! -z "$INTEGRATION" ]; then
     # integration tests
     echo Building the integration tests
-    go build _integration-tests/main.go
+    go build -tags=integration integration-tests/main.go
 
     # integration suite in kvm
     if which adt-run >/dev/null 2>&1; then
         echo "Running integration tests on rolling edge"
-        go run _integration-tests/main.go --snappy-from-branch
+        go run -tags=integration integration-tests/main.go --snappy-from-branch
         # print the results.
         if which subunit2pyunit >/dev/null 2>&1; then
             subunit-1to2 /tmp/snappy-test/output/artifacts/results.subunit | subunit2pyunit

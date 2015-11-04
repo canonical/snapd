@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-11-02 15:39+0100\n"
+        "POT-Creation-Date: 2015-11-04 08:02+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -273,6 +273,17 @@ msgstr  ""
 msgid   "Snap\tService\tState"
 msgstr  ""
 
+#. TRANSLATORS: please keep each line under 80 characters.
+#, c-format
+msgid   "Snappy is updating your system in the background. This may take some minutes.\n"
+        "Will try again in %d seconds...\n"
+        "Press ctrl-c to cancel.\n"
+msgstr  ""
+
+#. TRANSLATORS: please keep this under 80 characters if possible
+msgid   "Snappy needs to reboot to finish an update. Defer with 'shutdown -c'."
+msgstr  ""
+
 msgid   "Specify an alternate output directory for the resulting package"
 msgstr  ""
 
@@ -299,12 +310,6 @@ msgid   "The hardware device path (e.g. /dev/ttyUSB0)"
 msgstr  ""
 
 msgid   "The package to rollback "
-msgstr  ""
-
-#, c-format
-msgid   "The snappy autopilot is updating your system in the background. This may\n"
-        "take some minutes. Will try again in %d seconds...\n"
-        "Press ctrl-c to cancel.\n"
 msgstr  ""
 
 msgid   "The version to rollback to"
@@ -382,9 +387,6 @@ msgstr  ""
 #. TRANSLATORS: the %s release string
 #, c-format
 msgid   "release: %s\n"
-msgstr  ""
-
-msgid   "snappy autopilot triggered a reboot to boot into an up to date system -- temprorarily disable the reboot by running 'sudo shutdown -c'"
 msgstr  ""
 
 #. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
