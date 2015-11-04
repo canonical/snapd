@@ -723,6 +723,7 @@ func regeneratePolicyForSnap(snapname string) error {
 			return err
 		}
 		if appID.Version != appliedVersion {
+			// FIXME: dirs.SnapAppsDir is too simple, gadget
 			fn := filepath.Join(dirs.SnapAppsDir, appID.Pkgname, appID.Version, "meta", "package.yaml")
 			if !helpers.FileExists(fn) {
 				continue
@@ -808,6 +809,8 @@ func CompareGeneratePolicyFromFile(fn string) error {
 // GeneratePolicyFromFile is used to generate security policy on the system
 // from the specified manifest file name
 func GeneratePolicyFromFile(fn string, force bool) error {
+	// FIXME: force not used yet
+
 	m, err := parsePackageYamlFile(fn)
 	if err != nil {
 		return err
