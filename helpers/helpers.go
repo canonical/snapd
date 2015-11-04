@@ -203,6 +203,12 @@ func UbuntuArchitecture() string {
 	}
 }
 
+// SetUbuntuArchitecture can be used to override the automatically detected
+// currently running architecture.
+func SetUbuntuArchitecture(newArch string) {
+	goarch = newArch
+}
+
 // IsSupportedArchitecture returns true if the system architecture is in the
 // list of architectures.
 func IsSupportedArchitecture(architectures []string) bool {
