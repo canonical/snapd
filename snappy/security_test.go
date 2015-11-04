@@ -624,6 +624,9 @@ version: 1.0
 binaries:
  - name: binary1
    caps: []
+services:
+ - name: service1
+   caps: []
 `
 
 func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSimple(c *C) {
@@ -659,4 +662,33 @@ read
 write
 
 `)
+}
+
+func (a *SecurityTestSuite) TestSecurityCompareGeneratePolicyFromFileSimple(c *C) {
+	// we need to create some fake data
+	makeMockApparmorTemplate(c, "default", []byte(`# some header
+###POLICYGROUPS###
+`))
+	makeMockSeccompTemplate(c, "default", []byte(`
+deny kexec
+read
+write
+`))
+	mockPackageYamlFn, err := makeInstalledMockSnap(c.MkDir(), mockSecurityPackageYaml)
+	c.Assert(err, IsNil)
+
+	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	c.Assert(err, IsNil)
+
+	// nothing changed, compare is happy
+	err = CompareGeneratePolicyFromFile(mockPackageYamlFn)
+	c.Assert(err, IsNil)
+
+	// now change the templates
+	makeMockApparmorTemplate(c, "default", []byte(`# some different header
+###POLICYGROUPS###
+`))
+	// ...and ensure that the difference is found
+	err = CompareGeneratePolicyFromFile(mockPackageYamlFn)
+	c.Assert(err, ErrorMatches, "policy differs.*")
 }
