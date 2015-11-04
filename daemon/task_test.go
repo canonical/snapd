@@ -122,6 +122,51 @@ func (s *taskSuite) TestTaskAsync(c *check.C) {
 	syncCh <- 4
 }
 
+func (s *taskSuite) TestSendSimple(c *check.C) {
+	t := RunTask(func() interface{} {
+		chin := make(chan interface{})
+		chout := make(chan interface{})
+		go func() {
+			defer close(chout)
+			chout <- 2 * (<-chin).(int)
+		}()
+		return [2]chan interface{}{chin, chout}
+	})
+
+	done := false
+	for i := 0; i < 200 && !done; i++ {
+		time.Sleep(10 * time.Millisecond)
+		t.Lock()
+		done = t.chin != nil
+		t.Unlock()
+	}
+	c.Assert(done, check.Equals, true)
+
+	err := t.Send(42)
+	c.Check(err, check.IsNil)
+
+	t.tomb.Wait()
+
+	c.Check(t.output, check.Equals, 84)
+}
+
+func (s *taskSuite) TestSendNoReceiver(c *check.C) {
+	t := NewTask()
+	err := t.Send(1)
+	c.Check(err, check.Equals, ErrNoReceiver)
+}
+
+func (s *taskSuite) TestSendTaskDone(c *check.C) {
+	t := RunTask(func() interface{} {
+		ch := make(chan interface{})
+		close(ch)
+		return [2]chan interface{}{ch, ch}
+	})
+	t.tomb.Wait()
+	err := t.Send(1)
+	c.Check(err, check.Equals, ErrNotRunning)
+}
+
 func (s *taskSuite) TestFails(c *check.C) {
 	router := mux.NewRouter()
 	route := router.Handle("/xyzzy/{uuid}", nil)

@@ -125,15 +125,26 @@ func (t *Task) Map(route *mux.Route) map[string]interface{} {
 	}
 }
 
-var ErrNoReceiver = errors.New("task is not receiving messages at this time")
+var (
+	// ErrNoReceiver is returned from Send when the task isn't listening (yet)
+	ErrNoReceiver = errors.New("task is not receiving messages at this time")
+	// ErrNotRunning is returned from Send when the task isn't Running
+	ErrNotRunning = errors.New("task is not running")
+)
 
+// Send a value into the task
 func (t *Task) Send(v interface{}) error {
 	t.Lock()
 	defer t.Unlock()
 
+	if t.State() != TaskRunning {
+		return ErrNotRunning
+	}
+
 	if t.chin == nil {
 		return ErrNoReceiver
 	}
+
 	t.output = nil
 	t.chin <- v
 
