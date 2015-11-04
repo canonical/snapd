@@ -52,6 +52,11 @@ import (
 const (
 	// SideloadedOrigin is the (forced) origin for sideloaded snaps
 	SideloadedOrigin = "sideload"
+
+	// UbuntuCoreWireProtocol is the protocol level we support when
+	// communicating with the store. History:
+	//  - "1": client supports squashfs snaps
+	UbuntuCoreWireProtocol = "1"
 )
 
 // SharedName is a structure that holds an Alias to the preferred package and
@@ -1695,6 +1700,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(addCoreFmk(frameworks), ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
+	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 	req.Header.Set("X-Ubuntu-Device-Channel", release.Get().Channel)
 
 	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {

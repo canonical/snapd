@@ -115,7 +115,7 @@ If the dependencies need updating
 
 
 [travis-image]: https://travis-ci.org/ubuntu-core/snappy.svg?branch=master
-[travis-url]: https://travis-ci.org/ubuntu-core/snappy.svg?branch=master
+[travis-url]: https://travis-ci.org/ubuntu-core/snappy
 
 [coveralls-image]: https://coveralls.io/repos/ubuntu-core/snappy/badge.svg?branch=master&service=github
 [coveralls-url]: https://coveralls.io/github/ubuntu-core/snappy?branch=master

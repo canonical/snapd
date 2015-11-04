@@ -1,6 +1,8 @@
 sudo: required
 dist: trusty
 language: go
+go:
+  - tip
 env:
   global:
     # Encrypted Coveralls token. The secret token for your repository can be found at the bottom of
