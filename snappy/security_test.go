@@ -82,7 +82,7 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 	dirs.SnapUdevRulesDir = c.MkDir()
 
 	// ensure the module in initialized
-	err := initGlobals()
+	err := initSecurityGlobals()
 	c.Assert(err, IsNil)
 
 	// and mock some stuff
@@ -110,6 +110,17 @@ func ensureFileContentMatches(c *C, fn, expectedContent string) {
 	content, err := ioutil.ReadFile(fn)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, expectedContent)
+}
+
+func makeMockSecurityEnv(c *C) {
+	initSecurityGlobals()
+	scPolicyDir = c.MkDir()
+	aaPolicyDir = c.MkDir()
+
+	makeMockApparmorTemplate(c, "default", []byte(""))
+	makeMockSeccompTemplate(c, "default", []byte(""))
+	makeMockApparmorCap(c, "network-client", []byte(``))
+	makeMockSeccompCap(c, "network-client", []byte(``))
 }
 
 func makeMockApparmorTemplate(c *C, templateName string, content []byte) {

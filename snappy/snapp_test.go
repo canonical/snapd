@@ -96,6 +96,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	runAppArmorParser = mockRunAppArmorParser
+
+	makeMockSecurityEnv(c)
 }
 
 func (s *SnapTestSuite) TearDownTest(c *C) {

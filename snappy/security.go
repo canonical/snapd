@@ -657,7 +657,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *packageYaml, na
 }
 
 // init the global variables like ubuntu flavor and errors if it fails
-func initGlobals() (err error) {
+func initSecurityGlobals() (err error) {
 	defaultPolicyVendor, err = findUbuntuFlavor()
 	if err != nil {
 		return err
@@ -672,7 +672,7 @@ func initGlobals() (err error) {
 }
 
 func generatePolicy(m *packageYaml, baseDir string) error {
-	if err := initGlobals(); err != nil {
+	if err := initSecurityGlobals(); err != nil {
 		return err
 	}
 
@@ -768,7 +768,7 @@ func compareSinglePolicyToCurrent(oldPolicyFn, newPolicy string) error {
 // CompareGeneratePolicyFromFile is used to simulate security policy
 // generation and returns if the policy would have changed
 func CompareGeneratePolicyFromFile(fn string) error {
-	if err := initGlobals(); err != nil {
+	if err := initSecurityGlobals(); err != nil {
 		return err
 	}
 
