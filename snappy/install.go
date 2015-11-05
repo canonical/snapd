@@ -46,10 +46,46 @@ const (
 	AllowOEM
 )
 
-// Update the installed snappy packages, it returns the updated Parts
+func doUpdate(part Part, flags InstallFlags, meter progress.Meter) error {
+	if _, err := part.Install(meter, flags); err == ErrSideLoaded {
+		logger.Noticef("Skipping sideloaded package: %s", part.Name())
+		return nil
+	} else if err != nil {
+		return err
+	}
+	if err := GarbageCollect(part.Name(), flags, meter); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Update updates the selected name
+func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, error) {
+	installed, err := NewMetaLocalRepository().Installed()
+	if err != nil {
+		return nil, err
+	}
+	cur := FindSnapsByName(name, installed)
+	if len(cur) != 1 {
+		return nil, ErrNotInstalled
+	}
+
+	// zomg :-(
+	// TODO: query the store for just this package, instead of this
+	updates, err := ListUpdates()
+	upd := FindSnapsByName(QualifiedName(cur[0]), updates)
+	if len(upd) < 1 {
+		return nil, fmt.Errorf("no update found for %s", name)
+	}
+
+	return upd, doUpdate(upd[0], flags, meter)
+}
+
+// UpdateAll the installed snappy packages, it returns the updated Parts
 // if updates where available and an error and nil if any of the updates
 // fail to apply.
-func Update(flags InstallFlags, meter progress.Meter) ([]Part, error) {
+func UpdateAll(flags InstallFlags, meter progress.Meter) ([]Part, error) {
 	updates, err := ListUpdates()
 	if err != nil {
 		return nil, err
@@ -57,14 +93,7 @@ func Update(flags InstallFlags, meter progress.Meter) ([]Part, error) {
 
 	for _, part := range updates {
 		meter.Notify(fmt.Sprintf("Updating %s (%s)", part.Name(), part.Version()))
-
-		if _, err := part.Install(meter, flags); err == ErrSideLoaded {
-			logger.Noticef("Skipping sideloaded package: %s", part.Name())
-			continue
-		} else if err != nil {
-			return nil, err
-		}
-		if err := GarbageCollect(part.Name(), flags, meter); err != nil {
+		if err := doUpdate(part, flags, meter); err != nil {
 			return nil, err
 		}
 	}
