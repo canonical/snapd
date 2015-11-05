@@ -33,7 +33,7 @@ type cmdPolicygen struct {
 	Compare       bool `long:"compare"`
 	Force         bool `short:"f" long:"force"`
 	Positional    struct {
-		PackageYaml string `positional-arg-name:"package name"`
+		PackageYaml string `positional-arg-name:"package.yaml path"`
 	} `positional-args:"yes"`
 }
 
@@ -46,7 +46,7 @@ func init() {
 		logger.Panicf("Unable to install: %v", err)
 	}
 	addOptionDescription(arg, "force", i18n.G("Force policy generation."))
-	addOptionDescription(arg, "package name", i18n.G("The package.yaml used to generate the apparmor policy."))
+	addOptionDescription(arg, "package.yaml path", i18n.G("The path to the package.yaml used to generate the apparmor policy."))
 }
 
 func (x *cmdPolicygen) Execute(args []string) error {

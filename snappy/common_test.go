@@ -83,19 +83,19 @@ services:
 		return "", err
 	}
 
-	if err := addDefaultApparmorProfile("hello-app_hello_1.10"); err != nil {
+	if err := addMockDefaultApparmorProfile("hello-app_hello_1.10"); err != nil {
 		return "", err
 	}
 
-	if err := addDefaultApparmorProfile("hello-app_svc1_1.10"); err != nil {
+	if err := addMockDefaultApparmorProfile("hello-app_svc1_1.10"); err != nil {
 		return "", err
 	}
 
-	if err := addDefaultSeccompProfile("hello-app_hello_1.10"); err != nil {
+	if err := addMockDefaultSeccompProfile("hello-app_hello_1.10"); err != nil {
 		return "", err
 	}
 
-	if err := addDefaultSeccompProfile("hello-app_svc1_1.10"); err != nil {
+	if err := addMockDefaultSeccompProfile("hello-app_svc1_1.10"); err != nil {
 		return "", err
 	}
 
@@ -133,7 +133,7 @@ func storeMinimalRemoteManifest(qn, name, origin, version, desc, channel string)
 	return nil
 }
 
-func addDefaultApparmorProfile(appid string) error {
+func addMockDefaultApparmorProfile(appid string) error {
 	appArmorDir := dirs.SnapAppArmorDir
 
 	if err := os.MkdirAll(appArmorDir, 0775); err != nil {
@@ -150,7 +150,7 @@ profile "foo" (attach_disconnected) {
 	return ioutil.WriteFile(apparmorFile, []byte(securityProfile), 0644)
 }
 
-func addDefaultSeccompProfile(appid string) error {
+func addMockDefaultSeccompProfile(appid string) error {
 	seccompDir := dirs.SnapSeccompDir
 
 	if err := os.MkdirAll(seccompDir, 0775); err != nil {
