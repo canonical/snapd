@@ -45,6 +45,8 @@ type OEM struct {
 		BootAssets *BootAssets      `yaml:"boot-assets,omitempty"`
 	} `yaml:"hardware,omitempty"`
 	Software Software `yaml:"software,omitempty"`
+	//
+	SkipIfupProvisioning bool `yaml:"skip-ifup-provisioning"`
 }
 
 // Store holds information relevant to the store provided by an OEM snap

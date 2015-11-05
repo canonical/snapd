@@ -54,6 +54,8 @@ type FirstBootTestSuite struct {
 	oemConfig map[string]interface{}
 	globs     []string
 	ethdir    string
+	m         *packageYaml
+	e         error
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -73,6 +75,10 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	globs = nil
 	s.ethdir = ethdir
 	ethdir = c.MkDir()
+	getOem = s.getOem
+
+	s.m = nil
+	s.e = nil
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
@@ -80,6 +86,11 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	activeSnapsByType = ActiveSnapsByType
 	globs = s.globs
 	ethdir = s.ethdir
+	getOem = getOemImpl
+}
+
+func (s *FirstBootTestSuite) getOem() (*packageYaml, error) {
+	return s.m, s.e
 }
 
 func (s *FirstBootTestSuite) mockActiveSnapNamesByType() *fakePart {
@@ -150,6 +161,18 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEth(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(string(bs), Equals, "allow-hotplug eth42\niface eth42 inet dhcp\n")
 
+}
+
+func (s *FirstBootTestSuite) TestEnableFirstEtherOemNoIfup(c *C) {
+	s.m = &packageYaml{OEM: OEM{SkipIfupProvisioning: true}}
+	dir := c.MkDir()
+	_, err := os.Create(filepath.Join(dir, "eth42"))
+	c.Assert(err, IsNil)
+
+	globs = []string{filepath.Join(dir, "eth*")}
+	c.Check(enableFirstEther(), IsNil)
+	fs, _ := filepath.Glob(filepath.Join(ethdir, "*"))
+	c.Assert(fs, HasLen, 0)
 }
 
 func (s *FirstBootTestSuite) TestEnableFirstEtherBadEthDir(c *C) {
