@@ -1,6 +1,8 @@
 sudo: required
 dist: trusty
 language: go
+go:
+  - tip
 env:
   global:
     # Encrypted Coveralls token. The secret token for your repository can be found at the bottom of
@@ -14,6 +16,8 @@ env:
 before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -qq squashfs-tools
+install:
+  - echo "Skip. Install is done by the test script."
 script: sh -v ./run-checks $TEST_SUITE
 after_success:
   - go get github.com/mattn/goveralls
