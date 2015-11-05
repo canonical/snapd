@@ -143,7 +143,7 @@ if [ ! -z "$UNIT" ]; then
 
     echo Building the integration tests
     TMP_INTEGRATION="$(mktemp)"
-    trap "rm -f $TMP_INTEGRATION" 0
+    addtrap "rm -f $TMP_INTEGRATION"
     go build -v -o $TMP_INTEGRATION github.com/ubuntu-core/snappy/integration-tests/
 
     # the rabbit hole
