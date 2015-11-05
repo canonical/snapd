@@ -21,8 +21,8 @@
 package tests
 
 import (
-	"bytes"
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -30,7 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	
+
 	"github.com/kr/pty"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
@@ -190,7 +190,7 @@ func (s *licensedExampleSuite) TestAcceptLicenseMustInstallSnap(c *check.C) {
 	cmd := exec.Command("sudo", "snappy", "install", "licensed.canonical")
 	f, err := pty.Start(cmd)
 	c.Assert(err, check.IsNil, check.Commentf("Error starting pty: %s", err))
-	defer common.RemoveSnap(c, "licensed.canonical")		
+	defer common.RemoveSnap(c, "licensed.canonical")
 
 	s.assertLicense(c, f)
 	// Accept the license.
@@ -232,16 +232,16 @@ func (s *licensedExampleSuite) readUntilPrompt(c *check.C, f *os.File) string {
 	var output string
 	scanner := bufio.NewScanner(f)
 
-	scanLinesUntilPrompt := func (data []byte, atEOF bool) (advance int, token []byte, err error) {
+	scanLinesUntilPrompt := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		if atEOF && len(data) == 0 {
 			return 0, nil, nil
 		}
 		if i := bytes.IndexByte(data, '\n'); i >= 0 {
 			// We have a full newline-terminated line.
 			if data[i-1] == '\r' {
-				return i+1, data[0:i-1], nil
+				return i + 1, data[0 : i-1], nil
 			}
-			return i+1, data[0:i], nil
+			return i + 1, data[0:i], nil
 		}
 		// XXX Returning EOF means that this line will not be consumed by Scan.
 		// The fix for this will be released in go 1.6.
@@ -252,7 +252,7 @@ func (s *licensedExampleSuite) readUntilPrompt(c *check.C, f *os.File) string {
 		// Request more data.
 		return 0, nil, nil
 	}
-		
+
 	scanner.Split(scanLinesUntilPrompt)
 	for scanner.Scan() {
 		line := scanner.Text()
