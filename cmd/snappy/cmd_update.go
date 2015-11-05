@@ -58,7 +58,7 @@ const (
 )
 
 // TRANSLATORS: please keep this under 80 characters if possible
-var shutdownMsg = i18n.G("Snappy needs to reboot to finish an update. Defer with 'shutdown -c'.")
+var shutdownMsg = i18n.G("Snappy needs to reboot to finish an update. Defer with 'sudo shutdown -c'.")
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
 	return withMutexAndRetry(x.doUpdate)
