@@ -648,6 +648,7 @@ deny kexec
 read
 write
 `))
+
 	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
 	c.Assert(err, IsNil)
 
@@ -671,6 +672,36 @@ read
 write
 
 `)
+}
+
+func (a *SecurityTestSuite) TestSecurityGeneratePolicyFileForConfig(c *C) {
+	// we need to create some fake data
+	makeMockApparmorTemplate(c, "default", []byte(`# some header
+###POLICYGROUPS###
+`))
+	makeMockSeccompTemplate(c, "default", []byte(`
+deny kexec
+read
+write
+`))
+
+	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
+	c.Assert(err, IsNil)
+	configHook := filepath.Join(filepath.Dir(mockPackageYamlFn), "hooks", "config")
+	os.MkdirAll(filepath.Dir(configHook), 0755)
+	err = ioutil.WriteFile(configHook, []byte("true"), 0755)
+	c.Assert(err, IsNil)
+
+	// generate config
+	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	c.Assert(err, IsNil)
+
+	// and for snappy-config
+	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_snappy-config_1.0", testOrigin))
+	ensureFileContentMatches(c, generatedProfileFn, `# some header
+# No caps (policy groups) specified
+`)
+
 }
 
 func (a *SecurityTestSuite) TestSecurityCompareGeneratePolicyFromFileSimple(c *C) {

@@ -79,6 +79,12 @@ var (
 	// ErrSystemFlavorNotFound could not detect system flavor (eg,
 	// ubuntu-core, ubuntu-personal, etc)
 	ErrSystemFlavorNotFound = errors.New("could not detect system flavor")
+
+	// snappyConfig is the default securityDefinition for a snappy
+	// config fragment
+	snappyConfig = &SecurityDefinitions{
+		SecurityCaps: []string{},
+	}
 )
 
 var (
@@ -540,6 +546,10 @@ func removePolicy(m *packageYaml, baseDir string) error {
 		}
 	}
 
+	if err := m.removeOneSecurityPolicy("snappy-config", baseDir); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -671,12 +681,25 @@ func initSecurityGlobals() (err error) {
 	return nil
 }
 
+// FIXME: move into something more generic - SnapPart.HasConfig?
+func hasConfig(baseDir string) bool {
+	return helpers.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
+}
+
 func generatePolicy(m *packageYaml, baseDir string) error {
 	if err := initSecurityGlobals(); err != nil {
 		return err
 	}
 
 	var foundError error
+
+	// generate default security config for snappy-config
+	if hasConfig(baseDir) {
+		if err := snappyConfig.generatePolicyForServiceBinary(m, "snappy-config", baseDir); err != nil {
+			foundError = err
+			logger.Noticef("Failed to obtain APP_ID for %s: %v", "snappy-config", err)
+		}
+	}
 
 	for _, service := range m.ServiceYamls {
 		err := service.generatePolicyForServiceBinary(m, service.Name, baseDir)
@@ -797,6 +820,17 @@ func CompareGeneratePolicyFromFile(fn string) error {
 		if err != nil {
 			// FIXME: what to do here?
 			return err
+		}
+		if err := comparePolicyToCurrent(p); err != nil {
+			return err
+		}
+	}
+
+	// now compare the snappy-config profile
+	if hasConfig(baseDir) {
+		p, err := snappyConfig.generatePolicyForServiceBinaryResult(m, "snappy-config", baseDir)
+		if err != nil {
+			return nil
 		}
 		if err := comparePolicyToCurrent(p); err != nil {
 			return err
