@@ -126,6 +126,9 @@ func storeMinimalRemoteManifest(qn, name, origin, version, desc, channel string)
 		return err
 	}
 
+	if err := os.MkdirAll(dirs.SnapMetaDir, 0755); err != nil {
+		return err
+	}
 	if err := ioutil.WriteFile(filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", qn, version)), content, 0644); err != nil {
 		return err
 	}

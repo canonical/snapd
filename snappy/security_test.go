@@ -56,6 +56,9 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 	a.buildDir = c.MkDir()
 	os.MkdirAll(filepath.Join(a.buildDir, "meta"), 0755)
 
+	// set global sandbox
+	dirs.SetRootDir(c.MkDir())
+
 	a.m = &packageYaml{
 		Name:        "foo",
 		Version:     "1.0",
@@ -66,20 +69,6 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 	aaPolicyDir = c.MkDir()
 	a.scPolicyDir = scPolicyDir
 	scPolicyDir = c.MkDir()
-
-	a.SnapAppArmorDir = dirs.SnapAppArmorDir
-	dirs.SnapAppArmorDir = c.MkDir()
-	a.SnapAppArmorAdditionalDir = dirs.SnapAppArmorAdditionalDir
-	dirs.SnapAppArmorAdditionalDir = c.MkDir()
-
-	a.SnapSeccompDir = dirs.SnapSeccompDir
-	dirs.SnapSeccompDir = c.MkDir()
-
-	a.SnapMetaDir = dirs.SnapMetaDir
-	dirs.SnapMetaDir = c.MkDir()
-
-	a.SnapUdevRulesDir = dirs.SnapUdevRulesDir
-	dirs.SnapUdevRulesDir = c.MkDir()
 
 	// ensure the module in initialized
 	err := initSecurityGlobals()
@@ -99,11 +88,7 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 func (a *SecurityTestSuite) TearDownTest(c *C) {
 	aaPolicyDir = a.aaPolicyDir
 	scPolicyDir = a.scPolicyDir
-	dirs.SnapAppArmorDir = a.SnapAppArmorDir
-	dirs.SnapAppArmorAdditionalDir = a.SnapAppArmorAdditionalDir
-	dirs.SnapSeccompDir = a.SnapSeccompDir
-	dirs.SnapMetaDir = a.SnapMetaDir
-	dirs.SnapUdevRulesDir = a.SnapUdevRulesDir
+	dirs.SetRootDir("/")
 }
 
 func ensureFileContentMatches(c *C, fn, expectedContent string) {
@@ -663,7 +648,7 @@ deny kexec
 read
 write
 `))
-	mockPackageYamlFn, err := makeInstalledMockSnap(c.MkDir(), mockSecurityPackageYaml)
+	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
 	c.Assert(err, IsNil)
 
 	// the acutal thing that gets tested
@@ -698,7 +683,7 @@ deny kexec
 read
 write
 `))
-	mockPackageYamlFn, err := makeInstalledMockSnap(c.MkDir(), mockSecurityPackageYaml)
+	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
 	c.Assert(err, IsNil)
 
 	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
@@ -729,12 +714,8 @@ deny kexec
 read
 write
 `))
-	mockPackageYamlFn, err := makeInstalledMockSnap(c.MkDir(), mockSecurityPackageYaml)
+	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
 	c.Assert(err, IsNil)
-	// FIXME: *ugly* adjust /apps path because regeneratePolicyForSnap
-	//        is looking for it
-	dirs.SnapAppsDir = filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(mockPackageYamlFn))))
-
 	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
 	c.Assert(err, IsNil)
 
@@ -758,4 +739,36 @@ write
 /dev/kmesg rwk,
 
 `)
+}
+
+func (a *SecurityTestSuite) TestSecurityRegenerateAll(c *C) {
+	// we need to create some fake data
+	makeMockApparmorTemplate(c, "default", []byte(`# some header
+###POLICYGROUPS###
+`))
+	makeMockSeccompTemplate(c, "default", []byte(`
+deny kexec
+read
+write
+`))
+	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
+	c.Assert(err, IsNil)
+
+	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	c.Assert(err, IsNil)
+
+	// now change the templates
+	makeMockApparmorTemplate(c, "default", []byte(`# some different header
+###POLICYGROUPS###
+`))
+	// ...and regenerate the templates
+	err = RegenerateAllPolicy(false)
+	c.Assert(err, IsNil)
+
+	// ensure apparmor got updated with the new read path
+	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_binary1_1.0", testOrigin))
+	ensureFileContentMatches(c, generatedProfileFn, `# some different header
+# No caps (policy groups) specified
+`)
+
 }
