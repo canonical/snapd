@@ -39,15 +39,15 @@ import (
 
 type errPolicyNotFound struct {
 	// type of policy, e.g. template or cap
-	polType string
+	PolType string
 	// apparmor or seccomp
-	polKind string
+	PolKind string
 	// name of the policy
-	pol string
+	PolName string
 }
 
 func (e *errPolicyNotFound) Error() string {
-	return fmt.Sprintf("could not find specified %s: %s (%s)", e.polType, e.pol, e.polKind)
+	return fmt.Sprintf("could not find specified %s: %s (%s)", e.PolType, e.PolName, e.PolKind)
 }
 
 var (
