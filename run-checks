@@ -35,8 +35,7 @@ esac
 CURRENTTRAP="true"
 EXIT_CODE=99
 store_exit_code() {
-    local exit_code=$?
-    EXIT_CODE=$exit_code
+    EXIT_CODE=$?
 }
 exit_with_exit_code() {
     exit $EXIT_CODE
