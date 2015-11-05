@@ -141,7 +141,7 @@ func addMockDefaultApparmorProfile(appid string) error {
 	}
 
 	const securityProfile = `
-#include <tunables/global
+#include <tunables/global>
 profile "foo" (attach_disconnected) {
 	#include <abstractions/base>
 }`
