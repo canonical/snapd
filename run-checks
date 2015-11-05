@@ -32,8 +32,22 @@ case "${1:-all}" in
         exit 1
 esac
 
+CURRENTTRAP="true"
+EXIT_CODE=99
+store_exit_code() {
+    local exit_code=$?
+    EXIT_CODE=$exit_code
+}
+exit_with_exit_code() {
+    exit $EXIT_CODE
+}
+addtrap() {
+    CURRENTTRAP="$CURRENTTRAP ; $1"
+    trap "store_exit_code; $CURRENTTRAP ; exit_with_exit_code" EXIT
+}
+
 endmsg() {
-    if [ $? -eq 0 ]; then
+    if [ $EXIT_CODE -eq 0 ]; then
         p="success.txt"
         m="All good, what could possibly go wrong."
     else
@@ -47,7 +61,7 @@ endmsg() {
         echo "$m"
     fi
 }
-trap endmsg EXIT
+addtrap endmsg
 
 # Append the coverage profile of a package to the project coverage.
 append_coverage() {
@@ -95,7 +109,7 @@ if [ ! -z "$STATIC" ]; then
         # pot file
         echo Checking translations
         TMPF="$(mktemp)"
-        trap "rm -f $TMPF" 0
+        addtrap "rm -f $TMPF"
         ./update-pot "$TMPF"
         if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
             echo "You need to run ./update-pot"
