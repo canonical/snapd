@@ -158,13 +158,14 @@ func defaultPolicyVersion() string {
 	return release.Get().Series
 }
 
+var dbusPathOkRegexp = regexp.MustCompile(`^[a-zA-Z0-9]$`)
+
 // Generate a string suitable for use in a DBus object
 func dbusPath(s string) string {
 	dbusStr := ""
-	ok := regexp.MustCompile(`^[a-zA-Z0-9]$`)
 
 	for _, c := range strings.SplitAfter(s, "") {
-		if ok.MatchString(c) {
+		if dbusPathOkRegexp.MatchString(c) {
 			dbusStr += c
 		} else {
 			dbusStr += fmt.Sprintf("_%02x", c)
@@ -176,7 +177,7 @@ func dbusPath(s string) string {
 
 // Calculate whitespace prefix based on occurrence of s in t
 func findWhitespacePrefix(t string, s string) string {
-	pat := regexp.MustCompile(`^ *` + s)
+	pat := regexp.MustCompile(`^ *` + regexp.QuoteMeta(s))
 	p := ""
 	for _, line := range strings.Split(t, "\n") {
 		if pat.MatchString(line) {

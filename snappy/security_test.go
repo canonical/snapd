@@ -162,6 +162,15 @@ func (a *SecurityTestSuite) TestSecurityFindWhitespacePrefix(c *C) {
 
 	t = `not there`
 	c.Assert(findWhitespacePrefix(t, "###POLICYGROUPS###"), Equals, "")
+
+	t = `not there`
+	c.Assert(findWhitespacePrefix(t, "###POLICYGROUPS###"), Equals, "")
+}
+
+func (a *SecurityTestSuite) TestSecurityFindWhitespacePrefixNeedsQuoting(c *C) {
+	s := `I need quoting: [`
+	t := ``
+	c.Assert(findWhitespacePrefix(s, t), Equals, t)
 }
 
 // FIXME: need additional test for frameworkPolicy
