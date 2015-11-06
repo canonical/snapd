@@ -158,15 +158,15 @@ func defaultPolicyVersion() string {
 	return release.Get().Series
 }
 
-var dbusPathOkRegexp = regexp.MustCompile(`^[a-zA-Z0-9]$`)
+const allowed = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
 
 // Generate a string suitable for use in a DBus object
 func dbusPath(s string) string {
 	dbusStr := ""
 
-	for _, c := range strings.SplitAfter(s, "") {
-		if dbusPathOkRegexp.MatchString(c) {
-			dbusStr += c
+	for _, c := range []byte(s) {
+		if strings.IndexByte(allowed, c) >= 0 {
+			dbusStr += fmt.Sprintf("%c", c)
 		} else {
 			dbusStr += fmt.Sprintf("_%02x", c)
 		}
@@ -177,17 +177,12 @@ func dbusPath(s string) string {
 
 // Calculate whitespace prefix based on occurrence of s in t
 func findWhitespacePrefix(t string, s string) string {
-	pat := regexp.MustCompile(`^ *` + regexp.QuoteMeta(s))
-	p := ""
-	for _, line := range strings.Split(t, "\n") {
-		if pat.MatchString(line) {
-			for i := 0; i < len(line)-len(strings.TrimLeft(line, " ")); i++ {
-				p += " "
-			}
-			break
-		}
-	}
-	return p
+    subs := regexp.MustCompile(`(?m)^( *)` + regexp.QuoteMeta(s)).FindStringSubmatch(t)
+    if subs == nil {
+        return ""
+    }
+
+    return subs[1]
 }
 
 func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error) {
