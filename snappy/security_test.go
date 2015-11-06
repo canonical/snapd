@@ -377,8 +377,7 @@ var expectedGeneratedSeccompProfile = `
 alarm
 
 #cap1
-capino
-`
+capino`
 
 func (a *SecurityTestSuite) TestSecurityGenSeccompTemplatedPolicy(c *C) {
 	makeMockSeccompTemplate(c, "mock-template", mockSeccompTemplate)
@@ -546,8 +545,7 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryEmpty(c *C
 ###POLICYGROUPS###
 `))
 	makeMockApparmorCap(c, "network-client", []byte(`
-aa-network-client
-`))
+aa-network-client`))
 	makeMockSeccompTemplate(c, "default", []byte(`write`))
 	makeMockSeccompCap(c, "network-client", []byte(`
 sc-network-client
@@ -572,13 +570,11 @@ sc-network-client
 # Rules specified via caps (policy groups)
 
 aa-network-client
-
 `)
 	scProfile := filepath.Join(dirs.SnapSeccompDir, "pkg.origin_binary_1.0")
 	ensureFileContentMatches(c, scProfile, `write
 
-sc-network-client
-`)
+sc-network-client`)
 
 }
 

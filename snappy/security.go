@@ -20,6 +20,7 @@
 package snappy
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -195,9 +196,14 @@ func (sp *securityPolicyType) findCaps(caps []string, template string) ([]string
 		policyDirs := []string{parent, fwParent}
 		for _, dir := range policyDirs {
 			fn := filepath.Join(dir, c)
-			tmp, err := ioutil.ReadFile(fn)
-			if err == nil {
-				p = append(p, string(tmp))
+			if r, err := os.Open(fn); err == nil {
+				s := bufio.NewScanner(r)
+				for s.Scan() {
+					p = append(p, s.Text())
+				}
+				if err := s.Err(); err != nil {
+					return nil, err
+				}
 				found = true
 				break
 			}
