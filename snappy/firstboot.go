@@ -26,8 +26,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/pkg"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/pkg"
 
 	"gopkg.in/yaml.v2"
 )

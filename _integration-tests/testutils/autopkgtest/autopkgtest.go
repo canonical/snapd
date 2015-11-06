@@ -24,8 +24,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/_integration-tests/testutils"
-	"launchpad.net/snappy/_integration-tests/testutils/tpl"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/tpl"
 )
 
 const (

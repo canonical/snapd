@@ -30,14 +30,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/partition"
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/pkg/clickdeb"
-	"launchpad.net/snappy/policy"
-	"launchpad.net/snappy/release"
-	"launchpad.net/snappy/systemd"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg/clickdeb"
+	"github.com/ubuntu-core/snappy/policy"
+	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/systemd"
 
 	. "gopkg.in/check.v1"
 )

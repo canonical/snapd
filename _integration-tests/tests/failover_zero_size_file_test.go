@@ -25,9 +25,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
@@ -162,7 +162,7 @@ func newKernelFilenamePattern(c *check.C, bootSystem string, afterUpdate bool) s
 }
 
 /*
-TODO: uncomment when bug https://bugs.launchpad.net/snappy/+bug/1467553 is fixed
+TODO: uncomment when bug https://bugs.github.com/ubuntu-core/snappy/+bug/1467553 is fixed
 (fgimenez 20150729)
 
 func (s *failoverSuite) TestZeroSizeKernel(c *check.C) {

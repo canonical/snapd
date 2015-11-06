@@ -31,7 +31,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
-	"launchpad.net/snappy/logger"
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 // A Daemon listens for requests and routes them to the right command

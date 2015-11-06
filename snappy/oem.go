@@ -31,9 +31,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/pkg"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/pkg"
 )
 
 // OEM represents the structure inside the package.yaml for the oem component

@@ -38,7 +38,7 @@ import (
 	"text/template"
 	"time"
 
-	"launchpad.net/snappy/logger"
+	"github.com/ubuntu-core/snappy/logger"
 )
 
 var goarch = runtime.GOARCH

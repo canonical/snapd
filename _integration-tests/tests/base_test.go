@@ -24,8 +24,8 @@ import (
 	"os"
 	"testing"
 
-	"launchpad.net/snappy/_integration-tests/testutils/report"
-	"launchpad.net/snappy/_integration-tests/testutils/runner"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/report"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/runner"
 )
 
 // Hook up gocheck into the "go test" runner.

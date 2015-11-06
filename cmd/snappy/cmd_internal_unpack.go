@@ -30,9 +30,9 @@ import (
 	"strings"
 	"syscall"
 
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/pkg/clickdeb"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/pkg/clickdeb"
 )
 
 // #include <sys/prctl.h>

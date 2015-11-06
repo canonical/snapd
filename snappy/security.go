@@ -30,9 +30,9 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/pkg"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/pkg"
 )
 
 type apparmorJSONTemplate struct {

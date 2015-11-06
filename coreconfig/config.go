@@ -32,7 +32,7 @@ import (
 	"strings"
 	"syscall"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 
 	"gopkg.in/yaml.v2"
 )
