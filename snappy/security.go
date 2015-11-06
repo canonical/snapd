@@ -59,12 +59,6 @@ var (
 	defaultPolicyVendor  = ""
 	defaultPolicyVersion = ""
 
-	// Templates and policy groups (caps)
-	aaPolicyDir = "/usr/share/apparmor/easyprof"
-	scPolicyDir = "/usr/share/seccomp"
-	// Framework policy
-	aaFrameworkPolicyDir = filepath.Join(policy.SecBase, "apparmor")
-	scFrameworkPolicyDir = filepath.Join(policy.SecBase, "seccomp")
 	// AppArmor cache dir
 	aaCacheDir = "/var/cache/apparmor"
 
@@ -142,6 +136,27 @@ type securityAppID struct {
 	Pkgname string
 	Appname string
 	Version string
+}
+
+func aaPolicyDir() string {
+	// Templates and policy groups (caps)
+	aaPolicyDir := "/usr/share/apparmor/easyprof"
+	return filepath.Join(dirs.GlobalRootDir, aaPolicyDir)
+}
+
+func scPolicyDir() string {
+	scPolicyDir := "/usr/share/seccomp"
+	return filepath.Join(dirs.GlobalRootDir, scPolicyDir)
+}
+
+func aaFrameworkPolicyDir() string {
+	aaFrameworkPolicyDir := filepath.Join(policy.SecBase, "apparmor")
+	return filepath.Join(dirs.GlobalRootDir, aaFrameworkPolicyDir)
+}
+
+func scFrameworkPolicyDir() string {
+	scFrameworkPolicyDir := filepath.Join(policy.SecBase, "seccomp")
+	return filepath.Join(dirs.GlobalRootDir, scFrameworkPolicyDir)
 }
 
 // findUbuntuFlavor determines the flavor (eg, ubuntu-core, ubuntu-personal,
@@ -234,11 +249,11 @@ func findTemplate(template string, policyType string) (string, error) {
 	fwTemplate := ""
 	subdir := filepath.Join("templates", defaultPolicyVendor, defaultPolicyVersion)
 	if policyType == "apparmor" {
-		systemTemplate = filepath.Join(aaPolicyDir, subdir, template)
-		fwTemplate = filepath.Join(aaFrameworkPolicyDir, "templates", template)
+		systemTemplate = filepath.Join(aaPolicyDir(), subdir, template)
+		fwTemplate = filepath.Join(aaFrameworkPolicyDir(), "templates", template)
 	} else if policyType == "seccomp" {
-		systemTemplate = filepath.Join(scPolicyDir, subdir, template)
-		fwTemplate = filepath.Join(scFrameworkPolicyDir, "templates", template)
+		systemTemplate = filepath.Join(scPolicyDir(), subdir, template)
+		fwTemplate = filepath.Join(scFrameworkPolicyDir(), "templates", template)
 	} else {
 		return "", errPolicyTypeNotFound
 	}
@@ -268,11 +283,11 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 	parent := ""
 	fwParent := ""
 	if policyType == "apparmor" {
-		parent = filepath.Join(aaPolicyDir, subdir)
-		fwParent = filepath.Join(aaFrameworkPolicyDir, "policygroups")
+		parent = filepath.Join(aaPolicyDir(), subdir)
+		fwParent = filepath.Join(aaFrameworkPolicyDir(), "policygroups")
 	} else if policyType == "seccomp" {
-		parent = filepath.Join(scPolicyDir, subdir)
-		fwParent = filepath.Join(scFrameworkPolicyDir, "policygroups")
+		parent = filepath.Join(scPolicyDir(), subdir)
+		fwParent = filepath.Join(scFrameworkPolicyDir(), "policygroups")
 	} else {
 		return "", errPolicyTypeNotFound
 	}

@@ -37,16 +37,6 @@ type SecurityTestSuite struct {
 	scFilterGenCall       []string
 	scFilterGenCallReturn []byte
 
-	aaPolicyDir string
-	scPolicyDir string
-
-	SnapAppArmorDir           string
-	SnapAppArmorAdditionalDir string
-	SnapSeccompDir            string
-
-	SnapMetaDir      string
-	SnapUdevRulesDir string
-
 	loadAppArmorPolicyCalled bool
 }
 
@@ -65,11 +55,6 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 		Integration: make(map[string]clickAppHook),
 	}
 
-	a.aaPolicyDir = aaPolicyDir
-	aaPolicyDir = c.MkDir()
-	a.scPolicyDir = scPolicyDir
-	scPolicyDir = c.MkDir()
-
 	// ensure the module in initialized
 	err := initSecurityGlobals()
 	c.Assert(err, IsNil)
@@ -86,8 +71,6 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 }
 
 func (a *SecurityTestSuite) TearDownTest(c *C) {
-	aaPolicyDir = a.aaPolicyDir
-	scPolicyDir = a.scPolicyDir
 	dirs.SetRootDir("/")
 }
 
@@ -99,8 +82,6 @@ func ensureFileContentMatches(c *C, fn, expectedContent string) {
 
 func makeMockSecurityEnv(c *C) {
 	initSecurityGlobals()
-	scPolicyDir = c.MkDir()
-	aaPolicyDir = c.MkDir()
 
 	makeMockApparmorTemplate(c, "default", []byte(""))
 	makeMockSeccompTemplate(c, "default", []byte(""))
@@ -109,7 +90,7 @@ func makeMockSecurityEnv(c *C) {
 }
 
 func makeMockApparmorTemplate(c *C, templateName string, content []byte) {
-	mockTemplate := filepath.Join(aaPolicyDir, "templates", defaultPolicyVendor, defaultPolicyVersion, templateName)
+	mockTemplate := filepath.Join(aaPolicyDir(), "templates", defaultPolicyVendor, defaultPolicyVersion, templateName)
 	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockTemplate, content, 0644)
@@ -117,7 +98,7 @@ func makeMockApparmorTemplate(c *C, templateName string, content []byte) {
 }
 
 func makeMockApparmorCap(c *C, capname string, content []byte) {
-	mockPG := filepath.Join(aaPolicyDir, "policygroups", defaultPolicyVendor, defaultPolicyVersion, capname)
+	mockPG := filepath.Join(aaPolicyDir(), "policygroups", defaultPolicyVendor, defaultPolicyVersion, capname)
 	err := os.MkdirAll(filepath.Dir(mockPG), 0755)
 	c.Assert(err, IsNil)
 
@@ -126,7 +107,7 @@ func makeMockApparmorCap(c *C, capname string, content []byte) {
 }
 
 func makeMockSeccompTemplate(c *C, templateName string, content []byte) {
-	mockTemplate := filepath.Join(scPolicyDir, "templates", defaultPolicyVendor, defaultPolicyVersion, templateName)
+	mockTemplate := filepath.Join(scPolicyDir(), "templates", defaultPolicyVendor, defaultPolicyVersion, templateName)
 	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockTemplate, content, 0644)
@@ -134,7 +115,7 @@ func makeMockSeccompTemplate(c *C, templateName string, content []byte) {
 }
 
 func makeMockSeccompCap(c *C, capname string, content []byte) {
-	mockPG := filepath.Join(scPolicyDir, "policygroups", defaultPolicyVendor, defaultPolicyVersion, capname)
+	mockPG := filepath.Join(scPolicyDir(), "policygroups", defaultPolicyVendor, defaultPolicyVersion, capname)
 	err := os.MkdirAll(filepath.Dir(mockPG), 0755)
 	c.Assert(err, IsNil)
 
@@ -232,7 +213,6 @@ func (a *SecurityTestSuite) TestSecurityFindTemplateApparmorNotFound(c *C) {
 
 // FIXME: need additional test for frameworkPolicy
 func (a *SecurityTestSuite) TestSecurityFindCaps(c *C) {
-	aaPolicyDir = c.MkDir()
 	for _, f := range []string{"cap1", "cap2"} {
 		makeMockApparmorCap(c, f, []byte(f))
 	}
