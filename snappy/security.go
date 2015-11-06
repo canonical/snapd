@@ -219,13 +219,6 @@ func (sp *securityPolicyType) findCaps(caps []string, template string) (string, 
 	return p.String(), nil
 }
 
-type securityAppID struct {
-	AppID   string
-	Pkgname string
-	Appname string
-	Version string
-}
-
 func defaultPolicyVendor() string {
 	// FIXME: slightly ugly that we have to give a prefix here
 	return fmt.Sprintf("ubuntu-%s", release.Get().Flavor)
@@ -273,14 +266,35 @@ func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error)
 	return fmt.Sprintf("%s.%s_%s_%s", m.Name, origin, cleanedName, m.Version), err
 }
 
+type securityAppID struct {
+	AppID   string
+	Pkgname string
+	Appname string
+	Version string
+}
+
+func newAppID(appID string) (*securityAppID, error) {
+	tmp := strings.Split(appID, "_")
+	if len(tmp) != 3 {
+		return nil, errInvalidAppID
+	}
+	id := securityAppID{
+		AppID:   appID,
+		Pkgname: tmp[0],
+		Appname: tmp[1],
+		Version: tmp[2],
+	}
+	return &id, nil
+}
+
 // TODO: once verified, reorganize all these
-func getAppArmorVars(appID *securityAppID) string {
+func (sa *securityAppID) appArmorVars() string {
 	aavars := "\n# Specified profile variables\n"
-	aavars += fmt.Sprintf("@{APP_APPNAME}=\"%s\"\n", appID.Appname)
-	aavars += fmt.Sprintf("@{APP_ID_DBUS}=\"%s\"\n", dbusPath(appID.AppID))
-	aavars += fmt.Sprintf("@{APP_PKGNAME_DBUS}=\"%s\"\n", dbusPath(appID.Pkgname))
-	aavars += fmt.Sprintf("@{APP_PKGNAME}=\"%s\"\n", appID.Pkgname)
-	aavars += fmt.Sprintf("@{APP_VERSION}=\"%s\"\n", appID.Version)
+	aavars += fmt.Sprintf("@{APP_APPNAME}=\"%s\"\n", sa.Appname)
+	aavars += fmt.Sprintf("@{APP_ID_DBUS}=\"%s\"\n", dbusPath(sa.AppID))
+	aavars += fmt.Sprintf("@{APP_PKGNAME_DBUS}=\"%s\"\n", dbusPath(sa.Pkgname))
+	aavars += fmt.Sprintf("@{APP_PKGNAME}=\"%s\"\n", sa.Pkgname)
+	aavars += fmt.Sprintf("@{APP_VERSION}=\"%s\"\n", sa.Version)
 	aavars += "@{INSTALL_DIR}=\"{/apps,/oem}\"\n"
 	aavars += "# Deprecated:\n"
 	aavars += "@{CLICK_DIR}=\"{/apps,/oem}\""
@@ -323,7 +337,7 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template s
 		return "", err
 	}
 
-	aaPolicy := strings.Replace(t, "\n###VAR###\n", getAppArmorVars(appID)+"\n", 1)
+	aaPolicy := strings.Replace(t, "\n###VAR###\n", appID.appArmorVars()+"\n", 1)
 	aaPolicy = strings.Replace(aaPolicy, "\n###PROFILEATTACH###", fmt.Sprintf("\nprofile \"%s\"", appID.AppID), 1)
 
 	aacaps := ""
@@ -422,7 +436,7 @@ func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (s
 		return "", err
 	}
 
-	aaPolicy := strings.Replace(string(custom), "\n###VAR###\n", getAppArmorVars(appID)+"\n", 1)
+	aaPolicy := strings.Replace(string(custom), "\n###VAR###\n", appID.appArmorVars()+"\n", 1)
 	aaPolicy = strings.Replace(aaPolicy, "\n###PROFILEATTACH###", fmt.Sprintf("\nprofile \"%s\"", appID.AppID), 1)
 
 	return aaPolicy, nil
@@ -435,20 +449,6 @@ func getSeccompCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (st
 	}
 
 	return string(custom), nil
-}
-
-func getAppID(appID string) (*securityAppID, error) {
-	tmp := strings.Split(appID, "_")
-	if len(tmp) != 3 {
-		return nil, errInvalidAppID
-	}
-	id := securityAppID{
-		AppID:   appID,
-		Pkgname: tmp[0],
-		Appname: tmp[1],
-		Version: tmp[2],
-	}
-	return &id, nil
 }
 
 var loadAppArmorPolicy = func(fn string) ([]byte, error) {
@@ -542,7 +542,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 		return nil, err
 	}
 
-	res.id, err = getAppID(appID)
+	res.id, err = newAppID(appID)
 	if err != nil {
 		logger.Noticef("Failed to obtain APP_ID for %s: %v", name, err)
 		return nil, err
@@ -682,7 +682,7 @@ func regeneratePolicyForSnap(snapname string) error {
 
 	appliedVersion := ""
 	for _, profile := range matches {
-		appID, err := getAppID(filepath.Base(profile))
+		appID, err := newAppID(filepath.Base(profile))
 		if err != nil {
 			return err
 		}

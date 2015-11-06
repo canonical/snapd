@@ -205,7 +205,7 @@ func (a *SecurityTestSuite) TestSecurityGetAppArmorVars(c *C) {
 		AppID:   "id",
 		Pkgname: "pkgname",
 	}
-	c.Assert(getAppArmorVars(appID), Equals, `
+	c.Assert(appID.appArmorVars(), Equals, `
 # Specified profile variables
 @{APP_APPNAME}="foo"
 @{APP_ID_DBUS}="id"
@@ -475,7 +475,7 @@ func (a *SecurityTestSuite) TestSecurityGetSeccompCustomPolicy(c *C) {
 }
 
 func (a *SecurityTestSuite) TestSecurityGetAppID(c *C) {
-	id, err := getAppID("pkg_app_1.0")
+	id, err := newAppID("pkg_app_1.0")
 	c.Assert(err, IsNil)
 	c.Assert(id, DeepEquals, &securityAppID{
 		AppID:   "pkg_app_1.0",
@@ -486,7 +486,7 @@ func (a *SecurityTestSuite) TestSecurityGetAppID(c *C) {
 }
 
 func (a *SecurityTestSuite) TestSecurityGetAppIDInvalid(c *C) {
-	_, err := getAppID("invalid")
+	_, err := newAppID("invalid")
 	c.Assert(err, Equals, errInvalidAppID)
 }
 
