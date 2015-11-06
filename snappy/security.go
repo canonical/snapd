@@ -35,6 +35,7 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/policy"
+	"github.com/ubuntu-core/snappy/release"
 )
 
 type errPolicyNotFound struct {
@@ -55,10 +56,6 @@ var (
 	defaultTemplate     = "default"
 	defaultPolicyGroups = []string{"network-client"}
 
-	// These are set elsewhere
-	defaultPolicyVendor  = ""
-	defaultPolicyVersion = ""
-
 	// AppArmor cache dir
 	aaCacheDir = "/var/cache/apparmor"
 
@@ -66,13 +63,6 @@ var (
 	errPolicyTypeNotFound = errors.New("could not find specified policy type")
 	errInvalidAppID       = errors.New("invalid APP_ID")
 	errPolicyGen          = errors.New("errors found when generating policy")
-
-	// ErrSystemVersionNotFound could not detect system version (eg, 15.04,
-	// 15.10, etc)
-	ErrSystemVersionNotFound = errors.New("could not detect system version")
-	// ErrSystemFlavorNotFound could not detect system flavor (eg,
-	// ubuntu-core, ubuntu-personal, etc)
-	ErrSystemFlavorNotFound = errors.New("could not detect system flavor")
 
 	// snappyConfig is the default securityDefinition for a snappy
 	// config fragment
@@ -159,43 +149,13 @@ func scFrameworkPolicyDir() string {
 	return filepath.Join(dirs.GlobalRootDir, scFrameworkPolicyDir)
 }
 
-// findUbuntuFlavor determines the flavor (eg, ubuntu-core, ubuntu-personal,
-// etc) of the system, which is needed for determining the security policy
-// policy-vendor
-func findUbuntuFlavor() (string, error) {
-	// TODO: a downloaded snap targets a particular device. We need to map
-	// that device type (flavor) to installed system security policy (eg
-	// ubuntu-core, ubuntu-personal, etc). As of 2015-10-28,
-	// ubuntu-personal images are no longer generated, and there is no
-	// mechanism to know what the snap targets.
-	//
-	// FIXME: just use:
-	//    return fmt.Sprintf("ubuntu-%s", release.Get().Flavor)
-	// here
-	return "ubuntu-core", nil
+func defaultPolicyVendor() string {
+	// FIXME: slightly ugly that we have to give a prefix here
+	return fmt.Sprintf("ubuntu-%s", release.Get().Flavor)
 }
 
-// findUbuntuVersion determines the version (eg, 15.04, 15.10, etc) of the
-// system, which is needed for determining the security policy
-// policy-version
-func findUbuntuVersion() (string, error) {
-	content, err := ioutil.ReadFile(lsbRelease)
-	if err != nil {
-		logger.Noticef("Failed to read %q: %v", lsbRelease, err)
-		return "", err
-	}
-
-	for _, line := range strings.Split(string(content), "\n") {
-		if strings.HasPrefix(line, "DISTRIB_RELEASE=") {
-			tmp := strings.Split(line, "=")
-			if len(tmp) != 2 {
-				return "", ErrSystemVersionNotFound
-			}
-			return tmp[1], nil
-		}
-	}
-
-	return "", ErrSystemVersionNotFound
+func defaultPolicyVersion() string {
+	return release.Get().Series
 }
 
 // Generate a string suitable for use in a DBus object
@@ -247,7 +207,7 @@ func findTemplate(template string, policyType string) (string, error) {
 
 	systemTemplate := ""
 	fwTemplate := ""
-	subdir := filepath.Join("templates", defaultPolicyVendor, defaultPolicyVersion)
+	subdir := filepath.Join("templates", defaultPolicyVendor(), defaultPolicyVersion())
 	if policyType == "apparmor" {
 		systemTemplate = filepath.Join(aaPolicyDir(), subdir, template)
 		fwTemplate = filepath.Join(aaFrameworkPolicyDir(), "templates", template)
@@ -279,7 +239,7 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 		caps = []string{}
 	}
 
-	subdir := filepath.Join("policygroups", defaultPolicyVendor, defaultPolicyVersion)
+	subdir := filepath.Join("policygroups", defaultPolicyVendor(), defaultPolicyVersion())
 	parent := ""
 	fwParent := ""
 	if policyType == "apparmor" {
@@ -681,31 +641,12 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *packageYaml, na
 	return nil
 }
 
-// init the global variables like ubuntu flavor and errors if it fails
-func initSecurityGlobals() (err error) {
-	defaultPolicyVendor, err = findUbuntuFlavor()
-	if err != nil {
-		return err
-	}
-
-	defaultPolicyVersion, err = findUbuntuVersion()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // FIXME: move into something more generic - SnapPart.HasConfig?
 func hasConfig(baseDir string) bool {
 	return helpers.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
 }
 
 func generatePolicy(m *packageYaml, baseDir string) error {
-	if err := initSecurityGlobals(); err != nil {
-		return err
-	}
-
 	var foundError error
 
 	// generate default security config for snappy-config
@@ -806,10 +747,6 @@ func compareSinglePolicyToCurrent(oldPolicyFn, newPolicy string) error {
 // CompareGeneratePolicyFromFile is used to simulate security policy
 // generation and returns if the policy would have changed
 func CompareGeneratePolicyFromFile(fn string) error {
-	if err := initSecurityGlobals(); err != nil {
-		return err
-	}
-
 	m, err := parsePackageYamlFile(fn)
 	if err != nil {
 		return err

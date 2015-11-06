@@ -55,10 +55,6 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 		Integration: make(map[string]clickAppHook),
 	}
 
-	// ensure the module in initialized
-	err := initSecurityGlobals()
-	c.Assert(err, IsNil)
-
 	// and mock some stuff
 	a.loadAppArmorPolicyCalled = false
 	loadAppArmorPolicy = func(fn string) ([]byte, error) {
@@ -81,8 +77,6 @@ func ensureFileContentMatches(c *C, fn, expectedContent string) {
 }
 
 func makeMockSecurityEnv(c *C) {
-	initSecurityGlobals()
-
 	makeMockApparmorTemplate(c, "default", []byte(""))
 	makeMockSeccompTemplate(c, "default", []byte(""))
 	makeMockApparmorCap(c, "network-client", []byte(``))
@@ -90,7 +84,7 @@ func makeMockSecurityEnv(c *C) {
 }
 
 func makeMockApparmorTemplate(c *C, templateName string, content []byte) {
-	mockTemplate := filepath.Join(aaPolicyDir(), "templates", defaultPolicyVendor, defaultPolicyVersion, templateName)
+	mockTemplate := filepath.Join(aaPolicyDir(), "templates", defaultPolicyVendor(), defaultPolicyVersion(), templateName)
 	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockTemplate, content, 0644)
@@ -98,7 +92,7 @@ func makeMockApparmorTemplate(c *C, templateName string, content []byte) {
 }
 
 func makeMockApparmorCap(c *C, capname string, content []byte) {
-	mockPG := filepath.Join(aaPolicyDir(), "policygroups", defaultPolicyVendor, defaultPolicyVersion, capname)
+	mockPG := filepath.Join(aaPolicyDir(), "policygroups", defaultPolicyVendor(), defaultPolicyVersion(), capname)
 	err := os.MkdirAll(filepath.Dir(mockPG), 0755)
 	c.Assert(err, IsNil)
 
@@ -107,7 +101,7 @@ func makeMockApparmorCap(c *C, capname string, content []byte) {
 }
 
 func makeMockSeccompTemplate(c *C, templateName string, content []byte) {
-	mockTemplate := filepath.Join(scPolicyDir(), "templates", defaultPolicyVendor, defaultPolicyVersion, templateName)
+	mockTemplate := filepath.Join(scPolicyDir(), "templates", defaultPolicyVendor(), defaultPolicyVersion(), templateName)
 	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockTemplate, content, 0644)
@@ -115,7 +109,7 @@ func makeMockSeccompTemplate(c *C, templateName string, content []byte) {
 }
 
 func makeMockSeccompCap(c *C, capname string, content []byte) {
-	mockPG := filepath.Join(scPolicyDir(), "policygroups", defaultPolicyVendor, defaultPolicyVersion, capname)
+	mockPG := filepath.Join(scPolicyDir(), "policygroups", defaultPolicyVendor(), defaultPolicyVersion(), capname)
 	err := os.MkdirAll(filepath.Dir(mockPG), 0755)
 	c.Assert(err, IsNil)
 
@@ -154,33 +148,6 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfileFramework(c *C) {
 	ap, err := getSecurityProfile(&m, b.Name, "/apps/foo.mvo/1.0/")
 	c.Assert(err, IsNil)
 	c.Check(ap, Equals, "foo_bin-app_1.0")
-}
-
-func (a *SecurityTestSuite) TestSnappyFindUbuntuVersion(c *C) {
-	realLsbRelease := lsbRelease
-	defer func() { lsbRelease = realLsbRelease }()
-
-	lsbRelease = filepath.Join(c.MkDir(), "mock-lsb-release")
-	s := `DISTRIB_RELEASE=18.09`
-	err := ioutil.WriteFile(lsbRelease, []byte(s), 0644)
-	c.Assert(err, IsNil)
-
-	ver, err := findUbuntuVersion()
-	c.Assert(err, IsNil)
-	c.Assert(ver, Equals, "18.09")
-}
-
-func (a *SecurityTestSuite) TestSnappyFindUbuntuVersionNotFound(c *C) {
-	realLsbRelease := lsbRelease
-	defer func() { lsbRelease = realLsbRelease }()
-
-	lsbRelease = filepath.Join(c.MkDir(), "mock-lsb-release")
-	s := `silly stuff`
-	err := ioutil.WriteFile(lsbRelease, []byte(s), 0644)
-	c.Assert(err, IsNil)
-
-	_, err = findUbuntuVersion()
-	c.Assert(err, Equals, ErrSystemVersionNotFound)
 }
 
 func (a *SecurityTestSuite) TestSecurityGenDbusPath(c *C) {
