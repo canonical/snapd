@@ -121,6 +121,11 @@ var globs = []string{"/sys/class/net/eth*", "/sys/class/net/en*"}
 var ethdir = "/etc/network/interfaces.d"
 
 func enableFirstEther() error {
+	oem, _ := getOem()
+	if oem != nil && oem.OEM.SkipIfupProvisioning {
+		return nil
+	}
+
 	var eths []string
 	for _, glob := range globs {
 		eths, _ = filepath.Glob(glob)
