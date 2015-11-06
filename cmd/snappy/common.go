@@ -20,8 +20,8 @@
 package main
 
 import (
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/priv"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/priv"
 
 	"github.com/jessevdk/go-flags"
 )

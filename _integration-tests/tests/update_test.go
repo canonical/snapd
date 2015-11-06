@@ -23,8 +23,8 @@ import (
 	"io/ioutil"
 	"path"
 
-	"launchpad.net/snappy/_integration-tests/testutils/common"
-	"launchpad.net/snappy/_integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )

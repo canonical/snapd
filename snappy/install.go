@@ -25,10 +25,10 @@ import (
 	"sort"
 	"strings"
 
-	"launchpad.net/snappy/logger"
-	"launchpad.net/snappy/partition"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/provisioning"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/provisioning"
 )
 
 // InstallFlags can be used to pass additional flags to the install of a

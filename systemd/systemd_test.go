@@ -28,7 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 )
 
 type testreporter struct {

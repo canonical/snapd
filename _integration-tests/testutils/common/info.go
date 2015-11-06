@@ -23,8 +23,8 @@ import (
 	"bufio"
 	"strings"
 
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
 	"gopkg.in/check.v1"
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
 )
 
 // dependency aliasing

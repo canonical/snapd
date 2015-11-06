@@ -27,8 +27,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/snappy/helpers"
-	"launchpad.net/snappy/oauth"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/oauth"
 )
 
 var (

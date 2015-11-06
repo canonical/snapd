@@ -30,8 +30,8 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/ubuntu-core/snappy/helpers"
 	. "gopkg.in/check.v1"
-	"launchpad.net/snappy/helpers"
 )
 
 // Hook up check.v1 into the "go test" runner.

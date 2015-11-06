@@ -28,9 +28,9 @@ import (
 	"strings"
 	"testing"
 
-	"launchpad.net/snappy/dirs"
-	"launchpad.net/snappy/partition"
-	"launchpad.net/snappy/provisioning"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/provisioning"
 
 	. "gopkg.in/check.v1"
 )
@@ -522,7 +522,7 @@ options:
 //   not actually download/install anything so we end up with
 //   the wrong kernel /boot/b/k1
 //
-// see bug https://bugs.launchpad.net/snappy/+bug/1474125
+// see bug https://bugs.github.com/ubuntu-core/snappy/+bug/1474125
 func (s *SITestSuite) TestSystemImagePartInstallRollbackNoSyncbootfiles(c *C) {
 
 	// we are on 1 and "upgrade" to 2 which is already installed

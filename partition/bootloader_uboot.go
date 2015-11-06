@@ -26,7 +26,7 @@ import (
 	"os"
 	"strings"
 
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 
 	"github.com/mvo5/goconfigparser"
 	"github.com/mvo5/uboot-go/uenv"

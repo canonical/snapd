@@ -20,7 +20,7 @@
 package remote
 
 import (
-	"launchpad.net/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg"
 )
 
 // A Snap encapsulates the data sent to us from the store.

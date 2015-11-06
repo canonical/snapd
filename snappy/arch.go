@@ -20,7 +20,7 @@
 package snappy
 
 import (
-	"launchpad.net/snappy/helpers"
+	"github.com/ubuntu-core/snappy/helpers"
 )
 
 // ArchitectureType is the type for a supported snappy architecture

@@ -23,9 +23,9 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/_integration-tests/testutils/data"
 	"gopkg.in/check.v1"
-	"launchpad.net/snappy/_integration-tests/testutils/cli"
-	"launchpad.net/snappy/_integration-tests/testutils/data"
 )
 
 const snapFilenameSufix = "_1.0_all.snap"

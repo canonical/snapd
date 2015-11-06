@@ -29,10 +29,10 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"launchpad.net/snappy/pkg"
-	"launchpad.net/snappy/pkg/remote"
-	"launchpad.net/snappy/progress"
-	"launchpad.net/snappy/snappy"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg/remote"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // ErrRemoved is returned when you ask to operate on a removed package.
