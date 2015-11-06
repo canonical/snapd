@@ -199,27 +199,27 @@ Sample result:
 
 #### Fields
 * `packages`
-   * `status`: can be either `not installed`, `installing`, `installed`,
-     `uninstalling`, `active` (i.e. is current), `removed` (but data present),
-     `purging`. For statuses that signal a background operation is in course,
-     see the `operation` field. Transient states not implemented yet.
-   * `name`: the package name.
-   * `version`: a string representing the version.
-   * `vendor`: a string representing the vendor.
-   * `icon`: a url to the package icon, possible relative to this server.
-   * `type`: the type of snappy package; one of `app`, `framework`, `kernel`,
-     `gadget`, or `os`.
-   * `description`: package description
-   * `installed_size`: for installed packages, how much space the package
-     itself (not its data) uses, formatted as a decimal string.
-   * `download_size`: for not-installed packages, how big the download will
-     be, formatted as a decimal string.
-   * `operation`: if the state signals that an operation is underway
-     (e.g. installing), the operation field describes that operation
-   * `rollback_available`: if present and not empty, it means the package can
-     be rolled back to the version specified as a value to this entry.
-   * `update_available`: if present and not empty, it means the package can be
-     updated to the version specified as a value to this entry.
+    * `status`: can be either `not installed`, `installing`, `installed`,
+      `uninstalling`, `active` (i.e. is current), `removed` (but data present),
+      `purging`. For statuses that signal a background operation is in course,
+      see the `operation` field. Transient states not implemented yet.
+    * `name`: the package name.
+    * `version`: a string representing the version.
+    * `vendor`: a string representing the vendor.
+    * `icon`: a url to the package icon, possible relative to this server.
+    * `type`: the type of snappy package; one of `app`, `framework`, `kernel`,
+      `gadget`, or `os`.
+    * `description`: package description
+    * `installed_size`: for installed packages, how much space the package
+      itself (not its data) uses, formatted as a decimal string.
+    * `download_size`: for not-installed packages, how big the download will
+      be, formatted as a decimal string.
+    * `operation`: if the state signals that an operation is underway
+      (e.g. installing), the operation field describes that operation
+    * `rollback_available`: if present and not empty, it means the package can
+      be rolled back to the version specified as a value to this entry.
+    * `update_available`: if present and not empty, it means the package can be
+      updated to the version specified as a value to this entry.
 
 ### POST
 
