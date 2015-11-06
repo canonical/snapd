@@ -123,6 +123,11 @@ var ethdir = "/etc/network/interfaces.d"
 var ifup = "/sbin/ifup"
 
 func enableFirstEther() error {
+	oem, _ := getOem()
+	if oem != nil && oem.OEM.SkipIfupProvisioning {
+		return nil
+	}
+
 	var eths []string
 	for _, glob := range globs {
 		eths, _ = filepath.Glob(glob)
