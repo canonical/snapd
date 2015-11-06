@@ -20,7 +20,6 @@
 package snappy
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -170,7 +169,7 @@ func (sp *securityPolicyType) findTemplate(template string) (string, error) {
 	return "", &errPolicyNotFound{"template", sp, template}
 }
 
-func (sp *securityPolicyType) findCaps(caps []string, template string) (string, error) {
+func (sp *securityPolicyType) findCaps(caps []string, template string) ([]string, error) {
 	// XXX: this is snappy specific, on other systems like the phone we may
 	// want different defaults.
 	if template == "" && caps == nil {
@@ -185,12 +184,12 @@ func (sp *securityPolicyType) findCaps(caps []string, template string) (string, 
 
 	// Nothing to find if caps is empty
 	if len(caps) == 0 {
-		return "", nil
+		return nil, nil
 	}
 
 	found := false
 	badCap := ""
-	var p bytes.Buffer
+	var p []string
 	for _, c := range caps {
 		// Always prefer system policy
 		policyDirs := []string{parent, fwParent}
@@ -198,10 +197,7 @@ func (sp *securityPolicyType) findCaps(caps []string, template string) (string, 
 			fn := filepath.Join(dir, c)
 			tmp, err := ioutil.ReadFile(fn)
 			if err == nil {
-				p.Write(tmp)
-				if c != caps[len(caps)-1] {
-					p.Write([]byte("\n"))
-				}
+				p = append(p, string(tmp))
 				found = true
 				break
 			}
@@ -213,10 +209,10 @@ func (sp *securityPolicyType) findCaps(caps []string, template string) (string, 
 	}
 
 	if found == false {
-		return "", &errPolicyNotFound{"cap", sp, badCap}
+		return nil, &errPolicyNotFound{"cap", sp, badCap}
 	}
 
-	return p.String(), nil
+	return p, nil
 }
 
 func defaultPolicyVendor() string {
@@ -341,12 +337,12 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template s
 	aaPolicy = strings.Replace(aaPolicy, "\n###PROFILEATTACH###", fmt.Sprintf("\nprofile \"%s\"", appID.AppID), 1)
 
 	aacaps := ""
-	if p == "" {
+	if len(p) == 0 {
 		aacaps += "# No caps (policy groups) specified\n"
 	} else {
 		aacaps += "# Rules specified via caps (policy groups)\n"
 		prefix := findWhitespacePrefix(t, "###POLICYGROUPS###")
-		for _, line := range strings.Split(p, "\n") {
+		for _, line := range p {
 			if len(line) == 0 {
 				aacaps += line + "\n"
 			} else {
@@ -416,7 +412,7 @@ func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, template st
 		return "", err
 	}
 
-	scPolicy := t + "\n" + p
+	scPolicy := t + "\n" + strings.Join(p, "\n")
 
 	if overrides != nil && overrides.Syscalls != nil {
 		scPolicy += "\n# Addtional syscalls from security-override\n"

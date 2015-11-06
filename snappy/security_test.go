@@ -195,7 +195,7 @@ func (a *SecurityTestSuite) TestSecurityFindCaps(c *C) {
 
 	cap, err := securityPolicyTypeAppArmor.findCaps([]string{"cap1", "cap2"}, "mock-template")
 	c.Assert(err, IsNil)
-	c.Assert(cap, Equals, "cap1\ncap2")
+	c.Assert(cap, DeepEquals, []string{"cap1", "cap2"})
 }
 
 func (a *SecurityTestSuite) TestSecurityGetAppArmorVars(c *C) {
