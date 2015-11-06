@@ -84,7 +84,7 @@ func makeMockSecurityEnv(c *C) {
 }
 
 func makeMockApparmorTemplate(c *C, templateName string, content []byte) {
-	mockTemplate := filepath.Join(aaPolicyDir(), "templates", defaultPolicyVendor(), defaultPolicyVersion(), templateName)
+	mockTemplate := filepath.Join(securityPolicyTypeAppArmor.policyDir(), "templates", defaultPolicyVendor(), defaultPolicyVersion(), templateName)
 	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockTemplate, content, 0644)
@@ -92,7 +92,7 @@ func makeMockApparmorTemplate(c *C, templateName string, content []byte) {
 }
 
 func makeMockApparmorCap(c *C, capname string, content []byte) {
-	mockPG := filepath.Join(aaPolicyDir(), "policygroups", defaultPolicyVendor(), defaultPolicyVersion(), capname)
+	mockPG := filepath.Join(securityPolicyTypeAppArmor.policyDir(), "policygroups", defaultPolicyVendor(), defaultPolicyVersion(), capname)
 	err := os.MkdirAll(filepath.Dir(mockPG), 0755)
 	c.Assert(err, IsNil)
 
@@ -101,7 +101,7 @@ func makeMockApparmorCap(c *C, capname string, content []byte) {
 }
 
 func makeMockSeccompTemplate(c *C, templateName string, content []byte) {
-	mockTemplate := filepath.Join(scPolicyDir(), "templates", defaultPolicyVendor(), defaultPolicyVersion(), templateName)
+	mockTemplate := filepath.Join(securityPolicyTypeSeccomp.policyDir(), "templates", defaultPolicyVendor(), defaultPolicyVersion(), templateName)
 	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockTemplate, content, 0644)
@@ -109,7 +109,7 @@ func makeMockSeccompTemplate(c *C, templateName string, content []byte) {
 }
 
 func makeMockSeccompCap(c *C, capname string, content []byte) {
-	mockPG := filepath.Join(scPolicyDir(), "policygroups", defaultPolicyVendor(), defaultPolicyVersion(), capname)
+	mockPG := filepath.Join(securityPolicyTypeSeccomp.policyDir(), "policygroups", defaultPolicyVendor(), defaultPolicyVersion(), capname)
 	err := os.MkdirAll(filepath.Dir(mockPG), 0755)
 	c.Assert(err, IsNil)
 
@@ -177,14 +177,14 @@ func (a *SecurityTestSuite) TestSecurityFindWhitespacePrefixNeedsQuoting(c *C) {
 func (a *SecurityTestSuite) TestSecurityFindTemplateApparmor(c *C) {
 	makeMockApparmorTemplate(c, "mock-template", []byte(`something`))
 
-	t, err := findTemplate("mock-template", "apparmor")
+	t, err := securityPolicyTypeAppArmor.findTemplate("mock-template")
 	c.Assert(err, IsNil)
 	c.Assert(t, Matches, "something")
 }
 
 func (a *SecurityTestSuite) TestSecurityFindTemplateApparmorNotFound(c *C) {
-	_, err := findTemplate("not-available-templ", "apparmor")
-	c.Assert(err, DeepEquals, &errPolicyNotFound{"template", "apparmor", "not-available-templ"})
+	_, err := securityPolicyTypeAppArmor.findTemplate("not-available-templ")
+	c.Assert(err, DeepEquals, &errPolicyNotFound{"template", &securityPolicyTypeAppArmor, "not-available-templ"})
 }
 
 // FIXME: need additional test for frameworkPolicy
@@ -193,7 +193,7 @@ func (a *SecurityTestSuite) TestSecurityFindCaps(c *C) {
 		makeMockApparmorCap(c, f, []byte(f))
 	}
 
-	cap, err := findCaps([]string{"cap1", "cap2"}, "mock-template", "apparmor")
+	cap, err := securityPolicyTypeAppArmor.findCaps([]string{"cap1", "cap2"}, "mock-template")
 	c.Assert(err, IsNil)
 	c.Assert(cap, Equals, "cap1\ncap2")
 }

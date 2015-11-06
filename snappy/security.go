@@ -42,7 +42,7 @@ type errPolicyNotFound struct {
 	// type of policy, e.g. template or cap
 	PolType string
 	// apparmor or seccomp
-	PolKind string
+	PolKind *securityPolicyType
 	// name of the policy
 	PolName string
 }
@@ -121,82 +121,33 @@ type SecurityDefinitions struct {
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
 }
 
-type securityAppID struct {
-	AppID   string
-	Pkgname string
-	Appname string
-	Version string
+// securityPolicyType is a kind of securityPolicy, we currently
+// have "apparmor" and "seccomp"
+type securityPolicyType struct {
+	name          string
+	basePolicyDir string
 }
 
-func aaPolicyDir() string {
-	// Templates and policy groups (caps)
-	aaPolicyDir := "/usr/share/apparmor/easyprof"
-	return filepath.Join(dirs.GlobalRootDir, aaPolicyDir)
+var securityPolicyTypeAppArmor = securityPolicyType{
+	name:          "apparmor",
+	basePolicyDir: "/usr/share/apparmor/easyprof",
 }
 
-func scPolicyDir() string {
-	scPolicyDir := "/usr/share/seccomp"
-	return filepath.Join(dirs.GlobalRootDir, scPolicyDir)
+var securityPolicyTypeSeccomp = securityPolicyType{
+	name:          "seccomp",
+	basePolicyDir: "/usr/share/seccomp",
 }
 
-func aaFrameworkPolicyDir() string {
-	aaFrameworkPolicyDir := filepath.Join(policy.SecBase, "apparmor")
-	return filepath.Join(dirs.GlobalRootDir, aaFrameworkPolicyDir)
+func (sp *securityPolicyType) policyDir() string {
+	return filepath.Join(dirs.GlobalRootDir, sp.basePolicyDir)
 }
 
-func scFrameworkPolicyDir() string {
-	scFrameworkPolicyDir := filepath.Join(policy.SecBase, "seccomp")
-	return filepath.Join(dirs.GlobalRootDir, scFrameworkPolicyDir)
+func (sp *securityPolicyType) frameworkPolicyDir() string {
+	frameworkPolicyDir := filepath.Join(policy.SecBase, sp.name)
+	return filepath.Join(dirs.GlobalRootDir, frameworkPolicyDir)
 }
 
-func defaultPolicyVendor() string {
-	// FIXME: slightly ugly that we have to give a prefix here
-	return fmt.Sprintf("ubuntu-%s", release.Get().Flavor)
-}
-
-func defaultPolicyVersion() string {
-	return release.Get().Series
-}
-
-const allowed = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
-
-// Generate a string suitable for use in a DBus object
-func dbusPath(s string) string {
-	dbusStr := ""
-
-	for _, c := range []byte(s) {
-		if strings.IndexByte(allowed, c) >= 0 {
-			dbusStr += fmt.Sprintf("%c", c)
-		} else {
-			dbusStr += fmt.Sprintf("_%02x", c)
-		}
-	}
-
-	return dbusStr
-}
-
-// Calculate whitespace prefix based on occurrence of s in t
-func findWhitespacePrefix(t string, s string) string {
-    subs := regexp.MustCompile(`(?m)^( *)` + regexp.QuoteMeta(s)).FindStringSubmatch(t)
-    if subs == nil {
-        return ""
-    }
-
-    return subs[1]
-}
-
-func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error) {
-	cleanedName := strings.Replace(appName, "/", "-", -1)
-	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeOem {
-		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
-	}
-
-	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
-
-	return fmt.Sprintf("%s.%s_%s_%s", m.Name, origin, cleanedName, m.Version), err
-}
-
-func findTemplate(template string, policyType string) (string, error) {
+func (sp *securityPolicyType) findTemplate(template string) (string, error) {
 	if template == "" {
 		template = defaultTemplate
 	}
@@ -204,15 +155,8 @@ func findTemplate(template string, policyType string) (string, error) {
 	systemTemplate := ""
 	fwTemplate := ""
 	subdir := filepath.Join("templates", defaultPolicyVendor(), defaultPolicyVersion())
-	if policyType == "apparmor" {
-		systemTemplate = filepath.Join(aaPolicyDir(), subdir, template)
-		fwTemplate = filepath.Join(aaFrameworkPolicyDir(), "templates", template)
-	} else if policyType == "seccomp" {
-		systemTemplate = filepath.Join(scPolicyDir(), subdir, template)
-		fwTemplate = filepath.Join(scFrameworkPolicyDir(), "templates", template)
-	} else {
-		return "", errPolicyTypeNotFound
-	}
+	systemTemplate = filepath.Join(sp.policyDir(), subdir, template)
+	fwTemplate = filepath.Join(sp.frameworkPolicyDir(), "templates", template)
 
 	// Always prefer system policy
 	fns := []string{systemTemplate, fwTemplate}
@@ -223,10 +167,10 @@ func findTemplate(template string, policyType string) (string, error) {
 		}
 	}
 
-	return "", &errPolicyNotFound{"template", policyType, template}
+	return "", &errPolicyNotFound{"template", sp, template}
 }
 
-func findCaps(caps []string, template string, policyType string) (string, error) {
+func (sp *securityPolicyType) findCaps(caps []string, template string) (string, error) {
 	// XXX: this is snappy specific, on other systems like the phone we may
 	// want different defaults.
 	if template == "" && caps == nil {
@@ -236,17 +180,8 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 	}
 
 	subdir := filepath.Join("policygroups", defaultPolicyVendor(), defaultPolicyVersion())
-	parent := ""
-	fwParent := ""
-	if policyType == "apparmor" {
-		parent = filepath.Join(aaPolicyDir(), subdir)
-		fwParent = filepath.Join(aaFrameworkPolicyDir(), "policygroups")
-	} else if policyType == "seccomp" {
-		parent = filepath.Join(scPolicyDir(), subdir)
-		fwParent = filepath.Join(scFrameworkPolicyDir(), "policygroups")
-	} else {
-		return "", errPolicyTypeNotFound
-	}
+	parent := filepath.Join(sp.policyDir(), subdir)
+	fwParent := filepath.Join(sp.frameworkPolicyDir(), "policygroups")
 
 	// Nothing to find if caps is empty
 	if len(caps) == 0 {
@@ -278,10 +213,64 @@ func findCaps(caps []string, template string, policyType string) (string, error)
 	}
 
 	if found == false {
-		return "", &errPolicyNotFound{"cap", policyType, badCap}
+		return "", &errPolicyNotFound{"cap", sp, badCap}
 	}
 
 	return p.String(), nil
+}
+
+type securityAppID struct {
+	AppID   string
+	Pkgname string
+	Appname string
+	Version string
+}
+
+func defaultPolicyVendor() string {
+	// FIXME: slightly ugly that we have to give a prefix here
+	return fmt.Sprintf("ubuntu-%s", release.Get().Flavor)
+}
+
+func defaultPolicyVersion() string {
+	return release.Get().Series
+}
+
+const allowed = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
+
+// Generate a string suitable for use in a DBus object
+func dbusPath(s string) string {
+	dbusStr := ""
+
+	for _, c := range []byte(s) {
+		if strings.IndexByte(allowed, c) >= 0 {
+			dbusStr += fmt.Sprintf("%c", c)
+		} else {
+			dbusStr += fmt.Sprintf("_%02x", c)
+		}
+	}
+
+	return dbusStr
+}
+
+// Calculate whitespace prefix based on occurrence of s in t
+func findWhitespacePrefix(t string, s string) string {
+	subs := regexp.MustCompile(`(?m)^( *)` + regexp.QuoteMeta(s)).FindStringSubmatch(t)
+	if subs == nil {
+		return ""
+	}
+
+	return subs[1]
+}
+
+func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error) {
+	cleanedName := strings.Replace(appName, "/", "-", -1)
+	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeOem {
+		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
+	}
+
+	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+
+	return fmt.Sprintf("%s.%s_%s_%s", m.Name, origin, cleanedName, m.Version), err
 }
 
 // TODO: once verified, reorganize all these
@@ -325,11 +314,11 @@ func genAppArmorPathRule(path string, access string) (string, error) {
 }
 
 func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string, overrides *SecurityAppArmorOverrideDefinition) (string, error) {
-	t, err := findTemplate(template, "apparmor")
+	t, err := securityPolicyTypeAppArmor.findTemplate(template)
 	if err != nil {
 		return "", err
 	}
-	p, err := findCaps(caps, template, "apparmor")
+	p, err := securityPolicyTypeAppArmor.findCaps(caps, template)
 	if err != nil {
 		return "", err
 	}
@@ -404,11 +393,11 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template s
 }
 
 func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string, overrides *SecuritySeccompOverrideDefinition) (string, error) {
-	t, err := findTemplate(template, "seccomp")
+	t, err := securityPolicyTypeSeccomp.findTemplate(template)
 	if err != nil {
 		return "", err
 	}
-	p, err := findCaps(caps, template, "seccomp")
+	p, err := securityPolicyTypeSeccomp.findCaps(caps, template)
 	if err != nil {
 		return "", err
 	}
