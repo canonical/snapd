@@ -13,14 +13,14 @@ and will be exposed under a new endpoint.
 ## Connecting
 
 While it is expected to allow clients to connect using HTTPS over a
-TCP socket, as described above, at this point only a unix socket is
-supported. The socket is `/run/snapd`.
+TCP socket, at this point only a unix socket is supported. The socket
+is `/run/snapd.socket`.
 
 ## Authentication
 
 Authentication over the unix socket is delegated to UNIX ACLs. At this point
 only root can connect to it; later, regular user access is not implemented
-yet, but should be able to once SO_PEERCRED is supported to determine
+yet, but should be able to once `SO_PEERCRED` is supported to determine
 privilege levels.
 
 ## Responses
@@ -200,9 +200,11 @@ Sample result:
 #### Fields
 * `packages`
     * `status`: can be either `not installed`, `installing`, `installed`,
-      `uninstalling`, `active` (i.e. is current), `removed` (but data present),
-      `purging`. For statuses that signal a background operation is in course,
-      see the `operation` field. Transient states not implemented yet.
+      `uninstalling`, `active` (i.e. is current), `removed` (but data
+      present), `purging`; there is no `purged` state, as a purged package is
+      undistinguishable from a non-installed pacakge. For statuses that signal
+      a background operation is in course, see the `operation`
+      field. Transient states not implemented yet.
     * `name`: the package name.
     * `version`: a string representing the version.
     * `vendor`: a string representing the vendor.
@@ -327,9 +329,8 @@ in the package that’s installing. Like so:
 The client must then present this license text to the user and ask for their
 acceptance. The operation will not complete until the client accepts (or
 declines) the license, by POSTing the appropriate response to the
-operation. If the server is restarted and the operation is lost, and the
-client redoes the installation, they may. See the section on POSTing to
-.../operations/ for more details.
+operation. If the server is restarted, the operation is lost. See the section
+on POSTing to `.../operations/` for more details.
 
 ## /1.0/packages/[name]/services
 
@@ -523,7 +524,7 @@ Notes: user facing implementations in text form must show this data using yaml.
 
 ## /1.0/events
 
-Not implemented yet; poll on .../operations/ until this is final.
+Not implemented yet; poll on `.../operations/` until this is final.
 
 This URL isn't a real REST API endpoint, instead doing a GET query on it will
 upgrade the connection to a websocket on which notifications will be sent.
