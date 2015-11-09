@@ -64,3 +64,33 @@ func NewCapability(Name, Label string, Type CapabilityType) (*Capability, error)
 	}
 	return &Capability{Name, Label, Type}, nil
 }
+
+// A CapabilityRepository stores all known snappy capabilities and types
+type CapabilityRepository struct {
+	// Map of capabilities, indexed by Capability.Name
+	Caps map[string]*Capability
+}
+
+// NewCapabilityRepository creates an empty capability repository
+func NewCapabilityRepository() *CapabilityRepository {
+	return &CapabilityRepository{
+		make(map[string]*Capability),
+	}
+}
+
+// Add a capability to the repository.
+// Capability names must be unique within the repository.
+// An error is returned if this constraint is violated.
+func (r *CapabilityRepository) Add(cap *Capability) error {
+	if _, capPresent := r.Caps[cap.Name]; capPresent {
+		return errors.New("Capability with that name already exists")
+	}
+	r.Caps[cap.Name] = cap
+	return nil
+}
+
+// Remove a capability with a given name.
+// Removing a capability that doesn't exist silently does nothing
+func (r *CapabilityRepository) Remove(Name string) {
+	delete(r.Caps, Name)
+}
