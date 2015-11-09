@@ -33,8 +33,6 @@ type SnapfsTestSuite struct {
 }
 
 func (s *SnapfsTestSuite) SetUpTest(c *C) {
-	// mocks
-	aaClickHookCmd = "/bin/true"
 	dirs.SetRootDir(c.MkDir())
 
 	// ensure we use the right builder func (snapfs)

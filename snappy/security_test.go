@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/pkg"
 )
 
@@ -36,6 +37,10 @@ type SecurityTestSuite struct {
 	scFilterGenCallReturn []byte
 
 	aaPolicyDir string
+	scPolicyDir string
+
+	SnapAppArmorDir string
+	SnapSeccompDir  string
 }
 
 var _ = Suite(&SecurityTestSuite{})
@@ -51,10 +56,56 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 	}
 
 	a.aaPolicyDir = aaPolicyDir
+	aaPolicyDir = c.MkDir()
+	a.scPolicyDir = scPolicyDir
+	scPolicyDir = c.MkDir()
+
+	a.SnapAppArmorDir = dirs.SnapAppArmorDir
+	dirs.SnapAppArmorDir = c.MkDir()
+
+	a.SnapSeccompDir = dirs.SnapSeccompDir
+	dirs.SnapSeccompDir = c.MkDir()
 }
 
 func (a *SecurityTestSuite) TearDownTest(c *C) {
 	aaPolicyDir = a.aaPolicyDir
+	scPolicyDir = a.scPolicyDir
+	dirs.SnapAppArmorDir = a.SnapAppArmorDir
+	dirs.SnapSeccompDir = a.SnapSeccompDir
+}
+
+func makeMockApparmorTemplate(c *C, templateName string, content []byte) {
+	mockTemplate := filepath.Join(aaPolicyDir, "templates", defaultPolicyVendor, defaultPolicyVersion, templateName)
+	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockTemplate, content, 0644)
+	c.Assert(err, IsNil)
+}
+
+func makeMockApparmorCap(c *C, capname string, content []byte) {
+	mockPG := filepath.Join(aaPolicyDir, "policygroups", defaultPolicyVendor, defaultPolicyVersion, capname)
+	err := os.MkdirAll(filepath.Dir(mockPG), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(mockPG, []byte(content), 0644)
+	c.Assert(err, IsNil)
+}
+
+func makeMockSeccompTemplate(c *C, templateName string, content []byte) {
+	mockTemplate := filepath.Join(scPolicyDir, "templates", defaultPolicyVendor, defaultPolicyVersion, templateName)
+	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockTemplate, content, 0644)
+	c.Assert(err, IsNil)
+}
+
+func makeMockSeccompCap(c *C, capname string, content []byte) {
+	mockPG := filepath.Join(scPolicyDir, "policygroups", defaultPolicyVendor, defaultPolicyVersion, capname)
+	err := os.MkdirAll(filepath.Dir(mockPG), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(mockPG, []byte(content), 0644)
+	c.Assert(err, IsNil)
 }
 
 func (a *SecurityTestSuite) TestSnappyGetSecurityProfile(c *C) {
@@ -133,14 +184,9 @@ func (a *SecurityTestSuite) TestSecurityFindWhitespacePrefix(c *C) {
 
 // FIXME: need additional test for frameworkPolicy
 func (a *SecurityTestSuite) TestSecurityFindTemplateApparmor(c *C) {
-	aaPolicyDir = c.MkDir()
-	mockTemplate := filepath.Join(aaPolicyDir, "templates", defaultPolicyVendor, defaultPolicyVersion, "mock-templ")
-	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockTemplate, []byte(`something`), 0644)
-	c.Assert(err, IsNil)
+	makeMockApparmorTemplate(c, "mock-template", []byte(`something`))
 
-	t, err := findTemplate("mock-templ", "apparmor")
+	t, err := findTemplate("mock-template", "apparmor")
 	c.Assert(err, IsNil)
 	c.Assert(t, Matches, "something")
 }
@@ -154,14 +200,10 @@ func (a *SecurityTestSuite) TestSecurityFindTemplateApparmorNotFound(c *C) {
 func (a *SecurityTestSuite) TestSecurityFindCaps(c *C) {
 	aaPolicyDir = c.MkDir()
 	for _, f := range []string{"cap1", "cap2"} {
-		mockPG := filepath.Join(aaPolicyDir, "policygroups", defaultPolicyVendor, defaultPolicyVersion, f)
-		err := os.MkdirAll(filepath.Dir(mockPG), 0755)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(mockPG, []byte(f), 0644)
-		c.Assert(err, IsNil)
+		makeMockApparmorCap(c, f, []byte(f))
 	}
 
-	cap, err := findCaps([]string{"cap1", "cap2"}, "mock-templ", "apparmor")
+	cap, err := findCaps([]string{"cap1", "cap2"}, "mock-template", "apparmor")
 	c.Assert(err, IsNil)
 	c.Assert(cap, Equals, "cap1\ncap2")
 }
@@ -216,4 +258,327 @@ func (a *SecurityTestSuite) TestSecurityGenAppArmorPathRuleHome(c *C) {
 func (a *SecurityTestSuite) TestSecurityGenAppArmorPathRuleError(c *C) {
 	_, err := genAppArmorPathRule("some/path", "rk")
 	c.Assert(err, Equals, errPolicyGen)
+}
+
+var mockApparmorTemplate = []byte(`
+# Description: Allows unrestricted access to the system
+# Usage: reserved
+
+# vim:syntax=apparmor
+
+#include <tunables/global>
+
+# Define vars with unconfined since autopilot rules may reference them
+###VAR###
+
+# v2 compatible wildly permissive profile
+###PROFILEATTACH### (attach_disconnected) {
+  capability,
+  network,
+  / rwkl,
+  /** rwlkm,
+  # Ubuntu Core is a minimal system so don't use 'pix' here. There are few
+  # profiles to transition to, and those that exist either won't work right
+  # anyway (eg, ubuntu-core-launcher) or would need to be modified to work
+  # with snaps (dhclient).
+  /** ix,
+
+  mount,
+  remount,
+
+  ###ABSTRACTIONS###
+
+  ###POLICYGROUPS###
+
+  ###READS###
+
+  ###WRITES###
+}`)
+
+var expectedGeneratedAaProfile = `
+# Description: Allows unrestricted access to the system
+# Usage: reserved
+
+# vim:syntax=apparmor
+
+#include <tunables/global>
+
+# Define vars with unconfined since autopilot rules may reference them
+# Specified profile variables
+@{APP_APPNAME}=""
+@{APP_ID_DBUS}=""
+@{APP_PKGNAME_DBUS}="foo"
+@{APP_PKGNAME}="foo"
+@{APP_VERSION}="1.0"
+@{INSTALL_DIR}="{/apps,/oem}"
+# Deprecated:
+@{CLICK_DIR}="{/apps,/oem}"
+
+# v2 compatible wildly permissive profile
+profile "" (attach_disconnected) {
+  capability,
+  network,
+  / rwkl,
+  /** rwlkm,
+  # Ubuntu Core is a minimal system so don't use 'pix' here. There are few
+  # profiles to transition to, and those that exist either won't work right
+  # anyway (eg, ubuntu-core-launcher) or would need to be modified to work
+  # with snaps (dhclient).
+  /** ix,
+
+  mount,
+  remount,
+
+  # No abstractions specified
+
+  # Rules specified via caps (policy groups)
+  capito
+
+  # No read paths specified
+
+  # No write paths specified
+}`
+
+func (a *SecurityTestSuite) TestSecurityGenAppArmorTemplatePolicy(c *C) {
+	makeMockApparmorTemplate(c, "mock-template", mockApparmorTemplate)
+	makeMockApparmorCap(c, "cap1", []byte(`capito`))
+
+	m := &packageYaml{
+		Name:    "foo",
+		Version: "1.0",
+	}
+	appid := &securityAppID{
+		Pkgname: "foo",
+		Version: "1.0",
+	}
+	template := "mock-template"
+	caps := []string{"cap1"}
+	overrides := &SecurityAppArmorOverrideDefinition{}
+	p, err := getAppArmorTemplatedPolicy(m, appid, template, caps, overrides)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, expectedGeneratedAaProfile)
+}
+
+var mockSeccompTemplate = []byte(`
+# Description: Allows access to app-specific directories and basic runtime
+# Usage: common
+#
+
+# Dangerous syscalls that we don't ever want to allow
+
+# kexec
+deny kexec_load
+
+# fine
+alarm
+`)
+
+var expectedGeneratedSeccompProfile = `
+# Description: Allows access to app-specific directories and basic runtime
+# Usage: common
+#
+
+# Dangerous syscalls that we don't ever want to allow
+
+# kexec
+# EXPLICITLY DENIED: kexec_load
+
+# fine
+alarm
+
+#cap1
+capino
+`
+
+func (a *SecurityTestSuite) TestSecurityGenSeccompTemplatedPolicy(c *C) {
+	makeMockSeccompTemplate(c, "mock-template", mockSeccompTemplate)
+	makeMockSeccompCap(c, "cap1", []byte("#cap1\ncapino\n"))
+
+	m := &packageYaml{
+		Name:    "foo",
+		Version: "1.0",
+	}
+	appid := &securityAppID{
+		Pkgname: "foo",
+		Version: "1.0",
+	}
+	template := "mock-template"
+	caps := []string{"cap1"}
+	overrides := &SecuritySeccompOverrideDefinition{}
+	p, err := getSeccompTemplatedPolicy(m, appid, template, caps, overrides)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, expectedGeneratedSeccompProfile)
+}
+
+var aaCustomPolicy = `
+# Description: Allows unrestricted access to the system
+# Usage: reserved
+
+# vim:syntax=apparmor
+
+#include <tunables/global>
+
+# Define vars with unconfined since autopilot rules may reference them
+###VAR###
+
+# v2 compatible wildly permissive profile
+###PROFILEATTACH### (attach_disconnected) {
+  capability,
+}
+`
+var expectedAaCustomPolicy = `
+# Description: Allows unrestricted access to the system
+# Usage: reserved
+
+# vim:syntax=apparmor
+
+#include <tunables/global>
+
+# Define vars with unconfined since autopilot rules may reference them
+# Specified profile variables
+@{APP_APPNAME}=""
+@{APP_ID_DBUS}="foo_5fbar_5f1_2e0"
+@{APP_PKGNAME_DBUS}="foo"
+@{APP_PKGNAME}="foo"
+@{APP_VERSION}="1.0"
+@{INSTALL_DIR}="{/apps,/oem}"
+# Deprecated:
+@{CLICK_DIR}="{/apps,/oem}"
+
+# v2 compatible wildly permissive profile
+profile "foo_bar_1.0" (attach_disconnected) {
+  capability,
+}
+`
+
+func (a *SecurityTestSuite) TestSecurityGetApparmorCustomPolicy(c *C) {
+	m := &packageYaml{
+		Name:    "foo",
+		Version: "1.0",
+	}
+	appid := &securityAppID{
+		AppID:   "foo_bar_1.0",
+		Pkgname: "foo",
+		Version: "1.0",
+	}
+	customPolicy := filepath.Join(c.MkDir(), "foo")
+	err := ioutil.WriteFile(customPolicy, []byte(aaCustomPolicy), 0644)
+	c.Assert(err, IsNil)
+
+	p, err := getAppArmorCustomPolicy(m, appid, customPolicy)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, expectedAaCustomPolicy)
+}
+
+func (a *SecurityTestSuite) TestSecurityGetSeccompCustomPolicy(c *C) {
+	// yes, getSeccompCustomPolicy does not care for packageYaml or appid
+	m := &packageYaml{}
+	appid := &securityAppID{}
+
+	customPolicy := filepath.Join(c.MkDir(), "foo")
+	err := ioutil.WriteFile(customPolicy, []byte(`canary`), 0644)
+	c.Assert(err, IsNil)
+
+	p, err := getSeccompCustomPolicy(m, appid, customPolicy)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, `canary`)
+}
+
+func (a *SecurityTestSuite) TestSecurityGetAppID(c *C) {
+	id, err := getAppID("pkg_app_1.0")
+	c.Assert(err, IsNil)
+	c.Assert(id, DeepEquals, &securityAppID{
+		AppID:   "pkg_app_1.0",
+		Pkgname: "pkg",
+		Appname: "app",
+		Version: "1.0",
+	})
+}
+
+func (a *SecurityTestSuite) TestSecurityGetAppIDInvalid(c *C) {
+	_, err := getAppID("invalid")
+	c.Assert(err, Equals, errInvalidAppID)
+}
+
+func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesSilly(c *C) {
+	sd := &SecurityDefinitions{}
+	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{}
+	sd.mergeAppArmorSecurityOverrides(hwaccessOverrides)
+
+	c.Assert(sd, DeepEquals, &SecurityDefinitions{
+		SecurityOverride: &SecurityOverrideDefinition{
+			AppArmor: &SecurityAppArmorOverrideDefinition{},
+		},
+	})
+}
+
+func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesOverrides(c *C) {
+	sd := &SecurityDefinitions{}
+	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{
+		ReadPaths:  []string{"read1"},
+		WritePaths: []string{"write1"},
+	}
+	sd.mergeAppArmorSecurityOverrides(hwaccessOverrides)
+
+	c.Assert(sd, DeepEquals, &SecurityDefinitions{
+		SecurityOverride: &SecurityOverrideDefinition{
+			AppArmor: hwaccessOverrides,
+		},
+	})
+}
+
+func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesMerges(c *C) {
+	sd := &SecurityDefinitions{
+		SecurityOverride: &SecurityOverrideDefinition{
+			AppArmor: &SecurityAppArmorOverrideDefinition{
+				ReadPaths: []string{"orig1"},
+			},
+		},
+	}
+	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{
+		ReadPaths:  []string{"read1"},
+		WritePaths: []string{"write1"},
+	}
+	sd.mergeAppArmorSecurityOverrides(hwaccessOverrides)
+
+	c.Assert(sd, DeepEquals, &SecurityDefinitions{
+		SecurityOverride: &SecurityOverrideDefinition{
+			AppArmor: &SecurityAppArmorOverrideDefinition{
+				ReadPaths:  []string{"orig1", "read1"},
+				WritePaths: []string{"write1"},
+			},
+		},
+	})
+}
+
+func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinarySilly(c *C) {
+	makeMockApparmorTemplate(c, "default", []byte(``))
+	makeMockApparmorCap(c, "network-client", []byte(``))
+	makeMockSeccompTemplate(c, "default", []byte(``))
+	makeMockSeccompCap(c, "network-client", []byte(``))
+
+	loadAppArmorPolicyCalled := false
+	loadAppArmorPolicy = func(fn string) ([]byte, error) {
+		loadAppArmorPolicyCalled = true
+		return nil, nil
+	}
+
+	sd := &SecurityDefinitions{}
+	m := &packageYaml{
+		Name:    "pkg",
+		Version: "1.0",
+	}
+
+	// generate the apparmor profile
+	err := sd.generatePolicyForServiceBinary(m, "binary", "/apps/app.origin/1.0")
+	c.Assert(err, IsNil)
+
+	// ensure the apparmor policy got loaded
+	c.Assert(loadAppArmorPolicyCalled, Equals, true)
+
+	// ensure the file is written correctly
+	expectedProfile := filepath.Join(dirs.SnapAppArmorDir, "pkg.origin_binary_1.0")
+	content, err := ioutil.ReadFile(expectedProfile)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "")
 }
