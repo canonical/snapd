@@ -7,8 +7,8 @@ not implemented)
 
 As the API evolves, some changes are deemed backwards-compatible (such
 as adding methods or verbs, or adding members to the returned JSON
-objects) and don’t warrant an endpoint change; some changes won’t be,
-and will be exposed under a new endpoint.
+objects) and don't warrant an endpoint change; some changes won't be
+backwards compatible, and will be exposed under a new endpoint.
 
 ## Connecting
 
@@ -113,7 +113,7 @@ string. For example, `"1234567891234567"` represents
 * Description: Server configuration and environment information
 * Authorization: guest
 * Operation: sync
-* Return: Dict with the operating system’s key values.
+* Return: Dict with the operating system's key values.
 
 #### Sample result:
 
@@ -184,7 +184,7 @@ Sample result:
      "description": "A description",
      "download_size": "23456",
      "icon": "",               // core might not have an icon
-     "installed_size": "-1",   // core doesn’t have installed_size (yet)
+     "installed_size": "-1",   // core doesn't have installed_size (yet)
      "name": "ubuntu-core",
      "origin": "canonical",
      "resource": "/1.0/packages/ubuntu-core.canonical",
@@ -202,13 +202,13 @@ Sample result:
     * `status`: can be either `not installed`, `installing`, `installed`,
       `uninstalling`, `active` (i.e. is current), `removed` (but data
       present), `purging`; there is no `purged` state, as a purged package is
-      undistinguishable from a non-installed pacakge. For statuses that signal
+      undistinguishable from a non-installed package. For statuses that signal
       a background operation is in course, see the `operation`
       field. Transient states not implemented yet.
     * `name`: the package name.
     * `version`: a string representing the version.
     * `vendor`: a string representing the vendor.
-    * `icon`: a url to the package icon, possible relative to this server.
+    * `icon`: a url to the package icon, possibly relative to this server.
     * `type`: the type of snappy package; one of `app`, `framework`, `kernel`,
       `gadget`, or `os`.
     * `description`: package description
@@ -238,7 +238,7 @@ has an `allow-unsigned` field (with any value), the package may be unsigned;
 otherwise attempting to sideload an unsigned package will result in a failed
 background operation.
 
-It’s also possible to provide the package as the entire body of a `POST` (not a
+It's also possible to provide the package as the entire body of a `POST` (not a
 multipart request). In this case the header `X-Allow-Unsigned` may be used to
 allow sideloading unsigned packages.
 
@@ -306,14 +306,14 @@ list individual statuses of the configuration changes.
 field      | ignored except in action | description
 -----------|-------------------|------------
 `action`   |                   | Required; a string, one of `install`, `update`, `remove`, `purge`, `activate`, `deactivate`, or `rollback`.
-`leave_old`| `install` `update` `remove` | A boolean, default is false (do not leave old packages around). Equivalent to commandline’s `--no-gc`.
-`config`   | `install` | An object, passed to config after installation. See `.../config`. If missing, config isn’t called.
+`leave_old`| `install` `update` `remove` | A boolean, default is false (do not leave old packages around). Equivalent to commandline's `--no-gc`.
+`config`   | `install` | An object, passed to config after installation. See `.../config`. If missing, config isn't called.
 
 #### A note on licenses
 
 The output field in the operation object for installation may specify that an
 additional step is needed, to confirm the user accepts the license specified
-in the package that’s installing. Like so:
+in the package that's installing. Like so:
 
 ```javascript
 {
