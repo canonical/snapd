@@ -61,7 +61,6 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	policy.SecBase = filepath.Join(s.tempdir, "security")
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
 	os.MkdirAll(dirs.SnapSeccompDir, 0755)
-	os.MkdirAll(dirs.SnapMetaDir, 0755)
 
 	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
@@ -96,6 +95,8 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	runAppArmorParser = mockRunAppArmorParser
+
+	makeMockSecurityEnv(c)
 }
 
 func (s *SnapTestSuite) TearDownTest(c *C) {
@@ -1127,9 +1128,6 @@ func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, data)
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
-
-	err = os.MkdirAll(dirs.SnapMetaDir, 0755)
-	c.Assert(err, IsNil)
 
 	data = "name: afoo\nalias: afoo\ndescription: something nice\ndownloadsize: 10\norigin: someplace"
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapMetaDir, "afoo_1.manifest"), []byte(data), 0644)

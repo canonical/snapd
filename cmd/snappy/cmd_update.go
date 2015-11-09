@@ -34,6 +34,9 @@ import (
 type cmdUpdate struct {
 	DisableGC  bool `long:"no-gc"`
 	AutoReboot bool `long:"automatic-reboot"`
+	Positional struct {
+		PackageName string `positional-arg-name:"package name"`
+	} `positional-args:"yes"`
 }
 
 func init() {
@@ -46,6 +49,7 @@ func init() {
 	}
 	addOptionDescription(arg, "no-gc", i18n.G("Do not clean up old versions of the package."))
 	addOptionDescription(arg, "automatic-reboot", i18n.G("Reboot if necessary to be on the latest running system."))
+	addOptionDescription(arg, "package name", i18n.G("The Package to update"))
 }
 
 const (
@@ -53,7 +57,8 @@ const (
 	shutdownTimeout = "+10"
 )
 
-var shutdownMsg = i18n.G("snappy autopilot triggered a reboot to boot into an up to date system -- temprorarily disable the reboot by running 'sudo shutdown -c'")
+// TRANSLATORS: please keep this under 80 characters if possible
+var shutdownMsg = i18n.G("Snappy needs to reboot to finish an update. Defer with 'sudo shutdown -c'.")
 
 func (x *cmdUpdate) Execute(args []string) (err error) {
 	return withMutexAndRetry(x.doUpdate)
@@ -66,7 +71,13 @@ func (x *cmdUpdate) doUpdate() error {
 		flags = 0
 	}
 
-	updates, err := snappy.Update(flags, progress.MakeProgressBar())
+	var err error
+	var updates []snappy.Part
+	if x.Positional.PackageName != "" {
+		updates, err = snappy.Update(x.Positional.PackageName, flags, progress.MakeProgressBar())
+	} else {
+		updates, err = snappy.UpdateAll(flags, progress.MakeProgressBar())
+	}
 	if err != nil {
 		return err
 	}

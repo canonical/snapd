@@ -24,8 +24,6 @@ import (
 	"os"
 
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/priv"
-	"github.com/ubuntu-core/snappy/snappy"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -47,11 +45,6 @@ func init() {
 
 func main() {
 	if _, err := parser.Parse(); err != nil {
-		if err == priv.ErrNeedRoot {
-			// make the generic root error more specific for
-			// the CLI user.
-			err = snappy.ErrNeedRoot
-		}
 		fmt.Fprintln(os.Stderr, err)
 		if _, ok := err.(*flags.Error); !ok {
 			logger.Debugf("%v failed: %v", os.Args, err)
