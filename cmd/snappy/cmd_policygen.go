@@ -29,6 +29,7 @@ import (
 )
 
 type cmdPolicygen struct {
+	Compare    bool `long:"compare"`
 	Force      bool `short:"f" long:"force"`
 	Positional struct {
 		PackageYaml string `positional-arg-name:"package name"`
@@ -60,9 +61,9 @@ func (x *cmdPolicygen) doPolicygen() error {
 		return fmt.Errorf("policygen: no such file: %s", fn)
 	}
 
-	if err := snappy.GeneratePolicyFromFile(fn, x.Force); err != nil {
-		return err
+	if x.Compare {
+		return snappy.CompareGeneratePolicyFromFile(fn)
 	}
 
-	return nil
+	return snappy.GeneratePolicyFromFile(fn, x.Force)
 }
