@@ -490,9 +490,14 @@ func (s *SnapTestSuite) TestUbuntuStoreAll(c *C) {
 	repo := NewUbuntuStoreSnapRepository()
 	c.Assert(repo, NotNil)
 
-	results, err := repo.All()
+	parts, err := repo.All()
 	c.Assert(err, IsNil)
-	c.Assert(results, HasLen, 1)
+	c.Assert(parts, HasLen, 1)
+	c.Check(parts[0].Name(), Equals, funkyAppName)
+	c.Check(parts[0].Origin(), Equals, funkyAppOrigin)
+	c.Check(parts[0].Vendor(), Equals, funkyAppVendor)
+	c.Check(parts[0].Version(), Equals, "42")
+	c.Check(parts[0].Description(), Equals, "Returns for store credit only.")
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryAliasSearch(c *C) {
