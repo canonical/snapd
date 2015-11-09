@@ -55,6 +55,13 @@ The intent of the `ubuntu-core` package configuration is to wrap around
 If a non-default store is required, one may use the `store/id` entry and
 `snappy` will use it to reach the appropriate store.
 
+### Don't configure first ethernet device using ifup
+
+By default snappy ubuntu core will try to bring up the first ethernet
+device in the system using `ifup`. If this is not wanted (e.g. because
+the network will be managed by one of the preinstalled snaps instead),
+set `skip-ifup-provisioning` to `true`.
+
 ### Branding
 
 Branding can be set in the form of a slogan and an image. `snappy` and it’s

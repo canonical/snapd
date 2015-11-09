@@ -180,18 +180,6 @@ func parseReadme(readme string) (title, description string, err error) {
 	return title, description, nil
 }
 
-func handleConfigHook(buildDir string, m *packageYaml) error {
-	configHookFile := filepath.Join(buildDir, "meta", "hooks", "config")
-	if !helpers.FileExists(configHookFile) {
-		return nil
-	}
-
-	hookName := "snappy-config"
-	m.Integration[hookName] = make(map[string]string)
-
-	return nil
-}
-
 // the du(1) command, useful to override for testing
 var duCmd = "du"
 
@@ -474,11 +462,6 @@ func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error)
 	}
 
 	if err := copyToBuildDir(sourceDir, buildDir); err != nil {
-		return "", err
-	}
-
-	// generate config hook apparmor
-	if err := handleConfigHook(buildDir, m); err != nil {
 		return "", err
 	}
 

@@ -58,6 +58,13 @@ append_coverage() {
     fi
 }
 
+echo Installing godeps
+go get launchpad.net/godeps
+export PATH=$PATH:$GOPATH/bin
+
+echo Obtaining dependencies
+godeps -u dependencies.tsv
+
 if [ ! -z "$STATIC" ]; then
     # Run static tests.
     echo Checking docs
@@ -75,8 +82,6 @@ if [ ! -z "$STATIC" ]; then
     # go vet
     echo Running vet
     go vet ./...
-    go vet ./_integration-tests/tests/...
-    go vet ./_integration-tests/testutils/...
 
     # golint
     echo Install golint
@@ -84,7 +89,7 @@ if [ ! -z "$STATIC" ]; then
     export PATH=$PATH:$GOPATH/bin
 
     echo Running lint
-    lint=$(golint ./... && golint ./_integration-tests/testutils/... && golint ./_integration-tests/tests/...)
+    lint=$(golint ./...)
     if [ -n "$lint" ]; then
         echo "Lint complains:"
         echo "$lint"
@@ -112,43 +117,37 @@ if [ ! -z "$UNIT" ]; then
     mkdir .coverage
     echo "mode: set" > .coverage/coverage.out
 
-    echo Installing godeps
-    go get launchpad.net/godeps
-    export PATH=$PATH:$GOPATH/bin
-
-    echo Obtaining dependencies
-    godeps -u dependencies.tsv
-
     echo Building
-    go build -v github.com/ubuntu-core/snappy/...
+    go build -tags=excludeintegration -v github.com/ubuntu-core/snappy/...
 
     # tests
     echo Running tests from $(pwd)
-    for pkg in $(go list ./...); do
-        $goctest -v -coverprofile=.coverage/profile.out $pkg
+    for pkg in $(go list ./... | grep -v integration-tests); do
+        $goctest -tags=excludeintegration -v -coverprofile=.coverage/profile.out $pkg
         append_coverage .coverage/profile.out
     done
 
+    echo Building the integration tests
+    TMP_INTEGRATION="$(mktemp)"
+    trap "rm -f $TMP_INTEGRATION" 0
+    go build -v -o $TMP_INTEGRATION github.com/ubuntu-core/snappy/integration-tests/
+
     # the rabbit hole
     echo Running the tests for the integration testutils
-    for pkg in $(go list ./_integration-tests/testutils/...); do
+    for pkg in $(go list ./integration-tests/testutils/...); do
         $goctest -v -coverprofile=.coverage/profile.out $pkg
         append_coverage .coverage/profile.out
     done
 fi
 
 if [ ! -z "$INTEGRATION" ]; then
-    # integration tests
-    echo Building the integration tests
-    go build _integration-tests/main.go
-
     # integration suite in kvm
     if which adt-run >/dev/null 2>&1; then
         echo "Running integration tests on rolling edge"
-        go run _integration-tests/main.go --snappy-from-branch
+        go run integration-tests/main.go --snappy-from-branch
         # print the results.
         if which subunit2pyunit >/dev/null 2>&1; then
-            subunit-1to2 /tmp/snappy-test/output/artifacts/results.subunit | subunit2pyunit
+            subunit2pyunit /tmp/snappy-test/output/artifacts/results.subunit
         fi
     fi
 fi

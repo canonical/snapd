@@ -37,16 +37,6 @@ type SecurityTestSuite struct {
 	scFilterGenCall       []string
 	scFilterGenCallReturn []byte
 
-	aaPolicyDir string
-	scPolicyDir string
-
-	SnapAppArmorDir           string
-	SnapAppArmorAdditionalDir string
-	SnapSeccompDir            string
-
-	SnapMetaDir      string
-	SnapUdevRulesDir string
-
 	loadAppArmorPolicyCalled bool
 }
 
@@ -56,34 +46,14 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 	a.buildDir = c.MkDir()
 	os.MkdirAll(filepath.Join(a.buildDir, "meta"), 0755)
 
+	// set global sandbox
+	dirs.SetRootDir(c.MkDir())
+
 	a.m = &packageYaml{
 		Name:        "foo",
 		Version:     "1.0",
 		Integration: make(map[string]clickAppHook),
 	}
-
-	a.aaPolicyDir = aaPolicyDir
-	aaPolicyDir = c.MkDir()
-	a.scPolicyDir = scPolicyDir
-	scPolicyDir = c.MkDir()
-
-	a.SnapAppArmorDir = dirs.SnapAppArmorDir
-	dirs.SnapAppArmorDir = c.MkDir()
-	a.SnapAppArmorAdditionalDir = dirs.SnapAppArmorAdditionalDir
-	dirs.SnapAppArmorAdditionalDir = c.MkDir()
-
-	a.SnapSeccompDir = dirs.SnapSeccompDir
-	dirs.SnapSeccompDir = c.MkDir()
-
-	a.SnapMetaDir = dirs.SnapMetaDir
-	dirs.SnapMetaDir = c.MkDir()
-
-	a.SnapUdevRulesDir = dirs.SnapUdevRulesDir
-	dirs.SnapUdevRulesDir = c.MkDir()
-
-	// ensure the module in initialized
-	err := initGlobals()
-	c.Assert(err, IsNil)
 
 	// and mock some stuff
 	a.loadAppArmorPolicyCalled = false
@@ -97,13 +67,7 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 }
 
 func (a *SecurityTestSuite) TearDownTest(c *C) {
-	aaPolicyDir = a.aaPolicyDir
-	scPolicyDir = a.scPolicyDir
-	dirs.SnapAppArmorDir = a.SnapAppArmorDir
-	dirs.SnapAppArmorAdditionalDir = a.SnapAppArmorAdditionalDir
-	dirs.SnapSeccompDir = a.SnapSeccompDir
-	dirs.SnapMetaDir = a.SnapMetaDir
-	dirs.SnapUdevRulesDir = a.SnapUdevRulesDir
+	dirs.SetRootDir("/")
 }
 
 func ensureFileContentMatches(c *C, fn, expectedContent string) {
@@ -112,8 +76,15 @@ func ensureFileContentMatches(c *C, fn, expectedContent string) {
 	c.Assert(string(content), Equals, expectedContent)
 }
 
+func makeMockSecurityEnv(c *C) {
+	makeMockApparmorTemplate(c, "default", []byte(""))
+	makeMockSeccompTemplate(c, "default", []byte(""))
+	makeMockApparmorCap(c, "network-client", []byte(``))
+	makeMockSeccompCap(c, "network-client", []byte(``))
+}
+
 func makeMockApparmorTemplate(c *C, templateName string, content []byte) {
-	mockTemplate := filepath.Join(aaPolicyDir, "templates", defaultPolicyVendor, defaultPolicyVersion, templateName)
+	mockTemplate := filepath.Join(securityPolicyTypeAppArmor.policyDir(), "templates", defaultPolicyVendor(), defaultPolicyVersion(), templateName)
 	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockTemplate, content, 0644)
@@ -121,7 +92,7 @@ func makeMockApparmorTemplate(c *C, templateName string, content []byte) {
 }
 
 func makeMockApparmorCap(c *C, capname string, content []byte) {
-	mockPG := filepath.Join(aaPolicyDir, "policygroups", defaultPolicyVendor, defaultPolicyVersion, capname)
+	mockPG := filepath.Join(securityPolicyTypeAppArmor.policyDir(), "policygroups", defaultPolicyVendor(), defaultPolicyVersion(), capname)
 	err := os.MkdirAll(filepath.Dir(mockPG), 0755)
 	c.Assert(err, IsNil)
 
@@ -130,7 +101,7 @@ func makeMockApparmorCap(c *C, capname string, content []byte) {
 }
 
 func makeMockSeccompTemplate(c *C, templateName string, content []byte) {
-	mockTemplate := filepath.Join(scPolicyDir, "templates", defaultPolicyVendor, defaultPolicyVersion, templateName)
+	mockTemplate := filepath.Join(securityPolicyTypeSeccomp.policyDir(), "templates", defaultPolicyVendor(), defaultPolicyVersion(), templateName)
 	err := os.MkdirAll(filepath.Dir(mockTemplate), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockTemplate, content, 0644)
@@ -138,7 +109,7 @@ func makeMockSeccompTemplate(c *C, templateName string, content []byte) {
 }
 
 func makeMockSeccompCap(c *C, capname string, content []byte) {
-	mockPG := filepath.Join(scPolicyDir, "policygroups", defaultPolicyVendor, defaultPolicyVersion, capname)
+	mockPG := filepath.Join(securityPolicyTypeSeccomp.policyDir(), "policygroups", defaultPolicyVendor(), defaultPolicyVersion(), capname)
 	err := os.MkdirAll(filepath.Dir(mockPG), 0755)
 	c.Assert(err, IsNil)
 
@@ -179,33 +150,6 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfileFramework(c *C) {
 	c.Check(ap, Equals, "foo_bin-app_1.0")
 }
 
-func (a *SecurityTestSuite) TestSnappyFindUbuntuVersion(c *C) {
-	realLsbRelease := lsbRelease
-	defer func() { lsbRelease = realLsbRelease }()
-
-	lsbRelease = filepath.Join(c.MkDir(), "mock-lsb-release")
-	s := `DISTRIB_RELEASE=18.09`
-	err := ioutil.WriteFile(lsbRelease, []byte(s), 0644)
-	c.Assert(err, IsNil)
-
-	ver, err := findUbuntuVersion()
-	c.Assert(err, IsNil)
-	c.Assert(ver, Equals, "18.09")
-}
-
-func (a *SecurityTestSuite) TestSnappyFindUbuntuVersionNotFound(c *C) {
-	realLsbRelease := lsbRelease
-	defer func() { lsbRelease = realLsbRelease }()
-
-	lsbRelease = filepath.Join(c.MkDir(), "mock-lsb-release")
-	s := `silly stuff`
-	err := ioutil.WriteFile(lsbRelease, []byte(s), 0644)
-	c.Assert(err, IsNil)
-
-	_, err = findUbuntuVersion()
-	c.Assert(err, Equals, ErrSystemVersionNotFound)
-}
-
 func (a *SecurityTestSuite) TestSecurityGenDbusPath(c *C) {
 	c.Assert(dbusPath("foo"), Equals, "foo")
 	c.Assert(dbusPath("foo bar"), Equals, "foo_20bar")
@@ -218,32 +162,40 @@ func (a *SecurityTestSuite) TestSecurityFindWhitespacePrefix(c *C) {
 
 	t = `not there`
 	c.Assert(findWhitespacePrefix(t, "###POLICYGROUPS###"), Equals, "")
+
+	t = `not there`
+	c.Assert(findWhitespacePrefix(t, "###POLICYGROUPS###"), Equals, "")
+}
+
+func (a *SecurityTestSuite) TestSecurityFindWhitespacePrefixNeedsQuoting(c *C) {
+	s := `I need quoting: [`
+	t := ``
+	c.Assert(findWhitespacePrefix(s, t), Equals, t)
 }
 
 // FIXME: need additional test for frameworkPolicy
 func (a *SecurityTestSuite) TestSecurityFindTemplateApparmor(c *C) {
 	makeMockApparmorTemplate(c, "mock-template", []byte(`something`))
 
-	t, err := findTemplate("mock-template", "apparmor")
+	t, err := securityPolicyTypeAppArmor.findTemplate("mock-template")
 	c.Assert(err, IsNil)
 	c.Assert(t, Matches, "something")
 }
 
 func (a *SecurityTestSuite) TestSecurityFindTemplateApparmorNotFound(c *C) {
-	_, err := findTemplate("not-available-templ", "apparmor")
-	c.Assert(err, DeepEquals, &errPolicyNotFound{"template", "apparmor", "not-available-templ"})
+	_, err := securityPolicyTypeAppArmor.findTemplate("not-available-templ")
+	c.Assert(err, DeepEquals, &errPolicyNotFound{"template", &securityPolicyTypeAppArmor, "not-available-templ"})
 }
 
 // FIXME: need additional test for frameworkPolicy
 func (a *SecurityTestSuite) TestSecurityFindCaps(c *C) {
-	aaPolicyDir = c.MkDir()
 	for _, f := range []string{"cap1", "cap2"} {
 		makeMockApparmorCap(c, f, []byte(f))
 	}
 
-	cap, err := findCaps([]string{"cap1", "cap2"}, "mock-template", "apparmor")
+	cap, err := securityPolicyTypeAppArmor.findCaps([]string{"cap1", "cap2"}, "mock-template")
 	c.Assert(err, IsNil)
-	c.Assert(cap, Equals, "cap1\ncap2")
+	c.Assert(cap, DeepEquals, []string{"cap1", "cap2"})
 }
 
 func (a *SecurityTestSuite) TestSecurityGetAppArmorVars(c *C) {
@@ -253,7 +205,7 @@ func (a *SecurityTestSuite) TestSecurityGetAppArmorVars(c *C) {
 		AppID:   "id",
 		Pkgname: "pkgname",
 	}
-	c.Assert(getAppArmorVars(appID), Equals, `
+	c.Assert(appID.appArmorVars(), Equals, `
 # Specified profile variables
 @{APP_APPNAME}="foo"
 @{APP_ID_DBUS}="id"
@@ -425,8 +377,7 @@ var expectedGeneratedSeccompProfile = `
 alarm
 
 #cap1
-capino
-`
+capino`
 
 func (a *SecurityTestSuite) TestSecurityGenSeccompTemplatedPolicy(c *C) {
 	makeMockSeccompTemplate(c, "mock-template", mockSeccompTemplate)
@@ -523,7 +474,7 @@ func (a *SecurityTestSuite) TestSecurityGetSeccompCustomPolicy(c *C) {
 }
 
 func (a *SecurityTestSuite) TestSecurityGetAppID(c *C) {
-	id, err := getAppID("pkg_app_1.0")
+	id, err := newAppID("pkg_app_1.0")
 	c.Assert(err, IsNil)
 	c.Assert(id, DeepEquals, &securityAppID{
 		AppID:   "pkg_app_1.0",
@@ -534,7 +485,7 @@ func (a *SecurityTestSuite) TestSecurityGetAppID(c *C) {
 }
 
 func (a *SecurityTestSuite) TestSecurityGetAppIDInvalid(c *C) {
-	_, err := getAppID("invalid")
+	_, err := newAppID("invalid")
 	c.Assert(err, Equals, errInvalidAppID)
 }
 
@@ -594,8 +545,7 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryEmpty(c *C
 ###POLICYGROUPS###
 `))
 	makeMockApparmorCap(c, "network-client", []byte(`
-aa-network-client
-`))
+aa-network-client`))
 	makeMockSeccompTemplate(c, "default", []byte(`write`))
 	makeMockSeccompCap(c, "network-client", []byte(`
 sc-network-client
@@ -620,13 +570,11 @@ sc-network-client
 # Rules specified via caps (policy groups)
 
 aa-network-client
-
 `)
 	scProfile := filepath.Join(dirs.SnapSeccompDir, "pkg.origin_binary_1.0")
 	ensureFileContentMatches(c, scProfile, `write
 
-sc-network-client
-`)
+sc-network-client`)
 
 }
 
@@ -652,7 +600,8 @@ deny kexec
 read
 write
 `))
-	mockPackageYamlFn, err := makeInstalledMockSnap(c.MkDir(), mockSecurityPackageYaml)
+
+	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
 	c.Assert(err, IsNil)
 
 	// the acutal thing that gets tested
@@ -677,6 +626,36 @@ write
 `)
 }
 
+func (a *SecurityTestSuite) TestSecurityGeneratePolicyFileForConfig(c *C) {
+	// we need to create some fake data
+	makeMockApparmorTemplate(c, "default", []byte(`# some header
+###POLICYGROUPS###
+`))
+	makeMockSeccompTemplate(c, "default", []byte(`
+deny kexec
+read
+write
+`))
+
+	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
+	c.Assert(err, IsNil)
+	configHook := filepath.Join(filepath.Dir(mockPackageYamlFn), "hooks", "config")
+	os.MkdirAll(filepath.Dir(configHook), 0755)
+	err = ioutil.WriteFile(configHook, []byte("true"), 0755)
+	c.Assert(err, IsNil)
+
+	// generate config
+	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	c.Assert(err, IsNil)
+
+	// and for snappy-config
+	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_snappy-config_1.0", testOrigin))
+	ensureFileContentMatches(c, generatedProfileFn, `# some header
+# No caps (policy groups) specified
+`)
+
+}
+
 func (a *SecurityTestSuite) TestSecurityCompareGeneratePolicyFromFileSimple(c *C) {
 	// we need to create some fake data
 	makeMockApparmorTemplate(c, "default", []byte(`# some header
@@ -687,7 +666,7 @@ deny kexec
 read
 write
 `))
-	mockPackageYamlFn, err := makeInstalledMockSnap(c.MkDir(), mockSecurityPackageYaml)
+	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
 	c.Assert(err, IsNil)
 
 	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
@@ -718,12 +697,8 @@ deny kexec
 read
 write
 `))
-	mockPackageYamlFn, err := makeInstalledMockSnap(c.MkDir(), mockSecurityPackageYaml)
+	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
 	c.Assert(err, IsNil)
-	// FIXME: *ugly* adjust /apps path because regeneratePolicyForSnap
-	//        is looking for it
-	dirs.SnapAppsDir = filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(mockPackageYamlFn))))
-
 	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
 	c.Assert(err, IsNil)
 
@@ -747,4 +722,36 @@ write
 /dev/kmesg rwk,
 
 `)
+}
+
+func (a *SecurityTestSuite) TestSecurityRegenerateAll(c *C) {
+	// we need to create some fake data
+	makeMockApparmorTemplate(c, "default", []byte(`# some header
+###POLICYGROUPS###
+`))
+	makeMockSeccompTemplate(c, "default", []byte(`
+deny kexec
+read
+write
+`))
+	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
+	c.Assert(err, IsNil)
+
+	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	c.Assert(err, IsNil)
+
+	// now change the templates
+	makeMockApparmorTemplate(c, "default", []byte(`# some different header
+###POLICYGROUPS###
+`))
+	// ...and regenerate the templates
+	err = RegenerateAllPolicy(false)
+	c.Assert(err, IsNil)
+
+	// ensure apparmor got updated with the new read path
+	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_binary1_1.0", testOrigin))
+	ensureFileContentMatches(c, generatedProfileFn, `# some different header
+# No caps (policy groups) specified
+`)
+
 }
