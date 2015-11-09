@@ -62,7 +62,7 @@ func (opens *openSuite) TestOpenDatabaseRootCreateFail(c *C) {
 	c.Check(db, IsNil)
 }
 
-func (opens *openSuite) TestOpenDatabaseWorldWriteableFail(c *C) {
+func (opens *openSuite) TestOpenDatabaseWorldWritableFail(c *C) {
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	oldUmask := syscall.Umask(0)
 	os.MkdirAll(rootDir, 0777)
