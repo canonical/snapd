@@ -17,7 +17,7 @@
  *
  */
 
-package asserts
+package asserts_test
 
 import (
 	"encoding/hex"
@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/helpers"
 )
 
@@ -40,11 +41,10 @@ var _ = Suite(&openSuite{})
 
 func (opens *openSuite) TestOpenDatabaseOK(c *C) {
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
-	cfg := &DatabaseConfig{Path: rootDir}
-	db, err := OpenDatabase(cfg)
+	cfg := &asserts.DatabaseConfig{Path: rootDir}
+	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 	c.Assert(db, NotNil)
-	c.Check(db.root, Equals, rootDir)
 	info, err := os.Stat(rootDir)
 	c.Assert(err, IsNil)
 	c.Assert(info.IsDir(), Equals, true)
@@ -56,8 +56,8 @@ func (opens *openSuite) TestOpenDatabaseRootCreateFail(c *C) {
 	// make it not writable
 	os.MkdirAll(parent, 555)
 	rootDir := filepath.Join(parent, "asserts-db")
-	cfg := &DatabaseConfig{Path: rootDir}
-	db, err := OpenDatabase(cfg)
+	cfg := &asserts.DatabaseConfig{Path: rootDir}
+	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, ErrorMatches, "failed to create assert database root: .*")
 	c.Check(db, IsNil)
 }
@@ -67,39 +67,29 @@ func (opens *openSuite) TestOpenDatabaseWorldWriteableFail(c *C) {
 	oldUmask := syscall.Umask(0)
 	os.MkdirAll(rootDir, 0777)
 	syscall.Umask(oldUmask)
-	cfg := &DatabaseConfig{Path: rootDir}
-	db, err := OpenDatabase(cfg)
+	cfg := &asserts.DatabaseConfig{Path: rootDir}
+	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, ErrorMatches, "assert database root unexpectedly world-writable: .*")
 	c.Check(db, IsNil)
 }
 
 type databaseSuite struct {
 	rootDir string
-	db      *Database
+	db      *asserts.Database
 }
 
 var _ = Suite(&databaseSuite{})
 
 func (dbs *databaseSuite) SetUpTest(c *C) {
 	dbs.rootDir = filepath.Join(c.MkDir(), "asserts-db")
-	cfg := &DatabaseConfig{Path: dbs.rootDir}
-	db, err := OpenDatabase(cfg)
+	cfg := &asserts.DatabaseConfig{Path: dbs.rootDir}
+	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 	dbs.db = db
 }
 
-func (dbs *databaseSuite) TestAtomicWriteEntrySecret(c *C) {
-	err := dbs.db.atomicWriteEntry([]byte("foobar"), true, "a", "b", "foo")
-	c.Assert(err, IsNil)
-	fooPath := filepath.Join(dbs.rootDir, "a", "b", "foo")
-	info, err := os.Stat(fooPath)
-	c.Assert(err, IsNil)
-	c.Check(info.Mode().Perm(), Equals, os.FileMode(0600))
-	c.Check(info.Size(), Equals, int64(6))
-}
-
 func (dbs *databaseSuite) TestImportKey(c *C) {
-	privk, err := generatePrivateKey()
+	privk, err := asserts.GeneratePrivateKeyInTest()
 	c.Assert(err, IsNil)
 	expectedFingerprint := hex.EncodeToString(privk.PublicKey.Fingerprint[:])
 
@@ -107,7 +97,7 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fingerp, Equals, expectedFingerprint)
 
-	keyPath := filepath.Join(dbs.rootDir, privateKeysRoot, "account0", fingerp)
+	keyPath := filepath.Join(dbs.rootDir, "private-keys-v0/account0", fingerp)
 	info, err := os.Stat(keyPath)
 	c.Assert(err, IsNil)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0600)) // secret
@@ -125,6 +115,6 @@ func (dbs *databaseSuite) TestGenerateKey(c *C) {
 	fingerp, err := dbs.db.GenerateKey("account0")
 	c.Assert(err, IsNil)
 	c.Check(fingerp, NotNil)
-	keyPath := filepath.Join(dbs.rootDir, privateKeysRoot, "account0", fingerp)
+	keyPath := filepath.Join(dbs.rootDir, "private-keys-v0/account0", fingerp)
 	c.Check(helpers.FileExists(keyPath), Equals, true)
 }
