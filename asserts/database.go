@@ -24,7 +24,7 @@ package asserts
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -50,26 +50,18 @@ const (
 	privateKeysRoot          = "private-keys-" + privateKeysLayoutVersion
 )
 
-// errors
-var (
-	ErrDbRootCreate        = errors.New("failed to create assert database root")
-	ErrDbRootWorldReadable = errors.New("assert database root unexpectedly world-writable")
-	ErrDbKeyGen            = errors.New("failed to generate private key")
-	ErrDbStoringKey        = errors.New("failed to store private key")
-)
-
 // OpenDatabase opens the assertion database based on the configuration.
 func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	err := os.MkdirAll(cfg.Path, 0775)
 	if err != nil {
-		return nil, ErrDbRootCreate
+		return nil, fmt.Errorf("failed to create assert database root: %v", err)
 	}
 	info, err := os.Stat(cfg.Path)
 	if err != nil {
-		return nil, ErrDbRootCreate
+		return nil, fmt.Errorf("failed to create assert database root: %v", err)
 	}
 	if info.Mode().Perm()&0002 != 0 {
-		return nil, ErrDbRootWorldReadable
+		return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
 	}
 	return &Database{root: cfg.Path}, nil
 }
@@ -94,7 +86,7 @@ func (db *Database) GenerateKey(authorityID string) (fingerprint string, err err
 	// TODO: support specifying different key types/algorithms
 	privKey, err := generatePrivateKey()
 	if err != nil {
-		return "", ErrDbKeyGen
+		return "", fmt.Errorf("failed to generate private key: %v", err)
 	}
 
 	return db.ImportKey(authorityID, privKey)
@@ -106,13 +98,13 @@ func (db *Database) ImportKey(authorityID string, privKey *packet.PrivateKey) (f
 	buf := new(bytes.Buffer)
 	err = privKey.Serialize(buf)
 	if err != nil {
-		return "", ErrDbStoringKey
+		return "", fmt.Errorf("failed to store private key: %v", err)
 	}
 
 	fingerp := hex.EncodeToString(privKey.PublicKey.Fingerprint[:])
 	err = db.atomicWriteEntry(buf.Bytes(), true, privateKeysRoot, authorityID, fingerp)
 	if err != nil {
-		return "", ErrDbStoringKey
+		return "", fmt.Errorf("failed to store private key: %v", err)
 	}
 	return fingerp, nil
 }
