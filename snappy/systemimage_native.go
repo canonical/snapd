@@ -86,8 +86,23 @@ func systemImageClientCheckForUpdates(configFile string) (us updateStatus, err e
 	}
 	channel, _ := cfg.Get("service", "channel")
 	device, _ := cfg.Get("service", "device")
+	base, _ := cfg.Get("service", "base")
 
-	indexURL := systemImageServer + "/" + path.Join(channel, device, "index.json")
+	var indexURL string
+	if base != "" {
+		httpsPort, _ := cfg.Get("service", "https_port")
+		if httpsPort != "" && httpsPort != "443" {
+			indexURL = "https://" + base + ":" + httpsPort
+		} else {
+			indexURL = "https://" + base
+		}
+	} else {
+		indexURL = systemImageServer
+	}
+	if indexURL[len(indexURL)-1] != '/' {
+		indexURL += "/"
+	}
+	indexURL += path.Join(channel, device, "index.json")
 
 	resp, err := http.Get(indexURL)
 	if err != nil {
