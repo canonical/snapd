@@ -74,8 +74,8 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	return &Database{root: cfg.Path}, nil
 }
 
-func (db *Database) atomicWriteEntry(data []byte, secret bool, hier ...string) error {
-	fpath := filepath.Join(db.root, filepath.Join(hier...))
+func (db *Database) atomicWriteEntry(data []byte, secret bool, subpath ...string) error {
+	fpath := filepath.Join(db.root, filepath.Join(subpath...))
 	dir := filepath.Dir(fpath)
 	err := os.MkdirAll(dir, 0775)
 	if err != nil {
