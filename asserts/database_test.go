@@ -64,7 +64,7 @@ func (opens *openSuite) TestOpenDatabaseWorldWriteableFail(c *C) {
 
 type databaseSuite struct {
 	rootDir string
-	db  *Database
+	db      *Database
 }
 
 var _ = Suite(&databaseSuite{})
@@ -90,13 +90,13 @@ func (dbs *databaseSuite) TestAtomicWriteEntrySecret(c *C) {
 func (dbs *databaseSuite) TestImportKey(c *C) {
 	privk, err := generatePrivateKey()
 	c.Assert(err, IsNil)
-	expectedFingerprint := privk.PublicKey.Fingerprint[:]
+	expectedFingerprint := hex.EncodeToString(privk.PublicKey.Fingerprint[:])
 
 	fingerp, err := dbs.db.ImportKey("account0", privk)
 	c.Assert(err, IsNil)
-	c.Check(fingerp, DeepEquals, expectedFingerprint)
+	c.Check(fingerp, Equals, expectedFingerprint)
 
-	keyPath := filepath.Join(dbs.rootDir, privateKeysRoot, "account0", hex.EncodeToString(fingerp))
+	keyPath := filepath.Join(dbs.rootDir, privateKeysRoot, "account0", fingerp)
 	info, err := os.Stat(keyPath)
 	c.Assert(err, IsNil)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0600)) // secret
@@ -107,13 +107,13 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 	c.Assert(err, IsNil)
 	privKeyFromDisk, ok := pk.(*packet.PrivateKey)
 	c.Assert(ok, Equals, true)
-	c.Check(privKeyFromDisk.PublicKey.Fingerprint[:], DeepEquals, expectedFingerprint)
+	c.Check(hex.EncodeToString(privKeyFromDisk.PublicKey.Fingerprint[:]), Equals, expectedFingerprint)
 }
 
 func (dbs *databaseSuite) TestGenerateKey(c *C) {
 	fingerp, err := dbs.db.GenerateKey("account0")
 	c.Assert(err, IsNil)
 	c.Check(fingerp, NotNil)
-	keyPath := filepath.Join(dbs.rootDir, privateKeysRoot, "account0", hex.EncodeToString(fingerp))
+	keyPath := filepath.Join(dbs.rootDir, privateKeysRoot, "account0", fingerp)
 	c.Check(helpers.FileExists(keyPath), Equals, true)
 }

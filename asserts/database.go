@@ -90,11 +90,11 @@ func (db *Database) atomicWriteEntry(data []byte, secret bool, hier ...string) e
 
 // GenerateKey generates a private/public key pair for identity and
 // stores it returning its fingerprint.
-func (db *Database) GenerateKey(authorityID string) (fingerprint []byte, err error) {
+func (db *Database) GenerateKey(authorityID string) (fingerprint string, err error) {
 	// TODO: support specifying different key types/algorithms
 	privKey, err := generatePrivateKey()
 	if err != nil {
-		return nil, ErrDbKeyGen
+		return "", ErrDbKeyGen
 	}
 
 	return db.ImportKey(authorityID, privKey)
@@ -102,16 +102,17 @@ func (db *Database) GenerateKey(authorityID string) (fingerprint []byte, err err
 
 // ImportKey stores the given private/public key pair for identity and
 // returns its fingerprint
-func (db *Database) ImportKey(authorityID string, privKey *packet.PrivateKey) (fingerprint []byte, err error) {
+func (db *Database) ImportKey(authorityID string, privKey *packet.PrivateKey) (fingerprint string, err error) {
 	buf := new(bytes.Buffer)
 	err = privKey.Serialize(buf)
 	if err != nil {
-		return nil, ErrDbStoringKey
+		return "", ErrDbStoringKey
 	}
-	fingerp := privKey.PublicKey.Fingerprint[:]
-	err = db.atomicWriteEntry(buf.Bytes(), true, privateKeysRoot, authorityID, hex.EncodeToString(fingerp))
+
+	fingerp := hex.EncodeToString(privKey.PublicKey.Fingerprint[:])
+	err = db.atomicWriteEntry(buf.Bytes(), true, privateKeysRoot, authorityID, fingerp)
 	if err != nil {
-		return nil, ErrDbStoringKey
+		return "", ErrDbStoringKey
 	}
 	return fingerp, nil
 }
