@@ -476,6 +476,30 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositorySearch(c *C) {
 	c.Check(parts[0].Description(), Equals, "Returns for store credit only.")
 }
 
+func (s *SnapTestSuite) TestUbuntuStoreAll(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.RawQuery, Equals, "")
+		io.WriteString(w, MockSearchJSON)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	storeSearchURI, err = url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	repo := NewUbuntuStoreSnapRepository()
+	c.Assert(repo, NotNil)
+
+	parts, err := repo.All()
+	c.Assert(err, IsNil)
+	c.Assert(parts, HasLen, 1)
+	c.Check(parts[0].Name(), Equals, funkyAppName)
+	c.Check(parts[0].Origin(), Equals, funkyAppOrigin)
+	c.Check(parts[0].Vendor(), Equals, funkyAppVendor)
+	c.Check(parts[0].Version(), Equals, "42")
+	c.Check(parts[0].Description(), Equals, "Returns for store credit only.")
+}
+
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryAliasSearch(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, MockAliasSearchJSON)
@@ -1657,4 +1681,22 @@ func (s *SnapTestSuite) TestChannelFromLocalManifest(c *C) {
 
 	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
 	c.Assert(snap.Channel(), Equals, "remote-channel")
+}
+
+func (s *SnapTestSuite) TestIcon(c *C) {
+	snapYaml, err := s.makeInstalledMockSnap()
+	part, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
+	c.Check(part.Icon(), Matches, filepath.Join(dirs.SnapAppsDir, QualifiedName(part), part.Version(), "meta/hello.svg"))
+}
+
+func (s *SnapTestSuite) TestIconEmpty(c *C) {
+	snapYaml, err := s.makeInstalledMockSnap(`name: foo
+version: 1.0
+vendor: foo
+`)
+	part, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
+	// no icon in the yaml!
+	c.Check(part.Icon(), Equals, "")
 }
