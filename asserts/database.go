@@ -17,7 +17,7 @@
  *
  */
 
-// Package asserts implements snappy assertions and a store
+// Package asserts implements snappy assertions and a database
 // abstraction for managing and holding them.
 package asserts
 
@@ -33,15 +33,15 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 )
 
-// StoreConfig for an assertion store.
-type StoreConfig struct {
-	// store backstore path
+// DatabaseConfig for an assertion database.
+type DatabaseConfig struct {
+	// database backstore path
 	Path string
 }
 
-// AssertStore holds assertions and can be used to sign or check
+// Database holds assertions and can be used to sign or check
 // further assertions.
-type AssertStore struct {
+type Database struct {
 	root string
 }
 
@@ -52,30 +52,30 @@ const (
 
 // errors
 var (
-	ErrStoreRootCreate        = errors.New("failed to create assert store root")
-	ErrStoreRootWorldReadable = errors.New("assert store root unexpectedly world-writable")
-	ErrStoreKeyGen            = errors.New("failed to generate private key")
-	ErrStoreStoringKey        = errors.New("failed to store private key")
+	ErrDbRootCreate        = errors.New("failed to create assert database root")
+	ErrDbRootWorldReadable = errors.New("assert database root unexpectedly world-writable")
+	ErrDbKeyGen            = errors.New("failed to generate private key")
+	ErrDbStoringKey        = errors.New("failed to store private key")
 )
 
-// OpenStore opens the assertion store based on the configuration.
-func OpenStore(cfg *StoreConfig) (*AssertStore, error) {
+// OpenDatabase opens the assertion database based on the configuration.
+func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	err := os.MkdirAll(cfg.Path, 0775)
 	if err != nil {
-		return nil, ErrStoreRootCreate
+		return nil, ErrDbRootCreate
 	}
 	info, err := os.Stat(cfg.Path)
 	if err != nil {
-		return nil, ErrStoreRootCreate
+		return nil, ErrDbRootCreate
 	}
 	if info.Mode().Perm()&0002 != 0 {
-		return nil, ErrStoreRootWorldReadable
+		return nil, ErrDbRootWorldReadable
 	}
-	return &AssertStore{root: cfg.Path}, nil
+	return &Database{root: cfg.Path}, nil
 }
 
-func (astore *AssertStore) atomicWriteEntry(data []byte, secret bool, hier ...string) error {
-	fpath := filepath.Join(astore.root, filepath.Join(hier...))
+func (db *Database) atomicWriteEntry(data []byte, secret bool, hier ...string) error {
+	fpath := filepath.Join(db.root, filepath.Join(hier...))
 	dir := filepath.Dir(fpath)
 	err := os.MkdirAll(dir, 0775)
 	if err != nil {
@@ -90,27 +90,28 @@ func (astore *AssertStore) atomicWriteEntry(data []byte, secret bool, hier ...st
 
 // GenerateKey generates a private/public key pair for identity and
 // stores it returning its fingerprint.
-func (astore *AssertStore) GenerateKey(authorityID string) (fingerprint []byte, err error) {
+func (db *Database) GenerateKey(authorityID string) (fingerprint []byte, err error) {
 	// TODO: support specifying different key types/algorithms
 	privKey, err := generatePrivateKey()
 	if err != nil {
-		return nil, ErrStoreKeyGen
+		return nil, ErrDbKeyGen
 	}
-	return astore.ImportKey(authorityID, privKey)
+
+	return db.ImportKey(authorityID, privKey)
 }
 
 // ImportKey stores the given private/public key pair for identity and
 // returns its fingerprint
-func (astore *AssertStore) ImportKey(authorityID string, privKey *packet.PrivateKey) (fingerprint []byte, err error) {
+func (db *Database) ImportKey(authorityID string, privKey *packet.PrivateKey) (fingerprint []byte, err error) {
 	buf := new(bytes.Buffer)
 	err = privKey.Serialize(buf)
 	if err != nil {
-		return nil, ErrStoreStoringKey
+		return nil, ErrDbStoringKey
 	}
 	fingerp := privKey.PublicKey.Fingerprint[:]
-	err = astore.atomicWriteEntry(buf.Bytes(), true, privateKeysRoot, authorityID, hex.EncodeToString(fingerp))
+	err = db.atomicWriteEntry(buf.Bytes(), true, privateKeysRoot, authorityID, hex.EncodeToString(fingerp))
 	if err != nil {
-		return nil, ErrStoreStoringKey
+		return nil, ErrDbStoringKey
 	}
 	return fingerp, nil
 }

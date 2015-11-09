@@ -38,65 +38,65 @@ type openSuite struct{}
 
 var _ = Suite(&openSuite{})
 
-func (opens *openSuite) TestOpenStoreOK(c *C) {
-	rootDir := filepath.Join(c.MkDir(), "astore")
-	cfg := &StoreConfig{Path: rootDir}
-	astore, err := OpenStore(cfg)
+func (opens *openSuite) TestOpenDatabaseOK(c *C) {
+	rootDir := filepath.Join(c.MkDir(), "asserts-db")
+	cfg := &DatabaseConfig{Path: rootDir}
+	db, err := OpenDatabase(cfg)
 	c.Assert(err, IsNil)
-	c.Assert(astore, NotNil)
-	c.Check(astore.root, Equals, rootDir)
+	c.Assert(db, NotNil)
+	c.Check(db.root, Equals, rootDir)
 	info, err := os.Stat(rootDir)
 	c.Assert(err, IsNil)
 	c.Assert(info.IsDir(), Equals, true)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0775))
 }
 
-func (opens *openSuite) TestOpenStoreWorldWriteableFail(c *C) {
-	rootDir := filepath.Join(c.MkDir(), "astore")
+func (opens *openSuite) TestOpenDatabaseWorldWriteableFail(c *C) {
+	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	oldUmask := syscall.Umask(0)
 	os.MkdirAll(rootDir, 0777)
 	syscall.Umask(oldUmask)
-	cfg := &StoreConfig{Path: rootDir}
-	astore, err := OpenStore(cfg)
-	c.Assert(err, Equals, ErrStoreRootWorldReadable)
-	c.Check(astore, IsNil)
+	cfg := &DatabaseConfig{Path: rootDir}
+	db, err := OpenDatabase(cfg)
+	c.Assert(err, Equals, ErrDbRootWorldReadable)
+	c.Check(db, IsNil)
 }
 
-type storeSuite struct {
+type databaseSuite struct {
 	rootDir string
-	astore  *AssertStore
+	db  *Database
 }
 
-var _ = Suite(&storeSuite{})
+var _ = Suite(&databaseSuite{})
 
-func (ss *storeSuite) SetUpTest(c *C) {
-	ss.rootDir = filepath.Join(c.MkDir(), "astore")
-	cfg := &StoreConfig{Path: ss.rootDir}
-	astore, err := OpenStore(cfg)
+func (dbs *databaseSuite) SetUpTest(c *C) {
+	dbs.rootDir = filepath.Join(c.MkDir(), "asserts-db")
+	cfg := &DatabaseConfig{Path: dbs.rootDir}
+	db, err := OpenDatabase(cfg)
 	c.Assert(err, IsNil)
-	ss.astore = astore
+	dbs.db = db
 }
 
-func (ss *storeSuite) TestAtomicWriteEntrySecret(c *C) {
-	err := ss.astore.atomicWriteEntry([]byte("foobar"), true, "a", "b", "foo")
+func (dbs *databaseSuite) TestAtomicWriteEntrySecret(c *C) {
+	err := dbs.db.atomicWriteEntry([]byte("foobar"), true, "a", "b", "foo")
 	c.Assert(err, IsNil)
-	fooPath := filepath.Join(ss.rootDir, "a", "b", "foo")
+	fooPath := filepath.Join(dbs.rootDir, "a", "b", "foo")
 	info, err := os.Stat(fooPath)
 	c.Assert(err, IsNil)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0600))
 	c.Check(info.Size(), Equals, int64(6))
 }
 
-func (ss *storeSuite) TestImportKey(c *C) {
+func (dbs *databaseSuite) TestImportKey(c *C) {
 	privk, err := generatePrivateKey()
 	c.Assert(err, IsNil)
 	expectedFingerprint := privk.PublicKey.Fingerprint[:]
 
-	fingerp, err := ss.astore.ImportKey("account0", privk)
+	fingerp, err := dbs.db.ImportKey("account0", privk)
 	c.Assert(err, IsNil)
 	c.Check(fingerp, DeepEquals, expectedFingerprint)
 
-	keyPath := filepath.Join(ss.rootDir, privateKeysRoot, "account0", hex.EncodeToString(fingerp))
+	keyPath := filepath.Join(dbs.rootDir, privateKeysRoot, "account0", hex.EncodeToString(fingerp))
 	info, err := os.Stat(keyPath)
 	c.Assert(err, IsNil)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0600)) // secret
@@ -110,10 +110,10 @@ func (ss *storeSuite) TestImportKey(c *C) {
 	c.Check(privKeyFromDisk.PublicKey.Fingerprint[:], DeepEquals, expectedFingerprint)
 }
 
-func (ss *storeSuite) TestGenerateKey(c *C) {
-	fingerp, err := ss.astore.GenerateKey("account0")
+func (dbs *databaseSuite) TestGenerateKey(c *C) {
+	fingerp, err := dbs.db.GenerateKey("account0")
 	c.Assert(err, IsNil)
 	c.Check(fingerp, NotNil)
-	keyPath := filepath.Join(ss.rootDir, privateKeysRoot, "account0", hex.EncodeToString(fingerp))
+	keyPath := filepath.Join(dbs.rootDir, privateKeysRoot, "account0", hex.EncodeToString(fingerp))
 	c.Check(helpers.FileExists(keyPath), Equals, true)
 }
