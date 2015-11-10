@@ -98,11 +98,18 @@ func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 	} else if matches := failureRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
 		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "fail"})
 	} else if matches := skipRegexp.FindStringSubmatch(sdata); len(matches) == 3 {
+		reason := matches[2]
+		// Do not report anything about the set ups skipped because of another test's reboot.
+		ignore, _ := regexp.MatchString(
+			"^\\*\\*\\*\\*\\*\\* Skipped .* during reboot caused by .*$", reason)		
+		if ignore {
+			return 0, nil
+		}
 		err = fr.statuser.Status(subunit.Event{
 			TestID:    matches[1],
 			Status:    "skip",
 			FileName:  "reason",
-			FileBytes: []byte(matches[2]),
+			FileBytes: []byte(reason),
 			MIME:      "text/plain;charset=utf8",
 		})
 	}

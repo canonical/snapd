@@ -113,5 +113,5 @@ func (s *ParserReportSuite) TestParserSendsNothingForRebootSkips(c *check.C) {
 			"****** Skipped testSuite.TestSkip during reboot caused by otherTestSuite.TestWithReboot")))
 	
 	c.Assert(len(s.spy.calls), check.Equals, 0,
-		check.Commentf("Unexpected event sent to subunit: %v", s.spy.calls))	
+		check.Commentf("Unexpected event sent to subunit: %v", s.spy.calls))
 }
