@@ -94,20 +94,26 @@ func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 	sdata := string(data)
 
 	if matches := announceRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
-		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "exists"})
+		testID := matches[1]
+		if isTest(testID) {
+			err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "exists"})
+		}
 	} else if matches := successRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
-		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "success"})
+		testID := matches[1]
+		if isTest(testID) {
+			err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "success"})
+		}
 	} else if matches := failureRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
 		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "fail"})
 	} else if matches := skipRegexp.FindStringSubmatch(sdata); len(matches) == 3 {
-		reason := matches[2]		
+		reason := matches[2]
 		// Do not report anything about the set ups skipped because of another test's reboot.
 		duringReboot, _ := regexp.MatchString(
 			fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipDuringReboot), ".*", ".*"),
 			reason)
 		afterReboot, _ := regexp.MatchString(
 			fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipAfterReboot), ".*", ".*"),
-			reason)		
+			reason)
 		if duringReboot || afterReboot {
 			return 0, nil
 		}
@@ -124,4 +130,10 @@ func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 		return wr.nbytes, err
 	}
 	return 0, err
+}
+
+func isTest(testID string) bool {
+	matchesSetUp, _ := regexp.MatchString(".*\\.SetUpTest", testID)
+	matchesTearDown, _ := regexp.MatchString(".*\\.TearDownTest", testID)
+	return !matchesSetUp && !matchesTearDown
 }

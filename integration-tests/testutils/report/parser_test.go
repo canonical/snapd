@@ -107,13 +107,20 @@ func (s *ParserReportSuite) TestParserReporterSendsSkipEvent(c *check.C) {
 	c.Check(string(event.FileBytes), check.Equals, skipReason)
 }
 
-func (s *ParserReportSuite) TestParserSendsNothingForRebootSkips(c *check.C) {
-	reasons := []string{common.FormatSkipDuringReboot, common.FormatSkipAfterReboot}
-	for _, reasonFormat := range reasons {
-		reason := fmt.Sprintf(reasonFormat, "testSuite.TestSkip", "otherTestSuite.TestWithReboot")
-		s.subject.Write([]byte(
-			fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/github.com/ubuntu-core/snappy/"+
-				"integration-tests/tests/info_test.go:36: %s (%s)\n", "testSuite.TestSkip", reason)))
+func (s *ParserReportSuite) TestParserSendsNothingForSetUpAndTearDown(c *check.C) {
+	ignoreTests := []string{
+		"****** Running testSuite.SetUpTest\n",
+		"PASS: /dummy/path:34: testSuite.SetUpTest      0.005s\n",
+		"****** Running testSuite.TearDownTest\n",
+		"PASS: /dummy/path:34: testSuite.TearDownTest      0.005s\n",
+		fmt.Sprintf(
+			"SKIP: /dummy/path:36: %s (%s)\n", "testSuite.TestSkip", common.FormatSkipDuringReboot),
+		fmt.Sprintf(
+			"SKIP: /dummy/path:36: %s (%s)\n", "testSuite.TestSkip", common.FormatSkipAfterReboot),
+	}
+	for _, gocheckOutput := range ignoreTests {
+		s.spy.calls = []subunit.Event{}
+		s.subject.Write([]byte(gocheckOutput))
 
 		c.Check(len(s.spy.calls), check.Equals, 0,
 			check.Commentf("Unexpected event sent to subunit: %v", s.spy.calls))
