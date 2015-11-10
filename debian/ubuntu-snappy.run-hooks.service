@@ -1,5 +1,5 @@
 [Unit]
-Description=Run snappy security policy generation updates
+Description=Regenerate snappy security policies
 After=ubuntu-snappy.firstboot.service
 
 [Service]
