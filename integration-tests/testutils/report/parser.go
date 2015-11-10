@@ -89,14 +89,15 @@ func NewSubunitV2ParserReporter(writer io.Writer) *SubunitV2ParserReporter {
 
 func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 	var err error
+	sdata := string(data)
 
-	if matches := announceRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
+	if matches := announceRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
 		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "exists"})
-	} else if matches := successRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
+	} else if matches := successRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
 		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "success"})
-	} else if matches := failureRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
+	} else if matches := failureRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
 		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "fail"})
-	} else if matches := skipRegexp.FindStringSubmatch(string(data)); len(matches) == 3 {
+	} else if matches := skipRegexp.FindStringSubmatch(sdata); len(matches) == 3 {
 		err = fr.statuser.Status(subunit.Event{
 			TestID:    matches[1],
 			Status:    "skip",
