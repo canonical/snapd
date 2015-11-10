@@ -467,7 +467,7 @@ func (a *SecurityTestSuite) TestSecurityGetApparmorCustomPolicy(c *C) {
 	err := ioutil.WriteFile(customPolicy, []byte(aaCustomPolicy), 0644)
 	c.Assert(err, IsNil)
 
-	p, err := getAppArmorCustomPolicy(m, appid, customPolicy)
+	p, err := getAppArmorCustomPolicy(m, appid, customPolicy, nil)
 	c.Check(err, IsNil)
 	c.Check(p, Equals, expectedAaCustomPolicy)
 }
@@ -817,4 +817,39 @@ func (a *SecurityTestSuite) TestSnappyFindUbuntuVersionNotFound(c *C) {
 
 	_, err = findUbuntuVersion()
 	c.Assert(err, Equals, errSystemVersionNotFound)
+}
+
+func makeCustomAppArmorPolicy(c *C) string {
+	content := []byte(`# custom apparmor policy
+###VAR###
+
+###PROFILEATTACH###
+
+###READS###
+###WRITES###
+###ABSTRACTIONS###
+`)
+	fn := filepath.Join(c.MkDir(), "custom-aa-policy")
+	err := ioutil.WriteFile(fn, content, 0644)
+	c.Assert(err, IsNil)
+
+	return fn
+}
+
+func (a *SecurityTestSuite) TestSecurityGenerateCustomPolicyAdditionalIsConsidered(c *C) {
+	m := &packageYaml{
+		Name:    "foo",
+		Version: "1.0",
+	}
+	appid := &securityAppID{
+		Pkgname: "foo",
+		Version: "1.0",
+	}
+	fn := makeCustomAppArmorPolicy(c)
+
+	content, err := getAppArmorCustomPolicy(m, appid, fn, nil)
+	c.Assert(err, IsNil)
+	c.Assert(content, Matches, `(?ms).*^# No read paths specified$`)
+	c.Assert(content, Matches, `(?ms).*^# No write paths specified$`)
+	c.Assert(content, Matches, `(?ms).*^# No abstractions specified$`)
 }

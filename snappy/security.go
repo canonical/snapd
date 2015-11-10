@@ -398,6 +398,62 @@ func genAppArmorPathRule(path string, access string) (string, error) {
 	return rules, nil
 }
 
+func mergeAppArmorTemplateAdditionalContent(appArmorTemplate, aaPolicy string, overrides *SecurityAppArmorOverrideDefinition) (string, error) {
+	// ensure we have
+	if overrides == nil {
+		overrides = &SecurityAppArmorOverrideDefinition{}
+	}
+
+	if overrides.ReadPaths == nil {
+		aaPolicy = strings.Replace(aaPolicy, "###READS###\n", "# No read paths specified\n", 1)
+	} else {
+		s := "# Additional read-paths from security-override\n"
+		prefix := findWhitespacePrefix(appArmorTemplate, "###READS###")
+		for _, readpath := range overrides.ReadPaths {
+			rules, err := genAppArmorPathRule(strings.Trim(readpath, " "), "rk")
+			if err != nil {
+				return "", err
+			}
+			lines := strings.Split(rules, "\n")
+			for _, rule := range lines {
+				s += fmt.Sprintf("%s%s\n", prefix, rule)
+			}
+		}
+		aaPolicy = strings.Replace(aaPolicy, "###READS###\n", s, 1)
+	}
+
+	if overrides.WritePaths == nil {
+		aaPolicy = strings.Replace(aaPolicy, "###WRITES###\n", "# No write paths specified\n", 1)
+	} else {
+		s := "# Additional write-paths from security-override\n"
+		prefix := findWhitespacePrefix(appArmorTemplate, "###WRITES###")
+		for _, writepath := range overrides.WritePaths {
+			rules, err := genAppArmorPathRule(strings.Trim(writepath, " "), "rwk")
+			if err != nil {
+				return "", err
+			}
+			lines := strings.Split(rules, "\n")
+			for _, rule := range lines {
+				s += fmt.Sprintf("%s%s\n", prefix, rule)
+			}
+		}
+		aaPolicy = strings.Replace(aaPolicy, "###WRITES###\n", s, 1)
+	}
+
+	if overrides.Abstractions == nil {
+		aaPolicy = strings.Replace(aaPolicy, "###ABSTRACTIONS###\n", "# No abstractions specified\n", 1)
+	} else {
+		s := "# Additional abstractions from security-override\n"
+		prefix := findWhitespacePrefix(appArmorTemplate, "###ABSTRACTIONS###")
+		for _, abs := range overrides.Abstractions {
+			s += fmt.Sprintf("%s#include <abstractions/%s>\n", prefix, abs)
+		}
+		aaPolicy = strings.Replace(aaPolicy, "###ABSTRACTIONS###\n", s, 1)
+	}
+
+	return aaPolicy, nil
+}
+
 func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string, overrides *SecurityAppArmorOverrideDefinition) (string, error) {
 	t, err := securityPolicyTypeAppArmor.findTemplate(template)
 	if err != nil {
@@ -427,54 +483,7 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template s
 	}
 	aaPolicy = strings.Replace(aaPolicy, "###POLICYGROUPS###\n", aacaps, 1)
 
-	if overrides == nil || overrides.ReadPaths == nil {
-		aaPolicy = strings.Replace(aaPolicy, "###READS###\n", "# No read paths specified\n", 1)
-	} else {
-		s := "# Additional read-paths from security-override\n"
-		prefix := findWhitespacePrefix(t, "###READS###")
-		for _, readpath := range overrides.ReadPaths {
-			rules, err := genAppArmorPathRule(strings.Trim(readpath, " "), "rk")
-			if err != nil {
-				return "", err
-			}
-			lines := strings.Split(rules, "\n")
-			for _, rule := range lines {
-				s += fmt.Sprintf("%s%s\n", prefix, rule)
-			}
-		}
-		aaPolicy = strings.Replace(aaPolicy, "###READS###\n", s, 1)
-	}
-
-	if overrides == nil || overrides.WritePaths == nil {
-		aaPolicy = strings.Replace(aaPolicy, "###WRITES###\n", "# No write paths specified\n", 1)
-	} else {
-		s := "# Additional write-paths from security-override\n"
-		prefix := findWhitespacePrefix(t, "###WRITES###")
-		for _, writepath := range overrides.WritePaths {
-			rules, err := genAppArmorPathRule(strings.Trim(writepath, " "), "rwk")
-			if err != nil {
-				return "", err
-			}
-			lines := strings.Split(rules, "\n")
-			for _, rule := range lines {
-				s += fmt.Sprintf("%s%s\n", prefix, rule)
-			}
-		}
-		aaPolicy = strings.Replace(aaPolicy, "###WRITES###\n", s, 1)
-	}
-
-	if overrides == nil || overrides.Abstractions == nil {
-		aaPolicy = strings.Replace(aaPolicy, "###ABSTRACTIONS###\n", "# No abstractions specified\n", 1)
-	} else {
-		s := "# Additional abstractions from security-override\n"
-		prefix := findWhitespacePrefix(t, "###ABSTRACTIONS###")
-		for _, abs := range overrides.Abstractions {
-			s += fmt.Sprintf("%s#include <abstractions/%s>\n", prefix, abs)
-		}
-		aaPolicy = strings.Replace(aaPolicy, "###ABSTRACTIONS###\n", s, 1)
-	}
-
-	return aaPolicy, nil
+	return mergeAppArmorTemplateAdditionalContent(t, aaPolicy, overrides)
 }
 
 func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, templateName string, caps []string, overrides *SecuritySeccompOverrideDefinition) (string, error) {
@@ -501,7 +510,7 @@ func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, templateNam
 	return scPolicy, nil
 }
 
-func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (string, error) {
+func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string, overrides *SecurityAppArmorOverrideDefinition) (string, error) {
 	custom, err := ioutil.ReadFile(fn)
 	if err != nil {
 		return "", err
@@ -510,7 +519,7 @@ func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (s
 	aaPolicy := strings.Replace(string(custom), "\n###VAR###\n", appID.appArmorVars()+"\n", 1)
 	aaPolicy = strings.Replace(aaPolicy, "\n###PROFILEATTACH###", fmt.Sprintf("\nprofile \"%s\"", appID.AppID), 1)
 
-	return aaPolicy, nil
+	return mergeAppArmorTemplateAdditionalContent("", aaPolicy, overrides)
 }
 
 func getSeccompCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (string, error) {
@@ -640,7 +649,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 
 	sd.mergeAppArmorSecurityOverrides(&hwaccessOverrides)
 	if sd.SecurityPolicy != nil {
-		res.aaPolicy, err = getAppArmorCustomPolicy(m, res.id, filepath.Join(baseDir, sd.SecurityPolicy.AppArmor))
+		res.aaPolicy, err = getAppArmorCustomPolicy(m, res.id, filepath.Join(baseDir, sd.SecurityPolicy.AppArmor), sd.SecurityOverride.AppArmor)
 		if err != nil {
 			logger.Noticef("Failed to generate custom AppArmor policy for %s: %v", name, err)
 			return nil, err
