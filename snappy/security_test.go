@@ -502,14 +502,37 @@ func (a *SecurityTestSuite) TestSecurityGetAppIDInvalid(c *C) {
 	c.Assert(err, Equals, errInvalidAppID)
 }
 
-func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesSilly(c *C) {
+func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesNilDoesNotCrash(c *C) {
+	sd := &SecurityDefinitions{}
+	sd.mergeAppArmorSecurityOverrides(nil)
+	c.Assert(sd, DeepEquals, &SecurityDefinitions{})
+}
+
+func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesOnlySeccompDoesNotCrashl(c *C) {
+	sd := &SecurityDefinitions{
+		SecurityOverride: &SecurityOverrideDefinition{
+			Seccomp: &SecuritySeccompOverrideDefinition{},
+		},
+	}
+	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{}
+	sd.mergeAppArmorSecurityOverrides(hwaccessOverrides)
+
+	c.Assert(sd, DeepEquals, &SecurityDefinitions{
+		SecurityOverride: &SecurityOverrideDefinition{
+			Seccomp:  &SecuritySeccompOverrideDefinition{},
+			AppArmor: hwaccessOverrides,
+		},
+	})
+}
+
+func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesTrivial(c *C) {
 	sd := &SecurityDefinitions{}
 	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{}
 	sd.mergeAppArmorSecurityOverrides(hwaccessOverrides)
 
 	c.Assert(sd, DeepEquals, &SecurityDefinitions{
 		SecurityOverride: &SecurityOverrideDefinition{
-			AppArmor: &SecurityAppArmorOverrideDefinition{},
+			AppArmor: hwaccessOverrides,
 		},
 	})
 }

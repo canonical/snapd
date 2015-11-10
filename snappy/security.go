@@ -585,11 +585,19 @@ func removePolicy(m *packageYaml, baseDir string) error {
 }
 
 func (sd *SecurityDefinitions) mergeAppArmorSecurityOverrides(new *SecurityAppArmorOverrideDefinition) {
-	if sd.SecurityOverride == nil {
-		sd.SecurityOverride = &SecurityOverrideDefinition{
-			AppArmor: &SecurityAppArmorOverrideDefinition{},
-		}
+	// nothing to do
+	if new == nil {
+		return
 	}
+
+	// ensure we have valid structs to work with
+	if sd.SecurityOverride == nil {
+		sd.SecurityOverride = &SecurityOverrideDefinition{}
+	}
+	if sd.SecurityOverride.AppArmor == nil {
+		sd.SecurityOverride.AppArmor = &SecurityAppArmorOverrideDefinition{}
+	}
+
 	sd.SecurityOverride.AppArmor.ReadPaths = append(sd.SecurityOverride.AppArmor.ReadPaths, new.ReadPaths...)
 	sd.SecurityOverride.AppArmor.WritePaths = append(sd.SecurityOverride.AppArmor.WritePaths, new.WritePaths...)
 	sd.SecurityOverride.AppArmor.Abstractions = append(sd.SecurityOverride.AppArmor.Abstractions, new.Abstractions...)
