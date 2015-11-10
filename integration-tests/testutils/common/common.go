@@ -41,6 +41,12 @@ const (
 	BaseAltPartitionPath = "/writable/cache/system"
 	needsRebootFile      = "/tmp/needs-reboot"
 	channelCfgFile       = "/etc/system-image/channel.ini"
+	// FormatSkipDuringReboot is the reason used to skip the pending tests when a test requested
+	// a reboot.
+	FormatSkipDuringReboot = "****** Skipped %s during reboot caused by %s"
+	// FormatSkipAfterReboot is the reason used to skip already ran tests after a reboot requested
+	// by a test.
+	FormatSkipAfterReboot = "****** Skipped %s after reboot caused by %s"
 )
 
 // Cfg is a struct that contains the configuration values passed from the
@@ -97,8 +103,7 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 	if NeedsReboot() {
 		contents, err := ioutil.ReadFile(needsRebootFile)
 		c.Assert(err, check.IsNil, check.Commentf("Error reading needs-reboot file %v", err))
-		c.Skip(fmt.Sprintf("****** Skipped %s during reboot caused by %s",
-			c.TestName(), contents))
+		c.Skip(fmt.Sprintf(FormatSkipDuringReboot, c.TestName(), contents))
 	} else {
 		if CheckRebootMark("") {
 			c.Logf("****** Running %s", c.TestName())
@@ -107,8 +112,7 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 			if AfterReboot(c) {
 				c.Logf("****** Resuming %s after reboot", c.TestName())
 			} else {
-				c.Skip(fmt.Sprintf("****** Skipped %s after reboot caused by %s",
-					c.TestName(), os.Getenv("ADT_REBOOT_MARK")))
+				c.Skip(fmt.Sprintf(FormatSkipAfterReboot, c.TestName(), os.Getenv("ADT_REBOOT_MARK")))
 			}
 		}
 	}

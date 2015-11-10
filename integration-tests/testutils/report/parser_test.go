@@ -26,6 +26,8 @@ import (
 
 	"github.com/testing-cabal/subunit-go"
 	"gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 )
 
 var _ = check.Suite(&ParserReportSuite{})
@@ -106,12 +108,14 @@ func (s *ParserReportSuite) TestParserReporterSendsSkipEvent(c *check.C) {
 }
 
 func (s *ParserReportSuite) TestParserSendsNothingForRebootSkips(c *check.C) {
-	s.subject.Write([]byte(
-		fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/github.com/ubuntu-core/snappy/"+
-			"integration-tests/tests/info_test.go:36: %s (%s)\n",
-			"testSuite.TestSkip",
-			"****** Skipped testSuite.TestSkip during reboot caused by otherTestSuite.TestWithReboot")))
-	
-	c.Assert(len(s.spy.calls), check.Equals, 0,
-		check.Commentf("Unexpected event sent to subunit: %v", s.spy.calls))
+	reasons := []string{common.FormatSkipDuringReboot, common.FormatSkipAfterReboot}
+	for _, reasonFormat := range reasons {
+		reason := fmt.Sprintf(reasonFormat, "testSuite.TestSkip", "otherTestSuite.TestWithReboot")
+		s.subject.Write([]byte(
+			fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/github.com/ubuntu-core/snappy/"+
+				"integration-tests/tests/info_test.go:36: %s (%s)\n", "testSuite.TestSkip", reason)))
+
+		c.Check(len(s.spy.calls), check.Equals, 0,
+			check.Commentf("Unexpected event sent to subunit: %v", s.spy.calls))
+	}
 }

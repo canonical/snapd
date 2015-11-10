@@ -101,7 +101,7 @@ func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 		reason := matches[2]
 		// Do not report anything about the set ups skipped because of another test's reboot.
 		ignore, _ := regexp.MatchString(
-			"^\\*\\*\\*\\*\\*\\* Skipped .* during reboot caused by .*$", reason)		
+			"^\\*\\*\\*\\*\\*\\* Skipped .* reboot caused by .*$", reason)
 		if ignore {
 			return 0, nil
 		}
