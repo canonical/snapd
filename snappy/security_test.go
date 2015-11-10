@@ -198,6 +198,19 @@ func (a *SecurityTestSuite) TestSecurityFindCaps(c *C) {
 	c.Assert(cap, DeepEquals, []string{"cap1", "cap2"})
 }
 
+func (a *SecurityTestSuite) TestSecurityFindCapsMultipleErrorHandling(c *C) {
+	makeMockApparmorCap(c, "existing-cap", []byte("something"))
+
+	_, err := securityPolicyTypeAppArmor.findCaps([]string{"existing-cap", "not-existing-cap"}, "mock-template")
+	c.Check(err, ErrorMatches, "could not find specified cap: not-existing-cap.*")
+
+	_, err = securityPolicyTypeAppArmor.findCaps([]string{"not-existing-cap", "existing-cap"}, "mock-template")
+	c.Check(err, ErrorMatches, "could not find specified cap: not-existing-cap.*")
+
+	_, err = securityPolicyTypeAppArmor.findCaps([]string{"existing-cap"}, "mock-template")
+	c.Check(err, IsNil)
+}
+
 func (a *SecurityTestSuite) TestSecurityGetAppArmorVars(c *C) {
 	appID := &securityAppID{
 		Appname: "foo",
@@ -343,7 +356,7 @@ func (a *SecurityTestSuite) TestSecurityGenAppArmorTemplatePolicy(c *C) {
 	}
 	template := "mock-template"
 	caps := []string{"cap1"}
-	overrides := &SecurityAppArmorOverrideDefinition{}
+	overrides := &SecurityOverrideDefinition{}
 	p, err := getAppArmorTemplatedPolicy(m, appid, template, caps, overrides)
 	c.Check(err, IsNil)
 	c.Check(p, Equals, expectedGeneratedAaProfile)
@@ -393,7 +406,7 @@ func (a *SecurityTestSuite) TestSecurityGenSeccompTemplatedPolicy(c *C) {
 	}
 	template := "mock-template"
 	caps := []string{"cap1"}
-	overrides := &SecuritySeccompOverrideDefinition{}
+	overrides := &SecurityOverrideDefinition{}
 	p, err := getSeccompTemplatedPolicy(m, appid, template, caps, overrides)
 	c.Check(err, IsNil)
 	c.Check(p, Equals, expectedGeneratedSeccompProfile)
@@ -454,7 +467,7 @@ func (a *SecurityTestSuite) TestSecurityGetApparmorCustomPolicy(c *C) {
 	err := ioutil.WriteFile(customPolicy, []byte(aaCustomPolicy), 0644)
 	c.Assert(err, IsNil)
 
-	p, err := getAppArmorCustomPolicy(m, appid, customPolicy)
+	p, err := getAppArmorCustomPolicy(m, appid, customPolicy, nil)
 	c.Check(err, IsNil)
 	c.Check(p, Equals, expectedAaCustomPolicy)
 }
@@ -489,42 +502,42 @@ func (a *SecurityTestSuite) TestSecurityGetAppIDInvalid(c *C) {
 	c.Assert(err, Equals, errInvalidAppID)
 }
 
-func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesSilly(c *C) {
+func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesNilDoesNotCrash(c *C) {
 	sd := &SecurityDefinitions{}
-	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{}
+	sd.mergeAppArmorSecurityOverrides(nil)
+	c.Assert(sd, DeepEquals, &SecurityDefinitions{})
+}
+
+func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesTrivial(c *C) {
+	sd := &SecurityDefinitions{}
+	hwaccessOverrides := &SecurityOverrideDefinition{}
 	sd.mergeAppArmorSecurityOverrides(hwaccessOverrides)
 
 	c.Assert(sd, DeepEquals, &SecurityDefinitions{
-		SecurityOverride: &SecurityOverrideDefinition{
-			AppArmor: &SecurityAppArmorOverrideDefinition{},
-		},
+		SecurityOverride: hwaccessOverrides,
 	})
 }
 
 func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesOverrides(c *C) {
 	sd := &SecurityDefinitions{}
-	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{
+	hwaccessOverrides := &SecurityOverrideDefinition{
 		ReadPaths:  []string{"read1"},
 		WritePaths: []string{"write1"},
 	}
 	sd.mergeAppArmorSecurityOverrides(hwaccessOverrides)
 
 	c.Assert(sd, DeepEquals, &SecurityDefinitions{
-		SecurityOverride: &SecurityOverrideDefinition{
-			AppArmor: hwaccessOverrides,
-		},
+		SecurityOverride: hwaccessOverrides,
 	})
 }
 
 func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesMerges(c *C) {
 	sd := &SecurityDefinitions{
 		SecurityOverride: &SecurityOverrideDefinition{
-			AppArmor: &SecurityAppArmorOverrideDefinition{
-				ReadPaths: []string{"orig1"},
-			},
+			ReadPaths: []string{"orig1"},
 		},
 	}
-	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{
+	hwaccessOverrides := &SecurityOverrideDefinition{
 		ReadPaths:  []string{"read1"},
 		WritePaths: []string{"write1"},
 	}
@@ -532,10 +545,8 @@ func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesMerges(c *
 
 	c.Assert(sd, DeepEquals, &SecurityDefinitions{
 		SecurityOverride: &SecurityOverrideDefinition{
-			AppArmor: &SecurityAppArmorOverrideDefinition{
-				ReadPaths:  []string{"orig1", "read1"},
-				WritePaths: []string{"write1"},
-			},
+			ReadPaths:  []string{"orig1", "read1"},
+			WritePaths: []string{"write1"},
 		},
 	})
 }
@@ -754,4 +765,66 @@ write
 # No caps (policy groups) specified
 `)
 
+}
+
+func (a *SecurityTestSuite) TestSnappyFindUbuntuVersion(c *C) {
+	realLsbRelease := lsbRelease
+	defer func() { lsbRelease = realLsbRelease }()
+
+	lsbRelease = filepath.Join(c.MkDir(), "mock-lsb-release")
+	s := `DISTRIB_RELEASE=18.09`
+	err := ioutil.WriteFile(lsbRelease, []byte(s), 0644)
+	c.Assert(err, IsNil)
+
+	ver, err := findUbuntuVersion()
+	c.Assert(err, IsNil)
+	c.Assert(ver, Equals, "18.09")
+}
+
+func (a *SecurityTestSuite) TestSnappyFindUbuntuVersionNotFound(c *C) {
+	realLsbRelease := lsbRelease
+	defer func() { lsbRelease = realLsbRelease }()
+
+	lsbRelease = filepath.Join(c.MkDir(), "mock-lsb-release")
+	s := `silly stuff`
+	err := ioutil.WriteFile(lsbRelease, []byte(s), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = findUbuntuVersion()
+	c.Assert(err, Equals, errSystemVersionNotFound)
+}
+
+func makeCustomAppArmorPolicy(c *C) string {
+	content := []byte(`# custom apparmor policy
+###VAR###
+
+###PROFILEATTACH###
+
+###READS###
+###WRITES###
+###ABSTRACTIONS###
+`)
+	fn := filepath.Join(c.MkDir(), "custom-aa-policy")
+	err := ioutil.WriteFile(fn, content, 0644)
+	c.Assert(err, IsNil)
+
+	return fn
+}
+
+func (a *SecurityTestSuite) TestSecurityGenerateCustomPolicyAdditionalIsConsidered(c *C) {
+	m := &packageYaml{
+		Name:    "foo",
+		Version: "1.0",
+	}
+	appid := &securityAppID{
+		Pkgname: "foo",
+		Version: "1.0",
+	}
+	fn := makeCustomAppArmorPolicy(c)
+
+	content, err := getAppArmorCustomPolicy(m, appid, fn, nil)
+	c.Assert(err, IsNil)
+	c.Assert(content, Matches, `(?ms).*^# No read paths specified$`)
+	c.Assert(content, Matches, `(?ms).*^# No write paths specified$`)
+	c.Assert(content, Matches, `(?ms).*^# No abstractions specified$`)
 }

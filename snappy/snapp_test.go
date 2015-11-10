@@ -977,11 +977,9 @@ binaries:
  - name: testme-override
    exec: bin/testme-override
    security-override:
-     apparmor:
-       read-paths:
+     read-paths:
          - "/foo"
-     seccomp:
-       syscalls:
+     syscalls:
          - "bar"
  - name: testme-policy
    exec: bin/testme-policy
@@ -1002,8 +1000,8 @@ func (s *SnapTestSuite) TestPackageYamlSecurityBinaryParsing(c *C) {
 	c.Assert(m.Binaries[1].Name, Equals, "testme-override")
 	c.Assert(m.Binaries[1].Exec, Equals, "bin/testme-override")
 	c.Assert(m.Binaries[1].SecurityCaps, HasLen, 0)
-	c.Assert(m.Binaries[1].SecurityOverride.AppArmor.ReadPaths[0], Equals, "/foo")
-	c.Assert(m.Binaries[1].SecurityOverride.Seccomp.Syscalls[0], Equals, "bar")
+	c.Assert(m.Binaries[1].SecurityOverride.ReadPaths[0], Equals, "/foo")
+	c.Assert(m.Binaries[1].SecurityOverride.Syscalls[0], Equals, "bar")
 
 	c.Assert(m.Binaries[2].Name, Equals, "testme-policy")
 	c.Assert(m.Binaries[2].Exec, Equals, "bin/testme-policy")
