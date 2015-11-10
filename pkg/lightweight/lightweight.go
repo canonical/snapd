@@ -184,21 +184,24 @@ func find(name string, origin string) map[string]*PartBag {
 
 			versionSort(versions)
 
-			// if oems were removable, there'd be know way of
+			typ := s.typ
+			inst := s.inst
+
+			// if oems were removable, there'd be no way of
 			// telling the kind of a removed origin-less package
 			if s.typ == pkg.TypeFramework && helpers.FileExists(filepath.Join(dirs.SnapOemDir, name)) {
-				s.typ = pkg.TypeOem
-				s.inst = dirs.SnapOemDir
+				typ = pkg.TypeOem
+				inst = dirs.SnapOemDir
 			}
 
 			bag := &PartBag{
 				Name:     name,
 				Origin:   origin,
-				Type:     s.typ,
+				Type:     typ,
 				Versions: versions,
 			}
 
-			bag.concrete = NewConcrete(bag, s.inst)
+			bag.concrete = NewConcrete(bag, inst)
 
 			bags[bag.QualifiedName()] = bag
 		}
