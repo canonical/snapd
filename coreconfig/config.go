@@ -33,6 +33,7 @@ import (
 	"syscall"
 
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/systemd"
 
 	"gopkg.in/yaml.v2"
 )
@@ -214,6 +215,8 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 		return "", ErrInvalidConfig
 	}
 
+	needsModReload := false
+
 	rNewConfig := reflect.ValueOf(newConfig).Elem()
 	rType := rNewConfig.Type()
 	for i := 0; i < rNewConfig.NumField(); i++ {
@@ -254,10 +257,12 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 			if err := setModprobe(*newConfig.Modprobe); err != nil {
 				return "", err
 			}
+			needsModReload = true
 		case "Modules":
 			if err := setModules(newConfig.Modules); err != nil {
 				return "", err
 			}
+			needsModReload = true
 		case "Network":
 			if oldConfig.Network == nil || !passthroughEqual(oldConfig.Network.Interfaces, newConfig.Network.Interfaces) {
 				if err := setInterfaces(newConfig.Network.Interfaces); err != nil {
@@ -277,6 +282,12 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 			if err := setWatchdog(newConfig.Watchdog); err != nil {
 				return "", err
 			}
+		}
+	}
+
+	if needsModReload {
+		if _, err := systemd.SystemctlCmd("restart", "--no-block", "systemd-modules-load.service"); err != nil {
+			return "", err
 		}
 	}
 

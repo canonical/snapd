@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/systemd"
 
 	. "gopkg.in/check.v1"
 )
@@ -61,6 +62,10 @@ var (
 
 type ConfigTestSuite struct {
 	tempdir string
+	// sysctl fakes
+	sysctlcmd    func(...string) ([]byte, error)
+	sysctlargses [][]string
+	sysctlerr    error
 }
 
 var _ = Suite(&ConfigTestSuite{})
@@ -89,6 +94,17 @@ func (cts *ConfigTestSuite) SetUpTest(c *C) {
 	pppRoot = c.MkDir() + "/"
 	watchdogConfigPath = filepath.Join(c.MkDir(), "watchdog-config")
 	watchdogStartupPath = filepath.Join(c.MkDir(), "watchdog-startup")
+
+	cts.sysctlerr = nil
+	cts.sysctlargses = nil
+	cts.sysctlcmd = systemd.SystemctlCmd
+	systemd.SystemctlCmd = cts.run
+}
+
+func (cts *ConfigTestSuite) run(args ...string) ([]byte, error) {
+	cts.sysctlargses = append(cts.sysctlargses, args)
+
+	return nil, cts.sysctlerr
 }
 
 func (cts *ConfigTestSuite) TearDownTest(c *C) {
@@ -114,6 +130,8 @@ func (cts *ConfigTestSuite) TearDownTest(c *C) {
 	watchdogStartupPath = originalWatchdogStartupPath
 	watchdogConfigPath = originalWatchdogConfigPath
 	tzZoneInfoTarget = originalTzZoneInfoTarget
+
+	systemd.SystemctlCmd = cts.sysctlcmd
 }
 
 // TestGet is a broad test, close enough to be an integration test for
@@ -148,6 +166,9 @@ func (cts *ConfigTestSuite) TestSet(c *C) {
 	rawConfig, err := Set(expected)
 	c.Assert(err, IsNil)
 	c.Assert(rawConfig, Equals, expected)
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 func (cts *ConfigTestSuite) TestSetBadValueDoesNotPanic(c *C) {
@@ -160,6 +181,9 @@ func (cts *ConfigTestSuite) TestSetBadValueDoesNotPanic(c *C) {
 		_, err := Set(s)
 		c.Assert(err, Equals, ErrInvalidConfig)
 	}
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 // TestSetTimezone is a broad test, close enough to be an integration test.
@@ -177,6 +201,9 @@ func (cts *ConfigTestSuite) TestSetTimezone(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rawConfig, Equals, expected)
 	c.Assert(helpers.FileExists(tzZoneInfoTarget), Equals, true)
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 func (cts *ConfigTestSuite) TestSetTimezoneAlreadyExists(c *C) {
@@ -198,6 +225,9 @@ func (cts *ConfigTestSuite) TestSetTimezoneAlreadyExists(c *C) {
 	content, err := ioutil.ReadFile(tzZoneInfoTarget)
 	c.Assert(err, IsNil)
 	c.Assert(content, Not(DeepEquals), []byte(canary))
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 // TestSetAutopilot is a broad test, close enough to be an integration test.
@@ -218,6 +248,9 @@ func (cts *ConfigTestSuite) TestSetAutopilot(c *C) {
 	rawConfig, err := Set(expected)
 	c.Assert(err, IsNil)
 	c.Assert(rawConfig, Equals, expected)
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 // TestSetHostname is a broad test, close enough to be an integration test.
@@ -233,6 +266,9 @@ func (cts *ConfigTestSuite) TestSetHostname(c *C) {
 	rawConfig, err := Set(expected)
 	c.Assert(err, IsNil)
 	c.Assert(rawConfig, Equals, expected)
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 func (cts *ConfigTestSuite) TestSetInvalid(c *C) {
@@ -247,6 +283,9 @@ func (cts *ConfigTestSuite) TestSetInvalid(c *C) {
 	rawConfig, err := Set(input)
 	c.Assert(err, NotNil)
 	c.Assert(rawConfig, Equals, "")
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 func (cts *ConfigTestSuite) TestNoChangeSet(c *C) {
@@ -261,6 +300,9 @@ func (cts *ConfigTestSuite) TestNoChangeSet(c *C) {
 	rawConfig, err := Set(input)
 	c.Assert(err, IsNil)
 	c.Assert(rawConfig, Equals, input)
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 func (cts *ConfigTestSuite) TestPartialInput(c *C) {
@@ -282,6 +324,9 @@ func (cts *ConfigTestSuite) TestPartialInput(c *C) {
 	rawConfig, err := Set(input)
 	c.Assert(err, IsNil)
 	c.Assert(rawConfig, Equals, expected)
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 func (cts *ConfigTestSuite) TestNoEnvironmentTz(c *C) {
@@ -304,6 +349,9 @@ func (cts *ConfigTestSuite) TestBadTzOnSet(c *C) {
 	rawConfig, err := Set("config:")
 	c.Assert(err, NotNil)
 	c.Assert(rawConfig, Equals, "")
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 func (cts *ConfigTestSuite) TestErrorOnTzSet(c *C) {
@@ -320,6 +368,9 @@ func (cts *ConfigTestSuite) TestErrorOnTzSet(c *C) {
 	rawConfig, err := Set(input)
 	c.Assert(err, NotNil)
 	c.Assert(rawConfig, Equals, "")
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 func (cts *ConfigTestSuite) TestBadAutopilotOnGet(c *C) {
@@ -346,6 +397,9 @@ func (cts *ConfigTestSuite) TestErrorOnAutopilotSet(c *C) {
 	rawConfig, err := Set(input)
 	c.Assert(err, NotNil)
 	c.Assert(rawConfig, Equals, "")
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 func (cts *ConfigTestSuite) TestErrorOnSetHostname(c *C) {
@@ -362,6 +416,9 @@ func (cts *ConfigTestSuite) TestErrorOnSetHostname(c *C) {
 	rawConfig, err := Set(input)
 	c.Assert(err, NotNil)
 	c.Assert(rawConfig, Equals, "")
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 func (cts *ConfigTestSuite) TestErrorOnGetHostname(c *C) {
@@ -378,6 +435,9 @@ func (cts *ConfigTestSuite) TestErrorOnGetHostname(c *C) {
 	rawConfig, err := Set(input)
 	c.Assert(err, NotNil)
 	c.Assert(rawConfig, Equals, "")
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 func (cts *ConfigTestSuite) TestErrorOnUnmarshal(c *C) {
@@ -482,6 +542,9 @@ func (cts *ConfigTestSuite) TestModprobe(c *C) {
 func (cts *ConfigTestSuite) TestModprobeYaml(c *C) {
 	modprobePath = filepath.Join(c.MkDir(), "test.conf")
 
+	// systemctl hadn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
+
 	input := `config:
   ubuntu-core:
     modprobe: |
@@ -490,6 +553,9 @@ func (cts *ConfigTestSuite) TestModprobeYaml(c *C) {
 `
 	_, err := Set(input)
 	c.Assert(err, IsNil)
+
+	// systemctl was called
+	c.Check(cts.sysctlargses, DeepEquals, [][]string{{"restart", "--no-block", "systemd-modules-load.service"}})
 
 	// ensure it's really there
 	content, err := ioutil.ReadFile(modprobePath)
@@ -628,12 +694,18 @@ func (cts *ConfigTestSuite) TestModulesYaml(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(cfg.Modules, DeepEquals, []string{"foo"})
 
+	// systemctl hadn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
+
 	input := `config:
   ubuntu-core:
     load-kernel-modules: [-foo, bar]
 `
 	_, err = Set(input)
 	c.Assert(err, IsNil)
+
+	// systemctl was called
+	c.Check(cts.sysctlargses, DeepEquals, [][]string{{"restart", "--no-block", "systemd-modules-load.service"}})
 
 	// ensure it's really there
 	content, err := ioutil.ReadFile(modulesPath)
@@ -762,6 +834,9 @@ config:
 	content, err := ioutil.ReadFile(filepath.Join(interfacesRoot, "eth0"))
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "auto dhcp")
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 func (cts *ConfigTestSuite) TestPPPSetViaYaml(c *C) {
@@ -782,6 +857,9 @@ config:
 	content, err := ioutil.ReadFile(filepath.Join(pppRoot, "chap-secret"))
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "password")
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
 
 func (cts *ConfigTestSuite) TestPassthroughConfigEqual(c *C) {
@@ -863,4 +941,7 @@ config:
 	content, err = ioutil.ReadFile(watchdogConfigPath)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "some config")
+
+	// systemctl hasn't been called
+	c.Check(cts.sysctlargses, HasLen, 0)
 }
