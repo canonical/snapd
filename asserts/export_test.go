@@ -24,3 +24,19 @@ package asserts
 // GeneratePrivateKey exposed for tests
 // XXX: me may do something different later about this
 var GeneratePrivateKeyInTest = generatePrivateKey
+
+// define dummy assertion types to use in the tests
+
+type TestOnly struct {
+	AssertionBase
+}
+
+func buildTestOnly(assert AssertionBase) Assertion {
+	return &TestOnly{assert}
+}
+
+func init() {
+	typeRegistry[AssertionType("test-only")] = &assertionTypeRegistration{
+		builder: buildTestOnly,
+	}
+}
