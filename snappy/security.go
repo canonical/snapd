@@ -83,25 +83,13 @@ func runAppArmorParserImpl(argv ...string) ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
-// SecuritySeccompOverrideDefinition is used to override seccomp security
-// defaults
-type SecuritySeccompOverrideDefinition struct {
-	Syscalls []string `yaml:"syscalls,omitempty" json:"syscalls,omitempty"`
-}
-
-// SecurityAppArmorOverrideDefinition is used to override apparmor security
-// defaults
-type SecurityAppArmorOverrideDefinition struct {
-	ReadPaths    []string `yaml:"read-paths,omitempty" json:"read-paths,omitempty"`
-	WritePaths   []string `yaml:"write-paths,omitempty" json:"write-paths,omitempty"`
-	Abstractions []string `yaml:"abstractions,omitempty" json:"abstractions,omitempty"`
-}
-
 // SecurityOverrideDefinition is used to override apparmor or seccomp
 // security defaults
 type SecurityOverrideDefinition struct {
-	AppArmor *SecurityAppArmorOverrideDefinition `yaml:"apparmor" json:"apparmor"`
-	Seccomp  *SecuritySeccompOverrideDefinition  `yaml:"seccomp" json:"seccomp"`
+	ReadPaths    []string `yaml:"read-paths,omitempty" json:"read-paths,omitempty"`
+	WritePaths   []string `yaml:"write-paths,omitempty" json:"write-paths,omitempty"`
+	Abstractions []string `yaml:"abstractions,omitempty" json:"abstractions,omitempty"`
+	Syscalls     []string `yaml:"syscalls,omitempty" json:"syscalls,omitempty"`
 }
 
 // SecurityPolicyDefinition is used to provide hand-crafted policy
@@ -398,10 +386,10 @@ func genAppArmorPathRule(path string, access string) (string, error) {
 	return rules, nil
 }
 
-func mergeAppArmorTemplateAdditionalContent(appArmorTemplate, aaPolicy string, overrides *SecurityAppArmorOverrideDefinition) (string, error) {
+func mergeAppArmorTemplateAdditionalContent(appArmorTemplate, aaPolicy string, overrides *SecurityOverrideDefinition) (string, error) {
 	// ensure we have
 	if overrides == nil {
-		overrides = &SecurityAppArmorOverrideDefinition{}
+		overrides = &SecurityOverrideDefinition{}
 	}
 
 	if overrides.ReadPaths == nil {
@@ -454,7 +442,7 @@ func mergeAppArmorTemplateAdditionalContent(appArmorTemplate, aaPolicy string, o
 	return aaPolicy, nil
 }
 
-func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string, overrides *SecurityAppArmorOverrideDefinition) (string, error) {
+func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string, overrides *SecurityOverrideDefinition) (string, error) {
 	t, err := securityPolicyTypeAppArmor.findTemplate(template)
 	if err != nil {
 		return "", err
@@ -486,7 +474,7 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template s
 	return mergeAppArmorTemplateAdditionalContent(t, aaPolicy, overrides)
 }
 
-func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, templateName string, caps []string, overrides *SecuritySeccompOverrideDefinition) (string, error) {
+func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, templateName string, caps []string, overrides *SecurityOverrideDefinition) (string, error) {
 	t, err := securityPolicyTypeSeccomp.findTemplate(templateName)
 	if err != nil {
 		return "", err
@@ -510,7 +498,7 @@ func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, templateNam
 	return scPolicy, nil
 }
 
-func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string, overrides *SecurityAppArmorOverrideDefinition) (string, error) {
+func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string, overrides *SecurityOverrideDefinition) (string, error) {
 	custom, err := ioutil.ReadFile(fn)
 	if err != nil {
 		return "", err
@@ -593,7 +581,7 @@ func removePolicy(m *packageYaml, baseDir string) error {
 	return nil
 }
 
-func (sd *SecurityDefinitions) mergeAppArmorSecurityOverrides(new *SecurityAppArmorOverrideDefinition) {
+func (sd *SecurityDefinitions) mergeAppArmorSecurityOverrides(new *SecurityOverrideDefinition) {
 	// nothing to do
 	if new == nil {
 		return
@@ -603,13 +591,10 @@ func (sd *SecurityDefinitions) mergeAppArmorSecurityOverrides(new *SecurityAppAr
 	if sd.SecurityOverride == nil {
 		sd.SecurityOverride = &SecurityOverrideDefinition{}
 	}
-	if sd.SecurityOverride.AppArmor == nil {
-		sd.SecurityOverride.AppArmor = &SecurityAppArmorOverrideDefinition{}
-	}
 
-	sd.SecurityOverride.AppArmor.ReadPaths = append(sd.SecurityOverride.AppArmor.ReadPaths, new.ReadPaths...)
-	sd.SecurityOverride.AppArmor.WritePaths = append(sd.SecurityOverride.AppArmor.WritePaths, new.WritePaths...)
-	sd.SecurityOverride.AppArmor.Abstractions = append(sd.SecurityOverride.AppArmor.Abstractions, new.Abstractions...)
+	sd.SecurityOverride.ReadPaths = append(sd.SecurityOverride.ReadPaths, new.ReadPaths...)
+	sd.SecurityOverride.WritePaths = append(sd.SecurityOverride.WritePaths, new.WritePaths...)
+	sd.SecurityOverride.Abstractions = append(sd.SecurityOverride.Abstractions, new.Abstractions...)
 }
 
 type securityPolicyResult struct {
@@ -649,7 +634,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 
 	sd.mergeAppArmorSecurityOverrides(&hwaccessOverrides)
 	if sd.SecurityPolicy != nil {
-		res.aaPolicy, err = getAppArmorCustomPolicy(m, res.id, filepath.Join(baseDir, sd.SecurityPolicy.AppArmor), sd.SecurityOverride.AppArmor)
+		res.aaPolicy, err = getAppArmorCustomPolicy(m, res.id, filepath.Join(baseDir, sd.SecurityPolicy.AppArmor), sd.SecurityOverride)
 		if err != nil {
 			logger.Noticef("Failed to generate custom AppArmor policy for %s: %v", name, err)
 			return nil, err
@@ -660,21 +645,13 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 			return nil, err
 		}
 	} else {
-		if sd.SecurityOverride == nil || sd.SecurityOverride.AppArmor == nil {
-			res.aaPolicy, err = getAppArmorTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, nil)
-		} else {
-			res.aaPolicy, err = getAppArmorTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride.AppArmor)
-		}
+		res.aaPolicy, err = getAppArmorTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride)
 		if err != nil {
 			logger.Noticef("Failed to generate AppArmor policy for %s: %v", name, err)
 			return nil, err
 		}
 
-		if sd.SecurityOverride == nil || sd.SecurityOverride.Seccomp == nil {
-			res.scPolicy, err = getSeccompTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, nil)
-		} else {
-			res.scPolicy, err = getSeccompTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride.Seccomp)
-		}
+		res.scPolicy, err = getSeccompTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride)
 		if err != nil {
 			logger.Noticef("Failed to generate seccomp policy for %s: %v", name, err)
 			return nil, err

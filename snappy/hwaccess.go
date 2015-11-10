@@ -53,8 +53,8 @@ func validDevice(device string) bool {
 	return false
 }
 
-func readHWAccessYamlFile(snapname string) (SecurityAppArmorOverrideDefinition, error) {
-	var appArmorAdditional SecurityAppArmorOverrideDefinition
+func readHWAccessYamlFile(snapname string) (SecurityOverrideDefinition, error) {
+	var appArmorAdditional SecurityOverrideDefinition
 
 	additionalFile := getHWAccessYamlFile(snapname)
 	f, err := os.Open(additionalFile)
@@ -73,7 +73,7 @@ func readHWAccessYamlFile(snapname string) (SecurityAppArmorOverrideDefinition, 
 	return appArmorAdditional, nil
 }
 
-func writeHWAccessYamlFile(snapname string, appArmorAdditional SecurityAppArmorOverrideDefinition) error {
+func writeHWAccessYamlFile(snapname string, appArmorAdditional SecurityOverrideDefinition) error {
 	if len(appArmorAdditional.WritePaths) == 0 {
 		appArmorAdditional.ReadPaths = nil
 	} else {

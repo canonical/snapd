@@ -356,7 +356,7 @@ func (a *SecurityTestSuite) TestSecurityGenAppArmorTemplatePolicy(c *C) {
 	}
 	template := "mock-template"
 	caps := []string{"cap1"}
-	overrides := &SecurityAppArmorOverrideDefinition{}
+	overrides := &SecurityOverrideDefinition{}
 	p, err := getAppArmorTemplatedPolicy(m, appid, template, caps, overrides)
 	c.Check(err, IsNil)
 	c.Check(p, Equals, expectedGeneratedAaProfile)
@@ -406,7 +406,7 @@ func (a *SecurityTestSuite) TestSecurityGenSeccompTemplatedPolicy(c *C) {
 	}
 	template := "mock-template"
 	caps := []string{"cap1"}
-	overrides := &SecuritySeccompOverrideDefinition{}
+	overrides := &SecurityOverrideDefinition{}
 	p, err := getSeccompTemplatedPolicy(m, appid, template, caps, overrides)
 	c.Check(err, IsNil)
 	c.Check(p, Equals, expectedGeneratedSeccompProfile)
@@ -508,59 +508,36 @@ func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesNilDoesNot
 	c.Assert(sd, DeepEquals, &SecurityDefinitions{})
 }
 
-func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesOnlySeccompDoesNotCrashl(c *C) {
-	sd := &SecurityDefinitions{
-		SecurityOverride: &SecurityOverrideDefinition{
-			Seccomp: &SecuritySeccompOverrideDefinition{},
-		},
-	}
-	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{}
-	sd.mergeAppArmorSecurityOverrides(hwaccessOverrides)
-
-	c.Assert(sd, DeepEquals, &SecurityDefinitions{
-		SecurityOverride: &SecurityOverrideDefinition{
-			Seccomp:  &SecuritySeccompOverrideDefinition{},
-			AppArmor: hwaccessOverrides,
-		},
-	})
-}
-
 func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesTrivial(c *C) {
 	sd := &SecurityDefinitions{}
-	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{}
+	hwaccessOverrides := &SecurityOverrideDefinition{}
 	sd.mergeAppArmorSecurityOverrides(hwaccessOverrides)
 
 	c.Assert(sd, DeepEquals, &SecurityDefinitions{
-		SecurityOverride: &SecurityOverrideDefinition{
-			AppArmor: hwaccessOverrides,
-		},
+		SecurityOverride: hwaccessOverrides,
 	})
 }
 
 func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesOverrides(c *C) {
 	sd := &SecurityDefinitions{}
-	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{
+	hwaccessOverrides := &SecurityOverrideDefinition{
 		ReadPaths:  []string{"read1"},
 		WritePaths: []string{"write1"},
 	}
 	sd.mergeAppArmorSecurityOverrides(hwaccessOverrides)
 
 	c.Assert(sd, DeepEquals, &SecurityDefinitions{
-		SecurityOverride: &SecurityOverrideDefinition{
-			AppArmor: hwaccessOverrides,
-		},
+		SecurityOverride: hwaccessOverrides,
 	})
 }
 
 func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesMerges(c *C) {
 	sd := &SecurityDefinitions{
 		SecurityOverride: &SecurityOverrideDefinition{
-			AppArmor: &SecurityAppArmorOverrideDefinition{
-				ReadPaths: []string{"orig1"},
-			},
+			ReadPaths: []string{"orig1"},
 		},
 	}
-	hwaccessOverrides := &SecurityAppArmorOverrideDefinition{
+	hwaccessOverrides := &SecurityOverrideDefinition{
 		ReadPaths:  []string{"read1"},
 		WritePaths: []string{"write1"},
 	}
@@ -568,10 +545,8 @@ func (a *SecurityTestSuite) TestSecurityMergeApparmorSecurityOverridesMerges(c *
 
 	c.Assert(sd, DeepEquals, &SecurityDefinitions{
 		SecurityOverride: &SecurityOverrideDefinition{
-			AppArmor: &SecurityAppArmorOverrideDefinition{
-				ReadPaths:  []string{"orig1", "read1"},
-				WritePaths: []string{"write1"},
-			},
+			ReadPaths:  []string{"orig1", "read1"},
+			WritePaths: []string{"write1"},
 		},
 	})
 }
