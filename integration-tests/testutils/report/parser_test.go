@@ -104,3 +104,14 @@ func (s *ParserReportSuite) TestParserReporterSendsSkipEvent(c *check.C) {
 	c.Check(event.FileName, check.Equals, "reason")
 	c.Check(string(event.FileBytes), check.Equals, skipReason)
 }
+
+func (s *ParserReportSuite) TestParserSendsNothingForRebootSkips(c *check.C) {
+	s.subject.Write([]byte(
+		fmt.Sprintf("SKIP: /tmp/snappy-tests-job/21647/src/github.com/ubuntu-core/snappy/"+
+			"integration-tests/tests/info_test.go:36: %s (%s)\n",
+			"testSuite.TestSkip",
+			"****** Skipped testSuite.TestSkip during reboot caused by otherTestSuite.TestWithReboot")))
+	
+	c.Assert(len(s.spy.calls), check.Equals, 0,
+		check.Commentf("Unexpected event sent to subunit: %v", s.spy.calls))	
+}
