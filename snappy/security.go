@@ -155,16 +155,72 @@ func (sp *securityPolicyType) findTemplate(templateName string) (string, error) 
 	systemTemplateDir := filepath.Join(sp.policyDir(), subdir, templateName)
 	fwTemplateDir := filepath.Join(sp.frameworkPolicyDir(), "templates", templateName)
 
-	// Always prefer system policy
+	// Read system and framwork policy, but always prefer system policy
 	fns := []string{systemTemplateDir, fwTemplateDir}
 	for _, fn := range fns {
 		content, err := ioutil.ReadFile(fn)
-		if err == nil {
-			return string(content), nil
+		// it is ok if the file does not exists
+		if err != nil && os.IsNotExist(err) {
+			continue
 		}
+		// but any other error is a failure
+		if err != nil {
+			return "", err
+		}
+
+		return string(content), nil
 	}
 
 	return "", &errPolicyNotFound{"template", sp, templateName}
+}
+
+// helper for findSingleCap that implements readlines()
+func readSingleCapFile(fn string) ([]string, error) {
+	p := []string{}
+
+	r, err := os.Open(fn)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	s := bufio.NewScanner(r)
+	for s.Scan() {
+		p = append(p, s.Text())
+	}
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+
+	return p, nil
+}
+
+func (sp *securityPolicyType) findSingleCap(capName, systemPolicyDir, fwPolicyDir string) ([]string, error) {
+	found := false
+	p := []string{}
+
+	policyDirs := []string{systemPolicyDir, fwPolicyDir}
+	for _, dir := range policyDirs {
+		fn := filepath.Join(dir, capName)
+		newCaps, err := readSingleCapFile(fn)
+		// its ok if the file does not exist
+		if err != nil && os.IsNotExist(err) {
+			continue
+		}
+		// but any other error is not ok
+		if err != nil {
+			return nil, err
+		}
+		p = append(p, newCaps...)
+		found = true
+		break
+	}
+
+	if found == false {
+		return nil, &errPolicyNotFound{"cap", sp, capName}
+	}
+
+	return p, nil
 }
 
 // findCaps returns the template content for the given security-caps
@@ -184,34 +240,13 @@ func (sp *securityPolicyType) findCaps(caps []string, templateName string) ([]st
 	parentDir := filepath.Join(sp.policyDir(), subdir)
 	fwParentDir := filepath.Join(sp.frameworkPolicyDir(), "policygroups")
 
-	found := false
-	badCap := ""
 	var p []string
 	for _, c := range caps {
-		// Always prefer system policy
-		policyDirs := []string{parentDir, fwParentDir}
-		for _, dir := range policyDirs {
-			fn := filepath.Join(dir, c)
-			if r, err := os.Open(fn); err == nil {
-				s := bufio.NewScanner(r)
-				for s.Scan() {
-					p = append(p, s.Text())
-				}
-				if err := s.Err(); err != nil {
-					return nil, err
-				}
-				found = true
-				break
-			}
+		newCap, err := sp.findSingleCap(c, parentDir, fwParentDir)
+		if err != nil {
+			return nil, err
 		}
-		if found == false {
-			badCap = c
-			break
-		}
-	}
-
-	if found == false {
-		return nil, &errPolicyNotFound{"cap", sp, badCap}
+		p = append(p, newCap...)
 	}
 
 	return p, nil
