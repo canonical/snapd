@@ -26,6 +26,8 @@ import (
 	"regexp"
 
 	"github.com/testing-cabal/subunit-go"
+
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 )
 
 const (
@@ -98,11 +100,15 @@ func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 	} else if matches := failureRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
 		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "fail"})
 	} else if matches := skipRegexp.FindStringSubmatch(sdata); len(matches) == 3 {
-		reason := matches[2]
+		reason := matches[2]		
 		// Do not report anything about the set ups skipped because of another test's reboot.
-		ignore, _ := regexp.MatchString(
-			"^\\*\\*\\*\\*\\*\\* Skipped .* reboot caused by .*$", reason)
-		if ignore {
+		duringReboot, _ := regexp.MatchString(
+			fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipDuringReboot), ".*", ".*"),
+			reason)
+		afterReboot, _ := regexp.MatchString(
+			fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipAfterReboot), ".*", ".*"),
+			reason)		
+		if duringReboot || afterReboot {
 			return 0, nil
 		}
 		err = fr.statuser.Status(subunit.Event{
