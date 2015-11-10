@@ -189,7 +189,21 @@ func find(name string, origin string) map[string]*PartBag {
 
 			// if oems were removable, there'd be no way of
 			// telling the kind of a removed origin-less package
-			if s.typ == pkg.TypeFramework && helpers.FileExists(filepath.Join(dirs.SnapOemDir, name)) {
+			//
+			// in case it's not clear, we're walking the *data*
+			// directory, where directories for packages of all
+			// types are present. OEM packages and frameworks look
+			// the same in the data dir: they both have no
+			// origin. However, OEM packages are uninstallable, and
+			// you can't install a package with the same name as an
+			// active package, so if /oem/{name} exists, we switch
+			// this package to be type OEM.
+			//
+			// Right now you could, in theory, *deactivate* an oem
+			// package, and install a framework with the same name
+			// as the oem package you deactivated. You get to keep
+			// the parts.
+			if typ == pkg.TypeFramework && helpers.FileExists(filepath.Join(dirs.SnapOemDir, name)) {
 				typ = pkg.TypeOem
 				inst = dirs.SnapOemDir
 			}
