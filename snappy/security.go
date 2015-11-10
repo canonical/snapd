@@ -145,7 +145,7 @@ func (sp *securityPolicyType) frameworkPolicyDir() string {
 	return filepath.Join(dirs.GlobalRootDir, frameworkPolicyDir)
 }
 
-// findTemplate returns the template content from the template name
+// findTemplate returns the security template content from the template name.
 func (sp *securityPolicyType) findTemplate(templateName string) (string, error) {
 	if templateName == "" {
 		templateName = defaultTemplateName
@@ -174,7 +174,7 @@ func (sp *securityPolicyType) findTemplate(templateName string) (string, error) 
 	return "", &errPolicyNotFound{"template", sp, templateName}
 }
 
-// helper for findSingleCap that implements readlines()
+// helper for findSingleCap that implements readlines().
 func readSingleCapFile(fn string) ([]string, error) {
 	p := []string{}
 
@@ -195,6 +195,8 @@ func readSingleCapFile(fn string) ([]string, error) {
 	return p, nil
 }
 
+// findSingleCap returns the security template content for a single
+// security-cap.
 func (sp *securityPolicyType) findSingleCap(capName, systemPolicyDir, fwPolicyDir string) ([]string, error) {
 	found := false
 	p := []string{}
@@ -223,7 +225,8 @@ func (sp *securityPolicyType) findSingleCap(capName, systemPolicyDir, fwPolicyDi
 	return p, nil
 }
 
-// findCaps returns the template content for the given security-caps
+// findCaps returns the security template content for the given list
+// of security-caps.
 func (sp *securityPolicyType) findCaps(caps []string, templateName string) ([]string, error) {
 	// XXX: this is snappy specific, on other systems like the phone we may
 	// want different defaults.
