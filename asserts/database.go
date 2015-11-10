@@ -17,14 +17,14 @@
  *
  */
 
-// Package asserts implements snappy assertions and a store
+// Package asserts implements snappy assertions and a database
 // abstraction for managing and holding them.
 package asserts
 
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -33,15 +33,15 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 )
 
-// StoreConfig for an assertion store.
-type StoreConfig struct {
-	// store backstore path
+// DatabaseConfig for an assertion database.
+type DatabaseConfig struct {
+	// database backstore path
 	Path string
 }
 
-// AssertStore holds assertions and can be used to sign or check
+// Database holds assertions and can be used to sign or check
 // further assertions.
-type AssertStore struct {
+type Database struct {
 	root string
 }
 
@@ -50,32 +50,24 @@ const (
 	privateKeysRoot          = "private-keys-" + privateKeysLayoutVersion
 )
 
-// errors
-var (
-	ErrStoreRootCreate        = errors.New("failed to create assert store root")
-	ErrStoreRootWorldReadable = errors.New("assert store root unexpectedly world-writable")
-	ErrStoreKeyGen            = errors.New("failed to generate private key")
-	ErrStoreStoringKey        = errors.New("failed to store private key")
-)
-
-// OpenStore opens the assertion store based on the configuration.
-func OpenStore(cfg *StoreConfig) (*AssertStore, error) {
+// OpenDatabase opens the assertion database based on the configuration.
+func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	err := os.MkdirAll(cfg.Path, 0775)
 	if err != nil {
-		return nil, ErrStoreRootCreate
+		return nil, fmt.Errorf("failed to create assert database root: %v", err)
 	}
 	info, err := os.Stat(cfg.Path)
 	if err != nil {
-		return nil, ErrStoreRootCreate
+		return nil, fmt.Errorf("failed to create assert database root: %v", err)
 	}
 	if info.Mode().Perm()&0002 != 0 {
-		return nil, ErrStoreRootWorldReadable
+		return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
 	}
-	return &AssertStore{root: cfg.Path}, nil
+	return &Database{root: cfg.Path}, nil
 }
 
-func (astore *AssertStore) atomicWriteEntry(data []byte, secret bool, hier ...string) error {
-	fpath := filepath.Join(astore.root, filepath.Join(hier...))
+func (db *Database) atomicWriteEntry(data []byte, secret bool, subpath ...string) error {
+	fpath := filepath.Join(db.root, filepath.Join(subpath...))
 	dir := filepath.Dir(fpath)
 	err := os.MkdirAll(dir, 0775)
 	if err != nil {
@@ -90,27 +82,29 @@ func (astore *AssertStore) atomicWriteEntry(data []byte, secret bool, hier ...st
 
 // GenerateKey generates a private/public key pair for identity and
 // stores it returning its fingerprint.
-func (astore *AssertStore) GenerateKey(authorityID string) (fingerprint []byte, err error) {
+func (db *Database) GenerateKey(authorityID string) (fingerprint string, err error) {
 	// TODO: support specifying different key types/algorithms
 	privKey, err := generatePrivateKey()
 	if err != nil {
-		return nil, ErrStoreKeyGen
+		return "", fmt.Errorf("failed to generate private key: %v", err)
 	}
-	return astore.ImportKey(authorityID, privKey)
+
+	return db.ImportKey(authorityID, privKey)
 }
 
 // ImportKey stores the given private/public key pair for identity and
 // returns its fingerprint
-func (astore *AssertStore) ImportKey(authorityID string, privKey *packet.PrivateKey) (fingerprint []byte, err error) {
+func (db *Database) ImportKey(authorityID string, privKey *packet.PrivateKey) (fingerprint string, err error) {
 	buf := new(bytes.Buffer)
 	err = privKey.Serialize(buf)
 	if err != nil {
-		return nil, ErrStoreStoringKey
+		return "", fmt.Errorf("failed to store private key: %v", err)
 	}
-	fingerp := privKey.PublicKey.Fingerprint[:]
-	err = astore.atomicWriteEntry(buf.Bytes(), true, privateKeysRoot, authorityID, hex.EncodeToString(fingerp))
+
+	fingerp := hex.EncodeToString(privKey.PublicKey.Fingerprint[:])
+	err = db.atomicWriteEntry(buf.Bytes(), true, privateKeysRoot, authorityID, fingerp)
 	if err != nil {
-		return nil, ErrStoreStoringKey
+		return "", fmt.Errorf("failed to store private key: %v", err)
 	}
 	return fingerp, nil
 }
