@@ -198,6 +198,19 @@ func (a *SecurityTestSuite) TestSecurityFindCaps(c *C) {
 	c.Assert(cap, DeepEquals, []string{"cap1", "cap2"})
 }
 
+func (a *SecurityTestSuite) TestSecurityFindCapsMultipleErrorHandling(c *C) {
+	makeMockApparmorCap(c, "existing-cap", []byte("something"))
+
+	_, err := securityPolicyTypeAppArmor.findCaps([]string{"existing-cap", "not-existing-cap"}, "mock-template")
+	c.Check(err, ErrorMatches, "could not find specified cap: not-existing-cap.*")
+
+	_, err = securityPolicyTypeAppArmor.findCaps([]string{"not-existing-cap", "existing-cap"}, "mock-template")
+	c.Check(err, ErrorMatches, "could not find specified cap: not-existing-cap.*")
+
+	_, err = securityPolicyTypeAppArmor.findCaps([]string{"existing-cap"}, "mock-template")
+	c.Check(err, IsNil)
+}
+
 func (a *SecurityTestSuite) TestSecurityGetAppArmorVars(c *C) {
 	appID := &securityAppID{
 		Appname: "foo",
