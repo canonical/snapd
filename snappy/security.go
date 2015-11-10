@@ -53,11 +53,15 @@ func (e *errPolicyNotFound) Error() string {
 
 var (
 	// Note: these are true for ubuntu-core but perhaps not other flavors
-	defaultTemplate     = "default"
+	defaultTemplateName = "default"
 	defaultPolicyGroups = []string{"network-client"}
 
 	// AppArmor cache dir
 	aaCacheDir = "/var/cache/apparmor"
+
+	// ErrSystemVersionNotFound could not detect system version (eg, 15.04,
+	// 15.10, etc)
+	errSystemVersionNotFound = errors.New("could not detect system version")
 
 	errOriginNotFound     = errors.New("could not detect origin")
 	errPolicyTypeNotFound = errors.New("could not find specified policy type")
@@ -69,9 +73,7 @@ var (
 	snappyConfig = &SecurityDefinitions{
 		SecurityCaps: []string{},
 	}
-)
 
-var (
 	lsbRelease        = "/etc/lsb-release"
 	runAppArmorParser = runAppArmorParserImpl
 )
@@ -81,25 +83,13 @@ func runAppArmorParserImpl(argv ...string) ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
-// SecuritySeccompOverrideDefinition is used to override seccomp security
-// defaults
-type SecuritySeccompOverrideDefinition struct {
-	Syscalls []string `yaml:"syscalls,omitempty" json:"syscalls,omitempty"`
-}
-
-// SecurityAppArmorOverrideDefinition is used to override apparmor security
-// defaults
-type SecurityAppArmorOverrideDefinition struct {
-	ReadPaths    []string `yaml:"read-paths,omitempty" json:"read-paths,omitempty"`
-	WritePaths   []string `yaml:"write-paths,omitempty" json:"write-paths,omitempty"`
-	Abstractions []string `yaml:"abstractions,omitempty" json:"abstractions,omitempty"`
-}
-
 // SecurityOverrideDefinition is used to override apparmor or seccomp
 // security defaults
 type SecurityOverrideDefinition struct {
-	AppArmor *SecurityAppArmorOverrideDefinition `yaml:"apparmor" json:"apparmor"`
-	Seccomp  *SecuritySeccompOverrideDefinition  `yaml:"seccomp" json:"seccomp"`
+	ReadPaths    []string `yaml:"read-paths,omitempty" json:"read-paths,omitempty"`
+	WritePaths   []string `yaml:"write-paths,omitempty" json:"write-paths,omitempty"`
+	Abstractions []string `yaml:"abstractions,omitempty" json:"abstractions,omitempty"`
+	Syscalls     []string `yaml:"syscalls,omitempty" json:"syscalls,omitempty"`
 }
 
 // SecurityPolicyDefinition is used to provide hand-crafted policy
@@ -110,7 +100,7 @@ type SecurityPolicyDefinition struct {
 
 // SecurityDefinitions contains the common apparmor/seccomp definitions
 type SecurityDefinitions struct {
-	// SecurityTemplate is a template like "default"
+	// SecurityTemplate is a template name like "default"
 	SecurityTemplate string `yaml:"security-template,omitempty" json:"security-template,omitempty"`
 	// SecurityOverride is a override for the high level security json
 	SecurityOverride *SecurityOverrideDefinition `yaml:"security-override,omitempty" json:"security-override,omitempty"`
@@ -147,75 +137,111 @@ func (sp *securityPolicyType) frameworkPolicyDir() string {
 	return filepath.Join(dirs.GlobalRootDir, frameworkPolicyDir)
 }
 
-func (sp *securityPolicyType) findTemplate(template string) (string, error) {
-	if template == "" {
-		template = defaultTemplate
+// findTemplate returns the security template content from the template name.
+func (sp *securityPolicyType) findTemplate(templateName string) (string, error) {
+	if templateName == "" {
+		templateName = defaultTemplateName
 	}
 
-	systemTemplate := ""
-	fwTemplate := ""
 	subdir := filepath.Join("templates", defaultPolicyVendor(), defaultPolicyVersion())
-	systemTemplate = filepath.Join(sp.policyDir(), subdir, template)
-	fwTemplate = filepath.Join(sp.frameworkPolicyDir(), "templates", template)
+	systemTemplateDir := filepath.Join(sp.policyDir(), subdir, templateName)
+	fwTemplateDir := filepath.Join(sp.frameworkPolicyDir(), "templates", templateName)
 
-	// Always prefer system policy
-	fns := []string{systemTemplate, fwTemplate}
+	// Read system and framwork policy, but always prefer system policy
+	fns := []string{systemTemplateDir, fwTemplateDir}
 	for _, fn := range fns {
 		content, err := ioutil.ReadFile(fn)
-		if err == nil {
-			return string(content), nil
+		// it is ok if the file does not exists
+		if err != nil && os.IsNotExist(err) {
+			continue
 		}
+		// but any other error is a failure
+		if err != nil {
+			return "", err
+		}
+
+		return string(content), nil
 	}
 
-	return "", &errPolicyNotFound{"template", sp, template}
+	return "", &errPolicyNotFound{"template", sp, templateName}
 }
 
-func (sp *securityPolicyType) findCaps(caps []string, template string) ([]string, error) {
-	// XXX: this is snappy specific, on other systems like the phone we may
-	// want different defaults.
-	if template == "" && caps == nil {
-		caps = defaultPolicyGroups
-	} else if caps == nil {
-		caps = []string{}
+// helper for findSingleCap that implements readlines().
+func readSingleCapFile(fn string) ([]string, error) {
+	p := []string{}
+
+	r, err := os.Open(fn)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	s := bufio.NewScanner(r)
+	for s.Scan() {
+		p = append(p, s.Text())
+	}
+	if err := s.Err(); err != nil {
+		return nil, err
 	}
 
-	subdir := filepath.Join("policygroups", defaultPolicyVendor(), defaultPolicyVersion())
-	parent := filepath.Join(sp.policyDir(), subdir)
-	fwParent := filepath.Join(sp.frameworkPolicyDir(), "policygroups")
+	return p, nil
+}
+
+// findSingleCap returns the security template content for a single
+// security-cap.
+func (sp *securityPolicyType) findSingleCap(capName, systemPolicyDir, fwPolicyDir string) ([]string, error) {
+	found := false
+	p := []string{}
+
+	policyDirs := []string{systemPolicyDir, fwPolicyDir}
+	for _, dir := range policyDirs {
+		fn := filepath.Join(dir, capName)
+		newCaps, err := readSingleCapFile(fn)
+		// its ok if the file does not exist
+		if err != nil && os.IsNotExist(err) {
+			continue
+		}
+		// but any other error is not ok
+		if err != nil {
+			return nil, err
+		}
+		p = append(p, newCaps...)
+		found = true
+		break
+	}
+
+	if found == false {
+		return nil, &errPolicyNotFound{"cap", sp, capName}
+	}
+
+	return p, nil
+}
+
+// findCaps returns the security template content for the given list
+// of security-caps.
+func (sp *securityPolicyType) findCaps(caps []string, templateName string) ([]string, error) {
+	// XXX: this is snappy specific, on other systems like the phone we may
+	// want different defaults.
+	if templateName == "" && caps == nil {
+		caps = defaultPolicyGroups
+	}
 
 	// Nothing to find if caps is empty
 	if len(caps) == 0 {
 		return nil, nil
 	}
 
-	found := false
-	badCap := ""
+	subdir := filepath.Join("policygroups", defaultPolicyVendor(), defaultPolicyVersion())
+	parentDir := filepath.Join(sp.policyDir(), subdir)
+	fwParentDir := filepath.Join(sp.frameworkPolicyDir(), "policygroups")
+
 	var p []string
 	for _, c := range caps {
-		// Always prefer system policy
-		policyDirs := []string{parent, fwParent}
-		for _, dir := range policyDirs {
-			fn := filepath.Join(dir, c)
-			if r, err := os.Open(fn); err == nil {
-				s := bufio.NewScanner(r)
-				for s.Scan() {
-					p = append(p, s.Text())
-				}
-				if err := s.Err(); err != nil {
-					return nil, err
-				}
-				found = true
-				break
-			}
+		newCap, err := sp.findSingleCap(c, parentDir, fwParentDir)
+		if err != nil {
+			return nil, err
 		}
-		if found == false {
-			badCap = c
-			break
-		}
-	}
-
-	if found == false {
-		return nil, &errPolicyNotFound{"cap", sp, badCap}
+		p = append(p, newCap...)
 	}
 
 	return p, nil
@@ -226,8 +252,39 @@ func defaultPolicyVendor() string {
 	return fmt.Sprintf("ubuntu-%s", release.Get().Flavor)
 }
 
+// findUbuntuVersion determines the version (eg, 15.04, 15.10, etc) of the
+// system, which is needed for determining the security policy
+// policy-version
+func findUbuntuVersion() (string, error) {
+	content, err := ioutil.ReadFile(lsbRelease)
+	if err != nil {
+		logger.Noticef("Failed to read %q: %v", lsbRelease, err)
+		return "", err
+	}
+
+	for _, line := range strings.Split(string(content), "\n") {
+		if strings.HasPrefix(line, "DISTRIB_RELEASE=") {
+			tmp := strings.Split(line, "=")
+			if len(tmp) != 2 {
+				return "", errSystemVersionNotFound
+			}
+			return tmp[1], nil
+		}
+	}
+
+	return "", errSystemVersionNotFound
+}
 func defaultPolicyVersion() string {
-	return release.Get().Series
+	// note that we can not use release.Get().Series here
+	// because that will return "rolling" for the development
+	// version but apparmor stores its templates under the
+	// version number (e.g. 16.04) instead
+	ver, err := findUbuntuVersion()
+	if err != nil {
+		// when this happens we are in trouble
+		panic(err)
+	}
+	return ver
 }
 
 const allowed = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
@@ -329,7 +386,63 @@ func genAppArmorPathRule(path string, access string) (string, error) {
 	return rules, nil
 }
 
-func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string, overrides *SecurityAppArmorOverrideDefinition) (string, error) {
+func mergeAppArmorTemplateAdditionalContent(appArmorTemplate, aaPolicy string, overrides *SecurityOverrideDefinition) (string, error) {
+	// ensure we have
+	if overrides == nil {
+		overrides = &SecurityOverrideDefinition{}
+	}
+
+	if overrides.ReadPaths == nil {
+		aaPolicy = strings.Replace(aaPolicy, "###READS###\n", "# No read paths specified\n", 1)
+	} else {
+		s := "# Additional read-paths from security-override\n"
+		prefix := findWhitespacePrefix(appArmorTemplate, "###READS###")
+		for _, readpath := range overrides.ReadPaths {
+			rules, err := genAppArmorPathRule(strings.Trim(readpath, " "), "rk")
+			if err != nil {
+				return "", err
+			}
+			lines := strings.Split(rules, "\n")
+			for _, rule := range lines {
+				s += fmt.Sprintf("%s%s\n", prefix, rule)
+			}
+		}
+		aaPolicy = strings.Replace(aaPolicy, "###READS###\n", s, 1)
+	}
+
+	if overrides.WritePaths == nil {
+		aaPolicy = strings.Replace(aaPolicy, "###WRITES###\n", "# No write paths specified\n", 1)
+	} else {
+		s := "# Additional write-paths from security-override\n"
+		prefix := findWhitespacePrefix(appArmorTemplate, "###WRITES###")
+		for _, writepath := range overrides.WritePaths {
+			rules, err := genAppArmorPathRule(strings.Trim(writepath, " "), "rwk")
+			if err != nil {
+				return "", err
+			}
+			lines := strings.Split(rules, "\n")
+			for _, rule := range lines {
+				s += fmt.Sprintf("%s%s\n", prefix, rule)
+			}
+		}
+		aaPolicy = strings.Replace(aaPolicy, "###WRITES###\n", s, 1)
+	}
+
+	if overrides.Abstractions == nil {
+		aaPolicy = strings.Replace(aaPolicy, "###ABSTRACTIONS###\n", "# No abstractions specified\n", 1)
+	} else {
+		s := "# Additional abstractions from security-override\n"
+		prefix := findWhitespacePrefix(appArmorTemplate, "###ABSTRACTIONS###")
+		for _, abs := range overrides.Abstractions {
+			s += fmt.Sprintf("%s#include <abstractions/%s>\n", prefix, abs)
+		}
+		aaPolicy = strings.Replace(aaPolicy, "###ABSTRACTIONS###\n", s, 1)
+	}
+
+	return aaPolicy, nil
+}
+
+func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string, overrides *SecurityOverrideDefinition) (string, error) {
 	t, err := securityPolicyTypeAppArmor.findTemplate(template)
 	if err != nil {
 		return "", err
@@ -358,62 +471,15 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template s
 	}
 	aaPolicy = strings.Replace(aaPolicy, "###POLICYGROUPS###\n", aacaps, 1)
 
-	if overrides == nil || overrides.ReadPaths == nil {
-		aaPolicy = strings.Replace(aaPolicy, "###READS###\n", "# No read paths specified\n", 1)
-	} else {
-		s := "# Additional read-paths from security-override\n"
-		prefix := findWhitespacePrefix(t, "###READS###")
-		for _, readpath := range overrides.ReadPaths {
-			rules, err := genAppArmorPathRule(strings.Trim(readpath, " "), "rk")
-			if err != nil {
-				return "", err
-			}
-			lines := strings.Split(rules, "\n")
-			for _, rule := range lines {
-				s += fmt.Sprintf("%s%s\n", prefix, rule)
-			}
-		}
-		aaPolicy = strings.Replace(aaPolicy, "###READS###\n", s, 1)
-	}
-
-	if overrides == nil || overrides.WritePaths == nil {
-		aaPolicy = strings.Replace(aaPolicy, "###WRITES###\n", "# No write paths specified\n", 1)
-	} else {
-		s := "# Additional write-paths from security-override\n"
-		prefix := findWhitespacePrefix(t, "###WRITES###")
-		for _, writepath := range overrides.WritePaths {
-			rules, err := genAppArmorPathRule(strings.Trim(writepath, " "), "rwk")
-			if err != nil {
-				return "", err
-			}
-			lines := strings.Split(rules, "\n")
-			for _, rule := range lines {
-				s += fmt.Sprintf("%s%s\n", prefix, rule)
-			}
-		}
-		aaPolicy = strings.Replace(aaPolicy, "###WRITES###\n", s, 1)
-	}
-
-	if overrides == nil || overrides.Abstractions == nil {
-		aaPolicy = strings.Replace(aaPolicy, "###ABSTRACTIONS###\n", "# No abstractions specified\n", 1)
-	} else {
-		s := "# Additional abstractions from security-override\n"
-		prefix := findWhitespacePrefix(t, "###ABSTRACTIONS###")
-		for _, abs := range overrides.Abstractions {
-			s += fmt.Sprintf("%s#include <abstractions/%s>\n", prefix, abs)
-		}
-		aaPolicy = strings.Replace(aaPolicy, "###ABSTRACTIONS###\n", s, 1)
-	}
-
-	return aaPolicy, nil
+	return mergeAppArmorTemplateAdditionalContent(t, aaPolicy, overrides)
 }
 
-func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, template string, caps []string, overrides *SecuritySeccompOverrideDefinition) (string, error) {
-	t, err := securityPolicyTypeSeccomp.findTemplate(template)
+func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, templateName string, caps []string, overrides *SecurityOverrideDefinition) (string, error) {
+	t, err := securityPolicyTypeSeccomp.findTemplate(templateName)
 	if err != nil {
 		return "", err
 	}
-	p, err := securityPolicyTypeSeccomp.findCaps(caps, template)
+	p, err := securityPolicyTypeSeccomp.findCaps(caps, templateName)
 	if err != nil {
 		return "", err
 	}
@@ -432,7 +498,7 @@ func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, template st
 	return scPolicy, nil
 }
 
-func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (string, error) {
+func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string, overrides *SecurityOverrideDefinition) (string, error) {
 	custom, err := ioutil.ReadFile(fn)
 	if err != nil {
 		return "", err
@@ -441,7 +507,7 @@ func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (s
 	aaPolicy := strings.Replace(string(custom), "\n###VAR###\n", appID.appArmorVars()+"\n", 1)
 	aaPolicy = strings.Replace(aaPolicy, "\n###PROFILEATTACH###", fmt.Sprintf("\nprofile \"%s\"", appID.AppID), 1)
 
-	return aaPolicy, nil
+	return mergeAppArmorTemplateAdditionalContent("", aaPolicy, overrides)
 }
 
 func getSeccompCustomPolicy(m *packageYaml, appID *securityAppID, fn string) (string, error) {
@@ -515,15 +581,20 @@ func removePolicy(m *packageYaml, baseDir string) error {
 	return nil
 }
 
-func (sd *SecurityDefinitions) mergeAppArmorSecurityOverrides(new *SecurityAppArmorOverrideDefinition) {
-	if sd.SecurityOverride == nil {
-		sd.SecurityOverride = &SecurityOverrideDefinition{
-			AppArmor: &SecurityAppArmorOverrideDefinition{},
-		}
+func (sd *SecurityDefinitions) mergeAppArmorSecurityOverrides(new *SecurityOverrideDefinition) {
+	// nothing to do
+	if new == nil {
+		return
 	}
-	sd.SecurityOverride.AppArmor.ReadPaths = append(sd.SecurityOverride.AppArmor.ReadPaths, new.ReadPaths...)
-	sd.SecurityOverride.AppArmor.WritePaths = append(sd.SecurityOverride.AppArmor.WritePaths, new.WritePaths...)
-	sd.SecurityOverride.AppArmor.Abstractions = append(sd.SecurityOverride.AppArmor.Abstractions, new.Abstractions...)
+
+	// ensure we have valid structs to work with
+	if sd.SecurityOverride == nil {
+		sd.SecurityOverride = &SecurityOverrideDefinition{}
+	}
+
+	sd.SecurityOverride.ReadPaths = append(sd.SecurityOverride.ReadPaths, new.ReadPaths...)
+	sd.SecurityOverride.WritePaths = append(sd.SecurityOverride.WritePaths, new.WritePaths...)
+	sd.SecurityOverride.Abstractions = append(sd.SecurityOverride.Abstractions, new.Abstractions...)
 }
 
 type securityPolicyResult struct {
@@ -563,7 +634,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 
 	sd.mergeAppArmorSecurityOverrides(&hwaccessOverrides)
 	if sd.SecurityPolicy != nil {
-		res.aaPolicy, err = getAppArmorCustomPolicy(m, res.id, filepath.Join(baseDir, sd.SecurityPolicy.AppArmor))
+		res.aaPolicy, err = getAppArmorCustomPolicy(m, res.id, filepath.Join(baseDir, sd.SecurityPolicy.AppArmor), sd.SecurityOverride)
 		if err != nil {
 			logger.Noticef("Failed to generate custom AppArmor policy for %s: %v", name, err)
 			return nil, err
@@ -574,21 +645,13 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 			return nil, err
 		}
 	} else {
-		if sd.SecurityOverride == nil || sd.SecurityOverride.AppArmor == nil {
-			res.aaPolicy, err = getAppArmorTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, nil)
-		} else {
-			res.aaPolicy, err = getAppArmorTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride.AppArmor)
-		}
+		res.aaPolicy, err = getAppArmorTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride)
 		if err != nil {
 			logger.Noticef("Failed to generate AppArmor policy for %s: %v", name, err)
 			return nil, err
 		}
 
-		if sd.SecurityOverride == nil || sd.SecurityOverride.Seccomp == nil {
-			res.scPolicy, err = getSeccompTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, nil)
-		} else {
-			res.scPolicy, err = getSeccompTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride.Seccomp)
-		}
+		res.scPolicy, err = getSeccompTemplatedPolicy(m, res.id, sd.SecurityTemplate, sd.SecurityCaps, sd.SecurityOverride)
 		if err != nil {
 			logger.Noticef("Failed to generate seccomp policy for %s: %v", name, err)
 			return nil, err
