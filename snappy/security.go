@@ -90,6 +90,10 @@ type SecurityOverrideDefinition struct {
 	WritePaths   []string `yaml:"write-paths,omitempty" json:"write-paths,omitempty"`
 	Abstractions []string `yaml:"abstractions,omitempty" json:"abstractions,omitempty"`
 	Syscalls     []string `yaml:"syscalls,omitempty" json:"syscalls,omitempty"`
+
+	// deprecated keys, we warn when we see those
+	DeprecatedAppArmor interface{} `yaml:"apparmor,omitempty" json:"apparmor,omitempty"`
+	DeprecatedSeccomp  interface{} `yaml:"seccomp,omitempty" json:"seccomp,omitempty"`
 }
 
 // SecurityPolicyDefinition is used to provide hand-crafted policy
@@ -607,6 +611,15 @@ type securityPolicyResult struct {
 	scFn     string
 }
 
+func (sd *SecurityDefinitions) warnDeprecatedKeys() {
+	if sd.SecurityOverride != nil && sd.SecurityOverride.DeprecatedAppArmor != nil {
+		logger.Noticef("The security-override.apparmor key is no longer supported, please use use security-override directly")
+	}
+	if sd.SecurityOverride != nil && sd.SecurityOverride.DeprecatedSeccomp != nil {
+		logger.Noticef("The security-override.seccomp key is no longer supported, please use use security-override directly")
+	}
+}
+
 func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYaml, name string, baseDir string) (*securityPolicyResult, error) {
 	res := &securityPolicyResult{}
 	appID, err := getSecurityProfile(m, name, baseDir)
@@ -620,6 +633,9 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 		logger.Noticef("Failed to obtain APP_ID for %s: %v", name, err)
 		return nil, err
 	}
+
+	// warn about deprecated
+	sd.warnDeprecatedKeys()
 
 	// add the hw-override parts and merge with the other overrides
 	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))

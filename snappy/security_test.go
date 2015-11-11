@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/pkg"
 )
 
@@ -827,4 +828,100 @@ func (a *SecurityTestSuite) TestSecurityGenerateCustomPolicyAdditionalIsConsider
 	c.Assert(content, Matches, `(?ms).*^# No read paths specified$`)
 	c.Assert(content, Matches, `(?ms).*^# No write paths specified$`)
 	c.Assert(content, Matches, `(?ms).*^# No abstractions specified$`)
+}
+
+var mockSecurityDeprecatedPackageYaml = `
+name: hello-world
+vendor: someone
+version: 1.0
+binaries:
+ - name: binary1
+   caps: []
+`
+
+var mockSecurityDeprecatedPackageYamlApparmor1 = `
+   security-override:
+    apparmor:
+     read-path: [foo]
+`
+var mockSecurityDeprecatedPackageYamlApparmor2 = `
+   security-override:
+    apparmor: {}
+`
+var mockSecurityDeprecatedPackageYamlSeccomp1 = `
+   security-override:
+    seccomp: {}
+`
+
+var mockSecurityDeprecatedPackageYamlSeccomp2 = `
+   security-override:
+    seccomp:
+     syscalls: [1]
+`
+
+type mockLogger struct {
+	notice []string
+	debug  []string
+}
+
+func (l *mockLogger) Notice(msg string) {
+	l.notice = append(l.notice, msg)
+}
+
+func (l *mockLogger) Debug(msg string) {
+	l.debug = append(l.debug, msg)
+}
+
+func (a *SecurityTestSuite) TestSecurityWarnsNot(c *C) {
+	makeMockApparmorTemplate(c, "default", []byte(``))
+	makeMockSeccompTemplate(c, "default", []byte(``))
+
+	ml := &mockLogger{}
+	logger.SetLogger(ml)
+
+	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedPackageYaml)
+	c.Assert(err, IsNil)
+
+	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	c.Assert(err, IsNil)
+
+	c.Assert(ml.notice, DeepEquals, []string(nil))
+}
+
+func (a *SecurityTestSuite) TestSecurityWarnsOnDeprecatedApparmor(c *C) {
+	makeMockApparmorTemplate(c, "default", []byte(``))
+	makeMockSeccompTemplate(c, "default", []byte(``))
+
+	for _, s := range []string{mockSecurityDeprecatedPackageYamlApparmor1, mockSecurityDeprecatedPackageYamlApparmor2} {
+
+		ml := &mockLogger{}
+		logger.SetLogger(ml)
+
+		mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedPackageYaml+s)
+		c.Assert(err, IsNil)
+
+		err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+		c.Assert(err, IsNil)
+
+		c.Assert(ml.notice, DeepEquals, []string{"The security-override.apparmor key is no longer supported, please use use security-override directly"})
+	}
+}
+
+func (a *SecurityTestSuite) TestSecurityWarnsOnDeprecatedSeccomp(c *C) {
+	makeMockApparmorTemplate(c, "default", []byte(``))
+	makeMockSeccompTemplate(c, "default", []byte(``))
+
+	for _, s := range []string{mockSecurityDeprecatedPackageYamlSeccomp1, mockSecurityDeprecatedPackageYamlSeccomp2} {
+
+		ml := &mockLogger{}
+		logger.SetLogger(ml)
+
+		mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityDeprecatedPackageYaml+s)
+		c.Assert(err, IsNil)
+
+		err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+		c.Assert(err, IsNil)
+
+		c.Assert(ml.notice, DeepEquals, []string{"The security-override.seccomp key is no longer supported, please use use security-override directly"})
+	}
 }
