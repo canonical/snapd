@@ -190,6 +190,10 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 		return nil, fmt.Errorf("parsing assertion headers: %v", err)
 	}
 
+	if len(signature) == 0 {
+		return nil, fmt.Errorf("empty assertion signature")
+	}
+
 	sigtypeSigpacketSplit := bytes.IndexByte(signature, ' ')
 	if sigtypeSigpacketSplit == -1 {
 		return nil, fmt.Errorf("could not split the assertion signature into type and base64 packet")
@@ -198,7 +202,7 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 	sigtype := string(signature[:sigtypeSigpacketSplit])
 	sigpacket := signature[sigtypeSigpacketSplit+1:]
 	if len(sigpacket) == 0 {
-		return nil, fmt.Errorf("empty assertion signature packet")
+		return nil, fmt.Errorf("missing assertion signature packet")
 	}
 	decodedSigpacket := make([]byte, base64.StdEncoding.DecodedLen(len(sigpacket)))
 	n, err := base64.StdEncoding.Decode(decodedSigpacket[:], sigpacket)
