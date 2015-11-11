@@ -179,6 +179,9 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 		head = content
 	} else {
 		body = content[headersBodySplit+2:]
+		if len(body) == 0 {
+			body = nil
+		}
 		head = content[:headersBodySplit]
 	}
 

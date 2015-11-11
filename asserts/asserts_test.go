@@ -49,6 +49,21 @@ func (as *AssertsSuite) TestDecodeEmptyBody(c *C) {
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
 }
 
+func (as *AssertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
+	encoded := "type: test-only\n" +
+		"revision: 0\n" +
+		"authority-id: auth-id1\n" +
+		"body-size: 0" +
+		"\n\n" +
+		"\n\n" +
+		"openpgp c2ln"
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.AssertionType("test-only"))
+	c.Check(a.Revision(), Equals, 0)
+	c.Check(a.Body(), IsNil)
+}
+
 func (as *AssertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 	encoded := "type: test-only\n" +
 		"revision: 5\n" +
