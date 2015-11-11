@@ -23,9 +23,12 @@ package report
 import (
 	"bytes"
 	"fmt"
+	"regexp/syntax"
 
 	"github.com/testing-cabal/subunit-go"
 	"gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 )
 
 var _ = check.Suite(&ParserReportSuite{})
@@ -103,4 +106,35 @@ func (s *ParserReportSuite) TestParserReporterSendsSkipEvent(c *check.C) {
 	c.Check(event.MIME, check.Equals, "text/plain;charset=utf8")
 	c.Check(event.FileName, check.Equals, "reason")
 	c.Check(string(event.FileBytes), check.Equals, skipReason)
+}
+
+func (s *ParserReportSuite) TestParserSendsNothingForSetUpAndTearDown(c *check.C) {
+	ignoreTests := []string{
+		"****** Running testSuite.SetUpTest\n",
+		"PASS: /dummy/path:34: testSuite.SetUpTest      0.005s\n",
+		"****** Running testSuite.TearDownTest\n",
+		"PASS: /dummy/path:34: testSuite.TearDownTest      0.005s\n",
+		fmt.Sprintf(
+			"SKIP: /dummy/path:36: %s (%s)\n", "testSuite.TestSkip", common.FormatSkipDuringReboot),
+		fmt.Sprintf(
+			"SKIP: /dummy/path:36: %s (%s)\n", "testSuite.TestSkip", common.FormatSkipAfterReboot),
+	}
+	for _, gocheckOutput := range ignoreTests {
+		s.spy.calls = []subunit.Event{}
+		s.subject.Write([]byte(gocheckOutput))
+
+		c.Check(len(s.spy.calls), check.Equals, 0,
+			check.Commentf("Unexpected event sent to subunit: %v", s.spy.calls))
+	}
+}
+
+var _ = check.Suite(&ParserHelpersSuite{})
+
+type ParserHelpersSuite struct{}
+
+func (s *ParserHelpersSuite) TestMatchStringPanicsWithBadPatter(c *check.C) {
+	c.Assert(func() { matchString("*", "dummy") }, check.Panics,
+		&syntax.Error{
+			Code: syntax.ErrMissingRepeatArgument,
+			Expr: "*"})
 }
