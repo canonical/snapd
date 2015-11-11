@@ -22,5 +22,5 @@ package asserts
 // expose test-only things here
 
 // GeneratePrivateKey exposed for tests
-// XXX: me may do something different later about this
+// XXX: we may do something different later about this
 var GeneratePrivateKeyInTest = generatePrivateKey
