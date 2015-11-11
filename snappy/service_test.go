@@ -83,7 +83,6 @@ func (s *ServiceActorSuite) SetUpTest(c *C) {
 	systemd.JournalctlCmd = s.myJctl
 	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, `name: hello-app
 version: 1.09
-vendor: mvo@ubuntu
 services:
  - name: svc1
    start: bin/hello
@@ -91,7 +90,6 @@ services:
 	c.Assert(err, IsNil)
 	f, err := makeInstalledMockSnap(dirs.GlobalRootDir, `name: hello-app
 version: 1.10
-vendor: mvo@ubuntu
 services:
  - name: svc1
    start: bin/hello

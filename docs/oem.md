@@ -101,7 +101,7 @@ aren't provided by the OEM.
 #### Partition layout
 
 In the current layout, the `device` package contains a file called
-`hardware.yaml`, the `partition-layout` will be migrated to the `oem` snappy 
+`hardware.yaml`, the `partition-layout` will be migrated to the `oem` snappy
 package to provide a more generic `device` package.
 
 The only supported layout today is AB.
@@ -121,7 +121,6 @@ The `package.yaml` is structured as:
 
 
 	name: package-string # mandatory
-	vendor: vendor-string # mandatory
 	icon: icon-path # mandatory
 	version: version-string # mandatory
 	type: oem # mandatory
@@ -149,12 +148,12 @@ The `package.yaml` is structured as:
 
                 hardware: # mandatory
 		    platform: platform-string # mandatory
-		    architecture: architecture-string 
-                          # mandatory (armhf, amd64, i386, 
+		    architecture: architecture-string
+                          # mandatory (armhf, amd64, i386,
                           #            arm64, ...)
 		    partition-layout: partition-layout-string
                               # mandatory (system-AB)
-		    booloader: bootloader-string 
+		    booloader: bootloader-string
                           # mandatory (u-boot or grub)
 		    boot-assets: # optional
 		        files: #optional
@@ -202,7 +201,6 @@ As an example
 
 
     name: beagleboneblack.sergiusens
-    vendor: Sergio Schvezov <sergiusens@gmail.com>
     icon: meta/element14.png
     version: 1.1
     type: oem

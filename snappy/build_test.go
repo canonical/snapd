@@ -97,7 +97,6 @@ printf "hello world"
 func (s *SnapTestSuite) TestBuildSimple(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-vendor: Foo <foo@example.com>
 architecture: ["i386", "amd64"]
 integration:
  app:
@@ -124,7 +123,6 @@ integration:
  "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
- "maintainer": "Foo \u003cfoo@example.com\u003e",
  "title": "some title",
  "hooks": {
   "app": {
@@ -148,7 +146,6 @@ integration:
 func (s *SnapTestSuite) TestBuildAutoGenerateIntegrationHooksBinaries(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 2.0.1
-vendor: Foo <foo@example.com>
 architectures:
  - i386
 binaries:
@@ -174,7 +171,6 @@ binaries:
  "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
- "maintainer": "Foo \u003cfoo@example.com\u003e",
  "title": "some title",
  "hooks": {
   "hello-world": {
@@ -191,7 +187,6 @@ binaries:
 func (s *SnapTestSuite) TestBuildAutoGenerateIntegrationHooksServices(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 3.0.1
-vendor: Foo <foo@example.com>
 services:
  - name: foo
    start: bin/hello-world
@@ -216,7 +211,6 @@ services:
  "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
- "maintainer": "Foo \u003cfoo@example.com\u003e",
  "title": "some title",
  "hooks": {
   "foo": {
@@ -232,7 +226,6 @@ services:
 func (s *SnapTestSuite) TestBuildAutoGenerateConfigAppArmor(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 4.0.1
-vendor: Foo <foo@example.com>
 `)
 	hooksDir := filepath.Join(sourceDir, "meta", "hooks")
 	os.MkdirAll(hooksDir, 0755)
@@ -255,7 +248,6 @@ vendor: Foo <foo@example.com>
  "framework": "ubuntu-core-15.04-dev1",
  "description": "fixme-description",
  "installed-size": "17",
- "maintainer": "Foo \u003cfoo@example.com\u003e",
  "title": "some title",
  "hooks": {
   "snappy-config": {
@@ -275,7 +267,6 @@ func (s *SnapTestSuite) TestBuildNoManifestFails(c *C) {
 func (s *SnapTestSuite) TestBuildManifestRequiresMissingLicense(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-vendor: Foo <foo@example.com>
 architecture: ["i386", "amd64"]
 integration:
  app:
@@ -289,7 +280,6 @@ explicit-license-agreement: Y
 func (s *SnapTestSuite) TestBuildManifestRequiresBlankLicense(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-vendor: Foo <foo@example.com>
 architecture: ["i386", "amd64"]
 integration:
  app:
@@ -401,7 +391,6 @@ func (s *SnapTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
 func (s *SnapTestSuite) TestBuildSimpleOutputDir(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-vendor: Foo <foo@example.com>
 architecture: ["i386", "amd64"]
 integration:
  app:
@@ -429,7 +418,6 @@ integration:
  "framework": "ubuntu-core-15.04-dev1",
  "description": "some description",
  "installed-size": "17",
- "maintainer": "Foo \u003cfoo@example.com\u003e",
  "title": "some title",
  "hooks": {
   "app": {
@@ -453,7 +441,6 @@ integration:
 func (s *SnapTestSuite) TestBuildChecksForClashes(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-vendor: Foo <foo@example.com>
 services:
  - name: foo
 binaries:
@@ -487,7 +474,6 @@ func (s *SnapTestSuite) TestHashForFileForDevice(c *C) {
 func (s *SnapTestSuite) TestBuildAllPermissions(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-vendor: Foo <foo@example.com>
 `)
 
 	resultSnap, err := BuildLegacySnap(sourceDir, "")
@@ -506,7 +492,6 @@ vendor: Foo <foo@example.com>
 func (s *SnapTestSuite) TestBuildFailsForUnknownType(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-vendor: Foo <foo@example.com>
 `)
 	err := syscall.Mkfifo(filepath.Join(sourceDir, "fifo"), 0644)
 	c.Assert(err, IsNil)
@@ -518,7 +503,6 @@ vendor: Foo <foo@example.com>
 func (s *SnapTestSuite) TestBuildSnapfsSimple(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-vendor: Foo <foo@example.com>
 architecture: ["i386", "amd64"]
 integration:
  app:
