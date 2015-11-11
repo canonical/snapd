@@ -42,6 +42,8 @@ func (as *AssertsSuite) TestDecodeEmptyBody(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.AssertionType("test-only"))
+	_, ok := a.(*asserts.TestOnly)
+	c.Check(ok, Equals, true)
 	c.Check(a.Revision(), Equals, 0)
 	c.Check(a.Body(), IsNil)
 	c.Check(a.Header("header1"), Equals, "")
