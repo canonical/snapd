@@ -21,11 +21,17 @@
 package tests
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
+	"regexp"
 
+	"github.com/kr/pty"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
@@ -172,4 +178,97 @@ func (s *configExampleSuite) TestPrintMessageFromConfig(c *check.C) {
 		output := cli.ExecCommand(c, t.snap+".hello")
 		c.Assert(output, check.Equals, t.message, check.Commentf("Wrong message"))
 	}
+}
+
+var _ = check.Suite(&licensedExampleSuite{})
+
+type licensedExampleSuite struct {
+	common.SnappySuite
+}
+
+func (s *licensedExampleSuite) TestAcceptLicenseMustInstallSnap(c *check.C) {
+	cmd := exec.Command("sudo", "snappy", "install", "licensed.canonical")
+	f, err := pty.Start(cmd)
+	c.Assert(err, check.IsNil, check.Commentf("Error starting pty: %s", err))
+	defer common.RemoveSnap(c, "licensed.canonical")
+
+	s.assertLicense(c, f)
+	// Accept the license.
+	_, err = f.Write([]byte("y\n"))
+	c.Assert(err, check.IsNil, check.Commentf("Error writing to pty: %s", err))
+
+	cmd.Wait()
+
+	c.Assert(s.isSnapInstalled(c), check.Equals, true, check.Commentf("The snap was not installed"))
+}
+
+func (s *licensedExampleSuite) TestDeclineLicenseMustNotInstallSnap(c *check.C) {
+	cmd := exec.Command("sudo", "snappy", "install", "licensed.canonical")
+	f, err := pty.Start(cmd)
+	c.Assert(err, check.IsNil, check.Commentf("Error starting pty: %s", err))
+
+	s.assertLicense(c, f)
+	// Decline the license.
+	_, err = f.Write([]byte("n\n"))
+	c.Assert(err, check.IsNil, check.Commentf("Error writing to pty: %s", err))
+
+	cmd.Wait()
+
+	c.Assert(s.isSnapInstalled(c), check.Equals, false, check.Commentf("The snap was installed"))
+}
+
+func (s *licensedExampleSuite) assertLicense(c *check.C, f *os.File) {
+	output := s.readUntilPrompt(c, f)
+	expected := "Installing licensed.canonical" +
+		"Starting download of licensed" +
+		".*" +
+		"Done" +
+		"licensed requires that you accept the following license before continuing" +
+		"This product is meant for educational purposes only. .* No other warranty expressed or implied."
+	c.Assert(output, check.Matches, expected)
+}
+
+func (s *licensedExampleSuite) readUntilPrompt(c *check.C, f *os.File) string {
+	var output string
+	scanner := bufio.NewScanner(f)
+
+	scanLinesUntilPrompt := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		if atEOF && len(data) == 0 {
+			return 0, nil, nil
+		}
+		if i := bytes.IndexByte(data, '\n'); i >= 0 {
+			// We have a full newline-terminated line.
+			if data[i-1] == '\r' {
+				return i + 1, data[0 : i-1], nil
+			}
+			return i + 1, data[0:i], nil
+		}
+		// XXX Returning EOF means that this line will not be consumed by Scan.
+		// The fix for this will be released in go 1.6.
+		// https://github.com/golang/go/issues/11836
+		if string(data) == "Do you agree? [y/n] " {
+			return len(data), data, io.EOF
+		}
+		// Request more data.
+		return 0, nil, nil
+	}
+
+	scanner.Split(scanLinesUntilPrompt)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fmt.Println(line)
+		output += line
+	}
+	c.Assert(scanner.Err(), check.IsNil, check.Commentf("Error reading from pty: %s", scanner.Err()))
+	return output
+}
+
+func (s *licensedExampleSuite) isSnapInstalled(c *check.C) bool {
+	infoOutput := cli.ExecCommand(c, "snappy", "info")
+
+	expectedInfo := "(?ms)" +
+		".*" +
+		"^apps: .*licensed\\.canonical.*\n"
+	matches, _ := regexp.MatchString("^"+expectedInfo+"$", infoOutput)
+	return matches
 }

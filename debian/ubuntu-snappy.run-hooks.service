@@ -1,6 +1,8 @@
 [Unit]
 Description=Regenerate snappy security policies
-After=ubuntu-snappy.firstboot.service
+After=local-fs.target
+Before=ubuntu-snappy.firstboot.service
+DefaultDependencies=false
 
 [Service]
 Type=oneshot
