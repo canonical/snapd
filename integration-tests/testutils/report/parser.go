@@ -108,10 +108,10 @@ func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 	} else if matches := skipRegexp.FindStringSubmatch(sdata); len(matches) == 3 {
 		reason := matches[2]
 		// Do not report anything about the set ups skipped because of another test's reboot.
-		duringReboot, _ := regexp.MatchString(
+		duringReboot := matchString(
 			fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipDuringReboot), ".*", ".*"),
 			reason)
-		afterReboot, _ := regexp.MatchString(
+		afterReboot := matchString(
 			fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipAfterReboot), ".*", ".*"),
 			reason)
 		if duringReboot || afterReboot {
@@ -133,7 +133,15 @@ func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 }
 
 func isTest(testID string) bool {
-	matchesSetUp, _ := regexp.MatchString(".*\\.SetUpTest", testID)
-	matchesTearDown, _ := regexp.MatchString(".*\\.TearDownTest", testID)
+	matchesSetUp := matchString(".*\\.SetUpTest", testID)
+	matchesTearDown := matchString(".*\\.TearDownTest", testID)
 	return !matchesSetUp && !matchesTearDown
+}
+
+func matchString(pattern string, s string) bool {
+	matched, err := regexp.MatchString(pattern, s)
+	if err != nil {
+		panic(err)
+	}
+	return matched
 }
