@@ -35,10 +35,9 @@ func (as *AssertsSuite) TestDecodeEmptyBody(c *C) {
 	encoded := "type: test-only\n" +
 		"revision: 0\n" +
 		"authority-id: auth-id1\n" +
-		"signature-type: openpgp\n" +
 		"body-size: 0" +
 		"\n\n" +
-		"c2ln"
+		"openpgp c2ln"
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.AssertionType("test-only"))
@@ -54,13 +53,12 @@ func (as *AssertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 	encoded := "type: test-only\n" +
 		"revision: 5\n" +
 		"authority-id: auth-id2\n" +
-		"signature-type: openpgp\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
 		"body-size: 8\n\n" +
 		"THE-BODY" +
 		"\n\n" +
-		"c2ln"
+		"openpgp c2ln"
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.AssertionType("test-only"))
@@ -75,19 +73,18 @@ func (as *AssertsSuite) TestDecodeGetSignatureBits(c *C) {
 	content := "type: test-only\n" +
 		"revision: 5\n" +
 		"authority-id: auth-id1\n" +
-		"signature-type: openpgp\n" +
 		"header1: value1\n" +
 		"body-size: 8\n\n" +
 		"THE-BODY"
 	encoded := content +
 		"\n\n" +
-		"c2ln"
+		"openpgp c2ln"
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.AssertionType("test-only"))
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
-	c.Check(a.SignatureType(), Equals, "openpgp")
-	cont, signature := a.Signature()
+	cont, sigtype, signature := a.Signature()
+	c.Check(sigtype, Equals, "openpgp")
 	c.Check(signature, DeepEquals, []byte("sig"))
 	c.Check(cont, DeepEquals, []byte(content))
 }
@@ -119,12 +116,11 @@ func (as *AssertsSuite) TestDecodeInvalid(c *C) {
 	encoded := "type: test-only\n" +
 		"revision: 0\n" +
 		"authority-id: auth-id\n" +
-		"signature-type: openpgp\n" +
 		"body-size: 5" +
 		"\n\n" +
 		"abcde" +
 		"\n\n" +
-		"c2ln"
+		"openpgp c2ln"
 
 	for _, scen := range []struct {
 		original, invalid, expectedErr string
@@ -134,9 +130,11 @@ func (as *AssertsSuite) TestDecodeInvalid(c *C) {
 		{"body-size: 5", "body-size: 3", "assertion body length and declared body-size don't match: 5 != 3"},
 		{"authority-id: auth-id\n", "", "assertion authority-id header is mandatory"},
 		{"authority-id: auth-id\n", "authority-id: \n", "assertion authority-id should not be empty"},
-		{"signature-type: openpgp\n", "", "assertion signature-type header is mandatory"},
-		{"signature-type: openpgp\n", "signature-type: mystery-format\n", "unsupported assertion signature-type: mystery-format"},
-		{"c2ln", "_", "could not base64 decode the assertion signature"},
+		{"openpgp c2ln", "", "could not split the assertion signature into type and base64 packet"},
+		{"openpgp c2ln", "zzz", "could not split the assertion signature into type and base64 packet"},
+		{"openpgp c2ln", "openpgp _", "could not base64 decode the assertion signature packet"},
+		{"openpgp c2ln", "openpgp ", "empty assertion signature packet"},
+		{"openpgp c2ln", "mystery-format c2ln", "unsupported assertion signature type: mystery-format"},
 		{"type: test-only\n", "", "assertion type header is mandatory"},
 		{"type: test-only\n", "type: unknown\n", "cannot build assertion of unknown type: unknown"},
 		{"revision: 0\n", "", "assertion revision header is mandatory"},
