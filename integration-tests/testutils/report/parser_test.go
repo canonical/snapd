@@ -23,6 +23,7 @@ package report
 import (
 	"bytes"
 	"fmt"
+	"regexp/syntax"
 
 	"github.com/testing-cabal/subunit-go"
 	"gopkg.in/check.v1"
@@ -125,4 +126,15 @@ func (s *ParserReportSuite) TestParserSendsNothingForSetUpAndTearDown(c *check.C
 		c.Check(len(s.spy.calls), check.Equals, 0,
 			check.Commentf("Unexpected event sent to subunit: %v", s.spy.calls))
 	}
+}
+
+var _ = check.Suite(&ParserHelpersSuite{})
+
+type ParserHelpersSuite struct{}
+
+func (s *ParserHelpersSuite) TestMatchStringPanicsWithBadPatter(c *check.C) {
+	c.Assert(func() { matchString("*", "dummy") }, check.Panics,
+		&syntax.Error{
+			Code: syntax.ErrMissingRepeatArgument,
+			Expr: "*"})
 }
