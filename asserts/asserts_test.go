@@ -35,7 +35,7 @@ func (as *AssertsSuite) TestDecodeEmptyBody(c *C) {
 	encoded := "type: test-only\n" +
 		"revision: 0\n" +
 		"authority-id: auth-id1\n" +
-		"body-size: 0" +
+		"body-length: 0" +
 		"\n\n" +
 		"openpgp c2ln"
 	a, err := asserts.Decode([]byte(encoded))
@@ -53,7 +53,7 @@ func (as *AssertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
 	encoded := "type: test-only\n" +
 		"revision: 0\n" +
 		"authority-id: auth-id1\n" +
-		"body-size: 0" +
+		"body-length: 0" +
 		"\n\n" +
 		"\n\n" +
 		"openpgp c2ln"
@@ -70,7 +70,7 @@ func (as *AssertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 		"authority-id: auth-id2\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
-		"body-size: 8\n\n" +
+		"body-length: 8\n\n" +
 		"THE-BODY" +
 		"\n\n" +
 		"openpgp c2ln"
@@ -89,7 +89,7 @@ func (as *AssertsSuite) TestDecodeGetSignatureBits(c *C) {
 		"revision: 5\n" +
 		"authority-id: auth-id1\n" +
 		"header1: value1\n" +
-		"body-size: 8\n\n" +
+		"body-length: 8\n\n" +
 		"THE-BODY"
 	encoded := content +
 		"\n\n" +
@@ -131,7 +131,7 @@ func (as *AssertsSuite) TestDecodeInvalid(c *C) {
 	encoded := "type: test-only\n" +
 		"revision: 0\n" +
 		"authority-id: auth-id\n" +
-		"body-size: 5" +
+		"body-length: 5" +
 		"\n\n" +
 		"abcde" +
 		"\n\n" +
@@ -140,9 +140,9 @@ func (as *AssertsSuite) TestDecodeInvalid(c *C) {
 	for _, scen := range []struct {
 		original, invalid, expectedErr string
 	}{
-		{"body-size: 5", "", "assertion body-size header is mandatory"},
-		{"body-size: 5", "body-size: z", "assertion body-size is not an integer: z"},
-		{"body-size: 5", "body-size: 3", "assertion body length and declared body-size don't match: 5 != 3"},
+		{"body-length: 5", "", "assertion body-length header is mandatory"},
+		{"body-length: 5", "body-length: z", "assertion body-length is not an integer: z"},
+		{"body-length: 5", "body-length: 3", "assertion body length and declared body-length don't match: 5 != 3"},
 		{"authority-id: auth-id\n", "", "assertion authority-id header is mandatory"},
 		{"authority-id: auth-id\n", "authority-id: \n", "assertion authority-id should not be empty"},
 		{"openpgp c2ln", "", "could not split the assertion signature into type and base64 packet"},

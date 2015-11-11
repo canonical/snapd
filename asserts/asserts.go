@@ -163,7 +163,7 @@ func parseHeaders(head []byte) (map[string]string, error) {
 //   type
 //   authority-id (the signer id)
 //   revision (a positive int)
-//   body-size (int expected to be equal to the length of BODY)
+//   body-length (int expected to be equal to the length of BODY)
 //
 func Decode(serializedAssertion []byte) (Assertion, error) {
 	contentSignatureSplit := bytes.LastIndex(serializedAssertion, nlnl)
@@ -224,13 +224,12 @@ func buildAssertion(headers map[string]string, body, content []byte, sigtype str
 		return value, nil
 	}
 
-	// QUESTION: the spec used 'size' but that seems to vague, I would prefer this
-	size, err := checkInteger("body-size")
+	length, err := checkInteger("body-length")
 	if err != nil {
 		return nil, err
 	}
-	if size != len(body) {
-		return nil, fmt.Errorf("assertion body length and declared body-size don't match: %v != %v", len(body), size)
+	if length != len(body) {
+		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
 
 	checkMandatory := func(name string) (string, error) {
