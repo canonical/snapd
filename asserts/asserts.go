@@ -143,6 +143,31 @@ func parseHeaders(head []byte) (map[string]string, error) {
 }
 
 // Decode parses a serialized assertion.
+//
+// The expected serialisation format looks like:
+//
+//   HEADER ("\n\n" BODY?)? "\n\n" SIGNATURE
+//
+// where:
+//
+//    SIGNATURE is the base64 signature,
+//    BODY can be arbitrary,
+//    HEADER is a set of header lines separated by "\n"
+//
+// An header line looks like:
+//
+//   NAME ": " VALUE
+//
+// for sanity NAME is expected to match headerNameSanity regexp.
+//
+// The following headers are mandatory:
+//
+//   type
+//   authority-id (the signer id)
+//   revision (a positive int)
+//   signature-type (for now expected to be "openpgp")
+//   body-size (int expected to be equal to the length of BODY)
+//
 func Decode(serializedAssertion []byte) (Assertion, error) {
 	contentSignatureSplit := bytes.LastIndex(serializedAssertion, nlnl)
 	if contentSignatureSplit == -1 {
@@ -202,7 +227,6 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 		return value, nil
 	}
 
-	// QUESTION: the design doc uses this name sometimes, the format spec uses 'from'
 	if _, err := checkMandatory("authority-id"); err != nil {
 		return nil, err
 	}
