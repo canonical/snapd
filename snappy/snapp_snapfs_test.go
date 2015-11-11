@@ -76,7 +76,6 @@ func (s *SnapfsTestSuite) TestInstallViaSnapfsWorks(c *C) {
 		"meta/package.yaml",
 		".click/info/hello-app.origin.manifest",
 	} {
-		println(needle)
 		c.Assert(helpers.FileExists(filepath.Join(base, needle)), Equals, true)
 	}
 }
