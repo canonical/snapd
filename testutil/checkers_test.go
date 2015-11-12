@@ -20,52 +20,86 @@
 package testutil
 
 import (
-	. "gopkg.in/check.v1"
+	"reflect"
 	"testing"
+
+	. "gopkg.in/check.v1"
 )
 
 func Test2(t *testing.T) {
 	TestingT(t)
 }
 
-type CheckersSuite struct{}
+type CheckersS struct{}
 
-var _ = Suite(&CheckersSuite{})
+var _ = Suite(&CheckersS{})
 
-func (s *CheckersSuite) TestUnsupportedTypes(c *C) {
-	c.ExpectFailure("haystack is of unsupported type int")
-	c.Assert(5, Contains, "foo")
+func testInfo(c *C, checker Checker, name string, paramNames []string) {
+	info := checker.Info()
+	if info.Name != name {
+		c.Fatalf("Got name %s, expected %s", info.Name, name)
+	}
+	if !reflect.DeepEqual(info.Params, paramNames) {
+		c.Fatalf("Got param names %#v, expected %#v", info.Params, paramNames)
+	}
 }
 
-func (s *CheckersSuite) TestContainsVerifiesTypes(c *C) {
-	c.ExpectFailure("haystack contains items of type int but needle is a string")
-	c.Assert([...]int{1, 2, 3}, Contains, "foo")
-	c.Assert([]int{1, 2, 3}, Contains, "foo")
+func testCheck(c *C, checker Checker, result bool, error string, params ...interface{}) ([]interface{}, []string) {
+	info := checker.Info()
+	if len(params) != len(info.Params) {
+		c.Fatalf("unexpected param count in test; expected %d got %d", len(info.Params), len(params))
+	}
+	names := append([]string{}, info.Params...)
+	resultActual, errorActual := checker.Check(params, names)
+	if resultActual != result || errorActual != error {
+		c.Fatalf("%s.Check(%#v) returned (%#v, %#v) rather than (%#v, %#v)",
+			info.Name, params, resultActual, errorActual, result, error)
+	}
+	return params, names
+}
+
+func (s *CheckersS) TestUnsupportedTypes(c *C) {
+	testInfo(c, Contains, "Contains", []string{"container", "elem"})
+	testCheck(c, Contains, false, "int is not a supported container", 5, nil)
+	testCheck(c, Contains, false, "bool is not a supported container", false, nil)
+	testCheck(c, Contains, false, "element is a int but expected a string", "container", 1)
+}
+
+func (s *CheckersS) TestContainsVerifiesTypes(c *C) {
+	testInfo(c, Contains, "Contains", []string{"container", "elem"})
+	testCheck(c, Contains,
+		false, "container has items of type int but expected element is a string",
+		[...]int{1, 2, 3}, "foo")
+	testCheck(c, Contains,
+		false, "container has items of type int but expected element is a string",
+		[]int{1, 2, 3}, "foo")
 	// This looks tricky, Contains looks at _values_, not at keys
-	c.Assert(map[string]int{"foo": 1, "bar": 2}, Contains, "foo")
+	testCheck(c, Contains,
+		false, "container has items of type int but expected element is a string",
+		map[string]int{"foo": 1, "bar": 2}, "foo")
 }
 
-func (s *CheckersSuite) TestContainsString(c *C) {
+func (s *CheckersS) TestContainsString(c *C) {
 	c.Assert("foo", Contains, "f")
 	c.Assert("foo", Contains, "fo")
 	c.Assert("foo", Not(Contains), "foobar")
 }
 
-func (s *CheckersSuite) TestContainsArray(c *C) {
+func (s *CheckersS) TestContainsArray(c *C) {
 	c.Assert([...]int{1, 2, 3}, Contains, 1)
 	c.Assert([...]int{1, 2, 3}, Contains, 2)
 	c.Assert([...]int{1, 2, 3}, Contains, 3)
 	c.Assert([...]int{1, 2, 3}, Not(Contains), 4)
 }
 
-func (s *CheckersSuite) TestContainsSlice(c *C) {
+func (s *CheckersS) TestContainsSlice(c *C) {
 	c.Assert([]int{1, 2, 3}, Contains, 1)
 	c.Assert([]int{1, 2, 3}, Contains, 2)
 	c.Assert([]int{1, 2, 3}, Contains, 3)
 	c.Assert([]int{1, 2, 3}, Not(Contains), 4)
 }
 
-func (s *CheckersSuite) TestContainsMap(c *C) {
+func (s *CheckersS) TestContainsMap(c *C) {
 	c.Assert(map[string]int{"foo": 1, "bar": 2}, Contains, 1)
 	c.Assert(map[string]int{"foo": 1, "bar": 2}, Contains, 2)
 	c.Assert(map[string]int{"foo": 1, "bar": 2}, Not(Contains), 3)
