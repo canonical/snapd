@@ -162,6 +162,10 @@ func AddHWAccess(snapname, device string) error {
 		return ErrInvalidHWDevice
 	}
 
+	if strings.Contains(snapname, "_") {
+		return ErrPackageNotFound
+	}
+
 	// check if there is anything apparmor related to add to
 	globExpr := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s_*", snapname))
 	matches, err := filepath.Glob(globExpr)
