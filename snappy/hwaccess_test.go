@@ -106,6 +106,14 @@ func (s *SnapTestSuite) TestAddHWAccessUnknownPackage(c *C) {
 	c.Assert(*regenerateAppArmorRulesWasCalled, Equals, false)
 }
 
+func (s *SnapTestSuite) TestAddHWAccessIllegalPackage(c *C) {
+	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
+
+	err := AddHWAccess("hello_svc1", "/dev/ttyUSB0")
+	c.Assert(err, Equals, ErrPackageNotFound)
+	c.Assert(*regenerateAppArmorRulesWasCalled, Equals, false)
+}
+
 func (s *SnapTestSuite) TestListHWAccessNoAdditionalAccess(c *C) {
 	makeInstalledMockSnap(s.tempdir, "")
 
