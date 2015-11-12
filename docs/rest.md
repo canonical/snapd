@@ -18,10 +18,10 @@ is `/run/snapd.socket`.
 
 ## Authentication
 
-Authentication over the unix socket is delegated to UNIX ACLs. At this point
-only root can connect to it; later, regular user access is not implemented
-yet, but should be able to once `SO_PEERCRED` is supported to determine
-privilege levels.
+Authentication over the unix socket is delegated to UNIX ACLs. At this
+point only root can connect to it; regular user access is not
+implemented yet, but should be doable once `SO_PEERCRED` is supported
+to determine privilege levels.
 
 ## Responses
 
@@ -48,13 +48,14 @@ returned:
 }
 ```
 
-The HTTP code must be 200.
+The HTTP code will be 200 (`OK`), or 201 (`Created`, in which case the
+`Location` HTTP header will be set), as appropriate.
 
 ### Background operation
 
 When a request results in a background operation, the HTTP code is set
-to 202 (Accepted) and the Location HTTP header is set to the operation
-URL.
+to 202 (`Accepted`) and the `Location` HTTP header is set to the
+operation's URL.
 
 The body is a json object with the following structure:
 
