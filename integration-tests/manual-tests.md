@@ -3,30 +3,30 @@
 1. Branch snappy-systems
 2. Modify the `package.yaml` to add a snap, e.g.:
 
-```diff
-=== modified file 'generic-amd64/meta/package.yaml'
---- generic-amd64/meta/package.yaml	2015-07-03 12:50:03 +0000
-+++ generic-amd64/meta/package.yaml	2015-11-09 16:26:12 +0000
-@@ -7,6 +7,8 @@
- config:
-     ubuntu-core:
-         autopilot: true
-+    config-example-bash:
-+      msg: "huzzah\n"
- 
- oem:
-     branding:
-@@ -20,3 +22,7 @@
-         boot-assets:
-             files:
-                 - path: grub.cfg
-+
-+    software:
-+      built-in:
-+        - config-example-bash.canonical
-```
+    ```diff
+    === modified file 'generic-amd64/meta/package.yaml'
+    --- generic-amd64/meta/package.yaml	2015-07-03 12:50:03 +0000
+    +++ generic-amd64/meta/package.yaml	2015-11-09 16:26:12 +0000
+    @@ -7,6 +7,8 @@
+     config:
+         ubuntu-core:
+             autopilot: true
+    +    config-example-bash:
+    +      msg: "huzzah\n"
 
-(for amd64, or modify for other arch).
+     oem:
+         branding:
+    @@ -20,3 +22,7 @@
+             boot-assets:
+                 files:
+                     - path: grub.cfg
+    +
+    +    software:
+    +      built-in:
+    +        - config-example-bash.canonical
+    ```
+
+  (for amd64, or modify for other arch).
 
 3. Build the gadget snap.
 4. Create an image using the gadget snap.
@@ -49,20 +49,20 @@
 1. Branch snappy-systems
 2. Modify the `package.yaml` to add a module, e.g.:
 
-```diff
-=== modified file 'generic-amd64/meta/package.yaml'
---- generic-amd64/meta/package.yaml	2015-07-03 12:50:03 +0000
-+++ generic-amd64/meta/package.yaml	2015-11-12 10:14:30 +0000
-@@ -7,6 +7,7 @@
- config:
-     ubuntu-core:
-         autopilot: true
-+        load-kernel-modules: [tea]
- 
- oem:
-     branding:
+    ```diff
+    === modified file 'generic-amd64/meta/package.yaml'
+    --- generic-amd64/meta/package.yaml	2015-07-03 12:50:03 +0000
+    +++ generic-amd64/meta/package.yaml	2015-11-12 10:14:30 +0000
+    @@ -7,6 +7,7 @@
+     config:
+         ubuntu-core:
+             autopilot: true
+    +        load-kernel-modules: [tea]
 
-```
+     oem:
+         branding:
+
+    ```
 
 3. Build the gadget snap.
 4. Create an image using the gadget snap.
