@@ -1,5 +1,6 @@
 #!/bin/sh
-
+export LANG=C.UTF-8
+export LANGUAGE=en
 set -eu
 
 if which goctest >/dev/null; then

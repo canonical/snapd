@@ -502,6 +502,8 @@ func getSeccompTemplatedPolicy(m *packageYaml, appID *securityAppID, templateNam
 	return scPolicy, nil
 }
 
+var finalCurtain = regexp.MustCompile(`}\s*$`)
+
 func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string, overrides *SecurityOverrideDefinition) (string, error) {
 	custom, err := ioutil.ReadFile(fn)
 	if err != nil {
@@ -510,6 +512,15 @@ func getAppArmorCustomPolicy(m *packageYaml, appID *securityAppID, fn string, ov
 
 	aaPolicy := strings.Replace(string(custom), "\n###VAR###\n", appID.appArmorVars()+"\n", 1)
 	aaPolicy = strings.Replace(aaPolicy, "\n###PROFILEATTACH###", fmt.Sprintf("\nprofile \"%s\"", appID.AppID), 1)
+
+	// a custom policy may not have the overrides defined that we
+	// use for the hw-assign work. so we insert them here
+	aaPolicy = finalCurtain.ReplaceAllString(aaPolicy, `
+###READS###
+###WRITES###
+###ABSTRACTIONS###
+}
+`)
 
 	return mergeAppArmorTemplateAdditionalContent("", aaPolicy, overrides)
 }
@@ -867,6 +878,9 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 	if err != nil {
 		return err
 	}
+	// FIXME: duplicated code from snapp.go:NewSnapPartFromYaml,
+	//        version is overriden by sideloaded versions
+	m.Version = filepath.Base(filepath.Dir(filepath.Dir(fn)))
 
 	if m.Type == "" || m.Type == pkg.TypeApp {
 		_, err = originFromYamlPath(fn)

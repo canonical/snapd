@@ -55,7 +55,7 @@ Description: System components for Ubuntu Core Snappy.
 
 Package: ubuntu-snappy-cli
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, adduser
+Depends: ${misc:Depends}, ${shlibs:Depends}, adduser, lsb-release
 Replaces: ubuntu-core-snappy (<< 0.2~ppa90)
 Breaks: ubuntu-core-snappy (<< 0.2~ppa90)
 Conflicts: snappy

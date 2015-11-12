@@ -24,10 +24,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/pkg"
 )
@@ -414,7 +416,7 @@ func (a *SecurityTestSuite) TestSecurityGenSeccompTemplatedPolicy(c *C) {
 }
 
 var aaCustomPolicy = `
-# Description: Allows unrestricted access to the system
+# Description: Some custom aa policy
 # Usage: reserved
 
 # vim:syntax=apparmor
@@ -430,7 +432,7 @@ var aaCustomPolicy = `
 }
 `
 var expectedAaCustomPolicy = `
-# Description: Allows unrestricted access to the system
+# Description: Some custom aa policy
 # Usage: reserved
 
 # vim:syntax=apparmor
@@ -451,6 +453,10 @@ var expectedAaCustomPolicy = `
 # v2 compatible wildly permissive profile
 profile "foo_bar_1.0" (attach_disconnected) {
   capability,
+
+# No read paths specified
+# No write paths specified
+# No abstractions specified
 }
 `
 
@@ -799,11 +805,10 @@ func makeCustomAppArmorPolicy(c *C) string {
 	content := []byte(`# custom apparmor policy
 ###VAR###
 
-###PROFILEATTACH###
+###PROFILEATTACH### (attach_disconnected) {
+ stuff
 
-###READS###
-###WRITES###
-###ABSTRACTIONS###
+}
 `)
 	fn := filepath.Join(c.MkDir(), "custom-aa-policy")
 	err := ioutil.WriteFile(fn, content, 0644)
@@ -924,4 +929,34 @@ func (a *SecurityTestSuite) TestSecurityWarnsOnDeprecatedSeccomp(c *C) {
 
 		c.Assert(ml.notice, DeepEquals, []string{"The security-override.seccomp key is no longer supported, please use use security-override directly"})
 	}
+}
+
+func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSideload(c *C) {
+	// we need to create some fake data
+	makeMockApparmorTemplate(c, "default", []byte(``))
+	makeMockSeccompTemplate(c, "default", []byte(``))
+
+	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
+	c.Assert(err, IsNil)
+	// pretend its sideloaded
+	basePath := regexp.MustCompile(`(.*)/hello-world.` + testOrigin).FindString(mockPackageYamlFn)
+	oldPath := filepath.Join(basePath, "1.0")
+	newPath := filepath.Join(basePath, "IsSideloadVer")
+	err = os.Rename(oldPath, newPath)
+	mockPackageYamlFn = filepath.Join(basePath, "IsSideloadVer", "meta", "package.yaml")
+
+	// the acutal thing that gets tested
+	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	c.Assert(err, IsNil)
+
+	// ensure the apparmor policy got loaded
+	c.Assert(a.loadAppArmorPolicyCalled, Equals, true)
+
+	// apparmor
+	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testOrigin))
+	c.Assert(helpers.FileExists(generatedProfileFn), Equals, true)
+
+	// ... and seccomp
+	generatedProfileFn = filepath.Join(dirs.SnapSeccompDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testOrigin))
+	c.Assert(helpers.FileExists(generatedProfileFn), Equals, true)
 }

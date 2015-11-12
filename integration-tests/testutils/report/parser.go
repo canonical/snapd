@@ -26,6 +26,8 @@ import (
 	"regexp"
 
 	"github.com/testing-cabal/subunit-go"
+
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 )
 
 const (
@@ -89,19 +91,37 @@ func NewSubunitV2ParserReporter(writer io.Writer) *SubunitV2ParserReporter {
 
 func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 	var err error
+	sdata := string(data)
 
-	if matches := announceRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
-		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "exists"})
-	} else if matches := successRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
-		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "success"})
-	} else if matches := failureRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
+	if matches := announceRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
+		testID := matches[1]
+		if isTest(testID) {
+			err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "exists"})
+		}
+	} else if matches := successRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
+		testID := matches[1]
+		if isTest(testID) {
+			err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "success"})
+		}
+	} else if matches := failureRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
 		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "fail"})
-	} else if matches := skipRegexp.FindStringSubmatch(string(data)); len(matches) == 3 {
+	} else if matches := skipRegexp.FindStringSubmatch(sdata); len(matches) == 3 {
+		reason := matches[2]
+		// Do not report anything about the set ups skipped because of another test's reboot.
+		duringReboot := matchString(
+			fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipDuringReboot), ".*", ".*"),
+			reason)
+		afterReboot := matchString(
+			fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipAfterReboot), ".*", ".*"),
+			reason)
+		if duringReboot || afterReboot {
+			return 0, nil
+		}
 		err = fr.statuser.Status(subunit.Event{
 			TestID:    matches[1],
 			Status:    "skip",
 			FileName:  "reason",
-			FileBytes: []byte(matches[2]),
+			FileBytes: []byte(reason),
 			MIME:      "text/plain;charset=utf8",
 		})
 	}
@@ -110,4 +130,18 @@ func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 		return wr.nbytes, err
 	}
 	return 0, err
+}
+
+func isTest(testID string) bool {
+	matchesSetUp := matchString(".*\\.SetUpTest", testID)
+	matchesTearDown := matchString(".*\\.TearDownTest", testID)
+	return !matchesSetUp && !matchesTearDown
+}
+
+func matchString(pattern string, s string) bool {
+	matched, err := regexp.MatchString(pattern, s)
+	if err != nil {
+		panic(err)
+	}
+	return matched
 }
