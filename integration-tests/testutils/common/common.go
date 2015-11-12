@@ -124,7 +124,7 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 // the test.
 // It also runs the cleanup handlers
 func (s *SnappySuite) TearDownTest(c *check.C) {
-	if !NeedsReboot() && CheckRebootMark("") {
+	if !IsInRebootProcess() {
 		// Only restore the channel config files if the reboot has been handled.
 		m := make(map[string]string)
 		m[channelCfgBackupFile()] = "/"
