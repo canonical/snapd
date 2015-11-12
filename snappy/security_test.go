@@ -24,10 +24,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/pkg"
 )
 
@@ -827,4 +829,34 @@ func (a *SecurityTestSuite) TestSecurityGenerateCustomPolicyAdditionalIsConsider
 	c.Assert(content, Matches, `(?ms).*^# No read paths specified$`)
 	c.Assert(content, Matches, `(?ms).*^# No write paths specified$`)
 	c.Assert(content, Matches, `(?ms).*^# No abstractions specified$`)
+}
+
+func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSideload(c *C) {
+	// we need to create some fake data
+	makeMockApparmorTemplate(c, "default", []byte(``))
+	makeMockSeccompTemplate(c, "default", []byte(``))
+
+	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
+	c.Assert(err, IsNil)
+	// pretend its sideloaded
+	basePath := regexp.MustCompile(`(.*)/hello-world.` + testOrigin).FindString(mockPackageYamlFn)
+	oldPath := filepath.Join(basePath, "1.0")
+	newPath := filepath.Join(basePath, "IsSideloadVer")
+	err = os.Rename(oldPath, newPath)
+	mockPackageYamlFn = filepath.Join(basePath, "IsSideloadVer", "meta", "package.yaml")
+
+	// the acutal thing that gets tested
+	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	c.Assert(err, IsNil)
+
+	// ensure the apparmor policy got loaded
+	c.Assert(a.loadAppArmorPolicyCalled, Equals, true)
+
+	// apparmor
+	generatedProfileFn := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testOrigin))
+	c.Assert(helpers.FileExists(generatedProfileFn), Equals, true)
+
+	// ... and seccomp
+	generatedProfileFn = filepath.Join(dirs.SnapSeccompDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testOrigin))
+	c.Assert(helpers.FileExists(generatedProfileFn), Equals, true)
 }

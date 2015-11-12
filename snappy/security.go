@@ -851,6 +851,9 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 	if err != nil {
 		return err
 	}
+	// FIXME: duplicated code from snapp.go:NewSnapPartFromYaml,
+	//        version is overriden by sideloaded versions
+	m.Version = filepath.Base(filepath.Dir(filepath.Dir(fn)))
 
 	if m.Type == "" || m.Type == pkg.TypeApp {
 		_, err = originFromYamlPath(fn)
