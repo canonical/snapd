@@ -40,8 +40,8 @@ const (
 	// BaseAltPartitionPath is the path to the B system partition.
 	BaseAltPartitionPath = "/writable/cache/system"
 	// NeedsRebootFile is the file that a test writes in order to request a reboot.
-	NeedsRebootFile      = "/tmp/needs-reboot"
-	channelCfgFile       = "/etc/system-image/channel.ini"
+	NeedsRebootFile = "/tmp/needs-reboot"
+	channelCfgFile  = "/etc/system-image/channel.ini"
 	// FormatSkipDuringReboot is the reason used to skip the pending tests when a test requested
 	// a reboot.
 	FormatSkipDuringReboot = "****** Skipped %s during reboot caused by %s"

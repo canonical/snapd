@@ -135,9 +135,9 @@ func (s *ParserReportSuite) TestParserSendsNothingForTestsAfterReboot(c *check.C
 	defer os.Setenv("ADT_REBOOT_MARK", "")
 	ignoreTests := []string{
 		"****** Running testSuite.TestSomething\n",
-		"PASS: /dummy/path:34: testSuite.TestSomething      0.005s\n",		
+		"PASS: /dummy/path:34: testSuite.TestSomething      0.005s\n",
 	}
-	for _, gocheckOutput := range ignoreTests{
+	for _, gocheckOutput := range ignoreTests {
 		s.spy.calls = []subunit.Event{}
 		s.subject.Write([]byte(gocheckOutput))
 
@@ -150,12 +150,12 @@ func (s *ParserReportSuite) TestParserSendsNothingForTestsDuringReboot(c *check.
 	err := ioutil.WriteFile(common.NeedsRebootFile, []byte("rebooting"), 0777)
 	c.Assert(err, check.IsNil, check.Commentf("Error writing the reboot file: %v", err))
 	defer os.Remove(common.NeedsRebootFile)
-	
+
 	ignoreTests := []string{
 		"****** Running testSuite.TestSomething\n",
-		"PASS: /dummy/path:34: testSuite.TestSomething      0.005s\n",		
+		"PASS: /dummy/path:34: testSuite.TestSomething      0.005s\n",
 	}
-	for _, gocheckOutput := range ignoreTests{
+	for _, gocheckOutput := range ignoreTests {
 		s.spy.calls = []subunit.Event{}
 		s.subject.Write([]byte(gocheckOutput))
 
