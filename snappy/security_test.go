@@ -415,7 +415,7 @@ func (a *SecurityTestSuite) TestSecurityGenSeccompTemplatedPolicy(c *C) {
 }
 
 var aaCustomPolicy = `
-# Description: Allows unrestricted access to the system
+# Description: Some custom aa policy
 # Usage: reserved
 
 # vim:syntax=apparmor
@@ -431,7 +431,7 @@ var aaCustomPolicy = `
 }
 `
 var expectedAaCustomPolicy = `
-# Description: Allows unrestricted access to the system
+# Description: Some custom aa policy
 # Usage: reserved
 
 # vim:syntax=apparmor
@@ -452,6 +452,10 @@ var expectedAaCustomPolicy = `
 # v2 compatible wildly permissive profile
 profile "foo_bar_1.0" (attach_disconnected) {
   capability,
+
+# No read paths specified
+# No write paths specified
+# No abstractions specified
 }
 `
 
@@ -800,11 +804,10 @@ func makeCustomAppArmorPolicy(c *C) string {
 	content := []byte(`# custom apparmor policy
 ###VAR###
 
-###PROFILEATTACH###
+###PROFILEATTACH### (attach_disconnected) {
+ stuff
 
-###READS###
-###WRITES###
-###ABSTRACTIONS###
+}
 `)
 	fn := filepath.Join(c.MkDir(), "custom-aa-policy")
 	err := ioutil.WriteFile(fn, content, 0644)
