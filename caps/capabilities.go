@@ -1,0 +1,104 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package caps
+
+import (
+	"errors"
+	"regexp"
+	"sort"
+)
+
+// Type defines the "kind" of a capability.
+// Each type defines the behavior allowed and expected from providers
+// and consumers of that capability, and also which information should
+// be exchanged by these parties.
+type Type string
+
+// Capability holds information about a capability that a snap may request
+// from a snappy system to do its job while running on it.
+type Capability struct {
+	// Name is a key that identifies the capability. It must be unique within its
+	// context, which may be either a snap or a snappy runtime.
+	Name string
+	// Label provides an optional title for the capability to help a human tell
+	// which physical device this capability is referring to. It might say
+	// "Front USB", or "Green Serial Port", for example.
+	Label string
+	// CapabilityType describes a group of capabilities sharing some common
+	// traits. In particular, this is where security bits are coming from.
+	Type Type
+}
+
+// Repository stores all known snappy capabilities and types
+type Repository struct {
+	// Map of capabilities, indexed by Capability.Name
+	caps map[string]*Capability
+}
+
+const (
+	// FileType is a basic capability vaguely expressing access to a specific
+	// file. This single capability  type is here just to help boostrap
+	// the capability concept before we get to load capability interfaces
+	// from YAML.
+	FileType Type = "file"
+)
+
+// Regular expression describing correct identifiers
+var validName = regexp.MustCompile("^[a-z]([a-z0-9-]+[a-z0-9])?$")
+
+// ValidateName checks if a string as a capability name
+func ValidateName(name string) bool {
+	return validName.MatchString(name)
+}
+
+// NewRepository creates an empty capability repository
+func NewRepository() *Repository {
+	return &Repository{make(map[string]*Capability)}
+}
+
+// Add a capability to the repository.
+// Capability names must be unique within the repository.
+// An error is returned if this constraint is violated.
+func (r *Repository) Add(cap *Capability) error {
+	if _, ok := r.caps[cap.Name]; ok {
+		return errors.New("capability with that name already exists")
+	}
+	r.caps[cap.Name] = cap
+	return nil
+}
+
+// Remove a capability with a given name.
+// Removing a capability that doesn't exist silently does nothing
+func (r *Repository) Remove(name string) {
+	delete(r.caps, name)
+}
+
+// Names returns all of the capability names in the repository.
+// Names are always returned in lexicographical order.
+func (r *Repository) Names() []string {
+	keys := make([]string, len(r.caps))
+	i := 0
+	for key := range r.caps {
+		keys[i] = key
+		i++
+	}
+	sort.Strings(keys)
+	return keys
+}
