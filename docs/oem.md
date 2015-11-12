@@ -64,8 +64,8 @@ set `skip-ifup-provisioning` to `true`.
 
 ### Branding
 
-Branding can be set in the form of a slogan and an image. `snappy` and it’s
-`webdm` counterpart will use this information to brand the system accordingly.
+Branding can be set in the form of a slogan. `snappy` and it’s `webdm`
+counterpart will use this information to brand the system accordingly.
 
 ### Hardware
 
@@ -139,7 +139,7 @@ The `package.yaml` is structured as:
 
 		branding: # optional
 		    name:  branding-name-string # optional
-		    logo: logo-path # optional
+		    subname:  branding-subname-string # optional
 
 		software: # optional
 		    built-in:
