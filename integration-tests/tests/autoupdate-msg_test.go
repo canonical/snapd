@@ -21,6 +21,7 @@
 package tests
 
 import (
+	"fmt"
 	"os/exec"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
@@ -40,18 +41,26 @@ type autoupdateMsgSuite struct {
 func (s *autoupdateMsgSuite) TestAutoUpdateMessageIsPrinted(c *check.C) {
 	cli.ExecCommand(c, "sudo", "systemctl", "start", "snappy-autopilot")
 
-	// do not pollute the other tests with the now installed hello-world
 	s.AddCleanup(func() {
-		common.RemoveSnap(c, "hello-world")
+		cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot")
+		// do not pollute the other tests with hello-world, in case it is installed
+		_, err := exec.Command("sudo", "snappy", "remove", "hello-world").CombinedOutput()
+		if err != nil {
+			fmt.Println("hello-world didn't get installed")
+		}
 	})
 
 	// FIXME: risk of race
 	// (i.e. systemctl start finishes before install runs)
 	snappyOutput, _ := exec.Command("sudo", "snappy", "install", "hello-world").CombinedOutput()
 
-	expected := "(?ms)" +
-		".*" +
-		"^Snappy is updating your system.*\n" +
-		".*"
-	c.Assert(string(snappyOutput), check.Matches, expected)
+	var expectedTxt string
+	if common.Release(c) == "15.04" {
+		expectedTxt = "another snappy is running, try again later"
+	} else {
+		expectedTxt = "Snappy is updating your system"
+	}
+	expectedPattern := "(?ms).*^" + expectedTxt + ".*\n.*"
+
+	c.Assert(string(snappyOutput), check.Matches, expectedPattern)
 }
