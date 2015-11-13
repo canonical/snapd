@@ -594,7 +594,7 @@ type licT struct {
 func (*licT) Error() string {
 	// licT isn't an error, strictly speaking, but can
 	// be converted into one for convenience
-	return "License agreement required."
+	return "license agreement required"
 }
 
 type packageInstruction struct {
@@ -614,12 +614,14 @@ func (inst *packageInstruction) Agreed(intro, license string) bool {
 	return true
 }
 
+var snappyInstall = snappy.Install
+
 func (inst *packageInstruction) install() interface{} {
 	flags := snappy.DoInstallGC
 	if inst.LeaveOld {
 		flags = 0
 	}
-	_, err := snappy.Install(inst.pkg, flags, inst)
+	_, err := snappyInstall(inst.pkg, flags, inst)
 	if err != nil {
 		// to be more rigiorous we could also check
 		// err, ok := err.(*snappy.ErrInstallFailed); ok && err.OrigErr == snappy.ErrLicenseNotAccepted
