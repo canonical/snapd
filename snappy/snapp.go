@@ -1616,7 +1616,7 @@ func (s *RemoteSnapPart) saveStoreManifest() error {
 	}
 
 	// don't worry about previous contents
-	return ioutil.WriteFile(RemoteManifestPath(s), content, 0644)
+	return helpers.AtomicWriteFile(RemoteManifestPath(s), content, 0644, 0)
 }
 
 // Install installs the snap
