@@ -457,6 +457,12 @@ func generateSnapSocketFile(service ServiceYaml, baseDir string, aaProfile strin
 		return "", err
 	}
 
+	// lp: #1515709, systemd will default to 0666 if no socket mode
+	// is specified
+	if service.SocketMode == "" {
+		service.SocketMode = "0660"
+	}
+
 	serviceFileName := filepath.Base(generateServiceFileName(m, service))
 
 	return systemd.New(dirs.GlobalRootDir, nil).GenSocketFile(

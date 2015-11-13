@@ -1673,3 +1673,22 @@ func (s *SnapTestSuite) TestWriteCompatManifestJSONNoFollow(c *C) {
 	c.Check(helpers.FileExists(manifestJSON), Equals, true)
 	c.Check(helpers.FileExists(symlinkTarget), Equals, false)
 }
+
+func (s *SnapTestSuite) TestGenerateSnapSocketFile(c *C) {
+	srv := ServiceYaml{}
+	baseDir := "/base/dir"
+	aaProfile := "pkg_app_1.0"
+	m := &packageYaml{}
+
+	// no socket mode means 0660
+	content, err := generateSnapSocketFile(srv, baseDir, aaProfile, m)
+	c.Assert(err, IsNil)
+	c.Assert(content, Matches, "(?ms).*SocketMode=0660")
+
+	// SocketMode itself is honored
+	srv.SocketMode = "0600"
+	content, err = generateSnapSocketFile(srv, baseDir, aaProfile, m)
+	c.Assert(err, IsNil)
+	c.Assert(content, Matches, "(?ms).*SocketMode=0600")
+
+}
