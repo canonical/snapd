@@ -74,32 +74,19 @@ func BootDir(bootSystem string) string {
 // if we are upgrading. In grub systems it is the partition pointed in the boot
 // config file. For uboot systems the boot config file does not change, so that
 // we take the other partition in that case
-func NextBootPartition() (partition string, err error) {
+func NextBootPartition() (string, error) {
 	m, err := Mode()
 	if err != nil {
-		return
+		return "", err
 	}
 	if m != "try" {
 		return "", errors.New("Snappy is not in try mode")
 	}
 	snappyab, err := confValue("snappy_ab")
-	if err != nil || snappyab == "" {
-		return
-	}
-	system, err := BootSystem()
 	if err != nil {
-		return
+		return "", err
 	}
-	if system == "grub" {
-		// in grub based systems, the boot config file is changed before
-		// the update has been applied
-		partition = snappyab
-	} else {
-		// in uboot based systems, the boot config file is not changed until
-		// the update has been applied
-		partition = OtherPartition(snappyab)
-	}
-	return
+	return snappyab, nil
 }
 
 // Mode returns the current bootloader mode, regular or try.
@@ -178,16 +165,7 @@ func CurrentPartition() (partition string, err error) {
 		return
 	}
 	if m == "try" {
-		var system string
-		system, err = BootSystem()
-		if err != nil {
-			return
-		}
-		if system == "grub" {
-			// in grub based systems, the boot config file is changed before
-			// the update has been applied
-			partition = OtherPartition(partition)
-		}
+		partition = OtherPartition(partition)
 	}
 	return
 }

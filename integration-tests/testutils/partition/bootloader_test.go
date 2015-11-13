@@ -130,25 +130,6 @@ func (s *bootloaderTestSuite) TestBootSystemForUBoot(c *check.C) {
 		check.Commentf("Expected uboot boot system not found, %s", bootSystem))
 }
 
-func (s *bootloaderTestSuite) TestNextBootPartitionReturnsBootSystemError(c *check.C) {
-	s.fakeConf = map[string]string{
-		"snappy_mode": "try",
-		"snappy_ab":   "dummy",
-	}
-
-	backBootSystem := BootSystem
-	defer func() { BootSystem = backBootSystem }()
-	expectedErr := fmt.Errorf("Error from BootSystem!")
-	BootSystem = func() (system string, err error) {
-		return "", expectedErr
-	}
-
-	_, err := NextBootPartition()
-
-	c.Assert(err, check.Equals, expectedErr,
-		check.Commentf("Expected error %v not found, %v", expectedErr, err))
-}
-
 func (s *bootloaderTestSuite) TestNextBootPartitionReturnsEmptyIfPatternsNotFound(c *check.C) {
 	s.fakeConf = map[string]string{"snappy_mode": "try"}
 
@@ -165,16 +146,10 @@ func (s *bootloaderTestSuite) TestNextBootPartitionReturnsEmptyIfPatternsNotFoun
 		check.Commentf("NextBootPartition %s, expected empty", partition))
 }
 
-func (s *bootloaderTestSuite) TestNextBootPartitionReturnsSamePartitionForGrub(c *check.C) {
+func (s *bootloaderTestSuite) TestNextBootPartitionAfterUpdateReturnsSamePartition(c *check.C) {
 	s.fakeConf = map[string]string{
 		"snappy_mode": "try",
 		"snappy_ab":   "a",
-	}
-
-	backBootSystem := BootSystem
-	defer func() { BootSystem = backBootSystem }()
-	BootSystem = func() (system string, err error) {
-		return "grub", nil
 	}
 
 	partition, err := NextBootPartition()
@@ -182,25 +157,6 @@ func (s *bootloaderTestSuite) TestNextBootPartitionReturnsSamePartitionForGrub(c
 	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
 	c.Assert(partition, check.Equals, "a",
 		check.Commentf("NextBootPartition %s, expected a", partition))
-}
-
-func (s *bootloaderTestSuite) TestNextBootPartitionReturnsOtherPartitionForUBoot(c *check.C) {
-	s.fakeConf = map[string]string{
-		"snappy_mode": "try",
-		"snappy_ab":   "a",
-	}
-
-	backBootSystem := BootSystem
-	defer func() { BootSystem = backBootSystem }()
-	BootSystem = func() (system string, err error) {
-		return "uboot", nil
-	}
-
-	partition, err := NextBootPartition()
-
-	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
-	c.Assert(partition, check.Equals, "b",
-		check.Commentf("NextBootPartition %s, expected b", partition))
 }
 
 func (s *bootloaderTestSuite) TestModeReturnsSnappyModeFromConf(c *check.C) {
@@ -226,34 +182,10 @@ func (s *bootloaderTestSuite) TestCurrentPartitionNotOnTryMode(c *check.C) {
 	c.Assert(part, check.Equals, "test_partition", check.Commentf("Wrong partition"))
 }
 
-func (s *bootloaderTestSuite) TestCurrentPartitionOnTryModeReturnsSamePartitionForUboot(c *check.C) {
+func (s *bootloaderTestSuite) TestCurrentPartitionOnTryModeReturnsOtherPartition(c *check.C) {
 	s.fakeConf = map[string]string{
 		"snappy_mode": "try",
 		"snappy_ab":   "a",
-	}
-
-	backBootSystem := BootSystem
-	defer func() { BootSystem = backBootSystem }()
-	BootSystem = func() (system string, err error) {
-		return "uboot", nil
-	}
-
-	mode, err := CurrentPartition()
-
-	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
-	c.Assert(mode, check.Equals, "a", check.Commentf("Wrong partition"))
-}
-
-func (s *bootloaderTestSuite) TestCurrentPartitionOnTryModeReturnsOtherPartitionForGrub(c *check.C) {
-	s.fakeConf = map[string]string{
-		"snappy_mode": "try",
-		"snappy_ab":   "a",
-	}
-
-	backBootSystem := BootSystem
-	defer func() { BootSystem = backBootSystem }()
-	BootSystem = func() (system string, err error) {
-		return "grub", nil
 	}
 
 	mode, err := CurrentPartition()
