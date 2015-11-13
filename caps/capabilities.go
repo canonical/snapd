@@ -53,7 +53,7 @@ type Repository struct {
 
 const (
 	// FileType is a basic capability vaguely expressing access to a specific
-	// file. This single capability  type is here just to help boostrap
+	// file. This single capability  type is here just to help bootstrap
 	// the capability concept before we get to load capability interfaces
 	// from YAML.
 	FileType Type = "file"
