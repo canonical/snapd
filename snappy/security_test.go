@@ -931,11 +931,7 @@ func (a *SecurityTestSuite) TestSecurityWarnsOnDeprecatedSeccomp(c *C) {
 	}
 }
 
-func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSideload(c *C) {
-	// we need to create some fake data
-	makeMockApparmorTemplate(c, "default", []byte(``))
-	makeMockSeccompTemplate(c, "default", []byte(``))
-
+func makeInstalledMockSnapSideloaded(c *C) string {
 	mockPackageYamlFn, err := makeInstalledMockSnap(dirs.GlobalRootDir, mockSecurityPackageYaml)
 	c.Assert(err, IsNil)
 	// pretend its sideloaded
@@ -945,8 +941,18 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSideload(c *C) {
 	err = os.Rename(oldPath, newPath)
 	mockPackageYamlFn = filepath.Join(basePath, "IsSideloadVer", "meta", "package.yaml")
 
+	return mockPackageYamlFn
+}
+
+func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSideload(c *C) {
+	// we need to create some fake data
+	makeMockApparmorTemplate(c, "default", []byte(``))
+	makeMockSeccompTemplate(c, "default", []byte(``))
+
+	mockPackageYamlFn := makeInstalledMockSnapSideloaded(c)
+
 	// the acutal thing that gets tested
-	err = GeneratePolicyFromFile(mockPackageYamlFn, false)
+	err := GeneratePolicyFromFile(mockPackageYamlFn, false)
 	c.Assert(err, IsNil)
 
 	// ensure the apparmor policy got loaded
@@ -959,6 +965,21 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSideload(c *C) {
 	// ... and seccomp
 	generatedProfileFn = filepath.Join(dirs.SnapSeccompDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testOrigin))
 	c.Assert(helpers.FileExists(generatedProfileFn), Equals, true)
+}
+
+func (a *SecurityTestSuite) TestSecurityCompareGeneratePolicyFromFileSideload(c *C) {
+	// we need to create some fake data
+	makeMockApparmorTemplate(c, "default", []byte(``))
+	makeMockSeccompTemplate(c, "default", []byte(``))
+
+	mockPackageYamlFn := makeInstalledMockSnapSideloaded(c)
+	// generate policy
+	err := GeneratePolicyFromFile(mockPackageYamlFn, false)
+	c.Assert(err, IsNil)
+
+	// nothing changed, ensure compare is happy even for sideloaded pkgs
+	err = CompareGeneratePolicyFromFile(mockPackageYamlFn)
+	c.Assert(err, IsNil)
 }
 
 func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryFramework(c *C) {

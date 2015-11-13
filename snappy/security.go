@@ -827,10 +827,11 @@ func compareSinglePolicyToCurrent(oldPolicyFn, newPolicy string) error {
 // CompareGeneratePolicyFromFile is used to simulate security policy
 // generation and returns if the policy would have changed
 func CompareGeneratePolicyFromFile(fn string) error {
-	m, err := parsePackageYamlFile(fn)
+	m, err := parsePackageYamlFileWithVersion(fn)
 	if err != nil {
 		return err
 	}
+
 	baseDir := filepath.Dir(filepath.Dir(fn))
 
 	for _, service := range m.ServiceYamls {
@@ -872,18 +873,25 @@ func CompareGeneratePolicyFromFile(fn string) error {
 	return nil
 }
 
+// FIXME: refactor so that we don't need this
+func parsePackageYamlFileWithVersion(fn string) (*packageYaml, error) {
+	m, err := parsePackageYamlFile(fn)
+
+	// FIXME: duplicated code from snapp.go:NewSnapPartFromYaml,
+	//        version is overriden by sideloaded versions
+	m.Version = filepath.Base(filepath.Dir(filepath.Dir(fn)))
+
+	return m, err
+}
+
 // GeneratePolicyFromFile is used to generate security policy on the system
 // from the specified manifest file name
 func GeneratePolicyFromFile(fn string, force bool) error {
 	// FIXME: force not used yet
-
-	m, err := parsePackageYamlFile(fn)
+	m, err := parsePackageYamlFileWithVersion(fn)
 	if err != nil {
 		return err
 	}
-	// FIXME: duplicated code from snapp.go:NewSnapPartFromYaml,
-	//        version is overriden by sideloaded versions
-	m.Version = filepath.Base(filepath.Dir(filepath.Dir(fn)))
 
 	if m.Type == "" || m.Type == pkg.TypeApp {
 		_, err = originFromYamlPath(fn)
