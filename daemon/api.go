@@ -585,11 +585,33 @@ func deleteOp(c *Command, r *http.Request) Response {
 	}
 }
 
+type licT struct {
+	Intro   string
+	License string
+	Agreed  bool
+}
+
+func (*licT) Error() string {
+	// licT isn't an error, strictly speaking, but can
+	// be converted into one for convenience
+	return "License agreement required."
+}
+
 type packageInstruction struct {
+	progress.NullProgress
 	Action   string `json:"action"`
 	LeaveOld bool   `json:"leave_old"`
+	License  *licT  `json:"license"`
 	pkg      string
-	prog     progress.Meter
+}
+
+func (inst *packageInstruction) Agreed(intro, license string) bool {
+	if inst.License == nil || !inst.License.Agreed || inst.License.Intro != intro || inst.License.License != license {
+		inst.License = &licT{Intro: intro, License: license, Agreed: false}
+		return false
+	}
+
+	return true
 }
 
 func (inst *packageInstruction) install() interface{} {
@@ -597,9 +619,14 @@ func (inst *packageInstruction) install() interface{} {
 	if inst.LeaveOld {
 		flags = 0
 	}
-	_, err := snappy.Install(inst.pkg, flags, inst.prog)
-
+	_, err := snappy.Install(inst.pkg, flags, inst)
 	if err != nil {
+		// to be more rigiorous we could also check
+		// err, ok := err.(*snappy.ErrInstallFailed); ok && err.OrigErr == snappy.ErrLicenseNotAccepted
+		// but that seems a bit overkill
+		if inst.License != nil {
+			return error(inst.License)
+		}
 		return err
 	}
 
@@ -614,7 +641,7 @@ func (inst *packageInstruction) update() interface{} {
 		flags = 0
 	}
 
-	_, err := snappy.Update(inst.pkg, flags, inst.prog)
+	_, err := snappy.Update(inst.pkg, flags, inst)
 	return err
 }
 
@@ -624,24 +651,24 @@ func (inst *packageInstruction) remove() interface{} {
 		flags = 0
 	}
 
-	return snappy.Remove(inst.pkg, flags, inst.prog)
+	return snappy.Remove(inst.pkg, flags, inst)
 }
 
 func (inst *packageInstruction) purge() interface{} {
-	return snappy.Purge(inst.pkg, 0, inst.prog)
+	return snappy.Purge(inst.pkg, 0, inst)
 }
 
 func (inst *packageInstruction) rollback() interface{} {
-	_, err := snappy.Rollback(inst.pkg, "", inst.prog)
+	_, err := snappy.Rollback(inst.pkg, "", inst)
 	return err
 }
 
 func (inst *packageInstruction) activate() interface{} {
-	return snappy.SetActive(inst.pkg, true, inst.prog)
+	return snappy.SetActive(inst.pkg, true, inst)
 }
 
 func (inst *packageInstruction) deactivate() interface{} {
-	return snappy.SetActive(inst.pkg, false, inst.prog)
+	return snappy.SetActive(inst.pkg, false, inst)
 }
 
 func (inst *packageInstruction) dispatch() func() interface{} {
@@ -686,7 +713,6 @@ func postPackage(c *Command, r *http.Request) Response {
 
 	vars := muxVars(r)
 	inst.pkg = vars["name"] + "." + vars["origin"]
-	inst.prog = &progress.NullProgress{}
 
 	f := pkgActionDispatch(&inst)
 	if f == nil {

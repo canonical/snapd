@@ -49,7 +49,7 @@ type Meter interface {
 	Write(p []byte) (n int, err error)
 
 	// ask the user whether they agree to the given license's text
-	Agreed(intro, licenseFile string) bool
+	Agreed(intro, license string) bool
 
 	// notify the user of miscelaneous events
 	Notify(string)
@@ -88,7 +88,7 @@ func (t *NullProgress) Spin(msg string) {
 }
 
 // Agreed does nothing
-func (t *NullProgress) Agreed(intro, licenseFile string) bool {
+func (t *NullProgress) Agreed(intro, license string) bool {
 	return false
 }
 
