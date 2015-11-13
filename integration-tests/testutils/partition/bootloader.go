@@ -46,7 +46,7 @@ var (
 	BootSystem = bootSystem
 
 	confValue = getConfValue
-	
+
 	configFiles = map[string]string{"uboot": ubootConfigFile, "grub": grubConfigFile}
 )
 

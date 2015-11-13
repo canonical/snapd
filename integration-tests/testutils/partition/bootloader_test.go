@@ -105,7 +105,7 @@ func (s *bootloaderTestSuite) TestBootSystemCallsFilepathGlob(c *check.C) {
 
 	p := bootBase + "/grub"
 	calls := s.filepathGlobCalls[p]
-	
+
 	c.Assert(calls, check.Equals, 1,
 		check.Commentf("Expected calls to filepath.Glob with path %s to be 1, %d found", p, calls))
 }
@@ -135,7 +135,7 @@ func (s *bootloaderTestSuite) TestNextBootPartitionReturnsBootSystemError(c *che
 		"snappy_mode": "try",
 		"snappy_ab":   "dummy",
 	}
-	
+
 	backBootSystem := BootSystem
 	defer func() { BootSystem = backBootSystem }()
 	expectedErr := fmt.Errorf("Error from BootSystem!")
@@ -151,7 +151,7 @@ func (s *bootloaderTestSuite) TestNextBootPartitionReturnsBootSystemError(c *che
 
 func (s *bootloaderTestSuite) TestNextBootPartitionReturnsEmptyIfPatternsNotFound(c *check.C) {
 	s.fakeConf = map[string]string{"snappy_mode": "try"}
-	
+
 	backBootSystem := BootSystem
 	defer func() { BootSystem = backBootSystem }()
 	BootSystem = func() (system string, err error) {
@@ -168,7 +168,7 @@ func (s *bootloaderTestSuite) TestNextBootPartitionReturnsEmptyIfPatternsNotFoun
 func (s *bootloaderTestSuite) TestNextBootPartitionReturnsSamePartitionForGrub(c *check.C) {
 	s.fakeConf = map[string]string{
 		"snappy_mode": "try",
-		"snappy_ab":    "a",
+		"snappy_ab":   "a",
 	}
 
 	backBootSystem := BootSystem
@@ -249,7 +249,7 @@ func (s *bootloaderTestSuite) TestCurrentPartitionOnTryModeReturnsOtherPartition
 		"snappy_mode": "try",
 		"snappy_ab":   "a",
 	}
-	
+
 	backBootSystem := BootSystem
 	defer func() { BootSystem = backBootSystem }()
 	BootSystem = func() (system string, err error) {

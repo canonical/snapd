@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	testPath        = "mypath"
+	testPath    = "mypath"
 	writableCmd = "sudo mount -o remount,rw " + testPath
 	readonlyCmd = "sudo mount -o remount,ro " + testPath
 	waitCmd     = lsofNotBeingWritten
