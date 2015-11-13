@@ -635,7 +635,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 	res := &securityPolicyResult{}
 	appID, err := getSecurityProfile(m, name, baseDir)
 	if err != nil {
-		logger.Noticef("Failed to obtain APP_ID for %s: %v", name, err)
+		logger.Noticef("Failed to obtain security profile for %s: %v", name, err)
 		return nil, err
 	}
 
@@ -649,9 +649,12 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 	sd.warnDeprecatedKeys()
 
 	// add the hw-override parts and merge with the other overrides
-	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
-	if err != nil {
-		return nil, err
+	origin := ""
+	if m.Type != pkg.TypeFramework && m.Type != pkg.TypeOem {
+		origin, err = originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	hwaccessOverrides, err := readHWAccessYamlFile(m.qualifiedName(origin))
@@ -738,7 +741,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 		err := service.generatePolicyForServiceBinary(m, service.Name, baseDir)
 		if err != nil {
 			foundError = err
-			logger.Noticef("Failed to obtain APP_ID for %s: %v", service.Name, err)
+			logger.Noticef("Failed to generate policy for service %s: %v", service.Name, err)
 			continue
 		}
 	}
@@ -747,7 +750,7 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 		err := binary.generatePolicyForServiceBinary(m, binary.Name, baseDir)
 		if err != nil {
 			foundError = err
-			logger.Noticef("Failed to obtain APP_ID for %s: %v", binary.Name, err)
+			logger.Noticef("Failed to generate policy for binary %s: %v", binary.Name, err)
 			continue
 		}
 	}

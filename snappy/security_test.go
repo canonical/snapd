@@ -960,3 +960,39 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSideload(c *C) {
 	generatedProfileFn = filepath.Join(dirs.SnapSeccompDir, fmt.Sprintf("hello-world.%s_binary1_IsSideloadVer", testOrigin))
 	c.Assert(helpers.FileExists(generatedProfileFn), Equals, true)
 }
+
+func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryFramework(c *C) {
+	makeMockSecurityEnv(c)
+
+	sd := &SecurityDefinitions{}
+	m := &packageYaml{
+		Name:    "framework-name",
+		Type:    "framework",
+		Version: "1.0",
+	}
+
+	// generate the apparmor profile
+	err := sd.generatePolicyForServiceBinary(m, "binary", "/apps/framework-anem/1.0")
+	c.Assert(err, IsNil)
+
+	// ensure its available with the right names
+	aaProfile := filepath.Join(dirs.SnapAppArmorDir, "framework-name_binary_1.0")
+	ensureFileContentMatches(c, aaProfile, ``)
+	scProfile := filepath.Join(dirs.SnapSeccompDir, "framework-name_binary_1.0")
+	ensureFileContentMatches(c, scProfile, `
+`)
+}
+
+func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryErrors(c *C) {
+	makeMockSecurityEnv(c)
+
+	sd := &SecurityDefinitions{}
+	m := &packageYaml{
+		Name:    "app",
+		Version: "1.0",
+	}
+
+	// ensure invalid packages generate an error
+	err := sd.generatePolicyForServiceBinary(m, "binary", "/apps/app-no-origin/1.0")
+	c.Assert(err, ErrorMatches, "invalid package on system")
+}
