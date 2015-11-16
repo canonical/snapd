@@ -97,8 +97,14 @@ func (r *Repository) Add(cap *Capability) error {
 
 // Remove removes the capability with the provided name.
 // Removing a capability that doesn't exist silently does nothing
-func (r *Repository) Remove(name string) {
-	delete(r.caps, name)
+func (r *Repository) Remove(name string) error {
+	_, ok := r.caps[name]
+	if ok {
+		delete(r.caps, name)
+		return nil
+	}
+	return NotFound{fmt.Errorf(
+		"can't remove capability %q, no such capability", name)}
 }
 
 // Names returns all capability names in the repository in lexicographical order.

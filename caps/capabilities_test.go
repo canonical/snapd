@@ -76,14 +76,20 @@ func (s *CapabilitySuite) TestAddInvalidName(c *C) {
 	c.Assert(repo.Names(), Not(testutil.Contains), cap1.Name)
 }
 
-func (s *CapabilitySuite) TestRemove(c *C) {
+func (s *CapabilitySuite) TestRemoveGood(c *C) {
 	repo := NewRepository()
 	cap := &Capability{"name", "label", FileType}
-	repo.Remove(cap.Name) // This does nothing, silently
-	repo.Add(cap)         // This is tested elsewhere
-	repo.Remove(cap.Name)
+	repo.Add(cap) // This is tested elsewhere
+	err := repo.Remove(cap.Name)
+	c.Assert(err, IsNil)
 	c.Assert(repo.Names(), HasLen, 0)
 	c.Assert(repo.Names(), Not(testutil.Contains), cap.Name)
+}
+
+func (s *CapabilitySuite) TestRemoveNoSuchCapability(c *C) {
+	repo := NewRepository()
+	err := repo.Remove("name")
+	c.Assert(err, ErrorMatches, `can't remove capability "name", no such capability`)
 }
 
 func (s *CapabilitySuite) TestNames(c *C) {
