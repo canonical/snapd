@@ -36,10 +36,12 @@ type CapabilitySuite struct{}
 var _ = Suite(&CapabilitySuite{})
 
 func (s *CapabilitySuite) TestValidateName(c *C) {
-	c.Assert(ValidateName("name with space"), Equals, false)
-	c.Assert(ValidateName("name-with-trailing-dash-"), Equals, false)
-	c.Assert(ValidateName("name-with-3-dashes"), Equals, true)
-	c.Assert(ValidateName("name"), Equals, true)
+	c.Assert(ValidateName("name with space"), ErrorMatches,
+		`"name with space" is not a valid snap name`)
+	c.Assert(ValidateName("name-with-trailing-dash-"), ErrorMatches,
+		`"name-with-trailing-dash-" is not a valid snap name`)
+	c.Assert(ValidateName("name-with-3-dashes"), IsNil)
+	c.Assert(ValidateName("name"), IsNil)
 }
 
 func (s *CapabilitySuite) TestAdd(c *C) {

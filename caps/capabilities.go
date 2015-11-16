@@ -21,6 +21,7 @@ package caps
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"sort"
 )
@@ -64,8 +65,12 @@ const (
 var validName = regexp.MustCompile("^[a-z]([a-z0-9-]+[a-z0-9])?$")
 
 // ValidateName checks if a string as a capability name
-func ValidateName(name string) bool {
-	return validName.MatchString(name)
+func ValidateName(name string) error {
+	valid := validName.MatchString(name)
+	if !valid {
+		return fmt.Errorf("%q is not a valid snap name", name)
+	}
+	return nil
 }
 
 // NewRepository creates an empty capability repository
