@@ -80,6 +80,9 @@ func NewRepository() *Repository {
 // Capability names must be unique within the repository.
 // An error is returned if this constraint is violated.
 func (r *Repository) Add(cap *Capability) error {
+	if err := ValidateName(cap.Name); err != nil {
+		return err
+	}
 	if _, ok := r.caps[cap.Name]; ok {
 		return fmt.Errorf("cannot add capability %q: name already exists", cap.Name)
 	}
