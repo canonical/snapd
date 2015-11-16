@@ -57,7 +57,7 @@ type Assertion interface {
 	// Signature returns the signed content and its signature already split and decoded
 	Signature() (content []byte, sigtype string, signature []byte)
 
-    // xxx Signature() (content, signature)  (no base64 decoding)
+	// xxx Signature() (content, signature)  (no base64 decoding)
 }
 
 // AssertionBase is the concrete base to hold representation data for actual assertions.
