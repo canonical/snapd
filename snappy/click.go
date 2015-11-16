@@ -518,7 +518,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		}
 		serviceFilename := generateServiceFileName(m, service)
 		os.MkdirAll(filepath.Dir(serviceFilename), 0755)
-		if err := ioutil.WriteFile(serviceFilename, []byte(content), 0644); err != nil {
+		if err := helpers.AtomicWriteFile(serviceFilename, []byte(content), 0644, 0); err != nil {
 			return err
 		}
 		// Generate systemd socket file if needed
@@ -529,7 +529,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 			}
 			socketFilename := generateSocketFileName(m, service)
 			os.MkdirAll(filepath.Dir(socketFilename), 0755)
-			if err := ioutil.WriteFile(socketFilename, []byte(content), 0644); err != nil {
+			if err := helpers.AtomicWriteFile(socketFilename, []byte(content), 0644, 0); err != nil {
 				return err
 			}
 		}
@@ -542,7 +542,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 			}
 			policyFilename := generateBusPolicyFileName(m, service)
 			os.MkdirAll(filepath.Dir(policyFilename), 0755)
-			if err := ioutil.WriteFile(policyFilename, []byte(content), 0644); err != nil {
+			if err := helpers.AtomicWriteFile(policyFilename, []byte(content), 0644, 0); err != nil {
 				return err
 			}
 		}
@@ -650,7 +650,7 @@ func (m *packageYaml) addPackageBinaries(baseDir string) error {
 			return err
 		}
 
-		if err := ioutil.WriteFile(generateBinaryName(m, binary), []byte(content), 0755); err != nil {
+		if err := helpers.AtomicWriteFile(generateBinaryName(m, binary), []byte(content), 0755, 0); err != nil {
 			return err
 		}
 	}
@@ -677,7 +677,7 @@ func (m *packageYaml) addOneSecurityPolicy(name string, sd SecurityDefinitions, 
 	}
 
 	fn := filepath.Join(dirs.SnapSeccompDir, profileName)
-	if err := ioutil.WriteFile(fn, content, 0644); err != nil {
+	if err := helpers.AtomicWriteFile(fn, content, 0644, 0); err != nil {
 		return err
 	}
 
