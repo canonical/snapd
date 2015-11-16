@@ -21,7 +21,6 @@ package asserts
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -54,10 +53,8 @@ type Assertion interface {
 	// the body of this assertion
 	Body() []byte
 
-	// Signature returns the signed content and its signature already split and decoded
-	Signature() (content []byte, sigtype string, signature []byte)
-
-	// xxx Signature() (content, signature)  (no base64 decoding)
+	// Signature returns the signed content and its unprocessed signature
+	Signature() (content []byte, signature []byte)
 }
 
 // AssertionBase is the concrete base to hold representation data for actual assertions.
@@ -68,10 +65,8 @@ type AssertionBase struct {
 	revision int
 	// preserved content
 	content []byte
-	// signature format/type
-	sigtype string
-	// decoded signature
-	sigpacket []byte
+	// unprocessed signature
+	signature []byte
 }
 
 // Type returns the assertion type.
@@ -99,9 +94,9 @@ func (ab *AssertionBase) Body() []byte {
 	return ab.body
 }
 
-// Signature returns the signed content and its signature already split and decoded.
-func (ab *AssertionBase) Signature() (content []byte, sigtype string, signature []byte) {
-	return ab.content, ab.sigtype, ab.sigpacket
+// Signature returns the signed content and its unprocessed signature.
+func (ab *AssertionBase) Signature() (content, signature []byte) {
+	return ab.content, ab.signature
 }
 
 // sanity check
@@ -194,27 +189,10 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 		return nil, fmt.Errorf("empty assertion signature")
 	}
 
-	sigtypeSigpacketSplit := bytes.IndexByte(signature, ' ')
-	if sigtypeSigpacketSplit == -1 {
-		return nil, fmt.Errorf("could not split the assertion signature into type and base64 packet")
-	}
-
-	sigtype := string(signature[:sigtypeSigpacketSplit])
-	sigpacket := signature[sigtypeSigpacketSplit+1:]
-	if len(sigpacket) == 0 {
-		return nil, fmt.Errorf("missing assertion signature packet")
-	}
-	decodedSigpacket := make([]byte, base64.StdEncoding.DecodedLen(len(sigpacket)))
-	n, err := base64.StdEncoding.Decode(decodedSigpacket[:], sigpacket)
-	if err != nil {
-		return nil, fmt.Errorf("could not base64 decode the assertion signature packet")
-	}
-	sigpacket = decodedSigpacket[:n]
-
-	return buildAssertion(headers, body, content, sigtype, sigpacket)
+	return buildAssertion(headers, body, content, signature)
 }
 
-func buildAssertion(headers map[string]string, body, content []byte, sigtype string, sigpacket []byte) (Assertion, error) {
+func buildAssertion(headers map[string]string, body, content, signature []byte) (Assertion, error) {
 
 	checkInteger := func(name string) (int, error) {
 		valueStr, ok := headers[name]
@@ -251,11 +229,6 @@ func buildAssertion(headers map[string]string, body, content []byte, sigtype str
 		return nil, err
 	}
 
-	// for now only openpgp is valid/expected
-	if sigtype != "openpgp" {
-		return nil, fmt.Errorf("unsupported assertion signature type: %v", sigtype)
-	}
-
 	assertType, err := checkMandatory("type")
 	if err != nil {
 		return nil, err
@@ -273,7 +246,13 @@ func buildAssertion(headers map[string]string, body, content []byte, sigtype str
 		return nil, fmt.Errorf("assertion revision should be positive: %v", revision)
 	}
 
-	return reg.builder(AssertionBase{headers, body, revision, content, sigtype, sigpacket}), nil
+	return reg.builder(AssertionBase{
+		headers:   headers,
+		body:      body,
+		revision:  revision,
+		content:   content,
+		signature: signature,
+	}), nil
 }
 
 // registry for assertion types describing how to build them etc...

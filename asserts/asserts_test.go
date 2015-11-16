@@ -98,9 +98,8 @@ func (as *AssertsSuite) TestDecodeGetSignatureBits(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.AssertionType("test-only"))
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
-	cont, sigtype, signature := a.Signature()
-	c.Check(sigtype, Equals, "openpgp")
-	c.Check(signature, DeepEquals, []byte("sig"))
+	cont, signature := a.Signature()
+	c.Check(signature, DeepEquals, []byte("openpgp c2ln"))
 	c.Check(cont, DeepEquals, []byte(content))
 }
 
@@ -146,10 +145,6 @@ func (as *AssertsSuite) TestDecodeInvalid(c *C) {
 		{"authority-id: auth-id\n", "", "assertion authority-id header is mandatory"},
 		{"authority-id: auth-id\n", "authority-id: \n", "assertion authority-id should not be empty"},
 		{"openpgp c2ln", "", "empty assertion signature"},
-		{"openpgp c2ln", "zzz", "could not split the assertion signature into type and base64 packet"},
-		{"openpgp c2ln", "openpgp _", "could not base64 decode the assertion signature packet"},
-		{"openpgp c2ln", "openpgp ", "missing assertion signature packet"},
-		{"openpgp c2ln", "mystery-format c2ln", "unsupported assertion signature type: mystery-format"},
 		{"type: test-only\n", "", "assertion type header is mandatory"},
 		{"type: test-only\n", "type: unknown\n", "cannot build assertion of unknown type: unknown"},
 		{"revision: 0\n", "", "assertion revision header is mandatory"},
