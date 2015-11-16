@@ -162,6 +162,8 @@ func AddHWAccess(snapname, device string) error {
 		return ErrInvalidHWDevice
 	}
 
+	// LP: #1499087 - ensure that the snapname is not mixed up with
+	//                an appid, the "_" is reserved for that
 	if strings.Contains(snapname, "_") {
 		return ErrPackageNotFound
 	}

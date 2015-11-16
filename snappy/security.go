@@ -156,7 +156,7 @@ func (sp *securityPolicyType) findTemplate(templateName string) (string, error) 
 	for _, fn := range fns {
 		content, err := ioutil.ReadFile(fn)
 		// it is ok if the file does not exists
-		if err != nil && os.IsNotExist(err) {
+		if os.IsNotExist(err) {
 			continue
 		}
 		// but any other error is a failure
@@ -202,7 +202,7 @@ func (sp *securityPolicyType) findSingleCap(capName, systemPolicyDir, fwPolicyDi
 		fn := filepath.Join(dir, capName)
 		newCaps, err := readSingleCapFile(fn)
 		// its ok if the file does not exist
-		if err != nil && os.IsNotExist(err) {
+		if os.IsNotExist(err) {
 			continue
 		}
 		// but any other error is not ok

@@ -160,7 +160,8 @@ func addMockDefaultSeccompProfile(appid string) error {
 		return err
 	}
 
-	const securityProfile = `open
+	const securityProfile = `
+open
 write
 connect
 `
