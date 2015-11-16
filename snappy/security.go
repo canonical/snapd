@@ -21,6 +21,7 @@ package snappy
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -295,17 +296,17 @@ const allowed = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
 
 // Generate a string suitable for use in a DBus object
 func dbusPath(s string) string {
-	dbusStr := ""
+	buf := bytes.NewBuffer(make([]byte, 0, len(s)))
 
 	for _, c := range []byte(s) {
 		if strings.IndexByte(allowed, c) >= 0 {
-			dbusStr += fmt.Sprintf("%c", c)
+			fmt.Fprintf(buf, "%c", c)
 		} else {
-			dbusStr += fmt.Sprintf("_%02x", c)
+			fmt.Fprintf(buf, "_%02x", c)
 		}
 	}
 
-	return dbusStr
+	return buf.String()
 }
 
 // Calculate whitespace prefix based on occurrence of s in t
