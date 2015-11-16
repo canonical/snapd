@@ -94,8 +94,7 @@ func (r *Repository) Remove(name string) {
 	delete(r.caps, name)
 }
 
-// Names returns all of the capability names in the repository.
-// Names are always returned in lexicographical order.
+// Names returns all capability names in the repository in lexicographical order.
 func (r *Repository) Names() []string {
 	keys := make([]string, len(r.caps))
 	i := 0
