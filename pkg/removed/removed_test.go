@@ -60,7 +60,6 @@ version: 1
 type: app
 description: |-
   bla bla bla
-publisher: example.com
 iconurl: http://i.stack.imgur.com/i8q1U.jpg
 downloadsize: 5554242
 `
@@ -77,7 +76,6 @@ func (s *removedSuite) TestNoStore(c *check.C) {
 	c.Check(part.Origin(), check.Equals, "bar")
 	c.Check(part.Version(), check.Equals, "1")
 	c.Check(part.Description(), check.Equals, "")
-	c.Check(part.Vendor(), check.Equals, "")
 	c.Check(part.Hash(), check.Equals, "")
 	c.Check(part.Icon(), check.Equals, "")
 	c.Check(part.DownloadSize(), check.Equals, int64(-1))
@@ -115,7 +113,6 @@ func (s *removedSuite) TestWithStore(c *check.C) {
 	c.Check(part.Origin(), check.Equals, "bar")
 	c.Check(part.Version(), check.Equals, "1")
 	c.Check(part.Description(), check.Equals, "bla bla bla")
-	c.Check(part.Vendor(), check.Equals, "example.com")
 	c.Check(part.Hash(), check.Equals, "")
 	c.Check(part.Icon(), check.Equals, "http://i.stack.imgur.com/i8q1U.jpg")
 	c.Check(part.DownloadSize(), check.Equals, int64(5554242))

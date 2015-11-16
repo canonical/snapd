@@ -18,7 +18,6 @@ for a snap package. The following keys are mandatory:
 
 * `name`: the name of the snap (only `[a-z0-9][a-z0-9+-]`)
 * `version`: the version of the snap (only `[a-zA-Z0-9.+~-]` are allowed)
-* `vendor`: the vendor of the snap
 
 The following keys are optional:
 

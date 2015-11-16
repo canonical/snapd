@@ -49,7 +49,6 @@ var _ = Suite(&SnapfsTestSuite{})
 
 const packageHello = `name: hello-app
 version: 1.10
-vendor: Somebody
 icon: meta/hello.svg
 `
 

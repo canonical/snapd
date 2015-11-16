@@ -34,7 +34,6 @@ import (
 func (s *SnapTestSuite) TestActiveSnapByType(c *C) {
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app1
 version: 1.10
-vendor: Michael Vogt <mvo@ubuntu.com>
 icon: meta/hello.svg`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
@@ -42,7 +41,6 @@ icon: meta/hello.svg`)
 	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: framework1
 version: 1.0
 type: framework
-vendor: Michael Vogt <mvo@ubuntu.com>
 icon: meta/hello.svg`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
@@ -60,15 +58,13 @@ icon: meta/hello.svg`)
 
 func (s *SnapTestSuite) TestActiveSnapIterByType(c *C) {
 	yamlPath, err := makeInstalledMockSnap(s.tempdir, `name: app
-version: 1.10
-vendor: example.com`)
+version: 1.10`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
 	yamlPath, err = makeInstalledMockSnap(s.tempdir, `name: fwk
 version: 1.0
-type: framework
-vendor: example.com`)
+type: framework`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
@@ -220,7 +216,7 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
-	_, err := makeInstalledMockSnap(s.tempdir, "name: fmk\ntype: framework\nversion: 1\nvendor: foo")
+	_, err := makeInstalledMockSnap(s.tempdir, "name: fmk\ntype: framework\nversion: 1")
 	repo := NewLocalSnapRepository(dirs.SnapAppsDir)
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
