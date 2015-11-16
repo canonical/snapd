@@ -93,3 +93,8 @@ func (s *CapabilitySuite) TestNames(c *C) {
 	repo.Add(&Capability{"c", "label-c", FileType})
 	c.Assert(repo.Names(), DeepEquals, []string{"a", "b", "c"})
 }
+
+func (s *CapabilitySuite) TestString(c *C) {
+	cap := &Capability{"name", "label", FileType}
+	c.Assert(cap.String(), Equals, "name")
+}

@@ -112,3 +112,8 @@ func (r *Repository) Names() []string {
 	sort.Strings(keys)
 	return keys
 }
+
+// String representation of a capability
+func (c Capability) String() string {
+	return c.Name
+}
