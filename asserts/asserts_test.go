@@ -120,7 +120,7 @@ func (as *AssertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 	}{
 		{string([]byte{255, '\n', '\n'}), "header is not utf8"},
 		{"foo: a\nbar\n\n", "header entry missing name value ': ' separation: \"bar\""},
-		{"TYPE: foo\n\n", "invalid header name: TYPE"},
+		{"TYPE: foo\n\n", `invalid header name: "TYPE"`},
 	} {
 		_, err := asserts.Decode([]byte(scen.encoded))
 		c.Check(err, ErrorMatches, "parsing assertion headers: "+scen.expectedErr)
