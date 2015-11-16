@@ -21,7 +21,6 @@ package asserts
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -39,11 +38,6 @@ const (
 // ...
 )
 
-// Assertion signature format types
-const (
-	OpenPGPSig = "openpgp"
-)
-
 // Assertion represents an assertion through its general elements.
 type Assertion interface {
 	// the type of this assertion
@@ -59,10 +53,7 @@ type Assertion interface {
 	// the body of this assertion
 	Body() []byte
 
-	// SignatureType returns the type of signature used
-	SignatureType() string
-
-	// Signature returns the signed content and its signature already decoded
+	// Signature returns the signed content and its unprocessed signature
 	Signature() (content, signature []byte)
 }
 
@@ -74,7 +65,7 @@ type AssertionBase struct {
 	revision int
 	// preserved content
 	content []byte
-	// decoded signature
+	// unprocessed signature
 	signature []byte
 }
 
@@ -103,12 +94,7 @@ func (ab *AssertionBase) Body() []byte {
 	return ab.body
 }
 
-// SignatureType returns the signature-type of the assertion.
-func (ab *AssertionBase) SignatureType() string {
-	return ab.headers["signature-type"]
-}
-
-// Signature returns the signed content and its signature already decoded.
+// Signature returns the signed content and its unprocessed signature.
 func (ab *AssertionBase) Signature() (content, signature []byte) {
 	return ab.content, ab.signature
 }
@@ -135,7 +121,7 @@ func parseHeaders(head []byte) (map[string]string, error) {
 		}
 		name := entry[:nameValueSplit]
 		if !headerNameSanity.MatchString(name) {
-			return nil, fmt.Errorf("invalid header name: %v", name)
+			return nil, fmt.Errorf("invalid header name: %q", name)
 		}
 		headers[name] = entry[nameValueSplit+2:]
 	}
@@ -150,31 +136,35 @@ func parseHeaders(head []byte) (map[string]string, error) {
 //
 // where:
 //
-//    SIGNATURE is the base64 signature,
-//    BODY can be arbitrary,
 //    HEADER is a set of header lines separated by "\n"
+//    BODY can be arbitrary,
+//    SIGNATURE is the signature
 //
-// An header line looks like:
+// A header line looks like:
 //
 //   NAME ": " VALUE
-//
-// for sanity NAME is expected to match headerNameSanity regexp.
 //
 // The following headers are mandatory:
 //
 //   type
 //   authority-id (the signer id)
+//
+// The following headers expect integer values and if omitted
+// otherwise are assumed to be 0:
+//
 //   revision (a positive int)
-//   signature-type (for now expected to be "openpgp")
-//   body-size (int expected to be equal to the length of BODY)
+//   body-length (expected to be equal to the length of BODY)
 //
 func Decode(serializedAssertion []byte) (Assertion, error) {
-	contentSignatureSplit := bytes.LastIndex(serializedAssertion, nlnl)
+	// copy to get an independent backstorage that can't be mutated later
+	assertionSnapshot := make([]byte, len(serializedAssertion))
+	copy(assertionSnapshot, serializedAssertion)
+	contentSignatureSplit := bytes.LastIndex(assertionSnapshot, nlnl)
 	if contentSignatureSplit == -1 {
 		return nil, fmt.Errorf("assertion content/signature separator not found")
 	}
-	content := serializedAssertion[:contentSignatureSplit]
-	signature := serializedAssertion[contentSignatureSplit+2:]
+	content := assertionSnapshot[:contentSignatureSplit]
+	signature := assertionSnapshot[contentSignatureSplit+2:]
 
 	headersBodySplit := bytes.Index(content, nlnl)
 	var body, head []byte
@@ -182,6 +172,9 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 		head = content
 	} else {
 		body = content[headersBodySplit+2:]
+		if len(body) == 0 {
+			body = nil
+		}
 		head = content[:headersBodySplit]
 	}
 
@@ -190,65 +183,51 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 		return nil, fmt.Errorf("parsing assertion headers: %v", err)
 	}
 
+	if len(signature) == 0 {
+		return nil, fmt.Errorf("empty assertion signature")
+	}
+
 	return buildAssertion(headers, body, content, signature)
 }
 
+func checkMandatory(headers map[string]string, name string) (string, error) {
+	value, ok := headers[name]
+	if !ok {
+		return "", fmt.Errorf("assertion %v header is mandatory", name)
+	}
+	if len(value) == 0 {
+		return "", fmt.Errorf("assertion %v should not be empty", name)
+	}
+	return value, nil
+}
+
+func checkInteger(headers map[string]string, name string) (int, error) {
+	valueStr, ok := headers[name]
+	if !ok {
+		// default to 0 if missing
+		return 0, nil
+	}
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return -1, fmt.Errorf("assertion %v is not an integer: %v", name, valueStr)
+	}
+	return value, nil
+}
+
 func buildAssertion(headers map[string]string, body, content, signature []byte) (Assertion, error) {
-
-	checkInteger := func(name string) (int, error) {
-		valueStr, ok := headers[name]
-		if !ok {
-			return -1, fmt.Errorf("assertion %v header is mandatory", name)
-		}
-		value, err := strconv.Atoi(valueStr)
-		if err != nil {
-			return -1, fmt.Errorf("assertion %v is not an integer: %v", name, valueStr)
-		}
-		return value, nil
-	}
-
-	// QUESTION: the spec used 'size' but that seems to vague, I would prefer this
-	size, err := checkInteger("body-size")
+	length, err := checkInteger(headers, "body-length")
 	if err != nil {
 		return nil, err
 	}
-	if size != len(body) {
-		return nil, fmt.Errorf("assertion body length and declared body-size don't match: %v != %v", len(body), size)
+	if length != len(body) {
+		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
 
-	checkMandatory := func(name string) (string, error) {
-		value, ok := headers[name]
-		if !ok {
-			return "", fmt.Errorf("assertion %v header is mandatory", name)
-		}
-		if len(value) == 0 {
-			return "", fmt.Errorf("assertion %v should not be empty", name)
-		}
-		return value, nil
-	}
-
-	if _, err := checkMandatory("authority-id"); err != nil {
+	if _, err := checkMandatory(headers, "authority-id"); err != nil {
 		return nil, err
 	}
-	// XXX: the format spec uses signature-alg but openpgp is not
-	// quite that, better a generic name like signature-type?
-	signType, err := checkMandatory("signature-type")
-	if err != nil {
-		return nil, err
-	}
-	// for now only openpgp is valid/expected
-	if signType != OpenPGPSig {
-		return nil, fmt.Errorf("unsupported assertion signature-type: %v", signType)
-	}
 
-	decodedSignature := make([]byte, base64.StdEncoding.DecodedLen(len(signature)))
-	n, err := base64.StdEncoding.Decode(decodedSignature[:], signature)
-	if err != nil {
-		return nil, fmt.Errorf("could not base64 decode the assertion signature")
-	}
-	signature = decodedSignature[:n]
-
-	assertType, err := checkMandatory("type")
+	assertType, err := checkMandatory(headers, "type")
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +236,7 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 		return nil, fmt.Errorf("cannot build assertion of unknown type: %v", assertType)
 	}
 
-	revision, err := checkInteger("revision")
+	revision, err := checkInteger(headers, "revision")
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +244,13 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 		return nil, fmt.Errorf("assertion revision should be positive: %v", revision)
 	}
 
-	return reg.builder(AssertionBase{headers, body, revision, content, signature}), nil
+	return reg.builder(AssertionBase{
+		headers:   headers,
+		body:      body,
+		revision:  revision,
+		content:   content,
+		signature: signature,
+	}), nil
 }
 
 // registry for assertion types describing how to build them etc...
