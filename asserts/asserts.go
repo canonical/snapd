@@ -138,11 +138,7 @@ func parseHeaders(head []byte) (map[string]string, error) {
 //
 //    HEADER is a set of header lines separated by "\n"
 //    BODY can be arbitrary,
-//    SIGNATURE is composed like:
-//      SIG-TYPE " " BASE64-SIG-PACKET
-//
-//    SIG-TYPE is the type/format expected for the base64
-//    encoded signature value, for now only "openpgp" is supported
+//    SIGNATURE is the signature
 //
 // A header line looks like:
 //
@@ -153,9 +149,11 @@ func parseHeaders(head []byte) (map[string]string, error) {
 //   type
 //   authority-id (the signer id)
 //
-//   xxx make these omittable defaulting to 0
+// The following headers expect integer values and if omitted
+// otherwise are assumed to be 0:
+//
 //   revision (a positive int)
-//   body-length (int expected to be equal to the length of BODY)
+//   body-length (expected to be equal to the length of BODY)
 //
 func Decode(serializedAssertion []byte) (Assertion, error) {
 	// copy to get an independent backstorage that can't be mutated later
@@ -192,21 +190,32 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 	return buildAssertion(headers, body, content, signature)
 }
 
-func buildAssertion(headers map[string]string, body, content, signature []byte) (Assertion, error) {
-
-	checkInteger := func(name string) (int, error) {
-		valueStr, ok := headers[name]
-		if !ok {
-			return -1, fmt.Errorf("assertion %v header is mandatory", name)
-		}
-		value, err := strconv.Atoi(valueStr)
-		if err != nil {
-			return -1, fmt.Errorf("assertion %v is not an integer: %v", name, valueStr)
-		}
-		return value, nil
+func checkMandatory(headers map[string]string, name string) (string, error) {
+	value, ok := headers[name]
+	if !ok {
+		return "", fmt.Errorf("assertion %v header is mandatory", name)
 	}
+	if len(value) == 0 {
+		return "", fmt.Errorf("assertion %v should not be empty", name)
+	}
+	return value, nil
+}
 
-	length, err := checkInteger("body-length")
+func checkInteger(headers map[string]string, name string) (int, error) {
+	valueStr, ok := headers[name]
+	if !ok {
+		// default to 0 if missing
+		return 0, nil
+	}
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return -1, fmt.Errorf("assertion %v is not an integer: %v", name, valueStr)
+	}
+	return value, nil
+}
+
+func buildAssertion(headers map[string]string, body, content, signature []byte) (Assertion, error) {
+	length, err := checkInteger(headers, "body-length")
 	if err != nil {
 		return nil, err
 	}
@@ -214,22 +223,11 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
 
-	checkMandatory := func(name string) (string, error) {
-		value, ok := headers[name]
-		if !ok {
-			return "", fmt.Errorf("assertion %v header is mandatory", name)
-		}
-		if len(value) == 0 {
-			return "", fmt.Errorf("assertion %v should not be empty", name)
-		}
-		return value, nil
-	}
-
-	if _, err := checkMandatory("authority-id"); err != nil {
+	if _, err := checkMandatory(headers, "authority-id"); err != nil {
 		return nil, err
 	}
 
-	assertType, err := checkMandatory("type")
+	assertType, err := checkMandatory(headers, "type")
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +236,7 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 		return nil, fmt.Errorf("cannot build assertion of unknown type: %v", assertType)
 	}
 
-	revision, err := checkInteger("revision")
+	revision, err := checkInteger(headers, "revision")
 	if err != nil {
 		return nil, err
 	}

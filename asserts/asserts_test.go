@@ -31,11 +31,9 @@ type AssertsSuite struct{}
 
 var _ = Suite(&AssertsSuite{})
 
-func (as *AssertsSuite) TestDecodeEmptyBody(c *C) {
+func (as *AssertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	encoded := "type: test-only\n" +
-		"revision: 0\n" +
-		"authority-id: auth-id1\n" +
-		"body-length: 0" +
+		"authority-id: auth-id1" +
 		"\n\n" +
 		"openpgp c2ln"
 	a, err := asserts.Decode([]byte(encoded))
@@ -139,7 +137,6 @@ func (as *AssertsSuite) TestDecodeInvalid(c *C) {
 	for _, scen := range []struct {
 		original, invalid, expectedErr string
 	}{
-		{"body-length: 5", "", "assertion body-length header is mandatory"},
 		{"body-length: 5", "body-length: z", "assertion body-length is not an integer: z"},
 		{"body-length: 5", "body-length: 3", "assertion body length and declared body-length don't match: 5 != 3"},
 		{"authority-id: auth-id\n", "", "assertion authority-id header is mandatory"},
@@ -147,7 +144,6 @@ func (as *AssertsSuite) TestDecodeInvalid(c *C) {
 		{"openpgp c2ln", "", "empty assertion signature"},
 		{"type: test-only\n", "", "assertion type header is mandatory"},
 		{"type: test-only\n", "type: unknown\n", "cannot build assertion of unknown type: unknown"},
-		{"revision: 0\n", "", "assertion revision header is mandatory"},
 		{"revision: 0\n", "revision: Z\n", "assertion revision is not an integer: Z"},
 		{"revision: 0\n", "revision: -10\n", "assertion revision should be positive: -10"},
 	} {
