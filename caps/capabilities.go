@@ -51,6 +51,11 @@ type Repository struct {
 	caps map[string]*Capability
 }
 
+// NotFound means that a capability was not found
+type NotFound struct {
+	error
+}
+
 const (
 	// FileType is a basic capability vaguely expressing access to a specific
 	// file. This single capability  type is here just to help bootstrap
