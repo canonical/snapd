@@ -59,7 +59,7 @@ func (s *lightweightSuite) SetUpTest(c *check.C) {
 
 	s.MkRemoved(c, "fmk2", "4.2.0ubuntu1")
 
-	s.MkInstalled(c, pkg.TypeOem, dirs.SnapOemDir, "oem", "", "3", false)
+	s.MkInstalled(c, pkg.TypeOem, dirs.SnapOemDir, "an-oem", "", "3", false)
 
 	newCoreRepo = func() repo {
 		// you can't ever have a removed systemimagepart, but for testing it'll do
@@ -266,16 +266,16 @@ func (s *lightweightSuite) TestMapRemovedAppNoPart(c *check.C) {
 }
 
 func (s *lightweightSuite) TestMapInactiveOemNoPart(c *check.C) {
-	bag := PartBagByName("oem", "canonical")
+	bag := PartBagByName("an-oem", "canonical")
 	m := bag.Map(nil)
 	c.Check(m["installed_size"], check.Matches, "[0-9]+")
 	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]string{
-		"name":          "oem",
+		"name":          "an-oem",
 		"origin":        "sideload", // best guess
 		"status":        "installed",
 		"version":       "3",
-		"icon":          filepath.Join(s.d, "oem", "oem", "3", "icon.png"),
+		"icon":          filepath.Join(s.d, "oem", "an-oem", "3", "icon.png"),
 		"type":          "oem",
 		"vendor":        "example.com",
 		"download_size": "-1",
@@ -379,7 +379,7 @@ func (s *lightweightSuite) TestLoadApp(c *check.C) {
 }
 
 func (s *lightweightSuite) TestLoadOem(c *check.C) {
-	oem := PartBagByName("oem", "whatever")
+	oem := PartBagByName("an-oem", "whatever")
 	c.Assert(oem, check.NotNil)
 	c.Check(oem.Versions, check.DeepEquals, []string{"3"})
 	c.Check(oem.Type, check.Equals, pkg.TypeOem)
@@ -411,7 +411,29 @@ func (s *lightweightSuite) TestLoadCore(c *check.C) {
 }
 
 func (s *lightweightSuite) TestAll(c *check.C) {
+	sysname := snappy.SystemImagePartName + "." + snappy.SystemImagePartOrigin
 	all := AllPartBags()
 
-	c.Check(all, check.HasLen, 6) // 2 fmk, 2 app, 1 oem, 1 core
+	type expectedT struct {
+		typ  pkg.Type
+		idx  int
+		inst bool
+	}
+
+	expected := map[string]expectedT{
+		"foo.bar": {typ: pkg.TypeApp, idx: 0, inst: true},
+		"foo.baz": {typ: pkg.TypeApp, idx: -1, inst: false},
+		"fmk":     {typ: pkg.TypeFramework, idx: 1, inst: true},
+		"fmk2":    {typ: pkg.TypeFramework, idx: -1, inst: false},
+		"an-oem":  {typ: pkg.TypeOem, idx: -1, inst: true},
+		sysname:   {typ: pkg.TypeCore, idx: 0, inst: true},
+	}
+
+	for k, x := range expected {
+		c.Assert(all[k], check.NotNil, check.Commentf(k))
+		c.Check(all[k].Type, check.Equals, x.typ, check.Commentf(k))
+		c.Check(all[k].ActiveIndex(), check.Equals, x.idx, check.Commentf(k))
+	}
+
+	c.Check(all, check.HasLen, len(expected))
 }

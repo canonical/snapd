@@ -41,7 +41,7 @@ type serviceSuite struct {
 }
 
 func (s *serviceSuite) TearDownTest(c *check.C) {
-	if !common.NeedsReboot() && common.CheckRebootMark("") {
+	if !common.IsInRebootProcess() {
 		common.RemoveSnap(c, data.BasicServiceSnapName)
 	}
 	// run cleanup last
