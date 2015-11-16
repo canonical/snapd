@@ -701,14 +701,14 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinary(m *packageYaml, na
 	}
 
 	os.MkdirAll(filepath.Dir(p.scFn), 0755)
-	err = ioutil.WriteFile(p.scFn, []byte(p.scPolicy), 0644)
+	err = helpers.AtomicWriteFile(p.scFn, []byte(p.scPolicy), 0644, 0)
 	if err != nil {
 		logger.Noticef("Failed to write seccomp policy for %s: %v", name, err)
 		return err
 	}
 
 	os.MkdirAll(filepath.Dir(p.aaFn), 0755)
-	err = ioutil.WriteFile(p.aaFn, []byte(p.aaPolicy), 0644)
+	err = helpers.AtomicWriteFile(p.aaFn, []byte(p.aaPolicy), 0644, 0)
 	if err != nil {
 		logger.Noticef("Failed to write AppArmor policy for %s: %v", name, err)
 		return err
