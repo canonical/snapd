@@ -221,7 +221,7 @@ func (d *ClickDeb) ExtractHashes(dir string) error {
 		return err
 	}
 
-	return ioutil.WriteFile(hashesFile, hashesData, 0644)
+	return helpers.AtomicWriteFile(hashesFile, hashesData, 0644, 0)
 }
 
 // Unpack unpacks the data.tar.{gz,bz2,xz} into the given target directory
