@@ -49,8 +49,8 @@ func (as *AssertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 
 func (as *AssertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
 	encoded := "type: test-only\n" +
-		"revision: 0\n" +
 		"authority-id: auth-id1\n" +
+		"revision: 0\n" +
 		"body-length: 0" +
 		"\n\n" +
 		"\n\n" +
@@ -64,8 +64,10 @@ func (as *AssertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
 
 func (as *AssertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 	encoded := "type: test-only\n" +
-		"revision: 5\n" +
 		"authority-id: auth-id2\n" +
+		"primary-key1: key1\n" +
+		"primary-key2: key2\n" +
+		"revision: 5\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
 		"body-length: 8\n\n" +
@@ -75,17 +77,20 @@ func (as *AssertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.AssertionType("test-only"))
+	c.Check(a.AuthorityID(), Equals, "auth-id2")
+	c.Check(a.Header("primary-key1"), Equals, "key1")
+	c.Check(a.Header("primary-key2"), Equals, "key2")
 	c.Check(a.Revision(), Equals, 5)
-	c.Check(a.Body(), DeepEquals, []byte("THE-BODY"))
 	c.Check(a.Header("header1"), Equals, "value1")
 	c.Check(a.Header("header2"), Equals, "value2")
-	c.Check(a.AuthorityID(), Equals, "auth-id2")
+	c.Check(a.Body(), DeepEquals, []byte("THE-BODY"))
+
 }
 
 func (as *AssertsSuite) TestDecodeGetSignatureBits(c *C) {
 	content := "type: test-only\n" +
-		"revision: 5\n" +
 		"authority-id: auth-id1\n" +
+		"revision: 5\n" +
 		"header1: value1\n" +
 		"body-length: 8\n\n" +
 		"THE-BODY"
@@ -126,8 +131,8 @@ func (as *AssertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 
 func (as *AssertsSuite) TestDecodeInvalid(c *C) {
 	encoded := "type: test-only\n" +
-		"revision: 0\n" +
 		"authority-id: auth-id\n" +
+		"revision: 0\n" +
 		"body-length: 5" +
 		"\n\n" +
 		"abcde" +
