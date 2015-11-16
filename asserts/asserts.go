@@ -39,11 +39,6 @@ const (
 // ...
 )
 
-// Assertion signature format types
-const (
-	OpenPGPSig = "openpgp"
-)
-
 // Assertion represents an assertion through its general elements.
 type Assertion interface {
 	// the type of this assertion
@@ -61,6 +56,8 @@ type Assertion interface {
 
 	// Signature returns the signed content and its signature already split and decoded
 	Signature() (content []byte, sigtype string, signature []byte)
+
+    // xxx Signature() (content, signature)  (no base64 decoding)
 }
 
 // AssertionBase is the concrete base to hold representation data for actual assertions.
@@ -129,7 +126,7 @@ func parseHeaders(head []byte) (map[string]string, error) {
 		}
 		name := entry[:nameValueSplit]
 		if !headerNameSanity.MatchString(name) {
-			return nil, fmt.Errorf("invalid header name: %v", name)
+			return nil, fmt.Errorf("invalid header name: %q", name)
 		}
 		headers[name] = entry[nameValueSplit+2:]
 	}
@@ -152,16 +149,16 @@ func parseHeaders(head []byte) (map[string]string, error) {
 //    SIG-TYPE is the type/format expected for the base64
 //    encoded signature value, for now only "openpgp" is supported
 //
-// An header line looks like:
+// A header line looks like:
 //
 //   NAME ": " VALUE
-//
-// for sanity NAME is expected to match headerNameSanity regexp.
 //
 // The following headers are mandatory:
 //
 //   type
 //   authority-id (the signer id)
+//
+//   xxx make these omittable defaulting to 0
 //   revision (a positive int)
 //   body-length (int expected to be equal to the length of BODY)
 //
@@ -252,7 +249,7 @@ func buildAssertion(headers map[string]string, body, content []byte, sigtype str
 	}
 
 	// for now only openpgp is valid/expected
-	if sigtype != OpenPGPSig {
+	if sigtype != "openpgp" {
 		return nil, fmt.Errorf("unsupported assertion signature type: %v", sigtype)
 	}
 
