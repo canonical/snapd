@@ -59,7 +59,7 @@ func (zeroSizeInitrd) set(c *check.C) {
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
 	dir := partition.BootDir(boot)
 
-	bootFileNamePattern := newKernelFilenamePattern(c, boot, true)
+	bootFileNamePattern := newKernelFilenamePattern(c, boot)
 	commonSet(c, dir, bootFileNamePattern, initrdFilename)
 }
 
@@ -68,7 +68,7 @@ func (zeroSizeInitrd) unset(c *check.C) {
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
 	dir := partition.BootDir(boot)
 
-	bootFileNamePattern := newKernelFilenamePattern(c, boot, false)
+	bootFileNamePattern := newKernelFilenamePattern(c, boot)
 	commonUnset(c, dir, bootFileNamePattern, initrdFilename)
 }
 
@@ -146,19 +146,11 @@ func getSingleFilename(c *check.C, pattern string) string {
 // and this function would return "b/%s%s*"
 // If we are not in an update process (ie. we are unsetting the failover conditions)
 // we want to change the files in the other partition
-func newKernelFilenamePattern(c *check.C, bootSystem string, afterUpdate bool) string {
-	var part string
-	var err error
-	if afterUpdate {
-		part, err = partition.NextBootPartition()
-		c.Assert(err, check.IsNil,
-			check.Commentf("Error getting the next boot partition: %s", err))
-	} else {
-		part, err = partition.CurrentPartition()
-		c.Assert(err, check.IsNil,
-			check.Commentf("Error getting the current partition: %s", err))
-		part = partition.OtherPartition(part)
-	}
+func newKernelFilenamePattern(c *check.C, bootSystem string) string {
+	part, err := partition.CurrentPartition()
+	c.Assert(err, check.IsNil,
+		check.Commentf("Error getting the current partition: %s", err))
+	part = partition.OtherPartition(part)
 	return filepath.Join(part, "%s%s*")
 }
 
