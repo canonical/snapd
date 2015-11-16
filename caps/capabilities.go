@@ -20,7 +20,6 @@
 package caps
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -83,7 +82,7 @@ func NewRepository() *Repository {
 // An error is returned if this constraint is violated.
 func (r *Repository) Add(cap *Capability) error {
 	if _, ok := r.caps[cap.Name]; ok {
-		return errors.New("capability with that name already exists")
+		return fmt.Errorf("cannot add capability %q: name already exists", cap.Name)
 	}
 	r.caps[cap.Name] = cap
 	return nil

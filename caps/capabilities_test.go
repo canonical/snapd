@@ -61,7 +61,8 @@ func (s *CapabilitySuite) TestAddClash(c *C) {
 	c.Assert(err, IsNil)
 	cap2 := &Capability{"name", "label 2", FileType}
 	err = repo.Add(cap2)
-	c.Assert(err, ErrorMatches, "capability with that name already exists")
+	c.Assert(err, ErrorMatches,
+		`cannot add capability "name": name already exists`)
 	c.Assert(repo.Names(), DeepEquals, []string{"name"})
 	c.Assert(repo.Names(), testutil.Contains, cap1.Name)
 }
