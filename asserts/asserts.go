@@ -54,7 +54,7 @@ type Assertion interface {
 	Body() []byte
 
 	// Signature returns the signed content and its unprocessed signature
-	Signature() (content []byte, signature []byte)
+	Signature() (content, signature []byte)
 }
 
 // AssertionBase is the concrete base to hold representation data for actual assertions.
