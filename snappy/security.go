@@ -468,7 +468,7 @@ func getAppArmorTemplatedPolicy(m *packageYaml, appID *securityAppID, template s
 		prefix := findWhitespacePrefix(t, "###POLICYGROUPS###")
 		for _, line := range p {
 			if len(line) == 0 {
-				aacaps += line + "\n"
+				aacaps += "\n"
 			} else {
 				aacaps += fmt.Sprintf("%s%s\n", prefix, line)
 			}
@@ -756,6 +756,8 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 		}
 	}
 
+	// FIXME: if there are multiple errors only the last one
+	//        will be preserved
 	if foundError != nil {
 		return foundError
 	}
@@ -923,10 +925,11 @@ func RegenerateAllPolicy(force bool) error {
 	}
 
 	for _, p := range installed {
-		if _, ok := p.(*SnapPart); !ok {
+		part, ok := p.(*SnapPart)
+		if !ok {
 			continue
 		}
-		basedir := p.(*SnapPart).basedir
+		basedir := part.basedir
 		yFn := filepath.Join(basedir, "meta", "package.yaml")
 
 		// FIXME: use ErrPolicyNeedsRegenerating here to check if

@@ -1247,6 +1247,8 @@ func (s *SnapPart) RequestSecurityPolicyUpdate(policies, templates map[string]bo
 		}
 	}
 
+	// FIXME: if there are multiple errors only the last one
+	//        will be preserved
 	if foundError != nil {
 		return foundError
 	}
