@@ -88,7 +88,7 @@ func (r *Repository) Add(cap *Capability) error {
 	return nil
 }
 
-// Remove a capability with a given name.
+// Remove removes the capability with the provided name.
 // Removing a capability that doesn't exist silently does nothing
 func (r *Repository) Remove(name string) {
 	delete(r.caps, name)
