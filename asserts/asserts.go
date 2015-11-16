@@ -163,12 +163,15 @@ func parseHeaders(head []byte) (map[string]string, error) {
 //   body-length (int expected to be equal to the length of BODY)
 //
 func Decode(serializedAssertion []byte) (Assertion, error) {
-	contentSignatureSplit := bytes.LastIndex(serializedAssertion, nlnl)
+	// copy to get an independent backstorage that can't be mutated later
+	assertionSnapshot := make([]byte, len(serializedAssertion))
+	copy(assertionSnapshot, serializedAssertion)
+	contentSignatureSplit := bytes.LastIndex(assertionSnapshot, nlnl)
 	if contentSignatureSplit == -1 {
 		return nil, fmt.Errorf("assertion content/signature separator not found")
 	}
-	content := serializedAssertion[:contentSignatureSplit]
-	signature := serializedAssertion[contentSignatureSplit+2:]
+	content := assertionSnapshot[:contentSignatureSplit]
+	signature := assertionSnapshot[contentSignatureSplit+2:]
 
 	headersBodySplit := bytes.Index(content, nlnl)
 	var body, head []byte
