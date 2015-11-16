@@ -353,16 +353,16 @@ func newAppID(appID string) (*securityAppID, error) {
 
 // TODO: once verified, reorganize all these
 func (sa *securityAppID) appArmorVars() string {
-	aavars := "\n# Specified profile variables\n"
-	aavars += fmt.Sprintf("@{APP_APPNAME}=\"%s\"\n", sa.Appname)
-	aavars += fmt.Sprintf("@{APP_ID_DBUS}=\"%s\"\n", dbusPath(sa.AppID))
-	aavars += fmt.Sprintf("@{APP_PKGNAME_DBUS}=\"%s\"\n", dbusPath(sa.Pkgname))
-	aavars += fmt.Sprintf("@{APP_PKGNAME}=\"%s\"\n", sa.Pkgname)
-	aavars += fmt.Sprintf("@{APP_VERSION}=\"%s\"\n", sa.Version)
-	aavars += "@{INSTALL_DIR}=\"{/apps,/oem}\"\n"
-	aavars += "# Deprecated:\n"
-	aavars += "@{CLICK_DIR}=\"{/apps,/oem}\""
-
+	aavars := fmt.Sprintf(`
+# Specified profile variables
+@{APP_APPNAME}="%s"
+@{APP_ID_DBUS}="%s"
+@{APP_PKGNAME_DBUS}="%s"
+@{APP_PKGNAME}="%s"
+@{APP_VERSION}="%s"
+@{INSTALL_DIR}="{/apps,/oem}"
+# Deprecated:
+@{CLICK_DIR}="{/apps,/oem}"`, sa.Appname, dbusPath(sa.AppID), dbusPath(sa.Pkgname), sa.Pkgname, sa.Version)
 	return aavars
 }
 
