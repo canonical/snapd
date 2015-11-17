@@ -78,8 +78,10 @@ type clickHook struct {
 
 // ignore hooks of this type
 var ignoreHooks = map[string]bool{
-	"bin-path":       true,
-	"snappy-systemd": true,
+	"bin-path":         true,
+	"snappy-systemd":   true,
+	"apparmor":         true,
+	"apparmor-profile": true,
 }
 
 // wait this time between TERM and KILL
@@ -661,74 +663,6 @@ func (m *packageYaml) addPackageBinaries(baseDir string) error {
 func (m *packageYaml) removePackageBinaries(baseDir string) error {
 	for _, binary := range m.Binaries {
 		os.Remove(generateBinaryName(m, binary))
-	}
-
-	return nil
-}
-
-func (m *packageYaml) addOneSecurityPolicy(name string, sd SecurityDefinitions, baseDir string) error {
-	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
-	if err != nil {
-		return err
-	}
-	content, err := generateSeccompPolicy(baseDir, name, sd)
-	if err != nil {
-		return err
-	}
-
-	fn := filepath.Join(dirs.SnapSeccompDir, profileName)
-	if err := helpers.AtomicWriteFile(fn, content, 0644, 0); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (m *packageYaml) addSecurityPolicy(baseDir string) error {
-	// TODO: move apparmor policy generation here too, its currently
-	//       done via the click hooks but we really want to generate
-	//       it all here
-
-	for _, svc := range m.ServiceYamls {
-		if err := m.addOneSecurityPolicy(svc.Name, svc.SecurityDefinitions, baseDir); err != nil {
-			return err
-		}
-	}
-
-	for _, bin := range m.Binaries {
-		if err := m.addOneSecurityPolicy(bin.Name, bin.SecurityDefinitions, baseDir); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (m *packageYaml) removeOneSecurityPolicy(name, baseDir string) error {
-	profileName, err := getSecurityProfile(m, filepath.Base(name), baseDir)
-	if err != nil {
-		return err
-	}
-	fn := filepath.Join(dirs.SnapSeccompDir, profileName)
-	if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
-	return nil
-}
-
-func (m *packageYaml) removeSecurityPolicy(baseDir string) error {
-	// TODO: move apparmor policy removal here
-	for _, service := range m.ServiceYamls {
-		if err := m.removeOneSecurityPolicy(service.Name, baseDir); err != nil {
-			return err
-		}
-	}
-
-	for _, binary := range m.Binaries {
-		if err := m.removeOneSecurityPolicy(binary.Name, baseDir); err != nil {
-			return err
-		}
 	}
 
 	return nil

@@ -51,9 +51,14 @@ type Repository struct {
 	caps map[string]*Capability
 }
 
+// NotFoundError means that a capability was not found
+type NotFoundError struct {
+	what, name string
+}
+
 const (
 	// FileType is a basic capability vaguely expressing access to a specific
-	// file. This single capability  type is here just to help boostrap
+	// file. This single capability  type is here just to help bootstrap
 	// the capability concept before we get to load capability interfaces
 	// from YAML.
 	FileType Type = "file"
@@ -77,8 +82,9 @@ func NewRepository() *Repository {
 }
 
 // Add a capability to the repository.
-// Capability names must be unique within the repository.
-// An error is returned if this constraint is violated.
+// Capability names must be valid snap names, as defined by ValidateName, and
+// must be unique within the repository.  An error is returned if this
+// constraint is violated.
 func (r *Repository) Add(cap *Capability) error {
 	if err := ValidateName(cap.Name); err != nil {
 		return err
@@ -92,8 +98,13 @@ func (r *Repository) Add(cap *Capability) error {
 
 // Remove removes the capability with the provided name.
 // Removing a capability that doesn't exist silently does nothing
-func (r *Repository) Remove(name string) {
-	delete(r.caps, name)
+func (r *Repository) Remove(name string) error {
+	_, ok := r.caps[name]
+	if ok {
+		delete(r.caps, name)
+		return nil
+	}
+	return &NotFoundError{"remove", name}
 }
 
 // Names returns all capability names in the repository in lexicographical order.
@@ -106,4 +117,36 @@ func (r *Repository) Names() []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// String representation of a capability.
+func (c Capability) String() string {
+	return c.Name
+}
+
+type byName []Capability
+
+func (c byName) Len() int           { return len(c) }
+func (c byName) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
+func (c byName) Less(i, j int) bool { return c[i].Name < c[j].Name }
+
+// All returns all capabilities ordered by name.
+func (r *Repository) All() []Capability {
+	caps := make([]Capability, len(r.caps))
+	i := 0
+	for _, capability := range r.caps {
+		caps[i] = *capability
+		i++
+	}
+	sort.Sort(byName(caps))
+	return caps
+}
+
+func (e *NotFoundError) Error() string {
+	switch e.what {
+	case "remove":
+		return fmt.Sprintf("can't remove capability %q, no such capability", e.name)
+	default:
+		panic(fmt.Sprintf("unexpected what: %q", e.what))
+	}
 }

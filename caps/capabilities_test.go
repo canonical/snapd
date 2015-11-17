@@ -76,20 +76,52 @@ func (s *CapabilitySuite) TestAddInvalidName(c *C) {
 	c.Assert(repo.Names(), Not(testutil.Contains), cap1.Name)
 }
 
-func (s *CapabilitySuite) TestRemove(c *C) {
+func (s *CapabilitySuite) TestRemoveGood(c *C) {
 	repo := NewRepository()
 	cap := &Capability{"name", "label", FileType}
-	repo.Remove(cap.Name) // This does nothing, silently
-	repo.Add(cap)         // This is tested elsewhere
-	repo.Remove(cap.Name)
+	err := repo.Add(cap)
+	c.Assert(err, IsNil)
+	err = repo.Remove(cap.Name)
+	c.Assert(err, IsNil)
 	c.Assert(repo.Names(), HasLen, 0)
 	c.Assert(repo.Names(), Not(testutil.Contains), cap.Name)
 }
 
+func (s *CapabilitySuite) TestRemoveNoSuchCapability(c *C) {
+	repo := NewRepository()
+	err := repo.Remove("name")
+	c.Assert(err, ErrorMatches, `can't remove capability "name", no such capability`)
+}
+
 func (s *CapabilitySuite) TestNames(c *C) {
 	repo := NewRepository()
-	repo.Add(&Capability{"a", "label-a", FileType})
-	repo.Add(&Capability{"b", "label-b", FileType})
-	repo.Add(&Capability{"c", "label-c", FileType})
+	// Note added in non-sorted order
+	err := repo.Add(&Capability{"a", "label-a", FileType})
+	c.Assert(err, IsNil)
+	err = repo.Add(&Capability{"c", "label-c", FileType})
+	c.Assert(err, IsNil)
+	err = repo.Add(&Capability{"b", "label-b", FileType})
+	c.Assert(err, IsNil)
 	c.Assert(repo.Names(), DeepEquals, []string{"a", "b", "c"})
+}
+
+func (s *CapabilitySuite) TestString(c *C) {
+	cap := &Capability{"name", "label", FileType}
+	c.Assert(cap.String(), Equals, "name")
+}
+
+func (s *CapabilitySuite) TestAll(c *C) {
+	repo := NewRepository()
+	// Note added in non-sorted order
+	err := repo.Add(&Capability{"a", "label-a", FileType})
+	c.Assert(err, IsNil)
+	err = repo.Add(&Capability{"c", "label-c", FileType})
+	c.Assert(err, IsNil)
+	err = repo.Add(&Capability{"b", "label-b", FileType})
+	c.Assert(err, IsNil)
+	c.Assert(repo.All(), DeepEquals, []Capability{
+		Capability{"a", "label-a", FileType},
+		Capability{"b", "label-b", FileType},
+		Capability{"c", "label-c", FileType},
+	})
 }
