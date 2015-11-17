@@ -82,8 +82,9 @@ func NewRepository() *Repository {
 }
 
 // Add a capability to the repository.
-// Capability names must be unique within the repository.
-// An error is returned if this constraint is violated.
+// Capability names must be valid snap names, as defined by ValidateName, and
+// must be unique within the repository.  An error is returned if this
+// constraint is violated.
 func (r *Repository) Add(cap *Capability) error {
 	if err := ValidateName(cap.Name); err != nil {
 		return err
