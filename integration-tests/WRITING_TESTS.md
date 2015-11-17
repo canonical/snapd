@@ -58,9 +58,9 @@ pending to run. We then use *subunit* to merge the results of all the executions
 of the suite.
 
 All of this is implemented in the `SetUpTest` method of the common Suite, so as
-long as you are not overwriting them or you are calling them from the
-overwritten methods (as explained in a previous section), the suite should
-properly handle the reboots.
+long as you are not overwriting it or you are calling it from the overwritten
+methods (as explained in a previous section), the suite should properly handle
+the reboots.
 
 In order to tell your test to run a different set of steps before and after the
 reboot, write it like this:
