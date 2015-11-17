@@ -73,7 +73,8 @@ func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 		common.Reboot(c)
 	} else if common.AfterReboot(c) {
 		common.RemoveRebootMark(c)
-		c.Assert(common.GetCurrentUbuntuCoreVersion(c) > common.GetSavedVersion(c),
-			check.Equals, true)
+		currentVersion := common.GetCurrentUbuntuCoreVersion(c)
+		c.Assert(currentVersion > common.GetSavedVersion(c),	check.Equals, true,
+			check.Commentf("Rebooted to the wrong version: %d", currentVersion))
 	}
 }
