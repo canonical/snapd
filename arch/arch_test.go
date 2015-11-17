@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 )
+
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
@@ -33,14 +34,11 @@ type ArchTestSuite struct {
 }
 
 func (ts *ArchTestSuite) TestUbuntuArchitecture(c *C) {
-	goarch = "arm"
-	c.Check(goToUbuntuArchitecture(), Equals, "armhf")
-
-	goarch = "amd64"
-	c.Check(goToUbuntuArchitecture(), Equals, "amd64")
-
-	goarch = "386"
-	c.Check(goToUbuntuArchitecture(), Equals, "i386")
+	c.Check(ubuntuArchFromGoArch("386"), Equals, "i386")
+	c.Check(ubuntuArchFromGoArch("amd64"), Equals, "amd64")
+	c.Check(ubuntuArchFromGoArch("arm"), Equals, "armhf")
+	c.Check(ubuntuArchFromGoArch("arm64"), Equals, "arm64")
+	c.Check(ubuntuArchFromGoArch("ppc64"), Equals, "ppc64el")
 }
 
 func (ts *ArchTestSuite) TestSetArchitecture(c *C) {

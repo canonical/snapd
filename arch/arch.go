@@ -20,20 +20,18 @@
 package arch
 
 import (
+	"log"
 	"runtime"
 )
 
 // ArchitectureType is the type for a supported snappy architecture
 type ArchitectureType string
 
-// goarch is only used in the tests
-var goarch = runtime.GOARCH
-
 // arch is global to allow tools like ubuntu-device-flash to
 // change the architecture. This is important to e.g. install
 // armhf snaps onto a armhf image that is generated on an amd64
 // machine
-var arch = ArchitectureType(goToUbuntuArchitecture())
+var arch = ArchitectureType(ubuntuArchFromGoArch(runtime.GOARCH))
 
 // SetArchitecture allows overriding the auto detected Architecture
 func SetArchitecture(newArch ArchitectureType) {
@@ -49,15 +47,26 @@ func UbuntuArchitecture() string {
 	return string(arch)
 }
 
-func goToUbuntuArchitecture() string {
-	switch goarch {
-	case "386":
-		return "i386"
-	case "arm":
-		return "armhf"
-	default:
-		return goarch
+// ubuntuArchFromGoArch maps a go architecture string to the coresponding
+// Ubuntu architecture string.
+// 
+// E.g. the go "386" architecture string maps to the ubuntu "i386"
+// architecture.
+func ubuntuArchFromGoArch(goarch string) string {
+	goArchMapping := map[string]string{
+		"386":   "i386",
+		"amd64": "amd64",
+		"arm":   "armhf",
+		"arm64": "arm64",
+		"ppc64": "ppc64el",
 	}
+
+	ubuntuArch := goArchMapping[goarch]
+	if ubuntuArch == "" {
+		log.Panicf("unknown goarch %v", goarch)
+	}
+
+	return ubuntuArch
 }
 
 // IsSupportedArchitecture returns true if the system architecture is in the
