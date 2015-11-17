@@ -585,6 +585,10 @@ func deleteOp(c *Command, r *http.Request) Response {
 	}
 }
 
+// licenseData holds details about the snap license, and may be
+// marshaled back as an error when the license agreement is pending,
+// and is expected as input to accept (or not) that license
+// agreement. As such, its field names are part of the API.
 type licenseData struct {
 	Intro   string
 	License string
@@ -592,8 +596,6 @@ type licenseData struct {
 }
 
 func (*licenseData) Error() string {
-	// licenseData isn't an error, strictly speaking, but can
-	// be converted into one for convenience
 	return "license agreement required"
 }
 
