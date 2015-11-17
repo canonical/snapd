@@ -585,29 +585,31 @@ func deleteOp(c *Command, r *http.Request) Response {
 	}
 }
 
-type licT struct {
+type licenseData struct {
 	Intro   string
 	License string
 	Agreed  bool
 }
 
-func (*licT) Error() string {
-	// licT isn't an error, strictly speaking, but can
+func (*licenseData) Error() string {
+	// licenseData isn't an error, strictly speaking, but can
 	// be converted into one for convenience
 	return "license agreement required"
 }
 
 type packageInstruction struct {
 	progress.NullProgress
-	Action   string `json:"action"`
-	LeaveOld bool   `json:"leave_old"`
-	License  *licT  `json:"license"`
+	Action   string       `json:"action"`
+	LeaveOld bool         `json:"leave_old"`
+	License  *licenseData `json:"license"`
 	pkg      string
 }
 
+// Agreed is part of the progress.Meter interface (q.v.)
+// ask the user whether they agree to the given license's text
 func (inst *packageInstruction) Agreed(intro, license string) bool {
 	if inst.License == nil || !inst.License.Agreed || inst.License.Intro != intro || inst.License.License != license {
-		inst.License = &licT{Intro: intro, License: license, Agreed: false}
+		inst.License = &licenseData{Intro: intro, License: license, Agreed: false}
 		return false
 	}
 

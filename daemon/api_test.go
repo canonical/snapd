@@ -1043,7 +1043,7 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 }
 
 func (s *apiSuite) TestPkgInstructionAgreedOK(c *check.C) {
-	lic := &licT{
+	lic := &licenseData{
 		Intro:   "hi",
 		License: "Void where empty",
 		Agreed:  true,
@@ -1055,7 +1055,7 @@ func (s *apiSuite) TestPkgInstructionAgreedOK(c *check.C) {
 }
 
 func (s *apiSuite) TestPkgInstructionAgreedNOK(c *check.C) {
-	lic := &licT{
+	lic := &licenseData{
 		Intro:   "hi",
 		License: "Void where empty",
 		Agreed:  false,
@@ -1067,7 +1067,7 @@ func (s *apiSuite) TestPkgInstructionAgreedNOK(c *check.C) {
 }
 
 func (s *apiSuite) TestPkgInstructionMismatch(c *check.C) {
-	lic := &licT{
+	lic := &licenseData{
 		Intro:   "hi",
 		License: "Void where empty",
 		Agreed:  true,
@@ -1139,7 +1139,7 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 		Action: "install",
 	}
 
-	lic, ok := inst.dispatch()().(*licT)
+	lic, ok := inst.dispatch()().(*licenseData)
 	c.Assert(ok, check.Equals, true)
 	c.Check(lic, check.ErrorMatches, "license agreement required")
 	c.Check(lic.Intro, check.Equals, "hi")
