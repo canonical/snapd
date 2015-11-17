@@ -260,7 +260,7 @@ func RebootWithMark(c *check.C, mark string) {
 	if mode == "try" {
 		p, err := partition.NextBootPartition()
 		c.Assert(err, check.IsNil, check.Commentf("Error getting the next boot partition: %v", err))
-		c.Log(fmt.Sprintf("Will reboot in try mode to partition %s", p))
+		c.Logf("Will reboot in try mode to partition %s", p)
 	}
 }
 
