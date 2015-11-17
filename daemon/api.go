@@ -627,10 +627,7 @@ func (inst *packageInstruction) install() interface{} {
 	}
 	_, err := snappyInstall(inst.pkg, flags, inst)
 	if err != nil {
-		// to be more rigiorous we could also check
-		// err, ok := err.(*snappy.ErrInstallFailed); ok && err.OrigErr == snappy.ErrLicenseNotAccepted
-		// but that seems a bit overkill
-		if inst.License != nil {
+		if inst.License != nil && snappy.IsLicenseNotAccepted(err) {
 			return error(inst.License)
 		}
 		return err

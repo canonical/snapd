@@ -256,6 +256,7 @@ vendor: foo
 explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, nil, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
+	c.Check(IsLicenseNotAccepted(err), Equals, true)
 }
 
 // if the snap asks for accepting a license, and an agreer is provided, and
@@ -268,6 +269,7 @@ vendor: foo
 explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: false}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
+	c.Check(IsLicenseNotAccepted(err), Equals, true)
 }
 
 // if the snap asks for accepting a license, and an agreer is provided, but
@@ -283,6 +285,7 @@ vendor: foo
 explicit-license-agreement: Y`, false)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotProvided)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 }
 
 // if the snap asks for accepting a license, and an agreer is provided, and
@@ -295,6 +298,7 @@ vendor: foo
 explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
 	c.Check(err, Equals, nil)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 }
 
 // Agreed is given reasonable values for intro and license
@@ -307,6 +311,7 @@ explicit-license-agreement: Y`)
 	ag := &MockProgressMeter{y: true}
 	_, err := installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Check(ag.intro, Matches, ".*foobar.*requires.*license.*")
 	c.Check(ag.license, Equals, "WTFPL")
 }
@@ -331,6 +336,7 @@ vendor: foo
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Check(ag.intro, Equals, "")
 	c.Check(ag.license, Equals, "")
 }
@@ -354,6 +360,7 @@ vendor: foo
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y\nvendor: foo")
 	_, err = installClick(pkg, 0, ag, testOrigin)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Assert(err, Equals, nil)
 	c.Check(ag.license, Equals, "WTFPL")
 }
@@ -377,6 +384,7 @@ explicit-license-agreement: Y
 	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Check(ag.license, Equals, "WTFPL")
 }
 
