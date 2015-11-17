@@ -124,6 +124,14 @@ func (s *CapabilitySuite) TestRemoveNoSuchCapability(c *C) {
 	c.Assert(err, ErrorMatches, `can't remove capability "name", no such capability`)
 }
 
+func (s *CapabilitySuite) TestAddBuiltInTypes(c *C) {
+	repo := NewRepository()
+	repo.AddBuiltInTypes()
+	c.Assert(repo.types, testutil.Contains, FileType)
+	c.Assert(repo.types, HasLen, 1) // Update this whenever new built-in type is added
+	c.Assert(func() { repo.AddBuiltInTypes() }, Panics, `cannot add type "file": name already exists`)
+}
+
 func (s *CapabilitySuite) TestNames(c *C) {
 	repo := NewRepository()
 	// Note added in non-sorted order
