@@ -31,7 +31,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
-	"github.com/ubuntu-core/snappy/capabilities"
+	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/logger"
 )
 
@@ -42,7 +42,7 @@ type Daemon struct {
 	listener     net.Listener
 	tomb         tomb.Tomb
 	router       *mux.Router
-	capRepo      *capabilities.CapabilityRepository
+	capRepo      *caps.Repository
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -205,6 +205,6 @@ func (d *Daemon) DeleteTask(uuid string) error {
 func New() *Daemon {
 	return &Daemon{
 		tasks:   make(map[string]*Task),
-		capRepo: capabilities.NewCapabilityRepository(),
+		capRepo: caps.NewRepository(),
 	}
 }

@@ -23,6 +23,8 @@ package report
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"regexp/syntax"
 
 	"github.com/testing-cabal/subunit-go"
@@ -118,6 +120,40 @@ func (s *ParserReportSuite) TestParserSendsNothingForSetUpAndTearDown(c *check.C
 			"SKIP: /dummy/path:36: %s (%s)\n", "testSuite.TestSkip", common.FormatSkipDuringReboot),
 		fmt.Sprintf(
 			"SKIP: /dummy/path:36: %s (%s)\n", "testSuite.TestSkip", common.FormatSkipAfterReboot),
+	}
+	for _, gocheckOutput := range ignoreTests {
+		s.spy.calls = []subunit.Event{}
+		s.subject.Write([]byte(gocheckOutput))
+
+		c.Check(len(s.spy.calls), check.Equals, 0,
+			check.Commentf("Unexpected event sent to subunit: %v", s.spy.calls))
+	}
+}
+
+func (s *ParserReportSuite) TestParserSendsNothingForTestsAfterReboot(c *check.C) {
+	os.Setenv("ADT_REBOOT_MARK", "rebooting")
+	defer os.Setenv("ADT_REBOOT_MARK", "")
+	ignoreTests := []string{
+		"****** Running testSuite.TestSomething\n",
+		"PASS: /dummy/path:34: testSuite.TestSomething      0.005s\n",
+	}
+	for _, gocheckOutput := range ignoreTests {
+		s.spy.calls = []subunit.Event{}
+		s.subject.Write([]byte(gocheckOutput))
+
+		c.Check(len(s.spy.calls), check.Equals, 0,
+			check.Commentf("Unexpected event sent to subunit: %v", s.spy.calls))
+	}
+}
+
+func (s *ParserReportSuite) TestParserSendsNothingForTestsDuringReboot(c *check.C) {
+	err := ioutil.WriteFile(common.NeedsRebootFile, []byte("rebooting"), 0777)
+	c.Assert(err, check.IsNil, check.Commentf("Error writing the reboot file: %v", err))
+	defer os.Remove(common.NeedsRebootFile)
+
+	ignoreTests := []string{
+		"****** Running testSuite.TestSomething\n",
+		"PASS: /dummy/path:34: testSuite.TestSomething      0.005s\n",
 	}
 	for _, gocheckOutput := range ignoreTests {
 		s.spy.calls = []subunit.Event{}

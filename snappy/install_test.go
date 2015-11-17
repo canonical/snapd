@@ -60,7 +60,6 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 
 	packageYaml := `name: foo
 icon: foo.svg
-vendor: Foo Bar <foo@example.com>
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	_, err = Install(snapFile, flags, &progress.NullProgress{})
@@ -103,7 +102,7 @@ func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 }
 
 func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
-	snapPackage := makeTestSnapPackage(c, "name: foo\nversion: 2\nvendor: foo")
+	snapPackage := makeTestSnapPackage(c, "name: foo\nversion: 2")
 	snapR, err := os.Open(snapPackage)
 	c.Assert(err, IsNil)
 	defer snapR.Close()
@@ -185,12 +184,12 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 }
 
 func (s *SnapTestSuite) TestUpdate(c *C) {
-	snapPackagev1 := makeTestSnapPackage(c, "name: foo\nversion: 1\nvendor: foo")
+	snapPackagev1 := makeTestSnapPackage(c, "name: foo\nversion: 1")
 	name, err := Install(snapPackagev1, AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Assert(name, Equals, "foo")
 
-	snapPackagev2 := makeTestSnapPackage(c, "name: foo\nversion: 2\nvendor: foo")
+	snapPackagev2 := makeTestSnapPackage(c, "name: foo\nversion: 2")
 
 	snapR, err := os.Open(snapPackagev2)
 	c.Assert(err, IsNil)

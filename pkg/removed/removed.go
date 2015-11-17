@@ -90,15 +90,6 @@ func (r *Removed) Origin() string {
 	return r.origin
 }
 
-// Vendor from the snappy.Part interface
-func (r *Removed) Vendor() string {
-	if r.remote != nil {
-		return r.remote.Publisher
-	}
-
-	return ""
-}
-
 // Hash from the snappy.Part interface
 func (r *Removed) Hash() string { return "" }
 

@@ -98,7 +98,6 @@ func (s *SnapTestSuite) TestConfigGeneratesRightAA(c *C) {
 
 	snapDir, err := s.makeInstalledMockSnapWithConfig(c, mockConfig, `name: fmk
 type: framework
-vendor: foo
 version: 42`)
 	c.Assert(err, IsNil)
 	_, err = snapConfig(snapDir, testOrigin, configYaml)
@@ -106,7 +105,6 @@ version: 42`)
 
 	snapDir, err = s.makeInstalledMockSnapWithConfig(c, mockConfig, `name: potato
 type: potato
-vendor: foo
 version: 42`)
 	c.Assert(err, IsNil)
 	_, err = snapConfig(snapDir, testOrigin, configYaml)

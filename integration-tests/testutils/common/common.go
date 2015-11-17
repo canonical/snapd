@@ -39,8 +39,9 @@ import (
 const (
 	// BaseAltPartitionPath is the path to the B system partition.
 	BaseAltPartitionPath = "/writable/cache/system"
-	needsRebootFile      = "/tmp/needs-reboot"
-	channelCfgFile       = "/etc/system-image/channel.ini"
+	// NeedsRebootFile is the file that a test writes in order to request a reboot.
+	NeedsRebootFile = "/tmp/needs-reboot"
+	channelCfgFile  = "/etc/system-image/channel.ini"
 	// FormatSkipDuringReboot is the reason used to skip the pending tests when a test requested
 	// a reboot.
 	FormatSkipDuringReboot = "****** Skipped %s during reboot caused by %s"
@@ -101,7 +102,7 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 // test bed was rebooted, it will resume the test that requested the reboot.
 func (s *SnappySuite) SetUpTest(c *check.C) {
 	if NeedsReboot() {
-		contents, err := ioutil.ReadFile(needsRebootFile)
+		contents, err := ioutil.ReadFile(NeedsRebootFile)
 		c.Assert(err, check.IsNil, check.Commentf("Error reading needs-reboot file %v", err))
 		c.Skip(fmt.Sprintf(FormatSkipDuringReboot, c.TestName(), contents))
 	} else {
@@ -249,13 +250,13 @@ func Reboot(c *check.C) {
 // RebootWithMark requests a reboot using a specified mark.
 func RebootWithMark(c *check.C, mark string) {
 	c.Log("Preparing reboot with mark " + mark)
-	err := ioutil.WriteFile(needsRebootFile, []byte(mark), 0777)
+	err := ioutil.WriteFile(NeedsRebootFile, []byte(mark), 0777)
 	c.Assert(err, check.IsNil, check.Commentf("Error writing needs-reboot file: %v", err))
 }
 
 // NeedsReboot returns True if a reboot has been requested by a test.
 func NeedsReboot() bool {
-	_, err := os.Stat(needsRebootFile)
+	_, err := os.Stat(NeedsRebootFile)
 	return err == nil
 }
 

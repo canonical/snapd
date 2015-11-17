@@ -350,7 +350,6 @@ func writeDebianControl(buildDir string, m *packageYaml) error {
 Version: {{.Version}}
 Click-Version: 0.4
 Architecture: {{.DebArchitecture}}
-Maintainer: {{.Vendor}}
 Installed-Size: {{.InstalledSize}}
 Description: {{.Title}}
 `
@@ -358,12 +357,11 @@ Description: {{.Title}}
 	debianControlData := struct {
 		Name            string
 		Version         string
-		Vendor          string
 		InstalledSize   string
 		Title           string
 		DebArchitecture string
 	}{
-		m.Name, m.Version, m.Vendor, installedSize, title, debArchitecture(m),
+		m.Name, m.Version, installedSize, title, debArchitecture(m),
 	}
 	t.Execute(debianControlFile, debianControlData)
 
@@ -393,7 +391,6 @@ func writeClickManifest(buildDir string, m *packageYaml) error {
 		InstalledSize: installedSize,
 		Title:         title,
 		Description:   description,
-		Maintainer:    m.Vendor,
 		Hooks:         m.Integration,
 	}
 	manifestContent, err := json.MarshalIndent(cm, "", " ")
