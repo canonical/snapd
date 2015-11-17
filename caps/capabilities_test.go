@@ -95,11 +95,12 @@ func (s *CapabilitySuite) TestRemoveNoSuchCapability(c *C) {
 
 func (s *CapabilitySuite) TestNames(c *C) {
 	repo := NewRepository()
+	// Note added in non-sorted order
 	err := repo.Add(&Capability{"a", "label-a", FileType})
 	c.Assert(err, IsNil)
-	err = repo.Add(&Capability{"b", "label-b", FileType})
-	c.Assert(err, IsNil)
 	err = repo.Add(&Capability{"c", "label-c", FileType})
+	c.Assert(err, IsNil)
+	err = repo.Add(&Capability{"b", "label-b", FileType})
 	c.Assert(err, IsNil)
 	c.Assert(repo.Names(), DeepEquals, []string{"a", "b", "c"})
 }
@@ -111,11 +112,12 @@ func (s *CapabilitySuite) TestString(c *C) {
 
 func (s *CapabilitySuite) TestAll(c *C) {
 	repo := NewRepository()
+	// Note added in non-sorted order
 	err := repo.Add(&Capability{"a", "label-a", FileType})
 	c.Assert(err, IsNil)
-	err = repo.Add(&Capability{"b", "label-b", FileType})
-	c.Assert(err, IsNil)
 	err = repo.Add(&Capability{"c", "label-c", FileType})
+	c.Assert(err, IsNil)
+	err = repo.Add(&Capability{"b", "label-b", FileType})
 	c.Assert(err, IsNil)
 	c.Assert(repo.All(), DeepEquals, []Capability{
 		Capability{"a", "label-a", FileType},
