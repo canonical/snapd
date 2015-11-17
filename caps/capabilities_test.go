@@ -180,3 +180,15 @@ func (s *CapabilitySuite) TestAll(c *C) {
 		Capability{Name: "c", Label: "label-c", Type: FileType},
 	})
 }
+
+func (s *CapabilitySuite) TestValidateMismatchedType(c *C) {
+	cap := &Capability{Name: "name", Label: "label", Type: Type("device")}
+	err := FileType.Validate(cap)
+	c.Assert(err, ErrorMatches, `capability is not of type "file"`)
+}
+
+func (s *CapabilitySuite) TestValidateOK(c *C) {
+	cap := &Capability{Name: "name", Label: "label", Type: FileType}
+	err := FileType.Validate(cap)
+	c.Assert(err, IsNil)
+}

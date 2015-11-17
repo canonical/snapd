@@ -222,3 +222,11 @@ func (e *NotFoundError) Error() string {
 		panic(fmt.Sprintf("unexpected what: %q", e.what))
 	}
 }
+
+// Validate if a capability is correct according to the given type
+func (t Type) Validate(c *Capability) error {
+	if t != c.Type {
+		return fmt.Errorf("capability is not of type %q", t)
+	}
+	return nil
+}
