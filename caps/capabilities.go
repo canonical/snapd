@@ -137,6 +137,11 @@ func (c Capability) String() string {
 	return c.Name
 }
 
+// String representation of a capability type
+func (t Type) String() string {
+	return string(t)
+}
+
 type byName []Capability
 
 func (c byName) Len() int           { return len(c) }

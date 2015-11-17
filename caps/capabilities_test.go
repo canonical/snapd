@@ -110,6 +110,11 @@ func (s *CapabilitySuite) TestString(c *C) {
 	c.Assert(cap.String(), Equals, "name")
 }
 
+func (s *CapabilitySuite) TestTypeString(c *C) {
+	c.Assert(FileType.String(), Equals, "file")
+	c.Assert(Type("device").String(), Equals, "device")
+}
+
 func (s *CapabilitySuite) TestAll(c *C) {
 	repo := NewRepository()
 	// Note added in non-sorted order
