@@ -260,3 +260,14 @@ type assertionTypeRegistration struct {
 }
 
 var typeRegistry = make(map[AssertionType]*assertionTypeRegistration)
+
+// Encode serializes an assertion.
+func Encode(assert Assertion) []byte {
+	content, signature := assert.Signature()
+	needed := len(content) + 2 + len(signature)
+	buf := bytes.NewBuffer(make([]byte, 0, needed))
+	buf.Write(content)
+	buf.WriteString("\n\n")
+	buf.Write(signature)
+	return buf.Bytes()
+}
