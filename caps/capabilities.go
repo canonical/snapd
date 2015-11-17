@@ -130,7 +130,7 @@ func (c byName) Len() int           { return len(c) }
 func (c byName) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
 func (c byName) Less(i, j int) bool { return c[i].Name < c[j].Name }
 
-// All capabilities, sorted by name
+// All returns all capabilities ordered by name.
 func (r *Repository) All() []Capability {
 	caps := make([]Capability, len(r.caps))
 	i := 0
