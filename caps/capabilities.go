@@ -44,6 +44,10 @@ type Capability struct {
 	// capability, and also which information should be exchanged by these
 	// parties.
 	Type Type
+	// Attributes define additional key-value pairs that provide additional
+	// domain-specific information. They are closely related to the type of the
+	// capability.
+	Attributes map[string]string
 }
 
 // Repository stores all known snappy capabilities and types
