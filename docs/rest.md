@@ -1,7 +1,6 @@
 # Snappy Ubuntu Core REST API
 
-Version: 1.0.1 DRAFT (look for "not implemented" to find bits still in flux or
-not implemented)
+Version: 1.0.2 DRAFT
 
 ## Versioning
 
@@ -99,15 +98,6 @@ Timestamps are presented in µs since the epoch UTC, formatted as a decimal
 string. For example, `"1234567891234567"` represents
 `2009-02-13T23:31:31.234567`.
 
-## /
-### GET
-
-* Description: List of supported APIs
-* Authorization: guest
-* Operation: sync
-* Return: list of supported API endpoint URLs (by default `["/1.0"]`)
-
-
 ## /1.0
 ### GET
 
@@ -145,70 +135,54 @@ Sample result:
 ```javascript
 {
  "packages": {
-   "dd.canonical": {
-     "description": "A description",
-     "download_size": "23456",
-     "icon": "/icons/dd.png",
-     "installed_size": "-1",          // always -1 if not installed
-     "name": "dd",
-     "origin": "canonical",
-     "resource": "/1.0/packages/dd.canonical",
-     "status": "not installed",
-     "type": "app",
-     "vendor": "Somebody",
-     "version": "0.1"
-   },
-   "pastebinit.mvo": {
-     "description": "A description",
-     "download_size": "23456",
-     "icon": "http://storeurl/icon.png",
-     "name": "pastebinit.mvo",
-     "installed_size": "-1",
-     "operation": {
-       "created_at": 1415639996,
-       "may_cancel": true,
-       "resource": "/1.0/packages/pastebinit.mvo",
-       "status": "Running",
-       "status_code": 100,
-       "updated_at": 1415639996
-     },
-     "origin": "mvo",
-     "resource": "/1.0/packages/pastebinit.mvo",
-     "rollback_available": "0.9",
-     "status": "installing",
-     "type": "app",
-     "update_available": "1.1",
-     "vendor": "Michael Vogt",
-     "version": "0.8"
-   },
-   "ubuntu-core.canonical": {
-     "description": "A description",
-     "download_size": "23456",
-     "icon": "",               // core might not have an icon
-     "installed_size": "-1",   // core doesn't have installed_size (yet)
-     "name": "ubuntu-core",
-     "origin": "canonical",
-     "resource": "/1.0/packages/ubuntu-core.canonical",
-     "status": "active",
-     "type": "core",
-     "vendor": "Canonical",
-     "version": "43"
-   }
+    "hello-world.canonical": {
+      "description": "hello-world",
+      "download_size": "22212",
+      "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+      "installed_size": "-1",          // always -1 if not installed
+      "name": "hello-world",
+      "origin": "canonical",
+      "resource": "/1.0/packages/hello-world.canonical",
+      "status": "not installed",
+      "type": "app",
+      "version": "1.0.18"
+    },
+    "http.chipaca": {
+      "description": "HTTPie in a snap\nno description",
+      "download_size": "1578272",
+      "icon": "/1.0/icons/http.chipaca_3.1.png",
+      "installed_size": "1821897",
+      "name": "http",
+      "origin": "chipaca",
+      "resource": "/1.0/packages/http.chipaca",
+      "status": "active",
+      "type": "app",
+      "version": "3.1"
+    },
+    "ubuntu-core.ubuntu": {
+      "description": "A secure, minimal transactional OS for devices and containers.",
+      "download_size": "19845748",
+      "icon": "",               // core might not have an icon
+      "installed_size": "-1",   // core doesn't have installed_size (yet)
+      "name": "ubuntu-core",
+      "origin": "ubuntu",
+      "resource": "/1.0/packages/ubuntu-core.ubuntu",
+      "status": "active",
+      "type": "core",
+      "update_available": "247",
+      "version": "241"
+    }
  }
 }
 ```
 
 #### Fields
 * `packages`
-    * `status`: can be either `not installed`, `installing`, `installed`,
-      `uninstalling`, `active` (i.e. is current), `removed` (but data
-      present), `purging`; there is no `purged` state, as a purged package is
-      undistinguishable from a non-installed package. For statuses that signal
-      a background operation is in course, see the `operation`
-      field. Transient states not implemented yet.
+    * `status`: can be either `not installed`, `installed`, `active` (i.e. is
+      current), `removed` (but data present); there is no `purged` state, as a
+      purged package is undistinguishable from a non-installed package.
     * `name`: the package name.
     * `version`: a string representing the version.
-    * `vendor`: a string representing the vendor.
     * `icon`: a url to the package icon, possibly relative to this server.
     * `type`: the type of snappy package; one of `app`, `framework`, `kernel`,
       `gadget`, or `os`.
@@ -312,26 +286,9 @@ field      | ignored except in action | description
 
 #### A note on licenses
 
-The output field in the operation object for installation may specify that an
-additional step is needed, to confirm the user accepts the license specified
-in the package that's installing. Like so:
-
-```javascript
-{
- "resource": "/1.0/operations/xyzzy",
-// ... other operation fields ...,
- "output": {
-   "license_ack_needed": true,
-   "license_text": "Long license text\n\nMay include newlines etc.",
- }
-}
-```
-
-The client must then present this license text to the user and ask for their
-acceptance. The operation will not complete until the client accepts (or
-declines) the license, by POSTing the appropriate response to the
-operation. If the server is restarted, the operation is lost. See the section
-on POSTing to `.../operations/` for more details.
+At this time the daemon does not support installing or updating packages that
+require an explicit license agreement. This will be done in a
+backwards-compatible way soon.
 
 ## /1.0/packages/[name]/services
 
@@ -523,43 +480,6 @@ Notes: user facing implementations in text form must show this data using yaml.
 "config:\n  ubuntu-core:\n    autopilot: true\n    timezone: Europe/Berlin\n    hostname: localhost.localdomain\n"
 ```
 
-## /1.0/events
-
-Not implemented yet; poll on `.../operations/` until this is final.
-
-This URL isn't a real REST API endpoint, instead doing a GET query on it will
-upgrade the connection to a websocket on which notifications will be sent.
-
-### GET
-
-* Description: websocket upgrade
-* Authorization: trusted
-* Operation: sync
-* Return: none (never ending flow of events)
-
-#### Supported arguments
-* type: comma separated list of notifications to subscribe to (defaults to “operations,logging”)
-
-#### Notification types
-* operations
-* logging
-
-This never returns. Each notification is sent as a separate JSON dict:
-
-```javascript
-{
-   'timestamp': "1415639996457234",        # Current timestamp
-   'type': "operations",                   # Notification type
-   'operation': {...}                      # Operation object
-}
-
-{
-   'timestamp': "141563999675243",
-   'type': "logging",
-   'log': {'message': "Package [name] installed"}
-}
-```
-
 ## /1.0/operations/<uuid>
 
 ### GET
@@ -574,7 +494,6 @@ This never returns. Each notification is sent as a separate JSON dict:
 ```javascript
 {
  "created_at": "1415639996123456",      // Creation timestamp
- "may_cancel": true,
  "output": {},
  "resource": "/1.0/packages/camlistore.sergiusens",
  "status": "running",                   // or “succeeded” or “failed”
@@ -584,26 +503,11 @@ This never returns. Each notification is sent as a separate JSON dict:
 
 ### DELETE
 
-All background operations will have `may_cancel` set to false.
-
-* Description: cancel an operation if running. If the operation has
-  `may_cancel` set to `true` calling this will set the state to “Cancelling”
-  rather than actually removing the entry. If `may_cancel` is `false`, it is an
-  error (will result in “Bad Method”) unless the operation has completed; if
-  the operation has completed, `DELETE` will remove the entry.
+* Description: If the operation has completed, `DELETE` will remove the
+  entry. Otherwise it is an error.
 * Authorization: trusted
 * Operation: sync
-* Return: standard return value (Accepted status) or standard error
-
-### POST
-
-Used to interact with a background operation. Request body must be a JSON
-object, with members depending on the interaction as in the table
-below. Response is the operation response as for GET above.
-
-interaction | fields | values
-------------|--------|--------
-license agreement | `accepted` | boolean, defaults to `false`
+* Return: standard return value or standard error
 
 ## /1.0/icons/[icon]
 
