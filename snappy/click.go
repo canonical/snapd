@@ -41,6 +41,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/i18n"
@@ -340,7 +341,7 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		NewAppVars  string
 	}{
 		AppName:     m.Name,
-		AppArch:     helpers.UbuntuArchitecture(),
+		AppArch:     arch.UbuntuArchitecture(),
 		AppPath:     pkgPath,
 		Version:     m.Version,
 		UdevAppName: udevPartName,
