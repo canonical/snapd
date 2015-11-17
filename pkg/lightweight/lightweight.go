@@ -443,7 +443,7 @@ func (bag *PartBag) LoadBest() snappy.Part {
 // Also may panic if the remote part is nil and LoadBest can't load a
 // Part at all.
 func (bag *PartBag) Map(remotePart snappy.Part) map[string]string {
-	var version, update, rollback, icon, name, origin, _type, vendor, description string
+	var version, update, rollback, icon, name, origin, _type, description string
 
 	if bag == nil && remotePart == nil {
 		panic("part bag & part both nil -- how did i even get here")
@@ -473,7 +473,6 @@ func (bag *PartBag) Map(remotePart snappy.Part) map[string]string {
 		_type = string(part.Type())
 
 		icon = part.Icon()
-		vendor = part.Vendor()
 		description = part.Description()
 		installedSize = strconv.FormatInt(part.InstalledSize(), 10)
 
@@ -491,9 +490,6 @@ func (bag *PartBag) Map(remotePart snappy.Part) map[string]string {
 		}
 		if description == "" {
 			description = remotePart.Description()
-		}
-		if vendor == "" {
-			vendor = remotePart.Vendor()
 		}
 
 		downloadSize = strconv.FormatInt(remotePart.DownloadSize(), 10)
@@ -525,7 +521,7 @@ func (bag *PartBag) Map(remotePart snappy.Part) map[string]string {
 		"origin":         origin,
 		"status":         status,
 		"type":           _type,
-		"vendor":         vendor,
+		"vendor":         "",
 		"version":        version,
 		"description":    description,
 		"installed_size": installedSize,
