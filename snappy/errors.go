@@ -25,7 +25,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/arch"
 )
 
 var (
@@ -165,7 +165,7 @@ type ErrArchitectureNotSupported struct {
 }
 
 func (e *ErrArchitectureNotSupported) Error() string {
-	return fmt.Sprintf("package's supported architectures (%s) is incompatible with this system (%s)", strings.Join(e.Architectures, ", "), helpers.UbuntuArchitecture())
+	return fmt.Sprintf("package's supported architectures (%s) is incompatible with this system (%s)", strings.Join(e.Architectures, ", "), arch.UbuntuArchitecture())
 }
 
 // ErrInstallFailed is an error type for installation errors for snaps
@@ -272,4 +272,20 @@ type ErrInvalidYaml struct {
 func (e *ErrInvalidYaml) Error() string {
 	// %#v of string(yaml) so the yaml is presented as a human-readable string, but in a single greppable line
 	return fmt.Sprintf("can not parse %s: %v (from: %#v)", e.File, e.Err, string(e.Yaml))
+}
+
+// IsLicenseNotAccepted checks whether err is (directly or indirectly)
+// due to a ErrLicenseNotAccepted
+func IsLicenseNotAccepted(err error) bool {
+	if err == ErrLicenseNotAccepted {
+		return true
+	}
+
+	if err, ok := err.(*ErrInstallFailed); ok {
+		if err.OrigErr == ErrLicenseNotAccepted {
+			return true
+		}
+	}
+
+	return false
 }

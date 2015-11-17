@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"sync"
 )
 
 // Type is the name of a capability type.
@@ -47,6 +48,7 @@ type Capability struct {
 
 // Repository stores all known snappy capabilities and types
 type Repository struct {
+	sync.Mutex // protects the map from concurrent access. If contention gets high, switch to a RWMutex
 	// Map of capabilities, indexed by Capability.Name
 	caps map[string]*Capability
 }
@@ -78,7 +80,9 @@ func ValidateName(name string) error {
 
 // NewRepository creates an empty capability repository
 func NewRepository() *Repository {
-	return &Repository{make(map[string]*Capability)}
+	return &Repository{
+		caps: make(map[string]*Capability),
+	}
 }
 
 // Add a capability to the repository.
@@ -86,6 +90,9 @@ func NewRepository() *Repository {
 // must be unique within the repository.  An error is returned if this
 // constraint is violated.
 func (r *Repository) Add(cap *Capability) error {
+	r.Lock()
+	defer r.Unlock()
+
 	if err := ValidateName(cap.Name); err != nil {
 		return err
 	}
@@ -99,6 +106,9 @@ func (r *Repository) Add(cap *Capability) error {
 // Remove removes the capability with the provided name.
 // Removing a capability that doesn't exist silently does nothing
 func (r *Repository) Remove(name string) error {
+	r.Lock()
+	defer r.Unlock()
+
 	_, ok := r.caps[name]
 	if ok {
 		delete(r.caps, name)
@@ -109,6 +119,9 @@ func (r *Repository) Remove(name string) error {
 
 // Names returns all capability names in the repository in lexicographical order.
 func (r *Repository) Names() []string {
+	r.Lock()
+	defer r.Unlock()
+
 	keys := make([]string, len(r.caps))
 	i := 0
 	for key := range r.caps {
@@ -132,6 +145,9 @@ func (c byName) Less(i, j int) bool { return c[i].Name < c[j].Name }
 
 // All returns all capabilities ordered by name.
 func (r *Repository) All() []Capability {
+	r.Lock()
+	defer r.Unlock()
+
 	caps := make([]Capability, len(r.caps))
 	i := 0
 	for _, capability := range r.caps {

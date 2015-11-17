@@ -30,6 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/pkg"
@@ -153,6 +154,7 @@ version: 1.0
 explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, nil, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
+	c.Check(IsLicenseNotAccepted(err), Equals, true)
 }
 
 // if the snap asks for accepting a license, and an agreer is provided, and
@@ -164,6 +166,7 @@ version: 1.0
 explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: false}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
+	c.Check(IsLicenseNotAccepted(err), Equals, true)
 }
 
 // if the snap asks for accepting a license, and an agreer is provided, but
@@ -178,6 +181,7 @@ version: 1.0
 explicit-license-agreement: Y`, false)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotProvided)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 }
 
 // if the snap asks for accepting a license, and an agreer is provided, and
@@ -189,6 +193,7 @@ version: 1.0
 explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
 	c.Check(err, Equals, nil)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 }
 
 // Agreed is given reasonable values for intro and license
@@ -200,6 +205,7 @@ explicit-license-agreement: Y`)
 	ag := &MockProgressMeter{y: true}
 	_, err := installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Check(ag.intro, Matches, ".*foobar.*requires.*license.*")
 	c.Check(ag.license, Equals, "WTFPL")
 }
@@ -223,6 +229,7 @@ license-version: 2
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Check(ag.intro, Equals, "")
 	c.Check(ag.license, Equals, "")
 }
@@ -245,6 +252,7 @@ version: 1.0
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y\n")
 	_, err = installClick(pkg, 0, ag, testOrigin)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Assert(err, Equals, nil)
 	c.Check(ag.license, Equals, "WTFPL")
 }
@@ -267,6 +275,7 @@ explicit-license-agreement: Y
 	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Check(ag.license, Equals, "WTFPL")
 }
 
@@ -585,7 +594,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	m := packageYaml{Name: "pastebinit",
 		Version: "1.4.0.0.1"}
 
-	expected := fmt.Sprintf(expectedWrapper, helpers.UbuntuArchitecture())
+	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture())
 
 	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
@@ -604,7 +613,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 	expected = strings.Replace(expected, `NAME="pastebinit"`, `NAME="fmk"`, 1)
 	expected = strings.Replace(expected, "mvo", "", -1)
 	expected = strings.Replace(expected, "pastebinit", "echo", -1)
-	expected = fmt.Sprintf(expected, helpers.UbuntuArchitecture())
+	expected = fmt.Sprintf(expected, arch.UbuntuArchitecture())
 
 	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
@@ -966,11 +975,11 @@ TimeoutStopSec=30
 [Install]
 WantedBy=multi-user.target
 `
-	expectedServiceAppWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "\n", helpers.UbuntuArchitecture())
-	expectedNetAppWrapper         = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".canonical", "canonical", "\n", helpers.UbuntuArchitecture())
-	expectedServiceFmkWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "BusName=foo.bar.baz\nType=dbus", helpers.UbuntuArchitecture())
-	expectedSocketUsingWrapper    = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket\nRequires=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket", ".canonical", "canonical", "\n", helpers.UbuntuArchitecture())
-	expectedTypeForkingFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "Type=forking\n", helpers.UbuntuArchitecture())
+	expectedServiceAppWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "\n", arch.UbuntuArchitecture())
+	expectedNetAppWrapper         = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".canonical", "canonical", "\n", arch.UbuntuArchitecture())
+	expectedServiceFmkWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "BusName=foo.bar.baz\nType=dbus", arch.UbuntuArchitecture())
+	expectedSocketUsingWrapper    = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket\nRequires=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket", ".canonical", "canonical", "\n", arch.UbuntuArchitecture())
+	expectedTypeForkingFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "Type=forking\n", arch.UbuntuArchitecture())
 )
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
