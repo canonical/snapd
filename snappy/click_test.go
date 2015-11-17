@@ -31,6 +31,7 @@ import (
 	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/pkg"
@@ -160,13 +161,6 @@ Pattern: /var/lib/apparmor/click/${id}
 	c.Assert(err, IsNil)
 	c.Assert(symlinkTarget, Equals, filepath.Join(instDir, "path-to-systemd-file"))
 
-	p = fmt.Sprintf("%s/%s.%s_%s_%s", testSymlinkDir2, m.Name, testOrigin, "app", m.Version)
-	_, err = os.Stat(p)
-	c.Assert(err, IsNil)
-	symlinkTarget, err = filepath.EvalSymlinks(p)
-	c.Assert(err, IsNil)
-	c.Assert(symlinkTarget, Equals, filepath.Join(instDir, "path-to-apparmor-file"))
-
 	// now ensure we can remove
 	err = removeClickHooks(m, testOrigin, false)
 	c.Assert(err, IsNil)
@@ -255,6 +249,7 @@ version: 1.0
 explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, nil, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
+	c.Check(IsLicenseNotAccepted(err), Equals, true)
 }
 
 // if the snap asks for accepting a license, and an agreer is provided, and
@@ -266,6 +261,7 @@ version: 1.0
 explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: false}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
+	c.Check(IsLicenseNotAccepted(err), Equals, true)
 }
 
 // if the snap asks for accepting a license, and an agreer is provided, but
@@ -280,6 +276,7 @@ version: 1.0
 explicit-license-agreement: Y`, false)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotProvided)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 }
 
 // if the snap asks for accepting a license, and an agreer is provided, and
@@ -291,6 +288,7 @@ version: 1.0
 explicit-license-agreement: Y`)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
 	c.Check(err, Equals, nil)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 }
 
 // Agreed is given reasonable values for intro and license
@@ -302,6 +300,7 @@ explicit-license-agreement: Y`)
 	ag := &MockProgressMeter{y: true}
 	_, err := installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Check(ag.intro, Matches, ".*foobar.*requires.*license.*")
 	c.Check(ag.license, Equals, "WTFPL")
 }
@@ -325,6 +324,7 @@ license-version: 2
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Check(ag.intro, Equals, "")
 	c.Check(ag.license, Equals, "")
 }
@@ -347,6 +347,7 @@ version: 1.0
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y\n")
 	_, err = installClick(pkg, 0, ag, testOrigin)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Assert(err, Equals, nil)
 	c.Check(ag.license, Equals, "WTFPL")
 }
@@ -369,6 +370,7 @@ explicit-license-agreement: Y
 	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
+	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Check(ag.license, Equals, "WTFPL")
 }
 
@@ -774,7 +776,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	m := packageYaml{Name: "pastebinit",
 		Version: "1.4.0.0.1"}
 
-	expected := fmt.Sprintf(expectedWrapper, helpers.UbuntuArchitecture())
+	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture())
 
 	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
@@ -793,7 +795,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 	expected = strings.Replace(expected, `NAME="pastebinit"`, `NAME="fmk"`, 1)
 	expected = strings.Replace(expected, "mvo", "", -1)
 	expected = strings.Replace(expected, "pastebinit", "echo", -1)
-	expected = fmt.Sprintf(expected, helpers.UbuntuArchitecture())
+	expected = fmt.Sprintf(expected, arch.UbuntuArchitecture())
 
 	generatedWrapper, err := generateSnapBinaryWrapper(binary, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
@@ -1217,11 +1219,11 @@ TimeoutStopSec=30
 [Install]
 WantedBy=multi-user.target
 `
-	expectedServiceAppWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "\n", helpers.UbuntuArchitecture())
-	expectedNetAppWrapper         = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".canonical", "canonical", "\n", helpers.UbuntuArchitecture())
-	expectedServiceFmkWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "BusName=foo.bar.baz\nType=dbus", helpers.UbuntuArchitecture())
-	expectedSocketUsingWrapper    = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket\nRequires=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket", ".canonical", "canonical", "\n", helpers.UbuntuArchitecture())
-	expectedTypeForkingFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "Type=forking\n", helpers.UbuntuArchitecture())
+	expectedServiceAppWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "\n", arch.UbuntuArchitecture())
+	expectedNetAppWrapper         = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".canonical", "canonical", "\n", arch.UbuntuArchitecture())
+	expectedServiceFmkWrapper     = fmt.Sprintf(expectedServiceWrapperFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "BusName=foo.bar.baz\nType=dbus", arch.UbuntuArchitecture())
+	expectedSocketUsingWrapper    = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket\nRequires=ubuntu-snappy.frameworks.target xkcd-webserver_xkcd-webserver_0.3.4.socket", ".canonical", "canonical", "\n", arch.UbuntuArchitecture())
+	expectedTypeForkingFmkWrapper = fmt.Sprintf(expectedServiceWrapperFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".canonical", "canonical", "Type=forking\n", arch.UbuntuArchitecture())
 )
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
@@ -1354,7 +1356,7 @@ func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
 	c.Assert(verifyBinariesYaml(Binary{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
-				Apparmor: "foo"},
+				AppArmor: "foo"},
 		},
 	}), IsNil)
 }
@@ -1370,7 +1372,7 @@ func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
 	c.Assert(verifyBinariesYaml(Binary{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
-				Apparmor: "x\n"},
+				AppArmor: "x\n"},
 		},
 	}), NotNil)
 }
@@ -1457,59 +1459,6 @@ Pattern: /var/lib/systemd/click/${id}
 	err := installClickHooks(c.MkDir(), m, testOrigin, false)
 	c.Assert(err, IsNil)
 	c.Assert(stripGlobalRootDirWasCalled, Equals, true)
-}
-
-func (s *SnapTestSuite) TestPackageYamlAddSecurityPolicy(c *C) {
-	m, err := parsePackageYamlData([]byte(`name: foo
-version: 1.0
-binaries:
- - name: foo
-services:
- - name: bar
-   start: baz
-`), false)
-	c.Assert(err, IsNil)
-
-	dirs.SnapSeccompDir = c.MkDir()
-	err = m.addSecurityPolicy("/apps/foo.mvo/1.0/")
-	c.Assert(err, IsNil)
-
-	binSeccompContent, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeccompDir, "foo.mvo_foo_1.0"))
-	c.Assert(string(binSeccompContent), Equals, scFilterGenFakeResult)
-
-	serviceSeccompContent, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeccompDir, "foo.mvo_bar_1.0"))
-	c.Assert(string(serviceSeccompContent), Equals, scFilterGenFakeResult)
-
-}
-
-func (s *SnapTestSuite) TestPackageYamlRemoveSecurityPolicy(c *C) {
-	m, err := parsePackageYamlData([]byte(`name: foo
-version: 1.0
-binaries:
- - name: foo
-services:
- - name: bar
-   start: baz
-`), false)
-	c.Assert(err, IsNil)
-
-	dirs.SnapSeccompDir = c.MkDir()
-	binSeccomp := filepath.Join(dirs.SnapSeccompDir, "foo.mvo_foo_1.0")
-	serviceSeccomp := filepath.Join(dirs.SnapSeccompDir, "foo.mvo_bar_1.0")
-	c.Assert(helpers.FileExists(binSeccomp), Equals, false)
-	c.Assert(helpers.FileExists(serviceSeccomp), Equals, false)
-
-	// add it now
-	err = m.addSecurityPolicy("/apps/foo.mvo/1.0/")
-	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(binSeccomp), Equals, true)
-	c.Assert(helpers.FileExists(serviceSeccomp), Equals, true)
-
-	// ensure that it removes the files on remove
-	err = m.removeSecurityPolicy("/apps/foo.mvo/1.0/")
-	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(binSeccomp), Equals, false)
-	c.Assert(helpers.FileExists(serviceSeccomp), Equals, false)
 }
 
 func (s *SnapTestSuite) TestRemovePackageServiceKills(c *C) {

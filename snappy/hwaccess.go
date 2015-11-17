@@ -21,13 +21,13 @@ package snappy
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
@@ -35,16 +35,9 @@ import (
 
 const udevDataGlob = "/run/udev/data/*"
 
-var aaClickHookCmd = "aa-clickhook"
-
-type appArmorAdditionalJSON struct {
-	WritePath []string `json:"write_path,omitempty"`
-	ReadPath  []string `json:"read_path,omitempty"`
-}
-
-// return the json filename to add to the security json
-func getHWAccessJSONFile(snapname string) string {
-	return filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s.json.additional", snapname))
+// return the yaml filename to add to the security yaml
+func getHWAccessYamlFile(snapname string) string {
+	return filepath.Join(dirs.SnapAppArmorAdditionalDir, fmt.Sprintf("%s.hwaccess.yaml", snapname))
 }
 
 // Return true if the device string is a valid device
@@ -60,37 +53,43 @@ func validDevice(device string) bool {
 	return false
 }
 
-func readHWAccessJSONFile(snapname string) (appArmorAdditionalJSON, error) {
-	var appArmorAdditional appArmorAdditionalJSON
+func readHWAccessYamlFile(snapname string) (SecurityOverrideDefinition, error) {
+	var appArmorAdditional SecurityOverrideDefinition
 
-	additionalFile := getHWAccessJSONFile(snapname)
+	additionalFile := getHWAccessYamlFile(snapname)
 	f, err := os.Open(additionalFile)
 	if err != nil {
 		return appArmorAdditional, err
 	}
 
-	dec := json.NewDecoder(f)
-	if err := dec.Decode(&appArmorAdditional); err != nil {
+	content, err := ioutil.ReadAll(f)
+	if err != nil {
+		return appArmorAdditional, err
+	}
+	if err := yaml.Unmarshal(content, &appArmorAdditional); err != nil {
 		return appArmorAdditional, err
 	}
 
 	return appArmorAdditional, nil
 }
 
-func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditionalJSON) error {
-	if len(appArmorAdditional.WritePath) == 0 {
-		appArmorAdditional.ReadPath = nil
+func writeHWAccessYamlFile(snapname string, appArmorAdditional SecurityOverrideDefinition) error {
+	if len(appArmorAdditional.WritePaths) == 0 {
+		appArmorAdditional.ReadPaths = nil
 	} else {
-		appArmorAdditional.ReadPath = []string{udevDataGlob}
+		appArmorAdditional.ReadPaths = []string{udevDataGlob}
 	}
-	out, err := json.MarshalIndent(appArmorAdditional, "", "  ")
+	out, err := yaml.Marshal(appArmorAdditional)
 	if err != nil {
 		return err
 	}
-	// append final newline
-	out = append(out, '\n')
 
-	additionalFile := getHWAccessJSONFile(snapname)
+	additionalFile := getHWAccessYamlFile(snapname)
+	if !helpers.FileExists(filepath.Dir(additionalFile)) {
+		if err := os.MkdirAll(filepath.Dir(additionalFile), 0755); err != nil {
+			return err
+		}
+	}
 	if err := helpers.AtomicWriteFile(additionalFile, out, 0640, 0); err != nil {
 		return err
 	}
@@ -98,14 +97,9 @@ func writeHWAccessJSONFile(snapname string, appArmorAdditional appArmorAdditiona
 	return nil
 }
 
-func regenerateAppArmorRulesImpl() error {
-	if output, err := exec.Command(aaClickHookCmd, "-f").CombinedOutput(); err != nil {
-		if exitCode, err := helpers.ExitCode(err); err == nil {
-			return &ErrApparmorGenerate{
-				ExitCode: exitCode,
-				Output:   output,
-			}
-		}
+func regenerateAppArmorRulesImpl(snapname string) error {
+	err := regeneratePolicyForSnap(snapname)
+	if err != nil {
 		return err
 	}
 
@@ -168,8 +162,14 @@ func AddHWAccess(snapname, device string) error {
 		return ErrInvalidHWDevice
 	}
 
+	// LP: #1499087 - ensure that the snapname is not mixed up with
+	//                an appid, the "_" is reserved for that
+	if strings.Contains(snapname, "_") {
+		return ErrPackageNotFound
+	}
+
 	// check if there is anything apparmor related to add to
-	globExpr := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s_*.json", snapname))
+	globExpr := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s_*", snapname))
 	matches, err := filepath.Glob(globExpr)
 	if err != nil {
 		return err
@@ -179,22 +179,22 @@ func AddHWAccess(snapname, device string) error {
 	}
 
 	// read .additional file, its ok if the file does not exist (yet)
-	appArmorAdditional, err := readHWAccessJSONFile(snapname)
+	appArmorAdditional, err := readHWAccessYamlFile(snapname)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
 	// check for dupes, please golang make this simpler
-	for _, p := range appArmorAdditional.WritePath {
+	for _, p := range appArmorAdditional.WritePaths {
 		if p == device {
 			return ErrHWAccessAlreadyAdded
 		}
 	}
 	// add the new write path
-	appArmorAdditional.WritePath = append(appArmorAdditional.WritePath, device)
+	appArmorAdditional.WritePaths = append(appArmorAdditional.WritePaths, device)
 
 	// and write the data out
-	err = writeHWAccessJSONFile(snapname, appArmorAdditional)
+	err = writeHWAccessYamlFile(snapname, appArmorAdditional)
 	if err != nil {
 		return err
 	}
@@ -205,18 +205,18 @@ func AddHWAccess(snapname, device string) error {
 	}
 
 	// re-generate apparmor fules
-	return regenerateAppArmorRules()
+	return regenerateAppArmorRules(snapname)
 }
 
 // ListHWAccess returns a list of hardware-device strings that the snap
 // can access
 func ListHWAccess(snapname string) ([]string, error) {
-	appArmorAdditional, err := readHWAccessJSONFile(snapname)
+	appArmorAdditional, err := readHWAccessYamlFile(snapname)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
-	return appArmorAdditional.WritePath, nil
+	return appArmorAdditional.WritePaths, nil
 }
 
 func removeUdevRuleForSnap(snapname, device string) error {
@@ -269,25 +269,25 @@ func RemoveHWAccess(snapname, device string) error {
 		return ErrInvalidHWDevice
 	}
 
-	appArmorAdditional, err := readHWAccessJSONFile(snapname)
+	appArmorAdditional, err := readHWAccessYamlFile(snapname)
 	if err != nil {
 		return err
 	}
 
 	// remove write path, please golang make this easier!
-	newWritePath := []string{}
-	for _, p := range appArmorAdditional.WritePath {
+	newWritePaths := []string{}
+	for _, p := range appArmorAdditional.WritePaths {
 		if p != device {
-			newWritePath = append(newWritePath, p)
+			newWritePaths = append(newWritePaths, p)
 		}
 	}
-	if len(newWritePath) == len(appArmorAdditional.WritePath) {
+	if len(newWritePaths) == len(appArmorAdditional.WritePaths) {
 		return ErrHWAccessRemoveNotFound
 	}
-	appArmorAdditional.WritePath = newWritePath
+	appArmorAdditional.WritePaths = newWritePaths
 
 	// and write it out again
-	err = writeHWAccessJSONFile(snapname, appArmorAdditional)
+	err = writeHWAccessYamlFile(snapname, appArmorAdditional)
 	if err != nil {
 		return err
 	}
@@ -301,19 +301,19 @@ func RemoveHWAccess(snapname, device string) error {
 	}
 
 	// re-generate apparmor rules
-	return regenerateAppArmorRules()
+	return regenerateAppArmorRules(snapname)
 }
 
 // RemoveAllHWAccess removes all hw access from the given snap.
 func RemoveAllHWAccess(snapname string) error {
 	for _, fn := range []string{
 		udevRulesPathForPart(snapname),
-		getHWAccessJSONFile(snapname),
+		getHWAccessYamlFile(snapname),
 	} {
 		if err := os.Remove(fn); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
 
-	return regenerateAppArmorRules()
+	return regenerateAppArmorRules(snapname)
 }

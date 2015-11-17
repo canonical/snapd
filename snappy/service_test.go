@@ -76,7 +76,6 @@ func (s *ServiceActorSuite) SetUpTest(c *C) {
 	os.Setenv("TZ", "")
 
 	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(dirs.SnapMetaDir, 0755), IsNil)
 	// TODO: this mkdir hack is so enable doesn't fail; remove when enable is the same as the rest
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/multi-user.target.wants"), 0755), IsNil)
 	systemd.SystemctlCmd = s.myRun

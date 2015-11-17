@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-11-05 15:47-0200\n"
+        "POT-Creation-Date: 2015-11-17 19:13+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -113,6 +113,12 @@ msgstr  ""
 msgid   "First boot has already run"
 msgstr  ""
 
+msgid   "Force policy generation."
+msgstr  ""
+
+msgid   "Generate the apparmor policy"
+msgstr  ""
+
 #. TRANSLATORS: the %s is a pkgname
 #, c-format
 msgid   "Generated '%s' snap\n"
@@ -202,11 +208,6 @@ msgstr  ""
 #. TRANSLATORS: the first %s is a pkgname the second a version
 #, c-format
 msgid   "Reboot to use %s version %s."
-msgstr  ""
-
-#. TRANSLATORS: the %s is a pkgname
-#, c-format
-msgid   "Reboot to use the new %s."
 msgstr  ""
 
 #. TRANSLATORS: the %s shows a comma separated list
@@ -312,6 +313,9 @@ msgstr  ""
 msgid   "The package to rollback "
 msgstr  ""
 
+msgid   "The path to the package.yaml used to generate the apparmor policy."
+msgstr  ""
+
 msgid   "The version to rollback to"
 msgstr  ""
 
@@ -376,6 +380,9 @@ msgstr  ""
 #. TRANSLATORS: the %s is a date
 #, c-format
 msgid   "installed: %s\n"
+msgstr  ""
+
+msgid   "must supply path to package.yaml"
 msgstr  ""
 
 msgid   "package name is required"
