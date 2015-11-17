@@ -85,6 +85,20 @@ func (s *CheckersS) TestContainsString(c *C) {
 	c.Assert("foo", Not(Contains), "foobar")
 }
 
+type myString string
+
+func (s *CheckersS) TestContainsCustomString(c *C) {
+	c.Assert(myString("foo"), Contains, myString("f"))
+	c.Assert(myString("foo"), Contains, myString("fo"))
+	c.Assert(myString("foo"), Not(Contains), myString("foobar"))
+	c.Assert("foo", Contains, myString("f"))
+	c.Assert("foo", Contains, myString("fo"))
+	c.Assert("foo", Not(Contains), myString("foobar"))
+	c.Assert(myString("foo"), Contains, "f")
+	c.Assert(myString("foo"), Contains, "fo")
+	c.Assert(myString("foo"), Not(Contains), "foobar")
+}
+
 func (s *CheckersS) TestContainsArray(c *C) {
 	c.Assert([...]int{1, 2, 3}, Contains, 1)
 	c.Assert([...]int{1, 2, 3}, Contains, 2)

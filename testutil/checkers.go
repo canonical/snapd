@@ -74,10 +74,11 @@ func (c *containsChecker) Check(params []interface{}, names []string) (result bo
 		return false, ""
 	case reflect.String:
 		// When container is a string, we expect elem to be a string as well
-		if reflect.ValueOf(elem).Kind() != reflect.String {
+		elemV := reflect.ValueOf(elem)
+		if elemV.Kind() != reflect.String {
 			return false, fmt.Sprintf("element is a %T but expected a string", elem)
 		}
-		return strings.Contains(container.(string), elem.(string)), ""
+		return strings.Contains(containerV.String(), elemV.String()), ""
 	default:
 		return false, fmt.Sprintf("%T is not a supported container", container)
 	}
