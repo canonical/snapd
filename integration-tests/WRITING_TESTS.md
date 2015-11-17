@@ -68,9 +68,9 @@ reboot, write it like this:
     func (s *somethingSuite) TestSomething(c *check.C) {
         if common.BeforeReboot() {
             ...
-		    common.Reboot(c)
+            common.Reboot(c)
         } else if common.AfterReboot(c) {
-		    common.RemoveRebootMark(c)
+            common.RemoveRebootMark(c)
             ...
         }
     }
