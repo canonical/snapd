@@ -61,4 +61,6 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 	c.Check(a.Type(), Equals, asserts.AccountKeyType)
 	accKey := a.(*asserts.AccountKey)
 	c.Check(accKey.AccountID(), Equals, "acc-id1")
+	c.Check(accKey.Since(), Equals, since)
+	c.Check(accKey.Until(), Equals, until)
 }

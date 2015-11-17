@@ -19,9 +19,16 @@
 
 package asserts
 
+import (
+	"fmt"
+	"time"
+)
+
 // AccountKey holds an account-key assertion.
 type AccountKey struct {
 	AssertionBase
+	since time.Time
+	until time.Time
 }
 
 // AccountID returns the account-id of this account-key.
@@ -29,9 +36,41 @@ func (ak *AccountKey) AccountID() string {
 	return ak.Header("account-id")
 }
 
+// Since returns the valid since date of this account-key.
+func (ak *AccountKey) Since() time.Time {
+	return ak.since
+}
+
+// Until returns the valid until date of this account-key.
+func (ak *AccountKey) Until() time.Time {
+	return ak.until
+}
+
 func buildAccountKey(assert AssertionBase) Assertion {
 	// xxx extract and check stuff
-	return &AccountKey{assert}
+	// check account-id mandatory
+	sinceStr := assert.Header("since")
+	if sinceStr == "" {
+		panic(fmt.Errorf("since header is mandatory"))
+	}
+	since, err := time.Parse(time.RFC3339, sinceStr)
+	if err != nil {
+		panic(fmt.Errorf("since header is not a RFC3339 date: %v", err))
+	}
+	untilStr := assert.Header("until")
+	if untilStr == "" {
+		panic(fmt.Errorf("until header is mandatory"))
+	}
+	until, err := time.Parse(time.RFC3339, untilStr)
+	if err != nil {
+		panic(fmt.Errorf("until header is not a RFC3339 date: %v", err))
+	}
+	// xxx check until > since
+	return &AccountKey{
+		AssertionBase: assert,
+		since:         since,
+		until:         until,
+	}
 }
 
 func init() {
