@@ -132,6 +132,17 @@ func (r *Repository) Names() []string {
 	return keys
 }
 
+// String representation of a capability.
+func (c Capability) String() string {
+	return c.Name
+}
+
+type byName []Capability
+
+func (c byName) Len() int           { return len(c) }
+func (c byName) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
+func (c byName) Less(i, j int) bool { return c[i].Name < c[j].Name }
+
 // All returns all capabilities ordered by name.
 func (r *Repository) All() []Capability {
 	r.Lock()
@@ -146,17 +157,6 @@ func (r *Repository) All() []Capability {
 	sort.Sort(byName(caps))
 	return caps
 }
-
-// String representation of a capability.
-func (c Capability) String() string {
-	return c.Name
-}
-
-type byName []Capability
-
-func (c byName) Len() int           { return len(c) }
-func (c byName) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
-func (c byName) Less(i, j int) bool { return c[i].Name < c[j].Name }
 
 func (e *NotFoundError) Error() string {
 	switch e.what {
