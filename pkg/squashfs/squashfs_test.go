@@ -17,7 +17,7 @@
  *
  */
 
-package snapfs
+package squashfs
 
 import (
 	"io/ioutil"
