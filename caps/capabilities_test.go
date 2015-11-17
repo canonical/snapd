@@ -46,7 +46,7 @@ func (s *CapabilitySuite) TestValidateName(c *C) {
 
 func (s *CapabilitySuite) TestAdd(c *C) {
 	repo := NewRepository()
-	cap := &Capability{"name", "label", FileType}
+	cap := &Capability{Name: "name", Label: "label", Type: FileType}
 	c.Assert(repo.Names(), Not(testutil.Contains), cap.Name)
 	err := repo.Add(cap)
 	c.Assert(err, IsNil)
@@ -56,10 +56,10 @@ func (s *CapabilitySuite) TestAdd(c *C) {
 
 func (s *CapabilitySuite) TestAddClash(c *C) {
 	repo := NewRepository()
-	cap1 := &Capability{"name", "label 1", FileType}
+	cap1 := &Capability{Name: "name", Label: "label 1", Type: FileType}
 	err := repo.Add(cap1)
 	c.Assert(err, IsNil)
-	cap2 := &Capability{"name", "label 2", FileType}
+	cap2 := &Capability{Name: "name", Label: "label 2", Type: FileType}
 	err = repo.Add(cap2)
 	c.Assert(err, ErrorMatches,
 		`cannot add capability "name": name already exists`)
@@ -69,7 +69,7 @@ func (s *CapabilitySuite) TestAddClash(c *C) {
 
 func (s *CapabilitySuite) TestAddInvalidName(c *C) {
 	repo := NewRepository()
-	cap1 := &Capability{"bad-name-", "label", FileType}
+	cap1 := &Capability{Name: "bad-name-", Label: "label", Type: FileType}
 	err := repo.Add(cap1)
 	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
 	c.Assert(repo.Names(), DeepEquals, []string{})
@@ -78,7 +78,7 @@ func (s *CapabilitySuite) TestAddInvalidName(c *C) {
 
 func (s *CapabilitySuite) TestRemoveGood(c *C) {
 	repo := NewRepository()
-	cap := &Capability{"name", "label", FileType}
+	cap := &Capability{Name: "name", Label: "label", Type: FileType}
 	err := repo.Add(cap)
 	c.Assert(err, IsNil)
 	err = repo.Remove(cap.Name)
@@ -96,32 +96,32 @@ func (s *CapabilitySuite) TestRemoveNoSuchCapability(c *C) {
 func (s *CapabilitySuite) TestNames(c *C) {
 	repo := NewRepository()
 	// Note added in non-sorted order
-	err := repo.Add(&Capability{"a", "label-a", FileType})
+	err := repo.Add(&Capability{Name: "a", Label: "label-a", Type: FileType})
 	c.Assert(err, IsNil)
-	err = repo.Add(&Capability{"c", "label-c", FileType})
+	err = repo.Add(&Capability{Name: "c", Label: "label-c", Type: FileType})
 	c.Assert(err, IsNil)
-	err = repo.Add(&Capability{"b", "label-b", FileType})
+	err = repo.Add(&Capability{Name: "b", Label: "label-b", Type: FileType})
 	c.Assert(err, IsNil)
 	c.Assert(repo.Names(), DeepEquals, []string{"a", "b", "c"})
 }
 
 func (s *CapabilitySuite) TestString(c *C) {
-	cap := &Capability{"name", "label", FileType}
+	cap := &Capability{Name: "name", Label: "label", Type: FileType}
 	c.Assert(cap.String(), Equals, "name")
 }
 
 func (s *CapabilitySuite) TestAll(c *C) {
 	repo := NewRepository()
 	// Note added in non-sorted order
-	err := repo.Add(&Capability{"a", "label-a", FileType})
+	err := repo.Add(&Capability{Name: "a", Label: "label-a", Type: FileType})
 	c.Assert(err, IsNil)
-	err = repo.Add(&Capability{"c", "label-c", FileType})
+	err = repo.Add(&Capability{Name: "c", Label: "label-c", Type: FileType})
 	c.Assert(err, IsNil)
-	err = repo.Add(&Capability{"b", "label-b", FileType})
+	err = repo.Add(&Capability{Name: "b", Label: "label-b", Type: FileType})
 	c.Assert(err, IsNil)
 	c.Assert(repo.All(), DeepEquals, []Capability{
-		Capability{"a", "label-a", FileType},
-		Capability{"b", "label-b", FileType},
-		Capability{"c", "label-c", FileType},
+		Capability{Name: "a", Label: "label-a", Type: FileType},
+		Capability{Name: "b", Label: "label-b", Type: FileType},
+		Capability{Name: "c", Label: "label-c", Type: FileType},
 	})
 }
