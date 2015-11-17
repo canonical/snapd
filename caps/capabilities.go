@@ -51,9 +51,9 @@ type Repository struct {
 	caps map[string]*Capability
 }
 
-// NotFound means that a capability was not found
-type NotFound struct {
-	error
+// NotFoundError means that a capability was not found
+type NotFoundError struct {
+	what, name string
 }
 
 const (
@@ -103,8 +103,7 @@ func (r *Repository) Remove(name string) error {
 		delete(r.caps, name)
 		return nil
 	}
-	return NotFound{fmt.Errorf(
-		"can't remove capability %q, no such capability", name)}
+	return &NotFoundError{"remove", name}
 }
 
 // Names returns all capability names in the repository in lexicographical order.
@@ -148,4 +147,13 @@ func (r *Repository) All() []Capability {
 	}
 	sort.Sort(byName(caps))
 	return caps
+}
+
+func (e *NotFoundError) Error() string {
+	switch e.what {
+	case "remove":
+		return fmt.Sprintf("can't remove capability %q, no such capability", e.name)
+	default:
+		panic(fmt.Sprintf("unexpected what: %q", e.what))
+	}
 }
