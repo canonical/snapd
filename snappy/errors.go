@@ -25,7 +25,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/arch"
 )
 
 var (
@@ -165,7 +165,7 @@ type ErrArchitectureNotSupported struct {
 }
 
 func (e *ErrArchitectureNotSupported) Error() string {
-	return fmt.Sprintf("package's supported architectures (%s) is incompatible with this system (%s)", strings.Join(e.Architectures, ", "), helpers.UbuntuArchitecture())
+	return fmt.Sprintf("package's supported architectures (%s) is incompatible with this system (%s)", strings.Join(e.Architectures, ", "), arch.UbuntuArchitecture())
 }
 
 // ErrInstallFailed is an error type for installation errors for snaps
