@@ -32,7 +32,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"syscall"
 	"text/template"
@@ -40,8 +39,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/logger"
 )
-
-var goarch = runtime.GOARCH
 
 func init() {
 	// golang does not init Seed() itself
@@ -185,36 +182,6 @@ type ErrUnsupportedFileType struct {
 
 func (e ErrUnsupportedFileType) Error() string {
 	return fmt.Sprintf("%s: unsupported filetype %s", e.Name, e.Mode)
-}
-
-// UbuntuArchitecture returns the debian equivalent architecture for the
-// currently running architecture.
-//
-// If the architecture does not map any debian architecture, the
-// GOARCH is returned.
-func UbuntuArchitecture() string {
-	switch goarch {
-	case "386":
-		return "i386"
-	case "arm":
-		return "armhf"
-	default:
-		return goarch
-	}
-}
-
-// IsSupportedArchitecture returns true if the system architecture is in the
-// list of architectures.
-func IsSupportedArchitecture(architectures []string) bool {
-	systemArch := UbuntuArchitecture()
-
-	for _, arch := range architectures {
-		if arch == "all" || arch == systemArch {
-			return true
-		}
-	}
-
-	return false
 }
 
 // Sha512sum returns the sha512 of the given file as a hexdigest

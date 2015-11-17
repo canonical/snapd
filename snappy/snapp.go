@@ -37,6 +37,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
@@ -1185,7 +1186,7 @@ func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
 	}
 
 	// verify we have a valid architecture
-	if !helpers.IsSupportedArchitecture(s.m.Architectures) {
+	if !arch.IsSupportedArchitecture(s.m.Architectures) {
 		return &ErrArchitectureNotSupported{s.m.Architectures}
 	}
 
@@ -1695,7 +1696,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	// frameworks
 	frameworks, _ := ActiveSnapIterByType(BareName, pkg.TypeFramework)
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(addCoreFmk(frameworks), ","))
-	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
+	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 	req.Header.Set("X-Ubuntu-Device-Channel", release.Get().Channel)
@@ -1913,7 +1914,7 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 		Origin      string
 	}{
 		part.Name(),
-		helpers.UbuntuArchitecture(),
+		arch.UbuntuArchitecture(),
 		part.basedir,
 		part.Version(),
 		QualifiedName(part),

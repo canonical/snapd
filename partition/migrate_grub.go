@@ -106,7 +106,7 @@ func copyKernelAssets(prefixDir, grubTargetDir string) error {
 			return fmt.Errorf("Incorrect matches for %v: %v", p, matches)
 		}
 		name := normalizeKernelInitrdName(filepath.Base(matches[0]))
-		targetPath := filepath.Join(bootloaderGrubDir, grubTargetDir, name)
+		targetPath := filepath.Join(bootloaderGrubDir(), grubTargetDir, name)
 		os.MkdirAll(filepath.Dir(targetPath), 0755)
 		// FIXME: valid?
 		if helpers.FileExists(targetPath) {
@@ -125,7 +125,7 @@ func copyKernelAssets(prefixDir, grubTargetDir string) error {
 // dynamic grub setup. Needed for when you rollback over the switch to
 // static grub.
 func MigrateToDynamicGrub() error {
-	grubConfigRaw, err := ioutil.ReadFile(bootloaderGrubConfigFile)
+	grubConfigRaw, err := ioutil.ReadFile(bootloaderGrubConfigFile())
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -149,5 +149,5 @@ func MigrateToDynamicGrub() error {
 		}
 	}
 
-	return helpers.AtomicWriteFile(bootloaderGrubConfigFile, []byte(newGrubConfig), 0644, 0)
+	return helpers.AtomicWriteFile(bootloaderGrubConfigFile(), []byte(newGrubConfig), 0644, 0)
 }
