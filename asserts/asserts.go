@@ -40,17 +40,17 @@ const (
 
 // Assertion represents an assertion through its general elements.
 type Assertion interface {
-	// the type of this assertion
+	// Type returns the type of this assertion
 	Type() AssertionType
-	// the revision of this assertion
+	// Revision returns the revision of this assertion
 	Revision() int
-	// the authority that signed this assertion
+	// AuthorityID returns the authority that signed this assertion
 	AuthorityID() string
 
 	// Header retrieves the header with name
 	Header(name string) string
 
-	// the body of this assertion
+	// Body returns the body of this assertion
 	Body() []byte
 
 	// Signature returns the signed content and its unprocessed signature
