@@ -95,12 +95,12 @@ func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
 
 	if matches := announceRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
 		testID := matches[1]
-		if isTest(testID) {
+		if isTest(testID) && !common.IsInRebootProcess() {
 			err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "exists"})
 		}
 	} else if matches := successRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
 		testID := matches[1]
-		if isTest(testID) {
+		if isTest(testID) && !common.IsInRebootProcess() {
 			err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "success"})
 		}
 	} else if matches := failureRegexp.FindStringSubmatch(sdata); len(matches) == 2 {

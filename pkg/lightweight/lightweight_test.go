@@ -80,7 +80,7 @@ func (s *lightweightSuite) MkInstalled(c *check.C, _type pkg.Type, appdir, name,
 	s.MkRemoved(c, qn, version)
 
 	apath := filepath.Join(appdir, qn, version, "meta")
-	yaml := fmt.Sprintf("name: %s\nversion: %s\nvendor: example.com\nicon: icon.png\ntype: %s\n", name, version, _type)
+	yaml := fmt.Sprintf("name: %s\nversion: %s\nicon: icon.png\ntype: %s\n", name, version, _type)
 	c.Check(os.MkdirAll(apath, 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(apath, "package.yaml"), []byte(yaml), 0644), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(apath, "hashes.yaml"), nil, 0644), check.IsNil)
@@ -114,7 +114,7 @@ func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
 		"version":            "120",
 		"icon":               filepath.Join(s.d, "apps", "fmk", "120", "icon.png"),
 		"type":               "framework",
-		"vendor":             "example.com",
+		"vendor":             "",
 		"download_size":      "-1",
 		"description":        "",
 		"rollback_available": "119",
@@ -166,7 +166,7 @@ func (s *lightweightSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
 		"version":        "4.2.0ubuntu1",
 		"icon":           "http://example.com/icon",
 		"type":           "framework",
-		"vendor":         "Example Inc.",
+		"vendor":         "",
 		"installed_size": "-1",
 		"download_size":  "42",
 		"description":    "",
@@ -185,7 +185,7 @@ func (s *lightweightSuite) TestMapAppNoPart(c *check.C) {
 		"version":       "1.0",
 		"icon":          filepath.Join(s.d, "apps", "foo.bar", "1.0", "icon.png"),
 		"type":          "app",
-		"vendor":        "example.com",
+		"vendor":        "",
 		"download_size": "-1",
 		"description":   "",
 	})
@@ -213,7 +213,7 @@ func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 		"version":          "1.0",
 		"icon":             filepath.Join(s.d, "apps", "foo.bar", "1.0", "icon.png"),
 		"type":             "app",
-		"vendor":           "example.com",
+		"vendor":           "",
 		"download_size":    "42",
 		"description":      "",
 		"update_available": "2",
@@ -240,7 +240,7 @@ func (s *lightweightSuite) TestMapAppNoPartBag(c *check.C) {
 		"version":        "2",
 		"icon":           snap.IconURL,
 		"type":           "app",
-		"vendor":         "example.com",
+		"vendor":         "",
 		"installed_size": "-1",
 		"download_size":  "42",
 		"description":    "",
@@ -277,7 +277,7 @@ func (s *lightweightSuite) TestMapInactiveOemNoPart(c *check.C) {
 		"version":       "3",
 		"icon":          filepath.Join(s.d, "oem", "an-oem", "3", "icon.png"),
 		"type":          "oem",
-		"vendor":        "example.com",
+		"vendor":        "",
 		"download_size": "-1",
 		"description":   "",
 	})

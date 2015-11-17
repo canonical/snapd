@@ -40,13 +40,11 @@ import (
 	"github.com/ubuntu-core/snappy/provisioning"
 )
 
-// SystemImagePart have constant name, origin, and vendor.
+// SystemImagePart have constant name and origin.
 const (
 	SystemImagePartName = "ubuntu-core"
 	// SystemImagePartOrigin is the origin of any system image part
 	SystemImagePartOrigin = "ubuntu"
-	// SystemImagePartVendor is the vendor of any system image part
-	SystemImagePartVendor = "Canonical Ltd."
 )
 
 const (
@@ -105,11 +103,6 @@ func (s *SystemImagePart) Name() string {
 // Origin returns the origin ("ubuntu")
 func (s *SystemImagePart) Origin() string {
 	return SystemImagePartOrigin
-}
-
-// Vendor returns the vendor ("Canonical Ltd.")
-func (s *SystemImagePart) Vendor() string {
-	return SystemImagePartVendor
 }
 
 // Version returns the version
@@ -306,14 +299,6 @@ func (s *SystemImagePart) NeedsReboot() bool {
 	}
 
 	return false
-}
-
-// MarkBootSuccessful marks the *currently* booted rootfs as "good"
-// (it booted :)
-// Note: Not part of the Part interface.
-func (s *SystemImagePart) MarkBootSuccessful() (err error) {
-
-	return s.partition.MarkBootSuccessful()
 }
 
 // Channel returns the system-image-server channel used

@@ -21,19 +21,20 @@ package testutil
 
 import (
 	"fmt"
-	"gopkg.in/check.v1"
 	"reflect"
 	"strings"
+
+	"gopkg.in/check.v1"
 )
 
 type containsChecker struct {
 	*check.CheckerInfo
 }
 
-// Contains is a Checker that looks for a needle in a haystack.
-// The needle can be any object. The haystack can be an array, slice or string.
+// Contains is a Checker that looks for a elem in a container.
+// The elem can be any object. The container can be an array, slice or string.
 var Contains check.Checker = &containsChecker{
-	&check.CheckerInfo{Name: "Contains", Params: []string{"haystack", "needle"}},
+	&check.CheckerInfo{Name: "Contains", Params: []string{"container", "elem"}},
 }
 
 func (c *containsChecker) Check(params []interface{}, names []string) (result bool, error string) {
@@ -43,41 +44,42 @@ func (c *containsChecker) Check(params []interface{}, names []string) (result bo
 			error = fmt.Sprint(v)
 		}
 	}()
-	var haystack interface{} = params[0]
-	var needle interface{} = params[1]
-	switch haystackV := reflect.ValueOf(haystack); haystackV.Kind() {
-	case reflect.Slice, reflect.Array:
-		// Ensure that type of elements in haystack is compatible with needle
-		if needleV := reflect.ValueOf(needle); haystackV.Type().Elem() != needleV.Type() {
-			panic(fmt.Sprintf("haystack contains items of type %s but needle is a %s",
-				haystackV.Type().Elem(), needleV.Type()))
+	var container interface{} = params[0]
+	var elem interface{} = params[1]
+	// Ensure that type of elements in container is compatible with elem
+	switch containerV := reflect.ValueOf(container); containerV.Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map:
+		if elemV := reflect.ValueOf(elem); containerV.Type().Elem() != elemV.Type() {
+			return false, fmt.Sprintf(
+				"container has items of type %s but expected element is a %s",
+				containerV.Type().Elem(), elemV.Type())
 		}
-		for len, i := haystackV.Len(), 0; i < len; i++ {
-			itemV := haystackV.Index(i)
-			if itemV.Interface() == needle {
+	}
+	switch containerV := reflect.ValueOf(container); containerV.Kind() {
+	case reflect.Slice, reflect.Array:
+		for length, i := containerV.Len(), 0; i < length; i++ {
+			itemV := containerV.Index(i)
+			if itemV.Interface() == elem {
 				return true, ""
 			}
 		}
 		return false, ""
 	case reflect.Map:
-		// Ensure that type of elements in haystack is compatible with needle
-		if needleV := reflect.ValueOf(needle); haystackV.Type().Elem() != needleV.Type() {
-			panic(fmt.Sprintf("haystack contains items of type %s but needle is a %s",
-				haystackV.Type().Elem(), needleV.Type()))
-		}
-		for _, keyV := range haystackV.MapKeys() {
-			itemV := haystackV.MapIndex(keyV)
-			if itemV.Interface() == needle {
+		for _, keyV := range containerV.MapKeys() {
+			itemV := containerV.MapIndex(keyV)
+			if itemV.Interface() == elem {
 				return true, ""
 			}
 		}
 		return false, ""
 	case reflect.String:
-		// When haystack is a string, we expect needle to be a string as well
-		needle := params[1].(string)
-		haystack := params[0].(string)
-		return strings.Contains(haystack, needle), ""
+		// When container is a string, we expect elem to be a string as well
+		elemV := reflect.ValueOf(elem)
+		if elemV.Kind() != reflect.String {
+			return false, fmt.Sprintf("element is a %T but expected a string", elem)
+		}
+		return strings.Contains(containerV.String(), elemV.String()), ""
 	default:
-		panic(fmt.Sprintf("haystack is of unsupported type %T", params[0]))
+		return false, fmt.Sprintf("%T is not a supported container", container)
 	}
 }

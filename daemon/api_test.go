@@ -108,7 +108,6 @@ func (s *apiSuite) mkInstalled(c *check.C, name, origin, version string, active 
 	content := fmt.Sprintf(`
 name: %s
 version: %s
-vendor: a vendor
 %s`, name, version, extraYaml)
 	c.Check(ioutil.WriteFile(filepath.Join(metadir, "package.yaml"), []byte(content), 0644), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(metadir, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
@@ -121,7 +120,6 @@ vendor: a vendor
 func (s *apiSuite) mkOem(c *check.C, store string) {
 	content := []byte(fmt.Sprintf(`name: test
 version: 1
-vendor: a vendor
 type: oem
 oem: {store: {id: %q}}
 `, store))
@@ -145,7 +143,6 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 		version:      "v2",
 		description:  "description",
 		origin:       "bar",
-		vendor:       "a vendor",
 		isInstalled:  true,
 		isActive:     true,
 		icon:         filepath.Join(dirs.SnapIconsDir, "icon.png"),
@@ -176,10 +173,10 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 			"version":            "v1",
 			"description":        "description",
 			"origin":             "bar",
-			"vendor":             "a vendor",
 			"status":             "active",
 			"icon":               "/1.0/icons/icon.png",
 			"type":               string(pkg.TypeApp),
+			"vendor":             "",
 			"download_size":      "2",
 			"resource":           "/1.0/packages/foo.bar",
 			"update_available":   "v2",

@@ -49,7 +49,6 @@ var snapBuilderFunc = BuildLegacySnap
 func makeInstalledMockSnap(tempdir, packageYamlContent string) (yamlFile string, err error) {
 	const packageHello = `name: hello-app
 version: 1.10
-vendor: Michael Vogt <mvo@ubuntu.com>
 icon: meta/hello.svg
 binaries:
  - name: bin/hello
@@ -192,7 +191,6 @@ echo "hello"`
 name: foo
 version: 1.0
 icon: foo.svg
-vendor: Foo Bar <foo@example.com>
 `
 	}
 	ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
@@ -223,7 +221,6 @@ func makeTwoTestSnaps(c *C, snapType pkg.Type, extra ...string) {
 
 	packageYaml := `name: foo
 icon: foo.svg
-vendor: Foo Bar <foo@example.com>
 `
 	if len(extra) > 0 {
 		packageYaml += strings.Join(extra, "\n") + "\n"

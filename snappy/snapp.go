@@ -192,7 +192,6 @@ type clickAppHook map[string]string
 type packageYaml struct {
 	Name    string
 	Version string
-	Vendor  string
 	Icon    string
 	Type    pkg.Type
 
@@ -241,7 +240,7 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error {
 	// check mandatory fields
 	missing := []string{}
-	for _, name := range []string{"Name", "Version", "Vendor"} {
+	for _, name := range []string{"Name", "Version"} {
 		s := helpers.Getattr(m, name).(string)
 		if s == "" {
 			missing = append(missing, strings.ToLower(name))
@@ -648,11 +647,6 @@ func (s *SnapPart) Origin() string {
 	}
 
 	return s.origin
-}
-
-// Vendor returns the author. Or viceversa.
-func (s *SnapPart) Vendor() string {
-	return s.m.Vendor
 }
 
 // Hash returns the hash
@@ -1394,11 +1388,6 @@ func (s *RemoteSnapPart) Description() string {
 // Origin is the origin
 func (s *RemoteSnapPart) Origin() string {
 	return s.pkg.Origin
-}
-
-// Vendor is the publisher. Author. Whatever.
-func (s *RemoteSnapPart) Vendor() string {
-	return s.pkg.Publisher
 }
 
 // Hash returns the hash
