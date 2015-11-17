@@ -49,7 +49,7 @@ func UbuntuArchitecture() string {
 
 // ubuntuArchFromGoArch maps a go architecture string to the coresponding
 // Ubuntu architecture string.
-// 
+//
 // E.g. the go "386" architecture string maps to the ubuntu "i386"
 // architecture.
 func ubuntuArchFromGoArch(goarch string) string {
