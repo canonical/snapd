@@ -119,7 +119,7 @@ func (r *Repository) Names() []string {
 	return keys
 }
 
-// String representation of a capability
+// String representation of a capability.
 func (c Capability) String() string {
 	return c.Name
 }
