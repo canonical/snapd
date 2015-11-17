@@ -48,7 +48,7 @@ type Capability struct {
 
 // Repository stores all known snappy capabilities and types
 type Repository struct {
-	sync.Mutex // protects the map from concurrent access. If contentions gets high, switch to a RWMutex
+	sync.Mutex // protects the map from concurrent access. If contention gets high, switch to a RWMutex
 	// Map of capabilities, indexed by Capability.Name
 	caps map[string]*Capability
 }
