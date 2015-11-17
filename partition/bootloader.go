@@ -307,10 +307,10 @@ func (b *bootloaderType) HandleAssets() (err error) {
 // BootloaderDir returns the full path to the (mounted and writable)
 // bootloader-specific boot directory.
 func BootloaderDir() string {
-	if helpers.FileExists(bootloaderUbootDir) {
-		return bootloaderUbootDir
-	} else if helpers.FileExists(bootloaderGrubDir) {
-		return bootloaderGrubDir
+	if helpers.FileExists(bootloaderUbootDir()) {
+		return bootloaderUbootDir()
+	} else if helpers.FileExists(bootloaderGrubDir()) {
+		return bootloaderGrubDir()
 	}
 
 	return ""

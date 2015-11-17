@@ -23,11 +23,12 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/dirs"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -51,17 +52,12 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 	// custom mount target
 	mountTarget = c.MkDir()
 
-	// setup fake paths for grub
-	bootloaderGrubDir = filepath.Join(s.tempdir, "boot", "grub")
-	bootloaderGrubConfigFile = filepath.Join(bootloaderGrubDir, "grub.cfg")
-	bootloaderGrubEnvFile = filepath.Join(bootloaderGrubDir, "grubenv")
-
-	// and uboot
-	bootloaderUbootDir = filepath.Join(s.tempdir, "boot", "uboot")
-	bootloaderUbootConfigFile = filepath.Join(bootloaderUbootDir, "uEnv.txt")
-	bootloaderUbootEnvFile = filepath.Join(bootloaderUbootDir, "uEnv.txt")
-	bootloaderUbootFwEnvFile = filepath.Join(bootloaderUbootDir, "uboot.env")
-	bootloaderUbootStampFile = filepath.Join(bootloaderUbootDir, "snappy-stamp.txt")
+	// global roto
+	dirs.SetRootDir(s.tempdir)
+	err := os.MkdirAll(bootloaderGrubDir(), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(bootloaderUbootDir(), 0755)
+	c.Assert(err, IsNil)
 
 	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
@@ -75,16 +71,6 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	cacheDir = cacheDirReal
 	hardwareSpecFile = hardwareSpecFileReal
 	mountTarget = mountTargetReal
-
-	// grub vars
-	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
-	bootloaderGrubEnvFile = bootloaderGrubEnvFileReal
-
-	// uboot vars
-	bootloaderUbootDir = bootloaderUbootDirReal
-	bootloaderUbootConfigFile = bootloaderUbootConfigFileReal
-	bootloaderUbootEnvFile = bootloaderUbootEnvFileReal
-	bootloaderUbootStampFile = bootloaderUbootStampFileReal
 
 	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }

@@ -24,8 +24,10 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 
 	"github.com/mvo5/goconfigparser"
@@ -34,29 +36,23 @@ import (
 
 const (
 	bootloaderUbootDirReal        = "/boot/uboot"
-	bootloaderUbootConfigFileReal = "/boot/uboot/uEnv.txt"
+	bootloaderUbootConfigFileReal = "uEnv.txt"
 
 	// File created by u-boot itself when
 	// bootloaderBootmodeTry == "try" which the
 	// successfully booted system must remove to flag to u-boot that
 	// this partition is "good".
-	bootloaderUbootStampFileReal = "/boot/uboot/snappy-stamp.txt"
+	bootloaderUbootStampFileReal = "snappy-stamp.txt"
 
 	// DEPRECATED:
-	bootloaderUbootEnvFileReal = "/boot/uboot/snappy-system.txt"
+	bootloaderUbootEnvFileReal = "snappy-system.txt"
 
 	// the real uboot env
-	bootloaderUbootFwEnvFileReal = "/boot/uboot/uboot.env"
+	bootloaderUbootFwEnvFileReal = "uboot.env"
 )
 
 // var to make it testable
 var (
-	bootloaderUbootDir        = bootloaderUbootDirReal
-	bootloaderUbootConfigFile = bootloaderUbootConfigFileReal
-	bootloaderUbootStampFile  = bootloaderUbootStampFileReal
-	bootloaderUbootEnvFile    = bootloaderUbootEnvFileReal
-	bootloaderUbootFwEnvFile  = bootloaderUbootFwEnvFileReal
-
 	atomicWriteFile = helpers.AtomicWriteFile
 )
 
@@ -76,19 +72,39 @@ type configFileChange struct {
 var setBootVar = func(name, value string) error { return nil }
 var getBootVar = func(name string) (string, error) { return "", nil }
 
+func bootloaderUbootDir() string {
+	return filepath.Join(dirs.GlobalRootDir, bootloaderUbootDirReal)
+}
+
+func bootloaderUbootConfigFile() string {
+	return filepath.Join(bootloaderUbootDir(), bootloaderUbootConfigFileReal)
+}
+
+func bootloaderUbootStampFile() string {
+	return filepath.Join(bootloaderUbootDir(), bootloaderUbootStampFileReal)
+}
+
+func bootloaderUbootEnvFile() string {
+	return filepath.Join(bootloaderUbootDir(), bootloaderUbootEnvFileReal)
+}
+
+func bootloaderUbootFwEnvFile() string {
+	return filepath.Join(bootloaderUbootDir(), bootloaderUbootFwEnvFileReal)
+}
+
 // newUboot create a new Uboot bootloader object
 func newUboot(partition *Partition) bootLoader {
-	if !helpers.FileExists(bootloaderUbootConfigFile) {
+	if !helpers.FileExists(bootloaderUbootConfigFile()) {
 		return nil
 	}
 
-	b := newBootLoader(partition, bootloaderUbootDir)
+	b := newBootLoader(partition, bootloaderUbootDir())
 	if b == nil {
 		return nil
 	}
 	u := uboot{bootloaderType: *b}
 
-	if helpers.FileExists(bootloaderUbootFwEnvFile) {
+	if helpers.FileExists(bootloaderUbootFwEnvFile()) {
 		setBootVar = setBootVarFwEnv
 		getBootVar = getBootVarFwEnv
 	} else {
@@ -114,7 +130,7 @@ func (u *uboot) ToggleRootFS(otherRootfs string) (err error) {
 func getBootVarLegacy(name string) (value string, err error) {
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
-	if err := cfg.ReadFile(bootloaderUbootEnvFile); err != nil {
+	if err := cfg.ReadFile(bootloaderUbootEnvFile()); err != nil {
 		return "", nil
 	}
 
@@ -134,11 +150,11 @@ func setBootVarLegacy(name, value string) error {
 		},
 	}
 
-	return modifyNameValueFile(bootloaderUbootEnvFile, changes)
+	return modifyNameValueFile(bootloaderUbootEnvFile(), changes)
 }
 
 func setBootVarFwEnv(name, value string) error {
-	env, err := uenv.Open(bootloaderUbootFwEnvFile)
+	env, err := uenv.Open(bootloaderUbootFwEnvFile())
 	if err != nil {
 		return err
 	}
@@ -153,7 +169,7 @@ func setBootVarFwEnv(name, value string) error {
 }
 
 func getBootVarFwEnv(name string) (string, error) {
-	env, err := uenv.Open(bootloaderUbootFwEnvFile)
+	env, err := uenv.Open(bootloaderUbootFwEnvFile())
 	if err != nil {
 		return "", err
 	}
@@ -192,11 +208,11 @@ func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) error {
 	}
 
 	// legacy support, does not error if the file is not there
-	return os.RemoveAll(bootloaderUbootStampFile)
+	return os.RemoveAll(bootloaderUbootStampFile())
 }
 
 func (u *uboot) BootDir() string {
-	return bootloaderUbootDir
+	return bootloaderUbootDir()
 }
 
 // Rewrite the specified file, applying the specified set of changes.
