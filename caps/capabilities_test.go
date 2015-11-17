@@ -79,8 +79,9 @@ func (s *CapabilitySuite) TestAddInvalidName(c *C) {
 func (s *CapabilitySuite) TestRemoveGood(c *C) {
 	repo := NewRepository()
 	cap := &Capability{"name", "label", FileType}
-	repo.Add(cap) // This is tested elsewhere
-	err := repo.Remove(cap.Name)
+	err := repo.Add(cap)
+	c.Assert(err, IsNil)
+	err = repo.Remove(cap.Name)
 	c.Assert(err, IsNil)
 	c.Assert(repo.Names(), HasLen, 0)
 	c.Assert(repo.Names(), Not(testutil.Contains), cap.Name)
@@ -94,9 +95,12 @@ func (s *CapabilitySuite) TestRemoveNoSuchCapability(c *C) {
 
 func (s *CapabilitySuite) TestNames(c *C) {
 	repo := NewRepository()
-	repo.Add(&Capability{"a", "label-a", FileType})
-	repo.Add(&Capability{"b", "label-b", FileType})
-	repo.Add(&Capability{"c", "label-c", FileType})
+	err := repo.Add(&Capability{"a", "label-a", FileType})
+	c.Assert(err, IsNil)
+	err = repo.Add(&Capability{"b", "label-b", FileType})
+	c.Assert(err, IsNil)
+	err = repo.Add(&Capability{"c", "label-c", FileType})
+	c.Assert(err, IsNil)
 	c.Assert(repo.Names(), DeepEquals, []string{"a", "b", "c"})
 }
 
@@ -107,9 +111,12 @@ func (s *CapabilitySuite) TestString(c *C) {
 
 func (s *CapabilitySuite) TestAll(c *C) {
 	repo := NewRepository()
-	repo.Add(&Capability{"a", "label-a", FileType})
-	repo.Add(&Capability{"b", "label-b", FileType})
-	repo.Add(&Capability{"c", "label-c", FileType})
+	err := repo.Add(&Capability{"a", "label-a", FileType})
+	c.Assert(err, IsNil)
+	err = repo.Add(&Capability{"b", "label-b", FileType})
+	c.Assert(err, IsNil)
+	err = repo.Add(&Capability{"c", "label-c", FileType})
+	c.Assert(err, IsNil)
 	c.Assert(repo.All(), DeepEquals, []Capability{
 		Capability{"a", "label-a", FileType},
 		Capability{"b", "label-b", FileType},
