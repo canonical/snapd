@@ -244,19 +244,23 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 		return nil, fmt.Errorf("assertion revision should be positive: %v", revision)
 	}
 
-	return reg.builder(AssertionBase{
+	assert, err := reg.builder(AssertionBase{
 		headers:   headers,
 		body:      body,
 		revision:  revision,
 		content:   content,
 		signature: signature,
-	}), nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("assertion %v: %v", assertType, err)
+	}
+	return assert, nil
 }
 
 // registry for assertion types describing how to build them etc...
 
 type assertionTypeRegistration struct {
-	builder func(assert AssertionBase) Assertion
+	builder func(assert AssertionBase) (Assertion, error)
 }
 
 var typeRegistry = make(map[AssertionType]*assertionTypeRegistration)

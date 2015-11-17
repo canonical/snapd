@@ -46,31 +46,38 @@ func (ak *AccountKey) Until() time.Time {
 	return ak.until
 }
 
-func buildAccountKey(assert AssertionBase) Assertion {
-	// xxx extract and check stuff
-	// check account-id mandatory
-	sinceStr := assert.Header("since")
-	if sinceStr == "" {
-		panic(fmt.Errorf("since header is mandatory"))
+func checkRFC3339Date(ab *AssertionBase, name string) (time.Time, error) {
+	dateStr := ab.Header(name)
+	if dateStr == "" {
+		return time.Time{}, fmt.Errorf("%v header is mandatory", name)
 	}
-	since, err := time.Parse(time.RFC3339, sinceStr)
+	date, err := time.Parse(time.RFC3339, dateStr)
 	if err != nil {
-		panic(fmt.Errorf("since header is not a RFC3339 date: %v", err))
+		return time.Time{}, fmt.Errorf("%v header is not a RFC3339 date: %v", name, err)
 	}
-	untilStr := assert.Header("until")
-	if untilStr == "" {
-		panic(fmt.Errorf("until header is mandatory"))
+	return date, nil
+}
+
+func buildAccountKey(assert AssertionBase) (Assertion, error) {
+	if assert.Header("account-id") == "" {
+		return nil, fmt.Errorf("account-id header is mandatory")
 	}
-	until, err := time.Parse(time.RFC3339, untilStr)
+	since, err := checkRFC3339Date(&assert, "since")
 	if err != nil {
-		panic(fmt.Errorf("until header is not a RFC3339 date: %v", err))
+		return nil, err
 	}
+	until, err := checkRFC3339Date(&assert, "until")
+	if err != nil {
+		return nil, err
+	}
+	// xxx check public key and double-check fingerprint
 	// xxx check until > since
+	// xxx check no other headers?
 	return &AccountKey{
 		AssertionBase: assert,
 		since:         since,
 		until:         until,
-	}
+	}, nil
 }
 
 func init() {

@@ -24,7 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	//"strings"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -63,4 +63,41 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 	c.Check(accKey.AccountID(), Equals, "acc-id1")
 	c.Check(accKey.Since(), Equals, since)
 	c.Check(accKey.Until(), Equals, until)
+}
+
+func (aks *accountKeySuite) TestDecodeInvalid(c *C) {
+	pk, err := asserts.GeneratePrivateKeyInTest()
+	c.Assert(err, IsNil)
+	fp := hex.EncodeToString(pk.PublicKey.Fingerprint[:])
+	since, err := time.Parse(time.RFC822, "16 Nov 15 15:04 UTC")
+	c.Assert(err, IsNil)
+	until := since.AddDate(1, 0, 0)
+	buf := new(bytes.Buffer)
+	err = pk.PublicKey.Serialize(buf)
+	body := "openpgp " + base64.StdEncoding.EncodeToString(buf.Bytes())
+
+	encoded := "type: account-key\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"fingerprint: " + fp + "\n" +
+		"since: " + since.Format(time.RFC3339) + "\n" +
+		"until: " + until.Format(time.RFC3339) + "\n" +
+		fmt.Sprintf("body-length: %v", len(body)) + "\n\n" +
+		body + "\n\n" +
+		"openpgp c2ln"
+
+	errPrefix := "assertion account-key: "
+
+	for _, scen := range []struct {
+		original, invalid, expectedErr string
+	}{
+		{"account-id: acc-id1\n", "", "account-id header is mandatory"},
+		{"since: " + since.Format(time.RFC3339) + "\n", "", "since header is mandatory"},
+		{"until: " + until.Format(time.RFC3339) + "\n", "", "until header is mandatory"},
+		{"since: " + since.Format(time.RFC3339) + "\n", "since: 12:30\n", "since header is not a RFC3339 date: .*"},
+	} {
+		invalid := strings.Replace(encoded, scen.original, scen.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, errPrefix+scen.expectedErr)
+	}
 }
