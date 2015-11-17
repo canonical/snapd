@@ -107,10 +107,7 @@ func (as *AssertsSuite) TestDecodeGetSignatureBits(c *C) {
 }
 
 func (as *AssertsSuite) TestDecodeNoSignatureSplit(c *C) {
-	for _, encoded := range []string{
-		"",
-		"foo",
-	} {
+	for _, encoded := range []string{"", "foo"} {
 		_, err := asserts.Decode([]byte(encoded))
 		c.Check(err, ErrorMatches, "assertion content/signature separator not found")
 	}
