@@ -107,10 +107,7 @@ func (as *AssertsSuite) TestDecodeGetSignatureBits(c *C) {
 }
 
 func (as *AssertsSuite) TestDecodeNoSignatureSplit(c *C) {
-	for _, encoded := range []string{
-		"",
-		"foo",
-	} {
+	for _, encoded := range []string{"", "foo"} {
 		_, err := asserts.Decode([]byte(encoded))
 		c.Check(err, ErrorMatches, "assertion content/signature separator not found")
 	}
@@ -157,4 +154,22 @@ func (as *AssertsSuite) TestDecodeInvalid(c *C) {
 		c.Check(err, ErrorMatches, scen.expectedErr)
 	}
 
+}
+
+func (as *AssertsSuite) TestEncode(c *C) {
+	encoded := []byte("type: test-only\n" +
+		"authority-id: auth-id2\n" +
+		"primary-key1: key1\n" +
+		"primary-key2: key2\n" +
+		"revision: 5\n" +
+		"header1: value1\n" +
+		"header2: value2\n" +
+		"body-length: 8\n\n" +
+		"THE-BODY" +
+		"\n\n" +
+		"openpgp c2ln")
+	a, err := asserts.Decode(encoded)
+	c.Assert(err, IsNil)
+	encodeRes := asserts.Encode(a)
+	c.Check(encodeRes, DeepEquals, encoded)
 }
