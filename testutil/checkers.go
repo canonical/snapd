@@ -57,7 +57,7 @@ func (c *containsChecker) Check(params []interface{}, names []string) (result bo
 	}
 	switch containerV := reflect.ValueOf(container); containerV.Kind() {
 	case reflect.Slice, reflect.Array:
-		for len, i := containerV.Len(), 0; i < len; i++ {
+		for length, i := containerV.Len(), 0; i < length; i++ {
 			itemV := containerV.Index(i)
 			if itemV.Interface() == elem {
 				return true, ""
