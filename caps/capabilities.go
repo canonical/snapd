@@ -51,6 +51,8 @@ type Repository struct {
 	sync.Mutex // protects the map from concurrent access. If contention gets high, switch to a RWMutex
 	// Map of capabilities, indexed by Capability.Name
 	caps map[string]*Capability
+	// A slice of types that are recognized and accepted
+	types []Type
 }
 
 // NotFoundError means that a capability was not found
@@ -81,7 +83,8 @@ func ValidateName(name string) error {
 // NewRepository creates an empty capability repository
 func NewRepository() *Repository {
 	return &Repository{
-		caps: make(map[string]*Capability),
+		caps:  make(map[string]*Capability),
+		types: make([]Type, 0),
 	}
 }
 
