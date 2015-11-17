@@ -174,7 +174,6 @@ binaries:
  "title": "some title",
  "hooks": {
   "hello-world": {
-   "apparmor": "meta/hello-world.apparmor",
    "bin-path": "bin/hello-world"
   }
  }
@@ -213,9 +212,7 @@ services:
  "installed-size": "17",
  "title": "some title",
  "hooks": {
-  "foo": {
-   "apparmor": "meta/foo.apparmor"
-  }
+  "foo": {}
  }
 }`
 	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_3.0.1_all.snap", "manifest").Output()

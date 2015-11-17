@@ -91,7 +91,7 @@ func iterOp(op policyOp, glob, targetDir, prefix string) (err error) {
 			}
 		case install:
 			// do the copy
-			if err := helpers.CopyFile(file, targetFile, helpers.CopyFlagSync); err != nil {
+			if err := helpers.CopyFile(file, targetFile, helpers.CopyFlagSync|helpers.CopyFlagOverwrite); err != nil {
 				return err
 			}
 		default:

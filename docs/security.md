@@ -93,12 +93,13 @@ options are available to modify the confinement:
   `default`. When specified without `caps`, `caps` defaults to being empty. Not
   compatible with `security-override` or `security-policy`.
 * `security-override`: (optional) high level overrides to use when
-  `security-template` and `caps` are not sufficient - see
-  [advanced usage](https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement)
-  for details. Not compatible with `caps`, `security-template` or
-  `security-policy`
-    * `apparmor: path/to/security.override`
-    * `seccomp: path/to/filter.override`
+  `security-template` and `caps` are not sufficient. Not compatible with
+   `caps`, `security-template` or `security-policy`
+  The following keys are supported:
+    * `read-paths`: a list of additional paths that the app can read
+    * `write-paths`: a list of additional paths that the app can write
+    * `abstractions`: a list of additional abstractions for the app
+    * `syscalls`: a list of additional syscalls that the app can use
 * `security-policy`: (optional) hand-crafted low-level raw security policy to
   use instead of using default template-based security policy. Not compatible
   with `caps`, `security-template` or `security-override`.
