@@ -118,3 +118,62 @@ func (s *CheckersS) TestContainsMap(c *C) {
 	c.Assert(map[string]int{"foo": 1, "bar": 2}, Contains, 2)
 	c.Assert(map[string]int{"foo": 1, "bar": 2}, Not(Contains), 3)
 }
+
+func (s *CheckersS) TestDeepContainsUnsupportedTypes(c *C) {
+	testInfo(c, DeepContains, "DeepContains", []string{"container", "elem"})
+	testCheck(c, DeepContains, false, "int is not a supported container", 5, nil)
+	testCheck(c, DeepContains, false, "bool is not a supported container", false, nil)
+	testCheck(c, DeepContains, false, "element is a int but expected a string", "container", 1)
+}
+
+func (s *CheckersS) TestDeepContainsVerifiesTypes(c *C) {
+	testInfo(c, DeepContains, "DeepContains", []string{"container", "elem"})
+	testCheck(c, DeepContains,
+		false, "container has items of type int but expected element is a string",
+		[...]int{1, 2, 3}, "foo")
+	testCheck(c, DeepContains,
+		false, "container has items of type int but expected element is a string",
+		[]int{1, 2, 3}, "foo")
+	// This looks tricky, DeepContains looks at _values_, not at keys
+	testCheck(c, DeepContains,
+		false, "container has items of type int but expected element is a string",
+		map[string]int{"foo": 1, "bar": 2}, "foo")
+}
+
+func (s *CheckersS) TestDeepContainsString(c *C) {
+	c.Assert("foo", DeepContains, "f")
+	c.Assert("foo", DeepContains, "fo")
+	c.Assert("foo", Not(DeepContains), "foobar")
+}
+
+func (s *CheckersS) TestDeepContainsCustomString(c *C) {
+	c.Assert(myString("foo"), DeepContains, myString("f"))
+	c.Assert(myString("foo"), DeepContains, myString("fo"))
+	c.Assert(myString("foo"), Not(DeepContains), myString("foobar"))
+	c.Assert("foo", DeepContains, myString("f"))
+	c.Assert("foo", DeepContains, myString("fo"))
+	c.Assert("foo", Not(DeepContains), myString("foobar"))
+	c.Assert(myString("foo"), DeepContains, "f")
+	c.Assert(myString("foo"), DeepContains, "fo")
+	c.Assert(myString("foo"), Not(DeepContains), "foobar")
+}
+
+func (s *CheckersS) TestDeepContainsArray(c *C) {
+	c.Assert([...]int{1, 2, 3}, DeepContains, 1)
+	c.Assert([...]int{1, 2, 3}, DeepContains, 2)
+	c.Assert([...]int{1, 2, 3}, DeepContains, 3)
+	c.Assert([...]int{1, 2, 3}, Not(DeepContains), 4)
+}
+
+func (s *CheckersS) TestDeepContainsSlice(c *C) {
+	c.Assert([]int{1, 2, 3}, DeepContains, 1)
+	c.Assert([]int{1, 2, 3}, DeepContains, 2)
+	c.Assert([]int{1, 2, 3}, DeepContains, 3)
+	c.Assert([]int{1, 2, 3}, Not(DeepContains), 4)
+}
+
+func (s *CheckersS) TestDeepContainsMap(c *C) {
+	c.Assert(map[string]int{"foo": 1, "bar": 2}, DeepContains, 1)
+	c.Assert(map[string]int{"foo": 1, "bar": 2}, DeepContains, 2)
+	c.Assert(map[string]int{"foo": 1, "bar": 2}, Not(DeepContains), 3)
+}

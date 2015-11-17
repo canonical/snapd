@@ -83,3 +83,61 @@ func (c *containsChecker) Check(params []interface{}, names []string) (result bo
 		return false, fmt.Sprintf("%T is not a supported container", container)
 	}
 }
+
+type deepContainsChecker struct {
+	*check.CheckerInfo
+}
+
+// DeepContains is a Checker that looks for a elem in a container using
+// DeepEqual.  The elem can be any object. The container can be an array, slice
+// or string.
+var DeepContains check.Checker = &deepContainsChecker{
+	&check.CheckerInfo{Name: "DeepContains", Params: []string{"container", "elem"}},
+}
+
+func (c *deepContainsChecker) Check(params []interface{}, names []string) (result bool, error string) {
+	defer func() {
+		if v := recover(); v != nil {
+			result = false
+			error = fmt.Sprint(v)
+		}
+	}()
+	var container interface{} = params[0]
+	var elem interface{} = params[1]
+	// Ensure that type of elements in container is compatible with elem
+	switch containerV := reflect.ValueOf(container); containerV.Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map:
+		if elemV := reflect.ValueOf(elem); containerV.Type().Elem() != elemV.Type() {
+			return false, fmt.Sprintf(
+				"container has items of type %s but expected element is a %s",
+				containerV.Type().Elem(), elemV.Type())
+		}
+	}
+	switch containerV := reflect.ValueOf(container); containerV.Kind() {
+	case reflect.Slice, reflect.Array:
+		for length, i := containerV.Len(), 0; i < length; i++ {
+			itemV := containerV.Index(i)
+			if reflect.DeepEqual(itemV.Interface(), elem) {
+				return true, ""
+			}
+		}
+		return false, ""
+	case reflect.Map:
+		for _, keyV := range containerV.MapKeys() {
+			itemV := containerV.MapIndex(keyV)
+			if reflect.DeepEqual(itemV.Interface(), elem) {
+				return true, ""
+			}
+		}
+		return false, ""
+	case reflect.String:
+		// When container is a string, we expect elem to be a string as well
+		elemV := reflect.ValueOf(elem)
+		if elemV.Kind() != reflect.String {
+			return false, fmt.Sprintf("element is a %T but expected a string", elem)
+		}
+		return strings.Contains(containerV.String(), elemV.String()), ""
+	default:
+		return false, fmt.Sprintf("%T is not a supported container", container)
+	}
+}
