@@ -162,7 +162,7 @@ test, *always* call the methods of the common suite:
 	    s.SnappySuite.TearDownTest(c)
     }
 
-## Tests with reboots
+### Tests with reboots
 
 `adt-run` supports reboots during tests. A test can request a reboot specifying
 a mark to identify it; adt-run backs up all the test files and the results so
