@@ -170,6 +170,6 @@ func (as *AssertsSuite) TestEncode(c *C) {
 		"openpgp c2ln")
 	a, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
-	encoded2 := asserts.Encode(a)
-	c.Check(encoded2, DeepEquals, encoded)
+	encodeRes := asserts.Encode(a)
+	c.Check(encodeRes, DeepEquals, encoded)
 }
