@@ -33,8 +33,8 @@ type AssertionType string
 
 // Understood assertions
 const (
-// IdentityType AssertionType = ...
-// AccountKeyType AssertionType = "account-key"
+	AccountKeyType AssertionType = "account-key"
+
 // ...
 )
 
