@@ -33,8 +33,6 @@ type SnapfsTestSuite struct {
 }
 
 func (s *SnapfsTestSuite) SetUpTest(c *C) {
-	// mocks
-	aaClickHookCmd = "/bin/true"
 	dirs.SetRootDir(c.MkDir())
 
 	// ensure we use the right builder func (snapfs)
@@ -49,7 +47,6 @@ var _ = Suite(&SnapfsTestSuite{})
 
 const packageHello = `name: hello-app
 version: 1.10
-vendor: Somebody
 icon: meta/hello.svg
 `
 

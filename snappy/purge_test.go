@@ -48,7 +48,11 @@ func (s *purgeSuite) SetUpTest(c *C) {
 	}
 
 	dirs.SnapSeccompDir = c.MkDir()
-	runScFilterGen = mockRunScFilterGen
+	dirs.SnapAppArmorDir = c.MkDir()
+
+	runAppArmorParser = mockRunAppArmorParser
+
+	makeMockSecurityEnv(c)
 }
 
 func (s *purgeSuite) TestPurgeNonExistingRaisesError(c *C) {
@@ -73,7 +77,7 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDir string, part *SnapPart
 		panic("dunno what to do with args")
 	}
 	app := "hello-app." + testOrigin
-	yaml := "version: 1.0\nvendor: foo\nname: hello-app\nversion: " + version + "\n" + extra
+	yaml := "version: 1.0\nname: hello-app\nversion: " + version + "\n" + extra
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
 	c.Assert(err, IsNil)
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))

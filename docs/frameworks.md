@@ -70,7 +70,6 @@ For frameworks, meta/package.yaml might contain something like:
 
     name: foo
     version: 1.1.234
-    vendor: "Some Person <some.person@example.com>"
     type: framework
     services:
       - name: bar
@@ -255,4 +254,3 @@ this work:
     	$ baz.foo --version
     	1.1.235
 * ...
-

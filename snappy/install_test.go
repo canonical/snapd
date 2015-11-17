@@ -51,6 +51,35 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	c.Check(name, Equals, "foo")
 }
 
+func (s *SnapTestSuite) TestInstallInstallLicense(c *C) {
+	snapFile := makeTestSnapPackage(c, `
+name: foo
+version: 1.0
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+explicit-license-agreement: Y
+`)
+	ag := &MockProgressMeter{y: true}
+	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, ag)
+	c.Assert(err, IsNil)
+	c.Check(name, Equals, "foo")
+	c.Check(ag.license, Equals, "WTFPL")
+}
+
+func (s *SnapTestSuite) TestInstallInstallLicenseNo(c *C) {
+	snapFile := makeTestSnapPackage(c, `
+name: foo
+version: 1.0
+icon: foo.svg
+vendor: Foo Bar <foo@example.com>
+explicit-license-agreement: Y
+`)
+	ag := &MockProgressMeter{y: false}
+	_, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, ag)
+	c.Assert(IsLicenseNotAccepted(err), Equals, true)
+	c.Check(ag.license, Equals, "WTFPL")
+}
+
 func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "apps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "apps")
@@ -60,7 +89,6 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 
 	packageYaml := `name: foo
 icon: foo.svg
-vendor: Foo Bar <foo@example.com>
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	_, err = Install(snapFile, flags, &progress.NullProgress{})
@@ -103,7 +131,7 @@ func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 }
 
 func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
-	snapPackage := makeTestSnapPackage(c, "name: foo\nversion: 2\nvendor: foo")
+	snapPackage := makeTestSnapPackage(c, "name: foo\nversion: 2")
 	snapR, err := os.Open(snapPackage)
 	c.Assert(err, IsNil)
 	defer snapR.Close()
@@ -185,12 +213,12 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 }
 
 func (s *SnapTestSuite) TestUpdate(c *C) {
-	snapPackagev1 := makeTestSnapPackage(c, "name: foo\nversion: 1\nvendor: foo")
+	snapPackagev1 := makeTestSnapPackage(c, "name: foo\nversion: 1")
 	name, err := Install(snapPackagev1, AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Assert(name, Equals, "foo")
 
-	snapPackagev2 := makeTestSnapPackage(c, "name: foo\nversion: 2\nvendor: foo")
+	snapPackagev2 := makeTestSnapPackage(c, "name: foo\nversion: 2")
 
 	snapR, err := os.Open(snapPackagev2)
 	c.Assert(err, IsNil)

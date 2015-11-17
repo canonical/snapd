@@ -49,7 +49,6 @@ var snapBuilderFunc = BuildLegacySnap
 func makeInstalledMockSnap(tempdir, packageYamlContent string) (yamlFile string, err error) {
 	const packageHello = `name: hello-app
 version: 1.10
-vendor: Michael Vogt <mvo@ubuntu.com>
 icon: meta/hello.svg
 binaries:
  - name: bin/hello
@@ -83,7 +82,19 @@ services:
 		return "", err
 	}
 
-	if err := addDefaultApparmorJSON(tempdir, "hello-app_hello_1.10.json"); err != nil {
+	if err := addMockDefaultApparmorProfile("hello-app_hello_1.10"); err != nil {
+		return "", err
+	}
+
+	if err := addMockDefaultApparmorProfile("hello-app_svc1_1.10"); err != nil {
+		return "", err
+	}
+
+	if err := addMockDefaultSeccompProfile("hello-app_hello_1.10"); err != nil {
+		return "", err
+	}
+
+	if err := addMockDefaultSeccompProfile("hello-app_svc1_1.10"); err != nil {
 		return "", err
 	}
 
@@ -114,6 +125,9 @@ func storeMinimalRemoteManifest(qn, name, origin, version, desc, channel string)
 		return err
 	}
 
+	if err := os.MkdirAll(dirs.SnapMetaDir, 0755); err != nil {
+		return err
+	}
 	if err := ioutil.WriteFile(filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", qn, version)), content, 0644); err != nil {
 		return err
 	}
@@ -121,19 +135,38 @@ func storeMinimalRemoteManifest(qn, name, origin, version, desc, channel string)
 	return nil
 }
 
-func addDefaultApparmorJSON(tempdir, apparmorJSONPath string) error {
-	appArmorDir := filepath.Join(tempdir, "var", "lib", "apparmor", "clicks")
+func addMockDefaultApparmorProfile(appid string) error {
+	appArmorDir := dirs.SnapAppArmorDir
+
 	if err := os.MkdirAll(appArmorDir, 0775); err != nil {
 		return err
 	}
 
-	const securityJSON = `{
-  "policy_vendor": "ubuntu-core"
-  "policy_version": 15.04
+	const securityProfile = `
+#include <tunables/global>
+profile "foo" (attach_disconnected) {
+	#include <abstractions/base>
 }`
 
-	apparmorFile := filepath.Join(appArmorDir, apparmorJSONPath)
-	return ioutil.WriteFile(apparmorFile, []byte(securityJSON), 0644)
+	apparmorFile := filepath.Join(appArmorDir, appid)
+	return ioutil.WriteFile(apparmorFile, []byte(securityProfile), 0644)
+}
+
+func addMockDefaultSeccompProfile(appid string) error {
+	seccompDir := dirs.SnapSeccompDir
+
+	if err := os.MkdirAll(seccompDir, 0775); err != nil {
+		return err
+	}
+
+	const securityProfile = `
+open
+write
+connect
+`
+
+	seccompFile := filepath.Join(seccompDir, appid)
+	return ioutil.WriteFile(seccompFile, []byte(securityProfile), 0644)
 }
 
 // makeTestSnapPackage creates a real snap package that can be installed on
@@ -158,7 +191,6 @@ echo "hello"`
 name: foo
 version: 1.0
 icon: foo.svg
-vendor: Foo Bar <foo@example.com>
 `
 	}
 	ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
@@ -189,7 +221,6 @@ func makeTwoTestSnaps(c *C, snapType pkg.Type, extra ...string) {
 
 	packageYaml := `name: foo
 icon: foo.svg
-vendor: Foo Bar <foo@example.com>
 `
 	if len(extra) > 0 {
 		packageYaml += strings.Join(extra, "\n") + "\n"
@@ -263,12 +294,7 @@ func (m *MockProgressMeter) Notify(msg string) {
 	m.notified = append(m.notified, msg)
 }
 
-// seccomp filter mocks
-const scFilterGenFakeResult = `
-syscall1
-syscall2
-`
-
-func mockRunScFilterGen(argv ...string) ([]byte, error) {
-	return []byte(scFilterGenFakeResult), nil
+// apparmor_parser mocks
+func mockRunAppArmorParser(argv ...string) ([]byte, error) {
+	return nil, nil
 }

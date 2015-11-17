@@ -28,7 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/arch"
 )
 
 type testreporter struct {
@@ -225,13 +225,13 @@ WantedBy=multi-user.target
 `
 
 var (
-	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "\n", helpers.UbuntuArchitecture())
-	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "\n", helpers.UbuntuArchitecture())
-	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "BusName=foo.bar.baz\nType=dbus", helpers.UbuntuArchitecture())
+	expectedAppService  = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "\n", arch.UbuntuArchitecture())
+	expectedFmkService  = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target", "", "", "\n", arch.UbuntuArchitecture())
+	expectedDbusService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target", ".mvo", "mvo", "BusName=foo.bar.baz\nType=dbus", arch.UbuntuArchitecture())
 
 	// things that need network
-	expectedNetAppService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".mvo", "mvo", "\n", helpers.UbuntuArchitecture())
-	expectedNetFmkService = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", "", "", "\n", helpers.UbuntuArchitecture())
+	expectedNetAppService = fmt.Sprintf(expectedServiceFmt, "After=ubuntu-snappy.frameworks.target\nRequires=ubuntu-snappy.frameworks.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", ".mvo", "mvo", "\n", arch.UbuntuArchitecture())
+	expectedNetFmkService = fmt.Sprintf(expectedServiceFmt, "Before=ubuntu-snappy.frameworks.target\nAfter=ubuntu-snappy.frameworks-pre.target\nRequires=ubuntu-snappy.frameworks-pre.target\nAfter=snappy-wait4network.service\nRequires=snappy-wait4network.service", "", "", "\n", arch.UbuntuArchitecture())
 )
 
 func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {

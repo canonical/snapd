@@ -334,7 +334,15 @@ func (p *Partition) ToggleNextBoot() (err error) {
 }
 
 // MarkBootSuccessful marks the boot as successful
-func (p *Partition) MarkBootSuccessful() (err error) {
+func (p *Partition) MarkBootSuccessful() error {
+	if p.rootPartition() != nil {
+		return p.markBootSuccessfulSnappyAB()
+	}
+
+	return p.markBootSuccessfulAllSnaps()
+}
+
+func (p *Partition) markBootSuccessfulSnappyAB() error {
 	bootloader, err := bootloader(p)
 	if err != nil {
 		return err
@@ -342,6 +350,11 @@ func (p *Partition) MarkBootSuccessful() (err error) {
 
 	currentRootfs := p.rootPartition().shortName
 	return bootloader.MarkCurrentBootSuccessful(currentRootfs)
+}
+
+// FIXME: stub
+func (p *Partition) markBootSuccessfulAllSnaps() error {
+	panic("markBootSuccessfulAllSnaps is not implemented yet")
 }
 
 // IsNextBootOther return true if the next boot will use the other rootfs

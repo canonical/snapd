@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/pkg"
@@ -119,7 +120,7 @@ func info() error {
 	// TRANSLATORS: the %s release string
 	fmt.Printf(i18n.G("release: %s\n"), release)
 	// TRANSLATORS: the %s an architecture string
-	fmt.Printf(i18n.G("architecture: %s\n"), snappy.Architecture())
+	fmt.Printf(i18n.G("architecture: %s\n"), arch.UbuntuArchitecture())
 	// TRANSLATORS: the %s is a comma separated list of framework names
 	fmt.Printf(i18n.G("frameworks: %s\n"), strings.Join(frameworks, ", "))
 	//TRANSLATORS: the %s represents a list of installed appnames
