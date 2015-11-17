@@ -106,6 +106,27 @@ func (r *Repository) Add(cap *Capability) error {
 	return nil
 }
 
+// AddType adds a capability type to the repository.
+// Type names must be unique within the repository.  An error is returned if
+// this constraint is violated. Note that unlike capabilities, types are append
+// only. We don't have any reasonable scenarios where a capability type would
+// have to be removed.
+func (r *Repository) AddType(t Type) error {
+	r.Lock()
+	defer r.Unlock()
+
+	if err := ValidateName(t.String()); err != nil {
+		return err
+	}
+	for _, otherT := range r.types {
+		if t == otherT {
+			return fmt.Errorf("cannot add type %q: name already exists", t)
+		}
+	}
+	r.types = append(r.types, t)
+	return nil
+}
+
 // Remove removes the capability with the provided name.
 // Removing a capability that doesn't exist silently does nothing
 func (r *Repository) Remove(name string) error {
@@ -138,6 +159,19 @@ func (r *Repository) Names() []string {
 // String representation of a capability.
 func (c Capability) String() string {
 	return c.Name
+}
+
+// TypeNames returns all type names in the repository in lexicographical order.
+func (r *Repository) TypeNames() []string {
+	r.Lock()
+	defer r.Unlock()
+
+	types := make([]string, len(r.types))
+	for i, t := range r.types {
+		types[i] = t.String()
+	}
+	sort.Strings(types)
+	return types
 }
 
 // String representation of a capability type
