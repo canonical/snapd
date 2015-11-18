@@ -114,8 +114,8 @@ func (r *Repository) Add(cap *Capability) error {
 // AddType adds a capability type to the repository.
 // It's an error to add the same capability type more than once.
 func (r *Repository) AddType(t Type) error {
-	r.Lock()
-	defer r.Unlock()
+	r.m.Lock()
+	defer r.m.Unlock()
 
 	if err := ValidateName(t.String()); err != nil {
 		return err
@@ -165,8 +165,8 @@ func (c Capability) String() string {
 
 // TypeNames returns all type names in the repository in lexicographical order.
 func (r *Repository) TypeNames() []string {
-	r.Lock()
-	defer r.Unlock()
+	r.m.Lock()
+	defer r.m.Unlock()
 
 	types := make([]string, len(r.types))
 	for i, t := range r.types {
