@@ -27,46 +27,72 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 )
 
-// Snap is the squashfs based snap
+// BlobPath is a helper that calculates the blob path from the baseDir.
+// FIXME: feels wrong (both location and approach). need something better.
+func BlobPath(instDir string) string {
+	l := strings.Split(filepath.Clean(instDir), string(filepath.Separator))
+	if len(l) < 2 {
+		panic(fmt.Sprintf("invalid path for BlobPath: %q", instDir))
+	}
+
+	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", l[len(l)-2], l[len(l)-1]))
+}
+
+// Snap is the squashfs based snap.
 type Snap struct {
 	path string
 }
 
-// Name returns the Name of the backing file
+// Name returns the Name of the backing file.
 func (s *Snap) Name() string {
 	return filepath.Base(s.path)
 }
 
-// New returns a new Squashfs snap
+// NeedsMountUnit returns true because a squashfs snap neesd to be
+// monted, it will not be usable otherwise
+func (s *Snap) NeedsMountUnit() bool {
+	return true
+}
+
+// New returns a new Squashfs snap.
 func New(path string) *Snap {
 	return &Snap{path: path}
 }
 
-// ControlMember extracts from meta/ - COMPAT
+// ControlMember extracts from meta/. - COMPAT
 func (s *Snap) ControlMember(controlMember string) ([]byte, error) {
 	return s.ReadFile(filepath.Join("DEBIAN", controlMember))
 }
 
-// MetaMember extracts from meta/ - COMPAT
+// MetaMember extracts from meta/. - COMPAT
 func (s *Snap) MetaMember(metaMember string) ([]byte, error) {
 	return s.ReadFile(filepath.Join("meta", metaMember))
 }
 
-// ExtractHashes does notthing for squashfs snaps - COMAPT
+// ExtractHashes does notthing for squashfs snaps. - COMAPT
 func (s *Snap) ExtractHashes(dir string) error {
 	return nil
 }
 
-// UnpackWithDropPrivs unpacks the meta and puts stuff in place - COMAPT
+// UnpackWithDropPrivs just copies the blob into place. - COMPAT
 func (s *Snap) UnpackWithDropPrivs(instDir, rootdir string) error {
-	// FIXME: actually drop privs
-	return s.Unpack("*", instDir)
+
+	// ensure mount-point and blob dir.
+	for _, dir := range []string{instDir, dirs.SnapBlobDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+
+	// FIXME: helpers.CopyFile() has no preserve attribute flag yet
+	return runCommand("cp", "-a", s.path, BlobPath(instDir))
 }
 
-// UnpackMeta unpacks just the meta/* directory of the given snap
+// UnpackMeta unpacks just the meta/* directory of the given snap.
 func (s *Snap) UnpackMeta(dst string) error {
 	if err := s.Unpack("meta/*", dst); err != nil {
 		return err
@@ -84,12 +110,12 @@ var runCommand = func(args ...string) error {
 	return nil
 }
 
-// Unpack unpacks the src (which may be a glob into the given target dir
+// Unpack unpacks the src (which may be a glob into the given target dir.
 func (s *Snap) Unpack(src, dstDir string) error {
 	return runCommand("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src)
 }
 
-// ReadFile returns the content of a single file inside a squashfs snap
+// ReadFile returns the content of a single file inside a squashfs snap.
 func (s *Snap) ReadFile(path string) (content []byte, err error) {
 	tmpdir, err := ioutil.TempDir("", "read-file")
 	if err != nil {
@@ -105,21 +131,15 @@ func (s *Snap) ReadFile(path string) (content []byte, err error) {
 	return ioutil.ReadFile(filepath.Join(unpackDir, path))
 }
 
-// CopyBlob copies the snap to a new place
-func (s *Snap) CopyBlob(targetFile string) error {
-	// FIXME: helpers.CopyFile() has no preserve attribute flag yet
-	return runCommand("cp", "-a", s.path, targetFile)
-}
-
-// Verify verifies the snap
+// Verify verifies the snap.
 func (s *Snap) Verify(unauthOk bool) error {
 	// FIXME: there is no verification yet for squashfs packages, this
 	//        will be done via assertions later for now we rely on
-	//        the https security
+	//        the https security.
 	return nil
 }
 
-// Build builds the snap
+// Build builds the snap.
 func (s *Snap) Build(buildDir string) error {
 	fullSnapPath, err := filepath.Abs(s.path)
 	if err != nil {
@@ -130,7 +150,6 @@ func (s *Snap) Build(buildDir string) error {
 		return runCommand(
 			"mksquashfs",
 			".", fullSnapPath,
-			"-all-root",
 			"-noappend",
 			"-comp", "xz")
 	})

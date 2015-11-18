@@ -36,6 +36,10 @@ type File interface {
 	ControlMember(name string) ([]byte, error)
 	MetaMember(name string) ([]byte, error)
 	ExtractHashes(targetDir string) error
+
+	// NeedsMountUnit determines if it's required to setup
+	// a mount unit for the snap when the snap is installed
+	NeedsMountUnit() bool
 }
 
 // Open opens a given snap file with the right backend
