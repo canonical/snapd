@@ -53,6 +53,18 @@ func validDevice(device string) bool {
 	return false
 }
 
+func validDeviceForUdev(device string) bool {
+	inValidPrefixes := []string{"/sys/devices", "/sys/class/gpio"}
+
+	for _, s := range inValidPrefixes {
+		if strings.HasPrefix(device, s) {
+			return false
+		}
+	}
+
+	return true
+}
+
 func readHWAccessYamlFile(snapname string) (SecurityOverrideDefinition, error) {
 	var appArmorAdditional SecurityOverrideDefinition
 
@@ -200,8 +212,10 @@ func AddHWAccess(snapname, device string) error {
 	}
 
 	// add udev rule for device cgroup
-	if err := writeUdevRuleForDeviceCgroup(snapname, device); err != nil {
-		return err
+	if validDeviceForUdev(device) {
+		if err := writeUdevRuleForDeviceCgroup(snapname, device); err != nil {
+			return err
+		}
 	}
 
 	// re-generate apparmor fules
