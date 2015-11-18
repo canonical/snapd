@@ -181,6 +181,10 @@ func (u *uboot) GetBootVar(name string) (value string, err error) {
 	return getBootVar(name)
 }
 
+func (u *uboot) SetBootVar(name, value string) error {
+	return setBootVar(name, value)
+}
+
 func (u *uboot) GetNextBootRootFSName() (label string, err error) {
 	value, err := u.GetBootVar(bootloaderRootfsVar)
 	if err != nil {

@@ -355,6 +355,13 @@ type mockBootloader struct {
 	HandleAssetsCalled              bool
 	MarkCurrentBootSuccessfulCalled bool
 	SyncBootFilesCalled             bool
+	BootVars                        map[string]string
+}
+
+func newMockBootloader() *mockBootloader {
+	return &mockBootloader{
+		BootVars: make(map[string]string),
+	}
 }
 
 func (b *mockBootloader) Name() bootloaderName {
@@ -373,7 +380,11 @@ func (b *mockBootloader) HandleAssets() error {
 	return nil
 }
 func (b *mockBootloader) GetBootVar(name string) (string, error) {
-	return "", nil
+	return b.BootVars[name], nil
+}
+func (b *mockBootloader) SetBootVar(name, value string) error {
+	b.BootVars[name] = value
+	return nil
 }
 func (b *mockBootloader) GetNextBootRootFSName() (string, error) {
 	return "", nil
@@ -388,7 +399,7 @@ func (b *mockBootloader) BootDir() string {
 
 func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 	runCommand = mockRunCommand
-	b := &mockBootloader{}
+	b := newMockBootloader()
 	bootloader = func(p *Partition) (bootLoader, error) {
 		return b, nil
 	}
@@ -407,7 +418,7 @@ func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 
 func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
 	runCommand = mockRunCommand
-	b := &mockBootloader{}
+	b := newMockBootloader()
 	bootloader = func(p *Partition) (bootLoader, error) {
 		return b, nil
 	}
@@ -422,7 +433,7 @@ func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
 
 func (s *PartitionTestSuite) TestSyncBootFiles(c *C) {
 	runCommand = mockRunCommand
-	b := &mockBootloader{}
+	b := newMockBootloader()
 	bootloader = func(p *Partition) (bootLoader, error) {
 		return b, nil
 	}
