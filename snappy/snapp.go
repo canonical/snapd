@@ -576,7 +576,7 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 	// read hash, its ok if its not there, some older versions of
 	// snappy did not write this file
 	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes.yaml"))
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
@@ -747,12 +747,6 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		return "", err
 	}
 
-	manifestData, err := s.deb.ControlMember("manifest")
-	if err != nil {
-		logger.Noticef("Snap inspect failed for %q: %v", s.Name(), err)
-		return "", err
-	}
-
 	// the "oem" parts are special
 	if s.Type() == pkg.TypeOem {
 		if err := installOemHardwareUdevRules(s.m); err != nil {
@@ -796,16 +790,6 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		if err := s.m.addSquashfsMount(s.basedir, inhibitHooks, inter); err != nil {
 			return "", err
 		}
-	}
-
-	// legacy, the hooks need this. Once we converted all hooks this can go
-	// away
-	clickMetaDir := filepath.Join(s.basedir, ".click", "info")
-	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
-		return "", err
-	}
-	if err := writeCompatManifestJSON(clickMetaDir, manifestData, s.origin); err != nil {
-		return "", err
 	}
 
 	// write the hashes now
