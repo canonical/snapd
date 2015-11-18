@@ -67,15 +67,15 @@ snappy_boot=if test "${snappy_mode}" = "try"; then if test -e mmc ${bootpart} ${
 `
 
 func (s *PartitionTestSuite) makeFakeUbootEnv(c *C) {
-	err := os.MkdirAll(bootloaderUbootDir, 0755)
+	err := os.MkdirAll(bootloaderUbootDir(), 0755)
 	c.Assert(err, IsNil)
 
 	// this file just needs to exist
-	err = ioutil.WriteFile(bootloaderUbootConfigFile, []byte(""), 0644)
+	err = ioutil.WriteFile(bootloaderUbootConfigFile(), []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	// this file needs specific data
-	err = ioutil.WriteFile(bootloaderUbootEnvFile, []byte(fakeUbootEnvData), 0644)
+	err = ioutil.WriteFile(bootloaderUbootEnvFile(), []byte(fakeUbootEnvData), 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -253,9 +253,9 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	// "snappy booted" if the system boots successfully. If this
 	// file exists when uboot starts, it will know that the previous
 	// boot failed, and will therefore toggle to the other rootfs.
-	err := ioutil.WriteFile(bootloaderUbootStampFile, []byte(""), 0640)
+	err := ioutil.WriteFile(bootloaderUbootStampFile(), []byte(""), 0640)
 	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(bootloaderUbootStampFile), Equals, true)
+	c.Assert(helpers.FileExists(bootloaderUbootStampFile()), Equals, true)
 
 	partition := New()
 	u := newUboot(partition)
@@ -267,8 +267,8 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	err = u.ToggleRootFS("b")
 	c.Assert(err, IsNil)
 
-	c.Assert(helpers.FileExists(bootloaderUbootEnvFile), Equals, true)
-	bytes, err := ioutil.ReadFile(bootloaderUbootEnvFile)
+	c.Assert(helpers.FileExists(bootloaderUbootEnvFile()), Equals, true)
+	bytes, err := ioutil.ReadFile(bootloaderUbootEnvFile())
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, true)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, false)
@@ -277,10 +277,10 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessful(c *C) {
 	err = u.MarkCurrentBootSuccessful("b")
 	c.Assert(err, IsNil)
 
-	c.Assert(helpers.FileExists(bootloaderUbootStampFile), Equals, false)
-	c.Assert(helpers.FileExists(bootloaderUbootEnvFile), Equals, true)
+	c.Assert(helpers.FileExists(bootloaderUbootStampFile()), Equals, false)
+	c.Assert(helpers.FileExists(bootloaderUbootEnvFile()), Equals, true)
 
-	bytes, err = ioutil.ReadFile(bootloaderUbootEnvFile)
+	bytes, err = ioutil.ReadFile(bootloaderUbootEnvFile())
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=try"), Equals, false)
 	c.Assert(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
@@ -308,7 +308,7 @@ func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
 	s.makeFakeUbootEnv(c)
 
 	// this file needs specific data
-	c.Assert(ioutil.WriteFile(bootloaderUbootEnvFile, []byte(""), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(bootloaderUbootEnvFile(), []byte(""), 0644), IsNil)
 
 	atomiCall := false
 	atomicWriteFile = func(a string, b []byte, c os.FileMode, f helpers.AtomicWriteFlags) error {
@@ -323,7 +323,7 @@ func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
 	c.Check(u.MarkCurrentBootSuccessful("a"), IsNil)
 	c.Assert(atomiCall, Equals, true)
 
-	bytes, err := ioutil.ReadFile(bootloaderUbootEnvFile)
+	bytes, err := ioutil.ReadFile(bootloaderUbootEnvFile())
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(bytes), "snappy_mode=try"), Equals, false)
 	c.Check(strings.Contains(string(bytes), "snappy_mode=regular"), Equals, true)
@@ -333,7 +333,7 @@ func (s *PartitionTestSuite) TestWriteDueToMissingValues(c *C) {
 func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	env, err := uenv.Create(bootloaderUbootFwEnvFile, 4096)
+	env, err := uenv.Create(bootloaderUbootFwEnvFile(), 4096)
 	c.Assert(err, IsNil)
 	env.Set("snappy_ab", "b")
 	env.Set("snappy_mode", "try")
@@ -348,7 +348,7 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
 	err = u.MarkCurrentBootSuccessful("b")
 	c.Assert(err, IsNil)
 
-	env, err = uenv.Open(bootloaderUbootFwEnvFile)
+	env, err = uenv.Open(bootloaderUbootFwEnvFile())
 	c.Assert(err, IsNil)
 	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\nsnappy_trial_boot=0\n")
 }
@@ -356,14 +356,14 @@ func (s *PartitionTestSuite) TestUbootMarkCurrentBootSuccessfulFwEnv(c *C) {
 func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	env, err := uenv.Create(bootloaderUbootFwEnvFile, 4096)
+	env, err := uenv.Create(bootloaderUbootFwEnvFile(), 4096)
 	c.Assert(err, IsNil)
 	env.Set("snappy_ab", "b")
 	env.Set("snappy_mode", "regular")
 	err = env.Save()
 	c.Assert(err, IsNil)
 
-	st, err := os.Stat(bootloaderUbootFwEnvFile)
+	st, err := os.Stat(bootloaderUbootFwEnvFile())
 	c.Assert(err, IsNil)
 	time.Sleep(100 * time.Millisecond)
 
@@ -375,11 +375,11 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	err = setBootVarFwEnv(bootloaderRootfsVar, "b")
 	c.Assert(err, IsNil)
 
-	env, err = uenv.Open(bootloaderUbootFwEnvFile)
+	env, err = uenv.Open(bootloaderUbootFwEnvFile())
 	c.Assert(err, IsNil)
 	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\n")
 
-	st2, err := os.Stat(bootloaderUbootFwEnvFile)
+	st2, err := os.Stat(bootloaderUbootFwEnvFile())
 	c.Assert(err, IsNil)
 	c.Assert(st.ModTime(), Equals, st2.ModTime())
 }
@@ -403,7 +403,7 @@ func (s *PartitionTestSuite) TestUbootSetBootVarLegacy(c *C) {
 
 func (s *PartitionTestSuite) TestUbootSetBootVarFwEnv(c *C) {
 	s.makeFakeUbootEnv(c)
-	env, err := uenv.Create(bootloaderUbootFwEnvFile, 4096)
+	env, err := uenv.Create(bootloaderUbootFwEnvFile(), 4096)
 	c.Assert(err, IsNil)
 	err = env.Save()
 	c.Assert(err, IsNil)
@@ -420,7 +420,7 @@ func (s *PartitionTestSuite) TestUbootSetBootVarFwEnv(c *C) {
 
 func (s *PartitionTestSuite) TestUbootGetBootVarFwEnv(c *C) {
 	s.makeFakeUbootEnv(c)
-	env, err := uenv.Create(bootloaderUbootFwEnvFile, 4096)
+	env, err := uenv.Create(bootloaderUbootFwEnvFile(), 4096)
 	c.Assert(err, IsNil)
 	env.Set("key2", "value2")
 	err = env.Save()

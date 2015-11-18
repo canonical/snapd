@@ -33,6 +33,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 )
@@ -346,7 +347,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		fmt.Sprintf("%s_%s_%s", desc.AppName, desc.ServiceName, desc.Version),
 		servicesSystemdTarget,
 		origin,
-		helpers.UbuntuArchitecture(),
+		arch.UbuntuArchitecture(),
 		"%h",
 		"",
 		desc.SocketFileName,

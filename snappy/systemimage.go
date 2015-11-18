@@ -301,14 +301,6 @@ func (s *SystemImagePart) NeedsReboot() bool {
 	return false
 }
 
-// MarkBootSuccessful marks the *currently* booted rootfs as "good"
-// (it booted :)
-// Note: Not part of the Part interface.
-func (s *SystemImagePart) MarkBootSuccessful() (err error) {
-
-	return s.partition.MarkBootSuccessful()
-}
-
 // Channel returns the system-image-server channel used
 func (s *SystemImagePart) Channel() string {
 	return s.channelName
