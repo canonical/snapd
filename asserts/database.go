@@ -133,7 +133,7 @@ func (db *Database) Check(assert Assertion) error {
 		if pubKey.IsKeyValidAt(now) {
 			err = pubKey.Verify(content, sig)
 			if err == nil {
-				// TODO: further checks about consistency of assert and validity of the key for this kind of assert
+				// TODO: further checks about consistency of assert and validity of the key for this kind of assert, likely delegating to it
 				return nil
 			}
 		}
