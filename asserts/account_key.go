@@ -29,7 +29,8 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 )
 
-// AccountKey holds an account-key assertion.
+// AccountKey holds an account-key assertion, asserting a public key
+// belonging to the account.
 type AccountKey struct {
 	AssertionBase
 	since     time.Time
@@ -42,12 +43,12 @@ func (ak *AccountKey) AccountID() string {
 	return ak.Header("account-id")
 }
 
-// Since returns the valid since date of this account-key.
+// Since returns the time when the account key starts being valid.
 func (ak *AccountKey) Since() time.Time {
 	return ak.since
 }
 
-// Until returns the valid until date of this account-key.
+// Until returns the time when the account key stops being valid.
 func (ak *AccountKey) Until() time.Time {
 	return ak.until
 }
@@ -125,13 +126,13 @@ func buildAccountKey(assert AssertionBase) (Assertion, error) {
 		return nil, err
 	}
 	if !until.After(since) {
-		return nil, fmt.Errorf("until date not after since date")
+		return nil, fmt.Errorf("invalid 'since' and 'until' times (no gap after 'since' till 'until')")
 	}
 	pubk, err := checkPublicKey(&assert, "fingerprint")
 	if err != nil {
 		return nil, err
 	}
-	// XXX: check there are no extra headers?
+	// ignore extra headers for future compatibility
 	return &AccountKey{
 		AssertionBase: assert,
 		since:         since,
