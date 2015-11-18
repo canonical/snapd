@@ -27,10 +27,29 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 )
 
+// TODO: eventually this should be the only non-test file using/importing directly from golang.org/x/crypto
+
 func generatePrivateKey() (*packet.PrivateKey, error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, err
 	}
 	return packet.NewRSAPrivateKey(time.Now(), priv), nil
+}
+
+type signaturePrim interface{}
+
+// xxx does this belongs here or just a subset
+type publicKey interface {
+	// IsKeyValidAt returns whether the public key is valid at 'when' time
+	IsKeyValidAt(when time.Time) bool
+	// KeyFingerprint returns the key fingerprint.
+	KeyFingerprint() string
+	// Verify verifies the signature of content using the key.
+	Verify(content []byte, sig signaturePrim) error
+}
+
+func parseSignature(signature []byte) (keyID string, sig signaturePrim, err error) {
+	// xxx implement me
+	return "", nil, nil
 }

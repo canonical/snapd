@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
 
@@ -107,4 +108,38 @@ func (db *Database) ImportKey(authorityID string, privKey *packet.PrivateKey) (f
 		return "", fmt.Errorf("failed to store private key: %v", err)
 	}
 	return fingerp, nil
+}
+
+// use a generalized matching style along what PGP does where keys can be
+// retrieved by using suffixes of their fingerprint
+// TODO: may need more details about the kind of key we are looking for
+func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) []publicKey {
+	// xxx implement me for trusted keys first
+	return nil
+}
+
+// Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
+func (db *Database) Check(assert Assertion) error {
+	content, signature := assert.Signature()
+	keyID, sig, err := parseSignature(signature)
+	if err != nil {
+		return err
+	}
+	// TODO: later may need to consider type of assert
+	pubKeys := db.findPublicKeys(assert.AuthorityID(), keyID)
+	now := time.Now()
+	err = nil
+	for _, pubKey := range pubKeys {
+		if pubKey.IsKeyValidAt(now) {
+			err = pubKey.Verify(content, sig)
+			if err == nil {
+				// TODO: further checks about consistency of assert and validity of the key for this kind of assert
+				return nil
+			}
+		}
+	}
+	if err == nil {
+		return fmt.Errorf("found no public key to check assertion")
+	}
+	return err
 }

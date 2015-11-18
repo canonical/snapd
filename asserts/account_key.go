@@ -143,6 +143,7 @@ func buildAccountKey(assert AssertionBase) (Assertion, error) {
 
 func init() {
 	typeRegistry[AccountKeyType] = &assertionTypeRegistration{
-		builder: buildAccountKey,
+		builder:    buildAccountKey,
+		primaryKey: []string{"account-id", "fingerprint"},
 	}
 }
