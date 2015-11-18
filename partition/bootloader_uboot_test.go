@@ -371,7 +371,7 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
-	err = setBootVar(bootloaderRootfsVar, "b")
+	err = setBootVarLegacy(bootloaderRootfsVar, "b")
 	c.Assert(err, IsNil)
 
 	env, err = uenv.Open(bootloaderUbootFwEnvFile)
