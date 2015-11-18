@@ -107,10 +107,7 @@ func (r *Repository) Add(cap *Capability) error {
 }
 
 // AddType adds a capability type to the repository.
-// Type names must be unique within the repository.  An error is returned if
-// this constraint is violated. Note that unlike capabilities, types are append
-// only. We don't have any reasonable scenarios where a capability type would
-// have to be removed.
+// It's an error to add the same capability type more than once.
 func (r *Repository) AddType(t Type) error {
 	r.Lock()
 	defer r.Unlock()
