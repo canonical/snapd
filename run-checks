@@ -158,10 +158,14 @@ if [ ! -z "$INTEGRATION" ]; then
     # integration suite in kvm
     if which adt-run >/dev/null 2>&1; then
         echo "Running integration tests on rolling edge"
-        go run integration-tests/main.go --snappy-from-branch
+        result=0
+        go run integration-tests/main.go --snappy-from-branch || result=$?
         # print the results.
         if which subunit2pyunit >/dev/null 2>&1; then
             subunit2pyunit /tmp/snappy-test/output/artifacts/results.subunit
+        fi
+        if [ "$result" -ne 0 ]; then
+            exit $result
         fi
     fi
 fi
