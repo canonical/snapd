@@ -81,7 +81,7 @@ func splitFormatAndDecode(formatAndBase64 []byte) (string, []byte, error) {
 
 func checkPublicKey(ab *AssertionBase, fingerprintName string) (*packet.PublicKey, error) {
 	pubKeyBody := ab.Body()
-	if pubKeyBody == nil {
+	if len(pubKeyBody) == 0 {
 		return nil, fmt.Errorf("expected public key, not empty body")
 	}
 	format, key, err := splitFormatAndDecode(pubKeyBody)
