@@ -26,7 +26,7 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/pkg/clickdeb"
-	"github.com/ubuntu-core/snappy/pkg/snapfs"
+	"github.com/ubuntu-core/snappy/pkg/squashfs"
 )
 
 // PackageFile is the interface to interact with the low-level snap files
@@ -54,7 +54,7 @@ func OpenPackageFile(path string) (PackageFile, error) {
 	}
 	// note that we only support little endian squashfs for now
 	if bytes.HasPrefix(header, []byte{'h', 's', 'q', 's'}) {
-		return snapfs.New(path), nil
+		return squashfs.New(path), nil
 	}
 	if strings.HasPrefix(string(header), "!<arch>\ndebian") {
 		return clickdeb.Open(path)

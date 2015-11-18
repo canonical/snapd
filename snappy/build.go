@@ -34,7 +34,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/pkg/clickdeb"
-	"github.com/ubuntu-core/snappy/pkg/snapfs"
+	"github.com/ubuntu-core/snappy/pkg/squashfs"
 
 	"gopkg.in/yaml.v2"
 )
@@ -486,8 +486,9 @@ func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error)
 	return snapName, nil
 }
 
-// BuildSnapfsSnap the given sourceDirectory and return the generated snap file
-func BuildSnapfsSnap(sourceDir, targetDir string) (string, error) {
+// BuildSquashfsSnap the given sourceDirectory and return the generated
+// snap file
+func BuildSquashfsSnap(sourceDir, targetDir string) (string, error) {
 	// create build dir
 	buildDir, err := ioutil.TempDir("", "snappy-build-")
 	if err != nil {
@@ -500,7 +501,7 @@ func BuildSnapfsSnap(sourceDir, targetDir string) (string, error) {
 		return "", err
 	}
 
-	d := snapfs.New(snapName)
+	d := squashfs.New(snapName)
 	if err = d.Build(buildDir); err != nil {
 		return "", err
 	}
