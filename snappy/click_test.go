@@ -28,7 +28,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/arch"
@@ -73,100 +72,6 @@ func (s *SnapTestSuite) TestReadManifest(c *C) {
 	c.Assert(manifest.Version, Equals, "1.0.5")
 	c.Assert(manifest.Hooks["evil"]["bin-path"], Equals, "bin/evil")
 	c.Assert(manifest.Hooks["evil"]["apparmor"], Equals, "meta/evil.apparmor")
-}
-
-func makeClickHook(c *C, hookContent string) {
-	cfg := goconfigparser.New()
-	c.Assert(cfg.ReadString("[hook]\n"+hookContent), IsNil)
-	hookName, err := cfg.Get("hook", "Hook-Name")
-	c.Assert(err, IsNil)
-
-	if _, err := os.Stat(dirs.ClickSystemHooksDir); err != nil {
-		os.MkdirAll(dirs.ClickSystemHooksDir, 0755)
-	}
-	ioutil.WriteFile(filepath.Join(dirs.ClickSystemHooksDir, hookName+".hook"), []byte(hookContent), 0644)
-}
-
-func (s *SnapTestSuite) TestReadClickHookFile(c *C) {
-	makeClickHook(c, `Hook-Name: systemd
-User: root
-Exec: /usr/lib/click-systemd/systemd-clickhook
-Pattern: /var/lib/systemd/click/${id}`)
-	hook, err := readClickHookFile(filepath.Join(dirs.ClickSystemHooksDir, "systemd.hook"))
-	c.Assert(err, IsNil)
-	c.Assert(hook.name, Equals, "systemd")
-	c.Assert(hook.user, Equals, "root")
-	c.Assert(hook.exec, Equals, "/usr/lib/click-systemd/systemd-clickhook")
-	c.Assert(hook.pattern, Equals, "/var/lib/systemd/click/${id}")
-
-	// click allows non-existing "Hook-Name" and uses the filename then
-	makeClickHook(c, `Hook-Name: apparmor
-Pattern: /var/lib/apparmor/click/${id}`)
-	hook, err = readClickHookFile(filepath.Join(dirs.ClickSystemHooksDir, "apparmor.hook"))
-	c.Assert(err, IsNil)
-	c.Assert(hook.name, Equals, "apparmor")
-}
-
-func (s *SnapTestSuite) TestReadClickHooksDir(c *C) {
-	makeClickHook(c, `Hook-Name: systemd
-User: root
-Exec: /usr/lib/click-systemd/systemd-clickhook
-Pattern: /var/lib/systemd/click/${id}`)
-	hooks, err := systemClickHooks()
-	c.Assert(err, IsNil)
-	c.Assert(hooks, HasLen, 1)
-	c.Assert(hooks["systemd"].name, Equals, "systemd")
-}
-
-func (s *SnapTestSuite) TestHandleClickHooks(c *C) {
-	// we can not strip the global rootdir for the hook tests
-	stripGlobalRootDir = func(s string) string { return s }
-
-	// two hooks to ensure iterating works correct
-	testSymlinkDir := filepath.Join(s.tempdir, "/var/lib/systemd/click/")
-	os.MkdirAll(testSymlinkDir, 0755)
-
-	content := `Hook-Name: systemd
-Pattern: /var/lib/systemd/click/${id}
-`
-	makeClickHook(c, content)
-
-	os.MkdirAll(filepath.Join(s.tempdir, "/var/lib/apparmor/click/"), 0755)
-	testSymlinkDir2 := filepath.Join(s.tempdir, "/var/lib/apparmor/click/")
-	os.MkdirAll(testSymlinkDir2, 0755)
-	content = `Hook-Name: apparmor
-Pattern: /var/lib/apparmor/click/${id}
-`
-	makeClickHook(c, content)
-
-	instDir := filepath.Join(s.tempdir, "apps", "foo", "1.0")
-	os.MkdirAll(instDir, 0755)
-	ioutil.WriteFile(filepath.Join(instDir, "path-to-systemd-file"), []byte(""), 0644)
-	ioutil.WriteFile(filepath.Join(instDir, "path-to-apparmor-file"), []byte(""), 0644)
-	m := &packageYaml{
-		Name:    "foo",
-		Version: "1.0",
-		Integration: map[string]clickAppHook{
-			"app": clickAppHook{
-				"systemd":  "path-to-systemd-file",
-				"apparmor": "path-to-apparmor-file",
-			},
-		},
-	}
-	err := installClickHooks(instDir, m, testOrigin, false)
-	c.Assert(err, IsNil)
-	p := fmt.Sprintf("%s/%s.%s_%s_%s", testSymlinkDir, m.Name, testOrigin, "app", m.Version)
-	_, err = os.Stat(p)
-	c.Assert(err, IsNil)
-	symlinkTarget, err := filepath.EvalSymlinks(p)
-	c.Assert(err, IsNil)
-	c.Assert(symlinkTarget, Equals, filepath.Join(instDir, "path-to-systemd-file"))
-
-	// now ensure we can remove
-	err = removeClickHooks(m, testOrigin, false)
-	c.Assert(err, IsNil)
-	_, err = os.Stat(fmt.Sprintf("%s/%s.%s_%s_%s", testSymlinkDir, m.Name, testOrigin, "app", m.Version))
-	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
@@ -648,93 +553,6 @@ icon: foo.svg
 	c.Assert(err, IsNil)
 }
 
-func (s *SnapTestSuite) TestClickCopyRemovesHooksFirst(c *C) {
-	// we can not strip the global rootdir for the hook tests
-	stripGlobalRootDir = func(s string) string { return s }
-
-	// this hook will create a hook.trace file with the *.hook
-	// files generated, this is then later used to verify that
-	// the hook files got generated/removed in the right order
-	hookContent := fmt.Sprintf(`Hook-Name: tracehook
-User: root
-Exec: (cd %s && printf "now: $(find . -name "*.tracehook")\n") >> %s/hook.trace
-Pattern: /${id}.tracehook`, s.tempdir, s.tempdir)
-	makeClickHook(c, hookContent)
-
-	packageYaml := `name: bar
-icon: foo.svg
-integration:
- app:
-  tracehook: meta/package.yaml
-`
-	appDir := "bar." + testOrigin
-	// install 1.0 and then upgrade to 2.0
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
-	c.Assert(err, IsNil)
-	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "1.0", "canary.txt")
-	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
-	c.Assert(err, IsNil)
-
-	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
-	c.Assert(err, IsNil)
-	_, err = os.Stat(filepath.Join(dirs.SnapDataDir, appDir, "2.0", "canary.txt"))
-	c.Assert(err, IsNil)
-
-	// read the hook trace file, this shows that 1.0 was active, then
-	// it go de-activated and finally 2.0 got activated
-	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "hook.trace"))
-	c.Assert(err, IsNil)
-	// Forcefully in one line to avoid issues with hidden spaces,
-	// it is visually obvious in this form.
-	hookRun := fmt.Sprintf("now: ./bar.%s_app_1.0.tracehook\nnow: \nnow: ./bar.%s_app_2.0.tracehook\n", testOrigin, testOrigin)
-	c.Assert(string(content), Equals, hookRun)
-}
-
-func (s *SnapTestSuite) TestClickCopyDataHookFails(c *C) {
-	// we can not strip the global rootdir for the hook tests
-	stripGlobalRootDir = func(s string) string { return s }
-
-	// this is a special hook that fails on a 2.0 upgrade, this way
-	// we can ensure that upgrades can work
-	hookContent := fmt.Sprintf(`Hook-Name: hooky
-User: root
-Exec: if test -e %s/bar.%s_app_2.0.hooky; then echo "this log message is harmless and can be ignored"; false; fi
-Pattern: /${id}.hooky`, s.tempdir, testOrigin)
-	makeClickHook(c, hookContent)
-
-	packageYaml := `name: bar
-icon: foo.svg
-integration:
- app:
-  hooky: meta/package.yaml
-`
-
-	appDir := "bar." + testOrigin
-	// install 1.0 and then upgrade to 2.0
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
-	c.Assert(err, IsNil)
-	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "1.0", "canary.txt")
-	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
-	c.Assert(err, IsNil)
-
-	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
-	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
-	c.Assert(err, NotNil)
-
-	// installing 2.0 will fail in the hooks,
-	//   so ensure we fall back to v1.0
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppsDir, appDir, "current", "meta", "package.yaml"))
-	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), "version: 1.0"), Equals, true)
-
-	// no leftovers from the failed install
-	_, err = os.Stat(filepath.Join(dirs.SnapAppsDir, fooComposedName, "2.0"))
-	c.Assert(err, NotNil)
-}
-
 const expectedWrapper = `#!/bin/sh
 set -e
 
@@ -1048,68 +866,6 @@ services:
 
 }
 
-func (s *SnapTestSuite) TestLocalSnapInstallRunHooks(c *C) {
-	// we can not strip the global rootdir for the hook tests
-	stripGlobalRootDir = func(s string) string { return s }
-
-	hookSymlinkDir := filepath.Join(s.tempdir, "/var/lib/click/hooks/systemd")
-	c.Assert(os.MkdirAll(hookSymlinkDir, 0755), IsNil)
-
-	hookContent := fmt.Sprintf(`Hook-Name: systemd
-User: root
-Exec: touch %s/i-ran
-Pattern: /var/lib/click/hooks/systemd/${id}`, s.tempdir)
-	makeClickHook(c, hookContent)
-
-	packageYaml := `name: foo
-icon: foo.svg
-integration:
- app:
-  systemd: meta/package.yaml
-`
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-
-	// install it
-	_, err := installClick(snapFile, 0, nil, testOrigin)
-	c.Assert(err, IsNil)
-
-	// verify we have the symlink
-	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, fmt.Sprintf("foo.%s_app_1.0", testOrigin))), Equals, true)
-	// and the hook exec was called
-	c.Assert(helpers.FileExists(filepath.Join(s.tempdir, "i-ran")), Equals, true)
-}
-
-func (s *SnapTestSuite) TestLocalSnapInstallInhibitHooks(c *C) {
-	// we can not strip the global rootdir for the hook tests
-	stripGlobalRootDir = func(s string) string { return s }
-
-	hookSymlinkDir := filepath.Join(s.tempdir, "/var/lib/click/hooks/systemd")
-	c.Assert(os.MkdirAll(hookSymlinkDir, 0755), IsNil)
-
-	hookContent := fmt.Sprintf(`Hook-Name: systemd
-User: root
-Exec: touch %s/i-ran
-Pattern: /var/lib/click/hooks/systemd/${id}`, s.tempdir)
-	makeClickHook(c, hookContent)
-
-	packageYaml := `name: foo
-icon: foo.svg
-integration:
- app:
-  systemd: meta/package.yaml
-`
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-
-	// install it
-	_, err := installClick(snapFile, InhibitHooks, nil, testOrigin)
-	c.Assert(err, IsNil)
-
-	// verify we have the symlink
-	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, fmt.Sprintf("foo.%s_app_1.0", testOrigin))), Equals, true)
-	// but the hook exec was not called
-	c.Assert(helpers.FileExists(filepath.Join(s.tempdir, "i-ran")), Equals, false)
-}
-
 func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	// ensure that even with a global rootdir the paths in the generated
 	// .services file are setup correctly (i.e. that the global root
@@ -1378,20 +1134,6 @@ func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
 	}), NotNil)
 }
 
-func (s *SnapTestSuite) TestSnappyRunHooks(c *C) {
-	hookWasRunStamp := fmt.Sprintf("%s/systemd-was-run", s.tempdir)
-	c.Assert(helpers.FileExists(hookWasRunStamp), Equals, false)
-
-	makeClickHook(c, fmt.Sprintf(`Hook-Name: systemd
-User: root
-Exec: touch %s
-Pattern: /var/lib/systemd/click/${id}`, hookWasRunStamp))
-
-	err := RunHooks()
-	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(hookWasRunStamp), Equals, true)
-}
-
 func (s *SnapTestSuite) TestInstallChecksForClashes(c *C) {
 	// creating the thing by hand (as build refuses to)...
 	tmpdir := c.MkDir()
@@ -1432,34 +1174,6 @@ frameworks:
 	snapFile := makeTestSnapPackage(c, packageYaml)
 	_, err := installClick(snapFile, 0, nil, testOrigin)
 	c.Assert(err, ErrorMatches, `.*missing framework.*`)
-}
-
-func (s *SnapTestSuite) TestInstallClickHooksCallsStripRootDir(c *C) {
-	content := `Hook-Name: systemd
-Pattern: /var/lib/systemd/click/${id}
-`
-	makeClickHook(c, content)
-	os.MkdirAll(filepath.Join(s.tempdir, "/var/lib/systemd/click/"), 0755)
-
-	m := &packageYaml{
-		Name:    "foo",
-		Version: "1.0",
-		Integration: map[string]clickAppHook{
-			"app": clickAppHook{
-				"systemd": "path-to-systemd-file",
-			},
-		},
-	}
-
-	stripGlobalRootDirWasCalled := false
-	stripGlobalRootDir = func(s string) string {
-		stripGlobalRootDirWasCalled = true
-		return s
-	}
-
-	err := installClickHooks(c.MkDir(), m, testOrigin, false)
-	c.Assert(err, IsNil)
-	c.Assert(stripGlobalRootDirWasCalled, Equals, true)
 }
 
 func (s *SnapTestSuite) TestRemovePackageServiceKills(c *C) {
