@@ -24,12 +24,12 @@ import (
 )
 
 func (s *SystemdTestSuite) TestEscape(c *C) {
-	c.Check(EscapePath("Hallöchen, Meister"), Equals, `Hall\xc3\xb6chen\x2c\x20Meister`)
+	c.Check(EscapeUnitNamePath("Hallöchen, Meister"), Equals, `Hall\xc3\xb6chen\x2c\x20Meister`)
 
-	c.Check(EscapePath("/tmp//waldi/foobar/"), Equals, `tmp-waldi-foobar`)
-	c.Check(EscapePath("/.foo/.bar"), Equals, `\x2efoo-.bar`)
-	c.Check(EscapePath("////"), Equals, `-`)
-	c.Check(EscapePath("."), Equals, `\x2e`)
-	c.Check(EscapePath("/foo/bar-baz"), Equals, `foo-bar\x2dbaz`)
-	c.Check(EscapePath("/foo/bar--baz"), Equals, `foo-bar\x2d\x2dbaz`)
+	c.Check(EscapeUnitNamePath("/tmp//waldi/foobar/"), Equals, `tmp-waldi-foobar`)
+	c.Check(EscapeUnitNamePath("/.foo/.bar"), Equals, `\x2efoo-.bar`)
+	c.Check(EscapeUnitNamePath("////"), Equals, `-`)
+	c.Check(EscapeUnitNamePath("."), Equals, `\x2e`)
+	c.Check(EscapeUnitNamePath("/foo/bar-baz"), Equals, `foo-bar\x2dbaz`)
+	c.Check(EscapeUnitNamePath("/foo/bar--baz"), Equals, `foo-bar\x2d\x2dbaz`)
 }

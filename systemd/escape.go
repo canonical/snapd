@@ -28,12 +28,12 @@ import (
 
 const allowed = `:_.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
 
-// EscapePath works like systemd-escape --path
-// FIXME: use github.com/coreos/go-systemd/unit/escape.go
-//        once we can update go-systemd. we can not right now
-//        because versions >= 2 are not compatible with go1.3 from
-//        15.04
-func EscapePath(in string) string {
+// EscapeUnitNamePath works like systemd-escape --path
+// FIXME: we could use github.com/coreos/go-systemd/unit/escape.go
+//        and EscapePath from it.
+//
+//        But thats not in the archive and it won't work with go1.3
+func EscapeUnitNamePath(in string) string {
 	buf := bytes.NewBuffer(nil)
 
 	// clean and trim leading/trailing "/"
@@ -52,14 +52,15 @@ func EscapePath(in string) string {
 
 	// replace all special chars
 	for i := 0; i < len(in); i++ {
-		if strings.IndexByte(allowed, in[i]) >= 0 {
-			fmt.Fprintf(buf, "%c", in[i])
+		c := in[i]
+		if c == '/' {
+			buf.WriteByte('-')
+		} else if strings.IndexByte(allowed, c) >= 0 {
+			buf.WriteByte(c)
 		} else {
-			fmt.Fprintf(buf, `\x%x`, (in[i]))
+			fmt.Fprintf(buf, `\x%x`, in[i])
 		}
 	}
-	// now replace the special char "/" with "-"
-	res := bytes.Replace(buf.Bytes(), []byte(`\x2f`), []byte(`-`), -1)
 
-	return string(res)
+	return buf.String()
 }

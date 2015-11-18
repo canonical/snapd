@@ -516,7 +516,7 @@ func (l Log) String() string {
 
 // MountUnitPath returns the path of a {,auto}mount unit
 func MountUnitPath(baseDir, ext string) string {
-	escapedPath := EscapePath(baseDir)
+	escapedPath := EscapeUnitNamePath(baseDir)
 	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s.%s", escapedPath, ext))
 }
 
