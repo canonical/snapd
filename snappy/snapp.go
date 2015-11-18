@@ -1981,8 +1981,12 @@ func (m *packageYaml) removeSquashfsMount(baseDir string, inter interacter) erro
 	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
 	if helpers.FileExists(unit) {
 		// we ignore errors, nothing should stop removals
-		_ = sysd.Disable(filepath.Base(unit))
-		_ = sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second))
+		if err := sysd.Disable(filepath.Base(unit)); err != nil {
+			logger.Noticef("Failed to disable %q: %s, but continuing anyway.", unit, err)
+		}
+		if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+			logger.Noticef("Failed to stop %q: %s, but continuing anyway.", unit, err)
+		}
 		if err := os.Remove(unit); err != nil {
 			return err
 		}
