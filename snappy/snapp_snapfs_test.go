@@ -33,8 +33,6 @@ type SquashfsTestSuite struct {
 }
 
 func (s *SquashfsTestSuite) SetUpTest(c *C) {
-	// mocks
-	aaClickHookCmd = "/bin/true"
 	dirs.SetRootDir(c.MkDir())
 
 	// ensure we use the right builder func (squashfs)
