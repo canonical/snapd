@@ -32,6 +32,7 @@ import (
 // File is the interface to interact with the low-level snap files
 type File interface {
 	Verify(allowUnauthenticated bool) error
+	Close() error
 	UnpackWithDropPrivs(targetDir, rootDir string) error
 	ControlMember(name string) ([]byte, error)
 	MetaMember(name string) ([]byte, error)

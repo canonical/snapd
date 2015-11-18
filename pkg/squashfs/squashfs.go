@@ -45,6 +45,11 @@ func New(path string) *Snap {
 	return &Snap{path: path}
 }
 
+// Close is not doing anything for squashfs - COMPAT
+func (s *Snap) Close() error {
+	return nil
+}
+
 // ControlMember extracts from meta/ - COMPAT
 func (s *Snap) ControlMember(controlMember string) ([]byte, error) {
 	return s.ReadFile(filepath.Join("DEBIAN", controlMember))
