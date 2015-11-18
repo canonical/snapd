@@ -559,7 +559,6 @@ func installClick(snapFile string, flags InstallFlags, inter progress.Meter, ori
 	if err != nil {
 		return "", err
 	}
-	defer part.deb.Close()
 
 	return part.Install(inter, flags)
 }
