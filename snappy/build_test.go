@@ -174,7 +174,6 @@ binaries:
  "title": "some title",
  "hooks": {
   "hello-world": {
-   "apparmor": "meta/hello-world.apparmor",
    "bin-path": "bin/hello-world"
   }
  }
@@ -213,9 +212,7 @@ services:
  "installed-size": "17",
  "title": "some title",
  "hooks": {
-  "foo": {
-   "apparmor": "meta/foo.apparmor"
-  }
+  "foo": {}
  }
 }`
 	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_3.0.1_all.snap", "manifest").Output()
@@ -500,7 +497,7 @@ version: 1.0.1
 	c.Assert(err, ErrorMatches, "can not handle type of file .*")
 }
 
-func (s *SnapTestSuite) TestBuildSnapfsSimple(c *C) {
+func (s *SnapTestSuite) TestBuildSquashfsSimple(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 architecture: ["i386", "amd64"]
@@ -509,7 +506,7 @@ integration:
   apparmor-profile: meta/hello.apparmor
 `)
 
-	resultSnap, err := BuildSnapfsSnap(sourceDir, "")
+	resultSnap, err := BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, IsNil)
 	defer os.Remove(resultSnap)
 

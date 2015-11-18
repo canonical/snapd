@@ -24,44 +24,42 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/pkg/snapfs"
+	"github.com/ubuntu-core/snappy/pkg/squashfs"
 
 	. "gopkg.in/check.v1"
 )
 
-type SnapfsTestSuite struct {
+type SquashfsTestSuite struct {
 }
 
-func (s *SnapfsTestSuite) SetUpTest(c *C) {
-	// mocks
-	aaClickHookCmd = "/bin/true"
+func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
-	// ensure we use the right builder func (snapfs)
-	snapBuilderFunc = BuildSnapfsSnap
+	// ensure we use the right builder func (squashfs)
+	snapBuilderFunc = BuildSquashfsSnap
 }
 
-func (s *SnapfsTestSuite) TearDownTest(c *C) {
+func (s *SquashfsTestSuite) TearDownTest(c *C) {
 	snapBuilderFunc = BuildLegacySnap
 }
 
-var _ = Suite(&SnapfsTestSuite{})
+var _ = Suite(&SquashfsTestSuite{})
 
 const packageHello = `name: hello-app
 version: 1.10
 icon: meta/hello.svg
 `
 
-func (s *SnapfsTestSuite) TestMakeSnapMakesSnapfs(c *C) {
+func (s *SquashfsTestSuite) TestMakeSnapMakesSquashfs(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
 	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
 	c.Assert(err, IsNil)
 
 	// ensure the right backend got picked up
-	c.Assert(part.deb, FitsTypeOf, &snapfs.Snap{})
+	c.Assert(part.deb, FitsTypeOf, &squashfs.Snap{})
 }
 
-func (s *SnapfsTestSuite) TestInstallViaSnapfsWorks(c *C) {
+func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
 	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
 	c.Assert(err, IsNil)

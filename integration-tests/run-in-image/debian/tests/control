@@ -1,2 +1,0 @@
-Test-Command: ./snappy-selftest --yes-really
-Depends:

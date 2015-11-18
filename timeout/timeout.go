@@ -17,7 +17,7 @@
  *
  */
 
-package snappy
+package timeout
 
 import (
 	"encoding/json"

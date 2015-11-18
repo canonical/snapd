@@ -17,16 +17,25 @@
  *
  */
 
-package snappy
+package timeout
 
 import (
 	"encoding/json"
+	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
 )
 
-func (s *SnapTestSuite) TestTimeoutMarshal(c *C) {
+// Hook up check.v1 into the "go test" runner
+func Test(t *testing.T) { TestingT(t) }
+
+type TimeoutTestSuite struct {
+}
+
+var _ = Suite(&TimeoutTestSuite{})
+
+func (s *TimeoutTestSuite) TestTimeoutMarshal(c *C) {
 	bs, err := Timeout(DefaultTimeout).MarshalJSON()
 	c.Assert(err, IsNil)
 	c.Check(string(bs), Equals, `"30s"`)
@@ -36,13 +45,13 @@ type testT struct {
 	T Timeout
 }
 
-func (s *SnapTestSuite) TestTimeoutMarshalIndirect(c *C) {
+func (s *TimeoutTestSuite) TestTimeoutMarshalIndirect(c *C) {
 	bs, err := json.Marshal(testT{DefaultTimeout})
 	c.Assert(err, IsNil)
 	c.Check(string(bs), Equals, `{"T":"30s"}`)
 }
 
-func (s *SnapTestSuite) TestTimeoutUnmarshal(c *C) {
+func (s *TimeoutTestSuite) TestTimeoutUnmarshal(c *C) {
 	var t testT
 	c.Assert(json.Unmarshal([]byte(`{"T": "17ms"}`), &t), IsNil)
 	c.Check(t, DeepEquals, testT{T: Timeout(17 * time.Millisecond)})

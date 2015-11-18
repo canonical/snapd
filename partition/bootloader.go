@@ -70,6 +70,9 @@ type bootLoader interface {
 	// Return the value of the specified bootloader variable
 	GetBootVar(name string) (string, error)
 
+	// Set the value of the specified bootloader variable
+	SetBootVar(name, value string) error
+
 	// Return the 1-character name corresponding to the
 	// rootfs that will be used on _next_ boot.
 	//
@@ -307,10 +310,10 @@ func (b *bootloaderType) HandleAssets() (err error) {
 // BootloaderDir returns the full path to the (mounted and writable)
 // bootloader-specific boot directory.
 func BootloaderDir() string {
-	if helpers.FileExists(bootloaderUbootDir) {
-		return bootloaderUbootDir
-	} else if helpers.FileExists(bootloaderGrubDir) {
-		return bootloaderGrubDir
+	if helpers.FileExists(bootloaderUbootDir()) {
+		return bootloaderUbootDir()
+	} else if helpers.FileExists(bootloaderGrubDir()) {
+		return bootloaderGrubDir()
 	}
 
 	return ""

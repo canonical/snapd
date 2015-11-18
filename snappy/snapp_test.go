@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/partition"
@@ -51,8 +52,6 @@ type SnapTestSuite struct {
 var _ = Suite(&SnapTestSuite{})
 
 func (s *SnapTestSuite) SetUpTest(c *C) {
-	s.clickhook = aaClickHookCmd
-	aaClickHookCmd = "/bin/true"
 	s.secbase = policy.SecBase
 	s.tempdir = c.MkDir()
 	newPartition = func() (p partition.Interface) {
@@ -63,7 +62,6 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	policy.SecBase = filepath.Join(s.tempdir, "security")
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
 	os.MkdirAll(dirs.SnapSeccompDir, 0755)
-	os.MkdirAll(dirs.SnapMetaDir, 0755)
 
 	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
@@ -97,18 +95,18 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	err := ioutil.WriteFile(aaExec, []byte(mockAaExecScript), 0755)
 	c.Assert(err, IsNil)
 
-	runScFilterGen = mockRunScFilterGen
+	runAppArmorParser = mockRunAppArmorParser
+
+	makeMockSecurityEnv(c)
 }
 
 func (s *SnapTestSuite) TearDownTest(c *C) {
 	// ensure all functions are back to their original state
-	aaClickHookCmd = s.clickhook
 	policy.SecBase = s.secbase
 	regenerateAppArmorRules = regenerateAppArmorRulesImpl
 	ActiveSnapIterByType = activeSnapIterByTypeImpl
 	duCmd = "du"
 	stripGlobalRootDir = stripGlobalRootDirImpl
-	runScFilterGen = runScFilterGenImpl
 	runUdevAdm = runUdevAdmImpl
 }
 
@@ -774,7 +772,7 @@ architectures:
 	c.Assert(err, IsNil)
 
 	_, err = part.Install(&MockProgressMeter{}, 0)
-	errorMsg := fmt.Sprintf("package's supported architectures (yadayada, blahblah) is incompatible with this system (%s)", helpers.UbuntuArchitecture())
+	errorMsg := fmt.Sprintf("package's supported architectures (yadayada, blahblah) is incompatible with this system (%s)", arch.UbuntuArchitecture())
 	c.Assert(err.Error(), Equals, errorMsg)
 }
 
@@ -984,7 +982,10 @@ binaries:
  - name: testme-override
    exec: bin/testme-override
    security-override:
-     apparmor: meta/testme-override.apparmor
+     read-paths:
+         - "/foo"
+     syscalls:
+         - "bar"
  - name: testme-policy
    exec: bin/testme-policy
    security-policy:
@@ -1004,12 +1005,13 @@ func (s *SnapTestSuite) TestPackageYamlSecurityBinaryParsing(c *C) {
 	c.Assert(m.Binaries[1].Name, Equals, "testme-override")
 	c.Assert(m.Binaries[1].Exec, Equals, "bin/testme-override")
 	c.Assert(m.Binaries[1].SecurityCaps, HasLen, 0)
-	c.Assert(m.Binaries[1].SecurityOverride.Apparmor, Equals, "meta/testme-override.apparmor")
+	c.Assert(m.Binaries[1].SecurityOverride.ReadPaths[0], Equals, "/foo")
+	c.Assert(m.Binaries[1].SecurityOverride.Syscalls[0], Equals, "bar")
 
 	c.Assert(m.Binaries[2].Name, Equals, "testme-policy")
 	c.Assert(m.Binaries[2].Exec, Equals, "bin/testme-policy")
 	c.Assert(m.Binaries[2].SecurityCaps, HasLen, 0)
-	c.Assert(m.Binaries[2].SecurityPolicy.Apparmor, Equals, "meta/testme-policy.profile")
+	c.Assert(m.Binaries[2].SecurityPolicy.AppArmor, Equals, "meta/testme-policy.profile")
 }
 
 var securityServicePackageYaml = []byte(`name: test-snap
@@ -1126,9 +1128,6 @@ func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
 
-	err = os.MkdirAll(dirs.SnapMetaDir, 0755)
-	c.Assert(err, IsNil)
-
 	data = "name: afoo\nalias: afoo\ndescription: something nice\ndownloadsize: 10\norigin: someplace"
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapMetaDir, "afoo_1.manifest"), []byte(data), 0644)
 	c.Assert(err, IsNil)
@@ -1199,16 +1198,10 @@ func (s *SnapTestSuite) TestRefreshDependentsSecurity(c *C) {
 	oldDir := dirs.SnapAppArmorDir
 	defer func() {
 		dirs.SnapAppArmorDir = oldDir
-		timestampUpdater = helpers.UpdateTimestamp
 	}()
-	touched := []string{}
 	dirs.SnapAppArmorDir = c.MkDir()
-	fn := filepath.Join(dirs.SnapAppArmorDir, "foo."+testOrigin+"_hello_1.0.json")
+	fn := filepath.Join(dirs.SnapAppArmorDir, "foo."+testOrigin+"_hello_1.0")
 	c.Assert(os.Symlink(fn, fn), IsNil)
-	timestampUpdater = func(s string) error {
-		touched = append(touched, s)
-		return nil
-	}
 
 	_, err := makeInstalledMockSnap(s.tempdir, `name: foo
 version: 1.0
@@ -1216,8 +1209,8 @@ frameworks:
  - fmk
 binaries:
  - name: hello
-   security-override:
-    apparmor: fmk_foo
+   caps:
+    - fmk_foo
 `)
 	c.Assert(err, IsNil)
 
@@ -1234,13 +1227,13 @@ binaries:
 	_, err = makeInstalledMockSnap(d2, "name: fmk\ntype: framework\nversion: 2")
 	c.Assert(err, IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(d2, dp), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d2, dp, "foo"), []byte("x"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d2, dp, "fmk_foo"), []byte("x"), 0644), IsNil)
 
 	pb := &MockProgressMeter{}
 	m, err := parsePackageYamlData([]byte(yaml), false)
 	part := &SnapPart{m: m, origin: testOrigin, basedir: d1}
 	c.Assert(part.RefreshDependentsSecurity(&SnapPart{basedir: d2}, pb), IsNil)
-	c.Check(touched, DeepEquals, []string{fn})
+	// TODO: verify it was updated
 }
 
 func (s *SnapTestSuite) TestRemoveChecksFrameworks(c *C) {
@@ -1298,51 +1291,28 @@ func (s *SnapTestSuite) TestNeedsAppArmorUpdatePolicyAbsent(c *C) {
 	c.Check(sd.NeedsAppArmorUpdate(map[string]bool{"foo_bar": true}, nil), Equals, false)
 }
 
-func (s *SnapTestSuite) TestRequestAppArmorUpdateService(c *C) {
-	var updated []string
-	timestampUpdater = func(s string) error {
-		updated = append(updated, s)
-		return nil
-	}
-	defer func() { timestampUpdater = helpers.UpdateTimestamp }()
+func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateService(c *C) {
 	// if one of the services needs updating, it's updated and returned
 	svc := ServiceYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Name: "part", ServiceYamls: []ServiceYaml{svc}, Version: "42"}, origin: testOrigin}
-	err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
-	c.Assert(err, IsNil)
-	c.Assert(updated, HasLen, 1)
-	c.Check(filepath.Base(updated[0]), Equals, "part."+testOrigin+"_svc_42.json")
+	part := &SnapPart{m: &packageYaml{Name: "part", ServiceYamls: []ServiceYaml{svc}, Version: "42"}, origin: testOrigin, basedir: filepath.Join(dirs.SnapAppsDir, "part."+testOrigin, "42")}
+	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
+	c.Assert(err, NotNil)
 }
 
-func (s *SnapTestSuite) TestRequestAppArmorUpdateBinary(c *C) {
-	var updated []string
-	timestampUpdater = func(s string) error {
-		updated = append(updated, s)
-		return nil
-	}
-	defer func() { timestampUpdater = helpers.UpdateTimestamp }()
+func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateBinary(c *C) {
 	// if one of the binaries needs updating, the part needs updating
 	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Name: "part", Binaries: []Binary{bin}, Version: "42"}, origin: testOrigin}
-	err := part.RequestAppArmorUpdate(nil, map[string]bool{"foo": true})
-	c.Assert(err, IsNil)
-	c.Assert(updated, HasLen, 1)
-	c.Check(filepath.Base(updated[0]), Equals, "part."+testOrigin+"_echo_42.json")
+	part := &SnapPart{m: &packageYaml{Name: "part", Binaries: []Binary{bin}, Version: "42"}, origin: testOrigin, basedir: filepath.Join(dirs.SnapAppsDir, "part."+testOrigin, "42")}
+	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
+	c.Check(err, NotNil) // XXX: we should do better than this
 }
 
-func (s *SnapTestSuite) TestRequestAppArmorUpdateNothing(c *C) {
-	var updated []string
-	timestampUpdater = func(s string) error {
-		updated = append(updated, s)
-		return nil
-	}
-	defer func() { timestampUpdater = helpers.UpdateTimestamp }()
+func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateNothing(c *C) {
 	svc := ServiceYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
 	part := &SnapPart{m: &packageYaml{ServiceYamls: []ServiceYaml{svc}, Binaries: []Binary{bin}, Version: "42"}, origin: testOrigin}
-	err := part.RequestAppArmorUpdate(nil, nil)
+	err := part.RequestSecurityPolicyUpdate(nil, nil)
 	c.Check(err, IsNil)
-	c.Check(updated, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestDetectIllegalYamlBinaries(c *C) {
@@ -1559,47 +1529,6 @@ func (s *SnapTestSuite) TestIntegrateConfig(c *C) {
 	c.Check(m.Integration["snappy-config"], DeepEquals, clickAppHook{"apparmor": "meta/snappy-config.apparmor"})
 }
 
-func (s *SnapTestSuite) TestIntegrateBinary(c *C) {
-	m := &packageYaml{
-		Binaries: []Binary{
-			{
-				Name: "testme",
-				Exec: "bin/testme",
-			},
-			{
-				Name: "testme-override",
-				Exec: "bin/testme-override",
-				SecurityDefinitions: SecurityDefinitions{
-					SecurityOverride: &SecurityOverrideDefinition{Apparmor: "meta/testme-override.apparmor"},
-				},
-			},
-			{
-				Name: "testme-policy",
-				Exec: "bin/testme-policy",
-				SecurityDefinitions: SecurityDefinitions{
-					SecurityPolicy: &SecurityPolicyDefinition{Apparmor: "meta/testme-policy.profile"},
-				},
-			},
-		},
-	}
-	m.legacyIntegration(false)
-
-	c.Check(m.Integration, DeepEquals, map[string]clickAppHook{
-		"testme": {
-			"apparmor": "meta/testme.apparmor",
-			"bin-path": "bin/testme",
-		},
-		"testme-override": {
-			"apparmor": "meta/testme-override.apparmor",
-			"bin-path": "bin/testme-override",
-		},
-		"testme-policy": {
-			"apparmor-profile": "meta/testme-policy.profile",
-			"bin-path":         "bin/testme-policy",
-		},
-	})
-}
-
 func (s *SnapTestSuite) TestIntegrateService(c *C) {
 	m := &packageYaml{
 		ServiceYamls: []ServiceYaml{
@@ -1610,12 +1539,6 @@ func (s *SnapTestSuite) TestIntegrateService(c *C) {
 	}
 
 	m.legacyIntegration(false)
-
-	// no binaries, no service, no integrate
-	c.Check(m.Integration, DeepEquals, map[string]clickAppHook{
-		"svc": clickAppHook{
-			"apparmor": "meta/svc.apparmor",
-		}})
 }
 
 func (s *SnapTestSuite) TestCpiURLDependsOnEnviron(c *C) {

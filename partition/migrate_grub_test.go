@@ -22,7 +22,6 @@ package partition
 import (
 	"bytes"
 	"io/ioutil"
-	"path/filepath"
 
 	. "gopkg.in/check.v1"
 )
@@ -43,8 +42,7 @@ if [ "${next_entry}" ] ; then
 `
 
 func (s *PartitionTestSuite) TestMigrateDetectsOldConfig(c *C) {
-	bootloaderGrubConfigFile = filepath.Join(c.MkDir(), "grub.cfg")
-	err := ioutil.WriteFile(bootloaderGrubConfigFile, []byte(oldConfigHeader), 0644)
+	err := ioutil.WriteFile(bootloaderGrubConfigFile(), []byte(oldConfigHeader), 0644)
 	c.Assert(err, IsNil)
 
 	r := bytes.NewBufferString(oldConfigHeader)
@@ -52,8 +50,7 @@ func (s *PartitionTestSuite) TestMigrateDetectsOldConfig(c *C) {
 }
 
 func (s *PartitionTestSuite) TestMigrateNotMisdetects(c *C) {
-	bootloaderGrubConfigFile = filepath.Join(c.MkDir(), "grub.cfg")
-	err := ioutil.WriteFile(bootloaderGrubConfigFile, []byte(newGrubConfig), 0644)
+	err := ioutil.WriteFile(bootloaderGrubConfigFile(), []byte(newGrubConfig), 0644)
 	c.Assert(err, IsNil)
 
 	r := bytes.NewBufferString(oldConfigHeader)

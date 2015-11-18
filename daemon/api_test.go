@@ -45,6 +45,7 @@ import (
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/timeout"
 )
 
 type apiSuite struct {
@@ -280,6 +281,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"newSystemRepo",
 		"newSnap",
 		"pkgActionDispatch",
+		// packageInstruction vars:
+		"snappyInstall",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
@@ -847,7 +850,7 @@ func (s *apiSuite) TestPackageServiceGet(c *check.C) {
 	m := rsp.Result.(map[string]*svcDesc)
 	c.Assert(m["svc"], check.FitsTypeOf, new(svcDesc))
 	c.Check(m["svc"].Op, check.Equals, "status")
-	c.Check(m["svc"].Spec, check.DeepEquals, &snappy.ServiceYaml{Name: "svc", StopTimeout: snappy.DefaultTimeout})
+	c.Check(m["svc"].Spec, check.DeepEquals, &snappy.ServiceYaml{Name: "svc", StopTimeout: timeout.DefaultTimeout})
 	c.Check(m["svc"].Status, check.DeepEquals, &snappy.PackageServiceStatus{ServiceName: "svc"})
 }
 
@@ -1035,4 +1038,116 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 
 	appIconCmd.GET(appIconCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 404)
+}
+
+func (s *apiSuite) TestPkgInstructionAgreedOK(c *check.C) {
+	lic := &licenseData{
+		Intro:   "hi",
+		License: "Void where empty",
+		Agreed:  true,
+	}
+
+	inst := &packageInstruction{License: lic}
+
+	c.Check(inst.Agreed(lic.Intro, lic.License), check.Equals, true)
+}
+
+func (s *apiSuite) TestPkgInstructionAgreedNOK(c *check.C) {
+	lic := &licenseData{
+		Intro:   "hi",
+		License: "Void where empty",
+		Agreed:  false,
+	}
+
+	inst := &packageInstruction{License: lic}
+
+	c.Check(inst.Agreed(lic.Intro, lic.License), check.Equals, false)
+}
+
+func (s *apiSuite) TestPkgInstructionMismatch(c *check.C) {
+	lic := &licenseData{
+		Intro:   "hi",
+		License: "Void where empty",
+		Agreed:  true,
+	}
+
+	inst := &packageInstruction{License: lic}
+
+	c.Check(inst.Agreed("blah", "yak yak"), check.Equals, false)
+}
+
+func (s *apiSuite) TestInstall(c *check.C) {
+	orig := snappyInstall
+	defer func() { snappyInstall = orig }()
+
+	calledFlags := snappy.InstallFlags(42)
+
+	snappyInstall = func(name string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
+		calledFlags = flags
+
+		return "", nil
+	}
+
+	inst := &packageInstruction{
+		Action: "install",
+	}
+
+	err := inst.dispatch()()
+
+	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
+	c.Check(err, check.IsNil)
+}
+
+func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
+	orig := snappyInstall
+	defer func() { snappyInstall = orig }()
+
+	calledFlags := snappy.InstallFlags(42)
+
+	snappyInstall = func(name string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
+		calledFlags = flags
+
+		return "", nil
+	}
+
+	inst := &packageInstruction{
+		Action:   "install",
+		LeaveOld: true,
+	}
+
+	err := inst.dispatch()()
+
+	c.Check(calledFlags, check.Equals, snappy.InstallFlags(0))
+	c.Check(err, check.IsNil)
+}
+
+func (s *apiSuite) TestInstallLicensed(c *check.C) {
+	orig := snappyInstall
+	defer func() { snappyInstall = orig }()
+
+	snappyInstall = func(name string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
+		if meter.Agreed("hi", "yak yak") {
+			return "", nil
+		}
+
+		return "", snappy.ErrLicenseNotAccepted
+	}
+
+	inst := &packageInstruction{
+		Action: "install",
+	}
+
+	lic, ok := inst.dispatch()().(*licenseData)
+	c.Assert(ok, check.Equals, true)
+	c.Check(lic, check.ErrorMatches, "license agreement required")
+	c.Check(lic.Intro, check.Equals, "hi")
+	c.Check(lic.License, check.Equals, "yak yak")
+	c.Check(lic.Agreed, check.Equals, false)
+
+	// now, pass it in
+	inst.License = lic
+	inst.License.Agreed = true
+
+	err := inst.dispatch()()
+	c.Check(err, check.IsNil)
 }
