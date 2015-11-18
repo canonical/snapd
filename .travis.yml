@@ -18,7 +18,7 @@ before_install:
   - sudo apt-get install -qq squashfs-tools
 install:
   - echo "Skip. Install is done by the test script."
-script: sh -vx ./run-checks $TEST_SUITE
+script: sh -v ./run-checks $TEST_SUITE
 after_success:
   - go get github.com/mattn/goveralls
   - goveralls -coverprofile=.coverage/coverage.out -service=travis-ci -repotoken=$COVERALLS_TOKEN
