@@ -118,12 +118,22 @@ func (r *Repository) Add(cap *Capability) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	// Reject capabilities with invalid names
 	if err := ValidateName(cap.Name); err != nil {
 		return err
 	}
+	// Reject capabilities with duplicate names
 	if _, ok := r.caps[cap.Name]; ok {
 		return fmt.Errorf("cannot add capability %q: name already exists", cap.Name)
 	}
+	// Reject capabilities with unknown types
+	for _, t := range r.types {
+		if cap.Type == t {
+			goto typeFound
+		}
+	}
+	return fmt.Errorf("cannot add capability %q: type %q is unknown", cap.Name, cap.Type)
+typeFound:
 	r.caps[cap.Name] = cap
 	return nil
 }
