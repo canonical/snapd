@@ -186,7 +186,7 @@ type SnapPart struct {
 	isActive    bool
 	isInstalled bool
 	description string
-	deb         PackageFile
+	deb         pkg.File
 	basedir     string
 }
 
@@ -434,7 +434,7 @@ func (m *packageYaml) checkForFrameworks() error {
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func (m *packageYaml) checkLicenseAgreement(ag agreer, d PackageFile, currentActiveDir string) error {
+func (m *packageYaml) checkLicenseAgreement(ag agreer, d pkg.File, currentActiveDir string) error {
 	if !m.ExplicitLicenseAgreement {
 		return nil
 	}
@@ -545,7 +545,7 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 // Caller should call Close on the pkg.
 // TODO: expose that Close.
 func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
-	d, err := OpenPackageFile(snapFile)
+	d, err := pkg.Open(snapFile)
 	if err != nil {
 		return nil, err
 	}
