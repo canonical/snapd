@@ -76,7 +76,7 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 }
 
 const (
-	errPrefix = "assertion account-key: "
+	accKeyErrPrefix = "assertion account-key: "
 )
 
 func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
@@ -90,9 +90,7 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 		aks.pubKeyBody + "\n\n" +
 		"openpgp c2ln"
 
-	for _, scen := range []struct {
-		original, invalid, expectedErr string
-	}{
+	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: acc-id1\n", "", "account-id header is mandatory"},
 		{aks.sinceLine, "", "since header is mandatory"},
 		{aks.untilLine, "", "until header is mandatory"},
@@ -100,10 +98,12 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 		{aks.untilLine, "until: " + aks.since.Format(time.RFC3339) + "\n", `invalid 'since' and 'until' times \(no gap after 'since' till 'until'\)`},
 		{"fingerprint: " + aks.fp + "\n", "", "missing fingerprint header"},
 		{"fingerprint: " + aks.fp + "\n", "fingerprint: xxx\n", "could not parse fingerprint header: .*"},
-	} {
-		invalid := strings.Replace(encoded, scen.original, scen.invalid, 1)
+	}
+
+	for _, test := range invalidHeaderTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
-		c.Check(err, ErrorMatches, errPrefix+scen.expectedErr)
+		c.Check(err, ErrorMatches, accKeyErrPrefix+test.expectedErr)
 	}
 }
 
@@ -115,22 +115,22 @@ func (aks *accountKeySuite) TestDecodeInvalidPublicKey(c *C) {
 		aks.sinceLine +
 		aks.untilLine
 
-	for _, scen := range []struct {
-		body, expectedErr string
-	}{
+	invalidPublicKeyTests := []struct{ body, expectedErr string }{
 		{"", "expected public key, not empty body"},
 		{"stuff", "public key: expected format and base64 data separated by space"},
 		{"openpgp _", "public key: could not decode base64 data: .*"},
 		{strings.Replace(aks.pubKeyBody, "openpgp", "mystery", 1), `unsupported public key format: "mystery"`},
 		{"openpgp anVuaw==", "could not parse public key data: .*"},
-	} {
+	}
+
+	for _, test := range invalidPublicKeyTests {
 		invalid := headers +
-			fmt.Sprintf("body-length: %v", len(scen.body)) + "\n\n" +
-			scen.body + "\n\n" +
+			fmt.Sprintf("body-length: %v", len(test.body)) + "\n\n" +
+			test.body + "\n\n" +
 			"openpgp c2ln"
 
 		_, err := asserts.Decode([]byte(invalid))
-		c.Check(err, ErrorMatches, errPrefix+scen.expectedErr)
+		c.Check(err, ErrorMatches, accKeyErrPrefix+test.expectedErr)
 	}
 }
 
@@ -146,5 +146,5 @@ func (aks *accountKeySuite) TestDecodeFingerprintMismatch(c *C) {
 		"openpgp c2ln"
 
 	_, err := asserts.Decode([]byte(invalid))
-	c.Check(err, ErrorMatches, errPrefix+"public key does not match provided fingerprint")
+	c.Check(err, ErrorMatches, accKeyErrPrefix+"public key does not match provided fingerprint")
 }
