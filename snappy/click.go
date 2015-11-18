@@ -44,17 +44,12 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/pkg/clickdeb"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/systemd"
-
-	"github.com/mvo5/goconfigparser"
 )
-
-type clickAppHook map[string]string
 
 type clickManifest struct {
 	Name          string                  `json:"name"`
@@ -68,21 +63,6 @@ type clickManifest struct {
 	Maintainer    string                  `json:"maintainer,omitempty"`
 	Title         string                  `json:"title,omitempty"`
 	Hooks         map[string]clickAppHook `json:"hooks,omitempty"`
-}
-
-type clickHook struct {
-	name    string
-	exec    string
-	user    string
-	pattern string
-}
-
-// ignore hooks of this type
-var ignoreHooks = map[string]bool{
-	"bin-path":         true,
-	"snappy-systemd":   true,
-	"apparmor":         true,
-	"apparmor-profile": true,
 }
 
 // wait this time between TERM and KILL
@@ -121,139 +101,6 @@ func readClickManifest(data []byte) (manifest clickManifest, err error) {
 	dec := json.NewDecoder(r)
 	err = dec.Decode(&manifest)
 	return manifest, err
-}
-
-func readClickHookFile(hookFile string) (hook clickHook, err error) {
-	// FIXME: fugly, write deb822 style parser if we keep this
-	// FIXME2: the hook file will go probably entirely and gets
-	//         implemented natively in go so ok for now :)
-	cfg := goconfigparser.New()
-	content, err := ioutil.ReadFile(hookFile)
-	if err != nil {
-		fmt.Printf("WARNING: failed to read %s", hookFile)
-		return hook, err
-	}
-	err = cfg.Read(strings.NewReader("[hook]\n" + string(content)))
-	if err != nil {
-		fmt.Printf("WARNING: failed to parse %s", hookFile)
-		return hook, err
-	}
-	hook.name, _ = cfg.Get("hook", "Hook-Name")
-	hook.exec, _ = cfg.Get("hook", "Exec")
-	hook.user, _ = cfg.Get("hook", "User")
-	hook.pattern, _ = cfg.Get("hook", "Pattern")
-	// FIXME: error on supported hook features like
-	//    User-Level: yes
-	//    Trigger: yes
-	//    Single-Version: yes
-
-	// urgh, click allows empty "Hook-Name"
-	if hook.name == "" {
-		hook.name = strings.Split(filepath.Base(hookFile), ".")[0]
-	}
-
-	return hook, err
-}
-
-func systemClickHooks() (hooks map[string]clickHook, err error) {
-	hooks = make(map[string]clickHook)
-
-	hookFiles, err := filepath.Glob(filepath.Join(dirs.ClickSystemHooksDir, "*.hook"))
-	if err != nil {
-		return nil, err
-	}
-	for _, f := range hookFiles {
-		hook, err := readClickHookFile(f)
-		if err != nil {
-			//TRANSLATORS: the first %q is the file that can not be read and %v is the error message
-			logger.Noticef(i18n.G("Can't read hook file %q: %v"), f, err)
-			continue
-		}
-		hooks[hook.name] = hook
-	}
-
-	return hooks, err
-}
-
-func expandHookPattern(name, app, version, pattern string) (expanded string) {
-	id := fmt.Sprintf("%s_%s_%s", name, app, version)
-	// FIXME: support the other patterns (and see if they are used at all):
-	//        - short-id
-	//        - user (probably not!)
-	//        - home (probably not!)
-	//        - $$ (?)
-	return strings.Replace(pattern, "${id}", id, -1)
-}
-
-type iterHooksFunc func(src, dst string, systemHook clickHook) error
-
-// iterHooks will run the callback "f" for the given manifest
-// so that the call back can arrange e.g. a new link
-func iterHooks(m *packageYaml, origin string, inhibitHooks bool, f iterHooksFunc) error {
-	systemHooks, err := systemClickHooks()
-	if err != nil {
-		return err
-	}
-
-	for app, hook := range m.Integration {
-		for hookName, hookSourceFile := range hook {
-			// ignore hooks that only exist for compatibility
-			// with the old snappy-python (like bin-path,
-			// snappy-systemd)
-			if ignoreHooks[hookName] {
-				continue
-			}
-
-			systemHook, ok := systemHooks[hookName]
-			if !ok {
-				logger.Noticef("Skipping hook %q", hookName)
-				continue
-			}
-
-			dst := filepath.Join(dirs.GlobalRootDir, expandHookPattern(m.qualifiedName(origin), app, m.Version, systemHook.pattern))
-
-			if _, err := os.Stat(dst); err == nil {
-				if err := os.Remove(dst); err != nil {
-					logger.Noticef("Failed to remove %q: %v", dst, err)
-				}
-			}
-
-			// run iter func here
-			if err := f(hookSourceFile, dst, systemHook); err != nil {
-				return err
-			}
-
-			if systemHook.exec != "" && !inhibitHooks {
-				if err := execHook(systemHook.exec); err != nil {
-					os.Remove(dst)
-					return err
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-func installClickHooks(targetDir string, m *packageYaml, origin string, inhibitHooks bool) error {
-	return iterHooks(m, origin, inhibitHooks, func(src, dst string, systemHook clickHook) error {
-		// setup the new link target here, iterHooks will take
-		// care of running the hook
-		realSrc := stripGlobalRootDir(filepath.Join(targetDir, src))
-		if err := os.Symlink(realSrc, dst); err != nil {
-			return err
-		}
-
-		return nil
-	})
-}
-
-func removeClickHooks(m *packageYaml, origin string, inhibitHooks bool) (err error) {
-	return iterHooks(m, origin, inhibitHooks, func(src, dst string, systemHook clickHook) error {
-		// nothing we need to do here, the iterHookss will remove
-		// the hook symlink and call the hook itself
-		return nil
-	})
 }
 
 func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err error) {
@@ -784,23 +631,5 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 			}
 		}
 	}
-	return nil
-}
-
-// RunHooks will run all click system hooks
-func RunHooks() error {
-	systemHooks, err := systemClickHooks()
-	if err != nil {
-		return err
-	}
-
-	for _, hook := range systemHooks {
-		if hook.exec != "" {
-			if err := execHook(hook.exec); err != nil {
-				return err
-			}
-		}
-	}
-
 	return nil
 }

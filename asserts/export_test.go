@@ -31,8 +31,8 @@ type TestOnly struct {
 	AssertionBase
 }
 
-func buildTestOnly(assert AssertionBase) Assertion {
-	return &TestOnly{assert}
+func buildTestOnly(assert AssertionBase) (Assertion, error) {
+	return &TestOnly{assert}, nil
 }
 
 func init() {

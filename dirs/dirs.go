@@ -45,8 +45,11 @@ var (
 
 	ClickSystemHooksDir string
 	CloudMetaDataFile   string
+)
 
-	SnappyDir = filepath.Join("var", "lib", "snappy")
+var (
+	// not exported because it does not honor the global rootdir
+	snappyDir = filepath.Join("var", "lib", "snappy")
 )
 
 // SetRootDir allows settings a new global root directory, this is useful
@@ -58,11 +61,11 @@ func SetRootDir(rootdir string) {
 	SnapOemDir = filepath.Join(rootdir, "/oem")
 	SnapDataDir = filepath.Join(rootdir, "/var/lib/apps")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/apps/")
-	SnapAppArmorDir = filepath.Join(rootdir, SnappyDir, "apparmor", "profiles")
-	SnapAppArmorAdditionalDir = filepath.Join(rootdir, SnappyDir, "apparmor", "additional")
-	SnapSeccompDir = filepath.Join(rootdir, SnappyDir, "seccomp", "profiles")
-	SnapIconsDir = filepath.Join(rootdir, SnappyDir, "icons")
-	SnapMetaDir = filepath.Join(rootdir, SnappyDir, "meta")
+	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
+	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
+	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "profiles")
+	SnapIconsDir = filepath.Join(rootdir, snappyDir, "icons")
+	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapLockFile = filepath.Join(rootdir, "/run/snappy.lock")
 	SnapBlobDir = filepath.Join(rootdir, SnappyDir, "snaps")
 

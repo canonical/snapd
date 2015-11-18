@@ -1,3 +1,9 @@
+ubuntu-snappy (1.7ubuntu1) UNRELEASED; urgency=medium
+
+  * New upstream release
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 18 Nov 2015 19:59:51 +0100
+
 ubuntu-snappy (1.6ubuntu1) wily; urgency=medium
 
   * New upstream release, including the following changes:

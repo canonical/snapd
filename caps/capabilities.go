@@ -29,6 +29,11 @@ import (
 // Type is the name of a capability type.
 type Type string
 
+// String returns a string representation for the capability type.
+func (t Type) String() string {
+	return string(t)
+}
+
 // Capability holds information about a capability that a snap may request
 // from a snappy system to do its job while running on it.
 type Capability struct {
@@ -44,6 +49,8 @@ type Capability struct {
 	// capability, and also which information should be exchanged by these
 	// parties.
 	Type Type
+	// Attrs are key-value pairs that provide type-specific capability details.
+	Attrs map[string]string
 }
 
 // Repository stores all known snappy capabilities and types
@@ -51,6 +58,8 @@ type Repository struct {
 	m sync.Mutex // protects the internals from concurrent access. If contention gets high, switch to a RWMutex
 	// Map of capabilities, indexed by Capability.Name
 	caps map[string]*Capability
+	// A slice of types that are recognized and accepted
+	types []Type
 }
 
 // NotFoundError means that a capability was not found
@@ -81,7 +90,8 @@ func ValidateName(name string) error {
 // NewRepository creates an empty capability repository
 func NewRepository() *Repository {
 	return &Repository{
-		caps: make(map[string]*Capability),
+		caps:  make(map[string]*Capability),
+		types: make([]Type, 0),
 	}
 }
 
@@ -100,6 +110,24 @@ func (r *Repository) Add(cap *Capability) error {
 		return fmt.Errorf("cannot add capability %q: name already exists", cap.Name)
 	}
 	r.caps[cap.Name] = cap
+	return nil
+}
+
+// AddType adds a capability type to the repository.
+// It's an error to add the same capability type more than once.
+func (r *Repository) AddType(t Type) error {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	if err := ValidateName(t.String()); err != nil {
+		return err
+	}
+	for _, otherT := range r.types {
+		if t == otherT {
+			return fmt.Errorf("cannot add type %q: name already exists", t)
+		}
+	}
+	r.types = append(r.types, t)
 	return nil
 }
 
@@ -135,6 +163,19 @@ func (r *Repository) Names() []string {
 // String representation of a capability.
 func (c Capability) String() string {
 	return c.Name
+}
+
+// TypeNames returns all type names in the repository in lexicographical order.
+func (r *Repository) TypeNames() []string {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	types := make([]string, len(r.types))
+	for i, t := range r.types {
+		types[i] = t.String()
+	}
+	sort.Strings(types)
+	return types
 }
 
 type byName []Capability

@@ -371,7 +371,8 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	u := newUboot(partition)
 	c.Assert(u, NotNil)
 
-	err = setBootVar(bootloaderRootfsVar, "b")
+	// note that we set to the same var as above
+	err = setBootVarFwEnv(bootloaderRootfsVar, "b")
 	c.Assert(err, IsNil)
 
 	env, err = uenv.Open(bootloaderUbootFwEnvFile())
@@ -381,4 +382,53 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	st2, err := os.Stat(bootloaderUbootFwEnvFile())
 	c.Assert(err, IsNil)
 	c.Assert(st.ModTime(), Equals, st2.ModTime())
+}
+
+func (s *PartitionTestSuite) TestUbootSetBootVarLegacy(c *C) {
+	s.makeFakeUbootEnv(c)
+
+	partition := New()
+	u := newUboot(partition)
+	c.Assert(u, NotNil)
+
+	content, err := getBootVarLegacy(bootloaderRootfsVar)
+	c.Assert(content, Equals, "a")
+
+	err = setBootVarLegacy(bootloaderRootfsVar, "b")
+	c.Assert(err, IsNil)
+
+	content, err = getBootVarLegacy(bootloaderRootfsVar)
+	c.Assert(content, Equals, "b")
+}
+
+func (s *PartitionTestSuite) TestUbootSetBootVarFwEnv(c *C) {
+	s.makeFakeUbootEnv(c)
+	env, err := uenv.Create(bootloaderUbootFwEnvFile(), 4096)
+	c.Assert(err, IsNil)
+	err = env.Save()
+	c.Assert(err, IsNil)
+
+	err = setBootVarFwEnv("key", "value")
+	c.Assert(err, IsNil)
+
+	partition := New()
+	u := newUboot(partition)
+	content, err := u.GetBootVar("key")
+	c.Assert(err, IsNil)
+	c.Assert(content, Equals, "value")
+}
+
+func (s *PartitionTestSuite) TestUbootGetBootVarFwEnv(c *C) {
+	s.makeFakeUbootEnv(c)
+	env, err := uenv.Create(bootloaderUbootFwEnvFile(), 4096)
+	c.Assert(err, IsNil)
+	env.Set("key2", "value2")
+	err = env.Save()
+	c.Assert(err, IsNil)
+
+	partition := New()
+	u := newUboot(partition)
+	content, err := u.GetBootVar("key2")
+	c.Assert(err, IsNil)
+	c.Assert(content, Equals, "value2")
 }
