@@ -29,6 +29,11 @@ import (
 // Type is the name of a capability type.
 type Type string
 
+// String returns a string representation for the capability type.
+func (t Type) String() string {
+	return string(t)
+}
+
 // Capability holds information about a capability that a snap may request
 // from a snappy system to do its job while running on it.
 type Capability struct {
@@ -169,11 +174,6 @@ func (r *Repository) TypeNames() []string {
 	}
 	sort.Strings(types)
 	return types
-}
-
-// String representation of a capability type
-func (t Type) String() string {
-	return string(t)
 }
 
 type byName []Capability
