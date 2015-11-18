@@ -369,12 +369,12 @@ type mockBootloader struct {
 	HandleAssetsCalled              bool
 	MarkCurrentBootSuccessfulCalled bool
 	SyncBootFilesCalled             bool
-	Bootvars                        map[string]string
+	BootVars                        map[string]string
 }
 
 func newMockBootloader() *mockBootloader {
 	return &mockBootloader{
-		Bootvars: make(map[string]string),
+		BootVars: make(map[string]string),
 	}
 }
 
@@ -394,10 +394,10 @@ func (b *mockBootloader) HandleAssets() error {
 	return nil
 }
 func (b *mockBootloader) GetBootVar(name string) (string, error) {
-	return b.Bootvars[name], nil
+	return b.BootVars[name], nil
 }
 func (b *mockBootloader) SetBootVar(name, value string) error {
-	b.Bootvars[name] = value
+	b.BootVars[name] = value
 	return nil
 }
 func (b *mockBootloader) GetNextBootRootFSName() (string, error) {
