@@ -60,6 +60,10 @@ const bootloaderNameUboot bootloaderName = "u-boot"
 
 type uboot struct {
 	bootloaderType
+
+	// set to true if the legacy uboot environemnt text file
+	// needs to be used
+	useLegacy bool
 }
 
 // Stores a Name and a Value to be added as a name=value pair in a file.
@@ -68,9 +72,6 @@ type configFileChange struct {
 	Name  string
 	Value string
 }
-
-var setBootVar = func(name, value string) error { return nil }
-var getBootVar = func(name string) (string, error) { return "", nil }
 
 func bootloaderUbootDir() string {
 	return filepath.Join(dirs.GlobalRootDir, bootloaderUbootDirReal)
@@ -104,12 +105,8 @@ func newUboot(partition *Partition) bootLoader {
 	}
 	u := uboot{bootloaderType: *b}
 
-	if helpers.FileExists(bootloaderUbootFwEnvFile()) {
-		setBootVar = setBootVarFwEnv
-		getBootVar = getBootVarFwEnv
-	} else {
-		setBootVar = setBootVarLegacy
-		getBootVar = getBootVarLegacy
+	if !helpers.FileExists(bootloaderUbootFwEnvFile()) {
+		u.useLegacy = true
 	}
 
 	return &u
@@ -120,11 +117,11 @@ func (u *uboot) Name() bootloaderName {
 }
 
 func (u *uboot) ToggleRootFS(otherRootfs string) (err error) {
-	if err := setBootVar(bootloaderRootfsVar, string(otherRootfs)); err != nil {
+	if err := u.SetBootVar(bootloaderRootfsVar, string(otherRootfs)); err != nil {
 		return err
 	}
 
-	return setBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry)
+	return u.SetBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry)
 }
 
 func getBootVarLegacy(name string) (value string, err error) {
@@ -178,11 +175,19 @@ func getBootVarFwEnv(name string) (string, error) {
 }
 
 func (u *uboot) GetBootVar(name string) (value string, err error) {
-	return getBootVar(name)
+	if u.useLegacy {
+		return getBootVarLegacy(name)
+	}
+
+	return getBootVarFwEnv(name)
 }
 
 func (u *uboot) SetBootVar(name, value string) error {
-	return setBootVar(name, value)
+	if u.useLegacy {
+		return setBootVarLegacy(name, value)
+	}
+
+	return setBootVarFwEnv(name, value)
 }
 
 func (u *uboot) GetNextBootRootFSName() (label string, err error) {
@@ -199,15 +204,15 @@ func (u *uboot) GetNextBootRootFSName() (label string, err error) {
 //        common code
 func (u *uboot) MarkCurrentBootSuccessful(currentRootfs string) error {
 	// Clear the variable set on boot to denote a good boot.
-	if err := setBootVar(bootloaderTrialBootVar, "0"); err != nil {
+	if err := u.SetBootVar(bootloaderTrialBootVar, "0"); err != nil {
 		return err
 	}
 
-	if err := setBootVar(bootloaderRootfsVar, currentRootfs); err != nil {
+	if err := u.SetBootVar(bootloaderRootfsVar, currentRootfs); err != nil {
 		return err
 	}
 
-	if err := setBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess); err != nil {
+	if err := u.SetBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess); err != nil {
 		return err
 	}
 
