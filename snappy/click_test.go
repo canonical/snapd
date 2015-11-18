@@ -38,6 +38,7 @@ import (
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/timeout"
 )
 
 func (s *SnapTestSuite) TestReadManifest(c *C) {
@@ -988,7 +989,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
-		StopTimeout: DefaultTimeout,
+		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver",
 		Forking:     true,
 	}
@@ -1008,7 +1009,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
-		StopTimeout: DefaultTimeout,
+		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver",
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
@@ -1027,7 +1028,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapperWithExternalPort(
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
-		StopTimeout: DefaultTimeout,
+		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver",
 		Ports:       &Ports{External: map[string]Port{"foo": Port{}}},
 	}
@@ -1047,7 +1048,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
-		StopTimeout: DefaultTimeout,
+		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver",
 		BusName:     "foo.bar.baz",
 	}
@@ -1069,7 +1070,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
-		StopTimeout: DefaultTimeout,
+		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver\nExec=foo",
 	}
 	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
@@ -1262,7 +1263,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSockte(c *C) {
 		Start:       "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
-		StopTimeout: DefaultTimeout,
+		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver",
 		Socket:      true,
 	}
