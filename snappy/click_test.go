@@ -181,10 +181,6 @@ func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "#!/bin/sh\necho \"hello\"")
 
-	// ensure we have the manifest too
-	_, err = os.Stat(filepath.Join(baseDir, ".click", "info", fooComposedName+".manifest"))
-	c.Assert(err, IsNil)
-
 	// ensure we have the data dir
 	_, err = os.Stat(filepath.Join(s.tempdir, "var", "lib", "apps", "foo."+testOrigin, "1.0"))
 	c.Assert(err, IsNil)
@@ -474,25 +470,6 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *SnapTestSuite) TestSnapRemovePackagePolicyWeirdClickManifest(c *C) {
-	secbase := policy.SecBase
-	defer func() { policy.SecBase = secbase }()
-	policy.SecBase = c.MkDir()
-
-	s.buildFramework(c)
-	appdir := filepath.Join(s.tempdir, "apps", "hello", "1.0.1")
-	// c.Assert(removeClick(appdir, nil), IsNil)
-
-	manifestFile := filepath.Join(appdir, ".click", "info", "hello.manifest")
-	c.Assert(ioutil.WriteFile(manifestFile, []byte(`{"name": "xyzzy","type":"framework"}`), 0644), IsNil)
-
-	yamlPath := filepath.Join(appdir, "meta", "package.yaml")
-	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
-	c.Assert(err, IsNil)
-	err = part.remove(nil)
-	c.Assert(err, IsNil)
-}
-
 func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
 	snapFile := makeTestSnapPackage(c, `name: foo
 version: 1.0
@@ -503,8 +480,6 @@ icon: foo.svg`)
 
 	contentFile := filepath.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
-	c.Assert(err, IsNil)
-	_, err = os.Stat(filepath.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
 }
 
@@ -519,8 +494,6 @@ icon: foo.svg`)
 
 	contentFile := filepath.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
-	c.Assert(err, IsNil)
-	_, err = os.Stat(filepath.Join(s.tempdir, "oem", "foo", "1.0", ".click", "info", "foo.manifest"))
 	c.Assert(err, IsNil)
 
 	// a package update
