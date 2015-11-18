@@ -49,6 +49,8 @@ type Capability struct {
 	// capability, and also which information should be exchanged by these
 	// parties.
 	Type Type
+	// Attrs are key-value pairs that provide type-specific capability details.
+	Attrs map[string]string
 }
 
 // Repository stores all known snappy capabilities and types
