@@ -76,6 +76,37 @@ func (s *CapabilitySuite) TestAddInvalidName(c *C) {
 	c.Assert(repo.Names(), Not(testutil.Contains), cap1.Name)
 }
 
+func (s *CapabilitySuite) TestAddType(c *C) {
+	repo := NewRepository()
+	t := Type("foo")
+	err := repo.AddType(t)
+	c.Assert(err, IsNil)
+	c.Assert(repo.TypeNames(), DeepEquals, []string{"foo"})
+	c.Assert(repo.TypeNames(), testutil.Contains, "foo")
+}
+
+func (s *CapabilitySuite) TestAddTypeClash(c *C) {
+	repo := NewRepository()
+	t1 := Type("foo")
+	t2 := Type("foo")
+	err := repo.AddType(t1)
+	c.Assert(err, IsNil)
+	err = repo.AddType(t2)
+	c.Assert(err, ErrorMatches,
+		`cannot add type "foo": name already exists`)
+	c.Assert(repo.TypeNames(), DeepEquals, []string{"foo"})
+	c.Assert(repo.TypeNames(), testutil.Contains, "foo")
+}
+
+func (s *CapabilitySuite) TestAddTypeInvalidName(c *C) {
+	repo := NewRepository()
+	t := Type("bad-name-")
+	err := repo.AddType(t)
+	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
+	c.Assert(repo.TypeNames(), DeepEquals, []string{})
+	c.Assert(repo.TypeNames(), Not(testutil.Contains), string(t))
+}
+
 func (s *CapabilitySuite) TestRemoveGood(c *C) {
 	repo := NewRepository()
 	cap := &Capability{"name", "label", FileType}
@@ -105,9 +136,23 @@ func (s *CapabilitySuite) TestNames(c *C) {
 	c.Assert(repo.Names(), DeepEquals, []string{"a", "b", "c"})
 }
 
+func (s *CapabilitySuite) TestTypeNames(c *C) {
+	repo := NewRepository()
+	c.Assert(repo.TypeNames(), DeepEquals, []string{})
+	repo.AddType(Type("a"))
+	repo.AddType(Type("b"))
+	repo.AddType(Type("c"))
+	c.Assert(repo.TypeNames(), DeepEquals, []string{"a", "b", "c"})
+}
+
 func (s *CapabilitySuite) TestString(c *C) {
 	cap := &Capability{"name", "label", FileType}
 	c.Assert(cap.String(), Equals, "name")
+}
+
+func (s *CapabilitySuite) TestTypeString(c *C) {
+	c.Assert(FileType.String(), Equals, "file")
+	c.Assert(Type("device").String(), Equals, "device")
 }
 
 func (s *CapabilitySuite) TestAll(c *C) {
