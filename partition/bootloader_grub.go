@@ -64,7 +64,7 @@ func newGrub(partition *Partition) bootLoader {
 		return nil
 	}
 
-	b := newBootLoader(partition, bootloaderGrubConfigFile())
+	b := newBootLoader(partition, bootloaderGrubDir())
 	if b == nil {
 		return nil
 	}
