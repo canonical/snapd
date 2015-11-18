@@ -167,8 +167,8 @@ func (s *systemd) Enable(serviceName string) error {
 		return nil
 	}
 
-	// important, do nt use the s.rootDir here as this is the
-	// real name (oldname)
+	// Do not use s.rootDir here. The link must point to the
+	// real (internal) path.
 	serviceFilename := filepath.Join(snapServicesDir, serviceName)
 	return os.Symlink(serviceFilename, enableSymlink)
 }
