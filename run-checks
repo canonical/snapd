@@ -165,8 +165,7 @@ if [ ! -z "$INTEGRATION" ]; then
             subunit2pyunit /tmp/snappy-test/output/artifacts/results.subunit
         fi
         if [ "$result" -ne 0 ]; then
-            echo "Integration tests failed"
-            exit $results
+            exit $result
         fi
     fi
 fi
