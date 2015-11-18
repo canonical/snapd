@@ -48,6 +48,7 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/timeout"
 )
 
 const (
@@ -123,12 +124,12 @@ type ServiceYaml struct {
 	Name        string `yaml:"name" json:"name,omitempty"`
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 
-	Start       string  `yaml:"start,omitempty" json:"start,omitempty"`
-	Stop        string  `yaml:"stop,omitempty" json:"stop,omitempty"`
-	PostStop    string  `yaml:"poststop,omitempty" json:"poststop,omitempty"`
-	StopTimeout Timeout `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
-	BusName     string  `yaml:"bus-name,omitempty" json:"bus-name,omitempty"`
-	Forking     bool    `yaml:"forking,omitempty" json:"forking,omitempty"`
+	Start       string          `yaml:"start,omitempty" json:"start,omitempty"`
+	Stop        string          `yaml:"stop,omitempty" json:"stop,omitempty"`
+	PostStop    string          `yaml:"poststop,omitempty" json:"poststop,omitempty"`
+	StopTimeout timeout.Timeout `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
+	BusName     string          `yaml:"bus-name,omitempty" json:"bus-name,omitempty"`
+	Forking     bool            `yaml:"forking,omitempty" json:"forking,omitempty"`
 
 	// set to yes if we need to create a systemd socket for this service
 	Socket       bool   `yaml:"socket,omitempty" json:"socket,omitempty"`
@@ -316,7 +317,7 @@ func parsePackageYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error)
 
 	for i := range m.ServiceYamls {
 		if m.ServiceYamls[i].StopTimeout == 0 {
-			m.ServiceYamls[i].StopTimeout = DefaultTimeout
+			m.ServiceYamls[i].StopTimeout = timeout.DefaultTimeout
 		}
 	}
 

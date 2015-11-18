@@ -41,7 +41,7 @@ const (
 	helloAppComposedName = "hello-app.testspacethename"
 )
 
-// here to make it easy to switch in tests to "BuildSnapfsSnap"
+// here to make it easy to switch in tests to "BuildSquashfsSnap"
 var snapBuilderFunc = BuildLegacySnap
 
 // makeInstalledMockSnap creates a installed mock snap without any

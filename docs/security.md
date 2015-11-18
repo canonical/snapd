@@ -80,7 +80,7 @@ options are available to modify the confinement:
   AppArmor and seccomp policy. Note: these are separate from `capabilities(7)`.
   Specify `caps: []` to indicate no additional `caps`.  When `caps` and
   `security-template` are not specified, `caps` defaults to client networking.
-  Not compatible with `security-override` or `security-policy`.
+  Not compatible with `security-policy`.
     * AppArmor access is deny by default and apps are restricted to
       their app-specific directories, libraries, etc (enforcing ro,
       rw, etc).  Additional access beyond what is allowed by the
@@ -91,14 +91,13 @@ options are available to modify the confinement:
       `security-template` is declared via this option
 * `security-template`: (optional) alternate security template to use instead of
   `default`. When specified without `caps`, `caps` defaults to being empty. Not
-  compatible with `security-override` or `security-policy`.
-* `security-override`: (optional) high level overrides to use when
-  `security-template` and `caps` are not sufficient. Not compatible with
-   `caps`, `security-template` or `security-policy`
-  The following keys are supported:
+  compatible with `security-policy`.
+* `security-override`: (optional) overrides to use when `security-template` and
+  `caps` are not sufficient. Not compatible with `security-policy`. The
+  following keys are supported:
     * `read-paths`: a list of additional paths that the app can read
     * `write-paths`: a list of additional paths that the app can write
-    * `abstractions`: a list of additional abstractions for the app
+    * `abstractions`: a list of additional AppArmor abstractions for the app
     * `syscalls`: a list of additional syscalls that the app can use
 * `security-policy`: (optional) hand-crafted low-level raw security policy to
   use instead of using default template-based security policy. Not compatible

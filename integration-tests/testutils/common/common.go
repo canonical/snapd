@@ -112,6 +112,9 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 		} else {
 			if AfterReboot(c) {
 				c.Logf("****** Resuming %s after reboot", c.TestName())
+				p, err := partition.CurrentPartition()
+				c.Assert(err, check.IsNil, check.Commentf("Error getting the current boot partition: %v", err))
+				c.Logf(fmt.Sprintf("Rebooted to partition %s", p))
 			} else {
 				c.Skip(fmt.Sprintf(FormatSkipAfterReboot, c.TestName(), os.Getenv("ADT_REBOOT_MARK")))
 			}
@@ -252,6 +255,13 @@ func RebootWithMark(c *check.C, mark string) {
 	c.Log("Preparing reboot with mark " + mark)
 	err := ioutil.WriteFile(NeedsRebootFile, []byte(mark), 0777)
 	c.Assert(err, check.IsNil, check.Commentf("Error writing needs-reboot file: %v", err))
+	mode, err := partition.Mode()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the bootloader mode: %v", err))
+	if mode == "try" {
+		p, err := partition.NextBootPartition()
+		c.Assert(err, check.IsNil, check.Commentf("Error getting the next boot partition: %v", err))
+		c.Logf("Will reboot in try mode to partition %s", p)
+	}
 }
 
 // NeedsReboot returns True if a reboot has been requested by a test.

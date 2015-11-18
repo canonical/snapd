@@ -23,11 +23,12 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/dirs"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -51,17 +52,12 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 	// custom mount target
 	mountTarget = c.MkDir()
 
-	// setup fake paths for grub
-	bootloaderGrubDir = filepath.Join(s.tempdir, "boot", "grub")
-	bootloaderGrubConfigFile = filepath.Join(bootloaderGrubDir, "grub.cfg")
-	bootloaderGrubEnvFile = filepath.Join(bootloaderGrubDir, "grubenv")
-
-	// and uboot
-	bootloaderUbootDir = filepath.Join(s.tempdir, "boot", "uboot")
-	bootloaderUbootConfigFile = filepath.Join(bootloaderUbootDir, "uEnv.txt")
-	bootloaderUbootEnvFile = filepath.Join(bootloaderUbootDir, "uEnv.txt")
-	bootloaderUbootFwEnvFile = filepath.Join(bootloaderUbootDir, "uboot.env")
-	bootloaderUbootStampFile = filepath.Join(bootloaderUbootDir, "snappy-stamp.txt")
+	// global roto
+	dirs.SetRootDir(s.tempdir)
+	err := os.MkdirAll(bootloaderGrubDir(), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(bootloaderUbootDir(), 0755)
+	c.Assert(err, IsNil)
 
 	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
@@ -75,16 +71,6 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	cacheDir = cacheDirReal
 	hardwareSpecFile = hardwareSpecFileReal
 	mountTarget = mountTargetReal
-
-	// grub vars
-	bootloaderGrubConfigFile = bootloaderGrubConfigFileReal
-	bootloaderGrubEnvFile = bootloaderGrubEnvFileReal
-
-	// uboot vars
-	bootloaderUbootDir = bootloaderUbootDirReal
-	bootloaderUbootConfigFile = bootloaderUbootConfigFileReal
-	bootloaderUbootEnvFile = bootloaderUbootEnvFileReal
-	bootloaderUbootStampFile = bootloaderUbootStampFileReal
 
 	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
@@ -369,6 +355,13 @@ type mockBootloader struct {
 	HandleAssetsCalled              bool
 	MarkCurrentBootSuccessfulCalled bool
 	SyncBootFilesCalled             bool
+	BootVars                        map[string]string
+}
+
+func newMockBootloader() *mockBootloader {
+	return &mockBootloader{
+		BootVars: make(map[string]string),
+	}
 }
 
 func (b *mockBootloader) Name() bootloaderName {
@@ -387,7 +380,11 @@ func (b *mockBootloader) HandleAssets() error {
 	return nil
 }
 func (b *mockBootloader) GetBootVar(name string) (string, error) {
-	return "", nil
+	return b.BootVars[name], nil
+}
+func (b *mockBootloader) SetBootVar(name, value string) error {
+	b.BootVars[name] = value
+	return nil
 }
 func (b *mockBootloader) GetNextBootRootFSName() (string, error) {
 	return "", nil
@@ -402,7 +399,7 @@ func (b *mockBootloader) BootDir() string {
 
 func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 	runCommand = mockRunCommand
-	b := &mockBootloader{}
+	b := newMockBootloader()
 	bootloader = func(p *Partition) (bootLoader, error) {
 		return b, nil
 	}
@@ -421,7 +418,7 @@ func (s *PartitionTestSuite) TestToggleBootloaderRootfs(c *C) {
 
 func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
 	runCommand = mockRunCommand
-	b := &mockBootloader{}
+	b := newMockBootloader()
 	bootloader = func(p *Partition) (bootLoader, error) {
 		return b, nil
 	}
@@ -436,7 +433,7 @@ func (s *PartitionTestSuite) TestMarkBootSuccessful(c *C) {
 
 func (s *PartitionTestSuite) TestSyncBootFiles(c *C) {
 	runCommand = mockRunCommand
-	b := &mockBootloader{}
+	b := newMockBootloader()
 	bootloader = func(p *Partition) (bootLoader, error) {
 		return b, nil
 	}
