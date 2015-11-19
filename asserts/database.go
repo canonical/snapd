@@ -57,7 +57,7 @@ type DatabaseConfig struct {
 // further assertions.
 type Database struct {
 	root string
-	cfg  *DatabaseConfig
+	cfg  DatabaseConfig
 }
 
 const (
@@ -78,7 +78,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	if info.Mode().Perm()&0002 != 0 {
 		return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
 	}
-	return &Database{root: cfg.Path, cfg: cfg}, nil
+	return &Database{root: cfg.Path, cfg: *cfg}, nil
 }
 
 func (db *Database) atomicWriteEntry(data []byte, secret bool, subpath ...string) error {
