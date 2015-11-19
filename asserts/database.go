@@ -27,22 +27,37 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
 
 	"github.com/ubuntu-core/snappy/helpers"
 )
 
+// PublicKey is a public key as used by the assertion database.
+type PublicKey interface {
+	// Fingerprint returns the key fingerprint.
+	Fingerprint() string
+	// Verify verifies signature is valid for content using the key.
+	Verify(content []byte, sig Signature) error
+	// IsValidAt returns whether the public key is valid at 'when' time.
+	IsValidAt(when time.Time) bool
+}
+
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
 	// database backstore path
 	Path string
+	// trusted keys maps authority-ids to list of trusted keys.
+	TrustedKeys map[string][]PublicKey
 }
 
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
 	root string
+	cfg  DatabaseConfig
 }
 
 const (
@@ -63,7 +78,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	if info.Mode().Perm()&0002 != 0 {
 		return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
 	}
-	return &Database{root: cfg.Path}, nil
+	return &Database{root: cfg.Path, cfg: *cfg}, nil
 }
 
 func (db *Database) atomicWriteEntry(data []byte, secret bool, subpath ...string) error {
@@ -107,4 +122,57 @@ func (db *Database) ImportKey(authorityID string, privKey *packet.PrivateKey) (f
 		return "", fmt.Errorf("failed to store private key: %v", err)
 	}
 	return fingerp, nil
+}
+
+// use a generalized matching style along what PGP does where keys can be
+// retrieved by giving suffixes of their fingerprint,
+// for safety suffix must be at least 64 bits though
+// TODO: may need more details about the kind of key we are looking for
+func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]PublicKey, error) {
+	suffixLen := len(fingerprintSuffix)
+	if suffixLen%2 == 1 {
+		return nil, fmt.Errorf("key id/fingerprint suffix cannot specify a half byte")
+	}
+	if suffixLen < 16 {
+		return nil, fmt.Errorf("key id/fingerprint suffix must be at leat 64bits")
+	}
+	res := make([]PublicKey, 0, 1)
+	cands := db.cfg.TrustedKeys[authorityID]
+	for _, cand := range cands {
+		if strings.HasSuffix(cand.Fingerprint(), fingerprintSuffix) {
+			res = append(res, cand)
+		}
+	}
+	// TODO: consider other stored public key assertions
+	return res, nil
+}
+
+// Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
+func (db *Database) Check(assert Assertion) error {
+	content, signature := assert.Signature()
+	sig, err := parseSignature(signature)
+	if err != nil {
+		return err
+	}
+	// TODO: later may need to consider type of assert to find candidate keys
+	pubKeys, err := db.findPublicKeys(assert.AuthorityID(), sig.KeyID())
+	if err != nil {
+		return fmt.Errorf("error finding matching public key for signature: %v", err)
+	}
+	now := time.Now()
+	var lastErr error
+	for _, pubKey := range pubKeys {
+		if pubKey.IsValidAt(now) {
+			err := pubKey.Verify(content, sig)
+			if err == nil {
+				// TODO: further checks about consistency of assert and validity of the key for this kind of assert, likely delegating to the assert
+				return nil
+			}
+			lastErr = err
+		}
+	}
+	if lastErr == nil {
+		return fmt.Errorf("no valid known public key verifies assertion")
+	}
+	return lastErr
 }
