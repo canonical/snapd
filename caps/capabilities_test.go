@@ -204,3 +204,16 @@ func (s *CapabilitySuite) TestValidateOK(c *C) {
 	err := FileType.Validate(cap)
 	c.Assert(err, IsNil)
 }
+
+func (s *CapabilitySuite) TestValidateAttributes(c *C) {
+	cap := &Capability{
+		Name:  "name",
+		Label: "label",
+		Type:  FileType,
+		Attrs: map[string]string{
+			"Key": "Value",
+		},
+	}
+	err := FileType.Validate(cap)
+	c.Assert(err, ErrorMatches, "attributes must be empty for now")
+}
