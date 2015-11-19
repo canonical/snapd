@@ -295,7 +295,7 @@ func (s *SnapTestSuite) TestAddSysDevice(c *C) {
 	err := AddHWAccess("hello-app", "/sys/devices/foo1")
 	c.Assert(err, IsNil)
 	err = AddHWAccess("hello-app", "/sys/class/gpio/foo2")
-	c.Assert(err, Equals, nil)
+	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml"))
 	c.Assert(err, IsNil)
