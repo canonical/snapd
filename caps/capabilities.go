@@ -19,11 +19,6 @@
 
 package caps
 
-import (
-	"fmt"
-	"regexp"
-)
-
 // Capability holds information about a capability that a snap may request
 // from a snappy system to do its job while running on it.
 type Capability struct {
@@ -43,44 +38,7 @@ type Capability struct {
 	Attrs map[string]string
 }
 
-// NotFoundError means that a capability was not found
-type NotFoundError struct {
-	what, name string
-}
-
-// Regular expression describing correct identifiers
-var validName = regexp.MustCompile("^[a-z]([a-z0-9-]+[a-z0-9])?$")
-
-// ValidateName checks if a string as a capability name
-func ValidateName(name string) error {
-	valid := validName.MatchString(name)
-	if !valid {
-		return fmt.Errorf("%q is not a valid snap name", name)
-	}
-	return nil
-}
-
-// LoadBuiltInTypes adds all built-in types to the repository
-// If any of the additions fail the function returns the error and stops.
-func LoadBuiltInTypes(r *Repository) error {
-	for _, t := range builtInTypes {
-		if err := r.AddType(t); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // String representation of a capability.
 func (c Capability) String() string {
 	return c.Name
-}
-
-func (e *NotFoundError) Error() string {
-	switch e.what {
-	case "remove":
-		return fmt.Sprintf("can't remove capability %q, no such capability", e.name)
-	default:
-		panic(fmt.Sprintf("unexpected what: %q", e.what))
-	}
 }
