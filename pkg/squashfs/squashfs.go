@@ -97,15 +97,6 @@ func (s *Snap) UnpackWithDropPrivs(instDir, rootdir string) error {
 	return runCommand("cp", "-a", s.path, BlobPath(instDir))
 }
 
-// UnpackMeta unpacks just the meta/* directory of the given snap.
-func (s *Snap) UnpackMeta(dst string) error {
-	if err := s.Unpack("meta/*", dst); err != nil {
-		return err
-	}
-
-	return s.Unpack(".click/*", dst)
-}
-
 var runCommand = func(args ...string) error {
 	cmd := exec.Command(args[0], args[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -115,7 +106,7 @@ var runCommand = func(args ...string) error {
 	return nil
 }
 
-// Unpack unpacks the src (which may be a glob into the given target dir.
+// Unpack unpacks the src (which may be a glob) into the given target dir.
 func (s *Snap) Unpack(src, dstDir string) error {
 	return runCommand("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src)
 }

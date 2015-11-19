@@ -38,7 +38,7 @@ type File interface {
 	MetaMember(name string) ([]byte, error)
 	ExtractHashes(targetDir string) error
 
-	// NeedsMountUnit determines if it's required to setup
+	// NeedsMountUnit determines whether it's required to setup
 	// a mount unit for the snap when the snap is installed
 	NeedsMountUnit() bool
 }

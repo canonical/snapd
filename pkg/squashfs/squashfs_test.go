@@ -110,19 +110,6 @@ func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
 	c.Assert(helpers.FileExists(filepath.Join(outputDir, "meta/package.yaml")), Equals, false)
 }
 
-func (s *SquashfsTestSuite) TestUnpackMeta(c *C) {
-	snap := makeSnap(c, "", "random-data")
-
-	outputDir := c.MkDir()
-	err := snap.UnpackMeta(outputDir)
-	c.Assert(err, IsNil)
-
-	// we got the meta/ stuff
-	c.Assert(helpers.FileExists(filepath.Join(outputDir, "meta/package.yaml")), Equals, true)
-	// ... but not the data
-	c.Assert(helpers.FileExists(filepath.Join(outputDir, "data.bin")), Equals, false)
-}
-
 func (s *SquashfsTestSuite) TestBuild(c *C) {
 	buildDir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
