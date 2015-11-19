@@ -170,11 +170,6 @@ func (s *CapabilitySuite) TestString(c *C) {
 	c.Assert(cap.String(), Equals, "name")
 }
 
-func (s *CapabilitySuite) TestTypeString(c *C) {
-	c.Assert(FileType.String(), Equals, "file")
-	c.Assert(Type("device").String(), Equals, "device")
-}
-
 func (s *CapabilitySuite) TestAll(c *C) {
 	repo := NewRepository()
 	err := LoadBuiltInTypes(repo)
@@ -191,29 +186,4 @@ func (s *CapabilitySuite) TestAll(c *C) {
 		Capability{Name: "b", Label: "label-b", Type: FileType},
 		Capability{Name: "c", Label: "label-c", Type: FileType},
 	})
-}
-
-func (s *CapabilitySuite) TestValidateMismatchedType(c *C) {
-	cap := &Capability{Name: "name", Label: "label", Type: Type("device")}
-	err := FileType.Validate(cap)
-	c.Assert(err, ErrorMatches, `capability is not of type "file"`)
-}
-
-func (s *CapabilitySuite) TestValidateOK(c *C) {
-	cap := &Capability{Name: "name", Label: "label", Type: FileType}
-	err := FileType.Validate(cap)
-	c.Assert(err, IsNil)
-}
-
-func (s *CapabilitySuite) TestValidateAttributes(c *C) {
-	cap := &Capability{
-		Name:  "name",
-		Label: "label",
-		Type:  FileType,
-		Attrs: map[string]string{
-			"Key": "Value",
-		},
-	}
-	err := FileType.Validate(cap)
-	c.Assert(err, ErrorMatches, "attributes must be empty for now")
 }

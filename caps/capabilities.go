@@ -26,14 +26,6 @@ import (
 	"sync"
 )
 
-// Type is the name of a capability type.
-type Type string
-
-// String returns a string representation for the capability type.
-func (t Type) String() string {
-	return string(t)
-}
-
 // Capability holds information about a capability that a snap may request
 // from a snappy system to do its job while running on it.
 type Capability struct {
@@ -65,18 +57,6 @@ type Repository struct {
 // NotFoundError means that a capability was not found
 type NotFoundError struct {
 	what, name string
-}
-
-const (
-	// FileType is a basic capability vaguely expressing access to a specific
-	// file. This single capability  type is here just to help bootstrap
-	// the capability concept before we get to load capability interfaces
-	// from YAML.
-	FileType Type = "file"
-)
-
-var builtInTypes = [...]Type{
-	FileType,
 }
 
 // Regular expression describing correct identifiers
@@ -241,18 +221,4 @@ func (e *NotFoundError) Error() string {
 	default:
 		panic(fmt.Sprintf("unexpected what: %q", e.what))
 	}
-}
-
-// Validate if a capability is correct according to the given type
-func (t Type) Validate(c *Capability) error {
-	if t != c.Type {
-		return fmt.Errorf("capability is not of type %q", t)
-	}
-	// While we don't have any support for type-specific attribute schema,
-	// let's ensure that attributes are totally empty. This will make tests
-	// show that this code is actually being used
-	if c.Attrs != nil && len(c.Attrs) != 0 {
-		return fmt.Errorf("attributes must be empty for now")
-	}
-	return nil
 }
