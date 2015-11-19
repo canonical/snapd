@@ -63,6 +63,7 @@ func signContent(content []byte, privKey *packet.PrivateKey) ([]byte, error) {
 	}
 
 	buf := bytes.NewBufferString("openpgp ")
+	// TODO: split this over many lines for readability
 	enc := base64.NewEncoder(base64.StdEncoding, buf)
 	err = sig.Serialize(enc)
 	if err != nil {
