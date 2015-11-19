@@ -130,7 +130,7 @@ func (db *Database) ImportKey(authorityID string, privKey *packet.PrivateKey) (f
 // TODO: may need more details about the kind of key we are looking for
 func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) []PublicKey {
 	suffixLen := len(fingerprintSuffix)
-	if suffixLen % 2 == 1 {
+	if suffixLen%2 == 1 {
 		panic(fmt.Errorf("findPublicKeys: fingerprintSuffix cannot specify a half byte"))
 	}
 	if suffixLen < 16 {
