@@ -128,13 +128,13 @@ func (db *Database) ImportKey(authorityID string, privKey *packet.PrivateKey) (f
 // retrieved by giving suffixes of their fingerprint,
 // for safety suffix must be at least 64 bits though
 // TODO: may need more details about the kind of key we are looking for
-func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) []PublicKey {
+func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]PublicKey, error) {
 	suffixLen := len(fingerprintSuffix)
 	if suffixLen%2 == 1 {
-		panic(fmt.Errorf("findPublicKeys: fingerprintSuffix cannot specify a half byte"))
+		return nil, fmt.Errorf("key id/fingerprint suffix cannot specify a half byte")
 	}
 	if suffixLen < 16 {
-		panic(fmt.Errorf("findPublicKeys: fingerprintSuffix must be at leat 64bits"))
+		return nil, fmt.Errorf("key id/fingerprint suffix must be at leat 64bits")
 	}
 	res := make([]PublicKey, 0, 1)
 	cands := db.cfg.TrustedKeys[authorityID]
@@ -144,7 +144,7 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) []Publ
 		}
 	}
 	// TODO: consider other stored public key assertions
-	return res
+	return res, nil
 }
 
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
@@ -155,7 +155,10 @@ func (db *Database) Check(assert Assertion) error {
 		return err
 	}
 	// TODO: later may need to consider type of assert to find candidate keys
-	pubKeys := db.findPublicKeys(assert.AuthorityID(), sig.KeyID())
+	pubKeys, err := db.findPublicKeys(assert.AuthorityID(), sig.KeyID())
+	if err != nil {
+		return fmt.Errorf("error finding matching public key for signature: %v", err)
+	}
 	now := time.Now()
 	var lastErr error
 	for _, pubKey := range pubKeys {
