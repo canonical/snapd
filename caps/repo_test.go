@@ -80,30 +80,30 @@ func (s *RepositorySuite) TestAddInvalidName(c *C) {
 
 func (s *RepositorySuite) TestAddType(c *C) {
 	t := Type("foo")
-	err := s.repo.AddType(t)
+	err := s.emptyRepo.AddType(t)
 	c.Assert(err, IsNil)
-	c.Assert(s.repo.TypeNames(), DeepEquals, []string{"foo"})
-	c.Assert(s.repo.TypeNames(), testutil.Contains, "foo")
+	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{"foo"})
+	c.Assert(s.emptyRepo.TypeNames(), testutil.Contains, "foo")
 }
 
 func (s *RepositorySuite) TestAddTypeClash(c *C) {
 	t1 := Type("foo")
 	t2 := Type("foo")
-	err := s.repo.AddType(t1)
+	err := s.emptyRepo.AddType(t1)
 	c.Assert(err, IsNil)
-	err = s.repo.AddType(t2)
+	err = s.emptyRepo.AddType(t2)
 	c.Assert(err, ErrorMatches,
 		`cannot add type "foo": name already exists`)
-	c.Assert(s.repo.TypeNames(), DeepEquals, []string{"foo"})
-	c.Assert(s.repo.TypeNames(), testutil.Contains, "foo")
+	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{"foo"})
+	c.Assert(s.emptyRepo.TypeNames(), testutil.Contains, "foo")
 }
 
 func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
 	t := Type("bad-name-")
-	err := s.repo.AddType(t)
+	err := s.emptyRepo.AddType(t)
 	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
-	c.Assert(s.repo.TypeNames(), DeepEquals, []string{})
-	c.Assert(s.repo.TypeNames(), Not(testutil.Contains), string(t))
+	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{})
+	c.Assert(s.emptyRepo.TypeNames(), Not(testutil.Contains), string(t))
 }
 
 func (s *RepositorySuite) TestRemoveGood(c *C) {
@@ -119,7 +119,7 @@ func (s *RepositorySuite) TestRemoveGood(c *C) {
 }
 
 func (s *RepositorySuite) TestRemoveNoSuchCapability(c *C) {
-	err := s.repo.Remove("name")
+	err := s.emptyRepo.Remove("name")
 	c.Assert(err, ErrorMatches, `can't remove capability "name", no such capability`)
 }
 
@@ -137,11 +137,11 @@ func (s *RepositorySuite) TestNames(c *C) {
 }
 
 func (s *RepositorySuite) TestTypeNames(c *C) {
-	c.Assert(s.repo.TypeNames(), DeepEquals, []string{})
-	s.repo.AddType(Type("a"))
-	s.repo.AddType(Type("b"))
-	s.repo.AddType(Type("c"))
-	c.Assert(s.repo.TypeNames(), DeepEquals, []string{"a", "b", "c"})
+	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{})
+	s.emptyRepo.AddType(Type("a"))
+	s.emptyRepo.AddType(Type("b"))
+	s.emptyRepo.AddType(Type("c"))
+	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{"a", "b", "c"})
 }
 
 func (s *RepositorySuite) TestAll(c *C) {
