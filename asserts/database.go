@@ -125,9 +125,17 @@ func (db *Database) ImportKey(authorityID string, privKey *packet.PrivateKey) (f
 }
 
 // use a generalized matching style along what PGP does where keys can be
-// retrieved by giving suffixes of their fingerprint
+// retrieved by giving suffixes of their fingerprint,
+// for safety suffix must be at least 64 bits though
 // TODO: may need more details about the kind of key we are looking for
 func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) []PublicKey {
+	suffixLen := len(fingerprintSuffix)
+	if suffixLen % 2 == 1 {
+		panic(fmt.Errorf("findPublicKeys: fingerprintSuffix cannot specify a half byte"))
+	}
+	if suffixLen < 16 {
+		panic(fmt.Errorf("findPublicKeys: fingerprintSuffix must be at leat 64bits"))
+	}
 	res := make([]PublicKey, 0, 1)
 	cands := db.cfg.TrustedKeys[authorityID]
 	for _, cand := range cands {
