@@ -220,10 +220,14 @@ func (s *cpSuite) TestCopyPreserveAll(c *C) {
 	err := ioutil.WriteFile(src, []byte(nil), 0644)
 	c.Assert(err, IsNil)
 
-	// wait a wee bit to get different mtimes in the copy
-	// (note this will not work on reiserfs and ext2 because
-	//  those do  not have sub-second precision)
-	time.Sleep(100 * time.Millisecond)
+	// give it some different atime/mtime
+	tv := []syscall.Timeval{
+		syscall.Timeval{Sec: 0, Usec: 0},
+		syscall.Timeval{Sec: 0, Usec: 0},
+	}
+	err = syscall.Utimes(src, tv)
+	c.Assert(err, IsNil)
+
 	err = CopyFile(src, dst, CopyFlagPreserveAll)
 	c.Assert(err, IsNil)
 

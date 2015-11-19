@@ -59,8 +59,10 @@ func doOpenFile(name string, flag int, perm os.FileMode) (fileish, error) {
 
 // CopyFile copies src to dst
 func CopyFile(src, dst string, flags CopyFlag) (err error) {
-	// we do not preserve all yet here natively so just use "cp"
 	if flags&CopyFlagPreserveAll != 0 {
+		// Our native copy code does not preserve all attributes
+		// (yet). If the user needs this functionatlity we just
+		// fallback to use the system's "cp" binary to do the copy.
 		return runCpPreserveAll(src, dst)
 	}
 

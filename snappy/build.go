@@ -395,7 +395,9 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 				return err
 			}
 			// ensure that premissions are preserved
-			return os.Chown(dest, int(info.Sys().(*syscall.Stat_t).Uid), int(info.Sys().(*syscall.Stat_t).Gid))
+			uid := int(info.Sys().(*syscall.Stat_t).Uid)
+			gid := int(info.Sys().(*syscall.Stat_t).Gid)
+			return os.Chown(dest, uid, gid)
 		}
 
 		// handle char/block devices
