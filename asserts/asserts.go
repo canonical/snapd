@@ -281,7 +281,7 @@ func writeHeader(buf *bytes.Buffer, headers map[string]string, name string) {
 	buf.WriteString(name)
 	buf.WriteString(": ")
 	buf.WriteString(headers[name])
-	buf.WriteRune('\n')
+	buf.WriteByte('\n')
 }
 
 var marker = struct{}{}
