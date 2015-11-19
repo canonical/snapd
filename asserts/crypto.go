@@ -99,19 +99,19 @@ type openpgpSignature struct {
 	sig *packet.Signature
 }
 
-func (simpl openpgpSignature) KeyID() string {
-	return fmt.Sprintf("%016x", *simpl.sig.IssuerKeyId)
+func (opgSig openpgpSignature) KeyID() string {
+	return fmt.Sprintf("%016x", *opgSig.sig.IssuerKeyId)
 }
 
 func verifyContentSignature(content []byte, sig Signature, pubKey *packet.PublicKey) error {
-	sigImpl, ok := sig.(openpgpSignature)
+	opgSig, ok := sig.(openpgpSignature)
 	if !ok {
 		panic(fmt.Errorf("not an internally supported Signature: %T", sig))
 	}
 
 	h := openpgpConfig.Hash().New()
 	h.Write(content)
-	return pubKey.VerifySignature(h, sigImpl.sig)
+	return pubKey.VerifySignature(h, opgSig.sig)
 }
 
 func parseSignature(signature []byte) (Signature, error) {
@@ -144,16 +144,16 @@ type openpgpPubKey struct {
 	fp     string
 }
 
-func (pubk *openpgpPubKey) IsValidAt(time time.Time) bool {
+func (opgPubKey *openpgpPubKey) IsValidAt(time time.Time) bool {
 	return true
 }
 
-func (pubk *openpgpPubKey) Fingerprint() string {
-	return pubk.fp
+func (opgPubKey *openpgpPubKey) Fingerprint() string {
+	return opgPubKey.fp
 }
 
-func (pubk *openpgpPubKey) Verify(content []byte, sig Signature) error {
-	return verifyContentSignature(content, sig, pubk.pubKey)
+func (opgPubKey *openpgpPubKey) Verify(content []byte, sig Signature) error {
+	return verifyContentSignature(content, sig, opgPubKey.pubKey)
 }
 
 // WrapPublicKey returns a database useable public key out of a opengpg packet.PulicKey.
