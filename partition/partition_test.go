@@ -445,3 +445,39 @@ func (s *PartitionTestSuite) TestSyncBootFiles(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(b.SyncBootFilesCalled, Equals, true)
 }
+
+func mockRunLsblkAllSnap() (output []string, err error) {
+	allSnapData := `
+NAME="sda" LABEL="" PKNAME="" MOUNTPOINT=""
+NAME="sda1" LABEL="" PKNAME="sda" MOUNTPOINT=""
+NAME="sda2" LABEL="system-boot" PKNAME="sda" MOUNTPOINT="/boot/efi"
+NAME="sda5" LABEL="writable" PKNAME="sda" MOUNTPOINT="/writable"
+NAME="loop0" LABEL="" PKNAME="" MOUNTPOINT="/"
+`
+	return strings.Split(allSnapData, "\n"), err
+}
+
+func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
+	runCommand = mockRunCommand
+	b := newMockBootloader()
+	bootloader = func(p *Partition) (bootLoader, error) {
+		return b, nil
+	}
+	runLsblk = mockRunLsblkAllSnap
+
+	p := New()
+	c.Assert(c, NotNil)
+
+	b.BootVars["snappy_os"] = "os1"
+	b.BootVars["snappy_kernel"] = "k1"
+	err := p.MarkBootSuccessful()
+	c.Assert(err, IsNil)
+	c.Assert(b.BootVars, DeepEquals, map[string]string{
+		"snappy_mode":        "regular",
+		"snappy_trial_boot":  "0",
+		"snappy_kernel":      "k1",
+		"snappy_good_kernel": "k1",
+		"snappy_os":          "os1",
+		"snappy_good_os":     "os1",
+	})
+}
