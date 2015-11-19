@@ -75,6 +75,10 @@ const (
 	FileType Type = "file"
 )
 
+var builtInTypes = [...]Type{
+	FileType,
+}
+
 // Regular expression describing correct identifiers
 var validName = regexp.MustCompile("^[a-z]([a-z0-9-]+[a-z0-9])?$")
 
@@ -93,6 +97,17 @@ func NewRepository() *Repository {
 		caps:  make(map[string]*Capability),
 		types: make([]Type, 0),
 	}
+}
+
+// LoadBuiltInTypes adds all built-in types to the repository
+// If any of the additions fail the function returns the error and stops.
+func LoadBuiltInTypes(r *Repository) error {
+	for _, t := range builtInTypes {
+		if err := r.AddType(t); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Add a capability to the repository.

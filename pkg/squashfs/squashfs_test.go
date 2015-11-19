@@ -93,15 +93,6 @@ func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	c.Assert(string(content), Equals, "name: foo")
 }
 
-func (s *SquashfsTestSuite) TestCopyBlob(c *C) {
-	snap := makeSnap(c, "name: foo", "")
-	dst := filepath.Join(c.MkDir(), "blob.snap")
-
-	err := snap.CopyBlob(dst)
-	c.Assert(err, IsNil)
-	c.Assert(helpers.FilesAreEqual(snap.Name(), dst), Equals, true)
-}
-
 func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
 	data := "some random data"
 	snap := makeSnap(c, "", data)
@@ -117,19 +108,6 @@ func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
 
 	// ensure glob was honored
 	c.Assert(helpers.FileExists(filepath.Join(outputDir, "meta/package.yaml")), Equals, false)
-}
-
-func (s *SquashfsTestSuite) TestUnpackMeta(c *C) {
-	snap := makeSnap(c, "", "random-data")
-
-	outputDir := c.MkDir()
-	err := snap.UnpackMeta(outputDir)
-	c.Assert(err, IsNil)
-
-	// we got the meta/ stuff
-	c.Assert(helpers.FileExists(filepath.Join(outputDir, "meta/package.yaml")), Equals, true)
-	// ... but not the data
-	c.Assert(helpers.FileExists(filepath.Join(outputDir, "data.bin")), Equals, false)
 }
 
 func (s *SquashfsTestSuite) TestBuild(c *C) {

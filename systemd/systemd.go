@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/ubuntu-core/snappy/arch"
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 )
@@ -96,6 +97,7 @@ type Systemd interface {
 	Status(service string) (string, error)
 	ServiceStatus(service string) (*ServiceStatus, error)
 	Logs(services []string) ([]Log, error)
+	WriteMountUnitFile(name, what, where string) (string, error)
 }
 
 // A Log is a single entry in the systemd journal
@@ -162,13 +164,15 @@ func (*systemd) DaemonReload() error {
 func (s *systemd) Enable(serviceName string) error {
 	enableSymlink := filepath.Join(s.rootDir, snapServicesDir, servicesSystemdTarget+".wants", serviceName)
 
-	serviceFilename := filepath.Join(s.rootDir, snapServicesDir, serviceName)
 	// already enabled
 	if _, err := os.Lstat(enableSymlink); err == nil {
 		return nil
 	}
 
-	return os.Symlink(serviceFilename[len(s.rootDir):], enableSymlink)
+	// Do not use s.rootDir here. The link must point to the
+	// real (internal) path.
+	serviceFilename := filepath.Join(snapServicesDir, serviceName)
+	return os.Symlink(serviceFilename, enableSymlink)
 }
 
 // Disable the given service
@@ -510,4 +514,23 @@ func (l Log) SID() string {
 
 func (l Log) String() string {
 	return fmt.Sprintf("%s %s %s", l.Timestamp(), l.SID(), l.Message())
+}
+
+// MountUnitPath returns the path of a {,auto}mount unit
+func MountUnitPath(baseDir, ext string) string {
+	escapedPath := EscapeUnitNamePath(baseDir)
+	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s.%s", escapedPath, ext))
+}
+
+func (s *systemd) WriteMountUnitFile(name, what, where string) (string, error) {
+	c := fmt.Sprintf(`[Unit]
+Description=Squashfs mount unit for %s
+
+[Mount]
+What=%s
+Where=%s
+`, name, what, where)
+
+	mu := MountUnitPath(where, "mount")
+	return filepath.Base(mu), helpers.AtomicWriteFile(mu, []byte(c), 0644, 0)
 }
