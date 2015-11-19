@@ -284,8 +284,6 @@ func writeHeader(buf *bytes.Buffer, headers map[string]string, name string) {
 	buf.WriteByte('\n')
 }
 
-var marker = struct{}{}
-
 // TODO: expose this in some form on Database appropriately
 func buildAndSign(assertType AssertionType, headers map[string]string, body []byte, privKey *packet.PrivateKey) (Assertion, error) {
 	finalHeaders := make(map[string]string, len(headers))
@@ -320,25 +318,24 @@ func buildAndSign(assertType AssertionType, headers map[string]string, body []by
 	} else {
 		delete(finalHeaders, "revision")
 	}
-	written := map[string]struct{}{
-		"type":         marker,
-		"authority-id": marker,
-		"revision":     marker,
-		"body-length":  marker,
+	written := map[string]bool{
+		"type":         true,
+		"authority-id": true,
+		"revision":     true,
+		"body-length":  true,
 	}
 	for _, primKey := range reg.primaryKey {
 		if _, err := checkMandatory(finalHeaders, primKey); err != nil {
 			return nil, err
 		}
 		writeHeader(buf, finalHeaders, primKey)
-		written[primKey] = marker
+		written[primKey] = true
 	}
 
 	// emit other headers in lexicographic order
 	otherKeys := make([]string, 0, len(finalHeaders))
 	for name := range finalHeaders {
-		_, ok := written[name]
-		if !ok {
+		if !written[name] {
 			otherKeys = append(otherKeys, name)
 		}
 	}
