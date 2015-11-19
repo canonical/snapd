@@ -36,6 +36,21 @@ func normalizeKernelInitrdName(name string) string {
 	return strings.SplitN(name, "-", 2)[0]
 }
 
+func removeKernelAssets(s *SnapPart, inter interacter) error {
+	if s.m.Type != pkg.TypeKernel {
+		return nil
+	}
+
+	// remove the kernel blob
+	blobName := filepath.Base(squashfs.BlobPath(s.basedir))
+	dstDir := filepath.Join(partition.BootloaderDir(), blobName)
+	if err := os.RemoveAll(dstDir); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func extractKernelAssets(s *SnapPart, inter progress.Meter, flags InstallFlags) (name string, err error) {
 	if s.m.Type != pkg.TypeKernel {
 		return "", nil
