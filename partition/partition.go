@@ -358,9 +358,11 @@ func (p *Partition) markBootSuccessfulAllSnaps() error {
 		return err
 	}
 
-	// FIXME: we should have something more atomic here, i.e. one write
-	//        to the bootloader environment only, need to figure
-	//        if that is possible with grub/uboot
+	// FIXME: we should have something better here, i.e. one write
+	//        to the bootloader environment only (instead of three)
+	//        We need to figure out if that is possible with grub/uboot
+	// (if we could also do atomic writes to the boot env, that would
+	//  be even better)
 	for _, k := range []string{"snappy_os", "snappy_kernel"} {
 		value, err := bootloader.GetBootVar(k)
 		if err != nil {
