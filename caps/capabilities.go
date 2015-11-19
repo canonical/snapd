@@ -118,14 +118,34 @@ func (r *Repository) Add(cap *Capability) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
+	// Reject capabilities with invalid names
 	if err := ValidateName(cap.Name); err != nil {
 		return err
 	}
+	// Reject capabilities with duplicate names
 	if _, ok := r.caps[cap.Name]; ok {
 		return fmt.Errorf("cannot add capability %q: name already exists", cap.Name)
 	}
+	// Reject capabilities with unknown types
+	if !r.HasType(cap.Type) {
+		return fmt.Errorf("cannot add capability %q: type %q is unknown", cap.Name, cap.Type)
+	}
+	// Reject capabilities that don't pass type-specific validation
+	if err := cap.Type.Validate(cap); err != nil {
+		return err
+	}
 	r.caps[cap.Name] = cap
 	return nil
+}
+
+// HasType checks if the repository contains the given type
+func (r *Repository) HasType(t Type) bool {
+	for _, tt := range r.types {
+		if tt == t {
+			return true
+		}
+	}
+	return false
 }
 
 // AddType adds a capability type to the repository.
@@ -221,4 +241,18 @@ func (e *NotFoundError) Error() string {
 	default:
 		panic(fmt.Sprintf("unexpected what: %q", e.what))
 	}
+}
+
+// Validate if a capability is correct according to the given type
+func (t Type) Validate(c *Capability) error {
+	if t != c.Type {
+		return fmt.Errorf("capability is not of type %q", t)
+	}
+	// While we don't have any support for type-specific attribute schema,
+	// let's ensure that attributes are totally empty. This will make tests
+	// show that this code is actually being used
+	if c.Attrs != nil && len(c.Attrs) != 0 {
+		return fmt.Errorf("attributes must be empty for now")
+	}
+	return nil
 }
