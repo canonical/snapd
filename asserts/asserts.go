@@ -372,7 +372,7 @@ func buildAndSign(assertType AssertionType, headers map[string]string, body []by
 		signature: signature,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("making assertion %v: %v", assertType, err)
+		return nil, fmt.Errorf("cannot build assertion %v: %v", assertType, err)
 	}
 	return assert, nil
 }
