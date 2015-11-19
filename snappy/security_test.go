@@ -1020,9 +1020,9 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryErrors(c *
 	c.Assert(err, ErrorMatches, "invalid package on system")
 }
 
-func (s *SecurityTestSuite) TestParsePackageYamlWithVersion(c *C) {
+func (a *SecurityTestSuite) TestParsePackageYamlWithVersion(c *C) {
 	testVersion := "1.0"
-	dir := filepath.Join(s.tempDir, "foo", testVersion, "meta")
+	dir := filepath.Join(a.tempDir, "foo", testVersion, "meta")
 	os.MkdirAll(dir, 0755)
 	y := filepath.Join(dir, "package.yaml")
 	ioutil.WriteFile(y, []byte(`
@@ -1034,10 +1034,10 @@ version: 123456789
 	c.Assert(m.Version, Equals, testVersion)
 }
 
-func (s *SecurityTestSuite) TestParsePackageYamlWithVersionSymlink(c *C) {
+func (a *SecurityTestSuite) TestParsePackageYamlWithVersionSymlink(c *C) {
 	testVersion := "1.0"
-	verDir := filepath.Join(s.tempDir, "foo", testVersion)
-	symDir := filepath.Join(s.tempDir, "foo", "current")
+	verDir := filepath.Join(a.tempDir, "foo", testVersion)
+	symDir := filepath.Join(a.tempDir, "foo", "current")
 	os.MkdirAll(filepath.Join(verDir, "meta"), 0755)
 	os.Symlink(verDir, symDir)
 	y := filepath.Join(symDir, "meta", "package.yaml")
