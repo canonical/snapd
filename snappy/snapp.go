@@ -1116,7 +1116,7 @@ func (s *SnapPart) Config(configuration []byte) (new string, err error) {
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *SnapPart) NeedsReboot() bool {
-	return false
+	return kernelOrOsRebootRequired(s)
 }
 
 // Frameworks returns the list of frameworks needed by the snap

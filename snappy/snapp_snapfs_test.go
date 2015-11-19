@@ -56,6 +56,9 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 		s.bootvars[key] = val
 		return nil
 	}
+	getBootVar = func(key string) (string, error) {
+		return s.bootvars[key], nil
+	}
 }
 
 func (s *SquashfsTestSuite) TearDownTest(c *C) {
@@ -230,4 +233,34 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	content, err = ioutil.ReadFile(initrd)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, files[1][1])
+}
+
+func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {
+	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageOS)
+	c.Assert(err, IsNil)
+
+	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(snap.NeedsReboot(), Equals, false)
+
+	snap.isActive = false
+	s.bootvars["snappy_os"] = "ubuntu-core." + testOrigin + "_15.10-1.snap"
+	c.Assert(snap.NeedsReboot(), Equals, true)
+}
+
+func (s *SquashfsTestSuite) TestInstallKernelRebootRequired(c *C) {
+	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageKernel)
+	c.Assert(err, IsNil)
+
+	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(snap.NeedsReboot(), Equals, false)
+
+	snap.isActive = false
+	s.bootvars["snappy_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
+	c.Assert(snap.NeedsReboot(), Equals, true)
+
+	// simulate we booted the kernel successfully
+	s.bootvars["snappy_good_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
+	c.Assert(snap.NeedsReboot(), Equals, false)
 }
