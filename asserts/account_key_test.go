@@ -167,6 +167,9 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	cfg := &asserts.DatabaseConfig{
 		Path: rootDir,
+		TrustedKeys: map[string][]asserts.PublicKey{
+			"canonical": {asserts.TrustedKey(&trustedKey.PublicKey)},
+		},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)

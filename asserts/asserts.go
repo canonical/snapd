@@ -362,13 +362,17 @@ func buildAndSign(assertType AssertionType, headers map[string]string, body []by
 	}
 	content := buf.Bytes()
 
-	// xxx implement the actual signing
+	signature, err := signContent(content, privKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign assertion: %v", err)
+	}
+
 	assert, err := reg.builder(AssertionBase{
 		headers:   finalHeaders,
 		body:      finalBody,
 		revision:  revision,
 		content:   content,
-		signature: []byte(nil),
+		signature: signature,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("making assertion %v: %v", assertType, err)

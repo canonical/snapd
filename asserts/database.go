@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
@@ -34,16 +35,26 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 )
 
+// PublicKey is a public key as used by the assertion database.
+type PublicKey interface {
+	PublicKeyPrim
+	// IsValidAt returns whether the public key is valid at 'when' time
+	IsValidAt(when time.Time) bool
+}
+
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
 	// database backstore path
 	Path string
+	// trusted keys maps authority-ids to list of trusted keys.
+	TrustedKeys map[string][]PublicKey
 }
 
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
 	root string
+	cfg  *DatabaseConfig
 }
 
 const (
@@ -64,7 +75,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	if info.Mode().Perm()&0002 != 0 {
 		return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
 	}
-	return &Database{root: cfg.Path}, nil
+	return &Database{root: cfg.Path, cfg: cfg}, nil
 }
 
 func (db *Database) atomicWriteEntry(data []byte, secret bool, subpath ...string) error {
@@ -111,35 +122,42 @@ func (db *Database) ImportKey(authorityID string, privKey *packet.PrivateKey) (f
 }
 
 // use a generalized matching style along what PGP does where keys can be
-// retrieved by using suffixes of their fingerprint
+// retrieved by giving suffixes of their fingerprint
 // TODO: may need more details about the kind of key we are looking for
-func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) []publicKey {
-	// xxx implement me for trusted keys first
-	return nil
+func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) []PublicKey {
+	res := make([]PublicKey, 0, 1)
+	cands := db.cfg.TrustedKeys[authorityID]
+	for _, cand := range cands {
+		if strings.HasSuffix(cand.Fingerprint(), fingerprintSuffix) {
+			res = append(res, cand)
+		}
+	}
+	// TODO: consider other stored public key assertions
+	return res
 }
 
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion) error {
 	content, signature := assert.Signature()
-	keyID, sig, err := parseSignature(signature)
+	sig, err := parseSignature(signature)
 	if err != nil {
 		return err
 	}
-	// TODO: later may need to consider type of assert
-	pubKeys := db.findPublicKeys(assert.AuthorityID(), keyID)
+	// TODO: later may need to consider type of assert to find candidate keys
+	pubKeys := db.findPublicKeys(assert.AuthorityID(), sig.KeyID())
 	now := time.Now()
 	err = nil
 	for _, pubKey := range pubKeys {
-		if pubKey.IsKeyValidAt(now) {
+		if pubKey.IsValidAt(now) {
 			err = pubKey.Verify(content, sig)
 			if err == nil {
-				// TODO: further checks about consistency of assert and validity of the key for this kind of assert, likely delegating to it
+				// TODO: further checks about consistency of assert and validity of the key for this kind of assert, likely delegating to the assert
 				return nil
 			}
 		}
 	}
 	if err == nil {
-		return fmt.Errorf("found no public key to check assertion")
+		return fmt.Errorf("no valid known public key verifies assertion")
 	}
 	return err
 }
