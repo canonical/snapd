@@ -1,6 +1,6 @@
-===================================
-Snappy Transactional System Updates
-===================================
+==================================================
+Snappy Transactional System Updates on a/b systems
+==================================================
 
 .. contents::
 .. sectnum::
@@ -10,6 +10,11 @@ Introduction
 
 This document provides an overview of how system-level updates are
 applied to a snappy system, and how the system boot operates.
+
+Note that this document describes systems that use a snappy a/b
+partition layout. Newer snappy systems use a different mechanism
+called "all-snap" that is using a different strategy for the
+transnational updates.
 
 System-level updates
 --------------------

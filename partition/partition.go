@@ -352,9 +352,40 @@ func (p *Partition) markBootSuccessfulSnappyAB() error {
 	return bootloader.MarkCurrentBootSuccessful(currentRootfs)
 }
 
-// FIXME: stub
 func (p *Partition) markBootSuccessfulAllSnaps() error {
-	panic("markBootSuccessfulAllSnaps is not implemented yet")
+	bootloader, err := bootloader(p)
+	if err != nil {
+		return err
+	}
+
+	// FIXME: we should have something better here, i.e. one write
+	//        to the bootloader environment only (instead of three)
+	//        We need to figure out if that is possible with grub/uboot
+	// (if we could also do atomic writes to the boot env, that would
+	//  be even better)
+	for _, k := range []string{"snappy_os", "snappy_kernel"} {
+		value, err := bootloader.GetBootVar(k)
+		if err != nil {
+			return err
+		}
+
+		// FIXME: ugly string replace
+		newKey := strings.Replace(k, "snappy_", "snappy_good_", -1)
+		if err := bootloader.SetBootVar(newKey, value); err != nil {
+			return err
+		}
+
+		if err := bootloader.SetBootVar("snappy_mode", "regular"); err != nil {
+			return err
+		}
+
+		if err := bootloader.SetBootVar("snappy_trial_boot", "0"); err != nil {
+			return err
+		}
+
+	}
+
+	return nil
 }
 
 // IsNextBootOther return true if the next boot will use the other rootfs
