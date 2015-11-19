@@ -17,7 +17,7 @@
  *
  */
 
-package snappy
+package pkg
 
 import (
 	"bytes"
@@ -29,30 +29,35 @@ import (
 	"github.com/ubuntu-core/snappy/pkg/squashfs"
 )
 
-// PackageFile is the interface to interact with the low-level snap files
-type PackageFile interface {
+// File is the interface to interact with the low-level snap files
+type File interface {
 	Verify(allowUnauthenticated bool) error
 	Close() error
 	UnpackWithDropPrivs(targetDir, rootDir string) error
 	ControlMember(name string) ([]byte, error)
 	MetaMember(name string) ([]byte, error)
 	ExtractHashes(targetDir string) error
+
+	// NeedsMountUnit determines whether it's required to setup
+	// a mount unit for the snap when the snap is installed
+	NeedsMountUnit() bool
 }
 
-// OpenPackageFile opens a given snap file with the right backend
-func OpenPackageFile(path string) (PackageFile, error) {
+// Open opens a given snap file with the right backend
+func Open(path string) (File, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot open snap: %v", err)
 	}
 	defer f.Close()
 
 	// look, libmagic!
 	header := make([]byte, 20)
-	if _, err := f.Read(header); err != nil {
-		return nil, err
+	if _, err := f.ReadAt(header, 0); err != nil {
+		return nil, fmt.Errorf("cannot read snap: %v", err)
 	}
-	// note that we only support little endian squashfs for now
+	// Note that we only support little endian squashfs. There
+	// is nothing else with squashfs 4.0.
 	if bytes.HasPrefix(header, []byte{'h', 's', 'q', 's'}) {
 		return squashfs.New(path), nil
 	}
@@ -60,5 +65,5 @@ func OpenPackageFile(path string) (PackageFile, error) {
 		return clickdeb.Open(path)
 	}
 
-	return nil, fmt.Errorf("unknown header %v", header)
+	return nil, fmt.Errorf("cannot open snap: unknown header: %q", header)
 }

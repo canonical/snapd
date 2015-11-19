@@ -44,6 +44,7 @@ import (
 	"github.com/ubuntu-core/snappy/oauth"
 	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/pkg/remote"
+	"github.com/ubuntu-core/snappy/pkg/squashfs"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
@@ -161,7 +162,7 @@ type SnapPart struct {
 	isActive    bool
 	isInstalled bool
 	description string
-	deb         PackageFile
+	deb         pkg.File
 	basedir     string
 }
 
@@ -411,7 +412,7 @@ func (m *packageYaml) checkForFrameworks() error {
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func (m *packageYaml) checkLicenseAgreement(ag agreer, d PackageFile, currentActiveDir string) error {
+func (m *packageYaml) checkLicenseAgreement(ag agreer, d pkg.File, currentActiveDir string) error {
 	if !m.ExplicitLicenseAgreement {
 		return nil
 	}
@@ -498,7 +499,7 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 // Caller should call Close on the pkg.
 // TODO: expose that Close.
 func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
-	d, err := OpenPackageFile(snapFile)
+	d, err := pkg.Open(snapFile)
 	if err != nil {
 		return nil, err
 	}
@@ -577,7 +578,7 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 	// read hash, its ok if its not there, some older versions of
 	// snappy did not write this file
 	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes.yaml"))
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
@@ -748,12 +749,6 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		return "", err
 	}
 
-	manifestData, err := s.deb.ControlMember("manifest")
-	if err != nil {
-		logger.Noticef("Snap inspect failed for %q: %v", s.Name(), err)
-		return "", err
-	}
-
 	// the "oem" parts are special
 	if s.Type() == pkg.TypeOem {
 		if err := installOemHardwareUdevRules(s.m); err != nil {
@@ -792,14 +787,11 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		return "", err
 	}
 
-	// legacy, the hooks need this. Once we converted all hooks this can go
-	// away
-	clickMetaDir := filepath.Join(s.basedir, ".click", "info")
-	if err := os.MkdirAll(clickMetaDir, 0755); err != nil {
-		return "", err
-	}
-	if err := writeCompatManifestJSON(clickMetaDir, manifestData, s.origin); err != nil {
-		return "", err
+	// generate the mount unit for the squashfs
+	if s.deb.NeedsMountUnit() {
+		if err := s.m.addSquashfsMount(s.basedir, inhibitHooks, inter); err != nil {
+			return "", err
+		}
 	}
 
 	// write the hashes now
@@ -1074,6 +1066,11 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 		return err
 	}
 
+	// ensure mount unit stops
+	if err := s.m.removeSquashfsMount(s.basedir, inter); err != nil {
+		return err
+	}
+
 	err = os.RemoveAll(s.basedir)
 	if err != nil {
 		return err
@@ -1081,6 +1078,10 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 
 	// best effort(?)
 	os.Remove(filepath.Dir(s.basedir))
+
+	if err := os.RemoveAll(squashfs.BlobPath(s.basedir)); err != nil {
+		return err
+	}
 
 	// don't fail if icon can't be removed
 	if helpers.FileExists(iconPath(s)) {
@@ -1920,4 +1921,45 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	}
 
 	return env
+}
+
+func (m *packageYaml) addSquashfsMount(baseDir string, inhibitHooks bool, inter interacter) error {
+	squashfsPath := stripGlobalRootDir(squashfs.BlobPath(baseDir))
+	whereDir := stripGlobalRootDir(baseDir)
+
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
+	mountUnitName, err := sysd.WriteMountUnitFile(m.Name, squashfsPath, whereDir)
+	if err != nil {
+		return err
+	}
+
+	// we always enable the mount unit even in inhibit hooks
+	if err := sysd.Enable(mountUnitName); err != nil {
+		return err
+	}
+
+	if !inhibitHooks {
+		return sysd.Start(mountUnitName)
+	}
+
+	return nil
+}
+
+func (m *packageYaml) removeSquashfsMount(baseDir string, inter interacter) error {
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
+	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
+	if helpers.FileExists(unit) {
+		// we ignore errors, nothing should stop removals
+		if err := sysd.Disable(filepath.Base(unit)); err != nil {
+			logger.Noticef("Failed to disable %q: %s, but continuing anyway.", unit, err)
+		}
+		if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+			logger.Noticef("Failed to stop %q: %s, but continuing anyway.", unit, err)
+		}
+		if err := os.Remove(unit); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

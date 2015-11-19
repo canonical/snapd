@@ -21,6 +21,7 @@ package systemd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/arch"
+	"github.com/ubuntu-core/snappy/dirs"
 )
 
 type testreporter struct {
@@ -410,4 +412,23 @@ func (s *SystemdTestSuite) TestLogString(c *C) {
 		"SYSLOG_IDENTIFIER":    "me",
 	}.String(), Equals, "1970-01-01T00:00:00.000042Z me hi")
 
+}
+
+func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
+	c.Assert(MountUnitPath("/apps/hello.origin/1.1", "mount"), Equals, filepath.Join(dirs.SnapServicesDir, "apps-hello.origin-1.1.mount"))
+}
+
+func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo.origin", "/var/lib/snappy/snaps/foo.origin_1.0.snap", "/apps/foo.origin/1.0")
+	c.Assert(err, IsNil)
+
+	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
+	c.Assert(err, IsNil)
+	c.Assert(string(mount), Equals, `[Unit]
+Description=Squashfs mount unit for foo.origin
+
+[Mount]
+What=/var/lib/snappy/snaps/foo.origin_1.0.snap
+Where=/apps/foo.origin/1.0
+`)
 }

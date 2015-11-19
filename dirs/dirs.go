@@ -26,6 +26,7 @@ var (
 	GlobalRootDir string
 
 	SnapAppsDir               string
+	SnapBlobDir               string
 	SnapOemDir                string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
@@ -66,6 +67,7 @@ func SetRootDir(rootdir string) {
 	SnapIconsDir = filepath.Join(rootdir, snappyDir, "icons")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapLockFile = filepath.Join(rootdir, "/run/snappy.lock")
+	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
 
 	SnapBinariesDir = filepath.Join(SnapAppsDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
