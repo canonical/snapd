@@ -157,18 +157,19 @@ func (db *Database) Check(assert Assertion) error {
 	// TODO: later may need to consider type of assert to find candidate keys
 	pubKeys := db.findPublicKeys(assert.AuthorityID(), sig.KeyID())
 	now := time.Now()
-	err = nil
+	var lastErr error
 	for _, pubKey := range pubKeys {
 		if pubKey.IsValidAt(now) {
-			err = pubKey.Verify(content, sig)
+			err := pubKey.Verify(content, sig)
 			if err == nil {
 				// TODO: further checks about consistency of assert and validity of the key for this kind of assert, likely delegating to the assert
 				return nil
 			}
+			lastErr = err
 		}
 	}
-	if err == nil {
+	if lastErr == nil {
 		return fmt.Errorf("no valid known public key verifies assertion")
 	}
-	return err
+	return lastErr
 }
