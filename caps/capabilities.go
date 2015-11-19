@@ -134,6 +134,10 @@ func (r *Repository) Add(cap *Capability) error {
 	}
 	return fmt.Errorf("cannot add capability %q: type %q is unknown", cap.Name, cap.Type)
 typeFound:
+	// Reject capabilities that don't pass type-specific validation
+	if err := cap.Type.Validate(cap); err != nil {
+		return err
+	}
 	r.caps[cap.Name] = cap
 	return nil
 }
