@@ -35,6 +35,8 @@ const (
 	CopyFlagSync CopyFlag = 1 << iota
 	// CopyFlagOverwrite overwrites the target if it exists
 	CopyFlagOverwrite
+	// CopyFlagPreserveAll preserves mode,owner,time attributes
+	CopyFlagPreserveAll
 )
 
 var (
@@ -57,6 +59,13 @@ func doOpenFile(name string, flag int, perm os.FileMode) (fileish, error) {
 
 // CopyFile copies src to dst
 func CopyFile(src, dst string, flags CopyFlag) (err error) {
+	if flags&CopyFlagPreserveAll != 0 {
+		// Our native copy code does not preserve all attributes
+		// (yet). If the user needs this functionatlity we just
+		// fallback to use the system's "cp" binary to do the copy.
+		return runCpPreserveAll(src, dst)
+	}
+
 	fin, err := openfile(src, os.O_RDONLY, 0)
 	if err != nil {
 		return fmt.Errorf("unable to open %s: %v", src, err)
@@ -100,9 +109,7 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 	return nil
 }
 
-// CopySpecialFile is used to copy all the things that are not files
-// (like device nodes, named pipes etc)
-func CopySpecialFile(path, dest string) error {
+func runCpPreserveAll(path, dest string) error {
 	cmd := exec.Command("cp", "-av", path, dest)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		if exitCode, err := ExitCode(err); err == nil {
@@ -118,6 +125,12 @@ func CopySpecialFile(path, dest string) error {
 	}
 
 	return nil
+}
+
+// CopySpecialFile is used to copy all the things that are not files
+// (like device nodes, named pipes etc)
+func CopySpecialFile(path, dest string) error {
+	return runCpPreserveAll(path, dest)
 }
 
 // ErrCopySpecialFile is returned if a special file copy fails

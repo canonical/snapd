@@ -212,3 +212,29 @@ func (s *cpSuite) TestCopySpecialFileErrors(c *C) {
 	err := CopySpecialFile("no-such-file", "no-such-target")
 	c.Assert(err, ErrorMatches, "failed to copy device node:.*cp:.*stat.*no-such-file.*")
 }
+
+func (s *cpSuite) TestCopyPreserveAll(c *C) {
+	src := filepath.Join(c.MkDir(), "meep")
+	dst := filepath.Join(c.MkDir(), "copied-meep")
+
+	err := ioutil.WriteFile(src, []byte(nil), 0644)
+	c.Assert(err, IsNil)
+
+	// give it some different atime/mtime
+	tv := []syscall.Timeval{
+		syscall.Timeval{Sec: 0, Usec: 0},
+		syscall.Timeval{Sec: 0, Usec: 0},
+	}
+	err = syscall.Utimes(src, tv)
+	c.Assert(err, IsNil)
+
+	err = CopyFile(src, dst, CopyFlagPreserveAll)
+	c.Assert(err, IsNil)
+
+	// ensure that the mtime got preserved
+	st1, err := os.Stat(src)
+	c.Assert(err, IsNil)
+	st2, err := os.Stat(dst)
+	c.Assert(err, IsNil)
+	c.Assert(st1.ModTime(), Equals, st2.ModTime())
+}

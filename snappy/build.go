@@ -391,7 +391,13 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 
 		// handle dirs
 		if info.IsDir() {
-			return os.Mkdir(dest, info.Mode())
+			if err := os.Mkdir(dest, info.Mode()); err != nil {
+				return err
+			}
+			// ensure that premissions are preserved
+			uid := int(info.Sys().(*syscall.Stat_t).Uid)
+			gid := int(info.Sys().(*syscall.Stat_t).Gid)
+			return os.Chown(dest, uid, gid)
 		}
 
 		// handle char/block devices
