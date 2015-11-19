@@ -37,7 +37,10 @@ import (
 
 // PublicKey is a public key as used by the assertion database.
 type PublicKey interface {
-	PublicKeyPrim
+	// Fingerprint returns the key fingerprint.
+	Fingerprint() string
+	// Verify verifies signature is valid for content using the key.
+	Verify(content []byte, sig Signature) error
 	// IsValidAt returns whether the public key is valid at 'when' time
 	IsValidAt(when time.Time) bool
 }

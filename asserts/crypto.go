@@ -87,34 +87,26 @@ func splitFormatAndDecode(formatAndBase64 []byte) (string, []byte, error) {
 	return string(parts[0]), buf[:n], nil
 }
 
-// PublicKeyPrim offers the operations of a public key crypto primitive.
-type PublicKeyPrim interface {
-	// Fingerprint returns the key fingerprint.
-	Fingerprint() string
-	// Verify verifies signature is valid for content using the key.
-	Verify(content []byte, sig SignaturePrim) error
-}
-
 // TODO: have parse public key logic live here
 
-// SignaturePrim carries a signature crypto primitive.
-type SignaturePrim interface {
+// Signature is a cryptographic signature.
+type Signature interface {
 	// KeyID() returns a suffix of the signing key fingerprint
 	KeyID() string
 }
 
-type signatureImpl struct {
+type openpgpSignature struct {
 	sig *packet.Signature
 }
 
-func (simpl signatureImpl) KeyID() string {
+func (simpl openpgpSignature) KeyID() string {
 	return fmt.Sprintf("%016x", *simpl.sig.IssuerKeyId)
 }
 
-func verifyContentSignature(content []byte, sig SignaturePrim, pubKey *packet.PublicKey) error {
-	sigImpl, ok := sig.(signatureImpl)
+func verifyContentSignature(content []byte, sig Signature, pubKey *packet.PublicKey) error {
+	sigImpl, ok := sig.(openpgpSignature)
 	if !ok {
-		return fmt.Errorf("not an internally supported SignaturePrim: %T", sig)
+		return fmt.Errorf("not an internally supported Signature: %T", sig)
 	}
 
 	h := openpgpConfig.Hash().New()
@@ -122,7 +114,7 @@ func verifyContentSignature(content []byte, sig SignaturePrim, pubKey *packet.Pu
 	return pubKey.VerifySignature(h, sigImpl.sig)
 }
 
-func parseSignature(signature []byte) (SignaturePrim, error) {
+func parseSignature(signature []byte) (Signature, error) {
 	if len(signature) == 0 {
 		return nil, fmt.Errorf("unexpected empty signature")
 	}
@@ -144,28 +136,27 @@ func parseSignature(signature []byte) (SignaturePrim, error) {
 	if sig.IssuerKeyId == nil {
 		return nil, fmt.Errorf("expected issuer keyid in signature")
 	}
-	return signatureImpl{sig}, nil
+	return openpgpSignature{sig}, nil
 }
 
-type trustedKey struct {
+type openpgpPubKey struct {
 	pubKey *packet.PublicKey
 	fp     string
 }
 
-func (tk *trustedKey) IsValidAt(time time.Time) bool {
-	// XXX: naive for now until we know if we need trustedKey longer
+func (pubk *openpgpPubKey) IsValidAt(time time.Time) bool {
 	return true
 }
 
-func (tk *trustedKey) Fingerprint() string {
-	return tk.fp
+func (pubk *openpgpPubKey) Fingerprint() string {
+	return pubk.fp
 }
 
-func (tk *trustedKey) Verify(content []byte, sig SignaturePrim) error {
-	return verifyContentSignature(content, sig, tk.pubKey)
+func (pubk *openpgpPubKey) Verify(content []byte, sig Signature) error {
+	return verifyContentSignature(content, sig, pubk.pubKey)
 }
 
-// TrustedKey returns a database useable trusted key out of a opengpg packet.PulicKey.
-func TrustedKey(pubKey *packet.PublicKey) PublicKey {
-	return &trustedKey{pubKey: pubKey, fp: hex.EncodeToString(pubKey.Fingerprint[:])}
+// WrapPublicKey returns a database useable public key out of a opengpg packet.PulicKey.
+func WrapPublicKey(pubKey *packet.PublicKey) PublicKey {
+	return &openpgpPubKey{pubKey: pubKey, fp: hex.EncodeToString(pubKey.Fingerprint[:])}
 }
