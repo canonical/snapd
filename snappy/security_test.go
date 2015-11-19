@@ -35,6 +35,7 @@ import (
 )
 
 type SecurityTestSuite struct {
+	tempDir               string
 	buildDir              string
 	m                     *packageYaml
 	scFilterGenCall       []string
@@ -47,6 +48,7 @@ var _ = Suite(&SecurityTestSuite{})
 
 func (a *SecurityTestSuite) SetUpTest(c *C) {
 	a.buildDir = c.MkDir()
+	a.tempDir = c.MkDir()
 	os.MkdirAll(filepath.Join(a.buildDir, "meta"), 0755)
 
 	// set global sandbox
@@ -1016,4 +1018,34 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryErrors(c *
 	// ensure invalid packages generate an error
 	err := sd.generatePolicyForServiceBinary(m, "binary", "/apps/app-no-origin/1.0")
 	c.Assert(err, ErrorMatches, "invalid package on system")
+}
+
+func (s *SecurityTestSuite) TestParsePackageYamlWithVersion(c *C) {
+	testVersion := "1.0"
+	dir := filepath.Join(s.tempDir, "foo", testVersion, "meta")
+	os.MkdirAll(dir, 0755)
+	y := filepath.Join(dir, "package.yaml")
+	ioutil.WriteFile(y, []byte(`
+name: foo
+version: 123456789
+`), 0644)
+	m, err := parsePackageYamlFileWithVersion(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Version, Equals, testVersion)
+}
+
+func (s *SecurityTestSuite) TestParsePackageYamlWithVersionSymlink(c *C) {
+	testVersion := "1.0"
+	verDir := filepath.Join(s.tempDir, "foo", testVersion)
+	symDir := filepath.Join(s.tempDir, "foo", "current")
+	os.MkdirAll(filepath.Join(verDir, "meta"), 0755)
+	os.Symlink(verDir, symDir)
+	y := filepath.Join(symDir, "meta", "package.yaml")
+	ioutil.WriteFile(y, []byte(`
+name: foo
+version: 123456789
+`), 0644)
+	m, err := parsePackageYamlFileWithVersion(y)
+	c.Assert(err, IsNil)
+	c.Assert(m.Version, Equals, testVersion)
 }
