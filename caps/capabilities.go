@@ -127,19 +127,25 @@ func (r *Repository) Add(cap *Capability) error {
 		return fmt.Errorf("cannot add capability %q: name already exists", cap.Name)
 	}
 	// Reject capabilities with unknown types
-	for _, t := range r.types {
-		if cap.Type == t {
-			goto typeFound
-		}
+	if !r.HasType(cap.Type) {
+		return fmt.Errorf("cannot add capability %q: type %q is unknown", cap.Name, cap.Type)
 	}
-	return fmt.Errorf("cannot add capability %q: type %q is unknown", cap.Name, cap.Type)
-typeFound:
 	// Reject capabilities that don't pass type-specific validation
 	if err := cap.Type.Validate(cap); err != nil {
 		return err
 	}
 	r.caps[cap.Name] = cap
 	return nil
+}
+
+// HasType checks if the repository contains the given type
+func (r *Repository) HasType(t Type) bool {
+	for _, tt := range r.types {
+		if tt == t {
+			return true
+		}
+	}
+	return false
 }
 
 // AddType adds a capability type to the repository.
