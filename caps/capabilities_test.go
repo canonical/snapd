@@ -69,11 +69,11 @@ func (s *CapabilitySuite) TestAddClash(c *C) {
 
 func (s *CapabilitySuite) TestAddInvalidName(c *C) {
 	repo := NewRepository()
-	cap1 := &Capability{Name: "bad-name-", Label: "label", Type: FileType}
-	err := repo.Add(cap1)
+	cap := &Capability{Name: "bad-name-", Label: "label", Type: FileType}
+	err := repo.Add(cap)
 	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
 	c.Assert(repo.Names(), DeepEquals, []string{})
-	c.Assert(repo.Names(), Not(testutil.Contains), cap1.Name)
+	c.Assert(repo.Names(), Not(testutil.Contains), cap.Name)
 }
 
 func (s *CapabilitySuite) TestAddType(c *C) {
