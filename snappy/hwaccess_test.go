@@ -287,3 +287,29 @@ func (s *SnapTestSuite) TestRemoveAllHWAccess(c *C) {
 	c.Check(helpers.FileExists(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml")), Equals, false)
 	c.Check(*regenerateAppArmorRulesWasCalled, Equals, true)
 }
+
+func (s *SnapTestSuite) TestAddSysDevice(c *C) {
+	makeInstalledMockSnap(s.tempdir, "")
+	regenerateAppArmorRulesWasCalled := mockRegenerateAppArmorRules()
+
+	err := AddHWAccess("hello-app", "/sys/devices/foo1")
+	c.Assert(err, IsNil)
+	err = AddHWAccess("hello-app", "/sys/class/gpio/foo2")
+	c.Assert(err, Equals, nil)
+
+	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppArmorAdditionalDir, "hello-app.hwaccess.yaml"))
+	c.Assert(err, IsNil)
+	c.Assert("\n"+string(content), Equals, `
+read-paths:
+- /run/udev/data/*
+write-paths:
+- /sys/devices/foo1
+- /sys/class/gpio/foo2
+`)
+	// ensure that no udev rule has been generated
+	content, err = ioutil.ReadFile(filepath.Join(dirs.SnapUdevRulesDir, "70-snappy_hwassign_hello-app.rules"))
+	c.Assert(content, IsNil)
+
+	// ensure the regenerate code was called
+	c.Assert(*regenerateAppArmorRulesWasCalled, Equals, true)
+}
