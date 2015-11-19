@@ -41,24 +41,22 @@ var _ = Suite(&RepositorySuite{})
 func (s *RepositorySuite) SetUpTest(c *C) {
 	s.repo = NewRepository()
 	s.emptyRepo = NewRepository()
+	err := LoadBuiltInTypes(s.repo)
+	c.Assert(err, IsNil)
 }
 
 func (s *RepositorySuite) TestAdd(c *C) {
-	err := LoadBuiltInTypes(s.repo)
-	c.Assert(err, IsNil)
 	cap := &Capability{Name: "name", Label: "label", Type: FileType}
 	c.Assert(s.repo.Names(), Not(testutil.Contains), cap.Name)
-	err = s.repo.Add(cap)
+	err := s.repo.Add(cap)
 	c.Assert(err, IsNil)
 	c.Assert(s.repo.Names(), DeepEquals, []string{"name"})
 	c.Assert(s.repo.Names(), testutil.Contains, cap.Name)
 }
 
 func (s *RepositorySuite) TestAddClash(c *C) {
-	err := LoadBuiltInTypes(s.repo)
-	c.Assert(err, IsNil)
 	cap1 := &Capability{Name: "name", Label: "label 1", Type: FileType}
-	err = s.repo.Add(cap1)
+	err := s.repo.Add(cap1)
 	c.Assert(err, IsNil)
 	cap2 := &Capability{Name: "name", Label: "label 2", Type: FileType}
 	err = s.repo.Add(cap2)
@@ -69,10 +67,8 @@ func (s *RepositorySuite) TestAddClash(c *C) {
 }
 
 func (s *RepositorySuite) TestAddInvalidName(c *C) {
-	err := LoadBuiltInTypes(s.repo)
-	c.Assert(err, IsNil)
 	cap := &Capability{Name: "bad-name-", Label: "label", Type: FileType}
-	err = s.repo.Add(cap)
+	err := s.repo.Add(cap)
 	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
 	c.Assert(s.repo.Names(), DeepEquals, []string{})
 	c.Assert(s.repo.Names(), Not(testutil.Contains), cap.Name)
@@ -107,10 +103,8 @@ func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
 }
 
 func (s *RepositorySuite) TestRemoveGood(c *C) {
-	err := LoadBuiltInTypes(s.repo)
-	c.Assert(err, IsNil)
 	cap := &Capability{Name: "name", Label: "label", Type: FileType}
-	err = s.repo.Add(cap)
+	err := s.repo.Add(cap)
 	c.Assert(err, IsNil)
 	err = s.repo.Remove(cap.Name)
 	c.Assert(err, IsNil)
@@ -124,10 +118,8 @@ func (s *RepositorySuite) TestRemoveNoSuchCapability(c *C) {
 }
 
 func (s *RepositorySuite) TestNames(c *C) {
-	err := LoadBuiltInTypes(s.repo)
-	c.Assert(err, IsNil)
 	// Note added in non-sorted order
-	err = s.repo.Add(&Capability{Name: "a", Label: "label-a", Type: FileType})
+	err := s.repo.Add(&Capability{Name: "a", Label: "label-a", Type: FileType})
 	c.Assert(err, IsNil)
 	err = s.repo.Add(&Capability{Name: "c", Label: "label-c", Type: FileType})
 	c.Assert(err, IsNil)
@@ -145,10 +137,8 @@ func (s *RepositorySuite) TestTypeNames(c *C) {
 }
 
 func (s *RepositorySuite) TestAll(c *C) {
-	err := LoadBuiltInTypes(s.repo)
-	c.Assert(err, IsNil)
 	// Note added in non-sorted order
-	err = s.repo.Add(&Capability{Name: "a", Label: "label-a", Type: FileType})
+	err := s.repo.Add(&Capability{Name: "a", Label: "label-a", Type: FileType})
 	c.Assert(err, IsNil)
 	err = s.repo.Add(&Capability{Name: "c", Label: "label-c", Type: FileType})
 	c.Assert(err, IsNil)
