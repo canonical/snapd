@@ -48,15 +48,18 @@ type Autopkgtest struct {
 	testArtifactsPath   string // location of the test artifacts on the host
 	testFilter          string
 	integrationTestName string
+	shellOnFail         bool
 }
 
 // NewAutopkgtest is the Autopkgtest constructor
-func NewAutopkgtest(sourceCodePath, testArtifactsPath, testFilter, integrationTestName string) *Autopkgtest {
+func NewAutopkgtest(sourceCodePath, testArtifactsPath, testFilter, integrationTestName string, shellOnFail bool) *Autopkgtest {
 	return &Autopkgtest{
 		sourceCodePath:      sourceCodePath,
 		testArtifactsPath:   testArtifactsPath,
 		testFilter:          testFilter,
-		integrationTestName: integrationTestName}
+		integrationTestName: integrationTestName,
+		shellOnFail:         shellOnFail,
+	}
 }
 
 // AdtRunLocal starts a kvm running the image passed as argument and runs the
@@ -86,6 +89,9 @@ func (a *Autopkgtest) adtRun(testbedOptions string) (err error) {
 		"--override-control", controlFile,
 		"--built-tree", a.sourceCodePath,
 		"--output-dir", outputDir}
+	if a.shellOnFail {
+		cmd = append(cmd, "--shell-fail")
+	}
 
 	execCommand(append(cmd, strings.Fields(testbedOptions)...)...)
 
