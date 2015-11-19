@@ -106,7 +106,7 @@ func (simpl openpgpSignature) KeyID() string {
 func verifyContentSignature(content []byte, sig Signature, pubKey *packet.PublicKey) error {
 	sigImpl, ok := sig.(openpgpSignature)
 	if !ok {
-		return fmt.Errorf("not an internally supported Signature: %T", sig)
+		panic(fmt.Errorf("not an internally supported Signature: %T", sig))
 	}
 
 	h := openpgpConfig.Hash().New()
@@ -116,7 +116,7 @@ func verifyContentSignature(content []byte, sig Signature, pubKey *packet.Public
 
 func parseSignature(signature []byte) (Signature, error) {
 	if len(signature) == 0 {
-		return nil, fmt.Errorf("unexpected empty signature")
+		return nil, fmt.Errorf("empty signature")
 	}
 	format, sigData, err := splitFormatAndDecode(signature)
 	if err != nil {
@@ -134,7 +134,7 @@ func parseSignature(signature []byte) (Signature, error) {
 		return nil, fmt.Errorf("expected signature, got instead: %T", pkt)
 	}
 	if sig.IssuerKeyId == nil {
-		return nil, fmt.Errorf("expected issuer keyid in signature")
+		return nil, fmt.Errorf("expected issuer key id in signature")
 	}
 	return openpgpSignature{sig}, nil
 }
