@@ -204,7 +204,10 @@ func (d *Daemon) DeleteTask(uuid string) error {
 // New Daemon
 func New() *Daemon {
 	repo := caps.NewRepository()
-	repo.AddBuiltInTypes()
+	err := caps.LoadBuiltInTypes(repo)
+	if err != nil {
+		panic(err.Error())
+	}
 	return &Daemon{
 		tasks:   make(map[string]*Task),
 		capRepo: repo,

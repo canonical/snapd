@@ -99,14 +99,15 @@ func NewRepository() *Repository {
 	}
 }
 
-// AddBuiltInTypes adds all built-in types to the repository
-// If any of the additions fail the function panics.
-func (r *Repository) AddBuiltInTypes() {
+// LoadBuiltInTypes adds all built-in types to the repository
+// If any of the additions fail the function returns the error and stops.
+func LoadBuiltInTypes(r *Repository) error {
 	for _, t := range builtInTypes {
 		if err := r.AddType(t); err != nil {
-			panic(err.Error())
+			return err
 		}
 	}
+	return nil
 }
 
 // Add a capability to the repository.
