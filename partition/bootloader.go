@@ -127,10 +127,15 @@ type bootloaderType struct {
 }
 
 func newBootLoader(partition *Partition, bootloaderDir string) *bootloaderType {
-	// FIXME: is this the right thing to do? i.e. what should we do
-	//        on a single partition system?
-	if partition.otherRootPartition() == nil {
-		return nil
+	// no root partition means we are in an all-snap system
+	if partition.rootPartition() == nil || partition.otherRootPartition() == nil {
+		// FIXME: once we no longer support snappy-ab remove
+		//        everything except bootloaderDir from the
+		//        bootloaderType struct
+		return &bootloaderType{
+			partition:     partition,
+			bootloaderDir: bootloaderDir,
+		}
 	}
 
 	// full label of the system {system-a,system-b}
@@ -305,16 +310,4 @@ func (b *bootloaderType) HandleAssets() (err error) {
 	}
 
 	return err
-}
-
-// BootloaderDir returns the full path to the (mounted and writable)
-// bootloader-specific boot directory.
-func BootloaderDir() string {
-	if helpers.FileExists(bootloaderUbootDir()) {
-		return bootloaderUbootDir()
-	} else if helpers.FileExists(bootloaderGrubDir()) {
-		return bootloaderGrubDir()
-	}
-
-	return ""
 }
