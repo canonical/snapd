@@ -32,7 +32,9 @@ func TestRepository(t *testing.T) {
 }
 
 type RepositorySuite struct {
-	repo      *Repository
+	// Typical repository with known types
+	repo *Repository
+	// Empty repository
 	emptyRepo *Repository
 }
 
