@@ -32,13 +32,15 @@ func TestRepository(t *testing.T) {
 }
 
 type RepositorySuite struct {
-	repo *Repository
+	repo      *Repository
+	emptyRepo *Repository
 }
 
 var _ = Suite(&RepositorySuite{})
 
 func (s *RepositorySuite) SetUpTest(c *C) {
 	s.repo = NewRepository()
+	s.emptyRepo = NewRepository()
 }
 
 func (s *RepositorySuite) TestAdd(c *C) {
