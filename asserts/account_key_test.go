@@ -98,7 +98,7 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 		{aks.sinceLine, "since: 12:30\n", "since header is not a RFC3339 date: .*"},
 		{aks.untilLine, "until: " + aks.since.Format(time.RFC3339) + "\n", `invalid 'since' and 'until' times \(no gap after 'since' till 'until'\)`},
 		{"fingerprint: " + aks.fp + "\n", "", "missing fingerprint header"},
-		{"fingerprint: " + aks.fp + "\n", "fingerprint: xxx\n", "could not parse fingerprint header: .*"},
+		{"fingerprint: " + aks.fp + "\n", "fingerprint: ywz\n", "could not parse fingerprint header: .*"},
 	}
 
 	for _, test := range invalidHeaderTests {
