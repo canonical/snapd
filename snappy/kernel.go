@@ -87,6 +87,7 @@ func extractKernelAssets(s *SnapPart, inter progress.Meter, flags InstallFlags) 
 	return dir.Sync()
 }
 
+// used in the unit tests
 var setBootVar = partition.SetBootVar
 
 // setNextBoot will schedule the given os or kernel snap to be used in
@@ -112,4 +113,39 @@ func setNextBoot(s *SnapPart) error {
 	}
 
 	return nil
+}
+
+// used in the unit tests
+var getBootVar = partition.GetBootVar
+
+func kernelOrOsRebootRequired(s *SnapPart) bool {
+	if s.m.Type != pkg.TypeKernel && s.m.Type != pkg.TypeOS {
+		return false
+	}
+
+	var nextBoot, goodBoot string
+	switch s.m.Type {
+	case pkg.TypeKernel:
+		nextBoot = "snappy_kernel"
+		goodBoot = "snappy_good_kernel"
+	case pkg.TypeOS:
+		nextBoot = "snappy_os"
+		goodBoot = "snappy_good_os"
+	}
+
+	nextBootVer, err := getBootVar(nextBoot)
+	if err != nil {
+		return false
+	}
+	goodBootVer, err := getBootVar(goodBoot)
+	if err != nil {
+		return false
+	}
+
+	squashfsName := filepath.Base(stripGlobalRootDir(squashfs.BlobPath(s.basedir)))
+	if nextBootVer == squashfsName && goodBootVer != nextBootVer {
+		return true
+	}
+
+	return false
 }
