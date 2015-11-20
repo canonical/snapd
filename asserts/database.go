@@ -134,7 +134,7 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 		return nil, fmt.Errorf("key id/fingerprint suffix cannot specify a half byte")
 	}
 	if suffixLen < 16 {
-		return nil, fmt.Errorf("key id/fingerprint suffix must be at leat 64 bits")
+		return nil, fmt.Errorf("key id/fingerprint suffix must be at least 64 bits")
 	}
 	res := make([]PublicKey, 0, 1)
 	cands := db.cfg.TrustedKeys[authorityID]
