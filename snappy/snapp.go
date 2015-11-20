@@ -1102,8 +1102,16 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 	// best effort(?)
 	os.Remove(filepath.Dir(s.basedir))
 
+	// remove the snap
 	if err := os.RemoveAll(squashfs.BlobPath(s.basedir)); err != nil {
 		return err
+	}
+
+	// remove the kernel assets (if any)
+	if s.m.Type == pkg.TypeKernel {
+		if err := removeKernelAssets(s, inter); err != nil {
+			logger.Noticef("removing kernel assets failed with %s", err)
+		}
 	}
 
 	// don't fail if icon can't be removed
