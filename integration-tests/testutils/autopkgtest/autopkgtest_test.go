@@ -201,7 +201,7 @@ func (s *AutopkgtestSuite) TestAdtRunShellOnFail(c *check.C) {
 	}
 
 	for _, t := range scenarios {
-		s.subject.shellOnFail = t.shellOnFail
+		s.subject.ShellOnFail = t.shellOnFail
 		s.subject.adtRun(t.testbedOptions)
 
 		outputDir := outputDir(testArtifactsPath)
