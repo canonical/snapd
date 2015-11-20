@@ -70,7 +70,8 @@ func main() {
 			"If the update flag is used, the image will be updated to this channel before running the tests.")
 		rollback = flag.Bool("rollback", false,
 			"If this flag is used, the image will be updated and then rolled back before running the tests.")
-		outputDir = flag.String("output-dir", defaultOutputDir, "Directory where test artifacts will be stored.")
+		outputDir   = flag.String("output-dir", defaultOutputDir, "Directory where test artifacts will be stored.")
+		shellOnFail = flag.Bool("shell-fail", false, "Run a shell in the testbed if the suite fails.")
 	)
 
 	flag.Parse()
@@ -92,7 +93,8 @@ func main() {
 
 	rootPath := testutils.RootPath()
 
-	test := autopkgtest.NewAutopkgtest(rootPath, *outputDir, *testFilter, build.IntegrationTestName)
+	test := autopkgtest.NewAutopkgtest(
+		rootPath, *outputDir, *testFilter, build.IntegrationTestName, *shellOnFail)
 	if !remoteTestbed {
 		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, *outputDir)
 

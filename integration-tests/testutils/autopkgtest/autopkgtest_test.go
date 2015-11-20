@@ -73,7 +73,9 @@ func (s *AutopkgtestSuite) SetUpSuite(c *check.C) {
 	prepareTargetDir = s.fakePrepareTargetDir
 	tplExecute = s.fakeTplExecute
 
-	s.subject = NewAutopkgtest(sourceCodePath, testArtifactsPath, testFilter, integrationTestName)
+	shellOnFail := false
+	s.subject = NewAutopkgtest(
+		sourceCodePath, testArtifactsPath, testFilter, integrationTestName, shellOnFail)
 }
 
 func (s *AutopkgtestSuite) TearDownSuite(c *check.C) {
@@ -182,6 +184,28 @@ func (s *AutopkgtestSuite) TestAdtRunRemoteReturnsTplError(c *check.C) {
 	err := s.subject.AdtRunRemote(testbedIP, testbedPort)
 
 	c.Assert(err, check.NotNil, check.Commentf("Expected error from tpl not received!"))
+}
+
+func (s *AutopkgtestSuite) TestAdtRunShellOnFail(c *check.C) {
+	scenarios := []struct {
+		shellOnFail     bool
+		testbedOptions  string
+		expectedOptions string
+	}{
+		{true, "testbed-options", "--shell-fail testbed-options"},
+		{false, "testbed-options", "testbed-options"},
+	}
+
+	for _, t := range scenarios {
+		s.subject.shellOnFail = t.shellOnFail
+		s.subject.adtRun(t.testbedOptions)
+
+		outputDir := outputDir(testArtifactsPath)
+		expectedCommandCall := fmt.Sprintf(
+			adtrunTpl, controlFile, sourceCodePath, outputDir, t.expectedOptions)
+		c.Check(s.execCalls[expectedCommandCall], check.Equals, 1,
+			check.Commentf("Expected call %s not executed 1 time", expectedCommandCall))
+	}
 }
 
 func tplExecuteCmd(tplFile, outputFile string, data interface{}) string {
