@@ -231,3 +231,12 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, files[1][1])
 }
+
+func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
+	snapPkg := makeTestSnapPackage(c, packageHello)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	err = extractKernelAssets(part, nil, 0)
+	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
+}
