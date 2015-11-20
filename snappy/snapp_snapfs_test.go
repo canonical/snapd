@@ -235,13 +235,42 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	c.Assert(string(content), Equals, files[1][1])
 }
 
-func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {
+func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
+	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageKernel)
+	c.Assert(err, IsNil)
+
+	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
+
+	snap.isActive = true
+	c.Assert(snap.Uninstall(&MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+}
+
+func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
+	snapPkg := makeTestSnapPackage(c, packageHello)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	err = extractKernelAssets(part, nil, 0)
+	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
+}
+
+func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
 	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageOS)
 	c.Assert(err, IsNil)
 
 	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
 	c.Assert(err, IsNil)
-	c.Assert(snap.NeedsReboot(), Equals, false)
+
+	snap.isActive = true
+	c.Assert(snap.Uninstall(&MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+}
+
+func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {
+	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageOS)
+	c.Assert(err, IsNil)
+	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
 
 	snap.isActive = false
 	s.bootvars["snappy_os"] = "ubuntu-core." + testOrigin + "_15.10-1.snap"

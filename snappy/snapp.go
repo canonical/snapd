@@ -805,8 +805,10 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	// FIXME: special handling is bad 'mkay
-	if _, err := extractKernelAssets(s, inter, flags); err != nil {
-		return "", fmt.Errorf("failed to install kernel %s", err)
+	if s.m.Type == pkg.TypeKernel {
+		if err := extractKernelAssets(s, inter, flags); err != nil {
+			return "", fmt.Errorf("failed to install kernel %s", err)
+		}
 	}
 
 	// deal with the data:
@@ -1055,6 +1057,11 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 	// building block for OEMs. Prunning non active ones
 	// is acceptible.
 	if s.m.Type == pkg.TypeOem && s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	// You never want to remove an active kernel or OS
+	if (s.m.Type == pkg.TypeKernel || s.m.Type == pkg.TypeOS) && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 

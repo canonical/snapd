@@ -21,7 +21,6 @@ package asserts
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"time"
@@ -33,8 +32,9 @@ import (
 // belonging to the account.
 type AccountKey struct {
 	AssertionBase
-	since     time.Time
-	until     time.Time
+	since time.Time
+	until time.Time
+	// TODO: replace this with something defined in crypto.go
 	publicKey *packet.PublicKey
 }
 
@@ -65,19 +65,6 @@ func checkRFC3339Date(ab *AssertionBase, name string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("%v header is not a RFC3339 date: %v", name, err)
 	}
 	return date, nil
-}
-
-func splitFormatAndDecode(formatAndBase64 []byte) (string, []byte, error) {
-	parts := bytes.SplitN(formatAndBase64, []byte(" "), 2)
-	if len(parts) != 2 {
-		return "", nil, fmt.Errorf("expected format and base64 data separated by space")
-	}
-	buf := make([]byte, base64.StdEncoding.DecodedLen(len(parts[1])))
-	n, err := base64.StdEncoding.Decode(buf, parts[1])
-	if err != nil {
-		return "", nil, fmt.Errorf("could not decode base64 data: %v", err)
-	}
-	return string(parts[0]), buf[:n], nil
 }
 
 func checkPublicKey(ab *AssertionBase, fingerprintName string) (*packet.PublicKey, error) {
@@ -143,6 +130,7 @@ func buildAccountKey(assert AssertionBase) (Assertion, error) {
 
 func init() {
 	typeRegistry[AccountKeyType] = &assertionTypeRegistration{
-		builder: buildAccountKey,
+		builder:    buildAccountKey,
+		primaryKey: []string{"account-id", "fingerprint"},
 	}
 }

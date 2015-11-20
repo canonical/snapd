@@ -44,11 +44,11 @@ func BootloaderDir() string {
 	return ""
 }
 
-// SetBootVar sets the given boot variable
+// SetBootVar sets the given boot variable.
 func SetBootVar(key, val string) error {
 	p := New()
 	if p == nil {
-		return fmt.Errorf("SetBootVar failed to find the partition")
+		return fmt.Errorf("cannot set %s boot variable: cannot find partition", key)
 	}
 	b, err := bootloader(p)
 	if err != nil {
@@ -58,11 +58,11 @@ func SetBootVar(key, val string) error {
 	return b.SetBootVar(key, val)
 }
 
-// GetBootVar returns the given boot variable
+// GetBootVar returns the value of the given boot variable.
 func GetBootVar(key string) (string, error) {
 	p := New()
 	if p == nil {
-		return "", fmt.Errorf("GetBootVar failed to find the partition")
+		return "", fmt.Errorf("cannot get %s boot variable: cannot find partition", key)
 	}
 	b, err := bootloader(p)
 	if err != nil {
