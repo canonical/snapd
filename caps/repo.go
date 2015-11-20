@@ -99,7 +99,7 @@ func (r *Repository) AddType(t Type) error {
 }
 
 // Remove removes the capability with the provided name.
-// Removing a capability that doesn't exist silently does nothing
+// Removing a capability that doesn't exist returns a NotFoundError
 func (r *Repository) Remove(name string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
