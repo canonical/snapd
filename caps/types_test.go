@@ -34,19 +34,19 @@ type TypeSuite struct{}
 var _ = Suite(&TypeSuite{})
 
 func (s *TypeSuite) TestTypeString(c *C) {
-	c.Assert(iotaType.String(), Equals, "iota")
+	c.Assert(testType.String(), Equals, "test")
 }
 
 func (s *TypeSuite) TestValidateMismatchedType(c *C) {
-	iotaType2 := Type("iota-two") // Another iota-like type that's not iota itself
-	cap := &Capability{Name: "name", Label: "label", Type: iotaType2}
-	err := iotaType.Validate(cap)
-	c.Assert(err, ErrorMatches, `capability is not of type "iota"`)
+	testType2 := Type("test-two") // Another test-like type that's not test itself
+	cap := &Capability{Name: "name", Label: "label", Type: testType2}
+	err := testType.Validate(cap)
+	c.Assert(err, ErrorMatches, `capability is not of type "test"`)
 }
 
 func (s *TypeSuite) TestValidateOK(c *C) {
-	cap := &Capability{Name: "name", Label: "label", Type: iotaType}
-	err := iotaType.Validate(cap)
+	cap := &Capability{Name: "name", Label: "label", Type: testType}
+	err := testType.Validate(cap)
 	c.Assert(err, IsNil)
 }
 
@@ -54,11 +54,11 @@ func (s *TypeSuite) TestValidateAttributes(c *C) {
 	cap := &Capability{
 		Name:  "name",
 		Label: "label",
-		Type:  iotaType,
+		Type:  testType,
 		Attrs: map[string]string{
 			"Key": "Value",
 		},
 	}
-	err := iotaType.Validate(cap)
+	err := testType.Validate(cap)
 	c.Assert(err, ErrorMatches, "attributes must be empty for now")
 }

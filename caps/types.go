@@ -32,9 +32,9 @@ const (
 	// the capability concept before we get to load capability interfaces
 	// from YAML.
 	FileType Type = "file"
-	// Iota type is only meant for testing. It is not useful in any way except
+	// testType is only meant for testing. It is not useful in any way except
 	// that it offers an simple capability type that will happily validate.
-	iotaType Type = "iota"
+	testType Type = "test"
 )
 
 var builtInTypes = [...]Type{
