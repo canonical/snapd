@@ -27,7 +27,8 @@ import (
 
 // Repository stores all known snappy capabilities and types
 type Repository struct {
-	m sync.Mutex // protects the internals from concurrent access. If contention gets high, switch to a RWMutex
+	// Protects the internals from concurrent access.
+	m sync.Mutex
 	// Map of capabilities, indexed by Capability.Name
 	caps map[string]*Capability
 	// A slice of types that are recognized and accepted
