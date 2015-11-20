@@ -805,8 +805,10 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	// FIXME: special handling is bad 'mkay
-	if _, err := extractKernelAssets(s, inter, flags); err != nil {
-		return "", fmt.Errorf("failed to install kernel %s", err)
+	if s.m.Type == pkg.TypeKernel {
+		if err := extractKernelAssets(s, inter, flags); err != nil {
+			return "", fmt.Errorf("failed to install kernel %s", err)
+		}
 	}
 
 	// deal with the data:

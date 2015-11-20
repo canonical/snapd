@@ -243,6 +243,15 @@ func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 	c.Assert(snap.Uninstall(&MockProgressMeter{}), Equals, ErrPackageNotRemovable)
 }
 
+func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
+	snapPkg := makeTestSnapPackage(c, packageHello)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	err = extractKernelAssets(part, nil, 0)
+	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
+}
+
 func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
 	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageOS)
 	c.Assert(err, IsNil)
