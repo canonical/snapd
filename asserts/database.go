@@ -174,5 +174,5 @@ func (db *Database) Check(assert Assertion) error {
 	if lastErr == nil {
 		return fmt.Errorf("no valid known public key verifies assertion")
 	}
-	return lastErr
+	return fmt.Errorf("failed signature verification: %v", lastErr)
 }
