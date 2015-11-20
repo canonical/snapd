@@ -48,7 +48,7 @@ var (
 
 	// The output of the build commands for testing goes to the testsBinDir path,
 	// which is under the integration-tests directory. The
-	// integration-tests/reboot-wrapper script (Test-Command's entry point of
+	// integration-tests/test-wrapper script (Test-Command's entry point of
 	// adt-run) takes care of including testsBinDir at the beginning of $PATH, so
 	// that these binaries (if they exist) take precedence over the system ones
 	buildSnappyCliCmd = "go build -tags=excludeintegration -o " +
