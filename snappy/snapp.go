@@ -219,6 +219,11 @@ type packageYaml struct {
 
 	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement,omitempty"`
 	LicenseVersion           string `yaml:"license-version,omitempty"`
+
+	// FIXME: move into a special kernel struct
+	Kernel string `yaml:"kernel,omitempty"`
+	Initrd string `yaml:"initrd,omitempty"`
+	Dtbs   string `yaml:"dtbs,omitempty"`
 }
 
 type searchResults struct {
@@ -799,6 +804,13 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		return "", err
 	}
 
+	// FIXME: special handling is bad 'mkay
+	if s.m.Type == pkg.TypeKernel {
+		if err := extractKernelAssets(s, inter, flags); err != nil {
+			return "", fmt.Errorf("failed to install kernel %s", err)
+		}
+	}
+
 	// deal with the data:
 	//
 	// if there was a previous version, stop it
@@ -980,6 +992,12 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	}
 
 	if err := os.MkdirAll(filepath.Join(dbase, s.Version()), 0755); err != nil {
+		return err
+	}
+
+	// FIXME: create {Os,Kernel}Snap type instead of adding special
+	//        cases here
+	if err := setNextBoot(s); err != nil {
 		return err
 	}
 

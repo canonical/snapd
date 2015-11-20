@@ -26,6 +26,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/pkg/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 
@@ -33,6 +34,7 @@ import (
 )
 
 type SquashfsTestSuite struct {
+	bootvars map[string]string
 }
 
 func (s *SquashfsTestSuite) SetUpTest(c *C) {
@@ -47,6 +49,13 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 
 	// ensure we use the right builder func (squashfs)
 	snapBuilderFunc = BuildSquashfsSnap
+
+	// mock the boot variable writing for the tests
+	s.bootvars = make(map[string]string)
+	setBootVar = func(key, val string) error {
+		s.bootvars[key] = val
+		return nil
+	}
 }
 
 func (s *SquashfsTestSuite) TearDownTest(c *C) {
@@ -144,4 +153,90 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, false)
 
+}
+
+const packageOS = `
+name: ubuntu-core
+version: 15.10-1
+type: os
+vendor: Someone
+`
+
+func (s *SquashfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
+	snapPkg := makeTestSnapPackage(c, packageOS)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	_, err = part.Install(&MockProgressMeter{}, 0)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.bootvars, DeepEquals, map[string]string{
+		"snappy_os":   "ubuntu-core.origin_15.10-1.snap",
+		"snappy_mode": "try",
+	})
+}
+
+const packageKernel = `
+name: ubuntu-kernel
+version: 4.0-1
+type: kernel
+vendor: Someone
+
+kernel: vmlinuz-4.2
+initrd: initrd.img-4.2
+`
+
+func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
+	files := [][]string{
+		{"vmlinuz-4.2", "I'm a kernel"},
+		{"initrd.img-4.2", "...and I'm an initrd"},
+	}
+	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	_, err = part.Install(&MockProgressMeter{}, 0)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.bootvars, DeepEquals, map[string]string{
+		"snappy_kernel": "ubuntu-kernel.origin_4.0-1.snap",
+		"snappy_mode":   "try",
+	})
+}
+
+func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
+	files := [][]string{
+		{"vmlinuz-4.2", "I'm a kernel"},
+		{"initrd.img-4.2", "...and I'm an initrd"},
+	}
+	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	_, err = part.Install(&MockProgressMeter{}, 0)
+	c.Assert(err, IsNil)
+
+	// this is where the kernel/initrd is unpacked
+	bootdir := partition.BootloaderDir()
+
+	// kernel is here and normalized
+	vmlinuz := filepath.Join(bootdir, "ubuntu-kernel.origin_4.0-1.snap", "vmlinuz")
+	content, err := ioutil.ReadFile(vmlinuz)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, files[0][1])
+
+	// and so is initrd
+	initrd := filepath.Join(bootdir, "ubuntu-kernel.origin_4.0-1.snap", "initrd.img")
+	content, err = ioutil.ReadFile(initrd)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, files[1][1])
+}
+
+func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
+	snapPkg := makeTestSnapPackage(c, packageHello)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	err = extractKernelAssets(part, nil, 0)
+	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
 }

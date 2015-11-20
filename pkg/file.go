@@ -37,6 +37,8 @@ type File interface {
 	ControlMember(name string) ([]byte, error)
 	MetaMember(name string) ([]byte, error)
 	ExtractHashes(targetDir string) error
+	//Unpack unpacks the src parts to the dst directory
+	Unpack(src, dst string) error
 
 	// NeedsMountUnit determines whether it's required to setup
 	// a mount unit for the snap when the snap is installed
