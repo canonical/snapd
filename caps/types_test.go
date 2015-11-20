@@ -38,7 +38,7 @@ func (s *TypeSuite) TestTypeString(c *C) {
 }
 
 func (s *TypeSuite) TestValidateMismatchedType(c *C) {
-	testType2 := Type("test-two") // Another test-like type that's not test itself
+	testType2 := &Type{"test-two"} // Another test-like type that's not test itself
 	cap := &Capability{Name: "name", Label: "label", Type: testType2}
 	err := testType.Validate(cap)
 	c.Assert(err, ErrorMatches, `capability is not of type "test"`)

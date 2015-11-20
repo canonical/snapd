@@ -32,14 +32,14 @@ type Repository struct {
 	// Map of capabilities, indexed by Capability.Name
 	caps map[string]*Capability
 	// A slice of types that are recognized and accepted
-	types []Type
+	types []*Type
 }
 
 // NewRepository creates an empty capability repository
 func NewRepository() *Repository {
 	return &Repository{
 		caps:  make(map[string]*Capability),
-		types: make([]Type, 0),
+		types: make([]*Type, 0),
 	}
 }
 
@@ -72,7 +72,7 @@ func (r *Repository) Add(cap *Capability) error {
 }
 
 // HasType checks if the repository contains the given type
-func (r *Repository) HasType(t Type) bool {
+func (r *Repository) HasType(t *Type) bool {
 	for _, tt := range r.types {
 		if tt == t {
 			return true
@@ -83,7 +83,7 @@ func (r *Repository) HasType(t Type) bool {
 
 // AddType adds a capability type to the repository.
 // It's an error to add the same capability type more than once.
-func (r *Repository) AddType(t Type) error {
+func (r *Repository) AddType(t *Type) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -91,7 +91,7 @@ func (r *Repository) AddType(t Type) error {
 		return err
 	}
 	for _, otherT := range r.types {
-		if t == otherT {
+		if t.Name == otherT.Name {
 			return fmt.Errorf("cannot add type %q: name already exists", t)
 		}
 	}
