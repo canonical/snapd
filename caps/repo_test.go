@@ -32,8 +32,8 @@ func TestRepository(t *testing.T) {
 }
 
 type RepositorySuite struct {
-	// Typical repository with known types
-	repo *Repository
+	// Repository pre-populated with iotaType
+	iotaRepo *Repository
 	// Empty repository
 	emptyRepo *Repository
 }
@@ -41,39 +41,39 @@ type RepositorySuite struct {
 var _ = Suite(&RepositorySuite{})
 
 func (s *RepositorySuite) SetUpTest(c *C) {
-	s.repo = NewRepository()
-	s.emptyRepo = NewRepository()
-	err := LoadBuiltInTypes(s.repo)
+	s.iotaRepo = NewRepository()
+	err := s.iotaRepo.AddType(iotaType)
 	c.Assert(err, IsNil)
+	s.emptyRepo = NewRepository()
 }
 
 func (s *RepositorySuite) TestAdd(c *C) {
-	cap := &Capability{Name: "name", Label: "label", Type: FileType}
-	c.Assert(s.repo.Names(), Not(testutil.Contains), cap.Name)
-	err := s.repo.Add(cap)
+	cap := &Capability{Name: "name", Label: "label", Type: iotaType}
+	c.Assert(s.iotaRepo.Names(), Not(testutil.Contains), cap.Name)
+	err := s.iotaRepo.Add(cap)
 	c.Assert(err, IsNil)
-	c.Assert(s.repo.Names(), DeepEquals, []string{"name"})
-	c.Assert(s.repo.Names(), testutil.Contains, cap.Name)
+	c.Assert(s.iotaRepo.Names(), DeepEquals, []string{"name"})
+	c.Assert(s.iotaRepo.Names(), testutil.Contains, cap.Name)
 }
 
 func (s *RepositorySuite) TestAddClash(c *C) {
-	cap1 := &Capability{Name: "name", Label: "label 1", Type: FileType}
-	err := s.repo.Add(cap1)
+	cap1 := &Capability{Name: "name", Label: "label 1", Type: iotaType}
+	err := s.iotaRepo.Add(cap1)
 	c.Assert(err, IsNil)
-	cap2 := &Capability{Name: "name", Label: "label 2", Type: FileType}
-	err = s.repo.Add(cap2)
+	cap2 := &Capability{Name: "name", Label: "label 2", Type: iotaType}
+	err = s.iotaRepo.Add(cap2)
 	c.Assert(err, ErrorMatches,
 		`cannot add capability "name": name already exists`)
-	c.Assert(s.repo.Names(), DeepEquals, []string{"name"})
-	c.Assert(s.repo.Names(), testutil.Contains, cap1.Name)
+	c.Assert(s.iotaRepo.Names(), DeepEquals, []string{"name"})
+	c.Assert(s.iotaRepo.Names(), testutil.Contains, cap1.Name)
 }
 
 func (s *RepositorySuite) TestAddInvalidName(c *C) {
-	cap := &Capability{Name: "bad-name-", Label: "label", Type: FileType}
-	err := s.repo.Add(cap)
+	cap := &Capability{Name: "bad-name-", Label: "label", Type: iotaType}
+	err := s.iotaRepo.Add(cap)
 	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
-	c.Assert(s.repo.Names(), DeepEquals, []string{})
-	c.Assert(s.repo.Names(), Not(testutil.Contains), cap.Name)
+	c.Assert(s.iotaRepo.Names(), DeepEquals, []string{})
+	c.Assert(s.iotaRepo.Names(), Not(testutil.Contains), cap.Name)
 }
 
 func (s *RepositorySuite) TestAddType(c *C) {
@@ -105,13 +105,13 @@ func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
 }
 
 func (s *RepositorySuite) TestRemoveGood(c *C) {
-	cap := &Capability{Name: "name", Label: "label", Type: FileType}
-	err := s.repo.Add(cap)
+	cap := &Capability{Name: "name", Label: "label", Type: iotaType}
+	err := s.iotaRepo.Add(cap)
 	c.Assert(err, IsNil)
-	err = s.repo.Remove(cap.Name)
+	err = s.iotaRepo.Remove(cap.Name)
 	c.Assert(err, IsNil)
-	c.Assert(s.repo.Names(), HasLen, 0)
-	c.Assert(s.repo.Names(), Not(testutil.Contains), cap.Name)
+	c.Assert(s.iotaRepo.Names(), HasLen, 0)
+	c.Assert(s.iotaRepo.Names(), Not(testutil.Contains), cap.Name)
 }
 
 func (s *RepositorySuite) TestRemoveNoSuchCapability(c *C) {
@@ -121,13 +121,13 @@ func (s *RepositorySuite) TestRemoveNoSuchCapability(c *C) {
 
 func (s *RepositorySuite) TestNames(c *C) {
 	// Note added in non-sorted order
-	err := s.repo.Add(&Capability{Name: "a", Label: "label-a", Type: FileType})
+	err := s.iotaRepo.Add(&Capability{Name: "a", Label: "label-a", Type: iotaType})
 	c.Assert(err, IsNil)
-	err = s.repo.Add(&Capability{Name: "c", Label: "label-c", Type: FileType})
+	err = s.iotaRepo.Add(&Capability{Name: "c", Label: "label-c", Type: iotaType})
 	c.Assert(err, IsNil)
-	err = s.repo.Add(&Capability{Name: "b", Label: "label-b", Type: FileType})
+	err = s.iotaRepo.Add(&Capability{Name: "b", Label: "label-b", Type: iotaType})
 	c.Assert(err, IsNil)
-	c.Assert(s.repo.Names(), DeepEquals, []string{"a", "b", "c"})
+	c.Assert(s.iotaRepo.Names(), DeepEquals, []string{"a", "b", "c"})
 }
 
 func (s *RepositorySuite) TestTypeNames(c *C) {
@@ -140,15 +140,15 @@ func (s *RepositorySuite) TestTypeNames(c *C) {
 
 func (s *RepositorySuite) TestAll(c *C) {
 	// Note added in non-sorted order
-	err := s.repo.Add(&Capability{Name: "a", Label: "label-a", Type: FileType})
+	err := s.iotaRepo.Add(&Capability{Name: "a", Label: "label-a", Type: iotaType})
 	c.Assert(err, IsNil)
-	err = s.repo.Add(&Capability{Name: "c", Label: "label-c", Type: FileType})
+	err = s.iotaRepo.Add(&Capability{Name: "c", Label: "label-c", Type: iotaType})
 	c.Assert(err, IsNil)
-	err = s.repo.Add(&Capability{Name: "b", Label: "label-b", Type: FileType})
+	err = s.iotaRepo.Add(&Capability{Name: "b", Label: "label-b", Type: iotaType})
 	c.Assert(err, IsNil)
-	c.Assert(s.repo.All(), DeepEquals, []Capability{
-		Capability{Name: "a", Label: "label-a", Type: FileType},
-		Capability{Name: "b", Label: "label-b", Type: FileType},
-		Capability{Name: "c", Label: "label-c", Type: FileType},
+	c.Assert(s.iotaRepo.All(), DeepEquals, []Capability{
+		Capability{Name: "a", Label: "label-a", Type: iotaType},
+		Capability{Name: "b", Label: "label-b", Type: iotaType},
+		Capability{Name: "c", Label: "label-c", Type: iotaType},
 	})
 }
