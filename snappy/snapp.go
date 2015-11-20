@@ -805,8 +805,10 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	// FIXME: special handling is bad 'mkay
-	if _, err := extractKernelAssets(s, inter, flags); err != nil {
-		return "", fmt.Errorf("failed to install kernel %s", err)
+	if s.m.Type == pkg.TypeKernel {
+		if err := extractKernelAssets(s, inter, flags); err != nil {
+			return "", fmt.Errorf("failed to install kernel %s", err)
+		}
 	}
 
 	// deal with the data:
@@ -1058,6 +1060,11 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return ErrPackageNotRemovable
 	}
 
+	// You never want to remove an active kernel or OS
+	if (s.m.Type == pkg.TypeKernel || s.m.Type == pkg.TypeOS) && s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
 	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
@@ -1101,8 +1108,10 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 	}
 
 	// remove the kernel assets (if any)
-	if err := removeKernelAssets(s, inter); err != nil {
-		logger.Noticef("removing kernel assets failed with %s", err)
+	if s.m.Type == pkg.TypeKernel {
+		if err := removeKernelAssets(s, inter); err != nil {
+			logger.Noticef("removing kernel assets failed with %s", err)
+		}
 	}
 
 	// don't fail if icon can't be removed

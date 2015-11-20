@@ -21,9 +21,12 @@ package asserts
 
 // expose test-only things here
 
-// GeneratePrivateKey exposed for tests
+// generatePrivateKey exposed for tests
 // XXX: we may do something different later about this
 var GeneratePrivateKeyInTest = generatePrivateKey
+
+// buildAndSignInTest exposed for tests
+var BuildAndSignInTest = buildAndSign
 
 // define dummy assertion types to use in the tests
 

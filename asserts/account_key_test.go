@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -147,4 +148,32 @@ func (aks *accountKeySuite) TestDecodeFingerprintMismatch(c *C) {
 
 	_, err := asserts.Decode([]byte(invalid))
 	c.Check(err, ErrorMatches, accKeyErrPrefix+"public key does not match provided fingerprint")
+}
+
+func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
+	trustedKey, err := asserts.GeneratePrivateKeyInTest()
+	c.Assert(err, IsNil)
+
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"account-id":   "acc-id1",
+		"fingerprint":  aks.fp,
+		"since":        aks.since.Format(time.RFC3339),
+		"until":        aks.until.Format(time.RFC3339),
+	}
+	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
+	c.Assert(err, IsNil)
+
+	rootDir := filepath.Join(c.MkDir(), "asserts-db")
+	cfg := &asserts.DatabaseConfig{
+		Path: rootDir,
+		TrustedKeys: map[string][]asserts.PublicKey{
+			"canonical": {asserts.WrapPublicKey(&trustedKey.PublicKey)},
+		},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	err = db.Check(accKey)
+	c.Assert(err, IsNil)
 }

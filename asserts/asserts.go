@@ -23,9 +23,12 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"golang.org/x/crypto/openpgp/packet"
 )
 
 // AssertionType labels assertions of a given type
@@ -214,6 +217,25 @@ func checkInteger(headers map[string]string, name string) (int, error) {
 	return value, nil
 }
 
+func checkAssertType(assertType AssertionType) (*assertionTypeRegistration, error) {
+	reg := typeRegistry[assertType]
+	if reg == nil {
+		return nil, fmt.Errorf("cannot build assertion of unknown type: %v", assertType)
+	}
+	return reg, nil
+}
+
+func checkRevision(headers map[string]string) (int, error) {
+	revision, err := checkInteger(headers, "revision")
+	if err != nil {
+		return -1, err
+	}
+	if revision < 0 {
+		return -1, fmt.Errorf("assertion revision should be positive: %v", revision)
+	}
+	return revision, nil
+}
+
 func buildAssertion(headers map[string]string, body, content, signature []byte) (Assertion, error) {
 	length, err := checkInteger(headers, "body-length")
 	if err != nil {
@@ -227,21 +249,19 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 		return nil, err
 	}
 
-	assertType, err := checkMandatory(headers, "type")
+	typ, err := checkMandatory(headers, "type")
 	if err != nil {
 		return nil, err
 	}
-	reg := typeRegistry[AssertionType(assertType)]
-	if reg == nil {
-		return nil, fmt.Errorf("cannot build assertion of unknown type: %v", assertType)
+	assertType := AssertionType(typ)
+	reg, err := checkAssertType(assertType)
+	if err != nil {
+		return nil, err
 	}
 
-	revision, err := checkInteger(headers, "revision")
+	revision, err := checkRevision(headers)
 	if err != nil {
 		return nil, err
-	}
-	if revision < 0 {
-		return nil, fmt.Errorf("assertion revision should be positive: %v", revision)
 	}
 
 	assert, err := reg.builder(AssertionBase{
@@ -257,10 +277,111 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 	return assert, nil
 }
 
+func writeHeader(buf *bytes.Buffer, headers map[string]string, name string) {
+	buf.WriteString(name)
+	buf.WriteString(": ")
+	buf.WriteString(headers[name])
+	buf.WriteByte('\n')
+}
+
+// TODO: expose this in some form on Database appropriately
+func buildAndSign(assertType AssertionType, headers map[string]string, body []byte, privKey *packet.PrivateKey) (Assertion, error) {
+	finalHeaders := make(map[string]string, len(headers))
+	for name, value := range headers {
+		finalHeaders[name] = value
+	}
+	bodyLength := len(body)
+	finalBody := make([]byte, bodyLength)
+	copy(finalBody, body)
+	finalHeaders["type"] = string(assertType)
+	finalHeaders["body-length"] = strconv.Itoa(bodyLength)
+
+	if _, err := checkMandatory(finalHeaders, "authority-id"); err != nil {
+		return nil, err
+	}
+
+	reg, err := checkAssertType(assertType)
+	if err != nil {
+		return nil, err
+	}
+
+	revision, err := checkRevision(finalHeaders)
+	if err != nil {
+		return nil, err
+	}
+
+	buf := new(bytes.Buffer)
+	writeHeader(buf, finalHeaders, "type")
+	writeHeader(buf, finalHeaders, "authority-id")
+	if revision > 0 {
+		writeHeader(buf, finalHeaders, "revision")
+	} else {
+		delete(finalHeaders, "revision")
+	}
+	written := map[string]bool{
+		"type":         true,
+		"authority-id": true,
+		"revision":     true,
+		"body-length":  true,
+	}
+	for _, primKey := range reg.primaryKey {
+		if _, err := checkMandatory(finalHeaders, primKey); err != nil {
+			return nil, err
+		}
+		writeHeader(buf, finalHeaders, primKey)
+		written[primKey] = true
+	}
+
+	// emit other headers in lexicographic order
+	otherKeys := make([]string, 0, len(finalHeaders))
+	for name := range finalHeaders {
+		if !written[name] {
+			otherKeys = append(otherKeys, name)
+		}
+	}
+	sort.Strings(otherKeys)
+	for _, k := range otherKeys {
+		writeHeader(buf, finalHeaders, k)
+	}
+
+	// body-length and body
+	if bodyLength > 0 {
+		writeHeader(buf, finalHeaders, "body-length")
+	} else {
+		delete(finalHeaders, "body-length")
+	}
+	if bodyLength > 0 {
+		buf.Grow(bodyLength + 2)
+		buf.WriteString("\n\n")
+		buf.Write(finalBody)
+	} else {
+		finalBody = nil
+	}
+	content := buf.Bytes()
+
+	signature, err := signContent(content, privKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign assertion: %v", err)
+	}
+
+	assert, err := reg.builder(AssertionBase{
+		headers:   finalHeaders,
+		body:      finalBody,
+		revision:  revision,
+		content:   content,
+		signature: signature,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot build assertion %v: %v", assertType, err)
+	}
+	return assert, nil
+}
+
 // registry for assertion types describing how to build them etc...
 
 type assertionTypeRegistration struct {
-	builder func(assert AssertionBase) (Assertion, error)
+	builder    func(assert AssertionBase) (Assertion, error)
+	primaryKey []string
 }
 
 var typeRegistry = make(map[AssertionType]*assertionTypeRegistration)

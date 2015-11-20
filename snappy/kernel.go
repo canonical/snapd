@@ -20,6 +20,7 @@ package snappy
  */
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,15 +31,18 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 )
 
-// noramlizeAssetName transforms like "vmlinuz-4.1.0" -> "vmlinuz"
-func normalizeKernelInitrdName(name string) string {
+// dropVersionSuffix drops the kernel/initrd version suffix,
+// e.g. "vmlinuz-4.1.0" -> "vmlinuz".
+func dropVersionSuffix(name string) string {
 	name = filepath.Base(name)
 	return strings.SplitN(name, "-", 2)[0]
 }
 
+// removeKernelAssets removes the unpacked kernel/initrd for the given
+// kernel snap
 func removeKernelAssets(s *SnapPart, inter interacter) error {
 	if s.m.Type != pkg.TypeKernel {
-		return nil
+		return fmt.Errorf("can not remove kernel assets from snap type %q", s.Type())
 	}
 
 	// remove the kernel blob
@@ -51,64 +55,59 @@ func removeKernelAssets(s *SnapPart, inter interacter) error {
 	return nil
 }
 
-func extractKernelAssets(s *SnapPart, inter progress.Meter, flags InstallFlags) (name string, err error) {
+// extractKernelAssets extracts kernel/initrd/dtb data from the given
+// SnapPart to a versionized bootloader directory so that the bootloader
+// can use it.
+func extractKernelAssets(s *SnapPart, inter progress.Meter, flags InstallFlags) error {
 	if s.m.Type != pkg.TypeKernel {
-		return "", nil
+		return fmt.Errorf("can not extract kernel assets from snap type %q", s.Type())
 	}
 
+	// FIXME: feels wrong to use the basedir here, need something better
+	//
 	// now do the kernel specific bits
 	blobName := filepath.Base(squashfs.BlobPath(s.basedir))
 	dstDir := filepath.Join(partition.BootloaderDir(), blobName)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
-		return "", err
+		return err
 	}
 	dir, err := os.Open(dstDir)
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer dir.Close()
 
-	if s.m.Kernel != "" {
-		src := s.m.Kernel
-		if err := s.deb.Unpack(src, dstDir); err != nil {
-			return name, err
+	for _, src := range []string{s.m.Kernel, s.m.Initrd} {
+		if src == "" {
+			continue
 		}
-		src = filepath.Join(dstDir, s.m.Kernel)
-		dst := filepath.Join(dstDir, normalizeKernelInitrdName(s.m.Kernel))
+		if err := s.deb.Unpack(src, dstDir); err != nil {
+			return err
+		}
+		src = filepath.Join(dstDir, src)
+		dst := filepath.Join(dstDir, dropVersionSuffix(src))
 		if err := os.Rename(src, dst); err != nil {
-			return name, err
+			return err
 		}
 		if err := dir.Sync(); err != nil {
-			return "", err
-		}
-	}
-	if s.m.Initrd != "" {
-		src := s.m.Initrd
-		if err := s.deb.Unpack(src, dstDir); err != nil {
-			return name, err
-		}
-		src = filepath.Join(dstDir, s.m.Initrd)
-		dst := filepath.Join(dstDir, normalizeKernelInitrdName(s.m.Initrd))
-		if err := os.Rename(src, dst); err != nil {
-			return name, err
-		}
-		if err := dir.Sync(); err != nil {
-			return "", err
+			return err
 		}
 	}
 	if s.m.Dtbs != "" {
 		src := filepath.Join(s.m.Dtbs, "*")
 		dst := dstDir
 		if err := s.deb.Unpack(src, dst); err != nil {
-			return name, err
+			return err
 		}
 	}
 
-	return name, dir.Sync()
+	return dir.Sync()
 }
 
 var setBootVar = partition.SetBootVar
 
+// setNextBoot will schedule the given os or kernel snap to be used in
+// the next boot
 func setNextBoot(s *SnapPart) error {
 	if s.m.Type != pkg.TypeOS && s.m.Type != pkg.TypeKernel {
 		return nil

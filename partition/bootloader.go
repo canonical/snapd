@@ -184,6 +184,9 @@ func (b *bootloaderType) SyncBootFiles(bootAssets map[string]string) (err error)
 	return helpers.RSyncWithDelete(srcDir, destDir)
 }
 
+// FIXME: once we stop supporting snappy-ab this can go and
+//        HandleAssets can go as well
+//
 // noramlizeAssetName transforms like "vmlinuz-4.1.0" -> "vmlinuz"
 func normalizeKernelInitrdName(name string) string {
 	name = filepath.Base(name)

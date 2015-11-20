@@ -251,3 +251,43 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, false)
 }
+
+func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
+	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageKernel)
+	c.Assert(err, IsNil)
+
+	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
+
+	snap.isActive = true
+	c.Assert(snap.Uninstall(&MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+}
+
+func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
+	snapPkg := makeTestSnapPackage(c, packageHello)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	err = extractKernelAssets(part, nil, 0)
+	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
+}
+
+func (s *SquashfsTestSuite) TestInstallKernelSnapRemoveAssetsWrongType(c *C) {
+	snapPkg := makeTestSnapPackage(c, packageHello)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	err = removeKernelAssets(part, nil)
+	c.Assert(err, ErrorMatches, `can not remove kernel assets from snap type "app"`)
+}
+
+func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
+	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageOS)
+	c.Assert(err, IsNil)
+
+	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
+
+	snap.isActive = true
+	c.Assert(snap.Uninstall(&MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+}
