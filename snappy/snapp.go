@@ -1060,6 +1060,11 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 		return ErrPackageNotRemovable
 	}
 
+	// You never want to remove an active kernel or OS
+	if (s.m.Type == pkg.TypeKernel || s.m.Type == pkg.TypeOS) && s.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
 	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
