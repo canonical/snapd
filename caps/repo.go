@@ -81,6 +81,17 @@ func (r *Repository) HasType(t *Type) bool {
 	return false
 }
 
+// FindTypeByName finds and returns the Type with the given name or nil if
+// it's not found
+func (r *Repository) FindTypeByName(name string) *Type {
+	for _, t := range r.types {
+		if t.Name == name {
+			return t
+		}
+	}
+	return nil
+}
+
 // AddType adds a capability type to the repository.
 // It's an error to add the same capability type more than once.
 func (r *Repository) AddType(t *Type) error {

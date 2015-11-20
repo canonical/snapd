@@ -152,3 +152,8 @@ func (s *RepositorySuite) TestAll(c *C) {
 		Capability{Name: "c", Label: "label-c", Type: testType},
 	})
 }
+
+func (s *RepositorySuite) TestFindTypeByName(c *C) {
+	c.Assert(s.emptyRepo.FindTypeByName(testType.Name), IsNil)
+	c.Assert(s.testRepo.FindTypeByName(testType.Name), Equals, testType)
+}
