@@ -72,7 +72,7 @@ func checkPublicKey(ab *AssertionBase, fingerprintName string) (*packet.PublicKe
 	if len(pubKeyBody) == 0 {
 		return nil, fmt.Errorf("expected public key, not empty body")
 	}
-	format, key, err := splitFormatAndDecode(pubKeyBody)
+	format, key, err := splitFormatAndBase64Decode(pubKeyBody)
 	if err != nil {
 		return nil, fmt.Errorf("public key: %v", err)
 	}

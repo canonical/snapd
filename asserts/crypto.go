@@ -74,7 +74,7 @@ func signContent(content []byte, privKey *packet.PrivateKey) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func splitFormatAndDecode(formatAndBase64 []byte) (string, []byte, error) {
+func splitFormatAndBase64Decode(formatAndBase64 []byte) (string, []byte, error) {
 	parts := bytes.SplitN(formatAndBase64, []byte(" "), 2)
 	if len(parts) != 2 {
 		return "", nil, fmt.Errorf("expected format and base64 data separated by space")
@@ -118,7 +118,7 @@ func parseSignature(signature []byte) (Signature, error) {
 	if len(signature) == 0 {
 		return nil, fmt.Errorf("empty signature")
 	}
-	format, sigData, err := splitFormatAndDecode(signature)
+	format, sigData, err := splitFormatAndBase64Decode(signature)
 	if err != nil {
 		return nil, fmt.Errorf("signature: %v", err)
 	}
