@@ -882,7 +882,13 @@ func parsePackageYamlFileWithVersion(fn string) (*packageYaml, error) {
 
 	// FIXME: duplicated code from snapp.go:NewSnapPartFromYaml,
 	//        version is overriden by sideloaded versions
-	m.Version = filepath.Base(filepath.Dir(filepath.Dir(fn)))
+
+	// use EvalSymlinks to resolve 'current' to the correct version
+	dir, err := filepath.EvalSymlinks(filepath.Dir(filepath.Dir(fn)))
+	if err != nil {
+		return nil, err
+	}
+	m.Version = filepath.Base(dir)
 
 	return m, err
 }
