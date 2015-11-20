@@ -81,15 +81,10 @@ Contributions are always welcome! Please make sure that you sign the
 Canonical contributor licence agreement at
 http://www.ubuntu.com/legal/contributors
 
-To get the source and propose a merge, this is what typically needs to
-be done:
-
-     git clone https://github.com/ubuntu-core/snappy my-work
-     cd my-work
-     [hack on mywork]
-
-Check out [Github's help pages](https://help.github.com/) to find out how to
-set up your local branch, commit changes and create pull requests.
+Snappy can be found on Github, so in order to fork the source and contribute,
+go to https://github.com/ubuntu-core/snappy. Check out [Github's help
+pages](https://help.github.com/) to find out how to set up your local branch,
+commit changes and create pull requests.
 
 We value good tests, so when you fix a bug or add a new feature we highly
 encourage you to create a test in $source_testing.go. See also the section
