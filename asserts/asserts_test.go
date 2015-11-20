@@ -172,3 +172,34 @@ func (as *AssertsSuite) TestEncode(c *C) {
 	encodeRes := asserts.Encode(a)
 	c.Check(encodeRes, DeepEquals, encoded)
 }
+
+func (as *AssertsSuite) TestSignFormatSanityEmptyBody(c *C) {
+	key1, err := asserts.GeneratePrivateKeyInTest()
+	c.Assert(err, IsNil)
+
+	headers := map[string]string{
+		"authority-id": "canonical",
+	}
+	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, key1)
+	c.Assert(err, IsNil)
+
+	_, err = asserts.Decode(asserts.Encode(a))
+	c.Check(err, IsNil)
+}
+
+func (as *AssertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
+	key1, err := asserts.GeneratePrivateKeyInTest()
+	c.Assert(err, IsNil)
+
+	headers := map[string]string{
+		"authority-id": "canonical",
+	}
+	body := []byte("THE-BODY")
+	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, body, key1)
+	c.Assert(err, IsNil)
+	c.Check(a.Body(), DeepEquals, body)
+
+	decoded, err := asserts.Decode(asserts.Encode(a))
+	c.Assert(err, IsNil)
+	c.Check(decoded.Body(), DeepEquals, body)
+}

@@ -278,10 +278,10 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 }
 
 func writeHeader(buf *bytes.Buffer, headers map[string]string, name string) {
+	buf.WriteByte('\n')
 	buf.WriteString(name)
 	buf.WriteString(": ")
 	buf.WriteString(headers[name])
-	buf.WriteByte('\n')
 }
 
 // TODO: expose this in some form on Database appropriately
@@ -310,8 +310,9 @@ func buildAndSign(assertType AssertionType, headers map[string]string, body []by
 		return nil, err
 	}
 
-	buf := new(bytes.Buffer)
-	writeHeader(buf, finalHeaders, "type")
+	buf := bytes.NewBufferString("type: ")
+	buf.WriteString(string(assertType))
+
 	writeHeader(buf, finalHeaders, "authority-id")
 	if revision > 0 {
 		writeHeader(buf, finalHeaders, "revision")
