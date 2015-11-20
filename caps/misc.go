@@ -29,6 +29,15 @@ type NotFoundError struct {
 	what, name string
 }
 
+func (e *NotFoundError) Error() string {
+	switch e.what {
+	case "remove":
+		return fmt.Sprintf("can't remove capability %q, no such capability", e.name)
+	default:
+		panic(fmt.Sprintf("unexpected what: %q", e.what))
+	}
+}
+
 // Regular expression describing correct identifiers
 var validName = regexp.MustCompile("^[a-z]([a-z0-9-]+[a-z0-9])?$")
 
@@ -39,15 +48,6 @@ func ValidateName(name string) error {
 		return fmt.Errorf("%q is not a valid snap name", name)
 	}
 	return nil
-}
-
-func (e *NotFoundError) Error() string {
-	switch e.what {
-	case "remove":
-		return fmt.Sprintf("can't remove capability %q, no such capability", e.name)
-	default:
-		panic(fmt.Sprintf("unexpected what: %q", e.what))
-	}
 }
 
 // LoadBuiltInTypes adds all built-in types to the repository
