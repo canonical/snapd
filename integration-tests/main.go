@@ -93,8 +93,13 @@ func main() {
 
 	rootPath := testutils.RootPath()
 
-	test := autopkgtest.NewAutopkgtest(
-		rootPath, *outputDir, *testFilter, build.IntegrationTestName, *shellOnFail)
+	test := &autopkgtest.Autopkgtest{
+		SourceCodePath:      rootPath,
+		TestArtifactsPath:   *outputDir,
+		TestFilter:          *testFilter,
+		IntegrationTestName: build.IntegrationTestName,
+		ShellOnFail:         *shellOnFail,
+	}
 	if !remoteTestbed {
 		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, *outputDir)
 
