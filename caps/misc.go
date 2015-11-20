@@ -24,7 +24,7 @@ import (
 	"regexp"
 )
 
-// NotFoundError means that a capability was not found
+// NotFoundError means that a capability was not found.
 type NotFoundError struct {
 	what, name string
 }
@@ -38,7 +38,7 @@ func (e *NotFoundError) Error() string {
 	}
 }
 
-// Regular expression describing correct identifiers
+// Regular expression describing correct identifiers.
 var validName = regexp.MustCompile("^[a-z]([a-z0-9-]+[a-z0-9])?$")
 
 // ValidateName checks if a string as a capability name
@@ -50,7 +50,7 @@ func ValidateName(name string) error {
 	return nil
 }
 
-// LoadBuiltInTypes adds all built-in types to the repository
+// LoadBuiltInTypes adds all built-in types to the repository.
 // If any of the additions fail the function returns the error and stops.
 func LoadBuiltInTypes(r *Repository) error {
 	for _, t := range builtInTypes {
