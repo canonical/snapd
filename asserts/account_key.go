@@ -20,22 +20,17 @@
 package asserts
 
 import (
-	"bytes"
-	"encoding/hex"
 	"fmt"
 	"time"
-
-	"golang.org/x/crypto/openpgp/packet"
 )
 
 // AccountKey holds an account-key assertion, asserting a public key
 // belonging to the account.
 type AccountKey struct {
 	AssertionBase
-	since time.Time
-	until time.Time
-	// TODO: replace this with something defined in crypto.go
-	publicKey *packet.PublicKey
+	since     time.Time
+	until     time.Time
+	publicKey PublicKey
 }
 
 // AccountID returns the account-id of this account-key.
@@ -67,37 +62,19 @@ func checkRFC3339Date(ab *AssertionBase, name string) (time.Time, error) {
 	return date, nil
 }
 
-func checkPublicKey(ab *AssertionBase, fingerprintName string) (*packet.PublicKey, error) {
-	pubKeyBody := ab.Body()
-	if len(pubKeyBody) == 0 {
-		return nil, fmt.Errorf("expected public key, not empty body")
-	}
-	format, key, err := splitFormatAndBase64Decode(pubKeyBody)
+func checkPublicKey(ab *AssertionBase, fingerprintName string) (PublicKey, error) {
+	pubKey, err := parsePublicKey(ab.Body())
 	if err != nil {
-		return nil, fmt.Errorf("public key: %v", err)
+		return nil, err
 	}
-	if format != "openpgp" {
-		return nil, fmt.Errorf("unsupported public key format: %q", format)
-	}
-	pkt, err := packet.Read(bytes.NewBuffer(key))
-	if err != nil {
-		return nil, fmt.Errorf("could not parse public key data: %v", err)
-	}
-	pubk, ok := pkt.(*packet.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("expected public key, got instead: %T", pkt)
-	}
-	fp, err := hex.DecodeString(ab.Header(fingerprintName))
-	if err != nil {
-		return nil, fmt.Errorf("could not parse %v header: %v", fingerprintName, err)
-	}
+	fp := ab.Header(fingerprintName)
 	if len(fp) == 0 {
 		return nil, fmt.Errorf("missing %v header", fingerprintName)
 	}
-	if bytes.Compare(fp, pubk.Fingerprint[:]) != 0 {
+	if fp != pubKey.Fingerprint() {
 		return nil, fmt.Errorf("public key does not match provided fingerprint")
 	}
-	return pubk, nil
+	return pubKey, nil
 }
 
 func buildAccountKey(assert AssertionBase) (Assertion, error) {

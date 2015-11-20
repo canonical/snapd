@@ -87,7 +87,23 @@ func splitFormatAndBase64Decode(formatAndBase64 []byte) (string, []byte, error) 
 	return string(parts[0]), buf[:n], nil
 }
 
-// TODO: have parse public key logic live here
+func parseOpenpgp(formatAndBase64 []byte, kind string) (packet.Packet, error) {
+	if len(formatAndBase64) == 0 {
+		return nil, fmt.Errorf("empty %s", kind)
+	}
+	format, data, err := splitFormatAndBase64Decode(formatAndBase64)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %v", kind, err)
+	}
+	if format != "openpgp" {
+		return nil, fmt.Errorf("unsupported %s format: %q", kind, format)
+	}
+	pkt, err := packet.Read(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("could not parse %s data: %v", kind, err)
+	}
+	return pkt, nil
+}
 
 // Signature is a cryptographic signature.
 type Signature interface {
@@ -115,19 +131,9 @@ func verifyContentSignature(content []byte, sig Signature, pubKey *packet.Public
 }
 
 func parseSignature(signature []byte) (Signature, error) {
-	if len(signature) == 0 {
-		return nil, fmt.Errorf("empty signature")
-	}
-	format, sigData, err := splitFormatAndBase64Decode(signature)
+	pkt, err := parseOpenpgp(signature, "signature")
 	if err != nil {
-		return nil, fmt.Errorf("signature: %v", err)
-	}
-	if format != "openpgp" {
-		return nil, fmt.Errorf("unsupported signature format: %q", format)
-	}
-	pkt, err := packet.Read(bytes.NewReader(sigData))
-	if err != nil {
-		return nil, fmt.Errorf("could not parse signature data: %v", err)
+		return nil, err
 	}
 	sig, ok := pkt.(*packet.Signature)
 	if !ok {
@@ -159,4 +165,16 @@ func (opgPubKey *openpgpPubKey) Verify(content []byte, sig Signature) error {
 // WrapPublicKey returns a database useable public key out of a opengpg packet.PulicKey.
 func WrapPublicKey(pubKey *packet.PublicKey) PublicKey {
 	return &openpgpPubKey{pubKey: pubKey, fp: hex.EncodeToString(pubKey.Fingerprint[:])}
+}
+
+func parsePublicKey(pubKey []byte) (PublicKey, error) {
+	pkt, err := parseOpenpgp(pubKey, "public key")
+	if err != nil {
+		return nil, err
+	}
+	pubk, ok := pkt.(*packet.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("expected public key, got instead: %T", pkt)
+	}
+	return WrapPublicKey(pubk), nil
 }
