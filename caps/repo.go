@@ -25,9 +25,10 @@ import (
 	"sync"
 )
 
-// Repository stores all known snappy capabilities and types
+// Repository stores all known snappy capabilities and types.
 type Repository struct {
-	m sync.Mutex // protects the internals from concurrent access. If contention gets high, switch to a RWMutex
+	// Protects the internals from concurrent access.
+	m sync.Mutex
 	// Map of capabilities, indexed by Capability.Name
 	caps map[string]*Capability
 	// A slice of types that are recognized and accepted
@@ -70,7 +71,7 @@ func (r *Repository) Add(cap *Capability) error {
 	return nil
 }
 
-// HasType checks if the repository contains the given type
+// HasType checks if the repository contains the given type.
 func (r *Repository) HasType(t Type) bool {
 	for _, tt := range r.types {
 		if tt == t {
@@ -99,7 +100,7 @@ func (r *Repository) AddType(t Type) error {
 }
 
 // Remove removes the capability with the provided name.
-// Removing a capability that doesn't exist silently does nothing
+// Removing a capability that doesn't exist returns a NotFoundError.
 func (r *Repository) Remove(name string) error {
 	r.m.Lock()
 	defer r.m.Unlock()

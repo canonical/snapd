@@ -43,14 +43,14 @@ func (t Type) String() string {
 	return string(t)
 }
 
-// Validate if a capability is correct according to the given type
+// Validate whether a capability is correct according to the given type.
 func (t Type) Validate(c *Capability) error {
 	if t != c.Type {
 		return fmt.Errorf("capability is not of type %q", t)
 	}
 	// While we don't have any support for type-specific attribute schema,
 	// let's ensure that attributes are totally empty. This will make tests
-	// show that this code is actually being used
+	// show that this code is actually being used.
 	if c.Attrs != nil && len(c.Attrs) != 0 {
 		return fmt.Errorf("attributes must be empty for now")
 	}

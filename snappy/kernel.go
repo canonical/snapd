@@ -38,6 +38,23 @@ func dropVersionSuffix(name string) string {
 	return strings.SplitN(name, "-", 2)[0]
 }
 
+// removeKernelAssets removes the unpacked kernel/initrd for the given
+// kernel snap
+func removeKernelAssets(s *SnapPart, inter interacter) error {
+	if s.m.Type != pkg.TypeKernel {
+		return fmt.Errorf("can not remove kernel assets from snap type %q", s.Type())
+	}
+
+	// remove the kernel blob
+	blobName := filepath.Base(squashfs.BlobPath(s.basedir))
+	dstDir := filepath.Join(partition.BootloaderDir(), blobName)
+	if err := os.RemoveAll(dstDir); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // extractKernelAssets extracts kernel/initrd/dtb data from the given
 // SnapPart to a versionized bootloader directory so that the bootloader
 // can use it.

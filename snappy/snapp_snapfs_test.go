@@ -235,6 +235,26 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	c.Assert(string(content), Equals, files[1][1])
 }
 
+func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
+	files := [][]string{
+		{"vmlinuz-4.2", "I'm a kernel"},
+		{"initrd.img-4.2", "...and I'm an initrd"},
+	}
+	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	_, err = part.Install(&MockProgressMeter{}, 0)
+	c.Assert(err, IsNil)
+	kernelAssetsDir := filepath.Join(partition.BootloaderDir(), "ubuntu-kernel.origin_4.0-1.snap")
+	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, true)
+
+	// ensure uninstall cleans the kernel assets
+	err = part.Uninstall(&MockProgressMeter{})
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, false)
+}
+
 func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 	snapYaml, err := makeInstalledMockSnap(dirs.GlobalRootDir, packageKernel)
 	c.Assert(err, IsNil)
@@ -253,6 +273,15 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 
 	err = extractKernelAssets(part, nil, 0)
 	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
+}
+
+func (s *SquashfsTestSuite) TestInstallKernelSnapRemoveAssetsWrongType(c *C) {
+	snapPkg := makeTestSnapPackage(c, packageHello)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	err = removeKernelAssets(part, nil)
+	c.Assert(err, ErrorMatches, `can not remove kernel assets from snap type "app"`)
 }
 
 func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
