@@ -38,6 +38,15 @@ type Capability struct {
 	Attrs map[string]string
 }
 
+var (
+	testCapability = &Capability{
+		Name:  "test-name",
+		Label: "test-label",
+		Type:  testType,
+		Attrs: nil,
+	}
+)
+
 // String representation of a capability.
 func (c Capability) String() string {
 	return c.Name
