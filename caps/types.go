@@ -65,3 +65,6 @@ func (t *Type) Validate(c *Capability) error {
 	}
 	return nil
 }
+
+// TypeLookupFn aids in looking up a Type by name
+type TypeLookupFn func(name string) *Type
