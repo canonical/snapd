@@ -157,3 +157,13 @@ func (s *RepositorySuite) TestFindTypeByName(c *C) {
 	c.Assert(s.emptyRepo.FindTypeByName(testType.Name), IsNil)
 	c.Assert(s.testRepo.FindTypeByName(testType.Name), Equals, testType)
 }
+
+func (s *RepositorySuite) TestHasType(c *C) {
+	// HasType works as expected when the object is exactly the one that was
+	// added earlier.
+	c.Assert(s.emptyRepo.HasType(testType), Equals, false)
+	c.Assert(s.testRepo.HasType(testType), Equals, true)
+	// HasType doesn't do deep equality checks so even though the types are
+	// otherwise identical, the test fails.
+	c.Assert(s.testRepo.HasType(&Type{Name: testType.Name}), Equals, false)
+}
