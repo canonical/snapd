@@ -119,6 +119,23 @@ func (s *CheckersS) TestContainsMap(c *C) {
 	c.Assert(map[string]int{"foo": 1, "bar": 2}, Not(Contains), 3)
 }
 
+// Arbitrary type that is not comparable
+type myStruct struct {
+	attrs map[string]string
+}
+
+func (s *CheckersS) TestContainsUncomparableType(c *C) {
+	elem := myStruct{map[string]string{"k": "v"}}
+	containerArray := [...]myStruct{elem}
+	containerSlice := []myStruct{elem}
+	containerMap := map[string]myStruct{"foo": elem}
+	errMsg := "runtime error: comparing uncomparable type testutil.myStruct"
+	testInfo(c, Contains, "Contains", []string{"container", "elem"})
+	testCheck(c, Contains, false, errMsg, containerArray, elem)
+	testCheck(c, Contains, false, errMsg, containerSlice, elem)
+	testCheck(c, Contains, false, errMsg, containerMap, elem)
+}
+
 func (s *CheckersS) TestDeepContainsUnsupportedTypes(c *C) {
 	testInfo(c, DeepContains, "DeepContains", []string{"container", "elem"})
 	testCheck(c, DeepContains, false, "int is not a supported container", 5, nil)
@@ -176,4 +193,15 @@ func (s *CheckersS) TestDeepContainsMap(c *C) {
 	c.Assert(map[string]int{"foo": 1, "bar": 2}, DeepContains, 1)
 	c.Assert(map[string]int{"foo": 1, "bar": 2}, DeepContains, 2)
 	c.Assert(map[string]int{"foo": 1, "bar": 2}, Not(DeepContains), 3)
+}
+
+func (s *CheckersS) TestDeepContainsUncomparableType(c *C) {
+	elem := myStruct{map[string]string{"k": "v"}}
+	containerArray := [...]myStruct{elem}
+	containerSlice := []myStruct{elem}
+	containerMap := map[string]myStruct{"foo": elem}
+	testInfo(c, DeepContains, "DeepContains", []string{"container", "elem"})
+	testCheck(c, DeepContains, true, "", containerArray, elem)
+	testCheck(c, DeepContains, true, "", containerSlice, elem)
+	testCheck(c, DeepContains, true, "", containerMap, elem)
 }
