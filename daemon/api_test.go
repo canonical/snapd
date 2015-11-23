@@ -38,6 +38,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/pkg/lightweight"
@@ -45,6 +46,7 @@ import (
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/testutil"
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
@@ -1150,4 +1152,148 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 
 	err := inst.dispatch()()
 	c.Check(err, check.IsNil)
+}
+
+func (s *apiSuite) TestGetCapabilities(c *check.C) {
+	d := newTestDaemon()
+	d.capRepo.Add(&caps.Capability{"serial-port", "A serial port", caps.FileType, nil})
+	req, err := http.NewRequest("GET", "/1.0/capabilities", nil)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	capabilitiesCmd.GET(capabilitiesCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Body.String(), testutil.Contains, "serial-port")
+	c.Check(rec.Body.String(), check.Equals,
+		`{"result":[{"name":"serial-port","label":"A serial port",`+
+			`"type_name":"file","attrs":null}],`+
+			`"status":"OK","status_code":200,"type":"sync"}`)
+}
+
+func (s *apiSuite) TestCreateCapabilitiesGood(c *check.C) {
+	// Setup
+	d := newTestDaemon()
+	cap := &caps.Capability{
+		Name:  "name",
+		Label: "label",
+		Type:  caps.FileType,
+	}
+	capRepr := cap.ConvertToRepr()
+	text, err := json.Marshal(capRepr)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	// Sanity check, let's see how the representation looks like
+	c.Assert(buf.String(), check.Equals,
+		`{"name":"name","label":"label","type_name":"file","attrs":null}`)
+	// Execute
+	req, err := http.NewRequest("POST", "/1.0/capabilities", buf)
+	c.Assert(err, check.IsNil)
+	rsp := createCapability(capabilitiesCmd, req).Self(nil, nil).(*resp)
+	// Verify (external)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Result, check.IsNil)
+	// Verify (internal)
+	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
+}
+
+func (s *apiSuite) TestCreateCapabilitiesNameClash(c *check.C) {
+	// Setup
+	// Start with one capability named 'name' in the repository
+	d := newTestDaemon()
+	cap := &caps.Capability{
+		Name:  "name",
+		Label: "label",
+		Type:  caps.FileType,
+	}
+	err := d.capRepo.Add(cap)
+	c.Assert(err, check.IsNil)
+	// Prepare for adding a second capability with the same name
+	capClashing := &caps.Capability{
+		Name:  "name",
+		Label: "second label",
+		Type:  caps.FileType,
+	}
+	capClashingRepr := capClashing.ConvertToRepr()
+	text, err := json.Marshal(capClashingRepr)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	// Sanity check, let's see how the representation looks like
+	c.Assert(buf.String(), check.Equals,
+		`{"name":"name","label":"second label","type_name":"file","attrs":null}`)
+	// Execute
+	req, err := http.NewRequest("GET", "/1.0/capabilities", buf)
+	c.Assert(err, check.IsNil)
+	rsp := createCapability(capabilitiesCmd, req).Self(nil, nil).(*resp)
+	// Verify (external)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*errorResult).Msg, check.Matches, `can't add capability`)
+	// Verify (internal)
+	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
+	c.Check(d.capRepo.All(), check.Not(testutil.DeepContains), *capClashing)
+}
+
+func (s *apiSuite) TestCreateCapabilitiesUnintelligible(c *check.C) {
+	// Setup
+	d := newTestDaemon()
+	buf := bytes.NewBufferString("blargh")
+	req, err := http.NewRequest("POST", "/1.0/capabilities", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	// Execute
+	capabilitiesCmd.POST(capabilitiesCmd, req).ServeHTTP(rec, req)
+	// Verify (external)
+	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Body.String(), testutil.DeepContains,
+		"can't decode request body into capability")
+	// Verify (internal)
+	c.Check(d.capRepo.All(), check.HasLen, 0)
+}
+
+func (s *apiSuite) TestCreateCapabilitiesNotACapability(c *check.C) {
+	// Setup
+	d := newTestDaemon()
+	buf := bytes.NewBufferString(`{"NotACapability": 1}`)
+	req, err := http.NewRequest("POST", "/1.0/capabilities", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	// Execute
+	capabilitiesCmd.POST(capabilitiesCmd, req).ServeHTTP(rec, req)
+	// Verify (external)
+	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Body.String(), testutil.Contains, `\"\" is not a valid snap name`)
+	// Verify (internal)
+	c.Check(d.capRepo.All(), check.HasLen, 0)
+}
+
+func (s *apiSuite) TestDeleteCapabilityGood(c *check.C) {
+	// Setup
+	d := newTestDaemon()
+	cap := &caps.Capability{"name", "label", caps.FileType, nil}
+	err := d.capRepo.Add(cap)
+	c.Assert(err, check.IsNil)
+	s.vars = map[string]string{"name": "name"}
+	// Execute
+	rsp := deleteCapability(capabilityCmd, nil).Self(nil, nil).(*resp)
+	// Verify (external)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	// Verify (internal)
+	c.Check(d.capRepo.All(), check.Not(testutil.DeepContains), *cap)
+}
+
+func (s *apiSuite) TestDeleteCapabilityNotFound(c *check.C) {
+	// Setup
+	d := newTestDaemon()
+	cap := caps.Capability{"name", "label", caps.FileType, nil}
+	err := d.capRepo.Add(&cap)
+	c.Assert(err, check.IsNil)
+	s.vars = map[string]string{"name": "other name"} // try to delete 'other name'
+	// Execute
+	rsp := deleteCapability(capabilityCmd, nil).Self(nil, nil).(*resp)
+	// Verify (external)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
+	// Verify (internal)
+	c.Check(d.capRepo.All(), testutil.DeepContains, cap)
 }

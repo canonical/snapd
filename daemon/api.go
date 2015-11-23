@@ -33,6 +33,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/logger"
@@ -54,6 +55,8 @@ var api = []*Command{
 	packageSvcsCmd,
 	packageSvcLogsCmd,
 	operationCmd,
+	capabilitiesCmd,
+	capabilityCmd,
 }
 
 var (
@@ -117,6 +120,17 @@ var (
 		Path:   "/1.0/operations/{uuid}",
 		GET:    getOpInfo,
 		DELETE: deleteOp,
+	}
+
+	capabilitiesCmd = &Command{
+		Path: "/1.0/capabilities",
+		GET:  getCapabilities,
+		POST: createCapability,
+	}
+
+	capabilityCmd = &Command{
+		Path:   "/1.0/capabilities/{name}",
+		DELETE: deleteCapability,
 	}
 )
 
@@ -895,4 +909,38 @@ func appIconGet(c *Command, r *http.Request) Response {
 	}
 
 	return FileResponse(path)
+}
+
+func getCapabilities(c *Command, r *http.Request) Response {
+	var repr []*caps.CapabilityRepr
+	for _, cap := range c.d.capRepo.All() {
+		repr = append(repr, cap.ConvertToRepr())
+	}
+	return SyncResponse(repr)
+}
+
+func createCapability(c *Command, r *http.Request) Response {
+	decoder := json.NewDecoder(r.Body)
+	var capRepr caps.CapabilityRepr
+	if err := decoder.Decode(&capRepr); err != nil {
+		return BadRequest(err, "can't decode request body into capability")
+	}
+	cap := capRepr.ConvertToCap(c.d.capRepo.FindTypeByName)
+	if err := c.d.capRepo.Add(cap); err != nil {
+		return BadRequest(err, "can't add capability")
+	}
+	return SyncResponse(nil)
+}
+
+func deleteCapability(c *Command, r *http.Request) Response {
+	name := muxVars(r)["name"]
+	err := c.d.capRepo.Remove(name)
+	switch err.(type) {
+	case nil:
+		return SyncResponse(nil)
+	case *caps.NotFoundError:
+		return NotFound
+	default:
+		return InternalError(err, "")
+	}
 }

@@ -37,3 +37,18 @@ func (s *CapabilitySuite) TestString(c *C) {
 	cap := &Capability{Name: "name", Label: "label", Type: FileType}
 	c.Assert(cap.String(), Equals, "name")
 }
+
+func (s *CapabilitySuite) TestToFromConversion(c *C) {
+	repr := testCapability.ConvertToRepr()
+	// Check that the representation has all the right data
+	c.Assert(repr.Name, Equals, testCapability.Name)
+	c.Assert(repr.Label, Equals, testCapability.Label)
+	c.Assert(repr.TypeName, Equals, testCapability.Type.Name)
+	c.Assert(repr.Attrs, DeepEquals, testCapability.Attrs)
+	cap := repr.ConvertToCap(func(name string) *Type {
+		c.Assert(name, Equals, testCapability.Type.Name)
+		return testType
+	})
+	// Check that the recreated capability is identical to the original
+	c.Assert(cap, DeepEquals, testCapability)
+}
