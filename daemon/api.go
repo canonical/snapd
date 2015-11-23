@@ -255,12 +255,14 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 		sources = append(sources, "store")
 	}
 
-	upd, _ := newSystemRepo().Updates()
-	if len(upd) > 0 {
-		sources = append(sources, "system-image")
+	// systemRepo might be nil on all-snap systems
+	if systemRepo := newSystemRepo(); systemRepo != nil {
+		upd, _ := systemRepo.Updates()
+		if len(upd) > 0 {
+			sources = append(sources, "system-image")
+		}
+		found = append(found, upd...)
 	}
-
-	found = append(found, upd...)
 
 	sort.Sort(byQN(found))
 
