@@ -26,7 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func Test2(t *testing.T) {
+func Test(t *testing.T) {
 	TestingT(t)
 }
 
