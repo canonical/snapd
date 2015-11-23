@@ -309,13 +309,13 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
-func (s *apiSuite) mkrelease(c *check.C) {
+func (s *apiSuite) mkrelease() {
 	// set up release
-	root := c.MkDir()
-	d := filepath.Join(root, "etc", "system-image")
-	c.Assert(os.MkdirAll(d, 0755), check.IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "channel.ini"), []byte("[service]\nchannel: ubuntu-flavor/release/channel"), 0644), check.IsNil)
-	c.Assert(release.Setup(root), check.IsNil)
+	release.Override(release.Release{
+		Flavor:  "flavor",
+		Series:  "release",
+		Channel: "channel",
+	})
 }
 
 func (s *apiSuite) TestV1(c *check.C) {
@@ -328,7 +328,7 @@ func (s *apiSuite) TestV1(c *check.C) {
 	rec := httptest.NewRecorder()
 	c.Check(v1Cmd.Path, check.Equals, "/1.0")
 
-	s.mkrelease(c)
+	s.mkrelease()
 
 	v1Cmd.GET(v1Cmd, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
@@ -351,7 +351,7 @@ func (s *apiSuite) TestV1Store(c *check.C) {
 	rec := httptest.NewRecorder()
 	c.Check(v1Cmd.Path, check.Equals, "/1.0")
 
-	s.mkrelease(c)
+	s.mkrelease()
 	s.mkOem(c, "some-store")
 
 	v1Cmd.GET(v1Cmd, nil).ServeHTTP(rec, nil)

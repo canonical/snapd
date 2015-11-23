@@ -34,6 +34,11 @@ EOF
 
 chmod +x $(pwd)/integration-tests/bin/sudo
 
+# adt-run copies the source tree with owner user:root.
+# In order for snappy to build the test snaps without sudo we need them to be
+# user:user so it can preserve the group id.
+chown -R $USER:$USER $(pwd)/integration-tests/data/snaps/
+
 # shift to remove the test binary name (first argument) and be able to pass the rest
 # of them to it
 shift

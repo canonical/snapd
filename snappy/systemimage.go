@@ -324,6 +324,13 @@ type SystemImageRepository struct {
 
 // NewSystemImageRepository returns a new SystemImageRepository
 func NewSystemImageRepository() *SystemImageRepository {
+	// check if we are runnign on an all-snappy system and if
+	// so do not create a SystemImageRepository
+	configFile := filepath.Join(dirs.GlobalRootDir, systemImageChannelConfig)
+	if !helpers.FileExists(configFile) {
+		return nil
+	}
+
 	return &SystemImageRepository{partition: newPartition()}
 }
 
