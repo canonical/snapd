@@ -176,3 +176,39 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 	err = db.Check(accKey)
 	c.Assert(err, IsNil)
 }
+
+func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
+	trustedKey, err := asserts.GeneratePrivateKeyInTest()
+	c.Assert(err, IsNil)
+
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"account-id":   "acc-id1",
+		"fingerprint":  aks.fp,
+		"since":        aks.since.Format(time.RFC3339),
+		"until":        aks.until.Format(time.RFC3339),
+	}
+	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
+	c.Assert(err, IsNil)
+
+	rootDir := filepath.Join(c.MkDir(), "asserts-db")
+	cfg := &asserts.DatabaseConfig{
+		Path: rootDir,
+		TrustedKeys: map[string][]asserts.PublicKey{
+			"canonical": {asserts.WrapPublicKey(&trustedKey.PublicKey)},
+		},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	err = db.Add(accKey)
+	c.Assert(err, IsNil)
+
+	found, err := db.Find(asserts.AccountKeyType, map[string]string{
+		"account-id":  "acc-id1",
+		"fingerprint": aks.fp,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(found, NotNil)
+	c.Check(found.Body(), DeepEquals, []byte(aks.pubKeyBody))
+}

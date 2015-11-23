@@ -24,9 +24,12 @@ package asserts
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,6 +56,12 @@ type DatabaseConfig struct {
 	TrustedKeys map[string][]PublicKey
 }
 
+// Well-known errors
+var (
+	ErrAssertionNotFound       = errors.New("assertion not found")
+	ErrAssertionNotSuperseding = errors.New("assertion does not supersede current one")
+)
+
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
@@ -63,6 +72,8 @@ type Database struct {
 const (
 	privateKeysLayoutVersion = "v0"
 	privateKeysRoot          = "private-keys-" + privateKeysLayoutVersion
+	assertionsLayoutVersion  = "v0"
+	assertionsRoot           = "assertions-" + assertionsLayoutVersion
 )
 
 // OpenDatabase opens the assertion database based on the configuration.
@@ -93,6 +104,41 @@ func (db *Database) atomicWriteEntry(data []byte, secret bool, subpath ...string
 		fperm = 0600
 	}
 	return helpers.AtomicWriteFile(fpath, data, os.FileMode(fperm), 0)
+}
+
+func (db *Database) removeEntry(subpath ...string) error {
+	fpath := filepath.Join(db.root, filepath.Join(subpath...))
+	return os.Remove(fpath)
+}
+
+func (db *Database) symlinkEntry(entry string, subpath ...string) error {
+	fpath := filepath.Join(db.root, filepath.Join(subpath...))
+	// TODO: move to helpers/helpers.go
+	dir, err := os.Open(filepath.Dir(fpath))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	err = os.Symlink(entry, fpath)
+	if err != nil {
+		return err
+	}
+	return dir.Sync()
+}
+
+func (db *Database) statEntry(subpath ...string) (os.FileInfo, error) {
+	fpath := filepath.Join(db.root, filepath.Join(subpath...))
+	return os.Stat(fpath)
+}
+
+func (db *Database) readlinkEntry(subpath ...string) (string, error) {
+	fpath := filepath.Join(db.root, filepath.Join(subpath...))
+	return os.Readlink(fpath)
+}
+
+func (db *Database) readEntry(subpath ...string) ([]byte, error) {
+	fpath := filepath.Join(db.root, filepath.Join(subpath...))
+	return ioutil.ReadFile(fpath)
 }
 
 // GenerateKey generates a private/public key pair for identity and
@@ -175,4 +221,96 @@ func (db *Database) Check(assert Assertion) error {
 		return fmt.Errorf("no valid known public key verifies assertion")
 	}
 	return fmt.Errorf("failed signature verification: %v", lastErr)
+}
+
+// Add persists the assertions after ensuring it is properly signed and consistent with all the stored knowledge.
+// Returns ErrAssertionNotSuperseding if trying to add a previous revision of the assertion.
+func (db *Database) Add(assert Assertion) error {
+	reg, err := checkAssertType(assert.Type())
+	if err != nil {
+		return err
+	}
+	err = db.Check(assert)
+	if err != nil {
+		return err
+	}
+	primaryKey := make([]string, len(reg.primaryKey))
+	for i, k := range reg.primaryKey {
+		keyVal := assert.Header(k)
+		if keyVal == "" {
+			panic("xxx")
+		}
+		primaryKey[i] = keyVal
+	}
+	indexPath := filepath.Join(string(assert.Type()), filepath.Join(primaryKey...))
+	_, err = db.statEntry(assertionsRoot, indexPath)
+	switch {
+	case err == nil:
+		// directory for assertion is present
+		curRevStr, err := db.readlinkEntry(assertionsRoot, indexPath, "newest")
+		if err != nil {
+			return err // xxx qualify
+		}
+		curRev, err := strconv.Atoi(curRevStr)
+		if err != nil {
+			return err // xxx qualify
+		}
+		if curRev >= assert.Revision() {
+			return ErrAssertionNotSuperseding
+		}
+		err = db.removeEntry(assertionsRoot, indexPath, "newest")
+		if err != nil {
+			return err // xxx qualify
+		}
+	case os.IsNotExist(err):
+		// nothing there yet
+	default:
+		return err // xxx qualify
+	}
+	revStr := strconv.Itoa(assert.Revision())
+	err = db.atomicWriteEntry(Encode(assert), false, assertionsRoot, indexPath, revStr)
+	if err != nil {
+		return err // xxx qualify
+	}
+	err = db.symlinkEntry(revStr, assertionsRoot, indexPath, "newest")
+	if err != nil {
+		return err // xxx qualify
+	}
+	return nil
+}
+
+// Find an assertion based on arbitrary headers.
+// Provided headers must contain the primary key for the assertion type.
+// Returns ErrAssertionNotFound if the assertion cannot be found.
+func (db *Database) Find(assertionType AssertionType, headers map[string]string) (Assertion, error) {
+	reg, err := checkAssertType(assertionType)
+	if err != nil {
+		return nil, err
+	}
+	primaryKey := make([]string, len(reg.primaryKey))
+	for i, k := range reg.primaryKey {
+		keyVal := headers[k]
+		if keyVal == "" {
+			panic("xxx")
+		}
+		primaryKey[i] = keyVal
+	}
+	indexPath := filepath.Join(string(assertionType), filepath.Join(primaryKey...))
+	_, err = db.statEntry(assertionsRoot, indexPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrAssertionNotFound
+		}
+		return nil, err // xxx qualify
+	}
+	encoded, err := db.readEntry(assertionsRoot, indexPath, "newest")
+	if err != nil {
+		return nil, err // xxx qualify
+	}
+	assert, err := Decode(encoded)
+	if err != nil {
+		return nil, err
+	}
+	// xxx check all headers match?
+	return assert, nil
 }
