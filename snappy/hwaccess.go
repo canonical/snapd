@@ -42,7 +42,7 @@ func getHWAccessYamlFile(snapname string) string {
 
 // Return true if the device string is a valid device
 func validDevice(device string) bool {
-	validPrefixes := []string{"/dev", "/sys/devices", "/sys/class/gpio"}
+	validPrefixes := []string{"/dev/", "/sys/devices/", "/sys/class/gpio/"}
 
 	for _, s := range validPrefixes {
 		if strings.HasPrefix(device, s) {
@@ -54,15 +54,15 @@ func validDevice(device string) bool {
 }
 
 func validDeviceForUdev(device string) bool {
-	inValidPrefixes := []string{"/sys/devices", "/sys/class/gpio"}
+	validPrefixes := []string{"/dev/"}
 
-	for _, s := range inValidPrefixes {
+	for _, s := range validPrefixes {
 		if strings.HasPrefix(device, s) {
-			return false
+			return true
 		}
 	}
 
-	return true
+	return false
 }
 
 func readHWAccessYamlFile(snapname string) (SecurityOverrideDefinition, error) {
