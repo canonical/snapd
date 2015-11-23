@@ -49,13 +49,15 @@ func (s *SITestSuite) SetUpTest(c *C) {
 	newPartition = func() (p partition.Interface) {
 		return new(MockPartition)
 	}
+	dirs.SetRootDir(c.MkDir())
 
-	s.systemImage = NewSystemImageRepository()
-	c.Assert(s, NotNil)
-
+	// setup fake si-roots for / and /other
 	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, systemImageChannelConfig), "1")
-	// setup fake /other partition
 	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, "other", systemImageChannelConfig), "0")
+
+	// create repository after the fake channel config is in place
+	s.systemImage = NewSystemImageRepository()
+	c.Assert(s.systemImage, NotNil)
 
 	// run test webserver instead of talking to the real one
 	//
@@ -91,7 +93,7 @@ printf '{"type": "spinner", "msg": "Applying"}\n'
 
 func makeFakeSystemImageChannelConfig(c *C, cfgPath, buildNumber string) {
 	os.MkdirAll(filepath.Dir(cfgPath), 0775)
-	f, err := os.OpenFile(cfgPath, os.O_CREATE|os.O_RDWR, 0664)
+	f, err := os.Create(cfgPath)
 	c.Assert(err, IsNil)
 	defer f.Close()
 	f.Write([]byte(fmt.Sprintf(`
