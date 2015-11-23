@@ -20,11 +20,15 @@
 package asserts_test
 
 import (
+	"bytes"
+	"crypto"
+	"encoding/base64"
 	"encoding/hex"
 	"os"
 	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
 	. "gopkg.in/check.v1"
@@ -117,4 +121,74 @@ func (dbs *databaseSuite) TestGenerateKey(c *C) {
 	c.Check(fingerp, NotNil)
 	keyPath := filepath.Join(dbs.rootDir, "private-keys-v0/account0", fingerp)
 	c.Check(helpers.FileExists(keyPath), Equals, true)
+}
+
+type checkSuite struct {
+	key1    *packet.PrivateKey
+	rootDir string
+	a       asserts.Assertion
+}
+
+var _ = Suite(&checkSuite{})
+
+func (chks *checkSuite) SetUpTest(c *C) {
+	var err error
+	chks.key1, err = asserts.GeneratePrivateKeyInTest()
+	c.Assert(err, IsNil)
+
+	chks.rootDir = filepath.Join(c.MkDir(), "asserts-db")
+
+	headers := map[string]string{
+		"authority-id": "canonical",
+	}
+	chks.a, err = asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, chks.key1)
+	c.Assert(err, IsNil)
+}
+
+func (chks *checkSuite) TestCheckNoPubKey(c *C) {
+	cfg := &asserts.DatabaseConfig{Path: chks.rootDir}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	err = db.Check(chks.a)
+	c.Assert(err, ErrorMatches, "no valid known public key verifies assertion")
+}
+
+func (chks *checkSuite) TestCheckForgery(c *C) {
+	key2, err := asserts.GeneratePrivateKeyInTest()
+	c.Assert(err, IsNil)
+	dbTrustedKey := asserts.WrapPublicKey(&key2.PublicKey)
+
+	cfg := &asserts.DatabaseConfig{
+		Path: chks.rootDir,
+		TrustedKeys: map[string][]asserts.PublicKey{
+			"canonical": {dbTrustedKey},
+		},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	encoded := asserts.Encode(chks.a)
+	content, encodedSig := chks.a.Signature()
+	// forgery
+	forgedSig := new(packet.Signature)
+	forgedSig.PubKeyAlgo = chks.key1.PubKeyAlgo
+	forgedSig.Hash = crypto.SHA256
+	forgedSig.CreationTime = time.Now()
+	forgedSig.IssuerKeyId = &key2.KeyId
+	h := crypto.SHA256.New()
+	h.Write(content)
+	err = forgedSig.Sign(h, chks.key1, &packet.Config{DefaultHash: crypto.SHA256})
+	c.Assert(err, IsNil)
+	buf := new(bytes.Buffer)
+	forgedSig.Serialize(buf)
+	forgedSigEncoded := "openpgp " + base64.StdEncoding.EncodeToString(buf.Bytes())
+	forgedEncoded := bytes.Replace(encoded, encodedSig, []byte(forgedSigEncoded), 1)
+	c.Assert(forgedEncoded, Not(DeepEquals), encoded)
+
+	forgedAssert, err := asserts.Decode(forgedEncoded)
+	c.Assert(err, IsNil)
+
+	err = db.Check(forgedAssert)
+	c.Assert(err, ErrorMatches, "failed signature verification: .*")
 }

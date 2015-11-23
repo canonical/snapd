@@ -136,8 +136,8 @@ func (s *AutopkgtestSuite) TestAdtRunLocalCallsPrepareTargetDir(c *check.C) {
 func (s *AutopkgtestSuite) TestAdtRunLocalCallsExecCommand(c *check.C) {
 	s.subject.AdtRunLocal(imgPath)
 
-	outputDir := outputDir(testArtifactsPath)
-	expectedExecCommadCall := adtrunLocalCmd(controlFile, sourceCodePath, outputDir, imgPath)
+	testOutputDir := outputDir(testArtifactsPath)
+	expectedExecCommadCall := adtrunLocalCmd(controlFile, sourceCodePath, testOutputDir, imgPath)
 
 	c.Assert(s.execCalls[expectedExecCommadCall],
 		check.Equals, 1,
@@ -175,8 +175,8 @@ func (s *AutopkgtestSuite) TestAdtRunRemoteCallsPrepareTargetDir(c *check.C) {
 func (s *AutopkgtestSuite) TestAdtRunRemoteCallsExecCommand(c *check.C) {
 	s.subject.AdtRunRemote(testbedIP, testbedPort)
 
-	outputDir := outputDir(testArtifactsPath)
-	expectedExecCommadCall := adtrunRemoteCmd(controlFile, sourceCodePath, outputDir, testbedIP, testbedPort)
+	testOutputDir := outputDir(testArtifactsPath)
+	expectedExecCommadCall := adtrunRemoteCmd(controlFile, sourceCodePath, testOutputDir, testbedIP, testbedPort)
 
 	c.Assert(s.execCalls[expectedExecCommadCall],
 		check.Equals, 1,
@@ -204,9 +204,9 @@ func (s *AutopkgtestSuite) TestAdtRunShellOnFail(c *check.C) {
 		s.subject.ShellOnFail = t.shellOnFail
 		s.subject.adtRun(t.testbedOptions)
 
-		outputDir := outputDir(testArtifactsPath)
+		testOutputDir := outputDir(testArtifactsPath)
 		expectedCommandCall := fmt.Sprintf(
-			adtrunTpl, controlFile, sourceCodePath, outputDir, t.expectedOptions)
+			adtrunTpl, controlFile, sourceCodePath, testOutputDir, t.expectedOptions)
 		c.Check(s.execCalls[expectedCommandCall], check.Equals, 1,
 			check.Commentf("Expected call %s not executed 1 time", expectedCommandCall))
 	}

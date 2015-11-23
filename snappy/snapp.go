@@ -1868,7 +1868,7 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// sense in sending it our ubuntu-core snap
 	//
 	// NOTE this *will* send .sideload apps to the store.
-	installed, err := ActiveSnapIterByType(fullNameWithChannel, pkg.TypeApp, pkg.TypeFramework, pkg.TypeOem)
+	installed, err := ActiveSnapIterByType(fullNameWithChannel, pkg.TypeApp, pkg.TypeFramework, pkg.TypeOem, pkg.TypeOS, pkg.TypeKernel)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}
