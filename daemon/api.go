@@ -912,7 +912,7 @@ func appIconGet(c *Command, r *http.Request) Response {
 }
 
 func getCapabilities(c *Command, r *http.Request) Response {
-	repr := make([]*caps.CapabilityRepr, 0)
+	var repr []*caps.CapabilityRepr
 	for _, cap := range c.d.capRepo.All() {
 		repr = append(repr, cap.ConvertToRepr())
 	}
