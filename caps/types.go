@@ -53,7 +53,7 @@ func (t *Type) String() string {
 }
 
 // Validate whether a capability is correct according to the given type.
-func (t Type) Validate(c *Capability) error {
+func (t *Type) Validate(c *Capability) error {
 	if t != c.Type {
 		return fmt.Errorf("capability is not of type %q", t)
 	}

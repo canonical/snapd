@@ -72,7 +72,7 @@ func (r *Repository) Add(cap *Capability) error {
 }
 
 // HasType checks if the repository contains the given type.
-func (r *Repository) HasType(t Type) bool {
+func (r *Repository) HasType(t *Type) bool {
 	for _, tt := range r.types {
 		if tt == t {
 			return true
