@@ -70,10 +70,10 @@ func (client *Client) raw(method, path string, body io.Reader) (*http.Response, 
 	return client.doer.Do(req)
 }
 
-// Do performs a request and decodes the resulting json into the given
+// do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
-func (client *Client) Do(method, path string, body io.Reader, v interface{}) error {
+func (client *Client) do(method, path string, body io.Reader, v interface{}) error {
 	rsp, err := client.raw(method, path, body)
 	if err != nil {
 		return err
@@ -109,7 +109,7 @@ type SysInfo struct {
 // SysInfo gets system information from the REST API.
 func (client *Client) SysInfo() (*SysInfo, error) {
 	var rsp response
-	if err := client.Do("GET", "/1.0", nil, &rsp); err != nil {
+	if err := client.do("GET", "/1.0", nil, &rsp); err != nil {
 		return nil, err
 	}
 	if rsp.Type == "error" {

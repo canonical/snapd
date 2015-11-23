@@ -35,7 +35,7 @@ func main() {
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 1, ' ', 0)
 	fmt.Fprintln(w, "What\tError\tResult")
-	sysInfo, err := cli.SystemInfo()
+	sysInfo, err := cli.SysInfo()
 	fmt.Fprintf(w, "get system info\t%v\t%#v\n", err, sysInfo)
 
 	w.Flush()

@@ -19,7 +19,16 @@
 
 package client
 
+import (
+	"io"
+)
+
 // SetDoer sets the client's doer to the given one
 func (client *Client) SetDoer(d doer) {
 	client.doer = d
+}
+
+// Do does do.
+func (client *Client) Do(method, path string, body io.Reader, v interface{}) error {
+	return client.do(method, path, body, v)
 }
