@@ -169,3 +169,14 @@ if [ ! -z "$INTEGRATION" ]; then
         fi
     fi
 fi
+
+UNCLEAN="$(git status -s|grep ^??)" || true
+if [ -n "$UNCLEAN" ]; then
+    cat <<EOF
+
+There are file left in the git tree after the tests:
+
+$UNCLEAN
+EOF
+    exit 1
+fi
