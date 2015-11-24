@@ -32,8 +32,8 @@ func TestRepository(t *testing.T) {
 }
 
 type RepositorySuite struct {
-	// Typical repository with known types
-	repo *Repository
+	// Repository pre-populated with testType
+	testRepo *Repository
 	// Empty repository
 	emptyRepo *Repository
 }
@@ -41,43 +41,43 @@ type RepositorySuite struct {
 var _ = Suite(&RepositorySuite{})
 
 func (s *RepositorySuite) SetUpTest(c *C) {
-	s.repo = NewRepository()
-	s.emptyRepo = NewRepository()
-	err := LoadBuiltInTypes(s.repo)
+	s.testRepo = NewRepository()
+	err := s.testRepo.AddType(testType)
 	c.Assert(err, IsNil)
+	s.emptyRepo = NewRepository()
 }
 
 func (s *RepositorySuite) TestAdd(c *C) {
-	cap := &Capability{Name: "name", Label: "label", Type: FileType}
-	c.Assert(s.repo.Names(), Not(testutil.Contains), cap.Name)
-	err := s.repo.Add(cap)
+	cap := &Capability{Name: "name", Label: "label", Type: testType}
+	c.Assert(s.testRepo.Names(), Not(testutil.Contains), cap.Name)
+	err := s.testRepo.Add(cap)
 	c.Assert(err, IsNil)
-	c.Assert(s.repo.Names(), DeepEquals, []string{"name"})
-	c.Assert(s.repo.Names(), testutil.Contains, cap.Name)
+	c.Assert(s.testRepo.Names(), DeepEquals, []string{"name"})
+	c.Assert(s.testRepo.Names(), testutil.Contains, cap.Name)
 }
 
 func (s *RepositorySuite) TestAddClash(c *C) {
-	cap1 := &Capability{Name: "name", Label: "label 1", Type: FileType}
-	err := s.repo.Add(cap1)
+	cap1 := &Capability{Name: "name", Label: "label 1", Type: testType}
+	err := s.testRepo.Add(cap1)
 	c.Assert(err, IsNil)
-	cap2 := &Capability{Name: "name", Label: "label 2", Type: FileType}
-	err = s.repo.Add(cap2)
+	cap2 := &Capability{Name: "name", Label: "label 2", Type: testType}
+	err = s.testRepo.Add(cap2)
 	c.Assert(err, ErrorMatches,
 		`cannot add capability "name": name already exists`)
-	c.Assert(s.repo.Names(), DeepEquals, []string{"name"})
-	c.Assert(s.repo.Names(), testutil.Contains, cap1.Name)
+	c.Assert(s.testRepo.Names(), DeepEquals, []string{"name"})
+	c.Assert(s.testRepo.Names(), testutil.Contains, cap1.Name)
 }
 
 func (s *RepositorySuite) TestAddInvalidName(c *C) {
-	cap := &Capability{Name: "bad-name-", Label: "label", Type: FileType}
-	err := s.repo.Add(cap)
+	cap := &Capability{Name: "bad-name-", Label: "label", Type: testType}
+	err := s.testRepo.Add(cap)
 	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
-	c.Assert(s.repo.Names(), DeepEquals, []string{})
-	c.Assert(s.repo.Names(), Not(testutil.Contains), cap.Name)
+	c.Assert(s.testRepo.Names(), DeepEquals, []string{})
+	c.Assert(s.testRepo.Names(), Not(testutil.Contains), cap.Name)
 }
 
 func (s *RepositorySuite) TestAddType(c *C) {
-	t := Type("foo")
+	t := &Type{"foo"}
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, IsNil)
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{"foo"})
@@ -85,8 +85,8 @@ func (s *RepositorySuite) TestAddType(c *C) {
 }
 
 func (s *RepositorySuite) TestAddTypeClash(c *C) {
-	t1 := Type("foo")
-	t2 := Type("foo")
+	t1 := &Type{"foo"}
+	t2 := &Type{"foo"}
 	err := s.emptyRepo.AddType(t1)
 	c.Assert(err, IsNil)
 	err = s.emptyRepo.AddType(t2)
@@ -97,21 +97,21 @@ func (s *RepositorySuite) TestAddTypeClash(c *C) {
 }
 
 func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
-	t := Type("bad-name-")
+	t := &Type{"bad-name-"}
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{})
-	c.Assert(s.emptyRepo.TypeNames(), Not(testutil.Contains), string(t))
+	c.Assert(s.emptyRepo.TypeNames(), Not(testutil.Contains), t.String())
 }
 
 func (s *RepositorySuite) TestRemoveGood(c *C) {
-	cap := &Capability{Name: "name", Label: "label", Type: FileType}
-	err := s.repo.Add(cap)
+	cap := &Capability{Name: "name", Label: "label", Type: testType}
+	err := s.testRepo.Add(cap)
 	c.Assert(err, IsNil)
-	err = s.repo.Remove(cap.Name)
+	err = s.testRepo.Remove(cap.Name)
 	c.Assert(err, IsNil)
-	c.Assert(s.repo.Names(), HasLen, 0)
-	c.Assert(s.repo.Names(), Not(testutil.Contains), cap.Name)
+	c.Assert(s.testRepo.Names(), HasLen, 0)
+	c.Assert(s.testRepo.Names(), Not(testutil.Contains), cap.Name)
 }
 
 func (s *RepositorySuite) TestRemoveNoSuchCapability(c *C) {
@@ -121,34 +121,34 @@ func (s *RepositorySuite) TestRemoveNoSuchCapability(c *C) {
 
 func (s *RepositorySuite) TestNames(c *C) {
 	// Note added in non-sorted order
-	err := s.repo.Add(&Capability{Name: "a", Label: "label-a", Type: FileType})
+	err := s.testRepo.Add(&Capability{Name: "a", Label: "label-a", Type: testType})
 	c.Assert(err, IsNil)
-	err = s.repo.Add(&Capability{Name: "c", Label: "label-c", Type: FileType})
+	err = s.testRepo.Add(&Capability{Name: "c", Label: "label-c", Type: testType})
 	c.Assert(err, IsNil)
-	err = s.repo.Add(&Capability{Name: "b", Label: "label-b", Type: FileType})
+	err = s.testRepo.Add(&Capability{Name: "b", Label: "label-b", Type: testType})
 	c.Assert(err, IsNil)
-	c.Assert(s.repo.Names(), DeepEquals, []string{"a", "b", "c"})
+	c.Assert(s.testRepo.Names(), DeepEquals, []string{"a", "b", "c"})
 }
 
 func (s *RepositorySuite) TestTypeNames(c *C) {
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{})
-	s.emptyRepo.AddType(Type("a"))
-	s.emptyRepo.AddType(Type("b"))
-	s.emptyRepo.AddType(Type("c"))
+	s.emptyRepo.AddType(&Type{"a"})
+	s.emptyRepo.AddType(&Type{"b"})
+	s.emptyRepo.AddType(&Type{"c"})
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{"a", "b", "c"})
 }
 
 func (s *RepositorySuite) TestAll(c *C) {
 	// Note added in non-sorted order
-	err := s.repo.Add(&Capability{Name: "a", Label: "label-a", Type: FileType})
+	err := s.testRepo.Add(&Capability{Name: "a", Label: "label-a", Type: testType})
 	c.Assert(err, IsNil)
-	err = s.repo.Add(&Capability{Name: "c", Label: "label-c", Type: FileType})
+	err = s.testRepo.Add(&Capability{Name: "c", Label: "label-c", Type: testType})
 	c.Assert(err, IsNil)
-	err = s.repo.Add(&Capability{Name: "b", Label: "label-b", Type: FileType})
+	err = s.testRepo.Add(&Capability{Name: "b", Label: "label-b", Type: testType})
 	c.Assert(err, IsNil)
-	c.Assert(s.repo.All(), DeepEquals, []Capability{
-		Capability{Name: "a", Label: "label-a", Type: FileType},
-		Capability{Name: "b", Label: "label-b", Type: FileType},
-		Capability{Name: "c", Label: "label-c", Type: FileType},
+	c.Assert(s.testRepo.All(), DeepEquals, []Capability{
+		Capability{Name: "a", Label: "label-a", Type: testType},
+		Capability{Name: "b", Label: "label-b", Type: testType},
+		Capability{Name: "c", Label: "label-c", Type: testType},
 	})
 }
