@@ -193,17 +193,28 @@ func (db *Database) Check(assert Assertion) error {
 	return fmt.Errorf("failed signature verification: %v", lastErr)
 }
 
-func (db *Database) readCurrentRevision(assertType AssertionType, primaryPath string) (int, error) {
+func (db *Database) readAssertion(assertType AssertionType, primaryPath string) (Assertion, error) {
 	encoded, err := db.readEntry(assertionsRoot, string(assertType), primaryPath)
 	if os.IsNotExist(err) {
-		return -1, nil
+		return nil, ErrNotFound
 	}
 	if err != nil {
-		return -1, fmt.Errorf("broken assertion storage, failed to read assertion: %v", err)
+		return nil, fmt.Errorf("broken assertion storage, failed to read assertion: %v", err)
 	}
 	assert, err := Decode(encoded)
 	if err != nil {
-		return -1, fmt.Errorf("broken assertion storage, failed to read assertion: %v", err)
+		return nil, fmt.Errorf("broken assertion storage, failed to decode assertion: %v", err)
+	}
+	return assert, nil
+}
+
+func (db *Database) readCurrentRevision(assertType AssertionType, primaryPath string) (int, error) {
+	assert, err := db.readAssertion(assertType, primaryPath)
+	if err == ErrNotFound {
+		return -1, nil
+	}
+	if err != nil {
+		return -1, err
 	}
 	return assert.Revision(), nil
 }
@@ -260,14 +271,7 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 		primaryKey[i] = url.QueryEscape(keyVal)
 	}
 	primaryPath := filepath.Join(primaryKey...)
-	encoded, err := db.readEntry(assertionsRoot, string(assertionType), primaryPath)
-	if os.IsNotExist(err) {
-		return nil, ErrNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("broken assertion storage, failed to read assertion: %v", err)
-	}
-	assert, err := Decode(encoded)
+	assert, err := db.readAssertion(assertionType, primaryPath)
 	if err != nil {
 		return nil, err
 	}
