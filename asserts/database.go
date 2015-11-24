@@ -251,32 +251,32 @@ func (db *Database) Add(assert Assertion) error {
 		// directory for assertion is present
 		curRevStr, err := db.readlinkEntry(assertionsRoot, indexPath, "latest")
 		if err != nil {
-			return fmt.Errorf("broken assertion store, reading 'latest' revision symlink: %v", err)
+			return fmt.Errorf("broken assertion storage, reading 'latest' revision symlink: %v", err)
 		}
 		curRev, err := strconv.Atoi(curRevStr)
 		if err != nil {
-			return fmt.Errorf("broken assertion store, extracting revision from 'latest' revision symlink: %v", err)
+			return fmt.Errorf("broken assertion storage, extracting revision from 'latest' revision symlink: %v", err)
 		}
 		if curRev >= assert.Revision() {
 			return ErrAssertionNotSuperseding
 		}
 		err = db.removeEntry(assertionsRoot, indexPath, "latest")
 		if err != nil {
-			return fmt.Errorf("broken assertion store, could not remove 'latest' revision symlink: %v", err)
+			return fmt.Errorf("broken assertion storage, could not remove 'latest' revision symlink: %v", err)
 		}
 	case os.IsNotExist(err):
 		// nothing there yet
 	default:
-		return fmt.Errorf("broken assertion store, failed to stat assertion directory: %v", err)
+		return fmt.Errorf("broken assertion storage, failed to stat assertion directory: %v", err)
 	}
 	revStr := strconv.Itoa(assert.Revision())
 	err = db.atomicWriteEntry(Encode(assert), false, assertionsRoot, indexPath, revStr)
 	if err != nil {
-		return fmt.Errorf("broken assertion store, failed to write assertion: %v", err)
+		return fmt.Errorf("broken assertion storage, failed to write assertion: %v", err)
 	}
 	err = db.symlinkEntry(revStr, assertionsRoot, indexPath, "latest")
 	if err != nil {
-		return fmt.Errorf("broken assertion store, failed to create 'latest' revision symlink: %v", err)
+		return fmt.Errorf("broken assertion storage, failed to create 'latest' revision symlink: %v", err)
 	}
 	return nil
 }
@@ -303,11 +303,11 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 		if os.IsNotExist(err) {
 			return nil, ErrAssertionNotFound
 		}
-		return nil, fmt.Errorf("broken assertion store, failed to stat assertion directory: %v", err)
+		return nil, fmt.Errorf("broken assertion storage, failed to stat assertion directory: %v", err)
 	}
 	encoded, err := db.readEntry(assertionsRoot, indexPath, "latest")
 	if err != nil {
-		return nil, fmt.Errorf("broken assertion store, failed to read assertion: %v", err)
+		return nil, fmt.Errorf("broken assertion storage, failed to read assertion: %v", err)
 	}
 	assert, err := Decode(encoded)
 	if err != nil {
