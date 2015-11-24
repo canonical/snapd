@@ -29,6 +29,10 @@ type TypeSuite struct{}
 
 var _ = Suite(&TypeSuite{})
 
+// testType is only meant for testing. It is not useful in any way except
+// that it offers an simple capability type that will happily validate.
+var testType = &Type{"test"}
+
 func (s *TypeSuite) TestTypeString(c *C) {
 	c.Assert(testType.String(), Equals, "test")
 }

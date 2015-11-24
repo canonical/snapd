@@ -39,9 +39,6 @@ var (
 	// the capability concept before we get to load capability interfaces
 	// from YAML.
 	FileType = &Type{"file"}
-	// testType is only meant for testing. It is not useful in any way except
-	// that it offers an simple capability type that will happily validate.
-	testType = &Type{"test"}
 )
 
 var builtInTypes = [...]*Type{
