@@ -70,7 +70,7 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	hdr := w.Header()
-	if r.Type == ResponseTypeAsync {
+	if r.Status == http.StatusAccepted || r.Status == http.StatusCreated {
 		if m, ok := r.Result.(map[string]interface{}); ok {
 			if location, ok := m["resource"]; ok {
 				if location, ok := location.(string); ok && location != "" {
