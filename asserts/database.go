@@ -114,7 +114,7 @@ func (db *Database) removeEntry(subpath ...string) error {
 
 func (db *Database) symlinkEntry(entry string, subpath ...string) error {
 	fpath := filepath.Join(db.root, filepath.Join(subpath...))
-	// TODO: move to helpers/helpers.go
+	// TODO: move the rest of this close to AtomicWriteFile?
 	dir, err := os.Open(filepath.Dir(fpath))
 	if err != nil {
 		return err
