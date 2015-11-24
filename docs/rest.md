@@ -540,3 +540,33 @@ Get an icon from a snap installed on the system. The response will be the raw
 contents of the icon file; the content-type will be set accordingly.
 
 This fetches the icon from the package itself.
+
+## /1.0/capabilities
+### GET
+
+* Description: List of snappy capabilities
+* Authorization: guest
+* Operation: sync
+* Return: information about all of the snappy capabilities 
+
+The result is a JSON object with a capabilities key; its value itself is a JSON
+object whose keys are capability names (e.g., "power-button") and whose values
+describe that capability.
+
+Sample result:
+
+```javascript
+{
+	"capabilities": {
+		"power-button": {
+			"resource": "/1.0/capabilities/power-button",
+			"name": "power-button",
+			"label": "Power Button",
+			"type": "evdev",
+			"attrs": {
+				"path": "/dev/input/event2"
+			},
+		}
+	}
+}
+```
