@@ -19,7 +19,10 @@
 
 package dirs
 
-import "path/filepath"
+import (
+	"os"
+	"path/filepath"
+)
 
 // the various file paths
 var (
@@ -52,6 +55,16 @@ var (
 	// not exported because it does not honor the global rootdir
 	snappyDir = filepath.Join("var", "lib", "snappy")
 )
+
+func init() {
+	// init the global directories at startup
+	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
+	if root == "" {
+		root = "/"
+	}
+
+	SetRootDir(root)
+}
 
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations

@@ -62,6 +62,10 @@ type SystemdTestSuite struct {
 var _ = Suite(&SystemdTestSuite{})
 
 func (s *SystemdTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+
 	// force UTC timezone, for reproducible timestamps
 	os.Setenv("TZ", "")
 
