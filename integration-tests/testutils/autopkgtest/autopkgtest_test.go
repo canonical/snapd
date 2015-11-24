@@ -73,9 +73,13 @@ func (s *AutopkgtestSuite) SetUpSuite(c *check.C) {
 	prepareTargetDir = s.fakePrepareTargetDir
 	tplExecute = s.fakeTplExecute
 
-	shellOnFail := false
-	s.subject = NewAutopkgtest(
-		sourceCodePath, testArtifactsPath, testFilter, integrationTestName, shellOnFail)
+	s.subject = &Autopkgtest{
+		SourceCodePath:      sourceCodePath,
+		TestArtifactsPath:   testArtifactsPath,
+		TestFilter:          testFilter,
+		IntegrationTestName: integrationTestName,
+		ShellOnFail:         false,
+	}
 }
 
 func (s *AutopkgtestSuite) TearDownSuite(c *check.C) {
@@ -197,7 +201,7 @@ func (s *AutopkgtestSuite) TestAdtRunShellOnFail(c *check.C) {
 	}
 
 	for _, t := range scenarios {
-		s.subject.shellOnFail = t.shellOnFail
+		s.subject.ShellOnFail = t.shellOnFail
 		s.subject.adtRun(t.testbedOptions)
 
 		testOutputDir := outputDir(testArtifactsPath)

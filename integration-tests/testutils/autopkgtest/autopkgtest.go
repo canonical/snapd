@@ -44,22 +44,16 @@ var (
 
 // Autopkgtest is the type that knows how to call adt-run
 type Autopkgtest struct {
-	sourceCodePath      string // location of the source code on the host
-	testArtifactsPath   string // location of the test artifacts on the host
-	testFilter          string
-	integrationTestName string
-	shellOnFail         bool
-}
-
-// NewAutopkgtest is the Autopkgtest constructor
-func NewAutopkgtest(sourceCodePath, testArtifactsPath, testFilter, integrationTestName string, shellOnFail bool) *Autopkgtest {
-	return &Autopkgtest{
-		sourceCodePath:      sourceCodePath,
-		testArtifactsPath:   testArtifactsPath,
-		testFilter:          testFilter,
-		integrationTestName: integrationTestName,
-		shellOnFail:         shellOnFail,
-	}
+	// SourceCodePath is the location of the source code on the host.
+	SourceCodePath string
+	// TestArtifactsPath is the location of the test artifacts on the host.
+	TestArtifactsPath string
+	// TestFilter is an optional string to select a subset of tests.
+	TestFilter string
+	// IntegrationTestName is the name of the binary that runs the integration tests.
+	IntegrationTestName string
+	// ShellOnFail is used in case of failure to open a shell on the testbed before shutting it down.
+	ShellOnFail bool
 }
 
 // AdtRunLocal starts a kvm running the image passed as argument and runs the
@@ -80,16 +74,16 @@ func (a *Autopkgtest) adtRun(testbedOptions string) (err error) {
 	}
 
 	fmt.Println("Calling adt-run...")
-	outputDir := filepath.Join(a.testArtifactsPath, "output")
+	outputDir := filepath.Join(a.TestArtifactsPath, "output")
 	prepareTargetDir(outputDir)
 
 	cmd := []string{
 		"adt-run", "-B",
 		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
 		"--override-control", controlFile,
-		"--built-tree", a.sourceCodePath,
+		"--built-tree", a.SourceCodePath,
 		"--output-dir", outputDir}
-	if a.shellOnFail {
+	if a.ShellOnFail {
 		cmd = append(cmd, "--shell-fail")
 	}
 
@@ -103,5 +97,5 @@ func (a *Autopkgtest) createControlFile() error {
 		struct {
 			Filter, Test string
 		}{
-			a.testFilter, a.integrationTestName})
+			a.TestFilter, a.IntegrationTestName})
 }

@@ -34,19 +34,19 @@ type TypeSuite struct{}
 var _ = Suite(&TypeSuite{})
 
 func (s *TypeSuite) TestTypeString(c *C) {
-	c.Assert(FileType.String(), Equals, "file")
-	c.Assert(Type("device").String(), Equals, "device")
+	c.Assert(testType.String(), Equals, "test")
 }
 
 func (s *TypeSuite) TestValidateMismatchedType(c *C) {
-	cap := &Capability{Name: "name", Label: "label", Type: Type("device")}
-	err := FileType.Validate(cap)
-	c.Assert(err, ErrorMatches, `capability is not of type "file"`)
+	testType2 := &Type{"test-two"} // Another test-like type that's not test itself
+	cap := &Capability{Name: "name", Label: "label", Type: testType2}
+	err := testType.Validate(cap)
+	c.Assert(err, ErrorMatches, `capability is not of type "test"`)
 }
 
 func (s *TypeSuite) TestValidateOK(c *C) {
-	cap := &Capability{Name: "name", Label: "label", Type: FileType}
-	err := FileType.Validate(cap)
+	cap := &Capability{Name: "name", Label: "label", Type: testType}
+	err := testType.Validate(cap)
 	c.Assert(err, IsNil)
 }
 
@@ -54,11 +54,11 @@ func (s *TypeSuite) TestValidateAttributes(c *C) {
 	cap := &Capability{
 		Name:  "name",
 		Label: "label",
-		Type:  FileType,
+		Type:  testType,
 		Attrs: map[string]string{
 			"Key": "Value",
 		},
 	}
-	err := FileType.Validate(cap)
+	err := testType.Validate(cap)
 	c.Assert(err, ErrorMatches, "attributes must be empty for now")
 }

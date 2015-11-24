@@ -23,28 +23,37 @@ import (
 	"fmt"
 )
 
-// Type is the name of a capability type.
-type Type string
+// Type describes a group of interchangeable capabilities with common features.
+// Types are managed centrally and act as a contract between system builders,
+// application developers and end users.
+type Type struct {
+	// Name is a key that identifies the capability type. It must be unique
+	// within the whole OS. The name forms a part of the stable system API.
+	Name string
+}
 
-const (
+var (
 	// FileType is a basic capability vaguely expressing access to a specific
 	// file. This single capability  type is here just to help bootstrap
 	// the capability concept before we get to load capability interfaces
 	// from YAML.
-	FileType Type = "file"
+	FileType = &Type{"file"}
+	// testType is only meant for testing. It is not useful in any way except
+	// that it offers an simple capability type that will happily validate.
+	testType = &Type{"test"}
 )
 
-var builtInTypes = [...]Type{
+var builtInTypes = [...]*Type{
 	FileType,
 }
 
 // String returns a string representation for the capability type.
-func (t Type) String() string {
-	return string(t)
+func (t *Type) String() string {
+	return t.Name
 }
 
 // Validate whether a capability is correct according to the given type.
-func (t Type) Validate(c *Capability) error {
+func (t *Type) Validate(c *Capability) error {
 	if t != c.Type {
 		return fmt.Errorf("capability is not of type %q", t)
 	}

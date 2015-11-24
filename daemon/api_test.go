@@ -273,6 +273,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	})
 
 	exceptions := []string{ // keep sorted, for scanning ease
+		"apiCompatLevel",
 		"api",
 		"findServices",
 		"maxReadBuflen",
@@ -338,7 +339,7 @@ func (s *apiSuite) TestV1(c *check.C) {
 		"flavor":          "flavor",
 		"release":         "release",
 		"default_channel": "channel",
-		"api_compat":      "0",
+		"api_compat":      apiCompatLevel,
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -361,7 +362,7 @@ func (s *apiSuite) TestV1Store(c *check.C) {
 		"flavor":          "flavor",
 		"release":         "release",
 		"default_channel": "channel",
-		"api_compat":      "0",
+		"api_compat":      apiCompatLevel,
 		"store":           "some-store",
 	}
 	var rsp resp
@@ -1150,4 +1151,46 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 
 	err := inst.dispatch()()
 	c.Check(err, check.IsNil)
+}
+
+func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
+	d := newTestDaemon()
+
+	orig := snappyInstall
+	defer func() { snappyInstall = orig }()
+
+	snappyInstall = func(name string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
+		if meter.Agreed("hi", "yak yak") {
+			return "", nil
+		}
+
+		return "", snappy.ErrLicenseNotAccepted
+	}
+
+	req, err := http.NewRequest("POST", "/1.0/packages/foo.bar", strings.NewReader(`{"action": "install"}`))
+	c.Assert(err, check.IsNil)
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+
+	res := postPackage(packageCmd, req).(*resp).Result.(map[string]interface{})
+	task := d.tasks[res["resource"].(string)[16:]]
+	c.Check(task, check.NotNil)
+
+	task.tomb.Wait()
+	c.Check(task.State(), check.Equals, TaskFailed)
+	errRes := task.output.(errorResult)
+	c.Check(errRes.Str, check.Equals, "license agreement required")
+	c.Check(errRes.Obj, check.DeepEquals, &licenseData{
+		Intro:   "hi",
+		License: "yak yak",
+	})
+
+	req, err = http.NewRequest("POST", "/1.0/packages/foo.bar", strings.NewReader(`{"action": "install", "license": {"intro": "hi", "license": "yak yak", "agreed": true}}`))
+	c.Assert(err, check.IsNil)
+
+	res = postPackage(packageCmd, req).(*resp).Result.(map[string]interface{})
+	task = d.tasks[res["resource"].(string)[16:]]
+	c.Check(task, check.NotNil)
+
+	task.tomb.Wait()
+	c.Check(task.State(), check.Equals, TaskSucceeded)
 }

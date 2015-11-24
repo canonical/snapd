@@ -42,6 +42,10 @@ import (
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
+// increase this every time you make a minor (backwards-compatible)
+// change to the API.
+const apiCompatLevel = "1"
+
 var api = []*Command{
 	rootCmd,
 	v1Cmd,
@@ -132,7 +136,7 @@ func v1Get(c *Command, r *http.Request) Response {
 		"flavor":          rel.Flavor,
 		"release":         rel.Series,
 		"default_channel": rel.Channel,
-		"api_compat":      "0",
+		"api_compat":      apiCompatLevel,
 	}
 
 	if store := snappy.StoreID(); store != "" {
@@ -592,9 +596,9 @@ func deleteOp(c *Command, r *http.Request) Response {
 // and is expected as input to accept (or not) that license
 // agreement. As such, its field names are part of the API.
 type licenseData struct {
-	Intro   string
-	License string
-	Agreed  bool
+	Intro   string `json:"intro"`
+	License string `json:"license"`
+	Agreed  bool   `json:"agreed"`
 }
 
 func (*licenseData) Error() string {

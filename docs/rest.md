@@ -112,7 +112,7 @@ string. For example, `"1234567891234567"` represents
 {
  "default_channel": "edge",
  "flavor": "core",
- "api_compat": "0",           // increased on minor API changes
+ "api_compat": "1",           // increased on minor API changes
  "release": "15.04",
  "store": "store-id"          // only if not default
 }
@@ -282,13 +282,27 @@ field      | ignored except in action | description
 -----------|-------------------|------------
 `action`   |                   | Required; a string, one of `install`, `update`, `remove`, `purge`, `activate`, `deactivate`, or `rollback`.
 `leave_old`| `install` `update` `remove` | A boolean, default is false (do not leave old packages around). Equivalent to commandline's `--no-gc`.
-`config`   | `install` | An object, passed to config after installation. See `.../config`. If missing, config isn't called.
+`license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section “A note on licenses”, below).
 
 #### A note on licenses
 
-At this time the daemon does not support installing or updating packages that
-require an explicit license agreement. This will be done in a
-backwards-compatible way soon.
+When requesting to install a package that requires agreeing to a license before
+install succeeds, or when requesting an update to a package with such an
+agreement that has an updated license version, the initial request will fail
+with an error, and the error object will contain the intro and license texts to
+present to the user for their approval. An example of the command's `output`
+field would be
+
+```javascript
+"output": {
+    "obj": {
+        "agreed": false,
+        "intro": "licensed requires that you accept the following license before continuing",
+        "license": "In order to use this software you must agree with us."
+    },
+    "str": "License agreement required."
+}
+```
 
 ## /1.0/packages/[name]/services
 

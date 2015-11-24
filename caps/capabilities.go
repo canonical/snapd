@@ -33,7 +33,7 @@ type Capability struct {
 	// the behavior allowed and expected from providers and consumers of that
 	// capability, and also which information should be exchanged by these
 	// parties.
-	Type Type
+	Type *Type
 	// Attrs are key-value pairs that provide type-specific capability details.
 	Attrs map[string]string
 }
