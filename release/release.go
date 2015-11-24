@@ -21,6 +21,8 @@ package release
 
 import (
 	"fmt"
+
+	"github.com/ubuntu-core/snappy/dirs"
 )
 
 // Release contains a structure with the release information
@@ -31,6 +33,12 @@ type Release struct {
 }
 
 var rel Release
+
+func init() {
+	// we don't need to care for the error here to take into account when
+	// initialized on a non snappy system
+	Setup(dirs.GlobalRootDir)
+}
 
 // String returns the release information in a string
 func String() string {

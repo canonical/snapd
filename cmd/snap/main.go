@@ -25,12 +25,9 @@ import (
 	"text/tabwriter"
 
 	"github.com/ubuntu-core/snappy/client"
-	"github.com/ubuntu-core/snappy/dirs"
 )
 
 func main() {
-	dirs.SetRootDir("/")
-
 	cli := client.New()
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 8, 1, ' ', 0)
