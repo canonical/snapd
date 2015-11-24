@@ -252,7 +252,7 @@ func (afs *addFindSuite) TestAddSuperseding(c *C) {
 	c.Check(retrieved2.Revision(), Equals, 1)
 
 	err = afs.db.Add(a1)
-	c.Check(err, Equals, asserts.ErrAssertionNotSuperseding)
+	c.Check(err, Equals, asserts.ErrNotSuperseding)
 }
 
 func (afs *addFindSuite) TestFindNotFound(c *C) {
@@ -269,7 +269,7 @@ func (afs *addFindSuite) TestFindNotFound(c *C) {
 	retrieved1, err := afs.db.Find(asserts.AssertionType("test-only"), map[string]string{
 		"primary-key": "b",
 	})
-	c.Assert(err, Equals, asserts.ErrAssertionNotFound)
+	c.Assert(err, Equals, asserts.ErrNotFound)
 	c.Check(retrieved1, IsNil)
 
 	// checking also extra headers
@@ -277,7 +277,7 @@ func (afs *addFindSuite) TestFindNotFound(c *C) {
 		"primary-key":  "a",
 		"authority-id": "other-auth-id",
 	})
-	c.Assert(err, Equals, asserts.ErrAssertionNotFound)
+	c.Assert(err, Equals, asserts.ErrNotFound)
 	c.Check(retrieved1, IsNil)
 }
 

@@ -59,8 +59,8 @@ type DatabaseConfig struct {
 
 // Well-known errors
 var (
-	ErrAssertionNotFound       = errors.New("assertion not found")
-	ErrAssertionNotSuperseding = errors.New("assertion does not supersede current one")
+	ErrNotFound       = errors.New("assertion not found")
+	ErrNotSuperseding = errors.New("assertion does not supersede current one")
 )
 
 // Database holds assertions and can be used to sign or check
@@ -225,7 +225,7 @@ func (db *Database) Check(assert Assertion) error {
 }
 
 // Add persists the assertions after ensuring it is properly signed and consistent with all the stored knowledge.
-// Returns ErrAssertionNotSuperseding if trying to add a previous revision of the assertion.
+// Returns ErrNotSuperseding if trying to add a previous revision of the assertion.
 func (db *Database) Add(assert Assertion) error {
 	reg, err := checkAssertType(assert.Type())
 	if err != nil {
@@ -258,7 +258,7 @@ func (db *Database) Add(assert Assertion) error {
 			return fmt.Errorf("broken assertion storage, extracting revision from 'latest' revision symlink: %v", err)
 		}
 		if curRev >= assert.Revision() {
-			return ErrAssertionNotSuperseding
+			return ErrNotSuperseding
 		}
 		err = db.removeEntry(assertionsRoot, indexPath, "latest")
 		if err != nil {
@@ -283,7 +283,7 @@ func (db *Database) Add(assert Assertion) error {
 
 // Find an assertion based on arbitrary headers.
 // Provided headers must contain the primary key for the assertion type.
-// Returns ErrAssertionNotFound if the assertion cannot be found.
+// Returns ErrNotFound if the assertion cannot be found.
 func (db *Database) Find(assertionType AssertionType, headers map[string]string) (Assertion, error) {
 	reg, err := checkAssertType(assertionType)
 	if err != nil {
@@ -301,7 +301,7 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 	_, err = db.statEntry(assertionsRoot, indexPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, ErrAssertionNotFound
+			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("broken assertion storage, failed to stat assertion directory: %v", err)
 	}
@@ -316,7 +316,7 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 	// check non-primary-key headers as well
 	for expectedKey, expectedValue := range headers {
 		if assert.Header(expectedKey) != expectedValue {
-			return nil, ErrAssertionNotFound
+			return nil, ErrNotFound
 		}
 	}
 	return assert, nil
