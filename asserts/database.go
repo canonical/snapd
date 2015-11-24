@@ -299,10 +299,10 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 	}
 	indexPath := filepath.Join(string(assertionType), filepath.Join(primaryKey...))
 	_, err = db.statEntry(assertionsRoot, indexPath)
+	if os.IsNotExist(err) {
+		return nil, ErrNotFound
+	}
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, ErrNotFound
-		}
 		return nil, fmt.Errorf("broken assertion storage, failed to stat assertion directory: %v", err)
 	}
 	encoded, err := db.readEntry(assertionsRoot, indexPath, "latest")
