@@ -421,6 +421,7 @@ func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
 func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
 	mountUnitName, err := New("", nil).WriteMountUnitFile("foo.origin", "/var/lib/snappy/snaps/foo.origin_1.0.snap", "/apps/foo.origin/1.0")
 	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
 
 	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
 	c.Assert(err, IsNil)
