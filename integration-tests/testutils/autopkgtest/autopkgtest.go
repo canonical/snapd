@@ -42,8 +42,8 @@ var (
 	tplExecute       = tpl.Execute
 )
 
-// Autopkgtest is the type that knows how to call adt-run
-type Autopkgtest struct {
+// AutoPkgTest is the type that knows how to call adt-run
+type AutoPkgTest struct {
 	// SourceCodePath is the location of the source code on the host.
 	SourceCodePath string
 	// TestArtifactsPath is the location of the test artifacts on the host.
@@ -58,17 +58,17 @@ type Autopkgtest struct {
 
 // AdtRunLocal starts a kvm running the image passed as argument and runs the
 // autopkgtests using it as the testbed.
-func (a *Autopkgtest) AdtRunLocal(imgPath string) error {
+func (a *AutoPkgTest) AdtRunLocal(imgPath string) error {
 	// Run the tests on the latest rolling edge image.
 	return a.adtRun(kvmSSHOptions(imgPath))
 }
 
 // AdtRunRemote runs the autopkgtests using a remote machine as the testbed.
-func (a *Autopkgtest) AdtRunRemote(testbedIP string, testbedPort int) error {
+func (a *AutoPkgTest) AdtRunRemote(testbedIP string, testbedPort int) error {
 	return a.adtRun(remoteTestbedSSHOptions(testbedIP, testbedPort))
 }
 
-func (a *Autopkgtest) adtRun(testbedOptions string) (err error) {
+func (a *AutoPkgTest) adtRun(testbedOptions string) (err error) {
 	if err = a.createControlFile(); err != nil {
 		return
 	}
@@ -92,7 +92,7 @@ func (a *Autopkgtest) adtRun(testbedOptions string) (err error) {
 	return
 }
 
-func (a *Autopkgtest) createControlFile() error {
+func (a *AutoPkgTest) createControlFile() error {
 	return tplExecute(controlTpl, controlFile,
 		struct {
 			Filter, Test string
