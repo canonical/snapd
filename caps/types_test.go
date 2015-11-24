@@ -20,6 +20,7 @@
 package caps
 
 import (
+	"encoding/json"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -61,4 +62,10 @@ func (s *TypeSuite) TestValidateAttributes(c *C) {
 	}
 	err := testType.Validate(cap)
 	c.Assert(err, ErrorMatches, "attributes must be empty for now")
+}
+
+func (s *TypeSuite) TestMarhshalJSON(c *C) {
+	b, err := json.Marshal(testType)
+	c.Assert(err, IsNil)
+	c.Assert(b, DeepEquals, []byte(`"test"`))
 }
