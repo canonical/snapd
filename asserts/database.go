@@ -224,6 +224,25 @@ func (db *Database) Check(assert Assertion) error {
 	return fmt.Errorf("failed signature verification: %v", lastErr)
 }
 
+func (db *Database) checkAssertionRevisionAndClearLatest(indexPath string, newRev int) error {
+	curRevStr, err := db.readlinkEntry(assertionsRoot, indexPath, "latest")
+	if err != nil {
+		return fmt.Errorf("broken assertion storage, reading 'latest' revision symlink: %v", err)
+	}
+	curRev, err := strconv.Atoi(curRevStr)
+	if err != nil {
+		return fmt.Errorf("broken assertion storage, extracting revision from 'latest' revision symlink: %v", err)
+	}
+	if curRev >= newRev {
+		return ErrNotSuperseding
+	}
+	err = db.removeEntry(assertionsRoot, indexPath, "latest")
+	if err != nil {
+		return fmt.Errorf("broken assertion storage, could not remove 'latest' revision symlink: %v", err)
+	}
+	return nil
+}
+
 // Add persists the assertions after ensuring it is properly signed and consistent with all the stored knowledge.
 // Returns ErrNotSuperseding if trying to add a previous revision of the assertion.
 func (db *Database) Add(assert Assertion) error {
@@ -248,21 +267,11 @@ func (db *Database) Add(assert Assertion) error {
 	_, err = db.statEntry(assertionsRoot, indexPath)
 	switch {
 	case err == nil:
-		// directory for assertion is present
-		curRevStr, err := db.readlinkEntry(assertionsRoot, indexPath, "latest")
+		// directory for assertion is present, check prereq and possibly
+		// clear 'latest' symlink
+		err := db.checkAssertionRevisionAndClearLatest(indexPath, assert.Revision())
 		if err != nil {
-			return fmt.Errorf("broken assertion storage, reading 'latest' revision symlink: %v", err)
-		}
-		curRev, err := strconv.Atoi(curRevStr)
-		if err != nil {
-			return fmt.Errorf("broken assertion storage, extracting revision from 'latest' revision symlink: %v", err)
-		}
-		if curRev >= assert.Revision() {
-			return ErrNotSuperseding
-		}
-		err = db.removeEntry(assertionsRoot, indexPath, "latest")
-		if err != nil {
-			return fmt.Errorf("broken assertion storage, could not remove 'latest' revision symlink: %v", err)
+			return err
 		}
 	case os.IsNotExist(err):
 		// nothing there yet
