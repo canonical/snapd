@@ -207,7 +207,7 @@ func (db *Database) readAssertion(assertType AssertionType, primaryPath string) 
 	return assert, nil
 }
 
-// Add persists the assertions after ensuring it is properly signed and consistent with all the stored knowledge.
+// Add persists the assertion after ensuring it is properly signed and consistent with all the stored knowledge.
 // It will return an error when trying to add an older revision of the assertion than the one currently stored.
 func (db *Database) Add(assert Assertion) error {
 	reg, err := checkAssertType(assert.Type())
