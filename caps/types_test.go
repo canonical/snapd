@@ -69,3 +69,10 @@ func (s *TypeSuite) TestMarhshalJSON(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(b, DeepEquals, []byte(`"test"`))
 }
+
+func (s *TypeSuite) TestUnmarhshalJSON(c *C) {
+	var t Type
+	err := json.Unmarshal([]byte(`"test"`), &t)
+	c.Assert(err, IsNil)
+	c.Assert(t.Name, Equals, "test")
+}

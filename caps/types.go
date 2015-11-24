@@ -74,3 +74,10 @@ type TypeLookupFn func(name string) *Type
 func (t *Type) MarshalJSON() ([]byte, error) {
 	return json.Marshal(t.Name)
 }
+
+// UnmarshalJSON decodes the name of a Type object.
+// NOTE: In the future, when more properties are added, those properties will
+// not be decoded and will be left over as empty values.
+func (t *Type) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &t.Name)
+}
