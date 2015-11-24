@@ -30,7 +30,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -105,36 +104,6 @@ func (db *Database) atomicWriteEntry(data []byte, secret bool, subpath ...string
 		fperm = 0600
 	}
 	return helpers.AtomicWriteFile(fpath, data, os.FileMode(fperm), 0)
-}
-
-func (db *Database) removeEntry(subpath ...string) error {
-	fpath := filepath.Join(db.root, filepath.Join(subpath...))
-	return os.Remove(fpath)
-}
-
-func (db *Database) symlinkEntry(entry string, subpath ...string) error {
-	fpath := filepath.Join(db.root, filepath.Join(subpath...))
-	// TODO: move the rest of this as a helper together with AtomicWriteFile?
-	dir, err := os.Open(filepath.Dir(fpath))
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	err = os.Symlink(entry, fpath)
-	if err != nil {
-		return err
-	}
-	return dir.Sync()
-}
-
-func (db *Database) statEntry(subpath ...string) (os.FileInfo, error) {
-	fpath := filepath.Join(db.root, filepath.Join(subpath...))
-	return os.Stat(fpath)
-}
-
-func (db *Database) readlinkEntry(subpath ...string) (string, error) {
-	fpath := filepath.Join(db.root, filepath.Join(subpath...))
-	return os.Readlink(fpath)
 }
 
 func (db *Database) readEntry(subpath ...string) ([]byte, error) {
@@ -224,23 +193,19 @@ func (db *Database) Check(assert Assertion) error {
 	return fmt.Errorf("failed signature verification: %v", lastErr)
 }
 
-func (db *Database) checkAssertionRevisionAndClearLatest(indexPath string, newRev int) error {
-	curRevStr, err := db.readlinkEntry(assertionsRoot, indexPath, "latest")
+func (db *Database) readCurrentRevision(assertType AssertionType, primaryPath string) (int, error) {
+	encoded, err := db.readEntry(assertionsRoot, string(assertType), primaryPath)
+	if os.IsNotExist(err) {
+		return -1, nil
+	}
 	if err != nil {
-		return fmt.Errorf("broken assertion storage, reading 'latest' revision symlink: %v", err)
+		return -1, fmt.Errorf("broken assertion storage, failed to read assertion: %v", err)
 	}
-	curRev, err := strconv.Atoi(curRevStr)
+	assert, err := Decode(encoded)
 	if err != nil {
-		return fmt.Errorf("broken assertion storage, extracting revision from 'latest' revision symlink: %v", err)
+		return -1, fmt.Errorf("broken assertion storage, failed to read assertion: %v", err)
 	}
-	if curRev >= newRev {
-		return ErrNotSuperseding
-	}
-	err = db.removeEntry(assertionsRoot, indexPath, "latest")
-	if err != nil {
-		return fmt.Errorf("broken assertion storage, could not remove 'latest' revision symlink: %v", err)
-	}
-	return nil
+	return assert.Revision(), nil
 }
 
 // Add persists the assertions after ensuring it is properly signed and consistent with all the stored knowledge.
@@ -263,29 +228,17 @@ func (db *Database) Add(assert Assertion) error {
 		// safety against '/' etc
 		primaryKey[i] = url.QueryEscape(keyVal)
 	}
-	indexPath := filepath.Join(string(assert.Type()), filepath.Join(primaryKey...))
-	_, err = db.statEntry(assertionsRoot, indexPath)
-	switch {
-	case err == nil:
-		// directory for assertion is present, check prereq and possibly
-		// clear 'latest' symlink
-		err := db.checkAssertionRevisionAndClearLatest(indexPath, assert.Revision())
-		if err != nil {
-			return err
-		}
-	case os.IsNotExist(err):
-		// nothing there yet
-	default:
-		return fmt.Errorf("broken assertion storage, failed to stat assertion directory: %v", err)
+	primaryPath := filepath.Join(primaryKey...)
+	curRev, err := db.readCurrentRevision(assert.Type(), primaryPath)
+	if err != nil {
+		return err
 	}
-	revStr := strconv.Itoa(assert.Revision())
-	err = db.atomicWriteEntry(Encode(assert), false, assertionsRoot, indexPath, revStr)
+	if curRev >= assert.Revision() {
+		return ErrNotSuperseding
+	}
+	err = db.atomicWriteEntry(Encode(assert), false, assertionsRoot, string(assert.Type()), primaryPath)
 	if err != nil {
 		return fmt.Errorf("broken assertion storage, failed to write assertion: %v", err)
-	}
-	err = db.symlinkEntry(revStr, assertionsRoot, indexPath, "latest")
-	if err != nil {
-		return fmt.Errorf("broken assertion storage, failed to create 'latest' revision symlink: %v", err)
 	}
 	return nil
 }
@@ -306,15 +259,11 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 		}
 		primaryKey[i] = url.QueryEscape(keyVal)
 	}
-	indexPath := filepath.Join(string(assertionType), filepath.Join(primaryKey...))
-	_, err = db.statEntry(assertionsRoot, indexPath)
+	primaryPath := filepath.Join(primaryKey...)
+	encoded, err := db.readEntry(assertionsRoot, string(assertionType), primaryPath)
 	if os.IsNotExist(err) {
 		return nil, ErrNotFound
 	}
-	if err != nil {
-		return nil, fmt.Errorf("broken assertion storage, failed to stat assertion directory: %v", err)
-	}
-	encoded, err := db.readEntry(assertionsRoot, indexPath, "latest")
 	if err != nil {
 		return nil, fmt.Errorf("broken assertion storage, failed to read assertion: %v", err)
 	}
