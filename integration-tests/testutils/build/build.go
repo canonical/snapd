@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	buildTestCmd = "go test -c ./integration-tests/tests"
+	buildTestCmd = "go test%s -c ./integration-tests/tests"
 
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
@@ -59,7 +59,7 @@ var (
 
 // Assets builds the snappy and integration tests binaries for the target
 // architecture.
-func Assets(useSnappyFromBranch bool, arch string) {
+func Assets(useSnappyFromBranch bool, arch, testBuildTags string) {
 	prepareTargetDir(testsBinDir)
 
 	if useSnappyFromBranch {
@@ -68,7 +68,7 @@ func Assets(useSnappyFromBranch bool, arch string) {
 		buildSnappyCLI(arch)
 		buildSnapd(arch)
 	}
-	buildTests(arch)
+	buildTests(arch, testBuildTags)
 }
 
 func buildSnappyCLI(arch string) {
@@ -81,10 +81,16 @@ func buildSnapd(arch string) {
 	goCall(arch, buildSnapdCmd)
 }
 
-func buildTests(arch string) {
+func buildTests(arch, testBuildTags string) {
 	fmt.Println("Building tests...")
 
-	goCall(arch, buildTestCmd)
+	var tagText string
+	if testBuildTags != "" {
+		tagText = " -tags=" + testBuildTags
+	}
+	cmd := fmt.Sprintf(buildTestCmd, tagText)
+
+	goCall(arch, cmd)
 	// XXX Go test 1.3 does not have the output flag, so we move the
 	// binaries after they are generated.
 	osRename("tests.test", testsBinDir+IntegrationTestName)
