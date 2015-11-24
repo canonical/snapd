@@ -25,29 +25,29 @@ import (
 	sys "syscall"
 )
 
-type wrapnixAddr struct {
+type ucrednixAddr struct {
 	*net.UnixAddr
 	ucred *sys.Ucred
 }
 
-func (wa *wrapnixAddr) String() string {
+func (wa *ucrednixAddr) String() string {
 	return fmt.Sprintf("%d:%s", wa.ucred.Uid, wa.UnixAddr.String())
 }
 
-type wrapnixConn struct {
+type ucrednixConn struct {
 	*net.UnixConn
 	ucred *sys.Ucred
 }
 
-func (wc *wrapnixConn) RemoteAddr() net.Addr {
-	return &wrapnixAddr{wc.UnixConn.RemoteAddr().(*net.UnixAddr), wc.ucred}
+func (wc *ucrednixConn) RemoteAddr() net.Addr {
+	return &ucrednixAddr{wc.UnixConn.RemoteAddr().(*net.UnixAddr), wc.ucred}
 }
 
-type wrapnixListener struct{ *net.UnixListener }
+type ucrednixListener struct{ *net.UnixListener }
 
 var getUcred = sys.GetsockoptUcred
 
-func (wl *wrapnixListener) Accept() (net.Conn, error) {
+func (wl *ucrednixListener) Accept() (net.Conn, error) {
 	con, err := wl.UnixListener.Accept()
 	if err != nil {
 		return nil, err
@@ -64,5 +64,5 @@ func (wl *wrapnixListener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
-	return &wrapnixConn{ucon, ucred}, err
+	return &ucrednixConn{ucon, ucred}, err
 }
