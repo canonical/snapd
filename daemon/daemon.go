@@ -123,6 +123,9 @@ func (d *Daemon) Init() error {
 	}
 
 	d.listener = listeners[0]
+	if l, ok := d.listener.(*net.UnixListener); ok {
+		d.listener = &wrapnixListener{*l}
+	}
 
 	d.addRoutes()
 
