@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -238,9 +239,10 @@ func (db *Database) Add(assert Assertion) error {
 	for i, k := range reg.primaryKey {
 		keyVal := assert.Header(k)
 		if keyVal == "" {
-			panic("xxx")
+			return fmt.Errorf("missing primary key header: %v", k)
 		}
-		primaryKey[i] = keyVal
+		// safety against '/' etc
+		primaryKey[i] = url.QueryEscape(keyVal)
 	}
 	indexPath := filepath.Join(string(assert.Type()), filepath.Join(primaryKey...))
 	_, err = db.statEntry(assertionsRoot, indexPath)
@@ -249,32 +251,32 @@ func (db *Database) Add(assert Assertion) error {
 		// directory for assertion is present
 		curRevStr, err := db.readlinkEntry(assertionsRoot, indexPath, "newest")
 		if err != nil {
-			return err // xxx qualify
+			return fmt.Errorf("broken assertion store, reading 'newest' revision symlink: %v", err)
 		}
 		curRev, err := strconv.Atoi(curRevStr)
 		if err != nil {
-			return err // xxx qualify
+			return fmt.Errorf("broken assertion store, extracting revision from 'newest' revision symlink: %v", err)
 		}
 		if curRev >= assert.Revision() {
 			return ErrAssertionNotSuperseding
 		}
 		err = db.removeEntry(assertionsRoot, indexPath, "newest")
 		if err != nil {
-			return err // xxx qualify
+			return fmt.Errorf("broken assertion store, could not remove 'newest' revision symlink: %v", err)
 		}
 	case os.IsNotExist(err):
 		// nothing there yet
 	default:
-		return err // xxx qualify
+		return fmt.Errorf("broken assertion store, failed to stat assertion directory: %v", err)
 	}
 	revStr := strconv.Itoa(assert.Revision())
 	err = db.atomicWriteEntry(Encode(assert), false, assertionsRoot, indexPath, revStr)
 	if err != nil {
-		return err // xxx qualify
+		return fmt.Errorf("broken assertion store, failed to write assertion: %v", err)
 	}
 	err = db.symlinkEntry(revStr, assertionsRoot, indexPath, "newest")
 	if err != nil {
-		return err // xxx qualify
+		return fmt.Errorf("broken assertion store, failed to create 'newest' revision symlink: %v", err)
 	}
 	return nil
 }
@@ -291,9 +293,9 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 	for i, k := range reg.primaryKey {
 		keyVal := headers[k]
 		if keyVal == "" {
-			panic("xxx")
+			return nil, fmt.Errorf("must provide primary key: %v", k)
 		}
-		primaryKey[i] = keyVal
+		primaryKey[i] = url.QueryEscape(keyVal)
 	}
 	indexPath := filepath.Join(string(assertionType), filepath.Join(primaryKey...))
 	_, err = db.statEntry(assertionsRoot, indexPath)
@@ -301,16 +303,21 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 		if os.IsNotExist(err) {
 			return nil, ErrAssertionNotFound
 		}
-		return nil, err // xxx qualify
+		return nil, fmt.Errorf("broken assertion store, failed to stat assertion directory: %v", err)
 	}
 	encoded, err := db.readEntry(assertionsRoot, indexPath, "newest")
 	if err != nil {
-		return nil, err // xxx qualify
+		return nil, fmt.Errorf("broken assertion store, failed to read assertion: %v", err)
 	}
 	assert, err := Decode(encoded)
 	if err != nil {
 		return nil, err
 	}
-	// xxx check all headers match?
+	// check non-primary-key headers as well
+	for expectedKey, expectedValue := range headers {
+		if assert.Header(expectedKey) != expectedValue {
+			return nil, ErrAssertionNotFound
+		}
+	}
 	return assert, nil
 }

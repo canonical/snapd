@@ -179,6 +179,7 @@ func (as *AssertsSuite) TestSignFormatSanityEmptyBody(c *C) {
 
 	headers := map[string]string{
 		"authority-id": "auth-id1",
+		"primary-key":  "0",
 	}
 	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, key1)
 	c.Assert(err, IsNil)
@@ -193,6 +194,7 @@ func (as *AssertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 
 	headers := map[string]string{
 		"authority-id": "auth-id1",
+		"primary-key":  "0",
 	}
 	body := []byte("THE-BODY")
 	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, body, key1)
