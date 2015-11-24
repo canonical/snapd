@@ -133,7 +133,7 @@ func showRebootMessage(installed []snappy.Part, o io.Writer) {
 		}
 
 		// TRANSLATORS: the first %s is a pkgname the second a version
-		fmt.Fprintln(o, fmt.Sprintf(i18n.G("Reboot to use %s version %s."), part.Version(), part.Name()))
+		fmt.Fprintln(o, fmt.Sprintf(i18n.G("Reboot to use %s version %s."), part.Name(), part.Version()))
 	}
 }
 
