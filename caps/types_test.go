@@ -21,14 +21,9 @@ package caps
 
 import (
 	"encoding/json"
-	"testing"
 
 	. "gopkg.in/check.v1"
 )
-
-func TestType(t *testing.T) {
-	TestingT(t)
-}
 
 type TypeSuite struct{}
 
