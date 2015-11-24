@@ -249,20 +249,20 @@ func (db *Database) Add(assert Assertion) error {
 	switch {
 	case err == nil:
 		// directory for assertion is present
-		curRevStr, err := db.readlinkEntry(assertionsRoot, indexPath, "newest")
+		curRevStr, err := db.readlinkEntry(assertionsRoot, indexPath, "latest")
 		if err != nil {
-			return fmt.Errorf("broken assertion store, reading 'newest' revision symlink: %v", err)
+			return fmt.Errorf("broken assertion store, reading 'latest' revision symlink: %v", err)
 		}
 		curRev, err := strconv.Atoi(curRevStr)
 		if err != nil {
-			return fmt.Errorf("broken assertion store, extracting revision from 'newest' revision symlink: %v", err)
+			return fmt.Errorf("broken assertion store, extracting revision from 'latest' revision symlink: %v", err)
 		}
 		if curRev >= assert.Revision() {
 			return ErrAssertionNotSuperseding
 		}
-		err = db.removeEntry(assertionsRoot, indexPath, "newest")
+		err = db.removeEntry(assertionsRoot, indexPath, "latest")
 		if err != nil {
-			return fmt.Errorf("broken assertion store, could not remove 'newest' revision symlink: %v", err)
+			return fmt.Errorf("broken assertion store, could not remove 'latest' revision symlink: %v", err)
 		}
 	case os.IsNotExist(err):
 		// nothing there yet
@@ -274,9 +274,9 @@ func (db *Database) Add(assert Assertion) error {
 	if err != nil {
 		return fmt.Errorf("broken assertion store, failed to write assertion: %v", err)
 	}
-	err = db.symlinkEntry(revStr, assertionsRoot, indexPath, "newest")
+	err = db.symlinkEntry(revStr, assertionsRoot, indexPath, "latest")
 	if err != nil {
-		return fmt.Errorf("broken assertion store, failed to create 'newest' revision symlink: %v", err)
+		return fmt.Errorf("broken assertion store, failed to create 'latest' revision symlink: %v", err)
 	}
 	return nil
 }
@@ -305,7 +305,7 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 		}
 		return nil, fmt.Errorf("broken assertion store, failed to stat assertion directory: %v", err)
 	}
-	encoded, err := db.readEntry(assertionsRoot, indexPath, "newest")
+	encoded, err := db.readEntry(assertionsRoot, indexPath, "latest")
 	if err != nil {
 		return nil, fmt.Errorf("broken assertion store, failed to read assertion: %v", err)
 	}
