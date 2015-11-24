@@ -220,7 +220,7 @@ func checkInteger(headers map[string]string, name string) (int, error) {
 func checkAssertType(assertType AssertionType) (*assertionTypeRegistration, error) {
 	reg := typeRegistry[assertType]
 	if reg == nil {
-		return nil, fmt.Errorf("cannot build assertion of unknown type: %v", assertType)
+		return nil, fmt.Errorf("unknown assertion type: %v", assertType)
 	}
 	return reg, nil
 }

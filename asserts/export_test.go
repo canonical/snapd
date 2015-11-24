@@ -40,6 +40,7 @@ func buildTestOnly(assert AssertionBase) (Assertion, error) {
 
 func init() {
 	typeRegistry[AssertionType("test-only")] = &assertionTypeRegistration{
-		builder: buildTestOnly,
+		builder:    buildTestOnly,
+		primaryKey: []string{"primary-key"},
 	}
 }
