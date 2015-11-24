@@ -252,7 +252,7 @@ func (afs *addFindSuite) TestAddSuperseding(c *C) {
 	c.Check(retrieved2.Revision(), Equals, 1)
 
 	err = afs.db.Add(a1)
-	c.Check(err, Equals, asserts.ErrNotSuperseding)
+	c.Check(err, ErrorMatches, "assertion added must have more recent revision than current one.*")
 }
 
 func (afs *addFindSuite) TestFindNotFound(c *C) {

@@ -58,8 +58,7 @@ type DatabaseConfig struct {
 
 // Well-known errors
 var (
-	ErrNotFound       = errors.New("assertion not found")
-	ErrNotSuperseding = errors.New("assertion does not supersede current one")
+	ErrNotFound = errors.New("assertion not found")
 )
 
 // Database holds assertions and can be used to sign or check
@@ -208,19 +207,8 @@ func (db *Database) readAssertion(assertType AssertionType, primaryPath string) 
 	return assert, nil
 }
 
-func (db *Database) readCurrentRevision(assertType AssertionType, primaryPath string) (int, error) {
-	assert, err := db.readAssertion(assertType, primaryPath)
-	if err == ErrNotFound {
-		return -1, nil
-	}
-	if err != nil {
-		return -1, err
-	}
-	return assert.Revision(), nil
-}
-
 // Add persists the assertions after ensuring it is properly signed and consistent with all the stored knowledge.
-// Returns ErrNotSuperseding if trying to add a previous revision of the assertion.
+// It will return an error when trying to add an older revision of the assertion than the one currently stored.
 func (db *Database) Add(assert Assertion) error {
 	reg, err := checkAssertType(assert.Type())
 	if err != nil {
@@ -240,12 +228,15 @@ func (db *Database) Add(assert Assertion) error {
 		primaryKey[i] = url.QueryEscape(keyVal)
 	}
 	primaryPath := filepath.Join(primaryKey...)
-	curRev, err := db.readCurrentRevision(assert.Type(), primaryPath)
-	if err != nil {
+	curAssert, err := db.readAssertion(assert.Type(), primaryPath)
+	if err == nil {
+		curRev := curAssert.Revision()
+		rev := assert.Revision()
+		if curRev >= rev {
+			return fmt.Errorf("assertion added must have more recent revision than current one (adding %d, currently %d)", rev, curRev)
+		}
+	} else if err != ErrNotFound {
 		return err
-	}
-	if curRev >= assert.Revision() {
-		return ErrNotSuperseding
 	}
 	err = db.atomicWriteEntry(Encode(assert), false, assertionsRoot, string(assert.Type()), primaryPath)
 	if err != nil {
@@ -256,7 +247,7 @@ func (db *Database) Add(assert Assertion) error {
 
 // Find an assertion based on arbitrary headers.
 // Provided headers must contain the primary key for the assertion type.
-// Returns ErrNotFound if the assertion cannot be found.
+// It returns ErrNotFound if the assertion cannot be found.
 func (db *Database) Find(assertionType AssertionType, headers map[string]string) (Assertion, error) {
 	reg, err := checkAssertType(assertionType)
 	if err != nil {
