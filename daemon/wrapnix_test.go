@@ -63,7 +63,7 @@ func (s *wrapSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 		cli.Close()
 	}()
 
-	wl := &wrapnixListener{*(l.(*net.UnixListener))}
+	wl := &wrapnixListener{l.(*net.UnixListener)}
 
 	conn, err := wl.Accept()
 	c.Assert(err, check.IsNil)
@@ -80,7 +80,7 @@ func (s *wrapSuite) TestAcceptErrors(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(l.Close(), check.IsNil)
 
-	wl := &wrapnixListener{*(l.(*net.UnixListener))}
+	wl := &wrapnixListener{l.(*net.UnixListener)}
 
 	_, err = wl.Accept()
 	c.Assert(err, check.NotNil)

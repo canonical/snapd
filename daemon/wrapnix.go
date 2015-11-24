@@ -26,7 +26,7 @@ import (
 )
 
 type wrapnixAddr struct {
-	net.UnixAddr
+	*net.UnixAddr
 	ucred *sys.Ucred
 }
 
@@ -35,15 +35,15 @@ func (wa *wrapnixAddr) String() string {
 }
 
 type wrapnixConn struct {
-	net.UnixConn
+	*net.UnixConn
 	ucred *sys.Ucred
 }
 
 func (wc *wrapnixConn) RemoteAddr() net.Addr {
-	return &wrapnixAddr{*wc.UnixConn.RemoteAddr().(*net.UnixAddr), wc.ucred}
+	return &wrapnixAddr{wc.UnixConn.RemoteAddr().(*net.UnixAddr), wc.ucred}
 }
 
-type wrapnixListener struct{ net.UnixListener }
+type wrapnixListener struct{ *net.UnixListener }
 
 var getUcred = sys.GetsockoptUcred
 
@@ -64,5 +64,5 @@ func (wl *wrapnixListener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
-	return &wrapnixConn{*ucon, ucred}, err
+	return &wrapnixConn{ucon, ucred}, err
 }
