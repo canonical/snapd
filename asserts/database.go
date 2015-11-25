@@ -274,3 +274,59 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 	}
 	return assert, nil
 }
+
+func (db *Database) findWildcard(top string, primaryKeyWithWildcards []string) ([]string, error) {
+	var paths []string
+	paths, err := db.findWildcardDescend(filepath.Join(db.root, top), primaryKeyWithWildcards, paths)
+	if err != nil {
+		return nil, err
+	}
+	return paths, nil
+}
+
+func (db *Database) findWildcardDescend(root string, primaryKeyWithWildcards []string, paths []string) ([]string, error) {
+	if len(primaryKeyWithWildcards) == 0 {
+		finfo, err := os.Stat(root)
+		if os.IsNotExist(err) {
+			return paths, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !finfo.Mode().IsRegular() {
+			return nil, fmt.Errorf("expected a regular file: %v", root)
+		}
+		return append(paths, root), nil
+	}
+
+	k := primaryKeyWithWildcards[0]
+	if strings.IndexRune(k, '*') == -1 {
+		return db.findWildcardDescend(filepath.Join(root, k), primaryKeyWithWildcards[1:], paths)
+	}
+
+	d, err := os.Open(root)
+	if os.IsNotExist(err) {
+		return paths, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer d.Close()
+	names, err := d.Readdirnames(-1)
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range names {
+		ok, err := filepath.Match(k, name)
+		if err != nil { // we check malformedness of patterns beforehand
+			panic(err)
+		}
+		if ok {
+			paths, err = db.findWildcardDescend(filepath.Join(root, name), primaryKeyWithWildcards[1:], paths)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	return paths, nil
+}

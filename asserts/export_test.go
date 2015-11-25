@@ -28,6 +28,10 @@ var GeneratePrivateKeyInTest = generatePrivateKey
 // buildAndSignInTest exposed for tests
 var BuildAndSignInTest = buildAndSign
 
+func FindWildcard(db *Database, root string, primKeyWWildcard []string) ([]string, error) {
+	return db.findWildcard(root, primKeyWWildcard)
+}
+
 // define dummy assertion types to use in the tests
 
 type TestOnly struct {
