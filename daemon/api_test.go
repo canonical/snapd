@@ -761,7 +761,7 @@ func (s *apiSuite) TestPackagesPutNil(c *check.C) {
 }
 
 func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, expected map[string]*configSubtask) {
-	ch := make(chan int, 3)
+	ch := make(chan int)
 	d := newTestDaemon()
 
 	req, err := http.NewRequest("PUT", "/1.0/packages", body)
