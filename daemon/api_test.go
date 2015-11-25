@@ -38,6 +38,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/pkg/lightweight"
@@ -45,6 +46,7 @@ import (
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/testutil"
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
@@ -1193,4 +1195,18 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 
 	task.tomb.Wait()
 	c.Check(task.State(), check.Equals, TaskSucceeded)
+}
+
+func (s *apiSuite) TestGetCapabilities(c *check.C) {
+	d := newTestDaemon()
+	d.capRepo.Add(&caps.Capability{"serial-port", "A serial port", caps.FileType, nil})
+	req, err := http.NewRequest("GET", "/1.0/capabilities", nil)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	capabilitiesCmd.GET(capabilitiesCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Body.String(), testutil.Contains, "serial-port")
+	c.Check(rec.Body.String(), check.Equals,
+		`{"result":[{"name":"serial-port","label":"A serial port",`+
+			`"type":"file"}],"status":"OK","status_code":200,"type":"sync"}`)
 }

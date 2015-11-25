@@ -33,6 +33,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/logger"
@@ -58,6 +59,7 @@ var api = []*Command{
 	packageSvcsCmd,
 	packageSvcLogsCmd,
 	operationCmd,
+	capabilitiesCmd,
 }
 
 var (
@@ -121,6 +123,11 @@ var (
 		Path:   "/1.0/operations/{uuid}",
 		GET:    getOpInfo,
 		DELETE: deleteOp,
+	}
+
+	capabilitiesCmd = &Command{
+		Path: "/1.0/capabilities",
+		GET:  getCapabilities,
 	}
 )
 
@@ -899,4 +906,8 @@ func appIconGet(c *Command, r *http.Request) Response {
 	}
 
 	return FileResponse(path)
+}
+
+func getCapabilities(c *Command, r *http.Request) Response {
+	return SyncResponse(c.d.capRepo.All())
 }
