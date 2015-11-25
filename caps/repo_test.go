@@ -147,9 +147,9 @@ func (s *RepositorySuite) TestAll(c *C) {
 	})
 }
 
-func (s *RepositorySuite) TestFindTypeByName(c *C) {
-	c.Assert(s.emptyRepo.FindTypeByName(testType.Name), IsNil)
-	c.Assert(s.testRepo.FindTypeByName(testType.Name), Equals, testType)
+func (s *RepositorySuite) TestType(c *C) {
+	c.Assert(s.emptyRepo.Type(testType.Name), IsNil)
+	c.Assert(s.testRepo.Type(testType.Name), Equals, testType)
 }
 
 func (s *RepositorySuite) TestHasType(c *C) {
