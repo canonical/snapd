@@ -127,3 +127,10 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 
 	return &sysInfo, nil
 }
+
+type Capability struct {
+	Name		string `json:"name"`
+	Label		string `json:"label"`
+	Type		string `json:"type"`
+	Attrs		map[string]string `json:"attrs,omitempty"`
+}
