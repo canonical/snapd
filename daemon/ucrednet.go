@@ -33,15 +33,12 @@ var errNoUID = errors.New("no uid found")
 const ucrednetNobody = uint32((1 << 32) - 1)
 
 func ucrednetGetUID(remoteAddr string) (uint32, error) {
-	idx := strings.IndexByte(remoteAddr, ':')
-	if idx < 0 {
-		panic("ucrednetGetUid called on non-ucrednet remoteAddr")
-	}
-	if idx < 1 {
+	idx := strings.IndexByte(remoteAddr, ';')
+	if remoteAddr[:4] != "uid=" || idx < 5 {
 		return ucrednetNobody, errNoUID
 	}
 
-	uid, err := strconv.ParseUint(remoteAddr[:idx], 10, 32)
+	uid, err := strconv.ParseUint(remoteAddr[4:idx], 10, 32)
 	if err != nil {
 		return ucrednetNobody, err
 	}
@@ -55,7 +52,7 @@ type ucrednetAddr struct {
 }
 
 func (wa *ucrednetAddr) String() string {
-	return fmt.Sprintf("%s:%s", wa.uid, wa.Addr)
+	return fmt.Sprintf("uid=%s;%s", wa.uid, wa.Addr)
 }
 
 type ucrednetConn struct {

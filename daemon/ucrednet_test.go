@@ -72,7 +72,11 @@ func (s *ucrednetSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
 
-	c.Check(conn.RemoteAddr().String(), check.Matches, "42:.*")
+	remoteAddr := conn.RemoteAddr().String()
+	c.Check(remoteAddr, check.Matches, "uid=42;.*")
+	uid, err := ucrednetGetUID(remoteAddr)
+	c.Check(uid, check.Equals, uint32(42))
+	c.Check(err, check.IsNil)
 }
 
 func (s *ucrednetSuite) TestNonUnix(c *check.C) {
@@ -94,7 +98,11 @@ func (s *ucrednetSuite) TestNonUnix(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
 
-	c.Check(conn.RemoteAddr().String(), check.Matches, ":.*")
+	remoteAddr := conn.RemoteAddr().String()
+	c.Check(remoteAddr, check.Matches, "uid=;.*")
+	uid, err := ucrednetGetUID(remoteAddr)
+	c.Check(uid, check.Equals, ucrednetNobody)
+	c.Check(err, check.Equals, errNoUID)
 }
 
 func (s *ucrednetSuite) TestAcceptErrors(c *check.C) {
@@ -134,23 +142,25 @@ func (s *ucrednetSuite) TestUcredErrors(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestGetNoUid(c *check.C) {
-	uid, err := ucrednetGetUID(":")
+	uid, err := ucrednetGetUID("uid=;")
 	c.Check(err, check.Equals, errNoUID)
 	c.Check(uid, check.Equals, ucrednetNobody)
 }
 
 func (s *ucrednetSuite) TestGetBadUid(c *check.C) {
-	uid, err := ucrednetGetUID("hello:")
+	uid, err := ucrednetGetUID("uid=hello;")
 	c.Check(err, check.NotNil)
 	c.Check(uid, check.Equals, ucrednetNobody)
 }
 
 func (s *ucrednetSuite) TestGetNonUcrednet(c *check.C) {
-	c.Check(func() { ucrednetGetUID("hello") }, check.PanicMatches, `.* non-ucrednet .*`)
+	uid, err := ucrednetGetUID("hello")
+	c.Check(err, check.Equals, errNoUID)
+	c.Check(uid, check.Equals, ucrednetNobody)
 }
 
 func (s *ucrednetSuite) TestGet(c *check.C) {
-	uid, err := ucrednetGetUID("42:")
+	uid, err := ucrednetGetUID("uid=42;")
 	c.Check(err, check.IsNil)
 	c.Check(uid, check.Equals, uint32(42))
 }
