@@ -64,9 +64,6 @@ func (t *Type) Validate(c *Capability) error {
 	return nil
 }
 
-// TypeLookupFn aids in looking up a Type by name
-type TypeLookupFn func(name string) *Type
-
 // MarshalJSON encodes a Type object as the name of the type.
 func (t *Type) MarshalJSON() ([]byte, error) {
 	return json.Marshal(t.Name)
