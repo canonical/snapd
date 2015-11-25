@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-11-18 10:56+0100\n"
+        "POT-Creation-Date: 2015-11-25 11:20+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -67,6 +67,9 @@ msgstr  ""
 msgid   "Activate a package that has previously been deactivated. If the package is already activated, do nothing."
 msgstr  ""
 
+msgid   "All background processes will be killed when you leave this shell"
+msgstr  ""
+
 msgid   "Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.\n"
 msgstr  ""
 
@@ -82,6 +85,13 @@ msgid   "Assign hardware to a specific installed package"
 msgstr  ""
 
 msgid   "Builds a snap package"
+msgstr  ""
+
+msgid   "Classic dimension disabled on this system.\n"
+        "Use \"sudo snappy enable-classic\" to enable it."
+msgstr  ""
+
+msgid   "Classic dimension is already enabled."
 msgstr  ""
 
 msgid   "Configures a package. The configuration is a YAML file, provided in the specified file which can be \"-\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config."
@@ -100,6 +110,12 @@ msgid   "Display a summary of key attributes of the snappy system."
 msgstr  ""
 
 msgid   "Do not clean up old versions of the package."
+msgstr  ""
+
+msgid   "Enable classic dimension."
+msgstr  ""
+
+msgid   "Enable the ubuntu classic dimension."
 msgstr  ""
 
 msgid   "Ensures system is running with latest parts"
@@ -231,6 +247,9 @@ msgstr  ""
 msgid   "Rollback to a previous version of a package"
 msgstr  ""
 
+msgid   "Run snappy console interface"
+msgstr  ""
+
 msgid   "Search for packages to install"
 msgstr  ""
 
@@ -309,6 +328,9 @@ msgid   "The package to rollback "
 msgstr  ""
 
 msgid   "The path to the package.yaml used to generate the apparmor policy."
+msgstr  ""
+
+msgid   "The type of shell you want"
 msgstr  ""
 
 msgid   "The version to rollback to"
