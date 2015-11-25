@@ -34,6 +34,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 const (
@@ -57,7 +58,7 @@ var Cfg *config.Config
 // SnappySuite is a structure used as a base test suite for all the snappy
 // integration tests.
 type SnappySuite struct {
-	cleanupHandlers []func()
+	testutil.BaseTest
 }
 
 // SetUpSuite disables the snappy autopilot. It will run before all the
@@ -101,6 +102,8 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 // will skip all the following tests. If the suite is being called after the
 // test bed was rebooted, it will resume the test that requested the reboot.
 func (s *SnappySuite) SetUpTest(c *check.C) {
+	s.BaseTest.SetUpTest(c)
+
 	if NeedsReboot() {
 		contents, err := ioutil.ReadFile(NeedsRebootFile)
 		c.Assert(err, check.IsNil, check.Commentf("Error reading needs-reboot file %v", err))
@@ -120,8 +123,6 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 			}
 		}
 	}
-	// clear slice
-	s.cleanupHandlers = nil
 }
 
 // TearDownTest cleans up the channel.ini files in case they were changed by
@@ -144,16 +145,7 @@ func (s *SnappySuite) TearDownTest(c *check.C) {
 		}
 	}
 
-	// run cleanup handlers and clear the slice
-	for _, f := range s.cleanupHandlers {
-		f()
-	}
-	s.cleanupHandlers = nil
-}
-
-// AddCleanup adds a new cleanup function to the test
-func (s *SnappySuite) AddCleanup(f func()) {
-	s.cleanupHandlers = append(s.cleanupHandlers, f)
+	s.BaseTest.TearDownTest(c)
 }
 
 func switchSystemImageConf(c *check.C, release, channel, version string) {
