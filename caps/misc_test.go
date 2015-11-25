@@ -20,16 +20,10 @@
 package caps
 
 import (
-	"testing"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/testutil"
 )
-
-func TestMisc(t *testing.T) {
-	TestingT(t)
-}
 
 type MiscSuite struct{}
 
