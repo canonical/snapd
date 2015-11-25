@@ -22,18 +22,33 @@ package main
 import (
 	"fmt"
 	"os"
-	"text/tabwriter"
 
-	"github.com/ubuntu-core/snappy/client"
+	"github.com/ubuntu-core/snappy/logger"
+
+	"github.com/jessevdk/go-flags"
 )
 
+type options struct {
+	// No global options yet
+}
+
+var optionsData options
+
+var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
+
+func init() {
+	err := logger.SimpleSetup()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
+	}
+}
+
 func main() {
-	cli := client.New()
-
-	w := tabwriter.NewWriter(os.Stdout, 0, 8, 1, ' ', 0)
-	fmt.Fprintln(w, "What\tError\tResult")
-	sysInfo, err := cli.SysInfo()
-	fmt.Fprintf(w, "get system info\t%v\t%#v\n", err, sysInfo)
-
-	w.Flush()
+	if _, err := parser.Parse(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		if _, ok := err.(*flags.Error); !ok {
+			logger.Debugf("%v failed: %v", os.Args, err)
+		}
+		os.Exit(1)
+	}
 }
