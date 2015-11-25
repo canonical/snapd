@@ -29,17 +29,21 @@ import (
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/pkg/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/testutil"
 
 	. "gopkg.in/check.v1"
 )
 
 type SquashfsTestSuite struct {
+	testutil.BaseTest
+
 	bootvars map[string]string
 }
 
 func (s *SquashfsTestSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
+	s.BaseTest.SetUpTest(c)
 
+	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 
 	// ensure we do not run a real systemd
@@ -49,6 +53,7 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 
 	// ensure we use the right builder func (squashfs)
 	snapBuilderFunc = BuildSquashfsSnap
+	s.AddCleanup(func() { snapBuilderFunc = BuildLegacySnap })
 
 	// mock the boot variable writing for the tests
 	s.bootvars = make(map[string]string)
@@ -59,10 +64,16 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	getBootVar = func(key string) (string, error) {
 		return s.bootvars[key], nil
 	}
+
+	mockBootDir := c.MkDir()
+	bootloaderDir = func() string {
+		return mockBootDir
+	}
+	s.AddCleanup(func() { bootloaderDir = partition.BootloaderDir })
 }
 
 func (s *SquashfsTestSuite) TearDownTest(c *C) {
-	snapBuilderFunc = BuildLegacySnap
+	s.BaseTest.TearDownTest(c)
 }
 
 var _ = Suite(&SquashfsTestSuite{})
@@ -220,7 +231,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
-	bootdir := partition.BootloaderDir()
+	bootdir := bootloaderDir()
 
 	// kernel is here and normalized
 	vmlinuz := filepath.Join(bootdir, "ubuntu-kernel.origin_4.0-1.snap", "vmlinuz")
@@ -246,7 +257,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 
 	_, err = part.Install(&MockProgressMeter{}, 0)
 	c.Assert(err, IsNil)
-	kernelAssetsDir := filepath.Join(partition.BootloaderDir(), "ubuntu-kernel.origin_4.0-1.snap")
+	kernelAssetsDir := filepath.Join(bootloaderDir(), "ubuntu-kernel.origin_4.0-1.snap")
 	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, true)
 
 	// ensure uninstall cleans the kernel assets

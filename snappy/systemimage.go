@@ -176,13 +176,6 @@ func (s *SystemImagePart) SetActive(active bool, pb progress.Meter) error {
 	return nil
 }
 
-// override in tests
-var bootloaderDir = bootloaderDirImpl
-
-func bootloaderDirImpl() string {
-	return partition.BootloaderDir()
-}
-
 // Install installs the snap
 func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
 	if provisioning.IsSideLoaded(bootloaderDir()) {
