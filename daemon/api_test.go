@@ -1223,3 +1223,93 @@ func (s *apiSuite) TestGetCapabilities(c *check.C) {
 		"type":        "sync",
 	})
 }
+
+func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
+	// Setup
+	d := newTestDaemon()
+	cap := &caps.Capability{
+		Name:  "name",
+		Label: "label",
+		Type:  caps.FileType,
+	}
+	text, err := json.Marshal(cap)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	// Execute
+	req, err := http.NewRequest("POST", "/1.0/capabilities", buf)
+	c.Assert(err, check.IsNil)
+	rsp := addCapability(capabilitiesCmd, req).Self(nil, nil).(*resp)
+	// Verify (external)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusCreated)
+	c.Check(rsp.Result, check.DeepEquals, map[string]string{"resource": "/1.0/capabilities/name"})
+	// Verify (internal)
+	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
+}
+
+func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
+	// Setup
+	// Start with one capability named 'name' in the repository
+	d := newTestDaemon()
+	cap := &caps.Capability{
+		Name:  "name",
+		Label: "label",
+		Type:  caps.FileType,
+	}
+	err := d.capRepo.Add(cap)
+	c.Assert(err, check.IsNil)
+	// Prepare for adding a second capability with the same name
+	capClashing := &caps.Capability{
+		Name:  "name",
+		Label: "second label",
+		Type:  caps.FileType,
+	}
+	text, err := json.Marshal(capClashing)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	// Execute
+	req, err := http.NewRequest("GET", "/1.0/capabilities", buf)
+	c.Assert(err, check.IsNil)
+	rsp := addCapability(capabilitiesCmd, req).Self(nil, nil).(*resp)
+	// Verify (external)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*errorResult).Msg, check.Matches, `can't add capability`)
+	// Verify (internal)
+	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
+	c.Check(d.capRepo.All(), check.Not(testutil.DeepContains), *capClashing)
+}
+
+func (s *apiSuite) TestAddCapabilitiesUnintelligible(c *check.C) {
+	// Setup
+	d := newTestDaemon()
+	buf := bytes.NewBufferString("blargh")
+	req, err := http.NewRequest("POST", "/1.0/capabilities", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	// Execute
+	capabilitiesCmd.POST(capabilitiesCmd, req).ServeHTTP(rec, req)
+	// Verify (external)
+	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Body.String(), testutil.Contains,
+		"can't decode request body into a capability")
+	// Verify (internal)
+	c.Check(d.capRepo.All(), check.HasLen, 0)
+}
+
+func (s *apiSuite) TestAddCapabilitiesNotACapability(c *check.C) {
+	// Setup
+	d := newTestDaemon()
+	buf := bytes.NewBufferString(`{"NotACapability": 1}`)
+	req, err := http.NewRequest("POST", "/1.0/capabilities", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	// Execute
+	capabilitiesCmd.POST(capabilitiesCmd, req).ServeHTTP(rec, req)
+	// Verify (external)
+	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Body.String(), testutil.Contains,
+		`can't decode request body into a capability`)
+	// Verify (internal)
+	c.Check(d.capRepo.All(), check.HasLen, 0)
+}
