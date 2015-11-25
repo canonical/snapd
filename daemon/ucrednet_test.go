@@ -159,6 +159,12 @@ func (s *ucrednetSuite) TestGetNonUcrednet(c *check.C) {
 	c.Check(uid, check.Equals, ucrednetNobody)
 }
 
+func (s *ucrednetSuite) TestGetNothing(c *check.C) {
+	uid, err := ucrednetGetUID("")
+	c.Check(err, check.Equals, errNoUID)
+	c.Check(uid, check.Equals, ucrednetNobody)
+}
+
 func (s *ucrednetSuite) TestGet(c *check.C) {
 	uid, err := ucrednetGetUID("uid=42;")
 	c.Check(err, check.IsNil)
