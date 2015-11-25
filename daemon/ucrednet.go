@@ -22,47 +22,52 @@ package daemon
 import (
 	"fmt"
 	"net"
+	"strconv"
 	sys "syscall"
 )
 
-type ucrednixAddr struct {
-	*net.UnixAddr
-	ucred *sys.Ucred
+type ucrednetAddr struct {
+	net.Addr
+	uid string
 }
 
-func (wa *ucrednixAddr) String() string {
-	return fmt.Sprintf("%d:%s", wa.ucred.Uid, wa.UnixAddr.String())
+func (wa *ucrednetAddr) String() string {
+	return fmt.Sprintf("%s:%s", wa.uid, wa.Addr)
 }
 
-type ucrednixConn struct {
-	*net.UnixConn
-	ucred *sys.Ucred
+type ucrednetConn struct {
+	net.Conn
+	uid string
 }
 
-func (wc *ucrednixConn) RemoteAddr() net.Addr {
-	return &ucrednixAddr{wc.UnixConn.RemoteAddr().(*net.UnixAddr), wc.ucred}
+func (wc *ucrednetConn) RemoteAddr() net.Addr {
+	return &ucrednetAddr{wc.Conn.RemoteAddr(), wc.uid}
 }
 
-type ucrednixListener struct{ *net.UnixListener }
+type ucrednetListener struct{ net.Listener }
 
 var getUcred = sys.GetsockoptUcred
 
-func (wl *ucrednixListener) Accept() (net.Conn, error) {
-	con, err := wl.UnixListener.Accept()
+func (wl *ucrednetListener) Accept() (net.Conn, error) {
+	con, err := wl.Listener.Accept()
 	if err != nil {
 		return nil, err
 	}
 
-	ucon := con.(*net.UnixConn)
-	f, err := ucon.File()
-	if err != nil {
-		return nil, err
+	uid := ""
+	if ucon, ok := con.(*net.UnixConn); ok {
+		f, err := ucon.File()
+		if err != nil {
+			return nil, err
+		}
+
+		ucred, err := getUcred(int(f.Fd()), sys.SOL_SOCKET, sys.SO_PEERCRED)
+		if err != nil {
+			return nil, err
+		}
+
+		uid = strconv.FormatUint(uint64(ucred.Uid), 10)
 	}
 
-	ucred, err := getUcred(int(f.Fd()), sys.SOL_SOCKET, sys.SO_PEERCRED)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ucrednixConn{ucon, ucred}, err
+	return &ucrednetConn{con, uid}, err
 }

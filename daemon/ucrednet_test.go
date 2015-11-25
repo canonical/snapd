@@ -28,30 +28,30 @@ import (
 	"gopkg.in/check.v1"
 )
 
-type ucrednixSuite struct {
+type ucrednetSuite struct {
 	ucred *sys.Ucred
 	err   error
 }
 
-var _ = check.Suite(&ucrednixSuite{})
+var _ = check.Suite(&ucrednetSuite{})
 
-func (s *ucrednixSuite) getUcred(fd, level, opt int) (*sys.Ucred, error) {
+func (s *ucrednetSuite) getUcred(fd, level, opt int) (*sys.Ucred, error) {
 	return s.ucred, s.err
 }
 
-func (s *ucrednixSuite) SetUpSuite(c *check.C) {
+func (s *ucrednetSuite) SetUpSuite(c *check.C) {
 	getUcred = s.getUcred
 }
 
-func (s *ucrednixSuite) TearDownTest(c *check.C) {
+func (s *ucrednetSuite) TearDownTest(c *check.C) {
 	s.ucred = nil
 	s.err = nil
 }
-func (s *ucrednixSuite) TearDownSuite(c *check.C) {
+func (s *ucrednetSuite) TearDownSuite(c *check.C) {
 	getUcred = sys.GetsockoptUcred
 }
 
-func (s *ucrednixSuite) TestAcceptConnRemoteAddrString(c *check.C) {
+func (s *ucrednetSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 	s.ucred = &sys.Ucred{Uid: 42}
 	d := c.MkDir()
 	sock := filepath.Join(d, "sock")
@@ -65,7 +65,7 @@ func (s *ucrednixSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 		cli.Close()
 	}()
 
-	wl := &ucrednixListener{l.(*net.UnixListener)}
+	wl := &ucrednetListener{l}
 
 	conn, err := wl.Accept()
 	c.Assert(err, check.IsNil)
@@ -73,7 +73,7 @@ func (s *ucrednixSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 	c.Check(conn.RemoteAddr().String(), check.Matches, "42:.*")
 }
 
-func (s *ucrednixSuite) TestAcceptErrors(c *check.C) {
+func (s *ucrednetSuite) TestAcceptErrors(c *check.C) {
 	s.ucred = &sys.Ucred{Uid: 42}
 	d := c.MkDir()
 	sock := filepath.Join(d, "sock")
@@ -82,13 +82,13 @@ func (s *ucrednixSuite) TestAcceptErrors(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(l.Close(), check.IsNil)
 
-	wl := &ucrednixListener{l.(*net.UnixListener)}
+	wl := &ucrednetListener{l}
 
 	_, err = wl.Accept()
 	c.Assert(err, check.NotNil)
 }
 
-func (s *ucrednixSuite) TestUcredErrors(c *check.C) {
+func (s *ucrednetSuite) TestUcredErrors(c *check.C) {
 	s.err = errors.New("oopsie")
 	d := c.MkDir()
 	sock := filepath.Join(d, "sock")
@@ -102,7 +102,7 @@ func (s *ucrednixSuite) TestUcredErrors(c *check.C) {
 		cli.Close()
 	}()
 
-	wl := &ucrednixListener{l.(*net.UnixListener)}
+	wl := &ucrednetListener{l}
 
 	_, err = wl.Accept()
 	c.Assert(err, check.Equals, s.err)
