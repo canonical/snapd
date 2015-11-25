@@ -46,7 +46,7 @@ const (
 	adtrunTpl           = "adt-run -B --setup-commands touch /run/autopkgtest_no_reboot.stamp --override-control %s --built-tree %s --output-dir %s %s"
 )
 
-type AutopkgtestSuite struct {
+type AutoPkgTestSuite struct {
 	execCalls        map[string]int
 	execReturnValues []string
 	execReturnIndex  int
@@ -59,12 +59,12 @@ type AutopkgtestSuite struct {
 	backTplExecute  func(string, string, interface{}) error
 	tplError        bool
 
-	subject *Autopkgtest
+	subject *AutoPkgTest
 }
 
-var _ = check.Suite(&AutopkgtestSuite{})
+var _ = check.Suite(&AutoPkgTestSuite{})
 
-func (s *AutopkgtestSuite) SetUpSuite(c *check.C) {
+func (s *AutoPkgTestSuite) SetUpSuite(c *check.C) {
 	s.backExecCommand = execCommand
 	s.backPrepareTargetDir = prepareTargetDir
 	s.backTplExecute = tplExecute
@@ -73,7 +73,7 @@ func (s *AutopkgtestSuite) SetUpSuite(c *check.C) {
 	prepareTargetDir = s.fakePrepareTargetDir
 	tplExecute = s.fakeTplExecute
 
-	s.subject = &Autopkgtest{
+	s.subject = &AutoPkgTest{
 		SourceCodePath:      sourceCodePath,
 		TestArtifactsPath:   testArtifactsPath,
 		TestFilter:          testFilter,
@@ -82,29 +82,29 @@ func (s *AutopkgtestSuite) SetUpSuite(c *check.C) {
 	}
 }
 
-func (s *AutopkgtestSuite) TearDownSuite(c *check.C) {
+func (s *AutoPkgTestSuite) TearDownSuite(c *check.C) {
 	execCommand = s.backExecCommand
 	prepareTargetDir = s.backPrepareTargetDir
 	tplExecute = s.backTplExecute
 }
 
-func (s *AutopkgtestSuite) SetUpTest(c *check.C) {
+func (s *AutoPkgTestSuite) SetUpTest(c *check.C) {
 	s.execCalls = make(map[string]int)
 	s.mkDirCalls = make(map[string]int)
 	s.tplExecuteCalls = make(map[string]int)
 	s.tplError = false
 }
 
-func (s *AutopkgtestSuite) fakeExecCommand(args ...string) (err error) {
+func (s *AutoPkgTestSuite) fakeExecCommand(args ...string) (err error) {
 	s.execCalls[strings.Join(args, " ")]++
 	return
 }
 
-func (s *AutopkgtestSuite) fakePrepareTargetDir(path string) {
+func (s *AutoPkgTestSuite) fakePrepareTargetDir(path string) {
 	s.mkDirCalls[path]++
 }
 
-func (s *AutopkgtestSuite) fakeTplExecute(tplFile, outputFile string, data interface{}) (err error) {
+func (s *AutoPkgTestSuite) fakeTplExecute(tplFile, outputFile string, data interface{}) (err error) {
 	s.tplExecuteCalls[tplExecuteCmd(tplFile, outputFile, data)]++
 	if s.tplError {
 		err = errors.New("Error while rendering control file template!")
@@ -112,7 +112,7 @@ func (s *AutopkgtestSuite) fakeTplExecute(tplFile, outputFile string, data inter
 	return
 }
 
-func (s *AutopkgtestSuite) TestAdtRunLocalCallsTplExecute(c *check.C) {
+func (s *AutoPkgTestSuite) TestAdtRunLocalCallsTplExecute(c *check.C) {
 	s.subject.AdtRunLocal(imgPath)
 
 	expectedTplExecuteCall := tplExecuteCmd(controlTpl,
@@ -123,7 +123,7 @@ func (s *AutopkgtestSuite) TestAdtRunLocalCallsTplExecute(c *check.C) {
 		check.Commentf("Expected call %s not executed 1 time", expectedTplExecuteCall))
 }
 
-func (s *AutopkgtestSuite) TestAdtRunLocalCallsPrepareTargetDir(c *check.C) {
+func (s *AutoPkgTestSuite) TestAdtRunLocalCallsPrepareTargetDir(c *check.C) {
 	s.subject.AdtRunLocal(imgPath)
 
 	expectedMkDirCall := outputDir(testArtifactsPath)
@@ -133,7 +133,7 @@ func (s *AutopkgtestSuite) TestAdtRunLocalCallsPrepareTargetDir(c *check.C) {
 		check.Commentf("Expected call %s not executed 1 time", expectedMkDirCall))
 }
 
-func (s *AutopkgtestSuite) TestAdtRunLocalCallsExecCommand(c *check.C) {
+func (s *AutoPkgTestSuite) TestAdtRunLocalCallsExecCommand(c *check.C) {
 	s.subject.AdtRunLocal(imgPath)
 
 	testOutputDir := outputDir(testArtifactsPath)
@@ -144,14 +144,14 @@ func (s *AutopkgtestSuite) TestAdtRunLocalCallsExecCommand(c *check.C) {
 		check.Commentf("Expected call %s not executed 1 time", expectedExecCommadCall))
 }
 
-func (s *AutopkgtestSuite) TestAdtRunLocalReturnsTplError(c *check.C) {
+func (s *AutoPkgTestSuite) TestAdtRunLocalReturnsTplError(c *check.C) {
 	s.tplError = true
 	err := s.subject.AdtRunLocal(imgPath)
 
 	c.Assert(err, check.NotNil, check.Commentf("Expected error from tpl not received!"))
 }
 
-func (s *AutopkgtestSuite) TestAdtRunRemoteCallsTplExecute(c *check.C) {
+func (s *AutoPkgTestSuite) TestAdtRunRemoteCallsTplExecute(c *check.C) {
 	s.subject.AdtRunRemote(testbedIP, testbedPort)
 
 	expectedTplExecuteCall := tplExecuteCmd(controlTpl,
@@ -162,7 +162,7 @@ func (s *AutopkgtestSuite) TestAdtRunRemoteCallsTplExecute(c *check.C) {
 		check.Commentf("Expected call %s not executed 1 time", expectedTplExecuteCall))
 }
 
-func (s *AutopkgtestSuite) TestAdtRunRemoteCallsPrepareTargetDir(c *check.C) {
+func (s *AutoPkgTestSuite) TestAdtRunRemoteCallsPrepareTargetDir(c *check.C) {
 	s.subject.AdtRunRemote(testbedIP, testbedPort)
 
 	expectedMkDirCall := outputDir(testArtifactsPath)
@@ -172,7 +172,7 @@ func (s *AutopkgtestSuite) TestAdtRunRemoteCallsPrepareTargetDir(c *check.C) {
 		check.Commentf("Expected call %s not executed 1 time", expectedMkDirCall))
 }
 
-func (s *AutopkgtestSuite) TestAdtRunRemoteCallsExecCommand(c *check.C) {
+func (s *AutoPkgTestSuite) TestAdtRunRemoteCallsExecCommand(c *check.C) {
 	s.subject.AdtRunRemote(testbedIP, testbedPort)
 
 	testOutputDir := outputDir(testArtifactsPath)
@@ -183,14 +183,14 @@ func (s *AutopkgtestSuite) TestAdtRunRemoteCallsExecCommand(c *check.C) {
 		check.Commentf("Expected call %s not executed 1 time", expectedExecCommadCall))
 }
 
-func (s *AutopkgtestSuite) TestAdtRunRemoteReturnsTplError(c *check.C) {
+func (s *AutoPkgTestSuite) TestAdtRunRemoteReturnsTplError(c *check.C) {
 	s.tplError = true
 	err := s.subject.AdtRunRemote(testbedIP, testbedPort)
 
 	c.Assert(err, check.NotNil, check.Commentf("Expected error from tpl not received!"))
 }
 
-func (s *AutopkgtestSuite) TestAdtRunShellOnFail(c *check.C) {
+func (s *AutoPkgTestSuite) TestAdtRunShellOnFail(c *check.C) {
 	scenarios := []struct {
 		shellOnFail     bool
 		testbedOptions  string
