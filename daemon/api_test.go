@@ -1313,3 +1313,37 @@ func (s *apiSuite) TestAddCapabilitiesNotACapability(c *check.C) {
 	// Verify (internal)
 	c.Check(d.capRepo.All(), check.HasLen, 0)
 }
+
+func (s *apiSuite) TestDeleteCapabilityGood(c *check.C) {
+	// Setup
+	d := newTestDaemon()
+	t := &caps.Type{Name: "test"}
+	err := d.capRepo.AddType(t)
+	c.Assert(err, check.IsNil)
+	cap := &caps.Capability{Name: "name", Type: t}
+	err = d.capRepo.Add(cap)
+	c.Assert(err, check.IsNil)
+	s.vars = map[string]string{"name": "name"}
+	// Execute
+	rsp := deleteCapability(capabilityCmd, nil).Self(nil, nil).(*resp)
+	// Verify (external)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	// Verify (internal)
+	c.Check(d.capRepo.Capability(cap.Name), check.IsNil)
+}
+
+func (s *apiSuite) TestDeleteCapabilityNotFound(c *check.C) {
+	// Setup
+	d := newTestDaemon()
+	before := d.capRepo.All()
+	s.vars = map[string]string{"name": "name"}
+	// Execute
+	rsp := deleteCapability(capabilityCmd, nil).Self(nil, nil).(*resp)
+	// Verify (external)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
+	// Verify (internal)
+	after := d.capRepo.All()
+	c.Check(before, check.DeepEquals, after)
+}
