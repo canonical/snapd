@@ -31,32 +31,33 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/testutil"
 
 	. "gopkg.in/check.v1"
 )
 
 type BuildTestSuite struct {
-	pwd string
+	testutil.BaseTest
 }
 
 var _ = Suite(&BuildTestSuite{})
 
 func (s *BuildTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	// chdir into a tempdir
 	pwd, err := os.Getwd()
 	c.Assert(err, IsNil)
-	s.pwd = pwd
-
-	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { os.Chdir(pwd) })
 	err = os.Chdir(c.MkDir())
 	c.Assert(err, IsNil)
 
 	// fake "du"
 	duCmd = makeFakeDuCommand(c)
-}
+	s.AddCleanup(func() { duCmd = "du" })
 
-func (s *BuildTestSuite) TearDownTest(c *C) {
-	duCmd = "du"
-	os.Chdir(s.pwd)
+	// use fake root
+	dirs.SetRootDir(c.MkDir())
 }
 
 func makeFakeDuCommand(c *C) string {
