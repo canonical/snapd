@@ -39,11 +39,7 @@ func dropVersionSuffix(name string) string {
 }
 
 // override in tests
-var bootloaderDir = bootloaderDirImpl
-
-func bootloaderDirImpl() string {
-	return partition.BootloaderDir()
-}
+var bootloaderDir = partition.BootloaderDir
 
 // removeKernelAssets removes the unpacked kernel/initrd for the given
 // kernel snap

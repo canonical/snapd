@@ -71,7 +71,7 @@ func (s *SITestSuite) SetUpTest(c *C) {
 
 func (s *SITestSuite) TearDownTest(c *C) {
 	s.mockSystemImageWebServer.Close()
-	bootloaderDir = bootloaderDirImpl
+	bootloaderDir = partition.BootloaderDir
 }
 
 func makeMockSystemImageCli(c *C, tempdir string) string {

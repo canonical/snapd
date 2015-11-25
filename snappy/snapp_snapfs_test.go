@@ -26,6 +26,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/pkg/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 
@@ -67,6 +68,7 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 
 func (s *SquashfsTestSuite) TearDownTest(c *C) {
 	snapBuilderFunc = BuildLegacySnap
+	bootloaderDir = partition.BootloaderDir
 }
 
 var _ = Suite(&SquashfsTestSuite{})
