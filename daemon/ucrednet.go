@@ -34,7 +34,7 @@ const ucrednetNobody = uint32((1 << 32) - 1)
 
 func ucrednetGetUID(remoteAddr string) (uint32, error) {
 	idx := strings.IndexByte(remoteAddr, ';')
-	if remoteAddr[:4] != "uid=" || idx < 5 {
+	if !strings.HasPrefix(remoteAddr, "uid=") || idx < 5 {
 		return ucrednetNobody, errNoUID
 	}
 
