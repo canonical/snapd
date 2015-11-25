@@ -129,8 +129,28 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 }
 
 type Capability struct {
-	Name		string `json:"name"`
-	Label		string `json:"label"`
-	Type		string `json:"type"`
-	Attrs		map[string]string `json:"attrs,omitempty"`
+	Name  string            `json:"name"`
+	Label string            `json:"label"`
+	Type  string            `json:"type"`
+	Attrs map[string]string `json:"attrs,omitempty"`
+}
+
+// GetCapabilities gets the list of capabilities from the REST API
+func (client *Client) GetCapabilities() ([]Capability, error) {
+	var rsp response
+	if err := client.do("GET", "/1.0/capabilities", nil, &rsp); err != nil {
+		return nil, err
+	}
+	if rsp.Type == "error" {
+		// TODO: handle structured errors
+		return nil, fmt.Errorf("failed with %q", rsp.Status)
+	}
+	if rsp.Type != "sync" {
+		return nil, fmt.Errorf("unexpected result type %q", rsp.Type)
+	}
+	var caps []Capability
+	if err := json.Unmarshal(rsp.Result, &caps); err != nil {
+		return nil, err
+	}
+	return caps, nil
 }

@@ -118,3 +118,25 @@ func (cs *clientSuite) TestClientReportsInnerJSONError(c *check.C) {
 	_, err := cs.cli.SysInfo()
 	c.Check(err, check.ErrorMatches, `bad sysinfo result .*`)
 }
+
+func (cs *clientSuite) TestClientGetCapabilities(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": [
+		{
+			"name": "n",
+			"label": "l",
+			"type": "t",
+			"attrs": {"k": "v"}
+		}
+		]
+	}`
+	caps, err := cs.cli.GetCapabilities()
+	c.Check(err, check.IsNil)
+	c.Check(caps, check.DeepEquals, []client.Capability{{
+		Name:  "n",
+		Label: "l",
+		Type:  "t",
+		Attrs: map[string]string{"k": "v"},
+	}})
+}
