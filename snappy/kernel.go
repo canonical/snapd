@@ -38,6 +38,9 @@ func dropVersionSuffix(name string) string {
 	return strings.SplitN(name, "-", 2)[0]
 }
 
+// override in tests
+var bootloaderDir = partition.BootloaderDir
+
 // removeKernelAssets removes the unpacked kernel/initrd for the given
 // kernel snap
 func removeKernelAssets(s *SnapPart, inter interacter) error {
@@ -47,7 +50,7 @@ func removeKernelAssets(s *SnapPart, inter interacter) error {
 
 	// remove the kernel blob
 	blobName := filepath.Base(squashfs.BlobPath(s.basedir))
-	dstDir := filepath.Join(partition.BootloaderDir(), blobName)
+	dstDir := filepath.Join(bootloaderDir(), blobName)
 	if err := os.RemoveAll(dstDir); err != nil {
 		return err
 	}
@@ -67,7 +70,7 @@ func extractKernelAssets(s *SnapPart, inter progress.Meter, flags InstallFlags) 
 	//
 	// now do the kernel specific bits
 	blobName := filepath.Base(squashfs.BlobPath(s.basedir))
-	dstDir := filepath.Join(partition.BootloaderDir(), blobName)
+	dstDir := filepath.Join(bootloaderDir(), blobName)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
 	}

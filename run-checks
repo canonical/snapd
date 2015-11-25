@@ -110,19 +110,15 @@ if [ ! -z "$STATIC" ]; then
         exit 1
     fi
 
-    (
-        # pot file
-        echo Checking translations
-        TMPF="$(mktemp)"
-        addtrap "rm -f $TMPF"
-        ./update-pot "$TMPF"
-        if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
-            echo "You need to run ./update-pot"
-            exit 1
-        fi
-        # This is a subshell so we don't overwrite the all-important outer trap.
-    )
-
+    # pot file
+    echo Checking translations
+    TMPF="$(mktemp)"
+    addtrap "rm -f \"$TMPF\""
+    ./update-pot "$TMPF"
+    if ! diff -u --ignore-matching-lines=.*POT-Creation-Date.* po/snappy.pot $TMPF; then
+        echo "You need to run ./update-pot"
+        exit 1
+    fi
 fi
 
 if [ ! -z "$UNIT" ]; then
@@ -143,7 +139,7 @@ if [ ! -z "$UNIT" ]; then
 
     echo Building the integration tests
     TMP_INTEGRATION="$(mktemp)"
-    addtrap "rm -f $TMP_INTEGRATION"
+    addtrap "rm -f \"$TMP_INTEGRATION\""
     go build -v -o $TMP_INTEGRATION github.com/ubuntu-core/snappy/integration-tests/
 
     # the rabbit hole
@@ -168,4 +164,15 @@ if [ ! -z "$INTEGRATION" ]; then
             exit $result
         fi
     fi
+fi
+
+UNCLEAN="$(git status -s|grep ^??)" || true
+if [ -n "$UNCLEAN" ]; then
+    cat <<EOF
+
+There are files left in the git tree after the tests:
+
+$UNCLEAN
+EOF
+    exit 1
 fi

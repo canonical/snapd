@@ -59,10 +59,16 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	getBootVar = func(key string) (string, error) {
 		return s.bootvars[key], nil
 	}
+
+	mockBootDir := c.MkDir()
+	bootloaderDir = func() string {
+		return mockBootDir
+	}
 }
 
 func (s *SquashfsTestSuite) TearDownTest(c *C) {
 	snapBuilderFunc = BuildLegacySnap
+	bootloaderDir = partition.BootloaderDir
 }
 
 var _ = Suite(&SquashfsTestSuite{})
@@ -220,7 +226,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
-	bootdir := partition.BootloaderDir()
+	bootdir := bootloaderDir()
 
 	// kernel is here and normalized
 	vmlinuz := filepath.Join(bootdir, "ubuntu-kernel.origin_4.0-1.snap", "vmlinuz")
@@ -246,7 +252,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 
 	_, err = part.Install(&MockProgressMeter{}, 0)
 	c.Assert(err, IsNil)
-	kernelAssetsDir := filepath.Join(partition.BootloaderDir(), "ubuntu-kernel.origin_4.0-1.snap")
+	kernelAssetsDir := filepath.Join(bootloaderDir(), "ubuntu-kernel.origin_4.0-1.snap")
 	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, true)
 
 	// ensure uninstall cleans the kernel assets

@@ -399,6 +399,7 @@ integration:
 	snapOutput := filepath.Join(outputDir, "hello_1.0.1_multi.snap")
 	resultSnap, err := BuildLegacySnap(sourceDir, outputDir)
 	c.Assert(err, IsNil)
+	defer os.Remove(resultSnap)
 
 	// check that there is result
 	_, err = os.Stat(resultSnap)
