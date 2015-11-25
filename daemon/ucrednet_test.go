@@ -58,6 +58,7 @@ func (s *ucrednetSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 
 	l, err := net.Listen("unix", sock)
 	c.Assert(err, check.IsNil)
+	defer l.Close()
 
 	go func() {
 		cli, err := net.Dial("unix", sock)
@@ -69,8 +70,31 @@ func (s *ucrednetSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 
 	conn, err := wl.Accept()
 	c.Assert(err, check.IsNil)
+	defer conn.Close()
 
 	c.Check(conn.RemoteAddr().String(), check.Matches, "42:.*")
+}
+
+func (s *ucrednetSuite) TestNonUnix(c *check.C) {
+	l, err := net.Listen("tcp", "localhost:0")
+	c.Assert(err, check.IsNil)
+	defer l.Close()
+
+	addr := l.Addr().String()
+
+	go func() {
+		cli, err := net.Dial("tcp", addr)
+		c.Assert(err, check.IsNil)
+		cli.Close()
+	}()
+
+	wl := &ucrednetListener{l}
+
+	conn, err := wl.Accept()
+	c.Assert(err, check.IsNil)
+	defer conn.Close()
+
+	c.Check(conn.RemoteAddr().String(), check.Matches, ":.*")
 }
 
 func (s *ucrednetSuite) TestAcceptErrors(c *check.C) {
@@ -95,6 +119,7 @@ func (s *ucrednetSuite) TestUcredErrors(c *check.C) {
 
 	l, err := net.Listen("unix", sock)
 	c.Assert(err, check.IsNil)
+	defer l.Close()
 
 	go func() {
 		cli, err := net.Dial("unix", sock)
@@ -106,4 +131,26 @@ func (s *ucrednetSuite) TestUcredErrors(c *check.C) {
 
 	_, err = wl.Accept()
 	c.Assert(err, check.Equals, s.err)
+}
+
+func (s *ucrednetSuite) TestGetNoUid(c *check.C) {
+	uid, err := ucrednetGetUID(":")
+	c.Check(err, check.Equals, errNoUID)
+	c.Check(uid, check.Equals, ucrednetNobody)
+}
+
+func (s *ucrednetSuite) TestGetBadUid(c *check.C) {
+	uid, err := ucrednetGetUID("hello:")
+	c.Check(err, check.NotNil)
+	c.Check(uid, check.Equals, ucrednetNobody)
+}
+
+func (s *ucrednetSuite) TestGetNonUcrednet(c *check.C) {
+	c.Check(func() { ucrednetGetUID("hello") }, check.PanicMatches, `.* non-ucrednet .*`)
+}
+
+func (s *ucrednetSuite) TestGet(c *check.C) {
+	uid, err := ucrednetGetUID("42:")
+	c.Check(err, check.IsNil)
+	c.Check(uid, check.Equals, uint32(42))
 }

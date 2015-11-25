@@ -20,11 +20,34 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	sys "syscall"
 )
+
+var errNoUID = errors.New("no uid found")
+
+const ucrednetNobody = uint32((1 << 32) - 1)
+
+func ucrednetGetUID(remoteAddr string) (uint32, error) {
+	idx := strings.IndexByte(remoteAddr, ':')
+	if idx < 0 {
+		panic("ucrednetGetUid called on non-ucrednet remoteAddr")
+	}
+	if idx < 1 {
+		return ucrednetNobody, errNoUID
+	}
+
+	uid, err := strconv.ParseUint(remoteAddr[:idx], 10, 32)
+	if err != nil {
+		return ucrednetNobody, err
+	}
+
+	return uint32(uid), nil
+}
 
 type ucrednetAddr struct {
 	net.Addr
