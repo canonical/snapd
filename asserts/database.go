@@ -161,9 +161,13 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 	// consider stored account keys
 	accountKeysTop := filepath.Join(db.root, assertionsRoot, string(AccountKeyType))
 	foundKeyCb := func(primaryPath string) error {
-		accKey, err := db.readAssertion(AccountKeyType, primaryPath)
+		a, err := db.readAssertion(AccountKeyType, primaryPath)
 		if err != nil {
 			return err
+		}
+		accKey, ok := a.(*AccountKey)
+		if !ok {
+			return fmt.Errorf("something that is not an account-key under their storage tree")
 		}
 		res = append(res, accKey.(*AccountKey))
 		return nil
