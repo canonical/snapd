@@ -28,7 +28,13 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 )
 
-var bindMountDirs = [][3]string{
+type bindMount struct {
+	src     string
+	dst     string
+	remount string
+}
+
+var bindMountDirs = []bindMount{
 	{"/home", "/home", ""},
 	{"/run", "/run", ""},
 	{"/proc", "/proc", ""},
@@ -43,11 +49,8 @@ var bindMountDirs = [][3]string{
 func RunShell() error {
 
 	// setup the bind mounts
-	for _, l := range bindMountDirs {
-		src := l[0]
-		dst := l[1]
-		args := l[2]
-		if err := bindmount(src, dst, args); err != nil {
+	for _, m := range bindMountDirs {
+		if err := bindmount(m.src, m.dst, m.remount); err != nil {
 			return err
 		}
 	}
@@ -76,8 +79,8 @@ func RunShell() error {
 
 // Destroy destroys a classic environment, i.e. unmonts and removes all files
 func Destroy() error {
-	for _, l := range bindMountDirs {
-		dst := filepath.Join(dirs.ClassicDir, l[1])
+	for _, m := range bindMountDirs {
+		dst := filepath.Join(dirs.ClassicDir, m.dst)
 		if mountpoint(dst) {
 			if err := umount(dst); err != nil {
 				return err
