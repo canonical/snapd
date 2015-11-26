@@ -743,7 +743,7 @@ func (s *apiSuite) TestPackagesPutStr(c *check.C) {
 	newConfigs := map[string]string{"foo.bar": "some other config", "baz.qux": "stuff", "missing.pkg": "blah blah"}
 	bs, err := json.Marshal(newConfigs)
 	c.Assert(err, check.IsNil)
-	s.genericTestPackagePut(c, bytes.NewBuffer(bs), 2, map[string]*configSubtask{
+	s.genericTestPackagePut(c, bytes.NewBuffer(bs), map[string]*configSubtask{
 		"foo.bar":     &configSubtask{Status: TaskSucceeded, Output: "some other config"},
 		"baz.qux":     &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrConfigNotFound.Error(), Obj: snappy.ErrConfigNotFound, Msg: "Config failed"}},
 		"missing.pkg": &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrPackageNotFound.Error(), Obj: snappy.ErrPackageNotFound}},
@@ -754,13 +754,13 @@ func (s *apiSuite) TestPackagesPutNil(c *check.C) {
 	newConfigs := map[string][]byte{"foo.bar": nil, "mip.brp": nil}
 	bs, err := json.Marshal(newConfigs)
 	c.Assert(err, check.IsNil)
-	s.genericTestPackagePut(c, bytes.NewBuffer(bs), 2, map[string]*configSubtask{
+	s.genericTestPackagePut(c, bytes.NewBuffer(bs), map[string]*configSubtask{
 		"foo.bar": &configSubtask{Status: TaskSucceeded, Output: "some: config"},
 		"mip.brp": &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrSnapNotActive.Error(), Obj: snappy.ErrSnapNotActive}},
 	})
 }
 
-func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, concreteNo int, expected map[string]*configSubtask) {
+func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, expected map[string]*configSubtask) {
 	d := newTestDaemon()
 
 	req, err := http.NewRequest("PUT", "/1.0/packages", body)
@@ -789,7 +789,6 @@ func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, concreteNo 
 	rsp := configMulti(packagesCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
-	c.Check(rsp.Status, check.Equals, http.StatusAccepted)
 	m := rsp.Result.(map[string]interface{})
 	c.Check(m["resource"], check.Matches, "/1.0/operations/.*")
 
