@@ -20,6 +20,10 @@
 package asserts_test
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/hex"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -95,4 +99,53 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, snapDeclErrPrefix+test.expectedErr)
 	}
+}
+
+func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
+	trustedKey := testPrivKey0
+	accPrivKey := testPrivKey1
+
+	// TODO: crypto.go should have helpers for this related to exporting
+	buf := new(bytes.Buffer)
+	err := accPrivKey.PublicKey.Serialize(buf)
+	c.Assert(err, IsNil)
+	accPubKeyBody := "openpgp " + base64.StdEncoding.EncodeToString(buf.Bytes())
+	accFingerp := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
+
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"account-id":   "dev-id1",
+		"fingerprint":  accFingerp,
+		"since":        "2015-11-20T15:04:00Z",
+		"until":        "2500-11-20T15:04:00Z",
+	}
+	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), trustedKey)
+	c.Assert(err, IsNil)
+
+	rootDir := filepath.Join(c.MkDir(), "asserts-db")
+	cfg := &asserts.DatabaseConfig{
+		Path: rootDir,
+		TrustedKeys: map[string][]asserts.PublicKey{
+			"canonical": {asserts.WrapPublicKey(&trustedKey.PublicKey)},
+		},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	err = db.Add(accKey)
+	c.Assert(err, IsNil)
+
+	headers = map[string]string{
+		"authority-id": "dev-id1",
+		"snap-id":      "snap-id-1",
+		"snap-digest":  "sha256 ...",
+		"grade":        "devel",
+		"snap-size":    "1025",
+		"timestamp":    "2015-11-25T20:00:00Z",
+	}
+	snapDecl, err := asserts.BuildAndSignInTest(asserts.SnapDeclarationType, headers, nil, accPrivKey)
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapDecl)
+	c.Assert(err, IsNil)
 }
