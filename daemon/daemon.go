@@ -122,7 +122,7 @@ func (d *Daemon) Init() error {
 		return fmt.Errorf("daemon does not handle %d listeners right now, just one", len(listeners))
 	}
 
-	d.listener = listeners[0]
+	d.listener = &ucrednetListener{listeners[0]}
 
 	d.addRoutes()
 

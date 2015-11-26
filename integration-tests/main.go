@@ -93,7 +93,7 @@ func main() {
 
 	rootPath := testutils.RootPath()
 
-	test := &autopkgtest.Autopkgtest{
+	test := &autopkgtest.AutoPkgTest{
 		SourceCodePath:      rootPath,
 		TestArtifactsPath:   *outputDir,
 		TestFilter:          *testFilter,

@@ -20,6 +20,7 @@
 package caps
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -38,9 +39,6 @@ var (
 	// the capability concept before we get to load capability interfaces
 	// from YAML.
 	FileType = &Type{"file"}
-	// testType is only meant for testing. It is not useful in any way except
-	// that it offers an simple capability type that will happily validate.
-	testType = &Type{"test"}
 )
 
 var builtInTypes = [...]*Type{
@@ -64,4 +62,16 @@ func (t *Type) Validate(c *Capability) error {
 		return fmt.Errorf("attributes must be empty for now")
 	}
 	return nil
+}
+
+// MarshalJSON encodes a Type object as the name of the type.
+func (t *Type) MarshalJSON() ([]byte, error) {
+	return json.Marshal(t.Name)
+}
+
+// UnmarshalJSON decodes the name of a Type object.
+// NOTE: In the future, when more properties are added, those properties will
+// not be decoded and will be left over as empty values.
+func (t *Type) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &t.Name)
 }

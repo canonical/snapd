@@ -24,7 +24,10 @@ package asserts
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,6 +56,11 @@ type DatabaseConfig struct {
 	TrustedKeys map[string][]PublicKey
 }
 
+// Well-known errors
+var (
+	ErrNotFound = errors.New("assertion not found")
+)
+
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
@@ -63,6 +71,8 @@ type Database struct {
 const (
 	privateKeysLayoutVersion = "v0"
 	privateKeysRoot          = "private-keys-" + privateKeysLayoutVersion
+	assertionsLayoutVersion  = "v0"
+	assertionsRoot           = "assertions-" + assertionsLayoutVersion
 )
 
 // OpenDatabase opens the assertion database based on the configuration.
@@ -93,6 +103,11 @@ func (db *Database) atomicWriteEntry(data []byte, secret bool, subpath ...string
 		fperm = 0600
 	}
 	return helpers.AtomicWriteFile(fpath, data, os.FileMode(fperm), 0)
+}
+
+func (db *Database) readEntry(subpath ...string) ([]byte, error) {
+	fpath := filepath.Join(db.root, filepath.Join(subpath...))
+	return ioutil.ReadFile(fpath)
 }
 
 // GenerateKey generates a private/public key pair for identity and
@@ -175,4 +190,87 @@ func (db *Database) Check(assert Assertion) error {
 		return fmt.Errorf("no valid known public key verifies assertion")
 	}
 	return fmt.Errorf("failed signature verification: %v", lastErr)
+}
+
+func (db *Database) readAssertion(assertType AssertionType, primaryPath string) (Assertion, error) {
+	encoded, err := db.readEntry(assertionsRoot, string(assertType), primaryPath)
+	if os.IsNotExist(err) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("broken assertion storage, failed to read assertion: %v", err)
+	}
+	assert, err := Decode(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("broken assertion storage, failed to decode assertion: %v", err)
+	}
+	return assert, nil
+}
+
+// Add persists the assertion after ensuring it is properly signed and consistent with all the stored knowledge.
+// It will return an error when trying to add an older revision of the assertion than the one currently stored.
+func (db *Database) Add(assert Assertion) error {
+	reg, err := checkAssertType(assert.Type())
+	if err != nil {
+		return err
+	}
+	err = db.Check(assert)
+	if err != nil {
+		return err
+	}
+	primaryKey := make([]string, len(reg.primaryKey))
+	for i, k := range reg.primaryKey {
+		keyVal := assert.Header(k)
+		if keyVal == "" {
+			return fmt.Errorf("missing primary key header: %v", k)
+		}
+		// safety against '/' etc
+		primaryKey[i] = url.QueryEscape(keyVal)
+	}
+	primaryPath := filepath.Join(primaryKey...)
+	curAssert, err := db.readAssertion(assert.Type(), primaryPath)
+	if err == nil {
+		curRev := curAssert.Revision()
+		rev := assert.Revision()
+		if curRev >= rev {
+			return fmt.Errorf("assertion added must have more recent revision than current one (adding %d, currently %d)", rev, curRev)
+		}
+	} else if err != ErrNotFound {
+		return err
+	}
+	err = db.atomicWriteEntry(Encode(assert), false, assertionsRoot, string(assert.Type()), primaryPath)
+	if err != nil {
+		return fmt.Errorf("broken assertion storage, failed to write assertion: %v", err)
+	}
+	return nil
+}
+
+// Find an assertion based on arbitrary headers.
+// Provided headers must contain the primary key for the assertion type.
+// It returns ErrNotFound if the assertion cannot be found.
+func (db *Database) Find(assertionType AssertionType, headers map[string]string) (Assertion, error) {
+	reg, err := checkAssertType(assertionType)
+	if err != nil {
+		return nil, err
+	}
+	primaryKey := make([]string, len(reg.primaryKey))
+	for i, k := range reg.primaryKey {
+		keyVal := headers[k]
+		if keyVal == "" {
+			return nil, fmt.Errorf("must provide primary key: %v", k)
+		}
+		primaryKey[i] = url.QueryEscape(keyVal)
+	}
+	primaryPath := filepath.Join(primaryKey...)
+	assert, err := db.readAssertion(assertionType, primaryPath)
+	if err != nil {
+		return nil, err
+	}
+	// check non-primary-key headers as well
+	for expectedKey, expectedValue := range headers {
+		if assert.Header(expectedKey) != expectedValue {
+			return nil, ErrNotFound
+		}
+	}
+	return assert, nil
 }
