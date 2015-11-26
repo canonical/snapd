@@ -63,7 +63,6 @@ func buildSnapDeclaration(assert AssertionBase) (Assertion, error) {
 		return nil, fmt.Errorf("unexpected content in body")
 	}
 
-
 	_, err := checkMandatory(assert.headers, "snap-id")
 	if err != nil {
 		return nil, err
