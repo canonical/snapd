@@ -21,6 +21,7 @@ package asserts
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -32,7 +33,7 @@ func checkMandatory(headers map[string]string, name string) (string, error) {
 		return "", fmt.Errorf("%q header is mandatory", name)
 	}
 	if len(value) == 0 {
-		return "", fmt.Errorf("%q should not be empty", name)
+		return "", fmt.Errorf("%q header should not be empty", name)
 	}
 	return value, nil
 }
@@ -43,6 +44,19 @@ func checkAssertType(assertType AssertionType) (*assertionTypeRegistration, erro
 		return nil, fmt.Errorf("unknown assertion type: %v", assertType)
 	}
 	return reg, nil
+}
+
+// use 'defl' default if missing
+func checkInteger(headers map[string]string, name string, defl int) (int, error) {
+	valueStr, ok := headers[name]
+	if !ok {
+		return defl, nil
+	}
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return -1, fmt.Errorf("%q header is not an integer: %v", name, valueStr)
+	}
+	return value, nil
 }
 
 func checkRFC3339Date(headers map[string]string, name string) (time.Time, error) {

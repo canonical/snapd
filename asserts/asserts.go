@@ -193,34 +193,21 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 	return buildAssertion(headers, body, content, signature)
 }
 
-func checkInteger(headers map[string]string, name string) (int, error) {
-	valueStr, ok := headers[name]
-	if !ok {
-		// default to 0 if missing
-		return 0, nil
-	}
-	value, err := strconv.Atoi(valueStr)
-	if err != nil {
-		return -1, fmt.Errorf("assertion %v is not an integer: %v", name, valueStr)
-	}
-	return value, nil
-}
-
 func checkRevision(headers map[string]string) (int, error) {
-	revision, err := checkInteger(headers, "revision")
+	revision, err := checkInteger(headers, "revision", 0)
 	if err != nil {
 		return -1, err
 	}
 	if revision < 0 {
-		return -1, fmt.Errorf("assertion revision should be positive: %v", revision)
+		return -1, fmt.Errorf("revision should be positive: %v", revision)
 	}
 	return revision, nil
 }
 
 func buildAssertion(headers map[string]string, body, content, signature []byte) (Assertion, error) {
-	length, err := checkInteger(headers, "body-length")
+	length, err := checkInteger(headers, "body-length", 0)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("assertion: %v", err)
 	}
 	if length != len(body) {
 		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
@@ -242,7 +229,7 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 
 	revision, err := checkRevision(headers)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("assertion: %v", err)
 	}
 
 	assert, err := reg.builder(AssertionBase{
