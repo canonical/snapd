@@ -36,7 +36,7 @@ type snapDeclSuite struct {
 var _ = Suite(&snapDeclSuite{})
 
 func (sds *snapDeclSuite) SetUpSuite(c *C) {
-	sds.ts = time.Now().Truncate(time.Second)
+	sds.ts = time.Now().Truncate(time.Second).UTC()
 	sds.tsLine = "timestamp: " + sds.ts.Format(time.RFC3339) + "\n"
 }
 
