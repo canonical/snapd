@@ -67,7 +67,7 @@ const (
 	snapDeclErrPrefix = "assertion snap-declaration: "
 )
 
-func (sds *snapDeclSuite) TestDecodeInvalidHeaders(c *C) {
+func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 	encoded := "type: snap-declaration\n" +
 		"authority-id: dev-id1\n" +
 		"snap-id: snap-id-1\n" +
@@ -79,7 +79,7 @@ func (sds *snapDeclSuite) TestDecodeInvalidHeaders(c *C) {
 		"\n\n" +
 		"openpgp c2ln"
 
-	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
+	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
 		{"grade: stable\n", "", `"grade" header is mandatory`},
@@ -88,9 +88,10 @@ func (sds *snapDeclSuite) TestDecodeInvalidHeaders(c *C) {
 		{"snap-size: 10000\n", "snap-size: -1\n", `"snap-size" header is not an unsigned integer: -1`},
 		{"snap-size: 10000\n", "snap-size: zzz\n", `"snap-size" header is not an unsigned integer: zzz`},
 		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+		{"body-length: 0\n\n", "body-length: 3\n\nxyz\n\n", "unexpected content in body"},
 	}
 
-	for _, test := range invalidHeaderTests {
+	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, snapDeclErrPrefix+test.expectedErr)
