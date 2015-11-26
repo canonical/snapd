@@ -43,12 +43,17 @@ func init() {
 	}
 }
 
+func run() error {
+	_, err := parser.Parse()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func main() {
-	if _, err := parser.Parse(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		if _, ok := err.(*flags.Error); !ok {
-			logger.Debugf("%v failed: %v", os.Args, err)
-		}
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }
