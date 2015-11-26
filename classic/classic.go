@@ -37,9 +37,9 @@ import (
 	"github.com/ubuntu-core/snappy/release"
 )
 
-const (
-	lxdBaseURL  = "https://images.linuxcontainers.org"
-	lxdIndexURL = lxdBaseURL + "/meta/1.0/index-system"
+var (
+	lxdBaseURL   = "https://images.linuxcontainers.org"
+	lxdIndexPath = "/meta/1.0/index-system"
 )
 
 var bindMountDirs = [][3]string{
@@ -94,8 +94,8 @@ func bindmount(src, dstPath, remountArg string) error {
 	return nil
 }
 
-// Run runs a shell in the classic environment
-func Run() error {
+// RunShell runs a shell in the classic environment
+func RunShell() error {
 	for _, l := range bindMountDirs {
 		src := l[0]
 		dst := l[1]
@@ -152,8 +152,8 @@ func findDownloadPath(r io.Reader) (string, error) {
 	return "", fmt.Errorf("needle %s not found", needle)
 }
 
-func findDownloadUrl() (string, error) {
-	resp, err := http.Get(lxdIndexURL)
+func findDownloadURL() (string, error) {
+	resp, err := http.Get(lxdBaseURL + lxdIndexPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to downlaod lxdIndexUrl: %s", err)
 	}
@@ -195,7 +195,7 @@ func downloadFile(url string, pbar progress.Meter) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("failed to download %s: %s", url, resp.StatusCode)
+		return "", fmt.Errorf("failed to download %s: %v", url, resp.StatusCode)
 	}
 
 	if pbar != nil {
@@ -222,6 +222,21 @@ while true; do
 done
 `)
 
+var runInChroot = func(chroot string, cmd ...string) error {
+	cmdArgs := []string{"chroot", chroot}
+	cmdArgs = append(cmdArgs, cmd...)
+
+	if output, err := exec.Command(cmdArgs[0], cmdArgs[1:]...).CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to run %s in chroot %s: %s (%s)", cmd, chroot, err, output)
+	}
+
+	return nil
+}
+
+var newProgress = func() progress.Meter {
+	return progress.NewTextProgress()
+}
+
 // Create creates a new classic shell envirionment
 func Create() error {
 	targetDir := dirs.ClassicDir
@@ -229,12 +244,12 @@ func Create() error {
 	if Enabled() {
 		return fmt.Errorf("clasic mode already created in %s", targetDir)
 	}
-	url, err := findDownloadUrl()
+	url, err := findDownloadURL()
 	if err != nil {
 		return err
 	}
 
-	pbar := progress.NewTextProgress()
+	pbar := newProgress()
 	fname, err := downloadFile(url, pbar)
 	if err != nil {
 		return err
@@ -258,13 +273,14 @@ func Create() error {
 		}
 	}
 
+	// ensure daemons do not start
 	if err := ioutil.WriteFile(filepath.Join(targetDir, "usr/sbin/policy-rc.d"), policyRc, 0755); err != nil {
 		return fmt.Errorf("failed to write policy-rc.d: %s", err)
 	}
 
 	// remove ubuntu user, will come from snappy OS
-	if output, err := exec.Command("chroot", targetDir, "deluser", "ubuntu").CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to remove ubuntu user from chroot: %s (%s)", err, output)
+	if err := runInChroot(targetDir, "deluser", "ubuntu"); err != nil {
+		return err
 	}
 
 	// install extra packages; make sure chroot can resolve DNS
@@ -279,11 +295,7 @@ func Create() error {
 	}
 
 	// enable libnss-extrausers
-	cmd = exec.Command("chroot", targetDir, "apt", "install", "-y", "libnss-extrausers")
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := runInChroot(targetDir, "apt-get", "install", "-y", "libnss-extrausers"); err != nil {
 		return err
 	}
 	cmd = exec.Command("sed", "-i", "-r", "/^(passwd|group|shadow):/ s/$/ extrausers/", filepath.Join(targetDir, "/etc/nsswitch.conf"))

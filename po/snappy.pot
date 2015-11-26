@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-11-25 11:20+0100\n"
+        "POT-Creation-Date: 2015-11-26 12:25+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -92,6 +92,9 @@ msgid   "Classic dimension disabled on this system.\n"
 msgstr  ""
 
 msgid   "Classic dimension is already enabled."
+msgstr  ""
+
+msgid   "Classic dimension is not enabled."
 msgstr  ""
 
 msgid   "Configures a package. The configuration is a YAML file, provided in the specified file which can be \"-\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config."

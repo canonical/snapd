@@ -1,0 +1,164 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2015 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package classic
+
+import (
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"testing"
+
+	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/arch"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/testutil"
+)
+
+// Hook up check.v1 into the "go test" runner
+func Test(t *testing.T) { TestingT(t) }
+
+type ClassicTestSuite struct {
+	testutil.BaseTest
+
+	runInChroot [][]string
+}
+
+var _ = Suite(&ClassicTestSuite{})
+
+func makeMockClassicEnv(c *C) {
+	canary := filepath.Join(dirs.ClassicDir, "etc/apt/sources.list")
+	err := os.MkdirAll(filepath.Dir(canary), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(canary, nil, 0644)
+	c.Assert(err, IsNil)
+}
+
+func (t *ClassicTestSuite) SetUpTest(c *C) {
+	t.BaseTest.SetUpTest(c)
+
+	dirs.ClassicDir = c.MkDir()
+
+	// mock the chroot handler
+	origRunInChroot := runInChroot
+	t.AddCleanup(func() { runInChroot = origRunInChroot })
+	runInChroot = func(chroot string, cmd ...string) error {
+		t.runInChroot = append(t.runInChroot, cmd)
+		return nil
+	}
+
+	// silent progress
+	origNewProgress := newProgress
+	t.AddCleanup(func() { newProgress = origNewProgress })
+	newProgress = func() progress.Meter { return &progress.NullProgress{} }
+}
+
+func (t *ClassicTestSuite) TestEnabledNotEnabled(c *C) {
+	c.Assert(Enabled(), Equals, false)
+}
+
+func (t *ClassicTestSuite) TestEnabledEnabled(c *C) {
+	makeMockClassicEnv(c)
+
+	c.Assert(Enabled(), Equals, true)
+}
+
+func makeMockLxdIndexSystem() string {
+	lsb, _ := release.ReadLsb()
+	arch := arch.UbuntuArchitecture()
+
+	s := fmt.Sprintf(`
+ubuntu;xenial;armhf;default;20151126_03:49;/images/ubuntu/xenial/armhf/default/20151126_03:49/
+ubuntu;%s;%s;default;20151126_03:49;/images/ubuntu/CODENAME/ARCH/default/20151126_03:49/
+`, lsb.Codename, arch)
+
+	return s
+}
+
+func makeMockRoot(c *C) string {
+	mockRoot := c.MkDir()
+	for _, d := range []string{"/etc", "/run", "/usr/sbin"} {
+		err := os.MkdirAll(filepath.Join(mockRoot, d), 0755)
+		c.Assert(err, IsNil)
+	}
+	for _, d := range []string{"/etc/nsswitch.conf", "/etc/apt/sources.list"} {
+		dst := filepath.Join(mockRoot, d)
+		err := os.MkdirAll(filepath.Dir(dst), 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(dst, nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	return mockRoot
+}
+
+func makeMockLxdTarball(c *C) io.ReadCloser {
+	mockRoot := makeMockRoot(c)
+
+	tar := filepath.Join(c.MkDir(), "foo.tar")
+	cmd := exec.Command("tar", "-C", mockRoot, "-cf", tar, ".")
+	err := cmd.Run()
+	c.Assert(err, IsNil)
+
+	f, err := os.Open(tar)
+	c.Assert(err, IsNil)
+	return f
+}
+
+func (t *ClassicTestSuite) makeMockLxdServer(c *C) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.RequestURI {
+		case "/meta/1.0/index-system":
+			s := makeMockLxdIndexSystem()
+			fmt.Fprintf(w, s)
+		case "/images/ubuntu/CODENAME/ARCH/default/20151126_03:49/rootfs.tar.xz":
+			r := makeMockLxdTarball(c)
+			defer r.Close()
+			io.Copy(w, r)
+		}
+	}))
+	t.AddCleanup(func() { ts.Close() })
+
+	origLxdBaseURL := lxdBaseURL
+	lxdBaseURL = ts.URL
+	t.AddCleanup(func() { lxdBaseURL = origLxdBaseURL })
+}
+
+func (t *ClassicTestSuite) TestCreate(c *C) {
+	t.makeMockLxdServer(c)
+
+	err := Create()
+	c.Assert(err, IsNil)
+	c.Assert(t.runInChroot, DeepEquals, [][]string{
+		{"deluser", "ubuntu"},
+		{"apt-get", "install", "-y", "libnss-extrausers"},
+	})
+	for _, canary := range []string{"/etc/nsswitch.conf", "/etc/hosts", "/usr/sbin/policy-rc.d"} {
+		c.Assert(helpers.FileExists(filepath.Join(dirs.ClassicDir, canary)), Equals, true)
+	}
+}

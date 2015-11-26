@@ -53,7 +53,7 @@ Use "sudo snappy enable-classic" to enable it.`))
 		}
 
 		fmt.Println(i18n.G(`All background processes will be killed when you leave this shell`))
-		return classic.Run()
+		return classic.RunShell()
 	}
 
 	return fmt.Errorf("unsupported shell %v", shellType)
