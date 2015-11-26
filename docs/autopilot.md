@@ -1,41 +1,41 @@
-# Autopilot mode
+# Autopilot
 
-Autopilot is a feature in development that will guarantee you are always up to
-date. This initial implementation is based out of `systemd` units and disabled
-by default.
-
-The usage presented here will become part of the snappy command itself.
+*Autopilot* is a feature that will guarantee you are always up to
+date. It is enabled by default, and can be disabled via `snappy config`.
 
 ## Usage
 
-To verify if the timer is active, run
+To check whether the feature is active, run
 
-    systemctl status -l snappy-autopilot.timer
+    snappy config ubuntu-core | grep autopilot
 
-Or for more details of when it is to be triggered can be seen as well by running
+If you want to disable it run
+
+    echo 'config: {ubuntu-core: {autopilot: off}}' | sudo snappy config ubuntu-core -
+
+and you then re-enable it via
+
+    echo 'config: {ubuntu-core: {autopilot: on}}' | sudo snappy config ubuntu-core -
+
+Every time autopilot triggers it will try to update the whole system;
+if an `ubuntu-core` update is available the system will automatically
+reboot, although a message is printed to console with instructions on
+how to abort the reboot, in case you are logged in at the time.
+
+> *Autopilot* is going to be renamed to *autoupdate* after `15.04`, as the name
+> *autopilot* can be confusing.
+
+## Implementation details
+
+For more details of when it is to be triggered you could dig into the
+implementation, via
 
     systemctl list-timers snappy-autopilot.timer
 
-If you want to enable it run
-
-    sudo systemctl enable snappy-autopilot.timer
-    sudo systemctl start snappy-autopilot.timer
-
-And consequently, do disable it run
-
-    sudo systemctl stop snappy-autopilot.timer
-    sudo systemctl disable snappy-autopilot.timer
-
-To only temporarily turn it off just issue `stop` (and omit `disable`).
-
-Every time the timer triggers it will try to update; if an `ubuntu-core` update
-is available the system won’t automatically reboot, but the update will take
-place.
-
-To inspect the update ran, run
+To check whether the update ran, run
 
     systemctl status -l snappy-autopilot.service
 
-And to view any output from the command run
+and to view any output from the command run
 
     sudo journalctl -u snappy-autopilot.service
