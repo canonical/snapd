@@ -40,7 +40,7 @@ var (
 func init() {
 	_, err := parser.AddCommand("list-caps", shortListCapsHelp, longListCapsHelp, &cmdListCaps{})
 	if err != nil {
-		logger.Panicf("Unable to list capabilities: %v", err)
+		logger.Panicf("unable to add list-caps command: %v", err)
 	}
 }
 
