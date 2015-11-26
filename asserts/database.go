@@ -160,11 +160,15 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 	}
 	// consider stored account keys
 	accountKeysTop := filepath.Join(db.root, assertionsRoot, string(AccountKeyType))
-	foundKey := func(primaryPath string) error {
-		fmt.Println(primaryPath)
+	foundKeyCb := func(primaryPath string) error {
+		accKey, err := db.readAssertion(AccountKeyType, primaryPath)
+		if err != nil {
+			return err
+		}
+		res = append(res, accKey.(*AccountKey))
 		return nil
 	}
-	err := findWildcard(accountKeysTop, []string{authorityID, "*" + fingerprintSuffix}, foundKey)
+	err := findWildcard(accountKeysTop, []string{url.QueryEscape(authorityID), "*" + fingerprintSuffix}, foundKeyCb)
 	if err != nil {
 		return nil, fmt.Errorf("broken assertion storage, scanning: %v", err)
 	}
