@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration,!excludeflaky
+// +build !excludeintegration,!excludeFlakyOnLowPerformance
 
 /*
  * Copyright (C) 2015 Canonical Ltd
