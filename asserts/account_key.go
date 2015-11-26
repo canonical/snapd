@@ -28,9 +28,9 @@ import (
 // belonging to the account.
 type AccountKey struct {
 	AssertionBase
-	since     time.Time
-	until     time.Time
-	publicKey PublicKey
+	since time.Time
+	until time.Time
+	PublicKey
 }
 
 // AccountID returns the account-id of this account-key.
@@ -88,7 +88,7 @@ func buildAccountKey(assert AssertionBase) (Assertion, error) {
 		AssertionBase: assert,
 		since:         since,
 		until:         until,
-		publicKey:     pubk,
+		PublicKey:     pubk,
 	}, nil
 }
 
