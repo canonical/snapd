@@ -204,6 +204,7 @@ reboot.
 ### Excluding flaky tests on low-performance systems
 
 We have found that some tests give random results on low-performance systems. You can
-exclude this tests by passing ```excludeflaky``` to the ```test-build-tags``` flag:
+exclude this tests by passing ```excludeFlakyOnLowPerformance``` to the ```test-build-tags```
+flag:
 
     go run integration-tests/main.go -test-build-tags=excludeFlakyOnLowPerformance

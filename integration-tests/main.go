@@ -77,7 +77,10 @@ func main() {
 
 	flag.Parse()
 
-	build.Assets(*useSnappyFromBranch, *arch, *testBuildTags)
+	build.Assets(&build.Config{
+		UseSnappyFromBranch: *useSnappyFromBranch,
+		Arch:                *arch,
+		TestBuildTags:       *testBuildTags})
 
 	// TODO: generate the files out of the source tree. --elopio - 2015-07-15
 	testutils.PrepareTargetDir(dataOutputDir)

@@ -57,18 +57,24 @@ var (
 		filepath.Join(testsBinDir, "snapd") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snapd")
 )
 
+// Config comprises the parameters for the Assets function
+type Config struct {
+	UseSnappyFromBranch bool
+	Arch, TestBuildTags string
+}
+
 // Assets builds the snappy and integration tests binaries for the target
 // architecture.
-func Assets(useSnappyFromBranch bool, arch, testBuildTags string) {
+func Assets(cfg *Config) {
 	prepareTargetDir(testsBinDir)
 
-	if useSnappyFromBranch {
+	if cfg.UseSnappyFromBranch {
 		// FIXME We need to build an image that has the snappy from the branch
 		// installed. --elopio - 2015-06-25.
-		buildSnappyCLI(arch)
-		buildSnapd(arch)
+		buildSnappyCLI(cfg.Arch)
+		buildSnapd(cfg.Arch)
 	}
-	buildTests(arch, testBuildTags)
+	buildTests(cfg.Arch, cfg.TestBuildTags)
 }
 
 func buildSnappyCLI(arch string) {
