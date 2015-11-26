@@ -206,14 +206,6 @@ func checkInteger(headers map[string]string, name string) (int, error) {
 	return value, nil
 }
 
-func checkAssertType(assertType AssertionType) (*assertionTypeRegistration, error) {
-	reg := typeRegistry[assertType]
-	if reg == nil {
-		return nil, fmt.Errorf("unknown assertion type: %v", assertType)
-	}
-	return reg, nil
-}
-
 func checkRevision(headers map[string]string) (int, error) {
 	revision, err := checkInteger(headers, "revision")
 	if err != nil {

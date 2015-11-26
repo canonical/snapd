@@ -37,6 +37,14 @@ func checkMandatory(headers map[string]string, name string) (string, error) {
 	return value, nil
 }
 
+func checkAssertType(assertType AssertionType) (*assertionTypeRegistration, error) {
+	reg := typeRegistry[assertType]
+	if reg == nil {
+		return nil, fmt.Errorf("unknown assertion type: %v", assertType)
+	}
+	return reg, nil
+}
+
 func checkRFC3339Date(headers map[string]string, name string) (time.Time, error) {
 	dateStr, err := checkMandatory(headers, name)
 	if err != nil {
