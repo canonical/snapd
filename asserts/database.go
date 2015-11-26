@@ -158,7 +158,17 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 			res = append(res, cand)
 		}
 	}
-	// TODO: consider other stored public key assertions
+	// consider stored account keys
+	accountKeysTop := filepath.Join(db.root, assertionsRoot, string(AccountKeyType))
+	foundKey := func(primaryPath string) error {
+		fmt.Println(primaryPath)
+		return nil
+	}
+	err := findWildcard(accountKeysTop, []string{authorityID, "*" + fingerprintSuffix}, foundKey)
+	if err != nil {
+		return nil, fmt.Errorf("broken assertion storage, scanning: %v", err)
+	}
+
 	return res, nil
 }
 
@@ -275,58 +285,69 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 	return assert, nil
 }
 
-func (db *Database) findWildcard(top string, primaryKeyWithWildcards []string) ([]string, error) {
-	var paths []string
-	paths, err := db.findWildcardDescend(filepath.Join(db.root, top), primaryKeyWithWildcards, paths)
-	if err != nil {
-		return nil, err
-	}
-	return paths, nil
+/*
+findWildcard invokes foundCb for each regular file matching:
+
+<top>/<descendantWithWildcard[0]>/<descendantWithWildcard[1]...
+
+where each descendantWithWildcard component can contain the * wildcard;
+
+foundCb is invoked with the path of the file relative to top (that means top/
+ is excluded).
+
+Any I/O operation error stops the walking and bottoms out, so a foundCb invocation that returns an error.
+*/
+func findWildcard(top string, descendantWithWildcard []string, foundCb func(relpath string) error) error {
+	return findWildcardDescend(top, top, descendantWithWildcard, foundCb)
 }
 
-func (db *Database) findWildcardDescend(root string, primaryKeyWithWildcards []string, paths []string) ([]string, error) {
-	if len(primaryKeyWithWildcards) == 0 {
-		finfo, err := os.Stat(root)
+func findWildcardDescend(top, current string, descendantWithWildcard []string, foundCb func(relpath string) error) error {
+	if len(descendantWithWildcard) == 0 {
+		finfo, err := os.Stat(current)
 		if os.IsNotExist(err) {
-			return paths, nil
+			return nil
 		}
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if !finfo.Mode().IsRegular() {
-			return nil, fmt.Errorf("expected a regular file: %v", root)
+			return fmt.Errorf("expected a regular file: %v", current)
 		}
-		return append(paths, root), nil
+		relpath, err := filepath.Rel(top, current)
+		if err != nil {
+			return fmt.Errorf("findWildcard: unexpected to fail at computing rel path of descendant")
+		}
+		return foundCb(relpath)
 	}
 
-	k := primaryKeyWithWildcards[0]
-	if strings.IndexRune(k, '*') == -1 {
-		return db.findWildcardDescend(filepath.Join(root, k), primaryKeyWithWildcards[1:], paths)
+	k := descendantWithWildcard[0]
+	if strings.IndexByte(k, '*') == -1 {
+		return findWildcardDescend(top, filepath.Join(current, k), descendantWithWildcard[1:], foundCb)
 	}
 
-	d, err := os.Open(root)
+	d, err := os.Open(current)
 	if os.IsNotExist(err) {
-		return paths, nil
+		return nil
 	}
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer d.Close()
 	names, err := d.Readdirnames(-1)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, name := range names {
 		ok, err := filepath.Match(k, name)
-		if err != nil { // we check malformedness of patterns beforehand
-			panic(err)
+		if err != nil {
+			return fmt.Errorf("findWildcard: invoked with malformed wildcard: %v", err)
 		}
 		if ok {
-			paths, err = db.findWildcardDescend(filepath.Join(root, name), primaryKeyWithWildcards[1:], paths)
+			err = findWildcardDescend(top, filepath.Join(current, name), descendantWithWildcard[1:], foundCb)
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
-	return paths, nil
+	return nil
 }

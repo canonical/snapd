@@ -208,17 +208,4 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(found, NotNil)
 	c.Check(found.Body(), DeepEquals, []byte(aks.pubKeyBody))
-
-	// find-wildcard
-	res, err := asserts.FindWildcard(db, "assertions-v0/"+string(asserts.AccountKeyType), []string{"*", "*"})
-	fmt.Println(err, res)
-
-	res, err = asserts.FindWildcard(db, "assertions-v0/"+string(asserts.AccountKeyType), []string{"foo", "*"})
-	fmt.Println(err, res)
-
-	res, err = asserts.FindWildcard(db, "assertions-v0/"+string(asserts.AccountKeyType), []string{"ac*", "foo"})
-	fmt.Println(err, res)
-
-	res, err = asserts.FindWildcard(db, "assertions-v0/"+string(asserts.AccountKeyType), []string{"acc-id1", "*" + string(aks.fp[24:])})
-	fmt.Println(err, res)
 }
