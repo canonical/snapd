@@ -47,14 +47,82 @@ func Enabled() bool {
 	return helpers.FileExists(filepath.Join(dirs.ClassicDir, "etc", "apt", "sources.list"))
 }
 
+func mountpoint(path string) bool {
+	err := exec.Command("mountpoint", path).Run()
+	// man-page: zero if the directory is a mountpoint, non-zero if not
+	return err == nil
+}
+
+func bindmount(src, dstPath, remountArg string) error {
+	dst := filepath.Join(dirs.ClassicDir, dstPath)
+	// already mounted
+	if mountpoint(dst) {
+		return nil
+	}
+	st, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if st.IsDir() && (st.Mode()&os.ModeSymlink == 0) {
+		if err := os.MkdirAll(dst, st.Mode().Perm()); err != nil {
+			return err
+		}
+	}
+	cmd := exec.Command("mount", "--make-rprivate", "--rbind", "-o", "rbind", src, dst)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("bind mounting %s to %s failed: %s (%s)", src, dst, err, output)
+	}
+
+	if remountArg != "" {
+		cmd := exec.Command("mount", "--rbind", "-o", "remount,"+remountArg, src, dst)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("remount %s to %s failed: %s (%s)", src, dst, err, output)
+		}
+	}
+
+	return nil
+}
+
+var bindMountDirs = [][3]string{
+	{"/home", "/home", ""},
+	{"/run", "/run", ""},
+	{"/proc", "/proc", ""},
+	{"/sys", "/sys", ""},
+	{"/var/lib/extrausers", "/var/lib/extrausers", "ro"},
+	{"/etc/sudoers", "/etc/sudoers", "ro"},
+	{"/etc/sudoers.d", "/etc/sudoers.d", "ro"},
+	{"/", "/snappy", ""},
+}
+
 // Run runs a shell in the classic environment
 func Run() error {
-	fmt.Println("Entering classic dimension")
-	cmd := exec.Command("/usr/share/ubuntu-snappy-cli/snappy-classic.sh")
+	for _, l := range bindMountDirs {
+		src := l[0]
+		dst := l[1]
+		args := l[2]
+		if err := bindmount(src, dst, args); err != nil {
+			return err
+		}
+	}
+
+	sudoUser := os.Getenv("SUDO_USER")
+	if sudoUser == "" {
+		sudoUser = "root"
+	}
+
+	cmd := exec.Command("systemd-run", "--quiet", "--scope", "--unit=snappy-classic.scope", "--description=Snappy Classic shell", "chroot", dirs.ClassicDir, "sudo", "debian_chroot=classic", "-u", sudoUser, "-i")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	cmd.Run()
+
+	// kill leftover processes after exiting, if it's still around
+	cmd = exec.Command("systemctl", "stop", "snappy-classic.scope")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to cleanup classic: %s (%s)", err, output)
+	}
+
+	return nil
 }
 
 func findDownloadPath(r io.Reader) (string, error) {
