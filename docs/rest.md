@@ -553,6 +553,28 @@ The result is a JSON object with a capabilities key; its value itself is a JSON
 object whose keys are capability names (e.g., "power-button") and whose values
 describe that capability.
 
+Each capability has the following attributes:
+
+name:
+	Name is a key that identifies the capability. It must be unique within its
+	context, which may be either a snap or a snappy runtime.
+
+label:
+	Label provides an optional title for the capability to help a human tell
+	which physical device this capability is referring to. It might say "Front
+	USB", or "Green Serial Port", for example.
+
+type:
+	Type defines the type of this capability. The capability type defines the
+	behavior allowed and expected from providers and consumers of that
+	capability, and also which information should be exchanged by these
+	parties.
+
+attrs:
+	Attrs are key-value pairs that provide type-specific capability details.
+	The attribute 'attrs' itself may not be present if there are no attributes
+	to mention.
+
 Sample result:
 
 ```javascript
