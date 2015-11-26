@@ -235,12 +235,12 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 	}
 
 	if _, err := checkMandatory(headers, "authority-id"); err != nil {
-		return nil, fmt.Errorf("assertion %v", err)
+		return nil, fmt.Errorf("assertion: %v", err)
 	}
 
 	typ, err := checkMandatory(headers, "type")
 	if err != nil {
-		return nil, fmt.Errorf("assertion %v", err)
+		return nil, fmt.Errorf("assertion: %v", err)
 	}
 	assertType := AssertionType(typ)
 	reg, err := checkAssertType(assertType)

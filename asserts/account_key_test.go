@@ -91,10 +91,10 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 		"openpgp c2ln"
 
 	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
-		{"account-id: acc-id1\n", "", "account-id header is mandatory"},
-		{aks.sinceLine, "", "since header is mandatory"},
-		{aks.untilLine, "", "until header is mandatory"},
-		{aks.sinceLine, "since: 12:30\n", "since header is not a RFC3339 date: .*"},
+		{"account-id: acc-id1\n", "", `"account-id" header is mandatory`},
+		{aks.sinceLine, "", `"since" header is mandatory`},
+		{aks.untilLine, "", `"until" header is mandatory`},
+		{aks.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
 		{aks.untilLine, "until: " + aks.since.Format(time.RFC3339) + "\n", `invalid 'since' and 'until' times \(no gap after 'since' till 'until'\)`},
 		{"fingerprint: " + aks.fp + "\n", "", "missing fingerprint header"},
 	}

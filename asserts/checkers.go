@@ -29,10 +29,10 @@ import (
 func checkMandatory(headers map[string]string, name string) (string, error) {
 	value, ok := headers[name]
 	if !ok {
-		return "", fmt.Errorf("%v header is mandatory", name)
+		return "", fmt.Errorf("%q header is mandatory", name)
 	}
 	if len(value) == 0 {
-		return "", fmt.Errorf("%v should not be empty", name)
+		return "", fmt.Errorf("%q should not be empty", name)
 	}
 	return value, nil
 }
@@ -44,7 +44,7 @@ func checkRFC3339Date(headers map[string]string, name string) (time.Time, error)
 	}
 	date, err := time.Parse(time.RFC3339, dateStr)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("%v header is not a RFC3339 date: %v", name, err)
+		return time.Time{}, fmt.Errorf("%q header is not a RFC3339 date: %v", name, err)
 	}
 	return date, nil
 }
