@@ -100,7 +100,7 @@ func buildSnapDeclaration(assert AssertionBase) (Assertion, error) {
 }
 
 func init() {
-	typeRegistry[AssertionType("snap-declaration")] = &assertionTypeRegistration{
+	typeRegistry[SnapDeclarationType] = &assertionTypeRegistration{
 		builder:    buildSnapDeclaration,
 		primaryKey: []string{"snap-id", "snap-digest"},
 	}
