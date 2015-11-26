@@ -20,18 +20,18 @@
 package caps
 
 import (
-	"testing"
+	"encoding/json"
 
 	. "gopkg.in/check.v1"
 )
 
-func TestType(t *testing.T) {
-	TestingT(t)
-}
-
 type TypeSuite struct{}
 
 var _ = Suite(&TypeSuite{})
+
+// testType is only meant for testing. It is not useful in any way except
+// that it offers an simple capability type that will happily validate.
+var testType = &Type{"test"}
 
 func (s *TypeSuite) TestTypeString(c *C) {
 	c.Assert(testType.String(), Equals, "test")
@@ -61,4 +61,17 @@ func (s *TypeSuite) TestValidateAttributes(c *C) {
 	}
 	err := testType.Validate(cap)
 	c.Assert(err, ErrorMatches, "attributes must be empty for now")
+}
+
+func (s *TypeSuite) TestMarhshalJSON(c *C) {
+	b, err := json.Marshal(testType)
+	c.Assert(err, IsNil)
+	c.Assert(b, DeepEquals, []byte(`"test"`))
+}
+
+func (s *TypeSuite) TestUnmarhshalJSON(c *C) {
+	var t Type
+	err := json.Unmarshal([]byte(`"test"`), &t)
+	c.Assert(err, IsNil)
+	c.Assert(t.Name, Equals, "test")
 }

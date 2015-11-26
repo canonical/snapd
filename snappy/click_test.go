@@ -336,6 +336,7 @@ type: framework
 	c.Assert(d.Build(tmpdir, func(dataTar string) error {
 		return writeHashes(tmpdir, dataTar)
 	}), IsNil)
+	defer os.Remove(snapName)
 
 	_, err = installClick(snapName, 0, nil, testOrigin)
 	c.Assert(err, IsNil)

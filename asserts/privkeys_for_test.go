@@ -17,12 +17,26 @@
  *
  */
 
-package release
+package asserts_test
 
-func HackLsbReleasePath(fn string) (reset func()) {
-	origLsbReleasePath := lsbReleasePath
-	lsbReleasePath = fn
-	return func() {
-		lsbReleasePath = origLsbReleasePath
+import (
+	"fmt"
+
+	"golang.org/x/crypto/openpgp/packet"
+
+	"github.com/ubuntu-core/snappy/asserts"
+)
+
+// private keys to use in tests
+var (
+	testPrivKey0 = genTestPrivKey()
+	testPrivKey1 = genTestPrivKey()
+)
+
+func genTestPrivKey() *packet.PrivateKey {
+	privKey, err := asserts.GeneratePrivateKeyInTest()
+	if err != nil {
+		panic(fmt.Errorf("failed to create priv key for tests: %v", err))
 	}
+	return privKey
 }

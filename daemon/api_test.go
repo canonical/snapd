@@ -743,7 +743,7 @@ func (s *apiSuite) TestPackagesPutStr(c *check.C) {
 	newConfigs := map[string]string{"foo.bar": "some other config", "baz.qux": "stuff", "missing.pkg": "blah blah"}
 	bs, err := json.Marshal(newConfigs)
 	c.Assert(err, check.IsNil)
-	s.genericTestPackagePut(c, bytes.NewBuffer(bs), 2, map[string]*configSubtask{
+	s.genericTestPackagePut(c, bytes.NewBuffer(bs), map[string]*configSubtask{
 		"foo.bar":     &configSubtask{Status: TaskSucceeded, Output: "some other config"},
 		"baz.qux":     &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrConfigNotFound.Error(), Obj: snappy.ErrConfigNotFound, Msg: "Config failed"}},
 		"missing.pkg": &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrPackageNotFound.Error(), Obj: snappy.ErrPackageNotFound}},
@@ -754,13 +754,13 @@ func (s *apiSuite) TestPackagesPutNil(c *check.C) {
 	newConfigs := map[string][]byte{"foo.bar": nil, "mip.brp": nil}
 	bs, err := json.Marshal(newConfigs)
 	c.Assert(err, check.IsNil)
-	s.genericTestPackagePut(c, bytes.NewBuffer(bs), 2, map[string]*configSubtask{
+	s.genericTestPackagePut(c, bytes.NewBuffer(bs), map[string]*configSubtask{
 		"foo.bar": &configSubtask{Status: TaskSucceeded, Output: "some: config"},
 		"mip.brp": &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrSnapNotActive.Error(), Obj: snappy.ErrSnapNotActive}},
 	})
 }
 
-func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, concreteNo int, expected map[string]*configSubtask) {
+func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, expected map[string]*configSubtask) {
 	d := newTestDaemon()
 
 	req, err := http.NewRequest("PUT", "/1.0/packages", body)
@@ -797,7 +797,6 @@ func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, concreteNo 
 
 	task := d.GetTask(uuid)
 	c.Assert(task, check.NotNil)
-	c.Check(task.State(), check.Equals, TaskRunning)
 
 	// wait up to another ten seconds (!) for the task to finish properly
 	for i := 0; i < 1000; i++ {

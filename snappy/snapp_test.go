@@ -78,9 +78,6 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
-	// fake "du"
-	duCmd = makeFakeDuCommand(c)
-
 	// fake udevadm
 	runUdevAdm = func(args ...string) error {
 		return nil

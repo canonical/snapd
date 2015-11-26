@@ -25,10 +25,24 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/ubuntu-core/snappy/coreconfig"
 )
 
 // can be overriden by tests
 var aaExec = "aa-exec"
+
+// for the unit tests
+var coreConfig = coreConfigImpl
+
+// coreConfig configure the OS snap
+func coreConfigImpl(configuration []byte) (newConfig string, err error) {
+	if cfg := string(configuration); cfg != "" {
+		return coreconfig.Set(cfg)
+	}
+
+	return coreconfig.Get()
+}
 
 // snapConfig configures a installed snap in the given directory
 //
