@@ -48,6 +48,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if _, ok := err.(*flags.Error); !ok {
+		logger.Debugf("cannot parse arguments: %v: %v", os.Args, err)
+	}
 	return nil
 }
 
