@@ -29,13 +29,37 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/testutil"
 
 	. "gopkg.in/check.v1"
 )
 
-func makeFakeDuCommand(c *C) string {
+type BuildTestSuite struct {
+	testutil.BaseTest
+}
+
+var _ = Suite(&BuildTestSuite{})
+
+func (s *BuildTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	// chdir into a tempdir
+	pwd, err := os.Getwd()
+	c.Assert(err, IsNil)
+	s.AddCleanup(func() { os.Chdir(pwd) })
+	err = os.Chdir(c.MkDir())
+	c.Assert(err, IsNil)
+
+	// fake "du"
+	s.makeFakeDuCommand(c)
+
+	// use fake root
+	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *BuildTestSuite) makeFakeDuCommand(c *C) {
 	tempdir := c.MkDir()
 	duCmdPath := filepath.Join(tempdir, "du")
 	fakeDuContent := `#!/bin/sh
@@ -43,7 +67,11 @@ echo 17 some-dir`
 	err := ioutil.WriteFile(duCmdPath, []byte(fakeDuContent), 0755)
 	c.Assert(err, IsNil)
 
-	return duCmdPath
+	// cleanup later
+	origDuCmd := duCmd
+	s.AddCleanup(func() { duCmd = origDuCmd })
+	// replace real du with our mock
+	duCmd = duCmdPath
 }
 
 func makeExampleSnapSourceDir(c *C, packageYaml string) string {
@@ -95,7 +123,7 @@ printf "hello world"
 	return tempdir
 }
 
-func (s *SnapTestSuite) TestBuildSimple(c *C) {
+func (s *BuildTestSuite) TestBuildSimple(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 architecture: ["i386", "amd64"]
@@ -106,7 +134,6 @@ integration:
 
 	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
-	defer os.Remove(resultSnap)
 
 	// check that there is result
 	_, err = os.Stat(resultSnap)
@@ -144,7 +171,7 @@ integration:
 	}
 }
 
-func (s *SnapTestSuite) TestBuildAutoGenerateIntegrationHooksBinaries(c *C) {
+func (s *BuildTestSuite) TestBuildAutoGenerateIntegrationHooksBinaries(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 2.0.1
 architectures:
@@ -155,7 +182,6 @@ binaries:
 
 	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
-	defer os.Remove(resultSnap)
 
 	// check that there is result
 	_, err = os.Stat(resultSnap)
@@ -184,7 +210,7 @@ binaries:
 	c.Assert(string(readJSON), Equals, expectedJSON)
 }
 
-func (s *SnapTestSuite) TestBuildAutoGenerateIntegrationHooksServices(c *C) {
+func (s *BuildTestSuite) TestBuildAutoGenerateIntegrationHooksServices(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 3.0.1
 services:
@@ -194,7 +220,6 @@ services:
 
 	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
-	defer os.Remove(resultSnap)
 
 	// check that there is result
 	_, err = os.Stat(resultSnap)
@@ -221,7 +246,7 @@ services:
 	c.Assert(string(readJSON), Equals, expectedJSON)
 }
 
-func (s *SnapTestSuite) TestBuildAutoGenerateConfigAppArmor(c *C) {
+func (s *BuildTestSuite) TestBuildAutoGenerateConfigAppArmor(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 4.0.1
 `)
@@ -232,7 +257,6 @@ version: 4.0.1
 
 	resultSnap, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
-	defer os.Remove(resultSnap)
 
 	// check that there is result
 	_, err = os.Stat(resultSnap)
@@ -255,14 +279,14 @@ version: 4.0.1
 }`
 }
 
-func (s *SnapTestSuite) TestBuildNoManifestFails(c *C) {
+func (s *BuildTestSuite) TestBuildNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "package.yaml")), IsNil)
 	_, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
 }
 
-func (s *SnapTestSuite) TestBuildManifestRequiresMissingLicense(c *C) {
+func (s *BuildTestSuite) TestBuildManifestRequiresMissingLicense(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 architecture: ["i386", "amd64"]
@@ -275,7 +299,7 @@ explicit-license-agreement: Y
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
 }
 
-func (s *SnapTestSuite) TestBuildManifestRequiresBlankLicense(c *C) {
+func (s *BuildTestSuite) TestBuildManifestRequiresBlankLicense(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 architecture: ["i386", "amd64"]
@@ -290,7 +314,7 @@ explicit-license-agreement: Y
 	c.Assert(err, Equals, ErrLicenseBlank)
 }
 
-func (s *SnapTestSuite) TestCopyCopies(c *C) {
+func (s *BuildTestSuite) TestCopyCopies(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 	// actually this'll be on /tmp so it'll be a link
 	target := c.MkDir()
@@ -300,7 +324,7 @@ func (s *SnapTestSuite) TestCopyCopies(c *C) {
 	c.Check(out, DeepEquals, []byte{})
 }
 
-func (s *SnapTestSuite) TestCopyActuallyCopies(c *C) {
+func (s *BuildTestSuite) TestCopyActuallyCopies(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 
 	// hoping to get the non-linking behaviour via /dev/shm
@@ -312,14 +336,13 @@ func (s *SnapTestSuite) TestCopyActuallyCopies(c *C) {
 	}
 	c.Assert(err, IsNil)
 
-	defer os.Remove(target)
 	c.Assert(copyToBuildDir(sourceDir, target), IsNil)
 	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
 	c.Check(err, IsNil)
 	c.Check(out, DeepEquals, []byte{})
 }
 
-func (s *SnapTestSuite) TestCopyExcludesBackups(c *C) {
+func (s *BuildTestSuite) TestCopyExcludesBackups(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 	target := c.MkDir()
 	// add a backup file
@@ -332,7 +355,7 @@ func (s *SnapTestSuite) TestCopyExcludesBackups(c *C) {
 	c.Check(string(out), Matches, `(?m)Only in \S+: foo~`)
 }
 
-func (s *SnapTestSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
+func (s *BuildTestSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 	target := c.MkDir()
 	// add a toplevel DEBIAN
@@ -349,7 +372,7 @@ func (s *SnapTestSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
 	c.Check(strings.Count(string(out), "Only in"), Equals, 1)
 }
 
-func (s *SnapTestSuite) TestCopyExcludesWholeDirs(c *C) {
+func (s *BuildTestSuite) TestCopyExcludesWholeDirs(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 	target := c.MkDir()
 	// add a file inside a skipped dir
@@ -364,12 +387,12 @@ func (s *SnapTestSuite) TestCopyExcludesWholeDirs(c *C) {
 	c.Check(string(out), Matches, `(?m)Only in \S+: \.bzr`)
 }
 
-func (s *SnapTestSuite) TestExcludeDynamicFalseIfNoSnapignore(c *C) {
+func (s *BuildTestSuite) TestExcludeDynamicFalseIfNoSnapignore(c *C) {
 	basedir := c.MkDir()
 	c.Check(shouldExcludeDynamic(basedir, "foo"), Equals, false)
 }
 
-func (s *SnapTestSuite) TestExcludeDynamicWorksIfSnapignore(c *C) {
+func (s *BuildTestSuite) TestExcludeDynamicWorksIfSnapignore(c *C) {
 	basedir := c.MkDir()
 	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("foo\nb.r\n"), 0644), IsNil)
 	c.Check(shouldExcludeDynamic(basedir, "foo"), Equals, true)
@@ -378,7 +401,7 @@ func (s *SnapTestSuite) TestExcludeDynamicWorksIfSnapignore(c *C) {
 	c.Check(shouldExcludeDynamic(basedir, "baz"), Equals, false)
 }
 
-func (s *SnapTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
+func (s *BuildTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
 	basedir := c.MkDir()
 	c.Assert(ioutil.WriteFile(filepath.Join(basedir, ".snapignore"), []byte("*hello\n"), 0644), IsNil)
 	// note “*hello” is not a valid regexp, so will be taken literally (not globbed!)
@@ -386,7 +409,7 @@ func (s *SnapTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
 	c.Check(shouldExcludeDynamic(basedir, "*hello"), Equals, true)
 }
 
-func (s *SnapTestSuite) TestBuildSimpleOutputDir(c *C) {
+func (s *BuildTestSuite) TestBuildSimpleOutputDir(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 architecture: ["i386", "amd64"]
@@ -437,7 +460,7 @@ integration:
 	}
 }
 
-func (s *SnapTestSuite) TestBuildChecksForClashes(c *C) {
+func (s *BuildTestSuite) TestBuildChecksForClashes(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 services:
@@ -449,13 +472,13 @@ binaries:
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
 }
 
-func (s *SnapTestSuite) TestDebArchitecture(c *C) {
+func (s *BuildTestSuite) TestDebArchitecture(c *C) {
 	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo"}}), Equals, "foo")
 	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo", "bar"}}), Equals, "multi")
 	c.Check(debArchitecture(&packageYaml{Architectures: nil}), Equals, "unknown")
 }
 
-func (s *SnapTestSuite) TestHashForFileForDevice(c *C) {
+func (s *BuildTestSuite) TestHashForFileForDevice(c *C) {
 	// skip test
 	if !helpers.FileExists("/dev/kmsg") {
 		c.Skip("no /dev/kmsg")
@@ -470,14 +493,13 @@ func (s *SnapTestSuite) TestHashForFileForDevice(c *C) {
 	c.Assert(h.Sha512, Equals, "")
 }
 
-func (s *SnapTestSuite) TestBuildAllPermissions(c *C) {
+func (s *BuildTestSuite) TestBuildAllPermissions(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 `)
 
-	resultSnap, err := BuildLegacySnap(sourceDir, "")
+	_, err := BuildLegacySnap(sourceDir, "")
 	c.Assert(err, IsNil)
-	defer os.Remove(resultSnap)
 
 	// check that the content looks sane
 	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_all.snap").CombinedOutput()
@@ -488,7 +510,7 @@ version: 1.0.1
 	c.Assert(strings.Contains(string(readFiles), `-rw-rw-rw-`), Equals, true)
 }
 
-func (s *SnapTestSuite) TestBuildFailsForUnknownType(c *C) {
+func (s *BuildTestSuite) TestBuildFailsForUnknownType(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 `)
@@ -499,7 +521,7 @@ version: 1.0.1
 	c.Assert(err, ErrorMatches, "can not handle type of file .*")
 }
 
-func (s *SnapTestSuite) TestBuildSquashfsSimple(c *C) {
+func (s *BuildTestSuite) TestBuildSquashfsSimple(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
 architecture: ["i386", "amd64"]
@@ -510,7 +532,6 @@ integration:
 
 	resultSnap, err := BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, IsNil)
-	defer os.Remove(resultSnap)
 
 	// check that there is result
 	_, err = os.Stat(resultSnap)

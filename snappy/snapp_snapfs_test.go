@@ -29,17 +29,21 @@ import (
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/pkg/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/testutil"
 
 	. "gopkg.in/check.v1"
 )
 
 type SquashfsTestSuite struct {
+	testutil.BaseTest
+
 	bootvars map[string]string
 }
 
 func (s *SquashfsTestSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
+	s.BaseTest.SetUpTest(c)
 
+	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 
 	// ensure we do not run a real systemd
@@ -49,6 +53,7 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 
 	// ensure we use the right builder func (squashfs)
 	snapBuilderFunc = BuildSquashfsSnap
+	s.AddCleanup(func() { snapBuilderFunc = BuildLegacySnap })
 
 	// mock the boot variable writing for the tests
 	s.bootvars = make(map[string]string)
@@ -64,11 +69,11 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	bootloaderDir = func() string {
 		return mockBootDir
 	}
+	s.AddCleanup(func() { bootloaderDir = partition.BootloaderDir })
 }
 
 func (s *SquashfsTestSuite) TearDownTest(c *C) {
-	snapBuilderFunc = BuildLegacySnap
-	bootloaderDir = partition.BootloaderDir
+	s.BaseTest.TearDownTest(c)
 }
 
 var _ = Suite(&SquashfsTestSuite{})
