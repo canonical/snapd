@@ -42,6 +42,17 @@ const (
 	lxdIndexURL = lxdBaseURL + "/meta/1.0/index-system"
 )
 
+var bindMountDirs = [][3]string{
+	{"/home", "/home", ""},
+	{"/run", "/run", ""},
+	{"/proc", "/proc", ""},
+	{"/sys", "/sys", ""},
+	{"/var/lib/extrausers", "/var/lib/extrausers", "ro"},
+	{"/etc/sudoers", "/etc/sudoers", "ro"},
+	{"/etc/sudoers.d", "/etc/sudoers.d", "ro"},
+	{"/", "/snappy", ""},
+}
+
 // Enabled returns true if the classic mode is already enabled
 func Enabled() bool {
 	return helpers.FileExists(filepath.Join(dirs.ClassicDir, "etc", "apt", "sources.list"))
@@ -81,17 +92,6 @@ func bindmount(src, dstPath, remountArg string) error {
 	}
 
 	return nil
-}
-
-var bindMountDirs = [][3]string{
-	{"/home", "/home", ""},
-	{"/run", "/run", ""},
-	{"/proc", "/proc", ""},
-	{"/sys", "/sys", ""},
-	{"/var/lib/extrausers", "/var/lib/extrausers", "ro"},
-	{"/etc/sudoers", "/etc/sudoers", "ro"},
-	{"/etc/sudoers.d", "/etc/sudoers.d", "ro"},
-	{"/", "/snappy", ""},
 }
 
 // Run runs a shell in the classic environment
@@ -299,11 +299,24 @@ func Create() error {
 	return nil
 }
 
+func umount(path string) error {
+	if output, err := exec.Command("umount", path).CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to umount %s: %s (%s)", path, err, output)
+	}
+
+	return nil
+}
+
 // Destroy destroys a classic environment
 func Destroy() error {
-	return fmt.Errorf("no implemented yet, need to undo bind mounts")
-	/*
-		cmd := exec.Command("rm", "-rf", dirs.ClassicDir)
-		return cmd.Run()
-	*/
+	for _, l := range bindMountDirs {
+		dst := filepath.Join(dirs.ClassicDir, l[1])
+		if mountpoint(dst) {
+			if err := umount(dst); err != nil {
+				return err
+			}
+		}
+	}
+
+	return os.RemoveAll(dirs.ClassicDir)
 }

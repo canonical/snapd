@@ -42,6 +42,15 @@ func init() {
 	if err != nil {
 		logger.Panicf("Unable to enable-classic: %v", err)
 	}
+
+	// for testing
+	_, err = parser.AddCommand("destroy-classic",
+		"destroy classic",
+		"destroy classic",
+		&cmdDestroyClassic{})
+	if err != nil {
+		logger.Panicf("Unable to enable-classic: %v", err)
+	}
 }
 
 func (x *cmdEnableClassic) Execute(args []string) (err error) {
@@ -55,5 +64,21 @@ func (x *cmdEnableClassic) Execute(args []string) (err error) {
 
 	fmt.Println(`Classic dimension enabled on this snappy system.
 Use “sudo snappy shell classic” to enter the classic dimension.`)
+	return nil
+}
+
+type cmdDestroyClassic struct {
+}
+
+func (x *cmdDestroyClassic) Execute(args []string) (err error) {
+	if !classic.Enabled() {
+		return fmt.Errorf(i18n.G("Classic dimension is not enabled."))
+	}
+
+	if err := classic.Destroy(); err != nil {
+		return err
+	}
+
+	fmt.Println(`Classic dimension destroyed on this snappy system.`)
 	return nil
 }
