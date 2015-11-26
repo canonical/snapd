@@ -70,3 +70,16 @@ func checkRFC3339Date(headers map[string]string, name string) (time.Time, error)
 	}
 	return date, nil
 }
+
+func checkUint(headers map[string]string, name string, bitSize int) (uint64, error) {
+	valueStr, err := checkMandatory(headers, name)
+	if err != nil {
+		return 0, err
+	}
+
+	value, err := strconv.ParseUint(valueStr, 10, bitSize)
+	if err != nil {
+		return 0, fmt.Errorf("%q header is not an unsigned integer: %v", name, valueStr)
+	}
+	return value, nil
+}
