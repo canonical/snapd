@@ -111,7 +111,7 @@ func (s *BuildSuite) fakeOsGetenv(key string) (value string) {
 }
 
 func (s *BuildSuite) TestAssetsCallsPrepareDir(c *check.C) {
-	Assets(&Config{})
+	Assets(nil)
 
 	mkDirCall := s.mkDirCalls[testsBinDir]
 
@@ -121,7 +121,7 @@ func (s *BuildSuite) TestAssetsCallsPrepareDir(c *check.C) {
 }
 
 func (s *BuildSuite) TestAssetsBuildsTests(c *check.C) {
-	Assets(&Config{})
+	Assets(nil)
 
 	// not passing test build tags by default
 	testBuildTags := ""
@@ -134,7 +134,7 @@ func (s *BuildSuite) TestAssetsBuildsTests(c *check.C) {
 }
 
 func (s *BuildSuite) TestAssetsRenamesBuiltBinary(c *check.C) {
-	Assets(&Config{})
+	Assets(nil)
 
 	cmd := "tests.test " + testsBinDir + IntegrationTestName
 	renameCall := s.osRenameCalls[cmd]
@@ -193,7 +193,7 @@ func (s *BuildSuite) TestAssetsSetsEnvironmentForArm(c *check.C) {
 }
 
 func (s *BuildSuite) TestAssetsDoesNotSetEnvironmentForEmptyArch(c *check.C) {
-	Assets(&Config{})
+	Assets(nil)
 
 	setenvGOARCHFirstCall := s.osSetenvCalls["GOARCH "]
 	setenvGOARCHFinalCall := s.osSetenvCalls["GOARCH "+os.Getenv("GOARCH")]
@@ -232,7 +232,7 @@ func (s *BuildSuite) TestAssetsBuildsSnappyCliFromBranch(c *check.C) {
 }
 
 func (s *BuildSuite) TestAssetsDoesNotBuildSnappyCliFromBranchIfNotInstructedTo(c *check.C) {
-	Assets(&Config{})
+	Assets(nil)
 
 	buildCall := s.execCalls[buildSnappyCliCmd]
 
@@ -252,7 +252,7 @@ func (s *BuildSuite) TestAssetsBuildsSnapdFromBranch(c *check.C) {
 }
 
 func (s *BuildSuite) TestAssetsDoesNotBuildSnapdFromBranchIfNotInstructedTo(c *check.C) {
-	Assets(&Config{})
+	Assets(nil)
 
 	buildCall := s.execCalls[buildSnapdCmd]
 

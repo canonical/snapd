@@ -66,6 +66,9 @@ type Config struct {
 // Assets builds the snappy and integration tests binaries for the target
 // architecture.
 func Assets(cfg *Config) {
+	if cfg == nil {
+		cfg = &Config{}
+	}
 	prepareTargetDir(testsBinDir)
 
 	if cfg.UseSnappyFromBranch {
