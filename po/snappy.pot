@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-11-18 10:56+0100\n"
+        "POT-Creation-Date: 2015-11-26 13:02+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -140,6 +140,9 @@ msgid   "List assigned hardware device for a package"
 msgstr  ""
 
 msgid   "List assigned hardware for a specific installed package"
+msgstr  ""
+
+msgid   "List system capabilities"
 msgstr  ""
 
 msgid   "Log into the store"
@@ -327,6 +330,9 @@ msgid   "This command logs the given username into the store"
 msgstr  ""
 
 msgid   "This command removes access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
+msgstr  ""
+
+msgid   "This command shows all capabilities and their allocation"
 msgstr  ""
 
 msgid   "Unassign a hardware device to a package"
