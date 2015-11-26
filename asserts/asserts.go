@@ -193,17 +193,6 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 	return buildAssertion(headers, body, content, signature)
 }
 
-func checkMandatory(headers map[string]string, name string) (string, error) {
-	value, ok := headers[name]
-	if !ok {
-		return "", fmt.Errorf("assertion %v header is mandatory", name)
-	}
-	if len(value) == 0 {
-		return "", fmt.Errorf("assertion %v should not be empty", name)
-	}
-	return value, nil
-}
-
 func checkInteger(headers map[string]string, name string) (int, error) {
 	valueStr, ok := headers[name]
 	if !ok {
@@ -246,12 +235,12 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 	}
 
 	if _, err := checkMandatory(headers, "authority-id"); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("assertion %v", err)
 	}
 
 	typ, err := checkMandatory(headers, "type")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("assertion %v", err)
 	}
 	assertType := AssertionType(typ)
 	reg, err := checkAssertType(assertType)
