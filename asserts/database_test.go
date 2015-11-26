@@ -93,11 +93,9 @@ func (dbs *databaseSuite) SetUpTest(c *C) {
 }
 
 func (dbs *databaseSuite) TestImportKey(c *C) {
-	privk, err := asserts.GeneratePrivateKeyInTest()
-	c.Assert(err, IsNil)
-	expectedFingerprint := hex.EncodeToString(privk.PublicKey.Fingerprint[:])
+	expectedFingerprint := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
 
-	fingerp, err := dbs.db.ImportKey("account0", privk)
+	fingerp, err := dbs.db.ImportKey("account0", testPrivKey1)
 	c.Assert(err, IsNil)
 	c.Check(fingerp, Equals, expectedFingerprint)
 
@@ -124,7 +122,6 @@ func (dbs *databaseSuite) TestGenerateKey(c *C) {
 }
 
 type checkSuite struct {
-	key1    *packet.PrivateKey
 	rootDir string
 	a       asserts.Assertion
 }
@@ -133,8 +130,6 @@ var _ = Suite(&checkSuite{})
 
 func (chks *checkSuite) SetUpTest(c *C) {
 	var err error
-	chks.key1, err = asserts.GeneratePrivateKeyInTest()
-	c.Assert(err, IsNil)
 
 	chks.rootDir = filepath.Join(c.MkDir(), "asserts-db")
 
@@ -142,7 +137,7 @@ func (chks *checkSuite) SetUpTest(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "0",
 	}
-	chks.a, err = asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, chks.key1)
+	chks.a, err = asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)
 }
 
@@ -156,9 +151,7 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 }
 
 func (chks *checkSuite) TestCheckForgery(c *C) {
-	key2, err := asserts.GeneratePrivateKeyInTest()
-	c.Assert(err, IsNil)
-	dbTrustedKey := asserts.WrapPublicKey(&key2.PublicKey)
+	dbTrustedKey := asserts.WrapPublicKey(&testPrivKey0.PublicKey)
 
 	cfg := &asserts.DatabaseConfig{
 		Path: chks.rootDir,
@@ -173,13 +166,13 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	content, encodedSig := chks.a.Signature()
 	// forgery
 	forgedSig := new(packet.Signature)
-	forgedSig.PubKeyAlgo = chks.key1.PubKeyAlgo
+	forgedSig.PubKeyAlgo = testPrivKey1.PubKeyAlgo
 	forgedSig.Hash = crypto.SHA256
 	forgedSig.CreationTime = time.Now()
-	forgedSig.IssuerKeyId = &key2.KeyId
+	forgedSig.IssuerKeyId = &testPrivKey0.KeyId
 	h := crypto.SHA256.New()
 	h.Write(content)
-	err = forgedSig.Sign(h, chks.key1, &packet.Config{DefaultHash: crypto.SHA256})
+	err = forgedSig.Sign(h, testPrivKey1, &packet.Config{DefaultHash: crypto.SHA256})
 	c.Assert(err, IsNil)
 	buf := new(bytes.Buffer)
 	forgedSig.Serialize(buf)
@@ -195,19 +188,14 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 }
 
 type addFindSuite struct {
-	key1 *packet.PrivateKey
-	db   *asserts.Database
+	db *asserts.Database
 }
 
 var _ = Suite(&addFindSuite{})
 
 func (afs *addFindSuite) SetUpTest(c *C) {
-	var err error
-	afs.key1, err = asserts.GeneratePrivateKeyInTest()
-	c.Assert(err, IsNil)
-
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
-	dbTrustedKey := asserts.WrapPublicKey(&afs.key1.PublicKey)
+	dbTrustedKey := asserts.WrapPublicKey(&testPrivKey0.PublicKey)
 	cfg := &asserts.DatabaseConfig{
 		Path: rootDir,
 		TrustedKeys: map[string][]asserts.PublicKey{
@@ -224,7 +212,7 @@ func (afs *addFindSuite) TestAddSuperseding(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, afs.key1)
+	a1, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)
 
 	err = afs.db.Add(a1)
@@ -238,7 +226,7 @@ func (afs *addFindSuite) TestAddSuperseding(c *C) {
 	c.Check(retrieved1.Revision(), Equals, 0)
 
 	headers["revision"] = "1"
-	a2, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, afs.key1)
+	a2, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)
 
 	err = afs.db.Add(a2)
@@ -260,7 +248,7 @@ func (afs *addFindSuite) TestFindNotFound(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, afs.key1)
+	a1, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)
 
 	err = afs.db.Add(a1)
