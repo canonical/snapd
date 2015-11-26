@@ -3,5 +3,3 @@
 data/completion/snappy /usr/share/bash-completion/completions/
 # i18n stuff
 ../../share /usr
-# helper scripts
-../../classic/*.sh /usr/share/ubuntu-snappy-cli
