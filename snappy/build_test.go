@@ -53,14 +53,13 @@ func (s *BuildTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// fake "du"
-	duCmd = makeFakeDuCommand(c)
-	s.AddCleanup(func() { duCmd = "du" })
+	s.makeFakeDuCommand(c)
 
 	// use fake root
 	dirs.SetRootDir(c.MkDir())
 }
 
-func makeFakeDuCommand(c *C) string {
+func (s *BuildTestSuite) makeFakeDuCommand(c *C) {
 	tempdir := c.MkDir()
 	duCmdPath := filepath.Join(tempdir, "du")
 	fakeDuContent := `#!/bin/sh
@@ -68,7 +67,11 @@ echo 17 some-dir`
 	err := ioutil.WriteFile(duCmdPath, []byte(fakeDuContent), 0755)
 	c.Assert(err, IsNil)
 
-	return duCmdPath
+	// cleanup later
+	origDuCmd := duCmd
+	s.AddCleanup(func() { duCmd = origDuCmd })
+	// replace real du with our mock
+	duCmd = duCmdPath
 }
 
 func makeExampleSnapSourceDir(c *C, packageYaml string) string {
