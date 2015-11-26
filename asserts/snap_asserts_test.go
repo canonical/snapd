@@ -87,7 +87,6 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
 		{"grade: stable\n", "", `"grade" header is mandatory`},
-		{"grade: stable\n", "grade: zzz\n", `grade must be either "stable" or "devel"`},
 		{"snap-size: 10000\n", "", `"snap-size" header is mandatory`},
 		{"snap-size: 10000\n", "snap-size: -1\n", `"snap-size" header is not an unsigned integer: -1`},
 		{"snap-size: 10000\n", "snap-size: zzz\n", `"snap-size" header is not an unsigned integer: zzz`},
