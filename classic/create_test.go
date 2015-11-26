@@ -43,23 +43,15 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type ClassicTestSuite struct {
+type CreateTestSuite struct {
 	testutil.BaseTest
 
 	runInChroot [][]string
 }
 
-var _ = Suite(&ClassicTestSuite{})
+var _ = Suite(&CreateTestSuite{})
 
-func makeMockClassicEnv(c *C) {
-	canary := filepath.Join(dirs.ClassicDir, "etc/apt/sources.list")
-	err := os.MkdirAll(filepath.Dir(canary), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(canary, nil, 0644)
-	c.Assert(err, IsNil)
-}
-
-func (t *ClassicTestSuite) SetUpTest(c *C) {
+func (t *CreateTestSuite) SetUpTest(c *C) {
 	t.BaseTest.SetUpTest(c)
 
 	dirs.ClassicDir = c.MkDir()
@@ -76,16 +68,6 @@ func (t *ClassicTestSuite) SetUpTest(c *C) {
 	origNewProgress := newProgress
 	t.AddCleanup(func() { newProgress = origNewProgress })
 	newProgress = func() progress.Meter { return &progress.NullProgress{} }
-}
-
-func (t *ClassicTestSuite) TestEnabledNotEnabled(c *C) {
-	c.Assert(Enabled(), Equals, false)
-}
-
-func (t *ClassicTestSuite) TestEnabledEnabled(c *C) {
-	makeMockClassicEnv(c)
-
-	c.Assert(Enabled(), Equals, true)
 }
 
 func makeMockLxdIndexSystem() string {
@@ -130,7 +112,7 @@ func makeMockLxdTarball(c *C) io.ReadCloser {
 	return f
 }
 
-func (t *ClassicTestSuite) makeMockLxdServer(c *C) {
+func (t *CreateTestSuite) makeMockLxdServer(c *C) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.RequestURI {
 		case "/meta/1.0/index-system":
@@ -149,7 +131,7 @@ func (t *ClassicTestSuite) makeMockLxdServer(c *C) {
 	t.AddCleanup(func() { lxdBaseURL = origLxdBaseURL })
 }
 
-func (t *ClassicTestSuite) TestCreate(c *C) {
+func (t *CreateTestSuite) TestCreate(c *C) {
 	t.makeMockLxdServer(c)
 
 	err := Create()
