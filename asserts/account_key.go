@@ -48,28 +48,14 @@ func (ak *AccountKey) Until() time.Time {
 	return ak.until
 }
 
-// TODO: move check* helpers to separate file if they get reused
-
-func checkRFC3339Date(ab *AssertionBase, name string) (time.Time, error) {
-	dateStr := ab.Header(name)
-	if dateStr == "" {
-		return time.Time{}, fmt.Errorf("%v header is mandatory", name)
-	}
-	date, err := time.Parse(time.RFC3339, dateStr)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("%v header is not a RFC3339 date: %v", name, err)
-	}
-	return date, nil
-}
-
 func checkPublicKey(ab *AssertionBase, fingerprintName string) (PublicKey, error) {
 	pubKey, err := parsePublicKey(ab.Body())
 	if err != nil {
 		return nil, err
 	}
-	fp := ab.Header(fingerprintName)
-	if len(fp) == 0 {
-		return nil, fmt.Errorf("missing %v header", fingerprintName)
+	fp, err := checkMandatory(ab.headers, fingerprintName)
+	if err != nil {
+		return nil, err
 	}
 	if fp != pubKey.Fingerprint() {
 		return nil, fmt.Errorf("public key does not match provided fingerprint")
@@ -78,14 +64,15 @@ func checkPublicKey(ab *AssertionBase, fingerprintName string) (PublicKey, error
 }
 
 func buildAccountKey(assert AssertionBase) (Assertion, error) {
-	if assert.Header("account-id") == "" {
-		return nil, fmt.Errorf("account-id header is mandatory")
-	}
-	since, err := checkRFC3339Date(&assert, "since")
+	_, err := checkMandatory(assert.headers, "account-id")
 	if err != nil {
 		return nil, err
 	}
-	until, err := checkRFC3339Date(&assert, "until")
+	since, err := checkRFC3339Date(assert.headers, "since")
+	if err != nil {
+		return nil, err
+	}
+	until, err := checkRFC3339Date(assert.headers, "until")
 	if err != nil {
 		return nil, err
 	}
