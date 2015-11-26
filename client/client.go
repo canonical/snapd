@@ -147,8 +147,8 @@ type Capability struct {
 	Attrs map[string]string `json:"attrs,omitempty"`
 }
 
-// GetCapabilities gets the list of capabilities from the REST API
-func (client *Client) GetCapabilities() ([]Capability, error) {
+// Capabilities returns the capabilities currently available for snaps to consume.
+func (client *Client) Capabilities() ([]Capability, error) {
 	var rsp response
 	if err := client.do("GET", "/1.0/capabilities", nil, &rsp); err != nil {
 		return nil, err

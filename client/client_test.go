@@ -119,7 +119,7 @@ func (cs *clientSuite) TestClientReportsInnerJSONError(c *check.C) {
 	c.Check(err, check.ErrorMatches, `bad sysinfo result .*`)
 }
 
-func (cs *clientSuite) TestClientGetCapabilities(c *check.C) {
+func (cs *clientSuite) TestClientCapabilities(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": [
@@ -131,7 +131,7 @@ func (cs *clientSuite) TestClientGetCapabilities(c *check.C) {
 		}
 		]
 	}`
-	caps, err := cs.cli.GetCapabilities()
+	caps, err := cs.cli.Capabilities()
 	c.Check(err, check.IsNil)
 	c.Check(caps, check.DeepEquals, []client.Capability{{
 		Name:  "n",
