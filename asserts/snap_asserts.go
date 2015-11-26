@@ -20,7 +20,6 @@
 package asserts
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -69,12 +68,9 @@ func buildSnapDeclaration(assert AssertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	grade, err := checkMandatory(assert.headers, "grade")
+	_, err = checkMandatory(assert.headers, "grade")
 	if err != nil {
 		return nil, err
-	}
-	if grade != "stable" && grade != "devel" {
-		return nil, fmt.Errorf(`grade must be either "stable" or "devel"`)
 	}
 
 	size, err := checkUint(assert.headers, "snap-size", 64)
