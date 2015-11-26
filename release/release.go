@@ -89,7 +89,7 @@ func ReadLsb() (*Lsb, error) {
 
 	content, err := ioutil.ReadFile(lsbReleasePath)
 	if err != nil {
-		return nil, fmt.Errorf("can not read lsb-release: %s", err)
+		return nil, fmt.Errorf("cannot read lsb-release: %s", err)
 	}
 
 	for _, line := range strings.Split(string(content), "\n") {

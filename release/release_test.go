@@ -70,10 +70,8 @@ DISTRIB_DESCRIPTION=I'm not real!
 }
 
 func (a *ReleaseTestSuite) TestReadLsb(c *C) {
-	realLsbRelease := release.LsbReleasePath()
-	defer func() { release.SetLsbReleasePath(realLsbRelease) }()
-
-	release.SetLsbReleasePath(makeMockLsbRelease(c))
+	reset := release.HackLsbReleasePath(makeMockLsbRelease(c))
+	defer reset()
 
 	lsb, err := release.ReadLsb()
 	c.Assert(err, IsNil)
@@ -83,11 +81,9 @@ func (a *ReleaseTestSuite) TestReadLsb(c *C) {
 }
 
 func (a *ReleaseTestSuite) TestReadLsbNotFound(c *C) {
-	realLsbRelease := release.LsbReleasePath()
-	defer func() { release.SetLsbReleasePath(realLsbRelease) }()
-
-	release.SetLsbReleasePath("not-there")
+	reset := release.HackLsbReleasePath("not-there")
+	defer reset()
 
 	_, err := release.ReadLsb()
-	c.Assert(err, ErrorMatches, "can not read lsb-release:.*")
+	c.Assert(err, ErrorMatches, "cannot read lsb-release:.*")
 }

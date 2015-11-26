@@ -19,10 +19,10 @@
 
 package release
 
-func SetLsbReleasePath(fn string) {
+func HackLsbReleasePath(fn string) (reset func()) {
+	origLsbReleasePath := lsbReleasePath
 	lsbReleasePath = fn
-}
-
-func LsbReleasePath() string {
-	return lsbReleasePath
+	return func() {
+		lsbReleasePath = origLsbReleasePath
+	}
 }
