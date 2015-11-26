@@ -40,6 +40,8 @@ func bindmount(src, dstPath, remountArg string) error {
 	if mountpoint(dst) {
 		return nil
 	}
+
+	// see if we need to create the dir in dstPath
 	st, err := os.Stat(src)
 	if err != nil {
 		return err
@@ -49,11 +51,14 @@ func bindmount(src, dstPath, remountArg string) error {
 			return err
 		}
 	}
+
+	// do the actual mount
 	cmd := exec.Command("mount", "--make-rprivate", "--rbind", "-o", "rbind", src, dst)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("bind mounting %s to %s failed: %s (%s)", src, dst, err, output)
 	}
 
+	// remount as needed (ro)
 	if remountArg != "" {
 		cmd := exec.Command("mount", "--rbind", "-o", "remount,"+remountArg, src, dst)
 		if output, err := cmd.CombinedOutput(); err != nil {

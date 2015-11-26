@@ -41,6 +41,8 @@ var bindMountDirs = [][3]string{
 
 // RunShell runs a shell in the classic environment
 func RunShell() error {
+
+	// setup the bind mounts
 	for _, l := range bindMountDirs {
 		src := l[0]
 		dst := l[1]
@@ -50,11 +52,13 @@ func RunShell() error {
 		}
 	}
 
+	// drop to the calling user
 	sudoUser := os.Getenv("SUDO_USER")
 	if sudoUser == "" {
 		sudoUser = "root"
 	}
 
+	// run chroot shell inside a systemd "scope"
 	cmd := exec.Command("systemd-run", "--quiet", "--scope", "--unit=snappy-classic.scope", "--description=Snappy Classic shell", "chroot", dirs.ClassicDir, "sudo", "debian_chroot=classic", "-u", sudoUser, "-i")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -70,7 +74,7 @@ func RunShell() error {
 	return nil
 }
 
-// Destroy destroys a classic environment
+// Destroy destroys a classic environment, i.e. unmonts and removes all files
 func Destroy() error {
 	for _, l := range bindMountDirs {
 		dst := filepath.Join(dirs.ClassicDir, l[1])

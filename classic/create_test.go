@@ -28,7 +28,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -39,9 +38,6 @@ import (
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/testutil"
 )
-
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
 
 type CreateTestSuite struct {
 	testutil.BaseTest

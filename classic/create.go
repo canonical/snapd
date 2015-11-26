@@ -43,7 +43,7 @@ var (
 	lxdIndexPath = "/meta/1.0/index-system"
 )
 
-func findDownloadPath(r io.Reader) (string, error) {
+func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
 	arch := arch.UbuntuArchitecture()
 	lsb, err := release.ReadLsb()
 	if err != nil {
@@ -77,7 +77,7 @@ func findDownloadURL() (string, error) {
 	}
 	defer resp.Body.Close()
 
-	dlPath, err := findDownloadPath(resp.Body)
+	dlPath, err := findDownloadPathFromLxdIndex(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -155,75 +155,99 @@ var newProgress = func() progress.Meter {
 	return progress.NewTextProgress()
 }
 
-// Create creates a new classic shell envirionment
-func Create() error {
-	targetDir := dirs.ClassicDir
-
-	if Enabled() {
-		return fmt.Errorf("clasic mode already created in %s", targetDir)
-	}
+func downloadLxdRootfs() (string, error) {
 	url, err := findDownloadURL()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	pbar := newProgress()
 	fname, err := downloadFile(url, pbar)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
+	return fname, nil
+}
+
+func unpackLxdRootfs(fname string) error {
+	if err := os.MkdirAll(dirs.ClassicDir, 0755); err != nil {
 		return fmt.Errorf("failed to create classic mode dir: %s", err)
 	}
 
-	cmd := exec.Command("tar", "-C", targetDir, "-xpf", fname)
-	if cmd.Run() != nil {
+	cmd := exec.Command("tar", "-C", dirs.ClassicDir, "-xpf", fname)
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to unpack %s: %s", fname, err)
 	}
 
+	return nil
+}
+
+func customizeClassicChroot() error {
 	// copy configs
 	for _, f := range []string{"hostname", "hosts", "timezone", "localtime"} {
 		src := filepath.Join("/etc/", f)
-		dst := filepath.Join(targetDir, "etc", f)
+		dst := filepath.Join(dirs.ClassicDir, "etc", f)
 		if err := helpers.CopyFile(src, dst, helpers.CopyFlagPreserveAll); err != nil {
 			return err
 		}
 	}
 
 	// ensure daemons do not start
-	if err := ioutil.WriteFile(filepath.Join(targetDir, "/usr/sbin/policy-rc.d"), policyRc, 0755); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(dirs.ClassicDir, "/usr/sbin/policy-rc.d"), policyRc, 0755); err != nil {
 		return fmt.Errorf("failed to write policy-rc.d: %s", err)
 	}
 
 	// remove ubuntu user, will come from snappy OS
-	if err := runInChroot(targetDir, "deluser", "ubuntu"); err != nil {
+	if err := runInChroot(dirs.ClassicDir, "deluser", "ubuntu"); err != nil {
 		return err
 	}
 
 	// install extra packages; make sure chroot can resolve DNS
-	resolveDir := filepath.Join(targetDir, "/run/resolvconf/")
+	resolveDir := filepath.Join(dirs.ClassicDir, "/run/resolvconf/")
 	if err := os.MkdirAll(resolveDir, 0755); err != nil {
 		return fmt.Errorf("failed to create %s: %s", resolveDir, err)
 	}
 	src := "/run/resolvconf/resolv.conf"
-	dst := filepath.Join(targetDir, "/run/resolvconf/")
+	dst := filepath.Join(dirs.ClassicDir, "/run/resolvconf/")
 	if err := helpers.CopyFile(src, dst, helpers.CopyFlagPreserveAll); err != nil {
 		return fmt.Errorf("failed to copy %s to %s", src, dst)
 	}
 
 	// enable libnss-extrausers
-	if err := runInChroot(targetDir, "apt-get", "install", "-y", "libnss-extrausers"); err != nil {
+	if err := runInChroot(dirs.ClassicDir, "apt-get", "install", "-y", "libnss-extrausers"); err != nil {
 		return err
 	}
-	cmd = exec.Command("sed", "-i", "-r", "/^(passwd|group|shadow):/ s/$/ extrausers/", filepath.Join(targetDir, "/etc/nsswitch.conf"))
+	cmd := exec.Command("sed", "-i", "-r", "/^(passwd|group|shadow):/ s/$/ extrausers/", filepath.Join(dirs.ClassicDir, "/etc/nsswitch.conf"))
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to enable libness-extrausers: %s", output)
 	}
 
 	// clean up cruft (bad lxd rootfs!)
-	if output, err := exec.Command("sh", "-c", fmt.Sprintf("rm -rf %s/run/*", targetDir)).CombinedOutput(); err != nil {
+	if output, err := exec.Command("sh", "-c", fmt.Sprintf("rm -rf %s/run/*", dirs.ClassicDir)).CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to cleanup classic /run dir: %s (%s)", err, output)
+	}
+
+	return nil
+}
+
+// Create creates a new classic shell envirionment
+func Create() error {
+	if Enabled() {
+		return fmt.Errorf("clasic mode already created in %s", dirs.ClassicDir)
+	}
+
+	lxdRootfsTar, err := downloadLxdRootfs()
+	if err != nil {
+		return err
+	}
+
+	if err := unpackLxdRootfs(lxdRootfsTar); err != nil {
+		return err
+	}
+
+	if err := customizeClassicChroot(); err != nil {
+		return err
 	}
 
 	return nil
