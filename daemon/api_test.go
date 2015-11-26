@@ -789,6 +789,7 @@ func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, expected ma
 	rsp := configMulti(packagesCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+	c.Check(rsp.Status, check.Equals, http.StatusAccepted)
 	m := rsp.Result.(map[string]interface{})
 	c.Check(m["resource"], check.Matches, "/1.0/operations/.*")
 
@@ -796,7 +797,6 @@ func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, expected ma
 
 	task := d.GetTask(uuid)
 	c.Assert(task, check.NotNil)
-	c.Check(task.State(), check.Equals, TaskRunning)
 
 	// wait up to another ten seconds (!) for the task to finish properly
 	for i := 0; i < 1000; i++ {
