@@ -155,14 +155,14 @@ func (client *Client) Capabilities() ([]Capability, error) {
 	}
 	if rsp.Type == "error" {
 		// TODO: handle structured errors
-		return nil, fmt.Errorf("failed with %q", rsp.Status)
+		return nil, fmt.Errorf("cannot obtain capabilities: %s", rsp.Status)
 	}
 	if rsp.Type != "sync" {
-		return nil, fmt.Errorf("unexpected result type %q", rsp.Type)
+		return nil, fmt.Errorf("cannot obtain capabilities: expected sync response, got %s", rsp.Type)
 	}
 	var caps []Capability
 	if err := json.Unmarshal(rsp.Result, &caps); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot obtain capabilities: failed to unmarshal response: %v", err)
 	}
 	return caps, nil
 }
