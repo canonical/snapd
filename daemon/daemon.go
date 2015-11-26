@@ -56,26 +56,62 @@ type Command struct {
 	PUT    ResponseFunc
 	POST   ResponseFunc
 	DELETE ResponseFunc
+	// can guest GET?
+	GuestOK bool
+	// can non-admin GET?
+	UserOK bool
 	//
 	d *Daemon
 }
 
-func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var rspf ResponseFunc
-	var rsp Response = BadMethod
-
-	switch r.Method {
-	case "GET":
-		rspf = c.GET
-	case "PUT":
-		rspf = c.PUT
-	case "POST":
-		rspf = c.POST
-	case "DELETE":
-		rspf = c.DELETE
+func (c *Command) canAccess(r *http.Request) bool {
+	isUser := false
+	if uid, err := ucrednetGetUID(r.RemoteAddr); err == nil {
+		if uid == 0 {
+			// superuser does anything
+			return true
+		}
+		isUser = true
 	}
-	if rspf != nil {
-		rsp = rspf(c, r)
+
+	// only superuser can modify
+	if r.Method != "GET" {
+		return false
+	}
+
+	if isUser && c.UserOK {
+		return true
+	}
+
+	if c.GuestOK {
+		return true
+	}
+
+	return false
+}
+
+func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var rsp Response = Unauthorized
+
+	if c.canAccess(r) {
+		var rspf ResponseFunc
+
+		switch r.Method {
+		case "GET":
+			rspf = c.GET
+		case "PUT":
+			rspf = c.PUT
+		case "POST":
+			rspf = c.POST
+		case "DELETE":
+			rspf = c.DELETE
+		}
+
+		if rspf == nil {
+			rsp = BadMethod
+		} else {
+			rsp = rspf(c, r)
+		}
 	}
 
 	rsp.ServeHTTP(w, r)

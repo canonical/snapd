@@ -75,15 +75,77 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 	for _, method := range []string{"GET", "POST", "PUT", "DELETE"} {
 		req, err := http.NewRequest(method, "", nil)
 		c.Assert(err, check.IsNil)
-		cmd.ServeHTTP(nil, req)
+
+		rec := httptest.NewRecorder()
+		cmd.ServeHTTP(rec, req)
+		c.Check(rec.Code, check.Equals, http.StatusUnauthorized)
+
+		rec = httptest.NewRecorder()
+		req.RemoteAddr = "uid=0;" + req.RemoteAddr
+
+		cmd.ServeHTTP(rec, req)
 		c.Check(mck.lastMethod, check.Equals, method)
+		c.Check(rec.Code, check.Equals, http.StatusOK)
 	}
 
 	req, err := http.NewRequest("POTATO", "", nil)
 	c.Assert(err, check.IsNil)
+	req.RemoteAddr = "uid=0;" + req.RemoteAddr
+
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, http.StatusMethodNotAllowed)
+}
+
+func (s *daemonSuite) TestGuestAccess(c *check.C) {
+	get := &http.Request{Method: "GET"}
+	put := &http.Request{Method: "PUT"}
+
+	cmd := &Command{}
+	c.Check(cmd.canAccess(get), check.Equals, false)
+	c.Check(cmd.canAccess(put), check.Equals, false)
+
+	cmd = &Command{UserOK: true}
+	c.Check(cmd.canAccess(get), check.Equals, false)
+	c.Check(cmd.canAccess(put), check.Equals, false)
+
+	cmd = &Command{GuestOK: true}
+	c.Check(cmd.canAccess(get), check.Equals, true)
+	c.Check(cmd.canAccess(put), check.Equals, false)
+}
+
+func (s *daemonSuite) TestUserAccess(c *check.C) {
+	get := &http.Request{Method: "GET", RemoteAddr: "uid=42;"}
+	put := &http.Request{Method: "PUT", RemoteAddr: "uid=42;"}
+
+	cmd := &Command{}
+	c.Check(cmd.canAccess(get), check.Equals, false)
+	c.Check(cmd.canAccess(put), check.Equals, false)
+
+	cmd = &Command{UserOK: true}
+	c.Check(cmd.canAccess(get), check.Equals, true)
+	c.Check(cmd.canAccess(put), check.Equals, false)
+
+	cmd = &Command{GuestOK: true}
+	c.Check(cmd.canAccess(get), check.Equals, true)
+	c.Check(cmd.canAccess(put), check.Equals, false)
+}
+
+func (s *daemonSuite) TestSuperAccess(c *check.C) {
+	get := &http.Request{Method: "GET", RemoteAddr: "uid=0;"}
+	put := &http.Request{Method: "PUT", RemoteAddr: "uid=0;"}
+
+	cmd := &Command{}
+	c.Check(cmd.canAccess(get), check.Equals, true)
+	c.Check(cmd.canAccess(put), check.Equals, true)
+
+	cmd = &Command{UserOK: true}
+	c.Check(cmd.canAccess(get), check.Equals, true)
+	c.Check(cmd.canAccess(put), check.Equals, true)
+
+	cmd = &Command{GuestOK: true}
+	c.Check(cmd.canAccess(get), check.Equals, true)
+	c.Check(cmd.canAccess(put), check.Equals, true)
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {
