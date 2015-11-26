@@ -761,7 +761,6 @@ func (s *apiSuite) TestPackagesPutNil(c *check.C) {
 }
 
 func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, expected map[string]*configSubtask) {
-	ch := make(chan int)
 	d := newTestDaemon()
 
 	req, err := http.NewRequest("PUT", "/1.0/packages", body)
@@ -773,7 +772,6 @@ func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, expected ma
 		lightweight.NewConcrete = oldConcrete
 	}()
 	lightweight.NewConcrete = func(bag *lightweight.PartBag, _ string) lightweight.Concreter {
-		ch <- 1
 		switch bag.Name {
 		case "foo":
 			return &cfgc{cfg: configStr}
@@ -791,7 +789,6 @@ func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, expected ma
 	rsp := configMulti(packagesCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
-	c.Check(rsp.Status, check.Equals, http.StatusAccepted)
 	m := rsp.Result.(map[string]interface{})
 	c.Check(m["resource"], check.Matches, "/1.0/operations/.*")
 
@@ -800,11 +797,6 @@ func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, expected ma
 	task := d.GetTask(uuid)
 	c.Assert(task, check.NotNil)
 	c.Check(task.State(), check.Equals, TaskRunning)
-
-	// one for each installed package above
-	<-ch
-	<-ch
-	<-ch
 
 	// wait up to another ten seconds (!) for the task to finish properly
 	for i := 0; i < 1000; i++ {
