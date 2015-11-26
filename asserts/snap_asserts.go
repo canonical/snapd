@@ -58,11 +58,6 @@ func (snapdcl *SnapDeclaration) Timestamp() time.Time {
 }
 
 func buildSnapDeclaration(assert AssertionBase) (Assertion, error) {
-	// XXX: or should we ignore not empty bodies for forward compatibility?
-	if len(assert.Body()) != 0 {
-		return nil, fmt.Errorf("unexpected content in body")
-	}
-
 	_, err := checkMandatory(assert.headers, "snap-id")
 	if err != nil {
 		return nil, err
@@ -91,7 +86,7 @@ func buildSnapDeclaration(assert AssertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	// ignore extra headers for future compatibility
+	// ignore extra headers and non-empty body for future compatibility
 	return &SnapDeclaration{
 		AssertionBase: assert,
 		size:          size,

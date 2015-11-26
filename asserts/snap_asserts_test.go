@@ -88,7 +88,6 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		{"snap-size: 10000\n", "snap-size: -1\n", `"snap-size" header is not an unsigned integer: -1`},
 		{"snap-size: 10000\n", "snap-size: zzz\n", `"snap-size" header is not an unsigned integer: zzz`},
 		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
-		{"body-length: 0\n\n", "body-length: 3\n\nxyz\n\n", "unexpected content in body"},
 	}
 
 	for _, test := range invalidTests {
