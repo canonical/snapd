@@ -125,7 +125,7 @@ func (s *BuildSuite) TestAssetsBuildsTests(c *check.C) {
 
 	// not passing test build tags by default
 	testBuildTags := ""
-	cmd := fmt.Sprintf(buildTestCmd, testBuildTags)
+	cmd := fmt.Sprintf(buildTestCmdFmt, testBuildTags)
 	buildCall := s.execCalls[cmd]
 
 	c.Assert(buildCall, check.Equals, 1,
@@ -265,7 +265,7 @@ func (s *BuildSuite) TestAssetsHonoursBuildTags(c *check.C) {
 	testBuildTags := "mybuildtag"
 	Assets(&Config{TestBuildTags: testBuildTags})
 
-	tagBuildTestCmd := fmt.Sprintf(buildTestCmd, " -tags=mybuildtag")
+	tagBuildTestCmd := fmt.Sprintf(buildTestCmdFmt, " -tags=mybuildtag")
 	buildCall := s.execCalls[tagBuildTestCmd]
 
 	c.Assert(buildCall, check.Equals, 1,

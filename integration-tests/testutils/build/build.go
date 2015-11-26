@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	buildTestCmd = "go test%s -c ./integration-tests/tests"
+	buildTestCmdFmt = "go test%s -c ./integration-tests/tests"
 
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
@@ -94,7 +94,7 @@ func buildTests(arch, testBuildTags string) {
 	if testBuildTags != "" {
 		tagText = " -tags=" + testBuildTags
 	}
-	cmd := fmt.Sprintf(buildTestCmd, tagText)
+	cmd := fmt.Sprintf(buildTestCmdFmt, tagText)
 
 	goCall(arch, cmd)
 	// XXX Go test 1.3 does not have the output flag, so we move the
