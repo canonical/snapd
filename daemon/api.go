@@ -908,5 +908,7 @@ func appIconGet(c *Command, r *http.Request) Response {
 }
 
 func getCapabilities(c *Command, r *http.Request) Response {
-	return SyncResponse(c.d.capRepo.All())
+	return SyncResponse(map[string]interface{}{
+		"capabilities": c.d.capRepo.Caps(),
+	})
 }

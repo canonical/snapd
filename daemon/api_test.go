@@ -1206,7 +1206,21 @@ func (s *apiSuite) TestGetCapabilities(c *check.C) {
 	capabilitiesCmd.GET(capabilitiesCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.Body.String(), testutil.Contains, "serial-port")
-	c.Check(rec.Body.String(), check.Equals,
-		`{"result":[{"name":"serial-port","label":"A serial port",`+
-			`"type":"file"}],"status":"OK","status_code":200,"type":"sync"}`)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"capabilities": map[string]interface{}{
+				"serial-port": map[string]interface{}{
+					"label": "A serial port",
+					"name":  "serial-port",
+					"type":  "file",
+				},
+			},
+		},
+		"status":      "OK",
+		"status_code": 200.0, // A float because $reasons
+		"type":        "sync",
+	})
 }
