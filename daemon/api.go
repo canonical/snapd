@@ -73,17 +73,16 @@ var (
 		GET:     v1Get,
 	}
 
-	// XXX: this and the following could arguably be information leaks
 	metaIconCmd = &Command{
-		Path:    "/1.0/icons/{icon}",
-		GuestOK: true,
-		GET:     metaIconGet,
+		Path:   "/1.0/icons/{icon}",
+		UserOK: true,
+		GET:    metaIconGet,
 	}
 
 	appIconCmd = &Command{
-		Path:    "/1.0/icons/{name}.{origin}/icon",
-		GuestOK: true,
-		GET:     appIconGet,
+		Path:   "/1.0/icons/{name}.{origin}/icon",
+		UserOK: true,
+		GET:    appIconGet,
 	}
 
 	packagesCmd = &Command{
