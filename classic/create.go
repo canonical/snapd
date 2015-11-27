@@ -184,6 +184,11 @@ func unpackLxdRootfs(fname string) error {
 }
 
 func customizeClassicChroot() error {
+	// create the snappy mountpoint
+	if err := os.MkdirAll(filepath.Join(dirs.ClassicDir, "snappy"), 0755); err != nil {
+		return fmt.Errorf("failed to create snappy mount point: %s", err)
+	}
+
 	// copy configs
 	for _, f := range []string{"hostname", "hosts", "timezone", "localtime"} {
 		src := filepath.Join("/etc/", f)
