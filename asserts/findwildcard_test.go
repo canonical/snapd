@@ -55,6 +55,7 @@ func (fs *findWildcardSuite) TestFindWildcard(c *C) {
 	res = nil
 	err = findWildcard(top, []string{"acc-id1", "*cd"}, foundCb)
 	c.Assert(err, IsNil)
+	sort.Strings(res)
 	c.Check(res, DeepEquals, []string{"acc-id1/abcd", "acc-id1/e5cd"})
 }
 
