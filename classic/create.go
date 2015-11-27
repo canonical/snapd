@@ -29,6 +29,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
@@ -41,6 +42,8 @@ import (
 var (
 	lxdBaseURL   = "https://images.linuxcontainers.org"
 	lxdIndexPath = "/meta/1.0/index-system"
+
+	defaultHttpTimeout = time.Duration(30 * time.Second)
 )
 
 func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
@@ -51,7 +54,7 @@ func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
 	}
 	release := lsb.Codename
 
-	needle := fmt.Sprintf("ubuntu;%s;%s;default", release, arch)
+	needle := fmt.Sprintf("ubuntu;%s;%s;default;", release, arch)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		if strings.HasPrefix(scanner.Text(), needle) {
@@ -81,12 +84,12 @@ func findDownloadURL() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	url := fmt.Sprintf("%s%s%s", lxdBaseURL, dlPath, "rootfs.tar.xz")
+	url := fmt.Sprintf("%s%s", lxdBaseURL, filepath.Join(dlPath, "rootfs.tar.xz"))
 
 	return url, nil
 }
 
-func downloadFile(url string, pbar progress.Meter) (string, error) {
+func downloadFile(url string, pbar progress.Meter) (fn string, err error) {
 	name := "classic"
 
 	w, err := ioutil.TempFile("", name)
@@ -105,7 +108,9 @@ func downloadFile(url string, pbar progress.Meter) (string, error) {
 		return "", err
 	}
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: defaultHttpTimeout,
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
