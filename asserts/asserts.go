@@ -36,7 +36,8 @@ type AssertionType string
 
 // Understood assertions
 const (
-	AccountKeyType AssertionType = "account-key"
+	AccountKeyType      AssertionType = "account-key"
+	SnapDeclarationType AssertionType = "snap-declaration"
 
 // ...
 )
