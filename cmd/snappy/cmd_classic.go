@@ -29,24 +29,20 @@ import (
 )
 
 type cmdEnableClassic struct{}
-
-var shortEnableClassicHelp = i18n.G("Enable classic dimension.")
-
-var longEnableClassicHelp = i18n.G("Enable the ubuntu classic dimension.")
+type cmdDestroyClassic struct{}
 
 func init() {
 	_, err := parser.AddCommand("enable-classic",
-		shortEnableClassicHelp,
-		longEnableClassicHelp,
+		i18n.G("Enable classic dimension."),
+		i18n.G("Enable the ubuntu classic dimension."),
 		&cmdEnableClassic{})
 	if err != nil {
 		logger.Panicf("Unable to enable-classic: %v", err)
 	}
 
-	// for testing
 	_, err = parser.AddCommand("destroy-classic",
-		"destroy classic",
-		"destroy classic",
+		i18n.G("Destroy the classic dimension."),
+		i18n.G("Destroy the ubuntu classic dimension."),
 		&cmdDestroyClassic{})
 	if err != nil {
 		logger.Panicf("Unable to enable-classic: %v", err)
@@ -66,9 +62,6 @@ func (x *cmdEnableClassic) Execute(args []string) (err error) {
 	fmt.Println(`Classic dimension enabled on this snappy system.
 Use “sudo snappy shell classic” to enter the classic dimension.`)
 	return nil
-}
-
-type cmdDestroyClassic struct {
 }
 
 func (x *cmdDestroyClassic) Execute(args []string) (err error) {

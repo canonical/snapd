@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-11-26 12:25+0100\n"
+        "POT-Creation-Date: 2015-11-27 09:46+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -107,6 +107,12 @@ msgid   "Deactivate a package"
 msgstr  ""
 
 msgid   "Deactivate a package. If the package is already deactivated, do nothing."
+msgstr  ""
+
+msgid   "Destroy the classic dimension."
+msgstr  ""
+
+msgid   "Destroy the ubuntu classic dimension."
 msgstr  ""
 
 msgid   "Display a summary of key attributes of the snappy system."
