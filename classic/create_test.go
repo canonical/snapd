@@ -59,11 +59,6 @@ func (t *CreateTestSuite) SetUpTest(c *C) {
 		t.runInChroot = append(t.runInChroot, cmd)
 		return nil
 	}
-
-	// silent progress
-	origNewProgress := newProgress
-	t.AddCleanup(func() { newProgress = origNewProgress })
-	newProgress = func() progress.Meter { return &progress.NullProgress{} }
 }
 
 func makeMockLxdIndexSystem() string {
@@ -130,7 +125,7 @@ func (t *CreateTestSuite) makeMockLxdServer(c *C) {
 func (t *CreateTestSuite) TestCreate(c *C) {
 	t.makeMockLxdServer(c)
 
-	err := Create()
+	err := Create(&progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Assert(t.runInChroot, DeepEquals, [][]string{
 		{"deluser", "ubuntu"},

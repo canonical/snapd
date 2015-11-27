@@ -43,7 +43,7 @@ var (
 	lxdBaseURL   = "https://images.linuxcontainers.org"
 	lxdIndexPath = "/meta/1.0/index-system"
 
-	defaultHttpTimeout = time.Duration(30 * time.Second)
+	defaultHTTPTimeout = time.Duration(30 * time.Second)
 )
 
 func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
@@ -109,7 +109,7 @@ func downloadFile(url string, pbar progress.Meter) (fn string, err error) {
 	}
 
 	client := &http.Client{
-		Timeout: defaultHttpTimeout,
+		Timeout: defaultHTTPTimeout,
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -156,17 +156,12 @@ var runInChroot = func(chroot string, cmd ...string) error {
 	return nil
 }
 
-var newProgress = func() progress.Meter {
-	return progress.NewTextProgress()
-}
-
-func downloadLxdRootfs() (string, error) {
+func downloadLxdRootfs(pbar progress.Meter) (string, error) {
 	url, err := findDownloadURL()
 	if err != nil {
 		return "", err
 	}
 
-	pbar := newProgress()
 	fname, err := downloadFile(url, pbar)
 	if err != nil {
 		return "", err
@@ -237,12 +232,12 @@ func customizeClassicChroot() error {
 }
 
 // Create creates a new classic shell envirionment
-func Create() error {
+func Create(pbar progress.Meter) error {
 	if Enabled() {
 		return fmt.Errorf("clasic mode already created in %s", dirs.ClassicDir)
 	}
 
-	lxdRootfsTar, err := downloadLxdRootfs()
+	lxdRootfsTar, err := downloadLxdRootfs(pbar)
 	if err != nil {
 		return err
 	}

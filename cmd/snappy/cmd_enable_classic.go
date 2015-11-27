@@ -25,6 +25,7 @@ import (
 	"github.com/ubuntu-core/snappy/classic"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 type cmdEnableClassic struct {
@@ -58,7 +59,8 @@ func (x *cmdEnableClassic) Execute(args []string) (err error) {
 		return fmt.Errorf(i18n.G("Classic dimension is already enabled."))
 	}
 
-	if err := classic.Create(); err != nil {
+	pbar := progress.NewTextProgress()
+	if err := classic.Create(pbar); err != nil {
 		return err
 	}
 
