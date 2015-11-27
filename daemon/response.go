@@ -183,4 +183,5 @@ var (
 	BadMethod      = ErrorResponse(http.StatusMethodNotAllowed)
 	InternalError  = ErrorResponse(http.StatusInternalServerError)
 	NotImplemented = ErrorResponse(http.StatusNotImplemented)
+	Unauthorized   = ErrorResponse(http.StatusUnauthorized)
 )
