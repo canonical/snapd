@@ -81,7 +81,11 @@ func RunShell() error {
 func Destroy() error {
 	for _, m := range bindMountDirs {
 		dst := filepath.Join(dirs.ClassicDir, m.dst)
-		if isMounted(dst) {
+		needsUnmount, err := isMounted(dst)
+		if err != nil {
+			return err
+		}
+		if needsUnmount {
 			if err := umount(dst); err != nil {
 				return err
 			}

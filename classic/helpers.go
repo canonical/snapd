@@ -34,18 +34,37 @@ func Enabled() bool {
 	return helpers.FileExists(filepath.Join(dirs.ClassicDir, "etc", "apt", "sources.list"))
 }
 
+var mountpointCmd = "mountpoint"
+
 // isMounted returns true if the given path is a mountpoint
-func isMounted(path string) bool {
-	err := exec.Command("mountpoint", path).Run()
+func isMounted(path string) (bool, error) {
+	cmd := exec.Command(mountpointCmd, path)
+	output, err := cmd.CombinedOutput()
+	exitCode, err := helpers.ExitCode(err)
+	if err != nil {
+		return false, err
+	}
+	// FIXME: the interface of "mountpoint" is not ideal, it will
+	//        return "1" on error but also when the dir is not
+	//        a mountpoint. there is also a string "%s is mountpoint"
+	//        but that string is translated
+	if exitCode != 0 && exitCode != 1 {
+		return false, fmt.Errorf("got unexpected exit code %v from the mountpoint command: %s", exitCode, output)
+	}
+
 	// man-page: zero if the directory is a mountpoint, non-zero if not
-	return err == nil
+	return exitCode == 0, nil
 }
 
 // bindmount will bind mount the src path into the dstPath of the
 // ubuntu classic environment
 func bindmount(src, dstPath, remountArg string) error {
 	dst := filepath.Join(dirs.ClassicDir, dstPath)
-	if isMounted(dst) {
+	alreadyMounted, err := isMounted(dst)
+	if err != nil {
+		return err
+	}
+	if alreadyMounted {
 		return nil
 	}
 
