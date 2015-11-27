@@ -56,5 +56,5 @@ Use "sudo snappy enable-classic" to enable it.`))
 		return classic.RunShell()
 	}
 
-	return fmt.Errorf(i18n.G("unsupported shell %v", shellType))
+	return fmt.Errorf(i18n.G("unsupported shell %v"), shellType)
 }
