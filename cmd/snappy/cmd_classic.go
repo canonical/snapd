@@ -45,7 +45,7 @@ func init() {
 		i18n.G("Destroy the ubuntu classic dimension."),
 		&cmdDestroyClassic{})
 	if err != nil {
-		logger.Panicf("Unable to enable-classic: %v", err)
+		logger.Panicf("Unable to destroy-classic: %v", err)
 	}
 }
 
@@ -59,8 +59,8 @@ func (x *cmdEnableClassic) Execute(args []string) (err error) {
 		return err
 	}
 
-	fmt.Println(`Classic dimension enabled on this snappy system.
-Use “sudo snappy shell classic” to enter the classic dimension.`)
+	fmt.Println(i18n.G(`Classic dimension enabled on this snappy system.
+Use “sudo snappy shell classic” to enter the classic dimension.`))
 	return nil
 }
 
@@ -73,6 +73,6 @@ func (x *cmdDestroyClassic) Execute(args []string) (err error) {
 		return err
 	}
 
-	fmt.Println(`Classic dimension destroyed on this snappy system.`)
+	fmt.Println(i18n.G(`Classic dimension destroyed on this snappy system.`))
 	return nil
 }

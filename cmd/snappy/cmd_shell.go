@@ -35,11 +35,11 @@ type cmdShell struct {
 
 func init() {
 	arg, err := parser.AddCommand("shell",
-		"Run snappy shell interface",
-		"Run snappy shell interface",
+		i18n.G("Run snappy shell interface"),
+		i18n.G("Run snappy shell interface"),
 		&cmdShell{})
 	if err != nil {
-		logger.Panicf("Unable to : %q", err)
+		logger.Panicf("Unable to add shell command: %q", err)
 	}
 	addOptionDescription(arg, "shell-type", i18n.G("The type of shell you want"))
 }
@@ -56,5 +56,5 @@ Use "sudo snappy enable-classic" to enable it.`))
 		return classic.RunShell()
 	}
 
-	return fmt.Errorf("unsupported shell %v", shellType)
+	return fmt.Errorf(i18n.G("unsupported shell %v", shellType))
 }
