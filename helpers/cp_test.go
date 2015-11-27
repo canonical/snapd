@@ -221,11 +221,7 @@ func (s *cpSuite) TestCopyPreserveAll(c *C) {
 	c.Assert(err, IsNil)
 
 	// give it some different atime/mtime
-	tv := []syscall.Timeval{
-		syscall.Timeval{Sec: 0, Usec: 0},
-		syscall.Timeval{Sec: 0, Usec: 0},
-	}
-	err = syscall.Utimes(src, tv)
+	err = syscall.Utime(src, &syscall.Utimbuf{Actime: 0, Modtime: 0})
 	c.Assert(err, IsNil)
 
 	err = CopyFile(src, dst, CopyFlagPreserveAll)
