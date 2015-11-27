@@ -95,7 +95,7 @@ func bindmount(src, dstPath, remountArg string) error {
 		}
 	}
 
-	// do the actual mount
+	// do the actual mount, we use "rbind" so that we get all submounts
 	cmd := exec.Command("mount", "--make-rprivate", "--rbind", "-o", "rbind", src, dst)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("bind mounting %s to %s failed: %s (%s)", src, dst, err, output)

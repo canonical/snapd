@@ -224,6 +224,8 @@ func customizeClassicChroot() error {
 	if err := runInChroot(dirs.ClassicDir, "apt-get", "install", "-y", "libnss-extrausers"); err != nil {
 		return err
 	}
+	// this regexp adds "extrausers" after the passwd/group/shadow
+	// lines in /etc/nsswitch.conf
 	cmd := exec.Command("sed", "-i", "-r", "/^(passwd|group|shadow):/ s/$/ extrausers/", filepath.Join(dirs.ClassicDir, "/etc/nsswitch.conf"))
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to enable libness-extrausers: %s", output)
