@@ -212,7 +212,7 @@ func customizeClassicChroot() error {
 	if err := os.MkdirAll(resolveDir, 0755); err != nil {
 		return fmt.Errorf("failed to create %s: %s", resolveDir, err)
 	}
-	src := "/run/resolvconf/resolv.conf"
+	src := filepath.Join(dirs.GlobalRootDir, "/run/resolvconf/resolv.conf")
 	dst := filepath.Join(dirs.ClassicDir, "/run/resolvconf/")
 	if err := helpers.CopyFile(src, dst, helpers.CopyFlagPreserveAll); err != nil {
 		return err
