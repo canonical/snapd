@@ -28,8 +28,7 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 )
 
-type cmdEnableClassic struct {
-}
+type cmdEnableClassic struct{}
 
 var shortEnableClassicHelp = i18n.G("Enable classic dimension.")
 

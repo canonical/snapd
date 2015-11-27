@@ -26,18 +26,26 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
 )
 
-func mountpoint(path string) bool {
+// Enabled returns true if the classic mode is already enabled
+func Enabled() bool {
+	return helpers.FileExists(filepath.Join(dirs.ClassicDir, "etc", "apt", "sources.list"))
+}
+
+// isMounted returns true if the given path is a mountpoint
+func isMounted(path string) bool {
 	err := exec.Command("mountpoint", path).Run()
 	// man-page: zero if the directory is a mountpoint, non-zero if not
 	return err == nil
 }
 
+// bindmount will bind mount the src path into the dstPath of the
+// ubuntu classic environment
 func bindmount(src, dstPath, remountArg string) error {
 	dst := filepath.Join(dirs.ClassicDir, dstPath)
-	// already mounted
-	if mountpoint(dst) {
+	if isMounted(dst) {
 		return nil
 	}
 

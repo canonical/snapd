@@ -211,7 +211,7 @@ func customizeClassicChroot() error {
 	src := "/run/resolvconf/resolv.conf"
 	dst := filepath.Join(dirs.ClassicDir, "/run/resolvconf/")
 	if err := helpers.CopyFile(src, dst, helpers.CopyFlagPreserveAll); err != nil {
-		return fmt.Errorf("failed to copy %s to %s", src, dst)
+		return err
 	}
 
 	// enable libnss-extrausers
