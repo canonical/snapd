@@ -43,6 +43,13 @@ func init() {
 	}
 }
 
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
 func run() error {
 	_, err := parser.Parse()
 	if err != nil {
@@ -52,11 +59,4 @@ func run() error {
 		logger.Debugf("cannot parse arguments: %v: %v", os.Args, err)
 	}
 	return nil
-}
-
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
 }
