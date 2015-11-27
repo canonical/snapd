@@ -91,27 +91,27 @@ func (c *Command) canAccess(r *http.Request) bool {
 }
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var rsp Response = Unauthorized
+	if !canAccess(r) {
+		Unauthorized.ServeHTTP(w, r)
+		return
+	}
 
-	if c.canAccess(r) {
-		var rspf ResponseFunc
+	var rsp Response = BadMethod
+	var rspf ResponseFunc
 
-		switch r.Method {
-		case "GET":
-			rspf = c.GET
-		case "PUT":
-			rspf = c.PUT
-		case "POST":
-			rspf = c.POST
-		case "DELETE":
-			rspf = c.DELETE
-		}
+	switch r.Method {
+	case "GET":
+		rspf = c.GET
+	case "PUT":
+		rspf = c.PUT
+	case "POST":
+		rspf = c.POST
+	case "DELETE":
+		rspf = c.DELETE
+	}
 
-		if rspf == nil {
-			rsp = BadMethod
-		} else {
-			rsp = rspf(c, r)
-		}
+	if rspf != nil {
+		rsp = rspf(c, r)
 	}
 
 	rsp.ServeHTTP(w, r)
