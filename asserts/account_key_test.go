@@ -43,14 +43,13 @@ type accountKeySuite struct {
 var _ = Suite(&accountKeySuite{})
 
 func (aks *accountKeySuite) SetUpSuite(c *C) {
-	pk, err := asserts.GeneratePrivateKeyInTest()
-	c.Assert(err, IsNil)
-	aks.fp = hex.EncodeToString(pk.PublicKey.Fingerprint[:])
+	var err error
+	aks.fp = hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
 	aks.since, err = time.Parse(time.RFC822, "16 Nov 15 15:04 UTC")
 	c.Assert(err, IsNil)
 	aks.until = aks.since.AddDate(1, 0, 0)
 	buf := new(bytes.Buffer)
-	err = pk.PublicKey.Serialize(buf)
+	err = testPrivKey1.PublicKey.Serialize(buf)
 	c.Assert(err, IsNil)
 	aks.pubKeyBody = "openpgp " + base64.StdEncoding.EncodeToString(buf.Bytes())
 	aks.sinceLine = "since: " + aks.since.Format(time.RFC3339) + "\n"
@@ -92,12 +91,12 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 		"openpgp c2ln"
 
 	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
-		{"account-id: acc-id1\n", "", "account-id header is mandatory"},
-		{aks.sinceLine, "", "since header is mandatory"},
-		{aks.untilLine, "", "until header is mandatory"},
-		{aks.sinceLine, "since: 12:30\n", "since header is not a RFC3339 date: .*"},
+		{"account-id: acc-id1\n", "", `"account-id" header is mandatory`},
+		{aks.sinceLine, "", `"since" header is mandatory`},
+		{aks.untilLine, "", `"until" header is mandatory`},
+		{aks.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
 		{aks.untilLine, "until: " + aks.since.Format(time.RFC3339) + "\n", `invalid 'since' and 'until' times \(no gap after 'since' till 'until'\)`},
-		{"fingerprint: " + aks.fp + "\n", "", "missing fingerprint header"},
+		{"fingerprint: " + aks.fp + "\n", "", `"fingerprint" header is mandatory`},
 	}
 
 	for _, test := range invalidHeaderTests {
@@ -150,8 +149,7 @@ func (aks *accountKeySuite) TestDecodeFingerprintMismatch(c *C) {
 }
 
 func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
-	trustedKey, err := asserts.GeneratePrivateKeyInTest()
-	c.Assert(err, IsNil)
+	trustedKey := testPrivKey0
 
 	headers := map[string]string{
 		"authority-id": "canonical",
@@ -178,8 +176,7 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 }
 
 func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
-	trustedKey, err := asserts.GeneratePrivateKeyInTest()
-	c.Assert(err, IsNil)
+	trustedKey := testPrivKey0
 
 	headers := map[string]string{
 		"authority-id": "canonical",

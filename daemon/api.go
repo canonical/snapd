@@ -63,36 +63,42 @@ var api = []*Command{
 
 var (
 	rootCmd = &Command{
-		Path: "/",
-		GET:  SyncResponse([]string{"/1.0"}).Self,
+		Path:    "/",
+		GuestOK: true,
+		GET:     SyncResponse([]string{"/1.0"}).Self,
 	}
 
 	v1Cmd = &Command{
-		Path: "/1.0",
-		GET:  v1Get,
+		Path:    "/1.0",
+		GuestOK: true,
+		GET:     v1Get,
 	}
 
 	metaIconCmd = &Command{
-		Path: "/1.0/icons/{icon}",
-		GET:  metaIconGet,
+		Path:   "/1.0/icons/{icon}",
+		UserOK: true,
+		GET:    metaIconGet,
 	}
 
 	appIconCmd = &Command{
-		Path: "/1.0/icons/{name}.{origin}/icon",
-		GET:  appIconGet,
+		Path:   "/1.0/icons/{name}.{origin}/icon",
+		UserOK: true,
+		GET:    appIconGet,
 	}
 
 	packagesCmd = &Command{
-		Path: "/1.0/packages",
-		GET:  getPackagesInfo,
-		POST: sideloadPackage,
-		PUT:  configMulti,
+		Path:   "/1.0/packages",
+		UserOK: true,
+		GET:    getPackagesInfo,
+		POST:   sideloadPackage,
+		PUT:    configMulti,
 	}
 
 	packageCmd = &Command{
-		Path: "/1.0/packages/{name}.{origin}",
-		GET:  getPackageInfo,
-		POST: postPackage,
+		Path:   "/1.0/packages/{name}.{origin}",
+		UserOK: true,
+		GET:    getPackageInfo,
+		POST:   postPackage,
 	}
 
 	packageConfigCmd = &Command{
@@ -102,15 +108,17 @@ var (
 	}
 
 	packageSvcsCmd = &Command{
-		Path: "/1.0/packages/{name}.{origin}/services",
-		GET:  packageService,
-		PUT:  packageService,
+		Path:   "/1.0/packages/{name}.{origin}/services",
+		UserOK: true,
+		GET:    packageService,
+		PUT:    packageService,
 	}
 
 	packageSvcCmd = &Command{
-		Path: "/1.0/packages/{name}.{origin}/services/{service}",
-		GET:  packageService,
-		PUT:  packageService,
+		Path:   "/1.0/packages/{name}.{origin}/services/{service}",
+		UserOK: true,
+		GET:    packageService,
+		PUT:    packageService,
 	}
 
 	packageSvcLogsCmd = &Command{

@@ -54,11 +54,12 @@ func UbuntuArchitecture() string {
 // architecture.
 func ubuntuArchFromGoArch(goarch string) string {
 	goArchMapping := map[string]string{
-		"386":   "i386",
-		"amd64": "amd64",
-		"arm":   "armhf",
-		"arm64": "arm64",
-		"ppc64": "ppc64el",
+		// go      ubuntu
+		"386":     "i386",
+		"amd64":   "amd64",
+		"arm":     "armhf",
+		"arm64":   "arm64",
+		"ppc64le": "ppc64el",
 	}
 
 	ubuntuArch := goArchMapping[goarch]

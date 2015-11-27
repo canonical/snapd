@@ -11,16 +11,20 @@ To check whether the feature is active, run
 
 If you want to disable it run
 
-    echo 'config: {ubuntu-core: {autoupdate: off}}' | sudo snappy config ubuntu-core
+    echo 'config: {ubuntu-core: {autoupdate: off}}' | sudo snappy config ubuntu-core -
 
 and you then re-enable it via
 
-    echo 'config: {ubuntu-core: {autoupdate: on}}' | sudo snappy config ubuntu-core
+    echo 'config: {ubuntu-core: {autoupdate: on}}' | sudo snappy config ubuntu-core -
 
 Every time autoupdate triggers it will try to update the whole system;
 if an `ubuntu-core` update is available the system will automatically
 reboot, although a message is printed to console with instructions on
 how to abort the reboot, in case you are logged in at the time.
+
+> If you need a single configuration that works both on 15.04 and rolling, you
+> can use both the old and new keys, e.g. `config: {ubuntu-core: {autoupdate:
+> on, autopilot: on}}`.
 
 ## Implementation details
 

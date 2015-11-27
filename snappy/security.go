@@ -60,10 +60,6 @@ var (
 	// AppArmor cache dir
 	aaCacheDir = "/var/cache/apparmor"
 
-	// ErrSystemVersionNotFound could not detect system version (eg, 15.04,
-	// 15.10, etc)
-	errSystemVersionNotFound = errors.New("could not detect system version")
-
 	errOriginNotFound     = errors.New("could not detect origin")
 	errPolicyTypeNotFound = errors.New("could not find specified policy type")
 	errInvalidAppID       = errors.New("invalid APP_ID")
@@ -75,7 +71,6 @@ var (
 		SecurityCaps: []string{},
 	}
 
-	lsbRelease        = "/etc/lsb-release"
 	runAppArmorParser = runAppArmorParserImpl
 )
 
@@ -257,39 +252,17 @@ func defaultPolicyVendor() string {
 	return fmt.Sprintf("ubuntu-%s", release.Get().Flavor)
 }
 
-// findUbuntuVersion determines the version (eg, 15.04, 15.10, etc) of the
-// system, which is needed for determining the security policy
-// policy-version
-func findUbuntuVersion() (string, error) {
-	content, err := ioutil.ReadFile(lsbRelease)
-	if err != nil {
-		logger.Noticef("Failed to read %q: %v", lsbRelease, err)
-		return "", err
-	}
-
-	for _, line := range strings.Split(string(content), "\n") {
-		if strings.HasPrefix(line, "DISTRIB_RELEASE=") {
-			tmp := strings.Split(line, "=")
-			if len(tmp) != 2 {
-				return "", errSystemVersionNotFound
-			}
-			return tmp[1], nil
-		}
-	}
-
-	return "", errSystemVersionNotFound
-}
 func defaultPolicyVersion() string {
 	// note that we can not use release.Get().Series here
 	// because that will return "rolling" for the development
 	// version but apparmor stores its templates under the
 	// version number (e.g. 16.04) instead
-	ver, err := findUbuntuVersion()
+	ver, err := release.ReadLsb()
 	if err != nil {
 		// when this happens we are in trouble
 		panic(err)
 	}
-	return ver
+	return ver.Release
 }
 
 const allowed = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`

@@ -1126,6 +1126,10 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 
 // Config is used to to configure the snap
 func (s *SnapPart) Config(configuration []byte) (new string, err error) {
+	if s.m.Type == pkg.TypeOS {
+		return coreConfig(configuration)
+	}
+
 	return snapConfig(s.basedir, s.origin, string(configuration))
 }
 

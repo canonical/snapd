@@ -30,7 +30,6 @@ import (
 
 	"github.com/mvo5/goconfigparser"
 
-	"github.com/ubuntu-core/snappy/coreconfig"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
@@ -176,13 +175,6 @@ func (s *SystemImagePart) SetActive(active bool, pb progress.Meter) error {
 	return nil
 }
 
-// override in tests
-var bootloaderDir = bootloaderDirImpl
-
-func bootloaderDirImpl() string {
-	return partition.BootloaderDir()
-}
-
 // Install installs the snap
 func (s *SystemImagePart) Install(pb progress.Meter, flags InstallFlags) (name string, err error) {
 	if provisioning.IsSideLoaded(bootloaderDir()) {
@@ -284,11 +276,7 @@ func (s *SystemImagePart) Uninstall(progress.Meter) error {
 
 // Config is used to to configure the snap
 func (s *SystemImagePart) Config(configuration []byte) (newConfig string, err error) {
-	if cfg := string(configuration); cfg != "" {
-		return coreconfig.Set(cfg)
-	}
-
-	return coreconfig.Get()
+	return coreConfig(configuration)
 }
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
