@@ -29,7 +29,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
@@ -42,8 +41,6 @@ import (
 var (
 	lxdBaseURL   = "https://images.linuxcontainers.org"
 	lxdIndexPath = "/meta/1.0/index-system"
-
-	defaultHTTPTimeout = time.Duration(30 * time.Second)
 )
 
 func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
@@ -108,9 +105,7 @@ func downloadFile(url string, pbar progress.Meter) (fn string, err error) {
 		return "", err
 	}
 
-	client := &http.Client{
-		Timeout: defaultHTTPTimeout,
-	}
+	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
