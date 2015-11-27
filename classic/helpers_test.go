@@ -50,7 +50,7 @@ func (t *HelpersTestSuite) SetUpTest(c *C) {
 }
 
 func (t *HelpersTestSuite) TestIsMounted(c *C) {
-	t.makeMockMountpointCmd(c, "false")
+	t.makeMockMountpointCmd(c, "echo '/ is not a mountpoint'; false")
 
 	mounted, err := isMounted("/")
 	c.Assert(err, IsNil)
@@ -58,11 +58,18 @@ func (t *HelpersTestSuite) TestIsMounted(c *C) {
 }
 
 func (t *HelpersTestSuite) TestIsNotMounted(c *C) {
-	t.makeMockMountpointCmd(c, "true")
+	t.makeMockMountpointCmd(c, "echo '/ is a mountpoint'; true")
 
 	mounted, err := isMounted("/")
 	c.Assert(err, IsNil)
 	c.Assert(mounted, Equals, true)
+}
+
+func (t *HelpersTestSuite) TestMountpointReturnsUnexpectedString(c *C) {
+	t.makeMockMountpointCmd(c, "echo 'random message'; false")
+
+	_, err := isMounted("/")
+	c.Assert(err, ErrorMatches, "(?m)unexpected output from mountpoint: random message")
 }
 
 func (t *HelpersTestSuite) TestIsMountedSignaled(c *C) {

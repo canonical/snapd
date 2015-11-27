@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
@@ -39,21 +40,36 @@ var mountpointCmd = "mountpoint"
 // isMounted returns true if the given path is a mountpoint
 func isMounted(path string) (bool, error) {
 	cmd := exec.Command(mountpointCmd, path)
+	// mountpoint uses translated messages, ensure we get the
+	// english ones
+	cmd.Env = []string{"LC_ALL=C"}
+
 	output, err := cmd.CombinedOutput()
 	exitCode, err := helpers.ExitCode(err)
+	// if we get anything other than "ExitError" er error here
 	if err != nil {
 		return false, err
 	}
-	// FIXME: the interface of "mountpoint" is not ideal, it will
-	//        return "1" on error but also when the dir is not
-	//        a mountpoint. there is also a string "%s is mountpoint"
-	//        but that string is translated
+
+	// mountpoint.c from util-linux always returns 0 or 1
+	// (unless e.g. signal)
 	if exitCode != 0 && exitCode != 1 {
 		return false, fmt.Errorf("got unexpected exit code %v from the mountpoint command: %s", exitCode, output)
 	}
 
-	// man-page: zero if the directory is a mountpoint, non-zero if not
-	return exitCode == 0, nil
+	// exitCode == 0 means it is a mountpoint, do we are done
+	if exitCode == 0 {
+		return true, nil
+	}
+
+	// exitCode == 1 either means soemthing went wrong *or*
+	//               the path is not a mount point
+	//               (thanks mountpoint.c :/)
+	if strings.Contains(string(output), "is not a mountpoint") {
+		return false, nil
+	}
+
+	return false, fmt.Errorf("unexpected output from mountpoint: %s (%v)", output, exitCode)
 }
 
 // bindmount will bind mount the src path into the dstPath of the
