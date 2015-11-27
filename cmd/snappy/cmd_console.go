@@ -23,11 +23,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/peterh/liner"
 
+	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 )
 
@@ -41,8 +41,8 @@ type cmdConsole struct {
 
 func init() {
 	_, err := parser.AddCommand("console",
-		"Run snappy console interface",
-		"Run snappy console interface",
+		i18n.G("Run snappy console interface"),
+		i18n.G("Run snappy console interface"),
 		&cmdConsole{})
 	if err != nil {
 		logger.Panicf("Unable to console: %v", err)
@@ -104,19 +104,14 @@ func (x *cmdConsole) doShell(line string) error {
 	x.CloseConsole()
 	defer x.initConsole()
 
-	sh := os.Getenv("SHELL")
-	if sh == "" {
-		sh = "/bin/sh"
+	l := strings.Split(line, " ")
+	shellType := ""
+	if len(l) > 1 {
+		shellType = l[1]
 	}
-	cmd := exec.Command(sh)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-
-	return nil
+	cmd := cmdShell{}
+	cmd.Positional.ShellType = shellType
+	return cmd.Execute([]string{})
 }
 
 func (x *cmdConsole) doHelp(line string) error {
