@@ -563,7 +563,7 @@ This is *not* a standard return type.
 ### GET
 
 * Description: Get all of the capabilities that exist in the system
-* Authorization: guest
+* Authorization: authenticated
 * Operation: sync
 * Return: map of capabilities, see below.
 

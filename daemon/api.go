@@ -134,6 +134,7 @@ var (
 
 	capabilitiesCmd = &Command{
 		Path: "/1.0/capabilities",
+		UserOK: true,
 		GET:  getCapabilities,
 	}
 )
