@@ -148,7 +148,7 @@ type Capability struct {
 }
 
 // Capabilities returns the capabilities currently available for snaps to consume.
-func (client *Client) Capabilities() ([]Capability, error) {
+func (client *Client) Capabilities() (map[string]Capability, error) {
 	var rsp response
 	if err := client.do("GET", "/1.0/capabilities", nil, &rsp); err != nil {
 		return nil, err
@@ -160,9 +160,9 @@ func (client *Client) Capabilities() ([]Capability, error) {
 	if rsp.Type != "sync" {
 		return nil, fmt.Errorf("cannot obtain capabilities: expected sync response, got %s", rsp.Type)
 	}
-	var caps []Capability
-	if err := json.Unmarshal(rsp.Result, &caps); err != nil {
+	var result map[string]map[string]Capability
+	if err := json.Unmarshal(rsp.Result, &result); err != nil {
 		return nil, fmt.Errorf("cannot obtain capabilities: failed to unmarshal response: %v", err)
 	}
-	return caps, nil
+	return result["capabilities"], nil
 }

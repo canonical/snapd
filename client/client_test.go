@@ -122,21 +122,25 @@ func (cs *clientSuite) TestClientReportsInnerJSONError(c *check.C) {
 func (cs *clientSuite) TestClientCapabilities(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
-		"result": [
-		{
-			"name": "n",
-			"label": "l",
-			"type": "t",
-			"attrs": {"k": "v"}
+		"result": {
+			"capabilities": {
+				"n": {
+					"name": "n",
+					"label": "l",
+					"type": "t",
+					"attrs": {"k": "v"}
+				}
+			}
 		}
-		]
 	}`
 	caps, err := cs.cli.Capabilities()
 	c.Check(err, check.IsNil)
-	c.Check(caps, check.DeepEquals, []client.Capability{{
-		Name:  "n",
-		Label: "l",
-		Type:  "t",
-		Attrs: map[string]string{"k": "v"},
-	}})
+	c.Check(caps, check.DeepEquals, map[string]client.Capability{
+		"n": client.Capability{
+			Name:  "n",
+			Label: "l",
+			Type:  "t",
+			Attrs: map[string]string{"k": "v"},
+		},
+	})
 }
