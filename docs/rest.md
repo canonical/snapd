@@ -544,14 +544,18 @@ This fetches the icon from the package itself.
 ## /1.0/capabilities
 ### GET
 
-* Description: List of snappy capabilities
+* Description: Get all of the capabilities that exist in the system
 * Authorization: guest
 * Operation: sync
-* Return: information about all of the snappy capabilities 
+* Return: map of capabilities, see below.
 
-The result is a JSON object with a capabilities key; its value itself is a JSON
+The result is a JSON object with a *capabilities* key; its value itself is a JSON
 object whose keys are capability names (e.g., "power-button") and whose values
 describe that capability.
+
+The method returns *all* capabilities. Regardless of their assignment to snaps.
+Note that capabilities are dynamic, they can be added and removed to the system
+and individual capabilities can change state over time.
 
 Each capability has the following attributes:
 
