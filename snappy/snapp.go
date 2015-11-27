@@ -1757,7 +1757,6 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(addCoreFmk(frameworks), ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(Architecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
-	req.Header.Set("X-Ubuntu-Device-Channel", release.Get().Channel)
 
 	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
 		req.Header.Set("X-Ubuntu-Store", storeID)
