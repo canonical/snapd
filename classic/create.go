@@ -32,7 +32,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
-
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
@@ -64,16 +63,16 @@ func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return "", err
+		return "", fmt.Errorf("error while reading the index-system data: %s", err)
 	}
 
-	return "", fmt.Errorf("needle %s not found", needle)
+	return "", fmt.Errorf("needle %q not found", needle)
 }
 
 func findDownloadURL() (string, error) {
 	resp, err := http.Get(lxdBaseURL + lxdIndexPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to downlaod lxdIndexUrl: %s", err)
+		return "", fmt.Errorf("failed to downlaod lxdIndexUrl: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -134,10 +133,9 @@ func downloadFile(url string, pbar progress.Meter) (fn string, err error) {
 //
 // The format is specified in
 // https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt
-var policyRc = []byte(`
-#!/bin/sh
+var policyRc = []byte(`#!/bin/sh
 while true; do
-    case "\$1" in
+    case "$1" in
       -*) shift ;;
       makedev) exit 0;;
       x11-common) exit 0;;
@@ -151,7 +149,7 @@ var runInChroot = func(chroot string, cmd ...string) error {
 	cmdArgs = append(cmdArgs, cmd...)
 
 	if output, err := exec.Command(cmdArgs[0], cmdArgs[1:]...).CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to run %s in chroot %s: %s (%s)", cmd, chroot, err, output)
+		return fmt.Errorf("failed to run %q in chroot %q: %s (%q)", cmd, chroot, err, output)
 	}
 
 	return nil
