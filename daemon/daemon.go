@@ -91,13 +91,13 @@ func (c *Command) canAccess(r *http.Request) bool {
 }
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !canAccess(r) {
+	if !c.canAccess(r) {
 		Unauthorized.ServeHTTP(w, r)
 		return
 	}
 
-	var rsp Response = BadMethod
 	var rspf ResponseFunc
+	var rsp Response = BadMethod
 
 	switch r.Method {
 	case "GET":
