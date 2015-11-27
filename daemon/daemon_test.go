@@ -100,18 +100,26 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	get := &http.Request{Method: "GET"}
 	put := &http.Request{Method: "PUT"}
+	pst := &http.Request{Method: "POST"}
+	del := &http.Request{Method: "DELETE"}
 
 	cmd := &Command{}
 	c.Check(cmd.canAccess(get), check.Equals, false)
 	c.Check(cmd.canAccess(put), check.Equals, false)
+	c.Check(cmd.canAccess(pst), check.Equals, false)
+	c.Check(cmd.canAccess(del), check.Equals, false)
 
 	cmd = &Command{UserOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, false)
 	c.Check(cmd.canAccess(put), check.Equals, false)
+	c.Check(cmd.canAccess(pst), check.Equals, false)
+	c.Check(cmd.canAccess(del), check.Equals, false)
 
 	cmd = &Command{GuestOK: true}
 	c.Check(cmd.canAccess(get), check.Equals, true)
 	c.Check(cmd.canAccess(put), check.Equals, false)
+	c.Check(cmd.canAccess(pst), check.Equals, false)
+	c.Check(cmd.canAccess(del), check.Equals, false)
 }
 
 func (s *daemonSuite) TestUserAccess(c *check.C) {
