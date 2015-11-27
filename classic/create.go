@@ -128,6 +128,12 @@ func downloadFile(url string, pbar progress.Meter) (fn string, err error) {
 	return w.Name(), err
 }
 
+// policyRc contains a custom policy-rc.d script that we drop into the
+// classic chroot. It will prevent all daemons installed via apt/dpkg
+// from starting.
+//
+// The format is specified in
+// https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt
 var policyRc = []byte(`
 #!/bin/sh
 while true; do
