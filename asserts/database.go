@@ -165,11 +165,12 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 		if err != nil {
 			return err
 		}
+		var accKey PublicKey
 		accKey, ok := a.(*AccountKey)
 		if !ok {
 			return fmt.Errorf("something that is not an account-key under their storage tree")
 		}
-		res = append(res, accKey.(*AccountKey))
+		res = append(res, accKey)
 		return nil
 	}
 	err := findWildcard(accountKeysTop, []string{url.QueryEscape(authorityID), "*" + fingerprintSuffix}, foundKeyCb)
