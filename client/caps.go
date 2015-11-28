@@ -20,6 +20,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 )
@@ -61,5 +62,25 @@ func (client *Client) Capabilities() (map[string]Capability, error) {
 		return resultOk["capabilities"], nil
 	default:
 		return nil, fmt.Errorf("%s: expected sync response, got %s", errPrefix, rsp.Type)
+	}
+}
+
+// AddCapability adds one capability to the system
+func (client *Client) AddCapability(c *Capability) error {
+	b, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+	var rsp response
+	if err := client.do("POST", "/1.0/capabilities", bytes.NewReader(b), &rsp); err != nil {
+		return err
+	}
+	switch rsp.Type {
+	case "error":
+		return rsp.processErrorResponse()
+	case "sync":
+		return nil
+	default:
+		return fmt.Errorf("cannot obtain capabilities: expected sync response, got %s", rsp.Type)
 	}
 }

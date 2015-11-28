@@ -155,3 +155,19 @@ func (cs *clientSuite) TestClientCapabilities(c *check.C) {
 		},
 	})
 }
+
+func (cs *clientSuite) TestClientAddCapability(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": {
+		}
+	}`
+	cap := &client.Capability{
+		Name:  "n",
+		Label: "l",
+		Type:  "t",
+		Attrs: map[string]string{"k": "v"},
+	}
+	err := cs.cli.AddCapability(cap)
+	c.Check(err, check.IsNil)
+}
