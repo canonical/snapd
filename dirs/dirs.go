@@ -49,6 +49,8 @@ var (
 
 	ClickSystemHooksDir string
 	CloudMetaDataFile   string
+
+	ClassicDir string
 )
 
 var (
@@ -96,4 +98,5 @@ func SetRootDir(rootdir string) {
 	SnapUdevRulesDir = filepath.Join(rootdir, "/etc/udev/rules.d")
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
+	ClassicDir = filepath.Join(rootdir, "/writable/classic")
 }
