@@ -24,6 +24,7 @@ import (
 	"crypto"
 	"encoding/base64"
 	"encoding/hex"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -95,7 +96,7 @@ func (dbs *databaseSuite) SetUpTest(c *C) {
 func (dbs *databaseSuite) TestImportKey(c *C) {
 	expectedFingerprint := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
 
-	fingerp, err := dbs.db.ImportKey("account0", testPrivKey1)
+	fingerp, err := dbs.db.ImportKey("account0", asserts.WrapPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 	c.Check(fingerp, Equals, expectedFingerprint)
 
@@ -104,13 +105,13 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0600)) // secret
 	// too white box? ok at least until we have more functionality
-	fpriv, err := os.Open(keyPath)
+	privKey, err := ioutil.ReadFile(keyPath)
 	c.Assert(err, IsNil)
-	pk, err := packet.Read(fpriv)
+
+	privKeyFromDisk, err := asserts.ParsePrivateKeyInTest(privKey)
 	c.Assert(err, IsNil)
-	privKeyFromDisk, ok := pk.(*packet.PrivateKey)
-	c.Assert(ok, Equals, true)
-	c.Check(hex.EncodeToString(privKeyFromDisk.PublicKey.Fingerprint[:]), Equals, expectedFingerprint)
+
+	c.Check(privKeyFromDisk.PublicKey().Fingerprint(), Equals, expectedFingerprint)
 }
 
 func (dbs *databaseSuite) TestGenerateKey(c *C) {
@@ -119,6 +120,15 @@ func (dbs *databaseSuite) TestGenerateKey(c *C) {
 	c.Check(fingerp, NotNil)
 	keyPath := filepath.Join(dbs.rootDir, "private-keys-v0/account0", fingerp)
 	c.Check(helpers.FileExists(keyPath), Equals, true)
+}
+
+func (dbs *databaseSuite) TestExportPublicKey(c *C) {
+	fingerp, err := dbs.db.ImportKey("account0", asserts.WrapPrivateKey(testPrivKey1))
+	c.Assert(err, IsNil)
+
+	pubk, err := dbs.db.ExportPublicKey("account0", fingerp[len(fingerp)-8:])
+	c.Assert(err, IsNil)
+	c.Check(pubk.Fingerprint(), Equals, fingerp)
 }
 
 type checkSuite struct {

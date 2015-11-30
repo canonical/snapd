@@ -28,6 +28,9 @@ var GeneratePrivateKeyInTest = generatePrivateKey
 // buildAndSignInTest exposed for tests
 var BuildAndSignInTest = buildAndSign
 
+// parsePrivateKey exposed for tests
+var ParsePrivateKeyInTest = parsePrivateKey
+
 // define dummy assertion types to use in the tests
 
 type TestOnly struct {

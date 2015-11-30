@@ -22,8 +22,6 @@
 package asserts
 
 import (
-	"bytes"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -32,8 +30,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/openpgp/packet"
 
 	"github.com/ubuntu-core/snappy/helpers"
 )
@@ -125,24 +121,55 @@ func (db *Database) GenerateKey(authorityID string) (fingerprint string, err err
 		return "", fmt.Errorf("failed to generate private key: %v", err)
 	}
 
-	return db.ImportKey(authorityID, privKey)
+	return db.ImportKey(authorityID, WrapPrivateKey(privKey))
 }
 
 // ImportKey stores the given private/public key pair for identity and
 // returns its fingerprint
-func (db *Database) ImportKey(authorityID string, privKey *packet.PrivateKey) (fingerprint string, err error) {
-	buf := new(bytes.Buffer)
-	err = privKey.Serialize(buf)
+func (db *Database) ImportKey(authorityID string, privKey PrivateKey) (fingerprint string, err error) {
+	encoded, err := encodePrivateKey(privKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to store private key: %v", err)
 	}
 
-	fingerp := hex.EncodeToString(privKey.PublicKey.Fingerprint[:])
-	err = db.atomicWriteEntry(buf.Bytes(), true, privateKeysRoot, authorityID, fingerp)
+	fingerp := privKey.PublicKey().Fingerprint()
+	err = db.atomicWriteEntry(encoded, true, privateKeysRoot, authorityID, fingerp)
 	if err != nil {
 		return "", fmt.Errorf("failed to store private key: %v", err)
 	}
 	return fingerp, nil
+}
+
+// ExportPublicKey exports the public part of a stored key pair for identity
+// by matching the given fingerprint suffix, it's an error if no or more
+// than one key pair is found.
+func (db *Database) ExportPublicKey(authorityID string, fingerprintSuffix string) (PublicKey, error) {
+	keyPath := ""
+	foundPrivKeyCb := func(relpath string) error {
+		if keyPath != "" {
+			return fmt.Errorf("ambiguous search, more than one key pair found: %q and %q", keyPath, relpath)
+
+		}
+		keyPath = relpath
+		return nil
+	}
+	privKeysTop := filepath.Join(db.root, privateKeysRoot)
+	err := findWildcard(privKeysTop, []string{authorityID, "*" + fingerprintSuffix}, foundPrivKeyCb)
+	if err != nil {
+		return nil, err
+	}
+	if keyPath == "" {
+		return nil, fmt.Errorf("no matching key pair found")
+	}
+	encoded, err := db.readEntry(privateKeysRoot, keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read key pair: %v", err)
+	}
+	privKey, err := parsePrivateKey(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode key pair: %v", err)
+	}
+	return privKey.PublicKey(), nil
 }
 
 // use a generalized matching style along what PGP does where keys can be
