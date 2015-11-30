@@ -161,3 +161,17 @@ func (s *RepositorySuite) TestHasType(c *C) {
 	// otherwise identical, the test fails.
 	c.Assert(s.testRepo.HasType(&Type{Name: testType.Name}), Equals, false)
 }
+
+func (s *RepositorySuite) TestCaps(c *C) {
+	err := s.testRepo.Add(&Capability{Name: "a", Label: "label-a", Type: testType})
+	c.Assert(err, IsNil)
+	err = s.testRepo.Add(&Capability{Name: "c", Label: "label-c", Type: testType})
+	c.Assert(err, IsNil)
+	err = s.testRepo.Add(&Capability{Name: "b", Label: "label-b", Type: testType})
+	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.Caps(), DeepEquals, map[string]*Capability{
+		"a": &Capability{Name: "a", Label: "label-a", Type: testType},
+		"b": &Capability{Name: "b", Label: "label-b", Type: testType},
+		"c": &Capability{Name: "c", Label: "label-c", Type: testType},
+	})
+}
