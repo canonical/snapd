@@ -27,7 +27,7 @@ import (
 // AccountKey holds an account-key assertion, asserting a public key
 // belonging to the account.
 type AccountKey struct {
-	AssertionBase
+	assertionBase
 	since time.Time
 	until time.Time
 	PublicKey
@@ -53,7 +53,7 @@ func (ak *AccountKey) IsValidAt(when time.Time) bool {
 	return (when.After(ak.since) || when.Equal(ak.since)) && when.Before(ak.until)
 }
 
-func checkPublicKey(ab *AssertionBase, fingerprintName string) (PublicKey, error) {
+func checkPublicKey(ab *assertionBase, fingerprintName string) (PublicKey, error) {
 	pubKey, err := parsePublicKey(ab.Body())
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func checkPublicKey(ab *AssertionBase, fingerprintName string) (PublicKey, error
 	return pubKey, nil
 }
 
-func buildAccountKey(assert AssertionBase) (Assertion, error) {
+func buildAccountKey(assert assertionBase) (Assertion, error) {
 	_, err := checkMandatory(assert.headers, "account-id")
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func buildAccountKey(assert AssertionBase) (Assertion, error) {
 	}
 	// ignore extra headers for future compatibility
 	return &AccountKey{
-		AssertionBase: assert,
+		assertionBase: assert,
 		since:         since,
 		until:         until,
 		PublicKey:     pubk,

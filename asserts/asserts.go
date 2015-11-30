@@ -61,8 +61,8 @@ type Assertion interface {
 	Signature() (content, signature []byte)
 }
 
-// AssertionBase is the concrete base to hold representation data for actual assertions.
-type AssertionBase struct {
+// assertionBase is the concrete base to hold representation data for actual assertions.
+type assertionBase struct {
 	headers map[string]string
 	body    []byte
 	// parsed revision
@@ -74,37 +74,37 @@ type AssertionBase struct {
 }
 
 // Type returns the assertion type.
-func (ab *AssertionBase) Type() AssertionType {
+func (ab *assertionBase) Type() AssertionType {
 	return AssertionType(ab.headers["type"])
 }
 
 // Revision returns the assertion revision.
-func (ab *AssertionBase) Revision() int {
+func (ab *assertionBase) Revision() int {
 	return ab.revision
 }
 
 // AuthorityID returns the authority-id a.k.a the signer id of the assertion.
-func (ab *AssertionBase) AuthorityID() string {
+func (ab *assertionBase) AuthorityID() string {
 	return ab.headers["authority-id"]
 }
 
 // Header returns the value of an header by name.
-func (ab *AssertionBase) Header(name string) string {
+func (ab *assertionBase) Header(name string) string {
 	return ab.headers[name]
 }
 
 // Body returns the body of the assertion.
-func (ab *AssertionBase) Body() []byte {
+func (ab *assertionBase) Body() []byte {
 	return ab.body
 }
 
 // Signature returns the signed content and its unprocessed signature.
-func (ab *AssertionBase) Signature() (content, signature []byte) {
+func (ab *assertionBase) Signature() (content, signature []byte) {
 	return ab.content, ab.signature
 }
 
 // sanity check
-var _ Assertion = (*AssertionBase)(nil)
+var _ Assertion = (*assertionBase)(nil)
 
 var (
 	nlnl = []byte("\n\n")
@@ -233,7 +233,7 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
 
-	assert, err := reg.builder(AssertionBase{
+	assert, err := reg.builder(assertionBase{
 		headers:   headers,
 		body:      body,
 		revision:  revision,
@@ -334,7 +334,7 @@ func buildAndSign(assertType AssertionType, headers map[string]string, body []by
 		return nil, fmt.Errorf("failed to sign assertion: %v", err)
 	}
 
-	assert, err := reg.builder(AssertionBase{
+	assert, err := reg.builder(assertionBase{
 		headers:   finalHeaders,
 		body:      finalBody,
 		revision:  revision,
@@ -350,7 +350,7 @@ func buildAndSign(assertType AssertionType, headers map[string]string, body []by
 // registry for assertion types describing how to build them etc...
 
 type assertionTypeRegistration struct {
-	builder    func(assert AssertionBase) (Assertion, error)
+	builder    func(assert assertionBase) (Assertion, error)
 	primaryKey []string
 }
 
