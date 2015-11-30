@@ -287,28 +287,6 @@ void setup_private_mount(const char* appname) {
     }
 }
 
-void make_root_rprivate() {
-   int status;
-   pid_t pid = fork();
-   if (pid == 0) {
-      char *args[4];
-      args[0] = "/bin/mount";
-      args[1] = "--make-rprivate";
-      args[2] = "/";
-      args[3] = NULL;
-
-      if(setuid(0) != 0)
-         die("setuid(0) failed");
-      execv(args[0], args);
-   }
-   if(waitpid(pid, &status, 0) < 0)
-         die("waitpid failed");
-   if(WIFEXITED(status) && WEXITSTATUS(status) != 0)
-      die("child exited with status %i", WEXITSTATUS(status));
-   else if(WIFSIGNALED(status))
-      die("child died with signal %i", WTERMSIG(status));
-}
-
 void setup_snappy_os_mounts() {
    fprintf(stderr, "setup_snappy_os_mounts()\n");
 
@@ -318,7 +296,12 @@ void setup_snappy_os_mounts() {
       die("unable to set up mount namespace");
    }
 
-   make_root_rprivate();
+   // make our "/" a rslave of the real "/". this means that
+   // mounts from the host "/" get propagated to our namespace
+   // (i.e. we see new media mounts)
+   if (mount("none", "/", NULL, MS_REC|MS_SLAVE, NULL) != 0) {
+      die("can not make make / rslave");
+   }
    
    // FIXME: hardcoded "ubuntu-core.*"
    glob_t glob_res;
