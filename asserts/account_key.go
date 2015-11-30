@@ -48,6 +48,11 @@ func (ak *AccountKey) Until() time.Time {
 	return ak.until
 }
 
+// IsValidAt returns whether the account key is valid at 'when' time.
+func (ak *AccountKey) IsValidAt(when time.Time) bool {
+	return (when.After(ak.since) || when.Equal(ak.since)) && when.Before(ak.until)
+}
+
 func checkPublicKey(ab *AssertionBase, fingerprintName string) (PublicKey, error) {
 	pubKey, err := parsePublicKey(ab.Body())
 	if err != nil {

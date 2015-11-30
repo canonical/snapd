@@ -61,6 +61,12 @@ var (
 	ErrNotFound = errors.New("assertion not found")
 )
 
+// A consistencyChecker performs further checks based on the full
+// assertion database knowledge and its own signing key.
+type consistencyChecker interface {
+	checkConsistency(db *Database, signingPubKey PublicKey) error
+}
+
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
@@ -161,11 +167,16 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 	// consider stored account keys
 	accountKeysTop := filepath.Join(db.root, assertionsRoot, string(AccountKeyType))
 	foundKeyCb := func(primaryPath string) error {
-		accKey, err := db.readAssertion(AccountKeyType, primaryPath)
+		a, err := db.readAssertion(AccountKeyType, primaryPath)
 		if err != nil {
 			return err
 		}
-		res = append(res, accKey.(*AccountKey))
+		var accKey PublicKey
+		accKey, ok := a.(*AccountKey)
+		if !ok {
+			return fmt.Errorf("something that is not an account-key under their storage tree")
+		}
+		res = append(res, accKey)
 		return nil
 	}
 	err := findWildcard(accountKeysTop, []string{url.QueryEscape(authorityID), "*" + fingerprintSuffix}, foundKeyCb)
@@ -194,7 +205,13 @@ func (db *Database) Check(assert Assertion) error {
 		if pubKey.IsValidAt(now) {
 			err := pubKey.Verify(content, sig)
 			if err == nil {
-				// TODO: further checks about consistency of assert and validity of the key for this kind of assert, likely delegating to the assert
+				// see if the assertion requires further checks
+				if checker, ok := assert.(consistencyChecker); ok {
+					err := checker.checkConsistency(db, pubKey)
+					if err != nil {
+						return fmt.Errorf("signature verifies but assertion violates other knownledge: %v", err)
+					}
+				}
 				return nil
 			}
 			lastErr = err
@@ -287,71 +304,4 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 		}
 	}
 	return assert, nil
-}
-
-/*
-findWildcard invokes foundCb for each regular file matching:
-
-<top>/<descendantWithWildcard[0]>/<descendantWithWildcard[1]...
-
-where each descendantWithWildcard component can contain the * wildcard;
-
-foundCb is invoked with the path of the file relative to top (that means top/
- is excluded).
-
-Any I/O operation error stops the walking and bottoms out, so a foundCb invocation that returns an error.
-*/
-func findWildcard(top string, descendantWithWildcard []string, foundCb func(relpath string) error) error {
-	return findWildcardDescend(top, top, descendantWithWildcard, foundCb)
-}
-
-func findWildcardDescend(top, current string, descendantWithWildcard []string, foundCb func(relpath string) error) error {
-	if len(descendantWithWildcard) == 0 {
-		finfo, err := os.Stat(current)
-		if os.IsNotExist(err) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if !finfo.Mode().IsRegular() {
-			return fmt.Errorf("expected a regular file: %v", current)
-		}
-		relpath, err := filepath.Rel(top, current)
-		if err != nil {
-			return fmt.Errorf("findWildcard: unexpected to fail at computing rel path of descendant")
-		}
-		return foundCb(relpath)
-	}
-
-	k := descendantWithWildcard[0]
-	if strings.IndexByte(k, '*') == -1 {
-		return findWildcardDescend(top, filepath.Join(current, k), descendantWithWildcard[1:], foundCb)
-	}
-
-	d, err := os.Open(current)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	defer d.Close()
-	names, err := d.Readdirnames(-1)
-	if err != nil {
-		return err
-	}
-	for _, name := range names {
-		ok, err := filepath.Match(k, name)
-		if err != nil {
-			return fmt.Errorf("findWildcard: invoked with malformed wildcard: %v", err)
-		}
-		if ok {
-			err = findWildcardDescend(top, filepath.Join(current, name), descendantWithWildcard[1:], foundCb)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }

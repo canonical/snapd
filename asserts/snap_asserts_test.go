@@ -100,7 +100,7 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
+func makeDatabaseWithAccountKey(c *C) *asserts.Database {
 	trustedKey := testPrivKey0
 	accPrivKey := testPrivKey1
 
@@ -134,7 +134,14 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
 	err = db.Add(accKey)
 	c.Assert(err, IsNil)
 
-	headers = map[string]string{
+	return db
+}
+
+func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
+	accPrivKey := testPrivKey1
+	db := makeDatabaseWithAccountKey(c)
+
+	headers := map[string]string{
 		"authority-id": "dev-id1",
 		"snap-id":      "snap-id-1",
 		"snap-digest":  "sha256 ...",
@@ -147,4 +154,23 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
 
 	err = db.Check(snapDecl)
 	c.Assert(err, IsNil)
+}
+
+func (sds *snapDeclSuite) TestSnapDeclarationCheckInconsistentTimestamp(c *C) {
+	accPrivKey := testPrivKey1
+	db := makeDatabaseWithAccountKey(c)
+
+	headers := map[string]string{
+		"authority-id": "dev-id1",
+		"snap-id":      "snap-id-1",
+		"snap-digest":  "sha256 ...",
+		"grade":        "devel",
+		"snap-size":    "1025",
+		"timestamp":    "2013-01-01T14:00:00Z",
+	}
+	snapDecl, err := asserts.BuildAndSignInTest(asserts.SnapDeclarationType, headers, nil, accPrivKey)
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapDecl)
+	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knownledge: snap-declaration timestamp outside of signing key validity")
 }

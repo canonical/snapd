@@ -209,3 +209,28 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 	c.Assert(found, NotNil)
 	c.Check(found.Body(), DeepEquals, []byte(aks.pubKeyBody))
 }
+
+func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
+	encoded := "type: account-key\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"fingerprint: " + aks.fp + "\n" +
+		aks.sinceLine +
+		aks.untilLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"openpgp c2ln"
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	accKey, ok := a.(asserts.PublicKey)
+	c.Assert(ok, Equals, true)
+
+	c.Check(accKey.IsValidAt(aks.since), Equals, true)
+	c.Check(accKey.IsValidAt(aks.since.AddDate(0, 0, -1)), Equals, false)
+	c.Check(accKey.IsValidAt(aks.since.AddDate(0, 0, 1)), Equals, true)
+
+	c.Check(accKey.IsValidAt(aks.until), Equals, false)
+	c.Check(accKey.IsValidAt(aks.until.AddDate(0, -1, 0)), Equals, true)
+	c.Check(accKey.IsValidAt(aks.until.AddDate(0, 1, 0)), Equals, false)
+}
