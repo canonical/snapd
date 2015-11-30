@@ -202,12 +202,7 @@ bool snappy_udev_setup_required(const char *appname) {
 }
 
 bool is_running_on_classic_ubuntu() {
-   struct stat buf;
-   if (stat("/var/lib/dpkg/status", &buf) == 0) {
-         return true;
-   }
-   
-   return false;
+   return (access("/var/lib/dpkg/status", F_OK) == 0)
 }
 
 bool is_mountpoint(const char * const mountpoint) {
