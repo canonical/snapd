@@ -32,6 +32,7 @@
 #include <regex.h>
 #include <grp.h>
 #include <fcntl.h>
+#include <glob.h>
 
 #include "libudev.h"
 
@@ -200,6 +201,22 @@ bool snappy_udev_setup_required(const char *appname) {
    return false;
 }
 
+bool is_running_on_classic_ubuntu() {
+   return (access("/var/lib/dpkg/status", F_OK) == 0);
+}
+
+bool is_mountpoint(const char * const mountpoint) {
+   int status;
+   pid_t pid = fork();
+   if (pid == 0) {
+      execlp("mountpoint", "mountpoint", mountpoint, NULL);
+   }
+   if(waitpid(pid, &status, 0) < 0)
+      die("waitpid failed");
+
+   return (WIFEXITED(status) && WEXITSTATUS(status) == 0);
+}
+
 void setup_private_mount(const char* appname) {
     uid_t uid = getuid();
     gid_t gid = getgid();
@@ -235,14 +252,13 @@ void setup_private_mount(const char* appname) {
         die("unable to set up mount namespace");
     }
 
-    // MS_PRIVATE needs linux > 2.6.11
-    if (mount("none", "/tmp", NULL, MS_PRIVATE, NULL) != 0) {
-        die("unable to make /tmp/ private");
-    }
-
     // MS_BIND is there from linux 2.4
     if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
         die("unable to bind private /tmp");
+    }
+    // MS_PRIVATE needs linux > 2.6.11
+    if (mount("none", "/tmp", NULL, MS_PRIVATE, NULL) != 0) {
+       die("unable to make /tmp/ private");
     }
 
     // do the chown after the bind mount to avoid potential shenanigans
@@ -262,6 +278,51 @@ void setup_private_mount(const char* appname) {
        }
     }
 }
+
+void setup_snappy_os_mounts() {
+   debug("setup_snappy_os_mounts()\n");
+
+   // unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >= 2.14
+   // if using an older glibc, you'd need -D_BSD_SOURCE or -D_SVID_SORUCE.
+   if (unshare(CLONE_NEWNS) < 0) {
+      die("unable to set up mount namespace");
+   }
+
+   // make our "/" a rslave of the real "/". this means that
+   // mounts from the host "/" get propagated to our namespace
+   // (i.e. we see new media mounts)
+   if (mount("none", "/", NULL, MS_REC|MS_SLAVE, NULL) != 0) {
+      die("can not make make / rslave");
+   }
+   
+   // FIXME: hardcoded "ubuntu-core.*"
+   glob_t glob_res;
+   if (glob("/apps/ubuntu-core*/current/", 0, NULL, &glob_res) != 0) {
+      die("can not find a snappy os");
+   }
+   if ((glob_res.gl_pathc =! 1)) {
+      die("expected 1 os snap, found %lu", glob_res.gl_pathc);
+   }
+   char *mountpoint = glob_res.gl_pathv[0];
+                                   
+   const char *mounts[] = {"/bin", "/sbin", "/lib", "/lib64", "/usr"};
+   for (int i=0; i < sizeof(mounts)/sizeof(char*); i++) {
+      // we mount the OS snap /bin over the real /bin in this NS
+      const char *dst = mounts[i];
+
+      char buf[512];
+      must_snprintf(buf, sizeof(buf), "%s%s", mountpoint, dst);
+      const char *src = buf;
+
+      debug("mounting %s -> %s\n", src, dst);
+      if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
+         die("unable to bind %s to %s", src, dst);
+      }
+   }
+
+   globfree(&glob_res);
+}
+
 
 int main(int argc, char **argv)
 {
@@ -296,6 +357,11 @@ int main(int argc, char **argv)
           die("binary must be inside /apps/%s/, /frameworks/%s/ or /oem/%s/",
                   appname, appname, appname);
 
+       // do the mounting if run on a non-native snappy system
+       if(is_running_on_classic_ubuntu()) {
+          setup_snappy_os_mounts();
+       }
+      
        // set up private mounts
        setup_private_mount(appname);
 
