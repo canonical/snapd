@@ -22,7 +22,6 @@ package tests
 
 import (
 	"strconv"
-	"time"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
@@ -48,7 +47,6 @@ func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
 		cli.ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core",
 			strconv.Itoa(common.GetSavedVersion(c)))
 		common.SetSavedVersion(c, currentVersion)
-		time.Sleep(10 * time.Second)
 		common.RebootWithMark(c, c.TestName()+"-rollback")
 	} else if common.CheckRebootMark(c.TestName() + "-rollback") {
 		common.RemoveRebootMark(c)
