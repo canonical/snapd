@@ -21,6 +21,15 @@ package release
 
 import (
 	"fmt"
+	"io/ioutil"
+	"strings"
+
+	"github.com/ubuntu-core/snappy/dirs"
+)
+
+var (
+	// used in the unit tests
+	lsbReleasePath = "/etc/lsb-release"
 )
 
 // Release contains a structure with the release information
@@ -30,7 +39,14 @@ type Release struct {
 	Channel string
 }
 
+// Release is the current release
 var rel Release
+
+func init() {
+	// we don't need to care for the error here to take into account when
+	// initialized on a non snappy system
+	Setup(dirs.GlobalRootDir)
+}
 
 // String returns the release information in a string
 func String() string {
@@ -58,4 +74,38 @@ func Setup(rootDir string) error {
 // set for the store http headers.
 func (r Release) String() string {
 	return fmt.Sprintf("%s-%s", r.Series, r.Flavor)
+}
+
+// Lsb contains the /etc/lsb-release information of the system
+type Lsb struct {
+	ID       string
+	Release  string
+	Codename string
+}
+
+// ReadLsb returns the lsb-release information of the current system
+func ReadLsb() (*Lsb, error) {
+	lsb := &Lsb{}
+
+	content, err := ioutil.ReadFile(lsbReleasePath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read lsb-release: %s", err)
+	}
+
+	for _, line := range strings.Split(string(content), "\n") {
+		if strings.HasPrefix(line, "DISTRIB_ID=") {
+			tmp := strings.SplitN(line, "=", 2)
+			lsb.ID = tmp[1]
+		}
+		if strings.HasPrefix(line, "DISTRIB_RELEASE=") {
+			tmp := strings.SplitN(line, "=", 2)
+			lsb.Release = tmp[1]
+		}
+		if strings.HasPrefix(line, "DISTRIB_CODENAME=") {
+			tmp := strings.SplitN(line, "=", 2)
+			lsb.Codename = tmp[1]
+		}
+	}
+
+	return lsb, nil
 }

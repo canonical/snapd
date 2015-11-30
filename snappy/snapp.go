@@ -1126,6 +1126,10 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 
 // Config is used to to configure the snap
 func (s *SnapPart) Config(configuration []byte) (new string, err error) {
+	if s.m.Type == pkg.TypeOS {
+		return coreConfig(configuration)
+	}
+
 	return snapConfig(s.basedir, s.origin, string(configuration))
 }
 
@@ -1717,7 +1721,6 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
-	req.Header.Set("X-Ubuntu-Device-Channel", release.Get().Channel)
 
 	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
 		req.Header.Set("X-Ubuntu-Store", storeID)

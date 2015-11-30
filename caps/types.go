@@ -20,31 +20,38 @@
 package caps
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
-// Type is the name of a capability type.
-type Type string
+// Type describes a group of interchangeable capabilities with common features.
+// Types are managed centrally and act as a contract between system builders,
+// application developers and end users.
+type Type struct {
+	// Name is a key that identifies the capability type. It must be unique
+	// within the whole OS. The name forms a part of the stable system API.
+	Name string
+}
 
-const (
+var (
 	// FileType is a basic capability vaguely expressing access to a specific
 	// file. This single capability  type is here just to help bootstrap
 	// the capability concept before we get to load capability interfaces
 	// from YAML.
-	FileType Type = "file"
+	FileType = &Type{"file"}
 )
 
-var builtInTypes = [...]Type{
+var builtInTypes = [...]*Type{
 	FileType,
 }
 
 // String returns a string representation for the capability type.
-func (t Type) String() string {
-	return string(t)
+func (t *Type) String() string {
+	return t.Name
 }
 
 // Validate whether a capability is correct according to the given type.
-func (t Type) Validate(c *Capability) error {
+func (t *Type) Validate(c *Capability) error {
 	if t != c.Type {
 		return fmt.Errorf("capability is not of type %q", t)
 	}
@@ -55,4 +62,16 @@ func (t Type) Validate(c *Capability) error {
 		return fmt.Errorf("attributes must be empty for now")
 	}
 	return nil
+}
+
+// MarshalJSON encodes a Type object as the name of the type.
+func (t *Type) MarshalJSON() ([]byte, error) {
+	return json.Marshal(t.Name)
+}
+
+// UnmarshalJSON decodes the name of a Type object.
+// NOTE: In the future, when more properties are added, those properties will
+// not be decoded and will be left over as empty values.
+func (t *Type) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &t.Name)
 }

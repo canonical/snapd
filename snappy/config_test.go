@@ -73,6 +73,12 @@ func (s *SnapTestSuite) makeInstalledMockSnapWithConfig(c *C, configScript strin
 	return snapDir, nil
 }
 
+var mockOsSnap = `
+name: ubuntu-core
+version: 1.0
+type: os
+`
+
 func (s *SnapTestSuite) TestConfigSimple(c *C) {
 	mockConfig := fmt.Sprintf(configPassthroughScript, s.tempdir)
 	snapDir, err := s.makeInstalledMockSnapWithConfig(c, mockConfig)
@@ -84,6 +90,25 @@ func (s *SnapTestSuite) TestConfigSimple(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, []byte(configYaml))
 	c.Assert(newConfig, Equals, configYaml)
+}
+
+func (s *SnapTestSuite) TestConfigOS(c *C) {
+	snapYaml, err := s.makeInstalledMockSnap(mockOsSnap)
+	c.Assert(err, IsNil)
+	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
+	c.Assert(err, IsNil)
+
+	var cfg []byte
+	inCfg := []byte(`something`)
+	coreConfig = func(configuration []byte) (string, error) {
+		cfg = configuration
+		return string(cfg), nil
+	}
+	defer func() { coreConfig = coreConfigImpl }()
+
+	_, err = snap.Config(inCfg)
+	c.Assert(err, IsNil)
+	c.Assert(cfg, DeepEquals, inCfg)
 }
 
 func (s *SnapTestSuite) TestConfigGeneratesRightAA(c *C) {

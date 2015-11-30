@@ -62,6 +62,10 @@ type SystemdTestSuite struct {
 var _ = Suite(&SystemdTestSuite{})
 
 func (s *SystemdTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+
 	// force UTC timezone, for reproducible timestamps
 	os.Setenv("TZ", "")
 
@@ -421,6 +425,7 @@ func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
 func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
 	mountUnitName, err := New("", nil).WriteMountUnitFile("foo.origin", "/var/lib/snappy/snaps/foo.origin_1.0.snap", "/apps/foo.origin/1.0")
 	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
 
 	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
 	c.Assert(err, IsNil)

@@ -42,54 +42,48 @@ var (
 	tplExecute       = tpl.Execute
 )
 
-// Autopkgtest is the type that knows how to call adt-run
-type Autopkgtest struct {
-	sourceCodePath      string // location of the source code on the host
-	testArtifactsPath   string // location of the test artifacts on the host
-	testFilter          string
-	integrationTestName string
-	shellOnFail         bool
-}
-
-// NewAutopkgtest is the Autopkgtest constructor
-func NewAutopkgtest(sourceCodePath, testArtifactsPath, testFilter, integrationTestName string, shellOnFail bool) *Autopkgtest {
-	return &Autopkgtest{
-		sourceCodePath:      sourceCodePath,
-		testArtifactsPath:   testArtifactsPath,
-		testFilter:          testFilter,
-		integrationTestName: integrationTestName,
-		shellOnFail:         shellOnFail,
-	}
+// AutoPkgTest is the type that knows how to call adt-run
+type AutoPkgTest struct {
+	// SourceCodePath is the location of the source code on the host.
+	SourceCodePath string
+	// TestArtifactsPath is the location of the test artifacts on the host.
+	TestArtifactsPath string
+	// TestFilter is an optional string to select a subset of tests.
+	TestFilter string
+	// IntegrationTestName is the name of the binary that runs the integration tests.
+	IntegrationTestName string
+	// ShellOnFail is used in case of failure to open a shell on the testbed before shutting it down.
+	ShellOnFail bool
 }
 
 // AdtRunLocal starts a kvm running the image passed as argument and runs the
 // autopkgtests using it as the testbed.
-func (a *Autopkgtest) AdtRunLocal(imgPath string) error {
+func (a *AutoPkgTest) AdtRunLocal(imgPath string) error {
 	// Run the tests on the latest rolling edge image.
 	return a.adtRun(kvmSSHOptions(imgPath))
 }
 
 // AdtRunRemote runs the autopkgtests using a remote machine as the testbed.
-func (a *Autopkgtest) AdtRunRemote(testbedIP string, testbedPort int) error {
+func (a *AutoPkgTest) AdtRunRemote(testbedIP string, testbedPort int) error {
 	return a.adtRun(remoteTestbedSSHOptions(testbedIP, testbedPort))
 }
 
-func (a *Autopkgtest) adtRun(testbedOptions string) (err error) {
+func (a *AutoPkgTest) adtRun(testbedOptions string) (err error) {
 	if err = a.createControlFile(); err != nil {
 		return
 	}
 
 	fmt.Println("Calling adt-run...")
-	outputDir := filepath.Join(a.testArtifactsPath, "output")
+	outputDir := filepath.Join(a.TestArtifactsPath, "output")
 	prepareTargetDir(outputDir)
 
 	cmd := []string{
 		"adt-run", "-B",
 		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp",
 		"--override-control", controlFile,
-		"--built-tree", a.sourceCodePath,
+		"--built-tree", a.SourceCodePath,
 		"--output-dir", outputDir}
-	if a.shellOnFail {
+	if a.ShellOnFail {
 		cmd = append(cmd, "--shell-fail")
 	}
 
@@ -98,10 +92,10 @@ func (a *Autopkgtest) adtRun(testbedOptions string) (err error) {
 	return
 }
 
-func (a *Autopkgtest) createControlFile() error {
+func (a *AutoPkgTest) createControlFile() error {
 	return tplExecute(controlTpl, controlFile,
 		struct {
 			Filter, Test string
 		}{
-			a.testFilter, a.integrationTestName})
+			a.TestFilter, a.IntegrationTestName})
 }

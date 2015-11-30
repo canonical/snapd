@@ -137,15 +137,15 @@ func (as *AssertsSuite) TestDecodeInvalid(c *C) {
 		"openpgp c2ln"
 
 	invalidAssertTests := []struct{ original, invalid, expectedErr string }{
-		{"body-length: 5", "body-length: z", "assertion body-length is not an integer: z"},
+		{"body-length: 5", "body-length: z", `assertion: "body-length" header is not an integer: z`},
 		{"body-length: 5", "body-length: 3", "assertion body length and declared body-length don't match: 5 != 3"},
-		{"authority-id: auth-id\n", "", "assertion authority-id header is mandatory"},
-		{"authority-id: auth-id\n", "authority-id: \n", "assertion authority-id should not be empty"},
+		{"authority-id: auth-id\n", "", `assertion: "authority-id" header is mandatory`},
+		{"authority-id: auth-id\n", "authority-id: \n", `assertion: "authority-id" header should not be empty`},
 		{"openpgp c2ln", "", "empty assertion signature"},
-		{"type: test-only\n", "", "assertion type header is mandatory"},
-		{"type: test-only\n", "type: unknown\n", "cannot build assertion of unknown type: unknown"},
-		{"revision: 0\n", "revision: Z\n", "assertion revision is not an integer: Z"},
-		{"revision: 0\n", "revision: -10\n", "assertion revision should be positive: -10"},
+		{"type: test-only\n", "", `assertion: "type" header is mandatory`},
+		{"type: test-only\n", "type: unknown\n", "unknown assertion type: unknown"},
+		{"revision: 0\n", "revision: Z\n", `assertion: "revision" header is not an integer: Z`},
+		{"revision: 0\n", "revision: -10\n", "assertion: revision should be positive: -10"},
 	}
 
 	for _, test := range invalidAssertTests {
@@ -174,13 +174,11 @@ func (as *AssertsSuite) TestEncode(c *C) {
 }
 
 func (as *AssertsSuite) TestSignFormatSanityEmptyBody(c *C) {
-	key1, err := asserts.GeneratePrivateKeyInTest()
-	c.Assert(err, IsNil)
-
 	headers := map[string]string{
 		"authority-id": "auth-id1",
+		"primary-key":  "0",
 	}
-	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, key1)
+	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey1)
 	c.Assert(err, IsNil)
 
 	_, err = asserts.Decode(asserts.Encode(a))
@@ -188,14 +186,12 @@ func (as *AssertsSuite) TestSignFormatSanityEmptyBody(c *C) {
 }
 
 func (as *AssertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
-	key1, err := asserts.GeneratePrivateKeyInTest()
-	c.Assert(err, IsNil)
-
 	headers := map[string]string{
 		"authority-id": "auth-id1",
+		"primary-key":  "0",
 	}
 	body := []byte("THE-BODY")
-	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, body, key1)
+	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, body, testPrivKey1)
 	c.Assert(err, IsNil)
 	c.Check(a.Body(), DeepEquals, body)
 

@@ -93,11 +93,9 @@ func (dbs *databaseSuite) SetUpTest(c *C) {
 }
 
 func (dbs *databaseSuite) TestImportKey(c *C) {
-	privk, err := asserts.GeneratePrivateKeyInTest()
-	c.Assert(err, IsNil)
-	expectedFingerprint := hex.EncodeToString(privk.PublicKey.Fingerprint[:])
+	expectedFingerprint := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
 
-	fingerp, err := dbs.db.ImportKey("account0", privk)
+	fingerp, err := dbs.db.ImportKey("account0", testPrivKey1)
 	c.Assert(err, IsNil)
 	c.Check(fingerp, Equals, expectedFingerprint)
 
@@ -124,7 +122,6 @@ func (dbs *databaseSuite) TestGenerateKey(c *C) {
 }
 
 type checkSuite struct {
-	key1    *packet.PrivateKey
 	rootDir string
 	a       asserts.Assertion
 }
@@ -133,15 +130,14 @@ var _ = Suite(&checkSuite{})
 
 func (chks *checkSuite) SetUpTest(c *C) {
 	var err error
-	chks.key1, err = asserts.GeneratePrivateKeyInTest()
-	c.Assert(err, IsNil)
 
 	chks.rootDir = filepath.Join(c.MkDir(), "asserts-db")
 
 	headers := map[string]string{
 		"authority-id": "canonical",
+		"primary-key":  "0",
 	}
-	chks.a, err = asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, chks.key1)
+	chks.a, err = asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)
 }
 
@@ -155,9 +151,7 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 }
 
 func (chks *checkSuite) TestCheckForgery(c *C) {
-	key2, err := asserts.GeneratePrivateKeyInTest()
-	c.Assert(err, IsNil)
-	dbTrustedKey := asserts.WrapPublicKey(&key2.PublicKey)
+	dbTrustedKey := asserts.WrapPublicKey(&testPrivKey0.PublicKey)
 
 	cfg := &asserts.DatabaseConfig{
 		Path: chks.rootDir,
@@ -172,13 +166,13 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	content, encodedSig := chks.a.Signature()
 	// forgery
 	forgedSig := new(packet.Signature)
-	forgedSig.PubKeyAlgo = chks.key1.PubKeyAlgo
+	forgedSig.PubKeyAlgo = testPrivKey1.PubKeyAlgo
 	forgedSig.Hash = crypto.SHA256
 	forgedSig.CreationTime = time.Now()
-	forgedSig.IssuerKeyId = &key2.KeyId
+	forgedSig.IssuerKeyId = &testPrivKey0.KeyId
 	h := crypto.SHA256.New()
 	h.Write(content)
-	err = forgedSig.Sign(h, chks.key1, &packet.Config{DefaultHash: crypto.SHA256})
+	err = forgedSig.Sign(h, testPrivKey1, &packet.Config{DefaultHash: crypto.SHA256})
 	c.Assert(err, IsNil)
 	buf := new(bytes.Buffer)
 	forgedSig.Serialize(buf)
@@ -191,4 +185,92 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 
 	err = db.Check(forgedAssert)
 	c.Assert(err, ErrorMatches, "failed signature verification: .*")
+}
+
+type addFindSuite struct {
+	db *asserts.Database
+}
+
+var _ = Suite(&addFindSuite{})
+
+func (afs *addFindSuite) SetUpTest(c *C) {
+	rootDir := filepath.Join(c.MkDir(), "asserts-db")
+	dbTrustedKey := asserts.WrapPublicKey(&testPrivKey0.PublicKey)
+	cfg := &asserts.DatabaseConfig{
+		Path: rootDir,
+		TrustedKeys: map[string][]asserts.PublicKey{
+			"canonical": {dbTrustedKey},
+		},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+	afs.db = db
+}
+
+func (afs *addFindSuite) TestAddSuperseding(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+	}
+	a1, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey0)
+	c.Assert(err, IsNil)
+
+	err = afs.db.Add(a1)
+	c.Assert(err, IsNil)
+
+	retrieved1, err := afs.db.Find(asserts.AssertionType("test-only"), map[string]string{
+		"primary-key": "a",
+	})
+	c.Assert(err, IsNil)
+	c.Check(retrieved1, NotNil)
+	c.Check(retrieved1.Revision(), Equals, 0)
+
+	headers["revision"] = "1"
+	a2, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey0)
+	c.Assert(err, IsNil)
+
+	err = afs.db.Add(a2)
+	c.Assert(err, IsNil)
+
+	retrieved2, err := afs.db.Find(asserts.AssertionType("test-only"), map[string]string{
+		"primary-key": "a",
+	})
+	c.Assert(err, IsNil)
+	c.Check(retrieved2, NotNil)
+	c.Check(retrieved2.Revision(), Equals, 1)
+
+	err = afs.db.Add(a1)
+	c.Check(err, ErrorMatches, "assertion added must have more recent revision than current one.*")
+}
+
+func (afs *addFindSuite) TestFindNotFound(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+	}
+	a1, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey0)
+	c.Assert(err, IsNil)
+
+	err = afs.db.Add(a1)
+	c.Assert(err, IsNil)
+
+	retrieved1, err := afs.db.Find(asserts.AssertionType("test-only"), map[string]string{
+		"primary-key": "b",
+	})
+	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Check(retrieved1, IsNil)
+
+	// checking also extra headers
+	retrieved1, err = afs.db.Find(asserts.AssertionType("test-only"), map[string]string{
+		"primary-key":  "a",
+		"authority-id": "other-auth-id",
+	})
+	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Check(retrieved1, IsNil)
+}
+
+func (afs *addFindSuite) TestFindPrimaryLeftOut(c *C) {
+	retrieved1, err := afs.db.Find(asserts.AssertionType("test-only"), map[string]string{})
+	c.Assert(err, ErrorMatches, "must provide primary key: primary-key")
+	c.Check(retrieved1, IsNil)
 }

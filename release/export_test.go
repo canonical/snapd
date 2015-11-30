@@ -17,25 +17,12 @@
  *
  */
 
-package snappy
+package release
 
-import (
-	"os"
-
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/release"
-)
-
-func init() {
-	// init the global directories at startup
-	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
-	if root == "" {
-		root = "/"
+func HackLsbReleasePath(fn string) (reset func()) {
+	origLsbReleasePath := lsbReleasePath
+	lsbReleasePath = fn
+	return func() {
+		lsbReleasePath = origLsbReleasePath
 	}
-
-	dirs.SetRootDir(root)
-
-	// we don't need to care for the error here to take into account when
-	// initialized on a non snappy system
-	release.Setup(dirs.GlobalRootDir)
 }

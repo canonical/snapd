@@ -42,6 +42,10 @@ import (
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
+// increase this every time you make a minor (backwards-compatible)
+// change to the API.
+const apiCompatLevel = "1"
+
 var api = []*Command{
 	rootCmd,
 	v1Cmd,
@@ -54,40 +58,47 @@ var api = []*Command{
 	packageSvcsCmd,
 	packageSvcLogsCmd,
 	operationCmd,
+	capabilitiesCmd,
 }
 
 var (
 	rootCmd = &Command{
-		Path: "/",
-		GET:  SyncResponse([]string{"/1.0"}).Self,
+		Path:    "/",
+		GuestOK: true,
+		GET:     SyncResponse([]string{"/1.0"}).Self,
 	}
 
 	v1Cmd = &Command{
-		Path: "/1.0",
-		GET:  v1Get,
+		Path:    "/1.0",
+		GuestOK: true,
+		GET:     v1Get,
 	}
 
 	metaIconCmd = &Command{
-		Path: "/1.0/icons/{icon}",
-		GET:  metaIconGet,
+		Path:   "/1.0/icons/{icon}",
+		UserOK: true,
+		GET:    metaIconGet,
 	}
 
 	appIconCmd = &Command{
-		Path: "/1.0/icons/{name}.{origin}/icon",
-		GET:  appIconGet,
+		Path:   "/1.0/icons/{name}.{origin}/icon",
+		UserOK: true,
+		GET:    appIconGet,
 	}
 
 	packagesCmd = &Command{
-		Path: "/1.0/packages",
-		GET:  getPackagesInfo,
-		POST: sideloadPackage,
-		PUT:  configMulti,
+		Path:   "/1.0/packages",
+		UserOK: true,
+		GET:    getPackagesInfo,
+		POST:   sideloadPackage,
+		PUT:    configMulti,
 	}
 
 	packageCmd = &Command{
-		Path: "/1.0/packages/{name}.{origin}",
-		GET:  getPackageInfo,
-		POST: postPackage,
+		Path:   "/1.0/packages/{name}.{origin}",
+		UserOK: true,
+		GET:    getPackageInfo,
+		POST:   postPackage,
 	}
 
 	packageConfigCmd = &Command{
@@ -97,15 +108,17 @@ var (
 	}
 
 	packageSvcsCmd = &Command{
-		Path: "/1.0/packages/{name}.{origin}/services",
-		GET:  packageService,
-		PUT:  packageService,
+		Path:   "/1.0/packages/{name}.{origin}/services",
+		UserOK: true,
+		GET:    packageService,
+		PUT:    packageService,
 	}
 
 	packageSvcCmd = &Command{
-		Path: "/1.0/packages/{name}.{origin}/services/{service}",
-		GET:  packageService,
-		PUT:  packageService,
+		Path:   "/1.0/packages/{name}.{origin}/services/{service}",
+		UserOK: true,
+		GET:    packageService,
+		PUT:    packageService,
 	}
 
 	packageSvcLogsCmd = &Command{
@@ -117,6 +130,12 @@ var (
 		Path:   "/1.0/operations/{uuid}",
 		GET:    getOpInfo,
 		DELETE: deleteOp,
+	}
+
+	capabilitiesCmd = &Command{
+		Path:   "/1.0/capabilities",
+		UserOK: true,
+		GET:    getCapabilities,
 	}
 )
 
@@ -132,7 +151,7 @@ func v1Get(c *Command, r *http.Request) Response {
 		"flavor":          rel.Flavor,
 		"release":         rel.Series,
 		"default_channel": rel.Channel,
-		"api_compat":      "0",
+		"api_compat":      apiCompatLevel,
 	}
 
 	if store := snappy.StoreID(); store != "" {
@@ -592,9 +611,9 @@ func deleteOp(c *Command, r *http.Request) Response {
 // and is expected as input to accept (or not) that license
 // agreement. As such, its field names are part of the API.
 type licenseData struct {
-	Intro   string
-	License string
-	Agreed  bool
+	Intro   string `json:"intro"`
+	License string `json:"license"`
+	Agreed  bool   `json:"agreed"`
 }
 
 func (*licenseData) Error() string {
@@ -895,4 +914,10 @@ func appIconGet(c *Command, r *http.Request) Response {
 	}
 
 	return FileResponse(path)
+}
+
+func getCapabilities(c *Command, r *http.Request) Response {
+	return SyncResponse(map[string]interface{}{
+		"capabilities": c.d.capRepo.Caps(),
+	})
 }

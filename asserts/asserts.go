@@ -36,7 +36,8 @@ type AssertionType string
 
 // Understood assertions
 const (
-	AccountKeyType AssertionType = "account-key"
+	AccountKeyType      AssertionType = "account-key"
+	SnapDeclarationType AssertionType = "snap-declaration"
 
 // ...
 )
@@ -193,65 +194,33 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 	return buildAssertion(headers, body, content, signature)
 }
 
-func checkMandatory(headers map[string]string, name string) (string, error) {
-	value, ok := headers[name]
-	if !ok {
-		return "", fmt.Errorf("assertion %v header is mandatory", name)
-	}
-	if len(value) == 0 {
-		return "", fmt.Errorf("assertion %v should not be empty", name)
-	}
-	return value, nil
-}
-
-func checkInteger(headers map[string]string, name string) (int, error) {
-	valueStr, ok := headers[name]
-	if !ok {
-		// default to 0 if missing
-		return 0, nil
-	}
-	value, err := strconv.Atoi(valueStr)
-	if err != nil {
-		return -1, fmt.Errorf("assertion %v is not an integer: %v", name, valueStr)
-	}
-	return value, nil
-}
-
-func checkAssertType(assertType AssertionType) (*assertionTypeRegistration, error) {
-	reg := typeRegistry[assertType]
-	if reg == nil {
-		return nil, fmt.Errorf("cannot build assertion of unknown type: %v", assertType)
-	}
-	return reg, nil
-}
-
 func checkRevision(headers map[string]string) (int, error) {
-	revision, err := checkInteger(headers, "revision")
+	revision, err := checkInteger(headers, "revision", 0)
 	if err != nil {
 		return -1, err
 	}
 	if revision < 0 {
-		return -1, fmt.Errorf("assertion revision should be positive: %v", revision)
+		return -1, fmt.Errorf("revision should be positive: %v", revision)
 	}
 	return revision, nil
 }
 
 func buildAssertion(headers map[string]string, body, content, signature []byte) (Assertion, error) {
-	length, err := checkInteger(headers, "body-length")
+	length, err := checkInteger(headers, "body-length", 0)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("assertion: %v", err)
 	}
 	if length != len(body) {
 		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
 
 	if _, err := checkMandatory(headers, "authority-id"); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("assertion: %v", err)
 	}
 
 	typ, err := checkMandatory(headers, "type")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("assertion: %v", err)
 	}
 	assertType := AssertionType(typ)
 	reg, err := checkAssertType(assertType)
@@ -261,7 +230,7 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 
 	revision, err := checkRevision(headers)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("assertion: %v", err)
 	}
 
 	assert, err := reg.builder(AssertionBase{

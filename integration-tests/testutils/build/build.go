@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	buildTestCmd = "go test -c ./integration-tests/tests"
+	buildTestCmdFmt = "go test%s -c ./integration-tests/tests"
 
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
@@ -57,18 +57,27 @@ var (
 		filepath.Join(testsBinDir, "snapd") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snapd")
 )
 
+// Config comprises the parameters for the Assets function
+type Config struct {
+	UseSnappyFromBranch bool
+	Arch, TestBuildTags string
+}
+
 // Assets builds the snappy and integration tests binaries for the target
 // architecture.
-func Assets(useSnappyFromBranch bool, arch string) {
+func Assets(cfg *Config) {
+	if cfg == nil {
+		cfg = &Config{}
+	}
 	prepareTargetDir(testsBinDir)
 
-	if useSnappyFromBranch {
+	if cfg.UseSnappyFromBranch {
 		// FIXME We need to build an image that has the snappy from the branch
 		// installed. --elopio - 2015-06-25.
-		buildSnappyCLI(arch)
-		buildSnapd(arch)
+		buildSnappyCLI(cfg.Arch)
+		buildSnapd(cfg.Arch)
 	}
-	buildTests(arch)
+	buildTests(cfg.Arch, cfg.TestBuildTags)
 }
 
 func buildSnappyCLI(arch string) {
@@ -81,10 +90,16 @@ func buildSnapd(arch string) {
 	goCall(arch, buildSnapdCmd)
 }
 
-func buildTests(arch string) {
+func buildTests(arch, testBuildTags string) {
 	fmt.Println("Building tests...")
 
-	goCall(arch, buildTestCmd)
+	var tagText string
+	if testBuildTags != "" {
+		tagText = " -tags=" + testBuildTags
+	}
+	cmd := fmt.Sprintf(buildTestCmdFmt, tagText)
+
+	goCall(arch, cmd)
 	// XXX Go test 1.3 does not have the output flag, so we move the
 	// binaries after they are generated.
 	osRename("tests.test", testsBinDir+IntegrationTestName)

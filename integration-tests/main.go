@@ -70,13 +70,17 @@ func main() {
 			"If the update flag is used, the image will be updated to this channel before running the tests.")
 		rollback = flag.Bool("rollback", false,
 			"If this flag is used, the image will be updated and then rolled back before running the tests.")
-		outputDir   = flag.String("output-dir", defaultOutputDir, "Directory where test artifacts will be stored.")
-		shellOnFail = flag.Bool("shell-fail", false, "Run a shell in the testbed if the suite fails.")
+		outputDir     = flag.String("output-dir", defaultOutputDir, "Directory where test artifacts will be stored.")
+		shellOnFail   = flag.Bool("shell-fail", false, "Run a shell in the testbed if the suite fails.")
+		testBuildTags = flag.String("test-build-tags", "", "Build tags to be passed to the go test command")
 	)
 
 	flag.Parse()
 
-	build.Assets(*useSnappyFromBranch, *arch)
+	build.Assets(&build.Config{
+		UseSnappyFromBranch: *useSnappyFromBranch,
+		Arch:                *arch,
+		TestBuildTags:       *testBuildTags})
 
 	// TODO: generate the files out of the source tree. --elopio - 2015-07-15
 	testutils.PrepareTargetDir(dataOutputDir)
@@ -93,8 +97,13 @@ func main() {
 
 	rootPath := testutils.RootPath()
 
-	test := autopkgtest.NewAutopkgtest(
-		rootPath, *outputDir, *testFilter, build.IntegrationTestName, *shellOnFail)
+	test := &autopkgtest.AutoPkgTest{
+		SourceCodePath:      rootPath,
+		TestArtifactsPath:   *outputDir,
+		TestFilter:          *testFilter,
+		IntegrationTestName: build.IntegrationTestName,
+		ShellOnFail:         *shellOnFail,
+	}
 	if !remoteTestbed {
 		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, *outputDir)
 

@@ -38,7 +38,7 @@ func (ts *ArchTestSuite) TestUbuntuArchitecture(c *C) {
 	c.Check(ubuntuArchFromGoArch("amd64"), Equals, "amd64")
 	c.Check(ubuntuArchFromGoArch("arm"), Equals, "armhf")
 	c.Check(ubuntuArchFromGoArch("arm64"), Equals, "arm64")
-	c.Check(ubuntuArchFromGoArch("ppc64"), Equals, "ppc64el")
+	c.Check(ubuntuArchFromGoArch("ppc64le"), Equals, "ppc64el")
 }
 
 func (ts *ArchTestSuite) TestSetArchitecture(c *C) {

@@ -17,10 +17,17 @@ is `/run/snapd.socket`.
 
 ## Authentication
 
-Authentication over the unix socket is delegated to UNIX ACLs. At this
-point only root can connect to it; regular user access is not
-implemented yet, but should be doable once `SO_PEERCRED` is supported
-to determine privilege levels.
+The API documents three levels of access: *guest*, *authenticated* and
+*trusted*. The trusted level is allowed to modify all aspects of the
+system, the authenticated level can query most but not all aspects,
+and the guest level can only query static system-level information.
+
+Authentication over the unix socket is delegated to UNIX ACLs, and
+uses `SO_PEERCRED` to determine privilege levels. In essence this
+means that a user will be either *authenticated* or *trusted*, with
+the latter restricted to the superuser.
+
+[//]: # (QUESTION: map system user nobody to guest?)
 
 ## Responses
 
@@ -102,7 +109,7 @@ string. For example, `"1234567891234567"` represents
 ### GET
 
 * Description: Server configuration and environment information
-* Authorization: guest
+* Access: guest
 * Operation: sync
 * Return: Dict with the operating system's key values.
 
@@ -112,7 +119,7 @@ string. For example, `"1234567891234567"` represents
 {
  "default_channel": "edge",
  "flavor": "core",
- "api_compat": "0",           // increased on minor API changes
+ "api_compat": "1",           // increased on minor API changes
  "release": "15.04",
  "store": "store-id"          // only if not default
 }
@@ -122,7 +129,7 @@ string. For example, `"1234567891234567"` represents
 ### GET
 
 * Description: List of packages
-* Authorization: trusted
+* Access: authenticated
 * Operation: sync
 * Return: list of URLs for packages this Ubuntu Core system can handle.
 
@@ -201,7 +208,7 @@ Sample result:
 ### POST
 
 * Description: Sideload a package to the system. 
-* Authorization: trusted
+* Access: trusted
 * Operation: async
 * Return: background operation or standard error
 
@@ -224,7 +231,7 @@ allow sideloading unsigned packages.
   change is requested for a package that is not active in the system the whole
   command is aborted even if other packages that are active are specified in
   the same command.
-* Authorization: trusted
+* Access: trusted
 * Operation: sync
 * Return: configuration for all listed packages
 
@@ -255,7 +262,7 @@ list individual statuses of the configuration changes.
 ### GET
 
 * Description: Details for a  package
-* Authorization: trusted
+* Access: authenticated
 * Operation: sync
 * Return: package details (as in `/1.0/packages/`)
 
@@ -264,7 +271,7 @@ list individual statuses of the configuration changes.
 
 * Description: Install, update, remove, purge, activate, deactivate, or
   rollback the package
-* Authorization: trusted
+* Access: trusted
 * Operation: async
 * Return: background operation or standard error
 
@@ -282,13 +289,29 @@ field      | ignored except in action | description
 -----------|-------------------|------------
 `action`   |                   | Required; a string, one of `install`, `update`, `remove`, `purge`, `activate`, `deactivate`, or `rollback`.
 `leave_old`| `install` `update` `remove` | A boolean, default is false (do not leave old packages around). Equivalent to commandline's `--no-gc`.
-`config`   | `install` | An object, passed to config after installation. See `.../config`. If missing, config isn't called.
+`license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section “A note on licenses”, below).
 
 #### A note on licenses
 
-At this time the daemon does not support installing or updating packages that
-require an explicit license agreement. This will be done in a
-backwards-compatible way soon.
+When requesting to install a package that requires agreeing to a license before
+install succeeds, or when requesting an update to a package with such an
+agreement that has an updated license version, the initial request will fail
+with an error, and the error object will contain the intro and license texts to
+present to the user for their approval. An example of the command's `output`
+field would be
+
+```javascript
+"output": {
+    "obj": {
+        "agreed": false,
+        "intro": "licensed requires that you accept the following license before continuing",
+        "license": "In order to use this software you must agree with us."
+    },
+    "str": "License agreement required."
+}
+```
+
+> As of `1.0/api_compat 1`.
 
 ## /1.0/packages/[name]/services
 
@@ -299,7 +322,7 @@ the package is not active.
 ### GET
 
 * Description: Services for a package
-* Authorization: trusted
+* Access: authenticated
 * Operation: sync
 * Return: service configuration
 
@@ -345,7 +368,7 @@ provide description about the service as well as its systemd unit.
 ### PUT
 
 * Description: Put all services of a package into a specific state
-* Authorization: trusted
+* Access: trusted
 * Operation: async
 
 #### Sample input:
@@ -361,7 +384,7 @@ provide description about the service as well as its systemd unit.
 ### GET
 
 * Description: Service for a package
-* Authorization: trusted
+* Access: authenticated
 * Operation: sync
 * Return: service configuration
 
@@ -404,7 +427,7 @@ that includes a single object from the list of the upper level endpoint
 ### PUT
 
 * Description: Put the service into a specific state
-* Authorization: trusted
+* Access: trusted
 * Operation: async
 
 #### Sample input:
@@ -420,7 +443,7 @@ that includes a single object from the list of the upper level endpoint
 ### GET
 
 * Description: Logs for the service from a package
-* Authorization: trusted
+* Access: trusted
 * Operation: sync
 * Return: service logs
 
@@ -449,7 +472,7 @@ that configuration. Will return an error if the package is not active.
 ### GET
 
 * Description: Configuration for a package
-* Authorization: trusted
+* Access: trusted
 * Operation: sync
 * Return: package configuration
 
@@ -464,7 +487,7 @@ Notes: user facing implementations in text form must show this data using yaml.
 ### PUT
 
 * Description: Set configuration for a package
-* Authorization: trusted
+* Access: trusted
 * Operation: sync
 * Return: package configuration
 
@@ -485,7 +508,7 @@ Notes: user facing implementations in text form must show this data using yaml.
 ### GET
 
 * Description: background operation
-* Authorization: trusted
+* Access: trusted
 * Operation: sync
 * Return: dict representing a background operation
 
@@ -505,7 +528,7 @@ Notes: user facing implementations in text form must show this data using yaml.
 
 * Description: If the operation has completed, `DELETE` will remove the
   entry. Otherwise it is an error.
-* Authorization: trusted
+* Access: trusted
 * Operation: sync
 * Return: standard return value or standard error
 
@@ -513,16 +536,81 @@ Notes: user facing implementations in text form must show this data using yaml.
 
 ### GET
 
-Gets a locally-installed snap's icon. The response will be the raw contents of
-the icon file; the content-type will be set accordingly.
+* Description: Gets a locally-installed snap's icon. The response will
+  be the raw contents of the icon file; the content-type will be set
+  accordingly.
 
-This fetches the icon that was downloaded from the store at install time.
+  This fetches the icon that was downloaded from the store at install time.
+* Access: guest
+
+This is *not* a standard return type.
 
 ## /1.0/icons/[name]/icon
 
 ### GET
 
-Get an icon from a snap installed on the system. The response will be the raw
-contents of the icon file; the content-type will be set accordingly.
+* Description: Get an icon from a snap installed on the system. The
+  response will be the raw contents of the icon file; the content-type
+  will be set accordingly.
 
-This fetches the icon from the package itself.
+  This fetches the icon from the package itself.
+* Access: guest
+
+This is *not* a standard return type.
+
+## /1.0/capabilities
+
+### GET
+
+* Description: Get all of the capabilities that exist in the system
+* Authorization: authenticated
+* Operation: sync
+* Return: map of capabilities, see below.
+
+The result is a JSON object with a *capabilities* key; its value itself is a JSON
+object whose keys are capability names (e.g., "power-button") and whose values
+describe that capability.
+
+The method returns *all* capabilities. Regardless of their assignment to snaps.
+Note that capabilities are dynamic, they can be added and removed to the system
+and individual capabilities can change state over time.
+
+Each capability has the following attributes:
+
+name:
+	Name is a key that identifies the capability. It must be unique within its
+	context, which may be either a snap or a snappy runtime.
+
+label:
+	Label provides an optional title for the capability to help a human tell
+	which physical device this capability is referring to. It might say "Front
+	USB", or "Green Serial Port", for example.
+
+type:
+	Type defines the type of this capability. The capability type defines the
+	behavior allowed and expected from providers and consumers of that
+	capability, and also which information should be exchanged by these
+	parties.
+
+attrs:
+	Attrs are key-value pairs that provide type-specific capability details.
+	The attribute 'attrs' itself may not be present if there are no attributes
+	to mention.
+
+Sample result:
+
+```javascript
+{
+	"capabilities": {
+		"power-button": {
+			"resource": "/1.0/capabilities/power-button",
+			"name": "power-button",
+			"label": "Power Button",
+			"type": "evdev",
+			"attrs": {
+				"path": "/dev/input/event2"
+			},
+		}
+	}
+}
+```

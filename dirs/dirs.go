@@ -19,7 +19,10 @@
 
 package dirs
 
-import "path/filepath"
+import (
+	"os"
+	"path/filepath"
+)
 
 // the various file paths
 var (
@@ -38,6 +41,7 @@ var (
 	SnapIconsDir              string
 	SnapMetaDir               string
 	SnapLockFile              string
+	SnapdSocket               string
 
 	SnapBinariesDir  string
 	SnapServicesDir  string
@@ -45,12 +49,24 @@ var (
 
 	ClickSystemHooksDir string
 	CloudMetaDataFile   string
+
+	ClassicDir string
 )
 
 var (
 	// not exported because it does not honor the global rootdir
 	snappyDir = filepath.Join("var", "lib", "snappy")
 )
+
+func init() {
+	// init the global directories at startup
+	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
+	if root == "" {
+		root = "/"
+	}
+
+	SetRootDir(root)
+}
 
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
@@ -68,6 +84,8 @@ func SetRootDir(rootdir string) {
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapLockFile = filepath.Join(rootdir, "/run/snappy.lock")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
+	// keep in sync with the debian/ubuntu-snappy.snapd.socket file:
+	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
 
 	SnapBinariesDir = filepath.Join(SnapAppsDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
@@ -80,4 +98,5 @@ func SetRootDir(rootdir string) {
 	SnapUdevRulesDir = filepath.Join(rootdir, "/etc/udev/rules.d")
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
+	ClassicDir = filepath.Join(rootdir, "/writable/classic")
 }

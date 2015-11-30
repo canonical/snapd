@@ -20,6 +20,8 @@
 package release_test
 
 import (
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -49,4 +51,39 @@ func (s *ReleaseTestSuite) TestOverride(c *C) {
 	release.Override(rel)
 	c.Check(release.String(), Equals, "10.06-personal")
 	c.Check(release.Get(), DeepEquals, rel)
+}
+
+func makeMockLsbRelease(c *C) string {
+	// FIXME: use AddCleanup here once available so that we
+	//        can do release.SetLsbReleasePath() here directly
+	mockLsbRelease := filepath.Join(c.MkDir(), "mock-lsb-release")
+	s := `
+DISTRIB_ID=Ubuntu
+DISTRIB_RELEASE=18.09
+DISTRIB_CODENAME=awsome
+DISTRIB_DESCRIPTION=I'm not real!
+`
+	err := ioutil.WriteFile(mockLsbRelease, []byte(s), 0644)
+	c.Assert(err, IsNil)
+
+	return mockLsbRelease
+}
+
+func (a *ReleaseTestSuite) TestReadLsb(c *C) {
+	reset := release.HackLsbReleasePath(makeMockLsbRelease(c))
+	defer reset()
+
+	lsb, err := release.ReadLsb()
+	c.Assert(err, IsNil)
+	c.Assert(lsb.ID, Equals, "Ubuntu")
+	c.Assert(lsb.Release, Equals, "18.09")
+	c.Assert(lsb.Codename, Equals, "awsome")
+}
+
+func (a *ReleaseTestSuite) TestReadLsbNotFound(c *C) {
+	reset := release.HackLsbReleasePath("not-there")
+	defer reset()
+
+	_, err := release.ReadLsb()
+	c.Assert(err, ErrorMatches, "cannot read lsb-release:.*")
 }

@@ -38,6 +38,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/pkg/lightweight"
@@ -45,6 +46,7 @@ import (
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/ubuntu-core/snappy/testutil"
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
@@ -273,6 +275,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	})
 
 	exceptions := []string{ // keep sorted, for scanning ease
+		"apiCompatLevel",
 		"api",
 		"findServices",
 		"maxReadBuflen",
@@ -338,7 +341,7 @@ func (s *apiSuite) TestV1(c *check.C) {
 		"flavor":          "flavor",
 		"release":         "release",
 		"default_channel": "channel",
-		"api_compat":      "0",
+		"api_compat":      apiCompatLevel,
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -361,7 +364,7 @@ func (s *apiSuite) TestV1Store(c *check.C) {
 		"flavor":          "flavor",
 		"release":         "release",
 		"default_channel": "channel",
-		"api_compat":      "0",
+		"api_compat":      apiCompatLevel,
 		"store":           "some-store",
 	}
 	var rsp resp
@@ -742,7 +745,7 @@ func (s *apiSuite) TestPackagesPutStr(c *check.C) {
 	newConfigs := map[string]string{"foo.bar": "some other config", "baz.qux": "stuff", "missing.pkg": "blah blah"}
 	bs, err := json.Marshal(newConfigs)
 	c.Assert(err, check.IsNil)
-	s.genericTestPackagePut(c, bytes.NewBuffer(bs), 2, map[string]*configSubtask{
+	s.genericTestPackagePut(c, bytes.NewBuffer(bs), map[string]*configSubtask{
 		"foo.bar":     &configSubtask{Status: TaskSucceeded, Output: "some other config"},
 		"baz.qux":     &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrConfigNotFound.Error(), Obj: snappy.ErrConfigNotFound, Msg: "Config failed"}},
 		"missing.pkg": &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrPackageNotFound.Error(), Obj: snappy.ErrPackageNotFound}},
@@ -753,13 +756,13 @@ func (s *apiSuite) TestPackagesPutNil(c *check.C) {
 	newConfigs := map[string][]byte{"foo.bar": nil, "mip.brp": nil}
 	bs, err := json.Marshal(newConfigs)
 	c.Assert(err, check.IsNil)
-	s.genericTestPackagePut(c, bytes.NewBuffer(bs), 2, map[string]*configSubtask{
+	s.genericTestPackagePut(c, bytes.NewBuffer(bs), map[string]*configSubtask{
 		"foo.bar": &configSubtask{Status: TaskSucceeded, Output: "some: config"},
 		"mip.brp": &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrSnapNotActive.Error(), Obj: snappy.ErrSnapNotActive}},
 	})
 }
 
-func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, concreteNo int, expected map[string]*configSubtask) {
+func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, expected map[string]*configSubtask) {
 	d := newTestDaemon()
 
 	req, err := http.NewRequest("PUT", "/1.0/packages", body)
@@ -796,7 +799,6 @@ func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, concreteNo 
 
 	task := d.GetTask(uuid)
 	c.Assert(task, check.NotNil)
-	c.Check(task.State(), check.Equals, TaskRunning)
 
 	// wait up to another ten seconds (!) for the task to finish properly
 	for i := 0; i < 1000; i++ {
@@ -1150,4 +1152,74 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 
 	err := inst.dispatch()()
 	c.Check(err, check.IsNil)
+}
+
+func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
+	d := newTestDaemon()
+
+	orig := snappyInstall
+	defer func() { snappyInstall = orig }()
+
+	snappyInstall = func(name string, flags snappy.InstallFlags, meter progress.Meter) (string, error) {
+		if meter.Agreed("hi", "yak yak") {
+			return "", nil
+		}
+
+		return "", snappy.ErrLicenseNotAccepted
+	}
+
+	req, err := http.NewRequest("POST", "/1.0/packages/foo.bar", strings.NewReader(`{"action": "install"}`))
+	c.Assert(err, check.IsNil)
+	s.vars = map[string]string{"name": "foo", "origin": "bar"}
+
+	res := postPackage(packageCmd, req).(*resp).Result.(map[string]interface{})
+	task := d.tasks[res["resource"].(string)[16:]]
+	c.Check(task, check.NotNil)
+
+	task.tomb.Wait()
+	c.Check(task.State(), check.Equals, TaskFailed)
+	errRes := task.output.(errorResult)
+	c.Check(errRes.Str, check.Equals, "license agreement required")
+	c.Check(errRes.Obj, check.DeepEquals, &licenseData{
+		Intro:   "hi",
+		License: "yak yak",
+	})
+
+	req, err = http.NewRequest("POST", "/1.0/packages/foo.bar", strings.NewReader(`{"action": "install", "license": {"intro": "hi", "license": "yak yak", "agreed": true}}`))
+	c.Assert(err, check.IsNil)
+
+	res = postPackage(packageCmd, req).(*resp).Result.(map[string]interface{})
+	task = d.tasks[res["resource"].(string)[16:]]
+	c.Check(task, check.NotNil)
+
+	task.tomb.Wait()
+	c.Check(task.State(), check.Equals, TaskSucceeded)
+}
+
+func (s *apiSuite) TestGetCapabilities(c *check.C) {
+	d := newTestDaemon()
+	d.capRepo.Add(&caps.Capability{"serial-port", "A serial port", caps.FileType, nil})
+	req, err := http.NewRequest("GET", "/1.0/capabilities", nil)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	capabilitiesCmd.GET(capabilitiesCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.Body.String(), testutil.Contains, "serial-port")
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"capabilities": map[string]interface{}{
+				"serial-port": map[string]interface{}{
+					"label": "A serial port",
+					"name":  "serial-port",
+					"type":  "file",
+				},
+			},
+		},
+		"status":      "OK",
+		"status_code": 200.0, // A float because $reasons
+		"type":        "sync",
+	})
 }

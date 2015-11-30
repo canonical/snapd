@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-11-18 10:56+0100\n"
+        "POT-Creation-Date: 2015-11-27 16:07+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -67,6 +67,9 @@ msgstr  ""
 msgid   "Activate a package that has previously been deactivated. If the package is already activated, do nothing."
 msgstr  ""
 
+msgid   "All background processes will be killed when you leave this shell"
+msgstr  ""
+
 msgid   "Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.\n"
 msgstr  ""
 
@@ -84,6 +87,23 @@ msgstr  ""
 msgid   "Builds a snap package"
 msgstr  ""
 
+msgid   "Classic dimension destroyed on this snappy system."
+msgstr  ""
+
+msgid   "Classic dimension disabled on this system.\n"
+        "Use \"sudo snappy enable-classic\" to enable it."
+msgstr  ""
+
+msgid   "Classic dimension enabled on this snappy system.\n"
+        "Use “sudo snappy shell classic” to enter the classic dimension."
+msgstr  ""
+
+msgid   "Classic dimension is already enabled."
+msgstr  ""
+
+msgid   "Classic dimension is not enabled."
+msgstr  ""
+
 msgid   "Configures a package. The configuration is a YAML file, provided in the specified file which can be \"-\" for stdin. Output of the command is the current configuration, so running this command with no input file provides a snapshot of the app's current config."
 msgstr  ""
 
@@ -96,10 +116,22 @@ msgstr  ""
 msgid   "Deactivate a package. If the package is already deactivated, do nothing."
 msgstr  ""
 
+msgid   "Destroy the classic dimension."
+msgstr  ""
+
+msgid   "Destroy the ubuntu classic dimension."
+msgstr  ""
+
 msgid   "Display a summary of key attributes of the snappy system."
 msgstr  ""
 
 msgid   "Do not clean up old versions of the package."
+msgstr  ""
+
+msgid   "Enable classic dimension."
+msgstr  ""
+
+msgid   "Enable the ubuntu classic dimension."
 msgstr  ""
 
 msgid   "Ensures system is running with latest parts"
@@ -140,6 +172,9 @@ msgid   "List assigned hardware device for a package"
 msgstr  ""
 
 msgid   "List assigned hardware for a specific installed package"
+msgstr  ""
+
+msgid   "List system capabilities"
 msgstr  ""
 
 msgid   "Log into the store"
@@ -231,6 +266,12 @@ msgstr  ""
 msgid   "Rollback to a previous version of a package"
 msgstr  ""
 
+msgid   "Run snappy console interface"
+msgstr  ""
+
+msgid   "Run snappy shell interface"
+msgstr  ""
+
 msgid   "Search for packages to install"
 msgstr  ""
 
@@ -311,6 +352,9 @@ msgstr  ""
 msgid   "The path to the package.yaml used to generate the apparmor policy."
 msgstr  ""
 
+msgid   "The type of shell you want"
+msgstr  ""
+
 msgid   "The version to rollback to"
 msgstr  ""
 
@@ -327,6 +371,9 @@ msgid   "This command logs the given username into the store"
 msgstr  ""
 
 msgid   "This command removes access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
+msgstr  ""
+
+msgid   "This command shows all capabilities and their allocation"
 msgstr  ""
 
 msgid   "Unassign a hardware device to a package"
@@ -413,6 +460,10 @@ msgstr  ""
 #. TRANSLATORS: the first %s is the package name, the second is the service name; the %v is the error
 #, c-format
 msgid   "unable to stop %s's service %s: %v"
+msgstr  ""
+
+#, c-format
+msgid   "unsupported shell %v"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a date
