@@ -36,7 +36,7 @@ where each descendantWithWildcard component can contain the * wildcard;
 foundCb is invoked with the path of the file relative to top (that means top/
  is excluded).
 
-Any I/O operation error stops the walking and bottoms out, so a foundCb invocation that returns an error.
+Unlike filepath.Glob any I/O operation error stops the walking and bottoms out, so does a foundCb invocation that returns an error.
 */
 func findWildcard(top string, descendantWithWildcard []string, foundCb func(relpath string) error) error {
 	return findWildcardDescend(top, top, descendantWithWildcard, foundCb)
