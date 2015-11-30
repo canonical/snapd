@@ -288,7 +288,7 @@ void setup_private_mount(const char* appname) {
 }
 
 void setup_snappy_os_mounts() {
-   fprintf(stderr, "setup_snappy_os_mounts()\n");
+   debug("setup_snappy_os_mounts()\n");
 
    // unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >= 2.14
    // if using an older glibc, you'd need -D_BSD_SOURCE or -D_SVID_SORUCE.
@@ -322,7 +322,7 @@ void setup_snappy_os_mounts() {
       must_snprintf(buf, sizeof(buf), "%s%s", mountpoint, dst);
       const char *src = buf;
 
-      fprintf(stderr, "mounting %s -> %s\n", src, dst);
+      debug("mounting %s -> %s\n", src, dst);
       if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
          die("unable to bind %s to %s", src, dst);
       }
