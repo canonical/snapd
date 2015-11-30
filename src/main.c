@@ -201,6 +201,31 @@ bool snappy_udev_setup_required(const char *appname) {
    return false;
 }
 
+bool is_running_on_classic_ubuntu() {
+   struct stat buf;
+   if (stat("/var/lib/dpkg/status", &buf) == 0) {
+         return true;
+   }
+   
+   return false;
+}
+
+bool is_mountpoint(const char * const mountpoint) {
+   int status;
+   pid_t pid = fork();
+   if (pid == 0) {
+      char *args[4];
+      args[0] = "/bin/mountpoint";
+      args[1] = (char*)mountpoint;
+      args[2] = NULL;
+      execv(args[0], args);
+   }
+   if(waitpid(pid, &status, 0) < 0)
+      die("waitpid failed");
+
+   return (WIFEXITED(status) && WEXITSTATUS(status) == 0);
+}
+
 void setup_private_mount(const char* appname) {
     uid_t uid = getuid();
     gid_t gid = getgid();
@@ -236,13 +261,16 @@ void setup_private_mount(const char* appname) {
         die("unable to set up mount namespace");
     }
 
-    // MS_PRIVATE needs linux > 2.6.11
-    if (mount("none", "/tmp", NULL, MS_PRIVATE, NULL) != 0) {
-        die("unable to make /tmp/ private");
+    // On a classic ubuntu system /tmp may not be a mountpoint.
+    if (is_mountpoint("/tmp")) {
+       // MS_PRIVATE needs linux > 2.6.11
+       if (mount("none", "/tmp", NULL, MS_PRIVATE, NULL) != 0) {
+          die("unable to make /tmp/ private");
+       }
     }
 
     // MS_BIND is there from linux 2.4
-    if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
+    if (mount(tmpdir, "/tmp", NULL, MS_BIND|MS_PRIVATE, NULL) != 0) {
         die("unable to bind private /tmp");
     }
 
@@ -262,31 +290,6 @@ void setup_private_mount(const char* appname) {
           die("unable to set '%s'", tmpd[i]);
        }
     }
-}
-
-bool is_running_on_regular_ubuntu() {
-   struct stat buf;
-   if (stat("/var/lib/dpkg/status", &buf) == 0) {
-         return true;
-   }
-   
-   return false;
-}
-
-bool is_mountpoint(const char * const mountpoint) {
-   int status;
-   pid_t pid = fork();
-   if (pid == 0) {
-      char *args[4];
-      args[0] = "/bin/mountpoint";
-      args[1] = (char*)mountpoint;
-      args[2] = NULL;
-      execv(args[0], args);
-   }
-   if(waitpid(pid, &status, 0) < 0)
-      die("waitpid failed");
-
-   return (WIFEXITED(status) && WEXITSTATUS(status) == 0);
 }
 
 void make_root_rprivate() {
@@ -384,6 +387,11 @@ int main(int argc, char **argv)
           die("binary must be inside /apps/%s/, /frameworks/%s/ or /oem/%s/",
                   appname, appname, appname);
 
+       // do the mounting if run on a non-native snappy system
+       if(is_running_on_classic_ubuntu()) {
+          setup_snappy_os_mounts();
+       }
+      
        // set up private mounts
        setup_private_mount(appname);
 
@@ -391,11 +399,6 @@ int main(int argc, char **argv)
        if(snappy_udev_setup_required(appname)) {
           setup_devices_cgroup(appname);
           setup_udev_snappy_assign(appname);
-       }
-
-       // do the mounting if run on a non-native snappy system
-       if(is_running_on_regular_ubuntu()) {
-          setup_snappy_os_mounts();
        }
 
        // the rest does not so drop privs back to calling user
