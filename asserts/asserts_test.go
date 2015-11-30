@@ -27,11 +27,11 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 )
 
-type AssertsSuite struct{}
+type assertsSuite struct{}
 
-var _ = Suite(&AssertsSuite{})
+var _ = Suite(&assertsSuite{})
 
-func (as *AssertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
+func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	encoded := "type: test-only\n" +
 		"authority-id: auth-id1" +
 		"\n\n" +
@@ -47,7 +47,7 @@ func (as *AssertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
 }
 
-func (as *AssertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
+func (as *assertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
 	encoded := "type: test-only\n" +
 		"authority-id: auth-id1\n" +
 		"revision: 0\n" +
@@ -62,7 +62,7 @@ func (as *AssertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
 	c.Check(a.Body(), IsNil)
 }
 
-func (as *AssertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
+func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 	encoded := "type: test-only\n" +
 		"authority-id: auth-id2\n" +
 		"primary-key1: key1\n" +
@@ -87,7 +87,7 @@ func (as *AssertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 
 }
 
-func (as *AssertsSuite) TestDecodeGetSignatureBits(c *C) {
+func (as *assertsSuite) TestDecodeGetSignatureBits(c *C) {
 	content := "type: test-only\n" +
 		"authority-id: auth-id1\n" +
 		"revision: 5\n" +
@@ -106,14 +106,14 @@ func (as *AssertsSuite) TestDecodeGetSignatureBits(c *C) {
 	c.Check(cont, DeepEquals, []byte(content))
 }
 
-func (as *AssertsSuite) TestDecodeNoSignatureSplit(c *C) {
+func (as *assertsSuite) TestDecodeNoSignatureSplit(c *C) {
 	for _, encoded := range []string{"", "foo"} {
 		_, err := asserts.Decode([]byte(encoded))
 		c.Check(err, ErrorMatches, "assertion content/signature separator not found")
 	}
 }
 
-func (as *AssertsSuite) TestDecodeHeaderParsingErrors(c *C) {
+func (as *assertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 	headerParsingErrorsTests := []struct{ encoded, expectedErr string }{
 		{string([]byte{255, '\n', '\n'}), "header is not utf8"},
 		{"foo: a\nbar\n\n", "header entry missing name value ': ' separation: \"bar\""},
@@ -126,7 +126,7 @@ func (as *AssertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 	}
 }
 
-func (as *AssertsSuite) TestDecodeInvalid(c *C) {
+func (as *assertsSuite) TestDecodeInvalid(c *C) {
 	encoded := "type: test-only\n" +
 		"authority-id: auth-id\n" +
 		"revision: 0\n" +
@@ -155,7 +155,7 @@ func (as *AssertsSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func (as *AssertsSuite) TestEncode(c *C) {
+func (as *assertsSuite) TestEncode(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
 		"primary-key1: key1\n" +
@@ -173,7 +173,7 @@ func (as *AssertsSuite) TestEncode(c *C) {
 	c.Check(encodeRes, DeepEquals, encoded)
 }
 
-func (as *AssertsSuite) TestSignFormatSanityEmptyBody(c *C) {
+func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
 	headers := map[string]string{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
@@ -185,7 +185,7 @@ func (as *AssertsSuite) TestSignFormatSanityEmptyBody(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (as *AssertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
+func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 	headers := map[string]string{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
