@@ -32,6 +32,7 @@
 #include <regex.h>
 #include <grp.h>
 #include <fcntl.h>
+#include <glob.h>
 
 #include "libudev.h"
 
@@ -288,28 +289,6 @@ bool is_mountpoint(const char * const mountpoint) {
    return (WIFEXITED(status) && WEXITSTATUS(status) == 0);
 }
 
-void mount_snap(const char * const snap, const char * const mountpoint) {
-   fprintf(stderr, "mount_snap\n");
-   int status;
-   pid_t pid = fork();
-   if (pid == 0) {
-      char *args[4];
-      args[0] = "/bin/mount";
-      args[1] = (char*)snap;
-      args[2] = (char*)mountpoint;
-      args[3] = NULL;
-
-      // required before calling exec on mount
-      if(setuid(0) != 0)
-         die("setuid(0) failed");
-      execv(args[0], args);
-   }
-   if(WIFEXITED(status) && WEXITSTATUS(status) != 0)
-      die("child exited with status %i", WEXITSTATUS(status));
-   else if(WIFSIGNALED(status))
-      die("child died with signal %i", WTERMSIG(status));
-}
-
 void make_root_rprivate() {
    int status;
    pid_t pid = fork();
@@ -343,15 +322,16 @@ void setup_snappy_os_mounts() {
 
    make_root_rprivate();
    
-   // FIXME: hardcoded
-   const char *os_snap = "/os/ubuntu-core.sideload/current/blob.snap";
-   const char *mountpoint = "/os/ubuntu-core.sideload/current/run";
-
-   // find out if we need to mount
-   if(!is_mountpoint(mountpoint)) {
-      mount_snap(os_snap, mountpoint);
+   // FIXME: hardcoded "ubuntu-core.*"
+   glob_t glob_res;
+   if (glob("/apps/ubuntu-core*/current/", 0, NULL, &glob_res) != 0) {
+      die("can not find a snappy os");
    }
-
+   if ((glob_res.gl_pathc =! 1)) {
+      die("expected 1 os snap, found %lu", glob_res.gl_pathc);
+   }
+   char *mountpoint = glob_res.gl_pathv[0];
+                                   
    const char *mounts[] = {"/bin", "/sbin", "/lib", "/lib64", "/usr"};
    for (int i=0; i < sizeof(mounts)/sizeof(char*); i++) {
       // we mount the OS snap /bin over the real /bin in this NS
@@ -366,6 +346,8 @@ void setup_snappy_os_mounts() {
          die("unable to bind %s to %s", src, dst);
       }
    }
+
+   globfree(&glob_res);
 }
 
 
