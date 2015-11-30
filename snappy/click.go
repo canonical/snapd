@@ -46,7 +46,6 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/clickdeb"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/systemd"
 )
@@ -88,12 +87,6 @@ func execHook(execCmd string) (err error) {
 	}
 
 	return nil
-}
-
-func auditClick(snapFile string, allowUnauthenticated bool) (err error) {
-	// FIXME: check what more we need to do here, click is also doing
-	//        permission checks
-	return clickdeb.Verify(snapFile, allowUnauthenticated)
 }
 
 func readClickManifest(data []byte) (manifest clickManifest, err error) {
