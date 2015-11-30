@@ -202,18 +202,14 @@ bool snappy_udev_setup_required(const char *appname) {
 }
 
 bool is_running_on_classic_ubuntu() {
-   return (access("/var/lib/dpkg/status", F_OK) == 0)
+   return (access("/var/lib/dpkg/status", F_OK) == 0);
 }
 
 bool is_mountpoint(const char * const mountpoint) {
    int status;
    pid_t pid = fork();
    if (pid == 0) {
-      char *args[4];
-      args[0] = "/bin/mountpoint";
-      args[1] = (char*)mountpoint;
-      args[2] = NULL;
-      execv(args[0], args);
+      execlp("mountpoint", "mountpoint", mountpoint, NULL);
    }
    if(waitpid(pid, &status, 0) < 0)
       die("waitpid failed");
@@ -256,17 +252,13 @@ void setup_private_mount(const char* appname) {
         die("unable to set up mount namespace");
     }
 
-    // On a classic ubuntu system /tmp may not be a mountpoint.
-    if (is_mountpoint("/tmp")) {
-       // MS_PRIVATE needs linux > 2.6.11
-       if (mount("none", "/tmp", NULL, MS_PRIVATE, NULL) != 0) {
-          die("unable to make /tmp/ private");
-       }
-    }
-
     // MS_BIND is there from linux 2.4
-    if (mount(tmpdir, "/tmp", NULL, MS_BIND|MS_PRIVATE, NULL) != 0) {
+    if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
         die("unable to bind private /tmp");
+    }
+    // MS_PRIVATE needs linux > 2.6.11
+    if (mount("none", "/tmp", NULL, MS_PRIVATE, NULL) != 0) {
+       die("unable to make /tmp/ private");
     }
 
     // do the chown after the bind mount to avoid potential shenanigans
