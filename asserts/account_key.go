@@ -28,9 +28,9 @@ import (
 // belonging to the account.
 type AccountKey struct {
 	assertionBase
-	since time.Time
-	until time.Time
-	PublicKey
+	since  time.Time
+	until  time.Time
+	pubKey PublicKey
 }
 
 // AccountID returns the account-id of this account-key.
@@ -48,9 +48,19 @@ func (ak *AccountKey) Until() time.Time {
 	return ak.until
 }
 
+// Fingerprint returns the fingerprint of the account key.
+func (ak *AccountKey) Fingerprint() string {
+	return ak.pubKey.Fingerprint()
+}
+
 // IsValidAt returns whether the account key is valid at 'when' time.
 func (ak *AccountKey) IsValidAt(when time.Time) bool {
 	return (when.After(ak.since) || when.Equal(ak.since)) && when.Before(ak.until)
+}
+
+// Verify verifies signature is valid for content using the account key.
+func (ak *AccountKey) Verify(content []byte, sig Signature) error {
+	return ak.pubKey.Verify(content, sig)
 }
 
 func checkPublicKey(ab *assertionBase, fingerprintName string) (PublicKey, error) {
@@ -93,7 +103,7 @@ func buildAccountKey(assert assertionBase) (Assertion, error) {
 		assertionBase: assert,
 		since:         since,
 		until:         until,
-		PublicKey:     pubk,
+		pubKey:        pubk,
 	}, nil
 }
 
