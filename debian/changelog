@@ -1,6 +1,11 @@
-ubuntu-snappy (1.7ubuntu1) UNRELEASED; urgency=medium
+ubuntu-snappy (1.7ubuntu1) xenial; urgency=medium
 
-  * New upstream release
+  * New upstream release:
+    - kernel/os snap support
+    - squashfs snap support
+    - initial capabilities work
+    - initial assertitions work
+    - rest API support
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 18 Nov 2015 19:59:51 +0100
 

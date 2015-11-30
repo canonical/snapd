@@ -557,3 +557,60 @@ This is *not* a standard return type.
 * Access: guest
 
 This is *not* a standard return type.
+
+## /1.0/capabilities
+
+### GET
+
+* Description: Get all of the capabilities that exist in the system
+* Authorization: authenticated
+* Operation: sync
+* Return: map of capabilities, see below.
+
+The result is a JSON object with a *capabilities* key; its value itself is a JSON
+object whose keys are capability names (e.g., "power-button") and whose values
+describe that capability.
+
+The method returns *all* capabilities. Regardless of their assignment to snaps.
+Note that capabilities are dynamic, they can be added and removed to the system
+and individual capabilities can change state over time.
+
+Each capability has the following attributes:
+
+name:
+	Name is a key that identifies the capability. It must be unique within its
+	context, which may be either a snap or a snappy runtime.
+
+label:
+	Label provides an optional title for the capability to help a human tell
+	which physical device this capability is referring to. It might say "Front
+	USB", or "Green Serial Port", for example.
+
+type:
+	Type defines the type of this capability. The capability type defines the
+	behavior allowed and expected from providers and consumers of that
+	capability, and also which information should be exchanged by these
+	parties.
+
+attrs:
+	Attrs are key-value pairs that provide type-specific capability details.
+	The attribute 'attrs' itself may not be present if there are no attributes
+	to mention.
+
+Sample result:
+
+```javascript
+{
+	"capabilities": {
+		"power-button": {
+			"resource": "/1.0/capabilities/power-button",
+			"name": "power-button",
+			"label": "Power Button",
+			"type": "evdev",
+			"attrs": {
+				"path": "/dev/input/event2"
+			},
+		}
+	}
+}
+```

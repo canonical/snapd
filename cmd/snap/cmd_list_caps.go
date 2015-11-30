@@ -22,41 +22,39 @@ package main
 import (
 	"fmt"
 	"os"
+	"text/tabwriter"
 
+	"github.com/ubuntu-core/snappy/client"
+	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
-
-	"github.com/jessevdk/go-flags"
 )
 
-type options struct {
-	// No global options yet
+type cmdListCaps struct {
 }
 
-var optionsData options
-
-var parser = flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
+var (
+	shortListCapsHelp = i18n.G("List system capabilities")
+	longListCapsHelp  = i18n.G("This command shows all capabilities and their allocation")
+)
 
 func init() {
-	err := logger.SimpleSetup()
+	_, err := parser.AddCommand("list-caps", shortListCapsHelp, longListCapsHelp, &cmdListCaps{})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
+		logger.Panicf("unable to add list-caps command: %v", err)
 	}
 }
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-func run() error {
-	_, err := parser.Parse()
+func (x *cmdListCaps) Execute(args []string) error {
+	cli := client.New()
+	caps, err := cli.Capabilities()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot get capabilities: %v", err)
 	}
-	if _, ok := err.(*flags.Error); !ok {
-		logger.Debugf("cannot parse arguments: %v: %v", os.Args, err)
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 1, ' ', 0)
+	fmt.Fprintln(w, "Name\tLabel\tType")
+	for _, cap := range caps {
+		fmt.Fprintf(w, "%s\t%s\t%s\n", cap.Name, cap.Label, cap.Type)
 	}
+	w.Flush()
 	return nil
 }
