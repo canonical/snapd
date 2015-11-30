@@ -22,7 +22,7 @@ meta/hooks/config. This configuration handler must provide for reading
 new configuration from stdin and output the current configuration (after
 the new configuration has been applied) to stdout.
 
-The package config hook must return exitcode 0 and return valid yaml
+The package config hook must return exit code 0 and return valid yaml
 of the form:
 
 	config:
@@ -31,10 +31,10 @@ of the form:
 
 on stdout.
 
-In addition to the "config" toplevel yaml key there is a optional
+In addition to the "config" top-level yaml key there is a optional
 "status" key per packagename that contains details about the
 success/failure of get/set the configuration. The current key/value
-pairs are suppprted right now:
+pairs are supported right now:
 
  - error: optional error string
  - warning: optional warning string
