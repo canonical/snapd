@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -54,6 +55,14 @@ func (snapdcl *SnapDeclaration) Grade() string {
 // Timestamp returns the declaration timestamp.
 func (snapdcl *SnapDeclaration) Timestamp() time.Time {
 	return snapdcl.timestamp
+}
+
+// implement further consistency checks
+func (snapdcl *SnapDeclaration) checkConsistency(db *Database, pubk PublicKey) error {
+	if !pubk.IsValidAt(snapdcl.timestamp) {
+		return fmt.Errorf("snap-declaration timestamp outside of signing key validity")
+	}
+	return nil
 }
 
 func buildSnapDeclaration(assert AssertionBase) (Assertion, error) {

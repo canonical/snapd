@@ -61,6 +61,12 @@ var (
 	ErrNotFound = errors.New("assertion not found")
 )
 
+// A consistencyChecker performs further checks based on the full
+// assertion database knowledge and its own signing key.
+type consistencyChecker interface {
+	checkConsistency(db *Database, signingPubKey PublicKey) error
+}
+
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
@@ -158,7 +164,26 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 			res = append(res, cand)
 		}
 	}
-	// TODO: consider other stored public key assertions
+	// consider stored account keys
+	accountKeysTop := filepath.Join(db.root, assertionsRoot, string(AccountKeyType))
+	foundKeyCb := func(primaryPath string) error {
+		a, err := db.readAssertion(AccountKeyType, primaryPath)
+		if err != nil {
+			return err
+		}
+		var accKey PublicKey
+		accKey, ok := a.(*AccountKey)
+		if !ok {
+			return fmt.Errorf("something that is not an account-key under their storage tree")
+		}
+		res = append(res, accKey)
+		return nil
+	}
+	err := findWildcard(accountKeysTop, []string{url.QueryEscape(authorityID), "*" + fingerprintSuffix}, foundKeyCb)
+	if err != nil {
+		return nil, fmt.Errorf("broken assertion storage, scanning: %v", err)
+	}
+
 	return res, nil
 }
 
@@ -180,7 +205,13 @@ func (db *Database) Check(assert Assertion) error {
 		if pubKey.IsValidAt(now) {
 			err := pubKey.Verify(content, sig)
 			if err == nil {
-				// TODO: further checks about consistency of assert and validity of the key for this kind of assert, likely delegating to the assert
+				// see if the assertion requires further checks
+				if checker, ok := assert.(consistencyChecker); ok {
+					err := checker.checkConsistency(db, pubKey)
+					if err != nil {
+						return fmt.Errorf("signature verifies but assertion violates other knownledge: %v", err)
+					}
+				}
 				return nil
 			}
 			lastErr = err
