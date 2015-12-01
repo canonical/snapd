@@ -129,6 +129,18 @@ func (dbs *databaseSuite) TestExportPublicKey(c *C) {
 	pubk, err := dbs.db.ExportPublicKey("account0", fingerp[len(fingerp)-8:])
 	c.Assert(err, IsNil)
 	c.Check(pubk.Fingerprint(), Equals, fingerp)
+
+	// usual pattern is to then encode it
+	encoded, err := asserts.EncodePublicKey(pubk)
+	c.Assert(err, IsNil)
+	c.Check(bytes.HasPrefix(encoded, []byte("openpgp ")), Equals, true)
+	data, err := base64.StdEncoding.DecodeString(string(encoded[len("openpgp "):]))
+	c.Assert(err, IsNil)
+	pkt, err := packet.Read(bytes.NewBuffer(data))
+	c.Assert(err, IsNil)
+	pubKey, ok := pkt.(*packet.PublicKey)
+	c.Assert(ok, Equals, true)
+	c.Assert(pubKey.Fingerprint, DeepEquals, testPrivKey1.PublicKey.Fingerprint)
 }
 
 type checkSuite struct {

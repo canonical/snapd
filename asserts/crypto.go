@@ -206,6 +206,10 @@ func (opgPubKey *openpgpPubKey) Verify(content []byte, sig Signature) error {
 	return verifyContentSignature(content, sig, opgPubKey.pubKey)
 }
 
+func (opgPubKey openpgpPubKey) openpgpSerialize(w io.Writer) error {
+	return opgPubKey.pubKey.Serialize(w)
+}
+
 // WrapPublicKey returns a database useable public key out of a opengpg packet.PulicKey.
 func WrapPublicKey(pubKey *packet.PublicKey) PublicKey {
 	return &openpgpPubKey{pubKey: pubKey, fp: hex.EncodeToString(pubKey.Fingerprint[:])}
@@ -221,6 +225,11 @@ func parsePublicKey(pubKey []byte) (PublicKey, error) {
 		return nil, fmt.Errorf("expected public key, got instead: %T", pkt)
 	}
 	return WrapPublicKey(pubk), nil
+}
+
+// EncodePublicKey encodes a public key in its wire format.
+func EncodePublicKey(pubKey PublicKey) ([]byte, error) {
+	return encodeOpenpgp(pubKey, "public key")
 }
 
 // PrivateKey is a cryptographic private/public key pair.
