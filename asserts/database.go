@@ -140,6 +140,7 @@ func (db *Database) ImportKey(authorityID string, privKey PrivateKey) (fingerpri
 	return fingerp, nil
 }
 
+// finding 0 or more than one private key are considered errors
 func (db *Database) findPrivateKey(authorityID, fingerprintWildcard string) (PrivateKey, error) {
 	keyPath := ""
 	foundPrivKeyCb := func(relpath string) error {
@@ -189,7 +190,7 @@ func (db *Database) Sign(assertType AssertionType, headers map[string]string, bo
 		return nil, err
 	}
 	if fingerprint == "" {
-		// match any but then findPrivateKey will bail on
+		// match any but then findPrivateKey will bail out on
 		// ambiguous find
 		fingerprint = "*"
 	}
