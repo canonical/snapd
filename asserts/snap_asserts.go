@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,13 +20,14 @@
 package asserts
 
 import (
+	"fmt"
 	"time"
 )
 
 // SnapDeclaration holds a snap-declaration assertion, asserting the
 // properties of a built snap by the builder.
 type SnapDeclaration struct {
-	AssertionBase
+	assertionBase
 	size      uint64
 	timestamp time.Time
 }
@@ -56,7 +57,15 @@ func (snapdcl *SnapDeclaration) Timestamp() time.Time {
 	return snapdcl.timestamp
 }
 
-func buildSnapDeclaration(assert AssertionBase) (Assertion, error) {
+// implement further consistency checks
+func (snapdcl *SnapDeclaration) checkConsistency(db *Database, pubk PublicKey) error {
+	if !pubk.IsValidAt(snapdcl.timestamp) {
+		return fmt.Errorf("snap-declaration timestamp outside of signing key validity")
+	}
+	return nil
+}
+
+func buildSnapDeclaration(assert assertionBase) (Assertion, error) {
 	_, err := checkMandatory(assert.headers, "snap-id")
 	if err != nil {
 		return nil, err
@@ -84,7 +93,7 @@ func buildSnapDeclaration(assert AssertionBase) (Assertion, error) {
 	}
 	// ignore extra headers and non-empty body for future compatibility
 	return &SnapDeclaration{
-		AssertionBase: assert,
+		assertionBase: assert,
 		size:          size,
 		timestamp:     timestamp,
 	}, nil

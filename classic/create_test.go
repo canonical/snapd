@@ -50,7 +50,7 @@ var _ = Suite(&CreateTestSuite{})
 func (t *CreateTestSuite) SetUpTest(c *C) {
 	t.BaseTest.SetUpTest(c)
 
-	dirs.ClassicDir = c.MkDir()
+	dirs.SetRootDir(c.MkDir())
 
 	// mock the chroot handler
 	origRunInChroot := runInChroot
@@ -86,6 +86,11 @@ func makeMockRoot(c *C) string {
 		err = ioutil.WriteFile(dst, nil, 0644)
 		c.Assert(err, IsNil)
 	}
+	resolvconf := filepath.Join(dirs.GlobalRootDir, "/run/resolvconf/resolv.conf")
+	err := os.MkdirAll(filepath.Dir(resolvconf), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(resolvconf, nil, 0644)
+	c.Assert(err, IsNil)
 
 	return mockRoot
 }

@@ -172,3 +172,15 @@ func (r *Repository) All() []Capability {
 	sort.Sort(byName(caps))
 	return caps
 }
+
+// Caps returns a shallow copy of the map of capabilities.
+func (r *Repository) Caps() map[string]*Capability {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	caps := make(map[string]*Capability, len(r.caps))
+	for k, v := range r.caps {
+		caps[k] = v
+	}
+	return caps
+}

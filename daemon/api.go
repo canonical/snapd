@@ -58,6 +58,7 @@ var api = []*Command{
 	packageSvcsCmd,
 	packageSvcLogsCmd,
 	operationCmd,
+	capabilitiesCmd,
 }
 
 var (
@@ -129,6 +130,12 @@ var (
 		Path:   "/1.0/operations/{uuid}",
 		GET:    getOpInfo,
 		DELETE: deleteOp,
+	}
+
+	capabilitiesCmd = &Command{
+		Path:   "/1.0/capabilities",
+		UserOK: true,
+		GET:    getCapabilities,
 	}
 )
 
@@ -907,4 +914,10 @@ func appIconGet(c *Command, r *http.Request) Response {
 	}
 
 	return FileResponse(path)
+}
+
+func getCapabilities(c *Command, r *http.Request) Response {
+	return SyncResponse(map[string]interface{}{
+		"capabilities": c.d.capRepo.Caps(),
+	})
 }
