@@ -58,11 +58,26 @@ func (t *Type) Validate(c *Capability) error {
 	if t != c.Type {
 		return fmt.Errorf("capability is not of type %q", t)
 	}
-	// While we don't have any support for type-specific attribute schema,
-	// let's ensure that attributes are totally empty. This will make tests
-	// show that this code is actually being used.
-	if c.Attrs != nil && len(c.Attrs) != 0 {
-		return fmt.Errorf("attributes must be empty for now")
+	// Check that all supported attributes are present
+	for _, attr := range t.SupportedAttrs {
+		if _, ok := c.Attrs[attr]; !ok {
+			return fmt.Errorf("capability lacks required attribute %q", attr)
+		}
+	}
+	// Look for any unexpected attributes
+	if len(t.SupportedAttrs) != len(c.Attrs) {
+		for attr, _ := range c.Attrs {
+			supported := false
+			for _, attrSupported := range t.SupportedAttrs {
+				if attr == attrSupported {
+					supported = true
+					break
+				}
+			}
+			if !supported {
+				return fmt.Errorf("capability contains unexpected attribute %q", attr)
+			}
+		}
 	}
 	return nil
 }

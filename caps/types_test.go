@@ -31,14 +31,17 @@ var _ = Suite(&TypeSuite{})
 
 // testType is only meant for testing. It is not useful in any way except
 // that it offers an simple capability type that will happily validate.
-var testType = &Type{"test"}
+var testType = &Type{
+	Name:           "test",
+	SupportedAttrs: nil,
+}
 
 func (s *TypeSuite) TestTypeString(c *C) {
 	c.Assert(testType.String(), Equals, "test")
 }
 
 func (s *TypeSuite) TestValidateMismatchedType(c *C) {
-	testType2 := &Type{"test-two"} // Another test-like type that's not test itself
+	testType2 := &Type{Name: "test-two"} // Another test-like type that's not test itself
 	cap := &Capability{Name: "name", Label: "label", Type: testType2}
 	err := testType.Validate(cap)
 	c.Assert(err, ErrorMatches, `capability is not of type "test"`)
@@ -50,17 +53,34 @@ func (s *TypeSuite) TestValidateOK(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *TypeSuite) TestValidateAttributes(c *C) {
+func (s *TypeSuite) TestValidateAttributesUnexpectedAttrs(c *C) {
+	t := &Type{
+		Name:           "t",
+		SupportedAttrs: nil,
+	}
 	cap := &Capability{
 		Name:  "name",
 		Label: "label",
-		Type:  testType,
-		Attrs: map[string]string{
-			"Key": "Value",
-		},
+		Type:  t,
+		Attrs: map[string]string{"k": "v"},
 	}
-	err := testType.Validate(cap)
-	c.Assert(err, ErrorMatches, "attributes must be empty for now")
+	err := t.Validate(cap)
+	c.Assert(err, ErrorMatches, `capability contains unexpected attribute "k"`)
+}
+
+func (s *TypeSuite) TestValidateAttributesRequiredAttrs(c *C) {
+	t := &Type{
+		Name:           "t",
+		SupportedAttrs: []string{"k"},
+	}
+	cap := &Capability{
+		Name:  "name",
+		Label: "label",
+		Type:  t,
+		Attrs: map[string]string{},
+	}
+	err := t.Validate(cap)
+	c.Assert(err, ErrorMatches, `capability lacks required attribute "k"`)
 }
 
 func (s *TypeSuite) TestMarhshalJSON(c *C) {

@@ -71,7 +71,7 @@ func (s *RepositorySuite) TestAddInvalidName(c *C) {
 }
 
 func (s *RepositorySuite) TestAddType(c *C) {
-	t := &Type{"foo"}
+	t := &Type{Name: "foo"}
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, IsNil)
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{"foo"})
@@ -79,8 +79,8 @@ func (s *RepositorySuite) TestAddType(c *C) {
 }
 
 func (s *RepositorySuite) TestAddTypeClash(c *C) {
-	t1 := &Type{"foo"}
-	t2 := &Type{"foo"}
+	t1 := &Type{Name: "foo"}
+	t2 := &Type{Name: "foo"}
 	err := s.emptyRepo.AddType(t1)
 	c.Assert(err, IsNil)
 	err = s.emptyRepo.AddType(t2)
@@ -91,7 +91,7 @@ func (s *RepositorySuite) TestAddTypeClash(c *C) {
 }
 
 func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
-	t := &Type{"bad-name-"}
+	t := &Type{Name: "bad-name-"}
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{})
@@ -126,9 +126,9 @@ func (s *RepositorySuite) TestNames(c *C) {
 
 func (s *RepositorySuite) TestTypeNames(c *C) {
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{})
-	s.emptyRepo.AddType(&Type{"a"})
-	s.emptyRepo.AddType(&Type{"b"})
-	s.emptyRepo.AddType(&Type{"c"})
+	s.emptyRepo.AddType(&Type{Name: "a"})
+	s.emptyRepo.AddType(&Type{Name: "b"})
+	s.emptyRepo.AddType(&Type{Name: "c"})
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{"a", "b", "c"})
 }
 
