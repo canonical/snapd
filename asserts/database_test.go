@@ -220,7 +220,9 @@ var _ = Suite(&signAddFindSuite{})
 func (safs *signAddFindSuite) SetUpTest(c *C) {
 	cfg0 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db0")}
 	db0, err := asserts.OpenDatabase(cfg0)
+	c.Assert(err, IsNil)
 	safs.signingDB = db0
+
 	safs.signingFingerprint, err = db0.ImportKey("canonical", asserts.WrapPrivateKey(testPrivKey0))
 	c.Assert(err, IsNil)
 

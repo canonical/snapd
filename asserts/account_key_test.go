@@ -42,6 +42,7 @@ var _ = Suite(&accountKeySuite{})
 func (aks *accountKeySuite) SetUpSuite(c *C) {
 	cfg1 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db1")}
 	accDb, err := asserts.OpenDatabase(cfg1)
+	c.Assert(err, IsNil)
 	aks.fp, err = accDb.ImportKey("acc-id1", asserts.WrapPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 	pubKey, err := accDb.ExportPublicKey("acc-id1", aks.fp)
