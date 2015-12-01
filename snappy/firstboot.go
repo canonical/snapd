@@ -27,13 +27,14 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/progress"
 
 	"gopkg.in/yaml.v2"
 )
 
 var (
-	errNoSnapToConfig = errors.New("configuring an invalid snappy package")
+	errNoSnapToConfig   = errors.New("configuring an invalid snappy package")
+	errNoSnapToActivate = errors.New("activating an invalid snappy package")
 )
 
 func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
@@ -46,37 +47,61 @@ func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 	return yaml.Marshal(configWrap)
 }
 
-var activeSnapByName = ActiveSnapByName
-var activeSnapsByType = ActiveSnapsByType
+var newPkgmap = newPkgmapImpl
+
+func newPkgmapImpl() (map[string]Part, error) {
+	repo := NewMetaLocalRepository()
+	all, err := repo.All()
+	if err != nil {
+		return nil, err
+	}
+
+	m := make(map[string]Part, 2*len(all))
+	for _, part := range all {
+		m[FullName(part)] = part
+		m[BareName(part)] = part
+	}
+
+	return m, nil
+}
 
 // OemConfig checks for an oem snap and if found applies the configuration
 // set there to the system
 func oemConfig() error {
-	oemSnap, err := activeSnapsByType(pkg.TypeOem)
+	oem, err := getOem()
+	if err != nil || oem == nil {
+		return err
+	}
+
+	pkgmap, err := newPkgmap()
 	if err != nil {
 		return err
 	}
 
-	if len(oemSnap) < 1 {
-		return nil
-	}
-
-	snap, ok := oemSnap[0].(Configuration)
-	if !ok {
-		return ErrNoOemConfiguration
-	}
-
-	for pkgName, conf := range snap.OemConfig() {
-		configData, err := wrapConfig(pkgName, conf)
-		if err != nil {
-			return err
+	pb := progress.MakeProgressBar()
+	for _, pkgName := range oem.OEM.Software.BuiltIn {
+		part, ok := pkgmap[pkgName]
+		if !ok {
+			return errNoSnapToActivate
 		}
+		snap, ok := part.(*SnapPart)
+		if !ok {
+			return errNoSnapToActivate
+		}
+		snap.activate(false, pb)
+	}
 
-		snap := activeSnapByName(pkgName)
-		if snap == nil {
+	for pkgName, conf := range oem.Config {
+		snap, ok := pkgmap[pkgName]
+		if !ok {
 			// We want to error early as this is a disparity and oem snap
 			// packaging error.
 			return errNoSnapToConfig
+		}
+
+		configData, err := wrapConfig(pkgName, conf)
+		if err != nil {
+			return err
 		}
 
 		if _, err := snap.Config(configData); err != nil {

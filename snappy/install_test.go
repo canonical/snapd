@@ -49,6 +49,31 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
+
+	repo := NewMetaLocalRepository()
+	all, err := repo.All()
+	c.Check(err, IsNil)
+	c.Assert(all, HasLen, 1)
+	part := all[0]
+	c.Check(part.Name(), Equals, name)
+	c.Check(part.IsInstalled(), Equals, true)
+	c.Check(part.IsActive(), Equals, true)
+}
+
+func (s *SnapTestSuite) TestInstallNoHook(c *C) {
+	snapFile := makeTestSnapPackage(c, "")
+	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC|InhibitHooks, &progress.NullProgress{})
+	c.Assert(err, IsNil)
+	c.Check(name, Equals, "foo")
+
+	repo := NewMetaLocalRepository()
+	all, err := repo.All()
+	c.Check(err, IsNil)
+	c.Assert(all, HasLen, 1)
+	part := all[0]
+	c.Check(part.Name(), Equals, name)
+	c.Check(part.IsInstalled(), Equals, true)
+	c.Check(part.IsActive(), Equals, false) // c.f. TestInstallInstall
 }
 
 func (s *SnapTestSuite) TestInstallInstallLicense(c *C) {

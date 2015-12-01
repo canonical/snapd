@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/pkg"
 )
 
@@ -57,11 +58,14 @@ type FirstBootTestSuite struct {
 	ifup      string
 	m         *packageYaml
 	e         error
+	pkgmap    map[string]Part
+	pkgmaperr error
 }
 
 var _ = Suite(&FirstBootTestSuite{})
 
 func (s *FirstBootTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 	stampFile = filepath.Join(c.MkDir(), "stamp")
 
 	configMyApp := make(SystemConfig)
@@ -70,8 +74,6 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	s.oemConfig = make(SystemConfig)
 	s.oemConfig["myapp"] = configMyApp
 
-	s.mockActiveSnapNamesByType()
-
 	s.globs = globs
 	globs = nil
 	s.ethdir = ethdir
@@ -79,44 +81,41 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	s.ifup = ifup
 	ifup = "/bin/true"
 	getOem = s.getOem
+	newPkgmap = s.newPkgmap
 
 	s.m = nil
 	s.e = nil
+	s.pkgmap = nil
+	s.pkgmaperr = nil
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
-	activeSnapByName = ActiveSnapByName
-	activeSnapsByType = ActiveSnapsByType
 	globs = s.globs
 	ethdir = s.ethdir
 	ifup = s.ifup
 	getOem = getOemImpl
+	newPkgmap = newPkgmapImpl
 }
 
 func (s *FirstBootTestSuite) getOem() (*packageYaml, error) {
 	return s.m, s.e
 }
 
-func (s *FirstBootTestSuite) mockActiveSnapNamesByType() *fakePart {
-	fakeOem := fakePart{oemConfig: s.oemConfig, snapType: pkg.TypeOem}
-	activeSnapsByType = func(snapsTs ...pkg.Type) ([]Part, error) {
-		return []Part{&fakeOem}, nil
-	}
-
-	return &fakeOem
+func (s *FirstBootTestSuite) newPkgmap() (map[string]Part, error) {
+	return s.pkgmap, s.pkgmaperr
 }
 
-func (s *FirstBootTestSuite) mockActiveSnapByName() *fakePart {
+func (s *FirstBootTestSuite) newFakeApp() *fakePart {
 	fakeMyApp := fakePart{snapType: pkg.TypeApp}
-	activeSnapByName = func(needle string) Part {
-		return &fakeMyApp
-	}
+	s.pkgmap = make(map[string]Part)
+	s.pkgmap["myapp"] = &fakeMyApp
 
 	return &fakeMyApp
 }
 
 func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
-	fakeMyApp := s.mockActiveSnapByName()
+	s.m = &packageYaml{Config: s.oemConfig}
+	fakeMyApp := s.newFakeApp()
 
 	c.Assert(FirstBoot(), IsNil)
 	myAppConfig := fmt.Sprintf("config:\n  myapp:\n    hostname: myhostname\n")
@@ -126,9 +125,32 @@ func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
-	s.mockActiveSnapByName()
+func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
+	snapFile := makeTestSnapPackage(c, "")
+	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC|InhibitHooks, &MockProgressMeter{})
+	c.Check(err, IsNil)
 
+	s.m = &packageYaml{OEM: OEM{Software: Software{BuiltIn: []string{name}}}}
+
+	repo := NewMetaLocalRepository()
+	all, err := repo.All()
+	c.Check(err, IsNil)
+	c.Assert(all, HasLen, 1)
+	c.Check(all[0].IsInstalled(), Equals, true)
+	c.Check(all[0].IsActive(), Equals, false)
+
+	s.pkgmap = map[string]Part{name: all[0]}
+	c.Assert(FirstBoot(), IsNil)
+
+	repo = NewMetaLocalRepository()
+	all, err = repo.All()
+	c.Check(err, IsNil)
+	c.Assert(all, HasLen, 1)
+	c.Check(all[0].IsInstalled(), Equals, true)
+	c.Check(all[0].IsActive(), Equals, true)
+}
+
+func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
 	c.Assert(FirstBoot(), IsNil)
 	_, err := os.Stat(stampFile)
 	c.Assert(err, IsNil)
@@ -137,10 +159,6 @@ func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestNoErrorWhenNoOEM(c *C) {
-	activeSnapsByType = func(snapsTs ...pkg.Type) ([]Part, error) {
-		return nil, nil
-	}
-
 	c.Assert(FirstBoot(), IsNil)
 	_, err := os.Stat(stampFile)
 	c.Assert(err, IsNil)
