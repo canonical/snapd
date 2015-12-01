@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-11-27 16:07+0100\n"
+        "POT-Creation-Date: 2015-12-01 18:23+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -65,6 +65,9 @@ msgid   "Activate a package"
 msgstr  ""
 
 msgid   "Activate a package that has previously been deactivated. If the package is already activated, do nothing."
+msgstr  ""
+
+msgid   "Add an assertion to the assertion database"
 msgstr  ""
 
 msgid   "All background processes will be killed when you leave this shell"
@@ -343,6 +346,9 @@ msgstr  ""
 msgid   "The configuration for the given install"
 msgstr  ""
 
+msgid   "The file containing the assertion to add"
+msgstr  ""
+
 msgid   "The hardware device path (e.g. /dev/ttyUSB0)"
 msgstr  ""
 
@@ -397,6 +403,9 @@ msgstr  ""
 #. TRANSLATORS: the %s an architecture string
 #, c-format
 msgid   "architecture: %s\n"
+msgstr  ""
+
+msgid   "assertion file is required"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a size
