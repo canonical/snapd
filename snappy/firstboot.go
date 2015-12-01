@@ -47,9 +47,9 @@ func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 	return yaml.Marshal(configWrap)
 }
 
-var newPkgmap = newPkgmapImpl
+var newPartMap = newPartMapImpl
 
-func newPkgmapImpl() (map[string]Part, error) {
+func newPartMapImpl() (map[string]Part, error) {
 	repo := NewMetaLocalRepository()
 	all, err := repo.All()
 	if err != nil {
@@ -73,14 +73,14 @@ func oemConfig() error {
 		return err
 	}
 
-	pkgmap, err := newPkgmap()
+	partMap, err := newPartMap()
 	if err != nil {
 		return err
 	}
 
 	pb := progress.MakeProgressBar()
 	for _, pkgName := range oem.OEM.Software.BuiltIn {
-		part, ok := pkgmap[pkgName]
+		part, ok := partMap[pkgName]
 		if !ok {
 			return errNoSnapToActivate
 		}
@@ -92,7 +92,7 @@ func oemConfig() error {
 	}
 
 	for pkgName, conf := range oem.Config {
-		snap, ok := pkgmap[pkgName]
+		snap, ok := partMap[pkgName]
 		if !ok {
 			// We want to error early as this is a disparity and oem snap
 			// packaging error.

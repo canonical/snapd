@@ -29,6 +29,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg/clickdeb"
 )
 
 type fakePart struct {
@@ -52,18 +53,22 @@ func (p *fakePart) Type() pkg.Type {
 }
 
 type FirstBootTestSuite struct {
-	oemConfig map[string]interface{}
-	globs     []string
-	ethdir    string
-	m         *packageYaml
-	e         error
-	pkgmap    map[string]Part
-	pkgmaperr error
+	oemConfig  map[string]interface{}
+	globs      []string
+	ethdir     string
+	m          *packageYaml
+	e          error
+	partMap    map[string]Part
+	partMapErr error
+	verifyCmd  string
 }
 
 var _ = Suite(&FirstBootTestSuite{})
 
 func (s *FirstBootTestSuite) SetUpTest(c *C) {
+	s.verifyCmd = clickdeb.VerifyCmd
+	clickdeb.VerifyCmd = "true"
+
 	dirs.SetRootDir(c.MkDir())
 	stampFile = filepath.Join(c.MkDir(), "stamp")
 
@@ -78,33 +83,34 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	s.ethdir = ethdir
 	ethdir = c.MkDir()
 	getOem = s.getOem
-	newPkgmap = s.newPkgmap
+	newPartMap = s.newPartMap
 
 	s.m = nil
 	s.e = nil
-	s.pkgmap = nil
-	s.pkgmaperr = nil
+	s.partMap = nil
+	s.partMapErr = nil
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	globs = s.globs
 	ethdir = s.ethdir
 	getOem = getOemImpl
-	newPkgmap = newPkgmapImpl
+	newPartMap = newPartMapImpl
+	clickdeb.VerifyCmd = s.verifyCmd
 }
 
 func (s *FirstBootTestSuite) getOem() (*packageYaml, error) {
 	return s.m, s.e
 }
 
-func (s *FirstBootTestSuite) newPkgmap() (map[string]Part, error) {
-	return s.pkgmap, s.pkgmaperr
+func (s *FirstBootTestSuite) newPartMap() (map[string]Part, error) {
+	return s.partMap, s.partMapErr
 }
 
 func (s *FirstBootTestSuite) newFakeApp() *fakePart {
 	fakeMyApp := fakePart{snapType: pkg.TypeApp}
-	s.pkgmap = make(map[string]Part)
-	s.pkgmap["myapp"] = &fakeMyApp
+	s.partMap = make(map[string]Part)
+	s.partMap["myapp"] = &fakeMyApp
 
 	return &fakeMyApp
 }
@@ -135,7 +141,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	c.Check(all[0].IsInstalled(), Equals, true)
 	c.Check(all[0].IsActive(), Equals, false)
 
-	s.pkgmap = map[string]Part{name: all[0]}
+	s.partMap = map[string]Part{name: all[0]}
 	c.Assert(FirstBoot(), IsNil)
 
 	repo = NewMetaLocalRepository()

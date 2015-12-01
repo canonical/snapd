@@ -1127,9 +1127,7 @@ integration:
 	_, err := installClick(snapFile, InhibitHooks, nil, testOrigin)
 	c.Assert(err, IsNil)
 
-	// verify we have the symlink
-	c.Assert(helpers.FileExists(filepath.Join(hookSymlinkDir, fmt.Sprintf("foo.%s_app_1.0", testOrigin))), Equals, true)
-	// but the hook exec was not called
+	// verify the hook exec was not called
 	c.Assert(helpers.FileExists(filepath.Join(s.tempdir, "i-ran")), Equals, false)
 }
 
