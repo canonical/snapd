@@ -20,16 +20,38 @@
 package asserts
 
 import (
+	"fmt"
+	"io/ioutil"
+
 	"github.com/ubuntu-core/snappy/dirs"
 )
 
 // OpenSysDatabase opens the installation-wide assertion database.
 func OpenSysDatabase() (*Database, error) {
-	trustedKeys := make(map[string][]PublicKey)
+	encodedTrustedAccKey, err := ioutil.ReadFile(dirs.SnapTrustedAccountKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read trusted account key: %v", err)
+	}
+	trustedAccKey, err := Decode(encodedTrustedAccKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode trusted account key: %v", err)
+	}
+
+	var trustedKey PublicKey
+	var authorityID string
+	switch accKey := trustedAccKey.(type) {
+	case *AccountKey:
+		authorityID = accKey.AccountID()
+		trustedKey = accKey
+	default:
+		return nil, fmt.Errorf("trusted account key is %T, not an account-key", trustedAccKey)
+	}
 
 	cfg := &DatabaseConfig{
-		Path:        dirs.SnapAssertsDBDir,
-		TrustedKeys: trustedKeys,
+		Path: dirs.SnapAssertsDBDir,
+		TrustedKeys: map[string][]PublicKey{
+			authorityID: {trustedKey},
+		},
 	}
 
 	return OpenDatabase(cfg)
