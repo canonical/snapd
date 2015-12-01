@@ -96,7 +96,8 @@ meta/hooks/config exit with status 10 and message:
 
 ### Example: list items and changing config data locally
 
-Running `snappy config SNAPNAME` command will dump the current config of a snap:
+Running `snappy config SNAPNAME` command will print the current config of a
+snap:
 
 	$ snappy config SNAPNAME
 	SNAPNAME:
@@ -116,7 +117,7 @@ syntax to the snap:
 This command will fail with a non-zero exit code if the YAML syntax is not
 valid or the config handler of the snap signals an error. 
 
-If it succeeds, the new config will have been applied:
+If it succeeds, the new config is applied:
 
 	$ snappy config SNAPNAME
 	SNAPNAME:
