@@ -301,7 +301,7 @@ void setup_snappy_os_mounts() {
       die("can not find a snappy os");
    }
    if ((glob_res.gl_pathc =! 1)) {
-      die("expected 1 os snap, found %lu", glob_res.gl_pathc);
+      die("expected 1 os snap, found %i", (int)glob_res.gl_pathc);
    }
    char *mountpoint = glob_res.gl_pathv[0];
 

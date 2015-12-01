@@ -1,3 +1,9 @@
+ubuntu-core-launcher (1.0.13) xenial; urgency=medium
+
+  * fix build failure on 32 bit arches
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 01 Dec 2015 16:41:20 +0100
+
 ubuntu-core-launcher (1.0.12) xenial; urgency=medium
 
   * update usr.bin.ubuntu-core-launcher apparmor profile
