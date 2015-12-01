@@ -102,6 +102,7 @@ func makeSignAndCheckDbWithAccountKey(c *C) (accSignDB, checkDB *asserts.Databas
 
 	cfg1 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db1")}
 	accSignDB, err := asserts.OpenDatabase(cfg1)
+	c.Assert(err, IsNil)
 	accFingerp, err := accSignDB.ImportKey("dev-id1", asserts.WrapPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 	pubKey, err := accSignDB.ExportPublicKey("dev-id1", accFingerp)
