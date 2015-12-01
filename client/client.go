@@ -97,6 +97,16 @@ type response struct {
 	Type       string          `json:"type"`
 }
 
+// errorResult is the real value of response.Result when an error occurs.
+// Note that only the 'Str' field is unmarshaled from JSON representation.
+type errorResult struct {
+	Str string `json:"str"`
+}
+
+func (e *errorResult) Error() string {
+	return e.Str
+}
+
 // SysInfo holds system information
 type SysInfo struct {
 	Flavor           string `json:"flavor"`
