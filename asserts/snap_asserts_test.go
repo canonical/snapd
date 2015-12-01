@@ -20,9 +20,6 @@
 package asserts_test
 
 import (
-	"bytes"
-	"encoding/base64"
-	"encoding/hex"
 	"path/filepath"
 	"strings"
 	"time"
@@ -100,16 +97,18 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func makeDatabaseWithAccountKey(c *C) *asserts.Database {
+func makeSignAndCheckDbWithAccountKey(c *C) (accSignDB, checkDB *asserts.Database) {
 	trustedKey := testPrivKey0
-	accPrivKey := testPrivKey1
 
-	// TODO: crypto.go should have helpers for this related to exporting
-	buf := new(bytes.Buffer)
-	err := accPrivKey.PublicKey.Serialize(buf)
+	cfg1 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db1")}
+	accSignDB, err := asserts.OpenDatabase(cfg1)
+	accFingerp, err := accSignDB.ImportKey("dev-id1", asserts.WrapPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
-	accPubKeyBody := "openpgp " + base64.StdEncoding.EncodeToString(buf.Bytes())
-	accFingerp := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
+	pubKey, err := accSignDB.ExportPublicKey("dev-id1", accFingerp)
+	c.Assert(err, IsNil)
+	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)
+	c.Assert(err, IsNil)
+	accPubKeyBody := string(pubKeyEncoded)
 
 	headers := map[string]string{
 		"authority-id": "canonical",
@@ -128,18 +127,17 @@ func makeDatabaseWithAccountKey(c *C) *asserts.Database {
 			"canonical": {asserts.WrapPublicKey(&trustedKey.PublicKey)},
 		},
 	}
-	db, err := asserts.OpenDatabase(cfg)
+	checkDB, err = asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 
-	err = db.Add(accKey)
+	err = checkDB.Add(accKey)
 	c.Assert(err, IsNil)
 
-	return db
+	return accSignDB, checkDB
 }
 
 func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
-	accPrivKey := testPrivKey1
-	db := makeDatabaseWithAccountKey(c)
+	accSignDB, db := makeSignAndCheckDbWithAccountKey(c)
 
 	headers := map[string]string{
 		"authority-id": "dev-id1",
@@ -149,7 +147,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
 		"snap-size":    "1025",
 		"timestamp":    "2015-11-25T20:00:00Z",
 	}
-	snapDecl, err := asserts.BuildAndSignInTest(asserts.SnapDeclarationType, headers, nil, asserts.WrapPrivateKey(accPrivKey))
+	snapDecl, err := accSignDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapDecl)
@@ -157,8 +155,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
 }
 
 func (sds *snapDeclSuite) TestSnapDeclarationCheckInconsistentTimestamp(c *C) {
-	accPrivKey := testPrivKey1
-	db := makeDatabaseWithAccountKey(c)
+	accSignDB, db := makeSignAndCheckDbWithAccountKey(c)
 
 	headers := map[string]string{
 		"authority-id": "dev-id1",
@@ -168,7 +165,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckInconsistentTimestamp(c *C) {
 		"snap-size":    "1025",
 		"timestamp":    "2013-01-01T14:00:00Z",
 	}
-	snapDecl, err := asserts.BuildAndSignInTest(asserts.SnapDeclarationType, headers, nil, asserts.WrapPrivateKey(accPrivKey))
+	snapDecl, err := accSignDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapDecl)
