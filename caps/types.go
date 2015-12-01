@@ -31,6 +31,9 @@ type Type struct {
 	// Name is a key that identifies the capability type. It must be unique
 	// within the whole OS. The name forms a part of the stable system API.
 	Name string
+	// SupportedAttrs contains names of attributes that are understood by
+	// capability of this type.
+	SupportedAttrs []string
 }
 
 var (
