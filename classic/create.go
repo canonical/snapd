@@ -175,8 +175,8 @@ func unpackLxdRootfs(fname string) error {
 	}
 
 	cmd := exec.Command("tar", "-C", dirs.ClassicDir, "-xpf", fname)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to unpack %s: %s", fname, err)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to unpack %s: %s (%s)", fname, err, output)
 	}
 
 	return nil
