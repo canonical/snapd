@@ -141,13 +141,13 @@ func (db *Database) ImportKey(authorityID string, privKey PrivateKey) (fingerpri
 }
 
 // ExportPublicKey exports the public part of a stored key pair for identity
-// by matching the given fingerprint suffix, it's an error if no or more
+// by matching the given fingerprint suffix, it is an error if no or more
 // than one key pair is found.
 func (db *Database) ExportPublicKey(authorityID string, fingerprintSuffix string) (PublicKey, error) {
 	keyPath := ""
 	foundPrivKeyCb := func(relpath string) error {
 		if keyPath != "" {
-			return fmt.Errorf("ambiguous search, more than one key pair found: %q and %q", keyPath, relpath)
+			return fmt.Errorf("ambiguous fingerprint suffix, more than one key pair found: %q and %q", keyPath, relpath)
 
 		}
 		keyPath = relpath
