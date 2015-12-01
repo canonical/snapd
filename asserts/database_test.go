@@ -210,8 +210,9 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 }
 
 type signAddFindSuite struct {
-	signingDB *asserts.Database
-	db        *asserts.Database
+	signingDB          *asserts.Database
+	signingFingerprint string
+	db                 *asserts.Database
 }
 
 var _ = Suite(&signAddFindSuite{})
@@ -220,7 +221,7 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	cfg0 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db0")}
 	db0, err := asserts.OpenDatabase(cfg0)
 	safs.signingDB = db0
-	_, err = db0.ImportKey("canonical", asserts.WrapPrivateKey(testPrivKey0))
+	safs.signingFingerprint, err = db0.ImportKey("canonical", asserts.WrapPrivateKey(testPrivKey0))
 	c.Assert(err, IsNil)
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
@@ -241,7 +242,7 @@ func (safs *signAddFindSuite) TestSign(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, asserts.WrapPrivateKey(testPrivKey0).PublicKey().Fingerprint())
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Check(a1)
