@@ -101,6 +101,17 @@ func (cs *clientSuite) TestClientReportsOpError(c *check.C) {
 	c.Check(err, check.ErrorMatches, `failed with "potatoes"`)
 }
 
+func (cs *clientSuite) TestClientReportsOpErrorStr(c *check.C) {
+	cs.rsp = `{
+		"result": {},
+		"status": "Bad Request",
+		"status_code": 400,
+		"type": "error"
+	}`
+	_, err := cs.cli.SysInfo()
+	c.Check(err, check.ErrorMatches, `failed with "Bad Request"`)
+}
+
 func (cs *clientSuite) TestClientReportsBadType(c *check.C) {
 	cs.rsp = `{"type": "what"}`
 	_, err := cs.cli.SysInfo()
