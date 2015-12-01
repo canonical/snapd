@@ -31,6 +31,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/testutil"
 
 	. "gopkg.in/check.v1"
 )
