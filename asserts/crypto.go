@@ -266,7 +266,7 @@ func parsePrivateKey(privKey []byte) (PrivateKey, error) {
 	return openpgpPrivateKey{privk}, nil
 }
 
-// WrapPrivateKey returns a PrivateKey out of a opengpg packet.PrivateKey.
+// WrapPrivateKey returns a PrivateKey for database use out of a opengpg packet.PrivateKey.
 func WrapPrivateKey(privk *packet.PrivateKey) PrivateKey {
 	return openpgpPrivateKey{privk}
 }
