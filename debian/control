@@ -41,7 +41,6 @@ Description: snappy development go packages.
 Package: ubuntu-snappy
 Architecture: all
 Depends: debsig-verify,
-         squashfs-tools,
          system-image-cli (>= 3.0),
          ubuntu-snappy-cli (= ${binary:Version}),
          ubuntu-core-upgrader,
@@ -55,7 +54,7 @@ Description: System components for Ubuntu Core Snappy.
 
 Package: ubuntu-snappy-cli
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, adduser, lsb-release
+Depends: ${misc:Depends}, ${shlibs:Depends}, adduser, lsb-release, squashfs-tools
 Replaces: ubuntu-core-snappy (<< 0.2~ppa90)
 Breaks: ubuntu-core-snappy (<< 0.2~ppa90)
 Conflicts: snappy
