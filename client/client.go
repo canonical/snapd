@@ -123,8 +123,11 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 		return nil, err
 	}
 	if rsp.Type == "error" {
-		// TODO: handle structured errors
-		return nil, fmt.Errorf("failed with %q", rsp.Status)
+		var resultErr errorResult
+		if err := json.Unmarshal(rsp.Result, &resultErr); err != nil {
+			return nil, fmt.Errorf("cannot get system information: failed to unmarshal response: %v", err)
+		}
+		return nil, &resultErr
 	}
 	if rsp.Type != "sync" {
 		return nil, fmt.Errorf("unexpected result type %q", rsp.Type)
