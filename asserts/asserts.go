@@ -27,8 +27,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
-
-	"golang.org/x/crypto/openpgp/packet"
 )
 
 // AssertionType labels assertions of a given type
@@ -253,8 +251,7 @@ func writeHeader(buf *bytes.Buffer, headers map[string]string, name string) {
 	buf.WriteString(headers[name])
 }
 
-// TODO: expose this in some form on Database appropriately
-func buildAndSign(assertType AssertionType, headers map[string]string, body []byte, privKey *packet.PrivateKey) (Assertion, error) {
+func buildAndSign(assertType AssertionType, headers map[string]string, body []byte, privKey PrivateKey) (Assertion, error) {
 	finalHeaders := make(map[string]string, len(headers))
 	for name, value := range headers {
 		finalHeaders[name] = value

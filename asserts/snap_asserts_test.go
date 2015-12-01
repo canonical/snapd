@@ -118,7 +118,7 @@ func makeDatabaseWithAccountKey(c *C) *asserts.Database {
 		"since":        "2015-11-20T15:04:00Z",
 		"until":        "2500-11-20T15:04:00Z",
 	}
-	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), trustedKey)
+	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), asserts.WrapPrivateKey(trustedKey))
 	c.Assert(err, IsNil)
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
@@ -149,7 +149,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
 		"snap-size":    "1025",
 		"timestamp":    "2015-11-25T20:00:00Z",
 	}
-	snapDecl, err := asserts.BuildAndSignInTest(asserts.SnapDeclarationType, headers, nil, accPrivKey)
+	snapDecl, err := asserts.BuildAndSignInTest(asserts.SnapDeclarationType, headers, nil, asserts.WrapPrivateKey(accPrivKey))
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapDecl)
@@ -168,7 +168,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckInconsistentTimestamp(c *C) {
 		"snap-size":    "1025",
 		"timestamp":    "2013-01-01T14:00:00Z",
 	}
-	snapDecl, err := asserts.BuildAndSignInTest(asserts.SnapDeclarationType, headers, nil, accPrivKey)
+	snapDecl, err := asserts.BuildAndSignInTest(asserts.SnapDeclarationType, headers, nil, asserts.WrapPrivateKey(accPrivKey))
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapDecl)

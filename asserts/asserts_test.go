@@ -178,7 +178,7 @@ func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
-	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey1)
+	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, asserts.WrapPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 
 	_, err = asserts.Decode(asserts.Encode(a))
@@ -191,7 +191,7 @@ func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 		"primary-key":  "0",
 	}
 	body := []byte("THE-BODY")
-	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, body, testPrivKey1)
+	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, body, asserts.WrapPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 	c.Check(a.Body(), DeepEquals, body)
 

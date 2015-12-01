@@ -140,21 +140,18 @@ func (db *Database) ImportKey(authorityID string, privKey PrivateKey) (fingerpri
 	return fingerp, nil
 }
 
-// ExportPublicKey exports the public part of a stored key pair for identity
-// by matching the given fingerprint suffix, it is an error if no or more
-// than one key pair is found.
-func (db *Database) ExportPublicKey(authorityID string, fingerprintSuffix string) (PublicKey, error) {
+func (db *Database) findPrivateKey(authorityID, fingerprintWildcard string) (PrivateKey, error) {
 	keyPath := ""
 	foundPrivKeyCb := func(relpath string) error {
 		if keyPath != "" {
-			return fmt.Errorf("ambiguous fingerprint suffix, more than one key pair found: %q and %q", keyPath, relpath)
+			return fmt.Errorf("ambiguous search, more than one key pair found: %q and %q", keyPath, relpath)
 
 		}
 		keyPath = relpath
 		return nil
 	}
 	privKeysTop := filepath.Join(db.root, privateKeysRoot)
-	err := findWildcard(privKeysTop, []string{authorityID, "*" + fingerprintSuffix}, foundPrivKeyCb)
+	err := findWildcard(privKeysTop, []string{authorityID, fingerprintWildcard}, foundPrivKeyCb)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +166,38 @@ func (db *Database) ExportPublicKey(authorityID string, fingerprintSuffix string
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode key pair: %v", err)
 	}
+	return privKey, nil
+}
+
+// ExportPublicKey exports the public part of a stored key pair for identity
+// by matching the given fingerprint suffix, it is an error if no or more
+// than one key pair is found.
+func (db *Database) ExportPublicKey(authorityID string, fingerprintSuffix string) (PublicKey, error) {
+	privKey, err := db.findPrivateKey(authorityID, "*"+fingerprintSuffix)
+	if err != nil {
+		return nil, err
+	}
 	return privKey.PublicKey(), nil
+}
+
+// Sign makes an assertion with headers and body and signs it using the matching authority-id (from headers) key pair with the given fingeprint.
+// Fingerprint can be empty but then exactly one key pair
+// for authority-id must then be available under the database.
+func (db *Database) Sign(assertType AssertionType, headers map[string]string, body []byte, fingerprint string) (Assertion, error) {
+	authorityID, err := checkMandatory(headers, "authority-id")
+	if err != nil {
+		return nil, err
+	}
+	if fingerprint == "" {
+		// match any but then findPrivateKey will bail on
+		// ambiguous find
+		fingerprint = "*"
+	}
+	privKey, err := db.findPrivateKey(authorityID, fingerprint)
+	if err != nil {
+		return nil, err
+	}
+	return buildAndSign(assertType, headers, body, privKey)
 }
 
 // use a generalized matching style along what PGP does where keys can be

@@ -34,8 +34,6 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 )
 
-// TODO: eventually this should be the only non-test file using/importing directly from golang.org/x/crypto
-
 const (
 	maxEncodeLineLength = 76
 )
@@ -94,7 +92,13 @@ var openpgpConfig = &packet.Config{
 	DefaultHash: crypto.SHA256,
 }
 
-func signContent(content []byte, privKey *packet.PrivateKey) ([]byte, error) {
+func signContent(content []byte, privateKey PrivateKey) ([]byte, error) {
+	opgPrivKey, ok := privateKey.(openpgpPrivateKey)
+	if !ok {
+		panic(fmt.Errorf("not an internally supported PrivateKey: %T", privateKey))
+	}
+	privKey := opgPrivKey.privk
+
 	sig := new(packet.Signature)
 	sig.PubKeyAlgo = privKey.PubKeyAlgo
 	sig.Hash = openpgpConfig.Hash()
