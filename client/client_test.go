@@ -98,7 +98,7 @@ func (cs *clientSuite) TestClientSysInfo(c *check.C) {
 func (cs *clientSuite) TestClientReportsOpError(c *check.C) {
 	cs.rsp = `{"type": "error", "status": "potatoes"}`
 	_, err := cs.cli.SysInfo()
-	c.Check(err, check.ErrorMatches, `cannot get system information: failed to unmarshal response: unexpected end of JSON input`)
+	c.Check(err, check.ErrorMatches, `failed with "potatoes"`)
 }
 
 func (cs *clientSuite) TestClientReportsBadType(c *check.C) {

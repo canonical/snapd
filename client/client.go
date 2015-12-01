@@ -125,7 +125,7 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 	if rsp.Type == "error" {
 		var resultErr errorResult
 		if err := json.Unmarshal(rsp.Result, &resultErr); err != nil {
-			return nil, fmt.Errorf("cannot get system information: failed to unmarshal response: %v", err)
+			return nil, fmt.Errorf("failed with %q", rsp.Status)
 		}
 		return nil, &resultErr
 	}
