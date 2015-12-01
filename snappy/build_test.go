@@ -31,7 +31,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/testutil"
 
 	. "gopkg.in/check.v1"
 )
@@ -550,8 +549,4 @@ integration:
 		expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta(needle))
 		c.Assert(string(output), Matches, expr)
 	}
-
-	// ensure we don't have cruft in our squashfs
-	c.Assert(string(output), Not(testutil.Contains), "DEBIAN")
-	c.Assert(string(output), Not(testutil.Contains), ".click")
 }
