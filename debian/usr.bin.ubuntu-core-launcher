@@ -69,4 +69,14 @@
     /tmp/snap.*/tmp/ w,
     mount options=(rw private) -> /tmp/,
     mount options=(rw bind) /tmp/snap.*/tmp/ -> /tmp/,
+
+    # for running snaps on ubuntu
+    mount options=(rw rslave) -> /,
+    /apps/ r,   
+    /apps/** r,
+    mount options=(rw bind) /apps/ubuntu-core*/*/bin/ -> /bin/,
+    mount options=(rw bind) /apps/ubuntu-core*/*/sbin/ -> /sbin/,
+    mount options=(rw bind) /apps/ubuntu-core*/*/lib/ -> /lib/,
+    mount options=(rw bind) /apps/ubuntu-core*/*/lib64/ -> /lib64/,
+    mount options=(rw bind) /apps/ubuntu-core*/*/usr/ -> /usr/,    
 }

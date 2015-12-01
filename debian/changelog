@@ -1,3 +1,10 @@
+ubuntu-core-launcher (1.0.12) xenial; urgency=medium
+
+  * update usr.bin.ubuntu-core-launcher apparmor profile
+    for classic environment changes
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 01 Dec 2015 15:28:00 +0100
+
 ubuntu-core-launcher (1.0.11) xenial; urgency=medium
 
   * fix running in classic environment
