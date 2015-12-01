@@ -231,7 +231,7 @@ func parsePublicKey(pubKey []byte) (PublicKey, error) {
 	return WrapPublicKey(pubk), nil
 }
 
-// EncodePublicKey encodes a public key in its wire format.
+// EncodePublicKey serializes a public key, typically for embedding in an assertion.
 func EncodePublicKey(pubKey PublicKey) ([]byte, error) {
 	return encodeOpenpgp(pubKey, "public key")
 }
