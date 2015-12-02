@@ -23,11 +23,12 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	. "gopkg.in/check.v1"
 )
@@ -223,12 +224,10 @@ func (s *cpSuite) TestCopyPreserveAll(c *C) {
 
 	// Give the file a different mtime to ensure CopyFlagPreserveAll
 	// really works.
-	//
-	// You wonder why "touch" is used? And want to me about
-	// syscall.Utime()? Well, syscall not implemented on armhf
-	// Aha, syscall.Utimes() then? No, not implemented on arm64
-	// Really, this is a just a test, touch is good enough!
-	err = exec.Command("touch", src, "-d", "2007-08-23 08:21:42").Run()
+	err = unix.Utimes(src, []unix.Timeval{
+		unix.Timeval{Sec: 0, Usec: 0},
+		unix.Timeval{Sec: 0, Usec: 0},
+	})
 	c.Assert(err, IsNil)
 
 	err = CopyFile(src, dst, CopyFlagPreserveAll)
