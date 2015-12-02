@@ -84,6 +84,9 @@ func (r *Repository) HasType(t *Type) bool {
 // Type finds and returns the Type with the given name or nil if
 // it's not found
 func (r *Repository) Type(name string) *Type {
+	r.m.Lock()
+	defer r.m.Unlock()
+
 	for _, t := range r.types {
 		if t.Name == name {
 			return t
