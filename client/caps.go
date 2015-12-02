@@ -50,9 +50,10 @@ func (client *Client) Capabilities() (map[string]Capability, error) {
 	if err := client.do("GET", "/1.0/capabilities", nil, &rsp); err != nil {
 		return nil, err
 	}
+	if err := rsp.err(); err != nil {
+		return nil, err
+	}
 	switch rsp.Type {
-	case "error":
-		return nil, rsp.err()
 	case "sync":
 		var resultOk map[string]map[string]Capability
 		if err := json.Unmarshal(rsp.Result, &resultOk); err != nil {

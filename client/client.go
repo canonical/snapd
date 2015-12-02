@@ -136,8 +136,8 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 	if err := client.do("GET", "/1.0", nil, &rsp); err != nil {
 		return nil, err
 	}
-	if rsp.Type == "error" {
-		return nil, rsp.err()
+	if err := rsp.err(); err != nil {
+		return nil, err
 	}
 	if rsp.Type != "sync" {
 		return nil, fmt.Errorf("unexpected result type %q", rsp.Type)
