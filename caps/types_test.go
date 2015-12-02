@@ -68,7 +68,7 @@ func (s *TypeSuite) TestValidateAttributesUnexpectedAttrs(c *C) {
 	c.Assert(err, ErrorMatches, `capability contains unexpected attribute "k"`)
 }
 
-func (s *TypeSuite) TestValidateAttributesRequiredAttrs(c *C) {
+func (s *TypeSuite) TestValidateAttributesRequiredAttrsMissing(c *C) {
 	t := &Type{
 		Name:          "t",
 		RequiredAttrs: []string{"k"},
@@ -80,6 +80,21 @@ func (s *TypeSuite) TestValidateAttributesRequiredAttrs(c *C) {
 	}
 	err := t.Validate(cap)
 	c.Assert(err, ErrorMatches, `capabilities of type "t" must provide a "k" attribute`)
+}
+
+func (s *TypeSuite) TestValidateAttributesRequiredAttrsSatisfied(c *C) {
+	t := &Type{
+		Name:          "t",
+		RequiredAttrs: []string{"k"},
+	}
+	cap := &Capability{
+		Name:  "name",
+		Label: "label",
+		Type:  t,
+		Attrs: map[string]string{"k": "v"},
+	}
+	err := t.Validate(cap)
+	c.Assert(err, IsNil)
 }
 
 func (s *TypeSuite) TestMarhshalJSON(c *C) {
