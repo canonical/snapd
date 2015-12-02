@@ -41,9 +41,9 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	cfg0 := &asserts.DatabaseConfig{Path: filepath.Join(tmpdir, "asserts-db0")}
 	db0, err := asserts.OpenDatabase(cfg0)
 	c.Assert(err, IsNil)
-	trustedFingerp, err := db0.ImportKey("canonical", asserts.WrapPrivateKey(testPrivKey0))
+	trustedFingerp, err := db0.ImportKey("canonical", asserts.OpenPGPPrivateKey(testPrivKey0))
 	c.Assert(err, IsNil)
-	trustedPubKey, err := db0.ExportPublicKey("canonical", trustedFingerp)
+	trustedPubKey, err := db0.PublicKey("canonical", trustedFingerp)
 	c.Assert(err, IsNil)
 	trustedPubKeyEncoded, err := asserts.EncodePublicKey(trustedPubKey)
 	c.Assert(err, IsNil)
@@ -72,7 +72,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "0",
 	}
-	sdbs.probeAssert, err = db0.Sign(asserts.AssertionType("test-only"), headers, nil, "")
+	sdbs.probeAssert, err = db0.Sign(asserts.AssertionType("test-only"), headers, nil, trustedFingerp)
 	c.Assert(err, IsNil)
 }
 
