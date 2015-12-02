@@ -68,7 +68,7 @@ func (s *snapdTestSuite) TearDownTest(c *check.C) {
 	if proc != nil {
 		proc.Kill()
 	}
-	cli.ExecCommand(c, "sudo", "systemctl", "start", "ubuntu-snappy.snapd.service")
+	cli.ExecCommand(c, "sudo", "systemctl", "start", "ubuntu-snappy.snapd.socket")
 
 	common.RemoveSnap(c, httpClientSnap)
 }
