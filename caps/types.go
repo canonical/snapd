@@ -31,9 +31,9 @@ type Type struct {
 	// Name is a key that identifies the capability type. It must be unique
 	// within the whole OS. The name forms a part of the stable system API.
 	Name string
-	// SupportedAttrs contains names of attributes that are understood by
+	// RequiredAttrs contains names of attributes that are understood by
 	// capability of this type.
-	SupportedAttrs []string
+	RequiredAttrs []string
 }
 
 var (
@@ -59,17 +59,17 @@ func (t *Type) Validate(c *Capability) error {
 		return fmt.Errorf("capability is not of type %q", t)
 	}
 	// Check that all supported attributes are present
-	for _, attr := range t.SupportedAttrs {
+	for _, attr := range t.RequiredAttrs {
 		if _, ok := c.Attrs[attr]; !ok {
 			return fmt.Errorf("capability lacks required attribute %q", attr)
 		}
 	}
 	// Look for any unexpected attributes
-	if len(t.SupportedAttrs) != len(c.Attrs) {
+	if len(t.RequiredAttrs) != len(c.Attrs) {
 		for attr := range c.Attrs {
 			supported := false
-			for _, attrSupported := range t.SupportedAttrs {
-				if attr == attrSupported {
+			for _, attrRequired := range t.RequiredAttrs {
+				if attr == attrRequired {
 					supported = true
 					break
 				}

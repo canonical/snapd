@@ -32,8 +32,8 @@ var _ = Suite(&TypeSuite{})
 // testType is only meant for testing. It is not useful in any way except
 // that it offers an simple capability type that will happily validate.
 var testType = &Type{
-	Name:           "test",
-	SupportedAttrs: nil,
+	Name:          "test",
+	RequiredAttrs: nil,
 }
 
 func (s *TypeSuite) TestTypeString(c *C) {
@@ -55,8 +55,8 @@ func (s *TypeSuite) TestValidateOK(c *C) {
 
 func (s *TypeSuite) TestValidateAttributesUnexpectedAttrs(c *C) {
 	t := &Type{
-		Name:           "t",
-		SupportedAttrs: nil,
+		Name:          "t",
+		RequiredAttrs: nil,
 	}
 	cap := &Capability{
 		Name:  "name",
@@ -70,8 +70,8 @@ func (s *TypeSuite) TestValidateAttributesUnexpectedAttrs(c *C) {
 
 func (s *TypeSuite) TestValidateAttributesRequiredAttrs(c *C) {
 	t := &Type{
-		Name:           "t",
-		SupportedAttrs: []string{"k"},
+		Name:          "t",
+		RequiredAttrs: []string{"k"},
 	}
 	cap := &Capability{
 		Name:  "name",
