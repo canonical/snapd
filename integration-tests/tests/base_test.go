@@ -23,10 +23,12 @@ package tests
 import (
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/report"
@@ -36,14 +38,37 @@ import (
 
 func init() {
 	c := &check.C{}
+
+	waitForRegularPartition(c)
+
+	disableAutopilot(c)
+
+	copySnapd(c)
+}
+
+func waitForRegularPartition(c *check.C) {
 	// Workaround for bug https://bugs.launchpad.net/snappy/+bug/1498293
 	// TODO remove once the bug is fixed
 	// originally added by elopio - 2015-09-30 to the rollback test, moved
 	// here by --fgimenez - 2015-10-15
 	wait.ForFunction(c, "regular", partition.Mode)
+}
 
+func disableAutopilot(c *check.C) {
 	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
 	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
+}
+
+func copySnapd(c *check.C) {
+	snapdPath := filepath.Join(build.TestsBinDir, "snapd")
+	if _, err := os.Stat(snapdPath); err == nil {
+		// we have a binary built from source and will restart the service using it
+		cli.ExecCommand(c, "sudo", "systemctl", "stop", "ubuntu-snappy.snapd.service")
+		partition.MakeWritable(c, "/")
+		cli.ExecCommand(c, "sudo", "cp", snapdPath, "/usr/bin")
+		partition.MakeReadonly(c, "/")
+		cli.ExecCommand(c, "sudo", "systemctl", "start", "ubuntu-snappy.snapd.service")
+	}
 }
 
 // Hook up gocheck into the "go test" runner.
