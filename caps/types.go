@@ -22,6 +22,8 @@ package caps
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 // Type describes a group of interchangeable capabilities with common features.
@@ -82,4 +84,39 @@ func (t *Type) MarshalJSON() ([]byte, error) {
 // not be decoded and will be left over as empty values.
 func (t *Type) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, &t.Name)
+}
+
+// GrantPermissions makes it possible for the package `snapName` to use hardware
+// described by the capability `cap`.
+func (t *Type) GrantPermissions(snapName string, cap *Capability) error {
+	// Ensure that the capability is valid
+	if err := t.Validate(cap); err != nil {
+		return err
+	}
+	// TODO handle this in a way that would work with loadable types
+	switch t.Name {
+	case "bool-file":
+		// Path is always non-nil since it is validated and required by bool-type
+		path := cap.Attrs["path"]
+		return snappy.AddHWAccess(snapName, path)
+	default:
+		return fmt.Errorf("not implemented")
+	}
+}
+
+// RevokePermissions undoes the effects of GrantPermissions.
+func (t *Type) RevokePermissions(snapName string, cap *Capability) error {
+	// Ensure that the capability is valid
+	if err := t.Validate(cap); err != nil {
+		return err
+	}
+	// TODO handle this in a way that would work with loadable types
+	switch t.Name {
+	case "bool-file":
+		// Path is always non-nil since it is validated and required by bool-type
+		path := cap.Attrs["path"]
+		return snappy.RemoveHWAccess(snapName, path)
+	default:
+		return fmt.Errorf("not implemented")
+	}
 }
