@@ -330,6 +330,10 @@ func buildAndSign(assertType AssertionType, headers map[string]string, body []by
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign assertion: %v", err)
 	}
+	// add an extra newline
+	temp := bytes.NewBuffer(signature)
+	temp.WriteByte('\n')
+	signature = temp.Bytes()
 
 	assert, err := reg.builder(assertionBase{
 		headers:   finalHeaders,
