@@ -35,8 +35,7 @@ const (
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
 	defaultGoArm        = "7"
-	// TestsBinDir is the build path for the binaries
-	TestsBinDir = "integration-tests/bin/"
+	testsBinDir         = "integration-tests/bin/"
 )
 
 var (
@@ -53,9 +52,9 @@ var (
 	// adt-run) takes care of including testsBinDir at the beginning of $PATH, so
 	// that these binaries (if they exist) take precedence over the system ones
 	buildSnappyCliCmd = "go build -tags=excludeintegration -o " +
-		filepath.Join(TestsBinDir, "snappy") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snappy")
+		filepath.Join(testsBinDir, "snappy") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snappy")
 	buildSnapdCmd = "go build -tags=excludeintegration -o " +
-		filepath.Join(TestsBinDir, "snapd") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snapd")
+		filepath.Join(testsBinDir, "snapd") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snapd")
 )
 
 // Config comprises the parameters for the Assets function
@@ -70,7 +69,7 @@ func Assets(cfg *Config) {
 	if cfg == nil {
 		cfg = &Config{}
 	}
-	prepareTargetDir(TestsBinDir)
+	prepareTargetDir(testsBinDir)
 
 	if cfg.UseSnappyFromBranch {
 		// FIXME We need to build an image that has the snappy from the branch
@@ -103,7 +102,7 @@ func buildTests(arch, testBuildTags string) {
 	goCall(arch, cmd)
 	// XXX Go test 1.3 does not have the output flag, so we move the
 	// binaries after they are generated.
-	osRename("tests.test", TestsBinDir+IntegrationTestName)
+	osRename("tests.test", testsBinDir+IntegrationTestName)
 }
 
 func goCall(arch string, cmd string) {

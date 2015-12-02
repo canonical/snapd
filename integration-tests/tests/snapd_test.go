@@ -49,11 +49,22 @@ type snapdTestSuite struct {
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
+	s.cmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
+		"/lib/systemd/systemd-activate", "snapd")
+
+	s.cmd.Start()
+
 	common.InstallSnap(c, httpClientSnap)
 }
 
 func (s *snapdTestSuite) TearDownTest(c *check.C) {
 	s.SnappySuite.TearDownTest(c)
+
+	proc := s.cmd.Process
+	if proc != nil {
+		proc.Kill()
+	}
+
 	common.RemoveSnap(c, httpClientSnap)
 }
 
