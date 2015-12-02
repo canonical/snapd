@@ -40,14 +40,13 @@ func init() {
 		i18n.G("Add an assertion to the assertion database"),
 		&cmdAddAssertion{})
 	if err != nil {
-		logger.Panicf("Unable to install: %v", err)
+		logger.Panicf("Unable to add-assertion: %v", err)
 	}
 	addOptionDescription(arg, "assertion file", i18n.G("The file containing the assertion to add"))
 }
 
 func (x *cmdAddAssertion) Execute(args []string) error {
-	// XXX: no locking atm
-	return x.doAddAssertion()
+	return withMutexAndRetry(x.doAddAssertion)
 }
 
 func (x *cmdAddAssertion) doAddAssertion() error {
