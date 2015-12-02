@@ -19,30 +19,23 @@
 
 package asserts
 
-// expose test-only things here
+import (
+	"crypto"
+	"encoding/base64"
+	"fmt"
+)
 
-// generatePrivateKey exposed for tests
-var GeneratePrivateKeyInTest = generatePrivateKey
-
-// buildAndSignInTest exposed for tests
-var BuildAndSignInTest = buildAndSign
-
-// decodePrivateKey exposed for tests
-var DecodePrivateKeyInTest = decodePrivateKey
-
-// define dummy assertion types to use in the tests
-
-type TestOnly struct {
-	assertionBase
-}
-
-func buildTestOnly(assert assertionBase) (Assertion, error) {
-	return &TestOnly{assert}, nil
-}
-
-func init() {
-	typeRegistry[AssertionType("test-only")] = &assertionTypeRegistration{
-		builder:    buildTestOnly,
-		primaryKey: []string{"primary-key"},
+// EncodeDigest encodes a hash algorithm and a digest to be put in an assertion header.
+func EncodeDigest(hash crypto.Hash, hashDigest []byte) (string, error) {
+	algo := ""
+	switch hash {
+	case crypto.SHA256:
+		algo = "sha256"
+	default:
+		return "", fmt.Errorf("unsupported hash")
 	}
+	if len(hashDigest) != hash.Size() {
+		return "", fmt.Errorf("hash digest for %s should be %d bytes", algo, hash.Size())
+	}
+	return fmt.Sprintf("%s %s", algo, base64.RawURLEncoding.EncodeToString(hashDigest)), nil
 }
