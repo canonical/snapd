@@ -171,3 +171,24 @@ func (cs *clientSuite) TestClientAddCapability(c *check.C) {
 	err := cs.cli.AddCapability(cap)
 	c.Check(err, check.IsNil)
 }
+
+func (cs *clientSuite) TestClientRemoveCapabilityOk(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": { }
+	}`
+	err := cs.cli.RemoveCapability("n")
+	c.Check(err, check.IsNil)
+}
+
+func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
+	cs.rsp = `{
+		"type": "error",
+		"result": {
+			"status": "Not Found",
+			"status_code": 404
+		}
+	}`
+	err := cs.cli.RemoveCapability("n")
+	c.Check(err, check.ErrorMatches, "Not Found")
+}
