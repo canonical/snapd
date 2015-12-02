@@ -255,16 +255,14 @@ func (safs *signAddFindSuite) TestSign(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (safs *signAddFindSuite) TestSignPickTheOneKeyPair(c *C) {
+func (safs *signAddFindSuite) TestSignEmptyFingerprint(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
 	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "")
-	c.Assert(err, IsNil)
-
-	err = safs.db.Check(a1)
-	c.Check(err, IsNil)
+	c.Assert(err, ErrorMatches, "fingerprint is empty")
+	c.Check(a1, IsNil)
 }
 
 func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
@@ -272,7 +270,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "")
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a1)
@@ -286,7 +284,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	c.Check(retrieved1.Revision(), Equals, 0)
 
 	headers["revision"] = "1"
-	a2, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "")
+	a2, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a2)
@@ -308,7 +306,7 @@ func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "")
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a1)

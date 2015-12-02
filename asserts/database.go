@@ -190,18 +190,18 @@ func (db *Database) PublicKey(authorityID string, fingerprintSuffix string) (Pub
 	return privKey.PublicKey(), nil
 }
 
-// Sign makes an assertion with headers and body and signs it using the matching authority-id (from headers) key pair with the given fingeprint.
-// Fingerprint can be empty but then exactly one key pair
-// for authority-id must then be available under the database.
+// Sign builds an assertion with the provided information and signs it
+// with the private key from `headers["authority-id"]` that has the provided fingerprint.
 func (db *Database) Sign(assertType AssertionType, headers map[string]string, body []byte, fingerprint string) (Assertion, error) {
+	if fingerprint == "" {
+		return nil, fmt.Errorf("fingerprint is empty")
+	}
+	if !fingerprintLike.MatchString(fingerprint) {
+		return nil, fmt.Errorf("fingerprint contains unexpected chars: %q", fingerprint)
+	}
 	authorityID, err := checkMandatory(headers, "authority-id")
 	if err != nil {
 		return nil, err
-	}
-	if fingerprint == "" {
-		// match any but then findPrivateKey will bail out on
-		// ambiguous find
-		fingerprint = "*"
 	}
 	privKey, err := db.findPrivateKey(authorityID, fingerprint)
 	if err != nil {
