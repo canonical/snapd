@@ -98,6 +98,9 @@ func (r *Repository) Type(name string) *Type {
 // Capability finds and returns the Capability with the given name or nil if it
 // is not found.
 func (r *Repository) Capability(name string) *Capability {
+	r.m.Lock()
+	defer r.m.Unlock()
+
 	return r.caps[name]
 }
 
