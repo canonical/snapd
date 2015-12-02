@@ -140,7 +140,7 @@ func (db *Database) ImportKey(authorityID string, privKey PrivateKey) (fingerpri
 	return fingerp, nil
 }
 
-// finding 0 or more than one private key are considered errors
+// findPrivateKey will return an error if not eactly one private key is found
 func (db *Database) findPrivateKey(authorityID, fingerprintWildcard string) (PrivateKey, error) {
 	keyPath := ""
 	foundPrivKeyCb := func(relpath string) error {
