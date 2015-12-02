@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -170,10 +171,18 @@ func (db *Database) findPrivateKey(authorityID, fingerprintWildcard string) (Pri
 	return privKey, nil
 }
 
-// ExportPublicKey exports the public part of a stored key pair for identity
+var (
+	// for sanity checking of fingerprint-like strings
+	fingerprintLike = regexp.MustCompile("^[0-9a-f]*$")
+)
+
+// PublicKey exports the public part of a stored key pair for identity
 // by matching the given fingerprint suffix, it is an error if no or more
 // than one key pair is found.
-func (db *Database) ExportPublicKey(authorityID string, fingerprintSuffix string) (PublicKey, error) {
+func (db *Database) PublicKey(authorityID string, fingerprintSuffix string) (PublicKey, error) {
+	if !fingerprintLike.MatchString(fingerprintSuffix) {
+		return nil, fmt.Errorf("fingerprint suffix contains unexpected chars: %q", fingerprintSuffix)
+	}
 	privKey, err := db.findPrivateKey(authorityID, "*"+fingerprintSuffix)
 	if err != nil {
 		return nil, err

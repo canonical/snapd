@@ -105,7 +105,7 @@ func makeSignAndCheckDbWithAccountKey(c *C) (accSignDB, checkDB *asserts.Databas
 	c.Assert(err, IsNil)
 	accFingerp, err := accSignDB.ImportKey("dev-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
-	pubKey, err := accSignDB.ExportPublicKey("dev-id1", accFingerp)
+	pubKey, err := accSignDB.PublicKey("dev-id1", accFingerp)
 	c.Assert(err, IsNil)
 	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)
 	c.Assert(err, IsNil)

@@ -126,11 +126,11 @@ func (dbs *databaseSuite) TestGenerateKey(c *C) {
 	c.Check(helpers.FileExists(keyPath), Equals, true)
 }
 
-func (dbs *databaseSuite) TestExportPublicKey(c *C) {
+func (dbs *databaseSuite) TestPublicKey(c *C) {
 	fingerp, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 
-	pubk, err := dbs.db.ExportPublicKey("account0", fingerp[len(fingerp)-8:])
+	pubk, err := dbs.db.PublicKey("account0", fingerp[len(fingerp)-8:])
 	c.Assert(err, IsNil)
 	c.Check(pubk.Fingerprint(), Equals, fingerp)
 
