@@ -144,6 +144,7 @@ var (
 
 	capabilityCmd = &Command{
 		Path:   "/1.0/capabilities/{name}",
+		GET:    getCapability,
 		DELETE: deleteCapability,
 	}
 )
@@ -955,6 +956,15 @@ func addCapability(c *Command, r *http.Request) Response {
 			"resource": fmt.Sprintf("/1.0/capabilities/%s", newCap.Name),
 		},
 	}
+}
+
+func getCapability(c *Command, r *http.Request) Response {
+	name := muxVars(r)["name"]
+	cap := c.d.capRepo.Capability(name)
+	if cap == nil {
+		return NotFound(nil, "no such capability")
+	}
+	return SyncResponse(cap)
 }
 
 func deleteCapability(c *Command, r *http.Request) Response {
