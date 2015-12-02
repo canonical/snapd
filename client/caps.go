@@ -45,7 +45,7 @@ type Capability struct {
 
 // Capabilities returns the capabilities currently available for snaps to consume.
 func (client *Client) Capabilities() (map[string]Capability, error) {
-	errPrefix := "cannot obtain capabilities"
+	const errPrefix = "cannot obtain capabilities"
 	var rsp response
 	if err := client.do("GET", "/1.0/capabilities", nil, &rsp); err != nil {
 		return nil, err
