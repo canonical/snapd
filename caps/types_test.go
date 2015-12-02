@@ -80,7 +80,7 @@ func (s *TypeSuite) TestValidateAttributesRequiredAttrs(c *C) {
 		Attrs: map[string]string{},
 	}
 	err := t.Validate(cap)
-	c.Assert(err, ErrorMatches, `capability lacks required attribute "k"`)
+	c.Assert(err, ErrorMatches, `capabilities of type "t" must provide a "k" attribute`)
 }
 
 func (s *TypeSuite) TestMarhshalJSON(c *C) {
