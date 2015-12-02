@@ -92,6 +92,12 @@ func (r *Repository) Type(name string) *Type {
 	return nil
 }
 
+// Capability finds and returns the Capability with the given name or nil if it
+// is not found.
+func (r *Repository) Capability(name string) *Capability {
+	return r.caps[name]
+}
+
 // AddType adds a capability type to the repository.
 // It's an error to add the same capability type more than once.
 func (r *Repository) AddType(t *Type) error {
