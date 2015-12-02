@@ -48,7 +48,7 @@ func (client *Client) Capabilities() (map[string]Capability, error) {
 	const errPrefix = "cannot obtain capabilities"
 	var rsp response
 	if err := client.do("GET", "/1.0/capabilities", nil, &rsp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: failed to communicate with server: %s", errPrefix, err)
 	}
 	if err := rsp.err(); err != nil {
 		return nil, err
