@@ -49,10 +49,12 @@ type snapdTestSuite struct {
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
-	cli.ExecCommand(c, "sudo", "systemctl", "stop", "ubuntu-snappy.snapd.service")
+	cli.ExecCommand(c, "sudo", "systemctl", "stop",
+		"ubuntu-snappy.snapd.service", "ubuntu-snappy.snapd.socket")
 
 	s.cmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
-		"/lib/systemd/systemd-activate", "snapd")
+		"/lib/systemd/systemd-activate",
+		"-l", "/run/snapd.socket", "snapd")
 
 	s.cmd.Start()
 
