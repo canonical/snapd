@@ -125,7 +125,7 @@ func (rsp *response) err() error {
 	var resultErr errorResult
 	err := json.Unmarshal(rsp.Result, &resultErr)
 	if err != nil || resultErr.Str == "" {
-		return fmt.Errorf("failed with %q", rsp.Status)
+		return fmt.Errorf("server error: %q", rsp.Status)
 	}
 	return &resultErr
 }
