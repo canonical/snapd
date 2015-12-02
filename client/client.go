@@ -119,6 +119,9 @@ type SysInfo struct {
 // processErrorResponse handles the common error path for API requests.
 // This function should be called when response.Type == "error"
 func (rsp *response) err() error {
+	if rsp.Type != "error" {
+		return nil
+	}
 	var resultErr errorResult
 	err := json.Unmarshal(rsp.Result, &resultErr)
 	if err != nil || resultErr.Str == "" {
