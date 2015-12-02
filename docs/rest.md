@@ -97,7 +97,7 @@ wrong, in those cases, the following return value is used:
 }
 ```
 
-HTTP code must be one of of 400, 401, 403, 404, 409, 412 or 500.
+HTTP code must be one of of 400, 401, 403, 404, 405, 409, 412 or 500.
 
 ### Timestamps
 
