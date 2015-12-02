@@ -66,7 +66,7 @@ func (t *Type) Validate(c *Capability) error {
 	}
 	// Look for any unexpected attributes
 	if len(t.SupportedAttrs) != len(c.Attrs) {
-		for attr, _ := range c.Attrs {
+		for attr := range c.Attrs {
 			supported := false
 			for _, attrSupported := range t.SupportedAttrs {
 				if attr == attrSupported {
