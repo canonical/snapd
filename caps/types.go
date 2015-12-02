@@ -31,7 +31,7 @@ type Type struct {
 	// Name is a key that identifies the capability type. It must be unique
 	// within the whole OS. The name forms a part of the stable system API.
 	Name string
-	// RequiredAttrs contains names of attributes that are understood by
+	// RequiredAttrs contains names of attributes that are required by
 	// capability of this type.
 	RequiredAttrs []string
 }
