@@ -1317,7 +1317,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapDesktopFile(c *C) {
 		Exec:       "bin/pastebinit",
 		Comment:    "Best evar",
 		Icon:       "something.png",
-		Categories: "Game;",
+		Categories: []string{"Game", "LogicGame"},
 	}
 	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
 	m := packageYaml{
@@ -1334,6 +1334,32 @@ Name=pastebinit
 Comment=Best evar
 Icon=/apps/pastebinit.mvo/1.4.0.0.1/something.png
 Exec=/apps/bin/pastebinit.pastebinit
-Categories=Game;
+Categories=Game;LogicGame;
+`)
+}
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapDesktopFileNoCategories(c *C) {
+	binary := Binary{
+		Name:       "pastebinit",
+		Exec:       "bin/pastebinit",
+		Comment:    "Best evar",
+		Icon:       "something.png",
+		Categories: nil,
+	}
+	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
+	m := packageYaml{
+		Name:    "pastebinit",
+		Version: "1.4.0.0.1",
+	}
+
+	generatedDesktopFile, err := generateSnapDesktopFile(binary, pkgPath, &m)
+	c.Assert(err, IsNil)
+	c.Assert(generatedDesktopFile, Equals, `[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+Name=pastebinit
+Comment=Best evar
+Icon=/apps/pastebinit.mvo/1.4.0.0.1/something.png
+Exec=/apps/bin/pastebinit.pastebinit
 `)
 }

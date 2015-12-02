@@ -227,8 +227,8 @@ Type=Application
 Name={{.Name}}
 Comment={{.Comment}}
 Icon={{.Icon}}
-Exec={{.Exec}}
-Categories={{.Categories}}
+Exec={{.Exec}}{{if .Categories}}
+Categories={{range .Categories}}{{.}};{{end}}{{end}}
 `
 
 	// no desktop file needed
@@ -248,7 +248,7 @@ Categories={{.Categories}}
 		Comment    string
 		Icon       string
 		Exec       string
-		Categories string
+		Categories []string
 	}{
 		Name:       binary.Name,
 		Comment:    binary.Comment,
