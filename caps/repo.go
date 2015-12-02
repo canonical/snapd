@@ -83,12 +83,7 @@ func (r *Repository) hasType(t *Type) bool {
 
 // HasType checks if the repository contains the given type.
 func (r *Repository) HasType(t *Type) bool {
-	for _, tt := range r.types {
-		if tt == t {
-			return true
-		}
-	}
-	return false
+	return r.hasType(t)
 }
 
 // Type finds and returns the Type with the given name or nil if
