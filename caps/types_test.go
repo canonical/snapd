@@ -77,7 +77,6 @@ func (s *TypeSuite) TestValidateAttributesRequiredAttrs(c *C) {
 		Name:  "name",
 		Label: "label",
 		Type:  t,
-		Attrs: map[string]string{},
 	}
 	err := t.Validate(cap)
 	c.Assert(err, ErrorMatches, `capabilities of type "t" must provide a "k" attribute`)
