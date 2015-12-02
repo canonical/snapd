@@ -28,7 +28,7 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 )
 
-// A pair of key-value strings
+// AttributePair contains a pair of key-value strings
 type AttributePair struct {
 	// The key
 	Key string
