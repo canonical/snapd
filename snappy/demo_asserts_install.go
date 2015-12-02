@@ -60,5 +60,6 @@ func demoCheckSnapAssertions(snap *squashfs.Snap) (string, error) {
 	if size != snapDecl.SnapSize() {
 		return "", fmt.Errorf("size mismatch between snap and assertion")
 	}
-	return snapDecl.AuthorityID(), nil // XXX: use this as origin
+	// XXX: here we cheat/assume we can use the developer-id as the origin
+	return snapDecl.AuthorityID(), nil
 }
