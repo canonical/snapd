@@ -19,6 +19,15 @@
 
 package caps
 
+
+// Assignment holds information about capability Assignment.
+type Assignment struct {
+	// SnapName holds the name of the snap that got the Assignment.
+	SnapName string `json:"snap"`
+	// SlotName holds the name of the "slot" within the snap that got the Assignment.
+	SlotName string `json:"slot"`
+}
+
 // Capability holds information about a capability that a snap may request
 // from a snappy system to do its job while running on it.
 type Capability struct {
