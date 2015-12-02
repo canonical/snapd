@@ -223,7 +223,7 @@ func doMethodNotAllowed(c *check.C, resource, verb string) {
 		resource,
 		verb,
 		apiInteraction{
-			responsePattern: `{"result":{},"status":"Method Not Allowed","status_code":405,"type":"error"}`})
+			responsePattern: `{"result":{},"status":"Unauthorized","status_code":401,"type":"error"}`})
 }
 
 // this is the function which makes requests to the api

@@ -31,10 +31,10 @@ var BuildAndSignInTest = buildAndSign
 // define dummy assertion types to use in the tests
 
 type TestOnly struct {
-	AssertionBase
+	assertionBase
 }
 
-func buildTestOnly(assert AssertionBase) (Assertion, error) {
+func buildTestOnly(assert assertionBase) (Assertion, error) {
 	return &TestOnly{assert}, nil
 }
 

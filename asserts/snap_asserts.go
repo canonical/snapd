@@ -27,7 +27,7 @@ import (
 // SnapDeclaration holds a snap-declaration assertion, asserting the
 // properties of a built snap by the builder.
 type SnapDeclaration struct {
-	AssertionBase
+	assertionBase
 	size      uint64
 	timestamp time.Time
 }
@@ -65,7 +65,7 @@ func (snapdcl *SnapDeclaration) checkConsistency(db *Database, pubk PublicKey) e
 	return nil
 }
 
-func buildSnapDeclaration(assert AssertionBase) (Assertion, error) {
+func buildSnapDeclaration(assert assertionBase) (Assertion, error) {
 	_, err := checkMandatory(assert.headers, "snap-id")
 	if err != nil {
 		return nil, err
@@ -93,7 +93,7 @@ func buildSnapDeclaration(assert AssertionBase) (Assertion, error) {
 	}
 	// ignore extra headers and non-empty body for future compatibility
 	return &SnapDeclaration{
-		AssertionBase: assert,
+		assertionBase: assert,
 		size:          size,
 		timestamp:     timestamp,
 	}, nil

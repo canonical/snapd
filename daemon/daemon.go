@@ -92,7 +92,7 @@ func (c *Command) canAccess(r *http.Request) bool {
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !c.canAccess(r) {
-		Unauthorized.ServeHTTP(w, r)
+		Forbidden.ServeHTTP(w, r)
 		return
 	}
 
