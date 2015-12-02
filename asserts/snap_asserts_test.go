@@ -103,7 +103,7 @@ func makeSignAndCheckDbWithAccountKey(c *C) (accSignDB, checkDB *asserts.Databas
 	cfg1 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db1")}
 	accSignDB, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
-	accFingerp, err := accSignDB.ImportKey("dev-id1", asserts.WrapPrivateKey(testPrivKey1))
+	accFingerp, err := accSignDB.ImportKey("dev-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 	pubKey, err := accSignDB.ExportPublicKey("dev-id1", accFingerp)
 	c.Assert(err, IsNil)
@@ -118,14 +118,14 @@ func makeSignAndCheckDbWithAccountKey(c *C) (accSignDB, checkDB *asserts.Databas
 		"since":        "2015-11-20T15:04:00Z",
 		"until":        "2500-11-20T15:04:00Z",
 	}
-	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), asserts.WrapPrivateKey(trustedKey))
+	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
 	c.Assert(err, IsNil)
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	cfg := &asserts.DatabaseConfig{
 		Path: rootDir,
 		TrustedKeys: map[string][]asserts.PublicKey{
-			"canonical": {asserts.WrapPublicKey(&trustedKey.PublicKey)},
+			"canonical": {asserts.OpenPGPPublicKey(&trustedKey.PublicKey)},
 		},
 	}
 	checkDB, err = asserts.OpenDatabase(cfg)

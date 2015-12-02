@@ -27,8 +27,8 @@ var GeneratePrivateKeyInTest = generatePrivateKey
 // buildAndSignInTest exposed for tests
 var BuildAndSignInTest = buildAndSign
 
-// parsePrivateKey exposed for tests
-var ParsePrivateKeyInTest = parsePrivateKey
+// decodePrivateKey exposed for tests
+var DecodePrivateKeyInTest = decodePrivateKey
 
 // define dummy assertion types to use in the tests
 

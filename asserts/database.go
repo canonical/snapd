@@ -121,7 +121,7 @@ func (db *Database) GenerateKey(authorityID string) (fingerprint string, err err
 		return "", fmt.Errorf("failed to generate private key: %v", err)
 	}
 
-	return db.ImportKey(authorityID, WrapPrivateKey(privKey))
+	return db.ImportKey(authorityID, OpenPGPPrivateKey(privKey))
 }
 
 // ImportKey stores the given private/public key pair for identity and
@@ -163,7 +163,7 @@ func (db *Database) findPrivateKey(authorityID, fingerprintWildcard string) (Pri
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key pair: %v", err)
 	}
-	privKey, err := parsePrivateKey(encoded)
+	privKey, err := decodePrivateKey(encoded)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode key pair: %v", err)
 	}
@@ -246,7 +246,7 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion) error {
 	content, signature := assert.Signature()
-	sig, err := parseSignature(signature)
+	sig, err := decodeSignature(signature)
 	if err != nil {
 		return err
 	}
