@@ -4,3 +4,5 @@
 data/completion/snappy /usr/share/bash-completion/completions/
 # i18n stuff
 ../../share /usr
+# etc/profile.d contains the PATH extension for snap packages
+etc/profile.d
