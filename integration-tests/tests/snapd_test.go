@@ -49,6 +49,8 @@ type snapdTestSuite struct {
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
+	cli.ExecCommand(c, "sudo", "systemctl", "stop", "ubuntu-snappy.snapd.service")
+
 	s.cmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
 		"/lib/systemd/systemd-activate", "snapd")
 
@@ -64,6 +66,7 @@ func (s *snapdTestSuite) TearDownTest(c *check.C) {
 	if proc != nil {
 		proc.Kill()
 	}
+	cli.ExecCommand(c, "sudo", "systemctl", "start", "ubuntu-snappy.snapd.service")
 
 	common.RemoveSnap(c, httpClientSnap)
 }
