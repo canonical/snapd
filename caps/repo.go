@@ -71,6 +71,16 @@ func (r *Repository) Add(cap *Capability) error {
 	return nil
 }
 
+// hasType is identical to HasType but doesn't hold the repository lock
+func (r *Repository) hasType(t *Type) bool {
+	for _, tt := range r.types {
+		if tt == t {
+			return true
+		}
+	}
+	return false
+}
+
 // HasType checks if the repository contains the given type.
 func (r *Repository) HasType(t *Type) bool {
 	for _, tt := range r.types {
