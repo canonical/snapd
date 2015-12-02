@@ -39,32 +39,29 @@ const (
 )
 
 func encodeFormatAndData(format string, data []byte) []byte {
-	buf := bytes.NewBufferString(format)
+	buf := new(bytes.Buffer)
+	buf.Grow(len(format) + 1 + base64.StdEncoding.EncodedLen(len(data)))
+	buf.WriteString(format)
 	buf.WriteByte(' ')
-	buf.Grow(base64.StdEncoding.EncodedLen(len(data)))
 	enc := base64.NewEncoder(base64.StdEncoding, buf)
 	enc.Write(data)
 	enc.Close()
 	flat := buf.Bytes()
+	flatSize := len(flat)
 
 	buf = new(bytes.Buffer)
-	flatSize := len(flat)
-	lines := flatSize / maxEncodeLineLength
-	rest := flatSize % maxEncodeLineLength
-	newlines := lines
-	if rest > 0 {
-		newlines++
-	}
-
-	buf.Grow(flatSize + newlines)
+	buf.Grow(flatSize + flatSize/maxEncodeLineLength + 1)
 	off := 0
-	for i := 0; i < lines; i++ {
-		buf.Write(flat[off : off+maxEncodeLineLength])
-		buf.WriteByte('\n')
-		off += maxEncodeLineLength
-	}
-	if rest > 0 {
-		buf.Write(flat[off:])
+	for {
+		endOff := off + maxEncodeLineLength
+		if endOff > flatSize {
+			endOff = flatSize
+		}
+		buf.Write(flat[off:endOff])
+		off = endOff
+		if off >= flatSize {
+			break
+		}
 		buf.WriteByte('\n')
 	}
 
