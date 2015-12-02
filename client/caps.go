@@ -52,7 +52,7 @@ func (client *Client) Capabilities() (map[string]Capability, error) {
 	}
 	switch rsp.Type {
 	case "error":
-		return nil, rsp.processErrorResponse()
+		return nil, rsp.err()
 	case "sync":
 		var resultOk map[string]map[string]Capability
 		if err := json.Unmarshal(rsp.Result, &resultOk); err != nil {
