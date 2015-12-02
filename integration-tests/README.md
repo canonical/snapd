@@ -201,10 +201,19 @@ reboot, write it like this:
 *Always* make sure that your test is removing the mark once it handled the
 reboot.
 
+Some test beds don't support reboots, so the tests that require a reboot
+must use the build tag:
+
+    // +build !excludeintegration,!excludereboots
+
+This allows to exclude the tests that require a reboot by passing `excludereboots`
+to the `test-build-tags` flag:
+
+    go run integration-tests/main.go -test-build-tags=excludereboots
+
 ### Excluding flaky tests on low-performance systems
 
 We have found that some tests give random results on low-performance systems. You can
-exclude these tests by passing `lowperformance` to the `test-build-tags`
-flag:
+exclude these tests by passing `lowperformance` to the `test-build-tags` flag:
 
     go run integration-tests/main.go -test-build-tags=lowperformance

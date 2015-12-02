@@ -66,7 +66,7 @@ func makeMockLxdIndexSystem() string {
 	arch := arch.UbuntuArchitecture()
 
 	s := fmt.Sprintf(`
-ubuntu;xenial;armhf;default;20151126_03:49;/images/ubuntu/xenial/armhf/default/20151126_03:49/
+ubuntu;xenial;otherarch;default;20151126_03:49;/images/ubuntu/xenial/armhf/default/20151126_03:49/
 ubuntu;%s;%s;default;20151126_03:49;/images/ubuntu/CODENAME/ARCH/default/20151126_03:49/
 `, lsb.Codename, arch)
 
@@ -118,6 +118,8 @@ func (t *CreateTestSuite) makeMockLxdServer(c *C) {
 			r := makeMockLxdTarball(c)
 			defer r.Close()
 			io.Copy(w, r)
+		default:
+			http.NotFound(w, r)
 		}
 	}))
 	t.AddCleanup(func() { ts.Close() })
@@ -125,6 +127,14 @@ func (t *CreateTestSuite) makeMockLxdServer(c *C) {
 	origLxdBaseURL := lxdBaseURL
 	lxdBaseURL = ts.URL
 	t.AddCleanup(func() { lxdBaseURL = origLxdBaseURL })
+}
+
+func (t *CreateTestSuite) TestDownloadFileFailsCorrectly(c *C) {
+	t.makeMockLxdServer(c)
+
+	failURL := lxdBaseURL + "/not-exists"
+	_, err := downloadFile(failURL, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("failed to download %s: 404", failURL))
 }
 
 func (t *CreateTestSuite) TestCreate(c *C) {

@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -220,8 +221,14 @@ func (s *cpSuite) TestCopyPreserveAll(c *C) {
 	err := ioutil.WriteFile(src, []byte(nil), 0644)
 	c.Assert(err, IsNil)
 
-	// give it some different atime/mtime
-	err = syscall.Utime(src, &syscall.Utimbuf{Actime: 0, Modtime: 0})
+	// Give the file a different mtime to ensure CopyFlagPreserveAll
+	// really works.
+	//
+	// You wonder why "touch" is used? And want to me about
+	// syscall.Utime()? Well, syscall not implemented on armhf
+	// Aha, syscall.Utimes() then? No, not implemented on arm64
+	// Really, this is a just a test, touch is good enough!
+	err = exec.Command("touch", src, "-d", "2007-08-23 08:21:42").Run()
 	c.Assert(err, IsNil)
 
 	err = CopyFile(src, dst, CopyFlagPreserveAll)

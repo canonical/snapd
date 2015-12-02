@@ -507,12 +507,6 @@ func BuildSquashfsSnap(sourceDir, targetDir string) (string, error) {
 		return "", err
 	}
 
-	// we really don't need this in the brave new all-snap world
-	// FIXME: remove once we kill legacy snap building
-	if err := os.RemoveAll(filepath.Join(buildDir, "DEBIAN")); err != nil {
-		return "", err
-	}
-
 	d := squashfs.New(snapName)
 	if err = d.Build(buildDir); err != nil {
 		return "", err

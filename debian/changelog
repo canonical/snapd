@@ -1,3 +1,11 @@
+ubuntu-snappy (1.7.1ubuntu1) xenial; urgency=medium
+
+  * New upstream release:
+    - fix dependencies
+    - fix armhf builds
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 02 Dec 2015 07:46:07 +0100
+
 ubuntu-snappy (1.7ubuntu1) xenial; urgency=medium
 
   * New upstream release:
