@@ -45,7 +45,7 @@ var _ = Suite(&openSuite{})
 
 func (opens *openSuite) TestOpenDatabaseOK(c *C) {
 	// ensure umask has clean when creating the DB dir
-	oldUmask := syscall.Umask(0002)
+	oldUmask := syscall.Umask(0)
 	defer func() { syscall.Umask(oldUmask) }()
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
