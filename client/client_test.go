@@ -183,12 +183,13 @@ func (cs *clientSuite) TestClientRemoveCapabilityOk(c *check.C) {
 
 func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
 	cs.rsp = `{
+		"status": "Not Found",
+		"status_code": 404,
 		"type": "error",
 		"result": {
-			"status": "Not Found",
-			"status_code": 404
+			"str": "can't remove capability \"n\", no such capability"
 		}
 	}`
 	err := cs.cli.RemoveCapability("n")
-	c.Check(err, check.ErrorMatches, "Not Found")
+	c.Check(err, check.ErrorMatches, `can't remove capability \"n\", no such capability`)
 }
