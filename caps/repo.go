@@ -83,6 +83,9 @@ func (r *Repository) hasType(t *Type) bool {
 
 // HasType checks if the repository contains the given type.
 func (r *Repository) HasType(t *Type) bool {
+	r.m.Lock()
+	defer r.m.Unlock()
+
 	return r.hasType(t)
 }
 
