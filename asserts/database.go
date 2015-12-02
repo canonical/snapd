@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -43,6 +44,10 @@ type PublicKey interface {
 	// IsValidAt returns whether the public key is valid at 'when' time.
 	IsValidAt(when time.Time) bool
 }
+
+// TODO/XXX: make PublicKey minimal, only Fingerprint exported
+// have a few more internal only methods, to address encodeOpenpgp for example
+// then for now use AccountKey directly for TrustedKeys in DatabaseConfig
 
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
@@ -121,7 +126,7 @@ func (db *Database) GenerateKey(authorityID string) (fingerprint string, err err
 		return "", fmt.Errorf("failed to generate private key: %v", err)
 	}
 
-	return db.ImportKey(authorityID, WrapPrivateKey(privKey))
+	return db.ImportKey(authorityID, OpenPGPPrivateKey(privKey))
 }
 
 // ImportKey stores the given private/public key pair for identity and
@@ -140,7 +145,7 @@ func (db *Database) ImportKey(authorityID string, privKey PrivateKey) (fingerpri
 	return fingerp, nil
 }
 
-// finding 0 or more than one private key are considered errors
+// findPrivateKey will return an error if not eactly one private key is found
 func (db *Database) findPrivateKey(authorityID, fingerprintWildcard string) (PrivateKey, error) {
 	keyPath := ""
 	foundPrivKeyCb := func(relpath string) error {
@@ -163,17 +168,25 @@ func (db *Database) findPrivateKey(authorityID, fingerprintWildcard string) (Pri
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key pair: %v", err)
 	}
-	privKey, err := parsePrivateKey(encoded)
+	privKey, err := decodePrivateKey(encoded)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode key pair: %v", err)
 	}
 	return privKey, nil
 }
 
-// ExportPublicKey exports the public part of a stored key pair for identity
+var (
+	// for sanity checking of fingerprint-like strings
+	fingerprintLike = regexp.MustCompile("^[0-9a-f]*$")
+)
+
+// PublicKey exports the public part of a stored key pair for identity
 // by matching the given fingerprint suffix, it is an error if no or more
 // than one key pair is found.
-func (db *Database) ExportPublicKey(authorityID string, fingerprintSuffix string) (PublicKey, error) {
+func (db *Database) PublicKey(authorityID string, fingerprintSuffix string) (PublicKey, error) {
+	if !fingerprintLike.MatchString(fingerprintSuffix) {
+		return nil, fmt.Errorf("fingerprint suffix contains unexpected chars: %q", fingerprintSuffix)
+	}
 	privKey, err := db.findPrivateKey(authorityID, "*"+fingerprintSuffix)
 	if err != nil {
 		return nil, err
@@ -181,18 +194,18 @@ func (db *Database) ExportPublicKey(authorityID string, fingerprintSuffix string
 	return privKey.PublicKey(), nil
 }
 
-// Sign makes an assertion with headers and body and signs it using the matching authority-id (from headers) key pair with the given fingeprint.
-// Fingerprint can be empty but then exactly one key pair
-// for authority-id must then be available under the database.
+// Sign builds an assertion with the provided information and signs it
+// with the private key from `headers["authority-id"]` that has the provided fingerprint.
 func (db *Database) Sign(assertType AssertionType, headers map[string]string, body []byte, fingerprint string) (Assertion, error) {
+	if fingerprint == "" {
+		return nil, fmt.Errorf("fingerprint is empty")
+	}
+	if !fingerprintLike.MatchString(fingerprint) {
+		return nil, fmt.Errorf("fingerprint contains unexpected chars: %q", fingerprint)
+	}
 	authorityID, err := checkMandatory(headers, "authority-id")
 	if err != nil {
 		return nil, err
-	}
-	if fingerprint == "" {
-		// match any but then findPrivateKey will bail out on
-		// ambiguous find
-		fingerprint = "*"
 	}
 	privKey, err := db.findPrivateKey(authorityID, fingerprint)
 	if err != nil {
@@ -246,7 +259,7 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion) error {
 	content, signature := assert.Signature()
-	sig, err := parseSignature(signature)
+	sig, err := decodeSignature(signature)
 	if err != nil {
 		return err
 	}

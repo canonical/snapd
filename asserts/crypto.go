@@ -39,32 +39,29 @@ const (
 )
 
 func encodeFormatAndData(format string, data []byte) []byte {
-	buf := bytes.NewBufferString(format)
+	buf := new(bytes.Buffer)
+	buf.Grow(len(format) + 1 + base64.StdEncoding.EncodedLen(len(data)))
+	buf.WriteString(format)
 	buf.WriteByte(' ')
-	buf.Grow(base64.StdEncoding.EncodedLen(len(data)))
 	enc := base64.NewEncoder(base64.StdEncoding, buf)
 	enc.Write(data)
 	enc.Close()
 	flat := buf.Bytes()
+	flatSize := len(flat)
 
 	buf = new(bytes.Buffer)
-	flatSize := len(flat)
-	lines := flatSize / maxEncodeLineLength
-	rest := flatSize % maxEncodeLineLength
-	newlines := lines
-	if rest > 0 {
-		newlines++
-	}
-
-	buf.Grow(flatSize + newlines)
+	buf.Grow(flatSize + flatSize/maxEncodeLineLength + 1)
 	off := 0
-	for i := 0; i < lines; i++ {
-		buf.Write(flat[off : off+maxEncodeLineLength])
-		buf.WriteByte('\n')
-		off += maxEncodeLineLength
-	}
-	if rest > 0 {
-		buf.Write(flat[off:])
+	for {
+		endOff := off + maxEncodeLineLength
+		if endOff > flatSize {
+			endOff = flatSize
+		}
+		buf.Write(flat[off:endOff])
+		off = endOff
+		if off >= flatSize {
+			break
+		}
 		buf.WriteByte('\n')
 	}
 
@@ -135,7 +132,7 @@ func splitFormatAndBase64Decode(formatAndBase64 []byte) (string, []byte, error) 
 	return string(parts[0]), buf[:n], nil
 }
 
-func parseOpenpgp(formatAndBase64 []byte, kind string) (packet.Packet, error) {
+func decodeOpenpgp(formatAndBase64 []byte, kind string) (packet.Packet, error) {
 	if len(formatAndBase64) == 0 {
 		return nil, fmt.Errorf("empty %s", kind)
 	}
@@ -148,7 +145,7 @@ func parseOpenpgp(formatAndBase64 []byte, kind string) (packet.Packet, error) {
 	}
 	pkt, err := packet.Read(bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("could not parse %s data: %v", kind, err)
+		return nil, fmt.Errorf("could not decode %s data: %v", kind, err)
 	}
 	return pkt, nil
 }
@@ -178,8 +175,8 @@ func verifyContentSignature(content []byte, sig Signature, pubKey *packet.Public
 	return pubKey.VerifySignature(h, opgSig.sig)
 }
 
-func parseSignature(signature []byte) (Signature, error) {
-	pkt, err := parseOpenpgp(signature, "signature")
+func decodeSignature(signature []byte) (Signature, error) {
+	pkt, err := decodeOpenpgp(signature, "signature")
 	if err != nil {
 		return nil, err
 	}
@@ -214,13 +211,13 @@ func (opgPubKey openpgpPubKey) openpgpSerialize(w io.Writer) error {
 	return opgPubKey.pubKey.Serialize(w)
 }
 
-// WrapPublicKey returns a database useable public key out of a opengpg packet.PulicKey.
-func WrapPublicKey(pubKey *packet.PublicKey) PublicKey {
+// OpenPGPPublicKey returns a database useable public key out of a opengpg packet.PulicKey.
+func OpenPGPPublicKey(pubKey *packet.PublicKey) PublicKey {
 	return &openpgpPubKey{pubKey: pubKey, fp: hex.EncodeToString(pubKey.Fingerprint[:])}
 }
 
-func parsePublicKey(pubKey []byte) (PublicKey, error) {
-	pkt, err := parseOpenpgp(pubKey, "public key")
+func decodePublicKey(pubKey []byte) (PublicKey, error) {
+	pkt, err := decodeOpenpgp(pubKey, "public key")
 	if err != nil {
 		return nil, err
 	}
@@ -228,10 +225,10 @@ func parsePublicKey(pubKey []byte) (PublicKey, error) {
 	if !ok {
 		return nil, fmt.Errorf("expected public key, got instead: %T", pkt)
 	}
-	return WrapPublicKey(pubk), nil
+	return OpenPGPPublicKey(pubk), nil
 }
 
-// EncodePublicKey encodes a public key in its wire format.
+// EncodePublicKey serializes a public key, typically for embedding in an assertion.
 func EncodePublicKey(pubKey PublicKey) ([]byte, error) {
 	return encodeOpenpgp(pubKey, "public key")
 }
@@ -247,15 +244,15 @@ type openpgpPrivateKey struct {
 }
 
 func (opgPrivK openpgpPrivateKey) PublicKey() PublicKey {
-	return WrapPublicKey(&opgPrivK.privk.PublicKey)
+	return OpenPGPPublicKey(&opgPrivK.privk.PublicKey)
 }
 
 func (opgPrivK openpgpPrivateKey) openpgpSerialize(w io.Writer) error {
 	return opgPrivK.privk.Serialize(w)
 }
 
-func parsePrivateKey(privKey []byte) (PrivateKey, error) {
-	pkt, err := parseOpenpgp(privKey, "private key")
+func decodePrivateKey(privKey []byte) (PrivateKey, error) {
+	pkt, err := decodeOpenpgp(privKey, "private key")
 	if err != nil {
 		return nil, err
 	}
@@ -266,8 +263,8 @@ func parsePrivateKey(privKey []byte) (PrivateKey, error) {
 	return openpgpPrivateKey{privk}, nil
 }
 
-// WrapPrivateKey returns a PrivateKey for database use out of a opengpg packet.PrivateKey.
-func WrapPrivateKey(privk *packet.PrivateKey) PrivateKey {
+// OpenPGPPrivateKey returns a PrivateKey for database use out of a opengpg packet.PrivateKey.
+func OpenPGPPrivateKey(privk *packet.PrivateKey) PrivateKey {
 	return openpgpPrivateKey{privk}
 }
 

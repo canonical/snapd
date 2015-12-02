@@ -100,7 +100,7 @@ func (dbs *databaseSuite) SetUpTest(c *C) {
 func (dbs *databaseSuite) TestImportKey(c *C) {
 	expectedFingerprint := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
 
-	fingerp, err := dbs.db.ImportKey("account0", asserts.WrapPrivateKey(testPrivKey1))
+	fingerp, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 	c.Check(fingerp, Equals, expectedFingerprint)
 
@@ -112,7 +112,7 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 	privKey, err := ioutil.ReadFile(keyPath)
 	c.Assert(err, IsNil)
 
-	privKeyFromDisk, err := asserts.ParsePrivateKeyInTest(privKey)
+	privKeyFromDisk, err := asserts.DecodePrivateKeyInTest(privKey)
 	c.Assert(err, IsNil)
 
 	c.Check(privKeyFromDisk.PublicKey().Fingerprint(), Equals, expectedFingerprint)
@@ -126,11 +126,11 @@ func (dbs *databaseSuite) TestGenerateKey(c *C) {
 	c.Check(helpers.FileExists(keyPath), Equals, true)
 }
 
-func (dbs *databaseSuite) TestExportPublicKey(c *C) {
-	fingerp, err := dbs.db.ImportKey("account0", asserts.WrapPrivateKey(testPrivKey1))
+func (dbs *databaseSuite) TestPublicKey(c *C) {
+	fingerp, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 
-	pubk, err := dbs.db.ExportPublicKey("account0", fingerp[len(fingerp)-8:])
+	pubk, err := dbs.db.PublicKey("account0", fingerp[len(fingerp)-8:])
 	c.Assert(err, IsNil)
 	c.Check(pubk.Fingerprint(), Equals, fingerp)
 
@@ -163,7 +163,7 @@ func (chks *checkSuite) SetUpTest(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "0",
 	}
-	chks.a, err = asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, asserts.WrapPrivateKey(testPrivKey0))
+	chks.a, err = asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, asserts.OpenPGPPrivateKey(testPrivKey0))
 	c.Assert(err, IsNil)
 }
 
@@ -177,7 +177,7 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 }
 
 func (chks *checkSuite) TestCheckForgery(c *C) {
-	dbTrustedKey := asserts.WrapPublicKey(&testPrivKey0.PublicKey)
+	dbTrustedKey := asserts.OpenPGPPublicKey(&testPrivKey0.PublicKey)
 
 	cfg := &asserts.DatabaseConfig{
 		Path: chks.rootDir,
@@ -227,11 +227,11 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	safs.signingDB = db0
 
-	safs.signingFingerprint, err = db0.ImportKey("canonical", asserts.WrapPrivateKey(testPrivKey0))
+	safs.signingFingerprint, err = db0.ImportKey("canonical", asserts.OpenPGPPrivateKey(testPrivKey0))
 	c.Assert(err, IsNil)
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
-	dbTrustedKey := asserts.WrapPublicKey(&testPrivKey0.PublicKey)
+	dbTrustedKey := asserts.OpenPGPPublicKey(&testPrivKey0.PublicKey)
 	cfg := &asserts.DatabaseConfig{
 		Path: rootDir,
 		TrustedKeys: map[string][]asserts.PublicKey{
@@ -255,16 +255,14 @@ func (safs *signAddFindSuite) TestSign(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (safs *signAddFindSuite) TestSignPickTheOneKeyPair(c *C) {
+func (safs *signAddFindSuite) TestSignEmptyFingerprint(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
 	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "")
-	c.Assert(err, IsNil)
-
-	err = safs.db.Check(a1)
-	c.Check(err, IsNil)
+	c.Assert(err, ErrorMatches, "fingerprint is empty")
+	c.Check(a1, IsNil)
 }
 
 func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
@@ -272,7 +270,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "")
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a1)
@@ -286,7 +284,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	c.Check(retrieved1.Revision(), Equals, 0)
 
 	headers["revision"] = "1"
-	a2, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "")
+	a2, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a2)
@@ -308,7 +306,7 @@ func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "")
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a1)
