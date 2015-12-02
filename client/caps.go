@@ -60,6 +60,6 @@ func (client *Client) Capabilities() (map[string]Capability, error) {
 		}
 		return resultOk["capabilities"], nil
 	default:
-		return nil, fmt.Errorf("%s: expected sync response, got %s", errPrefix, rsp.Type)
+		return nil, fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
 	}
 }
