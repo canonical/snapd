@@ -60,7 +60,7 @@ func (r *Repository) Add(cap *Capability) error {
 		return fmt.Errorf("cannot add capability %q: name already exists", cap.Name)
 	}
 	// Reject capabilities with unknown types
-	if !r.HasType(cap.Type) {
+	if !r.hasType(cap.Type) {
 		return fmt.Errorf("cannot add capability %q: type %q is unknown", cap.Name, cap.Type)
 	}
 	// Reject capabilities that don't pass type-specific validation
