@@ -41,7 +41,7 @@ var (
 	// file. This single capability  type is here just to help bootstrap
 	// the capability concept before we get to load capability interfaces
 	// from YAML.
-	FileType = &Type{"file"}
+	FileType = &Type{Name: "file"}
 )
 
 var builtInTypes = [...]*Type{
