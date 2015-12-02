@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-11-27 16:07+0100\n"
+        "POT-Creation-Date: 2015-12-02 09:28+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -65,6 +65,9 @@ msgid   "Activate a package"
 msgstr  ""
 
 msgid   "Activate a package that has previously been deactivated. If the package is already activated, do nothing."
+msgstr  ""
+
+msgid   "Add a capability to the system"
 msgstr  ""
 
 msgid   "All background processes will be killed when you leave this shell"
@@ -356,6 +359,9 @@ msgid   "The type of shell you want"
 msgstr  ""
 
 msgid   "The version to rollback to"
+msgstr  ""
+
+msgid   "This command adds a capability to the system"
 msgstr  ""
 
 msgid   "This command adds access to a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
