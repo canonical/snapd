@@ -3,7 +3,7 @@ Description=Socket activation for snappy daemon
 
 [Socket]
 ListenStream=/run/snapd.socket
-SocketMode=0600
+SocketMode=0666
 # these are the defaults, but can't hurt to specify them anyway:
 SocketUser=root
 SocketGroup=root
