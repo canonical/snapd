@@ -33,6 +33,10 @@ func (e *NotFoundError) Error() string {
 	switch e.what {
 	case "remove":
 		return fmt.Sprintf("can't remove capability %q, no such capability", e.name)
+	case "assign":
+		return fmt.Sprintf("can't assign capability %q, no such capability", e.name)
+	case "package":
+		return fmt.Sprintf("can't assign capability %q, no such package", e.name)
 	default:
 		panic(fmt.Sprintf("unexpected what: %q", e.what))
 	}
