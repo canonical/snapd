@@ -97,6 +97,16 @@ type response struct {
 	Type       string          `json:"type"`
 }
 
+// errorResult is the real value of response.Result when an error occurs.
+// Note that only the 'Str' field is unmarshaled from JSON representation.
+type errorResult struct {
+	Str string `json:"str"`
+}
+
+func (e *errorResult) Error() string {
+	return e.Str
+}
+
 // SysInfo holds system information
 type SysInfo struct {
 	Flavor           string `json:"flavor"`
@@ -113,8 +123,12 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 		return nil, err
 	}
 	if rsp.Type == "error" {
-		// TODO: handle structured errors
-		return nil, fmt.Errorf("failed with %q", rsp.Status)
+		var resultErr errorResult
+		err := json.Unmarshal(rsp.Result, &resultErr)
+		if err != nil || resultErr.Str == "" {
+			return nil, fmt.Errorf("failed with %q", rsp.Status)
+		}
+		return nil, &resultErr
 	}
 	if rsp.Type != "sync" {
 		return nil, fmt.Errorf("unexpected result type %q", rsp.Type)
