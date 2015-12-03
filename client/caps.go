@@ -45,20 +45,20 @@ type Capability struct {
 
 // Capabilities returns the capabilities currently available for snaps to consume.
 func (client *Client) Capabilities() (map[string]Capability, error) {
+	const errPrefix = "cannot obtain capabilities"
 	var rsp response
 	if err := client.do("GET", "/1.0/capabilities", nil, &rsp); err != nil {
+		return nil, fmt.Errorf("%s: failed to communicate with server: %s", errPrefix, err)
+	}
+	if err := rsp.err(); err != nil {
 		return nil, err
 	}
-	if rsp.Type == "error" {
-		// TODO: handle structured errors
-		return nil, fmt.Errorf("cannot obtain capabilities: %s", rsp.Status)
-	}
 	if rsp.Type != "sync" {
-		return nil, fmt.Errorf("cannot obtain capabilities: expected sync response, got %s", rsp.Type)
+		return nil, fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
 	}
-	var result map[string]map[string]Capability
-	if err := json.Unmarshal(rsp.Result, &result); err != nil {
-		return nil, fmt.Errorf("cannot obtain capabilities: failed to unmarshal response: %v", err)
+	var resultOk map[string]map[string]Capability
+	if err := json.Unmarshal(rsp.Result, &resultOk); err != nil {
+		return nil, fmt.Errorf("%s: failed to unmarshal response: %v", errPrefix, err)
 	}
-	return result["capabilities"], nil
+	return resultOk["capabilities"], nil
 }
