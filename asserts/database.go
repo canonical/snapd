@@ -79,7 +79,7 @@ const (
 	privateKeysLayoutVersion = "v0"
 	privateKeysRoot          = "private-keys-" + privateKeysLayoutVersion
 	assertionsLayoutVersion  = "v0"
-	assertionsRoot           = "assertions-" + assertionsLayoutVersion
+	assertionsRoot           = "asserts-" + assertionsLayoutVersion
 )
 
 // OpenDatabase opens the assertion database based on the configuration.
