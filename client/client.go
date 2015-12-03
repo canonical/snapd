@@ -116,13 +116,14 @@ type SysInfo struct {
 	Store            string `json:"store,omitempty"`
 }
 
-// processErrorResponse handles the common error path for API requests.
-// This function should be called when response.Type == "error"
-func (rsp *response) processErrorResponse() error {
+func (rsp *response) err() error {
+	if rsp.Type != "error" {
+		return nil
+	}
 	var resultErr errorResult
 	err := json.Unmarshal(rsp.Result, &resultErr)
 	if err != nil || resultErr.Str == "" {
-		return fmt.Errorf("failed with %q", rsp.Status)
+		return fmt.Errorf("server error: %q", rsp.Status)
 	}
 	return &resultErr
 }
@@ -133,8 +134,8 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 	if err := client.do("GET", "/1.0", nil, &rsp); err != nil {
 		return nil, err
 	}
-	if rsp.Type == "error" {
-		return nil, rsp.processErrorResponse()
+	if err := rsp.err(); err != nil {
+		return nil, err
 	}
 	if rsp.Type != "sync" {
 		return nil, fmt.Errorf("unexpected result type %q", rsp.Type)

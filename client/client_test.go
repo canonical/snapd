@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -98,7 +99,7 @@ func (cs *clientSuite) TestClientSysInfo(c *check.C) {
 func (cs *clientSuite) TestClientReportsOpError(c *check.C) {
 	cs.rsp = `{"type": "error", "status": "potatoes"}`
 	_, err := cs.cli.SysInfo()
-	c.Check(err, check.ErrorMatches, `failed with "potatoes"`)
+	c.Check(err, check.ErrorMatches, `server error: "potatoes"`)
 }
 
 func (cs *clientSuite) TestClientReportsOpErrorStr(c *check.C) {
@@ -109,7 +110,7 @@ func (cs *clientSuite) TestClientReportsOpErrorStr(c *check.C) {
 		"type": "error"
 	}`
 	_, err := cs.cli.SysInfo()
-	c.Check(err, check.ErrorMatches, `failed with "Bad Request"`)
+	c.Check(err, check.ErrorMatches, `server error: "Bad Request"`)
 }
 
 func (cs *clientSuite) TestClientReportsBadType(c *check.C) {
@@ -170,6 +171,18 @@ func (cs *clientSuite) TestClientAddCapability(c *check.C) {
 	}
 	err := cs.cli.AddCapability(cap)
 	c.Check(err, check.IsNil)
+	var body map[string]interface{}
+	decoder := json.NewDecoder(cs.req.Body)
+	err = decoder.Decode(&body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"name":  "n",
+		"label": "l",
+		"type":  "t",
+		"attrs": map[string]interface{}{
+			"k": "v",
+		},
+	})
 }
 
 func (cs *clientSuite) TestClientRemoveCapabilityOk(c *check.C) {

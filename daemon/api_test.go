@@ -1198,23 +1198,32 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 
 func (s *apiSuite) TestGetCapabilities(c *check.C) {
 	d := newTestDaemon()
-	d.capRepo.Add(&caps.Capability{"serial-port", "A serial port", caps.FileType, nil})
+	d.capRepo.Add(&caps.Capability{
+		Name:  "caps-lock-led",
+		Label: "Caps Lock LED",
+		Type:  caps.BoolFileType,
+		Attrs: map[string]string{
+			"path": "/sys/class/leds/input::capslock/brightness",
+		},
+	})
 	req, err := http.NewRequest("GET", "/1.0/capabilities", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	capabilitiesCmd.GET(capabilitiesCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.Body.String(), testutil.Contains, "serial-port")
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
 			"capabilities": map[string]interface{}{
-				"serial-port": map[string]interface{}{
-					"label": "A serial port",
-					"name":  "serial-port",
-					"type":  "file",
+				"caps-lock-led": map[string]interface{}{
+					"name":  "caps-lock-led",
+					"label": "Caps Lock LED",
+					"type":  "bool-file",
+					"attrs": map[string]interface{}{
+						"path": "/sys/class/leds/input::capslock/brightness",
+					},
 				},
 			},
 		},
@@ -1230,7 +1239,8 @@ func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 	cap := &caps.Capability{
 		Name:  "name",
 		Label: "label",
-		Type:  caps.FileType,
+		Type:  caps.BoolFileType,
+		Attrs: map[string]string{"path": "/nonexistent"},
 	}
 	text, err := json.Marshal(cap)
 	c.Assert(err, check.IsNil)
@@ -1254,7 +1264,8 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	cap := &caps.Capability{
 		Name:  "name",
 		Label: "label",
-		Type:  caps.FileType,
+		Type:  caps.BoolFileType,
+		Attrs: map[string]string{"path": "/nonexistent"},
 	}
 	err := d.capRepo.Add(cap)
 	c.Assert(err, check.IsNil)
@@ -1262,7 +1273,8 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	capClashing := &caps.Capability{
 		Name:  "name",
 		Label: "second label",
-		Type:  caps.FileType,
+		Type:  caps.BoolFileType,
+		Attrs: map[string]string{"path": "/nonexistent"},
 	}
 	text, err := json.Marshal(capClashing)
 	c.Assert(err, check.IsNil)

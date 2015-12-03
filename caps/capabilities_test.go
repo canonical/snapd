@@ -40,6 +40,6 @@ var testCapability = &Capability{
 }
 
 func (s *CapabilitySuite) TestString(c *C) {
-	cap := &Capability{Name: "name", Label: "label", Type: FileType}
+	cap := &Capability{Name: "name", Label: "label", Type: testType}
 	c.Assert(cap.String(), Equals, "name")
 }
