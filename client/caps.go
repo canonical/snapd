@@ -46,23 +46,22 @@ type Capability struct {
 
 // Capabilities returns the capabilities currently available for snaps to consume.
 func (client *Client) Capabilities() (map[string]Capability, error) {
-	errPrefix := "cannot obtain capabilities"
+	const errPrefix = "cannot obtain capabilities"
 	var rsp response
 	if err := client.do("GET", "/1.0/capabilities", nil, &rsp); err != nil {
+		return nil, fmt.Errorf("%s: failed to communicate with server: %s", errPrefix, err)
+	}
+	if err := rsp.err(); err != nil {
 		return nil, err
 	}
-	switch rsp.Type {
-	case "error":
-		return nil, rsp.processErrorResponse()
-	case "sync":
-		var resultOk map[string]map[string]Capability
-		if err := json.Unmarshal(rsp.Result, &resultOk); err != nil {
-			return nil, fmt.Errorf("%s: failed to unmarshal response: %q", errPrefix, err)
-		}
-		return resultOk["capabilities"], nil
-	default:
-		return nil, fmt.Errorf("%s: expected sync response, got %s", errPrefix, rsp.Type)
+	if rsp.Type != "sync" {
+		return nil, fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
 	}
+	var resultOk map[string]map[string]Capability
+	if err := json.Unmarshal(rsp.Result, &resultOk); err != nil {
+		return nil, fmt.Errorf("%s: failed to unmarshal response: %v", errPrefix, err)
+	}
+	return resultOk["capabilities"], nil
 }
 
 // AddCapability adds one capability to the system
@@ -78,7 +77,7 @@ func (client *Client) AddCapability(c *Capability) error {
 	}
 	switch rsp.Type {
 	case "error":
-		return rsp.processErrorResponse()
+		return rsp.err()
 	case "sync":
 		return nil
 	default:

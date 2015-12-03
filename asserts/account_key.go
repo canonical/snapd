@@ -64,7 +64,7 @@ func (ak *AccountKey) Verify(content []byte, sig Signature) error {
 }
 
 func checkPublicKey(ab *assertionBase, fingerprintName string) (PublicKey, error) {
-	pubKey, err := parsePublicKey(ab.Body())
+	pubKey, err := decodePublicKey(ab.Body())
 	if err != nil {
 		return nil, err
 	}

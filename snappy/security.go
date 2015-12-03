@@ -111,6 +111,31 @@ type SecurityDefinitions struct {
 	SecurityCaps []string `yaml:"caps,omitempty" json:"caps,omitempty"`
 }
 
+// NeedsAppArmorUpdate checks whether the security definitions are impacted by
+// changes to policies or templates.
+func (sd *SecurityDefinitions) NeedsAppArmorUpdate(policies, templates map[string]bool) bool {
+	if sd.SecurityPolicy != nil {
+		return false
+	}
+
+	if sd.SecurityOverride != nil {
+		// XXX: actually inspect the override to figure out in more detail
+		return true
+	}
+
+	if templates[sd.SecurityTemplate] {
+		return true
+	}
+
+	for _, cap := range sd.SecurityCaps {
+		if policies[cap] {
+			return true
+		}
+	}
+
+	return false
+}
+
 // securityPolicyType is a kind of securityPolicy, we currently
 // have "apparmor" and "seccomp"
 type securityPolicyType struct {
