@@ -1000,31 +1000,23 @@ func getCapabilityAssignment(c *Command, r *http.Request) Response {
 	return NotFound(nil, "capability is not assigned")
 }
 
-func unassignCapability(c *Command, r *http.Request) Response {
-	name := muxVars(r)["name"]
-	cap := c.d.capRepo.Capability(name)
-	if cap == nil {
-		return NotFound(nil, "no such capability")
-	}
-	if err := cap.Unassign(); err != nil {
-		return BadRequest(err, "cannot unassign capability")
-	}
-	return SyncResponse(nil)
-}
-
 func assignCapability(c *Command, r *http.Request) Response {
 	name := muxVars(r)["name"]
-	cap := c.d.capRepo.Capability(name)
-	if cap == nil {
-		return NotFound(nil, "no such capability")
-	}
 	decoder := json.NewDecoder(r.Body)
 	var a caps.Assignment
 	if err := decoder.Decode(&a); err != nil {
 		return BadRequest(err, "can't decode request body into an assignment")
 	}
-	if err := cap.Assign(&a); err != nil {
+	if err := c.d.capRepo.Assign(name, &a); err != nil {
 		return BadRequest(err, "cannot assign capability")
+	}
+	return SyncResponse(nil)
+}
+
+func unassignCapability(c *Command, r *http.Request) Response {
+	name := muxVars(r)["name"]
+	if err := c.d.capRepo.Unassign(name); err != nil {
+		return BadRequest(err, "cannot unassign capability")
 	}
 	return SyncResponse(nil)
 }
