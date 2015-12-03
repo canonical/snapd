@@ -225,8 +225,8 @@ func (s *cpSuite) TestCopyPreserveAll(c *C) {
 	// Give the file a different mtime to ensure CopyFlagPreserveAll
 	// really works.
 	err = unix.Utimes(src, []unix.Timeval{
-		unix.Timeval{Sec: 0, Usec: 0},
-		unix.Timeval{Sec: 0, Usec: 0},
+		{Sec: 0, Usec: 0},
+		{Sec: 0, Usec: 0},
 	})
 	c.Assert(err, IsNil)
 
