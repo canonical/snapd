@@ -52,5 +52,5 @@ func (eds *encodeDigestSuite) TestEncodeDigestErrors(c *C) {
 	c.Check(err, ErrorMatches, "unsupported hash")
 
 	_, err = asserts.EncodeDigest(crypto.SHA256, []byte{1, 2})
-	c.Check(err, ErrorMatches, "hash digest for sha256 should be 32 bytes")
+	c.Check(err, ErrorMatches, "hash digest by sha256 should be 32 bytes")
 }
