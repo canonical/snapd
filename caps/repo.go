@@ -129,11 +129,22 @@ func (r *Repository) Remove(name string) error {
 	defer r.m.Unlock()
 
 	_, ok := r.caps[name]
-	if ok {
-		delete(r.caps, name)
-		return nil
+	if !ok {
+		return &NotFoundError{"remove", name}
 	}
-	return &NotFoundError{"remove", name}
+	// Unassign the capability if it was assigned.
+	// NOTE: refusal to remove a capability is another API possibility but
+	// given that it's natural to remove a device at runtime (the device is
+	// gone now) I think it is better to just follow that and remove the
+	// now-de-facto-gone capability assignment.
+	cap := r.caps[name]
+	if cap.Assignment() != nil {
+		if err := cap.Unassign(); err != nil {
+			return fmt.Errorf("cannot remove capability %q: %v", name, err)
+		}
+	}
+	delete(r.caps, name)
+	return nil
 }
 
 // Names returns all capability names in the repository in lexicographical order.
