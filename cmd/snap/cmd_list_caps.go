@@ -48,7 +48,7 @@ func (x *cmdListCaps) Execute(args []string) error {
 	cli := client.New()
 	caps, err := cli.Capabilities()
 	if err != nil {
-		return fmt.Errorf("cannot get capabilities: %v", err)
+		return err
 	}
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 1, ' ', 0)
 	fmt.Fprintln(w, "Name\tLabel\tType")
