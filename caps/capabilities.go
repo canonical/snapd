@@ -93,5 +93,17 @@ func (c *Capability) Unassign() error {
 	c.assignment = nil
 	return nil
 }
+
+// Assignment returns a copy of the current capability assignment
+func (c *Capability) Assignment() *Assignment {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	if c.assignment != nil {
+		return &Assignment{
+			SnapName: c.assignment.SnapName,
+			SlotName: c.assignment.SlotName,
+		}
+	}
 	return nil
 }
