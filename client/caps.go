@@ -33,6 +33,10 @@ type Assignment struct {
 	SlotName string `json:"slot"`
 }
 
+func (a Assignment) String() string {
+	return fmt.Sprintf("%s:%s", a.SnapName, a.SlotName)
+}
+
 // Capability holds information about a capability that a snap may request
 // from a snappy system to do its job while running on it.
 type Capability struct {
