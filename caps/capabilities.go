@@ -61,38 +61,37 @@ func (c Capability) String() string {
 }
 
 // Assign uses capability type to grant permissions to snap with the given name
-func (c *Capability) Assign(snapName, slotName string) error {
+func (c *Capability) Assign(a *Assignment) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
 	const errPrefix = "cannot assign capability"
-	if c.Assignment != nil {
+	if c.assignment != nil {
 		return fmt.Errorf("%s: capability already assigned", errPrefix)
 	}
-	if err := c.Type.GrantPermissions(snapName, c); err != nil {
+	if err := c.Type.GrantPermissions(a.SnapName, c); err != nil {
 		return fmt.Errorf("%s: failed to grant permissions %v", errPrefix, err)
 	}
 	// TODO: fire notification event
-	c.Assignment = &Assignment{
-		SnapName: snapName,
-		SlotName: slotName,
-	}
+	c.assignment = a
 	return nil
 }
 
-// Unassign undoes the effects of Assign
-func (c *Capability) Unassign(snapName, slotName string) error {
+// Unassign removes the current assignment, whatever it is
+func (c *Capability) Unassign() error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
 	const errPrefix = "cannot unassign capability"
-	a := Assignment{SnapName: snapName, SlotName: slotName}
-	if c.Assignment == nil || *c.Assignment != a {
+	if c.assignment == nil {
 		return fmt.Errorf("%s: no such assignment", errPrefix)
 	}
-	if err := c.Type.RevokePermissions(snapName, c); err != nil {
+	if err := c.Type.RevokePermissions(c.assignment.SnapName, c); err != nil {
 		return fmt.Errorf("%s: failed to grant permissions %v", errPrefix, err)
 	}
-	c.Assignment = nil
+	// TODO: fire notification event
+	c.assignment = nil
+	return nil
+}
 	return nil
 }
