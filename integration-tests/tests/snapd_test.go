@@ -181,11 +181,11 @@ func doInteractions(c *check.C, resource, verb string, interactions apiInteracti
 	}
 }
 
-// all the interactions are dispatched with this function
+// doInteraction dispatches the given interaction to the resource using the provided verb
 func doInteraction(c *check.C, resource, verb string, interaction apiInteraction) {
 	log.Printf("** Trying interaction %v", interaction)
 
-	body, err := genericRequest(&requestOptions{resource: resource, verb: verb, payload: interaction.payload})
+	body, err := makeRequest(&requestOptions{resource: resource, verb: verb, payload: interaction.payload})
 	c.Assert(err, check.IsNil, check.Commentf("Error making the request: %s", err))
 
 	if interaction.responseObject == nil {
@@ -219,8 +219,8 @@ func doMethodNotAllowed(c *check.C, resource, verb string) {
 			responsePattern: `{"result":{},"status":"Method Not Allowed","status_code":405,"type":"error"}`})
 }
 
-// this is the function which makes requests to the api
-func genericRequest(options *requestOptions) (body []byte, err error) {
+// makeRequest makes a request to the API according to the provided options.
+func makeRequest(options *requestOptions) (body []byte, err error) {
 	cmd := []string{"sudo", "http.do",
 		"--pretty", "none",
 		"--body",

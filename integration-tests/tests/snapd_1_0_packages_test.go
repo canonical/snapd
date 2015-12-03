@@ -96,7 +96,8 @@ func (s *snapd10PackagesTestSuite) postInteractions() apiInteractions {
 		waitFunction: func() (string, error) {
 			output, err := genericRequest(&requestOptions{
 				resource: s.resource() + "/" + data.BasicConfigSnapName + ".sideload",
-				verb:     "GET"})
+				verb:     "GET",
+			})
 			return string(output), err
 		}}}
 }
@@ -109,7 +110,8 @@ func (s *snapd10PackagesTestSuite) putInteractions() apiInteractions {
 		waitFunction: func() (string, error) {
 			output, err := genericRequest(&requestOptions{
 				resource: s.resource() + "/" + data.BasicConfigSnapName + ".sideload/config",
-				verb:     "GET"})
+				verb:     "GET",
+			})
 			return string(output), err
 		}}}
 }
