@@ -86,16 +86,16 @@ func (client *Client) AddCapability(c *Capability) error {
 
 // RemoveCapability removes one capability from the system
 func (client *Client) RemoveCapability(name string) error {
+	errPrefix := "cannot remove capability"
 	var rsp response
 	if err := client.do("DELETE", fmt.Sprintf("/1.0/capabilities/%s", name), nil, &rsp); err != nil {
 		return err
 	}
-	switch rsp.Type {
-	case "error":
-		return rsp.processErrorResponse()
-	case "sync":
-		return nil
-	default:
-		return fmt.Errorf("cannot remove capability: expected sync response, got %s", rsp.Type)
+	if err := rsp.err(); err != nil {
+		return err
 	}
+	if rsp.Type != "sync" {
+		return fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
+	}
+	return nil
 }
