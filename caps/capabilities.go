@@ -66,14 +66,14 @@ func (c *Capability) Assign(a *Assignment) error {
 	defer c.m.Unlock()
 
 	const errPrefix = "cannot assign capability"
-	if c.assignment != nil {
+	if c.CurrentAssignment != nil {
 		return fmt.Errorf("%s: capability already assigned", errPrefix)
 	}
 	if err := c.Type.GrantPermissions(a.SnapName, c); err != nil {
 		return fmt.Errorf("%s: failed to grant permissions %v", errPrefix, err)
 	}
 	// TODO: fire notification event
-	c.assignment = a
+	c.CurrentAssignment = a
 	return nil
 }
 
@@ -83,14 +83,14 @@ func (c *Capability) Unassign() error {
 	defer c.m.Unlock()
 
 	const errPrefix = "cannot unassign capability"
-	if c.assignment == nil {
+	if c.CurrentAssignment == nil {
 		return fmt.Errorf("%s: no such assignment", errPrefix)
 	}
-	if err := c.Type.RevokePermissions(c.assignment.SnapName, c); err != nil {
+	if err := c.Type.RevokePermissions(c.CurrentAssignment.SnapName, c); err != nil {
 		return fmt.Errorf("%s: failed to grant permissions %v", errPrefix, err)
 	}
 	// TODO: fire notification event
-	c.assignment = nil
+	c.CurrentAssignment = nil
 	return nil
 }
 
