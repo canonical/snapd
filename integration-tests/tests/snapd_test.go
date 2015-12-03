@@ -22,25 +22,22 @@ package tests
 
 import (
 	"encoding/json"
-	"io"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
-	"strconv"
+	"path/filepath"
 	"strings"
 
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
 )
 
-// make sure that there are no collisions
 const (
-	port    = "9999"
-	baseURL = "http://127.0.0.1:" + port
+	baseURL        = "snapd://"
+	httpClientSnap = "http.chipaca"
 )
 
 var _ = check.Suite(&snapdTestSuite{})
@@ -52,15 +49,16 @@ type snapdTestSuite struct {
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
+	cli.ExecCommand(c, "sudo", "systemctl", "stop",
+		"ubuntu-snappy.snapd.service", "ubuntu-snappy.snapd.socket")
+
 	s.cmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
 		"/lib/systemd/systemd-activate",
-		"-l", "0.0.0.0:"+port, "snapd")
+		"-l", "/run/snapd.socket", "snapd")
 
 	s.cmd.Start()
 
-	intPort, _ := strconv.Atoi(port)
-	err := wait.ForServerOnPort(c, "tcp", intPort)
-	c.Assert(err, check.IsNil)
+	common.InstallSnap(c, httpClientSnap)
 }
 
 func (s *snapdTestSuite) TearDownTest(c *check.C) {
@@ -70,6 +68,9 @@ func (s *snapdTestSuite) TearDownTest(c *check.C) {
 	if proc != nil {
 		proc.Kill()
 	}
+	cli.ExecCommand(c, "sudo", "systemctl", "start", "ubuntu-snappy.snapd.socket")
+
+	common.RemoveSnap(c, httpClientSnap)
 }
 
 type response struct {
@@ -136,6 +137,11 @@ type apiDeleteExerciser interface {
 	deleteInteractions() apiInteractions
 }
 
+// options passed to the request method
+type requestOptions struct {
+	resource, verb, payload string
+}
+
 // this is the entry point for all the api tests
 func exerciseAPI(c *check.C, a apiExerciser) {
 	resource := a.resource()
@@ -175,25 +181,12 @@ func doInteractions(c *check.C, resource, verb string, interactions apiInteracti
 	}
 }
 
-// all the interactions are dispatched with this function
+// doInteraction dispatches the given interaction to the resource using the provided verb
 func doInteraction(c *check.C, resource, verb string, interaction apiInteraction) {
 	log.Printf("** Trying interaction %v", interaction)
 
-	var (
-		payload io.Reader
-		err     error
-	)
-	if _, err = os.Stat(interaction.payload); os.IsNotExist(err) {
-		// The payload is not a file. Treat it as a string
-		payload = strings.NewReader(interaction.payload)
-	} else {
-		payload, err = os.Open(interaction.payload)
-		f, _ := payload.(*os.File)
-		defer f.Close()
-	}
-
-	body, err := genericRequest(resource, verb, payload)
-	c.Check(err, check.IsNil, check.Commentf("Error making the request: %s", err))
+	body, err := makeRequest(&requestOptions{resource: resource, verb: verb, payload: interaction.payload})
+	c.Assert(err, check.IsNil, check.Commentf("Error making the request: %s", err))
 
 	if interaction.responseObject == nil {
 		interaction.responseObject = &response{}
@@ -211,8 +204,12 @@ func doInteraction(c *check.C, resource, verb string, interaction apiInteraction
 }
 
 func do404(c *check.C, resource string) {
+	path := "not-a-resource"
+	if resource[len(resource)-1:] != "/" {
+		path = "/" + path
+	}
 	doInteraction(c,
-		resource+"/not-a-resource",
+		resource+path,
 		"GET",
 		apiInteraction{
 			responsePattern: `{"result":{},"status":"Not Found","status_code":404,"type":"error"}`})
@@ -223,26 +220,42 @@ func doMethodNotAllowed(c *check.C, resource, verb string) {
 		resource,
 		verb,
 		apiInteraction{
-			responsePattern: `{"result":{},"status":"Unauthorized","status_code":401,"type":"error"}`})
+			responsePattern: `{"result":{},"status":"Method Not Allowed","status_code":405,"type":"error"}`})
 }
 
-// this is the function which makes requests to the api
-func genericRequest(resource, verb string, payload io.Reader) (body []byte, err error) {
-	if file, ok := payload.(*os.File); ok {
-		defer file.Close()
+// makeRequest makes a request to the API according to the provided options.
+func makeRequest(options *requestOptions) (body []byte, err error) {
+	cmd := []string{"sudo", "http.do",
+		"--pretty", "none",
+		"--body",
+		"--ignore-stdin",
+		options.verb, options.resource}
+
+	if options.payload != "" {
+		payload, err := determinePayload(options.payload)
+		if err != nil {
+			return nil, err
+		}
+		if strings.HasPrefix(payload, "@") {
+			defer os.Remove(payload[1:])
+		}
+		cmd = append(cmd, payload)
 	}
 
-	req, err := http.NewRequest(verb, resource, payload)
-	if err != nil {
-		return
-	}
-	req.Header.Add("X-Allow-Unsigned", "1")
+	bodyString, err := cli.ExecCommandErr(append(cmd, "X-Allow-Unsigned:1")...)
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	return []byte(bodyString), err
+}
 
-	if err != nil {
-		return
+func determinePayload(payload string) (string, error) {
+	if _, err := os.Stat(payload); err == nil {
+		// payload is a file, in order to make the snap file available to http we need to move it to its $SNAP_APP_DATA_PATH
+		snapAppDataPath := filepath.Join("/var/lib/apps", httpClientSnap, "current")
+		if _, err := cli.ExecCommandErr("sudo", "cp", payload, snapAppDataPath); err != nil {
+			return "", err
+		}
+		return "@" + filepath.Join(snapAppDataPath, filepath.Base(payload)), nil
 	}
-	return ioutil.ReadAll(resp.Body)
+	// payload is a string
+	return payload, nil
 }
