@@ -17,8 +17,7 @@
  *
  */
 
-// tool to create assertions for demo purpose
-
+// Tool to create assertions for testing/playing purpose.
 package main
 
 import (
