@@ -30,6 +30,7 @@ import (
 )
 
 type cmdListCaps struct {
+	Verbose bool `short:"v" long:"verbose" description:"show capability attributes"`
 }
 
 var (
@@ -57,6 +58,11 @@ func (x *cmdListCaps) Execute(args []string) error {
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", cap.Name, cap.Label, cap.Type, "unassigned")
 		} else {
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", cap.Name, cap.Label, cap.Type, cap.Assignment)
+		}
+		if x.Verbose {
+			for k, v := range cap.Attrs {
+				fmt.Fprintf(w, "\t%s=%q\n", k, v)
+			}
 		}
 	}
 	w.Flush()
