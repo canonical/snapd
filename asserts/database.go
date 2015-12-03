@@ -22,18 +22,15 @@
 package asserts
 
 import (
-	"bytes"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/openpgp/packet"
 
 	"github.com/ubuntu-core/snappy/helpers"
 )
@@ -47,6 +44,10 @@ type PublicKey interface {
 	// IsValidAt returns whether the public key is valid at 'when' time.
 	IsValidAt(when time.Time) bool
 }
+
+// TODO/XXX: make PublicKey minimal, only Fingerprint exported
+// have a few more internal only methods, to address encodeOpenpgp for example
+// then for now use AccountKey directly for TrustedKeys in DatabaseConfig
 
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
@@ -78,7 +79,7 @@ const (
 	privateKeysLayoutVersion = "v0"
 	privateKeysRoot          = "private-keys-" + privateKeysLayoutVersion
 	assertionsLayoutVersion  = "v0"
-	assertionsRoot           = "assertions-" + assertionsLayoutVersion
+	assertionsRoot           = "asserts-" + assertionsLayoutVersion
 )
 
 // OpenDatabase opens the assertion database based on the configuration.
@@ -125,24 +126,92 @@ func (db *Database) GenerateKey(authorityID string) (fingerprint string, err err
 		return "", fmt.Errorf("failed to generate private key: %v", err)
 	}
 
-	return db.ImportKey(authorityID, privKey)
+	return db.ImportKey(authorityID, OpenPGPPrivateKey(privKey))
 }
 
 // ImportKey stores the given private/public key pair for identity and
 // returns its fingerprint
-func (db *Database) ImportKey(authorityID string, privKey *packet.PrivateKey) (fingerprint string, err error) {
-	buf := new(bytes.Buffer)
-	err = privKey.Serialize(buf)
+func (db *Database) ImportKey(authorityID string, privKey PrivateKey) (fingerprint string, err error) {
+	encoded, err := encodePrivateKey(privKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to store private key: %v", err)
 	}
 
-	fingerp := hex.EncodeToString(privKey.PublicKey.Fingerprint[:])
-	err = db.atomicWriteEntry(buf.Bytes(), true, privateKeysRoot, authorityID, fingerp)
+	fingerp := privKey.PublicKey().Fingerprint()
+	err = db.atomicWriteEntry(encoded, true, privateKeysRoot, authorityID, fingerp)
 	if err != nil {
 		return "", fmt.Errorf("failed to store private key: %v", err)
 	}
 	return fingerp, nil
+}
+
+// findPrivateKey will return an error if not eactly one private key is found
+func (db *Database) findPrivateKey(authorityID, fingerprintWildcard string) (PrivateKey, error) {
+	keyPath := ""
+	foundPrivKeyCb := func(relpath string) error {
+		if keyPath != "" {
+			return fmt.Errorf("ambiguous search, more than one key pair found: %q and %q", keyPath, relpath)
+
+		}
+		keyPath = relpath
+		return nil
+	}
+	privKeysTop := filepath.Join(db.root, privateKeysRoot)
+	err := findWildcard(privKeysTop, []string{authorityID, fingerprintWildcard}, foundPrivKeyCb)
+	if err != nil {
+		return nil, err
+	}
+	if keyPath == "" {
+		return nil, fmt.Errorf("no matching key pair found")
+	}
+	encoded, err := db.readEntry(privateKeysRoot, keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read key pair: %v", err)
+	}
+	privKey, err := decodePrivateKey(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode key pair: %v", err)
+	}
+	return privKey, nil
+}
+
+var (
+	// for sanity checking of fingerprint-like strings
+	fingerprintLike = regexp.MustCompile("^[0-9a-f]*$")
+)
+
+// PublicKey exports the public part of a stored key pair for identity
+// by matching the given fingerprint suffix, it is an error if no or more
+// than one key pair is found.
+func (db *Database) PublicKey(authorityID string, fingerprintSuffix string) (PublicKey, error) {
+	if !fingerprintLike.MatchString(fingerprintSuffix) {
+		return nil, fmt.Errorf("fingerprint suffix contains unexpected chars: %q", fingerprintSuffix)
+	}
+	privKey, err := db.findPrivateKey(authorityID, "*"+fingerprintSuffix)
+	if err != nil {
+		return nil, err
+	}
+	return privKey.PublicKey(), nil
+}
+
+// Sign builds an assertion with the provided information and signs it
+// with the private key from `headers["authority-id"]` that has the provided fingerprint.
+func (db *Database) Sign(assertType AssertionType, headers map[string]string, body []byte, fingerprint string) (Assertion, error) {
+	if fingerprint == "" {
+		return nil, fmt.Errorf("fingerprint is empty")
+	}
+	if !fingerprintLike.MatchString(fingerprint) {
+		return nil, fmt.Errorf("fingerprint contains unexpected chars: %q", fingerprint)
+	}
+	authorityID, err := checkMandatory(headers, "authority-id")
+	if err != nil {
+		return nil, err
+	}
+	privKey, err := db.findPrivateKey(authorityID, fingerprint)
+	if err != nil {
+		return nil, err
+	}
+	return buildAndSign(assertType, headers, body, privKey)
 }
 
 // use a generalized matching style along what PGP does where keys can be
@@ -190,7 +259,7 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion) error {
 	content, signature := assert.Signature()
-	sig, err := parseSignature(signature)
+	sig, err := decodeSignature(signature)
 	if err != nil {
 		return err
 	}

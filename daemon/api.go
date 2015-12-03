@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/logger"
@@ -59,6 +61,7 @@ var api = []*Command{
 	packageSvcLogsCmd,
 	operationCmd,
 	capabilitiesCmd,
+	capabilityCmd,
 }
 
 var (
@@ -136,6 +139,12 @@ var (
 		Path:   "/1.0/capabilities",
 		UserOK: true,
 		GET:    getCapabilities,
+		POST:   addCapability,
+	}
+
+	capabilityCmd = &Command{
+		Path:   "/1.0/capabilities/{name}",
+		DELETE: deleteCapability,
 	}
 )
 
@@ -920,4 +929,43 @@ func getCapabilities(c *Command, r *http.Request) Response {
 	return SyncResponse(map[string]interface{}{
 		"capabilities": c.d.capRepo.Caps(),
 	})
+}
+
+func addCapability(c *Command, r *http.Request) Response {
+	decoder := json.NewDecoder(r.Body)
+	var newCap caps.Capability
+	if err := decoder.Decode(&newCap); err != nil || newCap.Type == nil {
+		return BadRequest(err, "can't decode request body into a capability")
+	}
+	// Re-construct the perfect type object knowing just the type name that is
+	// passed through the JSON representation.
+	newType := c.d.capRepo.Type(newCap.Type.Name)
+	if newType == nil {
+		err := fmt.Errorf("unknown type name %q", newCap.Type.Name)
+		return BadRequest(err, "can't add capability")
+	}
+	newCap.Type = newType
+	if err := c.d.capRepo.Add(&newCap); err != nil {
+		return BadRequest(err, "can't add capability")
+	}
+	return &resp{
+		Type:   ResponseTypeSync,
+		Status: http.StatusCreated,
+		Result: map[string]string{
+			"resource": fmt.Sprintf("/1.0/capabilities/%s", newCap.Name),
+		},
+	}
+}
+
+func deleteCapability(c *Command, r *http.Request) Response {
+	name := muxVars(r)["name"]
+	err := c.d.capRepo.Remove(name)
+	switch err.(type) {
+	case nil:
+		return SyncResponse(nil)
+	case *caps.NotFoundError:
+		return NotFound(err, "can't remove capability")
+	default:
+		return InternalError(err, "")
+	}
 }

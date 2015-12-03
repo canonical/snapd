@@ -20,6 +20,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 )
@@ -45,20 +46,56 @@ type Capability struct {
 
 // Capabilities returns the capabilities currently available for snaps to consume.
 func (client *Client) Capabilities() (map[string]Capability, error) {
+	const errPrefix = "cannot obtain capabilities"
 	var rsp response
 	if err := client.do("GET", "/1.0/capabilities", nil, &rsp); err != nil {
+		return nil, fmt.Errorf("%s: failed to communicate with server: %s", errPrefix, err)
+	}
+	if err := rsp.err(); err != nil {
 		return nil, err
 	}
-	if rsp.Type == "error" {
-		// TODO: handle structured errors
-		return nil, fmt.Errorf("cannot obtain capabilities: %s", rsp.Status)
+	if rsp.Type != "sync" {
+		return nil, fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
+	}
+	var resultOk map[string]map[string]Capability
+	if err := json.Unmarshal(rsp.Result, &resultOk); err != nil {
+		return nil, fmt.Errorf("%s: failed to unmarshal response: %v", errPrefix, err)
+	}
+	return resultOk["capabilities"], nil
+}
+
+// AddCapability adds one capability to the system
+func (client *Client) AddCapability(c *Capability) error {
+	errPrefix := "cannot add capability"
+	b, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+	var rsp response
+	if err := client.do("POST", "/1.0/capabilities", bytes.NewReader(b), &rsp); err != nil {
+		return err
+	}
+	if err := rsp.err(); err != nil {
+		return err
 	}
 	if rsp.Type != "sync" {
-		return nil, fmt.Errorf("cannot obtain capabilities: expected sync response, got %s", rsp.Type)
+		return fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
 	}
-	var result map[string]map[string]Capability
-	if err := json.Unmarshal(rsp.Result, &result); err != nil {
-		return nil, fmt.Errorf("cannot obtain capabilities: failed to unmarshal response: %v", err)
+	return nil
+}
+
+// RemoveCapability removes one capability from the system
+func (client *Client) RemoveCapability(name string) error {
+	errPrefix := "cannot remove capability"
+	var rsp response
+	if err := client.do("DELETE", fmt.Sprintf("/1.0/capabilities/%s", name), nil, &rsp); err != nil {
+		return err
 	}
-	return result["capabilities"], nil
+	if err := rsp.err(); err != nil {
+		return err
+	}
+	if rsp.Type != "sync" {
+		return fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
+	}
+	return nil
 }

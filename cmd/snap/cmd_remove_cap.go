@@ -20,41 +20,31 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"text/tabwriter"
-
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 )
 
-type cmdListCaps struct {
+type removeCapOptions struct {
+	Name string `positional-arg-name:"name" description:"unique capability name"`
+}
+
+type cmdRemoveCap struct {
+	removeCapOptions `positional-args:"true" required:"true"`
 }
 
 var (
-	shortListCapsHelp = i18n.G("List system capabilities")
-	longListCapsHelp  = i18n.G("This command shows all capabilities and their allocation")
+	shortRemoveCapHelp = i18n.G("Remove a capability from the system")
+	longRemoveCapHelp  = i18n.G("This command removes a capability from the system")
 )
 
 func init() {
-	_, err := parser.AddCommand("list-caps", shortListCapsHelp, longListCapsHelp, &cmdListCaps{})
+	_, err := parser.AddCommand("remove-cap", shortRemoveCapHelp, longRemoveCapHelp, &cmdRemoveCap{})
 	if err != nil {
-		logger.Panicf("unable to add list-caps command: %v", err)
+		logger.Panicf("unable to add remove-cap command: %v", err)
 	}
 }
 
-func (x *cmdListCaps) Execute(args []string) error {
-	cli := client.New()
-	caps, err := cli.Capabilities()
-	if err != nil {
-		return err
-	}
-	w := tabwriter.NewWriter(os.Stdout, 0, 4, 1, ' ', 0)
-	fmt.Fprintln(w, "Name\tLabel\tType")
-	for _, cap := range caps {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", cap.Name, cap.Label, cap.Type)
-	}
-	w.Flush()
-	return nil
+func (x *cmdRemoveCap) Execute(args []string) error {
+	return client.New().RemoveCapability(x.Name)
 }

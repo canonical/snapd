@@ -71,7 +71,7 @@ func (s *RepositorySuite) TestAddInvalidName(c *C) {
 }
 
 func (s *RepositorySuite) TestAddType(c *C) {
-	t := &Type{"foo"}
+	t := &Type{Name: "foo"}
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, IsNil)
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{"foo"})
@@ -79,8 +79,8 @@ func (s *RepositorySuite) TestAddType(c *C) {
 }
 
 func (s *RepositorySuite) TestAddTypeClash(c *C) {
-	t1 := &Type{"foo"}
-	t2 := &Type{"foo"}
+	t1 := &Type{Name: "foo"}
+	t2 := &Type{Name: "foo"}
 	err := s.emptyRepo.AddType(t1)
 	c.Assert(err, IsNil)
 	err = s.emptyRepo.AddType(t2)
@@ -91,7 +91,7 @@ func (s *RepositorySuite) TestAddTypeClash(c *C) {
 }
 
 func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
-	t := &Type{"bad-name-"}
+	t := &Type{Name: "bad-name-"}
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{})
@@ -126,9 +126,9 @@ func (s *RepositorySuite) TestNames(c *C) {
 
 func (s *RepositorySuite) TestTypeNames(c *C) {
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{})
-	s.emptyRepo.AddType(&Type{"a"})
-	s.emptyRepo.AddType(&Type{"b"})
-	s.emptyRepo.AddType(&Type{"c"})
+	s.emptyRepo.AddType(&Type{Name: "a"})
+	s.emptyRepo.AddType(&Type{Name: "b"})
+	s.emptyRepo.AddType(&Type{Name: "c"})
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{"a", "b", "c"})
 }
 
@@ -152,14 +152,21 @@ func (s *RepositorySuite) TestType(c *C) {
 	c.Assert(s.testRepo.Type(testType.Name), Equals, testType)
 }
 
+func (s *RepositorySuite) TestCapability(c *C) {
+	err := s.testRepo.Add(testCapability)
+	c.Assert(err, IsNil)
+	c.Assert(s.emptyRepo.Capability(testCapability.Name), IsNil)
+	c.Assert(s.testRepo.Capability(testCapability.Name), Equals, testCapability)
+}
+
 func (s *RepositorySuite) TestHasType(c *C) {
-	// HasType works as expected when the object is exactly the one that was
+	// hasType works as expected when the object is exactly the one that was
 	// added earlier.
-	c.Assert(s.emptyRepo.HasType(testType), Equals, false)
-	c.Assert(s.testRepo.HasType(testType), Equals, true)
-	// HasType doesn't do deep equality checks so even though the types are
+	c.Assert(s.emptyRepo.hasType(testType), Equals, false)
+	c.Assert(s.testRepo.hasType(testType), Equals, true)
+	// hasType doesn't do deep equality checks so even though the types are
 	// otherwise identical, the test fails.
-	c.Assert(s.testRepo.HasType(&Type{Name: testType.Name}), Equals, false)
+	c.Assert(s.testRepo.hasType(&Type{Name: testType.Name}), Equals, false)
 }
 
 func (s *RepositorySuite) TestCaps(c *C) {
