@@ -95,12 +95,12 @@ func (t *Type) GrantPermissions(snapName string, cap *Capability) error {
 	}
 	// TODO handle this in a way that would work with loadable types
 	switch t.Name {
-	case "bool-file":
-		// Path is always non-nil since it is validated and required by bool-type
+	case BoolFileType.Name:
+		// path is always non-nil since it is validated and required by BoolFileType
 		path := cap.Attrs["path"]
 		return snappy.AddHWAccess(snapName, path)
 	default:
-		return fmt.Errorf("not implemented")
+		return fmt.Errorf("granting permissions for capability type %q is not implemented", t.Name)
 	}
 }
 
@@ -112,11 +112,11 @@ func (t *Type) RevokePermissions(snapName string, cap *Capability) error {
 	}
 	// TODO handle this in a way that would work with loadable types
 	switch t.Name {
-	case "bool-file":
-		// Path is always non-nil since it is validated and required by bool-type
+	case BoolFileType.Name:
+		// path is always non-nil since it is validated and required by BoolFileType
 		path := cap.Attrs["path"]
 		return snappy.RemoveHWAccess(snapName, path)
 	default:
-		return fmt.Errorf("not implemented")
+		return fmt.Errorf("revoking permissions for capability type %q is not implemented", t.Name)
 	}
 }
