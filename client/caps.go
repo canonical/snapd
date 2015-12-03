@@ -115,11 +115,15 @@ func (client *Client) RemoveCapability(name string) error {
 }
 
 // AssignCapability assigns a capability to a slot within a snap
-func (client *Client) AssignCapability(capName, snapName, slotName string) error {
+func (client *Client) AssignCapability(capName string, a *Assignment) error {
 	const errPrefix = "cannot assign capability"
-	url := fmt.Sprintf("/1.0/capabilities/%s", capName)
+	url := fmt.Sprintf("/1.0/capabilities/%s/assignment", capName)
+	b, err := json.Marshal(a)
+	if err != nil {
+		return err
+	}
 	var rsp response
-	if err := client.do("GET", url, nil, &rsp); err != nil {
+	if err := client.do("POST", url, bytes.NewReader(b), &rsp); err != nil {
 		return err
 	}
 	if err := rsp.err(); err != nil {
@@ -128,19 +132,15 @@ func (client *Client) AssignCapability(capName, snapName, slotName string) error
 	if rsp.Type != "sync" {
 		return fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
 	}
-	var cap Capability
-	if err := json.Unmarshal(rsp.Result, &cap); err != nil {
-		return fmt.Errorf("%s: failed to unmarshal response: %v", errPrefix, err)
-	}
-	cap.Assignments = append(cap.Assignments, Assignment{
-		SnapName: snapName,
-		SlotName: slotName,
-	})
-	b, err := json.Marshal(cap)
-	if err != nil {
-		return err
-	}
-	if err := client.do("POST", url, bytes.NewReader(b), &rsp); err != nil {
+	return nil
+}
+
+// UnassignCapability removes an existing capability assignment
+func (client *Client) UnassignCapability(capName string) error {
+	const errPrefix = "cannot assign capability"
+	var rsp response
+	url := fmt.Sprintf("/1.0/capabilities/%s/assignment", capName)
+	if err := client.do("DELETE", url, nil, &rsp); err != nil {
 		return err
 	}
 	if err := rsp.err(); err != nil {
