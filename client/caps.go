@@ -75,12 +75,11 @@ func (client *Client) AddCapability(c *Capability) error {
 	if err := client.do("POST", "/1.0/capabilities", bytes.NewReader(b), &rsp); err != nil {
 		return err
 	}
-	switch rsp.Type {
-	case "error":
-		return rsp.err()
-	case "sync":
-		return nil
-	default:
+	if err := rsp.err(); err != nil {
+		return err
+	}
+	if rsp.Type != "sync" {
 		return fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
 	}
+	return nil
 }
