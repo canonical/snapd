@@ -21,6 +21,7 @@ package caps
 
 import (
 	"fmt"
+	"sync"
 )
 
 // Assignment holds information about capability Assignment.
@@ -34,6 +35,8 @@ type Assignment struct {
 // Capability holds information about a capability that a snap may request
 // from a snappy system to do its job while running on it.
 type Capability struct {
+	// Protects the internals from concurrent access.
+	m sync.Mutex
 	// Name is a key that identifies the capability. It must be unique within
 	// its context, which may be either a snap or a snappy runtime.
 	Name string `json:"name"`
@@ -59,6 +62,9 @@ func (c Capability) String() string {
 
 // Assign uses capability type to grant permissions to snap with the given name
 func (c *Capability) Assign(snapName, slotName string) error {
+	c.m.Lock()
+	defer c.m.Unlock()
+
 	const errPrefix = "cannot assign capability"
 	if c.Assignment != nil {
 		return fmt.Errorf("%s: capability already assigned", errPrefix)
@@ -76,6 +82,9 @@ func (c *Capability) Assign(snapName, slotName string) error {
 
 // Unassign undoes the effects of Assign
 func (c *Capability) Unassign(snapName, slotName string) error {
+	c.m.Lock()
+	defer c.m.Unlock()
+
 	const errPrefix = "cannot unassign capability"
 	a := Assignment{SnapName: snapName, SlotName: slotName}
 	if c.Assignment == nil || *c.Assignment != a {
