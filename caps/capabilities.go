@@ -99,10 +99,10 @@ func (c *Capability) Assignment() *Assignment {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	if c.assignment != nil {
+	if c.CurrentAssignment != nil {
 		return &Assignment{
-			SnapName: c.assignment.SnapName,
-			SlotName: c.assignment.SlotName,
+			SnapName: c.CurrentAssignment.SnapName,
+			SlotName: c.CurrentAssignment.SlotName,
 		}
 	}
 	return nil
