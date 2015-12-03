@@ -81,6 +81,6 @@ func (client *Client) AddCapability(c *Capability) error {
 	case "sync":
 		return nil
 	default:
-		return fmt.Errorf("cannot obtain capabilities: expected sync response, got %s", rsp.Type)
+		return fmt.Errorf("cannot obtain capabilities: expected sync response, got %q", rsp.Type)
 	}
 }
