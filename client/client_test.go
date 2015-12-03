@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -152,6 +153,34 @@ func (cs *clientSuite) TestClientCapabilities(c *check.C) {
 			Label: "l",
 			Type:  "t",
 			Attrs: map[string]string{"k": "v"},
+		},
+	})
+}
+
+func (cs *clientSuite) TestClientAddCapability(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": {
+		}
+	}`
+	cap := &client.Capability{
+		Name:  "n",
+		Label: "l",
+		Type:  "t",
+		Attrs: map[string]string{"k": "v"},
+	}
+	err := cs.cli.AddCapability(cap)
+	c.Check(err, check.IsNil)
+	var body map[string]interface{}
+	decoder := json.NewDecoder(cs.req.Body)
+	err = decoder.Decode(&body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"name":  "n",
+		"label": "l",
+		"type":  "t",
+		"attrs": map[string]interface{}{
+			"k": "v",
 		},
 	})
 }
