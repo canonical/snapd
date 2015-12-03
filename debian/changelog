@@ -1,3 +1,13 @@
+ubuntu-core-launcher (1.0.14) xenial; urgency=medium
+
+  * remove unused is_mountpoint() function (thanks Tyler!)
+  * do the mount namespace and MS_REC/MS_SLAVE earlier to
+    avoid that the real /tmp is bind mounted in the main
+    mount namespace (this will also prevent automount daemons
+    from running under the ubuntu-core-launcher)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 03 Dec 2015 08:12:30 +0100
+
 ubuntu-core-launcher (1.0.13) xenial; urgency=medium
 
   * fix build failure on 32 bit arches

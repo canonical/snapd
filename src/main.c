@@ -205,18 +205,6 @@ bool is_running_on_classic_ubuntu() {
    return (access("/var/lib/dpkg/status", F_OK) == 0);
 }
 
-bool is_mountpoint(const char * const mountpoint) {
-   int status;
-   pid_t pid = fork();
-   if (pid == 0) {
-      execlp("mountpoint", "mountpoint", mountpoint, NULL);
-   }
-   if(waitpid(pid, &status, 0) < 0)
-      die("waitpid failed");
-
-   return (WIFEXITED(status) && WEXITSTATUS(status) == 0);
-}
-
 void setup_private_mount(const char* appname) {
     uid_t uid = getuid();
     gid_t gid = getgid();
@@ -246,12 +234,6 @@ void setup_private_mount(const char* appname) {
     }
     umask(old_mask);
     
-    // unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >= 2.14
-    // if using an older glibc, you'd need -D_BSD_SOURCE or -D_SVID_SORUCE.
-    if (unshare(CLONE_NEWNS) < 0) {
-        die("unable to set up mount namespace");
-    }
-
     // MS_BIND is there from linux 2.4
     if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
         die("unable to bind private /tmp");
@@ -282,19 +264,6 @@ void setup_private_mount(const char* appname) {
 void setup_snappy_os_mounts() {
    debug("setup_snappy_os_mounts()\n");
 
-   // unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >= 2.14
-   // if using an older glibc, you'd need -D_BSD_SOURCE or -D_SVID_SORUCE.
-   if (unshare(CLONE_NEWNS) < 0) {
-      die("unable to set up mount namespace");
-   }
-
-   // make our "/" a rslave of the real "/". this means that
-   // mounts from the host "/" get propagated to our namespace
-   // (i.e. we see new media mounts)
-   if (mount("none", "/", NULL, MS_REC|MS_SLAVE, NULL) != 0) {
-      die("can not make make / rslave");
-   }
-   
    // FIXME: hardcoded "ubuntu-core.*"
    glob_t glob_res;
    if (glob("/apps/ubuntu-core*/current/", 0, NULL, &glob_res) != 0) {
@@ -329,6 +298,20 @@ void setup_snappy_os_mounts() {
    globfree(&glob_res);
 }
 
+void setup_slave_mount_namespace() {
+   // unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >= 2.14
+   // if using an older glibc, you'd need -D_BSD_SOURCE or -D_SVID_SORUCE.
+   if (unshare(CLONE_NEWNS) < 0) {
+      die("unable to set up mount namespace");
+   }
+   
+   // make our "/" a rslave of the real "/". this means that
+   // mounts from the host "/" get propagated to our namespace
+   // (i.e. we see new media mounts)
+   if (mount("none", "/", NULL, MS_REC|MS_SLAVE, NULL) != 0) {
+      die("can not make make / rslave");
+   }
+}   
 
 int main(int argc, char **argv)
 {
@@ -363,6 +346,18 @@ int main(int argc, char **argv)
           die("binary must be inside /apps/%s/, /frameworks/%s/ or /oem/%s/",
                   appname, appname, appname);
 
+       // ensure we run in our own slave mount namespace, this will
+       // create a new mount namespace and make it a slave of "/"
+       //
+       // Note that this means that no mount actions inside our
+       // namespace are propagated to the main "/". We need this
+       // both for the private /tmp we create and for the bind
+       // mounts we do on a classic ubuntu system
+       //
+       // This also means you can't run an automount daemon unter
+       // this launcher
+       setup_slave_mount_namespace();
+       
        // do the mounting if run on a non-native snappy system
        if(is_running_on_classic_ubuntu()) {
           setup_snappy_os_mounts();
