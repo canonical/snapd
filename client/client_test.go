@@ -192,6 +192,9 @@ func (cs *clientSuite) TestClientRemoveCapabilityOk(c *check.C) {
 	}`
 	err := cs.cli.RemoveCapability("n")
 	c.Check(err, check.IsNil)
+	c.Check(cs.req.Body, check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "DELETE")
+	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities/n")
 }
 
 func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
@@ -205,4 +208,7 @@ func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
 	}`
 	err := cs.cli.RemoveCapability("n")
 	c.Check(err, check.ErrorMatches, `can't remove capability \"n\", no such capability`)
+	c.Check(cs.req.Body, check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "DELETE")
+	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities/n")
 }
