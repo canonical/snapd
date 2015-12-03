@@ -60,33 +60,30 @@ func (c Capability) String() string {
 // Assign uses capability type to grant permissions to snap with the given name
 func (c *Capability) Assign(snapName, slotName string) error {
 	const errPrefix = "cannot assign capability"
-	// TODO lift the limit of capability Assignment once type models how this should work
-	if len(c.Assignments) != 0 {
+	if c.Assignment != nil {
 		return fmt.Errorf("%s: capability already assigned", errPrefix)
 	}
 	if err := c.Type.GrantPermissions(snapName, c); err != nil {
 		return fmt.Errorf("%s: failed to grant permissions %v", errPrefix, err)
 	}
 	// TODO: fire notification event
-	c.Assignments = append(c.Assignments, Assignment{
+	c.Assignment = &Assignment{
 		SnapName: snapName,
 		SlotName: slotName,
-	})
+	}
 	return nil
 }
 
 // Unassign undoes the effects of Assign
 func (c *Capability) Unassign(snapName, slotName string) error {
 	const errPrefix = "cannot unassign capability"
-	for i, a := range c.Assignments {
-		if a.SnapName == snapName && a.SlotName == slotName {
-			if err := c.Type.RevokePermissions(snapName, c); err != nil {
-				return fmt.Errorf("%s: failed to grant permissions %v", errPrefix, err)
-			}
-			// TODO: fire notification event
-			c.Assignments = append(c.Assignments[:i], c.Assignments[i+1:]...)
-			return nil
-		}
+	a := Assignment{SnapName: snapName, SlotName: slotName}
+	if c.Assignment == nil || *c.Assignment != a {
+		return fmt.Errorf("%s: no such assignment", errPrefix)
 	}
-	return fmt.Errorf("%s: no such assignment", errPrefix)
+	if err := c.Type.RevokePermissions(snapName, c); err != nil {
+		return fmt.Errorf("%s: failed to grant permissions %v", errPrefix, err)
+	}
+	c.Assignment = nil
+	return nil
 }
