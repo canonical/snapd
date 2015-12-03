@@ -153,13 +153,13 @@ func (s *RepositorySuite) TestType(c *C) {
 }
 
 func (s *RepositorySuite) TestHasType(c *C) {
-	// HasType works as expected when the object is exactly the one that was
+	// hasType works as expected when the object is exactly the one that was
 	// added earlier.
-	c.Assert(s.emptyRepo.HasType(testType), Equals, false)
-	c.Assert(s.testRepo.HasType(testType), Equals, true)
-	// HasType doesn't do deep equality checks so even though the types are
+	c.Assert(s.emptyRepo.hasType(testType), Equals, false)
+	c.Assert(s.testRepo.hasType(testType), Equals, true)
+	// hasType doesn't do deep equality checks so even though the types are
 	// otherwise identical, the test fails.
-	c.Assert(s.testRepo.HasType(&Type{Name: testType.Name}), Equals, false)
+	c.Assert(s.testRepo.hasType(&Type{Name: testType.Name}), Equals, false)
 }
 
 func (s *RepositorySuite) TestCaps(c *C) {
