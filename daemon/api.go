@@ -29,7 +29,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
 
@@ -63,6 +62,7 @@ var api = []*Command{
 	operationCmd,
 	capabilitiesCmd,
 	capabilityCmd,
+	capabilityAssignmentCmd,
 }
 
 var (
@@ -147,7 +147,13 @@ var (
 		Path:   "/1.0/capabilities/{name}",
 		GET:    getCapability,
 		DELETE: deleteCapability,
-		POST:   updateCapability,
+	}
+
+	capabilityAssignmentCmd = &Command{
+		Path:   "/1.0/capabilities/{name}/assignment",
+		GET:    getCapabilityAssignment,
+		DELETE: unassignCapability,
+		POST:   assignCapability,
 	}
 )
 
@@ -982,56 +988,43 @@ func deleteCapability(c *Command, r *http.Request) Response {
 	}
 }
 
-func updateCapability(c *Command, r *http.Request) Response {
-	capName := muxVars(r)["name"]
-	oldCap := c.d.capRepo.Capability(capName)
-	if oldCap == nil {
-		return NotFound(nil, "capability not found")
+func getCapabilityAssignment(c *Command, r *http.Request) Response {
+	name := muxVars(r)["name"]
+	cap := c.d.capRepo.Capability(name)
+	if cap == nil {
+		return NotFound(nil, "no such capability")
+	}
+	if a := cap.Assignment(); a != nil {
+		return SyncResponse(a)
+	}
+	return NotFound(nil, "capability is not assigned")
+}
+
+func unassignCapability(c *Command, r *http.Request) Response {
+	name := muxVars(r)["name"]
+	cap := c.d.capRepo.Capability(name)
+	if cap == nil {
+		return NotFound(nil, "no such capability")
+	}
+	if err := cap.Unassign(); err != nil {
+		return BadRequest(err, "cannot unassign capability")
+	}
+	return SyncResponse(nil)
+}
+
+func assignCapability(c *Command, r *http.Request) Response {
+	name := muxVars(r)["name"]
+	cap := c.d.capRepo.Capability(name)
+	if cap == nil {
+		return NotFound(nil, "no such capability")
 	}
 	decoder := json.NewDecoder(r.Body)
-	var newCap caps.Capability
-	if err := decoder.Decode(&newCap); err != nil || newCap.Type == nil {
-		return BadRequest(err, "can't decode request body into a capability")
+	var a caps.Assignment
+	if err := decoder.Decode(&a); err != nil {
+		return BadRequest(err, "can't decode request body into an assignment")
 	}
-	// This is a deliberate restriction.  We don't want to alter the name as
-	// it is used by applications as runtime identifier.
-	if newCap.Name != oldCap.Name {
-		return BadRequest(nil, "cannot change capability name")
-	}
-	// This is an arbitrary limitation that can be lifted later.
-	if newCap.Label != oldCap.Label {
-		return BadRequest(nil, "cannot change capability label")
-	}
-	// Deliberate limitation
-	if newCap.Type.Name != oldCap.Type.Name {
-		return BadRequest(nil, "cannot change capability type")
-	}
-	// Deliberate limitation
-	if !reflect.DeepEqual(newCap.Attrs, oldCap.Attrs) {
-		return BadRequest(nil, "cannot change capability attributes")
-
-	}
-	// Let's look at the assignments to figure out if we are assigning or
-	// unassigning (or doing nothing).
-	if !reflect.DeepEqual(newCap.Assignments, oldCap.Assignments) {
-		switch {
-		case len(newCap.Assignments) == 1 && len(oldCap.Assignments) == 0:
-			// assign
-			a := newCap.Assignments[0]
-			if err := oldCap.Assign(a.SnapName, a.SlotName); err != nil {
-				return BadRequest(err, "cannot assign capability")
-			}
-		case len(newCap.Assignments) == 0 && len(oldCap.Assignments) == 1:
-			// unassign
-			a := oldCap.Assignments[0]
-			if err := oldCap.Unassign(a.SnapName, a.SlotName); err != nil {
-				return BadRequest(err, "cannot unassign capability")
-			}
-		case len(newCap.Assignments) > 1:
-			return BadRequest(nil, "multiple assignment is not supported")
-		default:
-			return BadRequest(nil, "not implemented")
-		}
+	if err := cap.Assign(&a); err != nil {
+		return BadRequest(err, "cannot assign capability")
 	}
 	return SyncResponse(nil)
 }
