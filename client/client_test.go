@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -170,4 +171,17 @@ func (cs *clientSuite) TestClientAddCapability(c *check.C) {
 	}
 	err := cs.cli.AddCapability(cap)
 	c.Check(err, check.IsNil)
+	b, err := ioutil.ReadAll(cs.req.Body)
+	c.Check(err, check.IsNil)
+	var body map[string]interface{}
+	err = json.Unmarshal(b, &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"name":  "n",
+		"label": "l",
+		"type":  "t",
+		"attrs": map[string]interface{}{
+			"k": "v",
+		},
+	})
 }
