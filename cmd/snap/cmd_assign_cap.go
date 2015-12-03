@@ -48,5 +48,8 @@ func init() {
 }
 
 func (x *cmdAssignCap) Execute(args []string) error {
-	return client.New().AssignCapability(x.CapName, x.SnapName, x.SlotName)
+	return client.New().AssignCapability(x.CapName, &client.Assignment{
+		SnapName: x.SnapName,
+		SlotName: x.SlotName,
+	})
 }
