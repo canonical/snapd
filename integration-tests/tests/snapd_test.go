@@ -204,8 +204,12 @@ func doInteraction(c *check.C, resource, verb string, interaction apiInteraction
 }
 
 func do404(c *check.C, resource string) {
+	path := "not-a-resource"
+	if resource[len(resource)-1:] != "/" {
+		path = "/" + path
+	}
 	doInteraction(c,
-		resource+"not-a-resource",
+		resource+path,
 		"GET",
 		apiInteraction{
 			responsePattern: `{"result":{},"status":"Not Found","status_code":404,"type":"error"}`})
