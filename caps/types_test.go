@@ -53,21 +53,6 @@ func (s *TypeSuite) TestValidateOK(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *TypeSuite) TestValidateAttributesUnexpectedAttrs(c *C) {
-	t := &Type{
-		Name:          "t",
-		RequiredAttrs: nil,
-	}
-	cap := &Capability{
-		Name:  "name",
-		Label: "label",
-		Type:  t,
-		Attrs: map[string]string{"k": "v"},
-	}
-	err := t.Validate(cap)
-	c.Assert(err, ErrorMatches, `capability contains unexpected attribute "k"`)
-}
-
 func (s *TypeSuite) TestValidateAttributesRequiredAttrsMissing(c *C) {
 	t := &Type{
 		Name:          "t",

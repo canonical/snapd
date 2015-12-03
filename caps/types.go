@@ -64,21 +64,6 @@ func (t *Type) Validate(c *Capability) error {
 			return fmt.Errorf("capabilities of type %q must provide a %q attribute", t, attr)
 		}
 	}
-	// Look for any unexpected attributes
-	if len(t.RequiredAttrs) != len(c.Attrs) {
-		for attr := range c.Attrs {
-			supported := false
-			for _, attrRequired := range t.RequiredAttrs {
-				if attr == attrRequired {
-					supported = true
-					break
-				}
-			}
-			if !supported {
-				return fmt.Errorf("capability contains unexpected attribute %q", attr)
-			}
-		}
-	}
 	return nil
 }
 
