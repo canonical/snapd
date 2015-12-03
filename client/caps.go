@@ -67,6 +67,7 @@ func (client *Client) Capabilities() (map[string]Capability, error) {
 
 // AddCapability adds one capability to the system
 func (client *Client) AddCapability(c *Capability) error {
+	errPrefix := "cannot obtain capabilities"
 	b, err := json.Marshal(c)
 	if err != nil {
 		return err
@@ -81,6 +82,6 @@ func (client *Client) AddCapability(c *Capability) error {
 	case "sync":
 		return nil
 	default:
-		return fmt.Errorf("cannot obtain capabilities: expected sync response, got %q", rsp.Type)
+		return fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
 	}
 }
