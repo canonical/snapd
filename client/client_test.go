@@ -155,6 +155,8 @@ func (cs *clientSuite) TestClientCapabilities(c *check.C) {
 			Attrs: map[string]string{"k": "v"},
 		},
 	})
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities")
 }
 
 func (cs *clientSuite) TestClientAddCapability(c *check.C) {
