@@ -200,7 +200,7 @@ func (r *Repository) Caps() map[string]*Capability {
 // Assign assigns capability named `capName` to package named `snapName` with
 // slot `slotName`. Capability and package (snap) must already exist. The slot
 // is unused for now (it is only informational)
-func (r *Repository) Assign(capName, snapName, slotName string) error {
+func (r *Repository) Assign(capName string, a *Assignment) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -208,11 +208,11 @@ func (r *Repository) Assign(capName, snapName, slotName string) error {
 	if cap == nil {
 		return &NotFoundError{"assign", capName}
 	}
-	return cap.Assign(snapName, slotName)
+	return cap.Assign(a)
 }
 
 // Unassign undoes the action of Assign()
-func (r *Repository) Unassign(capName, snapName, slotName string) error {
+func (r *Repository) Unassign(capName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -220,5 +220,5 @@ func (r *Repository) Unassign(capName, snapName, slotName string) error {
 	if cap == nil {
 		return &NotFoundError{"assign", capName}
 	}
-	return cap.Unassign(snapName, slotName)
+	return cap.Unassign()
 }
