@@ -418,21 +418,21 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		return "", err
 	}
 
-	// and finally make active
-	err = s.activate(inhibitHooks, inter)
-	defer func() {
-		if err != nil && oldPart != nil {
-			if cerr := oldPart.activate(inhibitHooks, inter); cerr != nil {
-				logger.Noticef("When setting old %s version back to active: %v", s.Name(), cerr)
-			}
-		}
-	}()
-	if err != nil {
-		return "", err
-	}
-
-	// oh, one more thing: refresh the security bits
 	if !inhibitHooks {
+		// and finally make active
+		err = s.activate(inhibitHooks, inter)
+		defer func() {
+			if err != nil && oldPart != nil {
+				if cerr := oldPart.activate(inhibitHooks, inter); cerr != nil {
+					logger.Noticef("When setting old %s version back to active: %v", s.Name(), cerr)
+				}
+			}
+		}()
+		if err != nil {
+			return "", err
+		}
+
+		// oh, one more thing: refresh the security bits
 		deps, err := s.Dependents()
 		if err != nil {
 			return "", err
