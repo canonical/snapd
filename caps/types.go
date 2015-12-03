@@ -37,15 +37,20 @@ type Type struct {
 }
 
 var (
-	// FileType is a basic capability vaguely expressing access to a specific
-	// file. This single capability  type is here just to help bootstrap
-	// the capability concept before we get to load capability interfaces
-	// from YAML.
-	FileType = &Type{Name: "file"}
+	// BoolFileType is a built-in capability type for files that follow a
+	// simple boolean protocol. The file can be read, which yields ASCII '0'
+	// (zero) or ASCII '1' (one). The same can be done for writing.
+	//
+	// This capability type can be used to describe many boolean flags exposed
+	// in sysfs, including certain hardware like exported GPIO pins.
+	BoolFileType = &Type{
+		Name:          "bool-file",
+		RequiredAttrs: []string{"path"},
+	}
 )
 
 var builtInTypes = [...]*Type{
-	FileType,
+	BoolFileType,
 }
 
 // String returns a string representation for the capability type.

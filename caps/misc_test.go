@@ -42,8 +42,8 @@ func (s *MiscSuite) TestLoadBuiltInTypes(c *C) {
 	repo := NewRepository()
 	err := LoadBuiltInTypes(repo)
 	c.Assert(err, IsNil)
-	c.Assert(repo.types, testutil.Contains, FileType)
+	c.Assert(repo.types, testutil.Contains, BoolFileType)
 	c.Assert(repo.types, HasLen, 1) // Update this whenever new built-in type is added
 	err = LoadBuiltInTypes(repo)
-	c.Assert(err, ErrorMatches, `cannot add type "file": name already exists`)
+	c.Assert(err, ErrorMatches, `cannot add type "bool-file": name already exists`)
 }
