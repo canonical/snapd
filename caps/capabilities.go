@@ -52,7 +52,7 @@ type Capability struct {
 	// Attrs are key-value pairs that provide type-specific capability details.
 	Attrs map[string]string `json:"attrs,omitempty"`
 	// Assignment describes assignment of this capability to a snap
-	Assignment *Assignment `json:"assignment,omitempty"`
+	assignment *Assignment `json:"assignment,omitempty"`
 }
 
 // String representation of a capability.
