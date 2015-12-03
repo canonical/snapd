@@ -77,11 +77,7 @@ var (
 )
 
 func init() {
-	_, err := parser.AddCommand("add-cap", shortAddCapHelp, longAddCapHelp, &cmdAddCap{
-		addCapOptions{
-			Attrs: nil,
-		},
-	})
+	_, err := parser.AddCommand("add-cap", shortAddCapHelp, longAddCapHelp, &cmdAddCap{})
 	if err != nil {
 		logger.Panicf("unable to add add-caps command: %v", err)
 	}
