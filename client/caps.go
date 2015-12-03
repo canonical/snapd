@@ -100,7 +100,7 @@ func (client *Client) AddCapability(c *Capability) error {
 
 // RemoveCapability removes one capability from the system
 func (client *Client) RemoveCapability(name string) error {
-	errPrefix := "cannot remove capability"
+	const errPrefix = "cannot remove capability"
 	var rsp response
 	if err := client.do("DELETE", fmt.Sprintf("/1.0/capabilities/%s", name), nil, &rsp); err != nil {
 		return err
