@@ -51,9 +51,13 @@ func (x *cmdListCaps) Execute(args []string) error {
 		return err
 	}
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 1, ' ', 0)
-	fmt.Fprintln(w, "Name\tLabel\tType")
+	fmt.Fprintln(w, "Name\tLabel\tType\tAssignment")
 	for _, cap := range caps {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", cap.Name, cap.Label, cap.Type)
+		if cap.Assignment == nil {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", cap.Name, cap.Label, cap.Type, "unassigned")
+		} else {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", cap.Name, cap.Label, cap.Type, cap.Assignment)
+		}
 	}
 	w.Flush()
 	return nil
