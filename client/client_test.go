@@ -185,6 +185,8 @@ func (cs *clientSuite) TestClientAddCapability(c *check.C) {
 			"k": "v",
 		},
 	})
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities")
 }
 
 func (cs *clientSuite) TestClientRemoveCapabilityOk(c *check.C) {
