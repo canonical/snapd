@@ -66,7 +66,7 @@ func (client *Client) Capabilities() (map[string]Capability, error) {
 
 // AddCapability adds one capability to the system
 func (client *Client) AddCapability(c *Capability) error {
-	errPrefix := "cannot obtain capabilities"
+	errPrefix := "cannot add capability"
 	b, err := json.Marshal(c)
 	if err != nil {
 		return err
