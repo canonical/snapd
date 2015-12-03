@@ -45,8 +45,8 @@ type Capability struct {
 	Type *Type `json:"type"`
 	// Attrs are key-value pairs that provide type-specific capability details.
 	Attrs map[string]string `json:"attrs,omitempty"`
-	// Assignments are a list of Assignments of this capability to snaps.
-	Assignments []Assignment `json:"assignments,omitempty"`
+	// Assignment describes assignment of this capability to a snap
+	Assignment *Assignment `json:"assignment,omitempty"`
 }
 
 // String representation of a capability.
