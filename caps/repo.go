@@ -204,7 +204,7 @@ func (r *Repository) Assign(capName string, a *Assignment) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	cap := r.Capability(capName)
+	cap := r.caps[capName]
 	if cap == nil {
 		return &NotFoundError{"assign", capName}
 	}
@@ -216,7 +216,7 @@ func (r *Repository) Unassign(capName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	cap := r.Capability(capName)
+	cap := r.caps[capName]
 	if cap == nil {
 		return &NotFoundError{"assign", capName}
 	}
