@@ -57,7 +57,7 @@ func (client *Client) Capabilities() (map[string]Capability, error) {
 	case "sync":
 		var resultOk map[string]map[string]Capability
 		if err := json.Unmarshal(rsp.Result, &resultOk); err != nil {
-			return nil, fmt.Errorf("%s: failed to unmarshal response: %v", errPrefix, err)
+			return nil, fmt.Errorf("%s: failed to unmarshal response: %q", errPrefix, err)
 		}
 		return resultOk["capabilities"], nil
 	default:
