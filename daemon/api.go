@@ -61,6 +61,7 @@ var api = []*Command{
 	packageSvcLogsCmd,
 	operationCmd,
 	capabilitiesCmd,
+	capabilityCmd,
 }
 
 var (
@@ -139,6 +140,11 @@ var (
 		UserOK: true,
 		GET:    getCapabilities,
 		POST:   addCapability,
+	}
+
+	capabilityCmd = &Command{
+		Path:   "/1.0/capabilities/{name}",
+		DELETE: deleteCapability,
 	}
 )
 
@@ -948,5 +954,18 @@ func addCapability(c *Command, r *http.Request) Response {
 		Result: map[string]string{
 			"resource": fmt.Sprintf("/1.0/capabilities/%s", newCap.Name),
 		},
+	}
+}
+
+func deleteCapability(c *Command, r *http.Request) Response {
+	name := muxVars(r)["name"]
+	err := c.d.capRepo.Remove(name)
+	switch err.(type) {
+	case nil:
+		return SyncResponse(nil)
+	case *caps.NotFoundError:
+		return NotFound(err, "can't remove capability")
+	default:
+		return InternalError(err, "")
 	}
 }

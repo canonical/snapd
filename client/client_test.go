@@ -155,6 +155,8 @@ func (cs *clientSuite) TestClientCapabilities(c *check.C) {
 			Attrs: map[string]string{"k": "v"},
 		},
 	})
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities")
 }
 
 func (cs *clientSuite) TestClientAddCapability(c *check.C) {
@@ -183,4 +185,34 @@ func (cs *clientSuite) TestClientAddCapability(c *check.C) {
 			"k": "v",
 		},
 	})
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities")
+}
+
+func (cs *clientSuite) TestClientRemoveCapabilityOk(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": { }
+	}`
+	err := cs.cli.RemoveCapability("n")
+	c.Check(err, check.IsNil)
+	c.Check(cs.req.Body, check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "DELETE")
+	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities/n")
+}
+
+func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
+	cs.rsp = `{
+		"status": "Not Found",
+		"status_code": 404,
+		"type": "error",
+		"result": {
+			"str": "can't remove capability \"n\", no such capability"
+		}
+	}`
+	err := cs.cli.RemoveCapability("n")
+	c.Check(err, check.ErrorMatches, `can't remove capability \"n\", no such capability`)
+	c.Check(cs.req.Body, check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "DELETE")
+	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities/n")
 }

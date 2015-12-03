@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-12-02 09:28+0100\n"
+        "POT-Creation-Date: 2015-12-02 11:46+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -249,6 +249,9 @@ msgstr  ""
 msgid   "Rebooting to satisfy updates for %s\n"
 msgstr  ""
 
+msgid   "Remove a capability from the system"
+msgstr  ""
+
 msgid   "Remove a snapp part"
 msgstr  ""
 
@@ -374,6 +377,9 @@ msgid   "This command list what hardware an installed package can access"
 msgstr  ""
 
 msgid   "This command logs the given username into the store"
+msgstr  ""
+
+msgid   "This command removes a capability from the system"
 msgstr  ""
 
 msgid   "This command removes access of a specific hardware device (e.g. /dev/ttyUSB0) for an installed package."
