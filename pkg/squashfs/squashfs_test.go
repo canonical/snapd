@@ -20,6 +20,8 @@
 package squashfs
 
 import (
+	"crypto"
+	_ "crypto/sha256"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -76,6 +78,14 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 func (s *SquashfsTestSuite) TestName(c *C) {
 	snap := New("/path/to/foo.snap")
 	c.Assert(snap.Name(), Equals, "foo.snap")
+}
+
+func (s *SquashfsTestSuite) TestHashFile(c *C) {
+	snap := makeSnap(c, "name: test", "")
+	size, digest, err := snap.HashDigest(crypto.SHA256)
+	c.Assert(err, IsNil)
+	c.Check(size, Equals, uint64(4096))
+	c.Check(digest, HasLen, crypto.SHA256.Size())
 }
 
 // FIXME: stub that needs to be fleshed out once assertions land
