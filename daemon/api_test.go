@@ -1239,7 +1239,8 @@ func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 	cap := &caps.Capability{
 		Name:  "name",
 		Label: "label",
-		Type:  caps.FileType,
+		Type:  caps.BoolFileType,
+		Attrs: map[string]string{"path": "/nonexistent"},
 	}
 	text, err := json.Marshal(cap)
 	c.Assert(err, check.IsNil)
@@ -1263,7 +1264,8 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	cap := &caps.Capability{
 		Name:  "name",
 		Label: "label",
-		Type:  caps.FileType,
+		Type:  caps.BoolFileType,
+		Attrs: map[string]string{"path": "/nonexistent"},
 	}
 	err := d.capRepo.Add(cap)
 	c.Assert(err, check.IsNil)
@@ -1271,7 +1273,8 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	capClashing := &caps.Capability{
 		Name:  "name",
 		Label: "second label",
-		Type:  caps.FileType,
+		Type:  caps.BoolFileType,
+		Attrs: map[string]string{"path": "/nonexistent"},
 	}
 	text, err := json.Marshal(capClashing)
 	c.Assert(err, check.IsNil)
