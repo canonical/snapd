@@ -31,6 +31,9 @@ type Type struct {
 	// Name is a key that identifies the capability type. It must be unique
 	// within the whole OS. The name forms a part of the stable system API.
 	Name string
+	// RequiredAttrs contains names of attributes that are required by
+	// capability of this type.
+	RequiredAttrs []string
 }
 
 var (
@@ -38,7 +41,7 @@ var (
 	// file. This single capability  type is here just to help bootstrap
 	// the capability concept before we get to load capability interfaces
 	// from YAML.
-	FileType = &Type{"file"}
+	FileType = &Type{Name: "file"}
 )
 
 var builtInTypes = [...]*Type{
@@ -55,11 +58,11 @@ func (t *Type) Validate(c *Capability) error {
 	if t != c.Type {
 		return fmt.Errorf("capability is not of type %q", t)
 	}
-	// While we don't have any support for type-specific attribute schema,
-	// let's ensure that attributes are totally empty. This will make tests
-	// show that this code is actually being used.
-	if c.Attrs != nil && len(c.Attrs) != 0 {
-		return fmt.Errorf("attributes must be empty for now")
+	// Check that all required attributes are present
+	for _, attr := range t.RequiredAttrs {
+		if _, ok := c.Attrs[attr]; !ok {
+			return fmt.Errorf("capabilities of type %q must provide a %q attribute", t, attr)
+		}
 	}
 	return nil
 }
