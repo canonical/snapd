@@ -94,7 +94,7 @@ func (s *snapd10PackagesTestSuite) postInteractions() apiInteractions {
 		payload:     s.snapPath,
 		waitPattern: `(?U){.*,"status":"active".*"status":"OK","status_code":200,"type":"sync"}`,
 		waitFunction: func() (string, error) {
-			output, err := genericRequest(&requestOptions{
+			output, err := makeRequest(&requestOptions{
 				resource: s.resource() + "/" + data.BasicConfigSnapName + ".sideload",
 				verb:     "GET",
 			})
@@ -108,7 +108,7 @@ func (s *snapd10PackagesTestSuite) putInteractions() apiInteractions {
 		payload:     data.BasicConfigSnapName + `.sideload:="{key: value}"`,
 		waitPattern: `(?Us){"result":.*` + data.BasicConfigSnapName + `.*key: value.*","status":"OK","status_code":200,"type":"sync"}`,
 		waitFunction: func() (string, error) {
-			output, err := genericRequest(&requestOptions{
+			output, err := makeRequest(&requestOptions{
 				resource: s.resource() + "/" + data.BasicConfigSnapName + ".sideload/config",
 				verb:     "GET",
 			})
