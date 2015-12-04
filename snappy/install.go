@@ -27,6 +27,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/partition"
+	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/pkg/squashfs"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/provisioning"
 )
@@ -131,7 +133,24 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 			flags |= AllowUnauthenticated
 		}
 
-		return installClick(name, flags, meter, SideloadedOrigin)
+		// XXX: hook here for demo purposes, actual code should likely
+		// live closer to NewSnapPartFromSnapFile
+		origin := SideloadedOrigin
+		snap, err := pkg.Open(name)
+		if err != nil {
+			return "", err
+		}
+		switch snap := snap.(type) {
+		case *squashfs.Snap:
+			origin, err = demoCheckSnapAssertions(snap)
+			if err != nil {
+				return "", err
+			}
+		default:
+			snap.Close()
+		}
+
+		return installClick(name, flags, meter, origin)
 	}
 
 	// check repos next
