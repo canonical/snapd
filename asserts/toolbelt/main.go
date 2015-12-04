@@ -40,7 +40,7 @@ var db *asserts.Database
 func main() {
 	var err error
 	cfg := &asserts.DatabaseConfig{
-		Path: "snappy-asserts-demo-db",
+		Path: "snappy-asserts-toolbelt-db",
 	}
 	db, err = asserts.OpenDatabase(cfg)
 	if err != nil {
