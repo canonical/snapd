@@ -177,12 +177,12 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 }
 
 func (chks *checkSuite) TestCheckForgery(c *C) {
-	dbTrustedKey := asserts.OpenPGPPublicKey(&testPrivKey0.PublicKey)
+	trustedKey := testPrivKey0
 
 	cfg := &asserts.DatabaseConfig{
 		Path: chks.rootDir,
-		TrustedKeys: map[string][]asserts.PublicKey{
-			"canonical": {dbTrustedKey},
+		TrustedKeys: map[string][]*asserts.AccountKey{
+			"canonical": {asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 		},
 	}
 	db, err := asserts.OpenDatabase(cfg)
@@ -231,11 +231,11 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
-	dbTrustedKey := asserts.OpenPGPPublicKey(&testPrivKey0.PublicKey)
+	trustedKey := testPrivKey0
 	cfg := &asserts.DatabaseConfig{
 		Path: rootDir,
-		TrustedKeys: map[string][]asserts.PublicKey{
-			"canonical": {dbTrustedKey},
+		TrustedKeys: map[string][]*asserts.AccountKey{
+			"canonical": {asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 		},
 	}
 	db, err := asserts.OpenDatabase(cfg)

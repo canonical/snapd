@@ -124,8 +124,8 @@ func makeSignAndCheckDbWithAccountKey(c *C) (accFingerp string, accSignDB, check
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	cfg := &asserts.DatabaseConfig{
 		Path: rootDir,
-		TrustedKeys: map[string][]asserts.PublicKey{
-			"canonical": {asserts.OpenPGPPublicKey(&trustedKey.PublicKey)},
+		TrustedKeys: map[string][]*asserts.AccountKey{
+			"canonical": {asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 		},
 	}
 	checkDB, err = asserts.OpenDatabase(cfg)

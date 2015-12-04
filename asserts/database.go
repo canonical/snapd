@@ -54,7 +54,7 @@ type DatabaseConfig struct {
 	// database backstore path
 	Path string
 	// trusted keys maps authority-ids to list of trusted keys.
-	TrustedKeys map[string][]PublicKey
+	TrustedKeys map[string][]*AccountKey
 }
 
 // Well-known errors

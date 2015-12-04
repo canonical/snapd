@@ -19,6 +19,12 @@
 
 package asserts
 
+import (
+	"time"
+
+	"golang.org/x/crypto/openpgp/packet"
+)
+
 // expose test-only things here
 
 // generatePrivateKey exposed for tests
@@ -29,6 +35,20 @@ var BuildAndSignInTest = buildAndSign
 
 // decodePrivateKey exposed for tests
 var DecodePrivateKeyInTest = decodePrivateKey
+
+func BuildBootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+	return &AccountKey{
+		assertionBase: assertionBase{
+			headers: map[string]string{
+				"authority-id": authorityID,
+				"account-id":   authorityID,
+			},
+		},
+		since:  time.Time{},
+		until:  time.Time{}.UTC().AddDate(9999, 0, 0),
+		pubKey: OpenPGPPublicKey(pubKey),
+	}
+}
 
 // define dummy assertion types to use in the tests
 
