@@ -84,12 +84,24 @@ func (r *Repository) hasType(t *Type) bool {
 // Type finds and returns the Type with the given name or nil if
 // it's not found
 func (r *Repository) Type(name string) *Type {
+	r.m.Lock()
+	defer r.m.Unlock()
+
 	for _, t := range r.types {
 		if t.Name == name {
 			return t
 		}
 	}
 	return nil
+}
+
+// Capability finds and returns the Capability with the given name or nil if it
+// is not found.
+func (r *Repository) Capability(name string) *Capability {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	return r.caps[name]
 }
 
 // AddType adds a capability type to the repository.

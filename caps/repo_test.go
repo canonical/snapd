@@ -152,6 +152,13 @@ func (s *RepositorySuite) TestType(c *C) {
 	c.Assert(s.testRepo.Type(testType.Name), Equals, testType)
 }
 
+func (s *RepositorySuite) TestCapability(c *C) {
+	err := s.testRepo.Add(testCapability)
+	c.Assert(err, IsNil)
+	c.Assert(s.emptyRepo.Capability(testCapability.Name), IsNil)
+	c.Assert(s.testRepo.Capability(testCapability.Name), Equals, testCapability)
+}
+
 func (s *RepositorySuite) TestHasType(c *C) {
 	// hasType works as expected when the object is exactly the one that was
 	// added earlier.
