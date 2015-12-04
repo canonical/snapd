@@ -116,8 +116,6 @@ type SysInfo struct {
 	Store            string `json:"store,omitempty"`
 }
 
-// processErrorResponse handles the common error path for API requests.
-// This function should be called when response.Type == "error"
 func (rsp *response) err() error {
 	if rsp.Type != "error" {
 		return nil

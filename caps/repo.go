@@ -60,7 +60,7 @@ func (r *Repository) Add(cap *Capability) error {
 		return fmt.Errorf("cannot add capability %q: name already exists", cap.Name)
 	}
 	// Reject capabilities with unknown types
-	if !r.HasType(cap.Type) {
+	if !r.hasType(cap.Type) {
 		return fmt.Errorf("cannot add capability %q: type %q is unknown", cap.Name, cap.Type)
 	}
 	// Reject capabilities that don't pass type-specific validation
@@ -71,8 +71,8 @@ func (r *Repository) Add(cap *Capability) error {
 	return nil
 }
 
-// HasType checks if the repository contains the given type.
-func (r *Repository) HasType(t *Type) bool {
+// hasType checks whether the repository contains the given type.
+func (r *Repository) hasType(t *Type) bool {
 	for _, tt := range r.types {
 		if tt == t {
 			return true
@@ -84,12 +84,24 @@ func (r *Repository) HasType(t *Type) bool {
 // Type finds and returns the Type with the given name or nil if
 // it's not found
 func (r *Repository) Type(name string) *Type {
+	r.m.Lock()
+	defer r.m.Unlock()
+
 	for _, t := range r.types {
 		if t.Name == name {
 			return t
 		}
 	}
 	return nil
+}
+
+// Capability finds and returns the Capability with the given name or nil if it
+// is not found.
+func (r *Repository) Capability(name string) *Capability {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	return r.caps[name]
 }
 
 // AddType adds a capability type to the repository.

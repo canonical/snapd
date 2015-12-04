@@ -17,29 +17,25 @@
  *
  */
 
-package caps
+package asserts
 
 import (
-	"testing"
-
-	. "gopkg.in/check.v1"
+	"crypto"
+	"encoding/base64"
+	"fmt"
 )
 
-func Test(t *testing.T) {
-	TestingT(t)
-}
-
-type CapabilitySuite struct{}
-
-var _ = Suite(&CapabilitySuite{})
-var testCapability = &Capability{
-	Name:  "test-name",
-	Label: "test-label",
-	Type:  testType,
-	Attrs: nil,
-}
-
-func (s *CapabilitySuite) TestString(c *C) {
-	cap := &Capability{Name: "name", Label: "label", Type: testType}
-	c.Assert(cap.String(), Equals, "name")
+// EncodeDigest encodes a hash algorithm and a digest to be put in an assertion header.
+func EncodeDigest(hash crypto.Hash, hashDigest []byte) (string, error) {
+	algo := ""
+	switch hash {
+	case crypto.SHA256:
+		algo = "sha256"
+	default:
+		return "", fmt.Errorf("unsupported hash")
+	}
+	if len(hashDigest) != hash.Size() {
+		return "", fmt.Errorf("hash digest by %s should be %d bytes", algo, hash.Size())
+	}
+	return fmt.Sprintf("%s %s", algo, base64.RawURLEncoding.EncodeToString(hashDigest)), nil
 }

@@ -20,9 +20,6 @@
 package asserts_test
 
 import (
-	"bytes"
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -43,15 +40,20 @@ type accountKeySuite struct {
 var _ = Suite(&accountKeySuite{})
 
 func (aks *accountKeySuite) SetUpSuite(c *C) {
-	var err error
-	aks.fp = hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
+	cfg1 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db1")}
+	accDb, err := asserts.OpenDatabase(cfg1)
+	c.Assert(err, IsNil)
+	aks.fp, err = accDb.ImportKey("acc-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
+	c.Assert(err, IsNil)
+	pubKey, err := accDb.PublicKey("acc-id1", aks.fp)
+	c.Assert(err, IsNil)
+	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)
+	c.Assert(err, IsNil)
+	aks.pubKeyBody = string(pubKeyEncoded)
+
 	aks.since, err = time.Parse(time.RFC822, "16 Nov 15 15:04 UTC")
 	c.Assert(err, IsNil)
 	aks.until = aks.since.AddDate(1, 0, 0)
-	buf := new(bytes.Buffer)
-	err = testPrivKey1.PublicKey.Serialize(buf)
-	c.Assert(err, IsNil)
-	aks.pubKeyBody = "openpgp " + base64.StdEncoding.EncodeToString(buf.Bytes())
 	aks.sinceLine = "since: " + aks.since.Format(time.RFC3339) + "\n"
 	aks.untilLine = "until: " + aks.until.Format(time.RFC3339) + "\n"
 }
@@ -120,7 +122,7 @@ func (aks *accountKeySuite) TestDecodeInvalidPublicKey(c *C) {
 		{"stuff", "public key: expected format and base64 data separated by space"},
 		{"openpgp _", "public key: could not decode base64 data: .*"},
 		{strings.Replace(aks.pubKeyBody, "openpgp", "mystery", 1), `unsupported public key format: "mystery"`},
-		{"openpgp anVuaw==", "could not parse public key data: .*"},
+		{"openpgp anVuaw==", "could not decode public key data: .*"},
 	}
 
 	for _, test := range invalidPublicKeyTests {
@@ -159,14 +161,14 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 		"since":        aks.since.Format(time.RFC3339),
 		"until":        aks.until.Format(time.RFC3339),
 	}
-	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
+	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
 	c.Assert(err, IsNil)
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	cfg := &asserts.DatabaseConfig{
 		Path: rootDir,
 		TrustedKeys: map[string][]asserts.PublicKey{
-			"canonical": {asserts.WrapPublicKey(&trustedKey.PublicKey)},
+			"canonical": {asserts.OpenPGPPublicKey(&trustedKey.PublicKey)},
 		},
 	}
 	db, err := asserts.OpenDatabase(cfg)
@@ -186,14 +188,14 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 		"since":        aks.since.Format(time.RFC3339),
 		"until":        aks.until.Format(time.RFC3339),
 	}
-	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
+	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
 	c.Assert(err, IsNil)
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	cfg := &asserts.DatabaseConfig{
 		Path: rootDir,
 		TrustedKeys: map[string][]asserts.PublicKey{
-			"canonical": {asserts.WrapPublicKey(&trustedKey.PublicKey)},
+			"canonical": {asserts.OpenPGPPublicKey(&trustedKey.PublicKey)},
 		},
 	}
 	db, err := asserts.OpenDatabase(cfg)

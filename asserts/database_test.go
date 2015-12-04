@@ -24,6 +24,7 @@ import (
 	"crypto"
 	"encoding/base64"
 	"encoding/hex"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -99,7 +100,7 @@ func (dbs *databaseSuite) SetUpTest(c *C) {
 func (dbs *databaseSuite) TestImportKey(c *C) {
 	expectedFingerprint := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
 
-	fingerp, err := dbs.db.ImportKey("account0", testPrivKey1)
+	fingerp, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 	c.Check(fingerp, Equals, expectedFingerprint)
 
@@ -108,13 +109,13 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0600)) // secret
 	// too white box? ok at least until we have more functionality
-	fpriv, err := os.Open(keyPath)
+	privKey, err := ioutil.ReadFile(keyPath)
 	c.Assert(err, IsNil)
-	pk, err := packet.Read(fpriv)
+
+	privKeyFromDisk, err := asserts.DecodePrivateKeyInTest(privKey)
 	c.Assert(err, IsNil)
-	privKeyFromDisk, ok := pk.(*packet.PrivateKey)
-	c.Assert(ok, Equals, true)
-	c.Check(hex.EncodeToString(privKeyFromDisk.PublicKey.Fingerprint[:]), Equals, expectedFingerprint)
+
+	c.Check(privKeyFromDisk.PublicKey().Fingerprint(), Equals, expectedFingerprint)
 }
 
 func (dbs *databaseSuite) TestGenerateKey(c *C) {
@@ -123,6 +124,27 @@ func (dbs *databaseSuite) TestGenerateKey(c *C) {
 	c.Check(fingerp, NotNil)
 	keyPath := filepath.Join(dbs.rootDir, "private-keys-v0/account0", fingerp)
 	c.Check(helpers.FileExists(keyPath), Equals, true)
+}
+
+func (dbs *databaseSuite) TestPublicKey(c *C) {
+	fingerp, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	c.Assert(err, IsNil)
+
+	pubk, err := dbs.db.PublicKey("account0", fingerp[len(fingerp)-8:])
+	c.Assert(err, IsNil)
+	c.Check(pubk.Fingerprint(), Equals, fingerp)
+
+	// usual pattern is to then encode it
+	encoded, err := asserts.EncodePublicKey(pubk)
+	c.Assert(err, IsNil)
+	c.Check(bytes.HasPrefix(encoded, []byte("openpgp ")), Equals, true)
+	data, err := base64.StdEncoding.DecodeString(string(encoded[len("openpgp "):]))
+	c.Assert(err, IsNil)
+	pkt, err := packet.Read(bytes.NewBuffer(data))
+	c.Assert(err, IsNil)
+	pubKey, ok := pkt.(*packet.PublicKey)
+	c.Assert(ok, Equals, true)
+	c.Assert(pubKey.Fingerprint, DeepEquals, testPrivKey1.PublicKey.Fingerprint)
 }
 
 type checkSuite struct {
@@ -141,7 +163,7 @@ func (chks *checkSuite) SetUpTest(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "0",
 	}
-	chks.a, err = asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey0)
+	chks.a, err = asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, asserts.OpenPGPPrivateKey(testPrivKey0))
 	c.Assert(err, IsNil)
 }
 
@@ -155,7 +177,7 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 }
 
 func (chks *checkSuite) TestCheckForgery(c *C) {
-	dbTrustedKey := asserts.WrapPublicKey(&testPrivKey0.PublicKey)
+	dbTrustedKey := asserts.OpenPGPPublicKey(&testPrivKey0.PublicKey)
 
 	cfg := &asserts.DatabaseConfig{
 		Path: chks.rootDir,
@@ -191,15 +213,25 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	c.Assert(err, ErrorMatches, "failed signature verification: .*")
 }
 
-type addFindSuite struct {
-	db *asserts.Database
+type signAddFindSuite struct {
+	signingDB          *asserts.Database
+	signingFingerprint string
+	db                 *asserts.Database
 }
 
-var _ = Suite(&addFindSuite{})
+var _ = Suite(&signAddFindSuite{})
 
-func (afs *addFindSuite) SetUpTest(c *C) {
+func (safs *signAddFindSuite) SetUpTest(c *C) {
+	cfg0 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db0")}
+	db0, err := asserts.OpenDatabase(cfg0)
+	c.Assert(err, IsNil)
+	safs.signingDB = db0
+
+	safs.signingFingerprint, err = db0.ImportKey("canonical", asserts.OpenPGPPrivateKey(testPrivKey0))
+	c.Assert(err, IsNil)
+
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
-	dbTrustedKey := asserts.WrapPublicKey(&testPrivKey0.PublicKey)
+	dbTrustedKey := asserts.OpenPGPPublicKey(&testPrivKey0.PublicKey)
 	cfg := &asserts.DatabaseConfig{
 		Path: rootDir,
 		TrustedKeys: map[string][]asserts.PublicKey{
@@ -208,21 +240,43 @@ func (afs *addFindSuite) SetUpTest(c *C) {
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
-	afs.db = db
+	safs.db = db
 }
 
-func (afs *addFindSuite) TestAddSuperseding(c *C) {
+func (safs *signAddFindSuite) TestSign(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey0)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
 	c.Assert(err, IsNil)
 
-	err = afs.db.Add(a1)
+	err = safs.db.Check(a1)
+	c.Check(err, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignEmptyFingerprint(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "")
+	c.Assert(err, ErrorMatches, "fingerprint is empty")
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
 	c.Assert(err, IsNil)
 
-	retrieved1, err := afs.db.Find(asserts.AssertionType("test-only"), map[string]string{
+	err = safs.db.Add(a1)
+	c.Assert(err, IsNil)
+
+	retrieved1, err := safs.db.Find(asserts.AssertionType("test-only"), map[string]string{
 		"primary-key": "a",
 	})
 	c.Assert(err, IsNil)
@@ -230,42 +284,42 @@ func (afs *addFindSuite) TestAddSuperseding(c *C) {
 	c.Check(retrieved1.Revision(), Equals, 0)
 
 	headers["revision"] = "1"
-	a2, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey0)
+	a2, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
 	c.Assert(err, IsNil)
 
-	err = afs.db.Add(a2)
+	err = safs.db.Add(a2)
 	c.Assert(err, IsNil)
 
-	retrieved2, err := afs.db.Find(asserts.AssertionType("test-only"), map[string]string{
+	retrieved2, err := safs.db.Find(asserts.AssertionType("test-only"), map[string]string{
 		"primary-key": "a",
 	})
 	c.Assert(err, IsNil)
 	c.Check(retrieved2, NotNil)
 	c.Check(retrieved2.Revision(), Equals, 1)
 
-	err = afs.db.Add(a1)
+	err = safs.db.Add(a1)
 	c.Check(err, ErrorMatches, "assertion added must have more recent revision than current one.*")
 }
 
-func (afs *addFindSuite) TestFindNotFound(c *C) {
+func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, testPrivKey0)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
 	c.Assert(err, IsNil)
 
-	err = afs.db.Add(a1)
+	err = safs.db.Add(a1)
 	c.Assert(err, IsNil)
 
-	retrieved1, err := afs.db.Find(asserts.AssertionType("test-only"), map[string]string{
+	retrieved1, err := safs.db.Find(asserts.AssertionType("test-only"), map[string]string{
 		"primary-key": "b",
 	})
 	c.Assert(err, Equals, asserts.ErrNotFound)
 	c.Check(retrieved1, IsNil)
 
 	// checking also extra headers
-	retrieved1, err = afs.db.Find(asserts.AssertionType("test-only"), map[string]string{
+	retrieved1, err = safs.db.Find(asserts.AssertionType("test-only"), map[string]string{
 		"primary-key":  "a",
 		"authority-id": "other-auth-id",
 	})
@@ -273,8 +327,8 @@ func (afs *addFindSuite) TestFindNotFound(c *C) {
 	c.Check(retrieved1, IsNil)
 }
 
-func (afs *addFindSuite) TestFindPrimaryLeftOut(c *C) {
-	retrieved1, err := afs.db.Find(asserts.AssertionType("test-only"), map[string]string{})
+func (safs *signAddFindSuite) TestFindPrimaryLeftOut(c *C) {
+	retrieved1, err := safs.db.Find(asserts.AssertionType("test-only"), map[string]string{})
 	c.Assert(err, ErrorMatches, "must provide primary key: primary-key")
 	c.Check(retrieved1, IsNil)
 }

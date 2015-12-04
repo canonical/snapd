@@ -20,6 +20,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 )
@@ -61,4 +62,40 @@ func (client *Client) Capabilities() (map[string]Capability, error) {
 		return nil, fmt.Errorf("%s: failed to unmarshal response: %v", errPrefix, err)
 	}
 	return resultOk["capabilities"], nil
+}
+
+// AddCapability adds one capability to the system
+func (client *Client) AddCapability(c *Capability) error {
+	errPrefix := "cannot add capability"
+	b, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+	var rsp response
+	if err := client.do("POST", "/1.0/capabilities", bytes.NewReader(b), &rsp); err != nil {
+		return err
+	}
+	if err := rsp.err(); err != nil {
+		return err
+	}
+	if rsp.Type != "sync" {
+		return fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
+	}
+	return nil
+}
+
+// RemoveCapability removes one capability from the system
+func (client *Client) RemoveCapability(name string) error {
+	errPrefix := "cannot remove capability"
+	var rsp response
+	if err := client.do("DELETE", fmt.Sprintf("/1.0/capabilities/%s", name), nil, &rsp); err != nil {
+		return err
+	}
+	if err := rsp.err(); err != nil {
+		return err
+	}
+	if rsp.Type != "sync" {
+		return fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
+	}
+	return nil
 }
