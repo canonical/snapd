@@ -666,14 +666,10 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	snapR, err := os.Open(snapPackage)
 	c.Assert(err, IsNil)
 
-	iconContent := "this is an icon"
-
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/snap":
 			io.Copy(w, snapR)
-		case "/icon":
-			fmt.Fprintf(w, iconContent)
 		default:
 			panic("unexpected url path: " + r.URL.Path)
 		}
@@ -695,14 +691,13 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Check(name, Equals, "foo")
 	st, err := os.Stat(snapPackage)
 	c.Assert(err, IsNil)
-	c.Assert(p.written, Equals, int(st.Size())+len(iconContent))
+	c.Assert(p.written, Equals, int(st.Size()))
 
 	installed, err := ListInstalled()
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	iconPath := filepath.Join(dirs.SnapIconsDir, "foo.bar_1.0.png")
-	c.Check(installed[0].Icon(), Equals, iconPath)
+	c.Check(installed[0].Icon(), Matches, ".*/apps/foo.bar/1.0/foo.svg")
 	c.Check(installed[0].Origin(), Equals, "bar")
 	c.Check(installed[0].Description(), Equals, "this is a description")
 
