@@ -195,10 +195,6 @@ type openpgpPubKey struct {
 	fp     string
 }
 
-func (opgPubKey *openpgpPubKey) IsValidAt(time time.Time) bool {
-	return true
-}
-
 func (opgPubKey *openpgpPubKey) Fingerprint() string {
 	return opgPubKey.fp
 }
