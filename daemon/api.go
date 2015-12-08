@@ -236,13 +236,8 @@ func webify(result map[string]string, resource string) map[string]string {
 	var route *mux.Route
 	var args []string
 
-	if strings.HasPrefix(icon, dirs.SnapIconsDir) {
-		route = metaIconCmd.d.router.Get(metaIconCmd.Path)
-		args = []string{"icon", icon[len(dirs.SnapIconsDir)+1:]}
-	} else {
-		route = appIconCmd.d.router.Get(appIconCmd.Path)
-		args = []string{"name", result["name"], "origin", result["origin"]}
-	}
+	route = appIconCmd.d.router.Get(appIconCmd.Path)
+	args = []string{"name", result["name"], "origin", result["origin"]}
 
 	if route != nil {
 		url, err := route.URL(args...)
@@ -887,20 +882,7 @@ func getLogs(c *Command, r *http.Request) Response {
 	return SyncResponse(logs)
 }
 
-func metaIconGet(c *Command, r *http.Request) Response {
-	vars := muxVars(r)
-	name := vars["icon"]
-
-	path := filepath.Join(dirs.SnapIconsDir, name)
-
-	return FileResponse(path)
-}
-
-func appIconGet(c *Command, r *http.Request) Response {
-	vars := muxVars(r)
-	name := vars["name"]
-	origin := vars["origin"]
-
+func iconGet(name, origin string) Response {
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
 		return InternalError(err, "Unable to acquire lock")
@@ -923,6 +905,25 @@ func appIconGet(c *Command, r *http.Request) Response {
 	}
 
 	return FileResponse(path)
+}
+
+// FXIME: can we kill this? all icons are always availble via the canonical
+//        /1.0/icons/$name.$origin/icon
+func metaIconGet(c *Command, r *http.Request) Response {
+	vars := muxVars(r)
+	nameAndOrigin := vars["icon"]
+
+	name, origin := snappy.SplitOrigin(nameAndOrigin)
+
+	return iconGet(name, origin)
+}
+
+func appIconGet(c *Command, r *http.Request) Response {
+	vars := muxVars(r)
+	name := vars["name"]
+	origin := vars["origin"]
+
+	return iconGet(name, origin)
 }
 
 func getCapabilities(c *Command, r *http.Request) Response {
