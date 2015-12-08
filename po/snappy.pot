@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-12-02 11:46+0100\n"
+        "POT-Creation-Date: 2015-12-08 14:30+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -98,7 +98,7 @@ msgid   "Classic dimension disabled on this system.\n"
 msgstr  ""
 
 msgid   "Classic dimension enabled on this snappy system.\n"
-        "Use “sudo snappy shell classic” to enter the classic dimension."
+        "Use “snappy shell classic” to enter the classic dimension."
 msgstr  ""
 
 msgid   "Classic dimension is already enabled."
