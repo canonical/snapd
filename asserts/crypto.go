@@ -68,21 +68,18 @@ func encodeFormatAndData(format string, data []byte) []byte {
 	return buf.Bytes()
 }
 
-type openpgpSerializer interface {
-	openpgpSerialize(w io.Writer) error
+type keyEncoder interface {
+	keyFormat() string
+	keyEncode(w io.Writer) error
 }
 
-func encodeOpenpgp(obj interface{}, kind string) ([]byte, error) {
-	serializer, ok := obj.(openpgpSerializer)
-	if !ok {
-		return nil, fmt.Errorf("encoding %T: doesn't know how to encode itself (losslessly) as %s", obj, kind)
-	}
+func encodeKey(key keyEncoder, kind string) ([]byte, error) {
 	buf := new(bytes.Buffer)
-	err := serializer.openpgpSerialize(buf)
+	err := key.keyEncode(buf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode %s: %v", kind, err)
 	}
-	return encodeFormatAndData("openpgp", buf.Bytes()), nil
+	return encodeFormatAndData(key.keyFormat(), buf.Bytes()), nil
 }
 
 var openpgpConfig = &packet.Config{
@@ -196,6 +193,8 @@ type PublicKey interface {
 	Fingerprint() string
 	// verify verifies signature is valid for content using the key.
 	verify(content []byte, sig Signature) error
+
+	keyEncoder
 }
 
 type openpgpPubKey struct {
@@ -211,7 +210,11 @@ func (opgPubKey *openpgpPubKey) verify(content []byte, sig Signature) error {
 	return verifyContentSignature(content, sig, opgPubKey.pubKey)
 }
 
-func (opgPubKey openpgpPubKey) openpgpSerialize(w io.Writer) error {
+func (opgPubKey *openpgpPubKey) keyFormat() string {
+	return "openpgp"
+}
+
+func (opgPubKey openpgpPubKey) keyEncode(w io.Writer) error {
 	return opgPubKey.pubKey.Serialize(w)
 }
 
@@ -234,13 +237,15 @@ func decodePublicKey(pubKey []byte) (PublicKey, error) {
 
 // EncodePublicKey serializes a public key, typically for embedding in an assertion.
 func EncodePublicKey(pubKey PublicKey) ([]byte, error) {
-	return encodeOpenpgp(pubKey, "public key")
+	return encodeKey(pubKey, "public key")
 }
 
 // PrivateKey is a cryptographic private/public key pair.
 type PrivateKey interface {
 	// PublicKey returns the public part of the pair.
 	PublicKey() PublicKey
+
+	keyEncoder
 }
 
 type openpgpPrivateKey struct {
@@ -251,7 +256,11 @@ func (opgPrivK openpgpPrivateKey) PublicKey() PublicKey {
 	return OpenPGPPublicKey(&opgPrivK.privk.PublicKey)
 }
 
-func (opgPrivK openpgpPrivateKey) openpgpSerialize(w io.Writer) error {
+func (opgPrivK openpgpPrivateKey) keyFormat() string {
+	return "openpgp"
+}
+
+func (opgPrivK openpgpPrivateKey) keyEncode(w io.Writer) error {
 	return opgPrivK.privk.Serialize(w)
 }
 
@@ -281,5 +290,5 @@ func generatePrivateKey() (*packet.PrivateKey, error) {
 }
 
 func encodePrivateKey(privKey PrivateKey) ([]byte, error) {
-	return encodeOpenpgp(privKey, "private key")
+	return encodeKey(privKey, "private key")
 }
