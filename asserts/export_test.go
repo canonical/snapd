@@ -66,3 +66,8 @@ func init() {
 		primaryKey: []string{"primary-key"},
 	}
 }
+
+// AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
+func AccountKeyIsKeyValidAt(ak *AccountKey, when time.Time) bool {
+	return ak.isKeyValidAt(when)
+}

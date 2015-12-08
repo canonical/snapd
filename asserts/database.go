@@ -274,8 +274,8 @@ func (db *Database) Check(assert Assertion) error {
 	now := time.Now()
 	var lastErr error
 	for _, accKey := range accKeys {
-		if accKey.IsValidAt(now) {
-			err := accKey.Verify(content, sig)
+		if accKey.isKeyValidAt(now) {
+			err := accKey.publicKey().Verify(content, sig)
 			if err == nil {
 				// see if the assertion requires further checks
 				if checker, ok := assert.(consistencyChecker); ok {
