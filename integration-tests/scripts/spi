@@ -19,8 +19,8 @@
 set -x
 
 export GOPATH="$(mktemp -d)"
-trap "rm -rf $GOPATH"EXIT
-export PATH="$PATH:$GOPATH/bin"
+trap "rm -rf $GOPATH" EXIT
+export PATH="$GOPATH/bin:$PATH"
 pwd="$(pwd)"
 
 go get -d -v github.com/ubuntu-core/snappy...
