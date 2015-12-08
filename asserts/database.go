@@ -65,7 +65,7 @@ var (
 // A consistencyChecker performs further checks based on the full
 // assertion database knowledge and its own signing key.
 type consistencyChecker interface {
-	checkConsistency(db *Database, signingPubKey PublicKey) error
+	checkConsistency(db *Database, signingKey *AccountKey) error
 }
 
 // Database holds assertions and can be used to sign or check
@@ -218,7 +218,8 @@ func (db *Database) Sign(assertType AssertionType, headers map[string]string, bo
 // retrieved by giving suffixes of their fingerprint,
 // for safety suffix must be at least 64 bits though
 // TODO: may need more details about the kind of key we are looking for
-func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]PublicKey, error) {
+// and use an interface for the results.
+func (db *Database) findAccountKeys(authorityID, fingerprintSuffix string) ([]*AccountKey, error) {
 	suffixLen := len(fingerprintSuffix)
 	if suffixLen%2 == 1 {
 		return nil, fmt.Errorf("key id/fingerprint suffix cannot specify a half byte")
@@ -226,7 +227,7 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 	if suffixLen < 16 {
 		return nil, fmt.Errorf("key id/fingerprint suffix must be at least 64 bits")
 	}
-	res := make([]PublicKey, 0, 1)
+	res := make([]*AccountKey, 0, 1)
 	cands := db.cfg.TrustedKeys[authorityID]
 	for _, cand := range cands {
 		if strings.HasSuffix(cand.Fingerprint(), fingerprintSuffix) {
@@ -240,9 +241,11 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 		if err != nil {
 			return err
 		}
-		var accKey PublicKey
-		accKey, ok := a.(*AccountKey)
-		if !ok {
+		var accKey *AccountKey
+		switch acck := a.(type) {
+		case *AccountKey:
+			accKey = acck
+		default:
 			return fmt.Errorf("something that is not an account-key under their storage tree")
 		}
 		res = append(res, accKey)
@@ -264,19 +267,19 @@ func (db *Database) Check(assert Assertion) error {
 		return err
 	}
 	// TODO: later may need to consider type of assert to find candidate keys
-	pubKeys, err := db.findPublicKeys(assert.AuthorityID(), sig.KeyID())
+	accKeys, err := db.findAccountKeys(assert.AuthorityID(), sig.KeyID())
 	if err != nil {
 		return fmt.Errorf("error finding matching public key for signature: %v", err)
 	}
 	now := time.Now()
 	var lastErr error
-	for _, pubKey := range pubKeys {
-		if pubKey.IsValidAt(now) {
-			err := pubKey.Verify(content, sig)
+	for _, accKey := range accKeys {
+		if accKey.IsValidAt(now) {
+			err := accKey.Verify(content, sig)
 			if err == nil {
 				// see if the assertion requires further checks
 				if checker, ok := assert.(consistencyChecker); ok {
-					err := checker.checkConsistency(db, pubKey)
+					err := checker.checkConsistency(db, accKey)
 					if err != nil {
 						return fmt.Errorf("signature verifies but assertion violates other knownledge: %v", err)
 					}
