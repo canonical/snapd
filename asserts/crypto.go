@@ -190,6 +190,14 @@ func decodeSignature(signature []byte) (Signature, error) {
 	return openpgpSignature{sig}, nil
 }
 
+// PublicKey is the public part of a cryptographic private/public key pair.
+type PublicKey interface {
+	// Fingerprint returns the key fingerprint.
+	Fingerprint() string
+	// verify verifies signature is valid for content using the key.
+	verify(content []byte, sig Signature) error
+}
+
 type openpgpPubKey struct {
 	pubKey *packet.PublicKey
 	fp     string

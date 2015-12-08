@@ -35,14 +35,6 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 )
 
-// PublicKey is a public key as used by the assertion database.
-type PublicKey interface {
-	// Fingerprint returns the key fingerprint.
-	Fingerprint() string
-	// verify verifies signature is valid for content using the key.
-	verify(content []byte, sig Signature) error
-}
-
 // TODO/XXX: make PublicKey minimal, only Fingerprint exported
 // have a few more internal only methods, to address encodeOpenpgp for example
 // then for now use AccountKey directly for TrustedKeys in DatabaseConfig
