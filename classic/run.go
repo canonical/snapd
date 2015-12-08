@@ -24,8 +24,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
 )
 
 type bindMount struct {
@@ -46,9 +48,15 @@ var bindMountDirs = []bindMount{
 	{"/", "/snappy", ""},
 }
 
+// genClassicScopeName generates an uniq name for the classic scope
+func genClassicScopeName() string {
+	now := time.Now()
+	ti := fmt.Sprintf("%4d-%02d-%02d_%02d:%02d:%02d", now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
+	return fmt.Sprintf("snappy-classic_%s_%s.scope", ti, helpers.MakeRandomString(5))
+}
+
 // RunShell runs a shell in the classic environment
 func RunShell() error {
-
 	// setup the bind mounts
 	for _, m := range bindMountDirs {
 		if err := bindmount(m.src, m.dst, m.remount); err != nil {
@@ -63,17 +71,21 @@ func RunShell() error {
 	}
 
 	// run chroot shell inside a systemd "scope"
-	cmd := exec.Command("systemd-run", "--quiet", "--scope", "--unit=snappy-classic.scope", "--description=Snappy Classic shell", "chroot", dirs.ClassicDir, "sudo", "debian_chroot=classic", "-u", sudoUser, "-i")
+	unitName := genClassicScopeName()
+	cmd := exec.Command("systemd-run", "--quiet", "--scope", fmt.Sprintf("--unit=%s", unitName), "--description=Snappy Classic shell", "chroot", dirs.ClassicDir, "sudo", "debian_chroot=classic", "-u", sudoUser, "-i")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Run()
 
-	// kill leftover processes after exiting, if it's still around
-	cmd = exec.Command("systemctl", "stop", "snappy-classic.scope")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to cleanup classic: %s (%s)", err, output)
-	}
+	// We could inform the user here that
+	//  "systemctl stop $unitName"
+	// will kill all leftover processes inside the classic scope.
+	//
+	// But its also easy to do manually if needed via:
+	//  "systemctl status |grep snappy-classic"
+	//  "systemctl stop $unitName
+	// so we do not clutter the output here.
 
 	return nil
 }

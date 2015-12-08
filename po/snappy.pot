@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-12-02 11:46+0100\n"
+        "POT-Creation-Date: 2015-12-08 16:02+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -68,9 +68,6 @@ msgid   "Activate a package that has previously been deactivated. If the package
 msgstr  ""
 
 msgid   "Add a capability to the system"
-msgstr  ""
-
-msgid   "All background processes will be killed when you leave this shell"
 msgstr  ""
 
 msgid   "Allows rollback of a snap to a previous installed version. Without any arguments, the previous installed version is selected. It is also possible to specify the version to rollback to as a additional argument.\n"
@@ -138,6 +135,9 @@ msgid   "Enable the ubuntu classic dimension."
 msgstr  ""
 
 msgid   "Ensures system is running with latest parts"
+msgstr  ""
+
+msgid   "Entering classic dimension"
 msgstr  ""
 
 msgid   "First boot has already run"

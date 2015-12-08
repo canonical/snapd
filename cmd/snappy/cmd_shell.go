@@ -52,7 +52,7 @@ func (x *cmdShell) Execute(args []string) error {
 Use "sudo snappy enable-classic" to enable it.`))
 		}
 
-		fmt.Println(i18n.G(`All background processes will be killed when you leave this shell`))
+		fmt.Println(i18n.G(`Entering classic dimension`))
 		return classic.RunShell()
 	}
 
