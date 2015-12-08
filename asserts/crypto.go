@@ -191,6 +191,7 @@ func decodeSignature(signature []byte) (Signature, error) {
 type PublicKey interface {
 	// Fingerprint returns the key fingerprint.
 	Fingerprint() string
+
 	// verify verifies signature is valid for content using the key.
 	verify(content []byte, sig Signature) error
 
