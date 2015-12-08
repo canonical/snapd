@@ -35,10 +35,6 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 )
 
-// TODO/XXX: make PublicKey minimal, only Fingerprint exported
-// have a few more internal only methods, to address encodeOpenpgp for example
-// then for now use AccountKey directly for TrustedKeys in DatabaseConfig
-
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
 	// database backstore path
