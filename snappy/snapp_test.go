@@ -659,6 +659,7 @@ func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	// SNAP_* is overriden
 	c.Assert(envMap["SNAP_NAME"], Equals, "hello-app")
 	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
+	c.Check(envMap["LC_ALL"], Equals, "C.UTF-8")
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
