@@ -199,7 +199,7 @@ func (opgPubKey *openpgpPubKey) Fingerprint() string {
 	return opgPubKey.fp
 }
 
-func (opgPubKey *openpgpPubKey) Verify(content []byte, sig Signature) error {
+func (opgPubKey *openpgpPubKey) verify(content []byte, sig Signature) error {
 	return verifyContentSignature(content, sig, opgPubKey.pubKey)
 }
 

@@ -39,8 +39,8 @@ import (
 type PublicKey interface {
 	// Fingerprint returns the key fingerprint.
 	Fingerprint() string
-	// Verify verifies signature is valid for content using the key.
-	Verify(content []byte, sig Signature) error
+	// verify verifies signature is valid for content using the key.
+	verify(content []byte, sig Signature) error
 }
 
 // TODO/XXX: make PublicKey minimal, only Fingerprint exported
@@ -273,7 +273,7 @@ func (db *Database) Check(assert Assertion) error {
 	var lastErr error
 	for _, accKey := range accKeys {
 		if accKey.isKeyValidAt(now) {
-			err := accKey.publicKey().Verify(content, sig)
+			err := accKey.publicKey().verify(content, sig)
 			if err == nil {
 				// see if the assertion requires further checks
 				if checker, ok := assert.(consistencyChecker); ok {
