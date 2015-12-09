@@ -313,6 +313,17 @@ func (safs *signAddFindSuite) TestSignBadRevision(c *C) {
 	c.Check(a1, IsNil)
 }
 
+func (safs *signAddFindSuite) TestSignBuilderError(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+		"count":        "zzz",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `cannot build assertion test-only: "count" header is not an integer: zzz`)
+	c.Check(a1, IsNil)
+}
+
 func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
