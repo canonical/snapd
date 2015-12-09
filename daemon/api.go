@@ -230,17 +230,11 @@ func webify(result map[string]string, resource string) map[string]string {
 	if icon == "" || strings.HasPrefix(icon, "http") {
 		return result
 	}
-
 	result["icon"] = ""
 
-	var route *mux.Route
-	var args []string
-
-	route = appIconCmd.d.router.Get(appIconCmd.Path)
-	args = []string{"name", result["name"], "origin", result["origin"]}
-
+	route := appIconCmd.d.router.Get(appIconCmd.Path)
 	if route != nil {
-		url, err := route.URL(args...)
+		url, err := route.URL("name", result["name"], "origin", result["origin"])
 		if err == nil {
 			result["icon"] = url.String()
 		}
