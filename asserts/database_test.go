@@ -265,6 +265,54 @@ func (safs *signAddFindSuite) TestSignEmptyFingerprint(c *C) {
 	c.Check(a1, IsNil)
 }
 
+func (safs *signAddFindSuite) TestSignMissingAuthorityId(c *C) {
+	headers := map[string]string{
+		"primary-key": "a",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `"authority-id" header is mandatory`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignMissingPrimaryKey(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `"primary-key" header is mandatory`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignNoPrivateKey(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "abcd")
+	c.Assert(err, ErrorMatches, "no matching key pair found")
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignUnknowType(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("xyz"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `unknown assertion type: xyz`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignBadRevision(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+		"revision":     "zzz",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `"revision" header is not an integer: zzz`)
+	c.Check(a1, IsNil)
+}
+
 func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
