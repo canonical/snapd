@@ -227,14 +227,7 @@ func (db *Database) findAccountKeys(authorityID, fingerprintSuffix string) ([]*A
 		if err != nil {
 			return err
 		}
-		var accKey *AccountKey
-		switch acck := a.(type) {
-		case *AccountKey:
-			accKey = acck
-		default:
-			return fmt.Errorf("something that is not an account-key under their storage tree")
-		}
-		res = append(res, accKey)
+		res = append(res, a.(*AccountKey))
 		return nil
 	}
 	err := findWildcard(accountKeysTop, []string{url.QueryEscape(authorityID), "*" + fingerprintSuffix}, foundKeyCb)
@@ -281,6 +274,7 @@ func (db *Database) Check(assert Assertion) error {
 	return fmt.Errorf("failed signature verification: %v", lastErr)
 }
 
+// guarantees that result assertion is of the expected type (both in the AssertionType and go type sense)
 func (db *Database) readAssertion(assertType AssertionType, primaryPath string) (Assertion, error) {
 	encoded, err := db.readEntry(assertionsRoot, string(assertType), primaryPath)
 	if os.IsNotExist(err) {
@@ -293,6 +287,10 @@ func (db *Database) readAssertion(assertType AssertionType, primaryPath string) 
 	if err != nil {
 		return nil, fmt.Errorf("broken assertion storage, failed to decode assertion: %v", err)
 	}
+	if assert.Type() != assertType {
+		return nil, fmt.Errorf("assertion that is not of type %q under their storage tree", assertType)
+	}
+	// because of Decode() construction assert has also the expected go type
 	return assert, nil
 }
 
@@ -334,6 +332,21 @@ func (db *Database) Add(assert Assertion) error {
 	return nil
 }
 
+func (db *Database) checkHit(assertionType AssertionType, headers map[string]string, primaryPath string) (Assertion, error) {
+	assert, err := db.readAssertion(assertionType, primaryPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// check non-primary-key headers as well
+	for expectedKey, expectedValue := range headers {
+		if assert.Header(expectedKey) != expectedValue {
+			return nil, ErrNotFound
+		}
+	}
+	return assert, nil
+}
+
 // Find an assertion based on arbitrary headers.
 // Provided headers must contain the primary key for the assertion type.
 // It returns ErrNotFound if the assertion cannot be found.
@@ -351,15 +364,46 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 		primaryKey[i] = url.QueryEscape(keyVal)
 	}
 	primaryPath := filepath.Join(primaryKey...)
-	assert, err := db.readAssertion(assertionType, primaryPath)
+	return db.checkHit(assertionType, headers, primaryPath)
+}
+
+// FindMany finds assertions based on arbitrary headers.
+// It returns ErrNotFound if no assertion can be found.
+func (db *Database) FindMany(assertionType AssertionType, headers map[string]string) ([]Assertion, error) {
+	reg, err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
 	}
-	// check non-primary-key headers as well
-	for expectedKey, expectedValue := range headers {
-		if assert.Header(expectedKey) != expectedValue {
-			return nil, ErrNotFound
+	res := []Assertion{}
+	primaryKey := make([]string, len(reg.primaryKey))
+	for i, k := range reg.primaryKey {
+		keyVal := headers[k]
+		if keyVal == "" {
+			primaryKey[i] = "*"
+		} else {
+			primaryKey[i] = url.QueryEscape(keyVal)
 		}
 	}
-	return assert, nil
+
+	assertTypeTop := filepath.Join(db.root, assertionsRoot, string(assertionType))
+	foundCb := func(primaryPath string) error {
+		a, err := db.checkHit(assertionType, headers, primaryPath)
+		if err == ErrNotFound {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		res = append(res, a)
+		return nil
+	}
+	err = findWildcard(assertTypeTop, primaryKey, foundCb)
+	if err != nil {
+		return nil, fmt.Errorf("broken assertion storage, scanning for %s: %v", assertionType, err)
+	}
+
+	if len(res) == 0 {
+		return nil, ErrNotFound
+	}
+	return res, nil
 }
