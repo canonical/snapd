@@ -147,6 +147,17 @@ func (dbs *databaseSuite) TestPublicKey(c *C) {
 	c.Assert(pubKey.Fingerprint, DeepEquals, testPrivKey1.PublicKey.Fingerprint)
 }
 
+func (dbs *databaseSuite) TestPublicKeyAmbiguous(c *C) {
+	_, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	c.Assert(err, IsNil)
+	_, err = dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey2))
+	c.Assert(err, IsNil)
+
+	pubk, err := dbs.db.PublicKey("account0", "")
+	c.Assert(err, ErrorMatches, `ambiguous search, more than one key pair found:.*`)
+	c.Check(pubk, IsNil)
+}
+
 type checkSuite struct {
 	rootDir string
 	a       asserts.Assertion
