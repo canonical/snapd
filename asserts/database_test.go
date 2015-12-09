@@ -180,10 +180,8 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	trustedKey := testPrivKey0
 
 	cfg := &asserts.DatabaseConfig{
-		Path: chks.rootDir,
-		TrustedKeys: map[string][]*asserts.AccountKey{
-			"canonical": {asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
-		},
+		Path:        chks.rootDir,
+		TrustedKeys: []*asserts.AccountKey{asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -233,10 +231,8 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	trustedKey := testPrivKey0
 	cfg := &asserts.DatabaseConfig{
-		Path: rootDir,
-		TrustedKeys: map[string][]*asserts.AccountKey{
-			"canonical": {asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
-		},
+		Path:        rootDir,
+		TrustedKeys: []*asserts.AccountKey{asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)

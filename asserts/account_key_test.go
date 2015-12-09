@@ -166,10 +166,8 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	cfg := &asserts.DatabaseConfig{
-		Path: rootDir,
-		TrustedKeys: map[string][]*asserts.AccountKey{
-			"canonical": {asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
-		},
+		Path:        rootDir,
+		TrustedKeys: []*asserts.AccountKey{asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -193,10 +191,8 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	cfg := &asserts.DatabaseConfig{
-		Path: rootDir,
-		TrustedKeys: map[string][]*asserts.AccountKey{
-			"canonical": {asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
-		},
+		Path:        rootDir,
+		TrustedKeys: []*asserts.AccountKey{asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
