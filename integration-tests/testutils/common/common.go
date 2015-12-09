@@ -70,7 +70,7 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 
 	// Workaround for bug https://bugs.launchpad.net/snappy/+bug/1498293
 	// TODO remove once the bug is fixed
-	wait.ForFunction(c, "regular", partition.Mode)	
+	wait.ForFunction(c, "regular", partition.Mode)
 
 	var err error
 	Cfg, err = config.ReadConfig(
