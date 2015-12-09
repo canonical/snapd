@@ -34,6 +34,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -61,9 +62,16 @@ type SnappySuite struct {
 	testutil.BaseTest
 }
 
-// SetUpSuite disables the snappy autopilot. It will run before all the
-// integration suites.
+// SetUpSuite disables the snappy autopilot and handles the real update and
+// rollback scenarios. It will run before all the integration suites.
 func (s *SnappySuite) SetUpSuite(c *check.C) {
+	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
+	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
+
+	// Workaround for bug https://bugs.launchpad.net/snappy/+bug/1498293
+	// TODO remove once the bug is fixed
+	wait.ForFunction(c, "regular", partition.Mode)	
+
 	var err error
 	Cfg, err = config.ReadConfig(
 		"integration-tests/data/output/testconfig.json")
