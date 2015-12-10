@@ -194,6 +194,6 @@ func init() {
 	}
 	typeRegistry[SnapSequenceType] = &assertionTypeRegistration{
 		builder:    buildSnapSequence,
-		primaryKey: []string{"snap-id", "sequence"},
+		primaryKey: []string{"snap-id", "snap-digest"},
 	}
 }
