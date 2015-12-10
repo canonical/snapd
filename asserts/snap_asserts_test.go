@@ -34,7 +34,10 @@ type snapDeclSuite struct {
 	tsLine string
 }
 
-var _ = Suite(&snapDeclSuite{})
+var (
+	_ = Suite(&snapDeclSuite{})
+	_ = Suite(&snapSeqSuite{})
+)
 
 func (sds *snapDeclSuite) SetUpSuite(c *C) {
 	sds.ts = time.Now().Truncate(time.Second).UTC()
@@ -97,15 +100,15 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func makeSignAndCheckDbWithAccountKey(c *C) (accFingerp string, accSignDB, checkDB *asserts.Database) {
+func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (accFingerp string, accSignDB, checkDB *asserts.Database) {
 	trustedKey := testPrivKey0
 
 	cfg1 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db1")}
 	accSignDB, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
-	accFingerp, err = accSignDB.ImportKey("dev-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
+	accFingerp, err = accSignDB.ImportKey(accountID, asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
-	pubKey, err := accSignDB.PublicKey("dev-id1", accFingerp)
+	pubKey, err := accSignDB.PublicKey(accountID, accFingerp)
 	c.Assert(err, IsNil)
 	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)
 	c.Assert(err, IsNil)
@@ -113,7 +116,7 @@ func makeSignAndCheckDbWithAccountKey(c *C) (accFingerp string, accSignDB, check
 
 	headers := map[string]string{
 		"authority-id": "canonical",
-		"account-id":   "dev-id1",
+		"account-id":   accountID,
 		"fingerprint":  accFingerp,
 		"since":        "2015-11-20T15:04:00Z",
 		"until":        "2500-11-20T15:04:00Z",
@@ -138,7 +141,7 @@ func makeSignAndCheckDbWithAccountKey(c *C) (accFingerp string, accSignDB, check
 }
 
 func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
-	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c)
+	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "dev-id1")
 
 	headers := map[string]string{
 		"authority-id": "dev-id1",
@@ -156,7 +159,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
 }
 
 func (sds *snapDeclSuite) TestSnapDeclarationCheckInconsistentTimestamp(c *C) {
-	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c)
+	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "dev-id1")
 
 	headers := map[string]string{
 		"authority-id": "dev-id1",
@@ -171,4 +174,111 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckInconsistentTimestamp(c *C) {
 
 	err = db.Check(snapDecl)
 	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knowledge: snap-declaration timestamp outside of signing key validity")
+}
+
+type snapSeqSuite struct {
+	ts           time.Time
+	tsLine       string
+	validEncoded string
+}
+
+func (sss *snapSeqSuite) SetUpSuite(c *C) {
+	sss.ts = time.Now().Truncate(time.Second).UTC()
+	sss.tsLine = "timestamp: " + sss.ts.Format(time.RFC3339) + "\n"
+}
+
+func (sss *snapSeqSuite) makeValidEncoded() string {
+	return "type: snap-sequence\n" +
+		"authority-id: store-id1\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-digest: sha256 ...\n" +
+		"sequence: 1\n" +
+		"snap-declaration: sha256 ...\n" +
+		"developer-id: dev-id1\n" +
+		"revision: 1\n" +
+		sss.tsLine +
+		"body-length: 0" +
+		"\n\n" +
+		"openpgp c2ln"
+}
+
+func (sss *snapSeqSuite) makeHeaders(overrides map[string]string) map[string]string {
+	headers := map[string]string{
+		"authority-id":     "store-id1",
+		"snap-id":          "snap-id-1",
+		"snap-digest":      "sha256 ...",
+		"sequence":         "1",
+		"snap-declaration": "sha256 ...",
+		"developer-id":     "dev-id1",
+		"revision":         "1",
+		"timestamp":        "2015-11-25T20:00:00Z",
+	}
+	for k, v := range overrides {
+		headers[k] = v
+	}
+	return headers
+}
+
+func (sss *snapSeqSuite) TestDecodeOK(c *C) {
+	encoded := sss.makeValidEncoded()
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SnapSequenceType)
+	snapSeq := a.(*asserts.SnapSequence)
+	c.Check(snapSeq.AuthorityID(), Equals, "store-id1")
+	c.Check(snapSeq.Timestamp(), Equals, sss.ts)
+	c.Check(snapSeq.SnapID(), Equals, "snap-id-1")
+	c.Check(snapSeq.SnapDigest(), Equals, "sha256 ...")
+	c.Check(snapSeq.Sequence(), Equals, uint64(1))
+	c.Check(snapSeq.SnapDeclaration(), Equals, "sha256 ...")
+	c.Check(snapSeq.DeveloperID(), Equals, "dev-id1")
+	c.Check(snapSeq.Revision(), Equals, 1)
+}
+
+const (
+	snapSeqErrPrefix = "assertion snap-sequence: "
+)
+
+func (sss *snapSeqSuite) TestDecodeInvalid(c *C) {
+	encoded := sss.makeValidEncoded()
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
+		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
+		{"sequence: 1\n", "", `"sequence" header is mandatory`},
+		{"sequence: 1\n", "sequence: -1\n", `"sequence" header is not an unsigned integer: -1`},
+		{"sequence: 1\n", "sequence: zzz\n", `"sequence" header is not an unsigned integer: zzz`},
+		{"snap-declaration: sha256 ...\n", "", `"snap-declaration" header is mandatory`},
+		{"developer-id: dev-id1\n", "", `"developer-id" header is mandatory`},
+		{sss.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, snapSeqErrPrefix+test.expectedErr)
+	}
+}
+
+func (sss *snapSeqSuite) TestSnapSequenceCheck(c *C) {
+	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
+
+	headers := sss.makeHeaders(nil)
+	snapSeq, err := accSignDB.Sign(asserts.SnapSequenceType, headers, nil, accFingerp)
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapSeq)
+	c.Assert(err, IsNil)
+}
+
+func (sss *snapSeqSuite) TestSnapSequenceCheckInconsistentTimestamp(c *C) {
+	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
+
+	headers := sss.makeHeaders(map[string]string{
+		"timestamp": "2013-01-01T14:00:00Z",
+	})
+	snapSeq, err := accSignDB.Sign(asserts.SnapSequenceType, headers, nil, accFingerp)
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapSeq)
+	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knowledge: snap-sequence timestamp outside of signing key validity")
 }
