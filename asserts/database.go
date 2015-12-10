@@ -278,7 +278,7 @@ func (db *Database) Check(assert Assertion) error {
 				if checker, ok := assert.(consistencyChecker); ok {
 					err := checker.checkConsistency(db, pubKey)
 					if err != nil {
-						return fmt.Errorf("signature verifies but assertion violates other knownledge: %v", err)
+						return fmt.Errorf("signature verifies but assertion violates other knowledge: %v", err)
 					}
 				}
 				return nil
