@@ -139,6 +139,9 @@ func (assert *SnapSequence) Timestamp() time.Time {
 
 // Implement further consistency checks.
 func (assert *SnapSequence) checkConsistency(db *Database, pubk PublicKey) error {
+	// TODO: check the associated snap-declaration exists.
+	// TODO: check the associated snap-declaration's digest.
+	// TODO: check developer's account-key exists.
 	if !pubk.IsValidAt(assert.timestamp) {
 		return fmt.Errorf("snap-sequence timestamp outside of signing key validity")
 	}
@@ -152,7 +155,6 @@ func buildSnapSequence(assert assertionBase) (Assertion, error) {
 	}
 
 	// TODO: more parsing/checking of this here?
-	// TODO: is this needed at all? it's in the linked snap-declaration.
 	_, err = checkMandatory(assert.headers, "snap-digest")
 	if err != nil {
 		return nil, err
@@ -163,13 +165,11 @@ func buildSnapSequence(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	// TODO: more checking of this? e.g. target assertion exists.
 	_, err = checkMandatory(assert.headers, "snap-declaration")
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: more checking of this? e.g. developer's key exists.
 	_, err = checkMandatory(assert.headers, "developer-id")
 	if err != nil {
 		return nil, err
