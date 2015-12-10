@@ -122,7 +122,7 @@ func (assert *SnapSequence) Sequence() uint64 {
 	return assert.sequence
 }
 
-// SnapDeclaration returns the id of the associated snap-declaration.
+// SnapDeclaration returns the digest of the associated snap-declaration.
 func (assert *SnapSequence) SnapDeclaration() string {
 	return assert.Header("snap-declaration")
 }
