@@ -332,7 +332,7 @@ func (db *Database) Add(assert Assertion) error {
 	return nil
 }
 
-func (db *Database) checkHit(assertionType AssertionType, headers map[string]string, primaryPath string) (Assertion, error) {
+func (db *Database) confirmSearchHit(assertionType AssertionType, headers map[string]string, primaryPath string) (Assertion, error) {
 	assert, err := db.readAssertion(assertionType, primaryPath)
 	if err != nil {
 		return nil, err
@@ -364,7 +364,7 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 		primaryKey[i] = url.QueryEscape(keyVal)
 	}
 	primaryPath := filepath.Join(primaryKey...)
-	return db.checkHit(assertionType, headers, primaryPath)
+	return db.confirmSearchHit(assertionType, headers, primaryPath)
 }
 
 // FindMany finds assertions based on arbitrary headers.
@@ -387,7 +387,7 @@ func (db *Database) FindMany(assertionType AssertionType, headers map[string]str
 
 	assertTypeTop := filepath.Join(db.root, assertionsRoot, string(assertionType))
 	foundCb := func(primaryPath string) error {
-		a, err := db.checkHit(assertionType, headers, primaryPath)
+		a, err := db.confirmSearchHit(assertionType, headers, primaryPath)
 		if err == ErrNotFound {
 			return nil
 		}
@@ -399,7 +399,7 @@ func (db *Database) FindMany(assertionType AssertionType, headers map[string]str
 	}
 	err = findWildcard(assertTypeTop, primaryKey, foundCb)
 	if err != nil {
-		return nil, fmt.Errorf("broken assertion storage, scanning for %s: %v", assertionType, err)
+		return nil, fmt.Errorf("broken assertion storage, searching for %s: %v", assertionType, err)
 	}
 
 	if len(res) == 0 {
