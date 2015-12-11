@@ -161,13 +161,15 @@ func (*systemd) DaemonReload() error {
 func (s *systemd) Enable(serviceName string) error {
 	enableSymlink := filepath.Join(s.rootDir, snapServicesDir, servicesSystemdTarget+".wants", serviceName)
 
-	serviceFilename := filepath.Join(s.rootDir, snapServicesDir, serviceName)
 	// already enabled
 	if _, err := os.Lstat(enableSymlink); err == nil {
 		return nil
 	}
 
-	return os.Symlink(serviceFilename[len(s.rootDir):], enableSymlink)
+	// Do not use s.rootDir here. The link must point to the
+	// real (internal) path.
+	serviceFilename := filepath.Join(snapServicesDir, serviceName)
+	return os.Symlink(serviceFilename, enableSymlink)
 }
 
 // Disable the given service
