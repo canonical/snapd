@@ -122,9 +122,9 @@ func (assert *SnapRevision) Sequence() uint64 {
 	return assert.sequence
 }
 
-// SnapDeclaration returns the digest of the associated snap-declaration.
-func (assert *SnapRevision) SnapDeclaration() string {
-	return assert.Header("snap-declaration")
+// SnapDeclaration returns the digest of the associated snap-build.
+func (assert *SnapRevision) SnapBuild() string {
+	return assert.Header("snap-build")
 }
 
 // DeveloperID returns the developer's ID.
@@ -139,8 +139,8 @@ func (assert *SnapRevision) Timestamp() time.Time {
 
 // Implement further consistency checks.
 func (assert *SnapRevision) checkConsistency(db *Database, pubk PublicKey) error {
-	// TODO: check the associated snap-declaration exists.
-	// TODO: check the associated snap-declaration's digest.
+	// TODO: check the associated snap-build exists.
+	// TODO: check the associated snap-build's digest.
 	// TODO: check developer's account-key exists.
 	if !pubk.IsValidAt(assert.timestamp) {
 		return fmt.Errorf("snap-revision timestamp outside of signing key validity")
@@ -165,7 +165,7 @@ func buildSnapRevision(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	_, err = checkMandatory(assert.headers, "snap-declaration")
+	_, err = checkMandatory(assert.headers, "snap-build")
 	if err != nil {
 		return nil, err
 	}
