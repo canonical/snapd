@@ -99,56 +99,56 @@ func buildSnapDeclaration(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-// SnapSequence holds a snap-sequence assertion, asserting the properties of a
+// SnapRevision holds a snap-revision assertion, asserting the properties of a
 // snap release by a store authority.
-type SnapSequence struct {
+type SnapRevision struct {
 	assertionBase
 	sequence  uint64
 	timestamp time.Time
 }
 
 // SnapID returns the snap id of the built snap.
-func (assert *SnapSequence) SnapID() string {
+func (assert *SnapRevision) SnapID() string {
 	return assert.Header("snap-id")
 }
 
 // SnapDigest returns the digest of the built snap.
-func (assert *SnapSequence) SnapDigest() string {
+func (assert *SnapRevision) SnapDigest() string {
 	return assert.Header("snap-digest")
 }
 
 // Sequence returns the sequence number.
-func (assert *SnapSequence) Sequence() uint64 {
+func (assert *SnapRevision) Sequence() uint64 {
 	return assert.sequence
 }
 
 // SnapDeclaration returns the digest of the associated snap-declaration.
-func (assert *SnapSequence) SnapDeclaration() string {
+func (assert *SnapRevision) SnapDeclaration() string {
 	return assert.Header("snap-declaration")
 }
 
 // DeveloperID returns the developer's ID.
-func (assert *SnapSequence) DeveloperID() string {
+func (assert *SnapRevision) DeveloperID() string {
 	return assert.Header("developer-id")
 }
 
-// Timestamp returns the sequence timestamp.
-func (assert *SnapSequence) Timestamp() time.Time {
+// Timestamp returns the revision timestamp.
+func (assert *SnapRevision) Timestamp() time.Time {
 	return assert.timestamp
 }
 
 // Implement further consistency checks.
-func (assert *SnapSequence) checkConsistency(db *Database, pubk PublicKey) error {
+func (assert *SnapRevision) checkConsistency(db *Database, pubk PublicKey) error {
 	// TODO: check the associated snap-declaration exists.
 	// TODO: check the associated snap-declaration's digest.
 	// TODO: check developer's account-key exists.
 	if !pubk.IsValidAt(assert.timestamp) {
-		return fmt.Errorf("snap-sequence timestamp outside of signing key validity")
+		return fmt.Errorf("snap-revision timestamp outside of signing key validity")
 	}
 	return nil
 }
 
-func buildSnapSequence(assert assertionBase) (Assertion, error) {
+func buildSnapRevision(assert assertionBase) (Assertion, error) {
 	_, err := checkMandatory(assert.headers, "snap-id")
 	if err != nil {
 		return nil, err
@@ -180,7 +180,7 @@ func buildSnapSequence(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	return &SnapSequence{
+	return &SnapRevision{
 		assertionBase: assert,
 		sequence:      sequence,
 		timestamp:     timestamp,
@@ -192,8 +192,8 @@ func init() {
 		builder:    buildSnapDeclaration,
 		primaryKey: []string{"snap-id", "snap-digest"},
 	}
-	typeRegistry[SnapSequenceType] = &assertionTypeRegistration{
-		builder:    buildSnapSequence,
+	typeRegistry[SnapRevisionType] = &assertionTypeRegistration{
+		builder:    buildSnapRevision,
 		primaryKey: []string{"snap-id", "snap-digest"},
 	}
 }
