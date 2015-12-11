@@ -120,14 +120,14 @@ version: %s
 	}
 }
 
-func (s *apiSuite) mkOem(c *check.C, store string) {
+func (s *apiSuite) mkGadget(c *check.C, store string) {
 	content := []byte(fmt.Sprintf(`name: test
 version: 1
-type: oem
-oem: {store: {id: %q}}
+type: gadget
+gadget: {store: {id: %q}}
 `, store))
 
-	d := filepath.Join(dirs.SnapOemDir, "test")
+	d := filepath.Join(dirs.SnapGadgetDir, "test")
 	m := filepath.Join(d, "1", "meta")
 	c.Assert(os.MkdirAll(m, 0755), check.IsNil)
 	c.Assert(os.Symlink("1", filepath.Join(d, "current")), check.IsNil)
@@ -355,7 +355,7 @@ func (s *apiSuite) TestV1Store(c *check.C) {
 	c.Check(v1Cmd.Path, check.Equals, "/1.0")
 
 	s.mkrelease()
-	s.mkOem(c, "some-store")
+	s.mkGadget(c, "some-store")
 
 	v1Cmd.GET(v1Cmd, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)

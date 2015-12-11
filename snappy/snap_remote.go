@@ -40,7 +40,7 @@ type RemoteSnapPart struct {
 	pkg remote.Snap
 }
 
-// Type returns the type of the SnapPart (app, oem, ...)
+// Type returns the type of the SnapPart (app, gadget, ...)
 func (s *RemoteSnapPart) Type() pkg.Type {
 	return s.pkg.Type
 }

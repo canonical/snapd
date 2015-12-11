@@ -14,7 +14,7 @@
     +    config-example-bash:
     +      msg: "huzzah\n"
 
-     oem:
+     gadget:
          branding:
     @@ -20,3 +22,7 @@
              boot-assets:
@@ -59,7 +59,7 @@
              autopilot: true
     +        load-kernel-modules: [tea]
 
-     oem:
+     gadget:
          branding:
 
     ```

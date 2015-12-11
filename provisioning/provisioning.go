@@ -69,7 +69,7 @@ type InstallOptions struct {
 	Output        string
 	Channel       string
 	DevicePart    string `yaml:"device-part,omitempty"`
-	Oem           string
+	Gadget        string
 	DeveloperMode bool `yaml:"developer-mode,omitempty"`
 }
 

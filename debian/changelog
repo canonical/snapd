@@ -52,7 +52,7 @@ ubuntu-snappy (1.5ubuntu1) wily; urgency=medium
   * New upstream release, including the following changes:
     - Use O_TRUNC when copying files
     - Added path redefinition to include test's binaries location
-    - Don't run update-grub, instead use grub.cfg from the oem
+    - Don't run update-grub, instead use grub.cfg from the gadget
       package
     - Do network configuration from first boot
     - zero size systemd of new partition made executable to

@@ -25,7 +25,7 @@ import (
 	"encoding/json"
 )
 
-// Type represents the kind of snap (app, core, frameworks, oem)
+// Type represents the kind of snap (app, core, frameworks, gadget)
 type Type string
 
 // The various types of snap parts we support
@@ -33,7 +33,7 @@ const (
 	TypeApp       Type = "app"
 	TypeCore      Type = "core"
 	TypeFramework Type = "framework"
-	TypeOem       Type = "oem"
+	TypeGadget    Type = "gadget"
 	TypeOS        Type = "os"
 	TypeKernel    Type = "kernel"
 )
