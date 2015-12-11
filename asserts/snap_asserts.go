@@ -122,7 +122,7 @@ func (assert *SnapRevision) Sequence() uint64 {
 	return assert.sequence
 }
 
-// SnapDeclaration returns the digest of the associated snap-build.
+// SnapBuild returns the digest of the associated snap-build.
 func (assert *SnapRevision) SnapBuild() string {
 	return assert.Header("snap-build")
 }
