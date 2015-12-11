@@ -182,12 +182,12 @@ type snapSeqSuite struct {
 	validEncoded string
 }
 
-func (sss *snapSeqSuite) SetUpSuite(c *C) {
-	sss.ts = time.Now().Truncate(time.Second).UTC()
-	sss.tsLine = "timestamp: " + sss.ts.Format(time.RFC3339) + "\n"
+func (suite *snapSeqSuite) SetUpSuite(c *C) {
+	suite.ts = time.Now().Truncate(time.Second).UTC()
+	suite.tsLine = "timestamp: " + suite.ts.Format(time.RFC3339) + "\n"
 }
 
-func (sss *snapSeqSuite) makeValidEncoded() string {
+func (suite *snapSeqSuite) makeValidEncoded() string {
 	return "type: snap-sequence\n" +
 		"authority-id: store-id1\n" +
 		"snap-id: snap-id-1\n" +
@@ -196,13 +196,13 @@ func (sss *snapSeqSuite) makeValidEncoded() string {
 		"snap-declaration: sha256 ...\n" +
 		"developer-id: dev-id1\n" +
 		"revision: 1\n" +
-		sss.tsLine +
+		suite.tsLine +
 		"body-length: 0" +
 		"\n\n" +
 		"openpgp c2ln"
 }
 
-func (sss *snapSeqSuite) makeHeaders(overrides map[string]string) map[string]string {
+func (suite *snapSeqSuite) makeHeaders(overrides map[string]string) map[string]string {
 	headers := map[string]string{
 		"authority-id":     "store-id1",
 		"snap-id":          "snap-id-1",
@@ -219,14 +219,14 @@ func (sss *snapSeqSuite) makeHeaders(overrides map[string]string) map[string]str
 	return headers
 }
 
-func (sss *snapSeqSuite) TestDecodeOK(c *C) {
-	encoded := sss.makeValidEncoded()
+func (suite *snapSeqSuite) TestDecodeOK(c *C) {
+	encoded := suite.makeValidEncoded()
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.SnapSequenceType)
 	snapSeq := a.(*asserts.SnapSequence)
 	c.Check(snapSeq.AuthorityID(), Equals, "store-id1")
-	c.Check(snapSeq.Timestamp(), Equals, sss.ts)
+	c.Check(snapSeq.Timestamp(), Equals, suite.ts)
 	c.Check(snapSeq.SnapID(), Equals, "snap-id-1")
 	c.Check(snapSeq.SnapDigest(), Equals, "sha256 ...")
 	c.Check(snapSeq.Sequence(), Equals, uint64(1))
@@ -239,8 +239,8 @@ const (
 	snapSeqErrPrefix = "assertion snap-sequence: "
 )
 
-func (sss *snapSeqSuite) TestDecodeInvalid(c *C) {
-	encoded := sss.makeValidEncoded()
+func (suite *snapSeqSuite) TestDecodeInvalid(c *C) {
+	encoded := suite.makeValidEncoded()
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
@@ -249,7 +249,7 @@ func (sss *snapSeqSuite) TestDecodeInvalid(c *C) {
 		{"sequence: 1\n", "sequence: zzz\n", `"sequence" header is not an unsigned integer: zzz`},
 		{"snap-declaration: sha256 ...\n", "", `"snap-declaration" header is mandatory`},
 		{"developer-id: dev-id1\n", "", `"developer-id" header is mandatory`},
-		{sss.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+		{suite.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
 	for _, test := range invalidTests {
@@ -259,10 +259,10 @@ func (sss *snapSeqSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func (sss *snapSeqSuite) TestSnapSequenceCheck(c *C) {
+func (suite *snapSeqSuite) TestSnapSequenceCheck(c *C) {
 	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
 
-	headers := sss.makeHeaders(nil)
+	headers := suite.makeHeaders(nil)
 	snapSeq, err := accSignDB.Sign(asserts.SnapSequenceType, headers, nil, accFingerp)
 	c.Assert(err, IsNil)
 
@@ -270,10 +270,10 @@ func (sss *snapSeqSuite) TestSnapSequenceCheck(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (sss *snapSeqSuite) TestSnapSequenceCheckInconsistentTimestamp(c *C) {
+func (suite *snapSeqSuite) TestSnapSequenceCheckInconsistentTimestamp(c *C) {
 	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
 
-	headers := sss.makeHeaders(map[string]string{
+	headers := suite.makeHeaders(map[string]string{
 		"timestamp": "2013-01-01T14:00:00Z",
 	})
 	snapSeq, err := accSignDB.Sign(asserts.SnapSequenceType, headers, nil, accFingerp)
@@ -283,8 +283,8 @@ func (sss *snapSeqSuite) TestSnapSequenceCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knowledge: snap-sequence timestamp outside of signing key validity")
 }
 
-func (sss *snapSeqSuite) TestPrimaryKey(c *C) {
-	headers := sss.makeHeaders(nil)
+func (suite *snapSeqSuite) TestPrimaryKey(c *C) {
+	headers := suite.makeHeaders(nil)
 
 	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
 	snapSeq, err := accSignDB.Sign(asserts.SnapSequenceType, headers, nil, accFingerp)
