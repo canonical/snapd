@@ -282,3 +282,19 @@ func (sss *snapSeqSuite) TestSnapSequenceCheckInconsistentTimestamp(c *C) {
 	err = db.Check(snapSeq)
 	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knowledge: snap-sequence timestamp outside of signing key validity")
 }
+
+func (sss *snapSeqSuite) TestPrimaryKey(c *C) {
+	headers := sss.makeHeaders(nil)
+
+	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
+	snapSeq, err := accSignDB.Sign(asserts.SnapSequenceType, headers, nil, accFingerp)
+	c.Assert(err, IsNil)
+	err = db.Add(snapSeq)
+	c.Assert(err, IsNil)
+
+	_, err = db.Find(asserts.SnapSequenceType, map[string]string{
+		"snap-id":     headers["snap-id"],
+		"snap-digest": headers["snap-digest"],
+	})
+	c.Assert(err, IsNil)
+}
