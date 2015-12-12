@@ -1057,26 +1057,27 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	// remove generated services, binaries, clickHooks, security policy
+	// not bailing on error because the system might be wonky
 	if err := s.m.removePackageBinaries(s.basedir); err != nil {
-		return err
+		inter.Notify(fmt.Sprintf("deactivate continuing despite being unable to remove binary: %v", err))
 	}
 
 	if err := s.m.removePackageServices(s.basedir, inter); err != nil {
-		return err
+		inter.Notify(fmt.Sprintf("deactivate continuing despite being unable to remove service: %v", err))
 	}
 
 	if err := s.m.removeSecurityPolicy(s.basedir); err != nil {
-		return err
+		inter.Notify(fmt.Sprintf("deactivate continuing despite being unable to remove security policy: %v", err))
 	}
 
 	if s.Type() == pkg.TypeFramework {
 		if err := policy.Remove(s.Name(), s.basedir, dirs.GlobalRootDir); err != nil {
-			return err
+			inter.Notify(fmt.Sprintf("deactivate continuing despite being unable to remove policy: %v", err))
 		}
 	}
 
 	if err := removeClickHooks(s.m, s.origin, inhibitHooks); err != nil {
-		return err
+		inter.Notify(fmt.Sprintf("deactivate continuing despite being unable to click hook: %v", err))
 	}
 
 	// and finally the current symlink
