@@ -462,6 +462,38 @@ func (ts *HTestSuite) TestUnpacksMknod(c *C) {
 	c.Assert(mknodWasCalled, Equals, true)
 }
 
+func (ts *HTestSuite) TestUnpackOverwriteSymlink(c *C) {
+	tmpdir := c.MkDir()
+	c.Assert(os.Symlink("foo", filepath.Join(tmpdir, "test")), IsNil)
+	tmpfile := filepath.Join(tmpdir, "device.tar")
+
+	c.Assert(exec.Command("tar", "cf", tmpfile, tmpdir).Run(), IsNil)
+
+	f, err := os.Open(tmpfile)
+	c.Assert(err, IsNil)
+
+	err = UnpackTar(f, "/", nil)
+	c.Assert(err, IsNil)
+}
+
+func (ts *HTestSuite) TestUnpackOverwriteSymlinkIsh(c *C) {
+	tmpdir := c.MkDir()
+	testfile := filepath.Join(tmpdir, "foo")
+	c.Assert(os.Symlink("/etc/fstab", testfile), IsNil)
+	tmpfile := filepath.Join(tmpdir, "device.tar")
+
+	c.Assert(exec.Command("tar", "cf", tmpfile, tmpdir).Run(), IsNil)
+
+	c.Assert(os.Remove(testfile), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(testfile, "bar", "baz"), 0755), IsNil)
+
+	f, err := os.Open(tmpfile)
+	c.Assert(err, IsNil)
+
+	err = UnpackTar(f, "/", nil)
+	c.Assert(err, ErrorMatches, ".*: directory not empty")
+}
+
 func (ts *HTestSuite) TestGetattr(c *C) {
 	T := struct {
 		S string
