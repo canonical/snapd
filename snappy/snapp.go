@@ -1057,17 +1057,10 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	// remove generated services, binaries, clickHooks, security policy
-	if err := s.m.removePackageBinaries(s.basedir); err != nil {
-		return err
-	}
-
-	if err := s.m.removePackageServices(s.basedir, inter); err != nil {
-		return err
-	}
-
-	if err := s.m.removeSecurityPolicy(s.basedir); err != nil {
-		return err
-	}
+	// not bailing on error because the system might be wonky
+	s.m.removePackageBinaries(s.basedir)
+	s.m.removePackageServices(s.basedir, inter)
+	s.m.removeSecurityPolicy(s.basedir)
 
 	if s.Type() == pkg.TypeFramework {
 		if err := policy.Remove(s.Name(), s.basedir, dirs.GlobalRootDir); err != nil {
