@@ -143,6 +143,12 @@ func UnpackTar(r io.Reader, targetDir string, fn UnpackTarTransformFunc) error {
 				return nil
 			}
 		case IsSymlink(mode):
+			// tar is also doing this!
+			if FileExists(path) {
+				if err := os.Remove(path); err != nil {
+					return err
+				}
+			}
 			if err := os.Symlink(hdr.Linkname, path); err != nil {
 				return err
 			}
