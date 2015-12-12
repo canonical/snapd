@@ -1058,7 +1058,7 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 
 	// remove generated services, binaries, clickHooks, security policy
 	// not bailing on error because the system might be wonky
-	if s.m.removePackageBinaries(s.basedir); err != nil {
+	if err := s.m.removePackageBinaries(s.basedir); err != nil {
 		inter.Notify(fmt.Sprintf("deactivate continuing despite being unable to remove binary: %v", err))
 	}
 
