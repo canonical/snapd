@@ -631,21 +631,29 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 	}
 	part.hash = h.ArchiveSha512
 
-	remoteManifestPath := RemoteManifestPath(part)
+	if err := part.loadRemoteManifest(); err != nil {
+		return nil, err
+	}
+
+	return part, nil
+}
+
+func (s *SnapPart) loadRemoteManifest() error {
+	remoteManifestPath := RemoteManifestPath(s)
 	if helpers.FileExists(remoteManifestPath) {
 		content, err := ioutil.ReadFile(remoteManifestPath)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		var r remote.Snap
 		if err := yaml.Unmarshal(content, &r); err != nil {
-			return nil, &ErrInvalidYaml{File: remoteManifestPath, Err: err, Yaml: content}
+			return &ErrInvalidYaml{File: remoteManifestPath, Err: err, Yaml: content}
 		}
-		part.remoteM = &r
+		s.remoteM = &r
 	}
 
-	return part, nil
+	return nil
 }
 
 // Type returns the type of the SnapPart (app, oem, ...)
@@ -1903,7 +1911,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 }
 
 // Updates returns the available updates
-func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
+func (s *SnapUbuntuStoreRepository) Updates() ([]Part, error) {
 	// the store only supports apps, oem and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
 	//
@@ -1943,11 +1951,16 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 		return nil, err
 	}
 
+	parts := make([]Part, 0, len(updateData))
 	for _, pkg := range updateData {
 		current := ActiveSnapByName(pkg.Name)
 		if current == nil || current.Version() != pkg.Version {
-			snap := NewRemoteSnapPart(pkg)
-			parts = append(parts, snap)
+			ps, _ := s.Details(pkg.Name, pkg.Origin)
+			// ps will have len(1) iff nothing failed and it found 1 snap with the given name/origin, as expected.
+			// Anything else is uninteresting from update's perspective.
+			if len(ps) == 1 {
+				parts = append(parts, ps[0])
+			}
 		}
 	}
 
@@ -1995,4 +2008,69 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 	}
 
 	return env
+}
+
+// Fixup cleans up after some errors
+func Fixup() error {
+	// This fixes *one* issue. Move it out into a list of
+	// functions if you need to fix more than one. Keep each fixup
+	// simple.
+
+	installed, err := NewMetaLocalRepository().Installed()
+	if err != nil {
+		return err
+	}
+
+	backup := make(map[string]*SnapPart, len(installed)/2)
+	tofix := make([]*SnapPart, 0, len(installed)/2)
+	for i := range installed {
+		snap, ok := installed[i].(*SnapPart)
+		if !ok {
+			continue
+		}
+
+		if snap.Type() == pkg.TypeApp {
+			// not this fix
+			continue
+		}
+
+		if snap.IsActive() {
+			if snap.remoteM == nil {
+				tofix = append(tofix, snap)
+			}
+			continue
+		}
+
+		if snap.remoteM == nil {
+			continue
+		}
+
+		old, ok := backup[snap.Name()]
+		if ok && VersionCompare(snap.Version(), old.Version()) < 0 {
+			snap = old
+		}
+		backup[snap.Name()] = snap
+	}
+
+	for _, snap := range tofix {
+		logger.Noticef("fixup: %s %s v%s has no remote manifest", snap.Type(), snap.Name(), snap.Version())
+
+		old, ok := backup[snap.Name()]
+		if !ok {
+			logger.Noticef("fixup: no back up option; continuing")
+			continue
+		}
+		logger.Noticef("fixup: using backup remote manifest from v%s", old.Version())
+
+		r := &RemoteSnapPart{pkg: *old.remoteM}
+		r.pkg.Version = snap.Version()
+
+		logger.Noticef("saving a new one at %s", RemoteManifestPath(r))
+		if err := r.saveStoreManifest(); err != nil {
+			// not good
+			return err
+		}
+	}
+
+	return nil
 }

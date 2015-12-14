@@ -225,7 +225,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	var dlURL, iconURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/details/foo":
+		case "/details/foo.sideload":
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
