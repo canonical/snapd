@@ -12,6 +12,10 @@ RELEASE = $(shell lsb_release -c -s)
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd
 
 override_dh_systemd_enable:
+	# enable early-setup
+	dh_systemd_enable \
+		-pubuntu-snappy \
+		ubuntu-snappy.early-setup.service
 	# enable boot-ok
 	dh_systemd_enable \
 		-pubuntu-snappy \
@@ -47,6 +51,10 @@ override_dh_systemd_enable:
 		ubuntu-snappy.snapd.socket
 
 override_dh_systemd_start:
+	# start early-setup
+	dh_systemd_start \
+		-pubuntu-snappy \
+		ubuntu-snappy.early-setup.service
 	# start boot-ok
 	dh_systemd_start \
 		-pubuntu-snappy \
