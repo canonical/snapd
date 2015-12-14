@@ -51,7 +51,7 @@ var (
 const (
 	autopilotTimer         string = "snappy-autopilot.timer"
 	autopilotTimerEnabled  string = "enabled"
-	autopilotTimerDisabled string = "disabled"
+	autopilotTimerDisabled string = "masked"
 )
 
 var (
@@ -538,9 +538,17 @@ var getAutopilot = func() (state bool, err error) {
 
 // for testing purposes
 var (
-	cmdEnableAutopilot  = []string{"enable", autopilotTimer}
-	cmdStartAutopilot   = []string{"start", autopilotTimer}
-	cmdDisableAutopilot = []string{"disable", autopilotTimer}
+	// We use systemctl mask/unmask to enable/disable
+	// the systemd units because of the way that the
+	// writable path system works.
+	cmdEnableAutopilot = []string{"unmask", autopilotTimer}
+	cmdStartAutopilot  = []string{"start", autopilotTimer}
+	// "systemctl disable" is not enough, because disable will
+	// remove the systemd unit file. however because the unit file
+	// is on the writable partition and on the base-os when its
+	// missing it will get created again. "systemctl mask" will
+	// create a symlink to /dev/null so all is fine.
+	cmdDisableAutopilot = []string{"mask", autopilotTimer}
 	cmdStopAutopilot    = []string{"stop", autopilotTimer}
 )
 

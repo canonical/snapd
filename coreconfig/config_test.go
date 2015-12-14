@@ -78,7 +78,7 @@ func (cts *ConfigTestSuite) SetUpTest(c *C) {
 	os.Setenv(tzPathEnvironment, tzPath)
 
 	cmdSystemctl = "/bin/sh"
-	cmdAutopilotEnabled = []string{"-c", "echo disabled"}
+	cmdAutopilotEnabled = []string{"-c", "echo masked"}
 	cmdEnableAutopilot = []string{"-c", "/bin/true"}
 	cmdStartAutopilot = []string{"-c", "/bin/true"}
 
