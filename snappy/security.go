@@ -31,6 +31,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/pkg"
 )
@@ -103,7 +104,7 @@ func handleApparmor(buildDir string, m *packageYaml, hookName string, s *Securit
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(buildDir, apparmorJSONFile), securityJSONContent, 0644); err != nil {
+	if err := helpers.AtomicWriteFile(filepath.Join(buildDir, apparmorJSONFile), securityJSONContent, 0644, 0); err != nil {
 		return err
 	}
 

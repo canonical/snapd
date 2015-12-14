@@ -22,7 +22,6 @@ package snappy
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -139,7 +138,7 @@ func stampFirstBoot() error {
 		}
 	}
 
-	return ioutil.WriteFile(stampFile, []byte{}, 0644)
+	return helpers.AtomicWriteFile(stampFile, []byte{}, 0644, 0)
 }
 
 var globs = []string{"/sys/class/net/eth*", "/sys/class/net/en*"}

@@ -25,13 +25,13 @@ package snappy
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/pkg"
 )
@@ -222,7 +222,7 @@ func writeOemHardwareUdevRules(m *packageYaml) error {
 			return err
 		}
 		outfile := filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("80-snappy_%s_%s.rules", m.Name, h.PartID))
-		if err := ioutil.WriteFile(outfile, []byte(rulesContent), 0644); err != nil {
+		if err := helpers.AtomicWriteFile(outfile, []byte(rulesContent), 0644, 0); err != nil {
 			return err
 		}
 	}
@@ -271,7 +271,7 @@ func writeApparmorAdditionalFile(m *packageYaml) error {
 
 	for _, h := range m.OEM.Hardware.Assign {
 		jsonAdditionalPath := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
-		if err := ioutil.WriteFile(jsonAdditionalPath, []byte(apparmorAdditionalContent), 0644); err != nil {
+		if err := helpers.AtomicWriteFile(jsonAdditionalPath, []byte(apparmorAdditionalContent), 0644, 0); err != nil {
 			return err
 		}
 	}
