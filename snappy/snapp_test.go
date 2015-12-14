@@ -531,17 +531,24 @@ func mockActiveSnapIterByType(mockSnaps []string) {
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jsonReq, err := ioutil.ReadAll(r.Body)
-		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"name":["`+funkyAppName+`"]}`)
-		io.WriteString(w, MockUpdatesJSON)
+		if r.URL.Path == "/updates" {
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			c.Assert(string(jsonReq), Equals, `{"name":["`+funkyAppName+`"]}`)
+			io.WriteString(w, MockUpdatesJSON)
+		} else {
+			c.Check(r.URL.Path, Equals, "/details/"+funkyAppName+"."+funkyAppOrigin)
+			io.WriteString(w, MockDetailsJSON)
+		}
 	}))
 
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
 	var err error
-	storeBulkURI, err = url.Parse(mockServer.URL + "/updates/")
+	storeBulkURI, err = url.Parse(mockServer.URL + "/updates")
+	c.Assert(err, IsNil)
+	storeDetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 	snap := NewUbuntuStoreSnapRepository()
 	c.Assert(snap, NotNil)

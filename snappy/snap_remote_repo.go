@@ -310,7 +310,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 }
 
 // Updates returns the available updates
-func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
+func (s *SnapUbuntuStoreRepository) Updates() ([]Part, error) {
 	// the store only supports apps, oem and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
 	//
@@ -347,11 +347,14 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 		return nil, err
 	}
 
+	parts := make([]Part, 0, len(updateData))
 	for _, pkg := range updateData {
 		current := ActiveSnapByName(pkg.Name)
 		if current == nil || current.Version() != pkg.Version {
-			snap := NewRemoteSnapPart(pkg)
-			parts = append(parts, snap)
+			ps, _ := s.Details(pkg.Name, pkg.Origin)
+			if len(ps) == 1 {
+				parts = append(parts, ps[0])
+			}
 		}
 	}
 
