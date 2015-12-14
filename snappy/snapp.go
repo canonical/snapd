@@ -1786,10 +1786,22 @@ func (s *SnapUbuntuStoreRepository) Description() string {
 }
 
 // Details returns details for the given snap in this repository
-func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts []Part, err error) {
+func (s *SnapUbuntuStoreRepository) Details(name string, origin string) ([]Part, error) {
+	part, err := s.detail(name, origin, "")
+	if err != nil {
+		return nil, err
+	}
+
+	return []Part{part}, nil
+}
+
+func (s *SnapUbuntuStoreRepository) detail(name, origin, channel string) (Part, error) {
 	snapName := name
 	if origin != "" {
 		snapName = name + "." + origin
+	}
+	if channel != "" {
+		snapName = snapName + "/" + channel
 	}
 
 	url, err := s.detailsURI.Parse(snapName)
@@ -1817,7 +1829,7 @@ func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts [
 	case resp.StatusCode == 404:
 		return nil, ErrPackageNotFound
 	case resp.StatusCode != 200:
-		return parts, fmt.Errorf("SnapUbuntuStoreRepository: unexpected http statusCode %v for %s", resp.StatusCode, snapName)
+		return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected http statusCode %v for %s", resp.StatusCode, snapName)
 	}
 
 	// and decode json
@@ -1827,10 +1839,7 @@ func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts [
 		return nil, err
 	}
 
-	snap := NewRemoteSnapPart(detailsData)
-	parts = append(parts, snap)
-
-	return parts, nil
+	return NewRemoteSnapPart(detailsData), nil
 }
 
 // All (installable) parts from the store
@@ -1955,11 +1964,8 @@ func (s *SnapUbuntuStoreRepository) Updates() ([]Part, error) {
 	for _, pkg := range updateData {
 		current := ActiveSnapByName(pkg.Name)
 		if current == nil || current.Version() != pkg.Version {
-			ps, _ := s.Details(pkg.Name, pkg.Origin)
-			// ps will have len(1) iff nothing failed and it found 1 snap with the given name/origin, as expected.
-			// Anything else is uninteresting from update's perspective.
-			if len(ps) == 1 {
-				parts = append(parts, ps[0])
+			if part, err := s.detail(pkg.Name, pkg.Origin, pkg.Channel); err == nil {
+				parts = append(parts, part)
 			}
 		}
 	}
