@@ -1962,6 +1962,9 @@ func (s *SnapUbuntuStoreRepository) Updates() ([]Part, error) {
 
 	parts := make([]Part, 0, len(updateData))
 	for _, pkg := range updateData {
+		// pkg is the *wrong kind of remote manifest*!
+		// yeh, i know.
+		// anyway, we need to go find the right one now.
 		current := ActiveSnapByName(pkg.Name)
 		if current == nil || current.Version() != pkg.Version {
 			if part, err := s.detail(pkg.Name, pkg.Origin, pkg.Channel); err == nil {
@@ -2022,6 +2025,15 @@ func Fixup() error {
 	// functions if you need to fix more than one. Keep each fixup
 	// simple.
 
+	// This fixes an issue we had where calling Update would get incomplete
+	// remote manifests from the store, losing origin, channel, type, and
+	// other interesting bits of metadata along the way, ending up with a
+	// package that couldn't even find its own (incomplete) remote
+	// manifest.  What we do is get all installed packages (directly, via
+	// the local repo), keep a map from name (remember: no origin) to the
+	// latest non-active snap, and a list of all active snaps that have no
+	// remote manifest, and use the map as backup remote manifests for that
+	// list.
 	installed, err := NewMetaLocalRepository().Installed()
 	if err != nil {
 		return err
