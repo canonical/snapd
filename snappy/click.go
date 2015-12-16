@@ -135,6 +135,15 @@ func quoteEnvVar(envVar string) string {
 	return "export " + strings.Replace(envVar, "=", "=\"", 1) + "\""
 }
 
+func quoteEnvVars(envVars []string) []string {
+	quotedVars := []string{}
+	for _, envVar := range envVars {
+		quotedVars = append(quotedVars, quoteEnvVar(envVar))
+	}
+
+	return quotedVars
+}
+
 func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) (string, error) {
 	wrapperTemplate := `#!/bin/sh
 set -e
@@ -142,9 +151,19 @@ set -e
 # app info (deprecated)
 {{.OldAppVars}}
 export SNAPP_OLD_PWD="$(pwd)"
+if [ "$(id -u)" = "0" ]; then
+   {{.OldRootAppVars}}
+else
+   {{.OldUserAppVars}}
+fi
 
 # app info
 {{.NewAppVars}}
+if [ "$(id -u)" = "0" ]; then
+   {{.NewRootAppVars}}
+else
+   {{.NewUserAppVars}}
+fi
 
 if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
    mkdir -p "$SNAP_APP_USER_DATA_PATH"
@@ -170,17 +189,21 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
 	wrapperData := struct {
-		AppName     string
-		AppArch     string
-		AppPath     string
-		Version     string
-		UdevAppName string
-		Origin      string
-		Home        string
-		Target      string
-		AaProfile   string
-		OldAppVars  string
-		NewAppVars  string
+		AppName        string
+		AppArch        string
+		AppPath        string
+		Version        string
+		UdevAppName    string
+		Origin         string
+		Home           string
+		Target         string
+		AaProfile      string
+		OldAppVars     string
+		OldUserAppVars string
+		OldRootAppVars string
+		NewAppVars     string
+		NewUserAppVars string
+		NewRootAppVars string
 	}{
 		AppName:     m.Name,
 		AppArch:     arch.UbuntuArchitecture(),
@@ -193,21 +216,23 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 		AaProfile:   aaProfile,
 	}
 
-	oldVars := []string{}
-	for _, envVar := range append(
-		helpers.GetDeprecatedBasicSnapEnvVars(wrapperData),
-		helpers.GetDeprecatedUserSnapEnvVars(wrapperData)...) {
-		oldVars = append(oldVars, quoteEnvVar(envVar))
-	}
-	wrapperData.OldAppVars = strings.Join(oldVars, "\n")
+	wrapperData.OldAppVars = strings.Join(quoteEnvVars(
+		helpers.GetDeprecatedBasicSnapEnvVars(wrapperData)), "\n")
 
-	newVars := []string{}
-	for _, envVar := range append(
-		helpers.GetBasicSnapEnvVars(wrapperData),
-		helpers.GetUserSnapEnvVars(wrapperData)...) {
-		newVars = append(newVars, quoteEnvVar(envVar))
-	}
-	wrapperData.NewAppVars = strings.Join(newVars, "\n")
+	wrapperData.OldUserAppVars = strings.Join(quoteEnvVars(
+		helpers.GetDeprecatedUserSnapEnvVars(wrapperData)), "\n")
+
+	wrapperData.OldRootAppVars = strings.Join(quoteEnvVars(
+		helpers.GetDeprecatedRootSnapEnvVars(wrapperData)), "\n")
+
+	wrapperData.NewAppVars = strings.Join(quoteEnvVars(
+		helpers.GetBasicSnapEnvVars(wrapperData)), "\n")
+
+	wrapperData.NewUserAppVars = strings.Join(quoteEnvVars(
+		helpers.GetUserSnapEnvVars(wrapperData)), "\n")
+
+	wrapperData.NewRootAppVars = strings.Join(quoteEnvVars(
+		helpers.GetRootSnapEnvVars(wrapperData)), "\n")
 
 	t.Execute(&templateOut, wrapperData)
 
@@ -581,6 +606,10 @@ func snapDataDirs(fullName, version string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// then root's home
+	found = append(found, filepath.Join(dirs.SnapDataRootHomeDir, fullName, version))
+
 	// then system data
 	systemPath := filepath.Join(dirs.SnapDataDir, fullName, version)
 	found = append(found, systemPath)
