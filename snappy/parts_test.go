@@ -175,7 +175,7 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
 	c.Assert(err, IsNil)
 
-	c.Assert(part.activate(true, ag), IsNil)
+	c.Assert(part.activate(true, false, ag), IsNil)
 
 	c.Check(PackageNameActive("hello-app"), Equals, true)
 	c.Assert(part.deactivate(true, ag), IsNil)

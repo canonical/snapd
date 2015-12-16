@@ -326,7 +326,7 @@ vendor: foo
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
 	c.Assert(err, IsNil)
-	c.Assert(part.activate(true, ag), IsNil)
+	c.Assert(part.activate(true, false, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
@@ -350,7 +350,7 @@ vendor: foo
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
 	c.Assert(err, IsNil)
-	c.Assert(part.activate(true, ag), IsNil)
+	c.Assert(part.activate(true, false, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y\nvendor: foo")
 	_, err = installClick(pkg, 0, ag, testOrigin)
@@ -372,7 +372,7 @@ explicit-license-agreement: Y
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", "foox."+testOrigin+".manifest"), []byte(`{"name": "foox"}`), 0644), IsNil)
 	part, err := NewInstalledSnapPart(yamlFile, testOrigin)
 	c.Assert(err, IsNil)
-	c.Assert(part.activate(true, ag), IsNil)
+	c.Assert(part.activate(true, false, ag), IsNil)
 
 	pkg := makeTestSnapPackage(c, yaml+"license-version: 3\nversion: 2")
 	_, err = installClick(pkg, 0, ag, testOrigin)
@@ -382,7 +382,7 @@ explicit-license-agreement: Y
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	allSystemctl := []string{}
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	systemd.SystemctlCmd = func(_ bool, cmd ...string) ([]byte, error) {
 		allSystemctl = append(allSystemctl, cmd[0])
 		return nil, nil
 	}
@@ -410,7 +410,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 
 func (s *SnapTestSuite) buildFramework(c *C) string {
 	allSystemctl := []string{}
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	systemd.SystemctlCmd = func(_ bool, cmd ...string) ([]byte, error) {
 		allSystemctl = append(allSystemctl, cmd[0])
 		return nil, nil
 	}
@@ -589,7 +589,7 @@ vendor: Foo Bar <foo@example.com>
 	c.Assert(parts[1].IsActive(), Equals, true)
 
 	// set v1 active
-	err = parts[0].(*SnapPart).activate(false, nil)
+	err = parts[0].(*SnapPart).activate(false, false, nil)
 	parts, err = repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(parts[0].Version(), Equals, "1.0")
@@ -966,7 +966,7 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstall(c *C) {
 	fmkYaml, inter := s.setupSnappyDependentServices(c)
 
 	var cmdlog []string
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	systemd.SystemctlCmd = func(_ bool, cmd ...string) ([]byte, error) {
 		cmdlog = append(cmdlog, cmd[0])
 		return []byte("ActiveState=inactive\n"), nil
 	}
@@ -992,7 +992,7 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStop(
 
 	anError := errors.New("failure")
 	var cmdlog []string
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	systemd.SystemctlCmd = func(_ bool, cmd ...string) ([]byte, error) {
 		cmdlog = append(cmdlog, cmd[0])
 		if len(cmdlog) == 3 && cmd[0] == "stop" {
 			return nil, anError
@@ -1020,7 +1020,7 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStart
 
 	anError := errors.New("failure")
 	var cmdlog []string
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	systemd.SystemctlCmd = func(_ bool, cmd ...string) ([]byte, error) {
 		cmdlog = append(cmdlog, cmd[0])
 		if len(cmdlog) == 6 && cmd[0] == "start" {
 			return nil, anError
@@ -1049,7 +1049,7 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStart
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
 	allSystemctl := [][]string{}
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	systemd.SystemctlCmd = func(_ bool, cmd ...string) ([]byte, error) {
 		allSystemctl = append(allSystemctl, cmd)
 		return []byte("ActiveState=inactive\n"), nil
 	}
@@ -1142,7 +1142,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	m, err := parsePackageYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = m.addPackageServices(baseDir, false, nil)
+	err = m.addPackageServices(baseDir, false, false, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
@@ -1171,7 +1171,7 @@ services:
 	m, err := parsePackageYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = m.addPackageServices(baseDir, false, nil)
+	err = m.addPackageServices(baseDir, false, false, nil)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
@@ -1193,7 +1193,7 @@ services:
 	m, err := parsePackageYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
-	err = m.addPackageServices(baseDir, false, nil)
+	err = m.addPackageServices(baseDir, false, false, nil)
 	c.Assert(err, IsNil)
 
 	_, err = ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/dbus-1/system.d/foo_bar_1.conf"))
@@ -1545,7 +1545,7 @@ services:
 func (s *SnapTestSuite) TestRemovePackageServiceKills(c *C) {
 	// make Stop not work
 	var sysdLog [][]string
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	systemd.SystemctlCmd = func(_ bool, cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		return []byte("ActiveState=active\n"), nil
 	}

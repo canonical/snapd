@@ -46,7 +46,7 @@ type ServiceActorSuite struct {
 var _ = Suite(&ServiceActorSuite{})
 
 // borrowed from systemd_test
-func (s *ServiceActorSuite) myRun(args ...string) (out []byte, err error) {
+func (s *ServiceActorSuite) myRun(_ bool, args ...string) (out []byte, err error) {
 	s.argses = append(s.argses, args)
 	if s.i < len(s.outs) {
 		out = s.outs[s.i]

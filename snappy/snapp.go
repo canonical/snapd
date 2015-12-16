@@ -871,7 +871,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		err = oldPart.deactivate(inhibitHooks, inter)
 		defer func() {
 			if err != nil {
-				if cerr := oldPart.activate(inhibitHooks, inter); cerr != nil {
+				if cerr := oldPart.activate(inhibitHooks, false, inter); cerr != nil {
 					logger.Noticef("Setting old version back to active failed: %v", cerr)
 				}
 			}
@@ -899,10 +899,10 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 
 	if !inhibitHooks {
 		// and finally make active
-		err = s.activate(inhibitHooks, inter)
+		err = s.activate(inhibitHooks, false, inter)
 		defer func() {
 			if err != nil && oldPart != nil {
-				if cerr := oldPart.activate(inhibitHooks, inter); cerr != nil {
+				if cerr := oldPart.activate(inhibitHooks, false, inter); cerr != nil {
 					logger.Noticef("When setting old %s version back to active: %v", s.Name(), cerr)
 				}
 			}
@@ -973,13 +973,13 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 // SetActive sets the snap active
 func (s *SnapPart) SetActive(active bool, pb progress.Meter) (err error) {
 	if active {
-		return s.activate(false, pb)
+		return s.activate(false, false, pb)
 	}
 
 	return s.deactivate(false, pb)
 }
 
-func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
+func (s *SnapPart) activate(inhibitHooks bool, asyncSysd bool, inter interacter) error {
 	currentActiveSymlink := filepath.Join(s.basedir, "..", "current")
 	currentActiveDir, _ := filepath.EvalSymlinks(currentActiveSymlink)
 
@@ -1007,26 +1007,6 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		}
 	}
 
-	if err := installClickHooks(s.basedir, s.m, s.origin, inhibitHooks); err != nil {
-		// cleanup the failed hooks
-		removeClickHooks(s.m, s.origin, inhibitHooks)
-		return err
-	}
-
-	// generate the security policy from the package.yaml
-	if err := s.m.addSecurityPolicy(s.basedir); err != nil {
-		return err
-	}
-
-	// add the "binaries:" from the package.yaml
-	if err := s.m.addPackageBinaries(s.basedir); err != nil {
-		return err
-	}
-	// add the "services:" from the package.yaml
-	if err := s.m.addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
-		return err
-	}
-
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Failed to remove %q: %v", currentActiveSymlink, err)
 	}
@@ -1046,7 +1026,32 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	return os.Symlink(filepath.Base(s.basedir), currentDataSymlink)
+	if err := os.Symlink(filepath.Base(s.basedir), currentDataSymlink); err != nil {
+		return err
+	}
+
+	if err := installClickHooks(s.basedir, s.m, s.origin, inhibitHooks); err != nil {
+		// cleanup the failed hooks
+		removeClickHooks(s.m, s.origin, inhibitHooks)
+		return err
+	}
+
+	// generate the security policy from the package.yaml
+	if err := s.m.addSecurityPolicy(s.basedir); err != nil {
+		return err
+	}
+
+	// add the "binaries:" from the package.yaml
+	if err := s.m.addPackageBinaries(s.basedir); err != nil {
+		return err
+	}
+	// add the "services:" from the package.yaml. This starts the
+	// services, also, so everything else needs to be done first.
+	if err := s.m.addPackageServices(s.basedir, inhibitHooks, asyncSysd, inter); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {

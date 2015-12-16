@@ -1,6 +1,7 @@
 [Unit]
 Description=Do early boot setup/fixup tasks
 Before=ubuntu-snappy.frameworks-pre.target
+After=ubuntu-snappy.firstboot.service
 
 [Service]
 Type=oneshot

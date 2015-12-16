@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/progress"
@@ -79,6 +80,12 @@ func oemConfig() error {
 
 	pb := progress.MakeProgressBar()
 	for _, pkgName := range oem.OEM.Software.BuiltIn {
+		// channels
+		idx := strings.IndexByte(pkgName, '/')
+		if idx > -1 {
+			pkgName = pkgName[:idx]
+		}
+
 		part, ok := partMap[pkgName]
 		if !ok {
 			return errNoSnapToActivate
@@ -87,7 +94,7 @@ func oemConfig() error {
 		if !ok {
 			return errNoSnapToActivate
 		}
-		snap.activate(false, pb)
+		snap.activate(false, true, pb)
 	}
 
 	for pkgName, conf := range oem.Config {

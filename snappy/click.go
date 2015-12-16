@@ -500,7 +500,7 @@ func stripGlobalRootDirImpl(dir string) string {
 	return dir[len(dirs.GlobalRootDir):]
 }
 
-func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inter interacter) error {
+func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, asyncSysd bool, inter interacter) error {
 	for _, service := range m.ServiceYamls {
 		aaProfile, err := getSecurityProfile(m, service.Name, baseDir)
 		if err != nil {
@@ -560,17 +560,17 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		}
 
 		// we always enable the service even in inhibit hooks
-		if err := sysd.Enable(serviceName); err != nil {
-			return err
-		}
-
-		if !inhibitHooks {
-			if err := sysd.Start(serviceName); err != nil {
+		if !service.Socket {
+			if err := sysd.Enable(serviceName); err != nil {
 				return err
 			}
-		}
 
-		if service.Socket {
+			if !inhibitHooks {
+				if err := sysd.Start(serviceName); err != nil {
+					return err
+				}
+			}
+		} else {
 			socketName := filepath.Base(generateSocketFileName(m, service))
 			// we always enable the socket even in inhibit hooks
 			if err := sysd.Enable(socketName); err != nil {
