@@ -897,6 +897,12 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 		return "", err
 	}
 
+	if inhibitHooks && s.Type() == pkg.TypeOem {
+		if err := s.activate(true, false, inter); err != nil {
+			return "", err
+		}
+	}
+
 	if !inhibitHooks {
 		// and finally make active
 		err = s.activate(inhibitHooks, false, inter)
