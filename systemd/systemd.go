@@ -150,6 +150,11 @@ func New(rootDir string, rep reporter) Systemd {
 	return &systemd{rootDir: rootDir, reporter: rep}
 }
 
+// NewAsync returns a Systemd that uses the given rootDir, and is always async
+func NewAsync(rootDir string, rep reporter) Systemd {
+	return &systemd{rootDir: rootDir, reporter: rep, async: true}
+}
+
 type systemd struct {
 	rootDir  string
 	reporter reporter

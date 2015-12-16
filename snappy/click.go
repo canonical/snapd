@@ -552,7 +552,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, asyn
 		//
 		// *but* always run enable (which just sets a symlink)
 		serviceName := filepath.Base(generateServiceFileName(m, service))
-		sysd := systemd.New(dirs.GlobalRootDir, inter)
+		sysd := systemd.NewAsync(dirs.GlobalRootDir, inter)
 		if !inhibitHooks {
 			if err := sysd.DaemonReload(); err != nil {
 				return err
