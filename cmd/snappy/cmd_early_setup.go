@@ -33,6 +33,6 @@ func init() {
 	}
 }
 
-func (_ *cmdFixup) Execute(_ []string) error {
+func (*cmdFixup) Execute(_ []string) error {
 	return withMutex(snappy.Fixup)
 }

@@ -85,7 +85,7 @@ func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 		if pkg == nil {
 			continue
 		}
-		if err := pkg.activate(false, meter); err != nil {
+		if err := pkg.activate(false, false, meter); err != nil {
 			meter.Notify(fmt.Sprintf("Unable to activate %s: %s", pkg.Name(), err))
 		}
 	}

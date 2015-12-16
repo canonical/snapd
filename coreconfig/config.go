@@ -286,7 +286,7 @@ func Set(rawConfig string) (newRawConfig string, err error) {
 	}
 
 	if needsModReload {
-		if _, err := systemd.SystemctlCmd("restart", "--no-block", "systemd-modules-load.service"); err != nil {
+		if _, err := systemd.SystemctlCmd(true, "restart", "systemd-modules-load.service"); err != nil {
 			return "", err
 		}
 	}

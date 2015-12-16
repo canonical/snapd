@@ -47,7 +47,11 @@ var (
 )
 
 // run calls systemctl with the given args, returning its standard output (and wrapped error)
-func run(args ...string) ([]byte, error) {
+func run(async bool, args ...string) ([]byte, error) {
+	if async {
+		args = append(args[:], "--no-block")
+	}
+
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
 		exitCode, _ := helpers.ExitCode(err)
@@ -146,14 +150,20 @@ func New(rootDir string, rep reporter) Systemd {
 	return &systemd{rootDir: rootDir, reporter: rep}
 }
 
+// NewAsync returns a Systemd that uses the given rootDir, and is always async
+func NewAsync(rootDir string, rep reporter) Systemd {
+	return &systemd{rootDir: rootDir, reporter: rep, async: true}
+}
+
 type systemd struct {
 	rootDir  string
 	reporter reporter
+	async    bool
 }
 
 // DaemonReload reloads systemd's configuration.
-func (*systemd) DaemonReload() error {
-	_, err := SystemctlCmd("daemon-reload")
+func (s *systemd) DaemonReload() error {
+	_, err := SystemctlCmd(s.async, "daemon-reload")
 	return err
 }
 
@@ -174,13 +184,13 @@ func (s *systemd) Enable(serviceName string) error {
 
 // Disable the given service
 func (s *systemd) Disable(serviceName string) error {
-	_, err := SystemctlCmd("--root", s.rootDir, "disable", serviceName)
+	_, err := SystemctlCmd(false, "--root", s.rootDir, "disable", serviceName)
 	return err
 }
 
 // Start the given service
-func (*systemd) Start(serviceName string) error {
-	_, err := SystemctlCmd("start", serviceName)
+func (s *systemd) Start(serviceName string) error {
+	_, err := SystemctlCmd(s.async, "start", serviceName)
 	return err
 }
 
@@ -237,7 +247,7 @@ type ServiceStatus struct {
 }
 
 func (s *systemd) ServiceStatus(serviceName string) (*ServiceStatus, error) {
-	bs, err := SystemctlCmd("show", "--property=Id,LoadState,ActiveState,SubState,UnitFileState", serviceName)
+	bs, err := SystemctlCmd(false, "show", "--property=Id,LoadState,ActiveState,SubState,UnitFileState", serviceName)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +276,7 @@ func (s *systemd) ServiceStatus(serviceName string) (*ServiceStatus, error) {
 
 // Stop the given service, and wait until it has stopped.
 func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
-	if _, err := SystemctlCmd("stop", serviceName); err != nil {
+	if _, err := SystemctlCmd(s.async, "stop", serviceName); err != nil {
 		return err
 	}
 
@@ -276,7 +286,7 @@ func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
 	for time.Now().Before(max) {
 		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", serviceName))
 		for i := 0; i < stopSteps; i++ {
-			bs, err := SystemctlCmd("show", "--property=ActiveState", serviceName)
+			bs, err := SystemctlCmd(false, "show", "--property=ActiveState", serviceName)
 			if err != nil {
 				return err
 			}
@@ -415,7 +425,7 @@ WantedBy={{.SocketSystemdTarget}}
 
 // Kill all processes of the unit with the given signal
 func (s *systemd) Kill(serviceName, signal string) error {
-	_, err := SystemctlCmd("kill", serviceName, "-s", signal)
+	_, err := SystemctlCmd(s.async, "kill", serviceName, "-s", signal)
 	return err
 }
 

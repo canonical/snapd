@@ -83,7 +83,7 @@ func (s *SystemdTestSuite) TearDownTest(c *C) {
 	JournalctlCmd = jctl
 }
 
-func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
+func (s *SystemdTestSuite) myRun(_ bool, args ...string) (out []byte, err error) {
 	s.argses = append(s.argses, args)
 	if s.i < len(s.outs) {
 		out = s.outs[s.i]

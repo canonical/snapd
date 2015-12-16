@@ -63,8 +63,9 @@ var (
 type ConfigTestSuite struct {
 	tempdir string
 	// sysctl fakes
-	sysctlcmd    func(...string) ([]byte, error)
+	sysctlcmd    func(bool, ...string) ([]byte, error)
 	sysctlargses [][]string
+	sysctlflags  []bool
 	sysctlerr    error
 }
 
@@ -97,12 +98,14 @@ func (cts *ConfigTestSuite) SetUpTest(c *C) {
 
 	cts.sysctlerr = nil
 	cts.sysctlargses = nil
+	cts.sysctlflags = nil
 	cts.sysctlcmd = systemd.SystemctlCmd
 	systemd.SystemctlCmd = cts.run
 }
 
-func (cts *ConfigTestSuite) run(args ...string) ([]byte, error) {
+func (cts *ConfigTestSuite) run(flag bool, args ...string) ([]byte, error) {
 	cts.sysctlargses = append(cts.sysctlargses, args)
+	cts.sysctlflags = append(cts.sysctlflags, flag)
 
 	return nil, cts.sysctlerr
 }
@@ -555,7 +558,8 @@ func (cts *ConfigTestSuite) TestModprobeYaml(c *C) {
 	c.Assert(err, IsNil)
 
 	// systemctl was called
-	c.Check(cts.sysctlargses, DeepEquals, [][]string{{"restart", "--no-block", "systemd-modules-load.service"}})
+	c.Check(cts.sysctlargses, DeepEquals, [][]string{{"restart", "systemd-modules-load.service"}})
+	c.Check(cts.sysctlflags, DeepEquals, []bool{true})
 
 	// ensure it's really there
 	content, err := ioutil.ReadFile(modprobePath)
@@ -705,7 +709,8 @@ func (cts *ConfigTestSuite) TestModulesYaml(c *C) {
 	c.Assert(err, IsNil)
 
 	// systemctl was called
-	c.Check(cts.sysctlargses, DeepEquals, [][]string{{"restart", "--no-block", "systemd-modules-load.service"}})
+	c.Check(cts.sysctlargses, DeepEquals, [][]string{{"restart", "systemd-modules-load.service"}})
+	c.Check(cts.sysctlflags, DeepEquals, []bool{true})
 
 	// ensure it's really there
 	content, err := ioutil.ReadFile(modulesPath)

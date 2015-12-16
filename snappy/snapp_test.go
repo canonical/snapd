@@ -76,7 +76,7 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	// we may not have debsig-verify installed (and we don't need it
 	// for the unittests)
 	clickdeb.VerifyCmd = "true"
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+	systemd.SystemctlCmd = func(_ bool, cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
