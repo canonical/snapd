@@ -1096,7 +1096,7 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	}
 
 	if err := removeClickHooks(s.m, s.origin, inhibitHooks); err != nil {
-		inter.Notify(fmt.Sprintf("deactivate continuing despite being unable to click hook: %v", err))
+		inter.Notify(fmt.Sprintf("deactivate continuing despite being unable to remove click hook: %v", err))
 	}
 
 	// and finally the current symlink
