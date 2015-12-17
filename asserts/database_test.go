@@ -147,6 +147,17 @@ func (dbs *databaseSuite) TestPublicKey(c *C) {
 	c.Assert(pubKey.Fingerprint, DeepEquals, testPrivKey1.PublicKey.Fingerprint)
 }
 
+func (dbs *databaseSuite) TestPublicKeyAmbiguous(c *C) {
+	_, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	c.Assert(err, IsNil)
+	_, err = dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey2))
+	c.Assert(err, IsNil)
+
+	pubk, err := dbs.db.PublicKey("account0", "")
+	c.Assert(err, ErrorMatches, `ambiguous search, more than one key pair found:.*`)
+	c.Check(pubk, IsNil)
+}
+
 type checkSuite struct {
 	rootDir string
 	a       asserts.Assertion
@@ -258,6 +269,65 @@ func (safs *signAddFindSuite) TestSignEmptyFingerprint(c *C) {
 	}
 	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "")
 	c.Assert(err, ErrorMatches, "fingerprint is empty")
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignMissingAuthorityId(c *C) {
+	headers := map[string]string{
+		"primary-key": "a",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `"authority-id" header is mandatory`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignMissingPrimaryKey(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `"primary-key" header is mandatory`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignNoPrivateKey(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "abcd")
+	c.Assert(err, ErrorMatches, "no matching key pair found")
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignUnknowType(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("xyz"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `unknown assertion type: xyz`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignBadRevision(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+		"revision":     "zzz",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `"revision" header is not an integer: zzz`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignBuilderError(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+		"count":        "zzz",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `cannot build assertion test-only: "count" header is not an integer: zzz`)
 	c.Check(a1, IsNil)
 }
 

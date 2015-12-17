@@ -57,6 +57,10 @@ type TestOnly struct {
 }
 
 func buildTestOnly(assert assertionBase) (Assertion, error) {
+	// for testing error cases
+	if _, err := checkInteger(assert.headers, "count", 0); err != nil {
+		return nil, err
+	}
 	return &TestOnly{assert}, nil
 }
 
