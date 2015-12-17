@@ -214,3 +214,51 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherBadEthDir(c *C) {
 	c.Check(err, NotNil)
 	c.Check(os.IsNotExist(err), Equals, true)
 }
+
+var mockOSYaml = `
+name: ubuntu-core
+version: 1.0
+type: os
+`
+
+var mockKernelYaml = `
+name: canonical-linux-pc
+version: 1.0
+type: kernel
+`
+
+func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml string, expectActivated bool) {
+	snapFile := makeTestSnapPackage(c, yaml)
+	_, err := Install(snapFile, AllowGadget|InhibitHooks, &MockProgressMeter{})
+	c.Check(err, IsNil)
+
+	repo := NewMetaLocalRepository()
+	all, err := repo.All()
+	c.Check(err, IsNil)
+	c.Assert(all, HasLen, 1)
+	c.Check(all[0].IsInstalled(), Equals, true)
+	c.Check(all[0].IsActive(), Equals, false)
+
+	c.Assert(FirstBoot(), IsNil)
+
+	repo = NewMetaLocalRepository()
+	all, err = repo.All()
+	c.Check(err, IsNil)
+	c.Assert(all, HasLen, 1)
+	c.Check(all[0].IsInstalled(), Equals, true)
+	c.Check(all[0].IsActive(), Equals, expectActivated)
+}
+
+func (s *FirstBootTestSuite) TestSystemSnapsEnablesOS(c *C) {
+	s.ensureSystemSnapIsEnabledOnFirstBoot(c, mockOSYaml, true)
+}
+
+func (s *FirstBootTestSuite) TestSystemSnapsEnablesKernel(c *C) {
+	s.m = &packageYaml{Gadget: Gadget{Hardware: Hardware{Bootloader: "grub"}}}
+
+	s.ensureSystemSnapIsEnabledOnFirstBoot(c, mockKernelYaml, true)
+}
+
+func (s *FirstBootTestSuite) TestSystemSnapsDoesNotEnableApps(c *C) {
+	s.ensureSystemSnapIsEnabledOnFirstBoot(c, "", false)
+}

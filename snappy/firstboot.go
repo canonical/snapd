@@ -27,6 +27,8 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/progress"
 
 	"gopkg.in/yaml.v2"
@@ -112,6 +114,30 @@ func gadgetConfig() error {
 	return nil
 }
 
+// enableSystemSnaps activates the installed kernel/os/gadget snaps
+// on the first boot
+func enableSystemSnaps() error {
+	repo := NewMetaLocalRepository()
+	all, err := repo.All()
+	if err != nil {
+		return nil
+	}
+
+	pb := progress.MakeProgressBar()
+	for _, part := range all {
+		switch part.Type() {
+		case pkg.TypeGadget, pkg.TypeKernel, pkg.TypeOS:
+			logger.Noticef("Acitvating %s", FullName(part))
+			if err := part.SetActive(true, pb); err != nil {
+				// we don't want this to fail for now
+				logger.Noticef("failed to acitvate %s: %s", FullName(part), err)
+			}
+		}
+	}
+
+	return nil
+}
+
 // FirstBoot checks whether it's the first boot, and if so enables the
 // first ethernet device and runs gadgetConfig (as well as flagging that
 // it run)
@@ -121,6 +147,10 @@ func FirstBoot() error {
 	}
 	defer stampFirstBoot()
 	defer enableFirstEther()
+
+	if err := enableSystemSnaps(); err != nil {
+		return err
+	}
 
 	return gadgetConfig()
 }
