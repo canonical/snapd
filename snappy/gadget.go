@@ -36,9 +36,9 @@ import (
 	"github.com/ubuntu-core/snappy/pkg"
 )
 
-// OEM represents the structure inside the package.yaml for the oem component
-// of an oem package type.
-type OEM struct {
+// Gadget represents the structure inside the package.yaml for the gadget component
+// of a gadget package type.
+type Gadget struct {
 	Store                Store    `yaml:"store,omitempty"`
 	Hardware             Hardware `yaml:"hardware,omitempty"`
 	Software             Software `yaml:"software,omitempty"`
@@ -52,12 +52,12 @@ type Hardware struct {
 	Bootloader string           `yaml:"bootloader,omitempty"`
 }
 
-// Store holds information relevant to the store provided by an OEM snap
+// Store holds information relevant to the store provided by a Gadget snap
 type Store struct {
 	ID string `yaml:"id,omitempty"`
 }
 
-// Software describes the installed software provided by an OEM snap
+// Software describes the installed software provided by a Gadget snap
 type Software struct {
 	BuiltIn []string `yaml:"built-in,omitempty"`
 }
@@ -127,30 +127,30 @@ func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
 	return s, nil
 }
 
-// getOem is a convenience function to not go into the details for the business
-// logic for an oem package in every other function
-var getOem = getOemImpl
+// getGadget is a convenience function to not go into the details for the business
+// logic for a gadget package in every other function
+var getGadget = getGadgetImpl
 
-func getOemImpl() (*packageYaml, error) {
-	oems, _ := ActiveSnapsByType(pkg.TypeOem)
-	if len(oems) == 1 {
-		return oems[0].(*SnapPart).m, nil
+func getGadgetImpl() (*packageYaml, error) {
+	gadgets, _ := ActiveSnapsByType(pkg.TypeGadget)
+	if len(gadgets) == 1 {
+		return gadgets[0].(*SnapPart).m, nil
 	}
 
-	return nil, errors.New("no oem snap")
+	return nil, errors.New("no gadget snap")
 }
 
 func bootAssetFilePaths() map[string]string {
-	oem, err := getOem()
+	gadget, err := getGadget()
 	if err != nil {
 		return nil
 	}
 
 	fileList := make(map[string]string)
-	oemPath := filepath.Join(dirs.SnapOemDir, oem.Name, oem.Version)
+	gadgetPath := filepath.Join(dirs.SnapGadgetDir, gadget.Name, gadget.Version)
 
-	for _, asset := range oem.OEM.Hardware.BootAssets.Files {
-		orig := filepath.Join(oemPath, asset.Path)
+	for _, asset := range gadget.Gadget.Hardware.BootAssets.Files {
+		orig := filepath.Join(gadgetPath, asset.Path)
 
 		if asset.Target == "" {
 			fileList[orig] = filepath.Base(orig)
@@ -162,25 +162,25 @@ func bootAssetFilePaths() map[string]string {
 	return fileList
 }
 
-// StoreID returns the store id setup by the oem package or an empty string
+// StoreID returns the store id setup by the gadget package or an empty string
 func StoreID() string {
-	oem, err := getOem()
+	gadget, err := getGadget()
 	if err != nil {
 		return ""
 	}
 
-	return oem.OEM.Store.ID
+	return gadget.Gadget.Store.ID
 }
 
 // IsBuiltInSoftware returns true if the package is part of the built-in software
-// defined by the oem.
+// defined by the gadget.
 func IsBuiltInSoftware(name string) bool {
-	oem, err := getOem()
+	gadget, err := getGadget()
 	if err != nil {
 		return false
 	}
 
-	for _, builtin := range oem.OEM.Software.BuiltIn {
+	for _, builtin := range gadget.Gadget.Software.BuiltIn {
 		if builtin == name {
 			return true
 		}
@@ -189,7 +189,7 @@ func IsBuiltInSoftware(name string) bool {
 	return false
 }
 
-func cleanupOemHardwareUdevRules(m *packageYaml) error {
+func cleanupGadgetHardwareUdevRules(m *packageYaml) error {
 	oldFiles, err := filepath.Glob(filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("80-snappy_%s_*.rules", m.Name)))
 	if err != nil {
 		return err
@@ -200,7 +200,7 @@ func cleanupOemHardwareUdevRules(m *packageYaml) error {
 	}
 
 	// cleanup the additional files
-	for _, h := range m.OEM.Hardware.Assign {
+	for _, h := range m.Gadget.Hardware.Assign {
 		jsonAdditionalPath := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
 		err = os.Remove(jsonAdditionalPath)
 		if err != nil && !os.IsNotExist(err) {
@@ -211,15 +211,15 @@ func cleanupOemHardwareUdevRules(m *packageYaml) error {
 	return nil
 }
 
-func writeOemHardwareUdevRules(m *packageYaml) error {
+func writeGadgetHardwareUdevRules(m *packageYaml) error {
 	os.MkdirAll(dirs.SnapUdevRulesDir, 0755)
 
 	// cleanup
-	if err := cleanupOemHardwareUdevRules(m); err != nil {
+	if err := cleanupGadgetHardwareUdevRules(m); err != nil {
 		return err
 	}
 	// write new files
-	for _, h := range m.OEM.Hardware.Assign {
+	for _, h := range m.Gadget.Hardware.Assign {
 		rulesContent, err := h.generateUdevRuleContent()
 		if err != nil {
 			return err
@@ -243,7 +243,7 @@ func runUdevAdmImpl(args ...string) error {
 	return cmd.Run()
 }
 
-func activateOemHardwareUdevRules() error {
+func activateGadgetHardwareUdevRules() error {
 	if err := runUdevAdm("udevadm", "control", "--reload-rules"); err != nil {
 		return err
 	}
@@ -263,7 +263,7 @@ const apparmorAdditionalContent = `{
 // writeApparmorAdditionalFile generate a $partID.json.additional file.
 //
 // This file grants additional access on top of the existing apparmor json
-// rules. This is required for the OEM hardware assign code because by
+// rules. This is required for the Gadget hardware assign code because by
 // default apparmor will not allow access to /dev. We grant access here
 // and the ubuntu-core-launcher is then used to generate a confinement
 // based on the devices cgroup.
@@ -272,7 +272,7 @@ func writeApparmorAdditionalFile(m *packageYaml) error {
 		return err
 	}
 
-	for _, h := range m.OEM.Hardware.Assign {
+	for _, h := range m.Gadget.Hardware.Assign {
 		jsonAdditionalPath := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("%s.json.additional", h.PartID))
 		if err := helpers.AtomicWriteFile(jsonAdditionalPath, []byte(apparmorAdditionalContent), 0644, 0); err != nil {
 			return err
@@ -282,8 +282,8 @@ func writeApparmorAdditionalFile(m *packageYaml) error {
 	return nil
 }
 
-func installOemHardwareUdevRules(m *packageYaml) error {
-	if err := writeOemHardwareUdevRules(m); err != nil {
+func installGadgetHardwareUdevRules(m *packageYaml) error {
+	if err := writeGadgetHardwareUdevRules(m); err != nil {
 		return err
 	}
 
@@ -291,7 +291,7 @@ func installOemHardwareUdevRules(m *packageYaml) error {
 		return err
 	}
 
-	if err := activateOemHardwareUdevRules(); err != nil {
+	if err := activateGadgetHardwareUdevRules(); err != nil {
 		return err
 	}
 

@@ -84,7 +84,7 @@ setting up a BeagleBone Black as the test bed.
 First flash the latest *rolling edge* version into the sd card
 (replacing `/dev/sdX` with the path to your card):
 
-    sudo ubuntu-device-flash core rolling --channel edge --oem beagleblack \
+    sudo ubuntu-device-flash core rolling --channel edge --gadget beagleblack \
     --developer-mode --enable-ssh -o ubuntu-rolling-edge-armhf-bbb.img
 
     sudo dd if=ubuntu-rolling-edge-armhf-bbb.img of=/dev/sdX bs=32M

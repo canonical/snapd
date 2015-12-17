@@ -68,8 +68,8 @@ func extractKernelAssets(s *SnapPart, inter progress.Meter, flags InstallFlags) 
 
 	// check if we are on a "grub" system. if so, no need to unpack
 	// the kernel
-	if oem, err := getOem(); err == nil {
-		if oem.OEM.Hardware.Bootloader == "grub" {
+	if oem, err := getGadget(); err == nil {
+		if oem.Gadget.Hardware.Bootloader == "grub" {
 			return nil
 		}
 	}

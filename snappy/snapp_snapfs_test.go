@@ -334,9 +334,9 @@ func (s *SquashfsTestSuite) TestInstallKernelRebootRequired(c *C) {
 	c.Assert(snap.NeedsReboot(), Equals, false)
 }
 
-func getFakeGrubOem() (*packageYaml, error) {
+func getFakeGrubGadget() (*packageYaml, error) {
 	return &packageYaml{
-		OEM: OEM{
+		Gadget: Gadget{
 			Hardware: Hardware{
 				Bootloader: "grub",
 			},
@@ -346,9 +346,9 @@ func getFakeGrubOem() (*packageYaml, error) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 	// pretend to be a grub system
-	origGetOem := getOem
-	s.AddCleanup(func() { getOem = origGetOem })
-	getOem = getFakeGrubOem
+	origGetGadget := getGadget
+	s.AddCleanup(func() { getGadget = origGetGadget })
+	getGadget = getFakeGrubGadget
 
 	files := [][]string{
 		{"vmlinuz-4.2", "I'm a kernel"},

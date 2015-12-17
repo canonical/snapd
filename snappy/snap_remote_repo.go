@@ -311,11 +311,11 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 
 // Updates returns the available updates
 func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
-	// the store only supports apps, oem and frameworks currently, so no
+	// the store only supports apps, gadget and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
 	//
 	// NOTE this *will* send .sideload apps to the store.
-	installed, err := ActiveSnapIterByType(fullNameWithChannel, pkg.TypeApp, pkg.TypeFramework, pkg.TypeOem, pkg.TypeOS, pkg.TypeKernel)
+	installed, err := ActiveSnapIterByType(fullNameWithChannel, pkg.TypeApp, pkg.TypeFramework, pkg.TypeGadget, pkg.TypeOS, pkg.TypeKernel)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}

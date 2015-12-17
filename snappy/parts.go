@@ -40,15 +40,15 @@ type ServiceYamler interface {
 	ServiceYamls() []ServiceYaml
 }
 
-// Configuration allows requesting an oem snappy package type's config
+// Configuration allows requesting a gadget snappy package type's config
 type Configuration interface {
-	OemConfig() SystemConfig
+	GadgetConfig() SystemConfig
 }
 
 // QualifiedName of a Part is the Name, in most cases qualified with the
 // Origin
 func QualifiedName(p Part) string {
-	if t := p.Type(); t == pkg.TypeFramework || t == pkg.TypeOem {
+	if t := p.Type(); t == pkg.TypeFramework || t == pkg.TypeGadget {
 		return p.Name()
 	}
 	return p.Name() + "." + p.Origin()
@@ -164,7 +164,7 @@ func NewMetaLocalRepository() *MetaRepository {
 	if repo := NewLocalSnapRepository(dirs.SnapAppsDir); repo != nil {
 		m.all = append(m.all, repo)
 	}
-	if repo := NewLocalSnapRepository(dirs.SnapOemDir); repo != nil {
+	if repo := NewLocalSnapRepository(dirs.SnapGadgetDir); repo != nil {
 		m.all = append(m.all, repo)
 	}
 

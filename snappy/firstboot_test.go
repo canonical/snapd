@@ -34,9 +34,9 @@ import (
 
 type fakePart struct {
 	SnapPart
-	config    []byte
-	oemConfig SystemConfig
-	snapType  pkg.Type
+	config       []byte
+	gadgetConfig SystemConfig
+	snapType     pkg.Type
 }
 
 func (p *fakePart) Config(b []byte) (string, error) {
@@ -44,8 +44,8 @@ func (p *fakePart) Config(b []byte) (string, error) {
 	return "", nil
 }
 
-func (p *fakePart) OemConfig() SystemConfig {
-	return p.oemConfig
+func (p *fakePart) GadgetConfig() SystemConfig {
+	return p.gadgetConfig
 }
 
 func (p *fakePart) Type() pkg.Type {
@@ -53,15 +53,15 @@ func (p *fakePart) Type() pkg.Type {
 }
 
 type FirstBootTestSuite struct {
-	oemConfig  map[string]interface{}
-	globs      []string
-	ethdir     string
-	ifup       string
-	m          *packageYaml
-	e          error
-	partMap    map[string]Part
-	partMapErr error
-	verifyCmd  string
+	gadgetConfig map[string]interface{}
+	globs        []string
+	ethdir       string
+	ifup         string
+	m            *packageYaml
+	e            error
+	partMap      map[string]Part
+	partMapErr   error
+	verifyCmd    string
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -76,8 +76,8 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	configMyApp := make(SystemConfig)
 	configMyApp["hostname"] = "myhostname"
 
-	s.oemConfig = make(SystemConfig)
-	s.oemConfig["myapp"] = configMyApp
+	s.gadgetConfig = make(SystemConfig)
+	s.gadgetConfig["myapp"] = configMyApp
 
 	s.globs = globs
 	globs = nil
@@ -85,7 +85,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	ethdir = c.MkDir()
 	s.ifup = ifup
 	ifup = "/bin/true"
-	getOem = s.getOem
+	getGadget = s.getGadget
 	newPartMap = s.newPartMap
 
 	s.m = nil
@@ -98,12 +98,12 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	globs = s.globs
 	ethdir = s.ethdir
 	ifup = s.ifup
-	getOem = getOemImpl
+	getGadget = getGadgetImpl
 	newPartMap = newPartMapImpl
 	clickdeb.VerifyCmd = s.verifyCmd
 }
 
-func (s *FirstBootTestSuite) getOem() (*packageYaml, error) {
+func (s *FirstBootTestSuite) getGadget() (*packageYaml, error) {
 	return s.m, s.e
 }
 
@@ -120,7 +120,7 @@ func (s *FirstBootTestSuite) newFakeApp() *fakePart {
 }
 
 func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
-	s.m = &packageYaml{Config: s.oemConfig}
+	s.m = &packageYaml{Config: s.gadgetConfig}
 	fakeMyApp := s.newFakeApp()
 
 	c.Assert(FirstBoot(), IsNil)
@@ -136,7 +136,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC|InhibitHooks, &MockProgressMeter{})
 	c.Check(err, IsNil)
 
-	s.m = &packageYaml{OEM: OEM{Software: Software{BuiltIn: []string{name}}}}
+	s.m = &packageYaml{Gadget: Gadget{Software: Software{BuiltIn: []string{name}}}}
 
 	repo := NewMetaLocalRepository()
 	all, err := repo.All()
@@ -164,7 +164,7 @@ func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
 	c.Assert(FirstBoot(), Equals, ErrNotFirstBoot)
 }
 
-func (s *FirstBootTestSuite) TestNoErrorWhenNoOEM(c *C) {
+func (s *FirstBootTestSuite) TestNoErrorWhenNoGadget(c *C) {
 	c.Assert(FirstBoot(), IsNil)
 	_, err := os.Stat(stampFile)
 	c.Assert(err, IsNil)
@@ -191,8 +191,8 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEth(c *C) {
 
 }
 
-func (s *FirstBootTestSuite) TestEnableFirstEtherOemNoIfup(c *C) {
-	s.m = &packageYaml{OEM: OEM{SkipIfupProvisioning: true}}
+func (s *FirstBootTestSuite) TestEnableFirstEtherGadgetNoIfup(c *C) {
+	s.m = &packageYaml{Gadget: Gadget{SkipIfupProvisioning: true}}
 	dir := c.MkDir()
 	_, err := os.Create(filepath.Join(dir, "eth42"))
 	c.Assert(err, IsNil)
