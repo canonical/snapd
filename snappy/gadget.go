@@ -39,13 +39,17 @@ import (
 // Gadget represents the structure inside the package.yaml for the gadget component
 // of a gadget package type.
 type Gadget struct {
-	Store    Store `yaml:"store,omitempty"`
-	Hardware struct {
-		Assign     []HardwareAssign `yaml:"assign,omitempty"`
-		BootAssets *BootAssets      `yaml:"boot-assets,omitempty"`
-	} `yaml:"hardware,omitempty"`
+	Store                Store    `yaml:"store,omitempty"`
+	Hardware             Hardware `yaml:"hardware,omitempty"`
 	Software             Software `yaml:"software,omitempty"`
 	SkipIfupProvisioning bool     `yaml:"skip-ifup-provisioning"`
+}
+
+// Hardware describes the hardware provided by the gadget snap
+type Hardware struct {
+	Assign     []HardwareAssign `yaml:"assign,omitempty"`
+	BootAssets *BootAssets      `yaml:"boot-assets,omitempty"`
+	Bootloader string           `yaml:"bootloader,omitempty"`
 }
 
 // Store holds information relevant to the store provided by a Gadget snap
