@@ -368,12 +368,6 @@ func PackageNameActive(name string) bool {
 	return ActiveSnapByName(name) != nil
 }
 
-// iconPath returns the would be path for the local icon
-func iconPath(s Part) string {
-	// TODO: care about extension ever being different than png
-	return filepath.Join(dirs.SnapIconsDir, fmt.Sprintf("%s_%s.png", QualifiedName(s), s.Version()))
-}
-
 // RemoteManifestPath returns the would be path for the store manifest meta data
 func RemoteManifestPath(s Part) string {
 	return filepath.Join(dirs.SnapMetaDir, fmt.Sprintf("%s_%s.manifest", QualifiedName(s), s.Version()))

@@ -243,10 +243,6 @@ func (s *SnapPart) Channel() string {
 
 // Icon returns the path to the icon
 func (s *SnapPart) Icon() string {
-	if helpers.FileExists(iconPath(s)) {
-		return iconPath(s)
-	}
-
 	if s.m.Icon == "" {
 		return ""
 	}
@@ -680,13 +676,6 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 	if s.m.Type == pkg.TypeKernel {
 		if err := removeKernelAssets(s, inter); err != nil {
 			logger.Noticef("removing kernel assets failed with %s", err)
-		}
-	}
-
-	// don't fail if icon can't be removed
-	if helpers.FileExists(iconPath(s)) {
-		if err := os.Remove(iconPath(s)); err != nil {
-			logger.Noticef("Failed to remove store icon %s: %s", iconPath(s), err)
 		}
 	}
 
