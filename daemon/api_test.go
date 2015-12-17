@@ -945,36 +945,6 @@ func (s *apiSuite) TestServiceLogs(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestMetaIconGet(c *check.C) {
-	s.mkInstalled(c, "foo", "bar", "v1", true, "icon: meta/icon.svg")
-
-	s.vars = map[string]string{"icon": "foo.bar"}
-	req, err := http.NewRequest("GET", "/1.0/icons/foo.bar", nil)
-	c.Assert(err, check.IsNil)
-
-	rec := httptest.NewRecorder()
-
-	metaIconCmd.GET(metaIconCmd, req).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
-	c.Check(rec.Body.String(), check.Equals, "yadda icon")
-}
-
-func (s *apiSuite) TestMetaIconGetNoCheating(c *check.C) {
-	d := newTestDaemon()
-	// a test server
-	server := httptest.NewServer(d.router)
-
-	// try to get at the thing
-	req, err := http.NewRequest("GET", server.URL+"/1.0/icons/../yadda", nil)
-	c.Assert(err, check.IsNil)
-
-	res, err := http.DefaultClient.Do(req)
-	c.Assert(err, check.IsNil)
-
-	// the response is a 4xx
-	c.Check(res.StatusCode/100, check.Equals, 4)
-}
-
 func (s *apiSuite) TestAppIconGet(c *check.C) {
 	// have an active foo.bar in the system
 	s.mkInstalled(c, "foo", "bar", "v1", true, "icon: icon.ick")

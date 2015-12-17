@@ -51,7 +51,6 @@ const apiCompatLevel = "1"
 var api = []*Command{
 	rootCmd,
 	v1Cmd,
-	metaIconCmd,
 	appIconCmd,
 	packagesCmd,
 	packageCmd,
@@ -75,12 +74,6 @@ var (
 		Path:    "/1.0",
 		GuestOK: true,
 		GET:     v1Get,
-	}
-
-	metaIconCmd = &Command{
-		Path:   "/1.0/icons/{icon}",
-		UserOK: true,
-		GET:    metaIconGet,
 	}
 
 	appIconCmd = &Command{
@@ -899,17 +892,6 @@ func iconGet(name, origin string) Response {
 	}
 
 	return FileResponse(path)
-}
-
-// FXIME: can we kill this? all icons are always availble via the canonical
-//        /1.0/icons/$name.$origin/icon
-func metaIconGet(c *Command, r *http.Request) Response {
-	vars := muxVars(r)
-	nameAndOrigin := vars["icon"]
-
-	name, origin := snappy.SplitOrigin(nameAndOrigin)
-
-	return iconGet(name, origin)
 }
 
 func appIconGet(c *Command, r *http.Request) Response {
