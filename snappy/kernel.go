@@ -66,6 +66,14 @@ func extractKernelAssets(s *SnapPart, inter progress.Meter, flags InstallFlags) 
 		return fmt.Errorf("can not extract kernel assets from snap type %q", s.Type())
 	}
 
+	// check if we are on a "grub" system. if so, no need to unpack
+	// the kernel
+	if oem, err := getGadget(); err == nil {
+		if oem.Gadget.Hardware.Bootloader == "grub" {
+			return nil
+		}
+	}
+
 	// FIXME: feels wrong to use the basedir here, need something better
 	//
 	// now do the kernel specific bits
