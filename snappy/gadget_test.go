@@ -32,19 +32,19 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 )
 
-type OemSuite struct {
+type GadgetSuite struct {
 }
 
-var _ = Suite(&OemSuite{})
+var _ = Suite(&GadgetSuite{})
 
 var (
-	getOemOrig = getOem
+	getGadgetOrig = getGadget
 )
 
-func (s *OemSuite) SetUpTest(c *C) {
-	getOem = func() (*packageYaml, error) {
+func (s *GadgetSuite) SetUpTest(c *C) {
+	getGadget = func() (*packageYaml, error) {
 		return &packageYaml{
-			OEM: OEM{
+			Gadget: Gadget{
 				Software: Software{[]string{"makeuppackage", "anotherpackage"}},
 				Store:    Store{"ninjablocks"},
 			},
@@ -52,21 +52,21 @@ func (s *OemSuite) SetUpTest(c *C) {
 	}
 }
 
-func (s *OemSuite) TearDownTest(c *C) {
-	getOem = getOemImpl
+func (s *GadgetSuite) TearDownTest(c *C) {
+	getGadget = getGadgetImpl
 }
 
-func (s *OemSuite) TestIsBuildIn(c *C) {
+func (s *GadgetSuite) TestIsBuildIn(c *C) {
 	c.Check(IsBuiltInSoftware("notapackage"), Equals, false)
 	c.Check(IsBuiltInSoftware("makeuppackage"), Equals, true)
 	c.Check(IsBuiltInSoftware("anotherpackage"), Equals, true)
 }
 
-func (s *OemSuite) TestStoreID(c *C) {
+func (s *GadgetSuite) TestStoreID(c *C) {
 	c.Assert(StoreID(), Equals, "ninjablocks")
 }
 
-func (s *OemSuite) TestWriteApparmorAdditionalFile(c *C) {
+func (s *GadgetSuite) TestWriteApparmorAdditionalFile(c *C) {
 	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
@@ -78,7 +78,7 @@ func (s *OemSuite) TestWriteApparmorAdditionalFile(c *C) {
 	c.Assert(string(content), Equals, apparmorAdditionalContent)
 }
 
-func (s *OemSuite) TestCleanupOemHardwareRules(c *C) {
+func (s *GadgetSuite) TestCleanupGadgetHardwareRules(c *C) {
 	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
@@ -88,7 +88,7 @@ func (s *OemSuite) TestCleanupOemHardwareRules(c *C) {
 	additionalFile := filepath.Join(dirs.SnapAppArmorDir, "device-hive-iot-hal.json.additional")
 	c.Assert(helpers.FileExists(additionalFile), Equals, true)
 
-	err = cleanupOemHardwareUdevRules(m)
+	err = cleanupGadgetHardwareUdevRules(m)
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(additionalFile), Equals, false)
 }

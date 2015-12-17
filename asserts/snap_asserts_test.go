@@ -123,10 +123,8 @@ func makeSignAndCheckDbWithAccountKey(c *C) (accFingerp string, accSignDB, check
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	cfg := &asserts.DatabaseConfig{
-		Path: rootDir,
-		TrustedKeys: map[string][]*asserts.AccountKey{
-			"canonical": {asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
-		},
+		Path:        rootDir,
+		TrustedKeys: []*asserts.AccountKey{asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	checkDB, err = asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -170,5 +168,5 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapDecl)
-	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knownledge: snap-declaration timestamp outside of signing key validity")
+	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knowledge: snap-declaration timestamp outside of signing key validity")
 }

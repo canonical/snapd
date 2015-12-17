@@ -119,7 +119,7 @@ func regenerateAppArmorRulesImpl(snapname string) error {
 }
 
 func udevRulesPathForPart(partid string) string {
-	// use 70- here so that its read before the OEM rules
+	// use 70- here so that its read before the Gadget rules
 	return filepath.Join(dirs.SnapUdevRulesDir, fmt.Sprintf("70-snappy_hwassign_%s.rules", partid))
 }
 
@@ -162,7 +162,7 @@ KERNEL=="%v", TAG:="snappy-assign", ENV{SNAPPY_APP}:="%s"
 		return err
 	}
 
-	return activateOemHardwareUdevRules()
+	return activateGadgetHardwareUdevRules()
 }
 
 var regenerateAppArmorRules = regenerateAppArmorRulesImpl
@@ -310,7 +310,7 @@ func RemoveHWAccess(snapname, device string) error {
 		return err
 	}
 
-	if err := activateOemHardwareUdevRules(); err != nil {
+	if err := activateGadgetHardwareUdevRules(); err != nil {
 		return err
 	}
 

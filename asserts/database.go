@@ -39,8 +39,8 @@ import (
 type DatabaseConfig struct {
 	// database backstore path
 	Path string
-	// trusted keys maps authority-ids to list of trusted keys.
-	TrustedKeys map[string][]*AccountKey
+	// trusted account keys
+	TrustedKeys []*AccountKey
 }
 
 // Well-known errors
@@ -57,8 +57,8 @@ type consistencyChecker interface {
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
-	root string
-	cfg  DatabaseConfig
+	root        string
+	trustedKeys map[string][]*AccountKey
 }
 
 const (
@@ -81,7 +81,12 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	if info.Mode().Perm()&0002 != 0 {
 		return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
 	}
-	return &Database{root: cfg.Path, cfg: *cfg}, nil
+	trustedKeys := make(map[string][]*AccountKey)
+	for _, accKey := range cfg.TrustedKeys {
+		authID := accKey.AccountID()
+		trustedKeys[authID] = append(trustedKeys[authID], accKey)
+	}
+	return &Database{root: cfg.Path, trustedKeys: trustedKeys}, nil
 }
 
 func (db *Database) atomicWriteEntry(data []byte, secret bool, subpath ...string) error {
@@ -214,7 +219,7 @@ func (db *Database) findAccountKeys(authorityID, fingerprintSuffix string) ([]*A
 		return nil, fmt.Errorf("key id/fingerprint suffix must be at least 64 bits")
 	}
 	res := make([]*AccountKey, 0, 1)
-	cands := db.cfg.TrustedKeys[authorityID]
+	cands := db.trustedKeys[authorityID]
 	for _, cand := range cands {
 		if strings.HasSuffix(cand.Fingerprint(), fingerprintSuffix) {
 			res = append(res, cand)
@@ -267,7 +272,7 @@ func (db *Database) Check(assert Assertion) error {
 				if checker, ok := assert.(consistencyChecker); ok {
 					err := checker.checkConsistency(db, accKey)
 					if err != nil {
-						return fmt.Errorf("signature verifies but assertion violates other knownledge: %v", err)
+						return fmt.Errorf("signature verifies but assertion violates other knowledge: %v", err)
 					}
 				}
 				return nil
