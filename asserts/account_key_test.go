@@ -166,10 +166,8 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	cfg := &asserts.DatabaseConfig{
-		Path: rootDir,
-		TrustedKeys: map[string][]asserts.PublicKey{
-			"canonical": {asserts.OpenPGPPublicKey(&trustedKey.PublicKey)},
-		},
+		Path:        rootDir,
+		TrustedKeys: []*asserts.AccountKey{asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -193,10 +191,8 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	cfg := &asserts.DatabaseConfig{
-		Path: rootDir,
-		TrustedKeys: map[string][]asserts.PublicKey{
-			"canonical": {asserts.OpenPGPPublicKey(&trustedKey.PublicKey)},
-		},
+		Path:        rootDir,
+		TrustedKeys: []*asserts.AccountKey{asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -226,14 +222,13 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 
-	accKey, ok := a.(asserts.PublicKey)
-	c.Assert(ok, Equals, true)
+	accKey := a.(*asserts.AccountKey)
 
-	c.Check(accKey.IsValidAt(aks.since), Equals, true)
-	c.Check(accKey.IsValidAt(aks.since.AddDate(0, 0, -1)), Equals, false)
-	c.Check(accKey.IsValidAt(aks.since.AddDate(0, 0, 1)), Equals, true)
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.since), Equals, true)
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.since.AddDate(0, 0, -1)), Equals, false)
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.since.AddDate(0, 0, 1)), Equals, true)
 
-	c.Check(accKey.IsValidAt(aks.until), Equals, false)
-	c.Check(accKey.IsValidAt(aks.until.AddDate(0, -1, 0)), Equals, true)
-	c.Check(accKey.IsValidAt(aks.until.AddDate(0, 1, 0)), Equals, false)
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until), Equals, false)
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until.AddDate(0, -1, 0)), Equals, true)
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until.AddDate(0, 1, 0)), Equals, false)
 }

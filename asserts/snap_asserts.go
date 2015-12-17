@@ -58,8 +58,8 @@ func (snapdcl *SnapDeclaration) Timestamp() time.Time {
 }
 
 // implement further consistency checks
-func (snapdcl *SnapDeclaration) checkConsistency(db *Database, pubk PublicKey) error {
-	if !pubk.IsValidAt(snapdcl.timestamp) {
+func (snapdcl *SnapDeclaration) checkConsistency(db *Database, acck *AccountKey) error {
+	if !acck.isKeyValidAt(snapdcl.timestamp) {
 		return fmt.Errorf("snap-declaration timestamp outside of signing key validity")
 	}
 	return nil

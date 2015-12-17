@@ -37,21 +37,17 @@ func OpenSysDatabase() (*Database, error) {
 		return nil, fmt.Errorf("failed to decode trusted account key: %v", err)
 	}
 
-	var trustedKey PublicKey
-	var authorityID string
+	var trustedKey *AccountKey
 	switch accKey := trustedAccKey.(type) {
 	case *AccountKey:
-		authorityID = accKey.AccountID()
 		trustedKey = accKey
 	default:
 		return nil, fmt.Errorf("trusted account key is %T, not an account-key", trustedAccKey)
 	}
 
 	cfg := &DatabaseConfig{
-		Path: dirs.SnapAssertsDBDir,
-		TrustedKeys: map[string][]PublicKey{
-			authorityID: {trustedKey},
-		},
+		Path:        dirs.SnapAssertsDBDir,
+		TrustedKeys: []*AccountKey{trustedKey},
 	}
 
 	return OpenDatabase(cfg)

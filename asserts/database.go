@@ -35,26 +35,12 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 )
 
-// PublicKey is a public key as used by the assertion database.
-type PublicKey interface {
-	// Fingerprint returns the key fingerprint.
-	Fingerprint() string
-	// Verify verifies signature is valid for content using the key.
-	Verify(content []byte, sig Signature) error
-	// IsValidAt returns whether the public key is valid at 'when' time.
-	IsValidAt(when time.Time) bool
-}
-
-// TODO/XXX: make PublicKey minimal, only Fingerprint exported
-// have a few more internal only methods, to address encodeOpenpgp for example
-// then for now use AccountKey directly for TrustedKeys in DatabaseConfig
-
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
 	// database backstore path
 	Path string
-	// trusted keys maps authority-ids to list of trusted keys.
-	TrustedKeys map[string][]PublicKey
+	// trusted account keys
+	TrustedKeys []*AccountKey
 }
 
 // Well-known errors
@@ -65,14 +51,14 @@ var (
 // A consistencyChecker performs further checks based on the full
 // assertion database knowledge and its own signing key.
 type consistencyChecker interface {
-	checkConsistency(db *Database, signingPubKey PublicKey) error
+	checkConsistency(db *Database, signingKey *AccountKey) error
 }
 
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
-	root string
-	cfg  DatabaseConfig
+	root        string
+	trustedKeys map[string][]*AccountKey
 }
 
 const (
@@ -95,7 +81,12 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	if info.Mode().Perm()&0002 != 0 {
 		return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
 	}
-	return &Database{root: cfg.Path, cfg: *cfg}, nil
+	trustedKeys := make(map[string][]*AccountKey)
+	for _, accKey := range cfg.TrustedKeys {
+		authID := accKey.AccountID()
+		trustedKeys[authID] = append(trustedKeys[authID], accKey)
+	}
+	return &Database{root: cfg.Path, trustedKeys: trustedKeys}, nil
 }
 
 func (db *Database) atomicWriteEntry(data []byte, secret bool, subpath ...string) error {
@@ -218,7 +209,8 @@ func (db *Database) Sign(assertType AssertionType, headers map[string]string, bo
 // retrieved by giving suffixes of their fingerprint,
 // for safety suffix must be at least 64 bits though
 // TODO: may need more details about the kind of key we are looking for
-func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]PublicKey, error) {
+// and use an interface for the results.
+func (db *Database) findAccountKeys(authorityID, fingerprintSuffix string) ([]*AccountKey, error) {
 	suffixLen := len(fingerprintSuffix)
 	if suffixLen%2 == 1 {
 		return nil, fmt.Errorf("key id/fingerprint suffix cannot specify a half byte")
@@ -226,8 +218,8 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 	if suffixLen < 16 {
 		return nil, fmt.Errorf("key id/fingerprint suffix must be at least 64 bits")
 	}
-	res := make([]PublicKey, 0, 1)
-	cands := db.cfg.TrustedKeys[authorityID]
+	res := make([]*AccountKey, 0, 1)
+	cands := db.trustedKeys[authorityID]
 	for _, cand := range cands {
 		if strings.HasSuffix(cand.Fingerprint(), fingerprintSuffix) {
 			res = append(res, cand)
@@ -240,9 +232,11 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 		if err != nil {
 			return err
 		}
-		var accKey PublicKey
-		accKey, ok := a.(*AccountKey)
-		if !ok {
+		var accKey *AccountKey
+		switch acck := a.(type) {
+		case *AccountKey:
+			accKey = acck
+		default:
 			return fmt.Errorf("something that is not an account-key under their storage tree")
 		}
 		res = append(res, accKey)
@@ -264,19 +258,19 @@ func (db *Database) Check(assert Assertion) error {
 		return err
 	}
 	// TODO: later may need to consider type of assert to find candidate keys
-	pubKeys, err := db.findPublicKeys(assert.AuthorityID(), sig.KeyID())
+	accKeys, err := db.findAccountKeys(assert.AuthorityID(), sig.KeyID())
 	if err != nil {
 		return fmt.Errorf("error finding matching public key for signature: %v", err)
 	}
 	now := time.Now()
 	var lastErr error
-	for _, pubKey := range pubKeys {
-		if pubKey.IsValidAt(now) {
-			err := pubKey.Verify(content, sig)
+	for _, accKey := range accKeys {
+		if accKey.isKeyValidAt(now) {
+			err := accKey.publicKey().verify(content, sig)
 			if err == nil {
 				// see if the assertion requires further checks
 				if checker, ok := assert.(consistencyChecker); ok {
-					err := checker.checkConsistency(db, pubKey)
+					err := checker.checkConsistency(db, accKey)
 					if err != nil {
 						return fmt.Errorf("signature verifies but assertion violates other knowledge: %v", err)
 					}
