@@ -59,7 +59,7 @@ func (s *lightweightSuite) SetUpTest(c *check.C) {
 
 	s.MkRemoved(c, "fmk2", "4.2.0ubuntu1")
 
-	s.MkInstalled(c, pkg.TypeOem, dirs.SnapOemDir, "an-oem", "", "3", false)
+	s.MkInstalled(c, pkg.TypeGadget, dirs.SnapGadgetDir, "a-gadget", "", "3", false)
 
 	newCoreRepo = func() repo {
 		// you can't ever have a removed systemimagepart, but for testing it'll do
@@ -265,18 +265,18 @@ func (s *lightweightSuite) TestMapRemovedAppNoPart(c *check.C) {
 	})
 }
 
-func (s *lightweightSuite) TestMapInactiveOemNoPart(c *check.C) {
-	bag := PartBagByName("an-oem", "canonical")
+func (s *lightweightSuite) TestMapInactiveGadgetNoPart(c *check.C) {
+	bag := PartBagByName("a-gadget", "canonical")
 	m := bag.Map(nil)
 	c.Check(m["installed_size"], check.Matches, "[0-9]+")
 	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]string{
-		"name":          "an-oem",
+		"name":          "a-gadget",
 		"origin":        "sideload", // best guess
 		"status":        "installed",
 		"version":       "3",
-		"icon":          filepath.Join(s.d, "oem", "an-oem", "3", "icon.png"),
-		"type":          "oem",
+		"icon":          filepath.Join(s.d, "gadget", "a-gadget", "3", "icon.png"),
+		"type":          "gadget",
 		"vendor":        "",
 		"download_size": "-1",
 		"description":   "",
@@ -378,15 +378,15 @@ func (s *lightweightSuite) TestLoadApp(c *check.C) {
 	c.Check(p.Version(), check.Equals, "0.8")
 }
 
-func (s *lightweightSuite) TestLoadOem(c *check.C) {
-	oem := PartBagByName("an-oem", "whatever")
-	c.Assert(oem, check.NotNil)
-	c.Check(oem.Versions, check.DeepEquals, []string{"3"})
-	c.Check(oem.Type, check.Equals, pkg.TypeOem)
+func (s *lightweightSuite) TestLoadGadget(c *check.C) {
+	gadget := PartBagByName("a-gadget", "whatever")
+	c.Assert(gadget, check.NotNil)
+	c.Check(gadget.Versions, check.DeepEquals, []string{"3"})
+	c.Check(gadget.Type, check.Equals, pkg.TypeGadget)
 
-	c.Check(oem.IsInstalled(0), check.Equals, true)
-	c.Check(oem.ActiveIndex(), check.Equals, -1)
-	p, err := oem.Load(0)
+	c.Check(gadget.IsInstalled(0), check.Equals, true)
+	c.Check(gadget.ActiveIndex(), check.Equals, -1)
+	p, err := gadget.Load(0)
 	c.Check(err, check.IsNil)
 	c.Check(p, check.FitsTypeOf, new(snappy.SnapPart))
 	c.Check(p.Version(), check.Equals, "3")
@@ -421,12 +421,12 @@ func (s *lightweightSuite) TestAll(c *check.C) {
 	}
 
 	expected := map[string]expectedT{
-		"foo.bar": {typ: pkg.TypeApp, idx: 0, inst: true},
-		"foo.baz": {typ: pkg.TypeApp, idx: -1, inst: false},
-		"fmk":     {typ: pkg.TypeFramework, idx: 1, inst: true},
-		"fmk2":    {typ: pkg.TypeFramework, idx: -1, inst: false},
-		"an-oem":  {typ: pkg.TypeOem, idx: -1, inst: true},
-		sysname:   {typ: pkg.TypeCore, idx: 0, inst: true},
+		"foo.bar":  {typ: pkg.TypeApp, idx: 0, inst: true},
+		"foo.baz":  {typ: pkg.TypeApp, idx: -1, inst: false},
+		"fmk":      {typ: pkg.TypeFramework, idx: 1, inst: true},
+		"fmk2":     {typ: pkg.TypeFramework, idx: -1, inst: false},
+		"a-gadget": {typ: pkg.TypeGadget, idx: -1, inst: true},
+		sysname:    {typ: pkg.TypeCore, idx: 0, inst: true},
 	}
 
 	for k, x := range expected {

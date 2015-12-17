@@ -42,8 +42,8 @@ const (
 	InhibitHooks
 	// DoInstallGC will ensure that garbage collection is done
 	DoInstallGC
-	// AllowOEM allows the installation of OEM packages, this does not affect updates.
-	AllowOEM
+	// AllowGadget allows the installation of Gadget packages, this does not affect updates.
+	AllowGadget
 )
 
 func doUpdate(part Part, flags InstallFlags, meter progress.Meter) error {
@@ -162,7 +162,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 			return "", ErrPackageNameAlreadyInstalled
 		}
 
-		// TODO block oem snaps here once the store supports package types
+		// TODO block gadget snaps here once the store supports package types
 
 		return part.Install(meter, flags)
 	}

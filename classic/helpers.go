@@ -62,7 +62,7 @@ func isMounted(path string) (bool, error) {
 		return true, nil
 	}
 
-	// exitCode == 1 either means soemthing went wrong *or*
+	// exitCode == 1 either means something went wrong *or*
 	//               the path is not a mount point
 	//               (thanks mountpoint.c :/)
 	if strings.Contains(string(output), "is not a mountpoint") {

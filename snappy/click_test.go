@@ -376,36 +376,36 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *SnapTestSuite) TestLocalOemSnapInstall(c *C) {
+func (s *SnapTestSuite) TestLocalGadgetSnapInstall(c *C) {
 	snapFile := makeTestSnapPackage(c, `name: foo
 version: 1.0
-type: oem
+type: gadget
 icon: foo.svg`)
-	_, err := installClick(snapFile, AllowOEM, nil, testOrigin)
+	_, err := installClick(snapFile, AllowGadget, nil, testOrigin)
 	c.Assert(err, IsNil)
 
-	contentFile := filepath.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
+	contentFile := filepath.Join(s.tempdir, "gadget", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
 }
 
-func (s *SnapTestSuite) TestLocalOemSnapInstallVariants(c *C) {
+func (s *SnapTestSuite) TestLocalGadgetSnapInstallVariants(c *C) {
 	snapFile := makeTestSnapPackage(c, `name: foo
 version: 1.0
-type: oem
+type: gadget
 icon: foo.svg`)
-	_, err := installClick(snapFile, AllowOEM, nil, testOrigin)
+	_, err := installClick(snapFile, AllowGadget, nil, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "1.0", "", "remote-channel"), IsNil)
 
-	contentFile := filepath.Join(s.tempdir, "oem", "foo", "1.0", "bin", "foo")
+	contentFile := filepath.Join(s.tempdir, "gadget", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
 
 	// a package update
 	snapFile = makeTestSnapPackage(c, `name: foo
 version: 2.0
-type: oem
+type: gadget
 icon: foo.svg`)
 	_, err = installClick(snapFile, 0, nil, testOrigin)
 	c.Check(err, IsNil)
@@ -413,7 +413,7 @@ icon: foo.svg`)
 
 	// XXX: I think this next test now tests something we actually don't
 	// want. At least for fwks and apps, sideloading something installed
-	// is a no-no. Are OEMs different in this regard?
+	// is a no-no. Are Gadgets different in this regard?
 	//
 	// // different origin, this shows we have no origin support at this
 	// // level, but sideloading also works.
@@ -421,16 +421,16 @@ icon: foo.svg`)
 	// c.Check(err, IsNil)
 	// c.Assert(storeMinimalRemoteManifest("foo", "foo", SideloadedOrigin, "1.0", ""), IsNil)
 
-	// a package name fork, IOW, a different OEM package.
+	// a package name fork, IOW, a different Gadget package.
 	snapFile = makeTestSnapPackage(c, `name: foo-fork
 version: 2.0
-type: oem
+type: gadget
 icon: foo.svg`)
 	_, err = installClick(snapFile, 0, nil, testOrigin)
-	c.Check(err, Equals, ErrOEMPackageInstall)
+	c.Check(err, Equals, ErrGadgetPackageInstall)
 
 	// this will cause chaos, but let's test if it works
-	_, err = installClick(snapFile, AllowOEM, nil, testOrigin)
+	_, err = installClick(snapFile, AllowGadget, nil, testOrigin)
 	c.Check(err, IsNil)
 }
 

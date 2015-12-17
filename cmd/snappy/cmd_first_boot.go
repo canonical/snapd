@@ -27,19 +27,19 @@ import (
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
-type cmdInternalFirstBootOemConfig struct{}
+type cmdInternalFirstBootGadgetConfig struct{}
 
 func init() {
 	_, err := parser.AddCommand("firstboot",
 		"internal",
 		"internal",
-		&cmdInternalFirstBootOemConfig{})
+		&cmdInternalFirstBootGadgetConfig{})
 	if err != nil {
 		logger.Panicf("Unable to first_boot: %v", err)
 	}
 }
 
-func (x *cmdInternalFirstBootOemConfig) Execute(args []string) error {
+func (x *cmdInternalFirstBootGadgetConfig) Execute(args []string) error {
 	err := snappy.FirstBoot()
 	if err == snappy.ErrNotFirstBoot {
 		fmt.Println(i18n.G("First boot has already run"))

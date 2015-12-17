@@ -918,7 +918,7 @@ func appIconGet(c *Command, r *http.Request) Response {
 	}
 
 	path := filepath.Clean(part.Icon())
-	if !strings.HasPrefix(path, dirs.SnapAppsDir) && !strings.HasPrefix(path, dirs.SnapOemDir) {
+	if !strings.HasPrefix(path, dirs.SnapAppsDir) && !strings.HasPrefix(path, dirs.SnapGadgetDir) {
 		return BadRequest
 	}
 
