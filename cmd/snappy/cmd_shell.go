@@ -21,6 +21,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"syscall"
 
 	"github.com/ubuntu-core/snappy/classic"
 	"github.com/ubuntu-core/snappy/i18n"
@@ -44,12 +46,29 @@ func init() {
 	addOptionDescription(arg, "shell-type", i18n.G("The type of shell you want"))
 }
 
+// reexec will rexec itself with sudo
+func reexecWithSudo() error {
+	args := []string{"/usr/bin/sudo"}
+	args = append(args, os.Args...)
+	if err := syscall.Exec(args[0], args, nil); err != nil {
+		return fmt.Errorf("failed to exec classic shell: %s", err)
+	}
+	panic("this should never be reached")
+}
+
 func (x *cmdShell) Execute(args []string) error {
 	shellType := x.Positional.ShellType
 	if shellType == "classic" {
 		if !classic.Enabled() {
 			return fmt.Errorf(i18n.G(`Classic dimension disabled on this system.
 Use "sudo snappy enable-classic" to enable it.`))
+		}
+
+		// we need to re-exec if we do not run as root
+		if os.Getuid() != 0 {
+			if err := reexecWithSudo(); err != nil {
+				return err
+			}
 		}
 
 		fmt.Println(i18n.G(`All background processes will be killed when you leave this shell`))
