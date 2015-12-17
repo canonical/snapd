@@ -319,7 +319,7 @@ func buildAndSign(assertType AssertionType, headers map[string]string, body []by
 	}
 	if bodyLength > 0 {
 		buf.Grow(bodyLength + 2)
-		buf.WriteString("\n\n")
+		buf.Write(nlnl)
 		buf.Write(finalBody)
 	} else {
 		finalBody = nil
@@ -361,7 +361,7 @@ func Encode(assert Assertion) []byte {
 	needed := len(content) + 2 + len(signature)
 	buf := bytes.NewBuffer(make([]byte, 0, needed))
 	buf.Write(content)
-	buf.WriteString("\n\n")
+	buf.Write(nlnl)
 	buf.Write(signature)
 	return buf.Bytes()
 }
