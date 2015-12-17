@@ -67,7 +67,7 @@ func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 		updateOutput := common.CallFakeUpdate(c)
 		expected := "(?ms)" +
 			".*" +
-			"^Reboot to use ubuntu-core version .*\\.\n"
+			"^Reboot to use the new ubuntu-core\\.\n"
 		c.Assert(updateOutput, check.Matches, expected)
 		s.assertBootDirContents(c)
 		common.Reboot(c)
