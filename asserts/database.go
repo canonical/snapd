@@ -24,23 +24,52 @@ package asserts
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/ubuntu-core/snappy/helpers"
 )
+
+// BuilderFromComps can build an assertion from its components.
+type BuilderFromComps func(headers map[string]string, body, content, signature []byte) (Assertion, error)
+
+// Backstore is a backstore for assertions. It can store and retrieve
+// assertions by type under primary paths (tuples of strings). Plus it
+// supports more general searches.
+type Backstore interface {
+	// Init initializes the backstore. It is provided with a function
+	// to build assertions from their components.
+	Init(buildAssert BuilderFromComps) error
+	// Put stores an assertion under the given unique primaryPath.
+	// It is responsible for checking that assert is newer than a
+	// previously stored revision.
+	Put(assertType AssertionType, primaryPath []string, assert Assertion) error
+	// Get loads an assertion with the given unique primaryPath.
+	// If none is present it returns ErrNotFound.
+	Get(assertType AssertionType, primaryPath []string) (Assertion, error)
+	// SearchByHeaders searches for assertions matching the given headers.
+	// It invokes foundCb for each found assertion.
+	// pathHint is an incomplete primary path pattern (with ""
+	// representing omitted components) that covers a superset of
+	// the results, it can be used for the search if helpful.
+	SearchByHeaders(assertType AssertionType, headers map[string]string, pathHint []string, foundCb func(Assertion)) error
+	// SearchBySuffix searches for assertions matching the given
+	// partial primary path without the last component plus
+	// suffixOfLast being a suffix of that last component.
+	// It invokes foundCb for each found assertion.
+	SearchBySuffix(assertType AssertionType, primaryPathWithoutLast []string, suffixOflast string, foundCb func(Assertion)) error
+}
 
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
-	// database backstore path
+	// database filesystem backstores path
 	Path string
 	// trusted account keys
 	TrustedKeys []*AccountKey
+	// backstore for assertions, falls back to a filesystem based backstrore
+	// if not set
+	Backstore Backstore
 }
 
 // Well-known errors
@@ -57,6 +86,7 @@ type consistencyChecker interface {
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
+	be          Backstore
 	root        string
 	trustedKeys map[string][]*AccountKey
 }
@@ -64,12 +94,14 @@ type Database struct {
 const (
 	privateKeysLayoutVersion = "v0"
 	privateKeysRoot          = "private-keys-" + privateKeysLayoutVersion
-	assertionsLayoutVersion  = "v0"
-	assertionsRoot           = "asserts-" + assertionsLayoutVersion
 )
 
 // OpenDatabase opens the assertion database based on the configuration.
 func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
+	be := cfg.Backstore
+
+	// TODO/XXX: ensuring cfg.Path becomes optional when the keypair
+	// manager/backstore becomes also pluggable
 	err := os.MkdirAll(cfg.Path, 0775)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create assert database root: %v", err)
@@ -81,31 +113,25 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	if info.Mode().Perm()&0002 != 0 {
 		return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
 	}
+
+	if be == nil {
+		be = newFilesystemBackstore(cfg.Path)
+	}
+	err = be.Init(buildAssertion)
+	if err != nil {
+		return nil, err
+	}
+
 	trustedKeys := make(map[string][]*AccountKey)
 	for _, accKey := range cfg.TrustedKeys {
 		authID := accKey.AccountID()
 		trustedKeys[authID] = append(trustedKeys[authID], accKey)
 	}
-	return &Database{root: cfg.Path, trustedKeys: trustedKeys}, nil
-}
-
-func (db *Database) atomicWriteEntry(data []byte, secret bool, subpath ...string) error {
-	fpath := filepath.Join(db.root, filepath.Join(subpath...))
-	dir := filepath.Dir(fpath)
-	err := os.MkdirAll(dir, 0775)
-	if err != nil {
-		return err
-	}
-	fperm := 0664
-	if secret {
-		fperm = 0600
-	}
-	return helpers.AtomicWriteFile(fpath, data, os.FileMode(fperm), 0)
-}
-
-func (db *Database) readEntry(subpath ...string) ([]byte, error) {
-	fpath := filepath.Join(db.root, filepath.Join(subpath...))
-	return ioutil.ReadFile(fpath)
+	return &Database{
+		root:        cfg.Path,
+		be:          be,
+		trustedKeys: trustedKeys,
+	}, nil
 }
 
 // GenerateKey generates a private/public key pair for identity and
@@ -129,7 +155,7 @@ func (db *Database) ImportKey(authorityID string, privKey PrivateKey) (fingerpri
 	}
 
 	fingerp := privKey.PublicKey().Fingerprint()
-	err = db.atomicWriteEntry(encoded, true, privateKeysRoot, authorityID, fingerp)
+	err = atomicWriteEntry(encoded, true, db.root, privateKeysRoot, authorityID, fingerp)
 	if err != nil {
 		return "", fmt.Errorf("failed to store private key: %v", err)
 	}
@@ -155,7 +181,7 @@ func (db *Database) findPrivateKey(authorityID, fingerprintWildcard string) (Pri
 	if keyPath == "" {
 		return nil, fmt.Errorf("no matching key pair found")
 	}
-	encoded, err := db.readEntry(privateKeysRoot, keyPath)
+	encoded, err := readEntry(db.root, privateKeysRoot, keyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key pair: %v", err)
 	}
@@ -226,20 +252,13 @@ func (db *Database) findAccountKeys(authorityID, fingerprintSuffix string) ([]*A
 		}
 	}
 	// consider stored account keys
-	accountKeysTop := filepath.Join(db.root, assertionsRoot, string(AccountKeyType))
-	foundKeyCb := func(primaryPath string) error {
-		a, err := db.readAssertion(AccountKeyType, primaryPath)
-		if err != nil {
-			return err
-		}
+	foundKeyCb := func(a Assertion) {
 		res = append(res, a.(*AccountKey))
-		return nil
 	}
-	err := findWildcard(accountKeysTop, []string{url.QueryEscape(authorityID), "*" + fingerprintSuffix}, foundKeyCb)
+	err := db.be.SearchBySuffix(AccountKeyType, []string{authorityID}, fingerprintSuffix, foundKeyCb)
 	if err != nil {
-		return nil, fmt.Errorf("broken assertion storage, scanning: %v", err)
+		return nil, err
 	}
-
 	return res, nil
 }
 
@@ -279,26 +298,6 @@ func (db *Database) Check(assert Assertion) error {
 	return fmt.Errorf("failed signature verification: %v", lastErr)
 }
 
-// guarantees that result assertion is of the expected type (both in the AssertionType and go type sense)
-func (db *Database) readAssertion(assertType AssertionType, primaryPath string) (Assertion, error) {
-	encoded, err := db.readEntry(assertionsRoot, string(assertType), primaryPath)
-	if os.IsNotExist(err) {
-		return nil, ErrNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("broken assertion storage, failed to read assertion: %v", err)
-	}
-	assert, err := Decode(encoded)
-	if err != nil {
-		return nil, fmt.Errorf("broken assertion storage, failed to decode assertion: %v", err)
-	}
-	if assert.Type() != assertType {
-		return nil, fmt.Errorf("assertion that is not of type %q under their storage tree", assertType)
-	}
-	// because of Decode() construction assert has also the expected go type
-	return assert, nil
-}
-
 // Add persists the assertion after ensuring it is properly signed and consistent with all the stored knowledge.
 // It will return an error when trying to add an older revision of the assertion than the one currently stored.
 func (db *Database) Add(assert Assertion) error {
@@ -316,40 +315,19 @@ func (db *Database) Add(assert Assertion) error {
 		if keyVal == "" {
 			return fmt.Errorf("missing primary key header: %v", k)
 		}
-		// safety against '/' etc
-		primaryKey[i] = url.QueryEscape(keyVal)
+		primaryKey[i] = keyVal
 	}
-	primaryPath := filepath.Join(primaryKey...)
-	curAssert, err := db.readAssertion(assert.Type(), primaryPath)
-	if err == nil {
-		curRev := curAssert.Revision()
-		rev := assert.Revision()
-		if curRev >= rev {
-			return fmt.Errorf("assertion added must have more recent revision than current one (adding %d, currently %d)", rev, curRev)
-		}
-	} else if err != ErrNotFound {
-		return err
-	}
-	err = db.atomicWriteEntry(Encode(assert), false, assertionsRoot, string(assert.Type()), primaryPath)
-	if err != nil {
-		return fmt.Errorf("broken assertion storage, failed to write assertion: %v", err)
-	}
-	return nil
+	return db.be.Put(assert.Type(), primaryKey, assert)
 }
 
-func (db *Database) confirmSearchHit(assertionType AssertionType, headers map[string]string, primaryPath string) (Assertion, error) {
-	assert, err := db.readAssertion(assertionType, primaryPath)
-	if err != nil {
-		return nil, err
-	}
-
+func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
 	// check non-primary-key headers as well
-	for expectedKey, expectedValue := range headers {
+	for expectedKey, expectedValue := range expectedHeaders {
 		if assert.Header(expectedKey) != expectedValue {
-			return nil, ErrNotFound
+			return false
 		}
 	}
-	return assert, nil
+	return true
 }
 
 // Find an assertion based on arbitrary headers.
@@ -366,10 +344,16 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 		if keyVal == "" {
 			return nil, fmt.Errorf("must provide primary key: %v", k)
 		}
-		primaryKey[i] = url.QueryEscape(keyVal)
+		primaryKey[i] = keyVal
 	}
-	primaryPath := filepath.Join(primaryKey...)
-	return db.confirmSearchHit(assertionType, headers, primaryPath)
+	assert, err := db.be.Get(assertionType, primaryKey)
+	if err != nil {
+		return nil, err
+	}
+	if !searchMatch(assert, headers) {
+		return nil, ErrNotFound
+	}
+	return assert, nil
 }
 
 // FindMany finds assertions based on arbitrary headers.
@@ -382,29 +366,15 @@ func (db *Database) FindMany(assertionType AssertionType, headers map[string]str
 	res := []Assertion{}
 	primaryKey := make([]string, len(reg.primaryKey))
 	for i, k := range reg.primaryKey {
-		keyVal := headers[k]
-		if keyVal == "" {
-			primaryKey[i] = "*"
-		} else {
-			primaryKey[i] = url.QueryEscape(keyVal)
-		}
+		primaryKey[i] = headers[k]
 	}
 
-	assertTypeTop := filepath.Join(db.root, assertionsRoot, string(assertionType))
-	foundCb := func(primaryPath string) error {
-		a, err := db.confirmSearchHit(assertionType, headers, primaryPath)
-		if err == ErrNotFound {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		res = append(res, a)
-		return nil
+	foundCb := func(assert Assertion) {
+		res = append(res, assert)
 	}
-	err = findWildcard(assertTypeTop, primaryKey, foundCb)
+	err = db.be.SearchByHeaders(assertionType, headers, primaryKey, foundCb)
 	if err != nil {
-		return nil, fmt.Errorf("broken assertion storage, searching for %s: %v", assertionType, err)
+		return nil, err
 	}
 
 	if len(res) == 0 {
