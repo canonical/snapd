@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"syscall"
 	"testing"
 	"time"
@@ -397,4 +398,70 @@ func (safs *signAddFindSuite) TestFindPrimaryLeftOut(c *C) {
 	retrieved1, err := safs.db.Find(asserts.AssertionType("test-only"), map[string]string{})
 	c.Assert(err, ErrorMatches, "must provide primary key: primary-key")
 	c.Check(retrieved1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestFindMany(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+		"other":        "other-x",
+	}
+	aa, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, IsNil)
+	err = safs.db.Add(aa)
+	c.Assert(err, IsNil)
+
+	headers = map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "b",
+		"other":        "other-y",
+	}
+	ab, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, IsNil)
+	err = safs.db.Add(ab)
+	c.Assert(err, IsNil)
+
+	headers = map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "c",
+		"other":        "other-x",
+	}
+	ac, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, IsNil)
+	err = safs.db.Add(ac)
+	c.Assert(err, IsNil)
+
+	res, err := safs.db.FindMany(asserts.AssertionType("test-only"), map[string]string{
+		"other": "other-x",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(res, HasLen, 2)
+	primKeys := []string{res[0].Header("primary-key"), res[1].Header("primary-key")}
+	sort.Strings(primKeys)
+	c.Check(primKeys, DeepEquals, []string{"a", "c"})
+
+	res, err = safs.db.FindMany(asserts.AssertionType("test-only"), map[string]string{
+		"other": "other-y",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(res, HasLen, 1)
+	c.Check(res[0].Header("primary-key"), Equals, "b")
+
+	res, err = safs.db.FindMany(asserts.AssertionType("test-only"), map[string]string{})
+	c.Assert(err, IsNil)
+	c.Assert(res, HasLen, 3)
+
+	res, err = safs.db.FindMany(asserts.AssertionType("test-only"), map[string]string{
+		"primary-key": "b",
+		"other":       "other-y",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(res, HasLen, 1)
+
+	res, err = safs.db.FindMany(asserts.AssertionType("test-only"), map[string]string{
+		"primary-key": "b",
+		"other":       "other-x",
+	})
+	c.Assert(res, HasLen, 0)
+	c.Check(err, Equals, asserts.ErrNotFound)
 }
