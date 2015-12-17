@@ -43,7 +43,7 @@ func init() {
 	wait.ForFunction(c, "regular", partition.Mode)
 
 	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
-	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
+	cli.ExecCommand(c, "sudo", "systemctl", "mask", "snappy-autopilot.timer")
 }
 
 // Hook up gocheck into the "go test" runner.

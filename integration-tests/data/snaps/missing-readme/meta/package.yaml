@@ -1,3 +1,4 @@
 name: missing-readme
 version: 1.0
 icon: meta/snappy64.png
+vendor: somevendor
