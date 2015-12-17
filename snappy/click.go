@@ -121,6 +121,12 @@ func generateBinaryName(m *packageYaml, binary Binary) string {
 	return filepath.Join(dirs.SnapBinariesDir, binName)
 }
 
+func generateDesktopFileName(m *packageYaml, binary Binary) string {
+	binName := fmt.Sprintf("snappy-%s.%s.desktop", m.Name, filepath.Base(binary.Name))
+
+	return filepath.Join(dirs.SnapDesktopDir, binName)
+}
+
 func binPathForBinary(pkgPath string, binary Binary) string {
 	return filepath.Join(pkgPath, binary.Exec)
 }
@@ -211,6 +217,47 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 
 	t.Execute(&templateOut, wrapperData)
 
+	return templateOut.String(), nil
+}
+
+func generateSnapDesktopFile(binary Binary, pkgPath string, m *packageYaml) (string, error) {
+	desktopTemplate := `[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+Name={{.Name}}
+Comment={{.Comment}}
+Icon={{.Icon}}
+Exec={{.Exec}}{{if .Categories}}
+Categories={{range .Categories}}{{.}};{{end}}{{end}}
+`
+
+	// no desktop file needed
+	if binary.Icon == "" && binary.Comment == "" {
+		return "", nil
+	}
+
+	run, err := filepath.Rel(dirs.GlobalRootDir, generateBinaryName(m, binary))
+	if err != nil {
+		return "", err
+	}
+
+	var templateOut bytes.Buffer
+	t := template.Must(template.New("desktop").Parse(desktopTemplate))
+	wrapperData := struct {
+		Name       string
+		Comment    string
+		Icon       string
+		Exec       string
+		Categories []string
+	}{
+		Name:       binary.Name,
+		Comment:    binary.Comment,
+		Icon:       filepath.Join(pkgPath, binary.Icon),
+		Exec:       fmt.Sprintf("/%s", run),
+		Categories: binary.Categories,
+	}
+
+	t.Execute(&templateOut, wrapperData)
 	return templateOut.String(), nil
 }
 
@@ -496,6 +543,18 @@ func (m *packageYaml) addPackageBinaries(baseDir string) error {
 		if err := helpers.AtomicWriteFile(generateBinaryName(m, binary), []byte(content), 0755, 0); err != nil {
 			return err
 		}
+
+		// now generate a desktop file (if needed)
+		desktop, err := generateSnapDesktopFile(binary, realBaseDir, m)
+		if err != nil {
+			return err
+		}
+		// only write if there is anything for us)
+		if desktop != "" {
+			if err := helpers.AtomicWriteFile(generateDesktopFileName(m, binary), []byte(desktop), 0644, 0); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -504,6 +563,7 @@ func (m *packageYaml) addPackageBinaries(baseDir string) error {
 func (m *packageYaml) removePackageBinaries(baseDir string) error {
 	for _, binary := range m.Binaries {
 		os.Remove(generateBinaryName(m, binary))
+		os.Remove(generateDesktopFileName(m, binary))
 	}
 
 	return nil

@@ -81,8 +81,11 @@ type ServiceYaml struct {
 
 // Binary represents a single binary inside the binaries: package.yaml
 type Binary struct {
-	Name string `yaml:"name"`
-	Exec string `yaml:"exec"`
+	Name       string   `yaml:"name"`
+	Exec       string   `yaml:"exec"`
+	Icon       string   `yaml:"icon,omitempty"`
+	Comment    string   `yaml:"comment,omitempty"`
+	Categories []string `yaml:"categories,omitempty"`
 
 	SecurityDefinitions `yaml:",inline"`
 }
