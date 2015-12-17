@@ -1,5 +1,6 @@
 name: dev-kmsg
 version: 1.0
 icon: meta/snappy64.png
+vendor: somevendor
 binaries:
  - name: bin/reader

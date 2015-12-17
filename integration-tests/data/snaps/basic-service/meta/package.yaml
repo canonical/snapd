@@ -1,6 +1,7 @@
 name: basic-service
 version: 1.0
 icon: meta/snappy64.png
+vendor: somevendor
 services:
   - name: service
     start: ./bin/start
