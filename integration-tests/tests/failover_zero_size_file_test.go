@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration,!excludereboots
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -25,9 +26,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
@@ -58,7 +59,7 @@ func (zeroSizeInitrd) set(c *check.C) {
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
 	dir := partition.BootDir(boot)
 
-	bootFileNamePattern := newKernelFilenamePattern(c, boot, true)
+	bootFileNamePattern := newKernelFilenamePattern(c, boot)
 	commonSet(c, dir, bootFileNamePattern, initrdFilename)
 }
 
@@ -67,7 +68,7 @@ func (zeroSizeInitrd) unset(c *check.C) {
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
 	dir := partition.BootDir(boot)
 
-	bootFileNamePattern := newKernelFilenamePattern(c, boot, false)
+	bootFileNamePattern := newKernelFilenamePattern(c, boot)
 	commonUnset(c, dir, bootFileNamePattern, initrdFilename)
 }
 
@@ -145,24 +146,16 @@ func getSingleFilename(c *check.C, pattern string) string {
 // and this function would return "b/%s%s*"
 // If we are not in an update process (ie. we are unsetting the failover conditions)
 // we want to change the files in the other partition
-func newKernelFilenamePattern(c *check.C, bootSystem string, afterUpdate bool) string {
-	var part string
-	var err error
-	if afterUpdate {
-		part, err = partition.NextBootPartition()
-		c.Assert(err, check.IsNil,
-			check.Commentf("Error getting the next boot partition: %s", err))
-	} else {
-		part, err = partition.CurrentPartition()
-		c.Assert(err, check.IsNil,
-			check.Commentf("Error getting the current partition: %s", err))
-		part = partition.OtherPartition(part)
-	}
+func newKernelFilenamePattern(c *check.C, bootSystem string) string {
+	part, err := partition.CurrentPartition()
+	c.Assert(err, check.IsNil,
+		check.Commentf("Error getting the current partition: %s", err))
+	part = partition.OtherPartition(part)
 	return filepath.Join(part, "%s%s*")
 }
 
 /*
-TODO: uncomment when bug https://bugs.github.com/ubuntu-core/snappy/+bug/1467553 is fixed
+TODO: uncomment when bug https://bugs.launchpad.net/snappy/+bug/1467553 is fixed
 (fgimenez 20150729)
 
 func (s *failoverSuite) TestZeroSizeKernel(c *check.C) {
@@ -171,13 +164,6 @@ func (s *failoverSuite) TestZeroSizeKernel(c *check.C) {
 */
 
 func (s *failoverSuite) TestZeroSizeInitrd(c *check.C) {
-	// Skip if on uboot due to https://bugs.launchpad.net/snappy/+bug/1480248
-	// (fgimenez 20150731)
-	boot, err := partition.BootSystem()
-	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
-	if boot == "uboot" {
-		c.Skip("Failover for empty initrd not working in uboot")
-	}
 	commonFailoverTest(c, zeroSizeInitrd{})
 }
 

@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -22,9 +23,9 @@ package tests
 import (
 	"os"
 
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/build"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/data"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
 
 	"gopkg.in/check.v1"
 )
@@ -93,17 +94,24 @@ func (s *snapd10PackagesTestSuite) postInteractions() apiInteractions {
 		payload:     s.snapPath,
 		waitPattern: `(?U){.*,"status":"active".*"status":"OK","status_code":200,"type":"sync"}`,
 		waitFunction: func() (string, error) {
-			output, err := genericRequest(s.resource()+"/"+data.BasicConfigSnapName+".sideload", "GET", nil)
+			output, err := makeRequest(&requestOptions{
+				resource: s.resource() + "/" + data.BasicConfigSnapName + ".sideload",
+				verb:     "GET",
+			})
 			return string(output), err
 		}}}
 }
 
 func (s *snapd10PackagesTestSuite) putInteractions() apiInteractions {
 	return []apiInteraction{{
-		payload:     `{"` + data.BasicConfigSnapName + ".sideload" + `": "key: value"}`,
+		// this payload is adapted to the httpie client
+		payload:     data.BasicConfigSnapName + `.sideload:="{key: value}"`,
 		waitPattern: `(?Us){"result":.*` + data.BasicConfigSnapName + `.*key: value.*","status":"OK","status_code":200,"type":"sync"}`,
 		waitFunction: func() (string, error) {
-			output, err := genericRequest(s.resource()+"/"+data.BasicConfigSnapName+".sideload/config", "GET", nil)
+			output, err := makeRequest(&requestOptions{
+				resource: s.resource() + "/" + data.BasicConfigSnapName + ".sideload/config",
+				verb:     "GET",
+			})
 			return string(output), err
 		}}}
 }

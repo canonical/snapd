@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration,!excludereboots
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -24,11 +25,11 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/build"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/data"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/wait"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
 )
@@ -40,7 +41,7 @@ type serviceSuite struct {
 }
 
 func (s *serviceSuite) TearDownTest(c *check.C) {
-	if !common.NeedsReboot() && common.CheckRebootMark("") {
+	if !common.IsInRebootProcess() {
 		common.RemoveSnap(c, data.BasicServiceSnapName)
 	}
 	// run cleanup last

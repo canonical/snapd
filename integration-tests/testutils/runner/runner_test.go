@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
@@ -25,7 +26,7 @@ import (
 	"regexp"
 	"testing"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&GenericTestSuite{})

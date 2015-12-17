@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -37,5 +38,5 @@ func (s *snapd10TestSuite) resource() string {
 
 func (s *snapd10TestSuite) getInteractions() apiInteractions {
 	return []apiInteraction{{
-		responsePattern: `(?U){"result":{"api_compat":"0","default_channel":".*","flavor":".*","release":".*"},"status":"OK","status_code":200,"type":"sync"}`}}
+		responsePattern: `(?U){"result":{"api_compat":"\d+","default_channel":".*","flavor":".*","release":".*"},"status":"OK","status_code":200,"type":"sync"}`}}
 }

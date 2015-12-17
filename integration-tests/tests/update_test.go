@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration,!excludereboots
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -23,8 +24,8 @@ import (
 	"io/ioutil"
 	"path"
 
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
@@ -66,13 +67,14 @@ func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 		updateOutput := common.CallFakeUpdate(c)
 		expected := "(?ms)" +
 			".*" +
-			"^Reboot to use .*ubuntu-core.\n"
+			"^Reboot to use ubuntu-core version .*\\.\n"
 		c.Assert(updateOutput, check.Matches, expected)
 		s.assertBootDirContents(c)
 		common.Reboot(c)
 	} else if common.AfterReboot(c) {
 		common.RemoveRebootMark(c)
-		c.Assert(common.GetCurrentUbuntuCoreVersion(c) > common.GetSavedVersion(c),
-			check.Equals, true)
+		currentVersion := common.GetCurrentUbuntuCoreVersion(c)
+		c.Assert(currentVersion > common.GetSavedVersion(c), check.Equals, true,
+			check.Commentf("Rebooted to the wrong version: %d", currentVersion))
 	}
 }

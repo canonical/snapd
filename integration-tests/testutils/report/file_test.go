@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -24,7 +25,7 @@ import (
 	"os"
 	"testing"
 
-	check "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 // Hook up check.v1 into the "go test" runner

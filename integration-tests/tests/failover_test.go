@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration,!excludereboots
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -22,7 +23,7 @@ package tests
 import (
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 )
 
 var _ = check.Suite(&failoverSuite{})

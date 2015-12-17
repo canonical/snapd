@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -26,7 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 )
 
 var (
@@ -47,7 +48,7 @@ func ForActiveService(c *check.C, serviceName string) (err error) {
 
 // ForServerOnPort uses ForCommand to check for process listening on the given port
 func ForServerOnPort(c *check.C, protocol string, port int) (err error) {
-	return ForCommand(c, fmt.Sprintf(`(?msU)^.*%s .*:%d .* LISTEN.*`, protocol, port),
+	return ForCommand(c, fmt.Sprintf(`(?sU)^.*%s .*:%d\s*(0\.0\.0\.0|::):\*\s*LISTEN.*`, protocol, port),
 		"netstat", "-tapn")
 }
 

@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
@@ -179,7 +180,7 @@ func (s *waitTestSuite) TestForServerOnPortCallsForCommand(c *check.C) {
 
 	ForServerOnPort(c, "tcp", 1234)
 
-	expectedCalled := `ForCommand called with pattern '(?msU)^.*tcp .*:1234 .* LISTEN.*' and cmds 'netstat -tapn'`
+	expectedCalled := `ForCommand called with pattern '(?sU)^.*tcp .*:1234\s*(0\.0\.0\.0|::):\*\s*LISTEN.*' and cmds 'netstat -tapn'`
 	c.Assert(called, check.Equals, expectedCalled, check.Commentf("Expected call to ForCommand didn't happen"))
 }
 

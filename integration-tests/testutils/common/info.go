@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -23,8 +24,9 @@ import (
 	"bufio"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
 	"gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 )
 
 // dependency aliasing

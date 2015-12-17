@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -24,9 +25,9 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/build"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/data"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
 
 	"gopkg.in/check.v1"
 )

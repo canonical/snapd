@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -23,6 +24,10 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+
+	"github.com/testing-cabal/subunit-go"
+
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 )
 
 const (
@@ -39,43 +44,104 @@ var (
 	skipRegexp     = regexp.MustCompile(fmt.Sprintf(commonPattern, "SKIP") + skipPatternSufix)
 )
 
-// ParserReporter is a type implementing io.Writer that
-// parses the input data and sends the results to the Next
-// reporter
+// Statuser reports the status of a test.
+type Statuser interface {
+	Status(subunit.Event) error
+}
+
+// SubunitV2ParserReporter is a type that parses the input data
+// and sends the results as a test status.
 //
 // The input data is expected to be of the form of the textual
 // output of gocheck with verbose mode enabled, and the output
-// will be of the form defined by the subunit format before
-// the binary encoding. There are constants reflecting the
-// expected patterns for this texts.
+// will be of the form defined by the subunit v2 format. There
+// are constants reflecting the expected patterns for this texts.
 // Additionally, it doesn't take  into account the SKIPs done
 // from a SetUpTest method, due to the nature of the snappy test
 // suite we are using those for resuming execution after a reboot
 // and they shouldn't be reflected as skipped tests in the final
 // output. For the same reason we use a special marker for the
 // test's announce.
-type ParserReporter struct {
-	Next io.Writer
+type SubunitV2ParserReporter struct {
+	statuser Statuser
+	Next     io.Writer
 }
 
-func (fr *ParserReporter) Write(data []byte) (n int, err error) {
-	var outputStr string
+// writerRecorder is used to record the number of bytes that subunit writes to the output.
+type writerRecorder struct {
+	writer io.Writer
+	nbytes int
+}
 
-	if matches := announceRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
-		outputStr = fmt.Sprintf("test: %s\n", matches[1])
+func (w *writerRecorder) Write(data []byte) (int, error) {
+	nbytes, err := w.writer.Write(data)
+	w.nbytes += nbytes
+	return nbytes, err
+}
 
-	} else if matches := successRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
-		outputStr = fmt.Sprintf("success: %s\n", matches[1])
+// NewSubunitV2ParserReporter returns a new ParserReporter that sends the report to the
+// writer argument.
+func NewSubunitV2ParserReporter(writer io.Writer) *SubunitV2ParserReporter {
+	wr := &writerRecorder{writer: writer}
+	return &SubunitV2ParserReporter{
+		statuser: &subunit.StreamResultToBytes{Output: wr},
+		Next:     wr,
+	}
+}
 
-	} else if matches := failureRegexp.FindStringSubmatch(string(data)); len(matches) == 2 {
-		outputStr = fmt.Sprintf("failure: %s\n", matches[1])
+func (fr *SubunitV2ParserReporter) Write(data []byte) (int, error) {
+	var err error
+	sdata := string(data)
 
-	} else if matches := skipRegexp.FindStringSubmatch(string(data)); len(matches) == 3 {
-		outputStr = fmt.Sprintf("skip: %s [\n%s\n]\n", matches[1], matches[2])
+	if matches := announceRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
+		testID := matches[1]
+		if isTest(testID) && !common.IsInRebootProcess() {
+			err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "exists"})
+		}
+	} else if matches := successRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
+		testID := matches[1]
+		if isTest(testID) && !common.IsInRebootProcess() {
+			err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "success"})
+		}
+	} else if matches := failureRegexp.FindStringSubmatch(sdata); len(matches) == 2 {
+		err = fr.statuser.Status(subunit.Event{TestID: matches[1], Status: "fail"})
+	} else if matches := skipRegexp.FindStringSubmatch(sdata); len(matches) == 3 {
+		reason := matches[2]
+		// Do not report anything about the set ups skipped because of another test's reboot.
+		duringReboot := matchString(
+			fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipDuringReboot), ".*", ".*"),
+			reason)
+		afterReboot := matchString(
+			fmt.Sprintf(regexp.QuoteMeta(common.FormatSkipAfterReboot), ".*", ".*"),
+			reason)
+		if duringReboot || afterReboot {
+			return 0, nil
+		}
+		err = fr.statuser.Status(subunit.Event{
+			TestID:    matches[1],
+			Status:    "skip",
+			FileName:  "reason",
+			FileBytes: []byte(reason),
+			MIME:      "text/plain;charset=utf8",
+		})
 	}
 
-	outputByte := []byte(outputStr)
-	n = len(outputByte)
-	fr.Next.Write(outputByte)
-	return
+	if wr, ok := fr.Next.(*writerRecorder); ok {
+		return wr.nbytes, err
+	}
+	return 0, err
+}
+
+func isTest(testID string) bool {
+	matchesSetUp := matchString(".*\\.SetUpTest", testID)
+	matchesTearDown := matchString(".*\\.TearDownTest", testID)
+	return !matchesSetUp && !matchesTearDown
+}
+
+func matchString(pattern string, s string) bool {
+	matched, err := regexp.MatchString(pattern, s)
+	if err != nil {
+		panic(err)
+	}
+	return matched
 }

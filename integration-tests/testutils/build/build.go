@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -25,16 +26,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/testutils"
 )
 
 const (
-	buildTestCmd = "go test -c ./_integration-tests/tests"
+	buildTestCmdFmt = "go test%s -c ./integration-tests/tests"
 
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
 	defaultGoArm        = "7"
-	testsBinDir         = "_integration-tests/bin/"
+	testsBinDir         = "integration-tests/bin/"
 )
 
 var (
@@ -46,28 +47,37 @@ var (
 	osGetenv         = os.Getenv
 
 	// The output of the build commands for testing goes to the testsBinDir path,
-	// which is under the _integration-tests directory. The
-	// _integration-tests/reboot-wrapper script (Test-Command's entry point of
+	// which is under the integration-tests directory. The
+	// integration-tests/test-wrapper script (Test-Command's entry point of
 	// adt-run) takes care of including testsBinDir at the beginning of $PATH, so
 	// that these binaries (if they exist) take precedence over the system ones
-	buildSnappyCliCmd = "go build -o " +
+	buildSnappyCliCmd = "go build -tags=excludeintegration -o " +
 		filepath.Join(testsBinDir, "snappy") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snappy")
-	buildSnapdCmd = "go build -o " +
+	buildSnapdCmd = "go build -tags=excludeintegration -o " +
 		filepath.Join(testsBinDir, "snapd") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snapd")
 )
 
+// Config comprises the parameters for the Assets function
+type Config struct {
+	UseSnappyFromBranch bool
+	Arch, TestBuildTags string
+}
+
 // Assets builds the snappy and integration tests binaries for the target
 // architecture.
-func Assets(useSnappyFromBranch bool, arch string) {
+func Assets(cfg *Config) {
+	if cfg == nil {
+		cfg = &Config{}
+	}
 	prepareTargetDir(testsBinDir)
 
-	if useSnappyFromBranch {
+	if cfg.UseSnappyFromBranch {
 		// FIXME We need to build an image that has the snappy from the branch
 		// installed. --elopio - 2015-06-25.
-		buildSnappyCLI(arch)
-		buildSnapd(arch)
+		buildSnappyCLI(cfg.Arch)
+		buildSnapd(cfg.Arch)
 	}
-	buildTests(arch)
+	buildTests(cfg.Arch, cfg.TestBuildTags)
 }
 
 func buildSnappyCLI(arch string) {
@@ -80,10 +90,16 @@ func buildSnapd(arch string) {
 	goCall(arch, buildSnapdCmd)
 }
 
-func buildTests(arch string) {
+func buildTests(arch, testBuildTags string) {
 	fmt.Println("Building tests...")
 
-	goCall(arch, buildTestCmd)
+	var tagText string
+	if testBuildTags != "" {
+		tagText = " -tags=" + testBuildTags
+	}
+	cmd := fmt.Sprintf(buildTestCmdFmt, tagText)
+
+	goCall(arch, cmd)
 	// XXX Go test 1.3 does not have the output flag, so we move the
 	// binaries after they are generated.
 	osRename("tests.test", testsBinDir+IntegrationTestName)

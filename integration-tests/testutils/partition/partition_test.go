@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
@@ -27,9 +28,9 @@ import (
 )
 
 const (
-	path        = "mypath"
-	writableCmd = "sudo mount -o remount,rw " + path
-	readonlyCmd = "sudo mount -o remount,ro " + path
+	testPath    = "mypath"
+	writableCmd = "sudo mount -o remount,rw " + testPath
+	readonlyCmd = "sudo mount -o remount,ro " + testPath
 	waitCmd     = lsofNotBeingWritten
 )
 
@@ -86,14 +87,14 @@ func (s *partitionTestSuite) fakeWaitForFunction(c *check.C, pattern string, f f
 }
 
 func (s *partitionTestSuite) TestMakeWritableCallsExecCommand(c *check.C) {
-	err := MakeWritable(c, path)
+	err := MakeWritable(c, testPath)
 
 	c.Assert(err, check.IsNil)
 	c.Assert(s.execCalls[writableCmd], check.Equals, 1)
 }
 
 func (s *partitionTestSuite) TestMakeWritableWaitsForIdlePartition(c *check.C) {
-	err := MakeWritable(c, path)
+	err := MakeWritable(c, testPath)
 
 	c.Assert(err, check.IsNil)
 	c.Assert(s.waitCalls[waitCmd], check.Equals, 1)
@@ -101,7 +102,7 @@ func (s *partitionTestSuite) TestMakeWritableWaitsForIdlePartition(c *check.C) {
 
 func (s *partitionTestSuite) TestMakeWritableReturnsWaitError(c *check.C) {
 	s.waitError = true
-	err := MakeWritable(c, path)
+	err := MakeWritable(c, testPath)
 
 	c.Assert(err, check.NotNil)
 	c.Assert(s.waitCalls[waitCmd], check.Equals, 1)
@@ -109,14 +110,14 @@ func (s *partitionTestSuite) TestMakeWritableReturnsWaitError(c *check.C) {
 }
 
 func (s *partitionTestSuite) TestMakeReadOnlyCallsExecCommand(c *check.C) {
-	err := MakeReadonly(c, path)
+	err := MakeReadonly(c, testPath)
 
 	c.Assert(err, check.IsNil)
 	c.Assert(s.execCalls[readonlyCmd], check.Equals, 1)
 }
 
 func (s *partitionTestSuite) TestMakeReadonlyWaitsForIdlePartition(c *check.C) {
-	err := MakeReadonly(c, path)
+	err := MakeReadonly(c, testPath)
 
 	c.Assert(err, check.IsNil)
 	c.Assert(s.waitCalls[waitCmd], check.Equals, 1)
@@ -124,7 +125,7 @@ func (s *partitionTestSuite) TestMakeReadonlyWaitsForIdlePartition(c *check.C) {
 
 func (s *partitionTestSuite) TestMakeReadonlyReturnsWaitError(c *check.C) {
 	s.waitError = true
-	err := MakeReadonly(c, path)
+	err := MakeReadonly(c, testPath)
 
 	c.Assert(err, check.NotNil)
 	c.Assert(s.waitCalls[waitCmd], check.Equals, 1)
@@ -147,7 +148,7 @@ prg  4827 user   1w   REG    8,2    197132 12452026 /home/user/prg`, "15w"},
 
 	for _, testCase := range testCases {
 		s.execOutput = testCase.execCommandOutput
-		f := checkPathBusyFunc(path)
+		f := checkPathBusyFunc(testPath)
 
 		actual, err := f()
 		c.Check(err, check.IsNil)
@@ -161,7 +162,7 @@ func (s *partitionTestSuite) TestCheckPartitionBusyFuncReturnsErrorOnLsofError(c
 	s.execOutput = "not a lsof common output on not used partitions"
 	s.execError = true
 
-	f := checkPathBusyFunc(path)
+	f := checkPathBusyFunc(testPath)
 
 	actual, err := f()
 

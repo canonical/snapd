@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -30,17 +31,24 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/config"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/partition"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/wait"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 const (
 	// BaseAltPartitionPath is the path to the B system partition.
 	BaseAltPartitionPath = "/writable/cache/system"
-	needsRebootFile      = "/tmp/needs-reboot"
-	channelCfgFile       = "/etc/system-image/channel.ini"
+	// NeedsRebootFile is the file that a test writes in order to request a reboot.
+	NeedsRebootFile = "/tmp/needs-reboot"
+	channelCfgFile  = "/etc/system-image/channel.ini"
+	// FormatSkipDuringReboot is the reason used to skip the pending tests when a test requested
+	// a reboot.
+	FormatSkipDuringReboot = "****** Skipped %s during reboot caused by %s"
+	// FormatSkipAfterReboot is the reason used to skip already ran tests after a reboot requested
+	// by a test.
+	FormatSkipAfterReboot = "****** Skipped %s after reboot caused by %s"
 )
 
 // Cfg is a struct that contains the configuration values passed from the
@@ -50,23 +58,15 @@ var Cfg *config.Config
 // SnappySuite is a structure used as a base test suite for all the snappy
 // integration tests.
 type SnappySuite struct {
-	cleanupHandlers []func()
+	testutil.BaseTest
 }
 
 // SetUpSuite disables the snappy autopilot. It will run before all the
 // integration suites.
 func (s *SnappySuite) SetUpSuite(c *check.C) {
-	// Workaround for bug https://bugs.launchpad.net/snappy/+bug/1498293
-	// TODO remove once the bug is fixed
-	// originally added by elopio - 2015-09-30 to the rollback test, moved
-	// here by --fgimenez - 2015-10-15
-	wait.ForFunction(c, "regular", partition.Mode)
-
-	cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
-	cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
 	var err error
 	Cfg, err = config.ReadConfig(
-		"_integration-tests/data/output/testconfig.json")
+		"integration-tests/data/output/testconfig.json")
 	c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
 
 	if !IsInRebootProcess() {
@@ -102,11 +102,12 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 // will skip all the following tests. If the suite is being called after the
 // test bed was rebooted, it will resume the test that requested the reboot.
 func (s *SnappySuite) SetUpTest(c *check.C) {
+	s.BaseTest.SetUpTest(c)
+
 	if NeedsReboot() {
-		contents, err := ioutil.ReadFile(needsRebootFile)
+		contents, err := ioutil.ReadFile(NeedsRebootFile)
 		c.Assert(err, check.IsNil, check.Commentf("Error reading needs-reboot file %v", err))
-		c.Skip(fmt.Sprintf("****** Skipped %s during reboot caused by %s",
-			c.TestName(), contents))
+		c.Skip(fmt.Sprintf(FormatSkipDuringReboot, c.TestName(), contents))
 	} else {
 		if CheckRebootMark("") {
 			c.Logf("****** Running %s", c.TestName())
@@ -114,21 +115,21 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 		} else {
 			if AfterReboot(c) {
 				c.Logf("****** Resuming %s after reboot", c.TestName())
+				p, err := partition.CurrentPartition()
+				c.Assert(err, check.IsNil, check.Commentf("Error getting the current boot partition: %v", err))
+				c.Logf(fmt.Sprintf("Rebooted to partition %s", p))
 			} else {
-				c.Skip(fmt.Sprintf("****** Skipped %s after reboot caused by %s",
-					c.TestName(), os.Getenv("ADT_REBOOT_MARK")))
+				c.Skip(fmt.Sprintf(FormatSkipAfterReboot, c.TestName(), os.Getenv("ADT_REBOOT_MARK")))
 			}
 		}
 	}
-	// clear slice
-	s.cleanupHandlers = nil
 }
 
 // TearDownTest cleans up the channel.ini files in case they were changed by
 // the test.
 // It also runs the cleanup handlers
 func (s *SnappySuite) TearDownTest(c *check.C) {
-	if !NeedsReboot() && CheckRebootMark("") {
+	if !IsInRebootProcess() {
 		// Only restore the channel config files if the reboot has been handled.
 		m := make(map[string]string)
 		m[channelCfgBackupFile()] = "/"
@@ -144,16 +145,7 @@ func (s *SnappySuite) TearDownTest(c *check.C) {
 		}
 	}
 
-	// run cleanup handlers and clear the slice
-	for _, f := range s.cleanupHandlers {
-		f()
-	}
-	s.cleanupHandlers = nil
-}
-
-// AddCleanup adds a new cleanup function to the test
-func (s *SnappySuite) AddCleanup(f func()) {
-	s.cleanupHandlers = append(s.cleanupHandlers, f)
+	s.BaseTest.TearDownTest(c)
 }
 
 func switchSystemImageConf(c *check.C, release, channel, version string) {
@@ -253,13 +245,20 @@ func Reboot(c *check.C) {
 // RebootWithMark requests a reboot using a specified mark.
 func RebootWithMark(c *check.C, mark string) {
 	c.Log("Preparing reboot with mark " + mark)
-	err := ioutil.WriteFile(needsRebootFile, []byte(mark), 0777)
+	err := ioutil.WriteFile(NeedsRebootFile, []byte(mark), 0777)
 	c.Assert(err, check.IsNil, check.Commentf("Error writing needs-reboot file: %v", err))
+	mode, err := partition.Mode()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the bootloader mode: %v", err))
+	if mode == "try" {
+		p, err := partition.NextBootPartition()
+		c.Assert(err, check.IsNil, check.Commentf("Error getting the next boot partition: %v", err))
+		c.Logf("Will reboot in try mode to partition %s", p)
+	}
 }
 
 // NeedsReboot returns True if a reboot has been requested by a test.
 func NeedsReboot() bool {
-	_, err := os.Stat(needsRebootFile)
+	_, err := os.Stat(NeedsRebootFile)
 	return err == nil
 }
 

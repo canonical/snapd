@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration,!excludereboots
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -22,9 +23,9 @@ package tests
 import (
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/_integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
@@ -48,7 +49,7 @@ func (rcLocalCrash) unset(c *check.C) {
 }
 
 /*
-TODO: uncomment when bug https://bugs.github.com/ubuntu-core/snappy/+bug/1476129 is fixed
+TODO: uncomment when bug https://bugs.launchpad.net/snappy/+bug/1476129 is fixed
 (fgimenez 20150728)
 
 func (s *failoverSuite) TestRCLocalCrash(c *check.C) {

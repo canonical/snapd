@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -22,16 +23,19 @@ package partition
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/mvo5/uboot-go/uenv"
 )
 
 const (
 	bootBase        = "/boot"
 	ubootDir        = bootBase + "/uboot"
 	grubDir         = bootBase + "/grub"
-	ubootConfigFile = ubootDir + "/snappy-system.txt"
+	ubootConfigFile = ubootDir + "/uboot.env"
 	grubConfigFile  = grubDir + "/grubenv"
 )
 
@@ -40,6 +44,8 @@ var (
 	filepathGlob = filepath.Glob
 	// BootSystem proxies bootSystem
 	BootSystem = bootSystem
+
+	confValue = getConfValue
 
 	configFiles = map[string]string{"uboot": ubootConfigFile, "grub": grubConfigFile}
 )
@@ -68,32 +74,19 @@ func BootDir(bootSystem string) string {
 // if we are upgrading. In grub systems it is the partition pointed in the boot
 // config file. For uboot systems the boot config file does not change, so that
 // we take the other partition in that case
-func NextBootPartition() (partition string, err error) {
+func NextBootPartition() (string, error) {
 	m, err := Mode()
 	if err != nil {
-		return
+		return "", err
 	}
 	if m != "try" {
 		return "", errors.New("Snappy is not in try mode")
 	}
 	snappyab, err := confValue("snappy_ab")
-	if err != nil || snappyab == "" {
-		return
-	}
-	system, err := BootSystem()
 	if err != nil {
-		return
+		return "", err
 	}
-	if system == "grub" {
-		// in grub based systems, the boot config file is changed before
-		// the update has been applied
-		partition = snappyab
-	} else {
-		// in uboot based systems, the boot config file is not changed until
-		// the update has been applied
-		partition = OtherPartition(snappyab)
-	}
-	return
+	return snappyab, nil
 }
 
 // Mode returns the current bootloader mode, regular or try.
@@ -101,17 +94,28 @@ func Mode() (mode string, err error) {
 	return confValue("snappy_mode")
 }
 
-func confValue(key string) (partition string, err error) {
+func getConfValue(key string) (string, error) {
 	system, err := BootSystem()
 	if err != nil {
-		return
+		return "", err
 	}
 
-	bootConfigFile := configFiles[system]
+	var value string
+	if system == "grub" {
+		value, err = getGrubConfValue(key)
+	} else if system == "uboot" {
+		value, err = getUbootConfValue(key)
+	} else {
+		panic(fmt.Sprintf("unknown boot system: %s", system))
+	}
+	return value, err
+}
 
+func getGrubConfValue(key string) (string, error) {
+	bootConfigFile := configFiles["grub"]
 	file, err := os.Open(bootConfigFile)
 	if err != nil {
-		return
+		return "", err
 	}
 
 	defer file.Close()
@@ -119,16 +123,27 @@ func confValue(key string) (partition string, err error) {
 	reader := bufio.NewReader(file)
 	scanner := bufio.NewScanner(reader)
 
+	var value string
 	for scanner.Scan() {
 		if strings.HasPrefix(scanner.Text(), key) {
 			fields := strings.Split(scanner.Text(), "=")
 			if len(fields) > 1 {
-				partition = fields[1]
+				value = fields[1]
 			}
-			return
+			break
 		}
 	}
-	return
+	return value, nil
+}
+
+func getUbootConfValue(key string) (string, error) {
+	bootConfigFile := configFiles["uboot"]
+	env, err := uenv.Open(bootConfigFile)
+	if err != nil {
+		return "", err
+	}
+
+	return env.Get(key), nil
 }
 
 // OtherPartition returns the backup partition, a or b.
@@ -150,16 +165,7 @@ func CurrentPartition() (partition string, err error) {
 		return
 	}
 	if m == "try" {
-		var system string
-		system, err = BootSystem()
-		if err != nil {
-			return
-		}
-		if system == "grub" {
-			// in grub based systems, the boot config file is changed before
-			// the update has been applied
-			partition = OtherPartition(partition)
-		}
+		partition = OtherPartition(partition)
 	}
 	return
 }

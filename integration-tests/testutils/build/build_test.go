@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -47,9 +48,6 @@ type BuildSuite struct {
 
 	osGetenvCalls map[string]int
 	backOsGetenv  func(string) string
-
-	useSnappyFromBranch bool
-	arch                string
 
 	environ map[string]string
 }
@@ -113,7 +111,7 @@ func (s *BuildSuite) fakeOsGetenv(key string) (value string) {
 }
 
 func (s *BuildSuite) TestAssetsCallsPrepareDir(c *check.C) {
-	Assets(s.useSnappyFromBranch, s.arch)
+	Assets(nil)
 
 	mkDirCall := s.mkDirCalls[testsBinDir]
 
@@ -123,18 +121,20 @@ func (s *BuildSuite) TestAssetsCallsPrepareDir(c *check.C) {
 }
 
 func (s *BuildSuite) TestAssetsBuildsTests(c *check.C) {
-	Assets(s.useSnappyFromBranch, s.arch)
+	Assets(nil)
 
-	buildCall := s.execCalls[buildTestCmd]
+	// not passing test build tags by default
+	testBuildTags := ""
+	cmd := fmt.Sprintf(buildTestCmdFmt, testBuildTags)
+	buildCall := s.execCalls[cmd]
 
-	fmt.Println(s.execCalls)
 	c.Assert(buildCall, check.Equals, 1,
 		check.Commentf("Expected 1 call to execCommand with %s, got %d",
-			buildTestCmd, buildCall))
+			cmd, buildCall))
 }
 
 func (s *BuildSuite) TestAssetsRenamesBuiltBinary(c *check.C) {
-	Assets(s.useSnappyFromBranch, s.arch)
+	Assets(nil)
 
 	cmd := "tests.test " + testsBinDir + IntegrationTestName
 	renameCall := s.osRenameCalls[cmd]
@@ -148,7 +148,7 @@ func (s *BuildSuite) TestAssetsSetsEnvironmentForGenericArch(c *check.C) {
 	arch := "myarch"
 	originalArch := "originalArch"
 	s.environ["GOARCH"] = originalArch
-	Assets(s.useSnappyFromBranch, arch)
+	Assets(&Config{Arch: arch})
 
 	setenvGOARCHFirstCall := s.osSetenvCalls["GOARCH "+arch]
 	setenvGOARCHFinalCall := s.osSetenvCalls["GOARCH "+originalArch]
@@ -175,7 +175,7 @@ func (s *BuildSuite) TestAssetsSetsEnvironmentForArm(c *check.C) {
 	for _, t := range armEnvironmentTests {
 		s.environ[t.envVar] = "original" + t.envVar
 	}
-	Assets(s.useSnappyFromBranch, arch)
+	Assets(&Config{Arch: arch})
 
 	for _, t := range armEnvironmentTests {
 		firstCall := fmt.Sprintf("%s %s", t.envVar, t.value)
@@ -193,7 +193,7 @@ func (s *BuildSuite) TestAssetsSetsEnvironmentForArm(c *check.C) {
 }
 
 func (s *BuildSuite) TestAssetsDoesNotSetEnvironmentForEmptyArch(c *check.C) {
-	Assets(s.useSnappyFromBranch, s.arch)
+	Assets(nil)
 
 	setenvGOARCHFirstCall := s.osSetenvCalls["GOARCH "]
 	setenvGOARCHFinalCall := s.osSetenvCalls["GOARCH "+os.Getenv("GOARCH")]
@@ -208,7 +208,7 @@ func (s *BuildSuite) TestAssetsDoesNotSetEnvironmentForEmptyArch(c *check.C) {
 
 func (s *BuildSuite) TestAssetsDoesNotSetEnvironmentForNonArm(c *check.C) {
 	arch := "not-arm"
-	Assets(s.useSnappyFromBranch, arch)
+	Assets(&Config{Arch: arch})
 
 	setenvGOARMFirstCall := s.osSetenvCalls["GOARM "+defaultGoArm]
 	setenvGOARMFinalCall := s.osSetenvCalls["GOARM "+os.Getenv("GOARM")]
@@ -222,8 +222,7 @@ func (s *BuildSuite) TestAssetsDoesNotSetEnvironmentForNonArm(c *check.C) {
 }
 
 func (s *BuildSuite) TestAssetsBuildsSnappyCliFromBranch(c *check.C) {
-	buildSnappyFromBranch := true
-	Assets(buildSnappyFromBranch, s.arch)
+	Assets(&Config{UseSnappyFromBranch: true})
 
 	buildCall := s.execCalls[buildSnappyCliCmd]
 
@@ -233,7 +232,7 @@ func (s *BuildSuite) TestAssetsBuildsSnappyCliFromBranch(c *check.C) {
 }
 
 func (s *BuildSuite) TestAssetsDoesNotBuildSnappyCliFromBranchIfNotInstructedTo(c *check.C) {
-	Assets(s.useSnappyFromBranch, s.arch)
+	Assets(nil)
 
 	buildCall := s.execCalls[buildSnappyCliCmd]
 
@@ -243,8 +242,7 @@ func (s *BuildSuite) TestAssetsDoesNotBuildSnappyCliFromBranchIfNotInstructedTo(
 }
 
 func (s *BuildSuite) TestAssetsBuildsSnapdFromBranch(c *check.C) {
-	buildSnappyFromBranch := true
-	Assets(buildSnappyFromBranch, s.arch)
+	Assets(&Config{UseSnappyFromBranch: true})
 
 	buildCall := s.execCalls[buildSnapdCmd]
 
@@ -254,11 +252,23 @@ func (s *BuildSuite) TestAssetsBuildsSnapdFromBranch(c *check.C) {
 }
 
 func (s *BuildSuite) TestAssetsDoesNotBuildSnapdFromBranchIfNotInstructedTo(c *check.C) {
-	Assets(s.useSnappyFromBranch, s.arch)
+	Assets(nil)
 
 	buildCall := s.execCalls[buildSnapdCmd]
 
 	c.Assert(buildCall, check.Equals, 0,
 		check.Commentf("Expected 0 call to execCommand with %s, got %d",
 			buildSnapdCmd, buildCall))
+}
+
+func (s *BuildSuite) TestAssetsHonoursBuildTags(c *check.C) {
+	testBuildTags := "mybuildtag"
+	Assets(&Config{TestBuildTags: testBuildTags})
+
+	tagBuildTestCmd := fmt.Sprintf(buildTestCmdFmt, " -tags=mybuildtag")
+	buildCall := s.execCalls[tagBuildTestCmd]
+
+	c.Assert(buildCall, check.Equals, 1,
+		check.Commentf("Expected 1 call to execCommand with %s, got %d",
+			tagBuildTestCmd, buildCall))
 }

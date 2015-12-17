@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
  * Copyright (C) 2015 Canonical Ltd
@@ -21,7 +22,7 @@ package data
 
 const (
 	// BaseSnapPath is the path for the snap sources used in testing
-	BaseSnapPath = "_integration-tests/data/snaps"
+	BaseSnapPath = "integration-tests/data/snaps"
 	// BasicSnapName is the name of the basic snap
 	BasicSnapName = "basic"
 	// BasicBinariesSnapName is the name of the basic snap with binaries
