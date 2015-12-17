@@ -96,9 +96,9 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 	}
 
 	targetDir := dirs.SnapAppsDir
-	// the "oem" parts are special
-	if m.Type == pkg.TypeOem {
-		targetDir = dirs.SnapOemDir
+	// the "gadget" parts are special
+	if m.Type == pkg.TypeGadget {
+		targetDir = dirs.SnapGadgetDir
 	}
 
 	if origin == SideloadedOrigin {
@@ -180,7 +180,7 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 	return part, nil
 }
 
-// Type returns the type of the SnapPart (app, oem, ...)
+// Type returns the type of the SnapPart (app, gadget, ...)
 func (s *SnapPart) Type() pkg.Type {
 	if s.m.Type != "" {
 		return s.m.Type
@@ -305,27 +305,27 @@ func (s *SnapPart) Binaries() []Binary {
 	return s.m.Binaries
 }
 
-// OemConfig return a list of packages to configure
-func (s *SnapPart) OemConfig() SystemConfig {
+// GadgetConfig return a list of packages to configure
+func (s *SnapPart) GadgetConfig() SystemConfig {
 	return s.m.Config
 }
 
 // Install installs the snap
 func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
-	allowOEM := (flags & AllowOEM) != 0
+	allowGadget := (flags & AllowGadget) != 0
 	inhibitHooks := (flags & InhibitHooks) != 0
 
 	if s.IsInstalled() {
 		return "", ErrAlreadyInstalled
 	}
 
-	if err := s.CanInstall(allowOEM, inter); err != nil {
+	if err := s.CanInstall(allowGadget, inter); err != nil {
 		return "", err
 	}
 
-	// the "oem" parts are special
-	if s.Type() == pkg.TypeOem {
-		if err := installOemHardwareUdevRules(s.m); err != nil {
+	// the "gadget" parts are special
+	if s.Type() == pkg.TypeGadget {
+		if err := installGadgetHardwareUdevRules(s.m); err != nil {
 			return "", err
 		}
 	}
@@ -622,10 +622,10 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 
 // Uninstall remove the snap from the system
 func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
-	// OEM snaps should not be removed as they are a key
-	// building block for OEMs. Prunning non active ones
+	// Gadget snaps should not be removed as they are a key
+	// building block for Gadgets. Prunning non active ones
 	// is acceptible.
-	if s.m.Type == pkg.TypeOem && s.IsActive() {
+	if s.m.Type == pkg.TypeGadget && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 
@@ -767,7 +767,7 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 }
 
 // CanInstall checks whether the SnapPart passes a series of tests required for installation
-func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
+func (s *SnapPart) CanInstall(allowGadget bool, inter interacter) error {
 	if s.IsInstalled() {
 		return ErrAlreadyInstalled
 	}
@@ -789,15 +789,15 @@ func (s *SnapPart) CanInstall(allowOEM bool, inter interacter) error {
 		return err
 	}
 
-	if s.Type() == pkg.TypeOem {
-		if !allowOEM {
-			if currentOEM, err := getOem(); err == nil {
-				if currentOEM.Name != s.Name() {
-					return ErrOEMPackageInstall
+	if s.Type() == pkg.TypeGadget {
+		if !allowGadget {
+			if currentGadget, err := getGadget(); err == nil {
+				if currentGadget.Name != s.Name() {
+					return ErrGadgetPackageInstall
 				}
 			} else {
-				// there should always be an oem package now
-				return ErrOEMPackageInstall
+				// there should always be a gadget package now
+				return ErrGadgetPackageInstall
 			}
 		}
 	}

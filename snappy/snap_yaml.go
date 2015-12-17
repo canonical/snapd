@@ -130,8 +130,8 @@ type packageYaml struct {
 	ServiceYamls []ServiceYaml `yaml:"services,omitempty"`
 	Binaries     []Binary      `yaml:"binaries,omitempty"`
 
-	// oem snap only
-	OEM    OEM          `yaml:"oem,omitempty"`
+	// gadget snap only
+	Gadget Gadget       `yaml:"gadget,omitempty"`
 	Config SystemConfig `yaml:"config,omitempty"`
 
 	// this is a bit ugly, but right now integration is a one:one
@@ -250,7 +250,7 @@ func parsePackageYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error)
 }
 
 func (m *packageYaml) qualifiedName(origin string) string {
-	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeOem {
+	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeGadget {
 		return m.Name
 	}
 	return m.Name + "." + origin

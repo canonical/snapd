@@ -29,7 +29,7 @@ The following keys are optional:
   license again.
 * `type`: (optional) the type of the snap, can be:
     * `app` - the default if empty
-    * `oem` - a special snap that OEMs can use to customize snappy for
+    * `gadget` - a special snap that Gadgets can use to customize snappy for
             their hardware
     * `framework` - a specialized snap that extends the system that other
                   snaps may use

@@ -44,7 +44,6 @@ var bindMountDirs = []bindMount{
 	{"/dev", "/dev", ""},
 	{"/var/lib/extrausers", "/var/lib/extrausers", "ro"},
 	{"/etc/sudoers", "/etc/sudoers", "ro"},
-	{"/etc/sudoers.d", "/etc/sudoers.d", "ro"},
 	{"/", "/snappy", ""},
 }
 

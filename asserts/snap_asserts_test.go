@@ -170,5 +170,5 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapDecl)
-	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knownledge: snap-declaration timestamp outside of signing key validity")
+	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knowledge: snap-declaration timestamp outside of signing key validity")
 }

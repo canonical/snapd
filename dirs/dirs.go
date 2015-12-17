@@ -30,7 +30,7 @@ var (
 
 	SnapAppsDir               string
 	SnapBlobDir               string
-	SnapOemDir                string
+	SnapGadgetDir             string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
 	SnapAppArmorDir           string
@@ -77,7 +77,7 @@ func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
 	SnapAppsDir = filepath.Join(rootdir, "/apps")
-	SnapOemDir = filepath.Join(rootdir, "/oem")
+	SnapGadgetDir = filepath.Join(rootdir, "/gadget")
 	SnapDataDir = filepath.Join(rootdir, "/var/lib/apps")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/apps/")
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")

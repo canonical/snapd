@@ -659,6 +659,7 @@ func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	// SNAP_* is overriden
 	c.Assert(envMap["SNAP_NAME"], Equals, "hello-app")
 	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
+	c.Check(envMap["LC_ALL"], Equals, "C.UTF-8")
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
@@ -906,7 +907,7 @@ explicit-license-agreement: Y`), 0644)
 	c.Assert(m.ExplicitLicenseAgreement, Equals, true)
 }
 
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryOemStoreId(c *C) {
+func (s *SnapTestSuite) TestUbuntuStoreRepositoryGadgetStoreId(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// ensure we get the right header
 		storeID := r.Header.Get("X-Ubuntu-Store")
@@ -916,13 +917,13 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryOemStoreId(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	// install custom oem snap with store-id
-	packageYaml, err := makeInstalledMockSnap(s.tempdir, `name: oem-test
+	// install custom gadget snap with store-id
+	packageYaml, err := makeInstalledMockSnap(s.tempdir, `name: gadget-test
 version: 1.0
-oem:
+gadget:
   store:
     id: my-store
-type: oem
+type: gadget
 `)
 	c.Assert(err, IsNil)
 	makeSnapActive(packageYaml)
@@ -937,19 +938,19 @@ type: oem
 }
 
 func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {
-	// install custom oem snap with store-id
-	oemYaml, err := makeInstalledMockSnap(s.tempdir, `name: oem-test
+	// install custom gadget snap with store-id
+	gadgetYaml, err := makeInstalledMockSnap(s.tempdir, `name: gadget-test
 version: 1.0
-oem:
+gadget:
   store:
     id: my-store
   software:
     built-in:
       - hello-app
-type: oem
+type: gadget
 `)
 	c.Assert(err, IsNil)
-	makeSnapActive(oemYaml)
+	makeSnapActive(gadgetYaml)
 
 	packageYaml, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
@@ -1333,11 +1334,11 @@ services:
 }
 
 func (s *SnapTestSuite) TestOriginFromPath(c *C) {
-	n, err := originFromYamlPath("/oem/foo.bar/1.0/meta/package.yaml")
+	n, err := originFromYamlPath("/gadget/foo.bar/1.0/meta/package.yaml")
 	c.Check(err, IsNil)
 	c.Check(n, Equals, "bar")
 
-	n, err = originFromYamlPath("/oem/foo_bar/1.0/meta/package.yaml")
+	n, err = originFromYamlPath("/gadget/foo_bar/1.0/meta/package.yaml")
 	c.Check(err, NotNil)
 	c.Check(n, Equals, "")
 
@@ -1370,9 +1371,9 @@ version: 1.0
 	c.Assert(err, Equals, ErrPackageNameNotSupported)
 }
 
-var hardwareYaml = []byte(`name: oem-foo
+var hardwareYaml = []byte(`name: gadget-foo
 version: 1.0
-oem:
+gadget:
  hardware:
   assign:
    - part-id: device-hive-iot-hal
@@ -1395,12 +1396,12 @@ oem:
 func (s *SnapTestSuite) TestParseHardwareYaml(c *C) {
 	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
-	c.Assert(m.OEM.Hardware.Assign[0].PartID, Equals, "device-hive-iot-hal")
-	c.Assert(m.OEM.Hardware.Assign[0].Rules[0].Kernel, Equals, "ttyUSB0")
-	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].Subsystem, Equals, "tty")
-	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].WithDriver, Equals, "pl2303")
-	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].WithAttrs[0], Equals, "idVendor=0xf00f00")
-	c.Assert(m.OEM.Hardware.Assign[0].Rules[1].WithAttrs[1], Equals, "idProduct=0xb00")
+	c.Assert(m.Gadget.Hardware.Assign[0].PartID, Equals, "device-hive-iot-hal")
+	c.Assert(m.Gadget.Hardware.Assign[0].Rules[0].Kernel, Equals, "ttyUSB0")
+	c.Assert(m.Gadget.Hardware.Assign[0].Rules[1].Subsystem, Equals, "tty")
+	c.Assert(m.Gadget.Hardware.Assign[0].Rules[1].WithDriver, Equals, "pl2303")
+	c.Assert(m.Gadget.Hardware.Assign[0].Rules[1].WithAttrs[0], Equals, "idVendor=0xf00f00")
+	c.Assert(m.Gadget.Hardware.Assign[0].Rules[1].WithAttrs[1], Equals, "idProduct=0xb00")
 }
 
 var expectedUdevRule = `KERNEL=="ttyUSB0", TAG:="snappy-assign", ENV{SNAPPY_APP}:="device-hive-iot-hal"
@@ -1413,7 +1414,7 @@ func (s *SnapTestSuite) TestGenerateHardwareYamlData(c *C) {
 	m, err := parsePackageYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
-	output, err := m.OEM.Hardware.Assign[0].generateUdevRuleContent()
+	output, err := m.Gadget.Hardware.Assign[0].generateUdevRuleContent()
 	c.Assert(err, IsNil)
 
 	c.Assert(output, Equals, expectedUdevRule)
@@ -1424,9 +1425,9 @@ func (s *SnapTestSuite) TestWriteHardwareUdevEtc(c *C) {
 	c.Assert(err, IsNil)
 
 	dirs.SnapUdevRulesDir = c.MkDir()
-	writeOemHardwareUdevRules(m)
+	writeGadgetHardwareUdevRules(m)
 
-	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")), Equals, true)
+	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_gadget-foo_device-hive-iot-hal.rules")), Equals, true)
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
@@ -1434,9 +1435,9 @@ func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
 	c.Assert(err, IsNil)
 
 	dirs.SnapUdevRulesDir = c.MkDir()
-	udevRulesFile := filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_oem-foo_device-hive-iot-hal.rules")
+	udevRulesFile := filepath.Join(dirs.SnapUdevRulesDir, "80-snappy_gadget-foo_device-hive-iot-hal.rules")
 	c.Assert(ioutil.WriteFile(udevRulesFile, nil, 0644), Equals, nil)
-	cleanupOemHardwareUdevRules(m)
+	cleanupGadgetHardwareUdevRules(m)
 
 	c.Assert(helpers.FileExists(udevRulesFile), Equals, false)
 }
@@ -1451,7 +1452,7 @@ func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
 	}
 	defer func() { runUdevAdm = runUdevAdmImpl }()
 
-	err := activateOemHardwareUdevRules()
+	err := activateGadgetHardwareUdevRules()
 	c.Assert(err, IsNil)
 	c.Assert(cmds[0], DeepEquals, aCmd{"udevadm", "control", "--reload-rules"})
 	c.Assert(cmds[1], DeepEquals, aCmd{"udevadm", "trigger"})

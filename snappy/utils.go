@@ -74,6 +74,9 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 		envMap[k] = v
 	}
 
+	// force default locale
+	envMap["LC_ALL"] = "C.UTF-8"
+
 	// flatten
 	for k, v := range envMap {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
