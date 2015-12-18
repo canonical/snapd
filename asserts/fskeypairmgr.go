@@ -21,6 +21,7 @@ package asserts
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 )
 
@@ -46,7 +47,7 @@ func (fskm *filesystemKeypairManager) ImportKey(authorityID string, privKey Priv
 	}
 
 	fingerp := privKey.PublicKey().Fingerprint()
-	err = atomicWriteEntry(encoded, true, fskm.top, authorityID, fingerp)
+	err = atomicWriteEntry(encoded, true, fskm.top, url.QueryEscape(authorityID), fingerp)
 	if err != nil {
 		return "", fmt.Errorf("failed to store private key: %v", err)
 	}
@@ -64,7 +65,7 @@ func (fskm *filesystemKeypairManager) findPrivateKey(authorityID, fingerprintWil
 		keyPath = relpath
 		return nil
 	}
-	err := findWildcard(fskm.top, []string{authorityID, fingerprintWildcard}, foundPrivKeyCb)
+	err := findWildcard(fskm.top, []string{url.QueryEscape(authorityID), fingerprintWildcard}, foundPrivKeyCb)
 	if err != nil {
 		return nil, err
 	}
