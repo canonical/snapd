@@ -103,7 +103,6 @@ type consistencyChecker interface {
 type Database struct {
 	be          Backstore
 	keypairMgr  KeypairManager
-	root        string
 	trustedKeys map[string][]*AccountKey
 }
 
@@ -116,6 +115,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 
 	// falling back to at least one of the filesytem backstores,
 	// ensure the main directory cfg.Path
+	// TODO: decide what should be the final defaults/fallbacks
 	if be == nil || keypairMgr == nil {
 		err := os.MkdirAll(cfg.Path, 0775)
 		if err != nil {
@@ -148,7 +148,6 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		trustedKeys[authID] = append(trustedKeys[authID], accKey)
 	}
 	return &Database{
-		root:        cfg.Path,
 		be:          be,
 		keypairMgr:  keypairMgr,
 		trustedKeys: trustedKeys,
