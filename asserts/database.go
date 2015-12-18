@@ -106,8 +106,6 @@ type Database struct {
 	trustedKeys map[string][]*AccountKey
 }
 
-const ()
-
 // OpenDatabase opens the assertion database based on the configuration.
 func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	be := cfg.Backstore
