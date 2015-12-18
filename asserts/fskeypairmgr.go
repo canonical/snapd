@@ -41,7 +41,7 @@ func newFilesystemKeypairMananager(path string) *filesystemKeypairManager {
 	return &filesystemKeypairManager{top: filepath.Join(path, privateKeysRoot)}
 }
 
-func (fskm *filesystemKeypairManager) ImportKey(authorityID string, privKey PrivateKey) (fingerprint string, err error) {
+func (fskm *filesystemKeypairManager) Import(authorityID string, privKey PrivateKey) (fingerprint string, err error) {
 	encoded, err := encodePrivateKey(privKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to store private key: %v", err)
@@ -86,10 +86,10 @@ func (fskm *filesystemKeypairManager) findPrivateKey(authorityID, fingerprintWil
 	return privKey, nil
 }
 
-func (fskm *filesystemKeypairManager) Key(authorityID, fingeprint string) (PrivateKey, error) {
+func (fskm *filesystemKeypairManager) Get(authorityID, fingeprint string) (PrivateKey, error) {
 	return fskm.findPrivateKey(authorityID, fingeprint)
 }
 
-func (fskm *filesystemKeypairManager) FindKey(authorityID, fingerprintSuffix string) (PrivateKey, error) {
+func (fskm *filesystemKeypairManager) Find(authorityID, fingerprintSuffix string) (PrivateKey, error) {
 	return fskm.findPrivateKey(authorityID, "*"+fingerprintSuffix)
 }

@@ -62,14 +62,14 @@ type Backstore interface {
 
 // KeypairManager is a manager and backstore for private/public key pairs.
 type KeypairManager interface {
-	// ImportKey stores the given private/public key pair for identity and
+	// Import stores the given private/public key pair for identity and
 	// returns its fingerprint
-	ImportKey(authorityID string, privKey PrivateKey) (fingerprint string, err error)
-	// Key returns the private/public key pair with the given fingeprint.
-	Key(authorityID, fingeprint string) (PrivateKey, error)
-	// FindKey finds the private/public key pair with the given fingeprint suffix.
-	// FindKey will return an error if not eactly one key pair is found.
-	FindKey(authorityID, fingerprintSuffix string) (PrivateKey, error)
+	Import(authorityID string, privKey PrivateKey) (fingerprint string, err error)
+	// Get returns the private/public key pair with the given fingeprint.
+	Get(authorityID, fingeprint string) (PrivateKey, error)
+	// Find finds the private/public key pair with the given fingeprint suffix.
+	// Find will return an error if not eactly one key pair is found.
+	Find(authorityID, fingerprintSuffix string) (PrivateKey, error)
 }
 
 // TODO: for more flexibility plugging the keypair manager make PrivatKey private encoding methods optional, and add an explicit sign method.
@@ -163,13 +163,13 @@ func (db *Database) GenerateKey(authorityID string) (fingerprint string, err err
 		return "", fmt.Errorf("failed to generate private key: %v", err)
 	}
 
-	return db.keypairMgr.ImportKey(authorityID, OpenPGPPrivateKey(privKey))
+	return db.keypairMgr.Import(authorityID, OpenPGPPrivateKey(privKey))
 }
 
 // ImportKey stores the given private/public key pair for identity and
 // returns its fingerprint
 func (db *Database) ImportKey(authorityID string, privKey PrivateKey) (fingerprint string, err error) {
-	return db.keypairMgr.ImportKey(authorityID, privKey)
+	return db.keypairMgr.Import(authorityID, privKey)
 }
 
 var (
@@ -184,7 +184,7 @@ func (db *Database) PublicKey(authorityID string, fingerprintSuffix string) (Pub
 	if !fingerprintLike.MatchString(fingerprintSuffix) {
 		return nil, fmt.Errorf("fingerprint suffix contains unexpected chars: %q", fingerprintSuffix)
 	}
-	privKey, err := db.keypairMgr.FindKey(authorityID, fingerprintSuffix)
+	privKey, err := db.keypairMgr.Find(authorityID, fingerprintSuffix)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +204,7 @@ func (db *Database) Sign(assertType AssertionType, headers map[string]string, bo
 	if err != nil {
 		return nil, err
 	}
-	privKey, err := db.keypairMgr.Key(authorityID, fingerprint)
+	privKey, err := db.keypairMgr.Get(authorityID, fingerprint)
 	if err != nil {
 		return nil, err
 	}

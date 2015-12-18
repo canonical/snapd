@@ -35,7 +35,7 @@ func NewMemoryKeypairMananager() KeypairManager {
 	}
 }
 
-func (mskm memoryKeypairManager) ImportKey(authorityID string, privKey PrivateKey) (fingerprint string, err error) {
+func (mskm memoryKeypairManager) Import(authorityID string, privKey PrivateKey) (fingerprint string, err error) {
 	fingerp := privKey.PublicKey().Fingerprint()
 	perAuthID := mskm.pairs[authorityID]
 	if perAuthID == nil {
@@ -46,9 +46,7 @@ func (mskm memoryKeypairManager) ImportKey(authorityID string, privKey PrivateKe
 	return fingerp, nil
 }
 
-// return fmt.Errorf("ambiguous search, more than one key pair found: %q and %q", keyPath, relpath)
-
-func (mskm memoryKeypairManager) Key(authorityID, fingeprint string) (PrivateKey, error) {
+func (mskm memoryKeypairManager) Get(authorityID, fingeprint string) (PrivateKey, error) {
 	privKey := mskm.pairs[authorityID][fingeprint]
 	if privKey == nil {
 		return nil, errKeypairNotFound
@@ -56,7 +54,7 @@ func (mskm memoryKeypairManager) Key(authorityID, fingeprint string) (PrivateKey
 	return privKey, nil
 }
 
-func (mskm memoryKeypairManager) FindKey(authorityID, fingerprintSuffix string) (PrivateKey, error) {
+func (mskm memoryKeypairManager) Find(authorityID, fingerprintSuffix string) (PrivateKey, error) {
 	var found PrivateKey
 	for fingerp, privKey := range mskm.pairs[authorityID] {
 		if strings.HasSuffix(fingerp, fingerprintSuffix) {

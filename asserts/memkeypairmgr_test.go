@@ -35,64 +35,64 @@ func (mkms *memKeypairMgtSuite) SetUpTest(c *C) {
 	mkms.keypairMgr = asserts.NewMemoryKeypairMananager()
 }
 
-func (mkms *memKeypairMgtSuite) TestImportAndKey(c *C) {
+func (mkms *memKeypairMgtSuite) TestImportAndGet(c *C) {
 	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
-	fingerp, err := mkms.keypairMgr.ImportKey("auth-id1", pk1)
+	fingerp, err := mkms.keypairMgr.Import("auth-id1", pk1)
 	c.Assert(err, IsNil)
 	c.Check(fingerp, Equals, pk1.PublicKey().Fingerprint())
 
-	got, err := mkms.keypairMgr.Key("auth-id1", fingerp)
+	got, err := mkms.keypairMgr.Get("auth-id1", fingerp)
 	c.Assert(err, IsNil)
 	c.Assert(got, NotNil)
 	c.Check(got.PublicKey().Fingerprint(), Equals, fingerp)
 }
 
-func (mkms *memKeypairMgtSuite) TestKeyNotFound(c *C) {
+func (mkms *memKeypairMgtSuite) TestGetNotFound(c *C) {
 	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
 	fingerp := pk1.PublicKey().Fingerprint()
 
-	got, err := mkms.keypairMgr.Key("auth-id1", fingerp)
+	got, err := mkms.keypairMgr.Get("auth-id1", fingerp)
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "no matching key pair found")
 
-	_, err = mkms.keypairMgr.ImportKey("auth-id1", pk1)
+	_, err = mkms.keypairMgr.Import("auth-id1", pk1)
 	c.Assert(err, IsNil)
 
-	got, err = mkms.keypairMgr.Key("auth-id1", "")
+	got, err = mkms.keypairMgr.Get("auth-id1", "")
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "no matching key pair found")
 }
 
-func (mkms *memKeypairMgtSuite) TestFindKey(c *C) {
-	fingerp, err := mkms.keypairMgr.ImportKey("auth-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
+func (mkms *memKeypairMgtSuite) TestFind(c *C) {
+	fingerp, err := mkms.keypairMgr.Import("auth-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 
-	got, err := mkms.keypairMgr.FindKey("auth-id1", fingerp[len(fingerp)-4:])
+	got, err := mkms.keypairMgr.Find("auth-id1", fingerp[len(fingerp)-4:])
 	c.Assert(err, IsNil)
 	c.Assert(got, NotNil)
 	c.Check(got.PublicKey().Fingerprint(), Equals, fingerp)
 }
 
-func (mkms *memKeypairMgtSuite) TestFindKeyNotFound(c *C) {
-	got, err := mkms.keypairMgr.FindKey("auth-id1", "f")
+func (mkms *memKeypairMgtSuite) TestFindNotFound(c *C) {
+	got, err := mkms.keypairMgr.Find("auth-id1", "f")
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "no matching key pair found")
 
-	_, err = mkms.keypairMgr.ImportKey("auth-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
+	_, err = mkms.keypairMgr.Import("auth-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 
-	got, err = mkms.keypairMgr.FindKey("auth-id1", "z")
+	got, err = mkms.keypairMgr.Find("auth-id1", "z")
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "no matching key pair found")
 }
 
-func (mkms *memKeypairMgtSuite) TestFindKeyAmbiguous(c *C) {
-	_, err := mkms.keypairMgr.ImportKey("auth-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
+func (mkms *memKeypairMgtSuite) TestFindAmbiguous(c *C) {
+	_, err := mkms.keypairMgr.Import("auth-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
-	_, err = mkms.keypairMgr.ImportKey("auth-id1", asserts.OpenPGPPrivateKey(testPrivKey2))
+	_, err = mkms.keypairMgr.Import("auth-id1", asserts.OpenPGPPrivateKey(testPrivKey2))
 	c.Assert(err, IsNil)
 
-	got, err := mkms.keypairMgr.FindKey("auth-id1", "")
+	got, err := mkms.keypairMgr.Find("auth-id1", "")
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "ambiguous search, more than one key pair found:.*")
 }
