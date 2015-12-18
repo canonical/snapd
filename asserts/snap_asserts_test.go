@@ -29,20 +29,20 @@ import (
 	"github.com/ubuntu-core/snappy/asserts"
 )
 
-type snapDeclSuite struct {
+type snapBuildSuite struct {
 	ts     time.Time
 	tsLine string
 }
 
-var _ = Suite(&snapDeclSuite{})
+var _ = Suite(&snapBuildSuite{})
 
-func (sds *snapDeclSuite) SetUpSuite(c *C) {
+func (sds *snapBuildSuite) SetUpSuite(c *C) {
 	sds.ts = time.Now().Truncate(time.Second).UTC()
 	sds.tsLine = "timestamp: " + sds.ts.Format(time.RFC3339) + "\n"
 }
 
-func (sds *snapDeclSuite) TestDecodeOK(c *C) {
-	encoded := "type: snap-declaration\n" +
+func (sds *snapBuildSuite) TestDecodeOK(c *C) {
+	encoded := "type: snap-build\n" +
 		"authority-id: dev-id1\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-digest: sha256 ...\n" +
@@ -54,22 +54,22 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 		"openpgp c2ln"
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
-	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
-	snapDecl := a.(*asserts.SnapDeclaration)
-	c.Check(snapDecl.AuthorityID(), Equals, "dev-id1")
-	c.Check(snapDecl.Timestamp(), Equals, sds.ts)
-	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
-	c.Check(snapDecl.SnapDigest(), Equals, "sha256 ...")
-	c.Check(snapDecl.SnapSize(), Equals, uint64(10000))
-	c.Check(snapDecl.Grade(), Equals, "stable")
+	c.Check(a.Type(), Equals, asserts.SnapBuildType)
+	snapBuild := a.(*asserts.SnapBuild)
+	c.Check(snapBuild.AuthorityID(), Equals, "dev-id1")
+	c.Check(snapBuild.Timestamp(), Equals, sds.ts)
+	c.Check(snapBuild.SnapID(), Equals, "snap-id-1")
+	c.Check(snapBuild.SnapDigest(), Equals, "sha256 ...")
+	c.Check(snapBuild.SnapSize(), Equals, uint64(10000))
+	c.Check(snapBuild.Grade(), Equals, "stable")
 }
 
 const (
-	snapDeclErrPrefix = "assertion snap-declaration: "
+	snapBuildErrPrefix = "assertion snap-build: "
 )
 
-func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
-	encoded := "type: snap-declaration\n" +
+func (sds *snapBuildSuite) TestDecodeInvalid(c *C) {
+	encoded := "type: snap-build\n" +
 		"authority-id: dev-id1\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-digest: sha256 ...\n" +
@@ -93,7 +93,7 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
-		c.Check(err, ErrorMatches, snapDeclErrPrefix+test.expectedErr)
+		c.Check(err, ErrorMatches, snapBuildErrPrefix+test.expectedErr)
 	}
 }
 
@@ -135,7 +135,7 @@ func makeSignAndCheckDbWithAccountKey(c *C) (accFingerp string, accSignDB, check
 	return accFingerp, accSignDB, checkDB
 }
 
-func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
+func (sds *snapBuildSuite) TestSnapBuildCheck(c *C) {
 	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c)
 
 	headers := map[string]string{
@@ -146,14 +146,14 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
 		"snap-size":    "1025",
 		"timestamp":    "2015-11-25T20:00:00Z",
 	}
-	snapDecl, err := accSignDB.Sign(asserts.SnapDeclarationType, headers, nil, accFingerp)
+	snapBuild, err := accSignDB.Sign(asserts.SnapBuildType, headers, nil, accFingerp)
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapDecl)
+	err = db.Check(snapBuild)
 	c.Assert(err, IsNil)
 }
 
-func (sds *snapDeclSuite) TestSnapDeclarationCheckInconsistentTimestamp(c *C) {
+func (sds *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c)
 
 	headers := map[string]string{
@@ -164,9 +164,9 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckInconsistentTimestamp(c *C) {
 		"snap-size":    "1025",
 		"timestamp":    "2013-01-01T14:00:00Z",
 	}
-	snapDecl, err := accSignDB.Sign(asserts.SnapDeclarationType, headers, nil, accFingerp)
+	snapBuild, err := accSignDB.Sign(asserts.SnapBuildType, headers, nil, accFingerp)
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapDecl)
-	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knowledge: snap-declaration timestamp outside of signing key validity")
+	err = db.Check(snapBuild)
+	c.Assert(err, ErrorMatches, "signature verifies but assertion violates other knowledge: snap-build timestamp outside of signing key validity")
 }
