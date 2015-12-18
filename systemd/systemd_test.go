@@ -220,7 +220,7 @@ X-Snappy=yes
 ExecStart=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/start
 Restart=on-failure
 WorkingDirectory=/apps/app%[2]s/1.0/
-Environment="SNAP_APP=app_service_1.0" "TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "TEMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAP_APP_PATH=/apps/app%[2]s/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAP_APP_TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_ORIGIN=%[3]s" "SNAP_FULLNAME=app%[2]s" "SNAP_ARCH=%[5]s" "SNAP_APP_USER_DATA_PATH=%%h/apps/app%[2]s/1.0/" "SNAPP_APP_PATH=/apps/app%[2]s/1.0/" "SNAPP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAPP_APP_TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAPPY_APP_ARCH=%[5]s" "SNAPP_APP_USER_DATA_PATH=%%h/apps/app%[2]s/1.0/"
+Environment="SNAP_APP=app_service_1.0" "TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "TEMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAP_APP_PATH=/apps/app%[2]s/1.0/" "SNAP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAP_APP_TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAP_NAME=app" "SNAP_VERSION=1.0" "SNAP_ORIGIN=%[3]s" "SNAP_FULLNAME=app%[2]s" "SNAP_ARCH=%[5]s" "SNAP_APP_USER_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAPP_APP_PATH=/apps/app%[2]s/1.0/" "SNAPP_APP_DATA_PATH=/var/lib/apps/app%[2]s/1.0/" "SNAPP_APP_TMPDIR=/tmp/snaps/app%[2]s/1.0/tmp" "SNAPPY_APP_ARCH=%[5]s" "SNAPP_APP_USER_DATA_PATH=/var/lib/apps/app%[2]s/1.0/"
 ExecStop=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher app%[2]s aa-profile /apps/app%[2]s/1.0/bin/stop --post
 TimeoutStopSec=10

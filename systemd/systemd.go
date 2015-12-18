@@ -352,7 +352,9 @@ WantedBy={{.ServiceSystemdTarget}}
 		servicesSystemdTarget,
 		origin,
 		arch.UbuntuArchitecture(),
-		"%h",
+		// Remap user-level environment to system-level for services. The code
+		// below will append "apps/$appname/$version" to this path.
+		"/var/lib",
 		"",
 		desc.SocketFileName,
 	}
