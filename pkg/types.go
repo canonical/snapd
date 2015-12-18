@@ -36,6 +36,10 @@ const (
 	TypeGadget    Type = "gadget"
 	TypeOS        Type = "os"
 	TypeKernel    Type = "kernel"
+
+	// TypeLegacyOem is the old legacy OEM snap type
+	// FIXME: remove once we move to all-snaps
+	TypeLegacyOem Type = "oem"
 )
 
 // MarshalJSON returns *m as the JSON encoding of m.

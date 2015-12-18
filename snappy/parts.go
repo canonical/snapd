@@ -167,6 +167,9 @@ func NewMetaLocalRepository() *MetaRepository {
 	if repo := NewLocalSnapRepository(dirs.SnapGadgetDir); repo != nil {
 		m.all = append(m.all, repo)
 	}
+	if repo := NewLocalSnapRepository(dirs.SnapLegacyOemDir); repo != nil {
+		m.all = append(m.all, repo)
+	}
 
 	return m
 }

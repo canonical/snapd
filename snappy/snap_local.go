@@ -186,6 +186,11 @@ func (s *SnapPart) Type() pkg.Type {
 		return s.m.Type
 	}
 
+	// FIXME: remove once we move to all-snaps
+	if s.m.Type == pkg.TypeLegacyOem {
+		return pkg.TypeGadget
+	}
+
 	// if not declared its a app
 	return "app"
 }

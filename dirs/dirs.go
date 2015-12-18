@@ -42,6 +42,10 @@ var (
 	SnapLockFile              string
 	SnapdSocket               string
 
+	// SnapLegacyOemDir points to the legacy /oem snaps dir
+	// FIXME: remove once we moved to all-snaps
+	SnapLegacyOemDir string
+
 	SnapAssertsDBDir      string
 	SnapTrustedAccountKey string
 
@@ -103,4 +107,7 @@ func SetRootDir(rootdir string) {
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
+
+	// FIXME: remove once we moved to all-snaps
+	SnapLegacyOemDir = filepath.Join(rootdir, "/oem")
 }
