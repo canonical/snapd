@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -54,6 +55,8 @@ func (fskm *filesystemKeypairManager) ImportKey(authorityID string, privKey Priv
 	return fingerp, nil
 }
 
+var errKeypairNotFound = errors.New("no matching key pair found")
+
 // findPrivateKey will return an error if not eactly one private key is found
 func (fskm *filesystemKeypairManager) findPrivateKey(authorityID, fingerprintWildcard string) (PrivateKey, error) {
 	keyPath := ""
@@ -70,7 +73,7 @@ func (fskm *filesystemKeypairManager) findPrivateKey(authorityID, fingerprintWil
 		return nil, err
 	}
 	if keyPath == "" {
-		return nil, fmt.Errorf("no matching key pair found")
+		return nil, errKeypairNotFound
 	}
 	encoded, err := readEntry(fskm.top, keyPath)
 	if err != nil {
