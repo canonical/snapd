@@ -24,48 +24,48 @@ import (
 	"time"
 )
 
-// SnapDeclaration holds a snap-declaration assertion, asserting the
+// SnapBuild holds a snap-build assertion, asserting the
 // properties of a built snap by the builder.
-type SnapDeclaration struct {
+type SnapBuild struct {
 	assertionBase
 	size      uint64
 	timestamp time.Time
 }
 
 // SnapID returns the snap id of the built snap.
-func (snapdcl *SnapDeclaration) SnapID() string {
+func (snapdcl *SnapBuild) SnapID() string {
 	return snapdcl.Header("snap-id")
 }
 
 // SnapDigest returns the digest of the built snap.
-func (snapdcl *SnapDeclaration) SnapDigest() string {
+func (snapdcl *SnapBuild) SnapDigest() string {
 	return snapdcl.Header("snap-digest")
 }
 
 // SnapSize returns the size of the built snap.
-func (snapdcl *SnapDeclaration) SnapSize() uint64 {
+func (snapdcl *SnapBuild) SnapSize() uint64 {
 	return snapdcl.size
 }
 
 // Grade returns the grade of the built snap: devel|stable
-func (snapdcl *SnapDeclaration) Grade() string {
+func (snapdcl *SnapBuild) Grade() string {
 	return snapdcl.Header("grade")
 }
 
-// Timestamp returns the declaration timestamp.
-func (snapdcl *SnapDeclaration) Timestamp() time.Time {
+// Timestamp returns the snap-build assertion timestamp.
+func (snapdcl *SnapBuild) Timestamp() time.Time {
 	return snapdcl.timestamp
 }
 
 // implement further consistency checks
-func (snapdcl *SnapDeclaration) checkConsistency(db *Database, acck *AccountKey) error {
+func (snapdcl *SnapBuild) checkConsistency(db *Database, acck *AccountKey) error {
 	if !acck.isKeyValidAt(snapdcl.timestamp) {
-		return fmt.Errorf("snap-declaration timestamp outside of signing key validity")
+		return fmt.Errorf("snap-build timestamp outside of signing key validity")
 	}
 	return nil
 }
 
-func buildSnapDeclaration(assert assertionBase) (Assertion, error) {
+func buildSnapBuild(assert assertionBase) (Assertion, error) {
 	_, err := checkMandatory(assert.headers, "snap-id")
 	if err != nil {
 		return nil, err
@@ -92,7 +92,7 @@ func buildSnapDeclaration(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 	// ignore extra headers and non-empty body for future compatibility
-	return &SnapDeclaration{
+	return &SnapBuild{
 		assertionBase: assert,
 		size:          size,
 		timestamp:     timestamp,
@@ -100,8 +100,8 @@ func buildSnapDeclaration(assert assertionBase) (Assertion, error) {
 }
 
 func init() {
-	typeRegistry[SnapDeclarationType] = &assertionTypeRegistration{
-		builder:    buildSnapDeclaration,
+	typeRegistry[SnapBuildType] = &assertionTypeRegistration{
+		builder:    buildSnapBuild,
 		primaryKey: []string{"snap-id", "snap-digest"},
 	}
 }
