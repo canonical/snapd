@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -153,4 +154,13 @@ func (t *CreateTestSuite) TestCreate(c *C) {
 	for _, canary := range []string{"/etc/nsswitch.conf", "/etc/hosts", "/usr/sbin/policy-rc.d"} {
 		c.Assert(helpers.FileExists(filepath.Join(dirs.ClassicDir, canary)), Equals, true)
 	}
+}
+
+func (t *CreateTestSuite) TestCreateFailDestroys(c *C) {
+	t.makeMockLxdServer(c)
+	t.imageReader = strings.NewReader("its all broken")
+
+	err := Create(&progress.NullProgress{})
+	c.Assert(err, ErrorMatches, `(?m)failed to unpack .*`)
+	c.Assert(helpers.FileExists(dirs.ClassicDir), Equals, false)
 }

@@ -250,10 +250,17 @@ func customizeClassicChroot() error {
 }
 
 // Create creates a new classic shell envirionment
-func Create(pbar progress.Meter) error {
+func Create(pbar progress.Meter) (err error) {
 	if Enabled() {
 		return fmt.Errorf("clasic mode already created in %s", dirs.ClassicDir)
 	}
+
+	// ensure we kill the classic env if there is any error
+	defer func() {
+		if err != nil {
+			os.RemoveAll(dirs.ClassicDir)
+		}
+	}()
 
 	lxdRootfsTar, err := downloadLxdRootfs(pbar)
 	if err != nil {
