@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -61,6 +60,20 @@ type Backstore interface {
 	SearchBySuffix(assertType AssertionType, primaryPathWithoutLast []string, suffixOflast string, foundCb func(Assertion)) error
 }
 
+// KeypairManager is a manager and backstore for private/public key pairs.
+type KeypairManager interface {
+	// ImportKey stores the given private/public key pair for identity and
+	// returns its fingerprint
+	ImportKey(authorityID string, privKey PrivateKey) (fingerprint string, err error)
+	// Key returns the private/public key pair with the given fingeprint.
+	Key(authorityID, fingeprint string) (PrivateKey, error)
+	// FindKey finds the private/public key pair with the given fingeprint suffix.
+	// FindKey will return an error if not eactly one key pair is found.
+	FindKey(authorityID, fingerprintSuffix string) (PrivateKey, error)
+}
+
+// TODO: for more flexibility plugging the keypair manager make PrivatKey private encoding methods optional, and add an explicit sign method.
+
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
 	// database filesystem backstores path
@@ -70,6 +83,8 @@ type DatabaseConfig struct {
 	// backstore for assertions, falls back to a filesystem based backstrore
 	// if not set
 	Backstore Backstore
+	// manager/backstore for keypairs, falls back to a filesystem based manager
+	KeypairManager KeypairManager
 }
 
 // Well-known errors
@@ -87,37 +102,42 @@ type consistencyChecker interface {
 // further assertions.
 type Database struct {
 	be          Backstore
+	keypairMgr  KeypairManager
 	root        string
 	trustedKeys map[string][]*AccountKey
 }
 
-const (
-	privateKeysLayoutVersion = "v0"
-	privateKeysRoot          = "private-keys-" + privateKeysLayoutVersion
-)
+const ()
 
 // OpenDatabase opens the assertion database based on the configuration.
 func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	be := cfg.Backstore
+	keypairMgr := cfg.KeypairManager
 
-	// TODO/XXX: ensuring cfg.Path becomes optional when the keypair
-	// manager/backstore becomes also pluggable
-	err := os.MkdirAll(cfg.Path, 0775)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create assert database root: %v", err)
-	}
-	info, err := os.Stat(cfg.Path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create assert database root: %v", err)
-	}
-	if info.Mode().Perm()&0002 != 0 {
-		return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
+	// falling back to at least one of the filesytem backstores,
+	// ensure the main directory cfg.Path
+	if be == nil || keypairMgr == nil {
+		err := os.MkdirAll(cfg.Path, 0775)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create assert database root: %v", err)
+		}
+		info, err := os.Stat(cfg.Path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create assert database root: %v", err)
+		}
+		if info.Mode().Perm()&0002 != 0 {
+			return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
+		}
+
+		if be == nil {
+			be = newFilesystemBackstore(cfg.Path)
+		}
+		if keypairMgr == nil {
+			keypairMgr = newFilesystemKeypairMananager(cfg.Path)
+		}
 	}
 
-	if be == nil {
-		be = newFilesystemBackstore(cfg.Path)
-	}
-	err = be.Init(buildAssertion)
+	err := be.Init(buildAssertion)
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +150,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	return &Database{
 		root:        cfg.Path,
 		be:          be,
+		keypairMgr:  keypairMgr,
 		trustedKeys: trustedKeys,
 	}, nil
 }
@@ -137,59 +158,21 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 // GenerateKey generates a private/public key pair for identity and
 // stores it returning its fingerprint.
 func (db *Database) GenerateKey(authorityID string) (fingerprint string, err error) {
+	// TODO: optionally delegate the whole thing to the keypair mgr
+
 	// TODO: support specifying different key types/algorithms
 	privKey, err := generatePrivateKey()
 	if err != nil {
 		return "", fmt.Errorf("failed to generate private key: %v", err)
 	}
 
-	return db.ImportKey(authorityID, OpenPGPPrivateKey(privKey))
+	return db.keypairMgr.ImportKey(authorityID, OpenPGPPrivateKey(privKey))
 }
 
 // ImportKey stores the given private/public key pair for identity and
 // returns its fingerprint
 func (db *Database) ImportKey(authorityID string, privKey PrivateKey) (fingerprint string, err error) {
-	encoded, err := encodePrivateKey(privKey)
-	if err != nil {
-		return "", fmt.Errorf("failed to store private key: %v", err)
-	}
-
-	fingerp := privKey.PublicKey().Fingerprint()
-	err = atomicWriteEntry(encoded, true, db.root, privateKeysRoot, authorityID, fingerp)
-	if err != nil {
-		return "", fmt.Errorf("failed to store private key: %v", err)
-	}
-	return fingerp, nil
-}
-
-// findPrivateKey will return an error if not eactly one private key is found
-func (db *Database) findPrivateKey(authorityID, fingerprintWildcard string) (PrivateKey, error) {
-	keyPath := ""
-	foundPrivKeyCb := func(relpath string) error {
-		if keyPath != "" {
-			return fmt.Errorf("ambiguous search, more than one key pair found: %q and %q", keyPath, relpath)
-
-		}
-		keyPath = relpath
-		return nil
-	}
-	privKeysTop := filepath.Join(db.root, privateKeysRoot)
-	err := findWildcard(privKeysTop, []string{authorityID, fingerprintWildcard}, foundPrivKeyCb)
-	if err != nil {
-		return nil, err
-	}
-	if keyPath == "" {
-		return nil, fmt.Errorf("no matching key pair found")
-	}
-	encoded, err := readEntry(db.root, privateKeysRoot, keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read key pair: %v", err)
-	}
-	privKey, err := decodePrivateKey(encoded)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode key pair: %v", err)
-	}
-	return privKey, nil
+	return db.keypairMgr.ImportKey(authorityID, privKey)
 }
 
 var (
@@ -204,7 +187,7 @@ func (db *Database) PublicKey(authorityID string, fingerprintSuffix string) (Pub
 	if !fingerprintLike.MatchString(fingerprintSuffix) {
 		return nil, fmt.Errorf("fingerprint suffix contains unexpected chars: %q", fingerprintSuffix)
 	}
-	privKey, err := db.findPrivateKey(authorityID, "*"+fingerprintSuffix)
+	privKey, err := db.keypairMgr.FindKey(authorityID, fingerprintSuffix)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +207,7 @@ func (db *Database) Sign(assertType AssertionType, headers map[string]string, bo
 	if err != nil {
 		return nil, err
 	}
-	privKey, err := db.findPrivateKey(authorityID, fingerprint)
+	privKey, err := db.keypairMgr.Key(authorityID, fingerprint)
 	if err != nil {
 		return nil, err
 	}
