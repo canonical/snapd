@@ -42,6 +42,7 @@ import (
 type CreateTestSuite struct {
 	testutil.BaseTest
 
+	imageReader io.Reader
 	runInChroot [][]string
 }
 
@@ -59,6 +60,11 @@ func (t *CreateTestSuite) SetUpTest(c *C) {
 		t.runInChroot = append(t.runInChroot, cmd)
 		return nil
 	}
+
+	// create some content for the webserver
+	r := makeMockLxdTarball(c)
+	t.AddCleanup(func() { r.Close() })
+	t.imageReader = r
 }
 
 func makeMockLxdIndexSystem() string {
@@ -115,9 +121,7 @@ func (t *CreateTestSuite) makeMockLxdServer(c *C) {
 			s := makeMockLxdIndexSystem()
 			fmt.Fprintf(w, s)
 		case "/images/ubuntu/CODENAME/ARCH/default/20151126_03:49/rootfs.tar.xz":
-			r := makeMockLxdTarball(c)
-			defer r.Close()
-			io.Copy(w, r)
+			io.Copy(w, t.imageReader)
 		default:
 			http.NotFound(w, r)
 		}

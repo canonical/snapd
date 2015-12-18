@@ -234,6 +234,18 @@ func customizeClassicChroot() error {
 		return fmt.Errorf("failed to cleanup classic /run dir: %s (%s)", err, output)
 	}
 
+	// Add SUDO_USER to sudo group in the chroot to ensure that
+	// sudo work for the calling user.
+	sudoUser := os.Getenv("SUDO_USER")
+	if sudoUser != "" {
+		// We need to use "runInClassicEnv" so that we get the
+		// bind mount of the /var/lib/extrausers directory.
+		// Without that the "SUDO_USER" will not exist in the chroot
+		if err := runInClassicEnv("usermod", "-a", "-G", "sudo", sudoUser); err != nil {
+			return fmt.Errorf("failed to add %s to the sudo users: %s", sudoUser, err)
+		}
+	}
+
 	return nil
 }
 
