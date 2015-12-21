@@ -116,3 +116,17 @@ func (p Packages) Installed() Packages {
 
 	return packages
 }
+
+// NamesContaining returns the items from Packages with names containing the
+// query
+func (p Packages) NamesContaining(query string) Packages {
+	var packages Packages
+
+	for _, pkg := range p {
+		if pkg.HasNameContaining(query) {
+			packages = append(packages, pkg)
+		}
+	}
+
+	return packages
+}

@@ -163,3 +163,15 @@ func (cs *clientSuite) TestPackageHasNameContaining(c *check.C) {
 		c.Assert(pkg.HasNameContaining(query), check.Equals, result)
 	}
 }
+
+func (cs *clientSuite) TestPackagesNamesContaining(c *check.C) {
+	packages := client.Packages{
+		client.Package{Name: "first app"},
+		client.Package{Name: "second app"},
+		client.Package{Name: "third app"},
+	}
+
+	matching := packages.NamesContaining("second")
+	c.Assert(matching, check.HasLen, 1)
+	c.Assert(matching[0].Name, check.Equals, "second app")
+}
