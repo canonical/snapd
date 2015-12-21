@@ -91,3 +91,8 @@ func (client *Client) Packages() (Packages, error) {
 
 	return packages, nil
 }
+
+// IsInstalled returns true if the Package is currently installed
+func (p Package) IsInstalled() bool {
+	return p.Status == StatusInstalled || p.Status == StatusActive
+}

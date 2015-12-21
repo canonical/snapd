@@ -121,3 +121,17 @@ func (cs *clientSuite) TestClientPackages(c *check.C) {
 		},
 	})
 }
+
+func (cs *clientSuite) TestPackageIsInstalled(c *check.C) {
+	isInstalledTests := map[string]bool{
+		"": false,
+		client.StatusNotInstalled: false,
+		client.StatusInstalled:    true,
+		client.StatusActive:       true,
+	}
+
+	for status, result := range isInstalledTests {
+		pkg := client.Package{Status: status}
+		c.Assert(pkg.IsInstalled(), check.Equals, result)
+	}
+}
