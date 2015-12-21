@@ -96,3 +96,16 @@ func (client *Client) Packages() (Packages, error) {
 func (p Package) IsInstalled() bool {
 	return p.Status == StatusInstalled || p.Status == StatusActive
 }
+
+// Installed returns the installed items from Packages
+func (p Packages) Installed() Packages {
+	var packages Packages
+
+	for _, pkg := range p {
+		if pkg.IsInstalled() {
+			packages = append(packages, pkg)
+		}
+	}
+
+	return packages
+}

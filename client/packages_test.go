@@ -135,3 +135,15 @@ func (cs *clientSuite) TestPackageIsInstalled(c *check.C) {
 		c.Assert(pkg.IsInstalled(), check.Equals, result)
 	}
 }
+
+func (cs *clientSuite) TestPackagesInstalled(c *check.C) {
+	packages := client.Packages{
+		client.Package{Name: "not installed", Status: client.StatusNotInstalled},
+		client.Package{Name: "installed", Status: client.StatusInstalled},
+		client.Package{Name: "removed", Status: client.StatusRemoved},
+	}
+
+	installed := packages.Installed()
+	c.Assert(installed, check.HasLen, 1)
+	c.Assert(installed[0].Name, check.Equals, "installed")
+}
