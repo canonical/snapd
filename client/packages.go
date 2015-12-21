@@ -37,6 +37,9 @@ type Package struct {
 	Version       string `json:"version"`
 }
 
+// Packages are collections of Package items
+type Packages []Package
+
 // Statuses and types a Package may have
 const (
 	StatusNotInstalled = "not installed"
@@ -52,7 +55,7 @@ const (
 )
 
 // Packages returns the list of packages the system can handle
-func (client *Client) Packages() (map[string]Package, error) {
+func (client *Client) Packages() (Packages, error) {
 	const errPrefix = "cannot list packages"
 
 	var rsp response
@@ -76,9 +79,14 @@ func (client *Client) Packages() (map[string]Package, error) {
 		return nil, fmt.Errorf("%s: response has no packages", errPrefix)
 	}
 
-	var packages map[string]Package
-	if err := json.Unmarshal(packagesJSON, &packages); err != nil {
+	var packageMap map[string]Package
+	if err := json.Unmarshal(packagesJSON, &packageMap); err != nil {
 		return nil, fmt.Errorf("%s: failed to unmarshal packages: %v", errPrefix, err)
+	}
+
+	var packages Packages
+	for _, pkg := range packageMap {
+		packages = append(packages, pkg)
 	}
 
 	return packages, nil

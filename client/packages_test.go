@@ -107,8 +107,8 @@ func (cs *clientSuite) TestClientPackages(c *check.C) {
 	}`
 	applications, err := cs.cli.Packages()
 	c.Check(err, check.IsNil)
-	c.Check(applications, check.DeepEquals, map[string]client.Package{
-		"hello-world.canonical": client.Package{
+	c.Check(applications, check.DeepEquals, client.Packages{
+		client.Package{
 			Description:   "hello-world",
 			DownloadSize:  22212,
 			Icon:          "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
