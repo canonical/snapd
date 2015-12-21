@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !linux
+// +build !linux,!darwin,!freebsd
 
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
