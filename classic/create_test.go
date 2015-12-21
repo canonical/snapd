@@ -34,6 +34,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/group"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
@@ -43,8 +44,9 @@ import (
 type CreateTestSuite struct {
 	testutil.BaseTest
 
-	imageReader io.Reader
-	runInChroot [][]string
+	imageReader    io.Reader
+	runInChroot    [][]string
+	getgrnamCalled []string
 }
 
 var _ = Suite(&CreateTestSuite{})
@@ -66,6 +68,14 @@ func (t *CreateTestSuite) SetUpTest(c *C) {
 	r := makeMockLxdTarball(c)
 	t.AddCleanup(func() { r.Close() })
 	t.imageReader = r
+
+	// ensure getgrnam is called
+	getgrnamOrig := getgrnam
+	getgrnam = func(name string) (group.Group, error) {
+		t.getgrnamCalled = append(t.getgrnamCalled, name)
+		return group.Group{}, nil
+	}
+	t.AddCleanup(func() { getgrnam = getgrnamOrig })
 }
 
 func makeMockLxdIndexSystem() string {
@@ -151,6 +161,7 @@ func (t *CreateTestSuite) TestCreate(c *C) {
 		{"deluser", "ubuntu"},
 		{"apt-get", "install", "-y", "libnss-extrausers"},
 	})
+	c.Assert(t.getgrnamCalled, DeepEquals, []string{"sudo"})
 	for _, canary := range []string{"/etc/nsswitch.conf", "/etc/hosts", "/usr/sbin/policy-rc.d"} {
 		c.Assert(helpers.FileExists(filepath.Join(dirs.ClassicDir, canary)), Equals, true)
 	}
