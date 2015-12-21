@@ -22,6 +22,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // Package represents a Snap package
@@ -95,6 +96,12 @@ func (client *Client) Packages() (Packages, error) {
 // IsInstalled returns true if the Package is currently installed
 func (p Package) IsInstalled() bool {
 	return p.Status == StatusInstalled || p.Status == StatusActive
+}
+
+// HasNameContaining returns true if the Package name contains the query. The
+// comparison is case-insensitive
+func (p Package) HasNameContaining(query string) bool {
+	return strings.Contains(strings.ToLower(p.Name), strings.ToLower(query))
 }
 
 // Installed returns the installed items from Packages

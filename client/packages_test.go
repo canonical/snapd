@@ -147,3 +147,19 @@ func (cs *clientSuite) TestPackagesInstalled(c *check.C) {
 	c.Assert(installed, check.HasLen, 1)
 	c.Assert(installed[0].Name, check.Equals, "installed")
 }
+
+func (cs *clientSuite) TestPackageHasNameContaining(c *check.C) {
+	pkg := client.Package{Name: "my package"}
+
+	hasNameContainingTests := map[string]bool{
+		".*":   false,
+		"":     true,
+		"pack": true,
+		"MY":   true,
+		"myp":  false,
+	}
+
+	for query, result := range hasNameContainingTests {
+		c.Assert(pkg.HasNameContaining(query), check.Equals, result)
+	}
+}
