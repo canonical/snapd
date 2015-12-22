@@ -202,7 +202,12 @@ func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (strin
 		return "", err
 	}
 
-	return installClick(downloadedSnap, flags, pbar, s.Origin())
+	unauthOk := (flags & AllowUnauthenticated) != 0
+	snapFile, err := NewSnapFile(downloadedSnap, s.Origin(), unauthOk)
+	if err != nil {
+		return "", err
+	}
+	return snapFile.Install(pbar, flags)
 }
 
 // SetActive sets the snap active

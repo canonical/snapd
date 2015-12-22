@@ -277,7 +277,7 @@ func (m *packageYaml) checkForPackageInstalled(origin string) error {
 	}
 
 	if part.Origin() != origin {
-		return ErrPackageNameAlreadyInstalled
+		return fmt.Errorf("package %q is already installed with origin %q your origin is %q", m.Name, part.Origin(), origin)
 	}
 
 	return nil

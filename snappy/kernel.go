@@ -1,5 +1,3 @@
-package snappy
-
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
@@ -18,6 +16,8 @@ package snappy
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
+package snappy
 
 import (
 	"fmt"
@@ -61,7 +61,7 @@ func removeKernelAssets(s *SnapPart, inter interacter) error {
 // extractKernelAssets extracts kernel/initrd/dtb data from the given
 // SnapPart to a versionized bootloader directory so that the bootloader
 // can use it.
-func extractKernelAssets(s *SnapPart, inter progress.Meter, flags InstallFlags) error {
+func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) error {
 	if s.m.Type != pkg.TypeKernel {
 		return fmt.Errorf("can not extract kernel assets from snap type %q", s.Type())
 	}
@@ -74,10 +74,10 @@ func extractKernelAssets(s *SnapPart, inter progress.Meter, flags InstallFlags) 
 		}
 	}
 
-	// FIXME: feels wrong to use the basedir here, need something better
+	// FIXME: feels wrong to use the instdir here, need something better
 	//
 	// now do the kernel specific bits
-	blobName := filepath.Base(squashfs.BlobPath(s.basedir))
+	blobName := filepath.Base(squashfs.BlobPath(s.instdir))
 	dstDir := filepath.Join(bootloaderDir(), blobName)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
