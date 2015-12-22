@@ -193,3 +193,15 @@ func (cs *clientSuite) TestPackageHasTypeInSet(c *check.C) {
 		c.Assert(pkg.HasTypeInSet(tt.types), check.Equals, tt.result)
 	}
 }
+
+func (cs *clientSuite) TestPackagesTypesInSet(c *check.C) {
+	packages := client.Packages{
+		client.Package{Name: "app", Type: client.TypeApp},
+		client.Package{Name: "framework", Type: client.TypeFramework},
+		client.Package{Name: "kernel", Type: client.TypeKernel},
+	}
+
+	matching := packages.TypesInSet([]string{client.TypeFramework})
+	c.Assert(matching, check.HasLen, 1)
+	c.Assert(matching[0].Name, check.Equals, "framework")
+}

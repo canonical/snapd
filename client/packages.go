@@ -142,3 +142,16 @@ func (p Packages) NamesContaining(query string) Packages {
 
 	return packages
 }
+
+// TypesInSet returns items from Packages with types contained in the given list
+func (p Packages) TypesInSet(types []string) Packages {
+	var packages Packages
+
+	for _, pkg := range p {
+		if pkg.HasTypeInSet(types) {
+			packages = append(packages, pkg)
+		}
+	}
+
+	return packages
+}
