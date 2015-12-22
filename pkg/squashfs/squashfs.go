@@ -31,6 +31,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/pkg/info"
 )
 
 // BlobPath is a helper that calculates the blob path from the baseDir.
@@ -132,6 +133,16 @@ func (s *Snap) ReadFile(path string) (content []byte, err error) {
 const (
 	hashDigestBufSize = 2 * 1024 * 1024
 )
+
+// Info returns information like name, type etc about the package
+func (s *Snap) Info() (info.Info, error) {
+	packageYaml, err := s.ReadFile("meta/package.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("info failed for %s: %s", s.path, err)
+	}
+
+	return info.NewFromPackageYaml(packageYaml)
+}
 
 // HashDigest computes a hash digest of the snap file using the given hash.
 // It also returns its size.
