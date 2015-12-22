@@ -25,13 +25,27 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/pkg/clickdeb"
 	"github.com/ubuntu-core/snappy/pkg/squashfs"
 )
 
+// File is the interface to interact with the low-level snap files
+type File interface {
+	Verify(allowUnauthenticated bool) error
+	Close() error
+	UnpackWithDropPrivs(targetDir, rootDir string) error
+	MetaMember(name string) ([]byte, error)
+	ExtractHashes(targetDir string) error
+	//Unpack unpacks the src parts to the dst directory
+	Unpack(src, dst string) error
+
+	// NeedsMountUnit determines whether it's required to setup
+	// a mount unit for the snap when the snap is installed
+	NeedsMountUnit() bool
+}
+
 // Open opens a given snap file with the right backend
-func Open(path string) (pkg.File, error) {
+func Open(path string) (File, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open snap: %v", err)
