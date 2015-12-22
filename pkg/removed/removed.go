@@ -84,9 +84,7 @@ func (r *Removed) Origin() string {
 	if r.remote != nil {
 		return r.remote.Origin
 	}
-	if r.origin == "" {
-		return snappy.SideloadedOrigin
-	}
+
 	return r.origin
 }
 

@@ -103,13 +103,13 @@ func (s *lightweightSuite) TestLoadBadName(c *check.C) {
 }
 
 func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
-	bag := PartBagByName("fmk", "sideload")
+	bag := PartBagByName("fmk", "")
 	m := bag.Map(nil)
 	c.Check(m["installed_size"], check.Matches, "[0-9]+")
 	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":               "fmk",
-		"origin":             "sideload",
+		"origin":             "",
 		"status":             "active",
 		"version":            "120",
 		"icon":               filepath.Join(s.d, "apps", "fmk", "120", "icon.png"),
@@ -122,11 +122,11 @@ func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
 }
 
 func (s *lightweightSuite) TestMapRemovedFmkNoPart(c *check.C) {
-	bag := PartBagByName("fmk2", "sideload")
+	bag := PartBagByName("fmk2", "")
 	m := bag.Map(nil)
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":           "fmk2",
-		"origin":         "sideload",
+		"origin":         "",
 		"status":         "removed",
 		"version":        "4.2.0ubuntu1",
 		"icon":           "",
@@ -272,7 +272,7 @@ func (s *lightweightSuite) TestMapInactiveGadgetNoPart(c *check.C) {
 	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":          "a-gadget",
-		"origin":        "sideload", // best guess
+		"origin":        "",
 		"status":        "installed",
 		"version":       "3",
 		"icon":          filepath.Join(s.d, "gadget", "a-gadget", "3", "icon.png"),

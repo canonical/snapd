@@ -98,7 +98,7 @@ func (s *removedSuite) TestNoStore(c *check.C) {
 
 func (s *removedSuite) TestNoOrigin(c *check.C) {
 	part := New("foo", "", "1", pkg.TypeFramework)
-	c.Check(part.Origin(), check.Equals, snappy.SideloadedOrigin)
+	c.Check(part.Origin(), check.Equals, "")
 
 	s.MkStoreYaml(c, pkg.TypeFramework)
 	part = New("foo", "", "1", pkg.TypeFramework)
