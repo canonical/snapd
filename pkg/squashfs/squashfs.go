@@ -71,11 +71,6 @@ func (s *Snap) Close() error {
 	return nil
 }
 
-// ControlMember extracts from meta/ - COMPAT
-func (s *Snap) ControlMember(controlMember string) ([]byte, error) {
-	return s.ReadFile(filepath.Join("DEBIAN", controlMember))
-}
-
 // MetaMember extracts from meta/. - COMPAT
 func (s *Snap) MetaMember(metaMember string) ([]byte, error) {
 	return s.ReadFile(filepath.Join("meta", metaMember))
