@@ -104,6 +104,18 @@ func (p Package) HasNameContaining(query string) bool {
 	return strings.Contains(strings.ToLower(p.Name), strings.ToLower(query))
 }
 
+// HasTypeInSet returns true if the Package type is a member of the given list
+// of types
+func (p Package) HasTypeInSet(types []string) bool {
+	for _, t := range types {
+		if p.Type == t {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Installed returns the installed items from Packages
 func (p Packages) Installed() Packages {
 	var packages Packages

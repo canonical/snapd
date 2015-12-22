@@ -175,3 +175,21 @@ func (cs *clientSuite) TestPackagesNamesContaining(c *check.C) {
 	c.Assert(matching, check.HasLen, 1)
 	c.Assert(matching[0].Name, check.Equals, "second app")
 }
+
+func (cs *clientSuite) TestPackageHasTypeInSet(c *check.C) {
+	pkg := client.Package{Type: client.TypeFramework}
+
+	hasTypeInSetTest := []struct {
+		types  []string
+		result bool
+	}{
+		{[]string{}, false},
+		{[]string{client.TypeFramework}, true},
+		{[]string{client.TypeApp, client.TypeFramework}, true},
+		{[]string{client.TypeKernel}, false},
+	}
+
+	for _, tt := range hasTypeInSetTest {
+		c.Assert(pkg.HasTypeInSet(tt.types), check.Equals, tt.result)
+	}
+}
