@@ -33,8 +33,8 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/opener"
 	"github.com/ubuntu-core/snappy/pkg/remote"
+	"github.com/ubuntu-core/snappy/pkg/snapfile"
 	"github.com/ubuntu-core/snappy/pkg/squashfs"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
@@ -74,7 +74,7 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 // Caller should call Close on the pkg.
 // TODO: expose that Close.
 func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
-	d, err := opener.Open(snapFile)
+	d, err := snapfile.Open(snapFile)
 	if err != nil {
 		return nil, err
 	}
