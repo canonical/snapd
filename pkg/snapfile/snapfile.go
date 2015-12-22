@@ -17,7 +17,7 @@
  *
  */
 
-package opener
+package snapfile
 
 import (
 	"bytes"
