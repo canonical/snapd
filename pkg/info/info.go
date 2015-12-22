@@ -17,20 +17,13 @@
  *
  */
 
-package pkg
+package info
 
-// File is the interface to interact with the low-level snap files
-type File interface {
-	Verify(allowUnauthenticated bool) error
-	Close() error
-	UnpackWithDropPrivs(targetDir, rootDir string) error
-	ControlMember(name string) ([]byte, error)
-	MetaMember(name string) ([]byte, error)
-	ExtractHashes(targetDir string) error
-	//Unpack unpacks the src parts to the dst directory
-	Unpack(src, dst string) error
+import "github.com/ubuntu-core/snappy/pkg"
 
-	// NeedsMountUnit determines whether it's required to setup
-	// a mount unit for the snap when the snap is installed
-	NeedsMountUnit() bool
+// Info provides information about packages
+type Info interface {
+	Name() string
+	Version() string
+	Type() pkg.Type
 }
