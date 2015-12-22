@@ -50,7 +50,7 @@ type SnapPart struct {
 	isActive    bool
 	isInstalled bool
 	description string
-	deb         pkg.File
+	deb         snapfile.File
 	basedir     string
 }
 
