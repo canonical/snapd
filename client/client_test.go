@@ -36,10 +36,12 @@ import (
 func Test(t *testing.T) { check.TestingT(t) }
 
 type clientSuite struct {
-	cli *client.Client
-	req *http.Request
-	rsp string
-	err error
+	cli    *client.Client
+	req    *http.Request
+	rsp    string
+	err    error
+	header http.Header
+	status int
 }
 
 var _ = check.Suite(&clientSuite{})
@@ -50,11 +52,17 @@ func (cs *clientSuite) SetUpTest(c *check.C) {
 	cs.err = nil
 	cs.rsp = ""
 	cs.req = nil
+	cs.header = nil
+	cs.status = http.StatusOK
 }
 
 func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 	cs.req = req
-	rsp := &http.Response{Body: ioutil.NopCloser(strings.NewReader(cs.rsp))}
+	rsp := &http.Response{
+		Body:       ioutil.NopCloser(strings.NewReader(cs.rsp)),
+		Header:     cs.header,
+		StatusCode: cs.status,
+	}
 	return rsp, cs.err
 }
 
