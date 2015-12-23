@@ -157,7 +157,7 @@ Sample result:
     "http.chipaca": {
       "description": "HTTPie in a snap\nno description",
       "download_size": "1578272",
-      "icon": "/1.0/icons/http.chipaca_3.1.png",
+      "icon": "/1.0/icons/http.chipaca/icon",
       "installed_size": "1821897",
       "name": "http",
       "origin": "chipaca",
@@ -531,19 +531,6 @@ Notes: user facing implementations in text form must show this data using yaml.
 * Access: trusted
 * Operation: sync
 * Return: standard return value or standard error
-
-## /1.0/icons/[icon]
-
-### GET
-
-* Description: Gets a locally-installed snap's icon. The response will
-  be the raw contents of the icon file; the content-type will be set
-  accordingly.
-
-  This fetches the icon that was downloaded from the store at install time.
-* Access: guest
-
-This is *not* a standard return type.
 
 ## /1.0/icons/[name]/icon
 
