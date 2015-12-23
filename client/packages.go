@@ -22,6 +22,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -154,4 +155,20 @@ func (p Packages) TypesInSet(types []string) Packages {
 	}
 
 	return packages
+}
+
+type byName Packages
+
+func (n byName) Len() int           { return len(n) }
+func (n byName) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
+func (n byName) Less(i, j int) bool { return n[i].Name < n[j].Name }
+
+// SortByName returns items from Packages sorted by name
+func (p Packages) SortByName() Packages {
+	sorted := make(Packages, len(p))
+
+	copy(sorted, p)
+	sort.Sort(byName(sorted))
+
+	return sorted
 }

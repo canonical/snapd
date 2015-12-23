@@ -205,3 +205,15 @@ func (cs *clientSuite) TestPackagesTypesInSet(c *check.C) {
 	c.Assert(matching, check.HasLen, 1)
 	c.Assert(matching[0].Name, check.Equals, "framework")
 }
+
+func (cs *clientSuite) TestPackagesSortByName(c *check.C) {
+	packages := client.Packages{
+		client.Package{Name: "c"},
+		client.Package{Name: "b"},
+		client.Package{Name: "a"},
+	}
+
+	sorted := packages.SortByName()
+
+	c.Assert(sorted, check.DeepEquals, client.Packages{{Name: "a"}, {Name: "b"}, {Name: "c"}})
+}
