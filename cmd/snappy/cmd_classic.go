@@ -21,11 +21,13 @@ package main
 
 import (
 	"fmt"
+	sys "syscall"
 
 	"github.com/ubuntu-core/snappy/classic"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snappy"
 )
 
 type cmdEnableClassic struct{}
@@ -54,6 +56,10 @@ func (x *cmdEnableClassic) Execute(args []string) (err error) {
 		return fmt.Errorf(i18n.G("Classic dimension is already enabled."))
 	}
 
+	if sys.Getuid() != 0 {
+		return snappy.ErrNeedRoot
+	}
+
 	pbar := progress.NewTextProgress()
 	if err := classic.Create(pbar); err != nil {
 		return err
@@ -67,6 +73,10 @@ Use “snappy shell classic” to enter the classic dimension.`))
 func (x *cmdDestroyClassic) Execute(args []string) (err error) {
 	if !classic.Enabled() {
 		return fmt.Errorf(i18n.G("Classic dimension is not enabled."))
+	}
+
+	if sys.Getuid() != 0 {
+		return snappy.ErrNeedRoot
 	}
 
 	if err := classic.Destroy(); err != nil {
