@@ -24,6 +24,8 @@ import (
 	"io/ioutil"
 	"path"
 
+	"github.com/ubuntu-core/snappy/snappy"
+
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 
@@ -74,7 +76,7 @@ func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 	} else if common.AfterReboot(c) {
 		common.RemoveRebootMark(c)
 		currentVersion := common.GetCurrentUbuntuCoreVersion(c)
-		c.Assert(currentVersion > common.GetSavedVersion(c), check.Equals, true,
+		c.Assert(snappy.VersionCompare(currentVersion, common.GetSavedVersion(c)), check.Equals, 1,
 			check.Commentf("Rebooted to the wrong version: %d", currentVersion))
 	}
 }
