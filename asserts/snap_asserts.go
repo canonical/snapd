@@ -138,11 +138,11 @@ func (assert *SnapRevision) Timestamp() time.Time {
 }
 
 // Implement further consistency checks.
-func (assert *SnapRevision) checkConsistency(db *Database, pubk PublicKey) error {
+func (assert *SnapRevision) checkConsistency(db *Database, acck *AccountKey) error {
 	// TODO: check the associated snap-build exists.
 	// TODO: check the associated snap-build's digest.
 	// TODO: check developer's account-key exists.
-	if !pubk.IsValidAt(assert.timestamp) {
+	if !acck.isKeyValidAt(assert.timestamp) {
 		return fmt.Errorf("snap-revision timestamp outside of signing key validity")
 	}
 	return nil
