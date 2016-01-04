@@ -19,6 +19,12 @@
 
 package asserts
 
+import (
+	"time"
+
+	"golang.org/x/crypto/openpgp/packet"
+)
+
 // expose test-only things here
 
 // generatePrivateKey exposed for tests
@@ -30,6 +36,20 @@ var BuildAndSignInTest = buildAndSign
 // decodePrivateKey exposed for tests
 var DecodePrivateKeyInTest = decodePrivateKey
 
+func BuildBootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+	return &AccountKey{
+		assertionBase: assertionBase{
+			headers: map[string]string{
+				"authority-id": authorityID,
+				"account-id":   authorityID,
+			},
+		},
+		since:  time.Time{},
+		until:  time.Time{}.UTC().AddDate(9999, 0, 0),
+		pubKey: OpenPGPPublicKey(pubKey),
+	}
+}
+
 // define dummy assertion types to use in the tests
 
 type TestOnly struct {
@@ -37,6 +57,10 @@ type TestOnly struct {
 }
 
 func buildTestOnly(assert assertionBase) (Assertion, error) {
+	// for testing error cases
+	if _, err := checkInteger(assert.headers, "count", 0); err != nil {
+		return nil, err
+	}
 	return &TestOnly{assert}, nil
 }
 
@@ -45,4 +69,9 @@ func init() {
 		builder:    buildTestOnly,
 		primaryKey: []string{"primary-key"},
 	}
+}
+
+// AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
+func AccountKeyIsKeyValidAt(ak *AccountKey, when time.Time) bool {
+	return ak.isKeyValidAt(when)
 }

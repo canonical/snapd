@@ -17,34 +17,18 @@
  *
  */
 
-package main
+package classic
 
 import (
-	"fmt"
-
-	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/snappy"
+	. "gopkg.in/check.v1"
 )
 
-type cmdInternalFirstBootGadgetConfig struct{}
-
-func init() {
-	_, err := parser.AddCommand("firstboot",
-		"internal",
-		"internal",
-		&cmdInternalFirstBootGadgetConfig{})
-	if err != nil {
-		logger.Panicf("Unable to first_boot: %v", err)
-	}
+type RunTestSuite struct {
 }
 
-func (x *cmdInternalFirstBootGadgetConfig) Execute(args []string) error {
-	err := snappy.FirstBoot()
-	if err == snappy.ErrNotFirstBoot {
-		fmt.Println(i18n.G("First boot has already run"))
-		return nil
-	}
+var _ = Suite(&RunTestSuite{})
 
-	return err
+func (t *RunTestSuite) TestGenScopeName(c *C) {
+	name := genClassicScopeName()
+	c.Assert(name, Matches, "snappy-classic_[0-9-]+_[0-9:]+_[a-zA-Z]+.scope")
 }

@@ -319,7 +319,7 @@ func findWhitespacePrefix(t string, s string) string {
 
 func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error) {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
-	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeOem {
+	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeGadget {
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
 	}
 
@@ -358,9 +358,9 @@ func (sa *securityAppID) appArmorVars() string {
 @{APP_PKGNAME_DBUS}="%s"
 @{APP_PKGNAME}="%s"
 @{APP_VERSION}="%s"
-@{INSTALL_DIR}="{/apps,/oem}"
+@{INSTALL_DIR}="{/apps,/gadget}"
 # Deprecated:
-@{CLICK_DIR}="{/apps,/oem}"`, sa.Appname, dbusPath(sa.AppID), dbusPath(sa.Pkgname), sa.Pkgname, sa.Version)
+@{CLICK_DIR}="{/apps,/gadget}"`, sa.Appname, dbusPath(sa.AppID), dbusPath(sa.Pkgname), sa.Pkgname, sa.Version)
 	return aavars
 }
 
@@ -649,7 +649,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 
 	// add the hw-override parts and merge with the other overrides
 	origin := ""
-	if m.Type != pkg.TypeFramework && m.Type != pkg.TypeOem {
+	if m.Type != pkg.TypeFramework && m.Type != pkg.TypeGadget {
 		origin, err = originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
 		if err != nil {
 			return nil, err

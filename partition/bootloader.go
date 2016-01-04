@@ -271,7 +271,7 @@ func (b *bootloaderType) HandleAssets() (err error) {
 		}
 	}
 
-	// TODO: look at the OEM package for dtb changes too once that is
+	// TODO: look at the Gadget package for dtb changes too once that is
 	//       fully speced
 
 	// install .dtb files

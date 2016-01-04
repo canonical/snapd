@@ -526,7 +526,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 		return err
 	}
 
-	if cm.Type != pkg.TypeFramework && cm.Type != pkg.TypeOem {
+	if cm.Type != pkg.TypeFramework && cm.Type != pkg.TypeGadget {
 		// add the origin to the name
 		cm.Name = fmt.Sprintf("%s.%s", cm.Name, origin)
 	}

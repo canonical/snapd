@@ -219,10 +219,8 @@ func (s *licensedExampleSuite) TestDeclineLicenseMustNotInstallSnap(c *check.C) 
 
 func (s *licensedExampleSuite) assertLicense(c *check.C, f *os.File) {
 	output := s.readUntilPrompt(c, f)
-	expected := "Installing licensed.canonical" +
-		"Starting download of licensed" +
+	expected := "(?s)Installing licensed.canonical" +
 		".*" +
-		"Done" +
 		"licensed requires that you accept the following license before continuing" +
 		"This product is meant for educational purposes only. .* No other warranty expressed or implied."
 	c.Assert(output, check.Matches, expected)

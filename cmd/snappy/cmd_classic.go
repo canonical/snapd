@@ -60,7 +60,7 @@ func (x *cmdEnableClassic) Execute(args []string) (err error) {
 	}
 
 	fmt.Println(i18n.G(`Classic dimension enabled on this snappy system.
-Use “sudo snappy shell classic” to enter the classic dimension.`))
+Use “snappy shell classic” to enter the classic dimension.`))
 	return nil
 }
 

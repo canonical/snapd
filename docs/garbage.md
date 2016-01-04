@@ -14,7 +14,7 @@ A snap present in a system can be in several states:
 note that a *removed* snap is still present; the data has not been *purged*.
 
 > Also note that garbage collection only applies to snappy parts packaged
-> using the snap format (at this time: apps, frameworks, oem), and does not
+> using the snap format (at this time: apps, frameworks, gadget), and does not
 > (currently) apply to snappy base system parts (e.g. ubuntu-core) nor snappy
 > enablement parts (device tarball with kernel).
 

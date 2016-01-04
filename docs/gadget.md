@@ -1,12 +1,12 @@
-# OEM snappy package
+# Gadget snappy package
 
-The `oem` snappy package is a snappy package `type` that is used to setup and
-personalize the system according to an OEM.
+The `gadget` snappy package is a snappy package `type` that is used to setup and
+personalize the system.
 
 It covers a broad range, such as the software stack with its configuration and
 hardware enablement.
 
-There can only be *one* snappy package of `type: oem` and it can only be
+There can only be *one* snappy package of `type: gadget` and it can only be
 installed during image provision.
 
 ## Nomenclature
@@ -21,7 +21,7 @@ everything is a *package*.
 
 ### Default packages
 
-The `oem` snap can provide a set of default packages to be installed during
+The `gadget` snap can provide a set of default packages to be installed during
 either provisioning or first boot. The former is interesting to IoT scenarios
 while the latter is useful for cloud deployments (although `cloud-init`
 directly also serves the purpose for pure clouds).
@@ -37,7 +37,7 @@ selection from the store and provision onto the system.
 Each snappy package can be configured independently or by feeding a full
 configuration with all packages.
 
-The `oem` package shall initially support providing a `config.yaml` describing
+The `gadget` package shall initially support providing a `config.yaml` describing
 each package that is to be configured.
 
 On first boot of the system, this `config.yaml` file will be processed and the
@@ -72,43 +72,43 @@ counterpart will use this information to brand the system accordingly.
 #### dtb
 
 The default dtb (device tree blob) can be overridden by a key entry point in
-the `package.yaml` for the `oem`.
+the `package.yaml` for the `gadget`.
 
 If a dtb is specified during provisioning, it will be selected as the dtb to
 use for the system. If using an AB partition layout, when an update for the
-`oem` package is installed which updates the `dtb`, the update will be
+`gadget` package is installed which updates the `dtb`, the update will be
 installed to the *other* partition and a reboot will be requested.
 
 An upgrade path must be calculated by `snappy` to determine the priority and
-ordering for an `ubuntu-core` update and an `oem` snap update.
+ordering for an `ubuntu-core` update and an `gadget` snap update.
 
 #### Bootloaders
 
 Since each system boots differently, assets that are currently provided in
-`flashassets` of the device package can be provided in the `oem` snap instead.
+`flashassets` of the device package can be provided in the `gadget` snap instead.
 This is useful for systems that use the default `device` package (ie, one which
 uses the officially supported Ubuntu kernel and initrd).
 
-Examples of assets that may be provided via the `oem` snap are `MLO`, `u-boot`,
+Examples of assets that may be provided via the `gadget` snap are `MLO`, `u-boot`,
 `UEnv.txt` `script.bin` or anything external to the system that allows for a
 system to boot.
 
 While these assets are typically used during provisioning, they may also be
 used against a running system. *Caution:* updating these assets on a running
 system may lead to a broken system unless redundancy or fallback mechanisms
-aren't provided by the OEM.
+aren't provided by the Gadget.
 
 #### Partition layout
 
 In the current layout, the `device` package contains a file called
-`hardware.yaml`, the `partition-layout` will be migrated to the `oem` snappy
+`hardware.yaml`, the `partition-layout` will be migrated to the `gadget` snappy
 package to provide a more generic `device` package.
 
 The only supported layout today is AB.
 
 #### Hardware assign
 
-Hardware can be assigned directly to a snap part in the oem snap.
+Hardware can be assigned directly to a snap part in the gadget snap.
 This is useful if you are building e.g. a fixed function device.
 The "assign" key is used and it takes a list of snap parts as parameter
 that will then get access to the devices specified by the "rules"
@@ -123,7 +123,7 @@ The `package.yaml` is structured as:
 	name: package-string # mandatory
 	icon: icon-path # mandatory
 	version: version-string # mandatory
-	type: oem # mandatory
+	type: gadget # mandatory
 
 	config: # optional
 		snappy-package-string:
@@ -132,7 +132,7 @@ The `package.yaml` is structured as:
 	immutable-config: # optional
 		- filter-string
 
-	oem:
+	gadget:
 		store: # optional
 		    id: id-string # optional
 
@@ -186,10 +186,10 @@ Rules about packages in the config:
 
 - a package listed in this map is automatically preinstalled from the store
   on image roll out. `ubuntu-core` is always implicitly installed. The
-  `oem` snap is also installed and can not be (re)configured after the
+  `gadget` snap is also installed and can not be (re)configured after the
   install.
 
-The `oem` part of the `package.yaml` is not a configuration per se and treated
+The `gadget` part of the `package.yaml` is not a configuration per se and treated
 separately.
 
 Rules about `software`:
@@ -203,7 +203,7 @@ As an example
     name: beagleboneblack.sergiusens
     icon: meta/element14.png
     version: 1.1
-    type: oem
+    type: gadget
 
     config:
         ubuntu-core:
@@ -216,7 +216,7 @@ As an example
         - ubuntu-core/services/*
         - webdm/*
 
-    oem:
+    gadget:
         store:
             id: mystore
         branding:

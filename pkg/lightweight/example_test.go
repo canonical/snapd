@@ -42,7 +42,7 @@ func ExamplePartBag() {
 	os.MkdirAll(filepath.Join(dirs.SnapDataDir, "foo.bar", "0.5"), 0755)
 	os.MkdirAll(filepath.Join(dirs.SnapDataDir, "baz", "0.4"), 0755)
 	os.MkdirAll(filepath.Join(dirs.SnapDataDir, "qux", "0.5"), 0755)
-	os.MkdirAll(filepath.Join(dirs.SnapOemDir, "qux", "0.5"), 0755)
+	os.MkdirAll(filepath.Join(dirs.SnapGadgetDir, "qux", "0.5"), 0755)
 
 	bags := lightweight.AllPartBags()
 
@@ -54,5 +54,5 @@ func ExamplePartBag() {
 	// Output:
 	// Found 3 versions for foo.bar, type "app": [0.5 0.2 0.1]
 	// Found 1 versions for baz, type "framework": [0.4]
-	// Found 1 versions for qux, type "oem": [0.5]
+	// Found 1 versions for qux, type "gadget": [0.5]
 }

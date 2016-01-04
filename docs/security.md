@@ -43,7 +43,7 @@ Under the hood, the launcher:
    [snappy FHS](https://developer.ubuntu.com/en/snappy/guides/filesystem-layout/) for details.
 * changes directory to `SNAP_APP_PATH` (the install directory)
 * sets up a device cgroup with default devices (eg, /dev/null, /dev/urandom,
-  etc) and any devices which are assigned to this app via OEM snaps or
+  etc) and any devices which are assigned to this app via Gadget snaps or
   `snappy hw-assign` (eg, `snappy hw-assign foo.myorigin /dev/bar`).
 * sets up the seccomp filter
 * executes the app under an AppArmor profile under a default nice value

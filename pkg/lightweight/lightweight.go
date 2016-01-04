@@ -190,25 +190,25 @@ func find(name string, origin string) map[string]*PartBag {
 			typ := s.typ
 			inst := s.inst
 
-			// if oems were removable, there'd be no way of
+			// if gadgets were removable, there'd be no way of
 			// telling the kind of a removed origin-less package
 			//
 			// in case it's not clear, we're walking the *data*
 			// directory, where directories for packages of all
-			// types are present. OEM packages and frameworks look
+			// types are present. Gadget packages and frameworks look
 			// the same in the data dir: they both have no
-			// origin. However, OEM packages are uninstallable, and
+			// origin. However, Gadget packages are uninstallable, and
 			// you can't install a package with the same name as an
-			// active package, so if /oem/{name} exists, we switch
-			// this package to be type OEM.
+			// active package, so if /gadget/{name} exists, we switch
+			// this package to be type Gadget.
 			//
-			// Right now you could, in theory, *deactivate* an oem
+			// Right now you could, in theory, *deactivate* a gadget
 			// package, and install a framework with the same name
-			// as the oem package you deactivated. You get to keep
+			// as the gadget package you deactivated. You get to keep
 			// the parts.
-			if typ == pkg.TypeFramework && helpers.FileExists(filepath.Join(dirs.SnapOemDir, name)) {
-				typ = pkg.TypeOem
-				inst = dirs.SnapOemDir
+			if typ == pkg.TypeFramework && helpers.FileExists(filepath.Join(dirs.SnapGadgetDir, name)) {
+				typ = pkg.TypeGadget
+				inst = dirs.SnapGadgetDir
 			}
 
 			bag := &PartBag{
@@ -245,7 +245,7 @@ type Concreter interface {
 }
 
 // NewConcrete is meant to be overridden in tests; is called when
-// needing a Concreter for app/fmk/oem snaps (ie not core).
+// needing a Concreter for app/fmk/gadget snaps (ie not core).
 var NewConcrete = newConcreteImpl
 
 func newConcreteImpl(bag *PartBag, instdir string) Concreter {

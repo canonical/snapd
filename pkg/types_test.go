@@ -44,9 +44,9 @@ func (s *typeSuite) TestMarshalTypes(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "\"app\"")
 
-	out, err = json.Marshal(TypeOem)
+	out, err = json.Marshal(TypeGadget)
 	c.Assert(err, IsNil)
-	c.Check(string(out), Equals, "\"oem\"")
+	c.Check(string(out), Equals, "\"gadget\"")
 }
 
 func (s *typeSuite) TestUnmarshalTypes(c *C) {
@@ -60,7 +60,7 @@ func (s *typeSuite) TestUnmarshalTypes(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(st, Equals, TypeApp)
 
-	err = json.Unmarshal([]byte("\"oem\""), &st)
+	err = json.Unmarshal([]byte("\"gadget\""), &st)
 	c.Assert(err, IsNil)
-	c.Check(st, Equals, TypeOem)
+	c.Check(st, Equals, TypeGadget)
 }

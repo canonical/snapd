@@ -80,9 +80,9 @@ var (
 	// a fork of something you already have installed
 	ErrPackageNameAlreadyInstalled = errors.New("a package by that name is already installed")
 
-	// ErrOEMPackageInstall is returned when you try to install
-	// an oem package type on a running system.
-	ErrOEMPackageInstall = errors.New("oem package installation not allowed")
+	// ErrGadgetPackageInstall is returned when you try to install
+	// a gadget package type on a running system.
+	ErrGadgetPackageInstall = errors.New("gadget package installation not allowed")
 
 	// ErrPrivOpInProgress is returned when a privileged operation
 	// cannot be performed since an existing privileged operation is
@@ -123,9 +123,9 @@ var (
 	// an interface is partial.
 	ErrNotImplemented = errors.New("not implemented")
 
-	// ErrNoOemConfiguration may be returned when there is a pkg.TypeOem installed
+	// ErrNoGadgetConfiguration may be returned when there is a pkg.TypeGadget installed
 	// but does not provide a configuration.
-	ErrNoOemConfiguration = errors.New("no configuration entry found in the oem snap")
+	ErrNoGadgetConfiguration = errors.New("no configuration entry found in the gadget snap")
 
 	// ErrInstalledNonSnapPart is returned if a part that is purportedly
 	// installed turns out to not be a SnapPart.

@@ -27,6 +27,8 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/progress"
 
 	"gopkg.in/yaml.v2"
@@ -65,11 +67,11 @@ func newPartMapImpl() (map[string]Part, error) {
 	return m, nil
 }
 
-// OemConfig checks for an oem snap and if found applies the configuration
+// GadgetConfig checks for a gadget snap and if found applies the configuration
 // set there to the system
-func oemConfig() error {
-	oem, err := getOem()
-	if err != nil || oem == nil {
+func gadgetConfig() error {
+	gadget, err := getGadget()
+	if err != nil || gadget == nil {
 		return err
 	}
 
@@ -79,7 +81,7 @@ func oemConfig() error {
 	}
 
 	pb := progress.MakeProgressBar()
-	for _, pkgName := range oem.OEM.Software.BuiltIn {
+	for _, pkgName := range gadget.Gadget.Software.BuiltIn {
 		part, ok := partMap[pkgName]
 		if !ok {
 			return errNoSnapToActivate
@@ -91,10 +93,10 @@ func oemConfig() error {
 		snap.activate(false, pb)
 	}
 
-	for pkgName, conf := range oem.Config {
+	for pkgName, conf := range gadget.Config {
 		snap, ok := partMap[pkgName]
 		if !ok {
-			// We want to error early as this is a disparity and oem snap
+			// We want to error early as this is a disparity and gadget snap
 			// packaging error.
 			return errNoSnapToConfig
 		}
@@ -112,8 +114,32 @@ func oemConfig() error {
 	return nil
 }
 
+// enableSystemSnaps activates the installed kernel/os/gadget snaps
+// on the first boot
+func enableSystemSnaps() error {
+	repo := NewMetaLocalRepository()
+	all, err := repo.All()
+	if err != nil {
+		return nil
+	}
+
+	pb := progress.MakeProgressBar()
+	for _, part := range all {
+		switch part.Type() {
+		case pkg.TypeGadget, pkg.TypeKernel, pkg.TypeOS:
+			logger.Noticef("Acitvating %s", FullName(part))
+			if err := part.SetActive(true, pb); err != nil {
+				// we don't want this to fail for now
+				logger.Noticef("failed to acitvate %s: %s", FullName(part), err)
+			}
+		}
+	}
+
+	return nil
+}
+
 // FirstBoot checks whether it's the first boot, and if so enables the
-// first ethernet device and runs oemConfig (as well as flagging that
+// first ethernet device and runs gadgetConfig (as well as flagging that
 // it run)
 func FirstBoot() error {
 	if firstBootHasRun() {
@@ -122,7 +148,11 @@ func FirstBoot() error {
 	defer stampFirstBoot()
 	defer enableFirstEther()
 
-	return oemConfig()
+	if err := enableSystemSnaps(); err != nil {
+		return err
+	}
+
+	return gadgetConfig()
 }
 
 // NOTE: if you change stampFile, update the condition in
@@ -147,8 +177,8 @@ var ethdir = "/etc/network/interfaces.d"
 var ifup = "/sbin/ifup"
 
 func enableFirstEther() error {
-	oem, _ := getOem()
-	if oem != nil && oem.OEM.SkipIfupProvisioning {
+	gadget, _ := getGadget()
+	if gadget != nil && gadget.Gadget.SkipIfupProvisioning {
 		return nil
 	}
 

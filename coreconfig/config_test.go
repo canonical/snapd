@@ -668,7 +668,7 @@ func (cts *ConfigTestSuite) TestModulesHasWarning(c *C) {
 func (cts *ConfigTestSuite) TestModulesIsKind(c *C) {
 	modulesPath = filepath.Join(c.MkDir(), "test.conf")
 	c.Assert(ioutil.WriteFile(modulesPath, []byte(`# hello
-# this is what happens when soembody comes and edits the file
+# this is what happens when somebody comes and edits the file
 # just to be sure
 ; modules-load.d(5) says comments can also start with a ;
   ; actually not even start

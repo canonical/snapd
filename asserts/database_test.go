@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"syscall"
 	"testing"
 	"time"
@@ -147,6 +148,17 @@ func (dbs *databaseSuite) TestPublicKey(c *C) {
 	c.Assert(pubKey.Fingerprint, DeepEquals, testPrivKey1.PublicKey.Fingerprint)
 }
 
+func (dbs *databaseSuite) TestPublicKeyAmbiguous(c *C) {
+	_, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	c.Assert(err, IsNil)
+	_, err = dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey2))
+	c.Assert(err, IsNil)
+
+	pubk, err := dbs.db.PublicKey("account0", "")
+	c.Assert(err, ErrorMatches, `ambiguous search, more than one key pair found:.*`)
+	c.Check(pubk, IsNil)
+}
+
 type checkSuite struct {
 	rootDir string
 	a       asserts.Assertion
@@ -177,13 +189,11 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 }
 
 func (chks *checkSuite) TestCheckForgery(c *C) {
-	dbTrustedKey := asserts.OpenPGPPublicKey(&testPrivKey0.PublicKey)
+	trustedKey := testPrivKey0
 
 	cfg := &asserts.DatabaseConfig{
-		Path: chks.rootDir,
-		TrustedKeys: map[string][]asserts.PublicKey{
-			"canonical": {dbTrustedKey},
-		},
+		Path:        chks.rootDir,
+		TrustedKeys: []*asserts.AccountKey{asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -231,12 +241,10 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
-	dbTrustedKey := asserts.OpenPGPPublicKey(&testPrivKey0.PublicKey)
+	trustedKey := testPrivKey0
 	cfg := &asserts.DatabaseConfig{
-		Path: rootDir,
-		TrustedKeys: map[string][]asserts.PublicKey{
-			"canonical": {dbTrustedKey},
-		},
+		Path:        rootDir,
+		TrustedKeys: []*asserts.AccountKey{asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -262,6 +270,65 @@ func (safs *signAddFindSuite) TestSignEmptyFingerprint(c *C) {
 	}
 	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "")
 	c.Assert(err, ErrorMatches, "fingerprint is empty")
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignMissingAuthorityId(c *C) {
+	headers := map[string]string{
+		"primary-key": "a",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `"authority-id" header is mandatory`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignMissingPrimaryKey(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `"primary-key" header is mandatory`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignNoPrivateKey(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "abcd")
+	c.Assert(err, ErrorMatches, "no matching key pair found")
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignUnknowType(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("xyz"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `unknown assertion type: xyz`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignBadRevision(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+		"revision":     "zzz",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `"revision" header is not an integer: zzz`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignBuilderError(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+		"count":        "zzz",
+	}
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, ErrorMatches, `cannot build assertion test-only: "count" header is not an integer: zzz`)
 	c.Check(a1, IsNil)
 }
 
@@ -331,4 +398,70 @@ func (safs *signAddFindSuite) TestFindPrimaryLeftOut(c *C) {
 	retrieved1, err := safs.db.Find(asserts.AssertionType("test-only"), map[string]string{})
 	c.Assert(err, ErrorMatches, "must provide primary key: primary-key")
 	c.Check(retrieved1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestFindMany(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+		"other":        "other-x",
+	}
+	aa, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, IsNil)
+	err = safs.db.Add(aa)
+	c.Assert(err, IsNil)
+
+	headers = map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "b",
+		"other":        "other-y",
+	}
+	ab, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, IsNil)
+	err = safs.db.Add(ab)
+	c.Assert(err, IsNil)
+
+	headers = map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "c",
+		"other":        "other-x",
+	}
+	ac, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	c.Assert(err, IsNil)
+	err = safs.db.Add(ac)
+	c.Assert(err, IsNil)
+
+	res, err := safs.db.FindMany(asserts.AssertionType("test-only"), map[string]string{
+		"other": "other-x",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(res, HasLen, 2)
+	primKeys := []string{res[0].Header("primary-key"), res[1].Header("primary-key")}
+	sort.Strings(primKeys)
+	c.Check(primKeys, DeepEquals, []string{"a", "c"})
+
+	res, err = safs.db.FindMany(asserts.AssertionType("test-only"), map[string]string{
+		"other": "other-y",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(res, HasLen, 1)
+	c.Check(res[0].Header("primary-key"), Equals, "b")
+
+	res, err = safs.db.FindMany(asserts.AssertionType("test-only"), map[string]string{})
+	c.Assert(err, IsNil)
+	c.Assert(res, HasLen, 3)
+
+	res, err = safs.db.FindMany(asserts.AssertionType("test-only"), map[string]string{
+		"primary-key": "b",
+		"other":       "other-y",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(res, HasLen, 1)
+
+	res, err = safs.db.FindMany(asserts.AssertionType("test-only"), map[string]string{
+		"primary-key": "b",
+		"other":       "other-x",
+	})
+	c.Assert(res, HasLen, 0)
+	c.Check(err, Equals, asserts.ErrNotFound)
 }

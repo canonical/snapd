@@ -35,26 +35,12 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 )
 
-// PublicKey is a public key as used by the assertion database.
-type PublicKey interface {
-	// Fingerprint returns the key fingerprint.
-	Fingerprint() string
-	// Verify verifies signature is valid for content using the key.
-	Verify(content []byte, sig Signature) error
-	// IsValidAt returns whether the public key is valid at 'when' time.
-	IsValidAt(when time.Time) bool
-}
-
-// TODO/XXX: make PublicKey minimal, only Fingerprint exported
-// have a few more internal only methods, to address encodeOpenpgp for example
-// then for now use AccountKey directly for TrustedKeys in DatabaseConfig
-
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
 	// database backstore path
 	Path string
-	// trusted keys maps authority-ids to list of trusted keys.
-	TrustedKeys map[string][]PublicKey
+	// trusted account keys
+	TrustedKeys []*AccountKey
 }
 
 // Well-known errors
@@ -65,14 +51,14 @@ var (
 // A consistencyChecker performs further checks based on the full
 // assertion database knowledge and its own signing key.
 type consistencyChecker interface {
-	checkConsistency(db *Database, signingPubKey PublicKey) error
+	checkConsistency(db *Database, signingKey *AccountKey) error
 }
 
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
-	root string
-	cfg  DatabaseConfig
+	root        string
+	trustedKeys map[string][]*AccountKey
 }
 
 const (
@@ -95,7 +81,12 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	if info.Mode().Perm()&0002 != 0 {
 		return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
 	}
-	return &Database{root: cfg.Path, cfg: *cfg}, nil
+	trustedKeys := make(map[string][]*AccountKey)
+	for _, accKey := range cfg.TrustedKeys {
+		authID := accKey.AccountID()
+		trustedKeys[authID] = append(trustedKeys[authID], accKey)
+	}
+	return &Database{root: cfg.Path, trustedKeys: trustedKeys}, nil
 }
 
 func (db *Database) atomicWriteEntry(data []byte, secret bool, subpath ...string) error {
@@ -218,7 +209,8 @@ func (db *Database) Sign(assertType AssertionType, headers map[string]string, bo
 // retrieved by giving suffixes of their fingerprint,
 // for safety suffix must be at least 64 bits though
 // TODO: may need more details about the kind of key we are looking for
-func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]PublicKey, error) {
+// and use an interface for the results.
+func (db *Database) findAccountKeys(authorityID, fingerprintSuffix string) ([]*AccountKey, error) {
 	suffixLen := len(fingerprintSuffix)
 	if suffixLen%2 == 1 {
 		return nil, fmt.Errorf("key id/fingerprint suffix cannot specify a half byte")
@@ -226,8 +218,8 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 	if suffixLen < 16 {
 		return nil, fmt.Errorf("key id/fingerprint suffix must be at least 64 bits")
 	}
-	res := make([]PublicKey, 0, 1)
-	cands := db.cfg.TrustedKeys[authorityID]
+	res := make([]*AccountKey, 0, 1)
+	cands := db.trustedKeys[authorityID]
 	for _, cand := range cands {
 		if strings.HasSuffix(cand.Fingerprint(), fingerprintSuffix) {
 			res = append(res, cand)
@@ -240,12 +232,7 @@ func (db *Database) findPublicKeys(authorityID, fingerprintSuffix string) ([]Pub
 		if err != nil {
 			return err
 		}
-		var accKey PublicKey
-		accKey, ok := a.(*AccountKey)
-		if !ok {
-			return fmt.Errorf("something that is not an account-key under their storage tree")
-		}
-		res = append(res, accKey)
+		res = append(res, a.(*AccountKey))
 		return nil
 	}
 	err := findWildcard(accountKeysTop, []string{url.QueryEscape(authorityID), "*" + fingerprintSuffix}, foundKeyCb)
@@ -264,19 +251,19 @@ func (db *Database) Check(assert Assertion) error {
 		return err
 	}
 	// TODO: later may need to consider type of assert to find candidate keys
-	pubKeys, err := db.findPublicKeys(assert.AuthorityID(), sig.KeyID())
+	accKeys, err := db.findAccountKeys(assert.AuthorityID(), sig.KeyID())
 	if err != nil {
 		return fmt.Errorf("error finding matching public key for signature: %v", err)
 	}
 	now := time.Now()
 	var lastErr error
-	for _, pubKey := range pubKeys {
-		if pubKey.IsValidAt(now) {
-			err := pubKey.Verify(content, sig)
+	for _, accKey := range accKeys {
+		if accKey.isKeyValidAt(now) {
+			err := accKey.publicKey().verify(content, sig)
 			if err == nil {
 				// see if the assertion requires further checks
 				if checker, ok := assert.(consistencyChecker); ok {
-					err := checker.checkConsistency(db, pubKey)
+					err := checker.checkConsistency(db, accKey)
 					if err != nil {
 						return fmt.Errorf("signature verifies but assertion violates other knowledge: %v", err)
 					}
@@ -292,6 +279,7 @@ func (db *Database) Check(assert Assertion) error {
 	return fmt.Errorf("failed signature verification: %v", lastErr)
 }
 
+// guarantees that result assertion is of the expected type (both in the AssertionType and go type sense)
 func (db *Database) readAssertion(assertType AssertionType, primaryPath string) (Assertion, error) {
 	encoded, err := db.readEntry(assertionsRoot, string(assertType), primaryPath)
 	if os.IsNotExist(err) {
@@ -304,6 +292,10 @@ func (db *Database) readAssertion(assertType AssertionType, primaryPath string) 
 	if err != nil {
 		return nil, fmt.Errorf("broken assertion storage, failed to decode assertion: %v", err)
 	}
+	if assert.Type() != assertType {
+		return nil, fmt.Errorf("assertion that is not of type %q under their storage tree", assertType)
+	}
+	// because of Decode() construction assert has also the expected go type
 	return assert, nil
 }
 
@@ -345,6 +337,21 @@ func (db *Database) Add(assert Assertion) error {
 	return nil
 }
 
+func (db *Database) confirmSearchHit(assertionType AssertionType, headers map[string]string, primaryPath string) (Assertion, error) {
+	assert, err := db.readAssertion(assertionType, primaryPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// check non-primary-key headers as well
+	for expectedKey, expectedValue := range headers {
+		if assert.Header(expectedKey) != expectedValue {
+			return nil, ErrNotFound
+		}
+	}
+	return assert, nil
+}
+
 // Find an assertion based on arbitrary headers.
 // Provided headers must contain the primary key for the assertion type.
 // It returns ErrNotFound if the assertion cannot be found.
@@ -362,15 +369,46 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 		primaryKey[i] = url.QueryEscape(keyVal)
 	}
 	primaryPath := filepath.Join(primaryKey...)
-	assert, err := db.readAssertion(assertionType, primaryPath)
+	return db.confirmSearchHit(assertionType, headers, primaryPath)
+}
+
+// FindMany finds assertions based on arbitrary headers.
+// It returns ErrNotFound if no assertion can be found.
+func (db *Database) FindMany(assertionType AssertionType, headers map[string]string) ([]Assertion, error) {
+	reg, err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
 	}
-	// check non-primary-key headers as well
-	for expectedKey, expectedValue := range headers {
-		if assert.Header(expectedKey) != expectedValue {
-			return nil, ErrNotFound
+	res := []Assertion{}
+	primaryKey := make([]string, len(reg.primaryKey))
+	for i, k := range reg.primaryKey {
+		keyVal := headers[k]
+		if keyVal == "" {
+			primaryKey[i] = "*"
+		} else {
+			primaryKey[i] = url.QueryEscape(keyVal)
 		}
 	}
-	return assert, nil
+
+	assertTypeTop := filepath.Join(db.root, assertionsRoot, string(assertionType))
+	foundCb := func(primaryPath string) error {
+		a, err := db.confirmSearchHit(assertionType, headers, primaryPath)
+		if err == ErrNotFound {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		res = append(res, a)
+		return nil
+	}
+	err = findWildcard(assertTypeTop, primaryKey, foundCb)
+	if err != nil {
+		return nil, fmt.Errorf("broken assertion storage, searching for %s: %v", assertionType, err)
+	}
+
+	if len(res) == 0 {
+		return nil, ErrNotFound
+	}
+	return res, nil
 }

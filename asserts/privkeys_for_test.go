@@ -31,6 +31,7 @@ import (
 var (
 	testPrivKey0 = genTestPrivKey()
 	testPrivKey1 = genTestPrivKey()
+	testPrivKey2 = genTestPrivKey()
 )
 
 func genTestPrivKey() *packet.PrivateKey {

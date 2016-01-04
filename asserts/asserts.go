@@ -34,9 +34,9 @@ type AssertionType string
 
 // Understood assertions
 const (
-	AccountKeyType      AssertionType = "account-key"
-	SnapDeclarationType AssertionType = "snap-declaration"
-	SnapRevisionType    AssertionType = "snap-revision"
+	AccountKeyType   AssertionType = "account-key"
+	SnapBuildType    AssertionType = "snap-build"
+	SnapRevisionType AssertionType = "snap-revision"
 
 // ...
 )
@@ -320,7 +320,7 @@ func buildAndSign(assertType AssertionType, headers map[string]string, body []by
 	}
 	if bodyLength > 0 {
 		buf.Grow(bodyLength + 2)
-		buf.WriteString("\n\n")
+		buf.Write(nlnl)
 		buf.Write(finalBody)
 	} else {
 		finalBody = nil
@@ -362,7 +362,7 @@ func Encode(assert Assertion) []byte {
 	needed := len(content) + 2 + len(signature)
 	buf := bytes.NewBuffer(make([]byte, 0, needed))
 	buf.Write(content)
-	buf.WriteString("\n\n")
+	buf.Write(nlnl)
 	buf.Write(signature)
 	return buf.Bytes()
 }

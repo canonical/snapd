@@ -55,8 +55,8 @@ func (s *SnapTestSuite) TestSnapRemoveActive(c *C) {
 	c.Assert(installed[0].Version(), Equals, "1.0")
 }
 
-func (s *SnapTestSuite) TestSnapRemoveActiveOemFails(c *C) {
-	makeTwoTestSnaps(c, pkg.TypeOem)
+func (s *SnapTestSuite) TestSnapRemoveActiveGadgetFails(c *C) {
+	makeTwoTestSnaps(c, pkg.TypeGadget)
 
 	err := Remove("foo", 0, &progress.NullProgress{})
 	c.Assert(err, DeepEquals, ErrPackageNotRemovable)
@@ -71,7 +71,7 @@ func (s *SnapTestSuite) TestSnapRemoveActiveOemFails(c *C) {
 	installed, err := m.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(installed[0].Name(), Equals, "foo")
-	c.Assert(installed[0].Type(), Equals, pkg.TypeOem)
+	c.Assert(installed[0].Type(), Equals, pkg.TypeGadget)
 	c.Assert(installed[0].Version(), Equals, "2.0")
 	c.Assert(installed, HasLen, 1)
 }

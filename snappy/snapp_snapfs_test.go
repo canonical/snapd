@@ -333,3 +333,34 @@ func (s *SquashfsTestSuite) TestInstallKernelRebootRequired(c *C) {
 	s.bootvars["snappy_good_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
 	c.Assert(snap.NeedsReboot(), Equals, false)
 }
+
+func getFakeGrubGadget() (*packageYaml, error) {
+	return &packageYaml{
+		Gadget: Gadget{
+			Hardware: Hardware{
+				Bootloader: "grub",
+			},
+		},
+	}, nil
+}
+
+func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
+	// pretend to be a grub system
+	origGetGadget := getGadget
+	s.AddCleanup(func() { getGadget = origGetGadget })
+	getGadget = getFakeGrubGadget
+
+	files := [][]string{
+		{"vmlinuz-4.2", "I'm a kernel"},
+	}
+	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
+	part, err := NewSnapPartFromSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	_, err = part.Install(&MockProgressMeter{}, 0)
+	c.Assert(err, IsNil)
+
+	// kernel is *not* here
+	vmlinuz := filepath.Join(bootloaderDir(), "ubuntu-kernel.origin_4.0-1.snap", "vmlinuz")
+	c.Assert(helpers.FileExists(vmlinuz), Equals, false)
+}
