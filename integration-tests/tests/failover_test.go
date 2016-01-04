@@ -52,7 +52,7 @@ func commonFailoverTest(c *check.C, f failer) {
 		c.Assert(common.GetSavedVersion(c), check.Equals, currentVersion,
 			check.Commentf("Rebooted to the wrong version"))
 	} else {
-		common.SetSavedVersion(c, currentVersion-1)
+		common.SetSavedVersion(c, currentVersion+"~prev")
 		common.CallFakeUpdate(c)
 		f.set(c)
 		common.Reboot(c)

@@ -26,7 +26,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"gopkg.in/check.v1"
@@ -200,11 +199,8 @@ func GetCurrentVersion(c *check.C, packageName string) string {
 
 // GetCurrentUbuntuCoreVersion returns the version number of the installed and
 // active ubuntu-core.
-func GetCurrentUbuntuCoreVersion(c *check.C) int {
-	versionString := GetCurrentVersion(c, "ubuntu-core")
-	version, err := strconv.Atoi(versionString)
-	c.Assert(err, check.IsNil, check.Commentf("Error converting version to int %v", version))
-	return version
+func GetCurrentUbuntuCoreVersion(c *check.C) string {
+	return GetCurrentVersion(c, "ubuntu-core")
 }
 
 // CallFakeUpdate calls snappy update after faking the current version
@@ -217,11 +213,12 @@ func CallFakeUpdate(c *check.C) string {
 func fakeAvailableUpdate(c *check.C) {
 	c.Log("Faking an available update...")
 	currentVersion := GetCurrentUbuntuCoreVersion(c)
-	switchChannelVersionWithBackup(c, currentVersion-1)
-	SetSavedVersion(c, currentVersion-1)
+	// debian version numbers rule
+	switchChannelVersionWithBackup(c, currentVersion+"~prev")
+	SetSavedVersion(c, currentVersion+"~prev")
 }
 
-func switchChannelVersionWithBackup(c *check.C, newVersion int) {
+func switchChannelVersionWithBackup(c *check.C, newVersion string) {
 	m := make(map[string]string)
 	m["/"] = channelCfgBackupFile()
 	m[BaseAltPartitionPath] = channelCfgOtherBackupFile()
@@ -232,7 +229,7 @@ func switchChannelVersionWithBackup(c *check.C, newVersion int) {
 			defer partition.MakeReadonly(c, target)
 			// Back up the file. It will be restored during the test tear down.
 			cli.ExecCommand(c, "cp", file, backup)
-			replaceSystemImageValues(c, file, "", "", strconv.Itoa(newVersion))
+			replaceSystemImageValues(c, file, "", "", newVersion)
 		}
 	}
 }
@@ -294,22 +291,19 @@ func RemoveRebootMark(c *check.C) {
 
 // SetSavedVersion saves a version number into a file so it can be used on
 // tests after reboots.
-func SetSavedVersion(c *check.C, version int) {
+func SetSavedVersion(c *check.C, version string) {
 	versionFile := getVersionFile()
-	err := ioutil.WriteFile(versionFile, []byte(strconv.Itoa(version)), 0777)
+	err := ioutil.WriteFile(versionFile, []byte(version), 0777)
 	c.Assert(err, check.IsNil, check.Commentf("Error writing version file %s with %s", versionFile, version))
 }
 
 // GetSavedVersion returns the saved version number.
-func GetSavedVersion(c *check.C) int {
+func GetSavedVersion(c *check.C) string {
 	versionFile := getVersionFile()
 	contents, err := ioutil.ReadFile(versionFile)
 	c.Assert(err, check.IsNil, check.Commentf("Error reading version file %s", versionFile))
 
-	version, err := strconv.Atoi(string(contents))
-	c.Assert(err, check.IsNil, check.Commentf("Error converting version %v", contents))
-
-	return version
+	return string(contents)
 }
 
 func getVersionFile() string {
