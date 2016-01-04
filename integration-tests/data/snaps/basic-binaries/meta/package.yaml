@@ -1,0 +1,8 @@
+name: basic-binaries
+version: 1.0
+icon: meta/snappy64.png
+vendor: somevendor
+binaries:
+ - name: bin/echo
+ - name: bin/success
+ - name: bin/fail
