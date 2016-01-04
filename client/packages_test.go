@@ -217,3 +217,19 @@ func (cs *clientSuite) TestPackagesSortByName(c *check.C) {
 
 	c.Assert(sorted, check.DeepEquals, client.Packages{{Name: "a"}, {Name: "b"}, {Name: "c"}})
 }
+
+func (cs *clientSuite) TestPackagesChainedFilters(c *check.C) {
+	packages := client.Packages{
+		client.Package{Name: "app 1", Type: client.TypeApp, Status: client.StatusNotInstalled},
+		client.Package{Name: "app 2", Type: client.TypeApp, Status: client.StatusInstalled},
+		client.Package{Name: "framework 1", Type: client.TypeFramework, Status: client.StatusInstalled},
+	}
+
+	chainedResult := packages.Installed().
+		TypesInSet([]string{client.TypeApp}).
+		NamesContaining("app").
+		SortByName()
+
+	c.Assert(chainedResult, check.HasLen, 1)
+	c.Assert(chainedResult[0].Name, check.Equals, "app 2")
+}
