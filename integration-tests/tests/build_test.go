@@ -52,8 +52,11 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
 		".*Signature check failed, but installing anyway as requested\n" +
 		"Name +Date +Version +Developer \n" +
 		".*\n" +
-		data.BasicSnapName + " +.* +.* +sideload  \n" +
-		".*\n"
+		data.BasicSnapName + " +.* +.* +sideload  \n"
+
+	//FIXME: once we have a base image with gadget snap support
+	//       this line should be uncommented
+	// + ".*\n"
 
 	c.Check(installOutput, check.Matches, expected)
 }
