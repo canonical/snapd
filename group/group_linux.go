@@ -63,10 +63,7 @@ func getgrnam(name string) (grp Group, err error) {
 	grp.Gid = uint(result.gr_gid)
 
 	p := unsafe.Pointer(result.gr_mem)
-	for {
-		if (*(**C.char)(p)) == nil {
-			break
-		}
+	for p != nil && (*(**C.char)(p)) != nil {
 		member := C.GoString(*(**C.char)(p))
 		grp.Mem = append(grp.Mem, member)
 		p = unsafe.Pointer(uintptr(p) + unsafe.Sizeof(p))
