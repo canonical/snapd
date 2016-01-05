@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -46,56 +46,36 @@ type Capability struct {
 
 // Capabilities returns the capabilities currently available for snaps to consume.
 func (client *Client) Capabilities() (map[string]Capability, error) {
-	const errPrefix = "cannot obtain capabilities"
-	var rsp response
-	if err := client.do("GET", "/1.0/capabilities", nil, &rsp); err != nil {
-		return nil, fmt.Errorf("%s: failed to communicate with server: %s", errPrefix, err)
-	}
-	if err := rsp.err(); err != nil {
-		return nil, err
-	}
-	if rsp.Type != "sync" {
-		return nil, fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
-	}
 	var resultOk map[string]map[string]Capability
-	if err := json.Unmarshal(rsp.Result, &resultOk); err != nil {
-		return nil, fmt.Errorf("%s: failed to unmarshal response: %v", errPrefix, err)
+
+	if err := client.doSync("GET", "/1.0/capabilities", nil, &resultOk); err != nil {
+		return nil, fmt.Errorf("cannot obtain capabilities: %s", err)
 	}
+
 	return resultOk["capabilities"], nil
 }
 
 // AddCapability adds one capability to the system
 func (client *Client) AddCapability(c *Capability) error {
-	errPrefix := "cannot add capability"
 	b, err := json.Marshal(c)
 	if err != nil {
 		return err
 	}
-	var rsp response
-	if err := client.do("POST", "/1.0/capabilities", bytes.NewReader(b), &rsp); err != nil {
-		return err
+
+	var rsp interface{}
+	if err := client.doSync("POST", "/1.0/capabilities", bytes.NewReader(b), &rsp); err != nil {
+		return fmt.Errorf("cannot add capability: %s", err)
 	}
-	if err := rsp.err(); err != nil {
-		return err
-	}
-	if rsp.Type != "sync" {
-		return fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
-	}
+
 	return nil
 }
 
 // RemoveCapability removes one capability from the system
 func (client *Client) RemoveCapability(name string) error {
-	errPrefix := "cannot remove capability"
-	var rsp response
-	if err := client.do("DELETE", fmt.Sprintf("/1.0/capabilities/%s", name), nil, &rsp); err != nil {
-		return err
+	var rsp interface{}
+	if err := client.doSync("DELETE", fmt.Sprintf("/1.0/capabilities/%s", name), nil, &rsp); err != nil {
+		return fmt.Errorf("cannot remove capability: %s", err)
 	}
-	if err := rsp.err(); err != nil {
-		return err
-	}
-	if rsp.Type != "sync" {
-		return fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
-	}
+
 	return nil
 }
