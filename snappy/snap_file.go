@@ -150,7 +150,7 @@ func (s *SnapFile) Icon() string {
 	return ""
 }
 
-// IsActive returns if its active
+// IsActive returns whether it is active.
 func (s *SnapFile) IsActive() bool {
 	return false
 }
@@ -160,7 +160,7 @@ func (s *SnapFile) Uninstall(pb progress.Meter) (err error) {
 	return fmt.Errorf("not possible for a SnapFile")
 }
 
-// SetActive returns if its active
+// SetActive sets the snap to the new active state
 func (s *SnapFile) SetActive(bool, progress.Meter) error {
 	return fmt.Errorf("not possible for a SnapFile")
 }
