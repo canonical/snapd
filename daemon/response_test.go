@@ -20,8 +20,12 @@
 package daemon
 
 import (
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 
 	"gopkg.in/check.v1"
 )
@@ -73,4 +77,23 @@ func (s *responseSuite) TestRespDoesNotSetLocationIfOther(c *check.C) {
 	rsp.ServeHTTP(rec, nil)
 	hdr := rec.Header()
 	c.Check(hdr.Get("Location"), check.Equals, "")
+}
+
+func (s *responseSuite) TestFileResponseSetsContentDisposition(c *check.C) {
+	const filename = "icon.png"
+
+	path := filepath.Join(c.MkDir(), filename)
+	err := ioutil.WriteFile(path, nil, os.ModePerm)
+	c.Check(err, check.IsNil)
+
+	rec := httptest.NewRecorder()
+	rsp := FileResponse(path)
+	req, err := http.NewRequest("GET", "", nil)
+	c.Check(err, check.IsNil)
+
+	rsp.ServeHTTP(rec, req)
+
+	hdr := rec.Header()
+	c.Check(hdr.Get("Content-Disposition"), check.Equals,
+		fmt.Sprintf("attachment; filename=%s", filename))
 }
