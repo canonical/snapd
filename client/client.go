@@ -88,6 +88,29 @@ func (client *Client) do(method, path string, body io.Reader, v interface{}) err
 	return nil
 }
 
+// doSync performs a request to the given path using the specified HTTP method.
+// It expects a "sync" response from the API and on success decodes the JSON
+// response payload into the given value.
+func (client *Client) doSync(method, path string, body io.Reader, v interface{}) error {
+	var rsp response
+
+	if err := client.do(method, path, body, &rsp); err != nil {
+		return fmt.Errorf("failed to communicate with server: %s", err)
+	}
+	if err := rsp.err(); err != nil {
+		return err
+	}
+	if rsp.Type != "sync" {
+		return fmt.Errorf("expected sync response, got %q", rsp.Type)
+	}
+
+	if err := json.Unmarshal(rsp.Result, v); err != nil {
+		return fmt.Errorf("failed to unmarshal: %v", err)
+	}
+
+	return nil
+}
+
 // A response produced by the REST API will usually fit in this
 // (exceptions are the icons/ endpoints obvs)
 type response struct {
@@ -130,20 +153,10 @@ func (rsp *response) err() error {
 
 // SysInfo gets system information from the REST API.
 func (client *Client) SysInfo() (*SysInfo, error) {
-	var rsp response
-	if err := client.do("GET", "/1.0", nil, &rsp); err != nil {
-		return nil, err
-	}
-	if err := rsp.err(); err != nil {
-		return nil, err
-	}
-	if rsp.Type != "sync" {
-		return nil, fmt.Errorf("unexpected result type %q", rsp.Type)
-	}
-
 	var sysInfo SysInfo
-	if err := json.Unmarshal(rsp.Result, &sysInfo); err != nil {
-		return nil, fmt.Errorf("bad sysinfo result %q: %v", rsp.Result, err)
+
+	if err := client.doSync("GET", "/1.0", nil, &sysInfo); err != nil {
+		return nil, fmt.Errorf("bad sysinfo result: %v", err)
 	}
 
 	return &sysInfo, nil
