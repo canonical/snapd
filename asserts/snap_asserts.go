@@ -133,7 +133,7 @@ func (assert *SnapRevision) DeveloperID() string {
 	return assert.Header("developer-id")
 }
 
-// Timestamp returns the revision timestamp.
+// Timestamp returns the time when the snap-revision was issued.
 func (assert *SnapRevision) Timestamp() time.Time {
 	return assert.timestamp
 }
