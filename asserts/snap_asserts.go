@@ -32,7 +32,7 @@ type SnapBuild struct {
 	timestamp time.Time
 }
 
-// SnapID returns the snap id of the built snap.
+// SnapID returns the snap id of the snap.
 func (snapdcl *SnapBuild) SnapID() string {
 	return snapdcl.Header("snap-id")
 }
@@ -42,12 +42,12 @@ func (snapdcl *SnapBuild) SnapDigest() string {
 	return snapdcl.Header("snap-digest")
 }
 
-// SnapSize returns the size of the built snap.
+// SnapSize returns the size of the snap.
 func (snapdcl *SnapBuild) SnapSize() uint64 {
 	return snapdcl.size
 }
 
-// Grade returns the grade of the built snap: devel|stable
+// Grade returns the grade of the snap: devel|stable
 func (snapdcl *SnapBuild) Grade() string {
 	return snapdcl.Header("grade")
 }
