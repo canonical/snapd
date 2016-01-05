@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,8 +20,6 @@
 package client_test
 
 import (
-	"errors"
-
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/client"
@@ -31,38 +29,6 @@ func (cs *clientSuite) TestClientPackagesCallsEndpoint(c *check.C) {
 	_, _ = cs.cli.Packages()
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/1.0/packages")
-}
-
-func (cs *clientSuite) TestClientPackagesHttpError(c *check.C) {
-	cs.err = errors.New("fail")
-	_, err := cs.cli.Packages()
-	c.Check(err, check.ErrorMatches, ".*server: fail")
-}
-
-func (cs *clientSuite) TestClientPackagesResponseError(c *check.C) {
-	cs.rsp = `{
-		"result": {},
-		"status": "Bad Request",
-		"status_code": 400,
-		"type": "error"
-	}`
-	_, err := cs.cli.Packages()
-	c.Check(err, check.ErrorMatches, `server error: "Bad Request"`)
-}
-
-func (cs *clientSuite) TestClientPackagesInvalidResponseType(c *check.C) {
-	cs.rsp = `{"type": "async"}`
-	_, err := cs.cli.Packages()
-	c.Check(err, check.ErrorMatches, `.*expected sync response.*`)
-}
-
-func (cs *clientSuite) TestClientPackagesInvalidResultJSON(c *check.C) {
-	cs.rsp = `{
-		"type": "sync",
-		"result": "not a JSON object"
-	}`
-	_, err := cs.cli.Packages()
-	c.Check(err, check.ErrorMatches, `.*failed to unmarshal response.*`)
 }
 
 func (cs *clientSuite) TestClientPackagesResultJSONHasNoPackages(c *check.C) {
