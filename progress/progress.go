@@ -106,8 +106,6 @@ func NewTextProgress() *TextProgress {
 
 // Start starts showing progress
 func (t *TextProgress) Start(pkg string, total float64) {
-	fmt.Println("Starting download of", pkg)
-
 	// TODO go to New64 once we update the pb package.
 	t.pbar = pb.New(0)
 	t.pbar.Total = int64(total)
@@ -131,7 +129,6 @@ func (t *TextProgress) Finished() {
 	if t.pbar != nil {
 		t.pbar.Finish()
 	}
-	fmt.Println("Done")
 }
 
 // Write is there so that progress can implment a Writer and can be
