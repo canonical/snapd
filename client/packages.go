@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -55,20 +55,9 @@ const (
 func (client *Client) Packages() (map[string]Package, error) {
 	const errPrefix = "cannot list packages"
 
-	var rsp response
-	if err := client.do("GET", "/1.0/packages", nil, &rsp); err != nil {
-		return nil, fmt.Errorf("%s: failed to communicate with server: %s", errPrefix, err)
-	}
-	if err := rsp.err(); err != nil {
-		return nil, err
-	}
-	if rsp.Type != "sync" {
-		return nil, fmt.Errorf("%s: expected sync response, got %q", errPrefix, rsp.Type)
-	}
-
 	var result map[string]json.RawMessage
-	if err := json.Unmarshal(rsp.Result, &result); err != nil {
-		return nil, fmt.Errorf("%s: failed to unmarshal response: %v", errPrefix, err)
+	if err := client.doSync("GET", "/1.0/packages", nil, &result); err != nil {
+		return nil, fmt.Errorf("%s: %s", errPrefix, err)
 	}
 
 	packagesJSON := result["packages"]
