@@ -53,7 +53,7 @@ func (snapdcl *SnapBuild) Grade() string {
 	return snapdcl.Header("grade")
 }
 
-// Timestamp returns the snap-build assertion timestamp.
+// Timestamp returns the time when the snap-build assertion was created.
 func (snapdcl *SnapBuild) Timestamp() time.Time {
 	return snapdcl.timestamp
 }
