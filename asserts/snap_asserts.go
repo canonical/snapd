@@ -129,7 +129,8 @@ func (assert *SnapRevision) SnapBuild() string {
 	return assert.Header("snap-build")
 }
 
-// DeveloperID returns the developer's ID.
+// DeveloperID returns the id of the developer that submitted the snap build to
+// the store.
 func (assert *SnapRevision) DeveloperID() string {
 	return assert.Header("developer-id")
 }
