@@ -113,7 +113,8 @@ func (assert *SnapRevision) SnapID() string {
 	return assert.Header("snap-id")
 }
 
-// SnapDigest returns the digest of the snap.
+// SnapDigest returns the digest of the snap submitted to the store. The digest
+// is prefixed with the algorithm used to generate it.
 func (assert *SnapRevision) SnapDigest() string {
 	return assert.Header("snap-digest")
 }
