@@ -86,7 +86,7 @@ type consistencyChecker interface {
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
-	be          Backstore
+	bs          Backstore
 	root        string
 	trustedKeys map[string][]*AccountKey
 }
@@ -98,7 +98,7 @@ const (
 
 // OpenDatabase opens the assertion database based on the configuration.
 func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
-	be := cfg.Backstore
+	bs := cfg.Backstore
 
 	// TODO/XXX: ensuring cfg.Path becomes optional when the keypair
 	// manager/backstore becomes also pluggable
@@ -114,10 +114,10 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
 	}
 
-	if be == nil {
-		be = newFilesystemBackstore(cfg.Path)
+	if bs == nil {
+		bs = newFilesystemBackstore(cfg.Path)
 	}
-	err = be.Init(buildAssertion)
+	err = bs.Init(buildAssertion)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	}
 	return &Database{
 		root:        cfg.Path,
-		be:          be,
+		bs:          bs,
 		trustedKeys: trustedKeys,
 	}, nil
 }
@@ -255,7 +255,7 @@ func (db *Database) findAccountKeys(authorityID, fingerprintSuffix string) ([]*A
 	foundKeyCb := func(a Assertion) {
 		res = append(res, a.(*AccountKey))
 	}
-	err := db.be.SearchBySuffix(AccountKeyType, []string{authorityID}, fingerprintSuffix, foundKeyCb)
+	err := db.bs.SearchBySuffix(AccountKeyType, []string{authorityID}, fingerprintSuffix, foundKeyCb)
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +317,7 @@ func (db *Database) Add(assert Assertion) error {
 		}
 		primaryKey[i] = keyVal
 	}
-	return db.be.Put(assert.Type(), primaryKey, assert)
+	return db.bs.Put(assert.Type(), primaryKey, assert)
 }
 
 func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
@@ -346,7 +346,7 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 		}
 		primaryKey[i] = keyVal
 	}
-	assert, err := db.be.Get(assertionType, primaryKey)
+	assert, err := db.bs.Get(assertionType, primaryKey)
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +372,7 @@ func (db *Database) FindMany(assertionType AssertionType, headers map[string]str
 	foundCb := func(assert Assertion) {
 		res = append(res, assert)
 	}
-	err = db.be.SearchByHeaders(assertionType, headers, primaryKey, foundCb)
+	err = db.bs.SearchByHeaders(assertionType, headers, primaryKey, foundCb)
 	if err != nil {
 		return nil, err
 	}
