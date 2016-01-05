@@ -99,8 +99,9 @@ func buildSnapBuild(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-// SnapRevision holds a snap-revision assertion, asserting the properties of a
-// snap release by a store authority.
+// SnapRevision holds a snap-revision assertion, which is a statement by the
+// store acknowledging the receipt of a snap build and labeling it with a snap
+// revision.
 type SnapRevision struct {
 	assertionBase
 	sequence  uint64
