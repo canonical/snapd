@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -99,7 +99,7 @@ func (cs *clientSuite) TestClientSysInfo(c *check.C) {
 func (cs *clientSuite) TestClientReportsOpError(c *check.C) {
 	cs.rsp = `{"type": "error", "status": "potatoes"}`
 	_, err := cs.cli.SysInfo()
-	c.Check(err, check.ErrorMatches, `server error: "potatoes"`)
+	c.Check(err, check.ErrorMatches, `.*server error: "potatoes"`)
 }
 
 func (cs *clientSuite) TestClientReportsOpErrorStr(c *check.C) {
@@ -110,25 +110,25 @@ func (cs *clientSuite) TestClientReportsOpErrorStr(c *check.C) {
 		"type": "error"
 	}`
 	_, err := cs.cli.SysInfo()
-	c.Check(err, check.ErrorMatches, `server error: "Bad Request"`)
+	c.Check(err, check.ErrorMatches, `.*server error: "Bad Request"`)
 }
 
 func (cs *clientSuite) TestClientReportsBadType(c *check.C) {
 	cs.rsp = `{"type": "what"}`
 	_, err := cs.cli.SysInfo()
-	c.Check(err, check.ErrorMatches, `unexpected result type "what"`)
+	c.Check(err, check.ErrorMatches, `.*expected sync response, got "what"`)
 }
 
 func (cs *clientSuite) TestClientReportsOuterJSONError(c *check.C) {
 	cs.rsp = "this isn't really json is it"
 	_, err := cs.cli.SysInfo()
-	c.Check(err, check.ErrorMatches, `invalid character .*`)
+	c.Check(err, check.ErrorMatches, `.*invalid character .*`)
 }
 
 func (cs *clientSuite) TestClientReportsInnerJSONError(c *check.C) {
 	cs.rsp = `{"type": "sync", "result": "this isn't really json is it"}`
 	_, err := cs.cli.SysInfo()
-	c.Check(err, check.ErrorMatches, `bad sysinfo result .*`)
+	c.Check(err, check.ErrorMatches, `.*failed to unmarshal.*`)
 }
 
 func (cs *clientSuite) TestClientCapabilities(c *check.C) {
@@ -211,7 +211,7 @@ func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
 		}
 	}`
 	err := cs.cli.RemoveCapability("n")
-	c.Check(err, check.ErrorMatches, `can't remove capability \"n\", no such capability`)
+	c.Check(err, check.ErrorMatches, `.*can't remove capability \"n\", no such capability`)
 	c.Check(cs.req.Body, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "DELETE")
 	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities/n")
