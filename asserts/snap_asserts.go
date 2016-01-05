@@ -144,7 +144,7 @@ func (assert *SnapRevision) Timestamp() time.Time {
 func (assert *SnapRevision) checkConsistency(db *Database, acck *AccountKey) error {
 	// TODO: check the associated snap-build exists.
 	// TODO: check the associated snap-build's digest.
-	// TODO: check developer's account-key exists.
+	// TODO: check developer-id matches snap-build's authority-id.
 	if !acck.isKeyValidAt(assert.timestamp) {
 		return fmt.Errorf("snap-revision timestamp outside of signing key validity")
 	}
