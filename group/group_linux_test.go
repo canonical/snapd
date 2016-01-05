@@ -42,7 +42,7 @@ func getgrnamForking(name string) (grp Group, err error) {
 	cmd := exec.Command("getent", "group", name)
 	output, err := cmd.Output()
 	if err != nil {
-		return grp, fmt.Errorf("getenv failed for %s: %s", name, err)
+		return grp, fmt.Errorf("getent failed for %s: %s", name, err)
 	}
 
 	parsed := strings.Split(strings.TrimSpace(string(output)), ":")
@@ -64,7 +64,7 @@ func (s *groupTestSuite) TestGetgrnam(c *C) {
 	c.Assert(err, IsNil)
 	groups, err := Getgrnam("adm")
 	c.Assert(err, IsNil)
-	c.Assert(expected, DeepEquals, groups)
+	c.Assert(groups, DeepEquals, expected)
 }
 
 func (s *groupTestSuite) TestGetgrnamNoSuchGroup(c *C) {
