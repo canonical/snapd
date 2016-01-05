@@ -24,8 +24,8 @@ import (
 	"time"
 )
 
-// SnapBuild holds a snap-build assertion, asserting the
-// properties of a built snap by the builder.
+// SnapBuild holds a snap-build assertion, asserting the properties of a snap
+// at the time it was built by the developer.
 type SnapBuild struct {
 	assertionBase
 	size      uint64
