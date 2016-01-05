@@ -37,8 +37,8 @@ func (snapdcl *SnapBuild) SnapID() string {
 	return snapdcl.Header("snap-id")
 }
 
-// SnapDigest returns the digest of the snap submitted to the store. The digest
-// is prefixed with the algorithm used to generate it.
+// SnapDigest returns the digest of the snap. The digest is prefixed with the
+// algorithm used to generate it.
 func (snapdcl *SnapBuild) SnapDigest() string {
 	return snapdcl.Header("snap-digest")
 }
