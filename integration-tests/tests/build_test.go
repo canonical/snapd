@@ -53,7 +53,7 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
 		"Name +Date +Version +Developer \n" +
 		".*\n" +
 		data.BasicSnapName + " +.* +.* +sideload  \n" +
-		".*\n"
+		".*"
 
 	c.Check(installOutput, check.Matches, expected)
 }
