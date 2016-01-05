@@ -108,12 +108,12 @@ type SnapRevision struct {
 	timestamp time.Time
 }
 
-// SnapID returns the snap id of the built snap.
+// SnapID returns the snap id of the snap.
 func (assert *SnapRevision) SnapID() string {
 	return assert.Header("snap-id")
 }
 
-// SnapDigest returns the digest of the built snap.
+// SnapDigest returns the digest of the snap.
 func (assert *SnapRevision) SnapDigest() string {
 	return assert.Header("snap-digest")
 }
