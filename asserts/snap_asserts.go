@@ -104,8 +104,8 @@ func buildSnapBuild(assert assertionBase) (Assertion, error) {
 // revision.
 type SnapRevision struct {
 	assertionBase
-	sequence  uint64
-	timestamp time.Time
+	snapRevision uint64
+	timestamp    time.Time
 }
 
 // SnapID returns the snap id of the snap.
@@ -118,9 +118,9 @@ func (assert *SnapRevision) SnapDigest() string {
 	return assert.Header("snap-digest")
 }
 
-// Sequence returns the sequence number.
-func (assert *SnapRevision) Sequence() uint64 {
-	return assert.sequence
+// SnapRevision returns the revision of the snap-id assigned to this build.
+func (assert *SnapRevision) SnapRevision() uint64 {
+	return assert.snapRevision
 }
 
 // SnapBuild returns the digest of the associated snap-build.
@@ -161,7 +161,7 @@ func buildSnapRevision(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	sequence, err := checkUint(assert.headers, "sequence", 64)
+	snapRevision, err := checkUint(assert.headers, "snap-revision", 64)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,7 @@ func buildSnapRevision(assert assertionBase) (Assertion, error) {
 
 	return &SnapRevision{
 		assertionBase: assert,
-		sequence:      sequence,
+		snapRevision:  snapRevision,
 		timestamp:     timestamp,
 	}, nil
 }

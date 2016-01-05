@@ -190,7 +190,7 @@ func (suite *snapRevSuite) makeValidEncoded() string {
 		"authority-id: store-id1\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-digest: sha256 ...\n" +
-		"sequence: 1\n" +
+		"snap-revision: 1\n" +
 		"snap-build: sha256 ...\n" +
 		"developer-id: dev-id1\n" +
 		"revision: 1\n" +
@@ -202,14 +202,14 @@ func (suite *snapRevSuite) makeValidEncoded() string {
 
 func (suite *snapRevSuite) makeHeaders(overrides map[string]string) map[string]string {
 	headers := map[string]string{
-		"authority-id": "store-id1",
-		"snap-id":      "snap-id-1",
-		"snap-digest":  "sha256 ...",
-		"sequence":     "1",
-		"snap-build":   "sha256 ...",
-		"developer-id": "dev-id1",
-		"revision":     "1",
-		"timestamp":    "2015-11-25T20:00:00Z",
+		"authority-id":  "store-id1",
+		"snap-id":       "snap-id-1",
+		"snap-digest":   "sha256 ...",
+		"snap-revision": "1",
+		"snap-build":    "sha256 ...",
+		"developer-id":  "dev-id1",
+		"revision":      "1",
+		"timestamp":     "2015-11-25T20:00:00Z",
 	}
 	for k, v := range overrides {
 		headers[k] = v
@@ -227,7 +227,7 @@ func (suite *snapRevSuite) TestDecodeOK(c *C) {
 	c.Check(snapRev.Timestamp(), Equals, suite.ts)
 	c.Check(snapRev.SnapID(), Equals, "snap-id-1")
 	c.Check(snapRev.SnapDigest(), Equals, "sha256 ...")
-	c.Check(snapRev.Sequence(), Equals, uint64(1))
+	c.Check(snapRev.SnapRevision(), Equals, uint64(1))
 	c.Check(snapRev.SnapBuild(), Equals, "sha256 ...")
 	c.Check(snapRev.DeveloperID(), Equals, "dev-id1")
 	c.Check(snapRev.Revision(), Equals, 1)
@@ -242,9 +242,9 @@ func (suite *snapRevSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
-		{"sequence: 1\n", "", `"sequence" header is mandatory`},
-		{"sequence: 1\n", "sequence: -1\n", `"sequence" header is not an unsigned integer: -1`},
-		{"sequence: 1\n", "sequence: zzz\n", `"sequence" header is not an unsigned integer: zzz`},
+		{"snap-revision: 1\n", "", `"snap-revision" header is mandatory`},
+		{"snap-revision: 1\n", "snap-revision: -1\n", `"snap-revision" header is not an unsigned integer: -1`},
+		{"snap-revision: 1\n", "snap-revision: zzz\n", `"snap-revision" header is not an unsigned integer: zzz`},
 		{"snap-build: sha256 ...\n", "", `"snap-build" header is mandatory`},
 		{"developer-id: dev-id1\n", "", `"developer-id" header is mandatory`},
 		{suite.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
