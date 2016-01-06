@@ -24,35 +24,36 @@ import (
 	"time"
 )
 
-// SnapBuild holds a snap-build assertion, asserting the
-// properties of a built snap by the builder.
+// SnapBuild holds a snap-build assertion, asserting the properties of a snap
+// at the time it was built by the developer.
 type SnapBuild struct {
 	assertionBase
 	size      uint64
 	timestamp time.Time
 }
 
-// SnapID returns the snap id of the built snap.
+// SnapID returns the snap id of the snap.
 func (snapdcl *SnapBuild) SnapID() string {
 	return snapdcl.Header("snap-id")
 }
 
-// SnapDigest returns the digest of the built snap.
+// SnapDigest returns the digest of the snap. The digest is prefixed with the
+// algorithm used to generate it.
 func (snapdcl *SnapBuild) SnapDigest() string {
 	return snapdcl.Header("snap-digest")
 }
 
-// SnapSize returns the size of the built snap.
+// SnapSize returns the size of the snap.
 func (snapdcl *SnapBuild) SnapSize() uint64 {
 	return snapdcl.size
 }
 
-// Grade returns the grade of the built snap: devel|stable
+// Grade returns the grade of the snap: devel|stable
 func (snapdcl *SnapBuild) Grade() string {
 	return snapdcl.Header("grade")
 }
 
-// Timestamp returns the snap-build assertion timestamp.
+// Timestamp returns the time when the snap-build assertion was created.
 func (snapdcl *SnapBuild) Timestamp() time.Time {
 	return snapdcl.timestamp
 }
