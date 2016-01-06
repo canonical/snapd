@@ -26,6 +26,7 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
@@ -103,17 +104,9 @@ func snapInfo(pkgname string, includeStore, verbose bool) error {
 	return nil
 }
 
-func ubuntuCoreChannel() string {
-	parts, err := snappy.ActiveSnapsByType(snap.TypeCore)
-	if len(parts) == 1 && err == nil {
-		return parts[0].Channel()
-	}
-
-	return "unknown"
-}
-
 func info() error {
-	release := ubuntuCoreChannel()
+	rel := release.Get()
+	release := fmt.Sprintf("%s/%s", rel.Flavor, rel.Series)
 	frameworks, _ := snappy.ActiveSnapIterByType(snappy.FullName, snap.TypeFramework)
 	apps, _ := snappy.ActiveSnapIterByType(snappy.FullName, snap.TypeApp)
 
