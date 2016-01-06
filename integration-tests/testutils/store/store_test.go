@@ -32,38 +32,81 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type storeTestSuite struct {
+	client *http.Client
+	store  *Store
 }
 
 var _ = Suite(&storeTestSuite{})
 
-func (m *storeTestSuite) TestStoreURL(c *C) {
-	s := NewStore()
-	c.Assert(s.URL(), Equals, "http://"+defaultAddr)
-}
-
-func (m *storeTestSuite) TestStopWorks(c *C) {
-	s := NewStore()
-
-	// start
-	err := s.Start()
+func (s *storeTestSuite) SetUpTest(c *C) {
+	s.store = NewStore()
+	err := s.store.Start()
 	c.Assert(err, IsNil)
 
-	// check that it serves content
 	transport := &http.Transport{}
-	client := http.Client{
+	s.client = &http.Client{
 		Transport: transport,
 	}
-	resp, err := client.Get(s.URL())
-	resp.Close = true
+
+}
+
+func (s *storeTestSuite) TearDownTest(c *C) {
+	s.client.Transport.(*http.Transport).CloseIdleConnections()
+	err := s.store.Stop()
 	c.Assert(err, IsNil)
+}
+
+// StoreGet gets the given from the store
+func (s *storeTestSuite) StoreGet(path string) (*http.Response, error) {
+	return s.client.Get(s.store.URL() + path)
+}
+
+func (s *storeTestSuite) TestStoreURL(c *C) {
+	c.Assert(s.store.URL(), Equals, "http://"+defaultAddr)
+}
+
+func (s *storeTestSuite) TestTrivialGetWorks(c *C) {
+	resp, err := s.StoreGet("/")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
 	c.Assert(resp.StatusCode, Equals, 418)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Assert(string(body), Equals, "I'm a teapot")
-	resp.Body.Close()
-	transport.CloseIdleConnections()
 
-	// stop it again
-	err = s.Stop()
+}
+
+func (s *storeTestSuite) TestSearchEndpoint(c *C) {
+	resp, err := s.StoreGet("/search")
 	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 501)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Equals, "search not implemented yet")
+
+}
+
+func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
+	resp, err := s.StoreGet("/package/")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 501)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Equals, "details not implemented yet")
+}
+
+func (s *storeTestSuite) TestBulkEndpoint(c *C) {
+	resp, err := s.StoreGet("/click-metadata")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 501)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Equals, "bulk not implemented yet")
 }
