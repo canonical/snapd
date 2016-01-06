@@ -46,17 +46,12 @@ type Backstore interface {
 	// Get loads an assertion with the given unique primaryPath.
 	// If none is present it returns ErrNotFound.
 	Get(assertType AssertionType, primaryPath []string) (Assertion, error)
-	// SearchByHeaders searches for assertions matching the given headers.
+	// Search searches for assertions matching the given headers.
 	// It invokes foundCb for each found assertion.
 	// pathHint is an incomplete primary path pattern (with ""
 	// representing omitted components) that covers a superset of
 	// the results, it can be used for the search if helpful.
-	SearchByHeaders(assertType AssertionType, headers map[string]string, pathHint []string, foundCb func(Assertion)) error
-	// SearchBySuffix searches for assertions matching the given
-	// partial primary path without the last component plus
-	// suffixOfLast being a suffix of that last component.
-	// It invokes foundCb for each found assertion.
-	SearchBySuffix(assertType AssertionType, primaryPathWithoutLast []string, suffixOflast string, foundCb func(Assertion)) error
+	Search(assertType AssertionType, headers map[string]string, pathHint []string, foundCb func(Assertion)) error
 }
 
 // KeypairManager is a manager and backstore for private/public key pairs.
@@ -225,8 +220,8 @@ func (db *Database) findAccountKeys(authorityID, keyID string) ([]*AccountKey, e
 	foundKeyCb := func(a Assertion) {
 		res = append(res, a.(*AccountKey))
 	}
-	err := db.bs.SearchByHeaders(AccountKeyType, map[string]string{
-		"account-id": authorityID,
+	err := db.bs.Search(AccountKeyType, map[string]string{
+		"account-id":    authorityID,
 		"public-key-id": keyID,
 	}, []string{authorityID, keyID}, foundKeyCb)
 	if err != nil {
@@ -345,7 +340,7 @@ func (db *Database) FindMany(assertionType AssertionType, headers map[string]str
 	foundCb := func(assert Assertion) {
 		res = append(res, assert)
 	}
-	err = db.bs.SearchByHeaders(assertionType, headers, primaryKey, foundCb)
+	err = db.bs.Search(assertionType, headers, primaryKey, foundCb)
 	if err != nil {
 		return nil, err
 	}
