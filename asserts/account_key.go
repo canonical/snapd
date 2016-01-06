@@ -80,11 +80,11 @@ func checkPublicKey(ab *assertionBase, fingerprintName, keyIDName string) (Publi
 	if fp != pubKey.Fingerprint() {
 		return nil, fmt.Errorf("public key does not match provided fingerprint")
 	}
-	keyid, err := checkMandatory(ab.headers, keyIDName)
+	keyID, err := checkMandatory(ab.headers, keyIDName)
 	if err != nil {
 		return nil, err
 	}
-	if keyid != pubKey.KeyID() {
+	if keyID != pubKey.KeyID() {
 		return nil, fmt.Errorf("public key does not match provided key id")
 	}
 	return pubKey, nil
