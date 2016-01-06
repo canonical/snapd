@@ -19,7 +19,7 @@
  *
  */
 
-package group
+package osutil
 
 import (
 	"fmt"

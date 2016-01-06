@@ -19,7 +19,7 @@
  *
  */
 
-package group
+package osutil
 
 /*
 #include <grp.h>

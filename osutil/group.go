@@ -17,7 +17,7 @@
  *
  */
 
-package group
+package osutil
 
 // Group implements the grp.h struct group
 type Group struct {

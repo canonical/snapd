@@ -32,8 +32,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/group"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 )
@@ -44,7 +44,7 @@ var (
 )
 
 // will be overriden by tests
-var getgrnam = group.Getgrnam
+var getgrnam = osutil.Getgrnam
 
 func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
 	arch := arch.UbuntuArchitecture()

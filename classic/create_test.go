@@ -34,8 +34,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/group"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/testutil"
@@ -71,9 +71,9 @@ func (t *CreateTestSuite) SetUpTest(c *C) {
 
 	// ensure getgrnam is called
 	getgrnamOrig := getgrnam
-	getgrnam = func(name string) (group.Group, error) {
+	getgrnam = func(name string) (osutil.Group, error) {
 		t.getgrnamCalled = append(t.getgrnamCalled, name)
-		return group.Group{}, nil
+		return osutil.Group{}, nil
 	}
 	t.AddCleanup(func() { getgrnam = getgrnamOrig })
 }
