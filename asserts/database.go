@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strings"
 	"time"
 )
 
@@ -211,23 +210,14 @@ func (db *Database) Sign(assertType AssertionType, headers map[string]string, bo
 	return buildAndSign(assertType, headers, body, privKey)
 }
 
-// use a generalized matching style along what PGP does where keys can be
-// retrieved by giving suffixes of their fingerprint,
-// for safety suffix must be at least 64 bits though
+// find account keys exactly by account id and key id
 // TODO: may need more details about the kind of key we are looking for
 // and use an interface for the results.
-func (db *Database) findAccountKeys(authorityID, fingerprintSuffix string) ([]*AccountKey, error) {
-	suffixLen := len(fingerprintSuffix)
-	if suffixLen%2 == 1 {
-		return nil, fmt.Errorf("key id/fingerprint suffix cannot specify a half byte")
-	}
-	if suffixLen < 16 {
-		return nil, fmt.Errorf("key id/fingerprint suffix must be at least 64 bits")
-	}
+func (db *Database) findAccountKeys(authorityID, keyID string) ([]*AccountKey, error) {
 	res := make([]*AccountKey, 0, 1)
 	cands := db.trustedKeys[authorityID]
 	for _, cand := range cands {
-		if strings.HasSuffix(cand.Fingerprint(), fingerprintSuffix) {
+		if cand.PublicKeyID() == keyID {
 			res = append(res, cand)
 		}
 	}
@@ -235,7 +225,10 @@ func (db *Database) findAccountKeys(authorityID, fingerprintSuffix string) ([]*A
 	foundKeyCb := func(a Assertion) {
 		res = append(res, a.(*AccountKey))
 	}
-	err := db.bs.SearchBySuffix(AccountKeyType, []string{authorityID}, fingerprintSuffix, foundKeyCb)
+	err := db.bs.SearchByHeaders(AccountKeyType, map[string]string{
+		"account-id": authorityID,
+		"public-key-id": keyID,
+	}, []string{authorityID, keyID}, foundKeyCb)
 	if err != nil {
 		return nil, err
 	}
