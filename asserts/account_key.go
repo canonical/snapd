@@ -50,7 +50,7 @@ func (ak *AccountKey) Until() time.Time {
 
 // PublicKeyID returns the key id (as used to match signatures to signing keys) for the account key.
 func (ak *AccountKey) PublicKeyID() string {
-	return ak.pubKey.KeyID()
+	return ak.pubKey.ID()
 }
 
 // PublicKeyFingerprint returns the fingerprint of the account key.
@@ -84,7 +84,7 @@ func checkPublicKey(ab *assertionBase, fingerprintName, keyIDName string) (Publi
 	if err != nil {
 		return nil, err
 	}
-	if keyID != pubKey.KeyID() {
+	if keyID != pubKey.ID() {
 		return nil, fmt.Errorf("public key does not match provided key id")
 	}
 	return pubKey, nil

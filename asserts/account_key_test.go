@@ -47,7 +47,7 @@ func (aks *accountKeySuite) SetUpSuite(c *C) {
 	_, err = accDb.ImportKey("acc-id1", pk)
 	c.Assert(err, IsNil)
 	aks.fp = pk.PublicKey().Fingerprint()
-	aks.keyid = pk.PublicKey().KeyID()
+	aks.keyid = pk.PublicKey().ID()
 	pubKey, err := accDb.PublicKey("acc-id1", aks.fp)
 	c.Assert(err, IsNil)
 	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)

@@ -43,7 +43,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	pk := asserts.OpenPGPPrivateKey(testPrivKey0)
 	trustedFingerp := pk.PublicKey().Fingerprint()
-	trustedKeyID := pk.PublicKey().KeyID()
+	trustedKeyID := pk.PublicKey().ID()
 	keyid, err := db0.ImportKey("canonical", pk)
 	c.Assert(err, IsNil)
 	trustedPubKey, err := db0.PublicKey("canonical", keyid)
