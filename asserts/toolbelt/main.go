@@ -52,8 +52,8 @@ func main() {
 		"Generate key pair", &generateKey{})
 	parser.AddCommand("account-key", "Make an account-key assertion",
 		"Make an account-key assertion", &accountKey{})
-	parser.AddCommand("snap-declaration", "Make a snap-declaration assertion",
-		"Make a snap-declaration assertion", &snapDeclaration{})
+	parser.AddCommand("snap-build", "Make a snap-build assertion",
+		"Make a snap-build assertion", &snapBuild{})
 
 	if _, err := parser.Parse(); err != nil {
 		os.Exit(1)
@@ -141,14 +141,14 @@ func (x *accountKey) Execute(args []string) error {
 	return nil
 }
 
-type snapDeclaration struct {
+type snapBuild struct {
 	Positional struct {
 		AuthorityID string `positional-arg-name:"devel-id"`
 		SnapFile    string `positional-arg-name:"squashfs-snap-file"`
 	} `positional-args:"yes"`
 }
 
-func (x *snapDeclaration) Execute(args []string) error {
+func (x *snapBuild) Execute(args []string) error {
 	authID := x.Positional.AuthorityID
 	if authID == "" {
 		return fmt.Errorf("missing devel/authority-id")
@@ -183,7 +183,7 @@ func (x *snapDeclaration) Execute(args []string) error {
 		"grade":        "devel",
 		"timestamp":    now.Format(time.RFC3339),
 	}
-	snapDecl, err := db.Sign(asserts.SnapDeclarationType, headers, nil, authFingerprint)
+	snapDecl, err := db.Sign(asserts.SnapBuildType, headers, nil, authFingerprint)
 	if err != nil {
 		return err
 	}
