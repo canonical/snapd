@@ -53,8 +53,8 @@ func (ak *AccountKey) PublicKeyID() string {
 	return ak.pubKey.KeyID()
 }
 
-// Fingerprint returns the fingerprint of the account key.
-func (ak *AccountKey) Fingerprint() string {
+// PublicKeyFingerprint returns the fingerprint of the account key.
+func (ak *AccountKey) PublicKeyFingerprint() string {
 	return ak.pubKey.Fingerprint()
 }
 

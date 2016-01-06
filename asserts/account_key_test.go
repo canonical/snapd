@@ -77,7 +77,7 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 	c.Check(a.Type(), Equals, asserts.AccountKeyType)
 	accKey := a.(*asserts.AccountKey)
 	c.Check(accKey.AccountID(), Equals, "acc-id1")
-	c.Check(accKey.Fingerprint(), Equals, aks.fp)
+	c.Check(accKey.PublicKeyFingerprint(), Equals, aks.fp)
 	c.Check(accKey.PublicKeyID(), Equals, aks.keyid)
 	c.Check(accKey.Since(), Equals, aks.since)
 	c.Check(accKey.Until(), Equals, aks.until)
