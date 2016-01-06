@@ -26,9 +26,9 @@ import (
 	"strings"
 
 	"github.com/ubuntu-core/snappy/partition"
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/squashfs"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
 // dropVersionSuffix drops the kernel/initrd version suffix,
@@ -44,7 +44,7 @@ var bootloaderDir = partition.BootloaderDir
 // removeKernelAssets removes the unpacked kernel/initrd for the given
 // kernel snap
 func removeKernelAssets(s *SnapPart, inter interacter) error {
-	if s.m.Type != pkg.TypeKernel {
+	if s.m.Type != snap.TypeKernel {
 		return fmt.Errorf("can not remove kernel assets from snap type %q", s.Type())
 	}
 
@@ -62,7 +62,7 @@ func removeKernelAssets(s *SnapPart, inter interacter) error {
 // SnapPart to a versionized bootloader directory so that the bootloader
 // can use it.
 func extractKernelAssets(s *SnapPart, inter progress.Meter, flags InstallFlags) error {
-	if s.m.Type != pkg.TypeKernel {
+	if s.m.Type != snap.TypeKernel {
 		return fmt.Errorf("can not extract kernel assets from snap type %q", s.Type())
 	}
 
@@ -121,14 +121,14 @@ var setBootVar = partition.SetBootVar
 // setNextBoot will schedule the given os or kernel snap to be used in
 // the next boot
 func setNextBoot(s *SnapPart) error {
-	if s.m.Type != pkg.TypeOS && s.m.Type != pkg.TypeKernel {
+	if s.m.Type != snap.TypeOS && s.m.Type != snap.TypeKernel {
 		return nil
 	}
 	var bootvar string
 	switch s.m.Type {
-	case pkg.TypeOS:
+	case snap.TypeOS:
 		bootvar = "snappy_os"
-	case pkg.TypeKernel:
+	case snap.TypeKernel:
 		bootvar = "snappy_kernel"
 	}
 	blobName := filepath.Base(squashfs.BlobPath(s.basedir))
@@ -147,16 +147,16 @@ func setNextBoot(s *SnapPart) error {
 var getBootVar = partition.GetBootVar
 
 func kernelOrOsRebootRequired(s *SnapPart) bool {
-	if s.m.Type != pkg.TypeKernel && s.m.Type != pkg.TypeOS {
+	if s.m.Type != snap.TypeKernel && s.m.Type != snap.TypeOS {
 		return false
 	}
 
 	var nextBoot, goodBoot string
 	switch s.m.Type {
-	case pkg.TypeKernel:
+	case snap.TypeKernel:
 		nextBoot = "snappy_kernel"
 		goodBoot = "snappy_good_kernel"
-	case pkg.TypeOS:
+	case snap.TypeOS:
 		nextBoot = "snappy_os"
 		goodBoot = "snappy_good_os"
 	}

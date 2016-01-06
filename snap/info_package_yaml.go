@@ -17,30 +17,17 @@
  *
  */
 
-package info
+package snap
 
 import (
 	"fmt"
 	"gopkg.in/yaml.v2"
-
-	"github.com/ubuntu-core/snappy/pkg"
 )
 
-type packageYaml struct {
-	Name    string
-	Version string
-	Type    pkg.Type
-}
-
-// SnapInfoPackageYaml implements the meta/snap.yaml data
-type SnapInfoPackageYaml struct {
-	m packageYaml
-}
-
 // NewFromPackageYaml creates a new info based on the given packageYaml
-func NewFromPackageYaml(yamlData []byte) (Info, error) {
-	var s SnapInfoPackageYaml
-	err := yaml.Unmarshal(yamlData, &s.m)
+func NewFromPackageYaml(yamlData []byte) (*Info, error) {
+	var s Info
+	err := yaml.Unmarshal(yamlData, &s)
 	if err != nil {
 		return nil, fmt.Errorf("info failed to parse: %s", err)
 	}
@@ -48,19 +35,4 @@ func NewFromPackageYaml(yamlData []byte) (Info, error) {
 	// FIXME: validation of the fields
 
 	return &s, nil
-}
-
-// Name returns the name of the snap
-func (s *SnapInfoPackageYaml) Name() string {
-	return s.m.Name
-}
-
-// Version returns the version of the snap
-func (s *SnapInfoPackageYaml) Version() string {
-	return s.m.Version
-}
-
-// Type returns the type of the snap
-func (s *SnapInfoPackageYaml) Type() pkg.Type {
-	return s.m.Type
 }

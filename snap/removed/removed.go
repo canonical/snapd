@@ -29,9 +29,9 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/remote"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/remote"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -43,12 +43,12 @@ type Removed struct {
 	name    string
 	origin  string
 	version string
-	pkgType pkg.Type
+	pkgType snap.Type
 	remote  *remote.Snap
 }
 
 // New removed package.
-func New(name, origin, version string, pkgType pkg.Type) snappy.Part {
+func New(name, origin, version string, pkgType snap.Type) snappy.Part {
 	part := &Removed{
 		name:    name,
 		origin:  origin,
@@ -117,7 +117,7 @@ func (r *Removed) Icon() string {
 }
 
 // Type from the snappy.Part interface
-func (r *Removed) Type() pkg.Type { return r.pkgType }
+func (r *Removed) Type() snap.Type { return r.pkgType }
 
 // InstalledSize from the snappy.Part interface
 func (r *Removed) InstalledSize() int64 { return -1 }

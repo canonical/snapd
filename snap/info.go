@@ -17,13 +17,11 @@
  *
  */
 
-package info
-
-import "github.com/ubuntu-core/snappy/pkg"
+package snap
 
 // Info provides information about packages
-type Info interface {
-	Name() string
-	Version() string
-	Type() pkg.Type
+type Info struct {
+	Name    string
+	Version string
+	Type    Type
 }

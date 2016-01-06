@@ -32,12 +32,11 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/remote"
-	"github.com/ubuntu-core/snappy/pkg/snapfile"
-	"github.com/ubuntu-core/snappy/pkg/squashfs"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/remote"
+	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
@@ -50,7 +49,7 @@ type SnapPart struct {
 	isActive    bool
 	isInstalled bool
 	description string
-	deb         snapfile.File
+	deb         snap.File
 	basedir     string
 }
 
@@ -71,10 +70,10 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 }
 
 // NewSnapPartFromSnapFile loads a snap from the given (clickdeb) snap file.
-// Caller should call Close on the pkg.
+// Caller should call Close on the snap.
 // TODO: expose that Close.
 func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
-	d, err := snapfile.Open(snapFile)
+	d, err := snap.Open(snapFile)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +97,7 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 
 	targetDir := dirs.SnapAppsDir
 	// the "gadget" parts are special
-	if m.Type == pkg.TypeGadget {
+	if m.Type == snap.TypeGadget {
 		targetDir = dirs.SnapGadgetDir
 	}
 
@@ -182,7 +181,7 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 }
 
 // Type returns the type of the SnapPart (app, gadget, ...)
-func (s *SnapPart) Type() pkg.Type {
+func (s *SnapPart) Type() snap.Type {
 	if s.m.Type != "" {
 		return s.m.Type
 	}
@@ -321,7 +320,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	// the "gadget" parts are special
-	if s.Type() == pkg.TypeGadget {
+	if s.Type() == snap.TypeGadget {
 		if err := installGadgetHardwareUdevRules(s.m); err != nil {
 			return "", err
 		}
@@ -371,7 +370,7 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	// FIXME: special handling is bad 'mkay
-	if s.m.Type == pkg.TypeKernel {
+	if s.m.Type == snap.TypeKernel {
 		if err := extractKernelAssets(s, inter, flags); err != nil {
 			return "", fmt.Errorf("failed to install kernel %s", err)
 		}
@@ -519,7 +518,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		}
 	}
 
-	if s.Type() == pkg.TypeFramework {
+	if s.Type() == snap.TypeFramework {
 		if err := policy.Install(s.Name(), s.basedir, dirs.GlobalRootDir); err != nil {
 			return err
 		}
@@ -598,7 +597,7 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	if s.Type() == pkg.TypeFramework {
+	if s.Type() == snap.TypeFramework {
 		if err := policy.Remove(s.Name(), s.basedir, dirs.GlobalRootDir); err != nil {
 			return err
 		}
@@ -622,12 +621,12 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 	// Gadget snaps should not be removed as they are a key
 	// building block for Gadgets. Prunning non active ones
 	// is acceptible.
-	if s.m.Type == pkg.TypeGadget && s.IsActive() {
+	if s.m.Type == snap.TypeGadget && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 
 	// You never want to remove an active kernel or OS
-	if (s.m.Type == pkg.TypeKernel || s.m.Type == pkg.TypeOS) && s.IsActive() {
+	if (s.m.Type == snap.TypeKernel || s.m.Type == snap.TypeOS) && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 
@@ -674,7 +673,7 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 	}
 
 	// remove the kernel assets (if any)
-	if s.m.Type == pkg.TypeKernel {
+	if s.m.Type == snap.TypeKernel {
 		if err := removeKernelAssets(s, inter); err != nil {
 			logger.Noticef("removing kernel assets failed with %s", err)
 		}
@@ -685,7 +684,7 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 
 // Config is used to to configure the snap
 func (s *SnapPart) Config(configuration []byte) (new string, err error) {
-	if s.m.Type == pkg.TypeOS {
+	if s.m.Type == snap.TypeOS {
 		return coreConfig(configuration)
 	}
 
@@ -724,7 +723,7 @@ func (s *SnapPart) DependentNames() ([]string, error) {
 //
 // /!\ not part of the Part interface.
 func (s *SnapPart) Dependents() ([]*SnapPart, error) {
-	if s.Type() != pkg.TypeFramework {
+	if s.Type() != snap.TypeFramework {
 		// only frameworks are depended on
 		return nil, nil
 	}
@@ -779,7 +778,7 @@ func (s *SnapPart) CanInstall(allowGadget bool, inter interacter) error {
 		return err
 	}
 
-	if s.Type() == pkg.TypeGadget {
+	if s.Type() == snap.TypeGadget {
 		if !allowGadget {
 			if currentGadget, err := getGadget(); err == nil {
 				if currentGadget.Name != s.Name() {

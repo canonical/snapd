@@ -22,8 +22,8 @@ package daemon
 import (
 	"time"
 
-	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -40,7 +40,7 @@ type tP struct {
 	date          time.Time
 	channel       string
 	icon          string
-	_type         pkg.Type
+	_type         snap.Type
 	installedSize int64
 	downloadSize  int64
 
@@ -67,7 +67,7 @@ func (p *tP) NeedsReboot() bool    { return p.needsReboot }
 func (p *tP) Date() time.Time      { return p.date }
 func (p *tP) Channel() string      { return p.channel }
 func (p *tP) Icon() string         { return p.icon }
-func (p *tP) Type() pkg.Type       { return p._type }
+func (p *tP) Type() snap.Type      { return p._type }
 func (p *tP) InstalledSize() int64 { return p.installedSize }
 func (p *tP) DownloadSize() int64  { return p.downloadSize }
 

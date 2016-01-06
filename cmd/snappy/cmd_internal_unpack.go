@@ -32,7 +32,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg/clickdeb"
+	"github.com/ubuntu-core/snappy/snap/clickdeb"
 )
 
 // #include <sys/prctl.h>

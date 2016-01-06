@@ -26,7 +26,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -74,7 +74,7 @@ func search(args []string, allVariants bool) error {
 			}
 		} else {
 			for _, part := range sharedName.Parts {
-				if sharedName.IsAlias(part.Origin()) || part.Type() == pkg.TypeFramework {
+				if sharedName.IsAlias(part.Origin()) || part.Type() == snap.TypeFramework {
 					fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%s\t", part.Name(), part.Version(), part.Description()))
 				} else {
 					fmt.Fprintln(w, fmt.Sprintf("%s.%s\t%s\t%s\t", part.Name(), part.Origin(), part.Version(), part.Description()))

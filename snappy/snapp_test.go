@@ -34,10 +34,10 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/partition"
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/clickdeb"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/clickdeb"
 	"github.com/ubuntu-core/snappy/systemd"
 
 	. "gopkg.in/check.v1"
@@ -524,7 +524,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryAliasSearch(c *C) {
 	c.Assert(alias, DeepEquals, parts[0])
 }
 func mockActiveSnapIterByType(mockSnaps []string) {
-	ActiveSnapIterByType = func(f func(Part) string, snapTs ...pkg.Type) (res []string, err error) {
+	ActiveSnapIterByType = func(f func(Part) string, snapTs ...snap.Type) (res []string, err error) {
 		return mockSnaps, nil
 	}
 }
@@ -678,16 +678,16 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	snap := RemoteSnapPart{}
-	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
-	snap.pkg.IconURL = mockServer.URL + "/icon"
-	snap.pkg.Name = "foo"
-	snap.pkg.Origin = "bar"
-	snap.pkg.Description = "this is a description"
-	snap.pkg.Version = "1.0"
+	r := RemoteSnapPart{}
+	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
+	r.pkg.IconURL = mockServer.URL + "/icon"
+	r.pkg.Name = "foo"
+	r.pkg.Origin = "bar"
+	r.pkg.Description = "this is a description"
+	r.pkg.Version = "1.0"
 
 	p := &MockProgressMeter{}
-	name, err := snap.Install(p, 0)
+	name, err := r.Install(p, 0)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	st, err := os.Stat(snapPackage)
@@ -730,21 +730,21 @@ services:
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	snap := RemoteSnapPart{}
-	snap.pkg.AnonDownloadURL = mockServer.URL + "/snap"
-	snap.pkg.Origin = testOrigin
-	snap.pkg.IconURL = mockServer.URL + "/icon"
-	snap.pkg.Name = "foo"
-	snap.pkg.Origin = "bar"
-	snap.pkg.Version = "1.0"
+	r := RemoteSnapPart{}
+	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
+	r.pkg.Origin = testOrigin
+	r.pkg.IconURL = mockServer.URL + "/icon"
+	r.pkg.Name = "foo"
+	r.pkg.Origin = "bar"
+	r.pkg.Version = "1.0"
 
 	p := &MockProgressMeter{}
-	name, err := snap.Install(p, 0)
+	name, err := r.Install(p, 0)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	c.Check(p.notified, HasLen, 0)
 
-	_, err = snap.Install(p, 0)
+	_, err = r.Install(p, 0)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	c.Check(p.notified, HasLen, 1)
@@ -953,9 +953,9 @@ type: gadget
 
 	p := &MockProgressMeter{}
 
-	snap := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
-	c.Assert(snap, NotNil)
-	installed, err := snap.Installed()
+	r := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
+	c.Assert(r, NotNil)
+	installed, err := r.Installed()
 	c.Assert(err, IsNil)
 	parts := FindSnapsByName("hello-app", installed)
 	c.Assert(parts, HasLen, 1)
@@ -1131,7 +1131,7 @@ func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
 
 	c.Check(snaps[0].Name(), Equals, "afoo")
 	c.Check(snaps[0].Version(), Equals, "1")
-	c.Check(snaps[0].Type(), Equals, pkg.TypeFramework)
+	c.Check(snaps[0].Type(), Equals, snap.TypeFramework)
 	c.Check(snaps[0].Origin(), Equals, "someplace")
 	c.Check(snaps[0].Description(), Equals, "something nice")
 	c.Check(snaps[0].DownloadSize(), Equals, int64(10))

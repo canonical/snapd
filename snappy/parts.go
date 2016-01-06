@@ -28,8 +28,8 @@ import (
 	"time"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // SystemConfig is a config map holding configs for multiple packages
@@ -48,7 +48,7 @@ type Configuration interface {
 // QualifiedName of a Part is the Name, in most cases qualified with the
 // Origin
 func QualifiedName(p Part) string {
-	if t := p.Type(); t == pkg.TypeFramework || t == pkg.TypeGadget {
+	if t := p.Type(); t == snap.TypeFramework || t == snap.TypeGadget {
 		return p.Name()
 	}
 	return p.Name() + "." + p.Origin()
@@ -101,7 +101,7 @@ type Part interface {
 	Icon() string
 
 	// Returns app, framework, core
-	Type() pkg.Type
+	Type() snap.Type
 
 	InstalledSize() int64
 	DownloadSize() int64
@@ -247,7 +247,7 @@ func (m *MetaRepository) Details(name string, origin string) ([]Part, error) {
 }
 
 // ActiveSnapsByType returns all installed snaps with the given type
-func ActiveSnapsByType(snapTs ...pkg.Type) (res []Part, err error) {
+func ActiveSnapsByType(snapTs ...snap.Type) (res []Part, err error) {
 	m := NewMetaRepository()
 	installed, err := m.Installed()
 	if err != nil {
@@ -272,7 +272,7 @@ func ActiveSnapsByType(snapTs ...pkg.Type) (res []Part, err error) {
 // function to all active snaps with the given type.
 var ActiveSnapIterByType = activeSnapIterByTypeImpl
 
-func activeSnapIterByTypeImpl(f func(Part) string, snapTs ...pkg.Type) ([]string, error) {
+func activeSnapIterByTypeImpl(f func(Part) string, snapTs ...snap.Type) ([]string, error) {
 	installed, err := ActiveSnapsByType(snapTs...)
 	res := make([]string, len(installed))
 
