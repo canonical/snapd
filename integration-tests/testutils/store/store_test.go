@@ -23,7 +23,12 @@ package store
 import (
 	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/snappy"
 
 	. "gopkg.in/check.v1"
 )
@@ -39,7 +44,7 @@ type storeTestSuite struct {
 var _ = Suite(&storeTestSuite{})
 
 func (s *storeTestSuite) SetUpTest(c *C) {
-	s.store = NewStore()
+	s.store = NewStore(c.MkDir())
 	err := s.store.Start()
 	c.Assert(err, IsNil)
 
@@ -47,7 +52,6 @@ func (s *storeTestSuite) SetUpTest(c *C) {
 	s.client = &http.Client{
 		Transport: transport,
 	}
-
 }
 
 func (s *storeTestSuite) TearDownTest(c *C) {
@@ -109,4 +113,39 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Assert(string(body), Equals, "bulk not implemented yet")
+}
+
+// FIXME: extract into snappy/testutils
+func (s *storeTestSuite) makeTestSnap(c *C, packageYamlContent string) string {
+	tmpdir := c.MkDir()
+	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
+
+	packageYaml := filepath.Join(tmpdir, "meta", "package.yaml")
+	ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
+	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
+
+	content := "Random\nExample"
+	err := ioutil.WriteFile(readmeMd, []byte(content), 0644)
+	c.Assert(err, IsNil)
+
+	targetDir := s.store.blobDir
+	// FIXME: legacy? squash?
+	snapFn, err := snappy.BuildLegacySnap(tmpdir, targetDir)
+	c.Assert(err, IsNil)
+	return snapFn
+}
+
+func (s *storeTestSuite) TestMakeTestSnap(c *C) {
+	snapFn := s.makeTestSnap(c, "name: foo\nversion: 1")
+	c.Assert(helpers.FileExists(snapFn), Equals, true)
+	c.Assert(snapFn, Equals, filepath.Join(s.store.blobDir, "foo_1_all.snap"))
+}
+
+func (s *storeTestSuite) TestRefreshSnaps(c *C) {
+	s.makeTestSnap(c, "name: foo\nversion: 1")
+
+	s.store.refreshSnaps()
+	c.Assert(s.store.snaps, DeepEquals, map[string]string{
+		"foo": filepath.Join(s.store.blobDir, "foo_1_all.snap"),
+	})
 }

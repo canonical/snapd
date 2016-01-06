@@ -24,9 +24,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"gopkg.in/tylerb/graceful.v1"
+
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // Store is our snappy software store implementation
@@ -35,6 +38,8 @@ type Store struct {
 	blobDir string
 
 	srv *graceful.Server
+
+	snaps map[string]string
 }
 
 var defaultAddr = "localhost:11028"
@@ -60,7 +65,7 @@ func rootEndpoint(w http.ResponseWriter, req *http.Request) {
 }
 
 // NewStore creates a new store server
-func NewStore() *Store {
+func NewStore(blobDir string) *Store {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", rootEndpoint)
 	mux.HandleFunc("/search", searchEndpoint)
@@ -68,6 +73,9 @@ func NewStore() *Store {
 	mux.HandleFunc("/click-metadata", bulkEndpoint)
 
 	store := &Store{
+		blobDir: blobDir,
+		snaps:   make(map[string]string),
+
 		url: fmt.Sprintf("http://%s", defaultAddr),
 		srv: &graceful.Server{
 			Timeout: 2 * time.Second,
@@ -107,6 +115,27 @@ func (s *Store) Stop() error {
 	case <-s.srv.StopChan():
 	case <-time.After(timeoutTime):
 		return fmt.Errorf("store failed to stop after %s", timeoutTime)
+	}
+
+	return nil
+}
+
+func (s *Store) refreshSnaps() error {
+	snaps, err := filepath.Glob(filepath.Join(s.blobDir, "*.snap"))
+	if err != nil {
+		return err
+	}
+
+	for _, fn := range snaps {
+		snapFile, err := snap.Open(fn)
+		if err != nil {
+			return err
+		}
+		info, err := snapFile.Info()
+		if err != nil {
+			return err
+		}
+		s.snaps[info.Name] = fn
 	}
 
 	return nil
