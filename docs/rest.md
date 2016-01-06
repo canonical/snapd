@@ -538,7 +538,8 @@ Notes: user facing implementations in text form must show this data using yaml.
 
 * Description: Get an icon from a snap installed on the system. The
   response will be the raw contents of the icon file; the content-type
-  will be set accordingly.
+  will be set accordingly and the Content-Disposition header will specify
+  the filename.
 
   This fetches the icon from the package itself.
 * Access: guest
