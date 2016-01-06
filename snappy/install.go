@@ -60,8 +60,8 @@ func doUpdate(part Part, flags InstallFlags, meter progress.Meter) error {
 	return nil
 }
 
-// convertToInstalledSnaps takes a slcie of remote snaps that got
-// updated and finds the coresponding local snap parts and returns them
+// convertToInstalledSnaps takes a slice of remote snaps that got
+// updated and returns the corresponding local snap parts.
 func convertToInstalledSnaps(remoteUpdates []Part) ([]Part, error) {
 	installed, err := NewMetaLocalRepository().Installed()
 	if err != nil {
@@ -72,7 +72,7 @@ func convertToInstalledSnaps(remoteUpdates []Part) ([]Part, error) {
 	for _, part := range remoteUpdates {
 		localPart := FindSnapsByNameAndVersion(part.Name(), part.Version(), installed)
 		if len(localPart) != 1 {
-			return nil, fmt.Errorf("expected one local part for the update %v got %v", part, len(localPart))
+			return nil, fmt.Errorf("expected one local part for the update %v, got %v", part, len(localPart))
 		}
 		installedUpdates = append(installedUpdates, localPart[0])
 	}
