@@ -118,7 +118,7 @@ func (fsbs *filesystemBackstore) search(assertType AssertionType, diskPattern []
 	return nil
 }
 
-func (fsbs *filesystemBackstore) SearchByHeaders(assertType AssertionType, headers map[string]string, pathHint []string, foundCb func(Assertion)) error {
+func (fsbs *filesystemBackstore) Search(assertType AssertionType, headers map[string]string, pathHint []string, foundCb func(Assertion)) error {
 	diskPattern := make([]string, len(pathHint))
 	for i, comp := range pathHint {
 		if comp == "" {
@@ -134,14 +134,4 @@ func (fsbs *filesystemBackstore) SearchByHeaders(assertType AssertionType, heade
 		}
 	}
 	return fsbs.search(assertType, diskPattern, candCb)
-}
-
-func (fsbs *filesystemBackstore) SearchBySuffix(assertType AssertionType, primaryPathWithoutLast []string, suffixOflast string, foundCb func(Assertion)) error {
-	diskPattern := make([]string, len(primaryPathWithoutLast)+1)
-	for i, comp := range primaryPathWithoutLast {
-		diskPattern[i] = url.QueryEscape(comp)
-	}
-	diskPattern[len(diskPattern)-1] = "*" + suffixOflast
-
-	return fsbs.search(assertType, diskPattern, foundCb)
 }
