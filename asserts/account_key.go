@@ -106,7 +106,7 @@ func buildAccountKey(assert assertionBase) (Assertion, error) {
 	if !until.After(since) {
 		return nil, fmt.Errorf("invalid 'since' and 'until' times (no gap after 'since' till 'until')")
 	}
-	pubk, err := checkPublicKey(&assert, "fingerprint", "public-key-id")
+	pubk, err := checkPublicKey(&assert, "public-key-fingerprint", "public-key-id")
 	if err != nil {
 		return nil, err
 	}

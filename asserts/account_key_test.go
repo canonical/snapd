@@ -66,7 +66,7 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
 		"public-key-id: " + aks.keyid + "\n" +
-		"fingerprint: " + aks.fp + "\n" +
+		"public-key-fingerprint: " + aks.fp + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
 		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
@@ -92,7 +92,7 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
 		"public-key-id: " + aks.keyid + "\n" +
-		"fingerprint: " + aks.fp + "\n" +
+		"public-key-fingerprint: " + aks.fp + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
 		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
@@ -106,7 +106,7 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 		{aks.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
 		{aks.untilLine, "until: " + aks.since.Format(time.RFC3339) + "\n", `invalid 'since' and 'until' times \(no gap after 'since' till 'until'\)`},
 		{"public-key-id: " + aks.keyid + "\n", "", `"public-key-id" header is mandatory`},
-		{"fingerprint: " + aks.fp + "\n", "", `"fingerprint" header is mandatory`},
+		{"public-key-fingerprint: " + aks.fp + "\n", "", `"public-key-fingerprint" header is mandatory`},
 	}
 
 	for _, test := range invalidHeaderTests {
@@ -121,7 +121,7 @@ func (aks *accountKeySuite) TestDecodeInvalidPublicKey(c *C) {
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
 		"public-key-id: " + aks.keyid + "\n" +
-		"fingerprint: " + aks.fp + "\n" +
+		"public-key-fingerprint: " + aks.fp + "\n" +
 		aks.sinceLine +
 		aks.untilLine
 
@@ -149,7 +149,7 @@ func (aks *accountKeySuite) TestDecodeFingerprintMismatch(c *C) {
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
 		"public-key-id: " + aks.keyid + "\n" +
-		"fingerprint: 00\n" +
+		"public-key-fingerprint: 00\n" +
 		aks.sinceLine +
 		aks.untilLine +
 		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
@@ -165,7 +165,7 @@ func (aks *accountKeySuite) TestDecodeKeyIDMismatch(c *C) {
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
 		"public-key-id: aa\n" +
-		"fingerprint: " + aks.fp + "\n" +
+		"public-key-fingerprint: " + aks.fp + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
 		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
@@ -180,12 +180,12 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 	trustedKey := testPrivKey0
 
 	headers := map[string]string{
-		"authority-id":  "canonical",
-		"account-id":    "acc-id1",
-		"public-key-id": aks.keyid,
-		"fingerprint":   aks.fp,
-		"since":         aks.since.Format(time.RFC3339),
-		"until":         aks.until.Format(time.RFC3339),
+		"authority-id":           "canonical",
+		"account-id":             "acc-id1",
+		"public-key-id":          aks.keyid,
+		"public-key-fingerprint": aks.fp,
+		"since":                  aks.since.Format(time.RFC3339),
+		"until":                  aks.until.Format(time.RFC3339),
 	}
 	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
 	c.Assert(err, IsNil)
@@ -206,12 +206,12 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 	trustedKey := testPrivKey0
 
 	headers := map[string]string{
-		"authority-id":  "canonical",
-		"account-id":    "acc-id1",
-		"public-key-id": aks.keyid,
-		"fingerprint":   aks.fp,
-		"since":         aks.since.Format(time.RFC3339),
-		"until":         aks.until.Format(time.RFC3339),
+		"authority-id":           "canonical",
+		"account-id":             "acc-id1",
+		"public-key-id":          aks.keyid,
+		"public-key-fingerprint": aks.fp,
+		"since":                  aks.since.Format(time.RFC3339),
+		"until":                  aks.until.Format(time.RFC3339),
 	}
 	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
 	c.Assert(err, IsNil)
@@ -241,7 +241,7 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
 		"public-key-id: " + aks.keyid + "\n" +
-		"fingerprint: " + aks.fp + "\n" +
+		"public-key-fingerprint: " + aks.fp + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
 		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
