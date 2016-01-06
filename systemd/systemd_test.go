@@ -28,6 +28,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
@@ -259,6 +260,17 @@ func (s *SystemdTestSuite) TestGenAppServiceFile(c *C) {
 	c.Check(New("", nil).GenServiceFile(desc), Equals, expectedAppService)
 }
 
+func (s *SystemdTestSuite) TestGenAppServiceFileRestart(c *C) {
+	for name, cond := range restartMap {
+		desc := &ServiceDescription{
+			AppName: "app",
+			Restart: cond,
+		}
+
+		c.Check(New("", nil).GenServiceFile(desc), Matches, `(?ms).*^Restart=`+name+`$.*`, Commentf(name))
+	}
+}
+
 func (s *SystemdTestSuite) TestGenNetAppServiceFile(c *C) {
 
 	desc := &ServiceDescription{
@@ -436,4 +448,24 @@ Description=Squashfs mount unit for foo.origin
 What=/var/lib/snappy/snaps/foo.origin_1.0.snap
 Where=/apps/foo.origin/1.0
 `)
+}
+
+func (s *SystemdTestSuite) TestRestartCondUnmarshal(c *C) {
+	for cond := range restartMap {
+		bs := []byte(cond)
+		var rc RestartCondition
+
+		c.Check(yaml.Unmarshal(bs, &rc), IsNil)
+		c.Check(rc, Equals, restartMap[cond], Commentf(cond))
+	}
+}
+
+func (s *SystemdTestSuite) TestRestartCondString(c *C) {
+	for name, cond := range restartMap {
+		c.Check(cond.String(), Equals, name, Commentf(name))
+	}
+}
+
+func (s *SystemdTestSuite) TestRestartCondStringDefault(c *C) {
+	c.Check(RestartCondition("").String(), Equals, "on-failure")
 }

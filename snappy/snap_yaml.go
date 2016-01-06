@@ -73,6 +73,9 @@ type ServiceYaml struct {
 	SocketUser   string `yaml:"socket-user,omitempty" json:"socket-user,omitempty"`
 	SocketGroup  string `yaml:"socket-group,omitempty" json:"socket-group,omitempty"`
 
+	// systemd "restart" thing
+	RestartCond systemd.RestartCondition `yaml:"restart-condition,omitempty" json:"restart-condition,omitempty"`
+
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
 
