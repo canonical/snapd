@@ -43,9 +43,11 @@ func (aks *accountKeySuite) SetUpSuite(c *C) {
 	cfg1 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db1")}
 	accDb, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
-	aks.fp, err = accDb.ImportKey("acc-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
-	aks.keyid = aks.fp[len(aks.fp)-16:]
+	pk := asserts.OpenPGPPrivateKey(testPrivKey1)
+	_, err = accDb.ImportKey("acc-id1", pk)
 	c.Assert(err, IsNil)
+	aks.fp = pk.PublicKey().Fingerprint()
+	aks.keyid = pk.PublicKey().KeyID()
 	pubKey, err := accDb.PublicKey("acc-id1", aks.fp)
 	c.Assert(err, IsNil)
 	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)

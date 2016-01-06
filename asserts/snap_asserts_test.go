@@ -100,15 +100,18 @@ func (sds *snapBuildSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (accFingerp string, accSignDB, checkDB *asserts.Database) {
+func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID string, accSignDB, checkDB *asserts.Database) {
 	trustedKey := testPrivKey0
 
 	cfg1 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db1")}
 	accSignDB, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
-	accFingerp, err = accSignDB.ImportKey(accountID, asserts.OpenPGPPrivateKey(testPrivKey1))
+	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
+	accFingerp := pk1.PublicKey().Fingerprint()
+	accKeyID := pk1.PublicKey().KeyID()
+	keyid, err := accSignDB.ImportKey(accountID, asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
-	pubKey, err := accSignDB.PublicKey(accountID, accFingerp)
+	pubKey, err := accSignDB.PublicKey(accountID, keyid)
 	c.Assert(err, IsNil)
 	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)
 	c.Assert(err, IsNil)
@@ -117,7 +120,7 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (accFingerp string
 	headers := map[string]string{
 		"authority-id":  "canonical",
 		"account-id":    accountID,
-		"public-key-id": accFingerp[24:40],
+		"public-key-id": accKeyID,
 		"fingerprint":   accFingerp,
 		"since":         "2015-11-20T15:04:00Z",
 		"until":         "2500-11-20T15:04:00Z",
@@ -136,11 +139,11 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (accFingerp string
 	err = checkDB.Add(accKey)
 	c.Assert(err, IsNil)
 
-	return accFingerp, accSignDB, checkDB
+	return keyid, accSignDB, checkDB
 }
 
 func (sds *snapBuildSuite) TestSnapBuildCheck(c *C) {
-	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "dev-id1")
+	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "dev-id1")
 
 	headers := map[string]string{
 		"authority-id": "dev-id1",
@@ -150,7 +153,7 @@ func (sds *snapBuildSuite) TestSnapBuildCheck(c *C) {
 		"snap-size":    "1025",
 		"timestamp":    "2015-11-25T20:00:00Z",
 	}
-	snapBuild, err := accSignDB.Sign(asserts.SnapBuildType, headers, nil, accFingerp)
+	snapBuild, err := accSignDB.Sign(asserts.SnapBuildType, headers, nil, signingKeyID)
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapBuild)
@@ -158,7 +161,7 @@ func (sds *snapBuildSuite) TestSnapBuildCheck(c *C) {
 }
 
 func (sds *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
-	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "dev-id1")
+	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "dev-id1")
 
 	headers := map[string]string{
 		"authority-id": "dev-id1",
@@ -168,7 +171,7 @@ func (sds *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 		"snap-size":    "1025",
 		"timestamp":    "2013-01-01T14:00:00Z",
 	}
-	snapBuild, err := accSignDB.Sign(asserts.SnapBuildType, headers, nil, accFingerp)
+	snapBuild, err := accSignDB.Sign(asserts.SnapBuildType, headers, nil, signingKeyID)
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapBuild)
@@ -259,10 +262,10 @@ func (suite *snapRevSuite) TestDecodeInvalid(c *C) {
 }
 
 func (suite *snapRevSuite) TestSnapRevisionCheck(c *C) {
-	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
+	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
 
 	headers := suite.makeHeaders(nil)
-	snapRev, err := accSignDB.Sign(asserts.SnapRevisionType, headers, nil, accFingerp)
+	snapRev, err := accSignDB.Sign(asserts.SnapRevisionType, headers, nil, signingKeyID)
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapRev)
@@ -270,12 +273,12 @@ func (suite *snapRevSuite) TestSnapRevisionCheck(c *C) {
 }
 
 func (suite *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
-	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
+	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
 
 	headers := suite.makeHeaders(map[string]string{
 		"timestamp": "2013-01-01T14:00:00Z",
 	})
-	snapRev, err := accSignDB.Sign(asserts.SnapRevisionType, headers, nil, accFingerp)
+	snapRev, err := accSignDB.Sign(asserts.SnapRevisionType, headers, nil, signingKeyID)
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapRev)
@@ -285,8 +288,8 @@ func (suite *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
 func (suite *snapRevSuite) TestPrimaryKey(c *C) {
 	headers := suite.makeHeaders(nil)
 
-	accFingerp, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
-	snapRev, err := accSignDB.Sign(asserts.SnapRevisionType, headers, nil, accFingerp)
+	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
+	snapRev, err := accSignDB.Sign(asserts.SnapRevisionType, headers, nil, signingKeyID)
 	c.Assert(err, IsNil)
 	err = db.Add(snapRev)
 	c.Assert(err, IsNil)

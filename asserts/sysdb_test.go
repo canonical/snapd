@@ -41,9 +41,12 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	cfg0 := &asserts.DatabaseConfig{Path: filepath.Join(tmpdir, "asserts-db0")}
 	db0, err := asserts.OpenDatabase(cfg0)
 	c.Assert(err, IsNil)
-	trustedFingerp, err := db0.ImportKey("canonical", asserts.OpenPGPPrivateKey(testPrivKey0))
+	pk := asserts.OpenPGPPrivateKey(testPrivKey0)
+	trustedFingerp := pk.PublicKey().Fingerprint()
+	trustedKeyID := pk.PublicKey().KeyID()
+	keyid, err := db0.ImportKey("canonical", pk)
 	c.Assert(err, IsNil)
-	trustedPubKey, err := db0.PublicKey("canonical", trustedFingerp)
+	trustedPubKey, err := db0.PublicKey("canonical", keyid)
 	c.Assert(err, IsNil)
 	trustedPubKeyEncoded, err := asserts.EncodePublicKey(trustedPubKey)
 	c.Assert(err, IsNil)
@@ -51,7 +54,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	headers := map[string]string{
 		"authority-id":  "canonical",
 		"account-id":    "canonical",
-		"public-key-id": trustedFingerp[24:40],
+		"public-key-id": trustedKeyID,
 		"fingerprint":   trustedFingerp,
 		"since":         "2015-11-20T15:04:00Z",
 		"until":         "2500-11-20T15:04:00Z",
