@@ -33,8 +33,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/removed"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/removed"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -153,7 +153,7 @@ func find(name string, origin string) map[string]*PartBag {
 				bag := &PartBag{
 					Name:     snappy.SystemImagePartName,
 					Origin:   snappy.SystemImagePartOrigin,
-					Type:     pkg.TypeCore,
+					Type:     snap.TypeCore,
 					Versions: versions,
 					concrete: &concreteCore{},
 				}
@@ -165,12 +165,12 @@ func find(name string, origin string) map[string]*PartBag {
 	type T struct {
 		inst string
 		qn   string
-		typ  pkg.Type
+		typ  snap.Type
 	}
 
 	for _, s := range []T{
-		{dirs.SnapAppsDir, name + "." + origin, pkg.TypeApp},
-		{dirs.SnapAppsDir, name, pkg.TypeFramework}, // frameworks are installed under /apps also, for now
+		{dirs.SnapAppsDir, name + "." + origin, snap.TypeApp},
+		{dirs.SnapAppsDir, name, snap.TypeFramework}, // frameworks are installed under /apps also, for now
 	} {
 		// all snaps share the data dir, hence this bit of mess
 		paths, _ := filepath.Glob(filepath.Join(dirs.SnapDataDir, s.qn, "*"))
@@ -180,7 +180,7 @@ func find(name string, origin string) map[string]*PartBag {
 			var versions []string
 
 			name, origin, versions, paths = extract(paths)
-			if origin != "" && s.typ != pkg.TypeApp {
+			if origin != "" && s.typ != snap.TypeApp {
 				// this happens when called with name="*"
 				continue
 			}
@@ -206,8 +206,8 @@ func find(name string, origin string) map[string]*PartBag {
 			// package, and install a framework with the same name
 			// as the gadget package you deactivated. You get to keep
 			// the parts.
-			if typ == pkg.TypeFramework && helpers.FileExists(filepath.Join(dirs.SnapGadgetDir, name)) {
-				typ = pkg.TypeGadget
+			if typ == snap.TypeFramework && helpers.FileExists(filepath.Join(dirs.SnapGadgetDir, name)) {
+				typ = snap.TypeGadget
 				inst = dirs.SnapGadgetDir
 			}
 
@@ -232,7 +232,7 @@ func find(name string, origin string) map[string]*PartBag {
 type PartBag struct {
 	Name     string
 	Origin   string
-	Type     pkg.Type
+	Type     snap.Type
 	Versions []string
 	concrete Concreter
 }

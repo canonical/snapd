@@ -34,9 +34,9 @@ import (
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/partition"
-	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/provisioning"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // SystemImagePart have constant name and origin.
@@ -89,9 +89,9 @@ type SystemImagePart struct {
 	partition partition.Interface
 }
 
-// Type returns pkg.TypeCore for this snap
-func (s *SystemImagePart) Type() pkg.Type {
-	return pkg.TypeCore
+// Type returns snap.TypeCore for this snap
+func (s *SystemImagePart) Type() snap.Type {
+	return snap.TypeCore
 }
 
 // Name returns the name

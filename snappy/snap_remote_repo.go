@@ -31,9 +31,9 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/oauth"
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/remote"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
 const (
@@ -160,7 +160,7 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/hal+json")
 
 	// frameworks
-	frameworks, _ := ActiveSnapIterByType(BareName, pkg.TypeFramework)
+	frameworks, _ := ActiveSnapIterByType(BareName, snap.TypeFramework)
 	req.Header.Set("X-Ubuntu-Frameworks", strings.Join(addCoreFmk(frameworks), ","))
 	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
 	req.Header.Set("X-Ubuntu-Release", release.String())
@@ -315,7 +315,7 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 	// sense in sending it our ubuntu-core snap
 	//
 	// NOTE this *will* send .sideload apps to the store.
-	installed, err := ActiveSnapIterByType(fullNameWithChannel, pkg.TypeApp, pkg.TypeFramework, pkg.TypeGadget, pkg.TypeOS, pkg.TypeKernel)
+	installed, err := ActiveSnapIterByType(fullNameWithChannel, snap.TypeApp, snap.TypeFramework, snap.TypeGadget, snap.TypeOS, snap.TypeKernel)
 	if err != nil || len(installed) == 0 {
 		return nil, err
 	}

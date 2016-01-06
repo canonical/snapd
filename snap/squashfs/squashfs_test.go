@@ -31,7 +31,7 @@ import (
 	"testing"
 
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/snap"
 
 	. "gopkg.in/check.v1"
 )
@@ -165,11 +165,11 @@ func (s *SquashfsTestSuite) TestInfo(c *C) {
 	manifest := `name: foo
 version: 1.0
 type: gadget`
-	snap := makeSnap(c, manifest, "")
+	snapF := makeSnap(c, manifest, "")
 
-	info, err := snap.Info()
+	info, err := snapF.Info()
 	c.Assert(err, IsNil)
-	c.Assert(info.Name(), Equals, "foo")
-	c.Assert(info.Version(), Equals, "1.0")
-	c.Assert(info.Type(), Equals, pkg.TypeGadget)
+	c.Assert(info.Name, Equals, "foo")
+	c.Assert(info.Version, Equals, "1.0")
+	c.Assert(info.Type, Equals, snap.TypeGadget)
 }

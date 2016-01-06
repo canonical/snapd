@@ -17,12 +17,10 @@
  *
  */
 
-package info
+package snap
 
 import (
 	"testing"
-
-	"github.com/ubuntu-core/snappy/pkg"
 
 	. "gopkg.in/check.v1"
 )
@@ -43,9 +41,9 @@ type: app
 func (s *InfoPackageYamlTestSuite) TestSimple(c *C) {
 	info, err := NewFromPackageYaml(mockYaml)
 	c.Assert(err, IsNil)
-	c.Assert(info.Name(), Equals, "foo")
-	c.Assert(info.Version(), Equals, "1.0")
-	c.Assert(info.Type(), Equals, pkg.TypeApp)
+	c.Assert(info.Name, Equals, "foo")
+	c.Assert(info.Version, Equals, "1.0")
+	c.Assert(info.Type, Equals, TypeApp)
 }
 
 func (s *InfoPackageYamlTestSuite) TestFail(c *C) {

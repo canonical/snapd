@@ -30,7 +30,7 @@ import (
 	flags "github.com/jessevdk/go-flags"
 
 	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/pkg/squashfs"
+	"github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
 var parser = flags.NewParser(nil, flags.Default)

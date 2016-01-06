@@ -17,19 +17,15 @@
  *
  */
 
-package pkg
+package snap
 
 import (
 	"encoding/json"
-	"testing"
 
 	. "gopkg.in/check.v1"
 )
 
 type typeSuite struct{}
-
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&typeSuite{})
 

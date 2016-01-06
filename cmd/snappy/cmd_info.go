@@ -26,7 +26,7 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -104,7 +104,7 @@ func snapInfo(pkgname string, includeStore, verbose bool) error {
 }
 
 func ubuntuCoreChannel() string {
-	parts, err := snappy.ActiveSnapsByType(pkg.TypeCore)
+	parts, err := snappy.ActiveSnapsByType(snap.TypeCore)
 	if len(parts) == 1 && err == nil {
 		return parts[0].Channel()
 	}
@@ -114,8 +114,8 @@ func ubuntuCoreChannel() string {
 
 func info() error {
 	release := ubuntuCoreChannel()
-	frameworks, _ := snappy.ActiveSnapIterByType(snappy.FullName, pkg.TypeFramework)
-	apps, _ := snappy.ActiveSnapIterByType(snappy.FullName, pkg.TypeApp)
+	frameworks, _ := snappy.ActiveSnapIterByType(snappy.FullName, snap.TypeFramework)
+	apps, _ := snappy.ActiveSnapIterByType(snappy.FullName, snap.TypeApp)
 
 	// TRANSLATORS: the %s release string
 	fmt.Printf(i18n.G("release: %s\n"), release)
