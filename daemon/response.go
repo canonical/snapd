@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/logger"
 )
@@ -160,6 +161,8 @@ func (f FileResponse) Self(*Command, *http.Request) Response { return f }
 
 // ServeHTTP from the Response interface
 func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	filename := fmt.Sprintf("attachment; filename=%s", filepath.Base(string(f)))
+	w.Header().Add("Content-Disposition", filename)
 	http.ServeFile(w, r, string(f))
 }
 
