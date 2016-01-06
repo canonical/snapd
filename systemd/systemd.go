@@ -130,12 +130,7 @@ var restartMap = map[string]RestartCondition{
 var ErrUnknownRestartCondition = errors.New("invalid restart condition")
 
 func (rc RestartCondition) String() string {
-	s := string(rc)
-	if s == "" {
-		s = string(RestartOnFailure)
-	}
-
-	return s
+	return string(rc)
 }
 
 // UnmarshalYAML so RestartCondition implements yaml's Unmarshaler interface
@@ -379,10 +374,17 @@ WantedBy={{.ServiceSystemdTarget}}
 `
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
+
 	origin := ""
 	if len(desc.UdevAppName) > len(desc.AppName) {
 		origin = desc.UdevAppName[len(desc.AppName)+1:]
 	}
+
+	restartCond := desc.Restart.String()
+	if restartCond == "" {
+		restartCond = RestartOnFailure.String()
+	}
+
 	wrapperData := struct {
 		// the service description
 		ServiceDescription
@@ -410,7 +412,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		"%h",
 		"",
 		desc.SocketFileName,
-		desc.Restart.String(),
+		restartCond,
 	}
 	allVars := helpers.GetBasicSnapEnvVars(wrapperData)
 	allVars = append(allVars, helpers.GetUserSnapEnvVars(wrapperData)...)

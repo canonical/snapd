@@ -465,7 +465,3 @@ func (s *SystemdTestSuite) TestRestartCondString(c *C) {
 		c.Check(cond.String(), Equals, name, Commentf(name))
 	}
 }
-
-func (s *SystemdTestSuite) TestRestartCondStringDefault(c *C) {
-	c.Check(RestartCondition("").String(), Equals, "on-failure")
-}
