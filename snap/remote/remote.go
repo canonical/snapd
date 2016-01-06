@@ -20,7 +20,7 @@
 package remote
 
 import (
-	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // A Snap encapsulates the data sent to us from the store.
@@ -41,6 +41,6 @@ type Snap struct {
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
 	SupportURL      string             `json:"support_url"`
 	Title           string             `json:"title"`
-	Type            pkg.Type           `json:"content,omitempty"`
+	Type            snap.Type          `json:"content,omitempty"`
 	Version         string             `json:"version"`
 }

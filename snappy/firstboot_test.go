@@ -28,15 +28,15 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/clickdeb"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/clickdeb"
 )
 
 type fakePart struct {
 	SnapPart
 	config       []byte
 	gadgetConfig SystemConfig
-	snapType     pkg.Type
+	snapType     snap.Type
 }
 
 func (p *fakePart) Config(b []byte) (string, error) {
@@ -48,7 +48,7 @@ func (p *fakePart) GadgetConfig() SystemConfig {
 	return p.gadgetConfig
 }
 
-func (p *fakePart) Type() pkg.Type {
+func (p *fakePart) Type() snap.Type {
 	return p.snapType
 }
 
@@ -112,7 +112,7 @@ func (s *FirstBootTestSuite) newPartMap() (map[string]Part, error) {
 }
 
 func (s *FirstBootTestSuite) newFakeApp() *fakePart {
-	fakeMyApp := fakePart{snapType: pkg.TypeApp}
+	fakeMyApp := fakePart{snapType: snap.TypeApp}
 	s.partMap = make(map[string]Part)
 	s.partMap["myapp"] = &fakeMyApp
 

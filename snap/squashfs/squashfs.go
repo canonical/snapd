@@ -31,7 +31,14 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/snap"
 )
+
+func init() {
+	snap.RegisterBackend([]byte{'h', 's', 'q', 's'}, func(path string) (snap.File, error) {
+		return New(path), nil
+	})
+}
 
 // BlobPath is a helper that calculates the blob path from the baseDir.
 // FIXME: feels wrong (both location and approach). need something better.
@@ -68,11 +75,6 @@ func New(path string) *Snap {
 // Close is not doing anything for squashfs - COMPAT
 func (s *Snap) Close() error {
 	return nil
-}
-
-// ControlMember extracts from meta/ - COMPAT
-func (s *Snap) ControlMember(controlMember string) ([]byte, error) {
-	return s.ReadFile(filepath.Join("DEBIAN", controlMember))
 }
 
 // MetaMember extracts from meta/. - COMPAT
@@ -132,6 +134,16 @@ func (s *Snap) ReadFile(path string) (content []byte, err error) {
 const (
 	hashDigestBufSize = 2 * 1024 * 1024
 )
+
+// Info returns information like name, type etc about the package
+func (s *Snap) Info() (*snap.Info, error) {
+	packageYaml, err := s.ReadFile("meta/package.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("info failed for %s: %s", s.path, err)
+	}
+
+	return snap.NewFromPackageYaml(packageYaml)
+}
 
 // HashDigest computes a hash digest of the snap file using the given hash.
 // It also returns its size.

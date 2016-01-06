@@ -31,8 +31,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/remote"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
 const (
@@ -230,10 +230,10 @@ icon: foo.svg
 	return filepath.Join(tmpdir, snapFile)
 }
 
-// makeTwoTestSnaps creates two real snaps of pkg.Type of name
+// makeTwoTestSnaps creates two real snaps of snap.Type of name
 // "foo", with version "1.0" and "2.0", "2.0" being marked as the
 // active snap.
-func makeTwoTestSnaps(c *C, snapType pkg.Type, extra ...string) {
+func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 	inter := &MockProgressMeter{}
 
 	packageYaml := `name: foo
@@ -244,7 +244,7 @@ icon: foo.svg
 	}
 
 	qn := "foo." + testOrigin
-	if snapType != pkg.TypeApp {
+	if snapType != snap.TypeApp {
 		packageYaml += fmt.Sprintf("type: %s\n", snapType)
 		qn = "foo"
 	}
