@@ -191,6 +191,8 @@ func decodeSignature(signature []byte) (Signature, error) {
 type PublicKey interface {
 	// Fingerprint returns the key fingerprint.
 	Fingerprint() string
+	// KeyId returns the key id used to match signatures to their signing key.
+	KeyID() string
 
 	// verify verifies signature is valid for content using the key.
 	verify(content []byte, sig Signature) error
@@ -205,6 +207,10 @@ type openpgpPubKey struct {
 
 func (opgPubKey *openpgpPubKey) Fingerprint() string {
 	return opgPubKey.fp
+}
+
+func (opgPubKey *openpgpPubKey) KeyID() string {
+	return opgPubKey.fp[24:40]
 }
 
 func (opgPubKey *openpgpPubKey) verify(content []byte, sig Signature) error {

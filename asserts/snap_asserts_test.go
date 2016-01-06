@@ -115,11 +115,12 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (accFingerp string
 	accPubKeyBody := string(pubKeyEncoded)
 
 	headers := map[string]string{
-		"authority-id": "canonical",
-		"account-id":   accountID,
-		"fingerprint":  accFingerp,
-		"since":        "2015-11-20T15:04:00Z",
-		"until":        "2500-11-20T15:04:00Z",
+		"authority-id":  "canonical",
+		"account-id":    accountID,
+		"public-key-id": accFingerp[24:40],
+		"fingerprint":   accFingerp,
+		"since":         "2015-11-20T15:04:00Z",
+		"until":         "2500-11-20T15:04:00Z",
 	}
 	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
 	c.Assert(err, IsNil)

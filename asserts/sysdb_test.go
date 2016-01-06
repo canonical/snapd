@@ -49,11 +49,12 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	// self-signed
 	headers := map[string]string{
-		"authority-id": "canonical",
-		"account-id":   "canonical",
-		"fingerprint":  trustedFingerp,
-		"since":        "2015-11-20T15:04:00Z",
-		"until":        "2500-11-20T15:04:00Z",
+		"authority-id":  "canonical",
+		"account-id":    "canonical",
+		"public-key-id": trustedFingerp[24:40],
+		"fingerprint":   trustedFingerp,
+		"since":         "2015-11-20T15:04:00Z",
+		"until":         "2500-11-20T15:04:00Z",
 	}
 	trustedAccKey, err := db0.Sign(asserts.AccountKeyType, headers, trustedPubKeyEncoded, trustedFingerp)
 	c.Assert(err, IsNil)
