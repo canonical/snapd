@@ -189,11 +189,10 @@ func (s *SnapFile) Frameworks() ([]string, error) {
 func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
 	allowGadget := (flags & AllowGadget) != 0
 	inhibitHooks := (flags & InhibitHooks) != 0
-	allowUnauth := (flags & AllowUnauthenticated) != 0
 
-	if err := s.deb.Verify(allowUnauth); err != nil {
-		return "", fmt.Errorf("failed to verify %q: %s", s.Name(), err)
-	}
+	// we do not Verify() the package here. This is done earlier in
+	// NewSnapFile() to ensure that we do not mount/inspect
+	// potentially dangerous snaps
 
 	if err := s.CanInstall(allowGadget, inter); err != nil {
 		return "", err
