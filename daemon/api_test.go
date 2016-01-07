@@ -1213,7 +1213,7 @@ func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 		Label: "label",
 		Type:  caps.BoolFileType,
 		Attrs: map[string]interface{}{
-			"path": "/nonexistent",
+			"path": "/sys/class/leds/input::capslock/brightness",
 		},
 	}
 	text, err := json.Marshal(cap)
@@ -1243,7 +1243,7 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 		Label: "label",
 		Type:  caps.BoolFileType,
 		Attrs: map[string]interface{}{
-			"path": "/nonexistent",
+			"path": "/sys/class/leds/input::capslock/brightness",
 		},
 	}
 	err := d.capRepo.Add(cap)
@@ -1254,7 +1254,7 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 		Label: "second label",
 		Type:  caps.BoolFileType,
 		Attrs: map[string]interface{}{
-			"path": "/nonexistent",
+			"path": "/sys/class/leds/input::capslock/brightness",
 		},
 	}
 	text, err := json.Marshal(capClashing)
