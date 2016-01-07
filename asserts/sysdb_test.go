@@ -59,7 +59,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 		"since":                  "2015-11-20T15:04:00Z",
 		"until":                  "2500-11-20T15:04:00Z",
 	}
-	trustedAccKey, err := db0.Sign(asserts.AccountKeyType, headers, trustedPubKeyEncoded, trustedFingerp)
+	trustedAccKey, err := db0.Sign(asserts.AccountKeyType, headers, trustedPubKeyEncoded, keyid)
 	c.Assert(err, IsNil)
 
 	fakeRoot := filepath.Join(tmpdir, "root")
@@ -76,7 +76,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "0",
 	}
-	sdbs.probeAssert, err = db0.Sign(asserts.AssertionType("test-only"), headers, nil, trustedFingerp)
+	sdbs.probeAssert, err = db0.Sign(asserts.AssertionType("test-only"), headers, nil, keyid)
 	c.Assert(err, IsNil)
 }
 

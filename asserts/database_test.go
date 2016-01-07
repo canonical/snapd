@@ -100,12 +100,13 @@ func (dbs *databaseSuite) SetUpTest(c *C) {
 
 func (dbs *databaseSuite) TestImportKey(c *C) {
 	expectedFingerprint := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
+	expectedKeyID := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[12:])
 
-	fingerp, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	keyid, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
-	c.Check(fingerp, Equals, expectedFingerprint)
+	c.Check(keyid, Equals, expectedKeyID)
 
-	keyPath := filepath.Join(dbs.rootDir, "private-keys-v0/account0", fingerp)
+	keyPath := filepath.Join(dbs.rootDir, "private-keys-v0/account0", keyid)
 	info, err := os.Stat(keyPath)
 	c.Assert(err, IsNil)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0600)) // secret
@@ -117,6 +118,14 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(privKeyFromDisk.PublicKey().Fingerprint(), Equals, expectedFingerprint)
+}
+
+func (dbs *databaseSuite) TestImportKeyAlreadyExists(c *C) {
+	_, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	c.Assert(err, IsNil)
+
+	_, err = dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	c.Check(err, ErrorMatches, "key pair with given key id already exists")
 }
 
 func (dbs *databaseSuite) TestGenerateKey(c *C) {
@@ -150,15 +159,18 @@ func (dbs *databaseSuite) TestPublicKey(c *C) {
 	c.Assert(pubKey.Fingerprint, DeepEquals, testPrivKey1.PublicKey.Fingerprint)
 }
 
-func (dbs *databaseSuite) TestPublicKeyAmbiguous(c *C) {
-	_, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
-	c.Assert(err, IsNil)
-	_, err = dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey2))
+func (dbs *databaseSuite) TestPublicKeyNotFound(c *C) {
+	pk := asserts.OpenPGPPrivateKey(testPrivKey1)
+	keyID := pk.PublicKey().ID()
+
+	_, err := dbs.db.PublicKey("account0", keyID)
+	c.Check(err, ErrorMatches, "no matching key pair found")
+
+	_, err = dbs.db.ImportKey("account0", pk)
 	c.Assert(err, IsNil)
 
-	pubk, err := dbs.db.PublicKey("account0", "")
-	c.Assert(err, ErrorMatches, `ambiguous search, more than one key pair found:.*`)
-	c.Check(pubk, IsNil)
+	_, err = dbs.db.PublicKey("account0", "ff"+keyID)
+	c.Check(err, ErrorMatches, "no matching key pair found")
 }
 
 type checkSuite struct {
@@ -265,13 +277,13 @@ func (safs *signAddFindSuite) TestSign(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (safs *signAddFindSuite) TestSignEmptyFingerprint(c *C) {
+func (safs *signAddFindSuite) TestSignEmptyKeyID(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
 	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, "")
-	c.Assert(err, ErrorMatches, "fingerprint is empty")
+	c.Assert(err, ErrorMatches, "key id is empty")
 	c.Check(a1, IsNil)
 }
 
