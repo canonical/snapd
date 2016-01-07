@@ -43,17 +43,17 @@ type File interface {
 	Info() (*Info, error)
 }
 
-// Backend implements a specific snap format
-type Backend struct {
+// backend implements a specific snap format
+type snapFormat struct {
 	magic []byte
 	open  func(fn string) (File, error)
 }
 
-var backends []Backend
+var formatHandlers []snapFormat
 
-// RegisterBackend registers a snap file backend to the system
-func RegisterBackend(magic []byte, open func(fn string) (File, error)) {
-	backends = append(backends, Backend{magic, open})
+// RegisterFormat registers a snap file format to the system
+func RegisterFormat(magic []byte, open func(fn string) (File, error)) {
+	formatHandlers = append(formatHandlers, snapFormat{magic, open})
 }
 
 // Open opens a given snap file with the right backend
@@ -69,9 +69,9 @@ func Open(path string) (File, error) {
 		return nil, fmt.Errorf("cannot read snap: %v", err)
 	}
 
-	for _, be := range backends {
-		if bytes.HasPrefix(header, be.magic) {
-			return be.open(path)
+	for _, h := range formatHandlers {
+		if bytes.HasPrefix(header, h.magic) {
+			return h.open(path)
 		}
 	}
 
