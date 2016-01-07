@@ -140,10 +140,10 @@ func (s *RepositorySuite) TestAll(c *C) {
 	c.Assert(err, IsNil)
 	err = s.testRepo.Add(&Capability{Name: "b", Label: "label-b", Type: testType})
 	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.All(), DeepEquals, []Capability{
-		Capability{Name: "a", Label: "label-a", Type: testType},
-		Capability{Name: "b", Label: "label-b", Type: testType},
-		Capability{Name: "c", Label: "label-c", Type: testType},
+	c.Assert(s.testRepo.All(), DeepEquals, []*Capability{
+		&Capability{Name: "a", Label: "label-a", Type: testType},
+		&Capability{Name: "b", Label: "label-b", Type: testType},
+		&Capability{Name: "c", Label: "label-c", Type: testType},
 	})
 }
 
