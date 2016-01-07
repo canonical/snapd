@@ -44,6 +44,11 @@ type Store struct {
 
 var defaultAddr = "localhost:11028"
 
+func rootEndpoint(w http.ResponseWriter, req *http.Request) {
+	w.WriteHeader(418)
+	fmt.Fprintf(w, "I'm a teapot")
+}
+
 func searchEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(501)
 	fmt.Fprintf(w, "search not implemented yet")
@@ -59,11 +64,6 @@ func bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(w, "bulk not implemented yet")
 }
 
-func rootEndpoint(w http.ResponseWriter, req *http.Request) {
-	w.WriteHeader(418)
-	fmt.Fprintf(w, "I'm a teapot")
-}
-
 // NewStore creates a new store server
 func NewStore(blobDir string) *Store {
 	mux := http.NewServeMux()
@@ -71,6 +71,7 @@ func NewStore(blobDir string) *Store {
 	mux.HandleFunc("/search", searchEndpoint)
 	mux.HandleFunc("/package/", detailsEndpoint)
 	mux.HandleFunc("/click-metadata", bulkEndpoint)
+	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(blobDir))))
 
 	store := &Store{
 		blobDir: blobDir,

@@ -149,3 +149,13 @@ func (s *storeTestSuite) TestRefreshSnaps(c *C) {
 		"foo": filepath.Join(s.store.blobDir, "foo_1_all.snap"),
 	})
 }
+
+func (s *storeTestSuite) TestSnapDownloadByFullname(c *C) {
+	s.makeTestSnap(c, "name: foo\nversion: 1")
+
+	resp, err := s.StoreGet("/download/foo_1_all.snap")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+}
