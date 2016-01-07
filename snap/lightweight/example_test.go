@@ -26,7 +26,7 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/pkg/lightweight"
+	"github.com/ubuntu-core/snappy/snap/lightweight"
 )
 
 // we don't use example tests nearly as often as we should :-)

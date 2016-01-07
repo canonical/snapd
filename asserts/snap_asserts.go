@@ -24,35 +24,36 @@ import (
 	"time"
 )
 
-// SnapBuild holds a snap-build assertion, asserting the
-// properties of a built snap by the builder.
+// SnapBuild holds a snap-build assertion, asserting the properties of a snap
+// at the time it was built by the developer.
 type SnapBuild struct {
 	assertionBase
 	size      uint64
 	timestamp time.Time
 }
 
-// SnapID returns the snap id of the built snap.
+// SnapID returns the snap id of the snap.
 func (snapdcl *SnapBuild) SnapID() string {
 	return snapdcl.Header("snap-id")
 }
 
-// SnapDigest returns the digest of the built snap.
+// SnapDigest returns the digest of the snap. The digest is prefixed with the
+// algorithm used to generate it.
 func (snapdcl *SnapBuild) SnapDigest() string {
 	return snapdcl.Header("snap-digest")
 }
 
-// SnapSize returns the size of the built snap.
+// SnapSize returns the size of the snap.
 func (snapdcl *SnapBuild) SnapSize() uint64 {
 	return snapdcl.size
 }
 
-// Grade returns the grade of the built snap: devel|stable
+// Grade returns the grade of the snap: devel|stable
 func (snapdcl *SnapBuild) Grade() string {
 	return snapdcl.Header("grade")
 }
 
-// Timestamp returns the snap-build assertion timestamp.
+// Timestamp returns the time when the snap-build assertion was created.
 func (snapdcl *SnapBuild) Timestamp() time.Time {
 	return snapdcl.timestamp
 }
@@ -99,9 +100,104 @@ func buildSnapBuild(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
+// SnapRevision holds a snap-revision assertion, which is a statement by the
+// store acknowledging the receipt of a snap build and labeling it with a snap
+// revision.
+type SnapRevision struct {
+	assertionBase
+	snapRevision uint64
+	timestamp    time.Time
+}
+
+// SnapID returns the snap id of the snap.
+func (assert *SnapRevision) SnapID() string {
+	return assert.Header("snap-id")
+}
+
+// SnapDigest returns the digest of the snap submitted to the store. The digest
+// is prefixed with the algorithm used to generate it.
+func (assert *SnapRevision) SnapDigest() string {
+	return assert.Header("snap-digest")
+}
+
+// SnapRevision returns the revision of the snap-id assigned to this build.
+func (assert *SnapRevision) SnapRevision() uint64 {
+	return assert.snapRevision
+}
+
+// SnapBuild returns the digest of the associated snap-build.
+func (assert *SnapRevision) SnapBuild() string {
+	return assert.Header("snap-build")
+}
+
+// DeveloperID returns the id of the developer that submitted the snap build to
+// the store.
+func (assert *SnapRevision) DeveloperID() string {
+	return assert.Header("developer-id")
+}
+
+// Timestamp returns the time when the snap-revision was issued.
+func (assert *SnapRevision) Timestamp() time.Time {
+	return assert.timestamp
+}
+
+// Implement further consistency checks.
+func (assert *SnapRevision) checkConsistency(db *Database, acck *AccountKey) error {
+	// TODO: check the associated snap-build exists.
+	// TODO: check the associated snap-build's digest.
+	// TODO: check developer-id matches snap-build's authority-id.
+	if !acck.isKeyValidAt(assert.timestamp) {
+		return fmt.Errorf("snap-revision timestamp outside of signing key validity")
+	}
+	return nil
+}
+
+func buildSnapRevision(assert assertionBase) (Assertion, error) {
+	_, err := checkMandatory(assert.headers, "snap-id")
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: more parsing/checking of this here?
+	_, err = checkMandatory(assert.headers, "snap-digest")
+	if err != nil {
+		return nil, err
+	}
+
+	snapRevision, err := checkUint(assert.headers, "snap-revision", 64)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkMandatory(assert.headers, "snap-build")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkMandatory(assert.headers, "developer-id")
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
+		return nil, err
+	}
+
+	return &SnapRevision{
+		assertionBase: assert,
+		snapRevision:  snapRevision,
+		timestamp:     timestamp,
+	}, nil
+}
+
 func init() {
 	typeRegistry[SnapBuildType] = &assertionTypeRegistration{
 		builder:    buildSnapBuild,
+		primaryKey: []string{"snap-id", "snap-digest"},
+	}
+	typeRegistry[SnapRevisionType] = &assertionTypeRegistration{
+		builder:    buildSnapRevision,
 		primaryKey: []string{"snap-id", "snap-digest"},
 	}
 }

@@ -34,9 +34,9 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type errPolicyNotFound struct {
@@ -319,7 +319,7 @@ func findWhitespacePrefix(t string, s string) string {
 
 func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error) {
 	cleanedName := strings.Replace(appName, "/", "-", -1)
-	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeGadget {
+	if m.Type == snap.TypeFramework || m.Type == snap.TypeGadget {
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
 	}
 
@@ -649,7 +649,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 
 	// add the hw-override parts and merge with the other overrides
 	origin := ""
-	if m.Type != pkg.TypeFramework && m.Type != pkg.TypeGadget {
+	if m.Type != snap.TypeFramework && m.Type != snap.TypeGadget {
 		origin, err = originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
 		if err != nil {
 			return nil, err
@@ -900,7 +900,7 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 		return err
 	}
 
-	if m.Type == "" || m.Type == pkg.TypeApp {
+	if m.Type == "" || m.Type == snap.TypeApp {
 		_, err = originFromYamlPath(fn)
 		if err != nil {
 			if err == ErrInvalidPart {

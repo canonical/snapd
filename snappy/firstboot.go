@@ -28,8 +28,8 @@ import (
 
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 
 	"gopkg.in/yaml.v2"
 )
@@ -126,7 +126,7 @@ func enableSystemSnaps() error {
 	pb := progress.MakeProgressBar()
 	for _, part := range all {
 		switch part.Type() {
-		case pkg.TypeGadget, pkg.TypeKernel, pkg.TypeOS:
+		case snap.TypeGadget, snap.TypeKernel, snap.TypeOS:
 			logger.Noticef("Acitvating %s", FullName(part))
 			if err := part.SetActive(true, pb); err != nil {
 				// we don't want this to fail for now

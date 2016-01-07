@@ -30,9 +30,9 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/remote"
-	"github.com/ubuntu-core/snappy/pkg/removed"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/remote"
+	"github.com/ubuntu-core/snappy/snap/removed"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -48,22 +48,22 @@ func (s *lightweightSuite) SetUpTest(c *check.C) {
 	s.d = c.MkDir()
 	dirs.SetRootDir(s.d)
 
-	s.MkInstalled(c, pkg.TypeApp, dirs.SnapAppsDir, "foo", "bar", "1.0", true)
+	s.MkInstalled(c, snap.TypeApp, dirs.SnapAppsDir, "foo", "bar", "1.0", true)
 	s.MkRemoved(c, "foo.bar", "0.9")
 	s.MkRemoved(c, "foo.baz", "0.8")
 
-	s.MkInstalled(c, pkg.TypeFramework, dirs.SnapAppsDir, "fmk", "", "123", false)
-	s.MkInstalled(c, pkg.TypeFramework, dirs.SnapAppsDir, "fmk", "", "120", true)
-	s.MkInstalled(c, pkg.TypeFramework, dirs.SnapAppsDir, "fmk", "", "119", false)
+	s.MkInstalled(c, snap.TypeFramework, dirs.SnapAppsDir, "fmk", "", "123", false)
+	s.MkInstalled(c, snap.TypeFramework, dirs.SnapAppsDir, "fmk", "", "120", true)
+	s.MkInstalled(c, snap.TypeFramework, dirs.SnapAppsDir, "fmk", "", "119", false)
 	s.MkRemoved(c, "fmk", "12a1")
 
 	s.MkRemoved(c, "fmk2", "4.2.0ubuntu1")
 
-	s.MkInstalled(c, pkg.TypeGadget, dirs.SnapGadgetDir, "a-gadget", "", "3", false)
+	s.MkInstalled(c, snap.TypeGadget, dirs.SnapGadgetDir, "a-gadget", "", "3", false)
 
 	newCoreRepo = func() repo {
 		// you can't ever have a removed systemimagepart, but for testing it'll do
-		return mockrepo{removed.New(snappy.SystemImagePartName, snappy.SystemImagePartOrigin, "1", pkg.TypeCore)}
+		return mockrepo{removed.New(snappy.SystemImagePartName, snappy.SystemImagePartOrigin, "1", snap.TypeCore)}
 	}
 }
 
@@ -71,7 +71,7 @@ func (s *lightweightSuite) TearDownTest(c *check.C) {
 	newCoreRepo = newCoreRepoImpl
 }
 
-func (s *lightweightSuite) MkInstalled(c *check.C, _type pkg.Type, appdir, name, origin, version string, active bool) {
+func (s *lightweightSuite) MkInstalled(c *check.C, _type snap.Type, appdir, name, origin, version string, active bool) {
 	qn := name
 	if origin != "" {
 		qn += "." + origin
@@ -143,7 +143,7 @@ func (s *lightweightSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
 		Name:         "fmk2",
 		Origin:       "fmk2origin",
 		Version:      "4.2.0ubuntu1",
-		Type:         pkg.TypeFramework,
+		Type:         snap.TypeFramework,
 		IconURL:      "http://example.com/icon",
 		DownloadSize: 42,
 		Publisher:    "Example Inc.",
@@ -196,7 +196,7 @@ func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 		Name:         "foo",
 		Origin:       "bar",
 		Version:      "2",
-		Type:         pkg.TypeApp,
+		Type:         snap.TypeApp,
 		IconURL:      "http://example.com/icon",
 		DownloadSize: 42,
 	}
@@ -225,7 +225,7 @@ func (s *lightweightSuite) TestMapAppNoPartBag(c *check.C) {
 		Name:         "foo",
 		Origin:       "bar",
 		Version:      "2",
-		Type:         pkg.TypeApp,
+		Type:         snap.TypeApp,
 		IconURL:      "http://example.com/icon",
 		Publisher:    "example.com",
 		DownloadSize: 42,
@@ -306,7 +306,7 @@ func (s *lightweightSuite) TestLoadFmk(c *check.C) {
 	c.Check(bag.Versions, check.DeepEquals, []string{"123", "120", "119", "12a1"})
 	// other things are as expected
 	c.Check(bag.Name, check.Equals, "fmk")
-	c.Check(bag.Type, check.Equals, pkg.TypeFramework)
+	c.Check(bag.Type, check.Equals, snap.TypeFramework)
 	c.Check(bag.ActiveIndex(), check.Equals, 1)
 
 	c.Check(bag.IsInstalled(0), check.Equals, true)
@@ -348,12 +348,12 @@ func (s *lightweightSuite) TestLoadApp(c *check.C) {
 
 	c.Check(bag0.QualifiedName(), check.Equals, "foo.bar")
 	c.Check(bag0.Versions, check.DeepEquals, []string{"1.0", "0.9"})
-	c.Check(bag0.Type, check.Equals, pkg.TypeApp)
+	c.Check(bag0.Type, check.Equals, snap.TypeApp)
 	c.Check(bag0.ActiveIndex(), check.Equals, 0)
 
 	c.Check(bag1.QualifiedName(), check.Equals, "foo.baz")
 	c.Check(bag1.Versions, check.DeepEquals, []string{"0.8"})
-	c.Check(bag1.Type, check.Equals, pkg.TypeApp)
+	c.Check(bag1.Type, check.Equals, snap.TypeApp)
 	c.Check(bag1.ActiveIndex(), check.Equals, -1)
 
 	c.Check(bag0.IsInstalled(0), check.Equals, true)
@@ -382,7 +382,7 @@ func (s *lightweightSuite) TestLoadGadget(c *check.C) {
 	gadget := PartBagByName("a-gadget", "whatever")
 	c.Assert(gadget, check.NotNil)
 	c.Check(gadget.Versions, check.DeepEquals, []string{"3"})
-	c.Check(gadget.Type, check.Equals, pkg.TypeGadget)
+	c.Check(gadget.Type, check.Equals, snap.TypeGadget)
 
 	c.Check(gadget.IsInstalled(0), check.Equals, true)
 	c.Check(gadget.ActiveIndex(), check.Equals, -1)
@@ -415,18 +415,18 @@ func (s *lightweightSuite) TestAll(c *check.C) {
 	all := AllPartBags()
 
 	type expectedT struct {
-		typ  pkg.Type
+		typ  snap.Type
 		idx  int
 		inst bool
 	}
 
 	expected := map[string]expectedT{
-		"foo.bar":  {typ: pkg.TypeApp, idx: 0, inst: true},
-		"foo.baz":  {typ: pkg.TypeApp, idx: -1, inst: false},
-		"fmk":      {typ: pkg.TypeFramework, idx: 1, inst: true},
-		"fmk2":     {typ: pkg.TypeFramework, idx: -1, inst: false},
-		"a-gadget": {typ: pkg.TypeGadget, idx: -1, inst: true},
-		sysname:    {typ: pkg.TypeCore, idx: 0, inst: true},
+		"foo.bar":  {typ: snap.TypeApp, idx: 0, inst: true},
+		"foo.baz":  {typ: snap.TypeApp, idx: -1, inst: false},
+		"fmk":      {typ: snap.TypeFramework, idx: 1, inst: true},
+		"fmk2":     {typ: snap.TypeFramework, idx: -1, inst: false},
+		"a-gadget": {typ: snap.TypeGadget, idx: -1, inst: true},
+		sysname:    {typ: snap.TypeCore, idx: 0, inst: true},
 	}
 
 	for k, x := range expected {

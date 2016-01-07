@@ -31,7 +31,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 type SecurityTestSuite struct {
@@ -147,7 +147,7 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfileFramework(c *C) {
 	m := packageYaml{
 		Name:    "foo",
 		Version: "1.0",
-		Type:    pkg.TypeFramework,
+		Type:    snap.TypeFramework,
 	}
 	b := Binary{Name: "bin/app"}
 	ap, err := getSecurityProfile(&m, b.Name, "/apps/foo.mvo/1.0/")
