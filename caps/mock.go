@@ -29,7 +29,8 @@ type evalSymlinksFn func(string) (string, error)
 // applicable for testing.
 var evalSymlinks = filepath.EvalSymlinks
 
-// Mock EvalSymlinks function for the purpose of the capability package.
+// MockEvalSymlinks mocks the path/filepath.EvalSymlinks function for the
+// purpose of the capability package.
 func MockEvalSymlinks(fn evalSymlinksFn) {
 	evalSymlinks = fn
 }
