@@ -50,6 +50,10 @@ func init() {
 }
 
 func (x *cmdEnableClassic) Execute(args []string) (err error) {
+	return withMutexAndRetry(x.doEnable)
+}
+
+func (x *cmdEnableClassic) doEnable() (err error) {
 	if classic.Enabled() {
 		return fmt.Errorf(i18n.G("Classic dimension is already enabled."))
 	}
@@ -65,6 +69,10 @@ Use “snappy shell classic” to enter the classic dimension.`))
 }
 
 func (x *cmdDestroyClassic) Execute(args []string) (err error) {
+	return withMutexAndRetry(x.doDisable)
+}
+
+func (x *cmdDestroyClassic) doDisable() (err error) {
 	if !classic.Enabled() {
 		return fmt.Errorf(i18n.G("Classic dimension is not enabled."))
 	}
