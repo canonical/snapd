@@ -30,8 +30,8 @@ import (
 // generatePrivateKey exposed for tests
 var GeneratePrivateKeyInTest = generatePrivateKey
 
-// buildAndSignInTest exposed for tests
-var BuildAndSignInTest = buildAndSign
+// assembleAndSign exposed for tests
+var AssembleAndSignInTest = assembleAndSign
 
 // decodePrivateKey exposed for tests
 var DecodePrivateKeyInTest = decodePrivateKey
@@ -56,7 +56,7 @@ type TestOnly struct {
 	assertionBase
 }
 
-func buildTestOnly(assert assertionBase) (Assertion, error) {
+func assembleTestOnly(assert assertionBase) (Assertion, error) {
 	// for testing error cases
 	if _, err := checkInteger(assert.headers, "count", 0); err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func buildTestOnly(assert assertionBase) (Assertion, error) {
 
 func init() {
 	typeRegistry[AssertionType("test-only")] = &assertionTypeRegistration{
-		builder:    buildTestOnly,
+		assembler:  assembleTestOnly,
 		primaryKey: []string{"primary-key"},
 	}
 }

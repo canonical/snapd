@@ -126,7 +126,7 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 		"since":                  "2015-11-20T15:04:00Z",
 		"until":                  "2500-11-20T15:04:00Z",
 	}
-	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
 	c.Assert(err, IsNil)
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")

@@ -189,7 +189,7 @@ func (chks *checkSuite) SetUpTest(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "0",
 	}
-	chks.a, err = asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, asserts.OpenPGPPrivateKey(testPrivKey0))
+	chks.a, err = asserts.AssembleAndSignInTest(asserts.AssertionType("test-only"), headers, nil, asserts.OpenPGPPrivateKey(testPrivKey0))
 	c.Assert(err, IsNil)
 }
 
@@ -337,14 +337,14 @@ func (safs *signAddFindSuite) TestSignBadRevision(c *C) {
 	c.Check(a1, IsNil)
 }
 
-func (safs *signAddFindSuite) TestSignBuilderError(c *C) {
+func (safs *signAddFindSuite) TestSignAssemblerError(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
 		"primary-key":  "a",
 		"count":        "zzz",
 	}
 	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingKeyID)
-	c.Assert(err, ErrorMatches, `cannot build assertion test-only: "count" header is not an integer: zzz`)
+	c.Assert(err, ErrorMatches, `cannot assemble assertion test-only: "count" header is not an integer: zzz`)
 	c.Check(a1, IsNil)
 }
 
