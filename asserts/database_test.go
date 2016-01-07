@@ -128,10 +128,12 @@ func (dbs *databaseSuite) TestGenerateKey(c *C) {
 }
 
 func (dbs *databaseSuite) TestPublicKey(c *C) {
-	fingerp, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	pk := asserts.OpenPGPPrivateKey(testPrivKey1)
+	fingerp := pk.PublicKey().Fingerprint()
+	keyid, err := dbs.db.ImportKey("account0", pk)
 	c.Assert(err, IsNil)
 
-	pubk, err := dbs.db.PublicKey("account0", fingerp[len(fingerp)-8:])
+	pubk, err := dbs.db.PublicKey("account0", keyid)
 	c.Assert(err, IsNil)
 	c.Check(pubk.Fingerprint(), Equals, fingerp)
 
@@ -224,9 +226,9 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 }
 
 type signAddFindSuite struct {
-	signingDB          *asserts.Database
-	signingFingerprint string
-	db                 *asserts.Database
+	signingDB      *asserts.Database
+	signiningKeyID string
+	db             *asserts.Database
 }
 
 var _ = Suite(&signAddFindSuite{})
@@ -237,7 +239,7 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	safs.signingDB = db0
 
-	safs.signingFingerprint, err = db0.ImportKey("canonical", asserts.OpenPGPPrivateKey(testPrivKey0))
+	safs.signiningKeyID, err = db0.ImportKey("canonical", asserts.OpenPGPPrivateKey(testPrivKey0))
 	c.Assert(err, IsNil)
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
@@ -256,7 +258,7 @@ func (safs *signAddFindSuite) TestSign(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Check(a1)
@@ -277,7 +279,7 @@ func (safs *signAddFindSuite) TestSignMissingAuthorityId(c *C) {
 	headers := map[string]string{
 		"primary-key": "a",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
 	c.Assert(err, ErrorMatches, `"authority-id" header is mandatory`)
 	c.Check(a1, IsNil)
 }
@@ -286,7 +288,7 @@ func (safs *signAddFindSuite) TestSignMissingPrimaryKey(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
 	c.Assert(err, ErrorMatches, `"primary-key" header is mandatory`)
 	c.Check(a1, IsNil)
 }
@@ -305,7 +307,7 @@ func (safs *signAddFindSuite) TestSignUnknowType(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("xyz"), headers, nil, safs.signingFingerprint)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("xyz"), headers, nil, safs.signiningKeyID)
 	c.Assert(err, ErrorMatches, `unknown assertion type: xyz`)
 	c.Check(a1, IsNil)
 }
@@ -316,7 +318,7 @@ func (safs *signAddFindSuite) TestSignBadRevision(c *C) {
 		"primary-key":  "a",
 		"revision":     "zzz",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
 	c.Assert(err, ErrorMatches, `"revision" header is not an integer: zzz`)
 	c.Check(a1, IsNil)
 }
@@ -327,7 +329,7 @@ func (safs *signAddFindSuite) TestSignBuilderError(c *C) {
 		"primary-key":  "a",
 		"count":        "zzz",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
 	c.Assert(err, ErrorMatches, `cannot build assertion test-only: "count" header is not an integer: zzz`)
 	c.Check(a1, IsNil)
 }
@@ -337,7 +339,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a1)
@@ -351,7 +353,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	c.Check(retrieved1.Revision(), Equals, 0)
 
 	headers["revision"] = "1"
-	a2, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	a2, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a2)
@@ -373,7 +375,7 @@ func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a1)
@@ -406,7 +408,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 		"primary-key":  "a",
 		"other":        "other-x",
 	}
-	aa, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	aa, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
 	c.Assert(err, IsNil)
 	err = safs.db.Add(aa)
 	c.Assert(err, IsNil)
@@ -416,7 +418,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 		"primary-key":  "b",
 		"other":        "other-y",
 	}
-	ab, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	ab, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
 	c.Assert(err, IsNil)
 	err = safs.db.Add(ab)
 	c.Assert(err, IsNil)
@@ -426,7 +428,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 		"primary-key":  "c",
 		"other":        "other-x",
 	}
-	ac, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingFingerprint)
+	ac, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
 	c.Assert(err, IsNil)
 	err = safs.db.Add(ac)
 	c.Assert(err, IsNil)
