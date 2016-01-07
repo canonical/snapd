@@ -54,8 +54,7 @@ func genClassicScopeName() string {
 	return fmt.Sprintf("snappy-classic_%s_%s.scope", ti, helpers.MakeRandomString(5))
 }
 
-// RunShell runs a shell in the classic environment
-func RunShell() error {
+func runInClassicEnv(cmdStr ...string) error {
 	// setup the bind mounts
 	for _, m := range bindMountDirs {
 		if err := bindmount(m.src, m.dst, m.remount); err != nil {
@@ -63,19 +62,25 @@ func RunShell() error {
 		}
 	}
 
+	// run chroot shell inside a systemd "scope"
+	unitName := genClassicScopeName()
+	args := []string{"systemd-run", "--quiet", "--scope", fmt.Sprintf("--unit=%s", unitName), "--description=Snappy Classic shell", "chroot", dirs.ClassicDir}
+	args = append(args, cmdStr...)
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// RunShell runs a shell in the classic environment
+func RunShell() error {
 	// drop to the calling user
 	sudoUser := os.Getenv("SUDO_USER")
 	if sudoUser == "" {
 		sudoUser = "root"
 	}
-
-	// run chroot shell inside a systemd "scope"
-	unitName := genClassicScopeName()
-	cmd := exec.Command("systemd-run", "--quiet", "--scope", fmt.Sprintf("--unit=%s", unitName), "--description=Snappy Classic shell", "chroot", dirs.ClassicDir, "sudo", "debian_chroot=classic", "-u", sudoUser, "-i")
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Run()
+	runInClassicEnv("sudo", "debian_chroot=classic", "-u", sudoUser, "-i")
 
 	// We could inform the user here that
 	//  "systemctl stop $unitName"

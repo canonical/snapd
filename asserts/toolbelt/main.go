@@ -127,11 +127,12 @@ func (x *accountKey) Execute(args []string) error {
 		return err
 	}
 	headers := map[string]string{
-		"authority-id": authID,
-		"account-id":   accID,
-		"fingerprint":  pubKey.Fingerprint(),
-		"since":        nowish.Format(time.RFC3339),
-		"until":        until.Format(time.RFC3339),
+		"authority-id":           authID,
+		"account-id":             accID,
+		"public-key-fingerprint": pubKey.Fingerprint(),
+		"public-key-id":          pubKey.ID(),
+		"since":                  nowish.Format(time.RFC3339),
+		"until":                  until.Format(time.RFC3339),
 	}
 	accKey, err := db.Sign(asserts.AccountKeyType, headers, pubKeyBody, authFingerprint)
 	if err != nil {
