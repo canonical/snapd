@@ -102,11 +102,10 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 	expectedFingerprint := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
 	expectedKeyID := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[12:])
 
-	keyid, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	_, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
-	c.Check(keyid, Equals, expectedKeyID)
 
-	keyPath := filepath.Join(dbs.rootDir, "private-keys-v0/account0", keyid)
+	keyPath := filepath.Join(dbs.rootDir, "private-keys-v0/account0", expectedKeyID)
 	info, err := os.Stat(keyPath)
 	c.Assert(err, IsNil)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0600)) // secret
@@ -139,7 +138,8 @@ func (dbs *databaseSuite) TestGenerateKey(c *C) {
 func (dbs *databaseSuite) TestPublicKey(c *C) {
 	pk := asserts.OpenPGPPrivateKey(testPrivKey1)
 	fingerp := pk.PublicKey().Fingerprint()
-	keyid, err := dbs.db.ImportKey("account0", pk)
+	keyid := pk.PublicKey().ID()
+	_, err := dbs.db.ImportKey("account0", pk)
 	c.Assert(err, IsNil)
 
 	pubk, err := dbs.db.PublicKey("account0", keyid)
@@ -238,9 +238,9 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 }
 
 type signAddFindSuite struct {
-	signingDB      *asserts.Database
-	signiningKeyID string
-	db             *asserts.Database
+	signingDB    *asserts.Database
+	signingKeyID string
+	db           *asserts.Database
 }
 
 var _ = Suite(&signAddFindSuite{})
@@ -251,8 +251,10 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	safs.signingDB = db0
 
-	safs.signiningKeyID, err = db0.ImportKey("canonical", asserts.OpenPGPPrivateKey(testPrivKey0))
+	pk := asserts.OpenPGPPrivateKey(testPrivKey0)
+	_, err = db0.ImportKey("canonical", pk)
 	c.Assert(err, IsNil)
+	safs.signingKeyID = pk.PublicKey().ID()
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	trustedKey := testPrivKey0
@@ -270,7 +272,7 @@ func (safs *signAddFindSuite) TestSign(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Check(a1)
@@ -291,7 +293,7 @@ func (safs *signAddFindSuite) TestSignMissingAuthorityId(c *C) {
 	headers := map[string]string{
 		"primary-key": "a",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingKeyID)
 	c.Assert(err, ErrorMatches, `"authority-id" header is mandatory`)
 	c.Check(a1, IsNil)
 }
@@ -300,7 +302,7 @@ func (safs *signAddFindSuite) TestSignMissingPrimaryKey(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingKeyID)
 	c.Assert(err, ErrorMatches, `"primary-key" header is mandatory`)
 	c.Check(a1, IsNil)
 }
@@ -319,7 +321,7 @@ func (safs *signAddFindSuite) TestSignUnknowType(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("xyz"), headers, nil, safs.signiningKeyID)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("xyz"), headers, nil, safs.signingKeyID)
 	c.Assert(err, ErrorMatches, `unknown assertion type: xyz`)
 	c.Check(a1, IsNil)
 }
@@ -330,7 +332,7 @@ func (safs *signAddFindSuite) TestSignBadRevision(c *C) {
 		"primary-key":  "a",
 		"revision":     "zzz",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingKeyID)
 	c.Assert(err, ErrorMatches, `"revision" header is not an integer: zzz`)
 	c.Check(a1, IsNil)
 }
@@ -341,7 +343,7 @@ func (safs *signAddFindSuite) TestSignBuilderError(c *C) {
 		"primary-key":  "a",
 		"count":        "zzz",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingKeyID)
 	c.Assert(err, ErrorMatches, `cannot build assertion test-only: "count" header is not an integer: zzz`)
 	c.Check(a1, IsNil)
 }
@@ -351,7 +353,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a1)
@@ -365,7 +367,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	c.Check(retrieved1.Revision(), Equals, 0)
 
 	headers["revision"] = "1"
-	a2, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
+	a2, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a2)
@@ -387,7 +389,7 @@ func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "a",
 	}
-	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
+	a1, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a1)
@@ -420,7 +422,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 		"primary-key":  "a",
 		"other":        "other-x",
 	}
-	aa, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
+	aa, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 	err = safs.db.Add(aa)
 	c.Assert(err, IsNil)
@@ -430,7 +432,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 		"primary-key":  "b",
 		"other":        "other-y",
 	}
-	ab, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
+	ab, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 	err = safs.db.Add(ab)
 	c.Assert(err, IsNil)
@@ -440,7 +442,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 		"primary-key":  "c",
 		"other":        "other-x",
 	}
-	ac, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signiningKeyID)
+	ac, err := safs.signingDB.Sign(asserts.AssertionType("test-only"), headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 	err = safs.db.Add(ac)
 	c.Assert(err, IsNil)
