@@ -35,7 +35,7 @@ type Capability struct {
 	// parties.
 	Type *Type `json:"type"`
 	// Attrs are key-value pairs that provide type-specific capability details.
-	Attrs map[string]string `json:"attrs,omitempty"`
+	Attrs map[string]interface{} `json:"attrs,omitempty"`
 }
 
 // String representation of a capability.
