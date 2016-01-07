@@ -50,7 +50,7 @@ var (
 )
 
 func init() {
-	snap.RegisterBackend([]byte("!<arch>\ndebian"), func(path string) (snap.File, error) {
+	snap.RegisterFormat([]byte("!<arch>\ndebian"), func(path string) (snap.File, error) {
 		return Open(path)
 	})
 }

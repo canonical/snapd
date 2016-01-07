@@ -35,7 +35,7 @@ import (
 )
 
 func init() {
-	snap.RegisterBackend([]byte{'h', 's', 'q', 's'}, func(path string) (snap.File, error) {
+	snap.RegisterFormat([]byte{'h', 's', 'q', 's'}, func(path string) (snap.File, error) {
 		return New(path), nil
 	})
 }
