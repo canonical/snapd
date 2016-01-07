@@ -37,11 +37,10 @@ app launcher.
 Under the hood, the launcher:
 
 * sets up various environment variables (eg, `SNAP_APP_ARCH`,
-  `SNAP_APP_DATA_PATH`, `SNAP_APP_PATH`, `SNAP_APP_TMPDIR`,
-  `SNAP_APP_USER_DATA_PATH`, `SNAP_OLD_PWD`, `HOME` and `TMPDIR` (set to
-  `SNAP_APP_TMPDIR`). See the
+  `SNAP_DATA`, `SNAP_DIR`, `SNAP_USER_DATA`,
+  `SNAP_OLD_PWD`, `HOME` and `TMPDIR`. See the
    [snappy FHS](https://developer.ubuntu.com/en/snappy/guides/filesystem-layout/) for details.
-* changes directory to `SNAP_APP_PATH` (the install directory)
+* changes directory to `SNAP_DIR` (the install directory)
 * sets up a device cgroup with default devices (eg, /dev/null, /dev/urandom,
   etc) and any devices which are assigned to this app via Gadget snaps or
   `snappy hw-assign` (eg, `snappy hw-assign foo.myorigin /dev/bar`).
