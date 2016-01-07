@@ -185,7 +185,7 @@ func (db *Database) safeGetPrivateKey(authorityID, keyID string) (PrivateKey, er
 	return db.keypairMgr.Get(authorityID, keyID)
 }
 
-// PublicKey exports the public part of a stored key pair for identity and key id.
+// PublicKey returns the public key owned by authorityID that has the given key id.
 func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, error) {
 	privKey, err := db.safeGetPrivateKey(authorityID, keyID)
 	if err != nil {
