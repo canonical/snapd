@@ -1228,7 +1228,7 @@ func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusCreated)
 	c.Check(rsp.Result, check.DeepEquals, map[string]string{"resource": "/1.0/capabilities/name"})
 	// Verify (internal)
-	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
+	c.Check(d.capRepo.All(), testutil.DeepContains, cap)
 }
 
 func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
@@ -1269,8 +1269,8 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*errorResult).Msg, check.Matches, `can't add capability`)
 	// Verify (internal)
-	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
-	c.Check(d.capRepo.All(), check.Not(testutil.DeepContains), *capClashing)
+	c.Check(d.capRepo.All(), testutil.DeepContains, cap)
+	c.Check(d.capRepo.All(), check.Not(testutil.DeepContains), capClashing)
 }
 
 func (s *apiSuite) TestAddCapabilitiesUnintelligible(c *check.C) {
