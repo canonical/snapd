@@ -1164,6 +1164,9 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 
 func (s *apiSuite) TestGetCapabilities(c *check.C) {
 	d := newTestDaemon()
+	// Don't check symbolic links when analyzing the capability below
+	caps.MockEvalSymlinks(caps.IgnoreSymbolicLinks)
+	defer caps.RestoreEvalSymlinks()
 	d.capRepo.Add(&caps.Capability{
 		Name:  "caps-lock-led",
 		Label: "Caps Lock LED",
@@ -1202,6 +1205,9 @@ func (s *apiSuite) TestGetCapabilities(c *check.C) {
 func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 	// Setup
 	d := newTestDaemon()
+	// Don't check symbolic links when analyzing the capability below
+	caps.MockEvalSymlinks(caps.IgnoreSymbolicLinks)
+	defer caps.RestoreEvalSymlinks()
 	cap := &caps.Capability{
 		Name:  "name",
 		Label: "label",
@@ -1229,6 +1235,9 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	// Setup
 	// Start with one capability named 'name' in the repository
 	d := newTestDaemon()
+	// Don't check symbolic links when analyzing the capability below
+	caps.MockEvalSymlinks(caps.IgnoreSymbolicLinks)
+	defer caps.RestoreEvalSymlinks()
 	cap := &caps.Capability{
 		Name:  "name",
 		Label: "label",
