@@ -36,7 +36,7 @@ var AssembleAndSignInTest = assembleAndSign
 // decodePrivateKey exposed for tests
 var DecodePrivateKeyInTest = decodePrivateKey
 
-func BuildBootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
+func BootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
 	return &AccountKey{
 		assertionBase: assertionBase{
 			headers: map[string]string{
