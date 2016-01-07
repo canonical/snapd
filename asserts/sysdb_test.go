@@ -44,9 +44,9 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	pk := asserts.OpenPGPPrivateKey(testPrivKey0)
 	trustedFingerp := pk.PublicKey().Fingerprint()
 	trustedKeyID := pk.PublicKey().ID()
-	keyid, err := db0.ImportKey("canonical", pk)
+	_, err = db0.ImportKey("canonical", pk)
 	c.Assert(err, IsNil)
-	trustedPubKey, err := db0.PublicKey("canonical", keyid)
+	trustedPubKey, err := db0.PublicKey("canonical", trustedKeyID)
 	c.Assert(err, IsNil)
 	trustedPubKeyEncoded, err := asserts.EncodePublicKey(trustedPubKey)
 	c.Assert(err, IsNil)
@@ -59,7 +59,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 		"since":                  "2015-11-20T15:04:00Z",
 		"until":                  "2500-11-20T15:04:00Z",
 	}
-	trustedAccKey, err := db0.Sign(asserts.AccountKeyType, headers, trustedPubKeyEncoded, keyid)
+	trustedAccKey, err := db0.Sign(asserts.AccountKeyType, headers, trustedPubKeyEncoded, trustedKeyID)
 	c.Assert(err, IsNil)
 
 	fakeRoot := filepath.Join(tmpdir, "root")
@@ -76,7 +76,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "0",
 	}
-	sdbs.probeAssert, err = db0.Sign(asserts.AssertionType("test-only"), headers, nil, keyid)
+	sdbs.probeAssert, err = db0.Sign(asserts.AssertionType("test-only"), headers, nil, trustedKeyID)
 	c.Assert(err, IsNil)
 }
 
