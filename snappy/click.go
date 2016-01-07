@@ -293,6 +293,7 @@ func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile str
 			UdevAppName:    udevPartName,
 			Socket:         service.Socket,
 			SocketFileName: socketFileName,
+			Restart:        service.RestartCond,
 		}), nil
 }
 func generateSnapSocketFile(service ServiceYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
