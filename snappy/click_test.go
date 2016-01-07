@@ -469,10 +469,18 @@ icon: foo.svg
 
 func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "apps")
+	dirs.SnapDataRootHomeDir = filepath.Join(s.tempdir, "root", "apps")
+
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "apps")
+
 	appDir := "foo." + testOrigin
 	homeData := filepath.Join(homeDir, appDir, "1.0")
+	rootHomeData := filepath.Join(dirs.SnapDataRootHomeDir, appDir, "1.0")
+
 	err := os.MkdirAll(homeData, 0755)
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(rootHomeData, 0755)
 	c.Assert(err, IsNil)
 
 	packageYaml := `name: foo
@@ -488,6 +496,8 @@ icon: foo.svg
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), canaryData, 0644)
 	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(rootHomeData, "canary.root.home"), canaryData, 0644)
+	c.Assert(err, IsNil)
 
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
 	_, err = installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
@@ -499,6 +509,11 @@ icon: foo.svg
 
 	newHomeDataCanaryFile := filepath.Join(homeDir, appDir, "2.0", "canary.home")
 	content, err = ioutil.ReadFile(newHomeDataCanaryFile)
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, canaryData)
+
+	newRootHomeDataCanaryFile := filepath.Join(dirs.SnapDataRootHomeDir, appDir, "2.0", "canary.root.home")
+	content, err = ioutil.ReadFile(newRootHomeDataCanaryFile)
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, canaryData)
 }
@@ -535,8 +550,12 @@ export SNAPP_APP_PATH="/apps/pastebinit.mvo/1.4.0.0.1/"
 export SNAPP_APP_DATA_PATH="/var/lib/apps/pastebinit.mvo/1.4.0.0.1/"
 export SNAPP_APP_TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
 export SNAPPY_APP_ARCH="%[1]s"
-export SNAPP_APP_USER_DATA_PATH="$HOME/apps/pastebinit.mvo/1.4.0.0.1/"
 export SNAPP_OLD_PWD="$(pwd)"
+if [ "$(id -u)" = "0" ]; then
+   export SNAPP_APP_USER_DATA_PATH="/root/apps/pastebinit.mvo/1.4.0.0.1/"
+else
+   export SNAPP_APP_USER_DATA_PATH="$HOME/apps/pastebinit.mvo/1.4.0.0.1/"
+fi
 
 # app info
 export TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
@@ -549,7 +568,11 @@ export SNAP_VERSION="1.4.0.0.1"
 export SNAP_ORIGIN="mvo"
 export SNAP_FULLNAME="pastebinit.mvo"
 export SNAP_ARCH="%[1]s"
-export SNAP_APP_USER_DATA_PATH="$HOME/apps/pastebinit.mvo/1.4.0.0.1/"
+if [ "$(id -u)" = "0" ]; then
+   export SNAP_APP_USER_DATA_PATH="/root/apps/pastebinit.mvo/1.4.0.0.1/"
+else
+   export SNAP_APP_USER_DATA_PATH="$HOME/apps/pastebinit.mvo/1.4.0.0.1/"
+fi
 
 if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
    mkdir -p "$SNAP_APP_USER_DATA_PATH"
