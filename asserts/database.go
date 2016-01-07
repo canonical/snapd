@@ -29,16 +29,10 @@ import (
 	"time"
 )
 
-// BuilderFromComps can build an assertion from its components.
-type BuilderFromComps func(headers map[string]string, body, content, signature []byte) (Assertion, error)
-
 // Backstore is a backstore for assertions. It can store and retrieve
 // assertions by type under primary paths (tuples of strings). Plus it
 // supports more general searches.
 type Backstore interface {
-	// Init initializes the backstore. It is provided with a function
-	// to build assertions from their components.
-	Init(buildAssert BuilderFromComps) error
 	// Put stores an assertion under the given unique primaryPath.
 	// It is responsible for checking that assert is newer than a
 	// previously stored revision.
@@ -127,11 +121,6 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		if keypairMgr == nil {
 			keypairMgr = newFilesystemKeypairMananager(cfg.Path)
 		}
-	}
-
-	err := bs.Init(buildAssertion)
-	if err != nil {
-		return nil, err
 	}
 
 	trustedKeys := make(map[string][]*AccountKey)

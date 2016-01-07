@@ -190,7 +190,7 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 		return nil, fmt.Errorf("empty assertion signature")
 	}
 
-	return buildAssertion(headers, body, content, signature)
+	return Assemble(headers, body, content, signature)
 }
 
 func checkRevision(headers map[string]string) (int, error) {
@@ -204,7 +204,8 @@ func checkRevision(headers map[string]string) (int, error) {
 	return revision, nil
 }
 
-func buildAssertion(headers map[string]string, body, content, signature []byte) (Assertion, error) {
+// Assemble assembles an assertion from its components.
+func Assemble(headers map[string]string, body, content, signature []byte) (Assertion, error) {
 	length, err := checkInteger(headers, "body-length", 0)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
