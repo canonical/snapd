@@ -109,9 +109,9 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
 	accFingerp := pk1.PublicKey().Fingerprint()
 	accKeyID := pk1.PublicKey().ID()
-	keyid, err := accSignDB.ImportKey(accountID, asserts.OpenPGPPrivateKey(testPrivKey1))
+	_, err = accSignDB.ImportKey(accountID, asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
-	pubKey, err := accSignDB.PublicKey(accountID, keyid)
+	pubKey, err := accSignDB.PublicKey(accountID, accKeyID)
 	c.Assert(err, IsNil)
 	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)
 	c.Assert(err, IsNil)
@@ -139,7 +139,7 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 	err = checkDB.Add(accKey)
 	c.Assert(err, IsNil)
 
-	return keyid, accSignDB, checkDB
+	return accKeyID, accSignDB, checkDB
 }
 
 func (sds *snapBuildSuite) TestSnapBuildCheck(c *C) {
