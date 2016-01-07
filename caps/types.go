@@ -34,6 +34,8 @@ type Type struct {
 	// RequiredAttrs contains names of attributes that are required by
 	// capability of this type.
 	RequiredAttrs []string
+	// Attrs contains a description of each attribute type
+	Attrs map[string]TypeAttr
 }
 
 var (
@@ -67,6 +69,16 @@ func (t *Type) Validate(c *Capability) error {
 	for _, attr := range t.RequiredAttrs {
 		if _, ok := c.Attrs[attr]; !ok {
 			return fmt.Errorf("capabilities of type %q must provide a %q attribute", t, attr)
+		}
+	}
+	// Check that the type of each attribute is correct
+	for attrName, attrType := range t.Attrs {
+		attrValue, ok := c.Attrs[attrName]
+		if !ok {
+			return fmt.Errorf("capabilities of type %q must provide a %q attribute", t, attrName)
+		}
+		if _, err := attrType.CheckValue(attrValue); err != nil {
+			return err
 		}
 	}
 	return nil
