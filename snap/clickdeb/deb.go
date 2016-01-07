@@ -541,5 +541,5 @@ func (d *ClickDeb) Info() (*snap.Info, error) {
 		return nil, fmt.Errorf("info failed for %s: %s", d.file.Name(), err)
 	}
 
-	return snap.NewFromPackageYaml(packageYaml)
+	return snap.InfoFromPackageYaml(packageYaml)
 }
