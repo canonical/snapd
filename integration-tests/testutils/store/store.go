@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/tylerb/graceful.v1"
@@ -123,6 +124,8 @@ func (s *Store) Stop() error {
 }
 
 func (s *Store) refreshSnaps() error {
+	s.snaps = map[string]string{}
+
 	snaps, err := filepath.Glob(filepath.Join(s.blobDir, "*.snap"))
 	if err != nil {
 		return err
@@ -137,7 +140,7 @@ func (s *Store) refreshSnaps() error {
 		if err != nil {
 			return err
 		}
-		s.snaps[info.Name] = fn
+		s.snaps[fmt.Sprintf("%s.%s", info.Name, s.defaultOrigin)] = fn
 	}
 
 	return nil
@@ -152,7 +155,7 @@ type bulkReplyJSON struct {
 	Name            string `json:"name"`
 	PackageName     string `json:"package_name"`
 	Origin          string `json:"origin"`
-	AnonDownloadUrl string `json:"anon_download_url"`
+	AnonDownloadURL string `json:"anon_download_url"`
 	Version         string `json:"version"`
 }
 
@@ -169,7 +172,9 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	s.refreshSnaps()
 
 	// check if we have downloadable snap of the given name
-	for _, pkg := range pkgs.Name {
+	for _, pkgWithChannel := range pkgs.Name {
+		pkg := strings.Split(pkgWithChannel, "/")[0]
+
 		if fn, ok := s.snaps[pkg]; ok {
 			snapFile, err := snap.Open(fn)
 			if err != nil {
@@ -188,18 +193,18 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				Name:            fmt.Sprintf("%s.%s", info.Name, s.defaultOrigin),
 				PackageName:     info.Name,
 				Origin:          defaultOrigin,
-				AnonDownloadUrl: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
+				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				Version:         info.Version,
 			})
 		}
-
-		// use indent because this is a development tool, output
-		// should look nice
-		out, err := json.MarshalIndent(replyData, "", "    ")
-		if err != nil {
-			http.Error(w, fmt.Sprintf("can marshal: %v: %v", replyData, err), http.StatusBadRequest)
-			return
-		}
-		w.Write(out)
 	}
+
+	// use indent because this is a development tool, output
+	// should look nice
+	out, err := json.MarshalIndent(replyData, "", "    ")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("can marshal: %v: %v", replyData, err), http.StatusBadRequest)
+		return
+	}
+	w.Write(out)
 }

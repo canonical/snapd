@@ -67,7 +67,7 @@ func (s *storeTestSuite) StoreGet(path string) (*http.Response, error) {
 	return s.client.Get(s.store.URL() + path)
 }
 
-func (s *storeTestSuite) StorePostJson(path string, content []byte) (*http.Response, error) {
+func (s *storeTestSuite) StorePostJSON(path string, content []byte) (*http.Response, error) {
 	r := bytes.NewReader(content)
 	return s.client.Post(s.store.URL()+path, "application/json", r)
 }
@@ -114,8 +114,8 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 func (s *storeTestSuite) TestBulkEndpoint(c *C) {
 	s.makeTestSnap(c, "name: foo\nversion: 1")
 
-	resp, err := s.StorePostJson("/click-metadata", []byte(`{
-"name": ["foo"]
+	resp, err := s.StorePostJSON("/click-metadata", []byte(`{
+"name": ["foo.canonical"]
 }`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -166,7 +166,7 @@ func (s *storeTestSuite) TestRefreshSnaps(c *C) {
 
 	s.store.refreshSnaps()
 	c.Assert(s.store.snaps, DeepEquals, map[string]string{
-		"foo": filepath.Join(s.store.blobDir, "foo_1_all.snap"),
+		"foo.canonical": filepath.Join(s.store.blobDir, "foo_1_all.snap"),
 	})
 }
 
