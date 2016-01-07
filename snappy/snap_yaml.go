@@ -35,8 +35,8 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/squashfs"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
 )
@@ -72,6 +72,9 @@ type ServiceYaml struct {
 	SocketMode   string `yaml:"socket-mode,omitempty" json:"socket-mode,omitempty"`
 	SocketUser   string `yaml:"socket-user,omitempty" json:"socket-user,omitempty"`
 	SocketGroup  string `yaml:"socket-group,omitempty" json:"socket-group,omitempty"`
+
+	// systemd "restart" thing
+	RestartCond systemd.RestartCondition `yaml:"restart-condition,omitempty" json:"restart-condition,omitempty"`
 
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
@@ -117,7 +120,7 @@ type packageYaml struct {
 	Name    string
 	Version string
 	Icon    string
-	Type    pkg.Type
+	Type    snap.Type
 
 	// the spec allows a string or a list here *ick* so we need
 	// to convert that into something sensible via reflect
@@ -250,7 +253,7 @@ func parsePackageYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error)
 }
 
 func (m *packageYaml) qualifiedName(origin string) string {
-	if m.Type == pkg.TypeFramework || m.Type == pkg.TypeGadget {
+	if m.Type == snap.TypeFramework || m.Type == snap.TypeGadget {
 		return m.Name
 	}
 	return m.Name + "." + origin
@@ -290,7 +293,7 @@ func (m *packageYaml) FrameworksForClick() string {
 }
 
 func (m *packageYaml) checkForFrameworks() error {
-	installed, err := ActiveSnapIterByType(BareName, pkg.TypeFramework)
+	installed, err := ActiveSnapIterByType(BareName, snap.TypeFramework)
 	if err != nil {
 		return err
 	}
@@ -316,7 +319,7 @@ func (m *packageYaml) checkForFrameworks() error {
 // package, as deduced from the license agreement (which might involve asking
 // the user), or an error that explains the reason why installation should not
 // proceed.
-func (m *packageYaml) checkLicenseAgreement(ag agreer, d pkg.File, currentActiveDir string) error {
+func (m *packageYaml) checkLicenseAgreement(ag agreer, d snap.File, currentActiveDir string) error {
 	if !m.ExplicitLicenseAgreement {
 		return nil
 	}

@@ -28,8 +28,8 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 
@@ -44,7 +44,7 @@ func (s *removedSuite) SetUpTest(c *check.C) {
 	c.Check(os.MkdirAll(filepath.Join(dirs.SnapDataDir, "foo.bar", "1"), 0755), check.IsNil)
 }
 
-func (s *removedSuite) MkStoreYaml(c *check.C, pkgType pkg.Type) {
+func (s *removedSuite) MkStoreYaml(c *check.C, pkgType snap.Type) {
 	// creating the part to get its manifest path is cheating, a little
 	part := &Removed{
 		name:    "foo",
@@ -70,7 +70,7 @@ downloadsize: 5554242
 }
 
 func (s *removedSuite) TestNoStore(c *check.C) {
-	part := New("foo", "bar", "1", pkg.TypeApp)
+	part := New("foo", "bar", "1", snap.TypeApp)
 
 	c.Check(part.Name(), check.Equals, "foo")
 	c.Check(part.Origin(), check.Equals, "bar")
@@ -97,17 +97,17 @@ func (s *removedSuite) TestNoStore(c *check.C) {
 }
 
 func (s *removedSuite) TestNoOrigin(c *check.C) {
-	part := New("foo", "", "1", pkg.TypeFramework)
+	part := New("foo", "", "1", snap.TypeFramework)
 	c.Check(part.Origin(), check.Equals, "")
 
-	s.MkStoreYaml(c, pkg.TypeFramework)
-	part = New("foo", "", "1", pkg.TypeFramework)
+	s.MkStoreYaml(c, snap.TypeFramework)
+	part = New("foo", "", "1", snap.TypeFramework)
 	c.Check(part.Origin(), check.Equals, "bar")
 }
 
 func (s *removedSuite) TestWithStore(c *check.C) {
-	s.MkStoreYaml(c, pkg.TypeApp)
-	part := New("foo", "bar", "1", pkg.TypeApp)
+	s.MkStoreYaml(c, snap.TypeApp)
+	part := New("foo", "bar", "1", snap.TypeApp)
 
 	c.Check(part.Name(), check.Equals, "foo")
 	c.Check(part.Origin(), check.Equals, "bar")

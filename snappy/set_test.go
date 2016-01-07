@@ -26,8 +26,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 func (s *SnapTestSuite) TestParseSetPropertyCmdlineEmpty(c *C) {
@@ -76,7 +76,7 @@ func (s *SnapTestSuite) TestSetProperty(c *C) {
 }
 
 func (s *SnapTestSuite) TestSetActive(c *C) {
-	makeTwoTestSnaps(c, pkg.TypeApp)
+	makeTwoTestSnaps(c, snap.TypeApp)
 
 	path, err := filepath.EvalSymlinks(filepath.Join(dirs.SnapAppsDir, fooComposedName, "current"))
 	c.Assert(err, IsNil)

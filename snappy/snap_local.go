@@ -31,9 +31,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/remote"
-	"github.com/ubuntu-core/snappy/pkg/squashfs"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
 )
@@ -46,7 +43,8 @@ type SnapPart struct {
 	hash        string
 	isActive    bool
 	description string
-	basedir     string
+
+	basedir string
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
@@ -125,7 +123,7 @@ func newSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 }
 
 // Type returns the type of the SnapPart (app, gadget, ...)
-func (s *SnapPart) Type() pkg.Type {
+func (s *SnapPart) Type() snap.Type {
 	if s.m.Type != "" {
 		return s.m.Type
 	}
@@ -283,7 +281,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		}
 	}
 
-	if s.Type() == pkg.TypeFramework {
+	if s.Type() == snap.TypeFramework {
 		if err := policy.Install(s.Name(), s.basedir, dirs.GlobalRootDir); err != nil {
 			return err
 		}
@@ -362,7 +360,7 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	if s.Type() == pkg.TypeFramework {
+	if s.Type() == snap.TypeFramework {
 		if err := policy.Remove(s.Name(), s.basedir, dirs.GlobalRootDir); err != nil {
 			return err
 		}
@@ -386,12 +384,12 @@ func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
 	// Gadget snaps should not be removed as they are a key
 	// building block for Gadgets. Prunning non active ones
 	// is acceptible.
-	if s.m.Type == pkg.TypeGadget && s.IsActive() {
+	if s.m.Type == snap.TypeGadget && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 
 	// You never want to remove an active kernel or OS
-	if (s.m.Type == pkg.TypeKernel || s.m.Type == pkg.TypeOS) && s.IsActive() {
+	if (s.m.Type == snap.TypeKernel || s.m.Type == snap.TypeOS) && s.IsActive() {
 		return ErrPackageNotRemovable
 	}
 
@@ -438,7 +436,7 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 	}
 
 	// remove the kernel assets (if any)
-	if s.m.Type == pkg.TypeKernel {
+	if s.m.Type == snap.TypeKernel {
 		if err := removeKernelAssets(s, inter); err != nil {
 			logger.Noticef("removing kernel assets failed with %s", err)
 		}
@@ -449,7 +447,7 @@ func (s *SnapPart) remove(inter interacter) (err error) {
 
 // Config is used to to configure the snap
 func (s *SnapPart) Config(configuration []byte) (new string, err error) {
-	if s.m.Type == pkg.TypeOS {
+	if s.m.Type == snap.TypeOS {
 		return coreConfig(configuration)
 	}
 
@@ -488,7 +486,7 @@ func (s *SnapPart) DependentNames() ([]string, error) {
 //
 // /!\ not part of the Part interface.
 func (s *SnapPart) Dependents() ([]*SnapPart, error) {
-	if s.Type() != pkg.TypeFramework {
+	if s.Type() != snap.TypeFramework {
 		// only frameworks are depended on
 		return nil, nil
 	}

@@ -17,16 +17,12 @@
  *
  */
 
-package pkg
+package snap
 
 import (
 	"bytes"
 	"fmt"
 	"os"
-	"strings"
-
-	"github.com/ubuntu-core/snappy/pkg/clickdeb"
-	"github.com/ubuntu-core/snappy/pkg/squashfs"
 )
 
 // File is the interface to interact with the low-level snap files
@@ -35,7 +31,6 @@ type File interface {
 	Close() error
 
 	UnpackWithDropPrivs(targetDir, rootDir string) error
-	ControlMember(name string) ([]byte, error)
 	MetaMember(name string) ([]byte, error)
 	ExtractHashes(targetDir string) error
 	//Unpack unpacks the src parts to the dst directory
@@ -44,6 +39,22 @@ type File interface {
 	// NeedsMountUnit determines whether it's required to setup
 	// a mount unit for the snap when the snap is installed
 	NeedsMountUnit() bool
+
+	// Info returns information about the given snap file
+	Info() (*Info, error)
+}
+
+// backend implements a specific snap format
+type snapFormat struct {
+	magic []byte
+	open  func(fn string) (File, error)
+}
+
+var formatHandlers []snapFormat
+
+// RegisterFormat registers a snap file format to the system
+func RegisterFormat(magic []byte, open func(fn string) (File, error)) {
+	formatHandlers = append(formatHandlers, snapFormat{magic, open})
 }
 
 // Open opens a given snap file with the right backend
@@ -54,18 +65,15 @@ func Open(path string) (File, error) {
 	}
 	defer f.Close()
 
-	// look, libmagic!
 	header := make([]byte, 20)
 	if _, err := f.ReadAt(header, 0); err != nil {
 		return nil, fmt.Errorf("cannot read snap: %v", err)
 	}
-	// Note that we only support little endian squashfs. There
-	// is nothing else with squashfs 4.0.
-	if bytes.HasPrefix(header, []byte{'h', 's', 'q', 's'}) {
-		return squashfs.New(path), nil
-	}
-	if strings.HasPrefix(string(header), "!<arch>\ndebian") {
-		return clickdeb.Open(path)
+
+	for _, h := range formatHandlers {
+		if bytes.HasPrefix(header, h.magic) {
+			return h.open(path)
+		}
 	}
 
 	return nil, fmt.Errorf("cannot open snap: unknown header: %q", header)

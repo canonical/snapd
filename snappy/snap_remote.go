@@ -30,9 +30,9 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/remote"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/remote"
 )
 
 // RemoteSnapPart represents a snap available on the server
@@ -41,7 +41,7 @@ type RemoteSnapPart struct {
 }
 
 // Type returns the type of the SnapPart (app, gadget, ...)
-func (s *RemoteSnapPart) Type() pkg.Type {
+func (s *RemoteSnapPart) Type() snap.Type {
 	return s.pkg.Type
 }
 

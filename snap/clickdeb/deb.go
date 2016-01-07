@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/snap"
 
 	"github.com/blakesmith/ar"
 )
@@ -47,6 +48,14 @@ var (
 	// the archive.
 	ErrMemberNotFound = errors.New("member not found")
 )
+
+func init() {
+	// we need to wrap "Open()" here because stock Open returns
+	// a *ClickDeb and not a snap.File
+	snap.RegisterFormat([]byte("!<arch>\ndebian"), func(path string) (snap.File, error) {
+		return Open(path)
+	})
+}
 
 // ErrUnpackFailed is the error type for a snap unpack problem.
 type ErrUnpackFailed struct {
@@ -525,4 +534,14 @@ func (d *ClickDeb) UnpackWithDropPrivs(instDir, rootdir string) error {
 	}
 
 	return nil
+}
+
+// Info returns information like name, type etc about the package
+func (d *ClickDeb) Info() (*snap.Info, error) {
+	packageYaml, err := d.MetaMember("package.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("info failed for %s: %s", d.file.Name(), err)
+	}
+
+	return snap.InfoFromPackageYaml(packageYaml)
 }

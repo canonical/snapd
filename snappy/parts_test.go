@@ -27,8 +27,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 func (s *SnapTestSuite) TestActiveSnapByType(c *C) {
@@ -45,12 +45,12 @@ icon: meta/hello.svg`)
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
 
-	parts, err := ActiveSnapsByType(pkg.TypeApp)
+	parts, err := ActiveSnapsByType(snap.TypeApp)
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "app1")
 
-	parts, err = ActiveSnapsByType(pkg.TypeFramework)
+	parts, err = ActiveSnapsByType(snap.TypeFramework)
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 1)
 	c.Assert(parts[0].Name(), Equals, "framework1")
@@ -70,19 +70,19 @@ type: framework`)
 
 	type T struct {
 		f func(Part) string
-		t pkg.Type
+		t snap.Type
 		n string
 	}
 
 	for _, t := range []T{
-		{BareName, pkg.TypeApp, "app"},
-		{BareName, pkg.TypeFramework, "fwk"},
-		{QualifiedName, pkg.TypeApp, "app." + testOrigin},
-		{QualifiedName, pkg.TypeFramework, "fwk"},
-		{FullName, pkg.TypeApp, "app." + testOrigin},
-		{FullName, pkg.TypeFramework, "fwk." + testOrigin},
-		{fullNameWithChannel, pkg.TypeApp, "app." + testOrigin + "/remote-channel"},
-		{fullNameWithChannel, pkg.TypeFramework, "fwk." + testOrigin + "/remote-channel"},
+		{BareName, snap.TypeApp, "app"},
+		{BareName, snap.TypeFramework, "fwk"},
+		{QualifiedName, snap.TypeApp, "app." + testOrigin},
+		{QualifiedName, snap.TypeFramework, "fwk"},
+		{FullName, snap.TypeApp, "app." + testOrigin},
+		{FullName, snap.TypeFramework, "fwk." + testOrigin},
+		{fullNameWithChannel, snap.TypeApp, "app." + testOrigin + "/remote-channel"},
+		{fullNameWithChannel, snap.TypeFramework, "fwk." + testOrigin + "/remote-channel"},
 	} {
 		names, err := ActiveSnapIterByType(t.f, t.t)
 		c.Check(err, IsNil)
@@ -93,8 +93,8 @@ type: framework`)
 	storeMinimalRemoteManifest("app."+testOrigin, "app", testOrigin, "1.10", "Hello.", "")
 	storeMinimalRemoteManifest("fwk", "fwk", testOrigin, "1.0", "Hello.", "")
 	for _, t := range []T{
-		{fullNameWithChannel, pkg.TypeApp, "app." + testOrigin},
-		{fullNameWithChannel, pkg.TypeFramework, "fwk." + testOrigin},
+		{fullNameWithChannel, snap.TypeApp, "app." + testOrigin},
+		{fullNameWithChannel, snap.TypeFramework, "fwk." + testOrigin},
 	} {
 		names, err := ActiveSnapIterByType(t.f, t.t)
 		c.Check(err, IsNil)
@@ -102,7 +102,7 @@ type: framework`)
 	}
 
 	nm := make(map[string]bool, 2)
-	names, err := ActiveSnapIterByType(QualifiedName, pkg.TypeApp, pkg.TypeFramework)
+	names, err := ActiveSnapIterByType(QualifiedName, snap.TypeApp, snap.TypeFramework)
 	c.Check(err, IsNil)
 	c.Assert(names, HasLen, 2)
 	for i := range names {

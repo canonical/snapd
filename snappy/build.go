@@ -33,8 +33,8 @@ import (
 	"text/template"
 
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/pkg/clickdeb"
-	"github.com/ubuntu-core/snappy/pkg/squashfs"
+	"github.com/ubuntu-core/snappy/snap/clickdeb"
+	"github.com/ubuntu-core/snappy/snap/squashfs"
 
 	"gopkg.in/yaml.v2"
 )
