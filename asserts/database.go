@@ -162,7 +162,7 @@ func (db *Database) GenerateKey(authorityID string) (keyID string, err error) {
 }
 
 // ImportKey stores the given private/public key pair for identity and
-// returns its keyID
+// returns its key id.
 func (db *Database) ImportKey(authorityID string, privKey PrivateKey) (keyID string, err error) {
 	err = db.keypairMgr.Put(authorityID, privKey)
 	if err != nil {
