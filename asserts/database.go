@@ -158,21 +158,16 @@ func (db *Database) GenerateKey(authorityID string) (keyID string, err error) {
 	}
 
 	pk := OpenPGPPrivateKey(privKey)
-	_, err = db.ImportKey(authorityID, pk)
+	err = db.ImportKey(authorityID, pk)
 	if err != nil {
 		return "", err
 	}
 	return pk.PublicKey().ID(), nil
 }
 
-// ImportKey stores the given private/public key pair for identity and
-// returns its key id.
-func (db *Database) ImportKey(authorityID string, privKey PrivateKey) (keyID string, err error) {
-	err = db.keypairMgr.Put(authorityID, privKey)
-	if err != nil {
-		return "", err
-	}
-	return privKey.PublicKey().ID(), nil
+// ImportKey stores the given private/public key pair for identity.
+func (db *Database) ImportKey(authorityID string, privKey PrivateKey) error {
+	return db.keypairMgr.Put(authorityID, privKey)
 }
 
 var (

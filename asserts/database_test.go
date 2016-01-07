@@ -102,7 +102,7 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 	expectedFingerprint := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
 	expectedKeyID := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[12:])
 
-	_, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 
 	keyPath := filepath.Join(dbs.rootDir, "private-keys-v0/account0", expectedKeyID)
@@ -120,10 +120,10 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 }
 
 func (dbs *databaseSuite) TestImportKeyAlreadyExists(c *C) {
-	_, err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 
-	_, err = dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	err = dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Check(err, ErrorMatches, "key pair with given key id already exists")
 }
 
@@ -139,7 +139,7 @@ func (dbs *databaseSuite) TestPublicKey(c *C) {
 	pk := asserts.OpenPGPPrivateKey(testPrivKey1)
 	fingerp := pk.PublicKey().Fingerprint()
 	keyid := pk.PublicKey().ID()
-	_, err := dbs.db.ImportKey("account0", pk)
+	err := dbs.db.ImportKey("account0", pk)
 	c.Assert(err, IsNil)
 
 	pubk, err := dbs.db.PublicKey("account0", keyid)
@@ -166,7 +166,7 @@ func (dbs *databaseSuite) TestPublicKeyNotFound(c *C) {
 	_, err := dbs.db.PublicKey("account0", keyID)
 	c.Check(err, ErrorMatches, "no matching key pair found")
 
-	_, err = dbs.db.ImportKey("account0", pk)
+	err = dbs.db.ImportKey("account0", pk)
 	c.Assert(err, IsNil)
 
 	_, err = dbs.db.PublicKey("account0", "ff"+keyID)
@@ -252,7 +252,7 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	safs.signingDB = db0
 
 	pk := asserts.OpenPGPPrivateKey(testPrivKey0)
-	_, err = db0.ImportKey("canonical", pk)
+	err = db0.ImportKey("canonical", pk)
 	c.Assert(err, IsNil)
 	safs.signingKeyID = pk.PublicKey().ID()
 
