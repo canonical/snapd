@@ -46,7 +46,7 @@ type Capability struct {
 }
 
 // String representation of a capability.
-func (c Capability) String() string {
+func (c *Capability) String() string {
 	return c.Name
 }
 
