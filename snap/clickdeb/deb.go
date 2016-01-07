@@ -50,7 +50,9 @@ var (
 )
 
 func init() {
-	snap.RegisterBackend([]byte("!<arch>\ndebian"), func(path string) (snap.File, error) {
+	// we need to wrap "Open()" here because stock Open returns
+	// a *ClickDeb and not a snap.File
+	snap.RegisterFormat([]byte("!<arch>\ndebian"), func(path string) (snap.File, error) {
 		return Open(path)
 	})
 }
@@ -541,5 +543,5 @@ func (d *ClickDeb) Info() (*snap.Info, error) {
 		return nil, fmt.Errorf("info failed for %s: %s", d.file.Name(), err)
 	}
 
-	return snap.NewFromPackageYaml(packageYaml)
+	return snap.InfoFromPackageYaml(packageYaml)
 }

@@ -24,8 +24,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// NewFromPackageYaml creates a new info based on the given packageYaml
-func NewFromPackageYaml(yamlData []byte) (*Info, error) {
+// InfoFromPackageYaml creates a new info based on the given packageYaml
+func InfoFromPackageYaml(yamlData []byte) (*Info, error) {
 	var s Info
 	err := yaml.Unmarshal(yamlData, &s)
 	if err != nil {

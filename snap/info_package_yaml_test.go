@@ -39,7 +39,7 @@ type: app
 `)
 
 func (s *InfoPackageYamlTestSuite) TestSimple(c *C) {
-	info, err := NewFromPackageYaml(mockYaml)
+	info, err := InfoFromPackageYaml(mockYaml)
 	c.Assert(err, IsNil)
 	c.Assert(info.Name, Equals, "foo")
 	c.Assert(info.Version, Equals, "1.0")
@@ -47,6 +47,6 @@ func (s *InfoPackageYamlTestSuite) TestSimple(c *C) {
 }
 
 func (s *InfoPackageYamlTestSuite) TestFail(c *C) {
-	_, err := NewFromPackageYaml([]byte("random-crap"))
+	_, err := InfoFromPackageYaml([]byte("random-crap"))
 	c.Assert(err, ErrorMatches, "(?m)info failed to parse:.*")
 }
