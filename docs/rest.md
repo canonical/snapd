@@ -601,3 +601,30 @@ Sample result:
 	}
 }
 ```
+
+### POST
+
+* Description: Adds a new capability to the system
+* Authorization: authenticated
+* Operation: sync
+
+#### Sample input:
+
+```javascript
+{
+	"name": "my-capability",
+	"label": "My Capability",
+	"type": "my-type",
+	"attrs": {
+		"key": "value"
+	}
+}
+```
+
+## /1.0/capabilities/[name]
+
+### DELETE
+
+* Description: Remove a capability from the system
+* Access: trusted
+* Operation: sync
