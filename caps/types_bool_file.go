@@ -19,6 +19,10 @@
 
 package caps
 
+import (
+	"regexp"
+)
+
 // BoolFileType is a built-in capability type for files that follow a
 // simple boolean protocol. The file can be read, which yields ASCII '0'
 // (zero) or ASCII '1' (one). The same can be done for writing.
@@ -26,6 +30,17 @@ package caps
 // This capability type can be used to describe many boolean flags exposed
 // in sysfs, including certain hardware like exported GPIO pins.
 var BoolFileType = &Type{
-	Name:          "bool-file",
-	RequiredAttrs: []string{"path"},
+	Name: "bool-file",
+	Attrs: map[string]TypeAttr{
+		"path": &pathAttr{
+			errorHint: "only LED brightness or GPIO value is allowed",
+			// Allowed devices include:
+			allowedPatterns: []*regexp.Regexp{
+				// The brightness of standard LED class device
+				regexp.MustCompile("^/sys/class/leds/[^/]+/brightness$"),
+				// The value of standard exported GPIO
+				regexp.MustCompile("^/sys/class/gpio/gpio[0-9]+/value$"),
+			},
+		},
+	},
 }
