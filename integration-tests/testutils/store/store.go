@@ -21,6 +21,7 @@
 package store
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -32,17 +33,10 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-// Store is our snappy software store implementation
-type Store struct {
-	url     string
-	blobDir string
-
-	srv *graceful.Server
-
-	snaps map[string]string
-}
-
-var defaultAddr = "localhost:11028"
+var (
+	defaultAddr   = "localhost:11028"
+	defaultOrigin = "canonical"
+)
 
 func rootEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(418)
@@ -59,23 +53,24 @@ func detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(w, "details not implemented yet")
 }
 
-func bulkEndpoint(w http.ResponseWriter, req *http.Request) {
-	w.WriteHeader(501)
-	fmt.Fprintf(w, "bulk not implemented yet")
+// Store is our snappy software store implementation
+type Store struct {
+	url           string
+	blobDir       string
+	defaultOrigin string
+
+	srv *graceful.Server
+
+	snaps map[string]string
 }
 
 // NewStore creates a new store server
 func NewStore(blobDir string) *Store {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", rootEndpoint)
-	mux.HandleFunc("/search", searchEndpoint)
-	mux.HandleFunc("/package/", detailsEndpoint)
-	mux.HandleFunc("/click-metadata", bulkEndpoint)
-	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(blobDir))))
-
 	store := &Store{
-		blobDir: blobDir,
-		snaps:   make(map[string]string),
+		blobDir:       blobDir,
+		snaps:         make(map[string]string),
+		defaultOrigin: defaultOrigin,
 
 		url: fmt.Sprintf("http://%s", defaultAddr),
 		srv: &graceful.Server{
@@ -87,6 +82,12 @@ func NewStore(blobDir string) *Store {
 			},
 		},
 	}
+
+	mux.HandleFunc("/", rootEndpoint)
+	mux.HandleFunc("/search", searchEndpoint)
+	mux.HandleFunc("/package/", detailsEndpoint)
+	mux.HandleFunc("/click-metadata", store.bulkEndpoint)
+	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(blobDir))))
 
 	return store
 }
@@ -140,4 +141,65 @@ func (s *Store) refreshSnaps() error {
 	}
 
 	return nil
+}
+
+type bulkReqJSON struct {
+	Name []string
+}
+
+type bulkReplyJSON struct {
+	Status          string `json:"status"`
+	Name            string `json:"name"`
+	PackageName     string `json:"package_name"`
+	Origin          string `json:"origin"`
+	AnonDownloadUrl string `json:"anon_download_url"`
+	Version         string `json:"version"`
+}
+
+func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
+	var pkgs bulkReqJSON
+	var replyData []bulkReplyJSON
+
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&pkgs); err != nil {
+		http.Error(w, fmt.Sprintf("can't decode request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	s.refreshSnaps()
+
+	// check if we have downloadable snap of the given name
+	for _, pkg := range pkgs.Name {
+		if fn, ok := s.snaps[pkg]; ok {
+			snapFile, err := snap.Open(fn)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("can not read: %v: %v", fn, err), http.StatusBadRequest)
+				return
+			}
+
+			info, err := snapFile.Info()
+			if err != nil {
+				http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
+				return
+			}
+
+			replyData = append(replyData, bulkReplyJSON{
+				Status:          "Published",
+				Name:            fmt.Sprintf("%s.%s", info.Name, s.defaultOrigin),
+				PackageName:     info.Name,
+				Origin:          defaultOrigin,
+				AnonDownloadUrl: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
+				Version:         info.Version,
+			})
+		}
+
+		// use indent because this is a development tool, output
+		// should look nice
+		out, err := json.MarshalIndent(replyData, "", "    ")
+		if err != nil {
+			http.Error(w, fmt.Sprintf("can marshal: %v: %v", replyData, err), http.StatusBadRequest)
+			return
+		}
+		w.Write(out)
+	}
 }

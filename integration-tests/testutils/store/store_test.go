@@ -21,6 +21,8 @@
 package store
 
 import (
+	"bytes"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -65,6 +67,11 @@ func (s *storeTestSuite) StoreGet(path string) (*http.Response, error) {
 	return s.client.Get(s.store.URL() + path)
 }
 
+func (s *storeTestSuite) StorePostJson(path string, content []byte) (*http.Response, error) {
+	r := bytes.NewReader(content)
+	return s.client.Post(s.store.URL()+path, "application/json", r)
+}
+
 func (s *storeTestSuite) TestStoreURL(c *C) {
 	c.Assert(s.store.URL(), Equals, "http://"+defaultAddr)
 }
@@ -105,14 +112,27 @@ func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 }
 
 func (s *storeTestSuite) TestBulkEndpoint(c *C) {
-	resp, err := s.StoreGet("/click-metadata")
+	s.makeTestSnap(c, "name: foo\nversion: 1")
+
+	resp, err := s.StorePostJson("/click-metadata", []byte(`{
+"name": ["foo"]
+}`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
-	c.Assert(resp.StatusCode, Equals, 501)
+	c.Assert(resp.StatusCode, Equals, 200)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, "bulk not implemented yet")
+	c.Assert(string(body), Equals, fmt.Sprintf(`[
+    {
+        "status": "Published",
+        "name": "foo.canonical",
+        "package_name": "foo",
+        "origin": "canonical",
+        "anon_download_url": "%s/download/foo_1_all.snap",
+        "version": "1"
+    }
+]`, s.store.URL()))
 }
 
 // FIXME: extract into snappy/testutils
