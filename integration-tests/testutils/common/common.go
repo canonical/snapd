@@ -33,6 +33,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/store"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -206,16 +207,17 @@ func GetCurrentUbuntuCoreVersion(c *check.C) string {
 // CallFakeUpdate calls snappy update after faking the current version
 func CallFakeUpdate(c *check.C) string {
 	c.Log("Preparing fake and calling update.")
-	fakeAvailableUpdate(c)
-	return cli.ExecCommand(c, "sudo", "snappy", "update")
-}
 
-func fakeAvailableUpdate(c *check.C) {
-	c.Log("Faking an available update...")
 	currentVersion := GetCurrentUbuntuCoreVersion(c)
-	// debian version numbers rule
-	switchChannelVersionWithBackup(c, currentVersion+"~prev")
-	SetSavedVersion(c, currentVersion+"~prev")
+	SetSavedVersion(c, currentVersion)
+
+	blobDir := c.MkDir()
+	store := store.NewStore(blobDir)
+	store.Start()
+	defer store.Stop()
+	MakeFakeUpdateForSnap(c, "/apps/ubuntu-core.canonical/current/", blobDir)
+
+	return cli.ExecCommand(c, "sudo", fmt.Sprintf("SNAPPY_FORCE_CPI_URL=%s", store.URL()), "snappy", "update")
 }
 
 func switchChannelVersionWithBackup(c *check.C, newVersion string) {
