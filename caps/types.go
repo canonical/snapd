@@ -38,19 +38,6 @@ type Type struct {
 	Attrs map[string]TypeAttr
 }
 
-var (
-	// BoolFileType is a built-in capability type for files that follow a
-	// simple boolean protocol. The file can be read, which yields ASCII '0'
-	// (zero) or ASCII '1' (one). The same can be done for writing.
-	//
-	// This capability type can be used to describe many boolean flags exposed
-	// in sysfs, including certain hardware like exported GPIO pins.
-	BoolFileType = &Type{
-		Name:          "bool-file",
-		RequiredAttrs: []string{"path"},
-	}
-)
-
 var builtInTypes = [...]*Type{
 	BoolFileType,
 }
