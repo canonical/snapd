@@ -157,7 +157,12 @@ func (db *Database) GenerateKey(authorityID string) (keyID string, err error) {
 		return "", fmt.Errorf("failed to generate private key: %v", err)
 	}
 
-	return db.ImportKey(authorityID, OpenPGPPrivateKey(privKey))
+	pk := OpenPGPPrivateKey(privKey)
+	_, err = db.ImportKey(authorityID, pk)
+	if err != nil {
+		return "", err
+	}
+	return pk.PublicKey().ID(), nil
 }
 
 // ImportKey stores the given private/public key pair for identity and
