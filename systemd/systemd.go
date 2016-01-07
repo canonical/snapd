@@ -22,6 +22,7 @@ package systemd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -103,6 +104,53 @@ type Systemd interface {
 // A Log is a single entry in the systemd journal
 type Log map[string]interface{}
 
+// RestartCondition encapsulates the different systemd 'restart' options
+type RestartCondition string
+
+// These are the supported restart conditions
+const (
+	RestartNever      RestartCondition = "never"
+	RestartOnSuccess  RestartCondition = "on-success"
+	RestartOnFailure  RestartCondition = "on-failure"
+	RestartOnAbnormal RestartCondition = "on-abnormal"
+	RestartOnAbort    RestartCondition = "on-abort"
+	RestartAlways     RestartCondition = "always"
+)
+
+var restartMap = map[string]RestartCondition{
+	"never":       RestartNever,
+	"on-success":  RestartOnSuccess,
+	"on-failure":  RestartOnFailure,
+	"on-abnormal": RestartOnAbnormal,
+	"on-abort":    RestartOnAbort,
+	"always":      RestartAlways,
+}
+
+// ErrUnknownRestartCondition is returned when trying to unmarshal an unknown restart condition
+var ErrUnknownRestartCondition = errors.New("invalid restart condition")
+
+func (rc RestartCondition) String() string {
+	return string(rc)
+}
+
+// UnmarshalYAML so RestartCondition implements yaml's Unmarshaler interface
+func (rc *RestartCondition) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var v string
+
+	if err := unmarshal(&v); err != nil {
+		return err
+	}
+
+	nrc, ok := restartMap[v]
+	if !ok {
+		return ErrUnknownRestartCondition
+	}
+
+	*rc = nrc
+
+	return nil
+}
+
 // ServiceDescription describes a snappy systemd service
 type ServiceDescription struct {
 	AppName         string
@@ -114,6 +162,7 @@ type ServiceDescription struct {
 	Stop            string
 	PostStop        string
 	StopTimeout     time.Duration
+	Restart         RestartCondition
 	AaProfile       string
 	IsFramework     bool
 	IsNetworked     bool
@@ -310,7 +359,7 @@ X-Snappy=yes
 
 [Service]
 ExecStart=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStart}}
-Restart=on-failure
+Restart={{.Restart}}
 WorkingDirectory={{.AppPath}}
 Environment="SNAP_APP={{.AppTriple}}" {{.EnvVars}}
 {{if .Stop}}ExecStop=/usr/bin/ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.FullPathStop}}{{end}}
@@ -325,10 +374,17 @@ WantedBy={{.ServiceSystemdTarget}}
 `
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
+
 	origin := ""
 	if len(desc.UdevAppName) > len(desc.AppName) {
 		origin = desc.UdevAppName[len(desc.AppName)+1:]
 	}
+
+	restartCond := desc.Restart.String()
+	if restartCond == "" {
+		restartCond = RestartOnFailure.String()
+	}
+
 	wrapperData := struct {
 		// the service description
 		ServiceDescription
@@ -343,6 +399,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		Home                 string
 		EnvVars              string
 		SocketFileName       string
+		Restart              string
 	}{
 		*desc,
 		filepath.Join(desc.AppPath, desc.Start),
@@ -355,6 +412,7 @@ WantedBy={{.ServiceSystemdTarget}}
 		"%h",
 		"",
 		desc.SocketFileName,
+		restartCond,
 	}
 	allVars := helpers.GetBasicSnapEnvVars(wrapperData)
 	allVars = append(allVars, helpers.GetUserSnapEnvVars(wrapperData)...)

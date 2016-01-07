@@ -33,10 +33,10 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/clickdeb"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/clickdeb"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
 )
@@ -1031,12 +1031,29 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
 	m := packageYaml{
 		Name:    "xkcd-webserver",
 		Version: "0.3.4",
-		Type:    pkg.TypeFramework,
+		Type:    snap.TypeFramework,
 	}
 
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedServiceFmkWrapper)
+}
+
+func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
+	service := ServiceYaml{
+		Name:        "xkcd-webserver",
+		RestartCond: systemd.RestartOnAbort,
+	}
+	pkgPath := "/apps/xkcd-webserver/0.3.4/"
+	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
+	m := packageYaml{
+		Name:    "xkcd-webserver",
+		Version: "0.3.4",
+	}
+
+	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
+	c.Assert(err, IsNil)
+	c.Assert(generatedWrapper, Matches, `(?ms).*^Restart=on-abort$.*`)
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {

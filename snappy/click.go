@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -45,8 +45,8 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
@@ -54,7 +54,7 @@ type clickManifest struct {
 	Name          string                  `json:"name"`
 	Version       string                  `json:"version"`
 	Architecture  []string                `json:"architecture,omitempty"`
-	Type          pkg.Type                `json:"type,omitempty"`
+	Type          snap.Type               `json:"type,omitempty"`
 	Framework     string                  `json:"framework,omitempty"`
 	Description   string                  `json:"description,omitempty"`
 	Icon          string                  `json:"icon,omitempty"`
@@ -112,7 +112,7 @@ func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err
 // generate the name
 func generateBinaryName(m *packageYaml, binary Binary) string {
 	var binName string
-	if m.Type == pkg.TypeFramework {
+	if m.Type == snap.TypeFramework {
 		binName = filepath.Base(binary.Name)
 	} else {
 		binName = fmt.Sprintf("%s.%s", m.Name, filepath.Base(binary.Name))
@@ -286,13 +286,14 @@ func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile str
 			PostStop:       service.PostStop,
 			StopTimeout:    time.Duration(service.StopTimeout),
 			AaProfile:      aaProfile,
-			IsFramework:    m.Type == pkg.TypeFramework,
+			IsFramework:    m.Type == snap.TypeFramework,
 			IsNetworked:    service.Ports != nil && len(service.Ports.External) > 0,
 			BusName:        service.BusName,
 			Forking:        service.Forking,
 			UdevAppName:    udevPartName,
 			Socket:         service.Socket,
 			SocketFileName: socketFileName,
+			Restart:        service.RestartCond,
 		}), nil
 }
 func generateSnapSocketFile(service ServiceYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
@@ -378,7 +379,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		}
 		// If necessary, generate the DBus policy file so the framework
 		// service is allowed to start
-		if m.Type == pkg.TypeFramework && service.BusName != "" {
+		if m.Type == snap.TypeFramework && service.BusName != "" {
 			content, err := genBusPolicyFile(service.BusName)
 			if err != nil {
 				return err
@@ -526,7 +527,7 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 		return err
 	}
 
-	if cm.Type != pkg.TypeFramework && cm.Type != pkg.TypeGadget {
+	if cm.Type != snap.TypeFramework && cm.Type != snap.TypeGadget {
 		// add the origin to the name
 		cm.Name = fmt.Sprintf("%s.%s", cm.Name, origin)
 	}

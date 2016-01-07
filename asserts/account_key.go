@@ -48,8 +48,13 @@ func (ak *AccountKey) Until() time.Time {
 	return ak.until
 }
 
-// Fingerprint returns the fingerprint of the account key.
-func (ak *AccountKey) Fingerprint() string {
+// PublicKeyID returns the key id (as used to match signatures to signing keys) for the account key.
+func (ak *AccountKey) PublicKeyID() string {
+	return ak.pubKey.ID()
+}
+
+// PublicKeyFingerprint returns the fingerprint of the account key.
+func (ak *AccountKey) PublicKeyFingerprint() string {
 	return ak.pubKey.Fingerprint()
 }
 
@@ -63,7 +68,7 @@ func (ak *AccountKey) publicKey() PublicKey {
 	return ak.pubKey
 }
 
-func checkPublicKey(ab *assertionBase, fingerprintName string) (PublicKey, error) {
+func checkPublicKey(ab *assertionBase, fingerprintName, keyIDName string) (PublicKey, error) {
 	pubKey, err := decodePublicKey(ab.Body())
 	if err != nil {
 		return nil, err
@@ -74,6 +79,13 @@ func checkPublicKey(ab *assertionBase, fingerprintName string) (PublicKey, error
 	}
 	if fp != pubKey.Fingerprint() {
 		return nil, fmt.Errorf("public key does not match provided fingerprint")
+	}
+	keyID, err := checkMandatory(ab.headers, keyIDName)
+	if err != nil {
+		return nil, err
+	}
+	if keyID != pubKey.ID() {
+		return nil, fmt.Errorf("public key does not match provided key id")
 	}
 	return pubKey, nil
 }
@@ -94,7 +106,7 @@ func buildAccountKey(assert assertionBase) (Assertion, error) {
 	if !until.After(since) {
 		return nil, fmt.Errorf("invalid 'since' and 'until' times (no gap after 'since' till 'until')")
 	}
-	pubk, err := checkPublicKey(&assert, "fingerprint")
+	pubk, err := checkPublicKey(&assert, "public-key-fingerprint", "public-key-id")
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +122,6 @@ func buildAccountKey(assert assertionBase) (Assertion, error) {
 func init() {
 	typeRegistry[AccountKeyType] = &assertionTypeRegistration{
 		builder:    buildAccountKey,
-		primaryKey: []string{"account-id", "fingerprint"},
+		primaryKey: []string{"account-id", "public-key-id"},
 	}
 }

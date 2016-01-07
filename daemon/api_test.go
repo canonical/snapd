@@ -40,10 +40,10 @@ import (
 
 	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/pkg"
-	"github.com/ubuntu-core/snappy/pkg/lightweight"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/lightweight"
 	"github.com/ubuntu-core/snappy/snappy"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/testutil"
@@ -151,7 +151,7 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 		isInstalled:  true,
 		isActive:     true,
 		icon:         "meta/icon.svg",
-		_type:        pkg.TypeApp,
+		_type:        snap.TypeApp,
 		downloadSize: 2,
 	}}
 
@@ -180,7 +180,7 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 			"origin":             "bar",
 			"status":             "active",
 			"icon":               "/1.0/icons/foo.bar/icon",
-			"type":               string(pkg.TypeApp),
+			"type":               string(snap.TypeApp),
 			"vendor":             "",
 			"download_size":      "2",
 			"resource":           "/1.0/packages/foo.bar",

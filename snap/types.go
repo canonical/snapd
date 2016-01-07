@@ -17,9 +17,7 @@
  *
  */
 
-// Package pkg packages odds and ends that apply to packages in more than one
-// layer (to more than one of deb, click, snap, and part).
-package pkg
+package snap
 
 import (
 	"encoding/json"

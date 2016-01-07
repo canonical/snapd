@@ -38,9 +38,9 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/lockfile"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg/lightweight"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
+	"github.com/ubuntu-core/snappy/snap/lightweight"
 	"github.com/ubuntu-core/snappy/snappy"
 )
 

@@ -33,7 +33,7 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg"
+	"github.com/ubuntu-core/snappy/snap"
 )
 
 // Gadget represents the structure inside the package.yaml for the gadget component
@@ -132,7 +132,7 @@ func (hw *HardwareAssign) generateUdevRuleContent() (string, error) {
 var getGadget = getGadgetImpl
 
 func getGadgetImpl() (*packageYaml, error) {
-	gadgets, _ := ActiveSnapsByType(pkg.TypeGadget)
+	gadgets, _ := ActiveSnapsByType(snap.TypeGadget)
 	if len(gadgets) == 1 {
 		return gadgets[0].(*SnapPart).m, nil
 	}

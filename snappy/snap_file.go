@@ -29,15 +29,15 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/pkg"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
 // SnapFile is a local snap file that can get installed
 type SnapFile struct {
 	m   *packageYaml
-	deb pkg.File
+	deb snap.File
 
 	origin  string
 	instdir string
@@ -45,7 +45,7 @@ type SnapFile struct {
 
 // NewSnapFile loads a snap from the given snapFile
 func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, error) {
-	d, err := pkg.Open(snapFile)
+	d, err := snap.Open(snapFile)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 
 	targetDir := dirs.SnapAppsDir
 	// the "gadget" parts are special
-	if m.Type == pkg.TypeGadget {
+	if m.Type == snap.TypeGadget {
 		targetDir = dirs.SnapGadgetDir
 	}
 
@@ -91,7 +91,7 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 }
 
 // Type returns the type of the SnapPart (app, gadget, ...)
-func (s *SnapFile) Type() pkg.Type {
+func (s *SnapFile) Type() snap.Type {
 	if s.m.Type != "" {
 		return s.m.Type
 	}
@@ -199,7 +199,7 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	// the "gadget" parts are special
-	if s.Type() == pkg.TypeGadget {
+	if s.Type() == snap.TypeGadget {
 		if err := installGadgetHardwareUdevRules(s.m); err != nil {
 			return "", err
 		}
@@ -249,7 +249,7 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	// FIXME: special handling is bad 'mkay
-	if s.m.Type == pkg.TypeKernel {
+	if s.m.Type == snap.TypeKernel {
 		if err := extractKernelAssets(s, inter, flags); err != nil {
 			return "", fmt.Errorf("failed to install kernel %s", err)
 		}
@@ -390,7 +390,7 @@ func (s *SnapFile) CanInstall(allowGadget bool, inter interacter) error {
 		return err
 	}
 
-	if s.Type() == pkg.TypeGadget {
+	if s.Type() == snap.TypeGadget {
 		if !allowGadget {
 			if currentGadget, err := getGadget(); err == nil {
 				if currentGadget.Name != s.Name() {
