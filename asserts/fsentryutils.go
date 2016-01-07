@@ -43,6 +43,11 @@ func atomicWriteEntry(data []byte, secret bool, top string, subpath ...string) e
 	return helpers.AtomicWriteFile(fpath, data, os.FileMode(fperm), 0)
 }
 
+func entryExists(top string, subpath ...string) bool {
+	fpath := filepath.Join(top, filepath.Join(subpath...))
+	return helpers.FileExists(fpath)
+}
+
 func readEntry(top string, subpath ...string) ([]byte, error) {
 	fpath := filepath.Join(top, filepath.Join(subpath...))
 	return ioutil.ReadFile(fpath)
