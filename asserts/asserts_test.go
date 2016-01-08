@@ -200,7 +200,7 @@ func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 	c.Check(decoded.Body(), DeepEquals, body)
 }
 
-func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
+func (as *assertsSuite) TestHeaders(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
 		"primary-key1: key1\n" +
@@ -226,13 +226,30 @@ func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 		"header2":      "value2",
 		"body-length":  "8",
 	})
+}
 
-	// casual later res mutation doesn't trip us
+func (as *assertsSuite) TestHeadersReturnsCopy(c *C) {
+	encoded := []byte("type: test-only\n" +
+		"authority-id: auth-id2\n" +
+		"primary-key1: key1\n" +
+		"primary-key2: key2\n" +
+		"revision: 5\n" +
+		"header1: value1\n" +
+		"header2: value2\n" +
+		"body-length: 8\n\n" +
+		"THE-BODY" +
+		"\n\n" +
+		"openpgp c2ln")
+	a, err := asserts.Decode(encoded)
+	c.Assert(err, IsNil)
+
+	hs := a.Headers()
+	// casual later result mutation doesn't trip us
 	delete(hs, "primary-key1")
 	c.Check(a.Header("primary-key1"), Equals, "key1")
 }
 
-func (as *assertsSuite) TestHeaders(c *C) {
+func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 	encoded := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
 		"primary-key1: key1\n" +
