@@ -95,7 +95,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 
 	if bs == nil && keypairMgr == nil {
 		// TODO: actually have proper Null* variants of at
-		// least the Backstore, so we can check that they are
+		// least the Backstore? so we can check that they are
 		// both set instead and it's safer
 		return nil, fmt.Errorf("database cannot be used with backstore and keypair manager both unset")
 	}
