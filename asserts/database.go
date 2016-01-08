@@ -30,22 +30,20 @@ import (
 )
 
 // Backstore is a backstore for assertions. It can store and retrieve
-// assertions by type under primary paths (tuples of strings). Plus it
-// supports more general searches.
+// assertions by type under unique primary keys. Plus it
+// supports searching by headers.
 type Backstore interface {
-	// Put stores an assertion under the given unique primaryPath.
+	// Put stores an assertion for the given primaryKey field names forming a unique key.
 	// It is responsible for checking that assert is newer than a
 	// previously stored revision.
-	Put(assertType AssertionType, primaryPath []string, assert Assertion) error
-	// Get loads an assertion with the given unique primaryPath.
+	Put(assertType AssertionType, primaryKey []string, assert Assertion) error
+	// Get loads the assertion with the given unique keyValues for the primaryKey fields.
 	// If none is present it returns ErrNotFound.
-	Get(assertType AssertionType, primaryPath []string) (Assertion, error)
+	Get(assertType AssertionType, primaryKey, keyValues []string) (Assertion, error)
 	// Search searches for assertions matching the given headers.
 	// It invokes foundCb for each found assertion.
-	// pathHint is an incomplete primary path pattern (with ""
-	// representing omitted components) that covers a superset of
-	// the results, it can be used for the search if helpful.
-	Search(assertType AssertionType, headers map[string]string, pathHint []string, foundCb func(Assertion)) error
+	// As hint the primaryKey field names forming a unique key are also given.
+	Search(assertType AssertionType, primaryKey []string, headers map[string]string, foundCb func(Assertion)) error
 }
 
 // KeypairManager is a manager and backstore for private/public key pairs.
