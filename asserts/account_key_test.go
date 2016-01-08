@@ -182,11 +182,14 @@ func (aks *accountKeySuite) TestDecodeKeyIDMismatch(c *C) {
 func (aks *accountKeySuite) openDB(c *C) *asserts.Database {
 	trustedKey := testPrivKey0
 
-	rootDir := filepath.Join(c.MkDir(), "asserts-db")
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+	bs, err := asserts.OpenFilesystemBackstore(topDir)
+	c.Assert(err, IsNil)
 	cfg := &asserts.DatabaseConfig{
+		Backstore:   bs,
 		TrustedKeys: []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
-	db, err := asserts.OpenDatabaseAtInTest(rootDir, cfg)
+	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 	return db
 }

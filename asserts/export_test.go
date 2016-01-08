@@ -36,9 +36,6 @@ var AssembleAndSignInTest = assembleAndSign
 // decodePrivateKey exposed for tests
 var DecodePrivateKeyInTest = decodePrivateKey
 
-// openDatabaseAt exposed for tests
-var OpenDatabaseAtInTest = openDatabaseAt
-
 func BootstrapAccountKeyForTest(authorityID string, pubKey *packet.PublicKey) *AccountKey {
 	return &AccountKey{
 		assertionBase: assertionBase{
