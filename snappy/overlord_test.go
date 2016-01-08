@@ -47,7 +47,13 @@ func (o *overlordTestSuite) TestInstall(c *C) {
 	overlord := &Overlord{}
 
 	snapFileName := makeTestSnapPackage(c, "name: foo\nversion: 1")
-	name, err := overlord.Install(snapFileName, &MockProgressMeter{}, 0)
+	name, err := overlord.Install(snapFileName, testOrigin, &MockProgressMeter{}, 0)
 	c.Assert(err, IsNil)
 	c.Assert(name, Equals, "foo")
+
+	installed, err := NewMetaLocalRepository().Installed()
+	c.Assert(err, IsNil)
+	c.Assert(installed, HasLen, 1)
+	c.Assert(installed[0].Name(), Equals, "foo")
+	c.Assert(installed[0].Origin(), Equals, testOrigin)
 }

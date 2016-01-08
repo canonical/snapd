@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/partition"
@@ -47,12 +46,20 @@ const (
 )
 
 func doUpdate(part Part, flags InstallFlags, meter progress.Meter) error {
-	if _, err := part.Install(meter, flags); err == ErrSideLoaded {
+	mStore := NewUbuntuStoreSnapRepository()
+	downloadedSnap, err := mStore.Download(part.(*RemoteSnapPart), meter)
+	if err != nil {
+		return fmt.Errorf("failed to download %s: %v", part.Name(), err)
+	}
+
+	overlord := &Overlord{}
+	if _, err := overlord.Install(downloadedSnap, part.Origin(), meter, flags); err == ErrSideLoaded {
 		logger.Noticef("Skipping sideloaded package: %s", part.Name())
 		return nil
 	} else if err != nil {
 		return err
 	}
+
 	if err := GarbageCollect(part.Name(), flags, meter); err != nil {
 		return err
 	}
@@ -135,39 +142,41 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 	}
 
 	// check repos next
-	mStore := NewMetaStoreRepository()
+	mStore := NewUbuntuStoreSnapRepository()
 	installed, err := NewMetaLocalRepository().Installed()
 	if err != nil {
 		return "", err
 	}
 
-	origin := ""
-	idx := strings.IndexRune(name, '.')
-	if idx > -1 {
-		origin = name[idx+1:]
-		name = name[:idx]
-	}
-
+	name, origin := SplitOrigin(name)
 	found, err := mStore.Details(name, origin)
 	if err != nil {
 		return "", err
 	}
 
-	for _, part := range found {
-		cur := FindSnapsByNameAndVersion(QualifiedName(part), part.Version(), installed)
-		if len(cur) != 0 {
-			return "", ErrAlreadyInstalled
-		}
-		if PackageNameActive(part.Name()) {
-			return "", ErrPackageNameAlreadyInstalled
-		}
-
-		// TODO block gadget snaps here once the store supports package types
-
-		return part.Install(meter, flags)
+	if len(found) == 0 {
+		return "", ErrPackageNotFound
+	} else if len(found) > 1 {
+		return "", fmt.Errorf("found %d results for %s. please report this as a bug", len(found), name)
 	}
 
-	return "", ErrPackageNotFound
+	part := found[0]
+	cur := FindSnapsByNameAndVersion(QualifiedName(part), part.Version(), installed)
+	if len(cur) != 0 {
+		return "", ErrAlreadyInstalled
+	}
+
+	if PackageNameActive(part.Name()) {
+		return "", ErrPackageNameAlreadyInstalled
+	}
+
+	downloadedSnap, err := mStore.Download(part.(*RemoteSnapPart), meter)
+	if err != nil {
+		return "", fmt.Errorf("failed to download %s: %v", part.Name(), err)
+	}
+
+	overlord := &Overlord{}
+	return overlord.Install(downloadedSnap, part.Origin(), meter, flags)
 }
 
 // GarbageCollect removes all versions two older than the current active

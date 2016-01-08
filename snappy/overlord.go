@@ -36,12 +36,12 @@ import (
 type Overlord struct {
 }
 
-func (o *Overlord) Install(snapFileName string, inter progress.Meter, flags InstallFlags) (name string, err error) {
+func (o *Overlord) Install(snapFileName string, origin string, inter progress.Meter, flags InstallFlags) (name string, err error) {
 	allowGadget := (flags & AllowGadget) != 0
 	inhibitHooks := (flags & InhibitHooks) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
-	s, err := NewSnapFile(snapFileName, testOrigin, allowUnauth)
+	s, err := NewSnapFile(snapFileName, origin, allowUnauth)
 	if err != nil {
 		return "", fmt.Errorf("can not open %s: %s", snapFileName, err)
 	}
