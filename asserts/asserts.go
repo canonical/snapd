@@ -53,6 +53,9 @@ type Assertion interface {
 	// Header retrieves the header with name
 	Header(name string) string
 
+	// Headers returns the complete headers
+	Headers() map[string]string
+
 	// Body returns the body of this assertion
 	Body() []byte
 
@@ -90,6 +93,15 @@ func (ab *assertionBase) AuthorityID() string {
 // Header returns the value of an header by name.
 func (ab *assertionBase) Header(name string) string {
 	return ab.headers[name]
+}
+
+// Headers returns the complete headers.
+func (ab *assertionBase) Headers() map[string]string {
+	res := make(map[string]string, len(ab.headers))
+	for name, v := range ab.headers {
+		res[name] = v
+	}
+	return res
 }
 
 // Body returns the body of the assertion.

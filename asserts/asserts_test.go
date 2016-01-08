@@ -199,3 +199,26 @@ func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(decoded.Body(), DeepEquals, body)
 }
+
+func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
+	encoded := []byte("type: test-only\n" +
+		"authority-id: auth-id2\n" +
+		"primary-key1: key1\n" +
+		"primary-key2: key2\n" +
+		"revision: 5\n" +
+		"header1: value1\n" +
+		"header2: value2\n" +
+		"body-length: 8\n\n" +
+		"THE-BODY" +
+		"\n\n" +
+		"openpgp c2ln")
+	a, err := asserts.Decode(encoded)
+	c.Assert(err, IsNil)
+
+	cont, sig := a.Signature()
+	reassembled, err := asserts.Assemble(a.Headers(), a.Body(), cont, sig)
+	c.Assert(err, IsNil)
+
+	reassembledEncoded := asserts.Encode(reassembled)
+	c.Check(reassembledEncoded, DeepEquals, encoded)
+}
