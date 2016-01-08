@@ -30,6 +30,7 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
@@ -264,6 +265,72 @@ func (o *Overlord) canInstall(s *SnapFile, allowGadget bool, inter interacter) e
 	curr, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current"))
 	if err := s.m.checkLicenseAgreement(inter, s.deb, curr); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// Uninstall remove the snap from the system
+func (o *Overlord) Uninstall(sp *SnapPart, pb progress.Meter) (err error) {
+	// Gadget snaps should not be removed as they are a key
+	// building block for Gadgets. Prunning non active ones
+	// is acceptible.
+	if sp.m.Type == snap.TypeGadget && sp.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	// You never want to remove an active kernel or OS
+	if (sp.m.Type == snap.TypeKernel || sp.m.Type == snap.TypeOS) && sp.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	if IsBuiltInSoftware(sp.Name()) && sp.IsActive() {
+		return ErrPackageNotRemovable
+	}
+
+	deps, err := sp.DependentNames()
+	if err != nil {
+		return err
+	}
+	if len(deps) != 0 {
+		return ErrFrameworkInUse(deps)
+	}
+
+	if err := o.remove(sp, pb); err != nil {
+		return err
+	}
+
+	return RemoveAllHWAccess(QualifiedName(sp))
+}
+
+func (o *Overlord) remove(s *SnapPart, inter interacter) (err error) {
+	if err := s.deactivate(false, inter); err != nil && err != ErrSnapNotActive {
+		return err
+	}
+
+	// ensure mount unit stops
+	if err := s.m.removeSquashfsMount(s.basedir, inter); err != nil {
+		return err
+	}
+
+	err = os.RemoveAll(s.basedir)
+	if err != nil {
+		return err
+	}
+
+	// best effort(?)
+	os.Remove(filepath.Dir(s.basedir))
+
+	// remove the snap
+	if err := os.RemoveAll(squashfs.BlobPath(s.basedir)); err != nil {
+		return err
+	}
+
+	// remove the kernel assets (if any)
+	if s.m.Type == snap.TypeKernel {
+		if err := removeKernelAssets(s, inter); err != nil {
+			logger.Noticef("removing kernel assets failed with %s", err)
+		}
 	}
 
 	return nil

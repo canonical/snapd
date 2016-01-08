@@ -195,11 +195,6 @@ func (s *RemoteSnapPart) SetActive(bool, progress.Meter) error {
 	return ErrNotInstalled
 }
 
-// Uninstall remove the snap from the system
-func (s *RemoteSnapPart) Uninstall(progress.Meter) error {
-	return ErrNotInstalled
-}
-
 // Config is used to to configure the snap
 func (s *RemoteSnapPart) Config(configuration []byte) (new string, err error) {
 	return "", err

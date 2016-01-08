@@ -151,11 +151,6 @@ func (s *SnapFile) IsActive() bool {
 	return false
 }
 
-// Uninstall uninstalls the snap
-func (s *SnapFile) Uninstall(pb progress.Meter) (err error) {
-	return fmt.Errorf("not possible for a SnapFile")
-}
-
 // SetActive sets the snap to the new active state
 func (s *SnapFile) SetActive(bool, progress.Meter) error {
 	return fmt.Errorf("not possible for a SnapFile")

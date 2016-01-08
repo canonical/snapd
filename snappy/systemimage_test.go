@@ -443,7 +443,7 @@ func (s *SITestSuite) TestCannotUninstall(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 2)
 
-	c.Assert(parts[0].Uninstall(nil), Equals, ErrPackageNotRemovable)
+	c.Assert(parts[0].(*SystemImagePart).Uninstall(nil), Equals, ErrPackageNotRemovable)
 }
 
 func (s *SITestSuite) TestFrameworks(c *C) {

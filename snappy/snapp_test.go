@@ -47,6 +47,8 @@ type SnapTestSuite struct {
 	tempdir   string
 	clickhook string
 	secbase   string
+
+	overlord Overlord
 }
 
 var _ = Suite(&SnapTestSuite{})
@@ -766,14 +768,6 @@ architectures:
 	c.Assert(err.Error(), Equals, errorMsg)
 }
 
-func (s *SnapTestSuite) TestRemoteSnapErrors(c *C) {
-	snap := RemoteSnapPart{}
-
-	c.Assert(snap.SetActive(true, nil), Equals, ErrNotInstalled)
-	c.Assert(snap.SetActive(false, nil), Equals, ErrNotInstalled)
-	c.Assert(snap.Uninstall(nil), Equals, ErrNotInstalled)
-}
-
 func (s *SnapTestSuite) TestServicesWithPorts(c *C) {
 	const packageHello = `name: hello-app
 version: 1.10
@@ -956,7 +950,7 @@ type: gadget
 	c.Assert(err, IsNil)
 	parts := FindSnapsByName("hello-app", installed)
 	c.Assert(parts, HasLen, 1)
-	c.Check(parts[0].Uninstall(p), Equals, ErrPackageNotRemovable)
+	c.Check((&Overlord{}).Uninstall(parts[0].(*SnapPart), p), Equals, ErrPackageNotRemovable)
 }
 
 var securityBinaryPackageYaml = []byte(`name: test-snap
@@ -1241,7 +1235,7 @@ frameworks:
 	c.Assert(err, IsNil)
 
 	part := &SnapPart{m: yaml, origin: testOrigin}
-	err = part.Uninstall(new(MockProgressMeter))
+	err = s.overlord.Uninstall(part, &MockProgressMeter{})
 	c.Check(err, ErrorMatches, `framework still in use by: foo`)
 }
 

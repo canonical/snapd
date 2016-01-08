@@ -226,7 +226,7 @@ func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 	}
 
 	for _, part := range parts[:active-1] {
-		if err := part.Uninstall(pb); err != nil {
+		if err := (&Overlord{}).Uninstall(part.(*SnapPart), pb); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}
