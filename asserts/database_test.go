@@ -44,45 +44,24 @@ type openSuite struct{}
 
 var _ = Suite(&openSuite{})
 
-/* xxx
 func (opens *openSuite) TestOpenDatabaseOK(c *C) {
-	// ensure umask has clean when creating the DB dir
-	oldUmask := syscall.Umask(0)
-	defer func() { syscall.Umask(oldUmask) }()
-
-	topDir := filepath.Join(c.MkDir(), "asserts-db")
-	cfg := &asserts.DatabaseConfig{Path: topDir}
+	cfg := &asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 	c.Assert(db, NotNil)
-	info, err := os.Stat(topDir)
-	c.Assert(err, IsNil)
-	c.Assert(info.IsDir(), Equals, true)
-	c.Check(info.Mode().Perm(), Equals, os.FileMode(0775))
 }
-
-func (opens *openSuite) TestOpenDatabaseRootCreateFail(c *C) {
-	parent := filepath.Join(c.MkDir(), "var")
-	// make it not writable
-	os.MkdirAll(parent, 555)
-	topDir := filepath.Join(parent, "asserts-db")
-	cfg := &asserts.DatabaseConfig{Path: topDir}
-	db, err := asserts.OpenDatabase(cfg)
-	c.Assert(err, ErrorMatches, "failed to create assert database root: .*")
-	c.Check(db, IsNil)
-}
-*/
 
 type databaseSuite struct {
 	topDir string
-	db      *asserts.Database
+	db     *asserts.Database
 }
 
 var _ = Suite(&databaseSuite{})
 
 func (dbs *databaseSuite) SetUpTest(c *C) {
 	dbs.topDir = filepath.Join(c.MkDir(), "asserts-db")
-	os.Mkdir(dbs.topDir, 0775) // xxx
 	fsKeypairMgr, err := asserts.OpenFilesystemKeypairManager(dbs.topDir)
 	c.Assert(err, IsNil)
 	cfg := &asserts.DatabaseConfig{
@@ -179,7 +158,6 @@ func (chks *checkSuite) SetUpTest(c *C) {
 	var err error
 
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
-	os.Mkdir(topDir, 0775) // xxx
 	chks.bs, err = asserts.OpenFilesystemBackstore(topDir)
 	c.Assert(err, IsNil)
 
@@ -247,7 +225,7 @@ var _ = Suite(&signAddFindSuite{})
 
 func (safs *signAddFindSuite) SetUpTest(c *C) {
 	cfg0 := &asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairMananager(),
+		KeypairManager: asserts.NewMemoryKeypairManager(),
 	}
 	db0, err := asserts.OpenDatabase(cfg0)
 	c.Assert(err, IsNil)
@@ -259,7 +237,6 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	safs.signingKeyID = pk.PublicKey().ID()
 
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
-	os.Mkdir(topDir, 0775) // xxx
 	bs, err := asserts.OpenFilesystemBackstore(topDir)
 	c.Assert(err, IsNil)
 

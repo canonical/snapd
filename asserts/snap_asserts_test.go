@@ -104,7 +104,7 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 	trustedKey := testPrivKey0
 
 	cfg1 := &asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairMananager(),
+		KeypairManager: asserts.NewMemoryKeypairManager(),
 	}
 	accSignDB, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)

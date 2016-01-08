@@ -22,16 +22,11 @@ package asserts
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 
 	"github.com/ubuntu-core/snappy/dirs"
 )
 
 func openDatabaseAt(path string, cfg *DatabaseConfig) (*Database, error) {
-	err := os.MkdirAll(path, 0775)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create assert database root: %v", err)
-	}
 	bs, err := OpenFilesystemBackstore(path)
 	if err != nil {
 		return nil, err

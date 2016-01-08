@@ -34,30 +34,32 @@ type fsKeypairMgrSuite struct{}
 var _ = Suite(&fsKeypairMgrSuite{})
 
 func (fsbss *fsKeypairMgrSuite) TestOpenOK(c *C) {
-	rootDir := filepath.Join(c.MkDir(), "asserts-db")
-	err := os.MkdirAll(rootDir, 0775)
+	// ensure umask is clean when creating the DB dir
+	oldUmask := syscall.Umask(0)
+	defer syscall.Umask(oldUmask)
+
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+	err := os.MkdirAll(topDir, 0775)
 	c.Assert(err, IsNil)
 
-	bs, err := asserts.OpenFilesystemKeypairManager(rootDir)
+	bs, err := asserts.OpenFilesystemKeypairManager(topDir)
 	c.Check(err, IsNil)
 	c.Check(bs, NotNil)
-}
 
-func (fsbss *fsKeypairMgrSuite) TestOpenRootNotThere(c *C) {
-	parent := filepath.Join(c.MkDir(), "var")
-	rootDir := filepath.Join(parent, "asserts-db")
-	bs, err := asserts.OpenFilesystemKeypairManager(rootDir)
-	// xxx special case not there as error
-	c.Assert(err, ErrorMatches, "failed to check assert storage root: .*")
-	c.Check(bs, IsNil)
+	info, err := os.Stat(filepath.Join(topDir, "private-keys-v0"))
+	c.Assert(err, IsNil)
+	c.Assert(info.IsDir(), Equals, true)
+	c.Check(info.Mode().Perm(), Equals, os.FileMode(0775))
 }
 
 func (fsbss *fsKeypairMgrSuite) TestOpenWorldWritableFail(c *C) {
-	rootDir := filepath.Join(c.MkDir(), "asserts-db")
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+	// make it world-writable
 	oldUmask := syscall.Umask(0)
-	os.MkdirAll(rootDir, 0777)
+	os.MkdirAll(filepath.Join(topDir, "private-keys-v0"), 0777)
 	syscall.Umask(oldUmask)
-	bs, err := asserts.OpenFilesystemKeypairManager(rootDir)
+
+	bs, err := asserts.OpenFilesystemKeypairManager(topDir)
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(bs, IsNil)
 }

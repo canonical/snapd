@@ -38,12 +38,13 @@ type filesystemBackstore struct {
 }
 
 // OpenFilesystemBackstore opens a filesystem backed assertions backstore under path.
-// path must already exist.
 func OpenFilesystemBackstore(path string) (Backstore, error) {
-	if err := checkRoot(path); err != nil {
+	top := filepath.Join(path, assertionsRoot)
+	err := ensureTop(top)
+	if err != nil {
 		return nil, err
 	}
-	return &filesystemBackstore{top: filepath.Join(path, assertionsRoot)}, nil
+	return &filesystemBackstore{top: top}, nil
 }
 
 // guarantees that result assertion is of the expected type (both in the AssertionType and go type sense)

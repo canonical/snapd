@@ -41,7 +41,7 @@ var _ = Suite(&accountKeySuite{})
 
 func (aks *accountKeySuite) SetUpSuite(c *C) {
 	cfg1 := &asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairMananager(),
+		KeypairManager: asserts.NewMemoryKeypairManager(),
 	}
 	accDb, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)

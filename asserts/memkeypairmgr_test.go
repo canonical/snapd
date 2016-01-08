@@ -32,7 +32,7 @@ type memKeypairMgtSuite struct {
 var _ = Suite(&memKeypairMgtSuite{})
 
 func (mkms *memKeypairMgtSuite) SetUpTest(c *C) {
-	mkms.keypairMgr = asserts.NewMemoryKeypairMananager()
+	mkms.keypairMgr = asserts.NewMemoryKeypairManager()
 }
 
 func (mkms *memKeypairMgtSuite) TestPutAndGet(c *C) {

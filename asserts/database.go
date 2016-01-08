@@ -61,14 +61,11 @@ type KeypairManager interface {
 
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
-	// database filesystem backstores path
-	Path string
 	// trusted account keys
 	TrustedKeys []*AccountKey
-	// backstore for assertions, falls back to a filesystem based backstrore
-	// if not set
+	// backstore for assertions
 	Backstore Backstore
-	// manager/backstore for keypairs, falls back to a filesystem based manager
+	// manager/backstore for keypairs
 	KeypairManager KeypairManager
 }
 
@@ -96,39 +93,10 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	bs := cfg.Backstore
 	keypairMgr := cfg.KeypairManager
 
-	// falling back to at least one of the filesytem backstores,
-	// ensure the main directory cfg.Path
-	// TODO: decide what should be the final defaults/fallbacks
-	if bs == nil || keypairMgr == nil {
-		//var err error
-		/*
-			err := os.MkdirAll(cfg.Path, 0775)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create assert database root: %v", err)
-			}
-		*/
-		/*info, err := os.Stat(cfg.Path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create assert database root: %v", err)
-		}
-		if info.Mode().Perm()&0002 != 0 {
-			return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
-		}*/
-
-		/*
-			if bs == nil {
-				bs, err = OpenFilesystemBackstore(cfg.Path)
-				if err != nil {
-					return nil, err
-				}
-			}
-			if keypairMgr == nil {
-				keypairMgr, err = OpenFilesystemKeypairManager(cfg.Path)
-				if err != nil {
-					return nil, err
-				}
-			}
-		*/
+	if bs == nil && keypairMgr == nil {
+		// TODO: actually have Null* variants of at least the Backstore,
+		// so we can check that they are both set instead and it's safer
+		return nil, fmt.Errorf("database cannot be used with backstore and keypair manager both unset")
 	}
 
 	trustedKeys := make(map[string][]*AccountKey)

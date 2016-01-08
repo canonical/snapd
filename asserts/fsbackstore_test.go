@@ -34,30 +34,42 @@ type fsBackstoreSuite struct{}
 var _ = Suite(&fsBackstoreSuite{})
 
 func (fsbss *fsBackstoreSuite) TestOpenOK(c *C) {
-	rootDir := filepath.Join(c.MkDir(), "asserts-db")
-	err := os.MkdirAll(rootDir, 0775)
-	c.Assert(err, IsNil)
+	// ensure umask is clean when creating the DB dir
+	oldUmask := syscall.Umask(0)
+	defer syscall.Umask(oldUmask)
 
-	bs, err := asserts.OpenFilesystemBackstore(rootDir)
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+
+	bs, err := asserts.OpenFilesystemBackstore(topDir)
 	c.Check(err, IsNil)
 	c.Check(bs, NotNil)
+
+	info, err := os.Stat(filepath.Join(topDir, "asserts-v0"))
+	c.Assert(err, IsNil)
+	c.Assert(info.IsDir(), Equals, true)
+	c.Check(info.Mode().Perm(), Equals, os.FileMode(0775))
 }
 
-func (fsbss *fsBackstoreSuite) TestOpenRootNotThere(c *C) {
+func (fsbss *fsBackstoreSuite) TestOpenCreateFail(c *C) {
 	parent := filepath.Join(c.MkDir(), "var")
-	rootDir := filepath.Join(parent, "asserts-db")
-	bs, err := asserts.OpenFilesystemBackstore(rootDir)
-	// xxx special case not there as error
-	c.Assert(err, ErrorMatches, "failed to check assert storage root: .*")
+	topDir := filepath.Join(parent, "asserts-db")
+	// make it not writable
+	err := os.Mkdir(parent, 0555)
+	c.Assert(err, IsNil)
+
+	bs, err := asserts.OpenFilesystemBackstore(topDir)
+	c.Assert(err, ErrorMatches, "failed to create assert storage root: .*")
 	c.Check(bs, IsNil)
 }
 
 func (fsbss *fsBackstoreSuite) TestOpenWorldWritableFail(c *C) {
-	rootDir := filepath.Join(c.MkDir(), "asserts-db")
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+	// make it world-writable
 	oldUmask := syscall.Umask(0)
-	os.MkdirAll(rootDir, 0777)
+	os.MkdirAll(filepath.Join(topDir, "asserts-v0"), 0777)
 	syscall.Umask(oldUmask)
-	bs, err := asserts.OpenFilesystemBackstore(rootDir)
+
+	bs, err := asserts.OpenFilesystemBackstore(topDir)
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(bs, IsNil)
 }

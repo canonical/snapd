@@ -32,7 +32,6 @@ import (
 )
 
 type sysDBSuite struct {
-	fakeRoot    string
 	probeAssert asserts.Assertion
 }
 
@@ -60,11 +59,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	fakeRoot := filepath.Join(tmpdir, "root")
 	err = os.Mkdir(fakeRoot, os.ModePerm)
 	c.Assert(err, IsNil)
-
-	sdbs.fakeRoot = fakeRoot
-
-	dirs.SetRootDir(sdbs.fakeRoot)
-	defer dirs.SetRootDir("/")
+	dirs.SetRootDir(fakeRoot)
 
 	err = os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), os.ModePerm)
 	c.Assert(err, IsNil)
@@ -84,9 +79,6 @@ func (sdbs *sysDBSuite) TearDownTest(c *C) {
 }
 
 func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
-	dirs.SetRootDir(sdbs.fakeRoot)
-	defer dirs.SetRootDir("/")
-
 	db, err := asserts.OpenSysDatabase()
 	c.Assert(err, IsNil)
 	c.Check(db, NotNil)
@@ -95,34 +87,21 @@ func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (sdbs *sysDBSuite) TestOpenSysDatabaseTopCreateFail(c *C) {
-	dirs.SetRootDir(sdbs.fakeRoot)
-	defer dirs.SetRootDir("/")
-
-	// xxx madness
-	// make it not writable
-	err := os.RemoveAll(filepath.Dir(filepath.Dir(dirs.SnapAssertsDBDir)))
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(filepath.Dir(dirs.SnapAssertsDBDir)), 0775)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(dirs.SnapAssertsDBDir), 0555)
-	c.Assert(err, IsNil)
+func (sdbs *sysDBSuite) TestOpenSysDatabaseBackstoreOpenFail(c *C) {
+	// make it not world-writeable
+	oldUmask := syscall.Umask(0)
+	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "asserts-v0"), 0777)
+	syscall.Umask(oldUmask)
 
 	db, err := asserts.OpenSysDatabase()
-	c.Assert(err, ErrorMatches, "failed to create assert database root: .*")
+	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(db, IsNil)
 }
 
-func (sdbs *sysDBSuite) TestOpenSysDatabaseTopCreateFail2(c *C) {
-	dirs.SetRootDir(sdbs.fakeRoot)
-	defer dirs.SetRootDir("/")
-
-	// xxx madness
-	// make it not writable
-	err := os.RemoveAll(filepath.Dir(filepath.Dir(dirs.SnapAssertsDBDir)))
-	c.Assert(err, IsNil)
+func (sdbs *sysDBSuite) TestOpenSysDatabaseKeypairManagerOpenFail(c *C) {
+	// make it not world-writeable
 	oldUmask := syscall.Umask(0)
-	os.MkdirAll(dirs.SnapAssertsDBDir, 0777)
+	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "private-keys-v0"), 0777)
 	syscall.Umask(oldUmask)
 
 	db, err := asserts.OpenSysDatabase()
