@@ -207,14 +207,13 @@ func (db *Database) findAccountKeys(authorityID, keyID string) ([]*AccountKey, e
 		}
 	}
 	// consider stored account keys
-	foundKeyCb := func(a Assertion) {
+	a, err := db.bs.Get(AccountKeyType, []string{"account-id", "public-key-id"}, []string{authorityID, keyID})
+	switch err {
+	case nil:
 		res = append(res, a.(*AccountKey))
-	}
-	err := db.bs.Search(AccountKeyType, map[string]string{
-		"account-id":    authorityID,
-		"public-key-id": keyID,
-	}, []string{authorityID, keyID}, foundKeyCb)
-	if err != nil {
+	case ErrNotFound:
+		// nothing to do
+	default:
 		return nil, err
 	}
 	return res, nil
@@ -267,15 +266,12 @@ func (db *Database) Add(assert Assertion) error {
 	if err != nil {
 		return err
 	}
-	primaryKey := make([]string, len(reg.primaryKey))
-	for i, k := range reg.primaryKey {
-		keyVal := assert.Header(k)
-		if keyVal == "" {
+	for _, k := range reg.primaryKey {
+		if assert.Header(k) == "" {
 			return fmt.Errorf("missing primary key header: %v", k)
 		}
-		primaryKey[i] = keyVal
 	}
-	return db.bs.Put(assert.Type(), primaryKey, assert)
+	return db.bs.Put(assert.Type(), reg.primaryKey, assert)
 }
 
 func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
@@ -296,15 +292,15 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 	if err != nil {
 		return nil, err
 	}
-	primaryKey := make([]string, len(reg.primaryKey))
+	keyValues := make([]string, len(reg.primaryKey))
 	for i, k := range reg.primaryKey {
 		keyVal := headers[k]
 		if keyVal == "" {
 			return nil, fmt.Errorf("must provide primary key: %v", k)
 		}
-		primaryKey[i] = keyVal
+		keyValues[i] = keyVal
 	}
-	assert, err := db.bs.Get(assertionType, primaryKey)
+	assert, err := db.bs.Get(assertionType, reg.primaryKey, keyValues)
 	if err != nil {
 		return nil, err
 	}
@@ -322,15 +318,11 @@ func (db *Database) FindMany(assertionType AssertionType, headers map[string]str
 		return nil, err
 	}
 	res := []Assertion{}
-	primaryKey := make([]string, len(reg.primaryKey))
-	for i, k := range reg.primaryKey {
-		primaryKey[i] = headers[k]
-	}
 
 	foundCb := func(assert Assertion) {
 		res = append(res, assert)
 	}
-	err = db.bs.Search(assertionType, headers, primaryKey, foundCb)
+	err = db.bs.Search(assertionType, reg.primaryKey, headers, foundCb)
 	if err != nil {
 		return nil, err
 	}

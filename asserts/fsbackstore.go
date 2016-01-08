@@ -70,7 +70,12 @@ func buildDiskPrimaryPath(primaryPath []string) string {
 	return filepath.Join(comps...)
 }
 
-func (fsbs *filesystemBackstore) Put(assertType AssertionType, primaryPath []string, assert Assertion) error {
+func (fsbs *filesystemBackstore) Put(assertType AssertionType, primaryKey []string, assert Assertion) error {
+	primaryPath := make([]string, len(primaryKey))
+	for i, k := range primaryKey {
+		primaryPath[i] = assert.Header(k)
+	}
+
 	diskPrimaryPath := buildDiskPrimaryPath(primaryPath)
 	curAssert, err := fsbs.readAssertion(assertType, diskPrimaryPath)
 	if err == nil {
@@ -90,8 +95,8 @@ func (fsbs *filesystemBackstore) Put(assertType AssertionType, primaryPath []str
 	return nil
 }
 
-func (fsbs *filesystemBackstore) Get(assertType AssertionType, primaryPath []string) (Assertion, error) {
-	return fsbs.readAssertion(assertType, buildDiskPrimaryPath(primaryPath))
+func (fsbs *filesystemBackstore) Get(assertType AssertionType, primaryKey []string, keyValues []string) (Assertion, error) {
+	return fsbs.readAssertion(assertType, buildDiskPrimaryPath(keyValues))
 }
 
 func (fsbs *filesystemBackstore) search(assertType AssertionType, diskPattern []string, foundCb func(Assertion)) error {
@@ -114,13 +119,14 @@ func (fsbs *filesystemBackstore) search(assertType AssertionType, diskPattern []
 	return nil
 }
 
-func (fsbs *filesystemBackstore) Search(assertType AssertionType, headers map[string]string, pathHint []string, foundCb func(Assertion)) error {
-	diskPattern := make([]string, len(pathHint))
-	for i, comp := range pathHint {
-		if comp == "" {
+func (fsbs *filesystemBackstore) Search(assertType AssertionType, primaryKey []string, headers map[string]string, foundCb func(Assertion)) error {
+	diskPattern := make([]string, len(primaryKey))
+	for i, k := range primaryKey {
+		keyVal := headers[k]
+		if keyVal == "" {
 			diskPattern[i] = "*"
 		} else {
-			diskPattern[i] = url.QueryEscape(comp)
+			diskPattern[i] = url.QueryEscape(keyVal)
 		}
 	}
 
