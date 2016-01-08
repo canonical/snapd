@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-12-17 07:54+0100\n"
+        "POT-Creation-Date: 2016-01-08 17:54+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -398,6 +398,13 @@ msgid   "Use --show-all to see all available forks."
 msgstr  ""
 
 msgid   "Username for the login"
+msgstr  ""
+
+msgid   "\n"
+        "\n"
+        "The home directory is shared between snappy and the classic dimension.\n"
+        "Run the \"exit\" command to leave the classic shell again. All files\n"
+        "created will be preserved.\n"
 msgstr  ""
 
 #. TRANSLATORS: the %s represents a list of installed appnames
