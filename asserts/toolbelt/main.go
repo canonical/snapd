@@ -38,9 +38,20 @@ var parser = flags.NewParser(nil, flags.Default)
 var db *asserts.Database
 
 func main() {
-	var err error
+	topDir := "snappy-asserts-toolbelt-db"
+	bs, err := asserts.OpenFilesystemBackstore(topDir)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	keypairMgr, err := asserts.OpenFilesystemKeypairManager(topDir)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 	cfg := &asserts.DatabaseConfig{
-		Path: "snappy-asserts-toolbelt-db",
+		Backstore:      bs,
+		KeypairManager: keypairMgr,
 	}
 	db, err = asserts.OpenDatabase(cfg)
 	if err != nil {
