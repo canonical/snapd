@@ -335,3 +335,44 @@ func (o *Overlord) remove(s *SnapPart, inter interacter) (err error) {
 
 	return nil
 }
+
+// Installed returns the installed snaps from this repository
+func (o *Overlord) Installed() (parts []*SnapPart, err error) {
+	for _, path := range []string{dirs.SnapAppsDir, dirs.SnapGadgetDir} {
+		globExpr := filepath.Join(path, "*", "*", "meta", "package.yaml")
+		if newParts, err := o.partsForGlobExpr(globExpr); err == nil {
+			parts = append(parts, newParts...)
+		}
+	}
+
+	return parts, nil
+}
+
+func (o *Overlord) partsForGlobExpr(globExpr string) (parts []*SnapPart, err error) {
+	matches, err := filepath.Glob(globExpr)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, yamlfile := range matches {
+
+		// skip "current" and similar symlinks
+		realpath, err := filepath.EvalSymlinks(yamlfile)
+		if err != nil {
+			return nil, err
+		}
+		if realpath != yamlfile {
+			continue
+		}
+
+		origin, _ := originFromYamlPath(realpath)
+		snap, err := NewInstalledSnapPart(realpath, origin)
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, snap)
+
+	}
+
+	return parts, nil
+}
