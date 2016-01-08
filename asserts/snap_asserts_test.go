@@ -103,7 +103,9 @@ func (sds *snapBuildSuite) TestDecodeInvalid(c *C) {
 func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID string, accSignDB, checkDB *asserts.Database) {
 	trustedKey := testPrivKey0
 
-	cfg1 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db1")}
+	cfg1 := &asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairMananager(),
+	}
 	accSignDB, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
 	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
@@ -131,10 +133,9 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	cfg := &asserts.DatabaseConfig{
-		Path:        rootDir,
 		TrustedKeys: []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
-	checkDB, err = asserts.OpenDatabase(cfg)
+	checkDB, err = asserts.OpenDatabaseAtInTest(rootDir, cfg)
 	c.Assert(err, IsNil)
 
 	err = checkDB.Add(accKey)

@@ -40,7 +40,9 @@ type accountKeySuite struct {
 var _ = Suite(&accountKeySuite{})
 
 func (aks *accountKeySuite) SetUpSuite(c *C) {
-	cfg1 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db1")}
+	cfg1 := &asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairMananager(),
+	}
 	accDb, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
 	pk := asserts.OpenPGPPrivateKey(testPrivKey1)
@@ -182,10 +184,9 @@ func (aks *accountKeySuite) openDB(c *C) *asserts.Database {
 
 	rootDir := filepath.Join(c.MkDir(), "asserts-db")
 	cfg := &asserts.DatabaseConfig{
-		Path:        rootDir,
 		TrustedKeys: []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
-	db, err := asserts.OpenDatabase(cfg)
+	db, err := asserts.OpenDatabaseAtInTest(rootDir, cfg)
 	c.Assert(err, IsNil)
 	return db
 }

@@ -24,7 +24,7 @@ package asserts
 import (
 	"errors"
 	"fmt"
-	"os"
+	//"os"
 	"regexp"
 	"time"
 )
@@ -100,10 +100,13 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	// ensure the main directory cfg.Path
 	// TODO: decide what should be the final defaults/fallbacks
 	if bs == nil || keypairMgr == nil {
-		err := os.MkdirAll(cfg.Path, 0775)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create assert database root: %v", err)
-		}
+		//var err error
+		/*
+			err := os.MkdirAll(cfg.Path, 0775)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create assert database root: %v", err)
+			}
+		*/
 		/*info, err := os.Stat(cfg.Path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create assert database root: %v", err)
@@ -112,18 +115,20 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 			return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
 		}*/
 
-		if bs == nil {
-			bs, err = OpenFilesystemBackstore(cfg.Path)
-			if err != nil {
-				return nil, err
+		/*
+			if bs == nil {
+				bs, err = OpenFilesystemBackstore(cfg.Path)
+				if err != nil {
+					return nil, err
+				}
 			}
-		}
-		if keypairMgr == nil {
-			keypairMgr, err = OpenFilesystemKeypairManager(cfg.Path)
-			if err != nil {
-				return nil, err
+			if keypairMgr == nil {
+				keypairMgr, err = OpenFilesystemKeypairManager(cfg.Path)
+				if err != nil {
+					return nil, err
+				}
 			}
-		}
+		*/
 	}
 
 	trustedKeys := make(map[string][]*AccountKey)
