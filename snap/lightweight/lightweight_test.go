@@ -96,9 +96,9 @@ func (s *lightweightSuite) TestLoadBadName(c *check.C) {
 func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
 	bag := PartBagByName("fmk", "")
 	m := bag.Map(nil)
-	c.Check(m["installed_size"], check.Matches, "[0-9]+")
+	c.Check(m["installed_size"], check.FitsTypeOf, int64(0))
 	delete(m, "installed_size")
-	c.Check(m, check.DeepEquals, map[string]string{
+	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":               "fmk",
 		"origin":             "sideload",
 		"status":             "active",
@@ -106,7 +106,7 @@ func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
 		"icon":               filepath.Join(s.d, "snaps", "fmk", "120", "icon.png"),
 		"type":               "framework",
 		"vendor":             "",
-		"download_size":      "-1",
+		"download_size":      int64(-1),
 		"description":        "",
 		"rollback_available": "119",
 	})
@@ -115,7 +115,7 @@ func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
 func (s *lightweightSuite) TestMapRemovedFmkNoPart(c *check.C) {
 	bag := PartBagByName("fmk2", "")
 	m := bag.Map(nil)
-	c.Check(m, check.DeepEquals, map[string]string{
+	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":           "fmk2",
 		"origin":         "",
 		"status":         "removed",
@@ -123,8 +123,8 @@ func (s *lightweightSuite) TestMapRemovedFmkNoPart(c *check.C) {
 		"icon":           "",
 		"type":           "framework",
 		"vendor":         "",
-		"installed_size": "-1",
-		"download_size":  "-1",
+		"installed_size": int64(-1),
+		"download_size":  int64(-1),
 		"description":    "",
 	})
 }
@@ -150,7 +150,7 @@ func (s *lightweightSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
 
 	bag := PartBagByName("fmk2", "fmk2origin")
 	m := bag.Map(nil)
-	c.Check(m, check.DeepEquals, map[string]string{
+	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":           "fmk2",
 		"origin":         "fmk2origin",
 		"status":         "removed",
@@ -158,8 +158,8 @@ func (s *lightweightSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
 		"icon":           "http://example.com/icon",
 		"type":           "framework",
 		"vendor":         "",
-		"installed_size": "-1",
-		"download_size":  "42",
+		"installed_size": int64(-1),
+		"download_size":  int64(42),
 		"description":    "",
 	})
 }
@@ -167,9 +167,9 @@ func (s *lightweightSuite) TestMapRemovedFmkNoPartButStoreMeta(c *check.C) {
 func (s *lightweightSuite) TestMapAppNoPart(c *check.C) {
 	bag := PartBagByName("foo", "bar")
 	m := bag.Map(nil)
-	c.Check(m["installed_size"], check.Matches, "[0-9]+")
+	c.Check(m["installed_size"], check.FitsTypeOf, int64(0))
 	delete(m, "installed_size")
-	c.Check(m, check.DeepEquals, map[string]string{
+	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":          "foo",
 		"origin":        "bar",
 		"status":        "active",
@@ -177,7 +177,7 @@ func (s *lightweightSuite) TestMapAppNoPart(c *check.C) {
 		"icon":          filepath.Join(s.d, "snaps", "foo.bar", "1.0", "icon.png"),
 		"type":          "app",
 		"vendor":        "",
-		"download_size": "-1",
+		"download_size": int64(-1),
 		"description":   "",
 	})
 }
@@ -195,9 +195,9 @@ func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 
 	bag := PartBagByName("foo", "bar")
 	m := bag.Map(part)
-	c.Check(m["installed_size"], check.Matches, "[0-9]+")
+	c.Check(m["installed_size"], check.FitsTypeOf, int64(0))
 	delete(m, "installed_size")
-	c.Check(m, check.DeepEquals, map[string]string{
+	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":             "foo",
 		"origin":           "bar",
 		"status":           "active",
@@ -205,7 +205,7 @@ func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 		"icon":             filepath.Join(s.d, "snaps", "foo.bar", "1.0", "icon.png"),
 		"type":             "app",
 		"vendor":           "",
-		"download_size":    "42",
+		"download_size":    int64(42),
 		"description":      "",
 		"update_available": "2",
 	})
@@ -224,7 +224,7 @@ func (s *lightweightSuite) TestMapAppNoPartBag(c *check.C) {
 	part := snappy.NewRemoteSnapPart(snap)
 
 	m := (*PartBag)(nil).Map(part)
-	c.Check(m, check.DeepEquals, map[string]string{
+	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":           "foo",
 		"origin":         "bar",
 		"status":         "not installed",
@@ -232,8 +232,8 @@ func (s *lightweightSuite) TestMapAppNoPartBag(c *check.C) {
 		"icon":           snap.IconURL,
 		"type":           "app",
 		"vendor":         "",
-		"installed_size": "-1",
-		"download_size":  "42",
+		"installed_size": int64(-1),
+		"download_size":  int64(42),
 		"description":    "",
 	})
 
@@ -242,7 +242,7 @@ func (s *lightweightSuite) TestMapAppNoPartBag(c *check.C) {
 func (s *lightweightSuite) TestMapRemovedAppNoPart(c *check.C) {
 	bag := PartBagByName("foo", "baz")
 	m := bag.Map(nil)
-	c.Check(m, check.DeepEquals, map[string]string{
+	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":           "foo",
 		"origin":         "baz",
 		"status":         "removed",
@@ -250,8 +250,8 @@ func (s *lightweightSuite) TestMapRemovedAppNoPart(c *check.C) {
 		"icon":           "",
 		"type":           "app",
 		"vendor":         "",
-		"installed_size": "-1",
-		"download_size":  "-1",
+		"installed_size": int64(-1),
+		"download_size":  int64(-1),
 		"description":    "",
 	})
 }
@@ -259,9 +259,9 @@ func (s *lightweightSuite) TestMapRemovedAppNoPart(c *check.C) {
 func (s *lightweightSuite) TestMapInactiveGadgetNoPart(c *check.C) {
 	bag := PartBagByName("a-gadget", "canonical")
 	m := bag.Map(nil)
-	c.Check(m["installed_size"], check.Matches, "[0-9]+")
+	c.Check(m["installed_size"], check.FitsTypeOf, int64(0))
 	delete(m, "installed_size")
-	c.Check(m, check.DeepEquals, map[string]string{
+	c.Check(m, check.DeepEquals, map[string]interface{}{
 		"name":          "a-gadget",
 		"origin":        "sideload", // best guess
 		"status":        "installed",
@@ -269,7 +269,7 @@ func (s *lightweightSuite) TestMapInactiveGadgetNoPart(c *check.C) {
 		"icon":          filepath.Join(s.d, "snaps", "a-gadget", "3", "icon.png"),
 		"type":          "gadget",
 		"vendor":        "",
-		"download_size": "-1",
+		"download_size": int64(-1),
 		"description":   "",
 	})
 }
