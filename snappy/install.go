@@ -46,14 +46,7 @@ const (
 )
 
 func doUpdate(part Part, flags InstallFlags, meter progress.Meter) error {
-	mStore := NewUbuntuStoreSnapRepository()
-	downloadedSnap, err := mStore.Download(part.(*RemoteSnapPart), meter)
-	if err != nil {
-		return fmt.Errorf("failed to download %s: %v", part.Name(), err)
-	}
-
-	overlord := &Overlord{}
-	if _, err := overlord.Install(downloadedSnap, part.Origin(), meter, flags); err == ErrSideLoaded {
+	if _, err := installRemote(part.(*RemoteSnapPart), meter, flags); err == ErrSideLoaded {
 		logger.Noticef("Skipping sideloaded package: %s", part.Name())
 		return nil
 	} else if err != nil {
@@ -160,6 +153,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 		return "", fmt.Errorf("found %d results for %s. please report this as a bug", len(found), name)
 	}
 
+	// FIXME: move into the overlord
 	part := found[0]
 	cur := FindSnapsByNameAndVersion(QualifiedName(part), part.Version(), installed)
 	if len(cur) != 0 {
@@ -170,13 +164,23 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 		return "", ErrPackageNameAlreadyInstalled
 	}
 
-	downloadedSnap, err := mStore.Download(part.(*RemoteSnapPart), meter)
+	return installRemote(part.(*RemoteSnapPart), meter, flags)
+}
+
+func installRemote(snap *RemoteSnapPart, meter progress.Meter, flags InstallFlags) (string, error) {
+	mStore := NewUbuntuStoreSnapRepository()
+	downloadedSnap, err := mStore.Download(snap, meter)
 	if err != nil {
-		return "", fmt.Errorf("failed to download %s: %v", part.Name(), err)
+		return "", fmt.Errorf("failed to download %s: %v", snap.Name(), err)
+	}
+	defer os.Remove(downloadedSnap)
+
+	if err := snap.saveStoreManifest(); err != nil {
+		return "", err
 	}
 
 	overlord := &Overlord{}
-	return overlord.Install(downloadedSnap, part.Origin(), meter, flags)
+	return overlord.Install(downloadedSnap, snap.Origin(), meter, flags)
 }
 
 // GarbageCollect removes all versions two older than the current active

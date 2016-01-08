@@ -678,7 +678,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	r := RemoteSnapPart{}
+	r := &RemoteSnapPart{}
 	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
 	r.pkg.IconURL = mockServer.URL + "/icon"
 	r.pkg.Name = "foo"
@@ -687,7 +687,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	r.pkg.Version = "1.0"
 
 	p := &MockProgressMeter{}
-	name, err := r.Install(p, 0)
+	name, err := installRemote(r, p, 0)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	st, err := os.Stat(snapPackage)
@@ -730,7 +730,7 @@ services:
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	r := RemoteSnapPart{}
+	r := &RemoteSnapPart{}
 	r.pkg.AnonDownloadURL = mockServer.URL + "/snap"
 	r.pkg.Origin = testOrigin
 	r.pkg.IconURL = mockServer.URL + "/icon"
@@ -739,12 +739,12 @@ services:
 	r.pkg.Version = "1.0"
 
 	p := &MockProgressMeter{}
-	name, err := r.Install(p, 0)
+	name, err := installRemote(r, p, 0)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	c.Check(p.notified, HasLen, 0)
 
-	_, err = r.Install(p, 0)
+	_, err = installRemote(r, p, 0)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	c.Check(p.notified, HasLen, 1)

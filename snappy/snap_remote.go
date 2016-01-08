@@ -190,26 +190,6 @@ func (s *RemoteSnapPart) saveStoreManifest() error {
 	return helpers.AtomicWriteFile(RemoteManifestPath(s), content, 0644, 0)
 }
 
-// Install installs the snap
-func (s *RemoteSnapPart) Install(pbar progress.Meter, flags InstallFlags) (string, error) {
-	downloadedSnap, err := s.Download(pbar)
-	if err != nil {
-		return "", err
-	}
-	defer os.Remove(downloadedSnap)
-
-	if err := s.saveStoreManifest(); err != nil {
-		return "", err
-	}
-
-	unauthOk := (flags & AllowUnauthenticated) != 0
-	snapFile, err := NewSnapFile(downloadedSnap, s.Origin(), unauthOk)
-	if err != nil {
-		return "", err
-	}
-	return snapFile.Install(pbar, flags)
-}
-
 // SetActive sets the snap active
 func (s *RemoteSnapPart) SetActive(bool, progress.Meter) error {
 	return ErrNotInstalled

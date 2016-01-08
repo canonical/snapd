@@ -106,8 +106,6 @@ type Part interface {
 	InstalledSize() int64
 	DownloadSize() int64
 
-	// Install the snap
-	Install(pb progress.Meter, flags InstallFlags) (name string, err error)
 	// Uninstall the snap
 	Uninstall(pb progress.Meter) error
 	// Config takes a yaml configuration and returns the full snap
