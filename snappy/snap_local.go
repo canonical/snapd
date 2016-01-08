@@ -33,6 +33,9 @@ import (
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
+	"github.com/ubuntu-core/snappy/snap"
+	"github.com/ubuntu-core/snappy/snap/remote"
+	"github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
 // SnapPart represents a generic snap type
