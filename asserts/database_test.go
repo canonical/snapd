@@ -72,17 +72,6 @@ func (opens *openSuite) TestOpenDatabaseRootCreateFail(c *C) {
 	c.Check(db, IsNil)
 }
 
-func (opens *openSuite) TestOpenDatabaseWorldWritableFail(c *C) {
-	rootDir := filepath.Join(c.MkDir(), "asserts-db")
-	oldUmask := syscall.Umask(0)
-	os.MkdirAll(rootDir, 0777)
-	syscall.Umask(oldUmask)
-	cfg := &asserts.DatabaseConfig{Path: rootDir}
-	db, err := asserts.OpenDatabase(cfg)
-	c.Assert(err, ErrorMatches, "assert database root unexpectedly world-writable: .*")
-	c.Check(db, IsNil)
-}
-
 type databaseSuite struct {
 	rootDir string
 	db      *asserts.Database

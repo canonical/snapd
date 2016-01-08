@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -28,6 +29,17 @@ import (
 )
 
 // utilities to read/write fs entries
+
+func checkRoot(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("failed to check assert storage root: %v", err)
+	}
+	if info.Mode().Perm()&0002 != 0 {
+		return fmt.Errorf("assert storage root unexpectedly world-writable: %v", path)
+	}
+	return nil
+}
 
 func atomicWriteEntry(data []byte, secret bool, top string, subpath ...string) error {
 	fpath := filepath.Join(top, filepath.Join(subpath...))

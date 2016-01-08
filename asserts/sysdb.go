@@ -22,9 +22,28 @@ package asserts
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 
 	"github.com/ubuntu-core/snappy/dirs"
 )
+
+func openDatabaseAt(path string, cfg *DatabaseConfig) (*Database, error) {
+	err := os.MkdirAll(path, 0775)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create assert database root: %v", err)
+	}
+	bs, err := OpenFilesystemBackstore(path)
+	if err != nil {
+		return nil, err
+	}
+	keypairMgr, err := OpenFilesystemKeypairManager(path)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Backstore = bs
+	cfg.KeypairManager = keypairMgr
+	return OpenDatabase(cfg)
+}
 
 // OpenSysDatabase opens the installation-wide assertion database.
 func OpenSysDatabase() (*Database, error) {
@@ -46,9 +65,7 @@ func OpenSysDatabase() (*Database, error) {
 	}
 
 	cfg := &DatabaseConfig{
-		Path:        dirs.SnapAssertsDBDir,
 		TrustedKeys: []*AccountKey{trustedKey},
 	}
-
-	return OpenDatabase(cfg)
+	return openDatabaseAt(dirs.SnapAssertsDBDir, cfg)
 }

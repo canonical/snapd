@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -94,14 +95,37 @@ func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
+func (sdbs *sysDBSuite) TestOpenSysDatabaseTopCreateFail(c *C) {
 	dirs.SetRootDir(sdbs.fakeRoot)
 	defer dirs.SetRootDir("/")
 
-	db, err := asserts.OpenSysDatabase()
+	// xxx madness
+	// make it not writable
+	err := os.RemoveAll(filepath.Dir(filepath.Dir(dirs.SnapAssertsDBDir)))
 	c.Assert(err, IsNil)
-	c.Check(db, NotNil)
+	err = os.MkdirAll(filepath.Dir(filepath.Dir(dirs.SnapAssertsDBDir)), 0775)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Dir(dirs.SnapAssertsDBDir), 0555)
+	c.Assert(err, IsNil)
 
-	err = db.Check(sdbs.probeAssert)
-	c.Check(err, IsNil)
+	db, err := asserts.OpenSysDatabase()
+	c.Assert(err, ErrorMatches, "failed to create assert database root: .*")
+	c.Check(db, IsNil)
+}
+
+func (sdbs *sysDBSuite) TestOpenSysDatabaseTopCreateFail2(c *C) {
+	dirs.SetRootDir(sdbs.fakeRoot)
+	defer dirs.SetRootDir("/")
+
+	// xxx madness
+	// make it not writable
+	err := os.RemoveAll(filepath.Dir(filepath.Dir(dirs.SnapAssertsDBDir)))
+	c.Assert(err, IsNil)
+	oldUmask := syscall.Umask(0)
+	os.MkdirAll(dirs.SnapAssertsDBDir, 0777)
+	syscall.Umask(oldUmask)
+
+	db, err := asserts.OpenSysDatabase()
+	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
+	c.Check(db, IsNil)
 }

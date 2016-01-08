@@ -104,19 +104,25 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create assert database root: %v", err)
 		}
-		info, err := os.Stat(cfg.Path)
+		/*info, err := os.Stat(cfg.Path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create assert database root: %v", err)
 		}
 		if info.Mode().Perm()&0002 != 0 {
 			return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
-		}
+		}*/
 
 		if bs == nil {
-			bs = newFilesystemBackstore(cfg.Path)
+			bs, err = OpenFilesystemBackstore(cfg.Path)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if keypairMgr == nil {
-			keypairMgr = newFilesystemKeypairMananager(cfg.Path)
+			keypairMgr, err = OpenFilesystemKeypairManager(cfg.Path)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 

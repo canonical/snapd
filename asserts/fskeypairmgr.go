@@ -38,8 +38,13 @@ type filesystemKeypairManager struct {
 	top string
 }
 
-func newFilesystemKeypairMananager(path string) *filesystemKeypairManager {
-	return &filesystemKeypairManager{top: filepath.Join(path, privateKeysRoot)}
+// OpenFilesystemKeypairManager opens a filesystem backed assertions backstore under path.
+// path must already exist.
+func OpenFilesystemKeypairManager(path string) (KeypairManager, error) {
+	if err := checkRoot(path); err != nil {
+		return nil, err
+	}
+	return &filesystemKeypairManager{top: filepath.Join(path, privateKeysRoot)}, nil
 }
 
 var errKeypairAlreadyExists = errors.New("key pair with given key id already exists")
