@@ -45,6 +45,7 @@ func (o *Overlord) Install(snapFileName string, origin string, inter progress.Me
 	if err != nil {
 		return "", fmt.Errorf("can not open %s: %s", snapFileName, err)
 	}
+	defer s.deb.Close()
 
 	// we do not Verify() the package in CanInstall. This is done earlier in
 	// NewSnapFile() to ensure that we do not mount/inspect

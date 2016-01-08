@@ -548,14 +548,8 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 }
 
 func installClick(snapFilePath string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
-	unsignedOk := (flags & AllowUnauthenticated) != 0
-	part, err := NewSnapFile(snapFilePath, origin, unsignedOk)
-	if err != nil {
-		return "", err
-	}
-	defer part.deb.Close()
-
-	return part.Install(inter, flags)
+	overlord := &Overlord{}
+	return overlord.Install(snapFilePath, origin, inter, flags)
 }
 
 // removeSnapData removes the data for the given version of the given snap
