@@ -33,9 +33,9 @@ type overlordTestSuite struct {
 
 var _ = Suite(&overlordTestSuite{})
 
-func (s *overlordTestSuite) SetUpTest(c *C) {
-	s.tempdir = c.MkDir()
-	dirs.SetRootDir(s.tempdir)
+func (o *overlordTestSuite) SetUpTest(c *C) {
+	o.tempdir = c.MkDir()
+	dirs.SetRootDir(o.tempdir)
 
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
 	os.MkdirAll(dirs.SnapSeccompDir, 0755)

@@ -760,11 +760,8 @@ architectures:
     - blahblah
 `
 
-	snapPkg := makeTestSnapPackage(c, packageHello)
-	part, err := NewSnapFile(snapPkg, "origin", true)
-	c.Assert(err, IsNil)
-
-	_, err = part.Install(&MockProgressMeter{}, 0)
+	snapFile := makeTestSnapPackage(c, packageHello)
+	_, err := (&Overlord{}).Install(snapFile, "origin", &MockProgressMeter{}, 0)
 	errorMsg := fmt.Sprintf("package's supported architectures (yadayada, blahblah) is incompatible with this system (%s)", arch.UbuntuArchitecture())
 	c.Assert(err.Error(), Equals, errorMsg)
 }

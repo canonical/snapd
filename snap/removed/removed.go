@@ -129,11 +129,6 @@ func (r *Removed) DownloadSize() int64 {
 	return -1
 }
 
-// Install from the snappy.Part interface
-func (r *Removed) Install(pb progress.Meter, flags snappy.InstallFlags) (name string, err error) {
-	return "", ErrRemoved
-}
-
 // Uninstall from the snappy.Part interface
 func (r *Removed) Uninstall(pb progress.Meter) error { return ErrRemoved }
 

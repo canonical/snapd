@@ -247,12 +247,6 @@ func (s *SnapPart) GadgetConfig() SystemConfig {
 	return s.m.Config
 }
 
-// Install installs the snap (which does not make sense for an already
-// installed snap
-func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
-	return "", ErrAlreadyInstalled
-}
-
 // SetActive sets the snap active
 func (s *SnapPart) SetActive(active bool, pb progress.Meter) (err error) {
 	if active {

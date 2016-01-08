@@ -33,9 +33,11 @@ import (
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
+// Overlord is responsible for the overall system state
 type Overlord struct {
 }
 
+// Install installs the given snap file name
 func (o *Overlord) Install(snapFileName string, origin string, inter progress.Meter, flags InstallFlags) (name string, err error) {
 	allowGadget := (flags & AllowGadget) != 0
 	inhibitHooks := (flags & InhibitHooks) != 0
@@ -47,10 +49,10 @@ func (o *Overlord) Install(snapFileName string, origin string, inter progress.Me
 	}
 	defer s.deb.Close()
 
-	// we do not Verify() the package in CanInstall. This is done earlier in
+	// we do not Verify() the package in canInstall. This is done earlier in
 	// NewSnapFile() to ensure that we do not mount/inspect
 	// potentially dangerous snaps
-	if err := o.CanInstall(s, allowGadget, inter); err != nil {
+	if err := o.canInstall(s, allowGadget, inter); err != nil {
 		return "", err
 	}
 
@@ -227,8 +229,8 @@ func (o *Overlord) Install(snapFileName string, origin string, inter progress.Me
 	return s.Name(), nil
 }
 
-// CanInstall checks whether the SnapPart passes a series of tests required for installation
-func (o *Overlord) CanInstall(s *SnapFile, allowGadget bool, inter interacter) error {
+// canInstall checks whether the SnapPart passes a series of tests required for installation
+func (o *Overlord) canInstall(s *SnapFile, allowGadget bool, inter interacter) error {
 	if err := s.m.checkForPackageInstalled(s.Origin()); err != nil {
 		return err
 	}
