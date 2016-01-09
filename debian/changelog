@@ -1,3 +1,9 @@
+ubuntu-core-launcher (1.0.15~ppa1) xenial; urgency=medium
+
+  * allow /snaps as a launcher location
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Sat, 09 Jan 2016 20:37:26 +0100
+
 ubuntu-core-launcher (1.0.14) xenial; urgency=medium
 
   * remove unused is_mountpoint() function (thanks Tyler!)

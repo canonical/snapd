@@ -335,16 +335,13 @@ int main(int argc, char **argv)
    if(geteuid() == 0) {
        // verify binary path
        char apps_prefix[128];
-       char frameworks_prefix[128];
-       char oem_prefix[128];
+       char snaps_prefix[128];
        must_snprintf(apps_prefix, sizeof(apps_prefix), "/apps/%s/", appname);
-       must_snprintf(frameworks_prefix, sizeof(frameworks_prefix), "/frameworks/%s/", appname);
-       must_snprintf(oem_prefix, sizeof(oem_prefix), "/oem/%s/", appname);
+       must_snprintf(snaps_prefix, sizeof(snaps_prefix), "/snaps/%s/", appname);
        if (strstr(binary, apps_prefix) != binary &&
-               strstr(binary, oem_prefix) != binary &&
-               strstr(binary, frameworks_prefix) != binary)
-          die("binary must be inside /apps/%s/, /frameworks/%s/ or /oem/%s/",
-                  appname, appname, appname);
+               strstr(binary, snaps_prefix) != binary)
+          die("binary must be inside /apps/%s/, or /snaps/%s/",
+                  appname, appname);
 
        // ensure we run in our own slave mount namespace, this will
        // create a new mount namespace and make it a slave of "/"
