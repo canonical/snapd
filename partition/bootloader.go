@@ -19,6 +19,11 @@
 
 package partition
 
+import (
+	"errors"
+	"strings"
+)
+
 const (
 	// bootloader variable used to determine if boot was successful.
 	// Set to value of either bootloaderBootmodeTry (when attempting
@@ -31,6 +36,11 @@ const (
 	// Initial and final values
 	bootloaderBootmodeTry     = "try"
 	bootloaderBootmodeSuccess = "regular"
+)
+
+var (
+	// ErrBootloader is returned if the bootloader can not be determined
+	ErrBootloader = errors.New("Unable to determine bootloader")
 )
 
 type bootloaderName string
@@ -53,14 +63,14 @@ type bootLoader interface {
 // Factory method that returns a new bootloader for the given partition
 var bootloader = bootloaderImpl
 
-func bootloaderImpl(p *Partition) (bootLoader, error) {
+func bootloaderImpl() (bootLoader, error) {
 	// try uboot
-	if uboot := newUboot(p); uboot != nil {
+	if uboot := newUboot(); uboot != nil {
 		return uboot, nil
 	}
 
 	// no, try grub
-	if grub := newGrub(p); grub != nil {
+	if grub := newGrub(); grub != nil {
 		return grub, nil
 	}
 
@@ -68,14 +78,33 @@ func bootloaderImpl(p *Partition) (bootLoader, error) {
 	return nil, ErrBootloader
 }
 
-type bootloaderType struct {
-	// FIXME: this should /boot if possible
-	// the dir that the bootloader lives in (e.g. /boot/uboot)
-	bootloaderDir string
-}
+func markBootSuccessful(bootloader bootLoader) error {
+	// FIXME: we should have something better here, i.e. one write
+	//        to the bootloader environment only (instead of three)
+	//        We need to figure out if that is possible with grub/uboot
+	// (if we could also do atomic writes to the boot env, that would
+	//  be even better)
+	for _, k := range []string{"snappy_os", "snappy_kernel"} {
+		value, err := bootloader.GetBootVar(k)
+		if err != nil {
+			return err
+		}
 
-func newBootLoader(partition *Partition, bootloaderDir string) *bootloaderType {
-	return &bootloaderType{
-		bootloaderDir: bootloaderDir,
+		// FIXME: ugly string replace
+		newKey := strings.Replace(k, "snappy_", "snappy_good_", -1)
+		if err := bootloader.SetBootVar(newKey, value); err != nil {
+			return err
+		}
+
+		if err := bootloader.SetBootVar("snappy_mode", "regular"); err != nil {
+			return err
+		}
+
+		if err := bootloader.SetBootVar("snappy_trial_boot", "0"); err != nil {
+			return err
+		}
+
 	}
+
+	return nil
 }

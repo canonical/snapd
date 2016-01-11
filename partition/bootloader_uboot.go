@@ -44,7 +44,6 @@ var (
 const bootloaderNameUboot bootloaderName = "u-boot"
 
 type uboot struct {
-	bootloaderType
 }
 
 func bootloaderUbootDir() string {
@@ -60,18 +59,12 @@ func bootloaderUbootFwEnvFile() string {
 }
 
 // newUboot create a new Uboot bootloader object
-func newUboot(partition *Partition) bootLoader {
+func newUboot() bootLoader {
 	if !helpers.FileExists(bootloaderUbootConfigFile()) {
 		return nil
 	}
 
-	b := newBootLoader(partition, bootloaderUbootDir())
-	if b == nil {
-		return nil
-	}
-	u := uboot{bootloaderType: *b}
-
-	return &u
+	return &uboot{}
 }
 
 func (u *uboot) Name() bootloaderName {

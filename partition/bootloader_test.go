@@ -20,7 +20,6 @@
 package partition
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -67,32 +66,8 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	mountTarget = mountTargetReal
 }
 
-func makeHardwareYaml(c *C, hardwareYaml string) (outPath string) {
-	tmp, err := ioutil.TempFile(c.MkDir(), "hw-")
-	c.Assert(err, IsNil)
-	defer tmp.Close()
-
-	if hardwareYaml == "" {
-		hardwareYaml = `
-kernel: assets/vmlinuz
-initrd: assets/initrd.img
-dtbs: assets/dtbs
-partition-layout: system-AB
-bootloader: u-boot
-`
-	}
-	_, err = tmp.Write([]byte(hardwareYaml))
-	c.Assert(err, IsNil)
-
-	return tmp.Name()
-}
-
-// mock bootloader for the tests
 type mockBootloader struct {
-	HandleAssetsCalled              bool
-	MarkCurrentBootSuccessfulCalled bool
-	SyncBootFilesCalled             bool
-	BootVars                        map[string]string
+	BootVars map[string]string
 }
 
 func newMockBootloader() *mockBootloader {
@@ -117,17 +92,11 @@ func (b *mockBootloader) BootDir() string {
 
 func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 	runCommand = mockRunCommand
+
 	b := newMockBootloader()
-	bootloader = func(p *Partition) (bootLoader, error) {
-		return b, nil
-	}
-
-	p := New()
-	c.Assert(c, NotNil)
-
 	b.BootVars["snappy_os"] = "os1"
 	b.BootVars["snappy_kernel"] = "k1"
-	err := p.MarkBootSuccessful()
+	err := markBootSuccessful(b)
 	c.Assert(err, IsNil)
 	c.Assert(b.BootVars, DeepEquals, map[string]string{
 		"snappy_mode":        "regular",

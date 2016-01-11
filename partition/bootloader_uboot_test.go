@@ -45,16 +45,14 @@ func (s *PartitionTestSuite) makeFakeUbootEnv(c *C) {
 }
 
 func (s *PartitionTestSuite) TestNewUbootNoUbootReturnsNil(c *C) {
-	partition := New()
-	u := newUboot(partition)
+	u := newUboot()
 	c.Assert(u, IsNil)
 }
 
 func (s *PartitionTestSuite) TestNewUboot(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	partition := New()
-	u := newUboot(partition)
+	u := newUboot()
 	c.Assert(u, NotNil)
 	c.Assert(u.Name(), Equals, bootloaderNameUboot)
 }
@@ -62,8 +60,7 @@ func (s *PartitionTestSuite) TestNewUboot(c *C) {
 func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	partition := New()
-	u := newUboot(partition)
+	u := newUboot()
 	c.Assert(u, NotNil)
 	err := u.SetBootVar("snappy_mode", "regular")
 	c.Assert(err, IsNil)
@@ -81,8 +78,8 @@ func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
 
 func (s *PartitionTestSuite) TestGetBootloaderWithUboot(c *C) {
 	s.makeFakeUbootEnv(c)
-	p := New()
-	bootloader, err := bootloader(p)
+
+	bootloader, err := bootloader()
 	c.Assert(err, IsNil)
 	c.Assert(bootloader.Name(), Equals, bootloaderNameUboot)
 }
@@ -101,8 +98,7 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	c.Assert(err, IsNil)
 	time.Sleep(100 * time.Millisecond)
 
-	partition := New()
-	u := newUboot(partition)
+	u := newUboot()
 	c.Assert(u, NotNil)
 
 	// note that we set to the same var as above
@@ -121,8 +117,7 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 func (s *PartitionTestSuite) TestUbootSetBootVarFwEnv(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	partition := New()
-	u := newUboot(partition)
+	u := newUboot()
 	err := u.SetBootVar("key", "value")
 	c.Assert(err, IsNil)
 
@@ -134,8 +129,7 @@ func (s *PartitionTestSuite) TestUbootSetBootVarFwEnv(c *C) {
 func (s *PartitionTestSuite) TestUbootGetBootVarFwEnv(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	partition := New()
-	u := newUboot(partition)
+	u := newUboot()
 	err := u.SetBootVar("key2", "value2")
 	c.Assert(err, IsNil)
 

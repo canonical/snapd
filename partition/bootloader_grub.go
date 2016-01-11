@@ -43,7 +43,6 @@ var (
 )
 
 type grub struct {
-	bootloaderType
 }
 
 const bootloaderNameGrub bootloaderName = "grub"
@@ -59,18 +58,12 @@ func bootloaderGrubEnvFile() string {
 }
 
 // newGrub create a new Grub bootloader object
-func newGrub(partition *Partition) bootLoader {
+func newGrub() bootLoader {
 	if !helpers.FileExists(bootloaderGrubConfigFile()) {
 		return nil
 	}
 
-	b := newBootLoader(partition, bootloaderGrubDir())
-	if b == nil {
-		return nil
-	}
-	g := grub{bootloaderType: *b}
-
-	return &g
+	return &grub{}
 }
 
 func (g *grub) Name() bootloaderName {

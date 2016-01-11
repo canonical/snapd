@@ -50,16 +50,14 @@ func (s *PartitionTestSuite) makeFakeGrubEnv(c *C) {
 func (s *PartitionTestSuite) TestNewGrubNoGrubReturnsNil(c *C) {
 	dirs.GlobalRootDir = "/something/not/there"
 
-	partition := New()
-	g := newGrub(partition)
+	g := newGrub()
 	c.Assert(g, IsNil)
 }
 
 func (s *PartitionTestSuite) TestNewGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	partition := New()
-	g := newGrub(partition)
+	g := newGrub()
 	c.Assert(g, NotNil)
 	c.Assert(g.Name(), Equals, bootloaderNameGrub)
 }
@@ -82,8 +80,7 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
 	runCommandWithStdout = mockGrubEditenvList
 
-	partition := New()
-	g := newGrub(partition)
+	g := newGrub()
 
 	v, err := g.GetBootVar(bootloaderBootmodeVar)
 	c.Assert(err, IsNil)
@@ -92,8 +89,8 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 
 func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
 	s.makeFakeGrubEnv(c)
-	p := New()
-	bootloader, err := bootloader(p)
+
+	bootloader, err := bootloader()
 	c.Assert(err, IsNil)
 	c.Assert(bootloader.Name(), Equals, bootloaderNameGrub)
 }
