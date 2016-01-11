@@ -405,7 +405,7 @@ func fillSnapEnvVars(desc interface{}, vars []string) []string {
 // somewhere more reasonable like the snappy module.
 func GetBasicSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
-		"SNAP_DIR={{.AppPath}}",
+		"SNAP={{.AppPath}}",
 		"SNAP_DATA=/var/lib{{.AppPath}}",
 		"TMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp",
 		"TEMPDIR=/tmp/snaps/{{.UdevAppName}}/{{.Version}}/tmp",
