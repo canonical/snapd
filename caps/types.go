@@ -87,8 +87,8 @@ func (t *Type) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, &t.Name)
 }
 
-// GrantPermissions makes it possible for the package `snapName` to use hardware
-// described by the capability `cap`.
+// GrantPermissions makes it possible for the package `snapName` to use the
+// resource described by the capability `cap`.
 func (t *Type) GrantPermissions(snapName string, cap *Capability) error {
 	// Ensure that the capability is valid
 	if err := t.Validate(cap); err != nil {
