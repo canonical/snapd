@@ -20,16 +20,55 @@
 package main
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/ubuntu-core/snappy/client"
 	"github.com/ubuntu-core/snappy/i18n"
 	"github.com/ubuntu-core/snappy/logger"
 )
 
+// AttributePair contains a pair of key-value strings
+type AttributePair struct {
+	// The key
+	Key string
+	// The value
+	Value string
+}
+
+// UnmarshalFlag parses a string into an AttributePair
+func (ap *AttributePair) UnmarshalFlag(value string) error {
+	parts := strings.SplitN(value, "=", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("expected attribute in key=value format")
+	}
+	ap.Key, ap.Value = parts[0], parts[1]
+	return nil
+}
+
+// MarshalFlag converts a AttributePair into a string
+func (ap *AttributePair) MarshalFlag() (string, error) {
+	return fmt.Sprintf("%s=%q", ap.Key, ap.Value), nil
+}
+
+// AttributePairSliceToMap converts a slice of AttributePair into a map
+func AttributePairSliceToMap(attrs []AttributePair) map[string]string {
+	result := make(map[string]string)
+	for _, attr := range attrs {
+		result[attr.Key] = attr.Value
+	}
+	return result
+}
+
+type addCapOptions struct {
+	Name  string          `positional-arg-name:"name" description:"unique capability name"`
+	Label string          `positional-arg-name:"label" description:"a descriptive label"`
+	Type  string          `positional-arg-name:"type" description:"type of capability to add"`
+	Attrs []AttributePair `positional-arg-name:"attrs" description:"key=value attributes"`
+}
+
 type cmdAddCap struct {
-	Name  string            `short:"n" long:"name" required:"true" description:"unique capability name"`
-	Label string            `short:"l" long:"label" required:"true" description:"human-friendly label"`
-	Type  string            `short:"t" long:"type" required:"true" description:"type of the capability to add"`
-	Attrs map[string]string `short:"a" long:"attr" description:"additional key:value attributes"`
+	addCapOptions `positional-args:"true" required:"true"`
 }
 
 var (
@@ -40,7 +79,7 @@ var (
 func init() {
 	_, err := parser.AddCommand("add-cap", shortAddCapHelp, longAddCapHelp, &cmdAddCap{})
 	if err != nil {
-		logger.Panicf("unable to add command %q: %v", "add-cap", err)
+		logger.Panicf("unable to add add-caps command: %v", err)
 	}
 }
 
@@ -49,7 +88,7 @@ func (x *cmdAddCap) Execute(args []string) error {
 		Name:  x.Name,
 		Label: x.Label,
 		Type:  x.Type,
-		Attrs: x.Attrs,
+		Attrs: AttributePairSliceToMap(x.Attrs),
 	}
 	return client.New().AddCapability(cap)
 }
