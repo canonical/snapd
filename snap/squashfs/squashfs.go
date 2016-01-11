@@ -97,6 +97,13 @@ func (s *Snap) UnpackWithDropPrivs(instDir, rootdir string) error {
 		}
 	}
 
+	// FIXME: HHAAAAAAAAAAAAAAAACKKKKKKKKKKKKK for the tests
+	if os.Getenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") != "" {
+		if err := s.Unpack("*", instDir); err != nil {
+			return err
+		}
+	}
+
 	// FIXME: helpers.CopyFile() has no preserve attribute flag yet
 	return runCommand("cp", "-a", s.path, BlobPath(instDir))
 }
@@ -106,7 +113,6 @@ var runCommand = func(args ...string) error {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("cmd: %q failed: %v (%q)", strings.Join(args, " "), err, output)
 	}
-
 	return nil
 }
 

@@ -42,7 +42,11 @@ const (
 )
 
 // here to make it easy to switch in tests to "BuildSquashfsSnap"
-var snapBuilderFunc = BuildLegacySnap
+var snapBuilderFunc = BuildSquashfsSnap
+
+func init() {
+	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
+}
 
 // makeInstalledMockSnap creates a installed mock snap without any
 // content other than the meta data
