@@ -29,16 +29,10 @@ import (
 	"time"
 )
 
-// BuilderFromComps can build an assertion from its components.
-type BuilderFromComps func(headers map[string]string, body, content, signature []byte) (Assertion, error)
-
 // Backstore is a backstore for assertions. It can store and retrieve
 // assertions by type under primary paths (tuples of strings). Plus it
 // supports more general searches.
 type Backstore interface {
-	// Init initializes the backstore. It is provided with a function
-	// to build assertions from their components.
-	Init(buildAssert BuilderFromComps) error
 	// Put stores an assertion under the given unique primaryPath.
 	// It is responsible for checking that assert is newer than a
 	// previously stored revision.
@@ -129,11 +123,6 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		}
 	}
 
-	err := bs.Init(buildAssertion)
-	if err != nil {
-		return nil, err
-	}
-
 	trustedKeys := make(map[string][]*AccountKey)
 	for _, accKey := range cfg.TrustedKeys {
 		authID := accKey.AccountID()
@@ -194,7 +183,7 @@ func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, erro
 	return privKey.PublicKey(), nil
 }
 
-// Sign builds an assertion with the provided information and signs it
+// Sign assembles an assertion with the provided information and signs it
 // with the private key from `headers["authority-id"]` that has the provided key id.
 func (db *Database) Sign(assertType AssertionType, headers map[string]string, body []byte, keyID string) (Assertion, error) {
 	authorityID, err := checkMandatory(headers, "authority-id")
@@ -205,7 +194,7 @@ func (db *Database) Sign(assertType AssertionType, headers map[string]string, bo
 	if err != nil {
 		return nil, err
 	}
-	return buildAndSign(assertType, headers, body, privKey)
+	return assembleAndSign(assertType, headers, body, privKey)
 }
 
 // find account keys exactly by account id and key id

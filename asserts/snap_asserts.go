@@ -66,7 +66,7 @@ func (snapdcl *SnapBuild) checkConsistency(db *Database, acck *AccountKey) error
 	return nil
 }
 
-func buildSnapBuild(assert assertionBase) (Assertion, error) {
+func assembleSnapBuild(assert assertionBase) (Assertion, error) {
 	_, err := checkMandatory(assert.headers, "snap-id")
 	if err != nil {
 		return nil, err
@@ -152,7 +152,7 @@ func (assert *SnapRevision) checkConsistency(db *Database, acck *AccountKey) err
 	return nil
 }
 
-func buildSnapRevision(assert assertionBase) (Assertion, error) {
+func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	_, err := checkMandatory(assert.headers, "snap-id")
 	if err != nil {
 		return nil, err
@@ -193,11 +193,11 @@ func buildSnapRevision(assert assertionBase) (Assertion, error) {
 
 func init() {
 	typeRegistry[SnapBuildType] = &assertionTypeRegistration{
-		builder:    buildSnapBuild,
+		assembler:  assembleSnapBuild,
 		primaryKey: []string{"snap-id", "snap-digest"},
 	}
 	typeRegistry[SnapRevisionType] = &assertionTypeRegistration{
-		builder:    buildSnapRevision,
+		assembler:  assembleSnapRevision,
 		primaryKey: []string{"snap-id", "snap-digest"},
 	}
 }
