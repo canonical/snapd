@@ -54,7 +54,9 @@ func getgrnamForking(name string) (grp Group, err error) {
 	grp.Name = parsed[0]
 	grp.Passwd = parsed[1]
 	grp.Gid = uint(gid)
-	grp.Mem = strings.Split(parsed[3], ",")
+	if parsed[3] != "" {
+		grp.Mem = strings.Split(parsed[3], ",")
+	}
 
 	return grp, nil
 }
@@ -71,4 +73,12 @@ func (s *groupTestSuite) TestGetgrnamNoSuchGroup(c *C) {
 	needle := "no-such-group-really-no-no"
 	_, err := Getgrnam(needle)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("group \"%s\" not found", needle))
+}
+
+func (s *groupTestSuite) TestGetgrnamEmptyGroup(c *C) {
+	expected, err := getgrnamForking("floppy")
+	c.Assert(err, IsNil)
+	groups, err := Getgrnam("floppy")
+	c.Assert(err, IsNil)
+	c.Assert(groups, DeepEquals, expected)
 }
