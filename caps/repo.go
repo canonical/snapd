@@ -164,21 +164,21 @@ func (r *Repository) TypeNames() []string {
 	return types
 }
 
-type byName []Capability
+type byName []*Capability
 
 func (c byName) Len() int           { return len(c) }
 func (c byName) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
 func (c byName) Less(i, j int) bool { return c[i].Name < c[j].Name }
 
 // All returns all capabilities ordered by name.
-func (r *Repository) All() []Capability {
+func (r *Repository) All() []*Capability {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	caps := make([]Capability, len(r.caps))
+	caps := make([]*Capability, len(r.caps))
 	i := 0
 	for _, capability := range r.caps {
-		caps[i] = *capability
+		caps[i] = capability
 		i++
 	}
 	sort.Sort(byName(caps))

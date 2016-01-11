@@ -34,20 +34,9 @@ type Type struct {
 	// RequiredAttrs contains names of attributes that are required by
 	// capability of this type.
 	RequiredAttrs []string
+	// Attrs contains a description of each attribute type
+	Attrs map[string]TypeAttr
 }
-
-var (
-	// BoolFileType is a built-in capability type for files that follow a
-	// simple boolean protocol. The file can be read, which yields ASCII '0'
-	// (zero) or ASCII '1' (one). The same can be done for writing.
-	//
-	// This capability type can be used to describe many boolean flags exposed
-	// in sysfs, including certain hardware like exported GPIO pins.
-	BoolFileType = &Type{
-		Name:          "bool-file",
-		RequiredAttrs: []string{"path"},
-	}
-)
 
 var builtInTypes = [...]*Type{
 	BoolFileType,
@@ -67,6 +56,16 @@ func (t *Type) Validate(c *Capability) error {
 	for _, attr := range t.RequiredAttrs {
 		if _, ok := c.Attrs[attr]; !ok {
 			return fmt.Errorf("capabilities of type %q must provide a %q attribute", t, attr)
+		}
+	}
+	// Check that the type of each attribute is correct
+	for attrName, attrType := range t.Attrs {
+		attrValue, ok := c.Attrs[attrName]
+		if !ok {
+			return fmt.Errorf("capabilities of type %q must provide a %q attribute", t, attrName)
+		}
+		if _, err := attrType.CheckValue(attrValue); err != nil {
+			return err
 		}
 	}
 	return nil

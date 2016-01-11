@@ -51,6 +51,7 @@ import (
 )
 
 type apiSuite struct {
+	testutil.BaseTest
 	parts []snappy.Part
 	err   error
 	vars  map[string]string
@@ -89,6 +90,8 @@ func (s *apiSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *apiSuite) SetUpTest(c *check.C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapLockFile), 0755), check.IsNil)
 
@@ -99,6 +102,8 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 
 func (s *apiSuite) TearDownTest(c *check.C) {
 	findServices = snappy.FindServices
+
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *apiSuite) mkInstalled(c *check.C, name, origin, version string, active bool, extraYaml string) {
@@ -1164,11 +1169,13 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 
 func (s *apiSuite) TestGetCapabilities(c *check.C) {
 	d := newTestDaemon()
+	// Don't check symbolic links when analyzing the capability below
+	caps.MockEvalSymlinks(&s.BaseTest, caps.IgnoreSymbolicLinks)
 	d.capRepo.Add(&caps.Capability{
 		Name:  "caps-lock-led",
 		Label: "Caps Lock LED",
 		Type:  caps.BoolFileType,
-		Attrs: map[string]string{
+		Attrs: map[string]interface{}{
 			"path": "/sys/class/leds/input::capslock/brightness",
 		},
 	})
@@ -1202,11 +1209,15 @@ func (s *apiSuite) TestGetCapabilities(c *check.C) {
 func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 	// Setup
 	d := newTestDaemon()
+	// Don't check symbolic links when analyzing the capability below
+	caps.MockEvalSymlinks(&s.BaseTest, caps.IgnoreSymbolicLinks)
 	cap := &caps.Capability{
 		Name:  "name",
 		Label: "label",
 		Type:  caps.BoolFileType,
-		Attrs: map[string]string{"path": "/nonexistent"},
+		Attrs: map[string]interface{}{
+			"path": "/sys/class/leds/input::capslock/brightness",
+		},
 	}
 	text, err := json.Marshal(cap)
 	c.Assert(err, check.IsNil)
@@ -1220,18 +1231,22 @@ func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusCreated)
 	c.Check(rsp.Result, check.DeepEquals, map[string]string{"resource": "/1.0/capabilities/name"})
 	// Verify (internal)
-	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
+	c.Check(d.capRepo.All(), testutil.DeepContains, cap)
 }
 
 func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	// Setup
 	// Start with one capability named 'name' in the repository
 	d := newTestDaemon()
+	// Don't check symbolic links when analyzing the capability below
+	caps.MockEvalSymlinks(&s.BaseTest, caps.IgnoreSymbolicLinks)
 	cap := &caps.Capability{
 		Name:  "name",
 		Label: "label",
 		Type:  caps.BoolFileType,
-		Attrs: map[string]string{"path": "/nonexistent"},
+		Attrs: map[string]interface{}{
+			"path": "/sys/class/leds/input::capslock/brightness",
+		},
 	}
 	err := d.capRepo.Add(cap)
 	c.Assert(err, check.IsNil)
@@ -1240,7 +1255,9 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 		Name:  "name",
 		Label: "second label",
 		Type:  caps.BoolFileType,
-		Attrs: map[string]string{"path": "/nonexistent"},
+		Attrs: map[string]interface{}{
+			"path": "/sys/class/leds/input::capslock/brightness",
+		},
 	}
 	text, err := json.Marshal(capClashing)
 	c.Assert(err, check.IsNil)
@@ -1254,8 +1271,8 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*errorResult).Msg, check.Matches, `can't add capability`)
 	// Verify (internal)
-	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
-	c.Check(d.capRepo.All(), check.Not(testutil.DeepContains), *capClashing)
+	c.Check(d.capRepo.All(), testutil.DeepContains, cap)
+	c.Check(d.capRepo.All(), check.Not(testutil.DeepContains), capClashing)
 }
 
 func (s *apiSuite) TestAddCapabilitiesUnintelligible(c *check.C) {

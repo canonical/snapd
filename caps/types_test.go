@@ -76,7 +76,7 @@ func (s *TypeSuite) TestValidateAttributesRequiredAttrsSatisfied(c *C) {
 		Name:  "name",
 		Label: "label",
 		Type:  t,
-		Attrs: map[string]string{"k": "v"},
+		Attrs: map[string]interface{}{"k": "v"},
 	}
 	err := t.Validate(cap)
 	c.Assert(err, IsNil)
