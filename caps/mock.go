@@ -20,27 +20,21 @@
 package caps
 
 import (
-	"path/filepath"
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 type evalSymlinksFn func(string) (string, error)
 
-// evalSymlinks is either filepath.EvalSymlinks or a mocked function for
-// applicable for testing.
-var evalSymlinks = filepath.EvalSymlinks
-
 // MockEvalSymlinks mocks the path/filepath.EvalSymlinks function for the
-// purpose of the capability package.
-func MockEvalSymlinks(fn evalSymlinksFn) {
+// purpose of the capability package. The original function is automatically
+// restored at the end of the test.
+func MockEvalSymlinks(s *testutil.BaseTest, fn evalSymlinksFn) {
+	oldEvalSymlinks := evalSymlinks
 	evalSymlinks = fn
+	s.AddCleanup(func() { evalSymlinks = oldEvalSymlinks })
 }
 
 // IgnoreSymbolicLinks is a no-op version of filepath.EvalSymlinks.
 func IgnoreSymbolicLinks(path string) (string, error) {
 	return path, nil
-}
-
-// RestoreEvalSymlinks restores the real behavior of filepath.EvalSymlinks.
-func RestoreEvalSymlinks() {
-	evalSymlinks = filepath.EvalSymlinks
 }

@@ -21,8 +21,13 @@ package caps
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 )
+
+// evalSymlinks is either filepath.EvalSymlinks or a mocked function for
+// applicable for testing.
+var evalSymlinks = filepath.EvalSymlinks
 
 // pathAttr is a type for storing filesystem paths in capability attributes.
 //

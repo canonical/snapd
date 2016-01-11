@@ -24,9 +24,12 @@ import (
 	"regexp"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 type pathSuite struct {
+	testutil.BaseTest
 	pathAttr    TypeAttr
 	devPathAttr TypeAttr
 	capType     *Type
@@ -57,19 +60,16 @@ func (s *pathSuite) SetUpSuite(c *C) {
 }
 
 func (s *pathSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	// For testing, mock the filepath.EvalSymlinks function to a simple
 	// identity function that never fails. Individual tests can replace that
-	// with anything they want, the tear-down function recovers the original.
-	MockEvalSymlinks(IgnoreSymbolicLinks)
+	// with anything they want.
+	MockEvalSymlinks(&s.BaseTest, IgnoreSymbolicLinks)
 	// Give each test a fresh capability object
 	s.cap = &Capability{
 		Name: "cap",
 		Type: s.capType,
 	}
-}
-
-func (s *pathSuite) TearDownTest(c *C) {
-	RestoreEvalSymlinks()
 }
 
 func (s *pathSuite) TestSetAttr(c *C) {
@@ -79,7 +79,7 @@ func (s *pathSuite) TestSetAttr(c *C) {
 }
 
 func (s *pathSuite) TestSetAttrEvaluatesSymlinks(c *C) {
-	MockEvalSymlinks(func(path string) (string, error) {
+	MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return "real", nil
 	})
 	err := s.cap.SetAttr("path", "symbolic")
@@ -88,7 +88,7 @@ func (s *pathSuite) TestSetAttrEvaluatesSymlinks(c *C) {
 }
 
 func (s *pathSuite) TestSetAttrHandlesSymlinkErrors(c *C) {
-	MockEvalSymlinks(func(path string) (string, error) {
+	MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return "", fmt.Errorf("broken symbolic link")
 	})
 	err := s.cap.SetAttr("path", "symbolic")

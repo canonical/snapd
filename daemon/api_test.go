@@ -51,6 +51,7 @@ import (
 )
 
 type apiSuite struct {
+	testutil.BaseTest
 	parts []snappy.Part
 	err   error
 	vars  map[string]string
@@ -89,6 +90,8 @@ func (s *apiSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *apiSuite) SetUpTest(c *check.C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapLockFile), 0755), check.IsNil)
 
@@ -99,6 +102,8 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 
 func (s *apiSuite) TearDownTest(c *check.C) {
 	findServices = snappy.FindServices
+
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *apiSuite) mkInstalled(c *check.C, name, origin, version string, active bool, extraYaml string) {
@@ -1165,8 +1170,7 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 func (s *apiSuite) TestGetCapabilities(c *check.C) {
 	d := newTestDaemon()
 	// Don't check symbolic links when analyzing the capability below
-	caps.MockEvalSymlinks(caps.IgnoreSymbolicLinks)
-	defer caps.RestoreEvalSymlinks()
+	caps.MockEvalSymlinks(&s.BaseTest, caps.IgnoreSymbolicLinks)
 	d.capRepo.Add(&caps.Capability{
 		Name:  "caps-lock-led",
 		Label: "Caps Lock LED",
@@ -1206,8 +1210,7 @@ func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 	// Setup
 	d := newTestDaemon()
 	// Don't check symbolic links when analyzing the capability below
-	caps.MockEvalSymlinks(caps.IgnoreSymbolicLinks)
-	defer caps.RestoreEvalSymlinks()
+	caps.MockEvalSymlinks(&s.BaseTest, caps.IgnoreSymbolicLinks)
 	cap := &caps.Capability{
 		Name:  "name",
 		Label: "label",
@@ -1236,8 +1239,7 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	// Start with one capability named 'name' in the repository
 	d := newTestDaemon()
 	// Don't check symbolic links when analyzing the capability below
-	caps.MockEvalSymlinks(caps.IgnoreSymbolicLinks)
-	defer caps.RestoreEvalSymlinks()
+	caps.MockEvalSymlinks(&s.BaseTest, caps.IgnoreSymbolicLinks)
 	cap := &caps.Capability{
 		Name:  "name",
 		Label: "label",
