@@ -33,7 +33,6 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
@@ -54,11 +53,8 @@ var _ = Suite(&SnapTestSuite{})
 func (s *SnapTestSuite) SetUpTest(c *C) {
 	s.secbase = policy.SecBase
 	s.tempdir = c.MkDir()
-	newPartition = func() (p partition.Interface) {
-		return new(MockPartition)
-	}
-
 	dirs.SetRootDir(s.tempdir)
+
 	policy.SecBase = filepath.Join(s.tempdir, "security")
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
 	os.MkdirAll(dirs.SnapSeccompDir, 0755)

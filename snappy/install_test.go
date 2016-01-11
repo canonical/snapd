@@ -32,7 +32,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/progress"
 )
 
@@ -295,27 +294,6 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
-
-	// system image
-	newPartition = func() (p partition.Interface) {
-		return new(MockPartition)
-	}
-	defer func() { newPartition = newPartitionImpl }()
-
-	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, systemImageChannelConfig), "1")
-	// setup fake /other partition
-	makeFakeSystemImageChannelConfig(c, filepath.Join(dirs.GlobalRootDir, "other", systemImageChannelConfig), "2")
-
-	siServer := runMockSystemImageWebServer()
-	defer siServer.Close()
-
-	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, fmt.Sprintf(mockSystemImageIndexJSONTemplate, "1"))
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	systemImageServer = mockServer.URL
 
 	// the test
 	updates, err := UpdateAll(0, &progress.NullProgress{})
