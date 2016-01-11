@@ -89,13 +89,6 @@ func (s *SquashfsTestSuite) TestHashFile(c *C) {
 	c.Check(digest, HasLen, crypto.SHA256.Size())
 }
 
-// FIXME: stub that needs to be fleshed out once assertions land
-//        and we actually do verify
-func (s *SquashfsTestSuite) TestVerify(c *C) {
-	err := New("foo").Verify(false)
-	c.Assert(err, IsNil)
-}
-
 func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	snap := makeSnap(c, "name: foo", "")
 

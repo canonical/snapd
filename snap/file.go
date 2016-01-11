@@ -27,17 +27,14 @@ import (
 
 // File is the interface to interact with the low-level snap files
 type File interface {
-	Verify(allowUnauthenticated bool) error
-	Close() error
-	UnpackWithDropPrivs(targetDir, rootDir string) error
+	// Install installs the file
+	Install(targetDir string) error
+
+	// MetaMember returns data from a meta/ directory file member
 	MetaMember(name string) ([]byte, error)
-	ExtractHashes(targetDir string) error
+
 	//Unpack unpacks the src parts to the dst directory
 	Unpack(src, dst string) error
-
-	// NeedsMountUnit determines whether it's required to setup
-	// a mount unit for the snap when the snap is installed
-	NeedsMountUnit() bool
 
 	// Info returns information about the given snap file
 	Info() (*Info, error)

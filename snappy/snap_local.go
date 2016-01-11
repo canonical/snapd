@@ -76,10 +76,6 @@ func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*Sn
 		return nil, err
 	}
 
-	if err := d.Verify(unauthOk); err != nil {
-		return nil, err
-	}
-
 	yamlData, err := d.MetaMember("package.yaml")
 	if err != nil {
 		return nil, err
@@ -337,19 +333,12 @@ func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name strin
 
 	// we need to call the external helper so that we can reliable drop
 	// privs
-	if err := s.deb.UnpackWithDropPrivs(s.basedir, dirs.GlobalRootDir); err != nil {
+	if err := s.deb.Install(s.basedir); err != nil {
 		return "", err
 	}
 
 	// generate the mount unit for the squashfs
-	if s.deb.NeedsMountUnit() {
-		if err := s.m.addSquashfsMount(s.basedir, inhibitHooks, inter); err != nil {
-			return "", err
-		}
-	}
-
-	// write the hashes now
-	if err := s.deb.ExtractHashes(filepath.Join(s.basedir, "meta")); err != nil {
+	if err := s.m.addSquashfsMount(s.basedir, inhibitHooks, inter); err != nil {
 		return "", err
 	}
 
