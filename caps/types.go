@@ -95,7 +95,7 @@ func (t *Type) GrantPermissions(snapName string, cap *Capability) error {
 		return err
 	}
 	// Grant all permissions required.
-	for i, _ := range cap.Type.SecuritySystems {
+	for i := range cap.Type.SecuritySystems {
 		sec := cap.Type.SecuritySystems[i]
 		if err := sec.GrantPermissions(snapName, cap); err != nil {
 			// If we already granted something, try to revoke that permission instead
