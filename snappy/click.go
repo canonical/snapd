@@ -29,9 +29,7 @@ package snappy
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -70,44 +68,6 @@ var killWait = 5 * time.Second
 // servicesBinariesStringsWhitelist is the whitelist of legal chars
 // in the "binaries" and "services" section of the package.yaml
 var servicesBinariesStringsWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
-
-// Execute the hook.Exec command
-func execHook(execCmd string) (err error) {
-	// the spec says this is passed to the shell
-	cmd := exec.Command("sh", "-c", execCmd)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		if exitCode, err := helpers.ExitCode(err); err == nil {
-			return &ErrHookFailed{
-				Cmd:      execCmd,
-				Output:   string(output),
-				ExitCode: exitCode,
-			}
-		}
-		return err
-	}
-
-	return nil
-}
-
-func readClickManifest(data []byte) (manifest clickManifest, err error) {
-	r := bytes.NewReader(data)
-	dec := json.NewDecoder(r)
-	err = dec.Decode(&manifest)
-	return manifest, err
-}
-
-func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err error) {
-	manifestFiles, err := filepath.Glob(filepath.Join(clickDir, ".click", "info", "*.manifest"))
-	if err != nil {
-		return manifest, err
-	}
-	if len(manifestFiles) != 1 {
-		return manifest, fmt.Errorf("Error: got %v manifests in %v", len(manifestFiles), clickDir)
-	}
-	manifestData, err := ioutil.ReadFile(manifestFiles[0])
-	manifest, err = readClickManifest([]byte(manifestData))
-	return manifest, err
-}
 
 // generate the name
 func generateBinaryName(m *packageYaml, binary Binary) string {
@@ -517,34 +477,6 @@ type agreer interface {
 type interacter interface {
 	agreer
 	Notify(status string)
-}
-
-// this rewrites the json manifest to include the origin in the on-disk
-// manifest.json to be compatible with click again
-func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin string) error {
-	var cm clickManifest
-	if err := json.Unmarshal(manifestData, &cm); err != nil {
-		return err
-	}
-
-	if cm.Type != snap.TypeFramework && cm.Type != snap.TypeGadget {
-		// add the origin to the name
-		cm.Name = fmt.Sprintf("%s.%s", cm.Name, origin)
-	}
-
-	if origin == SideloadedOrigin {
-		cm.Version = filepath.Base(filepath.Join(clickMetaDir, "..", ".."))
-	}
-
-	outStr, err := json.MarshalIndent(cm, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := helpers.AtomicWriteFile(filepath.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644, 0); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func installClick(snapFile string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {

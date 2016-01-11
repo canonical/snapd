@@ -50,39 +50,6 @@ func init() {
 	})
 }
 
-func (s *SnapTestSuite) TestReadManifest(c *C) {
-	manifestData := []byte(`{
-   "description": "This is a simple hello world example.",
-    "framework": "ubuntu-core-15.04-dev1",
-    "hooks": {
-        "echo": {
-            "apparmor": "meta/echo.apparmor",
-            "bin-path": "bin/echo"
-        },
-        "env": {
-            "apparmor": "meta/env.apparmor",
-            "bin-path": "bin/env"
-        },
-        "evil": {
-            "apparmor": "meta/evil.apparmor",
-            "bin-path": "bin/evil"
-        }
-    },
-    "icon": "meta/hello.svg",
-    "installed-size": "59",
-    "maintainer": "Michael Vogt <mvo@ubuntu.com>",
-    "name": "hello-world",
-    "title": "Hello world example",
-    "version": "1.0.5"
-}`)
-	manifest, err := readClickManifest(manifestData)
-	c.Assert(err, IsNil)
-	c.Assert(manifest.Name, Equals, "hello-world")
-	c.Assert(manifest.Version, Equals, "1.0.5")
-	c.Assert(manifest.Hooks["evil"]["bin-path"], Equals, "bin/evil")
-	c.Assert(manifest.Hooks["evil"]["apparmor"], Equals, "meta/evil.apparmor")
-}
-
 func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	snapFile := makeTestSnapPackage(c, "")
 	name, err := installClick(snapFile, 0, nil, testOrigin)
@@ -1204,14 +1171,6 @@ services:
 	c.Check(sd2, DeepEquals, []string{"kill", "wat_wat_42.service", "-s", "KILL"})
 }
 
-func (s *SnapTestSuite) TestExecHookCorrectErrType(c *C) {
-	err := execHook("false")
-	c.Assert(err, DeepEquals, &ErrHookFailed{
-		Cmd:      "false",
-		ExitCode: 1,
-	})
-}
-
 func (s *SnapTestSuite) TestCopySnapDataDirectoryError(c *C) {
 	oldPath := c.MkDir()
 	newPath := "/nonono-i-can-not-write-here"
@@ -1275,34 +1234,6 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSockte(c *C) {
 	generatedWrapper, err := generateSnapServicesFile(service, pkgPath, aaProfile, &m)
 	c.Assert(err, IsNil)
 	c.Assert(generatedWrapper, Equals, expectedSocketUsingWrapper)
-}
-
-func (s *SnapTestSuite) TestWriteCompatManifestJSON(c *C) {
-	manifest := []byte(`{
-    "name": "hello-world"
-}
-`)
-	manifestJSON := filepath.Join(s.tempdir, "hello-world.some-origin.manifest")
-
-	err := writeCompatManifestJSON(s.tempdir, manifest, "some-origin")
-	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(manifestJSON), Equals, true)
-}
-
-func (s *SnapTestSuite) TestWriteCompatManifestJSONNoFollow(c *C) {
-	manifest := []byte(`{
-    "name": "hello-world"
-}
-`)
-	manifestJSON := filepath.Join(s.tempdir, "hello-world.some-origin.manifest")
-	symlinkTarget := filepath.Join(s.tempdir, "symlink-target")
-	os.Symlink(symlinkTarget, manifestJSON)
-	c.Assert(helpers.FileExists(symlinkTarget), Equals, false)
-
-	err := writeCompatManifestJSON(s.tempdir, manifest, "some-origin")
-	c.Assert(err, IsNil)
-	c.Check(helpers.FileExists(manifestJSON), Equals, true)
-	c.Check(helpers.FileExists(symlinkTarget), Equals, false)
 }
 
 func (s *SnapTestSuite) TestGenerateSnapSocketFile(c *C) {

@@ -69,9 +69,7 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 	return part, nil
 }
 
-// NewSnapPartFromSnapFile loads a snap from the given (clickdeb) snap file.
-// Caller should call Close on the snap.
-// TODO: expose that Close.
+// NewSnapPartFromSnapFile loads a snap from the given snap file.
 func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
 	d, err := snap.Open(snapFile)
 	if err != nil {

@@ -29,7 +29,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/clickdeb"
 )
 
 type fakePart struct {
@@ -67,9 +66,6 @@ type FirstBootTestSuite struct {
 var _ = Suite(&FirstBootTestSuite{})
 
 func (s *FirstBootTestSuite) SetUpTest(c *C) {
-	s.verifyCmd = clickdeb.VerifyCmd
-	clickdeb.VerifyCmd = "true"
-
 	dirs.SetRootDir(c.MkDir())
 	stampFile = filepath.Join(c.MkDir(), "stamp")
 
@@ -100,7 +96,6 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	ifup = s.ifup
 	getGadget = getGadgetImpl
 	newPartMap = newPartMapImpl
-	clickdeb.VerifyCmd = s.verifyCmd
 }
 
 func (s *FirstBootTestSuite) getGadget() (*packageYaml, error) {
