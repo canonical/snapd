@@ -60,6 +60,16 @@ func doUpdate(part Part, flags InstallFlags, meter progress.Meter) error {
 	return nil
 }
 
+// FIXME: This needs to go (and will go). We will have something
+//        like:
+//           remoteSnapType = GetUpdatesFromServer()
+//           localSnapType = DoUpdate(remoteSnaps)
+//           ShowUpdates(localSnaps)
+//        By using the different types (instead of the same interface)
+//        it will not be possilbe to pass remote snaps into the
+//        ShowUpdates() output.
+//
+//
 // convertToInstalledSnaps takes a slice of remote snaps that got
 // updated and returns the corresponding local snap parts.
 func convertToInstalledSnaps(remoteUpdates []Part) ([]Part, error) {
