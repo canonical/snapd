@@ -30,7 +30,6 @@ import (
 	"syscall"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/testutil"
 
 	. "gopkg.in/check.v1"
@@ -269,38 +268,6 @@ func (s *BuildTestSuite) TestDebArchitecture(c *C) {
 	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo"}}), Equals, "foo")
 	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo", "bar"}}), Equals, "multi")
 	c.Check(debArchitecture(&packageYaml{Architectures: nil}), Equals, "unknown")
-}
-
-func (s *BuildTestSuite) TestHashForFileForDevice(c *C) {
-	// skip test
-	if !helpers.FileExists("/dev/kmsg") {
-		c.Skip("no /dev/kmsg")
-	}
-
-	stat, err := os.Stat("/dev/kmsg")
-	c.Assert(err, IsNil)
-	h, err := hashForFile("", "/dev/kmsg", stat)
-	c.Assert(err, IsNil)
-	c.Assert(h.Name, Equals, "/dev/kmsg")
-	c.Assert(h.Device, Equals, "1,11")
-	c.Assert(h.Sha512, Equals, "")
-}
-
-func (s *BuildTestSuite) TestBuildAllPermissions(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 1.0.1
-`)
-
-	_, err := BuildLegacySnap(sourceDir, "")
-	c.Assert(err, IsNil)
-
-	// check that the content looks sane
-	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_all.snap").CombinedOutput()
-	c.Assert(err, IsNil)
-
-	// check that we really have the right perms
-	c.Assert(strings.Contains(string(readFiles), `drwxrwxrwx`), Equals, true)
-	c.Assert(strings.Contains(string(readFiles), `-rw-rw-rw-`), Equals, true)
 }
 
 func (s *BuildTestSuite) TestBuildFailsForUnknownType(c *C) {

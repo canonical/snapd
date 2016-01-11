@@ -147,20 +147,6 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 		part.description = description
 	}
 
-	// read hash, its ok if its not there, some older versions of
-	// snappy did not write this file
-	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes.yaml"))
-	if err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
-
-	var h hashesYaml
-	err = yaml.Unmarshal(hashesData, &h)
-	if err != nil {
-		return nil, &ErrInvalidYaml{File: "hashes.yaml", Err: err, Yaml: hashesData}
-	}
-	part.hash = h.ArchiveSha512
-
 	remoteManifestPath := RemoteManifestPath(part)
 	if helpers.FileExists(remoteManifestPath) {
 		content, err := ioutil.ReadFile(remoteManifestPath)
