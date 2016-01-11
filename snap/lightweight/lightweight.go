@@ -24,7 +24,6 @@ package lightweight
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -122,45 +121,8 @@ type repo interface {
 	All() ([]snappy.Part, error)
 }
 
-func newCoreRepoImpl() repo {
-	return snappy.NewSystemImageRepository()
-}
-
-var newCoreRepo = newCoreRepoImpl
-
 func find(name string, origin string) map[string]*PartBag {
 	bags := make(map[string]*PartBag)
-
-	if (name == snappy.SystemImagePartName || name == "*") && (origin == snappy.SystemImagePartOrigin || origin == "*") {
-
-		// "repo != nil" will not work, the cast is needed
-		if repo := newCoreRepo(); repo != (*snappy.SystemImageRepository)(nil) {
-			// TODO: make this do less work
-			parts, err := repo.All()
-			if err != nil {
-				//  can't really happen
-				panic(fmt.Sprintf("Bad SystemImageRepository: %v", err))
-			}
-
-			// parts can be empty during testing for example
-			if len(parts) > 0 {
-				versions := make([]string, len(parts))
-				for i, part := range parts {
-					versions[i] = part.Version()
-				}
-				versionSort(versions)
-
-				bag := &PartBag{
-					Name:     snappy.SystemImagePartName,
-					Origin:   snappy.SystemImagePartOrigin,
-					Type:     snap.TypeCore,
-					Versions: versions,
-					concrete: &concreteCore{},
-				}
-				bags[bag.QualifiedName()] = bag
-			}
-		}
-	}
 
 	type T struct {
 		inst string
@@ -279,29 +241,6 @@ var (
 	// version and it disappears before we get to load it.
 	ErrVersionGone = errors.New("Version gone")
 )
-
-type concreteCore struct{}
-
-func (*concreteCore) IsInstalled(string) bool { return true }
-func (*concreteCore) ActiveIndex() int        { return 0 }
-func (*concreteCore) Load(version string) (snappy.Part, error) {
-	if newCoreRepo() == nil {
-		return nil, ErrVersionGone
-	}
-	parts, err := newCoreRepo().All()
-	if err != nil {
-		//  can't really happen
-		return nil, fmt.Errorf("Bad SystemImageRepository: %v", err)
-	}
-
-	for _, part := range parts {
-		if part.Version() == version {
-			return part, nil
-		}
-	}
-
-	return nil, ErrVersionGone
-}
 
 type concreteSnap struct {
 	self    *PartBag
