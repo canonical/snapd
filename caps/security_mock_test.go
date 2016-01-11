@@ -34,7 +34,7 @@ func (s *MockSecuritySuite) TestGrantPermissionSuccess(c *C) {
 	sec := &mockSecurity{}
 	err := sec.GrantPermissions(snapName, testCapability)
 	c.Assert(err, IsNil)
-	c.Assert(sec.StateMap[snapName], Equals, GRANTED)
+	c.Assert(sec.StateMap[snapName], Equals, mockSecurityGranted)
 }
 
 func (s *MockSecuritySuite) TestGrantPermissionFailure(c *C) {
@@ -43,7 +43,7 @@ func (s *MockSecuritySuite) TestGrantPermissionFailure(c *C) {
 	sec.SetGrantPermissionsError(snapName, fmt.Errorf("boom"))
 	err := sec.GrantPermissions(snapName, testCapability)
 	c.Assert(err, ErrorMatches, "boom")
-	c.Assert(sec.StateMap[snapName], Equals, INITIAL)
+	c.Assert(sec.StateMap[snapName], Equals, mockSecurityInitial)
 }
 
 func (s *MockSecuritySuite) TestRevokePermissionSuccess(c *C) {
@@ -51,7 +51,7 @@ func (s *MockSecuritySuite) TestRevokePermissionSuccess(c *C) {
 	sec := &mockSecurity{}
 	err := sec.RevokePermissions(snapName, testCapability)
 	c.Assert(err, IsNil)
-	c.Assert(sec.StateMap[snapName], Equals, REVOKED)
+	c.Assert(sec.StateMap[snapName], Equals, mockSecurityRevoked)
 }
 
 func (s *MockSecuritySuite) TestRevokePermissionFailure(c *C) {
@@ -60,5 +60,5 @@ func (s *MockSecuritySuite) TestRevokePermissionFailure(c *C) {
 	sec.SetRevokePermissionsError(snapName, fmt.Errorf("boom"))
 	err := sec.RevokePermissions(snapName, testCapability)
 	c.Assert(err, ErrorMatches, "boom")
-	c.Assert(sec.StateMap[snapName], Equals, INITIAL)
+	c.Assert(sec.StateMap[snapName], Equals, mockSecurityInitial)
 }

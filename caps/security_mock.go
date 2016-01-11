@@ -20,9 +20,9 @@
 package caps
 
 const (
-	INITIAL = iota
-	GRANTED = iota
-	REVOKED = iota
+	mockSecurityInitial = iota
+	mockSecurityGranted = iota
+	mockSecurityRevoked = iota
 )
 
 type mockSecurity struct {
@@ -39,7 +39,7 @@ func (sec *mockSecurity) GrantPermissions(snapName string, cap *Capability) erro
 	if sec.StateMap == nil {
 		sec.StateMap = make(map[string]int)
 	}
-	sec.StateMap[snapName] = GRANTED
+	sec.StateMap[snapName] = mockSecurityGranted
 	return nil
 }
 
@@ -50,7 +50,7 @@ func (sec *mockSecurity) RevokePermissions(snapName string, cap *Capability) err
 	if sec.StateMap == nil {
 		sec.StateMap = make(map[string]int)
 	}
-	sec.StateMap[snapName] = REVOKED
+	sec.StateMap[snapName] = mockSecurityRevoked
 	return nil
 }
 

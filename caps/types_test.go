@@ -110,8 +110,8 @@ func (s *TypeSuite) TestGrantPermissionsSuccess(c *C) {
 	}
 	snapName := "snap"
 	t.GrantPermissions(snapName, cap)
-	c.Assert(sec1.StateMap[snapName], Equals, GRANTED)
-	c.Assert(sec2.StateMap[snapName], Equals, GRANTED)
+	c.Assert(sec1.StateMap[snapName], Equals, mockSecurityGranted)
+	c.Assert(sec2.StateMap[snapName], Equals, mockSecurityGranted)
 }
 
 func (s *TypeSuite) TestGrantPermissionsFailure(c *C) {
@@ -131,8 +131,8 @@ func (s *TypeSuite) TestGrantPermissionsFailure(c *C) {
 	sec2.SetGrantPermissionsError(snapName, fmt.Errorf("boom"))
 	err := t.GrantPermissions(snapName, cap)
 	c.Assert(err, ErrorMatches, "boom")
-	c.Assert(sec1.StateMap[snapName], Equals, REVOKED)
-	c.Assert(sec2.StateMap[snapName], Equals, INITIAL)
+	c.Assert(sec1.StateMap[snapName], Equals, mockSecurityRevoked)
+	c.Assert(sec2.StateMap[snapName], Equals, mockSecurityInitial)
 }
 
 func (s *TypeSuite) TestGrantPermissionsCatastrophicFailure(c *C) {
@@ -154,8 +154,8 @@ func (s *TypeSuite) TestGrantPermissionsCatastrophicFailure(c *C) {
 	sec1.SetRevokePermissionsError(snapName, fmt.Errorf("boom-revoking"))
 	c.Assert(func() { t.GrantPermissions(snapName, cap) }, PanicMatches,
 		`unable to revoke partially granted permissions: "boom-revoking"`)
-	c.Assert(sec1.StateMap[snapName], Equals, GRANTED)
-	c.Assert(sec2.StateMap[snapName], Equals, INITIAL)
+	c.Assert(sec1.StateMap[snapName], Equals, mockSecurityGranted)
+	c.Assert(sec2.StateMap[snapName], Equals, mockSecurityInitial)
 }
 
 func (s *TypeSuite) TestRevokePermissionsSuccess(c *C) {
@@ -172,8 +172,8 @@ func (s *TypeSuite) TestRevokePermissionsSuccess(c *C) {
 	}
 	snapName := "snap"
 	t.RevokePermissions(snapName, cap)
-	c.Assert(sec1.StateMap[snapName], Equals, REVOKED)
-	c.Assert(sec2.StateMap[snapName], Equals, REVOKED)
+	c.Assert(sec1.StateMap[snapName], Equals, mockSecurityRevoked)
+	c.Assert(sec2.StateMap[snapName], Equals, mockSecurityRevoked)
 }
 
 func (s *TypeSuite) TestRevokePermissionsFailure(c *C) {
@@ -192,8 +192,8 @@ func (s *TypeSuite) TestRevokePermissionsFailure(c *C) {
 	// Configure mock security so that sec2 will fail the revoke operation.
 	sec2.SetRevokePermissionsError(snapName, fmt.Errorf("boom"))
 	t.RevokePermissions(snapName, cap)
-	c.Assert(sec1.StateMap[snapName], Equals, GRANTED)
-	c.Assert(sec2.StateMap[snapName], Equals, INITIAL)
+	c.Assert(sec1.StateMap[snapName], Equals, mockSecurityGranted)
+	c.Assert(sec2.StateMap[snapName], Equals, mockSecurityInitial)
 }
 
 func (s *TypeSuite) TestRevokePermissionsCatastropicFailure(c *C) {
@@ -215,6 +215,6 @@ func (s *TypeSuite) TestRevokePermissionsCatastropicFailure(c *C) {
 	sec1.SetGrantPermissionsError(snapName, fmt.Errorf("boom-granting"))
 	c.Assert(func() { t.RevokePermissions(snapName, cap) }, PanicMatches,
 		`unable to grant partially revoked permissions: "boom-granting"`)
-	c.Assert(sec1.StateMap[snapName], Equals, REVOKED)
-	c.Assert(sec2.StateMap[snapName], Equals, INITIAL)
+	c.Assert(sec1.StateMap[snapName], Equals, mockSecurityRevoked)
+	c.Assert(sec2.StateMap[snapName], Equals, mockSecurityInitial)
 }
