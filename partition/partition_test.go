@@ -55,8 +55,6 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(bootloaderUbootDir(), 0755)
 	c.Assert(err, IsNil)
-
-	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
 
 func (s *PartitionTestSuite) TearDownTest(c *C) {
@@ -67,8 +65,6 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	bootloader = bootloaderImpl
 	cacheDir = cacheDirReal
 	mountTarget = mountTargetReal
-
-	c.Assert(mounts, DeepEquals, mountEntryArray(nil))
 }
 
 func makeHardwareYaml(c *C, hardwareYaml string) (outPath string) {
