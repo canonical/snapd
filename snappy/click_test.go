@@ -41,6 +41,15 @@ import (
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
+// FIXME: kill once all the tests are ported to clickdeb or killed
+func init() {
+	// we need to wrap "Open()" here because stock Open returns
+	// a *ClickDeb and not a snap.File
+	snap.RegisterFormat([]byte("!<arch>\ndebian"), func(path string) (snap.File, error) {
+		return clickdeb.Open(path)
+	})
+}
+
 func (s *SnapTestSuite) TestReadManifest(c *C) {
 	manifestData := []byte(`{
    "description": "This is a simple hello world example.",
