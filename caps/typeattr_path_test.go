@@ -39,7 +39,7 @@ func (s *pathSuite) SetUpSuite(c *C) {
 	// A path attribute that accepts any path
 	s.pathAttr = &pathAttr{
 		errorHint:       "path cannot be empty",
-		allowedPatterns: []*regexp.Regexp{regexp.MustCompile(".*")},
+		allowedPatterns: []*regexp.Regexp{regexp.MustCompile(".+")},
 	}
 	// A path attribute restricted to files in /dev/
 	s.devPathAttr = &pathAttr{
