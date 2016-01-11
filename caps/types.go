@@ -34,6 +34,9 @@ type Type struct {
 	// RequiredAttrs contains names of attributes that are required by
 	// capability of this type.
 	RequiredAttrs []string
+	// SecuritySystems contains the associated security systems that enable actual
+	// access to system resources needed by this capability.
+	SecuritySystems []securitySystem
 }
 
 var (
