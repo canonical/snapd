@@ -57,19 +57,9 @@ func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	c.Check(name, Equals, "foo")
 
 	baseDir := filepath.Join(dirs.SnapAppsDir, fooComposedName, "1.0")
-	contentFile := filepath.Join(baseDir, "bin", "foo")
-	content, err := ioutil.ReadFile(contentFile)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "#!/bin/sh\necho \"hello\"")
-
-	// ensure we have the data dir
+	c.Assert(helpers.FileExists(baseDir), Equals, true)
 	_, err = os.Stat(filepath.Join(s.tempdir, "var", "lib", "apps", "foo."+testOrigin, "1.0"))
 	c.Assert(err, IsNil)
-
-	// ensure we have the hashes
-	snap, err := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"), testOrigin)
-	c.Assert(err, IsNil)
-	c.Assert(snap.Hash(), Not(Equals), "")
 
 	return snapFile
 }
