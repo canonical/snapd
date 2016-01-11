@@ -23,10 +23,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 
 	. "gopkg.in/check.v1"
 )
@@ -75,31 +73,6 @@ func mockRunCommandWithCapture(args ...string) (err error) {
 	return nil
 }
 
-func (s *PartitionTestSuite) TestToggleRootFS(c *C) {
-	s.makeFakeGrubEnv(c)
-	allCommands = []singleCommand{}
-
-	partition := New()
-	g := newGrub(partition)
-	c.Assert(g, NotNil)
-	err := g.ToggleRootFS("b")
-	c.Assert(err, IsNil)
-
-	// this is always called
-	mp := singleCommand{"/bin/mountpoint", mountTarget}
-	c.Assert(allCommands[0], DeepEquals, mp)
-
-	expectedGrubSet := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile(), "set", "snappy_mode=try"}
-	c.Assert(allCommands[1], DeepEquals, expectedGrubSet)
-
-	// the https://developer.ubuntu.com/en/snappy/porting guide says
-	// we always use the short names
-	expectedGrubSet = singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile(), "set", "snappy_ab=b"}
-	c.Assert(allCommands[2], DeepEquals, expectedGrubSet)
-
-	c.Assert(len(allCommands), Equals, 3)
-}
-
 func mockGrubEditenvList(cmd ...string) (string, error) {
 	mockGrubEditenvOutput := fmt.Sprintf("%s=regular", bootloaderBootmodeVar)
 	return mockGrubEditenvOutput, nil
@@ -123,61 +96,4 @@ func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
 	bootloader, err := bootloader(p)
 	c.Assert(err, IsNil)
 	c.Assert(bootloader.Name(), Equals, bootloaderNameGrub)
-}
-
-func (s *PartitionTestSuite) TestGrubMarkCurrentBootSuccessful(c *C) {
-	s.makeFakeGrubEnv(c)
-	allCommands = []singleCommand{}
-
-	partition := New()
-	g := newGrub(partition)
-	c.Assert(g, NotNil)
-	err := g.MarkCurrentBootSuccessful("a")
-	c.Assert(err, IsNil)
-
-	// this is always called
-	mp := singleCommand{"/bin/mountpoint", mountTarget}
-	c.Assert(allCommands[0], DeepEquals, mp)
-
-	expectedGrubSet := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile(), "set", "snappy_trial_boot=0"}
-
-	c.Assert(allCommands[1], DeepEquals, expectedGrubSet)
-
-	expectedGrubSet2 := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile(), "set", "snappy_ab=a"}
-
-	c.Assert(allCommands[2], DeepEquals, expectedGrubSet2)
-
-	expectedGrubSet3 := singleCommand{bootloaderGrubEnvCmd, bootloaderGrubEnvFile(), "set", "snappy_mode=regular"}
-
-	c.Assert(allCommands[3], DeepEquals, expectedGrubSet3)
-
-}
-
-func (s *PartitionTestSuite) TestSyncBootFilesWithAssets(c *C) {
-	err := os.MkdirAll(bootloaderGrubDir(), 0755)
-	c.Assert(err, IsNil)
-
-	runCommand = mockRunCommand
-	b := grub{
-		bootloaderType{
-			currentBootPath: c.MkDir(),
-			otherBootPath:   c.MkDir(),
-			bootloaderDir:   c.MkDir(),
-		},
-	}
-
-	bootfile := filepath.Join(c.MkDir(), "bootfile")
-	err = ioutil.WriteFile(bootfile, []byte(bootfile), 0644)
-	c.Assert(err, IsNil)
-
-	bootassets := map[string]string{
-		bootfile: filepath.Base(bootfile),
-	}
-
-	err = b.SyncBootFiles(bootassets)
-	c.Assert(err, IsNil)
-
-	dst := filepath.Join(b.bootloaderDir, bootassets[bootfile])
-	c.Check(helpers.FileExists(dst), Equals, true)
-	c.Check(helpers.FilesAreEqual(bootfile, dst), Equals, true)
 }

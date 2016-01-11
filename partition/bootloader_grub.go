@@ -77,23 +77,6 @@ func (g *grub) Name() bootloaderName {
 	return bootloaderNameGrub
 }
 
-// ToggleRootFS make the Grub bootloader switch rootfs's.
-//
-// Approach:
-//
-// Update the grub configuration.
-func (g *grub) ToggleRootFS(otherRootfs string) (err error) {
-
-	if err := g.SetBootVar(bootloaderBootmodeVar, bootloaderBootmodeTry); err != nil {
-		return err
-	}
-
-	// Record the partition that will be used for next boot. This
-	// isn't necessary for correct operation under grub, but allows
-	// us to query the next boot device easily.
-	return g.SetBootVar(bootloaderRootfsVar, otherRootfs)
-}
-
 func (g *grub) GetBootVar(name string) (value string, err error) {
 	// Grub doesn't provide a get verb, so retrieve all values and
 	// search for the required variable ourselves.
@@ -117,23 +100,6 @@ func (g *grub) SetBootVar(name, value string) (err error) {
 	// stores them in the environment file (which is not desirable)
 	arg := fmt.Sprintf("%s=%s", name, value)
 	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile(), "set", arg)
-}
-
-func (g *grub) GetNextBootRootFSName() (label string, err error) {
-	return g.GetBootVar(bootloaderRootfsVar)
-}
-
-func (g *grub) MarkCurrentBootSuccessful(currentRootfs string) (err error) {
-	// Clear the variable set on boot to denote a good boot.
-	if err := g.SetBootVar(bootloaderTrialBootVar, "0"); err != nil {
-		return err
-	}
-
-	if err := g.SetBootVar(bootloaderRootfsVar, currentRootfs); err != nil {
-		return err
-	}
-
-	return g.SetBootVar(bootloaderBootmodeVar, bootloaderBootmodeSuccess)
 }
 
 func (g *grub) BootDir() string {
