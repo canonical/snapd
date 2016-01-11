@@ -28,11 +28,11 @@ import (
 // legacySecurtySystem aids in the ongoing work to transition capability system
 // from hwaccess API to a more direct approach. It allows particular capability
 // types to define a common interface that doesn't expose hwaccess API anymore.
-type legacySecurtySystem struct {
+type legacySecuritySystem struct {
 	AttrName string
 }
 
-func (sec *legacySecurtySystem) GrantPermissions(snapName string, cap *Capability) error {
+func (sec *legacySecuritySystem) GrantPermissions(snapName string, cap *Capability) error {
 	const errPrefix = "cannot grant permissions"
 	// Find the snap
 	snap := snappy.ActiveSnapByName(snapName)
@@ -52,7 +52,7 @@ func (sec *legacySecurtySystem) GrantPermissions(snapName string, cap *Capabilit
 	return nil
 }
 
-func (sec *legacySecurtySystem) RevokePermissions(snapName string, cap *Capability) error {
+func (sec *legacySecuritySystem) RevokePermissions(snapName string, cap *Capability) error {
 	const errPrefix = "cannot revoke permissions"
 	// Find the snap
 	snap := snappy.ActiveSnapByName(snapName)
