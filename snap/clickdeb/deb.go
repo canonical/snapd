@@ -49,14 +49,6 @@ var (
 	ErrMemberNotFound = errors.New("member not found")
 )
 
-func init() {
-	// we need to wrap "Open()" here because stock Open returns
-	// a *ClickDeb and not a snap.File
-	snap.RegisterFormat([]byte("!<arch>\ndebian"), func(path string) (snap.File, error) {
-		return Open(path)
-	})
-}
-
 // ErrUnpackFailed is the error type for a snap unpack problem.
 type ErrUnpackFailed struct {
 	snapFile string

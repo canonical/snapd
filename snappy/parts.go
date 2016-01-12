@@ -161,10 +161,7 @@ func NewMetaLocalRepository() *MetaRepository {
 	if repo := NewSystemImageRepository(); repo != nil {
 		m.all = append(m.all, repo)
 	}
-	if repo := NewLocalSnapRepository(dirs.SnapAppsDir); repo != nil {
-		m.all = append(m.all, repo)
-	}
-	if repo := NewLocalSnapRepository(dirs.SnapGadgetDir); repo != nil {
+	if repo := NewLocalSnapRepository(dirs.SnapSnapsDir); repo != nil {
 		m.all = append(m.all, repo)
 	}
 
