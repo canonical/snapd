@@ -63,7 +63,7 @@ func (s *purgeSuite) TestPurgeNonExistingRaisesError(c *C) {
 	c.Check(inter.notified, HasLen, 0)
 }
 
-func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDir string, part *SnapPart) {
+func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *SnapPart) {
 	version := "1.10"
 	extra := ""
 	switch len(args) {
@@ -84,16 +84,24 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDir string, part *SnapPart
 	c.Assert(os.MkdirAll(filepath.Join(pkgdir, ".click", "info"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(pkgdir, ".click", "info", app+".manifest"), []byte(`{"name": "`+app+`"}`), 0644), IsNil)
 
-	dataDir = filepath.Join(dirs.SnapDataDir, app, version)
+	dataDir := filepath.Join(dirs.SnapDataDir, app, version)
 	c.Assert(os.MkdirAll(dataDir, 0755), IsNil)
 	canaryDataFile := filepath.Join(dataDir, "canary.txt")
+	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	dataHomeDir := filepath.Join(s.tempdir, "home", "user1", "snaps", app, version)
+	c.Assert(os.MkdirAll(dataHomeDir, 0755), IsNil)
+	canaryDataFile = filepath.Join(dataHomeDir, "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	part, err = NewInstalledSnapPart(yamlFile, testOrigin)
 	c.Assert(err, IsNil)
 
-	return dataDir, part
+	dataDirs = []string{dataDir, dataHomeDir}
+
+	return dataDirs, part
 }
 
 func (s *purgeSuite) TestPurgeActiveRaisesError(c *C) {
@@ -108,33 +116,46 @@ func (s *purgeSuite) TestPurgeActiveRaisesError(c *C) {
 
 func (s *purgeSuite) TestPurgeInactiveOK(c *C) {
 	inter := &MockProgressMeter{}
-	ddir, _ := s.mkpkg(c)
+	ddirs, _ := s.mkpkg(c)
 
 	err := Purge("hello-app", 0, inter)
 	c.Check(err, IsNil)
-	c.Check(helpers.FileExists(ddir), Equals, false)
+
+	for _, ddir := range ddirs {
+		c.Check(helpers.FileExists(ddir), Equals, false)
+	}
+
 	c.Check(inter.notified, HasLen, 0)
 }
 
 func (s *purgeSuite) TestPurgeActiveExplicitOK(c *C) {
 	inter := &MockProgressMeter{}
-	ddir, part := s.mkpkg(c)
+	ddirs, part := s.mkpkg(c)
 	c.Assert(part.activate(true, inter), IsNil)
-	canary := filepath.Join(ddir, "canary")
-	c.Assert(os.Mkdir(canary, 0755), IsNil)
+
+	for _, ddir := range ddirs {
+		canary := filepath.Join(ddir, "canary")
+		c.Assert(os.Mkdir(canary, 0755), IsNil)
+	}
 
 	err := Purge("hello-app", DoPurgeActive, inter)
 	c.Check(err, IsNil)
-	c.Check(helpers.FileExists(canary), Equals, false)
+
+	for _, ddir := range ddirs {
+		c.Check(helpers.FileExists(filepath.Join(ddir, "canary")), Equals, false)
+	}
+
 	c.Check(inter.notified, HasLen, 0)
 }
 
 func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 	inter := &MockProgressMeter{}
-	ddir, part := s.mkpkg(c, "v1", "services:\n - name: svc")
+	ddirs, part := s.mkpkg(c, "v1", "services:\n - name: svc")
 	c.Assert(part.activate(true, inter), IsNil)
-	canary := filepath.Join(ddir, "canary")
-	c.Assert(os.Mkdir(canary, 0755), IsNil)
+	for _, ddir := range ddirs {
+		canary := filepath.Join(ddir, "canary")
+		c.Assert(os.Mkdir(canary, 0755), IsNil)
+	}
 
 	called := [][]string{}
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
@@ -144,7 +165,9 @@ func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 
 	err := Purge("hello-app", DoPurgeActive, inter)
 	c.Check(err, IsNil)
-	c.Check(helpers.FileExists(canary), Equals, false)
+	for _, ddir := range ddirs {
+		c.Check(helpers.FileExists(filepath.Join(ddir, "canary")), Equals, false)
+	}
 	c.Assert(inter.notified, HasLen, 1)
 	c.Check(inter.notified[0], Matches, `Waiting for .* to stop.`)
 	rv := make(map[string]int)
@@ -156,27 +179,34 @@ func (s *purgeSuite) TestPurgeActiveRestartServices(c *C) {
 
 func (s *purgeSuite) TestPurgeMultiOK(c *C) {
 	inter := &MockProgressMeter{}
-	ddir0, _ := s.mkpkg(c, "v0")
-	ddir1, _ := s.mkpkg(c, "v1")
+	ddirs0, _ := s.mkpkg(c, "v0")
+	ddirs1, _ := s.mkpkg(c, "v1")
 
 	err := Purge("hello-app", 0, inter)
 	c.Check(err, IsNil)
-	c.Check(helpers.FileExists(ddir0), Equals, false)
-	c.Check(helpers.FileExists(ddir1), Equals, false)
+
+	for _, ddir := range ddirs0 {
+		c.Check(helpers.FileExists(ddir), Equals, false)
+	}
+	for _, ddir := range ddirs1 {
+		c.Check(helpers.FileExists(ddir), Equals, false)
+	}
 	c.Check(inter.notified, HasLen, 0)
 }
 
 func (s *purgeSuite) TestPurgeMultiContinuesOnFail(c *C) {
 	inter := &MockProgressMeter{}
-	ddir0, _ := s.mkpkg(c, "v0")
-	ddir1, _ := s.mkpkg(c, "v1")
-	ddir2, _ := s.mkpkg(c, "v2")
+	ddirs0, _ := s.mkpkg(c, "v0")
+	ddirs1, _ := s.mkpkg(c, "v1")
+	ddirs2, _ := s.mkpkg(c, "v2")
 
 	count := 0
 	anError := errors.New("fail")
 	remove = func(n, v string) error {
 		count++
-		if count == 2 {
+
+		// Fail to remove v1
+		if v == "v1" {
 			return anError
 		}
 		return removeSnapData(n, v)
@@ -185,25 +215,36 @@ func (s *purgeSuite) TestPurgeMultiContinuesOnFail(c *C) {
 
 	err := Purge("hello-app", 0, inter)
 	c.Check(err, Equals, anError)
-	c.Check(count, Equals, 3)
-	c.Check(helpers.FileExists(ddir0), Equals, false)
-	c.Check(helpers.FileExists(ddir1), Equals, true)
-	c.Check(helpers.FileExists(ddir2), Equals, false)
-	c.Assert(inter.notified, HasLen, 1)
+	c.Check(count, Equals, 6)
+	for _, ddir := range ddirs0 {
+		c.Check(helpers.FileExists(ddir), Equals, false)
+	}
+	for _, ddir := range ddirs1 {
+		c.Check(helpers.FileExists(ddir), Equals, true)
+	}
+	for _, ddir := range ddirs2 {
+		c.Check(helpers.FileExists(ddir), Equals, false)
+	}
+	c.Assert(inter.notified, HasLen, 2)
 	c.Check(inter.notified[0], Matches, `unable to purge.*fail`)
+	c.Check(inter.notified[1], Matches, `unable to purge.*fail`)
 }
 
 func (s *purgeSuite) TestPurgeRemovedWorks(c *C) {
 	inter := &MockProgressMeter{}
-	ddir, part := s.mkpkg(c)
+	ddirs, part := s.mkpkg(c)
 
 	err := part.remove(inter)
 	c.Assert(err, IsNil)
-	c.Check(helpers.FileExists(ddir), Equals, true)
+	for _, ddir := range ddirs {
+		c.Check(helpers.FileExists(ddir), Equals, true)
+	}
 
 	err = Purge("hello-app", 0, inter)
 	c.Check(err, IsNil)
-	c.Check(helpers.FileExists(ddir), Equals, false)
+	for _, ddir := range ddirs {
+		c.Check(helpers.FileExists(ddir), Equals, false)
+	}
 }
 
 func (s *purgeSuite) TestPurgeBogusNameFails(c *C) {

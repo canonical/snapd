@@ -50,8 +50,11 @@ func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 
 	var active []*SnapPart
 
+	// There can be a number of datadirs, such as for multiple versions, the
+	// .snap being installed for multiple users, or the .snap using both the
+	// snap data path as well as the user data path. They all need to be purged.
 	for _, datadir := range datadirs {
-		yamlPath := filepath.Join(dirs.SnapAppsDir, datadir.QualifiedName(), datadir.Version, "meta", "package.yaml")
+		yamlPath := filepath.Join(dirs.SnapSnapsDir, datadir.QualifiedName(), datadir.Version, "meta", "package.yaml")
 		part, err := NewInstalledSnapPart(yamlPath, datadir.Origin)
 		if err != nil {
 			// no such part installed
@@ -61,19 +64,22 @@ func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 			if !purgeActive {
 				return ErrStillActive
 			}
-			active = append(active, part)
+
+			// We've been asked to purge a currently-active part. We don't want
+			// to blow away data out from under an active part, so we'll
+			// temporarily deactivate it here and keep track of it so we can
+			// reactivate it later.
+			err = part.deactivate(false, meter)
+			if err == nil {
+				active = append(active, part)
+			} else {
+				meter.Notify(fmt.Sprintf("Unable to deactivate %s: %s", part.Name(), err))
+				meter.Notify("Purge continues.")
+			}
 		}
 	}
 
-	for i, pkg := range active {
-		err := pkg.deactivate(false, meter)
-		if err != nil {
-			meter.Notify(fmt.Sprintf("Unable to deactivate %s: %s", pkg.Name(), err))
-			meter.Notify("Purge continues.")
-			active[i] = nil // don't reactivate
-		}
-	}
-
+	// Conduct the purge.
 	for _, datadir := range datadirs {
 		if err := remove(datadir.QualifiedName(), datadir.Version); err != nil {
 			e = err
@@ -81,12 +87,10 @@ func Purge(partSpec string, flags PurgeFlags, meter progress.Meter) error {
 		}
 	}
 
-	for _, pkg := range active {
-		if pkg == nil {
-			continue
-		}
-		if err := pkg.activate(false, meter); err != nil {
-			meter.Notify(fmt.Sprintf("Unable to activate %s: %s", pkg.Name(), err))
+	// Reactivate the temporarily deactivated parts.
+	for _, part := range active {
+		if err := part.activate(false, meter); err != nil {
+			meter.Notify(fmt.Sprintf("Unable to reactivate %s: %s", part.Name(), err))
 		}
 	}
 

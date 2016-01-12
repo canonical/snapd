@@ -293,7 +293,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	// generate the security policy from the package.yaml
 	// Note that this must happen before binaries/services are
 	// generated because serices may get started
-	appsDir := filepath.Join(dirs.SnapAppsDir, QualifiedName(s), s.Version())
+	appsDir := filepath.Join(dirs.SnapSnapsDir, QualifiedName(s), s.Version())
 	if err := generatePolicy(s.m, appsDir); err != nil {
 		return err
 	}

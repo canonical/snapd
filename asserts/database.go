@@ -29,16 +29,10 @@ import (
 	"time"
 )
 
-// BuilderFromComps can build an assertion from its components.
-type BuilderFromComps func(headers map[string]string, body, content, signature []byte) (Assertion, error)
-
 // Backstore is a backstore for assertions. It can store and retrieve
 // assertions by type under primary paths (tuples of strings). Plus it
 // supports more general searches.
 type Backstore interface {
-	// Init initializes the backstore. It is provided with a function
-	// to build assertions from their components.
-	Init(buildAssert BuilderFromComps) error
 	// Put stores an assertion under the given unique primaryPath.
 	// It is responsible for checking that assert is newer than a
 	// previously stored revision.
@@ -56,14 +50,14 @@ type Backstore interface {
 
 // KeypairManager is a manager and backstore for private/public key pairs.
 type KeypairManager interface {
-	// Import stores the given private/public key pair for identity and
-	// returns its fingerprint
-	Import(authorityID string, privKey PrivateKey) (fingerprint string, err error)
-	// Get returns the private/public key pair with the given fingeprint.
-	Get(authorityID, fingeprint string) (PrivateKey, error)
-	// Find finds the private/public key pair with the given fingeprint suffix.
-	// Find will return an error if not eactly one key pair is found.
-	Find(authorityID, fingerprintSuffix string) (PrivateKey, error)
+	// Put stores the given private/public key pair for identity,
+	// making sure it can be later retrieved by authority-id and
+	// key id with Get().
+	// Trying to store a key with an already present key id should
+	// result in an error.
+	Put(authorityID string, privKey PrivateKey) error
+	// Get returns the private/public key pair with the given key id.
+	Get(authorityID, keyID string) (PrivateKey, error)
 }
 
 // TODO: for more flexibility plugging the keypair manager make PrivatKey private encoding methods optional, and add an explicit sign method.
@@ -129,11 +123,6 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		}
 	}
 
-	err := bs.Init(buildAssertion)
-	if err != nil {
-		return nil, err
-	}
-
 	trustedKeys := make(map[string][]*AccountKey)
 	for _, accKey := range cfg.TrustedKeys {
 		authID := accKey.AccountID()
@@ -147,8 +136,8 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 }
 
 // GenerateKey generates a private/public key pair for identity and
-// stores it returning its fingerprint.
-func (db *Database) GenerateKey(authorityID string) (fingerprint string, err error) {
+// stores it returning its key id.
+func (db *Database) GenerateKey(authorityID string) (keyID string, err error) {
 	// TODO: optionally delegate the whole thing to the keypair mgr
 
 	// TODO: support specifying different key types/algorithms
@@ -157,13 +146,17 @@ func (db *Database) GenerateKey(authorityID string) (fingerprint string, err err
 		return "", fmt.Errorf("failed to generate private key: %v", err)
 	}
 
-	return db.keypairMgr.Import(authorityID, OpenPGPPrivateKey(privKey))
+	pk := OpenPGPPrivateKey(privKey)
+	err = db.ImportKey(authorityID, pk)
+	if err != nil {
+		return "", err
+	}
+	return pk.PublicKey().ID(), nil
 }
 
-// ImportKey stores the given private/public key pair for identity and
-// returns its fingerprint
-func (db *Database) ImportKey(authorityID string, privKey PrivateKey) (fingerprint string, err error) {
-	return db.keypairMgr.Import(authorityID, privKey)
+// ImportKey stores the given private/public key pair for identity.
+func (db *Database) ImportKey(authorityID string, privKey PrivateKey) error {
+	return db.keypairMgr.Put(authorityID, privKey)
 }
 
 var (
@@ -171,38 +164,37 @@ var (
 	fingerprintLike = regexp.MustCompile("^[0-9a-f]*$")
 )
 
-// PublicKey exports the public part of a stored key pair for identity
-// by matching the given fingerprint suffix, it is an error if no or more
-// than one key pair is found.
-func (db *Database) PublicKey(authorityID string, fingerprintSuffix string) (PublicKey, error) {
-	if !fingerprintLike.MatchString(fingerprintSuffix) {
-		return nil, fmt.Errorf("fingerprint suffix contains unexpected chars: %q", fingerprintSuffix)
+func (db *Database) safeGetPrivateKey(authorityID, keyID string) (PrivateKey, error) {
+	if keyID == "" {
+		return nil, fmt.Errorf("key id is empty")
 	}
-	privKey, err := db.keypairMgr.Find(authorityID, fingerprintSuffix)
+	if !fingerprintLike.MatchString(keyID) {
+		return nil, fmt.Errorf("key id contains unexpected chars: %q", keyID)
+	}
+	return db.keypairMgr.Get(authorityID, keyID)
+}
+
+// PublicKey returns the public key owned by authorityID that has the given key id.
+func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, error) {
+	privKey, err := db.safeGetPrivateKey(authorityID, keyID)
 	if err != nil {
 		return nil, err
 	}
 	return privKey.PublicKey(), nil
 }
 
-// Sign builds an assertion with the provided information and signs it
-// with the private key from `headers["authority-id"]` that has the provided fingerprint.
-func (db *Database) Sign(assertType AssertionType, headers map[string]string, body []byte, fingerprint string) (Assertion, error) {
-	if fingerprint == "" {
-		return nil, fmt.Errorf("fingerprint is empty")
-	}
-	if !fingerprintLike.MatchString(fingerprint) {
-		return nil, fmt.Errorf("fingerprint contains unexpected chars: %q", fingerprint)
-	}
+// Sign assembles an assertion with the provided information and signs it
+// with the private key from `headers["authority-id"]` that has the provided key id.
+func (db *Database) Sign(assertType AssertionType, headers map[string]string, body []byte, keyID string) (Assertion, error) {
 	authorityID, err := checkMandatory(headers, "authority-id")
 	if err != nil {
 		return nil, err
 	}
-	privKey, err := db.keypairMgr.Get(authorityID, fingerprint)
+	privKey, err := db.safeGetPrivateKey(authorityID, keyID)
 	if err != nil {
 		return nil, err
 	}
-	return buildAndSign(assertType, headers, body, privKey)
+	return assembleAndSign(assertType, headers, body, privKey)
 }
 
 // find account keys exactly by account id and key id

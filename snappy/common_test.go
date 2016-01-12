@@ -68,7 +68,7 @@ services:
 	}
 
 	dirName := m.qualifiedName(testOrigin)
-	metaDir := filepath.Join(tempdir, "apps", dirName, m.Version, "meta")
+	metaDir := filepath.Join(tempdir, "snaps", dirName, m.Version, "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
 	}

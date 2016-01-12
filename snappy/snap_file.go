@@ -69,12 +69,7 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 		return nil, err
 	}
 
-	targetDir := dirs.SnapAppsDir
-	// the "gadget" parts are special
-	if m.Type == snap.TypeGadget {
-		targetDir = dirs.SnapGadgetDir
-	}
-
+	targetDir := dirs.SnapSnapsDir
 	if origin == SideloadedOrigin {
 		m.Version = helpers.NewSideloadVersion()
 	}

@@ -50,7 +50,8 @@ func init() {
 func reexecWithSudo() error {
 	args := []string{"/usr/bin/sudo"}
 	args = append(args, os.Args...)
-	if err := syscall.Exec(args[0], args, nil); err != nil {
+	env := os.Environ()
+	if err := syscall.Exec(args[0], args, env); err != nil {
 		return fmt.Errorf("failed to exec classic shell: %s", err)
 	}
 	panic("this should never be reached")

@@ -887,7 +887,7 @@ func iconGet(name, origin string) Response {
 	}
 
 	path := filepath.Clean(part.Icon())
-	if !strings.HasPrefix(path, dirs.SnapAppsDir) && !strings.HasPrefix(path, dirs.SnapGadgetDir) {
+	if !strings.HasPrefix(path, dirs.SnapSnapsDir) {
 		return BadRequest
 	}
 
