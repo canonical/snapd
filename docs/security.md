@@ -36,7 +36,7 @@ app launcher.
 
 Under the hood, the launcher:
 
-* sets up various environment variables (eg, `SNAP_APP_ARCH`,
+* sets up various environment variables (eg, `SNAP_ARCH`,
   `SNAP_DATA`, `SNAP`, `SNAP_USER_DATA`,
   `SNAP_OLD_PWD`, `HOME` and `TMPDIR`. See the
    [snappy FHS](https://developer.ubuntu.com/en/snappy/guides/filesystem-layout/) for details.
