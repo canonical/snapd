@@ -21,7 +21,6 @@ package snappy
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -32,7 +31,6 @@ import (
 	"syscall"
 
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
@@ -272,54 +270,6 @@ func checkLicenseExists(sourceDir string) error {
 
 var licenseChecker = checkLicenseExists
 
-type clickManifest struct {
-	Name          string    `json:"name"`
-	Version       string    `json:"version"`
-	Architecture  []string  `json:"architecture,omitempty"`
-	Type          snap.Type `json:"type,omitempty"`
-	Framework     string    `json:"framework,omitempty"`
-	Description   string    `json:"description,omitempty"`
-	Icon          string    `json:"icon,omitempty"`
-	InstalledSize string    `json:"installed-size,omitempty"`
-	Maintainer    string    `json:"maintainer,omitempty"`
-	Title         string    `json:"title,omitempty"`
-}
-
-func writeClickManifest(buildDir string, m *packageYaml) error {
-	installedSize, err := dirSize(buildDir)
-	if err != nil {
-		return err
-	}
-
-	// title description
-	title, description, err := parseReadme(filepath.Join(buildDir, "meta", "readme.md"))
-	if err != nil {
-		return err
-	}
-
-	cm := clickManifest{
-		Name:          m.Name,
-		Version:       m.Version,
-		Architecture:  m.Architectures,
-		Type:          m.Type,
-		Icon:          m.Icon,
-		InstalledSize: installedSize,
-		Title:         title,
-		Description:   description,
-	}
-	manifestContent, err := json.MarshalIndent(cm, "", " ")
-	if err != nil {
-		return err
-	}
-	os.MkdirAll(filepath.Join(buildDir, "DEBIAN"), 0755)
-
-	if err := ioutil.WriteFile(filepath.Join(buildDir, "DEBIAN", "manifest"), []byte(manifestContent), 0644); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error) {
 	// ensure we have valid content
 	m, err := parsePackageYamlFile(filepath.Join(sourceDir, "meta", "package.yaml"))
@@ -338,10 +288,6 @@ func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error)
 	}
 
 	if err := copyToBuildDir(sourceDir, buildDir); err != nil {
-		return "", err
-	}
-
-	if err := writeClickManifest(buildDir, m); err != nil {
 		return "", err
 	}
 
