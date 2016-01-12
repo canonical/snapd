@@ -2,7 +2,7 @@
 // +build !excludeintegration,!excludereboots
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,6 +24,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
 )
 
 var _ = check.Suite(&failoverSuite{})
@@ -53,7 +54,7 @@ func commonFailoverTest(c *check.C, f failer) {
 			check.Commentf("Rebooted to the wrong version"))
 	} else {
 		common.SetSavedVersion(c, currentVersion+"~prev")
-		common.CallFakeUpdate(c)
+		updates.CallFakeOSUpdate(c)
 		f.set(c)
 		common.Reboot(c)
 	}

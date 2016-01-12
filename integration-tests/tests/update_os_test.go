@@ -2,7 +2,7 @@
 // +build !excludeintegration,!excludereboots
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,17 +28,18 @@ import (
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
 
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&updateSuite{})
+var _ = check.Suite(&updateOSSuite{})
 
-type updateSuite struct {
+type updateOSSuite struct {
 	common.SnappySuite
 }
 
-func (s *updateSuite) assertBootDirContents(c *check.C) {
+func (s *updateOSSuite) assertBootDirContents(c *check.C) {
 	system, err := partition.BootSystem()
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
 	current, err := partition.CurrentPartition()
@@ -60,13 +61,13 @@ func (s *updateSuite) assertBootDirContents(c *check.C) {
 		check.Commentf("Wrong files in the other partition boot dir"))
 }
 
-// Test that the update to the same release and channel must install a newer
+// Test that the ubuntu-core update to the same release and channel must install a newer
 // version. If there is no update available, the channel version will be
 // modified to fake an update. If there is a version available, the image will
 // be up-to-date after running this test.
-func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
+func (s *updateOSSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 	if common.BeforeReboot() {
-		updateOutput := common.CallFakeUpdate(c)
+		updateOutput := updates.CallFakeOSUpdate(c)
 		expected := "(?ms)" +
 			".*" +
 			"^Reboot to use ubuntu-core version .*\\.\n"
