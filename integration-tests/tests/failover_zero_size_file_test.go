@@ -2,7 +2,7 @@
 // +build !excludeintegration,!excludereboots
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,98 +24,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
 
-const (
-	origBootFilenamePattern    = "boot/%s%s*"
-	origSystemdFilenamePattern = "lib/systemd/%s%s"
-	kernelFilename             = "vmlinuz"
-	initrdFilename             = "initrd"
-	systemdFilename            = "systemd"
-	destFilenamePrefix         = "snappy-selftest-"
-)
-
-type zeroSizeKernel struct{}
-type zeroSizeInitrd struct{}
-type zeroSizeSystemd struct{}
-
-func (zeroSizeKernel) set(c *check.C) {
-	commonSet(c, common.BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
-}
-
-func (zeroSizeKernel) unset(c *check.C) {
-	commonUnset(c, common.BaseAltPartitionPath, origBootFilenamePattern, kernelFilename)
-}
-
-func (zeroSizeInitrd) set(c *check.C) {
-	boot, err := partition.BootSystem()
-	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
-	dir := partition.BootDir(boot)
-
-	bootFileNamePattern := newKernelFilenamePattern(c, boot)
-	commonSet(c, dir, bootFileNamePattern, initrdFilename)
-}
-
-func (zeroSizeInitrd) unset(c *check.C) {
-	boot, err := partition.BootSystem()
-	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
-	dir := partition.BootDir(boot)
-
-	bootFileNamePattern := newKernelFilenamePattern(c, boot)
-	commonUnset(c, dir, bootFileNamePattern, initrdFilename)
-}
-
-func (zeroSizeSystemd) set(c *check.C) {
-	commonSet(c, common.BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
-}
-
-func (zeroSizeSystemd) unset(c *check.C) {
-	commonUnset(c, common.BaseAltPartitionPath, origSystemdFilenamePattern, systemdFilename)
-}
-
-func commonSet(c *check.C, baseOtherPath, origPattern, filename string) {
-	filenamePattern := fmt.Sprintf(origPattern, "", filename)
-	completePattern := filepath.Join(
-		baseOtherPath,
-		filenamePattern)
-	oldFilename := getSingleFilename(c, completePattern)
-	filenameSuffix := fmt.Sprintf(
-		strings.Replace(origPattern, "*", "", 1), destFilenamePrefix, filepath.Base(oldFilename))
-	newFilename := fmt.Sprintf(
-		"%s/%s", baseOtherPath, filenameSuffix)
-
-	renameFile(c, baseOtherPath, oldFilename, newFilename, true)
-}
-
-func commonUnset(c *check.C, baseOtherPath, origPattern, filename string) {
-	completePattern := filepath.Join(
-		baseOtherPath,
-		fmt.Sprintf(origPattern, destFilenamePrefix, filename))
-	oldFilename := getSingleFilename(c, completePattern)
-	newFilename := strings.Replace(oldFilename, destFilenamePrefix, "", 1)
-
-	renameFile(c, baseOtherPath, oldFilename, newFilename, false)
-}
-
-func renameFile(c *check.C, basePath, oldFilename, newFilename string, keepOld bool) {
-	// Only need to make writable and revert for BaseAltPartitionPath,
-	// kernel files' boot directory is writable
-	if basePath == common.BaseAltPartitionPath {
-		partition.MakeWritable(c, basePath)
-		defer partition.MakeReadonly(c, basePath)
-	}
-
-	cli.ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
-
-	if keepOld {
-	}
+func replaceWithZeroSizeFile(c *check.C, path string) {
+	mode := getFileMode(c, path)
+	cli.ExecCommand(c, "sudo", "rm", path)
+	cli.ExecCommand(c, "sudo", "touch", path)
+	cli.ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), path)
 }
 
 func getFileMode(c *check.C, filePath string) os.FileMode {
@@ -125,52 +44,43 @@ func getFileMode(c *check.C, filePath string) os.FileMode {
 	return info.Mode()
 }
 
-func getSingleFilename(c *check.C, pattern string) string {
-	matches, err := filepath.Glob(pattern)
-
-	c.Assert(err, check.IsNil, check.Commentf("Error: %v", err))
-	c.Assert(len(matches), check.Equals, 1,
-		check.Commentf("%d files matching %s, 1 expected", len(matches), pattern))
-
-	return matches[0]
-}
-
-// newKernelFilenamePattern returns the filename pattern to modify files
-// in the partition declared in the boot config file.
-//
-// After the update, the config file is already changed to point to the new partition.
-// If we are on a and update, the config file would point to b
-// and this function would return "b/%s%s*"
-// If we are not in an update process (ie. we are unsetting the failover conditions)
-// we want to change the files in the other partition
-func newKernelFilenamePattern(c *check.C, bootSystem string) string {
-	part, err := partition.CurrentPartition()
-	c.Assert(err, check.IsNil,
-		check.Commentf("Error getting the current partition: %s", err))
-	part = partition.OtherPartition(part)
-	return filepath.Join(part, "%s%s*")
-}
-
 /*
 TODO: uncomment when bug https://bugs.launchpad.net/snappy/+bug/1467553 is fixed
 (fgimenez 20150729)
 
 func (s *failoverSuite) TestZeroSizeKernel(c *check.C) {
-	commonFailoverTest(c, zeroSizeKernel{})
+  breakSnap := func(snapPath string) error {
+		fullPath, error := filepath.EvalSymlinks(filepath.Join(snapPath, "vmlinuz"))
+    if error != nil {
+        return error
+    }
+		replaceWithZeroSizeFile(c, fullPath)
+		return nil
+	}
+  // FIXME get the kernel snap name from the system:
+  // https://bugs.launchpad.net/snappy/+bug/1532245
+	s.testUpdateToBrokenVersion(c, "canonical-linux-pc.canonical", breakSnap)
 }
 */
 
 func (s *failoverSuite) TestZeroSizeInitrd(c *check.C) {
-	//commonFailoverTest(c, zeroSizeInitrd{})
+	breakSnap := func(snapPath string) error {
+		fullPath, error := filepath.EvalSymlinks(filepath.Join(snapPath, "initrd.img"))
+    if error != nil {
+        return error
+    }
+		replaceWithZeroSizeFile(c, fullPath)
+		return nil
+	}
+  // FIXME get the kernel snap name from the system:
+  // https://bugs.launchpad.net/snappy/+bug/1532245
+	s.testUpdateToBrokenVersion(c, "canonical-linux-pc.canonical", breakSnap)
 }
 
 func (s *failoverSuite) TestZeroSizeSystemd(c *check.C) {
 	breakSnap := func(snapPath string) error {
 		fullPath := filepath.Join(snapPath, "lib", "systemd", "systemd")
-		mode := getFileMode(c, fullPath)		
-		cli.ExecCommand(c, "sudo", "rm", fullPath)
-		cli.ExecCommand(c, "sudo", "touch", fullPath)
-		cli.ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), fullPath)
+		replaceWithZeroSizeFile(c, fullPath)
 		return nil
 	}
 	s.testUpdateToBrokenVersion(c, "ubuntu-core.canonical", breakSnap)
