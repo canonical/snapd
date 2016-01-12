@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -51,7 +51,7 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
 		"Installing " + snapPath + "\n" +
 		".*Signature check failed, but installing anyway as requested\n" +
 		"Name +Date +Version +Developer \n" +
-		".*\n" +
+		".*" +
 		data.BasicSnapName + " +.* +.* +sideload  \n" +
 		".*"
 

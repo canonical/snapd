@@ -35,7 +35,7 @@ import (
 )
 
 func init() {
-	snap.RegisterBackend([]byte{'h', 's', 'q', 's'}, func(path string) (snap.File, error) {
+	snap.RegisterFormat([]byte{'h', 's', 'q', 's'}, func(path string) (snap.File, error) {
 		return New(path), nil
 	})
 }
@@ -142,7 +142,7 @@ func (s *Snap) Info() (*snap.Info, error) {
 		return nil, fmt.Errorf("info failed for %s: %s", s.path, err)
 	}
 
-	return snap.NewFromPackageYaml(packageYaml)
+	return snap.InfoFromPackageYaml(packageYaml)
 }
 
 // HashDigest computes a hash digest of the snap file using the given hash.

@@ -37,7 +37,7 @@ var _ = check.Suite(&purgeSuite{})
 
 const (
 	snap             = data.BasicSnapName + ".sideload"
-	baseSnapDataPath = "/var/lib/apps"
+	baseSnapDataPath = "/var/lib/snaps"
 )
 
 var snapDataPath = filepath.Join(baseSnapDataPath, snap, "current")

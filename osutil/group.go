@@ -17,22 +17,17 @@
  *
  */
 
-package snap
+package osutil
 
-import (
-	"fmt"
-	"gopkg.in/yaml.v2"
-)
+// Group implements the grp.h struct group
+type Group struct {
+	Name   string
+	Passwd string
+	Gid    uint
+	Mem    []string
+}
 
-// InfoFromPackageYaml creates a new info based on the given packageYaml
-func InfoFromPackageYaml(yamlData []byte) (*Info, error) {
-	var s Info
-	err := yaml.Unmarshal(yamlData, &s)
-	if err != nil {
-		return nil, fmt.Errorf("info failed to parse: %s", err)
-	}
-
-	// FIXME: validation of the fields
-
-	return &s, nil
+// Getgrnam returns a lit of groups for the given groupname
+func Getgrnam(name string) (result Group, err error) {
+	return getgrnam(name)
 }

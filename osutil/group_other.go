@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !linux,!darwin,!freebsd
 
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
@@ -17,36 +18,12 @@
  *
  */
 
-package snap
+package group
 
 import (
-	"testing"
-
-	. "gopkg.in/check.v1"
+	"errors"
 )
 
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
-
-type InfoPackageYamlTestSuite struct {
-}
-
-var _ = Suite(&InfoPackageYamlTestSuite{})
-
-var mockYaml = []byte(`name: foo
-version: 1.0
-type: app
-`)
-
-func (s *InfoPackageYamlTestSuite) TestSimple(c *C) {
-	info, err := InfoFromPackageYaml(mockYaml)
-	c.Assert(err, IsNil)
-	c.Assert(info.Name, Equals, "foo")
-	c.Assert(info.Version, Equals, "1.0")
-	c.Assert(info.Type, Equals, TypeApp)
-}
-
-func (s *InfoPackageYamlTestSuite) TestFail(c *C) {
-	_, err := InfoFromPackageYaml([]byte("random-crap"))
-	c.Assert(err, ErrorMatches, "(?m)info failed to parse:.*")
+func getgrnam(name string) (Group, error) {
+	return errors.New("getgrnam not implemented on your system")
 }

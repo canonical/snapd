@@ -53,6 +53,9 @@ type Assertion interface {
 	// Header retrieves the header with name
 	Header(name string) string
 
+	// Headers returns the complete headers
+	Headers() map[string]string
+
 	// Body returns the body of this assertion
 	Body() []byte
 
@@ -90,6 +93,15 @@ func (ab *assertionBase) AuthorityID() string {
 // Header returns the value of an header by name.
 func (ab *assertionBase) Header(name string) string {
 	return ab.headers[name]
+}
+
+// Headers returns the complete headers.
+func (ab *assertionBase) Headers() map[string]string {
+	res := make(map[string]string, len(ab.headers))
+	for name, v := range ab.headers {
+		res[name] = v
+	}
+	return res
 }
 
 // Body returns the body of the assertion.
@@ -190,7 +202,7 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 		return nil, fmt.Errorf("empty assertion signature")
 	}
 
-	return buildAssertion(headers, body, content, signature)
+	return Assemble(headers, body, content, signature)
 }
 
 func checkRevision(headers map[string]string) (int, error) {
@@ -204,7 +216,8 @@ func checkRevision(headers map[string]string) (int, error) {
 	return revision, nil
 }
 
-func buildAssertion(headers map[string]string, body, content, signature []byte) (Assertion, error) {
+// Assemble assembles an assertion from its components.
+func Assemble(headers map[string]string, body, content, signature []byte) (Assertion, error) {
 	length, err := checkInteger(headers, "body-length", 0)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
@@ -232,7 +245,7 @@ func buildAssertion(headers map[string]string, body, content, signature []byte) 
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
 
-	assert, err := reg.builder(assertionBase{
+	assert, err := reg.assembler(assertionBase{
 		headers:   headers,
 		body:      body,
 		revision:  revision,
@@ -252,7 +265,7 @@ func writeHeader(buf *bytes.Buffer, headers map[string]string, name string) {
 	buf.WriteString(headers[name])
 }
 
-func buildAndSign(assertType AssertionType, headers map[string]string, body []byte, privKey PrivateKey) (Assertion, error) {
+func assembleAndSign(assertType AssertionType, headers map[string]string, body []byte, privKey PrivateKey) (Assertion, error) {
 	finalHeaders := make(map[string]string, len(headers))
 	for name, value := range headers {
 		finalHeaders[name] = value
@@ -334,7 +347,7 @@ func buildAndSign(assertType AssertionType, headers map[string]string, body []by
 	// be 'cat' friendly, add a ignored newline to the signature which is the last part of the encoded assertion
 	signature = append(signature, '\n')
 
-	assert, err := reg.builder(assertionBase{
+	assert, err := reg.assembler(assertionBase{
 		headers:   finalHeaders,
 		body:      finalBody,
 		revision:  revision,
@@ -342,15 +355,15 @@ func buildAndSign(assertType AssertionType, headers map[string]string, body []by
 		signature: signature,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("cannot build assertion %v: %v", assertType, err)
+		return nil, fmt.Errorf("cannot assemble assertion %v: %v", assertType, err)
 	}
 	return assert, nil
 }
 
-// registry for assertion types describing how to build them etc...
+// registry for assertion types describing how to assemble them etc...
 
 type assertionTypeRegistration struct {
-	builder    func(assert assertionBase) (Assertion, error)
+	assembler  func(assert assertionBase) (Assertion, error)
 	primaryKey []string
 }
 

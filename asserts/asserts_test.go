@@ -178,7 +178,7 @@ func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
-	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, nil, asserts.OpenPGPPrivateKey(testPrivKey1))
+	a, err := asserts.AssembleAndSignInTest(asserts.AssertionType("test-only"), headers, nil, asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 
 	_, err = asserts.Decode(asserts.Encode(a))
@@ -191,11 +191,86 @@ func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 		"primary-key":  "0",
 	}
 	body := []byte("THE-BODY")
-	a, err := asserts.BuildAndSignInTest(asserts.AssertionType("test-only"), headers, body, asserts.OpenPGPPrivateKey(testPrivKey1))
+	a, err := asserts.AssembleAndSignInTest(asserts.AssertionType("test-only"), headers, body, asserts.OpenPGPPrivateKey(testPrivKey1))
 	c.Assert(err, IsNil)
 	c.Check(a.Body(), DeepEquals, body)
 
 	decoded, err := asserts.Decode(asserts.Encode(a))
 	c.Assert(err, IsNil)
 	c.Check(decoded.Body(), DeepEquals, body)
+}
+
+func (as *assertsSuite) TestHeaders(c *C) {
+	encoded := []byte("type: test-only\n" +
+		"authority-id: auth-id2\n" +
+		"primary-key1: key1\n" +
+		"primary-key2: key2\n" +
+		"revision: 5\n" +
+		"header1: value1\n" +
+		"header2: value2\n" +
+		"body-length: 8\n\n" +
+		"THE-BODY" +
+		"\n\n" +
+		"openpgp c2ln")
+	a, err := asserts.Decode(encoded)
+	c.Assert(err, IsNil)
+
+	hs := a.Headers()
+	c.Check(hs, DeepEquals, map[string]string{
+		"type":         "test-only",
+		"authority-id": "auth-id2",
+		"primary-key1": "key1",
+		"primary-key2": "key2",
+		"revision":     "5",
+		"header1":      "value1",
+		"header2":      "value2",
+		"body-length":  "8",
+	})
+}
+
+func (as *assertsSuite) TestHeadersReturnsCopy(c *C) {
+	encoded := []byte("type: test-only\n" +
+		"authority-id: auth-id2\n" +
+		"primary-key1: key1\n" +
+		"primary-key2: key2\n" +
+		"revision: 5\n" +
+		"header1: value1\n" +
+		"header2: value2\n" +
+		"body-length: 8\n\n" +
+		"THE-BODY" +
+		"\n\n" +
+		"openpgp c2ln")
+	a, err := asserts.Decode(encoded)
+	c.Assert(err, IsNil)
+
+	hs := a.Headers()
+	// casual later result mutation doesn't trip us
+	delete(hs, "primary-key1")
+	c.Check(a.Header("primary-key1"), Equals, "key1")
+}
+
+func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
+	encoded := []byte("type: test-only\n" +
+		"authority-id: auth-id2\n" +
+		"primary-key1: key1\n" +
+		"primary-key2: key2\n" +
+		"revision: 5\n" +
+		"header1: value1\n" +
+		"header2: value2\n" +
+		"body-length: 8\n\n" +
+		"THE-BODY" +
+		"\n\n" +
+		"openpgp c2ln")
+	a, err := asserts.Decode(encoded)
+	c.Assert(err, IsNil)
+
+	cont, sig := a.Signature()
+	reassembled, err := asserts.Assemble(a.Headers(), a.Body(), cont, sig)
+	c.Assert(err, IsNil)
+
+	c.Check(reassembled.Headers(), DeepEquals, a.Headers())
+	c.Check(reassembled.Body(), DeepEquals, a.Body())
+
+	reassembledEncoded := asserts.Encode(reassembled)
+	c.Check(reassembledEncoded, DeepEquals, encoded)
 }

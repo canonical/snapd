@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -293,6 +293,7 @@ func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile str
 			UdevAppName:    udevPartName,
 			Socket:         service.Socket,
 			SocketFileName: socketFileName,
+			Restart:        service.RestartCond,
 		}), nil
 }
 func generateSnapSocketFile(service ServiceYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
@@ -350,7 +351,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 			return err
 		}
 		// this will remove the global base dir when generating the
-		// service file, this ensures that /apps/foo/1.0/bin/start
+		// service file, this ensures that /snaps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
@@ -484,7 +485,7 @@ func (m *packageYaml) addPackageBinaries(baseDir string) error {
 			return err
 		}
 		// this will remove the global base dir when generating the
-		// service file, this ensures that /apps/foo/1.0/bin/start
+		// service file, this ensures that /snaps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)

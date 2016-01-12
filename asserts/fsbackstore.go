@@ -41,10 +41,6 @@ func newFilesystemBackstore(path string) *filesystemBackstore {
 	return &filesystemBackstore{top: filepath.Join(path, assertionsRoot)}
 }
 
-func (fsbs *filesystemBackstore) Init(_ BuilderFromComps) error {
-	return nil
-}
-
 // guarantees that result assertion is of the expected type (both in the AssertionType and go type sense)
 func (fsbs *filesystemBackstore) readAssertion(assertType AssertionType, diskPrimaryPath string) (Assertion, error) {
 	encoded, err := readEntry(fsbs.top, string(assertType), diskPrimaryPath)

@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 )
 
@@ -41,41 +42,33 @@ func newFilesystemKeypairMananager(path string) *filesystemKeypairManager {
 	return &filesystemKeypairManager{top: filepath.Join(path, privateKeysRoot)}
 }
 
-func (fskm *filesystemKeypairManager) Import(authorityID string, privKey PrivateKey) (fingerprint string, err error) {
+var errKeypairAlreadyExists = errors.New("key pair with given key id already exists")
+
+func (fskm *filesystemKeypairManager) Put(authorityID string, privKey PrivateKey) error {
+	keyID := privKey.PublicKey().ID()
+	escapedAuthorityID := url.QueryEscape(authorityID)
+	if entryExists(fskm.top, escapedAuthorityID, keyID) {
+		return errKeypairAlreadyExists
+	}
 	encoded, err := encodePrivateKey(privKey)
 	if err != nil {
-		return "", fmt.Errorf("failed to store private key: %v", err)
+		return fmt.Errorf("failed to store private key: %v", err)
 	}
 
-	fingerp := privKey.PublicKey().Fingerprint()
-	err = atomicWriteEntry(encoded, true, fskm.top, url.QueryEscape(authorityID), fingerp)
+	err = atomicWriteEntry(encoded, true, fskm.top, escapedAuthorityID, keyID)
 	if err != nil {
-		return "", fmt.Errorf("failed to store private key: %v", err)
+		return fmt.Errorf("failed to store private key: %v", err)
 	}
-	return fingerp, nil
+	return nil
 }
 
 var errKeypairNotFound = errors.New("no matching key pair found")
 
-// findPrivateKey will return an error if not eactly one private key is found
-func (fskm *filesystemKeypairManager) findPrivateKey(authorityID, fingerprintWildcard string) (PrivateKey, error) {
-	keyPath := ""
-	foundPrivKeyCb := func(relpath string) error {
-		if keyPath != "" {
-			return fmt.Errorf("ambiguous search, more than one key pair found: %q and %q", keyPath, relpath)
-
-		}
-		keyPath = relpath
-		return nil
-	}
-	err := findWildcard(fskm.top, []string{url.QueryEscape(authorityID), fingerprintWildcard}, foundPrivKeyCb)
-	if err != nil {
-		return nil, err
-	}
-	if keyPath == "" {
+func (fskm *filesystemKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
+	encoded, err := readEntry(fskm.top, url.QueryEscape(authorityID), keyID)
+	if os.IsNotExist(err) {
 		return nil, errKeypairNotFound
 	}
-	encoded, err := readEntry(fskm.top, keyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key pair: %v", err)
 	}
@@ -84,12 +77,4 @@ func (fskm *filesystemKeypairManager) findPrivateKey(authorityID, fingerprintWil
 		return nil, fmt.Errorf("failed to decode key pair: %v", err)
 	}
 	return privKey, nil
-}
-
-func (fskm *filesystemKeypairManager) Get(authorityID, fingeprint string) (PrivateKey, error) {
-	return fskm.findPrivateKey(authorityID, fingeprint)
-}
-
-func (fskm *filesystemKeypairManager) Find(authorityID, fingerprintSuffix string) (PrivateKey, error) {
-	return fskm.findPrivateKey(authorityID, "*"+fingerprintSuffix)
 }
