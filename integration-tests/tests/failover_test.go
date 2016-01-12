@@ -51,13 +51,3 @@ func (s *failoverSuite) testUpdateToBrokenVersion(c *check.C, snap string, chang
 			check.Commentf("Rebooted to the wrong version"))
 	}
 }
-
-type failer interface {                                                                              
-  // Sets the failure conditions
-	set(c *check.C)
-	// Unsets the failure conditions
-	unset(c *check.C)
-}       
-
-func commonFailoverTest(c *check.C, f failer) {
-}
