@@ -115,9 +115,6 @@ func renameFile(c *check.C, basePath, oldFilename, newFilename string, keepOld b
 	cli.ExecCommand(c, "sudo", "mv", oldFilename, newFilename)
 
 	if keepOld {
-		cli.ExecCommand(c, "sudo", "touch", oldFilename)
-		mode := getFileMode(c, newFilename)
-		cli.ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), oldFilename)
 	}
 }
 
@@ -164,9 +161,17 @@ func (s *failoverSuite) TestZeroSizeKernel(c *check.C) {
 */
 
 func (s *failoverSuite) TestZeroSizeInitrd(c *check.C) {
-	commonFailoverTest(c, zeroSizeInitrd{})
+	//commonFailoverTest(c, zeroSizeInitrd{})
 }
 
 func (s *failoverSuite) TestZeroSizeSystemd(c *check.C) {
-	commonFailoverTest(c, zeroSizeSystemd{})
+	breakSnap := func(snapPath string) error {
+		fullPath := filepath.Join(snapPath, "lib", "systemd", "systemd")
+		mode := getFileMode(c, fullPath)		
+		cli.ExecCommand(c, "sudo", "rm", fullPath)
+		cli.ExecCommand(c, "sudo", "touch", fullPath)
+		cli.ExecCommand(c, "sudo", "chmod", fmt.Sprintf("%o", mode), fullPath)
+		return nil
+	}
+	s.testUpdateToBrokenVersion(c, "ubuntu-core.canonical", breakSnap)
 }
