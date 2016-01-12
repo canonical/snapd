@@ -76,7 +76,7 @@ type KeypairManager interface {
 type DatabaseConfig struct {
 	// trusted account keys
 	TrustedKeys []*AccountKey
-	// backstore for assertions, left unset storing assertions will fail
+	// backstore for assertions, left unset storing assertions will error
 	Backstore Backstore
 	// manager/backstore for keypairs, mandatory
 	KeypairManager KeypairManager
