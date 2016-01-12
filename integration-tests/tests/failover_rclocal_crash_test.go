@@ -2,7 +2,7 @@
 // +build !excludeintegration,!excludereboots
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,38 +21,23 @@
 package tests
 
 import (
-	"fmt"
+	//"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
-
-	"gopkg.in/check.v1"
+	//"gopkg.in/check.v1"
 )
-
-type rcLocalCrash struct{}
-
-func (rcLocalCrash) set(c *check.C) {
-	partition.MakeWritable(c, common.BaseAltPartitionPath)
-	defer partition.MakeReadonly(c, common.BaseAltPartitionPath)
-	targetFile := fmt.Sprintf("%s/etc/rc.local", common.BaseAltPartitionPath)
-	cli.ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
-
-	cli.ExecCommandToFile(c, targetFile,
-		"sudo", "echo", "#!bin/sh\nprintf c > /proc/sysrq-trigger")
-}
-
-func (rcLocalCrash) unset(c *check.C) {
-	partition.MakeWritable(c, common.BaseAltPartitionPath)
-	defer partition.MakeReadonly(c, common.BaseAltPartitionPath)
-	cli.ExecCommand(c, "sudo", "rm", fmt.Sprintf("%s/etc/rc.local", common.BaseAltPartitionPath))
-}
 
 /*
 TODO: uncomment when bug https://bugs.launchpad.net/snappy/+bug/1476129 is fixed
 (fgimenez 20150728)
 
 func (s *failoverSuite) TestRCLocalCrash(c *check.C) {
-	commonFailoverTest(c, rcLocalCrash{})
+	breakSnap := func(snapPath string) error {
+		fullPath := filepath.Join(snapPath, "etc", "rc.local")
+  	cli.ExecCommand(c, "sudo", "chmod", "a+xw", targetFile)
+    cli.ExecCommandToFile(c, targetFile,
+		  "sudo", "echo", "#!bin/sh\nprintf c > /proc/sysrq-trigger")
+		return nil
+	}
+	s.testUpdateToBrokenVersion(c, "ubuntu-core.canonical", breakSnap)
 }
 */
