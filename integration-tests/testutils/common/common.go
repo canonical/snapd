@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,7 +33,6 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/store"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -202,38 +201,6 @@ func GetCurrentVersion(c *check.C, packageName string) string {
 // active ubuntu-core.
 func GetCurrentUbuntuCoreVersion(c *check.C) string {
 	return GetCurrentVersion(c, "ubuntu-core")
-}
-
-// CallFakeUpdate calls snappy update after faking the current version
-func CallFakeUpdate(c *check.C) string {
-	c.Log("Preparing fake and calling update.")
-
-	currentVersion := GetCurrentUbuntuCoreVersion(c)
-	SetSavedVersion(c, currentVersion)
-
-	blobDir := c.MkDir()
-	store := store.NewStore(blobDir)
-	store.Start()
-	defer store.Stop()
-	MakeFakeUpdateForSnap(c, "/apps/ubuntu-core.canonical/current/", blobDir)
-
-	return cli.ExecCommand(c, "sudo", fmt.Sprintf("SNAPPY_FORCE_CPI_URL=%s", store.URL()), "snappy", "update")
-}
-
-func switchChannelVersionWithBackup(c *check.C, newVersion string) {
-	m := make(map[string]string)
-	m["/"] = channelCfgBackupFile()
-	m[BaseAltPartitionPath] = channelCfgOtherBackupFile()
-	for target, backup := range m {
-		file := filepath.Join(target, channelCfgFile)
-		if _, err := os.Stat(file); err == nil {
-			partition.MakeWritable(c, target)
-			defer partition.MakeReadonly(c, target)
-			// Back up the file. It will be restored during the test tear down.
-			cli.ExecCommand(c, "cp", file, backup)
-			replaceSystemImageValues(c, file, "", "", newVersion)
-		}
-	}
 }
 
 // Reboot requests a reboot using the test name as the mark.
