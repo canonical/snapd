@@ -29,23 +29,23 @@ import (
 	"time"
 )
 
-// Backstore is a backstore for assertions. It can store and retrieve
+// A Backstore stores assertions. It can store and retrieve
 // assertions by type under unique primary key headers. Plus it supports searching by headers.
 type Backstore interface {
 	// Put stores an assertion for the given primaryKeyHeaders forming a unique key.
 	// It is responsible for checking that assert is newer than a
 	// previously stored revision.
 	Put(assertType AssertionType, primaryKeyHeaders []string, assert Assertion) error
-	// Get loads the assertion with the given unique key for the primaryKeyHeaders.
+	// Get returns the assertion with the given unique key for the primaryKeyHeaders.
 	// If none is present it returns ErrNotFound.
 	Get(assertType AssertionType, primaryKeyHeaders, key []string) (Assertion, error)
-	// Search searches for assertions matching the given headers.
+	// Search returns assertions matching the given headers.
 	// It invokes foundCb for each found assertion.
 	// As hint the primaryKeyHeaders forming a unique key are also given.
 	Search(assertType AssertionType, primaryKeyHeaders []string, headers map[string]string, foundCb func(Assertion)) error
 }
 
-// KeypairManager is a manager and backstore for private/public key pairs.
+// A KeypairManager is a manager and backstore for private/public key pairs.
 type KeypairManager interface {
 	// Put stores the given private/public key pair for identity,
 	// making sure it can be later retrieved by authority-id and
