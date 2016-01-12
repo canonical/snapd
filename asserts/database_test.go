@@ -46,7 +46,6 @@ var _ = Suite(&openSuite{})
 
 func (opens *openSuite) TestOpenDatabaseOK(c *C) {
 	cfg := &asserts.DatabaseConfig{
-		Backstore:      asserts.NewNullBackstore(),
 		KeypairManager: asserts.NewMemoryKeypairManager(),
 	}
 	db, err := asserts.OpenDatabase(cfg)
@@ -56,7 +55,7 @@ func (opens *openSuite) TestOpenDatabaseOK(c *C) {
 
 func (opens *openSuite) TestOpenDatabasePanicOnUnsetBackstores(c *C) {
 	cfg := &asserts.DatabaseConfig{}
-	c.Assert(func() { asserts.OpenDatabase(cfg) }, PanicMatches, "database cannot be used with backstore or keypair manager unset")
+	c.Assert(func() { asserts.OpenDatabase(cfg) }, PanicMatches, "database cannot be used without setting a keypair manager")
 }
 
 type databaseSuite struct {
@@ -71,7 +70,6 @@ func (dbs *databaseSuite) SetUpTest(c *C) {
 	fsKeypairMgr, err := asserts.OpenFSKeypairManager(dbs.topDir)
 	c.Assert(err, IsNil)
 	cfg := &asserts.DatabaseConfig{
-		Backstore:      asserts.NewNullBackstore(),
 		KeypairManager: fsKeypairMgr,
 	}
 	db, err := asserts.OpenDatabase(cfg)
@@ -234,7 +232,6 @@ var _ = Suite(&signAddFindSuite{})
 
 func (safs *signAddFindSuite) SetUpTest(c *C) {
 	cfg0 := &asserts.DatabaseConfig{
-		Backstore:      asserts.NewNullBackstore(),
 		KeypairManager: asserts.NewMemoryKeypairManager(),
 	}
 	db0, err := asserts.OpenDatabase(cfg0)

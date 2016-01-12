@@ -41,7 +41,6 @@ var _ = Suite(&accountKeySuite{})
 
 func (aks *accountKeySuite) SetUpSuite(c *C) {
 	cfg1 := &asserts.DatabaseConfig{
-		Backstore:      asserts.NewNullBackstore(),
 		KeypairManager: asserts.NewMemoryKeypairManager(),
 	}
 	accDb, err := asserts.OpenDatabase(cfg1)

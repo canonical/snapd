@@ -47,7 +47,7 @@ type Backstore interface {
 type nullBackstore struct{}
 
 func (nbs nullBackstore) Put(t AssertionType, pkh []string, a Assertion) error {
-	return fmt.Errorf("unexpected Put() on a Null Backstore")
+	return fmt.Errorf("cannot store assertions without setting a proper assertion backstore implementation")
 }
 
 func (nbs nullBackstore) Get(t AssertionType, pkh, k []string) (Assertion, error) {
@@ -56,13 +56,6 @@ func (nbs nullBackstore) Get(t AssertionType, pkh, k []string) (Assertion, error
 
 func (nbs nullBackstore) Search(t AssertionType, pkh []string, h map[string]string, f func(Assertion)) error {
 	return nil
-}
-
-// NewNullBackstore returns a backstore that errors on Put(), and
-// returns not found otherwise. Useful to use only the signing part
-// of the Database functionality (or for tests).
-func NewNullBackstore() Backstore {
-	return nullBackstore{}
 }
 
 // A KeypairManager is a manager and backstore for private/public key pairs.
@@ -83,9 +76,9 @@ type KeypairManager interface {
 type DatabaseConfig struct {
 	// trusted account keys
 	TrustedKeys []*AccountKey
-	// backstore for assertions
+	// backstore for assertions, left unset storing assertions will fail
 	Backstore Backstore
-	// manager/backstore for keypairs
+	// manager/backstore for keypairs, mandatory
 	KeypairManager KeypairManager
 }
 
@@ -113,8 +106,11 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	bs := cfg.Backstore
 	keypairMgr := cfg.KeypairManager
 
-	if bs == nil || keypairMgr == nil {
-		panic("database cannot be used with backstore or keypair manager unset")
+	if bs == nil {
+		bs = nullBackstore{}
+	}
+	if keypairMgr == nil {
+		panic("database cannot be used without setting a keypair manager")
 	}
 
 	trustedKeys := make(map[string][]*AccountKey)
