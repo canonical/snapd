@@ -220,22 +220,6 @@ func CallFakeUpdate(c *check.C) string {
 	return cli.ExecCommand(c, "sudo", fmt.Sprintf("SNAPPY_FORCE_CPI_URL=%s", store.URL()), "snappy", "update")
 }
 
-func switchChannelVersionWithBackup(c *check.C, newVersion string) {
-	m := make(map[string]string)
-	m["/"] = channelCfgBackupFile()
-	m[BaseAltPartitionPath] = channelCfgOtherBackupFile()
-	for target, backup := range m {
-		file := filepath.Join(target, channelCfgFile)
-		if _, err := os.Stat(file); err == nil {
-			partition.MakeWritable(c, target)
-			defer partition.MakeReadonly(c, target)
-			// Back up the file. It will be restored during the test tear down.
-			cli.ExecCommand(c, "cp", file, backup)
-			replaceSystemImageValues(c, file, "", "", newVersion)
-		}
-	}
-}
-
 // Reboot requests a reboot using the test name as the mark.
 func Reboot(c *check.C) {
 	RebootWithMark(c, c.TestName())
