@@ -22,7 +22,6 @@ package main
 
 import (
 	"crypto"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -84,7 +83,7 @@ func (x *generateKey) Execute(args []string) error {
 func findPublicKey(db *asserts.Database, id string) (asserts.PublicKey, error) {
 	parts := strings.SplitN(id, "/", 2)
 	if len(parts) != 2 {
-		return nil, errors.New("id should be name/key-id")
+		return fmt.Errorf(`invalid public key specification: %q (expected "account-name/key-id")`, id)
 	}
 	return db.PublicKey(parts[0], parts[1])
 }
