@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,6 +18,10 @@
  */
 
 package caps
+
+import (
+	"fmt"
+)
 
 // Capability holds information about a capability that a snap may request
 // from a snappy system to do its job while running on it.
@@ -41,4 +45,23 @@ type Capability struct {
 // String representation of a capability.
 func (c Capability) String() string {
 	return c.Name
+}
+
+// SetAttr sets capability attribute to a given value.
+// TODO: remove temporary function implementation once attrtypes are merged.
+func (c *Capability) SetAttr(name string, value string) error {
+	if c.Attrs == nil {
+		c.Attrs = make(map[string]string)
+	}
+	c.Attrs[name] = value
+	return nil
+}
+
+// GetAttr gets capability attribute with a given name.
+// TODO: remove temporary function implementation once attrtypes are merged.
+func (c *Capability) GetAttr(name string) (interface{}, error) {
+	if value, ok := c.Attrs[name]; ok {
+		return value, nil
+	}
+	return nil, fmt.Errorf("%s is not set", name)
 }

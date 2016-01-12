@@ -21,6 +21,7 @@ package caps
 
 import (
 	"encoding/json"
+	"fmt"
 
 	. "gopkg.in/check.v1"
 )
@@ -93,4 +94,127 @@ func (s *TypeSuite) TestUnmarhshalJSON(c *C) {
 	err := json.Unmarshal([]byte(`"test"`), &t)
 	c.Assert(err, IsNil)
 	c.Assert(t.Name, Equals, "test")
+}
+
+func (s *TypeSuite) TestGrantPermissionsSuccess(c *C) {
+	sec1 := &mockSecurity{}
+	sec2 := &mockSecurity{}
+	t := &Type{
+		Name:            "t",
+		SecuritySystems: []securitySystem{sec1, sec2},
+	}
+	cap := &Capability{
+		Name:  "name",
+		Label: "label",
+		Type:  t,
+	}
+	snapName := "snap"
+	t.GrantPermissions(snapName, cap)
+	c.Assert(sec1.StateMap[snapName], Equals, mockSecurityGranted)
+	c.Assert(sec2.StateMap[snapName], Equals, mockSecurityGranted)
+}
+
+func (s *TypeSuite) TestGrantPermissionsFailure(c *C) {
+	sec1 := &mockSecurity{}
+	sec2 := &mockSecurity{}
+	t := &Type{
+		Name:            "t",
+		SecuritySystems: []securitySystem{sec1, sec2},
+	}
+	cap := &Capability{
+		Name:  "name",
+		Label: "label",
+		Type:  t,
+	}
+	snapName := "snap"
+	// Configure mock security so that sec2 will fail the grant operation.
+	sec2.SetGrantPermissionsError(snapName, fmt.Errorf("boom"))
+	err := t.GrantPermissions(snapName, cap)
+	c.Assert(err, ErrorMatches, "boom")
+	c.Assert(sec1.StateMap[snapName], Equals, mockSecurityRevoked)
+	c.Assert(sec2.StateMap[snapName], Equals, mockSecurityInitial)
+}
+
+func (s *TypeSuite) TestGrantPermissionsCatastrophicFailure(c *C) {
+	sec1 := &mockSecurity{}
+	sec2 := &mockSecurity{}
+	t := &Type{
+		Name:            "t",
+		SecuritySystems: []securitySystem{sec1, sec2},
+	}
+	cap := &Capability{
+		Name:  "name",
+		Label: "label",
+		Type:  t,
+	}
+	snapName := "snap"
+	// Configure mock security so that sec2 will fail the grant operation
+	// and sec1 will fail the subsequent rollback (revoke) operation.
+	sec2.SetGrantPermissionsError(snapName, fmt.Errorf("boom-granting"))
+	sec1.SetRevokePermissionsError(snapName, fmt.Errorf("boom-revoking"))
+	c.Assert(func() { t.GrantPermissions(snapName, cap) }, PanicMatches,
+		`unable to revoke partially granted permissions: "boom-revoking"`)
+	c.Assert(sec1.StateMap[snapName], Equals, mockSecurityGranted)
+	c.Assert(sec2.StateMap[snapName], Equals, mockSecurityInitial)
+}
+
+func (s *TypeSuite) TestRevokePermissionsSuccess(c *C) {
+	sec1 := &mockSecurity{}
+	sec2 := &mockSecurity{}
+	t := &Type{
+		Name:            "t",
+		SecuritySystems: []securitySystem{sec1, sec2},
+	}
+	cap := &Capability{
+		Name:  "name",
+		Label: "label",
+		Type:  t,
+	}
+	snapName := "snap"
+	t.RevokePermissions(snapName, cap)
+	c.Assert(sec1.StateMap[snapName], Equals, mockSecurityRevoked)
+	c.Assert(sec2.StateMap[snapName], Equals, mockSecurityRevoked)
+}
+
+func (s *TypeSuite) TestRevokePermissionsFailure(c *C) {
+	sec1 := &mockSecurity{}
+	sec2 := &mockSecurity{}
+	t := &Type{
+		Name:            "t",
+		SecuritySystems: []securitySystem{sec1, sec2},
+	}
+	cap := &Capability{
+		Name:  "name",
+		Label: "label",
+		Type:  t,
+	}
+	snapName := "snap"
+	// Configure mock security so that sec2 will fail the revoke operation.
+	sec2.SetRevokePermissionsError(snapName, fmt.Errorf("boom"))
+	t.RevokePermissions(snapName, cap)
+	c.Assert(sec1.StateMap[snapName], Equals, mockSecurityGranted)
+	c.Assert(sec2.StateMap[snapName], Equals, mockSecurityInitial)
+}
+
+func (s *TypeSuite) TestRevokePermissionsCatastropicFailure(c *C) {
+	sec1 := &mockSecurity{}
+	sec2 := &mockSecurity{}
+	t := &Type{
+		Name:            "t",
+		SecuritySystems: []securitySystem{sec1, sec2},
+	}
+	cap := &Capability{
+		Name:  "name",
+		Label: "label",
+		Type:  t,
+	}
+	snapName := "snap"
+	// Configure mock security so that sec2 will fail the revoke operation
+	// and sec1 will fail the subsequent rollback (grant) operation.
+	sec2.SetRevokePermissionsError(snapName, fmt.Errorf("boom-revoking"))
+	sec1.SetGrantPermissionsError(snapName, fmt.Errorf("boom-granting"))
+	c.Assert(func() { t.RevokePermissions(snapName, cap) }, PanicMatches,
+		`unable to grant partially revoked permissions: "boom-granting"`)
+	c.Assert(sec1.StateMap[snapName], Equals, mockSecurityRevoked)
+	c.Assert(sec2.StateMap[snapName], Equals, mockSecurityInitial)
 }
