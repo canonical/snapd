@@ -52,12 +52,6 @@ func makeSnap(c *C, manifest, data string) *Snap {
 	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "package.yaml"), []byte(manifest), 0644)
 	c.Assert(err, IsNil)
 
-	// for click compat
-	err = os.MkdirAll(filepath.Join(tmp, ".click"), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(tmp, ".click", "manifest"), []byte(manifest), 0644)
-	c.Assert(err, IsNil)
-
 	// some data
 	err = ioutil.WriteFile(filepath.Join(tmp, "data.bin"), []byte(data), 0644)
 	c.Assert(err, IsNil)

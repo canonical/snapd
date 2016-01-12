@@ -43,9 +43,8 @@ import (
 )
 
 type SnapTestSuite struct {
-	tempdir   string
-	clickhook string
-	secbase   string
+	tempdir string
+	secbase string
 }
 
 var _ = Suite(&SnapTestSuite{})
@@ -63,9 +62,6 @@ func (s *SnapTestSuite) SetUpTest(c *C) {
 	os.MkdirAll(dirs.SnapSeccompDir, 0755)
 
 	release.Override(release.Release{Flavor: "core", Series: "15.04"})
-
-	dirs.ClickSystemHooksDir = filepath.Join(s.tempdir, "/usr/share/click/hooks")
-	os.MkdirAll(dirs.ClickSystemHooksDir, 0755)
 
 	// create a fake systemd environment
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
@@ -1017,30 +1013,6 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 	c.Assert(m.ServiceYamls[0].SecurityTemplate, Equals, "foo_template")
 }
 
-func (s *SnapTestSuite) TestPackageYamlFrameworkParsing(c *C) {
-	m, err := parsePackageYamlData([]byte(`name: foo
-version: 1.0
-framework: one, two
-`), false)
-	c.Assert(err, IsNil)
-	c.Assert(m.Frameworks, HasLen, 2)
-	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
-	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
-}
-
-func (s *SnapTestSuite) TestPackageYamlFrameworksParsing(c *C) {
-	m, err := parsePackageYamlData([]byte(`name: foo
-version: 1.0
-frameworks:
- - one
- - two
-`), false)
-	c.Assert(err, IsNil)
-	c.Assert(m.Frameworks, HasLen, 2)
-	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
-	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
-}
-
 func (s *SnapTestSuite) TestPackageYamlFrameworkAndFrameworksFails(c *C) {
 	_, err := parsePackageYamlData([]byte(`name: foo
 version: 1.0
@@ -1437,14 +1409,6 @@ func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
 	c.Assert(cmds, HasLen, 2)
 }
 
-func (s *SnapTestSuite) TestLegacyConfigHook(c *C) {
-	packageYaml, err := parsePackageYamlData([]byte(`name: foo
-version: 1.0
-`), true)
-	c.Assert(err, IsNil)
-	c.Check(packageYaml.Integration["snappy-config"], DeepEquals, clickAppHook{"apparmor": "meta/snappy-config.apparmor"})
-}
-
 func (s *SnapTestSuite) TestQualifiedNameName(c *C) {
 	packageYaml, err := parsePackageYamlData([]byte(`name: foo
 version: 1.0
@@ -1486,35 +1450,6 @@ func (s *SnapTestSuite) TestParsePackageYamlDataChecksMultiple(c *C) {
 	_, err := parsePackageYamlData([]byte(`
 `), false)
 	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required fields 'name, version'.*")
-}
-
-func (s *SnapTestSuite) TestIntegrateBoring(c *C) {
-	m := &packageYaml{}
-	m.legacyIntegration(false)
-
-	// no binaries, no service, no legacyIntegration
-	c.Check(m.Integration, HasLen, 0)
-}
-
-func (s *SnapTestSuite) TestIntegrateConfig(c *C) {
-	m := &packageYaml{}
-	m.legacyIntegration(true)
-
-	// no binaries, no service, but config! => legacyIntegration
-	c.Check(m.Integration, HasLen, 1)
-	c.Check(m.Integration["snappy-config"], DeepEquals, clickAppHook{"apparmor": "meta/snappy-config.apparmor"})
-}
-
-func (s *SnapTestSuite) TestIntegrateService(c *C) {
-	m := &packageYaml{
-		ServiceYamls: []ServiceYaml{
-			{
-				Name: "svc",
-			},
-		},
-	}
-
-	m.legacyIntegration(false)
 }
 
 func (s *SnapTestSuite) TestCpiURLDependsOnEnviron(c *C) {

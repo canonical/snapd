@@ -138,7 +138,7 @@ func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 		part.isActive = true
 	}
 
-	// get the click *title* from readme.md and use that as the *description*.
+	// get the *title* from readme.md and use that as the *description*.
 	if description, _, err := parseReadme(filepath.Join(part.basedir, "meta", "readme.md")); err == nil {
 		part.description = description
 	}
@@ -557,7 +557,7 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 		return ErrSnapNotActive
 	}
 
-	// remove generated services, binaries, clickHooks, security policy
+	// remove generated services, binaries, security policy
 	if err := s.m.removePackageBinaries(s.basedir); err != nil {
 		return err
 	}

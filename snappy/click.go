@@ -19,14 +19,6 @@
 
 package snappy
 
-/* This part of the code implements enough of the click file format
-   to install a "snap" package
-   Limitations:
-   - no per-user registration
-   - no user-level hooks
-   - more(?)
-*/
-
 import (
 	"bytes"
 	"fmt"
@@ -47,20 +39,6 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
 )
-
-type clickManifest struct {
-	Name          string                  `json:"name"`
-	Version       string                  `json:"version"`
-	Architecture  []string                `json:"architecture,omitempty"`
-	Type          snap.Type               `json:"type,omitempty"`
-	Framework     string                  `json:"framework,omitempty"`
-	Description   string                  `json:"description,omitempty"`
-	Icon          string                  `json:"icon,omitempty"`
-	InstalledSize string                  `json:"installed-size,omitempty"`
-	Maintainer    string                  `json:"maintainer,omitempty"`
-	Title         string                  `json:"title,omitempty"`
-	Hooks         map[string]clickAppHook `json:"hooks,omitempty"`
-}
 
 // wait this time between TERM and KILL
 var killWait = 5 * time.Second

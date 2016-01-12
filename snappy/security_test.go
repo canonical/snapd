@@ -55,9 +55,8 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	a.m = &packageYaml{
-		Name:        "foo",
-		Version:     "1.0",
-		Integration: make(map[string]clickAppHook),
+		Name:    "foo",
+		Version: "1.0",
 	}
 
 	// and mock some stuff
