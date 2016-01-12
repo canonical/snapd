@@ -289,7 +289,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 			return err
 		}
 		// this will remove the global base dir when generating the
-		// service file, this ensures that /apps/foo/1.0/bin/start
+		// service file, this ensures that /snaps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
@@ -423,7 +423,7 @@ func (m *packageYaml) addPackageBinaries(baseDir string) error {
 			return err
 		}
 		// this will remove the global base dir when generating the
-		// service file, this ensures that /apps/foo/1.0/bin/start
+		// service file, this ensures that /snaps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)

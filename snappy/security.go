@@ -358,9 +358,9 @@ func (sa *securityAppID) appArmorVars() string {
 @{APP_PKGNAME_DBUS}="%s"
 @{APP_PKGNAME}="%s"
 @{APP_VERSION}="%s"
-@{INSTALL_DIR}="{/apps,/gadget}"
+@{INSTALL_DIR}="{/snaps,/gadget}"
 # Deprecated:
-@{CLICK_DIR}="{/apps,/gadget}"`, sa.Appname, dbusPath(sa.AppID), dbusPath(sa.Pkgname), sa.Pkgname, sa.Version)
+@{CLICK_DIR}="{/snaps,/gadget}"`, sa.Appname, dbusPath(sa.AppID), dbusPath(sa.Pkgname), sa.Pkgname, sa.Version)
 	return aavars
 }
 
@@ -783,8 +783,8 @@ func regeneratePolicyForSnap(snapname string) error {
 			return err
 		}
 		if appID.Version != appliedVersion {
-			// FIXME: dirs.SnapAppsDir is too simple, gadget
-			fn := filepath.Join(dirs.SnapAppsDir, appID.Pkgname, appID.Version, "meta", "package.yaml")
+			// FIXME: dirs.SnapSnapsDir is too simple, gadget
+			fn := filepath.Join(dirs.SnapSnapsDir, appID.Pkgname, appID.Version, "meta", "package.yaml")
 			if !helpers.FileExists(fn) {
 				continue
 			}

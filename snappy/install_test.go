@@ -106,8 +106,8 @@ explicit-license-agreement: Y
 }
 
 func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
-	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "apps")
-	homeDir := filepath.Join(s.tempdir, "home", "user1", "apps")
+	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snaps")
+	homeDir := filepath.Join(s.tempdir, "home", "user1", "snaps")
 	homeData := filepath.Join(homeDir, "foo", "1.0")
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
@@ -132,7 +132,7 @@ icon: foo.svg
 func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 	s.installThree(c, AllowUnauthenticated|DoInstallGC)
 
-	globs, err := filepath.Glob(filepath.Join(dirs.SnapAppsDir, "foo.sideload", "*"))
+	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo.sideload", "*"))
 	c.Check(err, IsNil)
 	c.Check(globs, HasLen, 2+1) // +1 for "current"
 
@@ -146,7 +146,7 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
 	s.installThree(c, AllowUnauthenticated)
 
-	globs, err := filepath.Glob(filepath.Join(dirs.SnapAppsDir, "foo.sideload", "*"))
+	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo.sideload", "*"))
 	c.Assert(err, IsNil)
 	c.Assert(globs, HasLen, 3+1) // +1 for "current"
 
