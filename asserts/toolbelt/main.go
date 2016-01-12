@@ -22,6 +22,7 @@ package main
 
 import (
 	"crypto"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -80,12 +81,12 @@ func (x *generateKey) Execute(args []string) error {
 	return nil
 }
 
-func findAuthFingerprint(authID string) (string, error) {
-	authPubKey, err := db.PublicKey(authID, "")
-	if err != nil {
-		return "", fmt.Errorf("failed to find signing key pair: %v", err)
+func findPublicKey(db *asserts.Database, id string) (asserts.PublicKey, error) {
+	parts := strings.SplitN(id, "/", 2)
+	if len(parts) != 2 {
+		return nil, errors.New("id should be name/key-id")
 	}
-	return authPubKey.Fingerprint(), nil
+	return db.PublicKey(parts[0], parts[1])
 }
 
 type accountKey struct {
@@ -111,34 +112,34 @@ func (x *accountKey) Execute(args []string) error {
 		authID = accID
 	}
 
-	authFingerprint, err := findAuthFingerprint(authID)
+	authKey, err := findPublicKey(db, authID)
+	if err != nil {
+		return err
+	}
+	accKey, err := findPublicKey(db, accID)
 	if err != nil {
 		return err
 	}
 
 	nowish := time.Now().Truncate(time.Hour).UTC()
 	until := nowish.AddDate(years, 0, 0)
-	pubKey, err := db.PublicKey(accID, "")
-	if err != nil {
-		return err
-	}
-	pubKeyBody, err := asserts.EncodePublicKey(pubKey)
+	pubKeyBody, err := asserts.EncodePublicKey(accKey)
 	if err != nil {
 		return err
 	}
 	headers := map[string]string{
-		"authority-id":           authID,
-		"account-id":             accID,
-		"public-key-fingerprint": pubKey.Fingerprint(),
-		"public-key-id":          pubKey.ID(),
+		"authority-id":           strings.Split(authID, "/")[0],
+		"account-id":             strings.Split(accID, "/")[0],
+		"public-key-fingerprint": accKey.Fingerprint(),
+		"public-key-id":          accKey.ID(),
 		"since":                  nowish.Format(time.RFC3339),
 		"until":                  until.Format(time.RFC3339),
 	}
-	accKey, err := db.Sign(asserts.AccountKeyType, headers, pubKeyBody, authFingerprint)
+	assertion, err := db.Sign(asserts.AccountKeyType, headers, pubKeyBody, authKey.ID())
 	if err != nil {
 		return err
 	}
-	os.Stdout.Write(asserts.Encode(accKey))
+	os.Stdout.Write(asserts.Encode(assertion))
 	return nil
 }
 
@@ -154,7 +155,7 @@ func (x *snapBuild) Execute(args []string) error {
 	if authID == "" {
 		return fmt.Errorf("missing devel/authority-id")
 	}
-	authFingerprint, err := findAuthFingerprint(authID)
+	authKey, err := findPublicKey(db, authID)
 	if err != nil {
 		return err
 	}
@@ -177,15 +178,16 @@ func (x *snapBuild) Execute(args []string) error {
 
 	now := time.Now().UTC()
 	headers := map[string]string{
-		"authority-id": authID,
+		"authority-id": strings.Split(authID, "/")[0],
 		"snap-id":      snapID,
 		"snap-digest":  formattedDigest,
 		"snap-size":    fmt.Sprintf("%d", size),
 		"grade":        "devel",
 		"timestamp":    now.Format(time.RFC3339),
 	}
-	snapDecl, err := db.Sign(asserts.SnapBuildType, headers, nil, authFingerprint)
+	snapDecl, err := db.Sign(asserts.SnapBuildType, headers, nil, authKey.ID())
 	if err != nil {
+		panic(err)
 		return err
 	}
 	os.Stdout.Write(asserts.Encode(snapDecl))
