@@ -51,7 +51,7 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
 		"Installing " + snapPath + "\n" +
 		".*Signature check failed, but installing anyway as requested\n" +
 		"Name +Date +Version +Developer \n" +
-		".*\n" +
+		".*" +
 		data.BasicSnapName + " +.* +.* +sideload  \n" +
 		".*"
 
