@@ -39,12 +39,12 @@ var db *asserts.Database
 
 func main() {
 	topDir := "snappy-asserts-toolbelt-db"
-	bs, err := asserts.OpenFilesystemBackstore(topDir)
+	bs, err := asserts.OpenFSBackstore(topDir)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	keypairMgr, err := asserts.OpenFilesystemKeypairManager(topDir)
+	keypairMgr, err := asserts.OpenFSKeypairManager(topDir)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
