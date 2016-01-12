@@ -104,6 +104,7 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 	trustedKey := testPrivKey0
 
 	cfg1 := &asserts.DatabaseConfig{
+		Backstore:      asserts.NewNullBackstore(),
 		KeypairManager: asserts.NewMemoryKeypairManager(),
 	}
 	accSignDB, err := asserts.OpenDatabase(cfg1)
@@ -135,8 +136,9 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 	bs, err := asserts.OpenFSBackstore(topDir)
 	c.Assert(err, IsNil)
 	cfg := &asserts.DatabaseConfig{
-		Backstore:   bs,
-		TrustedKeys: []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		Backstore:      bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	checkDB, err = asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)

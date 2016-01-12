@@ -46,11 +46,17 @@ var _ = Suite(&openSuite{})
 
 func (opens *openSuite) TestOpenDatabaseOK(c *C) {
 	cfg := &asserts.DatabaseConfig{
+		Backstore:      asserts.NewNullBackstore(),
 		KeypairManager: asserts.NewMemoryKeypairManager(),
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 	c.Assert(db, NotNil)
+}
+
+func (opens *openSuite) TestOpenDatabasePanicOnUnsetBackstores(c *C) {
+	cfg := &asserts.DatabaseConfig{}
+	c.Assert(func() { asserts.OpenDatabase(cfg) }, PanicMatches, "database cannot be used with backstore or keypair manager unset")
 }
 
 type databaseSuite struct {
@@ -65,6 +71,7 @@ func (dbs *databaseSuite) SetUpTest(c *C) {
 	fsKeypairMgr, err := asserts.OpenFSKeypairManager(dbs.topDir)
 	c.Assert(err, IsNil)
 	cfg := &asserts.DatabaseConfig{
+		Backstore:      asserts.NewNullBackstore(),
 		KeypairManager: fsKeypairMgr,
 	}
 	db, err := asserts.OpenDatabase(cfg)
@@ -171,7 +178,8 @@ func (chks *checkSuite) SetUpTest(c *C) {
 
 func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 	cfg := &asserts.DatabaseConfig{
-		Backstore: chks.bs,
+		Backstore:      chks.bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -184,8 +192,9 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	trustedKey := testPrivKey0
 
 	cfg := &asserts.DatabaseConfig{
-		Backstore:   chks.bs,
-		TrustedKeys: []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		Backstore:      chks.bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -225,6 +234,7 @@ var _ = Suite(&signAddFindSuite{})
 
 func (safs *signAddFindSuite) SetUpTest(c *C) {
 	cfg0 := &asserts.DatabaseConfig{
+		Backstore:      asserts.NewNullBackstore(),
 		KeypairManager: asserts.NewMemoryKeypairManager(),
 	}
 	db0, err := asserts.OpenDatabase(cfg0)
@@ -242,8 +252,9 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 
 	trustedKey := testPrivKey0
 	cfg := &asserts.DatabaseConfig{
-		Backstore:   bs,
-		TrustedKeys: []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		Backstore:      bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)

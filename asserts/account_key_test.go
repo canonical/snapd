@@ -41,6 +41,7 @@ var _ = Suite(&accountKeySuite{})
 
 func (aks *accountKeySuite) SetUpSuite(c *C) {
 	cfg1 := &asserts.DatabaseConfig{
+		Backstore:      asserts.NewNullBackstore(),
 		KeypairManager: asserts.NewMemoryKeypairManager(),
 	}
 	accDb, err := asserts.OpenDatabase(cfg1)
@@ -186,8 +187,9 @@ func (aks *accountKeySuite) openDB(c *C) *asserts.Database {
 	bs, err := asserts.OpenFSBackstore(topDir)
 	c.Assert(err, IsNil)
 	cfg := &asserts.DatabaseConfig{
-		Backstore:   bs,
-		TrustedKeys: []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		Backstore:      bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
