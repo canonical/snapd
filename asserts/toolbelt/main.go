@@ -187,7 +187,6 @@ func (x *snapBuild) Execute(args []string) error {
 	}
 	snapDecl, err := db.Sign(asserts.SnapBuildType, headers, nil, authKey.ID())
 	if err != nil {
-		panic(err)
 		return err
 	}
 	os.Stdout.Write(asserts.Encode(snapDecl))
