@@ -40,7 +40,7 @@ func (fsbss *fsBackstoreSuite) TestOpenOK(c *C) {
 
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
 
-	bs, err := asserts.OpenFilesystemBackstore(topDir)
+	bs, err := asserts.OpenFSBackstore(topDir)
 	c.Check(err, IsNil)
 	c.Check(bs, NotNil)
 
@@ -57,7 +57,7 @@ func (fsbss *fsBackstoreSuite) TestOpenCreateFail(c *C) {
 	err := os.Mkdir(parent, 0555)
 	c.Assert(err, IsNil)
 
-	bs, err := asserts.OpenFilesystemBackstore(topDir)
+	bs, err := asserts.OpenFSBackstore(topDir)
 	c.Assert(err, ErrorMatches, "failed to create assert storage root: .*")
 	c.Check(bs, IsNil)
 }
@@ -69,7 +69,7 @@ func (fsbss *fsBackstoreSuite) TestOpenWorldWritableFail(c *C) {
 	os.MkdirAll(filepath.Join(topDir, "asserts-v0"), 0777)
 	syscall.Umask(oldUmask)
 
-	bs, err := asserts.OpenFilesystemBackstore(topDir)
+	bs, err := asserts.OpenFSBackstore(topDir)
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(bs, IsNil)
 }

@@ -62,7 +62,7 @@ var _ = Suite(&databaseSuite{})
 
 func (dbs *databaseSuite) SetUpTest(c *C) {
 	dbs.topDir = filepath.Join(c.MkDir(), "asserts-db")
-	fsKeypairMgr, err := asserts.OpenFilesystemKeypairManager(dbs.topDir)
+	fsKeypairMgr, err := asserts.OpenFSKeypairManager(dbs.topDir)
 	c.Assert(err, IsNil)
 	cfg := &asserts.DatabaseConfig{
 		KeypairManager: fsKeypairMgr,
@@ -158,7 +158,7 @@ func (chks *checkSuite) SetUpTest(c *C) {
 	var err error
 
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
-	chks.bs, err = asserts.OpenFilesystemBackstore(topDir)
+	chks.bs, err = asserts.OpenFSBackstore(topDir)
 	c.Assert(err, IsNil)
 
 	headers := map[string]string{
@@ -237,7 +237,7 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	safs.signingKeyID = pk.PublicKey().ID()
 
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
-	bs, err := asserts.OpenFilesystemBackstore(topDir)
+	bs, err := asserts.OpenFSBackstore(topDir)
 	c.Assert(err, IsNil)
 
 	trustedKey := testPrivKey0
