@@ -30,6 +30,17 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 )
 
+// SnapdClient is the interface for clients of the snapd API
+type SnapdClient interface {
+	SysInfo() (*SysInfo, error)
+	Capabilities() (map[string]Capability, error)
+	AddCapability(c *Capability) error
+	RemoveCapability(name string) error
+	Packages() (map[string]Package, error)
+	Services(pkg string) (map[string]Service, error)
+	Icon(pkgID string) (Icon, error)
+}
+
 func unixDialer(_, _ string) (net.Conn, error) {
 	return net.Dial("unix", dirs.SnapdSocket)
 }
