@@ -21,9 +21,9 @@
 package tests
 
 import (
-	//"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+//"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 
-	//"gopkg.in/check.v1"
+//"gopkg.in/check.v1"
 )
 
 /*

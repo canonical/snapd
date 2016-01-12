@@ -22,7 +22,7 @@ package tests
 
 import (
 	"fmt"
-	"path/filepath"	
+	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 
@@ -78,9 +78,9 @@ func installService(c *check.C, serviceName, serviceCfg, servicesPath string) {
 
 func (s *failoverSuite) TestSystemdDependencyLoop(c *check.C) {
 	breakSnap := func(snapPath string) error {
-		servicesPath := filepath.Join(snapPath, "lib", "systemd", "system")		
-	  installService(c, "deadlock", deadlockService, servicesPath)
-	  installService(c, "emerg-reboot", rebootService, servicesPath)
+		servicesPath := filepath.Join(snapPath, "lib", "systemd", "system")
+		installService(c, "deadlock", deadlockService, servicesPath)
+		installService(c, "emerg-reboot", rebootService, servicesPath)
 		return nil
 	}
 	s.testUpdateToBrokenVersion(c, "ubuntu-core.canonical", breakSnap)

@@ -66,14 +66,14 @@ func (s *failoverSuite) TestZeroSizeKernel(c *check.C) {
 func (s *failoverSuite) TestZeroSizeInitrd(c *check.C) {
 	breakSnap := func(snapPath string) error {
 		fullPath, error := filepath.EvalSymlinks(filepath.Join(snapPath, "initrd.img"))
-    if error != nil {
-        return error
-    }
+		if error != nil {
+			return error
+		}
 		replaceWithZeroSizeFile(c, fullPath)
 		return nil
 	}
-  // FIXME get the kernel snap name from the system:
-  // https://bugs.launchpad.net/snappy/+bug/1532245
+	// FIXME get the kernel snap name from the system:
+	// https://bugs.launchpad.net/snappy/+bug/1532245
 	s.testUpdateToBrokenVersion(c, "canonical-linux-pc.canonical", breakSnap)
 }
 

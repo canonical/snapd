@@ -22,7 +22,7 @@ package tests
 
 import (
 	"strings"
-	
+
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
@@ -40,12 +40,12 @@ type failoverSuite struct {
 func (s *failoverSuite) testUpdateToBrokenVersion(c *check.C, snap string, changeFunc updates.ChangeFakeUpdateSnap) {
 	snapName := strings.Split(snap, ".")[0]
 	currentVersion := common.GetCurrentVersion(c, snapName)
-	
+
 	if common.BeforeReboot() {
 		common.SetSavedVersion(c, currentVersion)
 		updates.CallFakeUpdate(c, snap, changeFunc)
 		common.Reboot(c)
-	}	else if common.AfterReboot(c) {
+	} else if common.AfterReboot(c) {
 		common.RemoveRebootMark(c)
 		c.Assert(currentVersion, check.Equals, common.GetSavedVersion(c),
 			check.Commentf("Rebooted to the wrong version"))
