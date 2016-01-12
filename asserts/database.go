@@ -24,7 +24,6 @@ package asserts
 import (
 	"errors"
 	"fmt"
-	//"os"
 	"regexp"
 	"time"
 )
