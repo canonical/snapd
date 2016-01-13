@@ -45,9 +45,6 @@ func mockRunCommand(args ...string) (err error) {
 func (s *PartitionTestSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 
-	// custom mount target
-	mountTarget = c.MkDir()
-
 	// global roto
 	dirs.SetRootDir(s.tempdir)
 	err := os.MkdirAll(bootloaderGrubDir(), 0755)
@@ -62,8 +59,6 @@ func (s *PartitionTestSuite) TearDownTest(c *C) {
 	// always restore what we might have mocked away
 	runCommand = runCommandImpl
 	bootloader = bootloaderImpl
-	cacheDir = cacheDirReal
-	mountTarget = mountTargetReal
 }
 
 type mockBootloader struct {
