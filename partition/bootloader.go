@@ -40,7 +40,7 @@ const (
 
 var (
 	// ErrBootloader is returned if the bootloader can not be determined
-	ErrBootloader = errors.New("Unable to determine bootloader")
+	ErrBootloader = errors.New("cannot determine bootloader")
 )
 
 type bootloaderName string
