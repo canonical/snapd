@@ -56,10 +56,7 @@ type bootLoader interface {
 	SetBootVar(name, value string) error
 }
 
-// Factory method that returns a new bootloader for the given partition
-var bootloader = bootloaderImpl
-
-func bootloaderImpl() (bootLoader, error) {
+func bootloader() (bootLoader, error) {
 	// try uboot
 	if uboot := newUboot(); uboot != nil {
 		return uboot, nil
