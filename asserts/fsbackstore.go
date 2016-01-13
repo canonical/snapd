@@ -37,8 +37,8 @@ type filesystemBackstore struct {
 	top string
 }
 
-// OpenFilesystemBackstore opens a filesystem backed assertions backstore under path.
-func OpenFilesystemBackstore(path string) (Backstore, error) {
+// OpenFSBackstore opens a filesystem backed assertions backstore under path.
+func OpenFSBackstore(path string) (Backstore, error) {
 	top := filepath.Join(path, assertionsRoot)
 	err := ensureTop(top)
 	if err != nil {

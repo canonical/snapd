@@ -27,11 +27,11 @@ import (
 )
 
 func openDatabaseAt(path string, cfg *DatabaseConfig) (*Database, error) {
-	bs, err := OpenFilesystemBackstore(path)
+	bs, err := OpenFSBackstore(path)
 	if err != nil {
 		return nil, err
 	}
-	keypairMgr, err := OpenFilesystemKeypairManager(path)
+	keypairMgr, err := OpenFSKeypairManager(path)
 	if err != nil {
 		return nil, err
 	}

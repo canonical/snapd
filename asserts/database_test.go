@@ -53,6 +53,11 @@ func (opens *openSuite) TestOpenDatabaseOK(c *C) {
 	c.Assert(db, NotNil)
 }
 
+func (opens *openSuite) TestOpenDatabasePanicOnUnsetBackstores(c *C) {
+	cfg := &asserts.DatabaseConfig{}
+	c.Assert(func() { asserts.OpenDatabase(cfg) }, PanicMatches, "database cannot be used without setting a keypair manager")
+}
+
 type databaseSuite struct {
 	topDir string
 	db     *asserts.Database
@@ -62,7 +67,7 @@ var _ = Suite(&databaseSuite{})
 
 func (dbs *databaseSuite) SetUpTest(c *C) {
 	dbs.topDir = filepath.Join(c.MkDir(), "asserts-db")
-	fsKeypairMgr, err := asserts.OpenFilesystemKeypairManager(dbs.topDir)
+	fsKeypairMgr, err := asserts.OpenFSKeypairManager(dbs.topDir)
 	c.Assert(err, IsNil)
 	cfg := &asserts.DatabaseConfig{
 		KeypairManager: fsKeypairMgr,
@@ -158,7 +163,7 @@ func (chks *checkSuite) SetUpTest(c *C) {
 	var err error
 
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
-	chks.bs, err = asserts.OpenFilesystemBackstore(topDir)
+	chks.bs, err = asserts.OpenFSBackstore(topDir)
 	c.Assert(err, IsNil)
 
 	headers := map[string]string{
@@ -171,7 +176,8 @@ func (chks *checkSuite) SetUpTest(c *C) {
 
 func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 	cfg := &asserts.DatabaseConfig{
-		Backstore: chks.bs,
+		Backstore:      chks.bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -184,8 +190,9 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	trustedKey := testPrivKey0
 
 	cfg := &asserts.DatabaseConfig{
-		Backstore:   chks.bs,
-		TrustedKeys: []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		Backstore:      chks.bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -237,13 +244,14 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	safs.signingKeyID = pk.PublicKey().ID()
 
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
-	bs, err := asserts.OpenFilesystemBackstore(topDir)
+	bs, err := asserts.OpenFSBackstore(topDir)
 	c.Assert(err, IsNil)
 
 	trustedKey := testPrivKey0
 	cfg := &asserts.DatabaseConfig{
-		Backstore:   bs,
-		TrustedKeys: []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		Backstore:      bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)

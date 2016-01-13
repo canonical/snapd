@@ -24,7 +24,6 @@ package asserts
 import (
 	"errors"
 	"fmt"
-	//"os"
 	"regexp"
 	"time"
 )
@@ -45,6 +44,20 @@ type Backstore interface {
 	Search(assertType AssertionType, primaryKeyHeaders []string, headers map[string]string, foundCb func(Assertion)) error
 }
 
+type nullBackstore struct{}
+
+func (nbs nullBackstore) Put(t AssertionType, pkh []string, a Assertion) error {
+	return fmt.Errorf("cannot store assertions without setting a proper assertion backstore implementation")
+}
+
+func (nbs nullBackstore) Get(t AssertionType, pkh, k []string) (Assertion, error) {
+	return nil, ErrNotFound
+}
+
+func (nbs nullBackstore) Search(t AssertionType, pkh []string, h map[string]string, f func(Assertion)) error {
+	return nil
+}
+
 // A KeypairManager is a manager and backstore for private/public key pairs.
 type KeypairManager interface {
 	// Put stores the given private/public key pair for identity,
@@ -63,9 +76,9 @@ type KeypairManager interface {
 type DatabaseConfig struct {
 	// trusted account keys
 	TrustedKeys []*AccountKey
-	// backstore for assertions
+	// backstore for assertions, left unset storing assertions will error
 	Backstore Backstore
-	// manager/backstore for keypairs
+	// manager/backstore for keypairs, mandatory
 	KeypairManager KeypairManager
 }
 
@@ -93,11 +106,11 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	bs := cfg.Backstore
 	keypairMgr := cfg.KeypairManager
 
-	if bs == nil && keypairMgr == nil {
-		// TODO: actually have proper Null* variants of at
-		// least the Backstore? so we can check that they are
-		// both set instead and it's safer
-		return nil, fmt.Errorf("database cannot be used with backstore and keypair manager both unset")
+	if bs == nil {
+		bs = nullBackstore{}
+	}
+	if keypairMgr == nil {
+		panic("database cannot be used without setting a keypair manager")
 	}
 
 	trustedKeys := make(map[string][]*AccountKey)
@@ -186,7 +199,7 @@ func (db *Database) findAccountKeys(authorityID, keyID string) ([]*AccountKey, e
 		}
 	}
 	// consider stored account keys
-	a, err := db.bs.Get(AccountKeyType, []string{"account-id", "public-key-id"}, []string{authorityID, keyID})
+	a, err := db.bs.Get(AccountKeyType, primaryKey(AccountKeyType), []string{authorityID, keyID})
 	switch err {
 	case nil:
 		res = append(res, a.(*AccountKey))

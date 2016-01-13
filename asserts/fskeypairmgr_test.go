@@ -42,7 +42,7 @@ func (fsbss *fsKeypairMgrSuite) TestOpenOK(c *C) {
 	err := os.MkdirAll(topDir, 0775)
 	c.Assert(err, IsNil)
 
-	bs, err := asserts.OpenFilesystemKeypairManager(topDir)
+	bs, err := asserts.OpenFSKeypairManager(topDir)
 	c.Check(err, IsNil)
 	c.Check(bs, NotNil)
 
@@ -59,7 +59,7 @@ func (fsbss *fsKeypairMgrSuite) TestOpenWorldWritableFail(c *C) {
 	os.MkdirAll(filepath.Join(topDir, "private-keys-v0"), 0777)
 	syscall.Umask(oldUmask)
 
-	bs, err := asserts.OpenFilesystemKeypairManager(topDir)
+	bs, err := asserts.OpenFSKeypairManager(topDir)
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(bs, IsNil)
 }

@@ -38,8 +38,8 @@ type filesystemKeypairManager struct {
 	top string
 }
 
-// OpenFilesystemKeypairManager opens a filesystem backed assertions backstore under path.
-func OpenFilesystemKeypairManager(path string) (KeypairManager, error) {
+// OpenFSKeypairManager opens a filesystem backed assertions backstore under path.
+func OpenFSKeypairManager(path string) (KeypairManager, error) {
 	top := filepath.Join(path, privateKeysRoot)
 	err := ensureTop(top)
 	if err != nil {

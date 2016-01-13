@@ -132,11 +132,12 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 	c.Assert(err, IsNil)
 
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
-	bs, err := asserts.OpenFilesystemBackstore(topDir)
+	bs, err := asserts.OpenFSBackstore(topDir)
 	c.Assert(err, IsNil)
 	cfg := &asserts.DatabaseConfig{
-		Backstore:   bs,
-		TrustedKeys: []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		Backstore:      bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	checkDB, err = asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)

@@ -183,11 +183,12 @@ func (aks *accountKeySuite) openDB(c *C) *asserts.Database {
 	trustedKey := testPrivKey0
 
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
-	bs, err := asserts.OpenFilesystemBackstore(topDir)
+	bs, err := asserts.OpenFSBackstore(topDir)
 	c.Assert(err, IsNil)
 	cfg := &asserts.DatabaseConfig{
-		Backstore:   bs,
-		TrustedKeys: []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		Backstore:      bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
