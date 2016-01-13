@@ -94,7 +94,7 @@ func streamsEqual(fa, fb io.Reader) bool {
 //
 // Subdirectories are ignored.
 //
-// This function is to compare the policies and templates in a (framework) click
+// This function is to compare the policies and templates in a (framework) snap
 // to be installed, against the policies and templates of one already installed,
 // to then determine what changed. The prefix is because policies and templates
 // are specified with the framework name.

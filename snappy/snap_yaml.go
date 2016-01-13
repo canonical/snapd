@@ -112,8 +112,6 @@ func (v *deprecarch) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-type clickAppHook map[string]string
-
 // TODO split into payloads per package type composing the common
 // elements for all snaps.
 type packageYaml struct {
@@ -136,10 +134,6 @@ type packageYaml struct {
 	// gadget snap only
 	Gadget Gadget       `yaml:"gadget,omitempty"`
 	Config SystemConfig `yaml:"config,omitempty"`
-
-	// this is a bit ugly, but right now integration is a one:one
-	// mapping of click hooks
-	Integration map[string]clickAppHook
 
 	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement,omitempty"`
 	LicenseVersion           string `yaml:"license-version,omitempty"`
@@ -247,8 +241,6 @@ func parsePackageYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error)
 		}
 	}
 
-	m.legacyIntegration(hasConfig)
-
 	return &m, nil
 }
 
@@ -284,12 +276,6 @@ func (m *packageYaml) checkForPackageInstalled(origin string) error {
 	}
 
 	return nil
-}
-
-func (m *packageYaml) FrameworksForClick() string {
-	fmks := addCoreFmk(m.Frameworks)
-
-	return strings.Join(fmks, ",")
 }
 
 func (m *packageYaml) checkForFrameworks() error {
@@ -351,39 +337,6 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d snap.File, currentActiv
 	}
 
 	return nil
-}
-
-// legacyIntegration sets up the Integration property of packageYaml from its other attributes
-func (m *packageYaml) legacyIntegration(hasConfig bool) {
-	if m.Integration != nil {
-		// TODO: append "Overriding user-provided values." to the end of the blurb.
-		logger.Noticef(`The "integration" key is deprecated, and all uses of "integration" should be rewritten; see https://developer.ubuntu.com/en/snappy/guides/package-metadata/ (the "binaries" and "services" sections are probably especially relevant)."`)
-	} else {
-		// TODO: do this always, not just when Integration is not set
-		m.Integration = make(map[string]clickAppHook)
-	}
-
-	for _, v := range m.Binaries {
-		hookName := filepath.Base(v.Name)
-
-		if _, ok := m.Integration[hookName]; !ok {
-			m.Integration[hookName] = clickAppHook{}
-		}
-		// legacy click hook
-		m.Integration[hookName]["bin-path"] = v.Exec
-	}
-
-	for _, v := range m.ServiceYamls {
-		hookName := filepath.Base(v.Name)
-
-		if _, ok := m.Integration[hookName]; !ok {
-			m.Integration[hookName] = clickAppHook{}
-		}
-	}
-
-	if hasConfig {
-		m.Integration["snappy-config"] = clickAppHook{"apparmor": "meta/snappy-config.apparmor"}
-	}
 }
 
 func (m *packageYaml) addSquashfsMount(baseDir string, inhibitHooks bool, inter interacter) error {
