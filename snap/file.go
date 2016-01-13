@@ -27,7 +27,6 @@ import (
 
 // File is the interface to interact with the low-level snap files
 type File interface {
-	// Install installs the file
 	Install(targetDir string) error
 
 	// MetaMember returns data from a meta/ directory file member
