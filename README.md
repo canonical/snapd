@@ -111,6 +111,16 @@ If a test hangs, you can enable verbose mode:
 
 There is more to read about the testing framework on the [website](https://labix.org/gocheck)
 
+### Testing snapd on a snappy system
+
+To test the `snapd` REST API daemon on a snappy system you need to
+transfer it to the snappy system and then run:
+
+    sudo systemctl stop ubuntu-snappy.snapd.service ubuntu-snappy.snapd.socket
+    sudo /lib/systemd/systemd-activate -l /run/snapd.socket ./snapd
+
+This will stop the installed snapd and activate the new one.
+
 
 [travis-image]: https://travis-ci.org/ubuntu-core/snappy.svg?branch=master
 [travis-url]: https://travis-ci.org/ubuntu-core/snappy

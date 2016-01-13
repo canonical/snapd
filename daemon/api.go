@@ -734,7 +734,7 @@ func postPackage(c *Command, r *http.Request) Response {
 const maxReadBuflen = 1024 * 1024
 
 func newSnapImpl(filename string, origin string, unsignedOk bool) (snappy.Part, error) {
-	return snappy.NewSnapPartFromSnapFile(filename, origin, unsignedOk)
+	return snappy.NewSnapFile(filename, origin, unsignedOk)
 }
 
 var newSnap = newSnapImpl
@@ -874,7 +874,7 @@ func iconGet(name, origin string) Response {
 	}
 
 	path := filepath.Clean(part.Icon())
-	if !strings.HasPrefix(path, dirs.SnapAppsDir) && !strings.HasPrefix(path, dirs.SnapGadgetDir) {
+	if !strings.HasPrefix(path, dirs.SnapSnapsDir) {
 		return BadRequest
 	}
 

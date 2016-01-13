@@ -29,6 +29,7 @@ import (
 type File interface {
 	Verify(allowUnauthenticated bool) error
 	Close() error
+
 	UnpackWithDropPrivs(targetDir, rootDir string) error
 	MetaMember(name string) ([]byte, error)
 	ExtractHashes(targetDir string) error

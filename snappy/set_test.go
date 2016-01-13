@@ -78,9 +78,9 @@ func (s *SnapTestSuite) TestSetProperty(c *C) {
 func (s *SnapTestSuite) TestSetActive(c *C) {
 	makeTwoTestSnaps(c, snap.TypeApp)
 
-	path, err := filepath.EvalSymlinks(filepath.Join(dirs.SnapAppsDir, fooComposedName, "current"))
+	path, err := filepath.EvalSymlinks(filepath.Join(dirs.SnapSnapsDir, fooComposedName, "current"))
 	c.Assert(err, IsNil)
-	c.Check(path, Equals, filepath.Join(dirs.SnapAppsDir, fooComposedName, "2.0"))
+	c.Check(path, Equals, filepath.Join(dirs.SnapSnapsDir, fooComposedName, "2.0"))
 
 	path, err = filepath.EvalSymlinks(filepath.Join(dirs.SnapDataDir, fooComposedName, "current"))
 	c.Assert(err, IsNil)
@@ -99,8 +99,8 @@ func (s *SnapTestSuite) TestSetActive(c *C) {
 
 	err = makeSnapActiveByNameAndVersion("foo", "1.0", meter)
 	c.Assert(err, IsNil)
-	path, _ = filepath.EvalSymlinks(filepath.Join(dirs.SnapAppsDir, fooComposedName, "current"))
-	c.Check(path, Equals, filepath.Join(dirs.SnapAppsDir, fooComposedName, "1.0"))
+	path, _ = filepath.EvalSymlinks(filepath.Join(dirs.SnapSnapsDir, fooComposedName, "current"))
+	c.Check(path, Equals, filepath.Join(dirs.SnapSnapsDir, fooComposedName, "1.0"))
 	path, _ = filepath.EvalSymlinks(filepath.Join(dirs.SnapDataDir, fooComposedName, "current"))
 	c.Check(path, Equals, filepath.Join(dirs.SnapDataDir, fooComposedName, "1.0"))
 }
