@@ -39,8 +39,6 @@ var _ = Suite(&ProvisioningTestSuite{})
 var yamlData = `
 meta:
   timestamp: 2015-04-20T14:15:39.013515821+01:00
-  initial-revision: r345
-  system-image-server: http://system-image.ubuntu.com
 
 tool:
   name: ubuntu-device-flash
@@ -59,8 +57,6 @@ options:
 var yamlDataNoDevicePart = `
 meta:
   timestamp: 2015-04-20T14:15:39.013515821+01:00
-  initial-revision: r345
-  system-image-server: http://system-image.ubuntu.com
 
 tool:
   name: ubuntu-device-flash

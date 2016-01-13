@@ -238,10 +238,12 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 }
 
 func (s *SnapTestSuite) TestUpdate(c *C) {
-	snapPackagev1 := makeTestSnapPackage(c, "name: foo\nversion: 1")
-	name, err := Install(snapPackagev1, AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
+	yamlPath, err := s.makeInstalledMockSnap("name: foo\nversion: 1")
 	c.Assert(err, IsNil)
-	c.Assert(name, Equals, "foo")
+	makeSnapActive(yamlPath)
+	installed, _ := NewMetaLocalRepository().Installed()
+	c.Assert(installed, HasLen, 1)
+	c.Assert(ActiveSnapByName("foo"), NotNil)
 
 	snapPackagev2 := makeTestSnapPackage(c, "name: foo\nversion: 2")
 
@@ -253,11 +255,11 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	var dlURL, iconURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/details/foo":
+		case "/details/foo." + testOrigin:
 			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
-"origin": "sideload",
+"origin": "`+testOrigin+`",
 "anon_download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
 }`)
@@ -284,7 +286,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 		io.WriteString(w, `[{
 	"package_name": "foo",
 	"version": "2",
-	"origin": "sideload",
+        "origin": "`+testOrigin+`",
 	"anon_download_url": "`+dlURL+`",
 	"icon_url": "`+iconURL+`"
 }]`)
@@ -323,4 +325,6 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	c.Assert(updates, HasLen, 1)
 	c.Check(updates[0].Name(), Equals, "foo")
 	c.Check(updates[0].Version(), Equals, "2")
+	// ensure that we get a "local" snap back - not a remote one
+	c.Check(updates[0], FitsTypeOf, &SnapPart{})
 }

@@ -5,7 +5,7 @@ import sys
 import yaml
 
 PKGNAME="basic-config"
-CFG_FILE = os.path.join(os.environ["SNAP_APP_DATA_PATH"], "cfg")
+CFG_FILE = os.path.join(os.environ["SNAP_DATA"], "cfg")
 
 def get_config():
    config = {"config": {
