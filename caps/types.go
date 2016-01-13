@@ -20,66 +20,78 @@
 package caps
 
 import (
-	"encoding/json"
 	"fmt"
 )
 
 // Type describes a group of interchangeable capabilities with common features.
 // Types are managed centrally and act as a contract between system builders,
 // application developers and end users.
-type Type struct {
-	// Name is a key that identifies the capability type. It must be unique
-	// within the whole OS. The name forms a part of the stable system API.
-	Name string
-	// RequiredAttrs contains names of attributes that are required by
-	// capability of this type.
-	RequiredAttrs []string
+type Type interface {
+	fmt.Stringer
+
+	// Unique and public name of this type.
+	Name() string
+	// Sanitize a capability (altering if necessary).
+	Sanitize(c *Capability) error
 }
 
-var (
-	// BoolFileType is a built-in capability type for files that follow a
-	// simple boolean protocol. The file can be read, which yields ASCII '0'
-	// (zero) or ASCII '1' (one). The same can be done for writing.
-	//
-	// This capability type can be used to describe many boolean flags exposed
-	// in sysfs, including certain hardware like exported GPIO pins.
-	BoolFileType = &Type{
-		Name:          "bool-file",
-		RequiredAttrs: []string{"path"},
-	}
-)
+// BoolFileType is the type of all the bool-file capabilities.
+type BoolFileType struct{}
 
-var builtInTypes = [...]*Type{
-	BoolFileType,
+// String() returns the same value as Name().
+func (t *BoolFileType) String() string {
+	return t.Name()
 }
 
-// String returns a string representation for the capability type.
-func (t *Type) String() string {
-	return t.Name
+// Name returns the name of the bool-file type (always "bool-file").
+func (t *BoolFileType) Name() string {
+	return "bool-file"
 }
 
-// Validate whether a capability is correct according to the given type.
-func (t *Type) Validate(c *Capability) error {
-	if t != c.Type {
+// Sanitize checks and possibly modifies a capability.
+// Valid "bool-file" capabilities must contain the attribute "path".
+func (t *BoolFileType) Sanitize(c *Capability) error {
+	if t.Name() != c.TypeName {
 		return fmt.Errorf("capability is not of type %q", t)
 	}
-	// Check that all required attributes are present
-	for _, attr := range t.RequiredAttrs {
-		if _, ok := c.Attrs[attr]; !ok {
-			return fmt.Errorf("capabilities of type %q must provide a %q attribute", t, attr)
-		}
+	path := c.Attrs["path"]
+	if path == "" {
+		return fmt.Errorf("bool-file must contain the path attribute")
+	}
+	// TODO: validate the path against a regular expression
+	return nil
+}
+
+// MockType is a type for various kind of tests.
+// It is public so that it can be consumed from other packages.
+type MockType struct {
+	// TypeName is the name of this type
+	TypeName string
+	// SanitizeCallback is the callback invoked inside Sanitize()
+	SanitizeCallback func(c *Capability) error
+}
+
+// String() returns the same value as Name().
+func (t *MockType) String() string {
+	return t.Name()
+}
+
+// Name returns the name of the mock type.
+func (t *MockType) Name() string {
+	return t.TypeName
+}
+
+// Sanitize checks and possibly modifies a capability.
+func (t *MockType) Sanitize(c *Capability) error {
+	if t.Name() != c.TypeName {
+		return fmt.Errorf("capability is not of type %q", t)
+	}
+	if t.SanitizeCallback != nil {
+		return t.SanitizeCallback(c)
 	}
 	return nil
 }
 
-// MarshalJSON encodes a Type object as the name of the type.
-func (t *Type) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.Name)
-}
-
-// UnmarshalJSON decodes the name of a Type object.
-// NOTE: In the future, when more properties are added, those properties will
-// not be decoded and will be left over as empty values.
-func (t *Type) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &t.Name)
+var builtInTypes = [...]Type{
+	&BoolFileType{},
 }
