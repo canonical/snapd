@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,19 +27,4 @@ import (
 
 func Test(t *testing.T) {
 	TestingT(t)
-}
-
-type CapabilitySuite struct{}
-
-var _ = Suite(&CapabilitySuite{})
-var testCapability = &Capability{
-	Name:  "test-name",
-	Label: "test-label",
-	Type:  testType,
-	Attrs: nil,
-}
-
-func (s *CapabilitySuite) TestString(c *C) {
-	cap := &Capability{Name: "name", Label: "label", Type: testType}
-	c.Assert(cap.String(), Equals, "name")
 }

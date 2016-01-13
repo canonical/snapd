@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,67 +19,12 @@
 
 package caps
 
-import (
-	"encoding/json"
-	"fmt"
-)
+import "fmt"
 
-// Type describes a group of interchangeable capabilities with common features.
-// Types are managed centrally and act as a contract between system builders,
-// application developers and end users.
-type Type struct {
-	// Name is a key that identifies the capability type. It must be unique
-	// within the whole OS. The name forms a part of the stable system API.
-	Name string
-	// RequiredAttrs contains names of attributes that are required by
-	// capability of this type.
-	RequiredAttrs []string
-}
+// Type binds type name to a maker function that creates capabilities of that type.
+type Type interface {
+	fmt.Stringer
 
-var (
-	// BoolFileType is a built-in capability type for files that follow a
-	// simple boolean protocol. The file can be read, which yields ASCII '0'
-	// (zero) or ASCII '1' (one). The same can be done for writing.
-	//
-	// This capability type can be used to describe many boolean flags exposed
-	// in sysfs, including certain hardware like exported GPIO pins.
-	BoolFileType = &Type{
-		Name:          "bool-file",
-		RequiredAttrs: []string{"path"},
-	}
-)
-
-var builtInTypes = [...]*Type{
-	BoolFileType,
-}
-
-// String returns a string representation for the capability type.
-func (t *Type) String() string {
-	return t.Name
-}
-
-// Validate whether a capability is correct according to the given type.
-func (t *Type) Validate(c *Capability) error {
-	if t != c.Type {
-		return fmt.Errorf("capability is not of type %q", t)
-	}
-	// Check that all required attributes are present
-	for _, attr := range t.RequiredAttrs {
-		if _, ok := c.Attrs[attr]; !ok {
-			return fmt.Errorf("capabilities of type %q must provide a %q attribute", t, attr)
-		}
-	}
-	return nil
-}
-
-// MarshalJSON encodes a Type object as the name of the type.
-func (t *Type) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.Name)
-}
-
-// UnmarshalJSON decodes the name of a Type object.
-// NOTE: In the future, when more properties are added, those properties will
-// not be decoded and will be left over as empty values.
-func (t *Type) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &t.Name)
+	Make(name, label string, attrs map[string]string) (Capability, error)
+	Name() string
 }

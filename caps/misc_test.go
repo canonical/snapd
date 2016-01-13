@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,8 +21,6 @@ package caps
 
 import (
 	. "gopkg.in/check.v1"
-
-	"github.com/ubuntu-core/snappy/testutil"
 )
 
 type MiscSuite struct{}
@@ -42,8 +40,9 @@ func (s *MiscSuite) TestLoadBuiltInTypes(c *C) {
 	repo := NewRepository()
 	err := LoadBuiltInTypes(repo)
 	c.Assert(err, IsNil)
-	c.Assert(repo.types, testutil.Contains, BoolFileType)
 	c.Assert(repo.types, HasLen, 1) // Update this whenever new built-in type is added
+	// Ensure that each type is correctly registered
+	c.Check(repo.types["bool-file"], DeepEquals, &boolFileType{})
 	err = LoadBuiltInTypes(repo)
-	c.Assert(err, ErrorMatches, `cannot add type "bool-file": name already exists`)
+	c.Check(err, ErrorMatches, `cannot add type "bool-file": name already exists`)
 }
