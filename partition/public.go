@@ -19,17 +19,13 @@
 
 package partition
 
-import (
-	"github.com/ubuntu-core/snappy/helpers"
-)
-
 // BootloaderDir returns the full path to the (mounted and writable)
 // bootloader-specific boot directory.
 func BootloaderDir() string {
-	if helpers.FileExists(ubootDir()) {
-		return ubootDir()
-	} else if helpers.FileExists(grubDir()) {
-		return grubDir()
+	if u := newUboot(); u != nil {
+		return u.Dir()
+	} else if g := newGrub(); g != nil {
+		return g.Dir()
 	}
 
 	return ""

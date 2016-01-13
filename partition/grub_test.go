@@ -35,13 +35,10 @@ func mockGrubFile(c *C, newPath string, mode os.FileMode) {
 }
 
 func (s *PartitionTestSuite) makeFakeGrubEnv(c *C) {
-	// create bootloader
-	err := os.MkdirAll(grubDir(), 0755)
-	c.Assert(err, IsNil)
-
 	// these files just needs to exist
-	mockGrubFile(c, grubConfigFile(), 0644)
-	mockGrubFile(c, grubEnvFile(), 0644)
+	g := &grub{}
+	mockGrubFile(c, g.configFile(), 0644)
+	mockGrubFile(c, g.envFile(), 0644)
 
 	// do not run commands for real
 	runCommand = mockRunCommandWithCapture

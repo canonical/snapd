@@ -46,7 +46,9 @@ func newMockBootloader() *mockBootloader {
 		bootVars: make(map[string]string),
 	}
 }
-
+func (b *mockBootloader) Dir() string {
+	return "/foo"
+}
 func (b *mockBootloader) GetBootVar(name string) (string, error) {
 	return b.bootVars[name], nil
 }
@@ -57,9 +59,9 @@ func (b *mockBootloader) SetBootVar(name, value string) error {
 
 func (s *PartitionTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	err := os.MkdirAll(grubDir(), 0755)
+	err := os.MkdirAll((&grub{}).Dir(), 0755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(ubootDir(), 0755)
+	err = os.MkdirAll((&uboot{}).Dir(), 0755)
 	c.Assert(err, IsNil)
 }
 

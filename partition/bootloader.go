@@ -49,6 +49,9 @@ type bootLoader interface {
 
 	// Set the value of the specified bootloader variable
 	SetBootVar(name, value string) error
+
+	// Dir returns the bootloader directory
+	Dir() string
 }
 
 func bootloader() (bootLoader, error) {

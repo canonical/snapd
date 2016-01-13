@@ -30,15 +30,13 @@ import (
 )
 
 func (s *PartitionTestSuite) makeFakeUbootEnv(c *C) {
-	err := os.MkdirAll(ubootDir(), 0755)
-	c.Assert(err, IsNil)
-
+	u := &uboot{}
 	// this file just needs to exist
-	err = ioutil.WriteFile(ubootConfigFile(), []byte(""), 0644)
+	err := ioutil.WriteFile(u.configFile(), []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	// ensure that we have a valid uboot.env too
-	env, err := uenv.Create(ubootFwEnvFile(), 4096)
+	env, err := uenv.Create(u.fwEnvFile(), 4096)
 	c.Assert(err, IsNil)
 	err = env.Save()
 	c.Assert(err, IsNil)
@@ -87,14 +85,15 @@ func (s *PartitionTestSuite) TestGetBootloaderWithUboot(c *C) {
 func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	env, err := uenv.Create(ubootFwEnvFile(), 4096)
+	fwEnvFile := (&uboot{}).fwEnvFile()
+	env, err := uenv.Create(fwEnvFile, 4096)
 	c.Assert(err, IsNil)
 	env.Set("snappy_ab", "b")
 	env.Set("snappy_mode", "regular")
 	err = env.Save()
 	c.Assert(err, IsNil)
 
-	st, err := os.Stat(ubootFwEnvFile())
+	st, err := os.Stat(fwEnvFile)
 	c.Assert(err, IsNil)
 	time.Sleep(100 * time.Millisecond)
 
@@ -105,11 +104,11 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	err = u.SetBootVar("snappy_ab", "b")
 	c.Assert(err, IsNil)
 
-	env, err = uenv.Open(ubootFwEnvFile())
+	env, err = uenv.Open(fwEnvFile)
 	c.Assert(err, IsNil)
 	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\n")
 
-	st2, err := os.Stat(ubootFwEnvFile())
+	st2, err := os.Stat(fwEnvFile)
 	c.Assert(err, IsNil)
 	c.Assert(st.ModTime(), Equals, st2.ModTime())
 }

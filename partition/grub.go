@@ -34,32 +34,35 @@ var (
 	grubEnvCmd = "/usr/bin/grub-editenv"
 )
 
-func grubDir() string {
-	return filepath.Join(dirs.GlobalRootDir, "/boot/grub")
-}
-func grubConfigFile() string {
-	return filepath.Join(grubDir(), "grub.cfg")
-}
-func grubEnvFile() string {
-	return filepath.Join(grubDir(), "grubenv")
-}
-
 type grub struct {
 }
 
 // newGrub create a new Grub bootloader object
 func newGrub() bootLoader {
-	if !helpers.FileExists(grubConfigFile()) {
+	g := &grub{}
+	if !helpers.FileExists(g.configFile()) {
 		return nil
 	}
 
-	return &grub{}
+	return g
+}
+
+func (g *grub) Dir() string {
+	return filepath.Join(dirs.GlobalRootDir, "/boot/grub")
+}
+
+func (g *grub) configFile() string {
+	return filepath.Join(g.Dir(), "grub.cfg")
+}
+
+func (g *grub) envFile() string {
+	return filepath.Join(g.Dir(), "grubenv")
 }
 
 func (g *grub) GetBootVar(name string) (value string, err error) {
 	// Grub doesn't provide a get verb, so retrieve all values and
 	// search for the required variable ourselves.
-	output, err := runCommandWithStdout(grubEnvCmd, grubEnvFile(), "list")
+	output, err := runCommandWithStdout(grubEnvCmd, g.envFile(), "list")
 	if err != nil {
 		return "", err
 	}
@@ -78,5 +81,5 @@ func (g *grub) SetBootVar(name, value string) (err error) {
 	// RunCommand() does not use a shell and thus adding quotes
 	// stores them in the environment file (which is not desirable)
 	arg := fmt.Sprintf("%s=%s", name, value)
-	return runCommand(grubEnvCmd, grubEnvFile(), "set", arg)
+	return runCommand(grubEnvCmd, g.envFile(), "set", arg)
 }
