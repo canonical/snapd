@@ -94,7 +94,3 @@ func (g *grub) SetBootVar(name, value string) (err error) {
 	arg := fmt.Sprintf("%s=%s", name, value)
 	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile(), "set", arg)
 }
-
-func (g *grub) BootDir() string {
-	return bootloaderGrubDir()
-}

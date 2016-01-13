@@ -94,7 +94,3 @@ func (u *uboot) GetBootVar(name string) (string, error) {
 
 	return env.Get(name), nil
 }
-
-func (u *uboot) BootDir() string {
-	return bootloaderUbootDir()
-}

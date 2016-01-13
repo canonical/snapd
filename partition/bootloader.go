@@ -54,10 +54,6 @@ type bootLoader interface {
 
 	// Set the value of the specified bootloader variable
 	SetBootVar(name, value string) error
-
-	// BootDir returns the (writable) bootloader-specific boot
-	// directory.
-	BootDir() string
 }
 
 // Factory method that returns a new bootloader for the given partition
@@ -105,7 +101,6 @@ func markBootSuccessful(bootloader bootLoader) error {
 		if err := bootloader.SetBootVar("snappy_trial_boot", "0"); err != nil {
 			return err
 		}
-
 	}
 
 	return nil
