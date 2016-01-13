@@ -1295,7 +1295,7 @@ func (s *apiSuite) TestAddCapabilitiesNotACapability(c *check.C) {
 func (s *apiSuite) TestDeleteCapabilityGood(c *check.C) {
 	// Setup
 	d := newTestDaemon()
-	t := &caps.MockType{TypeName: "test"}
+	t := &caps.TestType{TypeName: "test"}
 	err := d.capRepo.AddType(t)
 	c.Assert(err, check.IsNil)
 	cap := &caps.Capability{Name: "name", TypeName: "test"}

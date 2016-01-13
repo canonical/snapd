@@ -64,23 +64,23 @@ func (s *BoolFileTypeSuite) TestSanitizeMissingPath(c *C) {
 	c.Assert(err, ErrorMatches, "bool-file must contain the path attribute")
 }
 
-// MockType
+// TestType
 
-type MockTypeSuite struct {
+type TestTypeSuite struct {
 	t Type
 }
 
-var _ = Suite(&MockTypeSuite{
-	t: &MockType{TypeName: "mock"},
+var _ = Suite(&TestTypeSuite{
+	t: &TestType{TypeName: "mock"},
 })
 
-// MockType has a working Name() function
-func (s *MockTypeSuite) TestName(c *C) {
+// TestType has a working Name() function
+func (s *TestTypeSuite) TestName(c *C) {
 	c.Assert(s.t.Name(), Equals, "mock")
 }
 
-// MockType doesn't do any sanitization by default
-func (s *MockTypeSuite) TestSanitizeOK(c *C) {
+// TestType doesn't do any sanitization by default
+func (s *TestTypeSuite) TestSanitizeOK(c *C) {
 	cap := &Capability{
 		TypeName: "mock",
 	}
@@ -88,9 +88,9 @@ func (s *MockTypeSuite) TestSanitizeOK(c *C) {
 	c.Assert(err, IsNil)
 }
 
-// MockType has provisions to customize sanitization
-func (s *MockTypeSuite) TestSanitizeError(c *C) {
-	t := &MockType{
+// TestType has provisions to customize sanitization
+func (s *TestTypeSuite) TestSanitizeError(c *C) {
+	t := &TestType{
 		TypeName: "mock",
 		SanitizeCallback: func(cap *Capability) error {
 			return fmt.Errorf("sanitize failed")
@@ -103,8 +103,8 @@ func (s *MockTypeSuite) TestSanitizeError(c *C) {
 	c.Assert(err, ErrorMatches, "sanitize failed")
 }
 
-// MockType sanitization still checks for type identity
-func (s *MockTypeSuite) TestSanitizeWrongType(c *C) {
+// TestType sanitization still checks for type identity
+func (s *TestTypeSuite) TestSanitizeWrongType(c *C) {
 	cap := &Capability{
 		TypeName: "other-type",
 	}

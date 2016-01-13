@@ -60,9 +60,9 @@ func (t *BoolFileType) Sanitize(c *Capability) error {
 	return nil
 }
 
-// MockType is a type for various kind of tests.
+// TestType is a type for various kind of tests.
 // It is public so that it can be consumed from other packages.
-type MockType struct {
+type TestType struct {
 	// TypeName is the name of this type
 	TypeName string
 	// SanitizeCallback is the callback invoked inside Sanitize()
@@ -70,17 +70,17 @@ type MockType struct {
 }
 
 // String() returns the same value as Name().
-func (t *MockType) String() string {
+func (t *TestType) String() string {
 	return t.Name()
 }
 
 // Name returns the name of the mock type.
-func (t *MockType) Name() string {
+func (t *TestType) Name() string {
 	return t.TypeName
 }
 
 // Sanitize checks and possibly modifies a capability.
-func (t *MockType) Sanitize(c *Capability) error {
+func (t *TestType) Sanitize(c *Capability) error {
 	if t.Name() != c.TypeName {
 		return fmt.Errorf("capability is not of type %q", t)
 	}

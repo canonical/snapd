@@ -35,7 +35,7 @@ type RepositorySuite struct {
 }
 
 var _ = Suite(&RepositorySuite{
-	t: &MockType{
+	t: &TestType{
 		TypeName: "type",
 	},
 })
@@ -82,7 +82,7 @@ func (s *RepositorySuite) TestAddInvalidName(c *C) {
 }
 
 func (s *RepositorySuite) TestAddType(c *C) {
-	t := &MockType{TypeName: "foo"}
+	t := &TestType{TypeName: "foo"}
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, IsNil)
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{"foo"})
@@ -90,8 +90,8 @@ func (s *RepositorySuite) TestAddType(c *C) {
 }
 
 func (s *RepositorySuite) TestAddTypeClash(c *C) {
-	t1 := &MockType{TypeName: "foo"}
-	t2 := &MockType{TypeName: "foo"}
+	t1 := &TestType{TypeName: "foo"}
+	t2 := &TestType{TypeName: "foo"}
 	err := s.emptyRepo.AddType(t1)
 	c.Assert(err, IsNil)
 	err = s.emptyRepo.AddType(t2)
@@ -102,7 +102,7 @@ func (s *RepositorySuite) TestAddTypeClash(c *C) {
 }
 
 func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
-	t := &MockType{TypeName: "bad-name-"}
+	t := &TestType{TypeName: "bad-name-"}
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{})
@@ -137,9 +137,9 @@ func (s *RepositorySuite) TestNames(c *C) {
 
 func (s *RepositorySuite) TestTypeNames(c *C) {
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{})
-	s.emptyRepo.AddType(&MockType{TypeName: "a"})
-	s.emptyRepo.AddType(&MockType{TypeName: "b"})
-	s.emptyRepo.AddType(&MockType{TypeName: "c"})
+	s.emptyRepo.AddType(&TestType{TypeName: "a"})
+	s.emptyRepo.AddType(&TestType{TypeName: "b"})
+	s.emptyRepo.AddType(&TestType{TypeName: "c"})
 	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{"a", "b", "c"})
 }
 
@@ -177,7 +177,7 @@ func (s *RepositorySuite) TestHasType(c *C) {
 	c.Assert(s.testRepo.hasType(s.t), Equals, true)
 	// hasType doesn't do deep equality checks so even though the types are
 	// otherwise identical, the test fails.
-	c.Assert(s.testRepo.hasType(&MockType{TypeName: s.t.Name()}), Equals, false)
+	c.Assert(s.testRepo.hasType(&TestType{TypeName: s.t.Name()}), Equals, false)
 }
 
 func (s *RepositorySuite) TestCaps(c *C) {
