@@ -57,9 +57,9 @@ func (b *mockBootloader) SetBootVar(name, value string) error {
 
 func (s *PartitionTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	err := os.MkdirAll(bootloaderGrubDir(), 0755)
+	err := os.MkdirAll(grubDir(), 0755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(bootloaderUbootDir(), 0755)
+	err = os.MkdirAll(ubootDir(), 0755)
 	c.Assert(err, IsNil)
 }
 

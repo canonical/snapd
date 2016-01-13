@@ -26,10 +26,10 @@ import (
 // BootloaderDir returns the full path to the (mounted and writable)
 // bootloader-specific boot directory.
 func BootloaderDir() string {
-	if helpers.FileExists(bootloaderUbootDir()) {
-		return bootloaderUbootDir()
-	} else if helpers.FileExists(bootloaderGrubDir()) {
-		return bootloaderGrubDir()
+	if helpers.FileExists(ubootDir()) {
+		return ubootDir()
+	} else if helpers.FileExists(grubDir()) {
+		return grubDir()
 	}
 
 	return ""

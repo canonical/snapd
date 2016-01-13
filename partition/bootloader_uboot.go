@@ -28,37 +28,24 @@ import (
 	"github.com/mvo5/uboot-go/uenv"
 )
 
-const (
-	bootloaderUbootDirReal        = "/boot/uboot"
-	bootloaderUbootConfigFileReal = "uEnv.txt"
+func ubootDir() string {
+	return filepath.Join(dirs.GlobalRootDir, "/boot/uboot")
+}
 
-	// the real uboot env
-	bootloaderUbootFwEnvFileReal = "uboot.env"
-)
+func ubootConfigFile() string {
+	return filepath.Join(ubootDir(), "uEnv.txt")
+}
 
-// var to make it testable
-var (
-	atomicWriteFile = helpers.AtomicWriteFile
-)
+func ubootFwEnvFile() string {
+	return filepath.Join(ubootDir(), "uboot.env")
+}
 
 type uboot struct {
 }
 
-func bootloaderUbootDir() string {
-	return filepath.Join(dirs.GlobalRootDir, bootloaderUbootDirReal)
-}
-
-func bootloaderUbootConfigFile() string {
-	return filepath.Join(bootloaderUbootDir(), bootloaderUbootConfigFileReal)
-}
-
-func bootloaderUbootFwEnvFile() string {
-	return filepath.Join(bootloaderUbootDir(), bootloaderUbootFwEnvFileReal)
-}
-
 // newUboot create a new Uboot bootloader object
 func newUboot() bootLoader {
-	if !helpers.FileExists(bootloaderUbootConfigFile()) {
+	if !helpers.FileExists(ubootConfigFile()) {
 		return nil
 	}
 
@@ -66,7 +53,7 @@ func newUboot() bootLoader {
 }
 
 func (u *uboot) SetBootVar(name, value string) error {
-	env, err := uenv.Open(bootloaderUbootFwEnvFile())
+	env, err := uenv.Open(ubootFwEnvFile())
 	if err != nil {
 		return err
 	}
@@ -81,7 +68,7 @@ func (u *uboot) SetBootVar(name, value string) error {
 }
 
 func (u *uboot) GetBootVar(name string) (string, error) {
-	env, err := uenv.Open(bootloaderUbootFwEnvFile())
+	env, err := uenv.Open(ubootFwEnvFile())
 	if err != nil {
 		return "", err
 	}
