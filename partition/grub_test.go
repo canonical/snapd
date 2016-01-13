@@ -29,6 +29,11 @@ import (
 	. "gopkg.in/check.v1"
 )
 
+func mockGrubEditenvList(cmd ...string) (string, error) {
+	mockGrubEditenvOutput := fmt.Sprintf("%s=regular", bootloaderBootmodeVar)
+	return mockGrubEditenvOutput, nil
+}
+
 func mockGrubFile(c *C, newPath string, mode os.FileMode) {
 	err := ioutil.WriteFile(newPath, []byte(""), mode)
 	c.Assert(err, IsNil)
@@ -39,9 +44,6 @@ func (s *PartitionTestSuite) makeFakeGrubEnv(c *C) {
 	g := &grub{}
 	mockGrubFile(c, g.configFile(), 0644)
 	mockGrubFile(c, g.envFile(), 0644)
-
-	// do not run commands for real
-	runCommand = mockRunCommandWithCapture
 }
 
 func (s *PartitionTestSuite) TestNewGrubNoGrubReturnsNil(c *C) {
@@ -59,18 +61,12 @@ func (s *PartitionTestSuite) TestNewGrub(c *C) {
 	c.Assert(g, FitsTypeOf, &grub{})
 }
 
-type singleCommand []string
+func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
+	s.makeFakeGrubEnv(c)
 
-var allCommands = []singleCommand{}
-
-func mockRunCommandWithCapture(args ...string) (err error) {
-	allCommands = append(allCommands, args)
-	return nil
-}
-
-func mockGrubEditenvList(cmd ...string) (string, error) {
-	mockGrubEditenvOutput := fmt.Sprintf("%s=regular", bootloaderBootmodeVar)
-	return mockGrubEditenvOutput, nil
+	bootloader, err := bootloader()
+	c.Assert(err, IsNil)
+	c.Assert(bootloader, FitsTypeOf, &grub{})
 }
 
 func (s *PartitionTestSuite) TestGetBootVer(c *C) {
@@ -78,16 +74,23 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 	runCommandWithStdout = mockGrubEditenvList
 
 	g := newGrub()
-
 	v, err := g.GetBootVar(bootloaderBootmodeVar)
 	c.Assert(err, IsNil)
 	c.Assert(v, Equals, "regular")
 }
 
-func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
+func (s *PartitionTestSuite) TestSetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
+	cmds := [][]string{}
+	runCommandWithStdout = func(cmd ...string) (string, error) {
+		cmds = append(cmds, cmd)
+		return "", nil
+	}
 
-	bootloader, err := bootloader()
+	g := newGrub()
+	err := g.SetBootVar("key", "value")
 	c.Assert(err, IsNil)
-	c.Assert(bootloader, FitsTypeOf, &grub{})
+	c.Assert(cmds, DeepEquals, [][]string{
+		{"/usr/bin/grub-editenv", g.(*grub).envFile(), "set", "key=value"},
+	})
 }

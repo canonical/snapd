@@ -59,7 +59,7 @@ func (g *grub) envFile() string {
 	return filepath.Join(g.Dir(), "grubenv")
 }
 
-func (g *grub) GetBootVar(name string) (value string, err error) {
+func (g *grub) GetBootVar(name string) (string, error) {
 	// Grub doesn't provide a get verb, so retrieve all values and
 	// search for the required variable ourselves.
 	output, err := runCommandWithStdout(grubEnvCmd, g.envFile(), "list")
@@ -76,10 +76,11 @@ func (g *grub) GetBootVar(name string) (value string, err error) {
 	return cfg.Get("", name)
 }
 
-func (g *grub) SetBootVar(name, value string) (err error) {
+func (g *grub) SetBootVar(name, value string) error {
 	// note that strings are not quoted since because
 	// RunCommand() does not use a shell and thus adding quotes
 	// stores them in the environment file (which is not desirable)
 	arg := fmt.Sprintf("%s=%s", name, value)
-	return runCommand(grubEnvCmd, g.envFile(), "set", arg)
+	_, err := runCommandWithStdout(grubEnvCmd, g.envFile(), "set", arg)
+	return err
 }
