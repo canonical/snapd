@@ -141,15 +141,14 @@ set -e
 
 # app info (deprecated)
 {{.OldAppVars}}
-export SNAPP_OLD_PWD="$(pwd)"
 
 # app info
 {{.NewAppVars}}
 
-if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
-   mkdir -p "$SNAP_APP_USER_DATA_PATH"
+if [ ! -d "$SNAP_USER_DATA" ]; then
+   mkdir -p "$SNAP_USER_DATA"
 fi
-export HOME="$SNAP_APP_USER_DATA_PATH"
+export HOME="$SNAP_USER_DATA"
 
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
@@ -351,7 +350,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 			return err
 		}
 		// this will remove the global base dir when generating the
-		// service file, this ensures that /apps/foo/1.0/bin/start
+		// service file, this ensures that /snaps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
@@ -485,7 +484,7 @@ func (m *packageYaml) addPackageBinaries(baseDir string) error {
 			return err
 		}
 		// this will remove the global base dir when generating the
-		// service file, this ensures that /apps/foo/1.0/bin/start
+		// service file, this ensures that /snaps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
@@ -547,9 +546,9 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 	return nil
 }
 
-func installClick(snapFile string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
-	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
-	part, err := NewSnapPartFromSnapFile(snapFile, origin, allowUnauthenticated)
+func installClick(snapFilePath string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
+	unsignedOk := (flags & AllowUnauthenticated) != 0
+	part, err := NewSnapFile(snapFilePath, origin, unsignedOk)
 	if err != nil {
 		return "", err
 	}

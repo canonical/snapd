@@ -48,18 +48,18 @@ func (s *lightweightSuite) SetUpTest(c *check.C) {
 	s.d = c.MkDir()
 	dirs.SetRootDir(s.d)
 
-	s.MkInstalled(c, snap.TypeApp, dirs.SnapAppsDir, "foo", "bar", "1.0", true)
+	s.MkInstalled(c, snap.TypeApp, dirs.SnapSnapsDir, "foo", "bar", "1.0", true)
 	s.MkRemoved(c, "foo.bar", "0.9")
 	s.MkRemoved(c, "foo.baz", "0.8")
 
-	s.MkInstalled(c, snap.TypeFramework, dirs.SnapAppsDir, "fmk", "", "123", false)
-	s.MkInstalled(c, snap.TypeFramework, dirs.SnapAppsDir, "fmk", "", "120", true)
-	s.MkInstalled(c, snap.TypeFramework, dirs.SnapAppsDir, "fmk", "", "119", false)
+	s.MkInstalled(c, snap.TypeFramework, dirs.SnapSnapsDir, "fmk", "", "123", false)
+	s.MkInstalled(c, snap.TypeFramework, dirs.SnapSnapsDir, "fmk", "", "120", true)
+	s.MkInstalled(c, snap.TypeFramework, dirs.SnapSnapsDir, "fmk", "", "119", false)
 	s.MkRemoved(c, "fmk", "12a1")
 
 	s.MkRemoved(c, "fmk2", "4.2.0ubuntu1")
 
-	s.MkInstalled(c, snap.TypeGadget, dirs.SnapGadgetDir, "a-gadget", "", "3", false)
+	s.MkInstalled(c, snap.TypeGadget, dirs.SnapSnapsDir, "a-gadget", "", "3", false)
 }
 
 func (s *lightweightSuite) MkInstalled(c *check.C, _type snap.Type, appdir, name, origin, version string, active bool) {
@@ -94,16 +94,16 @@ func (s *lightweightSuite) TestLoadBadName(c *check.C) {
 }
 
 func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
-	bag := PartBagByName("fmk", "sideload")
+	bag := PartBagByName("fmk", "")
 	m := bag.Map(nil)
 	c.Check(m["installed_size"], check.Matches, "[0-9]+")
 	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":               "fmk",
-		"origin":             "sideload",
+		"origin":             "",
 		"status":             "active",
 		"version":            "120",
-		"icon":               filepath.Join(s.d, "apps", "fmk", "120", "icon.png"),
+		"icon":               filepath.Join(s.d, "snaps", "fmk", "120", "icon.png"),
 		"type":               "framework",
 		"vendor":             "",
 		"download_size":      "-1",
@@ -113,11 +113,11 @@ func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
 }
 
 func (s *lightweightSuite) TestMapRemovedFmkNoPart(c *check.C) {
-	bag := PartBagByName("fmk2", "sideload")
+	bag := PartBagByName("fmk2", "")
 	m := bag.Map(nil)
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":           "fmk2",
-		"origin":         "sideload",
+		"origin":         "",
 		"status":         "removed",
 		"version":        "4.2.0ubuntu1",
 		"icon":           "",
@@ -174,7 +174,7 @@ func (s *lightweightSuite) TestMapAppNoPart(c *check.C) {
 		"origin":        "bar",
 		"status":        "active",
 		"version":       "1.0",
-		"icon":          filepath.Join(s.d, "apps", "foo.bar", "1.0", "icon.png"),
+		"icon":          filepath.Join(s.d, "snaps", "foo.bar", "1.0", "icon.png"),
 		"type":          "app",
 		"vendor":        "",
 		"download_size": "-1",
@@ -202,7 +202,7 @@ func (s *lightweightSuite) TestMapAppWithPart(c *check.C) {
 		"origin":           "bar",
 		"status":           "active",
 		"version":          "1.0",
-		"icon":             filepath.Join(s.d, "apps", "foo.bar", "1.0", "icon.png"),
+		"icon":             filepath.Join(s.d, "snaps", "foo.bar", "1.0", "icon.png"),
 		"type":             "app",
 		"vendor":           "",
 		"download_size":    "42",
@@ -263,10 +263,10 @@ func (s *lightweightSuite) TestMapInactiveGadgetNoPart(c *check.C) {
 	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":          "a-gadget",
-		"origin":        "sideload", // best guess
+		"origin":        "",
 		"status":        "installed",
 		"version":       "3",
-		"icon":          filepath.Join(s.d, "gadget", "a-gadget", "3", "icon.png"),
+		"icon":          filepath.Join(s.d, "snaps", "a-gadget", "3", "icon.png"),
 		"type":          "gadget",
 		"vendor":        "",
 		"download_size": "-1",
@@ -277,7 +277,7 @@ func (s *lightweightSuite) TestMapInactiveGadgetNoPart(c *check.C) {
 func (s *lightweightSuite) TestLoadBadApp(c *check.C) {
 	s.MkRemoved(c, "quux.blah", "1")
 	// an unparsable package.yaml:
-	c.Check(os.MkdirAll(filepath.Join(dirs.SnapAppsDir, "quux.blah", "1", "meta", "package.yaml"), 0755), check.IsNil)
+	c.Check(os.MkdirAll(filepath.Join(dirs.SnapSnapsDir, "quux.blah", "1", "meta", "package.yaml"), 0755), check.IsNil)
 
 	bag := PartBagByName("quux", "blah")
 	c.Assert(bag, check.NotNil)

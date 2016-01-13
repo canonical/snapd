@@ -23,7 +23,9 @@
 package lightweight
 
 import (
+	"bytes"
 	"errors"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -131,8 +133,8 @@ func find(name string, origin string) map[string]*PartBag {
 	}
 
 	for _, s := range []T{
-		{dirs.SnapAppsDir, name + "." + origin, snap.TypeApp},
-		{dirs.SnapAppsDir, name, snap.TypeFramework}, // frameworks are installed under /apps also, for now
+		{dirs.SnapSnapsDir, name + "." + origin, snap.TypeApp},
+		{dirs.SnapSnapsDir, name, snap.TypeFramework},
 	} {
 		// all snaps share the data dir, hence this bit of mess
 		paths, _ := filepath.Glob(filepath.Join(dirs.SnapDataDir, s.qn, "*"))
@@ -168,9 +170,14 @@ func find(name string, origin string) map[string]*PartBag {
 			// package, and install a framework with the same name
 			// as the gadget package you deactivated. You get to keep
 			// the parts.
-			if typ == snap.TypeFramework && helpers.FileExists(filepath.Join(dirs.SnapGadgetDir, name)) {
-				typ = snap.TypeGadget
-				inst = dirs.SnapGadgetDir
+			if typ == snap.TypeFramework && helpers.FileExists(filepath.Join(dirs.SnapSnapsDir, name)) {
+				// FIMXE: way too simplistic
+				if content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, name, versions[0], "meta", "package.yaml")); err == nil {
+					if bytes.Contains(content, []byte("\ntype: gadget\n")) {
+						typ = snap.TypeGadget
+						inst = dirs.SnapSnapsDir
+					}
+				}
 			}
 
 			bag := &PartBag{
