@@ -747,7 +747,7 @@ func postPackage(c *Command, r *http.Request) Response {
 const maxReadBuflen = 1024 * 1024
 
 func newSnapImpl(filename string, origin string, unsignedOk bool) (snappy.Part, error) {
-	return snappy.NewSnapPartFromSnapFile(filename, origin, unsignedOk)
+	return snappy.NewSnapFile(filename, origin, unsignedOk)
 }
 
 var newSnap = newSnapImpl

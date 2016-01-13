@@ -546,9 +546,9 @@ func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin st
 	return nil
 }
 
-func installClick(snapFile string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
-	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
-	part, err := NewSnapPartFromSnapFile(snapFile, origin, allowUnauthenticated)
+func installClick(snapFilePath string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
+	unsignedOk := (flags & AllowUnauthenticated) != 0
+	part, err := NewSnapFile(snapFilePath, origin, unsignedOk)
 	if err != nil {
 		return "", err
 	}
