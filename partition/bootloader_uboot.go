@@ -41,8 +41,6 @@ var (
 	atomicWriteFile = helpers.AtomicWriteFile
 )
 
-const bootloaderNameUboot bootloaderName = "u-boot"
-
 type uboot struct {
 }
 
@@ -65,10 +63,6 @@ func newUboot() bootLoader {
 	}
 
 	return &uboot{}
-}
-
-func (u *uboot) Name() bootloaderName {
-	return bootloaderNameUboot
 }
 
 func (u *uboot) SetBootVar(name, value string) error {

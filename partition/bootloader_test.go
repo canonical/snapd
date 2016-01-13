@@ -47,9 +47,6 @@ func newMockBootloader() *mockBootloader {
 	}
 }
 
-func (b *mockBootloader) Name() bootloaderName {
-	return "mocky"
-}
 func (b *mockBootloader) GetBootVar(name string) (string, error) {
 	return b.bootVars[name], nil
 }

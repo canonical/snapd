@@ -45,8 +45,6 @@ var (
 type grub struct {
 }
 
-const bootloaderNameGrub bootloaderName = "grub"
-
 func bootloaderGrubDir() string {
 	return filepath.Join(dirs.GlobalRootDir, bootloaderGrubDirReal)
 }
@@ -64,10 +62,6 @@ func newGrub() bootLoader {
 	}
 
 	return &grub{}
-}
-
-func (g *grub) Name() bootloaderName {
-	return bootloaderNameGrub
 }
 
 func (g *grub) GetBootVar(name string) (value string, err error) {

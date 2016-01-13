@@ -59,7 +59,7 @@ func (s *PartitionTestSuite) TestNewGrub(c *C) {
 
 	g := newGrub()
 	c.Assert(g, NotNil)
-	c.Assert(g.Name(), Equals, bootloaderNameGrub)
+	c.Assert(g, FitsTypeOf, &grub{})
 }
 
 type singleCommand []string
@@ -92,5 +92,5 @@ func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
 
 	bootloader, err := bootloader()
 	c.Assert(err, IsNil)
-	c.Assert(bootloader.Name(), Equals, bootloaderNameGrub)
+	c.Assert(bootloader, FitsTypeOf, &grub{})
 }

@@ -54,7 +54,7 @@ func (s *PartitionTestSuite) TestNewUboot(c *C) {
 
 	u := newUboot()
 	c.Assert(u, NotNil)
-	c.Assert(u.Name(), Equals, bootloaderNameUboot)
+	c.Assert(u, FitsTypeOf, &uboot{})
 }
 
 func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
@@ -81,7 +81,7 @@ func (s *PartitionTestSuite) TestGetBootloaderWithUboot(c *C) {
 
 	bootloader, err := bootloader()
 	c.Assert(err, IsNil)
-	c.Assert(bootloader.Name(), Equals, bootloaderNameUboot)
+	c.Assert(bootloader, FitsTypeOf, &uboot{})
 }
 
 func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {

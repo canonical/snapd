@@ -43,12 +43,7 @@ var (
 	ErrBootloader = errors.New("cannot determine bootloader")
 )
 
-type bootloaderName string
-
 type bootLoader interface {
-	// Name of the bootloader
-	Name() bootloaderName
-
 	// Return the value of the specified bootloader variable
 	GetBootVar(name string) (string, error)
 
