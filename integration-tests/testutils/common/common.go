@@ -37,8 +37,6 @@ import (
 )
 
 const (
-	// BaseAltPartitionPath is the path to the B system partition.
-	BaseAltPartitionPath = "/writable/cache/system"
 	// NeedsRebootFile is the file that a test writes in order to request a reboot.
 	NeedsRebootFile = "/tmp/needs-reboot"
 	channelCfgFile  = "/etc/system-image/channel.ini"
@@ -70,10 +68,11 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 
 	if !IsInRebootProcess() {
 		if Cfg.Update || Cfg.Rollback {
-			switchSystemImageConf(c, Cfg.TargetRelease, Cfg.TargetChannel, "0")
+			// TODO handle updates to a different release and channel.
 			// Always use the installed snappy because we are updating from an old
 			// image, so we should not use the snappy from the branch.
 			output := cli.ExecCommand(c, "sudo", "/usr/bin/snappy", "update")
+			// TODO raise an error if there is no available update.
 			if output != "" {
 				RebootWithMark(c, "setupsuite-update")
 			}
@@ -114,74 +113,11 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 		} else {
 			if AfterReboot(c) {
 				c.Logf("****** Resuming %s after reboot", c.TestName())
-				p, err := partition.CurrentPartition()
-				c.Assert(err, check.IsNil, check.Commentf("Error getting the current boot partition: %v", err))
-				c.Logf(fmt.Sprintf("Rebooted to partition %s", p))
 			} else {
 				c.Skip(fmt.Sprintf(FormatSkipAfterReboot, c.TestName(), os.Getenv("ADT_REBOOT_MARK")))
 			}
 		}
 	}
-}
-
-// TearDownTest cleans up the channel.ini files in case they were changed by
-// the test.
-// It also runs the cleanup handlers
-func (s *SnappySuite) TearDownTest(c *check.C) {
-	if !IsInRebootProcess() {
-		// Only restore the channel config files if the reboot has been handled.
-		m := make(map[string]string)
-		m[channelCfgBackupFile()] = "/"
-		m[channelCfgOtherBackupFile()] = BaseAltPartitionPath
-		for backup, target := range m {
-			if _, err := os.Stat(backup); err == nil {
-				partition.MakeWritable(c, target)
-				defer partition.MakeReadonly(c, target)
-				original := filepath.Join(target, channelCfgFile)
-				c.Logf("Restoring %s...", original)
-				cli.ExecCommand(c, "sudo", "mv", backup, original)
-			}
-		}
-	}
-
-	s.BaseTest.TearDownTest(c)
-}
-
-func switchSystemImageConf(c *check.C, release, channel, version string) {
-	targets := []string{"/", BaseAltPartitionPath}
-	for _, target := range targets {
-		file := filepath.Join(target, channelCfgFile)
-		if _, err := os.Stat(file); err == nil {
-			partition.MakeWritable(c, target)
-			defer partition.MakeReadonly(c, target)
-			replaceSystemImageValues(c, file, release, channel, version)
-		}
-	}
-}
-
-func replaceSystemImageValues(c *check.C, file, release, channel, version string) {
-	c.Log("Switching the system image conf...")
-	replaceRegex := map[string]string{
-		release: `s#channel: ubuntu-core/.*/\(.*\)#channel: ubuntu-core/%s/\1#`,
-		channel: `s#channel: ubuntu-core/\(.*\)/.*#channel: ubuntu-core/\1/%s#`,
-		version: `s/build_number: .*/build_number: %s/`,
-	}
-	for value, regex := range replaceRegex {
-		if value != "" {
-			cli.ExecCommand(c,
-				"sudo", "sed", "-i", fmt.Sprintf(regex, value), file)
-		}
-	}
-	// Leave the new file in the test log.
-	cli.ExecCommand(c, "cat", file)
-}
-
-func channelCfgBackupFile() string {
-	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "channel.ini")
-}
-
-func channelCfgOtherBackupFile() string {
-	return filepath.Join(os.Getenv("ADT_ARTIFACTS"), "channel.ini.other")
 }
 
 // GetCurrentVersion returns the version of the installed and active package.
