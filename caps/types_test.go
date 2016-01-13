@@ -35,10 +35,6 @@ var _ = Suite(&BoolFileTypeSuite{
 	t: &BoolFileType{},
 })
 
-func (s *BoolFileTypeSuite) TestString(c *C) {
-	c.Assert(s.t.String(), Equals, "bool-file")
-}
-
 func (s *BoolFileTypeSuite) TestName(c *C) {
 	c.Assert(s.t.Name(), Equals, "bool-file")
 }
@@ -77,11 +73,6 @@ type MockTypeSuite struct {
 var _ = Suite(&MockTypeSuite{
 	t: &MockType{TypeName: "mock"},
 })
-
-// MockType has a working String() function
-func (s *MockTypeSuite) TestString(c *C) {
-	c.Assert(s.t.String(), Equals, "mock")
-}
 
 // MockType has a working Name() function
 func (s *MockTypeSuite) TestName(c *C) {

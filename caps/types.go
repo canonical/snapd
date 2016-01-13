@@ -27,8 +27,6 @@ import (
 // Types are managed centrally and act as a contract between system builders,
 // application developers and end users.
 type Type interface {
-	fmt.Stringer
-
 	// Unique and public name of this type.
 	Name() string
 	// Sanitize a capability (altering if necessary).
