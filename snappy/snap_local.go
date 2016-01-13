@@ -28,7 +28,6 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
@@ -37,7 +36,6 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
 	"github.com/ubuntu-core/snappy/snap/squashfs"
-	"github.com/ubuntu-core/snappy/systemd"
 )
 
 // SnapPart represents a generic snap type
@@ -47,10 +45,9 @@ type SnapPart struct {
 	origin      string
 	hash        string
 	isActive    bool
-	isInstalled bool
 	description string
-	deb         snap.File
-	basedir     string
+
+	basedir string
 }
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
@@ -60,57 +57,16 @@ func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
 		return nil, err
 	}
 
-	part, err := NewSnapPartFromYaml(yamlPath, origin, m)
+	part, err := newSnapPartFromYaml(yamlPath, origin, m)
 	if err != nil {
 		return nil, err
 	}
-	part.isInstalled = true
 
 	return part, nil
 }
 
-// NewSnapPartFromSnapFile loads a snap from the given snap file.
-func NewSnapPartFromSnapFile(snapFile string, origin string, unauthOk bool) (*SnapPart, error) {
-	d, err := snap.Open(snapFile)
-	if err != nil {
-		return nil, err
-	}
-
-	yamlData, err := d.MetaMember("package.yaml")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = d.MetaMember("hooks/config")
-	hasConfig := err == nil
-
-	m, err := parsePackageYamlData(yamlData, hasConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	targetDir := dirs.SnapSnapsDir
-	if origin == SideloadedOrigin {
-		m.Version = helpers.NewSideloadVersion()
-	}
-
-	fullName := m.qualifiedName(origin)
-	instDir := filepath.Join(targetDir, fullName, m.Version)
-
-	return &SnapPart{
-		basedir: instDir,
-		origin:  origin,
-		m:       m,
-		deb:     d,
-	}, nil
-}
-
-// NewSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
-func NewSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, error) {
-	if _, err := os.Stat(yamlPath); err != nil {
-		return nil, err
-	}
-
+// newSnapPartFromYaml returns a new SnapPart from the given *packageYaml at yamlPath
+func newSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, error) {
 	part := &SnapPart{
 		basedir: filepath.Dir(filepath.Dir(yamlPath)),
 		origin:  origin,
@@ -194,10 +150,6 @@ func (s *SnapPart) Origin() string {
 		return r.Origin
 	}
 
-	if s.origin == "" {
-		return SideloadedOrigin
-	}
-
 	return s.origin
 }
 
@@ -232,7 +184,7 @@ func (s *SnapPart) IsActive() bool {
 
 // IsInstalled returns true if the snap is installed
 func (s *SnapPart) IsInstalled() bool {
-	return s.isInstalled
+	return true
 }
 
 // InstalledSize returns the size of the installed snap
@@ -281,178 +233,10 @@ func (s *SnapPart) GadgetConfig() SystemConfig {
 	return s.m.Config
 }
 
-// Install installs the snap
+// Install installs the snap (which does not make sense for an already
+// installed snap
 func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
-	allowGadget := (flags & AllowGadget) != 0
-	inhibitHooks := (flags & InhibitHooks) != 0
-
-	if s.IsInstalled() {
-		return "", ErrAlreadyInstalled
-	}
-
-	if err := s.CanInstall(allowGadget, inter); err != nil {
-		return "", err
-	}
-
-	// the "gadget" parts are special
-	if s.Type() == snap.TypeGadget {
-		if err := installGadgetHardwareUdevRules(s.m); err != nil {
-			return "", err
-		}
-	}
-
-	fullName := QualifiedName(s)
-	dataDir := filepath.Join(dirs.SnapDataDir, fullName, s.Version())
-
-	var oldPart *SnapPart
-	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current")); currentActiveDir != "" {
-		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "package.yaml"), s.origin)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	if err := os.MkdirAll(s.basedir, 0755); err != nil {
-		logger.Noticef("Can not create %q: %v", s.basedir, err)
-		return "", err
-	}
-
-	// if anything goes wrong here we cleanup
-	defer func() {
-		if err != nil {
-			if e := os.RemoveAll(s.basedir); e != nil && !os.IsNotExist(e) {
-				logger.Noticef("Failed to remove %q: %v", s.basedir, e)
-			}
-		}
-	}()
-
-	// we need to call the external helper so that we can reliable drop
-	// privs
-	if err := s.deb.Install(s.basedir); err != nil {
-		return "", err
-	}
-
-	// generate the mount unit for the squashfs
-	if err := s.m.addSquashfsMount(s.basedir, inhibitHooks, inter); err != nil {
-		return "", err
-	}
-
-	// FIXME: special handling is bad 'mkay
-	if s.m.Type == snap.TypeKernel {
-		if err := extractKernelAssets(s, inter, flags); err != nil {
-			return "", fmt.Errorf("failed to install kernel %s", err)
-		}
-	}
-
-	// deal with the data:
-	//
-	// if there was a previous version, stop it
-	// from being active so that it stops running and can no longer be
-	// started then copy the data
-	//
-	// otherwise just create a empty data dir
-	if oldPart != nil {
-		// we need to stop making it active
-		err = oldPart.deactivate(inhibitHooks, inter)
-		defer func() {
-			if err != nil {
-				if cerr := oldPart.activate(inhibitHooks, inter); cerr != nil {
-					logger.Noticef("Setting old version back to active failed: %v", cerr)
-				}
-			}
-		}()
-		if err != nil {
-			return "", err
-		}
-
-		err = copySnapData(fullName, oldPart.Version(), s.Version())
-	} else {
-		err = os.MkdirAll(dataDir, 0755)
-	}
-
-	defer func() {
-		if err != nil {
-			if cerr := removeSnapData(fullName, s.Version()); cerr != nil {
-				logger.Noticef("When cleaning up data for %s %s: %v", s.Name(), s.Version(), cerr)
-			}
-		}
-	}()
-
-	if err != nil {
-		return "", err
-	}
-
-	if !inhibitHooks {
-		// and finally make active
-		err = s.activate(inhibitHooks, inter)
-		defer func() {
-			if err != nil && oldPart != nil {
-				if cerr := oldPart.activate(inhibitHooks, inter); cerr != nil {
-					logger.Noticef("When setting old %s version back to active: %v", s.Name(), cerr)
-				}
-			}
-		}()
-		if err != nil {
-			return "", err
-		}
-
-		// oh, one more thing: refresh the security bits
-		deps, err := s.Dependents()
-		if err != nil {
-			return "", err
-		}
-
-		sysd := systemd.New(dirs.GlobalRootDir, inter)
-		stopped := make(map[string]time.Duration)
-		defer func() {
-			if err != nil {
-				for serviceName := range stopped {
-					if e := sysd.Start(serviceName); e != nil {
-						inter.Notify(fmt.Sprintf("unable to restart %s with the old %s: %s", serviceName, s.Name(), e))
-					}
-				}
-			}
-		}()
-
-		for _, dep := range deps {
-			if !dep.IsActive() {
-				continue
-			}
-			for _, svc := range dep.ServiceYamls() {
-				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
-				timeout := time.Duration(svc.StopTimeout)
-				if err = sysd.Stop(serviceName, timeout); err != nil {
-					inter.Notify(fmt.Sprintf("unable to stop %s; aborting install: %s", serviceName, err))
-					return "", err
-				}
-				stopped[serviceName] = timeout
-			}
-		}
-
-		if err := s.RefreshDependentsSecurity(oldPart, inter); err != nil {
-			return "", err
-		}
-
-		started := make(map[string]time.Duration)
-		defer func() {
-			if err != nil {
-				for serviceName, timeout := range started {
-					if e := sysd.Stop(serviceName, timeout); e != nil {
-						inter.Notify(fmt.Sprintf("unable to stop %s with the old %s: %s", serviceName, s.Name(), e))
-					}
-				}
-			}
-		}()
-		for serviceName, timeout := range stopped {
-			if err = sysd.Start(serviceName); err != nil {
-				inter.Notify(fmt.Sprintf("unable to restart %s; aborting install: %s", serviceName, err))
-				return "", err
-			}
-			started[serviceName] = timeout
-		}
-	}
-
-	return s.Name(), nil
+	return "", ErrAlreadyInstalled
 }
 
 // SetActive sets the snap active
@@ -725,46 +509,7 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 
 // CanInstall checks whether the SnapPart passes a series of tests required for installation
 func (s *SnapPart) CanInstall(allowGadget bool, inter interacter) error {
-	if s.IsInstalled() {
-		return ErrAlreadyInstalled
-	}
-
-	if err := s.m.checkForPackageInstalled(s.Origin()); err != nil {
-		return err
-	}
-
-	// verify we have a valid architecture
-	if !arch.IsSupportedArchitecture(s.m.Architectures) {
-		return &ErrArchitectureNotSupported{s.m.Architectures}
-	}
-
-	if err := s.m.checkForNameClashes(); err != nil {
-		return err
-	}
-
-	if err := s.m.checkForFrameworks(); err != nil {
-		return err
-	}
-
-	if s.Type() == snap.TypeGadget {
-		if !allowGadget {
-			if currentGadget, err := getGadget(); err == nil {
-				if currentGadget.Name != s.Name() {
-					return ErrGadgetPackageInstall
-				}
-			} else {
-				// there should always be a gadget package now
-				return ErrGadgetPackageInstall
-			}
-		}
-	}
-
-	curr, _ := filepath.EvalSymlinks(filepath.Join(s.basedir, "..", "current"))
-	if err := s.m.checkLicenseAgreement(inter, s.deb, curr); err != nil {
-		return err
-	}
-
-	return nil
+	return fmt.Errorf("not possible on a SnapPart")
 }
 
 // RequestSecurityPolicyUpdate checks whether changes to the given policies and

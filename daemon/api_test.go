@@ -78,13 +78,11 @@ func (s *apiSuite) SetUpSuite(c *check.C) {
 	newRemoteRepo = func() metarepo {
 		return s
 	}
-	newSystemRepo = newRemoteRepo
 	muxVars = s.muxVars
 }
 
 func (s *apiSuite) TearDownSuite(c *check.C) {
 	newRemoteRepo = nil
-	newSystemRepo = nil
 	muxVars = nil
 }
 
@@ -283,7 +281,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"newRemoteRepo",
-		"newSystemRepo",
 		"newSnap",
 		"pkgActionDispatch",
 		// packageInstruction vars:

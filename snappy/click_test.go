@@ -63,7 +63,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallFailsAlreadyInstalled(c *C) {
 	snapFile := s.testLocalSnapInstall(c)
 
 	_, err := installClick(snapFile, 0, nil, "originother")
-	c.Assert(err, Equals, ErrPackageNameAlreadyInstalled)
+	c.Assert(err, ErrorMatches, ".*is already installed with origin.*")
 }
 
 // if the snap asks for accepting a license, and an agreer isn't provided,

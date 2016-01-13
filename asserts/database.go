@@ -24,7 +24,6 @@ package asserts
 import (
 	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"time"
 )
@@ -45,6 +44,20 @@ type Backstore interface {
 	Search(assertType AssertionType, primaryKeyHeaders []string, headers map[string]string, foundCb func(Assertion)) error
 }
 
+type nullBackstore struct{}
+
+func (nbs nullBackstore) Put(t AssertionType, pkh []string, a Assertion) error {
+	return fmt.Errorf("cannot store assertions without setting a proper assertion backstore implementation")
+}
+
+func (nbs nullBackstore) Get(t AssertionType, pkh, k []string) (Assertion, error) {
+	return nil, ErrNotFound
+}
+
+func (nbs nullBackstore) Search(t AssertionType, pkh []string, h map[string]string, f func(Assertion)) error {
+	return nil
+}
+
 // A KeypairManager is a manager and backstore for private/public key pairs.
 type KeypairManager interface {
 	// Put stores the given private/public key pair for identity,
@@ -61,14 +74,11 @@ type KeypairManager interface {
 
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
-	// database filesystem backstores path
-	Path string
 	// trusted account keys
 	TrustedKeys []*AccountKey
-	// backstore for assertions, falls back to a filesystem based backstrore
-	// if not set
+	// backstore for assertions, left unset storing assertions will error
 	Backstore Backstore
-	// manager/backstore for keypairs, falls back to a filesystem based manager
+	// manager/backstore for keypairs, mandatory
 	KeypairManager KeypairManager
 }
 
@@ -96,28 +106,11 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	bs := cfg.Backstore
 	keypairMgr := cfg.KeypairManager
 
-	// falling back to at least one of the filesytem backstores,
-	// ensure the main directory cfg.Path
-	// TODO: decide what should be the final defaults/fallbacks
-	if bs == nil || keypairMgr == nil {
-		err := os.MkdirAll(cfg.Path, 0775)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create assert database root: %v", err)
-		}
-		info, err := os.Stat(cfg.Path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create assert database root: %v", err)
-		}
-		if info.Mode().Perm()&0002 != 0 {
-			return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
-		}
-
-		if bs == nil {
-			bs = newFilesystemBackstore(cfg.Path)
-		}
-		if keypairMgr == nil {
-			keypairMgr = newFilesystemKeypairMananager(cfg.Path)
-		}
+	if bs == nil {
+		bs = nullBackstore{}
+	}
+	if keypairMgr == nil {
+		panic("database cannot be used without setting a keypair manager")
 	}
 
 	trustedKeys := make(map[string][]*AccountKey)
@@ -206,7 +199,7 @@ func (db *Database) findAccountKeys(authorityID, keyID string) ([]*AccountKey, e
 		}
 	}
 	// consider stored account keys
-	a, err := db.bs.Get(AccountKeyType, []string{"account-id", "public-key-id"}, []string{authorityID, keyID})
+	a, err := db.bs.Get(AccountKeyType, primaryKey(AccountKeyType), []string{authorityID, keyID})
 	switch err {
 	case nil:
 		res = append(res, a.(*AccountKey))

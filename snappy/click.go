@@ -458,7 +458,7 @@ type interacter interface {
 
 func installClick(snapFile string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
 	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
-	part, err := NewSnapPartFromSnapFile(snapFile, origin, allowUnauthenticated)
+	part, err := NewSnapFile(snapFile, origin, allowUnauthenticated)
 	if err != nil {
 		return "", err
 	}

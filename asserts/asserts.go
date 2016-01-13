@@ -369,6 +369,14 @@ type assertionTypeRegistration struct {
 
 var typeRegistry = make(map[AssertionType]*assertionTypeRegistration)
 
+func primaryKey(t AssertionType) []string {
+	reg, ok := typeRegistry[t]
+	if !ok {
+		panic("unknown assertion type used as value: " + string(t))
+	}
+	return reg.primaryKey
+}
+
 // Encode serializes an assertion.
 func Encode(assert Assertion) []byte {
 	content, signature := assert.Signature()
