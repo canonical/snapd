@@ -1162,16 +1162,23 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 	c.Check(task.State(), check.Equals, TaskSucceeded)
 }
 
-func (s *apiSuite) TestGetCapabilities(c *check.C) {
-	d := newTestDaemon()
-	d.capRepo.Add(&caps.Capability{
-		Name:  "caps-lock-led",
-		Label: "Caps Lock LED",
-		Type:  caps.BoolFileType,
-		Attrs: map[string]string{
+func (s *apiSuite) makeCapsLockLED(c *check.C, d *Daemon) caps.Capability {
+	cap, err := d.capRepo.MakeCap(
+		"caps-lock-led", "Caps Lock LED", "bool-file",
+		map[string]string{
 			"path": "/sys/class/leds/input::capslock/brightness",
 		},
-	})
+	)
+	c.Assert(err, check.IsNil)
+	c.Assert(cap, check.Not(check.IsNil))
+	return cap
+}
+
+func (s *apiSuite) TestGetCapabilities(c *check.C) {
+	d := newTestDaemon()
+	cap := s.makeCapsLockLED(c, d)
+	err := d.capRepo.Add(cap)
+	c.Assert(err, check.IsNil)
 	req, err := http.NewRequest("GET", "/1.0/capabilities", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
@@ -1184,9 +1191,9 @@ func (s *apiSuite) TestGetCapabilities(c *check.C) {
 		"result": map[string]interface{}{
 			"capabilities": map[string]interface{}{
 				"caps-lock-led": map[string]interface{}{
-					"name":  "caps-lock-led",
-					"label": "Caps Lock LED",
-					"type":  "bool-file",
+					"name":  cap.Name(),
+					"label": cap.Label(),
+					"type":  cap.TypeName(),
 					"attrs": map[string]interface{}{
 						"path": "/sys/class/leds/input::capslock/brightness",
 					},
@@ -1202,13 +1209,9 @@ func (s *apiSuite) TestGetCapabilities(c *check.C) {
 func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 	// Setup
 	d := newTestDaemon()
-	cap := &caps.Capability{
-		Name:  "name",
-		Label: "label",
-		Type:  caps.BoolFileType,
-		Attrs: map[string]string{"path": "/nonexistent"},
-	}
-	text, err := json.Marshal(cap)
+	cap := s.makeCapsLockLED(c, d)
+	// Serialize the description of the capability
+	text, err := json.Marshal(caps.Info(cap))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
 	// Execute
@@ -1218,31 +1221,24 @@ func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 	// Verify (external)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusCreated)
-	c.Check(rsp.Result, check.DeepEquals, map[string]string{"resource": "/1.0/capabilities/name"})
+	c.Check(rsp.Result, check.DeepEquals, map[string]string{
+		"resource": "/1.0/capabilities/caps-lock-led",
+	})
 	// Verify (internal)
-	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
+	c.Check(d.capRepo.Capability(cap.Name()), check.DeepEquals, cap)
 }
 
 func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	// Setup
-	// Start with one capability named 'name' in the repository
 	d := newTestDaemon()
-	cap := &caps.Capability{
-		Name:  "name",
-		Label: "label",
-		Type:  caps.BoolFileType,
-		Attrs: map[string]string{"path": "/nonexistent"},
-	}
+	cap := s.makeCapsLockLED(c, d)
 	err := d.capRepo.Add(cap)
 	c.Assert(err, check.IsNil)
 	// Prepare for adding a second capability with the same name
-	capClashing := &caps.Capability{
-		Name:  "name",
-		Label: "second label",
-		Type:  caps.BoolFileType,
-		Attrs: map[string]string{"path": "/nonexistent"},
-	}
-	text, err := json.Marshal(capClashing)
+	capClashing, err := d.capRepo.MakeCap(
+		cap.Name(), cap.Label()+".other", cap.TypeName(), cap.AttrMap())
+	c.Assert(err, check.IsNil)
+	text, err := json.Marshal(caps.Info(capClashing))
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
 	// Execute
@@ -1254,8 +1250,7 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*errorResult).Msg, check.Matches, `can't add capability`)
 	// Verify (internal)
-	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
-	c.Check(d.capRepo.All(), check.Not(testutil.DeepContains), *capClashing)
+	c.Check(d.capRepo.Capability(cap.Name()), check.DeepEquals, cap)
 }
 
 func (s *apiSuite) TestAddCapabilitiesUnintelligible(c *check.C) {
@@ -1295,20 +1290,17 @@ func (s *apiSuite) TestAddCapabilitiesNotACapability(c *check.C) {
 func (s *apiSuite) TestDeleteCapabilityGood(c *check.C) {
 	// Setup
 	d := newTestDaemon()
-	t := &caps.Type{Name: "test"}
-	err := d.capRepo.AddType(t)
+	cap := s.makeCapsLockLED(c, d)
+	err := d.capRepo.Add(cap)
 	c.Assert(err, check.IsNil)
-	cap := &caps.Capability{Name: "name", Type: t}
-	err = d.capRepo.Add(cap)
-	c.Assert(err, check.IsNil)
-	s.vars = map[string]string{"name": "name"}
+	s.vars = map[string]string{"name": cap.Name()}
 	// Execute
 	rsp := deleteCapability(capabilityCmd, nil).Self(nil, nil).(*resp)
 	// Verify (external)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	// Verify (internal)
-	c.Check(d.capRepo.Capability(cap.Name), check.IsNil)
+	c.Check(d.capRepo.Capability(cap.Name()), check.IsNil)
 }
 
 func (s *apiSuite) TestDeleteCapabilityNotFound(c *check.C) {

@@ -60,3 +60,7 @@ func LoadBuiltInTypes(r *Repository) error {
 	}
 	return nil
 }
+
+var builtInTypes = [...]Type{
+	&boolFileType{},
+}
