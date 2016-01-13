@@ -29,7 +29,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/clickdeb"
+	"github.com/ubuntu-core/snappy/systemd"
 )
 
 type fakePart struct {
@@ -67,11 +67,19 @@ type FirstBootTestSuite struct {
 var _ = Suite(&FirstBootTestSuite{})
 
 func (s *FirstBootTestSuite) SetUpTest(c *C) {
-	s.verifyCmd = clickdeb.VerifyCmd
-	clickdeb.VerifyCmd = "true"
-
-	dirs.SetRootDir(c.MkDir())
+	tempdir := c.MkDir()
+	dirs.SetRootDir(tempdir)
 	stampFile = filepath.Join(c.MkDir(), "stamp")
+
+	// mock the world!
+	makeMockSecurityEnv(c)
+	runAppArmorParser = mockRunAppArmorParser
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		return []byte("ActiveState=inactive\n"), nil
+	}
+
+	err := os.MkdirAll(filepath.Join(tempdir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
+	c.Assert(err, IsNil)
 
 	configMyApp := make(SystemConfig)
 	configMyApp["hostname"] = "myhostname"
@@ -100,7 +108,6 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	ifup = s.ifup
 	getGadget = getGadgetImpl
 	newPartMap = newPartMapImpl
-	clickdeb.VerifyCmd = s.verifyCmd
 }
 
 func (s *FirstBootTestSuite) getGadget() (*packageYaml, error) {
@@ -132,9 +139,13 @@ func (s *FirstBootTestSuite) TestFirstBootConfigure(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
-	snapFile := makeTestSnapPackage(c, "")
-	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC|InhibitHooks, &MockProgressMeter{})
-	c.Check(err, IsNil)
+	yamlPath, err := makeInstalledMockSnap(dirs.GlobalRootDir, "")
+	c.Assert(err, IsNil)
+
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	c.Assert(part.IsActive(), Equals, false)
+	name := part.Name()
 
 	s.m = &packageYaml{Gadget: Gadget{Software: Software{BuiltIn: []string{name}}}}
 
@@ -142,6 +153,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	all, err := repo.All()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
+	c.Check(all[0].Name(), Equals, name)
 	c.Check(all[0].IsInstalled(), Equals, true)
 	c.Check(all[0].IsActive(), Equals, false)
 
@@ -152,6 +164,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	all, err = repo.All()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
+	c.Check(all[0].Name(), Equals, name)
 	c.Check(all[0].IsInstalled(), Equals, true)
 	c.Check(all[0].IsActive(), Equals, true)
 }
@@ -228,9 +241,8 @@ type: kernel
 `
 
 func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml string, expectActivated bool) {
-	snapFile := makeTestSnapPackage(c, yaml)
-	_, err := Install(snapFile, AllowGadget|InhibitHooks, &MockProgressMeter{})
-	c.Check(err, IsNil)
+	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, yaml)
+	c.Assert(err, IsNil)
 
 	repo := NewMetaLocalRepository()
 	all, err := repo.All()

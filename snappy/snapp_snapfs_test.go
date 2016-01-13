@@ -51,10 +51,6 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
-	// ensure we use the right builder func (squashfs)
-	snapBuilderFunc = BuildSquashfsSnap
-	s.AddCleanup(func() { snapBuilderFunc = BuildLegacySnap })
-
 	// mock the boot variable writing for the tests
 	s.bootvars = make(map[string]string)
 	setBootVar = func(key, val string) error {
