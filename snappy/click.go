@@ -141,15 +141,14 @@ set -e
 
 # app info (deprecated)
 {{.OldAppVars}}
-export SNAPP_OLD_PWD="$(pwd)"
 
 # app info
 {{.NewAppVars}}
 
-if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
-   mkdir -p "$SNAP_APP_USER_DATA_PATH"
+if [ ! -d "$SNAP_USER_DATA" ]; then
+   mkdir -p "$SNAP_USER_DATA"
 fi
-export HOME="$SNAP_APP_USER_DATA_PATH"
+export HOME="$SNAP_USER_DATA"
 
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
