@@ -82,8 +82,10 @@ func markBootSuccessful(bootloader bootLoader) error {
 	// FIXME: we should have something better here, i.e. one write
 	//        to the bootloader environment only (instead of three)
 	//        We need to figure out if that is possible with grub/uboot
-	// (if we could also do atomic writes to the boot env, that would
-	//  be even better)
+	// If we could also do atomic writes to the boot env, that would
+	// be even better. The complication here is that the grub
+	// environment is handled via grub-editenv and uboot is done
+	// via the special uboot.env file on a vfat partition.
 	for _, k := range []string{"snappy_os", "snappy_kernel"} {
 		value, err := bootloader.GetBootVar(k)
 		if err != nil {
