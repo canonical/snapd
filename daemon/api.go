@@ -173,10 +173,6 @@ var newRemoteRepo = func() metarepo {
 	return snappy.NewMetaStoreRepository()
 }
 
-var newSystemRepo = func() metarepo {
-	return snappy.NewSystemImageRepository()
-}
-
 var muxVars = mux.Vars
 
 func getPackageInfo(c *Command, r *http.Request) Response {
@@ -263,15 +259,6 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 	found, _ := newRemoteRepo().All()
 	if len(found) > 0 {
 		sources = append(sources, "store")
-	}
-
-	// systemRepo might be nil on all-snap systems
-	if systemRepo := newSystemRepo(); systemRepo != nil {
-		upd, _ := systemRepo.Updates()
-		if len(upd) > 0 {
-			sources = append(sources, "system-image")
-		}
-		found = append(found, upd...)
 	}
 
 	sort.Sort(byQN(found))
