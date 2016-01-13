@@ -66,7 +66,10 @@ func makeSnapHookEnv(part *SnapPart) (env []string) {
 		QualifiedName(part),
 		part.Origin(),
 	}
-	snapEnv := helpers.MakeMapFromEnvList(helpers.GetBasicSnapEnvVars(desc))
+
+	vars := helpers.GetBasicSnapEnvVars(desc)
+	vars = append(vars, helpers.GetDeprecatedBasicSnapEnvVars(desc)...)
+	snapEnv := helpers.MakeMapFromEnvList(vars)
 
 	// merge regular env and new snapEnv
 	envMap := helpers.MakeMapFromEnvList(os.Environ())

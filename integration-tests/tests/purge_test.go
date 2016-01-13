@@ -37,7 +37,7 @@ var _ = check.Suite(&purgeSuite{})
 
 const (
 	snap             = data.BasicSnapName + ".sideload"
-	baseSnapDataPath = "/var/lib/apps"
+	baseSnapDataPath = "/var/lib/snaps"
 )
 
 var snapDataPath = filepath.Join(baseSnapDataPath, snap, "current")
@@ -110,7 +110,7 @@ func (s *purgeSuite) TestPurgeRemovesDataForDeactivatedNotRemovedPackage(c *chec
 	c.Assert(os.IsNotExist(err), check.Equals, true)
 }
 
-// getVersionSnapDataPath returns the $SNAP_APP_DATA_PATH for a given snap
+// getVersionSnapDataPath returns the $SNAP_DATA path for a given snap
 // assuming that there's only one version installed
 func getVersionSnapDataPath(snap string) (versionPath string, err error) {
 	snapFullPath := filepath.Join(baseSnapDataPath, snap)

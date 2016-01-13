@@ -41,6 +41,15 @@ import (
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
+// FIXME: kill once all the tests are ported to clickdeb or killed
+func init() {
+	// we need to wrap "Open()" here because stock Open returns
+	// a *ClickDeb and not a snap.File
+	snap.RegisterFormat([]byte("!<arch>\ndebian"), func(path string) (snap.File, error) {
+		return clickdeb.Open(path)
+	})
+}
+
 func (s *SnapTestSuite) TestReadManifest(c *C) {
 	manifestData := []byte(`{
    "description": "This is a simple hello world example.",
@@ -80,14 +89,14 @@ func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	baseDir := filepath.Join(dirs.SnapAppsDir, fooComposedName, "1.0")
+	baseDir := filepath.Join(dirs.SnapSnapsDir, fooComposedName, "1.0")
 	contentFile := filepath.Join(baseDir, "bin", "foo")
 	content, err := ioutil.ReadFile(contentFile)
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "#!/bin/sh\necho \"hello\"")
 
 	// ensure we have the data dir
-	_, err = os.Stat(filepath.Join(s.tempdir, "var", "lib", "apps", "foo."+testOrigin, "1.0"))
+	_, err = os.Stat(filepath.Join(s.tempdir, "var", "lib", "snaps", "foo."+testOrigin, "1.0"))
 	c.Assert(err, IsNil)
 
 	// ensure we have the hashes
@@ -118,7 +127,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
 	_, err := installClick(snapFile, 0, nil, testOrigin)
 	c.Assert(err, NotNil)
 
-	contentFile := filepath.Join(s.tempdir, "apps", fooComposedName, "1.0", "bin", "foo")
+	contentFile := filepath.Join(s.tempdir, "snaps", fooComposedName, "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, NotNil)
 }
@@ -283,7 +292,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 		return nil, nil
 	}
 
-	targetDir := filepath.Join(s.tempdir, "apps")
+	targetDir := filepath.Join(s.tempdir, "snaps")
 	_, err := installClick(makeTestSnapPackage(c, ""), 0, nil, testOrigin)
 	c.Assert(err, IsNil)
 
@@ -358,7 +367,7 @@ func (s *SnapTestSuite) TestSnapInstallPackagePolicyDelta(c *C) {
 
 	// _, err := installClick(snapName, 0, nil, testOrigin)
 	// c.Assert(err, IsNil)
-	// appdir := filepath.Join(s.tempdir, "apps", "hello.testspacethename", "1.0.1")
+	// appdir := filepath.Join(s.tempdir, "snaps", "hello.testspacethename", "1.0.1")
 	// c.Assert(removeClick(appdir, nil), IsNil)
 }
 
@@ -368,7 +377,7 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 	policy.SecBase = c.MkDir()
 
 	s.buildFramework(c)
-	appdir := filepath.Join(s.tempdir, "apps", "hello", "1.0.1")
+	appdir := filepath.Join(s.tempdir, "snaps", "hello", "1.0.1")
 	yamlPath := filepath.Join(appdir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
@@ -384,7 +393,7 @@ icon: foo.svg`)
 	_, err := installClick(snapFile, AllowGadget, nil, testOrigin)
 	c.Assert(err, IsNil)
 
-	contentFile := filepath.Join(s.tempdir, "gadget", "foo", "1.0", "bin", "foo")
+	contentFile := filepath.Join(s.tempdir, "snaps", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
 }
@@ -398,7 +407,7 @@ icon: foo.svg`)
 	c.Assert(err, IsNil)
 	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "1.0", "", "remote-channel"), IsNil)
 
-	contentFile := filepath.Join(s.tempdir, "gadget", "foo", "1.0", "bin", "foo")
+	contentFile := filepath.Join(s.tempdir, "snaps", "foo", "1.0", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
 
@@ -447,7 +456,7 @@ icon: foo.svg
 	c.Assert(err, IsNil)
 
 	// ensure v2 is active
-	repo := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
+	repo := NewLocalSnapRepository(filepath.Join(s.tempdir, "snaps"))
 	parts, err := repo.Installed()
 	c.Assert(err, IsNil)
 	c.Assert(parts, HasLen, 2)
@@ -468,8 +477,8 @@ icon: foo.svg
 }
 
 func (s *SnapTestSuite) TestClickCopyData(c *C) {
-	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "apps")
-	homeDir := filepath.Join(s.tempdir, "home", "user1", "apps")
+	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snaps")
+	homeDir := filepath.Join(s.tempdir, "home", "user1", "snaps")
 	appDir := "foo." + testOrigin
 	homeData := filepath.Join(homeDir, appDir, "1.0")
 	err := os.MkdirAll(homeData, 0755)
@@ -507,7 +516,7 @@ icon: foo.svg
 // system data gets copied
 func (s *SnapTestSuite) TestClickCopyDataNoUserHomes(c *C) {
 	// this home dir path does not exist
-	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "apps")
+	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snaps")
 
 	packageYaml := `name: foo
 icon: foo.svg
@@ -531,40 +540,37 @@ const expectedWrapper = `#!/bin/sh
 set -e
 
 # app info (deprecated)
-export SNAPP_APP_PATH="/apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAPP_APP_DATA_PATH="/var/lib/apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAPP_APP_TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
-export SNAPPY_APP_ARCH="%[1]s"
-export SNAPP_APP_USER_DATA_PATH="$HOME/apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAPP_OLD_PWD="$(pwd)"
+export SNAP_APP_PATH="/snaps/pastebinit.mvo/1.4.0.0.1/"
+export SNAP_APP_DATA_PATH="/var/lib/snaps/pastebinit.mvo/1.4.0.0.1/"
+export SNAP_APP_TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
+export SNAP_APP_USER_DATA_PATH="$HOME/snaps/pastebinit.mvo/1.4.0.0.1/"
 
 # app info
+export SNAP="/snaps/pastebinit.mvo/1.4.0.0.1/"
+export SNAP_DATA="/var/lib/snaps/pastebinit.mvo/1.4.0.0.1/"
 export TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
 export TEMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
-export SNAP_APP_PATH="/apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAP_APP_DATA_PATH="/var/lib/apps/pastebinit.mvo/1.4.0.0.1/"
-export SNAP_APP_TMPDIR="/tmp/snaps/pastebinit.mvo/1.4.0.0.1/tmp"
 export SNAP_NAME="pastebinit"
 export SNAP_VERSION="1.4.0.0.1"
 export SNAP_ORIGIN="mvo"
 export SNAP_FULLNAME="pastebinit.mvo"
 export SNAP_ARCH="%[1]s"
-export SNAP_APP_USER_DATA_PATH="$HOME/apps/pastebinit.mvo/1.4.0.0.1/"
+export SNAP_USER_DATA="$HOME/snaps/pastebinit.mvo/1.4.0.0.1/"
 
-if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
-   mkdir -p "$SNAP_APP_USER_DATA_PATH"
+if [ ! -d "$SNAP_USER_DATA" ]; then
+   mkdir -p "$SNAP_USER_DATA"
 fi
-export HOME="$SNAP_APP_USER_DATA_PATH"
+export HOME="$SNAP_USER_DATA"
 
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
-cd /apps/pastebinit.mvo/1.4.0.0.1/
-ubuntu-core-launcher pastebinit.mvo pastebinit.mvo_pastebinit_1.4.0.0.1 /apps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
+cd /snaps/pastebinit.mvo/1.4.0.0.1/
+ubuntu-core-launcher pastebinit.mvo pastebinit.mvo_pastebinit_1.4.0.0.1 /snaps/pastebinit.mvo/1.4.0.0.1/bin/pastebinit "$@"
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 	binary := Binary{Name: "pastebinit", Exec: "bin/pastebinit"}
-	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
+	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
 	m := packageYaml{Name: "pastebinit",
 		Version: "1.4.0.0.1"}
@@ -578,7 +584,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 	binary := Binary{Name: "echo", Exec: "bin/echo"}
-	pkgPath := "/apps/fmk/1.4.0.0.1/"
+	pkgPath := "/snaps/fmk/1.4.0.0.1/"
 	aaProfile := "fmk_echo_1.4.0.0.1"
 	m := packageYaml{Name: "fmk",
 		Version: "1.4.0.0.1",
@@ -597,7 +603,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 	binary := Binary{Name: "bin/pastebinit\nSomething nasty"}
-	pkgPath := "/apps/pastebinit.mvo/1.4.0.0.1/"
+	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
 	m := packageYaml{Name: "pastebinit",
 		Version: "1.4.0.0.1"}
@@ -608,8 +614,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
 	binary := Binary{Name: "pastebinit", Exec: "bin/pastebinit"}
-	pkgPath := "/apps/pastebinit.mvo/1.0/"
-	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/apps/pastebinit.mvo/1.0/bin/pastebinit")
+	pkgPath := "/snaps/pastebinit.mvo/1.0/"
+	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snaps/pastebinit.mvo/1.0/bin/pastebinit")
 }
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
@@ -617,8 +623,8 @@ func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
 		Name: "pastebinit",
 		Exec: "bin/random-pastebin",
 	}
-	pkgPath := "/apps/pastebinit.mvo/1.1/"
-	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/apps/pastebinit.mvo/1.1/bin/random-pastebin")
+	pkgPath := "/snaps/pastebinit.mvo/1.1/"
+	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snaps/pastebinit.mvo/1.1/bin/random-pastebin")
 }
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {
@@ -637,7 +643,7 @@ binaries:
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, true)
 
 	// and that it gets removed on remove
-	snapDir := filepath.Join(dirs.SnapAppsDir, "foo.mvo", "1.0")
+	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
 	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
@@ -659,7 +665,7 @@ binaries:
 
 	// ensure that the binary wrapper file go generated with the right
 	// path
-	oldSnapBin := filepath.Join(dirs.SnapAppsDir[len(dirs.GlobalRootDir):], "foo.mvo", "1.0", "bin", "bar")
+	oldSnapBin := filepath.Join(dirs.SnapSnapsDir[len(dirs.GlobalRootDir):], "foo.mvo", "1.0", "bin", "bar")
 	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
 	content, err := ioutil.ReadFile(binaryWrapper)
 	c.Assert(err, IsNil)
@@ -669,7 +675,7 @@ binaries:
 	snapFile = makeTestSnapPackage(c, packageYaml+"version: 2.0")
 	_, err = installClick(snapFile, AllowUnauthenticated, nil, "mvo")
 	c.Assert(err, IsNil)
-	newSnapBin := filepath.Join(dirs.SnapAppsDir[len(dirs.GlobalRootDir):], "foo.mvo", "2.0", "bin", "bar")
+	newSnapBin := filepath.Join(dirs.SnapSnapsDir[len(dirs.GlobalRootDir):], "foo.mvo", "2.0", "bin", "bar")
 	content, err = ioutil.ReadFile(binaryWrapper)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), newSnapBin), Equals, true)
@@ -694,7 +700,7 @@ services:
 	c.Assert(st.Mode().String(), Equals, "-rw-r--r--")
 
 	// and that it gets removed on remove
-	snapDir := filepath.Join(dirs.SnapAppsDir, "foo.mvo", "1.0")
+	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
 	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
@@ -749,12 +755,12 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstall(c *C) {
 	c.Check(cmdlog, DeepEquals, []string{"stop", "show", "stop", "show", "start", "start"})
 
 	// check it got set active
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppsDir, "fmk", "current", "meta", "package.yaml"))
+	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "fmk", "current", "meta", "package.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), "version: 2"), Equals, true)
 
 	// just in case (cf. the following tests)
-	_, err = os.Stat(filepath.Join(dirs.SnapAppsDir, "fmk", "2"))
+	_, err = os.Stat(filepath.Join(dirs.SnapSnapsDir, "fmk", "2"))
 	c.Assert(err, IsNil)
 
 }
@@ -778,12 +784,12 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStop(
 	c.Check(cmdlog, DeepEquals, []string{"stop", "show", "stop", "start"})
 
 	// check it got rolled back
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppsDir, "fmk", "current", "meta", "package.yaml"))
+	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "fmk", "current", "meta", "package.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), "version: 1"), Equals, true)
 
 	// no leftovers from the failed install
-	_, err = os.Stat(filepath.Join(dirs.SnapAppsDir, "fmk", "2"))
+	_, err = os.Stat(filepath.Join(dirs.SnapSnapsDir, "fmk", "2"))
 	c.Assert(err, NotNil)
 }
 
@@ -809,12 +815,12 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStart
 	})
 
 	// check it got rolled back
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapAppsDir, "fmk", "current", "meta", "package.yaml"))
+	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "fmk", "current", "meta", "package.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), "version: 1"), Equals, true)
 
 	// no leftovers from the failed install
-	_, err = os.Stat(filepath.Join(dirs.SnapAppsDir, "fmk", "2"))
+	_, err = os.Stat(filepath.Join(dirs.SnapSnapsDir, "fmk", "2"))
 	c.Assert(err, NotNil)
 
 }
@@ -857,7 +863,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/hello-app_svc1_1.10.service"))
 	c.Assert(err, IsNil)
 
-	baseDirWithoutRootPrefix := "/apps/" + helloAppComposedName + "/1.10"
+	baseDirWithoutRootPrefix := "/snaps/" + helloAppComposedName + "/1.10"
 	verbs := []string{"Start", "Stop", "StopPost"}
 	bins := []string{"hello", "goodbye", "missya"}
 	for i := range verbs {
@@ -921,12 +927,12 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 	err = m.addPackageBinaries(baseDir)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/apps/bin/hello-app.hello"))
+	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/snaps/bin/hello-app.hello"))
 	c.Assert(err, IsNil)
 
 	needle := fmt.Sprintf(`
-cd /apps/hello-app.testspacethename/1.10
-ubuntu-core-launcher hello-app.%s hello-app.testspacethename_hello_1.10 /apps/hello-app.testspacethename/1.10/bin/hello "$@"
+cd /snaps/hello-app.testspacethename/1.10
+ubuntu-core-launcher hello-app.%s hello-app.testspacethename_hello_1.10 /snaps/hello-app.testspacethename/1.10/bin/hello "$@"
 `, testOrigin)
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
 }
@@ -938,12 +944,12 @@ Description=A fun webserver
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver%s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo start
+ExecStart=/usr/bin/ubuntu-core-launcher xkcd-webserver%s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo start
 Restart=on-failure
-WorkingDirectory=/apps/xkcd-webserver%[2]s/0.3.4/
-Environment="SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "TEMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_ORIGIN=%[3]s" "SNAP_FULLNAME=xkcd-webserver%[2]s" "SNAP_ARCH=%[5]s" "SNAP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_PATH=/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_DATA_PATH=/var/lib/apps/xkcd-webserver%[2]s/0.3.4/" "SNAPP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAPPY_APP_ARCH=%[5]s" "SNAPP_APP_USER_DATA_PATH=%%h/apps/xkcd-webserver%[2]s/0.3.4/"
-ExecStop=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo stop
-ExecStopPost=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /apps/xkcd-webserver%[2]s/0.3.4/bin/foo post-stop
+WorkingDirectory=/snaps/xkcd-webserver%[2]s/0.3.4/
+Environment="SNAP_APP=xkcd-webserver_xkcd-webserver_0.3.4" "SNAP=/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_DATA=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/" "TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "TEMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_ORIGIN=%[3]s" "SNAP_FULLNAME=xkcd-webserver%[2]s" "SNAP_ARCH=%[5]s" "SNAP_USER_DATA=%%h/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_PATH=/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_DATA_PATH=/var/lib/snaps/xkcd-webserver%[2]s/0.3.4/" "SNAP_APP_TMPDIR=/tmp/snaps/xkcd-webserver%[2]s/0.3.4/tmp" "SNAP_APP_USER_DATA_PATH=%%h/snaps/xkcd-webserver%[2]s/0.3.4/"
+ExecStop=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo stop
+ExecStopPost=/usr/bin/ubuntu-core-launcher xkcd-webserver%[2]s xkcd-webserver%[2]s_xkcd-webserver_0.3.4 /snaps/xkcd-webserver%[2]s/0.3.4/bin/foo post-stop
 TimeoutStopSec=30
 %[4]s
 
@@ -967,7 +973,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
 		Description: "A fun webserver",
 		Forking:     true,
 	}
-	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
 	m := packageYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
@@ -986,7 +992,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver",
 	}
-	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
 	m := packageYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
@@ -1006,7 +1012,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapperWithExternalPort(
 		Description: "A fun webserver",
 		Ports:       &Ports{External: map[string]Port{"foo": Port{}}},
 	}
-	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
 	m := packageYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
@@ -1026,7 +1032,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
 		Description: "A fun webserver",
 		BusName:     "foo.bar.baz",
 	}
-	pkgPath := "/apps/xkcd-webserver/0.3.4/"
+	pkgPath := "/snaps/xkcd-webserver/0.3.4/"
 	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
 	m := packageYaml{
 		Name:    "xkcd-webserver",
@@ -1044,7 +1050,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
 		Name:        "xkcd-webserver",
 		RestartCond: systemd.RestartOnAbort,
 	}
-	pkgPath := "/apps/xkcd-webserver/0.3.4/"
+	pkgPath := "/snaps/xkcd-webserver/0.3.4/"
 	aaProfile := "xkcd-webserver_xkcd-webserver_0.3.4"
 	m := packageYaml{
 		Name:    "xkcd-webserver",
@@ -1064,7 +1070,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 		StopTimeout: timeout.DefaultTimeout,
 		Description: "A fun webserver\nExec=foo",
 	}
-	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
 	m := packageYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
@@ -1224,7 +1230,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
 		SocketUser:   "root",
 		SocketGroup:  "adm",
 	}
-	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
 	m := packageYaml{
 		Name:    "xkcd-webserver",
@@ -1258,7 +1264,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSockte(c *C) {
 		Description: "A fun webserver",
 		Socket:      true,
 	}
-	pkgPath := "/apps/xkcd-webserver.canonical/0.3.4/"
+	pkgPath := "/snaps/xkcd-webserver.canonical/0.3.4/"
 	aaProfile := "xkcd-webserver.canonical_xkcd-webserver_0.3.4"
 	m := packageYaml{Name: "xkcd-webserver",
 		Version: "0.3.4"}
