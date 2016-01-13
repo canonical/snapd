@@ -40,9 +40,7 @@ func (s *MiscSuite) TestLoadBuiltInTypes(c *C) {
 	repo := NewRepository()
 	err := LoadBuiltInTypes(repo)
 	c.Assert(err, IsNil)
-	c.Assert(repo.types, DeepEquals, []Type{
-		&BoolFileType{},
-	})
+	c.Assert(repo.Type("bool-file"), Not(IsNil))
 	err = LoadBuiltInTypes(repo)
 	c.Assert(err, ErrorMatches, `cannot add type "bool-file": name already exists`)
 }
