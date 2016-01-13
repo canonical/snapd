@@ -29,13 +29,12 @@ const (
 	// Set to value of either bootloaderBootmodeTry (when attempting
 	// to boot a new rootfs) or bootloaderBootmodeSuccess (to denote
 	// that the boot of the new rootfs was successful).
-	bootloaderBootmodeVar = "snappy_mode"
-
-	bootloaderTrialBootVar = "snappy_trial_boot"
+	bootmodeVar  = "snappy_mode"
+	trialBootVar = "snappy_trial_boot"
 
 	// Initial and final values
-	bootloaderBootmodeTry     = "try"
-	bootloaderBootmodeSuccess = "regular"
+	modeTry     = "try"
+	modeSuccess = "regular"
 )
 
 var (
@@ -89,7 +88,7 @@ func markBootSuccessful(bootloader bootLoader) error {
 			return err
 		}
 
-		if err := bootloader.SetBootVar("snappy_mode", "regular"); err != nil {
+		if err := bootloader.SetBootVar("snappy_mode", modeSuccess); err != nil {
 			return err
 		}
 

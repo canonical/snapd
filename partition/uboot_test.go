@@ -65,7 +65,7 @@ func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
 	err = u.SetBootVar("snappy_os", "4")
 	c.Assert(err, IsNil)
 
-	v, err := u.GetBootVar(bootloaderBootmodeVar)
+	v, err := u.GetBootVar(bootmodeVar)
 	c.Assert(err, IsNil)
 	c.Assert(v, Equals, "regular")
 

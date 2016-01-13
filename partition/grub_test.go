@@ -30,7 +30,7 @@ import (
 )
 
 func mockGrubEditenvList(cmd ...string) (string, error) {
-	mockGrubEditenvOutput := fmt.Sprintf("%s=regular", bootloaderBootmodeVar)
+	mockGrubEditenvOutput := fmt.Sprintf("%s=regular", bootmodeVar)
 	return mockGrubEditenvOutput, nil
 }
 
@@ -74,7 +74,7 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 	runCommandWithStdout = mockGrubEditenvList
 
 	g := newGrub()
-	v, err := g.GetBootVar(bootloaderBootmodeVar)
+	v, err := g.GetBootVar(bootmodeVar)
 	c.Assert(err, IsNil)
 	c.Assert(v, Equals, "regular")
 }
