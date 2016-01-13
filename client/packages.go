@@ -52,7 +52,7 @@ const (
 )
 
 // Packages returns the list of packages the system can handle
-func (client *Client) Packages() (map[string]Package, error) {
+func (client *Client) Packages() (map[string]*Package, error) {
 	const errPrefix = "cannot list packages"
 
 	var result map[string]json.RawMessage
@@ -65,7 +65,7 @@ func (client *Client) Packages() (map[string]Package, error) {
 		return nil, fmt.Errorf("%s: response has no packages", errPrefix)
 	}
 
-	var packages map[string]Package
+	var packages map[string]*Package
 	if err := json.Unmarshal(packagesJSON, &packages); err != nil {
 		return nil, fmt.Errorf("%s: failed to unmarshal packages: %v", errPrefix, err)
 	}
