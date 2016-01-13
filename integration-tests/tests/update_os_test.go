@@ -42,11 +42,10 @@ type updateOSSuite struct {
 func (s *updateOSSuite) assertBootDirContents(c *check.C) {
 	system, err := partition.BootSystem()
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
-	current, err := partition.CurrentPartition()
-	c.Assert(err, check.IsNil, check.Commentf("Error getting the current partition: %s", err))
-	files, err := ioutil.ReadDir(
-		path.Join(partition.BootDir(system), partition.OtherPartition(current)))
-	c.Assert(err, check.IsNil, check.Commentf("Error reading the other partition boot dir: %s", err))
+	// TODO ask mvo about the new style boot dir.
+//	files, err := ioutil.ReadDir(
+//		path.Join(partition.BootDir(system), partition.OtherPartition(current)))
+//	c.Assert(err, check.IsNil, check.Commentf("Error reading the other partition boot dir: %s", err))
 
 	expectedFileNames := []string{"hardware.yaml", "initrd.img", "vmlinuz"}
 	if system == "uboot" {
@@ -54,9 +53,9 @@ func (s *updateOSSuite) assertBootDirContents(c *check.C) {
 	}
 
 	fileNames := []string{}
-	for _, f := range files {
-		fileNames = append(fileNames, f.Name())
-	}
+//	for _, f := range files {
+//	fileNames = append(fileNames, f.Name())
+//	}
 	c.Assert(fileNames, check.DeepEquals, expectedFileNames,
 		check.Commentf("Wrong files in the other partition boot dir"))
 }
