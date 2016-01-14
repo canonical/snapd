@@ -38,8 +38,6 @@ type installFrameworkSuite struct {
 }
 
 func (s *installFrameworkSuite) TestInstallFrameworkMustPrintPackageInformation(c *check.C) {
-	c.Skip("FIXME: .sideloaded is not printed right now: https://bugs.launchpad.net/snappy/+bug/1534051")
-
 	snapPath, err := build.LocalSnap(c, data.BasicFrameworkSnapName)
 	defer os.Remove(snapPath)
 	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
