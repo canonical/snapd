@@ -71,16 +71,17 @@ func (s *BoolFileTypeSuite) TestSecuritySnippet(c *C) {
 	}
 	snippet, err := s.t.SecuritySnippet(cap, securityApparmor)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Equals, "path rwl,\n")
+	c.Assert(snippet, DeepEquals, []byte("path rwl,\n"))
 	snippet, err = s.t.SecuritySnippet(cap, securitySeccomp)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Equals, "")
+	c.Assert(snippet, IsNil)
 	snippet, err = s.t.SecuritySnippet(cap, securityDBus)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Equals, "")
+	c.Assert(snippet, IsNil)
 	snippet, err = s.t.SecuritySnippet(cap, "foo")
 	c.Assert(err, ErrorMatches, `unknown security system "foo"`)
-	c.Assert(snippet, Equals, "")
+	c.Assert(err, FitsTypeOf, &ErrUnknownSecurity{})
+	c.Assert(snippet, IsNil)
 }
 
 // TestType
@@ -138,14 +139,15 @@ func (s *TestTypeSuite) TestSecuritySnippet(c *C) {
 	}
 	snippet, err := s.t.SecuritySnippet(cap, securityApparmor)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Equals, "")
+	c.Assert(snippet, IsNil)
 	snippet, err = s.t.SecuritySnippet(cap, securitySeccomp)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Equals, "")
+	c.Assert(snippet, IsNil)
 	snippet, err = s.t.SecuritySnippet(cap, securityDBus)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, Equals, "")
+	c.Assert(snippet, IsNil)
 	snippet, err = s.t.SecuritySnippet(cap, "foo")
 	c.Assert(err, ErrorMatches, `unknown security system "foo"`)
-	c.Assert(snippet, Equals, "")
+	c.Assert(err, FitsTypeOf, &ErrUnknownSecurity{})
+	c.Assert(snippet, IsNil)
 }

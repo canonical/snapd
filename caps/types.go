@@ -31,9 +31,13 @@ type Type interface {
 	Name() string
 	// Sanitize a capability (altering if necessary).
 	Sanitize(c *Capability) error
-	// Obtain the security snippet for the given security system.
-	// If no security snippet is needed, hand out empty string.
-	SecuritySnippet(c *Capability, securitySystem SecuritySystem) (string, error)
+	// SecuritySnippet returns the configuration snippet that should be used by
+	// the given security system to enable this capability to be consumed.
+	// An empty snippet is returned when the capability doesn't require anything
+	// from the security system to work, in addition to the default configuration.
+	// ErrUnknownSecurity is returned when the capability cannot deal with the
+	// requested security system.
+	SecuritySnippet(c *Capability, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // BoolFileType is the type of all the bool-file capabilities.
@@ -65,19 +69,19 @@ func (t *BoolFileType) Sanitize(c *Capability) error {
 
 // SecuritySnippet for bool-file capability type.
 // Consumers gain permission to read, write and lock the designated file.
-func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) (string, error) {
+func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case securityApparmor:
 		// TODO: switch to the real path later
 		path := c.Attrs["path"]
 		// Allow read, write and lock on the file designated by the path.
-		return fmt.Sprintf("%s rwl,\n", path), nil
+		return ([]byte)(fmt.Sprintf("%s rwl,\n", path)), nil
 	case securitySeccomp:
-		return "", nil
+		return nil, nil
 	case securityDBus:
-		return "", nil
+		return nil, nil
 	default:
-		return "", fmt.Errorf("unknown security system %q", securitySystem)
+		return nil, &ErrUnknownSecurity{SecuritySystem: securitySystem}
 	}
 }
 
@@ -113,16 +117,16 @@ func (t *TestType) Sanitize(c *Capability) error {
 
 // SecuritySnippet for test capability type.
 // Consumers don't gain any extra permissions.
-func (t *TestType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) (string, error) {
+func (t *TestType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case securityApparmor:
 		fallthrough
 	case securitySeccomp:
 		fallthrough
 	case securityDBus:
-		return "", nil
+		return nil, nil
 	default:
-		return "", fmt.Errorf("unknown security system %q", securitySystem)
+		return nil, &ErrUnknownSecurity{SecuritySystem: securitySystem}
 	}
 }
 

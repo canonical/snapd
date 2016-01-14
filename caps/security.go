@@ -19,6 +19,10 @@
 
 package caps
 
+import (
+	"fmt"
+)
+
 // SecuritySystem is a name of a security system.
 type SecuritySystem string
 
@@ -27,3 +31,13 @@ const (
 	securitySeccomp  SecuritySystem = "seccomp"
 	securityDBus     SecuritySystem = "dbus"
 )
+
+// ErrUnknownSecurity is the error reported for unknown security systems.
+type ErrUnknownSecurity struct {
+	// SecuritySystem is the name of the unknown security system.
+	SecuritySystem SecuritySystem
+}
+
+func (err *ErrUnknownSecurity) Error() string {
+	return fmt.Sprintf("unknown security system %q", err.SecuritySystem)
+}
