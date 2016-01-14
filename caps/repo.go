@@ -32,14 +32,14 @@ type Repository struct {
 	// Map of capabilities, indexed by Capability.Name
 	caps map[string]*Capability
 	// A slice of types that are recognized and accepted
-	types []*Type
+	types []Type
 }
 
 // NewRepository creates an empty capability repository
 func NewRepository() *Repository {
 	return &Repository{
 		caps:  make(map[string]*Capability),
-		types: make([]*Type, 0),
+		types: make([]Type, 0),
 	}
 }
 
@@ -60,11 +60,12 @@ func (r *Repository) Add(cap *Capability) error {
 		return fmt.Errorf("cannot add capability %q: name already exists", cap.Name)
 	}
 	// Reject capabilities with unknown types
-	if !r.hasType(cap.Type) {
-		return fmt.Errorf("cannot add capability %q: type %q is unknown", cap.Name, cap.Type)
+	t := r.getType(cap.TypeName)
+	if t == nil {
+		return fmt.Errorf("cannot add capability %q: type %q is unknown", cap.Name, cap.TypeName)
 	}
-	// Reject capabilities that don't pass type-specific validation
-	if err := cap.Type.Validate(cap); err != nil {
+	// Reject capabilities that don't pass type-specific sanitization
+	if err := t.Sanitize(cap); err != nil {
 		return err
 	}
 	r.caps[cap.Name] = cap
@@ -72,7 +73,7 @@ func (r *Repository) Add(cap *Capability) error {
 }
 
 // hasType checks whether the repository contains the given type.
-func (r *Repository) hasType(t *Type) bool {
+func (r *Repository) hasType(t Type) bool {
 	for _, tt := range r.types {
 		if tt == t {
 			return true
@@ -81,18 +82,22 @@ func (r *Repository) hasType(t *Type) bool {
 	return false
 }
 
-// Type finds and returns the Type with the given name or nil if
-// it's not found
-func (r *Repository) Type(name string) *Type {
-	r.m.Lock()
-	defer r.m.Unlock()
-
+func (r *Repository) getType(name string) Type {
 	for _, t := range r.types {
-		if t.Name == name {
+		if t.Name() == name {
 			return t
 		}
 	}
 	return nil
+}
+
+// Type finds and returns the Type with the given name or nil if
+// it's not found
+func (r *Repository) Type(name string) Type {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	return r.getType(name)
 }
 
 // Capability finds and returns the Capability with the given name or nil if it
@@ -106,15 +111,16 @@ func (r *Repository) Capability(name string) *Capability {
 
 // AddType adds a capability type to the repository.
 // It's an error to add the same capability type more than once.
-func (r *Repository) AddType(t *Type) error {
+func (r *Repository) AddType(t Type) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	if err := ValidateName(t.String()); err != nil {
+	typeName := t.Name()
+	if err := ValidateName(typeName); err != nil {
 		return err
 	}
 	for _, otherT := range r.types {
-		if t.Name == otherT.Name {
+		if typeName == otherT.Name() {
 			return fmt.Errorf("cannot add type %q: name already exists", t)
 		}
 	}
@@ -158,7 +164,7 @@ func (r *Repository) TypeNames() []string {
 
 	types := make([]string, len(r.types))
 	for i, t := range r.types {
-		types[i] = t.String()
+		types[i] = t.Name()
 	}
 	sort.Strings(types)
 	return types

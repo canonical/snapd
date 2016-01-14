@@ -32,14 +32,13 @@ func Test(t *testing.T) {
 type CapabilitySuite struct{}
 
 var _ = Suite(&CapabilitySuite{})
-var testCapability = &Capability{
-	Name:  "test-name",
-	Label: "test-label",
-	Type:  testType,
-	Attrs: nil,
-}
 
 func (s *CapabilitySuite) TestString(c *C) {
-	cap := &Capability{Name: "name", Label: "label", Type: testType}
-	c.Assert(cap.String(), Equals, "name")
+	cap := &Capability{
+		Name:     "test-name",
+		Label:    "test-label",
+		TypeName: "test-type",
+		Attrs:    nil,
+	}
+	c.Assert(cap.String(), Equals, "test-name")
 }

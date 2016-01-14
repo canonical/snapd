@@ -1162,9 +1162,9 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 func (s *apiSuite) TestGetCapabilities(c *check.C) {
 	d := newTestDaemon()
 	d.capRepo.Add(&caps.Capability{
-		Name:  "caps-lock-led",
-		Label: "Caps Lock LED",
-		Type:  caps.BoolFileType,
+		Name:     "caps-lock-led",
+		Label:    "Caps Lock LED",
+		TypeName: "bool-file",
 		Attrs: map[string]string{
 			"path": "/sys/class/leds/input::capslock/brightness",
 		},
@@ -1200,10 +1200,10 @@ func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 	// Setup
 	d := newTestDaemon()
 	cap := &caps.Capability{
-		Name:  "name",
-		Label: "label",
-		Type:  caps.BoolFileType,
-		Attrs: map[string]string{"path": "/nonexistent"},
+		Name:     "name",
+		Label:    "label",
+		TypeName: "bool-file",
+		Attrs:    map[string]string{"path": "/nonexistent"},
 	}
 	text, err := json.Marshal(cap)
 	c.Assert(err, check.IsNil)
@@ -1225,19 +1225,19 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	// Start with one capability named 'name' in the repository
 	d := newTestDaemon()
 	cap := &caps.Capability{
-		Name:  "name",
-		Label: "label",
-		Type:  caps.BoolFileType,
-		Attrs: map[string]string{"path": "/nonexistent"},
+		Name:     "name",
+		Label:    "label",
+		TypeName: "bool-file",
+		Attrs:    map[string]string{"path": "/nonexistent"},
 	}
 	err := d.capRepo.Add(cap)
 	c.Assert(err, check.IsNil)
 	// Prepare for adding a second capability with the same name
 	capClashing := &caps.Capability{
-		Name:  "name",
-		Label: "second label",
-		Type:  caps.BoolFileType,
-		Attrs: map[string]string{"path": "/nonexistent"},
+		Name:     "name",
+		Label:    "second label",
+		TypeName: "bool-file",
+		Attrs:    map[string]string{"path": "/nonexistent"},
 	}
 	text, err := json.Marshal(capClashing)
 	c.Assert(err, check.IsNil)
@@ -1292,10 +1292,10 @@ func (s *apiSuite) TestAddCapabilitiesNotACapability(c *check.C) {
 func (s *apiSuite) TestDeleteCapabilityGood(c *check.C) {
 	// Setup
 	d := newTestDaemon()
-	t := &caps.Type{Name: "test"}
+	t := &caps.TestType{TypeName: "test"}
 	err := d.capRepo.AddType(t)
 	c.Assert(err, check.IsNil)
-	cap := &caps.Capability{Name: "name", Type: t}
+	cap := &caps.Capability{Name: "name", TypeName: "test"}
 	err = d.capRepo.Add(cap)
 	c.Assert(err, check.IsNil)
 	s.vars = map[string]string{"name": "name"}
