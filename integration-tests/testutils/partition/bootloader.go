@@ -21,7 +21,13 @@
 package partition
 
 import (
+	"bufio"
+	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/mvo5/uboot-go/uenv"
 )
 
 const (

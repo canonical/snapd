@@ -21,8 +21,8 @@
 package tests
 
 import (
-	"io/ioutil"
-	"path"
+//	"io/ioutil"
+//	"path"
 
 	"github.com/ubuntu-core/snappy/snappy"
 
