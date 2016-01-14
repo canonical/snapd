@@ -76,6 +76,9 @@ func makeFakeUpdateForSnap(c *check.C, snap, targetDir string, changeFunc Change
 	// make a fake update snap in /var/tmp (which is not a tempfs)
 	fakeUpdateDir, err := ioutil.TempDir("/var/tmp", "snap-build-")
 	c.Assert(err, check.IsNil)
+	// ensure the "." of the squashfs has sane owner/permissions
+	cli.ExecCommand(c, "sudo", "chown", "root:root", fakeUpdateDir)
+	cli.ExecCommand(c, "sudo", "chmod", "0755", fakeUpdateDir)
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", fakeUpdateDir)
 
 	copySnap(c, snap, fakeUpdateDir)
