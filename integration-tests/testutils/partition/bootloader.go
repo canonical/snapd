@@ -25,9 +25,9 @@ import (
 )
 
 const (
-	bootBase        = "/boot"
-	ubootDir        = bootBase + "/uboot"
-	grubDir         = bootBase + "/grub"
+	bootBase = "/boot"
+	ubootDir = bootBase + "/uboot"
+	grubDir  = bootBase + "/grub"
 )
 
 var (
