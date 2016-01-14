@@ -31,6 +31,9 @@ type Type interface {
 	Name() string
 	// Sanitize a capability (altering if necessary).
 	Sanitize(c *Capability) error
+	// Obtain the security snippet for the given security system.
+	// If no security snippet is needed, hand out empty string.
+	SecuritySnippet(c *Capability, securitySystem string) (string, error)
 }
 
 // BoolFileType is the type of all the bool-file capabilities.
@@ -58,6 +61,24 @@ func (t *BoolFileType) Sanitize(c *Capability) error {
 	}
 	// TODO: validate the path against a regular expression
 	return nil
+}
+
+// SecuritySnippet for bool-file capability type.
+// Consumers gain permission to read, write and lock the designated file.
+func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem string) (string, error) {
+	switch securitySystem {
+	case SecurityApparmor:
+		// TODO: switch to the absolute path later
+		path := c.Attrs["path"]
+		// Allow read,write and lock on the file designated by the path.
+		return fmt.Sprintf("%s rwl,\n", path), nil
+	case SecuritySeccomp:
+		return "", nil
+	case SecurityDBus:
+		return "", nil
+	default:
+		return "", fmt.Errorf("unknown security system %q", securitySystem)
+	}
 }
 
 // TestType is a type for various kind of tests.
@@ -88,6 +109,21 @@ func (t *TestType) Sanitize(c *Capability) error {
 		return t.SanitizeCallback(c)
 	}
 	return nil
+}
+
+// SecuritySnippet for test capability type.
+// Consumers don't gain any extra permissions.
+func (t *TestType) SecuritySnippet(c *Capability, securitySystem string) (string, error) {
+	switch securitySystem {
+	case SecurityApparmor:
+		fallthrough
+	case SecuritySeccomp:
+		fallthrough
+	case SecurityDBus:
+		return "", nil
+	default:
+		return "", fmt.Errorf("unknown security system %q", securitySystem)
+	}
 }
 
 var builtInTypes = [...]Type{

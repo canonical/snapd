@@ -64,6 +64,25 @@ func (s *BoolFileTypeSuite) TestSanitizeMissingPath(c *C) {
 	c.Assert(err, ErrorMatches, "bool-file must contain the path attribute")
 }
 
+func (s *BoolFileTypeSuite) TestSecuritySnippet(c *C) {
+	cap := &Capability{
+		TypeName: "bool-file",
+		Attrs:    map[string]string{"path": "path"},
+	}
+	snippet, err := s.t.SecuritySnippet(cap, SecurityApparmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Equals, "path rwl,\n")
+	snippet, err = s.t.SecuritySnippet(cap, SecuritySeccomp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Equals, "")
+	snippet, err = s.t.SecuritySnippet(cap, SecurityDBus)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Equals, "")
+	snippet, err = s.t.SecuritySnippet(cap, "foo")
+	c.Assert(err, ErrorMatches, `unknown security system "foo"`)
+	c.Assert(snippet, Equals, "")
+}
+
 // TestType
 
 type TestTypeSuite struct {
@@ -110,4 +129,23 @@ func (s *TestTypeSuite) TestSanitizeWrongType(c *C) {
 	}
 	err := s.t.Sanitize(cap)
 	c.Assert(err, ErrorMatches, "capability is not of type \"mock\"")
+}
+
+// TestType hands out empty security snippets
+func (s *TestTypeSuite) TestSecuritySnippet(c *C) {
+	cap := &Capability{
+		TypeName: "mock",
+	}
+	snippet, err := s.t.SecuritySnippet(cap, SecurityApparmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Equals, "")
+	snippet, err = s.t.SecuritySnippet(cap, SecuritySeccomp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Equals, "")
+	snippet, err = s.t.SecuritySnippet(cap, SecurityDBus)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Equals, "")
+	snippet, err = s.t.SecuritySnippet(cap, "foo")
+	c.Assert(err, ErrorMatches, `unknown security system "foo"`)
+	c.Assert(snippet, Equals, "")
 }
