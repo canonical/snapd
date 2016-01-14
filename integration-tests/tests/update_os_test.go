@@ -21,8 +21,8 @@
 package tests
 
 import (
-//	"io/ioutil"
-//	"path"
+	//	"io/ioutil"
+	//	"path"
 
 	"github.com/ubuntu-core/snappy/snappy"
 
@@ -47,9 +47,11 @@ func (s *updateOSSuite) assertBootDirContents(c *check.C) {
 	//		path.Join(partition.BootDir(system), partition.OtherPartition(current)))
 	//	c.Assert(err, check.IsNil, check.Commentf("Error reading the other partition boot dir: %s", err))
 
-	expectedFileNames := []string{"hardware.yaml", "initrd.img", "vmlinuz"}
+	// no filenames to check on amd64 the vmlinuz/initrd comes out of
+	// the squashfs via grub loop mounts
+	expectedFileNames := []string{}
 	if system == "uboot" {
-		expectedFileNames = append([]string{"dtbs"}, expectedFileNames...)
+		expectedFileNames = []string{"dtbs", "initrd.img", "vmlinuz"}
 	}
 
 	fileNames := []string{}
