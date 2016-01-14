@@ -21,6 +21,7 @@ package caps
 
 import (
 	"fmt"
+	"regexp"
 )
 
 // Type describes a group of interchangeable capabilities with common features.
@@ -46,6 +47,13 @@ func (t *BoolFileType) Name() string {
 	return "bool-file"
 }
 
+var boolFileAllowedPathPatterns = []*regexp.Regexp{
+	// The brightness of standard LED class device
+	regexp.MustCompile("^/sys/class/leds/[^/]+/brightness$"),
+	// The value of standard exported GPIO
+	regexp.MustCompile("^/sys/class/gpio/gpio[0-9]+/value$"),
+}
+
 // Sanitize checks and possibly modifies a capability.
 // Valid "bool-file" capabilities must contain the attribute "path".
 func (t *BoolFileType) Sanitize(c *Capability) error {
@@ -56,7 +64,16 @@ func (t *BoolFileType) Sanitize(c *Capability) error {
 	if path == "" {
 		return fmt.Errorf("bool-file must contain the path attribute")
 	}
-	// TODO: validate the path against a regular expression
+	valid := false
+	for _, pattern := range boolFileAllowedPathPatterns {
+		if pattern.MatchString(path) {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return fmt.Errorf("bool-file can only point at LED brightness or GPIO value")
+	}
 	return nil
 }
 

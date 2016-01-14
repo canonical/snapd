@@ -39,13 +39,35 @@ func (s *BoolFileTypeSuite) TestName(c *C) {
 	c.Assert(s.t.Name(), Equals, "bool-file")
 }
 
-func (s *BoolFileTypeSuite) TestSanitizeOK(c *C) {
+func (s *BoolFileTypeSuite) TestSanitizeLED(c *C) {
+	cap := &Capability{
+		TypeName: "bool-file",
+		Attrs: map[string]string{
+			"path": "/sys/class/leds/input27::capslock/brightness",
+		},
+	}
+	err := s.t.Sanitize(cap)
+	c.Assert(err, IsNil)
+}
+
+func (s *BoolFileTypeSuite) TestSanitizeGPIO(c *C) {
+	cap := &Capability{
+		TypeName: "bool-file",
+		Attrs: map[string]string{
+			"path": "/sys/class/gpio/gpio1/value",
+		},
+	}
+	err := s.t.Sanitize(cap)
+	c.Assert(err, IsNil)
+}
+
+func (s *BoolFileTypeSuite) TestSanitizeWrongPath(c *C) {
 	cap := &Capability{
 		TypeName: "bool-file",
 		Attrs:    map[string]string{"path": "path"},
 	}
 	err := s.t.Sanitize(cap)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "bool-file can only point at LED brightness or GPIO value")
 }
 
 func (s *BoolFileTypeSuite) TestSanitizeWrongType(c *C) {
