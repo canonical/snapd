@@ -81,7 +81,7 @@ func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem SecuritySys
 	case SecurityDBus:
 		return nil, nil
 	default:
-		return nil, &UnknownSecurityError{SecuritySystem: securitySystem}
+		return nil, ErrUnknownSecurity
 	}
 }
 

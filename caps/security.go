@@ -20,7 +20,7 @@
 package caps
 
 import (
-	"fmt"
+	"errors"
 )
 
 // SecuritySystem is a name of a security system.
@@ -35,12 +35,7 @@ const (
 	SecurityDBus SecuritySystem = "dbus"
 )
 
-// UnknownSecurityError is the error reported for unknown security systems.
-type UnknownSecurityError struct {
-	// SecuritySystem is the name of the unknown security system.
-	SecuritySystem SecuritySystem
-}
-
-func (err *UnknownSecurityError) Error() string {
-	return fmt.Sprintf("unknown security system %q", err.SecuritySystem)
-}
+var (
+	// ErrUnknownSecurity is reported when an unknown security system is encountered.
+	ErrUnknownSecurity = errors.New("unknown security system")
+)

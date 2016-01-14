@@ -79,8 +79,7 @@ func (s *BoolFileTypeSuite) TestSecuritySnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 	snippet, err = s.t.SecuritySnippet(cap, "foo")
-	c.Assert(err, ErrorMatches, `unknown security system "foo"`)
-	c.Assert(err, FitsTypeOf, &UnknownSecurityError{})
+	c.Assert(err, ErrorMatches, `unknown security system`)
 	c.Assert(snippet, IsNil)
 }
 
