@@ -27,9 +27,12 @@ import (
 type SecuritySystem string
 
 const (
-	securityApparmor SecuritySystem = "apparmor"
-	securitySeccomp  SecuritySystem = "seccomp"
-	securityDBus     SecuritySystem = "dbus"
+	// Identifier of the apparmor security system.
+	SecurityApparmor SecuritySystem = "apparmor"
+	// Identifier of the seccomp security system.
+	SecuritySeccomp SecuritySystem = "seccomp"
+	// Identifier for the DBus security system.
+	SecurityDBus SecuritySystem = "dbus"
 )
 
 // ErrUnknownSecurity is the error reported for unknown security systems.

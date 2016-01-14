@@ -71,14 +71,14 @@ func (t *BoolFileType) Sanitize(c *Capability) error {
 // Consumers gain permission to read, write and lock the designated file.
 func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case securityApparmor:
+	case SecurityApparmor:
 		// TODO: switch to the real path later
 		path := c.Attrs["path"]
 		// Allow read, write and lock on the file designated by the path.
 		return ([]byte)(fmt.Sprintf("%s rwl,\n", path)), nil
-	case securitySeccomp:
+	case SecuritySeccomp:
 		return nil, nil
-	case securityDBus:
+	case SecurityDBus:
 		return nil, nil
 	default:
 		return nil, &ErrUnknownSecurity{SecuritySystem: securitySystem}
@@ -119,11 +119,11 @@ func (t *TestType) Sanitize(c *Capability) error {
 // Consumers don't gain any extra permissions.
 func (t *TestType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case securityApparmor:
+	case SecurityApparmor:
 		fallthrough
-	case securitySeccomp:
+	case SecuritySeccomp:
 		fallthrough
-	case securityDBus:
+	case SecurityDBus:
 		return nil, nil
 	default:
 		return nil, &ErrUnknownSecurity{SecuritySystem: securitySystem}
