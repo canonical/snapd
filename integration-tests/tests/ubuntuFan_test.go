@@ -197,7 +197,7 @@ func (s *fanTestSuite) dockerOptions() string {
 }
 
 func setUpDocker(c *check.C) {
-	common.InstallSnap(c, "docker")
+	common.InstallSnap(c, "docker/edge")
 	dockerVersion := common.GetCurrentVersion(c, "docker")
 	dockerService := fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion)
 
