@@ -33,7 +33,7 @@ func (s *snapd10TestSuite) TestResource(c *check.C) {
 }
 
 func (s *snapd10TestSuite) resource() string {
-	return baseURL + "/1.0"
+	return baseURL + "/2.0"
 }
 
 func (s *snapd10TestSuite) getInteractions() apiInteractions {

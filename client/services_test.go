@@ -34,7 +34,7 @@ const (
 func (cs *clientSuite) TestClientServicesCallsEndpoint(c *C) {
 	_, _ = cs.cli.Services(appID)
 	c.Check(cs.req.Method, Equals, "GET")
-	c.Check(cs.req.URL.Path, Equals, fmt.Sprintf("/1.0/packages/%s/services", appID))
+	c.Check(cs.req.URL.Path, Equals, fmt.Sprintf("/2.0/snaps/%s/services", appID))
 }
 
 func (cs *clientSuite) TestClientServices(c *C) {
@@ -63,7 +63,7 @@ func (cs *clientSuite) TestClientServices(c *C) {
 					"active_state": "active",
 					"sub_state": "running",
 					"unit_file_state": "enabled",
-					"package_name": "chatroom",
+					"snap_name": "chatroom",
 					"service_name": "chatroom"
 				}
 			}
@@ -94,7 +94,7 @@ func (cs *clientSuite) TestClientServices(c *C) {
 				ActiveState:     "active",
 				SubState:        "running",
 				UnitFileState:   "enabled",
-				PackageName:     "chatroom",
+				SnapName:        "chatroom",
 				ServiceName:     "chatroom",
 			},
 		},
