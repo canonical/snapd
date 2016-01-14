@@ -21,6 +21,8 @@
 package tests
 
 import (
+	"fmt"
+
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
@@ -36,9 +38,10 @@ type updateAppSuite struct {
 
 func (s *updateAppSuite) TestAppUpdate(c *check.C) {
 	snap := "hello-world.canonical"
+	storeSnap := fmt.Sprintf("%s/edge", snap)
 
-	// install base
-	cli.ExecCommand(c, "sudo", "snappy", "install", snap)
+	// install edge version from the store (which is squshfs)
+	cli.ExecCommand(c, "sudo", "snappy", "install", storeSnap)
 	defer cli.ExecCommand(c, "sudo", "snappy", "remove", snap)
 
 	output := updates.CallFakeUpdate(c, snap, updates.NoOp)
