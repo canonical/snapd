@@ -22,7 +22,6 @@ package caps
 // SecuritySystem is a name of a security system.
 type SecuritySystem string
 
-// NOTE: all the security constants are used by Type.SecuritySnippet()
 const (
 	// Identifier of the apparmor security system.
 	SecurityApparmor SecuritySystem = "apparmor"
