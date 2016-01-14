@@ -1,3 +1,9 @@
+ubuntu-snappy (1.7.2+20160113ubuntu1) xenial; urgency=medium
+
+  * New git snapshot
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 13 Jan 2016 11:25:40 +0100
+
 ubuntu-snappy (1.7.2ubuntu1) xenial; urgency=medium
 
   * New upstream release:

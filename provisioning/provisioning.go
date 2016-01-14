@@ -49,9 +49,7 @@ func (e *ErrNoInstallYaml) Error() string {
 
 // InstallMeta encapsulates the metadata for a system install.
 type InstallMeta struct {
-	Timestamp         time.Time
-	InitialVersion    string `yaml:"initial-version"`
-	SystemImageServer string `yaml:"system-image-server"`
+	Timestamp time.Time
 }
 
 // InstallTool encapsulates metadata on the tool used to create the
@@ -70,6 +68,8 @@ type InstallOptions struct {
 	Channel       string
 	DevicePart    string `yaml:"device-part,omitempty"`
 	Gadget        string
+	OS            string
+	Kernel        string
 	DeveloperMode bool `yaml:"developer-mode,omitempty"`
 }
 

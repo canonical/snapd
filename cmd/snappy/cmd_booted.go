@@ -42,6 +42,5 @@ func (x *cmdBooted) Execute(args []string) error {
 }
 
 func (x *cmdBooted) doBooted() error {
-	p := partition.New()
-	return p.MarkBootSuccessful()
+	return partition.MarkBootSuccessful()
 }

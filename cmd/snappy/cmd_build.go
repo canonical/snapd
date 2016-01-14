@@ -56,12 +56,7 @@ func (x *cmdBuild) Execute(args []string) (err error) {
 		args = []string{"."}
 	}
 
-	var snapPackage string
-	if x.BuildSquashfs {
-		snapPackage, err = snappy.BuildSquashfsSnap(args[0], x.Output)
-	} else {
-		snapPackage, err = snappy.BuildLegacySnap(args[0], x.Output)
-	}
+	snapPackage, err := snappy.BuildSquashfsSnap(args[0], x.Output)
 	if err != nil {
 		return err
 	}

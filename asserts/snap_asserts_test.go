@@ -103,15 +103,18 @@ func (sds *snapBuildSuite) TestDecodeInvalid(c *C) {
 func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID string, accSignDB, checkDB *asserts.Database) {
 	trustedKey := testPrivKey0
 
-	cfg1 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db1")}
+	cfg1 := &asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+	}
 	accSignDB, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
 	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
+	err = accSignDB.ImportKey(accountID, asserts.OpenPGPPrivateKey(testPrivKey1))
+	c.Assert(err, IsNil)
 	accFingerp := pk1.PublicKey().Fingerprint()
 	accKeyID := pk1.PublicKey().ID()
-	keyid, err := accSignDB.ImportKey(accountID, asserts.OpenPGPPrivateKey(testPrivKey1))
-	c.Assert(err, IsNil)
-	pubKey, err := accSignDB.PublicKey(accountID, keyid)
+
+	pubKey, err := accSignDB.PublicKey(accountID, accKeyID)
 	c.Assert(err, IsNil)
 	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)
 	c.Assert(err, IsNil)
@@ -125,13 +128,16 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 		"since":                  "2015-11-20T15:04:00Z",
 		"until":                  "2500-11-20T15:04:00Z",
 	}
-	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
 	c.Assert(err, IsNil)
 
-	rootDir := filepath.Join(c.MkDir(), "asserts-db")
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+	bs, err := asserts.OpenFSBackstore(topDir)
+	c.Assert(err, IsNil)
 	cfg := &asserts.DatabaseConfig{
-		Path:        rootDir,
-		TrustedKeys: []*asserts.AccountKey{asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		Backstore:      bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
 	}
 	checkDB, err = asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -139,7 +145,7 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 	err = checkDB.Add(accKey)
 	c.Assert(err, IsNil)
 
-	return keyid, accSignDB, checkDB
+	return accKeyID, accSignDB, checkDB
 }
 
 func (sds *snapBuildSuite) TestSnapBuildCheck(c *C) {
