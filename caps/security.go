@@ -35,12 +35,12 @@ const (
 	SecurityDBus SecuritySystem = "dbus"
 )
 
-// ErrUnknownSecurity is the error reported for unknown security systems.
-type ErrUnknownSecurity struct {
+// UnknownSecurityError is the error reported for unknown security systems.
+type UnknownSecurityError struct {
 	// SecuritySystem is the name of the unknown security system.
 	SecuritySystem SecuritySystem
 }
 
-func (err *ErrUnknownSecurity) Error() string {
+func (err *UnknownSecurityError) Error() string {
 	return fmt.Sprintf("unknown security system %q", err.SecuritySystem)
 }
