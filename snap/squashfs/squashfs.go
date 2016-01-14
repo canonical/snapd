@@ -61,20 +61,9 @@ func (s *Snap) Name() string {
 	return filepath.Base(s.path)
 }
 
-// NeedsMountUnit returns true because a squashfs snap neesd to be
-// monted, it will not be usable otherwise
-func (s *Snap) NeedsMountUnit() bool {
-	return true
-}
-
 // New returns a new Squashfs snap.
 func New(path string) *Snap {
 	return &Snap{path: path}
-}
-
-// Close is not doing anything for squashfs - COMPAT
-func (s *Snap) Close() error {
-	return nil
 }
 
 // MetaMember extracts from meta/. - COMPAT
@@ -82,17 +71,19 @@ func (s *Snap) MetaMember(metaMember string) ([]byte, error) {
 	return s.ReadFile(filepath.Join("meta", metaMember))
 }
 
-// ExtractHashes does notthing for squashfs snaps. - COMAPT
-func (s *Snap) ExtractHashes(dir string) error {
-	return nil
-}
-
-// UnpackWithDropPrivs just copies the blob into place. - COMPAT
-func (s *Snap) UnpackWithDropPrivs(instDir, rootdir string) error {
+// Install just copies the blob into place (unless it is used in the tests)
+func (s *Snap) Install(instDir string) error {
 
 	// ensure mount-point and blob dir.
 	for _, dir := range []string{instDir, dirs.SnapBlobDir} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+
+	// FIXME: HHAAAAAAAAAAAAAAAACKKKKKKKKKKKKK for the tests
+	if os.Getenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") != "" {
+		if err := s.Unpack("*", instDir); err != nil {
 			return err
 		}
 	}
@@ -106,7 +97,6 @@ var runCommand = func(args ...string) error {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("cmd: %q failed: %v (%q)", strings.Join(args, " "), err, output)
 	}
-
 	return nil
 }
 
@@ -159,14 +149,6 @@ func (s *Snap) HashDigest(hash crypto.Hash) (uint64, []byte, error) {
 		return 0, nil, err
 	}
 	return uint64(size), h.Sum(nil), nil
-}
-
-// Verify verifies the snap.
-func (s *Snap) Verify(unauthOk bool) error {
-	// FIXME: there is no verification yet for squashfs packages, this
-	//        will be done via assertions later for now we rely on
-	//        the https security.
-	return nil
 }
 
 // Build builds the snap.

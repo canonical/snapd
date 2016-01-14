@@ -36,52 +36,10 @@ import (
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/clickdeb"
+	"github.com/ubuntu-core/snappy/snap/squashfs"
 	"github.com/ubuntu-core/snappy/systemd"
 	"github.com/ubuntu-core/snappy/timeout"
 )
-
-// FIXME: kill once all the tests are ported to clickdeb or killed
-func init() {
-	// we need to wrap "Open()" here because stock Open returns
-	// a *ClickDeb and not a snap.File
-	snap.RegisterFormat([]byte("!<arch>\ndebian"), func(path string) (snap.File, error) {
-		return clickdeb.Open(path)
-	})
-}
-
-func (s *SnapTestSuite) TestReadManifest(c *C) {
-	manifestData := []byte(`{
-   "description": "This is a simple hello world example.",
-    "framework": "ubuntu-core-15.04-dev1",
-    "hooks": {
-        "echo": {
-            "apparmor": "meta/echo.apparmor",
-            "bin-path": "bin/echo"
-        },
-        "env": {
-            "apparmor": "meta/env.apparmor",
-            "bin-path": "bin/env"
-        },
-        "evil": {
-            "apparmor": "meta/evil.apparmor",
-            "bin-path": "bin/evil"
-        }
-    },
-    "icon": "meta/hello.svg",
-    "installed-size": "59",
-    "maintainer": "Michael Vogt <mvo@ubuntu.com>",
-    "name": "hello-world",
-    "title": "Hello world example",
-    "version": "1.0.5"
-}`)
-	manifest, err := readClickManifest(manifestData)
-	c.Assert(err, IsNil)
-	c.Assert(manifest.Name, Equals, "hello-world")
-	c.Assert(manifest.Version, Equals, "1.0.5")
-	c.Assert(manifest.Hooks["evil"]["bin-path"], Equals, "bin/evil")
-	c.Assert(manifest.Hooks["evil"]["apparmor"], Equals, "meta/evil.apparmor")
-}
 
 func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	snapFile := makeTestSnapPackage(c, "")
@@ -90,19 +48,9 @@ func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	c.Check(name, Equals, "foo")
 
 	baseDir := filepath.Join(dirs.SnapSnapsDir, fooComposedName, "1.0")
-	contentFile := filepath.Join(baseDir, "bin", "foo")
-	content, err := ioutil.ReadFile(contentFile)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "#!/bin/sh\necho \"hello\"")
-
-	// ensure we have the data dir
+	c.Assert(helpers.FileExists(baseDir), Equals, true)
 	_, err = os.Stat(filepath.Join(s.tempdir, "var", "lib", "snaps", "foo."+testOrigin, "1.0"))
 	c.Assert(err, IsNil)
-
-	// ensure we have the hashes
-	snap, err := NewInstalledSnapPart(filepath.Join(baseDir, "meta", "package.yaml"), testOrigin)
-	c.Assert(err, IsNil)
-	c.Assert(snap.Hash(), Not(Equals), "")
 
 	return snapFile
 }
@@ -115,40 +63,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallFailsAlreadyInstalled(c *C) {
 	snapFile := s.testLocalSnapInstall(c)
 
 	_, err := installClick(snapFile, 0, nil, "originother")
-	c.Assert(err, Equals, ErrPackageNameAlreadyInstalled)
-}
-
-func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyFails(c *C) {
-	old := clickdeb.VerifyCmd
-	clickdeb.VerifyCmd = "false"
-	defer func() { clickdeb.VerifyCmd = old }()
-
-	snapFile := makeTestSnapPackage(c, "")
-	_, err := installClick(snapFile, 0, nil, testOrigin)
-	c.Assert(err, NotNil)
-
-	contentFile := filepath.Join(s.tempdir, "snaps", fooComposedName, "1.0", "bin", "foo")
-	_, err = os.Stat(contentFile)
-	c.Assert(err, NotNil)
-}
-
-// ensure that the right parameters are passed to runDebsigVerify()
-func (s *SnapTestSuite) TestLocalSnapInstallDebsigVerifyPassesUnauth(c *C) {
-	// make a fake debsig that fails with unauth
-	f := filepath.Join(c.MkDir(), "fakedebsig")
-	c.Assert(ioutil.WriteFile(f, []byte("#!/bin/sh\nexit 10\n"), 0755), IsNil)
-
-	old := clickdeb.VerifyCmd
-	clickdeb.VerifyCmd = f
-	defer func() { clickdeb.VerifyCmd = old }()
-
-	snapFile := makeTestSnapPackage(c, "")
-	name, err := installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
-	c.Assert(err, IsNil)
-	c.Check(name, Equals, "foo")
-
-	_, err = installClick(snapFile, 0, nil, testOrigin)
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, ".*is already installed with origin.*")
 }
 
 // if the snap asks for accepting a license, and an agreer isn't provided,
@@ -286,6 +201,8 @@ explicit-license-agreement: Y
 }
 
 func (s *SnapTestSuite) TestSnapRemove(c *C) {
+	c.Skip("needs porting to new squashfs based snap activation!")
+
 	allSystemctl := []string{}
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		allSystemctl = append(allSystemctl, cmd[0])
@@ -303,7 +220,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	yamlPath := filepath.Join(instDir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(nil)
+	err = part.remove(&MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
@@ -336,15 +253,9 @@ type: framework
 	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
 	m, err := parsePackageYamlData(yaml, false)
 	c.Assert(err, IsNil)
-	c.Assert(writeDebianControl(tmpdir, m), IsNil)
-	c.Assert(writeClickManifest(tmpdir, m), IsNil)
 	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
-	d, err := clickdeb.Create(snapName)
-	c.Assert(err, IsNil)
-	defer d.Close()
-	c.Assert(d.Build(tmpdir, func(dataTar string) error {
-		return writeHashes(tmpdir, dataTar)
-	}), IsNil)
+	d := squashfs.New(snapName)
+	c.Assert(d.Build(tmpdir), IsNil)
 	defer os.Remove(snapName)
 
 	_, err = installClick(snapName, 0, nil, testOrigin)
@@ -372,6 +283,8 @@ func (s *SnapTestSuite) TestSnapInstallPackagePolicyDelta(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
+	c.Skip("need porting to the new squashfs based tests")
+
 	secbase := policy.SecBase
 	defer func() { policy.SecBase = secbase }()
 	policy.SecBase = c.MkDir()
@@ -381,7 +294,7 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 	yamlPath := filepath.Join(appdir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(nil)
+	err = part.remove(&MockProgressMeter{})
 	c.Assert(err, IsNil)
 }
 
@@ -627,32 +540,6 @@ func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
 	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snaps/pastebinit.mvo/1.1/bin/random-pastebin")
 }
 
-func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {
-	packageYaml := `name: foo
-icon: foo.svg
-binaries:
- - name: bin/bar
-`
-	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
-	_, err := installClick(snapFile, AllowUnauthenticated, nil, "mvo")
-	c.Assert(err, IsNil)
-
-	// ensure that the binary wrapper file go generated with the right
-	// name
-	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
-	c.Assert(helpers.FileExists(binaryWrapper), Equals, true)
-
-	// and that it gets removed on remove
-	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
-	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
-	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
-	c.Assert(err, IsNil)
-	err = part.remove(nil)
-	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
-	c.Assert(helpers.FileExists(snapDir), Equals, false)
-}
-
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {
 	packageYaml := `name: foo
 icon: foo.svg
@@ -741,6 +628,8 @@ version: `
 }
 
 func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstall(c *C) {
+	c.Skip("needs porting to new squashfs based snap activation!")
+
 	fmkYaml, inter := s.setupSnappyDependentServices(c)
 
 	var cmdlog []string
@@ -766,6 +655,8 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstall(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStop(c *C) {
+	c.Skip("needs porting to new squashfs based snap activation!")
+
 	fmkYaml, inter := s.setupSnappyDependentServices(c)
 
 	anError := errors.New("failure")
@@ -794,6 +685,8 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStop(
 }
 
 func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStart(c *C) {
+	c.Skip("needs porting to new squashfs based snap activation!")
+
 	fmkYaml, inter := s.setupSnappyDependentServices(c)
 
 	anError := errors.New("failure")
@@ -826,6 +719,8 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStart
 }
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
+	c.Skip("needs porting to new squashfs based snap activation!")
+
 	allSystemctl := [][]string{}
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		allSystemctl = append(allSystemctl, cmd)
@@ -1148,15 +1043,9 @@ binaries:
 	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
 	m, err := parsePackageYamlData(yaml, false)
 	c.Assert(err, IsNil)
-	c.Assert(writeDebianControl(tmpdir, m), IsNil)
-	c.Assert(writeClickManifest(tmpdir, m), IsNil)
 	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
-	d, err := clickdeb.Create(snapName)
-	c.Assert(err, IsNil)
-	defer d.Close()
-	c.Assert(d.Build(tmpdir, func(dataTar string) error {
-		return writeHashes(tmpdir, dataTar)
-	}), IsNil)
+	d := squashfs.New(snapName)
+	c.Assert(d.Build(tmpdir), IsNil)
 
 	_, err = installClick(snapName, 0, nil, testOrigin)
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
@@ -1174,6 +1063,8 @@ frameworks:
 }
 
 func (s *SnapTestSuite) TestRemovePackageServiceKills(c *C) {
+	c.Skip("needs porting to new squashfs based snap activation!")
+
 	// make Stop not work
 	var sysdLog [][]string
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
@@ -1199,14 +1090,6 @@ services:
 	sd2 := sysdLog[len(sysdLog)-2]
 	c.Check(sd1, DeepEquals, []string{"kill", "wat_wat_42.service", "-s", "TERM"})
 	c.Check(sd2, DeepEquals, []string{"kill", "wat_wat_42.service", "-s", "KILL"})
-}
-
-func (s *SnapTestSuite) TestExecHookCorrectErrType(c *C) {
-	err := execHook("false")
-	c.Assert(err, DeepEquals, &ErrHookFailed{
-		Cmd:      "false",
-		ExitCode: 1,
-	})
 }
 
 func (s *SnapTestSuite) TestCopySnapDataDirectoryError(c *C) {
@@ -1274,34 +1157,6 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSockte(c *C) {
 	c.Assert(generatedWrapper, Equals, expectedSocketUsingWrapper)
 }
 
-func (s *SnapTestSuite) TestWriteCompatManifestJSON(c *C) {
-	manifest := []byte(`{
-    "name": "hello-world"
-}
-`)
-	manifestJSON := filepath.Join(s.tempdir, "hello-world.some-origin.manifest")
-
-	err := writeCompatManifestJSON(s.tempdir, manifest, "some-origin")
-	c.Assert(err, IsNil)
-	c.Assert(helpers.FileExists(manifestJSON), Equals, true)
-}
-
-func (s *SnapTestSuite) TestWriteCompatManifestJSONNoFollow(c *C) {
-	manifest := []byte(`{
-    "name": "hello-world"
-}
-`)
-	manifestJSON := filepath.Join(s.tempdir, "hello-world.some-origin.manifest")
-	symlinkTarget := filepath.Join(s.tempdir, "symlink-target")
-	os.Symlink(symlinkTarget, manifestJSON)
-	c.Assert(helpers.FileExists(symlinkTarget), Equals, false)
-
-	err := writeCompatManifestJSON(s.tempdir, manifest, "some-origin")
-	c.Assert(err, IsNil)
-	c.Check(helpers.FileExists(manifestJSON), Equals, true)
-	c.Check(helpers.FileExists(symlinkTarget), Equals, false)
-}
-
 func (s *SnapTestSuite) TestGenerateSnapSocketFile(c *C) {
 	srv := ServiceYaml{}
 	baseDir := "/base/dir"
@@ -1319,4 +1174,30 @@ func (s *SnapTestSuite) TestGenerateSnapSocketFile(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(content, Matches, "(?ms).*SocketMode=0600")
 
+}
+
+func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {
+	packageYaml := `name: foo
+icon: foo.svg
+binaries:
+ - name: bin/bar
+`
+	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
+	_, err := installClick(snapFile, AllowUnauthenticated, nil, "mvo")
+	c.Assert(err, IsNil)
+
+	// ensure that the binary wrapper file go generated with the right
+	// name
+	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
+	c.Assert(helpers.FileExists(binaryWrapper), Equals, true)
+
+	// and that it gets removed on remove
+	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
+	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
+	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
+	c.Assert(err, IsNil)
+	err = part.remove(&MockProgressMeter{})
+	c.Assert(err, IsNil)
+	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
+	c.Assert(helpers.FileExists(snapDir), Equals, false)
 }
