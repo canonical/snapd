@@ -70,7 +70,7 @@ func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem SecuritySys
 	case securityApparmor:
 		// TODO: switch to the absolute path later
 		path := c.Attrs["path"]
-		// Allow read,write and lock on the file designated by the path.
+		// Allow read, write and lock on the file designated by the path.
 		return fmt.Sprintf("%s rwl,\n", path), nil
 	case securitySeccomp:
 		return "", nil
