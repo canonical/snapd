@@ -69,13 +69,13 @@ func (s *BoolFileTypeSuite) TestSecuritySnippet(c *C) {
 		TypeName: "bool-file",
 		Attrs:    map[string]string{"path": "path"},
 	}
-	snippet, err := s.t.SecuritySnippet(cap, SecurityApparmor)
+	snippet, err := s.t.SecuritySnippet(cap, securityApparmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Equals, "path rwl,\n")
-	snippet, err = s.t.SecuritySnippet(cap, SecuritySeccomp)
+	snippet, err = s.t.SecuritySnippet(cap, securitySeccomp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Equals, "")
-	snippet, err = s.t.SecuritySnippet(cap, SecurityDBus)
+	snippet, err = s.t.SecuritySnippet(cap, securityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Equals, "")
 	snippet, err = s.t.SecuritySnippet(cap, "foo")
@@ -136,13 +136,13 @@ func (s *TestTypeSuite) TestSecuritySnippet(c *C) {
 	cap := &Capability{
 		TypeName: "mock",
 	}
-	snippet, err := s.t.SecuritySnippet(cap, SecurityApparmor)
+	snippet, err := s.t.SecuritySnippet(cap, securityApparmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Equals, "")
-	snippet, err = s.t.SecuritySnippet(cap, SecuritySeccomp)
+	snippet, err = s.t.SecuritySnippet(cap, securitySeccomp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Equals, "")
-	snippet, err = s.t.SecuritySnippet(cap, SecurityDBus)
+	snippet, err = s.t.SecuritySnippet(cap, securityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Equals, "")
 	snippet, err = s.t.SecuritySnippet(cap, "foo")

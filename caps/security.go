@@ -23,10 +23,7 @@ package caps
 type SecuritySystem string
 
 const (
-	// Identifier of the apparmor security system.
-	SecurityApparmor SecuritySystem = "apparmor"
-	// Identifier of the seccomp security system.
-	SecuritySeccomp SecuritySystem = "seccomp"
-	// Identifier for the DBus security system.
-	SecurityDBus SecuritySystem = "dbus"
+	securityApparmor SecuritySystem = "apparmor"
+	securitySeccomp  SecuritySystem = "seccomp"
+	securityDBus     SecuritySystem = "dbus"
 )
