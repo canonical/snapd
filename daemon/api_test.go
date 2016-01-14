@@ -1206,7 +1206,9 @@ func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 		Name:     "name",
 		Label:    "label",
 		TypeName: "bool-file",
-		Attrs:    map[string]string{"path": "/nonexistent"},
+		Attrs: map[string]string{
+			"path": "/sys/class/leds/input::capslock/brightness",
+		},
 	}
 	text, err := json.Marshal(cap)
 	c.Assert(err, check.IsNil)
@@ -1231,7 +1233,9 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 		Name:     "name",
 		Label:    "label",
 		TypeName: "bool-file",
-		Attrs:    map[string]string{"path": "/nonexistent"},
+		Attrs: map[string]string{
+			"path": "/sys/class/leds/input::capslock/brightness",
+		},
 	}
 	err := d.capRepo.Add(cap)
 	c.Assert(err, check.IsNil)
@@ -1240,7 +1244,9 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 		Name:     "name",
 		Label:    "second label",
 		TypeName: "bool-file",
-		Attrs:    map[string]string{"path": "/nonexistent"},
+		Attrs: map[string]string{
+			"path": "/sys/class/leds/input::capslock/brightness",
+		},
 	}
 	text, err := json.Marshal(capClashing)
 	c.Assert(err, check.IsNil)
