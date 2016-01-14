@@ -32,7 +32,6 @@ import (
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 

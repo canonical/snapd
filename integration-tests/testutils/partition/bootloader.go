@@ -25,9 +25,11 @@ import (
 )
 
 const (
-	bootBase = "/boot"
-	ubootDir = bootBase + "/uboot"
-	grubDir  = bootBase + "/grub"
+	bootBase        = "/boot"
+	ubootDir        = bootBase + "/uboot"
+	grubDir         = bootBase + "/grub"
+	ubootConfigFile = ubootDir + "/uboot.env"
+	grubConfigFile  = grubDir + "/grubenv"
 )
 
 var (
@@ -35,6 +37,10 @@ var (
 	filepathGlob = filepath.Glob
 	// BootSystem proxies bootSystem
 	BootSystem = bootSystem
+
+	confValue = getConfValue
+
+	configFiles = map[string]string{"uboot": ubootConfigFile, "grub": grubConfigFile}
 )
 
 // bootSystem returns the name of the boot system, grub or uboot.
@@ -55,4 +61,61 @@ func BootDir(bootSystem string) string {
 		return grubDir
 	}
 	return ubootDir
+}
+
+// Mode returns the current bootloader mode, regular or try.
+func Mode() (mode string, err error) {
+	return confValue("snappy_mode")
+}
+
+func getConfValue(key string) (string, error) {
+	system, err := BootSystem()
+	if err != nil {
+		return "", err
+	}
+
+	var value string
+	if system == "grub" {
+		value, err = getGrubConfValue(key)
+	} else if system == "uboot" {
+		value, err = getUbootConfValue(key)
+	} else {
+		panic(fmt.Sprintf("unknown boot system: %s", system))
+	}
+	return value, err
+}
+
+func getGrubConfValue(key string) (string, error) {
+	bootConfigFile := configFiles["grub"]
+	file, err := os.Open(bootConfigFile)
+	if err != nil {
+		return "", err
+	}
+
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+	scanner := bufio.NewScanner(reader)
+
+	var value string
+	for scanner.Scan() {
+		if strings.HasPrefix(scanner.Text(), key) {
+			fields := strings.Split(scanner.Text(), "=")
+			if len(fields) > 1 {
+				value = fields[1]
+			}
+			break
+		}
+	}
+	return value, nil
+}
+
+func getUbootConfValue(key string) (string, error) {
+	bootConfigFile := configFiles["uboot"]
+	env, err := uenv.Open(bootConfigFile)
+	if err != nil {
+		return "", err
+	}
+
+	return env.Get(key), nil
 }

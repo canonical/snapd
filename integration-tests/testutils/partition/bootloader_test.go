@@ -22,8 +22,12 @@ package partition
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
 	"testing"
 
+	"github.com/mvo5/uboot-go/uenv"
 	"gopkg.in/check.v1"
 )
 
@@ -35,6 +39,8 @@ type bootloaderTestSuite struct {
 	backFilepathGlob         func(string) ([]string, error)
 	filepathGlobFail         bool
 	filepathGlobReturnValues []string
+	backConfValue            func(string) (string, error)
+	fakeConf                 map[string]string
 }
 
 var _ = check.Suite(&bootloaderTestSuite{})
@@ -42,16 +48,24 @@ var _ = check.Suite(&bootloaderTestSuite{})
 func (s *bootloaderTestSuite) SetUpSuite(c *check.C) {
 	s.backFilepathGlob = filepathGlob
 	filepathGlob = s.fakeFilepathGlob
+	s.backConfValue = confValue
+	confValue = s.fakeConfValue
+	s.fakeConf = map[string]string{}
 }
 
 func (s *bootloaderTestSuite) TearDownSuite(c *check.C) {
 	filepathGlob = s.backFilepathGlob
+	confValue = s.backConfValue
 }
 
 func (s *bootloaderTestSuite) SetUpTest(c *check.C) {
 	s.filepathGlobCalls = make(map[string]int)
 	s.filepathGlobFail = false
 	s.filepathGlobReturnValues = nil
+}
+
+func (s *bootloaderTestSuite) fakeConfValue(key string) (string, error) {
+	return s.fakeConf[key], nil
 }
 
 func (s *bootloaderTestSuite) fakeFilepathGlob(path string) (matches []string, err error) {
@@ -107,4 +121,91 @@ func (s *bootloaderTestSuite) TestBootSystemForUBoot(c *check.C) {
 	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
 	c.Assert(bootSystem, check.Equals, "uboot",
 		check.Commentf("Expected uboot boot system not found, %s", bootSystem))
+}
+
+func (s *bootloaderTestSuite) TestModeReturnsSnappyModeFromConf(c *check.C) {
+	s.fakeConf = map[string]string{
+		"snappy_mode": "test_mode",
+	}
+
+	mode, err := Mode()
+
+	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
+	c.Assert(mode, check.Equals, "test_mode", check.Commentf("Wrong mode"))
+}
+
+type confTestSuite struct {
+	backBootSystem  func() (string, error)
+	system          string
+	backConfigFiles map[string]string
+}
+
+var _ = check.Suite(&confTestSuite{})
+
+func (s *confTestSuite) SetUpSuite(c *check.C) {
+	s.backBootSystem = BootSystem
+	BootSystem = s.fakeBootSystem
+	s.backConfigFiles = configFiles
+}
+
+func (s *confTestSuite) fakeBootSystem() (system string, err error) {
+	return s.system, nil
+}
+
+func (s *confTestSuite) TearDownSuite(c *check.C) {
+	BootSystem = s.backBootSystem
+	configFiles = s.backConfigFiles
+}
+
+func createConfigFile(c *check.C, system string, contents map[string]string) (name string) {
+	if system == "grub" {
+		name = createGrubConfigFile(c, contents)
+	} else if system == "uboot" {
+		name = createUbootConfigFile(c, contents)
+	}
+	return
+}
+
+func createGrubConfigFile(c *check.C, contents map[string]string) (name string) {
+	var contentsStr string
+	for key, value := range contents {
+		contentsStr += fmt.Sprintf("%s=%s\n", key, value)
+	}
+	file, err := ioutil.TempFile("", "snappy-grub-test")
+	c.Assert(err, check.IsNil, check.Commentf("Error creating temp file: %s", err))
+	err = ioutil.WriteFile(file.Name(), []byte(contentsStr), 0644)
+	c.Assert(err, check.IsNil, check.Commentf("Error writing test bootloader file: %s", err))
+
+	return file.Name()
+}
+
+func createUbootConfigFile(c *check.C, contents map[string]string) (name string) {
+	tmpDir, err := ioutil.TempDir("", "snappy-uboot-test")
+	c.Assert(err, check.IsNil, check.Commentf("Error creating temp dir: %s", err))
+	fileName := path.Join(tmpDir, "uboot.env")
+	env, err := uenv.Create(fileName, 4096)
+	c.Assert(err, check.IsNil, check.Commentf("Error creating the uboot env file: %s", err))
+	for key, value := range contents {
+		env.Set(key, value)
+	}
+	err = env.Save()
+	c.Assert(err, check.IsNil, check.Commentf("Error saving the uboot env file: %s", err))
+	return fileName
+}
+
+func (s *confTestSuite) TestGetConfValue(c *check.C) {
+	for _, s.system = range []string{"grub", "uboot"} {
+		cfgFileContents := map[string]string{
+			"blabla1": "bla",
+			"testkey": "testvalue",
+			"blabla2": "bla",
+		}
+		cfgFile := createConfigFile(c, s.system, cfgFileContents)
+		defer os.Remove(cfgFile)
+		configFiles = map[string]string{s.system: cfgFile}
+
+		value, err := confValue("testkey")
+		c.Check(err, check.IsNil, check.Commentf("Error getting configuration value: %s", err))
+		c.Check(value, check.Equals, "testvalue", check.Commentf("Wrong configuration value"))
+	}
 }
