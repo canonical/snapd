@@ -41,8 +41,7 @@ const (
 	defaultSSHPort   = 22
 	dataOutputDir    = "integration-tests/data/output/"
 
-	// FIXME: note that this needs to be adjusted on rpi2
-	defaultKernel = "canonical-linux-pc.canonical"
+	defaultKernel = "canonical-pc-linux.canonical"
 	defaultOS     = "ubuntu-core.canonical"
 	defaultGadget = "canonical-pc.canonical"
 )

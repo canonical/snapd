@@ -83,7 +83,7 @@ func makeFakeUpdateForSnap(c *check.C, snap, targetDir string, changeFunc Change
 }
 
 func copySnap(c *check.C, snap, targetDir string) {
-	sourceDir := filepath.Join("/apps", snap, "current")
+	sourceDir := filepath.Join("/snaps", snap, "current")
 	files, err := filepath.Glob(filepath.Join(sourceDir, "*"))
 	c.Assert(err, check.IsNil)
 	for _, m := range files {

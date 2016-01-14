@@ -72,15 +72,17 @@ func (s *infoSuite) TestInfoMustPrintInstalledApps(c *check.C) {
 }
 
 func (s *infoSuite) TestInfoMustPrintInstalledFrameworks(c *check.C) {
-	common.InstallSnap(c, "hello-dbus-fwk.canonical")
-	s.AddCleanup(func() {
-		common.RemoveSnap(c, "hello-dbus-fwk.canonical")
-	})
+	snapPath, err := build.LocalSnap(c, data.BasicFrameworkSnapName)
+	defer os.Remove(snapPath)
+	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
+	common.InstallSnap(c, snapPath)
+	defer common.RemoveSnap(c, data.BasicFrameworkSnapName)
+	
 	infoOutput := cli.ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms)" +
 		".*" +
-		"^frameworks: .*hello-dbus-fwk.*\n" +
+		"^frameworks: .*" + data.BasicFrameworkSnapName + "\\.sideload.*\n" +
 		".*"
 	c.Assert(infoOutput, check.Matches, expected)
 }

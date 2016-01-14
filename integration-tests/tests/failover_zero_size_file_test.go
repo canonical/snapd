@@ -74,7 +74,7 @@ func (s *failoverSuite) TestZeroSizeInitrd(c *check.C) {
 	}
 	// FIXME get the kernel snap name from the system:
 	// https://bugs.launchpad.net/snappy/+bug/1532245
-	s.testUpdateToBrokenVersion(c, "canonical-linux-pc.canonical", breakSnap)
+	s.testUpdateToBrokenVersion(c, "canonical-pc-linux.canonical", breakSnap)
 }
 
 func (s *failoverSuite) TestZeroSizeSystemd(c *check.C) {
