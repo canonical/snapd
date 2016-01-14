@@ -2,7 +2,7 @@
 // +build !excludeintegration,!excludereboots
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,29 +21,31 @@
 package tests
 
 import (
-	"io/ioutil"
-	"path"
+//	"io/ioutil"
+//	"path"
+
+	"github.com/ubuntu-core/snappy/snappy"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
 
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&updateSuite{})
+var _ = check.Suite(&updateOSSuite{})
 
-type updateSuite struct {
+type updateOSSuite struct {
 	common.SnappySuite
 }
 
-func (s *updateSuite) assertBootDirContents(c *check.C) {
+func (s *updateOSSuite) assertBootDirContents(c *check.C) {
 	system, err := partition.BootSystem()
 	c.Assert(err, check.IsNil, check.Commentf("Error getting the boot system: %s", err))
-	current, err := partition.CurrentPartition()
-	c.Assert(err, check.IsNil, check.Commentf("Error getting the current partition: %s", err))
-	files, err := ioutil.ReadDir(
-		path.Join(partition.BootDir(system), partition.OtherPartition(current)))
-	c.Assert(err, check.IsNil, check.Commentf("Error reading the other partition boot dir: %s", err))
+	// TODO ask mvo about the new style boot dir.
+	//	files, err := ioutil.ReadDir(
+	//		path.Join(partition.BootDir(system), partition.OtherPartition(current)))
+	//	c.Assert(err, check.IsNil, check.Commentf("Error reading the other partition boot dir: %s", err))
 
 	expectedFileNames := []string{"hardware.yaml", "initrd.img", "vmlinuz"}
 	if system == "uboot" {
@@ -51,20 +53,20 @@ func (s *updateSuite) assertBootDirContents(c *check.C) {
 	}
 
 	fileNames := []string{}
-	for _, f := range files {
-		fileNames = append(fileNames, f.Name())
-	}
+	//	for _, f := range files {
+	//	fileNames = append(fileNames, f.Name())
+	//	}
 	c.Assert(fileNames, check.DeepEquals, expectedFileNames,
 		check.Commentf("Wrong files in the other partition boot dir"))
 }
 
-// Test that the update to the same release and channel must install a newer
+// Test that the ubuntu-core update to the same release and channel must install a newer
 // version. If there is no update available, the channel version will be
 // modified to fake an update. If there is a version available, the image will
 // be up-to-date after running this test.
-func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
+func (s *updateOSSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 	if common.BeforeReboot() {
-		updateOutput := common.CallFakeUpdate(c)
+		updateOutput := updates.CallFakeOSUpdate(c)
 		expected := "(?ms)" +
 			".*" +
 			"^Reboot to use ubuntu-core version .*\\.\n"
@@ -74,7 +76,7 @@ func (s *updateSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 	} else if common.AfterReboot(c) {
 		common.RemoveRebootMark(c)
 		currentVersion := common.GetCurrentUbuntuCoreVersion(c)
-		c.Assert(currentVersion > common.GetSavedVersion(c), check.Equals, true,
+		c.Assert(snappy.VersionCompare(currentVersion, common.GetSavedVersion(c)), check.Equals, 1,
 			check.Commentf("Rebooted to the wrong version: %d", currentVersion))
 	}
 }

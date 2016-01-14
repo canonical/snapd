@@ -49,7 +49,6 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
 	defer common.RemoveSnap(c, data.BasicSnapName)
 	expected := "(?ms)" +
 		"Installing " + snapPath + "\n" +
-		".*Signature check failed, but installing anyway as requested\n" +
 		"Name +Date +Version +Developer \n" +
 		".*" +
 		data.BasicSnapName + " +.* +.* +sideload  \n" +
@@ -61,11 +60,6 @@ func (s *buildSuite) TestBuildBasicSnapOnSnappy(c *check.C) {
 func (s *buildSuite) TestBuildWrongYamlSnapOnSnappy(c *check.C) {
 	commonWrongTest(c, data.WrongYamlSnapName,
 		"(?msi).*Can not parse.*yaml: line 2: mapping values are not allowed in this context.*")
-}
-
-func (s *buildSuite) TestBuildMissingReadmeSnapOnSnappy(c *check.C) {
-	commonWrongTest(c, data.MissingReadmeSnapName,
-		".*readme.md: no such file or directory\n")
 }
 
 func commonWrongTest(c *check.C, testName, expected string) {

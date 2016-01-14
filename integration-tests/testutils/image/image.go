@@ -30,37 +30,38 @@ import (
 
 // Image type encapsulates image actions
 type Image struct {
-	release  string
-	channel  string
-	revision string
-	baseDir  string
-}
-
-// NewImage is the Image constructor
-func NewImage(release, channel, revision, baseDir string) *Image {
-	return &Image{release: release, channel: channel, revision: revision, baseDir: baseDir}
+	Release  string
+	Channel  string
+	Revision string
+	BaseDir  string
+	Kernel   string
+	OS       string
+	Gadget   string
 }
 
 // UdfCreate forms and executes the UDF command for creating the image
 func (img Image) UdfCreate() (string, error) {
 	fmt.Println("Creating image...")
 
-	imageDir := filepath.Join(img.baseDir, "image")
+	imageDir := filepath.Join(img.BaseDir, "image")
 
 	testutils.PrepareTargetDir(imageDir)
 
 	udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
 
-	if img.revision != "" {
-		udfCommand = append(udfCommand, "--revision="+img.revision)
+	if img.Revision != "" {
+		panic("img.revision not supported")
 	}
 
 	imagePath := img.imagePath(imageDir)
 
 	coreOptions := []string{
-		"core", img.release,
+		"core", img.Release,
 		"--output", imagePath,
-		"--channel", img.channel,
+		"--channel", img.Channel,
+		"--gadget", img.Gadget,
+		"--os", img.OS,
+		"--kernel", img.Kernel,
 		"--developer-mode",
 	}
 
@@ -70,18 +71,18 @@ func (img Image) UdfCreate() (string, error) {
 }
 
 func (img Image) imagePath(imageDir string) string {
-	revisionTag := img.revision
+	revisionTag := img.Revision
 	if revisionTag == "" {
 		revisionTag = "latest"
 	}
 
 	imageName := strings.Join(
-		[]string{"snappy", img.release, img.channel, revisionTag}, "-") + ".img"
+		[]string{"snappy", img.Release, img.Channel, revisionTag}, "-") + ".img"
 
 	return filepath.Join(imageDir, imageName)
 }
 
 // SetRevision is the setter method for revision
 func (img Image) SetRevision(rev string) {
-	img.revision = rev
+	img.Revision = rev
 }

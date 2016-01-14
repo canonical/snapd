@@ -100,7 +100,7 @@ func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
 	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":               "fmk",
-		"origin":             "",
+		"origin":             "sideload",
 		"status":             "active",
 		"version":            "120",
 		"icon":               filepath.Join(s.d, "snaps", "fmk", "120", "icon.png"),
@@ -263,7 +263,7 @@ func (s *lightweightSuite) TestMapInactiveGadgetNoPart(c *check.C) {
 	delete(m, "installed_size")
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":          "a-gadget",
-		"origin":        "",
+		"origin":        "sideload", // best guess
 		"status":        "installed",
 		"version":       "3",
 		"icon":          filepath.Join(s.d, "snaps", "a-gadget", "3", "icon.png"),
