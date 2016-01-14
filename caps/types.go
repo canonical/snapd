@@ -33,7 +33,7 @@ type Type interface {
 	Sanitize(c *Capability) error
 	// Obtain the security snippet for the given security system.
 	// If no security snippet is needed, hand out empty string.
-	SecuritySnippet(c *Capability, securitySystem string) (string, error)
+	SecuritySnippet(c *Capability, securitySystem SecuritySystem) (string, error)
 }
 
 // BoolFileType is the type of all the bool-file capabilities.
@@ -65,7 +65,7 @@ func (t *BoolFileType) Sanitize(c *Capability) error {
 
 // SecuritySnippet for bool-file capability type.
 // Consumers gain permission to read, write and lock the designated file.
-func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem string) (string, error) {
+func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) (string, error) {
 	switch securitySystem {
 	case SecurityApparmor:
 		// TODO: switch to the absolute path later
@@ -113,7 +113,7 @@ func (t *TestType) Sanitize(c *Capability) error {
 
 // SecuritySnippet for test capability type.
 // Consumers don't gain any extra permissions.
-func (t *TestType) SecuritySnippet(c *Capability, securitySystem string) (string, error) {
+func (t *TestType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) (string, error) {
 	switch securitySystem {
 	case SecurityApparmor:
 		fallthrough

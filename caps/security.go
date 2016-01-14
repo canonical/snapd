@@ -19,12 +19,15 @@
 
 package caps
 
+// SecuritySystem is a name of a security system.
+type SecuritySystem string
+
 // NOTE: all the security constants are used by Type.SecuritySnippet()
 const (
 	// Identifier of the apparmor security system.
-	SecurityApparmor = "apparmor"
+	SecurityApparmor SecuritySystem = "apparmor"
 	// Identifier of the seccomp security system.
-	SecuritySeccomp = "seccomp"
+	SecuritySeccomp SecuritySystem = "seccomp"
 	// Identifier for the DBus security system.
-	SecurityDBus = "dbus"
+	SecurityDBus SecuritySystem = "dbus"
 )
