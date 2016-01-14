@@ -67,7 +67,7 @@ func (t *BoolFileType) Sanitize(c *Capability) error {
 	return nil
 }
 
-// SecuritySnippet for bool-file capability type.
+// SecuritySnippet returns the configuration snippet required to use a bool-file capability.
 // Consumers gain permission to read, write and lock the designated file.
 func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) ([]byte, error) {
 	switch securitySystem {
@@ -115,19 +115,10 @@ func (t *TestType) Sanitize(c *Capability) error {
 	return nil
 }
 
-// SecuritySnippet for test capability type.
+// SecuritySnippet returns the configuration snippet "required" to use a test capability.
 // Consumers don't gain any extra permissions.
 func (t *TestType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case SecurityApparmor:
-		fallthrough
-	case SecuritySeccomp:
-		fallthrough
-	case SecurityDBus:
-		return nil, nil
-	default:
-		return nil, &ErrUnknownSecurity{SecuritySystem: securitySystem}
-	}
+	return nil, nil
 }
 
 var builtInTypes = [...]Type{
