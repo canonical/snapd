@@ -23,11 +23,14 @@ import (
 	"fmt"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/ubuntu-core/snappy/testutil"
 )
 
 // BoolFileType
 
 type BoolFileTypeSuite struct {
+	testutil.BaseTest
 	t Type
 }
 
@@ -81,6 +84,32 @@ func (s *BoolFileTypeSuite) TestSecuritySnippet(c *C) {
 	snippet, err = s.t.SecuritySnippet(cap, "foo")
 	c.Assert(err, ErrorMatches, `unknown security system`)
 	c.Assert(snippet, IsNil)
+}
+
+func (s *BoolFileTypeSuite) TestDereferencePathSuccess(c *C) {
+	MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+		return "real-path", nil
+	})
+	cap := &Capability{
+		TypeName: "bool-file",
+		Attrs:    map[string]string{"path": "symbolic-path"},
+	}
+	path, err := s.t.(*BoolFileType).dereferencedPath(cap)
+	c.Assert(err, IsNil)
+	c.Assert(path, Equals, "real-path")
+}
+
+func (s *BoolFileTypeSuite) TestDereferencePathError(c *C) {
+	MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+		return "", fmt.Errorf("broken symbolic link")
+	})
+	cap := &Capability{
+		TypeName: "bool-file",
+		Attrs:    map[string]string{"path": "symbolic-path"},
+	}
+	path, err := s.t.(*BoolFileType).dereferencedPath(cap)
+	c.Assert(err, ErrorMatches, "bool-file path is invalid: broken symbolic link")
+	c.Assert(path, Equals, "")
 }
 
 // TestType
