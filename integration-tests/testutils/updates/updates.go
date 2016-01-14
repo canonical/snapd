@@ -54,7 +54,8 @@ func CallFakeUpdate(c *check.C, snap string, changeFunc ChangeFakeUpdateSnap) st
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", blobDir)
 
 	fakeStore := store.NewStore(blobDir)
-	fakeStore.Start()
+	err = fakeStore.Start()
+	c.Assert(err, check.IsNil)
 	defer fakeStore.Stop()
 
 	makeFakeUpdateForSnap(c, snap, blobDir, changeFunc)
