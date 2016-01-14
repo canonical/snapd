@@ -22,6 +22,7 @@ package updates
 
 import (
 	"fmt"
+	"io/ioutil"
 	"path/filepath"
 
 	"gopkg.in/check.v1"
@@ -47,7 +48,11 @@ func NoOp(snapPath string) error {
 func CallFakeUpdate(c *check.C, snap string, changeFunc ChangeFakeUpdateSnap) string {
 	c.Log("Preparing fake and calling update.")
 
-	blobDir := c.MkDir()
+	// use /var/tmp is not a tempfs
+	blobDir, err := ioutil.TempDir("/var/tmp", "snap-fake-store-blobs-")
+	c.Assert(err, check.IsNil)
+	defer cli.ExecCommand(c, "sudo", "rm", "-rf", blobDir)
+
 	fakeStore := store.NewStore(blobDir)
 	fakeStore.Start()
 	defer fakeStore.Stop()
@@ -66,8 +71,10 @@ func CallFakeOSUpdate(c *check.C) string {
 }
 
 func makeFakeUpdateForSnap(c *check.C, snap, targetDir string, changeFunc ChangeFakeUpdateSnap) error {
-	// make a fake update snap
-	fakeUpdateDir := c.MkDir()
+
+	// make a fake update snap in /var/tmp (which is not a tempfs)
+	fakeUpdateDir, err := ioutil.TempDir("/var/tmp", "snap-build-")
+	c.Assert(err, check.IsNil)
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", fakeUpdateDir)
 
 	copySnap(c, snap, fakeUpdateDir)
@@ -93,7 +100,8 @@ func copySnap(c *check.C, snap, targetDir string) {
 
 func buildSnap(c *check.C, snapDir, targetDir string) {
 	helpers.ChDir(targetDir, func() error {
-		cli.ExecCommand(c, "sudo", "snappy", "build", "--squashfs", snapDir)
+		// build in /var/tmp (which is not a tempfs)
+		cli.ExecCommand(c, "sudo", "TMPDIR=/var/tmp", "snappy", "build", "--squashfs", snapDir)
 		return nil
 	})
 }
