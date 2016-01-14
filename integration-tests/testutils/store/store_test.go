@@ -149,8 +149,7 @@ func (s *storeTestSuite) makeTestSnap(c *C, packageYamlContent string) string {
 	c.Assert(err, IsNil)
 
 	targetDir := s.store.blobDir
-	// FIXME: legacy? squash?
-	snapFn, err := snappy.BuildLegacySnap(tmpdir, targetDir)
+	snapFn, err := snappy.BuildSquashfsSnap(tmpdir, targetDir)
 	c.Assert(err, IsNil)
 	return snapFn
 }
