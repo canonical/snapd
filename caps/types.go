@@ -75,7 +75,7 @@ func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem SecuritySys
 		// TODO: switch to the real path later
 		path := c.Attrs["path"]
 		// Allow read, write and lock on the file designated by the path.
-		return ([]byte)(fmt.Sprintf("%s rwl,\n", path)), nil
+		return []byte(fmt.Sprintf("%s rwl,\n", path)), nil
 	case SecuritySeccomp:
 		return nil, nil
 	case SecurityDBus:
