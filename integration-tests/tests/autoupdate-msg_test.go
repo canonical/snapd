@@ -52,7 +52,7 @@ func (s *autoupdateMsgSuite) TestAutoUpdateMessageIsPrinted(c *check.C) {
 
 	// FIXME: risk of race
 	// (i.e. systemctl start finishes before install runs)
-	snappyOutput, _ := exec.Command("sudo", "snappy", "install", "hello-world").CombinedOutput()
+	snappyOutput, _ := exec.Command("sudo", "snappy", "install", "hello-world/edge").CombinedOutput()
 
 	var expectedTxt string
 	if common.Release(c) == "15.04" {
