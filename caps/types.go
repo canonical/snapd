@@ -68,7 +68,7 @@ func (t *BoolFileType) Sanitize(c *Capability) error {
 func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) (string, error) {
 	switch securitySystem {
 	case securityApparmor:
-		// TODO: switch to the absolute path later
+		// TODO: switch to the real path later
 		path := c.Attrs["path"]
 		// Allow read, write and lock on the file designated by the path.
 		return fmt.Sprintf("%s rwl,\n", path), nil
