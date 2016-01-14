@@ -188,8 +188,9 @@ func restartDocker(c *check.C) {
 }
 
 func (s *fanTestSuite) fanName() string {
-	return "fan-" + strings.Replace(strings.TrimRight(s.bridgeIP, ".1"),
-		".", "-", -1)
+	firstOctect := strings.Split(s.bridgeIP, ".")[0]
+
+	return "fan-" + firstOctect
 }
 
 func (s *fanTestSuite) dockerOptions() string {

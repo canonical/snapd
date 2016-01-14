@@ -50,7 +50,7 @@ func (s *infoSuite) TestInfoMustPrintReleaseAndChannel(c *check.C) {
 	infoOutput := cli.ExecCommand(c, "snappy", "info")
 
 	expected := "(?ms)" +
-		fmt.Sprintf("^release: ubuntu-core/%s/%s\n", common.Cfg.Release, common.Cfg.Channel) +
+		fmt.Sprintf("^release: .*core/%s.*\n", common.Cfg.Release) +
 		".*"
 
 	c.Assert(infoOutput, check.Matches, expected)
