@@ -32,67 +32,42 @@ type memKeypairMgtSuite struct {
 var _ = Suite(&memKeypairMgtSuite{})
 
 func (mkms *memKeypairMgtSuite) SetUpTest(c *C) {
-	mkms.keypairMgr = asserts.NewMemoryKeypairMananager()
+	mkms.keypairMgr = asserts.NewMemoryKeypairManager()
 }
 
-func (mkms *memKeypairMgtSuite) TestImportAndGet(c *C) {
+func (mkms *memKeypairMgtSuite) TestPutAndGet(c *C) {
 	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
-	fingerp, err := mkms.keypairMgr.Import("auth-id1", pk1)
+	keyID := pk1.PublicKey().ID()
+	err := mkms.keypairMgr.Put("auth-id1", pk1)
 	c.Assert(err, IsNil)
-	c.Check(fingerp, Equals, pk1.PublicKey().Fingerprint())
 
-	got, err := mkms.keypairMgr.Get("auth-id1", fingerp)
+	got, err := mkms.keypairMgr.Get("auth-id1", keyID)
 	c.Assert(err, IsNil)
 	c.Assert(got, NotNil)
-	c.Check(got.PublicKey().Fingerprint(), Equals, fingerp)
+	c.Check(got.PublicKey().Fingerprint(), Equals, pk1.PublicKey().Fingerprint())
+}
+
+func (mkms *memKeypairMgtSuite) TestPutAlreadyExists(c *C) {
+	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
+	err := mkms.keypairMgr.Put("auth-id1", pk1)
+	c.Assert(err, IsNil)
+
+	err = mkms.keypairMgr.Put("auth-id1", pk1)
+	c.Check(err, ErrorMatches, "key pair with given key id already exists")
 }
 
 func (mkms *memKeypairMgtSuite) TestGetNotFound(c *C) {
 	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
-	fingerp := pk1.PublicKey().Fingerprint()
+	keyID := pk1.PublicKey().ID()
 
-	got, err := mkms.keypairMgr.Get("auth-id1", fingerp)
+	got, err := mkms.keypairMgr.Get("auth-id1", keyID)
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "no matching key pair found")
 
-	_, err = mkms.keypairMgr.Import("auth-id1", pk1)
+	err = mkms.keypairMgr.Put("auth-id1", pk1)
 	c.Assert(err, IsNil)
 
-	got, err = mkms.keypairMgr.Get("auth-id1", "")
+	got, err = mkms.keypairMgr.Get("auth-id1", keyID+"x")
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "no matching key pair found")
-}
-
-func (mkms *memKeypairMgtSuite) TestFind(c *C) {
-	fingerp, err := mkms.keypairMgr.Import("auth-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
-	c.Assert(err, IsNil)
-
-	got, err := mkms.keypairMgr.Find("auth-id1", fingerp[len(fingerp)-4:])
-	c.Assert(err, IsNil)
-	c.Assert(got, NotNil)
-	c.Check(got.PublicKey().Fingerprint(), Equals, fingerp)
-}
-
-func (mkms *memKeypairMgtSuite) TestFindNotFound(c *C) {
-	got, err := mkms.keypairMgr.Find("auth-id1", "f")
-	c.Check(got, IsNil)
-	c.Check(err, ErrorMatches, "no matching key pair found")
-
-	_, err = mkms.keypairMgr.Import("auth-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
-	c.Assert(err, IsNil)
-
-	got, err = mkms.keypairMgr.Find("auth-id1", "z")
-	c.Check(got, IsNil)
-	c.Check(err, ErrorMatches, "no matching key pair found")
-}
-
-func (mkms *memKeypairMgtSuite) TestFindAmbiguous(c *C) {
-	_, err := mkms.keypairMgr.Import("auth-id1", asserts.OpenPGPPrivateKey(testPrivKey1))
-	c.Assert(err, IsNil)
-	_, err = mkms.keypairMgr.Import("auth-id1", asserts.OpenPGPPrivateKey(testPrivKey2))
-	c.Assert(err, IsNil)
-
-	got, err := mkms.keypairMgr.Find("auth-id1", "")
-	c.Check(got, IsNil)
-	c.Check(err, ErrorMatches, "ambiguous search, more than one key pair found:.*")
 }

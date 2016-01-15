@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !linux,!darwin,!freebsd
 
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
@@ -17,20 +18,12 @@
  *
  */
 
-package partition
+package group
 
 import (
-	. "gopkg.in/check.v1"
+	"errors"
 )
 
-func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
-
-	hardwareSpecFile = makeHardwareYaml(c, "")
-	hw, err := readHardwareSpec()
-	c.Assert(err, IsNil)
-	c.Assert(hw.Kernel, Equals, "assets/vmlinuz")
-	c.Assert(hw.Initrd, Equals, "assets/initrd.img")
-	c.Assert(hw.DtbDir, Equals, "assets/dtbs")
-	c.Assert(hw.PartitionLayout, Equals, bootloaderSystemAB)
-	c.Assert(hw.Bootloader, Equals, bootloaderNameUboot)
+func getgrnam(name string) (Group, error) {
+	return errors.New("getgrnam not implemented on your system")
 }

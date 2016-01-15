@@ -40,15 +40,18 @@ type accountKeySuite struct {
 var _ = Suite(&accountKeySuite{})
 
 func (aks *accountKeySuite) SetUpSuite(c *C) {
-	cfg1 := &asserts.DatabaseConfig{Path: filepath.Join(c.MkDir(), "asserts-db1")}
+	cfg1 := &asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+	}
 	accDb, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
 	pk := asserts.OpenPGPPrivateKey(testPrivKey1)
-	_, err = accDb.ImportKey("acc-id1", pk)
+	err = accDb.ImportKey("acc-id1", pk)
 	c.Assert(err, IsNil)
 	aks.fp = pk.PublicKey().Fingerprint()
 	aks.keyid = pk.PublicKey().ID()
-	pubKey, err := accDb.PublicKey("acc-id1", aks.fp)
+
+	pubKey, err := accDb.PublicKey("acc-id1", aks.keyid)
 	c.Assert(err, IsNil)
 	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)
 	c.Assert(err, IsNil)
@@ -176,6 +179,22 @@ func (aks *accountKeySuite) TestDecodeKeyIDMismatch(c *C) {
 	c.Check(err, ErrorMatches, accKeyErrPrefix+"public key does not match provided key id")
 }
 
+func (aks *accountKeySuite) openDB(c *C) *asserts.Database {
+	trustedKey := testPrivKey0
+
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+	bs, err := asserts.OpenFSBackstore(topDir)
+	c.Assert(err, IsNil)
+	cfg := &asserts.DatabaseConfig{
+		Backstore:      bs,
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+	return db
+}
+
 func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 	trustedKey := testPrivKey0
 
@@ -187,16 +206,10 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 		"since":                  aks.since.Format(time.RFC3339),
 		"until":                  aks.until.Format(time.RFC3339),
 	}
-	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
 	c.Assert(err, IsNil)
 
-	rootDir := filepath.Join(c.MkDir(), "asserts-db")
-	cfg := &asserts.DatabaseConfig{
-		Path:        rootDir,
-		TrustedKeys: []*asserts.AccountKey{asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
-	}
-	db, err := asserts.OpenDatabase(cfg)
-	c.Assert(err, IsNil)
+	db := aks.openDB(c)
 
 	err = db.Check(accKey)
 	c.Assert(err, IsNil)
@@ -213,16 +226,10 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 		"since":                  aks.since.Format(time.RFC3339),
 		"until":                  aks.until.Format(time.RFC3339),
 	}
-	accKey, err := asserts.BuildAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
 	c.Assert(err, IsNil)
 
-	rootDir := filepath.Join(c.MkDir(), "asserts-db")
-	cfg := &asserts.DatabaseConfig{
-		Path:        rootDir,
-		TrustedKeys: []*asserts.AccountKey{asserts.BuildBootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
-	}
-	db, err := asserts.OpenDatabase(cfg)
-	c.Assert(err, IsNil)
+	db := aks.openDB(c)
 
 	err = db.Add(accKey)
 	c.Assert(err, IsNil)

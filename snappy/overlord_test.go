@@ -21,8 +21,10 @@ package snappy
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/systemd"
 
 	. "gopkg.in/check.v1"
 )
@@ -37,8 +39,11 @@ func (o *overlordTestSuite) SetUpTest(c *C) {
 	o.tempdir = c.MkDir()
 	dirs.SetRootDir(o.tempdir)
 
-	os.MkdirAll(dirs.SnapServicesDir, 0755)
 	os.MkdirAll(dirs.SnapSeccompDir, 0755)
+	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		return []byte("ActiveState=inactive\n"), nil
+	}
 
 	makeMockSecurityEnv(c)
 }

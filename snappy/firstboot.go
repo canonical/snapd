@@ -90,7 +90,9 @@ func gadgetConfig() error {
 		if !ok {
 			return errNoSnapToActivate
 		}
-		snap.activate(false, pb)
+		if err := snap.activate(false, pb); err != nil {
+			logger.Noticef("failed to acitvate %s: %s", FullName(part), err)
+		}
 	}
 
 	for pkgName, conf := range gadget.Config {

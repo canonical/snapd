@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-// common checkers used when decoding/building assertions
+// common checkers used when decoding/assembling assertions
 
 func checkMandatory(headers map[string]string, name string) (string, error) {
 	value, ok := headers[name]

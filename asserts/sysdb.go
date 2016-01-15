@@ -26,6 +26,20 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 )
 
+func openDatabaseAt(path string, cfg *DatabaseConfig) (*Database, error) {
+	bs, err := OpenFSBackstore(path)
+	if err != nil {
+		return nil, err
+	}
+	keypairMgr, err := OpenFSKeypairManager(path)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Backstore = bs
+	cfg.KeypairManager = keypairMgr
+	return OpenDatabase(cfg)
+}
+
 // OpenSysDatabase opens the installation-wide assertion database.
 func OpenSysDatabase() (*Database, error) {
 	encodedTrustedAccKey, err := ioutil.ReadFile(dirs.SnapTrustedAccountKey)
@@ -46,9 +60,7 @@ func OpenSysDatabase() (*Database, error) {
 	}
 
 	cfg := &DatabaseConfig{
-		Path:        dirs.SnapAssertsDBDir,
 		TrustedKeys: []*AccountKey{trustedKey},
 	}
-
-	return OpenDatabase(cfg)
+	return openDatabaseAt(dirs.SnapAssertsDBDir, cfg)
 }

@@ -48,7 +48,6 @@ func (o *Overlord) Install(snapFileName string, origin string, inter progress.Me
 	if err != nil {
 		return "", fmt.Errorf("can not open %s: %s", snapFileName, err)
 	}
-	defer s.deb.Close()
 
 	// we do not Verify() the package in canInstall. This is done earlier in
 	// NewSnapFile() to ensure that we do not mount/inspect
@@ -91,19 +90,12 @@ func (o *Overlord) Install(snapFileName string, origin string, inter progress.Me
 
 	// we need to call the external helper so that we can reliable drop
 	// privs
-	if err := s.deb.UnpackWithDropPrivs(s.instdir, dirs.GlobalRootDir); err != nil {
+	if err := s.deb.Install(s.instdir); err != nil {
 		return "", err
 	}
 
 	// generate the mount unit for the squashfs
-	if s.deb.NeedsMountUnit() {
-		if err := s.m.addSquashfsMount(s.instdir, inhibitHooks, inter); err != nil {
-			return "", err
-		}
-	}
-
-	// write the hashes now
-	if err := s.deb.ExtractHashes(filepath.Join(s.instdir, "meta")); err != nil {
+	if err := s.m.addSquashfsMount(s.instdir, inhibitHooks, inter); err != nil {
 		return "", err
 	}
 
@@ -338,11 +330,9 @@ func (o *Overlord) remove(s *SnapPart, inter interacter) (err error) {
 
 // Installed returns the installed snaps from this repository
 func (o *Overlord) Installed() (parts []*SnapPart, err error) {
-	for _, path := range []string{dirs.SnapAppsDir, dirs.SnapGadgetDir} {
-		globExpr := filepath.Join(path, "*", "*", "meta", "package.yaml")
-		if newParts, err := o.partsForGlobExpr(globExpr); err == nil {
-			parts = append(parts, newParts...)
-		}
+	globExpr := filepath.Join(dirs.SnapSnapsDir, "*", "*", "meta", "package.yaml")
+	if newParts, err := o.partsForGlobExpr(globExpr); err == nil {
+		parts = append(parts, newParts...)
 	}
 
 	return parts, nil

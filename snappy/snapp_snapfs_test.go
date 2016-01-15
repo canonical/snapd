@@ -52,10 +52,6 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
-	// ensure we use the right builder func (squashfs)
-	snapBuilderFunc = BuildSquashfsSnap
-	s.AddCleanup(func() { snapBuilderFunc = BuildLegacySnap })
-
 	// mock the boot variable writing for the tests
 	s.bootvars = make(map[string]string)
 	setBootVar = func(key, val string) error {
@@ -102,10 +98,10 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	c.Assert(helpers.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-app.origin_1.10.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath("/apps/hello-app.origin/1.10", "mount")
+	mup := systemd.MountUnitPath("/snaps/hello-app.origin/1.10", "mount")
 	content, err := ioutil.ReadFile(mup)
 	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/apps/hello-app.origin/1.10")
+	c.Assert(string(content), Matches, "(?ms).*^Where=/snaps/hello-app.origin/1.10")
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snappy/snaps/hello-app.origin_1.10.snap")
 }
 
@@ -116,18 +112,18 @@ func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
 		Architectures: []string{"all"},
 	}
 	inter := &MockProgressMeter{}
-	err := m.addSquashfsMount(filepath.Join(dirs.SnapAppsDir, "foo.origin/1.0"), true, inter)
+	err := m.addSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "apps-foo.origin-1.0.mount"))
+	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snaps-foo.origin-1.0.mount"))
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, `[Unit]
 Description=Squashfs mount unit for foo.origin
 
 [Mount]
 What=/var/lib/snappy/snaps/foo.origin_1.0.snap
-Where=/apps/foo.origin/1.0
+Where=/snaps/foo.origin/1.0
 `)
 
 }
@@ -135,17 +131,17 @@ Where=/apps/foo.origin/1.0
 func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	m := packageYaml{}
 	inter := &MockProgressMeter{}
-	err := m.addSquashfsMount(filepath.Join(dirs.SnapAppsDir, "foo.origin/1.0"), true, inter)
+	err := m.addSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
-	p := filepath.Join(dirs.SnapServicesDir, "apps-foo.origin-1.0.mount")
+	p := filepath.Join(dirs.SnapServicesDir, "snaps-foo.origin-1.0.mount")
 	c.Assert(helpers.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = m.removeSquashfsMount(filepath.Join(dirs.SnapAppsDir, "foo.origin/1.0"), inter)
+	err = m.removeSquashfsMount(filepath.Join(dirs.SnapSnapsDir, "foo.origin/1.0"), inter)
 	c.Assert(err, IsNil)
-	p = filepath.Join(dirs.SnapServicesDir, "apps-foo.origin-1.0.mount")
+	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo.origin-1.0.mount")
 	c.Assert(helpers.FileExists(p), Equals, false)
 }
 

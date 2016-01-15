@@ -2,6 +2,7 @@
 
 set -e
 
+# TODO: we do not need this user anymore
 SNAPPYUSER=snappypkg
 if [ "$(lsb_release -c -s)" = "vivid" ]; then
     SNAPPYUSER=clickpkg

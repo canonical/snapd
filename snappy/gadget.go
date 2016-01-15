@@ -147,7 +147,7 @@ func bootAssetFilePaths() map[string]string {
 	}
 
 	fileList := make(map[string]string)
-	gadgetPath := filepath.Join(dirs.SnapGadgetDir, gadget.Name, gadget.Version)
+	gadgetPath := filepath.Join(dirs.SnapSnapsDir, gadget.Name, gadget.Version)
 
 	for _, asset := range gadget.Gadget.Hardware.BootAssets.Files {
 		orig := filepath.Join(gadgetPath, asset.Path)

@@ -88,24 +88,10 @@ func newSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 		part.isActive = true
 	}
 
-	// get the click *title* from readme.md and use that as the *description*.
+	// get the *title* from readme.md and use that as the *description*.
 	if description, _, err := parseReadme(filepath.Join(part.basedir, "meta", "readme.md")); err == nil {
 		part.description = description
 	}
-
-	// read hash, its ok if its not there, some older versions of
-	// snappy did not write this file
-	hashesData, err := ioutil.ReadFile(filepath.Join(part.basedir, "meta", "hashes.yaml"))
-	if err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
-
-	var h hashesYaml
-	err = yaml.Unmarshal(hashesData, &h)
-	if err != nil {
-		return nil, &ErrInvalidYaml{File: "hashes.yaml", Err: err, Yaml: hashesData}
-	}
-	part.hash = h.ArchiveSha512
 
 	remoteManifestPath := RemoteManifestPath(part)
 	if helpers.FileExists(remoteManifestPath) {
@@ -286,7 +272,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	// generate the security policy from the package.yaml
 	// Note that this must happen before binaries/services are
 	// generated because serices may get started
-	appsDir := filepath.Join(dirs.SnapAppsDir, QualifiedName(s), s.Version())
+	appsDir := filepath.Join(dirs.SnapSnapsDir, QualifiedName(s), s.Version())
 	if err := generatePolicy(s.m, appsDir); err != nil {
 		return err
 	}
@@ -343,7 +329,7 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 		return ErrSnapNotActive
 	}
 
-	// remove generated services, binaries, clickHooks, security policy
+	// remove generated services, binaries, security policy
 	if err := s.m.removePackageBinaries(s.basedir); err != nil {
 		return err
 	}

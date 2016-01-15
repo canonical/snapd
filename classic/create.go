@@ -33,6 +33,7 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 )
@@ -41,6 +42,9 @@ var (
 	lxdBaseURL   = "https://images.linuxcontainers.org"
 	lxdIndexPath = "/meta/1.0/index-system"
 )
+
+// will be overriden by tests
+var getgrnam = osutil.Getgrnam
 
 func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
 	arch := arch.UbuntuArchitecture()
@@ -234,14 +238,35 @@ func customizeClassicChroot() error {
 		return fmt.Errorf("failed to cleanup classic /run dir: %s (%s)", err, output)
 	}
 
+	// Add hosts "sudo" group into the classic env
+	grp, err := getgrnam("sudo")
+	if err != nil {
+		return fmt.Errorf("failed to get group info for the 'sudo' group: %s", err)
+	}
+	for _, sudoUser := range grp.Mem {
+		// We need to use "runInClassicEnv" so that we get the
+		// bind mount of the /var/lib/extrausers directory.
+		// Without that the "SUDO_USER" will not exist in the chroot
+		if err := runInClassicEnv("usermod", "-a", "-G", "sudo", sudoUser); err != nil {
+			return fmt.Errorf("failed to add %s to the sudo users: %s", sudoUser, err)
+		}
+	}
+
 	return nil
 }
 
 // Create creates a new classic shell envirionment
-func Create(pbar progress.Meter) error {
+func Create(pbar progress.Meter) (err error) {
 	if Enabled() {
 		return fmt.Errorf("clasic mode already created in %s", dirs.ClassicDir)
 	}
+
+	// ensure we kill the classic env if there is any error
+	defer func() {
+		if err != nil {
+			os.RemoveAll(dirs.ClassicDir)
+		}
+	}()
 
 	lxdRootfsTar, err := downloadLxdRootfs(pbar)
 	if err != nil {

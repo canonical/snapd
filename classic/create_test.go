@@ -28,12 +28,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
+	"github.com/ubuntu-core/snappy/osutil"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/testutil"
@@ -42,7 +44,9 @@ import (
 type CreateTestSuite struct {
 	testutil.BaseTest
 
-	runInChroot [][]string
+	imageReader    io.Reader
+	runInChroot    [][]string
+	getgrnamCalled []string
 }
 
 var _ = Suite(&CreateTestSuite{})
@@ -59,6 +63,19 @@ func (t *CreateTestSuite) SetUpTest(c *C) {
 		t.runInChroot = append(t.runInChroot, cmd)
 		return nil
 	}
+
+	// create some content for the webserver
+	r := makeMockLxdTarball(c)
+	t.AddCleanup(func() { r.Close() })
+	t.imageReader = r
+
+	// ensure getgrnam is called
+	getgrnamOrig := getgrnam
+	getgrnam = func(name string) (osutil.Group, error) {
+		t.getgrnamCalled = append(t.getgrnamCalled, name)
+		return osutil.Group{}, nil
+	}
+	t.AddCleanup(func() { getgrnam = getgrnamOrig })
 }
 
 func makeMockLxdIndexSystem() string {
@@ -115,9 +132,7 @@ func (t *CreateTestSuite) makeMockLxdServer(c *C) {
 			s := makeMockLxdIndexSystem()
 			fmt.Fprintf(w, s)
 		case "/images/ubuntu/CODENAME/ARCH/default/20151126_03:49/rootfs.tar.xz":
-			r := makeMockLxdTarball(c)
-			defer r.Close()
-			io.Copy(w, r)
+			io.Copy(w, t.imageReader)
 		default:
 			http.NotFound(w, r)
 		}
@@ -146,7 +161,17 @@ func (t *CreateTestSuite) TestCreate(c *C) {
 		{"deluser", "ubuntu"},
 		{"apt-get", "install", "-y", "libnss-extrausers"},
 	})
+	c.Assert(t.getgrnamCalled, DeepEquals, []string{"sudo"})
 	for _, canary := range []string{"/etc/nsswitch.conf", "/etc/hosts", "/usr/sbin/policy-rc.d"} {
 		c.Assert(helpers.FileExists(filepath.Join(dirs.ClassicDir, canary)), Equals, true)
 	}
+}
+
+func (t *CreateTestSuite) TestCreateFailDestroys(c *C) {
+	t.makeMockLxdServer(c)
+	t.imageReader = strings.NewReader("its all broken")
+
+	err := Create(&progress.NullProgress{})
+	c.Assert(err, ErrorMatches, `(?m)failed to unpack .*`)
+	c.Assert(helpers.FileExists(dirs.ClassicDir), Equals, false)
 }

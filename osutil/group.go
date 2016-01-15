@@ -17,30 +17,17 @@
  *
  */
 
-package main
+package osutil
 
-import (
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/partition"
-)
-
-type cmdGrubMigrate struct {
+// Group implements the grp.h struct group
+type Group struct {
+	Name   string
+	Passwd string
+	Gid    uint
+	Mem    []string
 }
 
-func init() {
-	_, err := parser.AddCommand("grub-migrate",
-		"internal",
-		"internal",
-		&cmdGrubMigrate{})
-	if err != nil {
-		logger.Panicf("Unable to grub-migrate: %v", err)
-	}
-}
-
-func (x *cmdGrubMigrate) Execute(args []string) error {
-	return withMutexAndRetry(x.doGrubMigrate)
-}
-
-func (x *cmdGrubMigrate) doGrubMigrate() error {
-	return partition.MigrateToDynamicGrub()
+// Getgrnam returns a lit of groups for the given groupname
+func Getgrnam(name string) (result Group, err error) {
+	return getgrnam(name)
 }

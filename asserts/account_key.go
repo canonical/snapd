@@ -90,7 +90,7 @@ func checkPublicKey(ab *assertionBase, fingerprintName, keyIDName string) (Publi
 	return pubKey, nil
 }
 
-func buildAccountKey(assert assertionBase) (Assertion, error) {
+func assembleAccountKey(assert assertionBase) (Assertion, error) {
 	_, err := checkMandatory(assert.headers, "account-id")
 	if err != nil {
 		return nil, err
@@ -121,7 +121,7 @@ func buildAccountKey(assert assertionBase) (Assertion, error) {
 
 func init() {
 	typeRegistry[AccountKeyType] = &assertionTypeRegistration{
-		builder:    buildAccountKey,
+		assembler:  assembleAccountKey,
 		primaryKey: []string{"account-id", "public-key-id"},
 	}
 }

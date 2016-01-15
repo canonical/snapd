@@ -60,6 +60,36 @@ func doUpdate(part Part, flags InstallFlags, meter progress.Meter) error {
 	return nil
 }
 
+// FIXME: This needs to go (and will go). We will have something
+//        like:
+//           remoteSnapType = GetUpdatesFromServer()
+//           localSnapType = DoUpdate(remoteSnaps)
+//           ShowUpdates(localSnaps)
+//        By using the different types (instead of the same interface)
+//        it will not be possilbe to pass remote snaps into the
+//        ShowUpdates() output.
+//
+//
+// convertToInstalledSnaps takes a slice of remote snaps that got
+// updated and returns the corresponding local snap parts.
+func convertToInstalledSnaps(remoteUpdates []Part) ([]Part, error) {
+	installed, err := NewMetaLocalRepository().Installed()
+	if err != nil {
+		return nil, err
+	}
+
+	installedUpdates := make([]Part, 0, len(remoteUpdates))
+	for _, part := range remoteUpdates {
+		localPart := FindSnapsByNameAndVersion(part.Name(), part.Version(), installed)
+		if len(localPart) != 1 {
+			return nil, fmt.Errorf("expected one local part for the update %v, got %v", part, len(localPart))
+		}
+		installedUpdates = append(installedUpdates, localPart[0])
+	}
+
+	return installedUpdates, nil
+}
+
 // Update updates the selected name
 func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, error) {
 	installed, err := NewMetaLocalRepository().Installed()
@@ -79,7 +109,16 @@ func Update(name string, flags InstallFlags, meter progress.Meter) ([]Part, erro
 		return nil, fmt.Errorf("no update found for %s", name)
 	}
 
-	return upd, doUpdate(upd[0], flags, meter)
+	if err := doUpdate(upd[0], flags, meter); err != nil {
+		return nil, err
+	}
+
+	installedUpdates, err := convertToInstalledSnaps(upd)
+	if err != nil {
+		return nil, err
+	}
+
+	return installedUpdates, nil
 }
 
 // UpdateAll the installed snappy packages, it returns the updated Parts
@@ -98,7 +137,12 @@ func UpdateAll(flags InstallFlags, meter progress.Meter) ([]Part, error) {
 		}
 	}
 
-	return updates, nil
+	installedUpdates, err := convertToInstalledSnaps(updates)
+	if err != nil {
+		return nil, err
+	}
+
+	return installedUpdates, nil
 }
 
 // Install the givens snap names provided via args. This can be local

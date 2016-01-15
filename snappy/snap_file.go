@@ -46,12 +46,6 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 		return nil, err
 	}
 
-	// verify early to ensure we do not even mount/inspect if the
-	// file is not signed
-	if err := d.Verify(unsignedOk); err != nil {
-		return nil, err
-	}
-
 	yamlData, err := d.MetaMember("package.yaml")
 	if err != nil {
 		return nil, err
@@ -65,12 +59,7 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 		return nil, err
 	}
 
-	targetDir := dirs.SnapAppsDir
-	// the "gadget" parts are special
-	if m.Type == snap.TypeGadget {
-		targetDir = dirs.SnapGadgetDir
-	}
-
+	targetDir := dirs.SnapSnapsDir
 	if origin == SideloadedOrigin {
 		m.Version = helpers.NewSideloadVersion()
 	}
