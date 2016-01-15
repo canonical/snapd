@@ -57,7 +57,6 @@ var (
 		filepath.Join(testsBinDir, "snapd") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snapd")
 	buildSnapCliCmd = "go build -o " +
 		filepath.Join(testsBinDir, "snap") + " ." + string(os.PathSeparator) + filepath.Join("cmd", "snap")
-
 )
 
 // Config comprises the parameters for the Assets function
