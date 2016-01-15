@@ -27,9 +27,9 @@ import (
 // Snap represents a Snap snap
 type Snap struct {
 	Description   string `json:"description"`
-	DownloadSize  int64  `json:"download_size,string"`
+	DownloadSize  int64  `json:"download_size"`
 	Icon          string `json:"icon"`
-	InstalledSize int64  `json:"installed_size,string"`
+	InstalledSize int64  `json:"installed_size"`
 	Name          string `json:"name"`
 	Origin        string `json:"origin"`
 	Status        string `json:"status"`

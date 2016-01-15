@@ -60,9 +60,9 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			"snaps": {
 				"hello-world.canonical": {
 					"description": "hello-world",
-					"download_size": "22212",
+					"download_size": 22212,
 					"icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-					"installed_size": "-1",
+					"installed_size": -1,
 					"name": "hello-world",
 					"origin": "canonical",
 					"resource": "/2.0/snaps/hello-world.canonical",
@@ -99,9 +99,9 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		"type": "sync",
 		"result": {
 			"description": "WebRTC Video chat server for Snappy",
-			"download_size": "6930947",
+			"download_size": 6930947,
 			"icon": "/2.0/icons/chatroom.ogra/icon",
-			"installed_size": "18976651",
+			"installed_size": 18976651,
 			"name": "chatroom",
 			"origin": "ogra",
 			"resource": "/2.0/snaps/chatroom.ogra",
