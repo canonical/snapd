@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"testing"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
@@ -41,8 +42,15 @@ const (
 	helloAppComposedName = "hello-app.testspacethename"
 )
 
+// Hook up check.v1 into the "go test" runner
+func Test(t *testing.T) { TestingT(t) }
+
 // here to make it easy to switch in tests to "BuildSquashfsSnap"
-var snapBuilderFunc = BuildLegacySnap
+var snapBuilderFunc = BuildSquashfsSnap
+
+func init() {
+	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
+}
 
 // makeInstalledMockSnap creates a installed mock snap without any
 // content other than the meta data
@@ -68,7 +76,7 @@ services:
 	}
 
 	dirName := m.qualifiedName(testOrigin)
-	metaDir := filepath.Join(tempdir, "apps", dirName, m.Version, "meta")
+	metaDir := filepath.Join(tempdir, "snaps", dirName, m.Version, "meta")
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
 	}

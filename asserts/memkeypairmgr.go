@@ -23,8 +23,8 @@ type memoryKeypairManager struct {
 	pairs map[string]map[string]PrivateKey
 }
 
-// NewMemoryKeypairMananager creates a new key pair manager with a memory backstore.
-func NewMemoryKeypairMananager() KeypairManager {
+// NewMemoryKeypairManager creates a new key pair manager with a memory backstore.
+func NewMemoryKeypairManager() KeypairManager {
 	return memoryKeypairManager{
 		pairs: make(map[string]map[string]PrivateKey),
 	}

@@ -33,20 +33,17 @@ import (
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
-	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/policy"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/clickdeb"
 	"github.com/ubuntu-core/snappy/systemd"
 
 	. "gopkg.in/check.v1"
 )
 
 type SnapTestSuite struct {
-	tempdir   string
-	clickhook string
-	secbase   string
+	tempdir string
+	secbase string
 }
 
 var _ = Suite(&SnapTestSuite{})
@@ -54,26 +51,17 @@ var _ = Suite(&SnapTestSuite{})
 func (s *SnapTestSuite) SetUpTest(c *C) {
 	s.secbase = policy.SecBase
 	s.tempdir = c.MkDir()
-	newPartition = func() (p partition.Interface) {
-		return new(MockPartition)
-	}
-
 	dirs.SetRootDir(s.tempdir)
+
 	policy.SecBase = filepath.Join(s.tempdir, "security")
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
 	os.MkdirAll(dirs.SnapSeccompDir, 0755)
 
 	release.Override(release.Release{Flavor: "core", Series: "15.04"})
 
-	dirs.ClickSystemHooksDir = filepath.Join(s.tempdir, "/usr/share/click/hooks")
-	os.MkdirAll(dirs.ClickSystemHooksDir, 0755)
-
 	// create a fake systemd environment
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 
-	// we may not have debsig-verify installed (and we don't need it
-	// for the unittests)
-	clickdeb.VerifyCmd = "true"
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
@@ -151,21 +139,8 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snap.Date(), Equals, st.ModTime())
 
-	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", helloAppComposedName, "1.10"))
+	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "snaps", helloAppComposedName, "1.10"))
 	c.Assert(snap.InstalledSize(), Not(Equals), -1)
-}
-
-func (s *SnapTestSuite) TestLocalSnapHash(c *C) {
-	snapYaml, err := s.makeInstalledMockSnap()
-	c.Assert(err, IsNil)
-
-	hashesFile := filepath.Join(filepath.Dir(snapYaml), "hashes.yaml")
-	err = ioutil.WriteFile(hashesFile, []byte("archive-sha512: F00F00"), 0644)
-	c.Assert(err, IsNil)
-
-	snap, err := NewInstalledSnapPart(snapYaml, testOrigin)
-	c.Assert(err, IsNil)
-	c.Assert(snap.Hash(), Equals, "F00F00")
 }
 
 func (s *SnapTestSuite) TestLocalSnapActive(c *C) {
@@ -205,7 +180,7 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 	err = makeSnapActive(yamlPath)
 	c.Assert(err, IsNil)
 
-	snap := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
+	snap := NewLocalSnapRepository(filepath.Join(s.tempdir, "snaps"))
 	c.Assert(snap, NotNil)
 
 	installed, err := snap.Installed()
@@ -698,7 +673,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	c.Check(installed[0].Icon(), Matches, ".*/apps/foo.bar/1.0/foo.svg")
+	c.Check(installed[0].Icon(), Matches, ".*/snaps/foo.bar/1.0/foo.svg")
 	c.Check(installed[0].Origin(), Equals, "bar")
 	c.Check(installed[0].Description(), Equals, "this is a description")
 
@@ -761,7 +736,7 @@ architectures:
 `
 
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	part, err := NewSnapPartFromSnapFile(snapPkg, "original", true)
+	part, err := NewSnapFile(snapPkg, "origin", true)
 	c.Assert(err, IsNil)
 
 	_, err = part.Install(&MockProgressMeter{}, 0)
@@ -833,7 +808,7 @@ services:
 	c.Assert(err, IsNil)
 	c.Assert(snap.Date(), Equals, st.ModTime())
 
-	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "apps", helloAppComposedName, "1.10"))
+	c.Assert(snap.basedir, Equals, filepath.Join(s.tempdir, "snaps", helloAppComposedName, "1.10"))
 	c.Assert(snap.InstalledSize(), Not(Equals), -1)
 }
 
@@ -953,7 +928,7 @@ type: gadget
 
 	p := &MockProgressMeter{}
 
-	r := NewLocalSnapRepository(filepath.Join(s.tempdir, "apps"))
+	r := NewLocalSnapRepository(filepath.Join(s.tempdir, "snaps"))
 	c.Assert(r, NotNil)
 	installed, err := r.Installed()
 	c.Assert(err, IsNil)
@@ -1034,30 +1009,6 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 	c.Assert(m.ServiceYamls[0].SecurityTemplate, Equals, "foo_template")
 }
 
-func (s *SnapTestSuite) TestPackageYamlFrameworkParsing(c *C) {
-	m, err := parsePackageYamlData([]byte(`name: foo
-version: 1.0
-framework: one, two
-`), false)
-	c.Assert(err, IsNil)
-	c.Assert(m.Frameworks, HasLen, 2)
-	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
-	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
-}
-
-func (s *SnapTestSuite) TestPackageYamlFrameworksParsing(c *C) {
-	m, err := parsePackageYamlData([]byte(`name: foo
-version: 1.0
-frameworks:
- - one
- - two
-`), false)
-	c.Assert(err, IsNil)
-	c.Assert(m.Frameworks, HasLen, 2)
-	c.Check(m.Frameworks, DeepEquals, []string{"one", "two"})
-	c.Check(m.FrameworksForClick(), Matches, "one,two,ubuntu-core.*")
-}
-
 func (s *SnapTestSuite) TestPackageYamlFrameworkAndFrameworksFails(c *C) {
 	_, err := parsePackageYamlData([]byte(`name: foo
 version: 1.0
@@ -1077,7 +1028,7 @@ func (s *SnapTestSuite) TestDetectsAlreadyInstalled(c *C) {
 
 	yaml, err := parsePackageYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(yaml.checkForPackageInstalled("otherns"), Equals, ErrPackageNameAlreadyInstalled)
+	c.Check(yaml.checkForPackageInstalled("otherns"), ErrorMatches, ".*is already installed with origin.*")
 }
 
 func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameOrigin(c *C) {
@@ -1112,7 +1063,7 @@ func (s *SnapTestSuite) TestDetectsAlreadyInstalledFramework(c *C) {
 
 	yaml, err := parsePackageYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
-	c.Check(yaml.checkForPackageInstalled("otherns"), Equals, ErrPackageNameAlreadyInstalled)
+	c.Check(yaml.checkForPackageInstalled("otherns"), ErrorMatches, ".*is already installed with origin.*")
 }
 
 func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
@@ -1287,7 +1238,7 @@ func (s *SnapTestSuite) TestNeedsAppArmorUpdatePolicyAbsent(c *C) {
 func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateService(c *C) {
 	// if one of the services needs updating, it's updated and returned
 	svc := ServiceYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Name: "part", ServiceYamls: []ServiceYaml{svc}, Version: "42"}, origin: testOrigin, basedir: filepath.Join(dirs.SnapAppsDir, "part."+testOrigin, "42")}
+	part := &SnapPart{m: &packageYaml{Name: "part", ServiceYamls: []ServiceYaml{svc}, Version: "42"}, origin: testOrigin, basedir: filepath.Join(dirs.SnapSnapsDir, "part."+testOrigin, "42")}
 	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
 	c.Assert(err, NotNil)
 }
@@ -1295,7 +1246,7 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateService(c *C) {
 func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateBinary(c *C) {
 	// if one of the binaries needs updating, the part needs updating
 	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Name: "part", Binaries: []Binary{bin}, Version: "42"}, origin: testOrigin, basedir: filepath.Join(dirs.SnapAppsDir, "part."+testOrigin, "42")}
+	part := &SnapPart{m: &packageYaml{Name: "part", Binaries: []Binary{bin}, Version: "42"}, origin: testOrigin, basedir: filepath.Join(dirs.SnapSnapsDir, "part."+testOrigin, "42")}
 	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
 	c.Check(err, NotNil) // XXX: we should do better than this
 }
@@ -1454,14 +1405,6 @@ func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
 	c.Assert(cmds, HasLen, 2)
 }
 
-func (s *SnapTestSuite) TestLegacyConfigHook(c *C) {
-	packageYaml, err := parsePackageYamlData([]byte(`name: foo
-version: 1.0
-`), true)
-	c.Assert(err, IsNil)
-	c.Check(packageYaml.Integration["snappy-config"], DeepEquals, clickAppHook{"apparmor": "meta/snappy-config.apparmor"})
-}
-
 func (s *SnapTestSuite) TestQualifiedNameName(c *C) {
 	packageYaml, err := parsePackageYamlData([]byte(`name: foo
 version: 1.0
@@ -1505,35 +1448,6 @@ func (s *SnapTestSuite) TestParsePackageYamlDataChecksMultiple(c *C) {
 	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required fields 'name, version'.*")
 }
 
-func (s *SnapTestSuite) TestIntegrateBoring(c *C) {
-	m := &packageYaml{}
-	m.legacyIntegration(false)
-
-	// no binaries, no service, no legacyIntegration
-	c.Check(m.Integration, HasLen, 0)
-}
-
-func (s *SnapTestSuite) TestIntegrateConfig(c *C) {
-	m := &packageYaml{}
-	m.legacyIntegration(true)
-
-	// no binaries, no service, but config! => legacyIntegration
-	c.Check(m.Integration, HasLen, 1)
-	c.Check(m.Integration["snappy-config"], DeepEquals, clickAppHook{"apparmor": "meta/snappy-config.apparmor"})
-}
-
-func (s *SnapTestSuite) TestIntegrateService(c *C) {
-	m := &packageYaml{
-		ServiceYamls: []ServiceYaml{
-			{
-				Name: "svc",
-			},
-		},
-	}
-
-	m.legacyIntegration(false)
-}
-
 func (s *SnapTestSuite) TestCpiURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
 	before := cpiURL()
@@ -1557,7 +1471,7 @@ func (s *SnapTestSuite) TestIcon(c *C) {
 	snapYaml, err := s.makeInstalledMockSnap()
 	part, err := NewInstalledSnapPart(snapYaml, testOrigin)
 	c.Assert(err, IsNil)
-	c.Check(part.Icon(), Matches, filepath.Join(dirs.SnapAppsDir, QualifiedName(part), part.Version(), "meta/hello.svg"))
+	c.Check(part.Icon(), Matches, filepath.Join(dirs.SnapSnapsDir, QualifiedName(part), part.Version(), "meta/hello.svg"))
 }
 
 func (s *SnapTestSuite) TestIconEmpty(c *C) {

@@ -2,7 +2,7 @@
 // +build !excludeintegration,!excludereboots
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,10 +22,9 @@ package tests
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
@@ -57,61 +56,32 @@ ExecStart=-/bin/sh -c 'if ! systemctl is-active default.target; then wall "EMERG
 [Install]
 RequiredBy=sysinit.target
 `
-	baseSystemdPath          = "/lib/systemd/system"
 	systemdTargetRequiresDir = "sysinit.target.requires"
 )
 
-type systemdDependencyLoop struct{}
+func installService(c *check.C, serviceName, serviceCfg, servicesPath string) {
+	// Create service file.
+	cli.ExecCommand(c, "sudo", "chmod", "a+w", servicesPath)
+	serviceFileName := fmt.Sprintf("%s.service", serviceName)
+	serviceFilePath := filepath.Join(servicesPath, serviceFileName)
+	cli.ExecCommandToFile(c, serviceFilePath, "sudo", "echo", serviceCfg)
 
-func (systemdDependencyLoop) set(c *check.C) {
-	installService(c, "deadlock", deadlockService, common.BaseAltPartitionPath)
-	installService(c, "emerg-reboot", rebootService, common.BaseAltPartitionPath)
-}
-
-func (systemdDependencyLoop) unset(c *check.C) {
-	unInstallService(c, "deadlock", common.BaseAltPartitionPath)
-	unInstallService(c, "emerg-reboot", common.BaseAltPartitionPath)
-}
-
-func installService(c *check.C, serviceName, serviceCfg, basePath string) {
-	partition.MakeWritable(c, basePath)
-	defer partition.MakeReadonly(c, basePath)
-
-	// Create service file
-	serviceFile := fmt.Sprintf("%s%s/%s.service", basePath, baseSystemdPath, serviceName)
-	cli.ExecCommand(c, "sudo", "chmod", "a+w", fmt.Sprintf("%s%s", basePath, baseSystemdPath))
-	cli.ExecCommandToFile(c, serviceFile, "sudo", "echo", serviceCfg)
-
-	// Create requires directory
-	requiresDirPart := fmt.Sprintf("%s/%s", baseSystemdPath, systemdTargetRequiresDir)
-	requiresDir := fmt.Sprintf("%s%s", basePath, requiresDirPart)
+	// Create requires directory.
+	requiresDir := filepath.Join(servicesPath, systemdTargetRequiresDir)
 	cli.ExecCommand(c, "sudo", "mkdir", "-p", requiresDir)
 
-	// Symlink from the requires dir to the service file (with chroot for being
-	// usable in the other partition)
-	cli.ExecCommand(c, "sudo", "chroot", basePath, "ln", "-s",
-		fmt.Sprintf("%s/%s.service", baseSystemdPath, serviceName),
-		fmt.Sprintf("%s/%s.service", requiresDirPart, serviceName),
+	// Symlink from the requires dir to the service file.
+	cli.ExecCommand(c, "sudo", "ln", "-s", serviceFilePath,
+		filepath.Join(requiresDir, serviceFileName),
 	)
 }
 
-func unInstallService(c *check.C, serviceName, basePath string) {
-	partition.MakeWritable(c, basePath)
-	defer partition.MakeReadonly(c, basePath)
-
-	// Disable the service
-	cli.ExecCommand(c, "sudo", "chroot", basePath,
-		"systemctl", "disable", fmt.Sprintf("%s.service", serviceName))
-
-	// Remove the service file
-	cli.ExecCommand(c, "sudo", "rm",
-		fmt.Sprintf("%s%s/%s.service", basePath, baseSystemdPath, serviceName))
-
-	// Remove the requires symlink
-	cli.ExecCommand(c, "sudo", "rm",
-		fmt.Sprintf("%s%s/%s/%s.service", basePath, baseSystemdPath, systemdTargetRequiresDir, serviceName))
-}
-
 func (s *failoverSuite) TestSystemdDependencyLoop(c *check.C) {
-	commonFailoverTest(c, systemdDependencyLoop{})
+	breakSnap := func(snapPath string) error {
+		servicesPath := filepath.Join(snapPath, "lib", "systemd", "system")
+		installService(c, "deadlock", deadlockService, servicesPath)
+		installService(c, "emerg-reboot", rebootService, servicesPath)
+		return nil
+	}
+	s.testUpdateToBrokenVersion(c, "ubuntu-core.canonical", breakSnap)
 }

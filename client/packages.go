@@ -52,7 +52,7 @@ const (
 )
 
 // Packages returns the list of packages the system can handle
-func (client *Client) Packages() (map[string]Package, error) {
+func (client *Client) Packages() (map[string]*Package, error) {
 	const errPrefix = "cannot list packages"
 
 	var result map[string]json.RawMessage
@@ -65,10 +65,23 @@ func (client *Client) Packages() (map[string]Package, error) {
 		return nil, fmt.Errorf("%s: response has no packages", errPrefix)
 	}
 
-	var packages map[string]Package
+	var packages map[string]*Package
 	if err := json.Unmarshal(packagesJSON, &packages); err != nil {
 		return nil, fmt.Errorf("%s: failed to unmarshal packages: %v", errPrefix, err)
 	}
 
 	return packages, nil
+}
+
+// Package returns the most recently published revision of the package with the
+// provided name.
+func (client *Client) Package(name string) (*Package, error) {
+	var pkg *Package
+
+	path := fmt.Sprintf("/1.0/packages/%s", name)
+	if err := client.doSync("GET", path, nil, &pkg); err != nil {
+		return nil, fmt.Errorf("cannot retrieve package %q: %s", name, err)
+	}
+
+	return pkg, nil
 }

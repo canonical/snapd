@@ -90,7 +90,7 @@ func (s *purgeSuite) mkpkg(c *C, args ...string) (dataDirs []string, part *SnapP
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	dataHomeDir := filepath.Join(s.tempdir, "home", "user1", "apps", app, version)
+	dataHomeDir := filepath.Join(s.tempdir, "home", "user1", "snaps", app, version)
 	c.Assert(os.MkdirAll(dataHomeDir, 0755), IsNil)
 	canaryDataFile = filepath.Join(dataHomeDir, "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)

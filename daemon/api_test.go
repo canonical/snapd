@@ -78,13 +78,11 @@ func (s *apiSuite) SetUpSuite(c *check.C) {
 	newRemoteRepo = func() metarepo {
 		return s
 	}
-	newSystemRepo = newRemoteRepo
 	muxVars = s.muxVars
 }
 
 func (s *apiSuite) TearDownSuite(c *check.C) {
 	newRemoteRepo = nil
-	newSystemRepo = nil
 	muxVars = nil
 }
 
@@ -105,7 +103,7 @@ func (s *apiSuite) mkInstalled(c *check.C, name, origin, version string, active 
 	fullname := name + "." + origin
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, fullname, version), 0755), check.IsNil)
 
-	metadir := filepath.Join(dirs.SnapAppsDir, fullname, version, "meta")
+	metadir := filepath.Join(dirs.SnapSnapsDir, fullname, version, "meta")
 	c.Assert(os.MkdirAll(metadir, 0755), check.IsNil)
 
 	c.Check(ioutil.WriteFile(filepath.Join(metadir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
@@ -118,7 +116,7 @@ version: %s
 	c.Check(ioutil.WriteFile(filepath.Join(metadir, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
 
 	if active {
-		c.Assert(os.Symlink(version, filepath.Join(dirs.SnapAppsDir, fullname, "current")), check.IsNil)
+		c.Assert(os.Symlink(version, filepath.Join(dirs.SnapSnapsDir, fullname, "current")), check.IsNil)
 	}
 }
 
@@ -129,7 +127,7 @@ type: gadget
 gadget: {store: {id: %q}}
 `, store))
 
-	d := filepath.Join(dirs.SnapGadgetDir, "test")
+	d := filepath.Join(dirs.SnapSnapsDir, "test")
 	m := filepath.Join(d, "1", "meta")
 	c.Assert(os.MkdirAll(m, 0755), check.IsNil)
 	c.Assert(os.Symlink("1", filepath.Join(d, "current")), check.IsNil)
@@ -283,7 +281,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"newRemoteRepo",
-		"newSystemRepo",
 		"newSnap",
 		"pkgActionDispatch",
 		// packageInstruction vars:
@@ -950,7 +947,7 @@ func (s *apiSuite) TestAppIconGet(c *check.C) {
 	s.mkInstalled(c, "foo", "bar", "v1", true, "icon: icon.ick")
 
 	// have an icon for it in the package itself
-	iconfile := filepath.Join(dirs.SnapAppsDir, "foo.bar", "v1", "icon.ick")
+	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "icon.ick")
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
@@ -969,7 +966,7 @@ func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 	s.mkInstalled(c, "foo", "bar", "v1", false, "icon: icon.ick")
 
 	// have an icon for it in the package itself
-	iconfile := filepath.Join(dirs.SnapAppsDir, "foo.bar", "v1", "icon.ick")
+	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "icon.ick")
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}

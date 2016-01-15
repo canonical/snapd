@@ -20,6 +20,8 @@
 package client_test
 
 import (
+	"fmt"
+
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/client"
@@ -73,8 +75,8 @@ func (cs *clientSuite) TestClientPackages(c *check.C) {
 	}`
 	applications, err := cs.cli.Packages()
 	c.Check(err, check.IsNil)
-	c.Check(applications, check.DeepEquals, map[string]client.Package{
-		"hello-world.canonical": client.Package{
+	c.Check(applications, check.DeepEquals, map[string]*client.Package{
+		"hello-world.canonical": &client.Package{
 			Description:   "hello-world",
 			DownloadSize:  22212,
 			Icon:          "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
@@ -85,5 +87,43 @@ func (cs *clientSuite) TestClientPackages(c *check.C) {
 			Type:          client.TypeApp,
 			Version:       "1.0.18",
 		},
+	})
+}
+
+const (
+	pkgName = "chatroom.ogra"
+)
+
+func (cs *clientSuite) TestClientPackage(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": {
+			"description": "WebRTC Video chat server for Snappy",
+			"download_size": "6930947",
+			"icon": "/1.0/icons/chatroom.ogra/icon",
+			"installed_size": "18976651",
+			"name": "chatroom",
+			"origin": "ogra",
+			"resource": "/1.0/packages/chatroom.ogra",
+			"status": "active",
+			"type": "app",
+			"vendor": "",
+			"version": "0.1-8"
+		}
+	}`
+	pkg, err := cs.cli.Package(pkgName)
+	c.Assert(cs.req.Method, check.Equals, "GET")
+	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/1.0/packages/%s", pkgName))
+	c.Assert(err, check.IsNil)
+	c.Assert(pkg, check.DeepEquals, &client.Package{
+		Description:   "WebRTC Video chat server for Snappy",
+		DownloadSize:  6930947,
+		Icon:          "/1.0/icons/chatroom.ogra/icon",
+		InstalledSize: 18976651,
+		Name:          "chatroom",
+		Origin:        "ogra",
+		Status:        client.StatusActive,
+		Type:          client.TypeApp,
+		Version:       "0.1-8",
 	})
 }

@@ -32,6 +32,13 @@ type Type interface {
 	Name() string
 	// Sanitize a capability (altering if necessary).
 	Sanitize(c *Capability) error
+	// SecuritySnippet returns the configuration snippet that should be used by
+	// the given security system to enable this capability to be consumed.
+	// An empty snippet is returned when the capability doesn't require anything
+	// from the security system to work, in addition to the default configuration.
+	// ErrUnknownSecurity is returned when the capability cannot deal with the
+	// requested security system.
+	SecuritySnippet(c *Capability, securitySystem SecuritySystem) ([]byte, error)
 }
 
 // BoolFileType is the type of all the bool-file capabilities.
@@ -77,6 +84,24 @@ func (t *BoolFileType) Sanitize(c *Capability) error {
 	return nil
 }
 
+// SecuritySnippet returns the configuration snippet required to use a bool-file capability.
+// Consumers gain permission to read, write and lock the designated file.
+func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case SecurityApparmor:
+		// TODO: switch to the real path later
+		path := c.Attrs["path"]
+		// Allow read, write and lock on the file designated by the path.
+		return []byte(fmt.Sprintf("%s rwl,\n", path)), nil
+	case SecuritySeccomp:
+		return nil, nil
+	case SecurityDBus:
+		return nil, nil
+	default:
+		return nil, ErrUnknownSecurity
+	}
+}
+
 // TestType is a type for various kind of tests.
 // It is public so that it can be consumed from other packages.
 type TestType struct {
@@ -105,6 +130,12 @@ func (t *TestType) Sanitize(c *Capability) error {
 		return t.SanitizeCallback(c)
 	}
 	return nil
+}
+
+// SecuritySnippet returns the configuration snippet "required" to use a test capability.
+// Consumers don't gain any extra permissions.
+func (t *TestType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) ([]byte, error) {
+	return nil, nil
 }
 
 var builtInTypes = [...]Type{

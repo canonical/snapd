@@ -46,7 +46,6 @@ func (s *installFrameworkSuite) TestInstallFrameworkMustPrintPackageInformation(
 
 	expected := "(?ms)" +
 		fmt.Sprintf("Installing %s\n", snapPath) +
-		".*Signature check failed, but installing anyway as requested\n" +
 		"Name +Date +Version +Developer \n" +
 		".*" +
 		"^basic-framework +.* +.* +sideload *\n" +

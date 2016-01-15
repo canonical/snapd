@@ -58,7 +58,7 @@ func (s *snapdTestSuite) SetUpTest(c *check.C) {
 
 	s.cmd.Start()
 
-	common.InstallSnap(c, httpClientSnap)
+	common.InstallSnap(c, httpClientSnap+"/edge")
 }
 
 func (s *snapdTestSuite) TearDownTest(c *check.C) {
@@ -249,8 +249,8 @@ func makeRequest(options *requestOptions) (body []byte, err error) {
 
 func determinePayload(payload string) (string, error) {
 	if _, err := os.Stat(payload); err == nil {
-		// payload is a file, in order to make the snap file available to http we need to move it to its $SNAP_APP_DATA_PATH
-		snapAppDataPath := filepath.Join("/var/lib/apps", httpClientSnap, "current")
+		// payload is a file, in order to make the snap file available to http we need to move it to its $SNAP_DATA path
+		snapAppDataPath := filepath.Join("/var/lib/snaps", httpClientSnap, "current")
 		if _, err := cli.ExecCommandErr("sudo", "cp", payload, snapAppDataPath); err != nil {
 			return "", err
 		}
