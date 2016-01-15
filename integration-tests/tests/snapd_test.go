@@ -58,7 +58,7 @@ func (s *snapdTestSuite) SetUpTest(c *check.C) {
 
 	s.cmd.Start()
 
-	common.InstallSnap(c, httpClientSnap)
+	common.InstallSnap(c, httpClientSnap+"/edge")
 }
 
 func (s *snapdTestSuite) TearDownTest(c *check.C) {
