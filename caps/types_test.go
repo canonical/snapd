@@ -68,13 +68,16 @@ func (s *BoolFileTypeSuite) TestSanitizeMissingPath(c *C) {
 }
 
 func (s *BoolFileTypeSuite) TestSecuritySnippet(c *C) {
+	MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+		return "real-path", nil
+	})
 	cap := &Capability{
 		TypeName: "bool-file",
 		Attrs:    map[string]string{"path": "path"},
 	}
 	snippet, err := s.t.SecuritySnippet(cap, SecurityApparmor)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, []byte("path rwl,\n"))
+	c.Assert(snippet, DeepEquals, []byte("real-path rwl,\n"))
 	snippet, err = s.t.SecuritySnippet(cap, SecuritySeccomp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)

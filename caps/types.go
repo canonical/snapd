@@ -98,8 +98,10 @@ func (t *BoolFileType) Sanitize(c *Capability) error {
 func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case SecurityApparmor:
-		// TODO: switch to the real path later
-		path := c.Attrs["path"]
+		path, err := t.dereferencedPath(c)
+		if err != nil {
+			return nil, err
+		}
 		// Allow read, write and lock on the file designated by the path.
 		return []byte(fmt.Sprintf("%s rwl,\n", path)), nil
 	case SecuritySeccomp:
