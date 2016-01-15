@@ -34,6 +34,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/lockfile"
@@ -61,6 +62,7 @@ var api = []*Command{
 	operationCmd,
 	capabilitiesCmd,
 	capabilityCmd,
+	assertsCmd,
 }
 
 var (
@@ -138,6 +140,11 @@ var (
 	capabilityCmd = &Command{
 		Path:   "/1.0/capabilities/{name}",
 		DELETE: deleteCapability,
+	}
+
+	assertsCmd = &Command{
+		Path: "/2.0/assertions",
+		POST: doAssert,
 	}
 )
 
@@ -930,5 +937,25 @@ func deleteCapability(c *Command, r *http.Request) Response {
 		return NotFound(err, "can't remove capability")
 	default:
 		return InternalError(err, "")
+	}
+}
+
+func doAssert(c *Command, r *http.Request) Response {
+	// XXX how/where do we want to do locking about this?
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return BadRequest(err, "reading assert request body gave %v", err)
+	}
+	a, err := asserts.Decode(b)
+	if err != nil {
+		return BadRequest(err, "can't decode request body into an assertion")
+	}
+	if err := c.d.asserts.Add(a); err != nil {
+		// XXX use 409 for older revision?
+		return BadRequest(err, "assert failed")
+	}
+	return &resp{
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
 	}
 }

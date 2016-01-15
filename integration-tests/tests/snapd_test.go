@@ -49,11 +49,17 @@ type snapdTestSuite struct {
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
+
+	trustedKey, err := filepath.Abs("integration-tests/data/trusted.acckey")
+	c.Assert(err, check.IsNil)
+
 	cli.ExecCommand(c, "sudo", "systemctl", "stop",
 		"ubuntu-snappy.snapd.service", "ubuntu-snappy.snapd.socket")
 
+	// XXX: better way to setup an alternative trusted key?
 	s.cmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
-		"/lib/systemd/systemd-activate",
+		"SNAPPY_TRUSTED_ACCOUNT_KEY="+trustedKey,
+		"/lib/systemd/systemd-activate", "-ESNAPPY_TRUSTED_ACCOUNT_KEY",
 		"-l", "/run/snapd.socket", "snapd")
 
 	s.cmd.Start()

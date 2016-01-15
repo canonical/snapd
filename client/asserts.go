@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,22 +17,19 @@
  *
  */
 
-package tests
+package client
 
 import (
-	"gopkg.in/check.v1"
-
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
+	"bytes"
+	"fmt"
 )
 
-// XXX cheat using snapdTestSuite for now
+// Assert tries to add an assertion.
+func (client *Client) Assert(b []byte) error {
+	var rsp interface{}
+	if err := client.doSync("POST", "/2.0/assertions", bytes.NewReader(b), &rsp); err != nil {
+		return fmt.Errorf("cannot assert: %s", err)
+	}
 
-var _ = check.Suite(&snapAssertSuite{})
-
-type snapAssertSuite struct {
-	snapdTestSuite
-}
-
-func (s *snapAssertSuite) TestOK(c *check.C) {
-	cli.ExecCommand(c, "sudo", "snap", "assert", "integration-tests/data/dev1.acckey")
+	return nil
 }

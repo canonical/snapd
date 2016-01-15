@@ -38,6 +38,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/progress"
@@ -1321,4 +1322,105 @@ func (s *apiSuite) TestDeleteCapabilityNotFound(c *check.C) {
 	// Verify (internal)
 	after := d.capRepo.All()
 	c.Check(before, check.DeepEquals, after)
+}
+
+const (
+	testTrustedKey = `type: account-key
+authority-id: can0nical
+account-id: can0nical
+public-key-id: 844efa9730eec4be
+public-key-fingerprint: 716ff3cec4b9364a2bd930dc844efa9730eec4be
+since: 2016-01-14T15:00:00Z
+until: 2023-01-14T15:00:00Z
+body-length: 376
+
+openpgp xsBNBFaXv40BCADIlqLKFZaPaoe4TNLQv77vh4JWTlt7Z3IN2ducNqfg50q5mnkyUD2D
+SckvsMy1440+a0Z83m/A7aPaO1JkLpMGfLr23VLyKCaAe0k6hg69/6aEfXhfy0yYvEOgGcBiX+fN
+T6tqdRCsd+08LtisjYez7iJvmVwQ/syeduoTU4EiSVO1zlgc3eeq3TFyvcN0E1EsZ/7l2A33amTo
+mtAPVyQsa1B+lTeaUgwuPBWV0oTuYcUSfYsmmsXEKx/PnzkliicnrC9QZ5CcisskVve3QwPAuLUz
+2nV7/6vSRF22T4cUPF4QntjZBB6xjopdDH6wQsKyzLTTRak74moWksx8MEmVABEBAAE=
+
+openpgp wsBcBAABCAAQBQJWl8DiCRCETvqXMO7EvgAAhjkIAEoINWjQkujtx/TFYsKh0yYcQSpT
+v8O83mLRP7Ty+mH99uQ0/DbeQ1hM5st8cFgzU8SzlDCh6BUMnAl/bR/hhibFD40CBLd13kDXl1aN
+APybmSYoDVRQPAPop44UF0aCrTIw4Xds3E56d2Rsn+CkNML03kRc/i0Q53uYzZwxXVnzW/gVOXDL
+u/IZtjeo3KsB645MVEUxJLQmjlgMOwMvCHJgWhSvZOuf7wC0soBCN9Ufa/0M/PZFXzzn8LpjKVrX
+iDXhV7cY5PceG8ZV7Duo1JadOCzpkOHmai4DcrN7ZeY8bJnuNjOwvTLkrouw9xci4IxpPDRu0T/i
+K9qaJtUo4cA=`
+	testAccKey = `type: account-key
+authority-id: can0nical
+account-id: developer1
+public-key-id: adea89b00094c337
+public-key-fingerprint: 5fa7b16ad5e8c8810d5a0686adea89b00094c337
+since: 2016-01-14T15:00:00Z
+until: 2023-01-14T15:00:00Z
+body-length: 376
+
+openpgp xsBNBFaXv5MBCACkK//qNb3UwRtDviGcCSEi8Z6d5OXok3yilQmEh0LuW6DyP9sVpm08
+Vb1LGewOa5dThWGX4XKRBI/jCUnjCJQ6v15lLwHe1N7MJQ58DUxKqWFMV9yn4RcDPk6LqoFpPGdR
+rbp9Ivo3PqJRMyD0wuJk9RhbaGZmILcL//BLgomE9NgQdAfZbiEnGxtkqAjeVtBtcJIj5TnCC658
+ZCqwugQeO9iJuIn3GosYvvTB6tReq6GP6b4dqvoi7SqxHVhtt2zD4Y6FUZIVmvZK0qwkV0gua2az
+LzPOeoVcU1AEl7HVeBk7G6GiT5jx+CjjoGa0j22LdJB9S3JXHtGYk5p9CAwhABEBAAE=
+
+openpgp wsBcBAABCAAQBQJWl8HNCRCETvqXMO7EvgAAeuAIABn/1i8qGyaIhxOWE2cHIPYW3hq2
+PWpq7qrPN5Dbp/00xrTvc6tvMQWsXlMrAsYuq3sBCxUp3JRp9XhGiQeJtb8ft10g3+3J7e8OGHjl
+CfXJ3A5el8Xxp5qkFywCsLdJgNtF6+uSQ4dO8SrAwzkM7c3JzntxdiFOjDLUSyZ+rXL42jdRagTY
+8bcZfb47vd68Hyz3EvSvJuHSDbcNSTd3B832cimpfq5vJ7FoDrchVn3sg+3IwekuPhG3LQn5BVtc
+0ontHd+V1GaandhqBaDA01cGZN0gnqv2Haogt0P/h3nZZZJ1nTW5PLC6hs8TZdBdl3Lel8yAHD5L
+ZF5jSvRDLgI=`
+)
+
+func (s *apiSuite) TestAssertOK(c *check.C) {
+	// Setup
+	tmpdir := c.MkDir()
+	trustedKey := filepath.Join(tmpdir, "trusted.acckey")
+	err := ioutil.WriteFile(trustedKey, []byte(testTrustedKey), 0640)
+	c.Assert(err, check.IsNil)
+	os.Setenv("SNAPPY_TRUSTED_ACCOUNT_KEY", trustedKey)
+	defer os.Setenv("SNAPPY_TRUSTED_ACCOUNT_KEY", "")
+	d := newTestDaemon()
+	buf := bytes.NewBufferString(testAccKey)
+	// Execute
+	req, err := http.NewRequest("POST", "/2.0/assertions", buf)
+	c.Assert(err, check.IsNil)
+	rsp := doAssert(assertsCmd, req).Self(nil, nil).(*resp)
+	// Verify (external)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	// Verify (internal)
+	_, err = d.asserts.Find(asserts.AccountKeyType, map[string]string{
+		"account-id":    "developer1",
+		"public-key-id": "adea89b00094c337",
+	})
+	c.Check(err, check.IsNil)
+
+	// TODO: test error paths in doAssert
+}
+
+func (s *apiSuite) TestAssertInvalid(c *check.C) {
+	// Setup
+	newTestDaemon()
+	buf := bytes.NewBufferString("blargh")
+	req, err := http.NewRequest("POST", "/2.0/assertions", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	// Execute
+	assertsCmd.POST(assertsCmd, req).ServeHTTP(rec, req)
+	// Verify (external)
+	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Body.String(), testutil.Contains,
+		"can't decode request body into an assertion")
+}
+
+func (s *apiSuite) TestAssertError(c *check.C) {
+	// Setup
+	newTestDaemon()
+	buf := bytes.NewBufferString(testAccKey)
+	req, err := http.NewRequest("POST", "/2.0/assertions", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	// Execute
+	assertsCmd.POST(assertsCmd, req).ServeHTTP(rec, req)
+	// Verify (external)
+	c.Check(rec.Code, check.Equals, 400)
+	c.Check(rec.Body.String(), testutil.Contains, "assert failed")
 }

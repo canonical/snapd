@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -31,7 +32,10 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/caps"
+	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
 )
 
@@ -43,6 +47,7 @@ type Daemon struct {
 	tomb         tomb.Tomb
 	router       *mux.Router
 	capRepo      *caps.Repository
+	asserts      *asserts.Database
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -237,15 +242,38 @@ func (d *Daemon) DeleteTask(uuid string) error {
 	return errTaskStillRunning
 }
 
+func openSysAssertsDB() (*asserts.Database, error) {
+	// XXX cheat about assertion bootstrap for now
+	trustedKeyPresent := helpers.FileExists(dirs.SnapTrustedAccountKey)
+	if !trustedKeyPresent {
+		// XXX cheat somewhere else?
+		trustedKey := os.Getenv("SNAPPY_TRUSTED_ACCOUNT_KEY")
+		if trustedKey != "" {
+			dirs.SnapTrustedAccountKey = trustedKey
+		} else {
+			// XXX dummy fallback for now
+			return asserts.OpenDatabase(&asserts.DatabaseConfig{
+				KeypairManager: asserts.NewMemoryKeypairManager(),
+			})
+		}
+	}
+	return asserts.OpenSysDatabase()
+}
+
 // New Daemon
 func New() *Daemon {
+	db, err := openSysAssertsDB()
+	if err != nil {
+		panic(err.Error())
+	}
 	repo := caps.NewRepository()
-	err := caps.LoadBuiltInTypes(repo)
+	err = caps.LoadBuiltInTypes(repo)
 	if err != nil {
 		panic(err.Error())
 	}
 	return &Daemon{
 		tasks:   make(map[string]*Task),
 		capRepo: repo,
+		asserts: db,
 	}
 }
