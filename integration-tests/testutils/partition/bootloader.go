@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,7 +22,6 @@ package partition
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -68,25 +67,6 @@ func BootDir(bootSystem string) string {
 		return grubDir
 	}
 	return ubootDir
-}
-
-// NextBootPartition returns the partition the system will use on the next boot
-// if we are upgrading. In grub systems it is the partition pointed in the boot
-// config file. For uboot systems the boot config file does not change, so that
-// we take the other partition in that case
-func NextBootPartition() (string, error) {
-	m, err := Mode()
-	if err != nil {
-		return "", err
-	}
-	if m != "try" {
-		return "", errors.New("Snappy is not in try mode")
-	}
-	snappyab, err := confValue("snappy_ab")
-	if err != nil {
-		return "", err
-	}
-	return snappyab, nil
 }
 
 // Mode returns the current bootloader mode, regular or try.
@@ -144,28 +124,4 @@ func getUbootConfValue(key string) (string, error) {
 	}
 
 	return env.Get(key), nil
-}
-
-// OtherPartition returns the backup partition, a or b.
-func OtherPartition(current string) string {
-	if current == "a" {
-		return "b"
-	}
-	return "a"
-}
-
-// CurrentPartition returns the current partition, a or b.
-func CurrentPartition() (partition string, err error) {
-	partition, err = confValue("snappy_ab")
-	if err != nil {
-		return
-	}
-	m, err := Mode()
-	if err != nil {
-		return
-	}
-	if m == "try" {
-		partition = OtherPartition(partition)
-	}
-	return
 }
