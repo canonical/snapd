@@ -44,22 +44,15 @@ const (
 	AllowGadget
 )
 
-func findSnapPartByName(spl []*SnapPart, name string) *SnapPart {
-	for _, sp := range spl {
-		if sp.Name() == name {
-			return sp
-		}
-	}
-	return nil
-}
-
 // Update updates a single snap with the given name
 func Update(name string, flags InstallFlags, meter progress.Meter) (*SnapPart, error) {
 	overlord := &Overlord{}
-	cur := findSnapPartByName(overlord.Installed(), name)
-	if cur == nil {
+	installed := overlord.Installed()
+	found := FindSnapsByName(name, installed)
+	if len(found) != 1 {
 		return nil, ErrNotInstalled
 	}
+	cur := found[0]
 
 	mStore := NewUbuntuStoreSnapRepository()
 	remoteSnap, err := mStore.Snap(QualifiedName(cur))
@@ -117,6 +110,8 @@ func Install(name string, flags InstallFlags, meter progress.Meter) (string, err
 }
 
 func doInstall(name string, flags InstallFlags, meter progress.Meter) (sp *SnapPart, err error) {
+	overlord := &Overlord{}
+
 	defer func() {
 		if err != nil {
 			err = &ErrInstallFailed{Snap: name, OrigErr: err}
@@ -137,10 +132,7 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (sp *SnapP
 
 	// check repos next
 	mStore := NewUbuntuStoreSnapRepository()
-	installed, err := NewMetaLocalRepository().Installed()
-	if err != nil {
-		return nil, err
-	}
+	installed := overlord.Installed()
 
 	name, origin := SplitOrigin(name)
 	found, err := mStore.Details(name, origin)
@@ -154,7 +146,6 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (sp *SnapP
 		return nil, fmt.Errorf("found %d results for %s. please report this as a bug", len(found), name)
 	}
 
-	// FIXME: move into the overlord
 	part := found[0]
 	cur := FindSnapsByNameAndVersion(QualifiedName(part), part.Version(), installed)
 	if len(cur) != 0 {
@@ -194,11 +185,8 @@ func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 		return nil
 	}
 
-	m := NewMetaRepository()
-	installed, err := m.Installed()
-	if err != nil {
-		return err
-	}
+	overlord := &Overlord{}
+	installed := overlord.Installed()
 
 	parts = FindSnapsByName(name, installed)
 	if len(parts) < 3 {
@@ -227,7 +215,7 @@ func GarbageCollect(name string, flags InstallFlags, pb progress.Meter) error {
 	}
 
 	for _, part := range parts[:active-1] {
-		if err := (&Overlord{}).Uninstall(part.(*SnapPart), pb); err != nil {
+		if err := overlord.Uninstall(part, pb); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}

@@ -409,24 +409,18 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 
 	var needed []*SnapPart
 
-	installed, err := NewMetaRepository().Installed()
-	if err != nil {
-		return nil, err
-	}
+	overlord := &Overlord{}
+	installed := overlord.Installed()
 
 	name := s.Name()
-	for _, part := range installed {
-		fmks, err := part.Frameworks()
+	for _, snap := range installed {
+		fmks, err := snap.Frameworks()
 		if err != nil {
 			return nil, err
 		}
 		for _, fmk := range fmks {
 			if fmk == name {
-				part, ok := part.(*SnapPart)
-				if !ok {
-					return nil, ErrInstalledNonSnapPart
-				}
-				needed = append(needed, part)
+				needed = append(needed, snap)
 			}
 		}
 	}

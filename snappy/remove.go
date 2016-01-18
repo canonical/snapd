@@ -38,10 +38,9 @@ const (
 func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 	var parts BySnapVersion
 
-	installed, err := NewMetaRepository().Installed()
-	if err != nil {
-		return err
-	}
+	overlord := &Overlord{}
+	installed := overlord.Installed()
+
 	// Note that "=" is not legal in a snap name or a snap version
 	l := strings.Split(partSpec, "=")
 	if len(l) == 2 {
@@ -63,7 +62,7 @@ func Remove(partSpec string, flags RemoveFlags, meter progress.Meter) error {
 	}
 
 	for _, part := range parts {
-		if err := (&Overlord{}).Uninstall(part.(*SnapPart), meter); err != nil {
+		if err := overlord.Uninstall(part, meter); err != nil {
 			return err
 		}
 	}

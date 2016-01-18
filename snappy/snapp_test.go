@@ -919,13 +919,11 @@ type: gadget
 
 	p := &MockProgressMeter{}
 
-	r := NewLocalSnapRepository(filepath.Join(s.tempdir, "snaps"))
-	c.Assert(r, NotNil)
-	installed, err := r.Installed()
-	c.Assert(err, IsNil)
+	overlord := &Overlord{}
+	installed := overlord.Installed()
 	parts := FindSnapsByName("hello-app", installed)
 	c.Assert(parts, HasLen, 1)
-	c.Check((&Overlord{}).Uninstall(parts[0].(*SnapPart), p), Equals, ErrPackageNotRemovable)
+	c.Check(overlord.Uninstall(parts[0], p), Equals, ErrPackageNotRemovable)
 }
 
 var securityBinaryPackageYaml = []byte(`name: test-snap

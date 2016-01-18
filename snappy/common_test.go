@@ -269,9 +269,7 @@ icon: foo.svg
 	c.Assert(n, Equals, "foo")
 	c.Assert(storeMinimalRemoteManifest(qn, "foo", testOrigin, "2.0", "", "remote-channel"), IsNil)
 
-	m := NewMetaRepository()
-	installed, err := m.Installed()
-	c.Assert(err, IsNil)
+	installed := (&Overlord{}).Installed()
 	c.Assert(installed, HasLen, 2)
 }
 

@@ -26,7 +26,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 )
@@ -128,19 +127,18 @@ func (s *SnapTestSuite) TestMetaRepositoryDetails(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameNotAvailable(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(dirs.SnapSnapsDir)
-	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
+	installed := (&Overlord{}).Installed()
 	parts := FindSnapsByName("not-available", installed)
 	c.Assert(parts, HasLen, 0)
 }
 
 func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(dirs.SnapSnapsDir)
-	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
+
+	installed := (&Overlord{}).Installed()
 	c.Assert(installed, HasLen, 1)
 
 	parts := FindSnapsByName("hello-app", installed)
@@ -150,9 +148,9 @@ func (s *SnapTestSuite) TestFindSnapsByNameFound(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithOrigin(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(dirs.SnapSnapsDir)
-	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
+
+	installed := (&Overlord{}).Installed()
 	c.Assert(installed, HasLen, 1)
 
 	parts := FindSnapsByName("hello-app."+testOrigin, installed)
@@ -162,9 +160,9 @@ func (s *SnapTestSuite) TestFindSnapsByNameWithOrigin(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameWithOriginNotThere(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(dirs.SnapSnapsDir)
-	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
+
+	installed := (&Overlord{}).Installed()
 	c.Assert(installed, HasLen, 1)
 
 	parts := FindSnapsByName("hello-app.otherns", installed)
@@ -194,9 +192,8 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "")
-	repo := NewLocalSnapRepository(dirs.SnapSnapsDir)
-	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
+	installed := (&Overlord{}).Installed()
 
 	parts := FindSnapsByNameAndVersion("hello-app."+testOrigin, "1.10", installed)
 	c.Check(parts, HasLen, 1)
@@ -217,9 +214,8 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndVersion(c *C) {
 
 func (s *SnapTestSuite) TestFindSnapsByNameAndVersionFmk(c *C) {
 	_, err := makeInstalledMockSnap(s.tempdir, "name: fmk\ntype: framework\nversion: 1")
-	repo := NewLocalSnapRepository(dirs.SnapSnapsDir)
-	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
+	installed := (&Overlord{}).Installed()
 
 	parts := FindSnapsByNameAndVersion("fmk."+testOrigin, "1", installed)
 	c.Check(parts, HasLen, 1)

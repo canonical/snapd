@@ -72,12 +72,13 @@ func (x *cmdInfo) Execute(args []string) (err error) {
 }
 
 func snapInfo(pkgname string, includeStore, verbose bool) error {
-	snap := snappy.ActiveSnapByName(pkgname)
+	var snap snappy.Part
+	snap = snappy.ActiveSnapByName(pkgname)
 	if snap == nil && includeStore {
 		m := snappy.NewUbuntuStoreSnapRepository()
-		snaps, err := m.Details(snappy.SplitOrigin(pkgname))
-		if err == nil && len(snaps) == 1 {
-			snap = snaps[0]
+		remoteSnap, err := m.Snap(pkgname)
+		if err == nil {
+			snap = remoteSnap
 		}
 	}
 
