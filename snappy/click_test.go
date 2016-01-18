@@ -41,6 +41,12 @@ import (
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
+// FIXME: kill once every test is converted
+func installClick(snapFilePath string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
+	overlord := &Overlord{}
+	return overlord.Install(snapFilePath, origin, inter, flags)
+}
+
 func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	snapFile := makeTestSnapPackage(c, "")
 	name, err := installClick(snapFile, 0, nil, testOrigin)

@@ -175,7 +175,8 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 			flags |= AllowUnauthenticated
 		}
 
-		return installClick(name, flags, meter, SideloadedOrigin)
+		overlord := &Overlord{}
+		return overlord.Install(name, SideloadedOrigin, meter, flags)
 	}
 
 	// check repos next

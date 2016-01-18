@@ -35,7 +35,6 @@ import (
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/systemd"
 )
@@ -454,11 +453,6 @@ type agreer interface {
 type interacter interface {
 	agreer
 	Notify(status string)
-}
-
-func installClick(snapFilePath string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
-	overlord := &Overlord{}
-	return overlord.Install(snapFilePath, origin, inter, flags)
 }
 
 // removeSnapData removes the data for the given version of the given snap
