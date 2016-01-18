@@ -20,10 +20,10 @@
 package snappy
 
 // ListInstalled returns all installed snaps
-func ListInstalled() ([]Part, error) {
-	m := NewMetaRepository()
+func ListInstalled() ([]*SnapPart, error) {
+	overlord := &Overlord{}
 
-	return m.Installed()
+	return overlord.Installed(), nil
 }
 
 // ListUpdates returns all snaps with updates

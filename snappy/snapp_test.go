@@ -664,9 +664,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	r.pkg.Version = "1.0"
 
 	p := &MockProgressMeter{}
-	name, err := installRemote(r, p, 0)
+	localSnap, err := installRemote(r, p, 0)
 	c.Assert(err, IsNil)
-	c.Check(name, Equals, "foo")
+	c.Check(localSnap.Name(), Equals, "foo")
 	st, err := os.Stat(snapPackage)
 	c.Assert(err, IsNil)
 	c.Assert(p.written, Equals, int(st.Size()))
@@ -716,14 +716,14 @@ services:
 	r.pkg.Version = "1.0"
 
 	p := &MockProgressMeter{}
-	name, err := installRemote(r, p, 0)
+	localSnap, err := installRemote(r, p, 0)
 	c.Assert(err, IsNil)
-	c.Check(name, Equals, "foo")
+	c.Check(localSnap.Name(), Equals, "foo")
 	c.Check(p.notified, HasLen, 0)
 
-	_, err = installRemote(r, p, 0)
+	localSnap, err = installRemote(r, p, 0)
 	c.Assert(err, IsNil)
-	c.Check(name, Equals, "foo")
+	c.Check(localSnap.Name(), Equals, "foo")
 	c.Check(p.notified, HasLen, 1)
 	c.Check(p.notified[0], Matches, "Waiting for .* stop.")
 }

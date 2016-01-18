@@ -39,27 +39,27 @@ type Overlord struct {
 }
 
 // Install installs the given snap file name
-func (o *Overlord) Install(snapFileName string, origin string, inter progress.Meter, flags InstallFlags) (name string, err error) {
+func (o *Overlord) Install(snapFileName string, origin string, inter progress.Meter, flags InstallFlags) (sn *SnapPart, err error) {
 	allowGadget := (flags & AllowGadget) != 0
 	inhibitHooks := (flags & InhibitHooks) != 0
 	allowUnauth := (flags & AllowUnauthenticated) != 0
 
 	s, err := NewSnapFile(snapFileName, origin, allowUnauth)
 	if err != nil {
-		return "", fmt.Errorf("can not open %s: %s", snapFileName, err)
+		return nil, fmt.Errorf("can not open %s: %s", snapFileName, err)
 	}
 
 	// we do not Verify() the package in canInstall. This is done earlier in
 	// NewSnapFile() to ensure that we do not mount/inspect
 	// potentially dangerous snaps
 	if err := o.canInstall(s, allowGadget, inter); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// the "gadget" parts are special
 	if s.Type() == snap.TypeGadget {
 		if err := installGadgetHardwareUdevRules(s.m); err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
@@ -70,13 +70,13 @@ func (o *Overlord) Install(snapFileName string, origin string, inter progress.Me
 	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current")); currentActiveDir != "" {
 		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "package.yaml"), s.origin)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
 	if err := os.MkdirAll(s.instdir, 0755); err != nil {
 		logger.Noticef("Can not create %q: %v", s.instdir, err)
-		return "", err
+		return nil, err
 	}
 
 	// if anything goes wrong here we cleanup
@@ -91,18 +91,18 @@ func (o *Overlord) Install(snapFileName string, origin string, inter progress.Me
 	// we need to call the external helper so that we can reliable drop
 	// privs
 	if err := s.deb.Install(s.instdir); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// generate the mount unit for the squashfs
 	if err := s.m.addSquashfsMount(s.instdir, inhibitHooks, inter); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// FIXME: special handling is bad 'mkay
 	if s.m.Type == snap.TypeKernel {
 		if err := extractKernelAssets(s, inter, flags); err != nil {
-			return "", fmt.Errorf("failed to install kernel %s", err)
+			return nil, fmt.Errorf("failed to install kernel %s", err)
 		}
 	}
 
@@ -124,7 +124,7 @@ func (o *Overlord) Install(snapFileName string, origin string, inter progress.Me
 			}
 		}()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		err = copySnapData(fullName, oldPart.Version(), s.Version())
@@ -141,13 +141,13 @@ func (o *Overlord) Install(snapFileName string, origin string, inter progress.Me
 	}()
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if !inhibitHooks {
 		newPart, err := newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "package.yaml"), s.origin, s.m)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		// and finally make active
@@ -160,13 +160,13 @@ func (o *Overlord) Install(snapFileName string, origin string, inter progress.Me
 			}
 		}()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		// oh, one more thing: refresh the security bits
 		deps, err := newPart.Dependents()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		sysd := systemd.New(dirs.GlobalRootDir, inter)
@@ -190,14 +190,14 @@ func (o *Overlord) Install(snapFileName string, origin string, inter progress.Me
 				timeout := time.Duration(svc.StopTimeout)
 				if err = sysd.Stop(serviceName, timeout); err != nil {
 					inter.Notify(fmt.Sprintf("unable to stop %s; aborting install: %s", serviceName, err))
-					return "", err
+					return nil, err
 				}
 				stopped[serviceName] = timeout
 			}
 		}
 
 		if err := newPart.RefreshDependentsSecurity(oldPart, inter); err != nil {
-			return "", err
+			return nil, err
 		}
 
 		started := make(map[string]time.Duration)
@@ -213,13 +213,13 @@ func (o *Overlord) Install(snapFileName string, origin string, inter progress.Me
 		for serviceName, timeout := range stopped {
 			if err = sysd.Start(serviceName); err != nil {
 				inter.Notify(fmt.Sprintf("unable to restart %s; aborting install: %s", serviceName, err))
-				return "", err
+				return nil, err
 			}
 			started[serviceName] = timeout
 		}
 	}
 
-	return s.Name(), nil
+	return newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "package.yaml"), s.origin, s.m)
 }
 
 // canInstall checks whether the SnapPart passes a series of tests required for installation
@@ -329,13 +329,13 @@ func (o *Overlord) remove(s *SnapPart, inter interacter) (err error) {
 }
 
 // Installed returns the installed snaps from this repository
-func (o *Overlord) Installed() (parts []*SnapPart, err error) {
+func (o *Overlord) Installed() (parts []*SnapPart) {
 	globExpr := filepath.Join(dirs.SnapSnapsDir, "*", "*", "meta", "package.yaml")
 	if newParts, err := o.partsForGlobExpr(globExpr); err == nil {
 		parts = append(parts, newParts...)
 	}
 
-	return parts, nil
+	return parts
 }
 
 func (o *Overlord) partsForGlobExpr(globExpr string) (parts []*SnapPart, err error) {

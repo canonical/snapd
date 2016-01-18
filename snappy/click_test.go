@@ -44,7 +44,11 @@ import (
 // FIXME: kill once every test is converted
 func installClick(snapFilePath string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
 	overlord := &Overlord{}
-	return overlord.Install(snapFilePath, origin, inter, flags)
+	snapPart, err := overlord.Install(snapFilePath, origin, inter, flags)
+	if err != nil {
+		return "", err
+	}
+	return snapPart.Name(), nil
 }
 
 func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
