@@ -65,12 +65,6 @@ func (f *SharedName) IsAlias(origin string) bool {
 	return false
 }
 
-// NewRemoteSnapPart returns a new RemoteSnapPart from the given
-// remote.Snap data
-func NewRemoteSnapPart(data remote.Snap) *RemoteSnapPart {
-	return &RemoteSnapPart{pkg: data}
-}
-
 // SnapUbuntuStoreRepository represents the ubuntu snap store
 type SnapUbuntuStoreRepository struct {
 	searchURI  *url.URL
@@ -179,11 +173,6 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	if err == nil {
 		req.Header.Set("Authorization", oauth.MakePlaintextSignature(&ssoToken.Token))
 	}
-}
-
-// Description describes the repository
-func (s *SnapUbuntuStoreRepository) Description() string {
-	return fmt.Sprintf("Snap remote repository for %s", s.searchURI)
 }
 
 // Snap returns a RemoteSnapPart from the given snap name

@@ -40,6 +40,12 @@ type RemoteSnapPart struct {
 	pkg remote.Snap
 }
 
+// NewRemoteSnapPart returns a new RemoteSnapPart from the given
+// remote.Snap data
+func NewRemoteSnapPart(data remote.Snap) *RemoteSnapPart {
+	return &RemoteSnapPart{pkg: data}
+}
+
 // Type returns the type of the SnapPart (app, gadget, ...)
 func (s *RemoteSnapPart) Type() snap.Type {
 	return s.pkg.Type

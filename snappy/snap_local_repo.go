@@ -20,7 +20,6 @@
 package snappy
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -42,11 +41,6 @@ func NewLocalSnapRepository(path string) *SnapLocalRepository {
 		return nil
 	}
 	return &SnapLocalRepository{path: path}
-}
-
-// Description describes the local repository
-func (s *SnapLocalRepository) Description() string {
-	return fmt.Sprintf("Snap local repository for %s", s.path)
 }
 
 // Details returns details for the given snap
