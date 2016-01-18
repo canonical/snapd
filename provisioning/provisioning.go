@@ -110,35 +110,6 @@ func parseInstallYamlData(yamlData []byte) (*InstallYaml, error) {
 	return &i, nil
 }
 
-// IsSideLoaded determines if the system was installed using a
-// custom enablement part.
-func IsSideLoaded(bootloaderDir string) bool {
-	file := filepath.Join(bootloaderDir, InstallYamlFile)
-
-	if !helpers.FileExists(file) {
-		// the system may have been sideloaded, but we have no
-		// way of knowing :-(
-		return false
-	}
-
-	InstallYaml, err := parseInstallYaml(file)
-	if err != nil {
-		logger.Noticef("Kernel sideload cannot be read, assuming sideload: %s", err)
-		// file isn't parseable, so let's assume system is sideloaded
-		return true
-	}
-
-	if InstallYaml.InstallOptions.DevicePart != "" {
-		// system was created with something like:
-		//
-		//  "ubuntu-device-flash [...] --device-part=unofficial-assets.tar.xz ..."
-		//
-		return true
-	}
-
-	return false
-}
-
 // InDeveloperMode returns true if the image was build with --developer-mode
 func InDeveloperMode() bool {
 	file := filepath.Join(bootloaderDir, InstallYamlFile)

@@ -19,7 +19,6 @@ package provisioning
 
 import (
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -85,48 +84,6 @@ func (ts *ProvisioningTestSuite) SetUpTest(c *C) {
 
 func (ts *ProvisioningTestSuite) TearDownTest(c *C) {
 	bootloaderDir = ts.realBootloaderDir
-}
-
-func (ts *ProvisioningTestSuite) TestSideLoadedSystemNoInstallYaml(c *C) {
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-}
-
-func (ts *ProvisioningTestSuite) TestSideLoadedSystem(c *C) {
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-
-	err := ioutil.WriteFile(ts.mockYamlFile, []byte(yamlData), 0750)
-	c.Assert(err, IsNil)
-
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, true)
-
-	os.Remove(ts.mockYamlFile)
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-}
-
-func (ts *ProvisioningTestSuite) TestSideLoadedSystemNoDevicePart(c *C) {
-
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-
-	err := ioutil.WriteFile(ts.mockYamlFile, []byte(yamlDataNoDevicePart), 0750)
-	c.Assert(err, IsNil)
-
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-
-	os.Remove(ts.mockYamlFile)
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-}
-
-func (ts *ProvisioningTestSuite) TestSideLoadedSystemGarbageInstallYaml(c *C) {
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-
-	err := ioutil.WriteFile(ts.mockYamlFile, []byte(garbageData), 0750)
-	c.Assert(err, IsNil)
-
-	// we assume sideloaded if the file isn't parseable
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, true)
-
-	os.Remove(ts.mockYamlFile)
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestParseInstallYaml(c *C) {
