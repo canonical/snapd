@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -78,13 +78,6 @@ func (s *bootloaderTestSuite) fakeFilepathGlob(path string) (matches []string, e
 	return s.filepathGlobReturnValues, nil
 }
 
-func (s *bootloaderTestSuite) TestOtherPartition(c *check.C) {
-	c.Assert(OtherPartition("a"), check.Equals, "b",
-		check.Commentf("Expected OtherPartition of 'a' to be 'b'"))
-	c.Assert(OtherPartition("b"), check.Equals, "a",
-		check.Commentf("Expected OtherPartition of 'b' to be 'a'"))
-}
-
 func (s *bootloaderTestSuite) TestBootDir(c *check.C) {
 	c.Assert(BootDir("grub"), check.Equals, grubDir,
 		check.Commentf("Expected BootDir of 'grub' to be "+grubDir))
@@ -130,35 +123,6 @@ func (s *bootloaderTestSuite) TestBootSystemForUBoot(c *check.C) {
 		check.Commentf("Expected uboot boot system not found, %s", bootSystem))
 }
 
-func (s *bootloaderTestSuite) TestNextBootPartitionReturnsEmptyIfPatternsNotFound(c *check.C) {
-	s.fakeConf = map[string]string{"snappy_mode": "try"}
-
-	backBootSystem := BootSystem
-	defer func() { BootSystem = backBootSystem }()
-	BootSystem = func() (system string, err error) {
-		return "test-system", nil
-	}
-
-	partition, err := NextBootPartition()
-
-	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
-	c.Assert(partition, check.Equals, "",
-		check.Commentf("NextBootPartition %s, expected empty", partition))
-}
-
-func (s *bootloaderTestSuite) TestNextBootPartitionAfterUpdateReturnsSamePartition(c *check.C) {
-	s.fakeConf = map[string]string{
-		"snappy_mode": "try",
-		"snappy_ab":   "a",
-	}
-
-	partition, err := NextBootPartition()
-
-	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
-	c.Assert(partition, check.Equals, "a",
-		check.Commentf("NextBootPartition %s, expected a", partition))
-}
-
 func (s *bootloaderTestSuite) TestModeReturnsSnappyModeFromConf(c *check.C) {
 	s.fakeConf = map[string]string{
 		"snappy_mode": "test_mode",
@@ -168,30 +132,6 @@ func (s *bootloaderTestSuite) TestModeReturnsSnappyModeFromConf(c *check.C) {
 
 	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
 	c.Assert(mode, check.Equals, "test_mode", check.Commentf("Wrong mode"))
-}
-
-func (s *bootloaderTestSuite) TestCurrentPartitionNotOnTryMode(c *check.C) {
-	s.fakeConf = map[string]string{
-		"snappy_mode": "not_try",
-		"snappy_ab":   "test_partition",
-	}
-
-	part, err := CurrentPartition()
-
-	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
-	c.Assert(part, check.Equals, "test_partition", check.Commentf("Wrong partition"))
-}
-
-func (s *bootloaderTestSuite) TestCurrentPartitionOnTryModeReturnsOtherPartition(c *check.C) {
-	s.fakeConf = map[string]string{
-		"snappy_mode": "try",
-		"snappy_ab":   "a",
-	}
-
-	mode, err := CurrentPartition()
-
-	c.Assert(err, check.IsNil, check.Commentf("Unexpected error %v", err))
-	c.Assert(mode, check.Equals, "b", check.Commentf("Wrong partition"))
 }
 
 type confTestSuite struct {

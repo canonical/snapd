@@ -898,17 +898,16 @@ func getCapabilities(c *Command, r *http.Request) Response {
 func addCapability(c *Command, r *http.Request) Response {
 	decoder := json.NewDecoder(r.Body)
 	var newCap caps.Capability
-	if err := decoder.Decode(&newCap); err != nil || newCap.Type == nil {
+	if err := decoder.Decode(&newCap); err != nil || newCap.TypeName == "" {
 		return BadRequest(err, "can't decode request body into a capability")
 	}
 	// Re-construct the perfect type object knowing just the type name that is
 	// passed through the JSON representation.
-	newType := c.d.capRepo.Type(newCap.Type.Name)
+	newType := c.d.capRepo.Type(newCap.TypeName)
 	if newType == nil {
-		err := fmt.Errorf("unknown type name %q", newCap.Type.Name)
+		err := fmt.Errorf("unknown type name %q", newCap.TypeName)
 		return BadRequest(err, "can't add capability")
 	}
-	newCap.Type = newType
 	if err := c.d.capRepo.Add(&newCap); err != nil {
 		return BadRequest(err, "can't add capability")
 	}
