@@ -320,7 +320,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 }
 
 // Updates returns the available updates
-func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
+func (s *SnapUbuntuStoreRepository) Updates() (parts []*RemoteSnapPart, err error) {
 	// the store only supports apps, gadget and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
 	//

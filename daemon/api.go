@@ -166,11 +166,11 @@ func v1Get(c *Command, r *http.Request) Response {
 type metarepo interface {
 	Details(string, string) ([]snappy.Part, error)
 	All() ([]snappy.Part, error)
-	Updates() ([]snappy.Part, error)
+	Updates() ([]*snappy.RemoteSnapPart, error)
 }
 
 var newRemoteRepo = func() metarepo {
-	return snappy.NewMetaStoreRepository()
+	return snappy.NewUbuntuStoreSnapRepository()
 }
 
 var muxVars = mux.Vars

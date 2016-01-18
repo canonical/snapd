@@ -27,8 +27,8 @@ func ListInstalled() ([]*SnapPart, error) {
 }
 
 // ListUpdates returns all snaps with updates
-func ListUpdates() ([]Part, error) {
-	m := NewMetaRepository()
+func ListUpdates() ([]*RemoteSnapPart, error) {
+	mStore := NewUbuntuStoreSnapRepository()
 
-	return m.Updates()
+	return mStore.Updates()
 }

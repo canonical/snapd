@@ -125,7 +125,6 @@ type Repository interface {
 	// action
 	Details(name string, origin string) ([]Part, error)
 
-	Updates() ([]Part, error)
 	Installed() ([]Part, error)
 
 	All() ([]Part, error)
@@ -199,19 +198,6 @@ func (m *MetaRepository) All() ([]Part, error) {
 	}
 
 	return parts, nil
-}
-
-// Updates returns all updatable parts
-func (m *MetaRepository) Updates() (parts []Part, err error) {
-	for _, r := range m.all {
-		updates, err := r.Updates()
-		if err != nil {
-			return parts, err
-		}
-		parts = append(parts, updates...)
-	}
-
-	return parts, err
 }
 
 // Details returns details for the given snap name

@@ -51,9 +51,10 @@ import (
 )
 
 type apiSuite struct {
-	parts []snappy.Part
-	err   error
-	vars  map[string]string
+	parts           []snappy.Part
+	remoteSnapParts []*snappy.RemoteSnapPart
+	err             error
+	vars            map[string]string
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -66,8 +67,8 @@ func (s *apiSuite) All() ([]snappy.Part, error) {
 	return s.parts, s.err
 }
 
-func (s *apiSuite) Updates() ([]snappy.Part, error) {
-	return s.parts, s.err
+func (s *apiSuite) Updates() ([]*snappy.RemoteSnapPart, error) {
+	return s.remoteSnapParts, s.err
 }
 
 func (s *apiSuite) muxVars(*http.Request) map[string]string {
