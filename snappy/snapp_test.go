@@ -171,22 +171,13 @@ frameworks:
 	c.Check(fmk, DeepEquals, []string{"one", "two"})
 }
 
-func (s *SnapTestSuite) TestLocalSnapRepositoryInvalid(c *C) {
-	snap := NewLocalSnapRepository("invalid-path")
-	c.Assert(snap, IsNil)
-}
-
 func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 	yamlPath, err := s.makeInstalledMockSnap()
 	c.Assert(err, IsNil)
 	err = makeSnapActive(yamlPath)
 	c.Assert(err, IsNil)
 
-	snap := NewLocalSnapRepository(filepath.Join(s.tempdir, "snaps"))
-	c.Assert(snap, NotNil)
-
-	installed, err := snap.Installed()
-	c.Assert(err, IsNil)
+	installed := (&Overlord{}).Installed()
 	c.Assert(installed, HasLen, 1)
 	c.Assert(installed[0].Name(), Equals, "hello-app")
 	c.Assert(installed[0].Version(), Equals, "1.10")

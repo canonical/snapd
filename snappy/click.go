@@ -39,12 +39,37 @@ import (
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
+const (
+	// SideloadedOrigin is the (forced) origin for sideloaded snaps
+	SideloadedOrigin = "sideload"
+)
+
 // wait this time between TERM and KILL
 var killWait = 5 * time.Second
 
 // servicesBinariesStringsWhitelist is the whitelist of legal chars
 // in the "binaries" and "services" section of the package.yaml
 var servicesBinariesStringsWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
+
+func originFromBasedir(basedir string) (s string) {
+	ext := filepath.Ext(filepath.Dir(filepath.Clean(basedir)))
+	if len(ext) < 2 {
+		return ""
+	}
+
+	return ext[1:]
+}
+
+// originFromYamlPath *must* return "" if it's returning error.
+func originFromYamlPath(path string) (string, error) {
+	origin := originFromBasedir(filepath.Join(path, "..", ".."))
+
+	if origin == "" {
+		return "", ErrInvalidPart
+	}
+
+	return origin, nil
+}
 
 // generate the name
 func generateBinaryName(m *packageYaml, binary Binary) string {

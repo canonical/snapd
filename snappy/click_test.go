@@ -379,9 +379,7 @@ icon: foo.svg
 	c.Assert(err, IsNil)
 
 	// ensure v2 is active
-	repo := NewLocalSnapRepository(filepath.Join(s.tempdir, "snaps"))
-	parts, err := repo.Installed()
-	c.Assert(err, IsNil)
+	parts := (&Overlord{}).Installed()
 	c.Assert(parts, HasLen, 2)
 	c.Assert(parts[0].Version(), Equals, "1.0")
 	c.Assert(parts[0].IsActive(), Equals, false)
@@ -389,9 +387,8 @@ icon: foo.svg
 	c.Assert(parts[1].IsActive(), Equals, true)
 
 	// set v1 active
-	err = parts[0].(*SnapPart).activate(false, nil)
-	parts, err = repo.Installed()
-	c.Assert(err, IsNil)
+	err = parts[0].activate(false, nil)
+	parts = (&Overlord{}).Installed()
 	c.Assert(parts[0].Version(), Equals, "1.0")
 	c.Assert(parts[0].IsActive(), Equals, true)
 	c.Assert(parts[1].Version(), Equals, "2.0")
