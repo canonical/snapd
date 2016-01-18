@@ -134,29 +134,21 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (sp *SnapP
 	mStore := NewUbuntuStoreSnapRepository()
 	installed := overlord.Installed()
 
-	name, origin := SplitOrigin(name)
-	found, err := mStore.Details(name, origin)
+	snap, err := mStore.Snap(name)
 	if err != nil {
-		return nil, err
-	}
-
-	if len(found) == 0 {
 		return nil, ErrPackageNotFound
-	} else if len(found) > 1 {
-		return nil, fmt.Errorf("found %d results for %s. please report this as a bug", len(found), name)
 	}
 
-	part := found[0]
-	cur := FindSnapsByNameAndVersion(QualifiedName(part), part.Version(), installed)
+	cur := FindSnapsByNameAndVersion(QualifiedName(snap), snap.Version(), installed)
 	if len(cur) != 0 {
 		return nil, ErrAlreadyInstalled
 	}
 
-	if PackageNameActive(part.Name()) {
+	if PackageNameActive(snap.Name()) {
 		return nil, ErrPackageNameAlreadyInstalled
 	}
 
-	return installRemote(part.(*RemoteSnapPart), meter, flags)
+	return installRemote(snap, meter, flags)
 }
 
 func installRemote(snap *RemoteSnapPart, meter progress.Meter, flags InstallFlags) (*SnapPart, error) {

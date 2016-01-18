@@ -602,9 +602,9 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(snap, NotNil)
 
 	// the actual test
-	results, err := snap.Details("no-such-pkg", "")
-	c.Assert(results, HasLen, 0)
+	remoteSnap, err := snap.Snap("no-such-pkg")
 	c.Assert(err, NotNil)
+	c.Assert(remoteSnap, IsNil)
 }
 
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
@@ -885,7 +885,7 @@ type: gadget
 	c.Assert(repo, NotNil)
 
 	// we just ensure that the right header is set
-	repo.Details("xkcd", "")
+	repo.Snap("xkcd")
 }
 
 func (s *SnapTestSuite) TestUninstallBuiltIn(c *C) {

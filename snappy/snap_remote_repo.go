@@ -216,7 +216,7 @@ func (s *SnapUbuntuStoreRepository) Snap(snapName string) (*RemoteSnapPart, erro
 }
 
 // Details returns details for the given snap in this repository
-// FIXME: kill this
+// FIXME: kill this once the daemon is converted
 func (s *SnapUbuntuStoreRepository) Details(name string, origin string) ([]Part, error) {
 	snapName := name
 	if origin != "" {
