@@ -60,15 +60,6 @@ func (s *lightweightSuite) SetUpTest(c *check.C) {
 	s.MkRemoved(c, "fmk2", "4.2.0ubuntu1")
 
 	s.MkInstalled(c, snap.TypeGadget, dirs.SnapSnapsDir, "a-gadget", "", "3", false)
-
-	newCoreRepo = func() repo {
-		// you can't ever have a removed systemimagepart, but for testing it'll do
-		return mockrepo{removed.New(snappy.SystemImagePartName, snappy.SystemImagePartOrigin, "1", snap.TypeCore)}
-	}
-}
-
-func (s *lightweightSuite) TearDownTest(c *check.C) {
-	newCoreRepo = newCoreRepoImpl
 }
 
 func (s *lightweightSuite) MkInstalled(c *check.C, _type snap.Type, appdir, name, origin, version string, active bool) {
@@ -103,7 +94,7 @@ func (s *lightweightSuite) TestLoadBadName(c *check.C) {
 }
 
 func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
-	bag := PartBagByName("fmk", "sideload")
+	bag := PartBagByName("fmk", "")
 	m := bag.Map(nil)
 	c.Check(m["installed_size"], check.Matches, "[0-9]+")
 	delete(m, "installed_size")
@@ -122,11 +113,11 @@ func (s *lightweightSuite) TestMapFmkNoPart(c *check.C) {
 }
 
 func (s *lightweightSuite) TestMapRemovedFmkNoPart(c *check.C) {
-	bag := PartBagByName("fmk2", "sideload")
+	bag := PartBagByName("fmk2", "")
 	m := bag.Map(nil)
 	c.Check(m, check.DeepEquals, map[string]string{
 		"name":           "fmk2",
-		"origin":         "sideload",
+		"origin":         "",
 		"status":         "removed",
 		"version":        "4.2.0ubuntu1",
 		"icon":           "",
@@ -398,20 +389,7 @@ func (r mockrepo) All() ([]snappy.Part, error) {
 	return []snappy.Part{r.p}, nil
 }
 
-func (s *lightweightSuite) TestLoadCore(c *check.C) {
-	core := PartBagByName(snappy.SystemImagePartName, snappy.SystemImagePartOrigin)
-	c.Assert(core, check.NotNil)
-	c.Check(core.Versions, check.DeepEquals, []string{"1"})
-
-	c.Check(core.IsInstalled(0), check.Equals, true)
-	c.Check(core.ActiveIndex(), check.Equals, 0)
-	p, err := core.Load(0)
-	c.Check(err, check.IsNil)
-	c.Check(p.Version(), check.Equals, "1")
-}
-
 func (s *lightweightSuite) TestAll(c *check.C) {
-	sysname := snappy.SystemImagePartName + "." + snappy.SystemImagePartOrigin
 	all := AllPartBags()
 
 	type expectedT struct {
@@ -426,7 +404,6 @@ func (s *lightweightSuite) TestAll(c *check.C) {
 		"fmk":      {typ: snap.TypeFramework, idx: 1, inst: true},
 		"fmk2":     {typ: snap.TypeFramework, idx: -1, inst: false},
 		"a-gadget": {typ: snap.TypeGadget, idx: -1, inst: true},
-		sysname:    {typ: snap.TypeCore, idx: 0, inst: true},
 	}
 
 	for k, x := range expected {

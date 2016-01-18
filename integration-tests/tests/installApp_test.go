@@ -48,7 +48,6 @@ func (s *installAppSuite) TestInstallAppMustPrintPackageInformation(c *check.C) 
 
 	expected := "(?ms)" +
 		fmt.Sprintf("Installing %s\n", snapPath) +
-		".*Signature check failed, but installing anyway as requested\n" +
 		"Name +Date +Version +Developer \n" +
 		".*" +
 		"^basic +.* +.* +sideload *\n" +

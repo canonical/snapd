@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -28,6 +29,21 @@ import (
 )
 
 // utilities to read/write fs entries
+
+func ensureTop(path string) error {
+	err := os.MkdirAll(path, 0775)
+	if err != nil {
+		return fmt.Errorf("failed to create assert storage root: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("failed to create assert storage root: %v", err)
+	}
+	if info.Mode().Perm()&0002 != 0 {
+		return fmt.Errorf("assert storage root unexpectedly world-writable: %v", path)
+	}
+	return nil
+}
 
 func atomicWriteEntry(data []byte, secret bool, top string, subpath ...string) error {
 	fpath := filepath.Join(top, filepath.Join(subpath...))

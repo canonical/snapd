@@ -64,8 +64,8 @@ type ServiceStatus struct {
 }
 
 // Services returns the list of services belonging to an *active* Package
-func (client *Client) Services(pkg string) (map[string]Service, error) {
-	var services map[string]Service
+func (client *Client) Services(pkg string) (map[string]*Service, error) {
+	var services map[string]*Service
 
 	path := fmt.Sprintf("/1.0/packages/%s/services", pkg)
 	if err := client.doSync("GET", path, nil, &services); err != nil {

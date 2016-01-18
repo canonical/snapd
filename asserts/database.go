@@ -24,31 +24,41 @@ package asserts
 import (
 	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"time"
 )
 
-// Backstore is a backstore for assertions. It can store and retrieve
-// assertions by type under primary paths (tuples of strings). Plus it
-// supports more general searches.
+// A Backstore stores assertions. It can store and retrieve
+// assertions by type under unique primary key headers. Plus it supports searching by headers.
 type Backstore interface {
-	// Put stores an assertion under the given unique primaryPath.
+	// Put stores an assertion for the given primaryKeyHeaders forming a unique key.
 	// It is responsible for checking that assert is newer than a
 	// previously stored revision.
-	Put(assertType AssertionType, primaryPath []string, assert Assertion) error
-	// Get loads an assertion with the given unique primaryPath.
+	Put(assertType AssertionType, primaryKeyHeaders []string, assert Assertion) error
+	// Get returns the assertion with the given unique key for the primaryKeyHeaders.
 	// If none is present it returns ErrNotFound.
-	Get(assertType AssertionType, primaryPath []string) (Assertion, error)
-	// Search searches for assertions matching the given headers.
+	Get(assertType AssertionType, primaryKeyHeaders, key []string) (Assertion, error)
+	// Search returns assertions matching the given headers.
 	// It invokes foundCb for each found assertion.
-	// pathHint is an incomplete primary path pattern (with ""
-	// representing omitted components) that covers a superset of
-	// the results, it can be used for the search if helpful.
-	Search(assertType AssertionType, headers map[string]string, pathHint []string, foundCb func(Assertion)) error
+	// As hint the primaryKeyHeaders forming a unique key are also given.
+	Search(assertType AssertionType, primaryKeyHeaders []string, headers map[string]string, foundCb func(Assertion)) error
 }
 
-// KeypairManager is a manager and backstore for private/public key pairs.
+type nullBackstore struct{}
+
+func (nbs nullBackstore) Put(t AssertionType, pkh []string, a Assertion) error {
+	return fmt.Errorf("cannot store assertions without setting a proper assertion backstore implementation")
+}
+
+func (nbs nullBackstore) Get(t AssertionType, pkh, k []string) (Assertion, error) {
+	return nil, ErrNotFound
+}
+
+func (nbs nullBackstore) Search(t AssertionType, pkh []string, h map[string]string, f func(Assertion)) error {
+	return nil
+}
+
+// A KeypairManager is a manager and backstore for private/public key pairs.
 type KeypairManager interface {
 	// Put stores the given private/public key pair for identity,
 	// making sure it can be later retrieved by authority-id and
@@ -64,14 +74,11 @@ type KeypairManager interface {
 
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
-	// database filesystem backstores path
-	Path string
 	// trusted account keys
 	TrustedKeys []*AccountKey
-	// backstore for assertions, falls back to a filesystem based backstrore
-	// if not set
+	// backstore for assertions, left unset storing assertions will error
 	Backstore Backstore
-	// manager/backstore for keypairs, falls back to a filesystem based manager
+	// manager/backstore for keypairs, mandatory
 	KeypairManager KeypairManager
 }
 
@@ -99,28 +106,11 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	bs := cfg.Backstore
 	keypairMgr := cfg.KeypairManager
 
-	// falling back to at least one of the filesytem backstores,
-	// ensure the main directory cfg.Path
-	// TODO: decide what should be the final defaults/fallbacks
-	if bs == nil || keypairMgr == nil {
-		err := os.MkdirAll(cfg.Path, 0775)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create assert database root: %v", err)
-		}
-		info, err := os.Stat(cfg.Path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create assert database root: %v", err)
-		}
-		if info.Mode().Perm()&0002 != 0 {
-			return nil, fmt.Errorf("assert database root unexpectedly world-writable: %v", cfg.Path)
-		}
-
-		if bs == nil {
-			bs = newFilesystemBackstore(cfg.Path)
-		}
-		if keypairMgr == nil {
-			keypairMgr = newFilesystemKeypairMananager(cfg.Path)
-		}
+	if bs == nil {
+		bs = nullBackstore{}
+	}
+	if keypairMgr == nil {
+		panic("database cannot be used without setting a keypair manager")
 	}
 
 	trustedKeys := make(map[string][]*AccountKey)
@@ -209,14 +199,13 @@ func (db *Database) findAccountKeys(authorityID, keyID string) ([]*AccountKey, e
 		}
 	}
 	// consider stored account keys
-	foundKeyCb := func(a Assertion) {
+	a, err := db.bs.Get(AccountKeyType, primaryKey(AccountKeyType), []string{authorityID, keyID})
+	switch err {
+	case nil:
 		res = append(res, a.(*AccountKey))
-	}
-	err := db.bs.Search(AccountKeyType, map[string]string{
-		"account-id":    authorityID,
-		"public-key-id": keyID,
-	}, []string{authorityID, keyID}, foundKeyCb)
-	if err != nil {
+	case ErrNotFound:
+		// nothing to do
+	default:
 		return nil, err
 	}
 	return res, nil
@@ -269,15 +258,12 @@ func (db *Database) Add(assert Assertion) error {
 	if err != nil {
 		return err
 	}
-	primaryKey := make([]string, len(reg.primaryKey))
-	for i, k := range reg.primaryKey {
-		keyVal := assert.Header(k)
-		if keyVal == "" {
+	for _, k := range reg.primaryKey {
+		if assert.Header(k) == "" {
 			return fmt.Errorf("missing primary key header: %v", k)
 		}
-		primaryKey[i] = keyVal
 	}
-	return db.bs.Put(assert.Type(), primaryKey, assert)
+	return db.bs.Put(assert.Type(), reg.primaryKey, assert)
 }
 
 func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
@@ -298,15 +284,15 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 	if err != nil {
 		return nil, err
 	}
-	primaryKey := make([]string, len(reg.primaryKey))
+	keyValues := make([]string, len(reg.primaryKey))
 	for i, k := range reg.primaryKey {
 		keyVal := headers[k]
 		if keyVal == "" {
 			return nil, fmt.Errorf("must provide primary key: %v", k)
 		}
-		primaryKey[i] = keyVal
+		keyValues[i] = keyVal
 	}
-	assert, err := db.bs.Get(assertionType, primaryKey)
+	assert, err := db.bs.Get(assertionType, reg.primaryKey, keyValues)
 	if err != nil {
 		return nil, err
 	}
@@ -324,15 +310,11 @@ func (db *Database) FindMany(assertionType AssertionType, headers map[string]str
 		return nil, err
 	}
 	res := []Assertion{}
-	primaryKey := make([]string, len(reg.primaryKey))
-	for i, k := range reg.primaryKey {
-		primaryKey[i] = headers[k]
-	}
 
 	foundCb := func(assert Assertion) {
 		res = append(res, assert)
 	}
-	err = db.bs.Search(assertionType, headers, primaryKey, foundCb)
+	err = db.bs.Search(assertionType, reg.primaryKey, headers, foundCb)
 	if err != nil {
 		return nil, err
 	}

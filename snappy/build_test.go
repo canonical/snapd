@@ -30,7 +30,6 @@ import (
 	"syscall"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/testutil"
 
 	. "gopkg.in/check.v1"
@@ -123,166 +122,10 @@ printf "hello world"
 	return tempdir
 }
 
-func (s *BuildTestSuite) TestBuildSimple(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 1.0.1
-architecture: ["i386", "amd64"]
-integration:
- app:
-  apparmor-profile: meta/hello.apparmor
-`)
-
-	resultSnap, err := BuildLegacySnap(sourceDir, "")
-	c.Assert(err, IsNil)
-
-	// check that there is result
-	_, err = os.Stat(resultSnap)
-	c.Assert(err, IsNil)
-	c.Assert(resultSnap, Equals, "hello_1.0.1_multi.snap")
-
-	// check that the json looks valid
-	const expectedJSON = `{
- "name": "hello",
- "version": "1.0.1",
- "architecture": [
-  "i386",
-  "amd64"
- ],
- "framework": "ubuntu-core-15.04-dev1",
- "description": "some description",
- "installed-size": "17",
- "title": "some title",
- "hooks": {
-  "app": {
-   "apparmor-profile": "meta/hello.apparmor"
-  }
- }
-}`
-	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_1.0.1_multi.snap", "manifest").Output()
-	c.Assert(err, IsNil)
-	c.Assert(string(readJSON), Equals, expectedJSON)
-
-	// check that the content looks sane
-	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_multi.snap").Output()
-	c.Assert(err, IsNil)
-	for _, needle := range []string{"./meta/package.yaml", "./meta/readme.md", "./bin/hello-world", "./symlink -> bin/hello-world"} {
-		expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta(needle))
-		c.Assert(string(readFiles), Matches, expr)
-	}
-}
-
-func (s *BuildTestSuite) TestBuildAutoGenerateIntegrationHooksBinaries(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 2.0.1
-architectures:
- - i386
-binaries:
- - name: bin/hello-world
-`)
-
-	resultSnap, err := BuildLegacySnap(sourceDir, "")
-	c.Assert(err, IsNil)
-
-	// check that there is result
-	_, err = os.Stat(resultSnap)
-	c.Assert(err, IsNil)
-	c.Assert(resultSnap, Equals, "hello_2.0.1_i386.snap")
-
-	// check that the json looks valid
-	const expectedJSON = `{
- "name": "hello",
- "version": "2.0.1",
- "architecture": [
-  "i386"
- ],
- "framework": "ubuntu-core-15.04-dev1",
- "description": "some description",
- "installed-size": "17",
- "title": "some title",
- "hooks": {
-  "hello-world": {
-   "bin-path": "bin/hello-world"
-  }
- }
-}`
-	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_2.0.1_i386.snap", "manifest").Output()
-	c.Assert(err, IsNil)
-	c.Assert(string(readJSON), Equals, expectedJSON)
-}
-
-func (s *BuildTestSuite) TestBuildAutoGenerateIntegrationHooksServices(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 3.0.1
-services:
- - name: foo
-   start: bin/hello-world
-`)
-
-	resultSnap, err := BuildLegacySnap(sourceDir, "")
-	c.Assert(err, IsNil)
-
-	// check that there is result
-	_, err = os.Stat(resultSnap)
-	c.Assert(err, IsNil)
-	c.Assert(resultSnap, Equals, "hello_3.0.1_all.snap")
-
-	// check that the json looks valid
-	const expectedJSON = `{
- "name": "hello",
- "version": "3.0.1",
- "architecture": [
-  "all"
- ],
- "framework": "ubuntu-core-15.04-dev1",
- "description": "some description",
- "installed-size": "17",
- "title": "some title",
- "hooks": {
-  "foo": {}
- }
-}`
-	readJSON, err := exec.Command("dpkg-deb", "-I", "hello_3.0.1_all.snap", "manifest").Output()
-	c.Assert(err, IsNil)
-	c.Assert(string(readJSON), Equals, expectedJSON)
-}
-
-func (s *BuildTestSuite) TestBuildAutoGenerateConfigAppArmor(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 4.0.1
-`)
-	hooksDir := filepath.Join(sourceDir, "meta", "hooks")
-	os.MkdirAll(hooksDir, 0755)
-	err := ioutil.WriteFile(filepath.Join(hooksDir, "config"), []byte(""), 0755)
-	c.Assert(err, IsNil)
-
-	resultSnap, err := BuildLegacySnap(sourceDir, "")
-	c.Assert(err, IsNil)
-
-	// check that there is result
-	_, err = os.Stat(resultSnap)
-	c.Assert(err, IsNil)
-	c.Assert(resultSnap, Equals, "hello_4.0.1_all.snap")
-
-	// check that the json looks valid
-	const expectedJSON = `{
- "name": "hello",
- "version": "4.0.1",
- "framework": "ubuntu-core-15.04-dev1",
- "description": "fixme-description",
- "installed-size": "17",
- "title": "some title",
- "hooks": {
-  "snappy-config": {
-   "apparmor": "meta/snappy-config.apparmor",
-  }
- }
-}`
-}
-
 func (s *BuildTestSuite) TestBuildNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "package.yaml")), IsNil)
-	_, err := BuildLegacySnap(sourceDir, "")
+	_, err := BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
 }
 
@@ -295,7 +138,7 @@ integration:
   apparmor-profile: meta/hello.apparmor
 explicit-license-agreement: Y
 `)
-	_, err := BuildLegacySnap(sourceDir, "")
+	_, err := BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
 }
 
@@ -310,7 +153,7 @@ explicit-license-agreement: Y
 `)
 	lic := filepath.Join(sourceDir, "meta", "license.txt")
 	ioutil.WriteFile(lic, []byte("\n"), 0755)
-	_, err := BuildLegacySnap(sourceDir, "")
+	_, err := BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, Equals, ErrLicenseBlank)
 }
 
@@ -409,57 +252,6 @@ func (s *BuildTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
 	c.Check(shouldExcludeDynamic(basedir, "*hello"), Equals, true)
 }
 
-func (s *BuildTestSuite) TestBuildSimpleOutputDir(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 1.0.1
-architecture: ["i386", "amd64"]
-integration:
- app:
-  apparmor-profile: meta/hello.apparmor
-`)
-
-	outputDir := filepath.Join(c.MkDir(), "output")
-	snapOutput := filepath.Join(outputDir, "hello_1.0.1_multi.snap")
-	resultSnap, err := BuildLegacySnap(sourceDir, outputDir)
-	c.Assert(err, IsNil)
-	defer os.Remove(resultSnap)
-
-	// check that there is result
-	_, err = os.Stat(resultSnap)
-	c.Assert(err, IsNil)
-	c.Assert(resultSnap, Equals, snapOutput)
-
-	// check that the json looks valid
-	const expectedJSON = `{
- "name": "hello",
- "version": "1.0.1",
- "architecture": [
-  "i386",
-  "amd64"
- ],
- "framework": "ubuntu-core-15.04-dev1",
- "description": "some description",
- "installed-size": "17",
- "title": "some title",
- "hooks": {
-  "app": {
-   "apparmor-profile": "meta/hello.apparmor"
-  }
- }
-}`
-	readJSON, err := exec.Command("dpkg-deb", "-I", snapOutput, "manifest").Output()
-	c.Assert(err, IsNil)
-	c.Assert(string(readJSON), Equals, expectedJSON)
-
-	// check that the content looks sane
-	readFiles, err := exec.Command("dpkg-deb", "-c", snapOutput).Output()
-	c.Assert(err, IsNil)
-	for _, needle := range []string{"./meta/package.yaml", "./meta/readme.md", "./bin/hello-world"} {
-		expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta(needle))
-		c.Assert(string(readFiles), Matches, expr)
-	}
-}
-
 func (s *BuildTestSuite) TestBuildChecksForClashes(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
@@ -468,7 +260,7 @@ services:
 binaries:
  - name: foo
 `)
-	_, err := BuildLegacySnap(sourceDir, "")
+	_, err := BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
 }
 
@@ -478,38 +270,6 @@ func (s *BuildTestSuite) TestDebArchitecture(c *C) {
 	c.Check(debArchitecture(&packageYaml{Architectures: nil}), Equals, "unknown")
 }
 
-func (s *BuildTestSuite) TestHashForFileForDevice(c *C) {
-	// skip test
-	if !helpers.FileExists("/dev/kmsg") {
-		c.Skip("no /dev/kmsg")
-	}
-
-	stat, err := os.Stat("/dev/kmsg")
-	c.Assert(err, IsNil)
-	h, err := hashForFile("", "/dev/kmsg", stat)
-	c.Assert(err, IsNil)
-	c.Assert(h.Name, Equals, "/dev/kmsg")
-	c.Assert(h.Device, Equals, "1,11")
-	c.Assert(h.Sha512, Equals, "")
-}
-
-func (s *BuildTestSuite) TestBuildAllPermissions(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 1.0.1
-`)
-
-	_, err := BuildLegacySnap(sourceDir, "")
-	c.Assert(err, IsNil)
-
-	// check that the content looks sane
-	readFiles, err := exec.Command("dpkg-deb", "-c", "hello_1.0.1_all.snap").CombinedOutput()
-	c.Assert(err, IsNil)
-
-	// check that we really have the right perms
-	c.Assert(strings.Contains(string(readFiles), `drwxrwxrwx`), Equals, true)
-	c.Assert(strings.Contains(string(readFiles), `-rw-rw-rw-`), Equals, true)
-}
-
 func (s *BuildTestSuite) TestBuildFailsForUnknownType(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
@@ -517,7 +277,7 @@ version: 1.0.1
 	err := syscall.Mkfifo(filepath.Join(sourceDir, "fifo"), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = BuildLegacySnap(sourceDir, "")
+	_, err = BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, ErrorMatches, "can not handle type of file .*")
 }
 
@@ -540,6 +300,38 @@ integration:
 
 	// check that the content looks sane
 	output, err := exec.Command("unsquashfs", "-ll", "hello_1.0.1_multi.snap").CombinedOutput()
+	c.Assert(err, IsNil)
+	for _, needle := range []string{
+		"meta/package.yaml",
+		"meta/readme.md",
+		"bin/hello-world",
+		"symlink -> bin/hello-world",
+	} {
+		expr := fmt.Sprintf(`(?ms).*%s.*`, regexp.QuoteMeta(needle))
+		c.Assert(string(output), Matches, expr)
+	}
+}
+
+func (s *BuildTestSuite) TestBuildSimpleOutputDir(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 1.0.1
+architecture: ["i386", "amd64"]
+integration:
+ app:
+  apparmor-profile: meta/hello.apparmor
+`)
+
+	outputDir := filepath.Join(c.MkDir(), "output")
+	snapOutput := filepath.Join(outputDir, "hello_1.0.1_multi.snap")
+	resultSnap, err := BuildSquashfsSnap(sourceDir, outputDir)
+
+	// check that there is result
+	_, err = os.Stat(resultSnap)
+	c.Assert(err, IsNil)
+	c.Assert(resultSnap, Equals, snapOutput)
+
+	// check that the content looks sane
+	output, err := exec.Command("unsquashfs", "-ll", resultSnap).CombinedOutput()
 	c.Assert(err, IsNil)
 	for _, needle := range []string{
 		"meta/package.yaml",

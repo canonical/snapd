@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -38,29 +39,21 @@ var _ = Suite(&sysDBSuite{})
 
 func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	tmpdir := c.MkDir()
-	cfg0 := &asserts.DatabaseConfig{Path: filepath.Join(tmpdir, "asserts-db0")}
-	db0, err := asserts.OpenDatabase(cfg0)
-	c.Assert(err, IsNil)
-	pk := asserts.OpenPGPPrivateKey(testPrivKey0)
-	err = db0.ImportKey("canonical", pk)
-	c.Assert(err, IsNil)
-	trustedFingerp := pk.PublicKey().Fingerprint()
-	trustedKeyID := pk.PublicKey().ID()
 
-	trustedPubKey, err := db0.PublicKey("canonical", trustedKeyID)
-	c.Assert(err, IsNil)
+	pk := asserts.OpenPGPPrivateKey(testPrivKey0)
+	trustedPubKey := pk.PublicKey()
 	trustedPubKeyEncoded, err := asserts.EncodePublicKey(trustedPubKey)
 	c.Assert(err, IsNil)
 	// self-signed
 	headers := map[string]string{
 		"authority-id":           "canonical",
 		"account-id":             "canonical",
-		"public-key-id":          trustedKeyID,
-		"public-key-fingerprint": trustedFingerp,
+		"public-key-id":          trustedPubKey.ID(),
+		"public-key-fingerprint": trustedPubKey.Fingerprint(),
 		"since":                  "2015-11-20T15:04:00Z",
 		"until":                  "2500-11-20T15:04:00Z",
 	}
-	trustedAccKey, err := db0.Sign(asserts.AccountKeyType, headers, trustedPubKeyEncoded, trustedKeyID)
+	trustedAccKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, trustedPubKeyEncoded, pk)
 	c.Assert(err, IsNil)
 
 	fakeRoot := filepath.Join(tmpdir, "root")
@@ -77,7 +70,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "0",
 	}
-	sdbs.probeAssert, err = db0.Sign(asserts.AssertionType("test-only"), headers, nil, trustedKeyID)
+	sdbs.probeAssert, err = asserts.AssembleAndSignInTest(asserts.AssertionType("test-only"), headers, nil, pk)
 	c.Assert(err, IsNil)
 }
 
@@ -92,4 +85,26 @@ func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
 
 	err = db.Check(sdbs.probeAssert)
 	c.Check(err, IsNil)
+}
+
+func (sdbs *sysDBSuite) TestOpenSysDatabaseBackstoreOpenFail(c *C) {
+	// make it not world-writeable
+	oldUmask := syscall.Umask(0)
+	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "asserts-v0"), 0777)
+	syscall.Umask(oldUmask)
+
+	db, err := asserts.OpenSysDatabase()
+	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
+	c.Check(db, IsNil)
+}
+
+func (sdbs *sysDBSuite) TestOpenSysDatabaseKeypairManagerOpenFail(c *C) {
+	// make it not world-writeable
+	oldUmask := syscall.Umask(0)
+	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "private-keys-v0"), 0777)
+	syscall.Umask(oldUmask)
+
+	db, err := asserts.OpenSysDatabase()
+	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
+	c.Check(db, IsNil)
 }
