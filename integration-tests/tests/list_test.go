@@ -22,12 +22,10 @@ package tests
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 
-	"github.com/mvo5/goconfigparser"
 	"gopkg.in/check.v1"
 )
 
@@ -37,20 +35,8 @@ type listSuite struct {
 	common.SnappySuite
 }
 
-func getVersionFromConfig(c *check.C) string {
-	cfg := goconfigparser.New()
-	f, err := os.Open("/etc/system-image/channel.ini")
-	c.Assert(err, check.IsNil,
-		check.Commentf("Error opening the config file: %v:", err))
-	defer f.Close()
-	err = cfg.Read(f)
-	c.Assert(err, check.IsNil,
-		check.Commentf("Error parsing the config file: %v", err))
-	version, err := cfg.Get("service", "build_number")
-	c.Assert(err, check.IsNil,
-		check.Commentf("Error getting the build number: %v", err))
-	return version
-}
+// FIXME: hardcoded for now
+var verRegexp = "16.04.*"
 
 func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
 	listOutput := cli.ExecCommand(c, "snappy", "list")
@@ -58,13 +44,13 @@ func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
 	expected := "(?ms)" +
 		"Name +Date +Version +Developer *\n" +
 		".*" +
-		fmt.Sprintf("^ubuntu-core +.* +%s +ubuntu *\n", getVersionFromConfig(c)) +
+		fmt.Sprintf("^ubuntu-core +.* +%s +canonical *\n", verRegexp) +
 		".*"
 	c.Assert(listOutput, check.Matches, expected)
 }
 
 func (s *listSuite) TestListMustPrintAppVersion(c *check.C) {
-	common.InstallSnap(c, "hello-world")
+	common.InstallSnap(c, "hello-world/edge")
 	s.AddCleanup(func() {
 		common.RemoveSnap(c, "hello-world")
 	})

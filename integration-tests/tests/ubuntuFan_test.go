@@ -170,7 +170,7 @@ func (s *fanTestSuite) removeBridgeFromDockerConf(c *check.C) {
 
 func dockerCfgFile(c *check.C) string {
 	dockerVersion := common.GetCurrentVersion(c, "docker")
-	return fmt.Sprintf("/var/lib/apps/docker/%s/etc/docker.conf", dockerVersion)
+	return fmt.Sprintf("/var/lib/snaps/docker/%s/etc/docker.conf", dockerVersion)
 }
 
 func restartDocker(c *check.C) {
@@ -188,8 +188,9 @@ func restartDocker(c *check.C) {
 }
 
 func (s *fanTestSuite) fanName() string {
-	return "fan-" + strings.Replace(strings.TrimRight(s.bridgeIP, ".1"),
-		".", "-", -1)
+	firstOctect := strings.Split(s.bridgeIP, ".")[0]
+
+	return "fan-" + firstOctect
 }
 
 func (s *fanTestSuite) dockerOptions() string {
@@ -197,7 +198,7 @@ func (s *fanTestSuite) dockerOptions() string {
 }
 
 func setUpDocker(c *check.C) {
-	common.InstallSnap(c, "docker")
+	common.InstallSnap(c, "docker/edge")
 	dockerVersion := common.GetCurrentVersion(c, "docker")
 	dockerService := fmt.Sprintf("docker_docker-daemon_%s.service", dockerVersion)
 

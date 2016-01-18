@@ -2,7 +2,7 @@
 // +build !excludeintegration,!excludereboots
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,7 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
@@ -93,7 +94,7 @@ func (s *serviceSuite) TestServiceMustBeStartedAfterReboot(c *check.C) {
 func (s *serviceSuite) TestServiceMustBeStartedAfterUpdate(c *check.C) {
 	if common.BeforeReboot() {
 		installSnapWithService(c)
-		common.CallFakeUpdate(c)
+		updates.CallFakeOSUpdate(c)
 		common.Reboot(c)
 	} else if common.AfterReboot(c) {
 		common.RemoveRebootMark(c)

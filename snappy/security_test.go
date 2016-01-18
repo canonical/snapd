@@ -55,9 +55,8 @@ func (a *SecurityTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	a.m = &packageYaml{
-		Name:        "foo",
-		Version:     "1.0",
-		Integration: make(map[string]clickAppHook),
+		Name:    "foo",
+		Version: "1.0",
 	}
 
 	// and mock some stuff
@@ -128,7 +127,7 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfile(c *C) {
 		Version: "1.0",
 	}
 	b := Binary{Name: "bin/app"}
-	ap, err := getSecurityProfile(&m, b.Name, "/apps/foo.mvo/1.0/")
+	ap, err := getSecurityProfile(&m, b.Name, "/snaps/foo.mvo/1.0/")
 	c.Assert(err, IsNil)
 	c.Check(ap, Equals, "foo.mvo_bin-app_1.0")
 }
@@ -139,7 +138,7 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfileInvalid(c *C) {
 		Version: "1.0",
 	}
 	b := Binary{Name: "bin/app"}
-	_, err := getSecurityProfile(&m, b.Name, "/apps/foo/1.0/")
+	_, err := getSecurityProfile(&m, b.Name, "/snaps/foo/1.0/")
 	c.Assert(err, Equals, ErrInvalidPart)
 }
 
@@ -150,7 +149,7 @@ func (a *SecurityTestSuite) TestSnappyGetSecurityProfileFramework(c *C) {
 		Type:    snap.TypeFramework,
 	}
 	b := Binary{Name: "bin/app"}
-	ap, err := getSecurityProfile(&m, b.Name, "/apps/foo.mvo/1.0/")
+	ap, err := getSecurityProfile(&m, b.Name, "/snaps/foo.mvo/1.0/")
 	c.Assert(err, IsNil)
 	c.Check(ap, Equals, "foo_bin-app_1.0")
 }
@@ -230,9 +229,9 @@ func (a *SecurityTestSuite) TestSecurityGetAppArmorVars(c *C) {
 @{APP_PKGNAME_DBUS}="pkgname"
 @{APP_PKGNAME}="pkgname"
 @{APP_VERSION}="1.0"
-@{INSTALL_DIR}="{/apps,/gadget}"
+@{INSTALL_DIR}="{/snaps,/gadget}"
 # Deprecated:
-@{CLICK_DIR}="{/apps,/gadget}"`)
+@{CLICK_DIR}="{/snaps,/gadget}"`)
 }
 
 func (a *SecurityTestSuite) TestSecurityGenAppArmorPathRuleSimple(c *C) {
@@ -318,9 +317,9 @@ var expectedGeneratedAaProfile = `
 @{APP_PKGNAME_DBUS}="foo"
 @{APP_PKGNAME}="foo"
 @{APP_VERSION}="1.0"
-@{INSTALL_DIR}="{/apps,/gadget}"
+@{INSTALL_DIR}="{/snaps,/gadget}"
 # Deprecated:
-@{CLICK_DIR}="{/apps,/gadget}"
+@{CLICK_DIR}="{/snaps,/gadget}"
 
 # v2 compatible wildly permissive profile
 profile "" (attach_disconnected) {
@@ -448,9 +447,9 @@ var expectedAaCustomPolicy = `
 @{APP_PKGNAME_DBUS}="foo"
 @{APP_PKGNAME}="foo"
 @{APP_VERSION}="1.0"
-@{INSTALL_DIR}="{/apps,/gadget}"
+@{INSTALL_DIR}="{/snaps,/gadget}"
 # Deprecated:
-@{CLICK_DIR}="{/apps,/gadget}"
+@{CLICK_DIR}="{/snaps,/gadget}"
 
 # v2 compatible wildly permissive profile
 profile "foo_bar_1.0" (attach_disconnected) {
@@ -579,7 +578,7 @@ sc-network-client
 	}
 
 	// generate the apparmor profile
-	err := sd.generatePolicyForServiceBinary(m, "binary", "/apps/app.origin/1.0")
+	err := sd.generatePolicyForServiceBinary(m, "binary", "/snaps/app.origin/1.0")
 	c.Assert(err, IsNil)
 
 	// ensure the apparmor policy got loaded
@@ -968,7 +967,7 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryFramework(
 	}
 
 	// generate the apparmor profile
-	err := sd.generatePolicyForServiceBinary(m, "binary", "/apps/framework-anem/1.0")
+	err := sd.generatePolicyForServiceBinary(m, "binary", "/snaps/framework-anem/1.0")
 	c.Assert(err, IsNil)
 
 	// ensure its available with the right names
@@ -989,7 +988,7 @@ func (a *SecurityTestSuite) TestSecurityGeneratePolicyForServiceBinaryErrors(c *
 	}
 
 	// ensure invalid packages generate an error
-	err := sd.generatePolicyForServiceBinary(m, "binary", "/apps/app-no-origin/1.0")
+	err := sd.generatePolicyForServiceBinary(m, "binary", "/snaps/app-no-origin/1.0")
 	c.Assert(err, ErrorMatches, "invalid package on system")
 }
 

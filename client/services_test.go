@@ -71,8 +71,8 @@ func (cs *clientSuite) TestClientServices(c *C) {
 	}`
 	services, err := cs.cli.Services(appID)
 	c.Check(err, IsNil)
-	c.Check(services, DeepEquals, map[string]client.Service{
-		"chatroom": client.Service{
+	c.Check(services, DeepEquals, map[string]*client.Service{
+		"chatroom": &client.Service{
 			Op: "status",
 			Spec: client.ServiceSpec{
 				Name:        "chatroom",

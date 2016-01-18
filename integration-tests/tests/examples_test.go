@@ -46,7 +46,7 @@ type helloWorldExampleSuite struct {
 }
 
 func (s *helloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
-	common.InstallSnap(c, "hello-world")
+	common.InstallSnap(c, "hello-world/edge")
 	s.AddCleanup(func() {
 		common.RemoveSnap(c, "hello-world")
 	})
@@ -58,7 +58,7 @@ func (s *helloWorldExampleSuite) TestCallHelloWorldBinary(c *check.C) {
 }
 
 func (s *helloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDeniedError(c *check.C) {
-	common.InstallSnap(c, "hello-world")
+	common.InstallSnap(c, "hello-world/edge")
 	s.AddCleanup(func() {
 		common.RemoveSnap(c, "hello-world")
 	})
@@ -70,8 +70,8 @@ func (s *helloWorldExampleSuite) TestCallHelloWorldEvilMustPrintPermissionDenied
 		"Hello Evil World!\n" +
 		"This example demonstrates the app confinement\n" +
 		"You should see a permission denied error next\n" +
-		"/apps/hello-world.canonical/.*/bin/evil: \\d+: " +
-		"/apps/hello-world.canonical/.*/bin/evil: " +
+		"/snaps/hello-world.canonical/.*/bin/evil: \\d+: " +
+		"/snaps/hello-world.canonical/.*/bin/evil: " +
 		"cannot create /var/tmp/myevil.txt: Permission denied\n"
 
 	c.Assert(string(echoOutput), check.Matches, expected)
@@ -86,7 +86,7 @@ type pythonWebserverExampleSuite struct {
 func (s *pythonWebserverExampleSuite) TestNetworkingServiceMustBeStarted(c *check.C) {
 	baseAppName := "xkcd-webserver"
 	appName := baseAppName + ".canonical"
-	common.InstallSnap(c, appName)
+	common.InstallSnap(c, appName+"/edge")
 	defer common.RemoveSnap(c, appName)
 
 	err := wait.ForServerOnPort(c, "tcp", 80)
@@ -106,7 +106,7 @@ type goWebserverExampleSuite struct {
 
 func (s *goWebserverExampleSuite) TestGetRootPathMustPrintMessage(c *check.C) {
 	appName := "go-example-webserver"
-	common.InstallSnap(c, appName)
+	common.InstallSnap(c, appName+"/edge")
 	defer common.RemoveSnap(c, appName)
 
 	err := wait.ForServerOnPort(c, "tcp6", 8081)
@@ -128,10 +128,10 @@ type frameworkExampleSuite struct {
 }
 
 func (s *frameworkExampleSuite) TestFrameworkClient(c *check.C) {
-	common.InstallSnap(c, "hello-dbus-fwk.canonical")
+	common.InstallSnap(c, "hello-dbus-fwk.canonical/edge")
 	defer common.RemoveSnap(c, "hello-dbus-fwk.canonical")
 
-	common.InstallSnap(c, "hello-dbus-app.canonical")
+	common.InstallSnap(c, "hello-dbus-app.canonical/edge")
 	defer common.RemoveSnap(c, "hello-dbus-app.canonical")
 
 	output := cli.ExecCommand(c, "hello-dbus-app.client")
@@ -159,7 +159,7 @@ var configTests = []struct {
 
 func (s *configExampleSuite) TestPrintMessageFromConfig(c *check.C) {
 	for _, t := range configTests {
-		common.InstallSnap(c, t.snap+t.origin)
+		common.InstallSnap(c, t.snap+t.origin+"/edge")
 		defer common.RemoveSnap(c, t.snap)
 
 		config := fmt.Sprintf(`config:
@@ -187,7 +187,7 @@ type licensedExampleSuite struct {
 }
 
 func (s *licensedExampleSuite) TestAcceptLicenseMustInstallSnap(c *check.C) {
-	cmd := exec.Command("sudo", "snappy", "install", "licensed.canonical")
+	cmd := exec.Command("sudo", "snappy", "install", "licensed.canonical/edge")
 	f, err := pty.Start(cmd)
 	c.Assert(err, check.IsNil, check.Commentf("Error starting pty: %s", err))
 	defer common.RemoveSnap(c, "licensed.canonical")
@@ -203,7 +203,7 @@ func (s *licensedExampleSuite) TestAcceptLicenseMustInstallSnap(c *check.C) {
 }
 
 func (s *licensedExampleSuite) TestDeclineLicenseMustNotInstallSnap(c *check.C) {
-	cmd := exec.Command("sudo", "snappy", "install", "licensed.canonical")
+	cmd := exec.Command("sudo", "snappy", "install", "licensed.canonical/edge")
 	f, err := pty.Start(cmd)
 	c.Assert(err, check.IsNil, check.Commentf("Error starting pty: %s", err))
 

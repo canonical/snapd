@@ -28,9 +28,8 @@ import (
 var (
 	GlobalRootDir string
 
-	SnapAppsDir               string
+	SnapSnapsDir              string
 	SnapBlobDir               string
-	SnapGadgetDir             string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
 	SnapAppArmorDir           string
@@ -49,8 +48,7 @@ var (
 	SnapServicesDir  string
 	SnapBusPolicyDir string
 
-	ClickSystemHooksDir string
-	CloudMetaDataFile   string
+	CloudMetaDataFile string
 
 	ClassicDir string
 )
@@ -75,10 +73,9 @@ func init() {
 func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
-	SnapAppsDir = filepath.Join(rootdir, "/apps")
-	SnapGadgetDir = filepath.Join(rootdir, "/gadget")
-	SnapDataDir = filepath.Join(rootdir, "/var/lib/apps")
-	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/apps/")
+	SnapSnapsDir = filepath.Join(rootdir, "/snaps")
+	SnapDataDir = filepath.Join(rootdir, "/var/lib/snaps")
+	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snaps/")
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
 	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "profiles")
@@ -91,11 +88,9 @@ func SetRootDir(rootdir string) {
 	SnapAssertsDBDir = filepath.Join(rootdir, snappyDir, "assertions")
 	SnapTrustedAccountKey = filepath.Join(rootdir, "/usr/share/snappy/trusted.acckey")
 
-	SnapBinariesDir = filepath.Join(SnapAppsDir, "bin")
+	SnapBinariesDir = filepath.Join(SnapSnapsDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
-
-	ClickSystemHooksDir = filepath.Join(rootdir, "/usr/share/click/hooks")
 
 	CloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
 

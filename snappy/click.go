@@ -19,19 +19,9 @@
 
 package snappy
 
-/* This part of the code implements enough of the click file format
-   to install a "snap" package
-   Limitations:
-   - no per-user registration
-   - no user-level hooks
-   - more(?)
-*/
-
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,64 +40,12 @@ import (
 	"github.com/ubuntu-core/snappy/systemd"
 )
 
-type clickManifest struct {
-	Name          string                  `json:"name"`
-	Version       string                  `json:"version"`
-	Architecture  []string                `json:"architecture,omitempty"`
-	Type          snap.Type               `json:"type,omitempty"`
-	Framework     string                  `json:"framework,omitempty"`
-	Description   string                  `json:"description,omitempty"`
-	Icon          string                  `json:"icon,omitempty"`
-	InstalledSize string                  `json:"installed-size,omitempty"`
-	Maintainer    string                  `json:"maintainer,omitempty"`
-	Title         string                  `json:"title,omitempty"`
-	Hooks         map[string]clickAppHook `json:"hooks,omitempty"`
-}
-
 // wait this time between TERM and KILL
 var killWait = 5 * time.Second
 
 // servicesBinariesStringsWhitelist is the whitelist of legal chars
 // in the "binaries" and "services" section of the package.yaml
 var servicesBinariesStringsWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
-
-// Execute the hook.Exec command
-func execHook(execCmd string) (err error) {
-	// the spec says this is passed to the shell
-	cmd := exec.Command("sh", "-c", execCmd)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		if exitCode, err := helpers.ExitCode(err); err == nil {
-			return &ErrHookFailed{
-				Cmd:      execCmd,
-				Output:   string(output),
-				ExitCode: exitCode,
-			}
-		}
-		return err
-	}
-
-	return nil
-}
-
-func readClickManifest(data []byte) (manifest clickManifest, err error) {
-	r := bytes.NewReader(data)
-	dec := json.NewDecoder(r)
-	err = dec.Decode(&manifest)
-	return manifest, err
-}
-
-func readClickManifestFromClickDir(clickDir string) (manifest clickManifest, err error) {
-	manifestFiles, err := filepath.Glob(filepath.Join(clickDir, ".click", "info", "*.manifest"))
-	if err != nil {
-		return manifest, err
-	}
-	if len(manifestFiles) != 1 {
-		return manifest, fmt.Errorf("Error: got %v manifests in %v", len(manifestFiles), clickDir)
-	}
-	manifestData, err := ioutil.ReadFile(manifestFiles[0])
-	manifest, err = readClickManifest([]byte(manifestData))
-	return manifest, err
-}
 
 // generate the name
 func generateBinaryName(m *packageYaml, binary Binary) string {
@@ -141,15 +79,14 @@ set -e
 
 # app info (deprecated)
 {{.OldAppVars}}
-export SNAPP_OLD_PWD="$(pwd)"
 
 # app info
 {{.NewAppVars}}
 
-if [ ! -d "$SNAP_APP_USER_DATA_PATH" ]; then
-   mkdir -p "$SNAP_APP_USER_DATA_PATH"
+if [ ! -d "$SNAP_USER_DATA" ]; then
+   mkdir -p "$SNAP_USER_DATA"
 fi
-export HOME="$SNAP_APP_USER_DATA_PATH"
+export HOME="$SNAP_USER_DATA"
 
 # export old pwd
 export SNAP_OLD_PWD="$(pwd)"
@@ -351,7 +288,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 			return err
 		}
 		// this will remove the global base dir when generating the
-		// service file, this ensures that /apps/foo/1.0/bin/start
+		// service file, this ensures that /snaps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
@@ -485,7 +422,7 @@ func (m *packageYaml) addPackageBinaries(baseDir string) error {
 			return err
 		}
 		// this will remove the global base dir when generating the
-		// service file, this ensures that /apps/foo/1.0/bin/start
+		// service file, this ensures that /snaps/foo/1.0/bin/start
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
@@ -519,41 +456,12 @@ type interacter interface {
 	Notify(status string)
 }
 
-// this rewrites the json manifest to include the origin in the on-disk
-// manifest.json to be compatible with click again
-func writeCompatManifestJSON(clickMetaDir string, manifestData []byte, origin string) error {
-	var cm clickManifest
-	if err := json.Unmarshal(manifestData, &cm); err != nil {
-		return err
-	}
-
-	if cm.Type != snap.TypeFramework && cm.Type != snap.TypeGadget {
-		// add the origin to the name
-		cm.Name = fmt.Sprintf("%s.%s", cm.Name, origin)
-	}
-
-	if origin == SideloadedOrigin {
-		cm.Version = filepath.Base(filepath.Join(clickMetaDir, "..", ".."))
-	}
-
-	outStr, err := json.MarshalIndent(cm, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := helpers.AtomicWriteFile(filepath.Join(clickMetaDir, cm.Name+".manifest"), []byte(outStr), 0644, 0); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func installClick(snapFile string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
 	allowUnauthenticated := (flags & AllowUnauthenticated) != 0
-	part, err := NewSnapPartFromSnapFile(snapFile, origin, allowUnauthenticated)
+	part, err := NewSnapFile(snapFile, origin, allowUnauthenticated)
 	if err != nil {
 		return "", err
 	}
-	defer part.deb.Close()
 
 	return part.Install(inter, flags)
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,20 +17,25 @@
  *
  */
 
-package partition
+package caps
 
 import (
-	. "gopkg.in/check.v1"
+	"errors"
 )
 
-func (s *PartitionTestSuite) TestHardwareSpec(c *C) {
+// SecuritySystem is a name of a security system.
+type SecuritySystem string
 
-	hardwareSpecFile = makeHardwareYaml(c, "")
-	hw, err := readHardwareSpec()
-	c.Assert(err, IsNil)
-	c.Assert(hw.Kernel, Equals, "assets/vmlinuz")
-	c.Assert(hw.Initrd, Equals, "assets/initrd.img")
-	c.Assert(hw.DtbDir, Equals, "assets/dtbs")
-	c.Assert(hw.PartitionLayout, Equals, bootloaderSystemAB)
-	c.Assert(hw.Bootloader, Equals, bootloaderNameUboot)
-}
+const (
+	// SecurityApparmor identifies the apparmor security system.
+	SecurityApparmor SecuritySystem = "apparmor"
+	// SecuritySeccomp identifies the seccomp security system.
+	SecuritySeccomp SecuritySystem = "seccomp"
+	// SecurityDBus identifies the DBus security system.
+	SecurityDBus SecuritySystem = "dbus"
+)
+
+var (
+	// ErrUnknownSecurity is reported when an unknown security system is encountered.
+	ErrUnknownSecurity = errors.New("unknown security system")
+)

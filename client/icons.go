@@ -33,32 +33,32 @@ type Icon struct {
 }
 
 // Icon returns the Icon belonging to an installed Package
-func (c *Client) Icon(pkgID string) (Icon, error) {
+func (c *Client) Icon(pkgID string) (*Icon, error) {
 	const errPrefix = "cannot retrieve icon"
 
 	response, err := c.raw("GET", fmt.Sprintf("/1.0/icons/%s/icon", pkgID), nil)
 	if err != nil {
-		return Icon{}, fmt.Errorf("%s: failed to communicate with server: %s", errPrefix, err)
+		return nil, fmt.Errorf("%s: failed to communicate with server: %s", errPrefix, err)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return Icon{}, fmt.Errorf("%s: Not Found", errPrefix)
+		return nil, fmt.Errorf("%s: Not Found", errPrefix)
 	}
 
 	re := regexp.MustCompile(`attachment; filename=(.+)`)
 	matches := re.FindStringSubmatch(response.Header.Get("Content-Disposition"))
 
 	if matches == nil || matches[1] == "" {
-		return Icon{}, fmt.Errorf("%s: cannot determine filename", errPrefix)
+		return nil, fmt.Errorf("%s: cannot determine filename", errPrefix)
 	}
 
 	content, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		return Icon{}, fmt.Errorf("%s: %s", errPrefix, err)
+		return nil, fmt.Errorf("%s: %s", errPrefix, err)
 	}
 
-	icon := Icon{
+	icon := &Icon{
 		Filename: matches[1],
 		Content:  content,
 	}
