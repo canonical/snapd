@@ -83,11 +83,8 @@ type Part interface {
 	Description() string
 	Origin() string
 
-	Hash() string
 	IsActive() bool
 	IsInstalled() bool
-	// Will become active on the next reboot
-	NeedsReboot() bool
 
 	// returns the date when the snap was last updated
 	Date() time.Time
@@ -107,11 +104,6 @@ type Part interface {
 	// Config takes a yaml configuration and returns the full snap
 	// config with the changes. Note that "configuration" may be empty.
 	Config(configuration []byte) (newConfig string, err error)
-	// make an inactive part active, or viceversa
-	SetActive(bool, progress.Meter) error
-
-	// get the list of frameworks needed by the part
-	Frameworks() ([]string, error)
 }
 
 // ActiveSnapsByType returns all installed snaps with the given type

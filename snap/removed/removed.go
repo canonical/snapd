@@ -29,7 +29,6 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -88,17 +87,11 @@ func (r *Removed) Origin() string {
 	return r.origin
 }
 
-// Hash from the snappy.Part interface
-func (r *Removed) Hash() string { return "" }
-
 // IsActive from the snappy.Part interface
 func (r *Removed) IsActive() bool { return false }
 
 // IsInstalled from the snappy.Part interface
 func (r *Removed) IsInstalled() bool { return false }
-
-// NeedsReboot from the snappy.Part interface
-func (r *Removed) NeedsReboot() bool { return false }
 
 // Date from the snappy.Part interface
 func (r *Removed) Date() time.Time { return time.Time{} } // XXX: keep track of when the package was removed
@@ -129,14 +122,5 @@ func (r *Removed) DownloadSize() int64 {
 	return -1
 }
 
-// Uninstall from the snappy.Part interface
-func (r *Removed) Uninstall(pb progress.Meter) error { return ErrRemoved }
-
 // Config from the snappy.Part interface
 func (r *Removed) Config(configuration []byte) (newConfig string, err error) { return "", ErrRemoved }
-
-// SetActive from the snappy.Part interface
-func (r *Removed) SetActive(bool, progress.Meter) error { return ErrRemoved }
-
-// Frameworks from the snappy.Part interface
-func (r *Removed) Frameworks() ([]string, error) { return nil, ErrRemoved }
