@@ -32,6 +32,8 @@ func Test(t *testing.T) { TestingT(t) }
 type ProvisioningTestSuite struct {
 	mockBootDir  string
 	mockYamlFile string
+
+	realBootloaderDir string
 }
 
 var _ = Suite(&ProvisioningTestSuite{})
@@ -76,6 +78,13 @@ var garbageData = `Fooled you!?`
 func (ts *ProvisioningTestSuite) SetUpTest(c *C) {
 	ts.mockBootDir = c.MkDir()
 	ts.mockYamlFile = filepath.Join(ts.mockBootDir, "install.yaml")
+	ts.realBootloaderDir = bootloaderDir
+
+	bootloaderDir = ts.mockBootDir
+}
+
+func (ts *ProvisioningTestSuite) TearDownTest(c *C) {
+	bootloaderDir = ts.realBootloaderDir
 }
 
 func (ts *ProvisioningTestSuite) TestSideLoadedSystemNoInstallYaml(c *C) {
@@ -157,7 +166,8 @@ func (ts *ProvisioningTestSuite) TestParseInstallYamlData(c *C) {
 }
 
 func (ts *ProvisioningTestSuite) TestInDeveloperModeEmpty(c *C) {
-	c.Assert(InDeveloperMode(""), Equals, false)
+	bootloaderDir = ""
+	c.Assert(InDeveloperMode(), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestInDeveloperModeWithDevModeOn(c *C) {
@@ -166,7 +176,8 @@ options:
  developer-mode: true
 `), 0644)
 	c.Assert(err, IsNil)
-	c.Assert(InDeveloperMode(ts.mockBootDir), Equals, true)
+	bootloaderDir = ts.mockBootDir
+	c.Assert(InDeveloperMode(), Equals, true)
 }
 
 func (ts *ProvisioningTestSuite) TestInDeveloperModeWithDevModeOff(c *C) {
@@ -175,5 +186,6 @@ options:
  developer-mode: false
 `), 0644)
 	c.Assert(err, IsNil)
-	c.Assert(InDeveloperMode(ts.mockBootDir), Equals, false)
+	bootloaderDir = ts.mockBootDir
+	c.Assert(InDeveloperMode(), Equals, false)
 }

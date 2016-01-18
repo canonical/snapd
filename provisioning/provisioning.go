@@ -25,6 +25,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/helpers"
 	"github.com/ubuntu-core/snappy/logger"
+	"github.com/ubuntu-core/snappy/partition"
 
 	"gopkg.in/yaml.v2"
 )
@@ -36,6 +37,13 @@ const (
 	//
 	// XXX: Public for ubuntu-device-flash(1)
 	InstallYamlFile = "install.yaml"
+)
+
+var (
+	// FIXME: this is a bit terrible, we really need a single
+	//        bootloader dir like /boot or /boot/loader
+	//        instead of having to query the partition code
+	bootloaderDir = partition.BootloaderDir()
 )
 
 // ErrNoInstallYaml is emitted when InstallYamlFile does not exist.
@@ -132,7 +140,7 @@ func IsSideLoaded(bootloaderDir string) bool {
 }
 
 // InDeveloperMode returns true if the image was build with --developer-mode
-func InDeveloperMode(bootloaderDir string) bool {
+func InDeveloperMode() bool {
 	file := filepath.Join(bootloaderDir, InstallYamlFile)
 
 	if !helpers.FileExists(file) {
