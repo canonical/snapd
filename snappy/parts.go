@@ -21,8 +21,6 @@ package snappy
 
 import (
 	"fmt"
-	"net"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -114,97 +112,6 @@ type Part interface {
 
 	// get the list of frameworks needed by the part
 	Frameworks() ([]string, error)
-}
-
-// Repository is the interface for a collection of snaps
-type Repository interface {
-
-	// query
-	Description() string
-
-	// action
-	Details(name string, origin string) ([]Part, error)
-
-	All() ([]Part, error)
-}
-
-// MetaRepository contains all available single repositories can can be used
-// to query in a single place
-type MetaRepository struct {
-	all []Repository
-}
-
-// NewMetaStoreRepository returns a MetaRepository of stores
-func NewMetaStoreRepository() *MetaRepository {
-	m := new(MetaRepository)
-	m.all = []Repository{}
-
-	if repo := NewUbuntuStoreSnapRepository(); repo != nil {
-		m.all = append(m.all, repo)
-	}
-
-	return m
-}
-
-// NewMetaLocalRepository returns a MetaRepository of stores
-func NewMetaLocalRepository() *MetaRepository {
-	m := new(MetaRepository)
-	m.all = []Repository{}
-
-	if repo := NewLocalSnapRepository(dirs.SnapSnapsDir); repo != nil {
-		m.all = append(m.all, repo)
-	}
-
-	return m
-}
-
-// NewMetaRepository returns a new MetaRepository
-func NewMetaRepository() *MetaRepository {
-	// FIXME: make this a configuration file
-
-	m := NewMetaLocalRepository()
-	if repo := NewUbuntuStoreSnapRepository(); repo != nil {
-		m.all = append(m.all, repo)
-	}
-
-	return m
-}
-
-// All the parts
-func (m *MetaRepository) All() ([]Part, error) {
-	var parts []Part
-
-	for _, r := range m.all {
-		all, err := r.All()
-		if err != nil {
-			return nil, err
-		}
-		parts = append(parts, all...)
-	}
-
-	return parts, nil
-}
-
-// Details returns details for the given snap name
-func (m *MetaRepository) Details(name string, origin string) ([]Part, error) {
-	var parts []Part
-
-	for _, r := range m.all {
-		results, err := r.Details(name, origin)
-		// ignore network errors here, we will also collect
-		// local results
-		_, netError := err.(net.Error)
-		_, urlError := err.(*url.Error)
-		switch {
-		case err == ErrPackageNotFound || netError || urlError:
-			continue
-		case err != nil:
-			return nil, err
-		}
-		parts = append(parts, results...)
-	}
-
-	return parts, nil
 }
 
 // ActiveSnapsByType returns all installed snaps with the given type

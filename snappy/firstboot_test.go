@@ -149,9 +149,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 
 	s.m = &packageYaml{Gadget: Gadget{Software: Software{BuiltIn: []string{name}}}}
 
-	repo := NewMetaLocalRepository()
-	all, err := repo.All()
-	c.Check(err, IsNil)
+	all := (&Overlord{}).Installed()
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)
 	c.Check(all[0].IsInstalled(), Equals, true)
@@ -160,9 +158,7 @@ func (s *FirstBootTestSuite) TestSoftwareActivate(c *C) {
 	s.partMap = map[string]Part{name: all[0]}
 	c.Assert(FirstBoot(), IsNil)
 
-	repo = NewMetaLocalRepository()
-	all, err = repo.All()
-	c.Check(err, IsNil)
+	all = (&Overlord{}).Installed()
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].Name(), Equals, name)
 	c.Check(all[0].IsInstalled(), Equals, true)
@@ -244,17 +240,14 @@ func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml str
 	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, yaml)
 	c.Assert(err, IsNil)
 
-	repo := NewMetaLocalRepository()
-	all, err := repo.All()
-	c.Check(err, IsNil)
+	all := (&Overlord{}).Installed()
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].IsInstalled(), Equals, true)
 	c.Check(all[0].IsActive(), Equals, false)
 
 	c.Assert(FirstBoot(), IsNil)
 
-	repo = NewMetaLocalRepository()
-	all, err = repo.All()
+	all = (&Overlord{}).Installed()
 	c.Check(err, IsNil)
 	c.Assert(all, HasLen, 1)
 	c.Check(all[0].IsInstalled(), Equals, true)
