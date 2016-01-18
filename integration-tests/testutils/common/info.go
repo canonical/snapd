@@ -40,6 +40,10 @@ func Release(c *check.C) string {
 	for scanner.Scan() {
 		if strings.HasPrefix(scanner.Text(), "release: ") {
 			releaseInfo := strings.TrimPrefix(scanner.Text(), "release: ")
+			if !strings.Contains(releaseInfo, "/") {
+				return releaseInfo
+			}
+
 			return strings.Split(releaseInfo, "/")[1]
 		}
 	}

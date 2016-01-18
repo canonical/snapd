@@ -40,6 +40,10 @@ const (
 	defaultChannel   = "edge"
 	defaultSSHPort   = 22
 	dataOutputDir    = "integration-tests/data/output/"
+
+	defaultKernel = "canonical-pc-linux.canonical"
+	defaultOS     = "ubuntu-core.canonical"
+	defaultGadget = "canonical-pc.canonical"
 )
 
 var configFileName = filepath.Join(dataOutputDir, "testconfig.json")
@@ -62,6 +66,14 @@ func main() {
 			"Channel of the image to be built, defaults to "+defaultChannel)
 		imgRevision = flag.String("revision", "",
 			"Revision of the image to be built (can be relative to the latest available revision in the given release and channel as in -1), defaults to the empty string")
+
+		imgOS = flag.String("os", defaultOS,
+			"OS snap of the image to be built, defaults to "+defaultOS)
+		imgKernel = flag.String("kernel", defaultKernel,
+			"Kernel snap of the image to be built, defaults to "+defaultKernel)
+		imgGadget = flag.String("gadget", defaultGadget,
+			"Gadget snap of the image to be built, defaults to "+defaultGadget)
+
 		update = flag.Bool("update", false,
 			"If this flag is used, the image will be updated before running the tests.")
 		targetRelease = flag.String("target-release", "",
@@ -105,18 +117,25 @@ func main() {
 		ShellOnFail:         *shellOnFail,
 	}
 	if !remoteTestbed {
-		img := image.NewImage(*imgRelease, *imgChannel, *imgRevision, *outputDir)
+		img := &image.Image{
+			Release:  *imgRelease,
+			Channel:  *imgChannel,
+			Revision: *imgRevision,
+			OS:       *imgOS,
+			Kernel:   *imgKernel,
+			Gadget:   *imgGadget,
+			BaseDir:  *outputDir}
 
 		if imagePath, err := img.UdfCreate(); err == nil {
 			if err = test.AdtRunLocal(imagePath); err != nil {
-				log.Panic(err.Error())
+				log.Panicf("%s", err)
 			}
 		} else {
-			log.Panic(err.Error())
+			log.Panicf("%s", err)
 		}
 	} else {
 		if err := test.AdtRunRemote(*testbedIP, *testbedPort); err != nil {
-			log.Panic(err.Error())
+			log.Panicf("%s", err)
 		}
 	}
 }
