@@ -76,8 +76,7 @@ Use "sudo snappy enable-classic" to enable it.`))
 		fmt.Println(i18n.G(`
 
 The home directory is shared between snappy and the classic dimension.
-Run the "exit" command to leave the classic shell again. All files
-created will be preserved.
+Run "exit" to leave the classic shell.
 `))
 		return classic.RunShell()
 	}
