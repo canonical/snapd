@@ -49,12 +49,12 @@ func (u *uboot) configFile() string {
 	return filepath.Join(u.Dir(), "uEnv.txt")
 }
 
-func (u *uboot) fwEnvFile() string {
+func (u *uboot) envFile() string {
 	return filepath.Join(u.Dir(), "uboot.env")
 }
 
 func (u *uboot) SetBootVar(name, value string) error {
-	env, err := uenv.Open(u.fwEnvFile())
+	env, err := uenv.Open(u.envFile())
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (u *uboot) SetBootVar(name, value string) error {
 }
 
 func (u *uboot) GetBootVar(name string) (string, error) {
-	env, err := uenv.Open(u.fwEnvFile())
+	env, err := uenv.Open(u.envFile())
 	if err != nil {
 		return "", err
 	}
