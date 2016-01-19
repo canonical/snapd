@@ -42,7 +42,10 @@ var _ = Suite(&RepositorySuite{
 
 func (s *RepositorySuite) SetUpTest(c *C) {
 	s.cap = &Capability{
-		Name:     "name",
+		ID: CapabilityID{
+			SnapName: "snap",
+			CapName:  "cap",
+		},
 		Label:    "label",
 		TypeName: "type",
 	}
@@ -53,32 +56,50 @@ func (s *RepositorySuite) SetUpTest(c *C) {
 }
 
 func (s *RepositorySuite) TestAdd(c *C) {
-	cap := &Capability{Name: "name", Label: "label", TypeName: "type"}
-	c.Assert(s.testRepo.Names(), Not(testutil.Contains), cap.Name)
-	err := s.testRepo.Add(cap)
+	c.Assert(s.testRepo.Names(), Not(testutil.Contains), s.cap.String())
+	err := s.testRepo.Add(s.cap)
 	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.Names(), DeepEquals, []string{"name"})
-	c.Assert(s.testRepo.Names(), testutil.Contains, cap.Name)
+	c.Assert(s.testRepo.Names(), DeepEquals, []string{"snap.cap"})
+	c.Assert(s.testRepo.Names(), testutil.Contains, s.cap.String())
 }
 
 func (s *RepositorySuite) TestAddClash(c *C) {
-	cap1 := &Capability{Name: "name", Label: "label 1", TypeName: "type"}
-	err := s.testRepo.Add(cap1)
+	cap1 := *s.cap
+	cap2 := *s.cap
+	cap1.Label = "label 1"
+	cap2.Label = "label 2"
+	err := s.testRepo.Add(&cap1)
 	c.Assert(err, IsNil)
-	cap2 := &Capability{Name: "name", Label: "label 2", TypeName: "type"}
-	err = s.testRepo.Add(cap2)
+	err = s.testRepo.Add(&cap2)
 	c.Assert(err, ErrorMatches,
-		`cannot add capability "name": name already exists`)
-	c.Assert(s.testRepo.Names(), DeepEquals, []string{"name"})
-	c.Assert(s.testRepo.Names(), testutil.Contains, cap1.Name)
+		`cannot add capability "snap.cap": name already exists`)
+	c.Assert(s.testRepo.Names(), DeepEquals, []string{"snap.cap"})
+	c.Assert(s.testRepo.Names(), testutil.Contains, cap1.String())
 }
 
 func (s *RepositorySuite) TestAddInvalidName(c *C) {
-	cap := &Capability{Name: "bad-name-", Label: "label", TypeName: "type"}
-	err := s.testRepo.Add(cap)
+	cap1 := &Capability{
+		ID: CapabilityID{
+			SnapName: "bad-name-",
+			CapName:  "good-name",
+		},
+		Label:    "label",
+		TypeName: "type",
+	}
+	err := s.testRepo.Add(cap1)
 	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
-	c.Assert(s.testRepo.Names(), DeepEquals, []string{})
-	c.Assert(s.testRepo.Names(), Not(testutil.Contains), cap.Name)
+	c.Assert(s.testRepo.Names(), HasLen, 0)
+	cap2 := &Capability{
+		ID: CapabilityID{
+			SnapName: "good-name",
+			CapName:  "bad-name-",
+		},
+		Label:    "label",
+		TypeName: "type",
+	}
+	err = s.testRepo.Add(cap2)
+	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
+	c.Assert(s.testRepo.Names(), HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAddType(c *C) {
@@ -105,34 +126,56 @@ func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
 	t := &TestType{TypeName: "bad-name-"}
 	err := s.emptyRepo.AddType(t)
 	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid snap name`)
-	c.Assert(s.emptyRepo.TypeNames(), DeepEquals, []string{})
-	c.Assert(s.emptyRepo.TypeNames(), Not(testutil.Contains), t.String())
+	c.Assert(s.emptyRepo.TypeNames(), HasLen, 0)
 }
 
 func (s *RepositorySuite) TestRemoveGood(c *C) {
-	cap := &Capability{Name: "name", Label: "label", TypeName: "type"}
-	err := s.testRepo.Add(cap)
+	err := s.testRepo.Add(s.cap)
 	c.Assert(err, IsNil)
-	err = s.testRepo.Remove(cap.Name)
+	err = s.testRepo.Remove(s.cap.ID)
 	c.Assert(err, IsNil)
 	c.Assert(s.testRepo.Names(), HasLen, 0)
-	c.Assert(s.testRepo.Names(), Not(testutil.Contains), cap.Name)
 }
 
 func (s *RepositorySuite) TestRemoveNoSuchCapability(c *C) {
-	err := s.emptyRepo.Remove("name")
-	c.Assert(err, ErrorMatches, `can't remove capability "name", no such capability`)
+	err := s.emptyRepo.Remove(s.cap.ID)
+	c.Assert(err, ErrorMatches, `can't remove capability "snap.cap", no such capability`)
+}
+
+func (s *RepositorySuite) addThreeCapabilities(c *C) {
+	// Note added in non-sorted order
+	err := s.testRepo.Add(&Capability{
+		ID: CapabilityID{
+			SnapName: "snap",
+			CapName:  "a",
+		},
+		Label:    "label-a",
+		TypeName: "type",
+	})
+	c.Assert(err, IsNil)
+	err = s.testRepo.Add(&Capability{
+		ID: CapabilityID{
+			SnapName: "snap",
+			CapName:  "c",
+		},
+		Label:    "label-c",
+		TypeName: "type",
+	})
+	c.Assert(err, IsNil)
+	err = s.testRepo.Add(&Capability{
+		ID: CapabilityID{
+			SnapName: "snap",
+			CapName:  "b",
+		},
+		Label:    "label-b",
+		TypeName: "type",
+	})
+	c.Assert(err, IsNil)
 }
 
 func (s *RepositorySuite) TestNames(c *C) {
-	// Note added in non-sorted order
-	err := s.testRepo.Add(&Capability{Name: "a", Label: "label-a", TypeName: "type"})
-	c.Assert(err, IsNil)
-	err = s.testRepo.Add(&Capability{Name: "c", Label: "label-c", TypeName: "type"})
-	c.Assert(err, IsNil)
-	err = s.testRepo.Add(&Capability{Name: "b", Label: "label-b", TypeName: "type"})
-	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.Names(), DeepEquals, []string{"a", "b", "c"})
+	s.addThreeCapabilities(c)
+	c.Assert(s.testRepo.Names(), DeepEquals, []string{"snap.a", "snap.b", "snap.c"})
 }
 
 func (s *RepositorySuite) TestTypeNames(c *C) {
@@ -144,17 +187,11 @@ func (s *RepositorySuite) TestTypeNames(c *C) {
 }
 
 func (s *RepositorySuite) TestAll(c *C) {
-	// Note added in non-sorted order
-	err := s.testRepo.Add(&Capability{Name: "a", Label: "label-a", TypeName: "type"})
-	c.Assert(err, IsNil)
-	err = s.testRepo.Add(&Capability{Name: "c", Label: "label-c", TypeName: "type"})
-	c.Assert(err, IsNil)
-	err = s.testRepo.Add(&Capability{Name: "b", Label: "label-b", TypeName: "type"})
-	c.Assert(err, IsNil)
+	s.addThreeCapabilities(c)
 	c.Assert(s.testRepo.All(), DeepEquals, []Capability{
-		Capability{Name: "a", Label: "label-a", TypeName: "type"},
-		Capability{Name: "b", Label: "label-b", TypeName: "type"},
-		Capability{Name: "c", Label: "label-c", TypeName: "type"},
+		Capability{ID: CapabilityID{"snap", "a"}, Label: "label-a", TypeName: "type"},
+		Capability{ID: CapabilityID{"snap", "b"}, Label: "label-b", TypeName: "type"},
+		Capability{ID: CapabilityID{"snap", "c"}, Label: "label-c", TypeName: "type"},
 	})
 }
 
@@ -166,8 +203,8 @@ func (s *RepositorySuite) TestType(c *C) {
 func (s *RepositorySuite) TestCapability(c *C) {
 	err := s.testRepo.Add(s.cap)
 	c.Assert(err, IsNil)
-	c.Assert(s.emptyRepo.Capability(s.cap.Name), IsNil)
-	c.Assert(s.testRepo.Capability(s.cap.Name), Equals, s.cap)
+	c.Assert(s.emptyRepo.Capability(s.cap.ID), IsNil)
+	c.Assert(s.testRepo.Capability(s.cap.ID), Equals, s.cap)
 }
 
 func (s *RepositorySuite) TestHasType(c *C) {
@@ -181,15 +218,10 @@ func (s *RepositorySuite) TestHasType(c *C) {
 }
 
 func (s *RepositorySuite) TestCaps(c *C) {
-	err := s.testRepo.Add(&Capability{Name: "a", Label: "label-a", TypeName: "type"})
-	c.Assert(err, IsNil)
-	err = s.testRepo.Add(&Capability{Name: "c", Label: "label-c", TypeName: "type"})
-	c.Assert(err, IsNil)
-	err = s.testRepo.Add(&Capability{Name: "b", Label: "label-b", TypeName: "type"})
-	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.Caps(), DeepEquals, map[string]*Capability{
-		"a": &Capability{Name: "a", Label: "label-a", TypeName: "type"},
-		"b": &Capability{Name: "b", Label: "label-b", TypeName: "type"},
-		"c": &Capability{Name: "c", Label: "label-c", TypeName: "type"},
+	s.addThreeCapabilities(c)
+	c.Assert(s.testRepo.Caps(), DeepEquals, map[CapabilityID]*Capability{
+		CapabilityID{"snap", "a"}: &Capability{ID: CapabilityID{"snap", "a"}, Label: "label-a", TypeName: "type"},
+		CapabilityID{"snap", "b"}: &Capability{ID: CapabilityID{"snap", "b"}, Label: "label-b", TypeName: "type"},
+		CapabilityID{"snap", "c"}: &Capability{ID: CapabilityID{"snap", "c"}, Label: "label-c", TypeName: "type"},
 	})
 }

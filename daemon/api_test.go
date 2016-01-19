@@ -1162,7 +1162,10 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 func (s *apiSuite) TestGetCapabilities(c *check.C) {
 	d := newTestDaemon()
 	d.capRepo.Add(&caps.Capability{
-		Name:     "caps-lock-led",
+		ID: caps.CapabilityID{
+			SnapName: "ubuntu-core",
+			CapName:  "caps-lock-led",
+		},
 		Label:    "Caps Lock LED",
 		TypeName: "bool-file",
 		Attrs: map[string]string{
@@ -1180,8 +1183,11 @@ func (s *apiSuite) TestGetCapabilities(c *check.C) {
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
 			"capabilities": map[string]interface{}{
-				"caps-lock-led": map[string]interface{}{
-					"name":  "caps-lock-led",
+				"ubuntu-core.caps-lock-led": map[string]interface{}{
+					"id": map[string]interface{}{
+						"snap":       "ubuntu-core",
+						"capability": "caps-lock-led",
+					},
 					"label": "Caps Lock LED",
 					"type":  "bool-file",
 					"attrs": map[string]interface{}{
@@ -1200,7 +1206,10 @@ func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 	// Setup
 	d := newTestDaemon()
 	cap := &caps.Capability{
-		Name:     "name",
+		ID: caps.CapabilityID{
+			SnapName: "snap",
+			CapName:  "cap",
+		},
 		Label:    "label",
 		TypeName: "bool-file",
 		Attrs:    map[string]string{"path": "/nonexistent"},
@@ -1215,7 +1224,7 @@ func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 	// Verify (external)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusCreated)
-	c.Check(rsp.Result, check.DeepEquals, map[string]string{"resource": "/1.0/capabilities/name"})
+	c.Check(rsp.Result, check.DeepEquals, map[string]string{"resource": "/1.0/capabilities/snap.cap"})
 	// Verify (internal)
 	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
 }
@@ -1225,7 +1234,10 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	// Start with one capability named 'name' in the repository
 	d := newTestDaemon()
 	cap := &caps.Capability{
-		Name:     "name",
+		ID: caps.CapabilityID{
+			SnapName: "snap",
+			CapName:  "cap",
+		},
 		Label:    "label",
 		TypeName: "bool-file",
 		Attrs:    map[string]string{"path": "/nonexistent"},
@@ -1234,7 +1246,10 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	c.Assert(err, check.IsNil)
 	// Prepare for adding a second capability with the same name
 	capClashing := &caps.Capability{
-		Name:     "name",
+		ID: caps.CapabilityID{
+			SnapName: "snap",
+			CapName:  "cap",
+		},
 		Label:    "second label",
 		TypeName: "bool-file",
 		Attrs:    map[string]string{"path": "/nonexistent"},
@@ -1295,24 +1310,35 @@ func (s *apiSuite) TestDeleteCapabilityGood(c *check.C) {
 	t := &caps.TestType{TypeName: "test"}
 	err := d.capRepo.AddType(t)
 	c.Assert(err, check.IsNil)
-	cap := &caps.Capability{Name: "name", TypeName: "test"}
+	cap := &caps.Capability{
+		ID: caps.CapabilityID{
+			SnapName: "snap",
+			CapName:  "cap",
+		},
+		TypeName: "test"}
 	err = d.capRepo.Add(cap)
 	c.Assert(err, check.IsNil)
-	s.vars = map[string]string{"name": "name"}
+	s.vars = map[string]string{
+		"snap":       "snap",
+		"capability": "cap",
+	}
 	// Execute
 	rsp := deleteCapability(capabilityCmd, nil).Self(nil, nil).(*resp)
 	// Verify (external)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	// Verify (internal)
-	c.Check(d.capRepo.Capability(cap.Name), check.IsNil)
+	c.Check(d.capRepo.Capability(cap.ID), check.IsNil)
 }
 
 func (s *apiSuite) TestDeleteCapabilityNotFound(c *check.C) {
 	// Setup
 	d := newTestDaemon()
 	before := d.capRepo.All()
-	s.vars = map[string]string{"name": "name"}
+	s.vars = map[string]string{
+		"snap":       "snap",
+		"capability": "cap",
+	}
 	// Execute
 	rsp := deleteCapability(capabilityCmd, nil).Self(nil, nil).(*resp)
 	// Verify (external)
