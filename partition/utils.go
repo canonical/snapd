@@ -28,10 +28,10 @@ import (
 )
 
 // This is a var instead of a function to making mocking in the tests easier
-var runCommandWithStdout = runCommandWithStdoutImpl
+var runCommand = runCommandImpl
 
 // Run command specified by args and return the output
-func runCommandWithStdoutImpl(args ...string) (string, error) {
+func runCommandImpl(args ...string) (string, error) {
 	if len(args) == 0 {
 
 		return "", errors.New("no command specified")
@@ -45,7 +45,7 @@ func runCommandWithStdoutImpl(args ...string) (string, error) {
 	err := cmd.Run()
 	if err != nil {
 		cmdline := strings.Join(args, " ")
-		return stdout.String(), fmt.Errorf("Failed to run command %q: %q (%s)", cmdline, stderr, err)
+		return stdout.String(), fmt.Errorf("failed to run command %q: %q (%s)", cmdline, stderr, err)
 	}
 
 	return stdout.String(), err

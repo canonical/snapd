@@ -71,7 +71,7 @@ func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
 
 func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
-	runCommandWithStdout = mockGrubEditenvList
+	runCommand = mockGrubEditenvList
 
 	g := newGrub()
 	v, err := g.GetBootVar(bootmodeVar)
@@ -82,7 +82,7 @@ func (s *PartitionTestSuite) TestGetBootVer(c *C) {
 func (s *PartitionTestSuite) TestSetBootVer(c *C) {
 	s.makeFakeGrubEnv(c)
 	cmds := [][]string{}
-	runCommandWithStdout = func(cmd ...string) (string, error) {
+	runCommand = func(cmd ...string) (string, error) {
 		cmds = append(cmds, cmd)
 		return "", nil
 	}

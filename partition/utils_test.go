@@ -28,24 +28,24 @@ type UtilsTestSuite struct {
 
 var _ = Suite(&UtilsTestSuite{})
 
-func (s *UtilsTestSuite) TestRunCommandWithStdout(c *C) {
-	output, err := runCommandWithStdoutImpl("sh", "-c", "printf 'foo\nbar'")
+func (s *UtilsTestSuite) TestRunCommandSimple(c *C) {
+	output, err := runCommandImpl("sh", "-c", "printf 'foo\nbar'")
 	c.Assert(err, IsNil)
 	c.Assert(output, DeepEquals, "foo\nbar")
 }
 
 func (s *UtilsTestSuite) TestRunCommandWithStdoutReturnsFalse(c *C) {
-	_, err := runCommandWithStdoutImpl("false")
-	c.Assert(err, NotNil)
+	_, err := runCommandImpl("false")
+	c.Assert(err, ErrorMatches, `failed to run command \"false\": \"\" \(exit status 1\)`)
 }
 
 func (s *UtilsTestSuite) TestRunCommandWithStdoutNoSuchCommand(c *C) {
-	_, err := runCommandWithStdoutImpl("no-such-command")
-	c.Assert(err, NotNil)
+	_, err := runCommandImpl("no-such-command")
+	c.Assert(err, ErrorMatches, `failed to run command \"no-such-command\": \"\" \(exec: \"no-such-command\": executable file not found in \$PATH\)`)
 }
 
 func (s *UtilsTestSuite) TestRunCommandWithStdoutReturnsStdout(c *C) {
-	output, err := runCommandWithStdoutImpl("sh", "-c", "printf stdout ; printf 'stderr' >&2; false")
+	output, err := runCommandImpl("sh", "-c", "printf stdout ; printf 'stderr' >&2; false")
 	c.Assert(output, Matches, "stdout")
-	c.Assert(err, ErrorMatches, `Failed to run command \".*\": \"stderr\" \(exit status 1\)`)
+	c.Assert(err, ErrorMatches, `failed to run command \".*\": \"stderr\" \(exit status 1\)`)
 }
