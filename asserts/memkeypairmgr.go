@@ -30,12 +30,12 @@ type memoryKeypairManager struct {
 
 // NewMemoryKeypairManager creates a new key pair manager with a memory backstore.
 func NewMemoryKeypairManager() KeypairManager {
-	return memoryKeypairManager{
+	return &memoryKeypairManager{
 		pairs: make(map[string]map[string]PrivateKey),
 	}
 }
 
-func (mkm memoryKeypairManager) Put(authorityID string, privKey PrivateKey) error {
+func (mkm *memoryKeypairManager) Put(authorityID string, privKey PrivateKey) error {
 	mkm.mu.Lock()
 	defer mkm.mu.Unlock()
 
@@ -51,7 +51,7 @@ func (mkm memoryKeypairManager) Put(authorityID string, privKey PrivateKey) erro
 	return nil
 }
 
-func (mkm memoryKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
+func (mkm *memoryKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
 	mkm.mu.RLock()
 	defer mkm.mu.RUnlock()
 
