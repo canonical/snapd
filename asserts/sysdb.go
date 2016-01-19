@@ -40,27 +40,34 @@ func openDatabaseAt(path string, cfg *DatabaseConfig) (*Database, error) {
 	return OpenDatabase(cfg)
 }
 
-// OpenSysDatabase opens the installation-wide assertion database.
-func OpenSysDatabase() (*Database, error) {
-	encodedTrustedAccKey, err := ioutil.ReadFile(dirs.SnapTrustedAccountKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read trusted account key: %v", err)
-	}
-	trustedAccKey, err := Decode(encodedTrustedAccKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode trusted account key: %v", err)
-	}
+// OpenSysDatabase opens the installation-wide assertion database. Uses the given trusted account key.
+func OpenSysDatabase(trustedAccountKey string) (*Database, error) {
+	var trustedKeys []*AccountKey
 
-	var trustedKey *AccountKey
-	switch accKey := trustedAccKey.(type) {
-	case *AccountKey:
-		trustedKey = accKey
-	default:
-		return nil, fmt.Errorf("trusted account key is %T, not an account-key", trustedAccKey)
+	// XXX: temporary, allow to set up without trusted keys
+	// until we have and install a firm trusted key with snappy itself
+	if trustedAccountKey != "" {
+		encodedTrustedAccKey, err := ioutil.ReadFile(trustedAccountKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read trusted account key: %v", err)
+		}
+		trustedAccKey, err := Decode(encodedTrustedAccKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode trusted account key: %v", err)
+		}
+
+		var trustedKey *AccountKey
+		switch accKey := trustedAccKey.(type) {
+		case *AccountKey:
+			trustedKey = accKey
+		default:
+			return nil, fmt.Errorf("trusted account key is %T, not an account-key", trustedAccKey)
+		}
+		trustedKeys = []*AccountKey{trustedKey}
 	}
 
 	cfg := &DatabaseConfig{
-		TrustedKeys: []*AccountKey{trustedKey},
+		TrustedKeys: trustedKeys,
 	}
 	return openDatabaseAt(dirs.SnapAssertsDBDir, cfg)
 }

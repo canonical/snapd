@@ -242,27 +242,19 @@ func (d *Daemon) DeleteTask(uuid string) error {
 	return errTaskStillRunning
 }
 
-func openSysAssertsDB() (*asserts.Database, error) {
-	// XXX cheat about assertion bootstrap for now
-	trustedKeyPresent := helpers.FileExists(dirs.SnapTrustedAccountKey)
-	if !trustedKeyPresent {
-		// XXX cheat somewhere else?
-		trustedKey := os.Getenv("SNAPPY_TRUSTED_ACCOUNT_KEY")
-		if trustedKey != "" {
-			dirs.SnapTrustedAccountKey = trustedKey
-		} else {
-			// XXX dummy fallback for now
-			return asserts.OpenDatabase(&asserts.DatabaseConfig{
-				KeypairManager: asserts.NewMemoryKeypairManager(),
-			})
-		}
+func getTrustedAccountKey() string {
+	if !helpers.FileExists(dirs.SnapTrustedAccountKey) {
+		// XXX: allow this fallback here for integration tests,
+		// until we have a proper trusted public key shared
+		// with the store
+		return os.Getenv("SNAPPY_TRUSTED_ACCOUNT_KEY")
 	}
-	return asserts.OpenSysDatabase()
+	return dirs.SnapTrustedAccountKey
 }
 
 // New Daemon
 func New() *Daemon {
-	db, err := openSysAssertsDB()
+	db, err := asserts.OpenSysDatabase(getTrustedAccountKey())
 	if err != nil {
 		panic(err.Error())
 	}

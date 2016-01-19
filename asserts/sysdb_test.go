@@ -79,7 +79,7 @@ func (sdbs *sysDBSuite) TearDownTest(c *C) {
 }
 
 func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
-	db, err := asserts.OpenSysDatabase()
+	db, err := asserts.OpenSysDatabase(dirs.SnapTrustedAccountKey)
 	c.Assert(err, IsNil)
 	c.Check(db, NotNil)
 
@@ -93,7 +93,7 @@ func (sdbs *sysDBSuite) TestOpenSysDatabaseBackstoreOpenFail(c *C) {
 	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "asserts-v0"), 0777)
 	syscall.Umask(oldUmask)
 
-	db, err := asserts.OpenSysDatabase()
+	db, err := asserts.OpenSysDatabase(dirs.SnapTrustedAccountKey)
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(db, IsNil)
 }
@@ -104,7 +104,14 @@ func (sdbs *sysDBSuite) TestOpenSysDatabaseKeypairManagerOpenFail(c *C) {
 	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "private-keys-v0"), 0777)
 	syscall.Umask(oldUmask)
 
-	db, err := asserts.OpenSysDatabase()
+	db, err := asserts.OpenSysDatabase(dirs.SnapTrustedAccountKey)
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(db, IsNil)
+}
+
+func (sdbs *sysDBSuite) TestOpenSysDatabaseTemporaryFallback(c *C) {
+	// XXX: this is supported only temporarely
+	db, err := asserts.OpenSysDatabase("")
+	c.Assert(err, IsNil)
+	c.Check(db, NotNil)
 }

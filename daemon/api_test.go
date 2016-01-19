@@ -1371,12 +1371,9 @@ ZF5jSvRDLgI=`
 
 func (s *apiSuite) TestAssertOK(c *check.C) {
 	// Setup
-	tmpdir := c.MkDir()
-	trustedKey := filepath.Join(tmpdir, "trusted.acckey")
-	err := ioutil.WriteFile(trustedKey, []byte(testTrustedKey), 0640)
+	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
+	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
 	c.Assert(err, check.IsNil)
-	os.Setenv("SNAPPY_TRUSTED_ACCOUNT_KEY", trustedKey)
-	defer os.Setenv("SNAPPY_TRUSTED_ACCOUNT_KEY", "")
 	d := newTestDaemon()
 	buf := bytes.NewBufferString(testAccKey)
 	// Execute
