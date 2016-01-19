@@ -19,8 +19,13 @@
 
 package asserts
 
+import (
+	"sync"
+)
+
 type memoryKeypairManager struct {
 	pairs map[string]map[string]PrivateKey
+	mu    sync.RWMutex
 }
 
 // NewMemoryKeypairManager creates a new key pair manager with a memory backstore.
@@ -31,6 +36,9 @@ func NewMemoryKeypairManager() KeypairManager {
 }
 
 func (mkm memoryKeypairManager) Put(authorityID string, privKey PrivateKey) error {
+	mkm.mu.Lock()
+	defer mkm.mu.Unlock()
+
 	keyID := privKey.PublicKey().ID()
 	perAuthID := mkm.pairs[authorityID]
 	if perAuthID == nil {
@@ -44,6 +52,9 @@ func (mkm memoryKeypairManager) Put(authorityID string, privKey PrivateKey) erro
 }
 
 func (mkm memoryKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
+	mkm.mu.RLock()
+	defer mkm.mu.RUnlock()
+
 	privKey := mkm.pairs[authorityID][keyID]
 	if privKey == nil {
 		return nil, errKeypairNotFound

@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // the default filesystem based backstore for assertions
@@ -35,6 +36,7 @@ const (
 
 type filesystemBackstore struct {
 	top string
+	mu  sync.RWMutex
 }
 
 // OpenFSBackstore opens a filesystem backed assertions backstore under path.
@@ -77,6 +79,9 @@ func buildDiskPrimaryPath(primaryPath []string) string {
 }
 
 func (fsbs *filesystemBackstore) Put(assertType AssertionType, primaryKeyHeaders []string, assert Assertion) error {
+	fsbs.mu.Lock()
+	defer fsbs.mu.Unlock()
+
 	primaryPath := make([]string, len(primaryKeyHeaders))
 	for i, k := range primaryKeyHeaders {
 		primaryPath[i] = assert.Header(k)
@@ -102,6 +107,9 @@ func (fsbs *filesystemBackstore) Put(assertType AssertionType, primaryKeyHeaders
 }
 
 func (fsbs *filesystemBackstore) Get(assertType AssertionType, primaryKeyHeaders, key []string) (Assertion, error) {
+	fsbs.mu.RLock()
+	defer fsbs.mu.RUnlock()
+
 	return fsbs.readAssertion(assertType, buildDiskPrimaryPath(key))
 }
 
@@ -126,6 +134,9 @@ func (fsbs *filesystemBackstore) search(assertType AssertionType, diskPattern []
 }
 
 func (fsbs *filesystemBackstore) Search(assertType AssertionType, primaryKeyHeaders []string, headers map[string]string, foundCb func(Assertion)) error {
+	fsbs.mu.RLock()
+	defer fsbs.mu.RUnlock()
+
 	diskPattern := make([]string, len(primaryKeyHeaders))
 	for i, k := range primaryKeyHeaders {
 		keyVal := headers[k]
