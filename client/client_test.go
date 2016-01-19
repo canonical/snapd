@@ -226,7 +226,6 @@ func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientAssert(c *check.C) {
-	// xxx result mandatory?
 	cs.rsp = `{
 		"type": "sync",
                 "result": {}
