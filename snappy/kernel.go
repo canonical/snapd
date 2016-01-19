@@ -177,3 +177,39 @@ func kernelOrOsRebootRequired(s *SnapPart) bool {
 
 	return false
 }
+
+func nameAndVersionFromSnap(snap string) (string, string) {
+	name := strings.Split(snap, "_")[0]
+	ver := strings.Split(snap, "_")[1]
+	return name, strings.Split(ver, ".snap")[0]
+}
+
+// SyncBoot synchronizes the active kernel and OS snap version with
+// the version that actually booted. The reason this is needed is
+// because a system may install "os=v2" but that fails to boot. The
+// bootloader fallback logic will revert to "os=v1" but on the
+// filesystem snappy still has the "active" version set to "v2" which
+// is misleading. This code will check what kernel/os booted and set
+// those versions active.
+func SyncBoot() error {
+	kernelSnap, _ := getBootVar("snappy_kernel")
+	osSnap, _ := getBootVar("snappy_os")
+
+	installed, err := NewMetaLocalRepository().Installed()
+	if err != nil {
+		return fmt.Errorf("failed to run SyncBoot: %s", err)
+	}
+
+	for _, snap := range []string{kernelSnap, osSnap} {
+		name, ver := nameAndVersionFromSnap(snap)
+		found := FindSnapsByNameAndVersion(name, ver, installed)
+		if len(found) != 1 {
+			return fmt.Errorf("can not SyncBoot, expected 1 snap for %s %s found %d", name, ver, len(found))
+		}
+		if err := found[0].SetActive(true, nil); err != nil {
+			return fmt.Errorf("can not SyncBoot, failed to make %s active: %s", found[0].Name(), err)
+		}
+	}
+
+	return nil
+}
