@@ -37,7 +37,7 @@ type cmdAssert struct {
 }
 
 var (
-	shortAssertHelp = i18n.G("Assert tries to add an assertion.")
+	shortAssertHelp = i18n.G("Assert tries to add an assertion to the system.")
 	longAssertHelp  = i18n.G("This command tries to add an assertion to the system assertion database.")
 )
 
