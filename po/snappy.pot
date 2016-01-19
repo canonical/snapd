@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2015-12-17 07:54+0100\n"
+        "POT-Creation-Date: 2016-01-19 20:10+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -76,6 +76,9 @@ msgstr  ""
 #, c-format
 msgid   "Another snappy is running, will try again in %d seconds...\n"
         "Press ctrl-c to cancel.\n"
+msgstr  ""
+
+msgid   "Assert tries to add an assertion to the system."
 msgstr  ""
 
 msgid   "Assign a hardware device to a package"
@@ -388,6 +391,9 @@ msgstr  ""
 msgid   "This command shows all capabilities and their allocation"
 msgstr  ""
 
+msgid   "This command tries to add an assertion to the system assertion database."
+msgstr  ""
+
 msgid   "Unassign a hardware device to a package"
 msgstr  ""
 
@@ -409,6 +415,9 @@ msgstr  ""
 #. TRANSLATORS: the %s an architecture string
 #, c-format
 msgid   "architecture: %s\n"
+msgstr  ""
+
+msgid   "assertion file is required"
 msgstr  ""
 
 #. TRANSLATORS: the %s is a size
