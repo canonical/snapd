@@ -30,12 +30,12 @@ func NewMemoryKeypairManager() KeypairManager {
 	}
 }
 
-func (mskm memoryKeypairManager) Put(authorityID string, privKey PrivateKey) error {
+func (mkm memoryKeypairManager) Put(authorityID string, privKey PrivateKey) error {
 	keyID := privKey.PublicKey().ID()
-	perAuthID := mskm.pairs[authorityID]
+	perAuthID := mkm.pairs[authorityID]
 	if perAuthID == nil {
 		perAuthID = make(map[string]PrivateKey)
-		mskm.pairs[authorityID] = perAuthID
+		mkm.pairs[authorityID] = perAuthID
 	} else if perAuthID[keyID] != nil {
 		return errKeypairAlreadyExists
 	}
@@ -43,8 +43,8 @@ func (mskm memoryKeypairManager) Put(authorityID string, privKey PrivateKey) err
 	return nil
 }
 
-func (mskm memoryKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
-	privKey := mskm.pairs[authorityID][keyID]
+func (mkm memoryKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
+	privKey := mkm.pairs[authorityID][keyID]
 	if privKey == nil {
 		return nil, errKeypairNotFound
 	}
