@@ -2,7 +2,7 @@
 // +build !excludeintegration,!excludereboots
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015, 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,10 +21,11 @@
 package tests
 
 import (
-	"strconv"
+	"github.com/ubuntu-core/snappy/snappy"
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
 
 	"gopkg.in/check.v1"
 )
@@ -36,22 +37,23 @@ type rollbackSuite struct {
 }
 
 func (s *rollbackSuite) TestRollbackMustRebootToOtherVersion(c *check.C) {
+	c.Skip("KNOWN BUG FIXME: https://bugs.launchpad.net/snappy/+bug/1534029")
+
 	if common.BeforeReboot() {
-		common.CallFakeUpdate(c)
+		updates.CallFakeOSUpdate(c)
 		common.Reboot(c)
 	} else if common.CheckRebootMark(c.TestName()) {
 		common.RemoveRebootMark(c)
 		currentVersion := common.GetCurrentUbuntuCoreVersion(c)
-		c.Assert(currentVersion > common.GetSavedVersion(c), check.Equals, true,
-			check.Commentf("Rebooted to the wrong version: %d", currentVersion))
+		c.Assert(snappy.VersionCompare(currentVersion, common.GetSavedVersion(c)), check.Equals, -1,
+			check.Commentf("Rebooted to the wrong version: %s", currentVersion))
 		cli.ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core",
-			strconv.Itoa(common.GetSavedVersion(c)))
-		common.SetSavedVersion(c, currentVersion)
+			common.GetSavedVersion(c))
 		common.RebootWithMark(c, c.TestName()+"-rollback")
 	} else if common.CheckRebootMark(c.TestName() + "-rollback") {
 		common.RemoveRebootMark(c)
 		currentVersion := common.GetCurrentUbuntuCoreVersion(c)
-		c.Assert(currentVersion < common.GetSavedVersion(c), check.Equals, true,
-			check.Commentf("Rebooted to the wrong version: %d", currentVersion))
+		c.Assert(snappy.VersionCompare(currentVersion, common.GetSavedVersion(c)), check.Equals, 0,
+			check.Commentf("Rebooted to the wrong version: %s", currentVersion))
 	}
 }

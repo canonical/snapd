@@ -60,15 +60,11 @@ func AttributePairSliceToMap(attrs []AttributePair) map[string]string {
 	return result
 }
 
-type addCapOptions struct {
-	Name  string          `positional-arg-name:"name" description:"unique capability name"`
-	Label string          `positional-arg-name:"label" description:"a descriptive label"`
-	Type  string          `positional-arg-name:"type" description:"type of capability to add"`
-	Attrs []AttributePair `positional-arg-name:"attrs" description:"key=value attributes"`
-}
-
 type cmdAddCap struct {
-	addCapOptions `positional-args:"true" required:"true"`
+	Name  string          `long:"name" required:"true" description:"unique capability name"`
+	Label string          `long:"label" required:"true" description:"human-friendly label"`
+	Type  string          `long:"type" required:"true" description:"type of the capability to add"`
+	Attrs []AttributePair `short:"a" description:"key=value attributes"`
 }
 
 var (
