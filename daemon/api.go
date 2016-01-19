@@ -951,7 +951,7 @@ func doAssert(c *Command, r *http.Request) Response {
 		return BadRequest(err, "can't decode request body into an assertion")
 	}
 	if err := c.d.asserts.Add(a); err != nil {
-		// XXX use 409 for older revision?
+		// TODO: have a specific error to be able to return  409 for not newer revision?
 		return BadRequest(err, "assert failed")
 	}
 	return &resp{
