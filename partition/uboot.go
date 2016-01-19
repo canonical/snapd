@@ -32,7 +32,7 @@ type uboot struct {
 }
 
 // newUboot create a new Uboot bootloader object
-func newUboot() bootLoader {
+func newUboot() BootloaderIface {
 	u := &uboot{}
 	if !helpers.FileExists(u.configFile()) {
 		return nil

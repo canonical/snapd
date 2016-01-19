@@ -171,8 +171,10 @@ func doInstall(name string, flags InstallFlags, meter progress.Meter) (snapName 
 		// FIXME: this is terrible, we really need a single
 		//        bootloader dir like /boot or /boot/loader
 		//        instead of having to query the partition code
-		if provisioning.InDeveloperMode(partition.BootloaderDir()) {
-			flags |= AllowUnauthenticated
+		if bootloader, err := partition.FindBootloader(); err == nil {
+			if provisioning.InDeveloperMode(bootloader.Dir()) {
+				flags |= AllowUnauthenticated
+			}
 		}
 
 		return installClick(name, flags, meter, SideloadedOrigin)

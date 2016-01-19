@@ -69,7 +69,7 @@ func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 	b := newMockBootloader()
 	b.bootVars["snappy_os"] = "os1"
 	b.bootVars["snappy_kernel"] = "k1"
-	err := markBootSuccessful(b)
+	err := MarkBootSuccessful(b)
 	c.Assert(err, IsNil)
 	c.Assert(b.bootVars, DeepEquals, map[string]string{
 		"snappy_mode":        "regular",

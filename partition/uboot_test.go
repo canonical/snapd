@@ -77,7 +77,7 @@ func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
 func (s *PartitionTestSuite) TestGetBootloaderWithUboot(c *C) {
 	s.makeFakeUbootEnv(c)
 
-	bootloader, err := bootloader()
+	bootloader, err := FindBootloader()
 	c.Assert(err, IsNil)
 	c.Assert(bootloader, FitsTypeOf, &uboot{})
 }
