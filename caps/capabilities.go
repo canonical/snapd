@@ -22,9 +22,8 @@ package caps
 // Capability holds information about a capability that a snap may request
 // from a snappy system to do its job while running on it.
 type Capability struct {
-	// Name is a key that identifies the capability. It must be unique within
-	// its context, which may be either a snap or a snappy runtime.
-	Name string `json:"name"`
+	// ID is a pair of strings (snapName, capName) that identifies the capability.
+	ID CapabilityID `json:"id"`
 	// Label provides an optional title for the capability to help a human tell
 	// which physical device this capability is referring to. It might say
 	// "Front USB", or "Green Serial Port", for example.
@@ -40,5 +39,18 @@ type Capability struct {
 
 // String representation of a capability.
 func (c Capability) String() string {
-	return c.Name
+	return c.ID.String()
+}
+
+// CapabilityID is a pair of names (snap, capability) that identifies a capability.
+type CapabilityID struct {
+	// SnapName is the name of a snap.
+	SnapName string `json:"snap"`
+	// CapabilityName is the name of a capability local to the snap.
+	CapName string `json:"capability"`
+}
+
+// String representation of a capability identifier.
+func (id CapabilityID) String() string {
+	return id.SnapName + "." + id.CapName
 }

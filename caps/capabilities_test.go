@@ -35,10 +35,13 @@ var _ = Suite(&CapabilitySuite{})
 
 func (s *CapabilitySuite) TestString(c *C) {
 	cap := &Capability{
-		Name:     "test-name",
+		ID: CapabilityID{
+			SnapName: "test-snap",
+			CapName:  "test-cap",
+		},
 		Label:    "test-label",
 		TypeName: "test-type",
 		Attrs:    nil,
 	}
-	c.Assert(cap.String(), Equals, "test-name")
+	c.Assert(cap.String(), Equals, "test-snap.test-cap")
 }

@@ -61,7 +61,8 @@ func AttributePairSliceToMap(attrs []AttributePair) map[string]string {
 }
 
 type cmdAddCap struct {
-	Name  string          `long:"name" required:"true" description:"unique capability name"`
+	Snap  string          `long:"snap" required:"true" description:"snap name"`
+	Name  string          `long:"name" required:"true" description:"capability name"`
 	Label string          `long:"label" required:"true" description:"human-friendly label"`
 	Type  string          `long:"type" required:"true" description:"type of the capability to add"`
 	Attrs []AttributePair `short:"a" description:"key=value attributes"`
@@ -81,7 +82,10 @@ func init() {
 
 func (x *cmdAddCap) Execute(args []string) error {
 	cap := &client.Capability{
-		Name:  x.Name,
+		ID: client.CapabilityID{
+			SnapName: x.Snap,
+			CapName:  x.Name,
+		},
 		Label: x.Label,
 		Type:  x.Type,
 		Attrs: AttributePairSliceToMap(x.Attrs),
