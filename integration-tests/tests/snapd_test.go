@@ -56,7 +56,7 @@ func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	cli.ExecCommand(c, "sudo", "systemctl", "stop",
 		"ubuntu-snappy.snapd.service", "ubuntu-snappy.snapd.socket")
 
-	// XXX: better way to setup an alternative trusted key?
+	// FIXME: for now pass a test-only trusted key through an env var
 	s.cmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
 		"SNAPPY_TRUSTED_ACCOUNT_KEY="+trustedKey,
 		"/lib/systemd/systemd-activate", "-ESNAPPY_TRUSTED_ACCOUNT_KEY",

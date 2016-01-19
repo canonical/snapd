@@ -26,11 +26,11 @@ import (
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 )
 
-// XXX cheat using snapdTestSuite for now
-
 var _ = check.Suite(&snapAssertSuite{})
 
 type snapAssertSuite struct {
+	// FIXME: use snapdTestSuite until all tests are moved to
+	// assume the snapd/snap command pairing
 	snapdTestSuite
 }
 
