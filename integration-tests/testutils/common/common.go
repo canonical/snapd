@@ -32,6 +32,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 	"github.com/ubuntu-core/snappy/testutil"
 )
 
@@ -81,7 +82,7 @@ func (s *SnappySuite) SetUpSuite(c *check.C) {
 		Cfg.Update = false
 		Cfg.Write()
 		if Cfg.Rollback {
-			cli.ExecCommand(c, "sudo", "snappy", "rollback", "ubuntu-core")
+			cli.ExecCommand(c, "sudo", "snappy", "rollback", OSSnapName(c))
 			RebootWithMark(c, "setupsuite-rollback")
 		}
 	} else if CheckRebootMark("setupsuite-rollback") {
@@ -118,13 +119,20 @@ func (s *SnappySuite) SetUpTest(c *check.C) {
 	}
 }
 
+// OSSnapName returns the name of the OS snap.
+func OSSnapName(c *check.C) string {
+	snappyOS, err := partition.SnappyOS()
+	c.Assert(err, check.IsNil, check.Commentf("Error getting the name of the OS snap: %s", err))
+	return strings.Split(snappyOS, ".")[0]
+}
+
 // GetCurrentVersion returns the version of the installed and active package.
 func GetCurrentVersion(c *check.C, packageName string) string {
 	output := cli.ExecCommand(c, "snappy", "list")
 	pattern := "(?mU)^" + packageName + " +(.*)$"
 	re := regexp.MustCompile(pattern)
 	match := re.FindStringSubmatch(string(output))
-	c.Assert(match, check.NotNil, check.Commentf("Version not found in %s", output))
+	c.Assert(match, check.NotNil, check.Commentf("Version of %s not found in %s", packageName, output))
 
 	// match is like "ubuntu-core   2015-06-18 93        ubuntu"
 	items := strings.Fields(match[0])
@@ -134,7 +142,7 @@ func GetCurrentVersion(c *check.C, packageName string) string {
 // GetCurrentUbuntuCoreVersion returns the version number of the installed and
 // active ubuntu-core.
 func GetCurrentUbuntuCoreVersion(c *check.C) string {
-	return GetCurrentVersion(c, "ubuntu-core")
+	return GetCurrentVersion(c, OSSnapName(c))
 }
 
 // Reboot requests a reboot using the test name as the mark.

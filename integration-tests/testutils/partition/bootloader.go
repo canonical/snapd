@@ -74,6 +74,12 @@ func Mode() (mode string, err error) {
 	return confValue("snappy_mode")
 }
 
+// SnappyOS returns the name of the OS snap.
+// This is a workaround for https://bugs.launchpad.net/snappy/+bug/1532245
+func SnappyOS() (string, error) {
+	return confValue("snappy_os")
+}
+
 func getConfValue(key string) (string, error) {
 	system, err := BootSystem()
 	if err != nil {

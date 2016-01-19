@@ -68,7 +68,7 @@ func CallFakeOSUpdate(c *check.C) string {
 	currentVersion := common.GetCurrentUbuntuCoreVersion(c)
 	common.SetSavedVersion(c, currentVersion)
 
-	return CallFakeUpdate(c, "ubuntu-core.canonical", NoOp)
+	return CallFakeUpdate(c, common.OSSnapName(c)+".canonical", NoOp)
 }
 
 func makeFakeUpdateForSnap(c *check.C, snap, targetDir string, changeFunc ChangeFakeUpdateSnap) error {

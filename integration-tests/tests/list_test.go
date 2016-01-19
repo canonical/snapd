@@ -44,7 +44,7 @@ func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
 	expected := "(?ms)" +
 		"Name +Date +Version +Developer *\n" +
 		".*" +
-		fmt.Sprintf("^ubuntu-core +.* +%s +canonical *\n", verRegexp) +
+		fmt.Sprintf("^%s +.* +%s +canonical *\n", common.OSSnapName(c), verRegexp) +
 		".*"
 	c.Assert(listOutput, check.Matches, expected)
 }
