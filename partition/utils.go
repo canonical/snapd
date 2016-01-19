@@ -20,6 +20,7 @@
 package partition
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -36,12 +37,16 @@ func runCommandWithStdoutImpl(args ...string) (string, error) {
 		return "", errors.New("no command specified")
 	}
 
-	output, err := exec.Command(args[0], args[1:]...).CombinedOutput()
+	cmd := exec.Command(args[0], args[1:]...)
+	stdout := bytes.NewBuffer(nil)
+	stderr := bytes.NewBuffer(nil)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	err := cmd.Run()
 	if err != nil {
 		cmdline := strings.Join(args, " ")
-		return "", fmt.Errorf("Failed to run command %q: %q (%s)",
-			cmdline, output, err)
+		return stdout.String(), fmt.Errorf("Failed to run command %q: %q (%s)", cmdline, stderr, err)
 	}
 
-	return string(output), err
+	return stdout.String(), err
 }

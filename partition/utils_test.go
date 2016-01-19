@@ -29,14 +29,23 @@ type UtilsTestSuite struct {
 var _ = Suite(&UtilsTestSuite{})
 
 func (s *UtilsTestSuite) TestRunCommandWithStdout(c *C) {
-	_, err := runCommandWithStdoutImpl("false")
-	c.Assert(err, NotNil)
-
-	_, err = runCommandWithStdoutImpl("no-such-command")
-	c.Assert(err, NotNil)
-
 	output, err := runCommandWithStdoutImpl("sh", "-c", "printf 'foo\nbar'")
 	c.Assert(err, IsNil)
 	c.Assert(output, DeepEquals, "foo\nbar")
+}
 
+func (s *UtilsTestSuite) TestRunCommandWithStdoutReturnsFalse(c *C) {
+	_, err := runCommandWithStdoutImpl("false")
+	c.Assert(err, NotNil)
+}
+
+func (s *UtilsTestSuite) TestRunCommandWithStdoutNoSuchCommand(c *C) {
+	_, err := runCommandWithStdoutImpl("no-such-command")
+	c.Assert(err, NotNil)
+}
+
+func (s *UtilsTestSuite) TestRunCommandWithStdoutReturnsStdout(c *C) {
+	output, err := runCommandWithStdoutImpl("sh", "-c", "printf stdout ; printf 'stderr' >&2; false")
+	c.Assert(output, Matches, "stdout")
+	c.Assert(err, ErrorMatches, `Failed to run command \".*\": \"stderr\" \(exit status 1\)`)
 }
