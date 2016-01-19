@@ -33,6 +33,8 @@ type Repository struct {
 	caps map[CapabilityID]*Capability
 	// A slice of types that are recognized and accepted
 	types []Type
+	// grants is a set of granted capabilities expressed as mapping (provider -> consumer -> bool (dummy))
+	grants map[CapabilityID]map[CapabilityID]bool
 }
 
 // NewRepository creates an empty capability repository
@@ -209,4 +211,34 @@ func (r *Repository) Caps() map[CapabilityID]*Capability {
 		caps[k] = v
 	}
 	return caps
+}
+
+// Grant marks a provided capability as consumed by a given consumer.
+func (r *Repository) Grant(provided, consumed CapabilityID) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	if r.grants == nil {
+		r.grants = make(map[CapabilityID]map[CapabilityID]bool)
+	}
+	if r.grants[provided] == nil {
+		r.grants[provided] = make(map[CapabilityID]bool)
+	}
+	r.grants[provided][consumed] = true
+}
+
+// Revoke marks a provided capability as no longer consumed by a given consumer.
+func (r *Repository) Revoke(provided, consumed CapabilityID) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	delete(r.grants[provided], consumed)
+}
+
+// IsGranted checks if a provided capability is consumed by a given consumer.
+func (r *Repository) IsGranted(provided, consumed CapabilityID) bool {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	return r.grants[provided][consumed]
 }

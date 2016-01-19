@@ -225,3 +225,25 @@ func (s *RepositorySuite) TestCaps(c *C) {
 		CapabilityID{"snap", "c"}: &Capability{ID: CapabilityID{"snap", "c"}, Label: "label-c", TypeName: "type"},
 	})
 }
+
+func (s *RepositorySuite) TestGrantRevoke(c *C) {
+	provider := CapabilityID{"provider", "cap"}
+	consumer := CapabilityID{"consumer", "slot"}
+	r := s.emptyRepo
+	c.Assert(r.IsGranted(provider, consumer), Equals, false)
+	r.Grant(provider, consumer)
+	c.Assert(r.IsGranted(provider, consumer), Equals, true)
+	r.Revoke(provider, consumer)
+	c.Assert(r.IsGranted(provider, consumer), Equals, false)
+}
+
+func (s *RepositorySuite) TestRevokeGrant(c *C) {
+	provider := CapabilityID{"provider", "cap"}
+	consumer := CapabilityID{"consumer", "slot"}
+	r := s.emptyRepo
+	c.Assert(r.IsGranted(provider, consumer), Equals, false)
+	r.Revoke(provider, consumer)
+	c.Assert(r.IsGranted(provider, consumer), Equals, false)
+	r.Grant(provider, consumer)
+	c.Assert(r.IsGranted(provider, consumer), Equals, true)
+}
