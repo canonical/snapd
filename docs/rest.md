@@ -133,6 +133,10 @@ string. For example, `"1234567891234567"` represents
 * Operation: sync
 * Return: list of URLs for packages this Ubuntu Core system can handle.
 
+#### Optional parameters
+
+* `active=1` will restrict the results to only active packages
+
 The result is a JSON object with a packages key; its value is itself a
 JSON object whose keys are qualified package names (e.g.,
 hello-world.canonical), and whose values describe that package.

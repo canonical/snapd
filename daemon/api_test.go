@@ -412,6 +412,31 @@ func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
 	}
 }
 
+func (s *apiSuite) TestPackagesInfoOnlyActive(c *check.C) {
+	// 1 remote package, 1 local but not active, 1 local and active
+	s.parts = []snappy.Part{&tP{name: "remote", origin: "bar"}}
+	s.mkInstalled(c, "installed", "bar", "v0", false, "")
+	s.mkInstalled(c, "active", "bar", "v1", true, "")
+
+	req, err := http.NewRequest("GET", "/1.0/packages?active=1", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp, ok := getPackagesInfo(packagesCmd, req).(*resp)
+	c.Assert(ok, check.Equals, true)
+
+	result, ok := rsp.Result.(map[string]interface{})
+	c.Assert(ok, check.Equals, true)
+	c.Assert(result["sources"], check.DeepEquals, []string{"local"})
+
+	packages, ok := result["packages"].(map[string]map[string]string)
+	c.Assert(ok, check.Equals, true)
+	c.Assert(packages, check.HasLen, 1)
+
+	pkg, ok := packages["active.bar"]
+	c.Assert(ok, check.Equals, true)
+	c.Assert(pkg["status"], check.Equals, "active")
+}
+
 func (s *apiSuite) TestDeleteOpNotFound(c *check.C) {
 	s.vars = map[string]string{"uuid": "42"}
 	rsp := deleteOp(operationCmd, nil).Self(nil, nil).(*resp)
