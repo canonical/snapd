@@ -71,17 +71,12 @@ func (t *BoolFileType) Sanitize(c *Capability) error {
 	if path == "" {
 		return fmt.Errorf("bool-file must contain the path attribute")
 	}
-	valid := false
 	for _, pattern := range boolFileAllowedPathPatterns {
 		if pattern.MatchString(path) {
-			valid = true
-			break
+			return nil
 		}
 	}
-	if !valid {
-		return fmt.Errorf("bool-file can only point at LED brightness or GPIO value")
-	}
-	return nil
+	return fmt.Errorf("bool-file can only point at LED brightness or GPIO value")
 }
 
 // SecuritySnippet returns the configuration snippet required to use a bool-file capability.
