@@ -286,7 +286,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 	part, err := NewSnapFile(snapPkg, "origin", true)
 	c.Assert(err, IsNil)
 
-	err = extractKernelAssets(part, nil, 0)
+	_, err = extractKernelAssets(part, nil, 0)
 	c.Assert(err, ErrorMatches, `can not extract kernel assets from snap type "app"`)
 }
 
@@ -383,7 +383,7 @@ binaries:
 
 	// install but our missing security-template will break the install
 	_, err = part.Install(&MockProgressMeter{}, 0)
-	c.Assert(err, ErrorMatches, "could not find specified template: not-there.*")
+	c.Assert(err, ErrorMatches, ".*could not find specified template: not-there.*")
 
 	// ensure the mount unit is not there
 	mup := systemd.MountUnitPath("/snaps/hello.origin/1.10", "mount")
