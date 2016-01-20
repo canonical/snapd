@@ -26,13 +26,13 @@ import (
 	"regexp"
 )
 
-// Icon represents the icon of an installed Snap
+// Icon represents the icon of an installed snap
 type Icon struct {
 	Filename string
 	Content  []byte
 }
 
-// Icon returns the Icon belonging to an installed Snap
+// Icon returns the Icon belonging to an installed snap
 func (c *Client) Icon(pkgID string) (*Icon, error) {
 	const errPrefix = "cannot retrieve icon"
 
