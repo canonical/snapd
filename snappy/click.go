@@ -48,23 +48,23 @@ var killWait = 5 * time.Second
 var servicesBinariesStringsWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
 
 // generate the name
-func generateBinaryName(m *packageYaml, binary Binary) string {
+func generateBinaryName(m *packageYaml, app AppYaml) string {
 	var binName string
 	if m.Type == snap.TypeFramework {
-		binName = filepath.Base(binary.Name)
+		binName = filepath.Base(app.Name)
 	} else {
-		binName = fmt.Sprintf("%s.%s", m.Name, filepath.Base(binary.Name))
+		binName = fmt.Sprintf("%s.%s", m.Name, filepath.Base(app.Name))
 	}
 
 	return filepath.Join(dirs.SnapBinariesDir, binName)
 }
 
-func binPathForBinary(pkgPath string, binary Binary) string {
-	return filepath.Join(pkgPath, binary.Exec)
+func binPathForBinary(pkgPath string, app AppYaml) string {
+	return filepath.Join(pkgPath, app.Command)
 }
 
-func verifyBinariesYaml(binary Binary) error {
-	return verifyStructStringsAgainstWhitelist(binary, servicesBinariesStringsWhitelist)
+func verifyBinariesYaml(app AppYaml) error {
+	return verifyStructStringsAgainstWhitelist(app, servicesBinariesStringsWhitelist)
 }
 
 // Doesn't need to handle complications like internal quotes, just needs to
@@ -73,7 +73,7 @@ func quoteEnvVar(envVar string) string {
 	return "export " + strings.Replace(envVar, "=", "=\"", 1) + "\""
 }
 
-func generateSnapBinaryWrapper(binary Binary, pkgPath, aaProfile string, m *packageYaml) (string, error) {
+func generateSnapBinaryWrapper(app AppYaml, pkgPath, aaProfile string, m *packageYaml) (string, error) {
 	wrapperTemplate := `#!/bin/sh
 set -e
 
@@ -97,11 +97,11 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 	// it's fine for this to error out; we might be in a framework or sth
 	origin := originFromBasedir(pkgPath)
 
-	if err := verifyBinariesYaml(binary); err != nil {
+	if err := verifyBinariesYaml(app); err != nil {
 		return "", err
 	}
 
-	actualBinPath := binPathForBinary(pkgPath, binary)
+	actualBinPath := binPathForBinary(pkgPath, app)
 	udevPartName := m.qualifiedName(origin)
 
 	var templateOut bytes.Buffer
@@ -190,87 +190,87 @@ func verifyStructStringsAgainstWhitelist(s interface{}, whitelist *regexp.Regexp
 	return nil
 }
 
-func verifyServiceYaml(service ServiceYaml) error {
-	return verifyStructStringsAgainstWhitelist(service, servicesBinariesStringsWhitelist)
+func verifyServiceYaml(app AppYaml) error {
+	return verifyStructStringsAgainstWhitelist(app, servicesBinariesStringsWhitelist)
 }
 
-func generateSnapServicesFile(service ServiceYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
-	if err := verifyServiceYaml(service); err != nil {
+func generateSnapServicesFile(app AppYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
+	if err := verifyServiceYaml(app); err != nil {
 		return "", err
 	}
 
 	udevPartName := m.qualifiedName(originFromBasedir(baseDir))
 
-	desc := service.Description
+	desc := app.Description
 	if desc == "" {
-		desc = fmt.Sprintf("service %s for package %s", service.Name, m.Name)
+		desc = fmt.Sprintf("service %s for package %s", app.Name, m.Name)
 	}
 
 	socketFileName := ""
-	if service.Socket {
-		socketFileName = filepath.Base(generateSocketFileName(m, service))
+	if app.Socket {
+		socketFileName = filepath.Base(generateSocketFileName(m, app))
 	}
 
 	return systemd.New(dirs.GlobalRootDir, nil).GenServiceFile(
 		&systemd.ServiceDescription{
 			AppName:        m.Name,
-			ServiceName:    service.Name,
+			ServiceName:    app.Name,
 			Version:        m.Version,
 			Description:    desc,
 			AppPath:        baseDir,
-			Start:          service.Start,
-			Stop:           service.Stop,
-			PostStop:       service.PostStop,
-			StopTimeout:    time.Duration(service.StopTimeout),
+			Start:          app.Command,
+			Stop:           app.Stop,
+			PostStop:       app.PostStop,
+			StopTimeout:    time.Duration(app.StopTimeout),
 			AaProfile:      aaProfile,
 			IsFramework:    m.Type == snap.TypeFramework,
-			IsNetworked:    service.Ports != nil && len(service.Ports.External) > 0,
-			BusName:        service.BusName,
-			Forking:        service.Forking,
+			IsNetworked:    app.Ports != nil && len(app.Ports.External) > 0,
+			BusName:        app.BusName,
+			Forking:        app.Forking,
 			UdevAppName:    udevPartName,
-			Socket:         service.Socket,
+			Socket:         app.Socket,
 			SocketFileName: socketFileName,
-			Restart:        service.RestartCond,
+			Restart:        app.RestartCond,
 		}), nil
 }
-func generateSnapSocketFile(service ServiceYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
-	if err := verifyServiceYaml(service); err != nil {
+func generateSnapSocketFile(app AppYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
+	if err := verifyServiceYaml(app); err != nil {
 		return "", err
 	}
 
 	// lp: #1515709, systemd will default to 0666 if no socket mode
 	// is specified
-	if service.SocketMode == "" {
-		service.SocketMode = "0660"
+	if app.SocketMode == "" {
+		app.SocketMode = "0660"
 	}
 
-	serviceFileName := filepath.Base(generateServiceFileName(m, service))
+	serviceFileName := filepath.Base(generateServiceFileName(m, app))
 
 	return systemd.New(dirs.GlobalRootDir, nil).GenSocketFile(
 		&systemd.ServiceDescription{
 			ServiceFileName: serviceFileName,
-			ListenStream:    service.ListenStream,
-			SocketMode:      service.SocketMode,
-			SocketUser:      service.SocketUser,
-			SocketGroup:     service.SocketGroup,
+			ListenStream:    app.ListenStream,
+			SocketMode:      app.SocketMode,
+			SocketUser:      app.SocketUser,
+			SocketGroup:     app.SocketGroup,
 		}), nil
 }
 
-func generateServiceFileName(m *packageYaml, service ServiceYaml) string {
-	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, service.Name, m.Version))
+func generateServiceFileName(m *packageYaml, app AppYaml) string {
+	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, app.Name, m.Version))
 }
 
-func generateSocketFileName(m *packageYaml, service ServiceYaml) string {
-	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.socket", m.Name, service.Name, m.Version))
+func generateSocketFileName(m *packageYaml, app AppYaml) string {
+	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.socket", m.Name, app.Name, m.Version))
 }
 
-func generateBusPolicyFileName(m *packageYaml, service ServiceYaml) string {
-	return filepath.Join(dirs.SnapBusPolicyDir, fmt.Sprintf("%s_%s_%s.conf", m.Name, service.Name, m.Version))
+func generateBusPolicyFileName(m *packageYaml, app AppYaml) string {
+	return filepath.Join(dirs.SnapBusPolicyDir, fmt.Sprintf("%s_%s_%s.conf", m.Name, app.Name, m.Version))
 }
 
 // takes a directory and removes the global root, this is needed
 // when the SetRoot option is used and we need to generate
-// content for the "ServiceYamls" and "Binaries" section
+// content for the "Apps" section
 var stripGlobalRootDir = stripGlobalRootDirImpl
 
 func stripGlobalRootDirImpl(dir string) string {
@@ -282,8 +282,11 @@ func stripGlobalRootDirImpl(dir string) string {
 }
 
 func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inter interacter) error {
-	for _, service := range m.ServiceYamls {
-		aaProfile, err := getSecurityProfile(m, service.Name, baseDir)
+	for _, app := range m.Apps {
+		if app.Daemon == "" {
+			continue
+		}
+		aaProfile, err := getSecurityProfile(m, app.Name, baseDir)
 		if err != nil {
 			return err
 		}
@@ -293,22 +296,22 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
 		// Generate service file
-		content, err := generateSnapServicesFile(service, realBaseDir, aaProfile, m)
+		content, err := generateSnapServicesFile(app, realBaseDir, aaProfile, m)
 		if err != nil {
 			return err
 		}
-		serviceFilename := generateServiceFileName(m, service)
+		serviceFilename := generateServiceFileName(m, app)
 		os.MkdirAll(filepath.Dir(serviceFilename), 0755)
 		if err := helpers.AtomicWriteFile(serviceFilename, []byte(content), 0644, 0); err != nil {
 			return err
 		}
 		// Generate systemd socket file if needed
-		if service.Socket {
-			content, err := generateSnapSocketFile(service, realBaseDir, aaProfile, m)
+		if app.Socket {
+			content, err := generateSnapSocketFile(app, realBaseDir, aaProfile, m)
 			if err != nil {
 				return err
 			}
-			socketFilename := generateSocketFileName(m, service)
+			socketFilename := generateSocketFileName(m, app)
 			os.MkdirAll(filepath.Dir(socketFilename), 0755)
 			if err := helpers.AtomicWriteFile(socketFilename, []byte(content), 0644, 0); err != nil {
 				return err
@@ -316,12 +319,12 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		}
 		// If necessary, generate the DBus policy file so the framework
 		// service is allowed to start
-		if m.Type == snap.TypeFramework && service.BusName != "" {
-			content, err := genBusPolicyFile(service.BusName)
+		if m.Type == snap.TypeFramework && app.BusName != "" {
+			content, err := genBusPolicyFile(app.BusName)
 			if err != nil {
 				return err
 			}
-			policyFilename := generateBusPolicyFileName(m, service)
+			policyFilename := generateBusPolicyFileName(m, app)
 			os.MkdirAll(filepath.Dir(policyFilename), 0755)
 			if err := helpers.AtomicWriteFile(policyFilename, []byte(content), 0644, 0); err != nil {
 				return err
@@ -332,7 +335,7 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 		// inhibitHooks mode
 		//
 		// *but* always run enable (which just sets a symlink)
-		serviceName := filepath.Base(generateServiceFileName(m, service))
+		serviceName := filepath.Base(generateServiceFileName(m, app))
 		sysd := systemd.New(dirs.GlobalRootDir, inter)
 		if !inhibitHooks {
 			if err := sysd.DaemonReload(); err != nil {
@@ -351,8 +354,8 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 			}
 		}
 
-		if service.Socket {
-			socketName := filepath.Base(generateSocketFileName(m, service))
+		if app.Socket {
+			socketName := filepath.Base(generateSocketFileName(m, app))
 			// we always enable the socket even in inhibit hooks
 			if err := sysd.Enable(socketName); err != nil {
 				return err
@@ -371,12 +374,16 @@ func (m *packageYaml) addPackageServices(baseDir string, inhibitHooks bool, inte
 
 func (m *packageYaml) removePackageServices(baseDir string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
-	for _, service := range m.ServiceYamls {
-		serviceName := filepath.Base(generateServiceFileName(m, service))
+	for _, app := range m.Apps {
+		if app.Daemon == "" {
+			continue
+		}
+
+		serviceName := filepath.Base(generateServiceFileName(m, app))
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
 		}
-		if err := sysd.Stop(serviceName, time.Duration(service.StopTimeout)); err != nil {
+		if err := sysd.Stop(serviceName, time.Duration(app.StopTimeout)); err != nil {
 			if !systemd.IsTimeout(err) {
 				return err
 			}
@@ -387,22 +394,23 @@ func (m *packageYaml) removePackageServices(baseDir string, inter interacter) er
 			sysd.Kill(serviceName, "KILL")
 		}
 
-		if err := os.Remove(generateServiceFileName(m, service)); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(generateServiceFileName(m, app)); err != nil && !os.IsNotExist(err) {
 			logger.Noticef("Failed to remove service file for %q: %v", serviceName, err)
 		}
 
-		if err := os.Remove(generateSocketFileName(m, service)); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(generateSocketFileName(m, app)); err != nil && !os.IsNotExist(err) {
 			logger.Noticef("Failed to remove socket file for %q: %v", serviceName, err)
 		}
 
 		// Also remove DBus system policy file
-		if err := os.Remove(generateBusPolicyFileName(m, service)); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(generateBusPolicyFileName(m, app)); err != nil && !os.IsNotExist(err) {
 			logger.Noticef("Failed to remove bus policy file for service %q: %v", serviceName, err)
 		}
 	}
 
 	// only reload if we actually had services
-	if len(m.ServiceYamls) > 0 {
+	// FIXME: filter for services
+	if len(m.Apps) > 0 {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
@@ -416,8 +424,12 @@ func (m *packageYaml) addPackageBinaries(baseDir string) error {
 		return err
 	}
 
-	for _, binary := range m.Binaries {
-		aaProfile, err := getSecurityProfile(m, binary.Name, baseDir)
+	for _, app := range m.Apps {
+		if app.Daemon != "" {
+			continue
+		}
+
+		aaProfile, err := getSecurityProfile(m, app.Name, baseDir)
 		if err != nil {
 			return err
 		}
@@ -426,12 +438,12 @@ func (m *packageYaml) addPackageBinaries(baseDir string) error {
 		// is in the service file when the SetRoot() option
 		// is used
 		realBaseDir := stripGlobalRootDir(baseDir)
-		content, err := generateSnapBinaryWrapper(binary, realBaseDir, aaProfile, m)
+		content, err := generateSnapBinaryWrapper(app, realBaseDir, aaProfile, m)
 		if err != nil {
 			return err
 		}
 
-		if err := helpers.AtomicWriteFile(generateBinaryName(m, binary), []byte(content), 0755, 0); err != nil {
+		if err := helpers.AtomicWriteFile(generateBinaryName(m, app), []byte(content), 0755, 0); err != nil {
 			return err
 		}
 	}
@@ -440,8 +452,8 @@ func (m *packageYaml) addPackageBinaries(baseDir string) error {
 }
 
 func (m *packageYaml) removePackageBinaries(baseDir string) error {
-	for _, binary := range m.Binaries {
-		os.Remove(generateBinaryName(m, binary))
+	for _, app := range m.Apps {
+		os.Remove(generateBinaryName(m, app))
 	}
 
 	return nil

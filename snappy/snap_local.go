@@ -174,11 +174,7 @@ func (s *SnapPart) Channel() string {
 
 // Icon returns the path to the icon
 func (s *SnapPart) Icon() string {
-	if s.m.Icon == "" {
-		return ""
-	}
-
-	return filepath.Join(s.basedir, s.m.Icon)
+	return filepath.Join(s.basedir, "meta", "icon.png")
 }
 
 // IsActive returns true if the snap is active
@@ -222,14 +218,9 @@ func (s *SnapPart) Date() time.Time {
 	return st.ModTime()
 }
 
-// ServiceYamls return a list of ServiceYamls the package declares
-func (s *SnapPart) ServiceYamls() []ServiceYaml {
-	return s.m.ServiceYamls
-}
-
-// Binaries return a list of BinaryDescription the package declares
-func (s *SnapPart) Binaries() []Binary {
-	return s.m.Binaries
+// Apps return a list of AppsYamls the package declares
+func (s *SnapPart) Apps() map[string]AppYaml {
+	return s.m.Apps
 }
 
 // GadgetConfig return a list of packages to configure
@@ -520,7 +511,7 @@ func (s *SnapPart) CanInstall(allowGadget bool, inter interacter) error {
 // templates impacts the snap, and updates the policy if needed
 func (s *SnapPart) RequestSecurityPolicyUpdate(policies, templates map[string]bool) error {
 	var foundError error
-	for _, svc := range s.ServiceYamls() {
+	for _, svc := range s.Apps() {
 		if svc.NeedsAppArmorUpdate(policies, templates) {
 			err := svc.generatePolicyForServiceBinary(s.m, svc.Name, s.basedir)
 			if err != nil {
@@ -529,11 +520,11 @@ func (s *SnapPart) RequestSecurityPolicyUpdate(policies, templates map[string]bo
 			}
 		}
 	}
-	for _, bin := range s.Binaries() {
-		if bin.NeedsAppArmorUpdate(policies, templates) {
-			err := bin.generatePolicyForServiceBinary(s.m, bin.Name, s.basedir)
+	for name, app := range s.Apps() {
+		if app.NeedsAppArmorUpdate(policies, templates) {
+			err := app.generatePolicyForServiceBinary(s.m, name, s.basedir)
 			if err != nil {
-				logger.Noticef("Failed to regenerate policy for %s: %v", bin.Name, err)
+				logger.Noticef("Failed to regenerate policy for %s: %v", name, err)
 				foundError = err
 			}
 		}

@@ -316,7 +316,7 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 			if !dep.IsActive() {
 				continue
 			}
-			for _, svc := range dep.ServiceYamls() {
+			for _, svc := range dep.Apps() {
 				serviceName := filepath.Base(generateServiceFileName(dep.m, svc))
 				timeout := time.Duration(svc.StopTimeout)
 				if err = sysd.Stop(serviceName, timeout); err != nil {
@@ -362,10 +362,6 @@ func (s *SnapFile) CanInstall(allowGadget bool, inter interacter) error {
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(s.m.Architectures) {
 		return &ErrArchitectureNotSupported{s.m.Architectures}
-	}
-
-	if err := s.m.checkForNameClashes(); err != nil {
-		return err
 	}
 
 	if err := s.m.checkForFrameworks(); err != nil {

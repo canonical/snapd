@@ -576,14 +576,20 @@ func (m *packageYaml) removeOneSecurityPolicy(name, baseDir string) error {
 }
 
 func removePolicy(m *packageYaml, baseDir string) error {
-	for _, service := range m.ServiceYamls {
-		if err := m.removeOneSecurityPolicy(service.Name, baseDir); err != nil {
+	for _, app := range m.Apps {
+		if app.Daemon == "" {
+			continue
+		}
+		if err := m.removeOneSecurityPolicy(app.Name, baseDir); err != nil {
 			return err
 		}
 	}
 
-	for _, binary := range m.Binaries {
-		if err := m.removeOneSecurityPolicy(binary.Name, baseDir); err != nil {
+	for _, app := range m.Apps {
+		if app.Daemon != "" {
+			continue
+		}
+		if err := m.removeOneSecurityPolicy(app.Name, baseDir); err != nil {
 			return err
 		}
 	}
@@ -736,20 +742,11 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 		}
 	}
 
-	for _, service := range m.ServiceYamls {
-		err := service.generatePolicyForServiceBinary(m, service.Name, baseDir)
+	for _, app := range m.Apps {
+		err := app.generatePolicyForServiceBinary(m, app.Name, baseDir)
 		if err != nil {
 			foundError = err
-			logger.Noticef("Failed to generate policy for service %s: %v", service.Name, err)
-			continue
-		}
-	}
-
-	for _, binary := range m.Binaries {
-		err := binary.generatePolicyForServiceBinary(m, binary.Name, baseDir)
-		if err != nil {
-			foundError = err
-			logger.Noticef("Failed to generate policy for binary %s: %v", binary.Name, err)
+			logger.Noticef("Failed to generate policy for service %s: %v", app.Name, err)
 			continue
 		}
 	}
@@ -835,22 +832,11 @@ func CompareGeneratePolicyFromFile(fn string) error {
 
 	baseDir := filepath.Dir(filepath.Dir(fn))
 
-	for _, service := range m.ServiceYamls {
-		p, err := service.generatePolicyForServiceBinaryResult(m, service.Name, baseDir)
+	for _, app := range m.Apps {
+		p, err := app.generatePolicyForServiceBinaryResult(m, app.Name, baseDir)
 
 		// FIXME: use apparmor_profile -p on both AppArmor profiles
 
-		if err != nil {
-			// FIXME: what to do here?
-			return err
-		}
-		if err := comparePolicyToCurrent(p); err != nil {
-			return err
-		}
-	}
-
-	for _, binary := range m.Binaries {
-		p, err := binary.generatePolicyForServiceBinaryResult(m, binary.Name, baseDir)
 		if err != nil {
 			// FIXME: what to do here?
 			return err

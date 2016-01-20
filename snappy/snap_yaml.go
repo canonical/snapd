@@ -54,17 +54,22 @@ type Ports struct {
 	External map[string]Port `yaml:"external,omitempty" json:"external,omitempty"`
 }
 
-// ServiceYaml represents a service inside a SnapPart
-type ServiceYaml struct {
-	Name        string `yaml:"name" json:"name,omitempty"`
+// AppYaml represents an application (binary or service)
+type AppYaml struct {
+	Name     string `yaml:"name" json:"name,omitempty"`
+	Version  string
+	Command  string   `yaml:"command"`
+	Provides []string `yaml:"provides"`
+	Consumes []string `yaml:"consumes"`
+	Daemon   string
+
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 
-	Start       string          `yaml:"start,omitempty" json:"start,omitempty"`
-	Stop        string          `yaml:"stop,omitempty" json:"stop,omitempty"`
-	PostStop    string          `yaml:"poststop,omitempty" json:"poststop,omitempty"`
-	StopTimeout timeout.Timeout `yaml:"stop-timeout,omitempty" json:"stop-timeout,omitempty"`
-	BusName     string          `yaml:"bus-name,omitempty" json:"bus-name,omitempty"`
-	Forking     bool            `yaml:"forking,omitempty" json:"forking,omitempty"`
+	Stop        string          `yaml:"stop,omitempty"`
+	PostStop    string          `yaml:"poststop,omitempty"`
+	StopTimeout timeout.Timeout `yaml:"stop-timeout,omitempty"`
+	BusName     string          `yaml:"bus-name,omitempty"`
+	Forking     bool            `yaml:"forking,omitempty"`
 
 	// set to yes if we need to create a systemd socket for this service
 	Socket       bool   `yaml:"socket,omitempty" json:"socket,omitempty"`
@@ -82,61 +87,31 @@ type ServiceYaml struct {
 	SecurityDefinitions `yaml:",inline"`
 }
 
-// Binary represents a single binary inside the binaries: package.yaml
-type Binary struct {
-	Name string `yaml:"name"`
-	Exec string `yaml:"exec"`
-
-	SecurityDefinitions `yaml:",inline"`
-}
-
 var commasplitter = regexp.MustCompile(`\s*,\s*`).Split
-
-// deprecarch handles the vagaries of the now-deprecated
-// "architecture" field of the package.yaml
-type deprecarch []string
-
-func (v *deprecarch) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var l []string
-
-	if err := unmarshal(&l); err != nil {
-		var s string
-		if err := unmarshal(&s); err != nil {
-			return err
-
-		}
-		l = append([]string(nil), s)
-	}
-	*v = deprecarch(l)
-
-	return nil
-}
 
 // TODO split into payloads per package type composing the common
 // elements for all snaps.
 type packageYaml struct {
-	Name    string
-	Version string
-	Icon    string
-	Type    snap.Type
+	Name             string
+	Version          string
+	LicenseAgreement string `yaml:"license-agreement,omitempty"`
+	LicenseVersion   string `yaml:"license-version,omitempty"`
+	Type             snap.Type
+	Summary          string
+	Description      string
+	Architectures    []string `yaml:"architectures"`
 
-	// the spec allows a string or a list here *ick* so we need
-	// to convert that into something sensible via reflect
-	DeprecatedArchitecture deprecarch `yaml:"architecture"`
-	Architectures          []string   `yaml:"architectures"`
+	// FIXME: kill once we really no longer support frameworks
+	Frameworks []string `yaml:"frameworks,omitempty"`
 
-	DeprecatedFramework string   `yaml:"framework,omitempty"`
-	Frameworks          []string `yaml:"frameworks,omitempty"`
+	// Apps can be both binary or service
+	Apps map[string]AppYaml `yaml:"apps,omitempty"`
 
-	ServiceYamls []ServiceYaml `yaml:"services,omitempty"`
-	Binaries     []Binary      `yaml:"binaries,omitempty"`
+	// FIXME: clarify those
 
 	// gadget snap only
 	Gadget Gadget       `yaml:"gadget,omitempty"`
 	Config SystemConfig `yaml:"config,omitempty"`
-
-	ExplicitLicenseAgreement bool   `yaml:"explicit-license-agreement,omitempty"`
-	LicenseVersion           string `yaml:"license-version,omitempty"`
 
 	// FIXME: move into a special kernel struct
 	Kernel string `yaml:"kernel,omitempty"`
@@ -181,13 +156,11 @@ func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error
 	}
 
 	// do all checks here
-	for _, binary := range m.Binaries {
-		if err := verifyBinariesYaml(binary); err != nil {
+	for _, app := range m.Apps {
+		if err := verifyBinariesYaml(app); err != nil {
 			return err
 		}
-	}
-	for _, service := range m.ServiceYamls {
-		if err := verifyServiceYaml(service); err != nil {
+		if err := verifyServiceYaml(app); err != nil {
 			return err
 		}
 	}
@@ -207,37 +180,12 @@ func parsePackageYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error)
 	}
 
 	if m.Architectures == nil {
-		if m.DeprecatedArchitecture == nil {
-			m.Architectures = []string{"all"}
-		} else {
-			m.Architectures = m.DeprecatedArchitecture
-		}
+		m.Architectures = []string{"all"}
 	}
 
-	if m.DeprecatedFramework != "" {
-		logger.Noticef(`Use of deprecated "framework" key in yaml`)
-		if len(m.Frameworks) != 0 {
-			return nil, ErrInvalidFrameworkSpecInYaml
-		}
-
-		m.Frameworks = commasplitter(m.DeprecatedFramework, -1)
-		m.DeprecatedFramework = ""
-	}
-
-	// For backward compatiblity we allow that there is no "exec:" line
-	// in the binary definition and that its derived from the name.
-	//
-	// Generate the right exec line here
-	for i := range m.Binaries {
-		if m.Binaries[i].Exec == "" {
-			m.Binaries[i].Exec = m.Binaries[i].Name
-			m.Binaries[i].Name = filepath.Base(m.Binaries[i].Exec)
-		}
-	}
-
-	for i := range m.ServiceYamls {
-		if m.ServiceYamls[i].StopTimeout == 0 {
-			m.ServiceYamls[i].StopTimeout = timeout.DefaultTimeout
+	for _, app := range m.Apps {
+		if app.StopTimeout == 0 {
+			app.StopTimeout = timeout.DefaultTimeout
 		}
 	}
 
@@ -249,20 +197,6 @@ func (m *packageYaml) qualifiedName(origin string) string {
 		return m.Name
 	}
 	return m.Name + "." + origin
-}
-
-func (m *packageYaml) checkForNameClashes() error {
-	d := make(map[string]struct{})
-	for _, bin := range m.Binaries {
-		d[bin.Name] = struct{}{}
-	}
-	for _, svc := range m.ServiceYamls {
-		if _, ok := d[svc.Name]; ok {
-			return ErrNameClash(svc.Name)
-		}
-	}
-
-	return nil
 }
 
 func (m *packageYaml) checkForPackageInstalled(origin string) error {
@@ -306,7 +240,7 @@ func (m *packageYaml) checkForFrameworks() error {
 // the user), or an error that explains the reason why installation should not
 // proceed.
 func (m *packageYaml) checkLicenseAgreement(ag agreer, d snap.File, currentActiveDir string) error {
-	if !m.ExplicitLicenseAgreement {
+	if m.LicenseAgreement != "explicit" {
 		return nil
 	}
 
@@ -327,7 +261,7 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d snap.File, currentActiv
 	// don't ask for the license if
 	// * the previous version also asked for license confirmation, and
 	// * the license version is the same
-	if err == nil && oldM.ExplicitLicenseAgreement && oldM.LicenseVersion == m.LicenseVersion {
+	if err == nil && (oldM.LicenseAgreement == "explicit") && oldM.LicenseVersion == m.LicenseVersion {
 		return nil
 	}
 

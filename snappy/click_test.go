@@ -482,7 +482,7 @@ ubuntu-core-launcher pastebinit.mvo pastebinit.mvo_pastebinit_1.4.0.0.1 /snaps/p
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
-	binary := Binary{Name: "pastebinit", Exec: "bin/pastebinit"}
+	binary := AppYaml{Name: "pastebinit", Command: "bin/pastebinit"}
 	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
 	m := packageYaml{Name: "pastebinit",
@@ -496,7 +496,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
-	binary := Binary{Name: "echo", Exec: "bin/echo"}
+	binary := AppYaml{Name: "echo", Command: "bin/echo"}
 	pkgPath := "/snaps/fmk/1.4.0.0.1/"
 	aaProfile := "fmk_echo_1.4.0.0.1"
 	m := packageYaml{Name: "fmk",
@@ -515,7 +515,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
-	binary := Binary{Name: "bin/pastebinit\nSomething nasty"}
+	binary := AppYaml{Name: "bin/pastebinit\nSomething nasty"}
 	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
 	m := packageYaml{Name: "pastebinit",
@@ -526,15 +526,15 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
-	binary := Binary{Name: "pastebinit", Exec: "bin/pastebinit"}
+	binary := AppYaml{Name: "pastebinit", Command: "bin/pastebinit"}
 	pkgPath := "/snaps/pastebinit.mvo/1.0/"
 	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snaps/pastebinit.mvo/1.0/bin/pastebinit")
 }
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
-	binary := Binary{
-		Name: "pastebinit",
-		Exec: "bin/random-pastebin",
+	binary := AppYaml{
+		Name:    "pastebinit",
+		Command: "bin/random-pastebin",
 	}
 	pkgPath := "/snaps/pastebinit.mvo/1.1/"
 	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snaps/pastebinit.mvo/1.1/bin/random-pastebin")
@@ -859,9 +859,9 @@ WantedBy=multi-user.target
 )
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
-	service := ServiceYaml{
+	service := AppYaml{
 		Name:        "xkcd-webserver",
-		Start:       "bin/foo start",
+		Command:     "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
 		StopTimeout: timeout.DefaultTimeout,
@@ -879,9 +879,9 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
-	service := ServiceYaml{
+	service := AppYaml{
 		Name:        "xkcd-webserver",
-		Start:       "bin/foo start",
+		Command:     "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
 		StopTimeout: timeout.DefaultTimeout,
@@ -898,9 +898,9 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapperWithExternalPort(c *C) {
-	service := ServiceYaml{
+	service := AppYaml{
 		Name:        "xkcd-webserver",
-		Start:       "bin/foo start",
+		Command:     "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
 		StopTimeout: timeout.DefaultTimeout,
@@ -918,9 +918,9 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapperWithExternalPort(
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
-	service := ServiceYaml{
+	service := AppYaml{
 		Name:        "xkcd-webserver",
-		Start:       "bin/foo start",
+		Command:     "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
 		StopTimeout: timeout.DefaultTimeout,
@@ -941,7 +941,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
-	service := ServiceYaml{
+	service := AppYaml{
 		Name:        "xkcd-webserver",
 		RestartCond: systemd.RestartOnAbort,
 	}
@@ -958,8 +958,8 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
-	service := ServiceYaml{Name: "xkcd-webserver",
-		Start:       "bin/foo start",
+	service := AppYaml{Name: "xkcd-webserver",
+		Command:     "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
 		StopTimeout: timeout.DefaultTimeout,
@@ -975,34 +975,34 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 }
 
 func (s *SnapTestSuite) TestServiceWhitelistSimple(c *C) {
-	c.Assert(verifyServiceYaml(ServiceYaml{Name: "foo"}), IsNil)
-	c.Assert(verifyServiceYaml(ServiceYaml{Description: "foo"}), IsNil)
-	c.Assert(verifyServiceYaml(ServiceYaml{Start: "foo"}), IsNil)
-	c.Assert(verifyServiceYaml(ServiceYaml{Stop: "foo"}), IsNil)
-	c.Assert(verifyServiceYaml(ServiceYaml{PostStop: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(AppYaml{Name: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(AppYaml{Description: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(AppYaml{Command: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(AppYaml{Stop: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(AppYaml{PostStop: "foo"}), IsNil)
 }
 
 func (s *SnapTestSuite) TestServiceWhitelistIllegal(c *C) {
-	c.Assert(verifyServiceYaml(ServiceYaml{Name: "x\n"}), NotNil)
-	c.Assert(verifyServiceYaml(ServiceYaml{Description: "foo\n"}), NotNil)
-	c.Assert(verifyServiceYaml(ServiceYaml{Start: "foo\n"}), NotNil)
-	c.Assert(verifyServiceYaml(ServiceYaml{Stop: "foo\n"}), NotNil)
-	c.Assert(verifyServiceYaml(ServiceYaml{PostStop: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(AppYaml{Name: "x\n"}), NotNil)
+	c.Assert(verifyServiceYaml(AppYaml{Description: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(AppYaml{Command: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(AppYaml{Stop: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(AppYaml{PostStop: "foo\n"}), NotNil)
 }
 
 func (s *SnapTestSuite) TestServiceWhitelistError(c *C) {
-	err := verifyServiceYaml(ServiceYaml{Name: "x\n"})
+	err := verifyServiceYaml(AppYaml{Name: "x\n"})
 	c.Assert(err.Error(), Equals, "services description field 'Name' contains illegal 'x\n' (legal: '^[A-Za-z0-9/. _#:-]*$')")
 }
 
 func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
-	c.Assert(verifyBinariesYaml(Binary{Name: "foo"}), IsNil)
-	c.Assert(verifyBinariesYaml(Binary{Exec: "foo"}), IsNil)
-	c.Assert(verifyBinariesYaml(Binary{
+	c.Assert(verifyBinariesYaml(AppYaml{Name: "foo"}), IsNil)
+	c.Assert(verifyBinariesYaml(AppYaml{Command: "foo"}), IsNil)
+	c.Assert(verifyBinariesYaml(AppYaml{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "foo"},
 	}), IsNil)
-	c.Assert(verifyBinariesYaml(Binary{
+	c.Assert(verifyBinariesYaml(AppYaml{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
 				AppArmor: "foo"},
@@ -1011,14 +1011,14 @@ func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
 }
 
 func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
-	c.Assert(verifyBinariesYaml(Binary{Name: "test!me"}), NotNil)
-	c.Assert(verifyBinariesYaml(Binary{Name: "x\n"}), NotNil)
-	c.Assert(verifyBinariesYaml(Binary{Exec: "x\n"}), NotNil)
-	c.Assert(verifyBinariesYaml(Binary{
+	c.Assert(verifyBinariesYaml(AppYaml{Name: "test!me"}), NotNil)
+	c.Assert(verifyBinariesYaml(AppYaml{Name: "x\n"}), NotNil)
+	c.Assert(verifyBinariesYaml(AppYaml{Command: "x\n"}), NotNil)
+	c.Assert(verifyBinariesYaml(AppYaml{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "x\n"},
 	}), NotNil)
-	c.Assert(verifyBinariesYaml(Binary{
+	c.Assert(verifyBinariesYaml(AppYaml{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
 				AppArmor: "x\n"},
@@ -1104,8 +1104,8 @@ func (s *SnapTestSuite) TestCopySnapDataDirectoryError(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
-	service := ServiceYaml{Name: "xkcd-webserver",
-		Start:        "bin/foo start",
+	service := AppYaml{Name: "xkcd-webserver",
+		Command:      "bin/foo start",
 		Description:  "meep",
 		Socket:       true,
 		ListenStream: "/var/run/docker.sock",
@@ -1138,9 +1138,9 @@ WantedBy=sockets.target
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSockte(c *C) {
-	service := ServiceYaml{
+	service := AppYaml{
 		Name:        "xkcd-webserver",
-		Start:       "bin/foo start",
+		Command:     "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
 		StopTimeout: timeout.DefaultTimeout,
@@ -1158,7 +1158,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSockte(c *C) {
 }
 
 func (s *SnapTestSuite) TestGenerateSnapSocketFile(c *C) {
-	srv := ServiceYaml{}
+	srv := AppYaml{}
 	baseDir := "/base/dir"
 	aaProfile := "pkg_app_1.0"
 	m := &packageYaml{}

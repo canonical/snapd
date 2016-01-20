@@ -277,14 +277,10 @@ func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error)
 		return "", err
 	}
 
-	if m.ExplicitLicenseAgreement {
+	if m.LicenseAgreement == "explicit" {
 		if err := licenseChecker(sourceDir); err != nil {
 			return "", err
 		}
-	}
-
-	if err := m.checkForNameClashes(); err != nil {
-		return "", err
 	}
 
 	if err := copyToBuildDir(sourceDir, buildDir); err != nil {

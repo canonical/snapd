@@ -46,7 +46,7 @@ type ServiceActor interface {
 
 type svcT struct {
 	m   *packageYaml
-	svc *ServiceYaml
+	svc *AppYaml
 }
 
 type serviceActor struct {
@@ -86,14 +86,14 @@ func FindServices(snapName string, serviceName string, pb progress.Meter) (Servi
 		}
 		foundSnap = true
 
-		yamls := snap.ServiceYamls()
-		for i := range yamls {
-			if serviceName != "" && serviceName != yamls[i].Name {
+		yamls := snap.Apps()
+		for name, app := range yamls {
+			if serviceName != "" && serviceName != name {
 				continue
 			}
 			s := &svcT{
 				m:   snap.m,
-				svc: &yamls[i],
+				svc: &app,
 			}
 			svcs = append(svcs, s)
 		}

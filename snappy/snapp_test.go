@@ -130,9 +130,9 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	c.Check(snap.Description(), Equals, "Hello")
 	c.Check(snap.IsInstalled(), Equals, true)
 
-	services := snap.ServiceYamls()
-	c.Assert(services, HasLen, 1)
-	c.Assert(services[0].Name, Equals, "svc1")
+	apps := snap.Apps()
+	c.Assert(apps, HasLen, 1)
+	c.Assert(apps["hello-app"].Name, Equals, "svc1")
 
 	// ensure we get valid Date()
 	st, err := os.Stat(snap.basedir)
@@ -788,24 +788,24 @@ services:
 	c.Assert(snap.Version(), Equals, "1.10")
 	c.Assert(snap.IsActive(), Equals, false)
 
-	services := snap.ServiceYamls()
-	c.Assert(services, HasLen, 2)
+	apps := snap.Apps()
+	c.Assert(apps, HasLen, 2)
 
-	c.Assert(services[0].Name, Equals, "svc1")
-	c.Assert(services[0].Description, Equals, "Service #1")
+	c.Assert(apps["svc1"].Name, Equals, "svc1")
+	c.Assert(apps["svc1"].Description, Equals, "Service #1")
 
-	external1Ui, ok := services[0].Ports.External["ui"]
+	external1Ui, ok := apps["svc1"].Ports.External["ui"]
 	c.Assert(ok, Equals, true)
 	c.Assert(external1Ui.Port, Equals, "8080/tcp")
 	c.Assert(external1Ui.Negotiable, Equals, false)
 
-	external1Nothing, ok := services[0].Ports.External["nothing"]
+	external1Nothing, ok := apps["svc2"].Ports.External["nothing"]
 	c.Assert(ok, Equals, true)
 	c.Assert(external1Nothing.Port, Equals, "8081/tcp")
 	c.Assert(external1Nothing.Negotiable, Equals, true)
 
-	c.Assert(services[1].Name, Equals, "svc2")
-	c.Assert(services[1].Description, Equals, "Service #2")
+	c.Assert(apps["svc2"].Name, Equals, "svc2")
+	c.Assert(apps["svc2"].Description, Equals, "Service #2")
 
 	// ensure we get valid Date()
 	st, err := os.Stat(snap.basedir)
@@ -875,10 +875,10 @@ func (s *SnapTestSuite) TestPackageYamlLicenseParsing(c *C) {
 	ioutil.WriteFile(y, []byte(`
 name: foo
 version: 1.0
-explicit-license-agreement: Y`), 0644)
+license-agreement: explicit`), 0644)
 	m, err := parsePackageYamlFile(y)
 	c.Assert(err, IsNil)
-	c.Assert(m.ExplicitLicenseAgreement, Equals, true)
+	c.Assert(m.LicenseAgreement, Equals, "explicit")
 }
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryGadgetStoreId(c *C) {
@@ -968,22 +968,22 @@ func (s *SnapTestSuite) TestPackageYamlSecurityBinaryParsing(c *C) {
 	m, err := parsePackageYamlData(securityBinaryPackageYaml, false)
 	c.Assert(err, IsNil)
 
-	c.Assert(m.Binaries[0].Name, Equals, "testme")
-	c.Assert(m.Binaries[0].Exec, Equals, "bin/testme")
-	c.Assert(m.Binaries[0].SecurityCaps, HasLen, 1)
-	c.Assert(m.Binaries[0].SecurityCaps[0], Equals, "foo_group")
-	c.Assert(m.Binaries[0].SecurityTemplate, Equals, "foo_template")
+	c.Assert(m.Apps["testme"].Name, Equals, "testme")
+	c.Assert(m.Apps["testme"].Command, Equals, "bin/testme")
+	c.Assert(m.Apps["testme"].SecurityCaps, HasLen, 1)
+	c.Assert(m.Apps["testme"].SecurityCaps[0], Equals, "foo_group")
+	c.Assert(m.Apps["testme"].SecurityTemplate, Equals, "foo_template")
 
-	c.Assert(m.Binaries[1].Name, Equals, "testme-override")
-	c.Assert(m.Binaries[1].Exec, Equals, "bin/testme-override")
-	c.Assert(m.Binaries[1].SecurityCaps, HasLen, 0)
-	c.Assert(m.Binaries[1].SecurityOverride.ReadPaths[0], Equals, "/foo")
-	c.Assert(m.Binaries[1].SecurityOverride.Syscalls[0], Equals, "bar")
+	c.Assert(m.Apps["testme-override"].Name, Equals, "testme-override")
+	c.Assert(m.Apps["testme-override"].Command, Equals, "bin/testme-override")
+	c.Assert(m.Apps["testme-override"].SecurityCaps, HasLen, 0)
+	c.Assert(m.Apps["testme-override"].SecurityOverride.ReadPaths[0], Equals, "/foo")
+	c.Assert(m.Apps["testme-override"].SecurityOverride.Syscalls[0], Equals, "bar")
 
-	c.Assert(m.Binaries[2].Name, Equals, "testme-policy")
-	c.Assert(m.Binaries[2].Exec, Equals, "bin/testme-policy")
-	c.Assert(m.Binaries[2].SecurityCaps, HasLen, 0)
-	c.Assert(m.Binaries[2].SecurityPolicy.AppArmor, Equals, "meta/testme-policy.profile")
+	c.Assert(m.Apps["testme-policy"].Name, Equals, "testme-policy")
+	c.Assert(m.Apps["testme-policy"].Command, Equals, "bin/testme-policy")
+	c.Assert(m.Apps["testme-policy"].SecurityCaps, HasLen, 0)
+	c.Assert(m.Apps["testme-policy"].SecurityPolicy.AppArmor, Equals, "meta/testme-policy.profile")
 }
 
 var securityServicePackageYaml = []byte(`name: test-snap
@@ -1004,13 +1004,13 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 	m, err := parsePackageYamlData(securityServicePackageYaml, false)
 	c.Assert(err, IsNil)
 
-	c.Assert(m.ServiceYamls[0].Name, Equals, "testme-service")
-	c.Assert(m.ServiceYamls[0].Start, Equals, "bin/testme-service.start")
-	c.Assert(m.ServiceYamls[0].Stop, Equals, "bin/testme-service.stop")
-	c.Assert(m.ServiceYamls[0].SecurityCaps, HasLen, 2)
-	c.Assert(m.ServiceYamls[0].SecurityCaps[0], Equals, "network-client")
-	c.Assert(m.ServiceYamls[0].SecurityCaps[1], Equals, "foo_group")
-	c.Assert(m.ServiceYamls[0].SecurityTemplate, Equals, "foo_template")
+	c.Assert(m.Apps["testme-service"].Name, Equals, "testme-service")
+	c.Assert(m.Apps["testme-service"].Command, Equals, "bin/testme-service.start")
+	c.Assert(m.Apps["testme-service"].Stop, Equals, "bin/testme-service.stop")
+	c.Assert(m.Apps["testme-service"].SecurityCaps, HasLen, 2)
+	c.Assert(m.Apps["testme-service"].SecurityCaps[0], Equals, "network-client")
+	c.Assert(m.Apps["testme-service"].SecurityCaps[1], Equals, "foo_group")
+	c.Assert(m.Apps["testme-service"].SecurityTemplate, Equals, "foo_template")
 }
 
 func (s *SnapTestSuite) TestPackageYamlFrameworkAndFrameworksFails(c *C) {
@@ -1090,20 +1090,6 @@ func (s *SnapTestSuite) TestUsesStoreMetaData(c *C) {
 	c.Check(snaps[0].Origin(), Equals, "someplace")
 	c.Check(snaps[0].Description(), Equals, "something nice")
 	c.Check(snaps[0].DownloadSize(), Equals, int64(10))
-}
-
-func (s *SnapTestSuite) TestDetectsNameClash(c *C) {
-	data := []byte(`name: afoo
-version: 1.0
-services:
- - name: foo
-binaries:
- - name: foo
-`)
-	yaml, err := parsePackageYamlData(data, false)
-	c.Assert(err, IsNil)
-	err = yaml.checkForNameClashes()
-	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
 }
 
 func (s *SnapTestSuite) TestDetectsMissingFrameworks(c *C) {
@@ -1241,24 +1227,24 @@ func (s *SnapTestSuite) TestNeedsAppArmorUpdatePolicyAbsent(c *C) {
 
 func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateService(c *C) {
 	// if one of the services needs updating, it's updated and returned
-	svc := ServiceYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Name: "part", ServiceYamls: []ServiceYaml{svc}, Version: "42"}, origin: testOrigin, basedir: filepath.Join(dirs.SnapSnapsDir, "part."+testOrigin, "42")}
+	svc := AppYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	part := &SnapPart{m: &packageYaml{Name: "part", Apps: map[string]AppYaml{"svc": svc}, Version: "42"}, origin: testOrigin, basedir: filepath.Join(dirs.SnapSnapsDir, "part."+testOrigin, "42")}
 	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
 	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateBinary(c *C) {
 	// if one of the binaries needs updating, the part needs updating
-	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Name: "part", Binaries: []Binary{bin}, Version: "42"}, origin: testOrigin, basedir: filepath.Join(dirs.SnapSnapsDir, "part."+testOrigin, "42")}
+	bin := AppYaml{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	part := &SnapPart{m: &packageYaml{Name: "part", Apps: map[string]AppYaml{"echo": bin}, Version: "42"}, origin: testOrigin, basedir: filepath.Join(dirs.SnapSnapsDir, "part."+testOrigin, "42")}
 	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
 	c.Check(err, NotNil) // XXX: we should do better than this
 }
 
 func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateNothing(c *C) {
-	svc := ServiceYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	bin := Binary{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{ServiceYamls: []ServiceYaml{svc}, Binaries: []Binary{bin}, Version: "42"}, origin: testOrigin}
+	svc := AppYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	bin := AppYaml{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
+	part := &SnapPart{m: &packageYaml{Apps: map[string]AppYaml{"svc": svc, "echo": bin}, Version: "42"}, origin: testOrigin}
 	err := part.RequestSecurityPolicyUpdate(nil, nil)
 	c.Check(err, IsNil)
 }
