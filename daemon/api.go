@@ -262,46 +262,68 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	sources := make([]string, 1, 2)
-	sources[0] = "local"
-	// we're not worried if the remote repos error out
-	found, _ := newRemoteRepo().All()
-	if len(found) > 0 {
-		sources = append(sources, "store")
-	}
-
-	sort.Sort(byQN(found))
-
-	bags := lightweight.AllPartBags()
-
+	// map snap names to snap attributes
 	results := make(map[string]map[string]interface{})
-	for _, part := range found {
-		name := part.Name()
-		origin := part.Origin()
+	sources := make([]string, 0, 2)
+	query := r.URL.Query()
 
-		url, err := route.URL("name", name, "origin", origin)
-		if err != nil {
-			return InternalError("can't get route to details for %s.%s: %v", name, origin, err)
+	var includeStore, includeLocal bool
+	if len(query["sources"]) > 0 {
+		for _, v := range strings.Split(query["sources"][0], ",") {
+			if v == "store" {
+				includeStore = true
+			} else if v == "local" {
+				includeLocal = true
+			}
 		}
-
-		fullname := name + "." + origin
-		qn := snappy.QualifiedName(part)
-		results[fullname] = webify(bags[qn].Map(part), url.String())
-		delete(bags, qn)
+	} else {
+		includeStore = true
+		includeLocal = true
 	}
 
-	for _, v := range bags {
-		m := v.Map(nil)
-		name, _ := m["name"].(string)
-		origin, _ := m["origin"].(string)
+	var bags map[string]*lightweight.PartBag
 
-		resource := "no resource URL for this resource"
-		url, _ := route.URL("name", name, "origin", origin)
-		if url != nil {
-			resource = url.String()
+	if includeLocal {
+		sources = append(sources, "local")
+		bags = lightweight.AllPartBags()
+
+		for _, v := range bags {
+			m := v.Map(nil)
+			name, _ := m["name"].(string)
+			origin, _ := m["origin"].(string)
+
+			resource := "no resource URL for this resource"
+			url, _ := route.URL("name", name, "origin", origin)
+			if url != nil {
+				resource = url.String()
+			}
+
+			results[name+"."+origin] = webify(m, resource)
+		}
+	}
+
+	if includeStore {
+		// we're not worried if the remote repos error out
+		found, _ := newRemoteRepo().All()
+		if len(found) > 0 {
+			sources = append(sources, "store")
 		}
 
-		results[name+"."+origin] = webify(m, resource)
+		sort.Sort(byQN(found))
+
+		for _, part := range found {
+			name := part.Name()
+			origin := part.Origin()
+
+			url, err := route.URL("name", name, "origin", origin)
+			if err != nil {
+				return InternalError("can't get route to details for %s.%s: %v", name, origin, err)
+			}
+
+			fullname := name + "." + origin
+			qn := snappy.QualifiedName(part)
+			results[fullname] = webify(bags[qn].Map(part), url.String())
+		}
 	}
 
 	return SyncResponse(map[string]interface{}{
