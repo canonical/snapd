@@ -26,18 +26,18 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 )
 
-// Overlord is responsible for the overall system state
+// Overlord is responsible for the overall system state.
 type Overlord struct {
 }
 
-// Install installs the given snap file to the systems.
+// Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
 func (o *Overlord) Install(snapFilePath string, origin string, inter progress.Meter, flags InstallFlags) (*SnapPart, error) {
 	return nil, ErrNotImplemented
 }
 
-// Uninstall remove the given local snap from the system
+// Uninstall removes the given local snap from the system.
 //
 // It returns an error on failure
 func (o *Overlord) Uninstall(sp *SnapPart, pb progress.Meter) error {
