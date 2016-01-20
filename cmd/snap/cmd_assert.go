@@ -37,8 +37,10 @@ type cmdAssert struct {
 }
 
 var (
-	shortAssertHelp = i18n.G("Assert tries to add an assertion to the system.")
-	longAssertHelp  = i18n.G("This command tries to add an assertion to the system assertion database.")
+	shortAssertHelp = i18n.G("Assert tries to add an assertion to the system")
+	longAssertHelp  = i18n.G(`This command tries to add an assertion to the system assertion database.
+
+To succeed the assertion must be valid, its signature verified with a known public key and the assertion consistent with and its prerequisite in the database.`)
 )
 
 func init() {
