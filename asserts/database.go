@@ -34,27 +34,27 @@ type Backstore interface {
 	// Put stores an assertion for the given primaryKeyHeaders forming a unique key.
 	// It is responsible for checking that assert is newer than a
 	// previously stored revision.
-	Put(assertType AssertionType, primaryKeyHeaders []string, assert Assertion) error
+	Put(assertType *AssertionType, primaryKeyHeaders []string, assert Assertion) error
 	// Get returns the assertion with the given unique key for the primaryKeyHeaders.
 	// If none is present it returns ErrNotFound.
-	Get(assertType AssertionType, primaryKeyHeaders, key []string) (Assertion, error)
+	Get(assertType *AssertionType, primaryKeyHeaders, key []string) (Assertion, error)
 	// Search returns assertions matching the given headers.
 	// It invokes foundCb for each found assertion.
 	// As hint the primaryKeyHeaders forming a unique key are also given.
-	Search(assertType AssertionType, primaryKeyHeaders []string, headers map[string]string, foundCb func(Assertion)) error
+	Search(assertType *AssertionType, primaryKeyHeaders []string, headers map[string]string, foundCb func(Assertion)) error
 }
 
 type nullBackstore struct{}
 
-func (nbs nullBackstore) Put(t AssertionType, pkh []string, a Assertion) error {
+func (nbs nullBackstore) Put(t *AssertionType, pkh []string, a Assertion) error {
 	return fmt.Errorf("cannot store assertions without setting a proper assertion backstore implementation")
 }
 
-func (nbs nullBackstore) Get(t AssertionType, pkh, k []string) (Assertion, error) {
+func (nbs nullBackstore) Get(t *AssertionType, pkh, k []string) (Assertion, error) {
 	return nil, ErrNotFound
 }
 
-func (nbs nullBackstore) Search(t AssertionType, pkh []string, h map[string]string, f func(Assertion)) error {
+func (nbs nullBackstore) Search(t *AssertionType, pkh []string, h map[string]string, f func(Assertion)) error {
 	return nil
 }
 
@@ -175,7 +175,7 @@ func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, erro
 
 // Sign assembles an assertion with the provided information and signs it
 // with the private key from `headers["authority-id"]` that has the provided key id.
-func (db *Database) Sign(assertType AssertionType, headers map[string]string, body []byte, keyID string) (Assertion, error) {
+func (db *Database) Sign(assertType *AssertionType, headers map[string]string, body []byte, keyID string) (Assertion, error) {
 	authorityID, err := checkMandatory(headers, "authority-id")
 	if err != nil {
 		return nil, err
@@ -279,7 +279,7 @@ func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
 // Find an assertion based on arbitrary headers.
 // Provided headers must contain the primary key for the assertion type.
 // It returns ErrNotFound if the assertion cannot be found.
-func (db *Database) Find(assertionType AssertionType, headers map[string]string) (Assertion, error) {
+func (db *Database) Find(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
 	reg, err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
@@ -304,7 +304,7 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 
 // FindMany finds assertions based on arbitrary headers.
 // It returns ErrNotFound if no assertion can be found.
-func (db *Database) FindMany(assertionType AssertionType, headers map[string]string) ([]Assertion, error) {
+func (db *Database) FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
 	reg, err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err

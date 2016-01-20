@@ -38,10 +38,11 @@ func checkMandatory(headers map[string]string, name string) (string, error) {
 	return value, nil
 }
 
-func checkAssertType(assertType AssertionType) (*assertionTypeRegistration, error) {
+func checkAssertType(assertType *AssertionType) (*assertionTypeRegistration, error) {
+	// XXX assertType is nil case
 	reg := typeRegistry[assertType]
 	if reg == nil {
-		return nil, fmt.Errorf("unknown assertion type: %v", assertType)
+		return nil, fmt.Errorf("unknown assertion type: %s", assertType.Name)
 	}
 	return reg, nil
 }

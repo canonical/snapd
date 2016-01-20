@@ -29,22 +29,35 @@ import (
 	"unicode/utf8"
 )
 
-// AssertionType labels assertions of a given type
-type AssertionType string
+// AssertionType describes a known assertion type with its name and metadata.
+type AssertionType struct {
+	Name string
+}
 
 // Understood assertions
-const (
-	AccountKeyType   AssertionType = "account-key"
-	SnapBuildType    AssertionType = "snap-build"
-	SnapRevisionType AssertionType = "snap-revision"
+var (
+	AccountKeyType   = &AssertionType{"account-key"}
+	SnapBuildType    = &AssertionType{"snap-build"}
+	SnapRevisionType = &AssertionType{"snap-revision"}
 
 // ...
 )
 
+// Type returns the AssertionType with name or nil
+func Type(name string) *AssertionType {
+	// XXX intermediate impl.
+	for k, _ := range typeRegistry {
+		if k.Name == name {
+			return k
+		}
+	}
+	return nil
+}
+
 // Assertion represents an assertion through its general elements.
 type Assertion interface {
 	// Type returns the type of this assertion
-	Type() AssertionType
+	Type() *AssertionType
 	// Revision returns the revision of this assertion
 	Revision() int
 	// AuthorityID returns the authority that signed this assertion
@@ -65,6 +78,7 @@ type Assertion interface {
 
 // assertionBase is the concrete base to hold representation data for actual assertions.
 type assertionBase struct {
+	// XXX type *AssertionType
 	headers map[string]string
 	body    []byte
 	// parsed revision
@@ -76,8 +90,8 @@ type assertionBase struct {
 }
 
 // Type returns the assertion type.
-func (ab *assertionBase) Type() AssertionType {
-	return AssertionType(ab.headers["type"])
+func (ab *assertionBase) Type() *AssertionType {
+	return Type(ab.headers["type"])
 }
 
 // Revision returns the assertion revision.
@@ -234,7 +248,10 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
-	assertType := AssertionType(typ)
+	assertType := Type(typ)
+	if assertType == nil {
+		return nil, fmt.Errorf("unknown assertion type: %v", typ)
+	}
 	reg, err := checkAssertType(assertType)
 	if err != nil {
 		return nil, err
@@ -253,7 +270,7 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 		signature: signature,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("assertion %v: %v", assertType, err)
+		return nil, fmt.Errorf("assertion %s: %v", assertType.Name, err)
 	}
 	return assert, nil
 }
@@ -265,7 +282,7 @@ func writeHeader(buf *bytes.Buffer, headers map[string]string, name string) {
 	buf.WriteString(headers[name])
 }
 
-func assembleAndSign(assertType AssertionType, headers map[string]string, body []byte, privKey PrivateKey) (Assertion, error) {
+func assembleAndSign(assertType *AssertionType, headers map[string]string, body []byte, privKey PrivateKey) (Assertion, error) {
 	finalHeaders := make(map[string]string, len(headers))
 	for name, value := range headers {
 		finalHeaders[name] = value
@@ -273,7 +290,7 @@ func assembleAndSign(assertType AssertionType, headers map[string]string, body [
 	bodyLength := len(body)
 	finalBody := make([]byte, bodyLength)
 	copy(finalBody, body)
-	finalHeaders["type"] = string(assertType)
+	finalHeaders["type"] = assertType.Name
 	finalHeaders["body-length"] = strconv.Itoa(bodyLength)
 
 	if _, err := checkMandatory(finalHeaders, "authority-id"); err != nil {
@@ -291,7 +308,7 @@ func assembleAndSign(assertType AssertionType, headers map[string]string, body [
 	}
 
 	buf := bytes.NewBufferString("type: ")
-	buf.WriteString(string(assertType))
+	buf.WriteString(assertType.Name)
 
 	writeHeader(buf, finalHeaders, "authority-id")
 	if revision > 0 {
@@ -355,7 +372,7 @@ func assembleAndSign(assertType AssertionType, headers map[string]string, body [
 		signature: signature,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("cannot assemble assertion %v: %v", assertType, err)
+		return nil, fmt.Errorf("cannot assemble assertion %s: %v", assertType.Name, err)
 	}
 	return assert, nil
 }
@@ -367,12 +384,12 @@ type assertionTypeRegistration struct {
 	primaryKey []string
 }
 
-var typeRegistry = make(map[AssertionType]*assertionTypeRegistration)
+var typeRegistry = make(map[*AssertionType]*assertionTypeRegistration)
 
-func primaryKey(t AssertionType) []string {
+func primaryKey(t *AssertionType) []string {
 	reg, ok := typeRegistry[t]
 	if !ok {
-		panic("unknown assertion type used as value: " + string(t))
+		panic("unknown assertion type used as value")
 	}
 	return reg.primaryKey
 }

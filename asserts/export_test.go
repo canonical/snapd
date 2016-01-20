@@ -64,7 +64,7 @@ func assembleTestOnly(assert assertionBase) (Assertion, error) {
 	return &TestOnly{assert}, nil
 }
 
-var TestOnlyType = AssertionType("test-only")
+var TestOnlyType = &AssertionType{"test-only"}
 
 func init() {
 	typeRegistry[TestOnlyType] = &assertionTypeRegistration{
