@@ -283,6 +283,11 @@ func writeHeader(buf *bytes.Buffer, headers map[string]string, name string) {
 }
 
 func assembleAndSign(assertType *AssertionType, headers map[string]string, body []byte, privKey PrivateKey) (Assertion, error) {
+	reg, err := checkAssertType(assertType)
+	if err != nil {
+		return nil, err
+	}
+
 	finalHeaders := make(map[string]string, len(headers))
 	for name, value := range headers {
 		finalHeaders[name] = value
@@ -294,11 +299,6 @@ func assembleAndSign(assertType *AssertionType, headers map[string]string, body 
 	finalHeaders["body-length"] = strconv.Itoa(bodyLength)
 
 	if _, err := checkMandatory(finalHeaders, "authority-id"); err != nil {
-		return nil, err
-	}
-
-	reg, err := checkAssertType(assertType)
-	if err != nil {
 		return nil, err
 	}
 
