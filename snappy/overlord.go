@@ -23,10 +23,32 @@ import (
 	"path/filepath"
 
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/progress"
 )
 
 // Overlord is responsible for the overall system state
 type Overlord struct {
+}
+
+// Install installs the given snap file to the systems.
+//
+// It returns the local snap file or an error
+func (o *Overlord) Install(snapFilePath string, origin string, inter progress.Meter, flags InstallFlags) (*SnapPart, error) {
+	return nil, ErrNotImplemented
+}
+
+// Uninstall remove the given local snap from the system
+//
+// It returns an error on failure
+func (o *Overlord) Uninstall(sp *SnapPart, pb progress.Meter) error {
+	return ErrNotImplemented
+}
+
+// SetActive sets the active state of the given snap
+//
+// It returns an error on failure
+func (o *Overlord) SetActive(sp *SnapPart, active bool, pb progress.Meter) error {
+	return ErrNotImplemented
 }
 
 // Installed returns the installed snaps from this repository
