@@ -83,7 +83,7 @@ type Assertion interface {
 
 // assertionBase is the concrete base to hold representation data for actual assertions.
 type assertionBase struct {
-	// XXX type *AssertionType
+	// TODO: worth having a type *AssertionType cache field now?
 	headers map[string]string
 	body    []byte
 	// parsed revision
