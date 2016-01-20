@@ -542,16 +542,6 @@ func (l Log) Timestamp() string {
 	return t
 }
 
-// RawTimestamp of the log: microseconds since epoch UTC, as a decimal
-// string, or "-" if missing.
-func (l Log) RawTimestamp() string {
-	if ius, ok := l["__REALTIME_TIMESTAMP"].(string); ok {
-		return ius
-	}
-
-	return "-"
-}
-
 // Message of the Log, if any; otherwise, "-".
 func (l Log) Message() string {
 	if msg, ok := l["MESSAGE"].(string); ok {
