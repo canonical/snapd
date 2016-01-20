@@ -254,7 +254,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	sources := make([]string, 1, 3)
+	sources := make([]string, 1, 2)
 	sources[0] = "local"
 	// we're not worried if the remote repos error out
 	found, _ := newRemoteRepo().All()
