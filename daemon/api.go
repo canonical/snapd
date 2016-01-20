@@ -942,7 +942,6 @@ func deleteCapability(c *Command, r *http.Request) Response {
 }
 
 func doAssert(c *Command, r *http.Request) Response {
-	// XXX how/where do we want to do locking about this?
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return BadRequest(err, "reading assert request body gave %v", err)
