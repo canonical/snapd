@@ -149,6 +149,10 @@ func (s *SnapPart) Origin() string {
 		return r.Origin
 	}
 
+	if s.origin == "" {
+		return SideloadedOrigin
+	}
+
 	return s.origin
 }
 

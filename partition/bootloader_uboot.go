@@ -29,8 +29,7 @@ import (
 )
 
 const (
-	bootloaderUbootDirReal        = "/boot/uboot"
-	bootloaderUbootConfigFileReal = "uEnv.txt"
+	bootloaderUbootDirReal = "/boot/uboot"
 
 	// the real uboot env
 	bootloaderUbootFwEnvFileReal = "uboot.env"
@@ -50,17 +49,13 @@ func bootloaderUbootDir() string {
 	return filepath.Join(dirs.GlobalRootDir, bootloaderUbootDirReal)
 }
 
-func bootloaderUbootConfigFile() string {
-	return filepath.Join(bootloaderUbootDir(), bootloaderUbootConfigFileReal)
-}
-
 func bootloaderUbootFwEnvFile() string {
 	return filepath.Join(bootloaderUbootDir(), bootloaderUbootFwEnvFileReal)
 }
 
 // newUboot create a new Uboot bootloader object
 func newUboot() bootLoader {
-	if !helpers.FileExists(bootloaderUbootConfigFile()) {
+	if !helpers.FileExists(bootloaderUbootFwEnvFile()) {
 		return nil
 	}
 
