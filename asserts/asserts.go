@@ -46,8 +46,8 @@ var (
 )
 
 var typeRegistry = map[string]*AssertionType{
-	AccountKeyType.Name: AccountKeyType,
-	SnapBuildType.Name: SnapBuildType,
+	AccountKeyType.Name:   AccountKeyType,
+	SnapBuildType.Name:    SnapBuildType,
 	SnapRevisionType.Name: SnapRevisionType,
 }
 
