@@ -184,12 +184,12 @@ func nameAndVersionFromSnap(snap string) (string, string) {
 	return name, strings.Split(ver, ".snap")[0]
 }
 
-// SyncBoot synchronizes the active kernel and OS snap version with
-// the version that actually booted. The reason this is needed is
-// because a system may install "os=v2" but that fails to boot. The
-// bootloader fallback logic will revert to "os=v1" but on the
-// filesystem snappy still has the "active" version set to "v2" which
-// is misleading. This code will check what kernel/os booted and set
+// SyncBoot synchronizes the active kernel and OS snap versions with
+// the versions that actually booted. This is needed is because a
+// system may install "os=v2" but that fails to boot. The bootloader
+// fallback logic will revert to "os=v1" but on the filesystem snappy
+// still has the "active" version set to "v2" which is
+// misleading. This code will check what kernel/os booted and set
 // those versions active.
 func SyncBoot() error {
 	kernelSnap, _ := getBootVar("snappy_kernel")
