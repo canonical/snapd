@@ -31,7 +31,10 @@ import (
 
 // AssertionType describes a known assertion type with its name and metadata.
 type AssertionType struct {
-	Name       string
+	// Name of the type.
+	Name string
+	// PrimaryKey holds the names of the headers that constitute the
+	// unique primary key for this assertion type.
 	PrimaryKey []string
 	assembler  func(assert assertionBase) (Assertion, error)
 }
