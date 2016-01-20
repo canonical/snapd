@@ -136,7 +136,7 @@ var (
 	}
 
 	capabilityCmd = &Command{
-		Path:   "/1.0/capabilities/{name}",
+		Path:   "/1.0/capabilities/{snap}.{capability}",
 		DELETE: deleteCapability,
 	}
 )
@@ -890,8 +890,12 @@ func appIconGet(c *Command, r *http.Request) Response {
 }
 
 func getCapabilities(c *Command, r *http.Request) Response {
+	caps := make(map[string]*caps.Capability)
+	for capID, cap := range c.d.capRepo.Caps() {
+		caps[capID.String()] = cap
+	}
 	return SyncResponse(map[string]interface{}{
-		"capabilities": c.d.capRepo.Caps(),
+		"capabilities": caps,
 	})
 }
 
@@ -915,14 +919,17 @@ func addCapability(c *Command, r *http.Request) Response {
 		Type:   ResponseTypeSync,
 		Status: http.StatusCreated,
 		Result: map[string]string{
-			"resource": fmt.Sprintf("/1.0/capabilities/%s", newCap.Name),
+			"resource": fmt.Sprintf("/1.0/capabilities/%s", newCap.ID),
 		},
 	}
 }
 
 func deleteCapability(c *Command, r *http.Request) Response {
-	name := muxVars(r)["name"]
-	err := c.d.capRepo.Remove(name)
+	id := caps.CapabilityID{
+		SnapName: muxVars(r)["snap"],
+		CapName:  muxVars(r)["capability"],
+	}
+	err := c.d.capRepo.Remove(id)
 	switch err.(type) {
 	case nil:
 		return SyncResponse(nil)

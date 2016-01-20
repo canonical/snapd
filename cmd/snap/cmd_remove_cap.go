@@ -26,7 +26,8 @@ import (
 )
 
 type removeCapOptions struct {
-	Name string `positional-arg-name:"name" description:"unique capability name"`
+	Snap string `positional-arg-name:"snap" description:"snap name"`
+	Name string `positional-arg-name:"name" description:"capability name"`
 }
 
 type cmdRemoveCap struct {
@@ -46,5 +47,5 @@ func init() {
 }
 
 func (x *cmdRemoveCap) Execute(args []string) error {
-	return client.New().RemoveCapability(x.Name)
+	return client.New().RemoveCapability(client.CapabilityID{x.Snap, x.Name})
 }

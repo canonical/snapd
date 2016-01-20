@@ -144,8 +144,11 @@ func (cs *clientSuite) TestClientCapabilities(c *check.C) {
 		"type": "sync",
 		"result": {
 			"capabilities": {
-				"n": {
-					"name": "n",
+				"s.c": {
+					"id": {
+						"snap": "s",
+						"capability": "c"
+					},
 					"label": "l",
 					"type": "t",
 					"attrs": {"k": "v"}
@@ -155,9 +158,12 @@ func (cs *clientSuite) TestClientCapabilities(c *check.C) {
 	}`
 	caps, err := cs.cli.Capabilities()
 	c.Check(err, check.IsNil)
-	c.Check(caps, check.DeepEquals, map[string]client.Capability{
-		"n": client.Capability{
-			Name:  "n",
+	c.Check(caps, check.DeepEquals, map[client.CapabilityID]client.Capability{
+		client.CapabilityID{"s", "c"}: client.Capability{
+			ID: client.CapabilityID{
+				SnapName: "s",
+				CapName:  "c",
+			},
 			Label: "l",
 			Type:  "t",
 			Attrs: map[string]string{"k": "v"},
@@ -174,7 +180,10 @@ func (cs *clientSuite) TestClientAddCapability(c *check.C) {
 		}
 	}`
 	cap := &client.Capability{
-		Name:  "n",
+		ID: client.CapabilityID{
+			SnapName: "s",
+			CapName:  "c",
+		},
 		Label: "l",
 		Type:  "t",
 		Attrs: map[string]string{"k": "v"},
@@ -186,7 +195,10 @@ func (cs *clientSuite) TestClientAddCapability(c *check.C) {
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"name":  "n",
+		"id": map[string]interface{}{
+			"snap":       "s",
+			"capability": "c",
+		},
 		"label": "l",
 		"type":  "t",
 		"attrs": map[string]interface{}{
@@ -202,11 +214,11 @@ func (cs *clientSuite) TestClientRemoveCapabilityOk(c *check.C) {
 		"type": "sync",
 		"result": { }
 	}`
-	err := cs.cli.RemoveCapability("n")
+	err := cs.cli.RemoveCapability(client.CapabilityID{"s", "c"})
 	c.Check(err, check.IsNil)
 	c.Check(cs.req.Body, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "DELETE")
-	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities/n")
+	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities/s.c")
 }
 
 func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
@@ -215,12 +227,12 @@ func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
 		"status_code": 404,
 		"type": "error",
 		"result": {
-			"str": "can't remove capability \"n\", no such capability"
+			"str": "can't remove capability \"s.c\", no such capability"
 		}
 	}`
-	err := cs.cli.RemoveCapability("n")
-	c.Check(err, check.ErrorMatches, `.*can't remove capability \"n\", no such capability`)
+	err := cs.cli.RemoveCapability(client.CapabilityID{"s", "c"})
+	c.Check(err, check.ErrorMatches, `.*can't remove capability \"s.c\", no such capability`)
 	c.Check(cs.req.Body, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "DELETE")
-	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities/n")
+	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities/s.c")
 }

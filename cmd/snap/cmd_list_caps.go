@@ -53,7 +53,7 @@ func (x *cmdListCaps) Execute(args []string) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 1, ' ', 0)
 	fmt.Fprintln(w, "Name\tLabel\tType")
 	for _, cap := range caps {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", cap.Name, cap.Label, cap.Type)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", cap.ID, cap.Label, cap.Type)
 	}
 	w.Flush()
 	return nil

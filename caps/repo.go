@@ -29,16 +29,18 @@ import (
 type Repository struct {
 	// Protects the internals from concurrent access.
 	m sync.Mutex
-	// Map of capabilities, indexed by Capability.Name
-	caps map[string]*Capability
+	// Map of capabilities, indexed by Capability.CapabilityID
+	caps map[CapabilityID]*Capability
 	// A slice of types that are recognized and accepted
 	types []Type
+	// grants is a set of granted capabilities expressed as mapping (provider -> consumer -> bool (dummy))
+	grants map[CapabilityID]map[CapabilityID]bool
 }
 
 // NewRepository creates an empty capability repository
 func NewRepository() *Repository {
 	return &Repository{
-		caps:  make(map[string]*Capability),
+		caps:  make(map[CapabilityID]*Capability),
 		types: make([]Type, 0),
 	}
 }
@@ -52,23 +54,26 @@ func (r *Repository) Add(cap *Capability) error {
 	defer r.m.Unlock()
 
 	// Reject capabilities with invalid names
-	if err := ValidateName(cap.Name); err != nil {
+	if err := ValidateName(cap.ID.SnapName); err != nil {
+		return err
+	}
+	if err := ValidateName(cap.ID.CapName); err != nil {
 		return err
 	}
 	// Reject capabilities with duplicate names
-	if _, ok := r.caps[cap.Name]; ok {
-		return fmt.Errorf("cannot add capability %q: name already exists", cap.Name)
+	if _, ok := r.caps[cap.ID]; ok {
+		return fmt.Errorf("cannot add capability %q: name already exists", cap.ID)
 	}
 	// Reject capabilities with unknown types
 	t := r.getType(cap.TypeName)
 	if t == nil {
-		return fmt.Errorf("cannot add capability %q: type %q is unknown", cap.Name, cap.TypeName)
+		return fmt.Errorf("cannot add capability %q: type %q is unknown", cap.ID, cap.TypeName)
 	}
 	// Reject capabilities that don't pass type-specific sanitization
 	if err := t.Sanitize(cap); err != nil {
 		return err
 	}
-	r.caps[cap.Name] = cap
+	r.caps[cap.ID] = cap
 	return nil
 }
 
@@ -102,11 +107,11 @@ func (r *Repository) Type(name string) Type {
 
 // Capability finds and returns the Capability with the given name or nil if it
 // is not found.
-func (r *Repository) Capability(name string) *Capability {
+func (r *Repository) Capability(id CapabilityID) *Capability {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.caps[name]
+	return r.caps[id]
 }
 
 // AddType adds a capability type to the repository.
@@ -130,16 +135,16 @@ func (r *Repository) AddType(t Type) error {
 
 // Remove removes the capability with the provided name.
 // Removing a capability that doesn't exist returns a NotFoundError.
-func (r *Repository) Remove(name string) error {
+func (r *Repository) Remove(id CapabilityID) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	_, ok := r.caps[name]
+	_, ok := r.caps[id]
 	if ok {
-		delete(r.caps, name)
+		delete(r.caps, id)
 		return nil
 	}
-	return &NotFoundError{"remove", name}
+	return &NotFoundError{"remove", id.String()}
 }
 
 // Names returns all capability names in the repository in lexicographical order.
@@ -150,7 +155,7 @@ func (r *Repository) Names() []string {
 	keys := make([]string, len(r.caps))
 	i := 0
 	for key := range r.caps {
-		keys[i] = key
+		keys[i] = key.String()
 		i++
 	}
 	sort.Strings(keys)
@@ -172,9 +177,14 @@ func (r *Repository) TypeNames() []string {
 
 type byName []Capability
 
-func (c byName) Len() int           { return len(c) }
-func (c byName) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
-func (c byName) Less(i, j int) bool { return c[i].Name < c[j].Name }
+func (c byName) Len() int      { return len(c) }
+func (c byName) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byName) Less(i, j int) bool {
+	if c[i].ID.SnapName != c[j].ID.SnapName {
+		return c[i].ID.SnapName < c[j].ID.SnapName
+	}
+	return c[i].ID.CapName < c[j].ID.CapName
+}
 
 // All returns all capabilities ordered by name.
 func (r *Repository) All() []Capability {
@@ -192,13 +202,43 @@ func (r *Repository) All() []Capability {
 }
 
 // Caps returns a shallow copy of the map of capabilities.
-func (r *Repository) Caps() map[string]*Capability {
+func (r *Repository) Caps() map[CapabilityID]*Capability {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	caps := make(map[string]*Capability, len(r.caps))
+	caps := make(map[CapabilityID]*Capability, len(r.caps))
 	for k, v := range r.caps {
 		caps[k] = v
 	}
 	return caps
+}
+
+// Grant marks a provided capability as consumed by a given consumer.
+func (r *Repository) Grant(provided, consumed CapabilityID) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	if r.grants == nil {
+		r.grants = make(map[CapabilityID]map[CapabilityID]bool)
+	}
+	if r.grants[provided] == nil {
+		r.grants[provided] = make(map[CapabilityID]bool)
+	}
+	r.grants[provided][consumed] = true
+}
+
+// Revoke marks a provided capability as no longer consumed by a given consumer.
+func (r *Repository) Revoke(provided, consumed CapabilityID) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	delete(r.grants[provided], consumed)
+}
+
+// IsGranted checks if a provided capability is consumed by a given consumer.
+func (r *Repository) IsGranted(provided, consumed CapabilityID) bool {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	return r.grants[provided][consumed]
 }
