@@ -47,18 +47,18 @@ import (
 
 // increase this every time you make a minor (backwards-compatible)
 // change to the API.
-const apiCompatLevel = "1"
+const apiCompatLevel = "0"
 
 var api = []*Command{
 	rootCmd,
-	v1Cmd,
+	sysInfoCmd,
 	appIconCmd,
-	packagesCmd,
-	packageCmd,
-	packageConfigCmd,
-	packageSvcCmd,
-	packageSvcsCmd,
-	packageSvcLogsCmd,
+	snapsCmd,
+	snapCmd,
+	snapConfigCmd,
+	snapSvcCmd,
+	snapSvcsCmd,
+	snapSvcLogsCmd,
 	operationCmd,
 	capabilitiesCmd,
 	capabilityCmd,
@@ -69,76 +69,75 @@ var (
 	rootCmd = &Command{
 		Path:    "/",
 		GuestOK: true,
-		GET:     SyncResponse([]string{"/1.0"}).Self,
+		GET:     SyncResponse([]string{"TBD"}).Self,
 	}
 
-	v1Cmd = &Command{
-		Path:    "/1.0",
+	sysInfoCmd = &Command{
+		Path:    "/2.0/system-info",
 		GuestOK: true,
-		GET:     v1Get,
+		GET:     sysInfo,
 	}
 
 	appIconCmd = &Command{
-		Path:   "/1.0/icons/{name}.{origin}/icon",
+		Path:   "/2.0/icons/{name}.{origin}/icon",
 		UserOK: true,
 		GET:    appIconGet,
 	}
 
-	packagesCmd = &Command{
-		Path:   "/1.0/packages",
+	snapsCmd = &Command{
+		Path:   "/2.0/snaps",
 		UserOK: true,
-		GET:    getPackagesInfo,
-		POST:   sideloadPackage,
-		PUT:    configMulti,
+		GET:    getSnapsInfo,
+		POST:   sideloadSnap,
 	}
 
-	packageCmd = &Command{
-		Path:   "/1.0/packages/{name}.{origin}",
+	snapCmd = &Command{
+		Path:   "/2.0/snaps/{name}.{origin}",
 		UserOK: true,
-		GET:    getPackageInfo,
-		POST:   postPackage,
+		GET:    getSnapInfo,
+		POST:   postSnap,
 	}
 
-	packageConfigCmd = &Command{
-		Path: "/1.0/packages/{name}.{origin}/config",
-		GET:  packageConfig,
-		PUT:  packageConfig,
+	snapConfigCmd = &Command{
+		Path: "/2.0/snaps/{name}.{origin}/config",
+		GET:  snapConfig,
+		PUT:  snapConfig,
 	}
 
-	packageSvcsCmd = &Command{
-		Path:   "/1.0/packages/{name}.{origin}/services",
+	snapSvcsCmd = &Command{
+		Path:   "/2.0/snaps/{name}.{origin}/services",
 		UserOK: true,
-		GET:    packageService,
-		PUT:    packageService,
+		GET:    snapService,
+		PUT:    snapService,
 	}
 
-	packageSvcCmd = &Command{
-		Path:   "/1.0/packages/{name}.{origin}/services/{service}",
+	snapSvcCmd = &Command{
+		Path:   "/2.0/snaps/{name}.{origin}/services/{service}",
 		UserOK: true,
-		GET:    packageService,
-		PUT:    packageService,
+		GET:    snapService,
+		PUT:    snapService,
 	}
 
-	packageSvcLogsCmd = &Command{
-		Path: "/1.0/packages/{name}.{origin}/services/{service}/logs",
+	snapSvcLogsCmd = &Command{
+		Path: "/2.0/snaps/{name}.{origin}/services/{service}/logs",
 		GET:  getLogs,
 	}
 
 	operationCmd = &Command{
-		Path:   "/1.0/operations/{uuid}",
+		Path:   "/2.0/operations/{uuid}",
 		GET:    getOpInfo,
 		DELETE: deleteOp,
 	}
 
 	capabilitiesCmd = &Command{
-		Path:   "/1.0/capabilities",
+		Path:   "/2.0/capabilities",
 		UserOK: true,
 		GET:    getCapabilities,
 		POST:   addCapability,
 	}
 
 	capabilityCmd = &Command{
-		Path:   "/1.0/capabilities/{name}",
+		Path:   "/2.0/capabilities/{name}",
 		DELETE: deleteCapability,
 	}
 
@@ -149,7 +148,7 @@ var (
 	}
 )
 
-func v1Get(c *Command, r *http.Request) Response {
+func sysInfo(c *Command, r *http.Request) Response {
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
 		return InternalError(err, "Unable to acquire lock")
@@ -183,7 +182,7 @@ var newRemoteRepo = func() metarepo {
 
 var muxVars = mux.Vars
 
-func getPackageInfo(c *Command, r *http.Request) Response {
+func getSnapInfo(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 	origin := vars["origin"]
@@ -207,12 +206,12 @@ func getPackageInfo(c *Command, r *http.Request) Response {
 
 	route := c.d.router.Get(c.Path)
 	if route == nil {
-		return InternalError(nil, "router can't find route for package %s.%s", name, origin)
+		return InternalError(nil, "router can't find route for snap %s.%s", name, origin)
 	}
 
 	url, err := route.URL("name", name, "origin", origin)
 	if err != nil {
-		return InternalError(err, "route can't build URL for package %s.%s: %v", name, origin, err)
+		return InternalError(err, "route can't build URL for snap %s.%s: %v", name, origin, err)
 	}
 
 	result := webify(bag.Map(part), url.String())
@@ -220,18 +219,20 @@ func getPackageInfo(c *Command, r *http.Request) Response {
 	return SyncResponse(result)
 }
 
-func webify(result map[string]string, resource string) map[string]string {
+func webify(result map[string]interface{}, resource string) map[string]interface{} {
 	result["resource"] = resource
 
-	icon := result["icon"]
-	if icon == "" || strings.HasPrefix(icon, "http") {
+	icon, ok := result["icon"].(string)
+	if !ok || icon == "" || strings.HasPrefix(icon, "http") {
 		return result
 	}
 	result["icon"] = ""
 
 	route := appIconCmd.d.router.Get(appIconCmd.Path)
 	if route != nil {
-		url, err := route.URL("name", result["name"], "origin", result["origin"])
+		name, _ := result["name"].(string)
+		origin, _ := result["origin"].(string)
+		url, err := route.URL("name", name, "origin", origin)
 		if err == nil {
 			result["icon"] = url.String()
 		}
@@ -249,10 +250,10 @@ func (ps byQN) Less(a, b int) bool {
 }
 
 // plural!
-func getPackagesInfo(c *Command, r *http.Request) Response {
-	route := c.d.router.Get(packageCmd.Path)
+func getSnapsInfo(c *Command, r *http.Request) Response {
+	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
-		return InternalError(nil, "router can't find route for packages")
+		return InternalError(nil, "router can't find route for snaps")
 	}
 
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
@@ -261,7 +262,7 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 	}
 	defer lock.Unlock()
 
-	sources := make([]string, 1, 3)
+	sources := make([]string, 1, 2)
 	sources[0] = "local"
 	// we're not worried if the remote repos error out
 	found, _ := newRemoteRepo().All()
@@ -273,7 +274,7 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 
 	bags := lightweight.AllPartBags()
 
-	results := make(map[string]map[string]string)
+	results := make(map[string]map[string]interface{})
 	for _, part := range found {
 		name := part.Name()
 		origin := part.Origin()
@@ -291,8 +292,8 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 
 	for _, v := range bags {
 		m := v.Map(nil)
-		name := m["name"]
-		origin := m["origin"]
+		name, _ := m["name"].(string)
+		origin, _ := m["origin"].(string)
 
 		resource := "no resource URL for this resource"
 		url, _ := route.URL("name", name, "origin", origin)
@@ -304,8 +305,8 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 	}
 
 	return SyncResponse(map[string]interface{}{
-		"packages": results,
-		"sources":  sources,
+		"snaps":   results,
+		"sources": sources,
 		"paging": map[string]interface{}{
 			"pages": 1,
 			"page":  1,
@@ -322,7 +323,7 @@ type svcDesc struct {
 	Status *snappy.PackageServiceStatus `json:"status"`
 }
 
-func packageService(c *Command, r *http.Request) Response {
+func snapService(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(operationCmd.Path)
 	if route == nil {
 		return InternalError(nil, "router can't find route for operation")
@@ -377,17 +378,17 @@ func packageService(c *Command, r *http.Request) Response {
 
 	ipart, err := bag.Load(idx)
 	if err != nil {
-		return InternalError(err, "unable to get load active package: %v", err)
+		return InternalError(err, "unable to load active snap: %v", err)
 	}
 
 	part, ok := ipart.(*snappy.SnapPart)
 	if !ok {
-		return InternalError(nil, "active package is not a *snappy.SnapPart: %T", ipart)
+		return InternalError(nil, "active snap is not a *snappy.SnapPart: %T", ipart)
 	}
 	svcs := part.ServiceYamls()
 
 	if len(svcs) == 0 {
-		return NotFound(nil, "package %q has no services", pkgName)
+		return NotFound(nil, "snap %q has no services", pkgName)
 	}
 
 	svcmap := make(map[string]*svcDesc, len(svcs))
@@ -396,7 +397,7 @@ func packageService(c *Command, r *http.Request) Response {
 	}
 
 	if svcName != "" && svcmap[svcName] == nil {
-		return NotFound(nil, "package %q has no service %q", pkgName, svcName)
+		return NotFound(nil, "snap %q has no service %q", pkgName, svcName)
 	}
 
 	// note findServices takes the *bare* name
@@ -459,7 +460,7 @@ func packageService(c *Command, r *http.Request) Response {
 	}).Map(route))
 }
 
-func packageConfig(c *Command, r *http.Request) Response {
+func snapConfig(c *Command, r *http.Request) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 	origin := vars["origin"]
@@ -486,7 +487,7 @@ func packageConfig(c *Command, r *http.Request) Response {
 
 	part, err := bag.Load(idx)
 	if err != nil {
-		return InternalError(err, "unable to get load active package: %v", err)
+		return InternalError(err, "unable to get load active snap: %v", err)
 	}
 
 	bs, err := ioutil.ReadAll(r.Body)
@@ -505,60 +506,6 @@ func packageConfig(c *Command, r *http.Request) Response {
 type configSubtask struct {
 	Status string      `json:"status"`
 	Output interface{} `json:"output"`
-}
-
-func configMulti(c *Command, r *http.Request) Response {
-	route := c.d.router.Get(operationCmd.Path)
-	if route == nil {
-		return InternalError(nil, "router can't find route for operation")
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	var pkgmap map[string]string
-	if err := decoder.Decode(&pkgmap); err != nil {
-		return BadRequest(err, "can't decode request body into map[string]string: %v", err)
-	}
-
-	return AsyncResponse(c.d.AddTask(func() interface{} {
-		lock, err := lockfile.Lock(dirs.SnapLockFile, true)
-		if err != nil {
-			return err
-		}
-		defer lock.Unlock()
-
-		rspmap := make(map[string]*configSubtask, len(pkgmap))
-		bags := lightweight.AllPartBags()
-		for pkg, cfg := range pkgmap {
-			out := errorResult{}
-			sub := configSubtask{Status: TaskFailed, Output: &out}
-			rspmap[pkg] = &sub
-			bag, ok := bags[pkg]
-			if !ok {
-				out.Str = snappy.ErrPackageNotFound.Error()
-				out.Obj = snappy.ErrPackageNotFound
-				continue
-			}
-
-			part, _ := bag.Load(bag.ActiveIndex())
-			if part == nil {
-				out.Str = snappy.ErrSnapNotActive.Error()
-				out.Obj = snappy.ErrSnapNotActive
-				continue
-			}
-
-			config, err := part.Config([]byte(cfg))
-			if err != nil {
-				out.Msg = "Config failed"
-				out.Str = err.Error()
-				out.Obj = err
-				continue
-			}
-			sub.Status = TaskSucceeded
-			sub.Output = config
-		}
-
-		return rspmap
-	}).Map(route))
 }
 
 func getOpInfo(c *Command, r *http.Request) Response {
@@ -606,7 +553,7 @@ func (*licenseData) Error() string {
 	return "license agreement required"
 }
 
-type packageInstruction struct {
+type snapInstruction struct {
 	progress.NullProgress
 	Action   string       `json:"action"`
 	LeaveOld bool         `json:"leave_old"`
@@ -616,7 +563,7 @@ type packageInstruction struct {
 
 // Agreed is part of the progress.Meter interface (q.v.)
 // ask the user whether they agree to the given license's text
-func (inst *packageInstruction) Agreed(intro, license string) bool {
+func (inst *snapInstruction) Agreed(intro, license string) bool {
 	if inst.License == nil || !inst.License.Agreed || inst.License.Intro != intro || inst.License.License != license {
 		inst.License = &licenseData{Intro: intro, License: license, Agreed: false}
 		return false
@@ -627,7 +574,7 @@ func (inst *packageInstruction) Agreed(intro, license string) bool {
 
 var snappyInstall = snappy.Install
 
-func (inst *packageInstruction) install() interface{} {
+func (inst *snapInstruction) install() interface{} {
 	flags := snappy.DoInstallGC
 	if inst.LeaveOld {
 		flags = 0
@@ -645,7 +592,7 @@ func (inst *packageInstruction) install() interface{} {
 	return nil
 }
 
-func (inst *packageInstruction) update() interface{} {
+func (inst *snapInstruction) update() interface{} {
 	flags := snappy.DoInstallGC
 	if inst.LeaveOld {
 		flags = 0
@@ -655,7 +602,7 @@ func (inst *packageInstruction) update() interface{} {
 	return err
 }
 
-func (inst *packageInstruction) remove() interface{} {
+func (inst *snapInstruction) remove() interface{} {
 	flags := snappy.DoRemoveGC
 	if inst.LeaveOld {
 		flags = 0
@@ -664,24 +611,24 @@ func (inst *packageInstruction) remove() interface{} {
 	return snappy.Remove(inst.pkg, flags, inst)
 }
 
-func (inst *packageInstruction) purge() interface{} {
+func (inst *snapInstruction) purge() interface{} {
 	return snappy.Purge(inst.pkg, 0, inst)
 }
 
-func (inst *packageInstruction) rollback() interface{} {
+func (inst *snapInstruction) rollback() interface{} {
 	_, err := snappy.Rollback(inst.pkg, "", inst)
 	return err
 }
 
-func (inst *packageInstruction) activate() interface{} {
+func (inst *snapInstruction) activate() interface{} {
 	return snappy.SetActive(inst.pkg, true, inst)
 }
 
-func (inst *packageInstruction) deactivate() interface{} {
+func (inst *snapInstruction) deactivate() interface{} {
 	return snappy.SetActive(inst.pkg, false, inst)
 }
 
-func (inst *packageInstruction) dispatch() func() interface{} {
+func (inst *snapInstruction) dispatch() func() interface{} {
 	switch inst.Action {
 	case "install":
 		// TODO: licenses
@@ -703,22 +650,22 @@ func (inst *packageInstruction) dispatch() func() interface{} {
 	}
 }
 
-func pkgActionDispatchImpl(inst *packageInstruction) func() interface{} {
+func pkgActionDispatchImpl(inst *snapInstruction) func() interface{} {
 	return inst.dispatch()
 }
 
 var pkgActionDispatch = pkgActionDispatchImpl
 
-func postPackage(c *Command, r *http.Request) Response {
+func postSnap(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(operationCmd.Path)
 	if route == nil {
 		return InternalError(nil, "router can't find route for operation")
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	var inst packageInstruction
+	var inst snapInstruction
 	if err := decoder.Decode(&inst); err != nil {
-		return BadRequest(err, "can't decode request body into package instruction: %v", err)
+		return BadRequest(err, "can't decode request body into snap instruction: %v", err)
 	}
 
 	vars := muxVars(r)
@@ -747,7 +694,7 @@ func newSnapImpl(filename string, origin string, unsignedOk bool) (snappy.Part, 
 
 var newSnap = newSnapImpl
 
-func sideloadPackage(c *Command, r *http.Request) Response {
+func sideloadSnap(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(operationCmd.Path)
 	if route == nil {
 		return InternalError(nil, "router can't find route for operation")
@@ -758,7 +705,7 @@ func sideloadPackage(c *Command, r *http.Request) Response {
 	contentType := r.Header.Get("Content-Type")
 
 	if strings.HasPrefix(contentType, "multipart/") {
-		// spec says POSTs to sideload packages should be “a multipart file upload”
+		// spec says POSTs to sideload snaps should be “a multipart file upload”
 
 		_, params, err := mime.ParseMediaType(contentType)
 		if err != nil {
@@ -855,7 +802,7 @@ func getLogs(c *Command, r *http.Request) Response {
 
 	for i := range rawlogs {
 		logs[i] = map[string]interface{}{
-			"timestamp": rawlogs[i].RawTimestamp(),
+			"timestamp": rawlogs[i].Timestamp(),
 			"message":   rawlogs[i].Message(),
 			"raw":       rawlogs[i],
 		}
@@ -923,7 +870,7 @@ func addCapability(c *Command, r *http.Request) Response {
 		Type:   ResponseTypeSync,
 		Status: http.StatusCreated,
 		Result: map[string]string{
-			"resource": fmt.Sprintf("/1.0/capabilities/%s", newCap.Name),
+			"resource": fmt.Sprintf("/2.0/capabilities/%s", newCap.Name),
 		},
 	}
 }
