@@ -190,8 +190,3 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 		timestamp:     timestamp,
 	}, nil
 }
-
-func init() {
-	typeRegistry[SnapBuildType.Name] = SnapBuildType
-	typeRegistry[SnapRevisionType.Name] = SnapRevisionType
-}

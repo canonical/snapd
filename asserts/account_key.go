@@ -118,7 +118,3 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 		pubKey:        pubk,
 	}, nil
 }
-
-func init() {
-	typeRegistry[AccountKeyType.Name] = AccountKeyType
-}

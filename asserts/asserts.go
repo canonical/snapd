@@ -45,7 +45,11 @@ var (
 // ...
 )
 
-var typeRegistry = make(map[string]*AssertionType)
+var typeRegistry = map[string]*AssertionType{
+	AccountKeyType.Name: AccountKeyType,
+	SnapBuildType.Name: SnapBuildType,
+	SnapRevisionType.Name: SnapRevisionType,
+}
 
 // Type returns the AssertionType with name or nil
 func Type(name string) *AssertionType {
