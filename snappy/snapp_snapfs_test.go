@@ -37,7 +37,8 @@ import (
 type SquashfsTestSuite struct {
 	testutil.BaseTest
 
-	bootvars map[string]string
+	bootvars    map[string]string
+	systemdCmds [][]string
 }
 
 func (s *SquashfsTestSuite) SetUpTest(c *C) {
@@ -48,6 +49,7 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 
 	// ensure we do not run a real systemd
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		s.systemdCmds = append(s.systemdCmds, cmd)
 		return []byte("ActiveState=inactive\n"), nil
 	}
 
@@ -367,4 +369,31 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 	// kernel is *not* here
 	vmlinuz := filepath.Join(bootloaderDir(), "ubuntu-kernel.origin_4.0-1.snap", "vmlinuz")
 	c.Assert(helpers.FileExists(vmlinuz), Equals, false)
+}
+
+func (s *SquashfsTestSuite) TestInstallFailUnmountsSnap(c *C) {
+	snapPkg := makeTestSnapPackage(c, `name: hello
+version: 1.10
+binaries:
+ - name: some-binary
+   security-template: not-there
+`)
+	part, err := NewSnapFile(snapPkg, "origin", true)
+	c.Assert(err, IsNil)
+
+	// install but our missing security-template will break the install
+	_, err = part.Install(&MockProgressMeter{}, 0)
+	c.Assert(err, ErrorMatches, "could not find specified template: not-there.*")
+
+	// ensure the mount unit is not there
+	mup := systemd.MountUnitPath("/snaps/hello.origin/1.10", "mount")
+	c.Assert(helpers.FileExists(mup), Equals, false)
+
+	// ensure that the mount gets unmounted and stopped
+	c.Assert(s.systemdCmds, DeepEquals, [][]string{
+		{"start", "snaps-hello.origin-1.10.mount"},
+		{"--root", dirs.GlobalRootDir, "disable", "snaps-hello.origin-1.10.mount"},
+		{"stop", "snaps-hello.origin-1.10.mount"},
+		{"show", "--property=ActiveState", "snaps-hello.origin-1.10.mount"},
+	})
 }
