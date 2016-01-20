@@ -21,7 +21,25 @@ package caps
 
 import (
 	"fmt"
+	"path/filepath"
+
+	"github.com/ubuntu-core/snappy/testutil"
 )
+
+type evalSymlinksFn func(string) (string, error)
+
+// evalSymlinks is either filepath.EvalSymlinks or a mocked function for
+// applicable for testing.
+var evalSymlinks = filepath.EvalSymlinks
+
+// MockEvalSymlinks replaces the path/filepath.EvalSymlinks function used inside the caps package.
+func MockEvalSymlinks(test *testutil.BaseTest, fn func(string) (string, error)) {
+	orig := evalSymlinks
+	evalSymlinks = fn
+	test.AddCleanup(func() {
+		evalSymlinks = orig
+	})
+}
 
 // Type describes a group of interchangeable capabilities with common features.
 // Types are managed centrally and act as a contract between system builders,
@@ -53,6 +71,14 @@ func (t *BoolFileType) Name() string {
 	return "bool-file"
 }
 
+// Error for reporting invalid/not-sanitized capabilities in places where we
+// expect everything to be valid.
+type notSanitizedError struct{}
+
+func (e *notSanitizedError) Error() string {
+	return "capability is not sanitized"
+}
+
 // Sanitize checks and possibly modifies a capability.
 // Valid "bool-file" capabilities must contain the attribute "path".
 func (t *BoolFileType) Sanitize(c *Capability) error {
@@ -72,8 +98,10 @@ func (t *BoolFileType) Sanitize(c *Capability) error {
 func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case SecurityApparmor:
-		// TODO: switch to the real path later
-		path := c.Attrs["path"]
+		path, err := t.dereferencedPath(c)
+		if err != nil {
+			return nil, err
+		}
 		// Allow read, write and lock on the file designated by the path.
 		return []byte(fmt.Sprintf("%s rwl,\n", path)), nil
 	case SecuritySeccomp:
@@ -83,6 +111,18 @@ func (t *BoolFileType) SecuritySnippet(c *Capability, securitySystem SecuritySys
 	default:
 		return nil, ErrUnknownSecurity
 	}
+}
+
+func (t *BoolFileType) dereferencedPath(c *Capability) (string, error) {
+	path := c.Attrs["path"]
+	if path == "" {
+		return "", &notSanitizedError{}
+	}
+	realPath, err := evalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("bool-file path is invalid: %s", err)
+	}
+	return realPath, nil
 }
 
 // TestType is a type for various kind of tests.
