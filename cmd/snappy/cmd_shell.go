@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -73,6 +73,11 @@ Use "sudo snappy enable-classic" to enable it.`))
 		}
 
 		fmt.Println(i18n.G(`Entering classic dimension`))
+		fmt.Println(i18n.G(`
+
+The home directory is shared between snappy and the classic dimension.
+Run "exit" to leave the classic shell.
+`))
 		return classic.RunShell()
 	}
 

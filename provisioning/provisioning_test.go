@@ -19,7 +19,6 @@ package provisioning
 
 import (
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -32,6 +31,8 @@ func Test(t *testing.T) { TestingT(t) }
 type ProvisioningTestSuite struct {
 	mockBootDir  string
 	mockYamlFile string
+
+	realBootloaderDir string
 }
 
 var _ = Suite(&ProvisioningTestSuite{})
@@ -76,48 +77,13 @@ var garbageData = `Fooled you!?`
 func (ts *ProvisioningTestSuite) SetUpTest(c *C) {
 	ts.mockBootDir = c.MkDir()
 	ts.mockYamlFile = filepath.Join(ts.mockBootDir, "install.yaml")
+	ts.realBootloaderDir = bootloaderDir
+
+	bootloaderDir = ts.mockBootDir
 }
 
-func (ts *ProvisioningTestSuite) TestSideLoadedSystemNoInstallYaml(c *C) {
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-}
-
-func (ts *ProvisioningTestSuite) TestSideLoadedSystem(c *C) {
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-
-	err := ioutil.WriteFile(ts.mockYamlFile, []byte(yamlData), 0750)
-	c.Assert(err, IsNil)
-
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, true)
-
-	os.Remove(ts.mockYamlFile)
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-}
-
-func (ts *ProvisioningTestSuite) TestSideLoadedSystemNoDevicePart(c *C) {
-
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-
-	err := ioutil.WriteFile(ts.mockYamlFile, []byte(yamlDataNoDevicePart), 0750)
-	c.Assert(err, IsNil)
-
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-
-	os.Remove(ts.mockYamlFile)
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-}
-
-func (ts *ProvisioningTestSuite) TestSideLoadedSystemGarbageInstallYaml(c *C) {
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
-
-	err := ioutil.WriteFile(ts.mockYamlFile, []byte(garbageData), 0750)
-	c.Assert(err, IsNil)
-
-	// we assume sideloaded if the file isn't parseable
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, true)
-
-	os.Remove(ts.mockYamlFile)
-	c.Assert(IsSideLoaded(ts.mockBootDir), Equals, false)
+func (ts *ProvisioningTestSuite) TearDownTest(c *C) {
+	bootloaderDir = ts.realBootloaderDir
 }
 
 func (ts *ProvisioningTestSuite) TestParseInstallYaml(c *C) {
@@ -157,7 +123,8 @@ func (ts *ProvisioningTestSuite) TestParseInstallYamlData(c *C) {
 }
 
 func (ts *ProvisioningTestSuite) TestInDeveloperModeEmpty(c *C) {
-	c.Assert(InDeveloperMode(""), Equals, false)
+	bootloaderDir = ""
+	c.Assert(InDeveloperMode(), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestInDeveloperModeWithDevModeOn(c *C) {
@@ -166,7 +133,8 @@ options:
  developer-mode: true
 `), 0644)
 	c.Assert(err, IsNil)
-	c.Assert(InDeveloperMode(ts.mockBootDir), Equals, true)
+	bootloaderDir = ts.mockBootDir
+	c.Assert(InDeveloperMode(), Equals, true)
 }
 
 func (ts *ProvisioningTestSuite) TestInDeveloperModeWithDevModeOff(c *C) {
@@ -175,5 +143,6 @@ options:
  developer-mode: false
 `), 0644)
 	c.Assert(err, IsNil)
-	c.Assert(InDeveloperMode(ts.mockBootDir), Equals, false)
+	bootloaderDir = ts.mockBootDir
+	c.Assert(InDeveloperMode(), Equals, false)
 }
