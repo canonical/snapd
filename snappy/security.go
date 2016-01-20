@@ -923,16 +923,10 @@ func GeneratePolicyFromFile(fn string, force bool) error {
 
 // RegenerateAllPolicy will re-generate all policy that needs re-generating
 func RegenerateAllPolicy(force bool) error {
-	installed, err := NewMetaLocalRepository().Installed()
-	if err != nil {
-		return err
-	}
+	overlord := &Overlord{}
+	installed := overlord.Installed()
 
-	for _, p := range installed {
-		part, ok := p.(*SnapPart)
-		if !ok {
-			continue
-		}
+	for _, part := range installed {
 		basedir := part.basedir
 		yFn := filepath.Join(basedir, "meta", "package.yaml")
 

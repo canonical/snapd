@@ -49,11 +49,9 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	repo := NewMetaLocalRepository()
-	all, err := repo.All()
-	c.Check(err, IsNil)
-	c.Assert(all, HasLen, 1)
-	part := all[0]
+	installed := (&Overlord{}).Installed()
+	c.Assert(installed, HasLen, 1)
+	part := installed[0]
 	c.Check(part.Name(), Equals, name)
 	c.Check(part.IsInstalled(), Equals, true)
 	c.Check(part.IsActive(), Equals, true)
@@ -65,11 +63,9 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	repo := NewMetaLocalRepository()
-	all, err := repo.All()
-	c.Check(err, IsNil)
-	c.Assert(all, HasLen, 1)
-	part := all[0]
+	installed := (&Overlord{}).Installed()
+	c.Assert(installed, HasLen, 1)
+	part := installed[0]
 	c.Check(part.Name(), Equals, name)
 	c.Check(part.IsInstalled(), Equals, true)
 	c.Check(part.IsActive(), Equals, false) // c.f. TestInstallInstall
@@ -240,7 +236,7 @@ func (s *SnapTestSuite) TestUpdate(c *C) {
 	yamlPath, err := s.makeInstalledMockSnap("name: foo\nversion: 1")
 	c.Assert(err, IsNil)
 	makeSnapActive(yamlPath)
-	installed, _ := NewMetaLocalRepository().Installed()
+	installed := (&Overlord{}).Installed()
 	c.Assert(installed, HasLen, 1)
 	c.Assert(ActiveSnapByName("foo"), NotNil)
 

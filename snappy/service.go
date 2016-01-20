@@ -67,20 +67,15 @@ type serviceActor struct {
 func FindServices(snapName string, serviceName string, pb progress.Meter) (ServiceActor, error) {
 	var svcs []*svcT
 
-	repo := NewMetaLocalRepository()
-	installed, _ := repo.Installed()
+	overlord := &Overlord{}
+	installed := overlord.Installed()
 
 	foundSnap := false
-	for _, part := range installed {
-		if !part.IsActive() {
+	for _, snap := range installed {
+		if !snap.IsActive() {
 			continue
 		}
 
-		snap, ok := part.(*SnapPart)
-		if !ok {
-			// can't happen
-			continue
-		}
 		if snapName != "" && snapName != snap.Name() {
 			continue
 		}

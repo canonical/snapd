@@ -29,7 +29,6 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type ProvisioningTestSuite struct {
-	mockBootDir  string
 	mockYamlFile string
 
 	realBootloaderDir string
@@ -75,11 +74,9 @@ options:
 var garbageData = `Fooled you!?`
 
 func (ts *ProvisioningTestSuite) SetUpTest(c *C) {
-	ts.mockBootDir = c.MkDir()
-	ts.mockYamlFile = filepath.Join(ts.mockBootDir, "install.yaml")
 	ts.realBootloaderDir = bootloaderDir
-
-	bootloaderDir = ts.mockBootDir
+	bootloaderDir = c.MkDir()
+	ts.mockYamlFile = filepath.Join(bootloaderDir, "install.yaml")
 }
 
 func (ts *ProvisioningTestSuite) TearDownTest(c *C) {
@@ -123,7 +120,6 @@ func (ts *ProvisioningTestSuite) TestParseInstallYamlData(c *C) {
 }
 
 func (ts *ProvisioningTestSuite) TestInDeveloperModeEmpty(c *C) {
-	bootloaderDir = ""
 	c.Assert(InDeveloperMode(), Equals, false)
 }
 
@@ -133,7 +129,6 @@ options:
  developer-mode: true
 `), 0644)
 	c.Assert(err, IsNil)
-	bootloaderDir = ts.mockBootDir
 	c.Assert(InDeveloperMode(), Equals, true)
 }
 
@@ -143,6 +138,5 @@ options:
  developer-mode: false
 `), 0644)
 	c.Assert(err, IsNil)
-	bootloaderDir = ts.mockBootDir
 	c.Assert(InDeveloperMode(), Equals, false)
 }

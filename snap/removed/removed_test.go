@@ -28,7 +28,6 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snappy"
 )
@@ -76,23 +75,14 @@ func (s *removedSuite) TestNoStore(c *check.C) {
 	c.Check(part.Origin(), check.Equals, "bar")
 	c.Check(part.Version(), check.Equals, "1")
 	c.Check(part.Description(), check.Equals, "")
-	c.Check(part.Hash(), check.Equals, "")
 	c.Check(part.Icon(), check.Equals, "")
 	c.Check(part.DownloadSize(), check.Equals, int64(-1))
 
 	c.Check(part.InstalledSize(), check.Equals, int64(-1))
 	c.Check(part.IsActive(), check.Equals, false)
 	c.Check(part.IsInstalled(), check.Equals, false)
-	c.Check(part.NeedsReboot(), check.Equals, false)
 
-	prog := &progress.NullProgress{}
-	c.Check(part.Uninstall(prog), check.Equals, ErrRemoved)
-	c.Check(part.SetActive(true, prog), check.Equals, ErrRemoved)
-	_, err := part.Install(prog, 0)
-	c.Check(err, check.Equals, ErrRemoved)
-	_, err = part.Config(nil)
-	c.Check(err, check.Equals, ErrRemoved)
-	_, err = part.Frameworks()
+	_, err := part.Config(nil)
 	c.Check(err, check.Equals, ErrRemoved)
 }
 
@@ -113,22 +103,13 @@ func (s *removedSuite) TestWithStore(c *check.C) {
 	c.Check(part.Origin(), check.Equals, "bar")
 	c.Check(part.Version(), check.Equals, "1")
 	c.Check(part.Description(), check.Equals, "bla bla bla")
-	c.Check(part.Hash(), check.Equals, "")
 	c.Check(part.Icon(), check.Equals, "http://i.stack.imgur.com/i8q1U.jpg")
 	c.Check(part.DownloadSize(), check.Equals, int64(5554242))
 
 	c.Check(part.InstalledSize(), check.Equals, int64(-1))
 	c.Check(part.IsActive(), check.Equals, false)
 	c.Check(part.IsInstalled(), check.Equals, false)
-	c.Check(part.NeedsReboot(), check.Equals, false)
 
-	prog := &progress.NullProgress{}
-	c.Check(part.Uninstall(prog), check.Equals, ErrRemoved)
-	c.Check(part.SetActive(true, prog), check.Equals, ErrRemoved)
-	_, err := part.Install(prog, 0)
-	c.Check(err, check.Equals, ErrRemoved)
-	_, err = part.Config(nil)
-	c.Check(err, check.Equals, ErrRemoved)
-	_, err = part.Frameworks()
+	_, err := part.Config(nil)
 	c.Check(err, check.Equals, ErrRemoved)
 }

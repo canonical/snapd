@@ -31,14 +31,11 @@ import (
 //
 // The version needs to be installed on disk
 func Rollback(pkg, ver string, inter progress.Meter) (version string, err error) {
+	overlord := &Overlord{}
 
 	// no version specified, find the previous one
 	if ver == "" {
-		m := NewMetaRepository()
-		installed, err := m.Installed()
-		if err != nil {
-			return "", err
-		}
+		installed := overlord.Installed()
 		snaps := FindSnapsByName(pkg, installed)
 		if len(snaps) < 2 {
 			return "", fmt.Errorf("no version to rollback to")

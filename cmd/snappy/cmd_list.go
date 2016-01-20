@@ -89,7 +89,7 @@ func formatDate(t time.Time) string {
 	return fmt.Sprintf("%v-%02d-%02d", t.Year(), int(t.Month()), t.Day())
 }
 
-func showInstalledList(installed []snappy.Part, o io.Writer) {
+func showInstalledList(installed []*snappy.SnapPart, o io.Writer) {
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
 
 	fmt.Fprintln(w, "Name\tDate\tVersion\tDeveloper\t")
@@ -103,7 +103,7 @@ func showInstalledList(installed []snappy.Part, o io.Writer) {
 	showRebootMessage(installed, o)
 }
 
-func showVerboseList(installed []snappy.Part, o io.Writer) {
+func showVerboseList(installed []*snappy.SnapPart, o io.Writer) {
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
 
 	fmt.Fprintln(w, i18n.G("Name\tDate\tVersion\tDeveloper\t"))
@@ -125,7 +125,7 @@ func showVerboseList(installed []snappy.Part, o io.Writer) {
 	showRebootMessage(installed, o)
 }
 
-func showRebootMessage(installed []snappy.Part, o io.Writer) {
+func showRebootMessage(installed []*snappy.SnapPart, o io.Writer) {
 	// display all parts that require a reboot
 	for _, part := range installed {
 		if !part.NeedsReboot() {
@@ -137,7 +137,16 @@ func showRebootMessage(installed []snappy.Part, o io.Writer) {
 	}
 }
 
-func showUpdatesList(installed []snappy.Part, updates []snappy.Part, o io.Writer) {
+func findRemoteSnapByName(name string, remotes []*snappy.RemoteSnapPart) *snappy.RemoteSnapPart {
+	for _, remote := range remotes {
+		if name == remote.Name() {
+			return remote
+		}
+	}
+	return nil
+}
+
+func showUpdatesList(installed []*snappy.SnapPart, updates []*snappy.RemoteSnapPart, o io.Writer) {
 	// TODO tabwriter and output in general to adapt to the spec
 	w := tabwriter.NewWriter(o, 5, 3, 1, ' ', 0)
 	defer w.Flush()
@@ -150,11 +159,11 @@ func showUpdatesList(installed []snappy.Part, updates []snappy.Part, o io.Writer
 		hasUpdate := ""
 		ver := part.Version()
 		date := part.Date()
-		update := snappy.FindSnapsByName(part.Name(), updates)
-		if len(update) == 1 {
+		update := findRemoteSnapByName(part.Name(), updates)
+		if update != nil {
 			hasUpdate = "*"
-			ver = update[0].Version()
-			date = update[0].Date()
+			ver = update.Version()
+			date = update.Date()
 		}
 		fmt.Fprintln(w, fmt.Sprintf("%s%s\t%v\t%s\t", part.Name(), hasUpdate, formatDate(date), ver))
 	}

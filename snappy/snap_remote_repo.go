@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/arch"
 	"github.com/ubuntu-core/snappy/oauth"
+	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/release"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
@@ -61,12 +63,6 @@ func (f *SharedName) IsAlias(origin string) bool {
 	}
 
 	return false
-}
-
-// NewRemoteSnapPart returns a new RemoteSnapPart from the given
-// remote.Snap data
-func NewRemoteSnapPart(data remote.Snap) *RemoteSnapPart {
-	return &RemoteSnapPart{pkg: data}
 }
 
 // SnapUbuntuStoreRepository represents the ubuntu snap store
@@ -183,18 +179,8 @@ func setUbuntuStoreHeaders(req *http.Request) {
 	}
 }
 
-// Description describes the repository
-func (s *SnapUbuntuStoreRepository) Description() string {
-	return fmt.Sprintf("Snap remote repository for %s", s.searchURI)
-}
-
-// Details returns details for the given snap in this repository
-func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts []Part, err error) {
-	snapName := name
-	if origin != "" {
-		snapName = name + "." + origin
-	}
-
+// Snap returns a RemoteSnapPart from the given snap name
+func (s *SnapUbuntuStoreRepository) Snap(snapName string) (*RemoteSnapPart, error) {
 	url, err := s.detailsURI.Parse(snapName)
 	if err != nil {
 		return nil, err
@@ -220,7 +206,7 @@ func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts [
 	case resp.StatusCode == 404:
 		return nil, ErrPackageNotFound
 	case resp.StatusCode != 200:
-		return parts, fmt.Errorf("SnapUbuntuStoreRepository: unexpected http statusCode %v for %s", resp.StatusCode, snapName)
+		return nil, fmt.Errorf("SnapUbuntuStoreRepository: unexpected http statusCode %v for %s", resp.StatusCode, snapName)
 	}
 
 	// and decode json
@@ -230,10 +216,23 @@ func (s *SnapUbuntuStoreRepository) Details(name string, origin string) (parts [
 		return nil, err
 	}
 
-	snap := NewRemoteSnapPart(detailsData)
-	parts = append(parts, snap)
+	return NewRemoteSnapPart(detailsData), nil
+}
 
-	return parts, nil
+// Details returns details for the given snap in this repository
+// FIXME: kill this once the daemon is converted
+func (s *SnapUbuntuStoreRepository) Details(name string, origin string) ([]Part, error) {
+	snapName := name
+	if origin != "" {
+		snapName = name + "." + origin
+	}
+
+	snap, err := s.Snap(snapName)
+	if err != nil {
+		return nil, err
+	}
+
+	return []Part{snap}, nil
 }
 
 // All (installable) parts from the store
@@ -314,7 +313,7 @@ func (s *SnapUbuntuStoreRepository) Search(searchTerm string) (SharedNames, erro
 }
 
 // Updates returns the available updates
-func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
+func (s *SnapUbuntuStoreRepository) Updates() (parts []*RemoteSnapPart, err error) {
 	// the store only supports apps, gadget and frameworks currently, so no
 	// sense in sending it our ubuntu-core snap
 	//
@@ -365,4 +364,36 @@ func (s *SnapUbuntuStoreRepository) Updates() (parts []Part, err error) {
 // Installed returns the installed snaps from this repository
 func (s *SnapUbuntuStoreRepository) Installed() (parts []Part, err error) {
 	return nil, err
+}
+
+// Download downloads the given snap and returns the filename of the local
+// version
+func (s *SnapUbuntuStoreRepository) Download(remoteSnap *RemoteSnapPart, pbar progress.Meter) (string, error) {
+	w, err := ioutil.TempFile("", remoteSnap.pkg.Name)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if err != nil {
+			os.Remove(w.Name())
+		}
+	}()
+	defer w.Close()
+
+	// try anonymous download first and fallback to authenticated
+	url := remoteSnap.pkg.AnonDownloadURL
+	if url == "" {
+		url = remoteSnap.pkg.DownloadURL
+	}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	setUbuntuStoreHeaders(req)
+
+	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
+		return "", err
+	}
+
+	return w.Name(), w.Sync()
 }

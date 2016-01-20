@@ -52,14 +52,11 @@ func wrapConfig(pkgName string, conf interface{}) ([]byte, error) {
 var newPartMap = newPartMapImpl
 
 func newPartMapImpl() (map[string]Part, error) {
-	repo := NewMetaLocalRepository()
-	all, err := repo.All()
-	if err != nil {
-		return nil, err
-	}
+	overlord := &Overlord{}
+	installed := overlord.Installed()
 
-	m := make(map[string]Part, 2*len(all))
-	for _, part := range all {
+	m := make(map[string]Part, 2*len(installed))
+	for _, part := range installed {
 		m[FullName(part)] = part
 		m[BareName(part)] = part
 	}
@@ -119,14 +116,11 @@ func gadgetConfig() error {
 // enableSystemSnaps activates the installed kernel/os/gadget snaps
 // on the first boot
 func enableSystemSnaps() error {
-	repo := NewMetaLocalRepository()
-	all, err := repo.All()
-	if err != nil {
-		return nil
-	}
+	overlord := &Overlord{}
+	installed := overlord.Installed()
 
 	pb := progress.MakeProgressBar()
-	for _, part := range all {
+	for _, part := range installed {
 		switch part.Type() {
 		case snap.TypeGadget, snap.TypeKernel, snap.TypeOS:
 			logger.Noticef("Acitvating %s", FullName(part))

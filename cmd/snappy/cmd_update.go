@@ -72,9 +72,11 @@ func (x *cmdUpdate) doUpdate() error {
 	}
 
 	var err error
-	var updates []snappy.Part
+	var updates []*snappy.SnapPart
 	if x.Positional.PackageName != "" {
-		updates, err = snappy.Update(x.Positional.PackageName, flags, progress.MakeProgressBar())
+		var update *snappy.SnapPart
+		update, err = snappy.Update(x.Positional.PackageName, flags, progress.MakeProgressBar())
+		updates = append(updates, update)
 	} else {
 		updates, err = snappy.UpdateAll(flags, progress.MakeProgressBar())
 	}

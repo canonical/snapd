@@ -35,7 +35,6 @@ import (
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
 	"github.com/ubuntu-core/snappy/snap/remote"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
 )
 
 // SnapPart represents a generic snap type
@@ -237,12 +236,6 @@ func (s *SnapPart) GadgetConfig() SystemConfig {
 	return s.m.Config
 }
 
-// Install installs the snap (which does not make sense for an already
-// installed snap
-func (s *SnapPart) Install(inter progress.Meter, flags InstallFlags) (name string, err error) {
-	return "", ErrAlreadyInstalled
-}
-
 // SetActive sets the snap active
 func (s *SnapPart) SetActive(active bool, pb progress.Meter) (err error) {
 	if active {
@@ -372,72 +365,6 @@ func (s *SnapPart) deactivate(inhibitHooks bool, inter interacter) error {
 	return nil
 }
 
-// Uninstall remove the snap from the system
-func (s *SnapPart) Uninstall(pb progress.Meter) (err error) {
-	// Gadget snaps should not be removed as they are a key
-	// building block for Gadgets. Prunning non active ones
-	// is acceptible.
-	if s.m.Type == snap.TypeGadget && s.IsActive() {
-		return ErrPackageNotRemovable
-	}
-
-	// You never want to remove an active kernel or OS
-	if (s.m.Type == snap.TypeKernel || s.m.Type == snap.TypeOS) && s.IsActive() {
-		return ErrPackageNotRemovable
-	}
-
-	if IsBuiltInSoftware(s.Name()) && s.IsActive() {
-		return ErrPackageNotRemovable
-	}
-
-	deps, err := s.DependentNames()
-	if err != nil {
-		return err
-	}
-	if len(deps) != 0 {
-		return ErrFrameworkInUse(deps)
-	}
-
-	if err := s.remove(pb); err != nil {
-		return err
-	}
-
-	return RemoveAllHWAccess(QualifiedName(s))
-}
-
-func (s *SnapPart) remove(inter interacter) (err error) {
-	if err := s.deactivate(false, inter); err != nil && err != ErrSnapNotActive {
-		return err
-	}
-
-	// ensure mount unit stops
-	if err := s.m.removeSquashfsMount(s.basedir, inter); err != nil {
-		return err
-	}
-
-	err = os.RemoveAll(s.basedir)
-	if err != nil {
-		return err
-	}
-
-	// best effort(?)
-	os.Remove(filepath.Dir(s.basedir))
-
-	// remove the snap
-	if err := os.RemoveAll(squashfs.BlobPath(s.basedir)); err != nil {
-		return err
-	}
-
-	// remove the kernel assets (if any)
-	if s.m.Type == snap.TypeKernel {
-		if err := removeKernelAssets(s, inter); err != nil {
-			logger.Noticef("removing kernel assets failed with %s", err)
-		}
-	}
-
-	return nil
-}
-
 // Config is used to to configure the snap
 func (s *SnapPart) Config(configuration []byte) (new string, err error) {
 	if s.m.Type == snap.TypeOS {
@@ -486,24 +413,18 @@ func (s *SnapPart) Dependents() ([]*SnapPart, error) {
 
 	var needed []*SnapPart
 
-	installed, err := NewMetaRepository().Installed()
-	if err != nil {
-		return nil, err
-	}
+	overlord := &Overlord{}
+	installed := overlord.Installed()
 
 	name := s.Name()
-	for _, part := range installed {
-		fmks, err := part.Frameworks()
+	for _, snap := range installed {
+		fmks, err := snap.Frameworks()
 		if err != nil {
 			return nil, err
 		}
 		for _, fmk := range fmks {
 			if fmk == name {
-				part, ok := part.(*SnapPart)
-				if !ok {
-					return nil, ErrInstalledNonSnapPart
-				}
-				needed = append(needed, part)
+				needed = append(needed, snap)
 			}
 		}
 	}

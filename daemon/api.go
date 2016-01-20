@@ -166,11 +166,11 @@ func v1Get(c *Command, r *http.Request) Response {
 type metarepo interface {
 	Details(string, string) ([]snappy.Part, error)
 	All() ([]snappy.Part, error)
-	Updates() ([]snappy.Part, error)
+	Updates() ([]*snappy.RemoteSnapPart, error)
 }
 
 var newRemoteRepo = func() metarepo {
-	return snappy.NewMetaStoreRepository()
+	return snappy.NewUbuntuStoreSnapRepository()
 }
 
 var muxVars = mux.Vars
@@ -802,7 +802,7 @@ func sideloadPackage(c *Command, r *http.Request) Response {
 	return AsyncResponse(c.d.AddTask(func() interface{} {
 		defer os.Remove(tmpf.Name())
 
-		part, err := newSnap(tmpf.Name(), snappy.SideloadedOrigin, unsignedOk)
+		_, err := newSnap(tmpf.Name(), snappy.SideloadedOrigin, unsignedOk)
 		if err != nil {
 			return err
 		}
@@ -813,7 +813,12 @@ func sideloadPackage(c *Command, r *http.Request) Response {
 		}
 		defer lock.Unlock()
 
-		name, err := part.Install(&progress.NullProgress{}, 0)
+		var flags snappy.InstallFlags
+		if unsignedOk {
+			flags |= snappy.AllowUnauthenticated
+		}
+		overlord := &snappy.Overlord{}
+		name, err := overlord.Install(tmpf.Name(), snappy.SideloadedOrigin, &progress.NullProgress{}, flags)
 		if err != nil {
 			return err
 		}

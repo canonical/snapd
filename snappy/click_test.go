@@ -41,6 +41,16 @@ import (
 	"github.com/ubuntu-core/snappy/timeout"
 )
 
+// FIXME: kill once every test is converted
+func installClick(snapFilePath string, flags InstallFlags, inter progress.Meter, origin string) (name string, err error) {
+	overlord := &Overlord{}
+	snapPart, err := overlord.Install(snapFilePath, origin, inter, flags)
+	if err != nil {
+		return "", err
+	}
+	return snapPart.Name(), nil
+}
+
 func (s *SnapTestSuite) testLocalSnapInstall(c *C) string {
 	snapFile := makeTestSnapPackage(c, "")
 	name, err := installClick(snapFile, 0, nil, testOrigin)
@@ -220,7 +230,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	yamlPath := filepath.Join(instDir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(&MockProgressMeter{})
+	err = s.overlord.remove(part, nil)
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
@@ -294,7 +304,7 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 	yamlPath := filepath.Join(appdir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(&MockProgressMeter{})
+	err = s.overlord.remove(part, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -369,9 +379,7 @@ icon: foo.svg
 	c.Assert(err, IsNil)
 
 	// ensure v2 is active
-	repo := NewLocalSnapRepository(filepath.Join(s.tempdir, "snaps"))
-	parts, err := repo.Installed()
-	c.Assert(err, IsNil)
+	parts := (&Overlord{}).Installed()
 	c.Assert(parts, HasLen, 2)
 	c.Assert(parts[0].Version(), Equals, "1.0")
 	c.Assert(parts[0].IsActive(), Equals, false)
@@ -379,9 +387,8 @@ icon: foo.svg
 	c.Assert(parts[1].IsActive(), Equals, true)
 
 	// set v1 active
-	err = parts[0].(*SnapPart).activate(false, nil)
-	parts, err = repo.Installed()
-	c.Assert(err, IsNil)
+	err = parts[0].activate(false, nil)
+	parts = (&Overlord{}).Installed()
 	c.Assert(parts[0].Version(), Equals, "1.0")
 	c.Assert(parts[0].IsActive(), Equals, true)
 	c.Assert(parts[1].Version(), Equals, "2.0")
@@ -591,7 +598,7 @@ services:
 	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(&progress.NullProgress{})
+	err = s.overlord.remove(part, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(servicesFile), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
@@ -1196,7 +1203,9 @@ binaries:
 	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
-	err = part.remove(&MockProgressMeter{})
+
+	overlord := &Overlord{}
+	err = overlord.remove(part, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Assert(helpers.FileExists(binaryWrapper), Equals, false)
 	c.Assert(helpers.FileExists(snapDir), Equals, false)
