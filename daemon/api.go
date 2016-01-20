@@ -255,36 +255,46 @@ func getPackagesInfo(c *Command, r *http.Request) Response {
 
 	sources := make([]string, 1, 3)
 	sources[0] = "local"
-	// we're not worried if the remote repos error out
-	found, _ := newRemoteRepo().All()
-	if len(found) > 0 {
-		sources = append(sources, "store")
-	}
 
-	sort.Sort(byQN(found))
-
-	bags := lightweight.AllPartBags()
+	query := r.URL.Query()
+	activeOnly := len(query["active"]) == 1 && query["active"][0] == "1"
 
 	results := make(map[string]map[string]string)
-	for _, part := range found {
-		name := part.Name()
-		origin := part.Origin()
+	bags := lightweight.AllPartBags()
 
-		url, err := route.URL("name", name, "origin", origin)
-		if err != nil {
-			return InternalError(err, "can't get route to details for %s.%s: %v", name, origin, err)
+	if !activeOnly {
+		// we're not worried if the remote repos error out
+		found, _ := newRemoteRepo().All()
+		if len(found) > 0 {
+			sources = append(sources, "store")
 		}
 
-		fullname := name + "." + origin
-		qn := snappy.QualifiedName(part)
-		results[fullname] = webify(bags[qn].Map(part), url.String())
-		delete(bags, qn)
+		sort.Sort(byQN(found))
+
+		for _, part := range found {
+			name := part.Name()
+			origin := part.Origin()
+
+			url, err := route.URL("name", name, "origin", origin)
+			if err != nil {
+				return InternalError(err, "can't get route to details for %s.%s: %v", name, origin, err)
+			}
+
+			fullname := name + "." + origin
+			qn := snappy.QualifiedName(part)
+			results[fullname] = webify(bags[qn].Map(part), url.String())
+			delete(bags, qn)
+		}
 	}
 
 	for _, v := range bags {
 		m := v.Map(nil)
 		name := m["name"]
 		origin := m["origin"]
+
+		if activeOnly && m["status"] != "active" {
+			continue
+		}
 
 		resource := "no resource URL for this resource"
 		url, _ := route.URL("name", name, "origin", origin)
