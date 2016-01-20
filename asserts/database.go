@@ -199,7 +199,7 @@ func (db *Database) findAccountKeys(authorityID, keyID string) ([]*AccountKey, e
 		}
 	}
 	// consider stored account keys
-	a, err := db.bs.Get(AccountKeyType, primaryKey(AccountKeyType), []string{authorityID, keyID})
+	a, err := db.bs.Get(AccountKeyType, AccountKeyType.PrimaryKey, []string{authorityID, keyID})
 	switch err {
 	case nil:
 		res = append(res, a.(*AccountKey))
