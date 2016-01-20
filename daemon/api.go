@@ -142,6 +142,7 @@ var (
 		DELETE: deleteCapability,
 	}
 
+	// TODO: allow to post assertions for UserOK? they are verified anyway
 	assertsCmd = &Command{
 		Path: "/2.0/assertions",
 		POST: doAssert,
