@@ -24,7 +24,7 @@ import (
 	"fmt"
 )
 
-// Snap represents a Snap snap
+// Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
 	Description   string `json:"description"`
 	DownloadSize  int64  `json:"download_size"`
@@ -37,7 +37,7 @@ type Snap struct {
 	Version       string `json:"version"`
 }
 
-// Statuses and types a Snap may have
+// Statuses and types a snap may have.
 const (
 	StatusNotInstalled = "not installed"
 	StatusInstalled    = "installed"
@@ -51,7 +51,8 @@ const (
 	TypeOS        = "os"
 )
 
-// Snaps returns the list of snaps the system can handle
+// Snaps returns the list of all snaps installed on the system and
+// available for install from the store for this system.
 func (client *Client) Snaps() (map[string]*Snap, error) {
 	const errPrefix = "cannot list snaps"
 

@@ -239,14 +239,14 @@ Sample result:
 
 #### `sources`
 
-Defaults to `local,store`; can be set to either `local` (to only list
+Can be set to either `local` (to only list
 local snaps) or `store` (to only list snaps from the store), or a
-comma-separated combination.
+comma-separated combination. Defaults to `local,store`.
 
 #### `page`
 
-Defaults to `0`, request the given page when the server is paginating the
-result.
+request the given page when the server is paginating the
+result. Defaults to `0`.
 
 ### POST
 
@@ -302,7 +302,7 @@ See `sources` for `/2.0/snaps`.
 field      | ignored except in action | description
 -----------|-------------------|------------
 `action`   |                   | Required; a string, one of `install`, `update`, `remove`, `purge`, `activate`, `deactivate`, or `rollback`.
-`leave_old`| `install` `update` `remove` | A boolean, default is false (do not leave old snaps around). Equivalent to commandline's `--no-gc`.
+`leave_old`| `install` `update` `remove` | A boolean, equivalent to commandline's `--no-gc`. Default is false (do not leave old snaps around).
 `license`  | `install` `update` | A JSON object with `intro`, `license`, and `agreed` fields, the first two of which must match the license (see the section “A note on licenses”, below).
 
 #### A note on licenses
