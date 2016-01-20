@@ -48,7 +48,7 @@ type Capability struct {
 func (client *Client) Capabilities() (map[string]Capability, error) {
 	var resultOk map[string]map[string]Capability
 
-	if err := client.doSync("GET", "/1.0/capabilities", nil, &resultOk); err != nil {
+	if err := client.doSync("GET", "/2.0/capabilities", nil, &resultOk); err != nil {
 		return nil, fmt.Errorf("cannot obtain capabilities: %s", err)
 	}
 
@@ -63,7 +63,7 @@ func (client *Client) AddCapability(c *Capability) error {
 	}
 
 	var rsp interface{}
-	if err := client.doSync("POST", "/1.0/capabilities", bytes.NewReader(b), &rsp); err != nil {
+	if err := client.doSync("POST", "/2.0/capabilities", bytes.NewReader(b), &rsp); err != nil {
 		return fmt.Errorf("cannot add capability: %s", err)
 	}
 
@@ -73,7 +73,7 @@ func (client *Client) AddCapability(c *Capability) error {
 // RemoveCapability removes one capability from the system
 func (client *Client) RemoveCapability(name string) error {
 	var rsp interface{}
-	if err := client.doSync("DELETE", fmt.Sprintf("/1.0/capabilities/%s", name), nil, &rsp); err != nil {
+	if err := client.doSync("DELETE", fmt.Sprintf("/2.0/capabilities/%s", name), nil, &rsp); err != nil {
 		return fmt.Errorf("cannot remove capability: %s", err)
 	}
 

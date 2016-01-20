@@ -164,7 +164,7 @@ func (cs *clientSuite) TestClientCapabilities(c *check.C) {
 		},
 	})
 	c.Check(cs.req.Method, check.Equals, "GET")
-	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities")
 }
 
 func (cs *clientSuite) TestClientAddCapability(c *check.C) {
@@ -194,7 +194,7 @@ func (cs *clientSuite) TestClientAddCapability(c *check.C) {
 		},
 	})
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities")
 }
 
 func (cs *clientSuite) TestClientRemoveCapabilityOk(c *check.C) {
@@ -206,7 +206,7 @@ func (cs *clientSuite) TestClientRemoveCapabilityOk(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(cs.req.Body, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "DELETE")
-	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities/n")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities/n")
 }
 
 func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
@@ -222,5 +222,5 @@ func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
 	c.Check(err, check.ErrorMatches, `.*can't remove capability \"n\", no such capability`)
 	c.Check(cs.req.Body, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "DELETE")
-	c.Check(cs.req.URL.Path, check.Equals, "/1.0/capabilities/n")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/capabilities/n")
 }

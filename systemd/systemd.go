@@ -530,7 +530,7 @@ func (l Log) Timestamp() string {
 		sus, ok := ius.(string)
 		if ok {
 			if us, err := strconv.ParseInt(sus, 10, 64); err == nil {
-				t = time.Unix(us/1000000, 1000*(us%1000000)).Format(myFmt)
+				t = time.Unix(us/1000000, 1000*(us%1000000)).UTC().Format(myFmt)
 			} else {
 				t = fmt.Sprintf("-(timestamp not a decimal number: %#v)-", sus)
 			}
