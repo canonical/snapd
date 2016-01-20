@@ -31,14 +31,16 @@ import (
 
 // AssertionType describes a known assertion type with its name and metadata.
 type AssertionType struct {
-	Name string
+	Name       string
+	PrimaryKey []string
+	assembler  func(assert assertionBase) (Assertion, error)
 }
 
-// Understood assertions
+// Understood assertion types.
 var (
-	AccountKeyType   = &AssertionType{"account-key"}
-	SnapBuildType    = &AssertionType{"snap-build"}
-	SnapRevisionType = &AssertionType{"snap-revision"}
+	AccountKeyType   = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
+	SnapBuildType    = &AssertionType{"snap-build", []string{"snap-id", "snap-digest"}, assembleSnapBuild}
+	SnapRevisionType = &AssertionType{"snap-revision", []string{"snap-id", "snap-digest"}, assembleSnapRevision}
 
 // ...
 )

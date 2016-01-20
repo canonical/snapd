@@ -312,7 +312,7 @@ func (safs *signAddFindSuite) TestSignUnknowType(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
 	}
-	a1, err := safs.signingDB.Sign(&asserts.AssertionType{"xyz"}, headers, nil, safs.signingKeyID)
+	a1, err := safs.signingDB.Sign(&asserts.AssertionType{Name: "xyz", PrimaryKey: nil}, headers, nil, safs.signingKeyID)
 	c.Assert(err, ErrorMatches, `unknown assertion type: xyz`)
 	c.Check(a1, IsNil)
 }

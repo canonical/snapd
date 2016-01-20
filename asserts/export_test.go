@@ -64,12 +64,12 @@ func assembleTestOnly(assert assertionBase) (Assertion, error) {
 	return &TestOnly{assert}, nil
 }
 
-var TestOnlyType = &AssertionType{"test-only"}
+var TestOnlyType = &AssertionType{"test-only", []string{"primary-key"}, assembleTestOnly}
 
 func init() {
 	typeRegistry[TestOnlyType] = &assertionTypeRegistration{
 		assembler:  assembleTestOnly,
-		primaryKey: []string{"primary-key"},
+		primaryKey: TestOnlyType.PrimaryKey,
 	}
 }
 

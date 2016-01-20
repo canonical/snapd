@@ -194,10 +194,10 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 func init() {
 	typeRegistry[SnapBuildType] = &assertionTypeRegistration{
 		assembler:  assembleSnapBuild,
-		primaryKey: []string{"snap-id", "snap-digest"},
+		primaryKey: SnapBuildType.PrimaryKey,
 	}
 	typeRegistry[SnapRevisionType] = &assertionTypeRegistration{
 		assembler:  assembleSnapRevision,
-		primaryKey: []string{"snap-id", "snap-digest"},
+		primaryKey: SnapRevisionType.PrimaryKey,
 	}
 }
