@@ -250,20 +250,17 @@ func (db *Database) Check(assert Assertion) error {
 // Add persists the assertion after ensuring it is properly signed and consistent with all the stored knowledge.
 // It will return an error when trying to add an older revision of the assertion than the one currently stored.
 func (db *Database) Add(assert Assertion) error {
-	reg, err := checkAssertType(assert.Type())
+	assertType := assert.Type()
+	err := db.Check(assert)
 	if err != nil {
 		return err
 	}
-	err = db.Check(assert)
-	if err != nil {
-		return err
-	}
-	for _, k := range reg.primaryKey {
+	for _, k := range assertType.PrimaryKey {
 		if assert.Header(k) == "" {
 			return fmt.Errorf("missing primary key header: %v", k)
 		}
 	}
-	return db.bs.Put(assert.Type(), reg.primaryKey, assert)
+	return db.bs.Put(assertType, assertType.PrimaryKey, assert)
 }
 
 func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
@@ -280,19 +277,19 @@ func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
 // Provided headers must contain the primary key for the assertion type.
 // It returns ErrNotFound if the assertion cannot be found.
 func (db *Database) Find(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
-	reg, err := checkAssertType(assertionType)
+	_, err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
 	}
-	keyValues := make([]string, len(reg.primaryKey))
-	for i, k := range reg.primaryKey {
+	keyValues := make([]string, len(assertionType.PrimaryKey))
+	for i, k := range assertionType.PrimaryKey {
 		keyVal := headers[k]
 		if keyVal == "" {
 			return nil, fmt.Errorf("must provide primary key: %v", k)
 		}
 		keyValues[i] = keyVal
 	}
-	assert, err := db.bs.Get(assertionType, reg.primaryKey, keyValues)
+	assert, err := db.bs.Get(assertionType, assertionType.PrimaryKey, keyValues)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +302,7 @@ func (db *Database) Find(assertionType *AssertionType, headers map[string]string
 // FindMany finds assertions based on arbitrary headers.
 // It returns ErrNotFound if no assertion can be found.
 func (db *Database) FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
-	reg, err := checkAssertType(assertionType)
+	_, err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +311,7 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 	foundCb := func(assert Assertion) {
 		res = append(res, assert)
 	}
-	err = db.bs.Search(assertionType, reg.primaryKey, headers, foundCb)
+	err = db.bs.Search(assertionType, assertionType.PrimaryKey, headers, foundCb)
 	if err != nil {
 		return nil, err
 	}

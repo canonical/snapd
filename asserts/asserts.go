@@ -254,17 +254,13 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 	if assertType == nil {
 		return nil, fmt.Errorf("unknown assertion type: %v", typ)
 	}
-	reg, err := checkAssertType(assertType)
-	if err != nil {
-		return nil, err
-	}
 
 	revision, err := checkRevision(headers)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
 
-	assert, err := reg.assembler(assertionBase{
+	assert, err := assertType.assembler(assertionBase{
 		headers:   headers,
 		body:      body,
 		revision:  revision,
@@ -285,7 +281,7 @@ func writeHeader(buf *bytes.Buffer, headers map[string]string, name string) {
 }
 
 func assembleAndSign(assertType *AssertionType, headers map[string]string, body []byte, privKey PrivateKey) (Assertion, error) {
-	reg, err := checkAssertType(assertType)
+	_, err := checkAssertType(assertType)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +320,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]string, body 
 		"revision":     true,
 		"body-length":  true,
 	}
-	for _, primKey := range reg.primaryKey {
+	for _, primKey := range assertType.PrimaryKey {
 		if _, err := checkMandatory(finalHeaders, primKey); err != nil {
 			return nil, err
 		}
@@ -366,7 +362,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]string, body 
 	// be 'cat' friendly, add a ignored newline to the signature which is the last part of the encoded assertion
 	signature = append(signature, '\n')
 
-	assert, err := reg.assembler(assertionBase{
+	assert, err := assertType.assembler(assertionBase{
 		headers:   finalHeaders,
 		body:      finalBody,
 		revision:  revision,
