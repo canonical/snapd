@@ -120,8 +120,5 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 }
 
 func init() {
-	typeRegistry[AccountKeyType] = &assertionTypeRegistration{
-		assembler:  assembleAccountKey,
-		primaryKey: AccountKeyType.PrimaryKey,
-	}
+	typeRegistry[AccountKeyType.Name] = AccountKeyType
 }

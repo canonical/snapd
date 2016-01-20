@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -38,13 +39,18 @@ func checkMandatory(headers map[string]string, name string) (string, error) {
 	return value, nil
 }
 
-func checkAssertType(assertType *AssertionType) (*assertionTypeRegistration, error) {
-	// XXX assertType is nil case
-	reg := typeRegistry[assertType]
-	if reg == nil {
-		return nil, fmt.Errorf("unknown assertion type: %s", assertType.Name)
+var errInvalidAssertionType = errors.New("invalid assertion type")
+
+func checkAssertType(assertType *AssertionType) error {
+	if assertType == nil {
+		return errInvalidAssertionType
 	}
-	return reg, nil
+	sanity := typeRegistry[assertType.Name]
+	// not the expected registered value
+	if sanity != assertType {
+		return errInvalidAssertionType
+	}
+	return nil
 }
 
 // use 'defl' default if missing

@@ -67,10 +67,7 @@ func assembleTestOnly(assert assertionBase) (Assertion, error) {
 var TestOnlyType = &AssertionType{"test-only", []string{"primary-key"}, assembleTestOnly}
 
 func init() {
-	typeRegistry[TestOnlyType] = &assertionTypeRegistration{
-		assembler:  assembleTestOnly,
-		primaryKey: TestOnlyType.PrimaryKey,
-	}
+	typeRegistry[TestOnlyType.Name] = TestOnlyType
 }
 
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests

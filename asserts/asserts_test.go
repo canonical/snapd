@@ -31,6 +31,15 @@ type assertsSuite struct{}
 
 var _ = Suite(&assertsSuite{})
 
+func (as *assertsSuite) TestType(c *C) {
+	c.Check(asserts.Type("test-only"), Equals, asserts.TestOnlyType)
+}
+
+func (as *assertsSuite) TestUnknown(c *C) {
+	c.Check(asserts.Type(""), IsNil)
+	c.Check(asserts.Type("unknown"), IsNil)
+}
+
 func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	encoded := "type: test-only\n" +
 		"authority-id: auth-id1" +

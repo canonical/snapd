@@ -45,15 +45,11 @@ var (
 // ...
 )
 
+var typeRegistry = make(map[string]*AssertionType)
+
 // Type returns the AssertionType with name or nil
 func Type(name string) *AssertionType {
-	// XXX intermediate impl.
-	for k, _ := range typeRegistry {
-		if k.Name == name {
-			return k
-		}
-	}
-	return nil
+	return typeRegistry[name]
 }
 
 // Assertion represents an assertion through its general elements.
@@ -281,7 +277,7 @@ func writeHeader(buf *bytes.Buffer, headers map[string]string, name string) {
 }
 
 func assembleAndSign(assertType *AssertionType, headers map[string]string, body []byte, privKey PrivateKey) (Assertion, error) {
-	_, err := checkAssertType(assertType)
+	err := checkAssertType(assertType)
 	if err != nil {
 		return nil, err
 	}
@@ -374,15 +370,6 @@ func assembleAndSign(assertType *AssertionType, headers map[string]string, body 
 	}
 	return assert, nil
 }
-
-// registry for assertion types describing how to assemble them etc...
-
-type assertionTypeRegistration struct {
-	assembler  func(assert assertionBase) (Assertion, error)
-	primaryKey []string
-}
-
-var typeRegistry = make(map[*AssertionType]*assertionTypeRegistration)
 
 // Encode serializes an assertion.
 func Encode(assert Assertion) []byte {

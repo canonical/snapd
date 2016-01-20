@@ -277,7 +277,7 @@ func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
 // Provided headers must contain the primary key for the assertion type.
 // It returns ErrNotFound if the assertion cannot be found.
 func (db *Database) Find(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
-	_, err := checkAssertType(assertionType)
+	err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ func (db *Database) Find(assertionType *AssertionType, headers map[string]string
 // FindMany finds assertions based on arbitrary headers.
 // It returns ErrNotFound if no assertion can be found.
 func (db *Database) FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
-	_, err := checkAssertType(assertionType)
+	err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
 	}
