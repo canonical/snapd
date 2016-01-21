@@ -21,26 +21,22 @@ package snappy
 
 import (
 	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/ubuntu-core/snappy/partition"
 
 	. "gopkg.in/check.v1"
 )
 
 type kernelTestSuite struct {
-	bootvars map[string]string
+	bootloader *mockBootloader
 }
 
 var _ = Suite(&kernelTestSuite{})
 
 func (s *kernelTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-
-	s.bootvars = make(map[string]string)
-	setBootVar = func(key, value string) error {
-		s.bootvars[key] = value
-		return nil
-	}
-	getBootVar = func(key string) (string, error) {
-		return s.bootvars[key], nil
+	s.bootloader = newMockBootloader(c.MkDir())
+	findBootloader = func() (partition.Bootloader, error) {
+		return s.bootloader, nil
 	}
 }
 
@@ -64,7 +60,7 @@ type: os
 
 func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	// make an OS
-	setBootVar("snappy_os", "core_v1.snap")
+	s.bootloader.SetBootVar("snappy_os", "core_v1.snap")
 	_, err := makeInstalledMockSnap(dirs.GlobalRootDir, osYaml+"version: v1")
 	c.Assert(err, IsNil)
 
@@ -93,7 +89,7 @@ func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	// After such a failed boot the filesystem will still point
 	// to v2 as the active version even though this is not true
 	// because we booted with v1.
-	setBootVar("snappy_kernel", "linux_v1.snap")
+	s.bootloader.SetBootVar("snappy_kernel", "linux_v1.snap")
 
 	// run SyncBoot - this will correct the situation
 	err = SyncBoot()

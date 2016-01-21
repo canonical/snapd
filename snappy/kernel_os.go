@@ -209,8 +209,13 @@ func nameAndVersionFromSnap(snap string) (string, string) {
 // misleading. This code will check what kernel/os booted and set
 // those versions active.
 func SyncBoot() error {
-	kernelSnap, _ := getBootVar("snappy_kernel")
-	osSnap, _ := getBootVar("snappy_os")
+	bootloader, err := findBootloader()
+	if err != nil {
+		return fmt.Errorf("can not run SyncBoot: %s", err)
+	}
+
+	kernelSnap, _ := bootloader.GetBootVar("snappy_kernel")
+	osSnap, _ := bootloader.GetBootVar("snappy_os")
 
 	installed, err := NewMetaLocalRepository().Installed()
 	if err != nil {
