@@ -30,7 +30,7 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&snapd10PackagesTestSuite{})
+var _ = check.Suite(&snapd20SnapsTestSuite{})
 
 type pkgsResponse struct {
 	Result pkgContainer
@@ -38,17 +38,17 @@ type pkgsResponse struct {
 }
 
 type pkgContainer struct {
-	Packages pkgItems
-	Paging   map[string]interface{}
+	Snaps  pkgItems
+	Paging map[string]interface{}
 }
 
 type pkgItems map[string]pkgItem
 
 type pkgItem struct {
 	Description   string
-	DownloadSize  string `json:"download_size"`
+	DownloadSize  int64 `json:"download_size"`
 	Icon          string
-	InstalledSize string `json:"installed_size"`
+	InstalledSize int64 `json:"installed_size"`
 	Name          string
 	Origin        string
 	Resource      string
@@ -58,58 +58,44 @@ type pkgItem struct {
 	Version       string
 }
 
-type snapd10PackagesTestSuite struct {
+type snapd20SnapsTestSuite struct {
 	snapdTestSuite
 	snapPath string
 }
 
-func (s *snapd10PackagesTestSuite) SetUpTest(c *check.C) {
+func (s *snapd20SnapsTestSuite) SetUpTest(c *check.C) {
 	s.snapdTestSuite.SetUpTest(c)
 	var err error
 	s.snapPath, err = build.LocalSnap(c, data.BasicConfigSnapName)
 	c.Assert(err, check.IsNil)
 }
 
-func (s *snapd10PackagesTestSuite) TearDownTest(c *check.C) {
+func (s *snapd20SnapsTestSuite) TearDownTest(c *check.C) {
 	s.snapdTestSuite.TearDownTest(c)
 	os.Remove(s.snapPath)
 	common.RemoveSnap(c, data.BasicConfigSnapName)
 }
 
-func (s *snapd10PackagesTestSuite) resource() string {
-	return baseURL + "/1.0/packages"
+func (s *snapd20SnapsTestSuite) resource() string {
+	return baseURL + "/2.0/snaps"
 }
 
-func (s *snapd10PackagesTestSuite) TestResource(c *check.C) {
+func (s *snapd20SnapsTestSuite) TestResource(c *check.C) {
 	exerciseAPI(c, s)
 }
 
-func (s *snapd10PackagesTestSuite) getInteractions() apiInteractions {
+func (s *snapd20SnapsTestSuite) getInteractions() apiInteractions {
 	return []apiInteraction{{
 		responseObject: &pkgsResponse{}}}
 }
 
-func (s *snapd10PackagesTestSuite) postInteractions() apiInteractions {
+func (s *snapd20SnapsTestSuite) postInteractions() apiInteractions {
 	return []apiInteraction{{
 		payload:     s.snapPath,
 		waitPattern: `(?U){.*,"status":"active".*"status":"OK","status_code":200,"type":"sync"}`,
 		waitFunction: func() (string, error) {
 			output, err := makeRequest(&requestOptions{
 				resource: s.resource() + "/" + data.BasicConfigSnapName + ".sideload",
-				verb:     "GET",
-			})
-			return string(output), err
-		}}}
-}
-
-func (s *snapd10PackagesTestSuite) putInteractions() apiInteractions {
-	return []apiInteraction{{
-		// this payload is adapted to the httpie client
-		payload:     data.BasicConfigSnapName + `.sideload:="{key: value}"`,
-		waitPattern: `(?Us){"result":.*` + data.BasicConfigSnapName + `.*key: value.*","status":"OK","status_code":200,"type":"sync"}`,
-		waitFunction: func() (string, error) {
-			output, err := makeRequest(&requestOptions{
-				resource: s.resource() + "/" + data.BasicConfigSnapName + ".sideload/config",
 				verb:     "GET",
 			})
 			return string(output), err

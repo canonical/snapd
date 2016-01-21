@@ -22,21 +22,21 @@ package tests
 
 import "gopkg.in/check.v1"
 
-var _ = check.Suite(&snapd10TestSuite{})
+var _ = check.Suite(&snapd20TestSuite{})
 
-type snapd10TestSuite struct {
+type snapd20TestSuite struct {
 	snapdTestSuite
 }
 
-func (s *snapd10TestSuite) TestResource(c *check.C) {
+func (s *snapd20TestSuite) TestResource(c *check.C) {
 	exerciseAPI(c, s)
 }
 
-func (s *snapd10TestSuite) resource() string {
-	return baseURL + "/1.0"
+func (s *snapd20TestSuite) resource() string {
+	return baseURL + "/2.0/system-info"
 }
 
-func (s *snapd10TestSuite) getInteractions() apiInteractions {
+func (s *snapd20TestSuite) getInteractions() apiInteractions {
 	return []apiInteraction{{
 		responsePattern: `(?U){"result":{"api_compat":"\d+","default_channel":".*","flavor":".*","release":".*"},"status":"OK","status_code":200,"type":"sync"}`}}
 }

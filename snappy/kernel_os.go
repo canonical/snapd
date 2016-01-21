@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/progress"
 	"github.com/ubuntu-core/snappy/snap"
@@ -39,7 +40,7 @@ func dropVersionSuffix(name string) string {
 }
 
 // override in tests
-var bootloaderDir = partition.BootloaderDir
+var findBootloader = partition.FindBootloader
 
 // removeKernelAssets removes the unpacked kernel/initrd for the given
 // kernel snap
@@ -48,9 +49,14 @@ func removeKernelAssets(s *SnapPart, inter interacter) error {
 		return fmt.Errorf("can not remove kernel assets from snap type %q", s.Type())
 	}
 
+	bootloader, err := findBootloader()
+	if err != nil {
+		return fmt.Errorf("no not remove kernel assests: %s", err)
+	}
+
 	// remove the kernel blob
 	blobName := filepath.Base(squashfs.BlobPath(s.basedir))
-	dstDir := filepath.Join(bootloaderDir(), blobName)
+	dstDir := filepath.Join(bootloader.Dir(), blobName)
 	if err := os.RemoveAll(dstDir); err != nil {
 		return err
 	}
@@ -66,6 +72,11 @@ func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) 
 		return fmt.Errorf("can not extract kernel assets from snap type %q", s.Type())
 	}
 
+	bootloader, err := findBootloader()
+	if err != nil {
+		return fmt.Errorf("can not extract kernel assets: %s", err)
+	}
+
 	// check if we are on a "grub" system. if so, no need to unpack
 	// the kernel
 	if oem, err := getGadget(); err == nil {
@@ -78,7 +89,7 @@ func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) 
 	//
 	// now do the kernel specific bits
 	blobName := filepath.Base(squashfs.BlobPath(s.instdir))
-	dstDir := filepath.Join(bootloaderDir(), blobName)
+	dstDir := filepath.Join(bootloader.Dir(), blobName)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
 	}
@@ -115,15 +126,18 @@ func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) 
 	return dir.Sync()
 }
 
-// used in the unit tests
-var setBootVar = partition.SetBootVar
-
 // setNextBoot will schedule the given os or kernel snap to be used in
 // the next boot
 func setNextBoot(s *SnapPart) error {
 	if s.m.Type != snap.TypeOS && s.m.Type != snap.TypeKernel {
 		return nil
 	}
+
+	bootloader, err := findBootloader()
+	if err != nil {
+		return fmt.Errorf("can not set next boot: %s", err)
+	}
+
 	var bootvar string
 	switch s.m.Type {
 	case snap.TypeOS:
@@ -132,22 +146,25 @@ func setNextBoot(s *SnapPart) error {
 		bootvar = "snappy_kernel"
 	}
 	blobName := filepath.Base(squashfs.BlobPath(s.basedir))
-	if err := setBootVar(bootvar, blobName); err != nil {
+	if err := bootloader.SetBootVar(bootvar, blobName); err != nil {
 		return err
 	}
 
-	if err := setBootVar("snappy_mode", "try"); err != nil {
+	if err := bootloader.SetBootVar("snappy_mode", "try"); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// used in the unit tests
-var getBootVar = partition.GetBootVar
-
 func kernelOrOsRebootRequired(s *SnapPart) bool {
 	if s.m.Type != snap.TypeKernel && s.m.Type != snap.TypeOS {
+		return false
+	}
+
+	bootloader, err := findBootloader()
+	if err != nil {
+		logger.Noticef("can not get boot settings: %s", err)
 		return false
 	}
 
@@ -161,11 +178,11 @@ func kernelOrOsRebootRequired(s *SnapPart) bool {
 		goodBoot = "snappy_good_os"
 	}
 
-	nextBootVer, err := getBootVar(nextBoot)
+	nextBootVer, err := bootloader.GetBootVar(nextBoot)
 	if err != nil {
 		return false
 	}
-	goodBootVer, err := getBootVar(goodBoot)
+	goodBootVer, err := bootloader.GetBootVar(goodBoot)
 	if err != nil {
 		return false
 	}

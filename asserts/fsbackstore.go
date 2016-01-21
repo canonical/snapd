@@ -48,8 +48,8 @@ func OpenFSBackstore(path string) (Backstore, error) {
 }
 
 // guarantees that result assertion is of the expected type (both in the AssertionType and go type sense)
-func (fsbs *filesystemBackstore) readAssertion(assertType AssertionType, diskPrimaryPath string) (Assertion, error) {
-	encoded, err := readEntry(fsbs.top, string(assertType), diskPrimaryPath)
+func (fsbs *filesystemBackstore) readAssertion(assertType *AssertionType, diskPrimaryPath string) (Assertion, error) {
+	encoded, err := readEntry(fsbs.top, assertType.Name, diskPrimaryPath)
 	if os.IsNotExist(err) {
 		return nil, ErrNotFound
 	}
@@ -61,7 +61,7 @@ func (fsbs *filesystemBackstore) readAssertion(assertType AssertionType, diskPri
 		return nil, fmt.Errorf("broken assertion storage, failed to decode assertion: %v", err)
 	}
 	if assert.Type() != assertType {
-		return nil, fmt.Errorf("assertion that is not of type %q under their storage tree", assertType)
+		return nil, fmt.Errorf("assertion that is not of type %q under their storage tree", assertType.Name)
 	}
 	// because of Decode() construction assert has also the expected go type
 	return assert, nil
@@ -76,9 +76,9 @@ func buildDiskPrimaryPath(primaryPath []string) string {
 	return filepath.Join(comps...)
 }
 
-func (fsbs *filesystemBackstore) Put(assertType AssertionType, primaryKeyHeaders []string, assert Assertion) error {
-	primaryPath := make([]string, len(primaryKeyHeaders))
-	for i, k := range primaryKeyHeaders {
+func (fsbs *filesystemBackstore) Put(assertType *AssertionType, assert Assertion) error {
+	primaryPath := make([]string, len(assertType.PrimaryKey))
+	for i, k := range assertType.PrimaryKey {
 		primaryPath[i] = assert.Header(k)
 	}
 
@@ -94,23 +94,23 @@ func (fsbs *filesystemBackstore) Put(assertType AssertionType, primaryKeyHeaders
 	} else if err != ErrNotFound {
 		return err
 	}
-	err = atomicWriteEntry(Encode(assert), false, fsbs.top, string(assertType), diskPrimaryPath)
+	err = atomicWriteEntry(Encode(assert), false, fsbs.top, assertType.Name, diskPrimaryPath)
 	if err != nil {
 		return fmt.Errorf("broken assertion storage, failed to write assertion: %v", err)
 	}
 	return nil
 }
 
-func (fsbs *filesystemBackstore) Get(assertType AssertionType, primaryKeyHeaders, key []string) (Assertion, error) {
+func (fsbs *filesystemBackstore) Get(assertType *AssertionType, key []string) (Assertion, error) {
 	return fsbs.readAssertion(assertType, buildDiskPrimaryPath(key))
 }
 
-func (fsbs *filesystemBackstore) search(assertType AssertionType, diskPattern []string, foundCb func(Assertion)) error {
-	assertTypeTop := filepath.Join(fsbs.top, string(assertType))
+func (fsbs *filesystemBackstore) search(assertType *AssertionType, diskPattern []string, foundCb func(Assertion)) error {
+	assertTypeTop := filepath.Join(fsbs.top, assertType.Name)
 	candCb := func(diskPrimaryPath string) error {
 		a, err := fsbs.readAssertion(assertType, diskPrimaryPath)
 		if err == ErrNotFound {
-			return fmt.Errorf("broken assertion storage, disappearing entry: %s/%s", assertType, diskPrimaryPath)
+			return fmt.Errorf("broken assertion storage, disappearing entry: %s/%s", assertType.Name, diskPrimaryPath)
 		}
 		if err != nil {
 			return err
@@ -120,14 +120,14 @@ func (fsbs *filesystemBackstore) search(assertType AssertionType, diskPattern []
 	}
 	err := findWildcard(assertTypeTop, diskPattern, candCb)
 	if err != nil {
-		return fmt.Errorf("broken assertion storage, searching for %s: %v", assertType, err)
+		return fmt.Errorf("broken assertion storage, searching for %s: %v", assertType.Name, err)
 	}
 	return nil
 }
 
-func (fsbs *filesystemBackstore) Search(assertType AssertionType, primaryKeyHeaders []string, headers map[string]string, foundCb func(Assertion)) error {
-	diskPattern := make([]string, len(primaryKeyHeaders))
-	for i, k := range primaryKeyHeaders {
+func (fsbs *filesystemBackstore) Search(assertType *AssertionType, headers map[string]string, foundCb func(Assertion)) error {
+	diskPattern := make([]string, len(assertType.PrimaryKey))
+	for i, k := range assertType.PrimaryKey {
 		keyVal := headers[k]
 		if keyVal == "" {
 			diskPattern[i] = "*"

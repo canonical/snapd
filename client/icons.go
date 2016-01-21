@@ -26,17 +26,17 @@ import (
 	"regexp"
 )
 
-// Icon represents the icon of an installed Package
+// Icon represents the icon of an installed snap
 type Icon struct {
 	Filename string
 	Content  []byte
 }
 
-// Icon returns the Icon belonging to an installed Package
+// Icon returns the Icon belonging to an installed snap
 func (c *Client) Icon(pkgID string) (*Icon, error) {
 	const errPrefix = "cannot retrieve icon"
 
-	response, err := c.raw("GET", fmt.Sprintf("/1.0/icons/%s/icon", pkgID), nil)
+	response, err := c.raw("GET", fmt.Sprintf("/2.0/icons/%s/icon", pkgID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("%s: failed to communicate with server: %s", errPrefix, err)
 	}

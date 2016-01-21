@@ -20,6 +20,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/ubuntu-core/snappy/logger"
 	"github.com/ubuntu-core/snappy/partition"
 	"github.com/ubuntu-core/snappy/snappy"
@@ -43,7 +45,12 @@ func (x *cmdBooted) Execute(args []string) error {
 }
 
 func (x *cmdBooted) doBooted() error {
-	if err := partition.MarkBootSuccessful(); err != nil {
+	bootloader, err := partition.FindBootloader()
+	if err != nil {
+		return fmt.Errorf("can not mark boot successful: %s", err)
+	}
+
+	if err := partition.MarkBootSuccessful(bootloader); err != nil {
 		return err
 	}
 
