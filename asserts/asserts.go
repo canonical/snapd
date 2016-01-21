@@ -36,6 +36,7 @@ type AssertionType struct {
 	// PrimaryKey holds the names of the headers that constitute the
 	// unique primary key for this assertion type.
 	PrimaryKey []string
+
 	assembler  func(assert assertionBase) (Assertion, error)
 }
 
