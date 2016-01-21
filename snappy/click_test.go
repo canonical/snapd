@@ -249,8 +249,6 @@ type: framework
 
 	yamlFile := filepath.Join(tmpdir, "meta", "package.yaml")
 	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
-	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
-	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
 	m, err := parsePackageYamlData(yaml, false)
 	c.Assert(err, IsNil)
 	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)

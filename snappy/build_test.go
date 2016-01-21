@@ -83,13 +83,6 @@ func makeExampleSnapSourceDir(c *C, packageYaml string) string {
 	err = ioutil.WriteFile(filepath.Join(metaDir, "package.yaml"), []byte(packageYaml), 0644)
 	c.Assert(err, IsNil)
 
-	// meta/readme.md
-	readme := `some title
-
-some description`
-	err = ioutil.WriteFile(filepath.Join(metaDir, "readme.md"), []byte(readme), 0644)
-	c.Assert(err, IsNil)
-
 	const helloBinContent = `#!/bin/sh
 printf "hello world"
 `
@@ -291,7 +284,6 @@ integration:
 	c.Assert(err, IsNil)
 	for _, needle := range []string{
 		"meta/package.yaml",
-		"meta/readme.md",
 		"bin/hello-world",
 		"symlink -> bin/hello-world",
 	} {
@@ -323,7 +315,6 @@ integration:
 	c.Assert(err, IsNil)
 	for _, needle := range []string{
 		"meta/package.yaml",
-		"meta/readme.md",
 		"bin/hello-world",
 		"symlink -> bin/hello-world",
 	} {

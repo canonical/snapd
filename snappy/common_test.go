@@ -85,11 +85,6 @@ apps:
 		return "", err
 	}
 
-	readmeMd := filepath.Join(metaDir, "readme.md")
-	if err := ioutil.WriteFile(readmeMd, []byte("Hello\nApp"), 0644); err != nil {
-		return "", err
-	}
-
 	if err := addMockDefaultApparmorProfile("hello-app_hello_1.10"); err != nil {
 		return "", err
 	}
@@ -209,10 +204,6 @@ version: 1.0
 `
 	}
 	ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
-	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
-	content = "Random\nExample"
-	err := ioutil.WriteFile(readmeMd, []byte(content), 0644)
-	c.Assert(err, IsNil)
 	if makeLicense {
 		license := filepath.Join(tmpdir, "meta", "license.txt")
 		content = "WTFPL"
@@ -222,12 +213,12 @@ version: 1.0
 	for _, filenameAndContent := range files {
 		filename := filenameAndContent[0]
 		content := filenameAndContent[1]
-		err = ioutil.WriteFile(filepath.Join(tmpdir, filename), []byte(content), 0644)
+		err := ioutil.WriteFile(filepath.Join(tmpdir, filename), []byte(content), 0644)
 		c.Assert(err, IsNil)
 	}
 
 	// build it
-	err = helpers.ChDir(tmpdir, func() error {
+	err := helpers.ChDir(tmpdir, func() error {
 		var err error
 		snapFile, err = snapBuilderFunc(tmpdir, "")
 		c.Assert(err, IsNil)

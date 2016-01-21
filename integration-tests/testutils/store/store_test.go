@@ -141,11 +141,7 @@ func (s *storeTestSuite) makeTestSnap(c *C, packageYamlContent string) string {
 	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
 
 	packageYaml := filepath.Join(tmpdir, "meta", "package.yaml")
-	ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
-	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
-
-	content := "Random\nExample"
-	err := ioutil.WriteFile(readmeMd, []byte(content), 0644)
+	err := ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
 	c.Assert(err, IsNil)
 
 	targetDir := s.store.blobDir

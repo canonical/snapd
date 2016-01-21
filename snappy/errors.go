@@ -59,10 +59,6 @@ var (
 	// that is already in the hwaccess list
 	ErrHWAccessAlreadyAdded = errors.New("device is already in hw-access list")
 
-	// ErrReadmeInvalid is returned if the package contains a invalid
-	// meta/readme.md
-	ErrReadmeInvalid = errors.New("meta/readme.md invalid")
-
 	// ErrAuthenticationNeeds2fa is returned if the authentication
 	// needs 2factor
 	ErrAuthenticationNeeds2fa = errors.New("authentication needs second factor")

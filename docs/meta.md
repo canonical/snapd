@@ -5,13 +5,7 @@ are located under the `meta/` directory.
 
 The following files are supported:
 
-## readme.md
-
-The `readme.md` file contains a description of the snap. The snappy
-tools will automatically extract the heading as the short summary for
-the snap and the first paragraph as the description in the store.
-
-## package.yaml
+## snap.yaml
 
 This file describes the snap package and is the most important file
 for a snap package. The following keys are mandatory:
@@ -21,8 +15,9 @@ for a snap package. The following keys are mandatory:
 
 The following keys are optional:
 
-* `icon`: a SVG icon for the snap that is displayed in the store
-* `explicit-license-agreement`: set to `Y` if the user needs to accept a
+* `summary`: A short summary
+* `description`: A long description
+* `license-agreement`: set to `explicit` if the user needs to accept a
   special `meta/license.txt` before the snap can be installed
 * `license-version`: a string that, when it changes and
   `explicit-license-agreement` is `Y`, prompts the user to accept the

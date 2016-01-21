@@ -40,12 +40,11 @@ import (
 
 // SnapPart represents a generic snap type
 type SnapPart struct {
-	m           *packageYaml
-	remoteM     *remote.Snap
-	origin      string
-	hash        string
-	isActive    bool
-	description string
+	m        *packageYaml
+	remoteM  *remote.Snap
+	origin   string
+	hash     string
+	isActive bool
 
 	basedir string
 }
@@ -89,11 +88,6 @@ func newSnapPartFromYaml(yamlPath, origin string, m *packageYaml) (*SnapPart, er
 		part.isActive = true
 	}
 
-	// get the *title* from readme.md and use that as the *description*.
-	if description, _, err := parseReadme(filepath.Join(part.basedir, "meta", "readme.md")); err == nil {
-		part.description = description
-	}
-
 	remoteManifestPath := RemoteManifestPath(part)
 	if helpers.FileExists(remoteManifestPath) {
 		content, err := ioutil.ReadFile(remoteManifestPath)
@@ -135,13 +129,13 @@ func (s *SnapPart) Version() string {
 	return s.m.Version
 }
 
-// Description returns the description
+// Description returns the summary description
 func (s *SnapPart) Description() string {
 	if r := s.remoteM; r != nil {
 		return r.Description
 	}
 
-	return s.description
+	return s.m.Summary
 }
 
 // Origin returns the origin

@@ -138,36 +138,6 @@ func debArchitecture(m *packageYaml) string {
 	}
 }
 
-func parseReadme(readme string) (title, description string, err error) {
-	file, err := os.Open(readme)
-	if err != nil {
-		return "", "", err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		if title == "" {
-			title = scanner.Text()
-			continue
-		}
-
-		if description != "" && scanner.Text() == "" {
-			break
-		}
-		description += scanner.Text()
-	}
-	if title == "" {
-		return "", "", ErrReadmeInvalid
-	}
-
-	if strings.TrimSpace(description) == "" {
-		description = "no description"
-	}
-
-	return title, description, nil
-}
-
 // the du(1) command, useful to override for testing
 var duCmd = "du"
 
