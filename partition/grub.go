@@ -29,51 +29,40 @@ import (
 	"github.com/mvo5/goconfigparser"
 )
 
-const (
-	bootloaderGrubDirReal        = "/boot/grub"
-	bootloaderGrubConfigFileReal = "grub.cfg"
-	bootloaderGrubEnvFileReal    = "grubenv"
-
-	bootloaderGrubEnvCmdReal = "/usr/bin/grub-editenv"
-)
-
 // var to make it testable
 var (
-	bootloaderGrubEnvCmd = bootloaderGrubEnvCmdReal
+	grubEnvCmd = "/usr/bin/grub-editenv"
 )
 
 type grub struct {
 }
 
-const bootloaderNameGrub bootloaderName = "grub"
-
-func bootloaderGrubDir() string {
-	return filepath.Join(dirs.GlobalRootDir, bootloaderGrubDirReal)
-}
-func bootloaderGrubConfigFile() string {
-	return filepath.Join(bootloaderGrubDir(), bootloaderGrubConfigFileReal)
-}
-func bootloaderGrubEnvFile() string {
-	return filepath.Join(bootloaderGrubDir(), bootloaderGrubEnvFileReal)
-}
-
 // newGrub create a new Grub bootloader object
-func newGrub() bootLoader {
-	if !helpers.FileExists(bootloaderGrubConfigFile()) {
+func newGrub() Bootloader {
+	g := &grub{}
+	if !helpers.FileExists(g.configFile()) {
 		return nil
 	}
 
-	return &grub{}
+	return g
 }
 
-func (g *grub) Name() bootloaderName {
-	return bootloaderNameGrub
+func (g *grub) Dir() string {
+	return filepath.Join(dirs.GlobalRootDir, "/boot/grub")
 }
 
-func (g *grub) GetBootVar(name string) (value string, err error) {
+func (g *grub) configFile() string {
+	return filepath.Join(g.Dir(), "grub.cfg")
+}
+
+func (g *grub) envFile() string {
+	return filepath.Join(g.Dir(), "grubenv")
+}
+
+func (g *grub) GetBootVar(name string) (string, error) {
 	// Grub doesn't provide a get verb, so retrieve all values and
 	// search for the required variable ourselves.
-	output, err := runCommandWithStdout(bootloaderGrubEnvCmd, bootloaderGrubEnvFile(), "list")
+	output, err := runCommand(grubEnvCmd, g.envFile(), "list")
 	if err != nil {
 		return "", err
 	}
@@ -87,14 +76,11 @@ func (g *grub) GetBootVar(name string) (value string, err error) {
 	return cfg.Get("", name)
 }
 
-func (g *grub) SetBootVar(name, value string) (err error) {
+func (g *grub) SetBootVar(name, value string) error {
 	// note that strings are not quoted since because
 	// RunCommand() does not use a shell and thus adding quotes
 	// stores them in the environment file (which is not desirable)
 	arg := fmt.Sprintf("%s=%s", name, value)
-	return runCommand(bootloaderGrubEnvCmd, bootloaderGrubEnvFile(), "set", arg)
-}
-
-func (g *grub) BootDir() string {
-	return bootloaderGrubDir()
+	_, err := runCommand(grubEnvCmd, g.envFile(), "set", arg)
+	return err
 }

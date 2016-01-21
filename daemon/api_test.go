@@ -243,7 +243,7 @@ func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
-	c.Check(rsp.Result.(*errorResult).Msg, check.Matches, `route can't build URL .*`)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `route can't build URL .*`)
 }
 
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
@@ -1042,8 +1042,9 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 	task.tomb.Wait()
 	c.Check(task.State(), check.Equals, TaskFailed)
 	errRes := task.output.(errorResult)
-	c.Check(errRes.Str, check.Equals, "license agreement required")
-	c.Check(errRes.Obj, check.DeepEquals, &licenseData{
+	c.Check(errRes.Message, check.Equals, "license agreement required")
+	c.Check(errRes.Kind, check.Equals, errorKindLicenseRequired)
+	c.Check(errRes.Value, check.DeepEquals, &licenseData{
 		Intro:   "hi",
 		License: "yak yak",
 	})
@@ -1103,7 +1104,9 @@ func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 		Name:     "name",
 		Label:    "label",
 		TypeName: "bool-file",
-		Attrs:    map[string]string{"path": "/nonexistent"},
+		Attrs: map[string]string{
+			"path": "/sys/class/leds/input::capslock/brightness",
+		},
 	}
 	text, err := json.Marshal(cap)
 	c.Assert(err, check.IsNil)
@@ -1128,7 +1131,9 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 		Name:     "name",
 		Label:    "label",
 		TypeName: "bool-file",
-		Attrs:    map[string]string{"path": "/nonexistent"},
+		Attrs: map[string]string{
+			"path": "/sys/class/leds/input::capslock/brightness",
+		},
 	}
 	err := d.capRepo.Add(cap)
 	c.Assert(err, check.IsNil)
@@ -1137,7 +1142,9 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 		Name:     "name",
 		Label:    "second label",
 		TypeName: "bool-file",
-		Attrs:    map[string]string{"path": "/nonexistent"},
+		Attrs: map[string]string{
+			"path": "/sys/class/leds/input::capslock/brightness",
+		},
 	}
 	text, err := json.Marshal(capClashing)
 	c.Assert(err, check.IsNil)
@@ -1149,7 +1156,7 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 	// Verify (external)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*errorResult).Msg, check.Matches, `can't add capability`)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `cannot add capability "name": name already exists`)
 	// Verify (internal)
 	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
 	c.Check(d.capRepo.All(), check.Not(testutil.DeepContains), *capClashing)

@@ -24,6 +24,9 @@ import (
 )
 
 // A Snap encapsulates the data sent to us from the store.
+//
+// Full json available via:
+// curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: rolling-core" https://search.apps.ubuntu.com/api/v1/package/ubuntu-core.canonical | python -m json.tool
 type Snap struct {
 	Alias           string             `json:"alias,omitempty"`
 	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
@@ -39,6 +42,7 @@ type Snap struct {
 	Prices          map[string]float64 `json:"prices,omitempty"`
 	Publisher       string             `json:"publisher,omitempty"`
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
+	Revision        int64              `json:"revision"`
 	SupportURL      string             `json:"support_url"`
 	Title           string             `json:"title"`
 	Type            snap.Type          `json:"content,omitempty"`

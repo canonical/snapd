@@ -28,33 +28,33 @@ import (
 	"time"
 )
 
-// A Backstore stores assertions. It can store and retrieve
-// assertions by type under unique primary key headers. Plus it supports searching by headers.
+// A Backstore stores assertions. It can store and retrieve assertions
+// by type under unique primary key headers (whose names are available
+// from assertType.PrimaryKey). Plus it supports searching by headers.
 type Backstore interface {
-	// Put stores an assertion for the given primaryKeyHeaders forming a unique key.
+	// Put stores an assertion.
 	// It is responsible for checking that assert is newer than a
-	// previously stored revision.
-	Put(assertType AssertionType, primaryKeyHeaders []string, assert Assertion) error
-	// Get returns the assertion with the given unique key for the primaryKeyHeaders.
+	// previously stored revision with the same primary key headers.
+	Put(assertType *AssertionType, assert Assertion) error
+	// Get returns the assertion with the given unique key for its primary key headers.
 	// If none is present it returns ErrNotFound.
-	Get(assertType AssertionType, primaryKeyHeaders, key []string) (Assertion, error)
+	Get(assertType *AssertionType, key []string) (Assertion, error)
 	// Search returns assertions matching the given headers.
 	// It invokes foundCb for each found assertion.
-	// As hint the primaryKeyHeaders forming a unique key are also given.
-	Search(assertType AssertionType, primaryKeyHeaders []string, headers map[string]string, foundCb func(Assertion)) error
+	Search(assertType *AssertionType, headers map[string]string, foundCb func(Assertion)) error
 }
 
 type nullBackstore struct{}
 
-func (nbs nullBackstore) Put(t AssertionType, pkh []string, a Assertion) error {
+func (nbs nullBackstore) Put(t *AssertionType, a Assertion) error {
 	return fmt.Errorf("cannot store assertions without setting a proper assertion backstore implementation")
 }
 
-func (nbs nullBackstore) Get(t AssertionType, pkh, k []string) (Assertion, error) {
+func (nbs nullBackstore) Get(t *AssertionType, k []string) (Assertion, error) {
 	return nil, ErrNotFound
 }
 
-func (nbs nullBackstore) Search(t AssertionType, pkh []string, h map[string]string, f func(Assertion)) error {
+func (nbs nullBackstore) Search(t *AssertionType, h map[string]string, f func(Assertion)) error {
 	return nil
 }
 
@@ -175,7 +175,7 @@ func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, erro
 
 // Sign assembles an assertion with the provided information and signs it
 // with the private key from `headers["authority-id"]` that has the provided key id.
-func (db *Database) Sign(assertType AssertionType, headers map[string]string, body []byte, keyID string) (Assertion, error) {
+func (db *Database) Sign(assertType *AssertionType, headers map[string]string, body []byte, keyID string) (Assertion, error) {
 	authorityID, err := checkMandatory(headers, "authority-id")
 	if err != nil {
 		return nil, err
@@ -199,7 +199,7 @@ func (db *Database) findAccountKeys(authorityID, keyID string) ([]*AccountKey, e
 		}
 	}
 	// consider stored account keys
-	a, err := db.bs.Get(AccountKeyType, primaryKey(AccountKeyType), []string{authorityID, keyID})
+	a, err := db.bs.Get(AccountKeyType, []string{authorityID, keyID})
 	switch err {
 	case nil:
 		res = append(res, a.(*AccountKey))
@@ -250,20 +250,17 @@ func (db *Database) Check(assert Assertion) error {
 // Add persists the assertion after ensuring it is properly signed and consistent with all the stored knowledge.
 // It will return an error when trying to add an older revision of the assertion than the one currently stored.
 func (db *Database) Add(assert Assertion) error {
-	reg, err := checkAssertType(assert.Type())
+	assertType := assert.Type()
+	err := db.Check(assert)
 	if err != nil {
 		return err
 	}
-	err = db.Check(assert)
-	if err != nil {
-		return err
-	}
-	for _, k := range reg.primaryKey {
+	for _, k := range assertType.PrimaryKey {
 		if assert.Header(k) == "" {
 			return fmt.Errorf("missing primary key header: %v", k)
 		}
 	}
-	return db.bs.Put(assert.Type(), reg.primaryKey, assert)
+	return db.bs.Put(assertType, assert)
 }
 
 func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
@@ -279,20 +276,20 @@ func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
 // Find an assertion based on arbitrary headers.
 // Provided headers must contain the primary key for the assertion type.
 // It returns ErrNotFound if the assertion cannot be found.
-func (db *Database) Find(assertionType AssertionType, headers map[string]string) (Assertion, error) {
-	reg, err := checkAssertType(assertionType)
+func (db *Database) Find(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
+	err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
 	}
-	keyValues := make([]string, len(reg.primaryKey))
-	for i, k := range reg.primaryKey {
+	keyValues := make([]string, len(assertionType.PrimaryKey))
+	for i, k := range assertionType.PrimaryKey {
 		keyVal := headers[k]
 		if keyVal == "" {
 			return nil, fmt.Errorf("must provide primary key: %v", k)
 		}
 		keyValues[i] = keyVal
 	}
-	assert, err := db.bs.Get(assertionType, reg.primaryKey, keyValues)
+	assert, err := db.bs.Get(assertionType, keyValues)
 	if err != nil {
 		return nil, err
 	}
@@ -304,8 +301,8 @@ func (db *Database) Find(assertionType AssertionType, headers map[string]string)
 
 // FindMany finds assertions based on arbitrary headers.
 // It returns ErrNotFound if no assertion can be found.
-func (db *Database) FindMany(assertionType AssertionType, headers map[string]string) ([]Assertion, error) {
-	reg, err := checkAssertType(assertionType)
+func (db *Database) FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
+	err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +311,7 @@ func (db *Database) FindMany(assertionType AssertionType, headers map[string]str
 	foundCb := func(assert Assertion) {
 		res = append(res, assert)
 	}
-	err = db.bs.Search(assertionType, reg.primaryKey, headers, foundCb)
+	err = db.bs.Search(assertionType, headers, foundCb)
 	if err != nil {
 		return nil, err
 	}

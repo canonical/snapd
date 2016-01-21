@@ -80,7 +80,6 @@ func (s *taskSuite) TestFails(c *check.C) {
 
 	c.Check(t.State(), check.Equals, TaskFailed)
 	c.Check(t.Output(), check.DeepEquals, errorResult{
-		Obj: err,
-		Str: err.Error(),
+		Message: err.Error(),
 	})
 }

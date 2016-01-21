@@ -33,72 +33,45 @@ func Test(t *testing.T) { TestingT(t) }
 
 // partition specific testsuite
 type PartitionTestSuite struct {
-	tempdir string
 }
 
 var _ = Suite(&PartitionTestSuite{})
 
-func mockRunCommand(args ...string) (err error) {
-	return err
-}
-
-func (s *PartitionTestSuite) SetUpTest(c *C) {
-	s.tempdir = c.MkDir()
-
-	// custom mount target
-	mountTarget = c.MkDir()
-
-	// global roto
-	dirs.SetRootDir(s.tempdir)
-	err := os.MkdirAll(bootloaderGrubDir(), 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(bootloaderUbootDir(), 0755)
-	c.Assert(err, IsNil)
-}
-
-func (s *PartitionTestSuite) TearDownTest(c *C) {
-	os.RemoveAll(s.tempdir)
-
-	// always restore what we might have mocked away
-	runCommand = runCommandImpl
-	bootloader = bootloaderImpl
-	cacheDir = cacheDirReal
-	mountTarget = mountTargetReal
-}
-
 type mockBootloader struct {
-	BootVars map[string]string
+	bootVars map[string]string
 }
 
 func newMockBootloader() *mockBootloader {
 	return &mockBootloader{
-		BootVars: make(map[string]string),
+		bootVars: make(map[string]string),
 	}
 }
-
-func (b *mockBootloader) Name() bootloaderName {
-	return "mocky"
+func (b *mockBootloader) Dir() string {
+	return "/foo"
 }
 func (b *mockBootloader) GetBootVar(name string) (string, error) {
-	return b.BootVars[name], nil
+	return b.bootVars[name], nil
 }
 func (b *mockBootloader) SetBootVar(name, value string) error {
-	b.BootVars[name] = value
+	b.bootVars[name] = value
 	return nil
 }
-func (b *mockBootloader) BootDir() string {
-	return ""
+
+func (s *PartitionTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	err := os.MkdirAll((&grub{}).Dir(), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll((&uboot{}).Dir(), 0755)
+	c.Assert(err, IsNil)
 }
 
 func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
-	runCommand = mockRunCommand
-
 	b := newMockBootloader()
-	b.BootVars["snappy_os"] = "os1"
-	b.BootVars["snappy_kernel"] = "k1"
-	err := markBootSuccessful(b)
+	b.bootVars["snappy_os"] = "os1"
+	b.bootVars["snappy_kernel"] = "k1"
+	err := MarkBootSuccessful(b)
 	c.Assert(err, IsNil)
-	c.Assert(b.BootVars, DeepEquals, map[string]string{
+	c.Assert(b.bootVars, DeepEquals, map[string]string{
 		"snappy_mode":        "regular",
 		"snappy_trial_boot":  "0",
 		"snappy_kernel":      "k1",
