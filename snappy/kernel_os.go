@@ -185,7 +185,7 @@ func nameAndVersionFromSnap(snap string) (string, string) {
 }
 
 // SyncBoot synchronizes the active kernel and OS snap versions with
-// the versions that actually booted. This is needed is because a
+// the versions that actually booted. This is needed because a
 // system may install "os=v2" but that fails to boot. The bootloader
 // fallback logic will revert to "os=v1" but on the filesystem snappy
 // still has the "active" version set to "v2" which is
