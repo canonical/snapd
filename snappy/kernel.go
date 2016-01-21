@@ -74,7 +74,7 @@ func extractKernelAssets(s *SnapFile, inter progress.Meter, flags InstallFlags) 
 
 	bootloader, err := findBootloader()
 	if err != nil {
-		return fmt.Errorf("can not extract kernel assets: %s", err)
+		return "", fmt.Errorf("can not extract kernel assets: %s", err)
 	}
 
 	// check if we are on a "grub" system. if so, no need to unpack
