@@ -37,7 +37,7 @@ type AssertionType struct {
 	// unique primary key for this assertion type.
 	PrimaryKey []string
 
-	assembler  func(assert assertionBase) (Assertion, error)
+	assembler func(assert assertionBase) (Assertion, error)
 }
 
 // Understood assertion types.
