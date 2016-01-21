@@ -22,6 +22,8 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 )
 
 // Snap holds the data for a snap as obtained from snapd.
@@ -35,6 +37,11 @@ type Snap struct {
 	Status        string `json:"status"`
 	Type          string `json:"type"`
 	Version       string `json:"version"`
+}
+
+// SnapFilter is used to filter snaps by source, name and/or type
+type SnapFilter struct {
+	Sources []string
 }
 
 // Statuses and types a snap may have.
@@ -55,6 +62,20 @@ const (
 // available for install from the store for this system.
 func (client *Client) Snaps() (map[string]*Snap, error) {
 	return client.snapsFromPath("/2.0/snaps")
+}
+
+// FilterSnaps returns a list of snaps per Snaps() but filtered by source, name
+// and/or type
+func (client *Client) FilterSnaps(filter SnapFilter) (map[string]*Snap, error) {
+	u := url.URL{Path: "/2.0/snaps"}
+
+	if len(filter.Sources) > 0 {
+		q := u.Query()
+		q.Set("sources", strings.Join(filter.Sources, ","))
+		u.RawQuery = q.Encode()
+	}
+
+	return client.snapsFromPath(u.String())
 }
 
 func (client *Client) snapsFromPath(path string) (map[string]*Snap, error) {
