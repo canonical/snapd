@@ -155,7 +155,7 @@ func (rsp *response) err() error {
 func (client *Client) SysInfo() (*SysInfo, error) {
 	var sysInfo SysInfo
 
-	if err := client.doSync("GET", "/1.0", nil, &sysInfo); err != nil {
+	if err := client.doSync("GET", "/2.0/system-info", nil, &sysInfo); err != nil {
 		return nil, fmt.Errorf("bad sysinfo result: %v", err)
 	}
 

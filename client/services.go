@@ -23,7 +23,7 @@ import (
 	"fmt"
 )
 
-// Service represents a service belonging to a Package
+// Service represents a service belonging to a Snap
 type Service struct {
 	Op     string        `json:"op"`
 	Spec   ServiceSpec   `json:"spec"`
@@ -59,15 +59,15 @@ type ServiceStatus struct {
 	ActiveState     string `json:"active_state"`
 	SubState        string `json:"sub_state"`
 	UnitFileState   string `json:"unit_file_state"`
-	PackageName     string `json:"package_name"`
+	SnapName        string `json:"snap_name"`
 	ServiceName     string `json:"service_name"`
 }
 
-// Services returns the list of services belonging to an *active* Package
+// Services returns the list of services belonging to an *active* Snap
 func (client *Client) Services(pkg string) (map[string]*Service, error) {
 	var services map[string]*Service
 
-	path := fmt.Sprintf("/1.0/packages/%s/services", pkg)
+	path := fmt.Sprintf("/2.0/snaps/%s/services", pkg)
 	if err := client.doSync("GET", path, nil, &services); err != nil {
 		return nil, fmt.Errorf("cannot list services: %s", err)
 	}

@@ -29,22 +29,21 @@ import (
 	. "gopkg.in/check.v1"
 )
 
+func mockGrubEditenvList(cmd ...string) (string, error) {
+	mockGrubEditenvOutput := fmt.Sprintf("%s=regular", bootmodeVar)
+	return mockGrubEditenvOutput, nil
+}
+
 func mockGrubFile(c *C, newPath string, mode os.FileMode) {
 	err := ioutil.WriteFile(newPath, []byte(""), mode)
 	c.Assert(err, IsNil)
 }
 
 func (s *PartitionTestSuite) makeFakeGrubEnv(c *C) {
-	// create bootloader
-	err := os.MkdirAll(bootloaderGrubDir(), 0755)
-	c.Assert(err, IsNil)
-
 	// these files just needs to exist
-	mockGrubFile(c, bootloaderGrubConfigFile(), 0644)
-	mockGrubFile(c, bootloaderGrubEnvFile(), 0644)
-
-	// do not run commands for real
-	runCommand = mockRunCommandWithCapture
+	g := &grub{}
+	mockGrubFile(c, g.configFile(), 0644)
+	mockGrubFile(c, g.envFile(), 0644)
 }
 
 func (s *PartitionTestSuite) TestNewGrubNoGrubReturnsNil(c *C) {
@@ -59,38 +58,39 @@ func (s *PartitionTestSuite) TestNewGrub(c *C) {
 
 	g := newGrub()
 	c.Assert(g, NotNil)
-	c.Assert(g.Name(), Equals, bootloaderNameGrub)
-}
-
-type singleCommand []string
-
-var allCommands = []singleCommand{}
-
-func mockRunCommandWithCapture(args ...string) (err error) {
-	allCommands = append(allCommands, args)
-	return nil
-}
-
-func mockGrubEditenvList(cmd ...string) (string, error) {
-	mockGrubEditenvOutput := fmt.Sprintf("%s=regular", bootloaderBootmodeVar)
-	return mockGrubEditenvOutput, nil
-}
-
-func (s *PartitionTestSuite) TestGetBootVer(c *C) {
-	s.makeFakeGrubEnv(c)
-	runCommandWithStdout = mockGrubEditenvList
-
-	g := newGrub()
-
-	v, err := g.GetBootVar(bootloaderBootmodeVar)
-	c.Assert(err, IsNil)
-	c.Assert(v, Equals, "regular")
+	c.Assert(g, FitsTypeOf, &grub{})
 }
 
 func (s *PartitionTestSuite) TestGetBootloaderWithGrub(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	bootloader, err := bootloader()
+	bootloader, err := FindBootloader()
 	c.Assert(err, IsNil)
-	c.Assert(bootloader.Name(), Equals, bootloaderNameGrub)
+	c.Assert(bootloader, FitsTypeOf, &grub{})
+}
+
+func (s *PartitionTestSuite) TestGetBootVer(c *C) {
+	s.makeFakeGrubEnv(c)
+	runCommand = mockGrubEditenvList
+
+	g := newGrub()
+	v, err := g.GetBootVar(bootmodeVar)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, "regular")
+}
+
+func (s *PartitionTestSuite) TestSetBootVer(c *C) {
+	s.makeFakeGrubEnv(c)
+	cmds := [][]string{}
+	runCommand = func(cmd ...string) (string, error) {
+		cmds = append(cmds, cmd)
+		return "", nil
+	}
+
+	g := newGrub()
+	err := g.SetBootVar("key", "value")
+	c.Assert(err, IsNil)
+	c.Assert(cmds, DeepEquals, [][]string{
+		{"/usr/bin/grub-editenv", g.(*grub).envFile(), "set", "key=value"},
+	})
 }

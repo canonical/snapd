@@ -70,7 +70,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "0",
 	}
-	sdbs.probeAssert, err = asserts.AssembleAndSignInTest(asserts.AssertionType("test-only"), headers, nil, pk)
+	sdbs.probeAssert, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, pk)
 	c.Assert(err, IsNil)
 }
 

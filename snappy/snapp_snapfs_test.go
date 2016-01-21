@@ -34,10 +34,37 @@ import (
 	. "gopkg.in/check.v1"
 )
 
+// mockBootloader mocks a the bootloader interface and records all
+// set/get calls
+type mockBootloader struct {
+	bootvars map[string]string
+	bootdir  string
+}
+
+func newMockBootloader(bootdir string) *mockBootloader {
+	return &mockBootloader{
+		bootvars: make(map[string]string),
+		bootdir:  bootdir,
+	}
+}
+
+func (b *mockBootloader) SetBootVar(key, value string) error {
+	b.bootvars[key] = value
+	return nil
+}
+
+func (b *mockBootloader) GetBootVar(key string) (string, error) {
+	return b.bootvars[key], nil
+}
+
+func (b *mockBootloader) Dir() string {
+	return b.bootdir
+}
+
 type SquashfsTestSuite struct {
 	testutil.BaseTest
 
-	bootvars    map[string]string
+	bootloader  *mockBootloader
 	systemdCmds [][]string
 }
 
@@ -54,20 +81,12 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	}
 
 	// mock the boot variable writing for the tests
-	s.bootvars = make(map[string]string)
-	setBootVar = func(key, val string) error {
-		s.bootvars[key] = val
-		return nil
-	}
-	getBootVar = func(key string) (string, error) {
-		return s.bootvars[key], nil
+	s.bootloader = newMockBootloader(c.MkDir())
+	findBootloader = func() (partition.Bootloader, error) {
+		return s.bootloader, nil
 	}
 
-	mockBootDir := c.MkDir()
-	bootloaderDir = func() string {
-		return mockBootDir
-	}
-	s.AddCleanup(func() { bootloaderDir = partition.BootloaderDir })
+	s.AddCleanup(func() { findBootloader = partition.FindBootloader })
 }
 
 func (s *SquashfsTestSuite) TearDownTest(c *C) {
@@ -184,7 +203,7 @@ func (s *SquashfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
 	_, err = part.Install(&MockProgressMeter{}, 0)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.bootvars, DeepEquals, map[string]string{
+	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
 		"snappy_os":   "ubuntu-core.origin_15.10-1.snap",
 		"snappy_mode": "try",
 	})
@@ -212,7 +231,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 	_, err = part.Install(&MockProgressMeter{}, 0)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.bootvars, DeepEquals, map[string]string{
+	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
 		"snappy_kernel": "ubuntu-kernel.origin_4.0-1.snap",
 		"snappy_mode":   "try",
 	})
@@ -231,7 +250,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
-	bootdir := bootloaderDir()
+	bootdir := s.bootloader.Dir()
 
 	// kernel is here and normalized
 	vmlinuz := filepath.Join(bootdir, "ubuntu-kernel.origin_4.0-1.snap", "vmlinuz")
@@ -258,7 +277,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	pbar := &MockProgressMeter{}
 	_, err = part.Install(pbar, 0)
 	c.Assert(err, IsNil)
-	kernelAssetsDir := filepath.Join(bootloaderDir(), "ubuntu-kernel.origin_4.0-1.snap")
+	kernelAssetsDir := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel.origin_4.0-1.snap")
 	c.Assert(helpers.FileExists(kernelAssetsDir), Equals, true)
 
 	// ensure uninstall cleans the kernel assets
@@ -319,7 +338,7 @@ func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {
 	c.Assert(err, IsNil)
 
 	snap.isActive = false
-	s.bootvars["snappy_os"] = "ubuntu-core." + testOrigin + "_15.10-1.snap"
+	s.bootloader.bootvars["snappy_os"] = "ubuntu-core." + testOrigin + "_15.10-1.snap"
 	c.Assert(snap.NeedsReboot(), Equals, true)
 }
 
@@ -332,11 +351,11 @@ func (s *SquashfsTestSuite) TestInstallKernelRebootRequired(c *C) {
 	c.Assert(snap.NeedsReboot(), Equals, false)
 
 	snap.isActive = false
-	s.bootvars["snappy_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
+	s.bootloader.bootvars["snappy_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
 	c.Assert(snap.NeedsReboot(), Equals, true)
 
 	// simulate we booted the kernel successfully
-	s.bootvars["snappy_good_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
+	s.bootloader.bootvars["snappy_good_kernel"] = "ubuntu-kernel." + testOrigin + "_4.0-1.snap"
 	c.Assert(snap.NeedsReboot(), Equals, false)
 }
 
@@ -367,7 +386,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	vmlinuz := filepath.Join(bootloaderDir(), "ubuntu-kernel.origin_4.0-1.snap", "vmlinuz")
+	vmlinuz := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel.origin_4.0-1.snap", "vmlinuz")
 	c.Assert(helpers.FileExists(vmlinuz), Equals, false)
 }
 

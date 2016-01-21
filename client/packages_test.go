@@ -27,45 +27,45 @@ import (
 	"github.com/ubuntu-core/snappy/client"
 )
 
-func (cs *clientSuite) TestClientPackagesCallsEndpoint(c *check.C) {
-	_, _ = cs.cli.Packages()
+func (cs *clientSuite) TestClientSnapsCallsEndpoint(c *check.C) {
+	_, _ = cs.cli.Snaps()
 	c.Check(cs.req.Method, check.Equals, "GET")
-	c.Check(cs.req.URL.Path, check.Equals, "/1.0/packages")
+	c.Check(cs.req.URL.Path, check.Equals, "/2.0/snaps")
 }
 
-func (cs *clientSuite) TestClientPackagesResultJSONHasNoPackages(c *check.C) {
+func (cs *clientSuite) TestClientSnapsResultJSONHasNoSnaps(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {}
 	}`
-	_, err := cs.cli.Packages()
-	c.Check(err, check.ErrorMatches, `.*no packages`)
+	_, err := cs.cli.Snaps()
+	c.Check(err, check.ErrorMatches, `.*no snaps`)
 }
 
-func (cs *clientSuite) TestClientPackagesInvalidPackagesJSON(c *check.C) {
+func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
-			"packages": "not a list of packages"
+			"snaps": "not a list of snaps"
 		}
 	}`
-	_, err := cs.cli.Packages()
-	c.Check(err, check.ErrorMatches, `.*failed to unmarshal packages.*`)
+	_, err := cs.cli.Snaps()
+	c.Check(err, check.ErrorMatches, `.*failed to unmarshal snaps.*`)
 }
 
-func (cs *clientSuite) TestClientPackages(c *check.C) {
+func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
-			"packages": {
+			"snaps": {
 				"hello-world.canonical": {
 					"description": "hello-world",
-					"download_size": "22212",
+					"download_size": 22212,
 					"icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-					"installed_size": "-1",
+					"installed_size": -1,
 					"name": "hello-world",
 					"origin": "canonical",
-					"resource": "/1.0/packages/hello-world.canonical",
+					"resource": "/2.0/snaps/hello-world.canonical",
 					"status": "not installed",
 					"type": "app",
 					"version": "1.0.18"
@@ -73,10 +73,10 @@ func (cs *clientSuite) TestClientPackages(c *check.C) {
 			}
 		}
 	}`
-	applications, err := cs.cli.Packages()
+	applications, err := cs.cli.Snaps()
 	c.Check(err, check.IsNil)
-	c.Check(applications, check.DeepEquals, map[string]*client.Package{
-		"hello-world.canonical": &client.Package{
+	c.Check(applications, check.DeepEquals, map[string]*client.Snap{
+		"hello-world.canonical": &client.Snap{
 			Description:   "hello-world",
 			DownloadSize:  22212,
 			Icon:          "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
@@ -94,31 +94,31 @@ const (
 	pkgName = "chatroom.ogra"
 )
 
-func (cs *clientSuite) TestClientPackage(c *check.C) {
+func (cs *clientSuite) TestClientSnap(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
 			"description": "WebRTC Video chat server for Snappy",
-			"download_size": "6930947",
-			"icon": "/1.0/icons/chatroom.ogra/icon",
-			"installed_size": "18976651",
+			"download_size": 6930947,
+			"icon": "/2.0/icons/chatroom.ogra/icon",
+			"installed_size": 18976651,
 			"name": "chatroom",
 			"origin": "ogra",
-			"resource": "/1.0/packages/chatroom.ogra",
+			"resource": "/2.0/snaps/chatroom.ogra",
 			"status": "active",
 			"type": "app",
 			"vendor": "",
 			"version": "0.1-8"
 		}
 	}`
-	pkg, err := cs.cli.Package(pkgName)
+	pkg, err := cs.cli.Snap(pkgName)
 	c.Assert(cs.req.Method, check.Equals, "GET")
-	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/1.0/packages/%s", pkgName))
+	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/2.0/snaps/%s", pkgName))
 	c.Assert(err, check.IsNil)
-	c.Assert(pkg, check.DeepEquals, &client.Package{
+	c.Assert(pkg, check.DeepEquals, &client.Snap{
 		Description:   "WebRTC Video chat server for Snappy",
 		DownloadSize:  6930947,
-		Icon:          "/1.0/icons/chatroom.ogra/icon",
+		Icon:          "/2.0/icons/chatroom.ogra/icon",
 		InstalledSize: 18976651,
 		Name:          "chatroom",
 		Origin:        "ogra",

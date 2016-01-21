@@ -20,7 +20,6 @@
 package daemon
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -95,10 +94,11 @@ func (t *Task) Location(route *mux.Route) string {
 	return url.String()
 }
 
-// FormatTime outputs the given time as microseconds since the epoch
-// UTC, formatted as a decimal string
+const myFmt = "2006-01-02T15:04:05.000000Z07:00"
+
+// FormatTime outputs the given time in RFC3339 format to µs precision.
 func FormatTime(t time.Time) string {
-	return strconv.FormatInt(t.UTC().UnixNano()/1000, 10)
+	return t.UTC().Format(myFmt)
 }
 
 // Map the task onto a map[string]interface{}, using the given route for the Location()

@@ -24,12 +24,12 @@ import (
 	"fmt"
 )
 
-// Package represents a Snap package
-type Package struct {
+// Snap holds the data for a snap as obtained from snapd.
+type Snap struct {
 	Description   string `json:"description"`
-	DownloadSize  int64  `json:"download_size,string"`
+	DownloadSize  int64  `json:"download_size"`
 	Icon          string `json:"icon"`
-	InstalledSize int64  `json:"installed_size,string"`
+	InstalledSize int64  `json:"installed_size"`
 	Name          string `json:"name"`
 	Origin        string `json:"origin"`
 	Status        string `json:"status"`
@@ -37,7 +37,7 @@ type Package struct {
 	Version       string `json:"version"`
 }
 
-// Statuses and types a Package may have
+// Statuses and types a snap may have.
 const (
 	StatusNotInstalled = "not installed"
 	StatusInstalled    = "installed"
@@ -51,36 +51,37 @@ const (
 	TypeOS        = "os"
 )
 
-// Packages returns the list of packages the system can handle
-func (client *Client) Packages() (map[string]*Package, error) {
-	const errPrefix = "cannot list packages"
+// Snaps returns the list of all snaps installed on the system and
+// available for install from the store for this system.
+func (client *Client) Snaps() (map[string]*Snap, error) {
+	const errPrefix = "cannot list snaps"
 
 	var result map[string]json.RawMessage
-	if err := client.doSync("GET", "/1.0/packages", nil, &result); err != nil {
+	if err := client.doSync("GET", "/2.0/snaps", nil, &result); err != nil {
 		return nil, fmt.Errorf("%s: %s", errPrefix, err)
 	}
 
-	packagesJSON := result["packages"]
-	if packagesJSON == nil {
-		return nil, fmt.Errorf("%s: response has no packages", errPrefix)
+	snapsJSON := result["snaps"]
+	if snapsJSON == nil {
+		return nil, fmt.Errorf("%s: response has no snaps", errPrefix)
 	}
 
-	var packages map[string]*Package
-	if err := json.Unmarshal(packagesJSON, &packages); err != nil {
-		return nil, fmt.Errorf("%s: failed to unmarshal packages: %v", errPrefix, err)
+	var snaps map[string]*Snap
+	if err := json.Unmarshal(snapsJSON, &snaps); err != nil {
+		return nil, fmt.Errorf("%s: failed to unmarshal snaps: %v", errPrefix, err)
 	}
 
-	return packages, nil
+	return snaps, nil
 }
 
-// Package returns the most recently published revision of the package with the
+// Snap returns the most recently published revision of the snap with the
 // provided name.
-func (client *Client) Package(name string) (*Package, error) {
-	var pkg *Package
+func (client *Client) Snap(name string) (*Snap, error) {
+	var pkg *Snap
 
-	path := fmt.Sprintf("/1.0/packages/%s", name)
+	path := fmt.Sprintf("/2.0/snaps/%s", name)
 	if err := client.doSync("GET", path, nil, &pkg); err != nil {
-		return nil, fmt.Errorf("cannot retrieve package %q: %s", name, err)
+		return nil, fmt.Errorf("cannot retrieve snap %q: %s", name, err)
 	}
 
 	return pkg, nil
