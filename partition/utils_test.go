@@ -28,20 +28,24 @@ type UtilsTestSuite struct {
 
 var _ = Suite(&UtilsTestSuite{})
 
-func (s *UtilsTestSuite) SetUpTest(c *C) {
-}
-
-func (s *UtilsTestSuite) TestRunCommand(c *C) {
-	err := runCommandImpl("false")
-	c.Assert(err, NotNil)
-
-	err = runCommandImpl("no-such-command")
-	c.Assert(err, NotNil)
-}
-
-func (s *UtilsTestSuite) TestRunCommandWithStdout(c *C) {
-	runCommandWithStdout = runCommandWithStdoutImpl
-	output, err := runCommandWithStdout("sh", "-c", "printf 'foo\nbar'")
+func (s *UtilsTestSuite) TestRunCommandSimple(c *C) {
+	output, err := runCommandImpl("sh", "-c", "printf 'foo\nbar'")
 	c.Assert(err, IsNil)
 	c.Assert(output, DeepEquals, "foo\nbar")
+}
+
+func (s *UtilsTestSuite) TestRunCommandWithStdoutReturnsFalse(c *C) {
+	_, err := runCommandImpl("false")
+	c.Assert(err, ErrorMatches, `failed to run command \"false\": \"\" \(exit status 1\)`)
+}
+
+func (s *UtilsTestSuite) TestRunCommandWithStdoutNoSuchCommand(c *C) {
+	_, err := runCommandImpl("no-such-command")
+	c.Assert(err, ErrorMatches, `failed to run command \"no-such-command\": \"\" \(exec: \"no-such-command\": executable file not found in \$PATH\)`)
+}
+
+func (s *UtilsTestSuite) TestRunCommandWithStdoutReturnsStdout(c *C) {
+	output, err := runCommandImpl("sh", "-c", "printf stdout ; printf 'stderr' >&2; false")
+	c.Assert(output, Matches, "stdout")
+	c.Assert(err, ErrorMatches, `failed to run command \".*\": \"stderr\" \(exit status 1\)`)
 }

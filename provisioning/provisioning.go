@@ -40,10 +40,8 @@ const (
 )
 
 var (
-	// FIXME: this is a bit terrible, we really need a single
-	//        bootloader dir like /boot or /boot/loader
-	//        instead of having to query the partition code
-	bootloaderDir = partition.BootloaderDir()
+	// simplify testing
+	findBootloader = partition.FindBootloader
 )
 
 // ErrNoInstallYaml is emitted when InstallYamlFile does not exist.
@@ -112,8 +110,17 @@ func parseInstallYamlData(yamlData []byte) (*InstallYaml, error) {
 
 // InDeveloperMode returns true if the image was build with --developer-mode
 func InDeveloperMode() bool {
-	file := filepath.Join(bootloaderDir, InstallYamlFile)
+	// FIXME: this is a bit terrible, we really need a single
+	//        bootloader dir like /boot or /boot/loader
+	//        instead of having to query the partition code
+	bootloader, err := findBootloader()
+	if err != nil {
+		// can only happy on systems like ubuntu classic
+		// that are not full snappy systems
+		return false
+	}
 
+	file := filepath.Join(bootloader.Dir(), InstallYamlFile)
 	if !helpers.FileExists(file) {
 		// no idea
 		return false
