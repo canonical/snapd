@@ -20,7 +20,6 @@
 package asserts
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -39,18 +38,21 @@ func checkMandatory(headers map[string]string, name string) (string, error) {
 	return value, nil
 }
 
-var errInvalidAssertionType = errors.New("invalid assertion type")
-
 func checkAssertType(assertType *AssertionType) error {
 	if assertType == nil {
-		return errInvalidAssertionType
+		return fmt.Errorf("internal error: assertion type cannot be nil")
 	}
+	// sanity check against known canonical
 	sanity := typeRegistry[assertType.Name]
-	// not the expected registered value
-	if sanity != assertType {
-		return errInvalidAssertionType
+	switch sanity {
+	case assertType:
+		// fine, matches canonical
+		return nil
+	case nil:
+		return fmt.Errorf("internal error: unknown assertion type: %q", assertType.Name)
+	default:
+		return fmt.Errorf("internal error: unpredefined assertion type for name %q used (unexpected address %p)", assertType.Name, assertType)
 	}
-	return nil
 }
 
 // use 'defl' default if missing

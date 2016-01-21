@@ -308,12 +308,21 @@ func (safs *signAddFindSuite) TestSignNoPrivateKey(c *C) {
 	c.Check(a1, IsNil)
 }
 
-func (safs *signAddFindSuite) TestSignUnknowType(c *C) {
+func (safs *signAddFindSuite) TestSignUnknownType(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
 	}
 	a1, err := safs.signingDB.Sign(&asserts.AssertionType{Name: "xyz", PrimaryKey: nil}, headers, nil, safs.signingKeyID)
-	c.Assert(err, ErrorMatches, "invalid assertion type")
+	c.Assert(err, ErrorMatches, `internal error: unknown assertion type: "xyz"`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignNonPredefinedType(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+	}
+	a1, err := safs.signingDB.Sign(&asserts.AssertionType{Name: "test-only", PrimaryKey: nil}, headers, nil, safs.signingKeyID)
+	c.Assert(err, ErrorMatches, `internal error: unpredefined assertion type for name "test-only" used.*`)
 	c.Check(a1, IsNil)
 }
 
