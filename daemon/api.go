@@ -894,15 +894,15 @@ func deleteCapability(c *Command, r *http.Request) Response {
 func doAssert(c *Command, r *http.Request) Response {
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return BadRequest(err, "reading assert request body gave %v", err)
+		return BadRequest("reading assert request body gave %v", err)
 	}
 	a, err := asserts.Decode(b)
 	if err != nil {
-		return BadRequest(err, "can't decode request body into an assertion")
+		return BadRequest("can't decode request body into an assertion: %v", err)
 	}
 	if err := c.d.asserts.Add(a); err != nil {
 		// TODO: have a specific error to be able to return  409 for not newer revision?
-		return BadRequest(err, "assert failed")
+		return BadRequest("assert failed: %v", err)
 	}
 	return &resp{
 		Type:   ResponseTypeSync,
