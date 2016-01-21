@@ -215,7 +215,7 @@ func (cs *clientSuite) TestClientRemoveCapabilityNotFound(c *check.C) {
 		"status_code": 404,
 		"type": "error",
 		"result": {
-			"str": "can't remove capability \"n\", no such capability"
+			"message": "can't remove capability \"n\", no such capability"
 		}
 	}`
 	err := cs.cli.RemoveCapability("n")
