@@ -80,7 +80,7 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 
 	// mock the boot variable writing for the tests
 	s.bootloader = newMockBootloader(c.MkDir())
-	findBootloader = func() (partition.BootloaderIface, error) {
+	findBootloader = func() (partition.Bootloader, error) {
 		return s.bootloader, nil
 	}
 

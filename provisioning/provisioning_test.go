@@ -93,7 +93,7 @@ func (ts *ProvisioningTestSuite) SetUpTest(c *C) {
 	ts.bootloader = &mockBootloader{dir: c.MkDir()}
 	ts.mockYamlFile = filepath.Join(ts.bootloader.dir, "install.yaml")
 
-	findBootloader = func() (partition.BootloaderIface, error) {
+	findBootloader = func() (partition.Bootloader, error) {
 		return ts.bootloader, nil
 	}
 }

@@ -38,7 +38,7 @@ type grub struct {
 }
 
 // newGrub create a new Grub bootloader object
-func newGrub() BootloaderIface {
+func newGrub() Bootloader {
 	g := &grub{}
 	if !helpers.FileExists(g.configFile()) {
 		return nil

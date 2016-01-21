@@ -42,9 +42,9 @@ var (
 	ErrBootloader = errors.New("cannot determine bootloader")
 )
 
-// BootloaderIface provides an interface to interact with the system
+// Bootloader provides an interface to interact with the system
 // bootloader
-type BootloaderIface interface {
+type Bootloader interface {
 	// Return the value of the specified bootloader variable
 	GetBootVar(name string) (string, error)
 
@@ -57,7 +57,7 @@ type BootloaderIface interface {
 
 // FindBootloader returns the bootloader for the given system
 // or an error if no bootloader is found
-func FindBootloader() (BootloaderIface, error) {
+func FindBootloader() (Bootloader, error) {
 	// try uboot
 	if uboot := newUboot(); uboot != nil {
 		return uboot, nil
@@ -75,7 +75,7 @@ func FindBootloader() (BootloaderIface, error) {
 // MarkBootSuccessful marks the current boot as sucessful. This means
 // that snappy will consider this combination of kernel/os a valid
 // target for rollback
-func MarkBootSuccessful(bootloader BootloaderIface) error {
+func MarkBootSuccessful(bootloader Bootloader) error {
 	// FIXME: we should have something better here, i.e. one write
 	//        to the bootloader environment only (instead of three)
 	//        We need to figure out if that is possible with grub/uboot
