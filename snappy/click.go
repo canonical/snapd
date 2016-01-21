@@ -44,7 +44,7 @@ import (
 var killWait = 5 * time.Second
 
 // servicesBinariesStringsWhitelist is the whitelist of legal chars
-// in the "binaries" and "services" section of the package.yaml
+// in the "binaries" and "services" section of the snap.yaml
 var servicesBinariesStringsWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
 
 // generate the name

@@ -80,7 +80,7 @@ apps:
 	if err := os.MkdirAll(metaDir, 0775); err != nil {
 		return "", err
 	}
-	yamlFile = filepath.Join(metaDir, "package.yaml")
+	yamlFile = filepath.Join(metaDir, "snap.yaml")
 	if err := ioutil.WriteFile(yamlFile, []byte(packageYamlContent), 0644); err != nil {
 		return "", err
 	}
@@ -173,7 +173,7 @@ connect
 }
 
 // makeTestSnapPackage creates a real snap package that can be installed on
-// disk using packageYaml as its meta/package.yaml
+// disk using packageYaml as its meta/snap.yaml
 func makeTestSnapPackage(c *C, packageYamlContent string) (snapFile string) {
 	return makeTestSnapPackageFull(c, packageYamlContent, true)
 }
@@ -196,7 +196,7 @@ echo "hello"`
 	ioutil.WriteFile(exampleBinary, []byte(content), 0755)
 	// meta
 	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
-	packageYaml := filepath.Join(tmpdir, "meta", "package.yaml")
+	packageYaml := filepath.Join(tmpdir, "meta", "snap.yaml")
 	if packageYamlContent == "" {
 		packageYamlContent = `
 name: foo

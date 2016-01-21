@@ -88,7 +88,7 @@ var (
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
 
-	// ErrInvalidFrameworkSpecInYaml is returned if a package.yaml
+	// ErrInvalidFrameworkSpecInYaml is returned if a snap.yaml
 	// has both frameworks and framework entries.
 	ErrInvalidFrameworkSpecInYaml = errors.New("yaml can't have both \"frameworks\" and (deprecated) \"framework\" keys")
 
@@ -106,10 +106,10 @@ var (
 	// ErrLicenseBlank is returned when the package specifies that
 	// accepting license is required, but the license file was empty or
 	// blank
-	ErrLicenseBlank = errors.New("package.yaml requires accepting a license, but license file was blank")
+	ErrLicenseBlank = errors.New("snap.yaml requires accepting a license, but license file was blank")
 	// ErrLicenseNotProvided is returned when the package specifies that
 	// accepting a license is required, but no license file is provided
-	ErrLicenseNotProvided = errors.New("package.yaml requires license, but no license was provided")
+	ErrLicenseNotProvided = errors.New("snap.yaml requires license, but no license was provided")
 
 	// ErrNotFirstBoot is an error that indicates that the first boot has already
 	// run

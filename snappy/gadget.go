@@ -18,7 +18,7 @@
  */
 
 // TODO this should be it's own package, but depends on splitting out
-// package.yaml's
+// snap.yaml's
 
 package snappy
 
@@ -36,7 +36,7 @@ import (
 	"github.com/ubuntu-core/snappy/snap"
 )
 
-// Gadget represents the structure inside the package.yaml for the gadget component
+// Gadget represents the structure inside the snap.yaml for the gadget component
 // of a gadget package type.
 type Gadget struct {
 	Store                Store    `yaml:"store,omitempty"`

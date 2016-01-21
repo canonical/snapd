@@ -127,7 +127,7 @@ const (
 
 // Info returns information like name, type etc about the package
 func (s *Snap) Info() (*snap.Info, error) {
-	packageYaml, err := s.ReadFile("meta/package.yaml")
+	packageYaml, err := s.ReadFile("meta/snap.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("info failed for %s: %s", s.path, err)
 	}

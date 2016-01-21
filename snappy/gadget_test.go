@@ -18,7 +18,7 @@
  */
 
 // TODO this should be it's own package, but depends on splitting out
-// package.yaml's
+// snap.yaml's
 
 package snappy
 

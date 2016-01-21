@@ -73,7 +73,7 @@ func (s *lightweightSuite) MkInstalled(c *check.C, _type snap.Type, appdir, name
 	apath := filepath.Join(appdir, qn, version, "meta")
 	yaml := fmt.Sprintf("name: %s\nversion: %s\ntype: %s\n", name, version, _type)
 	c.Check(os.MkdirAll(apath, 0755), check.IsNil)
-	c.Check(ioutil.WriteFile(filepath.Join(apath, "package.yaml"), []byte(yaml), 0644), check.IsNil)
+	c.Check(ioutil.WriteFile(filepath.Join(apath, "snap.yaml"), []byte(yaml), 0644), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(apath, "icon.png"), nil, 0644), check.IsNil)
 
 	if active {
@@ -276,8 +276,8 @@ func (s *lightweightSuite) TestMapInactiveGadgetNoPart(c *check.C) {
 
 func (s *lightweightSuite) TestLoadBadApp(c *check.C) {
 	s.MkRemoved(c, "quux.blah", "1")
-	// an unparsable package.yaml:
-	c.Check(os.MkdirAll(filepath.Join(dirs.SnapSnapsDir, "quux.blah", "1", "meta", "package.yaml"), 0755), check.IsNil)
+	// an unparsable snap.yaml:
+	c.Check(os.MkdirAll(filepath.Join(dirs.SnapSnapsDir, "quux.blah", "1", "meta", "snap.yaml"), 0755), check.IsNil)
 
 	bag := PartBagByName("quux", "blah")
 	c.Assert(bag, check.NotNil)

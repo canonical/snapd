@@ -111,7 +111,7 @@ func (s *apiSuite) mkInstalled(c *check.C, name, origin, version string, active 
 name: %s
 version: %s
 %s`, name, version, extraYaml)
-	c.Check(ioutil.WriteFile(filepath.Join(metadir, "package.yaml"), []byte(content), 0644), check.IsNil)
+	c.Check(ioutil.WriteFile(filepath.Join(metadir, "snap.yaml"), []byte(content), 0644), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(metadir, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
 
 	if active {
@@ -130,7 +130,7 @@ gadget: {store: {id: %q}}
 	m := filepath.Join(d, "1", "meta")
 	c.Assert(os.MkdirAll(m, 0755), check.IsNil)
 	c.Assert(os.Symlink("1", filepath.Join(d, "current")), check.IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(m, "package.yaml"), content, 0644), check.IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(m, "snap.yaml"), content, 0644), check.IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(m, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
 }
 

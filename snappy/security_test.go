@@ -913,7 +913,7 @@ func makeInstalledMockSnapSideloaded(c *C) string {
 	oldPath := filepath.Join(basePath, "1.0")
 	newPath := filepath.Join(basePath, "IsSideloadVer")
 	err = os.Rename(oldPath, newPath)
-	mockPackageYamlFn = filepath.Join(basePath, "IsSideloadVer", "meta", "package.yaml")
+	mockPackageYamlFn = filepath.Join(basePath, "IsSideloadVer", "meta", "snap.yaml")
 
 	return mockPackageYamlFn
 }
@@ -996,7 +996,7 @@ func (a *SecurityTestSuite) TestParsePackageYamlWithVersion(c *C) {
 	testVersion := "1.0"
 	dir := filepath.Join(a.tempDir, "foo", testVersion, "meta")
 	os.MkdirAll(dir, 0755)
-	y := filepath.Join(dir, "package.yaml")
+	y := filepath.Join(dir, "snap.yaml")
 	ioutil.WriteFile(y, []byte(`
 name: foo
 version: 123456789
@@ -1012,7 +1012,7 @@ func (a *SecurityTestSuite) TestParsePackageYamlWithVersionSymlink(c *C) {
 	symDir := filepath.Join(a.tempDir, "foo", "current")
 	os.MkdirAll(filepath.Join(verDir, "meta"), 0755)
 	os.Symlink(verDir, symDir)
-	y := filepath.Join(symDir, "meta", "package.yaml")
+	y := filepath.Join(symDir, "meta", "snap.yaml")
 	ioutil.WriteFile(y, []byte(`
 name: foo
 version: 123456789

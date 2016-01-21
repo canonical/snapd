@@ -242,7 +242,7 @@ var licenseChecker = checkLicenseExists
 
 func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error) {
 	// ensure we have valid content
-	m, err := parsePackageYamlFile(filepath.Join(sourceDir, "meta", "package.yaml"))
+	m, err := parsePackageYamlFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
 	if err != nil {
 		return "", err
 	}

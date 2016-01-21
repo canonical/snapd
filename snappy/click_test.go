@@ -217,7 +217,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	_, err = os.Stat(instDir)
 	c.Assert(err, IsNil)
 
-	yamlPath := filepath.Join(instDir, "meta", "package.yaml")
+	yamlPath := filepath.Join(instDir, "meta", "snap.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
 	err = part.remove(&MockProgressMeter{})
@@ -247,7 +247,7 @@ version: 1.0.1
 type: framework
 `)
 
-	yamlFile := filepath.Join(tmpdir, "meta", "package.yaml")
+	yamlFile := filepath.Join(tmpdir, "meta", "snap.yaml")
 	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
 	m, err := parsePackageYamlData(yaml, false)
 	c.Assert(err, IsNil)
@@ -289,7 +289,7 @@ func (s *SnapTestSuite) TestSnapRemovePackagePolicy(c *C) {
 
 	s.buildFramework(c)
 	appdir := filepath.Join(s.tempdir, "snaps", "hello", "1.0.1")
-	yamlPath := filepath.Join(appdir, "meta", "package.yaml")
+	yamlPath := filepath.Join(appdir, "meta", "snap.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
 	err = part.remove(&MockProgressMeter{})
@@ -583,7 +583,7 @@ apps:
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
-	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
+	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
 	err = part.remove(&progress.NullProgress{})
@@ -640,7 +640,7 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstall(c *C) {
 	c.Check(cmdlog, DeepEquals, []string{"stop", "show", "stop", "show", "start", "start"})
 
 	// check it got set active
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "fmk", "current", "meta", "package.yaml"))
+	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "fmk", "current", "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), "version: 2"), Equals, true)
 
@@ -671,7 +671,7 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStop(
 	c.Check(cmdlog, DeepEquals, []string{"stop", "show", "stop", "start"})
 
 	// check it got rolled back
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "fmk", "current", "meta", "package.yaml"))
+	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "fmk", "current", "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), "version: 1"), Equals, true)
 
@@ -704,7 +704,7 @@ func (s *SnapTestSuite) TestSnappyHandleDependentServicesOnInstallFailingToStart
 	})
 
 	// check it got rolled back
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "fmk", "current", "meta", "package.yaml"))
+	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "fmk", "current", "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(content), "version: 1"), Equals, true)
 
@@ -1167,7 +1167,7 @@ apps:
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo.mvo", "1.0")
-	yamlPath := filepath.Join(snapDir, "meta", "package.yaml")
+	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
 	part, err := NewInstalledSnapPart(yamlPath, testOrigin)
 	c.Assert(err, IsNil)
 	err = part.remove(&MockProgressMeter{})

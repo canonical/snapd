@@ -174,7 +174,7 @@ func parsePackageYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error)
 	var m packageYaml
 	err := yaml.Unmarshal(yamlData, &m)
 	if err != nil {
-		return nil, &ErrInvalidYaml{File: "package.yaml", Err: err, Yaml: yamlData}
+		return nil, &ErrInvalidYaml{File: "snap.yaml", Err: err, Yaml: yamlData}
 	}
 
 	if m.Architectures == nil {
@@ -188,7 +188,7 @@ func parsePackageYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error)
 		app.Name = name
 	}
 
-	if err := validatePackageYamlData("package.yaml", yamlData, &m); err != nil {
+	if err := validatePackageYamlData("snap.yaml", yamlData, &m); err != nil {
 		return nil, err
 	}
 
@@ -256,7 +256,7 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d snap.File, currentActiv
 		return ErrLicenseNotProvided
 	}
 
-	oldM, err := parsePackageYamlFile(filepath.Join(currentActiveDir, "meta", "package.yaml"))
+	oldM, err := parsePackageYamlFile(filepath.Join(currentActiveDir, "meta", "snap.yaml"))
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}

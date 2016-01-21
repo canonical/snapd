@@ -1,12 +1,12 @@
 # Test gadget snap with pre-installed snaps
 
 1. Branch snappy-systems
-2. Modify the `package.yaml` to add a snap, e.g.:
+2. Modify the `snap.yaml` to add a snap, e.g.:
 
     ```diff
-    === modified file 'generic-amd64/meta/package.yaml'
-    --- generic-amd64/meta/package.yaml	2015-07-03 12:50:03 +0000
-    +++ generic-amd64/meta/package.yaml	2015-11-09 16:26:12 +0000
+    === modified file 'generic-amd64/meta/snap.yaml'
+    --- generic-amd64/meta/snap.yaml	2015-07-03 12:50:03 +0000
+    +++ generic-amd64/meta/snap.yaml	2015-11-09 16:26:12 +0000
     @@ -7,6 +7,8 @@
      config:
          ubuntu-core:
@@ -47,12 +47,12 @@
 # Test gadget snap with modules
 
 1. Branch snappy-systems
-2. Modify the `package.yaml` to add a module, e.g.:
+2. Modify the `snap.yaml` to add a module, e.g.:
 
     ```diff
-    === modified file 'generic-amd64/meta/package.yaml'
-    --- generic-amd64/meta/package.yaml	2015-07-03 12:50:03 +0000
-    +++ generic-amd64/meta/package.yaml	2015-11-12 10:14:30 +0000
+    === modified file 'generic-amd64/meta/snap.yaml'
+    --- generic-amd64/meta/snap.yaml	2015-07-03 12:50:03 +0000
+    +++ generic-amd64/meta/snap.yaml	2015-11-12 10:14:30 +0000
     @@ -7,6 +7,7 @@
      config:
          ubuntu-core:

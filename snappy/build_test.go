@@ -76,11 +76,11 @@ echo 17 some-dir`
 func makeExampleSnapSourceDir(c *C, packageYaml string) string {
 	tempdir := c.MkDir()
 
-	// use meta/package.yaml
+	// use meta/snap.yaml
 	metaDir := filepath.Join(tempdir, "meta")
 	err := os.Mkdir(metaDir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(metaDir, "package.yaml"), []byte(packageYaml), 0644)
+	err = ioutil.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(packageYaml), 0644)
 	c.Assert(err, IsNil)
 
 	const helloBinContent = `#!/bin/sh
@@ -117,7 +117,7 @@ printf "hello world"
 
 func (s *BuildTestSuite) TestBuildNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "")
-	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "package.yaml")), IsNil)
+	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "snap.yaml")), IsNil)
 	_, err := BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
 }
@@ -283,7 +283,7 @@ integration:
 	output, err := exec.Command("unsquashfs", "-ll", "hello_1.0.1_multi.snap").CombinedOutput()
 	c.Assert(err, IsNil)
 	for _, needle := range []string{
-		"meta/package.yaml",
+		"meta/snap.yaml",
 		"bin/hello-world",
 		"symlink -> bin/hello-world",
 	} {
@@ -314,7 +314,7 @@ integration:
 	output, err := exec.Command("unsquashfs", "-ll", resultSnap).CombinedOutput()
 	c.Assert(err, IsNil)
 	for _, needle := range []string{
-		"meta/package.yaml",
+		"meta/snap.yaml",
 		"bin/hello-world",
 		"symlink -> bin/hello-world",
 	} {

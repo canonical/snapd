@@ -50,7 +50,7 @@ func NewSnapFile(snapFile string, origin string, unsignedOk bool) (*SnapFile, er
 		return nil, err
 	}
 
-	yamlData, err := d.MetaMember("package.yaml")
+	yamlData, err := d.MetaMember("snap.yaml")
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 
 	var oldPart *SnapPart
 	if currentActiveDir, _ := filepath.EvalSymlinks(filepath.Join(s.instdir, "..", "current")); currentActiveDir != "" {
-		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "package.yaml"), s.origin)
+		oldPart, err = NewInstalledSnapPart(filepath.Join(currentActiveDir, "meta", "snap.yaml"), s.origin)
 		if err != nil {
 			return "", err
 		}
@@ -276,7 +276,7 @@ func (s *SnapFile) Install(inter progress.Meter, flags InstallFlags) (name strin
 	}
 
 	if !inhibitHooks {
-		newPart, err := newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "package.yaml"), s.origin, s.m)
+		newPart, err := newSnapPartFromYaml(filepath.Join(s.instdir, "meta", "snap.yaml"), s.origin, s.m)
 		if err != nil {
 			return "", err
 		}

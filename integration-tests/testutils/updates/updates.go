@@ -84,7 +84,7 @@ func makeFakeUpdateForSnap(c *check.C, snap, targetDir string, changeFunc Change
 	copySnap(c, snap, fakeUpdateDir)
 
 	// fake new version
-	cli.ExecCommand(c, "sudo", "sed", "-i", `s/version:\(.*\)/version:\1+fake1/`, filepath.Join(fakeUpdateDir, "meta/package.yaml"))
+	cli.ExecCommand(c, "sudo", "sed", "-i", `s/version:\(.*\)/version:\1+fake1/`, filepath.Join(fakeUpdateDir, "meta/snap.yaml"))
 
 	if err := changeFunc(fakeUpdateDir); err != nil {
 		return err

@@ -254,7 +254,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 	// there is already an active part
 	if currentActiveDir != "" {
 		// TODO: support switching origins
-		oldYaml := filepath.Join(currentActiveDir, "meta", "package.yaml")
+		oldYaml := filepath.Join(currentActiveDir, "meta", "snap.yaml")
 		oldPart, err := NewInstalledSnapPart(oldYaml, s.origin)
 		if err != nil {
 			return err
@@ -270,7 +270,7 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		}
 	}
 
-	// generate the security policy from the package.yaml
+	// generate the security policy from the snap.yaml
 	// Note that this must happen before binaries/services are
 	// generated because serices may get started
 	appsDir := filepath.Join(dirs.SnapSnapsDir, QualifiedName(s), s.Version())
@@ -278,11 +278,11 @@ func (s *SnapPart) activate(inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	// add the "binaries:" from the package.yaml
+	// add the "binaries:" from the snap.yaml
 	if err := s.m.addPackageBinaries(s.basedir); err != nil {
 		return err
 	}
-	// add the "services:" from the package.yaml
+	// add the "services:" from the snap.yaml
 	if err := s.m.addPackageServices(s.basedir, inhibitHooks, inter); err != nil {
 		return err
 	}

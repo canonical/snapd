@@ -820,7 +820,7 @@ apps:
 }
 
 func (s *SnapTestSuite) TestPackageYamlMultipleArchitecturesParsing(c *C) {
-	y := filepath.Join(s.tempdir, "package.yaml")
+	y := filepath.Join(s.tempdir, "snap.yaml")
 	ioutil.WriteFile(y, []byte(`name: fatbinary
 version: 1.0
 architectures: [i386, armhf]
@@ -831,7 +831,7 @@ architectures: [i386, armhf]
 }
 
 func (s *SnapTestSuite) TestPackageYamlSingleArchitecturesParsing(c *C) {
-	y := filepath.Join(s.tempdir, "package.yaml")
+	y := filepath.Join(s.tempdir, "snap.yaml")
 	ioutil.WriteFile(y, []byte(`name: fatbinary
 version: 1.0
 architectures: [i386]
@@ -842,7 +842,7 @@ architectures: [i386]
 }
 
 func (s *SnapTestSuite) TestPackageYamlNoArchitecturesParsing(c *C) {
-	y := filepath.Join(s.tempdir, "package.yaml")
+	y := filepath.Join(s.tempdir, "snap.yaml")
 	ioutil.WriteFile(y, []byte(`name: fatbinary
 version: 1.0
 `), 0644)
@@ -874,7 +874,7 @@ architectures:
 }
 
 func (s *SnapTestSuite) TestPackageYamlLicenseParsing(c *C) {
-	y := filepath.Join(s.tempdir, "package.yaml")
+	y := filepath.Join(s.tempdir, "snap.yaml")
 	ioutil.WriteFile(y, []byte(`
 name: foo
 version: 1.0
@@ -1263,15 +1263,15 @@ apps:
 }
 
 func (s *SnapTestSuite) TestOriginFromPath(c *C) {
-	n, err := originFromYamlPath("/gadget/foo.bar/1.0/meta/package.yaml")
+	n, err := originFromYamlPath("/gadget/foo.bar/1.0/meta/snap.yaml")
 	c.Check(err, IsNil)
 	c.Check(n, Equals, "bar")
 
-	n, err = originFromYamlPath("/gadget/foo_bar/1.0/meta/package.yaml")
+	n, err = originFromYamlPath("/gadget/foo_bar/1.0/meta/snap.yaml")
 	c.Check(err, NotNil)
 	c.Check(n, Equals, "")
 
-	n, err = originFromYamlPath("/oo_bar/1.0/mpackage.yaml")
+	n, err = originFromYamlPath("/oo_bar/1.0/msnap.yaml")
 	c.Check(err, NotNil)
 	c.Check(n, Equals, "")
 }
@@ -1413,20 +1413,20 @@ func (s *SnapTestSuite) TestParsePackageYamlDataChecksName(c *C) {
 	_, err := parsePackageYamlData([]byte(`
 version: 1.0
 `), false)
-	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required fields 'name'.*")
+	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'name'.*")
 }
 
 func (s *SnapTestSuite) TestParsePackageYamlDataChecksVersion(c *C) {
 	_, err := parsePackageYamlData([]byte(`
 name: foo
 `), false)
-	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required fields 'version'.*")
+	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'version'.*")
 }
 
 func (s *SnapTestSuite) TestParsePackageYamlDataChecksMultiple(c *C) {
 	_, err := parsePackageYamlData([]byte(`
 `), false)
-	c.Assert(err, ErrorMatches, "can not parse package.yaml: missing required fields 'name, version'.*")
+	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'name, version'.*")
 }
 
 func (s *SnapTestSuite) TestCpiURLDependsOnEnviron(c *C) {

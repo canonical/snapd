@@ -140,7 +140,7 @@ func (s *storeTestSuite) makeTestSnap(c *C, packageYamlContent string) string {
 	tmpdir := c.MkDir()
 	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
 
-	packageYaml := filepath.Join(tmpdir, "meta", "package.yaml")
+	packageYaml := filepath.Join(tmpdir, "meta", "snap.yaml")
 	err := ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
 	c.Assert(err, IsNil)
 

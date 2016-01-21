@@ -323,7 +323,7 @@ func getSecurityProfile(m *packageYaml, appName, baseDir string) (string, error)
 		return fmt.Sprintf("%s_%s_%s", m.Name, cleanedName, m.Version), nil
 	}
 
-	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+	origin, err := originFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
 
 	return fmt.Sprintf("%s.%s_%s_%s", m.Name, origin, cleanedName, m.Version), err
 }
@@ -656,7 +656,7 @@ func (sd *SecurityDefinitions) generatePolicyForServiceBinaryResult(m *packageYa
 	// add the hw-override parts and merge with the other overrides
 	origin := ""
 	if m.Type != snap.TypeFramework && m.Type != snap.TypeGadget {
-		origin, err = originFromYamlPath(filepath.Join(baseDir, "meta", "package.yaml"))
+		origin, err = originFromYamlPath(filepath.Join(baseDir, "meta", "snap.yaml"))
 		if err != nil {
 			return nil, err
 		}
@@ -781,7 +781,7 @@ func regeneratePolicyForSnap(snapname string) error {
 		}
 		if appID.Version != appliedVersion {
 			// FIXME: dirs.SnapSnapsDir is too simple, gadget
-			fn := filepath.Join(dirs.SnapSnapsDir, appID.Pkgname, appID.Version, "meta", "package.yaml")
+			fn := filepath.Join(dirs.SnapSnapsDir, appID.Pkgname, appID.Version, "meta", "snap.yaml")
 			if !helpers.FileExists(fn) {
 				continue
 			}
@@ -920,7 +920,7 @@ func RegenerateAllPolicy(force bool) error {
 			continue
 		}
 		basedir := part.basedir
-		yFn := filepath.Join(basedir, "meta", "package.yaml")
+		yFn := filepath.Join(basedir, "meta", "snap.yaml")
 
 		// FIXME: use ErrPolicyNeedsRegenerating here to check if
 		//        re-generation is needed
