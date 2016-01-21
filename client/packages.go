@@ -54,10 +54,14 @@ const (
 // Snaps returns the list of all snaps installed on the system and
 // available for install from the store for this system.
 func (client *Client) Snaps() (map[string]*Snap, error) {
+	return client.snapsFromPath("/2.0/snaps")
+}
+
+func (client *Client) snapsFromPath(path string) (map[string]*Snap, error) {
 	const errPrefix = "cannot list snaps"
 
 	var result map[string]json.RawMessage
-	if err := client.doSync("GET", "/2.0/snaps", nil, &result); err != nil {
+	if err := client.doSync("GET", path, nil, &result); err != nil {
 		return nil, fmt.Errorf("%s: %s", errPrefix, err)
 	}
 
