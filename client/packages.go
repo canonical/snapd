@@ -42,6 +42,7 @@ type Snap struct {
 // SnapFilter is used to filter snaps by source, name and/or type
 type SnapFilter struct {
 	Sources []string
+	Types   []string
 }
 
 // Statuses and types a snap may have.
@@ -68,12 +69,17 @@ func (client *Client) Snaps() (map[string]*Snap, error) {
 // and/or type
 func (client *Client) FilterSnaps(filter SnapFilter) (map[string]*Snap, error) {
 	u := url.URL{Path: "/2.0/snaps"}
+	q := u.Query()
 
 	if len(filter.Sources) > 0 {
-		q := u.Query()
 		q.Set("sources", strings.Join(filter.Sources, ","))
-		u.RawQuery = q.Encode()
 	}
+
+	if len(filter.Types) > 0 {
+		q.Set("types", strings.Join(filter.Types, ","))
+	}
+
+	u.RawQuery = q.Encode()
 
 	return client.snapsFromPath(u.String())
 }
