@@ -95,7 +95,6 @@ var _ = Suite(&SquashfsTestSuite{})
 
 const packageHello = `name: hello-app
 version: 1.10
-icon: meta/hello.svg
 `
 
 func (s *SquashfsTestSuite) TestMakeSnapMakesSquashfs(c *C) {

@@ -132,11 +132,11 @@ func (s *BuildTestSuite) TestBuildNoManifestFails(c *C) {
 func (s *BuildTestSuite) TestBuildManifestRequiresMissingLicense(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-architecture: ["i386", "amd64"]
+architectures: ["i386", "amd64"]
 integration:
  app:
   apparmor-profile: meta/hello.apparmor
-explicit-license-agreement: Y
+license-agreement: explicit
 `)
 	_, err := BuildSquashfsSnap(sourceDir, "")
 	c.Assert(err, NotNil) // XXX maybe make the error more explicit
@@ -145,11 +145,11 @@ explicit-license-agreement: Y
 func (s *BuildTestSuite) TestBuildManifestRequiresBlankLicense(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-architecture: ["i386", "amd64"]
+architectures: ["i386", "amd64"]
 integration:
  app:
   apparmor-profile: meta/hello.apparmor
-explicit-license-agreement: Y
+license-agreement: explicit
 `)
 	lic := filepath.Join(sourceDir, "meta", "license.txt")
 	ioutil.WriteFile(lic, []byte("\n"), 0755)
@@ -252,18 +252,6 @@ func (s *BuildTestSuite) TestExcludeDynamicWeirdRegexps(c *C) {
 	c.Check(shouldExcludeDynamic(basedir, "*hello"), Equals, true)
 }
 
-func (s *BuildTestSuite) TestBuildChecksForClashes(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, `name: hello
-version: 1.0.1
-services:
- - name: foo
-binaries:
- - name: foo
-`)
-	_, err := BuildSquashfsSnap(sourceDir, "")
-	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
-}
-
 func (s *BuildTestSuite) TestDebArchitecture(c *C) {
 	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo"}}), Equals, "foo")
 	c.Check(debArchitecture(&packageYaml{Architectures: []string{"foo", "bar"}}), Equals, "multi")
@@ -284,7 +272,7 @@ version: 1.0.1
 func (s *BuildTestSuite) TestBuildSquashfsSimple(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-architecture: ["i386", "amd64"]
+architectures: ["i386", "amd64"]
 integration:
  app:
   apparmor-profile: meta/hello.apparmor
@@ -315,7 +303,7 @@ integration:
 func (s *BuildTestSuite) TestBuildSimpleOutputDir(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 1.0.1
-architecture: ["i386", "amd64"]
+architectures: ["i386", "amd64"]
 integration:
  app:
   apparmor-profile: meta/hello.apparmor

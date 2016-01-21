@@ -79,9 +79,8 @@ func (s *SnapTestSuite) TestInstallInstallLicense(c *C) {
 	snapFile := makeTestSnapPackage(c, `
 name: foo
 version: 1.0
-icon: foo.svg
 vendor: Foo Bar <foo@example.com>
-explicit-license-agreement: Y
+license-agreement: explicit
 `)
 	ag := &MockProgressMeter{y: true}
 	name, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, ag)
@@ -94,9 +93,8 @@ func (s *SnapTestSuite) TestInstallInstallLicenseNo(c *C) {
 	snapFile := makeTestSnapPackage(c, `
 name: foo
 version: 1.0
-icon: foo.svg
 vendor: Foo Bar <foo@example.com>
-explicit-license-agreement: Y
+license-agreement: explicit
 `)
 	ag := &MockProgressMeter{y: false}
 	_, err := Install(snapFile, AllowUnauthenticated|DoInstallGC, ag)
@@ -112,7 +110,6 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 	c.Assert(err, IsNil)
 
 	packageYaml := `name: foo
-icon: foo.svg
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	_, err = Install(snapFile, flags, &progress.NullProgress{})

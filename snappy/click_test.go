@@ -72,7 +72,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallMissingAccepterFails(c *C) {
 	pkg := makeTestSnapPackage(c, `
 name: foo
 version: 1.0
-explicit-license-agreement: Y`)
+license-agreement: explicit`)
 	_, err := installClick(pkg, 0, nil, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
 	c.Check(IsLicenseNotAccepted(err), Equals, true)
@@ -84,7 +84,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallNegAccepterFails(c *C) {
 	pkg := makeTestSnapPackage(c, `
 name: foo
 version: 1.0
-explicit-license-agreement: Y`)
+license-agreement: explicit`)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: false}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotAccepted)
 	c.Check(IsLicenseNotAccepted(err), Equals, true)
@@ -99,7 +99,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallNoLicenseFails(c *C) {
 	pkg := makeTestSnapPackageFull(c, `
 name: foo
 version: 1.0
-explicit-license-agreement: Y`, false)
+license-agreement: explicit`, false)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
 	c.Check(err, Equals, ErrLicenseNotProvided)
 	c.Check(IsLicenseNotAccepted(err), Equals, false)
@@ -111,7 +111,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallPosAccepterWorks(c *C) {
 	pkg := makeTestSnapPackage(c, `
 name: foo
 version: 1.0
-explicit-license-agreement: Y`)
+license-agreement: explicit`)
 	_, err := installClick(pkg, 0, &MockProgressMeter{y: true}, testOrigin)
 	c.Check(err, Equals, nil)
 	c.Check(IsLicenseNotAccepted(err), Equals, false)
@@ -122,7 +122,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallAccepterReasonable(c *C) {
 	pkg := makeTestSnapPackage(c, `
 name: foobar
 version: 1.0
-explicit-license-agreement: Y`)
+license-agreement: explicit`)
 	ag := &MockProgressMeter{y: true}
 	_, err := installClick(pkg, 0, ag, testOrigin)
 	c.Assert(err, Equals, nil)
@@ -136,7 +136,7 @@ explicit-license-agreement: Y`)
 func (s *SnapTestSuite) TestPreviouslyAcceptedLicense(c *C) {
 	ag := &MockProgressMeter{y: true}
 	yaml := `name: foox
-explicit-license-agreement: Y
+license-agreement: explicit
 license-version: 2
 `
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"version: 1")
@@ -171,7 +171,7 @@ version: 1.0
 	c.Assert(err, IsNil)
 	c.Assert(part.activate(true, ag), IsNil)
 
-	pkg := makeTestSnapPackage(c, yaml+"version: 2\nexplicit-license-agreement: Y\n")
+	pkg := makeTestSnapPackage(c, yaml+"version: 2\nlicense-agreement: explicit\n")
 	_, err = installClick(pkg, 0, ag, testOrigin)
 	c.Check(IsLicenseNotAccepted(err), Equals, false)
 	c.Assert(err, Equals, nil)
@@ -183,7 +183,7 @@ version: 1.0
 func (s *SnapTestSuite) TestDifferentLicenseVersion(c *C) {
 	ag := &MockProgressMeter{y: true}
 	yaml := `name: foox
-explicit-license-agreement: Y
+license-agreement: explicit
 `
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml+"license-version: 2\nversion: 1")
 	pkgdir := filepath.Dir(filepath.Dir(yamlFile))
@@ -302,7 +302,7 @@ func (s *SnapTestSuite) TestLocalGadgetSnapInstall(c *C) {
 	snapFile := makeTestSnapPackage(c, `name: foo
 version: 1.0
 type: gadget
-icon: foo.svg`)
+`)
 	_, err := installClick(snapFile, AllowGadget, nil, testOrigin)
 	c.Assert(err, IsNil)
 
@@ -315,7 +315,7 @@ func (s *SnapTestSuite) TestLocalGadgetSnapInstallVariants(c *C) {
 	snapFile := makeTestSnapPackage(c, `name: foo
 version: 1.0
 type: gadget
-icon: foo.svg`)
+`)
 	_, err := installClick(snapFile, AllowGadget, nil, testOrigin)
 	c.Assert(err, IsNil)
 	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "1.0", "", "remote-channel"), IsNil)
@@ -328,7 +328,7 @@ icon: foo.svg`)
 	snapFile = makeTestSnapPackage(c, `name: foo
 version: 2.0
 type: gadget
-icon: foo.svg`)
+`)
 	_, err = installClick(snapFile, 0, nil, testOrigin)
 	c.Check(err, IsNil)
 	c.Assert(storeMinimalRemoteManifest("foo", "foo", testOrigin, "2.0", "", "remote-channel"), IsNil)
@@ -347,7 +347,7 @@ icon: foo.svg`)
 	snapFile = makeTestSnapPackage(c, `name: foo-fork
 version: 2.0
 type: gadget
-icon: foo.svg`)
+`)
 	_, err = installClick(snapFile, 0, nil, testOrigin)
 	c.Check(err, Equals, ErrGadgetPackageInstall)
 
@@ -358,7 +358,6 @@ icon: foo.svg`)
 
 func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	packageYaml := `name: foo
-icon: foo.svg
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	_, err := installClick(snapFile, AllowUnauthenticated, nil, testOrigin)
@@ -398,7 +397,6 @@ func (s *SnapTestSuite) TestClickCopyData(c *C) {
 	c.Assert(err, IsNil)
 
 	packageYaml := `name: foo
-icon: foo.svg
 `
 	canaryData := []byte("ni ni ni")
 
@@ -432,7 +430,6 @@ func (s *SnapTestSuite) TestClickCopyDataNoUserHomes(c *C) {
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snaps")
 
 	packageYaml := `name: foo
-icon: foo.svg
 `
 	appDir := "foo." + testOrigin
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
@@ -482,7 +479,7 @@ ubuntu-core-launcher pastebinit.mvo pastebinit.mvo_pastebinit_1.4.0.0.1 /snaps/p
 `
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
-	binary := AppYaml{Name: "pastebinit", Command: "bin/pastebinit"}
+	binary := &AppYaml{Name: "pastebinit", Command: "bin/pastebinit"}
 	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
 	m := packageYaml{Name: "pastebinit",
@@ -496,7 +493,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
-	binary := AppYaml{Name: "echo", Command: "bin/echo"}
+	binary := &AppYaml{Name: "echo", Command: "bin/echo"}
 	pkgPath := "/snaps/fmk/1.4.0.0.1/"
 	aaProfile := "fmk_echo_1.4.0.0.1"
 	m := packageYaml{Name: "fmk",
@@ -515,7 +512,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperFmk(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
-	binary := AppYaml{Name: "bin/pastebinit\nSomething nasty"}
+	binary := &AppYaml{Name: "bin/pastebinit\nSomething nasty"}
 	pkgPath := "/snaps/pastebinit.mvo/1.4.0.0.1/"
 	aaProfile := "pastebinit.mvo_pastebinit_1.4.0.0.1"
 	m := packageYaml{Name: "pastebinit",
@@ -526,13 +523,13 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapBinaryWrapperIllegalChars(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryNoExec(c *C) {
-	binary := AppYaml{Name: "pastebinit", Command: "bin/pastebinit"}
+	binary := &AppYaml{Name: "pastebinit", Command: "bin/pastebinit"}
 	pkgPath := "/snaps/pastebinit.mvo/1.0/"
 	c.Assert(binPathForBinary(pkgPath, binary), Equals, "/snaps/pastebinit.mvo/1.0/bin/pastebinit")
 }
 
 func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
-	binary := AppYaml{
+	binary := &AppYaml{
 		Name:    "pastebinit",
 		Command: "bin/random-pastebin",
 	}
@@ -542,9 +539,9 @@ func (s *SnapTestSuite) TestSnappyBinPathForBinaryWithExec(c *C) {
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {
 	packageYaml := `name: foo
-icon: foo.svg
-binaries:
- - name: bin/bar
+apps:
+ bar:
+  command: bin/bar
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	_, err := installClick(snapFile, AllowUnauthenticated, nil, "mvo")
@@ -570,10 +567,10 @@ binaries:
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstall(c *C) {
 	packageYaml := `name: foo
-icon: foo.svg
-services:
- - name: service
-   start: bin/hello
+apps:
+ service:
+   command: bin/hello
+   daemon: forking
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	_, err := installClick(snapFile, AllowUnauthenticated, nil, "mvo")
@@ -608,14 +605,15 @@ version: `
 	c.Assert(err, IsNil)
 
 	packageYaml := `name: foo
-icon: foo.svg
 frameworks:
  - fmk
-services:
- - name: svc1
-   start: bin/hello
- - name: svc2
-   start: bin/bye
+apps:
+ svc1:
+   command: bin/hello
+   daemon: forking
+ svc2:
+   command: bin/bye
+   daemon: forking
 version: `
 	snapFile := makeTestSnapPackage(c, packageYaml+"1.0")
 	_, err = installClick(snapFile, AllowUnauthenticated, inter, testOrigin)
@@ -728,10 +726,10 @@ func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
 	}
 
 	packageYaml := `name: foo
-icon: foo.svg
-services:
- - name: service
-   start: bin/hello
+apps:
+ service:
+   command: bin/hello
+   daemon: forking
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	_, err := installClick(snapFile, InhibitHooks, nil, testOrigin)
@@ -771,9 +769,10 @@ func (s *SnapTestSuite) TestAddPackageServicesBusPolicyFramework(c *C) {
 	yaml := `name: foo
 version: 1
 type: framework
-services:
-  - name: bar
+apps:
+  bar:
     bus-name: foo.bar.baz
+    daemon: forking
 `
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
 	c.Assert(err, IsNil)
@@ -792,9 +791,10 @@ func (s *SnapTestSuite) TestAddPackageServicesBusPolicyNoFramework(c *C) {
 	yaml := `name: foo
 version: 1
 type: app
-services:
-  - name: bar
+apps:
+  bar:
     bus-name: foo.bar.baz
+    daemon: forking
 `
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
 	c.Assert(err, IsNil)
@@ -859,7 +859,7 @@ WantedBy=multi-user.target
 )
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
-	service := AppYaml{
+	service := &AppYaml{
 		Name:        "xkcd-webserver",
 		Command:     "bin/foo start",
 		Stop:        "bin/foo stop",
@@ -879,7 +879,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceTypeForking(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
-	service := AppYaml{
+	service := &AppYaml{
 		Name:        "xkcd-webserver",
 		Command:     "bin/foo start",
 		Stop:        "bin/foo stop",
@@ -898,7 +898,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapper(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapperWithExternalPort(c *C) {
-	service := AppYaml{
+	service := &AppYaml{
 		Name:        "xkcd-webserver",
 		Command:     "bin/foo start",
 		Stop:        "bin/foo stop",
@@ -918,7 +918,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceAppWrapperWithExternalPort(
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
-	service := AppYaml{
+	service := &AppYaml{
 		Name:        "xkcd-webserver",
 		Command:     "bin/foo start",
 		Stop:        "bin/foo stop",
@@ -941,7 +941,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceFmkWrapper(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
-	service := AppYaml{
+	service := &AppYaml{
 		Name:        "xkcd-webserver",
 		RestartCond: systemd.RestartOnAbort,
 	}
@@ -958,7 +958,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceRestart(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
-	service := AppYaml{Name: "xkcd-webserver",
+	service := &AppYaml{Name: "xkcd-webserver",
 		Command:     "bin/foo start",
 		Stop:        "bin/foo stop",
 		PostStop:    "bin/foo post-stop",
@@ -975,34 +975,34 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWrapperWhitelist(c *C) {
 }
 
 func (s *SnapTestSuite) TestServiceWhitelistSimple(c *C) {
-	c.Assert(verifyServiceYaml(AppYaml{Name: "foo"}), IsNil)
-	c.Assert(verifyServiceYaml(AppYaml{Description: "foo"}), IsNil)
-	c.Assert(verifyServiceYaml(AppYaml{Command: "foo"}), IsNil)
-	c.Assert(verifyServiceYaml(AppYaml{Stop: "foo"}), IsNil)
-	c.Assert(verifyServiceYaml(AppYaml{PostStop: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(&AppYaml{Name: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(&AppYaml{Description: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(&AppYaml{Command: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(&AppYaml{Stop: "foo"}), IsNil)
+	c.Assert(verifyServiceYaml(&AppYaml{PostStop: "foo"}), IsNil)
 }
 
 func (s *SnapTestSuite) TestServiceWhitelistIllegal(c *C) {
-	c.Assert(verifyServiceYaml(AppYaml{Name: "x\n"}), NotNil)
-	c.Assert(verifyServiceYaml(AppYaml{Description: "foo\n"}), NotNil)
-	c.Assert(verifyServiceYaml(AppYaml{Command: "foo\n"}), NotNil)
-	c.Assert(verifyServiceYaml(AppYaml{Stop: "foo\n"}), NotNil)
-	c.Assert(verifyServiceYaml(AppYaml{PostStop: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(&AppYaml{Name: "x\n"}), NotNil)
+	c.Assert(verifyServiceYaml(&AppYaml{Description: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(&AppYaml{Command: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(&AppYaml{Stop: "foo\n"}), NotNil)
+	c.Assert(verifyServiceYaml(&AppYaml{PostStop: "foo\n"}), NotNil)
 }
 
 func (s *SnapTestSuite) TestServiceWhitelistError(c *C) {
-	err := verifyServiceYaml(AppYaml{Name: "x\n"})
+	err := verifyServiceYaml(&AppYaml{Name: "x\n"})
 	c.Assert(err.Error(), Equals, "services description field 'Name' contains illegal 'x\n' (legal: '^[A-Za-z0-9/. _#:-]*$')")
 }
 
 func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
-	c.Assert(verifyBinariesYaml(AppYaml{Name: "foo"}), IsNil)
-	c.Assert(verifyBinariesYaml(AppYaml{Command: "foo"}), IsNil)
-	c.Assert(verifyBinariesYaml(AppYaml{
+	c.Assert(verifyBinariesYaml(&AppYaml{Name: "foo"}), IsNil)
+	c.Assert(verifyBinariesYaml(&AppYaml{Command: "foo"}), IsNil)
+	c.Assert(verifyBinariesYaml(&AppYaml{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "foo"},
 	}), IsNil)
-	c.Assert(verifyBinariesYaml(AppYaml{
+	c.Assert(verifyBinariesYaml(&AppYaml{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
 				AppArmor: "foo"},
@@ -1011,44 +1011,19 @@ func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
 }
 
 func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
-	c.Assert(verifyBinariesYaml(AppYaml{Name: "test!me"}), NotNil)
-	c.Assert(verifyBinariesYaml(AppYaml{Name: "x\n"}), NotNil)
-	c.Assert(verifyBinariesYaml(AppYaml{Command: "x\n"}), NotNil)
-	c.Assert(verifyBinariesYaml(AppYaml{
+	c.Assert(verifyBinariesYaml(&AppYaml{Name: "test!me"}), NotNil)
+	c.Assert(verifyBinariesYaml(&AppYaml{Name: "x\n"}), NotNil)
+	c.Assert(verifyBinariesYaml(&AppYaml{Command: "x\n"}), NotNil)
+	c.Assert(verifyBinariesYaml(&AppYaml{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "x\n"},
 	}), NotNil)
-	c.Assert(verifyBinariesYaml(AppYaml{
+	c.Assert(verifyBinariesYaml(&AppYaml{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
 				AppArmor: "x\n"},
 		},
 	}), NotNil)
-}
-
-func (s *SnapTestSuite) TestInstallChecksForClashes(c *C) {
-	// creating the thing by hand (as build refuses to)...
-	tmpdir := c.MkDir()
-	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
-	yaml := []byte(`name: hello
-version: 1.0.1
-services:
- - name: foo
-binaries:
- - name: foo
-`)
-	yamlFile := filepath.Join(tmpdir, "meta", "package.yaml")
-	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
-	readmeMd := filepath.Join(tmpdir, "meta", "readme.md")
-	c.Assert(ioutil.WriteFile(readmeMd, []byte("blah\nx"), 0644), IsNil)
-	m, err := parsePackageYamlData(yaml, false)
-	c.Assert(err, IsNil)
-	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
-	d := squashfs.New(snapName)
-	c.Assert(d.Build(tmpdir), IsNil)
-
-	_, err = installClick(snapName, 0, nil, testOrigin)
-	c.Assert(err, ErrorMatches, ".*binary and service both called foo.*")
 }
 
 func (s *SnapTestSuite) TestInstallChecksFrameworks(c *C) {
@@ -1073,10 +1048,11 @@ func (s *SnapTestSuite) TestRemovePackageServiceKills(c *C) {
 	}
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, `name: wat
 version: 42
-icon: meta/wat.ico
-services:
- - name: wat
+apps:
+ wat:
+   command: wat
    stop-timeout: 25
+   daemon: forking
 `)
 	c.Assert(err, IsNil)
 	m, err := parsePackageYamlFile(yamlFile)
@@ -1104,7 +1080,7 @@ func (s *SnapTestSuite) TestCopySnapDataDirectoryError(c *C) {
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapSocket(c *C) {
-	service := AppYaml{Name: "xkcd-webserver",
+	service := &AppYaml{Name: "xkcd-webserver",
 		Command:      "bin/foo start",
 		Description:  "meep",
 		Socket:       true,
@@ -1138,7 +1114,7 @@ WantedBy=sockets.target
 }
 
 func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSockte(c *C) {
-	service := AppYaml{
+	service := &AppYaml{
 		Name:        "xkcd-webserver",
 		Command:     "bin/foo start",
 		Stop:        "bin/foo stop",
@@ -1158,7 +1134,7 @@ func (s *SnapTestSuite) TestSnappyGenerateSnapServiceWithSockte(c *C) {
 }
 
 func (s *SnapTestSuite) TestGenerateSnapSocketFile(c *C) {
-	srv := AppYaml{}
+	srv := &AppYaml{}
 	baseDir := "/base/dir"
 	aaProfile := "pkg_app_1.0"
 	m := &packageYaml{}
@@ -1178,9 +1154,9 @@ func (s *SnapTestSuite) TestGenerateSnapSocketFile(c *C) {
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {
 	packageYaml := `name: foo
-icon: foo.svg
-binaries:
- - name: bin/bar
+apps:
+ bar:
+  command: bin/bar
 `
 	snapFile := makeTestSnapPackage(c, packageYaml+"version: 1.0")
 	_, err := installClick(snapFile, AllowUnauthenticated, nil, "mvo")

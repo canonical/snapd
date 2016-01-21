@@ -48,7 +48,7 @@ var killWait = 5 * time.Second
 var servicesBinariesStringsWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
 
 // generate the name
-func generateBinaryName(m *packageYaml, app AppYaml) string {
+func generateBinaryName(m *packageYaml, app *AppYaml) string {
 	var binName string
 	if m.Type == snap.TypeFramework {
 		binName = filepath.Base(app.Name)
@@ -59,12 +59,12 @@ func generateBinaryName(m *packageYaml, app AppYaml) string {
 	return filepath.Join(dirs.SnapBinariesDir, binName)
 }
 
-func binPathForBinary(pkgPath string, app AppYaml) string {
+func binPathForBinary(pkgPath string, app *AppYaml) string {
 	return filepath.Join(pkgPath, app.Command)
 }
 
-func verifyBinariesYaml(app AppYaml) error {
-	return verifyStructStringsAgainstWhitelist(app, servicesBinariesStringsWhitelist)
+func verifyBinariesYaml(app *AppYaml) error {
+	return verifyStructStringsAgainstWhitelist(*app, servicesBinariesStringsWhitelist)
 }
 
 // Doesn't need to handle complications like internal quotes, just needs to
@@ -73,7 +73,7 @@ func quoteEnvVar(envVar string) string {
 	return "export " + strings.Replace(envVar, "=", "=\"", 1) + "\""
 }
 
-func generateSnapBinaryWrapper(app AppYaml, pkgPath, aaProfile string, m *packageYaml) (string, error) {
+func generateSnapBinaryWrapper(app *AppYaml, pkgPath, aaProfile string, m *packageYaml) (string, error) {
 	wrapperTemplate := `#!/bin/sh
 set -e
 
@@ -154,7 +154,6 @@ ubuntu-core-launcher {{.UdevAppName}} {{.AaProfile}} {{.Target}} "$@"
 // verifyStructStringsAgainstWhitelist takes a struct and ensures that
 // the given whitelist regexp matches all string fields of the struct
 func verifyStructStringsAgainstWhitelist(s interface{}, whitelist *regexp.Regexp) error {
-
 	// check all members of the services struct against our whitelist
 	t := reflect.TypeOf(s)
 	v := reflect.ValueOf(s)
@@ -190,11 +189,11 @@ func verifyStructStringsAgainstWhitelist(s interface{}, whitelist *regexp.Regexp
 	return nil
 }
 
-func verifyServiceYaml(app AppYaml) error {
-	return verifyStructStringsAgainstWhitelist(app, servicesBinariesStringsWhitelist)
+func verifyServiceYaml(app *AppYaml) error {
+	return verifyStructStringsAgainstWhitelist(*app, servicesBinariesStringsWhitelist)
 }
 
-func generateSnapServicesFile(app AppYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
+func generateSnapServicesFile(app *AppYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
 	if err := verifyServiceYaml(app); err != nil {
 		return "", err
 	}
@@ -233,7 +232,7 @@ func generateSnapServicesFile(app AppYaml, baseDir string, aaProfile string, m *
 			Restart:        app.RestartCond,
 		}), nil
 }
-func generateSnapSocketFile(app AppYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
+func generateSnapSocketFile(app *AppYaml, baseDir string, aaProfile string, m *packageYaml) (string, error) {
 	if err := verifyServiceYaml(app); err != nil {
 		return "", err
 	}
@@ -256,15 +255,15 @@ func generateSnapSocketFile(app AppYaml, baseDir string, aaProfile string, m *pa
 		}), nil
 }
 
-func generateServiceFileName(m *packageYaml, app AppYaml) string {
+func generateServiceFileName(m *packageYaml, app *AppYaml) string {
 	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.service", m.Name, app.Name, m.Version))
 }
 
-func generateSocketFileName(m *packageYaml, app AppYaml) string {
+func generateSocketFileName(m *packageYaml, app *AppYaml) string {
 	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s_%s_%s.socket", m.Name, app.Name, m.Version))
 }
 
-func generateBusPolicyFileName(m *packageYaml, app AppYaml) string {
+func generateBusPolicyFileName(m *packageYaml, app *AppYaml) string {
 	return filepath.Join(dirs.SnapBusPolicyDir, fmt.Sprintf("%s_%s_%s.conf", m.Name, app.Name, m.Version))
 }
 

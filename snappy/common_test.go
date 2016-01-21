@@ -57,14 +57,14 @@ func init() {
 func makeInstalledMockSnap(tempdir, packageYamlContent string) (yamlFile string, err error) {
 	const packageHello = `name: hello-app
 version: 1.10
-icon: meta/hello.svg
-binaries:
- - name: bin/hello
-services:
- - name: svc1
-   start: bin/hello
+apps:
+ hello:
+  command: bin/hello
+ svc1:
+   command: bin/hello
    stop: bin/goodbye
    poststop: bin/missya
+   daemon: forking
 `
 	if packageYamlContent == "" {
 		packageYamlContent = packageHello
@@ -206,7 +206,6 @@ echo "hello"`
 		packageYamlContent = `
 name: foo
 version: 1.0
-icon: foo.svg
 `
 	}
 	ioutil.WriteFile(packageYaml, []byte(packageYamlContent), 0644)
@@ -245,7 +244,6 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) {
 	inter := &MockProgressMeter{}
 
 	packageYaml := `name: foo
-icon: foo.svg
 `
 	if len(extra) > 0 {
 		packageYaml += strings.Join(extra, "\n") + "\n"

@@ -601,12 +601,12 @@ var mockSecurityPackageYaml = `
 name: hello-world
 vendor: someone
 version: 1.0
-binaries:
- - name: binary1
+apps:
+ binary1:
    caps: []
-services:
- - name: service1
+ service1:
    caps: []
+   daemon: forking
 `
 
 func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSimple(c *C) {
@@ -813,8 +813,8 @@ var mockSecurityDeprecatedPackageYaml = `
 name: hello-world
 vendor: someone
 version: 1.0
-binaries:
- - name: binary1
+apps:
+ binary1:
    caps: []
 `
 

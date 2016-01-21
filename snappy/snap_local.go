@@ -174,7 +174,12 @@ func (s *SnapPart) Channel() string {
 
 // Icon returns the path to the icon
 func (s *SnapPart) Icon() string {
-	return filepath.Join(s.basedir, "meta", "icon.png")
+	found, _ := filepath.Glob(filepath.Join(s.basedir, "meta", "icon.*"))
+	if len(found) == 0 {
+		return ""
+	}
+
+	return found[0]
 }
 
 // IsActive returns true if the snap is active
@@ -219,7 +224,7 @@ func (s *SnapPart) Date() time.Time {
 }
 
 // Apps return a list of AppsYamls the package declares
-func (s *SnapPart) Apps() map[string]AppYaml {
+func (s *SnapPart) Apps() map[string]*AppYaml {
 	return s.m.Apps
 }
 

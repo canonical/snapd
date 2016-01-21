@@ -56,12 +56,14 @@ type Ports struct {
 
 // AppYaml represents an application (binary or service)
 type AppYaml struct {
-	Name     string `yaml:"name" json:"name,omitempty"`
-	Version  string
+	// name is partent key
+	Name string
+	// part of the yaml
+	Version  string   `yaml:"version"`
 	Command  string   `yaml:"command"`
 	Provides []string `yaml:"provides"`
 	Consumes []string `yaml:"consumes"`
-	Daemon   string
+	Daemon   string   `yaml:"daemon"`
 
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 
@@ -105,7 +107,7 @@ type packageYaml struct {
 	Frameworks []string `yaml:"frameworks,omitempty"`
 
 	// Apps can be both binary or service
-	Apps map[string]AppYaml `yaml:"apps,omitempty"`
+	Apps map[string]*AppYaml `yaml:"apps,omitempty"`
 
 	// FIXME: clarify those
 
@@ -183,10 +185,11 @@ func parsePackageYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error)
 		m.Architectures = []string{"all"}
 	}
 
-	for _, app := range m.Apps {
+	for name, app := range m.Apps {
 		if app.StopTimeout == 0 {
 			app.StopTimeout = timeout.DefaultTimeout
 		}
+		app.Name = name
 	}
 
 	return &m, nil
