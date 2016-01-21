@@ -177,10 +177,6 @@ func parsePackageYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error)
 		return nil, &ErrInvalidYaml{File: "package.yaml", Err: err, Yaml: yamlData}
 	}
 
-	if err := validatePackageYamlData("package.yaml", yamlData, &m); err != nil {
-		return nil, err
-	}
-
 	if m.Architectures == nil {
 		m.Architectures = []string{"all"}
 	}
@@ -190,6 +186,10 @@ func parsePackageYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error)
 			app.StopTimeout = timeout.DefaultTimeout
 		}
 		app.Name = name
+	}
+
+	if err := validatePackageYamlData("package.yaml", yamlData, &m); err != nil {
+		return nil, err
 	}
 
 	return &m, nil

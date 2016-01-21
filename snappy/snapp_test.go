@@ -1245,8 +1245,8 @@ func (s *SnapTestSuite) TestDetectIllegalYamlBinaries(c *C) {
 	_, err := parsePackageYamlData([]byte(`name: foo
 version: 1.0
 apps:
- testme:
-   command : some!thing
+ tes!me:
+   command: someething
 `), false)
 	c.Assert(err, NotNil)
 }
@@ -1255,8 +1255,8 @@ func (s *SnapTestSuite) TestDetectIllegalYamlService(c *C) {
 	_, err := parsePackageYamlData([]byte(`name: foo
 version: 1.0
 apps:
- testme:
-   command: some!thing
+ tes!me:
+   command: something
    daemon: forking
 `), false)
 	c.Assert(err, NotNil)
