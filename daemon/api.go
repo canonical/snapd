@@ -904,6 +904,7 @@ func doAssert(c *Command, r *http.Request) Response {
 		// TODO: have a specific error to be able to return  409 for not newer revision?
 		return BadRequest("assert failed: %v", err)
 	}
+	// TODO: what more info do we want to return on success?
 	return &resp{
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
