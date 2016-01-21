@@ -311,7 +311,7 @@ var findServices = snappy.FindServices
 
 type svcDesc struct {
 	Op     string                       `json:"op"`
-	Spec   *snappy.ServiceYaml          `json:"spec"`
+	Spec   *snappy.AppYaml              `json:"spec"`
 	Status *snappy.PackageServiceStatus `json:"status"`
 }
 
@@ -377,7 +377,7 @@ func snapService(c *Command, r *http.Request) Response {
 	if !ok {
 		return InternalError(nil, "active snap is not a *snappy.SnapPart: %T", ipart)
 	}
-	svcs := part.ServiceYamls()
+	svcs := part.Apps()
 
 	if len(svcs) == 0 {
 		return NotFound(nil, "snap %q has no services", pkgName)
@@ -385,7 +385,10 @@ func snapService(c *Command, r *http.Request) Response {
 
 	svcmap := make(map[string]*svcDesc, len(svcs))
 	for i := range svcs {
-		svcmap[svcs[i].Name] = &svcDesc{Spec: &svcs[i], Op: action}
+		if svcs[i].Daemon == "" {
+			continue
+		}
+		svcmap[svcs[i].Name] = &svcDesc{Spec: svcs[i], Op: action}
 	}
 
 	if svcName != "" && svcmap[svcName] == nil {

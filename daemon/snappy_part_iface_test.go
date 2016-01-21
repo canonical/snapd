@@ -53,7 +53,7 @@ type tP struct {
 	frameworks    []string
 	frameworksErr error
 
-	svcYamls []snappy.ServiceYaml
+	svcYamls map[string]*snappy.AppYaml
 }
 
 func (p *tP) Name() string         { return p.name }
@@ -85,4 +85,4 @@ func (p *tP) SetActive(bool, progress.Meter) error { return p.setActiveErr }
 func (p *tP) Frameworks() ([]string, error)        { return p.frameworks, p.frameworksErr }
 
 // for ServiceYamler interface:
-func (p *tP) ServiceYamls() []snappy.ServiceYaml { return p.svcYamls }
+func (p *tP) Apps() map[string]*snappy.AppYaml { return p.svcYamls }
