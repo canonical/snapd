@@ -196,7 +196,7 @@ const (
 )
 
 /* acquired via:
-curl -s -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url" | python -m json.tool
+curl -s -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision" | python -m json.tool
 */
 const MockSearchJSON = `{
     "_embedded": {
@@ -219,6 +219,7 @@ const MockSearchJSON = `{
                 "prices": {},
                 "publisher": "John Lenton",
                 "ratings_average": 0.0,
+                "revision": 7,
                 "support_url": "http://lmgtfy.com",
                 "title": "Returns for store credit only.",
                 "version": "42"
@@ -234,7 +235,7 @@ const MockSearchJSON = `{
             }
         ],
         "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url"
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,revision"
         }
     }
 }
@@ -320,6 +321,7 @@ const MockDetailsJSON = `{
     "release": [
         "15.04-core"
     ],
+    "revision": 15,
     "screenshot_url": null,
     "screenshot_urls": [],
     "status": "Published",
@@ -341,7 +343,7 @@ const MockDetailsJSON = `{
 `
 
 /* acquired via
-curl -s -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,alias" | python -m json.tool
+curl -s -H 'accept: application/hal+json' -H "X-Ubuntu-Release: 15.04-core" -H "X-Ubuntu-Architecture: amd64" "https://search.apps.ubuntu.com/api/v1/search?q=8nzc1x4iim2xj1g2ul64&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,alias,revision" | python -m json.tool
 */
 const MockAliasSearchJSON = `{
     "_embedded": {
@@ -365,6 +367,7 @@ const MockAliasSearchJSON = `{
                 "prices": {},
                 "publisher": "Canonical",
                 "ratings_average": 0.0,
+                "revision": 6,
                 "support_url": "mailto:snappy-devel@lists.ubuntu.com",
                 "title": "hello-world",
                 "version": "1.0.8"
@@ -388,6 +391,7 @@ const MockAliasSearchJSON = `{
                 "prices": {},
                 "publisher": "Jamie Strandboge",
                 "ratings_average": 0.0,
+                "revision": 7,
                 "support_url": "mailto:jamie@strandboge.com",
                 "title": "hello-world",
                 "version": "1.4"
@@ -403,7 +407,7 @@ const MockAliasSearchJSON = `{
             }
         ],
         "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=hello-world&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,alias"
+            "href": "https://search.apps.ubuntu.com/api/v1/search?q=hello-world&fields=publisher,package_name,origin,title,icon_url,prices,content,ratings_average,version,anon_download_url,download_url,download_sha512,last_updated,binary_filesize,support_url,alias,revision"
         }
     }
 }

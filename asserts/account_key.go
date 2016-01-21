@@ -118,10 +118,3 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 		pubKey:        pubk,
 	}, nil
 }
-
-func init() {
-	typeRegistry[AccountKeyType] = &assertionTypeRegistration{
-		assembler:  assembleAccountKey,
-		primaryKey: []string{"account-id", "public-key-id"},
-	}
-}

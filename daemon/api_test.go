@@ -27,7 +27,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -135,7 +134,7 @@ gadget: {store: {id: %q}}
 	c.Assert(ioutil.WriteFile(filepath.Join(m, "hashes.yaml"), []byte(nil), 0644), check.IsNil)
 }
 
-func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
+func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 	newTestDaemon()
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
@@ -158,30 +157,31 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 	// and v1 is current
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
-	rsp, ok := getPackageInfo(packageCmd, nil).(*resp)
+	rsp, ok := getSnapInfo(snapCmd, nil).(*resp)
 	c.Assert(ok, check.Equals, true)
 
-	// installed_size depends on vagaries of the filesystem, just check regexp
 	c.Assert(rsp, check.NotNil)
-	c.Assert(rsp.Result, check.FitsTypeOf, map[string]string{})
-	m := rsp.Result.(map[string]string)
-	c.Check(m["installed_size"], check.Matches, "[0-9]+")
+	c.Assert(rsp.Result, check.FitsTypeOf, map[string]interface{}{})
+	m := rsp.Result.(map[string]interface{})
+
+	// installed_size depends on vagaries of the filesystem, just check type
+	c.Check(m["installed_size"], check.FitsTypeOf, int64(0))
 	delete(m, "installed_size")
 
 	expected := &resp{
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
-		Result: map[string]string{
+		Result: map[string]interface{}{
 			"name":               "foo",
 			"version":            "v1",
 			"description":        "description",
 			"origin":             "bar",
 			"status":             "active",
-			"icon":               "/1.0/icons/foo.bar/icon",
+			"icon":               "/2.0/icons/foo.bar/icon",
 			"type":               string(snap.TypeApp),
 			"vendor":             "",
-			"download_size":      "2",
-			"resource":           "/1.0/packages/foo.bar",
+			"download_size":      int64(2),
+			"resource":           "/2.0/snaps/foo.bar",
 			"update_available":   "v2",
 			"rollback_available": "v0",
 		},
@@ -190,31 +190,31 @@ func (s *apiSuite) TestPackageInfoOneIntegration(c *check.C) {
 	c.Check(rsp, check.DeepEquals, expected)
 }
 
-func (s *apiSuite) TestPackageInfoNotFound(c *check.C) {
+func (s *apiSuite) TestSnapInfoNotFound(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.err = snappy.ErrPackageNotFound
 
-	c.Check(getPackageInfo(packageCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
+	c.Check(getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
 
-func (s *apiSuite) TestPackageInfoNoneFound(c *check.C) {
+func (s *apiSuite) TestSnapInfoNoneFound(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
-	c.Check(getPackageInfo(packageCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
+	c.Check(getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 }
 
-func (s *apiSuite) TestPackageInfoIgnoresRemoteErrors(c *check.C) {
+func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.err = errors.New("weird")
 
-	rsp := getPackageInfo(packageCmd, nil).Self(nil, nil).(*resp)
+	rsp := getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
 	c.Check(rsp.Result, check.NotNil)
 }
 
-func (s *apiSuite) TestPackageInfoWeirdRoute(c *check.C) {
+func (s *apiSuite) TestSnapInfoWeirdRoute(c *check.C) {
 	// can't really happen
 
 	d := newTestDaemon()
@@ -223,22 +223,22 @@ func (s *apiSuite) TestPackageInfoWeirdRoute(c *check.C) {
 	wrongCmd := &Command{Path: "/{what}", d: d}
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.parts = []snappy.Part{&tP{name: "foo"}}
-	c.Check(getPackageInfo(wrongCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
+	c.Check(getSnapInfo(wrongCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusInternalServerError)
 }
 
-func (s *apiSuite) TestPackageInfoBadRoute(c *check.C) {
+func (s *apiSuite) TestSnapInfoBadRoute(c *check.C) {
 	// can't really happen, v2
 
 	d := newTestDaemon()
 
 	// get the route and break it
-	route := d.router.Get(packageCmd.Path)
+	route := d.router.Get(snapCmd.Path)
 	c.Assert(route.Name("foo").GetError(), check.NotNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.parts = []snappy.Part{&tP{name: "foo"}}
 
-	rsp := getPackageInfo(packageCmd, nil).Self(nil, nil).(*resp)
+	rsp := getSnapInfo(snapCmd, nil).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
@@ -283,7 +283,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"newRemoteRepo",
 		"newSnap",
 		"pkgActionDispatch",
-		// packageInstruction vars:
+		// snapInstruction vars:
 		"snappyInstall",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
@@ -304,7 +304,7 @@ func (s *apiSuite) TestRootCmd(c *check.C) {
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
-	expected := []interface{}{"/1.0"}
+	expected := []interface{}{"TBD"}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
@@ -320,19 +320,19 @@ func (s *apiSuite) mkrelease() {
 	})
 }
 
-func (s *apiSuite) TestV1(c *check.C) {
+func (s *apiSuite) TestSysInfo(c *check.C) {
 	// check it only does GET
-	c.Check(v1Cmd.PUT, check.IsNil)
-	c.Check(v1Cmd.POST, check.IsNil)
-	c.Check(v1Cmd.DELETE, check.IsNil)
-	c.Assert(v1Cmd.GET, check.NotNil)
+	c.Check(sysInfoCmd.PUT, check.IsNil)
+	c.Check(sysInfoCmd.POST, check.IsNil)
+	c.Check(sysInfoCmd.DELETE, check.IsNil)
+	c.Assert(sysInfoCmd.GET, check.NotNil)
 
 	rec := httptest.NewRecorder()
-	c.Check(v1Cmd.Path, check.Equals, "/1.0")
+	c.Check(sysInfoCmd.Path, check.Equals, "/2.0/system-info")
 
 	s.mkrelease()
 
-	v1Cmd.GET(v1Cmd, nil).ServeHTTP(rec, nil)
+	sysInfoCmd.GET(sysInfoCmd, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
@@ -349,14 +349,14 @@ func (s *apiSuite) TestV1(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
-func (s *apiSuite) TestV1Store(c *check.C) {
+func (s *apiSuite) TestSysInfoStore(c *check.C) {
 	rec := httptest.NewRecorder()
-	c.Check(v1Cmd.Path, check.Equals, "/1.0")
+	c.Check(sysInfoCmd.Path, check.Equals, "/2.0/system-info")
 
 	s.mkrelease()
 	s.mkGadget(c, "some-store")
 
-	v1Cmd.GET(v1Cmd, nil).ServeHTTP(rec, nil)
+	sysInfoCmd.GET(sysInfoCmd, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 
 	expected := map[string]interface{}{
@@ -373,8 +373,8 @@ func (s *apiSuite) TestV1Store(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
-func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
-	req, err := http.NewRequest("GET", "/1.0/packages", nil)
+func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
+	req, err := http.NewRequest("GET", "/2.0/snaps", nil)
 	c.Assert(err, check.IsNil)
 
 	ddirs := [][2]string{{"foo.bar", "v1"}, {"bar.baz", "v2"}, {"baz.qux", "v3"}, {"qux.mip", "v4"}}
@@ -383,7 +383,7 @@ func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
 		c.Assert(os.MkdirAll(filepath.Join(dirs.SnapDataDir, ddirs[i][0], ddirs[i][1]), 0755), check.IsNil)
 	}
 
-	rsp, ok := getPackagesInfo(packagesCmd, req).(*resp)
+	rsp, ok := getSnapsInfo(snapsCmd, req).(*resp)
 	c.Assert(ok, check.Equals, true)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
@@ -395,16 +395,16 @@ func (s *apiSuite) TestPackagesInfoOnePerIntegration(c *check.C) {
 	c.Assert(meta, check.NotNil)
 	c.Check(meta["paging"], check.DeepEquals, map[string]interface{}{"pages": 1, "page": 1, "count": len(ddirs)})
 
-	packages, ok := meta["packages"].(map[string]map[string]string)
+	snaps, ok := meta["snaps"].(map[string]map[string]interface{})
 	c.Assert(ok, check.Equals, true)
-	c.Check(packages, check.NotNil)
-	c.Check(packages, check.HasLen, len(ddirs))
+	c.Check(snaps, check.NotNil)
+	c.Check(snaps, check.HasLen, len(ddirs))
 
 	for i := range ddirs {
 		qn, version := ddirs[i][0], ddirs[i][1]
 		idx := strings.LastIndex(qn, ".")
 		name, origin := qn[:idx], qn[idx+1:]
-		got := packages[qn]
+		got := snaps[qn]
 		c.Assert(got, check.NotNil, check.Commentf(qn))
 		c.Check(got["name"], check.Equals, name)
 		c.Check(got["version"], check.Equals, version)
@@ -464,7 +464,7 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
-		"resource":   "/1.0/operations/" + id,
+		"resource":   "/2.0/operations/" + id,
 		"status":     TaskRunning,
 		"may_cancel": false,
 		"created_at": FormatTime(t.CreatedAt()),
@@ -481,7 +481,7 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
-		"resource":   "/1.0/operations/" + id,
+		"resource":   "/2.0/operations/" + id,
 		"status":     TaskSucceeded,
 		"may_cancel": false,
 		"created_at": FormatTime(t.CreatedAt()),
@@ -494,39 +494,39 @@ func (s *apiSuite) TestGetOpInfoIntegration(c *check.C) {
 	c.Check(tf1 < tf2, check.Equals, true)
 }
 
-func (s *apiSuite) TestPostPackageBadRequest(c *check.C) {
+func (s *apiSuite) TestPostSnapBadRequest(c *check.C) {
 	s.vars = map[string]string{"uuid": "42"}
 	rsp := getOpInfo(operationCmd, nil).Self(nil, nil).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
 
 	buf := bytes.NewBufferString(`hello`)
-	req, err := http.NewRequest("POST", "/1.0/packages/hello-world", buf)
+	req, err := http.NewRequest("POST", "/2.0/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp = postPackage(packageCmd, req).(*resp)
+	rsp = postSnap(snapCmd, req).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
 	c.Check(rsp.Result, check.NotNil)
 }
 
-func (s *apiSuite) TestPostPackageBadAction(c *check.C) {
+func (s *apiSuite) TestPostSnapBadAction(c *check.C) {
 	s.vars = map[string]string{"uuid": "42"}
 	c.Check(getOpInfo(operationCmd, nil).Self(nil, nil).(*resp).Status, check.Equals, http.StatusNotFound)
 
 	buf := bytes.NewBufferString(`{"action": "potato"}`)
-	req, err := http.NewRequest("POST", "/1.0/packages/hello-world", buf)
+	req, err := http.NewRequest("POST", "/2.0/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := postPackage(packageCmd, req).(*resp)
+	rsp := postSnap(snapCmd, req).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
 	c.Check(rsp.Result, check.NotNil)
 }
 
-func (s *apiSuite) TestPostPackage(c *check.C) {
+func (s *apiSuite) TestPostSnap(c *check.C) {
 	d := newTestDaemon()
 
 	s.vars = map[string]string{"uuid": "42"}
@@ -534,7 +534,7 @@ func (s *apiSuite) TestPostPackage(c *check.C) {
 
 	ch := make(chan struct{})
 
-	pkgActionDispatch = func(*packageInstruction) func() interface{} {
+	pkgActionDispatch = func(*snapInstruction) func() interface{} {
 		return func() interface{} {
 			ch <- struct{}{}
 			return "hi"
@@ -545,14 +545,14 @@ func (s *apiSuite) TestPostPackage(c *check.C) {
 	}()
 
 	buf := bytes.NewBufferString(`{"action": "install"}`)
-	req, err := http.NewRequest("POST", "/1.0/packages/hello-world", buf)
+	req, err := http.NewRequest("POST", "/2.0/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := postPackage(packageCmd, req).(*resp)
+	rsp := postSnap(snapCmd, req).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
 	m := rsp.Result.(map[string]interface{})
-	c.Assert(m["resource"], check.Matches, "/1.0/operations/.*")
+	c.Assert(m["resource"], check.Matches, "/2.0/operations/.*")
 
 	uuid := m["resource"].(string)[16:]
 
@@ -570,8 +570,8 @@ func (s *apiSuite) TestPostPackage(c *check.C) {
 	c.Check(task.Output(), check.Equals, "hi")
 }
 
-func (s *apiSuite) TestPostPackageDispatch(c *check.C) {
-	inst := &packageInstruction{}
+func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
+	inst := &snapInstruction{}
 
 	type T struct {
 		s string
@@ -606,8 +606,8 @@ func (c cfgc) Load(string) (snappy.Part, error) {
 	return &tP{name: "foo", version: "v1", origin: "bar", isActive: true, config: c.cfg, configErr: c.err}, nil
 }
 
-func (s *apiSuite) TestPackageGetConfig(c *check.C) {
-	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+func (s *apiSuite) TestSnapGetConfig(c *check.C) {
+	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
 	configStr := "some: config"
@@ -622,7 +622,7 @@ func (s *apiSuite) TestPackageGetConfig(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
-	rsp := packageConfig(packagesCmd, req).(*resp)
+	rsp := snapConfig(snapsCmd, req).(*resp)
 
 	c.Check(rsp, check.DeepEquals, &resp{
 		Type:   ResponseTypeSync,
@@ -631,46 +631,46 @@ func (s *apiSuite) TestPackageGetConfig(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestPackageGetConfigMissing(c *check.C) {
+func (s *apiSuite) TestSnapGetConfigMissing(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
-	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
-	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
+	rsp := snapConfig(snapsCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
 }
 
-func (s *apiSuite) TestPackageGetConfigInactive(c *check.C) {
+func (s *apiSuite) TestSnapGetConfigInactive(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
 	s.mkInstalled(c, "foo", "bar", "v1", false, "")
 
-	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
-	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
+	rsp := snapConfig(snapsCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
 }
 
-func (s *apiSuite) TestPackageGetConfigNoConfig(c *check.C) {
+func (s *apiSuite) TestSnapGetConfigNoConfig(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
-	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
-	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
+	rsp := snapConfig(snapsCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
 }
 
-func (s *apiSuite) TestPackagePutConfig(c *check.C) {
+func (s *apiSuite) TestSnapPutConfig(c *check.C) {
 	newConfigStr := "some other config"
-	req, err := http.NewRequest("PUT", "/1.0/packages/foo.bar/config", bytes.NewBufferString(newConfigStr))
+	req, err := http.NewRequest("PUT", "/2.0/snaps/foo.bar/config", bytes.NewBufferString(newConfigStr))
 	c.Assert(err, check.IsNil)
 
 	configStr := "some: config"
@@ -685,7 +685,7 @@ func (s *apiSuite) TestPackagePutConfig(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
-	rsp := packageConfig(packageConfigCmd, req).Self(nil, nil).(*resp)
+	rsp := snapConfig(snapConfigCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp, check.DeepEquals, &resp{
 		Type:   ResponseTypeSync,
@@ -694,156 +694,55 @@ func (s *apiSuite) TestPackagePutConfig(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestPackagePutConfigMissing(c *check.C) {
+func (s *apiSuite) TestSnapPutConfigMissing(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
-	req, err := http.NewRequest("PUT", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+	req, err := http.NewRequest("PUT", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
-	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
+	rsp := snapConfig(snapsCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusNotFound)
 }
 
-func (s *apiSuite) TestPackagePutConfigInactive(c *check.C) {
+func (s *apiSuite) TestSnapPutConfigInactive(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
 	s.mkInstalled(c, "foo", "bar", "v1", false, "")
 
-	req, err := http.NewRequest("PUT", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+	req, err := http.NewRequest("PUT", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
-	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
+	rsp := snapConfig(snapsCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
 }
 
-func (s *apiSuite) TestPackagePutConfigNoConfig(c *check.C) {
+func (s *apiSuite) TestSnapPutConfigNoConfig(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
 	s.mkInstalled(c, "foo", "bar", "v1", true, "")
 
-	req, err := http.NewRequest("PUT", "/1.0/packages/foo.bar/config", bytes.NewBuffer(nil))
+	req, err := http.NewRequest("PUT", "/2.0/snaps/foo.bar/config", bytes.NewBuffer(nil))
 	c.Assert(err, check.IsNil)
 
-	rsp := packageConfig(packagesCmd, req).Self(nil, nil).(*resp)
+	rsp := snapConfig(snapsCmd, req).Self(nil, nil).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
 }
 
-func (s *apiSuite) TestConfigMultiBadBody(c *check.C) {
-	newTestDaemon()
-
-	req, err := http.NewRequest("PUT", "/1.0/packages", bytes.NewBuffer(nil))
-	c.Assert(err, check.IsNil)
-	rsp := configMulti(packagesCmd, req).Self(nil, nil).(*resp)
-	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
-}
-
-func (s *apiSuite) TestPackagesPutStr(c *check.C) {
-	newConfigs := map[string]string{"foo.bar": "some other config", "baz.qux": "stuff", "missing.pkg": "blah blah"}
-	bs, err := json.Marshal(newConfigs)
-	c.Assert(err, check.IsNil)
-	s.genericTestPackagePut(c, bytes.NewBuffer(bs), map[string]*configSubtask{
-		"foo.bar":     &configSubtask{Status: TaskSucceeded, Output: "some other config"},
-		"baz.qux":     &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrConfigNotFound.Error(), Obj: snappy.ErrConfigNotFound, Msg: "Config failed"}},
-		"missing.pkg": &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrPackageNotFound.Error(), Obj: snappy.ErrPackageNotFound}},
-	})
-}
-
-func (s *apiSuite) TestPackagesPutNil(c *check.C) {
-	newConfigs := map[string][]byte{"foo.bar": nil, "mip.brp": nil}
-	bs, err := json.Marshal(newConfigs)
-	c.Assert(err, check.IsNil)
-	s.genericTestPackagePut(c, bytes.NewBuffer(bs), map[string]*configSubtask{
-		"foo.bar": &configSubtask{Status: TaskSucceeded, Output: "some: config"},
-		"mip.brp": &configSubtask{Status: TaskFailed, Output: &errorResult{Str: snappy.ErrSnapNotActive.Error(), Obj: snappy.ErrSnapNotActive}},
-	})
-}
-
-func (s *apiSuite) genericTestPackagePut(c *check.C, body io.Reader, expected map[string]*configSubtask) {
-	d := newTestDaemon()
-
-	req, err := http.NewRequest("PUT", "/1.0/packages", body)
-	c.Assert(err, check.IsNil)
-
-	configStr := "some: config"
-	oldConcrete := lightweight.NewConcrete
-	defer func() {
-		lightweight.NewConcrete = oldConcrete
-	}()
-	lightweight.NewConcrete = func(bag *lightweight.PartBag, _ string) lightweight.Concreter {
-		switch bag.Name {
-		case "foo":
-			return &cfgc{cfg: configStr}
-		case "mip":
-			return &cfgc{idx: -1}
-		default:
-			return &cfgc{err: snappy.ErrConfigNotFound}
-		}
-	}
-
-	s.mkInstalled(c, "foo", "bar", "v1", true, "")
-	s.mkInstalled(c, "baz", "qux", "v1", true, "")
-	s.mkInstalled(c, "mip", "brp", "v1", false, "")
-
-	rsp := configMulti(packagesCmd, req).Self(nil, nil).(*resp)
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
-	c.Check(rsp.Status, check.Equals, http.StatusAccepted)
-	m := rsp.Result.(map[string]interface{})
-	c.Check(m["resource"], check.Matches, "/1.0/operations/.*")
-
-	uuid := m["resource"].(string)[16:]
-
-	task := d.GetTask(uuid)
-	c.Assert(task, check.NotNil)
-
-	// wait up to another ten seconds (!) for the task to finish properly
-	for i := 0; i < 1000; i++ {
-		if d.GetTask(uuid).State() != TaskRunning {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	c.Assert(task.State(), check.Equals, TaskSucceeded)
-	out := task.Output().(map[string]*configSubtask)
-	c.Check(out, check.HasLen, len(expected))
-
-	var missing []string
-	for k, v := range out {
-		exp, ok := expected[k]
-		if !ok {
-			missing = append(missing, k)
-			continue
-		}
-
-		c.Check(v.Status, check.Equals, exp.Status, check.Commentf(k))
-		c.Check(v.Output, check.DeepEquals, exp.Output, check.Commentf(k))
-	}
-	c.Check(missing, check.HasLen, 0, check.Commentf("missing from expected"))
-	missing = nil
-	for k := range expected {
-		if _, ok := out[k]; !ok {
-			missing = append(missing, k)
-		}
-	}
-	c.Check(missing, check.HasLen, 0, check.Commentf("missing from obtained"))
-}
-
-func (s *apiSuite) TestPackageServiceGet(c *check.C) {
+func (s *apiSuite) TestSnapServiceGet(c *check.C) {
 	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
 		return &tSA{ssout: []*snappy.PackageServiceStatus{{ServiceName: "svc"}}}, nil
 	}
 
-	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/services", nil)
+	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/services", nil)
 	c.Assert(err, check.IsNil)
 
 	s.mkInstalled(c, "foo", "bar", "v1", true, "services: [{name: svc}]")
 	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
 
-	rsp := packageService(packageSvcsCmd, req).(*resp)
+	rsp := snapService(snapSvcsCmd, req).(*resp)
 	c.Assert(rsp, check.NotNil)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
@@ -855,25 +754,25 @@ func (s *apiSuite) TestPackageServiceGet(c *check.C) {
 	c.Check(m["svc"].Status, check.DeepEquals, &snappy.PackageServiceStatus{ServiceName: "svc"})
 }
 
-func (s *apiSuite) TestPackageServicePut(c *check.C) {
+func (s *apiSuite) TestSnapServicePut(c *check.C) {
 	findServices = func(string, string, progress.Meter) (snappy.ServiceActor, error) {
 		return &tSA{ssout: []*snappy.PackageServiceStatus{{ServiceName: "svc"}}}, nil
 	}
 
 	buf := bytes.NewBufferString(`{"action": "stop"}`)
-	req, err := http.NewRequest("PUT", "/1.0/packages/foo.bar/services", buf)
+	req, err := http.NewRequest("PUT", "/2.0/snaps/foo.bar/services", buf)
 	c.Assert(err, check.IsNil)
 
 	s.mkInstalled(c, "foo", "bar", "v1", true, "services: [{name: svc}]")
 	s.vars = map[string]string{"name": "foo", "origin": "bar"} // NB: no service specified
 
-	rsp := packageService(packageSvcsCmd, req).(*resp)
+	rsp := snapService(snapSvcsCmd, req).(*resp)
 	c.Assert(rsp, check.NotNil)
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
 	c.Check(rsp.Status, check.Equals, http.StatusAccepted)
 }
 
-func (s *apiSuite) TestSideloadPackage(c *check.C) {
+func (s *apiSuite) TestSideloadSnap(c *check.C) {
 	// try a direct upload, with no x-allow-unsigned header
 	s.sideloadCheck(c, "xyzzy", false, nil)
 	// try a direct upload *with* an x-allow-unsigned header
@@ -909,13 +808,13 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, unsignedExpected bo
 	}
 	defer func() { newSnap = newSnapImpl }()
 
-	req, err := http.NewRequest("POST", "/1.0/packages", tmpfile)
+	req, err := http.NewRequest("POST", "/2.0/snaps", tmpfile)
 	c.Assert(err, check.IsNil)
 	for k, v := range head {
 		req.Header.Set(k, v)
 	}
 
-	rsp := sideloadPackage(packagesCmd, req).(*resp)
+	rsp := sideloadSnap(snapsCmd, req).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
 
 	<-ch
@@ -931,14 +830,14 @@ func (s *apiSuite) TestServiceLogs(c *check.C) {
 		return &tSA{lgout: []systemd.Log{log}}, nil
 	}
 
-	req, err := http.NewRequest("GET", "/1.0/packages/foo.bar/services/baz/logs", nil)
+	req, err := http.NewRequest("GET", "/2.0/snaps/foo.bar/services/baz/logs", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := getLogs(packageSvcLogsCmd, req).(*resp)
+	rsp := getLogs(snapSvcLogsCmd, req).(*resp)
 	c.Assert(rsp, check.DeepEquals, &resp{
 		Type:   ResponseTypeSync,
 		Status: http.StatusOK,
-		Result: []map[string]interface{}{{"message": "hi", "timestamp": "42", "raw": log}},
+		Result: []map[string]interface{}{{"message": "hi", "timestamp": "1970-01-01T00:00:00.000042Z", "raw": log}},
 	})
 }
 
@@ -946,12 +845,12 @@ func (s *apiSuite) TestAppIconGet(c *check.C) {
 	// have an active foo.bar in the system
 	s.mkInstalled(c, "foo", "bar", "v1", true, "icon: icon.ick")
 
-	// have an icon for it in the package itself
+	// have an icon for it in the snap itself
 	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "icon.ick")
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
-	req, err := http.NewRequest("GET", "/1.0/icons/foo.bar/icon", nil)
+	req, err := http.NewRequest("GET", "/2.0/icons/foo.bar/icon", nil)
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -965,12 +864,12 @@ func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 	// have an *in*active foo.bar in the system
 	s.mkInstalled(c, "foo", "bar", "v1", false, "icon: icon.ick")
 
-	// have an icon for it in the package itself
+	// have an icon for it in the snap itself
 	iconfile := filepath.Join(dirs.SnapSnapsDir, "foo.bar", "v1", "icon.ick")
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
-	req, err := http.NewRequest("GET", "/1.0/icons/foo.bar/icon", nil)
+	req, err := http.NewRequest("GET", "/2.0/icons/foo.bar/icon", nil)
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -985,7 +884,7 @@ func (s *apiSuite) TestAppIconGetNoIcon(c *check.C) {
 	s.mkInstalled(c, "foo", "bar", "v1", true, "") // NOTE: no icon in the yaml
 
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
-	req, err := http.NewRequest("GET", "/1.0/icons/foo.bar/icon", nil)
+	req, err := http.NewRequest("GET", "/2.0/icons/foo.bar/icon", nil)
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -996,7 +895,7 @@ func (s *apiSuite) TestAppIconGetNoIcon(c *check.C) {
 
 func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
-	req, err := http.NewRequest("GET", "/1.0/icons/foo.bar/icon", nil)
+	req, err := http.NewRequest("GET", "/2.0/icons/foo.bar/icon", nil)
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -1012,7 +911,7 @@ func (s *apiSuite) TestPkgInstructionAgreedOK(c *check.C) {
 		Agreed:  true,
 	}
 
-	inst := &packageInstruction{License: lic}
+	inst := &snapInstruction{License: lic}
 
 	c.Check(inst.Agreed(lic.Intro, lic.License), check.Equals, true)
 }
@@ -1024,7 +923,7 @@ func (s *apiSuite) TestPkgInstructionAgreedNOK(c *check.C) {
 		Agreed:  false,
 	}
 
-	inst := &packageInstruction{License: lic}
+	inst := &snapInstruction{License: lic}
 
 	c.Check(inst.Agreed(lic.Intro, lic.License), check.Equals, false)
 }
@@ -1036,7 +935,7 @@ func (s *apiSuite) TestPkgInstructionMismatch(c *check.C) {
 		Agreed:  true,
 	}
 
-	inst := &packageInstruction{License: lic}
+	inst := &snapInstruction{License: lic}
 
 	c.Check(inst.Agreed("blah", "yak yak"), check.Equals, false)
 }
@@ -1053,7 +952,7 @@ func (s *apiSuite) TestInstall(c *check.C) {
 		return "", nil
 	}
 
-	inst := &packageInstruction{
+	inst := &snapInstruction{
 		Action: "install",
 	}
 
@@ -1075,7 +974,7 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 		return "", nil
 	}
 
-	inst := &packageInstruction{
+	inst := &snapInstruction{
 		Action:   "install",
 		LeaveOld: true,
 	}
@@ -1098,7 +997,7 @@ func (s *apiSuite) TestInstallLicensed(c *check.C) {
 		return "", snappy.ErrLicenseNotAccepted
 	}
 
-	inst := &packageInstruction{
+	inst := &snapInstruction{
 		Action: "install",
 	}
 
@@ -1131,11 +1030,11 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 		return "", snappy.ErrLicenseNotAccepted
 	}
 
-	req, err := http.NewRequest("POST", "/1.0/packages/foo.bar", strings.NewReader(`{"action": "install"}`))
+	req, err := http.NewRequest("POST", "/2.0/snaps/foo.bar", strings.NewReader(`{"action": "install"}`))
 	c.Assert(err, check.IsNil)
 	s.vars = map[string]string{"name": "foo", "origin": "bar"}
 
-	res := postPackage(packageCmd, req).(*resp).Result.(map[string]interface{})
+	res := postSnap(snapCmd, req).(*resp).Result.(map[string]interface{})
 	task := d.tasks[res["resource"].(string)[16:]]
 	c.Check(task, check.NotNil)
 
@@ -1148,10 +1047,10 @@ func (s *apiSuite) TestInstallLicensedIntegration(c *check.C) {
 		License: "yak yak",
 	})
 
-	req, err = http.NewRequest("POST", "/1.0/packages/foo.bar", strings.NewReader(`{"action": "install", "license": {"intro": "hi", "license": "yak yak", "agreed": true}}`))
+	req, err = http.NewRequest("POST", "/2.0/snaps/foo.bar", strings.NewReader(`{"action": "install", "license": {"intro": "hi", "license": "yak yak", "agreed": true}}`))
 	c.Assert(err, check.IsNil)
 
-	res = postPackage(packageCmd, req).(*resp).Result.(map[string]interface{})
+	res = postSnap(snapCmd, req).(*resp).Result.(map[string]interface{})
 	task = d.tasks[res["resource"].(string)[16:]]
 	c.Check(task, check.NotNil)
 
@@ -1169,7 +1068,7 @@ func (s *apiSuite) TestGetCapabilities(c *check.C) {
 			"path": "/sys/class/leds/input::capslock/brightness",
 		},
 	})
-	req, err := http.NewRequest("GET", "/1.0/capabilities", nil)
+	req, err := http.NewRequest("GET", "/2.0/capabilities", nil)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	capabilitiesCmd.GET(capabilitiesCmd, req).ServeHTTP(rec, req)
@@ -1203,19 +1102,21 @@ func (s *apiSuite) TestAddCapabilitiesGood(c *check.C) {
 		Name:     "name",
 		Label:    "label",
 		TypeName: "bool-file",
-		Attrs:    map[string]string{"path": "/nonexistent"},
+		Attrs: map[string]string{
+			"path": "/sys/class/leds/input::capslock/brightness",
+		},
 	}
 	text, err := json.Marshal(cap)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
 	// Execute
-	req, err := http.NewRequest("POST", "/1.0/capabilities", buf)
+	req, err := http.NewRequest("POST", "/2.0/capabilities", buf)
 	c.Assert(err, check.IsNil)
 	rsp := addCapability(capabilitiesCmd, req).Self(nil, nil).(*resp)
 	// Verify (external)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusCreated)
-	c.Check(rsp.Result, check.DeepEquals, map[string]string{"resource": "/1.0/capabilities/name"})
+	c.Check(rsp.Result, check.DeepEquals, map[string]string{"resource": "/2.0/capabilities/name"})
 	// Verify (internal)
 	c.Check(d.capRepo.All(), testutil.DeepContains, *cap)
 }
@@ -1228,7 +1129,9 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 		Name:     "name",
 		Label:    "label",
 		TypeName: "bool-file",
-		Attrs:    map[string]string{"path": "/nonexistent"},
+		Attrs: map[string]string{
+			"path": "/sys/class/leds/input::capslock/brightness",
+		},
 	}
 	err := d.capRepo.Add(cap)
 	c.Assert(err, check.IsNil)
@@ -1237,13 +1140,15 @@ func (s *apiSuite) TestAddCapabilitiesNameClash(c *check.C) {
 		Name:     "name",
 		Label:    "second label",
 		TypeName: "bool-file",
-		Attrs:    map[string]string{"path": "/nonexistent"},
+		Attrs: map[string]string{
+			"path": "/sys/class/leds/input::capslock/brightness",
+		},
 	}
 	text, err := json.Marshal(capClashing)
 	c.Assert(err, check.IsNil)
 	buf := bytes.NewBuffer(text)
 	// Execute
-	req, err := http.NewRequest("GET", "/1.0/capabilities", buf)
+	req, err := http.NewRequest("GET", "/2.0/capabilities", buf)
 	c.Assert(err, check.IsNil)
 	rsp := addCapability(capabilitiesCmd, req).Self(nil, nil).(*resp)
 	// Verify (external)
@@ -1259,7 +1164,7 @@ func (s *apiSuite) TestAddCapabilitiesUnintelligible(c *check.C) {
 	// Setup
 	d := newTestDaemon()
 	buf := bytes.NewBufferString("blargh")
-	req, err := http.NewRequest("POST", "/1.0/capabilities", buf)
+	req, err := http.NewRequest("POST", "/2.0/capabilities", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	// Execute
@@ -1276,7 +1181,7 @@ func (s *apiSuite) TestAddCapabilitiesNotACapability(c *check.C) {
 	// Setup
 	d := newTestDaemon()
 	buf := bytes.NewBufferString(`{"NotACapability": 1}`)
-	req, err := http.NewRequest("POST", "/1.0/capabilities", buf)
+	req, err := http.NewRequest("POST", "/2.0/capabilities", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
 	// Execute
