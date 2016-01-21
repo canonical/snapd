@@ -256,7 +256,7 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 	}
 	assertType := Type(typ)
 	if assertType == nil {
-		return nil, fmt.Errorf("unknown assertion type: %v", typ)
+		return nil, fmt.Errorf("unknown assertion type: %q", typ)
 	}
 
 	revision, err := checkRevision(headers)

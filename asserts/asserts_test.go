@@ -152,7 +152,7 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		{"authority-id: auth-id\n", "authority-id: \n", `assertion: "authority-id" header should not be empty`},
 		{"openpgp c2ln", "", "empty assertion signature"},
 		{"type: test-only\n", "", `assertion: "type" header is mandatory`},
-		{"type: test-only\n", "type: unknown\n", "unknown assertion type: unknown"},
+		{"type: test-only\n", "type: unknown\n", `unknown assertion type: "unknown"`},
 		{"revision: 0\n", "revision: Z\n", `assertion: "revision" header is not an integer: Z`},
 		{"revision: 0\n", "revision: -10\n", "assertion: revision should be positive: -10"},
 	}
