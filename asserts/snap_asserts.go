@@ -190,14 +190,3 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 		timestamp:     timestamp,
 	}, nil
 }
-
-func init() {
-	typeRegistry[SnapBuildType] = &assertionTypeRegistration{
-		assembler:  assembleSnapBuild,
-		primaryKey: []string{"snap-id", "snap-digest"},
-	}
-	typeRegistry[SnapRevisionType] = &assertionTypeRegistration{
-		assembler:  assembleSnapRevision,
-		primaryKey: []string{"snap-id", "snap-digest"},
-	}
-}

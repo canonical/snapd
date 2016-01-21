@@ -38,12 +38,21 @@ func checkMandatory(headers map[string]string, name string) (string, error) {
 	return value, nil
 }
 
-func checkAssertType(assertType AssertionType) (*assertionTypeRegistration, error) {
-	reg := typeRegistry[assertType]
-	if reg == nil {
-		return nil, fmt.Errorf("unknown assertion type: %v", assertType)
+func checkAssertType(assertType *AssertionType) error {
+	if assertType == nil {
+		return fmt.Errorf("internal error: assertion type cannot be nil")
 	}
-	return reg, nil
+	// sanity check against known canonical
+	sanity := typeRegistry[assertType.Name]
+	switch sanity {
+	case assertType:
+		// fine, matches canonical
+		return nil
+	case nil:
+		return fmt.Errorf("internal error: unknown assertion type: %q", assertType.Name)
+	default:
+		return fmt.Errorf("internal error: unpredefined assertion type for name %q used (unexpected address %p)", assertType.Name, assertType)
+	}
 }
 
 // use 'defl' default if missing
