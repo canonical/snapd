@@ -144,8 +144,8 @@ func AsyncResponse(result map[string]interface{}) Response {
 	}
 }
 
-// ErrorResponse builds an "error" response from the given error status.
-func ErrorResponse(status int) ErrorResponseFunc {
+// makeErrorResponder builds an errorResponder from the given error status.
+func makeErrorResponder(status int) errorResponder {
 	r := &resp{
 		Type:   ResponseTypeError,
 		Status: status,
@@ -167,16 +167,16 @@ func (f FileResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, string(f))
 }
 
-// ErrorResponseFunc is a callable that produces an error Response.
+// errorResponder is a callable that produces an error Response.
 // e.g., InternalError("something broke: %v", err), etc.
-type ErrorResponseFunc func(string, ...interface{}) Response
+type errorResponder func(string, ...interface{}) Response
 
 // standard error responses
 var (
-	NotFound       = ErrorResponse(http.StatusNotFound)
-	BadRequest     = ErrorResponse(http.StatusBadRequest)
-	BadMethod      = ErrorResponse(http.StatusMethodNotAllowed)
-	InternalError  = ErrorResponse(http.StatusInternalServerError)
-	NotImplemented = ErrorResponse(http.StatusNotImplemented)
-	Forbidden      = ErrorResponse(http.StatusForbidden)
+	NotFound       = makeErrorResponder(http.StatusNotFound)
+	BadRequest     = makeErrorResponder(http.StatusBadRequest)
+	BadMethod      = makeErrorResponder(http.StatusMethodNotAllowed)
+	InternalError  = makeErrorResponder(http.StatusInternalServerError)
+	NotImplemented = makeErrorResponder(http.StatusNotImplemented)
+	Forbidden      = makeErrorResponder(http.StatusForbidden)
 )
