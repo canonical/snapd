@@ -37,6 +37,9 @@ type Slot struct {
 	Apps  []string
 }
 
+// SecuritySystem is a name of a security system.
+type SecuritySystem string
+
 // Type describes a group of interchangeable capabilities with common features.
 // Types are managed centrally and act as a contract between system builders,
 // application developers and end users.
