@@ -24,11 +24,78 @@ import (
 )
 
 type RepositorySuite struct {
+	t         Type
 	emptyRepo *Repository
 }
 
-var _ = Suite(&RepositorySuite{})
+var _ = Suite(&RepositorySuite{
+	t: &TestType{
+		TypeName: "type",
+	},
+})
 
 func (s *RepositorySuite) SetUpTest(c *C) {
 	s.emptyRepo = NewRepository()
+}
+
+// Tests for Repository.AddType()
+
+func (s *RepositorySuite) TestAddType(c *C) {
+	// Adding a valid type works
+	err := s.emptyRepo.AddType(s.t)
+	c.Assert(err, IsNil)
+	c.Assert(s.emptyRepo.Type(s.t.Name()), Equals, s.t)
+	c.Assert(s.emptyRepo.AllTypes(), DeepEquals, []Type{s.t})
+}
+
+func (s *RepositorySuite) TestAddTypeClash(c *C) {
+	t1 := &TestType{TypeName: "type"}
+	t2 := &TestType{TypeName: "type"}
+	err := s.emptyRepo.AddType(t1)
+	c.Assert(err, IsNil)
+	// Adding a type with the same name as another type is not allowed
+	err = s.emptyRepo.AddType(t2)
+	c.Assert(err, Equals, ErrDuplicate)
+	c.Assert(s.emptyRepo.Type(t1.Name()), Equals, t1)
+	c.Assert(s.emptyRepo.AllTypes(), DeepEquals, []Type{t1})
+}
+
+func (s *RepositorySuite) TestAddTypeInvalidName(c *C) {
+	t := &TestType{TypeName: "bad-name-"}
+	// Adding a type with invalid name is not allowed
+	err := s.emptyRepo.AddType(t)
+	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid skill or slot name`)
+	c.Assert(s.emptyRepo.Type(t.Name()), IsNil)
+	c.Assert(s.emptyRepo.AllTypes(), HasLen, 0)
+}
+
+// Tests for Repository.Type()
+
+func (s *RepositorySuite) TestType(c *C) {
+	// Type returns nil when it cannot be found
+	t := s.emptyRepo.Type(s.t.Name())
+	c.Assert(t, IsNil)
+	c.Assert(s.emptyRepo.Type(s.t.Name()), IsNil)
+	err := s.emptyRepo.AddType(s.t)
+	c.Assert(err, IsNil)
+	// Type returns the found type
+	t = s.emptyRepo.Type(s.t.Name())
+	c.Assert(t, Equals, s.t)
+}
+
+// Tests for Repository.AllTypes()
+
+func (s *RepositorySuite) TestAllTypes(c *C) {
+	tA := &TestType{TypeName: "a"}
+	tB := &TestType{TypeName: "b"}
+	tC := &TestType{TypeName: "c"}
+	// Note added in non-sorted order
+	err := s.emptyRepo.AddType(tA)
+	c.Assert(err, IsNil)
+	err = s.emptyRepo.AddType(tC)
+	c.Assert(err, IsNil)
+	err = s.emptyRepo.AddType(tB)
+	c.Assert(err, IsNil)
+	// All types are returned. Types are ordered by Name
+	c.Assert(s.emptyRepo.AllTypes(), DeepEquals, []Type{tA, tB, tC})
 }
