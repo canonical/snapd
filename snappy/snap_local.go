@@ -51,7 +51,7 @@ type SnapPart struct {
 
 // NewInstalledSnapPart returns a new SnapPart from the given yamlPath
 func NewInstalledSnapPart(yamlPath, origin string) (*SnapPart, error) {
-	m, err := parsePackageYamlFile(yamlPath)
+	m, err := parseSnapYamlFile(yamlPath)
 	if err != nil {
 		return nil, err
 	}

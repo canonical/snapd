@@ -129,7 +129,7 @@ type packageYaml struct {
 	Dtbs   string `yaml:"dtbs,omitempty"`
 }
 
-func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
+func parseSnapYamlFile(yamlPath string) (*packageYaml, error) {
 
 	yamlData, err := ioutil.ReadFile(yamlPath)
 	if err != nil {
@@ -274,7 +274,7 @@ func (m *packageYaml) checkLicenseAgreement(ag agreer, d snap.File, currentActiv
 		return ErrLicenseNotProvided
 	}
 
-	oldM, err := parsePackageYamlFile(filepath.Join(currentActiveDir, "meta", "snap.yaml"))
+	oldM, err := parseSnapYamlFile(filepath.Join(currentActiveDir, "meta", "snap.yaml"))
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}

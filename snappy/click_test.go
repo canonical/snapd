@@ -745,7 +745,7 @@ func (s *SnapTestSuite) TestAddPackageServicesStripsGlobalRootdir(c *C) {
 
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
-	m, err := parsePackageYamlFile(yamlFile)
+	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
 	err = m.addPackageServices(baseDir, false, nil)
@@ -774,7 +774,7 @@ apps:
 `
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
 	c.Assert(err, IsNil)
-	m, err := parsePackageYamlFile(yamlFile)
+	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
 	err = m.addPackageServices(baseDir, false, nil)
@@ -796,7 +796,7 @@ apps:
 `
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, yaml)
 	c.Assert(err, IsNil)
-	m, err := parsePackageYamlFile(yamlFile)
+	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
 	err = m.addPackageServices(baseDir, false, nil)
@@ -814,7 +814,7 @@ func (s *SnapTestSuite) TestAddPackageBinariesStripsGlobalRootdir(c *C) {
 
 	yamlFile, err := makeInstalledMockSnap(s.tempdir, "")
 	c.Assert(err, IsNil)
-	m, err := parsePackageYamlFile(yamlFile)
+	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	baseDir := filepath.Dir(filepath.Dir(yamlFile))
 	err = m.addPackageBinaries(baseDir)
@@ -1069,7 +1069,7 @@ apps:
    daemon: forking
 `)
 	c.Assert(err, IsNil)
-	m, err := parsePackageYamlFile(yamlFile)
+	m, err := parseSnapYamlFile(yamlFile)
 	c.Assert(err, IsNil)
 	inter := &MockProgressMeter{}
 	c.Check(m.removePackageServices(filepath.Dir(filepath.Dir(yamlFile)), inter), IsNil)

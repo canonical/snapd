@@ -891,7 +891,7 @@ func CompareGeneratePolicyFromFile(fn string) error {
 
 // FIXME: refactor so that we don't need this
 func parsePackageYamlFileWithVersion(fn string) (*packageYaml, error) {
-	m, err := parsePackageYamlFile(fn)
+	m, err := parseSnapYamlFile(fn)
 
 	// FIXME: duplicated code from snapp.go:NewSnapPartFromYaml,
 	//        version is overriden by sideloaded versions

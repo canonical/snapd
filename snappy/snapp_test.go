@@ -825,7 +825,7 @@ func (s *SnapTestSuite) TestPackageYamlMultipleArchitecturesParsing(c *C) {
 version: 1.0
 architectures: [i386, armhf]
 `), 0644)
-	m, err := parsePackageYamlFile(y)
+	m, err := parseSnapYamlFile(y)
 	c.Assert(err, IsNil)
 	c.Assert(m.Architectures, DeepEquals, []string{"i386", "armhf"})
 }
@@ -836,7 +836,7 @@ func (s *SnapTestSuite) TestPackageYamlSingleArchitecturesParsing(c *C) {
 version: 1.0
 architectures: [i386]
 `), 0644)
-	m, err := parsePackageYamlFile(y)
+	m, err := parseSnapYamlFile(y)
 	c.Assert(err, IsNil)
 	c.Assert(m.Architectures, DeepEquals, []string{"i386"})
 }
@@ -846,7 +846,7 @@ func (s *SnapTestSuite) TestPackageYamlNoArchitecturesParsing(c *C) {
 	ioutil.WriteFile(y, []byte(`name: fatbinary
 version: 1.0
 `), 0644)
-	m, err := parsePackageYamlFile(y)
+	m, err := parseSnapYamlFile(y)
 	c.Assert(err, IsNil)
 	c.Assert(m.Architectures, DeepEquals, []string{"all"})
 }
@@ -879,7 +879,7 @@ func (s *SnapTestSuite) TestPackageYamlLicenseParsing(c *C) {
 name: foo
 version: 1.0
 license-agreement: explicit`), 0644)
-	m, err := parsePackageYamlFile(y)
+	m, err := parseSnapYamlFile(y)
 	c.Assert(err, IsNil)
 	c.Assert(m.LicenseAgreement, Equals, "explicit")
 }
@@ -1184,7 +1184,7 @@ func (s *SnapTestSuite) TestRemoveChecksFrameworks(c *C) {
 version: 1.0
 type: framework`)
 	c.Assert(err, IsNil)
-	yaml, err := parsePackageYamlFile(yamlFile)
+	yaml, err := parseSnapYamlFile(yamlFile)
 
 	_, err = makeInstalledMockSnap(s.tempdir, `name: foo
 version: 1.0
