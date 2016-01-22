@@ -70,9 +70,9 @@ func (s *updateOSSuite) assertBootDirContents(c *check.C) {
 func (s *updateOSSuite) TestUpdateToSameReleaseAndChannel(c *check.C) {
 	if common.BeforeReboot() {
 		updateOutput := updates.CallFakeOSUpdate(c)
-		expected := "(?ms)"+
-			".*"+
-			fmt.Sprintf("^Reboot to use %s version .*\\.\n", common.OSSnapName(c))
+		expected := "(?ms)" +
+			".*" +
+			fmt.Sprintf("^Reboot to use %s version .*\\.\n", partition.OSSnapName(c))
 		c.Assert(updateOutput, check.Matches, expected)
 		s.assertBootDirContents(c)
 		common.Reboot(c)

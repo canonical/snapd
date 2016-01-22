@@ -27,6 +27,7 @@ import (
 
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
 	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
+	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )
@@ -41,7 +42,7 @@ type configSuite struct {
 
 func (s *configSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
-	s.osSnap = common.OSSnapName(c)
+	s.osSnap = partition.OSSnapName(c)
 	s.backConfig = currentConfig(c, s.osSnap)
 }
 
