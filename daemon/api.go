@@ -293,8 +293,8 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 			origin, _ := m["origin"].(string)
 
 			resource := "no resource URL for this resource"
-			url, _ := route.URL("name", name, "origin", origin)
-			if url != nil {
+			url, err := route.URL("name", name, "origin", origin)
+			if err == nil {
 				resource = url.String()
 			}
 
