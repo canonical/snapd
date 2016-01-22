@@ -139,7 +139,7 @@ func parsePackageYamlFile(yamlPath string) (*packageYaml, error) {
 	// legacy support sucks :-/
 	hasConfig := helpers.FileExists(filepath.Join(filepath.Dir(yamlPath), "hooks", "config"))
 
-	return parsePackageYamlData(yamlData, hasConfig)
+	return parseSnapYamlData(yamlData, hasConfig)
 }
 
 func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error {
@@ -182,7 +182,7 @@ func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error
 	return nil
 }
 
-func parsePackageYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error) {
+func parseSnapYamlData(yamlData []byte, hasConfig bool) (*packageYaml, error) {
 	var m packageYaml
 	err := yaml.Unmarshal(yamlData, &m)
 	if err != nil {

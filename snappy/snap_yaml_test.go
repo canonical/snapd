@@ -35,7 +35,7 @@ uses:
  migration-skill:
   caps: []
 `)
-	sy, err := parsePackageYamlData(snapYaml, false)
+	sy, err := parseSnapYamlData(snapYaml, false)
 	c.Assert(err, IsNil)
 	sy.Uses["migration-skill"].Type = "migration-skill"
 }

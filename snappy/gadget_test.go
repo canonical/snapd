@@ -67,7 +67,7 @@ func (s *GadgetSuite) TestStoreID(c *C) {
 }
 
 func (s *GadgetSuite) TestWriteApparmorAdditionalFile(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml, false)
+	m, err := parseSnapYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
 	err = writeApparmorAdditionalFile(m)
@@ -79,7 +79,7 @@ func (s *GadgetSuite) TestWriteApparmorAdditionalFile(c *C) {
 }
 
 func (s *GadgetSuite) TestCleanupGadgetHardwareRules(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml, false)
+	m, err := parseSnapYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
 	err = writeApparmorAdditionalFile(m)

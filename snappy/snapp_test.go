@@ -858,7 +858,7 @@ architectures:
   armhf:
     no
 `)
-	_, err := parsePackageYamlData(data, false)
+	_, err := parseSnapYamlData(data, false)
 	c.Assert(err, NotNil)
 }
 
@@ -869,7 +869,7 @@ architectures:
   - armhf:
       sometimes
 `)
-	_, err := parsePackageYamlData(data, false)
+	_, err := parseSnapYamlData(data, false)
 	c.Assert(err, NotNil)
 }
 
@@ -979,7 +979,7 @@ uses:
 `)
 
 func (s *SnapTestSuite) TestPackageYamlSecurityBinaryParsing(c *C) {
-	m, err := parsePackageYamlData(securityBinaryPackageYaml, false)
+	m, err := parseSnapYamlData(securityBinaryPackageYaml, false)
 	c.Assert(err, IsNil)
 
 	c.Assert(m.Apps["testme"].Name, Equals, "testme")
@@ -1020,7 +1020,7 @@ uses:
 `)
 
 func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
-	m, err := parsePackageYamlData(securityServicePackageYaml, false)
+	m, err := parseSnapYamlData(securityServicePackageYaml, false)
 	c.Assert(err, IsNil)
 
 	c.Assert(m.Apps["testme-service"].Name, Equals, "testme-service")
@@ -1038,7 +1038,7 @@ func (s *SnapTestSuite) TestDetectsAlreadyInstalled(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
 
-	yaml, err := parsePackageYamlData([]byte(data), false)
+	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
 	c.Check(yaml.checkForPackageInstalled("otherns"), ErrorMatches, ".*is already installed with origin.*")
 }
@@ -1051,7 +1051,7 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledSameOrigin(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
 
-	yaml, err := parsePackageYamlData([]byte(data), false)
+	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
 	c.Check(yaml.checkForPackageInstalled(testOrigin), IsNil)
 }
@@ -1062,7 +1062,7 @@ func (s *SnapTestSuite) TestIgnoresAlreadyInstalledFrameworkSameOrigin(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
 
-	yaml, err := parsePackageYamlData([]byte(data), false)
+	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
 	c.Check(yaml.checkForPackageInstalled(testOrigin), IsNil)
 }
@@ -1073,7 +1073,7 @@ func (s *SnapTestSuite) TestDetectsAlreadyInstalledFramework(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(makeSnapActive(yamlPath), IsNil)
 
-	yaml, err := parsePackageYamlData([]byte(data), false)
+	yaml, err := parseSnapYamlData([]byte(data), false)
 	c.Assert(err, IsNil)
 	c.Check(yaml.checkForPackageInstalled("otherns"), ErrorMatches, ".*is already installed with origin.*")
 }
@@ -1107,7 +1107,7 @@ frameworks:
  - missing
  - also-missing
 `)
-	yaml, err := parsePackageYamlData(data, false)
+	yaml, err := parseSnapYamlData(data, false)
 	c.Assert(err, IsNil)
 	err = yaml.checkForFrameworks()
 	c.Assert(err, ErrorMatches, `missing frameworks: missing, also-missing`)
@@ -1121,7 +1121,7 @@ frameworks:
 `)
 	c.Assert(err, IsNil)
 
-	yaml, err := parsePackageYamlData([]byte(`name: fmk
+	yaml, err := parseSnapYamlData([]byte(`name: fmk
 version: 1.0
 type: framework`), false)
 	c.Assert(err, IsNil)
@@ -1173,7 +1173,7 @@ apps:
 	c.Assert(ioutil.WriteFile(filepath.Join(d2, dp, "fmk_foo"), []byte("x"), 0644), IsNil)
 
 	pb := &MockProgressMeter{}
-	m, err := parsePackageYamlData([]byte(yaml), false)
+	m, err := parseSnapYamlData([]byte(yaml), false)
 	part := &SnapPart{m: m, origin: testOrigin, basedir: d1}
 	c.Assert(part.RefreshDependentsSecurity(&SnapPart{basedir: d2}, pb), IsNil)
 	// TODO: verify it was updated
@@ -1314,7 +1314,7 @@ func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateNothing(c *C) {
 }
 
 func (s *SnapTestSuite) TestDetectIllegalYamlBinaries(c *C) {
-	_, err := parsePackageYamlData([]byte(`name: foo
+	_, err := parseSnapYamlData([]byte(`name: foo
 version: 1.0
 apps:
  tes!me:
@@ -1324,7 +1324,7 @@ apps:
 }
 
 func (s *SnapTestSuite) TestDetectIllegalYamlService(c *C) {
-	_, err := parsePackageYamlData([]byte(`name: foo
+	_, err := parseSnapYamlData([]byte(`name: foo
 version: 1.0
 apps:
  tes!me:
@@ -1365,7 +1365,7 @@ func (s *SnapTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 }
 
 func (s *SnapTestSuite) TestIllegalPackageNameWithOrigin(c *C) {
-	_, err := parsePackageYamlData([]byte(`name: foo.something
+	_, err := parseSnapYamlData([]byte(`name: foo.something
 version: 1.0
 `), false)
 
@@ -1395,7 +1395,7 @@ gadget:
 `)
 
 func (s *SnapTestSuite) TestParseHardwareYaml(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml, false)
+	m, err := parseSnapYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 	c.Assert(m.Gadget.Hardware.Assign[0].PartID, Equals, "device-hive-iot-hal")
 	c.Assert(m.Gadget.Hardware.Assign[0].Rules[0].Kernel, Equals, "ttyUSB0")
@@ -1412,7 +1412,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb-serial", DRIVER=="pl2303", ATTRS{idVendor}=="
 `
 
 func (s *SnapTestSuite) TestGenerateHardwareYamlData(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml, false)
+	m, err := parseSnapYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
 	output, err := m.Gadget.Hardware.Assign[0].generateUdevRuleContent()
@@ -1422,7 +1422,7 @@ func (s *SnapTestSuite) TestGenerateHardwareYamlData(c *C) {
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevEtc(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml, false)
+	m, err := parseSnapYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
 	dirs.SnapUdevRulesDir = c.MkDir()
@@ -1432,7 +1432,7 @@ func (s *SnapTestSuite) TestWriteHardwareUdevEtc(c *C) {
 }
 
 func (s *SnapTestSuite) TestWriteHardwareUdevCleanup(c *C) {
-	m, err := parsePackageYamlData(hardwareYaml, false)
+	m, err := parseSnapYamlData(hardwareYaml, false)
 	c.Assert(err, IsNil)
 
 	dirs.SnapUdevRulesDir = c.MkDir()
@@ -1461,7 +1461,7 @@ func (s *SnapTestSuite) TestWriteHardwareUdevActivate(c *C) {
 }
 
 func (s *SnapTestSuite) TestQualifiedNameName(c *C) {
-	packageYaml, err := parsePackageYamlData([]byte(`name: foo
+	packageYaml, err := parseSnapYamlData([]byte(`name: foo
 version: 1.0
 `), false)
 	c.Assert(err, IsNil)
@@ -1471,7 +1471,7 @@ version: 1.0
 }
 
 func (s *SnapTestSuite) TestQualifiedNameNameFramework(c *C) {
-	packageYaml, err := parsePackageYamlData([]byte(`name: foo
+	packageYaml, err := parseSnapYamlData([]byte(`name: foo
 version: 1.0
 type: framework
 `), false)
@@ -1482,21 +1482,21 @@ type: framework
 }
 
 func (s *SnapTestSuite) TestParsePackageYamlDataChecksName(c *C) {
-	_, err := parsePackageYamlData([]byte(`
+	_, err := parseSnapYamlData([]byte(`
 version: 1.0
 `), false)
 	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'name'.*")
 }
 
 func (s *SnapTestSuite) TestParsePackageYamlDataChecksVersion(c *C) {
-	_, err := parsePackageYamlData([]byte(`
+	_, err := parseSnapYamlData([]byte(`
 name: foo
 `), false)
 	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'version'.*")
 }
 
 func (s *SnapTestSuite) TestParsePackageYamlDataChecksMultiple(c *C) {
-	_, err := parsePackageYamlData([]byte(`
+	_, err := parseSnapYamlData([]byte(`
 `), false)
 	c.Assert(err, ErrorMatches, "can not parse snap.yaml: missing required fields 'name, version'.*")
 }

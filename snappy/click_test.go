@@ -249,7 +249,7 @@ type: framework
 
 	yamlFile := filepath.Join(tmpdir, "meta", "snap.yaml")
 	c.Assert(ioutil.WriteFile(yamlFile, yaml, 0644), IsNil)
-	m, err := parsePackageYamlData(yaml, false)
+	m, err := parseSnapYamlData(yaml, false)
 	c.Assert(err, IsNil)
 	snapName := fmt.Sprintf("%s_%s_all.snap", m.Name, m.Version)
 	d := squashfs.New(snapName)
