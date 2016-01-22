@@ -49,3 +49,12 @@ type Type interface {
 	// Sanitize checks if a skill is correct, altering if necessary.
 	Sanitize(skill *Skill) error
 }
+
+const (
+	// SecurityApparmor identifies the apparmor security system.
+	SecurityApparmor SecuritySystem = "apparmor"
+	// SecuritySeccomp identifies the seccomp security system.
+	SecuritySeccomp SecuritySystem = "seccomp"
+	// SecurityDBus identifies the DBus security system.
+	SecurityDBus SecuritySystem = "dbus"
+)
