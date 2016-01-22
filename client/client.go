@@ -121,13 +121,13 @@ type response struct {
 }
 
 // errorResult is the real value of response.Result when an error occurs.
-// Note that only the 'Str' field is unmarshaled from JSON representation.
+// Note that only the 'message' field is unmarshaled from JSON representation.
 type errorResult struct {
-	Str string `json:"str"`
+	Message string `json:"message"`
 }
 
 func (e *errorResult) Error() string {
-	return e.Str
+	return e.Message
 }
 
 // SysInfo holds system information
@@ -145,7 +145,7 @@ func (rsp *response) err() error {
 	}
 	var resultErr errorResult
 	err := json.Unmarshal(rsp.Result, &resultErr)
-	if err != nil || resultErr.Str == "" {
+	if err != nil || resultErr.Message == "" {
 		return fmt.Errorf("server error: %q", rsp.Status)
 	}
 	return &resultErr

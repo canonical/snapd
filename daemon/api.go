@@ -34,6 +34,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/lockfile"
@@ -61,6 +62,7 @@ var api = []*Command{
 	operationCmd,
 	capabilitiesCmd,
 	capabilityCmd,
+	assertsCmd,
 }
 
 var (
@@ -138,12 +140,18 @@ var (
 		Path:   "/2.0/capabilities/{name}",
 		DELETE: deleteCapability,
 	}
+
+	// TODO: allow to post assertions for UserOK? they are verified anyway
+	assertsCmd = &Command{
+		Path: "/2.0/assertions",
+		POST: doAssert,
+	}
 )
 
 func sysInfo(c *Command, r *http.Request) Response {
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
-		return InternalError(err, "Unable to acquire lock")
+		return InternalError("unable to acquire lock: %v", err)
 	}
 	defer lock.Unlock()
 
@@ -181,7 +189,7 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
-		return InternalError(err, "Unable to acquire lock")
+		return InternalError("unable to acquire lock: %v", err)
 	}
 	defer lock.Unlock()
 
@@ -193,17 +201,17 @@ func getSnapInfo(c *Command, r *http.Request) Response {
 
 	bag := lightweight.PartBagByName(name, origin)
 	if bag == nil && part == nil {
-		return NotFound
+		return NotFound("unable to find snap with name %q and origin %q", name, origin)
 	}
 
 	route := c.d.router.Get(c.Path)
 	if route == nil {
-		return InternalError(nil, "router can't find route for snap %s.%s", name, origin)
+		return InternalError("router can't find route for snap %s.%s", name, origin)
 	}
 
 	url, err := route.URL("name", name, "origin", origin)
 	if err != nil {
-		return InternalError(err, "route can't build URL for snap %s.%s: %v", name, origin, err)
+		return InternalError("route can't build URL for snap %s.%s: %v", name, origin, err)
 	}
 
 	result := webify(bag.Map(part), url.String())
@@ -245,12 +253,12 @@ func (ps byQN) Less(a, b int) bool {
 func getSnapsInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
-		return InternalError(nil, "router can't find route for snaps")
+		return InternalError("router can't find route for snaps")
 	}
 
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
-		return InternalError(err, "Unable to acquire lock")
+		return InternalError("unable to acquire lock: %v", err)
 	}
 	defer lock.Unlock()
 
@@ -273,7 +281,7 @@ func getSnapsInfo(c *Command, r *http.Request) Response {
 
 		url, err := route.URL("name", name, "origin", origin)
 		if err != nil {
-			return InternalError(err, "can't get route to details for %s.%s: %v", name, origin, err)
+			return InternalError("can't get route to details for %s.%s: %v", name, origin, err)
 		}
 
 		fullname := name + "." + origin
@@ -318,14 +326,14 @@ type svcDesc struct {
 func snapService(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(operationCmd.Path)
 	if route == nil {
-		return InternalError(nil, "router can't find route for operation")
+		return InternalError("router can't find route for operation")
 	}
 
 	vars := muxVars(r)
 	name := vars["name"]
 	origin := vars["origin"]
 	if name == "" || origin == "" {
-		return BadRequest(nil, "missing name or origin")
+		return BadRequest("missing name or origin")
 	}
 	svcName := vars["service"]
 	pkgName := name + "." + origin
@@ -336,7 +344,7 @@ func snapService(c *Command, r *http.Request) Response {
 		decoder := json.NewDecoder(r.Body)
 		var cmd map[string]string
 		if err := decoder.Decode(&cmd); err != nil {
-			return BadRequest(err, "can't decode request body into service command: %v", err)
+			return BadRequest("can't decode request body into service command: %v", err)
 		}
 
 		action = cmd["action"]
@@ -350,7 +358,7 @@ func snapService(c *Command, r *http.Request) Response {
 		lock, err = lockfile.Lock(dirs.SnapLockFile, true)
 
 		if err != nil {
-			return InternalError(err, "Unable to acquire lock")
+			return InternalError("unable to acquire lock: %v", err)
 		}
 
 		defer func() {
@@ -359,28 +367,28 @@ func snapService(c *Command, r *http.Request) Response {
 			}
 		}()
 	default:
-		return BadRequest(nil, "unknown action %s", action)
+		return BadRequest("unknown action %s", action)
 	}
 
 	bag := lightweight.PartBagByName(name, origin)
 	idx := bag.ActiveIndex()
 	if idx < 0 {
-		return NotFound
+		return NotFound("unable to find snap with name %q and origin %q", name, origin)
 	}
 
 	ipart, err := bag.Load(idx)
 	if err != nil {
-		return InternalError(err, "unable to load active snap: %v", err)
+		return InternalError("unable to load active snap: %v", err)
 	}
 
 	part, ok := ipart.(*snappy.SnapPart)
 	if !ok {
-		return InternalError(nil, "active snap is not a *snappy.SnapPart: %T", ipart)
+		return InternalError("active snap is not a *snappy.SnapPart: %T", ipart)
 	}
 	svcs := part.Apps()
 
 	if len(svcs) == 0 {
-		return NotFound(nil, "snap %q has no services", pkgName)
+		return NotFound("snap %q has no services", pkgName)
 	}
 
 	svcmap := make(map[string]*svcDesc, len(svcs))
@@ -392,13 +400,13 @@ func snapService(c *Command, r *http.Request) Response {
 	}
 
 	if svcName != "" && svcmap[svcName] == nil {
-		return NotFound(nil, "snap %q has no service %q", pkgName, svcName)
+		return NotFound("snap %q has no service %q", pkgName, svcName)
 	}
 
 	// note findServices takes the *bare* name
 	actor, err := findServices(name, svcName, &progress.NullProgress{})
 	if err != nil {
-		return InternalError(err, "no services for %q [%q] found: %v", pkgName, svcName, err)
+		return InternalError("no services for %q [%q] found: %v", pkgName, svcName, err)
 	}
 
 	f := func() interface{} {
@@ -460,39 +468,39 @@ func snapConfig(c *Command, r *http.Request) Response {
 	name := vars["name"]
 	origin := vars["origin"]
 	if name == "" || origin == "" {
-		return BadRequest(nil, "missing name or origin")
+		return BadRequest("missing name or origin")
 	}
 	pkgName := name + "." + origin
 
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
-		return InternalError(err, "Unable to acquire lock")
+		return InternalError("unable to acquire lock: %v", err)
 	}
 	defer lock.Unlock()
 
 	bag := lightweight.PartBagByName(name, origin)
 	if bag == nil {
-		return NotFound
+		return NotFound("no snap found with name %q and origin %q", name, origin)
 	}
 
 	idx := bag.ActiveIndex()
 	if idx < 0 {
-		return BadRequest
+		return BadRequest("unable to configure non-active snap")
 	}
 
 	part, err := bag.Load(idx)
 	if err != nil {
-		return InternalError(err, "unable to get load active snap: %v", err)
+		return InternalError("unable to load active snap: %v", err)
 	}
 
 	bs, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return BadRequest(err, "reading config request body gave %v", err)
+		return BadRequest("reading config request body gave %v", err)
 	}
 
 	config, err := part.Config(bs)
 	if err != nil {
-		return InternalError(err, "unable to retrieve config for %s: %v", pkgName, err)
+		return InternalError("unable to retrieve config for %s: %v", pkgName, err)
 	}
 
 	return SyncResponse(config)
@@ -506,13 +514,13 @@ type configSubtask struct {
 func getOpInfo(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(c.Path)
 	if route == nil {
-		return InternalError(nil, "router can't find route for operation")
+		return InternalError("router can't find route for operation")
 	}
 
 	id := muxVars(r)["uuid"]
 	task := c.d.GetTask(id)
 	if task == nil {
-		return NotFound
+		return NotFound("unable to find task with id %q", id)
 	}
 
 	return SyncResponse(task.Map(route))
@@ -526,11 +534,11 @@ func deleteOp(c *Command, r *http.Request) Response {
 	case nil:
 		return SyncResponse("done")
 	case errTaskNotFound:
-		return NotFound
+		return NotFound("unable to find task %q", id)
 	case errTaskStillRunning:
-		return BadRequest
+		return BadRequest("unable to delete task %q: still running", id)
 	default:
-		return InternalError(err, "")
+		return InternalError("unable to delete task %q: %v", id, err)
 	}
 }
 
@@ -577,7 +585,7 @@ func (inst *snapInstruction) install() interface{} {
 	_, err := snappyInstall(inst.pkg, flags, inst)
 	if err != nil {
 		if inst.License != nil && snappy.IsLicenseNotAccepted(err) {
-			return error(inst.License)
+			return inst.License
 		}
 		return err
 	}
@@ -654,13 +662,13 @@ var pkgActionDispatch = pkgActionDispatchImpl
 func postSnap(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(operationCmd.Path)
 	if route == nil {
-		return InternalError(nil, "router can't find route for operation")
+		return InternalError("router can't find route for operation")
 	}
 
 	decoder := json.NewDecoder(r.Body)
 	var inst snapInstruction
 	if err := decoder.Decode(&inst); err != nil {
-		return BadRequest(err, "can't decode request body into snap instruction: %v", err)
+		return BadRequest("can't decode request body into snap instruction: %v", err)
 	}
 
 	vars := muxVars(r)
@@ -668,7 +676,7 @@ func postSnap(c *Command, r *http.Request) Response {
 
 	f := pkgActionDispatch(&inst)
 	if f == nil {
-		return BadRequest(nil, "unknown action %s", inst.Action)
+		return BadRequest("unknown action %s", inst.Action)
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
@@ -692,7 +700,7 @@ var newSnap = newSnapImpl
 func sideloadSnap(c *Command, r *http.Request) Response {
 	route := c.d.router.Get(operationCmd.Path)
 	if route == nil {
-		return InternalError(nil, "router can't find route for operation")
+		return InternalError("router can't find route for operation")
 	}
 
 	body := r.Body
@@ -704,12 +712,12 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 
 		_, params, err := mime.ParseMediaType(contentType)
 		if err != nil {
-			return BadRequest(err, "")
+			return BadRequest("unable to parse POST body: %v", err)
 		}
 
 		form, err := multipart.NewReader(r.Body, params["boundary"]).ReadForm(maxReadBuflen)
 		if err != nil {
-			return BadRequest(err, "")
+			return BadRequest("unable to read POST form: %v", err)
 		}
 
 		// if allow-unsigned is present in the form, unsigned is OK
@@ -722,7 +730,7 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 			for i := range v {
 				body, err = v[i].Open()
 				if err != nil {
-					return BadRequest(err, "")
+					return BadRequest("unable to open POST form file: %v", err)
 				}
 				defer body.Close()
 
@@ -741,12 +749,12 @@ func sideloadSnap(c *Command, r *http.Request) Response {
 
 	tmpf, err := ioutil.TempFile("", "snapd-sideload-pkg-")
 	if err != nil {
-		return InternalError(err, "can't create tempfile: %v", err)
+		return InternalError("can't create tempfile: %v", err)
 	}
 
 	if _, err := io.Copy(tmpf, body); err != nil {
 		os.Remove(tmpf.Name())
-		return InternalError(err, "can't copy request into tempfile: %v", err)
+		return InternalError("can't copy request into tempfile: %v", err)
 	}
 
 	return AsyncResponse(c.d.AddTask(func() interface{} {
@@ -779,18 +787,18 @@ func getLogs(c *Command, r *http.Request) Response {
 
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
-		return InternalError(err, "Unable to acquire lock")
+		return InternalError("unable to acquire lock: %v", err)
 	}
 	defer lock.Unlock()
 
 	actor, err := findServices(name, svcName, &progress.NullProgress{})
 	if err != nil {
-		return NotFound(err, "no services found for %q: %v", name, err)
+		return NotFound("no services found for %q: %v", name, err)
 	}
 
 	rawlogs, err := actor.Logs()
 	if err != nil {
-		return InternalError(err, "unable to get logs for %q: %v", name, err)
+		return InternalError("unable to get logs for %q: %v", name, err)
 	}
 
 	logs := make([]map[string]interface{}, len(rawlogs))
@@ -809,23 +817,24 @@ func getLogs(c *Command, r *http.Request) Response {
 func iconGet(name, origin string) Response {
 	lock, err := lockfile.Lock(dirs.SnapLockFile, true)
 	if err != nil {
-		return InternalError(err, "Unable to acquire lock")
+		return InternalError("unable to acquire lock: %v", err)
 	}
 	defer lock.Unlock()
 
 	bag := lightweight.PartBagByName(name, origin)
 	if bag == nil || len(bag.Versions) == 0 {
-		return NotFound
+		return NotFound("unable to find snap with name %q and origin %q", name, origin)
 	}
 
 	part := bag.LoadBest()
 	if part == nil {
-		return NotFound
+		return NotFound("unable to load snap with name %q and origin %q", name, origin)
 	}
 
 	path := filepath.Clean(part.Icon())
 	if !strings.HasPrefix(path, dirs.SnapSnapsDir) {
-		return BadRequest
+		// XXX: how could this happen?
+		return BadRequest("requested icon is not in snap path")
 	}
 
 	return FileResponse(path)
@@ -849,18 +858,20 @@ func addCapability(c *Command, r *http.Request) Response {
 	decoder := json.NewDecoder(r.Body)
 	var newCap caps.Capability
 	if err := decoder.Decode(&newCap); err != nil || newCap.TypeName == "" {
-		return BadRequest(err, "can't decode request body into a capability")
+		return BadRequest("can't decode request body into a capability: %v", err)
 	}
+
 	// Re-construct the perfect type object knowing just the type name that is
 	// passed through the JSON representation.
 	newType := c.d.capRepo.Type(newCap.TypeName)
 	if newType == nil {
-		err := fmt.Errorf("unknown type name %q", newCap.TypeName)
-		return BadRequest(err, "can't add capability")
+		return BadRequest("cannot add capability: unknown type name %q", newCap.TypeName)
 	}
+
 	if err := c.d.capRepo.Add(&newCap); err != nil {
-		return BadRequest(err, "can't add capability")
+		return BadRequest("%v", err)
 	}
+
 	return &resp{
 		Type:   ResponseTypeSync,
 		Status: http.StatusCreated,
@@ -877,8 +888,28 @@ func deleteCapability(c *Command, r *http.Request) Response {
 	case nil:
 		return SyncResponse(nil)
 	case *caps.NotFoundError:
-		return NotFound(err, "can't remove capability")
+		return NotFound("can't find capability %q: %v", name, err)
 	default:
-		return InternalError(err, "")
+		return InternalError("can't remove capability %q: %v", name, err)
+	}
+}
+
+func doAssert(c *Command, r *http.Request) Response {
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return BadRequest("reading assert request body gave %v", err)
+	}
+	a, err := asserts.Decode(b)
+	if err != nil {
+		return BadRequest("can't decode request body into an assertion: %v", err)
+	}
+	if err := c.d.asserts.Add(a); err != nil {
+		// TODO: have a specific error to be able to return  409 for not newer revision?
+		return BadRequest("assert failed: %v", err)
+	}
+	// TODO: what more info do we want to return on success?
+	return &resp{
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
 	}
 }

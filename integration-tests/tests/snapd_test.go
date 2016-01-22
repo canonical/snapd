@@ -2,7 +2,7 @@
 // +build !excludeintegration
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -49,11 +49,17 @@ type snapdTestSuite struct {
 
 func (s *snapdTestSuite) SetUpTest(c *check.C) {
 	s.SnappySuite.SetUpTest(c)
+
+	trustedKey, err := filepath.Abs("integration-tests/data/trusted.acckey")
+	c.Assert(err, check.IsNil)
+
 	cli.ExecCommand(c, "sudo", "systemctl", "stop",
 		"ubuntu-snappy.snapd.service", "ubuntu-snappy.snapd.socket")
 
+	// FIXME: for now pass a test-only trusted key through an env var
 	s.cmd = exec.Command("sudo", "env", "PATH="+os.Getenv("PATH"),
-		"/lib/systemd/systemd-activate",
+		"SNAPPY_TRUSTED_ACCOUNT_KEY="+trustedKey,
+		"/lib/systemd/systemd-activate", "-ESNAPPY_TRUSTED_ACCOUNT_KEY",
 		"-l", "/run/snapd.socket", "snapd")
 
 	s.cmd.Start()
@@ -212,7 +218,7 @@ func do404(c *check.C, resource string) {
 		resource+path,
 		"GET",
 		apiInteraction{
-			responsePattern: `{"result":{},"status":"Not Found","status_code":404,"type":"error"}`})
+			responsePattern: `{"result":{"message":"not found"},"status":"Not Found","status_code":404,"type":"error"}`})
 }
 
 func doMethodNotAllowed(c *check.C, resource, verb string) {
@@ -220,7 +226,7 @@ func doMethodNotAllowed(c *check.C, resource, verb string) {
 		resource,
 		verb,
 		apiInteraction{
-			responsePattern: `{"result":{},"status":"Method Not Allowed","status_code":405,"type":"error"}`})
+			responsePattern: `{"result":{"message":"method \S+ not allowed"},"status":"Method Not Allowed","status_code":405,"type":"error"}`})
 }
 
 // makeRequest makes a request to the API according to the provided options.
