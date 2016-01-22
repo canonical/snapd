@@ -86,6 +86,11 @@ type AppYaml struct {
 	// must be a pointer so that it can be "nil" and omitempty works
 	Ports *Ports `yaml:"ports,omitempty" json:"ports,omitempty"`
 
+	UsesRef []string `yaml:"uses"`
+}
+
+type usesYaml struct {
+	Type                string `yaml:"type"`
 	SecurityDefinitions `yaml:",inline"`
 }
 
@@ -108,6 +113,9 @@ type packageYaml struct {
 
 	// Apps can be both binary or service
 	Apps map[string]*AppYaml `yaml:"apps,omitempty"`
+
+	// Uses maps the used "skills" to the apps
+	Uses map[string]*usesYaml `yaml:"uses,omitempty"`
 
 	// FIXME: clarify those
 
@@ -163,6 +171,13 @@ func validatePackageYamlData(file string, yamlData []byte, m *packageYaml) error
 			return err
 		}
 		if err := verifyServiceYaml(app); err != nil {
+			return err
+		}
+	}
+
+	// check for "uses"
+	for _, uses := range m.Uses {
+		if err := verifyUsesYaml(uses); err != nil {
 			return err
 		}
 	}

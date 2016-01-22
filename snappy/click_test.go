@@ -996,11 +996,14 @@ func (s *SnapTestSuite) TestServiceWhitelistError(c *C) {
 func (s *SnapTestSuite) TestBinariesWhitelistSimple(c *C) {
 	c.Assert(verifyBinariesYaml(&AppYaml{Name: "foo"}), IsNil)
 	c.Assert(verifyBinariesYaml(&AppYaml{Command: "foo"}), IsNil)
-	c.Assert(verifyBinariesYaml(&AppYaml{
+}
+
+func (s *SnapTestSuite) TestUsesWhitelistSimple(c *C) {
+	c.Assert(verifyUsesYaml(&usesYaml{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "foo"},
 	}), IsNil)
-	c.Assert(verifyBinariesYaml(&AppYaml{
+	c.Assert(verifyUsesYaml(&usesYaml{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
 				AppArmor: "foo"},
@@ -1012,11 +1015,14 @@ func (s *SnapTestSuite) TestBinariesWhitelistIllegal(c *C) {
 	c.Assert(verifyBinariesYaml(&AppYaml{Name: "test!me"}), NotNil)
 	c.Assert(verifyBinariesYaml(&AppYaml{Name: "x\n"}), NotNil)
 	c.Assert(verifyBinariesYaml(&AppYaml{Command: "x\n"}), NotNil)
-	c.Assert(verifyBinariesYaml(&AppYaml{
+}
+
+func (s *SnapTestSuite) TestUsesWhitelistIllegal(c *C) {
+	c.Assert(verifyUsesYaml(&usesYaml{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityTemplate: "x\n"},
 	}), NotNil)
-	c.Assert(verifyBinariesYaml(&AppYaml{
+	c.Assert(verifyUsesYaml(&usesYaml{
 		SecurityDefinitions: SecurityDefinitions{
 			SecurityPolicy: &SecurityPolicyDefinition{
 				AppArmor: "x\n"},

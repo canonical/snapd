@@ -731,6 +731,21 @@ func hasConfig(baseDir string) bool {
 	return helpers.FileExists(filepath.Join(baseDir, "meta", "hooks", "config"))
 }
 
+func findSkillForApp(m *packageYaml, app *AppYaml) (*usesYaml, error) {
+	if len(app.UsesRef) == 0 {
+		return nil, nil
+	}
+	if len(app.UsesRef) != 1 {
+		return nil, fmt.Errorf("only a single skill is supported, %d found", len(app.UsesRef))
+	}
+
+	skill, ok := m.Uses[app.UsesRef[0]]
+	if !ok {
+		return nil, fmt.Errorf("can not find skill %s", skill)
+	}
+	return skill, nil
+}
+
 func generatePolicy(m *packageYaml, baseDir string) error {
 	var foundError error
 
@@ -743,7 +758,15 @@ func generatePolicy(m *packageYaml, baseDir string) error {
 	}
 
 	for _, app := range m.Apps {
-		err := app.generatePolicyForServiceBinary(m, app.Name, baseDir)
+		skill, err := findSkillForApp(m, app)
+		if err != nil {
+			return err
+		}
+		if skill == nil {
+			continue
+		}
+
+		err = skill.generatePolicyForServiceBinary(m, app.Name, baseDir)
 		if err != nil {
 			foundError = err
 			logger.Noticef("Failed to generate policy for service %s: %v", app.Name, err)
@@ -833,10 +856,16 @@ func CompareGeneratePolicyFromFile(fn string) error {
 	baseDir := filepath.Dir(filepath.Dir(fn))
 
 	for _, app := range m.Apps {
-		p, err := app.generatePolicyForServiceBinaryResult(m, app.Name, baseDir)
+		skill, err := findSkillForApp(m, app)
+		if err != nil {
+			return err
+		}
+		if skill == nil {
+			continue
+		}
 
+		p, err := skill.generatePolicyForServiceBinaryResult(m, app.Name, baseDir)
 		// FIXME: use apparmor_profile -p on both AppArmor profiles
-
 		if err != nil {
 			// FIXME: what to do here?
 			return err

@@ -603,10 +603,17 @@ vendor: someone
 version: 1.0
 apps:
  binary1:
-   caps: []
+   uses: [binary1]
  service1:
-   caps: []
+   uses: [service1]
    daemon: forking
+uses:
+ binary1:
+  type: migration-skill
+  caps: []
+ service1:
+  type: migration-skill
+  caps: []
 `
 
 func (a *SecurityTestSuite) TestSecurityGeneratePolicyFromFileSimple(c *C) {
@@ -815,6 +822,10 @@ vendor: someone
 version: 1.0
 apps:
  binary1:
+   uses: [binary1]
+uses:
+ binary1:
+   type: migration-service
    caps: []
 `
 

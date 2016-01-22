@@ -510,18 +510,19 @@ func (s *SnapPart) CanInstall(allowGadget bool, inter interacter) error {
 // templates impacts the snap, and updates the policy if needed
 func (s *SnapPart) RequestSecurityPolicyUpdate(policies, templates map[string]bool) error {
 	var foundError error
-	for _, svc := range s.Apps() {
-		if svc.NeedsAppArmorUpdate(policies, templates) {
-			err := svc.generatePolicyForServiceBinary(s.m, svc.Name, s.basedir)
-			if err != nil {
-				logger.Noticef("Failed to regenerate policy for %s: %v", svc.Name, err)
-				foundError = err
-			}
-		}
-	}
 	for name, app := range s.Apps() {
-		if app.NeedsAppArmorUpdate(policies, templates) {
-			err := app.generatePolicyForServiceBinary(s.m, name, s.basedir)
+		skill, err := findSkillForApp(s.m, app)
+		if err != nil {
+			logger.Noticef("Failed to find skill for %s: %v", name, err)
+			foundError = err
+			continue
+		}
+		if skill == nil {
+			continue
+		}
+
+		if skill.NeedsAppArmorUpdate(policies, templates) {
+			err := skill.generatePolicyForServiceBinary(s.m, name, s.basedir)
 			if err != nil {
 				logger.Noticef("Failed to regenerate policy for %s: %v", name, err)
 				foundError = err

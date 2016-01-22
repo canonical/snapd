@@ -950,20 +950,32 @@ apps:
  testme:
    command: bin/testme
    description: "testme client"
+   uses: [testme]
+ testme-override:
+   command: bin/testme-override
+   uses: [testme-override]
+ testme-policy:
+   command: bin/testme-policy
+   uses: [testme-policy]
+
+uses:
+ testme:
+   type: migration-skill
    caps:
      - "foo_group"
    security-template: "foo_template"
  testme-override:
-   command: bin/testme-override
+   type: migration-skill
    security-override:
      read-paths:
          - "/foo"
      syscalls:
          - "bar"
  testme-policy:
-   command: bin/testme-policy
+   type: migration-skill
    security-policy:
      apparmor: meta/testme-policy.profile
+
 `)
 
 func (s *SnapTestSuite) TestPackageYamlSecurityBinaryParsing(c *C) {
@@ -972,20 +984,20 @@ func (s *SnapTestSuite) TestPackageYamlSecurityBinaryParsing(c *C) {
 
 	c.Assert(m.Apps["testme"].Name, Equals, "testme")
 	c.Assert(m.Apps["testme"].Command, Equals, "bin/testme")
-	c.Assert(m.Apps["testme"].SecurityCaps, HasLen, 1)
-	c.Assert(m.Apps["testme"].SecurityCaps[0], Equals, "foo_group")
-	c.Assert(m.Apps["testme"].SecurityTemplate, Equals, "foo_template")
+	c.Assert(m.Uses["testme"].SecurityCaps, HasLen, 1)
+	c.Assert(m.Uses["testme"].SecurityCaps[0], Equals, "foo_group")
+	c.Assert(m.Uses["testme"].SecurityTemplate, Equals, "foo_template")
 
 	c.Assert(m.Apps["testme-override"].Name, Equals, "testme-override")
 	c.Assert(m.Apps["testme-override"].Command, Equals, "bin/testme-override")
-	c.Assert(m.Apps["testme-override"].SecurityCaps, HasLen, 0)
-	c.Assert(m.Apps["testme-override"].SecurityOverride.ReadPaths[0], Equals, "/foo")
-	c.Assert(m.Apps["testme-override"].SecurityOverride.Syscalls[0], Equals, "bar")
+	c.Assert(m.Uses["testme-override"].SecurityCaps, HasLen, 0)
+	c.Assert(m.Uses["testme-override"].SecurityOverride.ReadPaths[0], Equals, "/foo")
+	c.Assert(m.Uses["testme-override"].SecurityOverride.Syscalls[0], Equals, "bar")
 
 	c.Assert(m.Apps["testme-policy"].Name, Equals, "testme-policy")
 	c.Assert(m.Apps["testme-policy"].Command, Equals, "bin/testme-policy")
-	c.Assert(m.Apps["testme-policy"].SecurityCaps, HasLen, 0)
-	c.Assert(m.Apps["testme-policy"].SecurityPolicy.AppArmor, Equals, "meta/testme-policy.profile")
+	c.Assert(m.Uses["testme-policy"].SecurityCaps, HasLen, 0)
+	c.Assert(m.Uses["testme-policy"].SecurityPolicy.AppArmor, Equals, "meta/testme-policy.profile")
 }
 
 var securityServicePackageYaml = []byte(`name: test-snap
@@ -996,6 +1008,11 @@ apps:
    daemon: forking
    stop: bin/testme-service.stop
    description: "testme service"
+   uses: [testme-service]
+
+uses:
+ testme-service:
+   type: migration-skill
    caps:
      - "network-client"
      - "foo_group"
@@ -1009,10 +1026,10 @@ func (s *SnapTestSuite) TestPackageYamlSecurityServiceParsing(c *C) {
 	c.Assert(m.Apps["testme-service"].Name, Equals, "testme-service")
 	c.Assert(m.Apps["testme-service"].Command, Equals, "bin/testme-service.start")
 	c.Assert(m.Apps["testme-service"].Stop, Equals, "bin/testme-service.stop")
-	c.Assert(m.Apps["testme-service"].SecurityCaps, HasLen, 2)
-	c.Assert(m.Apps["testme-service"].SecurityCaps[0], Equals, "network-client")
-	c.Assert(m.Apps["testme-service"].SecurityCaps[1], Equals, "foo_group")
-	c.Assert(m.Apps["testme-service"].SecurityTemplate, Equals, "foo_template")
+	c.Assert(m.Uses["testme-service"].SecurityCaps, HasLen, 2)
+	c.Assert(m.Uses["testme-service"].SecurityCaps[0], Equals, "network-client")
+	c.Assert(m.Uses["testme-service"].SecurityCaps[1], Equals, "foo_group")
+	c.Assert(m.Uses["testme-service"].SecurityTemplate, Equals, "foo_template")
 }
 
 func (s *SnapTestSuite) TestDetectsAlreadyInstalled(c *C) {
@@ -1219,24 +1236,79 @@ func (s *SnapTestSuite) TestNeedsAppArmorUpdatePolicyAbsent(c *C) {
 
 func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateService(c *C) {
 	// if one of the services needs updating, it's updated and returned
-	svc := &AppYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Name: "part", Apps: map[string]*AppYaml{"svc": svc}, Version: "42"}, origin: testOrigin, basedir: filepath.Join(dirs.SnapSnapsDir, "part."+testOrigin, "42")}
+	svc := &AppYaml{
+		Name:    "svc",
+		UsesRef: []string{"svc"},
+	}
+	part := &SnapPart{
+		m: &packageYaml{
+			Name:    "part",
+			Apps:    map[string]*AppYaml{"svc": svc},
+			Version: "42",
+			Uses: map[string]*usesYaml{
+				"svc": &usesYaml{
+					SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"},
+				},
+			},
+		},
+		origin:  testOrigin,
+		basedir: filepath.Join(dirs.SnapSnapsDir, "part."+testOrigin, "42"),
+	}
 	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
 	c.Assert(err, NotNil)
 }
 
 func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateBinary(c *C) {
 	// if one of the binaries needs updating, the part needs updating
-	bin := &AppYaml{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Name: "part", Apps: map[string]*AppYaml{"echo": bin}, Version: "42"}, origin: testOrigin, basedir: filepath.Join(dirs.SnapSnapsDir, "part."+testOrigin, "42")}
+	bin := &AppYaml{
+		Name:    "echo",
+		UsesRef: []string{"echo"},
+	}
+	part := &SnapPart{
+		m: &packageYaml{
+			Name:    "part",
+			Apps:    map[string]*AppYaml{"echo": bin},
+			Version: "42",
+			Uses: map[string]*usesYaml{
+				"echo": &usesYaml{
+					SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"},
+				},
+			},
+		},
+		origin:  testOrigin,
+		basedir: filepath.Join(dirs.SnapSnapsDir, "part."+testOrigin, "42"),
+	}
 	err := part.RequestSecurityPolicyUpdate(nil, map[string]bool{"foo": true})
 	c.Check(err, NotNil) // XXX: we should do better than this
 }
 
 func (s *SnapTestSuite) TestRequestSecurityPolicyUpdateNothing(c *C) {
-	svc := &AppYaml{Name: "svc", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	bin := &AppYaml{Name: "echo", SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"}}
-	part := &SnapPart{m: &packageYaml{Apps: map[string]*AppYaml{"svc": svc, "echo": bin}, Version: "42"}, origin: testOrigin}
+	svc := &AppYaml{
+		Name:    "svc",
+		UsesRef: []string{"svc"},
+	}
+	bin := &AppYaml{
+		Name:    "echo",
+		UsesRef: []string{"echo"},
+	}
+	part := &SnapPart{
+		m: &packageYaml{
+			Apps: map[string]*AppYaml{
+				"svc":  svc,
+				"echo": bin,
+			},
+			Version: "42",
+			Uses: map[string]*usesYaml{
+				"svc": &usesYaml{
+					SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"},
+				},
+				"echo": &usesYaml{
+					SecurityDefinitions: SecurityDefinitions{SecurityTemplate: "foo"},
+				},
+			},
+		},
+		origin: testOrigin,
+	}
 	err := part.RequestSecurityPolicyUpdate(nil, nil)
 	c.Check(err, IsNil)
 }

@@ -67,6 +67,10 @@ func verifyBinariesYaml(app *AppYaml) error {
 	return verifyStructStringsAgainstWhitelist(*app, servicesBinariesStringsWhitelist)
 }
 
+func verifyUsesYaml(uses *usesYaml) error {
+	return verifyStructStringsAgainstWhitelist(*uses, servicesBinariesStringsWhitelist)
+}
+
 // Doesn't need to handle complications like internal quotes, just needs to
 // wrap right side of an env variable declaration with quotes for the shell.
 func quoteEnvVar(envVar string) string {
