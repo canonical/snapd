@@ -34,6 +34,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/ubuntu-core/snappy/asserts"
 	"github.com/ubuntu-core/snappy/caps"
 	"github.com/ubuntu-core/snappy/dirs"
 	"github.com/ubuntu-core/snappy/lockfile"
@@ -61,6 +62,7 @@ var api = []*Command{
 	operationCmd,
 	capabilitiesCmd,
 	capabilityCmd,
+	assertsCmd,
 }
 
 var (
@@ -137,6 +139,12 @@ var (
 	capabilityCmd = &Command{
 		Path:   "/2.0/capabilities/{name}",
 		DELETE: deleteCapability,
+	}
+
+	// TODO: allow to post assertions for UserOK? they are verified anyway
+	assertsCmd = &Command{
+		Path: "/2.0/assertions",
+		POST: doAssert,
 	}
 )
 
@@ -880,5 +888,25 @@ func deleteCapability(c *Command, r *http.Request) Response {
 		return NotFound("can't find capability %q: %v", name, err)
 	default:
 		return InternalError("can't remove capability %q: %v", name, err)
+	}
+}
+
+func doAssert(c *Command, r *http.Request) Response {
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return BadRequest("reading assert request body gave %v", err)
+	}
+	a, err := asserts.Decode(b)
+	if err != nil {
+		return BadRequest("can't decode request body into an assertion: %v", err)
+	}
+	if err := c.d.asserts.Add(a); err != nil {
+		// TODO: have a specific error to be able to return  409 for not newer revision?
+		return BadRequest("assert failed: %v", err)
+	}
+	// TODO: what more info do we want to return on success?
+	return &resp{
+		Type:   ResponseTypeSync,
+		Status: http.StatusOK,
 	}
 }
