@@ -20,6 +20,8 @@
 package asserts_test
 
 import (
+	"bytes"
+	"io"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -40,12 +42,13 @@ func (as *assertsSuite) TestUnknown(c *C) {
 	c.Check(asserts.Type("unknown"), IsNil)
 }
 
+const emptyBodyAllDefaults = "type: test-only\n" +
+	"authority-id: auth-id1" +
+	"\n\n" +
+	"openpgp c2ln"
+
 func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
-	encoded := "type: test-only\n" +
-		"authority-id: auth-id1" +
-		"\n\n" +
-		"openpgp c2ln"
-	a, err := asserts.Decode([]byte(encoded))
+	a, err := asserts.Decode([]byte(emptyBodyAllDefaults))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	_, ok := a.(*asserts.TestOnly)
@@ -56,34 +59,36 @@ func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
 }
 
+const emptyBody2NlNl = "type: test-only\n" +
+	"authority-id: auth-id1\n" +
+	"revision: 0\n" +
+	"body-length: 0" +
+	"\n\n" +
+	"\n\n" +
+	"openpgp c2ln\n"
+
 func (as *assertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
-	encoded := "type: test-only\n" +
-		"authority-id: auth-id1\n" +
-		"revision: 0\n" +
-		"body-length: 0" +
-		"\n\n" +
-		"\n\n" +
-		"openpgp c2ln"
-	a, err := asserts.Decode([]byte(encoded))
+	a, err := asserts.Decode([]byte(emptyBody2NlNl))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.Revision(), Equals, 0)
 	c.Check(a.Body(), IsNil)
 }
 
+const bodyAndExtraHeaders = "type: test-only\n" +
+	"authority-id: auth-id2\n" +
+	"primary-key1: key1\n" +
+	"primary-key2: key2\n" +
+	"revision: 5\n" +
+	"header1: value1\n" +
+	"header2: value2\n" +
+	"body-length: 8\n\n" +
+	"THE-BODY" +
+	"\n\n" +
+	"openpgp c2ln\n"
+
 func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
-	encoded := "type: test-only\n" +
-		"authority-id: auth-id2\n" +
-		"primary-key1: key1\n" +
-		"primary-key2: key2\n" +
-		"revision: 5\n" +
-		"header1: value1\n" +
-		"header2: value2\n" +
-		"body-length: 8\n\n" +
-		"THE-BODY" +
-		"\n\n" +
-		"openpgp c2ln"
-	a, err := asserts.Decode([]byte(encoded))
+	a, err := asserts.Decode([]byte(bodyAndExtraHeaders))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.AuthorityID(), Equals, "auth-id2")
@@ -161,6 +166,64 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, test.expectedErr)
+	}
+}
+
+func checkContent(c *C, a asserts.Assertion, encoded string) {
+	expected, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	expectedCont, _ := expected.Signature()
+
+	cont, _ := a.Signature()
+	c.Check(cont, DeepEquals, expectedCont)
+}
+
+func (as *assertsSuite) TestDecoderHappy(c *C) {
+	stream := new(bytes.Buffer)
+	stream.WriteString(emptyBody2NlNl)
+	stream.WriteString("\n")
+	stream.WriteString(bodyAndExtraHeaders)
+	stream.WriteString("\n")
+	stream.WriteString(emptyBodyAllDefaults)
+	stream.WriteString("\n\n")
+
+	decoder := asserts.NewDecoder(stream)
+	a, err := decoder.Decode()
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.TestOnlyType)
+	_, ok := a.(*asserts.TestOnly)
+	c.Check(ok, Equals, true)
+	checkContent(c, a, emptyBody2NlNl)
+
+	a, err = decoder.Decode()
+	c.Assert(err, IsNil)
+	checkContent(c, a, bodyAndExtraHeaders)
+
+	a, err = decoder.Decode()
+	c.Assert(err, IsNil)
+	checkContent(c, a, emptyBodyAllDefaults)
+
+	a, err = decoder.Decode()
+	c.Assert(err, Equals, io.EOF)
+}
+
+func (as *assertsSuite) TestDecoderHappyWithSeparatorsVariations(c *C) {
+	streams := []string{
+		bodyAndExtraHeaders,
+		emptyBody2NlNl,
+		emptyBodyAllDefaults,
+	}
+
+	for _, streamData := range streams {
+		stream := bytes.NewBufferString(streamData)
+		decoder := asserts.NewDecoder(stream)
+		a, err := decoder.Decode()
+		c.Assert(err, IsNil, Commentf("stream: %q", streamData))
+
+		checkContent(c, a, streamData)
+
+		a, err = decoder.Decode()
+		c.Assert(err, Equals, io.EOF)
 	}
 }
 

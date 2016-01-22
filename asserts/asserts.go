@@ -22,6 +22,7 @@ package asserts
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"regexp"
 	"sort"
 	"strconv"
@@ -218,11 +219,135 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 		return nil, fmt.Errorf("parsing assertion headers: %v", err)
 	}
 
-	if len(signature) == 0 {
-		return nil, fmt.Errorf("empty assertion signature")
+	return Assemble(headers, body, content, signature)
+}
+
+// Decoder parses a stream of assertions bundled by separating them with double newlines.
+type Decoder struct {
+	rd   io.Reader
+	buf  []byte
+	rest []byte
+}
+
+// NewDecoder returns a Decoder to parse the stream of assertions from the reader.
+func NewDecoder(r io.Reader) *Decoder {
+	return &Decoder{rd: r, buf: make([]byte, 1)}
+}
+
+func (dec *Decoder) readUntilNLNL() ([]byte, error) {
+	resBuf := new(bytes.Buffer)
+	resBuf.Write(dec.rest)
+	pos := 0
+	for {
+		b := resBuf.Bytes()
+		nlnlIdx := bytes.Index(b[pos:], nlnl)
+		if nlnlIdx == -1 {
+			pos = resBuf.Len() - 1
+			if pos < 0 {
+				pos = 0
+			}
+		} else {
+			nlnlIdx += pos
+			dec.rest = b[nlnlIdx+len(nlnl):]
+			return b[:nlnlIdx+len(nlnl)], nil
+		}
+
+		n, err := dec.rd.Read(dec.buf)
+		if err != nil {
+			if err != io.EOF {
+				return nil, err
+			}
+			if n == 0 {
+				break
+			}
+		}
+		resBuf.Write(dec.buf[:n])
+	}
+	return resBuf.Bytes(), io.EOF
+}
+
+func (dec *Decoder) readExactly(n int) ([]byte, error) {
+	res := make([]byte, n)
+	restSz := len(dec.rest)
+	if restSz >= n {
+		copy(res, dec.rest[:n])
+		dec.rest = dec.rest[n:]
+	} else {
+		copy(res, dec.rest)
+		dec.rest = nil
+		_, err := io.ReadFull(dec.rd, res[restSz:])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+// Decode parses the next assertion from the stream.
+func (dec *Decoder) Decode() (Assertion, error) {
+	// read the headers and the nlnl separator after them
+	headAndSep, err := dec.readUntilNLNL()
+	if err != nil {
+		if err == io.EOF && len(headAndSep) != 0 {
+			return nil, io.ErrUnexpectedEOF
+		}
+		return nil, err
 	}
 
-	return Assemble(headers, body, content, signature)
+	head := headAndSep[:len(headAndSep)-len(nlnl)]
+
+	headers, err := parseHeaders(head)
+	if err != nil {
+		return nil, fmt.Errorf("parsing assertion headers: %v", err)
+	}
+
+	length, err := checkInteger(headers, "body-length", 0)
+	if err != nil {
+		return nil, fmt.Errorf("assertion: %v", err)
+	}
+
+	var body []byte
+	var sig []byte
+	if length > 0 {
+		// read the body if length != 0
+		body, err = dec.readExactly(length)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// try to read the end of body a.k.a content/signature separator
+	endOfBody, err := dec.readUntilNLNL()
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+
+	var content []byte
+	if bytes.Equal(endOfBody, nlnl) {
+		// we got the nlnl content/signature separator, read the signature now and the assertion/assertion nlnl separation
+		sig, err = dec.readUntilNLNL()
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
+		contentBuf := bytes.NewBuffer(make([]byte, 0, len(headAndSep)+len(body)))
+		contentBuf.Write(headAndSep)
+		contentBuf.Write(body)
+		content = contentBuf.Bytes()
+	} else {
+		// we got the signature directly which is a ok format only if body length == 0
+		if length > 0 {
+			return nil, fmt.Errorf("missing content/signature separator")
+		}
+		sig = endOfBody
+		content = head
+	}
+
+	// normalize sig ending newlines
+	if bytes.HasSuffix(sig, nlnl) {
+		sig = sig[:len(sig)-1]
+	}
+
+	return Assemble(headers, body, content, sig)
 }
 
 func checkRevision(headers map[string]string) (int, error) {
@@ -262,6 +387,10 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 	revision, err := checkRevision(headers)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
+	}
+
+	if len(signature) == 0 {
+		return nil, fmt.Errorf("empty assertion signature")
 	}
 
 	assert, err := assertType.assembler(assertionBase{
