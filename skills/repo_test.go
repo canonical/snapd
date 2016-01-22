@@ -25,17 +25,29 @@ import (
 
 type RepositorySuite struct {
 	t         Type
+	skill     *Skill
 	emptyRepo *Repository
+	// Repository pre-populated with s.t
+	testRepo *Repository
 }
 
 var _ = Suite(&RepositorySuite{
 	t: &TestType{
 		TypeName: "type",
 	},
+	skill: &Skill{
+		Snap:  "snap",
+		Name:  "name",
+		Type:  "type",
+		Attrs: map[string]interface{}{"attr": "value"},
+	},
 })
 
 func (s *RepositorySuite) SetUpTest(c *C) {
 	s.emptyRepo = NewRepository()
+	s.testRepo = NewRepository()
+	err := s.testRepo.AddType(s.t)
+	c.Assert(err, IsNil)
 }
 
 // Tests for Repository.AddType()
@@ -111,4 +123,172 @@ func (s *RepositorySuite) TestAllTypes(c *C) {
 	c.Assert(err, IsNil)
 	// All types are returned. Types are ordered by Name
 	c.Assert(s.emptyRepo.AllTypes(), DeepEquals, []Type{tA, tB, tC})
+}
+
+// Tests for Repository.AddSkill()
+
+func (s *RepositorySuite) TestAddSkill(c *C) {
+	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.AllSkills(""), HasLen, 1)
+	c.Assert(s.testRepo.Skill(s.skill.Snap, s.skill.Name), DeepEquals, s.skill)
+}
+
+func (s *RepositorySuite) TestAddSkillClash(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, Equals, ErrDuplicate)
+	c.Assert(s.testRepo.AllSkills(""), HasLen, 1)
+	c.Assert(s.testRepo.Skill(s.skill.Snap, s.skill.Name), DeepEquals, s.skill)
+}
+
+func (s *RepositorySuite) TestAddSkillInvalidName(c *C) {
+	err := s.testRepo.AddSkill("snap", "bad-name-", "type", "label", nil)
+	c.Assert(err, ErrorMatches, `"bad-name-" is not a valid skill or slot name`)
+	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
+}
+
+// Tests for Repository.Skill()
+
+func (s *RepositorySuite) TestSkill(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	c.Assert(s.emptyRepo.Skill(s.skill.Snap, s.skill.Name), IsNil)
+	c.Assert(s.testRepo.Skill(s.skill.Snap, s.skill.Name), DeepEquals, s.skill)
+}
+
+func (s *RepositorySuite) TestSkillSearch(c *C) {
+	err := s.testRepo.AddSkill("x", "a", s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill("x", "b", s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill("x", "c", s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill("y", "a", s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill("y", "b", s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill("y", "c", s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	// Skill() correctly finds skills
+	c.Assert(s.testRepo.Skill("x", "a"), Not(IsNil))
+	c.Assert(s.testRepo.Skill("x", "b"), Not(IsNil))
+	c.Assert(s.testRepo.Skill("x", "c"), Not(IsNil))
+	c.Assert(s.testRepo.Skill("y", "a"), Not(IsNil))
+	c.Assert(s.testRepo.Skill("y", "b"), Not(IsNil))
+	c.Assert(s.testRepo.Skill("y", "c"), Not(IsNil))
+}
+
+// Tests for Repository.RemoveSkill()
+
+func (s *RepositorySuite) TestRemoveSkillGood(c *C) {
+	err := s.testRepo.AddSkill(s.skill.Snap, s.skill.Name, s.skill.Type, s.skill.Label, s.skill.Attrs)
+	c.Assert(err, IsNil)
+	err = s.testRepo.RemoveSkill(s.skill.Snap, s.skill.Name)
+	c.Assert(err, IsNil)
+	c.Assert(s.testRepo.AllSkills(""), HasLen, 0)
+}
+
+func (s *RepositorySuite) TestRemoveSkillNoSuchSkill(c *C) {
+	err := s.emptyRepo.RemoveSkill(s.skill.Snap, s.skill.Name)
+	c.Assert(err, Equals, ErrSkillNotFound)
+}
+
+// Tests for Repository.AllSkills()
+
+func (s *RepositorySuite) TestAllSkillsWithoutTypeName(c *C) {
+	// Note added in non-sorted order
+	err := s.testRepo.AddSkill("snap-b", "name-a", "type", "label", nil)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill("snap-b", "name-c", "type", "label", nil)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill("snap-b", "name-b", "type", "label", nil)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill("snap-a", "name-a", "type", "label", nil)
+	c.Assert(err, IsNil)
+	// The result is sorted by snap and name
+	c.Assert(s.testRepo.AllSkills(""), DeepEquals, []*Skill{
+		&Skill{
+			Snap:  "snap-a",
+			Name:  "name-a",
+			Type:  "type",
+			Label: "label",
+		},
+		&Skill{
+			Snap:  "snap-b",
+			Name:  "name-a",
+			Type:  "type",
+			Label: "label",
+		},
+		&Skill{
+			Snap:  "snap-b",
+			Name:  "name-b",
+			Type:  "type",
+			Label: "label",
+		},
+		&Skill{
+			Snap:  "snap-b",
+			Name:  "name-c",
+			Type:  "type",
+			Label: "label",
+		},
+	})
+}
+
+func (s *RepositorySuite) TestAllSkillsWithTypeName(c *C) {
+	// Add another type so that we can look for it
+	err := s.testRepo.AddType(&TestType{TypeName: "other-type"})
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill("snap", "name-a", "type", "label", nil)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill("snap", "name-b", "other-type", "label", nil)
+	c.Assert(err, IsNil)
+	// The result is sorted by snap and name
+	c.Assert(s.testRepo.AllSkills("other-type"), DeepEquals, []*Skill{
+		&Skill{
+			Snap:  "snap",
+			Name:  "name-b",
+			Type:  "other-type",
+			Label: "label",
+		},
+	})
+}
+
+// Tests for Repository.Skills()
+
+func (s *RepositorySuite) TestSkills(c *C) {
+	// Note added in non-sorted order
+	err := s.testRepo.AddSkill("snap-b", "name-a", "type", "label", nil)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill("snap-b", "name-c", "type", "label", nil)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill("snap-b", "name-b", "type", "label", nil)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSkill("snap-a", "name-a", "type", "label", nil)
+	c.Assert(err, IsNil)
+	// The result is sorted by snap and name
+	c.Assert(s.testRepo.Skills("snap-b"), DeepEquals, []*Skill{
+		&Skill{
+			Snap:  "snap-b",
+			Name:  "name-a",
+			Type:  "type",
+			Label: "label",
+		},
+		&Skill{
+			Snap:  "snap-b",
+			Name:  "name-b",
+			Type:  "type",
+			Label: "label",
+		},
+		&Skill{
+			Snap:  "snap-b",
+			Name:  "name-c",
+			Type:  "type",
+			Label: "label",
+		},
+	})
+	// The result is empty if the snap is not known
+	c.Assert(s.testRepo.Skills("snap-x"), HasLen, 0)
 }
