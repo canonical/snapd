@@ -34,13 +34,31 @@ type CoreSuite struct{}
 var _ = Suite(&CoreSuite{})
 
 func (s *CoreSuite) TestValidateName(c *C) {
-	c.Assert(ValidateName("name with space"), ErrorMatches,
-		`"name with space" is not a valid skill or slot name`)
-	c.Assert(ValidateName("name-with-trailing-dash-"), ErrorMatches,
-		`"name-with-trailing-dash-" is not a valid skill or slot name`)
-	c.Assert(ValidateName("name-with-3-dashes"), IsNil)
-	c.Assert(ValidateName("name"), IsNil)
-	c.Assert(ValidateName("a"), IsNil)
-	c.Assert(ValidateName("ab"), IsNil)
-	c.Assert(ValidateName("abc"), IsNil)
+	validNames := []string{
+		"a", "aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa",
+		"a0", "a-0", "a-0a",
+	}
+	for _, name := range validNames {
+		err := ValidateName(name)
+		c.Assert(err, IsNil)
+	}
+	invalidNames := []string{
+		// name cannot be empty
+		"",
+		// dashes alone are not a name
+		"-", "--",
+		// name should not end with a dash
+		"a-",
+		// name cannot have any spaces in it
+		"a ", " a", "a a",
+		// a number alone is not a name
+		"0", "123",
+		// identifier must be plain ASCII
+		"日本語", "한글", "ру́сский язы́к",
+	}
+	for _, name := range invalidNames {
+		err := ValidateName(name)
+		c.Assert(err, ErrorMatches, `".*" is not a valid skill or slot name`)
+	}
 }
